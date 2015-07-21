@@ -12,8 +12,11 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' 'moviefile' 'nframes' 'nTrx' 'labelMode' 'nLabelPoints' 'labelNames' ...
       'labeledpos' 'labelPtsColors' 'currFrame' 'currTarget'};
+    
+    TBLTRX_COLS = {'id' 'firstframe' 'endframe' 'nframes'};
   end
   
+  %% Movie
   properties
     movieReader = []; % MovieReader object
     minv = 0; % etc
@@ -25,10 +28,12 @@ classdef Labeler < handle
     nframes;
   end
   
+  %% Trx
   properties
-    trxFilename = ''; % full filename
-    trx = []; % trx object
-    fsizeini = 100; % zoom box size for following targets
+    trxFilename = '';         % full filename
+    trx = [];                 % trx object
+    zoomRadiusDefault = 100;  % default zoom box size in pixels
+    zoomRadiusTight = 10;     % zoom size on maximum zoom (smallest pixel val)
   end  
   properties (Dependent)
     hasTrx
@@ -39,21 +44,21 @@ classdef Labeler < handle
   
   %% Labeling
   properties
-    labelMode; % scalar LabelMode
-    nLabelPoints; % scalar integer
-    labelNames; % nLabelPoints-by-1 cellstr
-    %labels = cell(0,1); % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
-    labeledpos; % temporary labels, npts x 2 x nFrm x nTrx
-    labelsLocked; % nFrm x nTrx    
-    labelPtsColors; % nLabelPoints x 3 RGB
+    labelMode;            % scalar LabelMode
+    nLabelPoints;         % scalar integer
+    labelNames;           % nLabelPoints-by-1 cellstr
+    %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
+    labeledpos;           % temporary labels, npts x 2 x nFrm x nTrx
+    labelsLocked;         % nFrm x nTrx    
+    labelPtsColors;       % nLabelPoints x 3 RGB
     
     % Label mode 1
-    lbl1_state;       % SequentialModeState
-    lbl1_ptsH;        % nLabelPoints x 1 handle vec, handle to points
-    lbl1_ptsTxtH;     % nLabelPoints x 1 handle vec, handle to text
-    lbl1_nPtsLabeled; % scalar integer. 0..nLabelPoints, or inf.
-                      % State description; see bdfmode1
-    lbl1_iPtMove;     % scalar integer. 0..nLabelPoints, point clicked and being moved
+    lbl1_state;           % SequentialModeState
+    lbl1_ptsH;            % nLabelPoints x 1 handle vec, handle to points
+    lbl1_ptsTxtH;         % nLabelPoints x 1 handle vec, handle to text
+    lbl1_nPtsLabeled;     % scalar integer. 0..nLabelPoints, or inf.
+                          % State description; see bdfmode1
+    lbl1_iPtMove;         % scalar integer. 0..nLabelPoints, point clicked and being moved
   end 
   
   properties
@@ -223,7 +228,7 @@ classdef Labeler < handle
       % load trx and enable targeted labeling
       
       if exist('fname','var')==0
-        lasttrx = RC.load('lbl_lasttrx');
+        lasttrx = RC.getprop('lbl_lasttrx');
         [f,p] = uigetfile('*.*','Select trx file',lasttrx);
         if ~ischar(f)
           return;
@@ -237,11 +242,19 @@ classdef Labeler < handle
       tmp = load(fname);
       obj.trx = tmp.trx;
       
-      obj.fsizeini = 100;
-      obj.fsize = obj.fsizeini;
+      % obj.zoomRadiusDefault = 100;
+      %obj.fsize = obj.zoomRadiusDefault;
      
-      set(obj.gdata.text_animal,'String',sprintf('Num animals:%d',obj.nTrx)); %#UI      
-      
+      %set(obj.gdata.text_animal,'String',sprintf('Num animals:%d',obj.nTrx)); %#UI
+      tbl = obj.gdata.tblTrx;
+      colnames = obj.TBLTRX_COLS;
+      t = obj.trx;
+      t = t(:);
+      t = rmfield(t,setdiff(fieldnames(t),colnames));
+      t = orderfields(t,colnames);
+      tbldat = struct2cell(t);
+      set(tbl,'ColumnName',colnames,'Data',tbldat');
+            
       obj.setTarget(1);
       
       set(obj.gdata.text_animal,'Visible','on');      
@@ -279,11 +292,13 @@ classdef Labeler < handle
       obj.labelsLocked = false(obj.nframes,obj.nTrxOr1IfNoTrx);
     end
     
+    %XXXTRX
     function labelPosClearCurrFrame(obj)
       % Clear all labels for current frame
       obj.labeledpos(:,:,obj.currFrame,:) = nan;
     end
     
+    % XXXTRX
     function labelPosSetCurrFrame(obj)
       % Set labels for all pts for current frame
       
@@ -335,6 +350,11 @@ classdef Labeler < handle
     % "Accept" and clicking it moves to the 'accepted' state. During
     % 'accepted, its name is "Adjust" and clicking it moves to the 'adjust'
     % state.
+    %
+    % When multiple targets are present, all actions/transitions are for
+    % the current target. Acceptance writes to .labeledpos for the current
+    % target. Changing targets is like changing frames; all pre-acceptance
+    % actions are discarded.
     
     function setLabelModeSequential(obj,npts,varargin)
       % Resets label state
@@ -571,7 +591,7 @@ classdef Labeler < handle
       
       %#UI
       if obj.hasTrx
-        obj.videoZoomTarget(obj.fsizeini);
+        obj.videoCenterOnCurrTarget();
       end            
 
       %#UI
@@ -597,7 +617,7 @@ classdef Labeler < handle
       
       set(obj.gdata.image_curr,'CData',obj.currIm);
       if obj.hasTrx
-        obj.videoZoomTarget();
+        obj.videoCenterOnCurrTarget();
       end
         
       %#UI
@@ -632,50 +652,83 @@ classdef Labeler < handle
     end
     
     function setTarget(obj,iTgt)
-      validateattributes(iTgt,'numeric',{'positive' 'integer' '<=' obj.nTrx});
+      validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTrx});
       obj.currTarget = iTgt;
       set(obj.gdata.edit_num,'String',iTgt);
-      obj.videoZoomTarget();
+      obj.videoCenterOnCurrTarget();
       
       %XXX template?
     end
     
     function clearTarget(obj)
       obj.currTarget = nan;      
-      %XXX ZOOM      
+      obj.videoZoomFac(0);
     end
     
-    %#UI
-    function videoZoomTarget(obj,zoomRadius)
-      % videoZoomTarget(obj,zoomRadius)
-      % 
-      % zoomRadius: optional, scalar double. Radius of zoom box around
-      % target.
+    function [x,y] = currentTargetLoc(obj)
+      cfrm = obj.currFrame;
+      ctrx = obj.currTrx;
       
-      if exist('zoomRadius','var')==0
-        xsz = get(obj.gdata.axes_curr,'XLim');
-        xsz = xsz(2)-xsz(1);
-        ysz = get(obj.gdata.axes_curr,'YLim');
-        ysz = ysz(2)-ysz(1);
-        zoomRadius = max([xsz ysz])/2;
-      end
-      
-      assert(obj.hasTrx);
-      
-      currTrx = obj.currTrx;       
-      if obj.currFrame < currTrx.firstframe || obj.currFrame > currTrx.endframe
-        warndlg('This animal does not exist for the current frame. Frame location will not be updated');
+      if cfrm < ctrx.firstframe || cfrm > ctrx.endframe
+        warning('Labeler:target','No track for current target at frame %d.',ctrm);
+        x = nan;
+        y = nan;
       else
-        trxndx = obj.currFrame - currTrx.firstframe + 1;
-        curlocx = currTrx.x(trxndx);
-        curlocy = currTrx.y(trxndx);
-        xlim = [curlocx-zoomRadius,curlocx+zoomRadius];
-        ylim = [curlocy-zoomRadius,curlocy+zoomRadius];
-        set(obj.gdata.axes_curr,'XLim',xlim,'YLim',ylim);
-        set(obj.gdata.axes_prev,'XLim',xlim,'YLim',ylim);
-      end      
+        i = cfrm - ctrx.firstframe + 1;
+        x = ctrx.x(i);
+        y = ctrx.y(i);
+      end
+    end
+        
+    function videoResetView(obj)
+      axis(obj.gdata.axes_curr,'auto','image');
+      %axis(obj.gdata.axes_prev,'auto','image');
     end
     
+    function videoCenterOnCurrTarget(obj)
+      [x0,y0] = obj.videoCurrentCenter;
+      [x,y] = obj.currentTargetLoc();
+      
+      dx = x-x0;
+      dy = y-y0;
+      axisshift(obj.gdata.axes_curr,dx,dy);
+      %axisshift(obj.gdata.axes_prev,dx,dy);
+    end   
+   
+    function videoZoom(obj,zoomRadius)
+      % Zoom to square window over current frame center with given radius.
+      
+      [x0,y0] = obj.videoCurrentCenter();      
+      lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
+      axis(obj.gdata.axes_curr,lims);
+      axis(obj.gdata.axes_prev,lims);      
+    end
+    function videoZoomFac(obj,zoomFac)
+      % zoomFac: 0 for no-zoom; 1 for max zoom
+      
+      movInfo = obj.movieReader.info;
+      zr0 = max(movInfo.nr,movInfo.nc)/2; % no-zoom: large radius
+      zr1 = obj.zoomRadiusTight; % tight zoom: small radius
+      
+      if zr1>zr0
+        zr = zr0;
+      else
+        zr = zr0 + zoomFac*(zr1-zr0);
+      end
+      obj.videoZoom(zr);      
+    end
+    
+    function [xsz,ysz] = videoCurrentSize(obj)
+      v = axis(obj.gdata.axes_curr);
+      xsz = v(2)-v(1);
+      ysz = v(4)-v(3);
+    end
+    function [x0,y0] = videoCurrentCenter(obj)
+      v = axis(obj.gdata.axes_curr);
+      x0 = mean(v(1:2));
+      y0 = mean(v(3:4));
+    end
+        
     %#UI No really
     function updateLockedButton(obj)
       disp('UPDATELOCK TODO');

@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 20-Jul-2015 10:53:38
+% Last Modified by GUIDE v2.5 21-Jul-2015 13:47:23
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -92,6 +92,7 @@ set(handles.image_curr,'hittest','off');
 axis(handles.axes_curr,'image');
 axisoff(handles.axes_curr);
 hold(handles.axes_curr,'on');
+set(handles.axes_curr,'Color',[0 0 0]); 
 %colormap(handles.figure,fire_colormap(2^8));
 colormap(handles.figure,gray);
 
@@ -105,8 +106,7 @@ handles.posprev = [];
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
 fcn = get(handles.slider_frame,'Callback');
-handles.hslider_listener = handle.listener(handles.slider_frame,...
-  'ActionEvent',fcn);
+handles.hslider_listener = addlistener(handles.slider_frame,'Action',fcn);
 set(handles.slider_frame,'Callback','');
 
 handles.hpoly = [];
@@ -194,6 +194,27 @@ switch lObj.lbl1_state
   otherwise
     assert(false);
 end
+
+function tblTrx_CellSelectionCallback(hObject, eventdata, handles)
+% hObject    handle to tblTrx (see GCBO)
+% eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
+%	Indices: row and column indices of the cell(s) currently selecteds
+% handles    structure with handles and user data (see GUIDATA)
+lObj = handles.labelerObj;
+row = eventdata.Indices;
+row = row(1);
+lObj.setTarget(row);
+
+function sldZoom_Callback(hObject, eventdata, handles)
+% Hints: get(hObject,'Value') returns position of slider
+%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+lObj = handles.labelerObj;
+zoomFac = get(hObject,'Value');
+lObj.videoZoomFac(zoomFac);
+
+function pbResetZoom_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.videoResetView();
 
 %% menu
 function menu_file_save_Callback(hObject, eventdata, handles)
@@ -810,50 +831,6 @@ s{end+1} = '* CTRL+MINUS and CTRL+EQUAL decrease and increase the frame shown by
 s{end+1} = '* L toggles the lock state for the current frame.';
 
 msgbox(s,'Keyboard shortcuts','help','modal');
-
-
-
-function edit_num_Callback(hObject, eventdata, handles)
-% hObject    handle to edit_num (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of edit_num as text
-%        str2double(get(hObject,'String')) returns contents of edit_num as a double
-
-% --- Executes during object creation, after setting all properties.
-function edit_num_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to edit_num (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in pushbutton_num.
-function pushbutton_num_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton_num (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-animal = str2double(get(handles.edit_num,'String'));
-if animal > numel(handles.trx)
-  warndlg('This animal does not exist');
-  set(handles.edit_num,'String',num2str(handles.animal));
-  return;
-end
-if handles.f < handles.trx(animal).firstframe || handles.f > handles.trx(animal).endframe,
-  warndlg('This animal does not exist for the frame num%d',handles.f);
-  set(handles.edit_num,'String',num2str(handles.animal));
-  return;
-end  
-handles.animal = animal;
-handles = UpdateFrame(handles,hObject);
-guidata(hObject,handles); 
-
 
 % --- Executes on button press in pushbutton_template.
 function pushbutton_template_Callback(hObject, eventdata, handles)
