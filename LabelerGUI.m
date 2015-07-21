@@ -195,6 +195,12 @@ switch lObj.lbl1_state
     assert(false);
 end
 
+%% menu
+function menu_file_save_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.saveLblFile();
+
+
 % % % below is untouched % % % ---------------------
 
 
@@ -296,14 +302,6 @@ function menu_file_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 
-% --------------------------------------------------------------------
-function menu_file_save_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_file_save (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-handles = SaveState(handles);
-guidata(hObject,handles);
 
 function handles = SaveState(handles)
 

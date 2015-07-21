@@ -6,6 +6,12 @@ classdef Labeler < handle
 
   properties (Constant,Hidden)
     DT2P = 5;
+    VERSION = '0.0';
+    DEFAULT_LBLFILENAME = '%s.lbl.mat';
+    
+    SAVEPROPS = { ...
+      'VERSION' 'moviefile' 'nframes' 'nTrx' 'labelMode' 'nLabelPoints' 'labelNames' ...
+      'labeledpos' 'labelPtsColors' 'currFrame' 'currTarget'};
   end
   
   properties
@@ -15,6 +21,7 @@ classdef Labeler < handle
   end
   properties (Dependent)
     hasMovie;
+    moviefile;
     nframes;
   end
   
@@ -66,6 +73,14 @@ classdef Labeler < handle
   methods % dependent prop getters
     function v = get.hasMovie(obj)
       v = obj.movieReader.isOpen;
+    end    
+    function v = get.moviefile(obj)
+      mr = obj.movieReader;
+      if isempty(mr)
+        v = [];
+      else
+        v = mr.filename;
+      end
     end
     function v = get.nframes(obj)
       v = obj.movieReader.nframes;
@@ -92,6 +107,90 @@ classdef Labeler < handle
     end       
   end
 
+  %% Save/Load
+  methods 
+    
+    function saveLblFile(obj,fname)
+      % Saves a .lbl file. Currently defaults to same dir as moviefile.
+      
+      if exist('fname','var')==0 && obj.hasMovie
+        if ~obj.hasMovie
+          % extremely unlikely
+          error('Labeler:save','No movie loaded.');          
+        end
+      
+        movieFile = obj.movieReader.filename;
+        [moviePath,movieFile] = myfileparts(movieFile);
+        defaultFname = sprintf(obj.DEFAULT_LBLFILENAME,movieFile);
+        filterspec = fullfile(moviePath,defaultFname);
+        
+        [fname,pth] = uiputfile(filterspec,'Save label file');
+        if isequal(fname,0)
+          return;
+        end
+        fname = fullfile(pth,fname);
+      elseif exist(fname,'file')>0
+        warning('Labeler:save','Overwriting file ''%s''.',fname);
+      end
+      
+      s = obj.getSaveStruct(); %#ok<NASGU>
+      save(fname,'-mat','-struct','s');
+      
+      RC.saveprop('lastLblFile',fname);
+    end
+    
+    function s = getSaveStruct(obj)
+      s = struct();
+      s.moviefile = obj.movieReader.filename;
+      for f = obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
+        s.(f) = obj.(f);
+      end
+    end
+    
+    function loadLblFile(obj,fname)
+      % Load a lbl file, along with moviefile referenced therein
+      
+      % TODO: ask save first
+      
+      if exist('fname','var')==0
+        lastLblFile = RC.getprop('lastLblFile');
+        if isempty(lastLblFile)
+          lastLblFile = pwd;
+        end
+        filterspec = sprintf(obj.DEFAULT_LBLFILENAME,'*');
+        [fname,pth] = uigetfile(filterspec,'Load label file',lastLblFile);
+        if isequal(fname,0)
+          return;
+        end
+        fname = fullfile(pth,fname);
+      end
+      
+      assert(exist(fname,'file')>0,'File ''%s'' not found.');
+      
+      s = load(fname,'-mat');
+      if ~all(isfield(s,{'VERSION' 'labeledpos'}))
+        error('Labeler:load','Unexpected contents in Label file.');
+      end
+      
+      obj.loadMovie(s.moviefile);
+      
+      % TODO: TRX
+      
+      assert(isa(s.labelMode,'LabelMode'));
+      switch s.labelMode
+        case LabelMode.SEQUENTIAL
+          obj.setLabelModeSequential(s.nLabelPoints,...
+            'ptNames',s.labelNames,'ptColors',s.labelPtsColors);
+          obj.labeledpos = s.labeledpos;
+          obj.setFrame(s.currFrame);
+        otherwise
+          assert(false,'TODO');
+      end
+      
+    end
+    
+  end
+  
   %% Movie, Trx
   methods
     
@@ -201,6 +300,14 @@ classdef Labeler < handle
       assert(~any(isnan(y)));
       obj.labeledpos(:,:,f,ITRX) = [x y];
     end
+    
+%     function setLabelMode(obj,mode)
+%       assert(isa(mode,'LabelMode'));
+%       switch mode
+%         case LabelMode.SEQEUENTIAL
+%           obj.setLabelModeSequential();
+%       end
+%     end
 
   end
   
@@ -229,7 +336,7 @@ classdef Labeler < handle
     % 'accepted, its name is "Adjust" and clicking it moves to the 'adjust'
     % state.
     
-    function setLabelMode1(obj,npts,varargin)
+    function setLabelModeSequential(obj,npts,varargin)
       % Resets label state
       % 
       % Optional PVs:
