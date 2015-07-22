@@ -13,8 +13,12 @@ classdef Labeler < handle
       'VERSION' 'moviefile' 'nframes' 'nTrx' 'labelMode' 'nLabelPoints' 'labelNames' ...
       'labeledpos' 'labelPtsColors' 'currFrame' 'currTarget'};
     
-    TBLTRX_COLS = {'id' 'firstframe' 'endframe' 'nframes'};
+    TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
+    TBLTRX_STATIC_COLSTRX = {'id' 'labeled'};
+    
+    TBLFRAMES_COLS = {'frame' 'labeled targets'};
   end
+  
   
   %% Movie
   properties
@@ -26,6 +30,8 @@ classdef Labeler < handle
     hasMovie;
     moviefile;
     nframes;
+    movienr;
+    movienc;
   end
   
   %% Trx
@@ -34,22 +40,24 @@ classdef Labeler < handle
     trx = [];                 % trx object
     zoomRadiusDefault = 100;  % default zoom box size in pixels
     zoomRadiusTight = 10;     % zoom size on maximum zoom (smallest pixel val)
+    frm2trx = [];             % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm
   end  
   properties (Dependent)
     hasTrx
     currTrx
     nTrx
-    nTrxOr1IfNoTrx
+    nTargets          % nTrx, or 1 if no Trx
   end
   
   %% Labeling
   properties
+    %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
+    labeledpos;           % labels, npts x 2 x nFrm x nTrx
+    labelsLocked;         % nFrm x nTrx    
+
     labelMode;            % scalar LabelMode
     nLabelPoints;         % scalar integer
     labelNames;           % nLabelPoints-by-1 cellstr
-    %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
-    labeledpos;           % temporary labels, npts x 2 x nFrm x nTrx
-    labelsLocked;         % nFrm x nTrx    
     labelPtsColors;       % nLabelPoints x 3 RGB
     
     % Label mode 1
@@ -64,10 +72,10 @@ classdef Labeler < handle
   properties
     template = []; % 
     
-    hFig; % handle to figure window
-    gdata = []; % handles structure for figure
+    hFig;                 % handle to figure window
+    gdata = [];           % handles structure for figure
 
-    currFrame = nan; % current frame
+    currFrame = 1;      % current frame
     currIm = [];
     prevFrame = [];
     prevIm = [];    
@@ -87,6 +95,12 @@ classdef Labeler < handle
         v = mr.filename;
       end
     end
+    function v = get.movienr(obj)
+      v = obj.movieReader.info.nr;
+    end
+    function v = get.movienc(obj)
+      v = obj.movieReader.info.nc;
+    end    
     function v = get.nframes(obj)
       v = obj.movieReader.nframes;
     end      
@@ -103,13 +117,23 @@ classdef Labeler < handle
     function v = get.nTrx(obj)
       v = numel(obj.trx);
     end
-    function v = get.nTrxOr1IfNoTrx(obj)
+    function v = get.nTargets(obj)
       if obj.hasTrx
         v = obj.nTrx;
       else
         v = 1;
       end
     end       
+  end
+  
+  methods % prop access
+    function set.labeledpos(obj,v)
+      obj.labeledpos = v;
+      if obj.hasTrx
+        obj.updateTrxTable();
+      end
+      obj.updateFrameTable();
+    end
   end
 
   %% Save/Load
@@ -186,7 +210,7 @@ classdef Labeler < handle
         case LabelMode.SEQUENTIAL
           obj.setLabelModeSequential(s.nLabelPoints,...
             'ptNames',s.labelNames,'ptColors',s.labelPtsColors);
-          obj.labeledpos = s.labeledpos;
+          obj.labeledpos = s.labeledpos; % TODO: TRX
           obj.setFrame(s.currFrame);
         otherwise
           assert(false,'TODO');
@@ -206,124 +230,89 @@ classdef Labeler < handle
       obj.movieReader = MovieReader;
     end
     
-    function loadMovie(obj,fname)
-      if exist('fname','var')==0
+    function loadMovie(obj,movfile,trxfile)
+      % movfile: optional, movie name. If not specified, user will be
+      % prompted.
+      % trxname: optional, trx filename. If not specified, no trx file will
+      % be used. To be prompted to specify a trxfile, specify trxname as [].
+      
+      if exist('movfile','var')==0 || isempty(movfile)
         lastmov = RC.getprop('lbl_lastmovie');            
-        [f,p] = uigetfile('*.*','Select video to label',lastmov);
-        if ~ischar(f)
+        [movfile,movpath] = uigetfile('*.*','Select video to label',lastmov);
+        if ~ischar(movfile)
           return;
         end
-        fname = fullfile(p,f);
+        movfile = fullfile(movpath,movfile);
       end
-      
-      assert(exist(fname,'file')>0,'File ''%s'' not found.');
-      
-      obj.movieReader.open(fname);
-      RC.saveprop('lbl_lastmovie',fname);
-      
-      obj.newMovie();
-    end
-    
-    function loadTrx(obj,fname)
-      % load trx and enable targeted labeling
-      
-      if exist('fname','var')==0
-        lasttrx = RC.getprop('lbl_lasttrx');
-        [f,p] = uigetfile('*.*','Select trx file',lasttrx);
-        if ~ischar(f)
-          return;
-        end
-        fname = fullfile(p,f);
-      end
-      
-      assert(exist(fname,'file')>0,'File ''%s'' not found.');
-      
-      obj.trxFilename = fname;
-      tmp = load(fname);
-      obj.trx = tmp.trx;
-      
-      % obj.zoomRadiusDefault = 100;
-      %obj.fsize = obj.zoomRadiusDefault;
-     
-      %set(obj.gdata.text_animal,'String',sprintf('Num animals:%d',obj.nTrx)); %#UI
-      tbl = obj.gdata.tblTrx;
-      colnames = obj.TBLTRX_COLS;
-      t = obj.trx;
-      t = t(:);
-      t = rmfield(t,setdiff(fieldnames(t),colnames));
-      t = orderfields(t,colnames);
-      tbldat = struct2cell(t);
-      set(tbl,'ColumnName',colnames,'Data',tbldat');
-            
-      obj.setTarget(1);
-      
-      set(obj.gdata.text_animal,'Visible','on');      
-      set(obj.gdata.edit_num,'Visible','on');
-      set(obj.gdata.pushbutton_num,'Visible','on');
-      set(obj.gdata.pushbutton_template,'Visible','on');
-    end
-    
-    function clearTrx(obj)
-      % clear trx and disable targeted labeling
-      
-      obj.trxFilename = '';
-      obj.trx = [];
+      assert(exist(movfile,'file')>0,'File ''%s'' not found.');
 
-      obj.clearTarget();
+      tfTrx = exist('trxfile','var') > 0;
+      if tfTrx
+        if isempty(trxfile)
+          [trxfile,trxpath] = uigetfile('*.mat','Select trx file',movpath);
+          if ~ischar(trxfile)
+            % user canceled; interpret this as "there is no trx file"
+            tfTrx = false;
+          else
+            trxfile = fullfile(trxpath,trxfile);
+          end
+        end
+        if tfTrx
+          assert(exist(trxfile,'file')>0,'Trx file ''%s'' not found.');
+        end
+      else
+        trxfile = [];
+      end
       
-      %#UI 
-      set(obj.gdata.text_animal,'Visible','off');      
-      set(obj.gdata.edit_num,'Visible','off');
-      set(obj.gdata.pushbutton_num,'Visible','off');
-      set(obj.gdata.pushbutton_template,'Visible','off');
-    end
-    
-    function loadTemplate(obj,fname)
+      obj.movieReader.open(movfile);
+      RC.saveprop('lbl_lastmovie',movfile);
       
+      obj.trxFilename = trxfile;
+
+      obj.newMovieAndTrx();
     end
-    
+                
   end
   
   %% Labeling
   methods
       
-    function initLabelPosLocked(obj)
-      obj.labeledpos = nan(obj.nLabelPoints,2,obj.nframes,obj.nTrxOr1IfNoTrx); 
-      obj.labelsLocked = false(obj.nframes,obj.nTrxOr1IfNoTrx);
+    function labelPosInitWithLocked(obj)
+      obj.labeledpos = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
+      obj.labelsLocked = false(obj.nframes,obj.nTargets);
     end
     
-    %XXXTRX
-    function labelPosClearCurrFrame(obj)
-      % Clear all labels for current frame
-      obj.labeledpos(:,:,obj.currFrame,:) = nan;
+    function labelPosClear(obj)
+      % Clear all labels for current frame, current target
+      obj.labeledpos(:,:,obj.currFrame,obj.currTarget) = nan;
     end
     
-    % XXXTRX
-    function labelPosSetCurrFrame(obj)
-      % Set labels for all pts for current frame
+    function labelPosSetMode1(obj)
+      % Set labelpos from lbl1_ptsH for current frame, current target
       
-      assert(obj.nTrxOr1IfNoTrx==1);
       assert(obj.labelMode==LabelMode.SEQUENTIAL);
       
-      f = obj.currFrame;
-      ITRX = 1;
+      cfrm = obj.currFrame;
+      ctrx = obj.currTarget;
       x = get(obj.lbl1_ptsH,'XData');
       y = get(obj.lbl1_ptsH,'YData');
       x = cell2mat(x);
       y = cell2mat(y);
       assert(~any(isnan(x)));
       assert(~any(isnan(y)));
-      obj.labeledpos(:,:,f,ITRX) = [x y];
+      obj.labeledpos(:,:,cfrm,ctrx) = [x y];
     end
     
-%     function setLabelMode(obj,mode)
-%       assert(isa(mode,'LabelMode'));
-%       switch mode
-%         case LabelMode.SEQEUENTIAL
-%           obj.setLabelModeSequential();
-%       end
-%     end
-
+    function labelsUpdate(obj)
+      % React to new .currFrame or .currTarget
+      if ~isempty(obj.labelMode)
+        switch obj.labelMode
+          case LabelMode.SEQUENTIAL
+            obj.labelMode1NewFrameOrTarget();
+        end
+      end
+    end
+    
   end
   
   methods % Label mode 1 (Sequential)
@@ -356,6 +345,14 @@ classdef Labeler < handle
     % target. Changing targets is like changing frames; all pre-acceptance
     % actions are discarded.
     
+    % View according to state
+    % .labeledpos is final state for accepted labels. During labeling, the
+    % various lbl1_* state is used to keep track of tenative labels. The
+    % only way to write to .labeledpos is via one fo the labeledpos* 
+    % methods, or by loading a .lbl file. 
+    % Writing from lbl1_* state to .labelpos occurs via labelMode1Accept.
+    % Writing from .labelpos to lbl1_* state occurs via labelMode1NewFrameOrTarget.
+    
     function setLabelModeSequential(obj,npts,varargin)
       % Resets label state
       % 
@@ -376,56 +373,56 @@ classdef Labeler < handle
       obj.labelNames = ptNames(:);
       obj.labelPtsColors = ptColors;
       
-      obj.initLabelPosLocked();
+      obj.labelPosInitWithLocked();
 
       deleteHandles(obj.lbl1_ptsH);
       deleteHandles(obj.lbl1_ptsTxtH);
       obj.lbl1_ptsH = nan(obj.nLabelPoints,1);
       obj.lbl1_ptsTxtH = nan(obj.nLabelPoints,1);
       ax = obj.gdata.axes_curr;
-      obj.lbl1_ptsH = arrayfun(@(i)plot(ax,nan,nan,'w+','MarkerSize',20,...
-                                       'LineWidth',3,'Color',ptColors(i,:),'UserData',i),(1:npts)');
-      obj.lbl1_ptsTxtH = arrayfun(@(i)text(nan,nan,num2str(i),'Parent',ax,...
-                                           'Color',ptColors(i,:),'Hittest','off'),(1:npts)');
+      for i = 1:obj.nLabelPoints
+        obj.lbl1_ptsH(i) = plot(ax,nan,nan,'w+','MarkerSize',20,...
+                                        'LineWidth',3,'Color',ptColors(i,:),'UserData',i);
+        obj.lbl1_ptsTxtH(i) = text(nan,nan,num2str(i),'Parent',ax,...
+                                          'Color',ptColors(i,:),'Hittest','off');
+      end
             
       obj.labelMode1Label();
       
       gdat = obj.gdata;
       set(gdat.pbClear,'Enable','on');
+      
+      set(gdat.axes_curr,'ButtonDownFcn',@(s,e)obj.bdfMode1Ax(s,e));
+      arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.bdfMode1Pt(s,e)),obj.lbl1_ptsH);
+      set(gdat.figure,'WindowButtonMotionFcn',@(s,e)obj.wbmfMode1(s,e));
+      set(gdat.figure,'WindowButtonUpFcn',@(s,e)obj.wbufMode1(s,e));      
     end    
     
     function labelMode1Label(obj)
-      % Enter Label state and clear all mode1 label state for this frame
+      % Enter Label state and clear all mode1 label state for current
+      % frame/target
       
-      set(obj.gdata.figure,'WindowButtonMotionFcn',[],'WindowButtonUpFcn',[]);
-      set(obj.gdata.axes_curr,'ButtonDownFcn',@(s,e)obj.bdfMode1Ax(s,e));
       set(obj.gdata.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
         'String','','Enable','off','Value',0);
       
       obj.lbl1_nPtsLabeled = 0;
-      arrayfun(@(x)set(x,'Xdata',nan,'ydata',nan,'hittest','off'),obj.lbl1_ptsH);
+      arrayfun(@(x)set(x,'Xdata',nan,'ydata',nan),obj.lbl1_ptsH);
       arrayfun(@(x)set(x,'Position',[nan nan 1],'hittest','off'),obj.lbl1_ptsTxtH);
       obj.lbl1_iPtMove = nan;
-      obj.labelPosClearCurrFrame();
+      obj.labelPosClear();
       
       obj.lbl1_state = SequentialModeState.LABEL;      
     end
        
     function labelMode1Adjust(obj)
-      % Enter adjustment state (for current frame)
+      % Enter adjustment state for current frame/target
       
       assert(obj.lbl1_nPtsLabeled==obj.nLabelPoints);
       %assert(all(ishandle(obj.lbl1_ptsH)));
-      
-      arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.bdfMode1Pt(s,e)),obj.lbl1_ptsH);
-      gdat = obj.gdata;
-      set(gdat.axes_curr,'ButtonDownFcn',[]);
-      set(gdat.figure,'WindowButtonMotionFcn',@(s,e)obj.wbmfMode1(s,e));
-      set(gdat.figure,'WindowButtonUpFcn',@(s,e)obj.wbufMode1(s,e));
             
       obj.lbl1_iPtMove = nan;
       
-      obj.labelPosClearCurrFrame();
+      %obj.labelPosClear();
       set(obj.gdata.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
         'Value',0,'Enable','on');
       obj.lbl1_state = SequentialModeState.ADJUST;
@@ -433,31 +430,29 @@ classdef Labeler < handle
     
     function labelMode1Accept(obj,tfSetLabelPos)
       % Enter accepted state (for current frame)
+      
       if tfSetLabelPos
-        obj.labelPosSetCurrFrame();
+        obj.labelPosSetMode1();
       end
       set(obj.gdata.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
         'Value',1,'Enable','on');
       obj.lbl1_state = SequentialModeState.ACCEPTED;
     end    
        
-    function labelMode1NewFrame(obj,iFrm)
-      % React to new frame. Set mode1 label state according to labelpos. If
-      % a frame is not labeled, then start fresh in Label state. Otherwise,
-      % start in Accepted state with saved labels.
+    function labelMode1NewFrameOrTarget(obj)
+      % React to new frame or target. Set mode1 label state (.lbl1_*) 
+      % according to labelpos. If a frame is not labeled, then start fresh 
+      % in Label state. Otherwise, start in Accepted state with saved labels.
       
-      if exist('iFrm','var')==0
-        iFrm = obj.currFrame;
-      end
-      assert(obj.nTrxOr1IfNoTrx==1);
-      ITRX = 1;
+      iFrm = obj.currFrame;
+      iTrx = obj.currTarget;
       
-      [tflabeled,lpos] = obj.labelMode1FrameIsLabeled(iFrm,ITRX);
+      [tflabeled,lpos] = obj.labelMode1FrameIsLabeled(iFrm,iTrx);
       if tflabeled
         obj.lbl1_nPtsLabeled = obj.nLabelPoints;
         Labeler.assignCoords2Pts(lpos,obj.lbl1_ptsH,obj.lbl1_ptsTxtH);
         obj.lbl1_iPtMove = nan;
-        obj.labelMode1Accept(false);
+        obj.labelMode1Accept(false); % I guess could just call with true arg
       else
         obj.labelMode1Label();
       end
@@ -471,34 +466,36 @@ classdef Labeler < handle
     end
     
     function bdfMode1Ax(obj,~,~)
-      assert(obj.lbl1_state==SequentialModeState.LABEL);
-
-      ax = obj.gdata.axes_curr;      
-
-      nlbled = obj.lbl1_nPtsLabeled;
-      if isinf(nlbled)
-        warning('Labeler:mode1','All %d points labeled for this frame.',obj.nLabelPoints);
-      elseif nlbled==obj.nLabelPoints
-        assert(false); % adjustment mode only
-      else % 0..nLabelPoints-1
-        tmp = get(ax,'CurrentPoint');
-        x = tmp(1,1);
-        y = tmp(1,2);
-        
-        i = nlbled+1;
-        set(obj.lbl1_ptsH(i),'XData',x,'YData',y);
-        set(obj.lbl1_ptsTxtH(i),'Position',[x+obj.DT2P y+obj.DT2P]);        
-        obj.lbl1_nPtsLabeled = i;
-        
-        if i==obj.nLabelPoints
-          obj.labelMode1Adjust();
-        end
+      switch obj.lbl1_state
+        case SequentialModeState.LABEL
+          ax = obj.gdata.axes_curr;
+          
+          nlbled = obj.lbl1_nPtsLabeled;
+          if nlbled>=obj.nLabelPoints
+            assert(false); % adjustment mode only
+          else % 0..nLabelPoints-1
+            tmp = get(ax,'CurrentPoint');
+            x = tmp(1,1);
+            y = tmp(1,2);
+            
+            i = nlbled+1;
+            set(obj.lbl1_ptsH(i),'XData',x,'YData',y);
+            set(obj.lbl1_ptsTxtH(i),'Position',[x+obj.DT2P y+obj.DT2P]);
+            obj.lbl1_nPtsLabeled = i;
+            
+            if i==obj.nLabelPoints
+              obj.labelMode1Adjust();
+            end
+          end
       end
     end
     
     function bdfMode1Pt(obj,src,~)
       switch obj.lbl1_state
         case SequentialModeState.ADJUST
+          obj.lbl1_iPtMove = get(src,'UserData');
+        case SequentialModeState.ACCEPTED
+          obj.labelMode1Adjust();
           obj.lbl1_iPtMove = get(src,'UserData');
       end
     end
@@ -544,59 +541,65 @@ classdef Labeler < handle
   
   methods (Hidden)
     
-    % just put this in loadMovie?
-    function newMovie(obj)
+    function newMovieAndTrx(obj)
+      % .movieReader and .trxfilename set
+
       movRdr = obj.movieReader;
-      %movRdr.open();      
       nframes = movRdr.nframes;
 
-      obj.initLabelPosLocked();
-      
+      tfTrx = ~isempty(obj.trxFilename);
+      if tfTrx
+        tmp = load(obj.trxFilename);
+        obj.trx = tmp.trx;
+      end
+            
+      f2t = false(obj.nframes,obj.nTrx);
+      for i = 1:obj.nTrx
+        frm0 = obj.trx(i).firstframe;
+        frm1 = obj.trx(i).endframe;        
+        f2t(frm0:frm1,i) = true;
+      end
+      obj.frm2trx = f2t;
+            
       if obj.hasTrx
         obj.currFrame = min([obj.trx.firstframe]);
       else
         obj.currFrame = 1;
       end
-      obj.currTarget = 1;
-      
-      [obj.currIm,~] = movRdr.readframe(obj.currFrame);
-      obj.prevIm = [];
-%       handles.f_im = handles.f;
-%       handles.imprev = handles.imcurr;
-%       handles.fprev_im = handles.f;
-      
-      %#UI
+                 
+      im1 = movRdr.readframe(obj.currFrame);
       obj.minv = 0;
       obj.maxv = inf;
       %obj.minv = max(obj.minv,0);
       if isfield(movRdr.info,'bitdepth')
         obj.maxv = min(obj.maxv,2^movRdr.info.bitdepth-1);
-      elseif isa(obj.currIm,'uint16')
+      elseif isa(im1,'uint16')
         obj.maxv = min(2^16 - 1,obj.maxv);
-      elseif isa(obj.currIm,'uint8')
+      elseif isa(im1,'uint8')
         obj.maxv = min(obj.maxv,2^8 - 1);
       else
-        obj.maxv = min(obj.maxv,2^(ceil(log2(max(obj.currIm(:)))/8)*8));
+        obj.maxv = min(obj.maxv,2^(ceil(log2(max(im1(:)))/8)*8));
       end
       
       %#UI
       set(obj.gdata.axes_curr,'CLim',[obj.minv,obj.maxv],...
-        'XLim',[.5,size(obj.currIm,2)+.5],...
-        'YLim',[.5,size(obj.currIm,1)+.5]);
+        'XLim',[.5,size(im1,2)+.5],...
+        'YLim',[.5,size(im1,1)+.5]);
       set(obj.gdata.axes_prev,'CLim',[obj.minv,obj.maxv],...
-        'XLim',[.5,size(obj.currIm,2)+.5],...
-        'YLim',[.5,size(obj.currIm,1)+.5]);
+        'XLim',[.5,size(im1,2)+.5],...
+        'YLim',[.5,size(im1,1)+.5]);
       zoom(obj.gdata.axes_curr,'reset');
       zoom(obj.gdata.axes_prev,'reset');
       
       %#UI
-      if obj.hasTrx
-        obj.videoCenterOnCurrTarget();
-      end            
-
-      %#UI
       sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
-      set(obj.gdata.slider_frame,'Value',0,'SliderStep',sliderstep);      
+      set(obj.gdata.slider_frame,'Value',0,'SliderStep',sliderstep);
+      
+      obj.labelPosInitWithLocked();
+
+      obj.currFrame = 2; % to force update in setFrame
+      obj.setTarget(1);
+      obj.setFrame(1);
     end
     
     function setFrame(obj,frm)
@@ -624,11 +627,10 @@ classdef Labeler < handle
       set(obj.gdata.slider_frame,'Value',(frm-1)/(obj.nframes-1));
       set(obj.gdata.edit_frame,'String',num2str(frm));
 
-      if ~isempty(obj.labelMode)
-        switch obj.labelMode
-          case LabelMode.SEQUENTIAL
-            obj.labelMode1NewFrame();
-        end
+      obj.labelsUpdate();
+      
+      if obj.hasTrx
+        obj.updateTrxTable();
       end
       
       % obj.showPreviousLabels      
@@ -652,31 +654,36 @@ classdef Labeler < handle
     end
     
     function setTarget(obj,iTgt)
-      validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTrx});
+      validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
       obj.currTarget = iTgt;
-      set(obj.gdata.edit_num,'String',iTgt);
       obj.videoCenterOnCurrTarget();
+      obj.labelsUpdate();
       
       %XXX template?
     end
     
-    function clearTarget(obj)
-      obj.currTarget = nan;      
-      obj.videoZoomFac(0);
-    end
+%     function clearTarget(obj)
+%       obj.currTarget = nan;      
+%       obj.videoZoomFac(0);
+%     end
     
     function [x,y] = currentTargetLoc(obj)
-      cfrm = obj.currFrame;
-      ctrx = obj.currTrx;
-      
-      if cfrm < ctrx.firstframe || cfrm > ctrx.endframe
-        warning('Labeler:target','No track for current target at frame %d.',ctrm);
-        x = nan;
-        y = nan;
+      if obj.hasTrx
+        cfrm = obj.currFrame;
+        ctrx = obj.currTrx;
+
+        if cfrm < ctrx.firstframe || cfrm > ctrx.endframe
+          warning('Labeler:target','No track for current target at frame %d.',cfrm);
+          x = nan;
+          y = nan;
+        else
+          i = cfrm - ctrx.firstframe + 1;
+          x = ctrx.x(i);
+          y = ctrx.y(i);
+        end
       else
-        i = cfrm - ctrx.firstframe + 1;
-        x = ctrx.x(i);
-        y = ctrx.y(i);
+        x = round(obj.movienc/2);
+        y = round(obj.movienr/2);
       end
     end
         
@@ -728,7 +735,57 @@ classdef Labeler < handle
       x0 = mean(v(1:2));
       y0 = mean(v(3:4));
     end
-        
+            
+    function updateTrxTable(obj)
+      % based on .currFrame, .labeledpos
+      
+      colnames = obj.TBLTRX_STATIC_COLSTRX(1:end-1);
+
+      tfLive = obj.frm2trx(obj.currFrame,:);
+      trxLive = obj.trx(tfLive);
+      trxLive = trxLive(:);
+      trxLive = rmfield(trxLive,setdiff(fieldnames(trxLive),colnames));
+      trxLive = orderfields(trxLive,colnames);
+      tbldat = struct2cell(trxLive)';
+      
+      iTrxLive = find(tfLive);
+      tfLbled = false(size(iTrxLive(:)));
+      lpos = obj.labeledpos;
+      cfrm = obj.currFrame;
+      for iTrx = iTrxLive(:)'
+        tfLbled(iTrx) = any(lpos(:,1,cfrm,iTrx));
+      end
+      tbldat(:,end+1) = num2cell(tfLbled);
+      
+      tbl = obj.gdata.tblTrx;
+      set(tbl,'Data',tbldat);
+    end
+    
+    function updateFrameTable(obj)
+      tbl = obj.gdata.tblFrames;
+      dat = get(tbl,'Data');
+      frames = cell2mat(dat(:,1));
+      
+      cfrm = obj.currFrame;
+      lpos = obj.labeledpos;
+      tfLbled = false(obj.nTargets,1);
+      for iTrx = 1:obj.nTargets
+        tfLbled(iTrx) = any(lpos(:,1,cfrm,iTrx));
+      end
+      nLbled = nnz(tfLbled);
+      
+      i = frames==cfrm;
+      if any(i)
+        assert(nnz(i)==1);
+        dat{i,2} = nLbled;
+      else
+        dat(end+1,:) = {cfrm nLbled};
+        [~,idx] = sort(cell2mat(dat(:,1)));
+        dat = dat(idx,:);
+      end
+      set(tbl,'Data',dat);
+    end
+   
     %#UI No really
     function updateLockedButton(obj)
       disp('UPDATELOCK TODO');

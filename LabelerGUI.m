@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 21-Jul-2015 13:47:23
+% Last Modified by GUIDE v2.5 22-Jul-2015 08:45:53
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -106,7 +106,7 @@ handles.posprev = [];
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
 fcn = get(handles.slider_frame,'Callback');
-handles.hslider_listener = addlistener(handles.slider_frame,'Action',fcn);
+handles.hslider_listener = addlistener(handles.slider_frame,'ContinuousValueChange',fcn);
 set(handles.slider_frame,'Callback','');
 
 handles.hpoly = [];
@@ -118,6 +118,12 @@ handles.f = 1;
 handles.maxv = inf;
 handles.minv = 0;
 set(handles.output,'Toolbar','figure');
+
+colnames = handles.labelerObj.TBLTRX_STATIC_COLSTBL;
+set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));      
+      
+colnames = handles.labelerObj.TBLFRAMES_COLS;
+set(handles.tblFrames,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
 
 %handles = InitializeVideo(handles);
 
@@ -160,26 +166,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
   set(hObject,'BackgroundColor','white');
 end
 
-function menu_file_openmovie_Callback(hObject,~,handles)
-lObj = handles.labelerObj;
-if lObj.hasMovie
-  res = questdlg('Save before closing current video?');
-  if strcmpi(res,'Cancel'),
-    return;
-  elseif strcmpi(res,'Yes')
-    assert(false,'XXX TODO');
-    handles = SaveState(handles);
-  end
-%   if isfield(handles,'fid') && isnumeric(handles.fid) && handles.fid > 0,
-%     fclose(handles.fid);
-%   end
-end
-
-lObj.loadMovie();
-lObj.setFrame(1);
-% XXX add me somewhere
-% handles.templatecolors = jet(handles.npoints);
-
 function pbClear_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.labelMode1Label();
@@ -202,8 +188,23 @@ function tblTrx_CellSelectionCallback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 lObj = handles.labelerObj;
 row = eventdata.Indices;
-row = row(1);
-lObj.setTarget(row);
+if ~isempty(row)
+  row = row(1);
+  lObj.setTarget(row);
+end
+
+function tblFrames_CellSelectionCallback(hObject, eventdata, handles)
+% hObject    handle to tblFrames (see GCBO)
+% eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
+%	Indices: row and column indices of the cell(s) currently selecteds
+% handles    structure with handles and user data (see GUIDATA)
+lObj = handles.labelerObj;
+row = eventdata.Indices;
+if ~isempty(row)
+  row = row(1);
+  dat = get(hObject,'Data');
+  lObj.setFrame(dat{row,1});
+end
 
 function sldZoom_Callback(hObject, eventdata, handles)
 % Hints: get(hObject,'Value') returns position of slider
@@ -220,6 +221,35 @@ lObj.videoResetView();
 function menu_file_save_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.saveLblFile();
+
+function tfcontinue = hlpSave(labelerObj)
+tfcontinue = true;
+if labelerObj.hasMovie
+  res = questdlg('Save before closing current video?');
+  switch res
+    case 'No'
+      % none
+    case 'Cancel'
+      tfcontinue = false;
+    case 'Yes'
+      assert(false,'XXX TODO');
+      handles = SaveState(handles);
+  end
+end
+
+function menu_file_openmovie_Callback(hObject,~,handles)
+lObj = handles.labelerObj;
+if hlpSave(lObj)
+  lObj.loadMovie();
+  % XXX add me somewhere
+  % handles.templatecolors = jet(handles.npoints);
+end
+
+function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+if hlpSave(lObj)
+  lObj.loadMovie([],[]);
+end
 
 
 % % % below is untouched % % % ---------------------
