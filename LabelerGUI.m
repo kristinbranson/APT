@@ -22,10 +22,10 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 22-Jul-2015 08:45:53
+% Last Modified by GUIDE v2.5 22-Jul-2015 12:56:07
 
 % Begin initialization code - DO NOT EDIT
-gui_Singleton = 0;
+gui_Singleton = 1;
 gui_State = struct('gui_Name',       mfilename, ...
                    'gui_Singleton',  gui_Singleton, ...
                    'gui_OpeningFcn', @LabelerGUI_OpeningFcn, ...
@@ -43,8 +43,6 @@ else
 end
 % End initialization code - DO NOT EDIT
 
-% --- Executes just before LarvaLabeler is made visible.
-% 
 function LabelerGUI_OpeningFcn(hObject, eventdata, handles, varargin)
 
 handles.output = hObject;
@@ -95,6 +93,9 @@ guidata(hObject, handles);
 
 % UIWAIT makes LarvaLabeler wait for user response (see UIRESUME)
 % uiwait(handles.figure);
+
+function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) 
+varargout{1} = handles.output;
 
 function slider_frame_Callback(hObject,~,handles)
 % Hints: get(hObject,'Value') returns position of slider
@@ -184,6 +185,15 @@ lObj.videoResetView();
 function menu_file_save_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.saveLblFile();
+
+function menu_file_load_Callback(hObject, eventdata, handles)
+res = questdlg('Save before closing current video?');
+if strcmpi(res,'Cancel')
+  return;
+elseif strcmpi(res,'Yes')
+  assert(false,'TODO');
+end
+handles.labelerObj.loadLblFile();
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
@@ -295,28 +305,6 @@ function handles = InitializeVideo(handles)
 function handles = UpdateFrame(handles)
 handles.labelerObj.setFrame(handles.f);
 
-% --- Outputs from this function are returned to the command line.
-function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) 
-% varargout  cell array for returning output args (see VARARGOUT);
-% hObject    handle to figure
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Get default command line output from handles structure
-varargout{1} = handles.output;
-
-
-
-
-
-% --------------------------------------------------------------------
-function menu_file_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_file (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-
-
 function handles = SaveState(handles)
 
 global LARVALABELERSAVEFILE;
@@ -417,7 +405,6 @@ set(handles.axes_curr,'CLim',[handles.minv,handles.maxv]);
 delete(handles.adjustbrightness_listener);
 guidata(hObject,handles);
 
-
 % --------------------------------------------------------------------
 function menu_setup_adjustbrightness_Callback(hObject, eventdata, handles)
 % hObject    handle to menu_setup_adjustbrightness (see GCBO)
@@ -429,8 +416,6 @@ hcontrast = imcontrast_kb(handles.axes_curr);
 handles.adjustbrightness_listener = addlistener(hcontrast,'ObjectBeingDestroyed',@(x,y) CloseImContrast(hObject));
 guidata(hObject,handles);
 
-
-
 % --- Executes when user attempts to close figure.
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 % hObject    handle to figure (see GCBO)
@@ -439,7 +424,6 @@ function figure_CloseRequestFcn(hObject, eventdata, handles)
 
 % Hint: delete(hObject) closes the figure
 CloseGUI(handles);
-
 
 function CloseGUI(handles)
 
@@ -451,72 +435,6 @@ elseif strcmpi(res,'Yes'),
 end
 
 delete(handles.figure);
-
-function handles = LoadLabels(handles,filename)
-
-global LARVALABELERSAVEFILE;
-
-if nargin < 2 || isempty(filename),
-  
-  if isempty(LARVALABELERSAVEFILE),
-    defaultfile = '';
-  else
-    defaultfile = LARVALABELERSAVEFILE;
-  end
-  [f,p] = uigetfile('*.mat','Load file...',defaultfile);
-  if ~ischar(f),
-    return;
-  end
-  filename = fullfile(p,f);
-end
-
-if ~exist(filename,'file'),
-  warndlg(sprintf('File %s does not exist',filename),'File does not exist','modal');
-  return;
-end
-
-LARVALABELERSAVEFILE = filename;
-
-handles.savefile = filename;
-savedata = load(handles.savefile);
-fns = fieldnames(savedata);
-olddata = struct;
-for i = 1:numel(fns),
-  fn = fns{i};
-  olddata.(fn) = handles.(fn);
-  handles.(fn) = savedata.(fn);
-end
-
-if isfield(handles,'fid') && isnumeric(handles.fid) && handles.fid > 0,
-  fclose(handles.fid);
-end
-handles = InitializeVideo(handles);
-handles.npoints = size(handles.template,1);
-handles.f_im = nan;
-handles.fprev_im = nan;
-handles.templatecolors = jet(handles.npoints)*.5+.5;
-
-handles = UpdateFrame(handles);
-
-% --------------------------------------------------------------------
-function menu_file_load_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_file_load (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-res = questdlg('Save before closing current video?');
-if strcmpi(res,'Cancel'),
-  return;
-elseif strcmpi(res,'Yes'),
-  handles = SaveState(handles);
-end
-
-handles = LoadLabels(handles);
-
-guidata(hObject,handles);
-
-function moviefile = SelectVideo()
-% loadMovie
 
 % --- Executes on key press with focus on figure and none of its controls.
 function figure_KeyPressFcn(hObject, eventdata, handles)
@@ -734,7 +652,6 @@ switch eventdata.Key,
 
 end
 
-
 % --- Executes on mouse motion over figure - except title and menu.
 function figure_WindowButtonMotionFcn(hObject, eventdata, handles)
 % hObject    handle to figure (see GCBO)
@@ -754,7 +671,6 @@ if isnumeric(handles.motionobj),
   set(handles.htext(handles.motionobj),'Position',pos);
   UpdateLabels(pos,hObject,handles.motionobj,handles);
 end
-
 
 % --- Executes on mouse press over figure background, over a disabled or
 % --- inactive control, or over an axes background.

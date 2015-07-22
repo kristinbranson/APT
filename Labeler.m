@@ -178,10 +178,8 @@ classdef Labeler < handle
     end
     
     function loadLblFile(obj,fname)
-      % Load a lbl file, along with moviefile referenced therein
-      
-      % TODO: ask save first
-      
+      % Load a lbl file, along with moviefile and trxfile referenced therein
+            
       if exist('fname','var')==0
         lastLblFile = RC.getprop('lastLblFile');
         if isempty(lastLblFile)
@@ -202,10 +200,12 @@ classdef Labeler < handle
         error('Labeler:load','Unexpected contents in Label file.');
       end
       
-      obj.loadMovie(s.moviefile);
-      
-      % TODO: TRX
-      
+      if isempty(s.trxFilename)
+        obj.loadMovie(s.moviefile);
+      else
+        obj.loadMovie(s.moviefile,s.trxFilename);
+      end
+            
       assert(isa(s.labelMode,'LabelMode'));
       switch s.labelMode
         case LabelMode.SEQUENTIAL
