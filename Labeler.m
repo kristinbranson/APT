@@ -228,10 +228,14 @@ classdef Labeler < handle
   methods
     
     function obj = Labeler(varargin)
+      npts = varargin{1};
+      
       obj.hFig = LabelerGUI(obj);
       obj.gdata = guidata(obj.hFig);
       
       obj.movieReader = MovieReader;
+      
+      obj.nLabelPoints = npts;
     end
     
     function loadMovie(obj,movfile,trxfile)
@@ -642,6 +646,8 @@ classdef Labeler < handle
       obj.currFrame = 2; % to force update in setFrame
       obj.setTarget(1);
       obj.setFrame(1);
+      
+      obj.setLabelModeSequential(obj.nLabelPoints);
     end
     
     function setFrame(obj,frm)
@@ -840,8 +846,8 @@ classdef Labeler < handle
     end
    
     %#UI No really
-    function updateLockedButton(obj)
-      disp('UPDATELOCK TODO');
+%     function updateLockedButton(obj)
+%       disp('UPDATELOCK TODO');
 %       btn = obj.gdata.togglebutton_lock;
 %       if obj.labelsLocked(obj.currFrame,obj.currTarget)
 %         set(btn,'BackgroundColor',[.6,0,0],'String','Locked','Value',1);
@@ -849,9 +855,9 @@ classdef Labeler < handle
 %         set(btn,'BackgroundColor',[0,.6,0],'String','Unlocked','Value',0);
 %       end
 %       setButtonImage(btn);
-    end
+%     end
     
-    function showPreviousLabels(obj)
+%     function showPreviousLabels(obj)
       % TODO
 %       if isempty(handles.labeledpos),
 %         fprev = [];
@@ -878,7 +884,7 @@ classdef Labeler < handle
 %           set(handles.htext(i),'Position',tpos,'Visible','on');          
 %         end        
 %       end      
-    end   
+%     end   
     
   end
 
