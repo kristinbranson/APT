@@ -25,7 +25,7 @@ function varargout = LabelerGUI(varargin)
 % Last Modified by GUIDE v2.5 22-Jul-2015 08:45:53
 
 % Begin initialization code - DO NOT EDIT
-gui_Singleton = 1;
+gui_Singleton = 0;
 gui_State = struct('gui_Name',       mfilename, ...
                    'gui_Singleton',  gui_Singleton, ...
                    'gui_OpeningFcn', @LabelerGUI_OpeningFcn, ...
@@ -47,28 +47,43 @@ end
 % 
 function LabelerGUI_OpeningFcn(hObject, eventdata, handles, varargin)
 
-% Choose default command line output for LarvaLabeler
-% global LARVALABELERLASTMOVIEPATH;
 handles.output = hObject;
 
-% parse inputs
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end);
 [handles.moviefile,handles.template,handles.trxfile] = myparse(varargin,'moviefile','',...
   'template',[],'trxfile','');
 
-% select video to label
-% if isempty(handles.moviefile)  
-%   handles.moviefile = SelectVideo();
-% else
-% %   LARVALABELERLASTMOVIEPATH = fileparts(handles.moviefile);
-% end
+colormap(handles.figure,gray);
 
-handles.npoints = 0;
-handles.keypressmode = '';
-handles.motionobj = [];
+handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
+set(handles.image_curr,'hittest','off');
+axisoff(handles.axes_curr);
+hold(handles.axes_curr,'on');
+set(handles.axes_curr,'Color',[0 0 0]);
 
-handles = InitializeGUI(handles);
+handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
+set(handles.image_prev,'hittest','off');
+axisoff(handles.axes_prev);
+hold(handles.axes_prev,'on');
+
+linkaxes([handles.axes_prev,handles.axes_curr]);
+
+fcn = get(handles.slider_frame,'Callback');
+handles.hslider_listener = addlistener(handles.slider_frame,'ContinuousValueChange',fcn);
+set(handles.slider_frame,'Callback','');
+
+set(handles.output,'Toolbar','figure');
+
+colnames = handles.labelerObj.TBLTRX_STATIC_COLSTBL;
+set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
+      
+colnames = handles.labelerObj.TBLFRAMES_COLS;
+set(handles.tblFrames,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
+
+hchil = findall(handles.figure,'-property','KeyPressFcn');
+handles.keypressfcn = get(handles.figure,'KeyPressFcn');
+set(hchil,'KeyPressFcn',handles.keypressfcn);
 
 % load initial template
 if ~isempty(handles.template) && ischar(handles.template),
@@ -80,58 +95,6 @@ guidata(hObject, handles);
 
 % UIWAIT makes LarvaLabeler wait for user response (see UIRESUME)
 % uiwait(handles.figure);
-
-
-
-function handles = InitializeGUI(handles)
-
-% set(handles.figure,'ToolBar','figure');
-
-handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
-set(handles.image_curr,'hittest','off');
-axis(handles.axes_curr,'image');
-axisoff(handles.axes_curr);
-hold(handles.axes_curr,'on');
-set(handles.axes_curr,'Color',[0 0 0]); 
-%colormap(handles.figure,fire_colormap(2^8));
-colormap(handles.figure,gray);
-
-handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
-set(handles.image_prev,'hittest','off');
-axis(handles.axes_prev,'image');
-axisoff(handles.axes_prev);
-hold(handles.axes_prev,'on');
-handles.posprev = [];
-
-linkaxes([handles.axes_prev,handles.axes_curr]);
-
-fcn = get(handles.slider_frame,'Callback');
-handles.hslider_listener = addlistener(handles.slider_frame,'ContinuousValueChange',fcn);
-set(handles.slider_frame,'Callback','');
-
-handles.hpoly = [];
-handles.pointselected = [];
-handles.htext = [];
-handles.dt2p = 5;
-
-handles.f = 1;
-handles.maxv = inf;
-handles.minv = 0;
-set(handles.output,'Toolbar','figure');
-
-colnames = handles.labelerObj.TBLTRX_STATIC_COLSTBL;
-set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));      
-      
-colnames = handles.labelerObj.TBLFRAMES_COLS;
-set(handles.tblFrames,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
-
-%handles = InitializeVideo(handles);
-
-%handles = UpdateFrame(handles);
-
-hchil = findall(handles.figure,'-property','KeyPressFcn');
-handles.keypressfcn = get(handles.figure,'KeyPressFcn');
-set(hchil,'KeyPressFcn',handles.keypressfcn);
 
 function slider_frame_Callback(hObject,~,handles)
 % Hints: get(hObject,'Value') returns position of slider

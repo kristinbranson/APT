@@ -10,7 +10,8 @@ classdef Labeler < handle
     DEFAULT_LBLFILENAME = '%s.lbl.mat';
     
     SAVEPROPS = { ...
-      'VERSION' 'moviefile' 'nframes' 'nTrx' 'labelMode' 'nLabelPoints' 'labelNames' ...
+      'VERSION' 'moviefile' 'nframes' 'trxFilename' 'nTrx' ...
+      'labelMode' 'nLabelPoints' 'labelNames' ...
       'labeledpos' 'labelPtsColors' 'currFrame' 'currTarget'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
@@ -551,6 +552,8 @@ classdef Labeler < handle
       if tfTrx
         tmp = load(obj.trxFilename);
         obj.trx = tmp.trx;
+      else
+        obj.trx = [];
       end
             
       f2t = false(obj.nframes,obj.nTrx);
@@ -581,15 +584,21 @@ classdef Labeler < handle
         obj.maxv = min(obj.maxv,2^(ceil(log2(max(im1(:)))/8)*8));
       end
       
-      %#UI
-      set(obj.gdata.axes_curr,'CLim',[obj.minv,obj.maxv],...
-        'XLim',[.5,size(im1,2)+.5],...
-        'YLim',[.5,size(im1,1)+.5]);
-      set(obj.gdata.axes_prev,'CLim',[obj.minv,obj.maxv],...
-        'XLim',[.5,size(im1,2)+.5],...
-        'YLim',[.5,size(im1,1)+.5]);
-      zoom(obj.gdata.axes_curr,'reset');
-      zoom(obj.gdata.axes_prev,'reset');
+      %#UI      
+      axcurr = obj.gdata.axes_curr;
+      axprev = obj.gdata.axes_prev;
+      imcurr = obj.gdata.image_curr;
+      set(imcurr,'CData',im1);
+%       axis(axcurr,'image');
+%       axis(axprev,'image');
+      set(axcurr,'CLim',[obj.minv,obj.maxv],...
+                 'XLim',[.5,size(im1,2)+.5],...
+                 'YLim',[.5,size(im1,1)+.5]);
+      set(axprev,'CLim',[obj.minv,obj.maxv],...
+                 'XLim',[.5,size(im1,2)+.5],...
+                 'YLim',[.5,size(im1,1)+.5]);
+      zoom(axcurr,'reset');
+      zoom(axprev,'reset');
       
       %#UI
       sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
@@ -656,7 +665,9 @@ classdef Labeler < handle
     function setTarget(obj,iTgt)
       validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
       obj.currTarget = iTgt;
-      obj.videoCenterOnCurrTarget();
+      if obj.hasTrx
+        obj.videoCenterOnCurrTarget();
+      end
       obj.labelsUpdate();
       
       %XXX template?
