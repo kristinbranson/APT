@@ -54,7 +54,10 @@ classdef Labeler < handle
   properties
     %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
     labeledpos;           % labels, npts x 2 x nFrm x nTrx
-    labelsLocked;         % nFrm x nTrx    
+    labelsLocked;         % nFrm x nTrx
+    
+    lblPrev_ptsH;         % Maybe encapsulate this and next with axes_prev, image_prev
+    lblPrev_ptsTxtH;
 
     labelMode;            % scalar LabelMode
     nLabelPoints;         % scalar integer
@@ -310,7 +313,17 @@ classdef Labeler < handle
         switch obj.labelMode
           case LabelMode.SEQUENTIAL
             obj.labelMode1NewFrameOrTarget();
+            obj.labelsPrevUpdate();
         end
+      end
+    end
+    
+    function labelsPrevUpdate(obj)
+      if ~isnan(obj.prevFrame)
+        lpos = obj.labeledpos(:,:,obj.prevFrame,obj.currTarget);
+        Labeler.assignCoords2Pts(lpos,obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
+      else
+        Labeler.removePts(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end
     end
     
@@ -386,6 +399,18 @@ classdef Labeler < handle
                                         'LineWidth',3,'Color',ptColors(i,:),'UserData',i);
         obj.lbl1_ptsTxtH(i) = text(nan,nan,num2str(i),'Parent',ax,...
                                           'Color',ptColors(i,:),'Hittest','off');
+      end
+      
+      deleteHandles(obj.lblPrev_ptsH);
+      deleteHandles(obj.lblPrev_ptsTxtH);
+      obj.lblPrev_ptsH = nan(obj.nLabelPoints,1);
+      obj.lblPrev_ptsTxtH = nan(obj.nLabelPoints,1);
+      axprev = obj.gdata.axes_prev;
+      for i = 1:obj.nLabelPoints
+        obj.lblPrev_ptsH(i) = plot(axprev,nan,nan,'w+','MarkerSize',20,...
+                                   'LineWidth',3,'Color',ptColors(i,:),'UserData',i);
+        obj.lblPrev_ptsTxtH(i) = text(nan,nan,num2str(i),'Parent',axprev,...
+                                      'Color',ptColors(i,:),'Hittest','off');
       end
             
       obj.labelMode1Label();
@@ -536,6 +561,14 @@ classdef Labeler < handle
       end
     end
     
+    function removePts(hPts,hTxt)
+      assert(numel(hPts)==numel(hTxt));
+      for i = 1:numel(hPts)
+        set(hPts(i),'XData',nan,'YData',nan);
+        set(hTxt(i),'Position',[nan nan nan]);
+      end      
+    end
+    
   end
   
   %%
@@ -618,12 +651,13 @@ classdef Labeler < handle
       end
       
       if frm > 1
-        if obj.prevFrame~=frm-1
-          [obj.prevIm,~] = obj.movieReader.readframe(frm-1);
-          obj.prevFrame = frm-1;
-        end
+        %if obj.prevFrame~=frm-1
+        [obj.prevIm,~] = obj.movieReader.readframe(frm-1);
+        obj.prevFrame = frm-1;
+        %end
         set(obj.gdata.image_prev,'CData',obj.prevIm);
       else
+        obj.prevFrame = nan;
         set(obj.gdata.image_prev,'CData',0);
       end
       
@@ -786,15 +820,23 @@ classdef Labeler < handle
       nLbled = nnz(tfLbled);
       
       i = frames==cfrm;
-      if any(i)
-        assert(nnz(i)==1);
-        dat{i,2} = nLbled;
+      if nLbled>0
+        if any(i)
+          assert(nnz(i)==1);
+          dat{i,2} = nLbled;
+        else
+          dat(end+1,:) = {cfrm nLbled};
+          [~,idx] = sort(cell2mat(dat(:,1)));
+          dat = dat(idx,:);
+        end
+        set(tbl,'Data',dat);
       else
-        dat(end+1,:) = {cfrm nLbled};
-        [~,idx] = sort(cell2mat(dat(:,1)));
-        dat = dat(idx,:);
+        if any(i)
+          assert(nnz(i)==1);
+          dat(i,:) = [];
+          set(tbl,'Data',dat);
+        end
       end
-      set(tbl,'Data',dat);
     end
    
     %#UI No really

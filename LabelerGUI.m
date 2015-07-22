@@ -64,6 +64,7 @@ handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
 set(handles.image_prev,'hittest','off');
 axisoff(handles.axes_prev);
 hold(handles.axes_prev,'on');
+set(handles.axes_prev,'Color',[0 0 0]);
 
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
