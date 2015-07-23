@@ -70,7 +70,7 @@ linkaxes([handles.axes_prev,handles.axes_curr]);
 
 %fcn = get(handles.slider_frame,'Callback');
 handles.hslider_listener = addlistener(handles.slider_frame,...
-  'ContinuousValueChange',@(s,e)slider_frame_Callback);
+  'ContinuousValueChange',@slider_frame_Callback);
 %set(handles.slider_frame,'Callback','');
 
 set(handles.output,'Toolbar','figure');
@@ -217,8 +217,9 @@ function menu_file_openmovie_Callback(hObject,~,handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie();
-  lObj.setLabelModeSequential(lObj.nLabelPoints); % stopgap
- 
+  if lObj.hasMovie
+    lObj.setLabelModeSequential(lObj.nLabelPoints); % stopgap
+  end
   % XXX add me somewhere
   % handles.templatecolors = jet(handles.npoints);
 end
@@ -227,7 +228,9 @@ function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie([],[]);
-  lObj.setLabelModeSequential(lObj.nLabelPoints); % stopgap
+  if lObj.hasMovie
+    lObj.setLabelModeSequential(lObj.nLabelPoints); % stopgap
+  end
 end
 
 function figure_KeyPressFcn(hObject, eventdata, handles)
