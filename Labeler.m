@@ -18,6 +18,8 @@ classdef Labeler < handle
     TBLTRX_STATIC_COLSTRX = {'id' 'labeled'};
     
     TBLFRAMES_COLS = {'frame' 'labeled targets'};
+    
+    FRAMEUP_BIGSTEP = 10;
   end
   
   
@@ -100,10 +102,20 @@ classdef Labeler < handle
       end
     end
     function v = get.movienr(obj)
-      v = obj.movieReader.info.nr;
+      mr = obj.movieReader;
+      if mr.isOpen
+        v = mr.info.nr;        
+      else
+        v = [];
+      end
     end
     function v = get.movienc(obj)
-      v = obj.movieReader.info.nc;
+      mr = obj.movieReader;
+      if mr.isOpen
+        v = mr.info.nc;        
+      else
+        v = [];
+      end
     end    
     function v = get.nframes(obj)
       v = obj.movieReader.nframes;
@@ -136,7 +148,7 @@ classdef Labeler < handle
       if obj.hasTrx
         obj.updateTrxTable();
       end
-      obj.updateFrameTable();
+      obj.updateFrameTableIncremental();
     end
   end
 
@@ -214,12 +226,13 @@ classdef Labeler < handle
         case LabelMode.SEQUENTIAL
           obj.setLabelModeSequential(s.nLabelPoints,...
             'ptNames',s.labelNames,'ptColors',s.labelPtsColors);
-          obj.labeledpos = s.labeledpos; % TODO: TRX
+          obj.labeledpos = s.labeledpos; 
           obj.setFrame(s.currFrame);
         otherwise
           assert(false,'TODO');
       end
       
+      obj.updateFrameTableComplete(); % TODO don't like this maybe move to UI      
     end
     
   end
@@ -646,9 +659,7 @@ classdef Labeler < handle
       obj.currFrame = 2; % to force update in setFrame
       obj.setTarget(1);
       obj.setFrame(1);
-      
-      obj.setLabelModeSequential(obj.nLabelPoints);
-    end
+   end
     
     function setFrame(obj,frm)
       if obj.currFrame~=frm
@@ -711,6 +722,26 @@ classdef Labeler < handle
       obj.labelsUpdate();
       
       %XXX template?
+    end
+    
+    function frameUp(obj,tfBigstep)
+      if tfBigstep
+        df = obj.FRAMEUP_BIGSTEP;
+      else
+        df = 1;
+      end
+      f = min(obj.currFrame+df,obj.nframes);
+      obj.setFrame(f);
+    end
+    
+    function frameDown(obj,tfBigstep)
+      if tfBigstep
+        df = obj.FRAMEUP_BIGSTEP;
+      else
+        df = 1;
+      end
+      f = max(obj.currFrame-df,1);
+      obj.setFrame(f);
     end
     
 %     function clearTarget(obj)
@@ -812,17 +843,18 @@ classdef Labeler < handle
       set(tbl,'Data',tbldat);
     end
     
-    function updateFrameTable(obj)
+    function updateFrameTableIncremental(obj)
+      % assumes .labelops and tblFrames differ at .currFrame at most
+      %
+      % might be unnecessary/premature optim
+      
       tbl = obj.gdata.tblFrames;
       dat = get(tbl,'Data');
       frames = cell2mat(dat(:,1));
       
       cfrm = obj.currFrame;
       lpos = obj.labeledpos;
-      tfLbled = false(obj.nTargets,1);
-      for iTrx = 1:obj.nTargets
-        tfLbled(iTrx) = any(lpos(:,1,cfrm,iTrx));
-      end
+      tfLbled = ~isnan(squeeze(lpos(1,1,cfrm,:)));
       nLbled = nnz(tfLbled);
       
       i = frames==cfrm;
@@ -843,6 +875,19 @@ classdef Labeler < handle
           set(tbl,'Data',dat);
         end
       end
+    end
+    
+    function updateFrameTableComplete(obj)
+      lpos = obj.labeledpos;
+      tf = ~isnan(squeeze(lpos(1,1,:,:)));
+      assert(isequal(size(tf),[obj.nframes obj.nTargets]));
+      nLbled = sum(tf,2);
+      iFrm = find(nLbled>0);
+      nLbled = nLbled(iFrm);
+      dat = [num2cell(iFrm) num2cell(nLbled)];
+
+      tbl = obj.gdata.tblFrames;
+      set(tbl,'Data',dat);
     end
    
     %#UI No really

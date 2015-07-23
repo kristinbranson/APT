@@ -68,9 +68,10 @@ set(handles.axes_prev,'Color',[0 0 0]);
 
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
-fcn = get(handles.slider_frame,'Callback');
-handles.hslider_listener = addlistener(handles.slider_frame,'ContinuousValueChange',fcn);
-set(handles.slider_frame,'Callback','');
+%fcn = get(handles.slider_frame,'Callback');
+handles.hslider_listener = addlistener(handles.slider_frame,...
+  'ContinuousValueChange',@(s,e)slider_frame_Callback);
+%set(handles.slider_frame,'Callback','');
 
 set(handles.output,'Toolbar','figure');
 
@@ -98,9 +99,10 @@ guidata(hObject, handles);
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
 
-function slider_frame_Callback(hObject,~,handles)
+function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+handles = guidata(hObject);
 lObj = handles.labelerObj;
 v = get(hObject,'Value');
 f = round(1 + v * (lObj.nframes - 1));
@@ -215,6 +217,8 @@ function menu_file_openmovie_Callback(hObject,~,handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie();
+  lObj.setLabelModeSequential(lObj.nLabelPoints); % stopgap
+ 
   % XXX add me somewhere
   % handles.templatecolors = jet(handles.npoints);
 end
@@ -223,6 +227,7 @@ function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie([],[]);
+  lObj.setLabelModeSequential(lObj.nLabelPoints); % stopgap
 end
 
 function figure_KeyPressFcn(hObject, eventdata, handles)
@@ -234,211 +239,242 @@ function figure_KeyPressFcn(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 %fprintf('Pressed %s, > %s<\n',eventdata.Key,sprintf('%s ',eventdata.Modifier{:}));
-switch eventdata.Key,
-  case 'rightarrow',
-    if any(handles.pointselected),
-      xlim = get(handles.axes_curr,'XLim');
-      dx = diff(xlim);
-      if ismember('shift',eventdata.Modifier),
-        dx = dx / 50;
-      else
-        dx = dx / 500;
-      end
-      for i = find(handles.pointselected),
-        x = get(handles.hpoly(i),'XData');
-        handles.labeledpos(i,1,handles.f,handles.animal) = x + dx;
-        set(handles.hpoly(i),'XData',handles.labeledpos(i,1,handles.f,handles.animal));
-        tpos = get(handles.htext(i),'Position');
-        tpos(1) = handles.labeledpos(i,1,handles.f,handles.animal)+handles.dt2p;
-        set(handles.htext(i),'Position',tpos);
-        guidata(hObject,handles);
-      end
-    else
-      if ismember('control',eventdata.Modifier),
-        df = 10;
-      else
-        df = 1;
-      end
-      f = min(handles.f+df,handles.nframes);
-      if f ~= handles.f,
-        handles.f = f;
-        handles = UpdateFrame(handles,hObject);
-        guidata(hObject,handles);
-      end
-    end
-  case 'equal',
-    if ismember('control',eventdata.Modifier),
-      df = 10;
-    else
-      df = 1;
-    end
-    f = min(handles.f+df,handles.nframes);
-    if f ~= handles.f,
-      handles.f = f;
-      handles = UpdateFrame(handles,hObject);
-      guidata(hObject,handles);
-    end
-  case 'hyphen',
-    if ismember('control',eventdata.Modifier),
-      df = 10;
-    else
-      df = 1;
-    end
-    f = max(handles.f-df,1);
-    if f ~= handles.f,
-      handles.f = f;
-      handles = UpdateFrame(handles,hObject);
-      guidata(hObject,handles);
-    end
-  case 'leftarrow',
-    if any(handles.pointselected),
-      xlim = get(handles.axes_curr,'XLim');
-      dx = diff(xlim);
-      if ismember('shift',eventdata.Modifier),
-        dx = dx / 50;
-      else
-        dx = dx / 500;
-      end
-      for i = find(handles.pointselected),
-        x = get(handles.hpoly(i),'XData');
-        handles.labeledpos(i,1,handles.f,handles.animal) = x - dx;
-        set(handles.hpoly(i),'XData',handles.labeledpos(i,1,handles.f,handles.animal));
-        tpos = get(handles.htext(i),'Position');
-        tpos(1) = handles.labeledpos(i,1,handles.f,handles.animal)+handles.dt2p;
-        set(handles.htext(i),'Position',tpos);
-
-        guidata(hObject,handles);
-      end
-    else
-      if ismember('control',eventdata.Modifier),
-        df = 10;
-      else
-        df = 1;
-      end
-      f = max(handles.f-df,1);
-      if f ~= handles.f,
-        handles.f = f;
-        handles = UpdateFrame(handles,hObject);
-        guidata(hObject,handles);
-      end
-    end
-  case 'uparrow',
-    if any(handles.pointselected),
-      ylim = get(handles.axes_curr,'YLim');
-      dy = diff(ylim);
-      if ismember('shift',eventdata.Modifier),
-        dy = dy / 50;
-      else
-        dy = dy / 500;
-      end
-      for i = find(handles.pointselected),
-        y = get(handles.hpoly(i),'YData');
-        handles.labeledpos(i,2,handles.f,handles.animal) = y - dy;
-        set(handles.hpoly(i),'YData',handles.labeledpos(i,2,handles.f,handles.animal));
-        tpos = get(handles.htext(i),'Position');
-        tpos(2) = handles.labeledpos(i,2,handles.f,handles.animal);
-        set(handles.htext(i),'Position',tpos);
-
-        guidata(hObject,handles);
-      end
-    end
-  case 'downarrow',
-    if any(handles.pointselected),
-      ylim = get(handles.axes_curr,'YLim');
-      dy = diff(ylim);
-      if ismember('shift',eventdata.Modifier),
-        dy = dy / 50;
-      else
-        dy = dy / 500;
-      end
-      for i = find(handles.pointselected),
-        y = get(handles.hpoly(i),'YData');
-        handles.labeledpos(i,2,handles.f,handles.animal) = y + dy;
-        set(handles.hpoly(i),'YData',handles.labeledpos(i,2,handles.f,handles.animal));
-        tpos = get(handles.htext(i),'Position');
-        tpos(2) = handles.labeledpos(i,2,handles.f,handles.animal);
-        set(handles.htext(i),'Position',tpos);
-
-        guidata(hObject,handles);
-      end
-    end
-  case 'l'
-    set(handles.tbAccept,'Value',~get(handles.tbAccept,'Value'));
-    togglebutton_lock_Callback(handles.tbAccept,[],handles);
-  case 'r'
-    pushbutton_template_Callback(hObject,eventdata,handles);
-  case '1'
-    if numel(handles.pointselected)<1, return; end
-    inval = handles.pointselected(1);
-    handles.pointselected(:) = false;
-    handles.pointselected(1) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-  case '2'
-    if numel(handles.pointselected)<2, return; end
-    inval = handles.pointselected(2);
-    handles.pointselected(:) = false;
-    handles.pointselected(2) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-  case '3'
-    if numel(handles.pointselected)<3, return; end
-    inval = handles.pointselected(3);
-    handles.pointselected(:) = false;
-    handles.pointselected(3) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-  case '4'
-    if numel(handles.pointselected)<4, return; end
-    inval = handles.pointselected(4);
-    handles.pointselected(:) = false;
-    handles.pointselected(4) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-  case '5'
-    if numel(handles.pointselected)<5, return; end
-    inval = handles.pointselected(5);
-    handles.pointselected(:) = false;
-    handles.pointselected(5) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-  case '6'
-    if numel(handles.pointselected)<6, return; end
-    inval = handles.pointselected(6);
-    handles.pointselected(:) = false;
-    handles.pointselected(6) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-  case '7'
-    if numel(handles.pointselected)<7, return; end
-    inval = handles.pointselected(7);
-    handles.pointselected(:) = false;
-    handles.pointselected(7) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-  case '8'
-    if numel(handles.pointselected)<8, return; end
-    inval = handles.pointselected(8);
-    handles.pointselected(:) = false;
-    handles.pointselected(8) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-  case '9'
-    if numel(handles.pointselected)<9, return; end
-    inval = handles.pointselected(9);
-    handles.pointselected(:) = false;
-    handles.pointselected(9) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-  case '0'
-    if numel(handles.pointselected)<10, return; end
-    inval = handles.pointselected(10);
-    handles.pointselected(:) = false;
-    handles.pointselected(10) = ~inval;
-    UpdatePointSelected(handles);    
-    guidata(hObject,handles);
-
+lObj = handles.labelerObj;
+switch lObj.labelMode
+  case LabelMode.SEQUENTIAL
+    hlpKPMode1(lObj,eventdata.Key,eventdata.Modifier)
 end
+
+function hlpKPMode1(labelerObj,key,modifier)
+tfCtrl = ismember('control',modifier);
+switch key
+  case {'s' 'space'} % accept
+    if labelerObj.lbl1_state==SequentialModeState.ADJUST
+      labelerObj.labelMode1Accept(true);
+    end
+  case {'rightarrow' 'd' 'equal'}
+    labelerObj.frameUp(tfCtrl);
+  case {'leftarrow' 'a' 'hyphen'}
+    labelerObj.frameDown(tfCtrl);  
+end
+% switch eventdata.Key,
+%   case 'rightarrow',
+%     if any(handles.pointselected),
+%       xlim = get(handles.axes_curr,'XLim');
+%       dx = diff(xlim);
+%       if ismember('shift',eventdata.Modifier),
+%         dx = dx / 50;
+%       else
+%         dx = dx / 500;
+%       end
+%       for i = find(handles.pointselected),
+%         x = get(handles.hpoly(i),'XData');
+%         handles.labeledpos(i,1,handles.f,handles.animal) = x + dx;
+%         set(handles.hpoly(i),'XData',handles.labeledpos(i,1,handles.f,handles.animal));
+%         tpos = get(handles.htext(i),'Position');
+%         tpos(1) = handles.labeledpos(i,1,handles.f,handles.animal)+handles.dt2p;
+%         set(handles.htext(i),'Position',tpos);
+%         guidata(hObject,handles);
+%       end
+%     else
+%       if ismember('control',eventdata.Modifier),
+%         df = 10;
+%       else
+%         df = 1;
+%       end
+%       f = min(handles.f+df,handles.nframes);
+%       if f ~= handles.f,
+%         handles.f = f;
+%         handles = UpdateFrame(handles,hObject);
+%         guidata(hObject,handles);
+%       end
+%     end
+%   case 'equal',
+%     if ismember('control',eventdata.Modifier),
+%       df = 10;
+%     else
+%       df = 1;
+%     end
+%     f = min(handles.f+df,handles.nframes);
+%     if f ~= handles.f,
+%       handles.f = f;
+%       handles = UpdateFrame(handles,hObject);
+%       guidata(hObject,handles);
+%     end
+%   case 'hyphen',
+%     if ismember('control',eventdata.Modifier),
+%       df = 10;
+%     else
+%       df = 1;
+%     end
+%     f = max(handles.f-df,1);
+%     if f ~= handles.f,
+%       handles.f = f;
+%       handles = UpdateFrame(handles,hObject);
+%       guidata(hObject,handles);
+%     end
+%   case 'leftarrow',
+%     if any(handles.pointselected),
+%       xlim = get(handles.axes_curr,'XLim');
+%       dx = diff(xlim);
+%       if ismember('shift',eventdata.Modifier),
+%         dx = dx / 50;
+%       else
+%         dx = dx / 500;
+%       end
+%       for i = find(handles.pointselected),
+%         x = get(handles.hpoly(i),'XData');
+%         handles.labeledpos(i,1,handles.f,handles.animal) = x - dx;
+%         set(handles.hpoly(i),'XData',handles.labeledpos(i,1,handles.f,handles.animal));
+%         tpos = get(handles.htext(i),'Position');
+%         tpos(1) = handles.labeledpos(i,1,handles.f,handles.animal)+handles.dt2p;
+%         set(handles.htext(i),'Position',tpos);
+% 
+%         guidata(hObject,handles);
+%       end
+%     else
+%       if ismember('control',eventdata.Modifier),
+%         df = 10;
+%       else
+%         df = 1;
+%       end
+%       f = max(handles.f-df,1);
+%       if f ~= handles.f,
+%         handles.f = f;
+%         handles = UpdateFrame(handles,hObject);
+%         guidata(hObject,handles);
+%       end
+%     end
+%   case 'uparrow',
+%     if any(handles.pointselected),
+%       ylim = get(handles.axes_curr,'YLim');
+%       dy = diff(ylim);
+%       if ismember('shift',eventdata.Modifier),
+%         dy = dy / 50;
+%       else
+%         dy = dy / 500;
+%       end
+%       for i = find(handles.pointselected),
+%         y = get(handles.hpoly(i),'YData');
+%         handles.labeledpos(i,2,handles.f,handles.animal) = y - dy;
+%         set(handles.hpoly(i),'YData',handles.labeledpos(i,2,handles.f,handles.animal));
+%         tpos = get(handles.htext(i),'Position');
+%         tpos(2) = handles.labeledpos(i,2,handles.f,handles.animal);
+%         set(handles.htext(i),'Position',tpos);
+% 
+%         guidata(hObject,handles);
+%       end
+%     end
+%   case 'downarrow',
+%     if any(handles.pointselected),
+%       ylim = get(handles.axes_curr,'YLim');
+%       dy = diff(ylim);
+%       if ismember('shift',eventdata.Modifier),
+%         dy = dy / 50;
+%       else
+%         dy = dy / 500;
+%       end
+%       for i = find(handles.pointselected),
+%         y = get(handles.hpoly(i),'YData');
+%         handles.labeledpos(i,2,handles.f,handles.animal) = y + dy;
+%         set(handles.hpoly(i),'YData',handles.labeledpos(i,2,handles.f,handles.animal));
+%         tpos = get(handles.htext(i),'Position');
+%         tpos(2) = handles.labeledpos(i,2,handles.f,handles.animal);
+%         set(handles.htext(i),'Position',tpos);
+% 
+%         guidata(hObject,handles);
+%       end
+%     end
+%   case 'l'
+%     set(handles.tbAccept,'Value',~get(handles.tbAccept,'Value'));
+%     togglebutton_lock_Callback(handles.tbAccept,[],handles);
+%   case 'r'
+%     pushbutton_template_Callback(hObject,eventdata,handles);
+%   case '1'
+%     if numel(handles.pointselected)<1, return; end
+%     inval = handles.pointselected(1);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(1) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+%   case '2'
+%     if numel(handles.pointselected)<2, return; end
+%     inval = handles.pointselected(2);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(2) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+%   case '3'
+%     if numel(handles.pointselected)<3, return; end
+%     inval = handles.pointselected(3);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(3) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+%   case '4'
+%     if numel(handles.pointselected)<4, return; end
+%     inval = handles.pointselected(4);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(4) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+%   case '5'
+%     if numel(handles.pointselected)<5, return; end
+%     inval = handles.pointselected(5);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(5) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+%   case '6'
+%     if numel(handles.pointselected)<6, return; end
+%     inval = handles.pointselected(6);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(6) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+%   case '7'
+%     if numel(handles.pointselected)<7, return; end
+%     inval = handles.pointselected(7);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(7) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+%   case '8'
+%     if numel(handles.pointselected)<8, return; end
+%     inval = handles.pointselected(8);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(8) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+%   case '9'
+%     if numel(handles.pointselected)<9, return; end
+%     inval = handles.pointselected(9);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(9) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+%   case '0'
+%     if numel(handles.pointselected)<10, return; end
+%     inval = handles.pointselected(10);
+%     handles.pointselected(:) = false;
+%     handles.pointselected(10) = ~inval;
+%     UpdatePointSelected(handles);    
+%     guidata(hObject,handles);
+% 
+% end
+
+function menu_help_keyboardshortcuts_Callback(hObject, eventdata, handles)
+switch handles.labelerObj.labelMode
+  case LabelMode.SEQUENTIAL
+    hlpKPHelpMode1();
+end
+
+function hlpKPHelpMode1()
+s = {};
+s{end+1} = '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrement/increment the frame shown.';
+s{end+1} = '* <ctrl>+A and <ctrl>+D decrement and increment by 10 frames.';
+s{end+1} = '* S or <space> accepts the labels for the current frame.';
+msgbox(s,'Keyboard shortcuts','help','modal');
 
 % % % below is untouched % % % ---------------------
 
@@ -704,23 +740,6 @@ for ndx = 1:numel(i)
     set(handles.htext(i(ndx)),'Visible','on');
   end
 end
-
-% --------------------------------------------------------------------
-function menu_help_keyboardshortcuts_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_help_keyboardshortcuts (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-s = {};
-s{end+1} = '* When template point is selected, LEFT, RIGHT, UP, and DOWN move the selected point a small amount.';
-s{end+1} = '* When template point is selected, CTRL+LEFT, RIGHT, UP, and DOWN move the selected point a large amount.';
-s{end+1} = '* When no template point is selected, LEFT and RIGHT decrement and increment the frame shown.';
-s{end+1} = '* MINUS (-) and EQUAL (=) always decrement and increment the frame shown.';
-s{end+1} = '* When no template point is selected, CTRL+LEFT and CTRL+RIGHT decrease and increase the frame shown by 10.';
-s{end+1} = '* CTRL+MINUS and CTRL+EQUAL decrease and increase the frame shown by 10.';
-s{end+1} = '* L toggles the lock state for the current frame.';
-
-msgbox(s,'Keyboard shortcuts','help','modal');
 
 % --- Executes on button press in pushbutton_template.
 function pushbutton_template_Callback(hObject, eventdata, handles)
