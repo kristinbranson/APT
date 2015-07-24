@@ -37,6 +37,7 @@ classdef Labeler < handle
     movienc;
   end
   
+  
   %% Trx
   properties
     trxFilename = '';         % full filename
@@ -51,6 +52,7 @@ classdef Labeler < handle
     nTrx
     nTargets          % nTrx, or 1 if no Trx
   end
+  
   
   %% Labeling
   properties
@@ -152,6 +154,7 @@ classdef Labeler < handle
     end
   end
 
+  
   %% Save/Load
   methods 
     
@@ -232,10 +235,11 @@ classdef Labeler < handle
           assert(false,'TODO');
       end
       
-      obj.updateFrameTableComplete(); % TODO don't like this maybe move to UI      
+      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI      
     end
     
   end
+  
   
   %% Movie, Trx
   methods
@@ -294,6 +298,7 @@ classdef Labeler < handle
     end
                 
   end
+  
   
   %% Labeling
   methods
@@ -588,8 +593,8 @@ classdef Labeler < handle
     
   end
   
-  %%
   
+  %%
   methods (Hidden)
     
     function newMovieAndTrx(obj)
