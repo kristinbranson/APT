@@ -479,18 +479,12 @@ s{end+1} = '* <ctrl>+A and <ctrl>+D decrement and increment by 10 frames.';
 s{end+1} = '* S or <space> accepts the labels for the current frame.';
 msgbox(s,'Keyboard shortcuts','help','modal');
 
-function CloseImContrast(hObject)
-handles = guidata(hObject);
-handles.labelerObj.videoSetContrastFromAxesCurr();
-delete(handles.adjustbrightness_listener);
-handles.adjustbrightness_listener = [];
-guidata(hObject,handles);
+function CloseImContrast(labelerObj)
+labelerObj.videoSetContrastFromAxesCurr();
 
 function menu_setup_adjustbrightness_Callback(hObject, eventdata, handles)
-hcontrast = imcontrast_kb(handles.axes_curr);
-handles.adjustbrightness_listener = ...
-  addlistener(hcontrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(hObject));
-guidata(hObject,handles);
+hConstrast = imcontrast_kb(handles.axes_curr);
+addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.labelerObj));
 
 % % % below is untouched % % % ---------------------
 
