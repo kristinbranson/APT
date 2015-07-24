@@ -8,6 +8,8 @@ classdef MovieReader < handle
     readFrameFcn = [];
     nframes = nan;
     info = [];
+    nr = nan;
+    nc = nan;
     
     fid = nan;
   end
@@ -37,6 +39,15 @@ classdef MovieReader < handle
       
       obj.filename = fname;      
       [obj.readFrameFcn,obj.nframes,obj.fid,obj.info] = get_readframe_fcn(obj.filename);
+      
+      ifo = obj.info;
+      if isfield(ifo,'nr') && isfield(ifo,'nc')
+        obj.nr = ifo.nr;
+        obj.nc = ifo.nc;
+      else
+        im = obj.readFrameFcn(1);
+        [obj.nr,obj.nc] = size(im);
+      end
     end
     
     function varargout = readframe(obj,i)
@@ -52,6 +63,9 @@ classdef MovieReader < handle
       obj.readFrameFcn = [];
       obj.nframes = nan;
       obj.info = [];
+      obj.nr = nan;
+      obj.nc = nan;
+      
       obj.fid = nan;
     end
       

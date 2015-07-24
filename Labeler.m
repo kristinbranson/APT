@@ -28,7 +28,7 @@ classdef Labeler < handle
   properties
     movieReader = [];         % MovieReader object
     minv = 0;
-    maxv = inf;  
+    maxv = inf;
   end
   properties (Dependent)
     hasMovie;
@@ -107,7 +107,7 @@ classdef Labeler < handle
     function v = get.movienr(obj)
       mr = obj.movieReader;
       if mr.isOpen
-        v = mr.info.nr;        
+        v = mr.nr;        
       else
         v = [];
       end
@@ -115,7 +115,7 @@ classdef Labeler < handle
     function v = get.movienc(obj)
       mr = obj.movieReader;
       if mr.isOpen
-        v = mr.info.nc;        
+        v = mr.nc;        
       else
         v = [];
       end
@@ -629,8 +629,7 @@ classdef Labeler < handle
     function videoZoomFac(obj,zoomFac)
       % zoomFac: 0 for no-zoom; 1 for max zoom
       
-      movInfo = obj.movieReader.info;
-      zr0 = max(movInfo.nr,movInfo.nc)/2; % no-zoom: large radius
+      zr0 = max(obj.movienr,obj.movienc)/2; % no-zoom: large radius
       zr1 = obj.zoomRadiusTight; % tight zoom: small radius
       
       if zr1>zr0
