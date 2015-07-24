@@ -150,7 +150,7 @@ classdef Labeler < handle
       if obj.hasTrx
         obj.updateTrxTable();
       end
-      obj.updateFrameTableIncremental();
+      obj.updateFrameTableIncremental(); % TODO use listener/event for this
     end
   end
 
@@ -822,7 +822,9 @@ classdef Labeler < handle
       x0 = mean(v(1:2));
       y0 = mean(v(3:4));
     end
-            
+        
+    % TODO prob use listener/event for this; maintain relevant
+    % datastructure in Labeler
     function updateTrxTable(obj)
       % based on .currFrame, .labeledpos
       
@@ -848,6 +850,7 @@ classdef Labeler < handle
       set(tbl,'Data',tbldat);
     end
     
+    % TODO Prob use listener/event for this
     function updateFrameTableIncremental(obj)
       % assumes .labelops and tblFrames differ at .currFrame at most
       %
@@ -880,8 +883,7 @@ classdef Labeler < handle
           set(tbl,'Data',dat);
         end
       end
-    end
-    
+    end    
     function updateFrameTableComplete(obj)
       lpos = obj.labeledpos;
       tf = ~isnan(squeeze(lpos(1,1,:,:)));
