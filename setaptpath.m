@@ -3,6 +3,7 @@ function setaptpath
 SUBDIRS = {
   'misc'
   'filehandling'
+  'private_imuitools'
   };
       
 root = aptroot;

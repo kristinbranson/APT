@@ -58,6 +58,17 @@ elseif strcmpi(ext,'.mmf'),
   readframe = mmf_get_readframe_fcn(headerinfo,varargin{:});
   nframes = headerinfo.nframes;
   fid = headerinfo.fid;
+elseif strcmpi(ext,'.klb'),
+  tfKLBLib = exist('readKLBslice','file')>0;
+  if ~tfKLBLib
+    error('get_readframe_fcn:klb','Cannot find readKLBslice function. Make sure KLB matlab library is installed.');
+  end
+  
+  dim = myparse(varargin,'dim',3);
+  headerinfo = readKLBheader(filename);
+  readframe = klb_get_readframe_fcn(filename,varargin{:});
+  nframes = headerinfo.xyzct(dim); % AL 201507: KLB doc a little unclear here but this seems right
+  fid = 0;
 elseif strcmpi(ext,'.mat'),
 
   videofiletype = load(filename,'videofiletype');

@@ -479,6 +479,19 @@ s{end+1} = '* <ctrl>+A and <ctrl>+D decrement and increment by 10 frames.';
 s{end+1} = '* S or <space> accepts the labels for the current frame.';
 msgbox(s,'Keyboard shortcuts','help','modal');
 
+function CloseImContrast(hObject)
+handles = guidata(hObject);
+handles.labelerObj.videoSetContrastFromAxesCurr();
+delete(handles.adjustbrightness_listener);
+handles.adjustbrightness_listener = [];
+guidata(hObject,handles);
+
+function menu_setup_adjustbrightness_Callback(hObject, eventdata, handles)
+hcontrast = imcontrast_kb(handles.axes_curr);
+handles.adjustbrightness_listener = ...
+  addlistener(hcontrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(hObject));
+guidata(hObject,handles);
+
 % % % below is untouched % % % ---------------------
 
 
@@ -634,28 +647,6 @@ for i = 1:handles.npoints,
     %'KeyPressFcn',handles.keypressfcn);
 end
 
-guidata(hObject,handles);
-
-function CloseImContrast(hObject)
-
-handles = guidata(hObject);
-clim = get(handles.axes_curr,'CLim');
-handles.minv = clim(1);
-handles.maxv = clim(2);
-set(handles.axes_prev,'CLim',[handles.minv,handles.maxv]);
-set(handles.axes_curr,'CLim',[handles.minv,handles.maxv]);
-delete(handles.adjustbrightness_listener);
-guidata(hObject,handles);
-
-% --------------------------------------------------------------------
-function menu_setup_adjustbrightness_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_setup_adjustbrightness (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-%set(handles.axes_curr,'CLim',[min(handles.imcurr(:)),max(handles.imcurr(:))]);
-hcontrast = imcontrast_kb(handles.axes_curr);
-handles.adjustbrightness_listener = addlistener(hcontrast,'ObjectBeingDestroyed',@(x,y) CloseImContrast(hObject));
 guidata(hObject,handles);
 
 % --- Executes when user attempts to close figure.

@@ -12,7 +12,8 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' 'moviefile' 'nframes' 'trxFilename' 'nTrx' ...
       'labelMode' 'nLabelPoints' 'labelNames' ...
-      'labeledpos' 'labelPtsColors' 'currFrame' 'currTarget'};
+      'labeledpos' 'labelPtsColors' 'currFrame' 'currTarget' 'minv' 'maxv'};
+    LOADPROPS = {'minv' 'maxv'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
     TBLTRX_STATIC_COLSTRX = {'id' 'labeled'};
@@ -25,9 +26,9 @@ classdef Labeler < handle
   
   %% Movie
   properties
-    movieReader = []; % MovieReader object
-    minv = 0; % etc
-    maxv = inf; % 'model', for the moment
+    movieReader = [];         % MovieReader object
+    minv = 0;
+    maxv = inf;  
   end
   properties (Dependent)
     hasMovie;
@@ -218,12 +219,16 @@ classdef Labeler < handle
         error('Labeler:load','Unexpected contents in Label file.');
       end
       
+      for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
+        obj.(f) = s.(f);
+      end
+      
       if isempty(s.trxFilename)
         obj.loadMovie(s.moviefile);
       else
         obj.loadMovie(s.moviefile,s.trxFilename);
       end
-            
+                  
       assert(isa(s.labelMode,'LabelMode'));
       switch s.labelMode
         case LabelMode.SEQUENTIAL
@@ -231,10 +236,11 @@ classdef Labeler < handle
             'ptNames',s.labelNames,'ptColors',s.labelPtsColors);
           obj.labeledpos = s.labeledpos; 
           obj.setFrame(s.currFrame);
+          obj.setTarget(s.currTarget);
         otherwise
           assert(false,'TODO');
       end
-      
+            
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI      
     end
     
@@ -594,6 +600,69 @@ classdef Labeler < handle
   end
   
   
+  %% Video
+  methods
+    
+    function videoResetView(obj)
+      axis(obj.gdata.axes_curr,'auto','image');
+      %axis(obj.gdata.axes_prev,'auto','image');
+    end
+    
+    function videoCenterOnCurrTarget(obj)
+      [x0,y0] = obj.videoCurrentCenter;
+      [x,y] = obj.currentTargetLoc();
+      
+      dx = x-x0;
+      dy = y-y0;
+      axisshift(obj.gdata.axes_curr,dx,dy);
+      %axisshift(obj.gdata.axes_prev,dx,dy);
+    end
+    
+    function videoZoom(obj,zoomRadius)
+      % Zoom to square window over current frame center with given radius.
+      
+      [x0,y0] = obj.videoCurrentCenter();      
+      lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
+      axis(obj.gdata.axes_curr,lims);
+      axis(obj.gdata.axes_prev,lims);      
+    end
+    function videoZoomFac(obj,zoomFac)
+      % zoomFac: 0 for no-zoom; 1 for max zoom
+      
+      movInfo = obj.movieReader.info;
+      zr0 = max(movInfo.nr,movInfo.nc)/2; % no-zoom: large radius
+      zr1 = obj.zoomRadiusTight; % tight zoom: small radius
+      
+      if zr1>zr0
+        zr = zr0;
+      else
+        zr = zr0 + zoomFac*(zr1-zr0);
+      end
+      obj.videoZoom(zr);      
+    end
+    
+    function [xsz,ysz] = videoCurrentSize(obj)
+      v = axis(obj.gdata.axes_curr);
+      xsz = v(2)-v(1);
+      ysz = v(4)-v(3);
+    end
+    function [x0,y0] = videoCurrentCenter(obj)
+      v = axis(obj.gdata.axes_curr);
+      x0 = mean(v(1:2));
+      y0 = mean(v(3:4));
+    end
+    
+    function videoSetContrastFromAxesCurr(obj)
+      % Get video contrast from axes_curr and record/set
+      clim = get(obj.gdata.axes_curr,'CLim');
+      set(obj.gdata.axes_prev,'CLim',clim);
+      obj.minv = clim(1);
+      obj.maxv = clim(2);
+    end
+    
+  end
+  
+  
   %%
   methods (Hidden)
     
@@ -626,8 +695,6 @@ classdef Labeler < handle
       end
                  
       im1 = movRdr.readframe(obj.currFrame);
-      obj.minv = 0;
-      obj.maxv = inf;
       %obj.minv = max(obj.minv,0);
       if isfield(movRdr.info,'bitdepth')
         obj.maxv = min(obj.maxv,2^movRdr.info.bitdepth-1);
@@ -668,13 +735,13 @@ classdef Labeler < handle
     
     function setFrame(obj,frm)
       if obj.currFrame~=frm
-        [obj.currIm,~] = obj.movieReader.readframe(frm);
+        obj.currIm = obj.movieReader.readframe(frm);
         obj.currFrame = frm;
       end
       
       if frm > 1
         %if obj.prevFrame~=frm-1
-        [obj.prevIm,~] = obj.movieReader.readframe(frm-1);
+        obj.prevIm = obj.movieReader.readframe(frm-1);
         obj.prevFrame = frm-1;
         %end
         set(obj.gdata.image_prev,'CData',obj.prevIm);
@@ -773,56 +840,7 @@ classdef Labeler < handle
         y = round(obj.movienr/2);
       end
     end
-        
-    function videoResetView(obj)
-      axis(obj.gdata.axes_curr,'auto','image');
-      %axis(obj.gdata.axes_prev,'auto','image');
-    end
-    
-    function videoCenterOnCurrTarget(obj)
-      [x0,y0] = obj.videoCurrentCenter;
-      [x,y] = obj.currentTargetLoc();
-      
-      dx = x-x0;
-      dy = y-y0;
-      axisshift(obj.gdata.axes_curr,dx,dy);
-      %axisshift(obj.gdata.axes_prev,dx,dy);
-    end   
-   
-    function videoZoom(obj,zoomRadius)
-      % Zoom to square window over current frame center with given radius.
-      
-      [x0,y0] = obj.videoCurrentCenter();      
-      lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
-      axis(obj.gdata.axes_curr,lims);
-      axis(obj.gdata.axes_prev,lims);      
-    end
-    function videoZoomFac(obj,zoomFac)
-      % zoomFac: 0 for no-zoom; 1 for max zoom
-      
-      movInfo = obj.movieReader.info;
-      zr0 = max(movInfo.nr,movInfo.nc)/2; % no-zoom: large radius
-      zr1 = obj.zoomRadiusTight; % tight zoom: small radius
-      
-      if zr1>zr0
-        zr = zr0;
-      else
-        zr = zr0 + zoomFac*(zr1-zr0);
-      end
-      obj.videoZoom(zr);      
-    end
-    
-    function [xsz,ysz] = videoCurrentSize(obj)
-      v = axis(obj.gdata.axes_curr);
-      xsz = v(2)-v(1);
-      ysz = v(4)-v(3);
-    end
-    function [x0,y0] = videoCurrentCenter(obj)
-      v = axis(obj.gdata.axes_curr);
-      x0 = mean(v(1:2));
-      y0 = mean(v(3:4));
-    end
-        
+                
     % TODO prob use listener/event for this; maintain relevant
     % datastructure in Labeler
     function updateTrxTable(obj)
