@@ -218,7 +218,8 @@ lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie();
   if lObj.hasMovie
-    lObj.setLabelModeSequential(lObj.nLabelPoints); % stopgap
+    lObj.labelingInit(LabelMode.SEQUENTIAL,lObj.nLabelPoints); % stopgap
+    lObj.labelMode1Label();
   end
   % XXX add me somewhere
   % handles.templatecolors = jet(handles.npoints);
@@ -229,7 +230,8 @@ lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie([],[]);
   if lObj.hasMovie
-    lObj.setLabelModeSequential(lObj.nLabelPoints); % stopgap
+    lObj.labelingInit(LabelMode.SEQUENTIAL,lObj.nLabelPoints); % stopgap
+    lObj.labelMode1Label();
   end
 end
 
