@@ -66,6 +66,7 @@ classdef Labeler < handle
     labelNames;           % nLabelPoints-by-1 cellstr
     labelPtsColors;       % nLabelPoints x 3 RGB
     
+    labelState;           % scalar LabelState
     labelPtsH;            % nLabelPoints x 1 handle vec, handle to points
     labelPtsTxtH;         % nLabelPoints x 1 handle vec, handle to text
     label_iPtMove;        % scalar integer. 0..nLabelPoints, point clicked and being moved
@@ -74,7 +75,6 @@ classdef Labeler < handle
     lblPrev_ptsTxtH;
 
     % Label mode 1
-    lbl1_state;           % SequentialModeState
     lbl1_nPtsLabeled;     % scalar integer. 0..nLabelPoints, or inf.
                           % State description; see bdfmode1
                           
@@ -321,6 +321,13 @@ classdef Labeler < handle
       obj.labeledpos(:,:,obj.currFrame,obj.currTarget) = nan;
     end
     
+    function [tf,lpos] = labelPosIsLabeled(obj,iFrm,iTrx)
+      lpos = obj.labeledpos(:,:,iFrm,iTrx);
+      tfnan = isnan(lpos);
+      assert(all(tfnan(:)) || ~any(tfnan(:)));
+      tf = ~any(tfnan(:));
+    end  
+    
     function labelPosSetMode1(obj)
       % Set labelpos from labelPtsH for current frame, current target
       
@@ -418,8 +425,8 @@ classdef Labeler < handle
     end
     
     function bdfMode1Ax(obj,~,~)
-      switch obj.lbl1_state
-        case SequentialModeState.LABEL
+      switch obj.labelState
+        case LabelState.LABEL
           ax = obj.gdata.axes_curr;
           
           nlbled = obj.lbl1_nPtsLabeled;
@@ -443,17 +450,17 @@ classdef Labeler < handle
     end
     
     function bdfMode1Pt(obj,src,~)
-      switch obj.lbl1_state
-        case SequentialModeState.ADJUST
+      switch obj.labelState
+        case LabelState.ADJUST
           obj.label_iPtMove = get(src,'UserData');
-        case SequentialModeState.ACCEPTED
+        case LabelState.ACCEPTED
           obj.labelMode1Adjust();
           obj.label_iPtMove = get(src,'UserData');
       end
     end
     
     function wbmfMode1(obj,~,~)
-      if obj.lbl1_state==SequentialModeState.ADJUST
+      if obj.labelState==LabelState.ADJUST
         iPt = obj.label_iPtMove;      
         if ~isnan(iPt) % should always be true
           ax = obj.gdata.axes_curr;
@@ -467,7 +474,7 @@ classdef Labeler < handle
     end
     
     function wbufMode1(obj,~,~)
-      if obj.lbl1_state==SequentialModeState.ADJUST
+      if obj.labelState==LabelState.ADJUST
         obj.label_iPtMove = nan;
       end
     end    
@@ -525,7 +532,7 @@ classdef Labeler < handle
       obj.label_iPtMove = nan;
       obj.labelPosClear();
       
-      obj.lbl1_state = SequentialModeState.LABEL;      
+      obj.labelState = LabelState.LABEL;      
     end
        
     function labelMode1Adjust(obj)
@@ -539,7 +546,7 @@ classdef Labeler < handle
       %obj.labelPosClear();
       set(obj.gdata.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
         'Value',0,'Enable','on');
-      obj.lbl1_state = SequentialModeState.ADJUST;
+      obj.labelState = LabelState.ADJUST;
     end
     
     function labelMode1Accept(obj,tfSetLabelPos)
@@ -550,7 +557,7 @@ classdef Labeler < handle
       end
       set(obj.gdata.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
         'Value',1,'Enable','on');
-      obj.lbl1_state = SequentialModeState.ACCEPTED;
+      obj.labelState = LabelState.ACCEPTED;
     end    
        
     function labelMode1NewFrameOrTarget(obj)
@@ -561,7 +568,7 @@ classdef Labeler < handle
       iFrm = obj.currFrame;
       iTrx = obj.currTarget;
       
-      [tflabeled,lpos] = obj.labelMode1FrameIsLabeled(iFrm,iTrx);
+      [tflabeled,lpos] = obj.labelPosIsLabeled(iFrm,iTrx);
       if tflabeled
         obj.lbl1_nPtsLabeled = obj.nLabelPoints;
         Labeler.assignCoords2Pts(lpos,obj.labelPtsH,obj.labelPtsTxtH);
@@ -572,12 +579,62 @@ classdef Labeler < handle
       end
     end
     
-    function [tf,lpos] = labelMode1FrameIsLabeled(obj,iFrm,iTrx)
-      lpos = obj.labeledpos(:,:,iFrm,iTrx);
-      tfnan = isnan(lpos);
-      assert(all(tfnan(:)) || ~any(tfnan(:)));
-      tf = ~any(tfnan(:));
-    end    
+  end
+  
+  methods % Label mode 2 (template)
+    
+    % LABEL MODE 2 IMPL NOTES
+    % 2 States:
+    % - Adjusting
+    % -- 'untouched' template points are white
+    % -- 'touched' template points are colored
+    % - Accepted
+    % -- all points colored. 
+    % -- Can go back into adjustment mode, but all points turn white as if from template.
+    % 
+    % TRANSITIONS W/OUT TRX
+    % Note: Once a template is created/loaded, there is a set of points (either 
+    %  all white/template, or partially template, or all colored) on the image 
+    %  at all times.
+    % - New unlabeled frame
+    % -- If the previous frame was labeled, the colored points from the last 
+    %    frame become white points in the new frame
+    % -- If the previous frame was unlabeled, the white points from last frame
+    %    become the white points in the new frame.
+    % - New labeled frame
+    % -- Previously accepted labels shown as colored points.
+    % 
+    % TRANSITIONS W/TRX
+    % - New unlabeled frame (current target)
+    % -- If the previous frame was labeled, the colored points from the last 
+    %    frame become white points in the new frame. They are auto-aligned.
+    % -- If the previous frame was unlabeled, the white points from last frame
+    %    become the white points in the new frame. They are auto-aligned.
+    % - New labeled frame (current target)
+    % -- Previously accepted labels shown as colored points.
+    % - New target (same frame), unlabeled
+    % -- Last labeled frame for new target acts as template; points auto-aligned.
+    % -- If no previously labeled frame for this target, current white points are aligned onto new target.
+
+  
+    function labelMode2Adjust(obj)
+      % Enter adjustment state for current frame/tgt
+      
+      obj.label_iPtMove = nan;
+      
+      set(obj.gdata.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
+        'Value',0,'Enable','on');
+      obj.labelState = LabelState.ADJUST;
+      
+    end
+    
+    function labelMode2Accept(obj)
+      % Enter accepted state for current frame/tgt
+    end
+    
+    function labelMode2NewFrameOrTarget(obj)
+      
+    end
     
   end
   

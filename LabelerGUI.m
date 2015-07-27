@@ -139,10 +139,10 @@ lObj.labelMode1Label();
 
 function tbAccept_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-switch lObj.lbl1_state
-  case SequentialModeState.ADJUST
+switch lObj.labelState
+  case LabelState.ADJUST
     lObj.labelMode1Accept(true);    
-  case SequentialModeState.ACCEPTED
+  case LabelState.ACCEPTED
     lObj.labelMode1Adjust();
   otherwise
     assert(false);
@@ -254,7 +254,7 @@ function hlpKPMode1(labelerObj,key,modifier)
 tfCtrl = ismember('control',modifier);
 switch key
   case {'s' 'space'} % accept
-    if labelerObj.lbl1_state==SequentialModeState.ADJUST
+    if labelerObj.labelState==LabelState.ADJUST
       labelerObj.labelMode1Accept(true);
     end
   case {'rightarrow' 'd' 'equal'}

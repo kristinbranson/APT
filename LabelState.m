@@ -1,4 +1,4 @@
-classdef SequentialModeState
+classdef LabelState
   enumeration
     LABEL
     ADJUST
