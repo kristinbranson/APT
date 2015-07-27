@@ -45,6 +45,10 @@ end
 
 function LabelerGUI_OpeningFcn(hObject, eventdata, handles, varargin)
 
+if verLessThan('matlab','8.4')
+  error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
+end
+
 handles.output = hObject;
 
 handles.labelerObj = varargin{1};
