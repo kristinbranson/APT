@@ -21,6 +21,8 @@ classdef Labeler < handle
     TBLFRAMES_COLS = {'frame' 'labeled targets'};
     
     FRAMEUP_BIGSTEP = 10;
+    NEIGHBORING_FRAME_MAXRADIUS = 10;
+    NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
   end
   
   
@@ -80,6 +82,7 @@ classdef Labeler < handle
                           
     % Label mode 2
     lbl2_template;        % LabelTemplate obj. "original" template
+    lbl2_templateClr = [1 1 1]; % 1 x 3 RGB
     lbl2_ptsTfAdjusted;   % nLabelPoints x 1 logical vec. If true, pt has been adjusted from template
   end 
   
@@ -88,9 +91,10 @@ classdef Labeler < handle
 
     currFrame = 1;        % current frame
     currIm = [];
-    prevFrame = [];
+    prevFrame = nan;      % last previously VISITED frame
     prevIm = [];    
     currTarget = nan;
+    prevTarget = nan;
   end
   
   methods % dependent prop getters
@@ -326,22 +330,45 @@ classdef Labeler < handle
       tfnan = isnan(lpos);
       assert(all(tfnan(:)) || ~any(tfnan(:)));
       tf = ~any(tfnan(:));
-    end  
+    end 
     
-    function labelPosSetMode1(obj)
-      % Set labelpos from labelPtsH for current frame, current target
+    function [tfneighbor,iFrm0,lpos0] = labelPosLabeledNeighbor(obj,iFrm,iTrx)
+      % tfneighbor: if true, a labeled neighboring frame was found
+      % iFrm0: index of labeled neighboring frame, relevant only if
+      %   tfneighbor is true
+      % lpos0: labels at iFrm0, relevant only if tfneighbor is true
+      %
+      % This method looks for a frame "near" iFrm for target iTrx that is
+      % labeled. This could be iFrm itself if it is labeled. If a
+      % neighboring frame is found, iFrm0 is not guaranteed to be the
+      % closest or any particular neighboring frame although this will tend
+      % to be true.      
       
-      assert(obj.labelMode==LabelMode.SEQUENTIAL);
+      lposTrx = obj.labeledpos(:,:,:,iTrx);
+      for dFrm = 0:obj.NEIGHBORING_FRAME_OFFSETS 
+        iFrm0 = iFrm + dFrm;
+        iFrm0 = max(iFrm0,1);
+        iFrm0 = min(iFrm0,obj.nframes);
+        lpos0 = lposTrx(:,:,iFrm0);
+        if ~isnan(lpos0(1))
+          tfneighbor = true;
+          return;
+        end
+      end
+      
+      tfneighbor = false;
+      iFrm0 = nan;
+      lpos0 = [];      
+    end
+    
+    function labelPosSet(obj)
+      % Set labelpos from labelPtsH for current frame, current target
       
       cfrm = obj.currFrame;
       ctrx = obj.currTarget;
-      x = get(obj.labelPtsH,'XData');
-      y = get(obj.labelPtsH,'YData');
-      x = cell2mat(x);
-      y = cell2mat(y);
-      assert(~any(isnan(x)));
-      assert(~any(isnan(y)));
-      obj.labeledpos(:,:,cfrm,ctrx) = [x y];
+      xy = Labeler.getCoordsFromPts(obj.labelPtsH);
+      assert(~any(isnan(xy(:))));
+      obj.labeledpos(:,:,cfrm,ctrx) = xy;
     end
     
   end
@@ -404,8 +431,17 @@ classdef Labeler < handle
       set(gdat.pbClear,'Enable','on');      
     end    
     
-    function labelsUpdate(obj)
-      % React to new .currFrame or .currTarget
+    function labelsUpdateNewFrame(obj)
+      if ~isempty(obj.labelMode)
+        switch obj.labelMode
+          case LabelMode.SEQUENTIAL
+            obj.labelMode1NewFrameOrTarget();
+            obj.labelsPrevUpdate();
+        end
+      end
+    end
+    
+    function labelsUpdateNewTarget(obj)
       if ~isempty(obj.labelMode)
         switch obj.labelMode
           case LabelMode.SEQUENTIAL
@@ -553,7 +589,7 @@ classdef Labeler < handle
       % Enter accepted state (for current frame)
       
       if tfSetLabelPos
-        obj.labelPosSetMode1();
+        obj.labelPosSet();
       end
       set(obj.gdata.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
         'Value',1,'Enable','on');
@@ -597,57 +633,120 @@ classdef Labeler < handle
     %  all white/template, or partially template, or all colored) on the image 
     %  at all times.
     % - New unlabeled frame
-    % -- If the previous frame was labeled, the colored points from the last 
-    %    frame become white points in the new frame
-    % -- If the previous frame was unlabeled, the white points from last frame
-    %    become the white points in the new frame.
+    % -- Label point positions are unchanged, but all points become white.
+    %    If scrolling forward, the template from frame-1 will be used etc.
+    % -- (Enhancement? not implemented) Accepted points from 'nearest' 
+    %    neighboring labeled frame (eg frm-1, or <frmLastVisited>, become 
+    %    white points in new frame
     % - New labeled frame
     % -- Previously accepted labels shown as colored points.
     % 
     % TRANSITIONS W/TRX
     % - New unlabeled frame (current target)
-    % -- If the previous frame was labeled, the colored points from the last 
-    %    frame become white points in the new frame. They are auto-aligned.
-    % -- If the previous frame was unlabeled, the white points from last frame
-    %    become the white points in the new frame. They are auto-aligned.
-    % - New labeled frame (current target)
+    % -- Existing points are auto-aligned onto new frame. The existing
+    %    points could represent previously accepted labels, or just the
+    %    previous template state.
+    % - New labeled frame (current target) 
     % -- Previously accepted labels shown as colored points.
     % - New target (same frame), unlabeled
     % -- Last labeled frame for new target acts as template; points auto-aligned.
     % -- If no previously labeled frame for this target, current white points are aligned onto new target.
+    % - New target (same frame), labeled
+    % -- Previously accepted labels shown as colored points.
 
   
     function labelMode2Adjust(obj)
-      % Enter adjustment state for current frame/tgt
+      % Enter adjustment state for current frame/tgt. All points become
+      % white (template/pre-adjustment)
       
+      arrayfun(@(x)set(x,'Color',obj.lbl2_templateClr),obj.labelPtsH);
+      obj.lbl2_ptsTfAdjusted(:) = false;
       obj.label_iPtMove = nan;
       
       set(obj.gdata.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
         'Value',0,'Enable','on');
       obj.labelState = LabelState.ADJUST;
-      
     end
     
-    function labelMode2Accept(obj)
-      % Enter accepted state for current frame/tgt
+    function labelMode2Accept(obj,tfSetLabelPos)
+      % Enter accepted state for current frame/tgt. All points colored. If
+      % tfSetLabelPos, all points written to labelpos.
+      
+      nPts = obj.nLabelPoints;
+      ptsH = obj.labelPtsH;
+      clrs = obj.labelPtsColors;
+      for i = 1:nPts
+        set(ptsH(i),'Color',clrs(i,:));
+      end
+      
+      obj.lbl2_ptsTFAdjusted(:) = true;
+            
+      if tfSetLabelPos
+        obj.labelPosSet();
+      end
+      set(obj.gdata.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
+        'Value',1,'Enable','on');
+      obj.labelState = LabelState.ACCEPTED;
     end
     
-    function labelMode2NewFrameOrTarget(obj)
-      
+    function labelMode2NewFrameOrTarget(obj,transition)
+      iFrm = obj.currFrame;
+      iTrx = obj.currTarget;
+      [tflabeled,lpos] = obj.labelPosIsLabeled(iFrm,iTrx);
+      if tflabeled
+        Labeler.assignCoords2Pts(lpos,obj.labelPtsH,obj.labelPtsTxtH);
+        obj.labelMode2Accept(false);
+      else
+        if obj.hasTrx
+          switch transition
+            case NEWFRAME
+              % existing points are aligned onto new frame based on trx at
+              % (currTarget,prevFrame) and (currTarget,currFrame)
+
+              iFrm0 = obj.prevFrame;
+              xy0 = Labeler.getCoordsFromPts(obj.labelPtsH);
+              xy = Labeler.transformPtsTrx(xy0,obj.trx(iTrx),iFrm0,obj.trx(iTrx),iFrm);
+            case NEWTARGET
+              [tfneighbor,iFrm0,lpos0] = obj.labelPosLabeledNeighbor(iFrm,iTrx);
+              if tfneighbor
+                xy = Labeler.transformPtsTrx(lpos0,obj.trx(iTrx),iFrm0,obj.trx(iTrx),iFrm);
+              else
+                % no neighboring previously labeled points for new target.
+                % Just start with current points for previous target.
+                
+                xy0 = Labeler.getCoordsFromPts(obj.labelPtsH);
+                iTrx0 = obj.prevTarget;
+                xy = Labeler.transformPtsTrx(xy0,obj.trx(iTrx0),iFrm,obj.trx(iTrx),iFrm);
+              end              
+            otherwise
+              assert(false);
+          end
+          Labeler.assignCoords2Pts(xy,obj.labelPtsH,obj.labelPtsTxtH);
+        end
+        obj.labelMode2Adjust();
+      end
     end
     
   end
   
   methods (Static)
+
+    function xy = getCoordsFromPts(hPts)
+      x = get(hPts,'XData');
+      y = get(hPts,'YData');
+      x = cell2mat(x);
+      y = cell2mat(y);
+      xy = [x y];
+    end
     
-    function assignCoords2Pts(lpos,hPts,hTxt)
-      nPts = size(lpos,1);
-      assert(size(lpos,2)==2);
+    function assignCoords2Pts(xy,hPts,hTxt)
+      nPts = size(xy,1);
+      assert(size(xy,2)==2);
       assert(isequal(nPts,numel(hPts),numel(hTxt)));
       
       for i = 1:nPts
-        set(hPts(i),'XData',lpos(i,1),'YData',lpos(i,2));
-        set(hTxt(i),'Position',[lpos(i,1)+Labeler.DT2P lpos(i,2)+Labeler.DT2P 1]);
+        set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
+        set(hTxt(i),'Position',[xy(i,1)+Labeler.DT2P xy(i,2)+Labeler.DT2P 1]);
       end
     end
     
@@ -659,6 +758,30 @@ classdef Labeler < handle
       end      
     end
     
+    function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)
+      % uv0: npts x 2 array of points
+      % trx0: scalar trx
+      % iFrm0: absolute frame number for trx0
+      % etc
+      %
+      % The points uv0 correspond to trx0 @ iFrm0. Compute uv that
+      % corresponds to trx1 @ iFrm1, ie so that uv relates to trx1@iFrm1 in 
+      % the same way that uv0 relates to trx0@iFrm0.
+      
+      assert(trx0.off==1-trx0.firstframe);
+      assert(trx1.off==1-trx1.firstframe);
+      
+      iFrm0 = iFrm0+trx0.off;
+      xy0 = [trx0.x(iFrm0) trx0.y(iFrm0)];
+      th0 = trx0.theta(iFrm0);
+      
+      iFrm1 = iFrm1+trx1.off;
+      xy1 = [trx1.x(iFrm1) trx1.y(iFrm1)];
+      th1 = trx1.theta(iFrm1);
+      
+      uv = transformPoints(uv0,xy0,th0,xy1,th1);
+    end
+        
   end
   
   
@@ -795,22 +918,16 @@ classdef Labeler < handle
    end
     
     function setFrame(obj,frm)
+      obj.prevFrame = obj.currFrame;
+      obj.prevIm = obj.currIm;
+      set(obj.gdata.image_prev,'CData',obj.prevIm);
+      set(obj.gdata.txPrevIm,'String',num2str(obj.prevFrame));
+      
       if obj.currFrame~=frm
         obj.currIm = obj.movieReader.readframe(frm);
         obj.currFrame = frm;
       end
-      
-      if frm > 1
-        %if obj.prevFrame~=frm-1
-        obj.prevIm = obj.movieReader.readframe(frm-1);
-        obj.prevFrame = frm-1;
-        %end
-        set(obj.gdata.image_prev,'CData',obj.prevIm);
-      else
-        obj.prevFrame = nan;
-        set(obj.gdata.image_prev,'CData',0);
-      end
-      
+            
       set(obj.gdata.image_curr,'CData',obj.currIm);
       if obj.hasTrx
         obj.videoCenterOnCurrTarget();
@@ -820,7 +937,7 @@ classdef Labeler < handle
       set(obj.gdata.slider_frame,'Value',(frm-1)/(obj.nframes-1));
       set(obj.gdata.edit_frame,'String',num2str(frm));
 
-      obj.labelsUpdate();
+      obj.labelsUpdateNewFrame();
       
       if obj.hasTrx
         obj.updateTrxTable();
@@ -848,13 +965,13 @@ classdef Labeler < handle
     
     function setTarget(obj,iTgt)
       validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
+      
+      obj.prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
       if obj.hasTrx
         obj.videoCenterOnCurrTarget();
       end
-      obj.labelsUpdate();
-      
-      %XXX template?
+      obj.labelsUpdateNewTarget();
     end
     
     function frameUp(obj,tfBigstep)
