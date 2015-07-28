@@ -299,67 +299,7 @@ classdef Labeler < handle
   
   
   %% Labeling
-  methods % labelpos
-      
-    function labelPosInitWithLocked(obj)
-      obj.labeledpos = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
-      obj.labelsLocked = false(obj.nframes,obj.nTargets);
-    end
-    
-    function labelPosClear(obj)
-      % Clear all labels for current frame, current target
-      obj.labeledpos(:,:,obj.currFrame,obj.currTarget) = nan;
-    end
-    
-    function [tf,lpos] = labelPosIsLabeled(obj,iFrm,iTrx)
-      lpos = obj.labeledpos(:,:,iFrm,iTrx);
-      tfnan = isnan(lpos);
-      assert(all(tfnan(:)) || ~any(tfnan(:)));
-      tf = ~any(tfnan(:));
-    end 
-    
-    function [tfneighbor,iFrm0,lpos0] = labelPosLabeledNeighbor(obj,iFrm,iTrx)
-      % tfneighbor: if true, a labeled neighboring frame was found
-      % iFrm0: index of labeled neighboring frame, relevant only if
-      %   tfneighbor is true
-      % lpos0: labels at iFrm0, relevant only if tfneighbor is true
-      %
-      % This method looks for a frame "near" iFrm for target iTrx that is
-      % labeled. This could be iFrm itself if it is labeled. If a
-      % neighboring frame is found, iFrm0 is not guaranteed to be the
-      % closest or any particular neighboring frame although this will tend
-      % to be true.      
-      
-      lposTrx = obj.labeledpos(:,:,:,iTrx);
-      for dFrm = 0:obj.NEIGHBORING_FRAME_OFFSETS 
-        iFrm0 = iFrm + dFrm;
-        iFrm0 = max(iFrm0,1);
-        iFrm0 = min(iFrm0,obj.nframes);
-        lpos0 = lposTrx(:,:,iFrm0);
-        if ~isnan(lpos0(1))
-          tfneighbor = true;
-          return;
-        end
-      end
-      
-      tfneighbor = false;
-      iFrm0 = nan;
-      lpos0 = [];      
-    end
-    
-    function labelPosSet(obj,xy)
-      % Set labelpos from labelPtsH for current frame, current target
-      
-      assert(~any(isnan(xy(:))));
-      
-      cfrm = obj.currFrame;
-      ctrx = obj.currTarget;
-      obj.labeledpos(:,:,cfrm,ctrx) = xy;
-    end
-    
-  end
-  
-  methods
+  methods 
     
     function labelingInit(obj,labelMode,nPts,varargin)
       % Initialize labeling state
@@ -401,6 +341,70 @@ classdef Labeler < handle
       end
       
     end    
+    
+  end  
+  
+  methods % labelpos
+      
+    function labelPosInitWithLocked(obj)
+      obj.labeledpos = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
+      obj.labelsLocked = false(obj.nframes,obj.nTargets);
+    end
+    
+    function labelPosClear(obj)
+      % Clear all labels for current frame, current target
+      obj.labeledpos(:,:,obj.currFrame,obj.currTarget) = nan;
+    end
+    
+    function [tf,lpos] = labelPosIsLabeled(obj,iFrm,iTrx)
+      lpos = obj.labeledpos(:,:,iFrm,iTrx);
+      tfnan = isnan(lpos);
+      assert(all(tfnan(:)) || ~any(tfnan(:)));
+      tf = ~any(tfnan(:));
+    end 
+    
+    function labelPosSet(obj,xy)
+      % Set labelpos from labelPtsH for current frame, current target
+      
+      assert(~any(isnan(xy(:))));
+      
+      cfrm = obj.currFrame;
+      ctrx = obj.currTarget;
+      obj.labeledpos(:,:,cfrm,ctrx) = xy;
+    end
+
+    function [tfneighbor,iFrm0,lpos0] = labelPosLabeledNeighbor(obj,iFrm,iTrx)
+      % tfneighbor: if true, a labeled neighboring frame was found
+      % iFrm0: index of labeled neighboring frame, relevant only if
+      %   tfneighbor is true
+      % lpos0: labels at iFrm0, relevant only if tfneighbor is true
+      %
+      % This method looks for a frame "near" iFrm for target iTrx that is
+      % labeled. This could be iFrm itself if it is labeled. If a
+      % neighboring frame is found, iFrm0 is not guaranteed to be the
+      % closest or any particular neighboring frame although this will tend
+      % to be true.      
+      
+      lposTrx = obj.labeledpos(:,:,:,iTrx);
+      for dFrm = 0:obj.NEIGHBORING_FRAME_OFFSETS 
+        iFrm0 = iFrm + dFrm;
+        iFrm0 = max(iFrm0,1);
+        iFrm0 = min(iFrm0,obj.nframes);
+        lpos0 = lposTrx(:,:,iFrm0);
+        if ~isnan(lpos0(1))
+          tfneighbor = true;
+          return;
+        end
+      end
+      
+      tfneighbor = false;
+      iFrm0 = nan;
+      lpos0 = [];      
+    end
+       
+  end
+  
+  methods (Access=private)
     
     function labelsUpdateNewFrame(obj)
       if ~isempty(obj.lblCore)

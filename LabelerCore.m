@@ -1,4 +1,18 @@
 classdef LabelerCore < handle
+  % LabelerCore 
+  % Handles the details of labeling: the labeling state machine, 
+  % managing in-progress labels, etc. 
+  %
+  % LabelerCore intercepts all axes_curr (and children) BDFs, figure 
+  % Window*Fcns, figure keypresses, and tbAccept/pbClear signals to
+  % implement the labeling state machine; ie labelng is enabled by ptsBDF, 
+  % figWBMF, figWBUF acting in concert. When labels are accepted, they are 
+  % written back to the Labeler.
+  %
+  % Labeler provides LabelerCore with target/frame transitions, trx info,
+  % accepted labels info. LabelerCore read/writes labeledpos through
+  % Labeler's API, and for convenience directly manages limited uicontrols 
+  % on LabelerGUI (pbClear, tbAccept).
   
   properties (Constant,Hidden)
     DT2P = 5;
@@ -59,34 +73,34 @@ classdef LabelerCore < handle
   
   methods
     
-    function newFrame(obj,iFrm0,iFrm1,iTgt)
+    function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSD>
     end
     
-    function newTarget(obj,iTgt0,iTgt1,iFrm)
+    function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSD>
     end
     
-    function clearLabels(obj)
+    function clearLabels(obj) %#ok<MANU>
     end
     
-    function acceptLabels(obj)
+    function acceptLabels(obj) %#ok<MANU>
     end    
     
-    function axBDF(obj,src,evt)
+    function axBDF(obj,src,evt) %#ok<INUSD>
     end
     
-    function ptBDF(obj,src,evt)
+    function ptBDF(obj,src,evt) %#ok<INUSD>
     end
     
-    function wbmf(obj,src,evt)
+    function wbmf(obj,src,evt) %#ok<INUSD>
     end
     
-    function wbuf(obj,src,evt)
+    function wbuf(obj,src,evt) %#ok<INUSD>
     end
     
-    function kpf(obj,src,evt)
+    function kpf(obj,src,evt) %#ok<INUSD>
     end
     
-    function getKeyboardShortcutsHelp(obj)
+    function getKeyboardShortcutsHelp(obj) %#ok<MANU>
     end
           
   end

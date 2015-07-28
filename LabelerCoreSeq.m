@@ -1,17 +1,12 @@
-classdef LabelerCoreSeq < LabelerCore
-   
+classdef LabelerCoreSeq < LabelerCore   
   % Label mode 1 (Sequential)
-  
-  % LABEL MODE 1 IMPL NOTES
+  %
   % There are three labeling states: 'label', 'adjust', 'accepted'.
   %
   % During the labeling state, points are being clicked in order. This
   % includes the state where there are zero points clicked (fresh image).
-  % In this stage, only axBDF is on and each click labels a new point.
   %
-  % During the adjustment state, points may be adjusted by
-  % click-dragging; this is enabled by ptsBDF, figWBMF, figWBUF acting in
-  % concert.
+  % During the adjustment state, points may be adjusted by click-dragging.
   %
   % When any/all adjustment is complete, tbAccept is clicked and we enter
   % the accepted stage. This locks the labeled points for this frame and
@@ -29,18 +24,10 @@ classdef LabelerCoreSeq < LabelerCore
   % the current target. Acceptance writes to .labeledpos for the current
   % target. Changing targets is like changing frames; all pre-acceptance
   % actions are discarded.
-  
-  % View according to state
-  % .labeledpos is final state for accepted labels. During labeling, the
-  % various lbl1_* state is used to keep track of tenative labels. The
-  % only way to write to .labeledpos is via one fo the labeledpos*
-  % methods, or by loading a .lbl file.
-  % Writing from lbl1_* state to .labelpos occurs via acceptLabels.
-  % Writing from .labelpos to lbl1_* state occurs via newFrameOrTarget.
-    
+      
   properties
     iPtMove;
-    nPtsLabeled;     % scalar integer. 0..nPts, or inf.
+    nPtsLabeled; % scalar integer. 0..nPts, or inf.
   end
   
   methods
