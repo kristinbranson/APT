@@ -424,10 +424,10 @@ classdef Labeler < handle
       obj.label_iPtMove = nan;
                  
       gdat = obj.gdata;
-      set(gdat.axes_curr,'ButtonDownFcn',@(s,e)obj.bdfMode1Ax(s,e));
-      arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.bdfMode1Pt(s,e)),obj.labelPtsH);
-      set(gdat.figure,'WindowButtonMotionFcn',@(s,e)obj.wbmfMode1(s,e));
-      set(gdat.figure,'WindowButtonUpFcn',@(s,e)obj.wbufMode1(s,e));      
+      set(gdat.axes_curr,'ButtonDownFcn',@(s,e)obj.bdfAx(s,e));
+      arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.bdfPoint(s,e)),obj.labelPtsH);
+      set(gdat.figure,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
+      set(gdat.figure,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));      
       set(gdat.pbClear,'Enable','on');      
     end    
     
@@ -436,8 +436,10 @@ classdef Labeler < handle
         switch obj.labelMode
           case LabelMode.SEQUENTIAL
             obj.labelMode1NewFrameOrTarget();
-            obj.labelsPrevUpdate();
+          case LabelMode.TEMPLATE
+            obj.labelMode2NewFrameOrTarget(Transition.NEWFRAME);
         end
+        obj.labelsPrevUpdate();
       end
     end
     
@@ -446,8 +448,10 @@ classdef Labeler < handle
         switch obj.labelMode
           case LabelMode.SEQUENTIAL
             obj.labelMode1NewFrameOrTarget();
-            obj.labelsPrevUpdate();
+          case LabelMode.TEMPLATE
+            obj.labelMode2NewFrameOrTarget(Transition.NEWTARGET);
         end
+        obj.labelsPrevUpdate();
       end
     end
     
@@ -460,42 +464,65 @@ classdef Labeler < handle
       end
     end
     
-    function bdfMode1Ax(obj,~,~)
-      switch obj.labelState
-        case LabelState.LABEL
-          ax = obj.gdata.axes_curr;
+    % IMPL NOTE
+    % Thinking about factoring these 4 callbacks along with labelModeX
+    % methods and some Labeling Props into delegate objects. Mouse,
+    % Keyboard, and Clear/Accept button actions are handled by delegate;
+    % communication back to Labeler occurs in labelpos* methods. Delegate
+    % is set up at labelingInit time. Probably a good idea but no need to
+    % settle yet. 
+    
+    function bdfAx(obj,~,~)
+      if obj.labelMode==LabelMode.SEQUENTIAL && ...
+          obj.labelState==LabelMode.LABEL
+        ax = obj.gdata.axes_curr;
+        
+        nlbled = obj.lbl1_nPtsLabeled;
+        if nlbled>=obj.nLabelPoints
+          assert(false); % adjustment mode only
+        else % 0..nLabelPoints-1
+          tmp = get(ax,'CurrentPoint');
+          x = tmp(1,1);
+          y = tmp(1,2);
           
-          nlbled = obj.lbl1_nPtsLabeled;
-          if nlbled>=obj.nLabelPoints
-            assert(false); % adjustment mode only
-          else % 0..nLabelPoints-1
-            tmp = get(ax,'CurrentPoint');
-            x = tmp(1,1);
-            y = tmp(1,2);
-            
-            i = nlbled+1;
-            set(obj.labelPtsH(i),'XData',x,'YData',y);
-            set(obj.labelPtsTxtH(i),'Position',[x+obj.DT2P y+obj.DT2P]);
-            obj.lbl1_nPtsLabeled = i;
-            
-            if i==obj.nLabelPoints
-              obj.labelMode1Adjust();
-            end
+          i = nlbled+1;
+          set(obj.labelPtsH(i),'XData',x,'YData',y);
+          set(obj.labelPtsTxtH(i),'Position',[x+obj.DT2P y+obj.DT2P]);
+          obj.lbl1_nPtsLabeled = i;
+          
+          if i==obj.nLabelPoints
+            obj.labelMode1Adjust();
           end
+        end
       end
     end
     
-    function bdfMode1Pt(obj,src,~)
-      switch obj.labelState
-        case LabelState.ADJUST
-          obj.label_iPtMove = get(src,'UserData');
-        case LabelState.ACCEPTED
-          obj.labelMode1Adjust();
-          obj.label_iPtMove = get(src,'UserData');
+    function bdfPoint(obj,src,~)
+      switch obj.labelMode
+        case LabelMode.SEQUENTIAL
+          switch obj.labelState
+            case LabelState.ADJUST
+              obj.label_iPtMove = get(src,'UserData');
+            case LabelState.ACCEPTED
+              obj.labelMode1Adjust();
+              obj.label_iPtMove = get(src,'UserData');
+          end
+          
+        case LabelMode.TEMPLATE
+          switch obj.labelState
+            case LabelState.ADJUST
+              iPt = get(src,'UserData');
+              obj.label_iPtMove = iPt;
+              obj.lbl2_ptsTfAdjusted(iPt) = true;
+              set(src,'Color',obj.labelPtsColors(iPt,:));
+            case LabelState.ACCEPTED
+              
+              
+          end          
       end
     end
     
-    function wbmfMode1(obj,~,~)
+    function wbmf(obj,~,~)
       if obj.labelState==LabelState.ADJUST
         iPt = obj.label_iPtMove;      
         if ~isnan(iPt) % should always be true
@@ -509,7 +536,7 @@ classdef Labeler < handle
       end
     end
     
-    function wbufMode1(obj,~,~)
+    function wbuf(obj,~,~)
       if obj.labelState==LabelState.ADJUST
         obj.label_iPtMove = nan;
       end
