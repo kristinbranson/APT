@@ -91,5 +91,36 @@ classdef LabelerCore < handle
           
   end
   
+  methods (Static)
+    
+    function xy = getCoordsFromPts(hPts)
+      x = get(hPts,'XData');
+      y = get(hPts,'YData');
+      x = cell2mat(x);
+      y = cell2mat(y);
+      xy = [x y];
+    end
+    
+    function assignCoords2Pts(xy,hPts,hTxt)
+      nPoints = size(xy,1);
+      assert(size(xy,2)==2);
+      assert(isequal(nPoints,numel(hPts),numel(hTxt)));
+      
+      for i = 1:nPoints
+        set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
+        set(hTxt(i),'Position',[xy(i,1)+LabelerCore.DT2P xy(i,2)+LabelerCore.DT2P 1]);
+      end
+    end
+    
+    function removePts(hPts,hTxt)
+      assert(numel(hPts)==numel(hTxt));
+      for i = 1:numel(hPts)
+        set(hPts(i),'XData',nan,'YData',nan);
+        set(hTxt(i),'Position',[nan nan nan]);
+      end      
+    end
+
+  end
+  
 end
 

@@ -65,24 +65,12 @@ classdef Labeler < handle
     labelMode;            % scalar LabelMode
     labeledpos;           % labels, npts x 2 x nFrm x nTrx
     labelsLocked;         % nFrm x nTrx
-    
-    
-
 %     labelNames;           % nLabelPoints-by-1 cellstr
     
-%     labelState;           % scalar LabelState
-%     labelPtsH;            % nLabelPoints x 1 handle vec, handle to points
-%     labelPtsTxtH;         % nLabelPoints x 1 handle vec, handle to text
-%     label_iPtMove;        % scalar integer. 0..nLabelPoints, point clicked and being moved
-
-    lblPrev_ptsH;         % Maybe encapsulate this and next with axes_prev, image_prev
-    lblPrev_ptsTxtH;
-
     lblCore;
     
-%     % Label mode 1
-%     lbl1_nPtsLabeled;     % scalar integer. 0..nLabelPoints, or inf.
-%                           % State description; see bdfmode1
+    lblPrev_ptsH;         % Maybe encapsulate this and next with axes_prev, image_prev
+    lblPrev_ptsTxtH;
                           
     % Label mode 2
     lbl2_template;        % LabelTemplate obj. "original" template
@@ -397,10 +385,6 @@ classdef Labeler < handle
           obj.lblCore = LabelerCoreSeq(obj);
           obj.lblCore.init(nPts,ptColors);
       end
-%       obj.labelMode = labelMode;
-%       obj.nLabelPoints = nPts;
-%       obj.labelNames = ptNames(:);
-%       obj.labelPtsColors = ptColors;
       
       obj.labelPosInitWithLocked();
       
@@ -435,9 +419,9 @@ classdef Labeler < handle
     function labelsPrevUpdate(obj)
       if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
         lpos = obj.labeledpos(:,:,obj.prevFrame,obj.currTarget);
-        Labeler.assignCoords2Pts(lpos,obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
+        LabelerCore.assignCoords2Pts(lpos,obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       else
-        Labeler.removePts(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
+        LabelerCore.removePts(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end
     end
   
@@ -520,7 +504,7 @@ classdef Labeler < handle
       iTrx = obj.currTarget;
       [tflabeled,lpos] = obj.labelPosIsLabeled(iFrm,iTrx);
       if tflabeled
-        Labeler.assignCoords2Pts(lpos,obj.labelPtsH,obj.labelPtsTxtH);
+        LabelerCore.assignCoords2Pts(lpos,obj.labelPtsH,obj.labelPtsTxtH);
         obj.labelMode2Accept(false);
       else
         if obj.hasTrx
@@ -530,7 +514,7 @@ classdef Labeler < handle
               % (currTarget,prevFrame) and (currTarget,currFrame)
 
               iFrm0 = obj.prevFrame;
-              xy0 = Labeler.getCoordsFromPts(obj.labelPtsH);
+              xy0 = LabelerCore.getCoordsFromPts(obj.labelPtsH);
               xy = Labeler.transformPtsTrx(xy0,obj.trx(iTrx),iFrm0,obj.trx(iTrx),iFrm);
             case NEWTARGET
               [tfneighbor,iFrm0,lpos0] = obj.labelPosLabeledNeighbor(iFrm,iTrx);
@@ -540,14 +524,14 @@ classdef Labeler < handle
                 % no neighboring previously labeled points for new target.
                 % Just start with current points for previous target.
                 
-                xy0 = Labeler.getCoordsFromPts(obj.labelPtsH);
+                xy0 = LabelerCore.getCoordsFromPts(obj.labelPtsH);
                 iTrx0 = obj.prevTarget;
                 xy = Labeler.transformPtsTrx(xy0,obj.trx(iTrx0),iFrm,obj.trx(iTrx),iFrm);
               end              
             otherwise
               assert(false);
           end
-          Labeler.assignCoords2Pts(xy,obj.labelPtsH,obj.labelPtsTxtH);
+          LabelerCore.assignCoords2Pts(xy,obj.labelPtsH,obj.labelPtsTxtH);
         end
         obj.labelMode2Adjust();
       end
@@ -556,33 +540,6 @@ classdef Labeler < handle
   end
   
   methods (Static)
-
-    function xy = getCoordsFromPts(hPts)
-      x = get(hPts,'XData');
-      y = get(hPts,'YData');
-      x = cell2mat(x);
-      y = cell2mat(y);
-      xy = [x y];
-    end
-    
-    function assignCoords2Pts(xy,hPts,hTxt)
-      nPts = size(xy,1);
-      assert(size(xy,2)==2);
-      assert(isequal(nPts,numel(hPts),numel(hTxt)));
-      
-      for i = 1:nPts
-        set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
-        set(hTxt(i),'Position',[xy(i,1)+LabelerCore.DT2P xy(i,2)+LabelerCore.DT2P 1]); %% XXX FIX ME
-      end
-    end
-    
-    function removePts(hPts,hTxt)
-      assert(numel(hPts)==numel(hTxt));
-      for i = 1:numel(hPts)
-        set(hPts(i),'XData',nan,'YData',nan);
-        set(hTxt(i),'Position',[nan nan nan]);
-      end      
-    end
     
     function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)
       % uv0: npts x 2 array of points

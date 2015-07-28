@@ -41,7 +41,6 @@ classdef LabelerCoreSeq < LabelerCore
   properties
     iPtMove;
     nPtsLabeled;     % scalar integer. 0..nPts, or inf.
-                     % State description; see bdfmode1                       
   end
   
   methods
@@ -156,7 +155,7 @@ classdef LabelerCoreSeq < LabelerCore
       [tflabeled,lpos] = obj.labeler.labelPosIsLabeled(iFrm,iTgt);
       if tflabeled
         obj.nPtsLabeled = obj.nPts;
-        Labeler.assignCoords2Pts(lpos,obj.hPts,obj.hPtsTxt);
+        LabelerCore.assignCoords2Pts(lpos,obj.hPts,obj.hPtsTxt);
         obj.iPtMove = nan;
         obj.beginAccepted(false); % I guess could just call with true arg
       else
@@ -196,7 +195,7 @@ classdef LabelerCoreSeq < LabelerCore
       % Enter accepted state (for current frame)
       
       if tfSetLabelPos
-        xy = Labeler.getCoordsFromPts(obj.hPts);
+        xy = LabelerCore.getCoordsFromPts(obj.hPts);
         obj.labeler.labelPosSet(xy);
       end
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
