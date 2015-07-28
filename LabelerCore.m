@@ -1,0 +1,95 @@
+classdef LabelerCore < handle
+  
+  properties (Constant,Hidden)
+    DT2P = 5;
+  end
+        
+  properties
+    labeler;              % scalar Labeler obj
+    hFig;                 % scalar figure
+    hAx;                  % scalar axis
+    %pbClear;            
+    tbAccept;
+    
+    nPts;                 % scalar integer
+    %ptNames;              % nPts-by-1 cellstr
+    ptColors;             % nPts x 3 RGB
+    
+    state;           % scalar state
+    hPts;            % nPts x 1 handle vec, handle to points
+    hPtsTxt;         % nPts x 1 handle vec, handle to text
+  end
+  
+  methods
+    
+    function obj = LabelerCore(labelerObj)
+      obj.labeler = labelerObj;
+      gd = labelerObj.gdata;
+      obj.hFig = gd.figure;
+      obj.hAx = gd.axes_curr;
+      %obj.pbClear = gd.pbClear;
+      obj.tbAccept = gd.tbAccept;
+    end
+    
+    function init(obj,nPts,ptColors)
+      obj.nPts = nPts;
+      %obj.ptNames = ptNames;
+      obj.ptColors = ptColors;
+      
+      deleteHandles(obj.hPts);
+      deleteHandles(obj.hPtsTxt);
+      obj.hPts = nan(obj.nPts,1);
+      obj.hPtsTxt = nan(obj.nPts,1);
+      ax = obj.hAx;
+      for i = 1:obj.nPts
+        obj.hPts(i) = plot(ax,nan,nan,'w+','MarkerSize',20,...
+                               'LineWidth',3,'Color',ptColors(i,:),'UserData',i);
+        obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax,...
+                                   'Color',ptColors(i,:),'Hittest','off');
+      end
+      
+      set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
+      arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
+      set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
+      set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
+      set(obj.hFig,'KeyPressFcn',@(s,e)obj.kpf(s,e));
+    end
+    
+  end
+  
+  methods
+    
+    function newFrame(obj,iFrm0,iFrm1,iTgt)
+    end
+    
+    function newTarget(obj,iTgt0,iTgt1,iFrm)
+    end
+    
+    function clearLabels(obj)
+    end
+    
+    function acceptLabels(obj)
+    end    
+    
+    function axBDF(obj,src,evt)
+    end
+    
+    function ptBDF(obj,src,evt)
+    end
+    
+    function wbmf(obj,src,evt)
+    end
+    
+    function wbuf(obj,src,evt)
+    end
+    
+    function kpf(obj,src,evt)
+    end
+    
+    function getKeyboardShortcutsHelp(obj)
+    end
+          
+  end
+  
+end
+

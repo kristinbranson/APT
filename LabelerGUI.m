@@ -138,16 +138,16 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
 end
 
 function pbClear_Callback(hObject, eventdata, handles)
-lObj = handles.labelerObj;
-lObj.labelMode1Label();
+handles.labelerObj.lblCore.clearLabels();
 
 function tbAccept_Callback(hObject, eventdata, handles)
-lObj = handles.labelerObj;
-switch lObj.labelState
+lc = handles.labelerObj.lblCore;
+% XXX TODO FIX ME
+switch lc.state
   case LabelState.ADJUST
-    lObj.labelMode1Accept(true);    
+    lc.acceptLabels();
   case LabelState.ACCEPTED
-    lObj.labelMode1Adjust();
+    lc.beginAdjust();
   otherwise
     assert(false);
 end
@@ -223,10 +223,8 @@ if hlpSave(lObj)
   lObj.loadMovie();
   if lObj.hasMovie
     lObj.labelingInit(LabelMode.SEQUENTIAL,lObj.nLabelPoints); % stopgap
-    lObj.labelMode1Label();
+    lObj.lblCore.clearLabels(); % XXX
   end
-  % XXX add me somewhere
-  % handles.templatecolors = jet(handles.npoints);
 end
 
 function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
@@ -235,37 +233,10 @@ if hlpSave(lObj)
   lObj.loadMovie([],[]);
   if lObj.hasMovie
     lObj.labelingInit(LabelMode.SEQUENTIAL,lObj.nLabelPoints); % stopgap
-    lObj.labelMode1Label();
+    lObj.lblCore.clearLabels(); % XXX
   end
 end
 
-function figure_KeyPressFcn(hObject, eventdata, handles)
-% hObject    handle to figure (see GCBO)
-% eventdata  structure with the following fields (see FIGURE)
-%	Key: name of the key that was pressed, in lower case
-%	Character: character interpretation of the key(s) that was pressed
-%	Modifier: name(s) of the modifier key(s) (i.e., control, shift) pressed
-% handles    structure with handles and user data (see GUIDATA)
-
-%fprintf('Pressed %s, > %s<\n',eventdata.Key,sprintf('%s ',eventdata.Modifier{:}));
-lObj = handles.labelerObj;
-switch lObj.labelMode
-  case LabelMode.SEQUENTIAL
-    hlpKPMode1(lObj,eventdata.Key,eventdata.Modifier)
-end
-
-function hlpKPMode1(labelerObj,key,modifier)
-tfCtrl = ismember('control',modifier);
-switch key
-  case {'s' 'space'} % accept
-    if labelerObj.labelState==LabelState.ADJUST
-      labelerObj.labelMode1Accept(true);
-    end
-  case {'rightarrow' 'd' 'equal'}
-    labelerObj.frameUp(tfCtrl);
-  case {'leftarrow' 'a' 'hyphen'}
-    labelerObj.frameDown(tfCtrl);  
-end
 % switch eventdata.Key,
 %   case 'rightarrow',
 %     if any(handles.pointselected),
@@ -473,17 +444,8 @@ end
 % end
 
 function menu_help_keyboardshortcuts_Callback(hObject, eventdata, handles)
-switch handles.labelerObj.labelMode
-  case LabelMode.SEQUENTIAL
-    hlpKPHelpMode1();
-end
-
-function hlpKPHelpMode1()
-s = {};
-s{end+1} = '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrement/increment the frame shown.';
-s{end+1} = '* <ctrl>+A and <ctrl>+D decrement and increment by 10 frames.';
-s{end+1} = '* S or <space> accepts the labels for the current frame.';
-msgbox(s,'Keyboard shortcuts','help','modal');
+h = handles.labelerObj.lblCore.getKeyboardShortcutsHelp();
+msgbox(h,'Keyboard shortcuts','help','modal');
 
 function CloseImContrast(labelerObj)
 labelerObj.videoSetContrastFromAxesCurr();

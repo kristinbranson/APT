@@ -5,14 +5,13 @@ classdef Labeler < handle
 % "animal model" labels.
 
   properties (Constant,Hidden)
-    DT2P = 5;
     VERSION = '0.0';
     DEFAULT_LBLFILENAME = '%s.lbl.mat';
     
     SAVEPROPS = { ...
       'VERSION' 'moviefile' 'nframes' 'trxFilename' 'nTrx' ...
-      'labelMode' 'nLabelPoints' 'labelNames' ...
-      'labeledpos' 'labelPtsColors' 'currFrame' 'currTarget' 'minv' 'maxv'};
+      'labelMode' 'nLabelPoints' 'labelPtsColors' ...
+      'labeledpos' 'currFrame' 'currTarget' 'minv' 'maxv'};
     LOADPROPS = {'minv' 'maxv'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
@@ -60,31 +59,36 @@ classdef Labeler < handle
   %% Labeling
   properties
     %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
+    nLabelPoints;         % scalar integer
+    labelPtsColors;       % nLabelPoints x 3 RGB
+    
+    labelMode;            % scalar LabelMode
     labeledpos;           % labels, npts x 2 x nFrm x nTrx
     labelsLocked;         % nFrm x nTrx
     
-    labelMode;            % scalar LabelMode
-    nLabelPoints;         % scalar integer
-    labelNames;           % nLabelPoints-by-1 cellstr
-    labelPtsColors;       % nLabelPoints x 3 RGB
     
-    labelState;           % scalar LabelState
-    labelPtsH;            % nLabelPoints x 1 handle vec, handle to points
-    labelPtsTxtH;         % nLabelPoints x 1 handle vec, handle to text
-    label_iPtMove;        % scalar integer. 0..nLabelPoints, point clicked and being moved
+
+%     labelNames;           % nLabelPoints-by-1 cellstr
+    
+%     labelState;           % scalar LabelState
+%     labelPtsH;            % nLabelPoints x 1 handle vec, handle to points
+%     labelPtsTxtH;         % nLabelPoints x 1 handle vec, handle to text
+%     label_iPtMove;        % scalar integer. 0..nLabelPoints, point clicked and being moved
 
     lblPrev_ptsH;         % Maybe encapsulate this and next with axes_prev, image_prev
     lblPrev_ptsTxtH;
 
-    % Label mode 1
-    lbl1_nPtsLabeled;     % scalar integer. 0..nLabelPoints, or inf.
-                          % State description; see bdfmode1
+    lblCore;
+    
+%     % Label mode 1
+%     lbl1_nPtsLabeled;     % scalar integer. 0..nLabelPoints, or inf.
+%                           % State description; see bdfmode1
                           
     % Label mode 2
     lbl2_template;        % LabelTemplate obj. "original" template
     lbl2_templateClr = [1 1 1]; % 1 x 3 RGB
     lbl2_ptsTfAdjusted;   % nLabelPoints x 1 logical vec. If true, pt has been adjusted from template
-  end 
+  end  
   
   properties
     gdata = [];           % handles structure for figure
@@ -147,7 +151,7 @@ classdef Labeler < handle
       else
         v = 1;
       end
-    end       
+    end
   end
   
   methods % prop access
@@ -235,17 +239,11 @@ classdef Labeler < handle
       end
                   
       assert(isa(s.labelMode,'LabelMode'));
-      switch s.labelMode
-        case LabelMode.SEQUENTIAL
-          obj.labelingInit(s.labelMode,s.nLabelPoints,...
-            'ptNames',s.labelNames,'ptColors',s.labelPtsColors);
-          obj.labeledpos = s.labeledpos; 
-          obj.labelMode1Label();
-          obj.setFrame(s.currFrame);
-          obj.setTarget(s.currTarget);
-        otherwise
-          assert(false,'TODO');
-      end
+      obj.labelingInit(s.labelMode,s.nLabelPoints,'ptColors',s.labelPtsColors);
+      obj.labeledpos = s.labeledpos;
+      
+      obj.setFrame(s.currFrame);
+      obj.setTarget(s.currTarget);
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI      
     end
@@ -361,13 +359,13 @@ classdef Labeler < handle
       lpos0 = [];      
     end
     
-    function labelPosSet(obj)
+    function labelPosSet(obj,xy)
       % Set labelpos from labelPtsH for current frame, current target
+      
+      assert(~any(isnan(xy(:))));
       
       cfrm = obj.currFrame;
       ctrx = obj.currTarget;
-      xy = Labeler.getCoordsFromPts(obj.labelPtsH);
-      assert(~any(isnan(xy(:))));
       obj.labeledpos(:,:,cfrm,ctrx) = xy;
     end
     
@@ -392,22 +390,19 @@ classdef Labeler < handle
       
       obj.labelMode = labelMode;
       obj.nLabelPoints = nPts;
-      obj.labelNames = ptNames(:);
       obj.labelPtsColors = ptColors;
       
-      obj.labelPosInitWithLocked();
-
-      deleteHandles(obj.labelPtsH);
-      deleteHandles(obj.labelPtsTxtH);
-      obj.labelPtsH = nan(obj.nLabelPoints,1);
-      obj.labelPtsTxtH = nan(obj.nLabelPoints,1);
-      ax = obj.gdata.axes_curr;
-      for i = 1:obj.nLabelPoints
-        obj.labelPtsH(i) = plot(ax,nan,nan,'w+','MarkerSize',20,...
-                                        'LineWidth',3,'Color',ptColors(i,:),'UserData',i);
-        obj.labelPtsTxtH(i) = text(nan,nan,num2str(i),'Parent',ax,...
-                                          'Color',ptColors(i,:),'Hittest','off');
+      switch labelMode
+        case LabelMode.SEQUENTIAL
+          obj.lblCore = LabelerCoreSeq(obj);
+          obj.lblCore.init(nPts,ptColors);
       end
+%       obj.labelMode = labelMode;
+%       obj.nLabelPoints = nPts;
+%       obj.labelNames = ptNames(:);
+%       obj.labelPtsColors = ptColors;
+      
+      obj.labelPosInitWithLocked();
       
       deleteHandles(obj.lblPrev_ptsH);
       deleteHandles(obj.lblPrev_ptsTxtH);
@@ -421,229 +416,33 @@ classdef Labeler < handle
                                       'Color',ptColors(i,:),'Hittest','off');
       end
       
-      obj.label_iPtMove = nan;
-                 
-      gdat = obj.gdata;
-      set(gdat.axes_curr,'ButtonDownFcn',@(s,e)obj.bdfAx(s,e));
-      arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.bdfPoint(s,e)),obj.labelPtsH);
-      set(gdat.figure,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
-      set(gdat.figure,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));      
-      set(gdat.pbClear,'Enable','on');      
     end    
     
     function labelsUpdateNewFrame(obj)
-      if ~isempty(obj.labelMode)
-        switch obj.labelMode
-          case LabelMode.SEQUENTIAL
-            obj.labelMode1NewFrameOrTarget();
-          case LabelMode.TEMPLATE
-            obj.labelMode2NewFrameOrTarget(Transition.NEWFRAME);
-        end
-        obj.labelsPrevUpdate();
+      if ~isempty(obj.lblCore)
+        obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
+      obj.labelsPrevUpdate();
     end
     
     function labelsUpdateNewTarget(obj)
-      if ~isempty(obj.labelMode)
-        switch obj.labelMode
-          case LabelMode.SEQUENTIAL
-            obj.labelMode1NewFrameOrTarget();
-          case LabelMode.TEMPLATE
-            obj.labelMode2NewFrameOrTarget(Transition.NEWTARGET);
-        end
-        obj.labelsPrevUpdate();
+      if ~isempty(obj.lblCore)
+        obj.lblCore.newTarget(obj.prevTarget,obj.currTarget,obj.currFrame);
       end
+      obj.labelsPrevUpdate();
     end
     
     function labelsPrevUpdate(obj)
-      if ~isnan(obj.prevFrame)
+      if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
         lpos = obj.labeledpos(:,:,obj.prevFrame,obj.currTarget);
         Labeler.assignCoords2Pts(lpos,obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       else
         Labeler.removePts(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end
     end
-    
-    % IMPL NOTE
-    % Thinking about factoring these 4 callbacks along with labelModeX
-    % methods and some Labeling Props into delegate objects. Mouse,
-    % Keyboard, and Clear/Accept button actions are handled by delegate;
-    % communication back to Labeler occurs in labelpos* methods. Delegate
-    % is set up at labelingInit time. Probably a good idea but no need to
-    % settle yet. 
-    
-    function bdfAx(obj,~,~)
-      if obj.labelMode==LabelMode.SEQUENTIAL && ...
-          obj.labelState==LabelMode.LABEL
-        ax = obj.gdata.axes_curr;
-        
-        nlbled = obj.lbl1_nPtsLabeled;
-        if nlbled>=obj.nLabelPoints
-          assert(false); % adjustment mode only
-        else % 0..nLabelPoints-1
-          tmp = get(ax,'CurrentPoint');
-          x = tmp(1,1);
-          y = tmp(1,2);
-          
-          i = nlbled+1;
-          set(obj.labelPtsH(i),'XData',x,'YData',y);
-          set(obj.labelPtsTxtH(i),'Position',[x+obj.DT2P y+obj.DT2P]);
-          obj.lbl1_nPtsLabeled = i;
-          
-          if i==obj.nLabelPoints
-            obj.labelMode1Adjust();
-          end
-        end
-      end
-    end
-    
-    function bdfPoint(obj,src,~)
-      switch obj.labelMode
-        case LabelMode.SEQUENTIAL
-          switch obj.labelState
-            case LabelState.ADJUST
-              obj.label_iPtMove = get(src,'UserData');
-            case LabelState.ACCEPTED
-              obj.labelMode1Adjust();
-              obj.label_iPtMove = get(src,'UserData');
-          end
-          
-        case LabelMode.TEMPLATE
-          switch obj.labelState
-            case LabelState.ADJUST
-              iPt = get(src,'UserData');
-              obj.label_iPtMove = iPt;
-              obj.lbl2_ptsTfAdjusted(iPt) = true;
-              set(src,'Color',obj.labelPtsColors(iPt,:));
-            case LabelState.ACCEPTED
-              
-              
-          end          
-      end
-    end
-    
-    function wbmf(obj,~,~)
-      if obj.labelState==LabelState.ADJUST
-        iPt = obj.label_iPtMove;      
-        if ~isnan(iPt) % should always be true
-          ax = obj.gdata.axes_curr;
-          tmp = get(ax,'CurrentPoint');
-          pos = tmp(1,1:2);
-          set(obj.labelPtsH(iPt),'XData',pos(1),'YData',pos(2));
-          pos(1) = pos(1) + obj.DT2P;
-          set(obj.labelPtsTxtH(iPt),'Position',pos);
-        end
-      end
-    end
-    
-    function wbuf(obj,~,~)
-      if obj.labelState==LabelState.ADJUST
-        obj.label_iPtMove = nan;
-      end
-    end    
-    
-  end
   
-  methods % Label mode 1 (Sequential)
-    
-    % LABEL MODE 1 IMPL NOTES
-    % There are three labeling states: 'label', 'adjust', 'accepted'. 
-    % 
-    % During the labeling state, points are being clicked in order. This 
-    % includes the state where there are zero points clicked (fresh image). 
-    % In this stage, only axBDF is on and each click labels a new point.
-    %    
-    % During the adjustment state, points may be adjusted by
-    % click-dragging; this is enabled by ptsBDF, figWBMF, figWBUF acting in 
-    % concert.
-    %
-    % When any/all adjustment is complete, tbAccept is clicked and we enter
-    % the accepted stage. This locks the labeled points for this frame and
-    % writes to .labeledpos.
-    %
-    % pbClear is enabled at all times. Clicking it returns to the 'label'
-    % state and clears any labeled points.
-    %
-    % tbAccept is disabled during 'label'. During 'adjust', its name is 
-    % "Accept" and clicking it moves to the 'accepted' state. During
-    % 'accepted, its name is "Adjust" and clicking it moves to the 'adjust'
-    % state.
-    %
-    % When multiple targets are present, all actions/transitions are for
-    % the current target. Acceptance writes to .labeledpos for the current
-    % target. Changing targets is like changing frames; all pre-acceptance
-    % actions are discarded.
-    
-    % View according to state
-    % .labeledpos is final state for accepted labels. During labeling, the
-    % various lbl1_* state is used to keep track of tenative labels. The
-    % only way to write to .labeledpos is via one fo the labeledpos* 
-    % methods, or by loading a .lbl file. 
-    % Writing from lbl1_* state to .labelpos occurs via labelMode1Accept.
-    % Writing from .labelpos to lbl1_* state occurs via labelMode1NewFrameOrTarget.
-        
-    function labelMode1Label(obj)
-      % Enter Label state and clear all mode1 label state for current
-      % frame/target
-      
-      set(obj.gdata.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-        'String','','Enable','off','Value',0);
-      
-      obj.lbl1_nPtsLabeled = 0;
-      arrayfun(@(x)set(x,'Xdata',nan,'ydata',nan),obj.labelPtsH);
-      arrayfun(@(x)set(x,'Position',[nan nan 1],'hittest','off'),obj.labelPtsTxtH);
-      obj.label_iPtMove = nan;
-      obj.labelPosClear();
-      
-      obj.labelState = LabelState.LABEL;      
-    end
-       
-    function labelMode1Adjust(obj)
-      % Enter adjustment state for current frame/target
-      
-      assert(obj.lbl1_nPtsLabeled==obj.nLabelPoints);
-      %assert(all(ishandle(obj.labelPtsH)));
-            
-      obj.label_iPtMove = nan;
-      
-      %obj.labelPosClear();
-      set(obj.gdata.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
-        'Value',0,'Enable','on');
-      obj.labelState = LabelState.ADJUST;
-    end
-    
-    function labelMode1Accept(obj,tfSetLabelPos)
-      % Enter accepted state (for current frame)
-      
-      if tfSetLabelPos
-        obj.labelPosSet();
-      end
-      set(obj.gdata.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
-        'Value',1,'Enable','on');
-      obj.labelState = LabelState.ACCEPTED;
-    end    
-       
-    function labelMode1NewFrameOrTarget(obj)
-      % React to new frame or target. Set mode1 label state (.lbl1_*) 
-      % according to labelpos. If a frame is not labeled, then start fresh 
-      % in Label state. Otherwise, start in Accepted state with saved labels.
-      
-      iFrm = obj.currFrame;
-      iTrx = obj.currTarget;
-      
-      [tflabeled,lpos] = obj.labelPosIsLabeled(iFrm,iTrx);
-      if tflabeled
-        obj.lbl1_nPtsLabeled = obj.nLabelPoints;
-        Labeler.assignCoords2Pts(lpos,obj.labelPtsH,obj.labelPtsTxtH);
-        obj.label_iPtMove = nan;
-        obj.labelMode1Accept(false); % I guess could just call with true arg
-      else
-        obj.labelMode1Label();
-      end
-    end
-    
   end
-  
+    
   methods % Label mode 2 (template)
     
     % LABEL MODE 2 IMPL NOTES
@@ -773,7 +572,7 @@ classdef Labeler < handle
       
       for i = 1:nPts
         set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
-        set(hTxt(i),'Position',[xy(i,1)+Labeler.DT2P xy(i,2)+Labeler.DT2P 1]);
+        set(hTxt(i),'Position',[xy(i,1)+LabelerCore.DT2P xy(i,2)+LabelerCore.DT2P 1]); %% XXX FIX ME
       end
     end
     
