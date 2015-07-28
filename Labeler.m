@@ -322,7 +322,7 @@ classdef Labeler < handle
       
       switch labelMode
         case LabelMode.SEQUENTIAL
-          obj.lblCore = LabelerCoreSeq(obj);
+          obj.lblCore = LabelCoreSeq(obj);
           obj.lblCore.init(nPts,ptColors);
       end
       
@@ -423,9 +423,9 @@ classdef Labeler < handle
     function labelsPrevUpdate(obj)
       if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
         lpos = obj.labeledpos(:,:,obj.prevFrame,obj.currTarget);
-        LabelerCore.assignCoords2Pts(lpos,obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
+        LabelCore.assignCoords2Pts(lpos,obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       else
-        LabelerCore.removePts(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
+        LabelCore.removePts(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end
     end
   
@@ -508,7 +508,7 @@ classdef Labeler < handle
       iTrx = obj.currTarget;
       [tflabeled,lpos] = obj.labelPosIsLabeled(iFrm,iTrx);
       if tflabeled
-        LabelerCore.assignCoords2Pts(lpos,obj.labelPtsH,obj.labelPtsTxtH);
+        LabelCore.assignCoords2Pts(lpos,obj.labelPtsH,obj.labelPtsTxtH);
         obj.labelMode2Accept(false);
       else
         if obj.hasTrx
@@ -518,7 +518,7 @@ classdef Labeler < handle
               % (currTarget,prevFrame) and (currTarget,currFrame)
 
               iFrm0 = obj.prevFrame;
-              xy0 = LabelerCore.getCoordsFromPts(obj.labelPtsH);
+              xy0 = LabelCore.getCoordsFromPts(obj.labelPtsH);
               xy = Labeler.transformPtsTrx(xy0,obj.trx(iTrx),iFrm0,obj.trx(iTrx),iFrm);
             case NEWTARGET
               [tfneighbor,iFrm0,lpos0] = obj.labelPosLabeledNeighbor(iFrm,iTrx);
@@ -528,14 +528,14 @@ classdef Labeler < handle
                 % no neighboring previously labeled points for new target.
                 % Just start with current points for previous target.
                 
-                xy0 = LabelerCore.getCoordsFromPts(obj.labelPtsH);
+                xy0 = LabelCore.getCoordsFromPts(obj.labelPtsH);
                 iTrx0 = obj.prevTarget;
                 xy = Labeler.transformPtsTrx(xy0,obj.trx(iTrx0),iFrm,obj.trx(iTrx),iFrm);
               end              
             otherwise
               assert(false);
           end
-          LabelerCore.assignCoords2Pts(xy,obj.labelPtsH,obj.labelPtsTxtH);
+          LabelCore.assignCoords2Pts(xy,obj.labelPtsH,obj.labelPtsTxtH);
         end
         obj.labelMode2Adjust();
       end

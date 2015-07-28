@@ -1,16 +1,16 @@
-classdef LabelerCore < handle
-  % LabelerCore 
+classdef LabelCore < handle
+  % LabelCore 
   % Handles the details of labeling: the labeling state machine, 
   % managing in-progress labels, etc. 
   %
-  % LabelerCore intercepts all axes_curr (and children) BDFs, figure 
+  % LabelCore intercepts all axes_curr (and children) BDFs, figure 
   % Window*Fcns, figure keypresses, and tbAccept/pbClear signals to
   % implement the labeling state machine; ie labelng is enabled by ptsBDF, 
   % figWBMF, figWBUF acting in concert. When labels are accepted, they are 
   % written back to the Labeler.
   %
-  % Labeler provides LabelerCore with target/frame transitions, trx info,
-  % accepted labels info. LabelerCore read/writes labeledpos through
+  % Labeler provides LabelCore with target/frame transitions, trx info,
+  % accepted labels info. LabelCore read/writes labeledpos through
   % Labeler's API, and for convenience directly manages limited uicontrols 
   % on LabelerGUI (pbClear, tbAccept).
   
@@ -36,7 +36,7 @@ classdef LabelerCore < handle
   
   methods
     
-    function obj = LabelerCore(labelerObj)
+    function obj = LabelCore(labelerObj)
       obj.labeler = labelerObj;
       gd = labelerObj.gdata;
       obj.hFig = gd.figure;
@@ -122,7 +122,7 @@ classdef LabelerCore < handle
       
       for i = 1:nPoints
         set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
-        set(hTxt(i),'Position',[xy(i,1)+LabelerCore.DT2P xy(i,2)+LabelerCore.DT2P 1]);
+        set(hTxt(i),'Position',[xy(i,1)+LabelCore.DT2P xy(i,2)+LabelCore.DT2P 1]);
       end
     end
     

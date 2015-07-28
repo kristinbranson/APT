@@ -1,4 +1,4 @@
-classdef LabelerCoreSeq < LabelerCore   
+classdef LabelCoreSeq < LabelCore   
   % Label mode 1 (Sequential)
   %
   % There are three labeling states: 'label', 'adjust', 'accepted'.
@@ -32,8 +32,8 @@ classdef LabelerCoreSeq < LabelerCore
   
   methods
     
-    function obj = LabelerCoreSeq(varargin)
-      obj = obj@LabelerCore(varargin{:});
+    function obj = LabelCoreSeq(varargin)
+      obj = obj@LabelCore(varargin{:});
     end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSL>
@@ -142,7 +142,7 @@ classdef LabelerCoreSeq < LabelerCore
       [tflabeled,lpos] = obj.labeler.labelPosIsLabeled(iFrm,iTgt);
       if tflabeled
         obj.nPtsLabeled = obj.nPts;
-        LabelerCore.assignCoords2Pts(lpos,obj.hPts,obj.hPtsTxt);
+        LabelCore.assignCoords2Pts(lpos,obj.hPts,obj.hPtsTxt);
         obj.iPtMove = nan;
         obj.beginAccepted(false); % I guess could just call with true arg
       else
@@ -182,7 +182,7 @@ classdef LabelerCoreSeq < LabelerCore
       % Enter accepted state (for current frame)
       
       if tfSetLabelPos
-        xy = LabelerCore.getCoordsFromPts(obj.hPts);
+        xy = LabelCore.getCoordsFromPts(obj.hPts);
         obj.labeler.labelPosSet(xy);
       end
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
