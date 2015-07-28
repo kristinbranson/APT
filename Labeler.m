@@ -267,7 +267,7 @@ classdef Labeler < handle
         end
         movfile = fullfile(movpath,movfile);
       end
-      assert(exist(movfile,'file')>0,'File ''%s'' not found.');
+      assert(exist(movfile,'file')>0,'File ''%s'' not found.',movfile);
 
       tfTrx = exist('trxfile','var') > 0;
       if tfTrx
@@ -698,6 +698,8 @@ classdef Labeler < handle
       obj.currFrame = 2; % to force update in setFrame
       obj.setTarget(1);
       obj.setFrame(1);
+      
+      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
    end
     
     function setFrame(obj,frm)
