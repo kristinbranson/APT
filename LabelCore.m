@@ -26,7 +26,7 @@ classdef LabelCore < handle
     tbAccept;
     
     nPts;                 % scalar integer
-    %ptNames;              % nPts-by-1 cellstr
+    %ptNames;             % nPts-by-1 cellstr
     ptColors;             % nPts x 3 RGB
     
     state;           % scalar state
@@ -34,7 +34,7 @@ classdef LabelCore < handle
     hPtsTxt;         % nPts x 1 handle vec, handle to text
   end
   
-  methods
+  methods (Sealed=true)
     
     function obj = LabelCore(labelerObj)
       obj.labeler = labelerObj;
@@ -67,11 +67,23 @@ classdef LabelCore < handle
       set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
       set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
       set(obj.hFig,'KeyPressFcn',@(s,e)obj.kpf(s,e));
+      
+      obj.initHook();
     end
-    
+       
+  end
+  
+  methods     
+    function delete(obj)
+      deleteHandles(obj.hPts);
+      deleteHandles(obj.hPtsTxt);
+    end
   end
   
   methods
+    
+    function initHook(obj) %#ok<MANU>
+    end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSD>
     end
@@ -105,6 +117,19 @@ classdef LabelCore < handle
           
   end
   
+  methods (Hidden)
+    
+    function assignLabelCoords(obj,xy)
+      LabelCore.assignCoords2Pts(xy,obj.hPts,obj.hPtsTxt);
+    end
+    
+    function xy = getLabelCoords(obj)
+      xy = LabelCore.getCoordsFromPts(obj.hPts);      
+    end
+    
+  end
+    
+    
   methods (Static)
     
     function xy = getCoordsFromPts(hPts)

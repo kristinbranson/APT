@@ -101,7 +101,7 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function wbuf(obj,~,~)
-       if obj.state==LabelState.ADJUST
+      if obj.state==LabelState.ADJUST
         obj.iPtMove = nan;
       end
     end
@@ -142,7 +142,7 @@ classdef LabelCoreSeq < LabelCore
       [tflabeled,lpos] = obj.labeler.labelPosIsLabeled(iFrm,iTgt);
       if tflabeled
         obj.nPtsLabeled = obj.nPts;
-        LabelCore.assignCoords2Pts(lpos,obj.hPts,obj.hPtsTxt);
+        obj.assignLabelCoords(lpos);
         obj.iPtMove = nan;
         obj.beginAccepted(false); % I guess could just call with true arg
       else
@@ -182,7 +182,7 @@ classdef LabelCoreSeq < LabelCore
       % Enter accepted state (for current frame)
       
       if tfSetLabelPos
-        xy = LabelCore.getCoordsFromPts(obj.hPts);
+        xy = obj.getLabelCoords();
         obj.labeler.labelPosSet(xy);
       end
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...

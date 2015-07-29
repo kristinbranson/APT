@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 23-Jul-2015 18:43:07
+% Last Modified by GUIDE v2.5 29-Jul-2015 09:20:40
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -43,7 +43,7 @@ else
 end
 % End initialization code - DO NOT EDIT
 
-function LabelerGUI_OpeningFcn(hObject, eventdata, handles, varargin)
+function LabelerGUI_OpeningFcn(hObject,eventdata,handles,varargin) %#ok<INUSL>
 
 if verLessThan('matlab','8.4')
   error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
@@ -53,8 +53,6 @@ handles.output = hObject;
 
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end);
-[handles.moviefile,handles.template,handles.trxfile] = myparse(varargin,'moviefile','',...
-  'template',[],'trxfile','');
 
 colormap(handles.figure,gray);
 
@@ -89,11 +87,11 @@ hchil = findall(handles.figure,'-property','KeyPressFcn');
 handles.keypressfcn = get(handles.figure,'KeyPressFcn');
 set(hchil,'KeyPressFcn',handles.keypressfcn);
 
-% load initial template
-if ~isempty(handles.template) && ischar(handles.template),
-  load(handles.template,'template');
-  handles.template = template;
-end
+% % load initial template
+% if ~isempty(handles.template) && ischar(handles.template),
+%   load(handles.template,'template');
+%   handles.template = template;
+% end
 
 guidata(hObject, handles);
 
@@ -222,8 +220,8 @@ lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie();
   if lObj.hasMovie
-    lObj.labelingInit(LabelMode.SEQUENTIAL,lObj.nLabelPoints); % stopgap
-    lObj.lblCore.clearLabels(); % XXX
+    lObj.labelingInit(LabelMode.TEMPLATE); % XXX
+    lObj.lblCore.clearLabels(); 
   end
 end
 
@@ -232,8 +230,8 @@ lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie([],[]);
   if lObj.hasMovie
-    lObj.labelingInit(LabelMode.SEQUENTIAL,lObj.nLabelPoints); % stopgap
-    lObj.lblCore.clearLabels(); % XXX
+    lObj.labelingInit(LabelMode.TEMPLATE); % XXX
+    lObj.lblCore.clearLabels(); 
   end
 end
 
@@ -454,6 +452,20 @@ function menu_setup_adjustbrightness_Callback(hObject, eventdata, handles)
 hConstrast = imcontrast_kb(handles.axes_curr);
 addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.labelerObj));
 
+function menu_setup_createtemplate_Callback(hObject, eventdata, handles)
+
+res = questdlg('Changing template will result in all labels being cleared. Save before doing this?');
+if strcmpi(res,'Cancel'),
+  return;
+elseif strcmpi(res,'Yes'),
+  assert(false,'TODO');
+end
+
+labeler = handles.labelerObj;
+labeler.labelingInit(LabelMode.TEMPLATE);
+lblCore = handles.labelerObj.lblCore;
+lblCore.createTemplate();
+
 % % % below is untouched % % % ---------------------
 
 
@@ -464,53 +476,7 @@ addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.lab
 %   handles.labeledpos(:,2,handles.f,handles.animal) = cell2mat(get(handles.hpoly,'YData'));
 % end
 
-function handles = SetTemplate(handles)
-  
-uiwait(msgbox('Click to create template points. First, click to create each point. Then you can drag points around. Hit escape when done.'));
 
-handles.hpoly = [];
-handles.htext = [];
-handles.keypressmode = 'settemplate';
-handles.template = nan(0,2);
-
-axes(handles.axes_curr);
-
-while true,
-
-  keydown = waitforbuttonpress;
-  if get(0,'CurrentFigure') ~= handles.figure,
-    continue;
-  end
-  if keydown == 0 && strcmpi(get(handles.figure,'SelectionType'),'normal'),
-    tmp = get(handles.axes_curr,'CurrentPoint');
-    x = tmp(1,1);
-    y = tmp(1,2);
-    handles.hpoly(end+1) = plot(handles.axes_curr,x,y,'w+','MarkerSize',20,'LineWidth',3);%,...
-      %'KeyPressFcn',handles.keypressfcn);
-    handles.htext(end+1) = text(x+handles.dt2p,y,num2str(numel(handles.hpoly)),'Parent',handles.axes_curr);%,...
-    handles.template(end+1,:) = [x,y];
-  elseif keydown == 1 && double(get(handles.figure,'CurrentCharacter')) == 27,
-    break;
-  end
-  
-end
-
-if ~isempty(handles.trx)
-  trxndx = handles.f + 1 - handles.trx(handles.animal).firstframe;
-  handles.templateloc = [handles.trx(handles.animal).x(trxndx) handles.trx(handles.animal).y(trxndx)];
-  handles.templatetheta = handles.trx(handles.animal).theta(trxndx);
-end
-
-handles.npoints = numel(handles.hpoly);
-handles.templatecolors = jet(handles.npoints);%*.5+.5;
-for i = 1:handles.npoints,
-
-  set(handles.hpoly(i),'Color',handles.templatecolors(i,:),...
-    'ButtonDownFcn',@(hObject,eventdata) PointButtonDownCallback(hObject,eventdata,handles.figure,i));
-  %addNewPositionCallback(handles.hpoly(i),@(pos) UpdateLabels(pos,handles.figure,i));
-  set(handles.htext(i),'Color',handles.templatecolors(i,:));
-  
-end
 
 function PointButtonDownCallback(hObject,eventdata,hfig,i)
 
@@ -567,49 +533,6 @@ function menu_file_quit_Callback(hObject, eventdata, handles)
 
 CloseGUI(handles);
 
-% --------------------------------------------------------------------
-function menu_setup_settemplate_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_setup_settemplate (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-if ~isempty(handles.template),
-  
-  res = questdlg('Changing template will result in all labels being cleared. Save before doing this?');
-  if strcmpi(res,'Cancel'),
-    return;
-  elseif strcmpi(res,'Yes'),
-    handles = SaveState(handles);
-  end
-
-  % delete the current template
-  for i = 1:handles.npoints,
-    try %#ok<TRYNC>
-      delete(handles.hpoly(i));
-      delete(handles.htext(i));
-    end
-  end
-  
-  handles.template = [];
-  handles.npoints = 0;
-  
-end
-
-handles = SetTemplate(handles);
-
-handles.labeledpos = nan([handles.npoints,2,handles.nframes,handles.nanimals]);
-handles.labeledpos(:,:,handles.f,handles.animal) = handles.template;
-handles.islocked = false(handles.nframes,handles.nanimals);
-handles.pointselected = false(1,handles.npoints);
-
-delete(handles.posprev(ishandle(handles.posprev)));
-handles.posprev = nan(1,handles.npoints);
-for i = 1:handles.npoints,
-  handles.posprev(i) = plot(handles.axes_prev,nan,nan,'+','Color',handles.templatecolors(i,:),'MarkerSize',8);%,...
-    %'KeyPressFcn',handles.keypressfcn);
-end
-
-guidata(hObject,handles);
 
 % --- Executes when user attempts to close figure.
 function figure_CloseRequestFcn(hObject, eventdata, handles)

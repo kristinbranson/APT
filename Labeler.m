@@ -70,12 +70,7 @@ classdef Labeler < handle
     lblCore;
     
     lblPrev_ptsH;         % Maybe encapsulate this and next with axes_prev, image_prev
-    lblPrev_ptsTxtH;
-                          
-    % Label mode 2
-    lbl2_template;        % LabelTemplate obj. "original" template
-    lbl2_templateClr = [1 1 1]; % 1 x 3 RGB
-    lbl2_ptsTfAdjusted;   % nLabelPoints x 1 logical vec. If true, pt has been adjusted from template
+    lblPrev_ptsTxtH;                          
   end  
   
   properties
@@ -191,6 +186,11 @@ classdef Labeler < handle
       for f = obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
         s.(f) = obj.(f);
       end
+      
+      switch obj.labelMode
+        case LabelMode.TEMPLATE
+          s.template = obj.lblCore.getTemplate();
+      end
     end
     
     function loadLblFile(obj,fname)
@@ -227,7 +227,8 @@ classdef Labeler < handle
       end
                   
       assert(isa(s.labelMode,'LabelMode'));
-      obj.labelingInit(s.labelMode,s.nLabelPoints,'ptColors',s.labelPtsColors);
+      obj.labelingInit(s.labelMode,'nPts',s.nLabelPoints,...
+        'ptColors',s.labelPtsColors);
       obj.labeledpos = s.labeledpos;
       
       obj.setFrame(s.currFrame);
@@ -251,6 +252,7 @@ classdef Labeler < handle
       obj.movieReader = MovieReader;
       
       obj.nLabelPoints = npts;
+      obj.labelPtsColors = jet(npts);
     end
     
     function loadMovie(obj,movfile,trxfile)
@@ -301,30 +303,45 @@ classdef Labeler < handle
   %% Labeling
   methods 
     
-    function labelingInit(obj,labelMode,nPts,varargin)
+    function labelingInit(obj,labelMode,varargin)
       % Initialize labeling state
       % 
       % Optional PVs:
-      % - ptNames
-      % - ptColors
+      % - nPts. Defaults to current nPts
+      % - ptNames. Defaults to current
+      % - ptColors. Defaults to current
 
       assert(isa(labelMode,'LabelMode'));
+      
+      [nPts,ptColors] = myparse(varargin,...
+        'nPts',obj.nLabelPoints,...
+        'ptColors',obj.labelPtsColors);
       validateattributes(nPts,{'numeric'},{'scalar' 'positive' 'integer'});
-      [ptNames,ptColors] = myparse(varargin,...
-        'ptNames',repmat({''},nPts,1),...
-        'ptColors',jet(nPts));      
-      assert(iscellstr(ptNames) && numel(ptNames)==nPts);
+     % assert(iscellstr(ptNames) && numel(ptNames)==nPts);
       assert(isequal(size(ptColors),[nPts 3]));
       
       obj.labelMode = labelMode;
       obj.nLabelPoints = nPts;
       obj.labelPtsColors = ptColors;
       
+      gd = obj.gdata;
       switch labelMode
         case LabelMode.SEQUENTIAL
           obj.lblCore = LabelCoreSeq(obj);
-          obj.lblCore.init(nPts,ptColors);
+          gd.menu_setup_sequential_mode.Enable = 'on';
+          gd.menu_setup_sequential_mode.Checked = 'on';
+          gd.menu_setup_template_mode.Enable = 'off';
+          gd.menu_setup_template_mode.Checked = 'on';
+          gd.menu_setup_createtemplate.Enable = 'off';
+        case LabelMode.TEMPLATE
+          obj.lblCore = LabelCoreTemplate(obj);
+          gd.menu_setup_sequential_mode.Enable = 'off';
+          gd.menu_setup_sequential_mode.Checked = 'off';
+          gd.menu_setup_template_mode.Enable = 'on';
+          gd.menu_setup_template_mode.Checked = 'on';
+          gd.menu_setup_createtemplate.Enable = 'on';
       end
+      obj.lblCore.init(nPts,ptColors);
       
       obj.labelPosInitWithLocked();
       
@@ -338,13 +355,10 @@ classdef Labeler < handle
                                    'LineWidth',3,'Color',ptColors(i,:),'UserData',i);
         obj.lblPrev_ptsTxtH(i) = text(nan,nan,num2str(i),'Parent',axprev,...
                                       'Color',ptColors(i,:),'Hittest','off');
-      end
-      
-    end    
+      end      
+    end
     
-  end  
-  
-  methods % labelpos
+    %%% labelpos
       
     function labelPosInitWithLocked(obj)
       obj.labeledpos = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
@@ -430,119 +444,7 @@ classdef Labeler < handle
     end
   
   end
-    
-  methods % Label mode 2 (template)
-    
-    % LABEL MODE 2 IMPL NOTES
-    % 2 States:
-    % - Adjusting
-    % -- 'untouched' template points are white
-    % -- 'touched' template points are colored
-    % - Accepted
-    % -- all points colored. 
-    % -- Can go back into adjustment mode, but all points turn white as if from template.
-    % 
-    % TRANSITIONS W/OUT TRX
-    % Note: Once a template is created/loaded, there is a set of points (either 
-    %  all white/template, or partially template, or all colored) on the image 
-    %  at all times.
-    % - New unlabeled frame
-    % -- Label point positions are unchanged, but all points become white.
-    %    If scrolling forward, the template from frame-1 will be used etc.
-    % -- (Enhancement? not implemented) Accepted points from 'nearest' 
-    %    neighboring labeled frame (eg frm-1, or <frmLastVisited>, become 
-    %    white points in new frame
-    % - New labeled frame
-    % -- Previously accepted labels shown as colored points.
-    % 
-    % TRANSITIONS W/TRX
-    % - New unlabeled frame (current target)
-    % -- Existing points are auto-aligned onto new frame. The existing
-    %    points could represent previously accepted labels, or just the
-    %    previous template state.
-    % - New labeled frame (current target) 
-    % -- Previously accepted labels shown as colored points.
-    % - New target (same frame), unlabeled
-    % -- Last labeled frame for new target acts as template; points auto-aligned.
-    % -- If no previously labeled frame for this target, current white points are aligned onto new target.
-    % - New target (same frame), labeled
-    % -- Previously accepted labels shown as colored points.
-
-  
-    function labelMode2Adjust(obj)
-      % Enter adjustment state for current frame/tgt. All points become
-      % white (template/pre-adjustment)
-      
-      arrayfun(@(x)set(x,'Color',obj.lbl2_templateClr),obj.labelPtsH);
-      obj.lbl2_ptsTfAdjusted(:) = false;
-      obj.label_iPtMove = nan;
-      
-      set(obj.gdata.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
-        'Value',0,'Enable','on');
-      obj.labelState = LabelState.ADJUST;
-    end
-    
-    function labelMode2Accept(obj,tfSetLabelPos)
-      % Enter accepted state for current frame/tgt. All points colored. If
-      % tfSetLabelPos, all points written to labelpos.
-      
-      nPts = obj.nLabelPoints;
-      ptsH = obj.labelPtsH;
-      clrs = obj.labelPtsColors;
-      for i = 1:nPts
-        set(ptsH(i),'Color',clrs(i,:));
-      end
-      
-      obj.lbl2_ptsTFAdjusted(:) = true;
-            
-      if tfSetLabelPos
-        obj.labelPosSet();
-      end
-      set(obj.gdata.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
-        'Value',1,'Enable','on');
-      obj.labelState = LabelState.ACCEPTED;
-    end
-    
-    function labelMode2NewFrameOrTarget(obj,transition)
-      iFrm = obj.currFrame;
-      iTrx = obj.currTarget;
-      [tflabeled,lpos] = obj.labelPosIsLabeled(iFrm,iTrx);
-      if tflabeled
-        LabelCore.assignCoords2Pts(lpos,obj.labelPtsH,obj.labelPtsTxtH);
-        obj.labelMode2Accept(false);
-      else
-        if obj.hasTrx
-          switch transition
-            case NEWFRAME
-              % existing points are aligned onto new frame based on trx at
-              % (currTarget,prevFrame) and (currTarget,currFrame)
-
-              iFrm0 = obj.prevFrame;
-              xy0 = LabelCore.getCoordsFromPts(obj.labelPtsH);
-              xy = Labeler.transformPtsTrx(xy0,obj.trx(iTrx),iFrm0,obj.trx(iTrx),iFrm);
-            case NEWTARGET
-              [tfneighbor,iFrm0,lpos0] = obj.labelPosLabeledNeighbor(iFrm,iTrx);
-              if tfneighbor
-                xy = Labeler.transformPtsTrx(lpos0,obj.trx(iTrx),iFrm0,obj.trx(iTrx),iFrm);
-              else
-                % no neighboring previously labeled points for new target.
-                % Just start with current points for previous target.
-                
-                xy0 = LabelCore.getCoordsFromPts(obj.labelPtsH);
-                iTrx0 = obj.prevTarget;
-                xy = Labeler.transformPtsTrx(xy0,obj.trx(iTrx0),iFrm,obj.trx(iTrx),iFrm);
-              end              
-            otherwise
-              assert(false);
-          end
-          LabelCore.assignCoords2Pts(xy,obj.labelPtsH,obj.labelPtsTxtH);
-        end
-        obj.labelMode2Adjust();
-      end
-    end
-    
-  end
-  
+ 
   methods (Static)
     
     function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)
