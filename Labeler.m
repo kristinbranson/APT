@@ -227,12 +227,17 @@ classdef Labeler < handle
       end
                   
       assert(isa(s.labelMode,'LabelMode'));
+      if isfield(s,'template')
+        template = s.template;
+      else 
+        template = [];
+      end
       obj.labelingInit(s.labelMode,'nPts',s.nLabelPoints,...
-        'ptColors',s.labelPtsColors);
+        'ptColors',s.labelPtsColors,'template',template);
       obj.labeledpos = s.labeledpos;
       
-      obj.setFrame(s.currFrame);
       obj.setTarget(s.currTarget);
+      obj.setFrame(s.currFrame);
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI      
     end
@@ -308,14 +313,15 @@ classdef Labeler < handle
       % 
       % Optional PVs:
       % - nPts. Defaults to current nPts
-      % - ptNames. Defaults to current
       % - ptColors. Defaults to current
+      % - template.
 
       assert(isa(labelMode,'LabelMode'));
       
-      [nPts,ptColors] = myparse(varargin,...
+      [nPts,ptColors,template] = myparse(varargin,...
         'nPts',obj.nLabelPoints,...
-        'ptColors',obj.labelPtsColors);
+        'ptColors',obj.labelPtsColors,...
+        'template',[]);
       validateattributes(nPts,{'numeric'},{'scalar' 'positive' 'integer'});
      % assert(iscellstr(ptNames) && numel(ptNames)==nPts);
       assert(isequal(size(ptColors),[nPts 3]));
@@ -333,15 +339,22 @@ classdef Labeler < handle
           gd.menu_setup_template_mode.Enable = 'off';
           gd.menu_setup_template_mode.Checked = 'on';
           gd.menu_setup_createtemplate.Enable = 'off';
+  
+          obj.lblCore.init(nPts,ptColors);
+          
         case LabelMode.TEMPLATE
           obj.lblCore = LabelCoreTemplate(obj);
           gd.menu_setup_sequential_mode.Enable = 'off';
           gd.menu_setup_sequential_mode.Checked = 'off';
           gd.menu_setup_template_mode.Enable = 'on';
           gd.menu_setup_template_mode.Checked = 'on';
-          gd.menu_setup_createtemplate.Enable = 'on';
+          gd.menu_setup_createtemplate.Enable = 'off';
+
+          obj.lblCore.init(nPts,ptColors);
+          if ~isempty(template)
+            obj.lblCore.setTemplate(template);
+          end
       end
-      obj.lblCore.init(nPts,ptColors);
       
       obj.labelPosInitWithLocked();
       
@@ -444,36 +457,7 @@ classdef Labeler < handle
     end
   
   end
- 
-  methods (Static)
-    
-    function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)
-      % uv0: npts x 2 array of points
-      % trx0: scalar trx
-      % iFrm0: absolute frame number for trx0
-      % etc
-      %
-      % The points uv0 correspond to trx0 @ iFrm0. Compute uv that
-      % corresponds to trx1 @ iFrm1, ie so that uv relates to trx1@iFrm1 in 
-      % the same way that uv0 relates to trx0@iFrm0.
-      
-      assert(trx0.off==1-trx0.firstframe);
-      assert(trx1.off==1-trx1.firstframe);
-      
-      iFrm0 = iFrm0+trx0.off;
-      xy0 = [trx0.x(iFrm0) trx0.y(iFrm0)];
-      th0 = trx0.theta(iFrm0);
-      
-      iFrm1 = iFrm1+trx1.off;
-      xy1 = [trx1.x(iFrm1) trx1.y(iFrm1)];
-      th1 = trx1.theta(iFrm1);
-      
-      uv = transformPoints(uv0,xy0,th0,xy1,th1);
-    end
-        
-  end
-  
-  
+   
   %% Video
   methods
     
@@ -602,7 +586,9 @@ classdef Labeler < handle
       obj.labelPosInitWithLocked();
 
       obj.currFrame = 2; % to force update in setFrame
-      obj.setTarget(1);
+      if obj.hasTrx
+        obj.setTarget(1);
+      end
       obj.setFrame(1);
       
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
@@ -661,8 +647,8 @@ classdef Labeler < handle
       obj.currTarget = iTgt;
       if obj.hasTrx
         obj.videoCenterOnCurrTarget();
+        obj.labelsUpdateNewTarget();
       end
-      obj.labelsUpdateNewTarget();
     end
     
     function frameUp(obj,tfBigstep)
@@ -690,7 +676,9 @@ classdef Labeler < handle
 %       obj.videoZoomFac(0);
 %     end
     
-    function [x,y] = currentTargetLoc(obj)
+    function [x,y,th] = currentTargetLoc(obj)
+      % Return current target loc, or movie center if no target
+      
       if obj.hasTrx
         cfrm = obj.currFrame;
         ctrx = obj.currTrx;
@@ -699,14 +687,17 @@ classdef Labeler < handle
           warning('Labeler:target','No track for current target at frame %d.',cfrm);
           x = nan;
           y = nan;
+          th = nan;
         else
           i = cfrm - ctrx.firstframe + 1;
           x = ctrx.x(i);
           y = ctrx.y(i);
+          th = ctrx.theta(i);
         end
       else
         x = round(obj.movienc/2);
         y = round(obj.movienr/2);
+        th = 0;
       end
     end
                 

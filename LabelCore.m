@@ -73,7 +73,7 @@ classdef LabelCore < handle
        
   end
   
-  methods     
+  methods
     function delete(obj)
       deleteHandles(obj.hPts);
       deleteHandles(obj.hPtsTxt);
@@ -120,6 +120,20 @@ classdef LabelCore < handle
   methods (Hidden)
     
     function assignLabelCoords(obj,xy)
+      % clip xy to movie
+      lbler = obj.labeler;
+      nr = lbler.movienr;
+      nc = lbler.movienc;
+      xyOrig = xy;
+      xy(:,1) = max(xy(:,1),1);
+      xy(:,1) = min(xy(:,1),nc);
+      xy(:,2) = max(xy(:,2),1);
+      xy(:,2) = min(xy(:,2),nr);      
+      if ~isequal(xy,xyOrig)
+        warning('LabelCore:clipping',...
+          'Clipping points that extend beyond movie size.');
+      end      
+      
       LabelCore.assignCoords2Pts(xy,obj.hPts,obj.hPtsTxt);
     end
     
@@ -158,7 +172,31 @@ classdef LabelCore < handle
         set(hTxt(i),'Position',[nan nan nan]);
       end      
     end
-
+    
+    function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)
+      % uv0: npts x 2 array of points
+      % trx0: scalar trx
+      % iFrm0: absolute frame number for trx0
+      % etc
+      %
+      % The points uv0 correspond to trx0 @ iFrm0. Compute uv that
+      % corresponds to trx1 @ iFrm1, ie so that uv relates to trx1@iFrm1 in 
+      % the same way that uv0 relates to trx0@iFrm0.
+      
+      assert(trx0.off==1-trx0.firstframe);
+      assert(trx1.off==1-trx1.firstframe);
+      
+      iFrm0 = iFrm0+trx0.off;
+      xy0 = [trx0.x(iFrm0) trx0.y(iFrm0)];
+      th0 = trx0.theta(iFrm0);
+      
+      iFrm1 = iFrm1+trx1.off;
+      xy1 = [trx1.x(iFrm1) trx1.y(iFrm1)];
+      th1 = trx1.theta(iFrm1);
+      
+      uv = transformPoints(uv0,xy0,th0,xy1,th1);
+    end
+    
   end
   
 end

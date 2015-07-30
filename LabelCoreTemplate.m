@@ -1,5 +1,12 @@
 classdef LabelCoreTemplate < LabelCore
   
+  % DESCRIPTION
+  % In Template mode, there is a set of template/"white" points on the
+  % image at all times. (When starting, these points need to be either
+  % specified or loaded/imported.) To label a frame, adjust the points as 
+  % necessary and accept. 
+  %
+  %
   % LABEL MODE 2 IMPL NOTES
   % 2 States:
   % - Adjusting
@@ -35,7 +42,6 @@ classdef LabelCoreTemplate < LabelCore
   % - New target (same frame), labeled
   % -- Previously accepted labels shown as colored points.
   
-  
   properties
     iPtMove;
     tfAdjusted;                  % nLabelPoints x 1 logical vec. If true, pt has been adjusted from template
@@ -44,7 +50,6 @@ classdef LabelCoreTemplate < LabelCore
     templatePtsColor = [1 1 1];  % 1 x 3 RGB
   end
   
-  
   methods
     
     function obj = LabelCoreTemplate(varargin)
@@ -52,6 +57,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function initHook(obj)
+      obj.setRandomTemplate();
       obj.tfAdjusted = false(obj.nPts,1);
     end
     
@@ -70,7 +76,7 @@ classdef LabelCoreTemplate < LabelCore
           % (currTarget,prevFrame) and (currTarget,currFrame)
           
           xy0 = obj.getLabelCoords();
-          xy = Labeler.transformPtsTrx(xy0,obj.labeler.trx(iTgt),iFrm0,obj.labeler.trx(iTgt),iFrm1);          
+          xy = LabelCore.transformPtsTrx(xy0,obj.labeler.trx(iTgt),iFrm0,obj.labeler.trx(iTgt),iFrm1);          
           obj.assignLabelCoords(xy);
         else
           % none, leave pts as-is
@@ -89,13 +95,13 @@ classdef LabelCoreTemplate < LabelCore
 
         [tfneighbor,iFrm0,lpos0] = obj.labeler.labelPosLabeledNeighbor(iFrm,iTgt1);
         if tfneighbor
-          xy = Labeler.transformPtsTrx(lpos0,obj.labeler.trx(iTgt1),iFrm0,obj.labeler.trx(iTgt1),iFrm);
+          xy = LabelCore.transformPtsTrx(lpos0,obj.labeler.trx(iTgt1),iFrm0,obj.labeler.trx(iTgt1),iFrm);
         else
           % no neighboring previously labeled points for new target.
           % Just start with current points for previous target.
           
           xy0 = obj.getLabelCoords();
-          xy = Labeler.transformPtsTrx(xy0,obj.labeler.trx(iTgt0),iFrm,obj.labeler.trx(iTgt1),iFrm);
+          xy = LabelCore.transformPtsTrx(xy0,obj.labeler.trx(iTgt0),iFrm,obj.labeler.trx(iTgt1),iFrm);
         end
         obj.assignLabelCoords(xy);
         obj.enterAdjust(true);
@@ -163,7 +169,9 @@ classdef LabelCoreTemplate < LabelCore
   
   methods % template
     
-    function createTemplate(obj) 
+    function createTemplate(obj)
+      % Initialize "white pts" via user-clicking
+      
       obj.enterAdjust(true);
       
       msg = sprintf('Click to create %d template points.',obj.nPts);
@@ -190,21 +198,59 @@ classdef LabelCoreTemplate < LabelCore
       end      
     end
     
-    function s = getTemplate(obj)
+    function tt = getTemplate(obj)
       % Create a template struct from current pts
       
-      s = struct();
-      s.pts = obj.getLabelCoords();
+      tt = struct();
+      tt.pts = obj.getLabelCoords();
       lbler = obj.labeler;
       if lbler.hasTrx
-        trx = lbler.currTrx;
-        idx = lbler.currFrame + trx.off;
-        s.loc = [trx.x(idx) trx.y(idx)];
-        s.theta = trx.theta(idx);
+        [x,y,th] = lbler.currentTargetLoc();
+        tt.loc = [x y];
+        tt.theta = th;
       else
-        s.loc = [nan nan];
-        s.theta = nan;
+        tt.loc = [nan nan];
+        tt.theta = nan;
       end
+    end
+    
+    function setTemplate(obj,tt)
+      % Set "white points" to template.
+
+      lbler = obj.labeler;      
+      tfTemplateHasTarget = ~any(isnan(tt.loc)) && ~isnan(tt.theta);
+      tfHasTrx = lbler.hasTrx;
+      
+      if tfHasTrx && ~tfTemplateHasTarget
+        warning('LabelCoreTemplate:template',...
+          'Using template saved without target coordinates');
+      elseif ~tfHasTrx && tfTemplateHasTarget
+        warning('LabelCoreTemplate:template',...
+          'Template saved with target coordinates.');
+      end
+        
+      if tfTemplateHasTarget
+        [x1,y1,th1] = lbler.currentTargetLoc;
+        xys = transformPoints(tt.pts,tt.loc,tt.theta,[x1 y1],th1);
+      else        
+        xys = tt.pts;
+      end
+      
+      obj.assignLabelCoords(xys);
+      obj.enterAdjust(true);
+    end
+    
+    function setRandomTemplate(obj)
+      lbler = obj.labeler;
+      [x0,y0] = lbler.currentTargetLoc();
+      nr = lbler.movienr;
+      nc = lbler.movienc;
+      r = round(max(nr,nc)/6);
+
+      n = obj.nPts;
+      x = x0 + r*2*(rand(n,1)-0.5);
+      y = y0 + r*2*(rand(n,1)-0.5);
+      obj.assignLabelCoords([x y]);
     end
     
   end

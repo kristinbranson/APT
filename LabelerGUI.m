@@ -452,19 +452,19 @@ function menu_setup_adjustbrightness_Callback(hObject, eventdata, handles)
 hConstrast = imcontrast_kb(handles.axes_curr);
 addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.labelerObj));
 
-function menu_setup_createtemplate_Callback(hObject, eventdata, handles)
-
-res = questdlg('Changing template will result in all labels being cleared. Save before doing this?');
-if strcmpi(res,'Cancel'),
-  return;
-elseif strcmpi(res,'Yes'),
-  assert(false,'TODO');
-end
-
-labeler = handles.labelerObj;
-labeler.labelingInit(LabelMode.TEMPLATE);
-lblCore = handles.labelerObj.lblCore;
-lblCore.createTemplate();
+% function menu_setup_createtemplate_Callback(hObject, eventdata, handles)
+% 
+% res = questdlg('Changing template will result in all labels being cleared. Save before doing this?');
+% if strcmpi(res,'Cancel'),
+%   return;
+% elseif strcmpi(res,'Yes'),
+%   assert(false,'TODO');
+% end
+% 
+% labeler = handles.labelerObj;
+% labeler.labelingInit(LabelMode.TEMPLATE);
+% lblCore = handles.labelerObj.lblCore;
+% lblCore.createTemplate();
 
 % % % below is untouched % % % ---------------------
 
