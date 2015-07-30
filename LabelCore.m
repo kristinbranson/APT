@@ -66,7 +66,8 @@ classdef LabelCore < handle
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
       set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
       set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
-      set(obj.hFig,'KeyPressFcn',@(s,e)obj.kpf(s,e));
+      hTmp = findall(obj.hFig,'-property','KeyPressFcn','-not','Tag','edit_frame');
+      set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
       
       obj.initHook();
     end
@@ -143,7 +144,6 @@ classdef LabelCore < handle
     
   end
     
-    
   methods (Static)
     
     function xy = getCoordsFromPts(hPts)
@@ -200,4 +200,3 @@ classdef LabelCore < handle
   end
   
 end
-

@@ -232,7 +232,7 @@ classdef Labeler < handle
       else 
         template = [];
       end
-      obj.labelingInit(s.labelMode,'nPts',s.nLabelPoints,...
+      obj.labelingInit('labelMode',s.labelMode,'nPts',s.nLabelPoints,...
         'ptColors',s.labelPtsColors,'template',template);
       obj.labeledpos = s.labeledpos;
       
@@ -249,15 +249,16 @@ classdef Labeler < handle
   methods
     
     function obj = Labeler(varargin)
-      npts = varargin{1};
+      % Labeler(labelMode,npts)
+      obj.labelMode = varargin{1};
+      obj.nLabelPoints = varargin{2};
       
       hFig = LabelerGUI(obj);
       obj.gdata = guidata(hFig);
       
       obj.movieReader = MovieReader;
       
-      obj.nLabelPoints = npts;
-      obj.labelPtsColors = jet(npts);
+      obj.labelPtsColors = jet(obj.nLabelPoints);
     end
     
     function loadMovie(obj,movfile,trxfile)
@@ -308,30 +309,31 @@ classdef Labeler < handle
   %% Labeling
   methods 
     
-    function labelingInit(obj,labelMode,varargin)
+    function labelingInit(obj,varargin)
       % Initialize labeling state
       % 
       % Optional PVs:
+      % - labelMode. Defaults to .labelMode
       % - nPts. Defaults to current nPts
       % - ptColors. Defaults to current
       % - template.
-
-      assert(isa(labelMode,'LabelMode'));
       
-      [nPts,ptColors,template] = myparse(varargin,...
+      [lblmode,nPts,ptColors,template] = myparse(varargin,...
+        'labelMode',obj.labelMode,...
         'nPts',obj.nLabelPoints,...
         'ptColors',obj.labelPtsColors,...
         'template',[]);
+      assert(isa(lblmode,'LabelMode'));
       validateattributes(nPts,{'numeric'},{'scalar' 'positive' 'integer'});
      % assert(iscellstr(ptNames) && numel(ptNames)==nPts);
       assert(isequal(size(ptColors),[nPts 3]));
       
-      obj.labelMode = labelMode;
+      obj.labelMode = lblmode;
       obj.nLabelPoints = nPts;
       obj.labelPtsColors = ptColors;
       
       gd = obj.gdata;
-      switch labelMode
+      switch lblmode
         case LabelMode.SEQUENTIAL
           obj.lblCore = LabelCoreSeq(obj);
           gd.menu_setup_sequential_mode.Enable = 'on';
@@ -586,9 +588,7 @@ classdef Labeler < handle
       obj.labelPosInitWithLocked();
 
       obj.currFrame = 2; % to force update in setFrame
-      if obj.hasTrx
-        obj.setTarget(1);
-      end
+      obj.setTarget(1);
       obj.setFrame(1);
       
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI

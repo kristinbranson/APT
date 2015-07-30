@@ -220,7 +220,7 @@ lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie();
   if lObj.hasMovie
-    lObj.labelingInit(LabelMode.TEMPLATE); % XXX
+    lObj.labelingInit();
     lObj.lblCore.clearLabels(); 
   end
 end
@@ -230,7 +230,7 @@ lObj = handles.labelerObj;
 if hlpSave(lObj)
   lObj.loadMovie([],[]);
   if lObj.hasMovie
-    lObj.labelingInit(LabelMode.TEMPLATE); % XXX
+    lObj.labelingInit();
     lObj.lblCore.clearLabels(); 
   end
 end
