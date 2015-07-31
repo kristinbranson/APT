@@ -24,7 +24,6 @@ classdef Labeler < handle
     NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
   end
   
-  
   %% Movie
   properties
     movieReader = [];         % MovieReader object
@@ -39,7 +38,6 @@ classdef Labeler < handle
     movienc;
   end
   
-  
   %% Trx
   properties
     trxFilename = '';         % full filename
@@ -53,8 +51,7 @@ classdef Labeler < handle
     currTrx
     nTrx
     nTargets          % nTrx, or 1 if no Trx
-  end
-  
+  end  
   
   %% Labeling
   properties
@@ -146,7 +143,6 @@ classdef Labeler < handle
       obj.updateFrameTableIncremental(); % TODO use listener/event for this
     end
   end
-
   
   %% Save/Load
   methods 
@@ -244,7 +240,6 @@ classdef Labeler < handle
     
   end
   
-  
   %% Movie, Trx
   methods
     
@@ -304,7 +299,6 @@ classdef Labeler < handle
     end
                 
   end
-  
   
   %% Labeling
   methods 
@@ -520,7 +514,6 @@ classdef Labeler < handle
     end
     
   end
-  
   
   %%
   methods (Hidden)
@@ -775,47 +768,6 @@ classdef Labeler < handle
       set(tbl,'Data',dat);
     end
    
-    %#UI No really
-%     function updateLockedButton(obj)
-%       disp('UPDATELOCK TODO');
-%       btn = obj.gdata.togglebutton_lock;
-%       if obj.labelsLocked(obj.currFrame,obj.currTarget)
-%         set(btn,'BackgroundColor',[.6,0,0],'String','Locked','Value',1);
-%       else
-%         set(btn,'BackgroundColor',[0,.6,0],'String','Unlocked','Value',0);
-%       end
-%       setButtonImage(btn);
-%     end
-    
-%     function showPreviousLabels(obj)
-      % TODO
-%       if isempty(handles.labeledpos),
-%         fprev = [];
-%       else
-%         fprev = find(~isnan(handles.labeledpos(1,1,1:handles.f,handles.animal)),1,'last');
-%       end
-%       
-%       for i = 1:handles.npoints,
-%         if numel(handles.hpoly) < i || ~ishandle(handles.hpoly(i)),
-%           handles.hpoly(i) = plot(handles.axes_curr,nan,nan,'w+','MarkerSize',20,'LineWidth',3);
-%           set(handles.hpoly(i),'Color',handles.templatecolors(i,:),...
-%             'ButtonDownFcn',@(hObject,eventdata) PointButtonDownCallback(hObject,eventdata,handles.figure,i));
-%           handles.htext(i) = text(nan,nan,num2str(i),'Parent',handles.axes_curr,...
-%             'Color',handles.templatecolors);
-%         end
-%         
-%         %if all(~isnan(handles.labeledpos(i,:,handles.f,handles.animal))),
-%         if ~isempty(fprev),
-%           set(handles.hpoly(i),'XData',handles.labeledpos(i,1,fprev,handles.animal),...
-%             'YData',handles.labeledpos(i,2,fprev,handles.animal),'Visible','on');
-%           
-%           tpos = [handles.labeledpos(i,1,fprev,handles.animal)+handles.dt2p;...
-%             handles.labeledpos(i,2,fprev,handles.animal)];
-%           set(handles.htext(i),'Position',tpos,'Visible','on');          
-%         end        
-%       end      
-%     end   
-    
   end
 
 end
