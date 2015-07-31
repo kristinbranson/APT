@@ -136,9 +136,7 @@ classdef Labeler < handle
   methods % prop access
     function set.labeledpos(obj,v)
       obj.labeledpos = v;
-      if obj.hasTrx
-        obj.updateTrxTable();
-      end
+      obj.updateTrxTable();
       obj.updateFrameTableIncremental(); % TODO use listener/event for this
     end
   end
@@ -608,9 +606,7 @@ classdef Labeler < handle
 
       obj.labelsUpdateNewFrame();
       
-      if obj.hasTrx
-        obj.updateTrxTable();
-      end
+      obj.updateTrxTable();
       
       % obj.showPreviousLabels      
       % obj.updateLockedButton(); %#UI
@@ -698,6 +694,12 @@ classdef Labeler < handle
     function updateTrxTable(obj)
       % based on .currFrame, .labeledpos
       
+      tbl = obj.gdata.tblTrx;
+      if ~obj.hasTrx
+        set(tbl,'Data',[]);
+        return;
+      end
+      
       colnames = obj.TBLTRX_STATIC_COLSTRX(1:end-1);
 
       tfLive = obj.frm2trx(obj.currFrame,:);
@@ -716,7 +718,6 @@ classdef Labeler < handle
       end
       tbldat(:,end+1) = num2cell(tfLbled);
       
-      tbl = obj.gdata.tblTrx;
       set(tbl,'Data',tbldat);
     end
     
