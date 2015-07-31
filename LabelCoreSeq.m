@@ -50,7 +50,11 @@ classdef LabelCoreSeq < LabelCore
     
     function acceptLabels(obj)
       obj.beginAccepted(true);
-    end    
+    end
+    
+    function unacceptLabels(obj)
+      obj.beginAdjust();
+    end
     
     function axBDF(obj,~,~)
       if obj.state==LabelState.LABEL
@@ -127,7 +131,7 @@ classdef LabelCoreSeq < LabelCore
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrement/increment the frame shown.'
         '* <ctrl>+A and <ctrl>+D decrement and increment by 10 frames.'
-        '* S or <space> accepts the labels for the current frame.'};
+        '* S or <space> accepts the labels for the current frame/target.'};
     end
           
   end

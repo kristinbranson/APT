@@ -436,7 +436,7 @@ classdef Labeler < handle
   methods (Access=private)
     
     function labelsUpdateNewFrame(obj)
-      if ~isempty(obj.lblCore)
+      if ~isempty(obj.lblCore) && obj.prevFrame~=obj.currFrame
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       obj.labelsPrevUpdate();

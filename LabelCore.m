@@ -16,7 +16,15 @@ classdef LabelCore < handle
   
   properties (Constant,Hidden)
     DT2P = 5;
+    DXFAC = 500;
+    DXFACBIG = 50;
   end
+%   properties (Hidden)
+%     dx
+%     dxbig
+%     dy
+%     dybig
+%   end
         
   properties
     labeler;              % scalar Labeler obj
@@ -69,6 +77,14 @@ classdef LabelCore < handle
       hTmp = findall(obj.hFig,'-property','KeyPressFcn','-not','Tag','edit_frame');
       set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
       
+%       lbler = obj.labeler;
+%       nr = lbler.movienr;
+%       nc = lbler.movienc;
+%       obj.dx = nc/obj.DXFAC;
+%       obj.dxbig = nc/obj.DXFACBIG;
+%       obj.dy = nr/obj.DXFAC;
+%       obj.dybig = nr/obj.DYFACBIG;
+      
       obj.initHook();
     end
        
@@ -98,6 +114,9 @@ classdef LabelCore < handle
     function acceptLabels(obj) %#ok<MANU>
     end    
     
+    function unAcceptLabels(obj) %#ok<MANU>
+    end    
+    
     function axBDF(obj,src,evt) %#ok<INUSD>
     end
     
@@ -120,28 +139,43 @@ classdef LabelCore < handle
   
   methods (Hidden)
     
-    function assignLabelCoords(obj,xy)
-      % clip xy to movie
-      lbler = obj.labeler;
-      nr = lbler.movienr;
-      nc = lbler.movienc;
-      xyOrig = xy;
-      xy(:,1) = max(xy(:,1),1);
-      xy(:,1) = min(xy(:,1),nc);
-      xy(:,2) = max(xy(:,2),1);
-      xy(:,2) = min(xy(:,2),nr);      
-      if ~isequal(xy,xyOrig)
-        warning('LabelCore:clipping',...
-          'Clipping points that extend beyond movie size.');
-      end      
+    function assignLabelCoords(obj,xy,tfClip)
+      % tfClip: if true, clip xy to movie size as necessary
+
+      if exist('tfClip','var')==0
+        tfClip = false;
+      end
+      
+      if tfClip
+        lbler = obj.labeler;
+        nr = lbler.movienr;
+        nc = lbler.movienc;
+        xyOrig = xy;
+        xy(:,1) = max(xy(:,1),1);
+        xy(:,1) = min(xy(:,1),nc);
+        xy(:,2) = max(xy(:,2),1);
+        xy(:,2) = min(xy(:,2),nr);      
+        if ~isequal(xy,xyOrig)
+          warning('LabelCore:clipping',...
+            'Clipping points that extend beyond movie size.');
+        end      
+      end
       
       LabelCore.assignCoords2Pts(xy,obj.hPts,obj.hPtsTxt);
+    end
+    
+    function assignLabelCoordsI(obj,xy,iPt)
+      LabelCore.assignCoords2Pts(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
     end
     
     function xy = getLabelCoords(obj)
       xy = LabelCore.getCoordsFromPts(obj.hPts);      
     end
     
+    function xy = getLabelCoordsI(obj,iPt)
+      xy = LabelCore.getCoordsFromPts(obj.hPts(iPt));
+    end
+        
   end
     
   methods (Static)
@@ -149,8 +183,10 @@ classdef LabelCore < handle
     function xy = getCoordsFromPts(hPts)
       x = get(hPts,'XData');
       y = get(hPts,'YData');
-      x = cell2mat(x);
-      y = cell2mat(y);
+      if iscell(x) % MATLABism. True for nonscalar hPts
+        x = cell2mat(x);
+        y = cell2mat(y);
+      end
       xy = [x y];
     end
     

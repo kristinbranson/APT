@@ -4,14 +4,25 @@ classdef LabelCoreTemplate < LabelCore
   % In Template mode, there is a set of template/"white" points on the
   % image at all times. (When starting, these points need to be either
   % specified or loaded/imported.) To label a frame, adjust the points as 
-  % necessary and accept. 
+  % necessary and accept. Adjusted points are shown in colors (rather than
+  % white).
+  %
+  % Points may also be Selected using hotkeys (0..9). When a point is
+  % selected, the arrow-keys adjust the point as if by mouse. Mouse-clicks
+  % on the image also jump the point immediately to that location.
+  % Adjustment of a point in this way is identical in concept to
+  % click-dragging.
   %
   %
-  % LABEL MODE 2 IMPL NOTES
-  % 2 States:
-  % - Adjusting
+  % IMPL NOTES
+  % 2 basic states, Adjusting and Accepted
+  % - Adjusting, unlabeled frame underneath
   % -- 'untouched' template points are white
   % -- 'touched' template points are colored
+  % -- Accept writes to labeledpos
+  % - Adjusting, labeled frame underneath
+  % -- all pts colored/'touched'
+  % -- labeledpos exists underneath and is not overwritten until Acceptance
   % - Accepted
   % -- all points colored.
   % -- Can go back into adjustment mode, but all points turn white as if from template.
@@ -43,12 +54,13 @@ classdef LabelCoreTemplate < LabelCore
   % -- Previously accepted labels shown as colored points.
   
   properties
-    iPtMove;
-    tfAdjusted;                  % nLabelPoints x 1 logical vec. If true, pt has been adjusted from template
+    iPtMove;     % scalar. Either nan, or index of pt being moved
+    tfMoved;     % scalar logical; if true, pt being moved was actually moved
+    tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
+    tfPtSel;   % nPts x 1 logical
     
-    %template;                    % LabelTemplate obj. "original" template
     templatePtsColor = [1 1 1];  % 1 x 3 RGB
-  end
+  end  
   
   methods
     
@@ -59,6 +71,7 @@ classdef LabelCoreTemplate < LabelCore
     function initHook(obj)
       obj.setRandomTemplate();
       obj.tfAdjusted = false(obj.nPts,1);
+      obj.tfPtSel = false(obj.nPts,1);
     end
     
   end
@@ -77,7 +90,7 @@ classdef LabelCoreTemplate < LabelCore
           
           xy0 = obj.getLabelCoords();
           xy = LabelCore.transformPtsTrx(xy0,obj.labeler.trx(iTgt),iFrm0,obj.labeler.trx(iTgt),iFrm1);          
-          obj.assignLabelCoords(xy);
+          obj.assignLabelCoords(xy,true);
         else
           % none, leave pts as-is
         end          
@@ -103,7 +116,7 @@ classdef LabelCoreTemplate < LabelCore
           xy0 = obj.getLabelCoords();
           xy = LabelCore.transformPtsTrx(xy0,obj.labeler.trx(iTgt0),iFrm,obj.labeler.trx(iTgt1),iFrm);
         end
-        obj.assignLabelCoords(xy);
+        obj.assignLabelCoords(xy,true);
         obj.enterAdjust(true);
       end
       
@@ -117,52 +130,160 @@ classdef LabelCoreTemplate < LabelCore
       obj.enterAccepted(true);
     end
     
+    function unAcceptLabels(obj)
+      obj.enterAdjust(false);
+    end 
+    
     function axBDF(obj,src,evt) %#ok<INUSD>
-      % if in Adjust:pt-selected state, then clicking relocates pt
+      [tf,iSel] = obj.anyPointSelected();
+      if tf
+        pos = get(obj.hAx,'CurrentPoint');
+        pos = pos(1,1:2);
+        obj.assignLabelCoordsI(pos,iSel);
+        obj.setPointAdjusted(iSel);
+        obj.toggleSelectPoint(iSel);
+        switch obj.state
+          case LabelState.ADJUST
+            % none
+          case LabelState.ACCEPTED
+            obj.enterAdjust(false);
+        end
+      end     
     end
     
     function ptBDF(obj,src,evt) %#ok<INUSD>
-      iPt = get(src,'UserData');
-      obj.iPtMove = iPt;
-      switch obj.state
-        case LabelState.ADJUST
-          if ~obj.tfAdjusted(iPt)
-            obj.tfAdjusted(iPt) = true;
-            set(src,'Color',obj.ptColors(iPt,:));
-          end
-        case LabelState.ACCEPTED
+      tf = obj.anyPointSelected();
+      if tf
+        % none
+      else
+        if obj.state==LabelState.ACCEPTED
           obj.enterAdjust(false);
-          if ~obj.tfAdjusted(iPt)
-            obj.tfAdjusted(iPt) = true;
-            set(src,'Color',obj.ptColors(iPt,:));
-          end
+        end
+        iPt = get(src,'UserData');
+        obj.iPtMove = iPt;
+        obj.tfMoved = false;
       end
     end
     
     function wbmf(obj,src,evt) %#ok<INUSD>
       if obj.state==LabelState.ADJUST
         iPt = obj.iPtMove;
-        if ~isnan(iPt) % should always be true
+        if ~isnan(iPt)
           ax = obj.hAx;
           tmp = get(ax,'CurrentPoint');
           pos = tmp(1,1:2);
-          set(obj.hPts(iPt),'XData',pos(1),'YData',pos(2));
-          pos(1) = pos(1) + obj.DT2P;
-          set(obj.hPtsTxt(iPt),'Position',pos);
+          obj.tfMoved = true;
+          obj.assignLabelCoordsI(pos,iPt);
+          obj.setPointAdjusted(iPt);
         end
       end
     end
     
     function wbuf(obj,src,evt) %#ok<INUSD>
       if obj.state==LabelState.ADJUST
+        iPt = obj.iPtMove;
+        if ~isnan(iPt) && ~obj.tfMoved
+          % point was clicked but not moved
+          obj.clearSelected(iPt);
+          obj.toggleSelectPoint(iPt);
+        end
+        
         obj.iPtMove = nan;
+        obj.tfMoved = false;
       end
     end
     
-    function kpf(obj,src,evt) %#ok<INUSD>
+    function kpf(obj,src,evt) %#ok<INUSL>
+      key = evt.Key;
+      modifier = evt.Modifier;      
+      tfCtrl = any(strcmp('control',modifier));
+      
+      switch key
+        case {'s' 'space'}
+          if obj.state==LabelState.ADJUST
+            obj.acceptLabels();
+          end
+        case {'d' 'equal'}
+          obj.labeler.frameUp(tfCtrl);
+        case {'a' 'hyphen'}
+          obj.labeler.frameDown(tfCtrl);
+        case {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}
+          [tfSel,iSel] = obj.anyPointSelected();
+          if tfSel
+            tfShift = any(strcmp('shift',modifier));
+            xy = obj.getLabelCoordsI(iSel);
+            switch key
+              case 'leftarrow'
+                xl = xlim(obj.hAx);
+                dx = diff(xl);
+                if tfShift
+                  xy(1) = xy(1) - dx/obj.DXFACBIG;
+                else
+                  xy(1) = xy(1) - dx/obj.DXFAC;
+                end
+                xy(1) = max(xy(1),1);
+              case 'rightarrow'
+                xl = xlim(obj.hAx);
+                dx = diff(xl);
+                if tfShift
+                  xy(1) = xy(1) + dx/obj.DXFACBIG;
+                else
+                  xy(1) = xy(1) + dx/obj.DXFAC;
+                end
+                xy(1) = min(xy(1),obj.labeler.movienc);
+              case 'uparrow'
+                yl = ylim(obj.hAx);
+                dy = diff(yl);
+                if tfShift
+                  xy(2) = xy(2) - dy/obj.DXFACBIG;
+                else
+                  xy(2) = xy(2) - dy/obj.DXFAC;
+                end
+                xy(2) = max(xy(2),1);
+              case 'downarrow'
+                yl = ylim(obj.hAx);
+                dy = diff(yl);
+                if tfShift
+                  xy(2) = xy(2) + dy/obj.DXFACBIG;
+                else
+                  xy(2) = xy(2) + dy/obj.DXFAC;
+                end
+                xy(2) = min(xy(2),obj.labeler.movienr);
+            end
+            obj.assignLabelCoordsI(xy,iSel);
+            switch obj.state
+              case LabelState.ADJUST
+                obj.setPointAdjusted(iSel);
+              case LabelState.ACCEPTED
+                obj.enterAdjust(false);
+            end
+          elseif strcmp(key,'leftarrow')
+            obj.labeler.frameDown(tfCtrl);
+          elseif strcmp(key,'rightarrow')
+            obj.labeler.frameUp(tfCtrl);
+          end
+        case {'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}
+          iPt = str2double(key);
+          if iPt==0
+            iPt = 10;
+          end
+          if iPt > obj.nPts
+            return;
+          end
+          obj.clearSelected(iPt);
+          obj.toggleSelectPoint(iPt);
+      end      
     end
     
-    function getKeyboardShortcutsHelp(obj) %#ok<MANU>
+    function h = getKeyboardShortcutsHelp(obj) %#ok<MANU>
+      h = { ...
+        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
+        '* <ctrl>+A, <ctrl>+D, etc decrement and increment by 10 frames.'
+        '* S or <space> accepts the labels for the current frame/target.'
+        '* 0..9 selects/unselects a point. When a point is selected:'
+        '*   LEFT/RIGHT/UP/DOWN adjusts the point.'
+        '*   Shift-LEFT, etc adjusts the point by larger steps.' 
+        '*   Clicking on the image moves the selected point to that location.'};
     end
     
   end
@@ -236,7 +357,7 @@ classdef LabelCoreTemplate < LabelCore
         xys = tt.pts;
       end
       
-      obj.assignLabelCoords(xys);
+      obj.assignLabelCoords(xys,true);
       obj.enterAdjust(true);
     end
     
@@ -250,7 +371,7 @@ classdef LabelCoreTemplate < LabelCore
       n = obj.nPts;
       x = x0 + r*2*(rand(n,1)-0.5);
       y = y0 + r*2*(rand(n,1)-0.5);
-      obj.assignLabelCoords([x y]);
+      obj.assignLabelCoords([x y],true);
     end
     
   end
@@ -267,6 +388,7 @@ classdef LabelCoreTemplate < LabelCore
         obj.tfAdjusted(:) = false;
       end
       obj.iPtMove = nan;
+      obj.tfMoved = false;
       
       set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
         'Value',0,'Enable','on');
@@ -285,6 +407,7 @@ classdef LabelCoreTemplate < LabelCore
       end
       
       obj.tfAdjusted(:) = true;
+      obj.clearSelected();
       
       if tfSetLabelPos
         xy = obj.getLabelCoords();
@@ -293,6 +416,41 @@ classdef LabelCoreTemplate < LabelCore
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
         'Value',1,'Enable','on');
       obj.state = LabelState.ACCEPTED;
+    end
+    
+    function setPointAdjusted(obj,iSel)
+      if ~obj.tfAdjusted(iSel)
+        obj.tfAdjusted(iSel) = true;
+        set(obj.hPts(iSel),'Color',obj.ptColors(iSel,:));
+      end
+    end
+
+    function toggleSelectPoint(obj,iPt)
+      tfSel = ~obj.tfPtSel(iPt);
+      obj.tfPtSel(:) = false;
+      obj.tfPtSel(iPt) = tfSel;
+      
+      if tfSel
+        set(obj.hPts(iPt),'Marker','x');
+      else
+        set(obj.hPts(iPt),'Marker','+');
+      end
+    end
+    
+    function [tf,iSelected] = anyPointSelected(obj)
+      tf = any(obj.tfPtSel);
+      iSelected = find(obj.tfPtSel,1);
+    end
+    
+    function clearSelected(obj,iExclude)
+      tf = obj.tfPtSel;
+      if exist('iExclude','var')>0
+        tf(iExclude) = false;
+      end
+      iSel = find(tf);
+      for i = iSel(:)'
+        obj.toggleSelectPoint(i);
+      end
     end
         
   end
