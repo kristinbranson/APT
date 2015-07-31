@@ -138,7 +138,7 @@ switch lc.state
     assert(false);
 end
 
-function tblTrx_CellSelectionCallback(hObject, eventdata, handles)
+function tblTrx_CellSelectionCallback(hObject, eventdata, handles) %#ok<*DEFNU>
 % hObject    handle to tblTrx (see GCBO)
 % eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
 %	Indices: row and column indices of the cell(s) currently selecteds

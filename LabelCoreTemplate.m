@@ -94,7 +94,7 @@ classdef LabelCoreTemplate < LabelCore
         else
           % none, leave pts as-is
         end          
-        obj.enterAdjust(true);
+        obj.enterAdjust(true,false);
       end
     end
     
@@ -117,13 +117,14 @@ classdef LabelCoreTemplate < LabelCore
           xy = LabelCore.transformPtsTrx(xy0,obj.labeler.trx(iTgt0),iFrm,obj.labeler.trx(iTgt1),iFrm);
         end
         obj.assignLabelCoords(xy,true);
-        obj.enterAdjust(true);
+        obj.enterAdjust(true,false);
       end
       
     end
     
     function clearLabels(obj)
-      obj.enterAdjust(true);
+      obj.clearSelected();
+      obj.enterAdjust(true,true);
     end
     
     function acceptLabels(obj) 
@@ -131,7 +132,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function unAcceptLabels(obj)
-      obj.enterAdjust(false);
+      obj.enterAdjust(false,false);
     end 
     
     function axBDF(obj,src,evt) %#ok<INUSD>
@@ -146,7 +147,7 @@ classdef LabelCoreTemplate < LabelCore
           case LabelState.ADJUST
             % none
           case LabelState.ACCEPTED
-            obj.enterAdjust(false);
+            obj.enterAdjust(false,false);
         end
       end     
     end
@@ -157,7 +158,7 @@ classdef LabelCoreTemplate < LabelCore
         % none
       else
         if obj.state==LabelState.ACCEPTED
-          obj.enterAdjust(false);
+          obj.enterAdjust(false,false);
         end
         iPt = get(src,'UserData');
         obj.iPtMove = iPt;
@@ -255,7 +256,7 @@ classdef LabelCoreTemplate < LabelCore
               case LabelState.ADJUST
                 obj.setPointAdjusted(iSel);
               case LabelState.ACCEPTED
-                obj.enterAdjust(false);
+                obj.enterAdjust(false,false);
             end
           elseif strcmp(key,'leftarrow')
             obj.labeler.frameDown(tfCtrl);
@@ -292,6 +293,8 @@ classdef LabelCoreTemplate < LabelCore
     
     function createTemplate(obj)
       % Initialize "white pts" via user-clicking
+      
+      assert(false,'Currently not called');
       
       obj.enterAdjust(true);
       
@@ -358,7 +361,7 @@ classdef LabelCoreTemplate < LabelCore
       end
       
       obj.assignLabelCoords(xys,true);
-      obj.enterAdjust(true);
+      obj.enterAdjust(true,false);
     end
     
     function setRandomTemplate(obj)
@@ -378,15 +381,20 @@ classdef LabelCoreTemplate < LabelCore
   
   methods (Access=private)
     
-    function enterAdjust(obj,tfReset)
+    function enterAdjust(obj,tfResetPts,tfClearLabeledPos)
       % Enter adjustment state for current frame/tgt.
       %
-      % if tfReset, reset all points to pre-adjustment
+      % if tfReset, reset all points to pre-adjustment (white).
+      % if tfClearLabeledPos, clear labeled pos.
       
-      if tfReset
+      if tfResetPts
         arrayfun(@(x)set(x,'Color',obj.templatePtsColor),obj.hPts);
         obj.tfAdjusted(:) = false;
       end
+      if tfClearLabeledPos
+        obj.labeler.labelPosClear();
+      end
+        
       obj.iPtMove = nan;
       obj.tfMoved = false;
       

@@ -324,6 +324,25 @@ classdef Labeler < handle
       obj.labelPtsColors = ptColors;
       
       gd = obj.gdata;
+      lc = obj.lblCore;
+      if ~isempty(lc)
+        % AL 20150731. Possible/probable MATLAB bug. Existing LabelCore 
+        % object should delete and clean itself up when obj.lblCore is 
+        % reassigned below. The precise sequence of events is complex 
+        % because various callbacks in uicontrols hold refs to the 
+        % LabelCore (the callbacks get reassigned in lblCore.init though).
+        %
+        % However, without the explicit deletion in this branch, the 
+        % existing lblCore did not get cleaned up, leading to two sets of 
+        % label pts on axes_curr; moreover, when this occurred and the 
+        % Labeler GUI was killed (with 'X' button in upper-right), I 
+        % consistently got a segv on Win7/64, R2014b.
+        %
+        % With this explicit cleanup the segv goes away and of course the
+        % extra labelpts are fixed as well.
+        delete(lc);
+        obj.lblCore = [];
+      end
       switch lblmode
         case LabelMode.SEQUENTIAL
           obj.lblCore = LabelCoreSeq(obj);
