@@ -1,8 +1,7 @@
 classdef Labeler < handle
 % Labeler  Bransonlab Animal Video Labeler
 %
-% Takes a movie, trx (optional), template (optional), and creates/edits
-% "animal model" labels.
+% Takes a movie + trx (optional) and creates/edits animal labels.
 
   properties (Constant,Hidden)
     VERSION = '0.0';
@@ -26,7 +25,7 @@ classdef Labeler < handle
   
   %% Movie
   properties
-    movieReader = [];         % MovieReader object
+    movieReader = []; % MovieReader object
     minv = 0;
     maxv = inf;
   end
@@ -50,7 +49,7 @@ classdef Labeler < handle
     hasTrx
     currTrx
     nTrx
-    nTargets          % nTrx, or 1 if no Trx
+    nTargets % nTrx, or 1 if no Trx
   end  
   
   %% Labeling
@@ -145,7 +144,7 @@ classdef Labeler < handle
   end
   
   %% Save/Load
-  methods 
+  methods
     
     function saveLblFile(obj,fname)
       % Saves a .lbl file. Currently defaults to same dir as moviefile.
@@ -301,7 +300,7 @@ classdef Labeler < handle
   end
   
   %% Labeling
-  methods 
+  methods
     
     function labelingInit(obj,varargin)
       % Initialize labeling state
