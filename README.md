@@ -9,7 +9,7 @@ MATLAB R2014b or later. Development is being done on Win7 with some testing on L
 #### Usage
 ```
 % in MATLAB
-cd /path/to/git/APT/checkout % root of checkout contains aptroot.m
+cd /path/to/git/APT/checkout % root of checkout contains APT.m
 setaptpath 
 lObj = Labeler(LabelMode.SEQUENTIAL,5); % Open Labeler in Sequential mode with 5-point models
 lObj = Labeler(LabelMode.TEMPLATE,5); % Open Labeler in Template mode with 5-point models

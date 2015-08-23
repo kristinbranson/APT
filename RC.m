@@ -2,7 +2,7 @@ classdef RC
 % Configuration file
 
   properties (Constant)
-    FILE = fullfile(aptroot,'.apt.mat');
+    FILE = fullfile(APT.Root,'.apt.mat');
   end
   
   methods (Static)
