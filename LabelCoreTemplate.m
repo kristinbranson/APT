@@ -59,7 +59,8 @@ classdef LabelCoreTemplate < LabelCore
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
     tfPtSel;   % nPts x 1 logical
     
-    templatePtsColor = [1 1 1];  % 1 x 3 RGB
+    templatePointColor = [1 1 1];  % 1 x 3 RGB
+    selectedPointMarker = 'x';
   end  
   
   methods
@@ -72,6 +73,10 @@ classdef LabelCoreTemplate < LabelCore
       obj.setRandomTemplate();
       obj.tfAdjusted = false(obj.nPts,1);
       obj.tfPtSel = false(obj.nPts,1);
+      
+      ppi = obj.ptsPlotInfo;
+      obj.templatePointColor = ppi.TemplateMode.TemplatePointColor;
+      obj.selectedPointMarker = ppi.TemplateMode.SelectedPointMarker;
     end
     
   end
@@ -388,7 +393,7 @@ classdef LabelCoreTemplate < LabelCore
       % if tfClearLabeledPos, clear labeled pos.
       
       if tfResetPts
-        arrayfun(@(x)set(x,'Color',obj.templatePtsColor),obj.hPts);
+        arrayfun(@(x)set(x,'Color',obj.templatePointColor),obj.hPts);
         obj.tfAdjusted(:) = false;
       end
       if tfClearLabeledPos
@@ -409,7 +414,7 @@ classdef LabelCoreTemplate < LabelCore
       
       nPts = obj.nPts;
       ptsH = obj.hPts;
-      clrs = obj.ptColors;
+      clrs = obj.ptsPlotInfo.Colors;
       for i = 1:nPts
         set(ptsH(i),'Color',clrs(i,:));
       end
@@ -429,7 +434,7 @@ classdef LabelCoreTemplate < LabelCore
     function setPointAdjusted(obj,iSel)
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
-        set(obj.hPts(iSel),'Color',obj.ptColors(iSel,:));
+        set(obj.hPts(iSel),'Color',obj.ptsPlotInfo.Colors(iSel,:));
       end
     end
 
@@ -439,9 +444,9 @@ classdef LabelCoreTemplate < LabelCore
       obj.tfPtSel(iPt) = tfSel;
       
       if tfSel
-        set(obj.hPts(iPt),'Marker','x');
+        set(obj.hPts(iPt),'Marker',obj.selectedPointMarker);
       else
-        set(obj.hPts(iPt),'Marker','+');
+        set(obj.hPts(iPt),'Marker',obj.ptsPlotInfo.Marker);
       end
     end
     

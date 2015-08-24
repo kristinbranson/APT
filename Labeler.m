@@ -5,11 +5,12 @@ classdef Labeler < handle
 
   properties (Constant,Hidden)
     VERSION = '0.0';
-    DEFAULT_LBLFILENAME = '%s.lbl.mat';
-    
+    DEFAULT_LBLFILENAME = '%s.lbl.mat';    
+    PREF_FILENAME = 'pref.yaml';
+
     SAVEPROPS = { ...
       'VERSION' 'moviefile' 'nframes' 'trxFilename' 'nTrx' ...
-      'labelMode' 'nLabelPoints' 'labelPtsColors' ...
+      'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' ...
       'labeledpos' 'currFrame' 'currTarget' 'minv' 'maxv'};
     LOADPROPS = {'minv' 'maxv'};
     
@@ -18,7 +19,6 @@ classdef Labeler < handle
     
     TBLFRAMES_COLS = {'frame' 'labeled targets'};
     
-    FRAMEUP_BIGSTEP = 10;
     NEIGHBORING_FRAME_MAXRADIUS = 10;
     NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
   end
@@ -28,6 +28,7 @@ classdef Labeler < handle
     movieReader = []; % MovieReader object
     minv = 0;
     maxv = inf;
+    movieFrameStepBig = 10;
   end
   properties (Dependent)
     hasMovie;
@@ -56,7 +57,7 @@ classdef Labeler < handle
   properties
     %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
     nLabelPoints;         % scalar integer
-    labelPtsColors;       % nLabelPoints x 3 RGB
+    labelPointsPlotInfo;      % struct containing cosmetic info for labelPoints
     
     labelMode;            % scalar LabelMode
     labeledpos;           % labels, npts x 2 x nFrm x nTrx
@@ -226,7 +227,7 @@ classdef Labeler < handle
         template = [];
       end
       obj.labelingInit('labelMode',s.labelMode,'nPts',s.nLabelPoints,...
-        'ptColors',s.labelPtsColors,'template',template);
+        'labelPointsPlotInfo',s.labelPointsPlotInfo,'template',template);
       obj.labeledpos = s.labeledpos;
       
       obj.setTarget(s.currTarget);
@@ -241,16 +242,36 @@ classdef Labeler < handle
   methods
     
     function obj = Labeler(varargin)
-      % Labeler(labelMode,npts)
-      obj.labelMode = varargin{1};
-      obj.nLabelPoints = varargin{2};
+      % lObj = Labeler();  
+      % lObj = Labeler(labelMode,npts)
+      
+      if nargin==0
+        preffile = fullfile(APT.Root,Labeler.PREF_FILENAME);
+        pref = ReadYaml(preffile,[],1);
+        obj.initFromPrefs(pref);        
+      elseif nargin==2
+        assert(false,'Unsupported');
+%         obj.labelMode = varargin{1};
+%         obj.nLabelPoints = varargin{2};
+      end
       
       hFig = LabelerGUI(obj);
       obj.gdata = guidata(hFig);
       
-      obj.movieReader = MovieReader;
-      
-      obj.labelPtsColors = jet(obj.nLabelPoints);
+      obj.movieReader = MovieReader;      
+    end
+    
+    function initFromPrefs(obj,pref)
+      obj.labelMode = LabelMode.(pref.LabelMode);
+      obj.nLabelPoints = pref.NumLabelPoints;
+      obj.zoomRadiusDefault = pref.Trx.ZoomRadius;
+      obj.zoomRadiusTight = pref.Trx.ZoomRadiusTight;
+      obj.movieFrameStepBig = pref.Movie.FrameStepBig;
+      lpp = pref.LabelPointsPlot;
+      if isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
+        lpp.Colors = feval(lpp.ColorMapName,pref.NumLabelPoints);
+      end
+      obj.labelPointsPlotInfo = lpp;   
     end
     
     function loadMovie(obj,movfile,trxfile)
@@ -306,22 +327,22 @@ classdef Labeler < handle
       % Optional PVs:
       % - labelMode. Defaults to .labelMode
       % - nPts. Defaults to current nPts
-      % - ptColors. Defaults to current
+      % - labelPointsPlotInfo. Defaults to current
       % - template.
       
-      [lblmode,nPts,ptColors,template] = myparse(varargin,...
+      [lblmode,nPts,lblPtsPlotInfo,template] = myparse(varargin,...
         'labelMode',obj.labelMode,...
         'nPts',obj.nLabelPoints,...
-        'ptColors',obj.labelPtsColors,...
+        'labelPointsPlotInfo',obj.labelPointsPlotInfo,...
         'template',[]);
       assert(isa(lblmode,'LabelMode'));
       validateattributes(nPts,{'numeric'},{'scalar' 'positive' 'integer'});
-     % assert(iscellstr(ptNames) && numel(ptNames)==nPts);
-      assert(isequal(size(ptColors),[nPts 3]));
+      % assert(iscellstr(ptNames) && numel(ptNames)==nPts);
+      % assert(isequal(size(labelPointsPlotInfo),[nPts 3]));
       
       obj.labelMode = lblmode;
       obj.nLabelPoints = nPts;
-      obj.labelPtsColors = ptColors;
+      obj.labelPointsPlotInfo = lblPtsPlotInfo;
       
       gd = obj.gdata;
       lc = obj.lblCore;
@@ -352,7 +373,7 @@ classdef Labeler < handle
           gd.menu_setup_template_mode.Checked = 'on';
           gd.menu_setup_createtemplate.Enable = 'off';
   
-          obj.lblCore.init(nPts,ptColors);
+          obj.lblCore.init(nPts,lblPtsPlotInfo);
           
         case LabelMode.TEMPLATE
           obj.lblCore = LabelCoreTemplate(obj);
@@ -362,7 +383,7 @@ classdef Labeler < handle
           gd.menu_setup_template_mode.Checked = 'on';
           gd.menu_setup_createtemplate.Enable = 'off';
 
-          obj.lblCore.init(nPts,ptColors);
+          obj.lblCore.init(nPts,lblPtsPlotInfo);
           if ~isempty(template)
             obj.lblCore.setTemplate(template);
           end
@@ -376,10 +397,13 @@ classdef Labeler < handle
       obj.lblPrev_ptsTxtH = nan(obj.nLabelPoints,1);
       axprev = obj.gdata.axes_prev;
       for i = 1:obj.nLabelPoints
-        obj.lblPrev_ptsH(i) = plot(axprev,nan,nan,'w+','MarkerSize',20,...
-                                   'LineWidth',3,'Color',ptColors(i,:),'UserData',i);
+        obj.lblPrev_ptsH(i) = plot(axprev,nan,nan,lblPtsPlotInfo.Marker,...
+          'MarkerSize',lblPtsPlotInfo.MarkerSize,...
+          'LineWidth',lblPtsPlotInfo.LineWidth,...
+          'Color',lblPtsPlotInfo.Colors(i,:),...
+          'UserData',i);
         obj.lblPrev_ptsTxtH(i) = text(nan,nan,num2str(i),'Parent',axprev,...
-                                      'Color',ptColors(i,:),'Hittest','off');
+          'Color',lblPtsPlotInfo.Colors(i,:),'Hittest','off');
       end      
     end
     
@@ -660,7 +684,7 @@ classdef Labeler < handle
     
     function frameUp(obj,tfBigstep)
       if tfBigstep
-        df = obj.FRAMEUP_BIGSTEP;
+        df = obj.movieFrameStepBig;
       else
         df = 1;
       end
@@ -670,7 +694,7 @@ classdef Labeler < handle
     
     function frameDown(obj,tfBigstep)
       if tfBigstep
-        df = obj.FRAMEUP_BIGSTEP;
+        df = obj.movieFrameStepBig;
       else
         df = 1;
       end

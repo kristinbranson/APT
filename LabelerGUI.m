@@ -133,7 +133,7 @@ switch lc.state
   case LabelState.ADJUST
     lc.acceptLabels();
   case LabelState.ACCEPTED
-    lc.unacceptLabels();
+    lc.unAcceptLabels();
   otherwise
     assert(false);
 end
@@ -180,13 +180,12 @@ lObj = handles.labelerObj;
 lObj.saveLblFile();
 
 function menu_file_load_Callback(hObject, eventdata, handles)
-res = questdlg('Save before closing current video?');
-if strcmpi(res,'Cancel')
+res = questdlg('Did you save your work?','Save','Yes, Proceed','Cancel Load','Yes, Proceed');
+if strcmpi(res,'Cancel Load')
   return;
-elseif strcmpi(res,'Yes')
-  assert(false,'TODO');
+elseif strcmpi(res,'Yes, Proceed')
+  handles.labelerObj.loadLblFile();
 end
-handles.labelerObj.loadLblFile();
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;

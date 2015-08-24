@@ -19,27 +19,19 @@ classdef LabelCore < handle
     DXFAC = 500;
     DXFACBIG = 50;
   end
-%   properties (Hidden)
-%     dx
-%     dxbig
-%     dy
-%     dybig
-%   end
         
   properties
     labeler;              % scalar Labeler obj
     hFig;                 % scalar figure
     hAx;                  % scalar axis
-    %pbClear;            
     tbAccept;
     
     nPts;                 % scalar integer
-    %ptNames;             % nPts-by-1 cellstr
-    ptColors;             % nPts x 3 RGB
     
     state;           % scalar state
     hPts;            % nPts x 1 handle vec, handle to points
     hPtsTxt;         % nPts x 1 handle vec, handle to text
+    ptsPlotInfo;     % struct, points plotting cosmetic info
   end
   
   methods (Sealed=true)
@@ -49,14 +41,12 @@ classdef LabelCore < handle
       gd = labelerObj.gdata;
       obj.hFig = gd.figure;
       obj.hAx = gd.axes_curr;
-      %obj.pbClear = gd.pbClear;
       obj.tbAccept = gd.tbAccept;
     end
     
-    function init(obj,nPts,ptColors)
+    function init(obj,nPts,ptsPlotInfo)
       obj.nPts = nPts;
-      %obj.ptNames = ptNames;
-      obj.ptColors = ptColors;
+      obj.ptsPlotInfo = ptsPlotInfo;
       
       deleteHandles(obj.hPts);
       deleteHandles(obj.hPtsTxt);
@@ -64,26 +54,21 @@ classdef LabelCore < handle
       obj.hPtsTxt = nan(obj.nPts,1);
       ax = obj.hAx;
       for i = 1:obj.nPts
-        obj.hPts(i) = plot(ax,nan,nan,'w+','MarkerSize',20,...
-                               'LineWidth',3,'Color',ptColors(i,:),'UserData',i);
-        obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax,...
-                                   'Color',ptColors(i,:),'Hittest','off');
+        obj.hPts(i) = plot(ax,nan,nan,ptsPlotInfo.Marker,...
+          'MarkerSize',ptsPlotInfo.MarkerSize,...
+          'LineWidth',ptsPlotInfo.LineWidth,...
+          'Color',ptsPlotInfo.Colors(i,:),...
+          'UserData',i);                 
+        obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax,...        
+          'Color',ptsPlotInfo.Colors(i,:),'Hittest','off');
       end
-      
+            
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
       set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
       set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
       hTmp = findall(obj.hFig,'-property','KeyPressFcn','-not','Tag','edit_frame');
-      set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
-      
-%       lbler = obj.labeler;
-%       nr = lbler.movienr;
-%       nc = lbler.movienc;
-%       obj.dx = nc/obj.DXFAC;
-%       obj.dxbig = nc/obj.DXFACBIG;
-%       obj.dy = nr/obj.DXFAC;
-%       obj.dybig = nr/obj.DYFACBIG;
+      set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));      
       
       obj.initHook();
     end

@@ -52,7 +52,7 @@ classdef LabelCoreSeq < LabelCore
       obj.beginAccepted(true);
     end
     
-    function unacceptLabels(obj)
+    function unAcceptLabels(obj)
       obj.beginAdjust();
     end
     
