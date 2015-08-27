@@ -75,10 +75,10 @@ set(handles.axes_prev,'Color',[0 0 0]);
 
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
-%fcn = get(handles.slider_frame,'Callback');
 handles.hslider_listener = addlistener(handles.slider_frame,...
   'ContinuousValueChange',@slider_frame_Callback);
-%set(handles.slider_frame,'Callback','');
+handles.txCurrImTarget_listener = addlistener(handles.labelerObj,...
+  'currTarget','PostSet',@cbkCurrTargetChanged);
 
 set(handles.output,'Toolbar','figure');
 
@@ -92,8 +92,15 @@ guidata(hObject, handles);
 % UIWAIT makes LabelerGUI wait for user response (see UIRESUME)
 % uiwait(handles.figure);
 
-function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) 
+function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
+
+function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
+lObj = evt.AffectedObject;
+if lObj.hasTrx
+  id = lObj.currTrxID;
+  set(lObj.gdata.txCurrImTarget,'String',sprintf('tgtID: %d',id));
+end
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -152,7 +159,9 @@ lObj = handles.labelerObj;
 row = eventdata.Indices;
 if ~isempty(row)
   row = row(1);
-  lObj.setTarget(row);
+  dat = get(hObject,'Data');
+  id = dat{row,1};
+  lObj.setTargetID(id);
 end
 
 function tblFrames_CellSelectionCallback(hObject, eventdata, handles)
