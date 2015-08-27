@@ -25,6 +25,27 @@ classdef APT
     function setpath()
       p = APT.getpath();
       addpath(p{:},'-begin');
+      
+      % AL 20150824, testing of sha 1f65 on R2015a+Linux is reproducably
+      % SEGV-ing from a fresh MATLAB start when calling the Labeler()
+      % constructor. (Specifically: >> APT.setpath; >> q = Labeler();)
+      % Trace is unintelligible, mostly dispatcher/interpreter.
+      %
+      % Commenting out the call to ReadYaml() on Labeler.m:Line250 (as well
+      % as the following line, which depends on it) resolves the SEGV; so
+      % does calling ReadYaml on any random Yaml file before calling
+      % Labeler(). 
+      %
+      % Based on this, hypothesize possible issue with java/the Yaml
+      % library, when loaded inside a class, etc. As a hack, call ReadYaml
+      % here on a random file, which will load the Yaml stuff before the
+      % Labeler is instantiated.
+      
+      mlver = ver('MATLAB');
+      if isunix && strcmp(mlver.Release,'(R2015a)')
+        randomyamlfile = fullfile(APT.Root,'YAMLMatlab_0.4.3','Tests','Data','test_import','file1.yaml');
+        ReadYaml(randomyamlfile);
+      end
     end
     
      function s = codesnapshot
