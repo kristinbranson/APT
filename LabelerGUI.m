@@ -79,6 +79,8 @@ handles.hslider_listener = addlistener(handles.slider_frame,...
   'ContinuousValueChange',@slider_frame_Callback);
 handles.txCurrImTarget_listener = addlistener(handles.labelerObj,...
   'currTarget','PostSet',@cbkCurrTargetChanged);
+handles.txUnsavedChanges_listener = addlistener(handles.labelerObj,...
+  'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 
 set(handles.output,'Toolbar','figure');
 
@@ -100,6 +102,16 @@ lObj = evt.AffectedObject;
 if lObj.hasTrx
   id = lObj.currTrxID;
   set(lObj.gdata.txCurrImTarget,'String',sprintf('tgtID: %d',id));
+end
+
+function cbkLabeledPosNeedsSaveChanged(src,evt)
+lObj = evt.AffectedObject;
+hTx = lObj.gdata.txUnsavedChanges;
+val = lObj.labeledposNeedsSave;
+if isscalar(val) && val
+  set(hTx,'Visible','on');
+else
+  set(hTx,'Visible','off');
 end
 
 function slider_frame_Callback(hObject,~)

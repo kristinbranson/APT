@@ -61,13 +61,18 @@ classdef Labeler < handle
   properties
     %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
     nLabelPoints;         % scalar integer
-    labelPointsPlotInfo;      % struct containing cosmetic info for labelPoints
+    labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints
     
     labelMode;            % scalar LabelMode
     labeledpos;           % labels, npts x 2 x nFrm x nTrx
-    labelsLocked;         % nFrm x nTrx
-%     labelNames;           % nLabelPoints-by-1 cellstr
+  end
+  properties (SetObservable)
+    labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save
+  end
+  properties
     
+%     labelsLocked;         % nFrm x nTrx
+%     labelNames;           % nLabelPoints-by-1 cellstr    
     lblCore;
     
     lblPrev_ptsH;         % Maybe encapsulate this and next with axes_prev, image_prev
@@ -183,7 +188,9 @@ classdef Labeler < handle
       
       s = obj.getSaveStruct(); %#ok<NASGU>
       save(fname,'-mat','-struct','s');
-      
+
+      obj.labeledposNeedsSave = false;
+
       RC.saveprop('lastLblFile',fname);
     end
     
@@ -242,6 +249,7 @@ classdef Labeler < handle
       obj.labelingInit('labelMode',s.labelMode,'nPts',s.nLabelPoints,...
         'labelPointsPlotInfo',s.labelPointsPlotInfo,'template',template);
       obj.labeledpos = s.labeledpos;
+      assert(~obj.labeledposNeedsSave); % should be from labelingInit
       
       obj.setTarget(s.currTarget);
       obj.setFrame(s.currFrame);
@@ -424,12 +432,19 @@ classdef Labeler < handle
       
     function labelPosInitWithLocked(obj)
       obj.labeledpos = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
-      obj.labelsLocked = false(obj.nframes,obj.nTargets);
+      obj.labeledposNeedsSave = false;
+      %obj.labelsLocked = false(obj.nframes,obj.nTargets);
     end
     
     function labelPosClear(obj)
       % Clear all labels for current frame, current target
-      obj.labeledpos(:,:,obj.currFrame,obj.currTarget) = nan;
+      x = obj.labeledpos(:,:,obj.currFrame,obj.currTarget);
+      if all(isnan(x(:)))
+        % none; short-circuit set to avoid triggering .labeledposNeedsSave
+      else
+        obj.labeledpos(:,:,obj.currFrame,obj.currTarget) = nan;
+        obj.labeledposNeedsSave = true;
+      end
     end
     
     function [tf,lpos] = labelPosIsLabeled(obj,iFrm,iTrx)
@@ -447,6 +462,8 @@ classdef Labeler < handle
       cfrm = obj.currFrame;
       ctrx = obj.currTarget;
       obj.labeledpos(:,:,cfrm,ctrx) = xy;
+
+      obj.labeledposNeedsSave = true;
     end
 
     function [tfneighbor,iFrm0,lpos0] = labelPosLabeledNeighbor(obj,iFrm,iTrx)
@@ -586,11 +603,15 @@ classdef Labeler < handle
       end
             
       f2t = false(obj.nframes,obj.nTrx);
-      maxID = max([obj.trx.id]);
+      if tfTrx
+        maxID = max([obj.trx.id]);
+      else
+        maxID = -1;
+      end
       id2t = nan(maxID+1,1);
       for i = 1:obj.nTrx
         frm0 = obj.trx(i).firstframe;
-        frm1 = obj.trx(i).endframe;        
+        frm1 = obj.trx(i).endframe;
         f2t(frm0:frm1,i) = true;
         id2t(obj.trx(i).id+1) = i;
       end
@@ -670,7 +691,7 @@ classdef Labeler < handle
           
           iTgt1stLive = find(tfTargetLive,1);
           assert(~isempty(iTgt1stLive),'TODO: No targets present in current frame.');          
-          warning('Labeler:newTarget',...
+          warningNoTrace('Labeler:newTarget',...
             'Current target (ID %d) is not present in frame=%d. Switching to target ID %d.',...
             obj.currTrxID,frm,obj.trx(iTgt1stLive).id);
           
@@ -720,8 +741,6 @@ classdef Labeler < handle
       % iTgt: INDEX into obj.trx
       
       validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
-      assert(obj.frm2trx(obj.currFrame,iTgt),...
-        'Desired target not preset in current frame.');
       
       obj.prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
