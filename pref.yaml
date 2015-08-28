@@ -7,6 +7,7 @@ NumLabelPoints: 3
 Trx:
   ZoomRadius: 100
   ZoomRadiusTight: 10
+  ZoomFactorDefault: 0.4
 
 Movie:
   FrameStepBig: 10

@@ -30,6 +30,9 @@ classdef Labeler < handle
     maxv = inf;
     movieFrameStepBig = 10;
   end
+  properties (SetObservable)
+    targetZoomFac;
+  end
   properties (Dependent)
     hasMovie;
     moviefile;
@@ -79,13 +82,14 @@ classdef Labeler < handle
     lblPrev_ptsTxtH;                          
   end  
   
-  properties
-    gdata = [];           % handles structure for figure
-
+  properties (SetObservable, AbortSet)
     currFrame = 1;        % current frame
-    currIm = [];
     prevFrame = nan;      % last previously VISITED frame
+  end
+  properties
+    currIm = [];
     prevIm = [];
+    gdata = [];           % handles structure for figure
   end
   properties (SetObservable,AbortSet)
     currTarget = nan;
@@ -287,6 +291,7 @@ classdef Labeler < handle
       obj.nLabelPoints = pref.NumLabelPoints;
       obj.zoomRadiusDefault = pref.Trx.ZoomRadius;
       obj.zoomRadiusTight = pref.Trx.ZoomRadiusTight;
+      obj.targetZoomFac = pref.Trx.ZoomFactorDefault;
       obj.movieFrameStepBig = pref.Movie.FrameStepBig;
       lpp = pref.LabelPointsPlot;
       if isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
@@ -550,9 +555,20 @@ classdef Labeler < handle
       axis(obj.gdata.axes_curr,lims);
       axis(obj.gdata.axes_prev,lims);      
     end
-    function videoZoomFac(obj,zoomFac)
+    function videoSetTargetZoomFac(obj,zoomFac)
       % zoomFac: 0 for no-zoom; 1 for max zoom
       
+      if zoomFac < 0
+        zoomFac = 0;
+        warning('Labeler:zoomFac','Zoom factor must be in [0,1].');
+      end
+      if zoomFac > 1
+        zoomFac = 1;
+        warning('Labeler:zoomFac','Zoom factor must be in [0,1].');
+      end
+      
+      obj.targetZoomFac = zoomFac;
+        
       zr0 = max(obj.movienr,obj.movienc)/2; % no-zoom: large radius
       zr1 = obj.zoomRadiusTight; % tight zoom: small radius
       
@@ -561,7 +577,7 @@ classdef Labeler < handle
       else
         zr = zr0 + zoomFac*(zr1-zr0);
       end
-      obj.videoZoom(zr);      
+      obj.videoZoom(zr);
     end
     
     function [xsz,ysz] = videoCurrentSize(obj)
@@ -643,8 +659,6 @@ classdef Labeler < handle
       axprev = obj.gdata.axes_prev;
       imcurr = obj.gdata.image_curr;
       set(imcurr,'CData',im1);
-%       axis(axcurr,'image');
-%       axis(axprev,'image');
       set(axcurr,'CLim',[obj.minv,obj.maxv],...
                  'XLim',[.5,size(im1,2)+.5],...
                  'YLim',[.5,size(im1,1)+.5]);
@@ -663,15 +677,17 @@ classdef Labeler < handle
       obj.currFrame = 2; % to force update in setFrame
       obj.setTarget(1);
       obj.setFrame(1);
+      if obj.hasTrx
+        obj.videoSetTargetZoomFac(obj.targetZoomFac);
+      end
       
-      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
+      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI      
    end
     
     function setFrame(obj,frm)
       obj.prevFrame = obj.currFrame;
       obj.prevIm = obj.currIm;
       set(obj.gdata.image_prev,'CData',obj.prevIm);
-      obj.setFrameTxt('txPrevIm',obj.prevFrame);
       
       if obj.currFrame~=frm
         obj.currIm = obj.movieReader.readframe(frm);
@@ -680,8 +696,8 @@ classdef Labeler < handle
       set(obj.gdata.image_curr,'CData',obj.currIm);
       
       %#UI
-      set(obj.gdata.slider_frame,'Value',(frm-1)/(obj.nframes-1));
-      set(obj.gdata.edit_frame,'String',num2str(frm));
+%      set(obj.gdata.slider_frame,'Value',(frm-1)/(obj.nframes-1));
+%       set(obj.gdata.edit_frame,'String',num2str(frm));
 
       if obj.hasTrx
         tfTargetLive = obj.frm2trx(frm,:);
@@ -723,7 +739,6 @@ classdef Labeler < handle
           
         obj.videoCenterOnCurrTarget();
       end
-      obj.setFrameTxt('txCurrImFrame',frm);
 
       obj.labelsUpdateNewFrame();
       
@@ -770,13 +785,6 @@ classdef Labeler < handle
       f = max(obj.currFrame-df,1);
       obj.setFrame(f);
     end
-    
-    function setFrameTxt(obj,hTxtTag,frm)
-      set(obj.gdata.(hTxtTag),'String',sprintf('frm: %d',frm));
-    end
-%     function setTargetTxt(obj,hTxtTag,tgt)
-%       set(obj.gdata.(hTxtTag),'String',sprintf('tgtID: %d',tgt));
-%     end
     
     function [x,y,th] = currentTargetLoc(obj)
       % Return current target loc, or movie center if no target

@@ -75,12 +75,14 @@ set(handles.axes_prev,'Color',[0 0 0]);
 
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
-handles.hslider_listener = addlistener(handles.slider_frame,...
-  'ContinuousValueChange',@slider_frame_Callback);
-handles.txCurrImTarget_listener = addlistener(handles.labelerObj,...
-  'currTarget','PostSet',@cbkCurrTargetChanged);
-handles.txUnsavedChanges_listener = addlistener(handles.labelerObj,...
-  'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
+listeners = cell(0,1);
+listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
+listeners{end+1,1} = addlistener(handles.labelerObj,'currFrame','PostSet',@cbkCurrFrameChanged);
+listeners{end+1,1} = addlistener(handles.labelerObj,'currTarget','PostSet',@cbkCurrTargetChanged);
+listeners{end+1,1} = addlistener(handles.labelerObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
+listeners{end+1,1} = addlistener(handles.labelerObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
+listeners{end+1,1} = addlistener(handles.labelerObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
+handles.listeners = listeners;
 
 set(handles.output,'Toolbar','figure');
 
@@ -96,6 +98,20 @@ guidata(hObject, handles);
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
+
+function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
+lObj = evt.AffectedObject;
+frm = lObj.currFrame;
+nfrm = lObj.nframes;
+gdata = lObj.gdata;
+set(gdata.txCurrImFrame,'String',sprintf('frm: %d',frm));
+set(gdata.edit_frame,'String',num2str(frm));
+set(gdata.slider_frame,'Value',(frm-1)/(nfrm-1));
+
+function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
+lObj = evt.AffectedObject;
+frm = lObj.prevFrame;
+set(lObj.gdata.txPrevIm,'String',sprintf('frm: %d',frm));
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -113,6 +129,11 @@ if isscalar(val) && val
 else
   set(hTx,'Visible','off');
 end
+
+function cbkTargetZoomFacChanged(src,evt)
+lObj = evt.AffectedObject;
+zf = lObj.targetZoomFac;
+set(lObj.gdata.sldZoom,'Value',zf);
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -194,7 +215,7 @@ function sldZoom_Callback(hObject, eventdata, handles)
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 lObj = handles.labelerObj;
 zoomFac = get(hObject,'Value');
-lObj.videoZoomFac(zoomFac);
+lObj.videoSetTargetZoomFac(zoomFac);
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
