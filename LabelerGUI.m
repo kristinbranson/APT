@@ -206,25 +206,26 @@ lObj = handles.labelerObj;
 lObj.saveLblFile();
 
 function menu_file_load_Callback(hObject, eventdata, handles)
-res = questdlg('Did you save your work?','Save','Yes, Proceed','Cancel Load','Yes, Proceed');
-if strcmpi(res,'Cancel Load')
-  return;
-elseif strcmpi(res,'Yes, Proceed')
-  handles.labelerObj.loadLblFile();
+lObj = handles.labelerObj;
+if hlpSave(lObj)
+  lObj.loadLblFile();
 end
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
-if labelerObj.hasMovie
-  res = questdlg('Save before closing current video?');
+OPTION_SAVE = 'Save labels first';
+OPTION_PROC = 'Proceed without saving';
+OPTION_CANC = 'Cancel';
+if labelerObj.labeledposNeedsSave
+  res = questdlg('You have unsaved changes to your labels. If you proceed without saving, your changes will be lost.',...
+    'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
   switch res
-    case 'No'
-      % none
-    case 'Cancel'
+    case OPTION_SAVE
+      labelerObj.saveLblFile();
+    case OPTION_CANC
       tfcontinue = false;
-    case 'Yes'
-      assert(false,'XXX TODO');
-      handles = SaveState(handles);
+    case OPTION_PROC
+      % none
   end
 end
 
@@ -259,6 +260,18 @@ function menu_setup_adjustbrightness_Callback(hObject, eventdata, handles)
 hConstrast = imcontrast_kb(handles.axes_curr);
 addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.labelerObj));
 
+function menu_file_quit_Callback(hObject, eventdata, handles)
+CloseGUI(handles);
+
+function figure_CloseRequestFcn(hObject, eventdata, handles)
+CloseGUI(handles);
+
+function CloseGUI(handles)
+if hlpSave(handles.labelerObj)
+  delete(handles.figure);
+end
+
+
 % function menu_setup_createtemplate_Callback(hObject, eventdata, handles)
 % 
 % res = questdlg('Changing template will result in all labels being cleared. Save before doing this?');
@@ -272,35 +285,6 @@ addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.lab
 % labeler.labelingInit(LabelMode.TEMPLATE);
 % lblCore = handles.labelerObj.lblCore;
 % lblCore.createTemplate();
-
-%%%%% BELOW IS IN PROGRESS %%%%%%
-
-% --------------------------------------------------------------------
-function menu_file_quit_Callback(hObject, eventdata, handles)
-% hObject    handle to menu_file_quit (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-CloseGUI(handles);
-
-function figure_CloseRequestFcn(hObject, eventdata, handles)
-% hObject    handle to figure (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: delete(hObject) closes the figure
-CloseGUI(handles);
-
-function CloseGUI(handles)
-
-res = questdlg('Save before closing?');
-if strcmpi(res,'Cancel'),
-  return;
-elseif strcmpi(res,'Yes'),
-  SaveState(handles);
-end
-
-delete(handles.figure);
 
 % 
 % % --------------------------------------------------------------------
