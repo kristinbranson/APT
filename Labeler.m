@@ -404,8 +404,8 @@ classdef Labeler < handle
       
       obj.labelPosInitWithLocked();
       
-      deleteHandles(obj.lblPrev_ptsH);
-      deleteHandles(obj.lblPrev_ptsTxtH);
+      deleteValidHandles(obj.lblPrev_ptsH);
+      deleteValidHandles(obj.lblPrev_ptsTxtH);
       obj.lblPrev_ptsH = nan(obj.nLabelPoints,1);
       obj.lblPrev_ptsTxtH = nan(obj.nLabelPoints,1);
       axprev = obj.gdata.axes_prev;

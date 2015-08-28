@@ -19,6 +19,7 @@ classdef APT
         fullfile(root,'private_imuitools');
         fullfile(root,'YAMLMatlab_0.4.3');
         fullfile(jctroot,'filehandling'); ...
+        fullfile(jctroot,'misc'); ...
         };
     end
     

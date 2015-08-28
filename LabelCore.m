@@ -48,8 +48,8 @@ classdef LabelCore < handle
       obj.nPts = nPts;
       obj.ptsPlotInfo = ptsPlotInfo;
       
-      deleteHandles(obj.hPts);
-      deleteHandles(obj.hPtsTxt);
+      deleteValidHandles(obj.hPts);
+      deleteValidHandles(obj.hPtsTxt);
       obj.hPts = nan(obj.nPts,1);
       obj.hPtsTxt = nan(obj.nPts,1);
       ax = obj.hAx;
@@ -77,8 +77,8 @@ classdef LabelCore < handle
   
   methods
     function delete(obj)
-      deleteHandles(obj.hPts);
-      deleteHandles(obj.hPtsTxt);
+      deleteValidHandles(obj.hPts);
+      deleteValidHandles(obj.hPtsTxt);
     end
   end
   
@@ -141,7 +141,7 @@ classdef LabelCore < handle
         xy(:,2) = max(xy(:,2),1);
         xy(:,2) = min(xy(:,2),nr);      
         if ~isequal(xy,xyOrig)
-          warning('LabelCore:clipping',...
+          warningNoTrace('LabelCore:clipping',...
             'Clipping points that extend beyond movie size.');
         end      
       end
