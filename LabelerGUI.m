@@ -293,20 +293,6 @@ if hlpSave(handles.labelerObj)
 end
 
 
-% function menu_setup_createtemplate_Callback(hObject, eventdata, handles)
-% 
-% res = questdlg('Changing template will result in all labels being cleared. Save before doing this?');
-% if strcmpi(res,'Cancel'),
-%   return;
-% elseif strcmpi(res,'Yes'),
-%   assert(false,'TODO');
-% end
-% 
-% labeler = handles.labelerObj;
-% labeler.labelingInit(LabelMode.TEMPLATE);
-% lblCore = handles.labelerObj.lblCore;
-% lblCore.createTemplate();
-
 % 
 % % --------------------------------------------------------------------
 % function import_template_Callback(hObject, eventdata, handles)
