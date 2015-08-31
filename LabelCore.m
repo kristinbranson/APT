@@ -85,21 +85,33 @@ classdef LabelCore < handle
   methods
     
     function initHook(obj) %#ok<MANU>
+      % Called from Labeler.labelingInit->LabelCore.init
     end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSD>
+      % Frame has changed
+      %
+      % Called from Labeler.setFrame->Labeler.labelsUpdateNewFrame      
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSD>
+      % Target has changed
+      %
+      % Called from Labeler.labelsUpdateNewTarget
     end
     
     function clearLabels(obj) %#ok<MANU>
+      % Clear current labels and enter initial labeling state
+      %
+      % Called from pbClear and Labeler.labelingInit
     end
     
     function acceptLabels(obj) %#ok<MANU>
+      % Called from tbAccept/Unaccept
     end    
     
     function unAcceptLabels(obj) %#ok<MANU>
+      % Called from tbAccept/Unaccept
     end    
     
     function axBDF(obj,src,evt) %#ok<INUSD>

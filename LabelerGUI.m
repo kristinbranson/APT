@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 29-Jul-2015 09:20:40
+% Last Modified by GUIDE v2.5 28-Aug-2015 18:31:18
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -197,6 +197,24 @@ if ~isempty(row)
   lObj.setTargetID(id);
 end
 
+hlpRemoveFocus(hObject,handles);
+
+function hlpRemoveFocus(h,handles)
+% Hack to manage focus. As usual the uitable is causing problems. The
+% tables used for Target/Frame nav cause problems with focus/Keypresses as
+% follows:
+% 1. A row is selected in the target table, selecting that target.
+% 2. If nothing else is done, the table has focus and traps arrow
+% keypresses to navigate the table, instead of doing LabelCore stuff
+% (moving selected points, changing frames, etc).
+% 3. The following lines of code force the focus off the uitable.
+%
+% Other possible solutions: 
+% - Figure out how to disable arrow-key nav in uitables. Looks like need to
+% drop into Java and not super simple.
+% - Don't use uitables, or use them in a separate figure window.
+uicontrol(handles.tbAccept);
+
 function tblFrames_CellSelectionCallback(hObject, eventdata, handles)
 % hObject    handle to tblFrames (see GCBO)
 % eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
@@ -210,12 +228,16 @@ if ~isempty(row)
   lObj.setFrame(dat{row,1});
 end
 
+hlpRemoveFocus(hObject,handles);
+
 function sldZoom_Callback(hObject, eventdata, handles)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 lObj = handles.labelerObj;
 zoomFac = get(hObject,'Value');
 lObj.videoSetTargetZoomFac(zoomFac);
+
+hlpRemoveFocus(hObject,handles);
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -256,7 +278,6 @@ if hlpSave(lObj)
   lObj.loadMovie();
   if lObj.hasMovie
     lObj.labelingInit();
-    lObj.lblCore.clearLabels(); 
   end
 end
 
@@ -266,7 +287,6 @@ if hlpSave(lObj)
   lObj.loadMovie([],[]);
   if lObj.hasMovie
     lObj.labelingInit();
-    lObj.lblCore.clearLabels(); 
   end
 end
 
@@ -357,3 +377,4 @@ end
 % else
 %   guidata(hObject,handles);
 % end
+

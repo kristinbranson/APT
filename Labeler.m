@@ -416,6 +416,7 @@ classdef Labeler < handle
       end
       
       obj.labelPosInitWithLocked();
+      obj.lblCore.clearLabels(); 
       
       deleteValidHandles(obj.lblPrev_ptsH);
       deleteValidHandles(obj.lblPrev_ptsTxtH);
@@ -430,7 +431,7 @@ classdef Labeler < handle
           'UserData',i);
         obj.lblPrev_ptsTxtH(i) = text(nan,nan,num2str(i),'Parent',axprev,...
           'Color',lblPtsPlotInfo.Colors(i,:),'Hittest','off');
-      end      
+      end
     end
     
     %%% labelpos
