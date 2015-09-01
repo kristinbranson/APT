@@ -67,6 +67,7 @@ classdef LabelCore < handle
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
       set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
       set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
+      set(obj.labeler.gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF);
       hTmp = findall(obj.hFig,'-property','KeyPressFcn','-not','Tag','edit_frame');
       set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));      
       
@@ -126,6 +127,10 @@ classdef LabelCore < handle
     function wbuf(obj,src,evt) %#ok<INUSD>
     end
     
+    function pnlBDF(obj,src,evt) %#ok<INUSD>
+      % This is called when uipanel_curr is clicked outside the axis.
+    end
+    
     function kpf(obj,src,evt) %#ok<INUSD>
     end
     
@@ -175,14 +180,23 @@ classdef LabelCore < handle
     
     function dispOccludedPts(obj,tfOccluded)
       if any(tfOccluded)
-        iOcc = find(tfOccluded);      
-        iOcc = num2cell(iOcc);
-        str = sprintf('%d,',iOcc{:});
-        str = str(1:end-1);
+        iOcc = find(tfOccluded);
+        nOcc = numel(iOcc);
+        
+        y = obj.labeler.movienr-10;
+        dx = 15;
+        x = 10 + dx*(1:nOcc);
+        y = repmat(y,size(x));
+        obj.assignLabelCoordsI([x y],iOcc);
+        
+
+%         iOcc = num2cell(iOcc);
+%         str = sprintf('%d,',iOcc{:});
+%         str = str(1:end-1);
       else
-        str = 'none';
+%         str = 'none';
       end        
-      set(obj.labeler.gdata.txOccluded,'String',sprintf('Occ: %s',str));
+%       set(obj.labeler.gdata.txOccluded,'String',sprintf('Occ: %s',str));
     end
         
   end

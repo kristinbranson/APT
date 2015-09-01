@@ -480,11 +480,24 @@ classdef Labeler < handle
     end
     
     function [tf,lpos] = labelPosIsLabeled(obj,iFrm,iTrx)
+      % labeled includes occluded
       lpos = obj.labeledpos(:,:,iFrm,iTrx);
       tfnan = isnan(lpos);
       assert(all(tfnan(:)) || ~any(tfnan(:)));
       tf = ~any(tfnan(:));
     end 
+    
+    function tf = labelPosIsOccluded(obj,iFrm,iTrx)
+      % iFrm, iTrx: optional, defaults to current
+      if exist('iFrm','var')==0
+        iFrm = obj.currFrame;
+      end
+      if exist('iTrx','var')==0
+        iTrx = obj.currTarget;
+      end
+      lpos = obj.labeledpos(:,:,iFrm,iTrx);
+      tf = isinf(lpos(:,1));
+    end
     
     function labelPosSet(obj,xy)
       % Set labelpos from labelPtsH for current frame, current target
@@ -507,6 +520,14 @@ classdef Labeler < handle
       cfrm = obj.currFrame;
       ctrx = obj.currTarget;
       obj.labeledpos(iPt,:,cfrm,ctrx) = xy;
+      
+      obj.labeledposNeedsSave = true;
+    end
+    
+    function labelPosSetOccludedI(obj,iPt)
+      cfrm = obj.currFrame;
+      ctrx = obj.currTarget;
+      obj.labeledpos(iPt,:,cfrm,ctrx) = inf;
       
       obj.labeledposNeedsSave = true;
     end

@@ -178,6 +178,17 @@ classdef LabelCoreHT < LabelCore
       % none
     end
     
+    function pnlBDF(obj,src,evt)
+      iPt = obj.iPoint;
+      obj.labeler.labelPosSetOccludedI(iPt);
+      tfOcc = obj.labeler.labelPosIsOccluded();
+      
+      obj.dispOccludedPts(tfOcc);
+
+      obj.tfClicked = true;
+      obj.labeler.frameUpDF(obj.nFrameSkip);
+    end
+    
     function kpf(obj,src,evt) %#ok<INUSL>
       fprintf(2,'TODO');
       key = evt.Key;
