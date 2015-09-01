@@ -924,7 +924,12 @@ classdef Labeler < handle
       
       cfrm = obj.currFrame;
       lpos = obj.labeledpos;
-      tfLbled = ~isnan(squeeze(lpos(1,1,cfrm,:)));
+      tfLbled = false(obj.nTargets,1);
+      for i = 1:obj.nTargets
+        tmp = lpos(:,:,cfrm,i);
+        tfLbled(i) = any(~isnan(tmp(:)));
+      end
+%       tfLbled = ~isnan(squeeze(lpos(1,1,cfrm,:)));
       nLbled = nnz(tfLbled);
       
       i = frames==cfrm;

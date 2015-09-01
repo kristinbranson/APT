@@ -69,7 +69,9 @@ classdef LabelCore < handle
       set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
       set(obj.labeler.gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF);
       hTmp = findall(obj.hFig,'-property','KeyPressFcn','-not','Tag','edit_frame');
-      set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));      
+      set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
+      
+      set(obj.labeler.gdata.txCurrImAux,'Visible','off');
       
       obj.initHook();
     end
@@ -186,10 +188,9 @@ classdef LabelCore < handle
         y = obj.labeler.movienr-10;
         dx = 15;
         x = 10 + dx*(1:nOcc);
+        x = x(:);
         y = repmat(y,size(x));
         obj.assignLabelCoordsI([x y],iOcc);
-        
-
 %         iOcc = num2cell(iOcc);
 %         str = sprintf('%d,',iOcc{:});
 %         str = str(1:end-1);

@@ -62,7 +62,8 @@ classdef LabelCoreHT < LabelCore
 
     nFrameSkip;
     unlabeledPointColor = [1 1 1];
-    otherlabeledPointDarkenFac = 0.5;
+    otherLabeledPointColor = [0.4 0.4 0.4];
+    %otherlabeledPointDarkenFac = 0.2;
   end  
   
   methods
@@ -79,7 +80,14 @@ classdef LabelCoreHT < LabelCore
       ppi = obj.ptsPlotInfo;
       htm = ppi.HighThroughputMode;
       obj.nFrameSkip = htm.NFrameSkip;
-      obj.unlabeledPointColor = htm.UnlabeledPointColor;      
+      obj.unlabeledPointColor = htm.UnlabeledPointColor;
+      obj.otherLabeledPointColor = htm.OtherLabeledPointColor;
+      
+      set(obj.hPts,'HitTest','off');
+      set(obj.hPtsTxt,'HitTest','off');
+      set(obj.labeler.gdata.txCurrImAux,'Visible','on');
+      
+      obj.setIPoint(1);
     end
     
   end
@@ -95,7 +103,7 @@ classdef LabelCoreHT < LabelCore
       iPt = obj.iPoint;
       hPoints = obj.hPts;
       hPointsTxt = obj.hPtsTxt;
-      colors = obj.ptsPlotInfo.Colors;
+      colors = obj.ptsPlotInfo.Colors;      
       
       % COLORING
       % - all labeled, occluded that are not iPoint are colored but dimmed
@@ -107,9 +115,10 @@ classdef LabelCoreHT < LabelCore
       tfOL = tfLbled; % other-labeled
       tfOL(iPt) = false;
       iPtOL = find(tfOL);
-      darkenFac = obj.otherlabeledPointDarkenFac;
+      %darkenFac = obj.otherlabeledPointDarkenFac;
+      clr = obj.otherLabeledPointColor;
       for i = iPtOL(:)'
-        clr = darkenFac*colors(i,:);
+        %clr = darkenFac*colors(i,:);        
         set(hPoints(i),'Color',clr);
         % leave hPtsTxtOL color
       end
@@ -160,9 +169,8 @@ classdef LabelCoreHT < LabelCore
 
       set(obj.hPts(iPt),'Color',obj.ptsPlotInfo.Colors(iPt,:));
       obj.labeler.labelPosSetI(pos,iPt);
-      obj.tfClicked = true;
-      
-      obj.labeler.frameUpDF(obj.nFrameSkip);
+      obj.tfClicked = true;      
+      obj.clickedIncrementFrame();
     end
     
     function ptBDF(obj,src,evt) %#ok<INUSD>
@@ -178,7 +186,7 @@ classdef LabelCoreHT < LabelCore
       % none
     end
     
-    function pnlBDF(obj,src,evt)
+    function pnlBDF(obj,src,evt) %#ok<INUSD>
       iPt = obj.iPoint;
       obj.labeler.labelPosSetOccludedI(iPt);
       tfOcc = obj.labeler.labelPosIsOccluded();
@@ -186,106 +194,40 @@ classdef LabelCoreHT < LabelCore
       obj.dispOccludedPts(tfOcc);
 
       obj.tfClicked = true;
-      obj.labeler.frameUpDF(obj.nFrameSkip);
+      obj.clickedIncrementFrame();
     end
     
     function kpf(obj,src,evt) %#ok<INUSL>
-      fprintf(2,'TODO');
       key = evt.Key;
-      modifier = evt.Modifier;      
-      tfCtrl = any(strcmp('control',modifier));
+      %modifier = evt.Modifier;
+      %tfCtrl = any(strcmp('control',modifier));
       
       switch key
-        case {'s' 'space'}
-          if obj.state==LabelState.ADJUST
-            obj.acceptLabels();
-          end
-        case {'d' 'equal'}
-          obj.labeler.frameUp(tfCtrl);
-        case {'a' 'hyphen'}
-          obj.labeler.frameDown(tfCtrl);
-        case {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}
-          [tfSel,iSel] = obj.anyPointSelected();
-          if tfSel
-            tfShift = any(strcmp('shift',modifier));
-            xy = obj.getLabelCoordsI(iSel);
-            switch key
-              case 'leftarrow'
-                xl = xlim(obj.hAx);
-                dx = diff(xl);
-                if tfShift
-                  xy(1) = xy(1) - dx/obj.DXFACBIG;
-                else
-                  xy(1) = xy(1) - dx/obj.DXFAC;
-                end
-                xy(1) = max(xy(1),1);
-              case 'rightarrow'
-                xl = xlim(obj.hAx);
-                dx = diff(xl);
-                if tfShift
-                  xy(1) = xy(1) + dx/obj.DXFACBIG;
-                else
-                  xy(1) = xy(1) + dx/obj.DXFAC;
-                end
-                xy(1) = min(xy(1),obj.labeler.movienc);
-              case 'uparrow'
-                yl = ylim(obj.hAx);
-                dy = diff(yl);
-                if tfShift
-                  xy(2) = xy(2) - dy/obj.DXFACBIG;
-                else
-                  xy(2) = xy(2) - dy/obj.DXFAC;
-                end
-                xy(2) = max(xy(2),1);
-              case 'downarrow'
-                yl = ylim(obj.hAx);
-                dy = diff(yl);
-                if tfShift
-                  xy(2) = xy(2) + dy/obj.DXFACBIG;
-                else
-                  xy(2) = xy(2) + dy/obj.DXFAC;
-                end
-                xy(2) = min(xy(2),obj.labeler.movienr);
-            end
-            obj.assignLabelCoordsI(xy,iSel);
-            switch obj.state
-              case LabelState.ADJUST
-                obj.setPointAdjusted(iSel);
-              case LabelState.ACCEPTED
-                obj.enterAdjust(false,false);
-            end
-          elseif strcmp(key,'leftarrow')
-            obj.labeler.frameDown(tfCtrl);
-          elseif strcmp(key,'rightarrow')
-            obj.labeler.frameUp(tfCtrl);
-          end
-        case {'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}
-          iPt = str2double(key);
-          if iPt==0
-            iPt = 10;
-          end
-          if iPt > obj.nPts
-            return;
-          end
-          obj.clearSelected(iPt);
-          obj.toggleSelectPoint(iPt);
+        case {'space' 'equal' 'rightarrow' 'd'}
+          obj.labeler.frameUpDF(obj.nFrameSkip);
+        case {'hyphen' 'leftarrow' 'a'}
+          obj.labeler.frameDownDF(obj.nFrameSkip);
       end      
     end
     
     function h = getKeyboardShortcutsHelp(obj) %#ok<MANU>
       h = { ...
-        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
-        '* <ctrl>+A, <ctrl>+D, etc decrement and increment by 10 frames.'
-        '* S or <space> accepts the labels for the current frame/target.'
-        '* 0..9 selects/unselects a point. When a point is selected:'
-        '*   LEFT/RIGHT/UP/DOWN adjusts the point.'
-        '*   Shift-LEFT, etc adjusts the point by larger steps.' 
-        '*   Clicking on the image moves the selected point to that location.'};
+        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'};
     end
     
   end
   
   methods (Access=private)   
+    
+    function setIPoint(obj,iPt)
+      % set currently labeled point
+      
+      obj.iPoint = iPt;
+      str = sprintf('Lbl pt: %d/%d',iPt,obj.labeler.nLabelPoints);
+      lObj = obj.labeler;
+      set(lObj.gdata.txCurrImAux,'String',str);
+      obj.newFrame([],lObj.currFrame,lObj.currTarget);      
+    end
     
     function setRandomIPt(obj)
       lbler = obj.labeler;
@@ -299,6 +241,29 @@ classdef LabelCoreHT < LabelCore
       % NaN treatment.
       obj.assignLabelCoords(xy,false); 
     end    
+    
+    function clickedIncrementFrame(obj)
+      nf = obj.labeler.nframes;
+      f = obj.labeler.currFrame;
+      df = obj.nFrameSkip;
+      iPt = obj.iPoint;
+      nPt = obj.nPts;
+      if f+df > nf
+        if iPt==nPt
+          str = sprintf('End of movie reached. Labeling complete for all %d points!',nPt);
+          msgbox(str,'Labeling Complete');
+        else
+          iPt = iPt+1;
+          str = sprintf('End of movie reached. Proceeding to labeling for point %d out of %d.',...
+            iPt,nPt);
+          msgbox(str,'End of movie reached');
+          obj.setIPoint(iPt);
+          obj.labeler.setFrame(1);
+        end
+      else
+        obj.labeler.frameUpDF(df);
+      end
+    end
            
   end
   

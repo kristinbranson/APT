@@ -1,5 +1,5 @@
 ---
-LabelMode: TEMPLATE
+LabelMode: HIGHTHROUGHPUT
   # See LabelMode.m
 
 NumLabelPoints: 3
@@ -25,7 +25,8 @@ LabelPointsPlot:
   SequenceMode:
 
   HighThroughputMode:
-    NFrameSkip: 3
+    NFrameSkip: 180
     UnlabeledPointColor: [1,1,1]
+    OtherLabeledPointColor: [0,1,0]
     
 ...
