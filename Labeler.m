@@ -61,7 +61,7 @@ classdef Labeler < handle
   end  
   
   %% Labeling
-  properties
+  properties (SetAccess=private)
     %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
     nLabelPoints;         % scalar integer
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints
@@ -396,7 +396,9 @@ classdef Labeler < handle
           gd.menu_setup_sequential_mode.Enable = 'on';
           gd.menu_setup_sequential_mode.Checked = 'on';
           gd.menu_setup_template_mode.Enable = 'off';
-          gd.menu_setup_template_mode.Checked = 'on';
+          gd.menu_setup_template_mode.Checked = 'off';
+          gd.menu_setup_highthroughput_mode.Enable = 'off';
+          gd.menu_setup_highthroughput_mode.Checked = 'off';
           gd.menu_setup_createtemplate.Enable = 'off';
   
           obj.lblCore.init(nPts,lblPtsPlotInfo);
@@ -407,12 +409,25 @@ classdef Labeler < handle
           gd.menu_setup_sequential_mode.Checked = 'off';
           gd.menu_setup_template_mode.Enable = 'on';
           gd.menu_setup_template_mode.Checked = 'on';
+          gd.menu_setup_highthroughput_mode.Enable = 'off';
+          gd.menu_setup_highthroughput_mode.Checked = 'off';
           gd.menu_setup_createtemplate.Enable = 'off';
 
           obj.lblCore.init(nPts,lblPtsPlotInfo);
           if ~isempty(template)
             obj.lblCore.setTemplate(template);
           end
+        case LabelMode.HIGHTHROUGHPUT
+          obj.lblCore = LabelCoreHT(obj);
+          gd.menu_setup_sequential_mode.Enable = 'off';
+          gd.menu_setup_sequential_mode.Checked = 'off';
+          gd.menu_setup_template_mode.Enable = 'off';
+          gd.menu_setup_template_mode.Checked = 'off';
+          gd.menu_setup_highthroughput_mode.Enable = 'on';
+          gd.menu_setup_highthroughput_mode.Checked = 'on';
+          gd.menu_setup_createtemplate.Enable = 'off';
+  
+          obj.lblCore.init(nPts,lblPtsPlotInfo);
       end
       
       obj.labelPosInitWithLocked();
@@ -453,6 +468,17 @@ classdef Labeler < handle
       end
     end
     
+    function labelPosClearI(obj,iPt)
+      % Clear labels for current frame, current target, point iPt
+      xy = obj.labeledpos(iPt,:,obj.currFrame,obj.currTarget);
+      if all(isnan(xy))
+        % none; short-circuit set to avoid triggering .labeledposNeedsSave
+      else
+        obj.labeledpos(iPt,:,obj.currFrame,obj.currTarget) = nan;
+        obj.labeledposNeedsSave = true;
+      end
+    end
+    
     function [tf,lpos] = labelPosIsLabeled(obj,iFrm,iTrx)
       lpos = obj.labeledpos(:,:,iFrm,iTrx);
       tfnan = isnan(lpos);
@@ -469,6 +495,19 @@ classdef Labeler < handle
       ctrx = obj.currTarget;
       obj.labeledpos(:,:,cfrm,ctrx) = xy;
 
+      obj.labeledposNeedsSave = true;
+    end
+    
+    function labelPosSetI(obj,xy,iPt)
+      % Set labelpos from labelPtsH for current frame, current target,
+      % point iPt
+      
+      assert(~any(isnan(xy(:))));
+      
+      cfrm = obj.currFrame;
+      ctrx = obj.currTarget;
+      obj.labeledpos(iPt,:,cfrm,ctrx) = xy;
+      
       obj.labeledposNeedsSave = true;
     end
 
@@ -767,14 +806,23 @@ classdef Labeler < handle
       %obj.setTargetTxt('txCurrImTarget',iTgt);
     end
     
+    function frameUpDF(obj,df)
+      f = min(obj.currFrame+df,obj.nframes);
+      obj.setFrame(f); 
+    end
+    
+    function frameDownDF(obj,df)
+      f = max(obj.currFrame-df,1);
+      obj.setFrame(f);
+    end
+    
     function frameUp(obj,tfBigstep)
       if tfBigstep
         df = obj.movieFrameStepBig;
       else
         df = 1;
       end
-      f = min(obj.currFrame+df,obj.nframes);
-      obj.setFrame(f);
+      obj.frameUpDF(df);
     end
     
     function frameDown(obj,tfBigstep)
@@ -783,8 +831,7 @@ classdef Labeler < handle
       else
         df = 1;
       end
-      f = max(obj.currFrame-df,1);
-      obj.setFrame(f);
+      obj.frameDownDF(df);
     end
     
     function [x,y,th] = currentTargetLoc(obj)

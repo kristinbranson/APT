@@ -28,10 +28,10 @@ classdef LabelCore < handle
     
     nPts;                 % scalar integer
     
-    state;           % scalar state
-    hPts;            % nPts x 1 handle vec, handle to points
-    hPtsTxt;         % nPts x 1 handle vec, handle to text
-    ptsPlotInfo;     % struct, points plotting cosmetic info
+    state;                % scalar state
+    hPts;                 % nPts x 1 handle vec, handle to points
+    hPtsTxt;              % nPts x 1 handle vec, handle to text
+    ptsPlotInfo;          % struct, points plotting cosmetic info
   end
   
   methods (Sealed=true)
@@ -172,6 +172,18 @@ classdef LabelCore < handle
     function xy = getLabelCoordsI(obj,iPt)
       xy = LabelCore.getCoordsFromPts(obj.hPts(iPt));
     end
+    
+    function dispOccludedPts(obj,tfOccluded)
+      if any(tfOccluded)
+        iOcc = find(tfOccluded);      
+        iOcc = num2cell(iOcc);
+        str = sprintf('%d,',iOcc{:});
+        str = str(1:end-1);
+      else
+        str = 'none';
+      end        
+      set(obj.labeler.gdata.txOccluded,'String',sprintf('Occ: %s',str));
+    end
         
   end
     
@@ -197,7 +209,7 @@ classdef LabelCore < handle
         set(hTxt(i),'Position',[xy(i,1)+LabelCore.DT2P xy(i,2)+LabelCore.DT2P 1]);
       end
     end
-    
+        
     function removePts(hPts,hTxt)
       assert(numel(hPts)==numel(hTxt));
       for i = 1:numel(hPts)

@@ -23,5 +23,9 @@ LabelPointsPlot:
     SelectedPointMarker: 'x'
 
   SequenceMode:
+
+  HighThroughputMode:
+    NFrameSkip: 3
+    UnlabeledPointColor: [1,1,1]
     
 ...

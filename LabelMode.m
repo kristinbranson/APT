@@ -3,5 +3,6 @@ classdef LabelMode
     NONE
     SEQUENTIAL
     TEMPLATE
+    HIGHTHROUGHPUT
   end
 end
