@@ -13,10 +13,11 @@ Movie:
   FrameStepBig: 10
 
 LabelPointsPlot:
-  ColorMapName: 'jet'
+  ColorMapName: 'spring'
   Marker: '+'
-  MarkerSize: 20
-  LineWidth: 3
+  MarkerSize: 15
+  LineWidth: 2
+  FontSize: 14
 
   TemplateMode:
     TemplatePointColor: [1,1,1]

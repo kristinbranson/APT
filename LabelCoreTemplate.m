@@ -95,7 +95,7 @@ classdef LabelCoreTemplate < LabelCore
           
           xy0 = obj.getLabelCoords();
           xy = LabelCore.transformPtsTrx(xy0,obj.labeler.trx(iTgt),iFrm0,obj.labeler.trx(iTgt),iFrm1);          
-          obj.assignLabelCoords(xy,true);
+          obj.assignLabelCoords(xy,'tfClip',true);
         else
           % none, leave pts as-is
         end          
@@ -121,7 +121,7 @@ classdef LabelCoreTemplate < LabelCore
           xy0 = obj.getLabelCoords();
           xy = LabelCore.transformPtsTrx(xy0,obj.labeler.trx(iTgt0),iFrm,obj.labeler.trx(iTgt1),iFrm);
         end
-        obj.assignLabelCoords(xy,true);
+        obj.assignLabelCoords(xy,'tfClip',true);
         obj.enterAdjust(true,false);
       end
       
@@ -365,7 +365,7 @@ classdef LabelCoreTemplate < LabelCore
         xys = tt.pts;
       end
       
-      obj.assignLabelCoords(xys,true);
+      obj.assignLabelCoords(xys,'tfClip',true);
       obj.enterAdjust(true,false);
     end
     
@@ -379,7 +379,7 @@ classdef LabelCoreTemplate < LabelCore
       n = obj.nPts;
       x = x0 + r*2*(rand(n,1)-0.5);
       y = y0 + r*2*(rand(n,1)-0.5);
-      obj.assignLabelCoords([x y],true);
+      obj.assignLabelCoords([x y],'tfClip',true);
     end
     
   end

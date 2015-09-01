@@ -483,8 +483,8 @@ classdef Labeler < handle
       % labeled includes occluded
       lpos = obj.labeledpos(:,:,iFrm,iTrx);
       tfnan = isnan(lpos);
-      assert(all(tfnan(:)) || ~any(tfnan(:)));
-      tf = ~any(tfnan(:));
+      %assert(all(tfnan(:)) || ~any(tfnan(:)));
+      tf = any(~tfnan(:));
     end 
     
     function tf = labelPosIsOccluded(obj,iFrm,iTrx)
@@ -582,7 +582,8 @@ classdef Labeler < handle
     function labelsPrevUpdate(obj)
       if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
         lpos = obj.labeledpos(:,:,obj.prevFrame,obj.currTarget);
-        LabelCore.assignCoords2Pts(lpos,obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
+        obj.lblCore.assignLabelCoords(lpos,'hPts',obj.lblPrev_ptsH,...
+          'hPtsTxt',obj.lblPrev_ptsTxtH);
       else
         LabelCore.removePts(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end

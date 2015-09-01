@@ -74,7 +74,15 @@ classdef LabelCoreHT < LabelCore
     
     function initHook(obj)
       obj.iPoint = 1;
-      obj.setRandomIPt();
+     
+      % hide all pts
+      n = obj.nPts;
+      xy = nan(n,2);
+      % AL20150901: if tfclip=true, nans get clipped to 1 or nr/nc!
+      % optional arg to max() and min() introduced in R2015b to specify
+      % NaN treatment.
+      obj.assignLabelCoords(xy);
+
       obj.tfClicked = false;
 
       ppi = obj.ptsPlotInfo;
@@ -228,19 +236,6 @@ classdef LabelCoreHT < LabelCore
       set(lObj.gdata.txCurrImAux,'String',str);
       obj.newFrame([],lObj.currFrame,lObj.currTarget);      
     end
-    
-    function setRandomIPt(obj)
-      lbler = obj.labeler;
-      [x0,y0] = lbler.currentTargetLoc();
-      
-      n = obj.nPts;
-      xy = nan(n,2);
-      xy(obj.iPoint,:) = [x0 y0];
-      % AL20150901: if tfclip=true, nans get clipped to 1 or nr/nc!
-      % optional arg to max() and min() instroduced in R2015b to specify
-      % NaN treatment.
-      obj.assignLabelCoords(xy,false); 
-    end    
     
     function clickedIncrementFrame(obj)
       nf = obj.labeler.nframes;

@@ -60,7 +60,9 @@ classdef LabelCore < handle
           'Color',ptsPlotInfo.Colors(i,:),...
           'UserData',i);                 
         obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax,...        
-          'Color',ptsPlotInfo.Colors(i,:),'Hittest','off');
+          'Color',ptsPlotInfo.Colors(i,:),...
+          'FontSize',ptsPlotInfo.FontSize,...
+          'Hittest','off');
       end
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
@@ -143,32 +145,49 @@ classdef LabelCore < handle
   
   methods (Hidden)
     
-    function assignLabelCoords(obj,xy,tfClip)
-      % tfClip: if true, clip xy to movie size as necessary
+    function assignLabelCoords(obj,xy,varargin)
+      % Assign specified label points xy to .hPts, .hPtsTxt
+      % 
+      % xy: .nPts x 2 coordinate array in Labeler format. NaNs=missing,
+      % inf=occluded. NaN points get set to NaN (so will not be visible);
+      % Inf points get positioned in the occluded box.
+      % 
+      % Optional PVs:
+      % - tfClip: Default false. If true, clip xy to movie size as necessary
+      % - hPts: vector of handles to assign to. Should have size(xy,1)
+      % elements. Defaults to obj.hPts.
+      % - hPtsTxt: vector of handles for text labels, etc. Defaults to
+      % obj.hPtsTxt.
 
-      if exist('tfClip','var')==0
-        tfClip = false;
-      end
+      [tfClip,hPoints,hPointsTxt] = myparse(varargin,...
+        'tfClip',false,...
+        'hPts',obj.hPts,...
+        'hPtsTxt',obj.hPtsTxt);
       
       if tfClip
         lbler = obj.labeler;
         nr = lbler.movienr;
         nc = lbler.movienc;
         xyOrig = xy;
-        xy(:,1) = max(xy(:,1),1);
-        xy(:,1) = min(xy(:,1),nc);
-        xy(:,2) = max(xy(:,2),1);
-        xy(:,2) = min(xy(:,2),nr);      
-        if ~isequal(xy,xyOrig)
+        
+        tfRealCoord = ~isnan(xy) & ~isinf(xy);
+        xy(tfRealCoord(:,1),1) = max(xy(tfRealCoord(:,1),1),1);
+        xy(tfRealCoord(:,1),1) = min(xy(tfRealCoord(:,1),1),nc); 
+        xy(tfRealCoord(:,2),2) = max(xy(tfRealCoord(:,2),2),1);
+        xy(tfRealCoord(:,2),2) = min(xy(tfRealCoord(:,2),2),nr);
+        if ~isequaln(xy,xyOrig)
           warningNoTrace('LabelCore:clipping',...
             'Clipping points that extend beyond movie size.');
-        end      
+        end
       end
       
-      LabelCore.assignCoords2Pts(xy,obj.hPts,obj.hPtsTxt);
+      tfOcc = any(isinf(xy),2);
+      obj.dispOccludedPts(tfOcc,'hPts',hPoints,'hPtsTxt',hPointsTxt);
+      LabelCore.assignCoords2Pts(xy(~tfOcc,:),hPoints(~tfOcc),hPointsTxt(~tfOcc));
     end
     
     function assignLabelCoordsI(obj,xy,iPt)
+      % Unlike assignLabelCoords, no clipping or occluded-handling
       LabelCore.assignCoords2Pts(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
     end
     
@@ -180,7 +199,22 @@ classdef LabelCore < handle
       xy = LabelCore.getCoordsFromPts(obj.hPts(iPt));
     end
     
-    function dispOccludedPts(obj,tfOccluded)
+    function dispOccludedPts(obj,tfOccluded,varargin)
+      % Arrange occluded points/txt labels in occluded box.
+      %
+      % tfOccluded: logical vector with obj.nPts elements
+      % Optional PVs:
+      % - hPoints: vector of handles for points, must have obj.nPts elements.
+      % Defaults to obj.nPts.
+      % - hPointsTxt: etc.
+      
+      [hPoints,hPointsTxt] = myparse(varargin,...
+        'hPts',obj.hPts,...
+        'hPtsTxt',obj.hPtsTxt);
+      
+      assert(isvector(tfOccluded) && isvector(hPoints) && isvector(hPointsTxt));
+      assert(isequal(numel(tfOccluded),numel(hPoints),numel(hPointsTxt)));
+      
       if any(tfOccluded)
         iOcc = find(tfOccluded);
         nOcc = numel(iOcc);
@@ -190,16 +224,10 @@ classdef LabelCore < handle
         x = 10 + dx*(1:nOcc);
         x = x(:);
         y = repmat(y,size(x));
-        obj.assignLabelCoordsI([x y],iOcc);
-%         iOcc = num2cell(iOcc);
-%         str = sprintf('%d,',iOcc{:});
-%         str = str(1:end-1);
-      else
-%         str = 'none';
+        LabelCore.assignCoords2Pts([x y],hPoints(tfOccluded),hPointsTxt(tfOccluded));
       end        
-%       set(obj.labeler.gdata.txOccluded,'String',sprintf('Occ: %s',str));
     end
-        
+            
   end
     
   methods (Static)
@@ -224,7 +252,7 @@ classdef LabelCore < handle
         set(hTxt(i),'Position',[xy(i,1)+LabelCore.DT2P xy(i,2)+LabelCore.DT2P 1]);
       end
     end
-        
+            
     function removePts(hPts,hTxt)
       assert(numel(hPts)==numel(hTxt));
       for i = 1:numel(hPts)
