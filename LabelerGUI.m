@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 28-Aug-2015 18:31:18
+% Last Modified by GUIDE v2.5 02-Sep-2015 10:33:00
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -54,10 +54,16 @@ if verLessThan('matlab','8.4')
   error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
 end
 
+% reinit uicontrol strings etc from GUIDE for cosmetic purposes
+set(handles.txPrevIm,'String','');
+set(handles.edit_frame,'String','');
+set(handles.txStatus,'String','');
+set(handles.txUnsavedChanges,'Visible','off');
+
 handles.output = hObject;
 
 handles.labelerObj = varargin{1};
-varargin = varargin(2:end);
+varargin = varargin(2:end); %#ok<NASGU>
 
 colormap(handles.figure,gray);
 
@@ -82,6 +88,7 @@ listeners{end+1,1} = addlistener(handles.labelerObj,'currTarget','PostSet',@cbkC
 listeners{end+1,1} = addlistener(handles.labelerObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
 listeners{end+1,1} = addlistener(handles.labelerObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(handles.labelerObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
+listeners{end+1,1} = addlistener(handles.labelerObj,'lastFSInfo','PostSet',@cbkLastFSInfoChanged);
 handles.listeners = listeners;
 
 set(handles.output,'Toolbar','figure');
@@ -104,14 +111,14 @@ lObj = evt.AffectedObject;
 frm = lObj.currFrame;
 nfrm = lObj.nframes;
 gdata = lObj.gdata;
-set(gdata.txCurrImFrame,'String',sprintf('frm: %d',frm));
+%set(gdata.txCurrImFrame,'String',sprintf('frm: %d',frm));
 set(gdata.edit_frame,'String',num2str(frm));
 set(gdata.slider_frame,'Value',(frm-1)/(nfrm-1));
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
 frm = lObj.prevFrame;
-set(lObj.gdata.txPrevIm,'String',sprintf('frm: %d',frm));
+set(lObj.gdata.txPrevIm,'String',num2str(frm));
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -134,6 +141,12 @@ function cbkTargetZoomFacChanged(src,evt)
 lObj = evt.AffectedObject;
 zf = lObj.targetZoomFac;
 set(lObj.gdata.sldZoom,'Value',zf);
+
+function cbkLastFSInfoChanged(src,evt)
+lObj = evt.AffectedObject;
+info = lObj.lastFSInfo;
+str = sprintf('%s %s at %s',info.projFilename,info.action,datestr(info.timestamp,16));
+set(lObj.gdata.txStatus,'String',str);
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -213,7 +226,7 @@ function hlpRemoveFocus(h,handles)
 % - Figure out how to disable arrow-key nav in uitables. Looks like need to
 % drop into Java and not super simple.
 % - Don't use uitables, or use them in a separate figure window.
-uicontrol(handles.tbAccept);
+uicontrol(handles.txStatus);
 
 function tblFrames_CellSelectionCallback(hObject, eventdata, handles)
 % hObject    handle to tblFrames (see GCBO)
@@ -293,6 +306,17 @@ end
 function menu_help_keyboardshortcuts_Callback(hObject, eventdata, handles)
 h = handles.labelerObj.lblCore.getKeyboardShortcutsHelp();
 msgbox(h,'Keyboard shortcuts','help','modal');
+
+function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+npts = lObj.nLabelPoints;
+ipt = lObj.lblCore.iPoint;
+ret = inputdlg('Select labeling point','Point number',1,{num2str(ipt)});
+if isempty(ret)
+  return;
+end
+ret = str2double(ret{1});
+lObj.lblCore.setIPoint(ret);
 
 function CloseImContrast(labelerObj)
 labelerObj.videoSetContrastFromAxesCurr();
@@ -377,4 +401,3 @@ end
 % else
 %   guidata(hObject,handles);
 % end
-

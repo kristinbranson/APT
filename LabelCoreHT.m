@@ -94,7 +94,8 @@ classdef LabelCoreHT < LabelCore
       set(obj.hPts,'HitTest','off');
       set(obj.hPtsTxt,'HitTest','off');
       set(obj.labeler.gdata.txCurrImAux,'Visible','on');
-      
+      set(obj.labeler.gdata.tbAccept,'Enable','off');
+
       obj.setIPoint(1);
     end
     
@@ -223,19 +224,23 @@ classdef LabelCoreHT < LabelCore
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'};
     end
     
-  end
-  
-  methods (Access=private)   
-    
     function setIPoint(obj,iPt)
       % set currently labeled point
+      
+      if ~any(iPt==(1:obj.nPts))
+        error('LabelCoreHT:setIPoint','Invalid value for labeling point iPoint.');
+      end
       
       obj.iPoint = iPt;
       str = sprintf('Lbl pt: %d/%d',iPt,obj.labeler.nLabelPoints);
       lObj = obj.labeler;
       set(lObj.gdata.txCurrImAux,'String',str);
       obj.newFrame([],lObj.currFrame,lObj.currTarget);      
-    end
+    end    
+    
+  end
+  
+  methods (Access=private)       
     
     function clickedIncrementFrame(obj)
       nf = obj.labeler.nframes;

@@ -31,7 +31,7 @@ classdef LabelCore < handle
     state;                % scalar state
     hPts;                 % nPts x 1 handle vec, handle to points
     hPtsTxt;              % nPts x 1 handle vec, handle to text
-    ptsPlotInfo;          % struct, points plotting cosmetic info
+    ptsPlotInfo;          % struct, points plotting cosmetic info    
   end
   
   methods (Sealed=true)
@@ -74,6 +74,7 @@ classdef LabelCore < handle
       set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
       
       set(obj.labeler.gdata.txCurrImAux,'Visible','off');
+      set(obj.labeler.gdata.tbAccept,'Enable','on');
       
       obj.initHook();
     end

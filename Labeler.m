@@ -85,15 +85,17 @@ classdef Labeler < handle
   properties (SetObservable, AbortSet)
     currFrame = 1;        % current frame
     prevFrame = nan;      % last previously VISITED frame
+    currTarget = nan;
+    prevTarget = nan;
+  end
+  properties (SetObservable)
+    lastFSInfo;           % info on last filesystem interaction
+    %projFilename;         % last saved lbl filename
   end
   properties
     currIm = [];
     prevIm = [];
     gdata = [];           % handles structure for figure
-  end
-  properties (SetObservable,AbortSet)
-    currTarget = nan;
-    prevTarget = nan;
   end
   
   methods % dependent prop getters
@@ -167,7 +169,7 @@ classdef Labeler < handle
   %% Save/Load
   methods
     
-    function saveLblFile(obj,fname)
+    function fname = saveLblFile(obj,fname)
       % Saves a .lbl file. Currently defaults to same dir as moviefile.
       
       if exist('fname','var')==0 && obj.hasMovie
@@ -194,6 +196,7 @@ classdef Labeler < handle
       save(fname,'-mat','-struct','s');
 
       obj.labeledposNeedsSave = false;
+      obj.lastFSInfo = struct('timestamp',now,'action','saved','projFilename',fname);
 
       RC.saveprop('lastLblFile',fname);
     end
@@ -237,7 +240,7 @@ classdef Labeler < handle
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
         obj.(f) = s.(f);
       end
-      
+            
       if isempty(s.trxFilename)
         obj.loadMovie(s.moviefile);
       else
@@ -255,6 +258,8 @@ classdef Labeler < handle
       obj.labeledpos = s.labeledpos;
       assert(~obj.labeledposNeedsSave); % should be from labelingInit
       
+      obj.lastFSInfo = struct('timestamp',now,'action','loaded','projFilename',fname);
+
       obj.setTarget(s.currTarget);
       obj.setFrame(s.currFrame);
             
