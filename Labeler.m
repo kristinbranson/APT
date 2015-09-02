@@ -17,7 +17,7 @@ classdef Labeler < handle
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
     TBLTRX_STATIC_COLSTRX = {'id' 'labeled'};
     
-    TBLFRAMES_COLS = {'frame' 'labeled targets'};
+    TBLFRAMES_COLS = {'frame' 'lbled tgts' 'lbled pts'};
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
     NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
@@ -560,7 +560,34 @@ classdef Labeler < handle
       iFrm0 = nan;
       lpos0 = [];      
     end
-       
+    
+    function [nTgts,nPts] = labelPosLabeledFramesStats(obj,frms)
+      % frms: vector of frame indices to consider. Defaults to
+      %   1:obj.nframes.
+      %
+      % nTgts: numel(frms)-by-1 vector indicating number of targets labeled
+      %   for each frame in consideration
+      % nPts: numel(frms)-by-1 vector indicating number of points labeled 
+      %   for each frame in consideration, across all targets
+      
+      if exist('frms','var')==0
+        frms = 1:obj.nframes;
+      end
+      
+      nf = numel(frms);
+      lpos = obj.labeledpos;
+
+      nTgts = zeros(nf,1);
+      nPts = zeros(nf,1);
+      for i = 1:nf
+        f = frms(i);
+        lposfrm = squeeze(lpos(:,:,f,:)); % dim labels: iPt, {x,y}, iTarget
+        x = squeeze(any(~isnan(lposfrm),2)); % dim labels: iPt, iTarget
+        nTgts(i) = sum(any(x,1));
+        nPts(i) = sum(x(:));        
+      end
+    end
+           
   end
   
   methods (Access=private)
@@ -921,46 +948,36 @@ classdef Labeler < handle
       
       tbl = obj.gdata.tblFrames;
       dat = get(tbl,'Data');
-      frames = cell2mat(dat(:,1));
-      
+      tblFrms = cell2mat(dat(:,1));      
       cfrm = obj.currFrame;
-      lpos = obj.labeledpos;
-      tfLbled = false(obj.nTargets,1);
-      for i = 1:obj.nTargets
-        tmp = lpos(:,:,cfrm,i);
-        tfLbled(i) = any(~isnan(tmp(:)));
-      end
-%       tfLbled = ~isnan(squeeze(lpos(1,1,cfrm,:)));
-      nLbled = nnz(tfLbled);
+      tfRow = (tblFrms==cfrm);
       
-      i = frames==cfrm;
-      if nLbled>0
-        if any(i)
-          assert(nnz(i)==1);
-          dat{i,2} = nLbled;
+      [nTgtsCurFrm,nPtsCurFrm] = obj.labelPosLabeledFramesStats(cfrm);
+      if nTgtsCurFrm>0
+        if any(tfRow)
+          assert(nnz(tfRow)==1);
+          dat(tfRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
         else
-          dat(end+1,:) = {cfrm nLbled};
+          dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm};
           [~,idx] = sort(cell2mat(dat(:,1)));
           dat = dat(idx,:);
         end
         set(tbl,'Data',dat);
       else
-        if any(i)
-          assert(nnz(i)==1);
-          dat(i,:) = [];
+        if any(tfRow)
+          assert(nnz(tfRow)==1);
+          dat(tfRow,:) = [];
           set(tbl,'Data',dat);
         end
       end
     end    
     function updateFrameTableComplete(obj)
-      lpos = obj.labeledpos;
-      tf = ~isnan(squeeze(lpos(1,1,:,:)));
-      assert(isequal(size(tf),[obj.nframes obj.nTargets]));
-      nLbled = sum(tf,2);
-      iFrm = find(nLbled>0);
-      nLbled = nLbled(iFrm);
-      dat = [num2cell(iFrm) num2cell(nLbled)];
-
+      [nTgts,nPts] = obj.labelPosLabeledFramesStats();
+      assert(isequal(nTgts>0,nPts>0));
+      tfFrm = nTgts>0;
+      iFrm = find(tfFrm);
+      
+      dat = [num2cell(iFrm) num2cell(nTgts(tfFrm)) num2cell(nPts(tfFrm)) ];
       tbl = obj.gdata.tblFrames;
       set(tbl,'Data',dat);
     end

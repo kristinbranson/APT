@@ -88,7 +88,7 @@ set(handles.output,'Toolbar','figure');
 
 colnames = handles.labelerObj.TBLTRX_STATIC_COLSTBL;
 set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
-colnames = handles.labelerObj.TBLFRAMES_COLS;
+colnames = handles.labelerObj.TBLFRAMES_COLS; % AL: dumb b/c table update code uses hardcoded cols 
 set(handles.tblFrames,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
 
 guidata(hObject, handles);
