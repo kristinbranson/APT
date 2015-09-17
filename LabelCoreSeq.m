@@ -33,7 +33,6 @@ classdef LabelCoreSeq < LabelCore
   properties
     iPtMove;
     nPtsLabeled; % scalar integer. 0..nPts, or inf.
-    tfOcc;       % nPts-by-1 logical, true for occluded
   end
   
   methods
@@ -97,12 +96,10 @@ classdef LabelCoreSeq < LabelCore
       switch obj.state
         case {LabelState.ADJUST LabelState.ACCEPTED}          
           iPt = get(src,'UserData');
-          if ~obj.tfOcc(iPt) % occluded points cannot be clicked; AL: no longer nec, occ pts on diff ax
-            if obj.state==LabelState.ACCEPTED
-              obj.beginAdjust();
-            end
-            obj.iPtMove = iPt;
+          if obj.state==LabelState.ACCEPTED
+            obj.beginAdjust();
           end
+          obj.iPtMove = iPt;
       end
     end
     
@@ -163,7 +160,6 @@ classdef LabelCoreSeq < LabelCore
       if tflabeled
         obj.nPtsLabeled = obj.nPts;
         obj.assignLabelCoords(lpos);
-        obj.tfOcc = any(isinf(lpos),2);
         obj.iPtMove = nan;
         obj.beginAccepted(false); % I guess could just call with true arg
       else
@@ -181,7 +177,6 @@ classdef LabelCoreSeq < LabelCore
       obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
       obj.iPtMove = nan;
-      obj.tfOcc = false(obj.nPts,1);
       obj.labeler.labelPosClear();
       
       obj.state = LabelState.LABEL;      

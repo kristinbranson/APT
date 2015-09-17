@@ -35,6 +35,8 @@ classdef LabelCore < handle
     hPtsOcc;
     hPtsTxtOcc;              % nPts x 1 handle vec, handle to occ points
     ptsPlotInfo;          % struct, points plotting cosmetic info    
+    
+    tfOcc;                % nPts x 1 logical
   end
   
   methods (Sealed=true)
@@ -164,8 +166,8 @@ classdef LabelCore < handle
   methods (Hidden) 
     
     function assignLabelCoords(obj,xy,varargin)
-      % Assign specified label points xy to .hPts, .hPtsTxt; reset colors
-      % per .ptsPlotInfo
+      % Assign specified label points xy to .hPts, .hPtsTxt; set .tfOcc
+      % based on xy (in case of tfMainAxis)
       % 
       % xy: .nPts x 2 coordinate array in Labeler format. NaNs=missing,
       % inf=occluded. NaN points get set to NaN (so will not be visible);
@@ -202,19 +204,16 @@ classdef LabelCore < handle
         end
       end
             
-      tfOcc = any(isinf(xy),2);
-      LabelCore.setPtsCoords(xy(~tfOcc,:),hPoints(~tfOcc),hPointsTxt(~tfOcc));
+      tfOccld = any(isinf(xy),2);
+      LabelCore.setPtsCoords(xy(~tfOccld,:),hPoints(~tfOccld),hPointsTxt(~tfOccld));
       
       tfMainAxis = isequal(hPoints,obj.hPts) && isequal(hPointsTxt,obj.hPtsTxt);
       if tfMainAxis
-        obj.dispOccludedPts(tfOcc);
+        obj.dispOccludedPts(tfOccld);
+        obj.tfOcc = tfOccld;
       else
-        LabelCore.setPtsCoords(nan(nnz(tfOcc),2),hPoints(tfOcc),hPointsTxt(tfOcc));
+        LabelCore.setPtsCoords(nan(nnz(tfOccld),2),hPoints(tfOccld),hPointsTxt(tfOccld));
       end
-      
-%       ppi = obj.ptsPlotInfo;
-%       LabelCore.setPtsColor(hPoints(~tfOcc),hPointsTxt(~tfOcc),...
-%         ppi.Colors(~tfOcc,:));
     end
     
     function assignLabelCoordsIRaw(obj,xy,iPt)
@@ -261,12 +260,10 @@ classdef LabelCore < handle
   methods (Static) 
     
     function xy = getCoordsFromPts(hPts)
-      x = get(hPts,'XData');
-      y = get(hPts,'YData');
-      if iscell(x) % MATLABism. True for nonscalar hPts
-        x = cell2mat(x);
-        y = cell2mat(y);
-      end
+      x = get(hPts,{'XData'});
+      y = get(hPts,{'YData'});
+      x = cell2mat(x);
+      y = cell2mat(y);
       xy = [x y];
     end
     
@@ -317,6 +314,9 @@ classdef LabelCore < handle
       % The points uv0 correspond to trx0 @ iFrm0. Compute uv that
       % corresponds to trx1 @ iFrm1, ie so that uv relates to trx1@iFrm1 in 
       % the same way that uv0 relates to trx0@iFrm0.
+      %
+      % Note: unlabeled -> unlabeled, occluded -> occluded, ie 
+      %       NaN points -> NaN points, Inf points -> Inf points.
       
       assert(trx0.off==1-trx0.firstframe);
       assert(trx1.off==1-trx1.firstframe);
