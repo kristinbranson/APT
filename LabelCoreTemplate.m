@@ -145,7 +145,7 @@ classdef LabelCoreTemplate < LabelCore
       if tf
         pos = get(obj.hAx,'CurrentPoint');
         pos = pos(1,1:2);
-        obj.assignLabelCoordsI(pos,iSel);
+        obj.assignLabelCoordsIRaw(pos,iSel);
         obj.setPointAdjusted(iSel);
         obj.toggleSelectPoint(iSel);
         switch obj.state
@@ -179,7 +179,7 @@ classdef LabelCoreTemplate < LabelCore
           tmp = get(ax,'CurrentPoint');
           pos = tmp(1,1:2);
           obj.tfMoved = true;
-          obj.assignLabelCoordsI(pos,iPt);
+          obj.assignLabelCoordsIRaw(pos,iPt);
           obj.setPointAdjusted(iPt);
         end
       end
@@ -256,7 +256,7 @@ classdef LabelCoreTemplate < LabelCore
                 end
                 xy(2) = min(xy(2),obj.labeler.movienr);
             end
-            obj.assignLabelCoordsI(xy,iSel);
+            obj.assignLabelCoordsIRaw(xy,iSel);
             switch obj.state
               case LabelState.ADJUST
                 obj.setPointAdjusted(iSel);
@@ -318,7 +318,7 @@ classdef LabelCoreTemplate < LabelCore
           tmp = get(obj.hAx,'CurrentPoint');
           xy = tmp(1,1:2);
           iPt = ptsClicked+1;
-          LabelCore.assignCoords2Pts(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
+          LabelCore.setPtsCoords(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
           ptsClicked = iPt;
         elseif keydown == 1 && double(get(obj.hFig,'CurrentCharacter')) == 27,
           % escape

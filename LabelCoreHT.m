@@ -142,11 +142,11 @@ classdef LabelCoreHT < LabelCore
       % - all occed pts are positioned in corner per occluded
       % - if nonlabeled, iPoint position unchanged
       % - other nonlabeled, nonocced are hidden
-      LabelCore.assignCoords2Pts(xy(tfLbled,:),hPoints(tfLbled),hPointsTxt(tfLbled));
+      LabelCore.setPtsCoords(xy(tfLbled,:),hPoints(tfLbled),hPointsTxt(tfLbled));
       obj.dispOccludedPts(tfOcced);
       tfUnlbledNotIPt = tfUnlbled;
       tfUnlbledNotIPt(iPt) = false;
-      LabelCore.assignCoords2Pts(nan(nnz(tfUnlbledNotIPt),2),hPoints(tfUnlbledNotIPt),hPointsTxt(tfUnlbledNotIPt));
+      LabelCore.setPtsCoords(nan(nnz(tfUnlbledNotIPt),2),hPoints(tfUnlbledNotIPt),hPointsTxt(tfUnlbledNotIPt));
 
       obj.tfClicked = tfLbled(iPt);
     end
@@ -174,7 +174,7 @@ classdef LabelCoreHT < LabelCore
       pos = get(obj.hAx,'CurrentPoint');
       pos = pos(1,1:2);
       iPt = obj.iPoint;
-      obj.assignLabelCoordsI(pos,iPt);
+      obj.assignLabelCoordsIRaw(pos,iPt);
 
       set(obj.hPts(iPt),'Color',obj.ptsPlotInfo.Colors(iPt,:));
       obj.labeler.labelPosSetI(pos,iPt);

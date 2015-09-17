@@ -17,7 +17,7 @@ classdef Labeler < handle
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
     TBLTRX_STATIC_COLSTRX = {'id' 'labeled'};
     
-    TBLFRAMES_COLS = {'frame' 'lbled tgts' 'lbled pts'};
+    TBLFRAMES_COLS = {'frame' 'tgts' 'pts'};
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
     NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
@@ -261,7 +261,7 @@ classdef Labeler < handle
       obj.lastFSInfo = struct('timestamp',now,'action','loaded','projFilename',fname);
 
       obj.setTarget(s.currTarget);
-      obj.setFrame(s.currFrame);
+      obj.setFrame(s.currFrame,'forceUpdate',true);
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI      
     end
@@ -287,6 +287,7 @@ classdef Labeler < handle
       
       hFig = LabelerGUI(obj);
       obj.gdata = guidata(hFig);
+      axis(obj.gdata.axes_occ,[0 obj.nLabelPoints+1 0 2]);
       
       obj.movieReader = MovieReader;      
     end
@@ -494,6 +495,8 @@ classdef Labeler < handle
     
     function tf = labelPosIsOccluded(obj,iFrm,iTrx)
       % iFrm, iTrx: optional, defaults to current
+      % Note: it is permitted to call eg LabelPosSet with inf coords
+      % indicating occluded
       if exist('iFrm','var')==0
         iFrm = obj.currFrame;
       end
@@ -597,8 +600,11 @@ classdef Labeler < handle
   
   methods (Access=private)
     
-    function labelsUpdateNewFrame(obj)
-      if ~isempty(obj.lblCore) && obj.prevFrame~=obj.currFrame
+    function labelsUpdateNewFrame(obj,force)
+      if exist('force','var')==0
+        force = false;
+      end
+      if ~isempty(obj.lblCore) && (obj.prevFrame~=obj.currFrame || force)
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       obj.labelsPrevUpdate();
@@ -617,7 +623,7 @@ classdef Labeler < handle
         obj.lblCore.assignLabelCoords(lpos,'hPts',obj.lblPrev_ptsH,...
           'hPtsTxt',obj.lblPrev_ptsTxtH);
       else
-        LabelCore.removePts(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
+        LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end
     end
   
@@ -778,12 +784,14 @@ classdef Labeler < handle
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI      
    end
     
-    function setFrame(obj,frm)
+    function setFrame(obj,frm,varargin)
+      forceUpdate = myparse(varargin,'forceUpdate',false);
+      
       obj.prevFrame = obj.currFrame;
       obj.prevIm = obj.currIm;
       set(obj.gdata.image_prev,'CData',obj.prevIm);
       
-      if obj.currFrame~=frm
+      if obj.currFrame~=frm || forceUpdate
         obj.currIm = obj.movieReader.readframe(frm);
         obj.currFrame = frm;
       end            
@@ -834,7 +842,7 @@ classdef Labeler < handle
         obj.videoCenterOnCurrTarget();
       end
 
-      obj.labelsUpdateNewFrame();
+      obj.labelsUpdateNewFrame(forceUpdate);
       
       obj.updateTrxTable();  
     end

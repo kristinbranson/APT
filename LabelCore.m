@@ -24,6 +24,7 @@ classdef LabelCore < handle
     labeler;              % scalar Labeler obj
     hFig;                 % scalar figure
     hAx;                  % scalar axis
+    hAxOcc;
     tbAccept;
     
     nPts;                 % scalar integer
@@ -31,6 +32,8 @@ classdef LabelCore < handle
     state;                % scalar state
     hPts;                 % nPts x 1 handle vec, handle to points
     hPtsTxt;              % nPts x 1 handle vec, handle to text
+    hPtsOcc;
+    hPtsTxtOcc;              % nPts x 1 handle vec, handle to occ points
     ptsPlotInfo;          % struct, points plotting cosmetic info    
   end
   
@@ -41,6 +44,7 @@ classdef LabelCore < handle
       gd = labelerObj.gdata;
       obj.hFig = gd.figure;
       obj.hAx = gd.axes_curr;
+      obj.hAxOcc = gd.axes_occ;
       obj.tbAccept = gd.tbAccept;
     end
     
@@ -53,13 +57,20 @@ classdef LabelCore < handle
       obj.hPts = nan(obj.nPts,1);
       obj.hPtsTxt = nan(obj.nPts,1);
       ax = obj.hAx;
+      axOcc = obj.hAxOcc;
       for i = 1:obj.nPts
-        obj.hPts(i) = plot(ax,nan,nan,ptsPlotInfo.Marker,...
+        ptsArgs = {nan,nan,ptsPlotInfo.Marker,...
           'MarkerSize',ptsPlotInfo.MarkerSize,...
           'LineWidth',ptsPlotInfo.LineWidth,...
           'Color',ptsPlotInfo.Colors(i,:),...
-          'UserData',i);                 
+          'UserData',i};
+        obj.hPts(i) = plot(ax,ptsArgs{:}); 
+        obj.hPtsOcc(i) = plot(axOcc,ptsArgs{:});
         obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax,...        
+          'Color',ptsPlotInfo.Colors(i,:),...
+          'FontSize',ptsPlotInfo.FontSize,...
+          'Hittest','off');
+        obj.hPtsTxtOcc(i) = text(nan,nan,num2str(i),'Parent',axOcc,...        
           'Color',ptsPlotInfo.Colors(i,:),...
           'FontSize',ptsPlotInfo.FontSize,...
           'Hittest','off');
@@ -136,6 +147,9 @@ classdef LabelCore < handle
       % This is called when uipanel_curr is clicked outside the axis.
     end
     
+    function axOccBDF(obj,src,evt) %#ok<INUSD>
+    end
+    
     function kpf(obj,src,evt) %#ok<INUSD>
     end
     
@@ -144,10 +158,13 @@ classdef LabelCore < handle
           
   end
   
-  methods (Hidden)
+  %% Utilities to manipulate .hPts, .hPtsTxt (set position and color)
+  
+  methods (Hidden) 
     
     function assignLabelCoords(obj,xy,varargin)
-      % Assign specified label points xy to .hPts, .hPtsTxt
+      % Assign specified label points xy to .hPts, .hPtsTxt; reset colors
+      % per .ptsPlotInfo
       % 
       % xy: .nPts x 2 coordinate array in Labeler format. NaNs=missing,
       % inf=occluded. NaN points get set to NaN (so will not be visible);
@@ -155,8 +172,8 @@ classdef LabelCore < handle
       % 
       % Optional PVs:
       % - tfClip: Default false. If true, clip xy to movie size as necessary
-      % - hPts: vector of handles to assign to. Should have size(xy,1)
-      % elements. Defaults to obj.hPts.
+      % - hPts: vector of handles to assign to. Must have .nPts elements. 
+      %   Defaults to obj.hPts.
       % - hPtsTxt: vector of handles for text labels, etc. Defaults to
       % obj.hPtsTxt.
 
@@ -164,6 +181,8 @@ classdef LabelCore < handle
         'tfClip',false,...
         'hPts',obj.hPts,...
         'hPtsTxt',obj.hPtsTxt);
+      
+      assert(isequal(obj.nPts,numel(hPoints),numel(hPointsTxt),size(xy,1)));
       
       if tfClip
         lbler = obj.labeler;
@@ -181,17 +200,53 @@ classdef LabelCore < handle
             'Clipping points that extend beyond movie size.');
         end
       end
-      
+            
       tfOcc = any(isinf(xy),2);
-      obj.dispOccludedPts(tfOcc,'hPts',hPoints,'hPtsTxt',hPointsTxt);
-      LabelCore.assignCoords2Pts(xy(~tfOcc,:),hPoints(~tfOcc),hPointsTxt(~tfOcc));
+      LabelCore.setPtsCoords(xy(~tfOcc,:),hPoints(~tfOcc),hPointsTxt(~tfOcc));
+      
+      tfMainAxis = isequal(hPoints,obj.hPts) && isequal(hPointsTxt,obj.hPtsTxt);
+      if tfMainAxis
+        obj.dispOccludedPts(tfOcc);
+      else
+        LabelCore.setPtsCoords(nan(nnz(tfOcc),2),hPoints(tfOcc),hPointsTxt(tfOcc));
+      end
+      
+%       ppi = obj.ptsPlotInfo;
+%       LabelCore.setPtsColor(hPoints(~tfOcc),hPointsTxt(~tfOcc),...
+%         ppi.Colors(~tfOcc,:));
     end
     
-    function assignLabelCoordsI(obj,xy,iPt)
+    function assignLabelCoordsIRaw(obj,xy,iPt)
+      % Set coords and reset color for hPts(iPt), hPtsTxt(iPt)
+      %
       % Unlike assignLabelCoords, no clipping or occluded-handling
-      LabelCore.assignCoords2Pts(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
+      hPoint = obj.hPts(iPt);
+      hTxt = obj.hPtsTxt(iPt);
+      LabelCore.setPtsCoords(xy,hPoint,hTxt);
+%       LabelCore.setPtsColor(hPoint,hTxt,obj.ptsPlotInfo.Colors(iPt,:));
     end
     
+    function dispOccludedPts(obj,tfOcc)
+      % Arrange occluded points/txt labels in occluded box.
+      %
+      % tfOcc: logical vector with obj.nPts elements
+      
+      assert(isvector(tfOcc) && numel(tfOcc)==obj.nPts);
+      nOcc = nnz(tfOcc);
+      iOcc = find(tfOcc);
+      LabelCore.setPtsCoords(nan(nOcc,2),obj.hPts(tfOcc),obj.hPtsTxt(tfOcc));
+      LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],obj.hPtsOcc(tfOcc),obj.hPtsTxtOcc(tfOcc));
+      LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
+        obj.hPtsOcc(~tfOcc),obj.hPtsTxtOcc(~tfOcc));
+      
+%         nOcc = numel(iOcc);        
+%         y = obj.labeler.movienr-10;
+%         dx = 15;
+%         x = 10 + dx*(1:nOcc);
+%         x = x(:);
+%         y = repmat(y,size(x));
+    end
+        
     function xy = getLabelCoords(obj)
       xy = LabelCore.getCoordsFromPts(obj.hPts);      
     end
@@ -199,39 +254,10 @@ classdef LabelCore < handle
     function xy = getLabelCoordsI(obj,iPt)
       xy = LabelCore.getCoordsFromPts(obj.hPts(iPt));
     end
-    
-    function dispOccludedPts(obj,tfOccluded,varargin)
-      % Arrange occluded points/txt labels in occluded box.
-      %
-      % tfOccluded: logical vector with obj.nPts elements
-      % Optional PVs:
-      % - hPoints: vector of handles for points, must have obj.nPts elements.
-      % Defaults to obj.nPts.
-      % - hPointsTxt: etc.
-      
-      [hPoints,hPointsTxt] = myparse(varargin,...
-        'hPts',obj.hPts,...
-        'hPtsTxt',obj.hPtsTxt);
-      
-      assert(isvector(tfOccluded) && isvector(hPoints) && isvector(hPointsTxt));
-      assert(isequal(numel(tfOccluded),numel(hPoints),numel(hPointsTxt)));
-      
-      if any(tfOccluded)
-        iOcc = find(tfOccluded);
-        nOcc = numel(iOcc);
-        
-        y = obj.labeler.movienr-10;
-        dx = 15;
-        x = 10 + dx*(1:nOcc);
-        x = x(:);
-        y = repmat(y,size(x));
-        LabelCore.assignCoords2Pts([x y],hPoints(tfOccluded),hPointsTxt(tfOccluded));
-      end        
-    end
-            
+                
   end
     
-  methods (Static)
+  methods (Static) 
     
     function xy = getCoordsFromPts(hPts)
       x = get(hPts,'XData');
@@ -243,7 +269,7 @@ classdef LabelCore < handle
       xy = [x y];
     end
     
-    function assignCoords2Pts(xy,hPts,hTxt)
+    function setPtsCoords(xy,hPts,hTxt)
       nPoints = size(xy,1);
       assert(size(xy,2)==2);
       assert(isequal(nPoints,numel(hPts),numel(hTxt)));
@@ -254,12 +280,31 @@ classdef LabelCore < handle
       end
     end
             
-    function removePts(hPts,hTxt)
+    function setPtsOffaxis(hPts,hTxt)
+      % Set pts/txt to be "offscreen" ie positions to NaN.
+      LabelCore.setPtsCoords(nan(numel(hPts),2),hPts,hTxt);
+    end
+    
+    function setPtsColor(hPts,hTxt,colors)
       assert(numel(hPts)==numel(hTxt));
-      for i = 1:numel(hPts)
-        set(hPts(i),'XData',nan,'YData',nan);
-        set(hTxt(i),'Position',[nan nan nan]);
+      n = numel(hPts);
+      assert(isequal(size(colors),[n 3]));
+      for i = 1:n
+        clr = colors(i,:);
+        set(hPts(i),'Color',clr);
+        set(hTxt(i),'Color',clr);
       end      
+    end
+    
+    function setPtsCoordsOcc(xy,hPts,hTxt)
+      nPoints = size(xy,1);
+      assert(size(xy,2)==2);
+      assert(isequal(nPoints,numel(hPts),numel(hTxt)));
+      
+      for i = 1:nPoints
+        set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
+        set(hTxt(i),'Position',[xy(i,1)+0.25 xy(i,2)+0.25 1]);
+      end
     end
     
     function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)

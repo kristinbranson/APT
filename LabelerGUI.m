@@ -64,7 +64,7 @@ handles.output = hObject;
 
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
-
+ 
 colormap(handles.figure,gray);
 
 handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
@@ -72,6 +72,8 @@ set(handles.image_curr,'hittest','off');
 axisoff(handles.axes_curr);
 hold(handles.axes_curr,'on');
 set(handles.axes_curr,'Color',[0 0 0]);
+hold(handles.axes_occ,'on');
+axis(handles.axes_occ,'ij');
 
 handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
 set(handles.image_prev,'hittest','off');

@@ -24,10 +24,16 @@ classdef LabelCoreSeq < LabelCore
   % the current target. Acceptance writes to .labeledpos for the current
   % target. Changing targets is like changing frames; all pre-acceptance
   % actions are discarded.
-      
+  %
+  % Occluded. In the 'label' state, pnl-Clicking sets the current point to
+  % be occluded. In the 'adjust' state, there is currently no way to a)
+  % make an occluded point non-occluded, or make a non-occluded point
+  % occluded. 
+        
   properties
     iPtMove;
     nPtsLabeled; % scalar integer. 0..nPts, or inf.
+    tfOcc;       % nPts-by-1 logical, true for occluded
   end
   
   methods
@@ -57,43 +63,53 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function axBDF(obj,~,~)
+      obj.axOrAxOccBDF(false);
+    end
+    
+    function axOccBDF(obj,~,~)
+      obj.axOrAxOccBDF(true);
+    end
+   
+    function axOrAxOccBDF(obj,tfAxOcc)
       if obj.state==LabelState.LABEL
         ax = obj.hAx;
         
         nlbled = obj.nPtsLabeled;
-        if nlbled>=obj.nPts
-          assert(false); % adjustment mode only
-        else % 0..nPts-1
+        assert(nlbled<obj.nPts);
+        i = nlbled+1;
+        if tfAxOcc
+          obj.tfOcc(i) = true;
+          obj.dispOccludedPts(obj.tfOcc);
+        else
           tmp = get(ax,'CurrentPoint');
           x = tmp(1,1);
           y = tmp(1,2);
-          
-          i = nlbled+1;
-          set(obj.hPts(i),'XData',x,'YData',y);
-          set(obj.hPtsTxt(i),'Position',[x+obj.DT2P y+obj.DT2P]);
-          obj.nPtsLabeled = i;
-          
-          if i==obj.nPts
-            obj.beginAdjust();
-          end
+          obj.assignLabelCoordsIRaw([x y],i);
+        end
+        obj.nPtsLabeled = i;
+        if i==obj.nPts
+          obj.beginAdjust();
         end
       end
     end
-    
+        
     function ptBDF(obj,src,~)
       switch obj.state
-        case LabelState.ADJUST
-          obj.iPtMove = get(src,'UserData');
-        case LabelState.ACCEPTED
-          obj.beginAdjust();
-          obj.iPtMove = get(src,'UserData');
+        case {LabelState.ADJUST LabelState.ACCEPTED}          
+          iPt = get(src,'UserData');
+          if ~obj.tfOcc(iPt) % occluded points cannot be clicked; AL: no longer nec, occ pts on diff ax
+            if obj.state==LabelState.ACCEPTED
+              obj.beginAdjust();
+            end
+            obj.iPtMove = iPt;
+          end
       end
     end
     
     function wbmf(obj,~,~)
       if obj.state==LabelState.ADJUST
         iPt = obj.iPtMove;
-        if ~isnan(iPt) % should always be true
+        if ~isnan(iPt)
           ax = obj.hAx;
           tmp = get(ax,'CurrentPoint');
           pos = tmp(1,1:2);
@@ -147,6 +163,7 @@ classdef LabelCoreSeq < LabelCore
       if tflabeled
         obj.nPtsLabeled = obj.nPts;
         obj.assignLabelCoords(lpos);
+        obj.tfOcc = any(isinf(lpos),2);
         obj.iPtMove = nan;
         obj.beginAccepted(false); % I guess could just call with true arg
       else
@@ -161,10 +178,10 @@ classdef LabelCoreSeq < LabelCore
       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
         'String','','Enable','off','Value',0);
       
+      obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
-      arrayfun(@(x)set(x,'Xdata',nan,'ydata',nan),obj.hPts);
-      arrayfun(@(x)set(x,'Position',[nan nan 1],'hittest','off'),obj.hPtsTxt);
       obj.iPtMove = nan;
+      obj.tfOcc = false(obj.nPts,1);
       obj.labeler.labelPosClear();
       
       obj.state = LabelState.LABEL;      
@@ -187,6 +204,7 @@ classdef LabelCoreSeq < LabelCore
       
       if tfSetLabelPos
         xy = obj.getLabelCoords();
+        xy(obj.tfOcc,:) = inf;
         obj.labeler.labelPosSet(xy);
       end
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
