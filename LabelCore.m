@@ -99,6 +99,8 @@ classdef LabelCore < handle
     function delete(obj)
       deleteValidHandles(obj.hPts);
       deleteValidHandles(obj.hPtsTxt);
+      deleteValidHandles(obj.hPtsOcc);
+      deleteValidHandles(obj.hPtsTxtOcc);
     end
   end
   
@@ -209,8 +211,8 @@ classdef LabelCore < handle
       
       tfMainAxis = isequal(hPoints,obj.hPts) && isequal(hPointsTxt,obj.hPtsTxt);
       if tfMainAxis
-        obj.dispOccludedPts(tfOccld);
         obj.tfOcc = tfOccld;
+        obj.refreshOccludedPts();
       else
         LabelCore.setPtsCoords(nan(nnz(tfOccld),2),hPoints(tfOccld),hPointsTxt(tfOccld));
       end
@@ -226,29 +228,24 @@ classdef LabelCore < handle
 %       LabelCore.setPtsColor(hPoint,hTxt,obj.ptsPlotInfo.Colors(iPt,:));
     end
     
-    function dispOccludedPts(obj,tfOcc)
-      % Arrange occluded points/txt labels in occluded box.
-      %
-      % tfOcc: logical vector with obj.nPts elements
+    function refreshOccludedPts(obj)
+      % Based on .tfOcc: 'Hide' occluded points in main image; arrange
+      % occluded points in occluded box.
       
-      assert(isvector(tfOcc) && numel(tfOcc)==obj.nPts);
-      nOcc = nnz(tfOcc);
-      iOcc = find(tfOcc);
-      LabelCore.setPtsCoords(nan(nOcc,2),obj.hPts(tfOcc),obj.hPtsTxt(tfOcc));
-      LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],obj.hPtsOcc(tfOcc),obj.hPtsTxtOcc(tfOcc));
+      tf = obj.tfOcc;      
+      assert(isvector(tf) && numel(tf)==obj.nPts);
+      nOcc = nnz(tf);
+      iOcc = find(tf);
+      LabelCore.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
+      LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],obj.hPtsOcc(tf),obj.hPtsTxtOcc(tf));
       LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
-        obj.hPtsOcc(~tfOcc),obj.hPtsTxtOcc(~tfOcc));
-      
-%         nOcc = numel(iOcc);        
-%         y = obj.labeler.movienr-10;
-%         dx = 15;
-%         x = 10 + dx*(1:nOcc);
-%         x = x(:);
-%         y = repmat(y,size(x));
+        obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
     end
         
     function xy = getLabelCoords(obj)
-      xy = LabelCore.getCoordsFromPts(obj.hPts);      
+      % rows matching .tfOcc are inf
+      xy = LabelCore.getCoordsFromPts(obj.hPts);
+      xy(obj.tfOcc,:) = inf;
     end
     
     function xy = getLabelCoordsI(obj,iPt)
@@ -330,6 +327,8 @@ classdef LabelCore < handle
       th1 = trx1.theta(iFrm1);
       
       uv = transformPoints(uv0,xy0,th0,xy1,th1);
+      tfinf = any(isinf(uv0),2); % [inf inf] rows in uv0 can be transformed into eg [inf nan] depending on angle
+      uv(tfinf,:) = inf;
     end
     
   end

@@ -13,6 +13,10 @@ classdef LabelCoreTemplate < LabelCore
   % Adjustment of a point in this way is identical in concept to
   % click-dragging.
   %
+  % To mark a point as Occluded, select it with a hotkey and click in the
+  % occluded box. To un-occlude, select it with a hotkey and click in the
+  % main image.
+  %
   %
   % IMPL NOTES
   % 2 basic states, Adjusting and Accepted
@@ -57,7 +61,7 @@ classdef LabelCoreTemplate < LabelCore
     iPtMove;     % scalar. Either nan, or index of pt being moved
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
-    tfPtSel;   % nPts x 1 logical
+    tfPtSel;     % nPts x 1 logical
     
     templatePointColor = [1 1 1];  % 1 x 3 RGB
     selectedPointMarker = 'x';
@@ -148,6 +152,10 @@ classdef LabelCoreTemplate < LabelCore
         obj.assignLabelCoordsIRaw(pos,iSel);
         obj.setPointAdjusted(iSel);
         obj.toggleSelectPoint(iSel);
+        if obj.tfOcc(iSel)
+          obj.tfOcc(iSel) = false;
+          obj.refreshOccludedPts();
+        end
         switch obj.state
           case LabelState.ADJUST
             % none
@@ -215,7 +223,7 @@ classdef LabelCoreTemplate < LabelCore
           obj.labeler.frameDown(tfCtrl);
         case {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}
           [tfSel,iSel] = obj.anyPointSelected();
-          if tfSel
+          if tfSel && ~obj.tfOcc(iSel)
             tfShift = any(strcmp('shift',modifier));
             xy = obj.getLabelCoordsI(iSel);
             switch key
@@ -281,6 +289,22 @@ classdef LabelCoreTemplate < LabelCore
       end      
     end
     
+    function axOccBDF(obj,src,evt) %#ok<INUSD>
+      [tf,iSel] = obj.anyPointSelected();
+      if tf
+        obj.setPointAdjusted(iSel);
+        obj.toggleSelectPoint(iSel);
+        obj.tfOcc(iSel) = true;
+        obj.refreshOccludedPts();
+        switch obj.state
+          case LabelState.ADJUST
+            % none
+          case LabelState.ACCEPTED
+            obj.enterAdjust(false,false);
+        end
+      end   
+    end
+
     function h = getKeyboardShortcutsHelp(obj) %#ok<MANU>
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
@@ -296,35 +320,35 @@ classdef LabelCoreTemplate < LabelCore
   
   methods % template
     
-    function createTemplate(obj)
+    function createTemplate(obj) %#ok<MANU>
       % Initialize "white pts" via user-clicking
       
       assert(false,'Currently not called');
       
-      obj.enterAdjust(true);
-      
-      msg = sprintf('Click to create %d template points.',obj.nPts);
-      uiwait(msgbox(msg));
-      
-      ptsClicked = 0;
-      axes(obj.hAx);
-      
-      while ptsClicked<obj.nPts;
-        keydown = waitforbuttonpress;
-        if get(0,'CurrentFigure') ~= obj.hFig
-          continue;
-        end
-        if keydown == 0 && strcmpi(get(obj.hFig,'SelectionType'),'normal'),
-          tmp = get(obj.hAx,'CurrentPoint');
-          xy = tmp(1,1:2);
-          iPt = ptsClicked+1;
-          LabelCore.setPtsCoords(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
-          ptsClicked = iPt;
-        elseif keydown == 1 && double(get(obj.hFig,'CurrentCharacter')) == 27,
-          % escape
-          break;
-        end
-      end      
+%       obj.enterAdjust(true);
+%       
+%       msg = sprintf('Click to create %d template points.',obj.nPts);
+%       uiwait(msgbox(msg));
+%       
+%       ptsClicked = 0;
+%       axes(obj.hAx);
+%       
+%       while ptsClicked<obj.nPts;
+%         keydown = waitforbuttonpress;
+%         if get(0,'CurrentFigure') ~= obj.hFig
+%           continue;
+%         end
+%         if keydown == 0 && strcmpi(get(obj.hFig,'SelectionType'),'normal'),
+%           tmp = get(obj.hAx,'CurrentPoint');
+%           xy = tmp(1,1:2);
+%           iPt = ptsClicked+1;
+%           LabelCore.setPtsCoords(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
+%           ptsClicked = iPt;
+%         elseif keydown == 1 && double(get(obj.hFig,'CurrentCharacter')) == 27,
+%           % escape
+%           break;
+%         end
+%       end      
     end
     
     function tt = getTemplate(obj)
@@ -394,6 +418,7 @@ classdef LabelCoreTemplate < LabelCore
       
       if tfResetPts
         arrayfun(@(x)set(x,'Color',obj.templatePointColor),obj.hPts);
+        arrayfun(@(x)set(x,'Color',obj.templatePointColor),obj.hPtsOcc);
         obj.tfAdjusted(:) = false;
       end
       if tfClearLabeledPos
@@ -411,12 +436,13 @@ classdef LabelCoreTemplate < LabelCore
     function enterAccepted(obj,tfSetLabelPos)
       % Enter accepted state for current frame/tgt. All points colored. If
       % tfSetLabelPos, all points written to labelpos.
-      
+            
       nPts = obj.nPts;
       ptsH = obj.hPts;
       clrs = obj.ptsPlotInfo.Colors;
       for i = 1:nPts
         set(ptsH(i),'Color',clrs(i,:));
+        set(obj.hPtsOcc(i),'Color',clrs(i,:));
       end
       
       obj.tfAdjusted(:) = true;
@@ -434,7 +460,9 @@ classdef LabelCoreTemplate < LabelCore
     function setPointAdjusted(obj,iSel)
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
-        set(obj.hPts(iSel),'Color',obj.ptsPlotInfo.Colors(iSel,:));
+        clr = obj.ptsPlotInfo.Colors(iSel,:);
+        set(obj.hPts(iSel),'Color',clr);
+        set(obj.hPtsOcc(iSel),'Color',clr);
       end
     end
 
@@ -444,10 +472,12 @@ classdef LabelCoreTemplate < LabelCore
       obj.tfPtSel(iPt) = tfSel;
       
       if tfSel
-        set(obj.hPts(iPt),'Marker',obj.selectedPointMarker);
+        mrkr = obj.selectedPointMarker;
       else
-        set(obj.hPts(iPt),'Marker',obj.ptsPlotInfo.Marker);
+        mrkr = obj.ptsPlotInfo.Marker;
       end
+      set(obj.hPts(iPt),'Marker',mrkr);
+      set(obj.hPtsOcc(iPt),'Marker',mrkr);
     end
     
     function [tf,iSelected] = anyPointSelected(obj)

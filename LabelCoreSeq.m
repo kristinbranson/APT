@@ -78,7 +78,7 @@ classdef LabelCoreSeq < LabelCore
         i = nlbled+1;
         if tfAxOcc
           obj.tfOcc(i) = true;
-          obj.dispOccludedPts(obj.tfOcc);
+          obj.refreshOccludedPts();
         else
           tmp = get(ax,'CurrentPoint');
           x = tmp(1,1);
@@ -199,7 +199,6 @@ classdef LabelCoreSeq < LabelCore
       
       if tfSetLabelPos
         xy = obj.getLabelCoords();
-        xy(obj.tfOcc,:) = inf;
         obj.labeler.labelPosSet(xy);
       end
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
