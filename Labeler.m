@@ -580,19 +580,46 @@ classdef Labeler < handle
       
       if exist('frms','var')==0
         frms = 1:obj.nframes;
+        tfWaitBar = true;
+      else
+        tfWaitBar = false;
       end
       
       nf = numel(frms);
+      npts = obj.nLabelPoints;
+      ntgts = obj.nTargets;
       lpos = obj.labeledpos;
-
+      tflpos = ~isnan(lpos); % true->labeled (either regular or occluded)      
+      
       nTgts = zeros(nf,1);
       nPts = zeros(nf,1);
+      if tfWaitBar
+        hWB = waitbar(0,'Scanning existing labels');
+        ocp = onCleanup(@()delete(hWB));
+      end
       for i = 1:nf
+        if tfWaitBar && mod(i,1000)==0
+          waitbar(i/nf,hWB);
+        end
         f = frms(i);
-        lposfrm = squeeze(lpos(:,:,f,:)); % dim labels: iPt, {x,y}, iTarget
-        x = squeeze(any(~isnan(lposfrm),2)); % dim labels: iPt, iTarget
-        nTgts(i) = sum(any(x,1));
-        nPts(i) = sum(x(:));        
+        
+        % don't squeeze() here it's expensive        
+        tmpNTgts = 0;
+        tmpNPts = 0;
+        for iTgt = 1:ntgts 
+          tfTgtLabeled = false;
+          for iPt = 1:npts
+            if tflpos(iPt,1,f,iTgt)
+              tmpNPts = tmpNPts+1;
+              tfTgtLabeled = true;
+            end
+          end
+          if tfTgtLabeled
+            tmpNTgts = tmpNTgts+1;
+          end
+        end
+        nTgts(i) = tmpNTgts;
+        nPts(i) = tmpNPts;        
       end
     end
            
