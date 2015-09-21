@@ -63,7 +63,6 @@ classdef LabelCoreHT < LabelCore
     nFrameSkip;
     unlabeledPointColor = [1 1 1];
     otherLabeledPointColor = [0.4 0.4 0.4];
-    %otherlabeledPointDarkenFac = 0.2;
   end  
   
   methods
@@ -105,50 +104,48 @@ classdef LabelCoreHT < LabelCore
     
     function newFrame(obj,~,iFrm1,iTgt)
       xy = obj.labeler.labeledpos(:,:,iFrm1,iTgt);
-      tfLbled = ~isnan(xy(:,1)) & ~isinf(xy(:,1));
-      tfOcced = isinf(xy(:,1)); 
       tfUnlbled = isnan(xy(:,1));
+      tfLbledOrOcc = ~tfUnlbled;
 
       iPt = obj.iPoint;
       hPoints = obj.hPts;
-      hPointsTxt = obj.hPtsTxt;
+      hPointsOcc = obj.hPtsOcc;
+%       hPointsTxt = obj.hPtsTxt;
+%       hPointsTxtOcc = obj.hPtsTxtOcc;
       colors = obj.ptsPlotInfo.Colors;      
       
+      % POSITIONING
+      % - all labeled pts are positioned per labels (including iPoint)
+      % - all occed pts are positioned per usual
+      % - if nonlabeled, iPoint position unchanged
+      % - other nonlabeled, nonocced are hidden
+      if tfUnlbled(iPt)
+        xy(iPt,:) = obj.getLabelCoordsI(iPt);
+      end
+      obj.assignLabelCoords(xy);
+
       % COLORING
-      % - all labeled, occluded that are not iPoint are colored but dimmed
+      % - all labeled/occluded that are not iPoint are colored but dimmed
       % - iPoint is colored if labeled/occluded, otherwise
       % unlabeledPointColor
       % - all other points (unlabeled, unoccluded, not iPoint) will be
       % hidden so coloring irrelevant
       
-      tfOL = tfLbled; % other-labeled
+      tfOL = tfLbledOrOcc; % other-labeled
       tfOL(iPt) = false;
-      iPtOL = find(tfOL);
-      %darkenFac = obj.otherlabeledPointDarkenFac;
       clr = obj.otherLabeledPointColor;
-      for i = iPtOL(:)'
-        %clr = darkenFac*colors(i,:);        
-        set(hPoints(i),'Color',clr);
-        % leave hPtsTxtOL color
-      end
-      if tfLbled(iPt)
-        set(hPoints(iPt),'Color',colors(iPt,:));
-      else
-        set(hPoints(iPt),'Color',obj.unlabeledPointColor);
-      end
-      
-      % POSITIONING
-      % - all labeled pts are positioned per labels (including iPoint)
-      % - all occed pts are positioned in corner per occluded
-      % - if nonlabeled, iPoint position unchanged
-      % - other nonlabeled, nonocced are hidden
-      LabelCore.setPtsCoords(xy(tfLbled,:),hPoints(tfLbled),hPointsTxt(tfLbled));
-      obj.dispOccludedPts(tfOcced);
-      tfUnlbledNotIPt = tfUnlbled;
-      tfUnlbledNotIPt(iPt) = false;
-      LabelCore.setPtsCoords(nan(nnz(tfUnlbledNotIPt),2),hPoints(tfUnlbledNotIPt),hPointsTxt(tfUnlbledNotIPt));
+      set(hPoints(tfOL),'Color',clr);
+      set(hPointsOcc(tfOL),'Color',clr);
 
-      obj.tfClicked = tfLbled(iPt);
+      if tfLbledOrOcc(iPt)
+        clr = colors(iPt,:);
+      else
+        clr = obj.unlabeledPointColor;
+      end
+      set(hPoints(iPt),'Color',clr);
+      set(hPointsOcc(iPt),'Color',clr);
+      
+      obj.tfClicked = tfLbledOrOcc(iPt);
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSD>
@@ -158,6 +155,7 @@ classdef LabelCoreHT < LabelCore
     function clearLabels(obj)
       iPt = obj.iPoint;
       set(obj.hPts(iPt),'Color',obj.unlabeledPointColor);
+      set(obj.hPtsOcc(iPt),'Color',obj.unlabeledPointColor);
       obj.tfClicked = false;
       obj.labeler.labelPosClearI(iPt);
     end
@@ -180,31 +178,7 @@ classdef LabelCoreHT < LabelCore
       obj.labeler.labelPosSetI(pos,iPt);
       obj.tfClicked = true;      
       obj.clickedIncrementFrame();
-    end
-    
-    function ptBDF(obj,src,evt) %#ok<INUSD>
-      % none
-    end
-    
-    function wbmf(obj,src,evt) %#ok<INUSD>
-      % none
-    end
-    
-    function wbuf(obj,src,evt) %#ok<INUSD>
-      %disp('foo');
-      % none
-    end
-    
-    function pnlBDF(obj,src,evt) %#ok<INUSD>
-      iPt = obj.iPoint;
-      obj.labeler.labelPosSetOccludedI(iPt);
-      tfOcc = obj.labeler.labelPosIsOccluded();
-      
-      obj.dispOccludedPts(tfOcc);
-
-      obj.tfClicked = true;
-      obj.clickedIncrementFrame();
-    end
+    end    
     
     function kpf(obj,src,evt) %#ok<INUSL>
       key = evt.Key;
@@ -219,6 +193,19 @@ classdef LabelCoreHT < LabelCore
       end      
     end
     
+    function axOccBDF(obj,src,evt) %#ok<INUSD>
+      iPt = obj.iPoint;
+      obj.tfOcc(iPt) = true;
+      set(obj.hPtsOcc(iPt),'Color',obj.ptsPlotInfo.Colors(iPt,:));
+      obj.refreshOccludedPts();
+      obj.labeler.labelPosSetOccludedI(iPt);
+      tfOcc = obj.labeler.labelPosIsOccluded();
+      assert(isequal(tfOcc,obj.tfOcc));
+            
+      obj.tfClicked = true;
+      obj.clickedIncrementFrame();
+    end
+
     function h = getKeyboardShortcutsHelp(obj) %#ok<MANU>
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'};
