@@ -85,6 +85,7 @@ linkaxes([handles.axes_prev,handles.axes_curr]);
 
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
+listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
 listeners{end+1,1} = addlistener(handles.labelerObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(handles.labelerObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(handles.labelerObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
@@ -259,13 +260,11 @@ end
 
 hlpRemoveFocus(hObject,handles);
 
-function sldZoom_Callback(hObject, eventdata, handles)
-% Hints: get(hObject,'Value') returns position of slider
-%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+function sldZoom_Callback(hObject, eventdata, ~)
+handles = guidata(hObject);
 lObj = handles.labelerObj;
 zoomFac = get(hObject,'Value');
 lObj.videoSetTargetZoomFac(zoomFac);
-
 hlpRemoveFocus(hObject,handles);
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
