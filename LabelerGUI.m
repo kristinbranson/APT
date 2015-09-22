@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 02-Sep-2015 10:33:00
+% Last Modified by GUIDE v2.5 21-Sep-2015 13:50:57
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -90,7 +90,8 @@ listeners{end+1,1} = addlistener(handles.labelerObj,'currTarget','PostSet',@cbkC
 listeners{end+1,1} = addlistener(handles.labelerObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
 listeners{end+1,1} = addlistener(handles.labelerObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(handles.labelerObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
-listeners{end+1,1} = addlistener(handles.labelerObj,'lastFSInfo','PostSet',@cbkLastFSInfoChanged);
+listeners{end+1,1} = addlistener(handles.labelerObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
+listeners{end+1,1} = addlistener(handles.labelerObj,'moviename','PostSet',@cbkMovienameChanged);
 handles.listeners = listeners;
 
 set(handles.output,'Toolbar','figure');
@@ -144,11 +145,24 @@ lObj = evt.AffectedObject;
 zf = lObj.targetZoomFac;
 set(lObj.gdata.sldZoom,'Value',zf);
 
-function cbkLastFSInfoChanged(src,evt)
+function cbkProjFSInfoChanged(src,evt)
 lObj = evt.AffectedObject;
-info = lObj.lastFSInfo;
-str = sprintf('%s %s at %s',info.projFilename,info.action,datestr(info.timestamp,16));
+info = lObj.projFSInfo;
+if ~isempty(info)  
+  str = sprintf('Project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
+  set(lObj.gdata.txStatus,'String',str);
+end
+
+function cbkMovienameChanged(src,evt)
+lObj = evt.AffectedObject;
+mname = lObj.moviename;
+set(lObj.gdata.txMoviename,'String',mname);
+str = sprintf('new movie %s at %s',mname,datestr(now,16));
 set(lObj.gdata.txStatus,'String',str);
+% Fragile behavior when loading projects; want project status update to
+% persist and not movie status update. This depends on detailed ordering in 
+% Labeler.loadLblFile
+
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -260,8 +274,9 @@ lObj.videoResetView();
 
 %% menu
 function menu_file_save_Callback(hObject, eventdata, handles)
-lObj = handles.labelerObj;
-lObj.saveLblFile();
+handles.labelerObj.saveLblFileSmart();
+function menu_file_saveas_Callback(hObject, eventdata, handles)
+handles.labelerObj.saveLblFileAs();
 
 function menu_file_load_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -279,7 +294,7 @@ if labelerObj.labeledposNeedsSave
     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
   switch res
     case OPTION_SAVE
-      labelerObj.saveLblFile();
+      labelerObj.saveLblFileSmart();
     case OPTION_CANC
       tfcontinue = false;
     case OPTION_PROC

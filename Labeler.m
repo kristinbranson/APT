@@ -32,6 +32,7 @@ classdef Labeler < handle
   end
   properties (SetObservable)
     targetZoomFac;
+    moviename; % short name, moviefile
   end
   properties (Dependent)
     hasMovie;
@@ -73,9 +74,6 @@ classdef Labeler < handle
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save
   end
   properties
-    
-%     labelsLocked;         % nFrm x nTrx
-%     labelNames;           % nLabelPoints-by-1 cellstr    
     lblCore;
     
     lblPrev_ptsH;         % Maybe encapsulate this and next with axes_prev, image_prev
@@ -89,8 +87,10 @@ classdef Labeler < handle
     prevTarget = nan;
   end
   properties (SetObservable)
-    lastFSInfo;           % info on last filesystem interaction
-    %projFilename;         % last saved lbl filename
+    projFSInfo;           % ProjectFSInfo
+  end
+  properties (Dependent)
+    projectfile;          % Full path to current project 
   end
   properties
     currIm = [];
@@ -156,6 +156,14 @@ classdef Labeler < handle
         v = 1;
       end
     end
+    function v = get.projectfile(obj)
+      info = obj.projFSInfo;
+      if ~isempty(info)
+        v = info.filename;
+      else
+        v = [];
+      end
+    end
   end
   
   methods % prop access
@@ -169,36 +177,54 @@ classdef Labeler < handle
   %% Save/Load
   methods
     
-    function fname = saveLblFile(obj,fname)
+    function saveLblFileRaw(obj,lblfname)
       % Saves a .lbl file. Currently defaults to same dir as moviefile.
-      
-      if exist('fname','var')==0 && obj.hasMovie
-        if ~obj.hasMovie
-          % extremely unlikely
-          error('Labeler:save','No movie loaded.');          
-        end
-      
-        movieFile = obj.movieReader.filename;
-        [moviePath,movieFile] = myfileparts(movieFile);
-        defaultFname = sprintf(obj.DEFAULT_LBLFILENAME,movieFile);
-        filterspec = fullfile(moviePath,defaultFname);
-        
-        [fname,pth] = uiputfile(filterspec,'Save label file');
-        if isequal(fname,0)
-          return;
-        end
-        fname = fullfile(pth,fname);
-      elseif exist(fname,'file')>0
-        warning('Labeler:save','Overwriting file ''%s''.',fname);
-      end
+     
+%       if exist(lblfname,'file')>0
+%         warning('Labeler:save','Overwriting file ''%s''.',lblfname);
+%       end
       
       s = obj.getSaveStruct(); %#ok<NASGU>
-      save(fname,'-mat','-struct','s');
+      save(lblfname,'-mat','-struct','s');
 
       obj.labeledposNeedsSave = false;
-      obj.lastFSInfo = struct('timestamp',now,'action','saved','projFilename',fname);
+      obj.projFSInfo = ProjectFSInfo('saved',lblfname);
 
-      RC.saveprop('lastLblFile',fname);
+      RC.saveprop('lastLblFile',lblfname);
+    end
+    
+    function [success,lblfname] = saveLblFileAs(obj)
+      % Saves a .lbl file, prompting user for filename.
+      
+      if ~obj.hasMovie
+        % extremely unlikely
+        error('Labeler:save','No movie loaded.');
+      end
+      
+      movieFile = obj.movieReader.filename;
+      [moviePath,movieFile] = myfileparts(movieFile);
+      defaultFname = sprintf(obj.DEFAULT_LBLFILENAME,movieFile);
+      filterspec = fullfile(moviePath,defaultFname);      
+      [lblfname,pth] = uiputfile(filterspec,'Save label file');
+      if isequal(lblfname,0)
+        lblfname = [];
+        success = false;
+      else
+        lblfname = fullfile(pth,lblfname);
+        success = true;
+        obj.saveLblFileRaw(lblfname);
+      end      
+    end
+    
+    function [success,lblfname] = saveLblFileSmart(obj)
+      % Try to save to current project; if there is no project, do a saveas
+      lblfname = obj.projectfile;
+      if isempty(lblfname)
+        [success,lblfname] = obj.saveLblFileAs();
+      else
+        success = true;
+        obj.saveLblFileRaw(lblfname);
+      end
     end
     
     function s = getSaveStruct(obj)
@@ -258,7 +284,7 @@ classdef Labeler < handle
       obj.labeledpos = s.labeledpos;
       assert(~obj.labeledposNeedsSave); % should be from labelingInit
       
-      obj.lastFSInfo = struct('timestamp',now,'action','loaded','projFilename',fname);
+      obj.projFSInfo = ProjectFSInfo('loaded',fname);
 
       obj.setTarget(s.currTarget);
       obj.setFrame(s.currFrame,'forceUpdate',true);
@@ -342,6 +368,9 @@ classdef Labeler < handle
       
       obj.movieReader.open(movfile);
       RC.saveprop('lbl_lastmovie',movfile);
+      [~,obj.moviename] = myfileparts(obj.moviefile);
+      
+      obj.projFSInfo = [];
       
       obj.trxFilename = trxfile;
 
