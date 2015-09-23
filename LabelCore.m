@@ -33,7 +33,7 @@ classdef LabelCore < handle
     hPts;                 % nPts x 1 handle vec, handle to points
     hPtsTxt;              % nPts x 1 handle vec, handle to text
     hPtsOcc;
-    hPtsTxtOcc;              % nPts x 1 handle vec, handle to occ points
+    hPtsTxtOcc;           % nPts x 1 handle vec, handle to occ points
     ptsPlotInfo;          % struct, points plotting cosmetic info    
     
     tfOcc;                % nPts x 1 logical

@@ -1,7 +1,5 @@
 classdef Labeler < handle
 % Labeler  Bransonlab Animal Video Labeler
-%
-% Takes a movie + trx (optional) and creates/edits animal labels.
 
   properties (Constant,Hidden)
     VERSION = '0.0';
@@ -9,9 +7,10 @@ classdef Labeler < handle
     PREF_FILENAME = 'pref.yaml';
 
     SAVEPROPS = { ...
-      'VERSION' 'moviefile' 'nframes' 'trxFilename' 'nTrx' ...
-      'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' ...
-      'labeledpos' 'currFrame' 'currTarget' 'minv' 'maxv'};
+      'VERSION' 'projname' ...
+      'movieFilesAll' 'trxFilesAll' 'labeledpos' ...      
+      'currMovie' 'currFrame' 'currTarget' 'minv' 'maxv' ...
+      'labelMode' 'nLabelPoints' 'labelPointsPlotInfo'};
     LOADPROPS = {'minv' 'maxv'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
@@ -23,6 +22,15 @@ classdef Labeler < handle
     NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
   end
   
+  %% Project
+  properties (SetObservable)
+    projname
+    projFSInfo;           % ProjectFSInfo
+  end
+  properties (Dependent)
+    projectfile;          % Full path to current project 
+  end
+
   %% Movie
   properties
     movieReader = []; % MovieReader object
@@ -31,6 +39,7 @@ classdef Labeler < handle
     movieFrameStepBig = 10;
   end
   properties (SetObservable)
+    movieFilesAll = cell(0,1); % column cellstr, full paths to movies
     targetZoomFac;
     moviename; % short name, moviefile
   end
@@ -40,11 +49,15 @@ classdef Labeler < handle
     nframes;
     movienr;
     movienc;
+    nmovies;
   end
   
   %% Trx
+  properties (SetObservable)
+    trxFilesAll = cell(0,1);  % column cellstr, full paths to trxs. Same size as movieFilesAll.
+  end
   properties
-    trxFilename = '';         % full filename
+    trxfile = '';             % full path current trxfile
     trx = [];                 % trx object
     zoomRadiusDefault = 100;  % default zoom box size in pixels
     zoomRadiusTight = 10;     % zoom size on maximum zoom (smallest pixel val)
@@ -68,7 +81,7 @@ classdef Labeler < handle
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints
     
     labelMode;            % scalar LabelMode
-    labeledpos;           % labels, npts x 2 x nFrm x nTrx
+    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov)
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save
@@ -76,21 +89,16 @@ classdef Labeler < handle
   properties
     lblCore;
     
-    lblPrev_ptsH;         % Maybe encapsulate this and next with axes_prev, image_prev
+    lblPrev_ptsH;               % TODO: encapsulate labelsPrev (eg in a LabelCore)
     lblPrev_ptsTxtH;                          
   end  
   
   properties (SetObservable, AbortSet)
+    currMovie;            % idx into .movieFilesAll
     currFrame = 1;        % current frame
     prevFrame = nan;      % last previously VISITED frame
     currTarget = nan;
     prevTarget = nan;
-  end
-  properties (SetObservable)
-    projFSInfo;           % ProjectFSInfo
-  end
-  properties (Dependent)
-    projectfile;          % Full path to current project 
   end
   properties
     currIm = [];
@@ -98,6 +106,7 @@ classdef Labeler < handle
     gdata = [];           % handles structure for figure
   end
   
+  %% Prop access
   methods % dependent prop getters
     function v = get.hasMovie(obj)
       v = obj.movieReader.isOpen;
@@ -127,7 +136,12 @@ classdef Labeler < handle
       end
     end    
     function v = get.nframes(obj)
-      v = obj.movieReader.nframes;
+      mr = obj.movieReader;
+      if isempty(mr)
+        v = nan;
+      else
+        v = obj.movieReader.nframes;
+      end
     end      
     function v = get.hasTrx(obj)
       v = ~isempty(obj.trx);
@@ -164,6 +178,9 @@ classdef Labeler < handle
         v = [];
       end
     end
+    function v = get.nmovies(obj)
+      v = numel(obj.movieFilesAll);
+    end
   end
   
   methods % prop access
@@ -174,37 +191,88 @@ classdef Labeler < handle
     end
   end
   
-  %% Save/Load
-  methods
-    
-    function saveLblFileRaw(obj,lblfname)
-      % Saves a .lbl file. Currently defaults to same dir as moviefile.
-     
-%       if exist(lblfname,'file')>0
-%         warning('Labeler:save','Overwriting file ''%s''.',lblfname);
-%       end
+  %% Ctor
+  methods 
+  
+    function obj = Labeler(varargin)
+      % lObj = Labeler();  
       
-      s = obj.getSaveStruct(); %#ok<NASGU>
-      save(lblfname,'-mat','-struct','s');
-
-      obj.labeledposNeedsSave = false;
-      obj.projFSInfo = ProjectFSInfo('saved',lblfname);
-
-      RC.saveprop('lastLblFile',lblfname);
+      if nargin==0
+        preffile = fullfile(APT.Root,Labeler.PREF_FILENAME);
+        pref = ReadYaml(preffile,[],1);
+        obj.initFromPrefs(pref);        
+      else
+        assert(false,'Currently unsupported');
+      end      
+      hFig = LabelerGUI(obj);
+      obj.gdata = guidata(hFig);      
+      obj.movieReader = MovieReader;      
     end
     
-    function [success,lblfname] = saveLblFileAs(obj)
-      % Saves a .lbl file, prompting user for filename.
-      
-      if ~obj.hasMovie
-        % extremely unlikely
-        error('Labeler:save','No movie loaded.');
+    function initFromPrefs(obj,pref)
+      obj.labelMode = LabelMode.(pref.LabelMode);
+      obj.nLabelPoints = pref.NumLabelPoints;
+      obj.zoomRadiusDefault = pref.Trx.ZoomRadius;
+      obj.zoomRadiusTight = pref.Trx.ZoomRadiusTight;
+      obj.targetZoomFac = pref.Trx.ZoomFactorDefault;
+      obj.movieFrameStepBig = pref.Movie.FrameStepBig;
+      lpp = pref.LabelPointsPlot;
+      if isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
+        lpp.Colors = feval(lpp.ColorMapName,pref.NumLabelPoints);
+      end
+      obj.labelPointsPlotInfo = lpp;   
+    end
+    
+  end
+  
+  %% Project
+  methods
+    
+    function projNew(obj,name)
+      if exist('name','var')==0
+        resp = inputdlg('Project name:','New Project');
+        if isempty(resp)
+          return;
+        end
+        name = resp{1};
       end
       
-      movieFile = obj.movieReader.filename;
-      [moviePath,movieFile] = myfileparts(movieFile);
-      defaultFname = sprintf(obj.DEFAULT_LBLFILENAME,movieFile);
-      filterspec = fullfile(moviePath,defaultFname);      
+      obj.projname = name;
+      obj.movieFilesAll = cell(0,1);
+      obj.trxFilesAll = cell(0,1);
+      obj.labeledpos = cell(0,1);
+      
+      obj.movieSetNoMovie();
+      %obj.notify('newProject');
+    end
+      
+    function projSaveRaw(obj,fname)
+      s = obj.projGetSaveStruct(); %#ok<NASGU>
+      save(fname,'-mat','-struct','s');
+
+      obj.labeledposNeedsSave = false;
+      obj.projFSInfo = ProjectFSInfo('saved',fname);
+
+      RC.saveprop('lastLblFile',fname);
+    end
+        
+    function [success,lblfname] = projSaveAs(obj)
+      % Saves a .lbl file, prompting user for filename.
+
+      % Guess a path/location for save
+      lastLblFile = RC.getprop('lastLblFile');
+      if isempty(lastLblFile)
+        if obj.hasMovie
+          savepath = fileparts(obj.moviefile);
+        else
+          savepath = pwd;          
+        end
+      else
+        savepath = fileparts(lastLblFile);
+      end
+      
+      defaultFname = sprintf('%s_lbl.mat',obj.projname);
+      filterspec = fullfile(savepath,defaultFname);
       [lblfname,pth] = uiputfile(filterspec,'Save label file');
       if isequal(lblfname,0)
         lblfname = [];
@@ -212,24 +280,23 @@ classdef Labeler < handle
       else
         lblfname = fullfile(pth,lblfname);
         success = true;
-        obj.saveLblFileRaw(lblfname);
+        obj.projSaveRaw(lblfname);
       end      
     end
     
-    function [success,lblfname] = saveLblFileSmart(obj)
+    function [success,lblfname] = projSaveSmart(obj)
       % Try to save to current project; if there is no project, do a saveas
       lblfname = obj.projectfile;
       if isempty(lblfname)
-        [success,lblfname] = obj.saveLblFileAs();
+        [success,lblfname] = obj.projSaveAs();
       else
         success = true;
-        obj.saveLblFileRaw(lblfname);
+        obj.projSaveRaw(lblfname);
       end
     end
     
-    function s = getSaveStruct(obj)
+    function s = projGetSaveStruct(obj)
       s = struct();
-      s.moviefile = obj.movieReader.filename;
       for f = obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
         s.(f) = obj.(f);
       end
@@ -240,7 +307,7 @@ classdef Labeler < handle
       end
     end
     
-    function loadLblFile(obj,fname)
+    function projLoad(obj,fname)
       % Load a lbl file, along with moviefile and trxfile referenced therein
             
       if exist('fname','var')==0
@@ -266,13 +333,13 @@ classdef Labeler < handle
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
         obj.(f) = s.(f);
       end
-            
-      if isempty(s.trxFilename)
-        obj.loadMovie(s.moviefile);
+      
+      if obj.nmovies>0
+        obj.movieSet(1);
       else
-        obj.loadMovie(s.moviefile,s.trxFilename);
+        obj.movieSetNoMovie();
       end
-                  
+      
       assert(isa(s.labelMode,'LabelMode'));
       if isfield(s,'template')
         template = s.template;
@@ -294,74 +361,85 @@ classdef Labeler < handle
     
   end
   
-  %% Movie, Trx
+  %% Movie
   methods
     
-    function obj = Labeler(varargin)
-      % lObj = Labeler();  
-      % lObj = Labeler(labelMode,npts)
+    function movieAdd(obj,moviefile,trxfile)
+      % Add movie/trx to end of movie/trx list.
+      % trxfile: optional
       
-      if nargin==0
-        preffile = fullfile(APT.Root,Labeler.PREF_FILENAME);
-        pref = ReadYaml(preffile,[],1);
-        obj.initFromPrefs(pref);        
-      elseif nargin==2
-        assert(false,'Unsupported');
-%         obj.labelMode = varargin{1};
-%         obj.nLabelPoints = varargin{2};
+      if exist('trxfile','var')==0
+        trxfile = '';
       end
       
-      hFig = LabelerGUI(obj);
-      obj.gdata = guidata(hFig);
-      axis(obj.gdata.axes_occ,[0 obj.nLabelPoints+1 0 2]);
+      assert(exist(moviefile,'file')>0,'Cannot find file ''%s''.',moviefile);
+      assert(isempty(trxfile) || exist(trxfile,'file')>0,'Cannot find file ''%s''.',trxfile);
       
-      obj.movieReader = MovieReader;      
+      obj.movieFilesAll{end+1,1} = moviefile;
+      obj.trxFilesAll{end+1,1} = trxfile;
+      obj.labeledpos{end+1,1} = [];   
     end
     
-    function initFromPrefs(obj,pref)
-      obj.labelMode = LabelMode.(pref.LabelMode);
-      obj.nLabelPoints = pref.NumLabelPoints;
-      obj.zoomRadiusDefault = pref.Trx.ZoomRadius;
-      obj.zoomRadiusTight = pref.Trx.ZoomRadiusTight;
-      obj.targetZoomFac = pref.Trx.ZoomFactorDefault;
-      obj.movieFrameStepBig = pref.Movie.FrameStepBig;
-      lpp = pref.LabelPointsPlot;
-      if isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
-        lpp.Colors = feval(lpp.ColorMapName,pref.NumLabelPoints);
+    function movieRm(obj,iMov)
+      assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.');
+      if iMov==obj.currMovie
+        error('Labeler:movieRm','Cannot remove current movie.');
       end
-      obj.labelPointsPlotInfo = lpp;   
+      if obj.labelposMovieHasLabels(iMov)
+        warning('Labeler:movieRm','Movie index ''%d'' has labels. Removing...',iMov);
+      end
+      
+      obj.movieFilesAll(iMov,:) = [];
+      obj.trxFilesAll(iMov,:) = [];
+      obj.labeledpos(iMov,:) = [];
+      if obj.currMovie>iMov
+        obj.movieSet(obj.currMovie-1);
+      end
     end
+    
+    function movieSet(obj,iMov)
+      assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.');
+      movFile = obj.movieFilesAll{iMov};
+      trxFile = obj.trxFilesAll{iMov};
+      obj.currMovie = iMov;
+      if isempty(trxFile)
+        obj.loadMovie(movFile);
+      else
+        obj.loadMovie(movFile,trxFile);
+      end
+    end
+    
+    function movieSetNoMovie(obj)
+      % Set to iMov==0
+
+      obj.currMovie = 0;
+      
+      obj.movieReader = [];
+      obj.trx = [];
+      obj.frm2trx = [];
+      obj.trxIdPlusPlus2Idx = [];
+
+      obj.currFrame = 0;
+      set(obj.gdata.txCurrImTarget,'Visible','off');
+      imcurr = obj.gdata.image_curr;
+      set(imcurr,'CData',0);
+      
+      obj.currTarget = 0;      
+      
+      obj.updateFrameTableComplete();
+    end
+    
+  end
+  
+  methods (Hidden)
     
     function loadMovie(obj,movfile,trxfile)
-      % movfile: optional, movie name. If not specified, user will be
-      % prompted.
-      % trxname: optional, trx filename. If not specified, no trx file will
-      % be used. To be prompted to specify a trxfile, specify trxname as [].
+      % loadMovie(obj,movfile)
+      % loadMovie(obj,movfile,trxfile)
       
-      if exist('movfile','var')==0 || isempty(movfile)
-        lastmov = RC.getprop('lbl_lastmovie');            
-        [movfile,movpath] = uigetfile('*.*','Select video to label',lastmov);
-        if ~ischar(movfile)
-          return;
-        end
-        movfile = fullfile(movpath,movfile);
-      end
-      assert(exist(movfile,'file')>0,'File ''%s'' not found.',movfile);
-
-      tfTrx = exist('trxfile','var') > 0;
-      if tfTrx
-        if isempty(trxfile)
-          [trxfile,trxpath] = uigetfile('*.mat','Select trx file',movpath);
-          if ~ischar(trxfile)
-            % user canceled; interpret this as "there is no trx file"
-            tfTrx = false;
-          else
-            trxfile = fullfile(trxpath,trxfile);
-          end
-        end
-        if tfTrx
-          assert(exist(trxfile,'file')>0,'Trx file ''%s'' not found.');
-        end
+      assert(exist(movfile,'file')>0,'File ''%s'' not found.',movfile);      
+      if exist('trxfile','var') > 0
+        assert(exist(trxfile,'file')>0,'Trx file ''%s'' not found.');
       else
         trxfile = [];
       end
@@ -370,10 +448,7 @@ classdef Labeler < handle
       RC.saveprop('lbl_lastmovie',movfile);
       [~,obj.moviename] = myfileparts(obj.moviefile);
       
-      obj.projFSInfo = [];
-      
-      obj.trxFilename = trxfile;
-
+      obj.trxfile = trxfile;
       obj.newMovieAndTrx();
     end
                 
@@ -468,6 +543,7 @@ classdef Labeler < handle
       obj.labelPosInitWithLocked();
       obj.lblCore.clearLabels(); 
       
+      % TODO: encapsulate labelsPrev (eg in a LabelCore)
       deleteValidHandles(obj.lblPrev_ptsH);
       deleteValidHandles(obj.lblPrev_ptsTxtH);
       obj.lblPrev_ptsH = nan(obj.nLabelPoints,1);
@@ -673,6 +749,7 @@ classdef Labeler < handle
       obj.labelsPrevUpdate();
     end
     
+    % TODO: encapsulate labelsPrev (eg in a LabelCore)
     function labelsPrevUpdate(obj)
       if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
         lpos = obj.labeledpos(:,:,obj.prevFrame,obj.currTarget);
@@ -766,9 +843,9 @@ classdef Labeler < handle
       movRdr = obj.movieReader;
       nframes = movRdr.nframes;
 
-      tfTrx = ~isempty(obj.trxFilename);
+      tfTrx = ~isempty(obj.trxfile);
       if tfTrx
-        tmp = load(obj.trxFilename);
+        tmp = load(obj.trxfile);
         obj.trx = tmp.trx;
       else
         obj.trx = [];
@@ -828,6 +905,7 @@ classdef Labeler < handle
       sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
       set(obj.gdata.slider_frame,'Value',0,'SliderStep',sliderstep);
       
+      fprintf(2,'TODO: Don''t do this here');
       obj.labelPosInitWithLocked();
 
       obj.currFrame = 2; % to force update in setFrame
@@ -853,10 +931,6 @@ classdef Labeler < handle
       end            
       set(obj.gdata.image_curr,'CData',obj.currIm);
       
-      %#UI
-%      set(obj.gdata.slider_frame,'Value',(frm-1)/(obj.nframes-1));
-%       set(obj.gdata.edit_frame,'String',num2str(frm));
-
       if obj.hasTrx
         tfTargetLive = obj.frm2trx(frm,:);
         if ~tfTargetLive(obj.currTarget)
@@ -909,7 +983,7 @@ classdef Labeler < handle
       obj.setTarget(iTgt);
     end
     
-    function setTarget(obj,iTgt)      
+    function setTarget(obj,iTgt)
       % Change the target to iTgt keeping the current frame fixed.
       % iTgt: INDEX into obj.trx
       
@@ -921,7 +995,6 @@ classdef Labeler < handle
         obj.videoCenterOnCurrTarget();
         obj.labelsUpdateNewTarget();
       end
-      %obj.setTargetTxt('txCurrImTarget',iTgt);
     end
     
     function frameUpDF(obj,df)
@@ -1015,6 +1088,9 @@ classdef Labeler < handle
       %
       % might be unnecessary/premature optim
       
+      fprintf(2,'ufti early return\n');
+      return;
+      
       tbl = obj.gdata.tblFrames;
       dat = get(tbl,'Data');
       tblFrms = cell2mat(dat(:,1));      
@@ -1041,6 +1117,9 @@ classdef Labeler < handle
       end
     end    
     function updateFrameTableComplete(obj)
+      fprintf(2,'uftc early return\n');
+      return;
+      
       [nTgts,nPts] = obj.labelPosLabeledFramesStats();
       assert(isequal(nTgts>0,nPts>0));
       tfFrm = nTgts>0;

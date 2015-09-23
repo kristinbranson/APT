@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 21-Sep-2015 13:50:57
+% Last Modified by GUIDE v2.5 23-Sep-2015 10:54:21
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -74,6 +74,7 @@ hold(handles.axes_curr,'on');
 set(handles.axes_curr,'Color',[0 0 0]);
 hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
+axis(handles.axes_occ,[0 handles.labelerObj.nLabelPoints+1 0 2]);
 
 handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
 set(handles.image_prev,'hittest','off');
@@ -86,6 +87,7 @@ linkaxes([handles.axes_prev,handles.axes_curr]);
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
+listeners{end+1,1} = addlistener(handles.labelerObj,'projname','PostSet',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(handles.labelerObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(handles.labelerObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(handles.labelerObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
@@ -146,6 +148,12 @@ lObj = evt.AffectedObject;
 zf = lObj.targetZoomFac;
 set(lObj.gdata.sldZoom,'Value',zf);
 
+function cbkProjNameChanged(src,evt)
+lObj = evt.AffectedObject;
+lObj.projname;
+str = sprintf('Project %s created (unsaved) at %s',lObj.projname,datestr(now,16));
+set(lObj.gdata.txStatus,'String',str);
+
 function cbkProjFSInfoChanged(src,evt)
 lObj = evt.AffectedObject;
 info = lObj.projFSInfo;
@@ -162,7 +170,7 @@ str = sprintf('new movie %s at %s',mname,datestr(now,16));
 set(lObj.gdata.txStatus,'String',str);
 % Fragile behavior when loading projects; want project status update to
 % persist and not movie status update. This depends on detailed ordering in 
-% Labeler.loadLblFile
+% Labeler.projLoad
 
 
 function slider_frame_Callback(hObject,~)
@@ -272,15 +280,16 @@ lObj = handles.labelerObj;
 lObj.videoResetView();
 
 %% menu
+function menu_file_new_Callback(hObject, eventdata, handles)
+handles.labelerObj.projNew();
 function menu_file_save_Callback(hObject, eventdata, handles)
-handles.labelerObj.saveLblFileSmart();
+handles.labelerObj.projSaveSmart();
 function menu_file_saveas_Callback(hObject, eventdata, handles)
-handles.labelerObj.saveLblFileAs();
-
+handles.labelerObj.projSaveAs();
 function menu_file_load_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
-  lObj.loadLblFile();
+  lObj.projLoad();
 end
 
 function tfcontinue = hlpSave(labelerObj)
@@ -293,7 +302,7 @@ if labelerObj.labeledposNeedsSave
     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
   switch res
     case OPTION_SAVE
-      labelerObj.saveLblFileSmart();
+      labelerObj.projSaveSmart();
     case OPTION_CANC
       tfcontinue = false;
     case OPTION_PROC
@@ -301,23 +310,17 @@ if labelerObj.labeledposNeedsSave
   end
 end
 
-function menu_file_openmovie_Callback(hObject,~,handles)
-lObj = handles.labelerObj;
-if hlpSave(lObj)
-  lObj.loadMovie();
-  if lObj.hasMovie
-    lObj.labelingInit();
-  end
-end
+function menu_file_managemovies_Callback(hObject,~,handles)
+MovieManager(handles.labelerObj);
 
-function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
-lObj = handles.labelerObj;
-if hlpSave(lObj)
-  lObj.loadMovie([],[]);
-  if lObj.hasMovie
-    lObj.labelingInit();
-  end
-end
+% function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
+% lObj = handles.labelerObj;
+% if hlpSave(lObj)
+%   lObj.loadMovie([],[]);
+%   if lObj.hasMovie
+%     lObj.labelingInit();
+%   end
+% end
 
 function menu_help_keyboardshortcuts_Callback(hObject, eventdata, handles)
 h = handles.labelerObj.lblCore.getKeyboardShortcutsHelp();
@@ -417,3 +420,5 @@ end
 % else
 %   guidata(hObject,handles);
 % end
+
+
