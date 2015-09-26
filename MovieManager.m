@@ -22,7 +22,7 @@ function varargout = MovieManager(varargin)
 
 % Edit the above text to modify the response to help MovieManager
 
-% Last Modified by GUIDE v2.5 23-Sep-2015 10:40:31
+% Last Modified by GUIDE v2.5 24-Sep-2015 17:23:26
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -55,7 +55,10 @@ mprops = mcls.PropertyList;
 mprops = mprops(ismember({mprops.Name}',PROPS));
 handles.listener = event.proplistener(lObj,...
   mprops,'PostSet',@(src,evt)lclUpdateTable(handles));
+handles.selectedRow = [];
 guidata(hObject,handles);
+
+centerfig(handles.figure1,handles.labeler.gdata.figure);
 
 lclUpdateTable(handles);
 
@@ -99,13 +102,19 @@ end
 
 function tblMovies_CellSelectionCallback(hObject, eventdata, handles)
 row = eventdata.Indices;
-if ~isempty(row)
+if isempty(row)
+  handles.selectedRow = [];
+else
   row = row(1);
-  handles.selectedRow = row;
-  guidata(hObject,handles);
-  
-  switch handles.figure1.SelectionType
-    case 'open' % double-click
-      handles.labeler.movieSet(row);
-  end
+  handles.selectedRow = row;  
+%   switch handles.figure1.SelectionType
+%     case 'open' % double-click
+%       handles.labeler.movieSet(row);
+%   end
+end
+guidata(hObject,handles);
+
+function pbSwitch_Callback(hObject, eventdata, handles)
+if ~isempty(handles.selectedRow)
+  handles.labeler.movieSet(handles.selectedRow);
 end

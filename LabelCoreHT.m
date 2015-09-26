@@ -103,7 +103,7 @@ classdef LabelCoreHT < LabelCore
   methods
     
     function newFrame(obj,~,iFrm1,iTgt)
-      xy = obj.labeler.labeledpos(:,:,iFrm1,iTgt);
+      xy = obj.labeler.labeledpos{obj.currMovie}(:,:,iFrm1,iTgt);
       tfUnlbled = isnan(xy(:,1));
       tfLbledOrOcc = ~tfUnlbled;
 

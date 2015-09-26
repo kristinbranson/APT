@@ -311,7 +311,8 @@ if labelerObj.labeledposNeedsSave
 end
 
 function menu_file_managemovies_Callback(hObject,~,handles)
-MovieManager(handles.labelerObj);
+h = MovieManager(handles.labelerObj);
+handles.labelerObj.addDepHandle(h);
 
 % function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
 % lObj = handles.labelerObj;
@@ -353,6 +354,7 @@ CloseGUI(handles);
 function CloseGUI(handles)
 if hlpSave(handles.labelerObj)
   delete(handles.figure);
+  delete(handles.labelerObj);
 end
 
 
