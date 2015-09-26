@@ -7,12 +7,14 @@ classdef Labeler < handle
     PREF_FILENAME = 'pref.yaml';
 
     SAVEPROPS = { ...
-      'VERSION' 'projname' ...
+      'VERSION' ...
       'movieFilesAll' 'trxFilesAll' 'labeledpos' ...      
-      'currMovie' 'currFrame' 'currTarget' 'minv' 'maxv' ...
-      'labelMode' 'nLabelPoints' 'labelPointsPlotInfo'};
+      'currMovie' 'currFrame' 'currTarget' ...
+      'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
+      'minv' 'maxv'};
     LOADPROPS = {...
       'movieFilesAll' 'trxFilesAll' 'labeledpos' ...
+      'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
       'minv' 'maxv'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
@@ -26,7 +28,7 @@ classdef Labeler < handle
   
   %% Project
   properties (SetObservable)
-    projname
+    projname              % currently this is same as short filename (with ext) of lblfile
     projFSInfo;           % ProjectFSInfo
   end
   properties (Dependent)
@@ -80,13 +82,17 @@ classdef Labeler < handle
   properties (SetAccess=private)
     %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
     nLabelPoints;         % scalar integer
-    labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints
-    
+    labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints    
     labelMode;            % scalar LabelMode
+    labelTemplate;
+    
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov)
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save
+  end
+  properties (Dependent)
+    labeledposCurrMovie;
   end
   properties
     lblCore;
@@ -187,6 +193,13 @@ classdef Labeler < handle
     function v = get.nmovies(obj)
       v = numel(obj.movieFilesAll);
     end
+    function v = get.labeledposCurrMovie(obj)
+      if obj.currMovie==0
+        v = [];
+      else
+        v = obj.labeledpos{obj.currMovie};
+      end      
+    end
   end
   
   methods % prop access
@@ -247,6 +260,19 @@ classdef Labeler < handle
   %% Project
   methods
     
+    function projQuickOpen(obj,movfile,trxfile)
+      % Create a new project; add the mov/trx; open the movie
+      
+      assert(exist(movfile,'file')>0);
+      assert(isempty(trxfile) || exist(trxfile,'file')>0);
+      
+      [~,projName,~] = fileparts(movfile);
+      projName = sprintf(obj.DEFAULT_LBLFILENAME,projName);
+      obj.projNew(projName);      
+      obj.movieAdd(movfile,trxfile);
+      obj.movieSet(1);
+    end
+    
     function projNew(obj,name)
       if exist('name','var')==0
         resp = inputdlg('Project name:','New Project');
@@ -290,8 +316,7 @@ classdef Labeler < handle
         savepath = fileparts(lastLblFile);
       end
       
-      defaultFname = sprintf(obj.DEFAULT_LBLFILENAME,obj.projname);
-      filterspec = fullfile(savepath,defaultFname);
+      filterspec = fullfile(savepath,obj.projname);
       [lblfname,pth] = uiputfile(filterspec,'Save label file');
       if isequal(lblfname,0)
         lblfname = [];
@@ -300,6 +325,7 @@ classdef Labeler < handle
         lblfname = fullfile(pth,lblfname);
         success = true;
         obj.projSaveRaw(lblfname);
+        obj.projname = lblfname;
       end      
     end
     
@@ -322,7 +348,7 @@ classdef Labeler < handle
       
       switch obj.labelMode
         case LabelMode.TEMPLATE
-          s.template = obj.lblCore.getTemplate();
+          s.labelTemplate = obj.lblCore.getTemplate();
       end
     end
     
@@ -349,29 +375,22 @@ classdef Labeler < handle
         error('Labeler:load','Unexpected contents in Label file.');
       end
       
+      obj.isinit = true;
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
         obj.(f) = s.(f);
       end
+      obj.isinit = false;
       
-      if obj.nmovies==0
+      if obj.nmovies==0 || s.currMovie==0
         obj.movieSetNoMovie();
       else
         obj.movieSet(s.currMovie);
       end
       
-      assert(isa(s.labelMode,'LabelMode'));
-      if isfield(s,'template')
-        template = s.template;
-      else 
-        template = [];
-      end
-      
-      obj.labelingInit('labelMode',s.labelMode,'nPts',s.nLabelPoints,...
-        'labelPointsPlotInfo',s.labelPointsPlotInfo,'template',template);
-%       obj.labeledpos = s.labeledpos;      
+      assert(isa(s.labelMode,'LabelMode'));      
       obj.labeledposNeedsSave = false;
-      
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
+      [~,obj.projname] = myfileparts(fname);
 
       obj.setTarget(s.currTarget);
       obj.setFrame(s.currFrame,'forceUpdate',true);
@@ -428,7 +447,10 @@ classdef Labeler < handle
       
       obj.trxfile = trxFile;
       obj.newMovieAndTrx();
-            
+      
+      % AL: Proj/Movie/LblCore initialization is passable but not super-clean yet
+      obj.labelingInit();
+
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov; 
       if isempty(obj.labeledpos{iMov})
@@ -447,9 +469,7 @@ classdef Labeler < handle
         obj.videoSetTargetZoomFac(obj.targetZoomFac);
       end
       
-      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI 
-      
-      obj.labelingInit();
+      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI       
     end
     
     function movieSetNoMovie(obj)
@@ -476,27 +496,12 @@ classdef Labeler < handle
   methods
     
     function labelingInit(obj,varargin)
-      % Initialize labeling state
-      % 
-      % Optional PVs:
-      % - labelMode. Defaults to .labelMode
-      % - nPts. Defaults to current nPts
-      % - labelPointsPlotInfo. Defaults to current
-      % - template.
-      
-      [lblmode,nPts,lblPtsPlotInfo,template] = myparse(varargin,...
-        'labelMode',obj.labelMode,...
-        'nPts',obj.nLabelPoints,...
-        'labelPointsPlotInfo',obj.labelPointsPlotInfo,...
-        'template',[]);
-      assert(isa(lblmode,'LabelMode'));
-      validateattributes(nPts,{'numeric'},{'scalar' 'positive' 'integer'});
-      % assert(iscellstr(ptNames) && numel(ptNames)==nPts);
-      % assert(isequal(size(labelPointsPlotInfo),[nPts 3]));
-      
-      obj.labelMode = lblmode;
-      obj.nLabelPoints = nPts;
-      obj.labelPointsPlotInfo = lblPtsPlotInfo;
+      % Create LabelCore and call labelCore.init() based on current 
+      % .labelMode, .nLabelPoints, .labelPointsPlotInfo, .labelTemplate      
+     
+      nPts = obj.nLabelPoints;
+      lblPtsPlotInfo = obj.labelPointsPlotInfo;
+      template = obj.labelTemplate;
       
       gd = obj.gdata;
       lc = obj.lblCore;
@@ -518,7 +523,7 @@ classdef Labeler < handle
         delete(lc);
         obj.lblCore = [];
       end
-      switch lblmode
+      switch obj.labelMode
         case LabelMode.SEQUENTIAL
           obj.lblCore = LabelCoreSeq(obj);
           gd.menu_setup_sequential_mode.Enable = 'on';

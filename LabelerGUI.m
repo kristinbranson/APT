@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 23-Sep-2015 10:54:21
+% Last Modified by GUIDE v2.5 26-Sep-2015 11:13:19
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -150,9 +150,10 @@ set(lObj.gdata.sldZoom,'Value',zf);
 
 function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
-lObj.projname;
-str = sprintf('Project %s created (unsaved) at %s',lObj.projname,datestr(now,16));
+pname = lObj.projname;
+str = sprintf('Project %s created (unsaved) at %s',pname,datestr(now,16));
 set(lObj.gdata.txStatus,'String',str);
+set(lObj.gdata.txProjectName,'String',pname);
 
 function cbkProjFSInfoChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -280,8 +281,20 @@ lObj = handles.labelerObj;
 lObj.videoResetView();
 
 %% menu
+function menu_file_quick_open_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+if hlpSave(lObj)
+  [tfsucc,movfile,trxfile] = promptGetMovTrxFiles();
+  if ~tfsucc
+    return;
+  end
+end
+handles.labelerObj.projQuickOpen(movfile,trxfile);
 function menu_file_new_Callback(hObject, eventdata, handles)
-handles.labelerObj.projNew();
+lObj = handles.labelerObj;
+if hlpSave(lObj)
+  lObj.projNew();
+end
 function menu_file_save_Callback(hObject, eventdata, handles)
 handles.labelerObj.projSaveSmart();
 function menu_file_saveas_Callback(hObject, eventdata, handles)
@@ -422,5 +435,3 @@ end
 % else
 %   guidata(hObject,handles);
 % end
-
-

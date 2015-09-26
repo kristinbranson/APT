@@ -77,21 +77,10 @@ dat = [movs cellfun(@(x)~isempty(x),trxs,'uni',0)];
 set(handles.tblMovies,'Data',dat);
 
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
-lastmov = RC.getprop('lbl_lastmovie');
-[movfile,movpath] = uigetfile('*.*','Select video',lastmov);
-if ~ischar(movfile)
+[tfsucc,movfile,trxfile] = promptGetMovTrxFiles();
+if ~tfsucc
   return;
 end
-movfile = fullfile(movpath,movfile);
-
-[trxfile,trxpath] = uigetfile('*.mat','Select trx file',movpath);
-if ~ischar(trxfile)
-  % user canceled; interpret this as "there is no trx file"
-  trxfile = [];
-else
-  trxfile = fullfile(trxpath,trxfile);
-end
-
 handles.labeler.movieAdd(movfile,trxfile);
 
 function pbRm_Callback(hObject, eventdata, handles)
