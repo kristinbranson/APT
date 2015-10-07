@@ -784,7 +784,7 @@ classdef Labeler < handle
     end
     
     function tf = labelposMovieHasLabels(obj,iMov)
-      lpos = obj.labelpos{iMov};
+      lpos = obj.labeledpos{iMov};
       tf = any(~isnan(lpos(:)));
     end
            

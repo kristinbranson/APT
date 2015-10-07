@@ -69,7 +69,7 @@ function lclUpdateTable(handles)
 lObj = handles.labeler;
 movs = lObj.movieFilesAll;
 trxs = lObj.trxFilesAll;
-if numel(movs)~=size(trxs)
+if numel(movs)~=numel(trxs)
   % intermediate state, take no action
   return;
 end
