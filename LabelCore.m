@@ -39,6 +39,21 @@ classdef LabelCore < handle
     tfOcc;                % nPts x 1 logical
   end
   
+  methods (Static)
+    
+    function obj = create(labelerObj,labelMode)
+      switch labelMode
+        case LabelMode.SEQUENTIAL
+          obj = LabelCoreSeq(labelerObj);
+        case LabelMode.TEMPLATE
+          obj = LabelCoreTemplate(labelerObj);
+        case LabelMode.HIGHTHROUGHPUT
+          obj = LabelCoreHT(labelerObj);
+      end
+    end
+    
+  end
+  
   methods (Sealed=true)
     
     function obj = LabelCore(labelerObj)

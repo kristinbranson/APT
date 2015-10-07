@@ -449,9 +449,6 @@ classdef Labeler < handle
       obj.trxfile = trxFile;
       obj.newMovieAndTrx();
       
-      % AL: Proj/Movie/LblCore initialization is passable but not super-clean yet
-      obj.labelingInit();
-
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov; 
       if isempty(obj.labeledpos{iMov})
@@ -471,6 +468,15 @@ classdef Labeler < handle
       end
       
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI       
+      
+      obj.labelingInit();
+      % AL: Proj/Movie/LblCore initialization not super-clean yet
+      % Call setFrame again now that lblCore is set up
+      if obj.hasTrx
+        obj.setFrame(obj.trx(1).firstframe,'forceupdate',true);
+      else
+        obj.setFrame(1,'forceupdate',true);
+      end      
     end
     
     function movieSetNoMovie(obj)
@@ -528,9 +534,9 @@ classdef Labeler < handle
         delete(lc);
         obj.lblCore = [];
       end
+      obj.lblCore = LabelCore.create(obj,obj.labelMode);
       switch obj.labelMode
         case LabelMode.SEQUENTIAL
-          obj.lblCore = LabelCoreSeq(obj);
           gd.menu_setup_sequential_mode.Enable = 'on';
           gd.menu_setup_sequential_mode.Checked = 'on';
           gd.menu_setup_template_mode.Enable = 'off';
@@ -539,10 +545,8 @@ classdef Labeler < handle
           gd.menu_setup_highthroughput_mode.Checked = 'off';
           gd.menu_setup_createtemplate.Enable = 'off';
   
-          obj.lblCore.init(nPts,lblPtsPlotInfo);
-          
+          obj.lblCore.init(nPts,lblPtsPlotInfo);          
         case LabelMode.TEMPLATE
-          obj.lblCore = LabelCoreTemplate(obj);
           gd.menu_setup_sequential_mode.Enable = 'off';
           gd.menu_setup_sequential_mode.Checked = 'off';
           gd.menu_setup_template_mode.Enable = 'on';
@@ -556,7 +560,6 @@ classdef Labeler < handle
             obj.lblCore.setTemplate(template);
           end
         case LabelMode.HIGHTHROUGHPUT
-          obj.lblCore = LabelCoreHT(obj);
           gd.menu_setup_sequential_mode.Enable = 'off';
           gd.menu_setup_sequential_mode.Checked = 'off';
           gd.menu_setup_template_mode.Enable = 'off';
@@ -802,6 +805,9 @@ classdef Labeler < handle
   methods (Access=private)
     
     function labelsUpdateNewFrame(obj,force)
+      if obj.isinit
+        return;
+      end
       if exist('force','var')==0
         force = false;
       end
@@ -820,6 +826,9 @@ classdef Labeler < handle
     
     % TODO: encapsulate labelsPrev (eg in a LabelCore)
     function labelsPrevUpdate(obj)
+      if obj.isinit
+        return;
+      end
       if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
         iMov = obj.currMovie;
         lpos = obj.labeledpos{iMov}(:,:,obj.prevFrame,obj.currTarget);
