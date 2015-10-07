@@ -3,16 +3,18 @@ classdef Labeler < handle
 
   properties (Constant,Hidden)
     VERSION = '0.0';
-    DEFAULT_LBLFILENAME = '%s_lbl.mat';    
+    DEFAULT_LBLFILENAME = '%s.lbl';    
     PREF_FILENAME = 'pref.yaml';
 
     SAVEPROPS = { ...
       'VERSION' ...
+      'projname' ...
       'movieFilesAll' 'trxFilesAll' 'labeledpos' ...      
       'currMovie' 'currFrame' 'currTarget' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
       'minv' 'maxv'};
     LOADPROPS = {...
+      'projname' ...
       'movieFilesAll' 'trxFilesAll' 'labeledpos' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
       'minv' 'maxv'};
@@ -28,7 +30,7 @@ classdef Labeler < handle
   
   %% Project
   properties (SetObservable)
-    projname              % currently this is same as short filename (with ext) of lblfile
+    projname              % 
     projFSInfo;           % ProjectFSInfo
   end
   properties (Dependent)
@@ -267,7 +269,6 @@ classdef Labeler < handle
       assert(isempty(trxfile) || exist(trxfile,'file')>0);
       
       [~,projName,~] = fileparts(movfile);
-      projName = sprintf(obj.DEFAULT_LBLFILENAME,projName);
       obj.projNew(projName);      
       obj.movieAdd(movfile,trxfile);
       obj.movieSet(1);
@@ -283,12 +284,12 @@ classdef Labeler < handle
       end
       
       obj.projname = name;
+      obj.projFSInfo = [];
       obj.movieFilesAll = cell(0,1);
       obj.trxFilesAll = cell(0,1);
       obj.movieSetNoMovie(); % order important here
       obj.labeledpos = cell(0,1);
-
-      %obj.notify('newProject');
+      obj.updateFrameTableComplete();
     end
       
     function projSaveRaw(obj,fname)
@@ -316,7 +317,8 @@ classdef Labeler < handle
         savepath = fileparts(lastLblFile);
       end
       
-      filterspec = fullfile(savepath,obj.projname);
+      projfile = sprintf(obj.DEFAULT_LBLFILENAME,obj.projname);
+      filterspec = fullfile(savepath,projfile);
       [lblfname,pth] = uiputfile(filterspec,'Save label file');
       if isequal(lblfname,0)
         lblfname = [];
@@ -325,7 +327,6 @@ classdef Labeler < handle
         lblfname = fullfile(pth,lblfname);
         success = true;
         obj.projSaveRaw(lblfname);
-        obj.projname = lblfname;
       end      
     end
     
@@ -374,6 +375,7 @@ classdef Labeler < handle
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
         error('Labeler:load','Unexpected contents in Label file.');
       end
+      RC.saveprop('lastLblFile',fname);
       
       obj.isinit = true;
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
@@ -390,7 +392,6 @@ classdef Labeler < handle
       assert(isa(s.labelMode,'LabelMode'));      
       obj.labeledposNeedsSave = false;
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
-      [~,obj.projname] = myfileparts(fname);
 
       obj.setTarget(s.currTarget);
       obj.setFrame(s.currFrame,'forceUpdate',true);
@@ -477,7 +478,9 @@ classdef Labeler < handle
 
       obj.currMovie = 0;
       
-      %obj.movieReader = [];
+      obj.movieReader.close();
+      obj.moviename = '';
+      obj.trxfile = '';
       obj.trx = [];
       obj.frm2trx = [];
       obj.trxIdPlusPlus2Idx = [];
@@ -486,8 +489,10 @@ classdef Labeler < handle
       set(obj.gdata.txCurrImTarget,'Visible','off');
       imcurr = obj.gdata.image_curr;
       set(imcurr,'CData',0);
+      imprev = obj.gdata.image_prev;
+      set(imprev,'CData',0);
       
-      obj.currTarget = 0; 
+      obj.currTarget = 0;
     end
     
   end
@@ -730,20 +735,24 @@ classdef Labeler < handle
       %   for each frame in consideration, across all targets
       
       if exist('frms','var')==0
-        frms = 1:obj.nframes;
+        if isnan(obj.nframes)
+          frms = [];
+        else
+          frms = 1:obj.nframes;
+        end
         tfWaitBar = true;
       else
         tfWaitBar = false;
       end
       
       if ~obj.hasMovie || obj.currMovie==0 % invariants temporarily broken
-        nTgts = nan;
-        nPts = nan;
+        nTgts = nan(numel(frms),1);
+        nPts = nan(numel(frms),1);
         return;
       end
       
       nf = numel(frms);
-      npts = obj.nLabelPoints;
+      %npts = obj.nLabelPoints;
       ntgts = obj.nTargets;
       lpos = obj.labeledpos{obj.currMovie};
       tflpos = ~isnan(lpos); % true->labeled (either regular or occluded)      

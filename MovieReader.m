@@ -67,8 +67,9 @@ classdef MovieReader < handle
       obj.nc = nan;
       
       obj.fid = nan;
-    end
-      
+      obj.filename = '';
+    end    
+  
     function delete(obj)
       obj.close();
     end

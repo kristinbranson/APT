@@ -119,7 +119,11 @@ nfrm = lObj.nframes;
 gdata = lObj.gdata;
 %set(gdata.txCurrImFrame,'String',sprintf('frm: %d',frm));
 set(gdata.edit_frame,'String',num2str(frm));
-set(gdata.slider_frame,'Value',(frm-1)/(nfrm-1));
+sldval = (frm-1)/(nfrm-1);
+if isnan(sldval)
+  sldval = 0;
+end
+set(gdata.slider_frame,'Value',sldval);
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -167,12 +171,14 @@ function cbkMovienameChanged(src,evt)
 lObj = evt.AffectedObject;
 mname = lObj.moviename;
 set(lObj.gdata.txMoviename,'String',mname);
-str = sprintf('new movie %s at %s',mname,datestr(now,16));
-set(lObj.gdata.txStatus,'String',str);
-% Fragile behavior when loading projects; want project status update to
-% persist and not movie status update. This depends on detailed ordering in 
-% Labeler.projLoad
-
+if ~isempty(mname)
+  str = sprintf('new movie %s at %s',mname,datestr(now,16));
+  set(lObj.gdata.txStatus,'String',str);
+  
+  % Fragile behavior when loading projects; want project status update to
+  % persist and not movie status update. This depends on detailed ordering in 
+  % Labeler.projLoad
+end
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
