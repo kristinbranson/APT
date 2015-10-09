@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 26-Sep-2015 11:13:19
+% Last Modified by GUIDE v2.5 08-Oct-2015 14:35:55
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -84,17 +84,19 @@ set(handles.axes_prev,'Color',[0 0 0]);
 
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
+lObj = handles.labelerObj;
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
-listeners{end+1,1} = addlistener(handles.labelerObj,'projname','PostSet',@cbkProjNameChanged);
-listeners{end+1,1} = addlistener(handles.labelerObj,'currFrame','PostSet',@cbkCurrFrameChanged);
-listeners{end+1,1} = addlistener(handles.labelerObj,'currTarget','PostSet',@cbkCurrTargetChanged);
-listeners{end+1,1} = addlistener(handles.labelerObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
-listeners{end+1,1} = addlistener(handles.labelerObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
-listeners{end+1,1} = addlistener(handles.labelerObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
-listeners{end+1,1} = addlistener(handles.labelerObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
-listeners{end+1,1} = addlistener(handles.labelerObj,'moviename','PostSet',@cbkMovienameChanged);
+listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
+listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
+listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
+listeners{end+1,1} = addlistener(lObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
+listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
+listeners{end+1,1} = addlistener(lObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
+listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
+listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
+listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
 handles.listeners = listeners;
 
 set(handles.output,'Toolbar','figure');
@@ -117,7 +119,6 @@ lObj = evt.AffectedObject;
 frm = lObj.currFrame;
 nfrm = lObj.nframes;
 gdata = lObj.gdata;
-%set(gdata.txCurrImFrame,'String',sprintf('frm: %d',frm));
 set(gdata.edit_frame,'String',num2str(frm));
 sldval = (frm-1)/(nfrm-1);
 if isnan(sldval)
@@ -134,7 +135,7 @@ function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
 if lObj.hasTrx
   id = lObj.currTrxID;
-  set(lObj.gdata.txCurrImTarget,'String',sprintf('tgtID: %d',id));
+  lObj.currImHud.updateTarget(id);
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
@@ -178,6 +179,49 @@ if ~isempty(mname)
   % Fragile behavior when loading projects; want project status update to
   % persist and not movie status update. This depends on detailed ordering in 
   % Labeler.projLoad
+end
+
+function cbkSuspScoreChanged(src,evt)
+lObj = evt.AffectedObject;
+ss = lObj.suspScore;
+pnlSusp = lObj.gdata.pnlSusp;
+tblSusp = lObj.gdata.tblSusp;
+
+if ~isempty(ss) && lObj.hasMovie
+  nfrms = lObj.nframes;
+  ntgts = lObj.nTargets;
+  [tgt,frm] = meshgrid(1:ntgts,1:nfrms);
+  ss = ss{lObj.currMovie};
+  
+  frm = frm(:);
+  tgt = tgt(:);
+  ss = ss(:);
+  [ss,idx] = sort(ss,1,'descend');
+  frm = frm(idx);
+  tgt = tgt(idx);
+  
+  mat = [frm tgt ss];
+  tblSusp.Data = mat;
+  pnlSusp.Visible = 'on';
+  
+  % make tblSusp column-sortable. 
+  % AL 201510: Tried putting this in opening_fcn but
+  % got weird behavior (findjobj couldn't find jsp)
+  jscrollpane = findjobj(tblSusp);
+  jtable = jscrollpane.getViewport.getView;
+  jtable.setSortable(true);		% or: set(jtable,'Sortable','on');
+  jtable.setAutoResort(true);
+  jtable.setMultiColumnSortable(true);
+  jtable.setPreserveSelectionsAfterSorting(true);
+  % reset ColumnWidth, jtable messes it up
+  cwidth = tblSusp.ColumnWidth;
+  cwidth{end} = cwidth{end}-1;
+  tblSusp.ColumnWidth = cwidth;
+  cwidth{end} = cwidth{end}+1;
+  tblSusp.ColumnWidth = cwidth;
+else
+  tblSusp.Data = cell(0,3);
+  pnlSusp.Visible = 'off';
 end
 
 function slider_frame_Callback(hObject,~)
@@ -285,6 +329,17 @@ hlpRemoveFocus(hObject,handles);
 function pbResetZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.videoResetView();
+
+function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+row = eventdata.Indices;
+if ~isempty(row)
+  row = row(1);
+  dat = get(hObject,'Data');
+  lObj.setFrame(dat{row,1});
+end
+
+hlpRemoveFocus(hObject,handles);
 
 %% menu
 function menu_file_quick_open_Callback(hObject, eventdata, handles)
@@ -441,3 +496,6 @@ end
 % else
 %   guidata(hObject,handles);
 % end
+
+
+

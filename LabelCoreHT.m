@@ -92,8 +92,8 @@ classdef LabelCoreHT < LabelCore
       
       set(obj.hPts,'HitTest','off');
       set(obj.hPtsTxt,'HitTest','off');
-      set(obj.labeler.gdata.txCurrImAux,'Visible','on');
       set(obj.labeler.gdata.tbAccept,'Enable','off');
+      obj.labeler.currImHud.setReadoutFields('hasLblPt',true);
 
       obj.setIPoint(1);
     end
@@ -220,9 +220,8 @@ classdef LabelCoreHT < LabelCore
       end
       
       obj.iPoint = iPt;
-      str = sprintf('Lbl pt: %d/%d',iPt,obj.labeler.nLabelPoints);
       lObj = obj.labeler;
-      set(lObj.gdata.txCurrImAux,'String',str);
+      lObj.currImHud.updateLblPoint(iPt,obj.labeler.nLabelPoints);
       obj.newFrame([],lObj.currFrame,lObj.currTarget);      
     end    
     

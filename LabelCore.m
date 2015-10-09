@@ -102,8 +102,8 @@ classdef LabelCore < handle
       hTmp = findall(obj.hFig,'-property','KeyPressFcn','-not','Tag','edit_frame');
       set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
       
-      set(obj.labeler.gdata.txCurrImAux,'Visible','off');
       set(obj.labeler.gdata.tbAccept,'Enable','on');
+      obj.labeler.currImHud.setReadoutFields('hasLblPt',false);
       
       obj.initHook();
     end

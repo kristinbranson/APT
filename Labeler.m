@@ -9,15 +9,17 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' ...
       'projname' ...
-      'movieFilesAll' 'trxFilesAll' 'labeledpos' ...      
+      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' ...      
       'currMovie' 'currFrame' 'currTarget' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
-      'minv' 'maxv'};
+      'minv' 'maxv'...
+      'suspScore'};
     LOADPROPS = {...
       'projname' ...
-      'movieFilesAll' 'trxFilesAll' 'labeledpos' ...
+      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
-      'minv' 'maxv'};
+      'minv' 'maxv' ...
+      'suspScore'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
     TBLTRX_STATIC_COLSTRX = {'id' 'labeled'};
@@ -43,6 +45,7 @@ classdef Labeler < handle
     minv = 0;
     maxv = inf;
     movieFrameStepBig = 10;
+    movieInfoAll = cell(0,1); % column cell-of-structs, same size as movieFilesAll
   end
   properties (SetObservable)
     movieFilesAll = cell(0,1); % column cellstr, full paths to movies
@@ -101,7 +104,12 @@ classdef Labeler < handle
     
     lblPrev_ptsH;         % TODO: encapsulate labelsPrev (eg in a LabelCore)
     lblPrev_ptsTxtH;                          
-  end  
+  end 
+  
+  %% Suspiciousness
+  properties (SetObservable)
+    suspScore; % column cell vec same size as labeledpos. suspScore{iMov} is nFrm(iMov) x nTrx(iMov)
+  end
   
   %% Misc
   properties (SetObservable, AbortSet)
@@ -109,7 +117,9 @@ classdef Labeler < handle
     currFrame = 1;        % current frame
     prevFrame = nan;      % last previously VISITED frame
     currTarget = nan;
-    prevTarget = nan;    
+    prevTarget = nan;  
+    
+    currImHud; % scalar AxisHUD object
   end
   properties
     currIm = [];
@@ -229,7 +239,8 @@ classdef Labeler < handle
       end      
       hFig = LabelerGUI(obj);
       obj.gdata = guidata(hFig);      
-      obj.movieReader = MovieReader;      
+      obj.movieReader = MovieReader;  
+      obj.currImHud = AxisHUD(obj.gdata.axes_curr);
     end
     
     function initFromPrefs(obj,pref)
@@ -286,6 +297,7 @@ classdef Labeler < handle
       obj.projname = name;
       obj.projFSInfo = [];
       obj.movieFilesAll = cell(0,1);
+      obj.movieInfoAll = cell(0,1);
       obj.trxFilesAll = cell(0,1);
       obj.movieSetNoMovie(); % order important here
       obj.labeledpos = cell(0,1);
@@ -379,7 +391,13 @@ classdef Labeler < handle
       
       obj.isinit = true;
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
-        obj.(f) = s.(f);
+        if isfield(s,f)
+          obj.(f) = s.(f);          
+        else
+          warningNoTrace('Labeler:load',...
+          'Missing load field ''%s''. Setting to empty.',f);
+          obj.(f) = [];
+        end
       end
       obj.isinit = false;
       
@@ -415,7 +433,15 @@ classdef Labeler < handle
       assert(exist(moviefile,'file')>0,'Cannot find file ''%s''.',moviefile);
       assert(isempty(trxfile) || exist(trxfile,'file')>0,'Cannot find file ''%s''.',trxfile);
       
+      mr = MovieReader();
+      mr.open(moviefile);
+      ifo = struct();
+      ifo.nframes = mr.nframes;
+      ifo.info = mr.info;
+      mr.close();
+      
       obj.movieFilesAll{end+1,1} = moviefile;
+      obj.movieInfoAll{end+1,1} = ifo;
       obj.trxFilesAll{end+1,1} = trxfile;
       obj.labeledpos{end+1,1} = [];   
     end
@@ -430,6 +456,7 @@ classdef Labeler < handle
       end
       
       obj.movieFilesAll(iMov,:) = [];
+      obj.movieInfoAll(iMov,:) = [];
       obj.trxFilesAll(iMov,:) = [];
       obj.labeledpos(iMov,:) = [];
       if obj.currMovie>iMov
@@ -492,7 +519,7 @@ classdef Labeler < handle
       obj.trxIdPlusPlus2Idx = [];
 
       obj.currFrame = 1;
-      set(obj.gdata.txCurrImTarget,'Visible','off');
+      %set(obj.gdata.txCurrImTarget,'Visible','off');
       imcurr = obj.gdata.image_curr;
       set(imcurr,'CData',0);
       imprev = obj.gdata.image_prev;
@@ -841,6 +868,29 @@ classdef Labeler < handle
   
   end
    
+  %% Susp
+  
+  methods
+    
+    function setSuspScore(obj,ss)
+      if isequal(ss,[])
+        % none; this is ok
+      else
+        nMov = obj.nmovies;
+        nTgt = obj.nTargets;
+        assert(iscell(ss) && isvector(ss) && numel(ss)==nMov);
+        for iMov = 1:nMov
+          ifo = obj.movieInfoAll{iMov};        
+          assert(isequal(size(ss{iMov}),[ifo.nframes nTgt]),...
+            'Size mismatch for score for movie %d.',iMov);
+        end
+      end
+      
+      obj.suspScore = ss;
+    end      
+      
+  end
+  
   %% Video
   methods
     
@@ -926,11 +976,10 @@ classdef Labeler < handle
       if tfTrx
         tmp = load(obj.trxfile);
         obj.trx = tmp.trx;
-        set(obj.gdata.txCurrImTarget,'Visible','on'); %UI      
       else
         obj.trx = [];
-        set(obj.gdata.txCurrImTarget,'Visible','off'); %UI
       end
+      obj.currImHud.setReadoutFields('hasTgt',tfTrx);
                   
       f2t = false(obj.nframes,obj.nTrx);
       if tfTrx
@@ -998,10 +1047,11 @@ classdef Labeler < handle
           % Automatically select a new target.
           
           iTgt1stLive = find(tfTargetLive,1);
+          iTgt1stLiveID = obj.trx(iTgt1stLive).id;
           assert(~isempty(iTgt1stLive),'TODO: No targets present in current frame.');          
           warningNoTrace('Labeler:newTarget',...
             'Current target (ID %d) is not present in frame=%d. Switching to target ID %d.',...
-            obj.currTrxID,frm,obj.trx(iTgt1stLive).id);
+            obj.currTrxID,frm,iTgt1stLiveID);
           
           %%% This section follows what Labeler.setTarget() does
           obj.prevTarget = iTgt1stLive;
@@ -1024,7 +1074,7 @@ classdef Labeler < handle
           
           obj.labelsUpdateNewTarget();
           
-          %obj.setTargetTxt('txCurrImTarget',iTgt1stLive);
+          obj.currImHud.updateTarget(iTgt1stLiveID);
           
           %%% End follow Labeler.setTarget() 
         end
