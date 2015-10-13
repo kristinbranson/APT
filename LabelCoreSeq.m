@@ -42,11 +42,15 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSL>
-      obj.newFrameOrTarget(iFrm1,iTgt);
+      obj.newFrameTarget(iFrm1,iTgt);
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSL>
-      obj.newFrameOrTarget(iFrm,iTgt1);
+      obj.newFrameTarget(iFrm,iTgt1);
+    end
+    
+    function newFrameAndTarget(obj,~,iFrm1,~,iTgt1)
+      obj.newFrameTarget(iFrm1,iTgt1);
     end
     
     function clearLabels(obj)
@@ -151,7 +155,7 @@ classdef LabelCoreSeq < LabelCore
   
   methods
     
-    function newFrameOrTarget(obj,iFrm,iTgt)
+    function newFrameTarget(obj,iFrm,iTgt)
       % React to new frame or target. Set mode1 label state (.lbl1_*) 
       % according to labelpos. If a frame is not labeled, then start fresh 
       % in Label state. Otherwise, start in Accepted state with saved labels.

@@ -86,49 +86,57 @@ classdef LabelCoreTemplate < LabelCore
   end
   
   methods
+
+    % For LabelCoreTemplate, newFrameAndTarget() combines all the brains of
+    % transitions for convenience reasons
     
     function newFrame(obj,iFrm0,iFrm1,iTgt)
-      [tflabeled,lpos] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt);
-      if tflabeled
-        obj.assignLabelCoords(lpos);
-        obj.enterAccepted(false);
-      else
-        if obj.labeler.hasTrx
-          % existing points are aligned onto new frame based on trx at
-          % (currTarget,prevFrame) and (currTarget,currFrame)
-          
-          xy0 = obj.getLabelCoords();
-          xy = LabelCore.transformPtsTrx(xy0,obj.labeler.trx(iTgt),iFrm0,obj.labeler.trx(iTgt),iFrm1);          
-          obj.assignLabelCoords(xy,'tfClip',true);
-        else
-          % none, leave pts as-is
-        end          
-        obj.enterAdjust(true,false);
-      end
+      obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt);
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm)
-      [tflabeled,lpos] = obj.labeler.labelPosIsLabeled(iFrm,iTgt1);
+      obj.newFrameAndTarget(iFrm,iFrm,iTgt0,iTgt1);
+    end
+    
+    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
+      [tflabeled,lpos] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
       if tflabeled
         obj.assignLabelCoords(lpos);
         obj.enterAccepted(false);
       else
-        assert(obj.labeler.hasTrx);
+        if iTgt0==iTgt1 % same target, new frame
+          if obj.labeler.hasTrx
+            % existing points are aligned onto new frame based on trx at
+            % (currTarget,prevFrame) and (currTarget,currFrame)
 
-        [tfneighbor,iFrm0,lpos0] = obj.labeler.labelPosLabeledNeighbor(iFrm,iTgt1);
-        if tfneighbor
-          xy = LabelCore.transformPtsTrx(lpos0,obj.labeler.trx(iTgt1),iFrm0,obj.labeler.trx(iTgt1),iFrm);
-        else
-          % no neighboring previously labeled points for new target.
-          % Just start with current points for previous target.
-          
-          xy0 = obj.getLabelCoords();
-          xy = LabelCore.transformPtsTrx(xy0,obj.labeler.trx(iTgt0),iFrm,obj.labeler.trx(iTgt1),iFrm);
+            xy0 = obj.getLabelCoords();
+            xy = LabelCore.transformPtsTrx(xy0,...
+              obj.labeler.trx(iTgt),iFrm0,...
+              obj.labeler.trx(iTgt),iFrm1);
+            obj.assignLabelCoords(xy,'tfClip',true);
+          else
+            % none, leave pts as-is
+          end
+        else % different target
+          assert(obj.labeler.hasTrx,'Must have trx to change targets.');
+          [tfneighbor,iFrm0Neighb,lpos0] = ...
+            obj.labeler.labelPosLabeledNeighbor(iFrm1,iTgt1);
+          if tfneighbor
+            xy = LabelCore.transformPtsTrx(lpos0,...
+              obj.labeler.trx(iTgt1),iFrm0Neighb,...
+              obj.labeler.trx(iTgt1),iFrm1);
+          else
+            % no neighboring previously labeled points for new target.
+            % Just start with current points for previous target/frame.
+            xy0 = obj.getLabelCoords();
+            xy = LabelCore.transformPtsTrx(xy0,...
+              obj.labeler.trx(iTgt0),iFrm0,...
+              obj.labeler.trx(iTgt1),iFrm1);
+          end
+          obj.assignLabelCoords(xy,'tfClip',true);
         end
-        obj.assignLabelCoords(xy,'tfClip',true);
         obj.enterAdjust(true,false);
       end
-      
     end
     
     function clearLabels(obj)

@@ -103,7 +103,7 @@ classdef LabelCore < handle
       set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
       
       set(obj.labeler.gdata.tbAccept,'Enable','on');
-      obj.labeler.currImHud.setReadoutFields('hasLblPt',false);
+      obj.labeler.currImHud.updateReadoutFields('hasLblPt',false);
       
       obj.initHook();
     end
@@ -126,15 +126,20 @@ classdef LabelCore < handle
     end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSD>
-      % Frame has changed
+      % Frame has changed, Target is the same
       %
       % Called from Labeler.setFrame->Labeler.labelsUpdateNewFrame      
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSD>
-      % Target has changed
+      % Target has changed, Frame is the same
       %
       % Called from Labeler.labelsUpdateNewTarget
+    end
+    
+    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1) %#ok<INUSD>
+      % Frame and Target have both changed
+      %
     end
     
     function clearLabels(obj) %#ok<MANU>

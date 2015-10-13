@@ -97,6 +97,7 @@ listeners{end+1,1} = addlistener(lObj,'targetZoomFac','PostSet',@cbkTargetZoomFa
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
 listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
+%listeners{end+1,1} = addlistener(lObj,'currSusp','PostSet',@cbkCurrSuspChanged);
 handles.listeners = listeners;
 
 set(handles.output,'Toolbar','figure');
@@ -184,10 +185,12 @@ end
 function cbkSuspScoreChanged(src,evt)
 lObj = evt.AffectedObject;
 ss = lObj.suspScore;
+lObj.currImHud.updateReadoutFields('hasSusp',~isempty(ss));
+
 pnlSusp = lObj.gdata.pnlSusp;
 tblSusp = lObj.gdata.tblSusp;
-
-if ~isempty(ss) && lObj.hasMovie
+tfDoSusp = ~isempty(ss) && lObj.hasMovie && ~lObj.isinit;
+if tfDoSusp 
   nfrms = lObj.nframes;
   ntgts = lObj.nTargets;
   [tgt,frm] = meshgrid(1:ntgts,1:nfrms);
@@ -196,6 +199,11 @@ if ~isempty(ss) && lObj.hasMovie
   frm = frm(:);
   tgt = tgt(:);
   ss = ss(:);
+  tfnan = isnan(ss);
+  frm = frm(~tfnan);
+  tgt = tgt(~tfnan);
+  ss = ss(~tfnan);
+  
   [ss,idx] = sort(ss,1,'descend');
   frm = frm(idx);
   tgt = tgt(idx);
@@ -219,10 +227,20 @@ if ~isempty(ss) && lObj.hasMovie
   tblSusp.ColumnWidth = cwidth;
   cwidth{end} = cwidth{end}+1;
   tblSusp.ColumnWidth = cwidth;
+  
+  tblSusp.UserData = struct('jtable',jtable);  
+  lObj.updateCurrSusp();
 else
   tblSusp.Data = cell(0,3);
   pnlSusp.Visible = 'off';
 end
+
+% function cbkCurrSuspChanged(src,evt)
+% lObj = evt.AffectedObject;
+% ss = lObj.currSusp;
+% if ~isequal(ss,[])
+%   lObj.currImHud.updateSusp(ss);
+% end
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -332,14 +350,16 @@ lObj.videoResetView();
 
 function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-row = eventdata.Indices;
-if ~isempty(row)
-  row = row(1);
-  dat = get(hObject,'Data');
-  lObj.setFrame(dat{row,1});
+jt = lObj.gdata.tblSusp.UserData.jtable;
+row = jt.getSelectedRow; % 0 based
+frm = jt.getValueAt(row,0);
+iTgt = jt.getValueAt(row,1);
+if ~isempty(frm)
+  frm = frm.longValueReal;
+  iTgt = iTgt.longValueReal;
+  lObj.setFrameAndTarget(frm,iTgt);
+  hlpRemoveFocus(hObject,handles);
 end
-
-hlpRemoveFocus(hObject,handles);
 
 %% menu
 function menu_file_quick_open_Callback(hObject, eventdata, handles)

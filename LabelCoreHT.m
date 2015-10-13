@@ -93,7 +93,7 @@ classdef LabelCoreHT < LabelCore
       set(obj.hPts,'HitTest','off');
       set(obj.hPtsTxt,'HitTest','off');
       set(obj.labeler.gdata.tbAccept,'Enable','off');
-      obj.labeler.currImHud.setReadoutFields('hasLblPt',true);
+      obj.labeler.currImHud.updateReadoutFields('hasLblPt',true);
 
       obj.setIPoint(1);
     end
@@ -111,8 +111,6 @@ classdef LabelCoreHT < LabelCore
       iPt = obj.iPoint;
       hPoints = obj.hPts;
       hPointsOcc = obj.hPtsOcc;
-%       hPointsTxt = obj.hPtsTxt;
-%       hPointsTxtOcc = obj.hPtsTxtOcc;
       colors = obj.ptsPlotInfo.Colors;      
       
       % POSITIONING
@@ -150,7 +148,12 @@ classdef LabelCoreHT < LabelCore
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSD>
-      % none
+      % none; currently multi-target not expected/supported
+      % for HT mode
+    end
+    
+    function newFrameAndTarget(obj,~,iFrm1,~,iTgt1)
+      obj.newFrame([],iFrm1,iTgt1);
     end
     
     function clearLabels(obj)

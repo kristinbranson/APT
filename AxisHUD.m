@@ -1,7 +1,7 @@
 classdef AxisHUD < handle
   % Heads-up display for an axis; right now specifically for Labeler
   
-  properties
+  properties % basically Constant
     txtXoff = 10;
     txtHgt = 17;
     txtWdh = 130;  
@@ -19,7 +19,7 @@ classdef AxisHUD < handle
     ax; % scalar axis handle    
     hTxts; % col vec of handles to text uicontrols
     hTxtTgt; % scalar handle (for convenience; owned by hTxts)
-    hTxtLblPoint; 
+    hTxtLblPt; 
     hTxtSusp;
     
     hasTgt; % scalar logical
@@ -32,31 +32,56 @@ classdef AxisHUD < handle
     function obj = AxisHUD(ax)
       assert(isa(ax,'matlab.graphics.axis.Axes'));
       obj.ax = ax;
-      obj.initTxts;
+      obj.initHTxts();
+      obj.hasTgt = false;
+      obj.hasLblPt = false;
+      obj.hasSusp = false;
     end
     
     function delete(obj)
-      obj.initTxts();
+      obj.initHTxts();
     end
     
-    function initTxts(obj)
+    function initHTxts(obj)
       delete(obj.hTxts);
       obj.hTxts = matlab.ui.control.UIControl.empty(0,1);
       obj.hTxtTgt = [];
-      obj.hTxtLblPoint = [];
+      obj.hTxtLblPt = [];
       obj.hTxtSusp = [];
+    end
+    
+    function updateReadoutFields(obj,varargin)
+      % Like setReadoutFields(), but preserves existing readout/strings
+      % as applicable
+      
+      if obj.hasTgt, tgtStr = obj.hTxtTgt.String; end
+      if obj.hasLblPt, lblPtStr = obj.hTxtLblPt.String; end
+      if obj.hasSusp, suspStr = obj.hTxtSusp.String; end
+      obj.setReadoutFields(varargin{:});
+      if obj.hasTgt && exist('tgtStr','var')>0
+        obj.hTxtTgt.String = tgtStr;
+      end
+      if obj.hasLblPt && exist('lblPtStr','var')>0
+        obj.hTxtLblPt.String = lblPtStr;
+      end
+      if obj.hasSusp && exist('suspStr','var')>0
+        obj.hTxtSusp.String = suspStr;
+      end
     end
     
     function setReadoutFields(obj,varargin)
       % obj.setReadoutFields('hasTgt',val,'hasLblPt',val,'hasSusp',val)
+      %
+      % Clears any existing HUD readouts/strings
+
+      obj.initHTxts();
       
       [obj.hasTgt,obj.hasLblPt,obj.hasSusp] = ...
         myparse(varargin,...
         'hasTgt',obj.hasTgt,...
         'hasLblPt',obj.hasLblPt,...
         'hasSusp',obj.hasSusp);
-      
-      obj.initTxts();
+
       units0 = obj.ax.Units;
       obj.ax.Units = 'pixels';
       axpos = obj.ax.Position;
@@ -67,8 +92,8 @@ classdef AxisHUD < handle
         obj.hTxts(end+1,1) = obj.hTxtTgt;
       end
       if obj.hasLblPt
-        [obj.hTxtLblPoint,y1] = obj.addTxt(y1,obj.txtClrLblPoint);
-        obj.hTxts(end+1,1) = obj.hTxtLblPoint;
+        [obj.hTxtLblPt,y1] = obj.addTxt(y1,obj.txtClrLblPoint);
+        obj.hTxts(end+1,1) = obj.hTxtLblPt;
       end
       if obj.hasSusp
         obj.hTxtSusp = obj.addTxt(y1,obj.txtClrSusp);
@@ -85,7 +110,7 @@ classdef AxisHUD < handle
     function updateLblPoint(obj,iLblPt,nLblPts)
       assert(obj.hasLblPt);
       str = sprintf(obj.lblPointFmt,iLblPt,nLblPts);
-      obj.hTxtLblPoint.String = str;      
+      obj.hTxtLblPt.String = str;      
     end
     
     function updateSusp(obj,suspscore)      
@@ -103,6 +128,7 @@ classdef AxisHUD < handle
       txtpos = [obj.txtXoff ytop-obj.txtHgt obj.txtWdh obj.txtHgt];
       hTxt = uicontrol(...
         'Style','text',...
+        'HorizontalAlignment','left',...
         'Parent',obj.ax.Parent,...
         'Units','pixels',...
         'Position',txtpos,...
