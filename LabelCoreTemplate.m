@@ -111,8 +111,8 @@ classdef LabelCoreTemplate < LabelCore
 
             xy0 = obj.getLabelCoords();
             xy = LabelCore.transformPtsTrx(xy0,...
-              obj.labeler.trx(iTgt),iFrm0,...
-              obj.labeler.trx(iTgt),iFrm1);
+              obj.labeler.trx(iTgt0),iFrm0,...
+              obj.labeler.trx(iTgt0),iFrm1);
             obj.assignLabelCoords(xy,'tfClip',true);
           else
             % none, leave pts as-is

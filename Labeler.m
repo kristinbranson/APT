@@ -125,6 +125,11 @@ classdef Labeler < handle
     currSusp; % suspScore for current mov/frm/tgt. Can be [] indicating 'N/A'
   end
   
+  %% Tracking
+  properties (SetObservable)
+    tracker
+  end
+  
   %% Misc
   properties (SetObservable, AbortSet)
     currMovie;            % idx into .movieFilesAll
@@ -426,8 +431,7 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
 
-      obj.setTarget(s.currTarget);
-      obj.setFrame(s.currFrame,'forceUpdate',true);
+      obj.setFrameAndTarget(s.currFrame,s.currTarget);
       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI      
@@ -482,43 +486,47 @@ classdef Labeler < handle
     
     function movieSet(obj,iMov)
       assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.');
+      
+      % 1. Set the movie
+      
       movfile = obj.movieFilesAll{iMov};
-      trxFile = obj.trxFilesAll{iMov};      
-           
       obj.movieReader.open(movfile);
       RC.saveprop('lbl_lastmovie',movfile);
-      [~,obj.moviename] = myfileparts(obj.moviefile);
-      
-      obj.trxfile = trxFile;
-      obj.movieSetHelperNewMovieAndTrx();
+      [~,obj.moviename] = myfileparts(obj.moviefile);      
+      obj.movieSetHelperUI();
       
       obj.isinit = true; % Initialization hell, invariants momentarily broken
-      obj.currMovie = iMov; 
+      obj.currMovie = iMov;
+      obj.setFrameAndTarget(1,1);
+      obj.isinit = false; % end Initialization hell      
+      
+      % 2. Set the trx
+      
+      trxFile = obj.trxFilesAll{iMov};
+      tfTrx = ~isempty(trxFile);
+      if tfTrx
+        tmp = load(trxFile);
+        obj.setTrx(tmp.trx);
+        obj.videoSetTargetZoomFac(obj.targetZoomFac);        
+      else
+        obj.setTrx([]);
+      end
+      obj.trxfile = trxFile; % this must come after .setTrx() call
+
       if isempty(obj.labeledpos{iMov})
         obj.labelPosInitCurrMovie();
       end
-      obj.currFrame = 2; % probably dumb, to force update in setFrame
-      obj.setTarget(1);
-      if obj.hasTrx
-        obj.setFrame(obj.trx(1).firstframe);
-      else
-        obj.setFrame(1);
-      end      
-      obj.isinit = false; % end Initialization hell
-
-      if obj.hasTrx
-        obj.videoSetTargetZoomFac(obj.targetZoomFac);
-      end
-      
-      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI       
-      
       obj.labelingInit();
-      % AL: Proj/Movie/LblCore initialization not super-clean yet
+      
+      % Not a huge fan of this, maybe move to UI
+      obj.updateFrameTableComplete();
+      
+      % Proj/Movie/LblCore initialization can maybe be improved
       % Call setFrame again now that lblCore is set up
       if obj.hasTrx
-        obj.setFrame(obj.trx(1).firstframe,'forceupdate',true);
+        obj.setFrameAndTarget(obj.currTrx.firstframe,obj.currTarget);
       else
-        obj.setFrame(1,'forceupdate',true);
+        obj.setFrameAndTarget(1,1);
       end      
     end
     
@@ -550,36 +558,9 @@ classdef Labeler < handle
   
   methods (Hidden)
     
-    function movieSetHelperNewMovieAndTrx(obj)
-      % .movieReader and .trxfilename set
-      
+    function movieSetHelperUI(obj)
       movRdr = obj.movieReader;
       nframes = movRdr.nframes;
-
-      tfTrx = ~isempty(obj.trxfile);
-      if tfTrx
-        tmp = load(obj.trxfile);
-        obj.trx = tmp.trx;
-      else
-        obj.trx = [];
-      end
-      obj.currImHud.updateReadoutFields('hasTgt',tfTrx);
-                  
-      f2t = false(obj.nframes,obj.nTrx);
-      if tfTrx
-        maxID = max([obj.trx.id]);
-      else
-        maxID = -1;
-      end
-      id2t = nan(maxID+1,1);
-      for i = 1:obj.nTrx
-        frm0 = obj.trx(i).firstframe;
-        frm1 = obj.trx(i).endframe;
-        f2t(frm0:frm1,i) = true;
-        id2t(obj.trx(i).id+1) = i;
-      end
-      obj.frm2trx = f2t;
-      obj.trxIdPlusPlus2Idx = id2t;
                  
       im1 = movRdr.readframe(1);
       if isfield(movRdr.info,'bitdepth')
@@ -608,12 +589,41 @@ classdef Labeler < handle
       
       %#UI
       sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
-      set(obj.gdata.slider_frame,'Value',0,'SliderStep',sliderstep);
-      
-      obj.initShowTrx();      
+      set(obj.gdata.slider_frame,'Value',0,'SliderStep',sliderstep);      
    end
     
   end
+  
+  %% Trx
+  methods 
+    
+    function setTrx(obj,trx)
+      % This clears .trxfile, b/c trx can come from anywhere.
+      
+      obj.trx = trx;
+                  
+      f2t = false(obj.nframes,obj.nTrx);
+      if obj.hasTrx
+        maxID = max([obj.trx.id]);
+      else
+        maxID = -1;
+      end
+      id2t = nan(maxID+1,1);
+      for i = 1:obj.nTrx
+        frm0 = obj.trx(i).firstframe;
+        frm1 = obj.trx(i).endframe;
+        f2t(frm0:frm1,i) = true;
+        id2t(obj.trx(i).id+1) = i;
+      end
+      obj.frm2trx = f2t;
+      obj.trxIdPlusPlus2Idx = id2t;
+      
+      obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
+      obj.initShowTrx();
+    end
+    
+  end
+ 
     
   %% Labeling
   methods
@@ -1002,6 +1012,20 @@ classdef Labeler < handle
       
   end
   
+  %% Tracker
+  methods
+    
+    function setTracker(obj,tObj)
+      
+    end
+    
+    function track(obj)
+      
+      
+    end
+        
+  end
+   
   %% Video
   methods
     
@@ -1173,11 +1197,9 @@ classdef Labeler < handle
   %% Navigation
   methods
   
-    function setFrame(obj,frm,varargin)
+    function setFrame(obj,frm)
       % Set movie frame, maintaining current movie/target.
-      
-      forceUpdate = myparse(varargin,'forceUpdate',false);
-      
+            
       if obj.hasTrx
         tfTargetLive = obj.frm2trx(frm,:);      
         if ~tfTargetLive(obj.currTarget)
@@ -1194,11 +1216,13 @@ classdef Labeler < handle
         end
       end
       
+      % Remainder nearly identical to setFrameAndTarget()
+      
       obj.prevFrame = obj.currFrame;
       obj.prevIm = obj.currIm;
       set(obj.gdata.image_prev,'CData',obj.prevIm);
       
-      if obj.currFrame~=frm || forceUpdate
+      if obj.currFrame~=frm
         obj.currIm = obj.movieReader.readframe(frm);
         obj.currFrame = frm;
       end            
@@ -1207,7 +1231,7 @@ classdef Labeler < handle
       if obj.hasTrx
         obj.videoCenterOnCurrTarget();
       end
-      obj.labelsUpdateNewFrame(forceUpdate);
+      obj.labelsUpdateNewFrame();
       obj.updateTrxTable();
       obj.updateCurrSusp();
       obj.updateShowTrx();
@@ -1257,10 +1281,12 @@ classdef Labeler < handle
       if obj.hasTrx
         obj.videoCenterOnCurrTarget();
       end
-      obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
-      obj.updateTrxTable();
-      obj.updateCurrSusp();
-      obj.updateShowTrx();
+      if ~obj.isinit
+        obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
+        obj.updateTrxTable();
+        obj.updateCurrSusp();
+        obj.updateShowTrx();
+      end
     end
     
     function frameUpDF(obj,df)
@@ -1379,7 +1405,7 @@ classdef Labeler < handle
         end
       end
     end    
-    function updateFrameTableComplete(obj)     
+    function updateFrameTableComplete(obj)
       [nTgts,nPts] = obj.labelPosLabeledFramesStats();
       assert(isequal(nTgts>0,nPts>0));
       tfFrm = nTgts>0;
