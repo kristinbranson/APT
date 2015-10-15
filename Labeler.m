@@ -74,12 +74,6 @@ classdef Labeler < handle
     trxIdPlusPlus2Idx = [];   % (max(trx ids)+1) x 1 vector of indices into obj.trx. 
                               % Since IDs start at 0, THIS VECTOR IS INDEXED BY ID+1.
                               % ie: .trx(trxIdPlusPlus2Idx(ID+1)).id = ID. Nonexistent IDs map to NaN.
-                              
-    showTrxMode;              % scalar ShowTrxMode
-    hTraj;                    % nTrx x 1 vector of line handles
-    hTrx;                     % nTrx x 1 vector of line handles    
-    showTrxPreNFrm = 15;      % number of preceding frames to show in traj
-    showTrxPostNFrm = 5;      % number of following frames to show in traj
   end  
   properties (Dependent)
     hasTrx
@@ -88,6 +82,18 @@ classdef Labeler < handle
     nTrx
     nTargets % nTrx, or 1 if no Trx
   end  
+  
+  %% ShowTrx
+  properties (SetObservable)
+    showTrxMode;              % scalar ShowTrxMode
+  end
+  properties
+    hTraj;                    % nTrx x 1 vector of line handles
+    hTrx;                     % nTrx x 1 vector of line handles    
+    showTrxPreNFrm = 15;      % number of preceding frames to show in traj
+    showTrxPostNFrm = 5;      % number of following frames to show in traj
+    trxPrefs;                 % struct, 'Trx' section of prefs
+  end
   
   %% Labeling
   properties (SetAccess=private)
@@ -262,7 +268,8 @@ classdef Labeler < handle
       if isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
         lpp.Colors = feval(lpp.ColorMapName,pref.NumLabelPoints);
       end
-      obj.labelPointsPlotInfo = lpp;   
+      obj.labelPointsPlotInfo = lpp;
+      obj.trxPrefs = pref.Trx;
     end
     
     function addDepHandle(obj,h)
@@ -1077,24 +1084,27 @@ classdef Labeler < handle
       obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
       
       ax = obj.gdata.axes_curr;
+      pref = obj.trxPrefs;
       for i = 1:obj.nTrx
         obj.hTraj(i,1) = line(...
           'parent',ax,...
           'xdata',nan, ...
           'ydata',nan, ...
-          'color',[1 0 0],...
-          'marker','.', ...
-          'linestyle','-', ...
-          'linewidth',1, ...
+          'color',pref.TrajColor,...
+          'linestyle',pref.TrajLineStyle, ...
+          'linewidth',pref.TrajLineWidth, ...
           'HitTest','off');
         obj.hTrx(i,1) = plot(ax,...
-          nan,nan,'r.');
+          nan,nan,pref.TrxMarker);
         obj.hTrx(i,1).HitTest = 'off';
+        obj.hTrx(i,1).Color = pref.TrajColor;
       end
       
       if isempty(obj.showTrxMode)
         obj.showTrxMode = ShowTrxMode.ALL;
       end
+      onoff = onIff(obj.hasTrx);
+      obj.gdata.menu_setup_trajectories.Enable = onoff;
     end
     
     function setShowTrxMode(obj,mode)
@@ -1114,6 +1124,7 @@ classdef Labeler < handle
       trxAll = obj.trx;
       nPre = obj.showTrxPreNFrm;
       nPst = obj.showTrxPostNFrm;
+      pref = obj.trxPrefs;
       
       switch obj.showTrxMode
         case ShowTrxMode.NONE
@@ -1134,7 +1145,12 @@ classdef Labeler < handle
           iTraj = tTraj + trxCurr.off;
           xTraj = trxCurr.x(iTraj);
           yTraj = trxCurr.y(iTraj);
-          set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj);
+          if iTrx==obj.currTarget
+            color = pref.TrajColorCurrent;
+          else
+            color = pref.TrajColor;
+          end
+          set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj,'Color',color);
 
           if t0<=t && t<=t1
             xTrx = trxCurr.x(t+trxCurr.off);
@@ -1143,7 +1159,7 @@ classdef Labeler < handle
             xTrx = nan;
             yTrx = nan;
           end
-          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx);
+          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx,'Color',color);          
         end
       end
       set(obj.hTraj(tfShow),'Visible','on');

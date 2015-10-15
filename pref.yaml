@@ -1,13 +1,18 @@
 ---
-LabelMode: TEMPLATE
+LabelMode: SEQUENTIAL
   # See LabelMode.m
 
-NumLabelPoints: 3
+NumLabelPoints: 5
 
 Trx:
   ZoomRadius: 100
   ZoomRadiusTight: 10
   ZoomFactorDefault: 0.4
+  TrajColor: [0,0,1]
+  TrajLineStyle: '-'
+  TrajLineWidth: 1
+  TrajColorCurrent: [1,0,0]
+  TrxMarker: 'x'
 
 Movie:
   FrameStepBig: 10

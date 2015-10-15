@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 08-Oct-2015 14:35:55
+% Last Modified by GUIDE v2.5 14-Oct-2015 21:30:50
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -97,6 +97,7 @@ listeners{end+1,1} = addlistener(lObj,'targetZoomFac','PostSet',@cbkTargetZoomFa
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
 listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
+listeners{end+1,1} = addlistener(lObj,'showTrxMode','PostSet',@cbkShowTrxModeChanged);
 %listeners{end+1,1} = addlistener(lObj,'currSusp','PostSet',@cbkCurrSuspChanged);
 handles.listeners = listeners;
 
@@ -241,6 +242,21 @@ end
 % if ~isequal(ss,[])
 %   lObj.currImHud.updateSusp(ss);
 % end
+
+function cbkShowTrxModeChanged(src,evt)
+lObj = evt.AffectedObject;
+gd = lObj.gdata;
+gd.menu_setup_trajectories_showall.Checked = 'off';
+gd.menu_setup_trajectories_showcurrent.Checked = 'off';
+gd.menu_setup_trajectories_dontshow.Checked = 'off';
+switch lObj.showTrxMode
+  case ShowTrxMode.NONE
+    gd.menu_setup_trajectories_dontshow.Checked = 'on';
+  case ShowTrxMode.CURRENT
+    gd.menu_setup_trajectories_showcurrent.Checked = 'on';
+  case ShowTrxMode.ALL
+    gd.menu_setup_trajectories_showall.Checked = 'on';
+end
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -442,6 +458,13 @@ addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.lab
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
 
+function menu_setup_trajectories_showall_Callback(hObject, eventdata, handles)
+handles.labelerObj.setShowTrxMode(ShowTrxMode.ALL);
+function menu_setup_trajectories_showcurrent_Callback(hObject, eventdata, handles)
+handles.labelerObj.setShowTrxMode(ShowTrxMode.CURRENT);
+function menu_setup_trajectories_dontshow_Callback(hObject, eventdata, handles)
+handles.labelerObj.setShowTrxMode(ShowTrxMode.NONE);
+
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);
 
@@ -516,6 +539,4 @@ end
 % else
 %   guidata(hObject,handles);
 % end
-
-
 
