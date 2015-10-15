@@ -74,6 +74,12 @@ classdef Labeler < handle
     trxIdPlusPlus2Idx = [];   % (max(trx ids)+1) x 1 vector of indices into obj.trx. 
                               % Since IDs start at 0, THIS VECTOR IS INDEXED BY ID+1.
                               % ie: .trx(trxIdPlusPlus2Idx(ID+1)).id = ID. Nonexistent IDs map to NaN.
+                              
+    showTrxMode;              % scalar ShowTrxMode
+    hTraj;                    % nTrx x 1 vector of line handles
+    hTrx;                     % nTrx x 1 vector of line handles    
+    showTrxPreNFrm = 15;      % number of preceding frames to show in traj
+    showTrxPostNFrm = 5;      % number of following frames to show in traj
   end  
   properties (Dependent)
     hasTrx
@@ -109,6 +115,7 @@ classdef Labeler < handle
   %% Suspiciousness
   properties (SetObservable)
     suspScore; % column cell vec same size as labeledpos. suspScore{iMov} is nFrm(iMov) x nTrx(iMov)
+    suspNotes; % column cell vec same size as labeledpos. suspNotes{iMov} is a nFrm x nTrx column cellstr
     currSusp; % suspScore for current mov/frm/tgt. Can be [] indicating 'N/A'
   end
   
@@ -526,6 +533,8 @@ classdef Labeler < handle
       imprev = obj.gdata.image_prev;
       set(imprev,'CData',0);
       
+      obj.initShowTrx();
+      
       obj.currTarget = 0;
       obj.currSusp = [];
     end
@@ -593,6 +602,8 @@ classdef Labeler < handle
       %#UI
       sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
       set(obj.gdata.slider_frame,'Value',0,'SliderStep',sliderstep);
+      
+      obj.initShowTrx();      
    end
     
   end
@@ -944,8 +955,7 @@ classdef Labeler < handle
   
   end
    
-  %% Susp
-  
+  %% Susp 
   methods
     
     function setSuspScore(obj,ss)
@@ -1057,6 +1067,93 @@ classdef Labeler < handle
     
   end
   
+  %% showTrx
+  methods
+    
+    function initShowTrx(obj)
+      deleteValidHandles(obj.hTraj);
+      deleteValidHandles(obj.hTrx);
+      obj.hTraj = matlab.graphics.primitive.Line.empty(0,1);
+      obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
+      
+      ax = obj.gdata.axes_curr;
+      for i = 1:obj.nTrx
+        obj.hTraj(i,1) = line(...
+          'parent',ax,...
+          'xdata',nan, ...
+          'ydata',nan, ...
+          'color',[1 0 0],...
+          'marker','.', ...
+          'linestyle','-', ...
+          'linewidth',1, ...
+          'HitTest','off');
+        obj.hTrx(i,1) = plot(ax,...
+          nan,nan,'r.');
+        obj.hTrx(i,1).HitTest = 'off';
+      end
+      
+      if isempty(obj.showTrxMode)
+        obj.showTrxMode = ShowTrxMode.ALL;
+      end
+    end
+    
+    function setShowTrxMode(obj,mode)
+      assert(isa(mode,'ShowTrxMode'));      
+      obj.showTrxMode = mode;
+      obj.updateShowTrx();
+    end
+    
+    function updateShowTrx(obj)
+      % Update .hTrx, .hTraj based on .trx, .tfShowTrx, .currFrame
+      
+      if ~obj.hasTrx
+        return;
+      end
+      
+      t = obj.currFrame;
+      trxAll = obj.trx;
+      nPre = obj.showTrxPreNFrm;
+      nPst = obj.showTrxPostNFrm;
+      
+      switch obj.showTrxMode
+        case ShowTrxMode.NONE
+          tfShow = false(obj.nTrx,1);
+        case ShowTrxMode.CURRENT
+          tfShow = false(obj.nTrx,1);
+          tfShow(obj.currTarget) = true;
+        case ShowTrxMode.ALL
+          tfShow = true(obj.nTrx,1);
+      end
+      
+      for iTrx = 1:obj.nTrx
+        if tfShow(iTrx)
+          trxCurr = trxAll(iTrx);
+          t0 = trxCurr.firstframe;
+          t1 = trxCurr.endframe;
+          tTraj = max(t-nPre,t0):min(t+nPst,t1); % could be empty array
+          iTraj = tTraj + trxCurr.off;
+          xTraj = trxCurr.x(iTraj);
+          yTraj = trxCurr.y(iTraj);
+          set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj);
+
+          if t0<=t && t<=t1
+            xTrx = trxCurr.x(t+trxCurr.off);
+            yTrx = trxCurr.y(t+trxCurr.off);
+          else
+            xTrx = nan;
+            yTrx = nan;
+          end
+          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx);
+        end
+      end
+      set(obj.hTraj(tfShow),'Visible','on');
+      set(obj.hTraj(~tfShow),'Visible','off');
+      set(obj.hTrx(tfShow),'Visible','on');
+      set(obj.hTrx(~tfShow),'Visible','off');
+    end
+    
+  end
+  
   %% Navigation
   methods
   
@@ -1068,12 +1165,12 @@ classdef Labeler < handle
       if obj.hasTrx
         tfTargetLive = obj.frm2trx(frm,:);      
         if ~tfTargetLive(obj.currTarget)
-          iTgt = find(tgTargetLive,1);
+          iTgt = find(tfTargetLive,1);
           if isempty(iTgt)
             error('Labeler:noTarget','No live targets in frame %d.',frm);
           end
 
-          warning('Labeler:targetNotLive',...
+          warningNoTrace('Labeler:targetNotLive',...
             'Current target idx=%d is not live in frame %d. Switching to target idx=%d.',...
             obj.currTarget,frm,iTgt);
           obj.setFrameAndTarget(frm,iTgt);
@@ -1097,6 +1194,7 @@ classdef Labeler < handle
       obj.labelsUpdateNewFrame(forceUpdate);
       obj.updateTrxTable();
       obj.updateCurrSusp();
+      obj.updateShowTrx();
     end
     
     function setTargetID(obj,tgtID)
@@ -1120,6 +1218,7 @@ classdef Labeler < handle
         obj.labelsUpdateNewTarget(prevTarget);
       end
       obj.updateCurrSusp();
+      obj.updateShowTrx();
     end
     
     function setFrameAndTarget(obj,frm,iTgt)
@@ -1145,6 +1244,7 @@ classdef Labeler < handle
       obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
       obj.updateTrxTable();
       obj.updateCurrSusp();
+      obj.updateShowTrx();
     end
     
     function frameUpDF(obj,df)
