@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 14-Oct-2015 21:30:50
+% Last Modified by GUIDE v2.5 16-Oct-2015 13:14:47
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -98,8 +98,14 @@ listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChang
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
 listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxMode','PostSet',@cbkShowTrxModeChanged);
+listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
+listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
 %listeners{end+1,1} = addlistener(lObj,'currSusp','PostSet',@cbkCurrSuspChanged);
 handles.listeners = listeners;
+
+% These Labeler properties need their callbacks fired to properly init UI.
+% Labeler will read .propsNeedInit from the GUIData to comply.
+handles.propsNeedInit = {'suspScore' 'showTrxMode' 'tracker' 'movieCenterOnTarget'};
 
 set(handles.output,'Toolbar','figure');
 
@@ -257,6 +263,16 @@ switch lObj.showTrxMode
   case ShowTrxMode.ALL
     gd.menu_setup_trajectories_showall.Checked = 'on';
 end
+
+function cbkTrackerChanged(src,evt)
+lObj = evt.AffectedObject;
+tf = ~isempty(lObj.tracker);
+lObj.gdata.menu_track_retrack.Enable = onIff(tf);
+
+function cbkMovieCenterOnTargetChanged(src,evt)
+lObj = evt.AffectedObject;
+tf = lObj.movieCenterOnTarget;
+lObj.gdata.menu_setup_trajectories_centervideoontarget.Checked = onIff(tf);
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -464,6 +480,14 @@ function menu_setup_trajectories_showcurrent_Callback(hObject, eventdata, handle
 handles.labelerObj.setShowTrxMode(ShowTrxMode.CURRENT);
 function menu_setup_trajectories_dontshow_Callback(hObject, eventdata, handles)
 handles.labelerObj.setShowTrxMode(ShowTrxMode.NONE);
+function menu_setup_trajectories_centervideoontarget_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.movieCenterOnTarget = ~lObj.movieCenterOnTarget;
+
+function menu_track_retrack_Callback(hObject, eventdata, handles)
+handles.labelerObj.track();
+function menu_track_savenewtrx_Callback(hObject, eventdata, handles)
+handles.labelerObj.trxSave();
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);
@@ -539,4 +563,3 @@ end
 % else
 %   guidata(hObject,handles);
 % end
-

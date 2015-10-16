@@ -51,6 +51,7 @@ classdef Labeler < handle
     movieFilesAll = cell(0,1); % column cellstr, full paths to movies
     targetZoomFac;
     moviename; % short name, moviefile
+    movieCenterOnTarget = false; % scalar logical. 
   end
   properties (Dependent)
     hasMovie;
@@ -133,11 +134,13 @@ classdef Labeler < handle
   %% Misc
   properties (SetObservable, AbortSet)
     currMovie;            % idx into .movieFilesAll
-    currFrame = 1;        % current frame
     prevFrame = nan;      % last previously VISITED frame
     currTarget = nan;
     
     currImHud; % scalar AxisHUD object
+  end
+  properties (SetObservable)
+    currFrame = 1; % current frame
   end
   properties
     currIm = [];
@@ -260,6 +263,10 @@ classdef Labeler < handle
       obj.movieReader = MovieReader;  
       obj.currImHud = AxisHUD(obj.gdata.axes_curr);
       obj.movieSetNoMovie();
+      
+      for prop = obj.gdata.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
+        obj.(prop) = obj.(prop);
+      end
     end
     
     function initFromPrefs(obj,pref)
@@ -498,7 +505,6 @@ classdef Labeler < handle
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
       obj.setFrameAndTarget(1,1);
-      obj.isinit = false; % end Initialization hell      
       
       % 2. Set the trx
       
@@ -506,12 +512,14 @@ classdef Labeler < handle
       tfTrx = ~isempty(trxFile);
       if tfTrx
         tmp = load(trxFile);
-        obj.setTrx(tmp.trx);
+        obj.trxSet(tmp.trx);
         obj.videoSetTargetZoomFac(obj.targetZoomFac);        
       else
-        obj.setTrx([]);
+        obj.trxSet([]);
       end
-      obj.trxfile = trxFile; % this must come after .setTrx() call
+      obj.trxfile = trxFile; % this must come after .trxSet() call
+      
+      obj.isinit = false; % end Initialization hell      
 
       if isempty(obj.labeledpos{iMov})
         obj.labelPosInitCurrMovie();
@@ -597,8 +605,24 @@ classdef Labeler < handle
   %% Trx
   methods 
     
-    function setTrx(obj,trx)
-      % This clears .trxfile, b/c trx can come from anywhere.
+    function trxSet(obj,trx)
+      % Set the trajectories for the current movie (.trx).
+      %
+      % - Call trxSave if you want the new trx to persist somewhere. 
+      % Otherwise it will be gone once you switch movies.
+      % - This leaves .trxfile and .trxFilesAll unchanged. 
+      % - You probably want to call setFrameAndTarget() after this.
+      % - This method CANNOT CHANGE the number of trx-- that would require
+      % updating .labeledpos and .suspScore as well.
+      % - (TODO) Warnings will be thrown if the various .firstframe/.endframes
+      % change in such a way that existing labels now fall outside their
+      % trx's existence.
+      
+      if ~obj.isinit
+        assert(isequal(numel(trx),obj.nTargets));
+
+        % TODO: check for labels that are "out of bounds" for new trx
+      end
       
       obj.trx = trx;
                   
@@ -620,6 +644,33 @@ classdef Labeler < handle
       
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
       obj.initShowTrx();
+    end
+    
+    function trxSave(obj)
+      % Save the current .trx to .trxfile. 
+    
+      tfile = obj.trxfile;
+      tExist = load(tfile);
+      tNew = struct('trx',obj.trx);
+      if isequaln(tExist,tNew)
+        msgbox('Current trx matches that in ''%s''.',tfile);
+      else
+        SAVEBTN = 'OK, save and overwrite';
+        CANCBTN = 'Cancel';
+        str = sprintf('This will OVERWRITE the file ''%s''. Please back up your original trx!',tfile);
+        ret = questdlg(str,'Save Trx',SAVEBTN,CANCBTN,CANCBTN);
+        if isempty(ret)
+          ret = CANCBTN;
+        end
+        switch ret
+          case SAVEBTN
+            save(tfile,'-struct','tNew');
+          case CANCBTN
+            % none
+          otherwise
+            assert(false);
+        end
+      end
     end
     
   end
@@ -1016,12 +1067,21 @@ classdef Labeler < handle
   methods
     
     function setTracker(obj,tObj)
-      
+      obj.tracker = tObj;
     end
     
     function track(obj)
-      
-      
+      trker = obj.tracker;
+      if isempty(trker)
+        error('Labeler:track','No tracker set.');
+      end
+      if ~obj.hasMovie
+        error('Labeler:track','No movie.');
+      end
+      lpos = obj.labeledpos{obj.currMovie};
+      trxNew = trker.track(obj.trx,lpos,[],[],[]);
+      obj.trxSet(trxNew);
+      obj.setFrameAndTarget(obj.currFrame,obj.currTarget);
     end
         
   end
@@ -1120,8 +1180,10 @@ classdef Labeler < handle
           'HitTest','off');
         obj.hTrx(i,1) = plot(ax,...
           nan,nan,pref.TrxMarker);
-        obj.hTrx(i,1).HitTest = 'off';
-        obj.hTrx(i,1).Color = pref.TrajColor;
+        set(obj.hTrx(i,1),'HitTest','off',...
+          'Color',pref.TrajColor',...
+          'MarkerSize',pref.TrxMarkerSize,...
+          'LineWidth',pref.TrxLineWidth);
       end
       
       if isempty(obj.showTrxMode)
@@ -1228,7 +1290,7 @@ classdef Labeler < handle
       end            
       set(obj.gdata.image_curr,'CData',obj.currIm);
       
-      if obj.hasTrx
+      if obj.hasTrx && obj.movieCenterOnTarget
         obj.videoCenterOnCurrTarget();
       end
       obj.labelsUpdateNewFrame();
@@ -1253,9 +1315,11 @@ classdef Labeler < handle
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
-      if obj.hasTrx
-        obj.videoCenterOnCurrTarget();
+      if obj.hasTrx 
         obj.labelsUpdateNewTarget(prevTarget);
+        if obj.movieCenterOnTarget        
+          obj.videoCenterOnCurrTarget();
+        end
       end
       obj.updateCurrSusp();
       obj.updateShowTrx();
@@ -1278,7 +1342,7 @@ classdef Labeler < handle
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
-      if obj.hasTrx
+      if obj.hasTrx && obj.movieCenterOnTarget
         obj.videoCenterOnCurrTarget();
       end
       if ~obj.isinit

@@ -2,17 +2,19 @@
 LabelMode: SEQUENTIAL
   # See LabelMode.m
 
-NumLabelPoints: 5
+NumLabelPoints: 2
 
 Trx:
   ZoomRadius: 100
   ZoomRadiusTight: 10
   ZoomFactorDefault: 0.4
-  TrajColor: [0,0,1]
+  TrajColor: [1,1,0]
   TrajLineStyle: '-'
   TrajLineWidth: 1
   TrajColorCurrent: [1,0,0]
   TrxMarker: 'x'
+  TrxMarkerSize: 10
+  TrxLineWidth: 3
 
 Movie:
   FrameStepBig: 10
