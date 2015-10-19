@@ -33,7 +33,7 @@ The image will have NumLabelPoints white points overlaid; these are the template
 ###### HighThroughput (HT) Mode
 In HT mode, you label the entire movie for point 1, then you label the entire movie for point 2, etc. Click the image to label a point. After clicking/labeling, the movie is automatically advanced NFrameSkip frames. When the end of the movie is reached, the labeling point is incremented, until all labeling for all NumLabelPoints is complete. You may manually change the current labeling point in the Setup>HighThroughput Mode menu.
 
-HT mode was initially intended to work on movies with no existing trx file (although this appears to work fine). See "Track/Retrack" below for further usage.
+HT mode was initially intended to work on movies with no existing trx file (although this appears to work fine).
 
 ###### Projects
 For labeling single movies (with or without trx), use the File>Quick Open Movie menu option. This prompts you to find a moviefile and (optional) trxfile.
