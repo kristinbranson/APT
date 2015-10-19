@@ -6,6 +6,7 @@ MATLAB R2014b or later. Development is being done on Win7/R2015a with some testi
 
 #### Usage
 ```
+Modify Manifest.txt to point to location of JAABA or JCtrax (requires subdirectories filehandling and misc). 
 % in MATLAB
 cd /path/to/git/APT/checkout
 APT.setpath % configures MATLAB path 

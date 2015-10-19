@@ -630,6 +630,11 @@ classdef Labeler < handle
                   
       f2t = false(obj.nframes,obj.nTrx);
       if obj.hasTrx
+        if ~isfield(obj.trx,'id'),
+          for i = 1:numel(obj.trx),
+            obj.trx(i).id = i;
+          end
+        end
         maxID = max([obj.trx.id]);
       else
         maxID = -1;
