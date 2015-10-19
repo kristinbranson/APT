@@ -97,13 +97,14 @@ classdef Labeler < handle
   end
   
   %% Labeling
+  properties (SetObservable)
+    labelMode;            % scalar LabelMode
+  end
   properties (SetAccess=private)
     %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
     nLabelPoints;         % scalar integer
-    labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints    
-    labelMode;            % scalar LabelMode
-    labelTemplate;
-    
+    labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints        
+    labelTemplate;    
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov)
   end
   properties (SetObservable)
@@ -328,7 +329,8 @@ classdef Labeler < handle
       obj.trxFilesAll = cell(0,1);
       obj.movieSetNoMovie(); % order important here
       obj.labeledpos = cell(0,1);
-      obj.updateFrameTableComplete();
+      obj.updateFrameTableComplete();  
+      obj.labeledposNeedsSave = false;
     end
       
     function projSaveRaw(obj,fname)
@@ -653,7 +655,7 @@ classdef Labeler < handle
       tExist = load(tfile);
       tNew = struct('trx',obj.trx);
       if isequaln(tExist,tNew)
-        msgbox('Current trx matches that in ''%s''.',tfile);
+        msgbox(sprintf('Current trx matches that in ''%s''.',tfile));
       else
         SAVEBTN = 'OK, save and overwrite';
         CANCBTN = 'Cancel';
@@ -687,7 +689,6 @@ classdef Labeler < handle
       lblPtsPlotInfo = obj.labelPointsPlotInfo;
       template = obj.labelTemplate;
       
-      gd = obj.gdata;
       lc = obj.lblCore;
       if ~isempty(lc)
         % AL 20150731. Possible/probable MATLAB bug. Existing LabelCore 
@@ -707,47 +708,12 @@ classdef Labeler < handle
         delete(lc);
         obj.lblCore = [];
       end
-      obj.lblCore = LabelCore.create(obj,obj.labelMode);
-      switch obj.labelMode
-        case LabelMode.SEQUENTIAL
-          gd.menu_setup_sequential_mode.Enable = 'on';
-          gd.menu_setup_sequential_mode.Checked = 'on';
-          gd.menu_setup_template_mode.Enable = 'off';
-          gd.menu_setup_template_mode.Checked = 'off';
-          gd.menu_setup_highthroughput_mode.Enable = 'off';
-          gd.menu_setup_highthroughput_mode.Checked = 'off';
-          gd.menu_setup_createtemplate.Enable = 'off';
-  
-          obj.lblCore.init(nPts,lblPtsPlotInfo);          
-        case LabelMode.TEMPLATE
-          gd.menu_setup_sequential_mode.Enable = 'off';
-          gd.menu_setup_sequential_mode.Checked = 'off';
-          gd.menu_setup_template_mode.Enable = 'on';
-          gd.menu_setup_template_mode.Checked = 'on';
-          gd.menu_setup_highthroughput_mode.Enable = 'off';
-          gd.menu_setup_highthroughput_mode.Checked = 'off';
-          gd.menu_setup_createtemplate.Enable = 'off';
-
-          obj.lblCore.init(nPts,lblPtsPlotInfo);
-          if ~isempty(template)
-            obj.lblCore.setTemplate(template);
-          end
-        case LabelMode.HIGHTHROUGHPUT
-          gd.menu_setup_sequential_mode.Enable = 'off';
-          gd.menu_setup_sequential_mode.Checked = 'off';
-          gd.menu_setup_template_mode.Enable = 'off';
-          gd.menu_setup_template_mode.Checked = 'off';
-          gd.menu_setup_highthroughput_mode.Enable = 'on';
-          gd.menu_setup_highthroughput_mode.Checked = 'on';
-          gd.menu_setup_createtemplate.Enable = 'off';
-  
-          obj.lblCore.init(nPts,lblPtsPlotInfo);
+      obj.lblCore = LabelCore.create(obj,obj.labelMode);      
+      obj.lblCore.init(nPts,lblPtsPlotInfo);
+      if obj.labelMode==LabelMode.TEMPLATE && ~isempty(template)
+        obj.lblCore.setTemplate(template);
       end
-      
-      %fprintf(2,'Remove labelPosInitWithLocked');
-      %obj.labelPosInitWithLocked();
-      %obj.lblCore.clearLabels(); 
-      
+
       % TODO: encapsulate labelsPrev (eg in a LabelCore)
       deleteValidHandles(obj.lblPrev_ptsH);
       deleteValidHandles(obj.lblPrev_ptsTxtH);

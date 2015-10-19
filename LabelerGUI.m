@@ -93,6 +93,7 @@ listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
+listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
@@ -105,7 +106,7 @@ handles.listeners = listeners;
 
 % These Labeler properties need their callbacks fired to properly init UI.
 % Labeler will read .propsNeedInit from the GUIData to comply.
-handles.propsNeedInit = {'suspScore' 'showTrxMode' 'tracker' 'movieCenterOnTarget'};
+handles.propsNeedInit = {'labelMode' 'suspScore' 'showTrxMode' 'tracker' 'movieCenterOnTarget'};
 
 set(handles.output,'Toolbar','figure');
 
@@ -154,6 +155,36 @@ if isscalar(val) && val
   set(hTx,'Visible','on');
 else
   set(hTx,'Visible','off');
+end
+
+function cbkLabelModeChanged(src,evt)
+lObj = evt.AffectedObject;
+gd = lObj.gdata;
+switch lObj.labelMode
+  case LabelMode.SEQUENTIAL
+    gd.menu_setup_sequential_mode.Enable = 'on';
+    gd.menu_setup_sequential_mode.Checked = 'on';
+    gd.menu_setup_template_mode.Enable = 'off';
+    gd.menu_setup_template_mode.Checked = 'off';
+    gd.menu_setup_highthroughput_mode.Enable = 'off';
+    gd.menu_setup_highthroughput_mode.Checked = 'off';
+    gd.menu_setup_createtemplate.Enable = 'off';
+  case LabelMode.TEMPLATE
+    gd.menu_setup_sequential_mode.Enable = 'off';
+    gd.menu_setup_sequential_mode.Checked = 'off';
+    gd.menu_setup_template_mode.Enable = 'on';
+    gd.menu_setup_template_mode.Checked = 'on';
+    gd.menu_setup_highthroughput_mode.Enable = 'off';
+    gd.menu_setup_highthroughput_mode.Checked = 'off';
+    gd.menu_setup_createtemplate.Enable = 'off';
+  case LabelMode.HIGHTHROUGHPUT
+    gd.menu_setup_sequential_mode.Enable = 'off';
+    gd.menu_setup_sequential_mode.Checked = 'off';
+    gd.menu_setup_template_mode.Enable = 'off';
+    gd.menu_setup_template_mode.Checked = 'off';
+    gd.menu_setup_highthroughput_mode.Enable = 'on';
+    gd.menu_setup_highthroughput_mode.Checked = 'on';
+    gd.menu_setup_createtemplate.Enable = 'off';
 end
 
 function cbkTargetZoomFacChanged(src,evt)

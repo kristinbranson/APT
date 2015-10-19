@@ -316,7 +316,7 @@ classdef LabelCoreTemplate < LabelCore
     function h = getKeyboardShortcutsHelp(obj) %#ok<MANU>
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
-        '* <ctrl>+A, <ctrl>+D, etc decrement and increment by 10 frames.'
+        '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
         '* S or <space> accepts the labels for the current frame/target.'
         '* 0..9 selects/unselects a point. When a point is selected:'
         '*   LEFT/RIGHT/UP/DOWN adjusts the point.'
