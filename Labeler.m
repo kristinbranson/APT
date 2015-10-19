@@ -2,7 +2,7 @@ classdef Labeler < handle
 % Labeler  Bransonlab Animal Video Labeler
 
   properties (Constant,Hidden)
-    VERSION = '0.0';
+    VERSION = '0.2';
     DEFAULT_LBLFILENAME = '%s.lbl';    
     PREF_FILENAME = 'pref.yaml';
 
