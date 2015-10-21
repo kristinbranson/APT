@@ -89,6 +89,9 @@ classdef APT
 end
 
 function s = lclReadManifest(fname)
+if exist(fname,'file')==0
+  error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.txt.sample and edit for your machine.',fname);
+end
 tmp = importdata(fname);
 tmp = regexp(tmp,',','split');
 tmp = cat(1,tmp{:});
