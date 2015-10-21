@@ -70,9 +70,13 @@ classdef LabelCore < handle
       obj.ptsPlotInfo = ptsPlotInfo;
       
       deleteValidHandles(obj.hPts);
+      deleteValidHandles(obj.hPtsOcc);
       deleteValidHandles(obj.hPtsTxt);
-      obj.hPts = nan(obj.nPts,1);
-      obj.hPtsTxt = nan(obj.nPts,1);
+      deleteValidHandles(obj.hPtsTxtOcc);
+      obj.hPts = gobjects(obj.nPts,1);
+      obj.hPtsOcc = gobjects(obj.nPts,1);
+      obj.hPtsTxt = gobjects(obj.nPts,1);
+      obj.hPtsTxtOcc = gobjects(obj.nPts,1);
       ax = obj.hAx;
       axOcc = obj.hAxOcc;
       for i = 1:obj.nPts

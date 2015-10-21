@@ -58,8 +58,7 @@ classdef LabelCoreHT < LabelCore
   
   properties
     iPoint;    % scalar. Either nan, or index of pt currently being labeled
-    tfClicked; % scalar logical; if true, pt was labeled
-
+    
     nFrameSkip;
     unlabeledPointColor = [1 1 1];
     otherLabeledPointColor = [0.4 0.4 0.4];
@@ -81,8 +80,6 @@ classdef LabelCoreHT < LabelCore
       % optional arg to max() and min() introduced in R2015b to specify
       % NaN treatment.
       obj.assignLabelCoords(xy);
-
-      obj.tfClicked = false;
 
       ppi = obj.ptsPlotInfo;
       htm = ppi.HighThroughputMode;
@@ -142,9 +139,7 @@ classdef LabelCoreHT < LabelCore
         clr = obj.unlabeledPointColor;
       end
       set(hPoints(iPt),'Color',clr);
-      set(hPointsOcc(iPt),'Color',clr);
-      
-      obj.tfClicked = tfLbledOrOcc(iPt);
+      set(hPointsOcc(iPt),'Color',clr);      
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSD>
@@ -160,7 +155,6 @@ classdef LabelCoreHT < LabelCore
       iPt = obj.iPoint;
       set(obj.hPts(iPt),'Color',obj.unlabeledPointColor);
       set(obj.hPtsOcc(iPt),'Color',obj.unlabeledPointColor);
-      obj.tfClicked = false;
       obj.labeler.labelPosClearI(iPt);
     end
     
@@ -172,16 +166,24 @@ classdef LabelCoreHT < LabelCore
       assert(false);
     end 
     
-    function axBDF(obj,src,evt) %#ok<INUSD>
-      pos = get(obj.hAx,'CurrentPoint');
-      pos = pos(1,1:2);
-      iPt = obj.iPoint;
-      obj.assignLabelCoordsIRaw(pos,iPt);
+    function axBDF(obj,~,evt) 
+      if evt.Button==1
+        pos = get(obj.hAx,'CurrentPoint');
+        pos = pos(1,1:2);
+        iPt = obj.iPoint;
+        obj.assignLabelCoordsIRaw(pos,iPt);
 
-      set(obj.hPts(iPt),'Color',obj.ptsPlotInfo.Colors(iPt,:));
-      obj.labeler.labelPosSetI(pos,iPt);
-      obj.tfClicked = true;      
-      obj.clickedIncrementFrame();
+        set(obj.hPts(iPt),'Color',obj.ptsPlotInfo.Colors(iPt,:));
+        obj.labeler.labelPosSetI(pos,iPt);
+        obj.clickedIncrementFrame();
+      end    
+    end
+    
+    function ptBDF(obj,src,evt) 
+      ud = src.UserData;
+      if ud==obj.iPoint && evt.Button==1
+        obj.acceptCurrentPt();
+      end
     end    
     
     function kpf(obj,src,evt) %#ok<INUSL>
@@ -190,7 +192,9 @@ classdef LabelCoreHT < LabelCore
       %tfCtrl = any(strcmp('control',modifier));
       
       switch key
-        case {'space' 'equal' 'rightarrow' 'd'}
+        case 'space'
+          obj.acceptCurrentPt();
+        case {'equal' 'rightarrow' 'd'}
           obj.labeler.frameUpDF(obj.nFrameSkip);
         case {'hyphen' 'leftarrow' 'a'}
           obj.labeler.frameDownDF(obj.nFrameSkip);
@@ -206,13 +210,13 @@ classdef LabelCoreHT < LabelCore
       tfOcc = obj.labeler.labelPosIsOccluded();
       assert(isequal(tfOcc,obj.tfOcc));
             
-      obj.tfClicked = true;
       obj.clickedIncrementFrame();
     end
 
     function h = getKeyboardShortcutsHelp(obj) %#ok<MANU>
       h = { ...
-        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'};
+        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'; ...
+        '* <space> accepts the point as-is for the current frame.'};
     end
     
     function setIPoint(obj,iPt)
@@ -222,7 +226,18 @@ classdef LabelCoreHT < LabelCore
         error('LabelCoreHT:setIPoint','Invalid value for labeling point iPoint.');
       end
       
+      set(obj.hPts,'HitTest','off');
+      % clear old contextmenu
+      iPtCurr = obj.iPoint;
+      if ~isempty(iPtCurr) && ~isnan(iPtCurr)
+        obj.hPts(iPtCurr).UIContextMenu = [];
+      end
+      
       obj.iPoint = iPt;
+      
+      obj.setupIPointContextMenu();
+      set(obj.hPts(iPt),'HitTest','on');
+      
       lObj = obj.labeler;
       lObj.currImHud.updateLblPoint(iPt,obj.labeler.nLabelPoints);
       obj.newFrame([],lObj.currFrame,lObj.currTarget);      
@@ -230,15 +245,75 @@ classdef LabelCoreHT < LabelCore
     
   end
   
+  methods
+    
+    function tfEOM = acceptCurrentPt(obj)
+      iPt = obj.iPoint;
+      hPt = obj.hPts(iPt);
+      pos = [hPt.XData hPt.YData];
+      
+      set(hPt,'Color',obj.ptsPlotInfo.Colors(iPt,:));
+      obj.labeler.labelPosSetI(pos,iPt);
+      tfEOM = obj.clickedIncrementFrame();      
+    end
+    
+    function acceptCurrentPtN(obj)
+      resp = inputdlg('Number of times to accept point:','Label current point repeatedly',1,{'1'});
+      if isempty(resp)
+        % cancel; no-op
+        return;
+      end
+      nrpt = str2double(resp{1});
+      if isnan(nrpt) || round(nrpt)~=nrpt || nrpt<=0
+        error('LabelCoreHT:input','Input must be a positive integer.');
+      end
+      obj.acceptCurrentPtNRaw(nrpt);
+    end
+    
+    function acceptCurrentPtNFrames(obj)
+      resp = inputdlg('Accept point over next N frames:','Label current point repeatedly',1,{'1'});
+      if isempty(resp)
+        % cancel; no-op
+        return;
+      end
+      nfrm = str2double(resp{1});
+      if isnan(nfrm) || round(nfrm)~=nfrm || nfrm<=0
+        error('LabelCoreHT:input','Input must be a positive integer.');
+      end
+      nrpt = ceil(nfrm/obj.nFrameSkip);  
+      obj.acceptCurrentPtNRaw(nrpt);
+    end
+    
+    function acceptCurrentPtEnd(obj)
+      nfrm = obj.labeler.nframes-obj.labeler.currFrame+1;
+      nrpt = ceil(nfrm/obj.nFrameSkip);  
+      obj.acceptCurrentPtNRaw(nrpt);
+    end
+    
+    function acceptCurrentPtNRaw(obj,nrpt)
+      for i = 1:nrpt
+        tfEOM = obj.acceptCurrentPt();
+        if tfEOM
+          warningNoTrace('LabelCoreHT:EOM','End of movie reached.');
+          break;
+        end
+      end        
+    end
+    
+  end
+  
   methods (Access=private)       
     
-    function clickedIncrementFrame(obj)
+    function tfEOM = clickedIncrementFrame(obj)
+      % tfEOM: true if end-of-movie reached
+      
       nf = obj.labeler.nframes;
       f = obj.labeler.currFrame;
       df = obj.nFrameSkip;
       iPt = obj.iPoint;
       nPt = obj.nPts;
-      if f+df > nf
+      tfEOM = (f+df > nf);
+      if tfEOM
         if iPt==nPt
           str = sprintf('End of movie reached. Labeling complete for all %d points!',nPt);
           msgbox(str,'Labeling Complete');
@@ -253,6 +328,20 @@ classdef LabelCoreHT < LabelCore
       else
         obj.labeler.frameUpDF(df);
       end
+    end
+    
+    function setupIPointContextMenu(obj)
+      c = uicontextmenu(obj.labeler.gdata.figure);
+      hPt = obj.hPts(obj.iPoint);
+      hPt.UIContextMenu = c;
+      uimenu(c,'Label','Accept point for current frame',...
+        'Callback',@(src,evt)obj.acceptCurrentPt);
+      uimenu(c,'Label',sprintf('Accept point N times (N*%d frames)',obj.nFrameSkip),...
+        'Callback',@(src,evt)obj.acceptCurrentPtN);
+      uimenu(c,'Label',sprintf('Accept point N frames (N/%d times)',obj.nFrameSkip),...
+        'Callback',@(src,evt)obj.acceptCurrentPtNFrames);
+      uimenu(c,'Label','Accept point until end of movie',...
+        'Callback',@(src,evt)obj.acceptCurrentPtEnd);      
     end
            
   end
