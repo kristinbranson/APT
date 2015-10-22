@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 16-Oct-2015 13:14:47
+% Last Modified by GUIDE v2.5 22-Oct-2015 15:43:51
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -480,9 +480,9 @@ handles.labelerObj.addDepHandle(h);
 %   end
 % end
 
-function menu_help_keyboardshortcuts_Callback(hObject, eventdata, handles)
-h = handles.labelerObj.lblCore.getKeyboardShortcutsHelp();
-msgbox(h,'Keyboard shortcuts','help','modal');
+function menu_help_labeling_actions_Callback(hObject, eventdata, handles)
+h = handles.labelerObj.lblCore.getLabelingHelp();
+msgbox(h,'Labeling Actions','help','modal');
 
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

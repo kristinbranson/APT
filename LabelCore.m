@@ -18,6 +18,8 @@ classdef LabelCore < handle
     DT2P = 5;
     DXFAC = 500;
     DXFACBIG = 50;
+    
+    LPOSTAG_OCC = 'occ';
   end
         
   properties
@@ -182,7 +184,7 @@ classdef LabelCore < handle
     function kpf(obj,src,evt) %#ok<INUSD>
     end
     
-    function getKeyboardShortcutsHelp(obj) %#ok<MANU>
+    function getLabelingHelp(obj) %#ok<MANU>
     end
           
   end

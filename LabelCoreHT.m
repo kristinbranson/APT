@@ -55,7 +55,6 @@ classdef LabelCoreHT < LabelCore
   % - Review Mode? -- Could just feed results through template mode?
   % - Automatic capability to "resume where you left off"?
 
-  
   properties
     iPoint;    % scalar. Either nan, or index of pt currently being labeled
     
@@ -101,6 +100,7 @@ classdef LabelCoreHT < LabelCore
     
     function newFrame(obj,~,iFrm1,iTgt)
       lpos = obj.labeler.labeledposCurrMovie;
+            
       xy = lpos(:,:,iFrm1,iTgt);
       tfUnlbled = isnan(xy(:,1));
       tfLbledOrOcc = ~tfUnlbled;
@@ -112,7 +112,7 @@ classdef LabelCoreHT < LabelCore
       
       % POSITIONING
       % - all labeled pts are positioned per labels (including iPoint)
-      % - all occed pts are positioned per usual
+      % - all pure-occed pts are positioned per usual
       % - if nonlabeled, iPoint position unchanged
       % - other nonlabeled, nonocced are hidden
       if tfUnlbled(iPt)
@@ -139,7 +139,24 @@ classdef LabelCoreHT < LabelCore
         clr = obj.unlabeledPointColor;
       end
       set(hPoints(iPt),'Color',clr);
-      set(hPointsOcc(iPt),'Color',clr);      
+      set(hPointsOcc(iPt),'Color',clr);    
+      
+      % MARKER
+      % - all labeled or pure-occluded use regular Marker
+      % - all labeled and tag-occluded, use OccludedMarker
+      % - unlabeled; don't change marker. In particular, for iPoint, leave
+      % marker as-is; if last frame was tag-occluded, leave
+      % tag-occluded marker
+      lpostag = obj.labeler.labeledpostagCurrMovie;
+      lpostag = lpostag(:,iFrm1,iTgt);      
+      tfOccTag = strcmp(lpostag,LabelCore.LPOSTAG_OCC);
+      % tfLbledOrOcc defined above
+      
+      mrkr = obj.ptsPlotInfo.Marker;
+      mrkrOcc = obj.ptsPlotInfo.OccludedMarker;      
+      
+      set(hPoints(tfLbledOrOcc & ~tfOccTag),'Marker',mrkr);
+      set(hPoints(tfLbledOrOcc & tfOccTag),'Marker',mrkrOcc);      
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSD>
@@ -153,8 +170,10 @@ classdef LabelCoreHT < LabelCore
     
     function clearLabels(obj)
       iPt = obj.iPoint;
-      set(obj.hPts(iPt),'Color',obj.unlabeledPointColor);
-      set(obj.hPtsOcc(iPt),'Color',obj.unlabeledPointColor);
+      clr = obj.unlabeledPointColor;
+      mrkr = obj.ptsPlotInfo.Marker;
+      set(obj.hPts(iPt),'Color',clr,'Marker',mrkr);
+      set(obj.hPtsOcc(iPt),'Color',clr); % marker should always be mrkr
       obj.labeler.labelPosClearI(iPt);
     end
     
@@ -166,17 +185,29 @@ classdef LabelCoreHT < LabelCore
       assert(false);
     end 
     
-    function axBDF(obj,~,evt) 
-      if evt.Button==1
-        pos = get(obj.hAx,'CurrentPoint');
-        pos = pos(1,1:2);
-        iPt = obj.iPoint;
-        obj.assignLabelCoordsIRaw(pos,iPt);
+    function axBDF(obj,~,evt)
+      switch evt.Button
+        case {1 3}
+          pos = get(obj.hAx,'CurrentPoint');
+          pos = pos(1,1:2);
+          iPt = obj.iPoint;
+          obj.assignLabelCoordsIRaw(pos,iPt);
+          
+          if evt.Button==1
+            set(obj.hPts(iPt),...
+              'Color',obj.ptsPlotInfo.Colors(iPt,:),...
+              'Marker',obj.ptsPlotInfo.Marker);
+            obj.labeler.labelPosTagClearI(iPt); % currently only tag is 'occ'
+          elseif evt.Button==3
+            set(obj.hPts(iPt),...
+              'Color',obj.ptsPlotInfo.Colors(iPt,:),...
+              'Marker',obj.ptsPlotInfo.OccludedMarker);
+            obj.labeler.labelPosTagSetI(LabelCore.LPOSTAG_OCC,iPt);
+          end
 
-        set(obj.hPts(iPt),'Color',obj.ptsPlotInfo.Colors(iPt,:));
-        obj.labeler.labelPosSetI(pos,iPt);
-        obj.clickedIncrementFrame();
-      end    
+          obj.labeler.labelPosSetI(pos,iPt);
+          obj.clickedIncrementFrame();
+      end 
     end
     
     function ptBDF(obj,src,evt) 
@@ -209,12 +240,18 @@ classdef LabelCoreHT < LabelCore
       obj.labeler.labelPosSetOccludedI(iPt);
       tfOcc = obj.labeler.labelPosIsOccluded();
       assert(isequal(tfOcc,obj.tfOcc));
+      
+      % at the moment the only tag is the Occ tag
+      obj.labeler.labelPosTagClearI(iPt); 
             
       obj.clickedIncrementFrame();
     end
 
-    function h = getKeyboardShortcutsHelp(obj) %#ok<MANU>
+    function h = getLabelingHelp(obj) %#ok<MANU>
       h = { ...
+        '* Left-click labels a point and auto-advances the movie.'; ...
+        '* Right-click labels an estimate/occluded point and auto-advances the movie.'; ...
+        '* Right-click the current point for additional labeling options.'; ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'; ...
         '* <space> accepts the point as-is for the current frame.'};
     end
@@ -253,8 +290,21 @@ classdef LabelCoreHT < LabelCore
       pos = [hPt.XData hPt.YData];
       
       set(hPt,'Color',obj.ptsPlotInfo.Colors(iPt,:));
-      obj.labeler.labelPosSetI(pos,iPt);
-      tfEOM = obj.clickedIncrementFrame();      
+      lObj = obj.labeler;
+      lObj.labelPosSetI(pos,iPt);
+      
+      mrkr = hPt.Marker;
+      assert(~strcmp(obj.ptsPlotInfo.Marker,obj.ptsPlotInfo.OccludedMarker),...
+        'Marker and OccludedMarker are identical. Please specify distinguishable markers.');
+      switch mrkr
+        case obj.ptsPlotInfo.Marker
+          lObj.labelPosTagClearI(iPt);
+        case obj.ptsPlotInfo.OccludedMarker
+          lObj.labelPosTagSetI(LabelCore.LPOSTAG_OCC,iPt);
+        otherwise
+          assert(false);          
+      end
+      tfEOM = obj.clickedIncrementFrame();  
     end
     
     function acceptCurrentPtN(obj)

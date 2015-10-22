@@ -9,14 +9,14 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' ...
       'projname' ...
-      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' ...      
+      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' 'labeledpostag' ...      
       'currMovie' 'currFrame' 'currTarget' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
       'minv' 'maxv'...
       'suspScore'};
     LOADPROPS = {...
       'projname' ...
-      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' ...
+      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' 'labeledpostag' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
       'minv' 'maxv' ...
       'suspScore'};
@@ -105,13 +105,15 @@ classdef Labeler < handle
     nLabelPoints;         % scalar integer
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints        
     labelTemplate;    
-    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov)
+    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array
+    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
   end
   properties (SetObservable)
-    labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save
+    labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
   end
   properties (Dependent)
     labeledposCurrMovie;
+    labeledpostagCurrMovie;
   end
   properties
     lblCore;
@@ -232,7 +234,14 @@ classdef Labeler < handle
         v = [];
       else
         v = obj.labeledpos{obj.currMovie};
-      end      
+      end
+    end
+    function v = get.labeledpostagCurrMovie(obj)
+      if obj.currMovie==0
+        v = [];
+      else
+        v = obj.labeledpostag{obj.currMovie};
+      end
     end
   end
   
@@ -329,6 +338,7 @@ classdef Labeler < handle
       obj.trxFilesAll = cell(0,1);
       obj.movieSetNoMovie(); % order important here
       obj.labeledpos = cell(0,1);
+      obj.labeledpostag = cell(0,1);
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
     end
@@ -472,7 +482,8 @@ classdef Labeler < handle
       obj.movieFilesAll{end+1,1} = moviefile;
       obj.movieInfoAll{end+1,1} = ifo;
       obj.trxFilesAll{end+1,1} = trxfile;
-      obj.labeledpos{end+1,1} = [];   
+      obj.labeledpos{end+1,1} = [];
+      obj.labeledpostag{end+1,1} = [];
     end
     
     function movieRm(obj,iMov)
@@ -488,6 +499,7 @@ classdef Labeler < handle
       obj.movieInfoAll(iMov,:) = [];
       obj.trxFilesAll(iMov,:) = [];
       obj.labeledpos(iMov,:) = [];
+      obj.labeledpostag(iMov,:) = [];      
       if obj.currMovie>iMov
         obj.movieSet(obj.currMovie-1);
       end
@@ -525,6 +537,9 @@ classdef Labeler < handle
 
       if isempty(obj.labeledpos{iMov})
         obj.labelPosInitCurrMovie();
+      end
+      if isempty(obj.labeledpostag{iMov})
+        obj.labelPosTagInitCurrMovie();
       end
       obj.labelingInit();
       
@@ -741,15 +756,12 @@ classdef Labeler < handle
     function labelPosInitCurrMovie(obj)
       obj.labeledpos{obj.currMovie} = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
     end
-    
-%     function labelPosInitWithLocked(obj)
-%       obj.labeledpos = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
-%       obj.labeledposNeedsSave = false;
-%       fprintf(2,'deleteme\n');
-%     end
-    
+    function labelPosTagInitCurrMovie(obj)
+      obj.labeledpostag{obj.currMovie} = cell(obj.nLabelPoints,obj.nframes,obj.nTargets); 
+    end
+        
     function labelPosClear(obj)
-      % Clear all labels for current movie/frame/target
+      % Clear all labels AND TAGS for current movie/frame/target
       
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
@@ -761,10 +773,12 @@ classdef Labeler < handle
         obj.labeledpos{iMov}(:,:,iFrm,iTgt) = nan;
         obj.labeledposNeedsSave = true;
       end
+      
+      obj.labeledpostag{iMov}(:,iFrm,iTgt) = {[]};
     end
     
     function labelPosClearI(obj,iPt)
-      % Clear labels for current movie/frame/target, point iPt
+      % Clear labels and tags for current movie/frame/target, point iPt
       
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
@@ -776,6 +790,8 @@ classdef Labeler < handle
         obj.labeledpos{iMov}(iPt,:,iFrm,iTgt) = nan;
         obj.labeledposNeedsSave = true;
       end
+      
+      obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = [];
     end
     
     function [tf,lpos] = labelPosIsLabeled(obj,iFrm,iTrx)
@@ -788,6 +804,7 @@ classdef Labeler < handle
     end 
     
     function tf = labelPosIsOccluded(obj,iFrm,iTrx)
+      % Here Occluded refers to "pure occluded"
       % For current movie.
       % iFrm, iTrx: optional, defaults to current
       % Note: it is permitted to call eg LabelPosSet with inf coords
@@ -832,12 +849,27 @@ classdef Labeler < handle
     end
     
     function labelPosSetOccludedI(obj,iPt)
+      % Occluded is "pure occluded" here
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
       obj.labeledpos{iMov}(iPt,:,iFrm,iTgt) = inf;
       
       obj.labeledposNeedsSave = true;
+    end
+    
+    function labelPosTagSetI(obj,tag,iPt)
+      iMov = obj.currMovie;
+      iFrm = obj.currFrame;
+      iTgt = obj.currTarget;
+      obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = tag;
+    end
+    
+    function labelPosTagClearI(obj,iPt)
+      iMov = obj.currMovie;
+      iFrm = obj.currFrame;
+      iTgt = obj.currTarget;
+      obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = [];
     end
 
     function [tfneighbor,iFrm0,lpos0] = labelPosLabeledNeighbor(obj,iFrm,iTrx)
@@ -978,15 +1010,29 @@ classdef Labeler < handle
     end
     
     % CONSIDER: encapsulating labelsPrev (eg in a LabelCore)
-    function labelsPrevUpdate(obj)
+    function labelsPrevUpdate(obj)      
+      persistent tfWarningThrownAlready
+
       if obj.isinit
         return;
       end
       if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
         iMov = obj.currMovie;
-        lpos = obj.labeledpos{iMov}(:,:,obj.prevFrame,obj.currTarget);
-        obj.lblCore.assignLabelCoords(lpos,'hPts',obj.lblPrev_ptsH,...
+        frm = obj.prevFrame;
+        iTgt = obj.currTarget;
+        
+        lpos = obj.labeledpos{iMov}(:,:,frm,iTgt);
+        obj.lblCore.assignLabelCoords(lpos,...
+          'hPts',obj.lblPrev_ptsH,...
           'hPtsTxt',obj.lblPrev_ptsTxtH);
+        
+        lpostag = obj.labeledpostag{iMov}(:,frm,iTgt);
+        if ~all(cellfun(@isempty,lpostag))
+          if isempty(tfWarningThrownAlready)
+            warningNoTrace('Labeler:labelsPrev','TODO: label tags in previous frame not visualized.');
+            tfWarningThrownAlready = true;
+          end
+        end
       else
         LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end

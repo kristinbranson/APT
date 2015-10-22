@@ -313,7 +313,7 @@ classdef LabelCoreTemplate < LabelCore
       end   
     end
 
-    function h = getKeyboardShortcutsHelp(obj) %#ok<MANU>
+    function h = getLabelingHelp(obj) %#ok<MANU>
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
         '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
