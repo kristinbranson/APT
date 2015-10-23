@@ -481,7 +481,12 @@ handles.labelerObj.addDepHandle(h);
 % end
 
 function menu_help_labeling_actions_Callback(hObject, eventdata, handles)
-h = handles.labelerObj.lblCore.getLabelingHelp();
+lblCore = handles.labelerObj.lblCore;
+if isempty(lblCore)
+  h = 'Please open a movie first.';
+else
+  h = lblCore.getLabelingHelp();
+end
 msgbox(h,'Labeling Actions','help','modal');
 
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
