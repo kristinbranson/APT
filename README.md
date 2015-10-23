@@ -15,7 +15,6 @@ cd /path/to/git/APT/checkout
 APT.setpath % configures MATLAB path
 lObj = Labeler;
 ```
-
 4. Go to the File> menu to open a movie or movie+trx. 
 
 #### Description
