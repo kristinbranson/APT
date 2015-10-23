@@ -3,8 +3,9 @@ classdef Labeler < handle
 
   properties (Constant,Hidden)
     VERSION = '0.2';
-    DEFAULT_LBLFILENAME = '%s.lbl';    
-    PREF_FILENAME = 'pref.yaml';
+    DEFAULT_LBLFILENAME = '%s.lbl';
+    PREF_DEFAULT_FILENAME = 'pref.default.yaml';
+    PREF_LOCAL_FILENAME = 'pref.yaml';
 
     SAVEPROPS = { ...
       'VERSION' ...
@@ -259,15 +260,24 @@ classdef Labeler < handle
   methods 
   
     function obj = Labeler(varargin)
-      % lObj = Labeler();  
-      
-      if nargin==0
-        preffile = fullfile(APT.Root,Labeler.PREF_FILENAME);
-        pref = ReadYaml(preffile,[],1);
-        obj.initFromPrefs(pref);        
+      % lObj = Labeler();
+     
+      prefdeffile = fullfile(APT.Root,Labeler.PREF_DEFAULT_FILENAME);
+      assert(exist(prefdeffile,'file')>0,...
+        'Cannot find default preferences ''%s''.',prefdeffile);
+      prefdef = ReadYaml(prefdeffile,[],1);
+      fprintf(1,'Default preferences: %s\n',prefdeffile);
+
+      preflocfile = fullfile(APT.Root,Labeler.PREF_LOCAL_FILENAME);
+      if exist(preflocfile,'file')>0
+        preflocal = ReadYaml(preflocfile,[],1);
+        fprintf(1,'Found local preferences: %s\n',preflocfile);
+        pref = structoverlay(prefdef,preflocal);
       else
-        assert(false,'Currently unsupported');
+        pref = prefdef;
       end      
+      obj.initFromPrefs(pref);
+
       hFig = LabelerGUI(obj);
       obj.gdata = guidata(hFig);      
       obj.movieReader = MovieReader;  
