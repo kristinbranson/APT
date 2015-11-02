@@ -29,7 +29,12 @@ gui_Singleton = 0;
 if ismac
     gui_Name = 'LabelerGUI_Mac';
 else
-    gui_Name = 'LabelerGUI_PC'; % use this for both PC and Unix
+  % PC/Unix
+  if verLessThan('matlab','8.6') % 8.6==R2015b
+    gui_Name = 'LabelerGUI_PC';
+  else
+    gui_Name = 'LabelerGUI_PC_15b';
+  end
 end
 gui_State = struct('gui_Name',       gui_Name, ...
                    'gui_Singleton',  gui_Singleton, ...
