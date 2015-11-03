@@ -1183,6 +1183,17 @@ classdef Labeler < handle
       obj.maxv = clim(2);
     end
     
+    function videoFlipUD(obj)
+      gd = obj.gdata;
+      gd.axes_curr.YDir = toggleAxisDir(gd.axes_curr.YDir);
+      gd.axes_prev.YDir = toggleAxisDir(gd.axes_prev.YDir);
+    end
+    function videoFlipLR(obj)
+      gd = obj.gdata;
+      gd.axes_curr.XDir = toggleAxisDir(gd.axes_curr.XDir);
+      gd.axes_prev.XDir = toggleAxisDir(gd.axes_prev.XDir);
+    end
+    
   end
   
   %% showTrx

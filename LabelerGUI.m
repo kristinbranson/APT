@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 22-Oct-2015 15:43:51
+% Last Modified by GUIDE v2.5 02-Nov-2015 16:41:24
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -288,16 +288,16 @@ end
 function cbkShowTrxModeChanged(src,evt)
 lObj = evt.AffectedObject;
 gd = lObj.gdata;
-gd.menu_setup_trajectories_showall.Checked = 'off';
-gd.menu_setup_trajectories_showcurrent.Checked = 'off';
-gd.menu_setup_trajectories_dontshow.Checked = 'off';
+gd.menu_view_trajectories_showall.Checked = 'off';
+gd.menu_view_trajectories_showcurrent.Checked = 'off';
+gd.menu_view_trajectories_dontshow.Checked = 'off';
 switch lObj.showTrxMode
   case ShowTrxMode.NONE
-    gd.menu_setup_trajectories_dontshow.Checked = 'on';
+    gd.menu_view_trajectories_dontshow.Checked = 'on';
   case ShowTrxMode.CURRENT
-    gd.menu_setup_trajectories_showcurrent.Checked = 'on';
+    gd.menu_view_trajectories_showcurrent.Checked = 'on';
   case ShowTrxMode.ALL
-    gd.menu_setup_trajectories_showall.Checked = 'on';
+    gd.menu_view_trajectories_showall.Checked = 'on';
 end
 
 function cbkTrackerChanged(src,evt)
@@ -308,7 +308,7 @@ lObj.gdata.menu_track_retrack.Enable = onIff(tf);
 function cbkMovieCenterOnTargetChanged(src,evt)
 lObj = evt.AffectedObject;
 tf = lObj.movieCenterOnTarget;
-lObj.gdata.menu_setup_trajectories_centervideoontarget.Checked = onIff(tf);
+lObj.gdata.menu_view_trajectories_centervideoontarget.Checked = onIff(tf);
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -508,22 +508,26 @@ lObj.lblCore.setIPoint(ret);
 function CloseImContrast(labelerObj)
 labelerObj.videoSetContrastFromAxesCurr();
 
-function menu_setup_adjustbrightness_Callback(hObject, eventdata, handles)
+function menu_view_adjustbrightness_Callback(hObject, eventdata, handles)
 hConstrast = imcontrast_kb(handles.axes_curr);
 addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.labelerObj));
 
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
 
-function menu_setup_trajectories_showall_Callback(hObject, eventdata, handles)
+function menu_view_trajectories_showall_Callback(hObject, eventdata, handles)
 handles.labelerObj.setShowTrxMode(ShowTrxMode.ALL);
-function menu_setup_trajectories_showcurrent_Callback(hObject, eventdata, handles)
+function menu_view_trajectories_showcurrent_Callback(hObject, eventdata, handles)
 handles.labelerObj.setShowTrxMode(ShowTrxMode.CURRENT);
-function menu_setup_trajectories_dontshow_Callback(hObject, eventdata, handles)
+function menu_view_trajectories_dontshow_Callback(hObject, eventdata, handles)
 handles.labelerObj.setShowTrxMode(ShowTrxMode.NONE);
-function menu_setup_trajectories_centervideoontarget_Callback(hObject, eventdata, handles)
+function menu_view_trajectories_centervideoontarget_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.movieCenterOnTarget = ~lObj.movieCenterOnTarget;
+function menu_view_flip_flipud_Callback(hObject, eventdata, handles)
+handles.labelerObj.videoFlipUD();
+function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
+handles.labelerObj.videoFlipLR();
 
 function menu_track_retrack_Callback(hObject, eventdata, handles)
 handles.labelerObj.track();
@@ -604,3 +608,4 @@ end
 % else
 %   guidata(hObject,handles);
 % end
+
