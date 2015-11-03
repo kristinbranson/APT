@@ -306,8 +306,65 @@ classdef LabelCoreHT < LabelCore
       end
       tfEOM = obj.clickedIncrementFrame();  
     end
+   
+    function acceptCurrentPtN(obj,nrpt)
+      % Equivalent to calling acceptCurrentPt() nrpt times as far as 
+      % the actual labeling is concerned; the UI differs, eg the movie does
+      % not scroll through all labeled frames
+      
+      assert(nrpt>0);
+      
+      iPt = obj.iPoint;
+      hPt = obj.hPts(iPt);
+      pos = [hPt.XData hPt.YData];      
+      
+      set(hPt,'Color',obj.ptsPlotInfo.Colors(iPt,:));
+      
+      lObj = obj.labeler;
+      frm0 = lObj.currFrame;
+      frmsMax = min(lObj.nframes,frm0+(nrpt-1)*obj.nFrameSkip);
+      frms = frm0:obj.nFrameSkip:frmsMax;
+      % Note: actual number of repeats may now differ from nrpt
+      nrptActual = numel(frms);
+      if nrptActual~=nrpt
+        str = sprintf('End of movie reached; %d points labeled (over duration of %d frames)',...
+          nrptActual,(nrptActual-1)*obj.nFrameSkip);
+        msgbox(str,'End of movie');
+      end
+      
+      lObj.labelPosSetFramesI(frms,pos,iPt);
+      
+      mrkr = hPt.Marker;
+      assert(~strcmp(obj.ptsPlotInfo.Marker,obj.ptsPlotInfo.OccludedMarker),...
+        'Marker and OccludedMarker are identical. Please specify distinguishable markers.');
+      switch mrkr
+        case obj.ptsPlotInfo.Marker
+          lObj.labelPosTagClearFramesI(iPt,frms);
+        case obj.ptsPlotInfo.OccludedMarker
+          lObj.labelPosTagSetFramesI(LabelCore.LPOSTAG_OCC,iPt,frms);
+        otherwise
+          assert(false);
+      end
+
+      dfrm = frms(end)-frms(1);
+      tfEOM = obj.clickedIncrementFrame(dfrm);
+      if tfEOM
+        warningNoTrace('LabelCoreHT:EOM','End of movie reached.');
+      end
+    end
+
+%     function acceptCurrentPtN(obj,nrpt)
+%       for i = 1:nrpt
+%         tfEOM = obj.acceptCurrentPt();
+%         drawnow();
+%         if tfEOM
+%           warningNoTrace('LabelCoreHT:EOM','End of movie reached.');
+%           break;
+%         end
+%       end        
+%     end
     
-    function acceptCurrentPtN(obj)
+    function acceptCurrentPtNPrompt(obj)
       resp = inputdlg('Number of times to accept point:','Label current point repeatedly',1,{'1'});
       if isempty(resp)
         % cancel; no-op
@@ -317,10 +374,10 @@ classdef LabelCoreHT < LabelCore
       if isnan(nrpt) || round(nrpt)~=nrpt || nrpt<=0
         error('LabelCoreHT:input','Input must be a positive integer.');
       end
-      obj.acceptCurrentPtNRaw(nrpt);
+      obj.acceptCurrentPtN(nrpt);
     end
     
-    function acceptCurrentPtNFrames(obj)
+    function acceptCurrentPtNFramesPrompt(obj)
       resp = inputdlg('Accept point over next N frames:','Label current point repeatedly',1,{'1'});
       if isempty(resp)
         % cancel; no-op
@@ -331,38 +388,33 @@ classdef LabelCoreHT < LabelCore
         error('LabelCoreHT:input','Input must be a positive integer.');
       end
       nrpt = ceil(nfrm/obj.nFrameSkip);  
-      obj.acceptCurrentPtNRaw(nrpt);
+      obj.acceptCurrentPtN(nrpt);
     end
     
     function acceptCurrentPtEnd(obj)
       nfrm = obj.labeler.nframes-obj.labeler.currFrame+1;
       nrpt = ceil(nfrm/obj.nFrameSkip);  
-      obj.acceptCurrentPtNRaw(nrpt);
-    end
-    
-    function acceptCurrentPtNRaw(obj,nrpt)
-      for i = 1:nrpt
-        tfEOM = obj.acceptCurrentPt();
-        if tfEOM
-          warningNoTrace('LabelCoreHT:EOM','End of movie reached.');
-          break;
-        end
-      end        
+      obj.acceptCurrentPtN(nrpt);
     end
     
   end
   
   methods (Access=private)       
     
-    function tfEOM = clickedIncrementFrame(obj)
+    function tfEOM = clickedIncrementFrame(obj,dfrm)
+      % dfrm (optional): number of frames to increment by. 
+      % 
       % tfEOM: true if end-of-movie reached
+
+      if exist('dfrm','var')==0
+        dfrm = obj.nFrameSkip;
+      end
       
       nf = obj.labeler.nframes;
       f = obj.labeler.currFrame;
-      df = obj.nFrameSkip;
       iPt = obj.iPoint;
       nPt = obj.nPts;
-      tfEOM = (f+df > nf);
+      tfEOM = (f+dfrm > nf);
       if tfEOM
         if iPt==nPt
           str = sprintf('End of movie reached. Labeling complete for all %d points!',nPt);
@@ -376,7 +428,7 @@ classdef LabelCoreHT < LabelCore
           obj.labeler.setFrame(1);
         end
       else
-        obj.labeler.frameUpDF(df);
+        obj.labeler.frameUpDF(dfrm);
       end
     end
     
@@ -387,9 +439,9 @@ classdef LabelCoreHT < LabelCore
       uimenu(c,'Label','Accept point for current frame',...
         'Callback',@(src,evt)obj.acceptCurrentPt);
       uimenu(c,'Label',sprintf('Accept point N times (N*%d frames)',obj.nFrameSkip),...
-        'Callback',@(src,evt)obj.acceptCurrentPtN);
-      uimenu(c,'Label',sprintf('Accept point N frames (N/%d times)',obj.nFrameSkip),...
-        'Callback',@(src,evt)obj.acceptCurrentPtNFrames);
+        'Callback',@(src,evt)obj.acceptCurrentPtNPrompt);
+      uimenu(c,'Label',sprintf('Accept point over N frames (N/%d times)',obj.nFrameSkip),...
+        'Callback',@(src,evt)obj.acceptCurrentPtNFramesPrompt);
       uimenu(c,'Label','Accept point until end of movie',...
         'Callback',@(src,evt)obj.acceptCurrentPtEnd);      
     end

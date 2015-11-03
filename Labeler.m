@@ -704,6 +704,19 @@ classdef Labeler < handle
         end
       end
     end
+   
+    function trxCheckFramesLive(obj,frms)
+      % Check that current target is live for given frames; err if not
+      
+      iTgt = obj.currTarget;
+      if obj.hasTrx
+        tfLive = obj.frm2trx(frms,iTgt);
+        if ~all(tfLive)
+          error('Labeler:labelpos',...
+            'Target %d is not live during all desired frames.',iTgt);
+        end
+      end
+    end
     
   end
  
@@ -845,8 +858,7 @@ classdef Labeler < handle
     end
     
     function labelPosSetI(obj,xy,iPt)
-      % Set labelpos from labelPtsH for current movie/frame/target, point 
-      % iPt
+      % Set labelpos for current movie/frame/target, point iPt
       
       assert(~any(isnan(xy(:))));
       
@@ -854,6 +866,28 @@ classdef Labeler < handle
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
       obj.labeledpos{iMov}(iPt,:,iFrm,iTgt) = xy;
+      
+      obj.labeledposNeedsSave = true;
+    end
+    
+    function labelPosSetFramesI(obj,frms,xy,iPt)
+      % Set labelpos for current movie/target to a single (constant) point
+      % across multiple frames
+      %
+      % frms: vector of frames
+      
+      assert(isvector(frms));
+      assert(numel(xy)==2 && ~any(isnan(xy(:))));
+      assert(isscalar(iPt));
+      
+      obj.trxCheckFramesLive(frms);
+
+      iMov = obj.currMovie;
+      iTgt = obj.currTarget;
+      
+      obj.labeledpos{iMov}(iPt,1,frms,iTgt) = xy(1);
+      obj.labeledpos{iMov}(iPt,2,frms,iTgt) = xy(2);
+      obj.updateFrameTableComplete(); % above sets mutate .labeledpos{obj.currMovie} in more than just .currFrame
       
       obj.labeledposNeedsSave = true;
     end
@@ -881,7 +915,24 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = [];
     end
+    
+    function labelPosTagSetFramesI(obj,tag,iPt,frms)
+      % Set tags for current movie/target, given pt/frames
 
+      obj.trxCheckFramesLive(frms);
+      iMov = obj.currMovie;
+      iTgt = obj.currTarget;
+      obj.labeledpostag{iMov}(iPt,frms,iTgt) = {tag};
+    end
+    
+    function labelPosTagClearFramesI(obj,iPt,frms)
+      % Clear tags for current movie/target, given pt/frames
+      
+      iMov = obj.currMovie;
+      iTgt = obj.currTarget;
+      obj.labeledpostag{iMov}(iPt,frms,iTgt) = {[]};    
+    end
+    
     function [tfneighbor,iFrm0,lpos0] = labelPosLabeledNeighbor(obj,iFrm,iTrx)
       % tfneighbor: if true, a labeled neighboring frame was found
       % iFrm0: index of labeled neighboring frame, relevant only if
@@ -949,7 +1000,7 @@ classdef Labeler < handle
       nTgts = zeros(nf,1);
       nPts = zeros(nf,1);
       if tfWaitBar
-        hWB = waitbar(0,'Scanning existing labels');
+        hWB = waitbar(0,'Updating frame table');
         ocp = onCleanup(@()delete(hWB));
       end
       for i = 1:nf
@@ -1020,7 +1071,7 @@ classdef Labeler < handle
     end
     
     % CONSIDER: encapsulating labelsPrev (eg in a LabelCore)
-    function labelsPrevUpdate(obj)      
+    function labelsPrevUpdate(obj)
       persistent tfWarningThrownAlready
 
       if obj.isinit
@@ -1047,7 +1098,7 @@ classdef Labeler < handle
         LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end
     end
-  
+    
   end
    
   %% Susp 
