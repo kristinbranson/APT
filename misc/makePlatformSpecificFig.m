@@ -68,14 +68,16 @@ for h = allH(:)'
     
     switch targetPlatform
       case 'pc'
+        % AL 20151104 note appears obsolete
+        %
         % TMW note: Setting a uipanel's FontUnits to normalized on
         % a PC causes it to hang. Similarly, using a PC to open a
         % .fig file that was created on a Mac, in which a uipanel's
         % FontUnits has been saved as 'Normalized', causes the PC
         % to hang.
-        if ~strcmp(hType,'uipanel')
-          set(h,'FontUnits','Normalized');
-        end
+%         if ~strcmp(hType,'uipanel')
+        set(h,'FontUnits','Normalized');
+%         end
       otherwise
         set(h,'FontUnits','Normalized');
     end

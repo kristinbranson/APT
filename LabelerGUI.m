@@ -26,15 +26,14 @@ function varargout = LabelerGUI(varargin)
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
-if ismac
-    gui_Name = 'LabelerGUI_Mac';
+% AL20151104: 'dpi-aware' MATLAB graphics introduced in R2015b have trouble
+% with .figs created in previous versions. Did significant testing across
+% MATLAB versions and platforms and behavior appears at least mildly 
+% wonky-- couldn't figure out a clean solution. For now use two .figs
+if ispc && ~verLessThan('matlab','8.6') % 8.6==R2015b
+  gui_Name = 'LabelerGUI_PC_15b';
 else
-  % PC/Unix
-  if verLessThan('matlab','8.6') % 8.6==R2015b
-    gui_Name = 'LabelerGUI_PC';
-  else
-    gui_Name = 'LabelerGUI_PC_15b';
-  end
+  gui_Name = 'LabelerGUI_PC_14b';
 end
 gui_State = struct('gui_Name',       gui_Name, ...
                    'gui_Singleton',  gui_Singleton, ...
