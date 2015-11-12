@@ -137,7 +137,7 @@ for t=t0:T
     %Compute shape-indexed features
     ftrPos=regs(t).ftrPos;
     switch ftrPos.type
-        case {5 6 7 8 9 10}
+        case {5 6 7 8 9 10 11}
             [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',model,p,Is,ftrPos,...
                 imgIds,regModel.pStar,bboxes,regPrm.occlPrm,regPrm.Prm3D);
         case {3 4}

@@ -26,6 +26,10 @@
 
 function [regModel,regPrm,prunePrm,phisPr,err]=train(phisTr,bboxesTr,IsTr,varargin)
 
+if isdeployed,
+  rng('shuffle');
+end
+
 % TODO: nothing is done with prunePrm other than returning it & crossval
 prunePrm=struct('prune',1,'maxIter',2,'th',.5,'tIni',10,'numInit',5);
 occlPrm=struct('nrows',3,'ncols',3,'nzones',1,'Stot',1,'th',.5);
@@ -43,7 +47,9 @@ occlPrm=struct('nrows',3,'ncols',3,'nzones',1,'Stot',1,'th',.5);
   nferns_choose,fern_depth,fern_thresh,fern_regularization,...
   ncrossvalsets,...
   nsample_std,nsample_cor,cvidx,cvi,nthreads,docomperr,...
-  augment_dorotate] = ...
+  augment_dorotate,...
+  fractrain,...
+  nsets_train] = ...
   myparse(varargin,...
   'cpr_type','noocclusion',...
   'model_type','mouse_paw3D',...
@@ -73,7 +79,9 @@ occlPrm=struct('nrows',3,'ncols',3,'nzones',1,'Stot',1,'th',.5);
   'nsample_cor',5000,...
   'cvidx',[],'cvi',[],'nthreads',[],...
   'docomperr',true,...
-  'augment_dorotate',false);
+  'augment_dorotate',false,...
+  'fractrain',1,...
+  'nsets_train',[]);
 
 if ischar(phisTr) && ischar(bboxesTr) && ischar(IsTr),
   
@@ -95,6 +103,14 @@ if isdeployed && ~isempty(nthreads),
     nthreads = str2double(nthreads);
   end
   maxNumCompThreads(nthreads);
+end
+
+if isdeployed && ischar(fractrain),
+  fractrain = str2double(fractrain);
+end
+
+if isdeployed && ischar(nsets_train),
+  nsets_train = str2double(nsets_train);
 end
 
 % by default, minimum image size / 2
@@ -127,6 +143,8 @@ switch cpr_type,
     end
 end
 
+docomperr = nargout >= 4 || (~isempty(savefile) && docomperr);
+
 %RCPR(features+restarts) PARAMETERS
 ftrPrm = struct('type',ftr_type,'F',nftrs_test_perfern,...
   'nChn',nChn,'radius',ftr_gen_radius,'nsample_std',nsample_std,...
@@ -158,6 +176,27 @@ if ncrossvalsets > 1,
     for cvi = 1:ncrossvalsets,
       
       idxtrain = cvidx ~= cvi;
+      
+      if fractrain < 1,
+        
+        idxtrain = find(idxtrain);
+        ntraincurr = numel(idxtrain);
+        ntraincurr1 = max(1,round(ntraincurr*fractrain));
+        idxtrain1 = randsample(ntraincurr,ntraincurr1);
+        idxtrain = idxtrain(sort(idxtrain1));
+        fprintf('CV set %d, training on %d / %d training examples\n',cvi,ntraincurr1,ntraincurr);
+        
+      elseif ~isempty(nsets_train) && nsets_train < ncrossvalsets-1,
+        
+        ntraincurr = nnz(idxtrain);
+        cvallowed = [1:cvi-1,cvi+1:ncrossvalsets];
+        cvtrain = cvallowed(randsample(ncrossvalsets-1,nsets_train));
+        idxtrain = ismember(cvidx,cvtrain);
+        fprintf('CV set %d, training on %d / %d training examples (%d / %d cv sets)\n',cvi,nnz(idxtrain),ntraincurr,...
+          nsets_train,ncrossvalsets-1);
+        
+      end
+      
       idxtest = cvidx == cvi;
       
       fprintf('Training for cross-validation set %d / %d\n',cvi,ncrossvalsets);
@@ -165,15 +204,27 @@ if ncrossvalsets > 1,
       regModel{cvi} = train1(phisTr(idxtrain,:),bboxesTr(idxtrain,:),IsTr(idxtrain),...
         pStar,naugment,augment_pad,model,regPrm,ftrPrm,cascade_depth,augment_dorotate);
       
-      if nargout >= 4 || ~isempty(savefile),
+      if dcomperr,
         phisPr(idxtest,:) = test_rcpr([],bboxesTr(idxtest,:),IsTr(idxtest),regModel{cvi},regPrm,prunePrm);
-        errcurr = mean( sqrt(sum( (phisPr(idxtest,:)-phisTr(idxtest,:)).^2, 2)) );
+        
+        [errPerEx] = shapeGt('dist',model,phisPr(idxtest,:),phisTr(idxtest,:));
+        errcurr = mean(errPerEx);
+        
+        %errcurr = mean( sqrt(sum( (phisPr(idxtest,:)-phisTr(idxtest,:)).^2, 2)) );
         fprintf('Error for validation set %d = %f\n',cvi,errcurr);
       end
     
     end
-    err = mean( sqrt(sum( (phisPr-phisTr).^2, 2)) );
     
+    if docomperr,
+      [errPerEx] = shapeGt('dist',model,phisPr,phisTr);
+      err = mean(errPerEx);
+      %err = mean( sqrt(sum( (phisPr-phisTr).^2, 2)) );
+    else
+      phisPr = [];
+      err = [];
+    end
+        
   else
     
     if ischar(cvi),
@@ -181,6 +232,27 @@ if ncrossvalsets > 1,
     end
     
     idxtrain = cvidx ~= cvi;
+    
+    if fractrain < 1,
+      
+      idxtrain = find(idxtrain);
+      ntraincurr = numel(idxtrain);
+      ntraincurr1 = max(1,round(ntraincurr*fractrain));
+      idxtrain1 = randsample(ntraincurr,ntraincurr1);
+      idxtrain = idxtrain(sort(idxtrain1));
+      fprintf('CV set %d, training on %d / %d training examples\n',cvi,ntraincurr1,ntraincurr);
+      
+    elseif ~isempty(nsets_train) && nsets_train < ncrossvalsets-1,
+      
+      ntraincurr = nnz(idxtrain);
+      cvallowed = [1:cvi-1,cvi+1:ncrossvalsets];
+      cvtrain = cvallowed(randsample(ncrossvalsets-1,nsets_train));
+      idxtrain = ismember(cvidx,cvtrain);
+      fprintf('CV set %d, training on %d / %d training examples (%d / %d cv sets)\n',cvi,nnz(idxtrain),ntraincurr,...
+        nsets_train,ncrossvalsets-1);
+      
+    end
+    
     idxtest = cvidx == cvi;
     
     fprintf('Training for cross-validation set %d / %d\n',cvi,ncrossvalsets);
@@ -192,10 +264,16 @@ if ncrossvalsets > 1,
       save(savefile,'regModel','regPrm','prunePrm','paramfile1','paramfile2','cvidx');
     end
 
-    
-    phisPr = test_rcpr([],bboxesTr(idxtest,:),IsTr(idxtest),regModel,regPrm,prunePrm);
-    err = mean( sqrt(sum( (phisPr-phisTr(idxtest,:)).^2, 2)) );
-    fprintf('Error for validation set %d = %f\n',cvi,err);
+    if docomperr,
+      phisPr = test_rcpr([],bboxesTr(idxtest,:),IsTr(idxtest),regModel,regPrm,prunePrm);
+      
+      [errPerEx] = shapeGt('dist',model,phisPr,phisTr(idxtest,:));
+      err = mean(errPerEx);
+      fprintf('Error for validation set %d = %f\n',cvi,err);
+    else
+      phisPr = [];
+      err = [];
+    end
     
   end
   
@@ -207,7 +285,7 @@ else
   regModel = train1(phisTr,bboxesTr,IsTr,...
     pStar,naugment,augment_pad,model,regPrm,ftrPrm,cascade_depth,augment_dorotate);
   
-  if nargout >= 4 || ~isempty(savefile) && docomperr,
+  if docomperr,
     phisPr = test_rcpr([],bboxesTr,IsTr,regModel,regPrm,prunePrm);
     err = mean( sqrt(sum( (phisPr-phisTr).^2, 2)) );
   else
@@ -223,6 +301,10 @@ if ~isempty(savefile),
   
 end
 
+if isdeployed,
+  delete(findall(0,'type','figure'));
+end
+
 function regModel = train1(phisTr,bboxesTr,IsTr,pStar,naugment,augment_pad,...
     model,regPrm,ftrPrm,cascade_depth,augment_dorotate)
   
@@ -235,7 +317,8 @@ initData=struct('pCur',pCur,'pGt',pGt,'pGtN',pGtN,'pStar',pStar,...
 %Create training structure
 trPrm=struct('model',model,'pStar',[],'posInit',bboxesTr,...
   'T',cascade_depth,'L',naugment,'regPrm',regPrm,'ftrPrm',ftrPrm,...
-  'pad',augment_pad,'verbose',1,'initData',initData);
+  'pad',augment_pad,'verbose',1,'initData',initData,...
+  'dorotate',augment_dorotate);
 if model.d == 3,
   trPrm.Prm3D=Prm3D;
 end

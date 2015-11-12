@@ -1,22 +1,16 @@
-function [vidobj] = MakeTrackingResultsHistogramVideo(expdir,trxfile,varargin)
+function [vidobj] = MakeTrackingResultsVideo(expdir,trxfile,varargin)
 
-[firstframe,endframe,moviefilestr,resvideo,smoothsig,maxv,...
-  hfig,vidobj,trx_firstframe,intrxfile,fly,winrad,trxcolor,textcolor] = ...
+[firstframe,endframe,moviefilestr,resvideo,...
+  hfig,vidobj,trx_firstframe,intrxfile,fly,winrad,landmarkcolors,textcolor,...
+  landmark_lw,landmark_ms,trx_lw] = ...
   myparse(varargin,'firstframe',1,'endframe',inf,...
   'moviefilestr','movie_comb.avi','resvideo','',...
-  'smoothsig',2,'maxv',1.3,'hfig',2,'vidobj',[],'trx_firstframe',1,...
-  'intrxfile','','fly',1,'winrad',100,'TrxColor','m','TextColor','k');
+  'hfig',2,'vidobj',[],'trx_firstframe',1,...
+  'intrxfile','','fly',1,'winrad',100,'LandmarkColors',[],'TextColor','k',...
+  'LandmarkLineWidth',1,'LandmarkMarkerSize',8,'TrxLineWidth',1);
 
 regi = 1;
 expi = 1;
-
-if iscell(expdir),
-  [~,n] = fileparts(expdir{1});
-else
-  [~,n] = fileparts(expdir);
-end
-
-fil = fspecial('gaussian',6*smoothsig+1,smoothsig);
 
 figure(hfig);
 clf;
@@ -28,11 +22,15 @@ else
   readframe = get_readframe_fcn(fullfile(expdir,moviefilestr));
 end
 
-load(trxfile,'phisPrAll','phisPr');
+if ischar(trxfile),
+  load(trxfile,'phisPr');
+else
+  phisPr = trxfile;
+end
 
-[F,D,K] = size(phisPrAll{regi,expi}); %#ok<USENS>
+[F,D] = size(phisPr{regi,expi}); 
 firstframe = max(firstframe,trx_firstframe);
-endframe = min([F,endframe,size(phisPr{1,expi},1)+trx_firstframe-1]);  %#ok<USENS>
+endframe = min([F,endframe,size(phisPr{1,expi},1)+trx_firstframe-1]); 
 
 istrx = false;
 if ~isempty(intrxfile),
@@ -42,6 +40,10 @@ end
 
 d = 2;
 nfids = D/d; 
+
+if isempty(landmarkcolors),
+  landmarkcolors = jet(nfids);
+end
 
 if numel(phisPr) > nfids,
   p1 = cat(3,phisPr{end-nfids+1:end,expi});
@@ -62,22 +64,18 @@ if imsz(3) == 1,
   im = repmat(im,[1,1,3]);
 end
 him = image(im); axis image; hold on;
-htrx = nan(1,nfids);
-for fidcurr = 1:nfids,
-  htrx(fidcurr) = plot(nan,nan,'.-','Color',trxcolor,'LineWidth',1);
+if trx_lw > 0,
+  htrx = nan(1,nfids);
+  for fidcurr = 1:nfids,
+    htrx(fidcurr) = plot(nan,nan,'-','Color',landmarkcolors(fidcurr,:),'LineWidth',trx_lw);
+  end
 end
-him2 = imagesc(zeros(imsz(1:2)),...
-  'AlphaData',ones(imsz(1:2)),'AlphaDataMapping','none',[0,sqrt(maxv)]);
 hcurr = nan(1,nfids);
 for fidcurr = 1:nfids,
-  hcurr(fidcurr) = plot(nan,nan,'+','Color',[0,0,0],'LineWidth',3,'MarkerSize',12);
+  hcurr(fidcurr) = plot(nan,nan,'+','Color',landmarkcolors(fidcurr,:),'LineWidth',landmark_lw,'MarkerSize',landmark_ms);
 end
 htext = text(imsz(2),imsz(1),'0.000s','Color',textcolor,'FontSize',24,...
   'HorizontalAlignment','right','VerticalAlignment','bottom');
-
-% hcb = colorbar('Location','East');
-% set(hcb,'XColor','w','YColor','w');
-set(hax,'CLim',[0,maxv]);
 
 set(hfig,'Renderer','OpenGL');
 colormap jet;
@@ -92,11 +90,6 @@ if ~isempty(resvideo) && isempty(vidobj),
   vidobj = VideoWriter(resvideo);
   open(vidobj);
 end
-
-cm = logscale_colormap(jet(512),[0,maxv]);
-colormap(cm);
-
-ctrs = {1:imsz(1),1:imsz(2)};
 
 gfdata = [];
 firstframe_trx = firstframe-trx_firstframe+1;
@@ -124,15 +117,7 @@ for f = firstframe:endframe,
       set(htext,'Position',[ax(2)-5,ax(4)-5,0]);
     end
   end
-  
-  p = reshape(phisPrAll{regi,expi}(ftrx,:,:),[D,K]);
-  
-  countscurr = 0;
-  for fidcurr = 1:nfids,
-    countscurr = countscurr + hist3(p([nfids+fidcurr,fidcurr],:)',ctrs);
-  end
-  density = imfilter(countscurr,fil,'corr','same',0);
-  
+    
   im = readframe(f);
   if imsz(3) == 1,
     if isfloat(im) && max(im(:)) > 255,
@@ -141,21 +126,21 @@ for f = firstframe:endframe,
     im = repmat(im,[1,1,3]);
   end
 
-  
   set(him,'CData',im);
-  set(him2,'CData',density,'AlphaData',min(1,3*sqrt(density)/sqrt(maxv)));
 
   for fidcurr = 1:nfids,
-    xtrx = p1(firstframe_trx:ftrx,1,fidcurr);
-    ytrx = p1(firstframe_trx:ftrx,2,fidcurr);
-    if istrx,
-      badidx = find(xtrx < ax(1) | xtrx > ax(2) | ytrx < ax(3) | ytrx > ax(4),1,'last');
-      if ~isempty(badidx),
-        xtrx(1:badidx) = nan;
-        ytrx(1:badidx) = nan;
+    if trx_lw > 0,
+      xtrx = p1(firstframe_trx:ftrx,1,fidcurr);
+      ytrx = p1(firstframe_trx:ftrx,2,fidcurr);
+      if istrx,
+        badidx = find(xtrx < ax(1) | xtrx > ax(2) | ytrx < ax(3) | ytrx > ax(4),1,'last');
+        if ~isempty(badidx),
+          xtrx(1:badidx) = nan;
+          ytrx(1:badidx) = nan;
+        end
       end
+      set(htrx(fidcurr),'XData',xtrx,'YData',ytrx);
     end
-    set(htrx(fidcurr),'XData',xtrx,'YData',ytrx);
     set(hcurr(fidcurr),'XData',p1(ftrx,1,fidcurr),'YData',p1(ftrx,2,fidcurr));
   end
   

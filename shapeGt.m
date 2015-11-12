@@ -269,6 +269,7 @@ dfs={'type',5,'F',20,'radius',1,'nChn',3,'pids',[],'mask',[],'neighbors',{},'fid
 %F2=max(100,ceil(F*3));
 xs=[];nfids=model.nfids;
 if(type==5),
+    % choose two random landmarks
     xs = nan(F,4);
     xs(:,1) = randint2(F,1,[1,nfids]);
     xs(:,2) = randint2(F,1,[1,nfids-1]);
@@ -342,6 +343,8 @@ elseif(type == 9),
 
 elseif(type==10),
   
+  % added by KB
+  % same as type 9, but in function call only update some neighbors  
   if isempty(fids),
     fids = 1:nfids;
   end
@@ -356,6 +359,25 @@ elseif(type==10),
   % where along line should we center this ball
   xs(:,5) = rand(F,1);
 
+elseif(type==11),
+  
+  % added by KB
+  % same as type 9, but only select neighboring landmarks
+  xs = nan(F,5);
+  xs(:,1) = randint2(F,1,[1,nfids]);
+  % select neighbors of xs(:,1)
+  for fidi = 1:nfids,    
+    idxcurr = xs(:,1)==fidi;
+    if ~any(idxcurr),
+      continue;
+    end
+    xs(idxcurr,2) = neighbors{fidi}(randint2(nnz(idxcurr),1,[1,numel(neighbors{fidi})]));    
+  end
+  xs(:,3)=radius*rand(F,1);
+  xs(:,4)=(2*pi*rand(F,1))-pi;
+  % where along line should we center this ball
+  xs(:,5) = rand(F,1);
+  
 end
 % if(nChn>1),
 %     if(type==4),%make sure subbtractions occur inside same channel
@@ -637,7 +659,7 @@ else occl = zeros(M,nfids);occlD=[];
 end
 %GET ALL POINTS
 switch ftrData.type
-    case {5 8 9 10}
+    case {5 8 9 10 11}
         %relative to two points
         [cs1,rs1]=getLinePoint2(ftrData.xs,poscs,posrs); 
     case {6 7}
@@ -677,6 +699,7 @@ for n=1:M
     end
 
     inds1 = (rs1(n,:)) + (cs1(n,:)-1)*h;
+    %DEBUG_VISUALIZE_FEATURELOCS;
     if(nChn>1), inds1 = inds1+(chs'-1)*w*h; end
 
     if isa(img,'uint8'), 
@@ -1213,8 +1236,15 @@ nfids = model.nfids;
 
 for n=1:N
     %select other images
-    imgsIds = randSample([1:n-1 n+1:N],L);%[n randSample(1:N,L-1)];
-    pGtNCurr = pGtN(imgsIds,:);
+    if L > N-1,
+      % if not enough images, select pairs of images and average them
+      imgIds = [1:n-1,n+1:N];
+      imgIds2 = imgIds(min(floor(N*rand([L-(N-1),2]))+1,N-1));
+      pGtNCurr = cat(1,pGtN(imgIds,:),(pGtN(imgIds2(:,1),:)+pGtN(imgIds2(:,2),:))/2);      
+    else
+      imgsIds = randSample([1:n-1 n+1:N],L);%[n randSample(1:N,L-1)];
+      pGtNCurr = pGtN(imgsIds,:);
+    end
     %Project onto image
     % KB: move this outside of the loop, remove dependence on model name
     % maximum displacement is 1/16th of the width & height of the
@@ -1279,12 +1309,19 @@ elseif(ismatrix(bboxes) && (size(bboxes,2)==4 || size(bboxes,2)==6)),
     p=zeros(N,D,RT1);NTr=size(phisN,1);%gt=regModel.phisT;
     for n=1:N
         %select other images
-        imgsIds = randSample(NTr,RT1);
-        phisNCurr = phisN(imgsIds,:);
+        if RT1 > N-1,
+          % if not enough images, select pairs of images and average them
+          imgIds = [1:n-1,n+1:NTr];
+          imgIds2 = imgIds(min(floor(NTr*rand([RT1-(NTr-1),2]))+1,NTr-1));
+          phisNCurr = cat(1,phisN(imgIds,:),(phisN(imgIds2(:,1),:)+phisN(imgIds2(:,2),:))/2);
+        else
+          imgsIds = randSample(NTr,RT1);
+          phisNCurr = phisN(imgsIds,:);
+        end
         if dorotate && model.d == 2,
           d = model.d;
           nfids = model.nfids;
-          thetas = rand(RT1,1);
+          thetas = 2*pi*rand(RT1,1);
           ct = cos(thetas);
           st = sin(thetas);
           phisNCurr = reshape(phisNCurr,[RT1,nfids,d]);

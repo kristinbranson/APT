@@ -333,7 +333,7 @@ params.ftr_type = 8;
 params.cascade_depth = 200;
 %params.ftr_type = 10;
 %params.ftr_gen_radius = 25;
-params.ftr_gen_radius = fliplr(round(logspace(log10(25),log10(500),params.cascade_depth)));
+params.ftr_gen_radius = fliplr(round(logspace(log10(5),log10(25),params.cascade_depth)));
 params.ftr_neighbors = ftr_neighbors;
 
 params.expidx = ld.expidx(idx);
@@ -378,7 +378,7 @@ save(trainresfile,'-append','-struct','tmp');
 expdir = ld.expdirs{1};
 fly = ld.flies(1);
 firstframe = 1;
-endframe = 100;
+endframe = 1000;
 testresfile = '';
 clear phisPr phisPrAll;
 % parfor fly = 3:9,
@@ -650,9 +650,9 @@ hcurr = nan(1,nfids);
 colors = jet(nfids);
 alphas = linspace(0,1,102)';
 for i = 1:nfids,
-  htrx(i) = patch(nan(102,1),nan(102,1),colors(i,:),...
-    'EdgeAlpha','interp','EdgeColor',colors(i,:)*.7,'FaceColor','none',...
-    'FaceVertexAlphaData',alphas,'LineWidth',5);   
+%   htrx(i) = patch(nan(102,1),nan(102,1),colors(i,:),...
+%     'EdgeAlpha','interp','EdgeColor',colors(i,:)*.7,'FaceColor','none',...
+%     'FaceVertexAlphaData',alphas,'LineWidth',5);   
   %htrx(i) = plot(nan,nan,'.-','Color',colors(i,:)*.7);
   hcurr(i) = plot(nan,nan,'o','LineWidth',2,'Color',colors(i,:),'MarkerSize',10);
 end
@@ -681,9 +681,9 @@ for t = 1:endframe-firstframe+1,
   set(him,'CData',im);
   for i = 1:nfids,
     
-    set(htrx(i),'XData',[p(max(1,t-100):t,i);nan],...
-        'YData',[p(max(1,t-100):t,i+nfids);nan],...
-        'FaceVertexAlphaData',alphas(max(1,102-t):end));
+%     set(htrx(i),'XData',[p(max(1,t-100):t,i);nan],...
+%         'YData',[p(max(1,t-100):t,i+nfids);nan],...
+%         'FaceVertexAlphaData',alphas(max(1,102-t):end));
     %set(htrx(i),'XData',p(max(1,t-500):t,i),'YData',p(max(1,t-500):t,i+nfids));
     set(hcurr(i),'XData',p(t,i),'YData',p(t,nfids+i));
   end

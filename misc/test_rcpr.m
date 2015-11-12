@@ -8,7 +8,7 @@
 %       + piT: inital label position (optional)
 
 function [pT,pRTT,lossT,fail,p_t]=test_rcpr(phisT,bboxesT,IsT,regModel,regPrm,prunePrm,piT)
-if nargin==6 || isempty(piT),
+if nargin<7 || isempty(piT),
     % Setup parameters
     RT1=prunePrm.numInit;
     %Initialize randomly using RT1 shapes drawn from training

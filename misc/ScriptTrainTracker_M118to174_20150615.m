@@ -1,3 +1,27 @@
+%% Train mouse paw tracker
+
+% This script trains a mouse paw tracker from labeled data. 
+%
+% Code dependencies:
+% JAABA http://jaaba.sourceforge.net/ (mine is installed in
+% /groups/branson/home/bransonk/behavioranalysis/code/Jdetect/Jdetect)
+% Piotr Dollar's toolbox:
+% https://github.com/pdollar/toolbox
+% (mine is installed at
+% /groups/branson/home/bransonk/tracking/code/piotr_toolbox_V3.02)
+% My version of the RCPR code, originally from http://www.vision.caltech.edu/xpburgos/ICCV13/
+%
+% Data locations:
+% Labeled data is assumed to be in selected MAT file, which is by default
+% /groups/branson/home/bransonk/tracking/code/rcpr/data/M118_M119_M122_M127_M130_M173_M174_M147_20150615.mat
+% Videos are assumed to be in /tier2/hantman
+% Processed training data is stored to file data/TrainData_M118_M119_M122_M127_M130_M173_M174_M147_20150615.mat
+% Parameters used to train regressor are in file
+% data/TrainParams_M118_M119_M122_M127_M130_M173_M174_M147_20150615_2D_20150615.mat
+% Trained regressor is stored to file data/TrainedModel_M118_M119_M122_M127_M130_M173_M174_M147_20150615.mat
+
+%%
+
 % try a variety of parameters
 
 %clear all
@@ -10,6 +34,7 @@ radius = 100;
 
 addpath ..;
 addpath ../video_tracking;
+addpath ../misc;
 addpath /groups/branson/home/bransonk/behavioranalysis/code/Jdetect/Jdetect/misc;
 addpath /groups/branson/home/bransonk/behavioranalysis/code/Jdetect/Jdetect/filehandling;
 addpath(genpath('/groups/branson/home/bransonk/tracking/code/piotr_toolbox_V3.02'));
@@ -26,7 +51,9 @@ end
 
 [~,savestr] = fileparts(file);
 
-ld = load(fullfile(folder,file));
+% whether to check that experiments exist
+checkforexpdirs = true;
+
 % 
 % % where to save the models
 % defaultFolderSave = folder;
@@ -151,16 +178,20 @@ for tmpj = 1:numel(olds),
   end
 end
 
-for i = 1:numel(ld.expdirs),
-  if ~exist(ld.expdirs{i},'dir'),
-    fprintf('Missing %s\n',ld.expdirs{i});
+if checkforexpdirs,
+  
+  for i = 1:numel(ld.expdirs),
+    if ~exist(ld.expdirs{i},'dir'),
+      fprintf('Missing %s\n',ld.expdirs{i});
+    end
+    assert(exist(ld.expdirs{i},'dir')>0);
   end
-  assert(exist(ld.expdirs{i},'dir')>0);
-end
-if isfield(ld,'fixedlabels'),
-  for i = 1:numel(ld.fixedlabels.expdirs),
-    assert(exist(ld.fixedlabels.expdirs{i},'dir')>0);
+  if isfield(ld,'fixedlabels'),
+    for i = 1:numel(ld.fixedlabels.expdirs),
+      assert(exist(ld.fixedlabels.expdirs{i},'dir')>0);
+    end
   end
+  
 end
 
 oldld = ld;
@@ -510,6 +541,9 @@ end
 colormap gray;
 
 %% save training data
+
+% ld.pts is nviews x (x,y) x nexamples
+% allPhisTr is nexamples x (nviews*2)
 allPhisTr = reshape(permute(ld.pts,[3,1,2]),[size(ld.pts,3),size(ld.pts,1)*size(ld.pts,2)]);
 tmp2 = struct;
 tmp2.phisTr = allPhisTr(idx,:);
@@ -592,9 +626,9 @@ save(trainresfile,'-append','-struct','tmp');
 
 %% test first tracker
 
-firstframe = 101;
-endframe = 300;
-expdir = '/tier2/hantman/Jay/videos/M147VGATXChrR2_anno/20150427L/CTR/M147_20150427_v019';
+firstframe = 1501;
+endframe = 1700;
+expdir = '/tier2/hantman/Jay/videos/M147VGATXChrR2_anno/20150427L/CTR/M147_20150427_v009';
 %expdir = '/tier2/hantman/Jay/videos/M173VGATXChR2/20150420L/CTR/M173_20150420_v028';
 testresfile = '';
 [phisPr,phisPrAll]=test(expdir,trainresfile,testresfile,...
@@ -641,222 +675,6 @@ for t = 1:endframe-firstframe+1,
   drawnow;
   
 end
-% 
-% %% Train model for point 1
-% 
-% params = struct;
-% params.cpr_type = 'noocclusion';
-% params.model_type = 'mouse_paw';
-% params.ftr_type = 6;
-% params.ftr_gen_radius = 25;
-% params.expidx = ld.expidx(idx);
-% params.ncrossvalsets = 1;
-% params.naugment = 50;
-% params.nsample_std = 1000;
-% params.nsample_cor = 5000;
-% 
-% params.prunePrm = struct;
-% params.prunePrm.prune = 0;
-% params.prunePrm.maxIter = 2;
-% params.prunePrm.th = 0.5000;
-% params.prunePrm.tIni = 10;
-% params.prunePrm.numInit = 50;
-% params.prunePrm.usemaxdensity = 1;
-% params.prunePrm.maxdensity_sigma = 5;
-% params.prunePrm.windowradius = 40;
-% 
-% medfilwidth = 10;
-% 
-% params.prunePrm.initfcn = @(p) InitializeSecondRoundTracking(p,1,2,medfilwidth,params.prunePrm.windowradius);
-% 
-% paramsfile1_pt1 = fullfile('/groups/branson/home/bransonk/tracking/code/rcpr/rcpr_v1_stable/misc',...
-%   sprintf('TrainData_%s_2D_pt1.mat',savestr));
-% paramsfile2_pt1 = sprintf('TrainParams_%s_2D_pt1.mat',savestr);
-% trainresfile_pt1 = sprintf('TrainModel_%s_2D_pt1.mat',savestr);
-% 
-% save(paramsfile2_pt1,'-struct','params');
-% 
-% allPhisTr2 = allPhisTr(:,[1 3]);
-% phisTr2 = allPhisTr2(idx,:);
-% bboxesTr2 = [phisTr2-params.prunePrm.windowradius, 2*params.prunePrm.windowradius*ones(size(phisTr2))];
-% copyfile(paramsfile1,paramsfile1_pt1);
-% tmp3 = struct;
-% tmp3.phisTr = phisTr2;
-% tmp3.bboxesTr = bboxesTr2;
-% %tmp3.IsTr = IsTr(idx);
-% save(paramsfile1_pt1,'-append','-struct','tmp3');
-% 
-% [regModel_pt1,regPrm_pt1,prunePrm_pt1,phisPr_pt1,err_pt1] = train(paramsfile1_pt1,paramsfile2_pt1,trainresfile_pt1);
-% 
-% tmp = load(trainresfile_pt1);
-% tmp.H0 = H0;
-% save(trainresfile_pt1,'-struct','tmp');
-% 
-% %% Train model for point 2
-% 
-% params = struct;
-% params.cpr_type = 'noocclusion';
-% params.model_type = 'mouse_paw';
-% params.ftr_type = 6;
-% params.ftr_gen_radius = 25;
-% params.expidx = ld.expidx(idx);
-% params.ncrossvalsets = 1;
-% params.naugment = 50;
-% params.nsample_std = 1000;
-% params.nsample_cor = 5000;
-% 
-% params.prunePrm = struct;
-% params.prunePrm.prune = 0;
-% params.prunePrm.maxIter = 2;
-% params.prunePrm.th = 0.5000;
-% params.prunePrm.tIni = 10;
-% params.prunePrm.numInit = 50;
-% params.prunePrm.usemaxdensity = 1;
-% params.prunePrm.maxdensity_sigma = 5;
-% params.prunePrm.windowradius = 40;
-% 
-% medfilwidth = 10;
-% 
-% params.prunePrm.initfcn = @(p) InitializeSecondRoundTracking(p,2,2,medfilwidth,params.prunePrm.windowradius);
-% 
-% paramsfile1_pt2 = fullfile('/groups/branson/home/bransonk/tracking/code/rcpr/rcpr_v1_stable/misc',...
-%   sprintf('TrainData_%s_2D_pt2.mat',savestr));
-% paramsfile2_pt2 = sprintf('TrainParams_%s_2D_pt2.mat',savestr);
-% trainresfile_pt2 = sprintf('TrainModel_%s_2D_pt2.mat',savestr);
-% 
-% save(paramsfile2_pt2,'-struct','params');
-% 
-% allPhisTr3 = allPhisTr(:,[2 4]);
-% phisTr3 = allPhisTr3(idx,:);
-% bboxesTr3 = [phisTr3-params.prunePrm.windowradius, 2*params.prunePrm.windowradius*ones(size(phisTr3))];
-% 
-% copyfile(paramsfile1,paramsfile1_pt2);
-% tmp4 = struct;
-% tmp4.phisTr = phisTr3;
-% tmp4.bboxesTr = bboxesTr3;
-% %tmp4.IsTr = IsTr(idx);
-% save(paramsfile1_pt2,'-append','-struct','tmp4');
-% %save(paramsfile1_pt2,'-struct','tmp4');
-% 
-% [regModel_pt2,regPrm_pt2,prunePrm_pt2,phisPr_pt2,err_pt2] = train(paramsfile1_pt2,paramsfile2_pt2,trainresfile_pt2);
-% 
-% save(trainresfile_pt2,'-append','H0');
-% 
-% allregressors = struct;
-% allregressors.regModel = cell(1,3);
-% allregressors.regPrm = cell(1,3);
-% allregressors.prunePrm = cell(1,3);
-% allregressors.H0 = H0;
-% allregressors.traindeps = [0,1,1];
-% 
-% tmp = load(trainresfile);
-% allregressors.regModel{1} = tmp.regModel;
-% allregressors.regPrm{1} = tmp.regPrm;
-% allregressors.prunePrm{1} = tmp.prunePrm;
-% tmp = load(trainresfile_pt1);
-% allregressors.regModel{2} = tmp.regModel;
-% allregressors.regPrm{2} = tmp.regPrm;
-% allregressors.prunePrm{2} = tmp.prunePrm;
-% tmp = load(trainresfile_pt2);
-% allregressors.regModel{3} = tmp.regModel;
-% allregressors.regPrm{3} = tmp.regPrm;
-% allregressors.prunePrm{3} = tmp.prunePrm;
-% 
-% trainresfile_combine = sprintf('TrainedModel_%s_2D_combined.mat',savestr);
-% save(trainresfile_combine,'-struct','allregressors');
-% 
-% %% version 2 with motion-based prediction
-% 
-% 
-% allregressors = struct;
-% allregressors.regModel = cell(1,3);
-% allregressors.regPrm = cell(1,3);
-% allregressors.prunePrm = cell(1,3);
-% allregressors.H0 = H0;
-% allregressors.traindeps = [0,1,1];
-% 
-% tmp = load(trainresfile);
-% allregressors.regModel{1} = tmp.regModel;
-% allregressors.regPrm{1} = tmp.regPrm;
-% allregressors.prunePrm{1} = tmp.prunePrm;
-% %allregressors.prunePrm{1}.motion_2dto3D = true;
-% %allregressors.prunePrm{1}.calibrationdata = calibrationdata;
-% % turned this off 20150427 because points in each view are different
-% allregressors.prunePrm{1}.motion_2dto3D = false;
-% allregressors.prunePrm{1}.motionparams = {'poslambda',.5};
-% 
-% tmp = load(trainresfile_pt1);
-% allregressors.regModel{2} = tmp.regModel;
-% allregressors.regPrm{2} = tmp.regPrm;
-% allregressors.prunePrm{2} = tmp.prunePrm;
-% allregressors.prunePrm{2}.motion_2dto3D = false;
-% allregressors.prunePrm{2}.motionparams = {'poslambda',.75};
-% allregressors.prunePrm{2}.initfcn = @(p) InitializeSecondRoundTracking(p,1,2,0,tmp.prunePrm.windowradius);
-% 
-% tmp = load(trainresfile_pt2);
-% allregressors.regModel{3} = tmp.regModel;
-% allregressors.regPrm{3} = tmp.regPrm;
-% allregressors.prunePrm{3} = tmp.prunePrm;
-% allregressors.prunePrm{3}.motion_2dto3D = false;
-% allregressors.prunePrm{3}.motionparams = {'poslambda',.75};
-% allregressors.prunePrm{3}.initfcn = @(p) InitializeSecondRoundTracking(p,2,2,0,tmp.prunePrm.windowradius);
-% 
-% trainresfile_motion_combine = sprintf('TrainedModel_%s_2D_motion_combined.mat',savestr);
-% save(trainresfile_motion_combine,'-struct','allregressors');
-% 
-% %% track movie
-% 
-% firstframe = 51;
-% endframe = 250;
-% expdir = '/tier2/hantman/Jay/videos/M174VGATXChR2/20150416L/L2secOn3Grab/M174_20150416_v007';
-% testresfile = '';
-% [phisPr,phisPrAll]=test(expdir,trainresfile_motion_combine,testresfile,...
-%   'moviefilestr',ld.moviefilestr,'firstframe',firstframe,'endframe',endframe);
-% 
-% [readframe,nframes,fid] = get_readframe_fcn(fullfile(expdir,ld.moviefilestr));
-% im = readframe(1);
-% imsz = size(im);
-% 
-% fprintf('Initial tracking results\n');
-% 
-% figure(1);
-% clf;
-% him = imagesc(im,[0,255]);
-% axis image;
-% colormap gray;
-% hold on;
-% hother = nan(1,2);
-% hother(1) = plot(nan,nan,'b.');
-% hother(2) = plot(nan,nan,'b.');
-% htrx = nan(1,2);
-% htrx(1) = plot(nan,nan,'m.-');
-% htrx(2) = plot(nan,nan,'c.-');
-% hcurr = nan(1,2);
-% hcurr(1) = plot(nan,nan,'mo','LineWidth',3);
-% hcurr(2) = plot(nan,nan,'co','LineWidth',3);
-% %htext = text(imsz(2)/2,5,'d. train = ??','FontSize',24,'HorizontalAlignment','center','VerticalAlignment','top','Color','r');
-% 
-% idxcurr = idx(ld.expidx(idx)==expi);
-% tstraincurr = ld.ts(idxcurr);
-% 
-% %p = phisPr{1};
-% p1 = phisPr{2};
-% p2 = phisPr{3};
-% 
-% for t = 1:endframe-firstframe+1,
-%   
-%   im = readframe(firstframe+t-1);
-%   set(him,'CData',im);
-% %   set(hother(1),'XData',squeeze(pall(t,1,:)),'YData',squeeze(pall(t,3,:)));
-% %   set(hother(2),'XData',squeeze(pall(t,2,:)),'YData',squeeze(pall(t,4,:)));
-%   set(htrx(1),'XData',p1(max(1,t-500):t,1),'YData',p1(max(1,t-500):t,2));
-%   set(htrx(2),'XData',p2(max(1,t-500):t,1),'YData',p2(max(1,t-500):t,2));
-%   set(hcurr(1),'XData',p1(t,1),'YData',p1(t,2));
-%   set(hcurr(2),'XData',p2(t,1),'YData',p2(t,2));
-%   %pause(.25);
-%   drawnow;
-%   
-% end
 
 %% track more movies
 
@@ -894,7 +712,7 @@ for i = 1:numel(rootdirs),
 
 end
 
-saverootdir = '/groups/branson/home/bransonk/tracking/code/rcpr/data/TrackingResults201615';
+saverootdir = '/groups/branson/home/bransonk/tracking/code/rcpr/data/TrackingResults_M147_20150615';
 if ~exist(saverootdir,'dir'),
   mkdir(saverootdir);
 end

@@ -59,20 +59,20 @@ function [regModel,pAll] = rcprTrain( Is, pGt, varargin )
 % get additional parameters and check dimensions
 dfs={'model','REQ','pStar',[],'posInit',[],'T','REQ',...
     'L',1,'regPrm','REQ','ftrPrm','REQ','regModel',[],...
-    'pad',10,'verbose',0,'initData',[],'Prm3D',[]};
-[model,pStar,posInit,T,L,regPrm,ftrPrm,regModel,pad,verbose,initD,Prm3D] = ...
+    'pad',10,'dorotate',false,'verbose',0,'initData',[],'Prm3D',[]};
+[model,pStar,posInit,T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D] = ...
     getPrmDflt(varargin,dfs,1);
 
 [regModel,pAll]=rcprTrain1(Is, pGt,model,pStar,posInit,...
-        T,L,regPrm,ftrPrm,regModel,pad,verbose,initD,Prm3D);
+        T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D);
 end 
 
 function [regModel,pAll]=rcprTrain1(Is, pGt,model,pStar,posInit,...
-    T,L,regPrm,ftrPrm,regModel,pad,verbose,initD,Prm3D)
+    T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D)
 % Initialize shape and assert correct image/ground truth format
 if(isempty(initD))
     [pCur,pGt,pGtN,pStar,imgIds,N,N1]=shapeGt('initTr',Is,pGt,...
-        model,pStar,posInit,L,pad);
+        model,pStar,posInit,L,pad,dorotate);
 else
     pCur=initD.pCur;pGt=initD.pGt;pGtN=initD.pGtN;
     pStar=initD.pStar;imgIds=initD.imgIds;N=initD.N;N1=initD.N1;
@@ -92,7 +92,7 @@ end
 
 loss = mean(shapeGt('dist',model,pCur,pGt));
 if(verbose), 
-    fprintf('  t=%i/%i       loss=%f     ',t0-1,T,loss); 
+    fprintf('  t=%i/%i       loss=%f     \n',t0-1,T,loss); 
 end
 tStart = clock;%pCur_t=zeros(N,D,T+1);
 bboxes=posInit(imgIds,:);
@@ -138,7 +138,7 @@ for t=t0:T
       
     else
       switch ftrPrm.type
-        case {5 6 7 8 9 10}
+        case {5 6 7 8 9 10 11}
           ftrPos = shapeGt('ftrsGenDup2',model,ftrPrm);
           [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',...
             model,pCur,Is,ftrPos,...
@@ -176,7 +176,7 @@ for t=t0:T
         msg=tStatus(tStart,t,T);
         fprintf(['  t=%i/%i       loss=%f     ' msg],t,T,loss); 
     end
-    %DEBUG_VISUALIZE;
+    %DEBUG_VISUALIZE2;
     if(loss<1e-5), T=t; break; end
 end
 

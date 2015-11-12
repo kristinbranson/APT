@@ -1,9 +1,10 @@
 function [phisPr,phisPrAll,phisPrTAll]=test(expdirs,trainresfile,testresfile,varargin)
 
-[moviefilestr,traindeps,restart,firstframe,endframe,trxfilestr,flies,winrad] = ...
+[moviefilestr,traindeps,restart,firstframe,endframe,trxfilestr,flies,winrad,readframe,nframes] = ...
   myparse(varargin,...
   'moviefilestr','movie_comb.avi','traindeps',[],'restart',[],...
-  'firstframe',1,'endframe',inf,'trxfilestr','','flies',[],'winrad',[]);
+  'firstframe',1,'endframe',inf,'trxfilestr','','flies',[],'winrad',[],...
+  'readframe',[],'nframes',[]);
 
 nperiter = 100;
 
@@ -16,7 +17,7 @@ end
 % end
 
 tmp = who('-file',trainresfile);
-fns = intersect({'regPrm','prunePrm','regModel','H0'},tmp);
+fns = intersect({'regPrm','prunePrm','regModel','H0','doscale'},tmp);
 
 load(trainresfile,fns{:});
 if ~iscell(regPrm), %#ok<NODEF>
@@ -33,6 +34,9 @@ if ismember('traindeps',tmp),
   load(trainresfile,'traindeps');
 else
   traindeps = 0;
+end
+if ~exist('doscale','var'),
+  doscale = false;
 end
 
 nregressors = numel(regPrm);
@@ -88,7 +92,15 @@ for regi = registart:nregressors,
 
     expdir = expdirs{expi};
     
-    [readframe,nframes,fid] = get_readframe_fcn(fullfile(expdir,moviefilestr));
+    if isempty(readframe) || isempty(nframes),
+      if isempty(moviefilestr),
+        [readframe,nframes,fid] = get_readframe_fcn(expdir);
+      else
+        [readframe,nframes,fid] = get_readframe_fcn(fullfile(expdir,moviefilestr));
+      end
+    else
+      fid = [];
+    end
     
     endframecurr = min(nframes,endframe);
     N = endframecurr - firstframe + 1;
@@ -138,6 +150,16 @@ for regi = registart:nregressors,
         bigimnorm = histeq(bigim,H0);
         IsTe(1:nframescurr) = mat2cell(bigimnorm,repmat(imsz(1),[1,nframescurr]),imsz(2));
       end
+      if doscale,
+        maxv = 0;
+        for tmpi = 1:nframescurr,
+          maxv = max(maxv,max(IsTe{tmpi}(:)));
+        end
+        maxv = single(maxv);
+        for tmpi = 1:nframescurr,
+          IsTe{tmpi} = uint8(single(IsTe{tmpi})/maxv*255);
+        end
+      end
       
       if regi > 1 && isfield(prunePrm{regi},'initfcn')
         bboxesTe = bboxesTeAll(off_i:off_f,:);
@@ -177,7 +199,7 @@ for regi = registart:nregressors,
       phisPrTAll{regi,expi}(off_i:off_f,:,:,:) = p_t;
       
     end
-        
+    
     K = prunePrm{regi}.numInit;
     appearancecost = nan(N,K);
     pRT1 = reshape(phisPrAll{regi,expi},[N,regPrm{regi}.model.nfids,regPrm{regi}.model.d,K]);
@@ -246,8 +268,10 @@ for regi = registart:nregressors,
     end
     
     
-    if fid > 1,
-      fclose(fid);
+    for fidi = 1:numel(fid),
+      if fid(fidi) > 1,
+        fclose(fid(fidi));
+      end
     end
     
   end
