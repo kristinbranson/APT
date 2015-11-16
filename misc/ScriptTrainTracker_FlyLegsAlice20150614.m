@@ -12,12 +12,11 @@ docurate = false;
 
 addpath ..;
 addpath ../video_tracking;
-addpath(genpath('/groups/branson/home/bransonk/tracking/code/piotr_toolbox_V3.02'));
-addpath /groups/branson/home/bransonk/behavioranalysis/code/Jdetect/Jdetect/misc;
-addpath /groups/branson/home/bransonk/behavioranalysis/code/Jdetect/Jdetect/filehandling;
+addpath c:\data.not.os\bitbucket\jctrax\misc
+addpath c:\data.not.os\bitbucket\jctrax\filehandling;
+addpath(genpath('c:\data.not.os\bitbucket\piotr_toolbox'));
 
-defaultfolder = '/groups/branson/home/bransonk/tracking/code/rcpr/data';
-%defaultfile = 'M134_M174_20150423.mat';
+defaultfolder = 'f:\cpr\data';
 defaultfile = 'FlyBubbleLegTestDataCurated_20150614.mat';
 
 [file,folder]=uigetfile('.mat',sprintf('Select training file containg clicked points (e.g. %s)',defaultfile),...
@@ -175,7 +174,7 @@ if fid > 0,
 end
 
 [~,n] = fileparts(file);
-savefig(fullfile(savedir,sprintf('%s_trainingdata.pdf',n)),hfig,'pdf');
+savefig(fullfile(defaultfolder,sprintf('%s_trainingdata.pdf',n)),hfig,'pdf');
 
 %% read in the training images
 
@@ -298,10 +297,11 @@ tmp2 = struct;
 tmp2.phisTr = allPhisTr(idx,:);
 tmp2.bboxesTr = repmat([1,1,winrad,winrad],[numel(idx),1]);
 tmp2.IsTr = IsTr(idx);
-save(sprintf('TrainData_%s.mat',savestr),'-struct','tmp2');
+save(fullfile(defaultfolder,sprintf('TrainData_%s.mat',savestr)),...
+  '-struct','tmp2');
 
 %% choose neighbors
-
+nfids = npts;
 nneighbors = 3;
 ds = zeros(1,npts*(npts-1)/2);
 for i = 1:numel(idx),
@@ -352,10 +352,9 @@ params.prunePrm.numInit = 50;
 params.prunePrm.usemaxdensity = 1;
 params.prunePrm.maxdensity_sigma = 5; 
 
-paramsfile1 = fullfile('/groups/branson/home/bransonk/tracking/code/rcpr/rcpr_v1_stable/misc',...
-  sprintf('TrainData_%s.mat',savestr));
-paramsfile2 = sprintf('TrainParams_%s.mat',savestr);
-trainresfile = sprintf('TrainedModel_%s.mat',savestr);
+paramsfile1 = fullfile(defaultfolder,sprintf('TrainData_%s.mat',savestr));
+paramsfile2 = fullfile(defaultfolder,sprintf('TrainParams_%s.mat',savestr));
+trainresfile = fullfile(defaultfolder,sprintf('TrainedModel_%s.mat',savestr));
 
 save(paramsfile2,'-struct','params');
 
@@ -378,8 +377,9 @@ save(trainresfile,'-append','-struct','tmp');
 expdir = ld.expdirs{1};
 fly = ld.flies(1);
 firstframe = 1;
-endframe = 1000;
-testresfile = '';
+endframe = 500;
+testresfile = fullfile(defaultfolder,...
+  sprintf('TestResults_%s.mat',savestr));
 clear phisPr phisPrAll;
 % parfor fly = 3:9,
   [phisPr(fly),phisPrAll(fly)]=test(expdir,trainresfile,testresfile,'moviefilestr',ld.moviefilestr,...

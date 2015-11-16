@@ -11,11 +11,11 @@ winrad = 50;
 
 addpath ..;
 addpath ../video_tracking;
-addpath /groups/branson/home/bransonk/behavioranalysis/code/Jdetect/Jdetect/misc;
-addpath /groups/branson/home/bransonk/behavioranalysis/code/Jdetect/Jdetect/filehandling;
-addpath(genpath('/groups/branson/home/bransonk/tracking/code/piotr_toolbox_V3.02'));
+addpath c:\data.not.os\bitbucket\jctrax\misc
+addpath c:\data.not.os\bitbucket\jctrax\filehandling;
+addpath(genpath('c:\data.not.os\bitbucket\piotr_toolbox'));
 
-defaultfolder = '/groups/branson/home/bransonk/tracking/code/rcpr/data';
+defaultfolder = 'f:\cpr\data';
 %defaultfile = 'M134_M174_20150423.mat';
 defaultfile = 'FlyBubbleTestData_20150502.mat';
 
@@ -223,7 +223,7 @@ tmp2 = struct;
 tmp2.phisTr = allPhisTr(idx,:);
 tmp2.bboxesTr = repmat([1,1,winrad,winrad],[numel(idx),1]);
 tmp2.IsTr = IsTr(idx);
-save(sprintf('TrainData_%s.mat',savestr),'-struct','tmp2');
+save(sprintf('f:\\cpr\\data\\TrainData_%s.mat',savestr),'-struct','tmp2');
 
 %% train tracker
 
@@ -250,10 +250,9 @@ params.prunePrm.numInit = 50;
 params.prunePrm.usemaxdensity = 1;
 params.prunePrm.maxdensity_sigma = 5; 
 
-paramsfile1 = fullfile('/groups/branson/home/bransonk/tracking/code/rcpr/rcpr_v1_stable/misc',...
-  sprintf('TrainData_%s.mat',savestr));
-paramsfile2 = sprintf('TrainParams_%s.mat',savestr);
-trainresfile = sprintf('TrainedModel_%s.mat',savestr);
+paramsfile1 = fullfile('f:\\cpr\\data\\',sprintf('TrainData_%s.mat',savestr));
+paramsfile2 = sprintf('f:\\cpr\\data\\TrainParams_%s.mat',savestr);
+trainresfile = sprintf('f:\\cpr\\data\\TrainedModel_%s.mat',savestr);
 
 save(paramsfile2,'-struct','params');
 
@@ -274,20 +273,23 @@ save(trainresfile,'-append','-struct','tmp');
 %% test tracker on the labeled fly
 
 expdir = ld.expdirs{1};
-%fly = ld.flies(1);
+fly = ld.flies(1);
 firstframe = 1;
 endframe = 1000;
-testresfile = '';
-parfor fly = 3:9,
+testresfile = sprintf('f:\\cpr\\data\\TestResults_%s',savestr);
+%parfor fly = fliesAL %3:9,
   [phisPr(fly),phisPrAll(fly)]=test(expdir,trainresfile,testresfile,'moviefilestr',ld.moviefilestr,...
   'trxfilestr',ld.trxfilestr,'winrad',winrad,'flies',fly,...
   'firstframe',firstframe,'endframe',endframe);
-end
+%end
 
 %% visualize cpr
 
 fly = 1;
-
+%%AL
+t = 40077;
+params.cascade_depth=100;
+%%$\AL
 [tmp1,tmp2,pt] = test(expdir,trainresfile,testresfile,'moviefilestr',ld.moviefilestr,...
   'trxfilestr',ld.trxfilestr,'winrad',winrad,'flies',fly,...
   'firstframe',t,'endframe',t+4);
