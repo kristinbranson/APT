@@ -56,6 +56,7 @@ Main functions:
 train.m: Wrapper function for main training function from original RCPR code, rcprTrain.m. 
 
 Inputs:
+
 * phisTr: ntrainexamples x (nlandmarks\*ndims) matrix containing the landmark locations (basically a permuted version of labels.pts from above). 
 * bboxesTr: ntrainexamples x 4 matrix defining the search region. CPR only uses normalized landmark positions in some coordinate system. This defines the initial coordinate system. Almost always, this is just the whole image. 
 * IsTr: 1 x ntrainexamples cell containing the images corresponding to the labeled landmarks. In all our data, these images are the same size, but the code is currently general enough to allow different image sizes. This could potenially be made less general to make the feature grabbing faster. 
@@ -63,6 +64,7 @@ Inputs:
     * cpr_type: All of our experiments have been with cpr_type = 2. This means that we are using the robust casdaded pose regression approach from the Burgos-Artizzu paper, but not the occlusion modeling stuff. We need to get occlusion modeling working at some point. 
     * feature_type: We have added a bunch of different feature types to the code to try different ways of generating features. 
 These were added by JR:
+
   5: Select any pair of landmarks, select a feature within the ellipse aligned with the landmarks with semimajor-axis length radius*d and semiminor-axis length radius*d/2, where d is the distance between the two landmarks (just realized it was doing this stretching in one particular direction!), and radius is a parameter. 
   6: Select one landmark, select a feature from same radius around that landmark. 
   7: ?? obsolete I think. 
