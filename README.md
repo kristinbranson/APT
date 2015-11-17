@@ -1,4 +1,8 @@
-# TODO/RADAR #
+### TODO/RADAR ###
+
+* The features are getting clipped due to the radius being ~50 (already in units of pixels) and then this value scaling something else (eg major axis of ellipse) that is in pixels.
+* performance tweak, getLinePoint2. (Re features it's all in the comp rather than gen)
+* The MEX-files can use some doc-ing of input/output args etc (in some cases the comments appear wrong, in some cases args might be obsolete)
 
 I would reorganize ftrsGenDup2, ftrsCompDup2 to be less of a mess. I think there are a few flags we want to set, like whether we only consider neighboring landmarks or not, and whether we only update some landmarks in an iteration. Also, remove some of the obsolete feature types, clean up the indexing, maybe use keywords instead of numbers?
 
