@@ -1,3 +1,8 @@
+# TODO/RADAR #
+
+I would reorganize ftrsGenDup2, ftrsCompDup2 to be less of a mess. I think there are a few flags we want to set, like whether we only consider neighboring landmarks or not, and whether we only update some landmarks in an iteration. Also, remove some of the obsolete feature types, clean up the indexing, maybe use keywords instead of numbers?
+
+
 Current state of code 20151112:
 
 RCPR originally downloaded from
@@ -62,5 +67,3 @@ These were added by JR:
   9: Same as type 5, but instead of choosing a feature in an ellipse around the mid-point of the two landmarks, selects a point around a randomly selected point between the two landmarks. This probably doesn't make a lot of sense now -- I didn't realize that it was doing this axis-aligned ellipse thing. My goal was just to select a feature within some distance of the line segment connecting the two landmarks. So: select a point along the line segment connecting a pair of landmarks, select a feature within an axis-aligned ellipse centered on that point. 
   10: Same as type 9, but only consider a subset of the landmarks. So: select a point along the line segment connecting a pair of landmarks from the set "fids" (fids is selected per iteration), select a feature within an axis-aligned ellipse centered on that point. 
   11: Same as type 9, but only consider pairs of landmarks that are defined as neighbors. So: select a point along the line segment connecting a pair of landmarks defined as neighbors, select a feature within an axis-aligned ellipse centered on that point. 
-
-TODO: I would reorganize ftrsGenDup2, ftrsCompDup2 to be less of a mess. I think there are a few flags we want to set, like whether we only consider neighboring landmarks or not, and whether we only update some landmarks in an iteration. Also, remove some of the obsolete feature types, clean up the indexing, maybe use keywords instead of numbers?
