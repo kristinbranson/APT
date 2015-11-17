@@ -53,9 +53,10 @@ misc/ScriptTrainTracker_*.m:
 
 Main functions: 
 
-train.m: Wrapper function for main training function from original RCPR code, *rcprTrain.m*. 
+train.m: Wrapper function for main training function from original RCPR code, rcprTrain.m. 
+
 Inputs:
-* phisTr: ntrainexamples x (nlandmarks*ndims) matrix containing the landmark locations (basically a permuted version of labels.pts from above). 
+* phisTr: ntrainexamples x (nlandmarks\*ndims) matrix containing the landmark locations (basically a permuted version of labels.pts from above). 
 * bboxesTr: ntrainexamples x 4 matrix defining the search region. CPR only uses normalized landmark positions in some coordinate system. This defines the initial coordinate system. Almost always, this is just the whole image. 
 * IsTr: 1 x ntrainexamples cell containing the images corresponding to the labeled landmarks. In all our data, these images are the same size, but the code is currently general enough to allow different image sizes. This could potenially be made less general to make the feature grabbing faster. 
 * Lots of model parameters. Here are the important ones:
