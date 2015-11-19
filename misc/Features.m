@@ -219,7 +219,7 @@ classdef Features
     
   end
   
-  methods (Static)
+  methods (Static) % One-landmark features
     
     function [xs,prms] = generate1LM(model,varargin)
       % Generate 1-landmark features

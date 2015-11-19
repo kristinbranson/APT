@@ -264,130 +264,25 @@ function ftrData = ftrsGenDup2( model, varargin )
 %
 % See also shapeGt>ftrsCompDup
 
-dfs={'type',5,'F',20,'radius',1,'nChn',3,'pids',[],'mask',[],'neighbors',{},'fids',[]};
-[type,F,radius,nChn,pids,mask,neighbors,fids]=getPrmDflt(varargin,dfs,0);
-%F2=max(100,ceil(F*3));
-xs=[];nfids=model.nfids;
-if(type==5),
-    % choose two random landmarks
-    xs = nan(F,4);
-    xs(:,1) = randint2(F,1,[1,nfids]);
-    xs(:,2) = randint2(F,1,[1,nfids-1]);
-    tmp = xs(:,2) >= xs(:,1);
-    xs(tmp,2) = xs(tmp,2)+1;
-%     while(size(xs,1)<F),
-%         %select two random landmarks
-%         xs=randint2(F2,2,[1 nfids]);
-%         %make sure they are not the same
-%         neq = (xs(:,1)~=xs(:,2));
-%         xs=xs(neq,:);
-%     end
-%     xs=xs(1:F,:);
-    %select position around the midpoint
-    xs(:,3)=radius*rand(F,1);
-    xs(:,4)=(2*pi*rand(F,1))-pi;
-elseif(type==6),
-    %select one random landmark
-    xs = nan(F,3);
-    xs(:,1)=randint2(F,1,[1 nfids]);
-    %selet position in disk around the landmark, polar coordinates
-    xs(:,2)=radius*rand(F,1); 
-    xs(:,3)=(2*pi*rand(F,1))-pi;
-elseif(type==7),
-    %select view
-    xs = nan(F,3);
-    xs(:,1)=randint2(F,1,[1 2]);
-    %selet position in disk around the landmark
-    xs(:,2)=radius*rand(F,1); 
-    xs(:,3)=(2*pi*rand(F,1))-pi;
-elseif(type == 8),
-  % added by KB
-  % same as type 5, but only select certain pairs that are close together
-  if isempty(neighbors),
-    neighbors = cell(1,nfids);
-    for i = 1:nfids,
-      neighbors{i} = [1:i-1,i+1:nfids];
-    end    
-  end
-  xs = nan(F,5);
-  xs(:,1) = randint2(F,1,[1,nfids]);
-  for i = 1:nfids,
-    idxcurr = xs(:,1) == i;
-    xs(idxcurr,2) = neighbors{i}(randint2(nnz(idxcurr),1,[1,numel(neighbors{i})]));
-  end  
-  xs(:,3)=radius*rand(F,1);
-  xs(:,4)=(2*pi*rand(F,1))-pi;
-  % where along line should we center this ball
-  xs(:,5) = rand(F,1);
-elseif(type == 9),
-  % added by KB
-  % same as type 5, except also choose a point along the line
-    xs = nan(F,5);
-    xs(:,1) = randint2(F,1,[1,nfids]);
-    xs(:,2) = randint2(F,1,[1,nfids-1]);
-    tmp = xs(:,2) >= xs(:,1);
-    xs(tmp,2) = xs(tmp,2)+1;
-%     while(size(xs,1)<F),
-%         %select two random landmarks
-%         xs=randint2(F2,2,[1 nfids]);
-%         %make sure they are not the same
-%         neq = (xs(:,1)~=xs(:,2));
-%         xs=xs(neq,:);
-%     end
-%     xs=xs(1:F,:);
-    %select position around the midpoint
-    xs(:,3)=radius*rand(F,1);
-    xs(:,4)=(2*pi*rand(F,1))-pi;
-    % where along line should we center this ball
-    xs(:,5) = rand(F,1);
+dfs={'type','2lm','F',20,'radius',1,'nChn',3,'pids',[],...
+  'randctr',false,'neighbors',{},'fids',[]};
+[type,F,radius,nChn,pids,randctr,neighbors,fids] = ...
+  getPrmDflt(varargin,dfs,0);
 
-elseif(type==10),
-  
-  % added by KB
-  % same as type 9, but in function call only update some neighbors  
-  if isempty(fids),
-    fids = 1:nfids;
-  end
-  xs = nan(F,5);
-  xs(:,1) = randint2(F,1,[1,numel(fids)]);
-  xs(:,2) = randint2(F,1,[1,numel(fids)-1]);
-  tmp = xs(:,2) >= xs(:,1);
-  xs(tmp,2) = xs(tmp,2)+1;
-  xs(:,1:2) = fids(xs(:,1:2));
-  xs(:,3)=radius*rand(F,1);
-  xs(:,4)=(2*pi*rand(F,1))-pi;
-  % where along line should we center this ball
-  xs(:,5) = rand(F,1);
-
-elseif(type==11),
-  
-  % added by KB
-  % same as type 9, but only select neighboring landmarks
-  xs = nan(F,5);
-  xs(:,1) = randint2(F,1,[1,nfids]);
-  % select neighbors of xs(:,1)
-  for fidi = 1:nfids,    
-    idxcurr = xs(:,1)==fidi;
-    if ~any(idxcurr),
-      continue;
-    end
-    xs(idxcurr,2) = neighbors{fidi}(randint2(nnz(idxcurr),1,[1,numel(neighbors{fidi})]));    
-  end
-  xs(:,3)=radius*rand(F,1);
-  xs(:,4)=(2*pi*rand(F,1))-pi;
-  % where along line should we center this ball
-  xs(:,5) = rand(F,1);
-  
+switch type
+  case '1lm'
+    xs = Features.generate1LM(model,'F',F,'radius',radius);
+  case '2lm'
+    xs = Features.generate2LM(model,'F',F,'radiusFac',radius,...
+      'randctr',randctr,'neighbors',neighbors,'fids',fids);    
+  otherwise
+    assert(false,'unknown type');
 end
-% if(nChn>1),
-%     if(type==4),%make sure subbtractions occur inside same channel
-%         chns = randint2(F/2,1,[1 nChn]);
-%         xs(1:2:end,5) = chns; xs(2:2:end,5) = chns;
-%     else xs(:,5)=randint2(F,1,[1 nChn]);
-%     end
-% end
-if(isempty(pids)), pids=floor(linspace(0,F,2)); end
-ftrData=struct('type',type,'F',F,'nChn',nChn,'xs',xs,'pids',pids);
+    
+if isempty(pids)
+  pids = floor(linspace(0,F,2)); 
+end
+ftrData = struct('type',type,'F',F,'nChn',nChn,'xs',xs,'pids',pids);
 end
 
 function ftrData = ftrsGenIm( model, pStar, varargin )
@@ -604,13 +499,10 @@ M=size(phis,1); assert(length(imgIds)==M);nChn=ftrData.nChn;
 
 if(size(bboxes,1)==size(Is,1)), bboxes=bboxes(imgIds,:); end
 
-if(ftrData.type==3),
-    FTot=ftrData.F;
-    ftrs = zeros(M,FTot);
-else
-    FTot=ftrData.F;ftrs = zeros(M,FTot);
-end
-if (strcmp(model.name,'mouse_paw3D'))
+FTot=ftrData.F;
+ftrs = zeros(M,FTot);
+
+if strcmp(model.name,'mouse_paw3D')
     %Now using a single merged image containing each view. If using one
     %image per view, select which image here.
     % Code for old 3D which uses PCA
@@ -651,20 +543,20 @@ else
   poscs = phis(:,1:nfids);
 end
 
-useOccl=occlPrm.Stot>1;
-if(useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
-    occl = phis(:,(nfids*2)+1:nfids*3);
-    occlD=struct('featOccl',zeros(M,FTot),'group',zeros(M,FTot));
-else occl = zeros(M,nfids);occlD=[];
+useOccl = occlPrm.Stot>1;
+if useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2'))
+  occl = phis(:,(nfids*2)+1:nfids*3);
+  occlD = struct('featOccl',zeros(M,FTot),'group',zeros(M,FTot));
+else
+  occl = zeros(M,nfids);
+  occlD = [];
 end
 %GET ALL POINTS
 switch ftrData.type
-    case {5 8 9 10 11}
-        %relative to two points
-        [cs1,rs1]=getLinePoint2(ftrData.xs,poscs,posrs); 
-    case {6 7}
-        %around one point
-        [cs1,rs1]=getLinePoint3(ftrData.xs,poscs,posrs); 
+  case '1lm'
+    [cs1,rs1] = Features.compute1LM(ftrData.xs,poscs,posrs);
+  case '2lm'
+    [cs1,rs1] = Features.compute2LM(ftrData.xs,poscs,posrs);
 end
 
 nGroups=occlPrm.nrows*occlPrm.ncols;
@@ -770,53 +662,6 @@ else
         rs1=round(rs1+repmat(muY,1,size(FDxs,1)));
     end
 end
-end
-
-function [cs1,rs1]=getLinePoint2(FDxs,poscs,posrs)
-%get pixel positions given coordinates as points around the midpoint
-%between landmarks
-%INPUT NxF, OUTPUT NxF
-l1= FDxs(:,1);l2= FDxs(:,2);xs=FDxs(:,3);theta=FDxs(:,4);
-x1 = poscs(:,l1);y1 = posrs(:,l1);
-x2 = poscs(:,l2);y2 = posrs(:,l2);
-theta=repmat(theta',size(x1,1),1);
-
-alpha=atan((y2-y1)./(x2-x1));
-r=sqrt((x2-x1).^2+(y2-y1).^2)/2; a=repmat(xs',size(r,1),1).*r; b=repmat(xs',size(r,1),1).*r/2;
-if size(FDxs,2) >= 5,
-  ctrX=bsxfun(@times,x1,FDxs(:,5)')+bsxfun(@times,x2,(1-FDxs(:,5))'); 
-  ctrY=bsxfun(@times,y1,FDxs(:,5)')+bsxfun(@times,y2,(1-FDxs(:,5))'); 
-else
-  ctrX=(x1+x2)/2; ctrY=(y1+y2)/2;
-end
-cs1=ctrX+a.*cos(theta).*cos(alpha)-b.*sin(theta).*sin(alpha);
-rs1=ctrY+a.*cos(theta).*sin(alpha)+b.*sin(theta).*cos(alpha);
-% alpha=atan((y2-y1)./(x2-x1));
-% r=sqrt((x2-x1).^2+(y2-y1).^2); 
-% ctrX=(x1+x2)/2; ctrY=(y1+y2)/2;
-% cs1=ctrX+(repmat(xs',size(r,1),1).*r.*cos(theta+alpha));
-% rs1=ctrY+(repmat(xs',size(r,1),1).*r.*sin(theta+alpha));
-
-cs1=round(cs1);
-rs1=round(rs1);
-end
-
-function [cs1,rs1]=getLinePoint3(FDxs,poscs,posrs)
-%get pixel positions given coordinates as points around the landmarks
-%INPUT NxF, OUTPUT NxF
-l= FDxs(:,1);r=FDxs(:,2);theta=FDxs(:,3);
-x = poscs(:,l);y = posrs(:,l);
-
-dx = r.*cos(theta);
-dy = r.*sin(theta);
-cs1 = round(bsxfun(@plus,x,dx'));
-rs1 = round(bsxfun(@plus,y,dy'));
-
-% theta=repmat(theta',size(x,1),1);
-% cs1=x+(repmat(r',size(x,1),1).*cos(theta));
-% rs1=y+(repmat(r',size(y,1),1).*sin(theta));
-% rs1=round(rs1);
-% cs1=round(cs1);
 end
 
 function [ftrs,occlD] = ftrsCompIm( model, phis, Is, ftrData,...

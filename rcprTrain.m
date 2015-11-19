@@ -106,13 +106,15 @@ for t=t0:T
       ftrPrm.radius = ftr_gen_radius(min(t,numel(ftr_gen_radius)));
     end
     
-    if ismember(ftrPrm.type,[10]) && t > 10,
+    % XXXAL understand this codepath and best way to specify it
+    if false %tfFidsSpeced && t > 10,
       
       % added by KB: only update some of the outputs 
+      % AL: meanErrPerPt created/updated below (note t>10 condition above)
       fidupdate = randsample(model.nfids,1,true,meanErrPerPt/sum(meanErrPerPt));
       %fidupdate = randint2(1,1,[1 model.nfids]);
       disp(fidupdate);
-      fidsupdate = sort([fidupdate,ftrPrm.neighbors{fidupdate}]);
+      %fidsupdate = sort([fidupdate,ftrPrm.neighbors{fidupdate}]);
       ftrPrm.fids = fidsupdate;
       ftrPos = shapeGt('ftrsGenDup2',model,ftrPrm);
       [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',...
@@ -138,7 +140,7 @@ for t=t0:T
       
     else
       switch ftrPrm.type
-        case {5 6 7 8 9 10 11}
+        case {'1lm' '2lm'}
           ftrPos = shapeGt('ftrsGenDup2',model,ftrPrm);
           [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',...
             model,pCur,Is,ftrPos,...
