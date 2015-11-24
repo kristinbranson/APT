@@ -57,7 +57,16 @@ scalar = pTar(dosample,:)*b;
 
 stdSc = std(scalar); muSc=mean(scalar);
 % I think it is a bug that use is 4 x S, changed this to have a max value
-type=ftrPrm.type;if(type>2),type=min(type-2,2);end
+type=ftrPrm.type;
+if isnumeric(type)
+  if type>2
+    % AL: prob just type==3 is relevant
+    type=min(type-2,2);
+  end
+else
+  % char types WILL NOW BE 2
+  type = 2;
+end
 % type=ftrPrm.type;if(type>2),type=type-2;end
 [use] = selectCorrFeat1(pTar(dosample,:),ftrs(dosample,:),type,...
     stdFtrs,dfFtrs(dosample,:),scalar,stdSc,muSc);
@@ -72,7 +81,7 @@ end
 clear scalar;
 if(nargout>1)
     if(type==1), ftrs1 = ftrs(:,use);
-    else ftrs1 = ftrs(:,use(1,:))-ftrs(:,use(2,:));
+    else ftrs1 = ftrs(:,use(1,:))-ftrs(:,use(2,:)); % includes types that were originally chars
     end
 end
 end

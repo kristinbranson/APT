@@ -121,6 +121,7 @@ for k=1:K
             reg1.fids=use; best={reg1,ys1};
         %Select features using random step optimization            
         else
+          assert(false,'codepath needs investigation; see ftrPrm.type below');
             %If occlusion-centered approach, enforce feature variety
             if(s>1 && Stot>1 && ~isempty(occlD))
                 if(Stot==5),keep=find(ismember(mg,masks(s-1,:)));
@@ -133,7 +134,10 @@ for k=1:K
             end
             %Select features with random step optimization
             e = lossFun(ysTar,zeros(N,D));
-            type=ftrPrm.type;if(type>2),type=type-2;end
+            type=ftrPrm.type;
+            if(type>2)
+              type=type-2;
+            end
             for r=1:R
                 if(type==1), 
                     use=randSample(F,M);ftrs = data2(:,use); 
@@ -253,7 +257,7 @@ else
   nsample = N;
 end
 
-if(ftrPrm.type==1)
+if isnumeric(ftrPrm.type) && ftrPrm.type==1
     stdFtrs = std(ftrs); muFtrs = mean(ftrs);
     dfFtrs = bsxfun(@minus,ftrs,muFtrs);
 else

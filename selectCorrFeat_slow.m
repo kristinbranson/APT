@@ -33,6 +33,8 @@ function [use,ftrs1] = selectCorrFeat(S,pTar,ftrs,ftrPrm,...
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
+assert(false, 'unused codepath');
+
 [~,D]=size(pTar); b=rand(S,D)*2-1; 
 for s=1:S, b(s,:)=b(s,:)./norm(b(s,:)); end
 scalar = pTar*b'; stdSc = std(scalar); muSc=mean(scalar);
