@@ -394,6 +394,7 @@ M=size(phis,1); assert(length(imgIds)==M);nChn=ftrData.nChn;
 
 if(size(bboxes,1)==size(Is,1)), bboxes=bboxes(imgIds,:); end
 
+assert(isnumeric(ftrData.type));
 if(ftrData.type==3),
     FTot=ftrData.F;
     ftrs = zeros(M,FTot);
@@ -454,28 +455,29 @@ for n=1:M
       ftrs1=double(img(inds1)')/(2^16-1);
     else ftrs1=double(img(inds1)'); end
     
-    if(ftrData.type==3),ftrs1=ftrs1*2-1; ftrs(n,:)=reshape(ftrs1,1,FTot);
-    else ftrs(n,:)=ftrs1;
+    assert(isnumeric(ftrData.type));
+    if ftrData.type==3
+      ftrs1=ftrs1*2-1; 
+      ftrs(n,:)=reshape(ftrs1,1,FTot);
+    else
+      ftrs(n,:)=ftrs1;
     end
     %tocStatus(ticId,n/M);
 end
 end
 
 function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
-    imgIds, pStar, bboxes, occlPrm,Prm3D)
-% Compute features from ftrsGenDup on Is 
-%
-% USAGE
-%  [ftrs,Vs] = ftrsCompDup( model, phis, Is, ftrData, imgIds, pStar, ...
-%       bboxes, occlPrm )
+    imgIds, pStar, bboxes, occlPrm, Prm3D)
+% Compute features from ftrsGenDup2 on Is 
 %
 % INPUTS
 %  model    - shape model
-%  phis     - [MxR] relative shape for each image 
+%  phis     - [MxR] relative shape for each image. (M might be eg N x RT
+%             and R would be npts x d.)
 %  Is       - cell [N] input images [w x h x nChn] variable w, h
 %  ftrData  - define ftrs to actually compute, output of ftrsGen
-%  imgIds   - [Mx1] image id for each phi 
-%  pStar   -  [1xR] average shape (see initTr) 
+%  imgIds   - [Mx1] image id for each phi, indices into Is.
+%  pStar   -  [1xR] average shape (see initTr)
 %  bboxes   - [Nx4] face bounding boxes 
 %  occlPrm   - struct containing occlusion reasoning parameters
 %    .nrows - [3] number of rows in face region
@@ -493,16 +495,25 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 % EXAMPLE
 %
 % See also demoRCPR, shapeGt>ftrsGenDup
-N = size(Is,1); nfids=model.nfids;
-if(nargin<5 || isempty(imgIds)), imgIds=1:N; end
-M=size(phis,1); assert(length(imgIds)==M);nChn=ftrData.nChn;
 
-if(size(bboxes,1)==size(Is,1)), bboxes=bboxes(imgIds,:); end
+N = size(Is,1);
+nfids = model.nfids;
+if nargin<5 || isempty(imgIds)
+  imgIds = 1:N; 
+end
+M = size(phis,1);
+assert(length(imgIds)==M);
+nChn = ftrData.nChn;
 
-FTot=ftrData.F;
+if size(bboxes,1)==N
+  bboxes = bboxes(imgIds,:); 
+end
+
+FTot = ftrData.F;
 ftrs = zeros(M,FTot);
 
 if strcmp(model.name,'mouse_paw3D')
+  assert(false,'AL');
     %Now using a single merged image containing each view. If using one
     %image per view, select which image here.
     % Code for old 3D which uses PCA
@@ -545,6 +556,8 @@ end
 
 useOccl = occlPrm.Stot>1;
 if useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2'))
+  assert(false,'AL');
+  
   occl = phis(:,(nfids*2)+1:nfids*3);
   occlD = struct('featOccl',zeros(M,FTot),'group',zeros(M,FTot));
 else
@@ -557,21 +570,26 @@ switch ftrData.type
     [cs1,rs1] = Features.compute1LM(ftrData.xs,poscs,posrs);
   case '2lm'
     [cs1,rs1] = Features.compute2LM(ftrData.xs,poscs,posrs);
+  otherwise
+    assert(false);
 end
 
-nGroups=occlPrm.nrows*occlPrm.ncols;
+nGroups = occlPrm.nrows*occlPrm.ncols;
 %ticId =ticStatus('Computing feats',1,1,1);
 
-for n=1:M
-    img = Is{imgIds(n)}; [h,w,ch]=size(img);
-    if(ch==1 && nChn==3), img = cat(3,img,img,img);
-    elseif(ch==3 && nChn==1), img = rgb2gray(img);
+for n = 1:M
+    img = Is{imgIds(n)}; 
+    [h,w,ch] = size(img);
+    if ch==1 && nChn==3
+      img = cat(3,img,img,img);
+    elseif ch==3 && nChn==1
+      img = rgb2gray(img);
     end
-    cs1(n,:)=max(1,min(w,cs1(n,:)));
-    rs1(n,:)=max(1,min(h,rs1(n,:)));
+    cs1(n,:) = max(1,min(w,cs1(n,:)));
+    rs1(n,:) = max(1,min(h,rs1(n,:)));
 
     %where are the features relative to bbox?
-    if(useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
+    if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
         %to which group (zone) does each feature belong?
         occlD.group(n,:)=codifyPos((cs1(n,:)-bboxes(n,1))./bboxes(n,3),...
             (rs1(n,:)-bboxes(n,2))./bboxes(n,4),...
@@ -590,22 +608,24 @@ for n=1:M
         occlD.featOccl(n,:)=occlAm(occlD.group(n,:));
     end
 
-    inds1 = (rs1(n,:)) + (cs1(n,:)-1)*h;
+    inds1 = rs1(n,:) + (cs1(n,:)-1)*h;
     %DEBUG_VISUALIZE_FEATURELOCS;
-    if(nChn>1), inds1 = inds1+(chs'-1)*w*h; end
+    if nChn>1
+      assert(false,'AL: chs undefined');
+      inds1 = inds1+(chs'-1)*w*h; 
+    end
 
     if isa(img,'uint8'), 
-      ftrs1=double(img(inds1)')/255;
+      ftrs1 = double(img(inds1)')/255;
     elseif isa(img,'uint16'),
-      ftrs1=double(img(inds1)')/(2^16-1);
+      ftrs1 = double(img(inds1)')/(2^16-1);
     else
-      ftrs1=img(inds1)'; 
+      ftrs1 = img(inds1)'; 
     end
 
     ftrs(n,:)=ftrs1;
 end
 end
-
 
 function group=codifyPos(x,y,nrows,ncols)
 %codify position of features into regions
@@ -752,7 +772,8 @@ for n=1:M
       ftrs1=double(img(inds1)')/(2^16-1);
     else ftrs1=double(img(inds1)'); end
     
-    if(ftrData.type==1),
+    assert(isnumeric(ftrData.type));
+    if ftrData.type==1
         ftrs1=ftrs1*2-1; ftrs(n,:)=reshape(ftrs1,1,F);
     else ftrs(n,:)=ftrs1;
     end
