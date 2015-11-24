@@ -388,7 +388,7 @@ function [ftrs,occlD] = ftrsCompDup( model, phis, Is, ftrData,...
 N = size(Is,1); nfids=model.nfids;
 if(nargin<5 || isempty(imgIds)), imgIds=1:N; end
 if(nargin<6 || isempty(pStar)),
-    pStar=compPhiStar(model,phis,Is,0,[],[]);
+    pStar=compPhiStar(model,phis,0,[]);
 end
 M=size(phis,1); assert(length(imgIds)==M);nChn=ftrData.nChn;
 
@@ -467,8 +467,10 @@ end
 end
 
 function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
-    imgIds, pStar, bboxes, occlPrm, Prm3D)
+    imgIds, pStar, bboxes, occlPrm)
 % Compute features from ftrsGenDup2 on Is 
+%
+% #ALOK
 %
 % INPUTS
 %  model    - shape model
@@ -478,7 +480,7 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 %  ftrData  - define ftrs to actually compute, output of ftrsGen
 %  imgIds   - [Mx1] image id for each phi, indices into Is.
 %  pStar   -  [1xR] average shape (see initTr)
-%  bboxes   - [Nx4] face bounding boxes 
+%  bboxes   - [Nx4] face bounding boxes. Only used for occlusion.
 %  occlPrm   - struct containing occlusion reasoning parameters
 %    .nrows - [3] number of rows in face region
 %    .ncols - [3] number of columns in face region
@@ -719,7 +721,7 @@ if(nargin<5 || isempty(imgIds)), imgIds=1:N; end
 M=size(phis,1); assert(length(imgIds)==M);
 
 [pStar,phisN,bboxes] = ...
-    compPhiStar( model, phis, Is, 10, imgIds, bboxes );
+    compPhiStar( model, phis, 10, bboxes );
 
 if(size(bboxes,1)==size(Is,1)), bboxes=bboxes(imgIds,:); end
 
@@ -798,92 +800,82 @@ function phis = inverse( model, phis0, bboxes )
 phis=-projectPose(model,phis0,bboxes);
 end
 
-function [phiStar,phisN,bboxes] = ...
-    compPhiStar( model, phis, Is, pad, imgIds, bboxes )
-% KB: Compute average location of points relative to box centers in
-% normalized coordinates
-% Compute phi that minimizes sum of distances to phis (average shape)
-[N,D] = size(phis);%sz=zeros(N,2);
-if(isempty(imgIds)),imgIds=1:N; end
+function [phiStar,phisN,bboxes] = compPhiStar(model,phis,pad,bboxes)
+% Compute average location of points relative to box centers in normalized 
+% coordinates
+%
+% phis: [MxD], shapes.
+% pad: scalar, number of pixels. Used when bboxes is not supplied; pad the 
+% landmarks on each side by this amount to generate bboxes.
+% bboxes (input): optional, [Mx2*d].
+%
+% phiStar: [1xD] phi that minimizes sum of distances to phis (average shape)
+% phisN: [MxD] same as phis, but normalized to bboxes. All coords in range
+% [-1,1] which maps to eg left-of-bbox, right-of-bbox.
+% bboxes (output): [Mx2*d]. If bboxes is not supplied, they are generated 
+% by taking the extent of each phi and padding with pad.
+%
+% #ALOK
 
-% if(strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2') || strcmp(model.name,'mouse_paw3D')), nfids = (D/3);
-% else nfids=D/2;
-% end
-% KB: don't know why this was not done
 nfids = model.nfids;
 
-phisN=zeros(N,D);
-% KB: distPup does not appear to be used anywhere, removed as an output
-%
-% if(strcmp(model.name,'lfpw') || strcmp(model.name,'cofw'))
-%     distPup=sqrt(((phis(:,17)-phis(:,18)).^2)+...
-%         ((phis(:,17+nfids)-phis(:,18+nfids)).^2));
-% elseif(strcmp(model.name,'mouseP'))
-%     distPup=68;
-% elseif (strcmp(model.name,'larva')) || (strcmp(model.name,'mouse_paw')) ||...
-%         (strcmp(model.name,'mouse_paw2')) || (strcmp(model.name,'mouse_paw3D')) ||...
-%         (strcmp(model.name,'fly_RF2'))||(strcmp(model.name,'mouse_paw_multi'))
-%     distPup=ones(N,1);
-% elseif(strcmp(model.name,'lfw'))
-%     leyeX=mean(phis(:,1:2),2);leyeY=mean(phis(:,(1:2)+nfids),2);
-%     reyeX=mean(phis(:,7:8),2);reyeY=mean(phis(:,(7:8)+nfids),2);
-%     distPup=sqrt(((leyeX-reyeX).^2) + ((leyeY-reyeY).^2));
-% else distPup=0;
-% end
-
-% KB: not sure about how bounding boxes are initialized for the 3D case
-% we should probably introduce 
-if(nargin<6), bboxes = zeros(N,4); end
-for n=1:N
-    if(nargin<6)
-        if (strcmp(model.name,'mouse_paw3D'))
-            %left top width height
-            bboxes(n,1:3)=[min(phis(n,1:nfids))-pad ...
-                min(phis(n,nfids+1:2*nfids))-pad,...
-                min(phis(n,nfids*2+1:3*nfids))-pad];
-            bboxes(n,4)=max(phis(n,1:nfids))-bboxes(n,1)+2*pad;
-            bboxes(n,5)=max(phis(n,nfids+1:nfids*2))-bboxes(n,2)+2*pad;
-            bboxes(n,6)=max(phis(n,2*nfids+1:nfids*3))-bboxes(n,3)+2*pad;
-        else
-            %left top width height
-            bboxes(n,1:2)=[min(phis(n,1:nfids))-pad ...
-                min(phis(n,nfids+1:2*nfids))-pad];
-            bboxes(n,3)=max(phis(n,1:nfids))-bboxes(n,1)+2*pad;
-            bboxes(n,4)=max(phis(n,nfids+1:nfids*2))-bboxes(n,2)+2*pad;
-        end
-    end
-    % KB: removed this output, didn't seem to be used anywhere
-%     if (strcmp(model.name,'mouse_paw3D'))
-%         sz(n,:)=nan;
-%     else
-%         img = Is{imgIds(n)}; [sz(n,1),sz(n,2),~]=size(img);
-%         sz(n,:)=sz(n,:)/2;
-%     end
-    %All relative to centroid, using bbox size
-    if(nargin<6)
-        szX=bboxes(n,3)/2;szY=bboxes(n,4)/2;
-        ctr(1)=bboxes(n,1)+szX;ctr(2) = bboxes(n,2)+szY;
-    else
-        if (strcmp(model.name,'mouse_paw3D'))
-            szX=bboxes(imgIds(n),4)/2;szY=bboxes(imgIds(n),5)/2;szZ=bboxes(imgIds(n),6)/2;
-            ctr(1)=bboxes(imgIds(n),1)+szX;ctr(2) = bboxes(imgIds(n),2)+szY;ctr(3) = bboxes(imgIds(n),3)+szZ;
-        else
-            szX=bboxes(imgIds(n),3)/2;szY=bboxes(imgIds(n),4)/2;
-            ctr(1)=bboxes(imgIds(n),1)+szX;ctr(2) = bboxes(imgIds(n),2)+szY;
-        end
-    end
+[M,D] = size(phis);
+assert(D==model.D);
+assert(isscalar(pad));
+tfBboxesSupplied = exist('bboxes','var')>0;
+if ~tfBboxesSupplied
+  if strcmp(model.name,'mouse_paw3D')
+    assert(false,'AL');
+    %       %left top width height
+    %       bboxes(n,1:3)=[min(phis(n,1:nfids))-pad ...
+    %         min(phis(n,nfids+1:2*nfids))-pad,...
+    %         min(phis(n,nfids*2+1:3*nfids))-pad];
+    %       bboxes(n,4)=max(phis(n,1:nfids))-bboxes(n,1)+2*pad;
+    %       bboxes(n,5)=max(phis(n,nfids+1:nfids*2))-bboxes(n,2)+2*pad;
+    %       bboxes(n,6)=max(phis(n,2*nfids+1:nfids*3))-bboxes(n,3)+2*pad;
+    %     szX=bboxes(imgIds(n),4)/2;szY=bboxes(imgIds(n),5)/2;szZ=bboxes(imgIds(n),6)/2;
+    %       ctr(1)=bboxes(imgIds(n),1)+szX;ctr(2) = bboxes(imgIds(n),2)+szY;ctr(3) = bboxes(imgIds(n),3)+szZ;
+  elseif model.d==2
+    %left top width height
+    % AL: minor bug here previously (height/width too big by pad) I think
+    xs = phis(:,1:nfids);
+    ys = phis(:,nfids+1:2*nfids);
+    xmin = min(xs,[],2);
+    xmax = max(xs,[],2);
+    ymin = min(ys,[],2);
+    ymax = max(ys,[],2);
+    bboxes = [xmin-pad ymin-pad xmax-xmin+2*pad ymax-ymin+2*pad];
+  else
+    assert(false,'AL');
+  end
+end
+assert(isequal(size(bboxes),[M model.d*2]));
+  
+assert(model.d==2,'AL for now');
+bboxradX = bboxes(:,3)/2;
+bboxradY = bboxes(:,4)/2;
+bboxctr = [bboxes(:,1)+bboxradX bboxes(:,2)+bboxradY];
     
-    if(strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2'))
-        phisN(n,:) = [(phis(n,1:nfids)-ctr(1))./szX ...
-            (phis(n,nfids+1:nfids*2)-ctr(2))./szY ...
-            phis(n,(nfids*2)+1:nfids*3)];
-    elseif (strcmp(model.name,'mouse_paw3D'))
-        phisN(n,:) = [(phis(n,1:nfids)-ctr(1))./szX ...
-            (phis(n,nfids+1:nfids*2)-ctr(2))./szY ...
-            (phis(n,2*nfids+1:nfids*3)-ctr(3))./szZ];
-    else phisN(n,:) = [(phis(n,1:nfids)-ctr(1))./szX ...
-            (phis(n,nfids+1:nfids*2)-ctr(2))./szY];
-    end
+% KB: not sure about how bounding boxes are initialized for the 3D case
+% we should probably introduce
+
+phisN = zeros(M,D); 
+for i = 1:M
+  %All relative to centroid, using bbox size  
+  if strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')
+    assert(false,'AL');
+%     phisN(n,:) = [(phis(n,1:nfids)-bboxctr(1))./bboxradX ...
+%       (phis(n,nfids+1:nfids*2)-bboxctr(2))./bboxradY ...
+%       phis(n,(nfids*2)+1:nfids*3)];
+  elseif strcmp(model.name,'mouse_paw3D')
+    assert(false,'AL');
+%     phisN(n,:) = [(phis(n,1:nfids)-bboxctr(1))./bboxradX ...
+%       (phis(n,nfids+1:nfids*2)-bboxctr(2))./bboxradY ...
+%       (phis(n,2*nfids+1:nfids*3)-bboxctr(3))./szZ];
+  else
+    phisN(i,:) = [(phis(i,1:nfids)-bboxctr(i,1))/bboxradX(i) ...
+                  (phis(i,nfids+1:nfids*2)-bboxctr(i,2))/bboxradY(i)];
+  end
 end
 phiStar = mean(phisN,1);
 end
@@ -1060,18 +1052,29 @@ end
 
 function [pCur,pGt,pGtN,pStar,imgIds,N,N1]=initTr(Is,pGt,...
     model,pStar,posInit,L,pad,dorotate)
+  
+
+[N,D] = size(pGt);
+assert(D==model.D);
+assert(numel(Is)==N);
+% pStar: average shape in normalized coords
+assert(isempty(pStar) || isequal(size(pStar),[1 D])); 
+% posInit: bounding boxes"
+assert(isequal(size(posInit),[N 2*model.d]));
+% L: shape naugment
+% pad: augment pad
+% drotate: augment rotation
+
+d = model.d;
 
 % KB: considering that there are multiple views, it probably makes sense to
 % have a different bounding box for each view -- note that this will be
 % obsolete if we are doing 3D 
 
-%Randomly initialize each training image with L shapes
-[N,D]=size(pGt);assert(size(Is,1)==N);
-d = size(posInit,2)/2;
 % average location of each point in normalized coordinates: (0,0) is the
 % center of the bounding box, (+/-1,+/-1) are the corners
-if(isempty(pStar)),
-    [pStar,pGtN]=compPhiStar(model,pGt,Is,pad,[],posInit);
+if isempty(pStar)
+    [pStar,pGtN] = compPhiStar(model,pGt,pad,posInit);
     % KB: debug: show normalized coordinates
     if false,
       clf;
@@ -1086,6 +1089,9 @@ if(isempty(pStar)),
       end
     end
 end
+
+%Randomly initialize each training image with L shapes
+
 
 % augment data amount by random permutations of initial shape
 pCur=repmat(reshape(pGt,[N,1,D]),[1,L,1]);
