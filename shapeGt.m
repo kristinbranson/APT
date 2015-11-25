@@ -800,7 +800,7 @@ function phis = inverse( model, phis0, bboxes )
 phis=-projectPose(model,phis0,bboxes);
 end
 
-function [phiStar,phisN,bboxes] = compPhiStar(model,phis,pad,bboxes)
+function [phiNStar,phisN,bboxes] = compPhiStar(model,phis,pad,bboxes)
 % Compute average location of points relative to box centers in normalized 
 % coordinates
 %
@@ -809,7 +809,8 @@ function [phiStar,phisN,bboxes] = compPhiStar(model,phis,pad,bboxes)
 % landmarks on each side by this amount to generate bboxes.
 % bboxes (input): optional, [Mx2*d].
 %
-% phiStar: [1xD] phi that minimizes sum of distances to phis (average shape)
+% phiNStar: [1xD] phi (normalized coords) that minimizes sum of distances 
+%   to phis, ie centroid
 % phisN: [MxD] same as phis, but normalized to bboxes. All coords in range
 % [-1,1] which maps to eg left-of-bbox, right-of-bbox.
 % bboxes (output): [Mx2*d]. If bboxes is not supplied, they are generated 
@@ -877,33 +878,36 @@ for i = 1:M
                   (phis(i,nfids+1:nfids*2)-bboxctr(i,2))/bboxradY(i)];
   end
 end
-phiStar = mean(phisN,1);
+phiNStar = mean(phisN,1);
 end
 
-function phis1=reprojectPose(model,phis,bboxes)
-%reproject shape given bounding box of object location
-[N,D]=size(phis);
-nfids = model.nfids;
-% KB: not sure why this was used
-% if(strcmp(model.name,'cofw') || strcmp(model.name,'mouse_paw3D') || strcmp(model.name,'fly_RF2')), 
-%     nfids = D/3;
-% else
-%     nfids = D/2;
-% end
+function phis1 = reprojectPose(model,phisN,bboxes)
+% Reproject normalized shape onto bounding boxes
+%
+% phisN: [MxD] Normalized shapes (all coords in range [-1,1])
+% bboxes: [Mx2*d] bounding boxes
+% 
+% phis1: [MxD] Shapes in absolute (non-normalized) coords, relative to
+%   bboxes
+%
+% #ALOK
 
+[M,D] = size(phisN);
+assert(all(-1 <= phisN(:) & phisN(:) <= 1));
+assert(D==model.D);
+
+assert(size(bboxes,1)==M);
 d = size(bboxes,2)/2;
+assert(d==model.d);
 
-% KB: remove the dependence on model name
-% remove all the repmats
+nfids = model.nfids;
+radii = bboxes(:,d+1:end)/2; % Mxd
+ctrs = bboxes(:,1:d) + radii; % Mxd
 
-% sz, ctr are N x d
-% sz: radius of box
-sz = bboxes(:,d+1:end)/2;
-% ctr: location of center
-ctr = bboxes(:,1:d) + sz;
-% phis is N x d*nfids
-phis1 = reshape(bsxfun(@plus,bsxfun(@times,reshape(phis,[N,nfids,d]),reshape(sz,[N,1,d])),...
-  reshape(ctr,[N,1,d])),[N,nfids*d]);
+phisN = reshape(phisN,[M,nfids,d]);
+phis1 = bsxfun(@plus,bsxfun(@times,phisN,reshape(radii,[M,1,d])),...
+                     reshape(ctrs,[M,1,d]));
+phis1 = reshape(phis1,[M,nfids*d]);
 
 % if  (strcmp(model.name,'mouse_paw3D'))
 %     szX=bboxes(:,4)/2;szY=bboxes(:,5)/2;szZ=bboxes(:,6)/2;
@@ -927,30 +931,30 @@ phis1 = reshape(bsxfun(@plus,bsxfun(@times,reshape(phis,[N,nfids,d]),reshape(sz,
 
 end
 
+function phisN = projectPose(model,phis,bboxes)
+% Project shape into normalized coords given bounding boxes
+% phis: [MxD] Shapes in absolute coords
+% bboxes: [Mx2*d] bounding boxes
+% 
+% phisN: [MxD] Shapes in normalized coords relative to bboxes
+%
+% #ALOK
 
-function phis1=projectPose(model,phis,bboxes)
-%project shape onto bounding box of object location
+[M,D] = size(phis);
+assert(D==model.D);
 
-[N,D]=size(phis);
-nfids = model.nfids;
-% KB: not sure why this was used
-% if(strcmp(model.name,'cofw') || strcmp(model.name,'mouse_paw3D') || strcmp(model.name,'fly_RF2')), nfids=D/3;
-% else nfids=D/2;
-% end
-
+assert(size(bboxes,1)==M);
 d = size(bboxes,2)/2;
+assert(d==model.d);
 
-% KB: remove the dependence on model name
-% remove all the repmats
+nfids = model.nfids;
+radii = bboxes(:,d+1:end)/2; % Mxd
+ctrs = bboxes(:,1:d) + radii; % Mxd
 
-% sz, ctr are N x d
-% sz: radius of box
-sz = bboxes(:,d+1:end)/2;
-% ctr: location of center
-ctr = bboxes(:,1:d) + sz;
-% phis is N x d*nfids
-phis1 = reshape(bsxfun(@rdivide,bsxfun(@minus,reshape(phis,[N,nfids,d]),reshape(ctr,[N,1,d])),...
-  reshape(sz,[N,1,d])),[N,nfids*d]);
+phis = reshape(phis,[M,nfids,d]);
+phisN = bsxfun(@rdivide,bsxfun(@minus,phis,reshape(ctrs,[M,1,d])),...
+                        reshape(radii,[M,1,d]));
+phisN = reshape(phisN,[M,nfids*d]);
 
 % if  (strcmp(model.name,'mouse_paw3D'))
 %     szX=bboxes(:,4)/2;szY=bboxes(:,5)/2;szZ=bboxes(:,6)/2;
@@ -1049,23 +1053,37 @@ assert(nnz(dsAll0 ~= dsAll)==0);
 
 end
 
-
-function [pCur,pGt,pGtN,pStar,imgIds,N,N1]=initTr(Is,pGt,...
-    model,pStar,posInit,L,pad,dorotate)
+function [pCur,pGt,pGtN,pStarN,imgIds,N,N1] = ...
+  initTr(Is,pGt,model,pStarN,bboxes,L,pad,dorotate)
+% Is: [N] cell vec of images
+% pGt: [NxD] shapes in absolute coords
+% pStarN: centroid shape in normalized coords, see compPhiStar. Optional, 
+% CURRENTLY MUST BE EMPTY
+% bboxes: [Nx2*d] bounding boxes
+% L: augmentation number
+% pad: pad value for compPhiStar(), used when pStar is empty
+% dorotate: if true, randomly rotate shapes when augmenting
+%
+% pCur: [NLxD]. shapes in absolute coords
+% pGt (output): [NLxD]. shapes in absolute coords, equal to repmat(pGt,L,1)
+% pGtN: [NLxD]: shapes in normalized coords, equal to repmat(pGtNtrue,L,1).
+%   Computed from pGt using compPhiStar();
+% pStarN: [1xD]: centroid shape in normalized coords, computed from pGt
+%   using compPhiStar()
+% imgIds: row labels for pCur, pGt, pGtN
+% N (output): equal to N*L, or size(pCur,1)
+% N1: equal to N, or the original N
+%
+% #ALOK
   
-
 [N,D] = size(pGt);
-assert(D==model.D);
 assert(numel(Is)==N);
-% pStar: average shape in normalized coords
-assert(isempty(pStar) || isequal(size(pStar),[1 D])); 
-% posInit: bounding boxes"
-assert(isequal(size(posInit),[N 2*model.d]));
-% L: shape naugment
-% pad: augment pad
-% drotate: augment rotation
+assert(D==model.D);
+assert(isempty(pStarN) || isequal(size(pStarN),[1 D]));
+assert(isequal(size(bboxes),[N 2*model.d]));
 
 d = model.d;
+nfids = model.nfids;
 
 % KB: considering that there are multiple views, it probably makes sense to
 % have a different bounding box for each view -- note that this will be
@@ -1073,92 +1091,88 @@ d = model.d;
 
 % average location of each point in normalized coordinates: (0,0) is the
 % center of the bounding box, (+/-1,+/-1) are the corners
-if isempty(pStar)
-    [pStar,pGtN] = compPhiStar(model,pGt,pad,posInit);
-    % KB: debug: show normalized coordinates
-    if false,
-      clf;
-      imagesc([-1,1],[-1,1],Is{1});
-      truesize;
-      colormap gray;
-      hold on;
-      colors = lines(model.nfids);
-      for i = 1:model.nfids,
-        plot(pGtN(:,i),pGtN(:,i+model.nfids),'.','Color',colors(i,:));
-        plot(pStar(i),pStar(i+model.nfids),'wo','MarkerFaceColor',colors(i,:)*.75+.25);
-      end
+if isempty(pStarN)
+  [pStarN,pGtN] = compPhiStar(model,pGt,pad,bboxes);
+  % KB: debug: show normalized coordinates
+  if false
+    clf;
+    imagesc([-1,1],[-1,1],Is{1});
+    truesize;
+    colormap gray;
+    hold on;
+    colors = lines(nfids);
+    for i = 1:nfids,
+      plot(pGtN(:,i),pGtN(:,i+nfids),'.','Color',colors(i,:));
+      plot(pStar(i),pStar(i+nfids),'wo','MarkerFaceColor',colors(i,:)*.75+.25);
     end
+  end
+else
+  assert(false,'AL: unsupported, no pGtN input arg');
 end
 
-%Randomly initialize each training image with L shapes
-
-
+% Randomly initialize each training image with L shapes;
 % augment data amount by random permutations of initial shape
-pCur=repmat(reshape(pGt,[N,1,D]),[1,L,1]);
-nfids = model.nfids;
-% KB: not sure why it was doing this
-% if(strcmp(model.name,'cofw') || strcmp(model.name,'mouse_paw3D') || strcmp(model.name,'fly_RF2'))
-%     nfids = size(pGt,2)/3;
-% else nfids = size(pGt,2)/2;
-% end
+pCur = nan(N,L,D); %repmat(reshape(pGt,[N,1,D]),[1,L,1]); % [NxLxD]
+
 % KB: TODO: I think it may make more sense to not bias the sampling by the
 % distribution of the data so much -- we basically get a bunch of initial
-% points with the mouse's paw on the perch. Maybe figure out he general
+% points with the mouse's paw on the perch. Maybe figure out the general
 % domain, and sample uniformly within there?
 
-for n=1:N
-    %select other images
-    if L > N-1,
-      % if not enough images, select pairs of images and average them
-      imgIds = [1:n-1,n+1:N];
-      imgIds2 = imgIds(min(floor(N*rand([L-(N-1),2]))+1,N-1));
-      pGtNCurr = cat(1,pGtN(imgIds,:),(pGtN(imgIds2(:,1),:)+pGtN(imgIds2(:,2),:))/2);      
-    else
-      imgsIds = randSample([1:n-1 n+1:N],L);%[n randSample(1:N,L-1)];
-      pGtNCurr = pGtN(imgsIds,:);
+for n = 1:N
+  % select other shapes
+  if L > N-1
+    % if not enough shapes, select pairs of shapes and average them
+    imgIds = [1:n-1,n+1:N];
+    % AL: min() seems unnecessary if use (N-1)*rand(...)
+    nExtra = L-(N-1);
+    imgIds2 = imgIds(ceil((N-1)*rand([nExtra,2])));
+    pGtNCurr = cat(1,pGtN(imgIds,:),...
+      (pGtN(imgIds2(:,1),:)+pGtN(imgIds2(:,2),:))/2);
+  else
+    imgsIds = randSample([1:n-1 n+1:N],L);%[n randSample(1:N,L-1)];
+    pGtNCurr = pGtN(imgsIds,:);
+  end
+  
+  % pGtNCurr: Set of L GT-shapes, explicitly doesn't include pGt(n,:)
+  assert(isequal(size(pGtNCurr),[L D]));    
+  
+  if dorotate && d==2
+    % Randomly rotate L shapes in pGtNCurr
+    thetas = rand(L,1)*2*pi;
+    ct = cos(thetas);
+    st = sin(thetas);
+    pGtNCurr = reshape(pGtNCurr,[L,nfids,d]);
+    mus = mean(pGtNCurr,2); % [Lx1xd], centroid for each shape
+    pGtNCurr = bsxfun(@minus,pGtNCurr,mus);
+    x = bsxfun(@times,ct,pGtNCurr(:,:,1)) - bsxfun(@times,st,pGtNCurr(:,:,2));
+    y = bsxfun(@times,st,pGtNCurr(:,:,1)) + bsxfun(@times,ct,pGtNCurr(:,:,2));
+    pGtNCurr = cat(3,x,y);
+    pGtNCurr = bsxfun(@plus,pGtNCurr,mus);
+    pGtNCurr = reshape(pGtNCurr,[L,nfids*d]);
+  end
+  
+  %Project onto image
+  % KB: move this outside of the loop, remove dependence on model name
+  % maximum displacement is 1/16th of the width & height of the
+  % image -- I think it makese more sense to use the std? Note
+  % that max displacement will be much larger in x than y
+  maxDisp = bboxes(n,d+1:end)/16;
+  uncert = bsxfun(@times,(2*rand(L,d)-1),maxDisp);
+  bbox = repmat(bboxes(n,:),[L,1]);  
+  bbox(:,1:d) = bbox(:,1:d)+uncert;
+  % bbox is [Lx2d], L copies of bboxes(n,:) with random shifts
+  pCur(n,:,:) = reprojectPose(model,pGtNCurr,bbox);
+  
+  if false
+    if n==1 %#ok<UNRCH>
+      clf;
+      imagesc(Is{n});
+      hold on;
+      plot(squeeze(pCur(n,:,1:model.nfids)),squeeze(pCur(n,:,model.nfids+1:end)),'.');
+      plot(pGt(n,1:model.nfids),pGt(n,model.nfids+1:end),'ro','MarkerFaceColor','r');
     end
-    %Project onto image
-    % KB: move this outside of the loop, remove dependence on model name
-    % maximum displacement is 1/16th of the width & height of the
-    % image -- I think it makese more sense to use the std? Note
-    % that max displacement will be much larger in x than y
-    maxDisp = posInit(n,d+1:end)/16;
-%     if strcmp(model.name,'mouse_paw3D')
-%       maxDisp = posInit(n,4:6)/16;
-%       d = 3;
-%     else
-%       maxDisp = posInit(n,3:4)/16;
-%       d = 2;
-%     end      
-    uncert=bsxfun(@times,(2*rand(L,d)-1),maxDisp);
-    bbox=repmat(posInit(n,:),[L,1]);
-    if dorotate && d == 2,
-      thetas = rand(L,1);
-      ct = cos(thetas);
-      st = sin(thetas);
-      pGtNCurr = reshape(pGtNCurr,[L,nfids,d]);
-      mus = mean(pGtNCurr,2);
-      pGtNCurr = bsxfun(@minus,pGtNCurr,mus);
-      x = bsxfun(@times,ct,pGtNCurr(:,:,1)) - bsxfun(@times,st,pGtNCurr(:,:,2));
-      y = bsxfun(@times,st,pGtNCurr(:,:,1)) + bsxfun(@times,ct,pGtNCurr(:,:,2));
-      pGtNCurr = cat(3,x,y);
-      pGtNCurr = bsxfun(@plus,pGtNCurr,mus);
-      pGtNCurr = reshape(pGtNCurr,[L,nfids*d]);
-    end
-      
-    bbox(:,1:d)=bbox(:,1:d)+uncert;
-    pCur(n,:,:) = reprojectPose(model,pGtNCurr,bbox);
-    
-    if false,
-      if n == 1, %#ok<UNRCH>
-        clf;
-        imagesc(Is{n});
-        hold on;
-        plot(squeeze(pCur(n,:,1:model.nfids)),squeeze(pCur(n,:,model.nfids+1:end)),'.');
-        plot(pGt(n,1:model.nfids),pGt(n,model.nfids+1:end),'ro','MarkerFaceColor','r');
-      end
-    end
-    
+  end
 end
 
 % KB: set pCur to be in this order to begin with
@@ -1167,9 +1181,12 @@ end
 % else pCur = reshape(permute(pCur,[1 3 2]),N*L,nfids*2);
 % end
 
-imgIds=repmat(1:N,[1 L]);pGt=repmat(pGt,[L 1]);pGtN=repmat(pGtN,[L 1]);
 pCur = reshape(pCur,[N*L,D]);
-N1=N; N=N*L;
+imgIds = repmat(1:N,[1 L]); % labels rows of pCur
+pGt = repmat(pGt,[L 1]);
+pGtN = repmat(pGtN,[L 1]);
+N1 = N;
+N = N*L;
 end
 
 function p=initTest(Is,bboxes,model,pStar,pGtN,RT1,dorotate)
