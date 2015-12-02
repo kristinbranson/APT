@@ -59,7 +59,7 @@ classdef Labeler < handle
         % update movieFilesAllHaveLbls. So we piggyback onto
         % updateFrameTable*(). 
     targetZoomFac;
-    moviename; % short name, moviefile
+    moviename; % short 'pretty' name, cosmetic purposes only
     movieCenterOnTarget = false; % scalar logical. 
   end
   properties (Dependent)
@@ -535,7 +535,10 @@ classdef Labeler < handle
       movfile = obj.movieFilesAll{iMov};
       obj.movieReader.open(movfile);
       RC.saveprop('lbl_lastmovie',movfile);
-      [~,obj.moviename] = myfileparts(obj.moviefile);      
+      [path0,movname] = myfileparts(obj.moviefile);
+      [~,parent] = fileparts(path0);
+      obj.moviename = fullfile(parent,movname);
+      
       obj.movieSetHelperUI();
       
       obj.isinit = true; % Initialization hell, invariants momentarily broken

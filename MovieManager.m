@@ -54,18 +54,21 @@ mcls = metaclass(lObj);
 mprops = mcls.PropertyList;
 mprops = mprops(ismember({mprops.Name}',PROPS));
 handles.listener = event.proplistener(lObj,...
-  mprops,'PostSet',@(src,evt)lclUpdateTable(handles));
+  mprops,'PostSet',@(src,evt)lclUpdateTable(hObject));
 handles.selectedRow = [];
+handles.origTableCol1Width = handles.tblMovies.ColumnWidth{1};
 guidata(hObject,handles);
 
 centerfig(handles.figure1,handles.labeler.gdata.figure);
 
-lclUpdateTable(handles);
+lclUpdateTable(hObject);
 
 function varargout = MovieManager_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
 
-function lclUpdateTable(handles)
+function lclUpdateTable(hObj)
+handles = guidata(hObj);
+
 lObj = handles.labeler;
 movs = lObj.movieFilesAll;
 movsHaveLbls = lObj.movieFilesAllHaveLbls;
@@ -80,7 +83,8 @@ dat = [movs num2cell(movsHaveLbls)];
 % estimate width column1
 col1MaxSz = max(cellfun(@numel,dat(:,1)));
 CHARS2PIXFAC = 8;
-col1Pixels = col1MaxSz*CHARS2PIXFAC;
+col1Width = col1MaxSz*CHARS2PIXFAC;
+col1Width = max(col1Width,handles.origTableCol1Width);
 
 % highlight current movie
 if ~isempty(iMov) && iMov>0
@@ -88,7 +92,7 @@ if ~isempty(iMov) && iMov>0
 end
     
 handles.tblMovies.Data = dat;
-handles.tblMovies.ColumnWidth{1} = col1Pixels;
+handles.tblMovies.ColumnWidth{1} = col1Width;
 
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
 [tfsucc,movfile,trxfile] = promptGetMovTrxFiles();
