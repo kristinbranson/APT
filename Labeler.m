@@ -50,6 +50,14 @@ classdef Labeler < handle
   end
   properties (SetObservable)
     movieFilesAll = cell(0,1); % column cellstr, full paths to movies
+    movieFilesAllHaveLbls = false(0,1); % [numel(movieFilesAll)x1] logical. 
+        % How MFAHL is maintained
+        % - At project load, it is updated fully.
+        % - Trivial update on movieRm/movieAdd.
+        % - Otherwise, all labeling operations can only affect the current
+        % movie; meanwhile the FrameTable contains all necessary info to
+        % update movieFilesAllHaveLbls. So we piggyback onto
+        % updateFrameTable*(). 
     targetZoomFac;
     moviename; % short name, moviefile
     movieCenterOnTarget = false; % scalar logical. 
@@ -344,6 +352,7 @@ classdef Labeler < handle
       obj.projname = name;
       obj.projFSInfo = [];
       obj.movieFilesAll = cell(0,1);
+      obj.movieFilesAllHaveLbls = false(0,1);
       obj.movieInfoAll = cell(0,1);
       obj.trxFilesAll = cell(0,1);
       obj.movieSetNoMovie(); % order important here
@@ -430,7 +439,7 @@ classdef Labeler < handle
         fname = fullfile(pth,fname);
       end
       
-      assert(exist(fname,'file')>0,'File ''%s'' not found.');
+      assert(exist(fname,'file')>0,'File ''%s'' not found.',fname);
       
       s = load(fname,'-mat');
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
@@ -448,6 +457,7 @@ classdef Labeler < handle
           obj.(f) = [];
         end
       end
+      obj.movieFilesAllHaveLbls = cellfun(@(x)any(~isnan(x(:))),obj.labeledpos);
       obj.isinit = false;
       
       if obj.nmovies==0 || s.currMovie==0
@@ -463,7 +473,7 @@ classdef Labeler < handle
       obj.setFrameAndTarget(s.currFrame,s.currTarget);
       obj.suspScore = obj.suspScore;
             
-      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI      
+      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
     end
     
   end
@@ -490,6 +500,7 @@ classdef Labeler < handle
       mr.close();
       
       obj.movieFilesAll{end+1,1} = moviefile;
+      obj.movieFilesAllHaveLbls(end+1,1) = false;
       obj.movieInfoAll{end+1,1} = ifo;
       obj.trxFilesAll{end+1,1} = trxfile;
       obj.labeledpos{end+1,1} = [];
@@ -506,6 +517,7 @@ classdef Labeler < handle
       end
       
       obj.movieFilesAll(iMov,:) = [];
+      obj.movieFilesAllHaveLbls(iMov,:) = [];
       obj.movieInfoAll(iMov,:) = [];
       obj.trxFilesAll(iMov,:) = [];
       obj.labeledpos(iMov,:) = [];
@@ -1527,7 +1539,6 @@ classdef Labeler < handle
       set(tbl,'Data',tbldat);
     end
     
-    % TODO Prob use listener/event for this
     function updateFrameTableIncremental(obj)
       % assumes .labelpos and tblFrames differ at .currFrame at most
       %
@@ -1557,6 +1568,11 @@ classdef Labeler < handle
           set(tbl,'Data',dat);
         end
       end
+      
+      % dat should equal get(tbl,'Data')     
+      if obj.hasMovie
+        obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
+      end
     end    
     function updateFrameTableComplete(obj)
       [nTgts,nPts] = obj.labelPosLabeledFramesStats();
@@ -1567,6 +1583,10 @@ classdef Labeler < handle
       dat = [num2cell(iFrm) num2cell(nTgts(tfFrm)) num2cell(nPts(tfFrm)) ];
       tbl = obj.gdata.tblFrames;
       set(tbl,'Data',dat);
+
+      if obj.hasMovie
+        obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
+      end
     end
    
   end

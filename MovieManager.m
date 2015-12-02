@@ -22,7 +22,7 @@ function varargout = MovieManager(varargin)
 
 % Edit the above text to modify the response to help MovieManager
 
-% Last Modified by GUIDE v2.5 24-Sep-2015 17:23:26
+% Last Modified by GUIDE v2.5 02-Dec-2015 11:18:52
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -49,7 +49,7 @@ function MovieManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*IN
 lObj = varargin{1};
 handles.labeler = lObj;
 handles.output = hObject;
-PROPS = {'movieFilesAll' 'trxFilesAll'};
+PROPS = {'movieFilesAll' 'movieFilesAllHaveLbls' 'currMovie'};
 mcls = metaclass(lObj);
 mprops = mcls.PropertyList;
 mprops = mprops(ismember({mprops.Name}',PROPS));
@@ -68,13 +68,27 @@ varargout{1} = handles.output;
 function lclUpdateTable(handles)
 lObj = handles.labeler;
 movs = lObj.movieFilesAll;
-trxs = lObj.trxFilesAll;
-if numel(movs)~=numel(trxs)
+movsHaveLbls = lObj.movieFilesAllHaveLbls;
+iMov = lObj.currMovie;
+
+if numel(movs)~=numel(movsHaveLbls)
   % intermediate state, take no action
   return;
 end
-dat = [movs cellfun(@(x)~isempty(x),trxs,'uni',0)];
-set(handles.tblMovies,'Data',dat);
+dat = [movs num2cell(movsHaveLbls)];
+
+% estimate width column1
+col1MaxSz = max(cellfun(@numel,dat(:,1)));
+CHARS2PIXFAC = 8;
+col1Pixels = col1MaxSz*CHARS2PIXFAC;
+
+% highlight current movie
+if ~isempty(iMov) && iMov>0
+  dat{iMov,1} = ['<html><font color=#0000FF>' dat{iMov,1} '</font></html>'];    
+end
+    
+handles.tblMovies.Data = dat;
+handles.tblMovies.ColumnWidth{1} = col1Pixels;
 
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
 [tfsucc,movfile,trxfile] = promptGetMovTrxFiles();
@@ -106,4 +120,13 @@ guidata(hObject,handles);
 function pbSwitch_Callback(hObject, eventdata, handles)
 if ~isempty(handles.selectedRow)
   handles.labeler.movieSet(handles.selectedRow);
+end
+
+function pbNextUnlabeled_Callback(hObject, eventdata, handles)
+lObj = handles.labeler;
+iMov = find(~lObj.movieFilesAllHaveLbls,1);
+if isempty(iMov)
+  msgBox('All movies are labeled!');
+else
+  lObj.movieSet(iMov);
 end
