@@ -81,7 +81,11 @@ end
 dat = [movs num2cell(movsHaveLbls)];
 
 % estimate width column1
-col1MaxSz = max(cellfun(@numel,dat(:,1)));
+if isempty(dat)
+  col1MaxSz = 0;
+else
+  col1MaxSz = max(cellfun(@numel,dat(:,1)));
+end
 CHARS2PIXFAC = 8;
 col1Width = col1MaxSz*CHARS2PIXFAC;
 col1Width = max(col1Width,handles.origTableCol1Width);
