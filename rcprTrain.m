@@ -99,8 +99,8 @@ bboxes=posInit(imgIds,:);
 ftr_gen_radius = ftrPrm.radius;
 for t=t0:T
     % get target value for shape
-    pTar = shapeGt('inverse',model,pCur,bboxes);
-    pTar = shapeGt('compose',model,pTar,pGt,bboxes);
+    pTar = shapeGt('inverse',model,pCur,bboxes); % pCur: absolute. pTar: normalized
+    pTar = shapeGt('compose',model,pTar,pGt,bboxes); % pTar: normalized
 
     if numel(ftr_gen_radius) > 1,
       ftrPrm.radius = ftr_gen_radius(min(t,numel(ftr_gen_radius)));
@@ -165,7 +165,7 @@ for t=t0:T
     pCur = shapeGt('compose',model,pDel,pCur,bboxes);
     pCur = shapeGt('reprojectPose',model,pCur,bboxes);
     
-    pAll(:,:,t+1)=pCur(1:N1,:);
+    pAll(:,:,t+1) = pCur(1:N1,:);
     %loss scores
     [errPerEx,errPerPt] = shapeGt('dist',model,pCur,pGt);
     meanErrPerPt = mean(errPerPt,1);

@@ -7,29 +7,27 @@
 %       + prunePrm: prune parameters
 %       + piT: inital label position (optional)
 
-function [pT,pRTT,lossT,fail,p_t]=test_rcpr(phisT,bboxesT,IsT,regModel,regPrm,prunePrm,piT)
-if nargin<7 || isempty(piT),
-    % Setup parameters
-    RT1=prunePrm.numInit;
-    %Initialize randomly using RT1 shapes drawn from training
+function [pT,pRTT,lossT,fail,p_t] = ...
+  test_rcpr(phisT,bboxesT,IsT,regModel,regPrm,prunePrm,piT)
+
+if nargin<7 || isempty(piT)
+    RT1 = prunePrm.numInit;
+    % Initialize randomly using RT1 shapes drawn from training
     if ~isfield(prunePrm,'dorotate')
       prunePrm.dorotate = false;
     end
-    piT=shapeGt('initTest',IsT,bboxesT,regModel.model,regModel.pStar,regModel.pGtN,RT1,prunePrm.dorotate);
+    piT = shapeGt('initTest',IsT,bboxesT,regModel.model,regModel.pStar,...
+      regModel.pGtN,RT1,prunePrm.dorotate);
 else
-    RT1=size(piT,3);
+    RT1 = size(piT,3);
 end
 
-
-%% TEST on TRAINING data
-%Create test struct
+%% TEST 
 testPrmT = struct('RT1',RT1,'pInit',bboxesT,...
     'regPrm',regPrm,'initData',piT,'prunePrm',prunePrm,...
     'verbose',0);
-%Test
-t=clock;[pT,pRTT,p_t,fail] = rcprTest(IsT,regModel,testPrmT);t=etime(clock,t);
-%Round up the pixel positions
-%pT=round(pT);
+[pT,pRTT,p_t,fail] = rcprTest(IsT,regModel,testPrmT);
+
 %Compute loss
 if ~isempty(phisT)
     lossT = shapeGt('dist',regModel.model,pT,phisT);

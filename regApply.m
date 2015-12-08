@@ -5,9 +5,10 @@ function ysSum = regApply(p,X,regInfo,regPrm)
 %  ysSum = regApply(p,X,regInfo,regPrm)
 %
 % INPUTS
-%  p        - [NxD] initial pose
+%  p        - [NxD] initial pose. AL20151204: This arg used only for its size
 %  X        - [NxF] N length F feature vectors
-%  regInfo  - structure containing regressor info, output of regTrain
+%  regInfo  - structure containing regressor info, output of regTrain 
+%             AL20151204: [KxStot] cell array
 %  regPrm
 %   .type     - [1] type of regression
 %                   1=fern, 2=linear
@@ -26,7 +27,8 @@ function ysSum = regApply(p,X,regInfo,regPrm)
 %       .th        - [.5] occlusion threshold
 %
 % OUTPUTS
-%  ysSum       - [NxD] predicted output values
+%  ysSum       - [NxD] predicted output values 
+%                AL20151204: used same as however regressor was trained
 %
 % See also
 %          demoRCPR, FULL_demoRCPR, rcprTrain, regTrain
@@ -41,10 +43,16 @@ function ysSum = regApply(p,X,regInfo,regPrm)
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
-type=regPrm.type;K=regPrm.K;Stot=regPrm.occlPrm.Stot;occlD=regPrm.occlD;
+% ALOK
+
+type = regPrm.type;
+K = regPrm.K;
+Stot = regPrm.occlPrm.Stot;
+occlD = regPrm.occlD;
+
 %Set up reg function
-[N,D]=size(p);
-switch(type)
+[N,D] = size(p);
+switch (type)
     case 1, regFun=@applyFern;
     case 2, regFun=@applyLin;
 end
@@ -55,6 +63,7 @@ if(D>10 && Stot>1 && ~isempty(occlD))
     ftrsOccl=zeros(N,K,Stot);
 end
 %For each boosted regressor
+assert(iscell(regInfo) && isequal(size(regInfo),[K Stot]));
 for k=1:K
     %Occlusion-centered weighted mean
     if(D>10 && Stot>1 && ~isempty(occlD))
@@ -77,9 +86,9 @@ for k=1:K
         end
     %Normal
     else
-        ysPred=regFun(X,regInfo{k,:},regPrm);
+        ysPred = regFun(X,regInfo{k,:},regPrm);
         ysPred = median(ysPred,3);
-        ysSum=ysSum+ysPred;
+        ysSum = ysSum+ysPred;
     end
 end
 end
@@ -101,12 +110,15 @@ function Y_pred=applyFern(X,regInfo,regPrm)
 %
 % See also
 
-type=size(regInfo.fids,1);M=regPrm.M;
-if(type==1), ftrs=X(:,regInfo.fids);
-else ftrs=X(:,regInfo.fids(1,:))-X(:,regInfo.fids(2,:));
+type = size(regInfo.fids,1);
+M = regPrm.M;
+if type==1
+  ftrs = X(:,regInfo.fids);
+else
+  ftrs = X(:,regInfo.fids(1,:))-X(:,regInfo.fids(2,:));
 end
 inds = fernsInds(ftrs,uint32(1:M),regInfo.thrs);
-Y_pred=regInfo.ysFern(inds,:);
+Y_pred = regInfo.ysFern(inds,:);
 end
 
 function Y_pred=applyLin(X,regInfo,~)

@@ -38,7 +38,7 @@ trPrm=struct('model',model,'pStar',[],'posInit',bboxesTr,...
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TEST
 %Initialize randomly using RT1 shapes drawn from training
-pi=shapeGt('initTest',IsT,bboxesT,model,pStar,pGtN,RT1);
+pi=shapeGt('initTest',IsT,bboxesT,model,pStar,pGtN,RT1); %AL 20151205: probably broken call
 %Create test struct
 testPrm = struct('RT1',RT1,'pInit',bboxesT,...
     'regPrm',regPrm,'initData',pi,'prunePrm',prunePrm,...
@@ -53,7 +53,7 @@ fprintf('--------------DONE\n');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TEST on TRAINING data
 %Initialize randomly using RT1 shapes drawn from training
-piTr=shapeGt('initTest',IsTr,bboxesTr,model,pStar,pGtN,RT1);
+piTr=shapeGt('initTest',IsTr,bboxesTr,model,pStar,pGtN,RT1); %AL 20151205: probably broken call
 %Create test struct
 testPrmTr = struct('RT1',RT1,'pInit',bboxesTr,...
     'regPrm',regPrm,'initData',piTr,'prunePrm',prunePrm,...

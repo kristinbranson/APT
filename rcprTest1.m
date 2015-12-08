@@ -19,7 +19,9 @@ function [p,p_t,fail] = rcprTest1( Is, regModel, p, regPrm, iniData, ...
 %     .tIni      - [10] iteration from which to prune
 %
 % OUTPUTS
-%  p        - [NxD] shape returned by multi stage regressor
+%  p        - [NxDxRT1] shape returned by multi stage regressor
+%  p_t      - [N*RT1xDx(T+1)] shape over time
+%  fail     - used only for pruning
 %
 % EXAMPLE
 %
@@ -36,34 +38,55 @@ function [p,p_t,fail] = rcprTest1( Is, regModel, p, regPrm, iniData, ...
 %  ICCV'13, Sydney, Australia
 
 % Apply each single stage regressor starting from shape p.
-model=regModel.model; T=regModel.T; [N,D,RT1]=size(p);
-p=reshape(permute(p,[1 3 2]),[N*RT1,D]);
-imgIds = repmat(1:N,[1 RT1]); regs = regModel.regs;
+model = regModel.model;
+%T=regModel.T;
+[N,D,RT1] = size(p);
+assert(D==model.D);
+p = reshape(permute(p,[1 3 2]),[N*RT1,D]);
+imgIds = repmat(1:N,[1 RT1]); 
+regs = regModel.regs;
 
 %Get prune parameters
 maxIter=prunePrm.maxIter;prune=prunePrm.prune;
 th=prunePrm.th;tI=prunePrm.tIni;
 
 %Set up data
-p_t=zeros(size(p,1),D,T+1);p_t(:,:,1)=p;
-if(model.isFace),bbs=iniData(imgIds,:,1);else bbs=[];end
-done=0;Ntot=0;k=0;
-N1=N;p1=p;imgIds1=imgIds;pos=1:N;md=zeros(N,RT1,D,maxIter);
+p_t = zeros(size(p,1),D,regModel.T+1); %[N*RT1xDx(T+1)];
+p_t(:,:,1) = p; % AL: looks like this always gets overwritten later
+if model.isFace
+  assert(size(iniData,3)==1);
+  bbs = iniData(imgIds,:,1);
+else
+  bbs = [];
+end
+done = 0; % true/false flag
+Ntot = 0; % pruning stuff 
+k = 0;
+N1=N;p1=p;imgIds1=imgIds;pos=1:N;md=zeros(N,RT1,D,maxIter); 
 fail = [];
 %Iterate while not finished
-while(~done)
+while ~done
     %Apply cascade
-    tStart=clock;
+    tStart = clock;
     %If pruning is active, each loop returns the shapes of the examples
     %that passed the smart restart threshold (good) and 
     %those that did not (bad)
-    [good1,bad1,p_t1,p1,p2]=cascadeLoop(Is,model,regModel,regPrm,T,N1,D,RT1,...
+    %
+    % AL20151204: If not pruning, good1=1:N
+    [good1,bad1,p_t1,p1,p2]=cascadeLoop(Is,model,regModel,regPrm,N1,RT1,...
         p1,imgIds1,regs,tStart,iniData,bbs,verbose,...
-        prune,1,th,tI);
+        prune,1,th,tI);      
     %Separate into good/bad (smart restarts)
-    good=pos(good1);mem=ismember(imgIds,good);
-    p_t(mem,:,:)=p_t1;p(mem,:)=p1; 
-    Ntot=Ntot+length(good); done=Ntot==N; 
+    good = pos(good1);
+    mem = ismember(imgIds,good);
+    assert(all(mem),'AL no pruning');
+    p_t(mem,:,:) = p_t1;
+    assert(isequaln(p1,p_t1(:,:,end)),'AL');
+    p(mem,:) = p1;
+    Ntot = Ntot+length(good); 
+    done = Ntot==N;     
+    assert(done,'AL no pruning');
+    
     if(~done)
         %Keep iterating only on bad
         Is=Is(bad1,:);N1=length(bad1);pos=pos(bad1);
@@ -74,10 +97,11 @@ while(~done)
                 model,regModel.pStar,regModel.pGtN,RT1);
             p1=reshape(permute(p1,[1 3 2]),[N1*RT1,D]);
         else
-            iniData=iniData(bad1,:,:);
-            p1=shapeGt('initTest',Is,model,...
-                iniData,regModel.pStar,RT1);
-            p1=reshape(permute(p1,[1 3 2]),[N1*RT1,D]);
+          assert(false,'AL: broken codepath initTest args');
+%             iniData=iniData(bad1,:,:);
+%             p1=shapeGt('initTest',Is,model,...
+%                 iniData,regModel.pStar,RT1);
+%             p1=reshape(permute(p1,[1 3 2]),[N1*RT1,D]);
         end
         
         md(pos,:,:,k+1)=reshape(p2,[N1,RT1,D]);
@@ -112,7 +136,7 @@ while(~done)
             end
             %Call cascade loop one last time 
             p1=reshape(permute(p2,[1 3 2]),[N1*RT1,D]);tStart=clock;
-            [~,~,p_t1,p1,~]=cascadeLoop(Is,model,regModel,regPrm,T,N1,D,RT1,...
+            [~,~,p_t1,p1,~]=cascadeLoop(Is,model,regModel,regPrm,N1,RT1,...
                 p1,imgIds1,regs,tStart,iniData,bbs,verbose,...
                 0,tI,th,tI);
             remain=pos; ind=ismember(imgIds,remain);
@@ -123,48 +147,81 @@ while(~done)
     end
 end
 %reconvert p from [N*RT1xD] to [NxDxRT1]
-p=permute(reshape(p,[N,RT1,D]),[1 3 2]);
+p = permute(reshape(p,[N,RT1,D]),[1 3 2]);
 %p_t=permute(reshape(p_t,[N,RT1,D,T+1]),[1 3 2 4]);
 end
 
 %Apply full RCPR cascade with check in between if smart restart is enabled
-function [good,bad,p_t,p,p2]=cascadeLoop(Is,model,regModel,regPrm,T,N,D,RT1,p,...
-    imgIds,regs,tStart,bboxes,bbs,verbose,prune,t0,th,tI)
+function [good,bad,p_t,p,p2] = cascadeLoop(Is,model,regModel,regPrm,...
+  N,RT1,p,imgIds,regs,tStart,bboxes,bbs,verbose,prune,t0,th,tI)
+% p (input): [MxD] initial shapes, absolute coords. M=N*RT1
+%
+% good,bad,p,p2: only used for pruning
+% p_t: [MxDx(T+1)]. shapes over all initialconds/iterations, absolute coords. 
+%   p_t(:,:,1)=p, p_t(:,:,T+1) is the final iteration.
+%
+% p: for no-pruning, should equal p_t(:,:,T+1)
 
-p_t=zeros(size(p,1),D,T+1);p_t(:,:,1)=p;
-good=1:N;bad=[];p2=[];
-for t=t0:T
-    %Compute shape-indexed features
-    ftrPos=regs(t).ftrPos;
-    switch ftrPos.type
-        case {5 6 7 8 9 10 11}
-            [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',model,p,Is,ftrPos,...
-                imgIds,regModel.pStar,bboxes,regPrm.occlPrm,regPrm.Prm3D);
-        case {3 4}
-            [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup',model,p,Is,ftrPos,...
-                imgIds,regModel.pStar,bboxes,regPrm.occlPrm);
-        otherwise
-            [ftrs,regPrm.occlD] = shapeGt('ftrsCompIm',model,p,Is,ftrPos,...
-                imgIds,regModel.pStar,bboxes,regPrm.occlPrm);
+T = regModel.T; % number of regressors/stages  
+D = regModel.model.D;
+M = N*RT1;  
+assert(numel(Is)==N);
+assert(isequal(size(p),[M,D])); % initial positions/shapes, absolute coords
+assert(numel(imgIds)==M && all(ismember(imgIds,1:N))); % labels rows of p, bbs
+assert(numel(regs)==T); % regressor structs
+% tStart: time value from clock()
+assert(isequal(size(bboxes),[N 2*model.d]));
+assert(isequal(size(bbs),[M 2*model.d])); % should equal bboxes(imgIds,:)
+% prune: scalar logical
+% t0: starting t-index (regressor index)
+% th, tI: prune paremeters
+
+p_t = zeros(M,D,T+1); % shapes over all initial conds/iterations, absolute coords
+p_t(:,:,1) = p;
+good = 1:N; % indices of 'good' images; used only for pruning
+bad = []; % only for pruning
+p2 = []; % only for pruning
+for t = t0:T
+  %Compute shape-indexed features
+  ftrPos = regs(t).ftrPos;
+  switch ftrPos.type
+    case {'1lm' '2lm'} %{5 6 7 8 9 10 11}
+      [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',model,p,Is,ftrPos,...
+        imgIds,regModel.pStar,bboxes,regPrm.occlPrm);
+    case {3 4}
+      [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup',model,p,Is,ftrPos,...
+        imgIds,regModel.pStar,bboxes,regPrm.occlPrm);
+    otherwise
+      [ftrs,regPrm.occlD] = shapeGt('ftrsCompIm',model,p,Is,ftrPos,...
+        imgIds,regModel.pStar,bboxes,regPrm.occlPrm);
+  end
+  %Retrieve learnt regressors
+  regt = regs(t).regInfo;
+  %Apply regressors
+  p1 = shapeGt('projectPose',model,p,bbs); % p1 is normalized
+  pDel = regApply(p1,ftrs,regt,regPrm); % pDel is normalized
+  p = shapeGt('compose',model,pDel,p,bbs); % p (output) is normalized
+  p = shapeGt('reprojectPose',model,p,bbs);
+  p_t(:,:,t+1) = p;
+  %If reached checkpoint, check state of restarts
+  if prune && T>tI && t==tI % AL: second cond seems unnecessary
+    assert(false,'AL unchecked codepath');
+    [p_t,p,good,bad,p2] = checkState(p_t,model,imgIds,N,t,th,RT1);
+    if isempty(good)
+      return;
     end
-    %Retrieve learnt regressors 
-    regt=regs(t).regInfo;
-    %Apply regressors
-    p1=shapeGt('projectPose',model,p,bbs);
-    pDel=regApply(p1,ftrs,regt,regPrm);
-    p=shapeGt('compose',model,pDel,p,bbs);
-    p=shapeGt('reprojectPose',model,p,bbs);
-    p_t(:,:,t+1)=p;
-    %If reached checkpoint, check state of restarts   
-    if((prune && T>tI && t==tI))
-       [p_t,p,good,bad,p2]=checkState(p_t,model,imgIds,N,t,th,RT1);
-       if(isempty(good)),return; end
-       Is=Is(good,:);N=length(good);imgIds=repmat(1:N,[1 RT1]);
-       if(model.isFace),bboxes=bboxes(good,:);bbs=bboxes(imgIds,:);end
+    Is = Is(good,:);
+    N = length(good);
+    imgIds = repmat(1:N,[1 RT1]);
+    if model.isFace
+      bboxes = bboxes(good,:);
+      bbs = bboxes(imgIds,:);
     end
-    if((t==1 || mod(t,5)==0) && verbose)
-        msg=tStatus(tStart,t,T);fprintf(['Applying ' msg]); 
-    end
+  end
+  if (t==1 || mod(t,5)==0) && verbose
+    msg = tStatus(tStart,t,T);
+    fprintf(['Applying ' msg]);
+  end
 end
 end
 
@@ -172,8 +229,9 @@ function [p_t,p,good,bad,p2]=checkState(p_t,model,imgIds,N,t,th,RT1)
     %Confidence computation=variance between different restarts
     %If output has low variance and low distance, continue (good)
     %ow recurse with new initialization (bad)
-    p=permute(p_t(:,:,t+1),[3 2 1]);conf=zeros(N,RT1);
-    for n=1:N
+    p = permute(p_t(:,:,t+1),[3 2 1]);
+    conf = zeros(N,RT1);
+    for n = 1:N
         pn=p(:,:,imgIds==n);md=median(pn,3);
         %variance=distance from median of all predictions
         conf(n,:)=shapeGt('dist',model,pn,md);
@@ -185,7 +243,7 @@ function [p_t,p,good,bad,p2]=checkState(p_t,model,imgIds,N,t,th,RT1)
     if(isempty(good)),return; end
 end
 
-function msg=tStatus(tStart,t,T)
+function msg = tStatus(tStart,t,T)
 elptime = etime(clock,tStart);
 fracDone = max( t/T, .00001 );
 esttime = elptime/fracDone - elptime;

@@ -1,4 +1,4 @@
-function [regInfo,ysPr]=regTrain(data,ys,varargin)
+function [regInfo,ysPr] = regTrain(data,ys,varargin)
 % Train boosted regressor.
 %
 % USAGE
@@ -56,15 +56,16 @@ dfs={'type',1,'ftrPrm','REQ','K',1,...
 [regType,ftrPrm,K,loss,R,M,model,prm,occlD,occlPrm]=...
     getPrmDflt(varargin,dfs,0);
 %Set base regression type
-switch(regType)
-  case 1, regFun = @trainFern;%fern regressor
-  case 2, regFun = @trainLin;%linear regressor
+switch regType
+  case 1, regFun = @trainFern;
+  case 2, regFun = @trainLin;
   otherwise, error('unknown regressor type');
 end
 %Set loss type 
 assert(any(strcmp(loss,{'L1','L2'})));
 %precompute feature std to be used by selectCorrFeat
-if(R==0), [stdFtrs,dfFtrs]=statsFtrs(data,ftrPrm); 
+if R==0
+  [stdFtrs,dfFtrs] = statsFtrs(data,ftrPrm); 
 else%random step optimization selection
     switch(loss)
         case 'L1',  lossFun=@(ys,ysGt) mean(abs(ys(:)-ysGt(:)));
@@ -72,8 +73,9 @@ else%random step optimization selection
     end
 end
 
-Stot=occlPrm.Stot;
-[N,D]=size(ys);ysSum=zeros(N,D);
+Stot = occlPrm.Stot;
+[N,D] = size(ys);
+ysSum = zeros(N,D);
 regInfo = cell(K,Stot);
 
 %If using occlusion-centered approach, set up masks
@@ -91,7 +93,7 @@ end
 %Iterate through K boosted regressors
 for k=1:K
     %Update regression target
-    ysTar=ys-ysSum; 
+    ysTar = ys-ysSum; 
     %Train Stot different regressors
     ysPred = zeros(N,D,Stot); 
     for s=1:Stot
@@ -117,8 +119,9 @@ for k=1:K
                   ftrPrm,stdFtrs,dfFtrs); % TO DO. edit this???
             end
             %Train regressor using selected features
-            [reg1,ys1]=regFun(ysTar,ftrs,M,prm);
-            reg1.fids=use; best={reg1,ys1};
+            [reg1,ys1] = regFun(ysTar,ftrs,M,prm);
+            reg1.fids = use;
+            best = {reg1,ys1};
         %Select features using random step optimization            
         else
           assert(false,'codepath needs investigation; see ftrPrm.type below');
@@ -207,8 +210,10 @@ function [regSt,Y_pred]=trainFern(Y,X,M,prm)
 % See also 
 
 % get/check parameters
-dfs={'thrr',[-1 1]/5,'reg',.01}; [thrr,reg]=getPrmDflt(prm,dfs,1);
-[N,D]=size(Y); fids=uint32(1:M);
+dfs={'thrr',[-1 1]/5,'reg',.01}; 
+[thrr,reg] = getPrmDflt(prm,dfs,1);
+[N,D] = size(Y); 
+fids = uint32(1:M);
 thrs = rand(1,M)*(thrr(2)-thrr(1))+thrr(1);
 % inds(i) = 1+sum(2.^(M-1:-1:0).*(X(i,:)<=thrs))
 % count = hist(inds,1:32)'

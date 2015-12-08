@@ -474,8 +474,8 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 %
 % INPUTS
 %  model    - shape model
-%  phis     - [MxR] relative shape for each image. (M might be eg N x RT
-%             and R would be npts x d.)
+%  phis     - [MxR] relative shape for each image, absolute coords. 
+%             (M might be eg NxRT and R would be npts x d.)
 %  Is       - cell [N] input images [w x h x nChn] variable w, h
 %  ftrData  - define ftrs to actually compute, output of ftrsGen
 %  imgIds   - [Mx1] image id for each phi, indices into Is.
@@ -791,13 +791,26 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function phis = compose( model, phis0, phis1, bboxes )
 % Compose two shapes phis0 and phis1: phis = phis0 + phis1.
-phis1=projectPose(model,phis1,bboxes);
-phis=phis0+phis1;
+%
+% phis0: Shape, normalized
+% phis1: Shape, absolute
+%
+% phis: Shape, normalized
+%
+% #ALOK
+phis1 = projectPose(model,phis1,bboxes);
+phis = phis0 + phis1;
 end
 
 function phis = inverse( model, phis0, bboxes )
 % Compute inverse of two shapes phis0 so that phis0+phis=phis+phis0=identity.
-phis=-projectPose(model,phis0,bboxes);
+%
+% phis0: Shape, absolute
+%
+% phis: Shape, normalized
+%
+% #ALOK
+phis = -projectPose(model,phis0,bboxes);
 end
 
 function [phiNStar,phisN,bboxes] = compPhiStar(model,phis,pad,bboxes)
@@ -1119,37 +1132,10 @@ pCur = nan(N,L,D); %repmat(reshape(pGt,[N,1,D]),[1,L,1]); % [NxLxD]
 % points with the mouse's paw on the perch. Maybe figure out the general
 % domain, and sample uniformly within there?
 
-for n = 1:N
-  % select other shapes
-  if L > N-1
-    % if not enough shapes, select pairs of shapes and average them
-    imgIds = [1:n-1,n+1:N];
-    % AL: min() seems unnecessary if use (N-1)*rand(...)
-    nExtra = L-(N-1);
-    imgIds2 = imgIds(ceil((N-1)*rand([nExtra,2])));
-    pGtNCurr = cat(1,pGtN(imgIds,:),...
-      (pGtN(imgIds2(:,1),:)+pGtN(imgIds2(:,2),:))/2);
-  else
-    imgsIds = randSample([1:n-1 n+1:N],L);%[n randSample(1:N,L-1)];
-    pGtNCurr = pGtN(imgsIds,:);
-  end
-  
-  % pGtNCurr: Set of L GT-shapes, explicitly doesn't include pGt(n,:)
-  assert(isequal(size(pGtNCurr),[L D]));    
-  
-  if dorotate && d==2
-    % Randomly rotate L shapes in pGtNCurr
-    thetas = rand(L,1)*2*pi;
-    ct = cos(thetas);
-    st = sin(thetas);
-    pGtNCurr = reshape(pGtNCurr,[L,nfids,d]);
-    mus = mean(pGtNCurr,2); % [Lx1xd], centroid for each shape
-    pGtNCurr = bsxfun(@minus,pGtNCurr,mus);
-    x = bsxfun(@times,ct,pGtNCurr(:,:,1)) - bsxfun(@times,st,pGtNCurr(:,:,2));
-    y = bsxfun(@times,st,pGtNCurr(:,:,1)) + bsxfun(@times,ct,pGtNCurr(:,:,2));
-    pGtNCurr = cat(3,x,y);
-    pGtNCurr = bsxfun(@plus,pGtNCurr,mus);
-    pGtNCurr = reshape(pGtNCurr,[L,nfids*d]);
+for n = 1:N  
+  pGtNCurr = Shape.randsamp(pGtN,n,L);
+  if dorotate && d==2    
+    pGtNCurr = Shape.randrot(pGtNCurr,d);    
   end
   
   %Project onto image
@@ -1157,11 +1143,8 @@ for n = 1:N
   % maximum displacement is 1/16th of the width & height of the
   % image -- I think it makese more sense to use the std? Note
   % that max displacement will be much larger in x than y
-  maxDisp = bboxes(n,d+1:end)/16;
-  uncert = bsxfun(@times,(2*rand(L,d)-1),maxDisp);
-  bbox = repmat(bboxes(n,:),[L,1]);  
-  bbox(:,1:d) = bbox(:,1:d)+uncert;
-  % bbox is [Lx2d], L copies of bboxes(n,:) with random shifts
+  bbox = Shape.jitterBbox(bboxes(n,:),L,d,16);
+  assert(isequal(size(bbox),[L 2*d]));
   pCur(n,:,:) = reprojectPose(model,pGtNCurr,bbox);
   
   if false
@@ -1189,86 +1172,80 @@ N1 = N;
 N = N*L;
 end
 
-function p=initTest(Is,bboxes,model,pStar,pGtN,RT1,dorotate)
+function p = initTest(Is,bboxes,model,pStar,pGtN,RT1,dorotate)
 %Randomly initialize testing shapes using training shapes (RT1 different)
-N=size(Is,1);D=size(pStar,2);phisN=pGtN;
-if(isempty(bboxes)), p=pStar(ones(N,1),:);
-    %One bbox provided per image
-elseif(ismatrix(bboxes) && (size(bboxes,2)==4 || size(bboxes,2)==6)),
-    p=zeros(N,D,RT1);NTr=size(phisN,1);%gt=regModel.phisT;
-    for n=1:N
-        %select other images
-        if RT1 > N-1,
-          % if not enough images, select pairs of images and average them
-          imgIds = [1:n-1,n+1:NTr];
-          imgIds2 = imgIds(min(floor(NTr*rand([RT1-(NTr-1),2]))+1,NTr-1));
-          phisNCurr = cat(1,phisN(imgIds,:),(phisN(imgIds2(:,1),:)+phisN(imgIds2(:,2),:))/2);
-        else
-          imgsIds = randSample(NTr,RT1);
-          phisNCurr = phisN(imgsIds,:);
-        end
-        if dorotate && model.d == 2,
-          d = model.d;
-          nfids = model.nfids;
-          thetas = 2*pi*rand(RT1,1);
-          ct = cos(thetas);
-          st = sin(thetas);
-          phisNCurr = reshape(phisNCurr,[RT1,nfids,d]);
-          mus = mean(phisNCurr,2);
-          phisNCurr = bsxfun(@minus,phisNCurr,mus);
-          x = bsxfun(@times,ct,phisNCurr(:,:,1)) - bsxfun(@times,st,phisNCurr(:,:,2));
-          y = bsxfun(@times,st,phisNCurr(:,:,1)) + bsxfun(@times,ct,phisNCurr(:,:,2));
-          phisNCurr = cat(3,x,y);
-          phisNCurr = bsxfun(@plus,phisNCurr,mus);
-          phisNCurr = reshape(phisNCurr,[RT1,nfids*d]);
-        end
+%
+% pStar: [NxD] currently unused except for size (asserted false codepath)
+% pGtN: [NxD] GT images for Is, NORMALIZED coords
+% RT1: number of replicate shapes
+%
+% p: [NxDxRT1] initial shapes
 
-        %Project into image
-        for l=1:RT1
-            %permute bbox location slightly (not scale)
-            if (strcmp(model.name,'mouse_paw3D')),
-                maxDisp = bboxes(n,4:6)/16;
-                uncert=(2*rand(1,3)-1).*maxDisp;
-                bbox=bboxes(n,:);bbox(1:3)=bbox(1:3)+uncert;
-            else
-                maxDisp = bboxes(n,3:4)/16;
-                uncert=(2*rand(1,2)-1).*maxDisp;
-                bbox=bboxes(n,:);bbox(1:2)=bbox(1:2)+uncert;
-            end
-            p(n,:,l)=reprojectPose(model,phisNCurr(l,:),bbox);
-        end
+% ALOK
+
+N = size(Is,1);
+d = model.d;
+D = model.D;
+assert(isequal(size(bboxes),[N 2*model.d]));
+assert(isequal(size(pStar),[N D]));
+assert(isequal(size(pGtN),[N D]));
+
+phisN = pGtN;
+if isempty(bboxes)
+  assert(false,'AL don''t understand codepath.');
+  p = pStar(ones(N,1),:);
+ %One bbox provided per image
+elseif ismatrix(bboxes) % && (size(bboxes,2)==4 || size(bboxes,2)==6)
+  p = zeros(N,D,RT1);
+  %NTr = size(phisN,1); % AL20151205: Why is this not equal to N?
+  %gt=regModel.phisT;
+  for n = 1:N
+    phisNCurr = Shape.randsamp(phisN,n,RT1);
+    if dorotate && model.d==2
+      phisNCurr = Shape.randrot(phisNCurr,model.d);
     end
-    %RT1 bboxes given, just reproject
-% elseif((size(bboxes,2)==4 || size(bboxes,2)==6) && size(bboxes,3)==RT1)
-%     p=zeros(N,D,RT1);NTr=size(phisN,1);
-%     for n=1:N
-%         imgsIds = randSample(NTr,RT1);
-%         for l=1:RT1
-%             p(n,:,l)=reprojectPose(model,phisN(imgsIds(l),:),...
-%                 bboxes(n,:,l));
-%         end
-%     end
-    %Previous results are given, use as is 
-elseif(size(bboxes,2)==D && size(bboxes,3)==RT1)
-    p=bboxes;
-    %VIDEO
-elseif(iscell(bboxes))
-    p=zeros(N,D,RT1);NTr=size(pGtN,1);
-    for n=1:N
-        bb=bboxes{n}; ndet=size(bb,1);
-        imgsIds = randSample(NTr,RT1);
-        if(ndet<RT1), bbsIds=randint2(1,RT1,[1,ndet]);
-        else bbsIds=1:RT1;
-        end
-        for l=1:RT1
-            if (strcmp(model.name,'mouse_paw3D')),
-                p(n,:,l)=reprojectPose(model,pGtN(imgsIds(l),:),...
-                    bb(bbsIds(l),1:6));
-            else
-                p(n,:,l)=reprojectPose(model,pGtN(imgsIds(l),:),...
-                    bb(bbsIds(l),1:4));
-            end
-        end
+    assert(isequal(size(phisNCurr),[RT1 D]));
+    
+    %Project into image
+    assert(~strcmp(model.name,'mouse_paw3D'));
+    bbRT = Shape.jitterBbox(bboxes(n,:),RT1,d,16);
+    assert(isequal(size(bbRT),[RT1 2*d]));
+    tmp = reprojectPose(model,phisNCurr,bbRT); % [RT1xD]
+    p(n,:,:) = permute(tmp,[2 1]);
+  end
+  %RT1 bboxes given, just reproject
+  % elseif((size(bboxes,2)==4 || size(bboxes,2)==6) && size(bboxes,3)==RT1)
+  %     p=zeros(N,D,RT1);NTr=size(phisN,1);
+  %     for n=1:N
+  %         imgsIds = randSample(NTr,RT1);
+  %         for l=1:RT1
+  %             p(n,:,l)=reprojectPose(model,phisN(imgsIds(l),:),...
+  %                 bboxes(n,:,l));
+  %         end
+  %     end
+  %Previous results are given, use as is
+elseif size(bboxes,2)==D && size(bboxes,3)==RT1
+  assert(false,'AL don''t understand codepath');
+  p=bboxes;
+  %VIDEO
+elseif iscell(bboxes)
+  assert(false,'AL: don''t understand codepath');
+  p=zeros(N,D,RT1);NTr=size(pGtN,1);
+  for n=1:N
+    bb=bboxes{n}; ndet=size(bb,1);
+    imgsIds = randSample(NTr,RT1);
+    if(ndet<RT1), bbsIds=randint2(1,RT1,[1,ndet]);
+    else bbsIds=1:RT1;
     end
+    for iRep=1:RT1
+      if (strcmp(model.name,'mouse_paw3D')),
+        p(n,:,iRep)=reprojectPose(model,pGtN(imgsIds(iRep),:),...
+          bb(bbsIds(iRep),1:6));
+      else
+        p(n,:,iRep)=reprojectPose(model,pGtN(imgsIds(iRep),:),...
+          bb(bbsIds(iRep),1:4));
+      end
+    end
+  end
 end
 end
