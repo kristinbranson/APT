@@ -86,12 +86,22 @@ occlPrm=struct('nrows',3,'ncols',3,'nzones',1,'Stot',1,'th',.5);
 if ischar(phisTr) && ischar(bboxesTr) && ischar(IsTr),
   
   paramfile1 = phisTr;
-  paramfile2 = bboxesTr;
+  paramfile2 = bboxesTr; 
   savefile = IsTr;
 
-  load(paramfile1);
-  load(paramfile2);
+  tmp0 = load(paramfile1);
+  load(paramfile2); % XXXAL: unsafe, relies on exact matchup of variable names
   
+  tfALCV = ~isempty(tmp0.td.iTrn);
+  if tfALCV
+    iTmp = tmp0.td.iTrn;
+    fprintf('Using ALCV, nTrn=%d out of %d.\n',numel(iTmp),tmp0.td.N);
+  else
+    iTmp = 1:tmp0.td.N;
+  end
+  phisTr = tmp0.td.pGT(iTmp,:);
+  IsTr = tmp0.td.I(iTmp,:);
+  bboxesTr = tmp0.td.bboxes(iTmp,:);
 else
   
   savefile = '';

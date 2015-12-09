@@ -23,6 +23,7 @@ function [p,pRT,p_t,fail] = rcprTest( Is, regModel, varargin )
 % OUTPUTS
 %  p        - [NxD] shape returned by multi stage regressor
 %  pRT      - [NxDxRT1] shape returned by multi stage regressor
+%  p_t      - [N*RT1xDx(T+1)] shape over time
 %
 % EXAMPLE
 %
@@ -72,12 +73,10 @@ else
         end
         [maxpr(n),i] = max(pr);
         p(n,:) = pRT(n,:,i);
-      end
-      
+      end      
     else
-      
-      % p is 
-      p = median(reshape(pRT,[N,D,RT1]),3);
+      assert(isequal(size(pRT),[N D RT1]));
+      p = median(pRT,3);
     end
 end
 end

@@ -905,10 +905,14 @@ function phis1 = reprojectPose(model,phisN,bboxes)
 %
 % #ALOK
 
-[M,D] = size(phisN);
-assert(all(-1 <= phisN(:) & phisN(:) <= 1));
-assert(D==model.D);
+[nOOB,tfOOB] = Shape.normShapeOOB(phisN);
+if nOOB>0
+  warningNoTrace('reprojPose: %d coords out-of-bounds. Clipping...',nOOB);
+end
+phisN(tfOOB) = max(min(phisN(tfOOB),1),-1);
 
+[M,D] = size(phisN);
+assert(D==model.D);
 assert(size(bboxes,1)==M);
 d = size(bboxes,2)/2;
 assert(d==model.d);
@@ -1175,7 +1179,8 @@ end
 function p = initTest(Is,bboxes,model,pStar,pGtN,RT1,dorotate)
 %Randomly initialize testing shapes using training shapes (RT1 different)
 %
-% pStar: [NxD] currently unused except for size (asserted false codepath)
+% Is: currently unused
+% pStar: [?xD] currently unused (asserted false codepath)
 % pGtN: [NxD] GT images for Is, NORMALIZED coords
 % RT1: number of replicate shapes
 %
@@ -1183,12 +1188,16 @@ function p = initTest(Is,bboxes,model,pStar,pGtN,RT1,dorotate)
 
 % ALOK
 
-N = size(Is,1);
 d = model.d;
 D = model.D;
+N = size(bboxes,1);
 assert(isequal(size(bboxes),[N 2*model.d]));
-assert(isequal(size(pStar),[N D]));
+%assert(isequal(size(pStar),[N D]));
 assert(isequal(size(pGtN),[N D]));
+nOOB = Shape.normShapeOOB(pGtN);
+if nOOB>0
+  warningNoTrace('initTest: pGtN falls outside [-1,1] in %d els.',nOOB);
+end
 
 phisN = pGtN;
 if isempty(bboxes)

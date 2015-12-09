@@ -1,6 +1,6 @@
 classdef Shape 
 
-  methods
+  methods (Static)
   
     function p0 = randrot(p0,d)
       % Randomly rotate shapes
@@ -73,6 +73,127 @@ classdef Shape
       bbJ = repmat(bb,[L,1]);
       bbJ(:,1:d) = bbJ(:,1:d) + uncert;
     end
+    
+    function [nOOB,tfOOB] = normShapeOOB(p)
+      % Determine if normalized shape is out-of-bounds.
+      %
+      % p: [NxD] normalized shapes
+      % 
+      % nOOB: scalar double, number of out-of-bounds els of p
+      % tfOOB: logical, same size as p. If true, p(i) is out-of-bounds.
+      tfOOB = ~(-1<=p & p<=1);
+      nOOB = nnz(tfOOB);
+    end
+    
+    function viz(I,p,mdl,varargin)
+      % I: [N] cell vec of images
+      % p: [NxDxR] shapes
+      %
+      % optional pvs
+      % fig - handle to figure to use
+      % nr, nc - subplot size
+      
+      opts.fig = [];
+      opts.nr = 4;
+      opts.nc = 5;
+      opts = getPrmDfltStruct(varargin,opts);      
+      if isempty(opts.fig)
+        opts.fig = figure('windowstyle','docked');
+      else
+        figure(opts.fig);
+        clf;
+      end
+      nplot = opts.nr*opts.nc;
+      hax = createsubplots(opts.nr,opts.nc,.01);
+
+      N = numel(I);
+      assert(size(p,1)==N);
+      assert(size(p,2)==mdl.D);
+      R = size(p,3);
+
+      iPlot = randsample(N,nplot);
+      colors = jet(obj.nfids);
+      for iR = 1:R      
+        for iPlt = 1:nplot
+          iIm = iPlot(iPlt);
+          im = obj.I{iIm};
+          imagesc(im,'Parent',hax(iPlt),[0,255]);
+          axis(hax(iPlt),'image','off');
+          hold(hax(iPlt),'on');
+          colormap gray;
+          for j = 1:obj.nfids
+            plot(hax(iPlt),...
+              obj.pGT(iIm,j),obj.pGT(iIm,j+obj.nfids),...
+              'wo','MarkerFaceColor',colors(j,:));
+          end
+          text(1,1,num2str(iIm),'parent',hax(iPlt));
+        end
+        
+%        input(sprintf('Replicate %d/%d
+      end
+    end
+    
+    function vizBig(I,pT,iTrl,mdl,varargin)
+      % I: [N] cell vec of images
+      % pT: [NxRTxDx(T+1)] shapes
+      % iTrl: index into I of trial to follow
+      %
+      % optional pvs
+      % fig - handle to figure to use
+      % nr, nc - subplot size
+      
+      opts.fig = [];
+      opts.nr = 4;
+      opts.nc = 5;
+      opts = getPrmDfltStruct(varargin,opts);      
+      if isempty(opts.fig)
+        opts.fig = figure('windowstyle','docked');
+      else
+        figure(opts.fig);
+        clf;
+      end
+      nplot = opts.nr*opts.nc;
+      hax = createsubplots(opts.nr,opts.nc,.01);
+
+      N = numel(I);
+      assert(size(pT,1)==N);
+      RT = size(pT,2);
+      assert(size(pT,3)==mdl.D);
+      Tp1 = size(pT,4);
+
+      % plot the image for iTrl; initialize hlines
+      im = I{iTrl};
+      hlines = cell(size(hax));
+      colors = jet(mdl.nfids);
+      iPlot = randsample(RT,nplot); % pick nplot replicates to follow
+      for iPlt = 1:nplot
+        imagesc(im,'Parent',hax(iPlt),[0,255]);
+        axis(hax(iPlt),'image','off');
+        hold(hax(iPlt),'on');
+        colormap gray;
+        iRT = iPlot(iPlt);
+        text(1,1,num2str(iRT),'parent',hax(iPlt));
+        
+        for iPt = 1:mdl.nfids
+          hlines{iPlt}(iPt) = plot(hax(iPlt),nan,nan,'wo',...
+            'MarkerFaceColor',colors(iPt,:));
+        end
+      end
+      
+      % pick nplot replicates out of RT to follow
+      for t = 1:Tp1
+        for iPlt = 1:nplot
+          iRT = iPlot(iPlt);
+          for iPt = 1:mdl.nfids
+            set(hlines{iPlt}(iPt),...
+              'XData',pT(iTrl,iRT,iPt,t),'YData',pT(iTrl,iRT,iPt+mdl.nfids,t));
+          end
+        end
+        
+        input(sprintf('t= %d/%d',t,Tp1));
+      end
+    end
+
     
   end
   

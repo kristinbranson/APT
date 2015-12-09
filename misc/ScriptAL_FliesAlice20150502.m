@@ -29,7 +29,7 @@ clf;
 nr = 4;
 nc = 4;
 nplot = nr*nc;
-idxTrnPlt = randsample(idxTrn,nplot);
+iPlt = randsample(nTr0,nplot);
 hax = createsubplots(nr,nc,.01);
 
 npts = size(ld.pts,1);
@@ -38,7 +38,7 @@ expdirprev = '';
 mr = MovieReader;
 for ii = 1:nplot,
   
-  iTrl = idxTrnPlt(ii);
+  iTrl = iPlt(ii);
   expdir = ld.expdirs{ld.expidx(iTrl)};
   fly = ld.flies(iTrl);
   t = ld.ts(iTrl);
@@ -66,10 +66,10 @@ for ii = 1:nplot,
 end
 
 %% Read in the training images (loads ALL nTr0 images)
-
 [p,n,e] = fileparts(GTLABELS);
 cachedimfile = fullfile(p,[n,'_cachedims',e]);
-pts_norm = nan(size(ld.pts));
+pGT0 = nan(size(ld.pts));
+nExp = max(ld.expidx);
 
 if docacheims && exist(cachedimfile,'file'),
   load(cachedimfile,'IsTr','pts_norm');
@@ -96,8 +96,8 @@ else
       xcurr = round(trxcurr(fly).x(j));
       ycurr = round(trxcurr(fly).y(j));
       
-      pts_norm(:,1,iTrl) = ld.pts(:,1,iTrl)-xcurr+winrad+1;
-      pts_norm(:,2,iTrl) = ld.pts(:,2,iTrl)-ycurr+winrad+1;
+      pGT0(:,1,iTrl) = ld.pts(:,1,iTrl)-xcurr+winrad+1;
+      pGT0(:,2,iTrl) = ld.pts(:,2,iTrl)-ycurr+winrad+1;
 
       im = mr.readframe(t);
       ncolors = size(im,3);
@@ -115,7 +115,6 @@ else
 end
 
 %% histogram equalization
-
 if doeq
   assert(false,'AL check codepath');
   
@@ -180,7 +179,6 @@ rng(7); % seed for determinism
 
 nTr = 100;
 assert(nTr<nTr0);
-nExp = numel(ld.expdirs);
 idxTrn = SubsampleTrainingDataBasedOnMovement(ld,nTr);
 idxTst = setdiff(1:nTr0,idxTrn);
 
@@ -196,38 +194,41 @@ fprintf('Test set, %d/%d exps: %s...\n',numel(idxTst),nTr0,num2str(idxTst(1:5)))
 %   idx = randperm(nTrain);
 % end
 
+%% 
+outdir = sprintf('f:\\cpr\\data\\%s',savestr);
+[tmp1,tmp2] = fileparts(outdir);
+if exist(outdir,'dir')==0
+  mkdir(tmp1,tmp2);
+end
 %% save training data
-TrainDataFile = sprintf('f:\\cpr\\data\\TrainData_AL_%s.mat',savestr);
+TrainDataFile = fullfile(outdir,'TrainData_ALCV.mat');
+fprintf('Saving training data to: %s\n',TrainDataFile);
 
-allPhisTr = reshape(permute(pts_norm,[3,1,2]),...
-  [size(pts_norm,3),size(pts_norm,1)*size(pts_norm,2)]);
+pGT = pGT0;
+pGT = permute(pGT,[3,1,2]); % [nExpxnfidsxd]
+pGT = reshape(pGT,[size(pGT,1),size(pGT,2)*size(pGT,3)]);
+sz = cellfun(@size,IsTr,'uni',0);
+bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
+bb = cat(1,bb{:});
 
-tmp2 = struct;
-tmp2.phis = allPhisTr;
-tmp2.bboxes = repmat([1,1,winrad,winrad],[numel(IsTr),1]);
-tmp2.Is = IsTr;
-
-tmp2.idxTrn = idxTrn;
-tmp2.idxTst = idxTst;
-tmp2.IsTr = tmp2.Is(idxTrn);
-tmp2.IsTst = tmp2.Is(idxTst);
-tmp2.bboxesTr = tmp2.bboxes(idxTrn,:);
-tmp2.bboxesTst = tmp2.bboxes(idxTst,:);
-tmp2.phisTr = tmp2.phis(idxTrn,:);
-tmp2.phisTst = tmp2.phis(idxTst,:);
-save(TrainDataFile,'-struct','tmp2');
+td = TrainData(IsTr,pGT,bb);
+td.iTrn = idxTrn;
+td.iTst = idxTst;
+save(TrainDataFile,'td');
 
 %% train tracker
+paramsfile2 = fullfile(outdir,'TrainParams.mat');
+fprintf('Saving training params to: %s\n',paramsfile2);
 
 params = struct;
 params.cpr_type = 'noocclusion';
 params.model_type = 'FlyBubble1';
 params.model_nfids = 7;
 params.model_d = 2;
-params.model_nviews = 1;
+%params.model_nviews = 1;
 params.ftr_type = '2lm';
 params.ftr_gen_radius = 1;
-params.expidx = [];
+%params.expidx = [];
 params.ncrossvalsets = 1;
 params.naugment = 50;
 params.nsample_std = 1000;
@@ -242,22 +243,28 @@ params.prunePrm.numInit = 50;
 params.prunePrm.usemaxdensity = 1;
 params.prunePrm.maxdensity_sigma = 5; 
 
-%paramsfile1 = fullfile('f:\\cpr\\data\\',sprintf('TrainData_%s_SHORT.mat',savestr));
-paramsfile2 = sprintf('f:\\cpr\\data\\TrainParams_%s_AL.mat',savestr);
 save(paramsfile2,'-struct','params');
 
-%%
-trainresfile = sprintf('f:\\cpr\\data\\TrainedModel_%s_AL.mat',savestr);
+%% Train on training set
+trainresfile = sprintf('trainres_%s.mat',datestr(now,'yyyymmddTHHMMSS'));
+trainresfile = fullfile(outdir,trainresfile);
+fprintf('Training and saving results to: %s\n',trainresfile);
 [regModel,regPrm,prunePrm,phisPr,err] = train(TrainDataFile,paramsfile2,trainresfile);
 
 %%
 td = load(TrainDataFile);
-phisPrTst = test_rcpr([],td.bboxesTst,td.IsTst,regModel,regPrm,prunePrm);
+td = td.td;
+tr = load(trainresfile);
+mdl = tr.regModel.model;
+pGTTstN = shapeGt('projectPose',mdl,td.pGTTst,td.bboxesTst);
+pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],pGTTstN,50,true);
+[pTst0,pTst,~,~,pTstT] = test_rcpr([],td.bboxesTst,td.ITst,regModel,regPrm,prunePrm,pIni);
+pTstT = reshape(pTstT,[24 50 14 101]);
 %err = mean( sqrt(sum( (phisPr-phisTr).^2, 2)) );
 
 %%
-npts = size(pts_norm,1);
-X = reshape(pts_norm,[size(pts_norm,1)*size(pts_norm,2),size(pts_norm,3)]);
+npts = size(pGT,1);
+X = reshape(pGT,[size(pGT,1)*size(pGT,2),size(pGT,3)]);
 [idxinit,initlocs] = mykmeans(X',params.prunePrm.numInit,'Start','furthestfirst','Maxiter',100);
 tmp = load(trainresfile);
 tmp.prunePrm.initlocs = initlocs';
