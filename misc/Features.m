@@ -195,6 +195,12 @@ classdef Features
     end
     
     function [h,str] = visualize2LM(ax,xf,yf,info,iN,iF)
+      % Visualize feature pts from compute2LM
+      % 
+      % xf/yf/info: from compute2LM
+      % iN: trial index
+      % iF: feature index
+      
       x1 = info.xLM1(iN,iF);
       x2 = info.xLM2(iN,iF);
       y1 = info.yLM1(iN,iF);
@@ -209,9 +215,9 @@ classdef Features
       set(h(end),'color',[0 0 1]);
       h(end+1) = text(x2,y2,'2','parent',ax);
       set(h(end),'color',[0 0 1]);
-      h(end+1) = plot(ax,xf,yf,'go','markerfacecolor',[0 1 0]);
-      h(end+1) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',ax);
-      h(end+1) = plot(ax,[xc;xf],[yc;yf],'-g');
+      h(end+1) = plot(ax,xf(iN,iF),yf(iN,iF),'go','markerfacecolor',[0 1 0]);
+      %h(end+1) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',ax);
+      %h(end+1) = plot(ax,[xc;xf],[yc;yf],'-g');
       str = sprintf('n=%d,f=%d(%d,%d). r=%.3f, theta=%.3f',iN,iF,...
         info.l1(iF),info.l2(iF),info.r(iN,iF),info.theta(iN,iF));
       title(ax,str,'interpreter','none','fontweight','bold'); 

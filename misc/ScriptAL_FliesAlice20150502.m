@@ -251,16 +251,100 @@ trainresfile = fullfile(outdir,trainresfile);
 fprintf('Training and saving results to: %s\n',trainresfile);
 [regModel,regPrm,prunePrm,phisPr,err] = train(TrainDataFile,paramsfile2,trainresfile);
 
-%%
+%% Test on test set
 td = load(TrainDataFile);
 td = td.td;
 tr = load(trainresfile);
 mdl = tr.regModel.model;
 pGTTstN = shapeGt('projectPose',mdl,td.pGTTst,td.bboxesTst);
 pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],pGTTstN,50,true);
-[pTst0,pTst,~,~,pTstT] = test_rcpr([],td.bboxesTst,td.ITst,regModel,regPrm,prunePrm,pIni);
+[pTst0,pTst,~,~,pTstT] = test_rcpr([],td.bboxesTst,td.ITst,tr.regModel,tr.regPrm,tr.prunePrm,pIni);
 pTstT = reshape(pTstT,[24 50 14 101]);
 %err = mean( sqrt(sum( (phisPr-phisTr).^2, 2)) );
+
+%% Test set: visualize all features for a single trial/replicate/iteration
+iTrl = 1;
+iRT = 1;
+t = 1;
+mdl = tr.regModel.model;
+hFig = figure('windowstyle','docked');
+hax = createsubplots(1,2,.01);
+
+imagesc(td.ITst{iTrl},'Parent',hax(1),[0,255]);
+axis(hax(1),'image','off');
+hold(hax(1),'on');
+colormap gray;
+
+reg = tr.regModel.regs(t);
+p = reshape(pTstT(iTrl,iRT,:,t),1,mdl.D); % absolute shape for trl/rep/it
+
+axes(hax(2));
+shapeGt('draw',mdl,td.ITst{iTrl},p,'lw',20);
+
+[xF,yF,infoF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end));
+nfeat = size(xF,2);
+fprintf(1,'%d features\n',nfeat);
+for iF = 1:nfeat
+  Features.visualize2LM(hax(1),xF,yF,infoF,1,iF);
+  input(num2str(iF));
+end
+
+%% Test set: visualize selected (fern) features for a single trial/replicate over time/minitime
+iTrl = 1;
+iRT = 1;
+mdl = tr.regModel.model;
+hFig = figure('windowstyle','docked');
+hax = createsubplots(1,2,.1);
+
+imagesc(td.ITst{iTrl},'Parent',hax(1),[0,255]);
+axis(hax(1),'image','off');
+hold(hax(1),'on');
+colormap gray;
+
+hFids = [];
+for t = 1:101  
+  reg = tr.regModel.regs(t);
+  p = reshape(pTstT(iTrl,iRT,:,t),1,mdl.D); % absolute shape for trl/rep/it
+  im = td.ITst{iTrl};
+  
+  axes(hax(2));
+  shapeGt('draw',mdl,im,p,'lw',20);
+  title(num2str(t));
+
+  [xF,yF,infoF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end));
+  assert(isrow(xF));
+  assert(isrow(yF));
+  nMini = numel(reg.regInfo);
+  for iMini = 1:nMini
+    fids = reg.regInfo{iMini}.fids;
+    nfids = size(fids,2);
+    colors = jet(nfids);    
+    
+    deleteValidHandles(hFids);
+    for iFid = 1:nfids
+      hFids(end+1) = plot(hax(1),xF(fids(1,iFid)),yF(fids(1,iFid)),'^','markerfacecolor',colors(iFid,:));
+      hFids(end+1) = plot(hax(1),xF(fids(2,iFid)),yF(fids(2,iFid)),'o','markerfacecolor',colors(iFid,:));      
+    end
+    
+    title(hax(1),sprintf('it %d mini %d\n',t,iMini));
+    input('hk');
+  end  
+end
+  
+
+
+
+
+%% Test on training set
+td = load(TrainDataFile);
+td = td.td;
+tr = load(trainresfile);
+mdl = tr.regModel.model;
+pGTTrnN = shapeGt('projectPose',mdl,td.pGTTrn,td.bboxesTrn);
+pIni = shapeGt('initTest',[],td.bboxesTrn,mdl,[],pGTTrnN,50,true);
+[pTrn0,pTrn,~,~,pTrnT] = test_rcpr([],td.bboxesTrn,td.ITrn,tr.regModel,tr.regPrm,tr.prunePrm,pIni);
+pTrnT = reshape(pTrnT,[100 50 14 101]);
+
 
 %%
 npts = size(pGT,1);
@@ -287,6 +371,7 @@ testresfile = sprintf('f:\\cpr\\data\\TestResults_%s',savestr);
   'trxfilestr',ld.trxfilestr,'winrad',winrad,'flies',fly,...
   'firstframe',firstframe,'endframe',endframe);
 %end
+
 
 %% visualize cpr
 

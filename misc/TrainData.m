@@ -13,8 +13,11 @@ classdef TrainData < handle
     D
     nfids
     
+    ITrn
     ITst
+    pGTTrn
     pGTTst
+    bboxesTrn
     bboxesTst
   end
   methods 
@@ -30,11 +33,20 @@ classdef TrainData < handle
     function v = get.nfids(obj)
       v = obj.D/obj.d;
     end
+    function v = get.ITrn(obj)
+      v = obj.I(obj.iTrn,:);
+    end
     function v = get.ITst(obj)
       v = obj.I(obj.iTst,:);
     end
+    function v = get.pGTTrn(obj)
+      v = obj.pGT(obj.iTrn,:);
+    end
     function v = get.pGTTst(obj)
       v = obj.pGT(obj.iTst,:);      
+    end
+    function v = get.bboxesTrn(obj)
+      v = obj.bboxes(obj.iTrn,:);
     end
     function v = get.bboxesTst(obj)
       v = obj.bboxes(obj.iTst,:);
