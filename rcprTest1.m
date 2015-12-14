@@ -200,7 +200,12 @@ for t = t0:T
   %Apply regressors
   p1 = shapeGt('projectPose',model,p,bbs); % p1 is normalized
   pDel = regApply(p1,ftrs,regt,regPrm); % pDel is normalized
-  p = shapeGt('compose',model,pDel,p,bbs); % p (output) is normalized
+  
+  if regPrm.USE_AL_CORRECTION
+    p = Shape.applyRIDiff(p1,pDel,1,3); % XXXAL HARDCODED HEAD/TAIL
+  else
+    p = shapeGt('compose',model,pDel,p,bbs); % p (output) is normalized
+  end
   p = shapeGt('reprojectPose',model,p,bbs);
   p_t(:,:,t+1) = p;
   %If reached checkpoint, check state of restarts

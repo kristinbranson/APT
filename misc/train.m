@@ -82,16 +82,28 @@ occlPrm=struct('nrows',3,'ncols',3,'nzones',1,'Stot',1,'th',.5);
   'augment_dorotate',false,...
   'fractrain',1,...
   'nsets_train',[]);
+USE_AL_CORRECTION = false;
 
 if ischar(phisTr) && ischar(bboxesTr) && ischar(IsTr),
-  
   paramfile1 = phisTr;
   paramfile2 = bboxesTr; 
   savefile = IsTr;
 
   tmp0 = load(paramfile1);
-  load(paramfile2); % XXXAL: unsafe, relies on exact matchup of variable names
-  
+  tmpTP = load(paramfile2,'tp');
+  tmpTP = tmpTP.tp;
+  varnames = fieldnames(tmpTP);
+  for i = 1:numel(varnames)
+    vname = varnames{i};
+    if exist(vname,'var')==0
+      fprintf(2,'IGNORING unrecognized trainparam: %s\n',vname);
+    else
+      fprintf(1,'Setting trainparam: %s\n',vname);
+      evalstr = sprintf('%s = tmpTP.%s;',vname,vname);
+      eval(evalstr); % XXXAL
+    end
+  end
+    
   tfALCV = ~isempty(tmp0.td.iTrn);
   if tfALCV
     iTmp = tmp0.td.iTrn;
@@ -102,10 +114,8 @@ if ischar(phisTr) && ischar(bboxesTr) && ischar(IsTr),
   phisTr = tmp0.td.pGT(iTmp,:);
   IsTr = tmp0.td.I(iTmp,:);
   bboxesTr = tmp0.td.bboxes(iTmp,:);
-else
-  
+else  
   savefile = '';
-
 end
 
 if isdeployed && ~isempty(nthreads),
@@ -141,7 +151,6 @@ if model.d == 3 && isempty(Prm3D),
   error('Calibration data must be input for 3d models');
 end
 
-
 switch cpr_type,
   case 'noocclusion',
     if occlPrm.Stot > 1,
@@ -162,8 +171,8 @@ ftrPrm = struct('type',ftr_type,'F',nftrs_test_perfern,...
 
 prm=struct('thrr',[-1 1]*fern_thresh,'reg',fern_regularization);
 regPrm = struct('type',1,'K',nferns,'occlPrm',occlPrm,...
-  'loss','L2','R',nferns_choose,'M',fern_depth,'model',model,'prm',prm,'ftrPrm',ftrPrm,...
-  'Prm3D',Prm3D);
+  'loss','L2','R',nferns_choose,'M',fern_depth,'model',model,...
+  'prm',prm,'ftrPrm',ftrPrm,'USE_AL_CORRECTION',USE_AL_CORRECTION);
 
 % TRAIN
 

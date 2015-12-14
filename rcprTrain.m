@@ -67,9 +67,12 @@ dfs={'model','REQ','pStar',[],'posInit',[],'T','REQ',...
         T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D);
 end 
 
-function [regModel,pAll]=rcprTrain1(Is, pGt,model,pStar,posInit,...
+function [regModel,pAll]=rcprTrain1(Is,pGt,model,pStar,posInit,...
     T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D)
 % Initialize shape and assert correct image/ground truth format
+
+fprintf('train. USE_AL_CORRECTION=%d\n',regPrm.USE_AL_CORRECTION);
+
 if(isempty(initD))
     [pCur,pGt,pGtN,pStar,imgIds,N,N1]=shapeGt('initTr',Is,pGt,...
         model,pStar,posInit,L,pad,dorotate);
@@ -97,10 +100,19 @@ end
 tStart = clock;%pCur_t=zeros(N,D,T+1);
 bboxes=posInit(imgIds,:);
 ftr_gen_radius = ftrPrm.radius;
+
 for t=t0:T
+  if regPrm.USE_AL_CORRECTION
+    pCurN_al = shapeGt('projectPose',model,pCur,bboxes);
+    pGtN_al = shapeGt('projectPose',model,pGt,bboxes);
+    assert(isequal(size(pCurN_al),size(pGtN_al)));
+    pDiffN_al = Shape.rotInvariantDiff(pCurN_al,pGtN_al,1,3); % XXXAL HARDCODED HEAD/TAIL
+    pTar = pDiffN_al;
+  else
     % get target value for shape
     pTar = shapeGt('inverse',model,pCur,bboxes); % pCur: absolute. pTar: normalized
     pTar = shapeGt('compose',model,pTar,pGt,bboxes); % pTar: normalized
+  end
 
     if numel(ftr_gen_radius) > 1,
       ftrPrm.radius = ftr_gen_radius(min(t,numel(ftr_gen_radius)));
@@ -158,12 +170,18 @@ for t=t0:T
       end
       
       %Regress
-      regPrm.ftrPrm=ftrPrm;
+      regPrm.ftrPrm = ftrPrm;
       [regInfo,pDel] = regTrain(ftrs,pTar,regPrm);
     end
-    
-    pCur = shapeGt('compose',model,pDel,pCur,bboxes);
-    pCur = shapeGt('reprojectPose',model,pCur,bboxes);
+
+    % Apply pDel
+    if regPrm.USE_AL_CORRECTION
+      pCur = Shape.applyRIDiff(pCurN_al,pDel,1,3); %XXXAL HARDCODED HEAD/TAIL
+      pCur = shapeGt('reprojectPose',model,pCur,bboxes);
+    else
+      pCur = shapeGt('compose',model,pDel,pCur,bboxes);
+      pCur = shapeGt('reprojectPose',model,pCur,bboxes);
+    end
     
     pAll(:,:,t+1) = pCur(1:N1,:);
     %loss scores

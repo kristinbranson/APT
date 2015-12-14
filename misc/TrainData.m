@@ -1,5 +1,7 @@
 classdef TrainData < handle
-  properties
+  properties    
+    Name    % Name of this TrainData
+    
     I       % [N] column cell vec, images
     pGT     % [NxD] GT shapes for I
     bboxes  % [Nx2d] bboxes for I 
@@ -62,6 +64,11 @@ classdef TrainData < handle
       obj.I = Is;
       obj.pGT = p;
       obj.bboxes = bb;
+    end
+    function viz(obj,varargin)
+      D = size(obj.pGT,2);
+      d = 2;
+      Shape.viz(obj.I,obj.pGT,struct('nfids',D/d,'D',D),varargin{:});
     end
   end
 end
