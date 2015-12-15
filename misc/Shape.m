@@ -17,7 +17,7 @@ classdef Shape
     end
     
     function p0 = randrot(p0,d)
-      % Randomly rotate shapes
+      % Randomly rotate shapes about centroids
       % 
       % p0 (in): [Lx2d] shapes
       % d: model.d. Must be 2.
@@ -28,7 +28,7 @@ classdef Shape
       assert(d==2);
       L = size(p0,1); 
       thetas = 2*pi*rand(L,1);
-      p0 = Shape.rotate(p0,thetas);
+      p0 = Shape.rotateCentroid(p0,thetas);
     end
     
     function p1 = randsamp(p0,i,L)
@@ -122,12 +122,12 @@ classdef Shape
       end
     end
     
-    function p1 = rotate(p0,theta)
-      % Rotate shapes
+    function p1 = rotate(p0,theta,ctr)
+      % Rotate shapes 
       % 
       % p: [NxD], shapes
       % theta: [N], rotation angles
-      % mdl: model
+      % ctr: [Nx2] or [1x2], centers of rotation
       %
       % p1: [NxD], rotated shapes
       
@@ -135,20 +135,42 @@ classdef Shape
       [N,D] = size(p0);
       nfids = D/d;
       assert(isvector(theta) && numel(theta)==N);
-      
+      szctr = size(ctr);
+      assert(isequal(szctr,[N,d]) || isequal(szctr,[1 d]));
+      ctr = reshape(ctr,[],1,d); % [Nx1x2] or [1x1x2]
+            
       ct = cos(theta); % [N]
       st = sin(theta); % [N]      
       p0 = reshape(p0,[N,nfids,d]); % [Nxnfidsxd]
-      mus = mean(p0,2); % [Nx1x2] centroids
-      p0 = bsxfun(@minus,p0,mus);
+      %mus = mean(p0,2); % [Nx1x2] centroids
+      p0 = bsxfun(@minus,p0,ctr);
       x = bsxfun(@times,ct,p0(:,:,1)) - bsxfun(@times,st,p0(:,:,2)); % [Nxnfids]
       y = bsxfun(@times,st,p0(:,:,1)) + bsxfun(@times,ct,p0(:,:,2)); % [Nxnfids]
       
       p0 = cat(3,x,y); % [Nxnfidsx2]
-      p0 = bsxfun(@plus,p0,mus);
+      p0 = bsxfun(@plus,p0,ctr);
       p0 = reshape(p0,[N D]);
       
       p1 = p0;
+    end
+    
+    function [p1,mu] = rotateCentroid(p0,theta)
+      % Rotate shapes around centroid
+      % 
+      % p0: [NxD], shapes
+      % theta: [N], rotation angles
+      %
+      % p1: [NxD], rotated shapes
+      % mu: [Nx2], centroids
+      
+      d = 2;
+      [N,D] = size(p0);
+      nfids = D/d;
+      assert(isvector(theta) && numel(theta)==N);
+      
+      p0 = reshape(p0,[N,nfids,d]); % [Nxnfidsxd] 
+      mu = squeeze(mean(p0,2)); % [Nx2] centroids
+      p1 = Shape.rotate(p0,theta,mu);
     end
     
     function xy1 = rotateXY(xy0,theta)
@@ -171,13 +193,14 @@ classdef Shape
       %
       % xy0: [nptx2] xy coords of points
       % theta: rotation angle
-      % xyc: [1x2] xy coords of center
+      % xyc: [nptx2] OR [1x2] xy coords of center
       %
       % xy1: [nptx2]
       
       assert(size(xy0,2)==2);
-      assert(isequal(size(xyc),[1 2]));
-      
+      szxyc = size(xyc);
+      assert(isequal(szxyc,size(xy0)) || isequal(szxyc,[1 2]));
+
       xy0 = bsxfun(@minus,xy0,xyc);
       xy1 = Shape.rotateXY(xy0,theta);
       xy1 = bsxfun(@plus,xy1,xyc);
@@ -212,14 +235,12 @@ classdef Shape
       % where p is canonically oriented. 
       
       assert(isequal(size(p),size(pTgt)));
-      pRIDel = nan(size(p));
-      theta = Shape.canonicalRot(p,iHead,iTail);
-      N = size(p,1);      
-      for i = 1:N
-        pCanon = Shape.rotate(p(i,:),theta(i));
-        pTgtCanon = Shape.rotate(pTgt(i,:),theta(i));
-        pRIDel(i,:) = pTgtCanon - pCanon;
-      end
+
+      theta = Shape.canonicalRot(p,iHead,iTail); % [Nx1]
+      rotOrigin = [0 0]; % all shapes are in normalized coords which should be in [-1,1]
+      pCanon = Shape.rotate(p,theta,rotOrigin); % make sure to rotate pCanon, pTgtCanon about same origin
+      pTgtCanon = Shape.rotate(pTgt,theta,rotOrigin);
+      pRIDel = pTgtCanon - pCanon;
     end
     
     function p1 = applyRIDiff(p0,pRIDel,iHead,iTail)
@@ -231,21 +252,16 @@ classdef Shape
       % 
       % p1: [NxD] shape, normalized coords. result of applying pRIDel to 
       %   p0. 
-      %
-      % p1 is computed by:
-      %   - rotating p0 into canonical orientation
-      %   - adding pRIDel
-      %   - rotating back
       
       assert(isequal(size(p0),size(pRIDel)));
-      p1 = nan(size(p0));
-      theta = Shape.canonicalRot(p0,iHead,iTail);
-      N = size(p0,1);
-      for i = 1:N      
-        pTmp = Shape.rotate(p0(i,:),theta(i));
-        pTmp = pTmp + pRIDel(i,:);
-        p1(i,:) = Shape.rotate(pTmp,-theta(i));
-      end
+      theta = Shape.canonicalRot(p0,iHead,iTail); 
+      
+      % pRIDel is a "difference shape", taken in coord system where p0 is
+      % canonically rotated. theta rotates p0 to canonical orientation, so
+      % -theta rotates from canonical orientation to p0 orientation.
+      ROTORIGIN = [0 0]; % difference vectors should be rotated about origin
+      pRIDel = Shape.rotate(pRIDel,-theta,ROTORIGIN);
+      p1 = p0+pRIDel;
     end
     
   end
