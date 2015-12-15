@@ -200,10 +200,8 @@ outdir = sprintf('f:\\cpr\\data\\%s',savestr);
 if exist(outdir,'dir')==0
   mkdir(tmp1,tmp2);
 end
-%% save training data
-TrainDataFile = fullfile(outdir,'TrainData_ALCV.mat');
-fprintf('Saving training data to: %s\n',TrainDataFile);
 
+%% create/save training data
 pGT = pGT0;
 pGT = permute(pGT,[3,1,2]); % [nExpxnfidsxd]
 pGT = reshape(pGT,[size(pGT,1),size(pGT,2)*size(pGT,3)]);
@@ -212,42 +210,49 @@ bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
 bb = cat(1,bb{:});
 
 td = TrainData(IsTr,pGT,bb);
+
+% remove mislabeled data
+IDXRM = [36,52];
+fprintf('removing data for indices: %s\n',mat2str(IDXRM));
+td.I(IDXRM) = [];
+td.pGT(IDXRM,:) = [];
+td.bboxes(IDXRM,:) = [];
+
+% partition data
+rng(7); % seed for determinism
+
+nTr = 100;
+assert(nTr<nTr0);
+% idxTrn = SubsampleTrainingDataBasedOnMovement(ld,nTr);
+% idxTst = setdiff(1:nTr0,idxTrn);
+idxTrn = randSample(td.N,nTr);
+idxTst = setdiff(1:td.N,idxTrn);
+
+fprintf('Training set, %d/%d exps: %s...\n',numel(idxTrn),td.N,num2str(idxTrn(1:5)));
+fprintf('Test set, %d/%d exps: %s...\n',numel(idxTst),td.N,num2str(idxTst(1:5)));
+
 td.iTrn = idxTrn;
 td.iTst = idxTst;
+
+td.Name = 'reg_2rm';
+TrainDataFile = fullfile(outdir,sprintf('td_%s_20151211.mat',td.Name));
+fprintf('Saving training data to: %s\n',TrainDataFile);
 save(TrainDataFile,'td');
 
-%% train tracker
-paramsfile2 = fullfile(outdir,'TrainParams.mat');
+%%
+td.viz();
+
+%% Create/save parameters
+tp = TrainParams;
+tp.USE_AL_CORRECTION = 1;
+tp.Name = 'reg_correct';
+paramsfile2 = fullfile(outdir,sprintf('tp_%s_%s.mat',tp.Name,datestr(now,'yyyymmdd')));
 fprintf('Saving training params to: %s\n',paramsfile2);
-
-params = struct;
-params.cpr_type = 'noocclusion';
-params.model_type = 'FlyBubble1';
-params.model_nfids = 7;
-params.model_d = 2;
-%params.model_nviews = 1;
-params.ftr_type = '2lm';
-params.ftr_gen_radius = 1;
-%params.expidx = [];
-params.ncrossvalsets = 1;
-params.naugment = 50;
-params.nsample_std = 1000;
-params.nsample_cor = 5000;
-
-params.prunePrm = struct;
-params.prunePrm.prune = 0;
-params.prunePrm.maxIter = 2;
-params.prunePrm.th = 0.5000;
-params.prunePrm.tIni = 10;
-params.prunePrm.numInit = 50;
-params.prunePrm.usemaxdensity = 1;
-params.prunePrm.maxdensity_sigma = 5; 
-
-save(paramsfile2,'-struct','params');
+save(paramsfile2,'tp');
 
 %% Train on training set
-trainresfile = sprintf('trainres_%s.mat',datestr(now,'yyyymmddTHHMMSS'));
-trainresfile = fullfile(outdir,trainresfile);
+trName = sprintf('%s__%s__%s',td.Name,tp.Name,datestr(now,'yyyymmdd'));
+trainresfile = fullfile(outdir,trName);
 fprintf('Training and saving results to: %s\n',trainresfile);
 [regModel,regPrm,prunePrm,phisPr,err] = train(TrainDataFile,paramsfile2,trainresfile);
 
@@ -259,8 +264,30 @@ mdl = tr.regModel.model;
 pGTTstN = shapeGt('projectPose',mdl,td.pGTTst,td.bboxesTst);
 pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],pGTTstN,50,true);
 [pTst0,pTst,~,~,pTstT] = test_rcpr([],td.bboxesTst,td.ITst,tr.regModel,tr.regPrm,tr.prunePrm,pIni);
-pTstT = reshape(pTstT,[24 50 14 101]);
+pTstT = reshape(pTstT,[22 50 14 101]);
 %err = mean( sqrt(sum( (phisPr-phisTr).^2, 2)) );
+
+%TESTONTESTFILE = fullfile(outdir,'TestOnTest.mat');
+%save(TESTONTESTFILE,'pTst0','pTst','pTstT');
+%% Select final preds
+assert(isequal(pTstT(:,:,:,end),permute(pTst,[1 3 2])));
+prunePrm = tr.prunePrm;
+prunePrm.prune = 1;
+pTst0 = rcprTestSelectOutput(pTst,tr.regPrm,prunePrm);
+
+%%
+iTrl = 11;
+figure(1);
+Shape.vizSingle(td.ITst,pTst0,iTrl,tr.regModel.model,'fig',gcf);
+%%
+figure(2);
+Shape.vizBig(td.ITst,pTstT,iTrl,tr.regModel.model,'fig',gcf,'nr',6,'nc',8);
+%%
+figure(3);
+Shape.vizRepsOverTimeTracks(td.ITst,pTstT,iTrl,tr.regModel.model,'fig',gcf,'nr',6,'nc',8);
+%%
+figure(4);
+Shape.vizRepsOverTimeDensity(td.ITst,pTstT,iTrl,tr.regModel.model,'fig',gcf);
 
 %% Test set: visualize all features for a single trial/replicate/iteration
 iTrl = 1;
@@ -332,9 +359,6 @@ for t = 1:101
 end
   
 
-
-
-
 %% Test on training set
 td = load(TrainDataFile);
 td = td.td;
@@ -384,214 +408,7 @@ params.cascade_depth=100;
   'trxfilestr',ld.trxfilestr,'winrad',winrad,'flies',fly,...
   'firstframe',t,'endframe',t+4);
 
-ptcurr = reshape(pt{1}(1,:,:,:),[params.prunePrm.numInit,params.model_nfids,params.model_d,params.cascade_depth+1]);
-
-load(fullfile(expdir,ld.trxfilestr));
-[readframe,nframes,fid] = get_readframe_fcn(fullfile(expdir,ld.moviefilestr));
-
-im = readframe(t);
-toff = t-trx(fly).firstframe+1;
-xcurr = round(trx(fly).x(toff));
-ycurr = round(trx(fly).y(toff));
-ax = [xcurr-winrad,xcurr+winrad,ycurr-winrad,ycurr+winrad];
-
-clf;
-imagesc(im,[0,255]);
-axis image;
-axis(ax);
-set(gca,'XTick',[],'YTick',[]);
-
-if ~exist('CPRIterations','dir'),
-  mkdir('CPRIterations');
-end
-
-SaveFigLotsOfWays(gcf,'CPRIterations/RawImage');
-
-hold on;
-r = 4;
-iTrl = 1;
-for j = 1:npts,
-  plot(ptcurr(r,j,1,iTrl),ptcurr(r,j,2,iTrl),'wo','MarkerFaceColor',colors(j,:),'MarkerSize',12,'LineWidth',2);
-end
-
-SaveFigLotsOfWays(gcf,'CPRIterations/Initialization');
-
-clf;
-imagesc(im,[0,255]);
-axis image;
-axis(ax);
-hax = gca;
-set(gca,'XTick',[],'YTick',[]);
-
-iTrl = params.cascade_depth+1;
-hold on;
-for j = 1:npts,
-  plot(ptcurr(r,j,1,iTrl),ptcurr(r,j,2,iTrl),'wo','MarkerFaceColor',colors(j,:),'MarkerSize',12,'LineWidth',2);
-end
-
-SaveFigLotsOfWays(gcf,'CPRIterations/Final');
-
-
-clf;
-imagesc(im,[0,255]);
-axis image;
-axis(ax);
-hax = gca;
-set(gca,'XTick',[],'YTick',[]);
-
-iTrl = params.cascade_depth+1;
-k = 2;
-hold on;
-for j = 1:npts,
-  plot(ptcurr(r,j,1,k),ptcurr(r,j,2,k),'wo','MarkerFaceColor',colors(j,:),'MarkerSize',12,'LineWidth',2);
-  h = quiver(ptcurr(r,j,1,k),ptcurr(r,j,2,k),ptcurr(r,j,1,iTrl)-ptcurr(r,j,1,k),ptcurr(r,j,2,iTrl)-ptcurr(r,j,2,k),0);
-  set(h,'LineWidth',3,'Color',colors(j,:),'MaxHeadSize',1);
-end
-
-SaveFigLotsOfWays(gcf,sprintf('CPRIterations/Update%d',k));
-
-
-clf;
-imagesc(im,[0,255]);
-axis image;
-axis(ax);
-set(gca,'XTick',[],'YTick',[]);
-
-hold on;
-iTrl = 3;
-for j = 1:npts,
-  plot(squeeze(ptcurr(r,j,1,1:iTrl-1)),squeeze(ptcurr(r,j,2,1:iTrl-1)),'--','Color',colors(j,:)*.7,'MarkerSize',12,'LineWidth',2);
-  plot(squeeze(ptcurr(r,j,1,iTrl-1:iTrl)),squeeze(ptcurr(r,j,2,iTrl-1:iTrl)),'x-','Color',colors(j,:)*.7,'MarkerSize',12,'LineWidth',3);
-  plot(ptcurr(r,j,1,iTrl),ptcurr(r,j,2,iTrl),'wo','MarkerFaceColor',colors(j,:),'MarkerSize',12,'LineWidth',2);
-end
-
-SaveFigLotsOfWays(gcf,sprintf('CPRIterations/Iteration%02d',iTrl));
-
-
-vidobj = VideoWriter(sprintf('CPRIterations/Iterations.avi'));
-vidobj.FrameRate = 10;
-open(vidobj);
-
-gfdata = [];
-figure(1);
-colormap gray;
-for iTrl = 1:params.cascade_depth,
-  clf;
-  hfig = gcf;
-  imagesc(im,[0,255]);
-  axis image;
-  axis(ax);
-  hax = gca;
-  set(gca,'XTick',[],'YTick',[]);
-  
-  hold on;
-  for j = 1:npts,
-    plot(squeeze(ptcurr(r,j,1,1:iTrl)),squeeze(ptcurr(r,j,2,1:iTrl)),'o-','Color',colors(j,:)*.7,'MarkerSize',8,'LineWidth',5,'MarkerFaceColor',colors(j,:)*.7);
-  end
-  for j = 1:npts,
-    plot(ptcurr(r,j,1,iTrl),ptcurr(r,j,2,iTrl),'wo','MarkerFaceColor',colors(j,:),'MarkerSize',20,'LineWidth',4);
-  end
-  text(ax(1),ax(3),sprintf('  Iter %d',iTrl),'FontSize',36,'HorizontalAlignment','left','VerticalAlignment','top');
-  drawnow;
-  if isempty(gfdata),
-    gfdata = getframe_initialize(hax);
-    fr = getframe_invisible(hax);
-    gfdata.sz = size(fr);
-  end
-  gfdata.hfig = hfig;
-  gfdata.haxes = gca;
-  gfdata.hardcopy_args{1} = gca;
-  fr = getframe_invisible_nocheck(gfdata,gfdata.sz);
-  writeVideo(vidobj,fr);
-  
-end
-close(vidobj);
-
-MakeTrackingResultsHistogramVideo(expdir,testresfile,'moviefilestr','movie.ufmf','intrxfile',fullfile(expdir,ld.trxfilestr),'fly',1,'winrad',winrad,'TrxColor','k','TextColor','k')
-
-
-vidobj = VideoWriter(sprintf('CPRIterations/IterationsRestarts.avi'));
-vidobj.FrameRate = 10;
-open(vidobj);
-
-gfdata = [];
-
-hfig = 3;
-figure(hfig);
-for iTrl = 1:params.cascade_depth+1,
-
-clf;
-imagesc(im,[0,255]);
-axis image;
-axis(ax);
-set(gca,'XTick',[],'YTick',[]);
-hax = gca;
-
-hold on;
-%i = params.cascade_depth+1;
-smoothsig = 2;
-binedges{1} = floor(ax(1)):ceil(ax(2));
-binedges{2} = floor(ax(3)):ceil(ax(4));
-bincenters{1} = (binedges{1}(1:end-1)+binedges{1}(2:end))/2;
-bincenters{2} = (binedges{2}(1:end-1)+binedges{2}(2:end))/2;
-counts = cell(1,npts);
-fil = fspecial('gaussian',6*smoothsig+1,smoothsig);
-maxv = .15;
-for j = 1:npts,
-  counts{j} = hist3([ptcurr(:,j,1,iTrl),ptcurr(:,j,2,iTrl)],'edges',binedges);
-  counts{j} = counts{j}(1:end-1,1:end-1) / params.prunePrm.numInit;
-  counts{j} = imfilter(counts{j},fil,'corr','same',0);
-  him2 = image([bincenters{1}(1),bincenters{1}(end)],[bincenters{2}(1),bincenters{2}(end)],...
-    repmat(reshape(colors(j,:),[1,1,3]),size(counts{j}')),...
-    'AlphaData',min(1,3*sqrt(counts{j}')/sqrt(maxv)),'AlphaDataMapping','none');
-end
-
-for r = 1:params.prunePrm.numInit,
-  for j = 1:npts,
-    %plot(squeeze(ptcurr(r,j,1,1:i)),squeeze(ptcurr(r,j,2,1:i)),'-','Color',colors(j,:)*.7,'LineWidth',1);
-    if ptcurr(r,j,1,iTrl) < ax(1) || ptcurr(r,j,1,iTrl) > ax(2) || ...
-        ptcurr(r,j,2,iTrl) < ax(3) || ptcurr(r,j,2,iTrl) > ax(4),
-      continue;
-    end
-    plot(ptcurr(r,j,1,iTrl),ptcurr(r,j,2,iTrl),'o','Color',colors(j,:),'MarkerFaceColor',colors(j,:),'MarkerSize',6,'LineWidth',1);
-  end
-end
-
-text(ax(1),ax(3),sprintf('  Iter %d',iTrl),'FontSize',36,'HorizontalAlignment','left','VerticalAlignment','top');
-
-
-drawnow;
-
-  if isempty(gfdata),
-    gfdata = getframe_initialize(hax);
-    fr = getframe_invisible(hax);
-    gfdata.sz = size(fr);
-  end
-  gfdata.hfig = hfig;
-  gfdata.haxes = gca;
-  gfdata.hardcopy_args{1} = gca;
-  fr = getframe_invisible_nocheck(gfdata,gfdata.sz);
-  writeVideo(vidobj,fr);
-  
-end
-close(vidobj);
-
-
-SaveFigLotsOfWays(gcf,sprintf('CPRIterations/Restarts'));
-
-clf;
-imagesc(im,[0,255]);
-axis image;
-axis(ax);
-set(gca,'XTick',[],'YTick',[]);
-
-hold on;
-r = 5;
-iTrl = 1;
-for j = 1:npts,
-  plot(ptcurr(r,j,1,iTrl),ptcurr(r,j,2,iTrl),'wo','MarkerFaceColor',colors(j,:),'MarkerSize',12,'LineWidth',2);
-end
-SaveFigLotsOfWays(gcf,'CPRIterations/Initialization2');
+% KB plot: update3 = quiver from iteration 3 to iteration T
 
 %%
 

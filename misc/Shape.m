@@ -253,7 +253,23 @@ classdef Shape
   %% Visualization
   methods (Static) 
     
+    function vizSingle(I,p,idx,mdl,varargin)
+      % Visualize a single Image+Shape from a trial set 
+      %
+      % I: [N] cell vec of images
+      % p: [NxD] shape
+      % mdl: model
+      % idx: trial to visualize (index into I, rows of p)
+      % optional pvs:
+      % fig - handle to figure to use
+      % labelpts - see viz()
+      
+      Shape.viz(I,p,mdl,'idxs',idx,'nr',1,'nc',1,varargin{:});      
+    end
+       
     function viz(I,p,mdl,varargin)
+      % Visualize many Images+Shapes from a Trial set
+      % 
       % I: [N] cell vec of images
       % p: [NxDxR] shapes
       %
@@ -315,7 +331,9 @@ classdef Shape
       end
     end
     
-    function vizBig(I,pT,iTrl,mdl,varargin)
+    function vizRepsOverTime(I,pT,iTrl,mdl,varargin)
+      % Visualize Replicates over time for a single Trial from a Trial set
+      % 
       % I: [N] cell vec of images
       % pT: [NxRTxDx(T+1)] shapes
       %      % iTrl: index into I of trial to follow
@@ -376,6 +394,166 @@ classdef Shape
       end
     end
     
+    function vizRepsOverTimeTracks(I,pT,iTrl,mdl,varargin)
+      % Visualize Replicates over time for a single Trial from a Trial set
+      % 
+      % I: [N] cell vec of images
+      % pT: [NxRTxDx(T+1)] shapes
+      %      % iTrl: index into I of trial to follow
+
+      % optional pvs    
+      % fig - handle to figure to use
+      % nr, nc - subplot size
+      % t0 - starting iteration to show (defaults to 1)
+      % t1 - ending iteration to show (defaults to T+1)
+      
+      N = numel(I);
+      assert(size(pT,1)==N);
+      RT = size(pT,2);
+      assert(size(pT,3)==mdl.D);
+      Tp1 = size(pT,4);
+      
+      opts.fig = [];
+      opts.nr = 4;
+      opts.nc = 5;
+      opts.t0 = 1;
+      opts.t1 = Tp1;
+      opts = getPrmDfltStruct(varargin,opts);      
+      if isempty(opts.fig)
+        opts.fig = figure('windowstyle','docked');
+      else
+        figure(opts.fig);
+        clf;
+      end
+      nplot = opts.nr*opts.nc;
+      hax = createsubplots(opts.nr,opts.nc,.01);
+
+      % plot the image for iTrl; initialize hlines
+      im = I{iTrl};
+      colors = jet(mdl.nfids);
+      iReps = randsample(RT,nplot); % pick nplot replicates to follow
+      for iPlt = 1:nplot
+        ax = hax(iPlt);
+        
+        imagesc(im,'Parent',ax,[0,255]);
+        axis(ax,'image','off');
+        hold(ax,'on');
+        colormap gray;
+        iRT = iReps(iPlt);
+        text(1,1,num2str(iRT),'parent',ax);
+
+        for iPt = 1:mdl.nfids
+          plot(ax,...
+            squeeze(pT(iTrl,iRT,iPt,opts.t0:opts.t1-1)),...
+            squeeze(pT(iTrl,iRT,iPt+mdl.nfids,opts.t0:opts.t1-1)),...
+            '--','Color',colors(iPt,:)*.7,'MarkerSize',12,'LineWidth',2);
+          plot(ax,...
+            squeeze(pT(iTrl,iRT,iPt,opts.t1-1:opts.t1)),...
+            squeeze(pT(iTrl,iRT,iPt+mdl.nfids,opts.t1-1:opts.t1)),...
+            'x-','Color',colors(iPt,:)*.7,'MarkerSize',10,'LineWidth',3);
+          plot(ax,...
+            pT(iTrl,iRT,iPt,opts.t1),...
+            pT(iTrl,iRT,iPt+mdl.nfids,opts.t1),...
+            'wo','MarkerFaceColor',colors(iPt,:),'MarkerSize',8,'LineWidth',2);
+        end
+      end
+      
+    end
+    
+    % See MakeTrackingResultsHistogramVideo
+    
+    function vizRepsOverTimeDensity(I,pT,iTrl,mdl,varargin)
+      % Visualize Replicate-density over time for a single Trial from a Trial set
+      % 
+      % I: [N] cell vec of images
+      % pT: [NxRTxDx(T+1)] shapes
+      %      % iTrl: index into I of trial to follow
+
+      % optional pvs    
+      % fig - handle to figure to use
+      % t0 - starting iteration to show (defaults to 1)
+      % t1 - ending iteration to show (defaults to T+1)
+      % smoothsig - sigma for gaussian smoothing (defaults to 2)
+      
+      N = numel(I);
+      assert(size(pT,1)==N);
+      RT = size(pT,2);
+      assert(size(pT,3)==mdl.D);
+      Tp1 = size(pT,4);
+      npts = mdl.nfids;
+      
+      opts.fig = [];
+      opts.t0 = 1;
+      opts.t1 = Tp1;
+      opts.smoothsig = 2;
+      opts = getPrmDfltStruct(varargin,opts);      
+      if isempty(opts.fig)
+        opts.fig = figure('windowstyle','docked');
+      else
+        figure(opts.fig);
+        clf;
+      end
+
+      % plot the image for iTrl; initialize hlines
+      ax = axes;
+      im = I{iTrl};
+      colors = jet(npts);
+      t = opts.t0;
+      while isnumeric(t)
+        hold(ax,'off');
+        imagesc(im,'Parent',ax,[0,255]);
+        axis(ax,'image','off');
+        hold(ax,'on');  
+        lims = axis;
+        colormap gray;
+        
+        binedges{1} = floor(lims(1)):ceil(lims(2));
+        binedges{2} = floor(lims(3)):ceil(lims(4));
+        bincenters{1} = (binedges{1}(1:end-1)+binedges{1}(2:end))/2;
+        bincenters{2} = (binedges{2}(1:end-1)+binedges{2}(2:end))/2;
+        counts = cell(1,npts);
+        fil = fspecial('gaussian',6*opts.smoothsig+1,opts.smoothsig);
+        maxv = .15;
+        for iPt = 1:npts
+          xy = [squeeze(pT(iTrl,:,iPt,t))' squeeze(pT(iTrl,:,iPt+npts,t))'];
+          cnts = hist3(xy,'edges',binedges);
+          assert(sum(cnts(:))==RT);
+          cnts = cnts(1:end-1,1:end-1)/RT;
+          counts{iPt} = imfilter(cnts,fil,'corr','same',0); % smoothed
+          him2 = image(...
+            [bincenters{1}(1),bincenters{1}(end)],...
+            [bincenters{2}(1),bincenters{2}(end)],...
+            repmat(reshape(colors(iPt,:),[1,1,3]),size(counts{iPt}')),...
+            'AlphaData',min(1,3*sqrt(counts{iPt}')/sqrt(maxv)),'AlphaDataMapping','none');
+        end
+        
+        for r = 1:RT
+          for iPt = 1:npts
+            %plot(squeeze(ptcurr(r,j,1,1:i)),squeeze(ptcurr(r,j,2,1:i)),'-','Color',colors(j,:)*.7,'LineWidth',1);
+            x = pT(iTrl,r,iPt,t);
+            y = pT(iTrl,r,iPt+npts,t);
+            if x < lims(1) || x > lims(2) || ...
+               y < lims(3) || y > lims(4)
+              continue;
+            end
+            plot(x,y,'o','Color',colors(iPt,:),'MarkerFaceColor',colors(iPt,:),'MarkerSize',6,'LineWidth',1);
+          end
+        end
+        
+        text(lims(1),lims(3),sprintf('  Iter %d',t),'FontSize',36,'HorizontalAlignment','left','VerticalAlignment','top');
+        tinput = input('Enter t (default to next iteration, char to end)');
+        if ~isempty(tinput) 
+          if isnumeric(tinput)
+            t = tinput;
+          else
+            break;
+          end
+        else
+          t = t+1;
+        end
+      end
+    end
+      
   end
   
 end
