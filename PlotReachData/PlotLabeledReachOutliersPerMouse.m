@@ -50,18 +50,23 @@ for dayi = 1:ndays,
   haxcurr = hax(dayi,1);
   mu = median(posperday{dayi},3);
   err{dayi} = squeeze(sum(sqrt(sum((bsxfun(@minus,mu,posperday{dayi})).^2,2)),1));
+  if isempty(err{dayi}),
+    continue;
+  end
   ncurr = numel(err{dayi});
   [sortederr,order] = sort(err{dayi});
   trialnum = [labeldata.expInfo(expiperday{dayi}).trialnum];
   plot(haxcurr,trialnum,err{dayi},'k.');
   hold(haxcurr,'on');
-  plot(haxcurr,trialnum(order(ncurr-noutliers+1:end)),sortederr(end-noutliers+1:end),'ro');
+  i0 = max(1,ncurr-noutliers+1);
+  noutlierscurr = min(noutliers,numel(err{dayi}));
+  plot(haxcurr,trialnum(order(i0:end)),sortederr(i0:end),'ro');
   set(haxcurr,'XLim',[min(trialnum)-1,max(trialnum)+1],'Box','off');
   if dayi == ndays,
     xlabel(haxcurr,'Trial number');
     ylabel(haxcurr,'Distance to median');
   end
-  for outlieri = 1:noutliers,
+  for outlieri = 1:noutlierscurr,
     haxcurr = hax(dayi,outlieri+1);
     expii = order(ncurr-outlieri+1);
     expi = expiperday{dayi}(expii);
