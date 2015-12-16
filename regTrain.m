@@ -254,7 +254,7 @@ end
 
 %Compute std and diff between ftrs to be used by fast correlation selection
 function [stdFtrs,dfFtrs]=statsFtrs(ftrs,ftrPrm)
-[N]=size(ftrs,1);
+N = size(ftrs,1);
 
 if isfield(ftrPrm,'nsample_std'),
   nsample = ftrPrm.nsample_std;
