@@ -1,10 +1,10 @@
 %% set up paths
 
-rootdatadir = '/tier2/hantman';
 JAABAcodedir = '/groups/branson/home/bransonk/behavioranalysis/code/Jdetect/Jdetect';
 labelfiles = {
   'Y:\Jay\videos\M186hm4dBPN\labeler\labels.lbl'
   'Y:\Jay\videos\M187hm4dBPN\labeler\labels.lbl'};
+rootdatadir = '/tier2/hantman';
 
 addpath ..;
 addpath ../misc;
