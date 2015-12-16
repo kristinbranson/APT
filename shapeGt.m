@@ -993,80 +993,87 @@ phisN = reshape(phisN,[M,nfids*d]);
 % end
 end
 
-function del = dif( phis0, phis1 )
-% Compute diffs between phis0(i,:,t) and phis1(i,:) for each i and t.
-% [N,R,T]=size(phis0); assert(size(phis1,3)==1);
-% del = phis0-phis1(:,:,ones(1,1,T));
+function [ds,dsAll] = dist(model,phis0,phis1)
+% Compute distance between two sets of shapes.
+%
+% phis0: [NxDxT]
+% phis1: [NxDxT] or [NxD]
+%
+% dsAll: [NxnfidsxT]. 2-norm distances between phis0 and phis1
+% ds: [Nx1xT]. Equal to mean(dsAll,2).
+
+[N,D,T] = size(phis0); 
+szphis1 = size(phis1);
+assert(isequal(szphis1,[N D T]) || isequal(szphis1,[N D]));
+
 del = bsxfun(@minus,phis0,phis1);
-end
-
-function [ds,dsAll] = dist( model, phis0, phis1 )
-% Compute distance between phis0(i,:,t) and phis1(i,:) for each i and t.
-%relative to the distance between pupils in the image (phis1 = gt)
-[N,R,T]=size(phis0); del=dif(phis0,phis1);
 nfids = model.nfids;
-d = R/nfids;
-% if(strcmp(model.name,'cofw') || strcmp(model.name,'mouse_paw3D') || strcmp(model.name,'fly_RF2'))
-%     nfids = size(phis1,2)/3;
-% else nfids = size(phis1,2)/2;
-% end
+d = D/nfids;
 
-%Distance between pupils
-if(strcmp(model.name,'lfpw') || strcmp(model.name,'cofw'))
-    distPup=sqrt(((phis1(:,17)-phis1(:,18)).^2) + ...
-        ((phis1(:,17+nfids)-phis1(:,18+nfids)).^2));
-    distPup = repmat(distPup,[1,nfids,T]);
-elseif(strcmp(model.name,'lfw'))
-    leyeX=mean(phis1(:,1:2),2);leyeY=mean(phis1(:,(1:2)+nfids),2);
-    reyeX=mean(phis1(:,7:8),2);reyeY=mean(phis1(:,(7:8)+nfids),2);
-    distPup=sqrt(((leyeX-reyeX).^2) + ((leyeY-reyeY).^2));
-    distPup = repmat(distPup,[1,nfids,T]);
-elseif(strcmp(model.name,'helen'))
-    leye = [mean(phis1(:,135:154),2) mean(phis1(:,nfids+(135:154)),2)];
-    reye = [mean(phis1(:,115:134),2) mean(phis1(:,nfids+(115:134)),2)];
-    distPup=sqrt(((reye(:,1)-leye(:,1)).^2)+...
-        ((reye(:,2)-leye(:,2)).^2));
-    distPup = repmat(distPup,[1,nfids,T]);
-elseif(strcmp(model.name,'pie'))
-    leye = [mean(phis1(:,37:42),2) mean(phis1(:,nfids+(37:42)),2)];
-    reye = [mean(phis1(:,43:48),2) mean(phis1(:,nfids+(43:48)),2)];
-    distPup=sqrt(((reye(:,1)-leye(:,1)).^2)+...
-        ((reye(:,2)-leye(:,2)).^2));
-    distPup = repmat(distPup,[1,nfids,T]);
-elseif(strcmp(model.name,'apf'))
-    leye = [mean(phis1(:,7:8),2) mean(phis1(:,nfids+(7:8)),2)];
-    reye = [mean(phis1(:,9:10),2) mean(phis1(:,nfids+(9:10)),2)];
-    distPup=sqrt(((reye(:,1)-leye(:,1)).^2)+...
-        ((reye(:,2)-leye(:,2)).^2));
-else
-%   if (strcmp(model.name,'larva')) || (strcmp(model.name,'mouse_paw')) ||...
-%         (strcmp(model.name,'mouse_paw2')) || (strcmp(model.name,'mouse_paw3D')) ||...
-%         (strcmp(model.name,'fly_RF2'))||(strcmp(model.name,'mouse_paw_multi'))
-    %distPup=ones(size(phis1,1),nfids,T);
+switch model.name
+  case {'lfpw' 'cofw' 'lfw' 'helen' 'pie' 'apf'}
+    assert(false);
+  otherwise
     distPup = 1;
 end
+% %Distance between pupils
+% if(strcmp(model.name,'lfpw') || strcmp(model.name,'cofw'))
+%     distPup=sqrt(((phis1(:,17)-phis1(:,18)).^2) + ...
+%         ((phis1(:,17+nfids)-phis1(:,18+nfids)).^2));
+%     distPup = repmat(distPup,[1,nfids,T]);
+% elseif(strcmp(model.name,'lfw'))
+%     leyeX=mean(phis1(:,1:2),2);leyeY=mean(phis1(:,(1:2)+nfids),2);
+%     reyeX=mean(phis1(:,7:8),2);reyeY=mean(phis1(:,(7:8)+nfids),2);
+%     distPup=sqrt(((leyeX-reyeX).^2) + ((leyeY-reyeY).^2));
+%     distPup = repmat(distPup,[1,nfids,T]);
+% elseif(strcmp(model.name,'helen'))
+%     leye = [mean(phis1(:,135:154),2) mean(phis1(:,nfids+(135:154)),2)];
+%     reye = [mean(phis1(:,115:134),2) mean(phis1(:,nfids+(115:134)),2)];
+%     distPup=sqrt(((reye(:,1)-leye(:,1)).^2)+...
+%         ((reye(:,2)-leye(:,2)).^2));
+%     distPup = repmat(distPup,[1,nfids,T]);
+% elseif(strcmp(model.name,'pie'))
+%     leye = [mean(phis1(:,37:42),2) mean(phis1(:,nfids+(37:42)),2)];
+%     reye = [mean(phis1(:,43:48),2) mean(phis1(:,nfids+(43:48)),2)];
+%     distPup=sqrt(((reye(:,1)-leye(:,1)).^2)+...
+%         ((reye(:,2)-leye(:,2)).^2));
+%     distPup = repmat(distPup,[1,nfids,T]);
+% elseif(strcmp(model.name,'apf'))
+%     leye = [mean(phis1(:,7:8),2) mean(phis1(:,nfids+(7:8)),2)];
+%     reye = [mean(phis1(:,9:10),2) mean(phis1(:,nfids+(9:10)),2)];
+%     distPup=sqrt(((reye(:,1)-leye(:,1)).^2)+...
+%         ((reye(:,2)-leye(:,2)).^2));
+% else
+% %   if (strcmp(model.name,'larva')) || (strcmp(model.name,'mouse_paw')) ||...
+% %         (strcmp(model.name,'mouse_paw2')) || (strcmp(model.name,'mouse_paw3D')) ||...
+% %         (strcmp(model.name,'fly_RF2'))||(strcmp(model.name,'mouse_paw_multi'))
+%     %distPup=ones(size(phis1,1),nfids,T);
+%     distPup = 1;
+% end
 
 sz = size(del);
-if numel(sz) < 4,
-  sz = [sz,ones(1,4-numel(sz))];
-end
-dsAll = reshape(sqrt(sum(reshape(del,[N,nfids,d,prod(sz(3:end))]).^2,3)),[N,nfids,prod(sz(3:end))])./distPup;
-ds=mean(dsAll,2);
+assert(numel(sz)<=3);
+% if numel(sz) < 4,
+%   sz = [sz,ones(1,4-numel(sz))];
+% end
+deltmp = reshape(del,[N nfids d T]);
+dsAll = sqrt(sum(deltmp.^2,3)); % [Nxnfidsx1xT]
+dsAll = reshape(dsAll,[N nfids T]);
+%dsAll = reshape(dsAll,[N,nfids,prod(sz(3:end))])./distPup;
+ds = mean(dsAll,2);
 
 if true
-  
-
-if d == 3,
+  if d==3
     dsAll0 = sqrt((del(:,1:nfids,:).^2) + (del(:,nfids+1:nfids*2,:).^2) + (del(:,2*nfids+1:nfids*3,:).^2));
-elseif d == 2,
-    dsAll0 = sqrt((del(:,1:nfids,:).^2) + (del(:,nfids+1:nfids*2,:).^2));
-else
-  error('d should be 2 or 3');
+  elseif d==2
+    dsAll0 = sqrt(del(:,1:nfids,:).^2 + del(:,nfids+1:nfids*2,:).^2); % [NxnfidsxT]
+  else
+    error('d should be 2 or 3');
+  end
+  dsAll0 = dsAll0./distPup; 
+  assert(isequaln(dsAll,dsAll0));
+  %ds0=mean(dsAll0,2);%2*sum(dsAll,2)/R;
 end
-dsAll0 = dsAll0./distPup; ds0=mean(dsAll0,2);%2*sum(dsAll,2)/R;
-end
-
-assert(nnz(dsAll0 ~= dsAll)==0);
 
 end
 

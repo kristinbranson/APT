@@ -66,9 +66,7 @@ classdef TrainData < handle
       obj.bboxes = bb;
     end
     function viz(obj,varargin)
-      D = size(obj.pGT,2);
-      d = 2;
-      Shape.viz(obj.I,obj.pGT,struct('nfids',D/d,'D',D),varargin{:});
+      Shape.viz(obj.I,obj.pGT,struct('nfids',obj.D/obj.d,'D',obj.D),varargin{:});
     end
   end
 end

@@ -308,42 +308,39 @@ classdef Shape
         figure(opts.fig);
         clf;
       end
-      nplot = opts.nr*opts.nc;
       hax = createsubplots(opts.nr,opts.nc,.01);
 
       N = numel(I);
-      assert(size(p,1)==N);
-      assert(size(p,2)==mdl.D);
-      R = size(p,3);
+      assert(isequal(size(p),[N mdl.D]));
 
+      naxes = opts.nr*opts.nc;
       if isempty(opts.idxs)
+        nplot = naxes;
         iPlot = randsample(N,nplot);
       else
-        assert(numel(opts.idxs)==nplot,'Number of ''idxs'' specified must equal nr*nc=%d.',nplot);
+        nplot = numel(opts.idxs);
+        assert(nplot<=naxes,...
+          'Number of ''idxs'' specified must be <= nr*nc=%d.',naxes);
         iPlot = opts.idxs;
       end
         
       colors = jet(mdl.nfids);
-      for iR = 1:R  
-        for iPlt = 1:nplot
-          iIm = iPlot(iPlt);
-          im = I{iIm};
-          imagesc(im,'Parent',hax(iPlt),[0,255]);
-          axis(hax(iPlt),'image','off');
-          hold(hax(iPlt),'on');
-          colormap gray;
-          for j = 1:mdl.nfids
-            plot(hax(iPlt),p(iIm,j),p(iIm,j+mdl.nfids),...
-              'wo','MarkerFaceColor',colors(j,:));
-            if opts.labelpts
-              htmp = text(p(iIm,j)+5,p(iIm,j+mdl.nfids)+5,num2str(j)); 
-              htmp.Color = [1 1 1];             
-            end
+      for iPlt = 1:nplot
+        iIm = iPlot(iPlt);
+        im = I{iIm};
+        imagesc(im,'Parent',hax(iPlt),[0,255]);
+        axis(hax(iPlt),'image','off');
+        hold(hax(iPlt),'on');
+        colormap gray;
+        for j = 1:mdl.nfids
+          plot(hax(iPlt),p(iIm,j),p(iIm,j+mdl.nfids),...
+            'wo','MarkerFaceColor',colors(j,:));
+          if opts.labelpts
+            htmp = text(p(iIm,j)+2.5,p(iIm,j+mdl.nfids)+2.5,num2str(j),'Parent',hax(iPlt));
+            htmp.Color = [1 1 1];
           end
-          text(1,1,num2str(iIm),'parent',hax(iPlt));
         end
-        
-%        input(sprintf('Replicate %d/%d
+        text(1,1,num2str(iIm),'parent',hax(iPlt));
       end
     end
     
@@ -533,7 +530,12 @@ classdef Shape
         for iPt = 1:npts
           xy = [squeeze(pT(iTrl,:,iPt,t))' squeeze(pT(iTrl,:,iPt+npts,t))'];
           cnts = hist3(xy,'edges',binedges);
-          assert(sum(cnts(:))==RT);
+          
+          sumcnts = sum(cnts(:));
+          if sumcnts<RT
+            warningNoTrace('Shape:viz','%d/%d points omitted from histogram.',RT-sumcnts,RT);
+          end
+          %assert(sum(cnts(:))==RT);
           cnts = cnts(1:end-1,1:end-1)/RT;
           counts{iPt} = imfilter(cnts,fil,'corr','same',0); % smoothed
           him2 = image(...
@@ -556,7 +558,7 @@ classdef Shape
           end
         end
         
-        text(lims(1),lims(3),sprintf('  Iter %d',t),'FontSize',36,'HorizontalAlignment','left','VerticalAlignment','top');
+        text(lims(1),lims(3),sprintf('  iTrl%d Iter%d',iTrl,t),'FontSize',24,'HorizontalAlignment','left','VerticalAlignment','top');
         tinput = input('Enter t (default to next iteration, char to end)');
         if ~isempty(tinput) 
           if isnumeric(tinput)
@@ -566,6 +568,65 @@ classdef Shape
           end
         else
           t = t+1;
+        end
+      end
+    end
+    
+    function vizDiff(I,p0,p1,mdl,varargin)
+      % I: [N] cell vec of images
+      % p0,p1: [NxD] shapes
+      % mdl: model
+      %
+      % optional pvs
+      % fig - handle to figure to use
+      % nr, nc - subplot size
+      % idxs - indices of images to plot; must have nr*nc els. if 
+      %   unspecified, these are randomly selected.
+      % labelpts - if true, number landmarks. default false
+      
+      % Very Similar to Shape.viz()
+      
+      opts.fig = [];
+      opts.nr = 4;
+      opts.nc = 5;
+      opts.idxs = [];      
+      opts.labelpts = false;
+      opts = getPrmDfltStruct(varargin,opts);
+      if isempty(opts.fig)
+        opts.fig = figure('windowstyle','docked');
+      else
+        figure(opts.fig);
+        clf;
+      end
+      hax = createsubplots(opts.nr,opts.nc,.01);
+
+      N = numel(I);
+      assert(isequal(size(p0),size(p1),[N mdl.D]));
+
+      naxes = opts.nr*opts.nc;
+      if isempty(opts.idxs)
+        nplot = naxes;
+        iPlot = randsample(N,nplot);
+      else
+        nplot = numel(opts.idxs);
+        assert(nplot<=naxes,...
+          'Number of ''idxs'' specified must be <= nr*nc=%d.',naxes);
+        iPlot = opts.idxs;
+      end
+      
+      colors = jet(mdl.nfids);
+      for iPlt = 1:nplot
+        iIm = iPlot(iPlt);
+        im = I{iIm};
+        imagesc(im,'Parent',hax(iPlt),[0,255]);
+        axis(hax(iPlt),'image','off');
+        hold(hax(iPlt),'on');
+        colormap gray;
+        for j = 1:mdl.nfids
+          plot(hax(iPlt),p0(iIm,j),p0(iIm,j+mdl.nfids),...
+            'wo','MarkerFaceColor',colors(j,:));
+          plot(hax(iPlt),p1(iIm,j),p1(iIm,j+mdl.nfids),...
+            'ws','MarkerFaceColor',colors(j,:));          
         end
       end
     end
