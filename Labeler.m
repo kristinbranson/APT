@@ -1051,6 +1051,49 @@ classdef Labeler < handle
       lpos = obj.labeledpos{iMov};
       tf = any(~isnan(lpos(:)));
     end
+    
+    function labelMakeLabelMovie(obj,fname,varargin)
+      % Make a movie of all labeled frames for current movie
+      %
+      % fname: filename
+      % optional pvs:
+      % - framerate. defaults to 10.
+      
+      framerate = myparse(varargin,'framerate',10);
+      
+      if ~obj.hasMovie
+        error('Labeler:noMovie','No movie currently open.');
+      end
+      
+      nTgts = obj.labelPosLabeledFramesStats();
+      frmsLbled = find(nTgts>0);
+      nFrmsLbled = numel(frmsLbled);
+      if nFrmsLbled==0
+        msgbox('Current movie has no labeled frames.');
+        return;
+      end
+            
+      ax = obj.gdata.axes_curr;
+      vr = VideoWriter(fname);      
+      vr.FrameRate = framerate;
+
+      vr.open();
+      try
+        hWB = waitbar(0,'Writing video');
+        for i = 1:nFrmsLbled
+          f = frmsLbled(i);
+          obj.setFrame(f);
+          tmpFrame = getframe(ax);
+          vr.writeVideo(tmpFrame);
+          waitbar(i/nFrmsLbled,hWB,sprintf('Wrote frame %d\n',f));
+        end
+      catch ME
+        vr.close();
+        ME.rethrow();
+      end
+      vr.close();
+      delete(hWB);
+    end
            
   end
   
