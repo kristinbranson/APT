@@ -66,15 +66,15 @@ end
 
 args = {pTar(dosample,:),ftrs(dosample,:),type,stdFtrs,...
   dfFtrs(dosample,:),scalar,stdSc,muSc}; % scalar is [numel(dosample)xS]
-[use0,maxCo0] = selectCorrFeat1(args{:});
-[use,maxCo] = selectCorrFeatAL(args{:});
-fprintf('### selectCorrFeat comparison:\n');
-fprintf(' Old:\n');
-disp(num2str(use0));
-disp(num2str(maxCo0),3);
-fprintf(' New:\n');
-disp(num2str(use));
-disp(num2str(maxCo),3);
+%[use0,maxCo0] = selectCorrFeat1(args{:});
+[use,maxCo] = selectCorrFeatAL(args{:}); %#ok<ASGLU>
+% fprintf('### selectCorrFeat comparison:\n');
+% fprintf(' Old:\n');
+% disp(num2str(use0));
+% disp(num2str(maxCo0,3));
+% fprintf(' New:\n');
+% disp(num2str(use));
+% disp(num2str(maxCo,3));
   
 if any(use(:)==0)
   assert(false,'AL maybe unnecessary for us');
