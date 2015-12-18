@@ -1055,7 +1055,7 @@ classdef Labeler < handle
     function labelMakeLabelMovie(obj,fname,varargin)
       % Make a movie of all labeled frames for current movie
       %
-      % fname: filename
+      % fname: output filename, movie to be created.
       % optional pvs:
       % - framerate. defaults to 10.
       
@@ -1063,6 +1063,10 @@ classdef Labeler < handle
       
       if ~obj.hasMovie
         error('Labeler:noMovie','No movie currently open.');
+      end
+      if exist(fname,'file')>0
+        error('Labeler:movie','Output movie ''%s'' already exists. For safety reasons, this movie will not be overwritten. Please specify a new output moviename.',...
+          fname);
       end
       
       nTgts = obj.labelPosLabeledFramesStats();
