@@ -47,6 +47,7 @@ classdef Labeler < handle
     maxv = inf;
     movieFrameStepBig = 10;
     movieInfoAll = cell(0,1); % column cell-of-structs, same size as movieFilesAll
+    movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
   end
   properties (SetObservable)
     movieFilesAll = cell(0,1); % column cellstr, full paths to movies
@@ -313,7 +314,11 @@ classdef Labeler < handle
     end
     
     function addDepHandle(obj,h)
-      obj.depHandles{end+1,1} = h;      
+      % GC dead handles
+      tfValid = cellfun(@isvalid,obj.depHandles);
+      obj.depHandles = obj.depHandles(tfValid);
+
+      obj.depHandles{end+1,1} = h;
     end
     
     function delete(obj)
@@ -507,24 +512,48 @@ classdef Labeler < handle
       obj.labeledpostag{end+1,1} = [];
     end
     
-    function movieRm(obj,iMov)
+    function tfSucc = movieRm(obj,iMov)
+      % tfSucc: true if movie removed, false otherwise
+      
+      assert(isscalar(iMov));
       assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.');
       if iMov==obj.currMovie
         error('Labeler:movieRm','Cannot remove current movie.');
       end
-      if obj.labelposMovieHasLabels(iMov)
-        warning('Labeler:movieRm','Movie index ''%d'' has labels. Removing...',iMov);
+      
+      tfProceedRm = true;
+      if obj.labelposMovieHasLabels(iMov) && ~obj.movieDontAskRmMovieWithLabels
+        str = sprintf('Movie index %d has labels. Are you sure you want to remove?',iMov);
+        BTN_NO = 'No, cancel';
+        BTN_YES = 'Yes';
+        BTN_YES_DAA = 'Yes, don''t ask again';
+        btn = questdlg(str,'Movie has labels',BTN_NO,BTN_YES,BTN_YES_DAA,BTN_NO);
+        if isempty(btn)
+          btn = BTN_NO;
+        end
+        switch btn
+          case BTN_NO
+            tfProceedRm = false;
+          case BTN_YES
+            % none; proceed
+          case BTN_YES_DAA
+            obj.movieDontAskRmMovieWithLabels = true;
+        end
       end
       
-      obj.movieFilesAll(iMov,:) = [];
-      obj.movieFilesAllHaveLbls(iMov,:) = [];
-      obj.movieInfoAll(iMov,:) = [];
-      obj.trxFilesAll(iMov,:) = [];
-      obj.labeledpos(iMov,:) = [];
-      obj.labeledpostag(iMov,:) = [];      
-      if obj.currMovie>iMov
-        obj.movieSet(obj.currMovie-1);
+      if tfProceedRm
+        obj.movieFilesAll(iMov,:) = [];
+        obj.movieFilesAllHaveLbls(iMov,:) = [];
+        obj.movieInfoAll(iMov,:) = [];
+        obj.trxFilesAll(iMov,:) = [];
+        obj.labeledpos(iMov,:) = [];
+        obj.labeledpostag(iMov,:) = [];      
+        if obj.currMovie>iMov
+          obj.movieSet(obj.currMovie-1);
+        end
       end
+      
+      tfSucc = tfProceedRm;
     end
     
     function movieSet(obj,iMov)
