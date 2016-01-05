@@ -340,7 +340,7 @@ classdef Shape
             htmp.Color = [1 1 1];
           end
         end
-        text(1,1,num2str(iIm),'parent',hax(iPlt));
+        text(1,1,num2str(iIm),'parent',hax(iPlt),'color',[1 1 .2]);
       end
     end
     
@@ -349,15 +349,22 @@ classdef Shape
       % 
       % I: [N] cell vec of images
       % pT: [NxRTxDx(T+1)] shapes
-      %      % iTrl: index into I of trial to follow
-
+      % iTrl: index into I of trial to follow
+      % mdl: model
+      %
+      % 
       % optional pvs
       % fig - handle to figure to use
       % nr, nc - subplot size
+      % pGT: [NxD], GT labels; shown if supplied
+      % regs: Tx1 struct array of regressors (fields: regInfo, ftrPos). If
+      %   supplied, mini-iterations will be shown with selected features
       
       opts.fig = [];
       opts.nr = 4;
       opts.nc = 5;
+      opts.pGT = [];
+      opts.regs = [];
       opts = getPrmDfltStruct(varargin,opts);      
       if isempty(opts.fig)
         opts.fig = figure('windowstyle','docked');
@@ -365,6 +372,8 @@ classdef Shape
         figure(opts.fig);
         clf;
       end
+      tfGT = ~isempty(opts.pGT);
+      tfRegs = ~isempty(opts.regs);
       nplot = opts.nr*opts.nc;
       hax = createsubplots(opts.nr,opts.nc,.01);
 
@@ -373,6 +382,13 @@ classdef Shape
       RT = size(pT,2);
       assert(size(pT,3)==mdl.D);
       Tp1 = size(pT,4);
+      if tfGT
+        assert(size(opts.pGT,1)==N);
+        assert(size(opts.pGT,2)==mdl.D);
+      end
+      if tfRegs
+        assert(isstruct(opts.regs) && numel(opts.regs)==Tp1-1);
+      end
 
       % plot the image for iTrl; initialize hlines
       im = I{iTrl};
@@ -388,28 +404,77 @@ classdef Shape
         text(1,1,num2str(iRT),'parent',hax(iPlt));
         
         for iPt = 1:mdl.nfids
-          hlines{iPlt}(iPt) = plot(hax(iPlt),nan,nan,'wo',...
+          hlines{iPlt}(iPt) = plot(hax(iPlt),nan,nan,'ws',...
             'MarkerFaceColor',colors(iPt,:));
-        end
+          if tfGT
+            plot(hax(iPlt),opts.pGT(iTrl,iPt),opts.pGT(iTrl,iPt+mdl.nfids),'wo',...
+              'MarkerFaceColor',colors(iPt,:));
+          end
+        end        
       end
       
       % pick nplot replicates out of RT to follow
-      for t = 1:Tp1
-        for iPlt = 1:nplot
-          iRT = iPlot(iPlt);
-          for iPt = 1:mdl.nfids
-            set(hlines{iPlt}(iPt),...
-              'XData',pT(iTrl,iRT,iPt,t),'YData',pT(iTrl,iRT,iPt+mdl.nfids,t));
+      if ~tfRegs
+        for t = 1:Tp1
+          for iPlt = 1:nplot
+            iRT = iPlot(iPlt);
+            for iPt = 1:mdl.nfids
+              set(hlines{iPlt}(iPt),...
+                'XData',pT(iTrl,iRT,iPt,t),'YData',pT(iTrl,iRT,iPt+mdl.nfids,t));
+            end
+          end
+          input(sprintf('t= %d/%d',t,Tp1));
+        end
+      else % regs
+        nMini = arrayfun(@(x)numel(x.regInfo),opts.regs);
+        assert(all(nMini==nMini(1)));
+        for t = 2:Tp1
+          for iMini = 1:nMini
+            if exist('hMiniFtrs','var')>0
+              deleteValidHandles(hMiniFtrs);
+            end 
+            hMiniFtrs = [];
+            for iPlt = 1:nplot
+              iRT = iPlot(iPlt);
+              if iMini==1
+                for iPt = 1:mdl.nfids 
+                  set(hlines{iPlt}(iPt),...
+                    'XData',pT(iTrl,iRT,iPt,t),'YData',pT(iTrl,iRT,iPt+mdl.nfids,t));
+                end
+              end
+              
+              reg = opts.regs(t-1); % when t==2, we are plotting result of first iteraton, which used first regressor
+              
+              p = reshape(pT(iTrl,iRT,:,t),1,mdl.D); % absolute shape for trl/rep/it
+              [xF,yF,infoF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end));
+              assert(isrow(xF));
+              assert(isrow(yF));
+              
+              fids = reg.regInfo{iMini}.fids;
+              nfids = size(fids,2);              
+              colors = jet(nfids);
+              for iFid = 1:nfids
+                fid1 = fids(1,iFid);
+                fid2 = fids(2,iFid);
+                hMiniFtrs(end+1) = plot(hax(iPlt),xF([fid1 fid2]),yF([fid1 fid2]),'-',...
+                  'Color',colors(iFid,:));
+%                 hMiniFtrs(end+1) = plot(hax(iPlt),xF(fid2),yF(fid2),'v',...
+%                   'markerfacecolor',colors(iFid,:),'MarkerSize',4);
+%                 hMiniFtrs(end+1) = plot(hax(iPlt),xF(fid2),yF(fid2),'v',...
+%                   'markerfacecolor',colors(iFid,:),'MarkerSize',4);
+              end              
+            end
+            fprintf(1,'fids:\n');
+            disp(fids);
+            input(sprintf('it %d.%03d\n',t,iMini));
           end
         end
-        
-        input(sprintf('t= %d/%d',t,Tp1));
       end
     end
-    
+      
     function vizRepsOverTimeTracks(I,pT,iTrl,mdl,varargin)
       % Visualize Replicates over time for a single Trial from a Trial set
-      % 
+      %
       % I: [N] cell vec of images
       % pT: [NxRTxDx(T+1)] shapes
       %      % iTrl: index into I of trial to follow
@@ -558,7 +623,7 @@ classdef Shape
           end
         end
         
-        text(lims(1),lims(3),sprintf('  iTrl%d Iter%d',iTrl,t),'FontSize',24,'HorizontalAlignment','left','VerticalAlignment','top');
+        text(lims(1),lims(3),sprintf('  iTrl%d Iter%d',iTrl,t),'FontSize',24,'HorizontalAlignment','left','VerticalAlignment','top','Color',[1 1 1]);
         tinput = input('Enter t (default to next iteration, char to end)');
         if ~isempty(tinput) 
           if isnumeric(tinput)

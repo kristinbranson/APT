@@ -1146,6 +1146,7 @@ pCur = nan(N,L,D); %repmat(reshape(pGt,[N,1,D]),[1,L,1]); % [NxLxD]
 for n = 1:N  
   pGtNCurr = Shape.randsamp(pGtN,n,L);
   if dorotate && d==2    
+    fprintf(1,'ShapeGT:initTr. dorotate=%d\n',dorotate);
     pGtNCurr = Shape.randrot(pGtNCurr,d);    
   end
   
@@ -1218,6 +1219,7 @@ elseif ismatrix(bboxes) % && (size(bboxes,2)==4 || size(bboxes,2)==6)
   for n = 1:N
     phisNCurr = Shape.randsamp(phisN,n,RT1);
     if dorotate && model.d==2
+      fprintf(1,'ShapeGT:initTest. dorotate=%d\n',dorotate);
       phisNCurr = Shape.randrot(phisNCurr,model.d);
     end
     assert(isequal(size(phisNCurr),[RT1 D]));
