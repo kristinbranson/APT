@@ -1,5 +1,147 @@
 classdef Features
   
+  %% preprocessing/channels
+  methods (Static)
+    
+    function [S,SGS,SLS] = pp(Is,sig1,sig2,varargin)
+      % Preprocess images for feature comp
+      %
+      % Is: [N] cell array of images
+      % sig1: [n1] vector of SDs for first blur. Include 0 to get no-blur.
+      % sig2: [n2] vector of SDs for second blur. Include 0 to get no-blur.
+      %
+      % optional PVs:
+      % - gaussFiltRadius. Radius of gaussian filter in units of SD,
+      %   defaults to 2.5. Applied to blurring by both sig1 and sig2.
+      % - laplaceKernel. Defaults to fspecial('laplacian',0).
+      %
+      % S: [Nxn1] cell array of smoothed images (using sig1)
+      % SGS: [Nxn1xn2] blur2(gradmag(blur1(S)))
+      % SLS: [Nxn1xn2] blur2(laplacian(blur1(S)))
+      
+      opts = struct();
+      opts.gaussFiltRadius = 2.5;
+      opts.laplaceKernel = fspecial('laplacian',0);
+      opts = getPrmDfltStruct(varargin,opts);
+      
+      assert(iscell(Is) && isvector(Is));
+      N = numel(Is);
+      validateattributes(sig1,{'numeric'},{'vector' 'real' 'nonnegative'});
+      validateattributes(sig2,{'numeric'},{'vector' 'real' 'nonnegative'});
+      n1 = numel(sig1);
+      n2 = numel(sig2);
+      validateattributes(opts.gaussFiltRadius,{'numeric'},{'scalar' 'real' 'positive'});
+      
+%       G = cell(N,1);
+%       L = cell(N,1);
+      S = cell(N,n1);
+%       GS = cell(N,n1);
+%       LS = cell(N,n1);
+      SGS = cell(N,n1,n2);
+      SLS = cell(N,n1,n2);
+      
+      for iTrl = 1:N
+        fprintf(1,'Working on iTrl=%d\n',iTrl);
+        im = Is{iTrl};
+%         G{iTrl} = gradientMag(im);
+%         L{iTrl} = filter2(opts.laplaceKernel,im,'same');
+        
+        for i1 = 1:n1
+          s1 = sig1(i1);
+          sIm = gaussSmooth(im,s1,'same',opts.gaussFiltRadius);
+          S{iTrl,i1} = sIm;
+          GsIm = gradientMag(single(sIm));
+          LsIm = filter2(opts.laplaceKernel,sIm,'same');
+          if true
+            if s1==0
+              % gaussian smoothing not performed; maybe should normalize by
+              % something but not sure what value
+              % warning('Features:laplace','Laplacian: not sure what to normalize by for sd=0 (no smoothing');
+
+              % Normalizing by 1.0 (or not normalizing) seems rightish
+            else
+              % scale-normalized laplacian
+              LsIm = s1.^2*LsIm;
+            end
+          end
+          
+          for i2 = 1:n2
+            s2 = sig2(i2);
+            SGS{iTrl,i1,i2} = gaussSmooth(GsIm,s2,'same',opts.gaussFiltRadius);
+            SLS{iTrl,i1,i2} = gaussSmooth(LsIm,s2,'same',opts.gaussFiltRadius);
+          end
+        end
+      end
+    end
+    
+    function [axS,axSGS,axSLS] = ppViz(S,SGS,SLS,sig1,sig2,iTrl)
+      % Visualize preprocessed images
+      %
+      % S/SGS/SLS/sig1/sig2: see Features.pp
+      % iTrl: scalar index into Is
+      %
+      % axS: [n1] axes for visualizing S
+      % axSGS: [n2xn1]  " SGS
+      % axSLS: [n2xn1] etc
+      
+      n1 = numel(sig1);
+      n2 = numel(sig2);
+      figure;
+      borders = [.05 0.01;.05 0.01];
+      axS = createsubplots(n1,1,borders);
+      figure;
+      axSGS = createsubplots(n1,n2,borders); 
+      figure;
+      axSLS = createsubplots(n1,n2,borders);
+      
+      [smax,smin] = lclImMaxMin(S);
+%       [sgsmax,sgsmin] = lclImMaxMin(SGS);
+%       [slsmax,slsmin] = lclImMaxMin(SLS);
+
+      for i1 = 1:n1
+        s1 = sig1(i1);
+        
+        imshow(S{iTrl,i1},'parent',axS(i1),'DisplayRange',[smin,smax]);
+        args1 = {sprintf('\\sigma_1=%.3g',s1),...
+          'interpreter','tex','fontsize',16,'fontweight','bold'};
+        ylabel(axS(i1),args1{:},'verticalalignment','top');
+        
+        for i2 = 1:n2
+          % i1 is ROW index, i2 is COL index
+          iAx = i1+(i2-1)*n1;
+          s2 = sig2(i2);
+          args2 = {sprintf('\\sigma_2=%.3g',s2),...
+            'interpreter','tex','fontsize',16,'fontweight','bold'};
+          
+          imshow(SGS{iTrl,i1,i2},'parent',axSGS(iAx));
+          imagesc(SLS{iTrl,i1,i2},'parent',axSLS(iAx));
+          axSLS(iAx).XTickLabel = [];
+          axSLS(iAx).YTickLabel = [];
+          
+          if i1==1 % ROW 1
+            title(axSGS(iAx),args2{:});
+            title(axSLS(iAx),args2{:});
+          end
+          if i2==1 % COL 1
+            ylabel(axSGS(iAx),args1{:});
+            ylabel(axSLS(iAx),args1{:});
+          end
+        end
+      end
+      
+      lp = linkprop(axS,'CLim');
+      axS(1).UserData = lp;
+      lp = linkprop(axSGS,'CLim');
+      axSGS(1).UserData = lp;
+      lp = linkprop(axSLS,'CLim');
+      axSLS(1).UserData = lp;
+      linkaxes([axS(:);axSGS(:);axSLS(:)]);
+    end
+    
+  end
+  
+  
+  %%
   methods (Static)
   
     function visualize(type,model,pGt,pCur,Is,imgIds,xF,yF,info,varargin)
@@ -295,4 +437,13 @@ classdef Features
     
   end
     
+end
+
+function [mx,mn] = lclImMaxMin(Is)
+% Is: cell array of images of same size
+
+Is = cat(1,Is{:});
+Is = Is(:);
+mx = max(Is);
+mn = min(Is);
 end

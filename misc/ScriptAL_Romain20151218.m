@@ -108,9 +108,9 @@ for i = 1:3
   save(TrainDataFile,'td','frms');
 end
 %% Visualize training set
-td = load('td_reg3_20160104.mat'); 
+td = load('td_reg2_20160104.mat'); 
 td = td.td;
-td.viz('fig',gcf,'nr',3,'nc',4,'labelpts',true);
+td.viz('fig',gcf,'nr',5,'nc',3,'labelpts',true);
   
 %% Create/save parameters
 tp = TrainParams;

@@ -328,7 +328,7 @@ classdef Shape
       for iPlt = 1:nplot
         iIm = iPlot(iPlt);
         im = I{iIm};
-        imagesc(im,'Parent',hax(iPlt),[0,255]);
+        imagesc(im,'Parent',hax(iPlt));
         axis(hax(iPlt),'image','off');
         hold(hax(iPlt),'on');
         colormap gray;
@@ -340,7 +340,8 @@ classdef Shape
             htmp.Color = [1 1 1];
           end
         end
-        text(1,1,num2str(iIm),'parent',hax(iPlt),'color',[1 1 .2]);
+        text(1,1,num2str(iIm),'parent',hax(iPlt),'color',[1 1 .2],...
+          'verticalalignment','top');
       end
     end
     
