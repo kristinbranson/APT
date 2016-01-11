@@ -13,9 +13,12 @@ classdef LabelCoreTemplate < LabelCore
   % Adjustment of a point in this way is identical in concept to
   % click-dragging.
   %
-  % To mark a point as Occluded, select it with a hotkey and click in the
-  % occluded box. To un-occlude, select it with a hotkey and click in the
-  % main image.
+  % To mark a point as FullyOccluded, select it with a hotkey and click in 
+  % the occluded box. To un-occlude, select it with a hotkey and click in 
+  % the main image.
+  %
+  % To toggle a point as EstimatedOccluded, right-click on the point, or
+  % use the 'o' hotkey.
   %
   %
   % IMPL NOTES
@@ -56,15 +59,16 @@ classdef LabelCoreTemplate < LabelCore
   % -- If no previously labeled frame for this target, current white points are aligned onto new target.
   % - New target (same frame), labeled
   % -- Previously accepted labels shown as colored points.
+  %
+  % tfAdjusted is mirrored by hPt colors;
+  % tfPtSel and tfEstOcc are mirrored by hPt Markers;
   
   properties
     iPtMove;     % scalar. Either nan, or index of pt being moved
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
-    tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
-    tfPtSel;     % nPts x 1 logical
     
-    templatePointColor = [1 1 1];  % 1 x 3 RGB
-    selectedPointMarker = 'x';
+    tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
+    tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
   end  
   
   methods
@@ -75,12 +79,10 @@ classdef LabelCoreTemplate < LabelCore
     
     function initHook(obj)
       obj.setRandomTemplate();
-      obj.tfAdjusted = false(obj.nPts,1);
-      obj.tfPtSel = false(obj.nPts,1);
       
-      ppi = obj.ptsPlotInfo;
-      obj.templatePointColor = ppi.TemplateMode.TemplatePointColor;
-      obj.selectedPointMarker = ppi.TemplateMode.SelectedPointMarker;
+      npts = obj.nPts;
+      obj.tfAdjusted = false(npts,1);
+      obj.tfPtSel = false(npts,1);
     end
     
   end
@@ -99,9 +101,9 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
-      [tflabeled,lpos] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
+      [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
       if tflabeled
-        obj.assignLabelCoords(lpos);
+        obj.assignLabelCoords(lpos,'lblTags',lpostag);
         obj.enterAccepted(false);
       else
         if iTgt0==iTgt1 % same target, new frame
@@ -164,6 +166,7 @@ classdef LabelCoreTemplate < LabelCore
           obj.tfOcc(iSel) = false;
           obj.refreshOccludedPts();
         end
+        % estOcc status unchanged
         switch obj.state
           case LabelState.ADJUST
             % none
@@ -173,17 +176,25 @@ classdef LabelCoreTemplate < LabelCore
       end     
     end
     
-    function ptBDF(obj,src,evt) %#ok<INUSD>
-      tf = obj.anyPointSelected();
-      if tf
-        % none
-      else
-        if obj.state==LabelState.ACCEPTED
-          obj.enterAdjust(false,false);
-        end
-        iPt = get(src,'UserData');
-        obj.iPtMove = iPt;
-        obj.tfMoved = false;
+    function ptBDF(obj,src,evt) 
+      switch evt.Button
+        case 1
+          tf = obj.anyPointSelected();
+          if tf
+            % none
+          else
+            % prepare for click-drag of pt
+            
+            if obj.state==LabelState.ACCEPTED
+              obj.enterAdjust(false,false);
+            end
+            iPt = get(src,'UserData');
+            obj.iPtMove = iPt;
+            obj.tfMoved = false;
+          end
+        case 3
+          iPt = get(src,'UserData');
+          obj.toggleEstOccPoint(iPt);
       end
     end
     
@@ -229,6 +240,11 @@ classdef LabelCoreTemplate < LabelCore
           obj.labeler.frameUp(tfCtrl);
         case {'a' 'hyphen'}
           obj.labeler.frameDown(tfCtrl);
+        case {'o'}
+          [tfSel,iSel] = obj.anyPointSelected();
+          if tfSel
+            obj.toggleEstOccPoint(iSel);
+          end
         case {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}
           [tfSel,iSel] = obj.anyPointSelected();
           if tfSel && ~obj.tfOcc(iSel)
@@ -303,7 +319,9 @@ classdef LabelCoreTemplate < LabelCore
         obj.setPointAdjusted(iSel);
         obj.toggleSelectPoint(iSel);
         obj.tfOcc(iSel) = true;
+        obj.tfEstOcc(iSel) = false;
         obj.refreshOccludedPts();
+        obj.refreshEstOccPts('iPts',iSel);
         switch obj.state
           case LabelState.ADJUST
             % none
@@ -318,12 +336,23 @@ classdef LabelCoreTemplate < LabelCore
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
         '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
         '* S or <space> accepts the labels for the current frame/target.'
+        '* (The letter) O toggles occluded-estimated status.'
         '* 0..9 selects/unselects a point. When a point is selected:'
         '*   LEFT/RIGHT/UP/DOWN adjusts the point.'
         '*   Shift-LEFT, etc adjusts the point by larger steps.' 
         '*   Clicking on the image moves the selected point to that location.'};
     end
     
+    function refreshEstOccPts(obj,varargin)
+      % React to an updated .tfEstOcc.
+      %
+      % optional PVs
+      % iPts. Defaults to 1:obj.nPts.
+      
+      iPts = myparse(varargin,'iPts',1:obj.nPts);
+      obj.refreshPtMarkers(iPts);
+    end
+        
   end
   
   methods % template
@@ -425,8 +454,9 @@ classdef LabelCoreTemplate < LabelCore
       % if tfClearLabeledPos, clear labeled pos.
       
       if tfResetPts
-        arrayfun(@(x)set(x,'Color',obj.templatePointColor),obj.hPts);
-        arrayfun(@(x)set(x,'Color',obj.templatePointColor),obj.hPtsOcc);
+        tpClr = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
+        arrayfun(@(x)set(x,'Color',tpClr),obj.hPts);
+        arrayfun(@(x)set(x,'Color',tpClr),obj.hPtsOcc);
         obj.tfAdjusted(:) = false;
       end
       if tfClearLabeledPos
@@ -443,7 +473,7 @@ classdef LabelCoreTemplate < LabelCore
         
     function enterAccepted(obj,tfSetLabelPos)
       % Enter accepted state for current frame/tgt. All points colored. If
-      % tfSetLabelPos, all points written to labelpos.
+      % tfSetLabelPos, all points/tags written to labelpos/labelpostag.
             
       nPts = obj.nPts;
       ptsH = obj.hPts;
@@ -459,6 +489,7 @@ classdef LabelCoreTemplate < LabelCore
       if tfSetLabelPos
         xy = obj.getLabelCoords();
         obj.labeler.labelPosSet(xy);
+        obj.setLabelPosTagFromEstOcc();
       end
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
         'Value',1,'Enable','on');
@@ -478,16 +509,41 @@ classdef LabelCoreTemplate < LabelCore
       tfSel = ~obj.tfPtSel(iPt);
       obj.tfPtSel(:) = false;
       obj.tfPtSel(iPt) = tfSel;
-      
+
+      obj.refreshPtMarkers(iPt);
+      % Also update hPtsOcc markers
       if tfSel
-        mrkr = obj.selectedPointMarker;
+        mrkr = obj.ptsPlotInfo.TemplateMode.SelectedPointMarker;
       else
         mrkr = obj.ptsPlotInfo.Marker;
       end
-      set(obj.hPts(iPt),'Marker',mrkr);
       set(obj.hPtsOcc(iPt),'Marker',mrkr);
     end
     
+    function toggleEstOccPoint(obj,iPt)
+      obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
+      obj.refreshEstOccPts('iPts',iPt);
+      if obj.state==LabelState.ACCEPTED
+        obj.enterAdjust(false,false);
+      end
+    end
+    
+    function refreshPtMarkers(obj,iPts)
+      % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
+      
+      ppi = obj.ptsPlotInfo;
+      ppitm = ppi.TemplateMode;
+
+      hPoints = obj.hPts(iPts);
+      tfSel = obj.tfPtSel(iPts);
+      tfEO = obj.tfEstOcc(iPts);
+      
+      set(hPoints(tfSel & tfEO),'Marker',ppitm.SelectedOccludedMarker); % historical quirk, use props instead of ppi; fix this at some pt
+      set(hPoints(tfSel & ~tfEO),'Marker',ppitm.SelectedPointMarker);
+      set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
+      set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
+    end
+      
     function [tf,iSelected] = anyPointSelected(obj)
       tf = any(obj.tfPtSel);
       iSelected = find(obj.tfPtSel,1);
@@ -503,7 +559,7 @@ classdef LabelCoreTemplate < LabelCore
         obj.toggleSelectPoint(i);
       end
     end
-        
+            
   end
   
 end

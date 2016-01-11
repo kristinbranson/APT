@@ -31,6 +31,7 @@ LabelPointsPlot:
   TemplateMode:
     TemplatePointColor: [1,1,1]
     SelectedPointMarker: 'x'
+    SelectedOccludedMarker: 's'
 
   SequenceMode:
 

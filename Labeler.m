@@ -18,7 +18,7 @@ classdef Labeler < handle
     LOADPROPS = {...
       'projname' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' 'labeledpostag' ...
-      'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
+      'labelMode' 'nLabelPoints' 'labelTemplate' ...
       'minv' 'maxv' ...
       'suspScore'};
     
@@ -115,7 +115,7 @@ classdef Labeler < handle
     nLabelPoints;         % scalar integer
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints        
     labelTemplate;    
-    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array
+    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
     labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
   end
   properties (SetObservable)
@@ -462,6 +462,12 @@ classdef Labeler < handle
           obj.(f) = [];
         end
       end
+      % labelPointsPlotInfo: special treatment. For old projects,
+      % obj.labelPointsPlotInfo can have new/removed fields relative to
+      % s.labelPointsPlotInfo. I guess by overlaying we are not removing
+      % obsolete fields...
+      obj.labelPointsPlotInfo = structoverlay(obj.labelPointsPlotInfo,...
+        s.labelPointsPlotInfo);
       obj.movieFilesAllHaveLbls = cellfun(@(x)any(~isnan(x(:))),obj.labeledpos);
       obj.isinit = false;
       
@@ -861,13 +867,22 @@ classdef Labeler < handle
       obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = [];
     end
     
-    function [tf,lpos] = labelPosIsLabeled(obj,iFrm,iTrx)
-      % for current movie. Labeled includes occluded
+    function [tf,lpos,lpostag] = labelPosIsLabeled(obj,iFrm,iTrx)
+      % For current movie. Labeled includes fullyOccluded
+      %
+      % tf: scalar logical
+      % lpos: [nptsx2] xy coords for iFrm/iTrx
+      % lpostag: [npts] cell array of tags 
       
-      lpos = obj.labeledpos{obj.currMovie}(:,:,iFrm,iTrx);
+      iMov = obj.currMovie;
+      lpos = obj.labeledpos{iMov}(:,:,iFrm,iTrx);
       tfnan = isnan(lpos);
       %assert(all(tfnan(:)) || ~any(tfnan(:)));
       tf = any(~tfnan(:));
+      
+      if nargout>=3
+        lpostag = obj.labeledpostag{iMov}(:,iFrm,iTrx);
+      end
     end 
     
     function tf = labelPosIsOccluded(obj,iFrm,iTrx)
@@ -945,7 +960,7 @@ classdef Labeler < handle
       
       obj.labeledposNeedsSave = true;
     end
-    
+        
     function labelPosTagSetI(obj,tag,iPt)
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
