@@ -32,9 +32,9 @@ Click the image to label. When NumLabelPoints points are clicked, adjust the poi
 ###### Template Mode
 The image will have NumLabelPoints white points overlaid; these are the template points. Click-drag to adjust, or select points with number keys and adjust with arrows or mouse-clicks. Points that have been adjusted are colored. See the Help> menu for hotkeys. Click Accept to save/lock your labels. Switch targets/frames and the template will follow.
 
-When working with more than 10 points, use backquote (`) to re-map the 0-9 hotkeys to larger-index points.
+Both "fully occluded" and "occluded estimate" points are supported. To set a point as an occluded estimate, use right-click, or use the 'o' hotkey when the point is selected. For fully occluded points, select the point and click in the box in the lower-left of the main image as usual.
 
-Both fully-occluded and occluded-with-estimated-location points are supported. To set a point as an "occluded estimate", use right-click, or use the 'o' hotkey when the point is selected.
+When working with more than 10 points, use backquote (`) to re-map the 0-9 hotkeys to larger-index points.
 
 ###### HighThroughput (HT) Mode
 In HT mode, you label the entire movie for point 1, then you label the entire movie for point 2, etc. Click the image to label a point. After clicking/labeling, the movie is automatically advanced NFrameSkip frames. When the end of the movie is reached, the labeling point is incremented, until all labeling for all NumLabelPoints is complete. You may manually change the current labeling point in the Setup>HighThroughput Mode menu.
