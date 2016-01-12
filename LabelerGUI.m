@@ -63,6 +63,7 @@ set(handles.txPrevIm,'String','');
 set(handles.edit_frame,'String','');
 set(handles.txStatus,'String','');
 set(handles.txUnsavedChanges,'Visible','off');
+set(handles.txLblCoreAux,'Visible','off');
 
 handles.output = hObject;
 

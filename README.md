@@ -49,7 +49,7 @@ Conceptually, a Project is just a list of movies (optionally with trx files), th
 ###### Occluded
 To label a point as "fully occluded", click in the box in the lower-left of the main image. Depending on the mode, you may be able to "unocclude" a point, or you can always push Clear.
 
-High-Throughput mode currently supports marking points as "occluded estimates" via right-click. These labels represent best guesses at an occluded landmark.
+High-Throughput and Template modes currently support marking points as "occluded estimates" via right-click or the 'o' hotkey. These labels represent best guesses at an occluded landmark.
 
 Fully occluded points appear as inf in the .labeledpos Labeler property; occluded-estimate points are tagged in .labelpostag.
 

@@ -69,7 +69,20 @@ classdef LabelCoreTemplate < LabelCore
     
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
     tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
+    
+    kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
+                 % the '1' hotkey maps to, eg typically this will take the 
+                 % values 1, 11, 21, ...
   end  
+  
+  methods 
+    
+    function set.kpfIPtFor1Key(obj,val)
+      obj.kpfIPtFor1Key = val;
+      obj.refreshTxLabelCoreAux();
+    end
+    
+  end
   
   methods
     
@@ -83,6 +96,10 @@ classdef LabelCoreTemplate < LabelCore
       npts = obj.nPts;
       obj.tfAdjusted = false(npts,1);
       obj.tfPtSel = false(npts,1);
+      
+      obj.txLblCoreAux.Visible = 'on';
+      obj.kpfIPtFor1Key = 1;
+      obj.refreshTxLabelCoreAux();
     end
     
   end
@@ -300,11 +317,18 @@ classdef LabelCoreTemplate < LabelCore
           elseif strcmp(key,'rightarrow')
             obj.labeler.frameUp(tfCtrl);
           end
+        case {'backquote'}
+          iPt = obj.kpfIPtFor1Key+10;
+          if iPt > obj.nPts
+            iPt = 1;
+          end
+          obj.kpfIPtFor1Key = iPt;
         case {'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}
           iPt = str2double(key);
           if iPt==0
             iPt = 10;
           end
+          iPt = iPt+obj.kpfIPtFor1Key-1;
           if iPt > obj.nPts
             return;
           end
@@ -338,9 +362,10 @@ classdef LabelCoreTemplate < LabelCore
         '* S or <space> accepts the labels for the current frame/target.'
         '* (The letter) O toggles occluded-estimated status.'
         '* 0..9 selects/unselects a point. When a point is selected:'
-        '*   LEFT/RIGHT/UP/DOWN adjusts the point.'
-        '*   Shift-LEFT, etc adjusts the point by larger steps.' 
-        '*   Clicking on the image moves the selected point to that location.'};
+        '* ` (backquote) increments the mapping of the 0-9 hotkeys.'
+        '* LEFT/RIGHT/UP/DOWN adjusts the point.'
+        '* Shift-LEFT, etc adjusts the point by larger steps.' 
+        '* Clicking on the image moves the selected point to that location.'};
     end
     
     function refreshEstOccPts(obj,varargin)
@@ -558,6 +583,13 @@ classdef LabelCoreTemplate < LabelCore
       for i = iSel(:)'
         obj.toggleSelectPoint(i);
       end
+    end
+    
+    function refreshTxLabelCoreAux(obj)
+      iPt0 = obj.kpfIPtFor1Key;
+      iPt1 = iPt0+9;
+      str = sprintf('Hotkeys 0-9 map to points %d-%d',iPt0,iPt1);
+      obj.txLblCoreAux.String = str;      
     end
             
   end

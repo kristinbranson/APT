@@ -26,8 +26,9 @@ classdef LabelCore < handle
     labeler;              % scalar Labeler obj
     hFig;                 % scalar figure
     hAx;                  % scalar axis
-    hAxOcc;
-    tbAccept;
+    hAxOcc;               % scalar handle, occluded-axis
+    tbAccept;             % scalar handle, togglebutton
+    txLblCoreAux;       % scalar handle, auxiliary text
     
     nPts;                 % scalar integer
     
@@ -70,6 +71,7 @@ classdef LabelCore < handle
       obj.hAx = gd.axes_curr;
       obj.hAxOcc = gd.axes_occ;
       obj.tbAccept = gd.tbAccept;
+      obj.txLblCoreAux = gd.txLblCoreAux;
     end
     
     function init(obj,nPts,ptsPlotInfo)
@@ -118,6 +120,8 @@ classdef LabelCore < handle
       
       obj.tfOcc = false(obj.nPts,1);
       obj.tfEstOcc = false(obj.nPts,1);
+      
+      obj.txLblCoreAux.Visible = 'off';
       
       obj.initHook();
     end
