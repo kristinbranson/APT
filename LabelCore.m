@@ -105,6 +105,7 @@ classdef LabelCore < handle
           'FontSize',ptsPlotInfo.FontSize,...
           'Hittest','off');
       end
+      axis(axOcc,[0 obj.nPts+1 0 2]);
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
