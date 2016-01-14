@@ -40,7 +40,11 @@ classdef Labeler < handle
     projectfile;          % Full path to current project 
   end
 
-  %% Movie
+  %% Movie/Video
+  % Originally "Movie" referred to high-level data units/elements, eg
+  % things added, removed, managed by the MovieManager etc; while "Video"
+  % referred to visual details, display, playback, etc. But I sort of
+  % forgot and mixed them up so that Movie sometimes applies to the latter.
   properties
     movieReader = []; % MovieReader object
     minv = 0;
@@ -1340,9 +1344,29 @@ classdef Labeler < handle
     function videoSetContrastFromAxesCurr(obj)
       % Get video contrast from axes_curr and record/set
       clim = get(obj.gdata.axes_curr,'CLim');
-      set(obj.gdata.axes_prev,'CLim',clim);
-      obj.minv = clim(1);
-      obj.maxv = clim(2);
+      if isempty(clim) 
+        % none; can occur when Labeler is closed
+      else
+        set(obj.gdata.axes_prev,'CLim',clim);
+        obj.minv = clim(1);
+        obj.maxv = clim(2);
+      end
+    end
+    
+    function videoApplyGammaGrayscale(obj,gamma)
+      % Applies gamma-corrected grayscale colormap
+      
+      validateattributes(gamma,{'numeric'},{'scalar' 'real' 'positive'});
+      
+      im = obj.gdata.image_curr;
+      if size(im.CData,3)~=1
+        error('Labeler:gamma','Gamma correction currently only supported for grayscale/intensity images.');
+      end
+      
+      m0 = gray(256);
+      m1 = imadjust(m0,[],[],gamma);
+      colormap(obj.gdata.axes_curr,m1);
+      colormap(obj.gdata.axes_prev,m1);
     end
     
     function videoFlipUD(obj)

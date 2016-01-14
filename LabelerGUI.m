@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 13-Jan-2016 20:36:04
+% Last Modified by GUIDE v2.5 14-Jan-2016 13:20:41
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -532,6 +532,13 @@ if lObj.hasMovie
   % frame-switch. Could also put this in Labeler.set.movieForceGrayscale.
   lObj.setFrame(lObj.currFrame,true);
 end
+function menu_view_gammacorrect_Callback(hObject, eventdata, handles)
+val = inputdlg('Gamma value:','Gamma correction');
+if isempty(val)
+  return;
+end
+val = str2double(val{1});
+handles.labelerObj.videoApplyGammaGrayscale(val);
 
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
