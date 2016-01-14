@@ -2,7 +2,7 @@ classdef MovieReader < handle
   % MovieReader
   % Like VideoReader; wraps get_readframe_fcn
   
-  properties
+  properties (SetAccess=private)
     filename = '';
     
     readFrameFcn = [];
@@ -12,6 +12,10 @@ classdef MovieReader < handle
     nc = nan;
     
     fid = nan;
+  end
+  
+  properties    
+    forceGrayscale = false; % if true, [MxNx3] images are run through rgb2gray
   end
   
   properties (Dependent)
@@ -53,6 +57,16 @@ classdef MovieReader < handle
     function varargout = readframe(obj,i)
       assert(obj.isOpen(),'Movie is not open.');
       [varargout{1:nargout}] = obj.readFrameFcn(i);
+      
+      if obj.forceGrayscale
+        if nargout==1
+          if size(varargout{1},3)==3 % doesn't have to be RGB but convert anyway
+            varargout{1} = rgb2gray(varargout{1});
+          end
+        else
+          warning('MovieReader:grayscale','Do not know how to convert to grayscale.');          
+        end
+      end
     end
     
     function close(obj)

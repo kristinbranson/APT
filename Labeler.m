@@ -13,13 +13,13 @@ classdef Labeler < handle
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' 'labeledpostag' ...      
       'currMovie' 'currFrame' 'currTarget' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
-      'minv' 'maxv'...
+      'minv' 'maxv' 'movieForceGrayscale'...
       'suspScore'};
     LOADPROPS = {...
       'projname' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' 'labeledpostag' ...
       'labelMode' 'nLabelPoints' 'labelTemplate' ...
-      'minv' 'maxv' ...
+      'minv' 'maxv' 'movieForceGrayscale' ...
       'suspScore'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
@@ -61,7 +61,8 @@ classdef Labeler < handle
         % updateFrameTable*(). 
     targetZoomFac;
     moviename; % short 'pretty' name, cosmetic purposes only
-    movieCenterOnTarget = false; % scalar logical. 
+    movieCenterOnTarget = false; % scalar logical.
+    movieForceGrayscale = false; % scalar logical
   end
   properties (Dependent)
     hasMovie;
@@ -263,6 +264,11 @@ classdef Labeler < handle
         obj.updateFrameTableIncremental(); % TODO use listener/event for this
       end
     end
+    function set.movieForceGrayscale(obj,v)
+      assert(isscalar(v) && islogical(v));
+      obj.movieReader.forceGrayscale = v; %#ok<MCSUP>
+      obj.movieForceGrayscale = v;
+    end
   end
   
   %% Ctor/Dtor
@@ -457,9 +463,8 @@ classdef Labeler < handle
         if isfield(s,f)
           obj.(f) = s.(f);          
         else
-          warningNoTrace('Labeler:load',...
-          'Missing load field ''%s''. Setting to empty.',f);
-          obj.(f) = [];
+          warningNoTrace('Labeler:load','Missing load field ''%s''.',f);
+          %obj.(f) = [];
         end
       end
       % labelPointsPlotInfo: special treatment. For old projects,
@@ -1454,8 +1459,12 @@ classdef Labeler < handle
   %% Navigation
   methods
   
-    function setFrame(obj,frm)
+    function setFrame(obj,frm,tfforcereadmovie)
       % Set movie frame, maintaining current movie/target.
+      
+      if nargin<3
+        tfforcereadmovie = false;
+      end
             
       if obj.hasTrx
         tfTargetLive = obj.frm2trx(frm,:);      
@@ -1479,7 +1488,7 @@ classdef Labeler < handle
       obj.prevIm = obj.currIm;
       set(obj.gdata.image_prev,'CData',obj.prevIm);
       
-      if obj.currFrame~=frm
+      if obj.currFrame~=frm || tfforcereadmovie
         obj.currIm = obj.movieReader.readframe(frm);
         obj.currFrame = frm;
       end            

@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 02-Nov-2015 16:41:24
+% Last Modified by GUIDE v2.5 13-Jan-2016 20:36:04
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -106,12 +106,19 @@ listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged
 listeners{end+1,1} = addlistener(lObj,'showTrxMode','PostSet',@cbkShowTrxModeChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
+listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 %listeners{end+1,1} = addlistener(lObj,'currSusp','PostSet',@cbkCurrSuspChanged);
 handles.listeners = listeners;
 
 % These Labeler properties need their callbacks fired to properly init UI.
 % Labeler will read .propsNeedInit from the GUIData to comply.
-handles.propsNeedInit = {'labelMode' 'suspScore' 'showTrxMode' 'tracker' 'movieCenterOnTarget'};
+handles.propsNeedInit = {
+  'labelMode' 
+  'suspScore' 
+  'showTrxMode' 
+  'tracker' 
+  'movieCenterOnTarget'
+  'movieForceGrayscale'};
 
 set(handles.output,'Toolbar','figure');
 
@@ -224,6 +231,11 @@ if ~isempty(mname)
   % persist and not movie status update. This depends on detailed ordering in 
   % Labeler.projLoad
 end
+
+function cbkMovieForceGrayscaleChanged(src,evt)
+lObj = evt.AffectedObject;
+tf = lObj.movieForceGrayscale;
+lObj.gdata.menu_view_converttograyscale.Checked = onIff(tf);
 
 function cbkSuspScoreChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -511,6 +523,15 @@ labelerObj.videoSetContrastFromAxesCurr();
 function menu_view_adjustbrightness_Callback(hObject, eventdata, handles)
 hConstrast = imcontrast_kb(handles.axes_curr);
 addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.labelerObj));
+function menu_view_converttograyscale_Callback(hObject, eventdata, handles)
+tf = ~strcmp(hObject.Checked,'on');
+lObj = handles.labelerObj;
+lObj.movieForceGrayscale = tf;
+if lObj.hasMovie
+  % Pure convenience: update image for user rather than wait for next 
+  % frame-switch. Could also put this in Labeler.set.movieForceGrayscale.
+  lObj.setFrame(lObj.currFrame,true);
+end
 
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
