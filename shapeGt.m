@@ -1184,17 +1184,23 @@ N1 = N;
 N = N*L;
 end
 
-function p = initTest(Is,bboxes,model,pStar,pGtN,RT1,dorotate)
+function p = initTest(Is,bboxes,model,pStar,pGtN,RT1,dorotate,varargin)
 %Randomly initialize testing shapes using training shapes (RT1 different)
 %
 % Is: currently unused
 % pStar: [?xD] currently unused (asserted false codepath)
 % pGtN: [NxD] GT images for Is, NORMALIZED coords
 % RT1: number of replicate shapes
+% Optional PVs:
+% - bboxJitterFac. Defaults to 16, see Shape.jitterBbox
 %
 % p: [NxDxRT1] initial shapes
 
 % ALOK
+
+dfs = {'bboxJitterFac',16};
+bboxJitterFac = getPrmDflt(varargin,dfs,1);
+bboxJitterFac = bboxJitterFac.bboxJitterFac; % getPrmDflt API 
 
 d = model.d;
 D = model.D;
@@ -1210,7 +1216,7 @@ end
 phisN = pGtN;
 if isempty(bboxes)
   assert(false,'AL don''t understand codepath.');
-  p = pStar(ones(N,1),:);
+%   p = pStar(ones(N,1),:);
  %One bbox provided per image
 elseif ismatrix(bboxes) % && (size(bboxes,2)==4 || size(bboxes,2)==6)
   p = zeros(N,D,RT1);
@@ -1226,7 +1232,7 @@ elseif ismatrix(bboxes) % && (size(bboxes,2)==4 || size(bboxes,2)==6)
     
     %Project into image
     assert(~strcmp(model.name,'mouse_paw3D'));
-    bbRT = Shape.jitterBbox(bboxes(n,:),RT1,d,16);
+    bbRT = Shape.jitterBbox(bboxes(n,:),RT1,d,bboxJitterFac);
     assert(isequal(size(bbRT),[RT1 2*d]));
     tmp = reprojectPose(model,phisNCurr,bbRT); % [RT1xD]
     p(n,:,:) = permute(tmp,[2 1]);

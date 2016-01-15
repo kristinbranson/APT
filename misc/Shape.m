@@ -35,7 +35,7 @@ classdef Shape
       % Randomly sample shapes
       %
       % p0 (in): [NxD] all shapes
-      % i: index of 'current' shape (1..L)
+      % i: index of 'current' shape (1..N)
       % L: number of shapes to return
       %
       % p1: [LxD] shapes randomly sampled from p0, *omitting* the nth
@@ -67,6 +67,9 @@ classdef Shape
       % L: number of replicates
       % d: dimension
       % uncertfac: scalar double
+      %
+      % bbJ: [Lx2d]
+      
       
       assert(isequal(size(bb),[1 2*d]));
       szs = bb(d+1:end);
@@ -447,7 +450,7 @@ classdef Shape
               reg = opts.regs(t-1); % when t==2, we are plotting result of first iteraton, which used first regressor
               
               p = reshape(pT(iTrl,iRT,:,t),1,mdl.D); % absolute shape for trl/rep/it
-              [xF,yF,infoF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end));
+              [xF,yF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end));
               assert(isrow(xF));
               assert(isrow(yF));
               
@@ -547,12 +550,13 @@ classdef Shape
       % I: [N] cell vec of images
       % pT: [NxRTxDx(T+1)] shapes
       %      % iTrl: index into I of trial to follow
-
+      %
       % optional pvs    
-      % fig - handle to figure to use
-      % t0 - starting iteration to show (defaults to 1)
-      % t1 - ending iteration to show (defaults to T+1)
-      % smoothsig - sigma for gaussian smoothing (defaults to 2)
+      %  fig - handle to figure to use
+      %  t0 - starting iteration to show (defaults to 1)
+      %  t1 - ending iteration to show (defaults to T+1)
+      %  smoothsig - sigma for gaussian smoothing (defaults to 2)
+      %  movie - if true, make a movie and return in first arg
       
       N = numel(I);
       assert(size(pT,1)==N);
@@ -565,6 +569,7 @@ classdef Shape
       opts.t0 = 1;
       opts.t1 = Tp1;
       opts.smoothsig = 2;
+      opts.movie = false;
       opts = getPrmDfltStruct(varargin,opts);      
       if isempty(opts.fig)
         opts.fig = figure('windowstyle','docked');
@@ -572,13 +577,17 @@ classdef Shape
         figure(opts.fig);
         clf;
       end
-
+      
+      if opts.movie
+        frmstack = struct('cdata',cell(0,1),'colormap',[]);
+      end
+      
       % plot the image for iTrl; initialize hlines
       ax = axes;
       im = I{iTrl};
       colors = jet(npts);
       t = opts.t0;
-      while isnumeric(t)
+      while isnumeric(t) && t<=opts.t1
         hold(ax,'off');
         imagesc(im,'Parent',ax,[0,255]);
         axis(ax,'image','off');
@@ -624,18 +633,32 @@ classdef Shape
           end
         end
         
-        text(lims(1),lims(3),sprintf('  iTrl%d Iter%d',iTrl,t),'FontSize',24,'HorizontalAlignment','left','VerticalAlignment','top','Color',[1 1 1]);
-        tinput = input('Enter t (default to next iteration, char to end)');
-        if ~isempty(tinput) 
-          if isnumeric(tinput)
-            t = tinput;
-          else
-            break;
-          end
-        else
+        text(lims(1),lims(3),sprintf('  iTrl%d Iter%d',iTrl,t),...
+          'FontSize',24,'HorizontalAlignment','left','VerticalAlignment','top','Color',[1 1 1]);
+        
+        if opts.movie
+          frmstack(end+1,1) = getframe;
           t = t+1;
+        else
+          tinput = input('Enter t (default to next iteration, char to end)');
+          if ~isempty(tinput) 
+            if isnumeric(tinput)
+              t = tinput;
+            else
+              break;
+            end
+          else
+            t = t+1;
+          end
         end
       end
+      
+      if opts.movie
+        vw = VideoWriter('vizRepsOverTimeDensity.avi');
+        vw.open();
+        vw.writeVideo(frmstack);
+        vw.close();
+      end        
     end
     
     function vizDiff(I,p0,p1,mdl,varargin)
@@ -694,6 +717,10 @@ classdef Shape
           plot(hax(iPlt),p1(iIm,j),p1(iIm,j+mdl.nfids),...
             'ws','MarkerFaceColor',colors(j,:));          
         end
+        
+        htmp = text(1,size(im,2),num2str(iIm),'Parent',hax(iPlt));
+        htmp.Color = [1 1 1];
+        htmp.VerticalAlignment = 'bottom';
       end
     end
       
