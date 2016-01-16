@@ -15,20 +15,22 @@ addpath(genpath(PIOTR));
 
 %%
 ROOTDIR = 'f:\cpr\data\jan';
-% MOVS = {
-%   '150828\150828_01_002_07_C001H001S0001.avi'
-%   '151112\151112_01_002_08_C001H001S0001.avi'
-%   '150723_2_002_4_C001H001S0001\150723_2_002_4_C001H001S0001.avi'};
-% LBLS = {
-%   '150828\150828_01_002_07_C001H001S0001_NEW.lbl'
-%   '151112\151112_01_002_08_C001H001S0001_new.lbl'
-%   '150723_2_002_4_C001H001S0001\150723_2_002_4_C001H001S0001.lbl'};
 MOVS = {
+  '150828\150828_01_002_07_C001H001S0001.avi'
+  '151112\151112_01_002_08_C001H001S0001.avi'
+  '150723_2_002_4_C001H001S0001\150723_2_002_4_C001H001S0001.avi'
   '150902\150902_02_001_07_C001H001S0001.avi'
+  '150730\150730_2_006_2_C001H001S0001.avi'
   };
 LBLS = {
+  '150828\150828_01_002_07_C001H001S0001_NEW.lbl'
+  '151112\151112_01_002_08_C001H001S0001_new.lbl'
+  '150723_2_002_4_C001H001S0001\150723_2_002_4_C001H001S0001.lbl'
   '150902\150902_02_001_07_C001H001S0001.lbl'
+  '150730\150730_2_006_2_C001H001S0001.lbl'
   };
+% MOVS = MOVS(5);
+% LBLS = LBLS(5);
 
 lblsFull = fullfile(ROOTDIR,LBLS);
 nLbls = numel(lblsFull);
@@ -48,7 +50,7 @@ winrad = 50;
 mr = MovieReader();
 IsTr = cell(0,1);
 pGT0 = [];
-lblExpFrmTag = nan(0,6); % cols: lblIdx, expIdx, iFrm, frm, ntag, ptsTagged (bitvec)
+sMD = struct('iLbl',cell(0,1),'lblFile',[],'iMov',[],'iFrm',[],'frm',[],'nTag',[],'tagPtsBinVec',[]);
 
 for iLbl = 1:nLbls
   lblName = lblsFull{iLbl};
@@ -87,13 +89,22 @@ for iLbl = 1:nLbls
       pGT0Tmp(iFrm,:) = Shape.xy2vec(lblsFrm);
 
       tagbinvec = sum(tftagged(:,f)'.*2.^(0:npts-1));
-      lblExpFrmTag(end+1,:) = [iLbl iMov iFrm f ntagged(f) tagbinvec];
+      sMD(end+1,1).iLbl = iLbl; %#ok<SAGROW>
+      sMD(end).lblFile = LBLS{iLbl};
+      sMD(end).iMov = iMov;
+      sMD(end).iFrm = iFrm;
+      sMD(end).frm = f;
+      sMD(end).nTag = ntagged(f);
+      sMD(end).tagPtsBinVec = tagbinvec;
     end
     
-    IsTr = [IsTr;IsTrTmp];
-    pGT0 = [pGT0;pGT0Tmp];    
+    IsTr = [IsTr;IsTrTmp]; 
+    pGT0 = [pGT0;pGT0Tmp]; 
   end
 end
+
+assert(isequal(numel(sMD),numel(IsTr),size(pGT0,1)));
+tMD = struct2table(sMD);
 
 %% create/save training data
 
@@ -115,7 +126,7 @@ pGT0 = pGT0(tfKeep,:);
 %%
 sz = cellfun(@(x)size(x'),IsTr,'uni',0);
 bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
-td = TrainData(IsTr,pGT0,cat(1,bb{:}));
+td = TrainData(IsTr,pGT0,cat(1,bb{:}),tMD);
 
 % partition data
 rng(7); % seed for determinism
@@ -147,9 +158,9 @@ fprintf('Saving training data to: %s\n',TrainDataFile);
 save(TrainDataFile,'td','lblExpFrmTag','lblExpFrmTagOrig');
 
 %% Visualize training set
-td = load('td_jan1740_20160113.mat'); 
+td = load('td_150730_20160115.mat'); 
 td = td.td;
-td.viz('fig',gcf,'nr',5,'nc',5,'labelpts',true);
+ax = td.viz('fig',gcf,'nr',5,'nc',5,'labelpts',true);
 
 %% Create/save parameters
 tp = TrainParams;
@@ -193,18 +204,24 @@ td0 = load('td_jan1740_20160113.mat');
 td0 = td0.td;
 td = load('td_150902_20160114.mat');
 td = td.td;
-td.iTst = randsample(td.N,50);
-tr = load('jan1740_reg_NOcorrect__7008_20160113T112950.mat');
-mdl = tr.regModel.model;
-%pGTTrainN = shapeGt('projectPose',mdl,td0.pGT,td0.bboxes);
-pGT = shapeGt('projectPose',mdl,td.pGTTst,td.bboxesTst);
-%pGTTrainNMean = nanmean(pGTTrainN,1);
+
+NTEST = 100;
+RT = 50;
 DOROTATE = false;
+BBOXJITTERFAC = 16;
+
+td.iTst = randsample(td.N,NTEST);
+tr = load('jan1740__reg_NOcorrect__7008__20160113T112950.mat');
+mdl = tr.regModel.model;
+iTd0 = randsample(td0.N,NTEST);
+iTd = randsample(td.N,NTEST);
+pTD0N_ini = shapeGt('projectPose',mdl,td0.pGT(iTd0,:),td0.bboxes(iTd0,:));
+%pGTTrainNMean = nanmean(pGTTrainN,1);
 %pRep = repmat(pGTTrainNMean,size(td.bboxesTst,1),1);
 %pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],pRep,50,DOROTATE);
-pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],pGT,50,DOROTATE);
-[~,~,~,~,pTstT] = test_rcpr([],td.bboxesTst,td.ITst,tr.regModel,tr.regPrm,tr.prunePrm,pIni);
-pTstT = reshape(pTstT,[50 50 14 101]);
+pIni = shapeGt('initTest',[],td.bboxes(iTd,:),mdl,[],pTD0N_ini,RT,DOROTATE);
+[~,~,~,~,pTstT] = test_rcpr([],td.bboxes(iTd,:),td.I(iTd,:),tr.regModel,tr.regPrm,tr.prunePrm,pIni);
+pTstT = reshape(pTstT,[NTEST RT 14 101]);
 
 %% TEST3: test effect of starting estimate on previous run
 td = load('td_jan1740_20160113.mat');
@@ -237,9 +254,19 @@ for t = 1:Tp1
 end
 
 %% Visualize loss over time
-[ds,dsAll] = shapeGt('dist',mdl,pTstTRed,td.pGTTst(1:NTEST,:));
-ds = squeeze(ds)';
+
+p0 = td.pGT(iTd,:);
+p1 = pTstTRed;
+assert(isequal(size(p1),[size(p0) 101]));
+  
+[dsfull,ds] = Shape.distP(p0,p1);
+ds = ds';
 dsmu = nanmean(ds,2);
+
+dsfull = permute(dsfull,[3 2 1]); % [101xnptxNTEST]
+dsfull = nanmean(dsfull,3); % [101xnpt] average over trials
+npts = size(dsfull,2);
+
 logds = log(ds);
 logdsmu = nanmean(logds,2);
 
@@ -263,14 +290,23 @@ ylabel(hax(2),'log(meandist) from pred to gt (px)',lblargs{:});
 xlabel(hax(2),'CPR iteration',lblargs{:});
 linkaxes(hax,'x');
 
+figure('WindowStyle','docked')
+plot(dsfull);
+nums = cellstr(num2str((1:npts)'));
+hLeg = legend(nums);
+ylabel('meandist from pred to gt (px)',lblargs{:});
+xlabel('CPR iteration',lblargs{:});
+title('loss broken out by landmark',lblargs{:});
+grid on
+
 %% Viz: overall
 figure(5);
-Shape.vizDiff(td.ITst(1:NTEST,:),td.pGTTst(1:NTEST,:),pTstTRed(:,:,end),tr.regModel.model,...
+Shape.vizDiff(td.I(iTd,:),td.pGT(iTd,:),pTstTRed(:,:,end),tr.regModel.model,...
   'fig',gcf,'nr',5,'nc',5);
 %%
 figure(6);
-iTrl = 99;
-Shape.vizRepsOverTimeDensity(td.ITst(1:NTEST,:),pTstT,iTrl,tr.regModel.model,...
+iTrl = 31;
+Shape.vizRepsOverTimeDensity(td.I(iTd,:),pTstT,iTrl,tr.regModel.model,...
   'fig',gcf,'smoothsig',20,'movie',true,'t1',40);
 
 %%
@@ -290,7 +326,46 @@ Shape.vizDiff(td.ITst,td.pGTTst,pTstTRed(:,:,end),tr.regModel.model,...
   'fig',gcf,'nr',5,'nc',5,'idxs',[idx 1 2]);
 
 
+%% movie montage to compare fly positions
+size(IsTr)
+size(lblExpFrmTag)
+expIdx = lblExpFrmTag(:,1); % one exp per lbl for now
+nExp = numel(unique(expIdx));
+mu = nan(256,256,nExp);
+sd = nan(256,256,nExp);
+n = nan(nExp,1);
+for iExp = 1:nExp
+  tfExp = expIdx==iExp;
+  IExp = double(cat(3,IsTr{tfExp}));
 
+  assert(size(IExp,3)==nnz(tfExp));
+  n(iExp) = nnz(tfExp);
+  mu(:,:,iExp) = sum(IExp,3)/n(iExp);
+  sd(:,:,iExp) = sum(IExp.^2,3)/n(iExp) - mu(:,:,iExp).^2;  
+end
+%%
+figure;
+ax1 = createsubplots(2,3);
+figure;
+ax2 = createsubplots(2,3);
+figure;
+ax3 = createsubplots(2,3);
+for iExp = 1:nExp
+  axes(ax1(iExp));
+  imagesc(mu(:,:,iExp));
+  axes(ax2(iExp));
+  imagesc(sd(:,:,iExp));
+  axes(ax3(iExp));
+  imagesc(sd(:,:,iExp)./mu(:,:,iExp));
+end
+ax1(1).UserData = linkprop(ax1,'CLim');
+ax2(1).UserData = linkprop(ax2,'CLim');
+ax3(1).UserData = linkprop(ax3,'CLim');
+hCB = colorbar(ax1(1),'West'); hCB.Color = [1 1 1];
+hCB = colorbar(ax2(1),'West'); hCB.Color = [1 1 1];
+hCB = colorbar(ax2(1),'West'); hCB.Color = [1 1 1];
+
+  
 
 
 

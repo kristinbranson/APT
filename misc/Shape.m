@@ -267,6 +267,29 @@ classdef Shape
       p1 = p0+pRIDel;
     end
     
+    function [d,dav] = distP(p0,p1)
+      % p0: [NxD]
+      % p1: [NxDxM]
+      %
+      % d: [NxnptxM] 2-norm distances for all trials/pts/itersOrReps
+      % dax: [NxM] distances averaged over pts
+      % Assumes d=2
+      
+      d = 2;
+      warning('Shape:distP','d assumed to be 2.');
+      
+      [N,D,RT] = size(p1);
+      npt = D/d;
+      assert(isequal([N,D],size(p0)));
+      
+      xy0 = reshape(p0,[N npt d]);
+      xy1 = reshape(p1,[N npt d RT]);
+      dxy = bsxfun(@minus,xy0,xy1);
+      d = sqrt(sum(dxy.^2,3)); % [Nxnptx1xRT]
+      d = squeeze(d); % [NxnptxRT]
+      
+      dav = squeeze(nanmean(d,2)); % [NxRT]      
+    end        
   end
   
   %% Visualization
@@ -286,7 +309,7 @@ classdef Shape
       Shape.viz(I,p,mdl,'idxs',idx,'nr',1,'nc',1,varargin{:});      
     end
        
-    function viz(I,p,mdl,varargin)
+    function hax = viz(I,p,mdl,varargin)
       % Visualize many Images+Shapes from a Trial set
       % 
       % I: [N] cell vec of images
