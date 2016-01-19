@@ -177,8 +177,8 @@ tp = load(paramsfile2);
 tp = tp.tp;
 
 %% Train on training set
-TRAINNOTE = '7008';
-TrainDataFile = 'f:\cpr\data\jan\td_jan1740_20160113.mat';
+TRAINNOTE = 'dfc5';
+TrainDataFile = 'f:\cpr\data\jan\td_5exps_halfhalf_20160115.mat';
 td = load(TrainDataFile);
 td = td.td;
 trName = sprintf('%s__%s__%s__%s',td.Name,tp.Name,TRAINNOTE,datestr(now,'yyyymmddTHHMMSS'));
@@ -193,11 +193,14 @@ td = load(TrainDataFile);
 td = td.td;
 tr = load(trainresfile);
 mdl = tr.regModel.model;
-pGTTstN = shapeGt('projectPose',mdl,td.pGTTst,td.bboxesTst);
+pGTTrnN = shapeGt('projectPose',mdl,td.pGTTrn,td.bboxesTrn);
+pGTTrnNMu = nanmean(pGTTrnN,1);
+
 DOROTATE = false;
-pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],pGTTstN,50,DOROTATE);
+pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],...
+  repmat(pGTTrnNMu,td.NTst,1),50,DOROTATE);
 [~,~,~,~,pTstT] = test_rcpr([],td.bboxesTst,td.ITst,tr.regModel,tr.regPrm,tr.prunePrm,pIni);
-pTstT = reshape(pTstT,[361 50 14 101]);
+pTstT = reshape(pTstT,[td.NTst 50 14 101]);
 
 %% TEST2: totally independent movie
 td0 = load('td_jan1740_20160113.mat');
@@ -255,7 +258,7 @@ end
 
 %% Visualize loss over time
 
-p0 = td.pGT(iTd,:);
+p0 = td.pGTTst;
 p1 = pTstTRed;
 assert(isequal(size(p1),[size(p0) 101]));
   
@@ -263,9 +266,9 @@ assert(isequal(size(p1),[size(p0) 101]));
 ds = ds';
 dsmu = nanmean(ds,2);
 
-dsfull = permute(dsfull,[3 2 1]); % [101xnptxNTEST]
-dsfull = nanmean(dsfull,3); % [101xnpt] average over trials
-npts = size(dsfull,2);
+dsfull2 = permute(dsfull,[3 2 1]); % [101xnptxNTEST]
+dsfull_trialv = nanmean(dsfull2,3); % [101xnpt] average over trials
+npts = size(dsfull_trialv,2);
 
 logds = log(ds);
 logdsmu = nanmean(logds,2);
@@ -290,8 +293,9 @@ ylabel(hax(2),'log(meandist) from pred to gt (px)',lblargs{:});
 xlabel(hax(2),'CPR iteration',lblargs{:});
 linkaxes(hax,'x');
 
+% loss broken out by landmark
 figure('WindowStyle','docked')
-plot(dsfull);
+plot(dsfull_trialv);
 nums = cellstr(num2str((1:npts)'));
 hLeg = legend(nums);
 ylabel('meandist from pred to gt (px)',lblargs{:});
@@ -299,15 +303,48 @@ xlabel('CPR iteration',lblargs{:});
 title('loss broken out by landmark',lblargs{:});
 grid on
 
+% loss broken out by landmark, exp
+figure('WindowStyle','docked')
+dsfullTp1 = dsfull(:,:,end); % final/end iteration
+X = dsfullTp1(:); % pt1-finaldist-over-alltrials, pt2-finaldist-over-alltrials, ...
+g1 = repmat(1:npts,td.NTst,1); % pt index
+g1 = g1(:);
+lblFileTst = td.MD.lblFile(td.iTst);
+g2 = repmat(lblFileTst(:),npts,1); % lblfile
+
+boxplot(X,{g2 g1},'plotstyle','compact',...
+  'colorgroup',g2,'factorseparator',1);
+xlabel('lblfile/pt',lblargs{:});
+ylabel('dist from pred to gt (px)',lblargs{:});
+title('loss broken out by landmark',lblargs{:});
+grid on;
+
+% plot(dsfull);
+% nums = cellstr(num2str((1:npts)'));
+% hLeg = legend(nums);
+% ylabel('meandist from pred to gt (px)',lblargs{:});
+% xlabel('CPR iteration',lblargs{:});
+% title('loss broken out by landmark',lblargs{:});
+% grid on
+
 %% Viz: overall
 figure(5);
-Shape.vizDiff(td.I(iTd,:),td.pGT(iTd,:),pTstTRed(:,:,end),tr.regModel.model,...
+Shape.vizDiff(td.ITst,td.pGTTst,pTstTRed(:,:,end),tr.regModel.model,...
   'fig',gcf,'nr',5,'nc',5);
+%% Viz: overall, breaking out by exp
+figure(5);
+
+Shape.vizDiff(td.ITst,td.pGTTst,pTstTRed(:,:,end),tr.regModel.model,...
+  'fig',gcf,'nr',5,'nc',5);
+
 %%
+iTrl = 1200;
 figure(6);
-iTrl = 31;
-Shape.vizRepsOverTimeDensity(td.I(iTd,:),pTstT,iTrl,tr.regModel.model,...
-  'fig',gcf,'smoothsig',20,'movie',true,'t1',40);
+Shape.vizDiff(td.ITst,td.pGTTst,pTstTRed(:,:,end),tr.regModel.model,...
+  'fig',gcf,'nr',1,'nc',1,'idxs',iTrl);
+figure(7);
+Shape.vizRepsOverTimeDensity(td.ITst,pTstT,iTrl,tr.regModel.model,...
+  'fig',gcf,'smoothsig',20,'movie',true,'t1',20);
 
 %%
 figure(4);

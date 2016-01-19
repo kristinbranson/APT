@@ -12,6 +12,8 @@ classdef TrainParams < handle
 
     ftr_type = '2lm';
     ftr_gen_radius = 1;
+    
+    cascade_depth = 50;
 
     ncrossvalsets = 1;
     naugment = 50;
