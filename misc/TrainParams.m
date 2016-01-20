@@ -33,7 +33,9 @@ classdef TrainParams < handle
   methods
     
     function pv = getPVs(obj)
+      warnst = warning('off','MATLAB:structOnObject');
       s = struct(obj);
+      warning(warnst);
       s = rmfield(s,'Name');
       fns = fieldnames(s);
       vals = struct2cell(s);
