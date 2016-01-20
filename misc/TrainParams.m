@@ -30,4 +30,17 @@ classdef TrainParams < handle
       'maxdensity_sigma',5);
   end
   
+  methods
+    
+    function pv = getPVs(obj)
+      s = struct(obj);
+      s = rmfield(s,'Name');
+      fns = fieldnames(s);
+      vals = struct2cell(s);
+      
+      X = [fns vals]';
+      pv = X(:);      
+    end
+    
+  end
 end
