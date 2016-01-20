@@ -281,7 +281,8 @@ if ncrossvalsets > 1,
       pStar,naugment,augment_pad,model,regPrm,ftrPrm,cascade_depth,augment_dorotate);
 
     if ~isempty(savefile),      
-      save(savefile,'regModel','regPrm','prunePrm','paramfile1','paramfile2','cvidx');
+      %save(savefile,'regModel','regPrm','prunePrm','paramfile1','paramfile2','cvidx');
+      save(savefile,'regModel','regPrm','prunePrm','cvidx');
     end
 
     if docomperr,
@@ -317,8 +318,8 @@ end
 
 if ~isempty(savefile),
   
-  save(savefile,'regModel','regPrm','prunePrm','phisPr','err','paramfile1','paramfile2','cvidx');
-  
+    save(savefile,'regModel','regPrm','prunePrm','phisPr','err','cvidx');
+
 end
 
 if isdeployed,
