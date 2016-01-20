@@ -321,12 +321,14 @@ classdef Shape
       % idxs - indices of images to plot; must have nr*nc els. if 
       %   unspecified, these are randomly selected.
       % labelpts - if true, number landmarks. default false
+      % md - optional, table of MD for I
       
       opts.fig = [];
       opts.nr = 4;
       opts.nc = 5;
       opts.idxs = [];      
       opts.labelpts = false;
+      opts.md = [];
       opts = getPrmDfltStruct(varargin,opts);
       if isempty(opts.fig)
         opts.fig = figure('windowstyle','docked');
@@ -334,11 +336,15 @@ classdef Shape
         figure(opts.fig);
         clf;
       end
+      tfMD = ~isempty(opts.md);
       hax = createsubplots(opts.nr,opts.nc,.01);
 
       N = numel(I);
       assert(isequal(size(p),[N mdl.D]));
-
+      if tfMD
+        assert(size(opts.md,1)==N);
+      end
+      
       naxes = opts.nr*opts.nc;
       if isempty(opts.idxs)
         nplot = naxes;
@@ -366,7 +372,13 @@ classdef Shape
             htmp.Color = [1 1 1];
           end
         end
-        text(1,1,num2str(iIm),'parent',hax(iPlt),'color',[1 1 .2],...
+        if tfMD
+          str = sprintf('%d iLbl%d f%d',iIm,opts.md.iLbl(iIm),...
+            opts.md.frm(iIm));
+        else
+          str = num2str(iIm);
+        end
+        text(1,1,str,'parent',hax(iPlt),'color',[1 1 .2],...
           'verticalalignment','top');
       end
     end
@@ -695,6 +707,7 @@ classdef Shape
       % idxs - indices of images to plot; must have nr*nc els. if 
       %   unspecified, these are randomly selected.
       % labelpts - if true, number landmarks. default false
+      % md - if specified, table of metadata for I
       
       % Very Similar to Shape.viz()
       
@@ -703,6 +716,7 @@ classdef Shape
       opts.nc = 5;
       opts.idxs = [];      
       opts.labelpts = false;
+      opts.md = [];
       opts = getPrmDfltStruct(varargin,opts);
       if isempty(opts.fig)
         opts.fig = figure('windowstyle','docked');
@@ -710,10 +724,14 @@ classdef Shape
         figure(opts.fig);
         clf;
       end
+      tfMD = ~isempty(opts.md);
       hax = createsubplots(opts.nr,opts.nc,.01);
 
       N = numel(I);
       assert(isequal(size(p0),size(p1),[N mdl.D]));
+      if tfMD
+        assert(size(opts.md,1)==N);
+      end
 
       naxes = opts.nr*opts.nc;
       if isempty(opts.idxs)
@@ -741,7 +759,13 @@ classdef Shape
             'ws','MarkerFaceColor',colors(j,:));          
         end
         
-        htmp = text(1,size(im,2),num2str(iIm),'Parent',hax(iPlt));
+        if tfMD
+          str = sprintf('%d iLbl%d f%d',iIm,opts.md.iLbl(iIm),...
+            opts.md.frm(iIm));
+        else
+          str = num2str(iIm);
+        end
+        htmp = text(1,size(im,2),str,'Parent',hax(iPlt));
         htmp.Color = [1 1 1];
         htmp.VerticalAlignment = 'bottom';
       end

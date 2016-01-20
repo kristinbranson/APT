@@ -7,8 +7,10 @@ classdef TrainData < handle
     pGT     % [NxD] GT shapes for I
     bboxes  % [Nx2d] bboxes for I 
     
+    H0      % [256x1] for histeq
+    
     iTrn    % [Ntrn] indices into I for training set
-    iTst    % [Ntst] indices into I for test set    
+    iTst    % [Ntst] indices into I for test set
   end
   properties (Dependent)
     N
@@ -93,13 +95,103 @@ classdef TrainData < handle
     
     function varargout = viz(obj,varargin)
       [varargout{1:nargout}] = Shape.viz(obj.I,obj.pGT,...
-        struct('nfids',obj.nfids,'D',obj.D),varargin{:});
+        struct('nfids',obj.nfids,'D',obj.D),'md',obj.MD,varargin{:});
     end
     
     function n = getFilename(obj)
       n = sprintf('td_%s_%s.mat',obj.Name,datestr(now,'yyyymmdd'));
     end
-            
+    
+  end
+  
+  methods % histeq
+  
+    function vizHist(obj,varargin)
+      smoothspan = myparse(varargin,'smoothspan',nan);
+      tfsmooth = ~isnan(smoothspan);
+      
+      H = nan(256,obj.N);
+      for i = 1:obj.N
+        H(:,i) = imhist(obj.I{i});
+      end
+      nLbl = numel(unique(obj.MD.iLbl));
+      muLbl = nan(256,nLbl);
+      sdLbl = nan(256,nLbl);
+      for iLbl = 1:nLbl
+        tf = obj.MD.iLbl==iLbl;
+        Hlbl = H(:,tf);
+        fprintf('Working on iLbl=%d, n=%d.\n',iLbl,nnz(tf));
+        muLbl(:,iLbl) = nanmean(Hlbl,2);
+        sdLbl(:,iLbl) = nanstd(Hlbl,[],2);
+      end
+      
+      if tfsmooth
+        for iLbl = 1:nLbl
+          muLbl(:,iLbl) = smooth(muLbl(:,iLbl),smoothspan);
+          sdLbl(:,iLbl) = smooth(sdLbl(:,iLbl),smoothspan);
+        end
+      end
+      
+      figure;
+      x = 1:256;
+      plot(x,muLbl,'linewidth',2);
+      legend(arrayfun(@num2str,1:nLbl,'uni',0));
+      hold on;
+      ax = gca;
+      ax.ColorOrderIndex = 1;
+      plot(x,muLbl-sdLbl);
+      ax.ColorOrderIndex = 1;
+      plot(x,muLbl+sdLbl);
+      
+      grid on;
+    end
+    
+    function H0 = histEq(obj,loadH0)
+      if exist('loadH0','var')==0
+        loadH0 = false;
+      end
+      
+      imSz = cellfun(@size,obj.I,'uni',0);
+      cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
+      imSz = imSz{1};
+      imNpx = numel(obj.I{1});
+        
+      if loadH0
+        assert(false,'dunno');
+%         [fileH0,folderH0]=uigetfile('.mat');
+%         load(fullfile(folderH0,fileH0));
+      else
+        H = nan(256,obj.N);
+        mu = nan(1,obj.N);
+        for iTrl = 1:obj.N
+          im = obj.I{iTrl};
+          H(:,iTrl) = imhist(im);
+          mu(iTrl) = mean(im(:));
+        end
+        % normalize to brighter movies, not to dimmer movies
+        idxuse = mu >= prctile(mu,75);
+        fprintf('using %d movies to form H0.\n',numel(idxuse));
+        H0 = median(H(:,idxuse),2);
+        H0 = H0/sum(H0)*imNpx(1);
+      end
+      obj.H0 = H0;
+
+      % normalize one video at a time
+      warning('TD:histeq','Currently assuming one movie per lbl.');
+      nLbl = numel(unique(obj.MD.iLbl));
+      for iLbl = 1:nLbl
+        tfLbl = obj.MD.iLbl==iLbl;
+        % iTrlLbl = idx(ld.expidx(idx)==iLbl);
+        if ~any(tfLbl)
+          continue;
+        end
+        bigim = cat(1,obj.I{tfLbl});
+        bigimnorm = histeq(bigim,H0);
+        obj.I(tfLbl) = mat2cell(bigimnorm,...
+          repmat(imSz(1),[nnz(tfLbl) 1]),imSz(2));
+      end
+    end
+      
   end
   
   methods % partitions
