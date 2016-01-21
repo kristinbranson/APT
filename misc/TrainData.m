@@ -28,6 +28,8 @@ classdef TrainData < handle
     pGTTst
     bboxesTrn
     bboxesTst
+    MDTrn
+    MDTst
   end
   methods 
     function v = get.N(obj)
@@ -72,6 +74,22 @@ classdef TrainData < handle
     end
     function v = get.bboxesTst(obj)
       v = obj.bboxes(obj.iTst,:);
+    end
+    function v = get.MDTrn(obj)
+      md = obj.MD;
+      if isempty(md)
+        v = [];
+      else          
+        v = md(obj.iTrn,:);
+      end
+    end
+    function v = get.MDTst(obj)
+      md = obj.MD;
+      if isempty(md)
+        v = [];
+      else
+        v = md(obj.iTst,:);
+      end
     end
   end
   methods

@@ -592,6 +592,7 @@ classdef Shape
       %  t1 - ending iteration to show (defaults to T+1)
       %  smoothsig - sigma for gaussian smoothing (defaults to 2)
       %  movie - if true, make a movie and return in first arg
+      %  moviename - string, used if 'movie' is true
       
       N = numel(I);
       assert(size(pT,1)==N);
@@ -605,6 +606,7 @@ classdef Shape
       opts.t1 = Tp1;
       opts.smoothsig = 2;
       opts.movie = false;
+      opts.moviename = '';
       opts = getPrmDfltStruct(varargin,opts);      
       if isempty(opts.fig)
         opts.fig = figure('windowstyle','docked');
@@ -689,7 +691,7 @@ classdef Shape
       end
       
       if opts.movie
-        vw = VideoWriter('vizRepsOverTimeDensity.avi');
+        vw = VideoWriter(opts.moviename);
         vw.open();
         vw.writeVideo(frmstack);
         vw.close();
@@ -770,7 +772,95 @@ classdef Shape
         htmp.VerticalAlignment = 'bottom';
       end
     end
-      
+    
+    function hFig = vizLossOverTime(p0,p1T,varargin)
+        % p0: [NxD]
+        % p1T: [NxDxTp1]
+        %
+        % hFig: figure handles
+        
+        opts.MD = [];
+        opts = getPrmDfltStruct(varargin,opts);
+        
+        Tp1 = size(p1T,3); 
+        assert(isequal(size(p1T),[size(p0) Tp1]));
+        N = size(p1T,1);
+        tfMD = ~isempty(opts.MD);
+        if tfMD
+            assert(size(opts.MD,1)==N);
+        end
+
+        hFig = [];
+        
+        [dsfull,ds] = Shape.distP(p0,p1T);
+        ds = ds';
+        dsmu = nanmean(ds,2);
+        
+        dsfull2 = permute(dsfull,[3 2 1]); % [101xnptxNTEST]
+        dsfull_trialv = nanmean(dsfull2,3); % [101xnpt] average over trials
+        npts = size(dsfull_trialv,2);
+        
+        logds = log(ds);
+        logdsmu = nanmean(logds,2);
+        
+        lblargs = {'interpreter','none','fontweight','bold'};
+        hFig(end+1) = figure('WindowStyle','docked');
+        hax = createsubplots(2,1,[.1 0;.1 .01],gcf);
+        x = 1:size(ds,1);
+        plot(hax(1),x,ds)
+        hold(hax(1),'on');
+        plot(hax(1),x,dsmu,'k','linewidth',2);
+        grid(hax(1),'on');
+        set(hax(1),'XTickLabel',[]);
+        ylabel(hax(1),'meandist from pred to gt (px)',lblargs{:});
+        tstr = sprintf('NTest=%d, numIter=%d, final mean ds = %.3f',N,Tp1,dsmu(end));
+        title(hax(1),tstr,lblargs{:});
+        plot(hax(2),x,logds);
+        hold(hax(2),'on');
+        plot(hax(2),x,logdsmu,'k','linewidth',2);
+        grid(hax(2),'on');
+        ylabel(hax(2),'log(meandist) from pred to gt (px)',lblargs{:});
+        xlabel(hax(2),'CPR iteration',lblargs{:});
+        linkaxes(hax,'x');
+        
+        % loss broken out by landmark
+        hFig(end+1) = figure('WindowStyle','docked');
+        plot(dsfull_trialv);
+        nums = cellstr(num2str((1:npts)'));
+        hLeg = legend(nums);
+        ylabel('meandist from pred to gt (px)',lblargs{:});
+        xlabel('CPR iteration',lblargs{:});
+        title('loss broken out by landmark',lblargs{:});
+        grid on
+        
+        % loss broken out by landmark, exp
+        if tfMD
+            hFig(end+1) = figure('WindowStyle','docked');
+            dsfullTp1 = dsfull(:,:,end); % final/end iteration
+            X = dsfullTp1(:); % pt1-finaldist-over-alltrials, pt2-finaldist-over-alltrials, ...
+            g1 = repmat(1:npts,N,1); % pt index
+            g1 = g1(:);
+            lblFileTst = opts.MD.lblFile;
+            g2 = repmat(lblFileTst(:),npts,1); % lblfile
+            
+            boxplot(X,{g2 g1},'plotstyle','compact',...
+                'colorgroup',g2,'factorseparator',1);
+            xlabel('lblfile/pt',lblargs{:});
+            ylabel('dist from pred to gt (px)',lblargs{:});
+            title('loss broken out by landmark',lblargs{:});
+            grid on;
+        end
+        
+        % plot(dsfull);
+        % nums = cellstr(num2str((1:npts)'));
+        % hLeg = legend(nums);
+        % ylabel('meandist from pred to gt (px)',lblargs{:});
+        % xlabel('CPR iteration',lblargs{:});
+        % title('loss broken out by landmark',lblargs{:});
+        % grid on
+        
+    end
+    
   end
   
 end
