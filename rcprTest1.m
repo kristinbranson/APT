@@ -182,6 +182,8 @@ good = 1:N; % indices of 'good' images; used only for pruning
 bad = []; % only for pruning
 p2 = []; % only for pruning
 for t = t0:T
+  fprintf(1,'cascadeLoop, %d/%d\n',t,T);
+  
   %Compute shape-indexed features
   ftrPos = regs(t).ftrPos;
   switch ftrPos.type

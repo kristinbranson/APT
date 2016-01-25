@@ -22,7 +22,7 @@ classdef CPR
       cd(cwd);
       
       piotrpath = genpath(piotrroot);
-      piotrpath = regexp(piotrpath,';','split');
+      piotrpath = regexp(piotrpath,pathsep,'split');
       piotrpath = piotrpath(:);     
       tfRm = cellfun(@(x)~isempty(regexp(x,'__MACOSX','once')) || isempty(x),piotrpath);
       piotrpath(tfRm,:) = [];
