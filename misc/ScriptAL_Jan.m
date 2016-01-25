@@ -47,64 +47,7 @@ winrad = 50;
 
 %% read in the training images
 
-mr = MovieReader();
-IsTr = cell(0,1);
-pGT0 = [];
-sMD = struct('iLbl',cell(0,1),'lblFile',[],'iMov',[],'iFrm',[],'frm',[],'nTag',[],'tagPtsBinVec',[]);
 
-for iLbl = 1:nLbls
-  lblName = lblsFull{iLbl};
-  lbl = load(lblName,'-mat');
-  nMov = numel(lbl.movieFilesAll);
-  fprintf('Lbl file: %s, %d movies.\n',lblName,nMov);
-  
-  for iMov = 1:nMov
-    movName = lbl.movieFilesAll{iMov};
-    mr.open(movName);
-    
-    lpos = lbl.labeledpos{iMov}; % npts x 2 x nframes
-    [npts,d,~] = size(lpos);
-    D = d*npts; % d*npts;
-    
-    frmsLbled = find(~isnan(lpos(1,1,:))); % labeled frames
-    nFrm = numel(frmsLbled);
-        
-    lpostag = lbl.labeledpostag{iMov};
-    assert(size(lpostag,2)==size(lpos,3));
-    tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
-    ntagged = sum(tftagged,1);
-    frmsTagged = find(ntagged);
-    assert(all(ismember(frmsTagged,frmsLbled)));    
-    
-    IsTrTmp = cell(nFrm,1); 
-    pGT0Tmp = nan(nFrm,D);
-    fprintf('  mov %d, D=%d, %d labeled frames, %d tagged frames\n',iMov,D,nFrm,numel(frmsTagged));
-    
-    for iFrm = 1:nFrm
-      f = frmsLbled(iFrm);      
-      im = mr.readframe(f);
-
-      IsTrTmp{iFrm} = im;
-      lblsFrm = lpos(:,:,f);
-      pGT0Tmp(iFrm,:) = Shape.xy2vec(lblsFrm);
-
-      tagbinvec = sum(tftagged(:,f)'.*2.^(0:npts-1));
-      sMD(end+1,1).iLbl = iLbl; %#ok<SAGROW>
-      sMD(end).lblFile = LBLS{iLbl};
-      sMD(end).iMov = iMov;
-      sMD(end).iFrm = iFrm;
-      sMD(end).frm = f;
-      sMD(end).nTag = ntagged(f);
-      sMD(end).tagPtsBinVec = tagbinvec;
-    end
-    
-    IsTr = [IsTr;IsTrTmp]; 
-    pGT0 = [pGT0;pGT0Tmp]; 
-  end
-end
-
-assert(isequal(numel(sMD),numel(IsTr),size(pGT0,1)));
-tMD = struct2table(sMD);
 
 %% create/save training data
 
@@ -124,8 +67,6 @@ IsTr = IsTr(tfKeep);
 pGT0 = pGT0(tfKeep,:);
 
 %%
-sz = cellfun(@(x)size(x'),IsTr,'uni',0);
-bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
 td = TrainData(IsTr,pGT0,cat(1,bb{:}),tMD);
 
 % partition data
@@ -156,6 +97,8 @@ outdir = 'f:\cpr\data\jan';
 TrainDataFile = fullfile(outdir,sprintf('td_%s_%s.mat',td.Name,datestr(now,'yyyymmdd')));
 fprintf('Saving training data to: %s\n',TrainDataFile);
 save(TrainDataFile,'td','lblExpFrmTag','lblExpFrmTagOrig');
+
+  
 
 %% Visualize training set
 td = load('td_150730_20160115.mat'); 

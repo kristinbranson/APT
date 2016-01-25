@@ -1,6 +1,6 @@
-classdef TrainData < handle
+classdef CPRData < handle
   properties    
-    Name    % Name of this TrainData
+    Name    % Name of this CPRData
     MD      % [NxR] Table of Metadata
     
     I       % [N] column cell vec, images
@@ -44,7 +44,7 @@ classdef TrainData < handle
     end
     function v = get.iUnused(obj)
       if ~isempty(intersect(obj.iTrn,obj.iTst))
-        warning('TrainData:partition','Overlapping iTrn/iTst.');
+        warning('CPRData:partition','Overlapping iTrn/iTst.');
       end
       iTrnTst = union(obj.iTrn,obj.iTst);
       v = setdiff(1:obj.N,iTrnTst);
@@ -74,20 +74,34 @@ classdef TrainData < handle
       v = obj.bboxes(obj.iTst,:);
     end
   end
-  methods
+  methods    
     
-    function obj = TrainData(Is,p,bb,md)
+    function obj = CPRData(varargin)
+      % obj = CPRData(Is,p,bb,md)
+      % obj = CPRData(lblFiles,tfAllFrames)
+      
+      switch nargin
+        case 2
+          lblFiles = varargin{1};
+          tfAllFrames = varargin{2};
+          [Is,p,bb,md] = CPRData.readLblFiles(lblFiles,'tfAllFrames',tfAllFrames);
+        case 3
+          [Is,p,bb] = deal(varargin{:});
+        case 4
+          [Is,p,bb,md] = deal(varargin{:});
+        otherwise
+          assert(false,'Invalid constructor args.');
+      end
+      
       assert(iscolumn(Is) && iscell(Is));
       N = numel(Is);
       assert(size(p,1)==N);
-      assert(size(bb,1)==N);
-      
+      assert(size(bb,1)==N);      
       if exist('md','var')==0
         md = cell2table(cell(N,0));
       end
 
-      obj.MD = md;
-      
+      obj.MD = md;      
       obj.I = Is;
       obj.pGT = p;
       obj.bboxes = bb;
@@ -102,6 +116,102 @@ classdef TrainData < handle
       n = sprintf('td_%s_%s.mat',obj.Name,datestr(now,'yyyymmdd'));
     end
     
+  end
+  
+  methods (Static)
+    
+    function [I,p,bb,md] = readLblFiles(lblFiles,varargin)
+      % lblFiles: [N] cellstr
+      % Optional PVs:
+      %  - tfAllFrames. scalar logical, defaults to false. If true, read in
+      %  unlabeled as well as labeled frames.
+      % 
+      % I: [Nx1] cell array of images (frames)
+      % p: [NxD] positions
+      % bb: [Nx2d] bboxes
+      % md: [Nxm] metadata table
+
+      assert(iscellstr(lblFiles));
+      nLbls = numel(lblFiles);
+
+      tfAllFrames = myparse(varargin,'tfAllFrames',false);
+
+      mr = MovieReader();
+      I = cell(0,1);
+      p = [];
+      sMD = struct('iLbl',cell(0,1),'lblFile',[],'iMov',[],...
+        'iFrm',[],'frm',[],'nTag',[],'tagPtsBinVec',[]);
+      
+      for iLbl = 1:nLbls
+        lblName = lblFiles{iLbl};
+        lbl = load(lblName,'-mat');
+        nMov = numel(lbl.movieFilesAll);
+        fprintf('Lbl file: %s, %d movies.\n',lblName,nMov);
+        
+        for iMov = 1:nMov
+          movName = lbl.movieFilesAll{iMov};
+          mr.open(movName);
+          
+          lpos = lbl.labeledpos{iMov}; % npts x 2 x nframes
+          lpostag = lbl.labeledpostag{iMov};
+          assert(size(lpostag,2)==size(lpos,3));
+          [npts,d,nFrmAll] = size(lpos);
+          D = d*npts; % d*npts;
+
+          % find labeled/tagged frames
+          frmsLbled = find(~isnan(lpos(1,1,:))); % labeled frames
+          tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
+          ntagged = sum(tftagged,1);
+          frmsTagged = find(ntagged);
+          assert(all(ismember(frmsTagged,frmsLbled)));
+          nFrmsLbled = numel(frmsLbled);
+          nFrmsTagged = numel(frmsTagged);
+          
+          if tfAllFrames
+            nFrmRead = nFrmAll; % number of frames to read for this iLbl/iMov
+            frms2Read = 1:nFrmRead;
+          else          
+            nFrmRead = nFrmsLbled;
+            frms2Read = frmsLbled;
+          end
+          ITmp = cell(nFrmRead,1);
+          pTmp = nan(nFrmRead,D);
+          fprintf('  mov %d, D=%d, reading %d frames (%d labeled frames, %d tagged frames)\n',...
+            iMov,D,nFrmRead,nFrmsLbled,nFrmsTagged);
+          
+          for iFrm = 1:nFrmRead
+            f = frms2Read(iFrm);
+            im = mr.readframe(f);
+            
+            fprintf('iLbl=%d, iMov=%d, read frame %d (%d/%d)\n',...
+              iLbl,iMov,f,iFrm,nFrmRead);
+            
+            ITmp{iFrm} = im;
+            lblsFrmXY = lpos(:,:,f);
+            pTmp(iFrm,:) = Shape.xy2vec(lblsFrmXY);
+            
+            tagbinvec = sum(tftagged(:,f)'.*2.^(0:npts-1));
+            sMD(end+1,1).iLbl = iLbl; %#ok<AGROW>
+            sMD(end).lblFile = lblName;
+            sMD(end).iMov = iMov;
+            sMD(end).iFrm = iFrm;
+            sMD(end).frm = f;
+            sMD(end).nTag = ntagged(f);
+            sMD(end).tagPtsBinVec = tagbinvec;
+          end
+          
+          I = [I;ITmp]; %#ok<AGROW>
+          p = [p;pTmp]; %#ok<AGROW>
+        end
+      end
+      
+      sz = cellfun(@(x)size(x'),I,'uni',0);
+      bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
+
+      assert(isequal(numel(sMD),numel(I),size(p,1),size(bb,1)));
+      md = struct2table(sMD);
+    end
+
   end
   
   methods % histeq
