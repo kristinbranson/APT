@@ -1,8 +1,8 @@
 %% Path
-RCPR = 'c:\data.not.os\bitbucket\rcpr.kb';
-LBLER = 'c:\data.not.os\bitbucket\apt';
-JCTRAX = 'c:\data.not.os\bitbucket\jctrax';
-PIOTR = 'c:\data.not.os\bitbucket\piotr_toolbox';
+RCPR = '/groups/flyprojects/home/leea30/git/cpr';
+LBLER = '/groups/flyprojects/home/leea30/git/apt';
+JCTRAX = '/groups/flyprojects/home/leea30/git/jctrax';
+PIOTR = '/groups/flyprojects/home/leea30/git/piotr_toolbox';
 
 addpath(RCPR);
 addpath(LBLER);
@@ -200,75 +200,6 @@ for t = 1:Tp1
 end
 
 %% Visualize loss over time
-
-p0 = td.pGTTst;
-p1 = pTstTRed;
-assert(isequal(size(p1),[size(p0) 101]));
-  
-[dsfull,ds] = Shape.distP(p0,p1);
-ds = ds';
-dsmu = nanmean(ds,2);
-
-dsfull2 = permute(dsfull,[3 2 1]); % [101xnptxNTEST]
-dsfull_trialv = nanmean(dsfull2,3); % [101xnpt] average over trials
-npts = size(dsfull_trialv,2);
-
-logds = log(ds);
-logdsmu = nanmean(logds,2);
-
-lblargs = {'interpreter','none','fontweight','bold'};
-figure('WindowStyle','docked');
-hax = createsubplots(2,1,[.1 0;.1 .01],gcf);
-x = 1:size(ds,1);
-plot(hax(1),x,ds)
-hold(hax(1),'on');
-plot(hax(1),x,dsmu,'k','linewidth',2);
-grid(hax(1),'on');
-set(hax(1),'XTickLabel',[]);
-ylabel(hax(1),'meandist from pred to gt (px)',lblargs{:});
-tstr = sprintf('NTest=%d, numIter=%d, final mean ds = %.3f',N,Tp1,dsmu(end));
-title(hax(1),tstr,lblargs{:});
-plot(hax(2),x,logds);
-hold(hax(2),'on');
-plot(hax(2),x,logdsmu,'k','linewidth',2);
-grid(hax(2),'on');
-ylabel(hax(2),'log(meandist) from pred to gt (px)',lblargs{:});
-xlabel(hax(2),'CPR iteration',lblargs{:});
-linkaxes(hax,'x');
-
-% loss broken out by landmark
-figure('WindowStyle','docked')
-plot(dsfull_trialv);
-nums = cellstr(num2str((1:npts)'));
-hLeg = legend(nums);
-ylabel('meandist from pred to gt (px)',lblargs{:});
-xlabel('CPR iteration',lblargs{:});
-title('loss broken out by landmark',lblargs{:});
-grid on
-
-% loss broken out by landmark, exp
-figure('WindowStyle','docked')
-dsfullTp1 = dsfull(:,:,end); % final/end iteration
-X = dsfullTp1(:); % pt1-finaldist-over-alltrials, pt2-finaldist-over-alltrials, ...
-g1 = repmat(1:npts,td.NTst,1); % pt index
-g1 = g1(:);
-lblFileTst = td.MD.lblFile(td.iTst);
-g2 = repmat(lblFileTst(:),npts,1); % lblfile
-
-boxplot(X,{g2 g1},'plotstyle','compact',...
-  'colorgroup',g2,'factorseparator',1);
-xlabel('lblfile/pt',lblargs{:});
-ylabel('dist from pred to gt (px)',lblargs{:});
-title('loss broken out by landmark',lblargs{:});
-grid on;
-
-% plot(dsfull);
-% nums = cellstr(num2str((1:npts)'));
-% hLeg = legend(nums);
-% ylabel('meandist from pred to gt (px)',lblargs{:});
-% xlabel('CPR iteration',lblargs{:});
-% title('loss broken out by landmark',lblargs{:});
-% grid on
 
 %% Viz: overall
 figure(5);
