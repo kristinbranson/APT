@@ -777,17 +777,20 @@ classdef Shape
         % p0: [NxD]
         % p1T: [NxDxTp1]
         %
+        % Optional PVs:
+        % 'md'
+        %
         % hFig: figure handles
         
-        opts.MD = [];
+        opts.md = [];
         opts = getPrmDfltStruct(varargin,opts);
         
         Tp1 = size(p1T,3); 
         assert(isequal(size(p1T),[size(p0) Tp1]));
         N = size(p1T,1);
-        tfMD = ~isempty(opts.MD);
+        tfMD = ~isempty(opts.md);
         if tfMD
-            assert(size(opts.MD,1)==N);
+            assert(size(opts.md,1)==N);
         end
 
         hFig = [];
@@ -840,7 +843,7 @@ classdef Shape
             X = dsfullTp1(:); % pt1-finaldist-over-alltrials, pt2-finaldist-over-alltrials, ...
             g1 = repmat(1:npts,N,1); % pt index
             g1 = g1(:);
-            lblFileTst = opts.MD.lblFile;
+            lblFileTst = opts.md.lblFile;
             g2 = repmat(lblFileTst(:),npts,1); % lblfile
             
             boxplot(X,{g2 g1},'plotstyle','compact',...
