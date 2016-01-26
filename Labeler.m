@@ -960,6 +960,20 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
+    function labelPosBulkImport(obj,xy)
+      % Set ALL labels for current movie/target
+      %
+      % xy: [nptx2xnfrm]
+      
+      iMov = obj.currMovie;      
+      lposOld = obj.labeledpos{iMov};      
+      assert(isequal(size(xy),size(lposOld)));      
+      obj.labeledpos{iMov} = xy;
+      
+      obj.updateFrameTableComplete();
+      obj.labeledposNeedsSave = true;      
+    end
+    
     function labelPosSetOccludedI(obj,iPt)
       % Occluded is "pure occluded" here
       iMov = obj.currMovie;
