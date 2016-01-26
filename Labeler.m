@@ -577,6 +577,21 @@ classdef Labeler < handle
       % 1. Set the movie
       
       movfile = obj.movieFilesAll{iMov};
+      
+      if exist(movfile,'file')==0
+        warning('Labeler:mov','Cannot find movie ''%s''. Please browse to movie location.',movfile);
+        lastmov = RC.getprop('lbl_lastmovie');
+        if isempty(lastmov)
+          lastmov = pwd;
+        end
+        [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
+        if isequal(newmovfile,0)
+          error('Labeler:mov','Cannot find movie ''%s''.',movfile);
+        end
+        movfile = fullfile(newmovpath,newmovfile);
+        obj.movieFilesAll{iMov} = movfile;
+      end        
+      
       obj.movieReader.open(movfile);
       RC.saveprop('lbl_lastmovie',movfile);
       [path0,movname] = myfileparts(obj.moviefile);
