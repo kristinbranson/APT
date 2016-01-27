@@ -17,6 +17,9 @@ classdef CPRData < handle
     d
     D
     nfids
+    
+    isLabeled % [Nx1] logical, whether trial N has labels    
+    isFullyLabeled % [Nx1] logical
 
     iUnused % trial indices (1..N) that are in neither iTrn or iTst
     
@@ -43,6 +46,23 @@ classdef CPRData < handle
     end
     function v = get.nfids(obj)
       v = obj.D/obj.d;
+    end
+    function v = get.isLabeled(obj)
+      p = obj.pGT;
+      tmp = ~isnan(p);
+      tfAllPtsLbled = all(tmp,2); 
+      tfAnyPtsLbled = any(tmp,2);
+      
+      tfPartialLbl = tfAnyPtsLbled & ~tfAllPtsLbled;
+      if any(tfPartialLbl)
+        n = nnz(tfPartialLbl);
+        fprintf(2,'%d trials are partially labeled.\n',n);
+      end
+      
+      v = tfAnyPtsLbled;
+    end
+    function v = get.isFullyLabeled(obj)
+      v = all(~isnan(obj.pGT),2); 
     end
     function v = get.iUnused(obj)
       if ~isempty(intersect(obj.iTrn,obj.iTst))

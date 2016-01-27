@@ -796,6 +796,10 @@ classdef Shape
         if tfMD
             assert(size(opts.md,1)==N);
         end
+        
+        % figure out unlabeled pts
+        tfUnlbledP0 = any(~isnan(p0),2);
+        NlbledP0 = nnz(tfUnlbledP0);
 
         hFig = [];
         
@@ -816,15 +820,16 @@ classdef Shape
         x = 1:size(ds,1);
         plot(hax(1),x,ds)
         hold(hax(1),'on');
-        plot(hax(1),x,dsmu,'k','linewidth',2);
+        plot(hax(1),x,dsmu,'k','linewidth',5);
         grid(hax(1),'on');
         set(hax(1),'XTickLabel',[]);
         ylabel(hax(1),'meandist from pred to gt (px)',lblargs{:});
-        tstr = sprintf('NTest=%d, numIter=%d, final mean ds = %.3f',N,Tp1,dsmu(end));
+        tstr = sprintf('NLbledP0=%d (N=%d), numIter=%d, final mean ds = %.3f',...
+          NlbledP0,N,Tp1,dsmu(end));
         title(hax(1),tstr,lblargs{:});
         plot(hax(2),x,logds);
         hold(hax(2),'on');
-        plot(hax(2),x,logdsmu,'k','linewidth',2);
+        plot(hax(2),x,logdsmu,'k','linewidth',5);
         grid(hax(2),'on');
         ylabel(hax(2),'log(meandist) from pred to gt (px)',lblargs{:});
         xlabel(hax(2),'CPR iteration',lblargs{:});
@@ -832,7 +837,7 @@ classdef Shape
         
         % loss broken out by landmark
         hFig(end+1) = figure('WindowStyle','docked');
-        plot(dsfull_trialv);
+        plot(dsfull_trialv,'LineWidth',3);
         nums = cellstr(num2str((1:npts)'));
         hLeg = legend(nums);
         ylabel('meandist from pred to gt (px)',lblargs{:});
@@ -848,9 +853,19 @@ classdef Shape
             g1 = repmat(1:npts,N,1); % pt index
             g1 = g1(:);
             lblFileTst = opts.md.lblFile;
-            g2 = repmat(lblFileTst(:),npts,1); % lblfile
+            lblFileBase = cell(size(lblFileTst));
+            for i = 1:numel(lblFileTst)
+              tmp1 = regexp(lblFileTst{i},'/','split');
+              tmp2 = regexp(lblFileTst{i},'\','split');
+              if numel(tmp1)>numel(tmp2)
+                lblFileBase{i} = tmp1{end};
+              else
+                lblFileBase{i} = tmp2{end};                
+              end
+            end
+            g2 = repmat(lblFileBase(:),npts,1); % lblfile
             
-            boxplot(X,{g2 g1},'plotstyle','compact',...
+            boxplot(X,{g2 g1},...%'plotstyle','compact',...
                 'colorgroup',g2,'factorseparator',1);
             xlabel('lblfile/pt',lblargs{:});
             ylabel('dist from pred to gt (px)',lblargs{:});
