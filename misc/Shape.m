@@ -10,6 +10,9 @@ classdef Shape
     end
     
     function xy = vec2xy(p)
+      % p: [D] shape vec
+      % 
+      % xy: [dx2] x/y coords
       assert(isvector(p));
       n = numel(p);      
       p = p(:);
@@ -485,7 +488,8 @@ classdef Shape
               reg = opts.regs(t-1); % when t==2, we are plotting result of first iteraton, which used first regressor
               
               p = reshape(pT(iTrl,iRT,:,t),1,mdl.D); % absolute shape for trl/rep/it
-              [xF,yF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end));
+              fprintf(2,'FIX ME');
+              [xF,yF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end)); 
               assert(isrow(xF));
               assert(isrow(yF));
               

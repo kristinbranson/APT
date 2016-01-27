@@ -92,7 +92,7 @@ classdef CPRData < handle
       end
     end
   end
-  methods    
+  methods
     
     function obj = CPRData(varargin)
       % obj = CPRData(Is,p,bb,md)
@@ -114,7 +114,10 @@ classdef CPRData < handle
       assert(iscolumn(Is) && iscell(Is));
       N = numel(Is);
       assert(size(p,1)==N);
-      assert(size(bb,1)==N);      
+      if iscell(bb)
+        bb = cat(1,bb{:});
+      end
+      assert(size(bb,1)==N);  
       if exist('md','var')==0
         md = cell2table(cell(N,0));
       end
