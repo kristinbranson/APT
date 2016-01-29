@@ -1,5 +1,23 @@
 classdef Features
   
+  properties (Constant)
+    % take sgs = SGS{i1,i2}; it will have a hist in range [0,max]; this
+    % array gives the maxes for sig1,sig2 = [0 2 4 8]
+    JAN_SGS_MAX_SIG0248 = [
+      103 44 30 17;37 25 19 12;16 15 13 9;9 9 9 7];
+    
+    % take sls = SLS{i1,i2}; it will have a mean of ~0 and a span; this
+    % array gives the spans for sig1,sig2 = [0 2 4 8]
+    JAN_SLS_SPAN_SIG0248 = [
+      294 34 9 2; 135 73 28 7; 145 113 62 26; 117 111 102 80];
+    
+    % span of prctile(SLS{i1,i2},[2 98]) for sig1,sig2 = [0 2 4 8]
+    JAN_SLS_SPAN98_SIG0248 = [
+      26 5 2.3 1.1; 20 13 8.1 4.2; 37 32 25 15; 69 66 60 43];    
+
+    JAN_SLS_SPAN99_SIG0248 = [
+      38 7 3 1.3;28 18 11 5.1;48 42 32 19;85 82 74 54];
+  end
   %% preprocessing/channels
   methods (Static)
     
@@ -15,6 +33,13 @@ classdef Features
       %   defaults to 2.5. Applied to blurring by both sig1 and sig2.
       % - laplaceKernel. Defaults to fspecial('laplacian',0).
       %
+      % - sgsRescale. Scalar logical. If true (default), multiply SGS by
+      % sgsRescaleFacs and convert to uint8.
+      % - sgsRescaleFacs. [n1xn2] Defaults to values for Jan data, sig=[0 2 4 8].
+      %
+      % - slsRescale. Scalar logical. If true (default), etc.
+      % - slsRescaleFacs. [n1xn2] Defaults to values for Jan data, sig=[0 2 4 8].
+      %
       % S: [Nxn1] cell array of smoothed images (using sig1)
       % SGS: [Nxn1xn2] blur2(gradmag(blur1(S)))
       % SLS: [Nxn1xn2] blur2(laplacian(blur1(S)))
@@ -22,7 +47,11 @@ classdef Features
       opts = struct();
       opts.gaussFiltRadius = 2.5;
       opts.laplaceKernel = fspecial('laplacian',0);
-      opts = getPrmDfltStruct(varargin,opts);
+      opts.sgsRescale = true;
+      opts.sgsRescaleFacs = 200./Features.JAN_SGS_MAX_SIG0248; % 200 instead of 256 for safety buffer
+      opts.slsRescale = true;
+      opts.slsRescaleFacs = 200./Features.JAN_SLS_SPAN99_SIG0248; % 200 instead of 256 for safety buffer
+      opts = getPrmDfltStruct(varargin,opts);      
       
       assert(iscell(Is) && isvector(Is));
       N = numel(Is);
@@ -31,7 +60,18 @@ classdef Features
       n1 = numel(sig1);
       n2 = numel(sig2);
       validateattributes(opts.gaussFiltRadius,{'numeric'},{'scalar' 'real' 'positive'});
-      
+      if opts.sgsRescale
+        assert(isequal(size(opts.sgsRescaleFacs),[n1 n2]));
+      end
+      if opts.slsRescale
+        assert(isequal(size(opts.slsRescaleFacs),[n1 n2]));
+      end
+
+      [tmp1,tmp2] = size(opts.laplaceKernel);
+      assert(tmp1==tmp2);
+      lkRad = (tmp1-1)/2;
+      assert(round(lkRad)==lkRad);
+
 %       G = cell(N,1);
 %       L = cell(N,1);
       S = cell(N,n1);
@@ -41,7 +81,7 @@ classdef Features
       SLS = cell(N,n1,n2);
       
       for iTrl = 1:N
-        fprintf(1,'Working on iTrl=%d\n',iTrl);
+        fprintf(1,'Working on iTrl=%d/%d\n',iTrl,N);
         im = Is{iTrl};
 %         G{iTrl} = gradientMag(im);
 %         L{iTrl} = filter2(opts.laplaceKernel,im,'same');
@@ -51,7 +91,9 @@ classdef Features
           sIm = gaussSmooth(im,s1,'same',opts.gaussFiltRadius);
           S{iTrl,i1} = sIm;
           GsIm = gradientMag(single(sIm));
-          LsIm = filter2(opts.laplaceKernel,sIm,'same');
+          LsIm = zeros(size(sIm));
+          LsIm(1+lkRad:end-lkRad,1+lkRad:end-lkRad) = ...
+            filter2(opts.laplaceKernel,sIm,'valid');
           if true
             if s1==0
               % gaussian smoothing not performed; maybe should normalize by
@@ -69,6 +111,24 @@ classdef Features
             s2 = sig2(i2);
             SGS{iTrl,i1,i2} = gaussSmooth(GsIm,s2,'same',opts.gaussFiltRadius);
             SLS{iTrl,i1,i2} = gaussSmooth(LsIm,s2,'same',opts.gaussFiltRadius);
+            
+            if opts.sgsRescale
+              sgs = SGS{iTrl,i1,i2}*opts.sgsRescaleFacs(i1,i2);
+              tfOOB = sgs<0 | sgs>255;
+              if any(tfOOB(:))
+                warningNoTrace('Features:oob','SGS out of bounds: %d pixels.',nnz(tfOOB));
+              end
+              SGS{iTrl,i1,i2} = uint8(sgs);
+            end
+            if opts.slsRescale
+              sls = SLS{iTrl,i1,i2}*opts.slsRescaleFacs(i1,i2)+128;
+              tfOOB = sls<0 | sls>255;
+              if any(tfOOB(:))
+                warningNoTrace('Features:oob','Rescaling SLS. %d/%d pxs (%.2f %%) clipped.',...
+                  nnz(tfOOB),numel(tfOOB),nnz(tfOOB)/numel(tfOOB)*100);
+              end
+              SLS{iTrl,i1,i2} = uint8(sls);
+            end
           end
         end
       end
@@ -114,7 +174,8 @@ classdef Features
             'interpreter','tex','fontsize',16,'fontweight','bold'};
           
           imshow(SGS{iTrl,i1,i2},'parent',axSGS(iAx));
-          imagesc(SLS{iTrl,i1,i2},'parent',axSLS(iAx));
+          imshow(SLS{iTrl,i1,i2},'parent',axSLS(iAx));
+          %imagesc(SLS{iTrl,i1,i2},'parent',axSLS(iAx));
           axSLS(iAx).XTickLabel = [];
           axSLS(iAx).YTickLabel = [];
           
@@ -198,6 +259,8 @@ classdef Features
       %   col 4: theta
       %   col 5: "interpolation" factor in [0,1] for location of center
       %          between landmarks 1/2
+      %   col 6: channel index (identically equal to 1 unless optional
+      %     param 'nchan' specified
       %
       % prms: scalar struct, params used to compute xs
             
@@ -220,6 +283,8 @@ classdef Features
       % supplied, all landmarks are considered mutual neighbors. If
       % supplied, landmarks 1 and 2 will always be chosen to be neighbors.
       defaultPrms.neighbors = [];
+      % number of channels. 
+      defaultPrms.nchan = 1;
                                   
       prms = getPrmDfltStruct(varargin,defaultPrms);
       
@@ -240,7 +305,7 @@ classdef Features
       end
 
       F = prms.F;
-      xs = nan(F,5);
+      xs = nan(F,6);
 
       nfidsFtr = numel(prms.fids); % can differ from model.nfids
       if ~tfNeighborsSpeced
@@ -271,30 +336,38 @@ classdef Features
       else
         xs(:,5) = 0.5*ones(F,1);
       end
+      
+      xs(:,6) = randint2(F,1,[1,prms.nchan]);
     end
     
-    function [xF,yF,info] = compute2LM(xs,xLM,yLM)
-      % xs: F x 5, from generate2LM()
-      % xLM: N x npts. poscs(i,j) gives x-positions ('columns') for ith
+    function [xF,yF,chan,info] = compute2LM(xs,xLM,yLM)
+      % xs: F x 6, from generate2LM()
+      % xLM: N x npts. xLM(i,j) gives x-positions ('columns') for ith
       % instance, jth landmark
       % yLM: etc
       %
-      % xF: N X F. cs1(i,j) gives x-pos for ith instance, jth feature
-      % yF: N X F.
+      % xF: N x F. xF(i,j) gives x-pos for ith instance, jth feature
+      % yF: N x F.
+      % chan: N x F. chan(i,j) gives channel in which to compute feature
+      %   for ith instance, jth feature.
       % info: struct with miscellaneous/intermediate vars
+      %
+      % Note: xF and yF are in whatever units xLM and yLM are in.
       
       l1 = xs(:,1);
       l2 = xs(:,2);
       rfac = xs(:,3);
       theta = xs(:,4);
       ctrFac = xs(:,5);
+      chan = xs(:,6);
       
       N = size(xLM,1);
-      x1 = xLM(:,l1); % N X F. x, landmark 1
+      x1 = xLM(:,l1); % N X F. x, landmark 1 for each instance/feature
       y1 = yLM(:,l1); % etc
       x2 = xLM(:,l2);
       y2 = yLM(:,l2);
       theta = repmat(theta',N,1);      
+      chan = repmat(chan',N,1);
       
       alpha = atan2(y2-y1,x2-x1); 
       r = sqrt((x2-x1).^2+(y2-y1).^2)/2; 
@@ -316,7 +389,7 @@ classdef Features
       xF = round(xF);
       yF = round(yF);      
       
-      if nargout>=3
+      if nargout>=4
         info = struct();
         info.l1 = l1;
         info.l2 = l2;

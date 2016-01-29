@@ -31,10 +31,15 @@ classdef FS
     
     function n = formTrainedClassifierName(tdname,tdIname,tdIvar,tpname,sha)
       [~,s_td] = FS.parsename(tdname);
-      [~,s_tdI] = FS.parsename(tdIname);
+      if isempty(tdIname)
+        tdI_note = '';
+      else
+        [~,s_tdI] = FS.parsename(tdIname);
+        tdI_note = s_tdI.note;
+      end
       [~,s_tp] = FS.parsename(tpname);
       
-      n = sprintf('%s@%s@%s@%s@%s@%s@%s',s_td.name,s_td.note,s_tdI.note,tdIvar,...
+      n = sprintf('%s@%s@%s@%s@%s@%s@%s',s_td.name,s_td.note,tdI_note,tdIvar,...
         s_tp.name,sha,datestr(now,'mmddTHHMM'));
     end
     

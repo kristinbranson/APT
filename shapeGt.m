@@ -274,7 +274,7 @@ switch type
     xs = Features.generate1LM(model,'F',F,'radius',radius);
   case '2lm'
     xs = Features.generate2LM(model,'F',F,'radiusFac',radius,...
-      'randctr',randctr,'neighbors',neighbors,'fids',fids);    
+      'randctr',randctr,'neighbors',neighbors,'fids',fids,'nchan',nChn);    
   otherwise
     assert(false,'unknown type');
 end
@@ -476,7 +476,8 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 %  model    - shape model
 %  phis     - [MxR] relative shape for each image, absolute coords. 
 %             (M might be eg NxRT and R would be npts x d.)
-%  Is       - cell [N] input images [w x h x nChn] variable w, h
+%  Is       - cell [N] input images [w x h x nChn] variable w, h OR
+%             cell [Nx2] input images (wxhx1) plus channels (wxhxnchan)            
 %  ftrData  - define ftrs to actually compute, output of ftrsGen
 %  imgIds   - [Mx1] image id for each phi, indices into Is.
 %  pStar   -  [1xR] average shape (see initTr)
@@ -498,7 +499,7 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 %
 % See also demoRCPR, shapeGt>ftrsGenDup
 
-N = size(Is,1);
+N = numel(Is);
 nfids = model.nfids;
 if nargin<5 || isempty(imgIds)
   imgIds = 1:N; 
@@ -570,8 +571,9 @@ end
 switch ftrData.type
   case '1lm'
     [cs1,rs1] = Features.compute1LM(ftrData.xs,poscs,posrs);
+    chn1 = ones(size(cs1));    
   case '2lm'
-    [cs1,rs1] = Features.compute2LM(ftrData.xs,poscs,posrs);
+    [cs1,rs1,chn1] = Features.compute2LM(ftrData.xs,poscs,posrs);
   otherwise
     assert(false);
 end
@@ -580,13 +582,14 @@ nGroups = occlPrm.nrows*occlPrm.ncols;
 %ticId =ticStatus('Computing feats',1,1,1);
 
 for n = 1:M
-    img = Is{imgIds(n)}; 
+    img = Is{imgIds(n)};
     [h,w,ch] = size(img);
-    if ch==1 && nChn==3
-      img = cat(3,img,img,img);
-    elseif ch==3 && nChn==1
-      img = rgb2gray(img);
-    end
+    assert(nChn==ch);
+%     if ch==1 && nChn==3
+%       img = cat(3,img,img,img);
+%     elseif ch==3 && nChn==1
+%       img = rgb2gray(img);
+%     end
     cs1(n,:) = max(1,min(w,cs1(n,:)));
     rs1(n,:) = max(1,min(h,rs1(n,:)));
 
@@ -610,22 +613,22 @@ for n = 1:M
         occlD.featOccl(n,:)=occlAm(occlD.group(n,:));
     end
 
-    inds1 = rs1(n,:) + (cs1(n,:)-1)*h;
-    %DEBUG_VISUALIZE_FEATURELOCS;
-    if nChn>1
-      assert(false,'AL: chs undefined');
-      inds1 = inds1+(chs'-1)*w*h; 
-    end
+    inds1 = rs1(n,:) + (cs1(n,:)-1)*h + (chn1(n,:)-1)*h*w;
+%     %DEBUG_VISUALIZE_FEATURELOCS;
+%     if nChn>1
+%       assert(false,'AL: chs undefined');
+%       inds1 = inds1+(chs'-1)*w*h; 
+%     end
 
     if isa(img,'uint8'), 
-      ftrs1 = double(img(inds1)')/255;
+      ftrs1 = double(img(inds1)')/255; % AL: why transpose?
     elseif isa(img,'uint16'),
       ftrs1 = double(img(inds1)')/(2^16-1);
     else
       ftrs1 = img(inds1)'; 
     end
 
-    ftrs(n,:)=ftrs1;
+    ftrs(n,:) = ftrs1;
 end
 end
 
@@ -1079,7 +1082,7 @@ end
 
 function [pCur,pGt,pGtN,pStarN,imgIds,N,N1] = ...
   initTr(Is,pGt,model,pStarN,bboxes,L,pad,dorotate)
-% Is: [N] cell vec of images
+% Is: [Nx1] cell vec of images/channels UNUSED ATM
 % pGt: [NxD] shapes in absolute coords
 % pStarN: centroid shape in normalized coords, see compPhiStar. Optional, 
 % CURRENTLY MUST BE EMPTY
@@ -1101,7 +1104,6 @@ function [pCur,pGt,pGtN,pStarN,imgIds,N,N1] = ...
 % #ALOK
   
 [N,D] = size(pGt);
-assert(numel(Is)==N);
 assert(D==model.D);
 assert(isempty(pStarN) || isequal(size(pStarN),[1 D]));
 assert(isequal(size(bboxes),[N 2*model.d]));

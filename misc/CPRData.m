@@ -1,11 +1,14 @@
 classdef CPRData < handle
-  properties    
+  properties
     Name    % Name of this CPRData
     MD      % [NxR] Table of Metadata
     
     I       % [N] column cell vec, images
     pGT     % [NxD] GT shapes for I
     bboxes  % [Nx2d] bboxes for I 
+    
+    Ipp     % [N] cell vec of preprocessed 'channel' images. .iPP{i} is [nrxncxnchan]
+    IppInfo % [nchan] cellstr describing each channel (3rd dim) of .Ipp
     
     H0      % [256x1] for histeq
     
@@ -146,6 +149,58 @@ classdef CPRData < handle
       obj.I = Is;
       obj.pGT = p;
       obj.bboxes = bb;
+    end
+    
+    function computeIpp(obj,varargin)
+      % Preprocess images and set .Ipp.
+      % sig1,sig2: see Features.pp
+      % Optional PVs:
+      % - iChan index vectors into channels for which channels to
+      % keep/store.
+      % - iTrl. trial indices for which Ipp should be computed. Defaults to
+      % find(obj.isFullyLabeled).
+      % - See Features.pp for other optional pvs
+
+      iTrl = myparse(varargin,'iTrl',find(obj.isFullyLabeled));
+      nTrl = numel(iTrl);
+      
+      sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
+      sig2 = [0 2 4 8];
+      iChan = [...
+        2 3 ... % blur sig1(1:3)
+        5 6 7 9 10 11 13 14 17 ... % SGS
+        22 23 25 26 27 29 30]; % SLS 
+      
+      [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,varargin{:});
+      
+      n1 = numel(sig1);
+      n2 = numel(sig2);
+      assert(iscell(S) && isequal(size(S),[nTrl n1]));
+      assert(iscell(SGS) && isequal(size(SGS),[nTrl n1 n2]));
+      assert(iscell(SLS) && isequal(size(SLS),[nTrl n1 n2]));
+
+      ipp = cell(nTrl,1);
+      for i = 1:nTrl
+        ipp{i} = cat(3,S{i,:},SGS{i,:},SLS{i,:});
+        assert(size(ipp{i},3)==n1+n1*n2+n1*n2);        
+      end
+      ippInfo = arrayfun(@(x)sprintf('S:sig1=%.2f',x),sig1(:),'uni',0);
+      for i2 = 1:n2 % note raster order corresponding to order of ipp{iTrl}
+        for i1 = 1:n1
+          ippInfo{end+1,1} = sprintf('SGS:sig1=%.2f,sig2=%.2f',sig1(i1),sig2(i2)); %#ok<AGROW>
+        end
+      end
+      for i2 = 1:n2 % etc
+        for i1 = 1:n1
+          ippInfo{end+1,1} = sprintf('SLS:sig1=%.2f,sig2=%.2f',sig1(i1),sig2(i2)); %#ok<AGROW>
+        end
+      end
+      
+      ipp = cellfun(@(x)x(:,:,iChan),ipp,'uni',0);
+      ippInfo = ippInfo(iChan);
+      obj.Ipp = cell(obj.N,1);
+      obj.Ipp(iTrl) = ipp;
+      obj.IppInfo = ippInfo;
     end
     
     function varargout = viz(obj,varargin)

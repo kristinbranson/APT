@@ -5,7 +5,7 @@ function [regModel,pAll] = rcprTrain( Is, pGt, varargin )
 %  [regModel,pAll] = rcprTrain( Is, pGt, varargin )
 %
 % INPUTS
-%  Is       - cell(N,1) input images
+%  Is       - cell [N] input images, optionally with 'channels' in 3rd dim
 %  pGt      - [NxR] ground truth shape for each image
 %  varargin - additional params (struct or name/value pairs)
 %   .model    - [REQ] shape model
@@ -63,18 +63,18 @@ dfs={'model','REQ','pStar',[],'posInit',[],'T','REQ',...
 [model,pStar,posInit,T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D] = ...
     getPrmDflt(varargin,dfs,1);
 
-[regModel,pAll]=rcprTrain1(Is, pGt,model,pStar,posInit,...
+[regModel,pAll] = rcprTrain1(Is,pGt,model,pStar,posInit,...
         T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D);
 end 
 
-function [regModel,pAll]=rcprTrain1(Is,pGt,model,pStar,posInit,...
+function [regModel,pAll] = rcprTrain1(Is,pGt,model,pStar,posInit,...
     T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D)
 % Initialize shape and assert correct image/ground truth format
 
 fprintf('train. USE_AL_CORRECTION=%d\n',regPrm.USE_AL_CORRECTION);
 
 if(isempty(initD))
-    [pCur,pGt,pGtN,pStar,imgIds,N,N1]=shapeGt('initTr',Is,pGt,...
+    [pCur,pGt,pGtN,pStar,imgIds,N,N1] = shapeGt('initTr',[],pGt,...
         model,pStar,posInit,L,pad,dorotate);
 else
     pCur=initD.pCur;pGt=initD.pGt;pGtN=initD.pGtN;
@@ -86,11 +86,14 @@ D=size(pGt,2);
 % previous model
 pAll = zeros(N1,D,T+1);
 regs = repmat(struct('regInfo',[],'ftrPos',[]),T,1);
-if(isempty(regModel)), t0=1; pAll(:,:,1)=pCur(1:N1,:);
+if isempty(regModel)
+  t0=1; 
+  pAll(:,:,1)=pCur(1:N1,:);
 else % not working for mouse_paw3D
-    t0=regModel.T+1; regs(1:regModel.T)=regModel.regs;
-    [~,pAll1]=cprApply(Is,regModel,'imgIds',imgIds,'pInit',pCur);
-    pAll(:,:,1:t0)=pAll1(1:N1,:,:); pCur=pAll1(:,:,end);
+  assert(false,'Unsupported codepath (what is cprApply)');
+%   t0=regModel.T+1; regs(1:regModel.T)=regModel.regs;
+%   [~,pAll1]=cprApply(Is,regModel,'imgIds',imgIds,'pInit',pCur);
+%   pAll(:,:,1:t0)=pAll1(1:N1,:,:); pCur=pAll1(:,:,end);
 end
 
 loss = mean(shapeGt('dist',model,pCur,pGt));
@@ -158,11 +161,13 @@ for t=t0:T
             model,pCur,Is,ftrPos,...
             imgIds,pStar,posInit,regPrm.occlPrm);
         case {3 4}
+          assert(false,'Unsupported new Is');
           ftrPos = shapeGt('ftrsGenDup',model,ftrPrm);
           [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup',...
             model,pCur,Is,ftrPos,...
             imgIds,pStar,posInit,regPrm.occlPrm);
         otherwise
+          assert(false,'Unsupported new Is');
           ftrPos = shapeGt('ftrsGenIm',model,pStar,ftrPrm);
           [ftrs,regPrm.occlD] = shapeGt('ftrsCompIm',...
             model,pCur,Is,ftrPos,...
