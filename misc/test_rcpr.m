@@ -16,7 +16,7 @@ if nargin<7 || isempty(piT)
     if ~isfield(prunePrm,'dorotate')
       prunePrm.dorotate = false;
     end
-    piT = shapeGt('initTest',IsT,bboxesT,regModel.model,regModel.pStar,...
+    piT = shapeGt('initTest',[],bboxesT,regModel.model,regModel.pStar,...
       regModel.pGtN,RT1,prunePrm.dorotate);
 else
     RT1 = size(piT,3);

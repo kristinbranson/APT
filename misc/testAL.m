@@ -26,6 +26,28 @@ else
 end
 fprintf(1,'td.NTst=%d\n',td.NTst);
 
+%% channels
+tfChan = ~isempty(td.Ipp);
+if tfChan
+  assert(~isempty(td.IppInfo));
+  nChan = numel(td.IppInfo);  
+  fprintf(1,'Using %d additional channels.\n',nChan);
+  
+  Is = cell(td.NTst,1);
+  for i = 1:td.NTst
+    iTrl = td.iTst(i);
+    
+    im = td.I{iTrl};
+    impp = td.Ipp{iTrl};
+    assert(size(impp,3)==nChan);
+    
+    Is{i} = cat(3,im,impp);
+  end
+else
+  Is = td.I(td.iTst,:);
+end
+
+%%
 trfilefull = fullfile(rootdir,trfile);
 tr = load(trfilefull,'-mat');
 fprintf(1,'Train results file: %s\n',trfilefull);
@@ -40,7 +62,7 @@ else
   DOROTATE = false;
   pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],...
     repmat(pGTTrnNMu,td.NTst,1),nReps,DOROTATE);
-  [~,~,~,~,pTstT] = test_rcpr([],td.bboxesTst,td.ITst,tr.regModel,tr.regPrm,tr.prunePrm,pIni);
+  [~,~,~,~,pTstT] = test_rcpr([],td.bboxesTst,Is,tr.regModel,tr.regPrm,tr.prunePrm,pIni);
   pTstT = reshape(pTstT,[td.NTst nReps mdl.D tr.regModel.T+1]);
 end
 

@@ -6,7 +6,7 @@ function [p,p_t,fail] = rcprTest1( Is, regModel, p, regPrm, iniData, ...
 %  p = rcprTest1( Is, regModel, p, regPrm, bboxes, verbose, prunePrm)
 %
 % INPUTS
-%  Is       - cell(N,1) input images
+%  Is       - cell(N,1) input images. Optionally with channels in 3rd dim
 %  regModel - learned multi stage shape regressor (see rcprTrain)
 %  p        - [NxDxRT1] initial shapes
 %  regPrm   - struct with regression parameters (see regTrain)
@@ -93,7 +93,7 @@ while ~done
         imgIds1 = repmat(1:N1,[1 RT1]);
         if(model.isFace) 
             iniData=iniData(bad1,:,:);bbs=iniData(imgIds1,:,1); 
-            p1=shapeGt('initTest',Is,iniData,...
+            p1=shapeGt('initTest',[],iniData,...
                 model,regModel.pStar,regModel.pGtN,RT1);
             p1=reshape(permute(p1,[1 3 2]),[N1*RT1,D]);
         else
@@ -191,9 +191,11 @@ for t = t0:T
       [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',model,p,Is,ftrPos,...
         imgIds,regModel.pStar,bboxes,regPrm.occlPrm);
     case {3 4}
+      assert(false,'AL new Is');
       [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup',model,p,Is,ftrPos,...
         imgIds,regModel.pStar,bboxes,regPrm.occlPrm);
     otherwise
+      assert(false,'AL new Is');
       [ftrs,regPrm.occlD] = shapeGt('ftrsCompIm',model,p,Is,ftrPos,...
         imgIds,regModel.pStar,bboxes,regPrm.occlPrm);
   end

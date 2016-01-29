@@ -40,10 +40,10 @@ function [p,pRT,p_t,fail] = rcprTest( Is, regModel, varargin )
 
 dfs={'pInit',[],'RT1',1,'regPrm','REQ','verbose',1,...
     'initData',[],'prunePrm',struct('prune',0)};
-[pIni,RT1,regPrm,verbose,initD,prunePrm] =getPrmDflt(varargin,dfs,1);
+[pIni,RT1,regPrm,verbose,initD,prunePrm] = getPrmDflt(varargin,dfs,1);
 if(isempty(initD))
   assert(false,'Impossible codepath');
-    p=shapeGt('initTest',Is,pIni,regModel,RT1);
+  p=shapeGt('initTest',[],pIni,regModel,RT1);
 else p=initD;clear initD;
 end
 
