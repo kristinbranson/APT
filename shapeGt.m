@@ -476,8 +476,7 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 %  model    - shape model
 %  phis     - [MxR] relative shape for each image, absolute coords. 
 %             (M might be eg NxRT and R would be npts x d.)
-%  Is       - cell [N] input images [w x h x nChn] variable w, h OR
-%             cell [Nx2] input images (wxhx1) plus channels (wxhxnchan)            
+%  Is       - cell [N] input images [w x h x nChn] variable w, h
 %  ftrData  - define ftrs to actually compute, output of ftrsGen
 %  imgIds   - [Mx1] image id for each phi, indices into Is.
 %  pStar   -  [1xR] average shape (see initTr)
