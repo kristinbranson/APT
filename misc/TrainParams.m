@@ -20,6 +20,8 @@ classdef TrainParams < handle
     nsample_std = 1000;
     nsample_cor = 5000;
     
+    nftrs_test_perfern = 400;
+    
     prunePrm = struct(...
       'prune',0,...
       'numInit',50,... % sometimes uesd for number of testing replicates 
