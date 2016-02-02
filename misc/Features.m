@@ -245,6 +245,30 @@ classdef Features
       end
     end
     
+    function t = compileFeatureInfo(regs)
+      s = struct('iReg',cell(0,1),'iRegInfo',[],'fidpos',[],'fid',[],'chan',[]);
+      nReg = numel(regs);
+      for iReg = 1:nReg
+        fprintf(1,'Working on iReg=%d\n',iReg);
+        chans = regs(iReg).ftrPos.xs(:,end);
+        
+        ri = regs(iReg).regInfo;
+        nRI = numel(ri);
+        for iRI = 1:nRI
+          fids = ri{iRI}.fids(:);
+          for iFID = 1:numel(fids)
+            s(end+1,1).iReg = iReg;
+            s(end).iRegInfo = iRI;
+            s(end).fidpos = iFID;
+            s(end).fid = fids(iFID);
+            s(end).chan = chans(fids(iFID));
+          end
+        end
+      end
+      
+      t = struct2table(s);
+    end
+    
   end
   
   methods (Static) % Two-landmark features

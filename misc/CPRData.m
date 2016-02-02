@@ -23,6 +23,7 @@ classdef CPRData < handle
     
     isLabeled % [Nx1] logical, whether trial N has labels    
     isFullyLabeled % [Nx1] logical
+    NFullyLabeled
 
     iUnused % trial indices (1..N) that are in neither iTrn or iTst
     
@@ -66,6 +67,9 @@ classdef CPRData < handle
     end
     function v = get.isFullyLabeled(obj)
       v = all(~isnan(obj.pGT),2); 
+    end
+    function v = get.NFullyLabeled(obj)
+      v = nnz(obj.isFullyLabeled);
     end
     function v = get.iUnused(obj)
       if ~isempty(intersect(obj.iTrn,obj.iTst))
@@ -204,14 +208,46 @@ classdef CPRData < handle
     end
     
     function varargout = viz(obj,varargin)
-      [varargout{1:nargout}] = Shape.viz(obj.I,obj.pGT,...
-        struct('nfids',obj.nfids,'D',obj.D),'md',obj.MD,varargin{:});
+      [varargout{1:nargout}] = Shape.viz(obj.I(obj.isFullyLabeled,:),obj.pGT(obj.isFullyLabeled,:),...
+        struct('nfids',obj.nfids,'D',obj.D),'md',obj.MD(obj.isFullyLabeled,:),varargin{:});
     end
     
     function n = getFilename(obj)
       n = sprintf('td_%s_%s.mat',obj.Name,datestr(now,'yyyymmdd'));
     end
     
+    function append(obj,varargin)
+      % cat/append additional CPRDatas
+      
+      warning('CPRData:append','Clearing H0.');
+      obj.H0 = [];
+      
+      for i = 1:numel(varargin)
+        dd = varargin{i};
+        assert(isequal(dd.IppInfo,obj.IppInfo),'Different IppInfo found for data index %d.',i);
+        
+        Nbefore = numel(obj.I); 
+        
+        obj.MD = cat(1,obj.MD,dd.MD);
+        obj.I = cat(1,obj.I,dd.I);
+        obj.pGT = cat(1,obj.pGT,dd.pGT);
+        obj.bboxes = cat(1,obj.bboxes,dd.bboxes);
+        obj.Ipp = cat(1,obj.Ipp,dd.Ipp);
+
+        obj.iTrn = cat(2,obj.iTrn,dd.iTrn+Nbefore);
+        obj.iTst = cat(2,obj.iTst,dd.iTst+Nbefore);
+      end
+      
+      ids = strcat(obj.MD.lblFile,'#',...
+        strtrim(cellstr(num2str(obj.MD.iMov))),'#',strtrim(cellstr(num2str(obj.MD.frm))));
+      assert(numel(ids)==numel(unique(ids)),'Duplicate frame metadata encountered.');
+      
+      [lblFileUn,~,idx] = unique(obj.MD.lblFile);
+      obj.MD.iLbl = idx;
+      fprintf(1,'Relabeled MD.iLbl:\n');
+      disp([lblFileUn num2cell((1:numel(lblFileUn))')]);
+    end
+
   end
   
   methods (Static)
@@ -307,7 +343,7 @@ classdef CPRData < handle
       assert(isequal(numel(sMD),numel(I),size(p,1),size(bb,1)));
       md = struct2table(sMD);
     end
-
+    
   end
   
   methods % histeq

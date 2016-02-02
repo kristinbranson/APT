@@ -46,11 +46,16 @@ classdef FS
     function n = formTestResultsFolderName(trname,tdname,tdIname,tdIvar)
       [~,s_tr] = FS.parsename(trname);
       [~,s_td] = FS.parsename(tdname);
-      [~,s_tdI] = FS.parsename(tdIname);
+      if isempty(tdIname)
+        tdI_note = '';
+      else
+        [~,s_tdI] = FS.parsename(tdIname);
+        tdI_note = s_tdI.note;
+      end
       
       n = sprintf('%s@%s@%s@%s@%s__%s@%s@%s@%s__%s',...
         s_tr.tdname,s_tr.tdnote,s_tr.tdIname,s_tr.tdIvar,s_tr.tpname,...
-        s_td.name,s_td.note,s_tdI.note,tdIvar,...
+        s_td.name,s_td.note,tdI_note,tdIvar,...
         datestr(now,'mmddTHHMM'));      
     end
     

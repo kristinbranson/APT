@@ -275,7 +275,7 @@ classdef Shape
       % p1: [NxDxM]
       %
       % d: [NxnptxM] 2-norm distances for all trials/pts/itersOrReps
-      % dax: [NxM] distances averaged over pts
+      % dav: [NxM] distances averaged over pts
       % Assumes d=2
       
       d = 2;
@@ -476,6 +476,12 @@ classdef Shape
               deleteValidHandles(hMiniFtrs);
             end 
             hMiniFtrs = [];
+
+            reg = opts.regs(t-1); % when t==2, we are plotting result of first iteraton, which used first regressor              
+            fids = reg.regInfo{iMini}.fids;
+            nfids = size(fids,2);
+            colors = jet(nfids);
+
             for iPlt = 1:nplot
               iRT = iPlot(iPlt);
               if iMini==1
@@ -485,17 +491,11 @@ classdef Shape
                 end
               end
               
-              reg = opts.regs(t-1); % when t==2, we are plotting result of first iteraton, which used first regressor
-              
               p = reshape(pT(iTrl,iRT,:,t),1,mdl.D); % absolute shape for trl/rep/it
-              fprintf(2,'FIX ME');
-              [xF,yF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end)); 
+              [xF,yF,chanF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end)); 
               assert(isrow(xF));
               assert(isrow(yF));
-              
-              fids = reg.regInfo{iMini}.fids;
-              nfids = size(fids,2);              
-              colors = jet(nfids);
+              assert(isrow(chanF));
               for iFid = 1:nfids
                 fid1 = fids(1,iFid);
                 fid2 = fids(2,iFid);
@@ -505,7 +505,9 @@ classdef Shape
 %                   'markerfacecolor',colors(iFid,:),'MarkerSize',4);
 %                 hMiniFtrs(end+1) = plot(hax(iPlt),xF(fid2),yF(fid2),'v',...
 %                   'markerfacecolor',colors(iFid,:),'MarkerSize',4);
-              end              
+              end
+              fprintf('iRT=%d, chans:\n',iRT);
+              disp(chanF(fids));
             end
             fprintf(1,'fids:\n');
             disp(fids);
@@ -807,9 +809,12 @@ classdef Shape
         ds = ds';
         dsmu = nanmean(ds,2);
         
-        dsfull2 = permute(dsfull,[3 2 1]); % [101xnptxNTEST]
-        dsfull_trialv = nanmean(dsfull2,3); % [101xnpt] average over trials
+        dsfull2 = permute(dsfull,[3 2 1]); % [Tp1xnptxNTEST]
+        dsfull_trialv = nanmean(dsfull2,3); % [Tp1xnpt] average over trials
         npts = size(dsfull_trialv,2);
+        
+        dsmu_pts4567 = nanmean(dsfull_trialv(:,4:7),2);
+        dsmu_pts123 = nanmean(dsfull_trialv(:,1:3),2);
         
         logds = log(ds);
         logdsmu = nanmean(logds,2);
@@ -820,12 +825,12 @@ classdef Shape
         x = 1:size(ds,1);
         plot(hax(1),x,ds)
         hold(hax(1),'on');
-        plot(hax(1),x,dsmu,'k','linewidth',5);
+        plot(hax(1),x,dsmu_pts123,'k--',x,dsmu_pts4567,'k','linewidth',5);
         grid(hax(1),'on');
         set(hax(1),'XTickLabel',[]);
         ylabel(hax(1),'meandist from pred to gt (px)',lblargs{:});
-        tstr = sprintf('NLbledP0=%d (N=%d), numIter=%d, final mean ds = %.3f',...
-          NlbledP0,N,Tp1,dsmu(end));
+        tstr = sprintf('NLbledP0=%d (N=%d), numIter=%d, final mean ds_4567 = %.3f',...
+          NlbledP0,N,Tp1,dsmu_pts4567(end));
         title(hax(1),tstr,lblargs{:});
         plot(hax(2),x,logds);
         hold(hax(2),'on');

@@ -1,12 +1,13 @@
 function testAL(tdfile,trfile,varargin)
 % Take a TrainData, TrainRes, and produce test results
 
-[rootdir,tdIfile,tdIfileVar,nReps,testres] = myparse(varargin,...
+[rootdir,tdIfile,tdIfileVar,nReps,testres,ignoreChan] = myparse(varargin,...
     'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
     'tdIfile','',... % traindata Index file for testing; if not specified, use td.iTst
     'tdIfileVar','',...
     'nReps',50,...
-    'testres',[]); % previously computed/saved test results
+    'testres',[],...% previously computed/saved test results
+    'ignoreChan',false); 
 
 tfTestRes = ~isempty(testres);
 
@@ -27,7 +28,7 @@ end
 fprintf(1,'td.NTst=%d\n',td.NTst);
 
 %% channels
-tfChan = ~isempty(td.Ipp);
+tfChan = ~isempty(td.Ipp) && ~ignoreChan;
 if tfChan
   assert(~isempty(td.IppInfo));
   nChan = numel(td.IppInfo);  
@@ -106,7 +107,7 @@ if true %~tfTestRes
 
   
   %% Movie
-  NTRIALS = 3;
+  NTRIALS = 1;
   trls = randsample(td.NTst,NTRIALS);
   for iTrl = trls(:)'
       movname = fullfile(resdir,sprintf('vizROTD_iTrl%04d',iTrl));
