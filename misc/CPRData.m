@@ -412,9 +412,9 @@ classdef CPRData < handle
         end
         % normalize to brighter movies, not to dimmer movies
         idxuse = mu >= prctile(mu,75);
-        fprintf('using %d movies to form H0.\n',numel(idxuse));
+        fprintf('using %d frames to form H0:\n',numel(idxuse));
         H0 = median(H(:,idxuse),2);
-        H0 = H0/sum(H0)*imNpx(1);
+        H0 = H0/sum(H0)*imNpx;
       end
       obj.H0 = H0;
 
@@ -474,6 +474,153 @@ classdef CPRData < handle
       obj.iTst = iTstAcc;      
     end
     
+    function setITrn1(obj,exp)
+      % Given experiment name (exp), select training experiments and set
+      % indices to .iTrn.
+      %
+      % exp: full experiment name, eg 150723_2_002_4_xxxx.      
+
+      % for resting/active ranges etc
+      XLSFILE = 'f:\DropBoxNEW\DropBox\Tracking_KAJ\track.results\summary.xlsx';
+      XLSSHEET = 'gt data';      
+      
+      sExp = FS.parseexp(exp);
+      tMD = obj.MD;
+      tfIsFullyLabeled = obj.isFullyLabeled;
+      
+      % Augment tMD if nec
+      if ~ismember('datefly',tMD.Properties.VariableNames)
+        fprintf(1,'Augmenting .MD table.\n');
+        s = cellfun(@FS.parseexp,tMD.lblFile);
+        tMD2 = struct2table(s);        
+        assert(isequal(tMD.lblFile,tMD2.orig));
+        tMD = [tMD tMD2];
+        obj.MD = tMD;
+      end
+      if ~ismember('actvf0',tMD.Properties.VariableNames)
+        tXLS = readtable(XLSFILE,'Sheet',XLSSHEET);
+        tf = ~cellfun(@isempty,tXLS.vid);
+        tXLS = tXLS(tf,:);
+        tMD = join(tMD,tXLS); % should be joining on id)
+        
+        tMD.tfAct =  (tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
+        tMD.tfRst = ~(tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
+        obj.MD = tMD;
+      end
+      
+      dfs = tMD.datefly;
+      dfsUn = unique(dfs);
+      dfsUnOther = setdiff(dfsUn,sExp.datefly);
+      nDfsUnOther = numel(dfsUnOther);
+      
+      % For each datefly-other (not selected datefly), try to get ~400
+      % lblact frames, half as many lblrest frames
+      LBLACT_FRAMES_PERDATEFLY = 400;
+      LBLRST_FRAMES_PERDATEFLY = 200;
+      iTrlAct = zeros(0,1);
+      iTrlRst = zeros(0,1);
+      for iDF = 1:nDfsUnOther
+        df = dfsUnOther{iDF};
+        
+        [idsUn,idsNLblRstAvail,idsNLblActAvail] = lclGetExpsForDateFly(tMD,df);
+        nIdsUn = numel(idsUn);
+        fprintf('Working on datefly %s. %d exps.\n',df,nIdsUn);
+        
+        idsNLblRstTake = loadBalance(...
+          min(LBLRST_FRAMES_PERDATEFLY,sum(idsNLblRstAvail)),idsNLblRstAvail);
+        idsNLblActTake = loadBalance(...
+          min(LBLACT_FRAMES_PERDATEFLY,sum(idsNLblActAvail)),idsNLblActAvail);
+        for iID = 1:nIdsUn
+          id = idsUn{iID};          
+          [iTmpLblRst,iTmpLblAct] = lclGetActRstFrms(tMD,tfIsFullyLabeled,id,...
+            idsNLblRstTake(iID),idsNLblActTake(iID)); 
+          iTrlRst = [iTrlRst;iTmpLblRst]; %#ok<AGROW>
+          iTrlAct = [iTrlAct;iTmpLblAct]; %#ok<AGROW>
+        end
+      end
+      
+      % for this/selected datefly, take maximum roughly balanced number of
+      % actives, and half that many rests. Exclude specified experiment
+      % though
+      df = sExp.datefly;
+      [idsUn,idsNLblRstAvail,idsNLblActAvail] = lclGetExpsForDateFly(tMD,df);
+      tfTmp = strcmp(idsUn,sExp.id);
+      assert(nnz(tfTmp)==1);
+      idsUn = idsUn(~tfTmp,:);
+      idsNLblRstAvail = idsNLblRstAvail(~tfTmp,:);
+      idsNLblActAvail = idsNLblActAvail(~tfTmp,:);            
+      
+      nIdsUn = numel(idsUn);
+      fprintf('Working on SELECTED datefly %s. %d exps.\n',df,nIdsUn);
+      FUDGEFAC = 1.4; % try to get as much data as possible
+      nActTot = min(idsNLblActAvail)*FUDGEFAC*nIdsUn;
+      nRstTot = round(nActTot/2);
+      idsNLblRstTake = loadBalance(min(nRstTot,sum(idsNLblRstAvail)),idsNLblRstAvail);
+      idsNLblActTake = loadBalance(min(nActTot,sum(idsNLblActAvail)),idsNLblActAvail);
+      
+      for iID = 1:nIdsUn
+        id = idsUn{iID};
+        [iTmpLblRst,iTmpLblAct] = lclGetActRstFrms(tMD,tfIsFullyLabeled,id,...
+          idsNLblRstTake(iID),idsNLblActTake(iID));
+        iTrlRst = [iTrlRst;iTmpLblRst]; %#ok<AGROW>
+        iTrlAct = [iTrlAct;iTmpLblAct]; %#ok<AGROW>
+      end
+      
+     obj.iTrn = [iTrlAct;iTrlRst];
+    end
+    
   end
   
+end
+
+function [idsUn,nLblRstAvail,nLblActAvail] = lclGetExpsForDateFly(tMD,df)
+% Get ids/metadata for all exps for a given date-fly
+
+tfDF = strcmp(tMD.datefly,df);
+
+idsUn = unique(tMD.id(tfDF));
+nIdsUn = numel(idsUn);
+nLblRstAvail = nan(size(idsUn));
+nLblActAvail = nan(size(idsUn));
+for iID = 1:nIdsUn
+  id = idsUn{iID};
+  tfID = strcmp(tMD.id,id);
+  
+  tmp = unique(tMD.nlblrest(tfID));
+  assert(isscalar(tmp));
+  nLblRstAvail(iID) = tmp;
+  
+  tmp = unique(tMD.nlblactv(tfID));
+  assert(isscalar(tmp));
+  nLblActAvail(iID) = tmp;
+end
+end
+
+function [iLblRst,iLblAct] = lclGetActRstFrms(tMD,tfLbled,id,nRst,nAct)
+% Get labeled active/rest frames for given id
+%
+% tMD: [NxM] metadata table
+% tfLbled: [N] logical, eg .isFullyLabeled
+% id: id
+% nAct/nRst: numbers of active/resting frames to get
+
+tfID = strcmp(tMD.id,id);
+
+nFrmID = nnz(tfID);
+nFrmLblID = nnz(tfID & tfLbled);
+actvf0 = unique(tMD.actvf0(tfID));
+actvf1 = unique(tMD.actvf1(tfID));
+assert(isscalar(actvf0) && isscalar(actvf1));
+
+tfLblAct = tfID & tfLbled & (tMD.frm>=actvf0 & tMD.frm<=actvf1);
+tfLblRst = tfID & tfLbled & ~(tMD.frm>=actvf0 & tMD.frm<=actvf1);
+iLblAct = find(tfLblAct);
+iLblRst = find(tfLblRst);
+fprintf(1,'  ID: %s, %d frm, %d lblfrm. acvtf: [%d %d]. nrest nact: %d %d... ',id,...
+  nFrmID,nFrmLblID,actvf0,actvf1,numel(iLblRst),numel(iLblAct));
+
+iLblRst = randsample(iLblRst,nRst);
+iLblAct = randsample(iLblAct,nAct);
+fprintf(1,' ...adding %d lblrst, %d lblact frames\n',...
+  numel(iLblRst),numel(iLblAct));
 end
