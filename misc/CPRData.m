@@ -175,7 +175,7 @@ classdef CPRData < handle
         5 6 7 9 10 11 13 14 17 ... % SGS
         22 23 25 26 27 29 30]; % SLS 
       
-      [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,varargin{:});
+      [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2); %,varargin{:});
       
       n1 = numel(sig1);
       n2 = numel(sig2);
@@ -246,6 +246,34 @@ classdef CPRData < handle
       obj.MD.iLbl = idx;
       fprintf(1,'Relabeled MD.iLbl:\n');
       disp([lblFileUn num2cell((1:numel(lblFileUn))')]);
+    end
+    
+    function summarize(obj,iTrl)
+      % iTrl: vector of trial indices
+      
+      tMD = obj.MD(iTrl,:);
+      tfLbled = obj.isFullyLabeled(iTrl,:);
+      
+      dfUn = unique(tMD.datefly);
+      nDF = numel(dfUn);
+      for iDF = 1:nDF
+        df = dfUn{iDF};
+        tfDF = strcmp(tMD.datefly,df);
+        fprintf(1,'datefly: %s\n',df);
+        
+        idsUn = unique(tMD.id(tfDF));
+        nID = numel(idsUn);
+        for iID = 1:nID
+          id = idsUn{iID};
+          tfID = strcmp(tMD.id,id);
+          tfIDLbled = strcmp(tMD.id,id) & tfLbled;
+          
+          nLblAct = nnz(tMD.tfAct(tfIDLbled));
+          nLblRst = nnz(tMD.tfRst(tfIDLbled));
+          fprintf(1,'id %s. nfrm=%d. nfrmLbled=%d, nRst/nAct=%d/%d.\n',...
+            id,nnz(tfID),nnz(tfIDLbled),nLblRst,nLblAct);
+        end
+      end
     end
 
   end
