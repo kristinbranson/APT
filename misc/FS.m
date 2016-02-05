@@ -29,6 +29,31 @@ classdef FS
       
     end
     
+    function s = parseexp(n)
+      PAT = '(?<date>[0-9]{6,6})_(?<fly>[0-9]{1,2})_(?<session>[0-9]{3,3})_(?<trial>[0-9]{1,2})_[A-Z0-9]+';
+      s = regexp(n,PAT,'names');
+      switch numel(s)
+        case 0
+          s = [];
+        case 1
+          % none
+        otherwise
+          arrayfun(@(x)assert(isequal(x,s(1))),s(2:end));
+          s = s(1);
+      end
+      if ~isempty(s)
+        flds = fieldnames(s);
+        for f=flds(:)',f=f{1}; %#ok<FXSET>
+          s.(f) = str2double(s.(f));          
+        end
+        
+        s.datefly = sprintf('%d_%02d',s.date,s.fly);
+        s.id = sprintf('%d_%02d_%03d_%02d',s.date,s.fly,s.session,s.trial);
+      end
+      
+      s.orig = n;
+    end
+     
     function n = formTrainedClassifierName(tdname,tdIname,tdIvar,tpname,sha)
       [~,s_td] = FS.parsename(tdname);
       if isempty(tdIname)
