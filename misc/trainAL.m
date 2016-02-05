@@ -1,14 +1,15 @@
 function trainAL(datafile,prmfile,varargin)
 % Take a CPRData, TrainDataI, and TrainParams and produce a TrainRes
 
-[rootdir,tdIfile,tdIfileVar,ignoreChan] = myparse(varargin,...
+[rootdir,tdIfile,tdIfileVar,ignoreChan,forceChan] = myparse(varargin,...
     'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
     'tdIfile','',... % traindata Index file; if not specified, use td.iTrn
-    'tdIfileVar','',...
-    'ignoreChan',false); % if true, then ignore channel data if present
+    'tdIfileVar','',...    
+    'ignoreChan',false,...  % if true, then ignore channel data if present
+    'forceChan',true); % if true, compute channels and use them (ignoreChan ignored)
 
 if isunix
-  cmd = sprintf('git --git-dir=%s/.git rev-parse HEAD',RCPR);
+  cmd = sprintf('git --git-dir=%s/.git rev-parse HEAD',CPR.Root);
   [~,cmdout] = system(cmd);
   sha = cmdout(1:5);
 else
@@ -38,7 +39,17 @@ else
 end
 fprintf(1,'td.NTrn=%d\n',td.NTrn);
 
-tfChan = ~isempty(td.Ipp) && ~ignoreChan;
+td.summarize(td.iTrn);
+
+if forceChan
+  assert(isempty(td.Ipp),'TEMPORARY');
+  fprintf(1,'Computing Ipp!\n');
+  pause(3);
+  td.computeIpp('iTrl',td.iTrn);
+  tfChan = true;
+else
+  tfChan = ~isempty(td.Ipp) && ~ignoreChan;
+end
 if tfChan
   assert(~isempty(td.IppInfo));
   nChan = numel(td.IppInfo);  

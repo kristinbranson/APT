@@ -1,13 +1,14 @@
 function testAL(tdfile,trfile,varargin)
 % Take a TrainData, TrainRes, and produce test results
 
-[rootdir,tdIfile,tdIfileVar,nReps,testres,ignoreChan] = myparse(varargin,...
+[rootdir,tdIfile,tdIfileVar,nReps,testres,ignoreChan,forceChan] = myparse(varargin,...
     'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
     'tdIfile','',... % traindata Index file for testing; if not specified, use td.iTst
     'tdIfileVar','',...
     'nReps',50,...
     'testres',[],...% previously computed/saved test results
-    'ignoreChan',false); 
+    'ignoreChan',false,...
+    'forceChan',true); % if true, compute channels and use them (ignoreChan ignored)
 
 tfTestRes = ~isempty(testres);
 
@@ -27,8 +28,19 @@ else
 end
 fprintf(1,'td.NTst=%d\n',td.NTst);
 
+td.summarize(td.iTst);
+
+if forceChan
+  assert(isempty(td.Ipp),'TEMPORARY');
+  fprintf(1,'Computing Ipp!\n');
+  pause(3);
+  td.computeIpp('iTrl',td.iTst);
+  tfChan = true;
+else
+  tfChan = ~isempty(td.Ipp) && ~ignoreChan;
+end
+
 %% channels
-tfChan = ~isempty(td.Ipp) && ~ignoreChan;
 if tfChan
   assert(~isempty(td.IppInfo));
   nChan = numel(td.IppInfo);  
