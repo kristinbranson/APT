@@ -154,7 +154,100 @@ classdef CPRData < handle
       obj.pGT = p;
       obj.bboxes = bb;
     end
+        
+    function [sgscnts,slscnts,sgsedge,slsedge] = calibIpp(obj,nsamp)
+      % Sample SGS/SLS intensity histograms 
+      %
+      % nsamp: number of trials to sample
+      
+      sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
+      sig2 = [0 2 4 8];
+      n1 = numel(sig1);
+      n2 = numel(sig2);
+      
+      sgsedge = [0:160 inf];
+      nbinSGS = numel(sgsedge)-1;
+      sgscnts = repmat({zeros(1,nbinSGS)},n1,n2);
+      slsedge = [-inf -160:160 inf];
+      nbinSLS = numel(slsedge)-1;
+      slscnts = repmat({zeros(1,nbinSLS)},n1,n2);
+
+      iTrlSamp = randsample(obj.N,nsamp);
+      nTrlSamp = numel(iTrlSamp);
+      for i = 1:nTrlSamp
+        if mod(i,10)==0
+          disp(i);
+        end
+        iTrl = iTrlSamp(i);
+        
+        [~,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,'sgsRescale',false,'slsRescale',false);
+        for iSGS = 1:numel(SGS)
+          sgscnts{iSGS} = sgscnts{iSGS} + histcounts(SGS{iSGS},sgsedge);
+        end
+        for iSLS = 1:numel(SLS)
+          slscnts{iSLS} = slscnts{iSLS} + histcounts(SLS{iSLS},slsedge);
+        end
+      end
+    end
     
+  end
+  methods (Static)
+    function [sgsthresh,slsspan] = calibIpp2(sgscnts,slscnts,sgsedge,slsedge)
+      ntmp1 = cellfun(@sum,sgscnts);
+      ntmp2 = cellfun(@sum,slscnts);
+      n = unique([ntmp1(:);ntmp2(:)]);
+      assert(isscalar(n));
+      
+      sgsCtr = (sgsedge(1:end-1)+sgsedge(2:end))/2;
+      slsCtr = (slsedge(1:end-1)+slsedge(2:end))/2;
+      
+      sgscum = cellfun(@(x)cumsum(x)/n,sgscnts,'uni',0);
+      slscum = cellfun(@(x)cumsum(x)/n,slscnts,'uni',0);
+      
+      SGSTHRESH = .999;
+      SLSTHRESH = [.01 .99];
+      assert(isequal(size(sgscnts),size(slscnts)));
+      [n1,n2] = size(sgscnts);
+      sgsthresh = nan(n1,n2);
+      slsspan = nan(n1,n2);
+      for i1 = 1:n1
+      for i2 = 1:n2
+        y = sgscum{i1,i2};
+        iThresh = find(y>SGSTHRESH,1);         
+        thresh = sgsCtr(iThresh);
+        sgsthresh(i1,i2) = thresh;
+        cla;
+        plot(sgsCtr,y);
+        hold on;
+        plot([thresh thresh],[0 1],'r');
+        grid on;
+        title(sprintf('sgs(%d,%d): thresh ptile %.3f: %.3f\n',i1,i2,SGSTHRESH,thresh),...
+          'fontweight','bold','interpreter','none');     
+        input('hk');
+      end
+      end
+      for i1 = 1:n1
+      for i2 = 1:n2
+        y = slscum{i1,i2};
+        iThresh0 = find(y<SLSTHRESH(1),1,'last');
+        iThresh1 = find(y>SLSTHRESH(2),1,'first');
+        thresh0 = slsCtr(iThresh0);
+        thresh1 = slsCtr(iThresh1);
+        slsspan(i1,i2) = thresh1-thresh0;
+        cla;
+        plot(slsCtr,y);
+        hold on;
+        plot([thresh0 thresh0],[0 1],'r');
+        plot([thresh1 thresh1],[0 1],'r');
+        grid on;
+        title(sprintf('sls(%d,%d): span %.3f. [%.3f %.3f]\n',i1,i2,...
+          slsspan(i1,i2),thresh0,thresh1),'fontweight','bold','interpreter','none');
+        input('hk');
+      end
+      end
+    end
+  end
+  methods
     function computeIpp(obj,varargin)
       % Preprocess images and set .Ipp.
       % sig1,sig2: see Features.pp
@@ -416,20 +509,16 @@ classdef CPRData < handle
       grid on;
     end
     
-    function H0 = histEq(obj,loadH0)
-      if exist('loadH0','var')==0
-        loadH0 = false;
-      end
+    function H0 = histEq(obj,H0)
+      tfH0Given = exist('H0','var')>0;
       
       imSz = cellfun(@size,obj.I,'uni',0);
       cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
       imSz = imSz{1};
       imNpx = numel(obj.I{1});
         
-      if loadH0
-        assert(false,'dunno');
-%         [fileH0,folderH0]=uigetfile('.mat');
-%         load(fullfile(folderH0,fileH0));
+      if tfH0Given
+        % none
       else
         H = nan(256,obj.N);
         mu = nan(1,obj.N);
@@ -573,7 +662,10 @@ classdef CPRData < handle
       df = sExp.datefly;
       [idsUn,idsNLblRstAvail,idsNLblActAvail] = lclGetExpsForDateFly(tMD,df);
       tfTmp = strcmp(idsUn,sExp.id);
-      assert(nnz(tfTmp)==1);
+      if any(tfTmp)
+        assert(nnz(tfTmp)==1);
+        fprintf(1,'Selected datefly is present in dataset; will not include in training set.\n');
+      end
       idsUn = idsUn(~tfTmp,:);
       idsNLblRstAvail = idsNLblRstAvail(~tfTmp,:);
       idsNLblActAvail = idsNLblActAvail(~tfTmp,:);            

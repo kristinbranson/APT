@@ -6,6 +6,12 @@ classdef Features
     JAN_SGS_MAX_SIG0248 = [
       103 44 30 17;37 25 19 12;16 15 13 9;9 9 9 7];
     
+    JAN_SGS_99P9_SIG0248_160211 = [
+      53.5000   34.5000   25.5000   18.5000
+      29.5000   24.5000   18.5000   12.5000
+      18.5000   17.5000   14.5000    9.5000
+      10.5000   10.5000    9.5000    7.5000];
+    
     % take sls = SLS{i1,i2}; it will have a mean of ~0 and a span; this
     % array gives the spans for sig1,sig2 = [0 2 4 8]
     JAN_SLS_SPAN_SIG0248 = [
@@ -17,6 +23,12 @@ classdef Features
 
     JAN_SLS_SPAN99_SIG0248 = [
       38 7 3 1.3;28 18 11 5.1;48 42 32 19;85 82 74 54];
+    
+    JAN_SLS_SPAN99_SIG0248_160211 = [
+      51     9     5     2
+      35    25    15     7
+      63    56    41    22
+      97    93    83    60];
   end
   %% preprocessing/channels
   methods (Static)
@@ -48,9 +60,9 @@ classdef Features
       opts.gaussFiltRadius = 2.5;
       opts.laplaceKernel = fspecial('laplacian',0);
       opts.sgsRescale = true;
-      opts.sgsRescaleFacs = 200./Features.JAN_SGS_MAX_SIG0248; % 200 instead of 256 for safety buffer
+      opts.sgsRescaleFacs = 200./Features.JAN_SGS_99P9_SIG0248_160211; % 200 instead of 256 for safety buffer
       opts.slsRescale = true;
-      opts.slsRescaleFacs = 200./Features.JAN_SLS_SPAN99_SIG0248; % 200 instead of 256 for safety buffer
+      opts.slsRescaleFacs = 200./Features.JAN_SLS_SPAN99_SIG0248_160211; % 200 instead of 256 for safety buffer
       opts = getPrmDfltStruct(varargin,opts);      
       
       assert(iscell(Is) && isvector(Is));
@@ -81,7 +93,9 @@ classdef Features
       SLS = cell(N,n1,n2);
       
       for iTrl = 1:N
-        fprintf(1,'Working on iTrl=%d/%d\n',iTrl,N);
+        if mod(iTrl,10)==0
+          fprintf(1,'Working on iTrl=%d/%d\n',iTrl,N);
+        end
         im = Is{iTrl};
 %         G{iTrl} = gradientMag(im);
 %         L{iTrl} = filter2(opts.laplaceKernel,im,'same');
