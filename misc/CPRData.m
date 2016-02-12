@@ -1,4 +1,10 @@
 classdef CPRData < handle
+  properties (Constant)
+    % for resting/active ranges etc
+    MD_XLSFILE = 'f:\DropBoxNEW\DropBox\Tracking_KAJ\track.results\summary.xlsx';
+    MD_XLSSHEET = 'gt data';      
+  end
+  
   properties
     Name    % Name of this CPRData
     MD      % [NxR] Table of Metadata
@@ -596,10 +602,6 @@ classdef CPRData < handle
       % indices to .iTrn.
       %
       % exp: full experiment name, eg 150723_2_002_4_xxxx.      
-
-      % for resting/active ranges etc
-      XLSFILE = 'f:\DropBoxNEW\DropBox\Tracking_KAJ\track.results\summary.xlsx';
-      XLSSHEET = 'gt data';      
       
       sExp = FS.parseexp(exp);
       tMD = obj.MD;
@@ -615,14 +617,8 @@ classdef CPRData < handle
         obj.MD = tMD;
       end
       if ~ismember('actvf0',tMD.Properties.VariableNames)
-        tXLS = readtable(XLSFILE,'Sheet',XLSSHEET);
-        tf = ~cellfun(@isempty,tXLS.vid);
-        tXLS = tXLS(tf,:);
-        tMD = join(tMD,tXLS); % should be joining on id)
-        
-        tMD.tfAct =  (tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
-        tMD.tfRst = ~(tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
-        obj.MD = tMD;
+        obj.expandMDTable();
+        tMD = obj.MD;
       end
       
       dfs = tMD.datefly;
@@ -688,6 +684,19 @@ classdef CPRData < handle
       
      obj.iTrn = [iTrlAct;iTrlRst];
     end
+    
+    function expandMDTable(obj)
+      tXLS = readtable(obj.MD_XLSFILE,'Sheet',obj.MD_XLSSHEET);
+      tf = ~cellfun(@isempty,tXLS.vid);
+      tXLS = tXLS(tf,:);
+      
+      tMD = obj.MD;
+      tMD = join(tMD,tXLS); % should be joining on id)
+        
+      tMD.tfAct =  (tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
+      tMD.tfRst = ~(tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
+      obj.MD = tMD;  
+    end    
     
   end
   
