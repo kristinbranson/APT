@@ -604,22 +604,9 @@ classdef CPRData < handle
       % exp: full experiment name, eg 150723_2_002_4_xxxx.      
       
       sExp = FS.parseexp(exp);
-      tMD = obj.MD;
       tfIsFullyLabeled = obj.isFullyLabeled;
-      
-      % Augment tMD if nec
-      if ~ismember('datefly',tMD.Properties.VariableNames)
-        fprintf(1,'Augmenting .MD table.\n');
-        s = cellfun(@FS.parseexp,tMD.lblFile);
-        tMD2 = struct2table(s);        
-        assert(isequal(tMD.lblFile,tMD2.orig));
-        tMD = [tMD tMD2];
-        obj.MD = tMD;
-      end
-      if ~ismember('actvf0',tMD.Properties.VariableNames)
-        obj.expandMDTable();
-        tMD = obj.MD;
-      end
+      obj.expandMDTable();
+      tMD = obj.MD;
       
       dfs = tMD.datefly;
       dfsUn = unique(dfs);
@@ -686,18 +673,28 @@ classdef CPRData < handle
     end
     
     function expandMDTable(obj)
-      tXLS = readtable(obj.MD_XLSFILE,'Sheet',obj.MD_XLSSHEET);
-      tf = ~cellfun(@isempty,tXLS.vid);
-      tXLS = tXLS(tf,:);
-      
       tMD = obj.MD;
-      tMD = join(tMD,tXLS); % should be joining on id)
+      
+      if ~ismember('datefly',tMD.Properties.VariableNames)
+        fprintf(1,'Augmenting .MD table.\n');
+        s = cellfun(@FS.parseexp,tMD.lblFile);
+        tMD2 = struct2table(s);        
+        assert(isequal(tMD.lblFile,tMD2.orig));
+        tMD = [tMD tMD2];
+        obj.MD = tMD;
+      end
+      if ~ismember('actvf0',tMD.Properties.VariableNames)
+        tXLS = readtable(obj.MD_XLSFILE,'Sheet',obj.MD_XLSSHEET);
+        tf = ~cellfun(@isempty,tXLS.vid);
+        tXLS = tXLS(tf,:);
         
-      tMD.tfAct =  (tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
-      tMD.tfRst = ~(tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
-      obj.MD = tMD;  
-    end    
-    
+        tMD = join(tMD,tXLS); % should be joining on id)
+        
+        tMD.tfAct =  (tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
+        tMD.tfRst = ~(tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
+      end
+      obj.MD = tMD;
+    end
   end
   
 end

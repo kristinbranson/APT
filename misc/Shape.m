@@ -585,12 +585,66 @@ classdef Shape
     
     % See MakeTrackingResultsHistogramVideo
     
+    function hFig = vizReps(I,pT,iTrl,t,mdl,varargin)
+      % I: [N] cell vec of images
+      % pT: [NxRTxDx(T+1)] shapes
+      % iTrl: index into I of trial to follow
+      % t: iteration index (into 1..(T+1)) to visualize
+      % 
+      % optional PVs
+      %  fig - handle to figure to use
+
+      N = numel(I);
+      assert(size(pT,1)==N);
+      RT = size(pT,2);
+      assert(size(pT,3)==mdl.D);
+      Tp1 = size(pT,4);
+      npts = mdl.nfids;
+      
+      opts.fig = [];
+      opts = getPrmDfltStruct(varargin,opts);      
+      if isempty(opts.fig)
+        hFig = figure('windowstyle','docked');
+      else
+        figure(opts.fig);
+        hFig = opts.fig;
+        clf;
+      end
+      ax = axes;
+      
+      % plot the image for iTrl; initialize hlines
+      im = I{iTrl};
+      colors = jet(npts);
+      hold(ax,'off');
+      imagesc(im,'Parent',ax,[0,255]);
+      axis(ax,'image','off');
+      hold(ax,'on');  
+      colormap gray
+      lims = axis;
+        
+      for r = 1:RT
+        for iPt = 1:npts
+          x = pT(iTrl,r,iPt,t);
+          y = pT(iTrl,r,iPt+npts,t);
+          if x < lims(1) || x > lims(2) || ...
+              y < lims(3) || y > lims(4)
+            continue;
+          end
+          plot(x,y,'o','Color',colors(iPt,:),...
+            'MarkerFaceColor',colors(iPt,:),'MarkerSize',2,'LineWidth',1);
+        end
+      end
+      
+      text(lims(1),lims(3),sprintf('  iTrl%d Iter%d',iTrl,t),...
+        'FontSize',24,'HorizontalAlignment','left','VerticalAlignment','top','Color',[1 1 1]);
+    end
+    
     function vizRepsOverTimeDensity(I,pT,iTrl,mdl,varargin)
       % Visualize Replicate-density over time for a single Trial from a Trial set
       % 
       % I: [N] cell vec of images
       % pT: [NxRTxDx(T+1)] shapes
-      %      % iTrl: index into I of trial to follow
+      % iTrl: index into I of trial to follow
       %
       % optional pvs    
       %  fig - handle to figure to use
