@@ -1183,6 +1183,22 @@ classdef Labeler < handle
            
   end
   
+  methods (Static)    
+    function nptsLbled = labelPosNPtsLbled(lpos)
+      % poor man's export of LabelPosLabeledFramesStats
+      [~,d,nfrm,ntgt] = size(lpos);
+      assert(d==2);
+      assert(ntgt==1,'One target only.');
+      lposnnan = ~isnan(lpos);
+      
+      nptsLbled = nan(nfrm,1);
+      for f = 1:nfrm
+        tmp = all(lposnnan(:,:,f),2); % both x/y must be labeled for pt to be labeled
+        nptsLbled(f) = sum(tmp);
+      end
+    end
+  end
+  
   methods (Access=private)
     
     function labelsUpdateNewFrame(obj,force)

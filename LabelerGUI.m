@@ -267,23 +267,28 @@ if tfDoSusp
   tblSusp.Data = mat;
   pnlSusp.Visible = 'on';
   
-  % make tblSusp column-sortable. 
-  % AL 201510: Tried putting this in opening_fcn but
-  % got weird behavior (findjobj couldn't find jsp)
-  jscrollpane = findjobj(tblSusp);
-  jtable = jscrollpane.getViewport.getView;
-  jtable.setSortable(true);		% or: set(jtable,'Sortable','on');
-  jtable.setAutoResort(true);
-  jtable.setMultiColumnSortable(true);
-  jtable.setPreserveSelectionsAfterSorting(true);
-  % reset ColumnWidth, jtable messes it up
-  cwidth = tblSusp.ColumnWidth;
-  cwidth{end} = cwidth{end}-1;
-  tblSusp.ColumnWidth = cwidth;
-  cwidth{end} = cwidth{end}+1;
-  tblSusp.ColumnWidth = cwidth;
+  if verLessThan('matlab','R2015b') % findjobj doesn't work for >=2015b
+    
+    % make tblSusp column-sortable. 
+    % AL 201510: Tried putting this in opening_fcn but
+    % got weird behavior (findjobj couldn't find jsp)
+    jscrollpane = findjobj(tblSusp);
+    jtable = jscrollpane.getViewport.getView;
+    jtable.setSortable(true);		% or: set(jtable,'Sortable','on');
+    jtable.setAutoResort(true);
+    jtable.setMultiColumnSortable(true);
+    jtable.setPreserveSelectionsAfterSorting(true);
+    % reset ColumnWidth, jtable messes it up
+    cwidth = tblSusp.ColumnWidth;
+    cwidth{end} = cwidth{end}-1;
+    tblSusp.ColumnWidth = cwidth;
+    cwidth{end} = cwidth{end}+1;
+    tblSusp.ColumnWidth = cwidth;
   
-  tblSusp.UserData = struct('jtable',jtable);  
+    tblSusp.UserData = struct('jtable',jtable);   
+  else
+    % none
+  end
   lObj.updateCurrSusp();
 else
   tblSusp.Data = cell(0,3);
@@ -430,13 +435,22 @@ lObj.videoResetView();
 
 function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-jt = lObj.gdata.tblSusp.UserData.jtable;
-row = jt.getSelectedRow; % 0 based
-frm = jt.getValueAt(row,0);
-iTgt = jt.getValueAt(row,1);
-if ~isempty(frm)
-  frm = frm.longValueReal;
-  iTgt = iTgt.longValueReal;
+if verLessThan('matlab','R2015b')
+  jt = lObj.gdata.tblSusp.UserData.jtable;
+  row = jt.getSelectedRow; % 0 based
+  frm = jt.getValueAt(row,0);
+  iTgt = jt.getValueAt(row,1);
+  if ~isempty(frm)
+    frm = frm.longValueReal;
+    iTgt = iTgt.longValueReal;
+    lObj.setFrameAndTarget(frm,iTgt);
+    hlpRemoveFocus(hObject,handles);
+  end
+else
+  row = eventdata.Indices(1);
+  dat = hObject.Data;
+  frm = dat(row,1);
+  iTgt = dat(row,2);
   lObj.setFrameAndTarget(frm,iTgt);
   hlpRemoveFocus(hObject,handles);
 end
