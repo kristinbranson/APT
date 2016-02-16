@@ -24,7 +24,8 @@ if ~isempty(tdIfile)
     
     fprintf(1,'tdIfile supplied: %s, var %s.\n',tdIfilefull,tdIfileVar);
 else
-    fprintf(1,'No tdIfile, using indices supplied with td.\n');
+    fprintf(1,'No tdIfile, using ALL LABELED FRAMES.\n');
+    td.iTst = find(td.isFullyLabeled);
 end
 fprintf(1,'td.NTst=%d\n',td.NTst);
 
