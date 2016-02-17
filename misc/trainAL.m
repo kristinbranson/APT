@@ -9,9 +9,13 @@ function trainAL(datafile,prmfile,varargin)
     'forceChan',true); % if true, compute channels and use them (ignoreChan ignored)
 
 if isunix
-  cmd = sprintf('git --git-dir=%s/.git rev-parse HEAD',CPR.Root);
-  [~,cmdout] = system(cmd);
-  sha = cmdout(1:5);
+  if isdeployed
+    sha = 'unkDep';
+  else
+    cmd = sprintf('git --git-dir=%s/.git rev-parse HEAD',CPR.Root);
+    [~,cmdout] = system(cmd);
+    sha = cmdout(1:5);
+  end
 else
   sha = 'unkSHA';
 end
@@ -39,7 +43,11 @@ else
 end
 fprintf(1,'td.NTrn=%d\n',td.NTrn);
 
-td.summarize(td.iTrn);
+try
+  td.summarize(td.iTrn);
+catch ME
+  fprintf(2,'Error summarizing training data: %s\n\n',ME.getReport());
+end
 
 if forceChan
   assert(isempty(td.Ipp),'TEMPORARY');

@@ -29,7 +29,11 @@ else
 end
 fprintf(1,'td.NTst=%d\n',td.NTst);
 
-td.summarize(td.iTst);
+try
+  td.summarize(td.iTst);
+catch ME
+  fprintf(2,'Error summarizing training data: %s\n\n',ME.getReport());
+end
 
 if forceChan
   assert(isempty(td.Ipp),'TEMPORARY');
