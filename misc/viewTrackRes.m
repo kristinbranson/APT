@@ -1,6 +1,7 @@
-LBLNAME = 'f:\DropBoxNEW\Dropbox\Tracking_KAJ\allen cleaned lbls\150730_2_006_2_C001H001S0001.lbl';
-TDFILE = 'f:\cpr\data\jan\td@150730_2_006_2_all@pp_lbled@0129';
-RESFILE = 'f:\DropBoxNEW\Dropbox\Tracking_KAJ\track.results\11exps@@for_150730_02_006_02@iTrn@lotsa1__11exps@@for_150730_02_006_02@iTst__0205T1608\res.mat';
+LBLNAME = 'f:\DropBoxNEW\Dropbox\Tracking_KAJ\allen cleaned lbls\150730_02_002_02@20160216.lbl';
+TDFILE = 'f:\DropBoxNEW\Dropbox\Tracking_KAJ\allen cleaned lbls\td@150730_02_002_02@@0216.mat';
+RESFILE = '11exps@histeq@for_150730_02_002_02@iTrn@lotsa1__11exps@histeq@150730_02_002_02@iTst__0216T1344\res.mat';
+TRFILE = '11exps@histeq@for_150730_02_006_02@iTrn@lotsa1@781b8@0205T1445.mat';
 
 %% load results
 fprintf('Loading results...\n');
@@ -31,17 +32,29 @@ pGT = reshape(td.pGT,[nf D/2 2]);
 
 pTstT = res.pTstT(:,:,:,end);
 pTstT = permute(pTstT,[1 3 2]);
-assert(size(pTstT,1)==nlf);
 assert(size(pTstT,2)==D);
-[~,~,nrep] = size(pTstT);
-xyTstT = reshape(pTstT,[nlf D/2 2 nrep]);
-xyTstTPadded = nan(nf,D/2,2,nrep);
-xyTstTPadded(td.isFullyLabeled,:,:,:) = xyTstT;
+[nTrlPTstT,~,nrep] = size(pTstT);
+tfOnlyLabeledTracked = nTrlPTstT==nlf;
+if tfOnlyLabeledTracked
+  fprintf(1,'pTstT only includes labeled frames.\n');
+  xyTstT = reshape(pTstT,[nlf D/2 2 nrep]);
+  xyTstTPadded = nan(nf,D/2,2,nrep);
+  xyTstTPadded(td.isFullyLabeled,:,:,:) = xyTstT;
+else
+  fprintf(1,'pTstT contains all frames.\n');
+  clear xyTstT
+  xyTstTPadded = reshape(pTstT,[nf D/2 2 nrep]);
+end
 
 pTstTRed = res.pTstTRed(:,:,end);
-xyTstTRed = reshape(pTstTRed,[nlf D/2 2]);
-xyTstTRedPadded = nan(nf,D/2,2);
-xyTstTRedPadded(td.isFullyLabeled,:,:) = xyTstTRed;
+if tfOnlyLabeledTracked
+  xyTstTRed = reshape(pTstTRed,[nlf D/2 2]);
+  xyTstTRedPadded = nan(nf,D/2,2);
+  xyTstTRedPadded(td.isFullyLabeled,:,:) = xyTstTRed;
+else
+  clear xyTstTRed
+  xyTstTRedPadded = reshape(pTstTRed,[nf D/2 2]);
+end
 
 lc = LabelCoreCPRView(lObj);
 lc.setPs(pGT,xyTstTPadded,xyTstTRedPadded);
@@ -51,15 +64,18 @@ lc.init(lObj.nLabelPoints,lObj.labelPointsPlotInfo);
 lObj.setFrame(1);
 
 %% Susp
-[d,dav] = Shape.distP(td.pGT(td.isFullyLabeled,:),...
-  reshape(pTstT,[nlf D nrep]));
+tfLbled = td.isFullyLabeled;
+if tfOnlyLabeledTracked
+  [d,dav] = Shape.distP(td.pGT(tfLbled,:),reshape(pTstT,[nlf D nrep]));
+else
+  [d,dav] = Shape.distP(td.pGT(tfLbled,:),reshape(pTstT(tfLbled,:,:),[nlf D nrep]));  
+end
 d = d(:,4:7,:);
 d = squeeze(mean(d,2)); % npt x nrep
 d = mean(d,2);
 dPad = zeros(nf,1);
-dPad(td.isFullyLabeled) = d;
+dPad(tfLbled) = d;
 lObj.setSuspScore({dPad});
-
 
 %% View: time-lapse of GT
 figure;
@@ -123,4 +139,27 @@ for iPt = 1:4
   scatter(5*d(:,iPt),predSD(:,iPt));
 end
 
+%% View Ftrs
+iTrl = 258; % = frame1286, worst susp
+muFtrDist = Shape.vizRepsOverTime(td.I(td.isFullyLabeled),res.pTstT,...
+  iTrl,tr.regModel.model,'nr',2,'nc',2,'regs',tr.regModel.regs);
 
+%% View Fern stuff
+regs = tr.regModel.regs;
+thrs1 = nan(0,1);
+fernD = nan(0,7);
+for iReg = 1:numel(regs)
+  ri = regs(iReg).regInfo;
+  for iRI = 1:numel(ri)
+    thrs1(end+1,1) = ri{iRI}.thrs(1);
+    ys = reshape(ri{iRI}.ysFern,[32 7 2]);
+    tmp = sqrt(sum(ys.^2,3)); % [32x7], dist for each pt
+    fernD(end+1,:) = mean(tmp,1);
+  end
+end
+    
+figure;
+x = 1:5000;
+plot(x,thrs1);
+figure;
+plot(x,fernD);

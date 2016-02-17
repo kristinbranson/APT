@@ -30,7 +30,8 @@ classdef FS
     end
     
     function s = parseexp(n)
-      PAT = '(?<date>[0-9]{6,6})_(?<fly>[0-9]{1,2})_(?<session>[0-9]{3,3})_(?<trial>[0-9]{1,2})_[A-Z0-9]+';
+      %PAT = '(?<date>[0-9]{6,6})_(?<fly>[0-9]{1,2})_(?<session>[0-9]{3,3})_(?<trial>[0-9]{1,2})_[A-Z0-9]+';
+      PAT = '(?<date>[0-9]{6,6})_(?<fly>[0-9]{1,2})_(?<session>[0-9]{3,3})_(?<trial>[0-9]{1,2})';
       s = regexp(n,PAT,'names');
       switch numel(s)
         case 0

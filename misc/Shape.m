@@ -386,13 +386,17 @@ classdef Shape
       end
     end
     
-    function vizRepsOverTime(I,pT,iTrl,mdl,varargin)
+    function muFtrDist = vizRepsOverTime(I,pT,iTrl,mdl,varargin)
       % Visualize Replicates over time for a single Trial from a Trial set
       % 
       % I: [N] cell vec of images
       % pT: [NxRTxDx(T+1)] shapes
       % iTrl: index into I of trial to follow
       % mdl: model
+      %
+      % muFtrDist: [TxnMini]. Can be output only if optional 'regs' input 
+      % provided. average distance between feature points, over all
+      % iterations/minis. (for first plot/replicate)
       %
       % 
       % optional pvs
@@ -443,7 +447,7 @@ classdef Shape
         hold(hax(iPlt),'on');
         colormap gray;
         iRT = iPlot(iPlt);
-        text(1,1,num2str(iRT),'parent',hax(iPlt));
+        text(1,1,num2str(iRT),'parent',hax(iPlt),'Color',[0 1 0]);
         
         for iPt = 1:mdl.nfids
           hlines{iPlt}(iPt) = plot(hax(iPlt),nan,nan,'ws',...
@@ -470,6 +474,8 @@ classdef Shape
       else % regs
         nMini = arrayfun(@(x)numel(x.regInfo),opts.regs);
         assert(all(nMini==nMini(1)));
+        nMini = nMini(1);
+        muFtrDist = nan((Tp1-1),nMini);
         for t = 2:Tp1
           for iMini = 1:nMini
             if exist('hMiniFtrs','var')>0
@@ -496,22 +502,32 @@ classdef Shape
               assert(isrow(xF));
               assert(isrow(yF));
               assert(isrow(chanF));
+              
+              if iPlt==1
+                fDists = nan(nfids,1);
+              end
               for iFid = 1:nfids
                 fid1 = fids(1,iFid);
                 fid2 = fids(2,iFid);
-                hMiniFtrs(end+1) = plot(hax(iPlt),xF([fid1 fid2]),yF([fid1 fid2]),'-',...
-                  'Color',colors(iFid,:));
-%                 hMiniFtrs(end+1) = plot(hax(iPlt),xF(fid2),yF(fid2),'v',...
-%                   'markerfacecolor',colors(iFid,:),'MarkerSize',4);
-%                 hMiniFtrs(end+1) = plot(hax(iPlt),xF(fid2),yF(fid2),'v',...
-%                   'markerfacecolor',colors(iFid,:),'MarkerSize',4);
+                xx = xF([fid1 fid2]);
+                yy = yF([fid1 fid2]);
+                hMiniFtrs(end+1) = plot(hax(iPlt),xx,yy,'-','Color',colors(iFid,:));                
+                if iPlt==1
+                  fDists(iFid) = sqrt(diff(xx).^2 + diff(yy).^2);
+                end
               end
-              fprintf('iRT=%d, chans:\n',iRT);
-              disp(chanF(fids));
+              if iPlt==1
+                muFtrDist(t-1,iMini) = mean(fDists);
+              end
+              %fprintf('iRT=%d, chans:\n',iRT);
+              %disp(chanF(fids));
             end
-            fprintf(1,'fids:\n');
-            disp(fids);
-            input(sprintf('it %d.%03d\n',t,iMini));
+            if iMini<=5
+              fprintf(1,'fids:\n');
+              disp(fids);
+              input(sprintf('it %d.%03d\n',t,iMini));
+            end
+            %fprintf('it %d.%03d\n',t,iMini);
           end
         end
       end

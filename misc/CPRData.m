@@ -597,9 +597,8 @@ classdef CPRData < handle
       obj.iTst = iTstAcc;      
     end
     
-    function setITrn1(obj,exp)
-      % Given experiment name (exp), select training experiments and set
-      % indices to .iTrn.
+    function [iTrn,iTstAll,iTstLbl] = genITrnITst1(obj,exp)
+      % Given experiment name (exp), generate training and test experiments.
       %
       % exp: full experiment name, eg 150723_2_002_4_xxxx.      
       
@@ -651,25 +650,33 @@ classdef CPRData < handle
       end
       idsUn = idsUn(~tfTmp,:);
       idsNLblRstAvail = idsNLblRstAvail(~tfTmp,:);
-      idsNLblActAvail = idsNLblActAvail(~tfTmp,:);            
+      idsNLblActAvail = idsNLblActAvail(~tfTmp,:);   
       
-      nIdsUn = numel(idsUn);
-      fprintf('Working on SELECTED datefly %s. %d exps.\n',df,nIdsUn);
-      FUDGEFAC = 1.4; % try to get as much data as possible
-      nActTot = min(idsNLblActAvail)*FUDGEFAC*nIdsUn;
-      nRstTot = round(nActTot/2);
-      idsNLblRstTake = loadBalance(min(nRstTot,sum(idsNLblRstAvail)),idsNLblRstAvail);
-      idsNLblActTake = loadBalance(min(nActTot,sum(idsNLblActAvail)),idsNLblActAvail);
-      
-      for iID = 1:nIdsUn
-        id = idsUn{iID};
-        [iTmpLblRst,iTmpLblAct] = lclGetActRstFrms(tMD,tfIsFullyLabeled,id,...
-          idsNLblRstTake(iID),idsNLblActTake(iID));
-        iTrlRst = [iTrlRst;iTmpLblRst]; %#ok<AGROW>
-        iTrlAct = [iTrlAct;iTmpLblAct]; %#ok<AGROW>
+      if isempty(idsUn)
+        fprintf(1,'No other ids for selected datefly.\n');
+      else      
+        nIdsUn = numel(idsUn);
+        fprintf('Working on SELECTED datefly %s. %d exps.\n',df,nIdsUn);
+        FUDGEFAC = 1.4; % try to get as much data as possible
+        nActTot = min(idsNLblActAvail)*FUDGEFAC*nIdsUn;
+        nRstTot = round(nActTot/2);
+        idsNLblRstTake = loadBalance(min(nRstTot,sum(idsNLblRstAvail)),idsNLblRstAvail);
+        idsNLblActTake = loadBalance(min(nActTot,sum(idsNLblActAvail)),idsNLblActAvail);
+
+        for iID = 1:nIdsUn
+          id = idsUn{iID};
+          [iTmpLblRst,iTmpLblAct] = lclGetActRstFrms(tMD,tfIsFullyLabeled,id,...
+            idsNLblRstTake(iID),idsNLblActTake(iID));
+          iTrlRst = [iTrlRst;iTmpLblRst]; %#ok<AGROW>
+          iTrlAct = [iTrlAct;iTmpLblAct]; %#ok<AGROW>
+        end
       end
       
-     obj.iTrn = [iTrlAct;iTrlRst];
+      iTrn = [iTrlAct;iTrlRst];
+      tfID = strcmp(sExp.id,tMD.id);
+      iTstAll = find(tfID);
+      iTstLbl = find(tfIsFullyLabeled & tfID);
+      fprintf(1,'nTrn nTstAll nTstLbl %d %d %d\n',numel(iTrn),numel(iTstAll),numel(iTstLbl));
     end
     
     function expandMDTable(obj)
