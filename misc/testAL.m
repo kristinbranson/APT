@@ -123,15 +123,15 @@ if true %~tfTestRes
   save(fullfile(resdir,'res.mat'),'-v7.3','pIni','pTstT','pTstTRed');
 
   
-  %% Movie
-  NTRIALS = 1;
-  trls = randsample(td.NTst,NTRIALS);
-  for iTrl = trls(:)'
-      movname = fullfile(resdir,sprintf('vizROTD_iTrl%04d',iTrl));
-      hFig(end+1) = figure;
-      Shape.vizRepsOverTimeDensity(td.ITst,pTstT,iTrl,tr.regModel.model,...
-          'fig',gcf,'smoothsig',20,'movie',true,'moviename',movname);
-  end
+%   %% Movie
+%   NTRIALS = 1;
+%   trls = randsample(td.NTst,NTRIALS);
+%   for iTrl = trls(:)'
+%       movname = fullfile(resdir,sprintf('vizROTD_iTrl%04d',iTrl));
+%       hFig(end+1) = figure;
+%       Shape.vizRepsOverTimeDensity(td.ITst,pTstT,iTrl,tr.regModel.model,...
+%           'fig',gcf,'smoothsig',20,'movie',true,'moviename',movname);
+%   end
 end
 
 
