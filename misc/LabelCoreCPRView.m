@@ -46,14 +46,17 @@ classdef LabelCoreCPRView < LabelCore
       obj.hPtsRepRed = gobjects(obj.nPts,1);
       clrs = obj.colors;
       ax = obj.hAx;
+      MARKERS = {'o' 'o' 'o' 'v' 'o' 'v' 'o'};
+      PINK = [ 1.0000    0.6000    0.7843];
       for iPt = 1:obj.nPts
-        obj.hPtsGT(iPt) = plot(ax,nan,nan,'s','MarkerSize',6,'Color',clrs(iPt,:),'MarkerFaceColor',clrs(iPt,:));
-        obj.hPtsRepRed(iPt) = plot(ax,nan,nan,'s','MarkerSize',8,'Color',clrs(iPt,:));  
+        obj.hPtsGT(iPt) = plot(ax,nan,nan,MARKERS{iPt},'MarkerSize',8,'Color',clrs(iPt,:),'MarkerFaceColor',clrs(iPt,:));
+        obj.hPtsRepRed(iPt) = plot(ax,nan,nan,MARKERS{iPt},'MarkerSize',8,'Color',PINK,'LineWidth',1);  
         argsRep = {nan,nan,'o','MarkerSize',2,'Color',clrs(iPt,:)};
         for iRep = 1:obj.nRep
           obj.hPtsRep(iPt,iRep) = plot(ax,argsRep{:},'UserData',[iPt iRep]); 
         end
       end
+      uistack(obj.hPtsRepRed,'top');
     end
     function newFrame(obj,iFrm0,iFrm1,iTgt)
       obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt);

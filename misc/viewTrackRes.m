@@ -1,7 +1,7 @@
-LBLNAME = 'f:\DropBoxNEW\Dropbox\Tracking_KAJ\allen cleaned lbls\150730_02_002_02@20160216.lbl';
-TDFILE = 'f:\DropBoxNEW\Dropbox\Tracking_KAJ\allen cleaned lbls\td@150730_02_002_02@@0216.mat';
-RESFILE = '11exps@histeq@for_150730_02_002_02@iTrn@lotsa1__11exps@histeq@150730_02_002_02@iTst__0216T1344\res.mat';
-TRFILE = '11exps@histeq@for_150730_02_006_02@iTrn@lotsa1@781b8@0205T1445.mat';
+LBLNAME = 'f:\DropBoxNEW\Dropbox\Tracking_KAJ\allen cleaned lbls\150828_01_002_07@20160216.lbl';
+TDFILE = 'f:\cpr\data\jan\td@150828_01_002_07@@0216.mat';
+RESFILE = '13@he@for_150828_01_002_07@iTrn@lotsa1__13@he@for_150828_01_002_07@iTstLbl__0217T2326\res.mat';
+%TRFILE = '11exps@histeq@for_150730_02_006_02@iTrn@lotsa1@781b8@0205T1445.mat';
 
 %% load results
 fprintf('Loading results...\n');
@@ -28,7 +28,7 @@ mr.open(td.I);
 lObj.movieReader = mr;
 
 [~,D] = size(td.pGT);
-pGT = reshape(td.pGT,[nf D/2 2]);
+xyGT = reshape(td.pGT,[nf D/2 2]);
 
 pTstT = res.pTstT(:,:,:,end);
 pTstT = permute(pTstT,[1 3 2]);
@@ -57,11 +57,21 @@ else
 end
 
 lc = LabelCoreCPRView(lObj);
-lc.setPs(pGT,xyTstTPadded,xyTstTRedPadded);
+lc.setPs(xyGT,xyTstTPadded,xyTstTRedPadded);
 delete(lObj.lblCore);
 lObj.lblCore = lc;
 lc.init(lObj.nLabelPoints,lObj.labelPointsPlotInfo);
 lObj.setFrame(1);
+
+
+%% plot error by landmark over frames
+assert(isequal(size(xyGT),size(xyTstTRedPadded)));
+delta = sqrt(sum((xyGT-xyTstTRedPadded).^2,3)); % [nf x npt]
+figure;
+tfLbled = td.isFullyLabeled;
+plot(find(tfLbled),delta(tfLbled,4:7),'-.');
+legend({'4' '5' '6' '7'});
+grid on;
 
 %% Susp
 tfLbled = td.isFullyLabeled;
@@ -94,8 +104,8 @@ end
 for f=1:5:3661
   i=mod(f,20)+1; 
   for j=4:7
-    hPts(i,j).XData = pGT(f,j);
-    hPts(i,j).YData = pGT(f,j+7);
+    hPts(i,j).XData = xyGT(f,j);
+    hPts(i,j).YData = xyGT(f,j+7);
   end
   title(num2str(f));
   pause(PAUSEINT);
