@@ -10,6 +10,10 @@ function testAL(tdfile,trfile,varargin)
     'ignoreChan',false,...
     'forceChan',true,... % if true, compute channels and use them (ignoreChan ignored)
     'skipLoss',false); % if true, don't compute loss/stats comparing tracked results to GT
+  
+if ischar(skipLoss)
+  skipLoss = str2double(skipLoss);
+end
 
 tfTestRes = ~isempty(testres);
 
