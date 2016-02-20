@@ -1,14 +1,15 @@
 function testAL(tdfile,trfile,varargin)
 % Take a TrainData, TrainRes, and produce test results
 
-[rootdir,tdIfile,tdIfileVar,nReps,testres,ignoreChan,forceChan] = myparse(varargin,...
+[rootdir,tdIfile,tdIfileVar,nReps,testres,ignoreChan,forceChan,skipLoss] = myparse(varargin,...
     'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
-    'tdIfile','',... % traindata Index file for testing; if not specified, use td.iTst
+    'tdIfile','',... % traindata Index file for testing; if not specified, use td.iTst. SPECIAL CASE: 'every5'
     'tdIfileVar','',...
     'nReps',50,...
     'testres',[],...% previously computed/saved test results
     'ignoreChan',false,...
-    'forceChan',true); % if true, compute channels and use them (ignoreChan ignored)
+    'forceChan',true,... % if true, compute channels and use them (ignoreChan ignored)
+    'skipLoss',false); % if true, don't compute loss/stats comparing tracked results to GT
 
 tfTestRes = ~isempty(testres);
 
@@ -17,12 +18,17 @@ td = load(tdfilefull);
 td = td.td;
 fprintf(1,'Loaded TD: %s\n',tdfilefull);
 if ~isempty(tdIfile)
+  if strcmp(tdIfile,'every5')
+    td.iTst = 1:5:numel(td.I);  
+    fprintf(1,'tdIfile: every 5. from 1 to nframes=%d\n',numel(td.I));
+  else  
     tdIfilefull = fullfile(rootdir,tdIfile);
     tdI = load(tdIfilefull);
     tdI = tdI.(tdIfileVar);
     td.iTst = tdI;
     
     fprintf(1,'tdIfile supplied: %s, var %s.\n',tdIfilefull,tdIfileVar);
+  end
 else
     fprintf(1,'No tdIfile, using ALL LABELED FRAMES.\n');
     td.iTst = find(td.isFullyLabeled);
@@ -99,16 +105,19 @@ else
   end
 end
 
-%%
-hFig = Shape.vizLossOverTime(td.pGTTst,pTstTRed,'md',td.MDTst);
+if ~skipLoss
+  
+  %%
+  hFig = Shape.vizLossOverTime(td.pGTTst,pTstTRed,'md',td.MDTst);
 
-%%
-hFig(end+1) = figure('WindowStyle','docked');
-iTst = td.iTst;
-tfTstLbled = ismember(iTst,find(td.isFullyLabeled));
-Shape.vizDiff(td.ITst(tfTstLbled),td.pGTTst(tfTstLbled,:),...
-  pTstTRed(tfTstLbled,:,end),tr.regModel.model,...
-  'fig',gcf,'nr',4,'nc',4,'md',td.MDTst(tfTstLbled,:));
+  %%
+  hFig(end+1) = figure('WindowStyle','docked');
+  iTst = td.iTst;
+  tfTstLbled = ismember(iTst,find(td.isFullyLabeled));
+  Shape.vizDiff(td.ITst(tfTstLbled),td.pGTTst(tfTstLbled,:),...
+    pTstTRed(tfTstLbled,:,end),tr.regModel.model,...
+    'fig',gcf,'nr',4,'nc',4,'md',td.MDTst(tfTstLbled,:));
+end
 
 %% Save results
 if true %~tfTestRes
@@ -119,7 +128,9 @@ if true %~tfTestRes
   fprintf('Training and saving results to: %s\n',resdir);
 
   %%
-  savefig(hFig,fullfile(resdir,'results.fig'));
+  if ~skipLoss
+    savefig(hFig,fullfile(resdir,'results.fig'));
+  end
   save(fullfile(resdir,'res.mat'),'-v7.3','pIni','pTstT','pTstTRed');
 
   
