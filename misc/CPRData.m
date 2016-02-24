@@ -597,6 +597,207 @@ classdef CPRData < handle
       obj.iTst = iTstAcc;      
     end
     
+    function [iTrn,iTstAll,iTstLbl] = genITrnITst2(obj,idTest)
+      % Given experiment id (testID), generate training and test exps.
+            
+      dfTest = idTest(1:9);
+      
+      tfLbled = obj.isFullyLabeled;
+      obj.expandMDTable();
+      tMD = obj.MD;
+      
+      dfs = tMD.datefly;
+      dfsUn = unique(dfs);
+      dfsUnOther = setdiff(dfsUn,dfTest);
+      nDFSUnOther = numel(dfsUnOther);
+      
+      % number of labeled frames for each dfsUnOther
+      dfsUnOtherLbledCnt = cellfun(@(x)nnz(strcmp(dfs,x) & tfLbled),dfsUnOther); 
+      disp([{'id' 'nLbledFrm'};[dfsUnOther num2cell(dfsUnOtherLbledCnt)]]);
+      minLbledCntDfsUnOther = min(dfsUnOtherLbledCnt);
+
+      fprintf('dfTest: %s. %d other DFs. minLbledCntDfsUnOther: %d.\n',...
+        dfTest,nDFSUnOther,minLbledCntDfsUnOther);
+      
+      % For each dfsUnOther, pick training set.
+      %
+      % We use all frames with a distance-to-other-frames of at least this
+      % threshold, (per furthestfirst()).
+      MINDISTACCEPT = 17.0; % in squared pixels I think
+      % ... Except, we also do not allow any experiment to be way 
+      % overrepresented in the data relative to another, per this ratio.
+      MAXDF_POPULATION_RATIO = 1.6;
+
+      % First find all frames for each DFOther that exceed threshold
+      iAvailDFOther = cell(nDFSUnOther,1);
+      for iDFOther = 1:nDFSUnOther
+        df = dfsUnOther{iDFOther};
+        iDF = find(strcmp(df,dfs) & tfLbled);
+        pDF = obj.pGT(iDF,:);
+        nDF = numel(iDF);
+        
+        % use furthestfirst to order shapes by decreasing distance
+        warnst = warning('off','backtrace');
+        [~,~,tmpidx,~,mindists] = furthestfirst(pDF,nDF,'Start',[]);  
+        warning(warnst);
+        
+        mindists(1) = inf;
+        assert(isequal(sort(mindists,'descend'),mindists));
+        tfAcc = mindists > MINDISTACCEPT;
+        
+        iTrnDF = iDF(tmpidx(tfAcc));
+        iAvailDFOther{iDFOther} = iTrnDF;       
+        fprintf(1,' ... furthestfirst done for %s. %d/%d trials fall under mindist threshold: %.3f.\n',...
+          df,nnz(tfAcc),nDF,MINDISTACCEPT);
+      end
+      nAvailDFOther = cellfun(@numel,iAvailDFOther);
+      
+      % Now, apply MAXDF_POPULATION_RATIO limit
+      maxNDFTrn = round(min(nAvailDFOther) * MAXDF_POPULATION_RATIO);
+      fprintf(1,' Maximum ntrials accepted in any DF: %d\n',maxNDFTrn);
+      iTrnDFOther = cell(size(iAvailDFOther));
+      for iDFOther = 1:nDFSUnOther
+        df = dfsUnOther{iDFOther};
+
+        iAvail = iAvailDFOther{iDFOther};
+        nAvail = numel(iAvail);
+        nKeep = min(nAvail,maxNDFTrn);
+        iTrnDFOther{iDFOther} = iAvail(1:nKeep); % iTrns should be sorted in order of descending distance
+        
+        fprintf(1,'%s: Using %d/%d trials.\n',df,nKeep,nAvail);
+      end
+      
+      %%% For testDF itself, use all frames better than threshold
+      iDF = find(strcmp(dfTest,dfs) & tfLbled & ~strcmp(idTest,tMD.id));
+      pDF = obj.pGT(iDF,:);
+      nDF = numel(iDF);
+
+      warnst = warning('off','backtrace');
+      [~,~,tmpidx,~,mindists] = furthestfirst(pDF,nDF,'Start',[]);  
+      warning(warnst);        
+      mindists(1) = inf;
+      assert(isequal(sort(mindists,'descend'),mindists));
+      tfAcc = mindists > MINDISTACCEPT;
+        
+      iTrnDFTest = iDF(tmpidx(tfAcc));
+      fprintf(1,'Using %d/%d from datefly %s (but not id %s)\n',...
+        numel(iTrnDFTest),numel(iDF),dfTest,idTest);
+      
+      iTrn = cat(1,iTrnDFOther{:},iTrnDFTest);
+      iTstAll = find(strcmp(idTest,tMD.id));
+      fprintf(1,'id %s: %d frames for iTstAll.\n',idTest,numel(iTstAll));
+      iTstLbl = find(strcmp(idTest,tMD.id) & tfLbled);
+      fprintf(1,'id %s: %d frames for iTstLbl.\n',idTest,numel(iTstLbl));
+    end
+    
+    function vizITrnITst(obj,iTrn,iTstAll,iTstLbl)
+      % Summarize/visualize iTrn/etc
+      
+      fprintf(2,'Summary: iTrn\n');
+      obj.summarize(iTrn);
+      fprintf(2,'Summary: iTstAll\n');
+      obj.summarize(iTstAll);
+      fprintf(2,'Summary: iTstLbl\n');
+      obj.summarize(iTstLbl);
+      
+      dfTrn = obj.MD.datefly(iTrn);
+      dfTrnUn = unique(dfTrn);
+      nDFTrnUn = numel(dfTrnUn);
+      
+      figure;
+      axDistribs = createsubplots(2,3,.07); % axes for pairwise-distance distributions
+      axDistribs = reshape(axDistribs,2,3);
+      figure;
+      axImSimilar = createsubplots(2,nDFTrnUn);  % axes for images
+      axImSimilar = reshape(axImSimilar,2,nDFTrnUn);
+      figure;
+      axImDiff = createsubplots(2,nDFTrnUn);  
+      axImDiff = reshape(axImDiff,2,nDFTrnUn);
+      for iDF = 1:nDFTrnUn
+        df = dfTrnUn{iDF};
+        
+        tf = strcmp(df,dfTrn);
+        iTrnDF = iTrn(tf);
+        
+        pDFTrn = obj.pGT(iTrnDF,:); 
+        distmat = dist2(pDFTrn,pDFTrn);
+        tfTriu = logical(triu(ones(size(distmat)),1));
+        dists = distmat(tfTriu); % all pairwise distances
+        ndists = numel(dists);
+        assert(ndists==numel(iTrnDF)*(numel(iTrnDF)-1)/2);
+        mudist = mean(dists);
+        dists = sort(dists,'descend');  
+
+        axDF = axDistribs(iDF);
+        plot(axDF,1:ndists,sort(dists,'descend'),'.','MarkerSize',8);
+        hold(axDF,'on');
+        plot(axDF,[1 ndists],[mudist mudist],'r');
+        grid(axDF,'on');
+        tstr = sprintf('%s: mu=%.3f',df,mudist);
+        title(axDF,tstr,'interpreter','none','fontweight','bold');        
+        
+        [iDiff,jDiff] = find(distmat==dists(1) & tfTriu,1);
+        [iSim,jSim] = find(distmat==dists(end) & tfTriu,1);
+        
+        iDiff = iTrnDF([iDiff jDiff]);
+        iSim = iTrnDF([iSim jSim]);        
+        colors = jet(obj.nfids);
+        
+        % iSim: plot
+        pSim1 = obj.pGT(iSim(1),:);
+        pSim2 = obj.pGT(iSim(2),:);
+        tstrSim1 = sprintf('%s: frm%04d. dist=%.3f',...
+          obj.MD.id{iSim(1)},obj.MD.frm(iSim(1)),dists(end));
+        tstrSim2 = sprintf('%s: frm%04d',obj.MD.id{iSim(2)},obj.MD.frm(iSim(2)));
+        axSim1 = axImSimilar(1,iDF);
+        axSim2 = axImSimilar(2,iDF);
+        imagesc(obj.I{iSim(1)},'Parent',axSim1,[0,255]);
+        imagesc(obj.I{iSim(2)},'Parent',axSim2,[0,255]);        
+        colormap(axSim1,'gray');
+        colormap(axSim2,'gray');
+        axis(axSim1,'image','off');
+        axis(axSim2,'image','off');
+        hold(axSim1,'on');
+        title(axSim1,tstrSim1,'interpreter','none','fontweight','bold');
+        title(axSim2,tstrSim2,'interpreter','none','fontweight','bold');
+        for j = 1:obj.nfids
+          plot(axSim1,pSim1(j),pSim1(j+obj.nfids),...
+            'wo','MarkerFaceColor',colors(j,:));
+          plot(axSim1,pSim2(j),pSim2(j+obj.nfids),...
+            'ws','MarkerFaceColor',colors(j,:));
+        end
+        
+        % iDiff: plot
+        pDiff1 = obj.pGT(iDiff(1),:);
+        pDiff2 = obj.pGT(iDiff(2),:);
+        tstrDiff1 = sprintf('%s: frm%04d. dist=%.3f',...
+          obj.MD.id{iDiff(1)},obj.MD.frm(iDiff(1)),dists(1));
+        tstrDiff2 = sprintf('%s: frm%04d',obj.MD.id{iDiff(2)},obj.MD.frm(iDiff(2)));
+        axDiff1 = axImDiff(1,iDF);
+        axDiff2 = axImDiff(2,iDF);
+        imagesc(obj.I{iDiff(1)},'Parent',axDiff1,[0,255]);
+        imagesc(obj.I{iDiff(2)},'Parent',axDiff2,[0,255]);        
+        colormap(axDiff1,'gray');
+        colormap(axDiff2,'gray');
+        axis(axDiff1,'image','off');
+        axis(axDiff2,'image','off');
+        hold(axDiff1,'on');
+        title(axDiff1,tstrDiff1,'interpreter','none','fontweight','bold');
+        title(axDiff2,tstrDiff2,'interpreter','none','fontweight','bold');
+        for j = 1:obj.nfids
+          plot(axDiff1,pDiff1(j),pDiff1(j+obj.nfids),...
+            'wo','MarkerFaceColor',colors(j,:));
+          plot(axDiff1,pDiff2(j),pDiff2(j+obj.nfids),...
+            'ws','MarkerFaceColor',colors(j,:));
+        end
+        
+        linkaxes(axImSimilar(:,iDF));
+        linkaxes(axImDiff(:,iDF));        
+      end
+      
+      linkaxes(axDistribs,'y');   
+    end
+    
     function [iTrn,iTstAll,iTstLbl] = genITrnITst1(obj,exp)
       % Given experiment name (exp), generate training and test experiments.
       %
