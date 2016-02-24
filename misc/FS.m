@@ -6,6 +6,8 @@ classdef FS
   methods (Static)
     
     function [type,info] = parsename(n)
+      [~,n] = myfileparts(n); % strip off any leading paths
+      
       toks = regexp(n,'@','split');
       ntok = numel(toks);
       switch ntok
@@ -74,6 +76,8 @@ classdef FS
       [~,s_td] = FS.parsename(tdname);
       if isempty(tdIname)
         tdI_note = '';
+      elseif strcmp(tdIname,'every5')
+        tdI_note = 'every5';
       else
         [~,s_tdI] = FS.parsename(tdIname);
         tdI_note = s_tdI.note;

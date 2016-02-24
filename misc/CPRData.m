@@ -128,10 +128,15 @@ classdef CPRData < handle
   methods
     
     function obj = CPRData(varargin)
-      % obj = CPRData(Is,p,bb,md)
+      % obj = CPRData(movFiles)
       % obj = CPRData(lblFiles,tfAllFrames)
+      % obj = CPRData(Is,p,bb,md)
       
       switch nargin
+        case 1
+          movFiles = varargin{1};
+          [Is,bb,md] = CPRData.readMovs(movFiles);
+          p = nan(size(Is,1),0);
         case 2
           lblFiles = varargin{1};
           tfAllFrames = varargin{2};
@@ -470,6 +475,50 @@ classdef CPRData < handle
       assert(isequal(numel(sMD),numel(I),size(p,1),size(bb,1)));
       md = struct2table(sMD);
     end
+    
+    function [I,bb,md] = readMovs(movFiles)
+      % movFiles: [N] cellstr
+      % Optional PVs:
+      % 
+      % I: [Nx1] cell array of images (frames)
+      % bb: [Nx2d] bboxes
+      % md: [Nxm] metadata table
+
+      assert(iscellstr(movFiles));
+      nMov = numel(movFiles);
+
+      mr = MovieReader();
+      I = cell(0,1);
+      sMD = struct('mov',cell(0,1),'frm',[]);
+      
+      for iMov = 1:nMov
+        movName = movFiles{iMov};
+        mr.open(movName);
+        nf = mr.nframes;
+        fprintf('Mov: %s, nframes %d.\n',movName,nf);        
+               
+        ITmp = cell(nf,1);
+        for f = 1:nf
+          im = mr.readframe(f);
+
+          if mod(f,10)==0
+            fprintf('read frame %d/%d\n',f,nf);
+          end
+          
+          ITmp{f} = im;          
+          sMD(end+1,1).mov = movName; %#ok<AGROW>
+          sMD(end).frm = f;
+        end
+        
+        I = [I;ITmp]; %#ok<AGROW>
+      end
+      
+      sz = cellfun(@(x)size(x'),I,'uni',0);
+      bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
+
+      assert(isequal(numel(sMD),numel(I),size(bb,1)));
+      md = struct2table(sMD);
+     end    
     
   end
   
