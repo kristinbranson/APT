@@ -721,16 +721,22 @@ classdef CPRData < handle
       pDF = obj.pGT(iDF,:);
       nDF = numel(iDF);
 
-      warnst = warning('off','backtrace');
-      [~,~,tmpidx,~,mindists] = furthestfirst(pDF,nDF,'Start',[]);  
-      warning(warnst);        
-      mindists(1) = inf;
-      assert(isequal(sort(mindists,'descend'),mindists));
-      tfAcc = mindists > MINDISTACCEPT;
-        
-      iTrnDFTest = iDF(tmpidx(tfAcc));
-      fprintf(1,'Using %d/%d from datefly %s (but not id %s)\n',...
-        numel(iTrnDFTest),numel(iDF),dfTest,idTest);
+      if nDF==0
+        iTrnDFTest = [];
+        fprintf(1,'No trials for datefly %s that are not for ID %s.\n',... 
+          dfTest,idTest);
+      else
+        warnst = warning('off','backtrace');
+        [~,~,tmpidx,~,mindists] = furthestfirst(pDF,nDF,'Start',[]);  
+        warning(warnst);        
+        mindists(1) = inf;
+        assert(isequal(sort(mindists,'descend'),mindists));
+        tfAcc = mindists > MINDISTACCEPT;
+
+        iTrnDFTest = iDF(tmpidx(tfAcc));
+        fprintf(1,'Using %d/%d from datefly %s (but not id %s)\n',...
+          numel(iTrnDFTest),numel(iDF),dfTest,idTest);
+      end
       
       iTrn = cat(1,iTrnDFOther{:},iTrnDFTest);
       iTstAll = find(strcmp(idTest,tMD.id));
