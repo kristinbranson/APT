@@ -19,6 +19,8 @@ for i = 1:numel(labeldata.labeledpos),
   end
 end
 
+assert(exist('nd','var')>0);
+
 isfirst = true;
 nexps = numel(labeldata.movieFilesAll);
 [uniquedays,~,dayidx] = unique({labeldata.expInfo.datestr});
@@ -38,10 +40,12 @@ for expi = 1:nexps,
     
     moviefile = labeldata.movieFilesAll{expi};
     if ~exist(moviefile,'file'),
-      error('Video %s does not exist',moviefile);
+      warning('Video %s does not exist',moviefile);
+      im = zeros([labeldata.movieInfoAll{1}.info.nr,labeldata.movieInfoAll{1}.info.nc,3]);
+    else
+      [readframe] = get_readframe_fcn(moviefile);
+      im = readframe(ts(1));
     end
-    [readframe] = get_readframe_fcn(moviefile);
-    im = readframe(ts(1));
     image(im,'Parent',hax);
     axis(hax,'image');
     hold(hax,'on');
