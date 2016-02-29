@@ -13,13 +13,13 @@ classdef Labeler < handle
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' 'labeledpostag' ...      
       'currMovie' 'currFrame' 'currTarget' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
-      'minv' 'maxv'...
+      'minv' 'maxv' 'movieForceGrayscale'...
       'suspScore'};
     LOADPROPS = {...
       'projname' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' 'labeledpostag' ...
-      'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
-      'minv' 'maxv' ...
+      'labelMode' 'nLabelPoints' 'labelTemplate' ...
+      'minv' 'maxv' 'movieForceGrayscale' ...
       'suspScore'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
@@ -40,13 +40,18 @@ classdef Labeler < handle
     projectfile;          % Full path to current project 
   end
 
-  %% Movie
+  %% Movie/Video
+  % Originally "Movie" referred to high-level data units/elements, eg
+  % things added, removed, managed by the MovieManager etc; while "Video"
+  % referred to visual details, display, playback, etc. But I sort of
+  % forgot and mixed them up so that Movie sometimes applies to the latter.
   properties
     movieReader = []; % MovieReader object
     minv = 0;
     maxv = inf;
     movieFrameStepBig = 10;
     movieInfoAll = cell(0,1); % column cell-of-structs, same size as movieFilesAll
+    movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
   end
   properties (SetObservable)
     movieFilesAll = cell(0,1); % column cellstr, full paths to movies
@@ -60,7 +65,8 @@ classdef Labeler < handle
         % updateFrameTable*(). 
     targetZoomFac;
     moviename; % short 'pretty' name, cosmetic purposes only
-    movieCenterOnTarget = false; % scalar logical. 
+    movieCenterOnTarget = false; % scalar logical.
+    movieForceGrayscale = false; % scalar logical
   end
   properties (Dependent)
     hasMovie;
@@ -114,7 +120,7 @@ classdef Labeler < handle
     nLabelPoints;         % scalar integer
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints        
     labelTemplate;    
-    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array
+    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
     labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
   end
   properties (SetObservable)
@@ -262,6 +268,11 @@ classdef Labeler < handle
         obj.updateFrameTableIncremental(); % TODO use listener/event for this
       end
     end
+    function set.movieForceGrayscale(obj,v)
+      assert(isscalar(v) && islogical(v));
+      obj.movieReader.forceGrayscale = v; %#ok<MCSUP>
+      obj.movieForceGrayscale = v;
+    end
   end
   
   %% Ctor/Dtor
@@ -313,7 +324,11 @@ classdef Labeler < handle
     end
     
     function addDepHandle(obj,h)
-      obj.depHandles{end+1,1} = h;      
+      % GC dead handles
+      tfValid = cellfun(@isvalid,obj.depHandles);
+      obj.depHandles = obj.depHandles(tfValid);
+
+      obj.depHandles{end+1,1} = h;
     end
     
     function delete(obj)
@@ -452,11 +467,16 @@ classdef Labeler < handle
         if isfield(s,f)
           obj.(f) = s.(f);          
         else
-          warningNoTrace('Labeler:load',...
-          'Missing load field ''%s''. Setting to empty.',f);
-          obj.(f) = [];
+          warningNoTrace('Labeler:load','Missing load field ''%s''.',f);
+          %obj.(f) = [];
         end
       end
+      % labelPointsPlotInfo: special treatment. For old projects,
+      % obj.labelPointsPlotInfo can have new/removed fields relative to
+      % s.labelPointsPlotInfo. I guess by overlaying we are not removing
+      % obsolete fields...
+      obj.labelPointsPlotInfo = structoverlay(obj.labelPointsPlotInfo,...
+        s.labelPointsPlotInfo);
       obj.movieFilesAllHaveLbls = cellfun(@(x)any(~isnan(x(:))),obj.labeledpos);
       obj.isinit = false;
       
@@ -507,24 +527,48 @@ classdef Labeler < handle
       obj.labeledpostag{end+1,1} = [];
     end
     
-    function movieRm(obj,iMov)
+    function tfSucc = movieRm(obj,iMov)
+      % tfSucc: true if movie removed, false otherwise
+      
+      assert(isscalar(iMov));
       assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.');
       if iMov==obj.currMovie
         error('Labeler:movieRm','Cannot remove current movie.');
       end
-      if obj.labelposMovieHasLabels(iMov)
-        warning('Labeler:movieRm','Movie index ''%d'' has labels. Removing...',iMov);
+      
+      tfProceedRm = true;
+      if obj.labelposMovieHasLabels(iMov) && ~obj.movieDontAskRmMovieWithLabels
+        str = sprintf('Movie index %d has labels. Are you sure you want to remove?',iMov);
+        BTN_NO = 'No, cancel';
+        BTN_YES = 'Yes';
+        BTN_YES_DAA = 'Yes, don''t ask again';
+        btn = questdlg(str,'Movie has labels',BTN_NO,BTN_YES,BTN_YES_DAA,BTN_NO);
+        if isempty(btn)
+          btn = BTN_NO;
+        end
+        switch btn
+          case BTN_NO
+            tfProceedRm = false;
+          case BTN_YES
+            % none; proceed
+          case BTN_YES_DAA
+            obj.movieDontAskRmMovieWithLabels = true;
+        end
       end
       
-      obj.movieFilesAll(iMov,:) = [];
-      obj.movieFilesAllHaveLbls(iMov,:) = [];
-      obj.movieInfoAll(iMov,:) = [];
-      obj.trxFilesAll(iMov,:) = [];
-      obj.labeledpos(iMov,:) = [];
-      obj.labeledpostag(iMov,:) = [];      
-      if obj.currMovie>iMov
-        obj.movieSet(obj.currMovie-1);
+      if tfProceedRm
+        obj.movieFilesAll(iMov,:) = [];
+        obj.movieFilesAllHaveLbls(iMov,:) = [];
+        obj.movieInfoAll(iMov,:) = [];
+        obj.trxFilesAll(iMov,:) = [];
+        obj.labeledpos(iMov,:) = [];
+        obj.labeledpostag(iMov,:) = [];      
+        if obj.currMovie>iMov
+          obj.movieSet(obj.currMovie-1);
+        end
       end
+      
+      tfSucc = tfProceedRm;
     end
     
     function movieSet(obj,iMov)
@@ -533,6 +577,21 @@ classdef Labeler < handle
       % 1. Set the movie
       
       movfile = obj.movieFilesAll{iMov};
+      
+      if exist(movfile,'file')==0
+        warning('Labeler:mov','Cannot find movie ''%s''. Please browse to movie location.',movfile);
+        lastmov = RC.getprop('lbl_lastmovie');
+        if isempty(lastmov)
+          lastmov = pwd;
+        end
+        [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
+        if isequal(newmovfile,0)
+          error('Labeler:mov','Cannot find movie ''%s''.',movfile);
+        end
+        movfile = fullfile(newmovpath,newmovfile);
+        obj.movieFilesAll{iMov} = movfile;
+      end        
+      
       obj.movieReader.open(movfile);
       RC.saveprop('lbl_lastmovie',movfile);
       [path0,movname] = myfileparts(obj.moviefile);
@@ -832,13 +891,22 @@ classdef Labeler < handle
       obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = [];
     end
     
-    function [tf,lpos] = labelPosIsLabeled(obj,iFrm,iTrx)
-      % for current movie. Labeled includes occluded
+    function [tf,lpos,lpostag] = labelPosIsLabeled(obj,iFrm,iTrx)
+      % For current movie. Labeled includes fullyOccluded
+      %
+      % tf: scalar logical
+      % lpos: [nptsx2] xy coords for iFrm/iTrx
+      % lpostag: [npts] cell array of tags 
       
-      lpos = obj.labeledpos{obj.currMovie}(:,:,iFrm,iTrx);
+      iMov = obj.currMovie;
+      lpos = obj.labeledpos{iMov}(:,:,iFrm,iTrx);
       tfnan = isnan(lpos);
       %assert(all(tfnan(:)) || ~any(tfnan(:)));
       tf = any(~tfnan(:));
+      
+      if nargout>=3
+        lpostag = obj.labeledpostag{iMov}(:,iFrm,iTrx);
+      end
     end 
     
     function tf = labelPosIsOccluded(obj,iFrm,iTrx)
@@ -907,6 +975,20 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
+    function labelPosBulkImport(obj,xy)
+      % Set ALL labels for current movie/target
+      %
+      % xy: [nptx2xnfrm]
+      
+      iMov = obj.currMovie;      
+      lposOld = obj.labeledpos{iMov};      
+      assert(isequal(size(xy),size(lposOld)));      
+      obj.labeledpos{iMov} = xy;
+      
+      obj.updateFrameTableComplete();
+      obj.labeledposNeedsSave = true;      
+    end
+    
     function labelPosSetOccludedI(obj,iPt)
       % Occluded is "pure occluded" here
       iMov = obj.currMovie;
@@ -916,7 +998,7 @@ classdef Labeler < handle
       
       obj.labeledposNeedsSave = true;
     end
-    
+        
     function labelPosTagSetI(obj,tag,iPt)
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
@@ -1051,7 +1133,70 @@ classdef Labeler < handle
       lpos = obj.labeledpos{iMov};
       tf = any(~isnan(lpos(:)));
     end
+    
+    function labelMakeLabelMovie(obj,fname,varargin)
+      % Make a movie of all labeled frames for current movie
+      %
+      % fname: output filename, movie to be created.
+      % optional pvs:
+      % - framerate. defaults to 10.
+      
+      framerate = myparse(varargin,'framerate',10);
+      
+      if ~obj.hasMovie
+        error('Labeler:noMovie','No movie currently open.');
+      end
+      if exist(fname,'file')>0
+        error('Labeler:movie','Output movie ''%s'' already exists. For safety reasons, this movie will not be overwritten. Please specify a new output moviename.',...
+          fname);
+      end
+      
+      nTgts = obj.labelPosLabeledFramesStats();
+      frmsLbled = find(nTgts>0);
+      nFrmsLbled = numel(frmsLbled);
+      if nFrmsLbled==0
+        msgbox('Current movie has no labeled frames.');
+        return;
+      end
+            
+      ax = obj.gdata.axes_curr;
+      vr = VideoWriter(fname);      
+      vr.FrameRate = framerate;
+
+      vr.open();
+      try
+        hWB = waitbar(0,'Writing video');
+        for i = 1:nFrmsLbled
+          f = frmsLbled(i);
+          obj.setFrame(f);
+          tmpFrame = getframe(ax);
+          vr.writeVideo(tmpFrame);
+          waitbar(i/nFrmsLbled,hWB,sprintf('Wrote frame %d\n',f));
+        end
+      catch ME
+        vr.close();
+        ME.rethrow();
+      end
+      vr.close();
+      delete(hWB);
+    end
            
+  end
+  
+  methods (Static)    
+    function nptsLbled = labelPosNPtsLbled(lpos)
+      % poor man's export of LabelPosLabeledFramesStats
+      [~,d,nfrm,ntgt] = size(lpos);
+      assert(d==2);
+      assert(ntgt==1,'One target only.');
+      lposnnan = ~isnan(lpos);
+      
+      nptsLbled = nan(nfrm,1);
+      for f = 1:nfrm
+        tmp = all(lposnnan(:,:,f),2); % both x/y must be labeled for pt to be labeled
+        nptsLbled(f) = sum(tmp);
+      end
+    end
   end
   
   methods (Access=private)
@@ -1244,9 +1389,29 @@ classdef Labeler < handle
     function videoSetContrastFromAxesCurr(obj)
       % Get video contrast from axes_curr and record/set
       clim = get(obj.gdata.axes_curr,'CLim');
-      set(obj.gdata.axes_prev,'CLim',clim);
-      obj.minv = clim(1);
-      obj.maxv = clim(2);
+      if isempty(clim) 
+        % none; can occur when Labeler is closed
+      else
+        set(obj.gdata.axes_prev,'CLim',clim);
+        obj.minv = clim(1);
+        obj.maxv = clim(2);
+      end
+    end
+    
+    function videoApplyGammaGrayscale(obj,gamma)
+      % Applies gamma-corrected grayscale colormap
+      
+      validateattributes(gamma,{'numeric'},{'scalar' 'real' 'positive'});
+      
+      im = obj.gdata.image_curr;
+      if size(im.CData,3)~=1
+        error('Labeler:gamma','Gamma correction currently only supported for grayscale/intensity images.');
+      end
+      
+      m0 = gray(256);
+      m1 = imadjust(m0,[],[],gamma);
+      colormap(obj.gdata.axes_curr,m1);
+      colormap(obj.gdata.axes_prev,m1);
     end
     
     function videoFlipUD(obj)
@@ -1363,8 +1528,12 @@ classdef Labeler < handle
   %% Navigation
   methods
   
-    function setFrame(obj,frm)
+    function setFrame(obj,frm,tfforcereadmovie)
       % Set movie frame, maintaining current movie/target.
+      
+      if nargin<3
+        tfforcereadmovie = false;
+      end
             
       if obj.hasTrx
         tfTargetLive = obj.frm2trx(frm,:);      
@@ -1388,7 +1557,7 @@ classdef Labeler < handle
       obj.prevIm = obj.currIm;
       set(obj.gdata.image_prev,'CData',obj.prevIm);
       
-      if obj.currFrame~=frm
+      if obj.currFrame~=frm || tfforcereadmovie
         obj.currIm = obj.movieReader.readframe(frm);
         obj.currFrame = frm;
       end            

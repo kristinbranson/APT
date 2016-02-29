@@ -55,13 +55,39 @@ mprops = mcls.PropertyList;
 mprops = mprops(ismember({mprops.Name}',PROPS));
 handles.listener = event.proplistener(lObj,...
   mprops,'PostSet',@(src,evt)lclUpdateTable(hObject));
-handles.selectedRow = [];
-handles.origTableCol1Width = handles.tblMovies.ColumnWidth{1};
+
+% 20151218: now using JTable; uitable in .fig just used for positioning
+tblOrig = handles.tblMovies;
+tblOrig.Visible = 'off';
+tblNew = uiextras.jTable.Table(...
+  'parent',tblOrig.Parent,...
+  'Position',tblOrig.Position,...
+  'SelectionMode','discontiguous',...
+  'ColumnName',{'Movie' 'Has Labels'},...
+  'ColumnPreferredWidth',[600 250],...
+  'Editable','off');
+tblNew.MouseClickedCallback = @(src,evt)lclTblClicked(src,evt,tblNew,lObj);
+handles.tblMoviesOrig = handles.tblMovies;
+handles.tblMovies = tblNew;
+
 guidata(hObject,handles);
-
 centerfig(handles.figure1,handles.labeler.gdata.figure);
-
 lclUpdateTable(hObject);
+
+function lclTblClicked(src,evt,tbl,lObj)
+persistent chk
+PAUSE_DURATION_CHECK = 0.25;
+if isempty(chk)
+  chk = 1;
+  pause(PAUSE_DURATION_CHECK); %Add a delay to distinguish single click from a double click
+  if chk==1
+    % single-click; no-op    
+    chk = [];
+  end
+else
+  chk = [];
+  lclSwitchMoviesBasedOnSelection(tbl,lObj);
+end
 
 function varargout = MovieManager_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
@@ -70,6 +96,7 @@ function lclUpdateTable(hObj)
 handles = guidata(hObj);
 
 lObj = handles.labeler;
+tbl = handles.tblMovies;
 movs = lObj.movieFilesAll;
 movsHaveLbls = lObj.movieFilesAllHaveLbls;
 iMov = lObj.currMovie;
@@ -80,23 +107,14 @@ if numel(movs)~=numel(movsHaveLbls)
 end
 dat = [movs num2cell(movsHaveLbls)];
 
-% estimate width column1
-if isempty(dat)
-  col1MaxSz = 0;
+if ~isequal(dat,tbl.Data)
+  tbl.Data = dat;
+end
+if iMov>0
+  tbl.SelectedRows = iMov;
 else
-  col1MaxSz = max(cellfun(@numel,dat(:,1)));
+  tbl.SelectedRows = [];
 end
-CHARS2PIXFAC = 8;
-col1Width = col1MaxSz*CHARS2PIXFAC;
-col1Width = max(col1Width,handles.origTableCol1Width);
-
-% highlight current movie
-if ~isempty(iMov) && iMov>0
-  dat{iMov,1} = ['<html><font color=#0000FF>' dat{iMov,1} '</font></html>'];    
-end
-    
-handles.tblMovies.Data = dat;
-handles.tblMovies.ColumnWidth{1} = col1Width;
 
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
 [tfsucc,movfile,trxfile] = promptGetMovTrxFiles();
@@ -106,28 +124,31 @@ end
 handles.labeler.movieAdd(movfile,trxfile);
 
 function pbRm_Callback(hObject, eventdata, handles)
-if isfield(handles,'selectedRow')
-  row = handles.selectedRow;
-  handles.labeler.movieRm(row);
+tbl = handles.tblMovies;
+selRow = tbl.SelectedRows;
+selRow = sort(selRow);
+n = numel(selRow);
+lObj = handles.labeler;
+for i = n:-1:1
+  row = selRow(i);
+  tfSucc = lObj.movieRm(row);
+  if ~tfSucc
+    % user stopped/canceled
+    break;
+  end
 end
 
-function tblMovies_CellSelectionCallback(hObject, eventdata, handles)
-row = eventdata.Indices;
-if isempty(row)
-  handles.selectedRow = [];
-else
-  row = row(1);
-  handles.selectedRow = row;  
-%   switch handles.figure1.SelectionType
-%     case 'open' % double-click
-%       handles.labeler.movieSet(row);
-%   end
-end
-guidata(hObject,handles);
+function pbSwitch_Callback(~,~,handles)
+lclSwitchMoviesBasedOnSelection(handles.tblMovies,handles.labeler);
 
-function pbSwitch_Callback(hObject, eventdata, handles)
-if ~isempty(handles.selectedRow)
-  handles.labeler.movieSet(handles.selectedRow);
+function lclSwitchMoviesBasedOnSelection(tbl,lObj)
+selRow = tbl.SelectedRows;
+if numel(selRow)>1
+  warning('MovieManager:sel','Multiple movies selected; switching to first selection.');
+  selRow = selRow(1);
+end  
+if ~isempty(selRow)
+  lObj.movieSet(selRow);
 end
 
 function pbNextUnlabeled_Callback(hObject, eventdata, handles)

@@ -26,8 +26,9 @@ classdef LabelCore < handle
     labeler;              % scalar Labeler obj
     hFig;                 % scalar figure
     hAx;                  % scalar axis
-    hAxOcc;
-    tbAccept;
+    hAxOcc;               % scalar handle, occluded-axis
+    tbAccept;             % scalar handle, togglebutton
+    txLblCoreAux;       % scalar handle, auxiliary text
     
     nPts;                 % scalar integer
     
@@ -39,6 +40,11 @@ classdef LabelCore < handle
     ptsPlotInfo;          % struct, points plotting cosmetic info    
     
     tfOcc;                % nPts x 1 logical
+    tfEstOcc;             % nPts x 1 logical. Current Est-occ impl: 
+                          % TemplateMode uses .tfEstOcc.
+                          % SequenceMode does not have est-occ implemented.
+                          % HT mode does not use .tfEstOcc, relies on
+                          % markers.
   end
   
   methods (Static)
@@ -65,6 +71,7 @@ classdef LabelCore < handle
       obj.hAx = gd.axes_curr;
       obj.hAxOcc = gd.axes_occ;
       obj.tbAccept = gd.tbAccept;
+      obj.txLblCoreAux = gd.txLblCoreAux;
     end
     
     function init(obj,nPts,ptsPlotInfo)
@@ -98,6 +105,7 @@ classdef LabelCore < handle
           'FontSize',ptsPlotInfo.FontSize,...
           'Hittest','off');
       end
+      axis(axOcc,[0 obj.nPts+1 0 2]);
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
@@ -110,6 +118,11 @@ classdef LabelCore < handle
       
       set(obj.labeler.gdata.tbAccept,'Enable','on');
       obj.labeler.currImHud.updateReadoutFields('hasLblPt',false);
+      
+      obj.tfOcc = false(obj.nPts,1);
+      obj.tfEstOcc = false(obj.nPts,1);
+      
+      obj.txLblCoreAux.Visible = 'off';
       
       obj.initHook();
     end
@@ -207,13 +220,21 @@ classdef LabelCore < handle
       %   Defaults to obj.hPts.
       % - hPtsTxt: vector of handles for text labels, etc. Defaults to
       % obj.hPtsTxt.
+      % - lblTags: [nptsx1] cell array of tags. Currently, only tag is 
+      % LabelCore.LPOSTAG_OCC. If supplied, obj.tfEstOcc and 
+      % obj.hPts.Marker are updated.
 
-      [tfClip,hPoints,hPointsTxt] = myparse(varargin,...
+      [tfClip,hPoints,hPointsTxt,lblTags] = myparse(varargin,...
         'tfClip',false,...
         'hPts',obj.hPts,...
-        'hPtsTxt',obj.hPtsTxt);
+        'hPtsTxt',obj.hPtsTxt,...
+        'lblTags',[]);
       
       assert(isequal(obj.nPts,numel(hPoints),numel(hPointsTxt),size(xy,1)));
+      tfLblTags = ~isempty(lblTags);
+      if tfLblTags
+        validateattributes(lblTags,{'cell'},{'vector' 'numel' obj.nPts});
+      end        
       
       if tfClip
         lbler = obj.labeler;
@@ -232,6 +253,7 @@ classdef LabelCore < handle
         end
       end
             
+      % FullyOccluded
       tfOccld = any(isinf(xy),2);
       LabelCore.setPtsCoords(xy(~tfOccld,:),hPoints(~tfOccld),hPointsTxt(~tfOccld));
       
@@ -241,6 +263,20 @@ classdef LabelCore < handle
         obj.refreshOccludedPts();
       else
         LabelCore.setPtsCoords(nan(nnz(tfOccld),2),hPoints(tfOccld),hPointsTxt(tfOccld));
+      end
+      
+      % Tags
+      if tfLblTags
+        tfEO = strcmp(lblTags,LabelCore.LPOSTAG_OCC);
+        if any(tfOccld & tfEO)
+          warning('LabelCore:occ',...
+            'Points labeled as both fully and estimated-occluded.');
+          
+        end
+        obj.tfEstOcc = tfEO;
+        obj.refreshEstOccPts(); % currently only implemented in TemplateMode        
+      else
+        % none; tfEstOcc, hPts markers unchanged
       end
     end
     
@@ -276,6 +312,15 @@ classdef LabelCore < handle
     
     function xy = getLabelCoordsI(obj,iPt)
       xy = LabelCore.getCoordsFromPts(obj.hPts(iPt));
+    end
+    
+    function setLabelPosTagFromEstOcc(obj)
+      iEO = find(obj.tfEstOcc);
+      tag = obj.LPOSTAG_OCC;
+      lObj = obj.labeler;
+      for iPt = iEO(:)'
+        lObj.labelPosTagSetI(tag,iPt);
+      end      
     end
                 
   end
@@ -356,6 +401,12 @@ classdef LabelCore < handle
       tfinf = any(isinf(uv0),2); % [inf inf] rows in uv0 can be transformed into eg [inf nan] depending on angle
       uv(tfinf,:) = inf;
     end
+    
+%     function tf = isEstOccMarker(hPt,ppi)
+%       switch hPt.Marker
+%         case ppi.OccludedMarker
+%       end
+%     end
     
   end
   

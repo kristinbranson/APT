@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 02-Nov-2015 16:41:24
+% Last Modified by GUIDE v2.5 14-Jan-2016 13:20:41
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -63,6 +63,7 @@ set(handles.txPrevIm,'String','');
 set(handles.edit_frame,'String','');
 set(handles.txStatus,'String','');
 set(handles.txUnsavedChanges,'Visible','off');
+set(handles.txLblCoreAux,'Visible','off');
 
 handles.output = hObject;
 
@@ -105,12 +106,19 @@ listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged
 listeners{end+1,1} = addlistener(lObj,'showTrxMode','PostSet',@cbkShowTrxModeChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
+listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 %listeners{end+1,1} = addlistener(lObj,'currSusp','PostSet',@cbkCurrSuspChanged);
 handles.listeners = listeners;
 
 % These Labeler properties need their callbacks fired to properly init UI.
 % Labeler will read .propsNeedInit from the GUIData to comply.
-handles.propsNeedInit = {'labelMode' 'suspScore' 'showTrxMode' 'tracker' 'movieCenterOnTarget'};
+handles.propsNeedInit = {
+  'labelMode' 
+  'suspScore' 
+  'showTrxMode' 
+  'tracker' 
+  'movieCenterOnTarget'
+  'movieForceGrayscale'};
 
 set(handles.output,'Toolbar','figure');
 
@@ -224,6 +232,11 @@ if ~isempty(mname)
   % Labeler.projLoad
 end
 
+function cbkMovieForceGrayscaleChanged(src,evt)
+lObj = evt.AffectedObject;
+tf = lObj.movieForceGrayscale;
+lObj.gdata.menu_view_converttograyscale.Checked = onIff(tf);
+
 function cbkSuspScoreChanged(src,evt)
 lObj = evt.AffectedObject;
 ss = lObj.suspScore;
@@ -254,23 +267,28 @@ if tfDoSusp
   tblSusp.Data = mat;
   pnlSusp.Visible = 'on';
   
-  % make tblSusp column-sortable. 
-  % AL 201510: Tried putting this in opening_fcn but
-  % got weird behavior (findjobj couldn't find jsp)
-  jscrollpane = findjobj(tblSusp);
-  jtable = jscrollpane.getViewport.getView;
-  jtable.setSortable(true);		% or: set(jtable,'Sortable','on');
-  jtable.setAutoResort(true);
-  jtable.setMultiColumnSortable(true);
-  jtable.setPreserveSelectionsAfterSorting(true);
-  % reset ColumnWidth, jtable messes it up
-  cwidth = tblSusp.ColumnWidth;
-  cwidth{end} = cwidth{end}-1;
-  tblSusp.ColumnWidth = cwidth;
-  cwidth{end} = cwidth{end}+1;
-  tblSusp.ColumnWidth = cwidth;
+  if verLessThan('matlab','R2015b') % findjobj doesn't work for >=2015b
+    
+    % make tblSusp column-sortable. 
+    % AL 201510: Tried putting this in opening_fcn but
+    % got weird behavior (findjobj couldn't find jsp)
+    jscrollpane = findjobj(tblSusp);
+    jtable = jscrollpane.getViewport.getView;
+    jtable.setSortable(true);		% or: set(jtable,'Sortable','on');
+    jtable.setAutoResort(true);
+    jtable.setMultiColumnSortable(true);
+    jtable.setPreserveSelectionsAfterSorting(true);
+    % reset ColumnWidth, jtable messes it up
+    cwidth = tblSusp.ColumnWidth;
+    cwidth{end} = cwidth{end}-1;
+    tblSusp.ColumnWidth = cwidth;
+    cwidth{end} = cwidth{end}+1;
+    tblSusp.ColumnWidth = cwidth;
   
-  tblSusp.UserData = struct('jtable',jtable);  
+    tblSusp.UserData = struct('jtable',jtable);   
+  else
+    % none
+  end
   lObj.updateCurrSusp();
 else
   tblSusp.Data = cell(0,3);
@@ -417,13 +435,22 @@ lObj.videoResetView();
 
 function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-jt = lObj.gdata.tblSusp.UserData.jtable;
-row = jt.getSelectedRow; % 0 based
-frm = jt.getValueAt(row,0);
-iTgt = jt.getValueAt(row,1);
-if ~isempty(frm)
-  frm = frm.longValueReal;
-  iTgt = iTgt.longValueReal;
+if verLessThan('matlab','R2015b')
+  jt = lObj.gdata.tblSusp.UserData.jtable;
+  row = jt.getSelectedRow; % 0 based
+  frm = jt.getValueAt(row,0);
+  iTgt = jt.getValueAt(row,1);
+  if ~isempty(frm)
+    frm = frm.longValueReal;
+    iTgt = iTgt.longValueReal;
+    lObj.setFrameAndTarget(frm,iTgt);
+    hlpRemoveFocus(hObject,handles);
+  end
+else
+  row = eventdata.Indices(1);
+  dat = hObject.Data;
+  frm = dat(row,1);
+  iTgt = dat(row,2);
   lObj.setFrameAndTarget(frm,iTgt);
   hlpRemoveFocus(hObject,handles);
 end
@@ -510,6 +537,22 @@ labelerObj.videoSetContrastFromAxesCurr();
 function menu_view_adjustbrightness_Callback(hObject, eventdata, handles)
 hConstrast = imcontrast_kb(handles.axes_curr);
 addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.labelerObj));
+function menu_view_converttograyscale_Callback(hObject, eventdata, handles)
+tf = ~strcmp(hObject.Checked,'on');
+lObj = handles.labelerObj;
+lObj.movieForceGrayscale = tf;
+if lObj.hasMovie
+  % Pure convenience: update image for user rather than wait for next 
+  % frame-switch. Could also put this in Labeler.set.movieForceGrayscale.
+  lObj.setFrame(lObj.currFrame,true);
+end
+function menu_view_gammacorrect_Callback(hObject, eventdata, handles)
+val = inputdlg('Gamma value:','Gamma correction');
+if isempty(val)
+  return;
+end
+val = str2double(val{1});
+handles.labelerObj.videoApplyGammaGrayscale(val);
 
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);

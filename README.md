@@ -15,7 +15,7 @@ cd /path/to/git/APT/checkout
 APT.setpath % configures MATLAB path
 lObj = Labeler;
 ```
-4. Go to the File> menu to open a movie or movie+trx. 
+4. Go to the File> menu to open a movie or movie+trx. (If you only have a movie and don't have trajectories, just hit Cancel when prompted for a Trx file.)
 
 #### Description
 
@@ -30,7 +30,11 @@ Edit the file /\<APTRoot\>/pref.yaml to set up your labeler; these are your **lo
 Click the image to label. When NumLabelPoints points are clicked, adjust the points with click-drag. Hit accept to save/lock your labels. You can hit Clear at any time, which starts you over for the current frame/target. Switch targets or frames and do more labeling; the Targets and Frames tables are clickable for navigation. See the Help> menu for hotkeys. When browsing labeled (accepted) frames/targets, you can go back into adjustment mode by click-dragging a point. You will need to re-accept to save your changes. When you are all done, File>Save will save your results.
 
 ###### Template Mode
-The image will have NumLabelPoints white points overlaid; these are the template points. Click-drag to adjust, or select points with number keys and adjust with arrows or mouse-clicks. Points that have been adjusted are colored. See the Help> menu for hotkeys. Click Accept to save/lock your labels. Switch targets/frames and the template will follow. 
+The image will have NumLabelPoints white points overlaid; these are the template points. Click-drag to adjust, or select points with number keys and adjust with arrows or mouse-clicks. Points that have been adjusted are colored. See the Help> menu for hotkeys. Click Accept to save/lock your labels. Switch targets/frames and the template will follow.
+
+Both "fully occluded" and "occluded estimate" points are supported. To set a point as an occluded estimate, use right-click, or use the 'o' hotkey when the point is selected. For fully occluded points, select the point and click in the box in the lower-left of the main image as usual.
+
+When working with more than 10 points, use backquote (`) to re-map the 0-9 hotkeys to larger-index points.
 
 ###### HighThroughput (HT) Mode
 In HT mode, you label the entire movie for point 1, then you label the entire movie for point 2, etc. Click the image to label a point. After clicking/labeling, the movie is automatically advanced NFrameSkip frames. When the end of the movie is reached, the labeling point is incremented, until all labeling for all NumLabelPoints is complete. You may manually change the current labeling point in the Setup>HighThroughput Mode menu.
@@ -49,7 +53,7 @@ Conceptually, a Project is just a list of movies (optionally with trx files), th
 ###### Occluded
 To label a point as "fully occluded", click in the box in the lower-left of the main image. Depending on the mode, you may be able to "unocclude" a point, or you can always push Clear.
 
-High-Throughput mode currently supports marking points as "occluded estimates" via right-click. These labels represent best guesses at an occluded landmark.
+High-Throughput and Template modes currently support marking points as "occluded estimates" via right-click or the 'o' hotkey. These labels represent best guesses at an occluded landmark.
 
 Fully occluded points appear as inf in the .labeledpos Labeler property; occluded-estimate points are tagged in .labelpostag.
 
