@@ -44,7 +44,7 @@ classdef CPRData < handle
     MDTrn
     MDTst
   end
-  methods 
+  methods % property getters
     function v = get.N(obj)
       v = numel(obj.I);
     end
@@ -259,25 +259,46 @@ classdef CPRData < handle
     end
   end
   methods
-    function computeIpp(obj,varargin)
+    
+    function computeIpp(obj,sig1,sig2,iChan,varargin)
       % Preprocess images and set .Ipp.
+      %
       % sig1,sig2: see Features.pp
+      % iChan: index vectors into channels for which channels to keep/store.
+      %
       % Optional PVs:
-      % - iChan index vectors into channels for which channels to
-      % keep/store.
       % - iTrl. trial indices for which Ipp should be computed. Defaults to
       % find(obj.isFullyLabeled).
+      % - jan. Use jan values for sig1,sig2,iChan.
+      % - romain. Use romain values for sig1,sig2,iChan.
       % - See Features.pp for other optional pvs
 
-      iTrl = myparse(varargin,'iTrl',find(obj.isFullyLabeled));
+      [iTrl,jan,romain] = myparse(varargin,...
+        'iTrl',find(obj.isFullyLabeled),...
+        'jan',false,...
+        'romain',false);
       nTrl = numel(iTrl);
       
-      sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
-      sig2 = [0 2 4 8];
-      iChan = [...
-        2 3 ... % blur sig1(1:3)
-        5 6 7 9 10 11 13 14 17 ... % SGS
-        22 23 25 26 27 29 30]; % SLS 
+      if jan
+        fprintf(1,'Using "Jan" settings.\n');
+        pause(2);
+        sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
+        sig2 = [0 2 4 8];
+        iChan = [...
+          2 3 ... % blur sig1(1:3)
+          5 6 7 9 10 11 13 14 17 ... % SGS
+          22 23 25 26 27 29 30]; % SLS 
+      end
+      if romain
+        fprintf(1,'Using "Romain" settings.\n');
+        pause(2);
+        sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
+        sig2 = [0 2 4 8];
+        iChan = [...
+          2 3 4 ... % blur sig1(1:3)
+          6:8 9:12 13:16 18:19 ... % SGS
+          23:24 26:28 29:32 33:36]; % SLS         
+      end
       
       [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2); %,varargin{:});
       
@@ -379,6 +400,34 @@ classdef CPRData < handle
         end
       end
     end
+    
+    function [iSim,sim] = findSimilarFrames(obj,iTrl,iTest)
+      % Find frames similar to iTrl
+      %
+      % iTrl: scalar trial index
+      % iTest: vector of trial indices to consider
+      %
+      % iSim: Same as iTest, but permuted in order of decreasing
+      %  similarity
+      % sim: Similarity scores corresponding to iSim (will be monotonically
+      %  decreasing). Right now this is a regular correlation coef.
+      
+      nTest = numel(iTest);
+      im0col = double(obj.I{iTrl}(:));
+      sim = nan(nTest,1);
+      for i = 1:nTest
+        im1col = double(obj.I{iTest(i)}(:));
+        tmp = corrcoef(im0col,im1col);
+        sim(i) = tmp(1,2);
+        
+        if mod(i,100)==0
+          fprintf('%d/%d\n',i,nTest);
+        end
+      end
+      
+      [sim,idx] = sort(sim,'descend');
+      iSim = iTest(idx);
+    end
 
   end
   
@@ -403,8 +452,8 @@ classdef CPRData < handle
       mr = MovieReader();
       I = cell(0,1);
       p = [];
-      sMD = struct('iLbl',cell(0,1),'lblFile',[],'iMov',[],...
-        'iFrm',[],'frm',[],'nTag',[],'tagPtsBinVec',[]);
+      sMD = struct('iLbl',cell(0,1),'lblFile',[],'lblFileS',[],...
+        'mov',[],'frm',[],'nLblInf',[],'nLblNaN',[],'nTag',[],'tagvec',[]);
       
       for iLbl = 1:nLbls
         lblName = lblFiles{iLbl};
@@ -423,7 +472,8 @@ classdef CPRData < handle
           D = d*npts; % d*npts;
 
           % find labeled/tagged frames
-          frmsLbled = find(~isnan(lpos(1,1,:))); % labeled frames
+          tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
+          frmsLbled = find(tfLbled);
           tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
           ntagged = sum(tftagged,1);
           frmsTagged = find(ntagged);
@@ -446,6 +496,9 @@ classdef CPRData < handle
           for iFrm = 1:nFrmRead
             f = frms2Read(iFrm);
             im = mr.readframe(f);
+            if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
+              im = rgb2gray(im);
+            end
             
             fprintf('iLbl=%d, iMov=%d, read frame %d (%d/%d)\n',...
               iLbl,iMov,f,iFrm,nFrmRead);
@@ -454,14 +507,18 @@ classdef CPRData < handle
             lblsFrmXY = lpos(:,:,f);
             pTmp(iFrm,:) = Shape.xy2vec(lblsFrmXY);
             
-            tagbinvec = sum(tftagged(:,f)'.*2.^(0:npts-1));
+            %tagbinvec = sum(tftagged(:,f)'.*2.^(0:npts-1));
+            tagvec = find(tftagged(:,f)');
+            
             sMD(end+1,1).iLbl = iLbl; %#ok<AGROW>
             sMD(end).lblFile = lblName;
-            sMD(end).iMov = iMov;
-            sMD(end).iFrm = iFrm;
+            [~,sMD(end).lblFileS] = myfileparts(lblName);
+            sMD(end).mov = movName;
             sMD(end).frm = f;
+            sMD(end).nLblInf = sum(any(isinf(lblsFrmXY),2));
+            sMD(end).nLblNaN = sum(any(isnan(lblsFrmXY),2));
             sMD(end).nTag = ntagged(f);
-            sMD(end).tagPtsBinVec = tagbinvec;
+            sMD(end).tagvec = tagvec;
           end
           
           I = [I;ITmp]; %#ok<AGROW>
