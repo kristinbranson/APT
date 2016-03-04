@@ -1,56 +1,50 @@
-classdef LabelCoreCPRView < LabelCore
+classdef LabelCoreCPRView2 < LabelCore
   properties
-    pGT % [nfrm x npt x 2]
-    pRep % [nfrm x npt x 2 x nrep]    
-    pRepRed % [nfrm x npt x 2]
+    xyRep % [nfrm x npt x 2 x nrep]    
+    xyRepRed % [nfrm x npt x 2]
     nRep;
-    colors % [npt x 3]
     
-    hPtsGT; % [npt]
     hPtsRep; % [npt x nrep]
     hPtsRepRed; % [npt]
     
-    isLabeled % [nfrm], true if pGT(i,:,:) are not nan
-    iLabeled % [nlabeled]
+    tfFrmLbled;
   end
   methods
-    function obj = LabelCoreCPRView(lObj)
+    function obj = LabelCoreCPRView2(lObj)
       obj@LabelCore(lObj);
+      
+      [~,nPtsLbl] = obj.labeler.labelPosLabeledFramesStats();
+      tf = nPtsLbl>0;
+      obj.tfFrmLbled = tf;
+      fprintf(1,'%d out of %d frames labeled.\n',nnz(tf),numel(tf));
     end
     function delete(obj)
-      deleteValidHandles(obj.hPtsGT);
       deleteValidHandles(obj.hPtsRep);
       deleteValidHandles(obj.hPtsRepRed);
     end
   end
   methods
-    function setPs(obj,pGT,pTst,pTstRed)
-      [nfrm,obj.nPts,d,obj.nRep] = size(pTst);
-      assert(isequal(size(pGT),size(pTstRed),[nfrm,obj.nPts,d]));
+    function setPs(obj,pTst,pTstRed)
+      % Set tracked/external positions
+      
+      [nfrm,nPtsTmp,d,obj.nRep] = size(pTst);
+      assert(nPtsTmp==obj.nPts);
+      assert(isequal(size(pTstRed),[nfrm,obj.nPts,d]));
       assert(d==2);
       
-      obj.pGT = pGT;
-      obj.pRep = pTst;
-      obj.pRepRed = pTstRed;
-      obj.colors = jet(obj.nPts);
+      obj.xyRep = pTst;
+      obj.xyRepRed = pTstRed;
       
-      tfLbled = false(nfrm,1);
-      for i = 1:nfrm
-        tfLbled(i) = ~isnan(pGT(i,1,1));
-      end
-      obj.isLabeled = tfLbled;
-      obj.iLabeled = find(tfLbled);
-      
-      obj.hPtsGT = gobjects(obj.nPts,1);
       obj.hPtsRep = gobjects(obj.nPts,obj.nRep);
       obj.hPtsRepRed = gobjects(obj.nPts,1);
-      clrs = obj.colors;
+      clrs = obj.labeler.labelPointsPlotInfo.Colors;
       ax = obj.hAx;
-      MARKERS = repmat({'o'},1,20);%{'o' 'o' 'o' 'v' 'o' 'v' 'o'};
-      PINK = [ 1.0000    0.6000    0.7843];
+      MARKERS = repmat({'s'},1,obj.nPts);
+      %PINK = [ 1.0000    0.6000    0.7843];
       for iPt = 1:obj.nPts
-        obj.hPtsGT(iPt) = plot(ax,nan,nan,MARKERS{iPt},'MarkerSize',8,'Color',clrs(iPt,:),'MarkerFaceColor',clrs(iPt,:));
-        obj.hPtsRepRed(iPt) = plot(ax,nan,nan,MARKERS{iPt},'MarkerSize',8,'Color',PINK,'LineWidth',1);  
+        %obj.hPtsGT(iPt) = plot(ax,nan,nan,MARKERS{iPt},'MarkerSize',8,'Color',clrs(iPt,:),'MarkerFaceColor',clrs(iPt,:));
+        obj.hPtsRepRed(iPt) = plot(ax,nan,nan,MARKERS{iPt},'MarkerSize',12,...
+          'Color',clrs(iPt,:),'LineWidth',2);  
         argsRep = {nan,nan,'o','MarkerSize',2,'Color',clrs(iPt,:)};
         for iRep = 1:obj.nRep
           obj.hPtsRep(iPt,iRep) = plot(ax,argsRep{:},'UserData',[iPt iRep]); 
@@ -62,15 +56,21 @@ classdef LabelCoreCPRView < LabelCore
       obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt);
     end
     function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
-      pp = squeeze(obj.pRep(iFrm1,:,:,:)); % [nptx2xnRep]
-      hGT = obj.hPtsGT;
+      assert(iTgt1==1);
+      [tf,lpos] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
+      if tf
+        obj.assignLabelCoords(lpos);
+      end
+        
+      pp = squeeze(obj.xyRep(iFrm1,:,:,:)); % [nptx2xnRep]
+      %hGT = obj.hPts;
       hRR = obj.hPtsRepRed;
       hR = obj.hPtsRep;
       for iPt = 1:obj.nPts
-        hGT(iPt).XData = obj.pGT(iFrm1,iPt,1);
-        hGT(iPt).YData = obj.pGT(iFrm1,iPt,2);
-        hRR(iPt).XData = obj.pRepRed(iFrm1,iPt,1);
-        hRR(iPt).YData = obj.pRepRed(iFrm1,iPt,2);
+%         hGT(iPt).XData = obj.pGT(iFrm1,iPt,1);
+%         hGT(iPt).YData = obj.pGT(iFrm1,iPt,2);
+        hRR(iPt).XData = obj.xyRepRed(iFrm1,iPt,1);
+        hRR(iPt).YData = obj.xyRepRed(iFrm1,iPt,2);
         for iRep = 1:obj.nRep
           hR(iPt,iRep).XData = pp(iPt,1,iRep);
           hR(iPt,iRep).YData = pp(iPt,2,iRep);          
@@ -83,7 +83,7 @@ classdef LabelCoreCPRView < LabelCore
       lObj = obj.labeler;
       f = lObj.currFrame;
       nf = lObj.nframes;
-      tfLbled = obj.isLabeled;
+      tfLbled = obj.tfFrmLbled;
       switch key
         case {'rightarrow' 'd' 'equal'}          
           f = f+1;
