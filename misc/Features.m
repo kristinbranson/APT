@@ -130,7 +130,8 @@ classdef Features
               sgs = SGS{iTrl,i1,i2}*opts.sgsRescaleFacs(i1,i2);
               tfOOB = sgs<0 | sgs>255;
               if any(tfOOB(:))
-                warningNoTrace('Features:oob','SGS out of bounds: %d pixels.',nnz(tfOOB));
+                warningNoTrace('Features:oob','Rescaling SGS. %d/%d pxs (%.2f %%) clipped.',...
+                  nnz(tfOOB),numel(tfOOB),nnz(tfOOB)/numel(tfOOB)*100);
               end
               SGS{iTrl,i1,i2} = uint8(sgs);
             end

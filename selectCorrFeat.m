@@ -47,7 +47,27 @@ else
   dosample = true(N,1);
 end
 
-scalar = pTar(dosample,:)*b; % [numel(dosample)xS], projections of pTar(dosample,:) onto S unit vecs 
+pTarSamp = pTar(dosample,:);
+pTarSampMu = nanmean(pTarSamp,1); % centroid of each coordinate
+assert(~any(isnan(pTarSampMu))); % nan would show up only if entire column is NaN
+
+% We treat NaNs in pTar as missing data. For the purposes of feature
+% selection, replace missing (NaN) values with the mean centroid for that
+% coordinate, the idea being that the absence of a coordinate should not
+% bias the 1D projections of pTar (see variable 'scalar' below).
+tf = isnan(pTarSamp);
+nnztf = nnz(tf);
+if nnztf>0
+  warningNoTrace('selectCorrFeat:nantar','%d/%d NaNs found in pTarSamp. Replacing with column means.',...
+    nnztf,numel(tf));
+  [~,jCol] = find(tf);
+  iLin = find(tf(:));
+  assert(numel(iLin)==numel(jCol));
+  pTarSamp(iLin) = pTarSampMu(jCol);
+end
+
+scalar = pTarSamp*b; % [numel(dosample)xS], projections of pTar(dosample,:) onto S unit vecs 
+assert(nnz(isnan(scalar))==0);
 stdSc = std(scalar);
 muSc = mean(scalar);
 
@@ -64,8 +84,10 @@ else
   type = 2;
 end
 
-args = {pTar(dosample,:),ftrs(dosample,:),type,stdFtrs,...
-  dfFtrs(dosample,:),scalar,stdSc,muSc}; % scalar is [numel(dosample)xS]
+% - first arg not used except for size
+% - scalar is [numel(dosample)xS]
+args = {pTarSamp,ftrs(dosample,:),type,stdFtrs,...
+  dfFtrs(dosample,:),scalar,stdSc,muSc}; 
 %[use0,maxCo0] = selectCorrFeat1(args{:});
 [use,maxCo] = selectCorrFeatAL(args{:}); %#ok<ASGLU>
 % fprintf('### selectCorrFeat comparison:\n');

@@ -218,9 +218,21 @@ thrs = rand(1,M)*(thrr(2)-thrr(1))+thrr(1);
 % inds(i) = 1+sum(2.^(M-1:-1:0).*(X(i,:)<=thrs))
 % count = hist(inds,1:32)'
 % ysFern(i,d) = sum(Y(inds==i,d)-mu(d))
-[inds,mu,ysFern,count,~] = fernsInds2(X,fids,thrs,Y);
+
+%[inds,mu,ysFern,count,~] = fernsInds2(X,fids,thrs,Y);
+fprintf(1,'Using FernsInds3\n');
+[inds,mu,ysFern,count,ysFernCnt] = fernsInds3(X,fids,thrs,Y);
+
 % ysFern(i) = mean(Y(inds==i))
-ysFern = bsxfun(@plus,bsxfun(@rdivide,ysFern,max(count+reg*N,eps)),mu);
+
+USEOLD = false;
+if USEOLD
+  ysFern = bsxfun(@plus,bsxfun(@rdivide,ysFern,max(count+reg*N,eps)),mu);
+else
+  ysFernCntUse = max(ysFernCnt+reg*N,eps);
+  ysFern = bsxfun(@plus,ysFern./ysFernCntUse,mu);
+end
+
 % S=size(count,1);
 % cnts = repmat(count,[1,D]);
 % for d=1:D
