@@ -118,7 +118,11 @@ classdef Labeler < handle
   properties (SetAccess=private)
     %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
     nLabelPoints;         % scalar integer
+  end
+  properties % make public setaccess
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints        
+  end
+  properties (SetAccess=private)
     labelTemplate;    
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
     labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
@@ -166,7 +170,7 @@ classdef Labeler < handle
     gdata = [];             % handles structure for figure
     depHandles = cell(0,1); % vector of handles that should be deleted when labeler is deleted
     
-    isinit;                 % scalar logical; true during initialization, when some invariants not respected
+    isinit = false;                 % scalar logical; true during initialization, when some invariants not respected
   end
   
   %% Prop access
@@ -496,6 +500,90 @@ classdef Labeler < handle
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
     end
     
+    function projNewImStack(obj,ims,varargin)
+      % DEVELOPMENT ONLY
+      %
+      % Same as projNew, but initialize project to have a single 'movie'
+      % consisting of an image stack. 
+      %
+      % Optional PVs. Let N=numel(ims).
+      % - xyGT. [Nxnptx2], gt labels. 
+      % - xyTstT. [Nxnptx2xRT], CPR test results (replicats)
+      % - xyTstTRed. [Nxnptx2], CPR test results (selected/final).
+      % - tstITst. [K] indices into 1:N. If provided, xyTstT and xyTstTRed
+      %   should have K rows. xyTstTITst specify frames to which tracking 
+      %   results apply.
+      %
+      % If xyGT/xyTstT/xyTstTRed provided, they are viewed with
+      % LabelCoreCPRView. 
+      %
+      % TODO: Prob should set pGT onto .labeledpos, and let
+      % LabelCoreCPRView handle replicates etc.
+      
+      [xyGT,xyTstT,xyTstTRed,tstITst] = myparse(varargin,...
+        'xyGT',[],...
+        'xyTstT',[],...
+        'xyTstTRed',[],...
+        'tstITst',[]);
+
+      obj.projNew('IMSTACK__DEVONLY');
+
+      mr = MovieReaderImStack;
+      mr.open(ims);
+      obj.movieReader = mr;
+      movieInfo = struct();
+      movieInfo.nframes = mr.nframes;
+      
+      obj.movieFilesAll{end+1,1} = '__IMSTACK__';
+      obj.movieFilesAllHaveLbls(end+1,1) = false; % note, this refers to .labeledpos
+      obj.movieInfoAll{end+1,1} = movieInfo;
+      obj.trxFilesAll{end+1,1} = '__IMSTACK__';
+      obj.currMovie = 1; % HACK
+      obj.currTarget = 1;
+%       obj.labeledpos{end+1,1} = [];
+%       obj.labeledpostag{end+1,1} = [];
+      
+      N = numel(ims);
+      tfGT = ~isempty(xyGT);
+      if tfGT
+        [Ntmp,npt,d] = size(xyGT); % npt equal nLabelPoint?
+        assert(Ntmp==N && d==2);
+      end
+      
+      tfTst = ~isempty(xyTstT);
+      tfITst = ~isempty(tstITst);
+      if tfTst
+        sz1 = size(xyTstT);
+        sz2 = size(xyTstTRed);
+        RT = size(xyTstT,4);
+        if tfITst
+          k = numel(tstITst);
+          assert(isequal([k npt d],sz1(1:3),sz2));
+          xyTstTPad = nan(N,npt,d,RT);
+          xyTstTRedPad = nan(N,npt,d);
+          xyTstTPad(tstITst,:,:,:) = xyTstT;
+          xyTstTRedPad(tstITst,:,:) = xyTstTRed;
+          
+          xyTstT = xyTstTPad;
+          xyTstTRed = xyTstTRedPad;
+        else
+          assert(isequal([N npt d],sz1(1:3),sz2));          
+        end
+      else
+        xyTstT = nan(N,npt,d,1);
+        xyTstTRed = nan(N,npt,d);
+      end
+      
+      if tfGT
+        lc = LabelCoreCPRView(obj);
+        lc.setPs(xyGT,xyTstT,xyTstTRed);
+        delete(obj.lblCore);
+        obj.lblCore = lc;
+        lc.init(obj.nLabelPoints,obj.labelPointsPlotInfo);
+        obj.setFrame(1);
+      end
+    end
+        
   end
   
   %% Movie
@@ -1165,19 +1253,23 @@ classdef Labeler < handle
 
       vr.open();
       try
+        hTxt = text(230,10,'','parent',obj.gdata.axes_curr,'Color','white','fontsize',24);
         hWB = waitbar(0,'Writing video');
         for i = 1:nFrmsLbled
           f = frmsLbled(i);
           obj.setFrame(f);
+          hTxt.String = sprintf('%04d',f);
           tmpFrame = getframe(ax);
           vr.writeVideo(tmpFrame);
           waitbar(i/nFrmsLbled,hWB,sprintf('Wrote frame %d\n',f));
         end
       catch ME
         vr.close();
+        delete(hTxt);
         ME.rethrow();
       end
       vr.close();
+      delete(hTxt);
       delete(hWB);
     end
            
@@ -1652,6 +1744,39 @@ classdef Labeler < handle
         df = 1;
       end
       obj.frameDownDF(df);
+    end
+    
+    function frameUpNextLbled(obj,tfback)
+      % call obj.setFrame() on next labeled frame. 
+      % 
+      % tfback: optional. if true, go backwards.
+      
+      if exist('tfback','var')==0
+        tfback = false;
+      end
+      if tfback
+        df = -1;
+      else
+        df = 1;
+      end
+      
+      lpos = obj.labeledpos{obj.currMovie};
+      f = obj.currFrame;
+      nf = obj.nframes;
+      npt = obj.nLabelPoints;
+      
+      f = f+df;
+      while 0<f && f<=nf
+        for iPt = 1:npt
+        for j = 1:2
+          if ~isnan(lpos(iPt,j,f))
+            obj.setFrame(f);
+            return;
+          end
+        end
+        end        
+        f = f+df;
+      end
     end
     
     function [x,y,th] = currentTargetLoc(obj)

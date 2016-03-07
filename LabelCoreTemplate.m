@@ -247,6 +247,7 @@ classdef LabelCoreTemplate < LabelCore
       key = evt.Key;
       modifier = evt.Modifier;      
       tfCtrl = any(strcmp('control',modifier));
+      tfShft = any(strcmp('shift',modifier));
       
       switch key
         case {'s' 'space'}
@@ -313,9 +314,17 @@ classdef LabelCoreTemplate < LabelCore
                 obj.enterAdjust(false,false);
             end
           elseif strcmp(key,'leftarrow')
-            obj.labeler.frameDown(tfCtrl);
+            if tfShft
+              obj.labeler.frameUpNextLbled(true);
+            else
+              obj.labeler.frameDown(tfCtrl);
+            end
           elseif strcmp(key,'rightarrow')
-            obj.labeler.frameUp(tfCtrl);
+            if tfShft
+              obj.labeler.frameUpNextLbled(false);
+            else
+              obj.labeler.frameUp(tfCtrl);
+            end
           end
         case {'backquote'}
           iPt = obj.kpfIPtFor1Key+10;
