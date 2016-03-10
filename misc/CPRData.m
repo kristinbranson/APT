@@ -332,6 +332,63 @@ classdef CPRData < handle
       obj.IppInfo = ippInfo;
     end
     
+    function cnts = channelDiagnostics(obj,iTrl,cnts)
+      % Compute diagnostics on .I, .Ipp based in trials iTrl
+      
+      tfCntsSupplied = exist('cnts','var')>0;
+
+      edges = 0:1:256;
+
+      if ~tfCntsSupplied
+        nedge = numel(edges);
+        npp = numel(obj.IppInfo);
+        cnts = zeros(nedge,npp+1);
+        for iT = iTrl(:)'
+          x = obj.I{iT};
+          cnts(:,1) = cnts(:,1) + histc(x(:),edges);
+
+          for ipp = 1:npp
+            x = obj.Ipp{iT}(:,:,ipp);
+            cnts(:,ipp+1) = cnts(:,ipp+1) + histc(x(:),edges);
+          end
+
+          fprintf(1,'Done with iTrl=%d\n',iT);
+        end
+      end
+      
+      info = [{'I'}; obj.IppInfo];
+      nplot = numel(info);
+      assert(nplot==size(cnts,2));
+      figure('windowstyle','docked');
+      axs = createsubplots(4,ceil(nplot/4));
+      for iPlot = 1:nplot
+        ax = axs(iPlot);
+        axes(ax); %#ok<LAXES>
+        
+        y = cnts(:,iPlot); % frequency count
+        assert(y(end)==0);
+        y = y(1:end-1)';
+        x = (edges(1:end-1)+edges(2:end))/2; % value
+        
+        [mu,~,sd,med,mad] = freqCountStats(x,y);
+        
+        plot(ax,x,log10(y)); 
+        xlim(ax,[0 256]);
+        hold(ax,'on');
+        yl = ylim(ax);        
+        plot(ax,[mu mu],yl,'r');
+        plot(ax,[med med],yl,'m');
+        grid on;
+        tstr = sprintf('%s: mad=%.3f, sd=%.3f',info{iPlot},mad,sd);
+        title(ax,tstr,'interpreter','none','fontsize',8);
+        
+        if iPlot~=1
+          set(ax,'XTickLabel',[],'YTickLabel',[]);
+        end
+      end
+      linkaxes(axs);
+    end
+    
     function varargout = viz(obj,varargin)
       [varargout{1:nargout}] = Shape.viz(obj.I(obj.isFullyLabeled,:),obj.pGT(obj.isFullyLabeled,:),...
         struct('nfids',obj.nfids,'D',obj.D),'md',obj.MD(obj.isFullyLabeled,:),varargin{:});

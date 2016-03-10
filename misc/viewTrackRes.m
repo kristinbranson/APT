@@ -71,21 +71,23 @@ lObj.projNewImStack(td.I,'xyGT',xyGT,...
 %%%%%%%%%%%%%%%%%%%%%%%%
 
 % movie and GT labels of interest
-LBLFILE = 'F:\DropBoxNEW\Dropbox\MultiViewFlyLegTracking\FlyOnTheBoardSept15_AL.lbl';
+LBLFILE = 'F:\DropBoxNEW\Dropbox\Tracking_KAJ\allen cleaned lbls\150730_02_002_07@20160216.lbl';
 
 % Results file
-RESFILE = 'F:\cpr\data\romain\@@@@romainR__@@@__0304T1321\res.mat';
+%RESFILE = 'F:\cpr\data\jan\13@he_pluslblfrms902_2_1_7@for_150902_02_001_07_v2_plus9TrnFrmsForFr1131@iTrn@lotsa1__13@he_pluslblfrms902_2_1_7@for_150902_02_001_07_v2@iTstLbl__0226T1702\res.mat';
+RESFILE = 'F:\DropBoxNEW\Dropbox\Tracking_KAJ\track.results\13@he@for_150730_02_002_07_v2@iTrn@lotsa1__13@he@for_150730_02_002_07_v2@iTstLbl__0225T1028\res.mat';
 % ith pt in results corresponds to pt RESIPT2LBLIPT(i) in lbl
-RESIPT2LBLIPT = [37 38 39 40 41 42 43 44 45 46 47 48 49 52 53 54 57];
-RESXSHIFT = 600;
-RESYSHIFT = 275;
+RESIPT2LBLIPT = 1:7;
+RESXSHIFT = 0;
+RESYSHIFT = 0;
 
 % This TDfile should reference the above lblFile in the MD; we need this to
 % get iRes
-TDFILE = 'f:\cpr\data\romain\td@@@0301.mat';
-TDIFILE = '';
-%TDIFILE = 'f:\cpr\data\romain\tdI@halfhalf@@0303.mat';
-%TDIFILEVAR = 'iTst';
+%TDFILE = 'f:\cpr\data\jan\td@13@he_pluslblfrms902_2_1_7@0226';
+TDFILE = 'f:\cpr\data\jan\td@13@he@0217';
+%TDIFILE = 'f:\cpr\data\jan\tdI@13@for_150902_02_001_07_v2_plus9TrnFrmsForFr1131@0226';
+TDIFILE = 'f:\cpr\data\jan\tdI@13@for_150730_02_002_07_v2@0224';
+TDIFILEVAR = 'iTstLbl';
 
 %%
 td = load(TDFILE);
@@ -250,20 +252,40 @@ muFtrDist = Shape.vizRepsOverTime(td.ITst,res.pTstT,...
 nReg = numel(regs);
 nMini = numel(regs(1).regInfo);
 chanmat = nan(nReg,nMini,10);
-figure('windowstyle','docked');
+h1 = figure('windowstyle','docked');
+h2 = figure('windowstyle','docked');
+ax = createsubplots(1,5);
 for iReg = 1:nReg
   f2chan = regs(iReg).ftrPos.xs(:,6);
   for iMini = 1:nMini
-    fids = regs(iReg).regInfo{iMini}.fids(:);
+    ri = regs(iReg).regInfo{iMini};
+    fids = ri.fids(:);
     chans = f2chan(fids);
     chanmat(iReg,iMini,:) = chans;    
+    
+    for iFern=1:5
+      cla(ax(iFern));
+      axes(ax(iFern));
+      hist(ri.X(:,iFern));
+      grid on;
+      hold on;
+      xlim([-1 1]);
+      yl = ylim;
+      xt = ri.thrs(iFern);
+      plot([xt xt],[yl(1) yl(2)],'r');
+      chans = f2chan(ri.fids(:,iFern));
+      title(sprintf('Fern %d: chans: %d,%d',iFern,chans(1),chans(2)),...
+        'interpreter','none','fontweight','bold');
+    end
+    
+    input(sprintf('iReg %d iMini %d',iReg,iMini));
   end
   
-  tmp = chanmat(iReg,:,:);
-  hist(tmp(:),30);
-  title(sprintf('Channels used for iter=%d',iReg),'fontweight','bold','interpreter','none');
-  grid on;
-  input('hk');
+%   tmp = chanmat(iReg,:,:);
+%   hist(tmp(:),30);
+%   title(sprintf('Channels used for iter=%d',iReg),'fontweight','bold','interpreter','none');
+%   grid on;
+  
 end
 
 %% View Fern stuff

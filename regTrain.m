@@ -121,6 +121,11 @@ for k=1:K
             %Train regressor using selected features
             [reg1,ys1] = regFun(ysTar,ftrs,M,prm);
             reg1.fids = use;
+            
+            %%%%XXX
+            fprintf(1,'Saving fern features in reg\n');
+            reg1.X = ftrs;
+            
             best = {reg1,ys1};
         %Select features using random step optimization            
         else

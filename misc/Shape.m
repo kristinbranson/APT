@@ -525,7 +525,8 @@ classdef Shape
             if iMini<=5
               fprintf(1,'fids:\n');
               disp(fids);
-              input(sprintf('it %d.%03d\n',t,iMini));
+              fprintf('it %d.%03d\n',t,iMini);
+              %input(sprintf('it %d.%03d\n',t,iMini));
             end
             %fprintf('it %d.%03d\n',t,iMini);
           end
