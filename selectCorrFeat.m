@@ -1,22 +1,25 @@
-function [use,ftrs1] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs)
+function [use,ftrsSel] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs)
 % Selection of features based on their correlation, as proposed
 % in "Face Alignment by Explicit Shape Regression", Cao et al, CVPR12.
 %
 % USAGE
-%  [use,ftrs1] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs)
+%  [use,ftrsSel] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs)
 %
 % INPUTS
 %  S        - scalar int, number of features to select
 %  pTar     - [NxD] target output values
 %  ftrs     - [NxF] computed features
 %  ftrPrm   - type of features, shapeGt>ftrsGen struct
-%  stdFtrs  - For type==1: [1xF] matrix with precomputed std for each feature
-%           - For type==2: [FxF] matrix (upper tri), std-of-differences, see stdFtrs1
+%     .nsample_cor
+%     .metatype
+%  stdFtrs  - For ftrPrm.metatype=='single': [1xF] matrix with precomputed std for each feature
+%           - For ftrPrm.metatype=='diff': [FxF] matrix (upper tri), std-of-differences, see stdFtrs1
 %  dfFtrs   - [NxF] de-meaned features
 %
 % OUTPUTS
-%  use    - [type x S] feature Ids
-%  ftrs1  - [NxS] S selected features features
+%  use      - Features indices (indices into cols of ftrs) for selected features.
+%             for ftrPrm.metatype=='single': [S]. for .metatype='diff': [2xS].
+%  ftrsSel  - [NxS] Selected (meta)feature values. 
 %
 % See also 
 %    regTrain
@@ -32,16 +35,18 @@ function [use,ftrs1] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs)
 %  ICCV'13, Sydney, Australia
 
 [N,D] = size(pTar);
+F = size(ftrs,2);
+
 % random projection of data
 b = rand(D,S)*2-1; 
 b = bsxfun(@rdivide,b,sqrt(sum(b.^2,1))); % [DxS], each col is a D-dim unit vec
 
-if isfield(ftrPrm,'nsample_cor'),
+if isfield(ftrPrm,'nsample_cor')
   nsample = ftrPrm.nsample_cor;
 else
   nsample = N;
 end
-if nsample < N,
+if nsample < N
   dosample = rand(N,1) <= nsample/N;
 else
   dosample = true(N,1);
@@ -66,56 +71,68 @@ if nnztf>0
   pTarSamp(iLin) = pTarSampMu(jCol);
 end
 
-scalar = pTarSamp*b; % [numel(dosample)xS], projections of pTar(dosample,:) onto S unit vecs 
-assert(nnz(isnan(scalar))==0);
-stdSc = std(scalar);
-muSc = mean(scalar);
+Bsamp = pTarSamp*b; % [numel(dosample)xS], projections of pTar(dosample,:) onto S unit vecs
+assert(nnz(isnan(Bsamp))==0);
+BsampSD = std(Bsamp,[],1);
+BsampMu = mean(Bsamp,1);
 
-% I think it is a bug that use is 4 x S, changed this to have a max value
-type = ftrPrm.type;
-if isnumeric(type)
-  assert(false,'AL maybe obsolete codepath.');
-  if type>2
-    % AL: prob just type==3 is relevant
-    type=min(type-2,2);
-  end
-else
-  % char types WILL NOW BE 2
-  type = 2;
-end
+% AL20160310. It's a little weird that we are using ftrs(dosample,:) and
+% dfFtrs(dosample,:) with stdFtrs. stdFtrs is the SD using all features, 
+% not just the ones included in dosample. So the covariances-with-B that 
+% are calculated will not be quite right. If numel(dosample) is large,
+% hopefully this is basically okay.
+%
 
-% - first arg not used except for size
-% - scalar is [numel(dosample)xS]
-args = {pTarSamp,ftrs(dosample,:),type,stdFtrs,...
-  dfFtrs(dosample,:),scalar,stdSc,muSc}; 
-%[use0,maxCo0] = selectCorrFeat1(args{:});
-[use,maxCo] = selectCorrFeatAL(args{:}); %#ok<ASGLU>
-% fprintf('### selectCorrFeat comparison:\n');
-% fprintf(' Old:\n');
-% disp(num2str(use0));
-% disp(num2str(maxCo0,3));
-% fprintf(' New:\n');
-% disp(num2str(use));
-% disp(num2str(maxCo,3));
-  
-if any(use(:)==0)
-  assert(false,'AL maybe unnecessary for us');
-  
-  %This can happen when selectCorrFeat1 does not find enough unique
-  %combinations due to low number of features (e.g. when nzones==1)
-  ind=find(use==0); F=size(ftrs,2); I=length(ind);
-  if(F>=I), use(ind)=randSample(F,I);
-  else use(ind)=randint2(1,I,[1 F]);
-  end
-end
 
-%clear scalar;
-if nargout>1
-  if type==1
-    assert(isequal(size(use),[1 S]));
-    ftrs1 = ftrs(:,use);
-  else
+switch ftrPrm.metatype
+  case 'single'
+    dB = bsxfun(@minus,Bsamp,BsampMu);
+    assert(isequal(size(stdFtrs),[1 F]));
+    % Try a sanity check on stdFtrs vs std(ftrs(dosample,:))
+    stdFtrsSamp1 = std(ftrs(dosample,1),[],1);
+    fprintf(1,'stdFtrs sanity. stdFtrs: %.3g. stdFtrsSamp: %.3g\n',...
+      stdFtrs(1),stdFtrsSamp1);
+    use = selectFeatSingle(dfFtrs(dosample,:),stdFtrs,dB,BsampSD);
+    
+    assert(numel(use)==S);
+    use = use(:)';
+    ftrsSel = ftrs(:,use);
+  case 'diff'
+    assert(isequal(size(stdFtrs),[F F]));    
+    SELECTCORRFEATTYPE = 2;
+    % - pTarSamp is [nsampxD], not used except for size
+    % - ftrs is [nsampxF]
+    % - dfFtrs is [nsampxF]
+    % - Bsamp is [nsampxS]    
+    args = {pTarSamp,ftrs(dosample,:),SELECTCORRFEATTYPE,stdFtrs,...
+      dfFtrs(dosample,:),Bsamp,BsampSD,BsampMu}; 
+    use = selectCorrFeatAL(args{:});
+    
     assert(isequal(size(use),[2 S]));
-    ftrs1 = ftrs(:,use(1,:)) - ftrs(:,use(2,:)); % includes types that were originally chars
-  end
+    iF1 = use(1,:);
+    iF2 = use(2,:);
+    ftrsSel = ftrs(:,iF1) - ftrs(:,iF2);
+    
+    %[use0,maxCo0] = selectCorrFeat1(args{:});
+    % fprintf('### selectCorrFeat comparison:\n');
+    % fprintf(' Old:\n');
+    % disp(num2str(use0));
+    % disp(num2str(maxCo0,3));
+    % fprintf(' New:\n');
+    % disp(num2str(use));
+    % disp(num2str(maxCo,3));  
+    
+  otherwise
+    assert(false,'Unknown ftrPrm.metatype.');
 end
+
+assert(~any(use(:)==0)); % AL20160310
+  
+% if any(use(:)==0)
+%   %This can happen when selectCorrFeat1 does not find enough unique
+%   %combinations due to low number of features (e.g. when nzones==1)
+%   ind=find(use==0); F=size(ftrs,2); I=length(ind);
+%   if(F>=I), use(ind)=randSample(F,I);
+%   else use(ind)=randint2(1,I,[1 F]);
+%   end
+% end
