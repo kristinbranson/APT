@@ -56,39 +56,64 @@ function [regModel,pAll] = rcprTrain( Is, pGt, varargin )
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
-% get additional parameters and check dimensions
-dfs={'model','REQ','pStar',[],'posInit',[],'T','REQ',...
-  'L',1,'regPrm','REQ','ftrPrm','REQ','regModel',[],...
-  'pad',10,'dorotate',false,'verbose',0,'initData',[],'Prm3D',[]};
-[model,pStar,posInit,T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D] = ...
+dfs = {...
+  'model','REQ',...
+  'regPrm','REQ',...
+  'ftrPrm','REQ',...
+  'regModel',[],... % previously learned regressors
+  'bboxes',[],...
+  'initData',[],... % if empty, initial conditions generated using initPrm 
+  'initPrm',[],...
+  'pStar',[],...    
+  'verbose',0,...
+  };
+[model,regPrm,ftrPrm,regModel,bboxes,initData,initPrm,pStar,verbose] = ...
   getPrmDflt(varargin,dfs,1);
 
-[regModel,pAll] = rcprTrain1(Is,pGt,model,pStar,posInit,...
-  T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D);
+if isempty(initData)
+  fprintf('Generating initData...\n');  
+  
+  initData = struct();
+  [initData.pCur,...
+    initData.pGt,...
+    initData.pGtN,...
+    initData.pStar,...
+    initData.imgIds,...
+    initData.N,...
+    initData.N1] = shapeGt('initTr',[],pGt,model,pStar,bboxes,...
+      initPrm.Naug,initPrm.augpad,initPrm.augrotate);  
 end
-
-function [regModel,pAll] = rcprTrain1(Is,pGt,model,pStar,posInit,...
-  T,L,regPrm,ftrPrm,regModel,pad,dorotate,verbose,initD,Prm3D)
-% Initialize shape and assert correct image/ground truth format
 
 fprintf('train. USE_AL_CORRECTION=%d\n',regPrm.USE_AL_CORRECTION);
 
-if(isempty(initD))
-  [pCur,pGt,pGtN,pStar,imgIds,N,N1] = shapeGt('initTr',[],pGt,...
-    model,pStar,posInit,L,pad,dorotate);
-else
-  pCur=initD.pCur;pGt=initD.pGt;pGtN=initD.pGtN;
-  pStar=initD.pStar;imgIds=initD.imgIds;N=initD.N;N1=initD.N1;
-  clear initD;
+pause(3.0);
+
+[regModel,pAll] = rcprTrain1(Is,initData,model,bboxes,regPrm,ftrPrm,...
+  regModel,verbose);
 end
-D=size(pGt,2);
+
+function [regModel,pAll] = rcprTrain1(Is,initData,model,bbs,regPrm,ftrPrm,...
+  regModel,verbose)
+
+pCur = initData.pCur;
+pGt = initData.pGt; % note: initD.pGt contains replicates
+pGtN = initData.pGtN;
+pStar = initData.pStar; 
+imgIds = initData.imgIds;
+N = initData.N;
+N1 = initData.N1;
+D = size(pGt,2);
+assert(D==model.D);
+
+T = regPrm.T;
+
 % remaining initialization, possibly continue training from
 % previous model
 pAll = zeros(N1,D,T+1);
 regs = repmat(struct('regInfo',[],'ftrPos',[]),T,1);
 if isempty(regModel)
-  t0=1;
-  pAll(:,:,1)=pCur(1:N1,:);
+  t0 = 1;
+  pAll(:,:,1) = pCur(1:N1,:);
 else % not working for mouse_paw3D
   assert(false,'Unsupported codepath (what is cprApply)');
   %   t0=regModel.T+1; regs(1:regModel.T)=regModel.regs;
@@ -97,12 +122,12 @@ else % not working for mouse_paw3D
 end
 
 loss = mean(shapeGt('dist',model,pCur,pGt));
-if(verbose),
+if verbose
   fprintf('  t=%i/%i       loss=%f     \n',t0-1,T,loss);
 end
 tStart = clock;%pCur_t=zeros(N,D,T+1);
-bboxes=posInit(imgIds,:);
-ftr_gen_radius = ftrPrm.radius;
+bboxes = bbs(imgIds,:);
+ftrPrmRadiusOrig = ftrPrm.radius;
 
 for t=t0:T
   if regPrm.USE_AL_CORRECTION
@@ -117,8 +142,8 @@ for t=t0:T
     pTar = shapeGt('compose',model,pTar,pGt,bboxes); % pTar: normalized
   end
   
-  if numel(ftr_gen_radius) > 1,
-    ftrPrm.radius = ftr_gen_radius(min(t,numel(ftr_gen_radius)));
+  if numel(ftrPrmRadiusOrig)>1
+    ftrPrm.radius = ftrPrmRadiusOrig(min(t,numel(ftrPrmRadiusOrig)));
   end
   
   % XXXAL understand this codepath and best way to specify it
@@ -159,19 +184,19 @@ for t=t0:T
         ftrPos = shapeGt('ftrsGenDup2',model,ftrPrm);
         [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',...
           model,pCur,Is,ftrPos,...
-          imgIds,pStar,posInit,regPrm.occlPrm);
+          imgIds,pStar,bbs,regPrm.occlPrm);
       case {3 4}
         assert(false,'Unsupported new Is');
         ftrPos = shapeGt('ftrsGenDup',model,ftrPrm);
         [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup',...
           model,pCur,Is,ftrPos,...
-          imgIds,pStar,posInit,regPrm.occlPrm);
+          imgIds,pStar,bbs,regPrm.occlPrm);
       otherwise
         assert(false,'Unsupported new Is');
         ftrPos = shapeGt('ftrsGenIm',model,pStar,ftrPrm);
         [ftrs,regPrm.occlD] = shapeGt('ftrsCompIm',...
           model,pCur,Is,ftrPos,...
-          imgIds,pStar,posInit,regPrm.occlPrm);
+          imgIds,pStar,bbs,regPrm.occlPrm);
     end
     
     %Regress
@@ -188,33 +213,43 @@ for t=t0:T
     pCur = shapeGt('reprojectPose',model,pCur,bboxes);
   end
   
+  assert(size(pCur,1)==N1); % AL 20160314
   pAll(:,:,t+1) = pCur(1:N1,:);
   %loss scores
   [errPerEx,errPerPt] = shapeGt('dist',model,pCur,pGt);
   meanErrPerPt = mean(errPerPt,1);
   loss = mean(errPerEx);
   % store result
-  regs(t).regInfo=regInfo;
-  regs(t).ftrPos=ftrPos;
-  %If stickmen, add part info
-  if(verbose),
-    msg=tStatus(tStart,t,T);
+  regs(t).regInfo = regInfo;
+  regs(t).ftrPos = ftrPos;
+  
+  if verbose
+    msg = tStatus(tStart,t,T);
     fprintf(['  t=%i/%i       loss=%f     ' msg],t,T,loss);
   end
-  %DEBUG_VISUALIZE2;
-  if(loss<1e-5), T=t; break; end
+  
+  if loss<1e-5
+    T=t; 
+    break; 
+  end
 end
 
-ftrPrm.radius = ftr_gen_radius;
+ftrPrm.radius = ftrPrmRadiusOrig;
 
 % create output structure
-regs=regs(1:T); pAll=pAll(:,:,1:T+1);
+regs = regs(1:T); 
+pAll = pAll(:,:,1:T+1);
 regModel = struct('model',model,'pStar',pStar,...
   'pDstr',pGt(1:N1,:),'T',T,'regs',regs);
-if(~strcmp(model.name,'ellipse')),regModel.pGtN=pGtN(1:N1,:); end
+if ~strcmp(model.name,'ellipse')
+  regModel.pGtN = pGtN(1:N1,:); 
+end
+
 % Compute precision recall curve for occlusion detection and find
 % desired occlusion detection performance (default=90% precision)
 if(strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF1'))
+  assert(false,'AL');
+  
   nfids=D/3;
   occlGt=pGt(:,(nfids*2)+1:end);
   op=pCur(:,(nfids*2)+1:end);
@@ -240,7 +275,7 @@ if(strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF1'))
 end
 end
 
-function msg=tStatus(tStart,t,T)
+function msg = tStatus(tStart,t,T)
 elptime = etime(clock,tStart);
 fracDone = max( t/T, .00001 );
 esttime = elptime/fracDone - elptime;
