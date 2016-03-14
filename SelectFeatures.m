@@ -3,7 +3,43 @@ classdef SelectFeatures
   
   methods (Static)
     
-    function use1 = test
+    function [stdFtrs,dfFtrs] = statsFtrs(X,ftrPrm)
+      % Compute feature stats to be used by fast correlation selection
+      %
+      % - If ftrPrm.metatype=='single', then stdFtrs and dfFtrs are column
+      % SDs and means of X, resp.
+      % 
+      % - If ftrPrm.metatype=='diff', then dfFtrs is as before but stdFtrs 
+      % is actually FxF upper triangular, std-of-differences, ie 
+      % stdFtrs(i,j) is std(X(:,i)-X(:,j)). See stdFtrs1.
+
+      N = size(X,1);
+      
+      if isfield(ftrPrm,'nsample_std'),
+        nsample = ftrPrm.nsample_std;
+      else
+        nsample = N;
+      end
+      
+      muFtrs = mean(X);
+      dfFtrs = bsxfun(@minus,X,muFtrs);
+
+      switch ftrPrm.metatype
+        case 'single'
+          stdFtrs = std(X); 
+        case 'diff'
+          if nsample < N
+            dosample = rand(N,1) <= nsample/N;
+          else
+            dosample = true(N,1);
+          end
+          stdFtrs = stdFtrs1(X(dosample,:));
+        otherwise
+          assert(false);
+      end
+    end
+
+    function use = testSelectSingles
       N = 2e3;
       F = 1600;
       S = 5;
@@ -14,7 +50,13 @@ classdef SelectFeatures
       tic; use2 = SelectFeatures.selectSingleWrap(X,B); toc
       tic; use3 = SelectFeatures.selectFeatSingleWrap(X,B); toc
       assert(isequal(use1(:),use2(:),use3(:)));
-    end
+      
+      use = use1(:);
+    end    
+    
+  end
+  
+  methods (Static)
     
     function use = selectSingle_slow(X,B)
       % Naive impl

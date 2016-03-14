@@ -49,24 +49,25 @@ function [regInfo,ysPr] = regTrain(data,ys,varargin)
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
-% get/check parameters
-dfs={'type',1,'ftrPrm','REQ','K',1,...
+dfs = {'type',1,'ftrPrm','REQ','K',1,...
   'loss','L2','R',0,'M',5,'model',[],'prm',{},...
   'occlD',[],'occlPrm',struct('Stot',1)};
-[regType,ftrPrm,K,loss,R,M,model,prm,occlD,occlPrm]=...
+[regType,ftrPrm,K,loss,R,M,model,regPrm,occlD,occlPrm] = ...
   getPrmDflt(varargin,dfs,0);
-%Set base regression type
+
 switch regType
   case 1, regFun = @trainFern;
   case 2, regFun = @trainLin;
   otherwise, error('unknown regressor type');
 end
-%Set loss type
+
 assert(any(strcmp(loss,{'L1','L2'})));
-%precompute feature std to be used by selectCorrFeat
+
+% precompute feature stats to be used by selectCorrFeat
 if R==0
-  [stdFtrs,dfFtrs] = statsFtrs(data,ftrPrm);
-else%random step optimization selection
+  [stdFtrs,dfFtrs] = SelectFeatures.statsFtrs(data,ftrPrm);
+else %random step optimization selection
+  assert(false,'AL unused');
   switch(loss)
     case 'L1',  lossFun=@(ys,ysGt) mean(abs(ys(:)-ysGt(:)));
     case 'L2',  lossFun=@(ys,ysGt) mean((ys(:)-ysGt(:)).^2);
@@ -79,7 +80,9 @@ ysSum = zeros(N,D);
 regInfo = cell(K,Stot);
 
 %If using occlusion-centered approach, set up masks
-if(Stot>1 && ~isempty(occlD))
+if Stot>1 && ~isempty(occlD)
+  assert(false,'AL');
+  
   nGroups=occlPrm.nrows*occlPrm.ncols;
   masks=zeros(Stot,min(nGroups,occlPrm.nzones));
   for s=1:Stot
@@ -90,6 +93,7 @@ if(Stot>1 && ~isempty(occlD))
   end
   ftrsOccl=zeros(N,K,Stot);
 end
+
 %Iterate through K boosted regressors
 for k=1:K
   %Update regression target
@@ -98,7 +102,7 @@ for k=1:K
   ysPred = zeros(N,D,Stot);
   for s=1:Stot
     %Select features from correlation score directly
-    if(R==0)
+    if R==0
       %If occlusion-centered approach, enforce feature variety
       if(s>1 && Stot>1 && ~isempty(occlD))
         keep=find(ismember(mg,masks(s-1,:)));
@@ -115,19 +119,15 @@ for k=1:K
         end
         %ow use all features
       else
-        [use,ftrs] = selectCorrFeat(M,ysTar,data,...
-          ftrPrm,stdFtrs,dfFtrs); % TO DO. edit this???
+        [use,ftrs] = selectCorrFeat(M,ysTar,data,ftrPrm,stdFtrs,dfFtrs);
       end
       %Train regressor using selected features
-      [reg1,ys1] = regFun(ysTar,ftrs,M,prm);
+      [reg1,ys1] = regFun(ysTar,ftrs,M,regPrm);
       reg1.fids = use;
-      
-      %%%%XXX
-      fprintf(1,'Saving fern features in reg\n');
+      %fprintf(1,'Saving fern features in reg\n');
       reg1.X = ftrs;
       
       best = {reg1,ys1};
-      %Select features using random step optimization
     else
       assert(false,'codepath needs investigation; see ftrPrm.type below');
       %If occlusion-centered approach, enforce feature variety
@@ -154,21 +154,24 @@ for k=1:K
           ftrs=data2(:,use(1,:))-data2(:,use(2,:));
         end
         %Train regressor using selected features
-        [reg1,ys1]=regFun(ysTar,ftrs,M,prm);
+        [reg1,ys1]=regFun(ysTar,ftrs,M,regPrm);
         e1 = lossFun(ysTar,ys1);use=keep(use);
         %fprintf('%f - %f \n',e,e1);
         if(e1<=e), e=e1; reg1.fids=use; best={reg1,ys1}; end
       end
     end
     %Get output of regressor
-    [regInfo{k,s},ysPred(:,:,s)]=deal(best{:});clear best;
+    [regInfo{k,s},ysPred(:,:,s)] = deal(best{:});
+    clear best;
     %If occlusion-centered, get occlusion averages by group
-    if(D>10 && Stot>1 && ~isempty(occlD))
+    if D>10 && Stot>1 && ~isempty(occlD)
       ftrsOccl(:,k,s)=sum(occlD.featOccl(:,regInfo{k,s}.fids),2)./K;
     end
   end
   %Combine S1 regressors to form prediction (Occlusion-centered)
-  if(D>10 && Stot>1 && ~isempty(occlD))
+  if D>10 && Stot>1 && ~isempty(occlD)
+    assert(false,'AL');
+    
     %(WEIGHTED MEAN)
     %ftrsOccl contains total occlusion of each Regressor
     % weight should be inversely proportional, summing up to 1
@@ -184,15 +187,18 @@ for k=1:K
     end
   else
     %Update output
-    ysSum=ysSum+ysPred;
+    ysSum = ysSum+ysPred;
   end
 end
 % create output struct
-clear data ys; ysPr=ysSum;
-if(R==0), clear stdFtrs dfFtrs; end
+clear data ys; 
+ysPr = ysSum;
+if R==0 
+  clear stdFtrs dfFtrs; 
+end
 end
 
-function [regSt,Y_pred]=trainFern(Y,X,M,prm)
+function [regSt,Y_pred] = trainFern(Y,X,M,prm)
 % Train single random fern regressor.
 %
 % USAGE
@@ -214,10 +220,10 @@ function [regSt,Y_pred]=trainFern(Y,X,M,prm)
 %
 % See also
 
-% get/check parameters
-dfs={'thrr',[-1 1]/5,'reg',.01};
+dfs = {'thrr',[-1 1]/5,'reg',.01};
 [thrr,reg] = getPrmDflt(prm,dfs,1);
-[N,D] = size(Y);
+N = size(Y,1);
+assert(size(X,2)==M); % currently fern depth should always match total num ftrs
 fids = uint32(1:M);
 thrs = rand(1,M)*(thrr(2)-thrr(1))+thrr(1);
 % inds(i) = 1+sum(2.^(M-1:-1:0).*(X(i,:)<=thrs))
@@ -226,16 +232,17 @@ thrs = rand(1,M)*(thrr(2)-thrr(1))+thrr(1);
 
 %[inds,mu,ysFern,count,~] = fernsInds2(X,fids,thrs,Y);
 fprintf(1,'Using FernsInds3\n');
-[inds,mu,ysFern,count,ysFernCnt] = fernsInds3(X,fids,thrs,Y);
-
-% ysFern(i) = mean(Y(inds==i))
+mu = nanmean(Y);
+dY = bsxfun(@minus,Y,mu);
+[inds,dyFernSum,count,dyFernCnt] = Ferns.fernsInds3(X,fids,thrs,dY);
 
 USEOLD = false;
 if USEOLD
-  ysFern = bsxfun(@plus,bsxfun(@rdivide,ysFern,max(count+reg*N,eps)),mu);
+  assert(false,'AL');
+  ysFern = bsxfun(@plus,bsxfun(@rdivide,dyFernSum,max(count+reg*N,eps)),mu);
 else
-  ysFernCntUse = max(ysFernCnt+reg*N,eps);
-  ysFern = bsxfun(@plus,ysFern./ysFernCntUse,mu);
+  ysFernCntUse = max(dyFernCnt+reg*N,eps); % [2^MxD], counts for each fernbin/coord
+  ysFern = bsxfun(@plus,dyFernSum./ysFernCntUse,mu);
 end
 
 % S=size(count,1);
@@ -269,28 +276,3 @@ function [regSt,Y_pred]=trainLin(Y,X,~,~)
 W = X\Y; Y_pred = X*W;regSt = struct('W',W);
 end
 
-%Compute std and diff between ftrs to be used by fast correlation selection
-function [stdFtrs,dfFtrs]=statsFtrs(ftrs,ftrPrm)
-N = size(ftrs,1);
-
-if isfield(ftrPrm,'nsample_std'),
-  nsample = ftrPrm.nsample_std;
-else
-  nsample = N;
-end
-
-if isnumeric(ftrPrm.type) && ftrPrm.type==1
-  stdFtrs = std(ftrs); muFtrs = mean(ftrs);
-  dfFtrs = bsxfun(@minus,ftrs,muFtrs);
-else
-  muFtrs = mean(ftrs);
-  dfFtrs = bsxfun(@minus,ftrs,muFtrs);
-  %dfFtrs = ftrs-repmat(muFtrs,[N,1]);
-  if nsample < N,
-    dosample = rand(N,1) <= nsample/N;
-  else
-    dosample = true(N,1);
-  end
-  stdFtrs=stdFtrs1(ftrs(dosample,:));
-end
-end

@@ -81,7 +81,6 @@ BsampMu = mean(Bsamp,1);
 % not just the ones included in dosample. So the covariances-with-B that 
 % are calculated will not be quite right. If numel(dosample) is large,
 % hopefully this is basically okay.
-%
 
 
 switch ftrPrm.metatype
