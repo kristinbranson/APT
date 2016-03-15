@@ -7,7 +7,7 @@ function ysSum = regApply(p,X,regInfo,regPrm)
 % INPUTS
 %  p        - [NxD] initial pose. AL20151204: This arg used only for its size
 %  X        - [NxF] N length F feature vectors
-%  regInfo  - structure containing regressor info, output of regTrain 
+%  regInfo  - structure containing regressor info, output of regTrain
 %             AL20151204: [KxStot] cell array
 %  regPrm
 %   .type     - [1] type of regression
@@ -20,26 +20,26 @@ function ysSum = regApply(p,X,regInfo,regPrm)
 %   .occlD    - feature occlusion info, see shapeGt>ftrsCompDup
 %   .occlPrm  - occlusion params for occlusion-centered (struct)
 %                regression, output of shapeGt>ftrsComp
-%       .nrows     - [3] number of rows into which divide face 
-%       .ncols     - [3] number of cols into which divide face 
+%       .nrows     - [3] number of rows into which divide face
+%       .ncols     - [3] number of cols into which divide face
 %       .nzones    - [1] number of face zone from which regressors draw features
 %       .Stot      - [3] number of regressors to train at each round
 %       .th        - [.5] occlusion threshold
 %
 % OUTPUTS
-%  ysSum       - [NxD] predicted output values 
+%  ysSum       - [NxD] predicted output values
 %                AL20151204: used same as however regressor was trained
 %
 % See also
 %          demoRCPR, FULL_demoRCPR, rcprTrain, regTrain
 %
-% Copyright 2013 X.P. Burgos-Artizzu, P.Perona and Piotr Dollar.  
+% Copyright 2013 X.P. Burgos-Artizzu, P.Perona and Piotr Dollar.
 %  [xpburgos-at-gmail-dot-com]
 % Please email me if you find bugs, or have suggestions or questions!
 % Licensed under the Simplified BSD License [see bsd.txt]
 %
 %  Please cite our paper if you use the code:
-%  Robust face landmark estimation under occlusion, 
+%  Robust face landmark estimation under occlusion,
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
@@ -53,43 +53,43 @@ occlD = regPrm.occlD;
 %Set up reg function
 [N,D] = size(p);
 switch (type)
-    case 1, regFun=@applyFern;
-    case 2, regFun=@applyLin;
+  case 1, regFun=@applyFern;
+  case 2, regFun=@applyLin;
 end
 
 %Prepare data
 ysSum=zeros(N,D);
 if(D>10 && Stot>1 && ~isempty(occlD))
-    ftrsOccl=zeros(N,K,Stot);
+  ftrsOccl=zeros(N,K,Stot);
 end
 %For each boosted regressor
 assert(iscell(regInfo) && isequal(size(regInfo),[K Stot]));
 for k=1:K
-    %Occlusion-centered weighted mean
-    if(D>10 && Stot>1 && ~isempty(occlD))
-        ysPred = zeros(N,D,Stot);
-        for s=1:Stot
-            ysPred(:,:,s)=regFun(X,regInfo{k,s},regPrm);
-            ftrsOccl(:,k,s)=sum(occlD.featOccl(:,regInfo{k,s}.fids),2)./K;
-        end
-        %(WEIGHTED MEAN)
-          %ftrsOccl contains total occlusion of each Regressor
-          % weight should be inversely proportional, summing up to 1
-          weights=1-normalize(ftrsOccl(:,k,:));ss=sum(weights,3);
-          weights=weights./repmat(ss,[1,1,Stot]);
-          %when all are fully occluded, all get proportional weight 
-          % (regular mean)
-          weights(ss==0,1,:)=1/Stot;
-          weights=repmat(weights,[1,D,1]);
-        for s=1:Stot
-            ysSum=ysSum+ysPred(:,:,s).*weights(:,:,s);
-        end
-    %Normal
-    else
-        ysPred = regFun(X,regInfo{k,:},regPrm);
-        ysPred = median(ysPred,3);
-        ysSum = ysSum+ysPred;
+  %Occlusion-centered weighted mean
+  if(D>10 && Stot>1 && ~isempty(occlD))
+    ysPred = zeros(N,D,Stot);
+    for s=1:Stot
+      ysPred(:,:,s)=regFun(X,regInfo{k,s},regPrm);
+      ftrsOccl(:,k,s)=sum(occlD.featOccl(:,regInfo{k,s}.fids),2)./K;
     end
+    %(WEIGHTED MEAN)
+    %ftrsOccl contains total occlusion of each Regressor
+    % weight should be inversely proportional, summing up to 1
+    weights=1-normalize(ftrsOccl(:,k,:));ss=sum(weights,3);
+    weights=weights./repmat(ss,[1,1,Stot]);
+    %when all are fully occluded, all get proportional weight
+    % (regular mean)
+    weights(ss==0,1,:)=1/Stot;
+    weights=repmat(weights,[1,D,1]);
+    for s=1:Stot
+      ysSum=ysSum+ysPred(:,:,s).*weights(:,:,s);
+    end
+    %Normal
+  else
+    ysPred = regFun(X,regInfo{k,:},regPrm);
+    ysPred = median(ysPred,3);
+    ysSum = ysSum+ysPred;
+  end
 end
 end
 
