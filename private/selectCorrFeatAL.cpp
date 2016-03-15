@@ -30,6 +30,8 @@ double computeCov(double* dfFtrs, double* scalar, double mu,
 
   [use,maxCos] = selectCorrFeatAL(pTar,ftrs,type,stdFtrs,dfFtrs,scalar,stdSc,muSc)
 
+  - AL 20160302: pTar not used for anything besides dimension
+
  */
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   if ( nrhs!=8 ) mexErrMsgTxt("Eight input arguments required.");

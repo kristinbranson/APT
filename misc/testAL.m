@@ -1,7 +1,8 @@
 function testAL(tdfile,trfile,varargin)
 % Take a TrainData, TrainRes, and produce test results
 
-[rootdir,tdIfile,tdIfileVar,iTst,nReps,testres,ignoreChan,forceChan,skipLoss] = myparse(varargin,...
+[rootdir,tdIfile,tdIfileVar,iTst,nReps,testres,ignoreChan,forceChan,skipLoss,...
+  iterMovie] = myparse(varargin,...
     'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
     'tdIfile','',... % traindata Index file for testing; if not specified, use td.iTst. SPECIAL CASE: 'every5'
     'tdIfileVar','',...
@@ -10,7 +11,8 @@ function testAL(tdfile,trfile,varargin)
     'testres',[],...% previously computed/saved test results
     'ignoreChan',false,...
     'forceChan',true,... % if true, compute channels and use them (ignoreChan ignored)
-    'skipLoss',false); % if true, don't compute loss/stats comparing tracked results to GT
+    'skipLoss',false,...% if true, don't compute loss/stats comparing tracked results to GT
+    'iterMovie',false); % if true, make a movie-over-iterations 
   
 if ischar(skipLoss)
   skipLoss = str2double(skipLoss);
@@ -146,16 +148,17 @@ if true %~tfTestRes
   end
   save(fullfile(resdir,'res.mat'),'-v7.3','pIni','pTstT','pTstTRed');
 
-  
-%   %% Movie
-%   NTRIALS = 1;
-%   trls = randsample(td.NTst,NTRIALS);
-%   for iTrl = trls(:)'
-%       movname = fullfile(resdir,sprintf('vizROTD_iTrl%04d',iTrl));
-%       hFig(end+1) = figure;
-%       Shape.vizRepsOverTimeDensity(td.ITst,pTstT,iTrl,tr.regModel.model,...
-%           'fig',gcf,'smoothsig',20,'movie',true,'moviename',movname);
-%   end
+  if iterMovie
+    % Movie
+    NTRIALS = 1;
+    trls = randsample(td.NTst,NTRIALS);
+    for iTrl = trls(:)'
+      movname = fullfile(resdir,sprintf('vizROTD_iTrl%04d',iTrl));
+      hFig(end+1) = figure;
+      Shape.vizRepsOverTimeDensity(td.ITst,pTstT,iTrl,tr.regModel.model,...
+        'fig',gcf,'smoothsig',20,'movie',true,'moviename',movname);
+    end
+  end
 end
 
 
