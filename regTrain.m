@@ -125,7 +125,7 @@ for k=1:K
       [reg1,ys1] = regFun(ysTar,ftrs,M,regPrm);
       reg1.fids = use;
       %fprintf(1,'Saving fern features in reg\n');
-      reg1.X = ftrs;
+      %reg1.X = ftrs;
       
       best = {reg1,ys1};
     else
@@ -230,17 +230,16 @@ thrs = rand(1,M)*(thrr(2)-thrr(1))+thrr(1);
 % count = hist(inds,1:32)'
 % ysFern(i,d) = sum(Y(inds==i,d)-mu(d))
 
-%[inds,mu,ysFern,count,~] = fernsInds2(X,fids,thrs,Y);
-fprintf(1,'Using FernsInds3\n');
-mu = nanmean(Y);
-dY = bsxfun(@minus,Y,mu);
-[inds,dyFernSum,count,dyFernCnt] = Ferns.fernsInds3(X,fids,thrs,dY);
-
-USEOLD = false;
-if USEOLD
-  assert(false,'AL');
-  ysFern = bsxfun(@plus,bsxfun(@rdivide,dyFernSum,max(count+reg*N,eps)),mu);
+USEFERNSINDS3 = false;
+if ~USEFERNSINDS3 
+  % orig
+  [inds,mu,ysFern,count,~] = fernsInds2(X,fids,thrs,Y);
+  ysFern = bsxfun(@plus,bsxfun(@rdivide,ysFern,max(count+reg*N,eps)),mu);
 else
+  fprintf(1,'Using FernsInds3\n');
+  mu = nanmean(Y);
+  dY = bsxfun(@minus,Y,mu);
+  [inds,dyFernSum,count,dyFernCnt] = Ferns.fernsInds3(X,fids,thrs,dY);
   ysFernCntUse = max(dyFernCnt+reg*N,eps); % [2^MxD], counts for each fernbin/coord
   ysFern = bsxfun(@plus,dyFernSum./ysFernCntUse,mu);
 end

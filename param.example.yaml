@@ -8,7 +8,7 @@ Model:
   Prm3D:        # 3D calibration data
 
 Reg:
-  T: 100      # cascade depth
+  T: 30      # cascade depth
   K: 50       # num boosted regressors
   type: 1     # 1=fern
   M: 5        # fern depth
@@ -27,7 +27,7 @@ Reg:
     
 Ftr:
   type: '2lm'          # how feature points are generated
-  metatype: 'single'   # how generated feature points are used/combined (selectCorrFeat)
+  metatype: 'diff'     # how generated feature points are used/combined (selectCorrFeat). 'diff' or 'single'
   F: 400               # num features to generate
   nChn: 1
   radius: 1

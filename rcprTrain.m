@@ -213,7 +213,8 @@ for t=t0:T
     pCur = shapeGt('reprojectPose',model,pCur,bboxes);
   end
   
-  assert(size(pCur,1)==N1); % AL 20160314
+  %assert(size(pCur,1)==N1); % AL 20160314 this is not true, pAll holds
+  %just first replicate
   pAll(:,:,t+1) = pCur(1:N1,:);
   %loss scores
   [errPerEx,errPerPt] = shapeGt('dist',model,pCur,pGt);
