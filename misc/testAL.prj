@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="3559090825" file="/groups/flyprojects/home/leea30/git/cpr/misc/testAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="testAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="70587658" file="/groups/flyprojects/home/leea30/git/cpr/misc/testAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="testAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>testAL</param.appname>
     <param.icon />
     <param.icons />
@@ -40,8 +40,8 @@
     <param.files.only>${PROJECT_ROOT}/testAL/for_redistribution_files_only</param.files.only>
     <param.output>${PROJECT_ROOT}/testAL/for_redistribution</param.output>
     <param.enable.clean.build>false</param.enable.clean.build>
-    <param.user.defined.mcr.options />
-    <param.embed.ctf>true</param.embed.ctf>
+    <param.user.defined.mcr.options>-R -singleCompThread</param.user.defined.mcr.options>
+    <param.embed.ctf>false</param.embed.ctf>
     <param.target.type>subtarget.standalone</param.target.type>
     <param.support.packages />
     <param.required.mcr.products>
@@ -77,8 +77,6 @@
       <param.files.only />
       <param.output />
       <param.enable.clean.build />
-      <param.user.defined.mcr.options />
-      <param.embed.ctf />
       <param.target.type />
       <param.support.packages />
       <param.no.mcr />
@@ -102,12 +100,11 @@
       <file>${PROJECT_ROOT}/FS.m</file>
       <file>${PROJECT_ROOT}/Features.m</file>
       <file>${PROJECT_ROOT}/Shape.m</file>
+      <file>${PROJECT_ROOT}/freqCountStats.m</file>
       <file>${PROJECT_ROOT}/getPrmDfltStruct.m</file>
       <file>${PROJECT_ROOT}/loadBalance.m</file>
       <file>${PROJECT_ROOT}/rcprTestSelectOutput.m</file>
-      <file>${PROJECT_ROOT}/test_rcpr.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/normalize.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/rcprTest.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/rcprTest1.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/regApply.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/shapeGt.m</file>
@@ -137,12 +134,15 @@
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/argmax.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/createsubplots.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/deleteValidHandles.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/dist2.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/dtypechar2matlabclass.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/ellipsedraw.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/furthestfirst.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/isabspath.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/mydir.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/myfileparts.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/myparse.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/savefig.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/splitext.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/structappend.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/warningNoTrace.m</file>
@@ -178,6 +178,7 @@
       <file location="${PROJECT_ROOT}/testAL/for_testing" name="splash.png" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_testing/splash.png</file>
       <file location="${PROJECT_ROOT}/testAL/for_testing" name="readme.txt" optional="true">/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_testing/readme.txt</file>
       <file location="${PROJECT_ROOT}/testAL/for_testing" name="run_testAL.sh" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_testing/run_testAL.sh</file>
+      <file location="${PROJECT_ROOT}/testAL/for_testing" name="testAL.ctf" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_testing/testAL.ctf</file>
       <file location="${PROJECT_ROOT}/testAL/for_testing" name="testAL" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_testing/testAL</file>
     </build-deliverables>
     <workflow />
@@ -194,7 +195,7 @@
       <vista>false</vista>
       <linux>true</linux>
       <solaris>false</solaris>
-      <osver>2.6.32-279.el6.x86_64</osver>
+      <osver>2.6.32-431.el6.x86_64</osver>
       <os32>false</os32>
       <os64>true</os64>
       <arch>glnxa64</arch>
