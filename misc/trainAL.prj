@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="161489007" file="/groups/flyprojects/home/leea30/git/cpr/misc/trainAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="trainAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/trainAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="2202231330" file="/groups/flyprojects/home/leea30/git/cpr/misc/trainAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="trainAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/trainAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>trainAL</param.appname>
     <param.icon />
     <param.icons />
@@ -94,6 +94,12 @@
       <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/external/snakeyaml-1.9.jar</file>
       <file>${PROJECT_ROOT}/CPRData.m</file>
       <file>${PROJECT_ROOT}/TrainParams.m</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/fernsInds2.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/maxCov1.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/selectCorrFeat1.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/selectCorrFeatAL.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/selectFeatSingle.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/stdFtrs1.mexa64</file>
     </fileset.resources>
     <fileset.package />
     <fileset.depfun>
@@ -125,9 +131,6 @@
       <file>${PROJECT_ROOT}/test_rcpr.m</file>
       <file>${PROJECT_ROOT}/train.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/normalize.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/private/fernsInds2.mexa64</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/private/selectCorrFeatAL.mexa64</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/private/stdFtrs1.mexa64</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/rcprTest.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/rcprTest1.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/rcprTrain.m</file>
@@ -221,7 +224,7 @@
       <vista>false</vista>
       <linux>true</linux>
       <solaris>false</solaris>
-      <osver>2.6.32-431.el6.x86_64</osver>
+      <osver>2.6.32-279.el6.x86_64</osver>
       <os32>false</os32>
       <os64>true</os64>
       <arch>glnxa64</arch>
