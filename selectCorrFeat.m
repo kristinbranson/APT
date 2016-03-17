@@ -77,10 +77,11 @@ BsampSD = std(Bsamp,[],1);
 BsampMu = mean(Bsamp,1);
 
 % AL20160310. It's a little weird that we are using ftrs(dosample,:) and
-% dfFtrs(dosample,:) with stdFtrs. stdFtrs is the SD using all features, 
-% not just the ones included in dosample. So the covariances-with-B that 
-% are calculated will not be quite right. If numel(dosample) is large,
-% hopefully this is basically okay.
+% dfFtrs(dosample,:) with stdFtrs. stdFtrs is the SD computed by sampling 
+% all features, not just the ones included in dosample. So the 
+% covariances-with-B that are calculated will not be quite right. 
+% Hopefully if nsample_std and numel(dosample) are largish then should 
+% basically be ok.
 
 
 switch ftrPrm.metatype
