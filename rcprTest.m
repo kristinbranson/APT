@@ -12,12 +12,12 @@ function [p,pRT,p_t,fail] = rcprTest( Is, regModel, varargin )
 %   .initData - [NxDxRT1] or [Nx2xRT1] initial shape (see shapeGt>initTest)
 %   .pInit    - (used only if initData is empty)
 %               [Nx4] or [Nx2] initial positions or bounding boxes from
-%               which to initialize shape   
+%               which to initialize shape
 %   .regPrm   - [REQ] regression params used during training
-%   .prunePrm - parameters for smart restarts 
+%   .prunePrm - parameters for smart restarts
 %      .prune     - [0] whether to use or not smart restarts
 %      .maxIter   - [2] number of iterations
-%      .th        - [.15] threshold used for pruning 
+%      .th        - [.15] threshold used for pruning
 %      .tIni      - [10] iteration from which to prune
 %
 % OUTPUTS
@@ -28,55 +28,33 @@ function [p,pRT,p_t,fail] = rcprTest( Is, regModel, varargin )
 % EXAMPLE
 %
 % See also demoRCPR, FULL_demoRCPR, rcprTrain
-% Copyright 2013 X.P. Burgos-Artizzu, P.Perona and Piotr Dollar.  
+% Copyright 2013 X.P. Burgos-Artizzu, P.Perona and Piotr Dollar.
 %  [xpburgos-at-gmail-dot-com]
 % Please email me if you find bugs, or have suggestions or questions!
 % Licensed under the Simplified BSD License [see bsd.txt]
 %
 %  Please cite our paper if you use the code:
-%  Robust face landmark estimation under occlusion, 
+%  Robust face landmark estimation under occlusion,
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
-dfs={'pInit',[],'RT1',1,'regPrm','REQ','verbose',1,...
-    'initData',[],'prunePrm',struct('prune',0)};
+dfs = {'pInit',[],'RT1',1,'regPrm','REQ','verbose',1,...
+  'initData',[],'prunePrm',struct('prune',0)};
 [pIni,RT1,regPrm,verbose,initD,prunePrm] = getPrmDflt(varargin,dfs,1);
-if(isempty(initD))
+if isempty(initD)
   assert(false,'Impossible codepath');
-  p=shapeGt('initTest',[],pIni,regModel,RT1);
-else p=initD;clear initD;
+  p = shapeGt('initTest',[],pIni,regModel,RT1);
+else
+  p = initD;
+  clear initD;
 end
 
-if( RT1==1 )
-    % Run regressor starting from a single shape.
-    assert(size(p,3)==1);
-    p=rcprTest1(Is,regModel,p,regPrm,pIni,verbose,prunePrm);pRT=p;
+[N,D,rt] = size(p);
+assert(rt==RT1);
+[pRT,p_t,fail] = rcprTest1(Is,regModel,p,regPrm,pIni,verbose,prunePrm);
+assert(isequal(size(pRT),[N D RT1]));
+if RT1==1
+  p = pRT;
 else
-    % Run regressor starting from mulitple shapes,
-    % for each of which RCPR is restarted several times,
-    % then find mode of all
-    [N,D,rt]=size(p);assert(rt==RT1);
-    [pRT,p_t,fail]=rcprTest1(Is,regModel,p,regPrm,pIni,verbose,prunePrm);
-    
-    if prunePrm.usemaxdensity,
-      p = nan(N,D);
-      maxpr = nan(1,N);
-      pRT1 = reshape(pRT,[N,regPrm.model.nfids,regPrm.model.d,RT1]);
-      for n = 1:N,
-        pr = 0;
-        for part = 1:regPrm.model.nfids,
-          d = pdist(reshape(pRT1(n,part,:,:),[regPrm.model.d,RT1])').^2;
-          %d = pdist(reshape(pRT(n,[1,3],:),[2,RT1])').^2;
-          w = sum(squareform(exp( -d/prunePrm.maxdensity_sigma^2/2 )),1);
-          w = w / sum(w);
-          pr = pr + log(w);
-        end
-        [maxpr(n),i] = max(pr);
-        p(n,:) = pRT(n,:,i);
-      end      
-    else
-      assert(isequal(size(pRT),[N D RT1]));
-      p = median(pRT,3);
-    end
-end
+  p = rcprTestSelectOutput(pRT,regPrm,prunePrm);  
 end

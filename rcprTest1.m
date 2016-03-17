@@ -203,7 +203,7 @@ for t = t0:T
   regt = regs(t).regInfo;
   %Apply regressors
   p1 = shapeGt('projectPose',model,p,bbs); % p1 is normalized
-  pDel = regApply(p1,ftrs,regt,regPrm); % pDel is normalized
+  pDel = regApply(p1,ftrs,regt,regPrm,regPrm.ftrPrm); % pDel is normalized
   
   if regPrm.USE_AL_CORRECTION
     p = Shape.applyRIDiff(p1,pDel,1,3); % XXXAL HARDCODED HEAD/TAIL

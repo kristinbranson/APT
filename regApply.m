@@ -1,4 +1,4 @@
-function ysSum = regApply(p,X,regInfo,regPrm)
+function ysSum = regApply(p,X,regInfo,regPrm,ftrPrm)
 % Apply boosted regressor.
 %
 % USAGE
@@ -50,16 +50,14 @@ K = regPrm.K;
 Stot = regPrm.occlPrm.Stot;
 occlD = regPrm.occlD;
 
-%Set up reg function
 [N,D] = size(p);
-switch (type)
-  case 1, regFun=@applyFern;
-  case 2, regFun=@applyLin;
+switch type
+  case 1, regFun = @applyFern;
+  case 2, regFun = @applyLin;
 end
 
-%Prepare data
-ysSum=zeros(N,D);
-if(D>10 && Stot>1 && ~isempty(occlD))
+ysSum = zeros(N,D);
+if D>10 && Stot>1 && ~isempty(occlD)
   ftrsOccl=zeros(N,K,Stot);
 end
 %For each boosted regressor
@@ -67,9 +65,11 @@ assert(iscell(regInfo) && isequal(size(regInfo),[K Stot]));
 for k=1:K
   %Occlusion-centered weighted mean
   if(D>10 && Stot>1 && ~isempty(occlD))
+    assert(false,'AL');
+    
     ysPred = zeros(N,D,Stot);
     for s=1:Stot
-      ysPred(:,:,s)=regFun(X,regInfo{k,s},regPrm);
+      ysPred(:,:,s)=regFun(X,regInfo{k,s},regPrm,ftrPrm);
       ftrsOccl(:,k,s)=sum(occlD.featOccl(:,regInfo{k,s}.fids),2)./K;
     end
     %(WEIGHTED MEAN)
@@ -86,14 +86,15 @@ for k=1:K
     end
     %Normal
   else
-    ysPred = regFun(X,regInfo{k,:},regPrm);
-    ysPred = median(ysPred,3);
+    ysPred = regFun(X,regInfo{k,:},regPrm,ftrPrm);
+    assert(size(ysPred,3)==1);
+    %ysPred = median(ysPred,3);
     ysSum = ysSum+ysPred;
   end
 end
 end
 
-function Y_pred=applyFern(X,regInfo,regPrm)
+function Y_pred = applyFern(X,regInfo,regPrm,ftrPrm)
 % Apply single random fern regressor.
 %
 % USAGE
@@ -111,12 +112,19 @@ function Y_pred=applyFern(X,regInfo,regPrm)
 % See also
 
 type = size(regInfo.fids,1);
-M = regPrm.M;
-if type==1
-  ftrs = X(:,regInfo.fids);
-else
-  ftrs = X(:,regInfo.fids(1,:))-X(:,regInfo.fids(2,:));
+switch ftrPrm.metatype
+  case 'single'
+    assert(type==1);
+    ftrs = X(:,regInfo.fids);
+  case 'diff'
+    assert(type==2);
+    ftrs = X(:,regInfo.fids(1,:))-X(:,regInfo.fids(2,:));
+  otherwise
+    assert(false);
 end
+
+M = size(regInfo.fids,2);
+assert(M==regPrm.M);
 inds = fernsInds(ftrs,uint32(1:M),regInfo.thrs);
 Y_pred = regInfo.ysFern(inds,:);
 end
@@ -135,6 +143,8 @@ function Y_pred=applyLin(X,regInfo,~)
 %  Y_pred   - [NxD] predicted output values
 %
 % See also
+
+assert(false,'AL not updated for ftrPrm/metatype (single or diff)');
 
 type=size(regInfo.fids,1);
 if(type==1), ftrs=X(:,regInfo.fids);

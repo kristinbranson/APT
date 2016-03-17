@@ -35,9 +35,9 @@ if ~isempty(tdIfile)
     
     fprintf(1,'tdIfile supplied: %s, var %s.\n',tdIfilefull,tdIfileVar);
   end
-else
-    fprintf(1,'No tdIfile, using ALL LABELED FRAMES.\n');
-    td.iTst = find(td.isFullyLabeled);
+else  
+    fprintf(1,'No tdIfile, using .iTst.\n');
+    %td.iTst = find(td.isFullyLabeled);
 end
 fprintf(1,'td.NTst=%d\n',td.NTst);
 
@@ -83,7 +83,6 @@ tr = load(trfilefull,'-mat');
 fprintf(1,'Train results file: %s\n',trfilefull);
 
 %% Test on test set
-
 if tfTestRes
   pTstT = testres.pTstT;
 else
@@ -92,8 +91,9 @@ else
   DOROTATE = false;
   pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],...
     repmat(pGTTrnNMu,td.NTst,1),nReps,DOROTATE);
-  [~,~,~,~,pTstT] = test_rcpr([],td.bboxesTst,Is,tr.regModel,tr.regPrm,tr.prunePrm,pIni);
-  pTstT = reshape(pTstT,[td.NTst nReps mdl.D tr.regModel.T+1]);
+  VERBOSE = 0;
+  [~,p_t] = rcprTest1(Is,tr.regModel,pIni,tr.regPrm,td.bboxesTst,VERBOSE,tr.prunePrm);  
+  pTstT = reshape(p_t,[td.NTst nReps mdl.D tr.regModel.T+1]);
 end
 
 %% Select best preds for each time
