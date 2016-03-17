@@ -56,5 +56,5 @@ assert(isequal(size(pRT),[N D RT1]));
 if RT1==1
   p = pRT;
 else
-  p = rcprTestSelectOutput(pRT,regPrm,prunePrm);  
+  p = rcprTestSelectOutput(pRT,regModel.model,prunePrm);  
 end

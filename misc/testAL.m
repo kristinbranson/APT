@@ -2,7 +2,7 @@ function testAL(tdfile,trfile,varargin)
 % Take a TrainData, TrainRes, and produce test results
 
 [rootdir,tdIfile,tdIfileVar,iTst,nReps,testres,ignoreChan,forceChan,skipLoss,...
-  iterMovie,datatype] = myparse(varargin,...
+  iterMovie,datatype,td] = myparse(varargin,...
     'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
     'tdIfile','',... % traindata Index file for testing; if not specified, use td.iTst. SPECIAL CASE: 'every5'
     'tdIfileVar','',...
@@ -12,8 +12,9 @@ function testAL(tdfile,trfile,varargin)
     'ignoreChan',false,...
     'forceChan',true,... % if true, compute channels and use them (ignoreChan ignored)
     'skipLoss',false,...% if true, don't compute loss/stats comparing tracked results to GT
-    'iterMovie',false,...); % if true, make a movie-over-iterations 
-    'datatype','REQ'); % for computeIpp
+    'iterMovie',false,... % if true, make a movie-over-iterations     
+    'datatype','REQ',... % for computeIpp
+    'td',[]); % loaded td;
   
 if ischar(skipLoss)
   skipLoss = str2double(skipLoss);
@@ -22,9 +23,11 @@ end
 tfTestRes = ~isempty(testres);
 
 tdfilefull = fullfile(rootdir,tdfile);
-td = load(tdfilefull);
-td = td.td;
-fprintf(1,'Loaded TD: %s\n',tdfilefull);
+if isempty(td)
+  td = load(tdfilefull);
+  td = td.td;
+  fprintf(1,'Loaded TD: %s\n',tdfilefull);
+end
 
 if ~isempty(iTst)
   fprintf(1,'iTst specified: %s\n',mat2str(iTst));
@@ -117,7 +120,7 @@ else
   for t = 1:Tp1
     fprintf('Pruning t=%d\n',t);
     pTmp = permute(pTstT(:,:,:,t),[1 3 2]); % [NxDxR]
-    pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,tr.regPrm,prunePrm);
+    pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,tr.regModel.model,prunePrm);
   end
 end
 
