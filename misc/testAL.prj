@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="70587658" file="/groups/flyprojects/home/leea30/git/cpr/misc/testAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="testAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="182305004" file="/groups/flyprojects/home/leea30/git/cpr/misc/testAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="testAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>testAL</param.appname>
     <param.icon />
     <param.icons />
@@ -142,7 +142,6 @@
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/mydir.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/myfileparts.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/myparse.m</file>
-      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/savefig.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/splitext.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/structappend.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/warningNoTrace.m</file>
