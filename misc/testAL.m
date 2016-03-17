@@ -1,11 +1,12 @@
 function testAL(tdfile,trfile,varargin)
 % Take a TrainData, TrainRes, and produce test results
 
-[rootdir,tdIfile,tdIfileVar,nReps,testres,ignoreChan,forceChan,skipLoss,...
+[rootdir,tdIfile,tdIfileVar,iTst,nReps,testres,ignoreChan,forceChan,skipLoss,...
   iterMovie] = myparse(varargin,...
     'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
     'tdIfile','',... % traindata Index file for testing; if not specified, use td.iTst. SPECIAL CASE: 'every5'
     'tdIfileVar','',...
+    'iTst',[],... % direct specification of iTst (indices into td). If specified, tfIfile/tdIfileVar ignored.
     'nReps',50,...
     'testres',[],...% previously computed/saved test results
     'ignoreChan',false,...
@@ -23,7 +24,11 @@ tdfilefull = fullfile(rootdir,tdfile);
 td = load(tdfilefull);
 td = td.td;
 fprintf(1,'Loaded TD: %s\n',tdfilefull);
-if ~isempty(tdIfile)
+
+if ~isempty(iTst)
+  fprintf(1,'iTst specified: %s\n',mat2str(iTst));
+  td.iTst = iTst;
+elseif ~isempty(tdIfile)
   if strcmp(tdIfile,'every5')
     td.iTst = 1:5:numel(td.I);  
     fprintf(1,'tdIfile: every 5. from 1 to nframes=%d\n',numel(td.I));
@@ -40,6 +45,10 @@ else
     %td.iTst = find(td.isFullyLabeled);
 end
 fprintf(1,'td.NTst=%d\n',td.NTst);
+if td.NTst<=20
+   disp(td.MDTst);
+end
+
 
 try
   td.summarize(td.iTst);
