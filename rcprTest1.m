@@ -1,4 +1,4 @@
-function [p,p_t,fail] = rcprTest1( Is, regModel, p, regPrm, iniData, ...
+function [p,p_t,fail] = rcprTest1( Is, regModel, p, regPrm, ftrPrm, iniData, ...
     verbose, prunePrm)
 % Apply robust cascaded shape regressor.
 %
@@ -73,7 +73,7 @@ while ~done
     %those that did not (bad)
     %
     % AL20151204: If not pruning, good1=1:N
-    [good1,bad1,p_t1,p1,p2]=cascadeLoop(Is,model,regModel,regPrm,N1,RT1,...
+    [good1,bad1,p_t1,p1,p2]=cascadeLoop(Is,model,regModel,regPrm,ftrPrm,N1,RT1,...
         p1,imgIds1,regs,tStart,iniData,bbs,verbose,...
         prune,1,th,tI);      
     %Separate into good/bad (smart restarts)
@@ -136,7 +136,7 @@ while ~done
             end
             %Call cascade loop one last time 
             p1=reshape(permute(p2,[1 3 2]),[N1*RT1,D]);tStart=clock;
-            [~,~,p_t1,p1,~]=cascadeLoop(Is,model,regModel,regPrm,N1,RT1,...
+            [~,~,p_t1,p1,~]=cascadeLoop(Is,model,regModel,regPrm,ftrPrm,N1,RT1,...
                 p1,imgIds1,regs,tStart,iniData,bbs,verbose,...
                 0,tI,th,tI);
             remain=pos; ind=ismember(imgIds,remain);
@@ -152,7 +152,7 @@ p = permute(reshape(p,[N,RT1,D]),[1 3 2]);
 end
 
 %Apply full RCPR cascade with check in between if smart restart is enabled
-function [good,bad,p_t,p,p2] = cascadeLoop(Is,model,regModel,regPrm,...
+function [good,bad,p_t,p,p2] = cascadeLoop(Is,model,regModel,regPrm,ftrPrm,...
   N,RT1,p,imgIds,regs,tStart,bboxes,bbs,verbose,prune,t0,th,tI)
 % p (input): [MxD] initial shapes, absolute coords. M=N*RT1
 %
@@ -203,7 +203,7 @@ for t = t0:T
   regt = regs(t).regInfo;
   %Apply regressors
   p1 = shapeGt('projectPose',model,p,bbs); % p1 is normalized
-  pDel = regApply(p1,ftrs,regt,regPrm,regPrm.ftrPrm); % pDel is normalized
+  pDel = regApply(p1,ftrs,regt,regPrm,ftrPrm); % pDel is normalized
   
   if regPrm.USE_AL_CORRECTION
     p = Shape.applyRIDiff(p1,pDel,1,3); % XXXAL HARDCODED HEAD/TAIL

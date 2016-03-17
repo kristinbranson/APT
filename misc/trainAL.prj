@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="3735637020" file="/groups/flyprojects/home/leea30/git/cpr/misc/trainAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="trainAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/trainAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="2202231330" file="/groups/flyprojects/home/leea30/git/cpr/misc/trainAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="trainAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/trainAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>trainAL</param.appname>
     <param.icon />
     <param.icons />
@@ -40,8 +40,8 @@
     <param.files.only>${PROJECT_ROOT}/trainAL/for_redistribution_files_only</param.files.only>
     <param.output>${PROJECT_ROOT}/trainAL/for_redistribution</param.output>
     <param.enable.clean.build>false</param.enable.clean.build>
-    <param.user.defined.mcr.options />
-    <param.embed.ctf>true</param.embed.ctf>
+    <param.user.defined.mcr.options>-R -singleCompThread</param.user.defined.mcr.options>
+    <param.embed.ctf>false</param.embed.ctf>
     <param.target.type>subtarget.standalone</param.target.type>
     <param.support.packages />
     <param.required.mcr.products>
@@ -77,8 +77,6 @@
       <param.files.only />
       <param.output />
       <param.enable.clean.build />
-      <param.user.defined.mcr.options />
-      <param.embed.ctf />
       <param.target.type />
       <param.support.packages />
       <param.no.mcr />
@@ -93,12 +91,20 @@
       <file>${PROJECT_ROOT}/trainAL.m</file>
     </fileset.main>
     <fileset.resources>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/external/snakeyaml-1.9.jar</file>
       <file>${PROJECT_ROOT}/CPRData.m</file>
       <file>${PROJECT_ROOT}/TrainParams.m</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/fernsInds2.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/maxCov1.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/selectCorrFeat1.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/selectCorrFeatAL.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/selectFeatSingle.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/private/stdFtrs1.mexa64</file>
     </fileset.resources>
     <fileset.package />
     <fileset.depfun>
       <file>/groups/flyprojects/home/leea30/git/apt/APT.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/MovieReader.m</file>
       <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/DateTime.m</file>
       <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/ReadYaml.m</file>
       <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/ReadYamlRaw.m</file>
@@ -112,17 +118,19 @@
       <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/merge_struct.m</file>
       <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/mergeimports.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/CPR.m</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/Ferns.m</file>
+      <file>/groups/flyprojects/home/leea30/git/cpr/SelectFeatures.m</file>
       <file>${PROJECT_ROOT}/CVSet.m</file>
       <file>${PROJECT_ROOT}/FS.m</file>
       <file>${PROJECT_ROOT}/Features.m</file>
       <file>${PROJECT_ROOT}/Shape.m</file>
+      <file>${PROJECT_ROOT}/freqCountStats.m</file>
       <file>${PROJECT_ROOT}/getPrmDfltStruct.m</file>
+      <file>${PROJECT_ROOT}/loadBalance.m</file>
+      <file>${PROJECT_ROOT}/rcprTestSelectOutput.m</file>
       <file>${PROJECT_ROOT}/test_rcpr.m</file>
       <file>${PROJECT_ROOT}/train.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/normalize.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/private/fernsInds2.mexa64</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/private/selectCorrFeatAL.mexa64</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/private/stdFtrs1.mexa64</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/rcprTest.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/rcprTest1.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/rcprTrain.m</file>
@@ -131,10 +139,41 @@
       <file>/groups/flyprojects/home/leea30/git/cpr/selectCorrFeat.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/shapeGt.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/translate_scale_rotate.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/GetPCShortcutFileActualPath.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/fmf_get_datatype.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/fmf_read_frame.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/fmf_read_header.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/fmfreadframe.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/get_readframe_fcn.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/klb_get_readframe_fcn.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/mmf_get_readframe_fcn.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/mmf_read_frame.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/mmf_read_header.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/mmf_read_mean.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/parsejpg8.mexa64</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/r_readseqinfo.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/read_seq_frame.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/sbfmf_read_frame.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/sbfmf_read_header.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/sbfmfreadframe.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/ufmf_get_readframe_fcn.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/ufmf_read_frame.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/ufmf_read_header.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/ufmf_read_mean.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/videoioreadframe.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/argmax.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/createsubplots.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/deleteValidHandles.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/dist2.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/dtypechar2matlabclass.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/ellipsedraw.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/furthestfirst.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/isabspath.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/mydir.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/myfileparts.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/myparse.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/splitext.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/structappend.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/warningNoTrace.m</file>
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/channels/convTri.m</file>
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/channels/gradientMag.m</file>
@@ -152,15 +191,23 @@
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/checkNumArgs.m</file>
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/getPrmDflt.m</file>
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/ind2sub2.m</file>
+      <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/int2str2.m</file>
+      <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/isfield2.m</file>
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/normpdf2.m</file>
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/randSample.m</file>
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/randint2.m</file>
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/sub2ind2.m</file>
+      <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/ticStatus.m</file>
+      <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/matlab/tocStatus.m</file>
+      <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/videos/seqIo.m</file>
+      <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/videos/seqReaderPlugin.m</file>
+      <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/videos/seqWriterPlugin.m</file>
     </fileset.depfun>
     <build-deliverables>
       <file location="${PROJECT_ROOT}/trainAL/for_testing" name="run_trainAL.sh" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/trainAL/for_testing/run_trainAL.sh</file>
       <file location="${PROJECT_ROOT}/trainAL/for_testing" name="trainAL" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/trainAL/for_testing/trainAL</file>
       <file location="${PROJECT_ROOT}/trainAL/for_testing" name="readme.txt" optional="true">/groups/flyprojects/home/leea30/git/cpr/misc/trainAL/for_testing/readme.txt</file>
+      <file location="${PROJECT_ROOT}/trainAL/for_testing" name="trainAL.ctf" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/trainAL/for_testing/trainAL.ctf</file>
       <file location="${PROJECT_ROOT}/trainAL/for_testing" name="splash.png" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/trainAL/for_testing/splash.png</file>
     </build-deliverables>
     <workflow />

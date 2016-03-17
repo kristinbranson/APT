@@ -1,9 +1,15 @@
-%COMPILE ALL .c objective functions
-disp('Compiling.......................................');
+%%
+dd = dir('private/*.c*');
+files = {dd.name}';
+nfile = numel(files);
+fprintf('Compiling %d files.......................................\n',nfile);
+
 cd private
-mex fernsInds2.c
-mex maxCov1.c
-mex selectCorrFeat1.c
-mex stdFtrs1.c
+
+for i = 1:nfile
+  fprintf('Mexing %s...\n',files{i});
+  mex(files{i});
+end 
+
 cd ..
 disp('DONE');
