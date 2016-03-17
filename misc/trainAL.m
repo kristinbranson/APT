@@ -7,7 +7,7 @@ function trainAL(datafile,prmfile,varargin)
   'tdIfileVar','',...
   'ignoreChan',false,...  % if true, then ignore channel data if present
   'forceChan',true,...    % if true, compute channels and use them (ignoreChan ignored)
-  'datatype','jan',...    % for computeIpp
+  'datatype','REQ',...    % for computeIpp
   'td',[]);               % if supplied, don't load from MAT.
 
 if isunix

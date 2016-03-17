@@ -2,7 +2,7 @@ function testAL(tdfile,trfile,varargin)
 % Take a TrainData, TrainRes, and produce test results
 
 [rootdir,tdIfile,tdIfileVar,iTst,nReps,testres,ignoreChan,forceChan,skipLoss,...
-  iterMovie] = myparse(varargin,...
+  iterMovie,datatype] = myparse(varargin,...
     'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
     'tdIfile','',... % traindata Index file for testing; if not specified, use td.iTst. SPECIAL CASE: 'every5'
     'tdIfileVar','',...
@@ -12,7 +12,8 @@ function testAL(tdfile,trfile,varargin)
     'ignoreChan',false,...
     'forceChan',true,... % if true, compute channels and use them (ignoreChan ignored)
     'skipLoss',false,...% if true, don't compute loss/stats comparing tracked results to GT
-    'iterMovie',false); % if true, make a movie-over-iterations 
+    'iterMovie',false,...); % if true, make a movie-over-iterations 
+    'datatype','REQ'); % for computeIpp
   
 if ischar(skipLoss)
   skipLoss = str2double(skipLoss);
@@ -60,7 +61,7 @@ if forceChan
   assert(isempty(td.Ipp),'TEMPORARY');
   fprintf(1,'Computing Ipp!\n');
   pause(3);
-  td.computeIpp('iTrl',td.iTst);
+  td.computeIpp([],[],[],datatype,true,'iTrl',td.iTst);
   tfChan = true;
 else
   tfChan = ~isempty(td.Ipp) && ~ignoreChan;
@@ -101,7 +102,7 @@ else
   pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],...
     repmat(pGTTrnNMu,td.NTst,1),nReps,DOROTATE);
   VERBOSE = 0;
-  [~,p_t] = rcprTest1(Is,tr.regModel,pIni,tr.regPrm,td.bboxesTst,VERBOSE,tr.prunePrm);  
+  [~,p_t] = rcprTest1(Is,tr.regModel,pIni,tr.regPrm,tr.ftrPrm,td.bboxesTst,VERBOSE,tr.prunePrm);  
   pTstT = reshape(p_t,[td.NTst nReps mdl.D tr.regModel.T+1]);
 end
 
