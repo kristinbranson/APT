@@ -86,7 +86,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     mxAssert(bestValIF > -1,"No feature selected");
     use[iS] = bestValIF+1; // 1-based
     maxVals[iS] = bestValSeen;
-    mxAssert(!tfused[bestValIF]);
+    mxAssert(!tfused[bestValIF],"foo");
     tfused[bestValIF] = 1;
   }
 
