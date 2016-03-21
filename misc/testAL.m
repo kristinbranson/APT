@@ -165,7 +165,10 @@ if true %~tfTestRes
   end
 end
 
-
+if isdeployed
+  close all force;
+end
+  
 
 % %% Train on training set
 % %cd(RCPR);
