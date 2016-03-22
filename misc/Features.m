@@ -448,7 +448,7 @@ classdef Features
       end
     end
     
-    function [h,str] = visualize2LM(ax,xf,yf,info,iN,iF)
+    function [h,str] = visualize2LM(ax,xf,yf,info,iN,iF,clr)
       % Visualize feature pts from compute2LM
       % 
       % xf/yf/info: from compute2LM
@@ -463,18 +463,70 @@ classdef Features
       yc = info.yc(iN,iF);
       
       h = [];
-      h(end+1) = plot(ax,[x1;xc;x2],[y1;yc;y2],'r-','markerfacecolor',[1 0 0]); %#ok<*AGROW>
-      h(end+1) = plot(ax,[x1;xc;x2],[y1;yc;y2],'ro','markerfacecolor',[1 0 0]);
-      h(end+1) = text(x1,y1,'1','parent',ax);
-      set(h(end),'color',[0 0 1]);
-      h(end+1) = text(x2,y2,'2','parent',ax);
-      set(h(end),'color',[0 0 1]);
-      h(end+1) = plot(ax,xf(iN,iF),yf(iN,iF),'go','markerfacecolor',[0 1 0]);
+      h(end+1) = plot(ax,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
+      h(end+1) = plot(ax,[x1;xc;x2],[y1;yc;y2],'o','Color',clr,'markerfacecolor',clr);
+%       h(end+1) = text(x1,y1,'1','parent',ax);
+%       set(h(end),'color',[0 0 1]);
+%       h(end+1) = text(x2,y2,'2','parent',ax);
+%       set(h(end),'color',[0 0 1]);
+      h(end+1) = plot(ax,xf(iN,iF),yf(iN,iF),'v','Color',clr,'markerfacecolor',clr,'MarkerSize',12);
       %h(end+1) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',ax);
       %h(end+1) = plot(ax,[xc;xf],[yc;yf],'-g');
       str = sprintf('n=%d,f=%d(%d,%d). r=%.3f, theta=%.3f',iN,iF,...
         info.l1(iF),info.l2(iF),info.r(iN,iF),info.theta(iN,iF));
-      title(ax,str,'interpreter','none','fontweight','bold'); 
+      %title(ax,str,'interpreter','none','fontweight','bold'); 
+    end
+    
+    function [xs,prms] = generate2LMDiff(model,varargin)
+      % Generate 2-landmark features, diff
+      % 
+      % xs: F x 11 double array. xs(i,:) specifies the ith feature
+      %   col 1: pt 1, landmark index 1
+      %   col 2: pt 1, landmark index 2
+      %   col 3: pt 1, radius FACTOR in pixels
+      %   col 4: pt 1, theta
+      %   col 5: pt 1, "interpolation" factor in [0,1] for location of center
+      %          between landmarks 1/2
+      %   col 6: pt 1, channel index 
+      %
+      %   col 7-12: same as cols 1-6, but for pt 2
+      %
+      % For now cols 6 and 12 will always be equal, ie differences will be
+      % taken between features in the same channel.
+      %
+      % prms: scalar struct, params used to compute xs
+            
+      %%% Optional input P-V params: same as available for generate2LM.
+      
+      [xs1,prms1] = Features.generate2LM(model,varargin{:});
+      [xs2,prms2] = Features.generate2LM(model,varargin{:});
+      assert(isequal(prms1,prms2));
+      assert(size(xs1,2)==6);
+      assert(size(xs2,2)==6);
+      
+      % for now, use channel specification in xs1; should be randomly drawn
+      % from {1,2,...,nChan}
+      xs2(:,6) = xs1(:,6);
+      xs = [xs1 xs2];
+      prms = prms1;
+    end
+    
+    function [xF1,yF1,xF2,yF2,chan,info] = compute2LMDiff(xs,xLM,yLM)
+      % xs: F x 12, from generate2LMDiff()
+      % Rest: in analogy with compute2LM
+      %
+      % To compute jth feature for ith trial:
+      %  ftrval = intensity-at-(xF1(i,j),yF1(i,j),chan(i,j)) - 
+      %           intensity-at-(xF2(i,j),yF2(i,j),chan(i,j)) - 
+      
+      assert(size(xs,2)==12);
+      xs1 = xs(:,1:6);
+      xs2 = xs(:,7:12);
+      [xF1,yF1,chan1,info1] = Features.compute2LM(xs1,xLM,yLM);
+      [xF2,yF2,chan2,info2] = Features.compute2LM(xs2,xLM,yLM);
+      assert(isequal(chan1,chan2));
+      chan = chan1;
+      info = struct('info1',info1,'info2',info2);
     end
     
   end

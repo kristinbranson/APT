@@ -264,17 +264,25 @@ function ftrData = ftrsGenDup2( model, varargin )
 %
 % See also shapeGt>ftrsCompDup
 
-dfs={'type','2lm','F',20,'radius',1,'nChn',3,'pids',[],...
-  'randctr',false,'neighbors',{},'fids',[]};
+dfs = {'type','2lm','F',20,'radius',1,'nChn',3,'pids',[],'randctr',false,...
+  'neighbors',{},'fids',[]};
 [type,F,radius,nChn,pids,randctr,neighbors,fids] = ...
   getPrmDflt(varargin,dfs,0);
 
 switch type
   case '1lm'
+    % features generated relative to a single landmark
     xs = Features.generate1LM(model,'F',F,'radius',radius);
   case '2lm'
+    % features generated relative to (eg the line segment connecting) two 
+    % landmarks 
     xs = Features.generate2LM(model,'F',F,'radiusFac',radius,...
-      'randctr',randctr,'neighbors',neighbors,'fids',fids,'nchan',nChn);    
+      'randctr',randctr,'neighbors',neighbors,'fids',fids,'nchan',nChn);
+  case '2lmdiff'
+    % differences between 2 features in the same channel, where features
+    % are generated relative to two landmarks
+    xs = Features.generate2LMDiff(model,'F',F,'radiusFac',radius,...
+      'randctr',randctr,'neighbors',neighbors,'fids',fids,'nchan',nChn);
   otherwise
     assert(false,'unknown type');
 end
@@ -573,6 +581,8 @@ switch ftrData.type
     chn1 = ones(size(cs1));    
   case '2lm'
     [cs1,rs1,chn1] = Features.compute2LM(ftrData.xs,poscs,posrs);
+  case '2lmdiff'
+    [cs1,rs1,cs2,rs2,chn1] = Features.compute2LMDiff(ftrData.xs,poscs,posrs);
   otherwise
     assert(false);
 end
@@ -591,9 +601,14 @@ for n = 1:M
 %     end
     cs1(n,:) = max(1,min(w,cs1(n,:)));
     rs1(n,:) = max(1,min(h,rs1(n,:)));
+    if strcmp(ftrData.type,'2lmdiff')
+      cs2(n,:) = max(1,min(w,cs2(n,:)));
+      rs2(n,:) = max(1,min(h,rs2(n,:)));
+    end
 
     %where are the features relative to bbox?
     if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
+      assert(false,'AL');
         %to which group (zone) does each feature belong?
         occlD.group(n,:)=codifyPos((cs1(n,:)-bboxes(n,1))./bboxes(n,3),...
             (rs1(n,:)-bboxes(n,2))./bboxes(n,4),...
@@ -613,21 +628,27 @@ for n = 1:M
     end
 
     inds1 = rs1(n,:) + (cs1(n,:)-1)*h + (chn1(n,:)-1)*h*w;
-%     %DEBUG_VISUALIZE_FEATURELOCS;
-%     if nChn>1
-%       assert(false,'AL: chs undefined');
-%       inds1 = inds1+(chs'-1)*w*h; 
-%     end
+    ftrs1 = hlpFtr(img,inds1);  
+    switch ftrData.type
+      case {'1lm' '2lm'}
+        ftrs(n,:) = ftrs1;
+      case '2lmdiff'        
+        inds2 = rs2(n,:) + (cs2(n,:)-1)*h + (chn1(n,:)-1)*h*w;
+        ftrs2 = hlpFtr(img,inds2);
+        ftrs(n,:) = ftrs1-ftrs2;
+      otherwise
+        assert(false);
+    end        
+end
+end
 
-    if isa(img,'uint8'), 
-      ftrs1 = double(img(inds1)')/255; % AL: why transpose?
-    elseif isa(img,'uint16'),
-      ftrs1 = double(img(inds1)')/(2^16-1);
-    else
-      ftrs1 = img(inds1)'; 
-    end
-
-    ftrs(n,:) = ftrs1;
+function ftrs1 = hlpFtr(img,inds1)
+if isa(img,'uint8')
+  ftrs1 = double(img(inds1)')/255;
+elseif isa(img,'uint16')
+  ftrs1 = double(img(inds1)')/(2^16-1);
+else
+  ftrs1 = img(inds1)';
 end
 end
 

@@ -180,7 +180,7 @@ for t=t0:T
     
   else
     switch ftrPrm.type
-      case {'1lm' '2lm'}
+      case {'1lm' '2lm' '2lmdiff'}
         ftrPos = shapeGt('ftrsGenDup2',model,ftrPrm);
         [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',...
           model,pCur,Is,ftrPos,...
