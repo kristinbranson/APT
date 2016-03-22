@@ -450,8 +450,8 @@ classdef Shape
         text(1,1,num2str(iRT),'parent',hax(iPlt),'Color',[0 1 0]);
         
         for iPt = 1:mdl.nfids
-          hlines{iPlt}(iPt) = plot(hax(iPlt),nan,nan,'ws',...
-            'MarkerFaceColor',colors(iPt,:));
+          hlines{iPlt}(iPt) = plot(hax(iPlt),nan,nan,'w+',...
+            'MarkerFaceColor',colors(iPt,:),'markersize',10);
           if tfGT
             plot(hax(iPlt),opts.pGT(iTrl,iPt),opts.pGT(iTrl,iPt+mdl.nfids),'wo',...
               'MarkerFaceColor',colors(iPt,:));
@@ -484,8 +484,9 @@ classdef Shape
             hMiniFtrs = [];
 
             reg = opts.regs(t-1); % when t==2, we are plotting result of first iteraton, which used first regressor              
-            fids = reg.regInfo{iMini}.fids;
+            fids = reg.regInfo{iMini}.fids;            
             nfids = size(fids,2);
+            fidstype = size(fids,1);            
             colors = jet(nfids);
 
             for iPlt = 1:nplot
@@ -498,7 +499,9 @@ classdef Shape
               end
               
               p = reshape(pT(iTrl,iRT,:,t),1,mdl.D); % absolute shape for trl/rep/it
-              [xF,yF,chanF] = Features.compute2LM(reg.ftrPos.xs,p(1:mdl.nfids),p(mdl.nfids+1:end)); 
+              pxs = p(1:mdl.nfids);
+              pys = p(mdl.nfids+1:end);
+              [xF,yF,chanF,info] = Features.compute2LM(reg.ftrPos.xs,pxs,pys); 
               assert(isrow(xF));
               assert(isrow(yF));
               assert(isrow(chanF));
@@ -506,14 +509,30 @@ classdef Shape
               if iPlt==1
                 fDists = nan(nfids,1);
               end
+              
               for iFid = 1:nfids
-                fid1 = fids(1,iFid);
-                fid2 = fids(2,iFid);
-                xx = xF([fid1 fid2]);
-                yy = yF([fid1 fid2]);
-                hMiniFtrs(end+1) = plot(hax(iPlt),xx,yy,'-','Color',colors(iFid,:));                
-                if iPlt==1
-                  fDists(iFid) = sqrt(diff(xx).^2 + diff(yy).^2);
+                switch fidstype
+                  case 1
+                    fid1 = fids(1,iFid);
+                    xx = xF(fid1);
+                    yy = yF(fid1);
+                    clr = colors(iFid,:);
+                    hTmp = Features.visualize2LM(hax(iPlt),xF,yF,info,iTrl,fid1,clr);
+                    hMiniFtrs = [hMiniFtrs hTmp(:)'];
+
+%                     hMiniFtrs(end+1) = plot(hax(iPlt),xx,yy,'o',...
+%                       'Color',clr,'MarkerFaceColor',clr,'MarkerSize',12);
+                  case 2              
+                    fid1 = fids(1,iFid);
+                    fid2 = fids(2,iFid);
+                    xx = xF([fid1 fid2]);
+                    yy = yF([fid1 fid2]);
+                    hMiniFtrs(end+1) = plot(hax(iPlt),xx,yy,'-','Color',colors(iFid,:));                
+                    if iPlt==1
+                      fDists(iFid) = sqrt(diff(xx).^2 + diff(yy).^2);
+                    end
+                  otherwise
+                    assert(false);
                 end
               end
               if iPlt==1
@@ -525,8 +544,8 @@ classdef Shape
             if iMini<=5
               fprintf(1,'fids:\n');
               disp(fids);
-              fprintf('it %d.%03d\n',t,iMini);
-              %input(sprintf('it %d.%03d\n',t,iMini));
+              %fprintf('it %d.%03d\n',t,iMini);
+              input(sprintf('it %d.%03d\n',t,iMini));
             end
             %fprintf('it %d.%03d\n',t,iMini);
           end
