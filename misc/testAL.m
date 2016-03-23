@@ -61,7 +61,7 @@ catch ME
 end
 
 if forceChan
-  assert(isempty(td.Ipp),'TEMPORARY');
+ % assert(isempty(td.Ipp),'TEMPORARY');
   fprintf(1,'Computing Ipp!\n');
   pause(3);
   td.computeIpp([],[],[],datatype,true,'iTrl',td.iTst);
