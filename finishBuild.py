@@ -32,13 +32,22 @@ def main():
         os.mkdir(shadir)
         print "made shadir: " + shadir
 
+    currentptr = os.path.join(args.builddir,'current')
+    currentptrlink = os.readlink(currentptr)
+    print "the current ptr: " + currentptr + " points to: " + currentptrlink
+
     for prj in PRJS:
         prjfull = os.path.join(cprroot,"misc",prj)
         if os.path.exists(prjfull):            
             print "Found: " + prjfull + ". Moving to shadir."
             shutil.move(prjfull,shadir)
+        else:
+            linktgt = os.path.join("..",currentptrlink,prj)
+            print "NOT found: " + prjfull + ". Linking to " + linktgt
+            cmd = "ln -s " + linktgt + " " + shadir
+            print(cmd)
+            subprocess.call(cmd,shell=True)
 
-    currentptr = os.path.join(args.builddir,'current')
     if os.path.exists(currentptr):
         os.remove(currentptr)
     cmd = "ln -s " + sha + " " + currentptr
