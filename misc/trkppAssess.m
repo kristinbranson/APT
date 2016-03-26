@@ -68,6 +68,9 @@ dTrk47 = dTrk(:,4:7);
 dTrk47Av = mean(dTrk47,2);
 
 %% distance from test/track to nearest trn
+
+% XXX SEE JANPOSTPROC.minDistToTrainingSet
+
 iTrns4iTsts = nan(nTest,1); % argmin(dist-to-trning set) for each iTst
 dTrnMin = nan(nTest,1); % min distance to training set from each Test (GT) pt
 dTrnMinTrk = nan(nTest,1); % min distance to training set from each Test (Tracked) pt
