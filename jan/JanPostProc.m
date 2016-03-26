@@ -130,18 +130,22 @@ classdef JanPostProc
       figure('windowstyle','docked');
       args = {'fontweight','bold','interpreter','none','fontsize',12};
 
-      ax = subplot(2,2,1);     
+      ax = subplot(2,2,1); 
+      pause(2);
       JanPostProc.hlpScatter(ax,I,xyTrkPt(:,1),xyTrkPt(:,2),markersize,dErrRedPt);
       title(ax,'Raw error (px) by tracked location',args{:});
       ax = subplot(2,2,2);
+      pause(2);
       hCB = JanPostProc.hlpScatter(ax,I,xyTrkPt(:,1),xyTrkPt(:,2),markersize,dErrRedPtBar);
       title(ax,'Rescaled err (%tile) by tracked location',args{:});
       hCB.Ticks = 4:4:20;
       hCB.TickLabels = arrayfun(@(x)sprintf('%d%%',x),5*hCB.Ticks,'uni',0);
       ax = subplot(2,2,3);
+      pause(2);
       JanPostProc.hlpScatter(ax,I,xyGTPt(:,1),xyGTPt(:,2),markersize,dErrRedPt);
       title(ax,'Raw error (px) by GT location',args{:});
       ax = subplot(2,2,4);
+      pause(2);
       hCB = JanPostProc.hlpScatter(ax,I,xyGTPt(:,1),xyGTPt(:,2),markersize,dErrRedPtBar);      
       title(ax,'Rescaled err (%tile) by GT location',args{:});
       hCB.Ticks = 4:4:20;
@@ -166,13 +170,18 @@ classdef JanPostProc
         ax1.(p) = ax.(p);
       end
       
-      hCB = colorbar(ax1,'Location','east','Box','off');
-      hCB.Color = [0.75 0.75 0.75];
+            
+      hCB = colorbar(ax1,'Location','East','Box','off','Color',[0.8 0.8 0.8]);
       pos = hCB.Position;
       dx = pos(3)/2;
       pos(3) = pos(3)-dx;
       pos(1) = pos(1)+dx;
       hCB.Position = pos;
+      %hCB.AxisLocation = 'out'
+      
+      linkaxes([ax ax1]);
+
+      
     end
         
   end
