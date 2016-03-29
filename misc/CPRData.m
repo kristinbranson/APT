@@ -450,10 +450,10 @@ classdef CPRData < handle
           tfID = strcmp(tMD.id,id);
           tfIDLbled = strcmp(tMD.id,id) & tfLbled;
           
-          nLblAct = nnz(tMD.tfAct(tfIDLbled));
-          nLblRst = nnz(tMD.tfRst(tfIDLbled));
-          fprintf(1,'id %s. nfrm=%d. nfrmLbled=%d, nRst/nAct=%d/%d.\n',...
-            id,nnz(tfID),nnz(tfIDLbled),nLblRst,nLblAct);
+%           nLblAct = nnz(tMD.tfAct(tfIDLbled));
+%           nLblRst = nnz(tMD.tfRst(tfIDLbled));
+          fprintf(1,'id %s. nfrm=%d. nfrmLbled=%d.\n',...
+            id,nnz(tfID),nnz(tfIDLbled));
         end
       end
     end
@@ -789,7 +789,7 @@ classdef CPRData < handle
       MINDISTACCEPT = 17.0; % in squared pixels I think
       % ... Except, we also do not allow any experiment to be way 
       % overrepresented in the data relative to another, per this ratio.
-      MAXDF_POPULATION_RATIO = 1.6;
+      MAXDF_POPULATION_RATIO = 3.0;
 
       % First find all frames for each DFOther that exceed threshold
       iAvailDFOther = cell(nDFSUnOther,1);
@@ -1060,16 +1060,16 @@ classdef CPRData < handle
         tMD = [tMD tMD2];
         obj.MD = tMD;
       end
-      if ~ismember('actvf0',tMD.Properties.VariableNames)
-        tXLS = readtable(obj.MD_XLSFILE,'Sheet',obj.MD_XLSSHEET);
-        tf = ~cellfun(@isempty,tXLS.vid);
-        tXLS = tXLS(tf,:);
-        
-        tMD = join(tMD,tXLS); % should be joining on id)
-        
-        tMD.tfAct =  (tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
-        tMD.tfRst = ~(tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
-      end
+%       if ~ismember('actvf0',tMD.Properties.VariableNames)
+%         tXLS = readtable(obj.MD_XLSFILE,'Sheet',obj.MD_XLSSHEET);
+%         tf = ~cellfun(@isempty,tXLS.vid);
+%         tXLS = tXLS(tf,:);
+%         
+%         tMD = join(tMD,tXLS); % should be joining on id)
+%         
+%         tMD.tfAct =  (tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
+%         tMD.tfRst = ~(tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
+%       end
       obj.MD = tMD;
     end
   end

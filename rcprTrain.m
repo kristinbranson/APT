@@ -180,6 +180,11 @@ for t=t0:T
     
   else
     switch ftrPrm.type
+      case {'kborig_hack'}
+        ftrPos = shapeGt('ftrsGenKBOrig',model,ftrPrm);
+        ftrs = shapeGt('ftrsCompKBOrig',...
+          model,pCur,Is,ftrPos,...
+          imgIds,pStar,bbs,regPrm.occlPrm);
       case {'1lm' '2lm' '2lmdiff'}
         ftrPos = shapeGt('ftrsGenDup2',model,ftrPrm);
         [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',...

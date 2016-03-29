@@ -293,6 +293,54 @@ end
 ftrData = struct('type',type,'F',F,'nChn',nChn,'xs',xs,'pids',pids);
 end
 
+function ftrData = ftrsGenKBOrig( model, varargin )
+% hack for Jan data:
+% * for raw image and blurred images: use Features.generate2LMDiff to
+% generate differences between 2 features in same channel
+% * for all gradient and laplacian images, use Features.generate2LM to
+% generate single features
+
+dfs = {'type','','F',20,'radius',1,'nChn','REQ','pids',[],'randctr',false,...
+  'neighbors',{},'fids',[]};
+[type,F,radius,nChn,pids,randctr,neighbors,fids] = ...
+  getPrmDflt(varargin,dfs,0);
+
+assert(strcmp(type,'kborig_hack'));
+assert(nChn==19,'Expected Jan data');
+
+NCHAN_2PT = 3; % first 3 channels: raw, sig1=2, sig1=4
+NCHAN_1PT = 16; % last 16 channels: gradient + laplacian images
+xs2pt = Features.generate2LMDiff(model,'F',F,'radiusFac',radius,...
+  'randctr',randctr,'neighbors',neighbors,'fids',fids,'nchan',NCHAN_2PT);
+
+xs1pt = Features.generate2LM(model,'F',F,'radiusFac',radius,...
+  'randctr',randctr,'neighbors',neighbors,'fids',fids,'nchan',NCHAN_1PT);
+chans1 = xs1pt(:,6);
+assert(all(ismember(chans1,1:NCHAN_1PT)));
+xs1pt(:,6) = chans1+NCHAN_2PT; 
+
+ftrData = struct('type',type,'F',F,'nChn',nChn,'xs2pt',xs2pt,'xs1pt',xs1pt);
+end
+
+%    'S:sig1=2.00'
+%     'S:sig1=4.00'
+%     'SGS:sig1=0.00,sig2=0.00'
+%     'SGS:sig1=2.00,sig2=0.00'
+%     'SGS:sig1=4.00,sig2=0.00'
+%     'SGS:sig1=0.00,sig2=2.00'
+%     'SGS:sig1=2.00,sig2=2.00'
+%     'SGS:sig1=4.00,sig2=2.00'
+%     'SGS:sig1=0.00,sig2=4.00'
+%     'SGS:sig1=2.00,sig2=4.00'
+%     'SGS:sig1=0.00,sig2=8.00'
+%     'SLS:sig1=2.00,sig2=0.00'
+%     'SLS:sig1=4.00,sig2=0.00'
+%     'SLS:sig1=0.00,sig2=2.00'
+%     'SLS:sig1=2.00,sig2=2.00'
+%     'SLS:sig1=4.00,sig2=2.00'
+%     'SLS:sig1=0.00,sig2=4.00'
+%     'SLS:sig1=2.00,sig2=4.00'
+        
 function ftrData = ftrsGenIm( model, pStar, varargin )
 % Generate random shape indexed features,
 % relative to closest landmark (similar to Cao et al., CVPR12)
@@ -473,6 +521,23 @@ for n=1:M
     %tocStatus(ticId,n/M);
 end
 end
+
+function ftrs = ftrsCompKBOrig(model,phis,Is,ftrData,imgIds,pStar,bboxes,occlPrm)
+
+%ftrData = struct('type',type,'F',F,'nChn',nChn,'xs2pt',xs2pt,'xs1pt',xs1pt);
+
+assert(ftrData.nChn==19);
+% nChn==19 only used to assert against img size
+ftrData2 = struct('type','2lmdiff','F',ftrData.F,'nChn',ftrData.nChn,'xs',ftrData.xs2pt);
+ftrData1 = struct('type','2lm','F',ftrData.F,'nChn',ftrData.nChn,'xs',ftrData.xs1pt);
+
+ftrs2 = ftrsCompDup2(model,phis,Is,ftrData2,imgIds,pStar,bboxes,occlPrm);
+ftrs1 = ftrsCompDup2(model,phis,Is,ftrData1,imgIds,pStar,bboxes,occlPrm);
+
+
+
+end
+
 
 function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
     imgIds, pStar, bboxes, occlPrm)
