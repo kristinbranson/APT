@@ -117,7 +117,7 @@ classdef JanPostProc
       dErrRedPt = dErrRed(:,iPt);
       %n = size(xyGTPt,1);
       
-      dErrRedPtPtiles = prctile(dErrRedPt,0:5:100);
+      dErrRedPtPtiles = prctile(dErrRedPt,0:1:100);
       dErrRedPtPtiles(1) = 0.0;
       dErrRedPtBar = discretize(dErrRedPt,dErrRedPtPtiles);
       assert(~any(isnan(dErrRedPtBar)));
@@ -126,30 +126,84 @@ classdef JanPostProc
       %fprintf('dErrMax = %.3g\n',dErrMax);
       %cmap = cool(ceil(dErrMax));
       %cmap = cool(max(dErrRedPtBar));
+
+      % For Log xform 
+      logxform_ticksRaw = [0.125 0.5 1 2 5 10 20 40 80];
+      logxform_ticksRaw = logxform_ticksRaw(logxform_ticksRaw<max(dErrRedPt));
+      logxform_tickLabels = arrayfun(@num2str,logxform_ticksRaw,'uni',0);
+      logxform_ticks = log(logxform_ticksRaw);
       
-      figure('windowstyle','docked');
+      % For Log xform + +1
+      logxform2_ticksRaw = [1 2 5 10 20 40 80];
+      logxform2_ticksRaw = logxform2_ticksRaw(logxform2_ticksRaw<max(dErrRedPt));
+      logxform2_tickLabels = arrayfun(@num2str,logxform2_ticksRaw,'uni',0);
+      logxform2_ticks = log(logxform2_ticksRaw+1);
+      
+      % For Ptilexform
+      ptile_ticksRaw = [0.25 0.5 1 2 20]; % in px
+      ptile_ticksRaw = ptile_ticksRaw(ptile_ticksRaw<max(dErrRedPt));
+      xx = sort(dErrRedPt);
+      idxTicksRaw = arrayfun(@(x)argmin(abs(x-xx)),ptile_ticksRaw);
+      ptile_ticks = idxTicksRaw/numel(dErrRedPt)*100; 
+      ptile_ticklabels = arrayfun(@num2str,ptile_ticksRaw,'uni',0);
+      [ptile_ticks,iTmp] = unique(ptile_ticks);
+      ptile_ticklabels = ptile_ticklabels(iTmp);
+
+      figure('windowstyle','docked','name','trkerrbyloc');
       args = {'fontweight','bold','interpreter','none','fontsize',12};
 
-      ax = subplot(2,2,1); 
+%       ax = subplot(2,4,1); 
+%       pause(2);
+%       JanPostProc.hlpScatter(ax,I,xyTrkPt(:,1),xyTrkPt(:,2),markersize,dErrRedPt);
+%       title(ax,'Tracking error by location',args{:});
+%       
+%       ax = subplot(2,4,2);
+%       pause(2);
+%       hCB = JanPostProc.hlpScatter(ax,I,xyTrkPt(:,1),xyTrkPt(:,2),markersize,dErrRedPtBar);
+%       title(ax,'Tracking error by location',args{:});
+%       hCB.Ticks = ptile_ticks;
+%       hCB.TickLabels = ptile_ticklabels;
+%       
+%       ax = subplot(2,4,3);
+%       pause(2);
+%       hCB = JanPostProc.hlpScatter(ax,I,xyTrkPt(:,1),xyTrkPt(:,2),markersize,log(dErrRedPt));
+%       title(ax,'Tracking error by location',args{:});
+%       hCB.Ticks = logxform_ticks;
+%       hCB.TickLabels = logxform_tickLabels;
+%       
+%       ax = subplot(2,4,4);
+%       pause(2);
+%       hCB = JanPostProc.hlpScatter(ax,I,xyTrkPt(:,1),xyTrkPt(:,2),markersize,log(dErrRedPt+1));
+%       title(ax,'Tracking error by location',args{:});
+%       hCB.Ticks = logxform2_ticks;
+%       hCB.TickLabels = logxform2_tickLabels;
+% 
+%       ax = subplot(2,4,5);
+%       pause(2);
+%       JanPostProc.hlpScatter(ax,I,xyGTPt(:,1),xyGTPt(:,2),markersize,dErrRedPt);
+%       title(ax,'Tracking error by location',args{:});
+% 
+%       ax = subplot(2,4,6);
+%       pause(2);
+%       hCB = JanPostProc.hlpScatter(ax,I,xyGTPt(:,1),xyGTPt(:,2),markersize,dErrRedPtBar);        
+%       title(ax,'Tracking error by location',args{:});
+%       hCB.Ticks = ptile_ticks;
+%       hCB.TickLabels = ptile_ticklabels;
+%       
+%       ax = subplot(2,4,7);
+%       pause(2);
+%       hCB = JanPostProc.hlpScatter(ax,I,xyGTPt(:,1),xyGTPt(:,2),markersize,log(dErrRedPt));
+%       title(ax,'Tracking error by location',args{:});
+%       hCB.Ticks = logxform_ticks;
+%       hCB.TickLabels = logxform_tickLabels;
+%       
+%       ax = subplot(2,4,8);
+      ax = axes;
       pause(2);
-      JanPostProc.hlpScatter(ax,I,xyTrkPt(:,1),xyTrkPt(:,2),markersize,dErrRedPt);
-      title(ax,'Raw error (px) by tracked location',args{:});
-      ax = subplot(2,2,2);
-      pause(2);
-      hCB = JanPostProc.hlpScatter(ax,I,xyTrkPt(:,1),xyTrkPt(:,2),markersize,dErrRedPtBar);
-      title(ax,'Rescaled err (%tile) by tracked location',args{:});
-      hCB.Ticks = 4:4:20;
-      hCB.TickLabels = arrayfun(@(x)sprintf('%d%%',x),5*hCB.Ticks,'uni',0);
-      ax = subplot(2,2,3);
-      pause(2);
-      JanPostProc.hlpScatter(ax,I,xyGTPt(:,1),xyGTPt(:,2),markersize,dErrRedPt);
-      title(ax,'Raw error (px) by GT location',args{:});
-      ax = subplot(2,2,4);
-      pause(2);
-      hCB = JanPostProc.hlpScatter(ax,I,xyGTPt(:,1),xyGTPt(:,2),markersize,dErrRedPtBar);      
-      title(ax,'Rescaled err (%tile) by GT location',args{:});
-      hCB.Ticks = 4:4:20;
-      hCB.TickLabels = arrayfun(@(x)sprintf('%d%%',x),5*hCB.Ticks,'uni',0);
+      hCB = JanPostProc.hlpScatter(ax,I,xyGTPt(:,1),xyGTPt(:,2),markersize,log(dErrRedPt+1));
+      title(ax,'Tracking error by location',args{:});
+      hCB.Ticks = logxform2_ticks;
+      hCB.TickLabels = logxform2_tickLabels;
     end
     
     function hCB = hlpScatter(ax,I,x,y,markersz,clr)
