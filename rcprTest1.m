@@ -187,6 +187,9 @@ for t = t0:T
   %Compute shape-indexed features
   ftrPos = regs(t).ftrPos;
   switch ftrPos.type
+    case 'kborig_hack'
+      ftrs = shapeGt('ftrsCompKBOrig',model,p,Is,ftrPos,...
+          imgIds,regModel.pStar,bboxes,regPrm.occlPrm);
     case {'1lm' '2lm' '2lmdiff'} %{5 6 7 8 9 10 11}
       [ftrs,regPrm.occlD] = shapeGt('ftrsCompDup2',model,p,Is,ftrPos,...
         imgIds,regModel.pStar,bboxes,regPrm.occlPrm);

@@ -48,7 +48,11 @@ function ysSum = regApply(p,X,regInfo,regPrm,ftrPrm)
 type = regPrm.type;
 K = regPrm.K;
 Stot = regPrm.occlPrm.Stot;
-occlD = regPrm.occlD;
+if ~isfield(regPrm,'occlD')
+  occlD = [];
+else
+  occlD = regPrm.occlD;
+end
 
 [N,D] = size(p);
 switch type
