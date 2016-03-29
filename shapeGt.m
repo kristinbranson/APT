@@ -533,8 +533,7 @@ ftrData1 = struct('type','2lm','F',ftrData.F,'nChn',ftrData.nChn,'xs',ftrData.xs
 
 ftrs2 = ftrsCompDup2(model,phis,Is,ftrData2,imgIds,pStar,bboxes,occlPrm);
 ftrs1 = ftrsCompDup2(model,phis,Is,ftrData1,imgIds,pStar,bboxes,occlPrm);
-
-
+ftrs = [ftrs2 ftrs1];
 
 end
 
