@@ -500,6 +500,56 @@ classdef Labeler < handle
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
     end
     
+    function projImport(obj,fname)
+      % 'Import' the project fname, MERGING movies/labels into the current project.
+          
+      %obj.isinit = true;
+      
+      s = load(fname,'-mat');
+      if s.nLabelPoints~=obj.nLabelPoints
+        error('Labeler:projImport','Project %s uses nLabelPoints=%d instead of %d for the current project.',...
+          fname,s.nLabelPoints,obj.nLabelPoints);
+      end
+      
+      nMov = numel(s.movieFilesAll);
+      for iMov = 1:nMov
+        movfile = s.movieFilesAll{iMov};
+        movifo = s.movieInfoAll{iMov};
+        trxfl = s.trxFilesAll{iMov};
+        lpos = s.labeledpos{iMov};
+        lpostag = s.labeledpostag{iMov};
+        if isempty(s.suspScore)
+          suspscr = [];
+        else
+          suspscr = s.suspScore{iMov};
+        end
+        
+        if exist(movfile,'file')==0 || ~isempty(trxfl)&&exist(trxfl,'file')==0
+          warning('Labeler:projImport',...
+            'Missing movie/trxfile for movie ''%s''. Not importing this movie.',...
+            movfile);
+          continue;
+        end
+                         
+        obj.movieFilesAll{end+1,1} = movfile;
+        obj.movieFilesAllHaveLbls(end+1,1) = nnz(~isnan(lpos))>0;
+        obj.movieInfoAll{end+1,1} = movifo;
+        obj.trxFilesAll{end+1,1} = trxfl;
+        obj.labeledpos{end+1,1} = lpos;
+        obj.labeledpostag{end+1,1} = lpostag;
+        if ~isempty(obj.suspScore)
+          obj.suspScore{end+1,1} = suspscr;
+        end
+        if ~isempty(obj.suspNotes)
+          obj.suspNotes{end+1,1} = [];
+        end
+      end
+
+      obj.labeledposNeedsSave = true;
+      obj.projFSInfo = ProjectFSInfo('imported',fname);
+      %obj.updateFrameTableComplete(); % AL 20160329: looks unnec
+    end
+    
     function projNewImStack(obj,ims,varargin)
       % DEVELOPMENT ONLY
       %
