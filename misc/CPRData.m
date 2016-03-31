@@ -1,9 +1,4 @@
 classdef CPRData < handle
-  properties (Constant)
-    % for resting/active ranges etc
-    MD_XLSFILE = 'f:\DropBoxNEW\DropBox\Tracking_KAJ\track.results\summary.xlsx';
-    MD_XLSSHEET = 'gt data';      
-  end
   
   properties
     Name    % Name of this CPRData
@@ -131,6 +126,7 @@ classdef CPRData < handle
       % obj = CPRData(movFiles)
       % obj = CPRData(lblFiles,tfAllFrames)
       % obj = CPRData(Is,p,bb,md)
+      % obj = CPRData(movFiles,lpos,lpostags,tfAllFrames)
       
       switch nargin
         case 1
@@ -140,11 +136,23 @@ classdef CPRData < handle
         case 2
           lblFiles = varargin{1};
           tfAllFrames = varargin{2};
-          [Is,p,bb,md] = CPRData.readLblFiles(lblFiles,'tfAllFrames',tfAllFrames);
+          [Is,p,md] = CPRData.readLblFiles(lblFiles,'tfAllFrames',tfAllFrames);
+
+          sz = cellfun(@(x)size(x'),Is,'uni',0);
+          bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
         case 3
           [Is,p,bb] = deal(varargin{:});
+          md = cell2table(cell(numel(Is),0));
         case 4
-          [Is,p,bb,md] = deal(varargin{:});
+          if iscellstr(varargin{1})
+            [movFiles,lposes,lpostags,tfAllFrames] = deal(varargin{:});
+            [Is,p,md] = CPRData.readMovsLbls(movFiles,lposes,lpostags,tfAllFrames);
+            
+            sz = cellfun(@(x)size(x'),Is,'uni',0);
+            bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
+          else
+            [Is,p,bb,md] = deal(varargin{:});
+          end
         otherwise
           assert(false,'Invalid constructor args.');
       end
@@ -156,9 +164,6 @@ classdef CPRData < handle
         bb = cat(1,bb{:});
       end
       assert(size(bb,1)==N);  
-      if exist('md','var')==0
-        md = cell2table(cell(N,0));
-      end
 
       obj.MD = md;      
       obj.I = Is;
@@ -490,7 +495,7 @@ classdef CPRData < handle
   
   methods (Static)
     
-    function [I,p,bb,md] = readLblFiles(lblFiles,varargin)
+    function [I,p,md] = readLblFiles(lblFiles,varargin)
       % lblFiles: [N] cellstr
       % Optional PVs:
       %  - tfAllFrames. scalar logical, defaults to false. If true, read in
@@ -498,96 +503,129 @@ classdef CPRData < handle
       % 
       % I: [Nx1] cell array of images (frames)
       % p: [NxD] positions
-      % bb: [Nx2d] bboxes
       % md: [Nxm] metadata table
 
       assert(iscellstr(lblFiles));
       nLbls = numel(lblFiles);
 
       tfAllFrames = myparse(varargin,'tfAllFrames',false);
-
-      mr = MovieReader();
       I = cell(0,1);
       p = [];
-      sMD = struct('iLbl',cell(0,1),'lblFile',[],'lblFileS',[],...
-        'mov',[],'frm',[],'nLblInf',[],'nLblNaN',[],'nTag',[],'tagvec',[]);
-      
+      md = [];
       for iLbl = 1:nLbls
         lblName = lblFiles{iLbl};
         lbl = load(lblName,'-mat');
-        nMov = numel(lbl.movieFilesAll);
-        fprintf('Lbl file: %s, %d movies.\n',lblName,nMov);
+        fprintf('Lblfile: %s\n',lblName);
         
-        for iMov = 1:nMov
-          movName = lbl.movieFilesAll{iMov};
-          mr.open(movName);
-          
-          lpos = lbl.labeledpos{iMov}; % npts x 2 x nframes
-          lpostag = lbl.labeledpostag{iMov};
-          assert(size(lpostag,2)==size(lpos,3));
-          [npts,d,nFrmAll] = size(lpos);
-          D = d*npts; % d*npts;
-
-          % find labeled/tagged frames
-          tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
-          frmsLbled = find(tfLbled);
-          tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
-          ntagged = sum(tftagged,1);
-          frmsTagged = find(ntagged);
-          assert(all(ismember(frmsTagged,frmsLbled)));
-          nFrmsLbled = numel(frmsLbled);
-          nFrmsTagged = numel(frmsTagged);
-          
-          if tfAllFrames
-            nFrmRead = nFrmAll; % number of frames to read for this iLbl/iMov
-            frms2Read = 1:nFrmRead;
-          else          
-            nFrmRead = nFrmsLbled;
-            frms2Read = frmsLbled;
-          end
-          ITmp = cell(nFrmRead,1);
-          pTmp = nan(nFrmRead,D);
-          fprintf('  mov %d, D=%d, reading %d frames (%d labeled frames, %d tagged frames)\n',...
-            iMov,D,nFrmRead,nFrmsLbled,nFrmsTagged);
-          
-          for iFrm = 1:nFrmRead
-            f = frms2Read(iFrm);
-            im = mr.readframe(f);
-            if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
-              im = rgb2gray(im);
-            end
-            
-            fprintf('iLbl=%d, iMov=%d, read frame %d (%d/%d)\n',...
-              iLbl,iMov,f,iFrm,nFrmRead);
-            
-            ITmp{iFrm} = im;
-            lblsFrmXY = lpos(:,:,f);
-            pTmp(iFrm,:) = Shape.xy2vec(lblsFrmXY);
-            
-            %tagbinvec = sum(tftagged(:,f)'.*2.^(0:npts-1));
-            tagvec = find(tftagged(:,f)');
-            
-            sMD(end+1,1).iLbl = iLbl; %#ok<AGROW>
-            sMD(end).lblFile = lblName;
-            [~,sMD(end).lblFileS] = myfileparts(lblName);
-            sMD(end).mov = movName;
-            sMD(end).frm = f;
-            sMD(end).nLblInf = sum(any(isinf(lblsFrmXY),2));
-            sMD(end).nLblNaN = sum(any(isnan(lblsFrmXY),2));
-            sMD(end).nTag = ntagged(f);
-            sMD(end).tagvec = tagvec;
-          end
-          
-          I = [I;ITmp]; %#ok<AGROW>
-          p = [p;pTmp]; %#ok<AGROW>
-        end
+        [ILbl,pLbl,tMDLbl] = CPRData.readMovsLbls(lbl.movieFilesAll,...
+          lbl.labeledpos,lbl.labeledpostag,tfAllFrames);
+        
+        nrows = numel(ILbl);
+        tMDLbl.lblFile = repmat({lblName},nrows,1);
+        [~,lblNameS] = myfileparts(lblName);
+        tMDLbl.lblFileS = repmat({lblNameS},nrows,1);
+        
+        I = [I;ILbl]; %#ok<AGROW>
+        p = [p;pLbl]; %#ok<AGROW>
+        md = [md;tMDLbl]; %#ok<AGROW>
       end
       
-      sz = cellfun(@(x)size(x'),I,'uni',0);
-      bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
+      assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
+    end
+    
+    function [I,p,tMD] = readMovsLbls(movieNames,labeledposes,labeledpostags,tfAllFrames)
+      % Read moviefiles with landmark labels
+      %
+      % movieNames: [N] cellstr of movienames
+      % labeledposes: [N] cell array of labeledpos arrays [nptsx2xnfrms]
+      % labeledpostags: [N] cell array of labeledpostags [nptsxnfrms]
+      % tfallframes: scalar boolean. If true, read all frames. If false,
+      % read only frames-with-labels.
+      %
+      % I: [Ntrl] cell vec of images
+      % p: [NTrlxD] labeled positions. Will be nan if no labels.
+      % tMD: [NTrl rows] metadata table.
+      
+      assert(iscellstr(movieNames));
+      assert(iscell(labeledposes) && iscell(labeledpostags));
+      assert(isequal(numel(movieNames),numel(labeledposes),numel(labeledpostags)));
+      
+      mr = MovieReader();
 
-      assert(isequal(numel(sMD),numel(I),size(p,1),size(bb,1)));
-      md = struct2table(sMD);
+      I = [];
+      p = [];
+      sMD = struct('mov',cell(0,1),'movS',[],...
+        'frm',[],'nLblInf',[],'nLblNaN',[],'nTag',[],'tagvec',[]);
+      
+      nMov = numel(movieNames);
+      fprintf('Reading %d movies.\n',nMov);
+      for iMov = 1:nMov
+        mov = movieNames{iMov};
+        [~,movS] = myfileparts(mov);
+        lpos = labeledposes{iMov}; % npts x 2 x nframes
+        lpostag = labeledpostags{iMov};
+
+        [npts,d,nFrmAll] = size(lpos);
+        assert(isequal(size(lpostag),[npts nFrmAll]));
+        D = d*npts;
+        
+        mr.open(mov);
+        
+        % find labeled/tagged frames
+        tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
+        frmsLbled = find(tfLbled);
+        tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
+        ntagged = sum(tftagged,1);
+        frmsTagged = find(ntagged);
+        assert(all(ismember(frmsTagged,frmsLbled)));
+        nFrmsLbled = numel(frmsLbled);
+        nFrmsTagged = numel(frmsTagged);
+        
+        if tfAllFrames
+          nFrmRead = nFrmAll; % number of frames to read for this iLbl/iMov
+          frms2Read = 1:nFrmRead;
+        else
+          nFrmRead = nFrmsLbled;
+          frms2Read = frmsLbled;
+        end
+        ITmp = cell(nFrmRead,1);
+        pTmp = nan(nFrmRead,D);
+        fprintf('  mov %d, D=%d, reading %d frames (%d labeled frames, %d tagged frames)\n',...
+          iMov,D,nFrmRead,nFrmsLbled,nFrmsTagged);
+        
+        for iFrm = 1:nFrmRead
+          f = frms2Read(iFrm);
+          im = mr.readframe(f);
+          if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
+            im = rgb2gray(im);
+          end
+          
+          fprintf('iMov=%d, read frame %d (%d/%d)\n',iMov,f,iFrm,nFrmRead);
+          
+          ITmp{iFrm} = im;
+          lblsFrmXY = lpos(:,:,f);
+          pTmp(iFrm,:) = Shape.xy2vec(lblsFrmXY);
+          
+          %tagbinvec = sum(tftagged(:,f)'.*2.^(0:npts-1));
+          tagvec = find(tftagged(:,f)');
+          
+%           sMD(end+1,1).iLbl = iLbl; %#ok<AGROW>
+%           sMD(end).lblFile = lblName;
+%           [~,sMD(end).lblFileS] = myfileparts(lblName);
+          sMD(end+1,1).mov = mov; %#ok<AGROW>
+          sMD(end).movS = movS;
+          sMD(end).frm = f;
+          sMD(end).nLblInf = sum(any(isinf(lblsFrmXY),2));
+          sMD(end).nLblNaN = sum(any(isnan(lblsFrmXY),2));
+          sMD(end).nTag = ntagged(f);
+          sMD(end).tagvec = tagvec;
+        end
+        
+        I = [I;ITmp]; %#ok<AGROW>
+        p = [p;pTmp]; %#ok<AGROW>
+        tMD = struct2table(sMD);
+      end
+      
     end
     
     function [I,bb,md] = readMovs(movFiles)
@@ -1060,16 +1098,6 @@ classdef CPRData < handle
         tMD = [tMD tMD2];
         obj.MD = tMD;
       end
-%       if ~ismember('actvf0',tMD.Properties.VariableNames)
-%         tXLS = readtable(obj.MD_XLSFILE,'Sheet',obj.MD_XLSSHEET);
-%         tf = ~cellfun(@isempty,tXLS.vid);
-%         tXLS = tXLS(tf,:);
-%         
-%         tMD = join(tMD,tXLS); % should be joining on id)
-%         
-%         tMD.tfAct =  (tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
-%         tMD.tfRst = ~(tMD.frm>=tMD.actvf0 & tMD.frm<=tMD.actvf1);
-%       end
       obj.MD = tMD;
     end
   end
