@@ -677,47 +677,69 @@ classdef CPRData < handle
   methods % histeq
   
     function vizHist(obj,varargin)
-      smoothspan = myparse(varargin,'smoothspan',nan);
+      [g,smoothspan,nbin] = myparse(varargin,...
+        'g',[],... [N] grouping vector, numeric or categorical. 
+        'smoothspan',nan,...
+        'nbin',256);
       tfsmooth = ~isnan(smoothspan);
       
-      H = nan(256,obj.N);
+      H = nan(nbin,obj.N);
       for i = 1:obj.N
-        H(:,i) = imhist(obj.I{i});
-      end
-      nLbl = numel(unique(obj.MD.iLbl));
-      muLbl = nan(256,nLbl);
-      sdLbl = nan(256,nLbl);
-      for iLbl = 1:nLbl
-        tf = obj.MD.iLbl==iLbl;
-        Hlbl = H(:,tf);
-        fprintf('Working on iLbl=%d, n=%d.\n',iLbl,nnz(tf));
-        muLbl(:,iLbl) = nanmean(Hlbl,2);
-        sdLbl(:,iLbl) = nanstd(Hlbl,[],2);
+        H(:,i) = imhist(obj.I{i},nbin);
       end
       
-      if tfsmooth
-        for iLbl = 1:nLbl
-          muLbl(:,iLbl) = smooth(muLbl(:,iLbl),smoothspan);
-          sdLbl(:,iLbl) = smooth(sdLbl(:,iLbl),smoothspan);
+      if isempty(g)
+        g = ones(obj.N,1);
+      end
+      assert(isvector(g) && numel(g)==obj.N);
+      
+      gUn = unique(g);
+      nGrp = numel(gUn);
+      muGrp = nan(nbin,nGrp);
+      sdGrp = nan(nbin,nGrp);
+      for iGrp = 1:nGrp
+        gCur = gUn(iGrp);
+        tf = g==gCur;
+        Hgrp = H(:,tf);
+        fprintf('Working on grp=%d, n=%d.\n',iGrp,nnz(tf));
+        muGrp(:,iGrp) = nanmean(Hgrp,2);
+        sdGrp(:,iGrp) = nanstd(Hgrp,[],2);
+        
+        if tfsmooth
+          muGrp(:,iGrp) = smooth(muGrp(:,iGrp),smoothspan);
+          sdGrp(:,iGrp) = smooth(sdGrp(:,iGrp),smoothspan);
         end
       end
       
       figure;
-      x = 1:256;
-      plot(x,muLbl,'linewidth',2);
-      legend(arrayfun(@num2str,1:nLbl,'uni',0));
+      x = 1:nbin;
+      plot(x,muGrp,'linewidth',2);
+      legend(arrayfun(@num2str,1:nGrp,'uni',0));
       hold on;
       ax = gca;
       ax.ColorOrderIndex = 1;
-      plot(x,muLbl-sdLbl);
+      plot(x,muGrp-sdGrp);
       ax.ColorOrderIndex = 1;
-      plot(x,muLbl+sdLbl);
+      plot(x,muGrp+sdGrp);
       
       grid on;
     end
     
-    function H0 = histEq(obj,H0)
-      tfH0Given = exist('H0','var')>0;
+    function H0 = histEq(obj,varargin)
+      % Perform histogram equalization on all images
+      % 
+      % H0: [nbin] intensity histogram used in equalization
+      %
+      % Optional PVs:
+      % g: [N] grouping vector, either numeric or categorical. Images with 
+      % the same value of g are histogram-equalized together. For example, 
+      % g might indicate which movie the image is taken from.
+
+      [H0,nbin,g] = myparse(varargin,...
+        'H0',[],...
+        'nbin',256,...
+        'g',ones(obj.N,1));
+      tfH0Given = ~isempty(H0);
       
       imSz = cellfun(@size,obj.I,'uni',0);
       cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
@@ -727,34 +749,39 @@ classdef CPRData < handle
       if tfH0Given
         % none
       else
-        H = nan(256,obj.N);
+        H = nan(nbin,obj.N);
         mu = nan(1,obj.N);
+        loc = [];
         for iTrl = 1:obj.N
           im = obj.I{iTrl};
-          H(:,iTrl) = imhist(im);
+          [H(:,iTrl),loctmp] = imhist(im,nbin);
+          if iTrl==1
+            loc = loctmp;
+          else
+            assert(isequal(loctmp,loc));
+          end
           mu(iTrl) = mean(im(:));
         end
         % normalize to brighter movies, not to dimmer movies
-        idxuse = mu >= prctile(mu,75);
-        fprintf('using %d frames to form H0:\n',numel(idxuse));
-        H0 = median(H(:,idxuse),2);
+        tfuse = mu >= prctile(mu,75);
+        fprintf('using %d frames to form H0:\n',nnz(tfuse));
+        H0 = median(H(:,tfuse),2);
         H0 = H0/sum(H0)*imNpx;
       end
       obj.H0 = H0;
 
-      % normalize one video at a time
-      warning('TD:histeq','Currently assuming one movie per lbl.');
-      nLbl = numel(unique(obj.MD.iLbl));
-      for iLbl = 1:nLbl
-        tfLbl = obj.MD.iLbl==iLbl;
-        % iTrlLbl = idx(ld.expidx(idx)==iLbl);
-        if ~any(tfLbl)
-          continue;
-        end
-        bigim = cat(1,obj.I{tfLbl});
+      % normalize one group at a time
+      gUn = unique(g);
+      nGrp = numel(gUn);
+      fprintf(1,'%d groups to equalize.\n',nGrp);
+      for iGrp = 1:nGrp
+        gCur = gUn(iGrp);
+        tf = g==gCur;
+        
+        bigim = cat(1,obj.I{tf});
         bigimnorm = histeq(bigim,H0);
-        obj.I(tfLbl) = mat2cell(bigimnorm,...
-          repmat(imSz(1),[nnz(tfLbl) 1]),imSz(2));
+        obj.I(tf) = mat2cell(bigimnorm,...
+          repmat(imSz(1),[nnz(tf) 1]),imSz(2));
       end
     end
       
@@ -798,8 +825,19 @@ classdef CPRData < handle
       obj.iTst = iTstAcc;      
     end
     
-    function [iTrn,iTstAll,iTstLbl] = genITrnITst2(obj,idTest)
+    function [iTrn,iTstAll,iTstLbl] = genITrnITstJan(obj,idTest)
       % Given experiment id (testID), generate training and test exps.
+      %
+      % Abstract specification of how this works:
+      % * All rows of data include 'group' (date-fly) and 'file' (id, or
+      % movie) lbls
+      % * For all groups EXCEPT the group of idTest, we include all labeled
+      % data with a furthestfirst distance greater than a threshold;
+      % except, no group can be overrepresented relative to another by a
+      % certain factor.
+      % * For the group of idTest, we include all labeled data with a
+      % furthestfirst distance greater than a threshold, except we do not
+      % included any data for the file/id itTest itself.
             
       dfTest = idTest(1:9);
       
