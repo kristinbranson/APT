@@ -215,7 +215,7 @@ if ncrossvalsets > 1
   end
 else  
   cvidx = true(size(expidx)); %#ok<NASGU>  
-  regModel = train1(phisTr,bboxesTr,IsTr,pStar,model,regPrm,ftrPrm,initPrm);
+  [regModel,pAll] = train1(phisTr,bboxesTr,IsTr,pStar,model,regPrm,ftrPrm,initPrm);
   if docomperr
     phisPr = test_rcpr([],bboxesTr,IsTr,regModel,regPrm,prunePrm);
     err = mean( sqrt(sum( (phisPr-phisTr).^2, 2)) );
@@ -236,7 +236,8 @@ if singleoutarg
     'initPrm',initPrm,...
     'prunePrm',prunePrm,...
     'phisPr',phisPr,...
-    'err',err);
+    'err',err,...
+    'pAll',pAll);
   clear regPrm ftrPrm initPrm prunePrm phisPr err;
 end
 
@@ -244,11 +245,11 @@ if isdeployed
   delete(findall(0,'type','figure'));
 end
 
-function regModel = train1(phisTr,bboxesTr,IsTr,pStar,model,regPrm,ftrPrm,initPrm)
+function [regModel,pAll] = train1(phisTr,bboxesTr,IsTr,pStar,model,regPrm,ftrPrm,initPrm)
 
 assert(isempty(pStar)); % AL: used for initshape  
 
-[regModel,~] = rcprTrain(IsTr,phisTr,...
+[regModel,pAll] = rcprTrain(IsTr,phisTr,...
   'model',model,...
   'regPrm',regPrm,...
   'ftrPrm',ftrPrm,...
