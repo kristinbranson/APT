@@ -1458,10 +1458,10 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
-      lpos = obj.labeledpos{obj.currMovie};
-      trxNew = trker.track(obj.trx,lpos,[],[],[]);
-      obj.trxSet(trxNew);
-      obj.setFrameAndTarget(obj.currFrame,obj.currTarget);
+      trker.track();      
+%       trxNew = trker.track(obj.trx,lpos,[],[],[]);
+%       obj.trxSet(trxNew);
+%       obj.setFrameAndTarget(obj.currFrame,obj.currTarget);
     end
         
   end

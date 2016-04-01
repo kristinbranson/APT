@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 14-Jan-2016 13:20:41
+% Last Modified by GUIDE v2.5 01-Apr-2016 08:07:14
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -361,6 +361,9 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
   set(hObject,'BackgroundColor','white');
 end
 
+function pbTrack_Callback(hObject, eventdata, handles)
+handles.labelerObj.track();
+
 function pbClear_Callback(hObject, eventdata, handles)
 handles.labelerObj.lblCore.clearLabels();
 
@@ -584,70 +587,3 @@ if hlpSave(handles.labelerObj)
   delete(handles.figure);
   delete(handles.labelerObj);
 end
-
-
-% 
-% % --------------------------------------------------------------------
-% function import_template_Callback(hObject, eventdata, handles)
-% % hObject    handle to import_template (see GCBO)
-% % eventdata  reserved - to be defined in a future version of MATLAB
-% % handles    structure with handles and user data (see GUIDATA)
-% global LARVALABELERSAVEFILE;
-% 
-% if isempty(LARVALABELERSAVEFILE),
-%   defaultfile = '';
-% else
-%   defaultfile = LARVALABELERSAVEFILE;
-% end
-% 
-% [f,p] = uigetfile('*.mat','Import template from...',defaultfile);
-% if ~ischar(f),
-%   return;
-% end
-% filename = fullfile(p,f);
-% 
-% if ~exist(filename,'file'),
-%   warndlg(sprintf('File %s does not exist',filename),'File does not exist','modal');
-%   return;
-% end
-% 
-% L = load(filename);
-% assert(isfield(L,'template'),'The file does not have any template');
-% 
-% handles.template = L.template;
-% handles.npoints = size(handles.template,1);
-% handles.templatecolors = jet(handles.npoints);%*.5+.5;
-% 
-% for ndx = 1:size(L.template,1)
-%   x = L.template(ndx,1);
-%   y = L.template(ndx,2);
-%   handles.hpoly(ndx) = plot(handles.axes_curr,x,y,'w+','MarkerSize',20,'LineWidth',3);
-%   handles.htext(ndx) = text(x+handles.dt2p,y,num2str(numel(handles.hpoly)),'Parent',handles.axes_curr);%,...
-%   set(handles.hpoly(ndx),'Color',handles.templatecolors(ndx,:),...
-%     'ButtonDownFcn',@(hObject,eventdata) PointButtonDownCallback(hObject,eventdata,handles.figure,ndx));
-%   %addNewPositionCallback(handles.hpoly(i),@(pos) UpdateLabels(pos,handles.figure,i));
-%   set(handles.htext(ndx),'Color',handles.templatecolors(ndx,:));
-% 
-% end
-%  
-% handles.labeledpos = nan([handles.npoints,2,handles.nframes,handles.nanimals]);
-% handles.labeledpos(:,:,handles.f,handles.animal) = handles.template;
-% handles.islocked = false(handles.nframes,handles.nanimals);
-% handles.pointselected = false(1,handles.npoints);
-% 
-% delete(handles.posprev(ishandle(handles.posprev)));
-% handles.posprev = nan(1,handles.npoints);
-% for i = 1:handles.npoints,
-%   handles.posprev(i) = plot(handles.axes_prev,nan,nan,'+','Color',handles.templatecolors(i,:),'MarkerSize',8);%,...
-%     %'KeyPressFcn',handles.keypressfcn);
-% end
-% 
-% if isfield(L,'templateloc')
-%   handles.templateloc = L.templateloc;
-%   handles.templatetheta = L.templatetheta;
-%   guidata(hObject,handles);
-%   pushbutton_template_Callback(hObject,eventdata,handles);
-% else
-%   guidata(hObject,handles);
-% end
-
