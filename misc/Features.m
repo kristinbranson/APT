@@ -63,6 +63,7 @@ classdef Features
       opts.sgsRescaleFacs = 200./Features.JAN_SGS_99P9_SIG0248_160211; % 200 instead of 256 for safety buffer
       opts.slsRescale = true;
       opts.slsRescaleFacs = 200./Features.JAN_SLS_SPAN99_SIG0248_160211; % 200 instead of 256 for safety buffer
+      opts.hWaitBar = [];
       opts = getPrmDfltStruct(varargin,opts);      
       
       assert(iscell(Is) && isvector(Is));
@@ -78,6 +79,7 @@ classdef Features
       if opts.slsRescale
         assert(isequal(size(opts.slsRescaleFacs),[n1 n2]));
       end
+      tfWB = ~isempty(opts.hWaitBar);
 
       [tmp1,tmp2] = size(opts.laplaceKernel);
       assert(tmp1==tmp2);
@@ -92,9 +94,18 @@ classdef Features
       SGS = cell(N,n1,n2);
       SLS = cell(N,n1,n2);
       
+      if tfWB
+        hWB = opts.hWaitBar;
+        hWB.Name = 'Preprocessing';        
+        waitbar(0,hWB,'Preprocessing images');
+      end
       for iTrl = 1:N
-        if mod(iTrl,10)==0
-          fprintf(1,'Working on iTrl=%d/%d\n',iTrl,N);
+        if tfWB
+          waitbar(iTrl/N,hWB);
+        else
+          if mod(iTrl,10)==0
+            fprintf(1,'Working on iTrl=%d/%d\n',iTrl,N);
+          end
         end
         im = Is{iTrl};
 %         G{iTrl} = gradientMag(im);

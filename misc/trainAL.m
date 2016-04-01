@@ -63,22 +63,7 @@ else
   tfChan = ~isempty(td.Ipp) && ~ignoreChan;
 end
 if tfChan
-  assert(~isempty(td.IppInfo));
-  nChan = numel(td.IppInfo);
-  fprintf(1,'Using %d additional channels.\n',nChan);
-  
-  Is = cell(td.NTrn,1);
-  for i = 1:td.NTrn
-    iTrl = td.iTrn(i);
-    
-    im = td.I{iTrl};
-    impp = td.Ipp{iTrl};
-    assert(size(impp,3)==nChan);
-    
-    %fprintf(2,'ONLY USING IPP\n');
-    %Is{i} = impp;
-    Is{i} = cat(3,im,impp);
-  end
+  Is = td.getTrnCombinedIs();
 else
   Is = td.I(td.iTrn,:);
 end

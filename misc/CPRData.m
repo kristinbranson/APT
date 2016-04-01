@@ -126,9 +126,11 @@ classdef CPRData < handle
       % obj = CPRData(movFiles)
       % obj = CPRData(lblFiles,tfAllFrames)
       % obj = CPRData(Is,p,bb,md)
-      % obj = CPRData(movFiles,lpos,lpostags,tfAllFrames)
+      % obj = CPRData(movFiles,lpos,lpostags,tfAllFrames,varargin)
       
       switch nargin
+        case 0
+          error('CPRData:CPRData','Invalid number of input arguments.');
         case 1
           movFiles = varargin{1};
           [Is,bb,md] = CPRData.readMovs(movFiles);
@@ -143,18 +145,17 @@ classdef CPRData < handle
         case 3
           [Is,p,bb] = deal(varargin{:});
           md = cell2table(cell(numel(Is),0));
-        case 4
+        otherwise % 4+
           if iscellstr(varargin{1})
-            [movFiles,lposes,lpostags,tfAllFrames] = deal(varargin{:});
-            [Is,p,md] = CPRData.readMovsLbls(movFiles,lposes,lpostags,tfAllFrames);
+            [movFiles,lposes,lpostags,tfAllFrames] = deal(varargin{1:4});
+            varargin = varargin(5:end);
+            [Is,p,md] = CPRData.readMovsLbls(movFiles,lposes,lpostags,tfAllFrames,varargin{:});
             
             sz = cellfun(@(x)size(x'),Is,'uni',0);
             bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
           else
             [Is,p,bb,md] = deal(varargin{:});
           end
-        otherwise
-          assert(false,'Invalid constructor args.');
       end
       
       assert(iscolumn(Is) && iscell(Is));
@@ -265,6 +266,30 @@ classdef CPRData < handle
   end
   methods
     
+    function [Is,nChan] = getTrnCombinedIs(obj)
+      % Get .I combined with .Ipp for training trials.
+      %
+      % Is: [obj.NTrn] cell vec of image stacks [nrxncxnChan] where 
+      %   nChan=1+numel(obj.Ipp)
+      % nChan: number of TOTAL channels used/found
+      
+      nChanPP = numel(obj.IppInfo);
+      fprintf(1,'Using %d additional channels.\n',nChanPP);
+      
+      Is = cell(obj.NTrn,1);
+      for i=1:obj.NTrn
+        iTrl = obj.iTrn(i);
+        
+        im = obj.I{iTrl};
+        impp = obj.Ipp{iTrl};
+        assert(size(impp,3)==nChanPP);
+        
+        Is{i} = cat(3,im,impp);
+      end
+      
+      nChan = nChanPP+1;
+    end
+    
     function computeIpp(obj,sig1,sig2,iChan,varargin)
       % Preprocess images and set .Ipp.
       %
@@ -278,10 +303,11 @@ classdef CPRData < handle
       % - romain. Use romain values for sig1,sig2,iChan.
       % - See Features.pp for other optional pvs
 
-      [iTrl,jan,romain] = myparse(varargin,...
+      [iTrl,jan,romain,hWB] = myparse(varargin,...
         'iTrl',find(obj.isFullyLabeled),...
         'jan',false,...
-        'romain',false);
+        'romain',false,...
+        'hWaitBar',[]);
       nTrl = numel(iTrl);
       
       if jan
@@ -305,7 +331,7 @@ classdef CPRData < handle
           23:24 26:28 29:32 33:36]; % SLS         
       end
       
-      [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2); %,varargin{:});
+      [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,'hWaitBar',hWB);
       
       n1 = numel(sig1);
       n2 = numel(sig2);
@@ -435,31 +461,22 @@ classdef CPRData < handle
       disp([lblFileUn num2cell((1:numel(lblFileUn))')]);
     end
     
-    function summarize(obj,iTrl)
+    function summarize(obj,gMDFld,iTrl)
+      % gMDFld: grouping field in metadata
       % iTrl: vector of trial indices
       
       tMD = obj.MD(iTrl,:);
       tfLbled = obj.isFullyLabeled(iTrl,:);
-      
-      dfUn = unique(tMD.datefly);
-      nDF = numel(dfUn);
-      for iDF = 1:nDF
-        df = dfUn{iDF};
-        tfDF = strcmp(tMD.datefly,df);
-        fprintf(1,'datefly: %s\n',df);
-        
-        idsUn = unique(tMD.id(tfDF));
-        nID = numel(idsUn);
-        for iID = 1:nID
-          id = idsUn{iID};
-          tfID = strcmp(tMD.id,id);
-          tfIDLbled = strcmp(tMD.id,id) & tfLbled;
-          
-%           nLblAct = nnz(tMD.tfAct(tfIDLbled));
-%           nLblRst = nnz(tMD.tfRst(tfIDLbled));
-          fprintf(1,'id %s. nfrm=%d. nfrmLbled=%d.\n',...
-            id,nnz(tfID),nnz(tfIDLbled));
-        end
+      g = categorical(tMD.(gMDFld));
+      gUn = unique(g);
+      nGrp = numel(gUn);
+      for iGrp = 1:nGrp
+        gCur = gUn(iGrp);
+        tfG = g==gCur;
+        tfGAndLbled = tfG & tfLbled;
+        fprintf(1,'Group (%s): %s. nfrm=%d, nfrmlbled=%d.\n',...
+          gMDFld,char(gCur),...
+          nnz(tfG),nnz(tfGAndLbled));
       end
     end
     
@@ -533,7 +550,7 @@ classdef CPRData < handle
       assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
     end
     
-    function [I,p,tMD] = readMovsLbls(movieNames,labeledposes,labeledpostags,tfAllFrames)
+    function [I,p,tMD] = readMovsLbls(movieNames,labeledposes,labeledpostags,tfAllFrames,varargin)
       % Read moviefiles with landmark labels
       %
       % movieNames: [N] cellstr of movienames
@@ -545,6 +562,9 @@ classdef CPRData < handle
       % I: [Ntrl] cell vec of images
       % p: [NTrlxD] labeled positions. Will be nan if no labels.
       % tMD: [NTrl rows] metadata table.
+      
+      hWB = myparse(varargin,'hWaitBar',[]);
+      tfWB = ~isempty(hWB);
       
       assert(iscellstr(movieNames));
       assert(iscell(labeledposes) && iscell(labeledpostags));
@@ -593,14 +613,21 @@ classdef CPRData < handle
         fprintf('  mov %d, D=%d, reading %d frames (%d labeled frames, %d tagged frames)\n',...
           iMov,D,nFrmRead,nFrmsLbled,nFrmsTagged);
         
+        if tfWB
+          hWB.Name = 'Reading movies';
+          wbStr = sprintf('Reading movie %s',movS);
+          waitbar(0,hWB,wbStr);          
+        end
         for iFrm = 1:nFrmRead
+          waitbar(iFrm/nFrmRead,hWB);
+          
           f = frms2Read(iFrm);
           im = mr.readframe(f);
           if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
             im = rgb2gray(im);
           end
           
-          fprintf('iMov=%d, read frame %d (%d/%d)\n',iMov,f,iFrm,nFrmRead);
+          %fprintf('iMov=%d, read frame %d (%d/%d)\n',iMov,f,iFrm,nFrmRead);
           
           ITmp{iFrm} = im;
           lblsFrmXY = lpos(:,:,f);
@@ -735,11 +762,13 @@ classdef CPRData < handle
       % the same value of g are histogram-equalized together. For example, 
       % g might indicate which movie the image is taken from.
 
-      [H0,nbin,g] = myparse(varargin,...
+      [H0,nbin,g,hWB] = myparse(varargin,...
         'H0',[],...
         'nbin',256,...
-        'g',ones(obj.N,1));
+        'g',ones(obj.N,1),...
+        'hWaitBar',[]);
       tfH0Given = ~isempty(H0);
+      tfWB = ~isempty(hWB);
       
       imSz = cellfun(@size,obj.I,'uni',0);
       cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
@@ -752,7 +781,14 @@ classdef CPRData < handle
         H = nan(nbin,obj.N);
         mu = nan(1,obj.N);
         loc = [];
+        if tfWB
+          waitbar(0,hWB,'Performing histogram equalization...','name','Histogram Equalization');
+        end
         for iTrl = 1:obj.N
+          if tfWB
+            waitbar(iTrl/obj.N,hWB);
+          end
+          
           im = obj.I{iTrl};
           [H(:,iTrl),loctmp] = imhist(im,nbin);
           if iTrl==1
