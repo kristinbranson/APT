@@ -150,7 +150,8 @@ classdef Labeler < handle
   
   %% Tracking
   properties (SetObservable)
-    tracker
+    tracker % LabelTracker object;
+    trackPrefs % Track preferences substruct
   end
   
   %% Misc
@@ -310,6 +311,11 @@ classdef Labeler < handle
       for prop = obj.gdata.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
         obj.(prop) = obj.(prop);
       end
+
+      if obj.trackPrefs.Enable
+        obj.tracker = feval(obj.trackPrefs.Type,obj);
+        obj.tracker.init();
+      end        
     end
     
     function initFromPrefs(obj,pref)
@@ -325,6 +331,7 @@ classdef Labeler < handle
       end
       obj.labelPointsPlotInfo = lpp;
       obj.trxPrefs = pref.Trx;
+      obj.trackPrefs = pref.Track;
     end
     
     function addDepHandle(obj,h)
@@ -379,6 +386,10 @@ classdef Labeler < handle
       obj.labeledpostag = cell(0,1);
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
+      
+      if ~isempty(obj.tracker)
+        obj.tracker.init();
+      end
     end
       
     function projSaveRaw(obj,fname)
@@ -498,6 +509,10 @@ classdef Labeler < handle
       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
+
+      if ~isempty(obj.tracker)
+        obj.tracker.init();
+      end
     end
     
     function projImport(obj,fname)
@@ -548,6 +563,10 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
       obj.projFSInfo = ProjectFSInfo('imported',fname);
       %obj.updateFrameTableComplete(); % AL 20160329: looks unnec
+      
+      if ~isempty(obj.tracker)
+        obj.tracker.init();
+      end
     end
     
     function projNewImStack(obj,ims,varargin)
@@ -1449,6 +1468,12 @@ classdef Labeler < handle
     function setTracker(obj,tObj)
       obj.tracker = tObj;
     end
+    
+    function setTrackParamFile(obj,prmFile)
+      trker = obj.tracker;
+      assert(~isempty(trker),'No tracker object currently set.');
+      trker.setParamFile(prmFile);      
+    end      
     
     function track(obj)
       trker = obj.tracker;

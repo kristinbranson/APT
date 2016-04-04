@@ -1,9 +1,13 @@
 classdef LabelTracker < handle
   % LabelTracker knows how to take a bunch of images+labels and learn a
   % classifier to predict/track labels on new images.
+  %
+  % LabelTracker is a base class intended to be concretized with a 
+  % particular tracking algo.
   
-  properties    
+  properties
     lObj % (back)handle to Labeler object
+    paramFile; % char, current parameter file
     ax % axis for viewing tracking results
     
     hLCurrMovie; % listener to lObj.currMovie
@@ -23,7 +27,14 @@ classdef LabelTracker < handle
       obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
     end
     
+    function init(obj)
+      % Called when a new project is created/loaded, etc
+      axisOverlay(obj.lObj.gdata.axes_curr,obj.ax);
+      obj.initHook();
+    end
+    
     function delete(obj)
+      deleteValidHandles(obj.ax);
       if ~isempty(obj.hLCurrMovie)
         delete(obj.hLCurrMovie);
       end
@@ -36,13 +47,23 @@ classdef LabelTracker < handle
   
   methods 
     
+    function setParamFile(obj,prmFile)
+      obj.paramFile = prmFile;
+    end
+    
+    function initHook(obj)
+      % Called when a new project is created/loaded, etc
+    end    
+        
     function track(obj)
     end
     
     function newLabelerFrame(obj)
+      % Called when Labeler is navigated to a new frame
     end
     
     function newLabelerMovie(obj)
+      % Called when Labeler is navigated to a new movie
     end
     
   end

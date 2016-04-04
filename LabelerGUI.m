@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 01-Apr-2016 08:07:14
+% Last Modified by GUIDE v2.5 01-Apr-2016 17:43:09
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -320,7 +320,9 @@ end
 function cbkTrackerChanged(src,evt)
 lObj = evt.AffectedObject;
 tf = ~isempty(lObj.tracker);
-lObj.gdata.menu_track_retrack.Enable = onIff(tf);
+onOff = onIff(tf);
+lObj.gdata.menu_track.Enable = onOff;
+lObj.gdata.pbTrack.Enable = onOff;
 
 function cbkMovieCenterOnTargetChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -574,10 +576,22 @@ handles.labelerObj.videoFlipUD();
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
 handles.labelerObj.videoFlipLR();
 
-function menu_track_retrack_Callback(hObject, eventdata, handles)
-handles.labelerObj.track();
-function menu_track_savenewtrx_Callback(hObject, eventdata, handles)
-handles.labelerObj.trxSave();
+function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
+prmFile = RC.getprop('lastCPRParamFile');
+if isempty(prmFile)
+  prmFile = pwd;
+end
+[f,p] = uigetfile('*.yaml','Select CPR tracking parameters file',prmFile);
+if isequal(f,0)
+  return;
+end
+prmFile = fullfile(p,f);
+RC.saveprop('lastCPRParamFile',prmFile);
+handles.labelerObj.setTrackParamFile(prmFile);
+% function menu_track_retrack_Callback(hObject, eventdata, handles)
+% handles.labelerObj.track();
+% function menu_track_savenewtrx_Callback(hObject, eventdata, handles)
+% handles.labelerObj.trxSave();
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);
