@@ -1,8 +1,6 @@
 classdef CPRLabelTracker < LabelTracker
   
   properties
-    doHE % logical scalar
-    preProcFcn % function handle to preprocessor; caled as ppFcn(obj.td)
     trnPrmFile % training parameters file    
     
     trnData % most recent training data
@@ -22,22 +20,45 @@ classdef CPRLabelTracker < LabelTracker
     end
   end
   
-  methods 
+  methods
     
     function obj = CPRLabelTracker(lObj)
       obj@LabelTracker(lObj);
-      obj.initPredVis();
     end
     
     function delete(obj)
       deleteValidHandles(obj.hXYPrdRed);
+      obj.hXYPrdRed = [];
     end
     
   end
   
   methods
+   
+    function initHook(obj)
+      % Currently just inits .hXYPrdRed
+      
+      npts = obj.nPts;
+      ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
+      ax = obj.ax;
+      cla(ax);
+      hold(ax,'on');
+      hTmp = gobjects(npts,1);
+      for iPt = 1:npts
+        clr = ptsClrs(iPt,:);
+        hTmp(iPt) = plot(ax,nan,nan,'+','Color',clr);
+      end
+      
+      deleteValidHandles(obj.hXYPrdRed);
+      obj.hXYPrdRed = hTmp;      
+    end
     
     function track(obj)
+      if isempty(obj.paramFile)
+        error('CPRLabelTracker:noParams','Tracking parameter file needs to be set.');
+      end
+      prm = ReadYaml(obj.paramFile);
+        
       lObj = obj.lObj;
       
       hWB = waitbar(0);
@@ -48,33 +69,35 @@ classdef CPRLabelTracker < LabelTracker
       td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,false,...
         'hWaitBar',hWB);
       md = td.MD;
-      if obj.doHE
+      prmPP = prm.PreProc;
+      if prmPP.histeq
         gHE = categorical(md.movS);
         td.histEq('g',gHE,'hWaitBar',hWB);
+      else
+        fprintf(1,'Not doing histogram equalization.');
       end
-      if ~isempty(obj.preProcFcn)
-        obj.preProcFcn(td,'hWaitBar',hWB);
+      if ~isempty(prmPP.channelsFcn)
+        feval(prmPP.channelsFcn,td,'hWaitBar',hWB);
+      else
+        fprintf(1,'Not computing channel features.');
       end
       obj.trnData = td;
       obj.trnDataTS = now;
-      
-      % Read the training parameters
-      tp = ReadYaml(obj.trnPrmFile);
-      
+            
       td.iTrn = 1:td.N;
       td.summarize('movS',td.iTrn);
 
       [Is,nChan] = td.getTrnCombinedIs();
-      tp.Ftr.nChn = nChan;
+      prm.Ftr.nChn = nChan;
       
       delete(hWB);
       
       tr = train(td.pGTTrn,td.bboxesTrn,Is,...
-          'modelPrms',tp.Model,...
-          'regPrm',tp.Reg,...
-          'ftrPrm',tp.Ftr,...
-          'initPrm',tp.Init,...
-          'prunePrm',tp.Prune,...
+          'modelPrms',prm.Model,...
+          'regPrm',prm.Reg,...
+          'ftrPrm',prm.Ftr,...
+          'initPrm',prm.Init,...
+          'prunePrm',prm.Prune,...
           'docomperr',false,...
           'singleoutarg',true);
       obj.trnRes = tr;
@@ -103,25 +126,7 @@ classdef CPRLabelTracker < LabelTracker
       frmCurrMov = trnMD.frm(tfCurrMov);
       xy(:,:,frmCurrMov) = xyTrkCurrMov;
       obj.xyPrdCurrMovie = xy;
-    end
-    
-    function initPredVis(obj)
-      % Currently just inits .hXYPrdRed
-            
-      npts = obj.nPts;
-      ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
-      ax = obj.ax;
-      cla(ax);
-      hold(ax,'on');
-      hTmp = gobjects(npts,1);
-      for iPt = 1:npts
-        clr = ptsClrs(iPt,:);
-        hTmp(iPt) = plot(ax,nan,nan,'+','Color',clr);
-      end
-      
-      deleteValidHandles(obj.hXYPrdRed);
-      obj.hXYPrdRed = hTmp;  
-    end
+    end   
       
     function newLabelerFrame(obj)
       if isempty(obj.trnRes)
