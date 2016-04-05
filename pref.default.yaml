@@ -43,5 +43,7 @@ LabelPointsPlot:
 Track:
     Enable: 0
     Type: CPRLabelTracker  
-    
+    Marker: '+'
+    MarkerSize: 10
+    LineWidth: 2
 ...
