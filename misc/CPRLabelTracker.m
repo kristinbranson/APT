@@ -88,7 +88,7 @@ classdef CPRLabelTracker < LabelTracker
         gHE = categorical(md.movS);
         td.histEq('g',gHE,'hWaitBar',hWB);
       else
-        fprintf(1,'Not doing histogram equalization.');
+        fprintf(1,'Not doing histogram equalization.\n');
       end
       if ~isempty(prmPP.channelsFcn)
         feval(prmPP.channelsFcn,td,'hWaitBar',hWB);

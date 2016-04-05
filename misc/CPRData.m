@@ -281,9 +281,12 @@ classdef CPRData < handle
         iTrl = obj.iTrn(i);
         
         im = obj.I{iTrl};
-        impp = obj.Ipp{iTrl};
+        if nChanPP==0
+          impp = nan(size(im,1),size(im,2),0);
+        else
+          impp = obj.Ipp{iTrl};
+        end
         assert(size(impp,3)==nChanPP);
-        
         Is{i} = cat(3,im,impp);
       end
       
