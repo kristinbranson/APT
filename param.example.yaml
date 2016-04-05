@@ -7,6 +7,9 @@ Model:
   nviews:
   Prm3D:        # 3D calibration data
 
+PreProc:
+  histeq: 1
+  channelsFcn: CPRLabelTracker.tdPPJan  # function with signature: fcn(cprDataObj,p1,v1,...)
 Reg:
   T: 30      # cascade depth
   K: 50       # num boosted regressors
