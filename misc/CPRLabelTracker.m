@@ -1,12 +1,18 @@
 classdef CPRLabelTracker < LabelTracker
   
+  properties (Constant)
+    SAVETOKEN_PROPS = {'trnDataTS' 'trnRes' 'trnResMD' 'trnResTS'};
+  end
+  
   properties
-    trnPrmFile % training parameters file    
-    
+    % core training state
     trnData % most recent training data
     trnDataTS % timestamp for trnData
     trnRes % most recent training results
+    trnResMD % movie/frame metadata for trnRes
+    trnResTS % timestamp for trnRes
     
+    % for view/presentation
     xyPrdCurrMovie; % [npts d nfrm] predicted labels for current Labeler movie
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame
   end
@@ -36,7 +42,12 @@ classdef CPRLabelTracker < LabelTracker
   methods
    
     function initHook(obj)
-      % Currently just inits .hXYPrdRed
+      obj.trnData = [];
+      obj.trnDataTS = [];
+      obj.trnRes = [];
+      obj.trnResMD = [];
+      obj.trnResTS = [];
+      obj.xyPrdCurrMovie = [];
       
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
@@ -53,7 +64,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.hXYPrdRed = hTmp;      
     end
     
-    function track(obj)
+    function track(obj)      
       if isempty(obj.paramFile)
         error('CPRLabelTracker:noParams','Tracking parameter file needs to be set.');
       end
@@ -101,6 +112,8 @@ classdef CPRLabelTracker < LabelTracker
           'docomperr',false,...
           'singleoutarg',true);
       obj.trnRes = tr;
+      obj.trnResTS = now;
+      obj.trnResMD = td.MD;
       
       obj.loadXYPrdCurrMovie();
       obj.newLabelerFrame();
@@ -113,20 +126,21 @@ classdef CPRLabelTracker < LabelTracker
       movName = lObj.movieFilesAll{lObj.currMovie};
       nfrms = lObj.nframes;
       
-      td = obj.trnData;
-      pTrk = obj.trnRes.pAll(:,:,end);
-      assert(isequal(size(pTrk),size(td.pGT)));
+      tr = obj.trnRes;
+      trMD = obj.trnResMD;
+      mdl = tr.regModel.model;
+      pTrk = tr.pAll(:,:,end);
+      assert(isequal(size(pTrk),[size(trMD,1) mdl.D]));
       
-      xy = nan(td.nfids,td.d,nfrms);
-      trnMD = td.MD;
-      tfCurrMov = strcmp(trnMD.mov,movName); % these rows of trnData/MD are for the current Labeler movie
+      xy = nan(mdl.nfids,mdl.d,nfrms);
+      tfCurrMov = strcmp(trMD.mov,movName); % these rows of trnData/MD are for the current Labeler movie
       nCurrMov = nnz(tfCurrMov);
-      xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',td.nfids,td.d,nCurrMov); % [npt x d x nCurrMov]
+      xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',mdl.nfids,mdl.d,nCurrMov); % [npt x d x nCurrMov]
       
-      frmCurrMov = trnMD.frm(tfCurrMov);
+      frmCurrMov = trMD.frm(tfCurrMov);
       xy(:,:,frmCurrMov) = xyTrkCurrMov;
       obj.xyPrdCurrMovie = xy;
-    end   
+    end
       
     function newLabelerFrame(obj)
       if isempty(obj.trnRes)
@@ -149,7 +163,36 @@ classdef CPRLabelTracker < LabelTracker
       
       obj.loadXYPrdCurrMovie();
       obj.newLabelerFrame();      
-    end    
+    end
+    
+    function s = getSaveToken(obj)
+      s = struct();
+      s.labelTrackerClass = class(obj);
+      s.trnDataMD = obj.trnData.MD;
+      for p = obj.SAVETOKEN_PROPS, p=p{1}; %#ok<FXSET>
+        s.(p) = obj.(p);
+      end
+    end
+    
+    function loadSaveToken(obj,s)
+      assert(isequal(s.labelTrackerClass,class(obj)));
+      if isempty(obj.trnData)
+        % will remain empty; training results do not contain trnData
+      else
+        if ~isequaln(s.trnDataMD,obj.trnData.MD)
+          % AL 20160404: will need to be updated soon
+          error('CPRLabelTracker:loadSaveToken',...
+            'Save training results based on different training data; aborting load.');
+        end
+      end
+      
+      for p = obj.SAVETOKEN_PROPS, p=p{1}; %#ok<FXSET>
+        obj.(p) = s.(p);
+      end
+      
+      obj.loadXYPrdCurrMovie();
+      obj.newLabelerFrame();
+    end
     
   end
   
