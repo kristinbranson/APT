@@ -51,13 +51,16 @@ classdef CPRLabelTracker < LabelTracker
       
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
+      trkPrefs = obj.lObj.trackPrefs;
       ax = obj.ax;
       cla(ax);
       hold(ax,'on');
       hTmp = gobjects(npts,1);
       for iPt = 1:npts
         clr = ptsClrs(iPt,:);
-        hTmp(iPt) = plot(ax,nan,nan,'+','Color',clr);
+        hTmp(iPt) = plot(ax,nan,nan,trkPrefs.Marker,...
+          'MarkerSize',trkPrefs.MarkerSize,'LineWidth',trkPrefs.LineWidth,...
+          'Color',clr);
       end
       
       deleteValidHandles(obj.hXYPrdRed);
