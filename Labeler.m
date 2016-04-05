@@ -6,7 +6,7 @@ classdef Labeler < handle
     DEFAULT_LBLFILENAME = '%s.lbl';
     PREF_DEFAULT_FILENAME = 'pref.default.yaml';
     PREF_LOCAL_FILENAME = 'pref.yaml';
-
+    
     SAVEPROPS = { ...
       'VERSION' ...
       'projname' ...
@@ -1476,19 +1476,82 @@ classdef Labeler < handle
     end      
     
     function track(obj)
-      trker = obj.tracker;
-      if isempty(trker)
+      tObj = obj.tracker;
+      if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
-      trker.track();      
-%       trxNew = trker.track(obj.trx,lpos,[],[],[]);
-%       obj.trxSet(trxNew);
-%       obj.setFrameAndTarget(obj.currFrame,obj.currTarget);
+      tObj.track();
     end
-        
+    
+    function trackSaveResults(obj,fname)
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('Labeler:track','No tracker set.');
+      end
+      s = tObj.getSaveToken(); %#ok<NASGU>
+      
+      save(fname,'-mat','-struct','s');
+      obj.projFSInfo = ProjectFSInfo('tracking results saved',fname);
+      RC.saveprop('lastTrackingResultsFile',fname);
+    end
+    
+    function trackLoadResults(obj,fname)
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('Labeler:track','No tracker set.');
+      end
+      s = load(fname);
+      tObj.loadSaveToken(s);
+      
+      obj.projFSInfo = ProjectFSInfo('tracking results loaded',fname);
+      RC.saveprop('lastTrackingResultsFile',fname);
+    end
+          
+    function [success,fname] = trackSaveResultsAs(obj)
+      [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
+        'uiputfile','Save tracking results','trackSaveResults');
+    end
+    
+    function [success,fname] = trackLoadResultsAs(obj)
+      [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
+        'uigetfile','Load tracking results','trackLoadResults');
+    end
+    
+    function [success,fname] = trackSaveLoadAsHelper(obj,rcprop,uifcn,...
+        promptstr,rawMeth)
+      % rcprop: Name of RC property for guessing path
+      % uifcn: either 'uiputfile' or 'uigetfile'
+      % promptstr: used in uiputfile
+      % rawMeth: track*Raw method to call when a file is specified
+      
+      % Guess a path/location for save/load
+      lastFile = RC.getprop(rcprop);
+      if isempty(lastFile)
+        projFile = obj.projectfile;
+        if ~isempty(projFile)
+          savepath = fileparts(projFile);
+        else
+          savepath = pwd;
+        end
+      else
+        savepath = fileparts(lastFile);
+      end
+      
+      filterspec = fullfile(savepath,'*.mat');
+      [fname,pth] = feval(uifcn,filterspec,promptstr);
+      if isequal(fname,0)
+        fname = [];
+        success = false;
+      else
+        fname = fullfile(pth,fname);
+        success = true;
+        obj.(rawMeth)(fname);
+      end
+    end
+    
   end
    
   %% Video

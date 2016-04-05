@@ -51,7 +51,7 @@ classdef LabelTracker < handle
       obj.paramFile = prmFile;
     end
     
-    function initHook(obj)
+    function initHook(obj) %#ok<*MANU>
       % Called when a new project is created/loaded, etc
     end    
         
@@ -64,6 +64,14 @@ classdef LabelTracker < handle
     
     function newLabelerMovie(obj)
       % Called when Labeler is navigated to a new movie
+    end
+    
+    function s = getSaveToken(obj)
+      % Get a struct to serialize      
+    end
+    
+    function loadSaveToken(obj,s)
+      
     end
     
   end
