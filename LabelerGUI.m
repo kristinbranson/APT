@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 05-Apr-2016 05:46:32
+% Last Modified by GUIDE v2.5 06-Apr-2016 10:23:43
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -322,6 +322,7 @@ lObj = evt.AffectedObject;
 tf = ~isempty(lObj.tracker);
 onOff = onIff(tf);
 lObj.gdata.menu_track.Enable = onOff;
+lObj.gdata.pbTrain.Enable = onOff;
 lObj.gdata.pbTrack.Enable = onOff;
 
 function cbkMovieCenterOnTargetChanged(src,evt)
@@ -336,7 +337,16 @@ handles = guidata(hObject);
 lObj = handles.labelerObj;
 v = get(hObject,'Value');
 f = round(1 + v * (lObj.nframes - 1));
-lObj.setFrame(f);
+cmod = handles.figure.CurrentModifier;
+if ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}))
+  if f>lObj.currFrame
+    lObj.frameUp(true);
+  else
+    lObj.frameDown(true);
+  end  
+else
+  lObj.setFrame(f);
+end
 
 function slider_frame_CreateFcn(hObject,~,~)
 % Hint: slider controls usually have a light gray background.
@@ -363,6 +373,8 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
   set(hObject,'BackgroundColor','white');
 end
 
+function pbTrain_Callback(hObject, eventdata, handles)
+handles.labelerObj.trackTrain();
 function pbTrack_Callback(hObject, eventdata, handles)
 handles.labelerObj.track();
 
@@ -606,3 +618,4 @@ if hlpSave(handles.labelerObj)
   delete(handles.figure);
   delete(handles.labelerObj);
 end
+

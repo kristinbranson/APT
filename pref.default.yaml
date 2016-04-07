@@ -41,8 +41,12 @@ LabelPointsPlot:
     OtherLabeledPointColor: [0,1,0]
 
 Track:
-    Enable: 0
-    Type: CPRLabelTracker  
+  Enable: 0
+  Type: CPRLabelTracker  
+  PredictFrameStep: 5
+  PredictFrameStepBig: 10
+  PredictNeighborhood: 100
+  PredictPointsPlot:
     Marker: '+'
     MarkerSize: 10
     LineWidth: 2

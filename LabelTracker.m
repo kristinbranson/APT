@@ -54,9 +54,16 @@ classdef LabelTracker < handle
     function initHook(obj) %#ok<*MANU>
       % Called when a new project is created/loaded, etc
     end    
-        
-    function track(obj)
+       
+    function train(obj)
     end
+
+    function track(obj,iMovs,frms)
+      % Apply trained tracker to the specified frames.
+      %
+      % iMovs: [M] indices into .lObj.movieFilesAll to track
+      % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
+    end    
     
     function newLabelerFrame(obj)
       % Called when Labeler is navigated to a new frame
@@ -67,10 +74,11 @@ classdef LabelTracker < handle
     end
     
     function s = getSaveToken(obj)
-      % Get a struct to serialize      
+      % Get a struct to serialize
+      s = struct();
     end
     
-    function loadSaveToken(obj,s)
+    function loadSaveToken(obj,s) %#ok<*INUSD>
       
     end
     

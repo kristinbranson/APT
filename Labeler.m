@@ -1475,7 +1475,7 @@ classdef Labeler < handle
       trker.setParamFile(prmFile);      
     end      
     
-    function track(obj)
+    function trackTrain(obj)
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
@@ -1483,7 +1483,11 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
-      tObj.track();
+      tObj.train();
+    end
+    
+    function track(obj)
+      
     end
     
     function trackSaveResults(obj,fname)
