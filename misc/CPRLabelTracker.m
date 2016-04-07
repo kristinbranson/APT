@@ -1,7 +1,7 @@
 classdef CPRLabelTracker < LabelTracker
   
   properties (Constant)
-    SAVETOKEN_PROPS = {'trnDataTS' 'trnRes' 'trnResMD' 'trnResTS'};
+    SAVETOKEN_PROPS = {'trnDataTS' 'trnRes' 'trnResPallMD' 'trnResTS'};
   end
   
   properties
@@ -9,8 +9,13 @@ classdef CPRLabelTracker < LabelTracker
     trnData % most recent training data
     trnDataTS % timestamp for trnData
     trnRes % most recent training results
-    trnResMD % movie/frame metadata for trnRes
     trnResTS % timestamp for trnRes
+    trnResPallMD % movie/frame metadata for trnRes.pAll
+    
+    trkP % [NTst D T+1] reduced/pruned tracked shapes
+    trkPFull % [NTst RT D T+1] Tracked shapes full data
+    trkPTS % timestamp for trkP*
+    trkPMD % movie/frame md for trkP
     
     % for view/presentation
     xyPrdCurrMovie; % [npts d nfrm] predicted labels for current Labeler movie
@@ -45,81 +50,189 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnData = [];
       obj.trnDataTS = [];
       obj.trnRes = [];
-      obj.trnResMD = [];
+      obj.trnResPallMD = [];
       obj.trnResTS = [];
+      
+      obj.trkP = [];
+      obj.trkPFull = [];
+      obj.trkPTS = [];
+      obj.trkPMD = [];
+            
       obj.xyPrdCurrMovie = [];
+      deleteValidHandles(obj.hXYPrdRed);
+      obj.hXYPrdRed = [];
       
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
-      trkPrefs = obj.lObj.trackPrefs;
+      plotPrefs = obj.lObj.trackPrefs.PredictPointsPlot;
       ax = obj.ax;
       cla(ax);
       hold(ax,'on');
       hTmp = gobjects(npts,1);
       for iPt = 1:npts
         clr = ptsClrs(iPt,:);
-        hTmp(iPt) = plot(ax,nan,nan,trkPrefs.Marker,...
-          'MarkerSize',trkPrefs.MarkerSize,'LineWidth',trkPrefs.LineWidth,...
+        hTmp(iPt) = plot(ax,nan,nan,plotPrefs.Marker,...
+          'MarkerSize',plotPrefs.MarkerSize,...
+          'LineWidth',plotPrefs.LineWidth,...
           'Color',clr);
-      end
-      
-      deleteValidHandles(obj.hXYPrdRed);
+      end      
       obj.hXYPrdRed = hTmp;      
     end
     
-    function track(obj)      
-      if isempty(obj.paramFile)
-        error('CPRLabelTracker:noParams','Tracking parameter file needs to be set.');
+    function td = prepareCPRData(obj,ppPrm,varargin)
+      % td = prepareCPRData(obj,ppPrm,'all',varargin) % include all frames from all movies
+      % td = prepareCPRData(obj,ppPrm,'lbl',varargin) % include all labeled frames from all movies
+      % td = prepareCPRData(obj,ppPrm,iMovs,frms,varargin)
+      %
+      % Does not mutate obj
+            
+      if any(strcmp(varargin{1},{'all' 'lbl'}));
+        type = varargin{1};
+        varargin = varargin(2:end);
+      else
+        [iMovs,frms] = deal(varargin{1:2});
+        varargin = varargin(3:end);
       end
-      prm = ReadYaml(obj.paramFile);
-        
+      
+      hWB = myparse(varargin,'hWaitBar',[]);
+      
       lObj = obj.lObj;
-      
-      hWB = waitbar(0);
-      hTxt = findall(hWB,'type','text');
-      hTxt.Interpreter = 'none';
-      
-      % Create/preprocess the training data
-      td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,false,...
-        'hWaitBar',hWB);
+            
+      if exist('type','var')>0
+        td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,...
+          type,'hWaitBar',hWB);
+      else
+        td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,...
+          iMovs,frms,'hWaitBar',hWB);
+      end
+        
       md = td.MD;
-      prmPP = prm.PreProc;
-      if prmPP.histeq
+      if ppPrm.histeq
         gHE = categorical(md.movS);
         td.histEq('g',gHE,'hWaitBar',hWB);
       else
         fprintf(1,'Not doing histogram equalization.\n');
       end
-      if ~isempty(prmPP.channelsFcn)
-        feval(prmPP.channelsFcn,td,'hWaitBar',hWB);
+      if ~isempty(ppPrm.channelsFcn)
+        feval(ppPrm.channelsFcn,td,'hWaitBar',hWB);
       else
         fprintf(1,'Not computing channel features.');
       end
-      obj.trnData = td;
-      obj.trnDataTS = now;
-            
+    end
+    
+    function prm = readParamFile(obj)
+      prmFile = obj.paramFile;
+      if isempty(prmFile)
+        error('CPRLabelTracker:noParams',...
+          'Tracking parameter file needs to be set.');
+      end
+      prm = ReadYaml(prmFile);
+    end
+    
+    function train(obj)
+      prm = obj.readParamFile();
+      
+      hWB = waitbar(0);
+      hTxt = findall(hWB,'type','text');
+      hTxt.Interpreter = 'none';
+
+      td = obj.prepareCPRData(prm.PreProc,'lbl','hWaitBar',hWB);
       td.iTrn = 1:td.N;
       td.summarize('movS',td.iTrn);
-
-      [Is,nChan] = td.getTrnCombinedIs();
+      
+      obj.trnData = td;
+      obj.trnDataTS = now;
+      
+      [Is,nChan] = td.getCombinedIs(td.iTrn);
       prm.Ftr.nChn = nChan;
       
-      delete(hWB);
+      delete(hWB); % AL: get this guy in training?
       
       tr = train(td.pGTTrn,td.bboxesTrn,Is,...
           'modelPrms',prm.Model,...
           'regPrm',prm.Reg,...
           'ftrPrm',prm.Ftr,...
-          'initPrm',prm.Init,...
+          'initPrm',prm.TrainInit,...
           'prunePrm',prm.Prune,...
           'docomperr',false,...
           'singleoutarg',true);
       obj.trnRes = tr;
       obj.trnResTS = now;
-      obj.trnResMD = td.MD;
+      obj.trnResPallMD = td.MD;
       
       obj.loadXYPrdCurrMovie();
       obj.newLabelerFrame();
+    end
+    
+    function track(obj,iMovs,frms)
+      if isempty(obj.trnRes)
+        error('CPRLabelTracker:noRes','No tracker has been trained.');
+      end
+      
+      prm = obj.readParamFile();
+
+      hWB = waitbar(0);
+      hTxt = findall(hWB,'type','text');
+      hTxt.Interpreter = 'none';
+
+      td = obj.prepareCPRData(prm.PreProc,iMovs,frms,'hWaitBar',hWB);
+
+      td.iTst = 1:td.N;
+      td.summarize('movS',td.iTst);
+%       obj.trnData = td;
+%       obj.trnDataTS = now;
+
+      delete(hWB);
+ 
+      [Is,nChan] = td.getCombinedIs(td.iTst);
+      prm.Ftr.nChn = nChan;
+            
+      %% Test on test set
+      tr = obj.trnRes;
+      prmInit = prm.TestInit;
+      NTst = td.NTst;
+      RT = prmInit.Nrep;
+      Tp1 = tr.regModel.T+1;
+      mdl = tr.regModel.model;
+      
+      pGTTrnNMu = nanmean(tr.regModel.pGtN,1);
+      pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],...
+        repmat(pGTTrnNMu,NTst,1),RT,prmInit.augrotate);
+      VERBOSE = 0;
+      [~,p_t] = rcprTest1(Is,tr.regModel,pIni,tr.regPrm,tr.ftrPrm,...
+        td.bboxesTst,VERBOSE,tr.prunePrm);
+      pTstT = reshape(p_t,[NTst RT mdl.D Tp1]);      
+      
+      %% Select best preds for each time
+      pTstTRed = nan(NTst,mdl.D,Tp1);
+      prunePrm = tr.prunePrm;
+      prunePrm.prune = 1;
+      for t = 1:Tp1
+        fprintf('Pruning t=%d\n',t);
+        pTmp = permute(pTstT(:,:,:,t),[1 3 2]); % [NxDxR]
+        pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,tr.regModel.model,prunePrm);
+      end
+      
+      obj.trkP = pTstTRed;
+      obj.trkPFull = pTstT;
+      obj.trkPTS = now;
+      obj.trkPMD = td.MD;
+      
+%       obj.loadXYPrdCurrMovie();
+%       obj.newLabelerFrame();      
+
+      %       if ~skipLoss        
+%         %%
+%         hFig = Shape.vizLossOverTime(td.pGTTst,pTstTRed,'md',td.MDTst);
+%         
+%         %%
+%         hFig(end+1) = figure('WindowStyle','docked');
+%         iTst = td.iTst;
+%         tfTstLbled = ismember(iTst,find(td.isFullyLabeled));
+%         Shape.vizDiff(td.ITst(tfTstLbled),td.pGTTst(tfTstLbled,:),...
+%           pTstTRed(tfTstLbled,:,end),tr.regModel.model,...
+%           'fig',gcf,'nr',4,'nc',4,'md',td.MDTst(tfTstLbled,:));
+%       end            
     end
     
     function loadXYPrdCurrMovie(obj)
@@ -130,7 +243,7 @@ classdef CPRLabelTracker < LabelTracker
       nfrms = lObj.nframes;
       
       tr = obj.trnRes;
-      trMD = obj.trnResMD;
+      trMD = obj.trnResPallMD;
       mdl = tr.regModel.model;
       pTrk = tr.pAll(:,:,end);
       assert(isequal(size(pTrk),[size(trMD,1) mdl.D]));
@@ -200,9 +313,11 @@ classdef CPRLabelTracker < LabelTracker
   end
   
   methods (Static)
+        
     function tdPPJan(td,varargin)
       td.computeIpp([],[],[],'iTrl',1:td.N,'jan',true,varargin{:});
     end
+    
   end
   
 end

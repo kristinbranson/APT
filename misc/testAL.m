@@ -101,6 +101,7 @@ if tfTestRes
 else
   mdl = tr.regModel.model;
   pGTTrnNMu = nanmean(tr.regModel.pGtN,1);
+  fprintf(2,'AL20160408: update to params.TestInit (nReps, DOROTATE)\n');
   DOROTATE = false;
   pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],...
     repmat(pGTTrnNMu,td.NTst,1),nReps,DOROTATE);
