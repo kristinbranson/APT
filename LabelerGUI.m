@@ -105,8 +105,12 @@ listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged
 listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxMode','PostSet',@cbkShowTrxModeChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
+listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
+listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
+listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
+
 %listeners{end+1,1} = addlistener(lObj,'currSusp','PostSet',@cbkCurrSuspChanged);
 handles.listeners = listeners;
 
@@ -117,6 +121,7 @@ handles.propsNeedInit = {
   'suspScore' 
   'showTrxMode' 
   'tracker' 
+  'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'movieCenterOnTarget'
   'movieForceGrayscale'};
 
@@ -325,6 +330,23 @@ lObj.gdata.menu_track.Enable = onOff;
 lObj.gdata.pbTrain.Enable = onOff;
 lObj.gdata.pbTrack.Enable = onOff;
 
+function cbkTrackerNFramesChanged(src,evt)
+lObj = evt.AffectedObject;
+initPUMTrack(lObj);
+
+function initPUMTrack(lObj)
+tms = enumeration('TrackMode');
+menustrs = arrayfun(@(x)x.menuStr(lObj),tms,'uni',0);
+hPUM = lObj.gdata.pumTrack;
+hPUM.String = menustrs;
+hPUM.UserData = tms;
+
+function tm = getTrackMode(handles)
+hPUM = handles.pumTrack;
+tms = hPUM.UserData;
+val = hPUM.Value;
+tm = tms(val);
+
 function cbkMovieCenterOnTargetChanged(src,evt)
 lObj = evt.AffectedObject;
 tf = lObj.movieCenterOnTarget;
@@ -376,7 +398,8 @@ end
 function pbTrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackTrain();
 function pbTrack_Callback(hObject, eventdata, handles)
-handles.labelerObj.track();
+tm = getTrackMode(handles);
+handles.labelerObj.track(tm);
 
 function pbClear_Callback(hObject, eventdata, handles)
 handles.labelerObj.lblCore.clearLabels();

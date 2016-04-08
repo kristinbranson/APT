@@ -150,7 +150,12 @@ classdef Labeler < handle
   
   %% Tracking
   properties (SetObservable)
-    tracker % LabelTracker object;
+    tracker % LabelTracker object
+    trackNFramesSmall % small/fine frame increment for tracking
+    trackNFramesLarge % big/coarse "
+    trackNFramesNear % neighborhood radius
+  end
+  properties    
     trackPrefs % Track preferences substruct
   end
   
@@ -331,7 +336,12 @@ classdef Labeler < handle
       end
       obj.labelPointsPlotInfo = lpp;
       obj.trxPrefs = pref.Trx;
-      obj.trackPrefs = pref.Track;
+      
+      prfTrk = pref.Track;      
+      obj.trackNFramesSmall = prfTrk.PredictFrameStep;
+      obj.trackNFramesLarge = prfTrk.PredictFrameStepBig;
+      obj.trackNFramesNear = prfTrk.PredictNeighborhood;
+      obj.trackPrefs = prfTrk;      
     end
     
     function addDepHandle(obj,h)
@@ -1344,7 +1354,7 @@ classdef Labeler < handle
            
   end
   
-  methods (Static)    
+  methods (Static)
     function nptsLbled = labelPosNPtsLbled(lpos)
       % poor man's export of LabelPosLabeledFramesStats
       [~,d,nfrm,ntgt] = size(lpos);
@@ -1486,8 +1496,15 @@ classdef Labeler < handle
       tObj.train();
     end
     
-    function track(obj)
+    function track(obj,tm)
+      % tm: a TrackMode
       
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('Labeler:track','No tracker set.');
+      end      
+      [iMovs,frms] = tm.getMovsFramesToTrack(obj);
+      tObj.track(iMovs,frms);      
     end
     
     function trackSaveResults(obj,fname)
