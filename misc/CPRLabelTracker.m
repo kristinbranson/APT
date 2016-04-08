@@ -5,19 +5,20 @@ classdef CPRLabelTracker < LabelTracker
   end
   
   properties
-    % core training state
+    % Training state -- set during .train()
     trnData % most recent training data
     trnDataTS % timestamp for trnData
     trnRes % most recent training results
     trnResTS % timestamp for trnRes
     trnResPallMD % movie/frame metadata for trnRes.pAll
     
+    % Tracking state -- set during .track()
     trkP % [NTst D T+1] reduced/pruned tracked shapes
     trkPFull % [NTst RT D T+1] Tracked shapes full data
     trkPTS % timestamp for trkP*
     trkPMD % movie/frame md for trkP
     
-    % for view/presentation
+    % View/presentation
     xyPrdCurrMovie; % [npts d nfrm] predicted labels for current Labeler movie
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame
   end
@@ -236,39 +237,52 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function loadXYPrdCurrMovie(obj)
-      % sets .xyPrdCurrMovie from tracking results for current movie
+      % sets .xyPrdCurrMovie for current Labeler movie from .trkP, .trkPMD 
       
+      trkTS = obj.trkPTS;
+      if isempty(trkTS)
+        obj.xyPrdCurrMovie = [];
+        return;
+      end
+      
+      if trkTS<obj.trnResTS || trkTS<obj.trnDataTS
+        warning('CPRLabelTracker:trackOOD',...
+          'Tracking results appear out-of-date.');
+      end
+        
       lObj = obj.lObj;
       movName = lObj.movieFilesAll{lObj.currMovie};
       nfrms = lObj.nframes;
       
-      tr = obj.trnRes;
-      trMD = obj.trnResPallMD;
-      mdl = tr.regModel.model;
-      pTrk = tr.pAll(:,:,end);
-      assert(isequal(size(pTrk),[size(trMD,1) mdl.D]));
+      mdl = obj.trnRes.regModel.model;
+      pTrk = obj.trkP(:,:,end);
+      trkMD = obj.trkPMD;
+      assert(isequal(size(pTrk),[size(trkMD,1) mdl.D]));
       
       xy = nan(mdl.nfids,mdl.d,nfrms);
-      tfCurrMov = strcmp(trMD.mov,movName); % these rows of trnData/MD are for the current Labeler movie
+      tfCurrMov = strcmp(trkMD.mov,movName); % these rows of trnData/MD are for the current Labeler movie
       nCurrMov = nnz(tfCurrMov);
       xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',mdl.nfids,mdl.d,nCurrMov); % [npt x d x nCurrMov]
       
-      frmCurrMov = trMD.frm(tfCurrMov);
+      frmCurrMov = trkMD.frm(tfCurrMov);
       xy(:,:,frmCurrMov) = xyTrkCurrMov;
       obj.xyPrdCurrMovie = xy;
     end
       
     function newLabelerFrame(obj)
-      if isempty(obj.trnRes)
-        return;
-      end
+      % Update .hXYPrdRed based on current Labeler frame and
+      % .xyPrdCurrMovie
       
       frm = obj.lObj.currFrame;
-      xy = obj.xyPrdCurrMovie(:,:,frm); % [npt x d]
       npts = obj.nPts;
       hXY = obj.hXYPrdRed;
+      if isempty(obj.xyPrdCurrMovie)
+        xy = nan(npts,2);
+      else
+        xy = obj.xyPrdCurrMovie(:,:,frm); % [npt x d]
+      end
       for iPt = 1:npts
-        set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2));        
+        set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2));
       end
     end
     
