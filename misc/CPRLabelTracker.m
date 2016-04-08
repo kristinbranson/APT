@@ -95,7 +95,9 @@ classdef CPRLabelTracker < LabelTracker
         varargin = varargin(3:end);
       end
       
-      hWB = myparse(varargin,'hWaitBar',[]);
+      [useTrnH0,hWB] = myparse(varargin,...
+        'useTDH0',false,... % if true, use trainData H0 for histEq (if histEq requested)
+        'hWaitBar',[]);
       
       lObj = obj.lObj;
             
@@ -109,8 +111,14 @@ classdef CPRLabelTracker < LabelTracker
         
       md = td.MD;
       if ppPrm.histeq
+        if useTrnH0
+          H0 = obj.trnData.H0;
+          assert(~isempty(H0));
+        else
+          H0 = [];
+        end
         gHE = categorical(md.movS);
-        td.histEq('g',gHE,'hWaitBar',hWB);
+        td.histEq('g',gHE,'hWaitBar',hWB,'H0',H0);
       else
         fprintf(1,'Not doing histogram equalization.\n');
       end
@@ -161,8 +169,8 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResTS = now;
       obj.trnResPallMD = td.MD;
       
-      obj.loadXYPrdCurrMovie();
-      obj.newLabelerFrame();
+%       obj.loadXYPrdCurrMovie();
+%       obj.newLabelerFrame();
     end
     
     function track(obj,iMovs,frms)
@@ -176,7 +184,7 @@ classdef CPRLabelTracker < LabelTracker
       hTxt = findall(hWB,'type','text');
       hTxt.Interpreter = 'none';
 
-      td = obj.prepareCPRData(prm.PreProc,iMovs,frms,'hWaitBar',hWB);
+      td = obj.prepareCPRData(prm.PreProc,iMovs,frms,'hWaitBar',hWB,'useTDH0',true);
 
       td.iTst = 1:td.N;
       td.summarize('movS',td.iTst);
@@ -219,8 +227,8 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkPTS = now;
       obj.trkPMD = td.MD;
       
-%       obj.loadXYPrdCurrMovie();
-%       obj.newLabelerFrame();      
+      obj.loadXYPrdCurrMovie();
+      obj.newLabelerFrame();      
 
       %       if ~skipLoss        
 %         %%

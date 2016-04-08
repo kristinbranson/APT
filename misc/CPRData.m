@@ -801,9 +801,8 @@ classdef CPRData < handle
     function H0 = histEq(obj,varargin)
       % Perform histogram equalization on all images
       % 
-      % H0: [nbin] intensity histogram used in equalization
-      %
       % Optional PVs:
+      % H0: [nbin] intensity histogram used in equalization
       % g: [N] grouping vector, either numeric or categorical. Images with 
       % the same value of g are histogram-equalized together. For example, 
       % g might indicate which movie the image is taken from.
