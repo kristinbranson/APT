@@ -1,7 +1,8 @@
 classdef CPRLabelTracker < LabelTracker
   
   properties (Constant)
-    SAVETOKEN_PROPS = {'trnDataTS' 'trnRes' 'trnResPallMD' 'trnResTS'};
+    SAVETOKEN_PROPS = {'trnDataTS' 'trnRes' 'trnResTS' 'trnResPallMD' ...
+                       'trkP' 'trkPFull' 'trkPTS' 'trkPMD'};
   end
   
   properties
