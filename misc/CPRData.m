@@ -431,6 +431,14 @@ classdef CPRData < handle
       [varargout{1:nargout}] = Shape.viz(obj.I(obj.isFullyLabeled,:),obj.pGT(obj.isFullyLabeled,:),...
         struct('nfids',obj.nfids,'D',obj.D),'md',obj.MD(obj.isFullyLabeled,:),varargin{:});
     end
+    function varargout = vizIdx(obj,iTrls,varargin)
+      n = numel(iTrls);
+      nr = floor(sqrt(n));
+      nc = ceil(n/nr);
+      [varargout{1:nargout}] = Shape.viz(obj.I,obj.pGT,...
+        struct('nfids',obj.nfids,'D',obj.D),'md',obj.MD,...
+        'nr',nr,'nc',nc,'idxs',iTrls,varargin{:});
+    end
     
     function n = getFilename(obj)
       n = sprintf('td_%s_%s.mat',obj.Name,datestr(now,'yyyymmdd'));
@@ -904,6 +912,147 @@ classdef CPRData < handle
       
       obj.iTrn = iTrnAcc;
       obj.iTst = iTstAcc;      
+    end
+    
+    function [grps,ffd,ffdiTrl] = ffTrnSet(obj,iTrn,gvar)
+      % Furthest-first training set analysis
+      %
+      % iTrn: [NTrn] vector of indices to use/consider in training
+      % gvar: field of .MD to use as grouping var
+      %
+      % grps: [Ngrp] categorical, unique groups found
+      % ffd: [Ngrp] cell vec. ffd{i} contains a vector of "furthest-first"
+      % distances, sorted in decreasing order.
+      % ffdiTrl. [Ngrp] cell vec. ffdiTrl{i} is a vector of iTrls for
+      % ffd{i}.
+      
+      %obj.expandMDTable();
+      
+      tMDTrn = obj.MD(iTrn,:);
+      pTrn = obj.pGT(iTrn,:);
+      
+      g = tMDTrn.(gvar);
+      grps = categorical(unique(g));
+      nGrps = numel(grps);
+      ffd = cell(nGrps,1);
+      ffdiTrl = cell(nGrps,1);
+      
+      for iGrp = 1:nGrps
+        gCur = grps(iGrp);
+        tf = g==gCur;
+        iG = find(tf); % indices into iTrn
+        pG = pTrn(iG,:);
+        nG = numel(iG);
+        
+        % use furthestfirst to order shapes by decreasing distance
+        warnst = warning('off','backtrace');
+        [~,~,tmpidx,~,mindists] = furthestfirst(pG,nG,'Start',[]);  
+        warning(warnst);
+        
+        mindists(1) = inf;
+        assert(isequal(sort(mindists,'descend'),mindists));
+        
+        ffd{iGrp} = mindists;
+        ffdiTrl{iGrp} = iTrn(iG(tmpidx));
+      end
+    end
+    
+    function [hFig1] = ffTrnSetSelect(obj,grps,ffd,ffdiTrl)
+      % Display furthestfirst distances for groups in subplots; enable
+      % clicking on subplots to visualize training shape
+      
+      assert(isequal(numel(grps),numel(ffd),numel(ffdiTrl)));
+      cellfun(@(x,y)assert(isequal(size(x),size(y))),ffd,ffdiTrl);
+      assert(iscategorical(grps));
+      
+      nGrp = numel(grps);
+      nrc = ceil(sqrt(nGrp));
+      hFig1 = figure;
+      axs = createsubplots(nrc,nrc,.1);
+      bdfCbks = cell(nGrp,1);
+      for iGrp = 1:nGrp
+        ax = axs(iGrp);
+        plot(ax,ffd{iGrp});
+        grid(ax,'on');
+        title(ax,char(grps(iGrp)),'interpreter','none','fontweight','bold');
+        if iGrp==1
+          ylabel(ax,'distance (px^2)');
+        end                  
+        bdfCbks{iGrp} = @(x,y)nst(x,y);
+      end
+      
+      LiveDataCursor(hFig1,axs,bdfCbks);
+      
+        function nst(xsel,ysel) %#ok<INUSL>
+          % xsel, ysel: (x,y) on ffd plot nearest to user click
+          
+          iTrnAcc = [];
+          for zGrp = 1:nGrp
+            ffdists = ffd{zGrp};
+            nTot = numel(ffdists);
+            tfSel = ffdists>=ysel;
+            nSel = nnz(tfSel);
+            fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(grps(zGrp)),...
+              nSel,nTot,round(nSel/nTot*100));
+            iTrnAcc = [iTrnAcc;ffdiTrl{zGrp}(tfSel)]; %#ok<AGROW>
+          end
+          obj.iTrn = iTrnAcc;
+          fprintf(1,'Grand total of %d/%d (%d%%) shapes selected for training.\n',...
+            numel(iTrnAcc),obj.N,round(numel(iTrnAcc)/obj.N*100));
+          
+          % visualize
+          warnst = warning('off','backtrace');
+          [~,~,tmpidx,~,mindists] = furthestfirst(obj.pGTTrn,obj.NTrn,'Start',[]);
+          warning(warnst);          
+          mindists(1) = inf;
+          assert(isequal(sort(mindists,'descend'),mindists));
+
+          figure;
+          plot(mindists);
+          grid('on');
+          title('Total training furthestfirst dists','interpreter','none','fontweight','bold');
+          ylabel('distance (px^2)');
+        
+%           NSHOW = 6;
+%           iTrlShow1 = obj.iTrn(tmpidx(1:NSHOW));
+%           iTrlShow2 = obj.iTrn(tmpidx(end-NSHOW+1:end));
+%           obj.vizIdx(iTrlShow1);
+%           obj.vizIdx(iTrlShow2);  
+        end
+    end
+    
+    function hFig = vizWithFurthestFirst(obj)
+      % Display furthestfirst plot for all training data (.iTrn);
+      % clicking on plot shows training shapes in that vicinity
+      % clickingfor groups in subplots; enable
+      % clicking on subplots to visualize training shape
+      
+      hFig = figure;
+      
+      % use furthestfirst to order shapes by decreasing distance
+      warnst = warning('off','backtrace');
+      [~,~,ffdidx,~,ffd] = furthestfirst(obj.pGTTrn,obj.NTrn,'Start',[]);
+      warning(warnst);
+      ffd(1) = inf;
+      assert(isequal(sort(ffd,'descend'),ffd));
+      
+      plot(ffd);
+      grid('on');
+      title('Training data','interpreter','none','fontweight','bold');
+      ylabel('distance (px^2)');
+      bdfCbk = {@(x,y)nst(x,y)};
+     
+      LiveDataCursor(hFig,gca,bdfCbk);
+      
+      function nst(xsel,ysel) %#ok<INUSD>
+        %xsel, ysel: (x,y) on ffd plot nearest to user clic
+        NSHOW = 6;
+        rad = NSHOW/2;
+        i0 = max(1,xsel-rad);
+        i1 = min(obj.NTrn,xsel+rad);
+        idxShow = obj.iTrn(ffdidx(i0:i1));
+        obj.vizIdx(idxShow);
+      end
     end
     
     function [iTrn,iTstAll,iTstLbl] = genITrnITstJan(obj,idTest)
