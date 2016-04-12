@@ -1038,8 +1038,8 @@ classdef CPRData < handle
       
       plot(ffd);
       grid('on');
-      title('Training data','interpreter','none','fontweight','bold');
-      ylabel('distance (px^2)');
+      title('Training data. Click to view training data near point.','interpreter','none','fontweight','bold');
+      ylabel('Minimum distance to training set (px^2)');
       bdfCbk = {@(x,y)nst(x,y)};
      
       LiveDataCursor(hFig,gca,bdfCbk);

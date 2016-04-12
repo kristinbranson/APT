@@ -376,13 +376,12 @@ classdef Shape
           end
         end
         if tfMD
-          str = sprintf('%d iLbl%d f%d',iIm,opts.md.iLbl(iIm),...
-            opts.md.frm(iIm));
+          str = sprintf('%d %s f%d',iIm,opts.md.movS{iIm},opts.md.frm(iIm));
         else
           str = num2str(iIm);
         end
         text(1,1,str,'parent',hax(iPlt),'color',[1 1 .2],...
-          'verticalalignment','top');
+          'verticalalignment','top','interpreter','none');
       end
     end
     

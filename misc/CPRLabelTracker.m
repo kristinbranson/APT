@@ -174,6 +174,14 @@ classdef CPRLabelTracker < LabelTracker
 %       obj.newLabelerFrame();
     end
     
+    function inspectTrainingData(obj)
+      td = obj.trnData;
+      if isempty(td)
+        error('CPRLabelTracker:noTD','No training data has been generated.');
+      end
+      td.vizWithFurthestFirst();      
+    end
+    
     function track(obj,iMovs,frms)
       if isempty(obj.trnRes)
         error('CPRLabelTracker:noRes','No tracker has been trained.');
