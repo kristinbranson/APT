@@ -610,8 +610,12 @@ classdef CPRData < handle
       %
       % Optional PVs:
       % - hWaitBar. Waitbar object
+      % - noImg. logical scalar default false. If true, all elements of I
+      % will be empty.
       
-      hWB = myparse(varargin,'hWaitBar',[]);
+      [hWB,noImg] = myparse(varargin,...
+        'hWaitBar',[],...
+        'noImg',false);
       assert(numel(iMovs)==numel(frms));
       for i = 1:numel(frms)
         val = frms{i};
@@ -673,12 +677,18 @@ classdef CPRData < handle
           waitbar(0,hWB,wbStr);          
         end
         for iFrm = 1:nFrmRead
-          waitbar(iFrm/nFrmRead,hWB);
+          if tfWB
+            waitbar(iFrm/nFrmRead,hWB);
+          end
           
           f = frms2Read(iFrm);
-          im = mr.readframe(f);
-          if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
-            im = rgb2gray(im);
+          if noImg
+            im = [];
+          else
+            im = mr.readframe(f);
+            if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
+              im = rgb2gray(im);
+            end
           end
           
           %fprintf('iMov=%d, read frame %d (%d/%d)\n',iMov,f,iFrm,nFrmRead);
