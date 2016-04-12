@@ -624,12 +624,7 @@ prmFile = fullfile(p,f);
 RC.saveprop('lastCPRParamFile',prmFile);
 handles.labelerObj.setTrackParamFile(prmFile);
 function menu_track_inspect_training_data_Callback(hObject, eventdata, handles)
-td = handles.labelerObj.tracker.trnData;
-if isempty(td)
-  error('Labeler:noTD','No training data has been generated.');
-end
-td.vizWithFurthestFirst();
-
+handles.labelerObj.tracker.inspectTrainingData();
 
 function menu_track_savetrackingresults_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackSaveResultsAs();

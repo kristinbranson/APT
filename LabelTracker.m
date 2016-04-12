@@ -57,6 +57,9 @@ classdef LabelTracker < handle
        
     function train(obj)
     end
+    
+    function inspectTrainingData(obj)
+    end
 
     function track(obj,iMovs,frms)
       % Apply trained tracker to the specified frames.
