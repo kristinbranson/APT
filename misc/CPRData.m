@@ -39,7 +39,9 @@ classdef CPRData < handle
     MDTrn
     MDTst
   end
-  methods % property getters
+  
+  %% Dep prop getters
+  methods 
     function v = get.N(obj)
       v = numel(obj.I);
     end
@@ -120,6 +122,8 @@ classdef CPRData < handle
       end
     end
   end
+  
+  %% Ctor
   methods
     
     function obj = CPRData(varargin)
@@ -147,13 +151,16 @@ classdef CPRData < handle
           if ischar(varargin{4}) && any(strcmp(varargin{4},{'all' 'lbl'}))
             type = varargin{4};
             varargin = varargin(5:end);
-            [Is,p,md] = CPRData.readMovsLbls(movFiles,lposes,lpostags,type,varargin{:});
+            [Is,tbl] = CPRData.readMovsLbls(movFiles,lposes,lpostags,type,varargin{:});
           else
             iMovs = varargin{4};
             frms = varargin{5};
             varargin = varargin(6:end);
-            [Is,p,md] = CPRData.readMovsLblsRaw(movFiles,lposes,lpostags,iMovs,frms,varargin{:});
+            [Is,tbl] = CPRData.readMovsLblsRaw(movFiles,lposes,lpostags,iMovs,frms,varargin{:});
           end
+          p = tbl.p;
+          tbl(:,'p') = [];
+          md = tbl;
           
           sz = cellfun(@(x)size(x'),Is,'uni',0);
           bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
@@ -172,131 +179,395 @@ classdef CPRData < handle
       obj.pGT = p;
       obj.bboxes = bb;
     end
-        
-    function [sgscnts,slscnts,sgsedge,slsedge] = calibIpp(obj,nsamp)
-      % Sample SGS/SLS intensity histograms 
-      %
-      % nsamp: number of trials to sample
+    
+    function append(obj,varargin)
+      % cat/append additional CPRDatas
       
-      sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
-      sig2 = [0 2 4 8];
-      n1 = numel(sig1);
-      n2 = numel(sig2);
+      warning('CPRData:append','Clearing H0.');
+      obj.H0 = [];
       
-      sgsedge = [0:160 inf];
-      nbinSGS = numel(sgsedge)-1;
-      sgscnts = repmat({zeros(1,nbinSGS)},n1,n2);
-      slsedge = [-inf -160:160 inf];
-      nbinSLS = numel(slsedge)-1;
-      slscnts = repmat({zeros(1,nbinSLS)},n1,n2);
-
-      iTrlSamp = randsample(obj.N,nsamp);
-      nTrlSamp = numel(iTrlSamp);
-      for i = 1:nTrlSamp
-        if mod(i,10)==0
-          disp(i);
-        end
-        iTrl = iTrlSamp(i);
+      for i = 1:numel(varargin)
+        dd = varargin{i};
+        assert(isequal(dd.IppInfo,obj.IppInfo),'Different IppInfo found for data index %d.',i);
         
-        [~,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,'sgsRescale',false,'slsRescale',false);
-        for iSGS = 1:numel(SGS)
-          sgscnts{iSGS} = sgscnts{iSGS} + histcounts(SGS{iSGS},sgsedge);
-        end
-        for iSLS = 1:numel(SLS)
-          slscnts{iSLS} = slscnts{iSLS} + histcounts(SLS{iSLS},slsedge);
-        end
+        Nbefore = numel(obj.I);
+        
+        obj.MD = cat(1,obj.MD,dd.MD);
+        obj.I = cat(1,obj.I,dd.I);
+        obj.pGT = cat(1,obj.pGT,dd.pGT);
+        obj.bboxes = cat(1,obj.bboxes,dd.bboxes);
+        obj.Ipp = cat(1,obj.Ipp,dd.Ipp);
+        
+        obj.iTrn = cat(2,obj.iTrn,dd.iTrn+Nbefore);
+        obj.iTst = cat(2,obj.iTst,dd.iTst+Nbefore);
       end
-    end
+      
+      ids = strcat(obj.MD.lblFile,'#',...
+        strtrim(cellstr(num2str(obj.MD.iMov))),'#',strtrim(cellstr(num2str(obj.MD.frm))));
+      assert(numel(ids)==numel(unique(ids)),'Duplicate frame metadata encountered.');
+      
+      [lblFileUn,~,idx] = unique(obj.MD.lblFile);
+      obj.MD.iLbl = idx;
+      fprintf(1,'Relabeled MD.iLbl:\n');
+      disp([lblFileUn num2cell((1:numel(lblFileUn))')]);
+    end    
     
   end
+  
+  %% Import
   methods (Static)
-    function [sgsthresh,slsspan] = calibIpp2(sgscnts,slscnts,sgsedge,slsedge)
-      ntmp1 = cellfun(@sum,sgscnts);
-      ntmp2 = cellfun(@sum,slscnts);
-      n = unique([ntmp1(:);ntmp2(:)]);
-      assert(isscalar(n));
+    
+    function [I,p,md] = readLblFiles(lblFiles,varargin)
+      % lblFiles: [N] cellstr
+      % Optional PVs:
+      %  - tfAllFrames. scalar logical, defaults to false. If true, read in
+      %  unlabeled as well as labeled frames.
+      % 
+      % I: [Nx1] cell array of images (frames)
+      % p: [NxD] positions
+      % md: [Nxm] metadata table
+
+      assert(iscellstr(lblFiles));
+      nLbls = numel(lblFiles);
+
+      tfAllFrames = myparse(varargin,'tfAllFrames',false);
+      if tfAllFrames
+        readMovsLblsType = 'all';
+      else
+        readMovsLblsType = 'lbl';
+      end
+      I = cell(0,1);
+      p = [];
+      md = [];
+      for iLbl = 1:nLbls
+        lblName = lblFiles{iLbl};
+        lbl = load(lblName,'-mat');
+        fprintf('Lblfile: %s\n',lblName);
+        
+        movFiles = lbl.movieFilesAll;
+        
+        [ILbl,tMDLbl] = CPRData.readMovsLbls(movFiles,...
+          lbl.labeledpos,lbl.labeledpostag,readMovsLblsType);
+        pLbl = tMDLbl.p;
+        tMDLbl(:,'p') = [];
+        
+        nrows = numel(ILbl);
+        tMDLbl.lblFile = repmat({lblName},nrows,1);
+        [~,lblNameS] = myfileparts(lblName);
+        tMDLbl.lblFileS = repmat({lblNameS},nrows,1);
+        
+        I = [I;ILbl]; %#ok<AGROW>
+        p = [p;pLbl]; %#ok<AGROW>
+        md = [md;tMDLbl]; %#ok<AGROW>
+      end
       
-      sgsCtr = (sgsedge(1:end-1)+sgsedge(2:end))/2;
-      slsCtr = (slsedge(1:end-1)+slsedge(2:end))/2;
-      
-      sgscum = cellfun(@(x)cumsum(x)/n,sgscnts,'uni',0);
-      slscum = cellfun(@(x)cumsum(x)/n,slscnts,'uni',0);
-      
-      SGSTHRESH = .999;
-      SLSTHRESH = [.01 .99];
-      assert(isequal(size(sgscnts),size(slscnts)));
-      [n1,n2] = size(sgscnts);
-      sgsthresh = nan(n1,n2);
-      slsspan = nan(n1,n2);
-      for i1 = 1:n1
-      for i2 = 1:n2
-        y = sgscum{i1,i2};
-        iThresh = find(y>SGSTHRESH,1);         
-        thresh = sgsCtr(iThresh);
-        sgsthresh(i1,i2) = thresh;
-        cla;
-        plot(sgsCtr,y);
-        hold on;
-        plot([thresh thresh],[0 1],'r');
-        grid on;
-        title(sprintf('sgs(%d,%d): thresh ptile %.3f: %.3f\n',i1,i2,SGSTHRESH,thresh),...
-          'fontweight','bold','interpreter','none');     
-        input('hk');
-      end
-      end
-      for i1 = 1:n1
-      for i2 = 1:n2
-        y = slscum{i1,i2};
-        iThresh0 = find(y<SLSTHRESH(1),1,'last');
-        iThresh1 = find(y>SLSTHRESH(2),1,'first');
-        thresh0 = slsCtr(iThresh0);
-        thresh1 = slsCtr(iThresh1);
-        slsspan(i1,i2) = thresh1-thresh0;
-        cla;
-        plot(slsCtr,y);
-        hold on;
-        plot([thresh0 thresh0],[0 1],'r');
-        plot([thresh1 thresh1],[0 1],'r');
-        grid on;
-        title(sprintf('sls(%d,%d): span %.3f. [%.3f %.3f]\n',i1,i2,...
-          slsspan(i1,i2),thresh0,thresh1),'fontweight','bold','interpreter','none');
-        input('hk');
-      end
-      end
+      assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
     end
+    
+    function [I,tbl] = readMovsLbls(movieNames,labeledposes,...
+        labeledpostags,type,varargin)
+      % convenience signature 
+      %
+      % type: either 'all' or 'lbl'
+
+      nMov = numel(movieNames);      
+      switch type
+        case 'all'
+          frms = repmat({'all'},nMov,1);
+        case 'lbl'
+          frms = repmat({'lbl'},nMov,1);
+        otherwise
+          assert(false);
+      end
+      [I,tbl] = CPRData.readMovsLblsRaw(movieNames,labeledposes,...
+        labeledpostags,1:nMov,frms,varargin{:});
+    end
+    
+    function [I,tbl] = readMovsLblsRaw(...
+        movieNames,lposes,lpostags,iMovs,frms,varargin)
+      % Read moviefiles with landmark labels
+      %
+      % movieNames: [N] cellstr of movienames
+      % lposes: [N] cell array of labeledpos arrays [nptsx2xnfrms]
+      % lpostags: [N] cell array of labeledpostags [nptsxnfrms]      
+      % iMovs. [M] indices into movieNames to read.
+      % frms. [M] cell array. frms{i} is a vector of frames to read for
+      % movie iMovs(i). frms{i} may also be:
+      %     * 'all' indicating "all frames" 
+      %     * 'lbl' indicating "all labeled frames"      
+      %
+      % I: [Ntrl] cell vec of images
+      % p: [NTrlxD] labeled positions. Will be nan if no labels.
+      % tMD: [NTrl rows] metadata table.
+      %
+      % Optional PVs:
+      % - hWaitBar. Waitbar object
+      % - noImg. logical scalar default false. If true, all elements of I
+      % will be empty.
+      
+      [hWB,noImg] = myparse(varargin,...
+        'hWaitBar',[],...
+        'noImg',false);
+      assert(numel(iMovs)==numel(frms));
+      for i = 1:numel(frms)
+        val = frms{i};
+        assert(isnumeric(val) && isvector(val) || ismember(val,{'all' 'lbl'}));
+      end
+      
+      tfWB = ~isempty(hWB);
+      
+      assert(iscellstr(movieNames));
+      assert(iscell(lposes) && iscell(lpostags));
+      assert(isequal(numel(movieNames),numel(lposes),numel(lpostags)));
+      
+      mr = MovieReader();
+
+      I = [];
+      s = struct('mov',cell(0,1),'movS',[],'frm',[],'p',[],'tfocc',[]);
+      
+      nMov = numel(iMovs);
+      fprintf('Reading %d movies.\n',nMov);
+      for i = 1:nMov
+        iMov = iMovs(i);
+        mov = movieNames{iMov};
+        [~,movS] = myfileparts(mov);
+        lpos = lposes{iMov}; % npts x 2 x nframes
+        lpostag = lpostags{iMov};
+
+        [npts,d,nFrmAll] = size(lpos);
+        assert(isequal(size(lpostag),[npts nFrmAll]));
+        D = d*npts;
+        
+        mr.open(mov);
+        
+        % find labeled/tagged frames (considering ALL frames for this
+        % movie)
+        tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
+        frmsLbled = find(tfLbled);
+        tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
+        ntagged = sum(tftagged,1);
+        frmsTagged = find(ntagged);
+        assert(all(ismember(frmsTagged,frmsLbled)));
+
+        frms2Read = frms{i};
+        if strcmp(frms2Read,'all')
+          frms2Read = 1:nFrmAll;
+        elseif strcmp(frms2Read,'lbl')
+          frms2Read = frmsLbled;
+        end
+        nFrmRead = numel(frms2Read);
+        
+        ITmp = cell(nFrmRead,1);
+        fprintf('  mov %d, D=%d, reading %d frames\n',iMov,D,nFrmRead);
+        
+        if tfWB
+          hWB.Name = 'Reading movies';
+          wbStr = sprintf('Reading movie %s',movS);
+          waitbar(0,hWB,wbStr);          
+        end
+        for iFrm = 1:nFrmRead
+          if tfWB
+            waitbar(iFrm/nFrmRead,hWB);
+          end
+          
+          f = frms2Read(iFrm);
+          if noImg
+            im = [];
+          else
+            im = mr.readframe(f);
+            if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
+              im = rgb2gray(im);
+            end
+          end
+          
+          %fprintf('iMov=%d, read frame %d (%d/%d)\n',iMov,f,iFrm,nFrmRead);
+          
+          ITmp{iFrm} = im;
+          lblsFrmXY = lpos(:,:,f);
+          tags = lpostag(:,f);
+          
+          s(end+1,1).mov = mov; %#ok<AGROW>
+          s(end).movS = movS;
+          s(end).frm = f;
+          s(end).p = Shape.xy2vec(lblsFrmXY);
+          s(end).tfocc = strcmp('occ',tags(:)');          
+        end
+        
+        I = [I;ITmp]; %#ok<AGROW>
+      end
+      tbl = struct2table(s);      
+    end
+    
+    function tbl = readMovsLblsRawPMD
+    end
+    
+    function [I,bb,md] = readMovs(movFiles)
+      % movFiles: [N] cellstr
+      % Optional PVs:
+      % 
+      % I: [Nx1] cell array of images (frames)
+      % bb: [Nx2d] bboxes
+      % md: [Nxm] metadata table
+
+      assert(iscellstr(movFiles));
+      nMov = numel(movFiles);
+
+      mr = MovieReader();
+      I = cell(0,1);
+      sMD = struct('mov',cell(0,1),'frm',[]);
+      
+      for iMov = 1:nMov
+        movName = movFiles{iMov};
+        mr.open(movName);
+        nf = mr.nframes;
+        fprintf('Mov: %s, nframes %d.\n',movName,nf);        
+               
+        ITmp = cell(nf,1);
+        for f = 1:nf
+          im = mr.readframe(f);
+
+          if mod(f,10)==0
+            fprintf('read frame %d/%d\n',f,nf);
+          end
+          
+          ITmp{f} = im;          
+          sMD(end+1,1).mov = movName; %#ok<AGROW>
+          sMD(end).frm = f;
+        end
+        
+        I = [I;ITmp]; %#ok<AGROW>
+      end
+      
+      sz = cellfun(@(x)size(x'),I,'uni',0);
+      bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
+
+      assert(isequal(numel(sMD),numel(I),size(bb,1)));
+      md = struct2table(sMD);
+     end    
+    
   end
+  
+  
+  %% PreProc
   methods
     
-    function [Is,nChan] = getCombinedIs(obj,iTrl)
-      % Get .I combined with .Ipp for specified trials.
-      %
-      % iTrl: [nTrl] vector of trials
-      %
-      % Is: [nTrl] cell vec of image stacks [nr nc nChan] where 
-      %   nChan=1+numel(obj.Ipp)
-      % nChan: number of TOTAL channels used/found
+    function vizHist(obj,varargin)
+      [g,smoothspan,nbin] = myparse(varargin,...
+        'g',[],... [N] grouping vector, numeric or categorical.
+        'smoothspan',nan,...
+        'nbin',256);
+      tfsmooth = ~isnan(smoothspan);
       
-      nChanPP = numel(obj.IppInfo);
-      fprintf(1,'Using %d additional channels.\n',nChanPP);
-      
-      nTrl = numel(iTrl);
-      Is = cell(nTrl,1);
-      for i=1:nTrl
-        iT = iTrl(i);
-        
-        im = obj.I{iT};
-        if nChanPP==0
-          impp = nan(size(im,1),size(im,2),0);
-        else
-          impp = obj.Ipp{iT};
-        end
-        assert(size(impp,3)==nChanPP);
-        Is{i} = cat(3,im,impp);
+      H = nan(nbin,obj.N);
+      for i = 1:obj.N
+        H(:,i) = imhist(obj.I{i},nbin);
       end
       
-      nChan = nChanPP+1;
+      if isempty(g)
+        g = ones(obj.N,1);
+      end
+      assert(isvector(g) && numel(g)==obj.N);
+      
+      gUn = unique(g);
+      nGrp = numel(gUn);
+      muGrp = nan(nbin,nGrp);
+      sdGrp = nan(nbin,nGrp);
+      for iGrp = 1:nGrp
+        gCur = gUn(iGrp);
+        tf = g==gCur;
+        Hgrp = H(:,tf);
+        fprintf('Working on grp=%d, n=%d.\n',iGrp,nnz(tf));
+        muGrp(:,iGrp) = nanmean(Hgrp,2);
+        sdGrp(:,iGrp) = nanstd(Hgrp,[],2);
+        
+        if tfsmooth
+          muGrp(:,iGrp) = smooth(muGrp(:,iGrp),smoothspan);
+          sdGrp(:,iGrp) = smooth(sdGrp(:,iGrp),smoothspan);
+        end
+      end
+      
+      figure;
+      x = 1:nbin;
+      plot(x,muGrp,'linewidth',2);
+      legend(arrayfun(@num2str,1:nGrp,'uni',0));
+      hold on;
+      ax = gca;
+      ax.ColorOrderIndex = 1;
+      plot(x,muGrp-sdGrp);
+      ax.ColorOrderIndex = 1;
+      plot(x,muGrp+sdGrp);
+      
+      grid on;
     end
     
+    function H0 = histEq(obj,varargin)
+      % Perform histogram equalization on all images
+      %
+      % Optional PVs:
+      % H0: [nbin] intensity histogram used in equalization
+      % g: [N] grouping vector, either numeric or categorical. Images with
+      % the same value of g are histogram-equalized together. For example,
+      % g might indicate which movie the image is taken from.
+      
+      [H0,nbin,g,hWB] = myparse(varargin,...
+        'H0',[],...
+        'nbin',256,...
+        'g',ones(obj.N,1),...
+        'hWaitBar',[]);
+      tfH0Given = ~isempty(H0);
+      tfWB = ~isempty(hWB);
+      
+      imSz = cellfun(@size,obj.I,'uni',0);
+      cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
+      imSz = imSz{1};
+      imNpx = numel(obj.I{1});
+      
+      if tfH0Given
+        % none
+      else
+        H = nan(nbin,obj.N);
+        mu = nan(1,obj.N);
+        loc = [];
+        if tfWB
+          waitbar(0,hWB,'Performing histogram equalization...','name','Histogram Equalization');
+        end
+        for iTrl = 1:obj.N
+          if tfWB
+            waitbar(iTrl/obj.N,hWB);
+          end
+          
+          im = obj.I{iTrl};
+          [H(:,iTrl),loctmp] = imhist(im,nbin);
+          if iTrl==1
+            loc = loctmp;
+          else
+            assert(isequal(loctmp,loc));
+          end
+          mu(iTrl) = mean(im(:));
+        end
+        % normalize to brighter movies, not to dimmer movies
+        tfuse = mu >= prctile(mu,75);
+        fprintf('using %d frames to form H0:\n',nnz(tfuse));
+        H0 = median(H(:,tfuse),2);
+        H0 = H0/sum(H0)*imNpx;
+      end
+      obj.H0 = H0;
+      
+      % normalize one group at a time
+      gUn = unique(g);
+      nGrp = numel(gUn);
+      fprintf(1,'%d groups to equalize.\n',nGrp);
+      for iGrp = 1:nGrp
+        gCur = gUn(iGrp);
+        tf = g==gCur;
+        
+        bigim = cat(1,obj.I{tf});
+        bigimnorm = histeq(bigim,H0);
+        obj.I(tf) = mat2cell(bigimnorm,...
+          repmat(imSz(1),[nnz(tf) 1]),imSz(2));
+      end
+    end
+
     function computeIpp(obj,sig1,sig2,iChan,varargin)
       % Preprocess images and set .Ipp.
       %
@@ -309,7 +580,7 @@ classdef CPRData < handle
       % - jan. Use jan values for sig1,sig2,iChan.
       % - romain. Use romain values for sig1,sig2,iChan.
       % - See Features.pp for other optional pvs
-
+      
       [iTrl,jan,romain,hWB] = myparse(varargin,...
         'iTrl',find(obj.isFullyLabeled),...
         'jan',false,...
@@ -325,7 +596,7 @@ classdef CPRData < handle
         iChan = [...
           2 3 ... % blur sig1(1:3)
           5 6 7 9 10 11 13 14 17 ... % SGS
-          22 23 25 26 27 29 30]; % SLS 
+          22 23 25 26 27 29 30]; % SLS
       end
       if romain
         fprintf(1,'Using "Romain" settings.\n');
@@ -335,7 +606,7 @@ classdef CPRData < handle
         iChan = [...
           2 3 4 ... % blur sig1(1:3)
           6:8 9:12 13:16 18:19 ... % SGS
-          23:24 26:28 29:32 33:36]; % SLS         
+          23:24 26:28 29:32 33:36]; % SLS
       end
       
       [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,'hWaitBar',hWB);
@@ -345,11 +616,11 @@ classdef CPRData < handle
       assert(iscell(S) && isequal(size(S),[nTrl n1]));
       assert(iscell(SGS) && isequal(size(SGS),[nTrl n1 n2]));
       assert(iscell(SLS) && isequal(size(SLS),[nTrl n1 n2]));
-
+      
       ipp = cell(nTrl,1);
       for i = 1:nTrl
         ipp{i} = cat(3,S{i,:},SGS{i,:},SLS{i,:});
-        assert(size(ipp{i},3)==n1+n1*n2+n1*n2);        
+        assert(size(ipp{i},3)==n1+n1*n2+n1*n2);
       end
       ippInfo = arrayfun(@(x)sprintf('S:sig1=%.2f',x),sig1(:),'uni',0);
       for i2 = 1:n2 % note raster order corresponding to order of ipp{iTrl}
@@ -374,9 +645,9 @@ classdef CPRData < handle
       % Compute diagnostics on .I, .Ipp based in trials iTrl
       
       tfCntsSupplied = exist('cnts','var')>0;
-
+      
       edges = 0:1:256;
-
+      
       if ~tfCntsSupplied
         nedge = numel(edges);
         npp = numel(obj.IppInfo);
@@ -384,12 +655,12 @@ classdef CPRData < handle
         for iT = iTrl(:)'
           x = obj.I{iT};
           cnts(:,1) = cnts(:,1) + histc(x(:),edges);
-
+          
           for ipp = 1:npp
             x = obj.Ipp{iT}(:,:,ipp);
             cnts(:,ipp+1) = cnts(:,ipp+1) + histc(x(:),edges);
           end
-
+          
           fprintf(1,'Done with iTrl=%d\n',iT);
         end
       end
@@ -410,10 +681,10 @@ classdef CPRData < handle
         
         [mu,~,sd,med,mad] = freqCountStats(x,y);
         
-        plot(ax,x,log10(y)); 
+        plot(ax,x,log10(y));
         xlim(ax,[0 256]);
         hold(ax,'on');
-        yl = ylim(ax);        
+        yl = ylim(ax);
         plot(ax,[mu mu],yl,'r');
         plot(ax,[med med],yl,'m');
         grid on;
@@ -426,6 +697,134 @@ classdef CPRData < handle
       end
       linkaxes(axs);
     end
+    
+    function [Is,nChan] = getCombinedIs(obj,iTrl)
+      % Get .I combined with .Ipp for specified trials.
+      %
+      % iTrl: [nTrl] vector of trials
+      %
+      % Is: [nTrl] cell vec of image stacks [nr nc nChan] where
+      %   nChan=1+numel(obj.Ipp)
+      % nChan: number of TOTAL channels used/found
+      
+      nChanPP = numel(obj.IppInfo);
+      fprintf(1,'Using %d additional channels.\n',nChanPP);
+      
+      nTrl = numel(iTrl);
+      Is = cell(nTrl,1);
+      for i=1:nTrl
+        iT = iTrl(i);
+        
+        im = obj.I{iT};
+        if nChanPP==0
+          impp = nan(size(im,1),size(im,2),0);
+        else
+          impp = obj.Ipp{iT};
+        end
+        assert(size(impp,3)==nChanPP);
+        Is{i} = cat(3,im,impp);
+      end
+      
+      nChan = nChanPP+1;
+    end
+    
+    function [sgscnts,slscnts,sgsedge,slsedge] = calibIpp(obj,nsamp)
+      % Sample SGS/SLS intensity histograms
+      %
+      % nsamp: number of trials to sample
+      
+      sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
+      sig2 = [0 2 4 8];
+      n1 = numel(sig1);
+      n2 = numel(sig2);
+      
+      sgsedge = [0:160 inf];
+      nbinSGS = numel(sgsedge)-1;
+      sgscnts = repmat({zeros(1,nbinSGS)},n1,n2);
+      slsedge = [-inf -160:160 inf];
+      nbinSLS = numel(slsedge)-1;
+      slscnts = repmat({zeros(1,nbinSLS)},n1,n2);
+      
+      iTrlSamp = randsample(obj.N,nsamp);
+      nTrlSamp = numel(iTrlSamp);
+      for i = 1:nTrlSamp
+        if mod(i,10)==0
+          disp(i);
+        end
+        iTrl = iTrlSamp(i);
+        
+        [~,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,'sgsRescale',false,'slsRescale',false);
+        for iSGS = 1:numel(SGS)
+          sgscnts{iSGS} = sgscnts{iSGS} + histcounts(SGS{iSGS},sgsedge);
+        end
+        for iSLS = 1:numel(SLS)
+          slscnts{iSLS} = slscnts{iSLS} + histcounts(SLS{iSLS},slsedge);
+        end
+      end
+    end
+    
+  end
+  
+  methods (Static)
+    function [sgsthresh,slsspan] = calibIpp2(sgscnts,slscnts,sgsedge,slsedge)
+      ntmp1 = cellfun(@sum,sgscnts);
+      ntmp2 = cellfun(@sum,slscnts);
+      n = unique([ntmp1(:);ntmp2(:)]);
+      assert(isscalar(n));
+      
+      sgsCtr = (sgsedge(1:end-1)+sgsedge(2:end))/2;
+      slsCtr = (slsedge(1:end-1)+slsedge(2:end))/2;
+      
+      sgscum = cellfun(@(x)cumsum(x)/n,sgscnts,'uni',0);
+      slscum = cellfun(@(x)cumsum(x)/n,slscnts,'uni',0);
+      
+      SGSTHRESH = .999;
+      SLSTHRESH = [.01 .99];
+      assert(isequal(size(sgscnts),size(slscnts)));
+      [n1,n2] = size(sgscnts);
+      sgsthresh = nan(n1,n2);
+      slsspan = nan(n1,n2);
+      for i1 = 1:n1
+        for i2 = 1:n2
+          y = sgscum{i1,i2};
+          iThresh = find(y>SGSTHRESH,1);
+          thresh = sgsCtr(iThresh);
+          sgsthresh(i1,i2) = thresh;
+          cla;
+          plot(sgsCtr,y);
+          hold on;
+          plot([thresh thresh],[0 1],'r');
+          grid on;
+          title(sprintf('sgs(%d,%d): thresh ptile %.3f: %.3f\n',i1,i2,SGSTHRESH,thresh),...
+            'fontweight','bold','interpreter','none');
+          input('hk');
+        end
+      end
+      for i1 = 1:n1
+        for i2 = 1:n2
+          y = slscum{i1,i2};
+          iThresh0 = find(y<SLSTHRESH(1),1,'last');
+          iThresh1 = find(y>SLSTHRESH(2),1,'first');
+          thresh0 = slsCtr(iThresh0);
+          thresh1 = slsCtr(iThresh1);
+          slsspan(i1,i2) = thresh1-thresh0;
+          cla;
+          plot(slsCtr,y);
+          hold on;
+          plot([thresh0 thresh0],[0 1],'r');
+          plot([thresh1 thresh1],[0 1],'r');
+          grid on;
+          title(sprintf('sls(%d,%d): span %.3f. [%.3f %.3f]\n',i1,i2,...
+            slsspan(i1,i2),thresh0,thresh1),'fontweight','bold','interpreter','none');
+          input('hk');
+        end
+      end
+    end
+  end
+  
+  
+  %%   
+  methods
     
     function varargout = viz(obj,varargin)
       [varargout{1:nargout}] = Shape.viz(obj.I(obj.isFullyLabeled,:),obj.pGT(obj.isFullyLabeled,:),...
@@ -443,39 +842,7 @@ classdef CPRData < handle
     function n = getFilename(obj)
       n = sprintf('td_%s_%s.mat',obj.Name,datestr(now,'yyyymmdd'));
     end
-    
-    function append(obj,varargin)
-      % cat/append additional CPRDatas
-      
-      warning('CPRData:append','Clearing H0.');
-      obj.H0 = [];
-      
-      for i = 1:numel(varargin)
-        dd = varargin{i};
-        assert(isequal(dd.IppInfo,obj.IppInfo),'Different IppInfo found for data index %d.',i);
         
-        Nbefore = numel(obj.I); 
-        
-        obj.MD = cat(1,obj.MD,dd.MD);
-        obj.I = cat(1,obj.I,dd.I);
-        obj.pGT = cat(1,obj.pGT,dd.pGT);
-        obj.bboxes = cat(1,obj.bboxes,dd.bboxes);
-        obj.Ipp = cat(1,obj.Ipp,dd.Ipp);
-
-        obj.iTrn = cat(2,obj.iTrn,dd.iTrn+Nbefore);
-        obj.iTst = cat(2,obj.iTst,dd.iTst+Nbefore);
-      end
-      
-      ids = strcat(obj.MD.lblFile,'#',...
-        strtrim(cellstr(num2str(obj.MD.iMov))),'#',strtrim(cellstr(num2str(obj.MD.frm))));
-      assert(numel(ids)==numel(unique(ids)),'Duplicate frame metadata encountered.');
-      
-      [lblFileUn,~,idx] = unique(obj.MD.lblFile);
-      obj.MD.iLbl = idx;
-      fprintf(1,'Relabeled MD.iLbl:\n');
-      disp([lblFileUn num2cell((1:numel(lblFileUn))')]);
-    end
-    
     function summarize(obj,gMDFld,iTrl)
       % gMDFld: grouping field in metadata
       % iTrl: vector of trial indices
@@ -525,368 +892,8 @@ classdef CPRData < handle
 
   end
   
-  methods (Static)
-    
-    function [I,p,md] = readLblFiles(lblFiles,varargin)
-      % lblFiles: [N] cellstr
-      % Optional PVs:
-      %  - tfAllFrames. scalar logical, defaults to false. If true, read in
-      %  unlabeled as well as labeled frames.
-      % 
-      % I: [Nx1] cell array of images (frames)
-      % p: [NxD] positions
-      % md: [Nxm] metadata table
-
-      assert(iscellstr(lblFiles));
-      nLbls = numel(lblFiles);
-
-      tfAllFrames = myparse(varargin,'tfAllFrames',false);
-      if tfAllFrames
-        readMovsLblsType = 'all';
-      else
-        readMovsLblsType = 'lbl';
-      end
-      I = cell(0,1);
-      p = [];
-      md = [];
-      for iLbl = 1:nLbls
-        lblName = lblFiles{iLbl};
-        lbl = load(lblName,'-mat');
-        fprintf('Lblfile: %s\n',lblName);
-        
-        movFiles = lbl.movieFilesAll;
-        
-        [ILbl,pLbl,tMDLbl] = CPRData.readMovsLbls(movFiles,...
-          lbl.labeledpos,lbl.labeledpostag,readMovsLblsType);
-        
-        nrows = numel(ILbl);
-        tMDLbl.lblFile = repmat({lblName},nrows,1);
-        [~,lblNameS] = myfileparts(lblName);
-        tMDLbl.lblFileS = repmat({lblNameS},nrows,1);
-        
-        I = [I;ILbl]; %#ok<AGROW>
-        p = [p;pLbl]; %#ok<AGROW>
-        md = [md;tMDLbl]; %#ok<AGROW>
-      end
-      
-      assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
-    end
-    
-    function [I,p,tMD] = readMovsLbls(movieNames,labeledposes,...
-        labeledpostags,type,varargin)
-      % convenience signature 
-      %
-      % type: either 'all' or 'lbl'
-
-      nMov = numel(movieNames);      
-      switch type
-        case 'all'
-          frms = repmat({'all'},nMov,1);
-        case 'lbl'
-          frms = repmat({'lbl'},nMov,1);
-        otherwise
-          assert(false);
-      end
-      [I,p,tMD] = CPRData.readMovsLblsRaw(movieNames,labeledposes,...
-        labeledpostags,1:nMov,frms,varargin{:});
-    end
-    
-    function [I,p,tMD] = readMovsLblsRaw(...
-        movieNames,labeledposes,labeledpostags,iMovs,frms,varargin)
-      % Read moviefiles with landmark labels
-      %
-      % movieNames: [N] cellstr of movienames
-      % labeledposes: [N] cell array of labeledpos arrays [nptsx2xnfrms]
-      % labeledpostags: [N] cell array of labeledpostags [nptsxnfrms]      
-      % iMovs. [M] indices into movieNames to read.
-      % frms. [M] cell array. frms{i} is a vector of frames to read for
-      % movie iMovs(i). frms{i} may also be:
-      %     * 'all' indicating "all frames" 
-      %     * 'lbl' indicating "all labeled frames"      
-      %
-      % I: [Ntrl] cell vec of images
-      % p: [NTrlxD] labeled positions. Will be nan if no labels.
-      % tMD: [NTrl rows] metadata table.
-      %
-      % Optional PVs:
-      % - hWaitBar. Waitbar object
-      % - noImg. logical scalar default false. If true, all elements of I
-      % will be empty.
-      
-      [hWB,noImg] = myparse(varargin,...
-        'hWaitBar',[],...
-        'noImg',false);
-      assert(numel(iMovs)==numel(frms));
-      for i = 1:numel(frms)
-        val = frms{i};
-        assert(isnumeric(val) && isvector(val) || ismember(val,{'all' 'lbl'}));
-      end
-      
-      tfWB = ~isempty(hWB);
-      
-      assert(iscellstr(movieNames));
-      assert(iscell(labeledposes) && iscell(labeledpostags));
-      assert(isequal(numel(movieNames),numel(labeledposes),numel(labeledpostags)));
-      
-      mr = MovieReader();
-
-      I = [];
-      p = [];
-      sMD = struct('mov',cell(0,1),'movS',[],...
-        'frm',[],'nLblInf',[],'nLblNaN',[],'nTag',[],'tagvec',[]);
-      
-      nMov = numel(iMovs);
-      fprintf('Reading %d movies.\n',nMov);
-      for i = 1:nMov
-        iMov = iMovs(i);
-        mov = movieNames{iMov};
-        [~,movS] = myfileparts(mov);
-        lpos = labeledposes{iMov}; % npts x 2 x nframes
-        lpostag = labeledpostags{iMov};
-
-        [npts,d,nFrmAll] = size(lpos);
-        assert(isequal(size(lpostag),[npts nFrmAll]));
-        D = d*npts;
-        
-        mr.open(mov);
-        
-        % find labeled/tagged frames (considering ALL frames for this
-        % movie)
-        tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
-        frmsLbled = find(tfLbled);
-        tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
-        ntagged = sum(tftagged,1);
-        frmsTagged = find(ntagged);
-        assert(all(ismember(frmsTagged,frmsLbled)));
-
-        frms2Read = frms{i};
-        if strcmp(frms2Read,'all')
-          frms2Read = 1:nFrmAll;
-        elseif strcmp(frms2Read,'lbl')
-          frms2Read = frmsLbled;
-        end
-        nFrmRead = numel(frms2Read);
-        
-        ITmp = cell(nFrmRead,1);
-        pTmp = nan(nFrmRead,D);
-        fprintf('  mov %d, D=%d, reading %d frames\n',iMov,D,nFrmRead);
-        
-        if tfWB
-          hWB.Name = 'Reading movies';
-          wbStr = sprintf('Reading movie %s',movS);
-          waitbar(0,hWB,wbStr);          
-        end
-        for iFrm = 1:nFrmRead
-          if tfWB
-            waitbar(iFrm/nFrmRead,hWB);
-          end
-          
-          f = frms2Read(iFrm);
-          if noImg
-            im = [];
-          else
-            im = mr.readframe(f);
-            if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
-              im = rgb2gray(im);
-            end
-          end
-          
-          %fprintf('iMov=%d, read frame %d (%d/%d)\n',iMov,f,iFrm,nFrmRead);
-          
-          ITmp{iFrm} = im;
-          lblsFrmXY = lpos(:,:,f);
-          pTmp(iFrm,:) = Shape.xy2vec(lblsFrmXY);
-          
-          %tagbinvec = sum(tftagged(:,f)'.*2.^(0:npts-1));
-          tagvec = find(tftagged(:,f)');
-          
-%           sMD(end+1,1).iLbl = iLbl; %#ok<AGROW>
-%           sMD(end).lblFile = lblName;
-%           [~,sMD(end).lblFileS] = myfileparts(lblName);
-          sMD(end+1,1).mov = mov; %#ok<AGROW>
-          sMD(end).movS = movS;
-          sMD(end).frm = f;
-          sMD(end).nLblInf = sum(any(isinf(lblsFrmXY),2));
-          sMD(end).nLblNaN = sum(any(isnan(lblsFrmXY),2));
-          sMD(end).nTag = ntagged(f);
-          sMD(end).tagvec = tagvec;
-        end
-        
-        I = [I;ITmp]; %#ok<AGROW>
-        p = [p;pTmp]; %#ok<AGROW>
-        tMD = struct2table(sMD);
-      end
-      
-    end
-    
-    function [I,bb,md] = readMovs(movFiles)
-      % movFiles: [N] cellstr
-      % Optional PVs:
-      % 
-      % I: [Nx1] cell array of images (frames)
-      % bb: [Nx2d] bboxes
-      % md: [Nxm] metadata table
-
-      assert(iscellstr(movFiles));
-      nMov = numel(movFiles);
-
-      mr = MovieReader();
-      I = cell(0,1);
-      sMD = struct('mov',cell(0,1),'frm',[]);
-      
-      for iMov = 1:nMov
-        movName = movFiles{iMov};
-        mr.open(movName);
-        nf = mr.nframes;
-        fprintf('Mov: %s, nframes %d.\n',movName,nf);        
-               
-        ITmp = cell(nf,1);
-        for f = 1:nf
-          im = mr.readframe(f);
-
-          if mod(f,10)==0
-            fprintf('read frame %d/%d\n',f,nf);
-          end
-          
-          ITmp{f} = im;          
-          sMD(end+1,1).mov = movName; %#ok<AGROW>
-          sMD(end).frm = f;
-        end
-        
-        I = [I;ITmp]; %#ok<AGROW>
-      end
-      
-      sz = cellfun(@(x)size(x'),I,'uni',0);
-      bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
-
-      assert(isequal(numel(sMD),numel(I),size(bb,1)));
-      md = struct2table(sMD);
-     end    
-    
-  end
-  
-  methods % histeq
-  
-    function vizHist(obj,varargin)
-      [g,smoothspan,nbin] = myparse(varargin,...
-        'g',[],... [N] grouping vector, numeric or categorical. 
-        'smoothspan',nan,...
-        'nbin',256);
-      tfsmooth = ~isnan(smoothspan);
-      
-      H = nan(nbin,obj.N);
-      for i = 1:obj.N
-        H(:,i) = imhist(obj.I{i},nbin);
-      end
-      
-      if isempty(g)
-        g = ones(obj.N,1);
-      end
-      assert(isvector(g) && numel(g)==obj.N);
-      
-      gUn = unique(g);
-      nGrp = numel(gUn);
-      muGrp = nan(nbin,nGrp);
-      sdGrp = nan(nbin,nGrp);
-      for iGrp = 1:nGrp
-        gCur = gUn(iGrp);
-        tf = g==gCur;
-        Hgrp = H(:,tf);
-        fprintf('Working on grp=%d, n=%d.\n',iGrp,nnz(tf));
-        muGrp(:,iGrp) = nanmean(Hgrp,2);
-        sdGrp(:,iGrp) = nanstd(Hgrp,[],2);
-        
-        if tfsmooth
-          muGrp(:,iGrp) = smooth(muGrp(:,iGrp),smoothspan);
-          sdGrp(:,iGrp) = smooth(sdGrp(:,iGrp),smoothspan);
-        end
-      end
-      
-      figure;
-      x = 1:nbin;
-      plot(x,muGrp,'linewidth',2);
-      legend(arrayfun(@num2str,1:nGrp,'uni',0));
-      hold on;
-      ax = gca;
-      ax.ColorOrderIndex = 1;
-      plot(x,muGrp-sdGrp);
-      ax.ColorOrderIndex = 1;
-      plot(x,muGrp+sdGrp);
-      
-      grid on;
-    end
-    
-    function H0 = histEq(obj,varargin)
-      % Perform histogram equalization on all images
-      % 
-      % Optional PVs:
-      % H0: [nbin] intensity histogram used in equalization
-      % g: [N] grouping vector, either numeric or categorical. Images with 
-      % the same value of g are histogram-equalized together. For example, 
-      % g might indicate which movie the image is taken from.
-
-      [H0,nbin,g,hWB] = myparse(varargin,...
-        'H0',[],...
-        'nbin',256,...
-        'g',ones(obj.N,1),...
-        'hWaitBar',[]);
-      tfH0Given = ~isempty(H0);
-      tfWB = ~isempty(hWB);
-      
-      imSz = cellfun(@size,obj.I,'uni',0);
-      cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
-      imSz = imSz{1};
-      imNpx = numel(obj.I{1});
-        
-      if tfH0Given
-        % none
-      else
-        H = nan(nbin,obj.N);
-        mu = nan(1,obj.N);
-        loc = [];
-        if tfWB
-          waitbar(0,hWB,'Performing histogram equalization...','name','Histogram Equalization');
-        end
-        for iTrl = 1:obj.N
-          if tfWB
-            waitbar(iTrl/obj.N,hWB);
-          end
-          
-          im = obj.I{iTrl};
-          [H(:,iTrl),loctmp] = imhist(im,nbin);
-          if iTrl==1
-            loc = loctmp;
-          else
-            assert(isequal(loctmp,loc));
-          end
-          mu(iTrl) = mean(im(:));
-        end
-        % normalize to brighter movies, not to dimmer movies
-        tfuse = mu >= prctile(mu,75);
-        fprintf('using %d frames to form H0:\n',nnz(tfuse));
-        H0 = median(H(:,tfuse),2);
-        H0 = H0/sum(H0)*imNpx;
-      end
-      obj.H0 = H0;
-
-      % normalize one group at a time
-      gUn = unique(g);
-      nGrp = numel(gUn);
-      fprintf(1,'%d groups to equalize.\n',nGrp);
-      for iGrp = 1:nGrp
-        gCur = gUn(iGrp);
-        tf = g==gCur;
-        
-        bigim = cat(1,obj.I{tf});
-        bigimnorm = histeq(bigim,H0);
-        obj.I(tf) = mat2cell(bigimnorm,...
-          repmat(imSz(1),[nnz(tf) 1]),imSz(2));
-      end
-    end
-      
-  end
-  
-  methods % partitions
+  %% partitions
+  methods 
     
     function ptnHalfHalf(obj)
       % - all lblFile+Mov equally weighted 
