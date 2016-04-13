@@ -129,6 +129,7 @@ classdef CPRData < handle
     function obj = CPRData(varargin)
       % obj = CPRData(movFiles)
       % obj = CPRData(lblFiles,tfAllFrames)
+      % obj = CPRData(I,tblP)
       % obj = CPRData(movFiles,lpos,lpostags,type,varargin)
       % obj = CPRData(movFiles,lpos,lpostags,iMov,frms,varargin)
       
@@ -140,10 +141,16 @@ classdef CPRData < handle
           [Is,bb,md] = CPRData.readMovs(movFiles);
           p = nan(size(Is,1),0);
         case 2
-          lblFiles = varargin{1};
-          tfAllFrames = varargin{2};
-          [Is,p,md] = CPRData.readLblFiles(lblFiles,'tfAllFrames',tfAllFrames);
-
+          if iscell(varargin{1}) && istable(varargin{2})
+            [Is,tblP] = deal(varargin{:});
+            p = tblP.p;
+            md = tblP;
+            md(:,'p') = [];
+          else
+            lblFiles = varargin{1};
+            tfAllFrames = varargin{2};
+            [Is,p,md] = CPRData.readLblFiles(lblFiles,'tfAllFrames',tfAllFrames);
+          end
           sz = cellfun(@(x)size(x'),Is,'uni',0);
           bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
         otherwise % 3+
@@ -181,14 +188,15 @@ classdef CPRData < handle
     end
     
     function append(obj,varargin)
-      % cat/append additional CPRDatas
-      
-      warning('CPRData:append','Clearing H0.');
-      obj.H0 = [];
-      
+      % Cat/append additional CPRDatas
+      % 
+      % data.append(data1,data2,...)
+
       for i = 1:numel(varargin)
         dd = varargin{i};
-        assert(isequal(dd.IppInfo,obj.IppInfo),'Different IppInfo found for data index %d.',i);
+        assert(isequaln(dd.H0,obj.H0),'Different H0 found for data index %d.',i);
+        assert(isequal(dd.IppInfo,obj.IppInfo),...
+          'Different IppInfo found for data index %d.',i);
         
         Nbefore = numel(obj.I);
         
@@ -201,15 +209,6 @@ classdef CPRData < handle
         obj.iTrn = cat(2,obj.iTrn,dd.iTrn+Nbefore);
         obj.iTst = cat(2,obj.iTst,dd.iTst+Nbefore);
       end
-      
-      ids = strcat(obj.MD.lblFile,'#',...
-        strtrim(cellstr(num2str(obj.MD.iMov))),'#',strtrim(cellstr(num2str(obj.MD.frm))));
-      assert(numel(ids)==numel(unique(ids)),'Duplicate frame metadata encountered.');
-      
-      [lblFileUn,~,idx] = unique(obj.MD.lblFile);
-      obj.MD.iLbl = idx;
-      fprintf(1,'Relabeled MD.iLbl:\n');
-      disp([lblFileUn num2cell((1:numel(lblFileUn))')]);
     end    
     
   end
@@ -297,8 +296,7 @@ classdef CPRData < handle
       %     * 'lbl' indicating "all labeled frames"      
       %
       % I: [Ntrl] cell vec of images
-      % p: [NTrlxD] labeled positions. Will be nan if no labels.
-      % tMD: [NTrl rows] metadata table.
+      % tbl: [NTrl rows] labels/metadata table.
       %
       % Optional PVs:
       % - hWaitBar. Waitbar object
@@ -396,10 +394,7 @@ classdef CPRData < handle
         I = [I;ITmp]; %#ok<AGROW>
       end
       tbl = struct2table(s);      
-    end
-    
-    function tbl = readMovsLblsRawPMD
-    end
+    end    
     
     function [I,bb,md] = readMovs(movFiles)
       % movFiles: [N] cellstr
@@ -443,10 +438,40 @@ classdef CPRData < handle
 
       assert(isequal(numel(sMD),numel(I),size(bb,1)));
       md = struct2table(sMD);
-     end    
+    end
     
-  end
-  
+    function I = getFrames(tbl)
+      % Read frames from movies given MD table
+      % 
+      % tbl: [NxR] metadata table
+      % 
+      % I: [N] cell vector of images for each row of tbl
+      
+      N = size(tbl,1);
+      movsUn = unique(tbl.mov);
+      [~,movUnIdx] = ismember(tbl.mov,movsUn);
+      frms = tbl.frm;
+      
+      % open movies in MovieReaders
+      nMovUn = numel(movsUn);
+      for iTrl = nMovUn:-1:1
+        mrs(iTrl,1) = MovieReader();
+        mrs(iTrl).forceGrayscale = true;
+        mrs(iTrl).open(movsUn{iTrl});
+      end
+      
+      I = cell(N,1);
+      for iTrl = 1:N
+        iMov = movUnIdx(iTrl);
+        f = frms(iTrl);
+        
+        mr = mrs(iMov);
+        im = mr.readframe(f); % currently forceGrayscale
+        I{iTrl} = im;
+      end
+    end
+    
+  end 
   
   %% PreProc
   methods
@@ -822,7 +847,6 @@ classdef CPRData < handle
     end
   end
   
-  
   %%   
   methods
     
@@ -942,9 +966,7 @@ classdef CPRData < handle
       % distances, sorted in decreasing order.
       % ffdiTrl. [Ngrp] cell vec. ffdiTrl{i} is a vector of iTrls for
       % ffd{i}.
-      
-      %obj.expandMDTable();
-      
+            
       tMDTrn = obj.MD(iTrn,:);
       pTrn = obj.pGT(iTrn,:);
       
@@ -1089,7 +1111,7 @@ classdef CPRData < handle
       dfTest = idTest(1:9);
       
       tfLbled = obj.isFullyLabeled;
-      obj.expandMDTable();
+      obj.janExpandMDTable();
       tMD = obj.MD;
       
       dfs = tMD.datefly;
@@ -1297,7 +1319,7 @@ classdef CPRData < handle
       
       sExp = FS.parseexp(exp);
       tfIsFullyLabeled = obj.isFullyLabeled;
-      obj.expandMDTable();
+      obj.janExpandMDTable();
       tMD = obj.MD;
       
       dfs = tMD.datefly;
@@ -1372,7 +1394,7 @@ classdef CPRData < handle
       fprintf(1,'nTrn nTstAll nTstLbl %d %d %d\n',numel(iTrn),numel(iTstAll),numel(iTstLbl));
     end
     
-    function expandMDTable(obj)
+    function janExpandMDTable(obj)
       tMD = obj.MD;
       
       if ~ismember('datefly',tMD.Properties.VariableNames)

@@ -5,10 +5,31 @@ classdef CPRLabelTracker < LabelTracker
                        'trkP' 'trkPFull' 'trkPTS' 'trkPMD'};
   end
   
+  %% Data
   properties
+    
+    % Cached/working dataset. Contains all I/p/md for frames that have been
+    % seen before by the tracker.
+    % - Can be used for both training and tracking. 
+    % - Current training frames stored in data.iTrn
+    % - Current test/track frames stored in data.iTst
+    % 
+    % - All frames have an image, but need not have labels (p).
+    % - If applicable, all frames are HE-ed the same way. 
+    % - If applicable, all frames are PP-ed the same way.
+    data 
+    
+    % Struct, preproc params for data.
+    dataPPPrm
+    
+    % Timestamp, last data modification (for any reason)
+    dataTS
+  end
+  
+  %%
+  properties    
+    
     % Training state -- set during .train()
-    trnData % most recent training data
-    trnDataTS % timestamp for trnData
     trnRes % most recent training results
     trnResTS % timestamp for trnRes
     trnResPallMD % movie/frame metadata for trnRes.pAll
@@ -27,12 +48,14 @@ classdef CPRLabelTracker < LabelTracker
     nPts
   end
   
+  %% Dep prop getters
   methods
     function v = get.nPts(obj)
       v = obj.lObj.nLabelPoints;
     end
   end
   
+  %% Ctor/Dtor
   methods
     
     function obj = CPRLabelTracker(lObj)
@@ -46,11 +69,187 @@ classdef CPRLabelTracker < LabelTracker
     
   end
   
+  %% Data
+  methods
+    
+    function tblP = getTblPLbled(obj)
+      % From .lObj, read tblP for all movies/labeledframes.
+      
+      lObj = obj.lObj;
+      [~,tblP] = CPRData.readMovsLbls(lObj.movieFilesAll,lObj.labeledpos,...
+        lObj.labeledpostag,'lbl','noImg',true);
+    end
+    
+    function tblP = getTblP(obj,iMovs,frms)
+      % From .lObj, read tblP for given movies/frames.
+      
+      lObj = obj.lObj;
+      [~,tblP] = CPRData.readMovsLblsRaw(lObj.movieFilesAll,lObj.labeledpos,...
+        lObj.labeledpostag,iMovs,frms,'noImg',true);
+    end
+    
+    function [tblPnew,tblPupdate] = tblPDiff(obj,tblP)
+      % Compare tblP to current data
+      %
+      % tblPNew: new frames 
+      % tblPupdate: existing frames with new positions
+      
+      td = obj.data;
+      tblCurrP = td.MD;
+      tblCurrP.p = td.pGT;
+      
+      tblCurrMF = tblCurrP(:,{'mov' 'frm'});
+      tblMF = tblP(:,{'mov' 'frm'});
+      tfPotentiallyUpdatedRows = ismember(tblMF,tblCurrMF);
+      tfNewRows = ~tfPotentiallyUpdatedRows;
+      
+      tblPnew = tblP(tfNewRows,:);
+      tblPupdate = tblP(tfPotentiallyUpdatedRows,:);
+      tblPupdate = setdiff(tblPupdate,tblCurrP);      
+    end
+
+    function initData(obj)
+      % Initialize .data, .dataPPPrm, .dataTS
+      
+      I = cell(0,1);
+      tblP = struct2table(struct('mov',cell(0,1),'movS',[],'frm',[],'p',[],'tfocc',[]));
+      
+      obj.data = CPRData(I,tblP);
+      obj.dataPPPrm = [];
+      obj.dataTS = now;
+    end
+    
+    function updateData(obj,tblPNew,tblPupdate,varargin)
+      % Incremental data update
+      %
+      % * Rows appended and pGT/tfocc updated; but other information
+      % untouched
+      % * PreProc parameters must be same as existing
+      % * histeq (if specified in preproc params) must use existing H0
+      % 
+      %
+      % tblPNew: new rows
+      % tblPupdate: updated rows (rows with updated pGT/tfocc)
+      %
+      % sets .data, .dataPPPrm, .dataTS 
+          
+      [hWB] = myparse(varargin,...
+        'hWaitBar',[]);
+
+      % read/check params
+      prm = obj.readParamFile();
+      prmpp = prm.PreProc;
+      if isempty(obj.dataPPPrm) % first update
+        obj.dataPPPrm = prmpp;
+      end
+      if ~isequal(prmpp,obj.dataPPPrm)
+        error('CPRLabelTracker:diffPrm',...
+          'Cannot do incremental update; parameters have changed.');
+      end
+
+      dataCurr = obj.data;
+      tblMFcurr = dataCurr.MD(:,{'mov' 'frm'});
+
+      %%% EXISTING ROWS -- just update pGT and tfocc
+      nUpdate = size(tblPupdate,1);
+      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB table indexing API may not be polished
+        fprintf(1,'Updating labels for %d rows...\n',nUpdate);
+        tblMFupdate = tblPupdate(:,{'mov' 'frm'});
+        [tf,loc] = ismember(tblMFupdate,tblMFcurr);
+        assert(all(tf));
+        dataCurr.MD{loc,'tfocc'} = tblPupdate.tfocc; % AL 20160413 throws if nUpdate==0
+        dataCurr.pGT(loc,:) = tblPupdate.p;
+      end      
+      
+      %%% NEW ROWS -- read images + PP
+      tblMFnew = tblPNew(:,{'mov' 'frm'});
+      assert(~any(ismember(tblMFnew,tblMFcurr)));      
+      nNew = size(tblPNew,1);
+      if nNew>0
+        fprintf(1,'Adding %d new rows to data...\n',nNew);
+        I = CPRData.getFrames(tblPNew);
+        dataNew = CPRData(I,tblPNew);
+        if prmpp.histeq
+          H0 = dataCurr.H0;
+          if isempty(H0)
+            assert(dataCurr.N==0,'H0 can be empty only for empty/new data.');
+          else
+            fprintf(1,'HistEq: Using existing H0.\n');
+          end
+          gHE = categorical(dataNew.MD.mov);
+          dataNew.histEq('g',gHE,'H0',H0,'hWaitBar',hWB);
+          if isempty(H0)
+            assert(~isempty(dataNew.H0));
+            dataCurr.H0 = dataNew.H0; % H0s need to match for .append()
+          end
+        end
+        if ~isempty(prmpp.channelsFcn)
+          feval(prmpp.channelsFcn,dataNew,'hWaitBar',hWB);
+          if isempty(dataCurr.IppInfo)
+            assert(dataCurr.N==0,'Ippinfo can be empty only for empty/new data.');
+            dataCurr.IppInfo = dataNew.IppInfo;
+          end
+        end
+        
+        dataCurr.append(dataNew);        
+      end      
+      
+      obj.data = dataCurr;
+      obj.dataTS = now;
+    end
+    
+%    function td = prepareCPRData(obj,ppPrm,varargin)
+%       % td = prepareCPRData(obj,ppPrm,'all',varargin) % include all frames from all movies
+%       % td = prepareCPRData(obj,ppPrm,'lbl',varargin) % include all labeled frames from all movies
+%       % td = prepareCPRData(obj,ppPrm,iMovs,frms,varargin)
+%       %
+%       % Does not mutate obj
+%             
+%       if any(strcmp(varargin{1},{'all' 'lbl'}));
+%         type = varargin{1};
+%         varargin = varargin(2:end);
+%       else
+%         [iMovs,frms] = deal(varargin{1:2});
+%         varargin = varargin(3:end);
+%       end
+%       
+%       [useTrnH0,hWB] = myparse(varargin,...
+%         'useTDH0',false,... % if true, use trainData H0 for histEq (if histEq requested)
+%         'hWaitBar',[]);
+%       
+%       lObj = obj.lObj;
+%             
+%       if exist('type','var')>0
+%         td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,...
+%           type,'hWaitBar',hWB);
+%       else
+%         td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,...
+%           iMovs,frms,'hWaitBar',hWB);
+%       end
+%         
+%       md = td.MD;
+%       if ppPrm.histeq
+%         if useTrnH0
+%           H0 = obj.trnData.H0;
+%           assert(~isempty(H0));
+%         else
+%           H0 = [];
+%         end
+%         gHE = categorical(md.mov);
+%         td.histEq('g',gHE,'hWaitBar',hWB,'H0',H0);
+%       else
+%         fprintf(1,'Not doing histogram equalization.\n');
+%       end
+%     end
+    
+  end
+  
+  %%
   methods
    
     function initHook(obj)
-      obj.trnData = [];
-      obj.trnDataTS = [];
+      obj.initData();
+      
       obj.trnRes = [];
       obj.trnResPallMD = [];
       obj.trnResTS = [];
@@ -80,56 +279,7 @@ classdef CPRLabelTracker < LabelTracker
       end      
       obj.hXYPrdRed = hTmp;      
     end
-    
-    function td = prepareCPRData(obj,ppPrm,varargin)
-      % td = prepareCPRData(obj,ppPrm,'all',varargin) % include all frames from all movies
-      % td = prepareCPRData(obj,ppPrm,'lbl',varargin) % include all labeled frames from all movies
-      % td = prepareCPRData(obj,ppPrm,iMovs,frms,varargin)
-      %
-      % Does not mutate obj
-            
-      if any(strcmp(varargin{1},{'all' 'lbl'}));
-        type = varargin{1};
-        varargin = varargin(2:end);
-      else
-        [iMovs,frms] = deal(varargin{1:2});
-        varargin = varargin(3:end);
-      end
-      
-      [useTrnH0,hWB] = myparse(varargin,...
-        'useTDH0',false,... % if true, use trainData H0 for histEq (if histEq requested)
-        'hWaitBar',[]);
-      
-      lObj = obj.lObj;
-            
-      if exist('type','var')>0
-        td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,...
-          type,'hWaitBar',hWB);
-      else
-        td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,...
-          iMovs,frms,'hWaitBar',hWB);
-      end
         
-      md = td.MD;
-      if ppPrm.histeq
-        if useTrnH0
-          H0 = obj.trnData.H0;
-          assert(~isempty(H0));
-        else
-          H0 = [];
-        end
-        gHE = categorical(md.movS);
-        td.histEq('g',gHE,'hWaitBar',hWB,'H0',H0);
-      else
-        fprintf(1,'Not doing histogram equalization.\n');
-      end
-      if ~isempty(ppPrm.channelsFcn)
-        feval(ppPrm.channelsFcn,td,'hWaitBar',hWB);
-      else
-        fprintf(1,'Not computing channel features.');
-      end
-    end
-    
     function prm = readParamFile(obj)
       prmFile = obj.paramFile;
       if isempty(prmFile)
@@ -146,19 +296,25 @@ classdef CPRLabelTracker < LabelTracker
       hTxt = findall(hWB,'type','text');
       hTxt.Interpreter = 'none';
 
-      td = obj.prepareCPRData(prm.PreProc,'lbl','hWaitBar',hWB);
-      td.iTrn = 1:td.N;
-      td.summarize('movS',td.iTrn);
+      tblPLbled = obj.getTblPLbled();
+      [tblPnew,tblPupdate] = obj.tblPDiff(tblPLbled);
+      obj.updateData(tblPnew,tblPupdate,'hWaitBar',hWB);
       
-      obj.trnData = td;
-      obj.trnDataTS = now;
+      d = obj.data;      
+      if ~isequal(d.isLabeled,d.isFullyLabeled)
+        warning('CPRLabelTracker:data','Not training with %d partially-labeled frames.',...
+          nnz(d.isLabeled & ~d.isFullyLabeled));
+      end
+      d.iTrn = find(d.isFullyLabeled);
       
-      [Is,nChan] = td.getCombinedIs(td.iTrn);
+      d.summarize('movS',d.iTrn);
+            
+      [Is,nChan] = d.getCombinedIs(d.iTrn);
       prm.Ftr.nChn = nChan;
       
       delete(hWB); % AL: get this guy in training?
       
-      tr = train(td.pGTTrn,td.bboxesTrn,Is,...
+      tr = train(d.pGTTrn,d.bboxesTrn,Is,...
           'modelPrms',prm.Model,...
           'regPrm',prm.Reg,...
           'ftrPrm',prm.Ftr,...
@@ -168,18 +324,15 @@ classdef CPRLabelTracker < LabelTracker
           'singleoutarg',true);
       obj.trnRes = tr;
       obj.trnResTS = now;
-      obj.trnResPallMD = td.MD;
-      
-%       obj.loadXYPrdCurrMovie();
-%       obj.newLabelerFrame();
+      obj.trnResPallMD = d.MD;
     end
     
     function inspectTrainingData(obj)
-      td = obj.trnData;
-      if isempty(td)
-        error('CPRLabelTracker:noTD','No training data has been generated.');
+      d = obj.data;
+      if d.NTrn==0
+        error('CPRLabelTracker:noTD','No training data is available.');
       end
-      td.vizWithFurthestFirst();      
+      d.vizWithFurthestFirst();      
     end
     
     function track(obj,iMovs,frms)
@@ -193,32 +346,38 @@ classdef CPRLabelTracker < LabelTracker
       hTxt = findall(hWB,'type','text');
       hTxt.Interpreter = 'none';
 
-      td = obj.prepareCPRData(prm.PreProc,iMovs,frms,'hWaitBar',hWB,'useTDH0',true);
-
-      td.iTst = 1:td.N;
-      td.summarize('movS',td.iTst);
-%       obj.trnData = td;
-%       obj.trnDataTS = now;
+      tblP = obj.getTblP(iMovs,frms);
+      [tblPnew,tblPupdate] = obj.tblPDiff(tblP);
+      obj.updateData(tblPnew,tblPupdate,'hWaitBar',hWB);
+      d = obj.data;
+      
+      tblMFTrk = tblP(:,{'mov' 'frm'});
+      tblMFAll = d.MD(:,{'mov' 'frm'});
+      [tf,loc] = ismember(tblMFTrk,tblMFAll);
+      assert(all(tf));
+      d.iTst = loc;
+      
+      d.summarize('movS',d.iTst);
 
       delete(hWB);
  
-      [Is,nChan] = td.getCombinedIs(td.iTst);
+      [Is,nChan] = d.getCombinedIs(d.iTst);
       prm.Ftr.nChn = nChan;
             
       %% Test on test set
       tr = obj.trnRes;
       prmInit = prm.TestInit;
-      NTst = td.NTst;
+      NTst = d.NTst;
       RT = prmInit.Nrep;
       Tp1 = tr.regModel.T+1;
       mdl = tr.regModel.model;
       
       pGTTrnNMu = nanmean(tr.regModel.pGtN,1);
-      pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],...
+      pIni = shapeGt('initTest',[],d.bboxesTst,mdl,[],...
         repmat(pGTTrnNMu,NTst,1),RT,prmInit.augrotate);
       VERBOSE = 0;
       [~,p_t] = rcprTest1(Is,tr.regModel,pIni,tr.regPrm,tr.ftrPrm,...
-        td.bboxesTst,VERBOSE,tr.prunePrm);
+        d.bboxesTst,VERBOSE,tr.prunePrm);
       pTstT = reshape(p_t,[NTst RT mdl.D Tp1]);      
       
       %% Select best preds for each time
@@ -234,7 +393,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkP = pTstTRed;
       obj.trkPFull = pTstT;
       obj.trkPTS = now;
-      obj.trkPMD = td.MD;
+      obj.trkPMD = d.MDTst;
       
       obj.loadXYPrdCurrMovie();
       obj.newLabelerFrame();      
@@ -262,9 +421,9 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      if trkTS<obj.trnResTS || trkTS<obj.trnDataTS
+      if trkTS<obj.trnResTS || trkTS<obj.dataTS
         warning('CPRLabelTracker:trackOOD',...
-          'Tracking results appear out-of-date.');
+          'Tracking results may be out of date.');
       end
         
       lObj = obj.lObj;
