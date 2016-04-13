@@ -1,7 +1,11 @@
 classdef CPRLabelTracker < LabelTracker
   
   properties (Constant)
-    SAVETOKEN_PROPS = {'trnDataTS' 'trnRes' 'trnResTS' 'trnResPallMD' ...
+    TOKEN_SAVEPROPS = {'dataPPPrm' 'dataTS' ...
+                       'trnRes' 'trnResTS' 'trnResPallMD' ...
+                       'trkP' 'trkPFull' 'trkPTS' 'trkPMD'};
+    TOKEN_LOADPROPS = {  ...
+                       'trnRes' 'trnResTS' 'trnResPallMD' ...
                        'trkP' 'trkPFull' 'trkPTS' 'trkPMD'};
   end
   
@@ -27,7 +31,7 @@ classdef CPRLabelTracker < LabelTracker
   end
   
   %%
-  properties    
+  properties
     
     % Training state -- set during .train()
     trnRes % most recent training results
@@ -474,25 +478,20 @@ classdef CPRLabelTracker < LabelTracker
     function s = getSaveToken(obj)
       s = struct();
       s.labelTrackerClass = class(obj);
-      s.trnDataMD = obj.trnData.MD;
-      for p = obj.SAVETOKEN_PROPS, p=p{1}; %#ok<FXSET>
+      
+      d = obj.data;
+      tblP = d.MD;
+      tblP.p = d.pGT;
+      s.tblP = tblP;
+      for p = obj.TOKEN_SAVEPROPS, p=p{1}; %#ok<FXSET>
         s.(p) = obj.(p);
       end
     end
     
     function loadSaveToken(obj,s)
-      assert(isequal(s.labelTrackerClass,class(obj)));
-      if isempty(obj.trnData)
-        % will remain empty; training results do not contain trnData
-      else
-        if ~isequaln(s.trnDataMD,obj.trnData.MD)
-          % AL 20160404: will need to be updated soon
-          error('CPRLabelTracker:loadSaveToken',...
-            'Save training results based on different training data; aborting load.');
-        end
-      end
+      assert(isequal(s.labelTrackerClass,class(obj)));      
       
-      for p = obj.SAVETOKEN_PROPS, p=p{1}; %#ok<FXSET>
+      for p = obj.TOKEN_LOADPROPS, p=p{1}; %#ok<FXSET>
         obj.(p) = s.(p);
       end
       
