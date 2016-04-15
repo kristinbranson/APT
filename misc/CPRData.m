@@ -1079,6 +1079,8 @@ classdef CPRData < handle
       grid('on');
       title('Training data. Click to view training data near point.','interpreter','none','fontweight','bold');
       ylabel('Minimum distance to training set (px^2)');
+      ax = gca;
+      ax.YScale = 'log';
       bdfCbk = {@(x,y)nst(x,y)};
      
       LiveDataCursor(hFig,gca,bdfCbk);

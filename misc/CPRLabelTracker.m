@@ -41,8 +41,8 @@ classdef CPRLabelTracker < LabelTracker
     % Tracking state -- set during .track()
     trkP % [NTst D T+1] reduced/pruned tracked shapes
     trkPFull % [NTst RT D T+1] Tracked shapes full data
-    trkPTS % timestamp for trkP*
-    trkPMD % movie/frame md for trkP
+    trkPTS % [NTst] timestamp for trkP*
+    trkPMD % [NTst <ncols>] table. Movie/frame md for trkP*
     
     % View/presentation
     xyPrdCurrMovie; % [npts d nfrm] predicted labels for current Labeler movie
@@ -260,8 +260,8 @@ classdef CPRLabelTracker < LabelTracker
       
       obj.trkP = [];
       obj.trkPFull = [];
-      obj.trkPTS = [];
-      obj.trkPMD = [];
+      obj.trkPTS = zeros(0,1);
+      obj.trkPMD = struct2table(struct('mov',cell(0,1),'movS',[],'frm',[]));
             
       obj.xyPrdCurrMovie = [];
       deleteValidHandles(obj.hXYPrdRed);
@@ -394,10 +394,23 @@ classdef CPRLabelTracker < LabelTracker
         pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,tr.regModel.model,prunePrm);
       end
       
-      obj.trkP = pTstTRed;
-      obj.trkPFull = pTstT;
-      obj.trkPTS = now;
-      obj.trkPMD = d.MDTst;
+      % Augment .trkP* state with new tracking results
+      % - new rows are just added
+      % - existing rows are overwritten
+      trkPMDnew = d.MDTst(:,{'mov' 'movS' 'frm'});
+      trkPMDcur = obj.trkPMD;
+      [tf,loc] = ismember(trkPMDnew,trkPMDcur);
+      % existing rows
+      obj.trkP(loc,:,:) = pTstTRed(tf,:,:);
+      obj.trkPFull(loc,:,:,:) = pTstT(tf,:,:,:);
+      nowts = now;
+      obj.trkPTS(loc) = nowts;
+      % new rows
+      obj.trkP = [obj.trkP; pTstTRed(~tf,:,:)];
+      obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,:)];
+      nNew = nnz(~tf);
+      obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
+      obj.trkPMD = [obj.trkPMD; trkPMDnew(~tf,:)];
       
       obj.loadXYPrdCurrMovie();
       obj.newLabelerFrame();      
@@ -425,9 +438,9 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      if trkTS<obj.trnResTS || trkTS<obj.dataTS
+      if any(trkTS<obj.trnResTS) || any(trkTS<obj.dataTS)
         warning('CPRLabelTracker:trackOOD',...
-          'Tracking results may be out of date.');
+          'Some/all tracking results may be out of date.');
       end
         
       lObj = obj.lObj;
