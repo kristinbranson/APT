@@ -39,9 +39,13 @@ Ftr:
   nsample_cor: 5000   # num samples used in computing correlations for feature-selection
   neighbors:
 
-Init:
+TrainInit:
   Naug: 50
   augpad: 10
+  augrotate: 0 
+
+TestInit:
+  Nrep: 50
   augrotate: 0
 
 Prune:
