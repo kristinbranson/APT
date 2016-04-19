@@ -401,10 +401,11 @@ classdef CPRLabelTracker < LabelTracker
       trkPMDcur = obj.trkPMD;
       [tf,loc] = ismember(trkPMDnew,trkPMDcur);
       % existing rows
-      obj.trkP(loc,:,:) = pTstTRed(tf,:,:);
-      obj.trkPFull(loc,:,:,:) = pTstT(tf,:,:,:);
+      idxCur = loc(tf);
+      obj.trkP(idxCur,:,:) = pTstTRed(tf,:,:);
+      obj.trkPFull(idxCur,:,:,:) = pTstT(tf,:,:,:);
       nowts = now;
-      obj.trkPTS(loc) = nowts;
+      obj.trkPTS(idxCur) = nowts;
       % new rows
       obj.trkP = [obj.trkP; pTstTRed(~tf,:,:)];
       obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,:)];
