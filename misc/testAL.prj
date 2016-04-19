@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="3786554014" file="/groups/flyprojects/home/leea30/git/cpr/misc/testAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="testAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="146131514" file="/groups/flyprojects/home/leea30/git/cpr/misc/testAL.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="testAL" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/testAL/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>testAL</param.appname>
     <param.icon />
     <param.icons />
@@ -91,14 +91,28 @@
       <file>${PROJECT_ROOT}/testAL.m</file>
     </fileset.main>
     <fileset.resources>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/external/snakeyaml-1.9.jar</file>
       <file>${PROJECT_ROOT}/CPRData.m</file>
       <file>${PROJECT_ROOT}/TrainParams.m</file>
     </fileset.resources>
     <fileset.package />
     <fileset.depfun>
       <file>/groups/flyprojects/home/leea30/git/apt/MovieReader.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/DateTime.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/ReadYaml.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/ReadYamlRaw.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/deflateimports.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/doinheritance.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/dosubstitution.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/ismymatrix.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/issingle.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/kwd_parent.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/makematrices.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/merge_struct.m</file>
+      <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/mergeimports.m</file>
       <file>${PROJECT_ROOT}/FS.m</file>
       <file>${PROJECT_ROOT}/Features.m</file>
+      <file>${PROJECT_ROOT}/LiveDataCursor.m</file>
       <file>${PROJECT_ROOT}/Shape.m</file>
       <file>${PROJECT_ROOT}/freqCountStats.m</file>
       <file>${PROJECT_ROOT}/getPrmDfltStruct.m</file>
@@ -132,6 +146,7 @@
       <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/ufmf_read_mean.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/filehandling/videoioreadframe.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/argmax.m</file>
+      <file>/groups/flyprojects/home/leea30/git/jctrax/misc/argmin.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/createsubplots.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/deleteValidHandles.m</file>
       <file>/groups/flyprojects/home/leea30/git/jctrax/misc/dist2.m</file>
