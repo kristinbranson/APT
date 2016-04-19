@@ -1,14 +1,16 @@
 function trainAL(datafile,prmfile,varargin)
 % Take a CPRData, TrainDataI, and TrainParams and produce a TrainRes
 
-[rootdir,tdIfile,tdIfileVar,ignoreChan,forceChan,datatype,td] = myparse(varargin,...
+[rootdir,tdIfile,tdIfileVar,ignoreChan,forceChan,datatype,td,iPt] = myparse(varargin,...
   'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
   'tdIfile','',... % traindata Index file; if not specified, use td.iTrn
   'tdIfileVar','',...
   'ignoreChan',false,...  % if true, then ignore channel data if present
   'forceChan',true,...    % if true, compute channels and use them (ignoreChan ignored)
   'datatype','REQ',...    % for computeIpp
-  'td',[]);               % if supplied, don't load from MAT.
+  'td',[],...             % if supplied, don't load from MAT.
+  'iPt',[] ...            % pt indices to include in training
+  );                      
 
 if isunix
   if isdeployed
@@ -64,6 +66,8 @@ else
 end
 if tfChan
   Is = td.getCombinedIs(td.iTrn);
+  nChanTot = numel(td.IppInfo)+1;
+  assert(size(Is{1},3)==nChanTot);
 else
   Is = td.I(td.iTrn,:);
 end
@@ -78,12 +82,22 @@ sPrm = ReadYaml(tpfilefull);
 if tfChan
   %tpargs(end+1:end+2,1) = {'nChn'; nChan}; % original image counts as channel
   %tpargs(end+1:end+2,1) = {'nChn'; nChan+1}; % original image counts as channel
-  sPrm.Ftr.nChn = nChan+1;
+  sPrm.Ftr.nChn = nChanTot;
 end
 
+d = sPrm.Model.d;
+assert(d==2);
+nfidsInTD = size(td.pGT,2)/d; 
+if isempty(iPt)
+  assert(nfidsInTD==sPrm.Model.nfids);
+  iPt = 1:nfidsInTD;
+end
+iPGT = [iPt iPt+nfidsInTD];
+fprintf(1,'iPGT: %s\n',mat2str(iPGT));
+  
 %% Train on training set
 fprintf('Training and saving results to: %s\n',trfilefull);
-train(td.pGTTrn,td.bboxesTrn,Is,...
+train(td.pGTTrn(:,iPGT),td.bboxesTrn,Is,...
   'savefile',trfilefull,...
   'modelPrms',sPrm.Model,...
   'regPrm',sPrm.Reg,...
