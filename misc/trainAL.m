@@ -1,15 +1,14 @@
 function trainAL(datafile,prmfile,varargin)
 % Take a CPRData, TrainDataI, and TrainParams and produce a TrainRes
 
-[rootdir,tdIfile,tdIfileVar,ignoreChan,forceChan,datatype,td,iPt] = myparse(varargin,...
+[rootdir,tdIfile,tdIfileVar,ignoreChan,forceChan,datatype,td] = myparse(varargin,...
   'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
   'tdIfile','',... % traindata Index file; if not specified, use td.iTrn
   'tdIfileVar','',...
   'ignoreChan',false,...  % if true, then ignore channel data if present
   'forceChan',true,...    % if true, compute channels and use them (ignoreChan ignored)
   'datatype','REQ',...    % for computeIpp
-  'td',[],...             % if supplied, don't load from MAT.
-  'iPt',[] ...            % pt indices to include in training
+  'td',[]...             % if supplied, don't load from MAT.
   );                      
 
 if isunix
@@ -85,6 +84,7 @@ if tfChan
   sPrm.Ftr.nChn = nChanTot;
 end
 
+iPt = sPrm.TrainInit.iPt;
 d = sPrm.Model.d;
 assert(d==2);
 nfidsInTD = size(td.pGT,2)/d; 
