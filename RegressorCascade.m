@@ -2,8 +2,11 @@ classdef RegressorCascade < handle
   
   properties
     mdl % model
-    regPrm % parameters    
-    ftrPrm % 
+    
+    % parameters
+    trnInitPrm 
+    regPrm 
+    ftrPrm 
     
     ftrSpecs % [nMjr] cell array of feature definitions/specifications. ftrSpecs{i} is either [], or a struct specifying F features
     %ftrs % [nMjr] cell array of instantiated features. ftrs{i} is either [], or NxF    
@@ -36,16 +39,24 @@ classdef RegressorCascade < handle
       v = obj.mdl.d;
     end
     function v = get.mdlD(obj)
-      v = obj.mdl.nfids & obj.mdl.d;
+      v = obj.mdl.D;
     end
   end
   
   methods
     
-    function obj = RegressorCascade(model,regPrm,ftrPrm)
-      obj.mdl = model;
-      obj.regPrm = regPrm;
-      obj.ftrPrm = ftrPrm;      
+    function obj = RegressorCascade(paramFile)
+      s = ReadYaml(paramFile);
+      
+      if isfield(s.Model,'D')
+        assert(s.Model.D==s.Model.d*s.Model.nfids);
+      else
+        s.Model.D = s.Model.d*s.Model.nfids;
+      end
+      obj.mdl = s.Model;
+      obj.trnInitPrm = s.TrainInit;
+      obj.regPrm = s.Reg;
+      obj.ftrPrm = s.Ftr;  
       obj.init();
     end
     
@@ -173,28 +184,38 @@ classdef RegressorCascade < handle
       end
     end
     
+    function trainWithRandInit(obj,I,bboxes,pGT,varargin)
+      tiPrm = obj.trnInitPrm;
+      [p0,~,~,~,pIidx] = shapeGt('initTr',[],pGT,obj.mdl,[],bboxes,...
+        tiPrm.Naug,tiPrm.augpad,tiPrm.augrotate);
+      obj.train(I,bboxes,pGT,p0,pIidx,varargin{:});
+    end
+    
     function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
       % 
       %
       % I: [N] cell array of images
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
-      % p0: [QxD] initial shapes (absolute coords)
+      % p0: [QxD] optional, initial shapes (absolute coords). If [], will
+      %   be generated.
       % pIidx: [Q] indices into I
       %
       % pAll: [QxDxT+1] propagated training shapes (absolute coords)
       
       [verbose,hWB] = myparse(varargin,...
         'verbose',1,...
-        'hWaitBar',[]);
+        'hWaitBar',[]);      
       
       NI = numel(I);
       assert(isequal(size(bboxes),[NI 2*obj.mdld]));
-      assert(isequal(size(pGT),[NI obj.mdlD]));
+      assert(isequal(size(pGT),[NI obj.mdlD]));      
       [Q,D] = size(p0);
       assert(D==obj.mdlD);
       assert(numel(pIidx)==Q);
 
+      model = obj.mdl;
+      pGTFull = pGT(pIidx,:);
       T = obj.nMajor;
       pAll = zeros(Q,D,T+1);
       pAll(:,:,1) = p0;
@@ -204,7 +225,7 @@ classdef RegressorCascade < handle
       
       obj.init();
                   
-      loss = mean(shapeGt('dist',model,pCur,pGT));
+      loss = mean(shapeGt('dist',model,pCur,pGTFull));
       if verbose
         fprintf('  t=%i/%i       loss=%f     \n',t0-1,T,loss);
       end
@@ -217,13 +238,13 @@ classdef RegressorCascade < handle
       for t=t0:T
         if prmReg.USE_AL_CORRECTION
           pCurN_al = shapeGt('projectPose',model,pCur,bboxesFull);
-          pGtN_al = shapeGt('projectPose',model,pGT,bboxesFull);
+          pGtN_al = shapeGt('projectPose',model,pGTFull,bboxesFull);
           assert(isequal(size(pCurN_al),size(pGtN_al)));
           pDiffN_al = Shape.rotInvariantDiff(pCurN_al,pGtN_al,1,3); % XXXAL HARDCODED HEAD/TAIL
           pTar = pDiffN_al;
         else
           pTar = shapeGt('inverse',model,pCur,bboxesFull); % pCur: absolute. pTar: normalized
-          pTar = shapeGt('compose',model,pTar,pGT,bboxesFull); % pTar: normalized
+          pTar = shapeGt('compose',model,pTar,pGTFull,bboxesFull); % pTar: normalized
         end
         
         if numel(ftrRadiusOrig)>1
@@ -263,7 +284,7 @@ classdef RegressorCascade < handle
         end
         pAll(:,:,t+1) = pCur;
         
-        errPerEx = shapeGt('dist',model,pCur,pGT);
+        errPerEx = shapeGt('dist',model,pCur,pGTFull);
         loss = mean(errPerEx);        
         if verbose
           msg = tStatus(tStart,t,T);
@@ -277,6 +298,10 @@ classdef RegressorCascade < handle
       end
     end
        
+    function testWithRandInit(obj)
+      
+    end
+    
     function update(obj,I,pGT,p0,pIidx)
       
     end
@@ -285,4 +310,19 @@ classdef RegressorCascade < handle
     
 end
   
-  
+function msg = tStatus(tStart,t,T)
+elptime = etime(clock,tStart);
+fracDone = max( t/T, .00001 );
+esttime = elptime/fracDone - elptime;
+if( elptime/fracDone < 600 )
+  elptimeS  = num2str(elptime,'%.1f');
+  esttimeS  = num2str(esttime,'%.1f');
+  timetypeS = 's';
+else
+  elptimeS  = num2str(elptime/60,'%.1f');
+  esttimeS  = num2str(esttime/60,'%.1f');
+  timetypeS = 'm';
+end
+msg = ['[elapsed=' elptimeS timetypeS ...
+  ' / remaining~=' esttimeS timetypeS ']\n' ];
+end
