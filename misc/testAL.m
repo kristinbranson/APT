@@ -1,13 +1,12 @@
-function testAL(tdfile,trfile,varargin)
+function testAL(tpfile,tdfile,trfile,varargin)
 % Take a TrainData, TrainRes, and produce test results
 
-[rootdir,tdIfile,tdIfileVar,iTst,nReps,testres,ignoreChan,forceChan,skipLoss,...
+[rootdir,tdIfile,tdIfileVar,iTst,testres,ignoreChan,forceChan,skipLoss,...
   iterMovie,datatype,td] = myparse(varargin,...
     'rootdir','/groups/flyprojects/home/leea30/cpr/jan',... % place to look for files
     'tdIfile','',... % traindata Index file for testing; if not specified, use td.iTst. SPECIAL CASE: 'every5'
     'tdIfileVar','',...
     'iTst',[],... % direct specification of iTst (indices into td). If specified, tfIfile/tdIfileVar ignored.
-    'nReps',50,...
     'testres',[],...% previously computed/saved test results
     'ignoreChan',false,...
     'forceChan',true,... % if true, compute channels and use them (ignoreChan ignored)
@@ -53,7 +52,6 @@ if td.NTst<=20
    disp(td.MDTst);
 end
 
-
 try
   td.summarize(td.iTst);
 catch ME
@@ -90,6 +88,11 @@ else
   Is = td.I(td.iTst,:);
 end
 
+tpfilefull = fullfile(rootdir,tpfile);
+fprintf(1,'Using params file: %s\n',tpfilefull);
+sPrm = ReadYaml(tpfilefull);
+prmTestInit = sPrm.TestInit;
+
 %%
 trfilefull = fullfile(rootdir,trfile);
 tr = load(trfilefull,'-mat');
@@ -101,13 +104,11 @@ if tfTestRes
 else
   mdl = tr.regModel.model;
   pGTTrnNMu = nanmean(tr.regModel.pGtN,1);
-  fprintf(2,'AL20160408: update to params.TestInit (nReps, DOROTATE)\n');
-  DOROTATE = false;
   pIni = shapeGt('initTest',[],td.bboxesTst,mdl,[],...
-    repmat(pGTTrnNMu,td.NTst,1),nReps,DOROTATE);
+    repmat(pGTTrnNMu,td.NTst,1),prmTestInit.Nrep,prmTestInit.augrotate);
   VERBOSE = 0;
   [~,p_t] = rcprTest1(Is,tr.regModel,pIni,tr.regPrm,tr.ftrPrm,td.bboxesTst,VERBOSE,tr.prunePrm);  
-  pTstT = reshape(p_t,[td.NTst nReps mdl.D tr.regModel.T+1]);
+  pTstT = reshape(p_t,[td.NTst prmTestInit.Nrep mdl.D tr.regModel.T+1]);
 end
 
 %% Select best preds for each time
