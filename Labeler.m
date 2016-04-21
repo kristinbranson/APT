@@ -487,6 +487,7 @@ classdef Labeler < handle
       end
       
       assert(exist(fname,'file')>0,'File ''%s'' not found.',fname);
+      fname = which(fname);
       
       s = load(fname,'-mat');
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
@@ -538,7 +539,11 @@ classdef Labeler < handle
       % 'Import' the project fname, MERGING movies/labels into the current project.
           
       %obj.isinit = true;
+      if exist(fname,'file')==0
+        error('Labeler:projImport','File ''%s'' not found.',fname);
+      end
       
+      fname = which(fname);
       s = load(fname,'-mat');
       if s.nLabelPoints~=obj.nLabelPoints
         error('Labeler:projImport','Project %s uses nLabelPoints=%d instead of %d for the current project.',...
