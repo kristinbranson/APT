@@ -38,6 +38,7 @@ classdef Labeler < handle
   end
   properties (Dependent)
     projectfile;          % Full path to current project 
+    projectroot;          % Parent dir of projectfile, if it exists
   end
 
   %% Movie/Video
@@ -54,7 +55,7 @@ classdef Labeler < handle
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
   end
   properties (SetObservable)
-    movieFilesAll = cell(0,1); % column cellstr, full paths to movies
+    movieFilesAll = cell(0,1); % column cellstr, full paths to movies; can include macros like $projroot
     movieFilesAllHaveLbls = false(0,1); % [numel(movieFilesAll)x1] logical. 
         % How MFAHL is maintained
         % - At project load, it is updated fully.
@@ -249,6 +250,12 @@ classdef Labeler < handle
         v = info.filename;
       else
         v = [];
+      end
+    end
+    function v = get.projectroot(obj)
+      v = obj.projectfile;
+      if ~isempty(v)
+        v = fileparts(v);
       end
     end
     function v = get.nmovies(obj)
@@ -505,6 +512,9 @@ classdef Labeler < handle
       obj.movieFilesAllHaveLbls = cellfun(@(x)any(~isnan(x(:))),obj.labeledpos);
       obj.isinit = false;
       
+      % need this before setting movie so that .projectroot exists
+      obj.projFSInfo = ProjectFSInfo('loaded',fname);
+
       if obj.nmovies==0 || s.currMovie==0
         obj.movieSetNoMovie();
       else
@@ -513,7 +523,6 @@ classdef Labeler < handle
       
       assert(isa(s.labelMode,'LabelMode'));      
       obj.labeledposNeedsSave = false;
-      obj.projFSInfo = ProjectFSInfo('loaded',fname);
 
       obj.setFrameAndTarget(s.currFrame,s.currTarget);
       obj.suspScore = obj.suspScore;
@@ -536,9 +545,12 @@ classdef Labeler < handle
           fname,s.nLabelPoints,obj.nLabelPoints);
       end
       
+      fnameroot = fileparts(fname);
+      
       nMov = numel(s.movieFilesAll);
       for iMov = 1:nMov
         movfile = s.movieFilesAll{iMov};
+        movfileFull = Labeler.macroReplace(movfile,fnameroot);
         movifo = s.movieInfoAll{iMov};
         trxfl = s.trxFilesAll{iMov};
         lpos = s.labeledpos{iMov};
@@ -549,14 +561,14 @@ classdef Labeler < handle
           suspscr = s.suspScore{iMov};
         end
         
-        if exist(movfile,'file')==0 || ~isempty(trxfl)&&exist(trxfl,'file')==0
+        if exist(movfileFull,'file')==0 || ~isempty(trxfl)&&exist(trxfl,'file')==0
           warning('Labeler:projImport',...
             'Missing movie/trxfile for movie ''%s''. Not importing this movie.',...
-            movfile);
+            movfileFull);
           continue;
         end
-                         
-        obj.movieFilesAll{end+1,1} = movfile;
+           
+        obj.movieFilesAll{end+1,1} = movfileFull;
         obj.movieFilesAllHaveLbls(end+1,1) = nnz(~isnan(lpos))>0;
         obj.movieInfoAll{end+1,1} = movifo;
         obj.trxFilesAll{end+1,1} = trxfl;
@@ -665,6 +677,17 @@ classdef Labeler < handle
         
   end
   
+  methods (Static)
+    function str = macroReplace(str,projroot)
+      tf = regexp(str,'\$projroot','once');
+      if any(tf)
+        projroot = regexprep(projroot,'\\','/');
+        assert(~isempty(projroot),'Cannot replace $projroot macro.');
+        str = regexprep(str,'\$projroot',projroot);
+      end
+    end
+  end
+  
   %% Movie
   methods
     
@@ -744,8 +767,9 @@ classdef Labeler < handle
       % 1. Set the movie
       
       movfile = obj.movieFilesAll{iMov};
+      movfileFull = Labeler.macroReplace(movfile,obj.projectroot);
       
-      if exist(movfile,'file')==0
+      if exist(movfileFull,'file')==0
         warning('Labeler:mov','Cannot find movie ''%s''. Please browse to movie location.',movfile);
         lastmov = RC.getprop('lbl_lastmovie');
         if isempty(lastmov)
@@ -755,12 +779,12 @@ classdef Labeler < handle
         if isequal(newmovfile,0)
           error('Labeler:mov','Cannot find movie ''%s''.',movfile);
         end
-        movfile = fullfile(newmovpath,newmovfile);
-        obj.movieFilesAll{iMov} = movfile;
+        movfileFull = fullfile(newmovpath,newmovfile);
+        obj.movieFilesAll{iMov} = movfileFull;
       end        
       
-      obj.movieReader.open(movfile);
-      RC.saveprop('lbl_lastmovie',movfile);
+      obj.movieReader.open(movfileFull);
+      RC.saveprop('lbl_lastmovie',movfileFull);
       [path0,movname] = myfileparts(obj.moviefile);
       [~,parent] = fileparts(path0);
       obj.moviename = fullfile(parent,movname);
