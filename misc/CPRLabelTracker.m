@@ -129,7 +129,8 @@ classdef CPRLabelTracker < LabelTracker
       % * Rows appended and pGT/tfocc updated; but other information
       % untouched
       % * PreProc parameters must be same as existing
-      % * histeq (if specified in preproc params) must use existing H0
+      % * histeq (if specified in preproc params) must use existing H0,
+      % unless it is the very first update (updating an empty dataset)
       % 
       %
       % tblPNew: new rows

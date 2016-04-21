@@ -917,6 +917,47 @@ classdef CPRData < handle
   end
   
   %% partitions
+  methods (Static)
+    function [grps,ffd,ffdiTrl] = ffTrnSet(tblP,gvar)
+      % Furthest-first training set analysis
+      %
+      % tblP: table with labeled positions (p)
+      % gvar: field to use as grouping var
+      %
+      % grps: [Ngrp] categorical, unique groups found
+      % ffd: [Ngrp] cell vec. ffd{i} contains a vector of "furthest-first"
+      % distances, sorted in decreasing order.
+      % ffdiTrl. [Ngrp] cell vec. ffdiTrl{i} is a vector of indices into 
+      % tblP for ffd{i}.
+            
+      pTrn = tblP.p;
+      g = tblP.(gvar);
+      grps = categorical(unique(g));
+      nGrps = numel(grps);
+      ffd = cell(nGrps,1);
+      ffdiTrl = cell(nGrps,1);
+      
+      for iGrp = 1:nGrps
+        gCur = grps(iGrp);
+        tf = g==gCur;
+        iG = find(tf);
+        pG = pTrn(iG,:);
+        nG = numel(iG);
+        
+        % use furthestfirst to order shapes by decreasing distance
+        warnst = warning('off','backtrace');
+        [~,~,tmpidx,~,mindists] = furthestfirst(pG,nG,'Start',[]);  
+        warning(warnst);
+        
+        mindists(1) = inf;
+        assert(isequal(sort(mindists,'descend'),mindists));
+        
+        ffd{iGrp} = mindists;
+        ffdiTrl{iGrp} = iG(tmpidx);
+      end
+    end    
+  end
+  
   methods 
     
     function ptnHalfHalf(obj)
@@ -953,48 +994,7 @@ classdef CPRData < handle
       
       obj.iTrn = iTrnAcc;
       obj.iTst = iTstAcc;      
-    end
-    
-    function [grps,ffd,ffdiTrl] = ffTrnSet(obj,iTrn,gvar)
-      % Furthest-first training set analysis
-      %
-      % iTrn: [NTrn] vector of indices to use/consider in training
-      % gvar: field of .MD to use as grouping var
-      %
-      % grps: [Ngrp] categorical, unique groups found
-      % ffd: [Ngrp] cell vec. ffd{i} contains a vector of "furthest-first"
-      % distances, sorted in decreasing order.
-      % ffdiTrl. [Ngrp] cell vec. ffdiTrl{i} is a vector of iTrls for
-      % ffd{i}.
-            
-      tMDTrn = obj.MD(iTrn,:);
-      pTrn = obj.pGT(iTrn,:);
-      
-      g = tMDTrn.(gvar);
-      grps = categorical(unique(g));
-      nGrps = numel(grps);
-      ffd = cell(nGrps,1);
-      ffdiTrl = cell(nGrps,1);
-      
-      for iGrp = 1:nGrps
-        gCur = grps(iGrp);
-        tf = g==gCur;
-        iG = find(tf); % indices into iTrn
-        pG = pTrn(iG,:);
-        nG = numel(iG);
-        
-        % use furthestfirst to order shapes by decreasing distance
-        warnst = warning('off','backtrace');
-        [~,~,tmpidx,~,mindists] = furthestfirst(pG,nG,'Start',[]);  
-        warning(warnst);
-        
-        mindists(1) = inf;
-        assert(isequal(sort(mindists,'descend'),mindists));
-        
-        ffd{iGrp} = mindists;
-        ffdiTrl{iGrp} = iTrn(iG(tmpidx));
-      end
-    end
+    end    
     
     function [hFig1] = ffTrnSetSelect(obj,grps,ffd,ffdiTrl)
       % Display furthestfirst distances for groups in subplots; enable

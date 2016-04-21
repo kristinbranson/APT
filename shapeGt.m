@@ -1274,6 +1274,7 @@ function p = initTest(Is,bboxes,model,pStar,pGtN,RT1,dorotate,varargin)
 %Randomly initialize testing shapes using training shapes (RT1 different)
 %
 % Is: currently unused
+% bboxes: [Nx2d]
 % pStar: [?xD] currently unused (asserted false codepath)
 % pGtN: [NxD] GT images for Is, NORMALIZED coords
 % RT1: number of replicate shapes
