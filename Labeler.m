@@ -70,6 +70,7 @@ classdef Labeler < handle
     movieForceGrayscale = false; % scalar logical
   end
   properties (Dependent)
+    movieFilesAllFull; % like movieFilesAll, but macro-replaced
     hasMovie;
     moviefile;
     nframes;
@@ -182,6 +183,11 @@ classdef Labeler < handle
   
   %% Prop access
   methods % dependent prop getters
+    function v = get.movieFilesAllFull(obj)
+      proot = obj.projectroot;      
+      v = obj.movieFilesAll;
+      v = cellfun(@(x)Labeler.macroReplace(x,proot),v,'uni',0);
+    end
     function v = get.hasMovie(obj)
       v = obj.movieReader.isOpen;
     end    
