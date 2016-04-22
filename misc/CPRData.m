@@ -968,8 +968,9 @@ classdef CPRData < handle
       % Display furthestfirst distances for groups in subplots; enable
       % clicking on subplots to visualize training shape
       
-      fontsz = myparse(varargin,...
-        'fontsize',8);
+      [fontsz,cbkFcn] = myparse(varargin,...
+        'fontsize',8,...
+        'cbkFcn',[]); % called when user clicks
       
       assert(isequal(numel(grps),numel(ffd),numel(ffdiTrl)));
       cellfun(@(x,y)assert(isequal(size(x),size(y))),ffd,ffdiTrl);
@@ -990,7 +991,10 @@ classdef CPRData < handle
         if iGrp==1
           ylabel(ax,'distance (px^2)','fontsize',fontsz);
         end
-        bdfCbks{iGrp} = @(x,y)nst(x,y);
+        if isempty(cbkFcn)
+          cbkFcn = @(x,y)nst(x,y);
+        end
+        bdfCbks{iGrp} = cbkFcn;
         ax.YScale = 'log';
       end
       
@@ -1013,26 +1017,7 @@ classdef CPRData < handle
         nP = size(tblP,1);
         nTrnAcc = numel(iTrnAcc);
         fprintf(1,'Grand total of %d/%d (%d%%) shapes selected for training.\n',...
-          nTrnAcc,nP,round(nTrnAcc/nP*100));
-        
-        % visualize
-        warnst = warning('off','backtrace');
-        [~,~,tmpidx,~,mindists] = furthestfirst(tblP.p(iTrnAcc,:),nTrnAcc,'Start',[]);
-        warning(warnst);
-        mindists(1) = inf;
-        assert(isequal(sort(mindists,'descend'),mindists));
-        
-        figure;
-        plot(mindists);
-        grid('on');
-        title('Total training furthestfirst dists','interpreter','none','fontweight','bold');
-        ylabel('distance (px^2)');
-        
-        %           NSHOW = 6;
-        %           iTrlShow1 = obj.iTrn(tmpidx(1:NSHOW));
-        %           iTrlShow2 = obj.iTrn(tmpidx(end-NSHOW+1:end));
-        %           obj.vizIdx(iTrlShow1);
-        %           obj.vizIdx(iTrlShow2);
+          nTrnAcc,nP,round(nTrnAcc/nP*100));  
       end
     end
 
