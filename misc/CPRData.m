@@ -918,11 +918,13 @@ classdef CPRData < handle
   
   %% partitions
   methods (Static)
+    
     function [grps,ffd,ffdiTrl] = ffTrnSet(tblP,gvar)
       % Furthest-first training set analysis
       %
       % tblP: table with labeled positions (p)
-      % gvar: field to use as grouping var
+      % gvar: field to use as grouping var. If empty, all rows in a single
+      % group.
       %
       % grps: [Ngrp] categorical, unique groups found
       % ffd: [Ngrp] cell vec. ffd{i} contains a vector of "furthest-first"
@@ -931,8 +933,13 @@ classdef CPRData < handle
       % tblP for ffd{i}.
             
       pTrn = tblP.p;
-      g = tblP.(gvar);
-      grps = categorical(unique(g));
+      if isempty(gvar)
+        g = ones(size(tblP,1),1);
+      else
+        g = tblP.(gvar);
+      end
+      g = categorical(g);
+      grps = unique(g);
       nGrps = numel(grps);
       ffd = cell(nGrps,1);
       ffdiTrl = cell(nGrps,1);
