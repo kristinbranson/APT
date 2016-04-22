@@ -80,7 +80,7 @@ classdef CPRLabelTracker < LabelTracker
       % From .lObj, read tblP for all movies/labeledframes.
       
       lObj = obj.lObj;
-      [~,tblP] = CPRData.readMovsLbls(lObj.movieFilesAll,lObj.labeledpos,...
+      [~,tblP] = CPRData.readMovsLbls(lObj.movieFilesAllFull,lObj.labeledpos,...
         lObj.labeledpostag,'lbl','noImg',true);
     end
     
@@ -88,7 +88,7 @@ classdef CPRLabelTracker < LabelTracker
       % From .lObj, read tblP for given movies/frames.
       
       lObj = obj.lObj;
-      [~,tblP] = CPRData.readMovsLblsRaw(lObj.movieFilesAll,lObj.labeledpos,...
+      [~,tblP] = CPRData.readMovsLblsRaw(lObj.movieFilesAllFull,lObj.labeledpos,...
         lObj.labeledpostag,iMovs,frms,'noImg',true);
     end
     
@@ -428,7 +428,7 @@ classdef CPRLabelTracker < LabelTracker
       end
         
       lObj = obj.lObj;
-      movName = lObj.movieFilesAll{lObj.currMovie};
+      movName = lObj.movieFilesAllFull{lObj.currMovie};
       nfrms = lObj.nframes;
       
       mdl = obj.trnRes.regModel.model;

@@ -243,7 +243,7 @@ classdef CPRData < handle
         lbl = load(lblName,'-mat');
         fprintf('Lblfile: %s\n',lblName);
         
-        movFiles = lbl.movieFilesAll;
+        movFiles = lbl.movieFilesAllFull;
         
         [ILbl,tMDLbl] = CPRData.readMovsLbls(movFiles,...
           lbl.labeledpos,lbl.labeledpostag,readMovsLblsType);
