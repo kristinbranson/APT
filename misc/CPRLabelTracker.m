@@ -379,13 +379,13 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResPallMD = d.MD;
     end
     
-    function inspectTrainingData(obj)
-      d = obj.data;
-      if d.NTrn==0
-        error('CPRLabelTracker:noTD','No training data is available.');
-      end
-      d.vizWithFurthestFirst();      
-    end
+%     function inspectTrainingData(obj)
+%       d = obj.data;
+%       if d.NTrn==0
+%         error('CPRLabelTracker:noTD','No training data is available.');
+%       end
+%       d.vizWithFurthestFirst();      
+%     end
     
     function track(obj,iMovs,frms)
       if isempty(obj.trnRes)
