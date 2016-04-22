@@ -111,7 +111,7 @@ classdef CPRLabelTracker < LabelTracker
       tblPupdate = tblP(tfPotentiallyUpdatedRows,:);
       tblPupdate = setdiff(tblPupdate,tblCurrP);      
     end
-
+      
     function initData(obj)
       % Initialize .data, .dataPPPrm, .dataTS
       
@@ -201,52 +201,34 @@ classdef CPRLabelTracker < LabelTracker
       
       obj.data = dataCurr;
       obj.dataTS = now;
-    end
+    end    
     
-%    function td = prepareCPRData(obj,ppPrm,varargin)
-%       % td = prepareCPRData(obj,ppPrm,'all',varargin) % include all frames from all movies
-%       % td = prepareCPRData(obj,ppPrm,'lbl',varargin) % include all labeled frames from all movies
-%       % td = prepareCPRData(obj,ppPrm,iMovs,frms,varargin)
-%       %
-%       % Does not mutate obj
-%             
-%       if any(strcmp(varargin{1},{'all' 'lbl'}));
-%         type = varargin{1};
-%         varargin = varargin(2:end);
-%       else
-%         [iMovs,frms] = deal(varargin{1:2});
-%         varargin = varargin(3:end);
-%       end
-%       
-%       [useTrnH0,hWB] = myparse(varargin,...
-%         'useTDH0',false,... % if true, use trainData H0 for histEq (if histEq requested)
-%         'hWaitBar',[]);
-%       
-%       lObj = obj.lObj;
-%             
-%       if exist('type','var')>0
-%         td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,...
-%           type,'hWaitBar',hWB);
-%       else
-%         td = CPRData(lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,...
-%           iMovs,frms,'hWaitBar',hWB);
-%       end
-%         
-%       md = td.MD;
-%       if ppPrm.histeq
-%         if useTrnH0
-%           H0 = obj.trnData.H0;
-%           assert(~isempty(H0));
-%         else
-%           H0 = [];
-%         end
-%         gHE = categorical(md.mov);
-%         td.histEq('g',gHE,'hWaitBar',hWB,'H0',H0);
-%       else
-%         fprintf(1,'Not doing histogram equalization.\n');
-%       end
-%     end
-    
+  end
+  
+  methods (Static)
+    function dataSelCbk(xsel,ysel,tblP,grps,ffd,ffdiTrl) %#ok<INUSL>
+      % xsel/ysel: (x,y) on ffd plot nearest to user click (see
+      % CPRData.ffTrnSetSelect)
+      %
+      % grps, ffd, ffdiTrl: see CPRData.ffTrnSet      
+      
+      iTrnAcc = [];
+      nGrp = numel(grps);
+      for iG = 1:nGrp
+        ffdists = ffd{iG};
+        ffidxs = ffdiTrl{iG};
+        nTot = numel(ffdists);
+        tfSel = ffdists>=ysel; % select all shapes with min-dists greater than selected threshold
+        nSel = nnz(tfSel);
+        fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(grps(iG)),...
+          nSel,nTot,round(nSel/nTot*100));
+        iTrnAcc = [iTrnAcc; ffidxs(tfSel)]; %#ok<AGROW>
+      end
+      nP = size(tblP,1);
+      nTrnAcc = numel(iTrnAcc);
+      fprintf(1,'Grand total of %d/%d (%d%%) shapes selected for training.\n',...
+        nTrnAcc,nP,round(nTrnAcc/nP*100));
+    end    
   end
   
   %%
