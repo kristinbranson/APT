@@ -30,6 +30,17 @@ classdef CPRLabelTracker < LabelTracker
     dataTS
   end
   
+  %% Training Data Selection
+  properties
+    % Furthest-first distance threshold for training data.
+    trnDataFFDThresh
+    
+    % Currently selected training data
+    trnDataTblP
+    
+    trnDataSelTS
+  end
+  
   %%
   properties
     
@@ -77,11 +88,20 @@ classdef CPRLabelTracker < LabelTracker
   methods
     
     function tblP = getTblPLbled(obj)
-      % From .lObj, read tblP for all movies/labeledframes.
+      % From .lObj, read tblP for all movies/labeledframes. Currently,
+      % exclude partially-labeled frames.
       
       lObj = obj.lObj;
       [~,tblP] = CPRData.readMovsLbls(lObj.movieFilesAllFull,lObj.labeledpos,...
         lObj.labeledpostag,'lbl','noImg',true);
+      
+      p = tblP.p;
+      tfnan = any(isnan(p),2);
+      nnan = nnz(tfnan);
+      if nnan>0
+        warning('CPRLabelTracker:nanData','Not including %d partially-labeled rows.',nnan);
+      end
+      tblP = tblP(~tfnan,:);
     end
     
     function tblP = getTblP(obj,iMovs,frms)
@@ -205,37 +225,80 @@ classdef CPRLabelTracker < LabelTracker
     
   end
   
-  methods (Static)
-    function dataSelCbk(xsel,ysel,tblP,grps,ffd,ffdiTrl) %#ok<INUSL>
-      % xsel/ysel: (x,y) on ffd plot nearest to user click (see
-      % CPRData.ffTrnSetSelect)
-      %
-      % grps, ffd, ffdiTrl: see CPRData.ffTrnSet      
+  %% Training Data Selection
+  methods
+    
+    function trnDataInit(obj)
+      obj.trnDataFFDThresh = nan;
+      obj.trnDataTblP = [];
+      obj.trnDataSelTS = -inf;
+    end
       
-      iTrnAcc = [];
-      nGrp = numel(grps);
-      for iG = 1:nGrp
-        ffdists = ffd{iG};
-        ffidxs = ffdiTrl{iG};
-        nTot = numel(ffdists);
-        tfSel = ffdists>=ysel; % select all shapes with min-dists greater than selected threshold
-        nSel = nnz(tfSel);
-        fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(grps(iG)),...
-          nSel,nTot,round(nSel/nTot*100));
-        iTrnAcc = [iTrnAcc; ffidxs(tfSel)]; %#ok<AGROW>
+    function trnDataSelect(obj)
+      % Furthest-first selection of training data.
+      % 
+      % tblP: data to consider
+      %
+      % Based on user interaction, .trnDataFFDThresh and obj.trnDataTblP 
+      % are set.      
+      
+      tblP = obj.getTblPLbled(); % start with all labeled data
+      [grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
+
+      movS = categorical(tblP.movS);
+      movsUn = categories(movS);
+      nMovsUn = numel(movsUn);
+      movsUnCnt = countcats(movS);
+      n = size(tblP,1);
+      
+      hFig = CPRData.ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,...
+        'cbkFcn',@(xSel,ySel)nst(xSel,ySel));
+      
+      function nst(~,ySel)
+        % xSel/ySel: (x,y) on ffd plot nearest to user click (see
+        % CPRData.ffTrnSetSelect)
+        
+        ffdThresh = ySel;
+        assert(isscalar(ffd) && isscalar(ffdiTrl));
+        tfSel = ffd{1}>=ffdThresh;
+        iSel = ffdiTrl{1}(tfSel);
+        nSel = numel(iSel);
+        
+        tblPSel = tblP(iSel,:);
+        movsSel = categorical(tblPSel.movS);
+        movsUnSelCnt = arrayfun(@(x)nnz(movsSel==x),movsUn);
+        for iMov = 1:nMovsUn
+          fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(movsUn(iMov)),...
+            movsUnSelCnt(iMov),movsUnCnt(iMov),round(movsUnSelCnt(iMov)/movsUnCnt(iMov)*100));
+        end
+        fprintf(1,'Grand total of %d/%d (%d%%) shapes selected for training.\n',...
+          nSel,n,round(nSel/n*100));
+        
+        res = input('Accept this selection (y/n/c)?','s');
+        if isempty(res)
+          res = 'c';
+        end
+        switch lower(res)
+          case 'y'
+            obj.trnDataFFDThresh = ffdThresh;
+            obj.trnDataTblP = tblPSel;
+            obj.trnDataSelTS = now;
+          case 'n'
+            % none
+          case 'c'
+            delete(hFig);
+        end
       end
-      nP = size(tblP,1);
-      nTrnAcc = numel(iTrnAcc);
-      fprintf(1,'Grand total of %d/%d (%d%%) shapes selected for training.\n',...
-        nTrnAcc,nP,round(nTrnAcc/nP*100));
-    end    
-  end
+    end
+
+  end  
   
   %%
   methods
    
     function initHook(obj)
       obj.initData();
+      obj.trnDataInit();
       
       obj.trnRes = [];
       obj.trnResPallMD = [];
@@ -279,20 +342,22 @@ classdef CPRLabelTracker < LabelTracker
     function train(obj)
       prm = obj.readParamFile();
       
+      tblPTrn = obj.trnDataTblP;
+      if isempty(tblPTrn)
+        error('CPRLabelTracker:noTrnData','No training data selected.');
+      end
+      [tblPnew,tblPupdate] = obj.tblPDiff(tblPTrn);
+      
       hWB = waitbar(0);
       hTxt = findall(hWB,'type','text');
       hTxt.Interpreter = 'none';
-
-      tblPLbled = obj.getTblPLbled();
-      [tblPnew,tblPupdate] = obj.tblPDiff(tblPLbled);
       obj.updateData(tblPnew,tblPupdate,'hWaitBar',hWB);
       
-      d = obj.data;      
-      if ~isequal(d.isLabeled,d.isFullyLabeled)
-        warning('CPRLabelTracker:data','Not training with %d partially-labeled frames.',...
-          nnz(d.isLabeled & ~d.isFullyLabeled));
-      end
-      d.iTrn = find(d.isFullyLabeled);
+      d = obj.data;
+      tblMF = d.MD(:,{'mov' 'frm'});
+      tblTrnMF = tblPTrn(:,{'mov','frm'});
+      tf = ismember(tblMF,tblTrnMF);
+      d.iTrn = find(tf);
       
       d.summarize('movS',d.iTrn);
             

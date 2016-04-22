@@ -293,7 +293,7 @@ classdef CPRData < handle
       % frms. [M] cell array. frms{i} is a vector of frames to read for
       % movie iMovs(i). frms{i} may also be:
       %     * 'all' indicating "all frames" 
-      %     * 'lbl' indicating "all labeled frames"      
+      %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)   
       %
       % I: [Ntrl] cell vec of images
       % tbl: [NTrl rows] labels/metadata table.
@@ -953,7 +953,7 @@ classdef CPRData < handle
         
         % use furthestfirst to order shapes by decreasing distance
         warnst = warning('off','backtrace');
-        [~,~,tmpidx,~,mindists] = furthestfirst(pG,nG,'Start',[]);  
+        [~,~,tmpidx,~,mindists] = furthestfirst(pG,nG,'Start',[],'hWaitBar',true);  
         warning(warnst);
         
         mindists(1) = inf;
@@ -970,7 +970,7 @@ classdef CPRData < handle
       
       [fontsz,cbkFcn] = myparse(varargin,...
         'fontsize',8,...
-        'cbkFcn',[]); % called when user clicks
+        'cbkFcn',[]); % called when user clicks; signature: cbk(xSel,ySel)
       
       assert(isequal(numel(grps),numel(ffd),numel(ffdiTrl)));
       cellfun(@(x,y)assert(isequal(size(x),size(y))),ffd,ffdiTrl);
