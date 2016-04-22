@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 11-Apr-2016 16:10:24
+% Last Modified by GUIDE v2.5 22-Apr-2016 13:02:02
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -623,8 +623,8 @@ end
 prmFile = fullfile(p,f);
 RC.saveprop('lastCPRParamFile',prmFile);
 handles.labelerObj.setTrackParamFile(prmFile);
-function menu_track_inspect_training_data_Callback(hObject, eventdata, handles)
-handles.labelerObj.tracker.inspectTrainingData();
+function menu_track_select_training_data_Callback(hObject, eventdata, handles)
+handles.labelerObj.tracker.trnDataSelect();
 
 function menu_track_savetrackingresults_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackSaveResultsAs();
