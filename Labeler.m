@@ -492,9 +492,18 @@ classdef Labeler < handle
         fname = fullfile(pth,fname);
       end
       
-      assert(exist(fname,'file')>0,'File ''%s'' not found.',fname);
-      fname = which(fname);
-      
+      if exist(fname,'file')==0
+        error('Labeler:file','File ''%s'' not found.',fname);
+      else
+        tmp = which(fname);
+        if ~isempty(tmp)
+          fname = tmp; % use fullname
+        else
+          % fname exists, but cannot be expanded into a fullpath; ideally 
+          % the only possibility is that it is already a fullpath
+        end
+      end
+            
       s = load(fname,'-mat');
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
         error('Labeler:load','Unexpected contents in Label file.');
@@ -544,12 +553,18 @@ classdef Labeler < handle
     function projImport(obj,fname)
       % 'Import' the project fname, MERGING movies/labels into the current project.
           
-      %obj.isinit = true;
       if exist(fname,'file')==0
-        error('Labeler:projImport','File ''%s'' not found.',fname);
+        error('Labeler:file','File ''%s'' not found.',fname);
+      else
+        tmp = which(fname);
+        if ~isempty(tmp)
+          fname = tmp; % use fullname
+        else
+          % fname exists, but cannot be expanded into a fullpath; ideally 
+          % the only possibility is that it is already a fullpath
+        end
       end
-      
-      fname = which(fname);
+        
       s = load(fname,'-mat');
       if s.nLabelPoints~=obj.nLabelPoints
         error('Labeler:projImport','Project %s uses nLabelPoints=%d instead of %d for the current project.',...
