@@ -366,7 +366,18 @@ classdef CPRLabelTracker < LabelTracker
       
       delete(hWB); % AL: get this guy in training?
       
-      tr = train(d.pGTTrn,d.bboxesTrn,Is,...
+      iPt = prm.TrainInit.iPt;
+      nfids = prm.Model.nfids;      
+      assert(prm.Model.d==2);
+      nfidsInTD = size(d.pGT,2)/prm.Model.d;
+      if isempty(iPt)
+        assert(nfidsInTD==nfids);
+        iPt = 1:nfidsInTD;
+      end
+      iPGT = [iPt iPt+nfidsInTD];
+      fprintf(1,'iPGT: %s\n',mat2str(iPGT));
+        
+      tr = train(d.pGTTrn(:,iPGT),d.bboxesTrn,Is,...
           'modelPrms',prm.Model,...
           'regPrm',prm.Reg,...
           'ftrPrm',prm.Ftr,...

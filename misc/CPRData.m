@@ -333,6 +333,10 @@ classdef CPRData < handle
         lpostag = lpostags{iMov};
 
         [npts,d,nFrmAll] = size(lpos);
+        if isempty(lpos)
+          assert(isempty(lpostag));
+          lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
+        end
         assert(isequal(size(lpostag),[npts nFrmAll]));
         D = d*npts;
         
