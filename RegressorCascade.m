@@ -4,9 +4,12 @@ classdef RegressorCascade < handle
     mdl % model
     
     % parameters
-    trnInitPrm 
+    trnInitPrm
+    tstInitPrm
     regPrm 
     ftrPrm 
+    
+    pGTNTrn % [NtrnxD] normalized shapes used during most recent training
     
     ftrSpecs % [nMjr] cell array of feature definitions/specifications. ftrSpecs{i} is either [], or a struct specifying F features
     %ftrs % [nMjr] cell array of instantiated features. ftrs{i} is either [], or NxF    
@@ -53,8 +56,9 @@ classdef RegressorCascade < handle
       else
         s.Model.D = s.Model.d*s.Model.nfids;
       end
-      obj.mdl = s.Model;
+      obj.mdl = s.Model;      
       obj.trnInitPrm = s.TrainInit;
+      obj.tstInitPrm = s.TestInit;
       obj.regPrm = s.Reg;
       obj.ftrPrm = s.Ftr;  
       obj.init();
@@ -85,82 +89,6 @@ classdef RegressorCascade < handle
       obj.fernCounts = zeros(nMjr,nMnr,2^MM);
       obj.fernOutput = nan(nMjr,nMnr,2^MM,obj.mdlD);
       obj.fernTS = -inf*ones(nMjr,nMnr);
-    end
-    
-    function p_t = propagate(obj,I,bboxes,p0,pIidx,varargin) % obj const
-      % Propagate shapes through regressor cascade.
-      %
-      % I: [N] Cell array of images
-      % bboxes: [Nx2*d]
-      % p0: [QxD] initial shapes, absolute coords. M=N*RT1
-      % pIidx: [Q] indices into I for rows of p0
-      %
-      % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
-      % is shape after T'th major iteration.
-      %
-      
-      [t0,hWB] = myparse(varargin,...
-        't0',1,... % initial/starting major iteration
-        'hWaitBar',[]);
-      tfWB = ~isempty(hWB);
-  
-      NI = numel(I);
-      assert(isequal(size(bboxes),[NI 2*obj.mdld]));
-      [Q,D] = size(p0);
-      assert(numel(pIidx)==Q && all(ismember(pIidx,1:NI)));
-      assert(D==obj.mdlD);
-  
-      model = obj.mdl;
-      bbs = bboxes(pIidx,:);
-      T = obj.nMajor;
-      p_t = zeros(Q,D,T+1); % shapes over all initial conds/iterations, absolute coords
-      p_t(:,:,1) = p0;
-      p = p0; % current/working shape, absolute coords
-                   
-      if tfWB
-        waitbar(0,hWB,'Applying cascaded regressor');
-      end
-      for t = t0:T
-        if tfWB
-          waitbar(t/T,hWB);
-        else
-          fprintf(1,'Applying cascaded regressor: %d/%d\n',t,T);
-        end
-              
-        % TODO: actually only need to compute that subset of features that 
-        % is actually used by microregressors
-        X = obj.computeFeatures(t,I,bboxes,p,pIidx); 
-
-        % Compute shape correction (normalized units) by summing over
-        % microregressors
-        pDel = zeros(Q,D);
-        for u=1:obj.nMinor
-          iFtr = squeeze(obj.ftrsUse(t,u,:,:)); % [MxnUse]
-          nUse = size(iFtr,2);
-          switch obj.ftrPrm.metatype
-            case 'single'
-              assert(nUse==1);
-              x = X(:,iFtr);
-            case 'diff'
-              assert(nUse==2);
-              x = X(:,iFtr(:,1))-X(:,iFtr(:,2));
-          end
-          thrs = squeeze(obj.fernThresh(t,u,:));
-          inds = fernsInds(x,uint32(1:obj.M),thrs(:)'); 
-          yFern = squeeze(obj.fernOutput(t,u,inds,:));
-          assert(ndims(yFern)==2); %#ok<ISMAT>
-          pDel = pDel + yFern; % normalized units
-        end
-        
-        if obj.regPrm.USE_AL_CORRECTION
-          p1 = shapeGt('projectPose',model,p,bbs); % p1 is normalized        
-          p = Shape.applyRIDiff(p1,pDel,1,3); % XXXAL HARDCODED HEAD/TAIL
-        else
-          p = shapeGt('compose',model,pDel,p,bbs); % p (output) is normalized
-        end
-        p = shapeGt('reprojectPose',model,p,bbs); % back to absolute coords
-        p_t(:,:,t+1) = p;
-      end
     end
     
     function ftrs = computeFeatures(obj,t,I,bboxes,p,pIidx) % obj const
@@ -224,6 +152,10 @@ classdef RegressorCascade < handle
       bboxesFull = bboxes(pIidx,:);
       
       obj.init();
+      
+      % record normalized training shapes for propagation initialization
+      pGTN = shapeGt('projectPose',model,pGT,bboxes);
+      obj.pGTNTrn = pGTN;
                   
       loss = mean(shapeGt('dist',model,pCur,pGTFull));
       if verbose
@@ -298,10 +230,101 @@ classdef RegressorCascade < handle
       end
     end
        
-    function testWithRandInit(obj)
+    function p_t = propagate(obj,I,bboxes,p0,pIidx,varargin) % obj const
+      % Propagate shapes through regressor cascade.
+      %
+      % I: [N] Cell array of images
+      % bboxes: [Nx2*d]
+      % p0: [QxD] initial shapes, absolute coords, eg Q=N*augFactor
+      % pIidx: [Q] indices into I for rows of p0
+      %
+      % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
+      % is shape after T'th major iteration.
+      %
       
+      [t0,hWB] = myparse(varargin,...
+        't0',1,... % initial/starting major iteration
+        'hWaitBar',[]);
+      tfWB = ~isempty(hWB);
+  
+      NI = numel(I);
+      assert(isequal(size(bboxes),[NI 2*obj.mdld]));
+      [Q,D] = size(p0);
+      assert(numel(pIidx)==Q && all(ismember(pIidx,1:NI)));
+      assert(D==obj.mdlD);
+  
+      model = obj.mdl;
+      bbs = bboxes(pIidx,:);
+      T = obj.nMajor;
+      p_t = zeros(Q,D,T+1); % shapes over all initial conds/iterations, absolute coords
+      p_t(:,:,1) = p0;
+      p = p0; % current/working shape, absolute coords
+                   
+      if tfWB
+        waitbar(0,hWB,'Applying cascaded regressor');
+      end
+      for t = t0:T
+        if tfWB
+          waitbar(t/T,hWB);
+        else
+          fprintf(1,'Applying cascaded regressor: %d/%d\n',t,T);
+        end
+              
+        % TODO: actually only need to compute that subset of features that 
+        % is actually used by microregressors
+        X = obj.computeFeatures(t,I,bboxes,p,pIidx); 
+
+        % Compute shape correction (normalized units) by summing over
+        % microregressors
+        pDel = zeros(Q,D);
+        for u=1:obj.nMinor
+          iFtr = squeeze(obj.ftrsUse(t,u,:,:)); % [MxnUse]
+          nUse = size(iFtr,2);
+          switch obj.ftrPrm.metatype
+            case 'single'
+              assert(nUse==1);
+              x = X(:,iFtr);
+            case 'diff'
+              assert(nUse==2);
+              x = X(:,iFtr(:,1))-X(:,iFtr(:,2));
+          end
+          thrs = squeeze(obj.fernThresh(t,u,:));
+          inds = fernsInds(x,uint32(1:obj.M),thrs(:)'); 
+          yFern = squeeze(obj.fernOutput(t,u,inds,:));
+          assert(ndims(yFern)==2); %#ok<ISMAT>
+          pDel = pDel + yFern; % normalized units
+        end
+        
+        if obj.regPrm.USE_AL_CORRECTION
+          p1 = shapeGt('projectPose',model,p,bbs); % p1 is normalized        
+          p = Shape.applyRIDiff(p1,pDel,1,3); % XXXAL HARDCODED HEAD/TAIL
+        else
+          p = shapeGt('compose',model,pDel,p,bbs); % p (output) is normalized
+        end
+        p = shapeGt('reprojectPose',model,p,bbs); % back to absolute coords
+        p_t(:,:,t+1) = p;
+      end
     end
     
+    function p_t = propagateRandInit(obj,I,bboxes,varargin) % obj const
+      % 
+
+      model = obj.mdl;
+      n = numel(I);
+      assert(isequal(size(bboxes),[n 2*model.d]))
+      
+      tstPrm = obj.tstInitPrm;
+      nRep = tstPrm.Nrep;
+      pGTTrnNMu = nanmean(obj.pGTNTrn,1);
+      p0 = shapeGt('initTest',[],bboxes,model,[],...
+        repmat(pGTTrnNMu,n,1),nRep,tstPrm.augrotate); % [nxDxnRep]
+      p0 = permute(p0,[1 3 2]); % [nxnRepxD]
+      p0 = reshape(p0,[n*nRep model.D]);
+      pIidx = repmat(1:n,[1 nRep])';
+      
+      p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
+    end
+        
     function update(obj,I,pGT,p0,pIidx)
       
     end

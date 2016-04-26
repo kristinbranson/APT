@@ -51,6 +51,8 @@ classdef CPRLabelTracker < LabelTracker
     trnRes % most recent training results
     trnResTS % timestamp for trnRes
     trnResPallMD % movie/frame metadata for trnRes.pAll
+    trnResIPt % 
+    trnResRC % RegressorCascade    
     
     % Tracking state -- set during .track()
     % Note: trkD here can be less than the full/model D if some pts are
@@ -345,7 +347,12 @@ classdef CPRLabelTracker < LabelTracker
       prm = ReadYaml(prmFile);
     end
     
-    function train(obj)
+    function train(obj,varargin)
+      
+      useRC = myparse(varargin,...
+        'useRC',false... % if true, use RegressorCascade
+        );      
+      
       prm = obj.readParamFile();
       
       tblPTrn = obj.trnDataTblP;
@@ -383,17 +390,25 @@ classdef CPRLabelTracker < LabelTracker
       iPGT = [iPt iPt+nfidsInTD];
       fprintf(1,'iPGT: %s\n',mat2str(iPGT));
         
-      tr = train(d.pGTTrn(:,iPGT),d.bboxesTrn,Is,...
-          'modelPrms',prm.Model,...
-          'regPrm',prm.Reg,...
-          'ftrPrm',prm.Ftr,...
-          'initPrm',prm.TrainInit,...
-          'prunePrm',prm.Prune,...
-          'docomperr',false,...
-          'singleoutarg',true);
-      obj.trnRes = tr;
+      pTrn = d.pGTTrn(:,iPGT);
+      if useRC
+        rc = RegressorCascade(obj.paramFile);
+        rc.trainWithRandInit(Is,d.bboxesTrn,pTrn);
+        obj.trnResRC = rc;
+      else
+        tr = train(pTrn,d.bboxesTrn,Is,...
+            'modelPrms',prm.Model,...
+            'regPrm',prm.Reg,...
+            'ftrPrm',prm.Ftr,...
+            'initPrm',prm.TrainInit,...
+            'prunePrm',prm.Prune,...
+            'docomperr',false,...
+            'singleoutarg',true);
+        obj.trnRes = tr;
+      end
       obj.trnResTS = now;
       obj.trnResPallMD = d.MD;
+      obj.trnResIPt = iPt;
     end
     
     function loadTrainRes(obj,fname)
@@ -410,10 +425,11 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
         
-    function track(obj,iMovs,frms)
-      if isempty(obj.trnRes)
-        error('CPRLabelTracker:noRes','No tracker has been trained.');
-      end
+    function track(obj,iMovs,frms,varargin)
+      
+      useRC = myparse(varargin,...
+        'useRC',false...
+        );
       
       prm = obj.readParamFile();
 
@@ -440,29 +456,43 @@ classdef CPRLabelTracker < LabelTracker
       prm.Ftr.nChn = nChan;
             
       %% Test on test set
-      tr = obj.trnRes;
       prmInit = prm.TestInit;
       NTst = d.NTst;
       RT = prmInit.Nrep;
-      Tp1 = tr.regModel.T+1;
-      mdl = tr.regModel.model;
+      bboxes = d.bboxesTst;
       
-      pGTTrnNMu = nanmean(tr.regModel.pGtN,1);
-      pIni = shapeGt('initTest',[],d.bboxesTst,mdl,[],...
-        repmat(pGTTrnNMu,NTst,1),RT,prmInit.augrotate);
-      VERBOSE = 0;
-      [~,p_t] = rcprTest1(Is,tr.regModel,pIni,tr.regPrm,tr.ftrPrm,...
-        d.bboxesTst,VERBOSE,tr.prunePrm);
-      pTstT = reshape(p_t,[NTst RT mdl.D Tp1]);      
+      if useRC
+        rc = obj.trnResRC;
+        p_t = rc.propagateRandInit(Is,bboxes);        
+        trkMdl = rc.mdl;
+        trkD = trkMdl.D;
+        Tp1 = rc.nMajor+1;
+      else
+        tr = obj.trnRes;
+        if isempty(tr)
+          error('CPRLabelTracker:noRes','No tracker has been trained.');
+        end
+        Tp1 = tr.regModel.T+1;
+        trkMdl = tr.regModel.model;
+        trkD = trkMdl.D;
+        
+        pGTTrnNMu = nanmean(tr.regModel.pGtN,1);
+        pIni = shapeGt('initTest',[],bboxes,trkMdl,[],...
+          repmat(pGTTrnNMu,NTst,1),RT,prmInit.augrotate);
+        VERBOSE = 0;
+        [~,p_t] = rcprTest1(Is,tr.regModel,pIni,tr.regPrm,tr.ftrPrm,...
+          bboxes,VERBOSE,tr.prunePrm);
+      end
+      pTstT = reshape(p_t,[NTst RT trkD Tp1]);
+
       
       %% Select best preds for each time
-      pTstTRed = nan(NTst,mdl.D,Tp1);
-      prunePrm = tr.prunePrm;
-      prunePrm.prune = 1;
+      pTstTRed = nan(NTst,trkD,Tp1);
+      prm.Prune.prune = 1;
       for t = 1:Tp1
         fprintf('Pruning t=%d\n',t);
         pTmp = permute(pTstT(:,:,:,t),[1 3 2]); % [NxDxR]
-        pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,tr.regModel.model,prunePrm);
+        pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
       end
       
       % Augment .trkP* state with new tracking results
@@ -483,7 +513,7 @@ classdef CPRLabelTracker < LabelTracker
       nNew = nnz(~tf);
       obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
       obj.trkPMD = [obj.trkPMD; trkPMDnew(~tf,:)];
-      obj.trkPiPt = tr.initPrm.iPt;
+      obj.trkPiPt = obj.trnResIPt;
       
       obj.loadXYPrdCurrMovie();
       obj.newLabelerFrame();      
@@ -520,19 +550,20 @@ classdef CPRLabelTracker < LabelTracker
       movName = lObj.movieFilesAllFull{lObj.currMovie};
       nfrms = lObj.nframes;
       
-      mdl = obj.trnRes.regModel.model;
+      d = obj.data.d;
+      nfids = obj.data.nfids;
       pTrk = obj.trkP(:,:,end);
       trkMD = obj.trkPMD;
       iPtTrk = obj.trkPiPt;
       nPtTrk = numel(iPtTrk);
-      assert(isequal(size(pTrk),[size(trkMD,1) nPtTrk*mdl.d]));
+      assert(isequal(size(pTrk),[size(trkMD,1) nPtTrk*d]));
       
       tfCurrMov = strcmp(trkMD.mov,movName); % these rows of trnData/MD are for the current Labeler movie
       nCurrMov = nnz(tfCurrMov);
-      xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,mdl.d,nCurrMov);
+      xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);
       
       frmCurrMov = trkMD.frm(tfCurrMov);
-      xy = nan(mdl.nfids,mdl.d,nfrms);
+      xy = nan(nfids,d,nfrms);
       xy(iPtTrk,:,frmCurrMov) = xyTrkCurrMov;
       obj.xyPrdCurrMovie = xy;
     end
