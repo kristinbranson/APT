@@ -735,12 +735,19 @@ classdef Labeler < handle
       ifo.info = mr.info;
       mr.close();
       
+      if ~isempty(trxfile)
+        tmp = load(trxfile);
+        nTgt = numel(tmp.trx);
+      else
+        nTgt = 1;
+      end
+      
       obj.movieFilesAll{end+1,1} = moviefile;
       obj.movieFilesAllHaveLbls(end+1,1) = false;
       obj.movieInfoAll{end+1,1} = ifo;
       obj.trxFilesAll{end+1,1} = trxfile;
-      obj.labeledpos{end+1,1} = [];
-      obj.labeledpostag{end+1,1} = [];
+      obj.labeledpos{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt); 
+      obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,ifo.nframes,nTgt); 
     end
     
     function tfSucc = movieRm(obj,iMov)
@@ -837,10 +844,10 @@ classdef Labeler < handle
       obj.isinit = false; % end Initialization hell      
 
       if isempty(obj.labeledpos{iMov})
-        obj.labelPosInitCurrMovie();
+        obj.labelPosInitCurrMovie(); % AL20160426: now obsolete, labeledpos initted during movieAdd()
       end
       if isempty(obj.labeledpostag{iMov})
-        obj.labelPosTagInitCurrMovie();
+        obj.labelPosTagInitCurrMovie(); % AL20160426: now obsolete, labeledpostag initted during movieAdd()
       end
       obj.labelingInit();
       
