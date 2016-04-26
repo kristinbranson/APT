@@ -7,6 +7,9 @@ classdef CPRLabelTracker < LabelTracker
     TOKEN_LOADPROPS = {  ...
                        'trnRes' 'trnResTS' 'trnResPallMD' ...
                        'trkP' 'trkPFull' 'trkPTS' 'trkPMD'};
+
+    TRAINRES_LOADPROPS = {'trnDataFFDThresh' 'trnDataTblP' 'trnDataSelTS' ...
+                          'trnRes' 'trnResTS' 'trnResPallMD'};
   end
   
   %% Data
@@ -41,7 +44,7 @@ classdef CPRLabelTracker < LabelTracker
     trnDataSelTS
   end
   
-  %%
+  %% Train/Track
   properties
     
     % Training state -- set during .train()
@@ -393,14 +396,20 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResPallMD = d.MD;
     end
     
-%     function inspectTrainingData(obj)
-%       d = obj.data;
-%       if d.NTrn==0
-%         error('CPRLabelTracker:noTD','No training data is available.');
-%       end
-%       d.vizWithFurthestFirst();      
-%     end
-    
+    function loadTrainRes(obj,fname)
+      s = load(fname,'-mat');
+      
+      if ~isequal(s.paramFile,obj.paramFile)
+        warning('CPRLabelTracker:paramFile',...
+          'Tracker trained using parameter file ''%s''.',s.paramFile);
+      end
+      
+      props = obj.TRAINRES_LOADPROPS;
+      for p=props(:)',p=p{1}; %#ok<FXSET>
+        obj.(p) = s.(p);
+      end
+    end
+        
     function track(obj,iMovs,frms)
       if isempty(obj.trnRes)
         error('CPRLabelTracker:noRes','No tracker has been trained.');
