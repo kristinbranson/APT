@@ -50,10 +50,13 @@ classdef CPRLabelTracker < LabelTracker
     trnResPallMD % movie/frame metadata for trnRes.pAll
     
     % Tracking state -- set during .track()
-    trkP % [NTst D T+1] reduced/pruned tracked shapes
-    trkPFull % [NTst RT D T+1] Tracked shapes full data
+    % Note: trkD here can be less than the full/model D if some pts are
+    % omitted from tracking
+    trkP % [NTst trkD T+1] reduced/pruned tracked shapes
+    trkPFull % [NTst RT trkD T+1] Tracked shapes full data
     trkPTS % [NTst] timestamp for trkP*
     trkPMD % [NTst <ncols>] table. Movie/frame md for trkP*
+    trkPiPt % [trkD] indices into 1:model.D, tracked points
     
     % View/presentation
     xyPrdCurrMovie; % [npts d nfrm] predicted labels for current Labeler movie
@@ -471,6 +474,7 @@ classdef CPRLabelTracker < LabelTracker
       nNew = nnz(~tf);
       obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
       obj.trkPMD = [obj.trkPMD; trkPMDnew(~tf,:)];
+      obj.trkPiPt = tr.initPrm.iPt;
       
       obj.loadXYPrdCurrMovie();
       obj.newLabelerFrame();      
@@ -510,15 +514,17 @@ classdef CPRLabelTracker < LabelTracker
       mdl = obj.trnRes.regModel.model;
       pTrk = obj.trkP(:,:,end);
       trkMD = obj.trkPMD;
-      assert(isequal(size(pTrk),[size(trkMD,1) mdl.D]));
+      iPtTrk = obj.trkPiPt;
+      nPtTrk = numel(iPtTrk);
+      assert(isequal(size(pTrk),[size(trkMD,1) nPtTrk*mdl.d]));
       
-      xy = nan(mdl.nfids,mdl.d,nfrms);
       tfCurrMov = strcmp(trkMD.mov,movName); % these rows of trnData/MD are for the current Labeler movie
       nCurrMov = nnz(tfCurrMov);
-      xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',mdl.nfids,mdl.d,nCurrMov); % [npt x d x nCurrMov]
+      xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,mdl.d,nCurrMov);
       
       frmCurrMov = trkMD.frm(tfCurrMov);
-      xy(:,:,frmCurrMov) = xyTrkCurrMov;
+      xy = nan(mdl.nfids,mdl.d,nfrms);
+      xy(iPtTrk,:,frmCurrMov) = xyTrkCurrMov;
       obj.xyPrdCurrMovie = xy;
     end
       
