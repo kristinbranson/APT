@@ -10,6 +10,7 @@ classdef CPRLabelTracker < LabelTracker
 
     TRAINRES_LOADPROPS = {'trnDataFFDThresh' 'trnDataTblP' 'trnDataSelTS' ...
                           'trnRes' 'trnResTS' 'trnResPallMD'};
+    TRK_LOADPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
   end
   
   %% Data
