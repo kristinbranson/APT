@@ -91,20 +91,37 @@ classdef RegressorCascade < handle
       obj.fernTS = -inf*ones(nMjr,nMnr);
     end
     
-    function ftrs = computeFeatures(obj,t,I,bboxes,p,pIidx) % obj const
+    function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused) % obj const
       % t: major iteration
       % I: [N] Cell array of images
       % bboxes: [Nx2*d]
       % p: [QxD] shapes, absolute coords.
       % pIidx: [Q] indices into I for rows of p
+      % tfuse: if true, only compute those features used in obj.ftrsUse(t,:,:,:)
+      %
+      % ftrs: If tfused==false, then [QxF]; otherwise [QxnUsed]
+      % iFtrs: feature indices labeling cols of ftrs
       
       fspec = obj.ftrSpecs{t};
+
+      if tfused
+        iFtrs = obj.ftrsUse(t,:,:,:);
+        iFtrs = unique(iFtrs(:));
+      else
+        iFtrs = 1:fspec.F;
+        iFtrs = iFtrs(:);
+      end        
+      
       assert(~isempty(fspec),'No feature specifications for major iteration %d.',t);
       switch fspec.type
         case 'kborig_hack'
+          assert(~tfused,'Unsupported.');
           ftrs = shapeGt('ftrsCompKBOrig',obj.mdl,p,I,fspec,...
             pIidx,[],bboxes,obj.regPrm.occlPrm);
         case {'1lm' '2lm' '2lmdiff'}
+          fspec = rmfield(fspec,'pids');
+          fspec.F = numel(iFtrs);
+          fspec.xs = fspec.xs(iFtrs,:);
           ftrs = shapeGt('ftrsCompDup2',obj.mdl,p,I,fspec,...
             pIidx,[],bboxes,obj.regPrm.occlPrm);
         otherwise
@@ -191,7 +208,7 @@ classdef RegressorCascade < handle
             fspec = shapeGt('ftrsGenDup2',model,prmFtr);
         end
         obj.ftrSpecs{t} = fspec;
-        X = obj.computeFeatures(t,I,bboxes,pCur,pIidx);
+        X = obj.computeFeatures(t,I,bboxes,pCur,pIidx,false);
         
         % Regress
         prmReg.ftrPrm = prmFtr;
@@ -270,9 +287,8 @@ classdef RegressorCascade < handle
           fprintf(1,'Applying cascaded regressor: %d/%d\n',t,T);
         end
               
-        % TODO: actually only need to compute that subset of features that 
-        % is actually used by microregressors
-        X = obj.computeFeatures(t,I,bboxes,p,pIidx); 
+        [X,iFtrsComp] = obj.computeFeatures(t,I,bboxes,p,pIidx,true);
+        assert(numel(iFtrsComp)==size(X,2));
 
         % Compute shape correction (normalized units) by summing over
         % microregressors
@@ -283,10 +299,13 @@ classdef RegressorCascade < handle
           switch obj.ftrPrm.metatype
             case 'single'
               assert(nUse==1);
-              x = X(:,iFtr);
+              [~,loc] = ismember(iFtr,iFtrsComp);
+              x = X(:,loc);
             case 'diff'
               assert(nUse==2);
-              x = X(:,iFtr(:,1))-X(:,iFtr(:,2));
+              [~,loc1] = ismember(iFtr(:,1),iFtrsComp);
+              [~,loc2] = ismember(iFtr(:,2),iFtrsComp);
+              x = X(:,loc1)-X(:,loc2);
           end
           thrs = squeeze(obj.fernThresh(t,u,:));
           inds = fernsInds(x,uint32(1:obj.M),thrs(:)'); 
