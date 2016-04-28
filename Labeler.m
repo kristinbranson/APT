@@ -1133,6 +1133,19 @@ classdef Labeler < handle
       end
     end 
     
+    function tf = labelPosIsLabeledMov(obj,iMov)
+      % iMov: movie index (into .movieFilesAll)
+      %
+      % tf: [nframes-for-iMov], true if any point labeled in that mov/frame
+
+      ifo = obj.movieInfoAll{iMov};
+      nf = ifo.nframes;  
+      lpos = obj.labeledpos{iMov};
+      lposnnan = ~isnan(lpos);
+      
+      tf = arrayfun(@(x)nnz(lposnnan(:,:,x,:))>0,(1:nf)');
+    end
+    
     function tf = labelPosIsOccluded(obj,iFrm,iTrx)
       % Here Occluded refers to "pure occluded"
       % For current movie.
