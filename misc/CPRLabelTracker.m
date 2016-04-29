@@ -9,7 +9,7 @@ classdef CPRLabelTracker < LabelTracker
                        'trkP' 'trkPFull' 'trkPTS' 'trkPMD'};
 
     TRAINRES_LOADPROPS = {'trnDataFFDThresh' 'trnDataTblP' 'trnDataSelTS' ...
-                          'trnRes' 'trnResTS' 'trnResPallMD'};
+                          'trnRes' 'trnResTS' 'trnResPallMD' 'trnResIPt' 'trnResRC'};
     TRK_LOADPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
   end
   
@@ -412,6 +412,16 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResIPt = iPt;
     end
     
+    function saveTrainRes(obj,fname)
+      s = struct();
+      props = obj.TRAINRES_LOADPROPS;
+      s.paramFile = obj.paramFile;
+      for p=props(:)',p=p{1}; %#ok<FXSET>
+        s.(p) = obj.(p);
+      end
+      save(fname,'-mat','-struct','s');      
+    end
+      
     function loadTrainRes(obj,fname)
       s = load(fname,'-mat');
       
@@ -425,11 +435,29 @@ classdef CPRLabelTracker < LabelTracker
         obj.(p) = s.(p);
       end
     end
+    
+    function saveTrackRes(obj,fname)
+      s = struct();
+      s.paramFile = obj.paramFile;
+      props = obj.TRK_LOADPROPS;
+      for p=props(:)',p=p{1}; %#ok<FXSET>
+        s.(p) = obj.(p);
+      end
+      save(fname,'-mat','-struct','s');      
+    end
+    
+    function clearTrackRes(obj)
+      props = obj.TRK_LOADPROPS;
+      for p=props(:)',p=p{1}; %#ok<FXSET>
+        obj.(p) = [];
+      end
+    end
         
     function track(obj,iMovs,frms,varargin)
       
-      useRC = myparse(varargin,...
-        'useRC',false...
+      [useRC,tblP] = myparse(varargin,...
+        'useRC',false,... % if true, use RegressorCascade (.trnResRC)
+        'tblP',[]... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
         );
       
       prm = obj.readParamFile();
@@ -438,7 +466,9 @@ classdef CPRLabelTracker < LabelTracker
       hTxt = findall(hWB,'type','text');
       hTxt.Interpreter = 'none';
 
-      tblP = obj.getTblP(iMovs,frms);
+      if isempty(tblP)
+        tblP = obj.getTblP(iMovs,frms);
+      end
       [tblPnew,tblPupdate] = obj.tblPDiff(tblP);
       obj.updateData(tblPnew,tblPupdate,'hWaitBar',hWB);
       d = obj.data;
@@ -516,8 +546,12 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkPMD = [obj.trkPMD; trkPMDnew(~tf,:)];
       obj.trkPiPt = obj.trnResIPt;
       
-      obj.loadXYPrdCurrMovie();
-      obj.newLabelerFrame();      
+      if ~isempty(obj.lObj)
+        obj.loadXYPrdCurrMovie();
+        obj.newLabelerFrame();      
+      else
+        % headless mode
+      end
 
       %       if ~skipLoss        
 %         %%
