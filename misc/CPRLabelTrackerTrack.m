@@ -46,7 +46,7 @@ for iMov = 1:nMov
   tblP = table(mov,movS,frm,p,tfocc);
   t.initData();
   t.track([],[],'useRC',1,'tblP',tblP);  
-  [~,movSSansExt] = fileparts(movS);
+  [~,movSSansExt] = fileparts(movieShrt);
   resFile = [resFileBase '_' movSSansExt '.mat'];
   t.saveTrackRes(resFile);  
   t.clearTrackRes();

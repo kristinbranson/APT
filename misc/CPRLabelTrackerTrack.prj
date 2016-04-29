@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="1487947052" file="/groups/flyprojects/home/leea30/cpr/jan/data/CPRLabelTrackerTrack.prj" location="/groups/flyprojects/home/leea30/cpr/jan/data" name="CPRLabelTrackerTrack" preferred-package-location="/groups/flyprojects/home/leea30/cpr/jan/data/CPRLabelTrackerTrack/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="2743380668" file="/groups/flyprojects/home/leea30/git/cpr/misc/CPRLabelTrackerTrack.prj" location="/groups/flyprojects/home/leea30/git/cpr/misc" name="CPRLabelTrackerTrack" preferred-package-location="/groups/flyprojects/home/leea30/git/cpr/misc/CPRLabelTrackerTrack/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>CPRLabelTrackerTrack</param.appname>
     <param.icon />
     <param.icons />
@@ -88,7 +88,7 @@
       <param.log.file />
     </unset>
     <fileset.main>
-      <file>/groups/flyprojects/home/leea30/git/cpr/CPRLabelTrackerTrack.m</file>
+      <file>${PROJECT_ROOT}/CPRLabelTrackerTrack.m</file>
     </fileset.main>
     <fileset.resources>
       <file>/groups/flyprojects/home/leea30/git/apt/YAMLMatlab_0.4.3/external/snakeyaml-1.9.jar</file>
@@ -112,20 +112,20 @@
       <file>/groups/flyprojects/home/leea30/git/cpr/Ferns.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/RegressorCascade.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/SelectFeatures.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/CPRData.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/CPRLabelTracker.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/CVSet.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/FS.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/Features.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/LiveDataCursor.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/Shape.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/axisOverlay.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/freqCountStats.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/getPrmDfltStruct.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/loadBalance.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/rcprTestSelectOutput.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/test_rcpr.m</file>
-      <file>/groups/flyprojects/home/leea30/git/cpr/misc/train.m</file>
+      <file>${PROJECT_ROOT}/CPRData.m</file>
+      <file>${PROJECT_ROOT}/CPRLabelTracker.m</file>
+      <file>${PROJECT_ROOT}/CVSet.m</file>
+      <file>${PROJECT_ROOT}/FS.m</file>
+      <file>${PROJECT_ROOT}/Features.m</file>
+      <file>${PROJECT_ROOT}/LiveDataCursor.m</file>
+      <file>${PROJECT_ROOT}/Shape.m</file>
+      <file>${PROJECT_ROOT}/axisOverlay.m</file>
+      <file>${PROJECT_ROOT}/freqCountStats.m</file>
+      <file>${PROJECT_ROOT}/getPrmDfltStruct.m</file>
+      <file>${PROJECT_ROOT}/loadBalance.m</file>
+      <file>${PROJECT_ROOT}/rcprTestSelectOutput.m</file>
+      <file>${PROJECT_ROOT}/test_rcpr.m</file>
+      <file>${PROJECT_ROOT}/train.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/normalize.m</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/private/fernsInds2.mexa64</file>
       <file>/groups/flyprojects/home/leea30/git/cpr/private/selectCorrFeatAL.mexa64</file>
@@ -205,11 +205,11 @@
       <file>/groups/flyprojects/home/leea30/git/piotr_toolbox/toolbox/videos/seqWriterPlugin.m</file>
     </fileset.depfun>
     <build-deliverables>
-      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="readme.txt" optional="true">/groups/flyprojects/home/leea30/cpr/jan/data/CPRLabelTrackerTrack/for_testing/readme.txt</file>
-      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="CPRLabelTrackerTrack.ctf" optional="false">/groups/flyprojects/home/leea30/cpr/jan/data/CPRLabelTrackerTrack/for_testing/CPRLabelTrackerTrack.ctf</file>
-      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="splash.png" optional="false">/groups/flyprojects/home/leea30/cpr/jan/data/CPRLabelTrackerTrack/for_testing/splash.png</file>
-      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="run_CPRLabelTrackerTrack.sh" optional="false">/groups/flyprojects/home/leea30/cpr/jan/data/CPRLabelTrackerTrack/for_testing/run_CPRLabelTrackerTrack.sh</file>
-      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="CPRLabelTrackerTrack" optional="false">/groups/flyprojects/home/leea30/cpr/jan/data/CPRLabelTrackerTrack/for_testing/CPRLabelTrackerTrack</file>
+      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="readme.txt" optional="true">/groups/flyprojects/home/leea30/git/cpr/misc/CPRLabelTrackerTrack/for_testing/readme.txt</file>
+      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="CPRLabelTrackerTrack" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/CPRLabelTrackerTrack/for_testing/CPRLabelTrackerTrack</file>
+      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="CPRLabelTrackerTrack.ctf" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/CPRLabelTrackerTrack/for_testing/CPRLabelTrackerTrack.ctf</file>
+      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="run_CPRLabelTrackerTrack.sh" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/CPRLabelTrackerTrack/for_testing/run_CPRLabelTrackerTrack.sh</file>
+      <file location="${PROJECT_ROOT}/CPRLabelTrackerTrack/for_testing" name="splash.png" optional="false">/groups/flyprojects/home/leea30/git/cpr/misc/CPRLabelTrackerTrack/for_testing/splash.png</file>
     </build-deliverables>
     <workflow />
     <matlab>
