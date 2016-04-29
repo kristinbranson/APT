@@ -6,7 +6,7 @@ import shutil
 import argparse
 import subprocess
 
-PRJS = ['trainAL','testAL']
+PRJS = ['trainAL','testAL','CPRLabelTrackerTrack']
 
 def main():
     parser = argparse.ArgumentParser()
