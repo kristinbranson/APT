@@ -313,10 +313,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResPallMD = [];
       obj.trnResTS = [];
       
-      obj.trkP = [];
-      obj.trkPFull = [];
-      obj.trkPTS = zeros(0,1);
-      obj.trkPMD = struct2table(struct('mov',cell(0,1),'movS',[],'frm',[]));
+      obj.initTrackRes();
             
       obj.xyPrdCurrMovie = [];
       deleteValidHandles(obj.hXYPrdRed);
@@ -436,6 +433,16 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
+    function initTrackRes(obj)
+      % init obj.TRK_LOADPROPS
+      
+      obj.trkP = [];
+      obj.trkPFull = [];
+      obj.trkPTS = zeros(0,1);
+      obj.trkPMD = struct2table(struct('mov',cell(0,1),'movS',[],'frm',[]));      
+      obj.trkPiPt = [];
+    end
+    
     function saveTrackRes(obj,fname)
       s = struct();
       s.paramFile = obj.paramFile;
@@ -445,14 +452,7 @@ classdef CPRLabelTracker < LabelTracker
       end
       save(fname,'-mat','-struct','s');      
     end
-    
-    function clearTrackRes(obj)
-      props = obj.TRK_LOADPROPS;
-      for p=props(:)',p=p{1}; %#ok<FXSET>
-        obj.(p) = [];
-      end
-    end
-        
+            
     function track(obj,iMovs,frms,varargin)
       
       [useRC,tblP] = myparse(varargin,...

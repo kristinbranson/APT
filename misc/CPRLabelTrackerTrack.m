@@ -49,6 +49,6 @@ for iMov = 1:nMov
   [~,movSSansExt] = fileparts(movieShrt);
   resFile = [resFileBase '_' movSSansExt '.mat'];
   t.saveTrackRes(resFile);  
-  t.clearTrackRes();
+  t.initTrackRes();
 end
 
