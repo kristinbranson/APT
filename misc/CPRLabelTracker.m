@@ -1,16 +1,10 @@
 classdef CPRLabelTracker < LabelTracker
   
-  properties (Constant)
-    TOKEN_SAVEPROPS = {'dataPPPrm' 'dataTS' ...
-                       'trnRes' 'trnResTS' 'trnResPallMD' ...
-                       'trkP' 'trkPFull' 'trkPTS' 'trkPMD'};
-    TOKEN_LOADPROPS = {  ...
-                       'trnRes' 'trnResTS' 'trnResPallMD' ...
-                       'trkP' 'trkPFull' 'trkPTS' 'trkPMD'};
-
-    TRAINRES_LOADPROPS = {'trnDataFFDThresh' 'trnDataTblP' 'trnDataSelTS' ...
-                          'trnRes' 'trnResTS' 'trnResPallMD' 'trnResIPt' 'trnResRC'};
-    TRK_LOADPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
+  properties (Constant,Hidden)
+    TRAINEDTRACKER_SAVEPROPS = {'dataPPPrm' 'dataTS' ...
+                                'trnDataFFDThresh' 'trnDataTblP' 'trnDataSelTS' ...
+                                'trnRes' 'trnResTS' 'trnResPallMD' 'trnResIPt' 'trnResRC'};
+    TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
   end
   
   %% Data
@@ -410,48 +404,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResTS = now;
       obj.trnResPallMD = d.MD;
       obj.trnResIPt = iPt;
-    end
-    
-    function saveTrainRes(obj,fname)
-      s = struct();
-      props = obj.TRAINRES_LOADPROPS;
-      s.paramFile = obj.paramFile;
-      for p=props(:)',p=p{1}; %#ok<FXSET>
-        s.(p) = obj.(p);
-      end
-      save(fname,'-mat','-struct','s');      
-    end
-      
-    function loadTrainRes(obj,fname)
-      s = load(fname,'-mat');
-      
-      if ~isequal(s.paramFile,obj.paramFile)
-        warning('CPRLabelTracker:paramFile',...
-          'Tracker trained using parameter file ''%s''.',s.paramFile);
-      end
-      
-      props = obj.TRAINRES_LOADPROPS;
-      for p=props(:)',p=p{1}; %#ok<FXSET>
-        obj.(p) = s.(p);
-      end
-    end
-    
-    function saveTrackRes(obj,fname)
-      s = struct();
-      s.paramFile = obj.paramFile;
-      props = obj.TRK_LOADPROPS;
-      for p=props(:)',p=p{1}; %#ok<FXSET>
-        s.(p) = obj.(p);
-      end
-      save(fname,'-mat','-struct','s');      
-    end
-    
-    function clearTrackRes(obj)
-      props = obj.TRK_LOADPROPS;
-      for p=props(:)',p=p{1}; %#ok<FXSET>
-        obj.(p) = [];
-      end
-    end
+    end    
         
     function track(obj,iMovs,frms,varargin)
       
@@ -630,23 +583,34 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function s = getSaveToken(obj)
-      s = struct();
-      s.labelTrackerClass = class(obj);
+      % See save philosophy below. ATM we return a "full" struct with
+      % 1(subset)+2+3+4;
       
-      d = obj.data;
-      tblP = d.MD;
-      tblP.p = d.pGT;
-      s.tblP = tblP;
-      for p = obj.TOKEN_SAVEPROPS, p=p{1}; %#ok<FXSET>
-        s.(p) = obj.(p);
+      s1 = obj.getTrainedTrackerSaveStruct();
+      s2 = obj.getTrackResSaveStruct();
+      if isfield(s1,'paramFile') && isfield(s2,'paramFile')
+        assert(strcmp(s1.paramFile,s2.paramFile));
+        s2 = rmfield(s2,'paramFile');
       end
+      s = structmerge(s1,s2);      
+      s.labelTrackerClass = class(obj);
     end
     
     function loadSaveToken(obj,s)
-      assert(isequal(s.labelTrackerClass,class(obj)));      
+      assert(strcmp(s.labelTrackerClass,class(obj)));     
+      s = rmfield(s,'labelTrackerClass');
       
-      for p = obj.TOKEN_LOADPROPS, p=p{1}; %#ok<FXSET>
-        obj.(p) = s.(p);
+      % ATM just load all fields
+      
+      assert(isfield(s,'paramFile'));
+      if ~isequal(s.paramFile,obj.paramFile)
+        warning('CPRLabelTracker:paramFile',...
+          'Setting parameter file to ''%s''.',s.paramFile);
+      end
+      
+      flds = fieldnames(s);
+      for f=flds(:)',f=f{1}; %#ok<FXSET>
+        obj.(f) = s.(f);
       end
       
       obj.loadXYPrdCurrMovie();
@@ -655,6 +619,95 @@ classdef CPRLabelTracker < LabelTracker
     
   end
   
+  %% Save, Load, Init etc
+  % The serialization philosophy is as follows.
+  %
+  % At a high level there are four groups of state forming a linear
+  % dependency chain (basically)
+  % 1. (CPR)Data: .data, .dataPPPrm, .dataTS.
+  % 2. Training Data specification: .trnData*
+  % 3. Training results (trained tracker): .trnRes*
+  % 4: Tracking results: .trkP*
+  %
+  % - Often, the .data itself in 1) will be very large. So ATM we do not 
+  % save the .data itself.
+  % - You might want to save just 2., but much more commonly you will want
+  % to save 2+3. If you want to save 3, it really makes sense to save 2 as
+  % well, as well as .dataPPPrm from 1. So we support saving 1(subset)+2+3. 
+  % This is saving/loading a "trained tracker".
+  % - You might want to save 4. You might want to do this independent of
+  % 1(subset)+2+3. So we support saving 4 orthogonally, although of course
+  % sometimes you will want to save everything.
+  % 
+  methods
+    
+    function s = getTrainedTrackerSaveStruct(obj)
+      s = struct();
+      props = obj.TRAINEDTRACKER_SAVEPROPS;
+      s.paramFile = obj.paramFile;
+      for p=props(:)',p=p{1}; %#ok<FXSET>
+        s.(p) = obj.(p);
+      end
+    end
+    
+    function loadTrainedTrackerSaveStruct(obj,s)
+      if ~isequal(s.paramFile,obj.paramFile)
+        warning('CPRLabelTracker:paramFile',...
+          'Setting parameter file to ''%s''.',s.paramFile);
+      end
+      obj.paramFile = s.paramFile;
+      props = obj.TRAINEDTRACKER_SAVEPROPS;
+      for p=props(:)',p=p{1}; %#ok<FXSET>
+        obj.(p) = s.(p);
+      end
+    end
+    
+    function saveTrainedTracker(obj,fname) 
+      s = obj.getTrainedTrackerSaveStruct(); %#ok<NASGU>
+      save(fname,'-mat','-struct','s');
+    end
+    
+    function loadTrainedTracker(obj,fname)
+      s = load(fname,'-mat');
+      obj.loadTrainedTrackerSaveStruct(s);
+    end
+    
+    function s = getTrackResSaveStruct(obj)
+      s = struct();
+      s.paramFile = obj.paramFile;
+      props = obj.TRACKRES_SAVEPROPS;
+      for p=props(:)',p=p{1}; %#ok<FXSET>
+        s.(p) = obj.(p);
+      end      
+    end
+    
+    function loadTrackResSaveStruct(obj)
+      if ~isequal(s.paramFile,obj.paramFile)
+        warning('CPRLabelTracker:paramFile',...
+          'Setting parameter file to ''%s''.',s.paramFile);
+      end
+      obj.paramFile = s.paramFile;
+      props = obj.TRACKRES_SAVEPROPS;
+      for p=props(:)',p=p{1}; %#ok<FXSET>
+        obj.(p) = s.(p);
+      end
+    end
+    
+    function saveTrackRes(obj,fname)
+      s = obj.getTrackResSaveStruct(); %#ok<NASGU>
+      save(fname,'-mat','-struct','s');
+    end
+        
+    function clearTrackRes(obj)
+      props = obj.TRACKRES_SAVEPROPS;
+      for p=props(:)',p=p{1}; %#ok<FXSET>
+        obj.(p) = [];
+      end
+    end
+    
+  end
+  
+  %%
   methods (Static)
         
     function tdPPJan(td,varargin)
