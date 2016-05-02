@@ -445,7 +445,7 @@ classdef CPRLabelTracker < LabelTracker
       else
         % code in the other branch would basically work, but we also want
         % to set trkPiPt
-        props = obj.TRK_LOADPROPS;
+        props = obj.TRACKRES_SAVEPROPS;
         for p=props(:)',p=p{1}; %#ok<FXSET>
           obj.(p) = tr.(p);
         end
@@ -639,7 +639,7 @@ classdef CPRLabelTracker < LabelTracker
       s1 = obj.getTrainedTrackerSaveStruct();
       s2 = obj.getTrackResSaveStruct();
       if isfield(s1,'paramFile') && isfield(s2,'paramFile')
-        assert(strcmp(s1.paramFile,s2.paramFile));
+        assert(isequal(s1.paramFile,s2.paramFile));
         s2 = rmfield(s2,'paramFile');
       end
       s = structmerge(s1,s2);
@@ -753,7 +753,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function initTrackRes(obj)
-      % init obj.TRK_LOADPROPS
+      % init obj.TRACKRES_SAVEPROPS
       
       obj.trkP = [];
       obj.trkPFull = [];
