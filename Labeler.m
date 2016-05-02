@@ -474,6 +474,14 @@ classdef Labeler < handle
         case LabelMode.TEMPLATE
           s.labelTemplate = obj.lblCore.getTemplate();
       end
+      
+      tObj = obj.tracker;
+      if ~isempty(tObj)
+        sTrk = tObj.getSaveToken();
+        tObjCls = class(tObj);
+        assert(~isfield(s,tObjCls));
+        s.(tObjCls) = sTrk;
+      end        
     end
     
     function projLoad(obj,fname)
@@ -545,8 +553,16 @@ classdef Labeler < handle
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
 
-      if ~isempty(obj.tracker)
-        obj.tracker.init();
+      tObj = obj.tracker;
+      if ~isempty(tObj)
+        tObj.init();
+        
+        tObjCls = class(tObj);
+        if isfield(s,tObjCls)
+          fprintf(1,'Loading tracker info: %s.\n',tObjCls);
+          trkTok = s.(tObjCls);
+          tObj.loadSaveToken(trkTok);
+        end
       end
     end
     
@@ -1017,8 +1033,7 @@ classdef Labeler < handle
     end
     
   end
- 
-    
+   
   %% Labeling
   methods
     
@@ -1563,7 +1578,7 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
-      tObj.train();
+      tObj.train('useRC',true);
     end
     
     function track(obj,tm)
@@ -1574,7 +1589,7 @@ classdef Labeler < handle
         error('Labeler:track','No tracker set.');
       end      
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
-      tObj.track(iMovs,frms);      
+      tObj.track(iMovs,frms,'useRC',true);      
     end
     
     function trackSaveResults(obj,fname)
