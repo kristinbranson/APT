@@ -422,9 +422,10 @@ classdef CPRLabelTracker < LabelTracker
     function loadTrainRes(obj,fname)
       s = load(fname,'-mat');
       
-      if ~isequal(s.paramFile,obj.paramFile)
+      if ~isempty(obj.paramFile) && ~isequal(s.paramFile,obj.paramFile)
         warning('CPRLabelTracker:paramFile',...
-          'Tracker trained using parameter file ''%s''.',s.paramFile);
+          'Tracker trained using parameter file ''%s'', which differs from current file ''%s''.',...
+          s.paramFile,obj.paramFile);
       end
       
       props = obj.TRAINRES_LOADPROPS;
@@ -451,6 +452,59 @@ classdef CPRLabelTracker < LabelTracker
         s.(p) = obj.(p);
       end
       save(fname,'-mat','-struct','s');      
+    end
+    
+    function loadTrackResMerge(obj,fname)
+      % Load tracking results from fname, merging into existing results
+      
+      tr = load(fname);
+      if ~isempty(obj.paramFile) && ~strcmp(tr.paramFile,obj.paramFile)
+        warning('CPRLabelTracker:paramFile',...
+          'Tracking results generated using parameter file ''%s'', which differs from current file ''%s''.',...
+          tr.paramFile,obj.paramFile);
+      end
+      
+      if ~isempty(obj.trkP) % training results exist
+                
+        if ~isequal(obj.trkPiPt,tr.trkPiPt)
+          error('CPRLabelTracker:trkPiPt','''trkPiPt'' differs in tracked results to be loaded.');
+        end
+        
+        tblMF = obj.trkPMD(:,{'movS' 'frm'});
+        tblLoad = tr.trkPMD(:,{'movS' 'frm'});
+        [tfOverlp,locMF] = ismember(tblLoad,tblMF);
+        
+        tsOverlp0 = obj.trkPTS(locMF(tfOverlp));
+        tsOverlpNew = tr.trkPTS(tfOverlp);
+        nOverlapOlder = nnz(tsOverlpNew<tsOverlp0);
+        if nOverlapOlder>0
+          warning('CPRLabelTracker:trkPTS',...
+            'Loading tracking results that are older than current results for %d frames.',nOverlapOlder);
+        end
+        
+        % load existing/overlap results
+        iOverlp = locMF(tfOverlp);
+        obj.trkP(iOverlp,:,:) = tr.trkP(tfOverlp,:,:);
+        obj.trkPFull(iOverlp,:,:,:) = tr.trkPFull(tfOverlp,:,:,:);
+        obj.trkPMD(iOverlp,:) = tr.trkPMD(tfOverlp,:);
+        obj.trkPTS(iOverlp,:) = tr.trkPTS(tfOverlp,:);
+        
+        % load new results
+        obj.trkP = cat(1,obj.trkP,tr.trkP(~tfOverlp,:,:));
+        obj.trkPFull = cat(1,obj.trkPFull,tr.trkPFull(~tfOverlp,:,:,:));
+        obj.trkPMD = cat(1,obj.trkPMD,tr.trkPMD(~tfOverlp,:));
+        obj.trkPTS = cat(1,obj.trkPTS,tr.trkPTS(~tfOverlp,:));
+      else
+        % code in the other branch would basically work, but we also want
+        % to set trkPiPt
+        props = obj.TRK_LOADPROPS;
+        for p=props(:)',p=p{1}; %#ok<FXSET>
+          obj.(p) = tr.(p);
+        end
+      end
+      
+      nfLoad = size(tr.trkP,1);
+      fprintf(1,'Loaded tracking results for %d frames.\n',nfLoad);
     end
             
     function track(obj,iMovs,frms,varargin)
@@ -576,17 +630,17 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      if any(trkTS<obj.trnResTS) || any(trkTS<obj.dataTS)
-        warning('CPRLabelTracker:trackOOD',...
-          'Some/all tracking results may be out of date.');
-      end
+%       if any(trkTS<obj.trnResTS) || any(trkTS<obj.dataTS)
+%         warning('CPRLabelTracker:trackOOD',...
+%           'Some/all tracking results may be out of date.');
+%       end
         
       lObj = obj.lObj;
       movName = lObj.movieFilesAllFull{lObj.currMovie};
       nfrms = lObj.nframes;
       
-      d = obj.data.d;
-      nfids = obj.data.nfids;
+      d = 2;
+      nfids = obj.nPts;
       pTrk = obj.trkP(:,:,end);
       trkMD = obj.trkPMD;
       iPtTrk = obj.trkPiPt;
@@ -620,11 +674,7 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
-    function newLabelerMovie(obj)
-      if isempty(obj.trnRes)
-        return;
-      end
-      
+    function newLabelerMovie(obj)      
       obj.loadXYPrdCurrMovie();
       obj.newLabelerFrame();      
     end
