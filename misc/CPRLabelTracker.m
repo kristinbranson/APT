@@ -102,7 +102,7 @@ classdef CPRLabelTracker < LabelTracker
       tfnan = any(isnan(p),2);
       nnan = nnz(tfnan);
       if nnan>0
-        warning('CPRLabelTracker:nanData','Not including %d partially-labeled rows.',nnan);
+        warningNoTrace('CPRLabelTracker:nanData','Not including %d partially-labeled rows.',nnan);
       end
       tblP = tblP(~tfnan,:);
     end
@@ -407,7 +407,7 @@ classdef CPRLabelTracker < LabelTracker
       
       tr = load(fname);
       if ~isempty(obj.paramFile) && ~strcmp(tr.paramFile,obj.paramFile)
-        warning('CPRLabelTracker:paramFile',...
+        warningNoTrace('CPRLabelTracker:paramFile',...
           'Tracking results generated using parameter file ''%s'', which differs from current file ''%s''.',...
           tr.paramFile,obj.paramFile);
       end
@@ -426,7 +426,7 @@ classdef CPRLabelTracker < LabelTracker
         tsOverlpNew = tr.trkPTS(tfOverlp);
         nOverlapOlder = nnz(tsOverlpNew<tsOverlp0);
         if nOverlapOlder>0
-          warning('CPRLabelTracker:trkPTS',...
+          warningNoTrace('CPRLabelTracker:trkPTS',...
             'Loading tracking results that are older than current results for %d frames.',nOverlapOlder);
         end
         
@@ -614,6 +614,12 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(obj.xyPrdCurrMovie)
         xy = nan(npts,2);
       else
+        % AL20160502: When changing movies, order of updates to 
+        % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
+        % be updated first, resulting in an OOB currFrame; protect against
+        % this.
+        frm = min(frm,size(obj.xyPrdCurrMovie,3));
+        
         xy = obj.xyPrdCurrMovie(:,:,frm); % [npt x d]
       end
       for iPt = 1:npts
@@ -648,7 +654,7 @@ classdef CPRLabelTracker < LabelTracker
       
       assert(isfield(s,'paramFile'));
       if ~isequal(s.paramFile,obj.paramFile)
-        warning('CPRLabelTracker:paramFile',...
+        warningNoTrace('CPRLabelTracker:paramFile',...
           'Setting parameter file to ''%s''.',s.paramFile);
       end
       
@@ -696,7 +702,7 @@ classdef CPRLabelTracker < LabelTracker
     
     function loadTrainedTrackerSaveStruct(obj,s)
       if ~isempty(obj.paramFile) && ~isequal(s.paramFile,obj.paramFile)
-        warning('CPRLabelTracker:paramFile',...
+        warningNoTrace('CPRLabelTracker:paramFile',...
           'Tracker trained using parameter file ''%s'', which differs from current file ''%s''.',...
           s.paramFile,obj.paramFile);
       end
@@ -730,7 +736,7 @@ classdef CPRLabelTracker < LabelTracker
     
     function loadTrackResSaveStruct(obj,s)
       if ~isempty(obj.paramFile) && ~isequal(s.paramFile,obj.paramFile)
-        warning('CPRLabelTracker:paramFile',...
+        warningNoTrace('CPRLabelTracker:paramFile',...
           'Results tracked using parameter file ''%s'', which differs from current file ''%s''.',...
           s.paramFile,obj.paramFile);
       end
