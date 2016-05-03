@@ -32,6 +32,8 @@ gui_Singleton = 0;
 % wonky-- couldn't figure out a clean solution. For now use two .figs
 if ispc && ~verLessThan('matlab','8.6') % 8.6==R2015b
   gui_Name = 'LabelerGUI_PC_15b';
+elseif isunix
+  gui_Name = 'LabelerGUI_lnx';
 else
   gui_Name = 'LabelerGUI_PC_14b';
 end
