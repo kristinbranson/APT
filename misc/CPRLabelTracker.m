@@ -584,6 +584,7 @@ classdef CPRLabelTracker < LabelTracker
       
       lObj = obj.lObj;
       movName = lObj.movieFilesAllFull{lObj.currMovie};
+      [~,movS] = myfileparts(movName);
       nfrms = lObj.nframes;
       
       d = 2;
@@ -594,7 +595,7 @@ classdef CPRLabelTracker < LabelTracker
       nPtTrk = numel(iPtTrk);
       assert(isequal(size(pTrk),[size(trkMD,1) nPtTrk*d]));
       
-      tfCurrMov = strcmp(trkMD.mov,movName); % these rows of trnData/MD are for the current Labeler movie
+      tfCurrMov = strcmp(trkMD.movS,movS); % these rows of trkMD are for the current Labeler movie
       nCurrMov = nnz(tfCurrMov);
       xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);
       
