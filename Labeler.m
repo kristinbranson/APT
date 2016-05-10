@@ -539,6 +539,11 @@ classdef Labeler < handle
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
 
+      tObj = obj.tracker;
+      if ~isempty(tObj)
+        tObj.init(); % AL 20160508: needs to occur before .movieSet() below
+      end
+      
       if obj.nmovies==0 || s.currMovie==0
         obj.movieSetNoMovie();
       else
@@ -553,10 +558,7 @@ classdef Labeler < handle
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
 
-      tObj = obj.tracker;
-      if ~isempty(tObj)
-        tObj.init();
-        
+      if ~isempty(tObj)        
         tObjCls = class(tObj);
         if isfield(s,tObjCls)
           fprintf(1,'Loading tracker info: %s.\n',tObjCls);
@@ -1442,6 +1444,11 @@ classdef Labeler < handle
   methods (Static)
     function nptsLbled = labelPosNPtsLbled(lpos)
       % poor man's export of LabelPosLabeledFramesStats
+      %
+      % lpos: [nPt x d x nFrm x nTgt]
+      % 
+      % nptsLbled: [nFrm]. Number of labeled (non-nan) points for each frame
+      
       [~,d,nfrm,ntgt] = size(lpos);
       assert(d==2);
       assert(ntgt==1,'One target only.');
