@@ -51,9 +51,11 @@ handles.axs = [handles.axes1 handles.axes2 handles.axes3];
 handles.ims = [ ...
   imagesc(0,'Parent',handles.axes1); ...
   imagesc(0,'Parent',handles.axes2); ...
-  imagesc(0,'Parent',handles.axes3)];
+  imagesc(0,'Parent',handles.axes3); ...
+  ];
 set(handles.ims,'Hittest','off');
-for i=1:3
+nIm = numel(handles.ims);
+for i=1:nIm
   ax = handles.axs(i);
   hold(ax,'on');
   axisoff(ax);
