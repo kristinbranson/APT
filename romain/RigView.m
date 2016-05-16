@@ -10,55 +10,59 @@ classdef RigView < handle
     gdata
     crig
     
-    movDir
     movRdrs % [3] array movieReaders (L,R,B)
-    movCurrFrameLR % current L/R frame
-    
-    imDir
-    imCurrImIdx
-    tfImMode = false;
   end
   properties (SetObservable)
-    tfAxSel % [3] logical array, flags for selected axes 
-  end 
-  properties (Hidden)
-    hIMPs  % [3] cell array of handle vecs of current impoints for axes 1-3
-    
-    % [3] cell array of handle vecs of current epipolar lines correponding 
-    % to hIMPs. hLines{iAx} is [numel(hIMPs{iAx})x2] array;
-    % hLines{iAx}(iIMP,:) are two handles to lines in the other two axes
-    hLines 
-
-    impCMap % [Nx3] colormap for IMPs/IMPELs (IMP epipolar lines)
-%     hIMPs4
-%     hLines4
+    movDir
+    movCurrFrameLR % current L/R frame
   end
-  properties (Dependent)
-    nSel % scalar, number of selected axes
-%     iAxSel
-%     iAxNotSel
+  properties    
+    % alternative image source: image stacks
+    imDir
+    imCurrImIdx
+    tfImMode = false; % if true, we are using image stacks source
   end
   
-  methods % Dep prop getters
-    function v = get.nSel(obj)
-      v = nnz(obj.tfAxSel);
-    end
-%     function v = get.iAxNotSel(obj)
-%       v = find(~obj.tfAxSel);
-%       v = v(:);
-%     end
-  end    
+  properties (Hidden)
+    anns  % Column vec of RigViewAnns
+    annCMap % [nClrx3] colormap for anns
+  end  
   
   methods
-    function obj = RigView
+    function obj = RigView(crFname)
+      % crFname: filename containing CalibratedRig object
+      
+      % load the CalibratedRig
+      if exist('crFname','var')==0
+        last = RC.getprop('lastCalibratedRigFilename');
+        if ~isempty(last)
+          [fname,pname] = uigetfile('*.mat','Specify Calibrated Rig mat file',last);
+        else
+          [fname,pname] = uigetfile('*.mat','Specify Calibrated Rig mat file');
+        end
+        if isequal(fname,0)
+          error('RigView:ctor','No Calibrated Rig specified.');
+        end
+        crFname = fullfile(pname,fname);
+      end
+      calrig = load(crFname);
+      RC.saveprop('lastCalibratedRigFilename',crFname);
+      fn = fieldnames(calrig);
+      if ~isscalar(fn)
+        error('RigView:ctor',...
+          'Calibrated Rig MAT-file expected to contain a single variable (the CalibratedRig object).');
+      end
+      calrig = calrig.(fn{1});          
+      
       hFig = RigViewGUI(obj);
       gd = guidata(hFig);
-      obj.gdata = gd;      
+      obj.gdata = gd;
+      obj.crig = calrig;
       
       for iAx = 1:3
         axTag = RigView.AXTAGS{iAx};      
         gd.(axTag).UserData = iAx;
-        gd.(axTag).ButtonDownFcn = @(src,evt)obj.axBDF(src);
+        gd.(axTag).ButtonDownFcn = @(src,evt)obj.axBDF(src,evt);
       end
       
       for i=3:-1:1
@@ -67,13 +71,10 @@ classdef RigView < handle
       end
       obj.movRdrs = mr;
         
-      obj.tfAxSel = false(3,1);
-      h = IMP.empty(1,0);
-      obj.hIMPs = repmat({h},3,1);
-      h = gobjects(0,2);
-      obj.hLines = repmat({h},3,1);
-      cm = parula(7);
-      obj.impCMap = [[1 0 0];cm([2 3 5 6],:)]; % brighter colors
+      obj.anns = RigViewAnn.empty(0,1);
+      cm = jet(7);
+      cm = cm(3:end,:);
+      obj.annCMap = cm;
     end
     
     function delete(obj) %#ok<INUSD>
@@ -125,7 +126,12 @@ classdef RigView < handle
         % contrast
         imsmall = im{i};
         imsmall = uint8(imsmall);
-        imsmall = imadjust(imsmall,[0 0.2],[]);
+        switch i
+          case {1 2}
+            imsmall = imadjust(imsmall,[0 0.2],[]);
+          case 3
+            imsmall = imadjust(imsmall,[0 0.04],[]);
+        end
         
         % outline
         BORDERWIDTH = 2; 
@@ -144,11 +150,22 @@ classdef RigView < handle
         hIm(i).CData = imsmall;
       end
       
-%       hIm(4).CData = imsmall;
-      
       obj.movCurrFrameLR = frmLR;
     end
-    
+    function movFrameUp(obj)
+      f = obj.movCurrFrameLR;
+      maxFrameLR = min([obj.movRdrs(1:2).nframes]);
+      if f+2<=maxFrameLR
+        obj.movSetFrameLR(f+2);
+      end
+    end
+    function movFrameDown(obj)
+      f = obj.movCurrFrameLR;
+      if f-2>=3
+        obj.movSetFrameLR(f-2);
+      end      
+    end      
+      
     function imSetImDir(obj,dir)
       obj.imDir = dir;      
     end
@@ -165,32 +182,32 @@ classdef RigView < handle
       obj.tfImMode = true;
     end
       
-    function selectAx(obj,iAx)
-      obj.tfAxSel(iAx) = true;
-      obj.initIMPsLines();
-    end
-    function unselectAxRaw(obj,iAx)
-      obj.tfAxSel(iAx) = false;
-      %obj.initIMPsLines();
-    end
-    function initIMPsLines(obj)
-      for iAx = 1:3
-        imps = obj.hIMPs{iAx};
-        for iIMP = 1:numel(imps)
-          delete(imps(iIMP));
-        end
-      end
-      cellfun(@deleteValidHandles,obj.hLines);
-      h = IMP.empty(1,0);
-      obj.hIMPs = repmat({h},3,1);
-      h = gobjects(0,2);
-      obj.hLines = repmat({h},3,1);
-      
-%       delete(obj.hIMPs4);
-%       obj.hIMPs4 = gobjects(1,0);      
-%       delete(obj.hLines4);
-%       obj.hLines4 = gobjects(0,1);
-    end
+%     function selectAx(obj,iAx)
+%       obj.tfAxSel(iAx) = true;
+%       obj.initIMPsLines();
+%     end
+%     function unselectAxRaw(obj,iAx)
+%       obj.tfAxSel(iAx) = false;
+%       %obj.initIMPsLines();
+%     end
+%     function initIMPsLines(obj)
+%       for iAx = 1:3
+%         imps = obj.hIMPs{iAx};
+%         for iIMP = 1:numel(imps)
+%           delete(imps(iIMP));
+%         end
+%       end
+%       cellfun(@deleteValidHandles,obj.hLines);
+%       h = IMP.empty(1,0);
+%       obj.hIMPs = repmat({h},3,1);
+%       h = gobjects(0,2);
+%       obj.hLines = repmat({h},3,1);
+%       
+% %       delete(obj.hIMPs4);
+% %       obj.hIMPs4 = gobjects(1,0);      
+% %       delete(obj.hLines4);
+% %       obj.hLines4 = gobjects(0,1);
+%     end
   end
     
     % UI
@@ -214,129 +231,124 @@ classdef RigView < handle
     
   methods
     
-    function axBDF(obj,hAx)
+    function axBDF(obj,hAx,evt)
       iAx = hAx.UserData;
-      if ~obj.tfAxSel(iAx)
-        if obj.nSel==1
-          obj.selectAx(iAx);
-        else % nSel==2
-          iAxOther = setdiff(1:3,iAx);
-          arrayfun(@(x)obj.unselectAxRaw(x),iAxOther);
-          obj.selectAx(iAx);          
-        end
-      else
-        xy = hAx.CurrentPoint(1,1:2);
-        iIMP = obj.createIMP(iAx,xy);
-        obj.updateIMPEPLines(iAx,iIMP,xy);
+      switch evt.Button
+        case 1
+          xy = hAx.CurrentPoint(1,1:2);
+          hIMP = IMP(obj.gdata.axs(iAx),xy);
+          
+          nAnn = numel(obj.anns);
+          cmap = obj.annCMap;
+          nclr = size(cmap,1);
+          cIdx = mod(nAnn,nclr)+1;
+          clr = cmap(cIdx,:);
+          
+          rva = RigViewAnn(obj.gdata.axs,clr,iAx,hIMP);
+          obj.anns(end+1,1) = rva;
+
+          hIMP.setColor(clr);
+          hIMP.addNewPositionCallback(@(pos)obj.updateEPLines(rva,pos));
+          hIMP.deleteFcn = @()obj.rmAnn(rva);
+     
+          obj.updateEPLines(rva,xy);
+          
+          fcn = @(src,evt)obj.epiBDF(src,evt);
+          rva.epiHLines(1).ButtonDownFcn = fcn;
+          rva.epiHLines(2).ButtonDownFcn = fcn;
+        case 2
+          % none; need to right-click on line          
       end      
     end
     
-    function iIMP = createIMP(obj,iAx,xy)
-      % Create/add a new impoint for axis iAx.
-      %
-      % xy: [2] vec of coords at which to create new IMP (cropped coords)
-      
-      assert(numel(obj.hIMPs{iAx})==size(obj.hLines{iAx},1));
-      
-      axs = obj.gdata.axs;
-      h = IMP(axs(iAx),xy);      
-      
-      obj.hIMPs{iAx}(end+1) = h;
-      iIMP = numel(obj.hIMPs{iAx});
-      cm = obj.impCMap;
-      nClr = size(cm,1);
-      iClr = mod(iIMP-1,nClr)+1;
-      clr = cm(iClr,:);
-      h.setColor(clr);
-      h.addNewPositionCallback(@(pos)obj.updateIMPEPLines(iAx,iIMP,pos));
-      h.deleteFcn = @()obj.rmIMP(iAx,iIMP);
-      
-      iAx1 = mod(iAx,3)+1; 
-      iAx2 = mod(iAx+1,3)+1;
-      obj.hLines{iAx}(end+1,:) = ...
-        [plot(axs(iAx1),nan,nan,'Color',clr) ...
-         plot(axs(iAx2),nan,nan,'Color',clr)];
-       
-%       obj.hLines4(end+1,:) = plot(axs(4),nan,nan,'Color',clr);
-%       hold(axs(4),'on');
-       
-      hold(axs(iAx1),'on');
-      hold(axs(iAx2),'on');
-     
-      obj.updateIMPEPLines(iAx,iIMP,xy);
+    function epiBDF(obj,hLine,evt)
+      switch evt.Button
+        case 3
+          ax2 = hLine.Parent;
+          iAx2 = find(obj.gdata.axs==ax2);
+          
+          xy = ax2.CurrentPoint(1,1:2);
+          hAnn = hLine.UserData;
+          
+          hIMP = IMP(ax2,xy);
+          hIMP.addNewPositionCallback(@(pos)obj.updateReconstructedPt(hAnn,pos));
+          hAnn.addSecondPt(iAx2,hIMP); %#ok<FNDSB>
+          
+          obj.updateReconstructedPt(hAnn,xy);
+      end
+    end
+        
+    function rmAnn(obj,hAnn)
+      tf = hAnn==obj.anns;
+      assert(nnz(tf)==1);
+      delete(obj.anns(tf));
+      obj.anns(tf,:) = [];
     end
     
-    function rmIMP(obj,iAx,iIMP)
-      delete(obj.hIMPs{iAx}(iIMP));
-      delete(obj.hLines{iAx}(iIMP));
-      obj.hIMPs{iAx}(:,iIMP) = [];
-      obj.hLines{iAx}(:,iIMP) = [];
-    end
-    
-    function updateIMPEPLines(obj,iAx,iIMP,pos)
-      % Update epipolar lines for given IMP in iAx
+    function updateEPLines(obj,hAnn,pos)
+      % Update epipolar lines for given Ann 
       % 
-      % iAx: axis/camera containing IMP
-      % iIMP: which IMP
-      % pos: [2] (x,y) vector, pixel position in axis iAx (Cropped coords)
+      % hAnn: scalar RigViewAnn handle
+      % pos: [2] (x,y) vector, pixel position in axis hAnn.anchorIAx (Cropped coords)
       
       assert(numel(pos)==2);
       %fprintf(1,'Cam %d: croppedcoords: %s\n',iAx,mat2str(round(pos(:)')));
       
-      iAx1 = mod(iAx,3)+1; 
-      iAx2 = mod(iAx+1,3)+1;
-      cam = RigView.AXCAMS{iAx};
+      iAx1 = hAnn.anchorIAx;
+      iAx2 = hAnn.epiIAx(1);
+      iAx3 = hAnn.epiIAx(2);
       cam1 = RigView.AXCAMS{iAx1};
       cam2 = RigView.AXCAMS{iAx2};
+      cam3 = RigView.AXCAMS{iAx3};
       rig = obj.crig;
       
       if obj.tfImMode
         xp = [pos(1)-1 pos(2)-1]'; % 0-based  
       else % pos is cropped coords
         y = [pos(2) pos(1)];
-        xp = rig.y2x(y,cam);
+        xp = rig.y2x(y,cam1);
       end
       assert(isequal(size(xp),[2 1]));
-      xn = rig.projected2normalized(xp,cam);
+      xn1 = rig.projected2normalized(xp,cam1);
       
       % create 3D segment by projecting normalized coords into 3D space
-      % (coord sys of 'cam')
-      Zc = 0:100; % mm
-      Xc = [xn(1)*Zc; xn(2)*Zc; Zc];
+      % (coord sys of cam1)
+      Zc1 = 0:.25:100; % mm
+      Xc1 = [xn1(1)*Zc1; xn1(2)*Zc1; Zc1];
       
-      Xc1 = rig.camxform(Xc,[cam cam1]); % 3D seg, in frame of cam1
-      Xc2 = rig.camxform(Xc,[cam cam2]); % etc, cam2      
-      xn1 = [Xc1(1,:)./Xc1(3,:); Xc1(2,:)./Xc1(3,:)]; % normalize
-      xn2 = [Xc2(1,:)./Xc2(3,:); Xc2(2,:)./Xc2(3,:)];      
-      xp1 = rig.normalized2projected(xn1,cam1); % project
-      xp2 = rig.normalized2projected(xn2,cam2);
+      Xc2 = rig.camxform(Xc1,[cam1 cam2]); % 3D seg, in frame of cam2
+      Xc3 = rig.camxform(Xc1,[cam1 cam3]); % etc, cam3
+      xn2 = [Xc2(1,:)./Xc2(3,:); Xc2(2,:)./Xc2(3,:)]; % normalize
+      xn3 = [Xc3(1,:)./Xc3(3,:); Xc3(2,:)./Xc3(3,:)];      
+      xp2 = rig.normalized2projected(xn2,cam2); % project
+      xp3 = rig.normalized2projected(xn3,cam3);
       if obj.tfImMode
-        r1 = xp1(2,:)+1;
-        c1 = xp1(1,:)+1;
-        tfOOB = r1<1 | r1>1200 | c1<1 | c1>1920;
-        r1 = r1(~tfOOB);
-        c1 = c1(~tfOOB);
-
-        r2 = xp2(2,:)+1;
-        c2 = xp2(1,:)+1;    
-        tfOOB = r2<1 | r2>1200 | c2<1 | c2>1920;
-        r2 = r2(~tfOOB);
-        c2 = c2(~tfOOB);
+%         r1 = xp2(2,:)+1;
+%         c1 = xp2(1,:)+1;
+%         tfOOB = r1<1 | r1>1200 | c1<1 | c1>1920;
+%         r1 = r1(~tfOOB);
+%         c1 = c1(~tfOOB);
+% 
+%         r2 = xp3(2,:)+1;
+%         c2 = xp3(1,:)+1;    
+%         tfOOB = r2<1 | r2>1200 | c2<1 | c2>1920;
+%         r2 = r2(~tfOOB);
+%         c2 = c2(~tfOOB);
       else
-        y1 = rig.x2y(xp1,cam1);
         y2 = rig.x2y(xp2,cam2);
-        y1 = obj.cropLines(y1,cam1);
+        y3 = rig.x2y(xp3,cam3);
         y2 = obj.cropLines(y2,cam2);
-        r1 = y1(:,1);
-        c1 = y1(:,2);
+        y3 = obj.cropLines(y3,cam3);
         r2 = y2(:,1);
-        c2 = y2(:,2);        
+        c2 = y2(:,2);
+        r3 = y3(:,1);
+        c3 = y3(:,2);        
       end
-      hLns = obj.hLines{iAx}(iIMP,:);
-      hLns(1).XData = c1;
-      hLns(1).YData = r1;
-      hLns(2).XData = c2;
-      hLns(2).YData = r2;
+      hLns = hAnn.epiHLines;
+      hLns(1).XData = c2;
+      hLns(1).YData = r2;
+      hLns(2).XData = c3;
+      hLns(2).YData = r3;
       
       
 %       if iAx1==3 || iAx2==3
@@ -349,6 +361,56 @@ classdef RigView < handle
 %         obj.hLines4(1).XData = y4(:,2);
 %         obj.hLines4(1).YData = y4(:,1);
 %       end
+    end
+    
+    function updateReconstructedPt(obj,hAnn,pos2)
+      % hAnn: scalar RigViewAnn
+      % pos2: xy of point 2 for hAnn
+      
+      assert(numel(pos2)==2);
+      
+      iAx1 = hAnn.anchorIAx;
+      iAx2 = hAnn.secondIAx;
+      iAx3 = hAnn.thirdIAx; % reconstruct pt in this axis
+      cam1 = RigView.AXCAMS{iAx1};
+      cam2 = RigView.AXCAMS{iAx2};
+      cam3 = RigView.AXCAMS{iAx3};
+      rig = obj.crig;
+
+      assert(~obj.tfImMode);
+      
+      % get projected pts for 1 (anchor) and 2 (second)
+      pos1 = hAnn.anchorHIMP.getPosition;
+      y1 = [pos1(2) pos1(1)];
+      y2 = [pos2(2) pos2(1)];
+      xp1 = rig.y2x(y1,cam1);
+      xp2 = rig.y2x(y2,cam2);
+      assert(isequal(size(xp1),size(xp2),[2 1]));
+      
+      [X1,X2,d,P,Q] = rig.stereoTriangulate(xp1,xp2,cam1,cam2);
+      % X1: [3x1]. 3D coords in frame of camera1
+      % X2: etc
+      % d: error/discrepancy in closest approach
+      % P: 3D point of closest approach on normalized ray of camera 1, in
+      % frame of camera 2
+      % Q: 3D point of closest approach on normalized ray of camera 2, in
+      % frame of camera 2
+      
+      X3 = rig.camxform(X2,[cam2 cam3]);
+      P3 = rig.camxform(P,[cam2 cam3]);
+      Q3 = rig.camxform(Q,[cam2 cam3]);
+      
+      xp3 = rig.project(X3,cam3);
+      pp3 = rig.project(P3,cam3);
+      qp3 = rig.project(Q3,cam3);
+      yx3 = rig.x2y(xp3,cam3);
+      yp3 = rig.x2y(pp3,cam3);
+      yq3 = rig.x2y(qp3,cam3);
+      assert(isequal(size(yx3),size(yp3),size(yq3),[1 2])); % [row col]
+      
+      hLine = hAnn.thirdHPt;
+      hLine.XData = [yp3(2) yx3(2) yq3(2)];
+      hLine.YData = [yp3(1) yx3(1) yq3(1)];
     end
     
     function y = cropLines(obj,y,cam)

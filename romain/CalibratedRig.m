@@ -129,7 +129,7 @@ classdef CalibratedRig < handle
       
       if strcmpi(cam,'b')
         % flipUD; row=1 <-> row=height
-        row = CalibratedRig.YIMSIZE - row + 1;
+        row = obj.YIMSIZE - row + 1;
       end
       
       xp = [col-1,row-1]; 
@@ -153,7 +153,7 @@ classdef CalibratedRig < handle
 
       if strcmpi(cam,'b')
         % flipUD; row=1 <-> row=height
-        row = CalibratedRig.YIMSIZE - row + 1;
+        row = obj.YIMSIZE - row + 1;
       end
       
       row = row - camroi.offsetY;
@@ -186,16 +186,17 @@ classdef CalibratedRig < handle
       [xn,fval] = fminsearch(fcn,xn0,opts);
     end
     
-%     function xp = project(obj,X,cam)
-%       % X: [3xN] 3D coords in frame of cam
-%       % cam: 'l','r','b'
-%       %
-%       % xp: [2xN] projected image coords for cam
-%       
-%       
-%       xp = project_points2(
-%       
-%     end
+    function xp = project(obj,X,cam)
+      % X: [3xN] 3D coords in frame of cam
+      % cam: 'l','r','b'
+      %
+      % xp: [2xN] projected image coords for cam
+      
+      assert(size(X,1)==3);
+      intPrm = obj.int.(cam); 
+      xp = project_points2(X,[0;0;0],[0;0;0],...
+        intPrm.fc,intPrm.cc,intPrm.kc,intPrm.alpha_c);
+    end
     
     function [XL,XB] = stereoTriangulateLB(obj,yL,yB)
       % Take cropped points for left/bot cameras and reconstruct 3D

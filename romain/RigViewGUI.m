@@ -22,11 +22,16 @@ function varargout = RigViewGUI(varargin)
 
 % Edit the above text to modify the response to help RigViewGUI
 
-% Last Modified by GUIDE v2.5 09-May-2016 12:14:18
+% Last Modified by GUIDE v2.5 15-May-2016 21:13:33
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
-gui_State = struct('gui_Name',       mfilename, ...
+if ispc && ~verLessThan('matlab','8.6') % 8.6==R2015b
+  gui_Name = 'RigViewGUI_PC_15b';
+else
+  gui_Name = 'RigViewGUI';
+end
+gui_State = struct('gui_Name',       gui_Name, ...
                    'gui_Singleton',  gui_Singleton, ...
                    'gui_OpeningFcn', @RigViewGUI_OpeningFcn, ...
                    'gui_OutputFcn',  @RigViewGUI_OutputFcn, ...
@@ -60,15 +65,16 @@ for i=1:nIm
   hold(ax,'on');
   axisoff(ax);
   axis(ax,'image');
-  ax.LineWidth = 8;
-  ax.XColor = [0 0 1];
-  ax.YColor = [0 0 1];
+%   ax.LineWidth = 8;
+%   ax.XColor = [0 0 1];
+%   ax.YColor = [0 0 1];
   %ax.Visible = 'off';
 end
 
 rvObj = handles.rvObj;
 listeners = cell(0,1);
-listeners{end+1,1} = addlistener(rvObj,'tfAxSel','PostSet',@cbkTFAxSelChanged);
+listeners{end+1,1} = addlistener(rvObj,'movDir','PostSet',@cbkMovDirChanged);
+listeners{end+1,1} = addlistener(rvObj,'movCurrFrameLR','PostSet',@cbkMovCurrFrameLRChanged);
 handles.listeners = listeners;
 
 % handles.TB_BGCOLOR_ORIG = handles.tbAxes1.BackgroundColor;
@@ -90,15 +96,49 @@ function figure_CloseRequestFcn(hObject, eventdata, handles)
 delete(handles.rvObj);
 delete(hObject);
 
-function cbkTFAxSelChanged(~,evt)
+% function cbkTFAxSelChanged(~,evt)
+% rvObj = evt.AffectedObject;
+% tf = rvObj.tfAxSel;
+% gd = rvObj.gdata;
+% for i = 1:3
+%   if tf(i)
+%     lw = 8;
+%   else
+%     lw = 0.5;
+%   end    
+%   gd.axs(i).LineWidth = lw;
+% end
+
+function cbkMovDirChanged(src,evt)
 rvObj = evt.AffectedObject;
-tf = rvObj.tfAxSel;
+mdir = rvObj.movDir;
 gd = rvObj.gdata;
-for i = 1:3
-  if tf(i)
-    lw = 8;
-  else
-    lw = 0.5;
-  end    
-  gd.axs(i).LineWidth = lw;
+gd.txMovie.String = mdir;
+
+function cbkMovCurrFrameLRChanged(src,evt)
+rvObj = evt.AffectedObject;
+frmLR = rvObj.movCurrFrameLR;
+frmB = (frmLR-1)/2;
+frmLRstr = num2str(frmLR);
+frmBstr = num2str(frmB);
+gd = rvObj.gdata;
+gd.etFrame.String = frmLRstr;
+gd.txAxes1Hud.String = frmLRstr;
+gd.txAxes2Hud.String = frmLRstr;
+gd.txAxes3Hud.String = frmBstr;
+
+function etFrame_Callback(hObject, eventdata, handles)
+s = hObject.String;
+val = str2double(s);
+rvObj = handles.rvObj;
+if ~isnan(val)
+  rvObj.movSetFrameLR(val);
+else
+  frmLR = rvObj.movCurrFrameLR;
+  hObject.String = num2str(frmLR);
 end
+
+function pbFrameDown_Callback(hObject, eventdata, handles)
+handles.rvObj.movFrameDown();
+function pbFrameUp_Callback(hObject, eventdata, handles)
+handles.rvObj.movFrameUp();
