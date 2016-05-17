@@ -157,7 +157,7 @@ classdef Labeler < handle
     trackNFramesLarge % big/coarse "
     trackNFramesNear % neighborhood radius
   end
-  properties    
+  properties
     trackPrefs % Track preferences substruct
   end
   
@@ -540,9 +540,10 @@ classdef Labeler < handle
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
 
       tObj = obj.tracker;
-      if ~isempty(tObj)
-        tObj.init(); % AL 20160508: needs to occur before .movieSet() below
-      end
+      % AL20160517 initialization hell unresolved
+%       if ~isempty(tObj)
+%         tObj.init(); % AL 20160508: needs to occur before .movieSet() below
+%       end
       
       if obj.nmovies==0 || s.currMovie==0
         obj.movieSetNoMovie();
@@ -550,6 +551,11 @@ classdef Labeler < handle
         obj.movieSet(s.currMovie);
       end
       
+      % AL20160517 initialization hell unresolved
+      if ~isempty(tObj)
+        tObj.init(); % AL 20160508: needs to occur before .movieSet() below
+      end
+
       assert(isa(s.labelMode,'LabelMode'));      
       obj.labeledposNeedsSave = false;
 
@@ -728,6 +734,7 @@ classdef Labeler < handle
         projroot = regexprep(projroot,'\\','/');
         assert(~isempty(projroot),'Cannot replace $projroot macro.');
         str = regexprep(str,'\$projroot',projroot);
+        str = regexprep(str,'/','\');
       end
     end
   end
