@@ -220,8 +220,8 @@ function [regSt,Y_pred] = trainFern(Y,X,M,prm)
 %
 % See also
 
-dfs = {'thrr',[-1 1]/5,'reg',.01};
-[thrr,reg] = getPrmDflt(prm,dfs,1);
+dfs = {'thrr',[-1 1]/5,'reg',.01,'useFern3',false};
+[thrr,reg,useFern3] = getPrmDflt(prm,dfs,1);
 N = size(Y,1);
 assert(size(X,2)==M); % currently fern depth should always match total num ftrs
 fids = uint32(1:M);
@@ -230,16 +230,16 @@ thrs = rand(1,M)*(thrr(2)-thrr(1))+thrr(1);
 % count = hist(inds,1:32)'
 % ysFern(i,d) = sum(Y(inds==i,d)-mu(d))
 
-USEFERNSINDS3 = false;
-if ~USEFERNSINDS3 
+if ~useFern3
   % orig
   [inds,mu,ysFern,count,~] = fernsInds2(X,fids,thrs,Y);
   ysFern = bsxfun(@plus,bsxfun(@rdivide,ysFern,max(count+reg*N,eps)),mu);
+  
+  dyFernCnt = [];
 else
-  fprintf(1,'Using FernsInds3\n');
   mu = nanmean(Y);
   dY = bsxfun(@minus,Y,mu);
-  [inds,dyFernSum,count,dyFernCnt] = Ferns.fernsInds3(X,fids,thrs,dY);
+  [inds,dyFernSum,~,dyFernCnt] = Ferns.fernsInds3(X,fids,thrs,dY);
   ysFernCntUse = max(dyFernCnt+reg*N,eps); % [2^MxD], counts for each fernbin/coord
   ysFern = bsxfun(@plus,dyFernSum./ysFernCntUse,mu);
 end
@@ -250,10 +250,15 @@ end
 %     %ysFern(:,d) = ysFern(:,d) ./ max(cnts(:,d)+(1+1000/cnts(:,d))',eps) + mu(d);
 %     ysFern(:,d) = ysFern(:,d) ./ max(count+reg*N,eps) + mu(d);
 % end
+
 Y_pred = ysFern(inds,:);
-clear dfYs;
-clear cnts vars inds mu;%conf
-regSt = struct('ysFern',ysFern,'thrs',thrs);
+regSt = struct(...
+  'N',N,... % scalar
+  'fernSum',dyFernSum,... % [2^MxD]
+  'fernCount',dyFernCnt,... % [2^MxD], counts for each fern bin/coord, treating NaNs in output vectors Y as missing
+  'ysFern',ysFern,... % [2^MxD], fern predictions for each fern index
+  'thrs',thrs,... % [1xM], fern thresholds
+  'yMu',mu); % [1xD], (nan)mean of output vectors
 end
 
 function [regSt,Y_pred]=trainLin(Y,X,~,~)
