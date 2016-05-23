@@ -2,7 +2,7 @@ classdef CPRLabelTracker < LabelTracker
   
   properties (Constant,Hidden)
     TRAINEDTRACKER_SAVEPROPS = {'dataPPPrm' 'dataTS' ...
-      'trnDataFFDThresh' 'trnDataTblP' 'trnDataSelTS' ...
+      'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnRes' 'trnResTS' 'trnResPallMD' 'trnResIPt' 'trnResRC'};
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
   end
@@ -33,10 +33,9 @@ classdef CPRLabelTracker < LabelTracker
     % Furthest-first distance threshold for training data.
     trnDataFFDThresh
     
-    % Currently selected training data
+    % Currently selected training data (includes updates/additions)
     trnDataTblP
-    
-    trnDataSelTS
+    trnDataTblPTS
   end
   
   %% Train/Track
@@ -91,11 +90,11 @@ classdef CPRLabelTracker < LabelTracker
   methods
     
     function tblP = getTblPLbledRecent(obj)
-      % More recent than .trnDataSelTS
+      % tblP: labeled data from Labeler that is more recent than .trnDataTblPTS
       
       tblP = obj.getTblPLbled();
       maxTS = max(tblP.pTS,[],2);
-      tf = maxTS > obj.trnDataSelTS;
+      tf = maxTS > obj.trnDataTblPTS;
       tblP = tblP(tf,:);
     end
       
@@ -124,25 +123,47 @@ classdef CPRLabelTracker < LabelTracker
         lObj.labeledpostag,iMovs,frms,'noImg',true,'lposTS',lObj.labeledposTS);
     end
     
-    function [tblPnew,tblPupdate] = tblPDiff(obj,tblP)
-      % Compare tblP to current data
-      %
-      % tblPNew: new frames
-      % tblPupdate: existing frames with new positions
-      
+    function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP)
       td = obj.data;
-      tblCurrP = td.MD;
-      tblCurrP.p = td.pGT;
-      
-      tblCurrMF = tblCurrP(:,{'mov' 'frm'});
+      tbl0 = td.MD;
+      tbl0.p = td.pGT;
+      [tblPnew,tblPupdate] = CPRLabelTracker.tblPDiff(tbl0,tblP);
+    end
+    
+    function [tblPnew,tblPupdate,idxTrnDataTblP] = tblPDiffTrnData(obj,tblP)
+      [tblPnew,tblPupdate,idxTrnDataTblP] = CPRLabelTracker.tblPDiff(obj.trnDataTblP,tblP);
+    end
+    
+  end
+  
+  methods (Static)
+    function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)
+      % Compare tblP to tblP0 
+      %
+      % tblP0, tblP: MD/p tables
+      %
+      % tblPNew: new frames (rows of tblP whose movie-frame ID are not in tblP0)
+      % tblPupdate: existing frames with new positions/tags (rows of tblP 
+      %   whos movie+frame ID are in tblP0, but whose eg p field is different).
+      % idx0update: indices into rows of tblP0 corresponding to tblPupdate;
+      %   ie tblP0(idx0update,:) ~ tblPupdate
+            
+      tblMF0 = tblP0(:,{'mov' 'frm'});
       tblMF = tblP(:,{'mov' 'frm'});
-      tfPotentiallyUpdatedRows = ismember(tblMF,tblCurrMF);
+      tfPotentiallyUpdatedRows = ismember(tblMF,tblMF0);
       tfNewRows = ~tfPotentiallyUpdatedRows;
       
       tblPnew = tblP(tfNewRows,:);
       tblPupdate = tblP(tfPotentiallyUpdatedRows,:);
-      tblPupdate = setdiff(tblPupdate,tblCurrP);
+      tblPupdate = setdiff(tblPupdate,tblP0);
+      
+      [tf,loc] = ismember(tblPupdate(:,{'mov' 'frm'}),tblMF0);
+      assert(all(tf));
+      idx0update = loc(tf);
     end
+  end
+  
+  methods
     
     function initData(obj)
       % Initialize .data, .dataPPPrm, .dataTS
@@ -243,7 +264,7 @@ classdef CPRLabelTracker < LabelTracker
     function trnDataInit(obj)
       obj.trnDataFFDThresh = nan;
       obj.trnDataTblP = [];
-      obj.trnDataSelTS = -inf;
+      obj.trnDataTblPTS = -inf;
     end
     
     function trnDataSelect(obj)
@@ -294,7 +315,7 @@ classdef CPRLabelTracker < LabelTracker
           case 'y'
             obj.trnDataFFDThresh = ffdThresh;
             obj.trnDataTblP = tblPSel;
-            obj.trnDataSelTS = now;
+            obj.trnDataTblPTS = now;
           case 'n'
             % none
           case 'c'
@@ -349,6 +370,8 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function train(obj,varargin)
+      % Train using obj.trnDataTblP as training data
+      
       useRC = myparse(varargin,...
         'useRC',false... % if true, use RegressorCascade
         );
@@ -360,7 +383,7 @@ classdef CPRLabelTracker < LabelTracker
         error('CPRLabelTracker:noTrnData','No training data selected.');
       end
       tblPTrn(:,'pTS') = [];
-      [tblPnew,tblPupdate] = obj.tblPDiff(tblPTrn);
+      [tblPnew,tblPupdate] = obj.tblPDiffData(tblPTrn);
       
       hWB = waitbar(0);
       hTxt = findall(hWB,'type','text');
@@ -417,10 +440,17 @@ classdef CPRLabelTracker < LabelTracker
       prm = obj.readParamFile();
       
       tblPNew = obj.getTblPLbledRecent();
-      tblPNew(:,'pTS') = [];
       
+      % update the TrnData
+      [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
+      obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+      obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
+      obj.trnDataTblPTS = now();
+      
+      tblPNew(:,'pTS') = [];
+
       % update the data
-      [tblPnew,tblPupdate] = obj.tblPDiff(tblPNew);
+      [tblPnew,tblPupdate] = obj.tblPDiffData(tblPNew);
       obj.updateData(tblPnew,tblPupdate);
       
       % set iTrn and summarize
@@ -526,7 +556,7 @@ classdef CPRLabelTracker < LabelTracker
         tblP = obj.getTblP(iMovs,frms);
       end
       tblP(:,'pTS') = [];
-      [tblPnew,tblPupdate] = obj.tblPDiff(tblP);
+      [tblPnew,tblPupdate] = obj.tblPDiffData(tblP);
       obj.updateData(tblPnew,tblPupdate,'hWaitBar',hWB);
       d = obj.data;
       
