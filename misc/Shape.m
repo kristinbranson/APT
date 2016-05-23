@@ -64,6 +64,51 @@ classdef Shape
       assert(isequal(size(p1),[L D]));      
     end
     
+    function pAug = randInitShapes(pN,Naug,model,bboxes,varargin)
+      % Simple shape augmenter/randomizer
+      %
+      % pN: [1xD] NORMALIZED shape
+      % Naug: number of shapes to generate per image (per row of bboxes)
+      % bboxes: [Nx2d] bounding boxes
+      %
+      % pAug: [NxNaugxD] randomized shapes, ABSOLUTE coords
+      %
+      % The shape pN is randomly jittered and rotated (optionally), then
+      % projected onto bboxes.
+      
+      [dorotate,bboxJitterFac] = myparse(varargin,...
+        'dorotate',false,... % if true, randomly rotate mages
+        'bboxJitterfac',16 ... % jitter by 1/16th of bounding box dims
+        );
+      
+      N = size(bboxes,1);
+      d = model.d;
+      D = model.D;
+      assert(isequal(size(bboxes),[N 2*d]));
+      assert(isequal(size(pN),[1 D]));
+
+      nOOB = Shape.normShapeOOB(pN);
+      if nOOB>0
+        warningNoTrace('Shape:randInitShapes. pN falls outside [-1,1] in %d els.',nOOB);
+      end
+           
+      pNAug = repmat(pN,Naug,1);
+      pAug = zeros(N,Naug,D);
+      for i=1:N
+        if dorotate && d==2
+          fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
+          pNAugCurr = Shape.randrot(pNAug,d);
+        else
+          pNAugCurr = pNAug;
+        end
+
+        bbRT = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac);
+        assert(isequal(size(bbRT),[Naug 2*d]));
+        pAug(i,:,:) = shapeGt('reprojectPose',model,pNAugCurr,bbRT); % [NaugxD]        
+      end
+      
+    end
+    
     function bbJ = jitterBbox(bb,L,d,uncertfac)
       % Randomly jitter bounding box
       % bb: [1x2d] bounding box [x1 x2 .. xd w1 w2 .. wd]
@@ -902,8 +947,8 @@ classdef Shape
         dsfull_trialv = nanmean(dsfull2,3); % [Tp1xnpt] average over trials
         npts = size(dsfull_trialv,2);
         
-        dsmu_pts4567 = nanmean(dsfull_trialv(:,4:7),2);
-        dsmu_pts123 = nanmean(dsfull_trialv(:,1:3),2);
+        dsmu_pts4567 = nanmean(dsfull_trialv(:,3:6),2);
+        dsmu_pts123 = nanmean(dsfull_trialv(:,1:2),2);
         
         logds = log(ds);
         logdsmu = nanmean(logds,2);

@@ -302,10 +302,12 @@ classdef CPRData < handle
       % - hWaitBar. Waitbar object
       % - noImg. logical scalar default false. If true, all elements of I
       % will be empty.
+      % - lposTS. [N] cell array of labeledposTS arrays [nptsxnfrms]
       
-      [hWB,noImg] = myparse(varargin,...
+      [hWB,noImg,lposTS] = myparse(varargin,...
         'hWaitBar',[],...
-        'noImg',false);
+        'noImg',false,...
+        'lposTS',[]);
       assert(numel(iMovs)==numel(frms));
       for i = 1:numel(frms)
         val = frms{i};
@@ -317,6 +319,11 @@ classdef CPRData < handle
       assert(iscellstr(movieNames));
       assert(iscell(lposes) && iscell(lpostags));
       assert(isequal(numel(movieNames),numel(lposes),numel(lpostags)));
+      tfLposTS = ~isempty(lposTS);
+      if tfLposTS
+        cellfun(@(x,y)assert(size(x,1)==size(y,1) && size(x,2)==size(y,3)),...
+          lposTS,lposes);
+      end
       
       mr = MovieReader();
 
@@ -392,7 +399,11 @@ classdef CPRData < handle
           s(end).movS = movS;
           s(end).frm = f;
           s(end).p = Shape.xy2vec(lblsFrmXY);
-          s(end).tfocc = strcmp('occ',tags(:)');          
+          s(end).tfocc = strcmp('occ',tags(:)');
+          if tfLposTS
+            lts = lposTS{iMov};
+            s(end).pTS = lts(:,f)';
+          end
         end
         
         I = [I;ITmp]; %#ok<AGROW>

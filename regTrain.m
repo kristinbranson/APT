@@ -236,6 +236,7 @@ if ~useFern3
   ysFern = bsxfun(@plus,bsxfun(@rdivide,ysFern,max(count+reg*N,eps)),mu);
   
   dyFernCnt = [];
+  dyFernSum = [];  
 else
   mu = nanmean(Y);
   dY = bsxfun(@minus,Y,mu);

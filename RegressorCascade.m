@@ -13,7 +13,7 @@ classdef RegressorCascade < handle
     
     ftrSpecs % [nMjr] cell array of feature definitions/specifications. ftrSpecs{i} is either [], or a struct specifying F features
     %ftrs % [nMjr] cell array of instantiated features. ftrs{i} is either [], or NxF    
-    ftrsUse % [nMjr x nMnr x M x nUse] selected feature subsets (M=fern depth). ftrsUse(iMjr,iMnr,:,:) contains selected features for given iteration. nUse is 1 by default or can equal 2 for ftr.metatype='diff'.    
+    ftrsUse % [nMjr x nMnr x M x nUse] selected feature subsets (M=fern depth). ftrsUse(iMjr,iMnr,:,:) contains selected features for given iteration. nUse is 1 by default or can equal 2 for ftr.metatype='diff'.        
     
     fernN % [nMjr x nMnr] total number of data points run through fern regression 
     fernMu % [nMjr x nMnr x D] mean output (Y) encountered by fern regression
@@ -21,7 +21,9 @@ classdef RegressorCascade < handle
     fernCounts % [nMjr x nMnr x 2^M X D] count of number of shapes binned for each coord, treating NaNs as missing data
     fernSums % [nMjr x nMnr x 2^M X D] sum of dys for each bin/coord, treating NaNs as missing data
     fernOutput % [nMjr x nMnr x 2^M x D] output/shape correction for each fern bin
-    fernTS % [nMjr x nMnr] timestamp last mod .fernCounts/Output     
+    fernTS % [nMjr x nMnr] timestamp last mod .fernCounts/Output
+    
+    trnLog % struct array, one el per train/retrain action
   end
   properties (Dependent)
     nMajor
@@ -94,6 +96,8 @@ classdef RegressorCascade < handle
       obj.fernCounts = zeros(nMjr,nMnr,2^MM,obj.mdlD);
       obj.fernOutput = nan(nMjr,nMnr,2^MM,obj.mdlD);
       obj.fernTS = -inf*ones(nMjr,nMnr);
+      
+      obj.trnLogInit();
     end
     
     function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused) % obj const
@@ -135,9 +139,26 @@ classdef RegressorCascade < handle
     end
     
     function trainWithRandInit(obj,I,bboxes,pGT,varargin)
+      initpGTNTrn = myparse(varargin,...
+        'initpGTNTrn',false... % if true, init with .pGTNTrn rather than pGT
+        );
+      
       tiPrm = obj.trnInitPrm;
-      [p0,~,~,~,pIidx] = shapeGt('initTr',[],pGT,obj.mdl,[],bboxes,...
-        tiPrm.Naug,tiPrm.augpad,tiPrm.augrotate);
+      if initpGTNTrn
+        N = numel(I);
+        Naug = tiPrm.Naug;        
+        pGTTrnNMu = nanmean(obj.pGTNTrn,1);
+        model = obj.mdl;
+        
+        p0 = Shape.randInitShapes(pGTTrnNMu,Naug,model,bboxes,...
+          'dorotate',tiPrm.augrotate); % [NxNaugxD]
+        p0 = reshape(p0,[N*Naug model.D]);
+        pIidx = repmat(1:N,[1 Naug])'; 
+      else
+        [p0,~,~,~,pIidx] = shapeGt('initTr',[],pGT,obj.mdl,[],bboxes,...
+          tiPrm.Naug,tiPrm.augpad,tiPrm.augrotate);
+      end
+      
       obj.train(I,bboxes,pGT,p0,pIidx,varargin{:});
     end
     
@@ -191,6 +212,7 @@ classdef RegressorCascade < handle
       ftrRadiusOrig = prmFtr.radius; % for t-dependent ftr radius
       prmReg = obj.regPrm;
       
+      maxFernAbsDeltaPct = nan(1,T);
       for t=t0:T
         if prmReg.USE_AL_CORRECTION
           pCurN_al = shapeGt('projectPose',model,pCur,bboxesFull);
@@ -224,6 +246,7 @@ classdef RegressorCascade < handle
         % Regress
         prmReg.ftrPrm = prmFtr;
         prmReg.prm.useFern3 = true;
+        fernOutput0 = squeeze(obj.fernOutput(t,:,:,:));
         if ~update
           [regInfo,pDel] = regTrain(X,pTar,prmReg); 
           assert(iscell(regInfo) && numel(regInfo)==obj.nMinor);
@@ -244,6 +267,8 @@ classdef RegressorCascade < handle
           
           pDel = obj.fernUpdate(t,X,iFtrsComp,pTar,prmReg);
         end
+        fernOutput1 = squeeze(obj.fernOutput(t,:,:,:));
+        maxFernAbsDeltaPct(t) = obj.computeMaxFernAbsDelta(fernOutput0,fernOutput1);
                   
         % Apply pDel
         if prmReg.USE_AL_CORRECTION
@@ -260,9 +285,27 @@ classdef RegressorCascade < handle
         if verbose
           msg = tStatus(tStart,t,T);
           fprintf(['  t=%i/%i       loss=%f     ' msg],t,T,loss);
-        end
-        
+        end        
       end
+      
+      if update
+        act = 'retrain';
+      else
+        act = 'train';
+      end      
+      obj.trnLog(end+1,1).action = act;
+      obj.trnLog(end).ts = now();
+      obj.trnLog(end).nShape = Q;
+      obj.trnLog(end).maxFernAbsDeltaPct = maxFernAbsDeltaPct;
+    end
+    
+    function trnLogInit(obj)
+      obj.trnLog = struct(...
+        'action',cell(0,1),... % 'train' or 'retrain'
+        'ts',[],... % timestamp
+        'nShape',[],... % number of shapes (after any augmentation) trained/added
+        'maxFernAbsDeltaPct',[]... % 1xnMjr; maximum delta (L2 norm, pct of mu) in obj.fernOutput(iMjr,:,:,:) over all
+        );                         % minor iters, fern bins
     end
        
     function p_t = propagate(obj,I,bboxes,p0,pIidx,varargin) % obj const
@@ -364,7 +407,8 @@ classdef RegressorCascade < handle
       
       [Q,nU] = size(X);
       assert(numel(iFtrsComp)==nU);
-      assert(isequal(size(yTar),[Q obj.mdlD]));
+      D = obj.mdlD;
+      assert(isequal(size(yTar),[Q D]));
       
       ftrMetaType = obj.ftrPrm.metatype;
       MM = obj.M;
@@ -383,12 +427,12 @@ classdef RegressorCascade < handle
         assert(isequal(inds,indsTMP));
                
         obj.fernN(t,u) = obj.fernN(t,u) + Q;
-        obj.fernCounts(t,u,:,:) = obj.fernCounts(t,u,:,:) + dyFernCnt;
-        obj.fernSums(t,u,:,:) = obj.fernSums(t,u,:,:) + dyFernSum;
+        obj.fernCounts(t,u,:,:) = squeeze(obj.fernCounts(t,u,:,:)) + dyFernCnt;
+        obj.fernSums(t,u,:,:) = squeeze(obj.fernSums(t,u,:,:)) + dyFernSum;
         
         counts = squeeze(obj.fernCounts(t,u,:,:));
         sums = squeeze(obj.fernSums(t,u,:,:));
-        ysFernCntUse = max(counts+prmReg.reg*obj.fernN(t,u),eps);
+        ysFernCntUse = max(counts+prmReg.prm.reg*obj.fernN(t,u),eps);
         ysFern = bsxfun(@plus,sums./ysFernCntUse,yMuOrig);
         
         obj.fernOutput(t,u,:,:) = ysFern;
@@ -449,6 +493,27 @@ classdef RegressorCascade < handle
       
     end
     
+    function maxFernAbsDeltaPct = computeMaxFernAbsDelta(obj,fernOutput0,fernOutput1)      
+      % fernOutput0/1: [nMnr x 2^M x D]
+      %
+      % maxFernAbsDeltaPct: scalar. Maximum of L2Delta./L2mu, over
+      % all bins, over all minor iters
+      
+      assert(isequal(obj.nMinor,size(fernOutput0,1),size(fernOutput1,1)));
+      
+      maxFernAbsDeltaPct = nan(obj.nMinor,1);
+      for iMnr = 1:obj.nMinor
+        del = squeeze(fernOutput1(iMnr,:,:)-fernOutput0(iMnr,:,:)); % [2^M x D]
+        del = sqrt(sum(del.^2,2)); % [2^Mx1], L2 deviation for each fern bin (for this minor iter)
+        mu = squeeze(fernOutput1(iMnr,:,:)+fernOutput0(iMnr,:,:))/2;
+        mu = sqrt(sum(mu.^2,2)); % [2^Mx1], L2 of fern output vec for each fern bin (etc)
+        
+        maxFernAbsDeltaPct(iMnr) = max(del./mu);
+      end
+      
+      maxFernAbsDeltaPct = max(maxFernAbsDeltaPct);
+      
+    end
   end
     
 end

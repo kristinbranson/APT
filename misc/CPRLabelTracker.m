@@ -90,13 +90,22 @@ classdef CPRLabelTracker < LabelTracker
   %% Data
   methods
     
+    function tblP = getTblPLbledRecent(obj)
+      % More recent than .trnDataSelTS
+      
+      tblP = obj.getTblPLbled();
+      maxTS = max(tblP.pTS,[],2);
+      tf = maxTS > obj.trnDataSelTS;
+      tblP = tblP(tf,:);
+    end
+      
     function tblP = getTblPLbled(obj)
       % From .lObj, read tblP for all movies/labeledframes. Currently,
       % exclude partially-labeled frames.
       
       lObj = obj.lObj;
       [~,tblP] = CPRData.readMovsLbls(lObj.movieFilesAllFull,lObj.labeledpos,...
-        lObj.labeledpostag,'lbl','noImg',true);
+        lObj.labeledpostag,'lbl','noImg',true,'lposTS',lObj.labeledposTS);
       
       p = tblP.p;
       tfnan = any(isnan(p),2);
@@ -112,7 +121,7 @@ classdef CPRLabelTracker < LabelTracker
       
       lObj = obj.lObj;
       [~,tblP] = CPRData.readMovsLblsRaw(lObj.movieFilesAllFull,lObj.labeledpos,...
-        lObj.labeledpostag,iMovs,frms,'noImg',true);
+        lObj.labeledpostag,iMovs,frms,'noImg',true,'lposTS',lObj.labeledposTS);
     end
     
     function [tblPnew,tblPupdate] = tblPDiff(obj,tblP)
@@ -339,7 +348,7 @@ classdef CPRLabelTracker < LabelTracker
       prm = ReadYaml(prmFile);
     end
     
-    function train(obj,varargin)      
+    function train(obj,varargin)
       useRC = myparse(varargin,...
         'useRC',false... % if true, use RegressorCascade
         );
@@ -350,6 +359,7 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(tblPTrn)
         error('CPRLabelTracker:noTrnData','No training data selected.');
       end
+      tblPTrn(:,'pTS') = [];
       [tblPnew,tblPupdate] = obj.tblPDiff(tblPTrn);
       
       hWB = waitbar(0);
@@ -401,6 +411,51 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResPallMD = d.MD;
       obj.trnResIPt = iPt;
     end
+    
+    function trainUpdate(obj,varargin)
+
+      prm = obj.readParamFile();
+      
+      tblPNew = obj.getTblPLbledRecent();
+      tblPNew(:,'pTS') = [];
+      
+      % update the data
+      [tblPnew,tblPupdate] = obj.tblPDiff(tblPNew);
+      obj.updateData(tblPnew,tblPupdate);
+      
+      % set iTrn and summarize
+      d = obj.data;
+      tblMF = d.MD(:,{'mov' 'frm'});
+      tblNewMF = tblPNew(:,{'mov','frm'});
+      tf = ismember(tblMF,tblNewMF);
+      assert(nnz(tf)==size(tblNewMF,1));
+      d.iTrn = find(tf);
+      d.summarize('movS',d.iTrn);
+      
+      % Call rc.train with 'update', true 
+      [Is,nChan] = d.getCombinedIs(d.iTrn);
+      prm.Ftr.nChn = nChan;
+            
+      iPt = prm.TrainInit.iPt;
+      nfids = prm.Model.nfids;
+      assert(prm.Model.d==2);
+      nfidsInTD = size(d.pGT,2)/prm.Model.d;
+      if isempty(iPt)
+        assert(nfidsInTD==nfids);
+        iPt = 1:nfidsInTD;
+      end
+      iPGT = [iPt iPt+nfidsInTD];
+      fprintf(1,'iPGT: %s\n',mat2str(iPGT));
+      
+      pTrn = d.pGTTrn(:,iPGT);
+
+      rc = obj.trnResRC;
+      rc.trainWithRandInit(Is,d.bboxesTrn,pTrn,'update',true,'initpGTNTrn',true);
+
+      obj.trnResTS = now;
+      %obj.trnResPallMD = d.MD;
+      assert(isequal(obj.trnResIPt,iPt));
+    end      
     
     function loadTrackResMerge(obj,fname)
       % Load tracking results from fname, merging into existing results
@@ -455,7 +510,7 @@ classdef CPRLabelTracker < LabelTracker
       fprintf(1,'Loaded tracking results for %d frames.\n',nfLoad);
     end
     
-    function track(obj,iMovs,frms,varargin)      
+    function track(obj,iMovs,frms,varargin)
       [useRC,tblP] = myparse(varargin,...
         'useRC',false,... % if true, use RegressorCascade (.trnResRC)
         'tblP',[]... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
@@ -470,6 +525,7 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(tblP)
         tblP = obj.getTblP(iMovs,frms);
       end
+      tblP(:,'pTS') = [];
       [tblPnew,tblPupdate] = obj.tblPDiff(tblP);
       obj.updateData(tblPnew,tblPupdate,'hWaitBar',hWB);
       d = obj.data;
