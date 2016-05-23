@@ -31,7 +31,11 @@ classdef TrackMode
           frm0 = max(currFrm-df,1);
           frm1 = min(currFrm+df,nf);
           frms = {frm0:frm1};
-        else
+        elseif obj==TrackMode.CurrMovEveryLblFrame
+          iMov = labelerObj.currMovie;
+          [~,nPts] = labelerObj.labelPosLabeledFramesStats();
+          frms = {find(nPts>0)};
+        else % track at regular intervals
           switch obj
             case TrackMode.CurrMovEveryFrame
               iMov = labelerObj.currMovie;
@@ -56,10 +60,11 @@ classdef TrackMode
   end      
   enumeration
     CurrMovEveryFrame ('Current movie, every frame',[])
+    CurrMovEveryLblFrame ('Current movie, every labeled frame',[])
     CurrMovEveryNFramesSmall ('Current movie, every %d frames','trackNFramesSmall')
     CurrMovEveryNFramesLarge ('Current movie, every %d frames','trackNFramesLarge')
     CurrMovNearCurrFrame ('Current movie, within %d frames of current frame','trackNFramesNear')
-    AllMovEveryFrame ('All movies, every frame',[])
+    AllMovEveryFrame ('All movies, every frame',[])  
     AllMovEveryNFramesSmall ('All movies, every %d frames','trackNFramesSmall')
     AllMovEveryNFramesLarge ('All movies, every %d frames','trackNFramesLarge')
   end

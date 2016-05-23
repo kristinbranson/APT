@@ -1054,6 +1054,15 @@ classdef Labeler < handle
     function labelingInit(obj,varargin)
       % Create LabelCore and call labelCore.init() based on current 
       % .labelMode, .nLabelPoints, .labelPointsPlotInfo, .labelTemplate      
+      
+      lblmode = myparse(varargin,...
+        'labelMode',[]);
+      tfLblModeChange = ~isempty(lblmode);
+      if tfLblModeChange
+        assert(isa(lblmode,'LabelMode'));
+      else
+        lblmode = obj.labelMode;
+      end
      
       nPts = obj.nLabelPoints;
       lblPtsPlotInfo = obj.labelPointsPlotInfo;
@@ -1078,11 +1087,12 @@ classdef Labeler < handle
         delete(lc);
         obj.lblCore = [];
       end
-      obj.lblCore = LabelCore.create(obj,obj.labelMode);      
+      obj.lblCore = LabelCore.create(obj,lblmode);      
       obj.lblCore.init(nPts,lblPtsPlotInfo);
-      if obj.labelMode==LabelMode.TEMPLATE && ~isempty(template)
+      if lblmode==LabelMode.TEMPLATE && ~isempty(template)
         obj.lblCore.setTemplate(template);
       end
+      obj.labelMode = lblmode;      
 
       % TODO: encapsulate labelsPrev (eg in a LabelCore)
       deleteValidHandles(obj.lblPrev_ptsH);
@@ -1098,6 +1108,11 @@ classdef Labeler < handle
           'UserData',i);
         obj.lblPrev_ptsTxtH(i) = text(nan,nan,num2str(i),'Parent',axprev,...
           'Color',lblPtsPlotInfo.Colors(i,:),'Hittest','off');
+      end
+      
+      if tfLblModeChange
+        % sometimes labelcore need this kick to get properly set up
+        obj.labelsUpdateNewFrame(true);
       end
     end
     
