@@ -825,7 +825,7 @@ classdef Labeler < handle
         otherwise
           assert(false);
       end
-      [I,tbl] = CPRData.lblCompileContentsRaw(movieNames,labeledposes,...
+      [I,tbl] = Labeler.lblCompileContentsRaw(movieNames,labeledposes,...
         labeledpostags,1:nMov,frms,varargin{:});
     end
     
