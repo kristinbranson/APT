@@ -347,7 +347,7 @@ classdef CPRLabelTracker < LabelTracker
       % Train using obj.trnDataTblP as training data
       
       useRC = myparse(varargin,...
-        'useRC',false... % if true, use RegressorCascade
+        'useRC',true... % if true, use RegressorCascade
         );
       
       prm = obj.readParamFileYaml();
@@ -516,7 +516,7 @@ classdef CPRLabelTracker < LabelTracker
     
     function track(obj,iMovs,frms,varargin)
       [useRC,tblP] = myparse(varargin,...
-        'useRC',false,... % if true, use RegressorCascade (.trnResRC)
+        'useRC',true,... % if true, use RegressorCascade (.trnResRC)
         'tblP',[]... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
         );
       
