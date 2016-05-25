@@ -96,30 +96,13 @@ classdef CPRLabelTracker < LabelTracker
       maxTS = max(tblP.pTS,[],2);
       tf = maxTS > obj.trnDataTblPTS;
       tblP = tblP(tf,:);
-    end
-      
-    function tblP = getTblPLbled(obj)
-      % From .lObj, read tblP for all movies/labeledframes. Currently,
-      % exclude partially-labeled frames.
-      
-      lObj = obj.lObj;
-      [~,tblP] = CPRData.readMovsLbls(lObj.movieFilesAllFull,lObj.labeledpos,...
-        lObj.labeledpostag,'lbl','noImg',true,'lposTS',lObj.labeledposTS);
-      
-      p = tblP.p;
-      tfnan = any(isnan(p),2);
-      nnan = nnz(tfnan);
-      if nnan>0
-        warningNoTrace('CPRLabelTracker:nanData','Not including %d partially-labeled rows.',nnan);
-      end
-      tblP = tblP(~tfnan,:);
-    end
+    end 
     
     function tblP = getTblP(obj,iMovs,frms)
       % From .lObj, read tblP for given movies/frames.
       
       lObj = obj.lObj;
-      [~,tblP] = CPRData.readMovsLblsRaw(lObj.movieFilesAllFull,lObj.labeledpos,...
+      [~,tblP] = Labeler.lblCompileContentsRaw(lObj.movieFilesAllFull,lObj.labeledpos,...
         lObj.labeledpostag,iMovs,frms,'noImg',true,'lposTS',lObj.labeledposTS);
     end
     
@@ -195,7 +178,7 @@ classdef CPRLabelTracker < LabelTracker
         'hWaitBar',[]);
       
       % read/check params
-      prm = obj.readParamFile();
+      prm = obj.readParamFileYaml();
       prmpp = prm.PreProc;
       if isempty(obj.dataPPPrm) % first update
         obj.dataPPPrm = prmpp;
@@ -360,15 +343,6 @@ classdef CPRLabelTracker < LabelTracker
       obj.hXYPrdRed = hTmp;
     end
     
-    function prm = readParamFile(obj)
-      prmFile = obj.paramFile;
-      if isempty(prmFile)
-        error('CPRLabelTracker:noParams',...
-          'Tracking parameter file needs to be set.');
-      end
-      prm = ReadYaml(prmFile);
-    end
-    
     function train(obj,varargin)
       % Train using obj.trnDataTblP as training data
       
@@ -376,7 +350,7 @@ classdef CPRLabelTracker < LabelTracker
         'useRC',false... % if true, use RegressorCascade
         );
       
-      prm = obj.readParamFile();
+      prm = obj.readParamFileYaml();
       
       tblPTrn = obj.trnDataTblP;
       if isempty(tblPTrn)
@@ -437,7 +411,7 @@ classdef CPRLabelTracker < LabelTracker
     
     function trainUpdate(obj,varargin)
 
-      prm = obj.readParamFile();
+      prm = obj.readParamFileYaml();
       
       tblPNew = obj.getTblPLbledRecent();
       
@@ -546,7 +520,7 @@ classdef CPRLabelTracker < LabelTracker
         'tblP',[]... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
         );
       
-      prm = obj.readParamFile();
+      prm = obj.readParamFileYaml();
       
       hWB = waitbar(0);
       hTxt = findall(hWB,'type','text');

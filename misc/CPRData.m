@@ -149,7 +149,7 @@ classdef CPRData < handle
           else
             lblFiles = varargin{1};
             tfAllFrames = varargin{2};
-            [Is,p,md] = CPRData.readLblFiles(lblFiles,'tfAllFrames',tfAllFrames);
+            [Is,p,md] = Labeler.lblRead(lblFiles,'tfAllFrames',tfAllFrames);
           end
           sz = cellfun(@(x)size(x'),Is,'uni',0);
           bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
@@ -158,12 +158,12 @@ classdef CPRData < handle
           if ischar(varargin{4}) && any(strcmp(varargin{4},{'all' 'lbl'}))
             type = varargin{4};
             varargin = varargin(5:end);
-            [Is,tbl] = CPRData.readMovsLbls(movFiles,lposes,lpostags,type,varargin{:});
+            [Is,tbl] = Labeler.lblCompileContents(movFiles,lposes,lpostags,type,varargin{:});
           else
             iMovs = varargin{4};
             frms = varargin{5};
             varargin = varargin(6:end);
-            [Is,tbl] = CPRData.readMovsLblsRaw(movFiles,lposes,lpostags,iMovs,frms,varargin{:});
+            [Is,tbl] = Labeler.lblCompileContentsRaw(movFiles,lposes,lpostags,iMovs,frms,varargin{:});
           end
           p = tbl.p;
           tbl(:,'p') = [];
@@ -213,203 +213,8 @@ classdef CPRData < handle
     
   end
   
-  %% Import
+  %% misc data
   methods (Static)
-    
-    function [I,p,md] = readLblFiles(lblFiles,varargin)
-      % lblFiles: [N] cellstr
-      % Optional PVs:
-      %  - tfAllFrames. scalar logical, defaults to false. If true, read in
-      %  unlabeled as well as labeled frames.
-      % 
-      % I: [Nx1] cell array of images (frames)
-      % p: [NxD] positions
-      % md: [Nxm] metadata table
-
-      assert(iscellstr(lblFiles));
-      nLbls = numel(lblFiles);
-
-      tfAllFrames = myparse(varargin,'tfAllFrames',false);
-      if tfAllFrames
-        readMovsLblsType = 'all';
-      else
-        readMovsLblsType = 'lbl';
-      end
-      I = cell(0,1);
-      p = [];
-      md = [];
-      for iLbl = 1:nLbls
-        lblName = lblFiles{iLbl};
-        lbl = load(lblName,'-mat');
-        fprintf('Lblfile: %s\n',lblName);
-        
-        movFiles = lbl.movieFilesAllFull;
-        
-        [ILbl,tMDLbl] = CPRData.readMovsLbls(movFiles,...
-          lbl.labeledpos,lbl.labeledpostag,readMovsLblsType);
-        pLbl = tMDLbl.p;
-        tMDLbl(:,'p') = [];
-        
-        nrows = numel(ILbl);
-        tMDLbl.lblFile = repmat({lblName},nrows,1);
-        [~,lblNameS] = myfileparts(lblName);
-        tMDLbl.lblFileS = repmat({lblNameS},nrows,1);
-        
-        I = [I;ILbl]; %#ok<AGROW>
-        p = [p;pLbl]; %#ok<AGROW>
-        md = [md;tMDLbl]; %#ok<AGROW>
-      end
-      
-      assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
-    end
-    
-    function [I,tbl] = readMovsLbls(movieNames,labeledposes,...
-        labeledpostags,type,varargin)
-      % convenience signature 
-      %
-      % type: either 'all' or 'lbl'
-
-      nMov = numel(movieNames);      
-      switch type
-        case 'all'
-          frms = repmat({'all'},nMov,1);
-        case 'lbl'
-          frms = repmat({'lbl'},nMov,1);
-        otherwise
-          assert(false);
-      end
-      [I,tbl] = CPRData.readMovsLblsRaw(movieNames,labeledposes,...
-        labeledpostags,1:nMov,frms,varargin{:});
-    end
-    
-    function [I,tbl] = readMovsLblsRaw(...
-        movieNames,lposes,lpostags,iMovs,frms,varargin)
-      % Read moviefiles with landmark labels
-      %
-      % movieNames: [N] cellstr of movienames
-      % lposes: [N] cell array of labeledpos arrays [nptsx2xnfrms]
-      % lpostags: [N] cell array of labeledpostags [nptsxnfrms]      
-      % iMovs. [M] indices into movieNames to read.
-      % frms. [M] cell array. frms{i} is a vector of frames to read for
-      % movie iMovs(i). frms{i} may also be:
-      %     * 'all' indicating "all frames" 
-      %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)   
-      %
-      % I: [Ntrl] cell vec of images
-      % tbl: [NTrl rows] labels/metadata table.
-      %
-      % Optional PVs:
-      % - hWaitBar. Waitbar object
-      % - noImg. logical scalar default false. If true, all elements of I
-      % will be empty.
-      % - lposTS. [N] cell array of labeledposTS arrays [nptsxnfrms]
-      
-      [hWB,noImg,lposTS] = myparse(varargin,...
-        'hWaitBar',[],...
-        'noImg',false,...
-        'lposTS',[]);
-      assert(numel(iMovs)==numel(frms));
-      for i = 1:numel(frms)
-        val = frms{i};
-        assert(isnumeric(val) && isvector(val) || ismember(val,{'all' 'lbl'}));
-      end
-      
-      tfWB = ~isempty(hWB);
-      
-      assert(iscellstr(movieNames));
-      assert(iscell(lposes) && iscell(lpostags));
-      assert(isequal(numel(movieNames),numel(lposes),numel(lpostags)));
-      tfLposTS = ~isempty(lposTS);
-      if tfLposTS
-        cellfun(@(x,y)assert(size(x,1)==size(y,1) && size(x,2)==size(y,3)),...
-          lposTS,lposes);
-      end
-      
-      mr = MovieReader();
-
-      I = [];
-      s = struct('mov',cell(0,1),'movS',[],'frm',[],'p',[],'tfocc',[]);
-      
-      nMov = numel(iMovs);
-      fprintf('Reading %d movies.\n',nMov);
-      for i = 1:nMov
-        iMov = iMovs(i);
-        mov = movieNames{iMov};
-        [~,movS] = myfileparts(mov);
-        lpos = lposes{iMov}; % npts x 2 x nframes
-        lpostag = lpostags{iMov};
-
-        [npts,d,nFrmAll] = size(lpos);
-        if isempty(lpos)
-          assert(isempty(lpostag));
-          lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
-        end
-        assert(isequal(size(lpostag),[npts nFrmAll]));
-        D = d*npts;
-        
-        mr.open(mov);
-        
-        % find labeled/tagged frames (considering ALL frames for this
-        % movie)
-        tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
-        frmsLbled = find(tfLbled);
-        tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
-        ntagged = sum(tftagged,1);
-        frmsTagged = find(ntagged);
-        assert(all(ismember(frmsTagged,frmsLbled)));
-
-        frms2Read = frms{i};
-        if strcmp(frms2Read,'all')
-          frms2Read = 1:nFrmAll;
-        elseif strcmp(frms2Read,'lbl')
-          frms2Read = frmsLbled;
-        end
-        nFrmRead = numel(frms2Read);
-        
-        ITmp = cell(nFrmRead,1);
-        fprintf('  mov %d, D=%d, reading %d frames\n',iMov,D,nFrmRead);
-        
-        if tfWB
-          hWB.Name = 'Reading movies';
-          wbStr = sprintf('Reading movie %s',movS);
-          waitbar(0,hWB,wbStr);          
-        end
-        for iFrm = 1:nFrmRead
-          if tfWB
-            waitbar(iFrm/nFrmRead,hWB);
-          end
-          
-          f = frms2Read(iFrm);
-          if noImg
-            im = [];
-          else
-            im = mr.readframe(f);
-            if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
-              im = rgb2gray(im);
-            end
-          end
-          
-          %fprintf('iMov=%d, read frame %d (%d/%d)\n',iMov,f,iFrm,nFrmRead);
-          
-          ITmp{iFrm} = im;
-          lblsFrmXY = lpos(:,:,f);
-          tags = lpostag(:,f);
-          
-          s(end+1,1).mov = mov; %#ok<AGROW>
-          s(end).movS = movS;
-          s(end).frm = f;
-          s(end).p = Shape.xy2vec(lblsFrmXY);
-          s(end).tfocc = strcmp('occ',tags(:)');
-          if tfLposTS
-            lts = lposTS{iMov};
-            s(end).pTS = lts(:,f)';
-          end
-        end
-        
-        I = [I;ITmp]; %#ok<AGROW>
-      end
-      tbl = struct2table(s);      
-    end    
     
     function [I,bb,md] = readMovs(movFiles)
       % movFiles: [N] cellstr
@@ -485,8 +290,8 @@ classdef CPRData < handle
         I{iTrl} = im;
       end
     end
-    
-  end 
+
+  end
   
   %% PreProc
   methods
