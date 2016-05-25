@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 23-May-2016 07:18:29
+% Last Modified by GUIDE v2.5 24-May-2016 11:27:35
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -540,6 +540,9 @@ end
 function menu_file_managemovies_Callback(hObject,~,handles)
 h = MovieManager(handles.labelerObj);
 handles.labelerObj.addDepHandle(h);
+
+function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelExportTrk();
 
 % function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
 % lObj = handles.labelerObj;

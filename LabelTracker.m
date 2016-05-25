@@ -87,4 +87,36 @@ classdef LabelTracker < handle
     
   end
   
+  methods % Utilities
+    
+    function prm = readParamFileYaml(obj)
+      prmFile = obj.paramFile;
+      if isempty(prmFile)
+        error('LabelTracker:noParams',...
+          'Tracking parameter file needs to be set.');
+      end
+      prm = ReadYaml(prmFile);
+    end
+    
+    function tblP = getTblPLbled(obj)
+      % From .lObj, read tblP for all movies/labeledframes. Currently,
+      % exclude partially-labeled frames.
+      %
+      % tblP: table of labeled frames, one row per frame.       
+      
+      labelerObj = obj.lObj;
+      [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,labelerObj.labeledpos,...
+        labelerObj.labeledpostag,'lbl','noImg',true,'lposTS',labelerObj.labeledposTS);
+      
+      p = tblP.p;
+      tfnan = any(isnan(p),2);
+      nnan = nnz(tfnan);
+      if nnan>0
+        warningNoTrace('CPRLabelTracker:nanData','Not including %d partially-labeled rows.',nnan);
+      end
+      tblP = tblP(~tfnan,:);
+    end
+    
+  end
+  
 end

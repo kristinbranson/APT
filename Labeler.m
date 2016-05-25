@@ -736,6 +736,7 @@ classdef Labeler < handle
   end
   
   methods (Static)
+    
     function str = macroReplace(str,projroot)
       tf = regexp(str,'\$projroot','once');
       if any(tf)
@@ -760,8 +761,204 @@ classdef Labeler < handle
         
         warningNoTrace('Label timestamps added (all set to -inf).');
       end      
+    end  
+    
+    function [I,p,md] = lblRead(lblFiles,varargin)
+      % lblFiles: [N] cellstr
+      % Optional PVs:
+      %  - tfAllFrames. scalar logical, defaults to false. If true, read in
+      %  unlabeled as well as labeled frames.
+      % 
+      % I: [Nx1] cell array of images (frames)
+      % p: [NxD] positions
+      % md: [Nxm] metadata table
+
+      assert(iscellstr(lblFiles));
+      nLbls = numel(lblFiles);
+
+      tfAllFrames = myparse(varargin,'tfAllFrames',false);
+      if tfAllFrames
+        readMovsLblsType = 'all';
+      else
+        readMovsLblsType = 'lbl';
+      end
+      I = cell(0,1);
+      p = [];
+      md = [];
+      for iLbl = 1:nLbls
+        lblName = lblFiles{iLbl};
+        lbl = load(lblName,'-mat');
+        fprintf('Lblfile: %s\n',lblName);
+        
+        movFiles = lbl.movieFilesAllFull;
+        
+        [ILbl,tMDLbl] = Labeler.lblCompileContents(movFiles,...
+          lbl.labeledpos,lbl.labeledpostag,readMovsLblsType);
+        pLbl = tMDLbl.p;
+        tMDLbl(:,'p') = [];
+        
+        nrows = numel(ILbl);
+        tMDLbl.lblFile = repmat({lblName},nrows,1);
+        [~,lblNameS] = myfileparts(lblName);
+        tMDLbl.lblFileS = repmat({lblNameS},nrows,1);
+        
+        I = [I;ILbl]; %#ok<AGROW>
+        p = [p;pLbl]; %#ok<AGROW>
+        md = [md;tMDLbl]; %#ok<AGROW>
+      end
+      
+      assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
     end
-  end
+    
+    function [I,tbl] = lblCompileContents(movieNames,labeledposes,...
+        labeledpostags,type,varargin)
+      % convenience signature 
+      %
+      % type: either 'all' or 'lbl'
+
+      nMov = numel(movieNames);      
+      switch type
+        case 'all'
+          frms = repmat({'all'},nMov,1);
+        case 'lbl'
+          frms = repmat({'lbl'},nMov,1);
+        otherwise
+          assert(false);
+      end
+      [I,tbl] = CPRData.lblCompileContentsRaw(movieNames,labeledposes,...
+        labeledpostags,1:nMov,frms,varargin{:});
+    end
+    
+    function [I,tbl] = lblCompileContentsRaw(...
+        movieNames,lposes,lpostags,iMovs,frms,varargin)
+      % Read moviefiles with landmark labels
+      %
+      % movieNames: [N] cellstr of movienames
+      % lposes: [N] cell array of labeledpos arrays [nptsx2xnfrms]
+      % lpostags: [N] cell array of labeledpostags [nptsxnfrms]      
+      % iMovs. [M] indices into movieNames to read.
+      % frms. [M] cell array. frms{i} is a vector of frames to read for
+      % movie iMovs(i). frms{i} may also be:
+      %     * 'all' indicating "all frames" 
+      %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)   
+      %
+      % I: [Ntrl] cell vec of images
+      % tbl: [NTrl rows] labels/metadata table.
+      %
+      % Optional PVs:
+      % - hWaitBar. Waitbar object
+      % - noImg. logical scalar default false. If true, all elements of I
+      % will be empty.
+      % - lposTS. [N] cell array of labeledposTS arrays [nptsxnfrms]
+      
+      [hWB,noImg,lposTS] = myparse(varargin,...
+        'hWaitBar',[],...
+        'noImg',false,...
+        'lposTS',[]);
+      assert(numel(iMovs)==numel(frms));
+      for i = 1:numel(frms)
+        val = frms{i};
+        assert(isnumeric(val) && isvector(val) || ismember(val,{'all' 'lbl'}));
+      end
+      
+      tfWB = ~isempty(hWB);
+      
+      assert(iscellstr(movieNames));
+      assert(iscell(lposes) && iscell(lpostags));
+      assert(isequal(numel(movieNames),numel(lposes),numel(lpostags)));
+      tfLposTS = ~isempty(lposTS);
+      if tfLposTS
+        cellfun(@(x,y)assert(size(x,1)==size(y,1) && size(x,2)==size(y,3)),...
+          lposTS,lposes);
+      end
+      
+      mr = MovieReader();
+
+      I = [];
+      s = struct('mov',cell(0,1),'movS',[],'frm',[],'p',[],'tfocc',[]);
+      
+      nMov = numel(iMovs);
+      fprintf('Reading %d movies.\n',nMov);
+      for i = 1:nMov
+        iMov = iMovs(i);
+        mov = movieNames{iMov};
+        [~,movS] = myfileparts(mov);
+        lpos = lposes{iMov}; % npts x 2 x nframes
+        lpostag = lpostags{iMov};
+
+        [npts,d,nFrmAll] = size(lpos);
+        if isempty(lpos)
+          assert(isempty(lpostag));
+          lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
+        end
+        assert(isequal(size(lpostag),[npts nFrmAll]));
+        D = d*npts;
+        
+        mr.open(mov);
+        
+        % find labeled/tagged frames (considering ALL frames for this
+        % movie)
+        tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
+        frmsLbled = find(tfLbled);
+        tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
+        ntagged = sum(tftagged,1);
+        frmsTagged = find(ntagged);
+        assert(all(ismember(frmsTagged,frmsLbled)));
+
+        frms2Read = frms{i};
+        if strcmp(frms2Read,'all')
+          frms2Read = 1:nFrmAll;
+        elseif strcmp(frms2Read,'lbl')
+          frms2Read = frmsLbled;
+        end
+        nFrmRead = numel(frms2Read);
+        
+        ITmp = cell(nFrmRead,1);
+        fprintf('  mov %d, D=%d, reading %d frames\n',iMov,D,nFrmRead);
+        
+        if tfWB
+          hWB.Name = 'Reading movies';
+          wbStr = sprintf('Reading movie %s',movS);
+          waitbar(0,hWB,wbStr);          
+        end
+        for iFrm = 1:nFrmRead
+          if tfWB
+            waitbar(iFrm/nFrmRead,hWB);
+          end
+          
+          f = frms2Read(iFrm);
+          if noImg
+            im = [];
+          else
+            im = mr.readframe(f);
+            if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
+              im = rgb2gray(im);
+            end
+          end
+          
+          %fprintf('iMov=%d, read frame %d (%d/%d)\n',iMov,f,iFrm,nFrmRead);
+          
+          ITmp{iFrm} = im;
+          lblsFrmXY = lpos(:,:,f);
+          tags = lpostag(:,f);
+          
+          s(end+1,1).mov = mov; %#ok<AGROW>
+          s(end).movS = movS;
+          s(end).frm = f;
+          s(end).p = Shape.xy2vec(lblsFrmXY);
+          s(end).tfocc = strcmp('occ',tags(:)');
+          if tfLposTS
+            lts = lposTS{iMov};
+            s(end).pTS = lts(:,f)';
+          end
+        end
+        
+        I = [I;ITmp]; %#ok<AGROW>
+      end
+      tbl = struct2table(s);      
+    end    
+        
+  end 
   
   
   %% Movie
@@ -1296,7 +1493,29 @@ classdef Labeler < handle
       obj.labeledposTS{iMov}(:) = now();
       
       obj.updateFrameTableComplete();
-      obj.labeledposNeedsSave = true;      
+      obj.labeledposNeedsSave = true;  
+    end
+    
+    function labelPosSuperBulkImport(obj,lpos)
+      % Set all .labeledpos for all movies/targets/frames/everything
+      %
+      % lpos: exact same dims ("outer" and "inner") as .labeledpos
+      %
+      % I know, like why have a private prop amirite? there may be a method
+      % to the madness yet
+      
+      assert(numel(lpos)==numel(obj.labeledpos));
+      nowtime = now();
+      for i=1:numel(lpos)
+        assert(isequal(size(lpos{i}),size(obj.labeledpos{i})))
+        obj.labeledpos{i} = lpos{i};
+        obj.labeledposTS{i}(:) = nowtime;
+      end
+      
+      obj.updateFrameTableComplete();
+      obj.labeledposNeedsSave = true;
+      
+      obj.labelsUpdateNewFrame(true); % kind of a one-off for Interpolator
     end
     
     function labelPosSetOccludedI(obj,iPt)
@@ -1444,6 +1663,108 @@ classdef Labeler < handle
     function tf = labelposMovieHasLabels(obj,iMov)
       lpos = obj.labeledpos{iMov};
       tf = any(~isnan(lpos(:)));
+    end
+    
+    % trk files, label export
+    
+    function s = labelCreateTrkContents(obj,iMov)
+      % Create .trk contents from .labeledpos, .labeledpostag etc
+      %
+      % iMov: scalar movie index
+      %
+      % s: scalar struct
+      
+      assert(isscalar(iMov));      
+      s = struct();
+      s.pTrk = obj.labeledpos{iMov};
+      s.pTrkTS = obj.labeledposTS{iMov};
+      s.pTrkTag = obj.labeledpostag{iMov};
+      s.pTrkiPt = 1:size(s.pTrk,1);
+    end
+    
+    function labelExportTrk(obj,iMov)
+      % Export label data to trk files.
+      %
+      % iMov: optional, indices into .movieFilesAll to export. Defaults to 1:obj.nmovies.
+      
+      if exist('iMov','var')==0
+        iMov = 1:obj.nmovies;
+      end
+      
+      movfiles = obj.movieFilesAllFull(iMov);
+      [movpaths,movS] = cellfun(@fileparts,movfiles,'uni',0);
+      trkfiles = cellfun(@(x,y)fullfile(x,[y '.trk']),movpaths,movS,'uni',0);
+
+      tfexist = cellfun(@(x)exist(x,'file')>0,trkfiles);
+      if any(tfexist)
+        iExist = find(tfexist,1);
+        queststr = sprintf('One or more .trk files already exist, eg: %s.',trkfiles{iExist});
+        btn = questdlg(queststr,'Files exist','Overwrite','Add datetime to filenames',...
+          'Cancel','Add datetime to filenames');
+        if isempty(btn)
+          btn = 'Cancel';
+        end
+        switch btn
+          case 'Overwrite'
+            % none; use trkfiles as-is
+          case 'Add datetime to filenames'
+            nowstr = datestr(now,'yyyymmddTHHMMSS');
+            trkfiles = cellfun(@(x,y)fullfile(x,[y '.' nowstr '.trk']),movpaths,movS,'uni',0);
+          otherwise
+            return;
+        end
+      end
+      
+      nMov = numel(iMov);
+      for i=1:nMov
+        s = obj.labelCreateTrkContents(iMov(i)); %#ok<NASGU>
+        save(trkfiles{i},'-mat','-struct','s');        
+      end      
+    end
+    
+    function labelImportTrk(obj,iMovs,trkfiles)
+      % Import label data from trk files.
+      %
+      % iMovs: [nMovie]. Optional, movie indices for which to import.
+      %   Defaults to 1:obj.nmovies.
+      % trkfiles: [nMovie] cellstr. Optional, full filenames to trk files
+      %   corresponding to iMov. Defaults to <movpath>/<movname>.trk.
+      
+      if exist('iMov','var')==0
+        iMovs = 1:obj.nmovies;
+      end      
+      if exist('trkfiles','var')==0
+        movfiles = obj.movieFilesAllFull(iMovs);
+        [movpaths,movS] = cellfun(@fileparts,movfiles,'uni',0);
+        trkfiles = cellfun(@(x,y)fullfile(x,[y '.trk']),movpaths,movS,'uni',0);
+      end
+      nMov = numel(iMovs);
+      assert(nMov==numel(trkfiles));
+
+      for i=1:nMov
+        iM = iMovs(i);
+        s = load(trkfiles{i},'-mat');
+        
+        lpos = nan(size(obj.labeledpos{iM}));
+        lposTS = -inf(size(obj.labeledposTS{iM}));
+        lpostag = cell(size(obj.labeledpostag{iM}));
+        if isfield(s,'pTrkiPt')
+          iPt = s.pTrkiPt;
+        else
+          iPt = 1:size(lpos,1); % all pts
+        end
+        lpos(iPt,:,:,:) = s.pTrk;
+        lposTS(iPt,:,:) = s.pTrkTS;
+        lpostag(iPt,:,:) = s.pTrkTag;
+        
+        obj.labeledpos{iM} = lpos;
+        obj.labeledposTS{iM} = lposTS;
+        obj.labeledpostag{iM} = lpostag;
+      end
+      
+      obj.updateFrameTableComplete();     
+      obj.labeledposNeedsSave = true; 
+      obj.labelsUpdateNewFrame(true);
     end
     
     function labelMakeLabelMovie(obj,fname,varargin)
@@ -1643,7 +1964,7 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
-      tObj.train('useRC',true);
+      tObj.train();
     end
     
     function track(obj,tm)
@@ -1654,7 +1975,7 @@ classdef Labeler < handle
         error('Labeler:track','No tracker set.');
       end      
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
-      tObj.track(iMovs,frms,'useRC',true);      
+      tObj.track(iMovs,frms);      
     end
     
     function trackSaveResults(obj,fname)
