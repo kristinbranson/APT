@@ -743,7 +743,9 @@ classdef Labeler < handle
         projroot = regexprep(projroot,'\\','/');
         assert(~isempty(projroot),'Cannot replace $projroot macro.');
         str = regexprep(str,'\$projroot',projroot);
-        str = regexprep(str,'/','\');
+        if ispc
+          str = regexprep(str,'/','\');
+        end
       end
     end
     
