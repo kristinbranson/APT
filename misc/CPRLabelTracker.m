@@ -827,6 +827,13 @@ classdef CPRLabelTracker < LabelTracker
   
   methods
     
+    function trackVisHide(obj)
+      [obj.hXYPrdRed.Visible] = deal('off');
+    end
+    function trackVisShow(obj)
+      [obj.hXYPrdRed.Visible] = deal('on'); 
+    end
+    
     function interpolateXYPrdCurrMovie(obj)
       xy = obj.xyPrdCurrMovie;
       for iPt = 1:size(xy,1)
