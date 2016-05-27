@@ -1,7 +1,7 @@
 classdef CPRLabelTracker < LabelTracker
   
   properties (Constant,Hidden)
-    TRAINEDTRACKER_SAVEPROPS = {'dataPPPrm' 'dataTS' ...
+    TRAINEDTRACKER_SAVEPROPS = {'dataPPPrm' ...
       'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnRes' 'trnResTS' 'trnResPallMD' 'trnResIPt' 'trnResRC'};
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
@@ -729,7 +729,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
   end
-  
+    
   %% Save, Load, Init etc
   % The serialization philosophy is as follows.
   %
@@ -821,6 +821,28 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkPTS = zeros(0,1);
       obj.trkPMD = struct2table(struct('mov',cell(0,1),'movS',[],'frm',[]));
       obj.trkPiPt = [];
+    end
+    
+  end
+  
+  methods
+    
+    function interpolateXYPrdCurrMovie(obj)
+      xy = obj.xyPrdCurrMovie;
+      for iPt = 1:size(xy,1)
+      for d = 1:size(xy,2)
+        z = squeeze(xy(iPt,d,:));
+        tf = ~isnan(z);
+        if any(tf)
+          iGood = find(tf);
+          iNan = find(~tf);        
+          z(iNan) = interp1(iGood,z(iGood),iNan);
+          xy(iPt,d,:) = z;
+        end
+      end
+      end
+      
+      obj.xyPrdCurrMovie = xy;
     end
     
   end
