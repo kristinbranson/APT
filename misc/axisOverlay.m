@@ -7,3 +7,4 @@ PROPS = {'XLim' 'YLim' 'YDir' 'Position' 'PlotBoxAspectRatio'};
 for p = PROPS,p=p{1}; %#ok<FXSET>
   ax1.(p) = ax0.(p);
 end
+linkaxes([ax0 ax1]);

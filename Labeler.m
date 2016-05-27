@@ -957,7 +957,7 @@ classdef Labeler < handle
         
         I = [I;ITmp]; %#ok<AGROW>
       end
-      tbl = struct2table(s);      
+      tbl = struct2table(s,'AsArray',true);      
     end    
         
   end 
