@@ -322,6 +322,14 @@ classdef LabelCore < handle
         lObj.labelPosTagSetI(tag,iPt);
       end      
     end
+    
+    function labelsHide(obj)
+      [obj.hPts.Visible] = deal('off');      
+    end
+    
+    function labelsShow(obj)
+      [obj.hPts.Visible] = deal('on');
+    end
                 
   end
     
