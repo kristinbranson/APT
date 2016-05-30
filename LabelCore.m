@@ -28,10 +28,10 @@ classdef LabelCore < handle
     hAx;                  % scalar axis
     hAxOcc;               % scalar handle, occluded-axis
     tbAccept;             % scalar handle, togglebutton
-    txLblCoreAux;       % scalar handle, auxiliary text
+    txLblCoreAux;         % scalar handle, auxiliary text
     
     nPts;                 % scalar integer
-    
+
     state;                % scalar state
     hPts;                 % nPts x 1 handle vec, handle to points
     hPtsTxt;              % nPts x 1 handle vec, handle to text
@@ -202,6 +202,19 @@ classdef LabelCore < handle
           
   end
   
+  %% Misc
+  methods
+    function labelsHide(obj)
+      [obj.hPts.Visible] = deal('off');
+      [obj.hPtsTxt.Visible] = deal('off');      
+    end
+    
+    function labelsShow(obj)
+      [obj.hPts.Visible] = deal('on');
+      [obj.hPtsTxt.Visible] = deal('on');
+    end
+  end
+  
   %% Utilities to manipulate .hPts, .hPtsTxt (set position and color)
   
   methods (Hidden) 
@@ -323,14 +336,6 @@ classdef LabelCore < handle
       end      
     end
     
-    function labelsHide(obj)
-      [obj.hPts.Visible] = deal('off');      
-    end
-    
-    function labelsShow(obj)
-      [obj.hPts.Visible] = deal('on');
-    end
-                
   end
     
   methods (Static) 
@@ -409,12 +414,6 @@ classdef LabelCore < handle
       tfinf = any(isinf(uv0),2); % [inf inf] rows in uv0 can be transformed into eg [inf nan] depending on angle
       uv(tfinf,:) = inf;
     end
-    
-%     function tf = isEstOccMarker(hPt,ppi)
-%       switch hPt.Marker
-%         case ppi.OccludedMarker
-%       end
-%     end
     
   end
   
