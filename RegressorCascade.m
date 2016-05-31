@@ -72,8 +72,11 @@ classdef RegressorCascade < handle
       obj.init();
     end
     
-    function init(obj)
+    function init(obj,varargin)
       % Clear/init everything but mdl/params
+      
+      initTrnLog = myparse(varargin,...
+        'initTrnLog',true); 
       
       obj.pGTNTrn = [];
       
@@ -101,7 +104,9 @@ classdef RegressorCascade < handle
       obj.fernOutput = nan(nMjr,nMnr,2^MM,obj.mdlD);
       obj.fernTS = -inf*ones(nMjr,nMnr);
       
-      obj.trnLogInit();
+      if initTrnLog
+        obj.trnLogInit();
+      end
     end
     
     function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused) % obj const
@@ -205,7 +210,7 @@ classdef RegressorCascade < handle
       bboxesFull = bboxes(pIidx,:);
       
       if ~update  
-        obj.init();
+        obj.init('initTrnLog',false);
         % record normalized training shapes for propagation initialization
         pGTN = shapeGt('projectPose',model,pGT,bboxes);
         obj.pGTNTrn = pGTN;
