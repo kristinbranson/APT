@@ -33,6 +33,11 @@ classdef LabelTracker < handle
       obj.initHook();
     end
     
+    function setParamFile(obj,prmFile)
+      obj.paramFile = prmFile;
+      obj.setParamHook();
+    end
+    
     function delete(obj)
       deleteValidHandles(obj.ax);
       if ~isempty(obj.hLCurrMovie)
@@ -47,15 +52,22 @@ classdef LabelTracker < handle
   
   methods 
     
-    function setParamFile(obj,prmFile)
-      obj.paramFile = prmFile;
-    end
-    
     function initHook(obj) %#ok<*MANU>
       % Called when a new project is created/loaded, etc
     end    
+    
+    function setParamHook(obj)
+      % Called when a new parameter file is specified
+    end
        
     function train(obj)
+      % (Incremental) Train
+      % - If it's the first time, it's a regular/full train
+      % - If a tracker is trained, it's an incremental train
+    end
+    
+    function retrain(obj)
+      % Full Train from scratch; existing/previous results cleared 
     end
     
 %     function inspectTrainingData(obj)

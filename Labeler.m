@@ -1969,6 +1969,17 @@ classdef Labeler < handle
       tObj.train();
     end
     
+    function trackRetrain(obj)      
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('Labeler:track','No tracker set.');
+      end
+      if ~obj.hasMovie
+        error('Labeler:track','No movie.');
+      end
+      tObj.retrain();
+    end
+    
     function track(obj,tm)
       % tm: a TrackMode
       

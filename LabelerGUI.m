@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 24-May-2016 11:27:35
+% Last Modified by GUIDE v2.5 27-May-2016 17:44:31
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -619,6 +619,16 @@ function menu_view_flip_flipud_Callback(hObject, eventdata, handles)
 handles.labelerObj.videoFlipUD();
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
 handles.labelerObj.videoFlipLR();
+function menu_view_hide_labels_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+switch hObject.Checked
+  case 'on'
+    lObj.lblCore.labelsShow();
+    hObject.Checked = 'off';
+  case 'off'
+    lObj.lblCore.labelsHide();
+    hObject.Checked = 'on';
+end
 
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 prmFile = RC.getprop('lastCPRParamFile');
@@ -640,10 +650,8 @@ handles.labelerObj.trackSaveResultsAs();
 function menu_track_loadtrackingresults_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackLoadResultsAs();
 
-% function menu_track_retrack_Callback(hObject, eventdata, handles)
-% handles.labelerObj.track();
-% function menu_track_savenewtrx_Callback(hObject, eventdata, handles)
-% handles.labelerObj.trxSave();
+function menu_track_retrain_Callback(hObject, eventdata, handles)
+handles.labelerObj.trackRetrain();
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);
