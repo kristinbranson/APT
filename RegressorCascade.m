@@ -550,6 +550,16 @@ classdef RegressorCascade < handle
       maxFernAbsDeltaPct = max(maxFernAbsDeltaPct);
       
     end
+    
+    function setPrm(obj,sPrm)
+      % stupidity
+
+      obj.prmModel = sPrm.Model;
+      obj.prmTrainInit = sPrm.TrainInit;
+      obj.prmReg = sPrm.Reg;
+      obj.prmFtr = sPrm.Ftr;      
+    end
+    
   end
     
 end

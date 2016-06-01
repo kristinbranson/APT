@@ -2,6 +2,7 @@ classdef CPRLabelTracker < LabelTracker
   
   properties (Constant,Hidden)
     TRAINEDTRACKER_SAVEPROPS = { ...
+      'sPrm' ...
       'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnResIPt' 'trnResRC'};
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
@@ -91,8 +92,26 @@ classdef CPRLabelTracker < LabelTracker
   %% Data
   methods
     
+    % AL 20160531 Data and timestamps
+    %
+    % - All labels are timestamped in the labeler (each pt has its own ts).-
+    % This is done at manual-label-time (eg clicktime). The .pTS field in
+    % MD tables contains this ts.
+    % - .trnDataTblPTS contains timestamps labeling rows of .trnDataTblP.
+    % These timestamps label when labels are accepted into the training
+    % set.
+    %
+    % It is necessary to track this timestamp b/c the selection of a 
+    % training set represents a filtering of labeled data, ie some labeled 
+    % data will not be included. Once a training data set is selected,
+    % moving forward we may want to find new labels made since the time of
+    % that training set selection etc.
+    %
+    % - The RegressorCascade in .trnResRC has its own timestamps for
+    % training time and so on.
+    
     function tblP = getTblPLbledRecent(obj)
-      % tblP: labeled data from Labeler that is more recent than .trnDataTblPTS
+      % tblP: labeled data from Labeler that is more recent than anything in .trnDataTblPTS
       
       tblP = obj.getTblPLbled();
       maxTS = max(tblP.pTS,[],2);
@@ -227,8 +246,12 @@ classdef CPRLabelTracker < LabelTracker
         dataCurr.append(dataNew);
       end
       
-      obj.data = dataCurr;
-      obj.dataTS = now;
+      if nUpdate>0 || nNew>0      
+        obj.data = dataCurr;
+        obj.dataTS = now;
+      else
+        warningNoTrace('CPRLabelTracker:data','Nothing to update in data.');
+      end
     end
     
   end
@@ -461,11 +484,16 @@ classdef CPRLabelTracker < LabelTracker
         obj.retrain(varargin{:});
         return;
       end        
-      
-      %%% begin incremental train
-      
+            
       prm = obj.sPrm;
       tblPNew = obj.getTblPLbledRecent();
+      
+      if isempty(tblPNew)
+        msgbox('Trained tracker is up-to-date with labels.','Tracker up-to-date');
+        return;
+      end
+      
+      %%% do incremental train 
       
       % update the TrnData
       [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
