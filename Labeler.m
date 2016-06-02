@@ -120,7 +120,6 @@ classdef Labeler < handle
     labelMode;            % scalar LabelMode
   end
   properties (SetAccess=private)
-    %labels = cell(0,1);  % cell vector with nTarget els. labels{iTarget} is nModelPts x 2 x "numFramesTarget"
     nLabelPoints;         % scalar integer
   end
   properties % make public setaccess
@@ -131,6 +130,8 @@ classdef Labeler < handle
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
     labeledposTS;         % labeledpos{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched.
     labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
+    
+    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc)
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
@@ -143,7 +144,10 @@ classdef Labeler < handle
     lblCore;
     
     lblPrev_ptsH;         % TODO: encapsulate labelsPrev (eg in a LabelCore)
-    lblPrev_ptsTxtH;                          
+    lblPrev_ptsTxtH;
+    
+    labeledpos2_ptsH;
+    labeledpos2_ptsTxtH;
   end 
   
   %% Suspiciousness
@@ -412,6 +416,7 @@ classdef Labeler < handle
       obj.labeledpos = cell(0,1);
       obj.labeledposTS = cell(0,1);
       obj.labeledpostag = cell(0,1);
+      obj.labeledpos2 = cell(0,1);
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
       
@@ -632,6 +637,7 @@ classdef Labeler < handle
         obj.labeledpos{end+1,1} = lpos;
         obj.labeledposTS{end+1,1} = lposTS;
         obj.labeledpostag{end+1,1} = lpostag;
+        obj.labeledpos2{end+1,1} = s.labeledpos2{iMov};
         if ~isempty(obj.suspScore)
           obj.suspScore{end+1,1} = suspscr;
         end
@@ -762,7 +768,13 @@ classdef Labeler < handle
         end
         
         warningNoTrace('Label timestamps added (all set to -inf).');
-      end      
+      end
+      
+      if ~isfield(s,'labeledpos2')
+        s.labeledpos2 = cellfun(@(x)nan(size(x)),s.labeledpos,'uni',0);
+        warningNoTrace('Label timestamps added (all set to -inf).');
+      end
+      
     end  
     
     function [I,p,md] = lblRead(lblFiles,varargin)
@@ -998,6 +1010,7 @@ classdef Labeler < handle
       obj.labeledpos{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
       obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,ifo.nframes,nTgt); 
       obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,ifo.nframes,nTgt);      
+      obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
     end
     
     function tfSucc = movieRm(obj,iMov)
@@ -1036,7 +1049,8 @@ classdef Labeler < handle
         obj.trxFilesAll(iMov,:) = [];
         obj.labeledpos(iMov,:) = [];
         obj.labeledposTS(iMov,:) = [];
-        obj.labeledpostag(iMov,:) = [];      
+        obj.labeledpostag(iMov,:) = [];
+        obj.labeledpos2(iMov,:) = [];        
         if obj.currMovie>iMov
           obj.movieSet(obj.currMovie-1);
         end
@@ -1340,6 +1354,7 @@ classdef Labeler < handle
     %%% labelpos
       
     function labelPosInitCurrMovie(obj)
+      % OBSOLETE
       obj.labeledpos{obj.currMovie} = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
     end
     function labelPosTagInitCurrMovie(obj)
@@ -2529,6 +2544,70 @@ classdef Labeler < handle
       end
     end
    
+  end
+  
+  %% Labels2
+  methods
+    
+    function labels2BulkSet(obj,lpos)
+      assert(numel(lpos)==numel(obj.labeledpos2));
+      for i=1:numel(lpos)
+        assert(isequal(size(lpos{i}),size(obj.labeledpos2{i})))
+        obj.labeledpos2{i} = lpos{i};
+      end      
+      obj.labels2VizUpdate();
+    end
+    
+    function labels2Clear(obj)
+      for i=1:numel(obj.labeledpos2)
+        obj.labeledpos2{i}(:) = nan;
+      end
+      obj.labels2VizUpdate();
+    end
+    
+    function labels2ImportTrk(obj,iMovs,trkfiles)
+    end
+    
+    function labels2ExportTrk(obj,iMov)
+      % Export label data to trk files.
+      %
+      % iMov: optional, indices into .movieFilesAll to export. Defaults to 1:obj.nmovies.
+    end
+    
+    function labels2VizInit(obj)
+      % Initialize view stuff for labels2  
+    end
+    
+    function labels2VizUpdate(obj)
+    end
+    
+    function labels2VizShow(obj)
+    end
+    
+    function labels2VizHide(obj)
+    end
+     
+  end
+  
+  %% Util
+  methods
+    
+    function genericInitLabelPointViz(obj,hProp,hTxtProp,ax,plotIfo)      
+      deleteValidHandles(obj.(hProp));
+      deleteValidHandles(obj.(hTxtProp));
+      obj.(hProp) = gobjects(obj.nLabelPoints,1);
+      obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
+      for i = 1:obj.nLabelPoints
+        obj.(hProp)(i) = plot(ax,nan,nan,plotIfo.Marker,...
+          'MarkerSize',plotIfo.MarkerSize,...
+          'LineWidth',plotIfo.LineWidth,...
+          'Color',plotIfo.Colors(i,:),...
+          'UserData',i);
+        obj.(hTxtProp)(i) = text(nan,nan,num2str(i),'Parent',ax,...
+          'Color',plotIfo.Colors(i,:),'Hittest','off');
+      end      
+    end
+    
   end
 
 end
