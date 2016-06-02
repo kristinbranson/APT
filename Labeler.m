@@ -1329,22 +1329,9 @@ classdef Labeler < handle
       end
       obj.labelMode = lblmode;      
 
-      % TODO: encapsulate labelsPrev (eg in a LabelCore)
-      deleteValidHandles(obj.lblPrev_ptsH);
-      deleteValidHandles(obj.lblPrev_ptsTxtH);
-      obj.lblPrev_ptsH = nan(obj.nLabelPoints,1);
-      obj.lblPrev_ptsTxtH = nan(obj.nLabelPoints,1);
-      axprev = obj.gdata.axes_prev;
-      for i = 1:obj.nLabelPoints
-        obj.lblPrev_ptsH(i) = plot(axprev,nan,nan,lblPtsPlotInfo.Marker,...
-          'MarkerSize',lblPtsPlotInfo.MarkerSize,...
-          'LineWidth',lblPtsPlotInfo.LineWidth,...
-          'Color',lblPtsPlotInfo.Colors(i,:),...
-          'UserData',i);
-        obj.lblPrev_ptsTxtH(i) = text(nan,nan,num2str(i),'Parent',axprev,...
-          'Color',lblPtsPlotInfo.Colors(i,:),'Hittest','off');
-      end
-      
+      obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
+          obj.gdata.axes_prev,lblPtsPlotInfo);      
+          
       if tfLblModeChange
         % sometimes labelcore need this kick to get properly set up
         obj.labelsUpdateNewFrame(true);
@@ -2576,15 +2563,34 @@ classdef Labeler < handle
     
     function labels2VizInit(obj)
       % Initialize view stuff for labels2  
+      
+      if ~isempty(obj.trackPrefs)
+        ptsPlotInfo = obj.trackPrefs.PredictPointsPlot;
+        ptsPlotInfo.Colors = lblPtsPlotInfo.Colors;
+      else
+        ptsPlotInfo = obj.labelPointsPlotInfo;
+      end
+      
+      obj.genericInitLabelPointViz('labeledpos2_ptsH','labeledpos2_ptsTxtH',...
+        obj.gdata.axes_curr,ptsPlotInfo);
     end
     
     function labels2VizUpdate(obj)
+        iMov = obj.currMovie;
+        frm = obj.currFrame;
+        iTgt = obj.currTarget;
+        lpos = obj.labeledpos2{iMov}(:,:,frm,iTgt);
+        LabelCore.setPtsCoords(lpos,obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);         
     end
     
     function labels2VizShow(obj)
+      [obj.lblPrev_ptsH.Visible] = deal('on');
+      [obj.lblPrev_ptsTxtH.Visible] = deal('on');
     end
     
     function labels2VizHide(obj)
+      [obj.lblPrev_ptsH.Visible] = deal('on');
+      [obj.lblPrev_ptsTxtH.Visible] = deal('on');
     end
      
   end
