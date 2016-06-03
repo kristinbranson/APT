@@ -1781,7 +1781,7 @@ classdef Labeler < handle
       end
 
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
-        'labeledposTS','labeledposTag');
+        'labeledposTS','labeledpostag');
       
       obj.updateFrameTableComplete();     
       obj.labeledposNeedsSave = true; 
