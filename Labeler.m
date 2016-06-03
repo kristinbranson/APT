@@ -11,7 +11,7 @@ classdef Labeler < handle
       'VERSION' ...
       'projname' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
-      'labeledpos' 'labeledpostag' 'labeledposTS' ...      
+      'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledpos2' ...      
       'currMovie' 'currFrame' 'currTarget' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
       'minv' 'maxv' 'movieForceGrayscale'...
@@ -19,7 +19,7 @@ classdef Labeler < handle
     LOADPROPS = {...
       'projname' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
-      'labeledpos' 'labeledpostag' 'labeledposTS' ...
+      'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledpos2' ...
       'labelMode' 'nLabelPoints' 'labelTemplate' ...
       'minv' 'maxv' 'movieForceGrayscale' ...
       'suspScore'};
@@ -1115,6 +1115,7 @@ classdef Labeler < handle
         obj.labelPosTagInitCurrMovie(); % AL20160426: now obsolete, labeledpostag initted during movieAdd()
       end
       obj.labelingInit();
+      obj.labels2VizInit();
       
       % Not a huge fan of this, maybe move to UI
       obj.updateFrameTableComplete();
@@ -1726,6 +1727,42 @@ classdef Labeler < handle
       end      
     end
     
+    function labelImportTrkGeneric(obj,iMovs,trkfiles,lposFld,lposTSFld,lposTagFld)
+      % iMovs: [N] vector of movie indices
+      % trkfiles: [N] cellstr of trk filenames
+      % lpos*Fld: property names for labeledpos, labeledposTS,
+      % labeledposTag. Can be empty to not set that prop.
+      
+      nMov = numel(iMovs);
+      assert(nMov==numel(trkfiles));
+      
+      for i=1:nMov
+        iM = iMovs(i);
+        s = load(trkfiles{i},'-mat');
+        fprintf(1,'Loaded trk file: %s\n',trkfiles{i});
+        
+        lpos = nan(size(obj.labeledpos{iM}));
+        lposTS = -inf(size(obj.labeledposTS{iM}));
+        lpostag = cell(size(obj.labeledpostag{iM}));
+        if isfield(s,'pTrkiPt')
+          iPt = s.pTrkiPt;
+        else
+          iPt = 1:size(lpos,1); % all pts
+        end
+        lpos(iPt,:,:,:) = s.pTrk;
+        lposTS(iPt,:,:) = s.pTrkTS;
+        lpostag(iPt,:,:) = s.pTrkTag;
+        
+        obj.(lposFld){iM} = lpos;
+        if ~isempty(lposTSFld)
+          obj.(lposTSFld){iM} = lposTS;
+        end
+        if ~isempty(lposTagFld)
+          obj.(lposTagFld){iM} = lpostag;
+        end
+      end      
+    end
+    
     function labelImportTrk(obj,iMovs,trkfiles)
       % Import label data from trk files.
       %
@@ -1742,29 +1779,9 @@ classdef Labeler < handle
         [movpaths,movS] = cellfun(@fileparts,movfiles,'uni',0);
         trkfiles = cellfun(@(x,y)fullfile(x,[y '.trk']),movpaths,movS,'uni',0);
       end
-      nMov = numel(iMovs);
-      assert(nMov==numel(trkfiles));
 
-      for i=1:nMov
-        iM = iMovs(i);
-        s = load(trkfiles{i},'-mat');
-        
-        lpos = nan(size(obj.labeledpos{iM}));
-        lposTS = -inf(size(obj.labeledposTS{iM}));
-        lpostag = cell(size(obj.labeledpostag{iM}));
-        if isfield(s,'pTrkiPt')
-          iPt = s.pTrkiPt;
-        else
-          iPt = 1:size(lpos,1); % all pts
-        end
-        lpos(iPt,:,:,:) = s.pTrk;
-        lposTS(iPt,:,:) = s.pTrkTS;
-        lpostag(iPt,:,:) = s.pTrkTag;
-        
-        obj.labeledpos{iM} = lpos;
-        obj.labeledposTS{iM} = lposTS;
-        obj.labeledpostag{iM} = lpostag;
-      end
+      obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
+        'labeledposTS','labeledposTag');
       
       obj.updateFrameTableComplete();     
       obj.labeledposNeedsSave = true; 
@@ -1858,6 +1875,7 @@ classdef Labeler < handle
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       obj.labelsPrevUpdate();
+      obj.labels2VizUpdate();
     end
     
     function labelsUpdateNewTarget(obj,prevTarget)
@@ -1865,6 +1883,7 @@ classdef Labeler < handle
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
       obj.labelsPrevUpdate();
+      obj.labels2VizUpdate();
     end
     
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -1874,6 +1893,7 @@ classdef Labeler < handle
           prevTgt,obj.currTarget);
       end
       obj.labelsPrevUpdate();
+      obj.labels2VizUpdate();
     end
     
     % CONSIDER: encapsulating labelsPrev (eg in a LabelCore)
@@ -2553,6 +2573,18 @@ classdef Labeler < handle
     end
     
     function labels2ImportTrk(obj,iMovs,trkfiles)
+      if exist('iMov','var')==0
+        iMovs = 1:obj.nmovies;
+      end      
+      if exist('trkfiles','var')==0
+        movfiles = obj.movieFilesAllFull(iMovs);
+        [movpaths,movS] = cellfun(@fileparts,movfiles,'uni',0);
+        trkfiles = cellfun(@(x,y)fullfile(x,[y '.trk']),movpaths,movS,'uni',0);
+      end
+
+      obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos2',[],[]);
+      
+      obj.labels2VizUpdate();
     end
     
     function labels2ExportTrk(obj,iMov)
@@ -2566,7 +2598,7 @@ classdef Labeler < handle
       
       if ~isempty(obj.trackPrefs)
         ptsPlotInfo = obj.trackPrefs.PredictPointsPlot;
-        ptsPlotInfo.Colors = lblPtsPlotInfo.Colors;
+        ptsPlotInfo.Colors = obj.labelPointsPlotInfo.Colors;
       else
         ptsPlotInfo = obj.labelPointsPlotInfo;
       end
@@ -2580,17 +2612,17 @@ classdef Labeler < handle
         frm = obj.currFrame;
         iTgt = obj.currTarget;
         lpos = obj.labeledpos2{iMov}(:,:,frm,iTgt);
-        LabelCore.setPtsCoords(lpos,obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);         
+        LabelCore.setPtsCoords(lpos,obj.labeledpos2_ptsH,obj.labeledpos2_ptsTxtH);
     end
     
     function labels2VizShow(obj)
-      [obj.lblPrev_ptsH.Visible] = deal('on');
-      [obj.lblPrev_ptsTxtH.Visible] = deal('on');
+      [obj.labeledpos2_ptsH.Visible] = deal('on');
+      [obj.labeledpos2_ptsTxtH.Visible] = deal('on');
     end
     
     function labels2VizHide(obj)
-      [obj.lblPrev_ptsH.Visible] = deal('on');
-      [obj.lblPrev_ptsTxtH.Visible] = deal('on');
+      [obj.labeledpos2_ptsH.Visible] = deal('off');
+      [obj.labeledpos2_ptsTxtH.Visible] = deal('off');
     end
      
   end
@@ -2598,7 +2630,7 @@ classdef Labeler < handle
   %% Util
   methods
     
-    function genericInitLabelPointViz(obj,hProp,hTxtProp,ax,plotIfo)      
+    function genericInitLabelPointViz(obj,hProp,hTxtProp,ax,plotIfo)
       deleteValidHandles(obj.(hProp));
       deleteValidHandles(obj.(hTxtProp));
       obj.(hProp) = gobjects(obj.nLabelPoints,1);
