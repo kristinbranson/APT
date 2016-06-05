@@ -293,10 +293,10 @@ classdef CPRLabelTracker < LabelTracker
       tblP = obj.getTblPLbled(); % start with all labeled data
       [grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
       
-      movS = categorical(tblP.movS);
-      movsUn = categories(movS);
-      nMovsUn = numel(movsUn);
-      movsUnCnt = countcats(movS);
+      mov = categorical(tblP.mov);
+      movUn = categories(mov);
+      nMovUn = numel(movUn);
+      movUnCnt = countcats(mov);
       n = size(tblP,1);
       
       hFig = CPRData.ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,...
@@ -313,11 +313,11 @@ classdef CPRLabelTracker < LabelTracker
         nSel = numel(iSel);
         
         tblPSel = tblP(iSel,:);
-        movsSel = categorical(tblPSel.movS);
-        movsUnSelCnt = arrayfun(@(x)nnz(movsSel==x),movsUn);
-        for iMov = 1:nMovsUn
-          fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(movsUn(iMov)),...
-            movsUnSelCnt(iMov),movsUnCnt(iMov),round(movsUnSelCnt(iMov)/movsUnCnt(iMov)*100));
+        movSel = categorical(tblPSel.mov);
+        movUnSelCnt = arrayfun(@(x)nnz(movSel==x),movUn);
+        for iMov = 1:nMovUn
+          fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(movUn(iMov)),...
+            movUnSelCnt(iMov),movUnCnt(iMov),round(movUnSelCnt(iMov)/movUnCnt(iMov)*100));
         end
         fprintf(1,'Grand total of %d/%d (%d%%) shapes selected for training.\n',...
           nSel,n,round(nSel/n*100));
@@ -440,7 +440,8 @@ classdef CPRLabelTracker < LabelTracker
       tf = ismember(tblMF,tblTrnMF);
       d.iTrn = find(tf);
       
-      d.summarize('movS',d.iTrn);
+      fprintf(1,'Training data summary:\n');
+      d.summarize('mov',d.iTrn);
       
       [Is,nChan] = d.getCombinedIs(d.iTrn);
       prm.Ftr.nChn = nChan;
@@ -524,7 +525,9 @@ classdef CPRLabelTracker < LabelTracker
       tf = ismember(tblMF,tblNewMF);
       assert(nnz(tf)==size(tblNewMF,1));
       d.iTrn = find(tf);
-      d.summarize('movS',d.iTrn);
+      
+      fprintf(1,'Training data summary:\n');
+      d.summarize('mov',d.iTrn);
       
       % Call rc.train with 'update', true 
       [Is,nChan] = d.getCombinedIs(d.iTrn);
@@ -605,8 +608,8 @@ classdef CPRLabelTracker < LabelTracker
           error('CPRLabelTracker:trkPiPt','''trkPiPt'' differs in tracked results to be loaded.');
         end
         
-        tblMF = obj.trkPMD(:,{'movS' 'frm'});
-        tblLoad = tr.trkPMD(:,{'movS' 'frm'});
+        tblMF = obj.trkPMD(:,{'mov' 'frm'});
+        tblLoad = tr.trkPMD(:,{'mov' 'frm'});
         [tfOverlp,locMF] = ismember(tblLoad,tblMF);
         
         tsOverlp0 = obj.trkPTS(locMF(tfOverlp));
@@ -668,7 +671,8 @@ classdef CPRLabelTracker < LabelTracker
       assert(all(tf));
       d.iTst = loc;
       
-      d.summarize('movS',d.iTst);
+      fprintf(1,'Track data summary:\n');
+      d.summarize('mov',d.iTst);
       
       delete(hWB);
       
@@ -972,7 +976,6 @@ classdef CPRLabelTracker < LabelTracker
             
       lObj = obj.lObj;
       movName = lObj.movieFilesAllFull{lObj.currMovie};
-      [~,movS] = myfileparts(movName);
       nfrms = lObj.nframes;
       
       d = 2;
@@ -983,7 +986,7 @@ classdef CPRLabelTracker < LabelTracker
       nPtTrk = numel(iPtTrk);
       assert(isequal(size(pTrk),[size(trkMD,1) nPtTrk*d]));
       
-      tfCurrMov = strcmp(trkMD.movS,movS); % these rows of trkMD are for the current Labeler movie
+      tfCurrMov = strcmp(trkMD.mov,movName); % these rows of trkMD are for the current Labeler movie
       nCurrMov = nnz(tfCurrMov);
       xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);
       
