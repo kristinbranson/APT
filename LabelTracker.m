@@ -10,8 +10,10 @@ classdef LabelTracker < handle
     paramFile; % char, current parameter file
     ax % axis for viewing tracking results
     
+    trkVizInterpolate % scalar logical. If true, interpolate tracking results when visualizing
+    
     hLCurrMovie; % listener to lObj.currMovie
-    hLCurrFrame; % listener to lObj.currFrame
+    hLCurrFrame; % listener to lObj.currFrame    
   end
   
   methods
@@ -22,6 +24,17 @@ classdef LabelTracker < handle
       axOver = axisOverlay(obj.lObj.gdata.axes_curr);
       axOver.LineWidth = 2;
       obj.ax = axOver;
+      
+      trkPrefs = labelerObj.trackPrefs;
+      if isfield(trkPrefs,'PredictInterpolate')
+        val = logical(trkPrefs.PredictInterpolate);
+        if ~isscalar(val)
+          error('LabelTracker:init','Expected scalar value for ''PredictInterpolate'' preference.');
+        end
+      else
+        val = false;
+      end
+      obj.trkVizInterpolate = val;
       
       obj.hLCurrMovie = addlistener(labelerObj,'currMovie','PostSet',@(s,e)obj.newLabelerMovie());
       obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());

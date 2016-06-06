@@ -772,7 +772,6 @@ classdef Labeler < handle
       
       if ~isfield(s,'labeledpos2')
         s.labeledpos2 = cellfun(@(x)nan(size(x)),s.labeledpos,'uni',0);
-        warningNoTrace('Label timestamps added (all set to -inf).');
       end
       
     end  
@@ -1108,12 +1107,27 @@ classdef Labeler < handle
       
       obj.isinit = false; % end Initialization hell      
 
+      % AL20160605: These three calls semi-obsolete. new projects will not
+      % have empty .labeledpos, .labeledpostag, or .labeledpos2 elements;
+      % these are set at movieAdd() time.
+      %
+      % However, some older projects will have these empty els; and
+      % maybe it's worth keeping the ability to have empty els for space
+      % reasons (as opposed to eg filling in all els in lblModernize()).
+      % Wait and see.
       if isempty(obj.labeledpos{iMov})
-        obj.labelPosInitCurrMovie(); % AL20160426: now obsolete, labeledpos initted during movieAdd()
+        obj.labelPosInitCurrMovie();
+      end
+      if isempty(obj.labeledposTS{iMov});
+        obj.labelPosTSInitCurrMovie();
       end
       if isempty(obj.labeledpostag{iMov})
-        obj.labelPosTagInitCurrMovie(); % AL20160426: now obsolete, labeledpostag initted during movieAdd()
+        obj.labelPosTagInitCurrMovie();
       end
+      if isempty(obj.labeledpos2{iMov})
+        obj.labelPos2InitCurrMovie();
+      end      
+      
       obj.labelingInit();
       obj.labels2VizInit();
       
@@ -1340,10 +1354,12 @@ classdef Labeler < handle
     end
     
     %%% labelpos
-      
+
     function labelPosInitCurrMovie(obj)
-      % OBSOLETE
       obj.labeledpos{obj.currMovie} = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
+    end
+    function labelPosTSInitCurrMovie(obj)
+      obj.labeledposTS{obj.currMovie} = -inf(obj.nLabelPoints,obj.nframes,obj.nTargets); 
     end
     function labelPosTagInitCurrMovie(obj)
       obj.labeledpostag{obj.currMovie} = cell(obj.nLabelPoints,obj.nframes,obj.nTargets); 
@@ -1781,7 +1797,7 @@ classdef Labeler < handle
       end
 
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
-        'labeledposTS','labeledposTag');
+        'labeledposTS','labeledpostag');
       
       obj.updateFrameTableComplete();     
       obj.labeledposNeedsSave = true; 
@@ -2555,6 +2571,10 @@ classdef Labeler < handle
   
   %% Labels2
   methods
+    
+    function labelPos2InitCurrMovie(obj)
+      obj.labeledpos2{obj.currMovie} = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets); 
+    end
     
     function labels2BulkSet(obj,lpos)
       assert(numel(lpos)==numel(obj.labeledpos2));
