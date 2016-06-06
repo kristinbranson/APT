@@ -1,8 +1,8 @@
-# CPR
+## CPR
 
 Cascaded Pose Regression tracker
 
-# Requirements
+## Requirements
 
 * A recent version of MATLAB (R2014b or later preferred)
 ** Image Processing toolbox
@@ -10,11 +10,10 @@ Cascaded Pose Regression tracker
 * A recent checkout of Piotr Dollar's toolbox (https://github.com/pdollar/toolbox)
 * If running tracking with the Labeler (APT), a recent checkout of APT (https://github.com/kristinbranson/APT)
 
-# Setup
+## Setup
 
 Copy Manifest.sample.txt to Manifest.txt and edit to point to your local checkouts. 
 
-# Usage
+## Usage
 
 At the moment the only documented usage is through the APT Track/Train interface.
-
