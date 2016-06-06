@@ -4,8 +4,7 @@ Cascaded Pose Regression tracker
 
 ## Requirements
 
-* A recent version of MATLAB (R2014b or later preferred)
-  * Image Processing toolbox, Stats toolbox
+* A recent version of MATLAB (R2014b or later preferred) with Image Processing, Stats toolboxes
 * A recent checkout of JCtrax (https://github.com/kristinbranson/JCtrax) or JAABA (https://github.com/kristinbranson/JAABA)
 * A recent checkout of Piotr Dollar's toolbox (https://github.com/pdollar/toolbox)
 * If running tracking with the Labeler (APT), a recent checkout of APT (https://github.com/kristinbranson/APT)
