@@ -1,7 +1,15 @@
-[Original KB discussion](Link URL)
+# CPR
 
+Cascaded Pose Regression tracker
 
-### TODO/RADAR ###
+# Requirements
+
+* A recent version of MATLAB (R2014b or later preferred)
+** Image Processing toolbox
+* A recent checkout of JCtrax (https://github.com/kristinbranson/JCtrax) or JAABA (https://github.com/kristinbranson/JAABA)
+* A recent checkout of Piotr Dollar's toolbox (https://github.com/pdollar/toolbox)
+* If running tracking with the Labeler (APT), a recent checkout of APT (https://github.com/kristinbranson/APT)
+
 
 * Features
     * "I would reorganize ftrsGenDup2, ftrsCompDup2 to be less of a mess. I think there are a few flags we want to set, like whether we only consider neighboring landmarks or not, and whether we only update some landmarks in an iteration. Also, remove some of the obsolete feature types, clean up the indexing, maybe use keywords instead of numbers?"
