@@ -1,4 +1,0 @@
-jctrax,c:\data.not.os\bitbucket\jctrax
-apt,c:\data.not.os\bitbucket\apt
-piotr,c:\data.not.os\bitbucket\piotr_toolbox
-
