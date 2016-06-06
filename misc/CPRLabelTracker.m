@@ -62,7 +62,10 @@ classdef CPRLabelTracker < LabelTracker
     
     % View/presentation
     xyPrdCurrMovie; % [npts d nfrm] predicted labels for current Labeler movie
+    xyPrdCurrMovieIsInterp; % [nfrm] logical vec indicating whether xyPrdCurrMovie(:,:,i) is interpolated
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame
+    xyVizPlotArgs; % cell array of args for regular tracking viz
+    xyVizPlotArgsInterp; % cell array of args for interpolated tracking viz
   end
   properties (Dependent)
     nPts
@@ -290,10 +293,10 @@ classdef CPRLabelTracker < LabelTracker
       tblP = obj.getTblPLbled(); % start with all labeled data
       [grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
       
-      movS = categorical(tblP.movS);
-      movsUn = categories(movS);
-      nMovsUn = numel(movsUn);
-      movsUnCnt = countcats(movS);
+      mov = categorical(tblP.mov);
+      movUn = categories(mov);
+      nMovUn = numel(movUn);
+      movUnCnt = countcats(mov);
       n = size(tblP,1);
       
       hFig = CPRData.ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,...
@@ -310,11 +313,11 @@ classdef CPRLabelTracker < LabelTracker
         nSel = numel(iSel);
         
         tblPSel = tblP(iSel,:);
-        movsSel = categorical(tblPSel.movS);
-        movsUnSelCnt = arrayfun(@(x)nnz(movsSel==x),movsUn);
-        for iMov = 1:nMovsUn
-          fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(movsUn(iMov)),...
-            movsUnSelCnt(iMov),movsUnCnt(iMov),round(movsUnSelCnt(iMov)/movsUnCnt(iMov)*100));
+        movSel = categorical(tblPSel.mov);
+        movUnSelCnt = arrayfun(@(x)nnz(movSel==x),movUn);
+        for iMov = 1:nMovUn
+          fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(movUn(iMov)),...
+            movUnSelCnt(iMov),movUnCnt(iMov),round(movUnSelCnt(iMov)/movUnCnt(iMov)*100));
         end
         fprintf(1,'Grand total of %d/%d (%d%%) shapes selected for training.\n',...
           nSel,n,round(nSel/n*100));
@@ -437,7 +440,8 @@ classdef CPRLabelTracker < LabelTracker
       tf = ismember(tblMF,tblTrnMF);
       d.iTrn = find(tf);
       
-      d.summarize('movS',d.iTrn);
+      fprintf(1,'Training data summary:\n');
+      d.summarize('mov',d.iTrn);
       
       [Is,nChan] = d.getCombinedIs(d.iTrn);
       prm.Ftr.nChn = nChan;
@@ -521,7 +525,9 @@ classdef CPRLabelTracker < LabelTracker
       tf = ismember(tblMF,tblNewMF);
       assert(nnz(tf)==size(tblNewMF,1));
       d.iTrn = find(tf);
-      d.summarize('movS',d.iTrn);
+      
+      fprintf(1,'Training data summary:\n');
+      d.summarize('mov',d.iTrn);
       
       % Call rc.train with 'update', true 
       [Is,nChan] = d.getCombinedIs(d.iTrn);
@@ -602,8 +608,8 @@ classdef CPRLabelTracker < LabelTracker
           error('CPRLabelTracker:trkPiPt','''trkPiPt'' differs in tracked results to be loaded.');
         end
         
-        tblMF = obj.trkPMD(:,{'movS' 'frm'});
-        tblLoad = tr.trkPMD(:,{'movS' 'frm'});
+        tblMF = obj.trkPMD(:,{'mov' 'frm'});
+        tblLoad = tr.trkPMD(:,{'mov' 'frm'});
         [tfOverlp,locMF] = ismember(tblLoad,tblMF);
         
         tsOverlp0 = obj.trkPTS(locMF(tfOverlp));
@@ -665,7 +671,8 @@ classdef CPRLabelTracker < LabelTracker
       assert(all(tf));
       d.iTst = loc;
       
-      d.summarize('movS',d.iTst);
+      fprintf(1,'Track data summary:\n');
+      d.summarize('mov',d.iTst);
       
       delete(hWB);
       
@@ -757,11 +764,12 @@ classdef CPRLabelTracker < LabelTracker
       % Update .hXYPrdRed based on current Labeler frame and
       % .xyPrdCurrMovie
       
+      % get xy and isinterp
       frm = obj.lObj.currFrame;
       npts = obj.nPts;
-      hXY = obj.hXYPrdRed;
       if isempty(obj.xyPrdCurrMovie)
         xy = nan(npts,2);
+        isinterp = false;
       else
         % AL20160502: When changing movies, order of updates to 
         % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
@@ -770,9 +778,18 @@ classdef CPRLabelTracker < LabelTracker
         frm = min(frm,size(obj.xyPrdCurrMovie,3));
         
         xy = obj.xyPrdCurrMovie(:,:,frm); % [npt x d]
+        isinterp = obj.xyPrdCurrMovieIsInterp(frm);
       end
+      
+      if isinterp
+        plotargs = obj.xyVizPlotArgsInterp;
+      else
+        plotargs = obj.xyVizPlotArgs;
+      end      
+      
+      hXY = obj.hXYPrdRed;
       for iPt = 1:npts
-        set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2));
+        set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2),plotargs{:});
       end
     end
     
@@ -920,38 +937,45 @@ classdef CPRLabelTracker < LabelTracker
 
     function vizInit(obj)
       obj.xyPrdCurrMovie = [];
+      obj.xyPrdCurrMovieIsInterp = [];
       deleteValidHandles(obj.hXYPrdRed);
       obj.hXYPrdRed = [];
       
+      % init .xyVizPlotArgs*
+      trackPrefs = obj.lObj.trackPrefs;
+      plotPrefs = trackPrefs.PredictPointsPlot;
+      obj.xyVizPlotArgs = struct2paramscell(plotPrefs);
+      if isfield(trackPrefs,'PredictInterpolatePointsPlot')
+        obj.xyVizPlotArgsInterp = struct2paramscell(trackPrefs.PredictInterpolatePointsPlot);
+      else
+        obj.xyVizPlotArgsInterp = obj.xyVizPlotArgs;
+      end      
+      
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
-      plotPrefs = obj.lObj.trackPrefs.PredictPointsPlot;
       ax = obj.ax;
       cla(ax);
       hold(ax,'on');
       hTmp = gobjects(npts,1);
       for iPt = 1:npts
         clr = ptsClrs(iPt,:);
-        hTmp(iPt) = plot(ax,nan,nan,plotPrefs.Marker,...
-          'MarkerSize',plotPrefs.MarkerSize,...
-          'LineWidth',plotPrefs.LineWidth,...
-          'Color',clr);
+        hTmp(iPt) = plot(ax,nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
       end
       obj.hXYPrdRed = hTmp;
     end
     
     function vizLoadXYPrdCurrMovie(obj)
-      % sets .xyPrdCurrMovie for current Labeler movie from .trkP, .trkPMD
+      % sets .xyPrdCurrMovie* for current Labeler movie from .trkP, .trkPMD
       
       trkTS = obj.trkPTS;
       if isempty(trkTS)
         obj.xyPrdCurrMovie = [];
+        obj.xyPrdCurrMovieIsInterp = [];
         return;
       end
             
       lObj = obj.lObj;
       movName = lObj.movieFilesAllFull{lObj.currMovie};
-      [~,movS] = myfileparts(movName);
       nfrms = lObj.nframes;
       
       d = 2;
@@ -962,14 +986,23 @@ classdef CPRLabelTracker < LabelTracker
       nPtTrk = numel(iPtTrk);
       assert(isequal(size(pTrk),[size(trkMD,1) nPtTrk*d]));
       
-      tfCurrMov = strcmp(trkMD.movS,movS); % these rows of trkMD are for the current Labeler movie
+      tfCurrMov = strcmp(trkMD.mov,movName); % these rows of trkMD are for the current Labeler movie
       nCurrMov = nnz(tfCurrMov);
       xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);
       
       frmCurrMov = trkMD.frm(tfCurrMov);
       xy = nan(nfids,d,nfrms);
       xy(iPtTrk,:,frmCurrMov) = xyTrkCurrMov;
+      
+      if obj.trkVizInterpolate
+        [xy,isinterp3] = CPRLabelTracker.interpolateXY(xy);
+        isinterp = CPRLabelTracker.collapseIsInterp(isinterp3);
+      else
+        isinterp = false(nfrms,1);
+      end
+      
       obj.xyPrdCurrMovie = xy;
+      obj.xyPrdCurrMovieIsInterp = isinterp;
     end
 
     function vizHide(obj)
@@ -981,27 +1014,58 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function vizInterpolateXYPrdCurrMovie(obj)
-      xy = obj.xyPrdCurrMovie;
-      for iPt = 1:size(xy,1)
-      for d = 1:size(xy,2)
-        z = squeeze(xy(iPt,d,:));
-        tf = ~isnan(z);
-        if any(tf)
-          iGood = find(tf);
-          iNan = find(~tf);        
-          z(iNan) = interp1(iGood,z(iGood),iNan);
-          xy(iPt,d,:) = z;
-        end
-      end
-      end
-      
-      obj.xyPrdCurrMovie = xy;
+      [obj.xyPrdCurrMovie,isinterp3] = CPRLabelTracker.interpolateXY(obj.xyPrdCurrMovie);
+      obj.xyPrdCurrMovieIsInterp = CPRLabelTracker.collapseIsInterp(isinterp3);
     end
     
   end
 
   %%
   methods (Static)
+    
+    function [xy,isinterp] = interpolateXY(xy)
+      % xy (in): [npts d nfrm]
+      %
+      % xy (out): [npts d nfrm]. Like input, but with nans replaced with
+      % values by interpolating along 3rd dim 
+      % isinterp: [npts d nfrm] logical.
+      
+      isinterp = false(size(xy));
+      for iPt = 1:size(xy,1)
+        for d = 1:size(xy,2)
+          z = squeeze(xy(iPt,d,:));
+          tf = ~isnan(z);
+          if any(tf) % must have at least one nonnan value to interpolate
+            iGood = find(tf);
+            iNan = find(~tf);
+            z(iNan) = interp1(iGood,z(iGood),iNan);
+            xy(iPt,d,:) = z;
+            isinterp(iPt,d,iNan) = true;
+          end
+        end
+      end
+    end
+    
+    function isinterp1 = collapseIsInterp(isinterp3)
+      % isinterp3: [nptsxdxnfrm] logical, see interpolateXY().
+      %
+      % isinterp1: [nfrm] logical. isinterp1(i) is true if all elements of
+      % isinterp3(:,:,i) are true.
+      
+      [npts,d,nfrm] = size(isinterp3);
+      isinterp2 = reshape(isinterp3,[npts*d,nfrm]);
+      
+      tfall = all(isinterp2,1);
+      tfany = any(isinterp2,1);
+      tfmixed = tfany & ~tfall;
+      nfrmmixed = nnz(tfmixed);
+      if nfrmmixed>0
+        warning('CPRLabelTracker:isinterp','%d/%d frames have some interpolated and some non-interpolated tracking results. Treating these frames as non-interpolated.',...
+          nfrmmixed,nfrm);
+      end
+      
+      isinterp1 = tfall(:);
+    end
     
     function tdPPJan(td,varargin)
       td.computeIpp([],[],[],'iTrl',1:td.N,'jan',true,varargin{:});

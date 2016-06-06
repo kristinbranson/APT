@@ -10,7 +10,7 @@ PRJS = ['trainAL','testAL','CPRLabelTrackerTrack']
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--builddir",default="/groups/flyprojects/home/leea30/git/cpr.build",help="root of cpr build directory")
+    parser.add_argument("--builddir",default="/groups/branson/home/leea30/git/cpr.build",help="root of cpr build directory")
     args = parser.parse_args()
         
     if not os.path.exists(args.builddir):
