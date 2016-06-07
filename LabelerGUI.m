@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 27-May-2016 17:44:31
+% Last Modified by GUIDE v2.5 06-Jun-2016 20:10:34
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -615,6 +615,8 @@ handles.labelerObj.setShowTrxMode(ShowTrxMode.NONE);
 function menu_view_trajectories_centervideoontarget_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.movieCenterOnTarget = ~lObj.movieCenterOnTarget;
+function menu_view_flip_flipud_movie_only_Callback(hObject, eventdata, handles)
+handles.labelerObj.videoFlipUDVidOnly();
 function menu_view_flip_flipud_Callback(hObject, eventdata, handles)
 handles.labelerObj.videoFlipUD();
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)

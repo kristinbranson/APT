@@ -2188,14 +2188,25 @@ classdef Labeler < handle
     end
     
     function videoFlipUD(obj)
+      % flip entire axes; movies + labels
+      
       gd = obj.gdata;
       gd.axes_curr.YDir = toggleAxisDir(gd.axes_curr.YDir);
       gd.axes_prev.YDir = toggleAxisDir(gd.axes_prev.YDir);
     end
     function videoFlipLR(obj)
+      % flip entire axes; movies + labels
+      
       gd = obj.gdata;
       gd.axes_curr.XDir = toggleAxisDir(gd.axes_curr.XDir);
       gd.axes_prev.XDir = toggleAxisDir(gd.axes_prev.XDir);
+    end
+    
+    function videoFlipUDVidOnly(obj)
+      obj.movieReader.flipvert = ~obj.movieReader.flipvert;
+      if obj.hasMovie
+        obj.setFrame(obj.currFrame,true);
+      end
     end
     
   end
