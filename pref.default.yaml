@@ -1,5 +1,5 @@
 ---
-LabelMode: HIGHTHROUGHPUT
+LabelMode: TEMPLATE
   # See LabelMode.m
 
 NumLabelPoints: 3
@@ -46,7 +46,7 @@ Track:
   PredictFrameStep: 5
   PredictFrameStepBig: 10
   PredictNeighborhood: 100
-  PredictPointsPlot:
+  PredictPointsPlot: # Plot cosmetics for tracking results
     Marker: '+'
     MarkerSize: 10
     LineWidth: 2
