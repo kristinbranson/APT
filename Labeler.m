@@ -9,7 +9,7 @@ classdef Labeler < handle
     
     SAVEPROPS = { ...
       'VERSION' ...
-      'projname' ...
+      'projname' 'projMacros' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledpos2' ...      
       'currMovie' 'currFrame' 'currTarget' ...
@@ -17,7 +17,7 @@ classdef Labeler < handle
       'minv' 'maxv' 'movieForceGrayscale'...
       'suspScore'};
     LOADPROPS = {...
-      'projname' ...
+      'projname' 'projMacros' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledpos2' ...
       'labelMode' 'nLabelPoints' 'labelTemplate' ...
@@ -38,6 +38,9 @@ classdef Labeler < handle
     projname              % 
     projFSInfo;           % ProjectFSInfo
   end
+  properties (SetAccess=private)
+    projMacros = struct(); % scalar struct containing user-defined macros
+  end
   properties (Dependent)
     projectfile;          % Full path to current project 
     projectroot;          % Parent dir of projectfile, if it exists
@@ -57,7 +60,7 @@ classdef Labeler < handle
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
   end
   properties (SetObservable)
-    movieFilesAll = cell(0,1); % column cellstr, full paths to movies; can include macros like $projroot
+    movieFilesAll = cell(0,1); % column cellstr, full paths to movies; can include macros 
     movieFilesAllHaveLbls = false(0,1); % [numel(movieFilesAll)x1] logical. 
         % How MFAHL is maintained
         % - At project load, it is updated fully.
@@ -72,7 +75,7 @@ classdef Labeler < handle
     movieForceGrayscale = false; % scalar logical
   end
   properties (Dependent)
-    movieFilesAllFull; % like movieFilesAll, but macro-replaced
+    movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
     hasMovie;
     moviefile;
     nframes;
@@ -191,9 +194,14 @@ classdef Labeler < handle
   %% Prop access
   methods % dependent prop getters
     function v = get.movieFilesAllFull(obj)
-      proot = obj.projectroot;      
+      sMacro = obj.projMacros;
+      if ~isfield(sMacro,'projroot')
+        % This conditional allows user to explictly specify project root
+        sMacro.projroot = obj.projectroot;
+      end
       v = obj.movieFilesAll;
-      v = cellfun(@(x)Labeler.macroReplace(x,proot),v,'uni',0);
+      v = cellfun(@(x)obj.projLocalizePath(x),v,'uni',0);
+      Labeler.warnUnreplacedMacros(v);
     end
     function v = get.hasMovie(obj)
       v = obj.movieReader.isOpen;
@@ -606,12 +614,16 @@ classdef Labeler < handle
           fname,s.nLabelPoints,obj.nLabelPoints);
       end
       
-      fnameroot = fileparts(fname);
+      if isfield(s,'projMacros') && ~isfield(s.projMacros,'projroot')
+        s.projMacros.projroot = fileparts(fname);
+      else
+        s.projMacros = struct();
+      end
       
       nMov = numel(s.movieFilesAll);
       for iMov = 1:nMov
         movfile = s.movieFilesAll{iMov};
-        movfileFull = Labeler.macroReplace(movfile,fnameroot);
+        movfileFull = Labeler.platformize(Labeler.macroReplace(movfile,s.projMacros));
         movifo = s.movieInfoAll{iMov};
         trxfl = s.trxFilesAll{iMov};
         lpos = s.labeledpos{iMov};
@@ -653,6 +665,62 @@ classdef Labeler < handle
       if ~isempty(obj.tracker)
         obj.tracker.init();
       end
+    end
+    
+    function projMacroAdd(obj,macro,val)
+      if isfield(obj.projMacros,macro)
+        error('Labeler:macro','Macro ''%s'' already defined.',macro);
+      end
+      obj.projMacros.(macro) = val;
+    end
+    
+    function projMacroSet(obj,macro,val)
+      if ~ischar(val)
+        error('Labeler:macro','Macro value must be a string.');
+      end
+      
+      s = obj.projMacros;
+      if ~isfield(s,macro)
+        error('Labeler:macro','''%s'' is not a macro in this project.',macro);
+      end
+      s.(macro) = val;
+      obj.projMacros = s;
+    end
+    
+    function projMacroSetUI(obj)
+      % Set any/all current macros with inputdlg
+      
+      s = obj.projMacros;
+      macros = fieldnames(s);
+      vals = struct2cell(s);
+      
+      resp = inputdlg(macros,'Project macros',1,vals);
+      if ~isempty(resp)
+        assert(isequal(numel(macros),numel(vals),numel(resp)));
+        for i=1:numel(macros)
+          try
+            obj.projMacroSet(macros{i},resp{i});
+          catch ME
+            warningNoTrace('Labeler:macro','Cannot set macro ''%s'': %s',...
+              macros{i},ME.message);
+          end
+        end
+      end     
+    end
+    
+    function projMacroRm(obj,macro)
+      if ~isfield(obj.projMacros,macro)
+        error('Labeler:macro','Macro ''%s'' is not defined.',macro);
+      end
+      obj.projMacros = rmfield(obj.projMacros,macro);
+    end
+    
+    function tf = projMacroIsMacro(obj,macro)
+      tf = isfield(obj.projMacro,macro);
+    end
+    
+    function p = projLocalizePath(obj,p)
+      p = Labeler.platformizePath(Labeler.macroReplace(p,obj.projMacros));
     end
     
     function projNewImStack(obj,ims,varargin)
@@ -743,15 +811,50 @@ classdef Labeler < handle
   
   methods (Static)
     
-    function str = macroReplace(str,projroot)
-      tf = regexp(str,'\$projroot','once');
-      if any(tf)
-        projroot = regexprep(projroot,'\\','/');
-        assert(~isempty(projroot),'Cannot replace $projroot macro.');
-        str = regexprep(str,'\$projroot',projroot);
-        if ispc
-          str = regexprep(str,'/','\');
-        end
+    function str = macroReplace(str,sMacro)
+      % sMacro: macro struct
+      
+      macros = fieldnames(sMacro);
+      for i=1:numel(macros)
+        mpat = ['\$' macros{i}];
+        val = sMacro.(macros{i});
+        val = regexprep(val,'\\','\\\\');
+        str = regexprep(str,mpat,val);
+      end
+    end
+    
+    function str = platformizePath(str)
+      % Depending on platform, replace / with \ or vice versa
+      
+      if ispc
+        str = regexprep(str,'/','\');
+      else
+        str = regexprep(str,'\\','/');
+      end
+    end
+    
+    function tf = hasMacro(str)
+      tf = ~isempty(regexp(str,'\$','once'));
+    end
+    
+    function warnUnreplacedMacros(strs)
+      toks = cellfun(@(x)regexp(x,'\$([a-zA-Z]+)','tokens'),strs,'uni',0);
+      toks = [toks{:}];
+      toks = [toks{:}];
+      if ~isempty(toks)
+        toks = unique(toks);
+        cellfun(@(x)warningNoTrace('Labeler:macro','Unreplaced macro: $%s',x),toks);
+      end
+    end
+    
+    function errUnreplacedMacros(strs)
+      strs = cellstr(strs);
+      toks = cellfun(@(x)regexp(x,'\$([a-zA-Z]+)','tokens'),strs,'uni',0);
+      toks = [toks{:}];
+      toks = [toks{:}];
+      if ~isempty(toks)
+        tokstr = String.cellstr2CommaSepList(toks);
+        error('Labeler:macro','Unreplaced macros: $%s',tokstr);
       end
     end
     
@@ -785,6 +888,8 @@ classdef Labeler < handle
       % I: [Nx1] cell array of images (frames)
       % p: [NxD] positions
       % md: [Nxm] metadata table
+      
+      assert(false,'TODO: deal with movieFilesAll, macros etc.');
 
       assert(iscellstr(lblFiles));
       nLbls = numel(lblFiles);
@@ -803,7 +908,7 @@ classdef Labeler < handle
         lbl = load(lblName,'-mat');
         fprintf('Lblfile: %s\n',lblName);
         
-        movFiles = lbl.movieFilesAllFull;
+        movFiles = lbl.movieFilesAllFull; % TODO
         
         [ILbl,tMDLbl] = Labeler.lblCompileContents(movFiles,...
           lbl.labeledpos,lbl.labeledpostag,readMovsLblsType);
@@ -973,23 +1078,26 @@ classdef Labeler < handle
         
   end 
   
-  
   %% Movie
   methods
     
     function movieAdd(obj,moviefile,trxfile)
       % Add movie/trx to end of movie/trx list.
+      %
+      % moviefile: can have macros
       % trxfile: optional
       
       if exist('trxfile','var')==0
         trxfile = '';
       end
       
-      assert(exist(moviefile,'file')>0,'Cannot find file ''%s''.',moviefile);
+      movfilefull = obj.projLocalizePath(moviefile);
+      
+      assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
       assert(isempty(trxfile) || exist(trxfile,'file')>0,'Cannot find file ''%s''.',trxfile);
       
       mr = MovieReader();
-      mr.open(moviefile);
+      mr.open(movfilefull);
       ifo = struct();
       ifo.nframes = mr.nframes;
       ifo.info = mr.info;
@@ -1058,26 +1166,84 @@ classdef Labeler < handle
       tfSucc = tfProceedRm;
     end
     
+    function movieFilesMacroize(obj,str,macro)
+      % Replace a string with a macro throughout .movieFilesAll. A project
+      % macro is also added for macro->string.
+      %
+      %
+      % str: a string 
+      % macro: macro which will replace all matches of string (macro should
+      % NOT include leading $)
+      
+      strpat = regexprep(str,'\\','\\\\');
+      obj.movieFilesAll = regexprep(obj.movieFilesAll,strpat,['$' macro]);
+      
+      if isfield(obj.projMacros,macro) 
+        currVal = obj.projMacros.(macro);
+        if strcmp(currVal,str)
+          % good; current macro val is equal to str          
+        else
+          warningNoTrace('Labeler:macro',...
+            'Project macro ''%s'' is currently defined as ''%s''.',...
+            macro,currVal);
+        end
+      else
+        obj.projMacroAdd(macro,str);
+      end
+    end
+    
     function movieSet(obj,iMov)
       assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.');
       
       % 1. Set the movie
       
       movfile = obj.movieFilesAll{iMov};
-      movfileFull = Labeler.macroReplace(movfile,obj.projectroot);
+      movfileFull = obj.movieFilesAllFull{iMov};
+      Labeler.errUnreplacedMacros(movfileFull);
       
       if exist(movfileFull,'file')==0
-        warning('Labeler:mov','Cannot find movie ''%s''. Please browse to movie location.',movfile);
-        lastmov = RC.getprop('lbl_lastmovie');
-        if isempty(lastmov)
-          lastmov = pwd;
+        if Labeler.hasMacro(movfile)
+          qstr = sprintf('Cannot find movie ''%s'', macro-expanded to ''%s''.',...
+            movfile,movfileFull);
+          resp = questdlg(qstr,'Movie not found','Redefine macros','Browse to movie','Cancel','Cancel');
+          if isempty(resp)
+            resp = 'Cancel';
+          end          
+          switch resp
+            case 'Redefine macros'
+              obj.projMacroSetUI();
+              movfileFull = obj.movieFilesAllFull{iMov};
+              Labeler.errUnreplacedMacros(movfileFull);
+              if exist(movfileFull,'file')==0
+                error('Labeler:mov','Cannot find movie ''%s'', macro-expanded to ''%s''',...
+                  movfile,movfileFull);
+              end
+            case 'Browse to movie'
+              % none
+            case 'Cancel'
+              return;
+          end
         end
-        [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
-        if isequal(newmovfile,0)
-          error('Labeler:mov','Cannot find movie ''%s''.',movfile);
+                
+        if exist(movfileFull,'file')==0
+          % Either
+          % i) no macro in moviename OR
+          % ii) has macro but user selected browse to movie
+          
+          warningNoTrace('Labeler:mov',...
+            'Cannot find movie ''%s''. Please browse to movie location.',...
+            movfileFull);
+          lastmov = RC.getprop('lbl_lastmovie');
+          if isempty(lastmov)
+            lastmov = pwd;
+          end
+          [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
+          if isequal(newmovfile,0)
+            error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
+          end
+          movfileFull = fullfile(newmovpath,newmovfile);
+          obj.movieFilesAll{iMov} = movfileFull;
         end
-        movfileFull = fullfile(newmovpath,newmovfile);
-        obj.movieFilesAll{iMov} = movfileFull;
       end        
       
       obj.movieReader.open(movfileFull);
