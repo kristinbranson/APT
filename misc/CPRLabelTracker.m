@@ -996,7 +996,7 @@ classdef CPRLabelTracker < LabelTracker
       
       if obj.trkVizInterpolate
         [xy,isinterp3] = CPRLabelTracker.interpolateXY(xy);
-        isinterp = CPRLabelTracker.collapseIsInterp(isinterp3);
+        isinterp = CPRLabelTracker.collapseIsInterp(isinterp3(iPtTrk,:,:));
       else
         isinterp = false(nfrms,1);
       end
