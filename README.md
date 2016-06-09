@@ -3,7 +3,7 @@ Animal Part Tracker
 
 #### Requirements
 * MATLAB R2014b or later. Development is being done primarily on Win7 with light testing on Linux and Mac.
-* A recent checkout of JCtrax or JAABA. Development is being done primarily against JCtrax but it's supposed to work with both.
+* A recent checkout of JCtrax or JAABA. Development is being done primarily against JCtrax but it's supposed to work with either.
 
 #### Usage
 1. Copy Manifest.sample.txt to Manifest.txt and edit to point to your checkout of JCtrax or JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/). 
