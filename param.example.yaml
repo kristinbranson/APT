@@ -1,30 +1,30 @@
 ---
 Model:
-  name: 'Jan'
-  nfids: 7
-  d: 2
-  isFace: 1
-  nviews:
-  Prm3D:        # 3D calibration data
+  name: 'FlyOnBall'
+  nfids: 7	# Number of labeled points per frame
+  d: 2	 	# Physical dimension of label-space (only 2 works at the moment)
+  isFace: 1	# currently unused  
+  nviews: 	# currently unused
+  Prm3D:        # currently unused
 
-PreProc:
-  histeq: 1
-  channelsFcn: CPRLabelTracker.tdPPJan  # function with signature: fcn(cprDataObj,p1,v1,...)
+PreProc:	
+  histeq: 1	# 1=do histogram equalization
+  channelsFcn: 	# optional preprocessing function with signature: fcn(cprDataObj,p1,v1,...)
 
 Reg:
-  T: 30      # cascade depth
-  K: 50       # num boosted regressors
-  type: 1     # 1=fern
-  M: 5        # fern depth
-  R: 0        # feature selection type. 0=by correlation
-  loss: 'L2'  # used only if R>0
-  prm:        # Reg.type-dependent parameters 
+  T: 30		# cascade depth
+  K: 50       	# num boosted regressors
+  type: 1     	# 1=fern
+  M: 5        	# fern depth
+  R: 0        	# feature selection type. 0=by correlation
+  loss: 'L2'  	# used only if R>0
+  prm:        	# Reg.type-dependent parameters 
     thrr: [-.2,.2]      # fern thresholds
     reg: .01            # fern regularization
   USE_AL_CORRECTION: 0  # 1=use rotational correction
   occlPrm:
-    Stot: 1     # 1=noocclusion
-    nrows: 3
+    Stot: 1		# 1=noocclusion
+    nrows: 3		# rest in this subsection unused
     ncols: 3
     nzones: 1
     th: 0.5
@@ -33,19 +33,19 @@ Ftr:
   type: '2lm'          # how feature points are generated
   metatype: 'diff'     # how generated feature points are used/combined (selectCorrFeat). 'diff' or 'single'
   F: 400               # num features to generate
-  nChn: 1
-  radius: 1
-  nsample_std: 1000   # num samples used in computing std for feature-selection
-  nsample_cor: 5000   # num samples used in computing correlations for feature-selection
+  nChn: 1	       # num image 'channels'
+  radius: 1	       # feature generation radius
+  nsample_std: 1000    # num samples used in computing std for feature-selection
+  nsample_cor: 5000    # num samples used in computing correlations for feature-selection
   neighbors:
 
 TrainInit:
-  Naug: 50
+  Naug: 50	       # number of replicates for training
   augpad: 10
   augrotate: 0 
 
 TestInit:
-  Nrep: 50
+  Nrep: 50	       # number of replicates for tracking/testing
   augrotate: 0
 
 Prune:

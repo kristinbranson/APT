@@ -147,6 +147,7 @@ classdef CPRData < handle
             md = tblP;
             md(:,'p') = [];
           else
+            assert(false,'Unsupported');
             lblFiles = varargin{1};
             tfAllFrames = varargin{2};
             [Is,p,md] = Labeler.lblRead(lblFiles,'tfAllFrames',tfAllFrames);
