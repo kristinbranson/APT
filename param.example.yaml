@@ -12,18 +12,18 @@ PreProc:
   channelsFcn: 	# optional preprocessing function with signature: fcn(cprDataObj,p1,v1,...)
 
 Reg:
-  T: 30		# cascade depth
-  K: 50       	# num boosted regressors
-  type: 1     	# 1=fern
-  M: 5        	# fern depth
-  R: 0        	# feature selection type. 0=by correlation
-  loss: 'L2'  	# used only if R>0
-  prm:        	# Reg.type-dependent parameters 
+  T: 30      # cascade depth
+  K: 50       # num boosted regressors
+  type: 1     # 1=fern
+  M: 5        # fern depth
+  R: 0        # feature selection type. 0=by correlation
+  loss: 'L2'  # used only if R>0
+  prm:        # Reg.type-dependent parameters 
     thrr: [-.2,.2]      # fern thresholds
     reg: .01            # fern regularization
   USE_AL_CORRECTION: 0  # 1=use rotational correction
   occlPrm:
-    Stot: 1		# 1=noocclusion
+    Stot: 1     # 1=noocclusion
     nrows: 3		# rest in this subsection unused
     ncols: 3
     nzones: 1
@@ -35,14 +35,15 @@ Ftr:
   F: 400               # num features to generate
   nChn: 1	       # num image 'channels'
   radius: 1	       # feature generation radius
-  nsample_std: 1000    # num samples used in computing std for feature-selection
-  nsample_cor: 5000    # num samples used in computing correlations for feature-selection
+  nsample_std: 1000   # num samples used in computing std for feature-selection
+  nsample_cor: 5000   # num samples used in computing correlations for feature-selection
   neighbors:
 
 TrainInit:
   Naug: 50	       # number of replicates for training
   augpad: 10
   augrotate: 0 
+  iPt:
 
 TestInit:
   Nrep: 50	       # number of replicates for tracking/testing

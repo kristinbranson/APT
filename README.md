@@ -15,4 +15,16 @@ Copy Manifest.sample.txt to Manifest.txt and edit to point to your local checkou
 
 ## Usage
 
+In MATLAB, instead of APT.setpath, you can run:
+
+
+```
+#!matlab
+
+CPR.setpath
+
+```
+
+This will configure all CPR paths, which include your APT paths.
+
 At the moment the only documented usage is through the APT Track/Train interface.
