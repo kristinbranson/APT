@@ -1912,7 +1912,7 @@ classdef Labeler < handle
     end
   end
   
-  methods    
+  methods
     function labelExportTrk(obj,iMov)
       % Export label data to trk files.
       %
@@ -1977,7 +1977,7 @@ classdef Labeler < handle
       % trkfiles: [nMovie] cellstr. Optional, full filenames to trk files
       %   corresponding to iMov. Defaults to <movpath>/<movname>.trk.
       
-      if exist('iMov','var')==0
+      if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
       end      
       if exist('trkfiles','var')==0
@@ -1991,6 +1991,16 @@ classdef Labeler < handle
       obj.updateFrameTableComplete();     
       obj.labeledposNeedsSave = true; 
       obj.labelsUpdateNewFrame(true);
+    end
+    
+    function labelImportTrkCurrMov(obj)
+      % Try to import default trk file for current movie into labeledpos. If
+      % the file is not there, error.
+      
+      if ~obj.hasMovie
+        error('Labeler:nomov','No movie is loaded.');
+      end
+      obj.labelImportTrk(obj.currMovie);
     end
     
     function labelMakeLabelMovie(obj,fname,varargin)
