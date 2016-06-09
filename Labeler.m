@@ -1868,20 +1868,27 @@ classdef Labeler < handle
       s.pTrkTag = obj.labeledpostag{iMov};
       s.pTrkiPt = 1:size(s.pTrk,1);
     end
-    
-    function labelExportTrk(obj,iMov)
-      % Export label data to trk files.
+  end
+  
+  methods (Static)
+    function trkfile = defaultTrkFileName(movfile)
+      [p,movS] = fileparts(movfile);
+      trkfile = fullfile(p,[movS '.trk']);
+    end    
+    function [tfok,trkfiles] = getTrkFileNames(movfiles)
+      % Generate trkfile names for movfiles. If trkfiles exist, ask before
+      % overwriting etc.
       %
-      % iMov: optional, indices into .movieFilesAll to export. Defaults to 1:obj.nmovies.
+      % movfiles: cellstr of movieFilesAllFull
+      %
+      % tfcontinue: if true, trkfiles is valid, go ahead and write to
+      % those. (This may involve overwrites but user OKed it)
+      % trkfiles: cellstr, same size as movfiles. .trk filenames
+      % corresponding to movfiles
       
-      if exist('iMov','var')==0
-        iMov = 1:obj.nmovies;
-      end
-      
-      movfiles = obj.movieFilesAllFull(iMov);
       [movpaths,movS] = cellfun(@fileparts,movfiles,'uni',0);
       trkfiles = cellfun(@(x,y)fullfile(x,[y '.trk']),movpaths,movS,'uni',0);
-
+      tfok = true;      
       tfexist = cellfun(@(x)exist(x,'file')>0,trkfiles);
       if any(tfexist)
         iExist = find(tfexist,1);
@@ -1898,15 +1905,32 @@ classdef Labeler < handle
             nowstr = datestr(now,'yyyymmddTHHMMSS');
             trkfiles = cellfun(@(x,y)fullfile(x,[y '.' nowstr '.trk']),movpaths,movS,'uni',0);
           otherwise
-            return;
+            tfok = false;
+            trkfiles = [];
         end
       end
+    end
+  end
+  
+  methods    
+    function labelExportTrk(obj,iMov)
+      % Export label data to trk files.
+      %
+      % iMov: optional, indices into .movieFilesAll to export. Defaults to 1:obj.nmovies.
       
-      nMov = numel(iMov);
-      for i=1:nMov
-        s = obj.labelCreateTrkContents(iMov(i)); %#ok<NASGU>
-        save(trkfiles{i},'-mat','-struct','s');        
-      end      
+      if exist('iMov','var')==0
+        iMov = 1:obj.nmovies;
+      end
+      
+      movfiles = obj.movieFilesAllFull(iMov);
+      [tfok,trkfiles] = Labeler.getTrkFileNames(movfiles);
+      if tfok
+        nMov = numel(iMov);
+        for i=1:nMov
+          s = obj.labelCreateTrkContents(iMov(i)); %#ok<NASGU>
+          save(trkfiles{i},'-mat','-struct','s');
+        end
+      end
     end
     
     function labelImportTrkGeneric(obj,iMovs,trkfiles,lposFld,lposTSFld,lposTagFld)
@@ -1958,8 +1982,7 @@ classdef Labeler < handle
       end      
       if exist('trkfiles','var')==0
         movfiles = obj.movieFilesAllFull(iMovs);
-        [movpaths,movS] = cellfun(@fileparts,movfiles,'uni',0);
-        trkfiles = cellfun(@(x,y)fullfile(x,[y '.trk']),movpaths,movS,'uni',0);
+        trkfiles = cellfun(@Labeler.defaultTrkFileName,movfiles,'uni',0);
       end
 
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
@@ -2762,6 +2785,12 @@ classdef Labeler < handle
       obj.labels2VizUpdate();
     end
     
+    function labels2SetCurrMovie(obj,lpos)
+      iMov = obj.currMovie;
+      assert(isequal(size(lpos),size(obj.labeledpos{iMov})));
+      obj.labeledpos2{iMov} = lpos;
+    end
+    
     function labels2Clear(obj)
       for i=1:numel(obj.labeledpos2)
         obj.labeledpos2{i}(:) = nan;
@@ -2769,25 +2798,64 @@ classdef Labeler < handle
       obj.labels2VizUpdate();
     end
     
+    function s = labels2CreateTrkContents(obj,iMov)
+      % Create .trk contents from .labeledpos2
+      %
+      % iMov: scalar movie index
+      %
+      % s: scalar struct
+      
+      assert(isscalar(iMov));      
+      s = struct();
+      s.pTrk = obj.labeledpos2{iMov};
+      [npts,~,nfrm,ntgt] = size(s.pTrk);
+      s.pTrkTS = -inf(npts,nfrm,ntgt);
+      s.pTrkTag = cell(npts,nfrm,ntgt);
+      s.pTrkiPt = 1:size(s.pTrk,1);
+    end
+    
     function labels2ImportTrk(obj,iMovs,trkfiles)
-      if exist('iMov','var')==0
+      if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
       end      
       if exist('trkfiles','var')==0
         movfiles = obj.movieFilesAllFull(iMovs);
-        [movpaths,movS] = cellfun(@fileparts,movfiles,'uni',0);
-        trkfiles = cellfun(@(x,y)fullfile(x,[y '.trk']),movpaths,movS,'uni',0);
+        trkfiles = cellfun(@Labeler.defaultTrkFileName,movfiles,'uni',0);
       end
 
-      obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos2',[],[]);
-      
+      obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos2',[],[]);      
       obj.labels2VizUpdate();
+    end
+    
+    function labels2ImportTrkCurrMov(obj)
+      % Try to import default trk file for current movie into labels2. If
+      % the file is not there, error.
+      
+      if ~obj.hasMovie
+        error('Labeler:nomov','No movie is loaded.');
+      end
+      obj.labels2ImportTrk(obj.currMovie);
     end
     
     function labels2ExportTrk(obj,iMov)
       % Export label data to trk files.
       %
       % iMov: optional, indices into .movieFilesAll to export. Defaults to 1:obj.nmovies.
+      
+      if exist('iMov','var')==0
+        iMov = 1:obj.nmovies;
+      end
+      
+      movfiles = obj.movieFilesAllFull(iMov);
+      [tfok,trkfiles] = Labeler.getTrkFileNames(movfiles);
+      if tfok
+        nMov = numel(iMov);
+        for i=1:nMov
+          s = obj.labels2CreateTrkContents(iMov(i)); %#ok<NASGU>
+          save(trkfiles{i},'-mat','-struct','s');
+        end
+      end
+      
     end
     
     function labels2VizInit(obj)
