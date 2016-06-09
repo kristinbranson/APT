@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 06-Jun-2016 20:10:34
+% Last Modified by GUIDE v2.5 09-Jun-2016 16:17:13
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -540,6 +540,29 @@ end
 function menu_file_managemovies_Callback(hObject,~,handles)
 h = MovieManager(handles.labelerObj);
 handles.labelerObj.addDepHandle(h);
+
+function menu_file_import_labels_trk_curr_mov_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+if ~lObj.hasMovie
+  error('LabelerGUI:noMovie','No movie is loaded.');
+end
+iMov = lObj.currMovie;
+if lObj.labelposMovieHasLabels(iMov)
+  resp = questdlg('Current movie has labels that will be overwritten. OK?',...
+    'Import Labels','OK, Proceed','Cancel','Cancel');
+  if isempty(resp)
+    resp = 'Cancel';
+  end
+  switch resp
+    case 'OK, Proceed'
+      % none
+    case 'Cancel'
+      return;
+    otherwise
+      assert(false); 
+  end
+end
+handles.labelerObj.labelImportTrkCurrMov();
 
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelExportTrk();

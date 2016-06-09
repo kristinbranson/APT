@@ -1984,12 +1984,13 @@ classdef Labeler < handle
         movfiles = obj.movieFilesAllFull(iMovs);
         trkfiles = cellfun(@Labeler.defaultTrkFileName,movfiles,'uni',0);
       end
-
+      
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
         'labeledposTS','labeledpostag');
       
-      obj.updateFrameTableComplete();     
-      obj.labeledposNeedsSave = true; 
+      obj.updateFrameTableComplete();
+      %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
+      %now, since what we are importing is already in the .trk file.
       obj.labelsUpdateNewFrame(true);
     end
     
