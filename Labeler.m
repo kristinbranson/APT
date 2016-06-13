@@ -2403,7 +2403,7 @@ classdef Labeler < handle
     end
     
     function videoFlipUDVidOnly(obj)
-      obj.movieReader.flipvert = ~obj.movieReader.flipvert;
+      obj.movieReader.flipVert = ~obj.movieReader.flipVert;
       if obj.hasMovie
         obj.setFrame(obj.currFrame,true);
       end
