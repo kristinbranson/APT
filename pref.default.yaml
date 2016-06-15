@@ -40,6 +40,11 @@ LabelPointsPlot:
     UnlabeledPointColor: [1,1,1]
     OtherLabeledPointColor: [0,1,0]
 
+Timelines:
+  FrameRadius: 50 # default timeline radius (in frames)
+  XColor: [0.8,0.8,0.8] # ax.XColor
+  dXTick: 10 
+
 Track:
   Enable: 0
   Type: CPRLabelTracker  

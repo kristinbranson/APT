@@ -109,8 +109,8 @@ classdef LabelCore < handle
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
-      set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
-      set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
+%       set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
+%       set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
       set(obj.labeler.gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF);
       set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
       hTmp = findall(obj.hFig,'-property','KeyPressFcn','-not','Tag','edit_frame');
