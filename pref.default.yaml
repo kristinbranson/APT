@@ -2,7 +2,7 @@
 LabelMode: TEMPLATE
   # See LabelMode.m
 
-NumLabelPoints: 3
+NumLabelPoints: 7
 
 Trx:
   ZoomRadius: 100
@@ -21,8 +21,8 @@ Movie:
 
 LabelPointsPlot:
   ColorMapName: 'spring'
-  Marker: '+'
-  MarkerSize: 15
+  Marker: '.'
+  MarkerSize: 10
   LineWidth: 2
   FontSize: 14
   OccludedMarker: 'o'
@@ -36,7 +36,7 @@ LabelPointsPlot:
   SequenceMode:
 
   HighThroughputMode:
-    NFrameSkip: 2
+    NFrameSkip: 5
     UnlabeledPointColor: [1,1,1]
     OtherLabeledPointColor: [0,1,0]
 
