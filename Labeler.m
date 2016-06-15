@@ -2740,11 +2740,10 @@ classdef Labeler < handle
           set(tbl,'Data',dat);
         end
       end
-      
-      obj.gdata.labelTLManual.setLabelsFrame();
-      
+            
       % dat should equal get(tbl,'Data')     
       if obj.hasMovie
+        obj.gdata.labelTLManual.setLabelsFrame();
         obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
       end
     end    
