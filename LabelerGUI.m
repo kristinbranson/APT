@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 09-Jun-2016 16:17:13
+% Last Modified by GUIDE v2.5 15-Jun-2016 12:31:09
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -92,6 +92,11 @@ set(handles.axes_prev,'Color',[0 0 0]);
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
 lObj = handles.labelerObj;
+
+handles.labelTLManual = LabelTimeline(lObj,handles.axes_timeline_manual,true);
+handles.figure.WindowButtonMotionFcn = @(src,evt)cbkWBMF(src,evt,lObj);
+handles.figure.WindowButtonUpFcn = @(src,evt)cbkWBUF(src,evt,lObj);
+
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
@@ -112,8 +117,8 @@ listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerN
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
-
-%listeners{end+1,1} = addlistener(lObj,'currSusp','PostSet',@cbkCurrSuspChanged);
+listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
+listeners{end+1,1} = addlistener(handles.labelTLManual,'selectModeOn','PostSet',@cbkLabelTLManualSelectModeOn);
 handles.listeners = listeners;
 
 % These Labeler properties need their callbacks fired to properly init UI.
@@ -142,6 +147,57 @@ guidata(hObject, handles);
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
 
+function cbkWBMF(src,evt,lObj)
+lcore = lObj.lblCore;
+if ~isempty(lcore)
+  lcore.wbmf(src,evt);
+end
+lObj.gdata.labelTLManual.cbkWBMF(src,evt);
+
+function cbkWBUF(src,evt,lObj)
+if ~isempty(lObj.lblCore)
+  lObj.lblCore.wbuf(src,evt);
+end
+lObj.gdata.labelTLManual.cbkWBUF(src,evt);
+
+function cbkNewMovie(src,evt)
+lObj = src;
+movRdr = lObj.movieReader;
+nframes = movRdr.nframes;
+im = movRdr.readframe(1);
+
+% weirdo stuff
+if isfield(movRdr.info,'bitdepth')
+  lObj.maxv = min(lObj.maxv,2^movRdr.info.bitdepth-1);
+elseif isa(im,'uint16')
+  lObj.maxv = min(2^16 - 1,lObj.maxv);
+elseif isa(im,'uint8')
+  lObj.maxv = min(lObj.maxv,2^8 - 1);
+else
+  lObj.maxv = min(lObj.maxv,2^(ceil(log2(max(im(:)))/8)*8));
+end
+
+gdata = lObj.gdata;
+axcurr = gdata.axes_curr;
+axprev = gdata.axes_prev;
+imcurr = gdata.image_curr;
+minvmaxv = [lObj.minv lObj.maxv];
+set(imcurr,'CData',im);
+set(axcurr,'CLim',minvmaxv,...
+  'XLim',[.5,size(im,2)+.5],...
+  'YLim',[.5,size(im,1)+.5]);
+set(axprev,'CLim',minvmaxv,...
+  'XLim',[.5,size(im,2)+.5],...
+  'YLim',[.5,size(im,1)+.5]);
+zoom(axcurr,'reset');
+zoom(axprev,'reset');
+
+gdata.labelTLManual.initNewMovie();
+gdata.labelTLManual.setLabelsFull();
+
+sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
+set(gdata.slider_frame,'Value',0,'SliderStep',sliderstep);
+      
 function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
 frm = lObj.currFrame;
@@ -153,6 +209,7 @@ if isnan(sldval)
   sldval = 0;
 end
 set(gdata.slider_frame,'Value',sldval);
+gdata.labelTLManual.setCurrFrame(frm);
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -494,6 +551,13 @@ else
   hlpRemoveFocus(hObject,handles);
 end
 
+function tbTLSelectMode_Callback(hObject, eventdata, handles)
+handles.labelTLManual.selectModeOn = hObject.Value;
+
+function cbkLabelTLManualSelectModeOn(src,evt)
+lblTLObj = evt.AffectedObject;
+lblTLObj.lObj.gdata.tbTLSelectMode.Value = lblTLObj.selectModeOn;
+
 %% menu
 function menu_file_quick_open_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -686,3 +750,4 @@ if hlpSave(handles.labelerObj)
   delete(handles.figure);
   delete(handles.labelerObj);
 end
+

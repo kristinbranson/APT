@@ -33,6 +33,10 @@ classdef Labeler < handle
     NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
   end
   
+  events
+    newMovie
+  end
+  
   %% Project
   properties (SetObservable)
     projname              % 
@@ -40,6 +44,9 @@ classdef Labeler < handle
   end
   properties (SetAccess=private)
     projMacros = struct(); % scalar struct containing user-defined macros
+  end
+  properties
+    projPrefs;
   end
   properties (Dependent)
     projectfile;          % Full path to current project 
@@ -91,8 +98,8 @@ classdef Labeler < handle
   properties
     trxfile = '';             % full path current trxfile
     trx = [];                 % trx object
-    zoomRadiusDefault = 100;  % default zoom box size in pixels
-    zoomRadiusTight = 10;     % zoom size on maximum zoom (smallest pixel val)
+    %zoomRadiusDefault = 100;  % default zoom box size in pixels
+    %zoomRadiusTight = 10;     % zoom size on maximum zoom (smallest pixel val)
     frm2trx = [];             % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm
     trxIdPlusPlus2Idx = [];   % (max(trx ids)+1) x 1 vector of indices into obj.trx. 
                               % Since IDs start at 0, THIS VECTOR IS INDEXED BY ID+1.
@@ -115,7 +122,6 @@ classdef Labeler < handle
     hTrx;                     % nTrx x 1 vector of line handles    
     showTrxPreNFrm = 15;      % number of preceding frames to show in traj
     showTrxPostNFrm = 5;      % number of following frames to show in traj
-    trxPrefs;                 % struct, 'Trx' section of prefs
   end
   
   %% Labeling
@@ -188,7 +194,9 @@ classdef Labeler < handle
     gdata = [];             % handles structure for figure
     depHandles = cell(0,1); % vector of handles that should be deleted when labeler is deleted
     
-    isinit = false;                 % scalar logical; true during initialization, when some invariants not respected
+    isinit = false;         % scalar logical; true during initialization, when some invariants not respected
+    
+    selectedFrames = [];    % vector of frames currently selected frames; typically t0:t1
   end
   
   %% Prop access
@@ -355,22 +363,26 @@ classdef Labeler < handle
     function initFromPrefs(obj,pref)
       obj.labelMode = LabelMode.(pref.LabelMode);
       obj.nLabelPoints = pref.NumLabelPoints;
-      obj.zoomRadiusDefault = pref.Trx.ZoomRadius;
-      obj.zoomRadiusTight = pref.Trx.ZoomRadiusTight;
+      %obj.zoomRadiusDefault = pref.Trx.ZoomRadius;
+      %obj.zoomRadiusTight = pref.Trx.ZoomRadiusTight;
       obj.targetZoomFac = pref.Trx.ZoomFactorDefault;
       obj.movieFrameStepBig = pref.Movie.FrameStepBig;
+      
+      % AL20160614 TODO: ideally get rid of labelPointsPlotInfo and just 
+      % use .pref.LabelPointsPlot
       lpp = pref.LabelPointsPlot;
       if isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
         lpp.Colors = feval(lpp.ColorMapName,pref.NumLabelPoints);
       end
       obj.labelPointsPlotInfo = lpp;
-      obj.trxPrefs = pref.Trx;
-      
-      prfTrk = pref.Track;      
+            
+      prfTrk = pref.Track; 
       obj.trackNFramesSmall = prfTrk.PredictFrameStep;
       obj.trackNFramesLarge = prfTrk.PredictFrameStepBig;
       obj.trackNFramesNear = prfTrk.PredictNeighborhood;
       obj.trackPrefs = prfTrk;      
+      
+      obj.projPrefs = pref; % redundant with some other props
     end
     
     function addDepHandle(obj,h)
@@ -660,7 +672,6 @@ classdef Labeler < handle
 
       obj.labeledposNeedsSave = true;
       obj.projFSInfo = ProjectFSInfo('imported',fname);
-      %obj.updateFrameTableComplete(); % AL 20160329: looks unnec
       
       if ~isempty(obj.tracker)
         obj.tracker.init();
@@ -1251,9 +1262,7 @@ classdef Labeler < handle
       [path0,movname] = myfileparts(obj.moviefile);
       [~,parent] = fileparts(path0);
       obj.moviename = fullfile(parent,movname);
-      
-      obj.movieSetHelperUI();
-      
+            
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
       obj.setFrameAndTarget(1,1);
@@ -1297,6 +1306,8 @@ classdef Labeler < handle
       obj.labelingInit();
       obj.labels2VizInit();
       
+      notify(obj,'newMovie');
+      
       % Not a huge fan of this, maybe move to UI
       obj.updateFrameTableComplete();
       
@@ -1332,44 +1343,6 @@ classdef Labeler < handle
       obj.currTarget = 0;
       obj.currSusp = [];
     end
-    
-  end
-  
-  methods (Hidden)
-    
-    function movieSetHelperUI(obj)
-      movRdr = obj.movieReader;
-      nframes = movRdr.nframes;
-                 
-      im1 = movRdr.readframe(1);
-      if isfield(movRdr.info,'bitdepth')
-        obj.maxv = min(obj.maxv,2^movRdr.info.bitdepth-1);
-      elseif isa(im1,'uint16')
-        obj.maxv = min(2^16 - 1,obj.maxv);
-      elseif isa(im1,'uint8')
-        obj.maxv = min(obj.maxv,2^8 - 1);
-      else
-        obj.maxv = min(obj.maxv,2^(ceil(log2(max(im1(:)))/8)*8));
-      end
-      
-      %#UI      
-      axcurr = obj.gdata.axes_curr;
-      axprev = obj.gdata.axes_prev;
-      imcurr = obj.gdata.image_curr;
-      set(imcurr,'CData',im1);
-      set(axcurr,'CLim',[obj.minv,obj.maxv],...
-                 'XLim',[.5,size(im1,2)+.5],...
-                 'YLim',[.5,size(im1,1)+.5]);
-      set(axprev,'CLim',[obj.minv,obj.maxv],...
-                 'XLim',[.5,size(im1,2)+.5],...
-                 'YLim',[.5,size(im1,1)+.5]);
-      zoom(axcurr,'reset');
-      zoom(axprev,'reset');
-      
-      %#UI
-      sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
-      set(obj.gdata.slider_frame,'Value',0,'SliderStep',sliderstep);      
-   end
     
   end
   
@@ -2207,7 +2180,7 @@ classdef Labeler < handle
       tObj.train();
     end
     
-    function trackRetrain(obj)      
+    function trackRetrain(obj)
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
@@ -2338,7 +2311,7 @@ classdef Labeler < handle
       obj.targetZoomFac = zoomFac;
         
       zr0 = max(obj.movienr,obj.movienc)/2; % no-zoom: large radius
-      zr1 = obj.zoomRadiusTight; % tight zoom: small radius
+      zr1 = obj.projPref.Trx.ZoomRadiusTight; % tight zoom: small radius
       
       if zr1>zr0
         zr = zr0;
@@ -2421,7 +2394,7 @@ classdef Labeler < handle
       obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
       
       ax = obj.gdata.axes_curr;
-      pref = obj.trxPrefs;
+      pref = obj.projPrefs.Trx;
       for i = 1:obj.nTrx
         obj.hTraj(i,1) = line(...
           'parent',ax,...
@@ -2463,7 +2436,7 @@ classdef Labeler < handle
       trxAll = obj.trx;
       nPre = obj.showTrxPreNFrm;
       nPst = obj.showTrxPostNFrm;
-      pref = obj.trxPrefs;
+      pref = obj.projPrefs.Trx;
       
       switch obj.showTrxMode
         case ShowTrxMode.NONE
@@ -2695,6 +2668,15 @@ classdef Labeler < handle
         th = 0;
       end
     end
+    
+    function setSelectedFrames(obj,frms)
+      if ~obj.hasMovie
+        error('Labeler:noMovie',...
+          'Cannot set selected frames when no movie is loaded.');
+      end
+      validateattributes(frms,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes});
+      obj.selectedFrames = frms;
+    end
                 
     % TODO prob use listener/event for this; maintain relevant
     % datastructure in Labeler
@@ -2728,6 +2710,7 @@ classdef Labeler < handle
       set(tbl,'Data',tbldat);
     end
     
+    % TODO: Move this into UI
     function updateFrameTableIncremental(obj)
       % assumes .labelpos and tblFrames differ at .currFrame at most
       %
@@ -2757,6 +2740,8 @@ classdef Labeler < handle
           set(tbl,'Data',dat);
         end
       end
+      
+      obj.gdata.labelTLManual.setLabelsFrame();
       
       % dat should equal get(tbl,'Data')     
       if obj.hasMovie
