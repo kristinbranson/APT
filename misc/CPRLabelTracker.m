@@ -201,6 +201,10 @@ classdef CPRLabelTracker < LabelTracker
       [hWB] = myparse(varargin,...
         'hWaitBar',[]);
       
+      if isempty(obj.sPrm)
+        error('CPRLabelTracker:param','Please specify tracking parameters.');
+      end
+      
       prmpp = obj.sPrm.PreProc;
       dataCurr = obj.data;
       tblMFcurr = dataCurr.MD(:,{'mov' 'frm'});
@@ -421,6 +425,9 @@ classdef CPRLabelTracker < LabelTracker
         );
       
       prm = obj.sPrm;
+      if isempty(prm)
+        error('CPRLabelTracker:param','Please specify tracking parameters.');
+      end
       
       tblPTrn = obj.trnDataTblP;
       if isempty(tblPTrn)
@@ -490,6 +497,9 @@ classdef CPRLabelTracker < LabelTracker
       end        
             
       prm = obj.sPrm;
+      if isempty(prm)
+        error('CPRLabelTracker:param','Please specify tracking parameters.');
+      end
       tblPNew = obj.getTblPLbledRecent();
       
       if isempty(tblPNew)
@@ -652,14 +662,25 @@ classdef CPRLabelTracker < LabelTracker
         );
       
       prm = obj.sPrm;
+      if isempty(prm)
+        error('CPRLabelTracker:param','Please specify tracking parameters.');
+      end
+      if useRC && ~obj.trnResRC.hasTrained
+        error('CPRLabelTracker:track','No tracker has been trained.');
+      end
+                        
+      if isempty(tblP)
+        tblP = obj.getTblP(iMovs,frms);
+        if isempty(tblP)
+          msgbox('No frames specified for tracking.');
+          return;
+        end
+      end
       
       hWB = waitbar(0);
       hTxt = findall(hWB,'type','text');
       hTxt.Interpreter = 'none';
       
-      if isempty(tblP)
-        tblP = obj.getTblP(iMovs,frms);
-      end
       tblP(:,'pTS') = [];
       [tblPnew,tblPupdate] = obj.tblPDiffData(tblP);
       obj.updateData(tblPnew,tblPupdate,'hWaitBar',hWB);
