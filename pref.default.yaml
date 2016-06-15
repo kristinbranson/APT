@@ -21,7 +21,7 @@ Movie:
 
 LabelPointsPlot:
   ColorMapName: 'spring'
-  Marker: '.'
+  Marker: '+'
   MarkerSize: 10
   LineWidth: 2
   FontSize: 14

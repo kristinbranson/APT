@@ -64,7 +64,7 @@ classdef LabelTimeline < handle
       obj.nfrm = nan;
       
       obj.selectH = patch([nan nan nan nan],[nan nan nan nan],[1 1 1 1],...
-        'w','parent',ax,'LineWidth',0.25,'FaceAlpha',0.40);
+        'w','parent',ax,'LineWidth',0.25,'FaceAlpha',0.40,'HitTest','off');
       obj.selectInProg = false;
       obj.selectModeOn = false;
     end
