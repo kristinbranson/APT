@@ -41,15 +41,6 @@ classdef LabelTimeline < handle
 
       obj.lObj = labeler;
       obj.hAx = ax;
-      fig = ax.Parent;
-      hZ = zoom(fig);
-      hZ.Motion = 'horizontal';
-      setAllowAxesZoom(hZ,ax,1);
-      obj.hZoom = hZ;
-      hP = pan(fig);
-      hP.Motion = 'horizontal';
-      setAllowAxesPan(hP,ax,1);
-      obj.hPan = hP;
       
       obj.hCurrFrame = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 1]);
       hold(ax,'on');
@@ -67,6 +58,14 @@ classdef LabelTimeline < handle
         'w','parent',ax,'LineWidth',0.25,'FaceAlpha',0.40,'HitTest','off');
       obj.selectInProg = false;
       obj.selectModeOn = false;
+      
+      fig = ax.Parent;
+      hZ = zoom(fig);
+      setAxesZoomMotion(hZ,ax,'horizontal');
+      obj.hZoom = hZ;
+      hP = pan(fig);
+      setAxesPanMotion(hP,ax,'horizontal');
+      obj.hPan = hP;
     end
     
     function delete(obj)
