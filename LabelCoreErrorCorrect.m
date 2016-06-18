@@ -175,9 +175,7 @@ classdef LabelCoreErrorCorrect < LabelCore
       
       switch key
         case {'s' 'space'}
-%           if obj.state==LabelState.ADJUST
-%             obj.acceptLabels();
-%           end
+          obj.acceptLabels();
         case {'d' 'equal'}
           obj.labeler.frameUp(tfCtrl);
         case {'a' 'hyphen'}
