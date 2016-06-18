@@ -43,7 +43,7 @@ LabelPointsPlot:
   ErrorCorrectMode:
     SelectedPointMarker: 'x'
     SelectedOccludedMarker: 's'
-    MarkedMarkerSize: 6
+    MarkedMarkerSize: 16
 
 Timelines:
   FrameRadius: 50 # default timeline radius (in frames)
