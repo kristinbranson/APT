@@ -40,6 +40,11 @@ LabelPointsPlot:
     UnlabeledPointColor: [1,1,1]
     OtherLabeledPointColor: [0,1,0]
 
+  ErrorCorrectMode:
+    MarkedMarker: '+'
+    MarkedMarkerSize: 6
+    MarkedLineWidth: 2
+
 Timelines:
   FrameRadius: 50 # default timeline radius (in frames)
   XColor: [0.8,0.8,0.8] # ax.XColor

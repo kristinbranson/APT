@@ -17,29 +17,30 @@ classdef Interpolator < LabelTracker
       warningNoTrace('No training required for this tracker.');
     end
     
-    function track(obj,~,~)
-      % Currently always tracks all frames.
+    function track(obj,iMovs,frms)
       
       prm = obj.readParamFileYaml();
       smoothspan = prm.SmoothSpan;
       
       labeler = obj.lObj;
+      assert(labeler.nTargets==1);
       npts = labeler.nLabelPoints;
-      lposnew = cell(labeler.nmovies,1);
-      for iMov = 1:labeler.nmovies
-        fprintf(1,'Interpolating movie %d\n',iMov);
+      for i=1:numel(iMovs)
+        iM = iMovs(i);
+        fs = frms{i};
+        fprintf(1,'Interpolating movie %d\n',iM);
         
-        lpos = labeler.labeledpos{iMov}; % nptsx2xnfrm
+        lpos = labeler.labeledpos{iM}; % [npts x 2 x nfrm]
         for iPt = 1:npts
         for j = 1:2
           lpos(iPt,j,:) = smooth(squeeze(lpos(iPt,j,:)),smoothspan);
         end
         end
-        lposnew{iMov} = lpos;        
+        
+        xyfrms = lpos(:,:,fs);
+        labeler.labelPosSetUnmarkedFramesMovieFramesUnmarked(...
+          xyfrms,iM,fs);
       end
-      
-      % call labeler to set new "real" labels. 
-      labeler.labelPosSuperBulkImport(lposnew);
     end
     
   end

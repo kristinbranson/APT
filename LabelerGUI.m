@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 15-Jun-2016 12:31:09
+% Last Modified by GUIDE v2.5 17-Jun-2016 14:05:56
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -240,7 +240,8 @@ switch lObj.labelMode
   case LabelMode.SEQUENTIAL
     gd.menu_setup_sequential_mode.Checked = 'on';
     gd.menu_setup_template_mode.Checked = 'off';
-    gd.menu_setup_highthroughput_mode.Checked = 'off';    
+    gd.menu_setup_highthroughput_mode.Checked = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
     
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'off';    
@@ -248,16 +249,26 @@ switch lObj.labelMode
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'on';
     gd.menu_setup_highthroughput_mode.Checked = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
 
     gd.menu_setup_createtemplate.Visible = 'on';
     gd.menu_setup_set_labeling_point.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'off';
-    gd.menu_setup_highthroughput_mode.Enable = 'on';
+    gd.menu_setup_highthroughput_mode.Checked = 'on';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
     
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'on';
+  case LabelMode.ERRORCORRECT
+    gd.menu_setup_sequential_mode.Checked = 'off';
+    gd.menu_setup_template_mode.Checked = 'off';
+    gd.menu_setup_highthroughput_mode.Checked = 'on';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    
+    gd.menu_setup_createtemplate.Visible = 'off';
+    gd.menu_setup_set_labeling_point.Visible = 'on';    
 end
 
 function cbkTargetZoomFacChanged(src,evt)
@@ -655,6 +666,8 @@ function menu_setup_template_mode_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelingInit('labelMode',LabelMode.TEMPLATE);
 function menu_setup_highthroughput_mode_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelingInit('labelMode',LabelMode.HIGHTHROUGHPUT);
+function menu_setup_tracking_correction_mode_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelingInit('labelMode',LabelMode.ERRORCORRECT);
 
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -750,4 +763,3 @@ if hlpSave(handles.labelerObj)
   delete(handles.figure);
   delete(handles.labelerObj);
 end
-

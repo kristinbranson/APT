@@ -4,5 +4,6 @@ classdef LabelMode
     SEQUENTIAL
     TEMPLATE
     HIGHTHROUGHPUT
+    ERRORCORRECT
   end
 end

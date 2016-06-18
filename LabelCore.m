@@ -57,6 +57,8 @@ classdef LabelCore < handle
           obj = LabelCoreTemplate(labelerObj);
         case LabelMode.HIGHTHROUGHPUT
           obj = LabelCoreHT(labelerObj);
+        case LabelMode.ERRORCORRECT
+          obj = LabelCoreErrorCorrect(labelerObj);
       end
     end
     
