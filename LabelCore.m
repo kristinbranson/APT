@@ -28,6 +28,7 @@ classdef LabelCore < handle
     hAx;                  % scalar axis
     hAxOcc;               % scalar handle, occluded-axis
     tbAccept;             % scalar handle, togglebutton
+    pbClear;              % scalar handle, clearbutton
     txLblCoreAux;         % scalar handle, auxiliary text
     
     nPts;                 % scalar integer
@@ -73,6 +74,7 @@ classdef LabelCore < handle
       obj.hAx = gd.axes_curr;
       obj.hAxOcc = gd.axes_occ;
       obj.tbAccept = gd.tbAccept;
+      obj.pbClear = gd.pbClear;
       obj.txLblCoreAux = gd.txLblCoreAux;
     end
     
@@ -119,6 +121,7 @@ classdef LabelCore < handle
       set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
       
       set(obj.labeler.gdata.tbAccept,'Enable','on');
+      set(obj.labeler.gdata.pbClear,'Enable','on');
       obj.labeler.currImHud.updateReadoutFields('hasLblPt',false);
       
       obj.tfOcc = false(obj.nPts,1);

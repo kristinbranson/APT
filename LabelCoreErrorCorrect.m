@@ -15,12 +15,19 @@ classdef LabelCoreErrorCorrect < LabelCore
   % pts in frame are locked.
   % - Unlock button unmarks all pts but they are still labeled
   % - There is currently no way to remove/clear labels
+  %
+  % Marker Display
+  % - Regular unmarked labels are shown using regular LabelPointsPlot
+  % cosmetics
+  % - Selecting a point changes markers
+  % - Marked points only toggle size
+  % - By keeping selection/markedness orthogonal we can handle
+  % selected+marked points more easily
   
   properties
     iPtMove;     % scalar. Either nan, or index of pt being moved
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
     
-    tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from original loc
     tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
     
     kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
@@ -28,7 +35,7 @@ classdef LabelCoreErrorCorrect < LabelCore
                  % values 1, 11, 21, ...
                  
     unmarkedLinePVs; % cell array PV pairs for unmarked lines
-    markedLinePVs; % etc
+    markedMarkerSize; 
   end  
   
   methods
@@ -48,7 +55,6 @@ classdef LabelCoreErrorCorrect < LabelCore
     
     function initHook(obj)
       npts = obj.nPts;
-      obj.tfAdjusted = false(npts,1);
       obj.tfPtSel = false(npts,1);
       
       obj.txLblCoreAux.Visible = 'on';
@@ -60,9 +66,9 @@ classdef LabelCoreErrorCorrect < LabelCore
       obj.unmarkedLinePVs = {'Marker' ppi.Marker ...
         'MarkerSize' ppi.MarkerSize ...
         'LineWidth' ppi.LineWidth};
-      obj.markedLinePVs = {'Marker' ppiecm.MarkedMarker ...
-        'MarkerSize' ppiecm.MarkedMarkerSize ...
-        'LineWidth' ppiecm.MarkedLineWidth};
+      obj.markedMarkerSize = ppiecm.MarkedMarkerSize;
+      
+      obj.pbClear.Enable = 'off';
     end
     
   end
@@ -87,14 +93,14 @@ classdef LabelCoreErrorCorrect < LabelCore
       
       tfCurrFrameMarked = tfall;
       if tfCurrFrameMarked
-        obj.enterLocked(false);
+        obj.enterLocked(false,false);
       else
         obj.enterUnlocked(false);
       end      
     end
     
     function acceptLabels(obj) 
-      obj.enterLocked(true);
+      obj.enterLocked(true,false);
     end
     
     function unAcceptLabels(obj)
@@ -114,7 +120,7 @@ classdef LabelCoreErrorCorrect < LabelCore
           obj.refreshOccludedPts();
         end
         
-        obj.enterLocked(true);
+        obj.enterLocked(true,false);
       end     
     end
     
@@ -151,12 +157,9 @@ classdef LabelCoreErrorCorrect < LabelCore
     function wbuf(obj,src,evt) %#ok<INUSD>
       iPt = obj.iPtMove;
       if ~isnan(iPt) 
-        % point was click/dragged
-        
-%           obj.clearSelected(iPt);
-%           obj.toggleSelectPoint(iPt);
+        % point was click/dragged        
         if obj.tfMoved
-          obj.enterLocked(true);
+          obj.enterLocked(true,false);
         end
       end
       
@@ -228,12 +231,7 @@ classdef LabelCoreErrorCorrect < LabelCore
                 xy(2) = min(xy(2),obj.labeler.movienr);
             end
             obj.assignLabelCoordsIRaw(xy,iSel);
-            switch obj.state
-              case LabelState.ADJUST
-                obj.enterlocked(true);
-              case LabelState.ACCEPTED
-                % none
-            end
+            obj.enterLocked(true,true);
           elseif strcmp(key,'leftarrow')
             if tfShft
               obj.labeler.frameUpNextLbled(true);
@@ -290,7 +288,7 @@ classdef LabelCoreErrorCorrect < LabelCore
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
         '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by a settable increment.'
-        '* (The letter) O toggles occluded-estimated status.'
+        '* Click-drag points to adjust them.'
         '* 0..9 selects/unselects a point. When a point is selected:'
         '* ` (backquote) increments the mapping of the 0-9 hotkeys.'
         '* LEFT/RIGHT/UP/DOWN adjusts the point.'
@@ -323,18 +321,20 @@ classdef LabelCoreErrorCorrect < LabelCore
       end
       
       set(obj.hPts,obj.unmarkedLinePVs{:});
-      set(obj.tbAccept,'BackgroundColor',[0,1,0],'String','Unlocked',...
+      set(obj.tbAccept,'BackgroundColor',[0,0.6,0],'String','Unlocked',...
         'Value',0,'Enable','on');
       obj.state = LabelState.ADJUST;
     end
         
-    function enterLocked(obj,tfSetLabelPos)
-      % Enter accepted state for current frame/tgt. All points colored. If
-      % tfSetLabelPos, all points/tags written to labelpos/labelpostag.
+    function enterLocked(obj,tfSetLabelPos,tfDontClearSelected)
+      % Enter accepted state for current frame/tgt. 
+      %
+      % If tfSetLabelPos, points/markedness written to Labeler      
       
-      obj.tfAdjusted(:) = true;
-      obj.clearSelected();      
-      set(obj.hPts,obj.markedLinePVs{:});
+      if ~tfDontClearSelected
+        obj.clearSelected();
+      end
+      set(obj.hPts,'MarkerSize',obj.markedMarkerSize);
 
       if tfSetLabelPos
         xy = obj.getLabelCoords();
@@ -346,17 +346,6 @@ classdef LabelCoreErrorCorrect < LabelCore
       obj.state = LabelState.ACCEPTED;
     end
     
-%    function setPointAdjusted(obj,iSel)
-      % none for now; differ from template mode
-      
-%       if ~obj.tfAdjusted(iSel)
-%         obj.tfAdjusted(iSel) = true;
-%         clr = obj.ptsPlotInfo.Colors(iSel,:);
-%         set(obj.hPts(iSel),'Color',clr);
-%         set(obj.hPtsOcc(iSel),'Color',clr);
-%       end
-%    end
-
     function toggleSelectPoint(obj,iPt)
       tfSel = ~obj.tfPtSel(iPt);
       obj.tfPtSel(:) = false;
@@ -365,7 +354,7 @@ classdef LabelCoreErrorCorrect < LabelCore
       obj.refreshPtMarkers(iPt);
       % Also update hPtsOcc markers
       if tfSel
-        mrkr = obj.ptsPlotInfo.TemplateMode.SelectedPointMarker;
+        mrkr = obj.ptsPlotInfo.ErrorCorrectMode.SelectedPointMarker;
       else
         mrkr = obj.ptsPlotInfo.Marker;
       end
@@ -384,14 +373,14 @@ classdef LabelCoreErrorCorrect < LabelCore
       % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
       
       ppi = obj.ptsPlotInfo;
-      ppitm = ppi.TemplateMode;
+      ppiecm = ppi.ErrorCorrectMode;
 
       hPoints = obj.hPts(iPts);
       tfSel = obj.tfPtSel(iPts);
       tfEO = obj.tfEstOcc(iPts);
       
-      set(hPoints(tfSel & tfEO),'Marker',ppitm.SelectedOccludedMarker); % historical quirk, use props instead of ppi; fix this at some pt
-      set(hPoints(tfSel & ~tfEO),'Marker',ppitm.SelectedPointMarker);
+      set(hPoints(tfSel & tfEO),'Marker',ppiecm.SelectedOccludedMarker);
+      set(hPoints(tfSel & ~tfEO),'Marker',ppiecm.SelectedPointMarker);
       set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
       set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
     end

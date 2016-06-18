@@ -41,9 +41,9 @@ LabelPointsPlot:
     OtherLabeledPointColor: [0,1,0]
 
   ErrorCorrectMode:
-    MarkedMarker: '+'
+    SelectedPointMarker: 'x'
+    SelectedOccludedMarker: 's'
     MarkedMarkerSize: 6
-    MarkedLineWidth: 2
 
 Timelines:
   FrameRadius: 50 # default timeline radius (in frames)

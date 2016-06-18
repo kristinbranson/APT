@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 17-Jun-2016 14:05:56
+% Last Modified by GUIDE v2.5 18-Jun-2016 07:08:29
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -244,7 +244,9 @@ switch lObj.labelMode
     gd.menu_setup_tracking_correction_mode.Checked = 'off';
     
     gd.menu_setup_createtemplate.Visible = 'off';
-    gd.menu_setup_set_labeling_point.Visible = 'off';    
+    gd.menu_setup_set_labeling_point.Visible = 'off';
+    gd.menu_setup_unlock_all_frames.Visible = 'off';
+    gd.menu_setup_lock_all_frames.Visible = 'off';
   case LabelMode.TEMPLATE
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'on';
@@ -253,6 +255,8 @@ switch lObj.labelMode
 
     gd.menu_setup_createtemplate.Visible = 'on';
     gd.menu_setup_set_labeling_point.Visible = 'off';
+    gd.menu_setup_unlock_all_frames.Visible = 'off';
+    gd.menu_setup_lock_all_frames.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'off';
@@ -261,14 +265,18 @@ switch lObj.labelMode
     
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'on';
+    gd.menu_setup_unlock_all_frames.Visible = 'off';
+    gd.menu_setup_lock_all_frames.Visible = 'off';
   case LabelMode.ERRORCORRECT
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'off';
-    gd.menu_setup_highthroughput_mode.Checked = 'on';
-    gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_highthroughput_mode.Checked = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'on';
     
     gd.menu_setup_createtemplate.Visible = 'off';
-    gd.menu_setup_set_labeling_point.Visible = 'on';    
+    gd.menu_setup_set_labeling_point.Visible = 'off';
+    gd.menu_setup_unlock_all_frames.Visible = 'on';
+    gd.menu_setup_lock_all_frames.Visible = 'on';
 end
 
 function cbkTargetZoomFacChanged(src,evt)
@@ -668,7 +676,6 @@ function menu_setup_highthroughput_mode_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelingInit('labelMode',LabelMode.HIGHTHROUGHPUT);
 function menu_setup_tracking_correction_mode_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelingInit('labelMode',LabelMode.ERRORCORRECT);
-
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 npts = lObj.nLabelPoints;
@@ -679,6 +686,11 @@ if isempty(ret)
 end
 ret = str2double(ret{1});
 lObj.lblCore.setIPoint(ret);
+
+function menu_setup_unlock_all_frames_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelPosSetAllMarked(false);
+function menu_setup_lock_all_frames_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelPosSetAllMarked(true);
 
 function CloseImContrast(labelerObj)
 labelerObj.videoSetContrastFromAxesCurr();
@@ -693,7 +705,7 @@ lObj.movieForceGrayscale = tf;
 if lObj.hasMovie
   % Pure convenience: update image for user rather than wait for next 
   % frame-switch. Could also put this in Labeler.set.movieForceGrayscale.
-  lObj.setFrame(lObj.currFrame,true);
+  lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 end
 function menu_view_gammacorrect_Callback(hObject, eventdata, handles)
 val = inputdlg('Gamma value:','Gamma correction');

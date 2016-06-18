@@ -1717,6 +1717,11 @@ classdef Labeler < handle
       obj.labeledposMarked{iMov}(:,iFrm,iTgt) = false;
     end
     
+    function labelPosSetAllMarked(obj,val)
+      % Clear .labeledposMarked for current movie, all frames/targets
+      obj.labeledposMarked{iMov}(:) = val;
+    end
+        
     function labelPosSetOccludedI(obj,iPt)
       % Occluded is "pure occluded" here
       iMov = obj.currMovie;
@@ -2418,7 +2423,7 @@ classdef Labeler < handle
     function videoFlipUDVidOnly(obj)
       obj.movieReader.flipVert = ~obj.movieReader.flipVert;
       if obj.hasMovie
-        obj.setFrame(obj.currFrame,true);
+        obj.setFrame(obj.currFrame,'tfforcereadmovie',true);
       end
     end
     
@@ -2525,12 +2530,12 @@ classdef Labeler < handle
   %% Navigation
   methods
   
-    function setFrame(obj,frm,tfforcereadmovie)
+    function setFrame(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
       
-      if nargin<3
-        tfforcereadmovie = false;
-      end
+      [tfforcereadmovie,tfforcelabelupdate] = myparse(varargin,...
+        'tfforcereadmovie',false,...
+        'tfforcelabelupdate',false);
             
       if obj.hasTrx
         tfTargetLive = obj.frm2trx(frm,:);      
@@ -2563,7 +2568,7 @@ classdef Labeler < handle
       if obj.hasTrx && obj.movieCenterOnTarget
         obj.videoCenterOnCurrTarget();
       end
-      obj.labelsUpdateNewFrame();
+      obj.labelsUpdateNewFrame(tfforcelabelupdate);
       obj.updateTrxTable();
       obj.updateCurrSusp();
       obj.updateShowTrx();
@@ -2798,6 +2803,7 @@ classdef Labeler < handle
       set(tbl,'Data',dat);
 
       if obj.hasMovie
+        obj.gdata.labelTLManual.setLabelsFrame(1:obj.nframes);
         obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
       end
     end
