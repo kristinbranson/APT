@@ -428,10 +428,21 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(prm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
+            
+      % first, update the TrnData with any new labels
+      tblPNew = obj.getTblPLbledRecent();
+      [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
+      obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+      obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
+      nowtime = now();
+      obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
+      obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(size(tblPNewTD,1),1)];
+      fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
+        size(tblPUpdateTD,1),size(tblPNewTD,1));
       
       tblPTrn = obj.trnDataTblP;
       if isempty(tblPTrn)
-        error('CPRLabelTracker:noTrnData','No training data selected.');
+        error('CPRLabelTracker:noTrnData','No training data set.');
       end
       tblPTrn(:,'pTS') = [];
       [tblPnew,tblPupdate] = obj.tblPDiffData(tblPTrn);
