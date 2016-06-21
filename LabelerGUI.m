@@ -180,34 +180,38 @@ lObj.gdata.labelTLManual.cbkWBUF(src,evt);
 
 function cbkNewMovie(src,evt)
 lObj = src;
-movRdr = lObj.movieReader;
-nframes = movRdr.nframes;
-im = movRdr.readframe(1);
+gdata = lObj.gdata;
+movRdrs = lObj.movieReader;
+nframes = movRdrs(1).nframes;
+ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
 
 % weirdo stuff
-if isfield(movRdr.info,'bitdepth')
-  lObj.maxv = min(lObj.maxv,2^movRdr.info.bitdepth-1);
-elseif isa(im,'uint16')
+if isfield(movRdrs(1).info,'bitdepth')
+  lObj.maxv = min(lObj.maxv,2^movRdrs(1).info.bitdepth-1);
+elseif isa(ims{1},'uint16')
   lObj.maxv = min(2^16 - 1,lObj.maxv);
-elseif isa(im,'uint8')
+elseif isa(ims{1},'uint8')
   lObj.maxv = min(lObj.maxv,2^8 - 1);
 else
-  lObj.maxv = min(lObj.maxv,2^(ceil(log2(max(im(:)))/8)*8));
+  lObj.maxv = min(lObj.maxv,2^(ceil(log2(max(ims{1}(:)))/8)*8));
+end
+minvmaxv = [lObj.minv lObj.maxv];
+
+hAxs = gdata.axes_all;
+hIms = gdata.images_all;
+assert(isequal(numel(ims),numel(hAxs),numel(hIms)));
+for i=1:numel(ims)
+  set(hIms(i),'CData',ims{i});
+  set(hAxs(i),'CLim',minvmaxv,...
+    'XLim',[.5,size(ims{i},2)+.5],...
+    'YLim',[.5,size(ims{i},1)+.5]);
+  zoom(hAxs(i),'reset');
 end
 
-gdata = lObj.gdata;
-axcurr = gdata.axes_curr;
 axprev = gdata.axes_prev;
-imcurr = gdata.image_curr;
-minvmaxv = [lObj.minv lObj.maxv];
-set(imcurr,'CData',im);
-set(axcurr,'CLim',minvmaxv,...
-  'XLim',[.5,size(im,2)+.5],...
-  'YLim',[.5,size(im,1)+.5]);
 set(axprev,'CLim',minvmaxv,...
-  'XLim',[.5,size(im,2)+.5],...
-  'YLim',[.5,size(im,1)+.5]);
-zoom(axcurr,'reset');
+  'XLim',[.5,size(ims{1},2)+.5],...
+  'YLim',[.5,size(ims{1},1)+.5]);
 zoom(axprev,'reset');
 
 gdata.labelTLManual.initNewMovie();

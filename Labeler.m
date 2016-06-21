@@ -66,11 +66,11 @@ classdef Labeler < handle
     minv = 0; 
     maxv = inf;
     movieFrameStepBig = 10;
-    movieInfoAll = []; % cell-of-structs, same size as movieFilesAll
+    movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
   end
   properties (SetObservable)
-    movieFilesAll = []; % [nmovset x nview] column cellstr, full paths to movies; can include macros 
+    movieFilesAll = {}; % [nmovset x nview] column cellstr, full paths to movies; can include macros 
     movieFilesAllHaveLbls = false(0,1); % [nmovsetx1] logical. 
         % How MFAHL is maintained
         % - At project load, it is updated fully.
@@ -100,7 +100,7 @@ classdef Labeler < handle
   
   %% Trx
   properties (SetObservable)
-    trxFilesAll = [];  % column cellstr, full paths to trxs. Same size as movieFilesAll.
+    trxFilesAll = {};  % column cellstr, full paths to trxs. Same size as movieFilesAll.
   end
   properties
     trxfile = '';             % full path current trxfile
@@ -1179,15 +1179,16 @@ classdef Labeler < handle
         ifos{iView} = ifo;
       end
       
+      
       obj.movieFilesAll(end+1,:) = moviefile(:)';
       obj.movieFilesAllHaveLbls(end+1,1) = false;
       obj.movieInfoAll(end+1,:) = ifos;
       obj.trxFilesAll(end+1,:) = trxfile;
-      obj.labeledpos{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
-      obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,ifo.nframes,nTgt); 
-      obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,ifo.nframes,nTgt);
-      obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,ifo.nframes,nTgt);      
-      obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
+      obj.labeledpos{end+1,1} = nan(obj.nLabelPoints,2,ifos{1}.nframes,nTgt);
+      obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,ifos{1}.nframes,nTgt); 
+      obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,ifos{1}.nframes,nTgt);
+      obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,ifos{1}.nframes,nTgt);      
+      obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,ifos{1}.nframes,nTgt);
     end
     
     function tfSucc = movieRm(obj,iMov)
