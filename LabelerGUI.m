@@ -74,11 +74,29 @@ varargin = varargin(2:end); %#ok<NASGU>
  
 colormap(handles.figure,gray);
 
-handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
-set(handles.image_curr,'hittest','off');
-axisoff(handles.axes_curr);
-hold(handles.axes_curr,'on');
-set(handles.axes_curr,'Color',[0 0 0]);
+% multiview
+nview = handles.labelerObj.nview;
+figs = gobjects(1,nview);
+ax = gobjects(1,nview);
+figs(1) = handles.figure;
+ax(1) = handles.axes_curr;
+for i=2:nview
+  figs(i) = figure;
+  ax(i) = axes;
+end
+handles.axes_all = ax;
+
+ims = gobjects(1,nview);
+for iView=1:nview
+  ims(iView) = imagesc(0,'Parent',ax(iView));
+  set(ims(iView),'hittest','off');
+  axisoff(ax(iView));
+  hold(ax(iView),'on');
+  set(ax(iView),'Color',[0 0 0]);
+end
+handles.images_all = ims;
+handles.image_curr = ims(1);
+
 hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
 axis(handles.axes_occ,[0 handles.labelerObj.nLabelPoints+1 0 2]);

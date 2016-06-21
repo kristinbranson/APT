@@ -1,8 +1,10 @@
 ---
-LabelMode: TEMPLATE
-  # See LabelMode.m
+NumViews: 1
+NumLabelPoints: 4 
+LabelMode: TEMPLATE # See LabelMode.m
 
-NumLabelPoints: 7
+View: # optional when NumViews>1
+  Names: ['view1','view2']
 
 Trx:
   ZoomRadius: 100
