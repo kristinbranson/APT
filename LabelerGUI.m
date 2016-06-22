@@ -81,8 +81,10 @@ ax = gobjects(1,nview);
 figs(1) = handles.figure;
 ax(1) = handles.axes_curr;
 for i=2:nview
-  figs(i) = figure;
+  figs(i) = figure('CloseRequestFcn',...
+    @(s,e)cbkAuxFigCloseReq(s,e,handles.labelerObj));
   ax(i) = axes;
+  handles.labelerObj.addDepHandle(figs(i));
 end
 handles.figs_all = figs;
 handles.axes_all = ax;
@@ -165,6 +167,28 @@ guidata(hObject, handles);
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
+
+function cbkAuxFigCloseReq(src,data,lObj)
+
+if ~any(src==lObj.depHandles)
+  delete(gcf);
+  return;  
+end
+
+CLOSESTR = 'Close anyway';
+DONTCLOSESTR = 'Cancel, don''t close';
+sel = questdlg('This figure is required for your current multiview project.',...
+  'Close Request Function',...
+  DONTCLOSESTR,CLOSESTR,DONTCLOSESTR);
+if isempty(sel)
+  sel = DONTCLOSESTR;
+end
+switch sel
+  case DONTCLOSESTR
+    % none
+  case CLOSESTR
+    delete(gcf)
+end
 
 function cbkWBMF(src,evt,lObj)
 lcore = lObj.lblCore;

@@ -43,6 +43,21 @@ classdef LabelCoreMultiViewTemplate < LabelCore
       obj = obj@LabelCore(varargin{:});
     end
     
+    function delete(obj)
+      gdata = obj.labeler.gdata;
+      hFigs = gdata.figs_all;
+      hFigsAddnl = setdiff(hFigs,gdata.figure);
+
+      % Remove any pointers to this object from callbacks in hFigsAddnl.
+      % Callbacks in gdata.figure (primary figure) are fine to leave as
+      % they are LabelCore's responsibility.
+      
+      hTmp = findall(hFigsAddnl,'-property','KeyPressFcn','-not','Tag','edit_frame');
+      set(hTmp,'KeyPressFcn',[]);
+      set(hFigsAddnl,'WindowButtonMotionFcn',[]);
+      set(hFigsAddnl,'WindowButtonUpFcn',[]);
+    end
+    
     function initHook(obj)
       %#MVOK
       
@@ -71,8 +86,14 @@ classdef LabelCoreMultiViewTemplate < LabelCore
           'Hittest','off');
       end
 
-      XXX Set cbks for other axes
-
+      % set callbacks for addnl figs/axes
+      gdata = obj.labeler.gdata;
+      hFigs = gdata.figs_all;
+      hFigsAddnl = setdiff(hFigs,gdata.figure);
+      hTmp = findall(hFigsAddnl,'-property','KeyPressFcn','-not','Tag','edit_frame');
+      set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e)); % main axis KPF set in LabelCore.init()
+      set(hFigsAddnl,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
+      set(hFigsAddnl,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
       
       obj.setRandomTemplate();
       
@@ -365,6 +386,10 @@ classdef LabelCoreMultiViewTemplate < LabelCore
     
     function setTemplate(obj,tt)
       % none
+    end
+    
+    function tt = getTemplate(obj) %#ok<MANU>
+      tt = [];
     end
     
     function setRandomTemplate(obj)

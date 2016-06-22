@@ -10,7 +10,7 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' ...
       'projname' 'projMacros' ...
-      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
+      'nview' 'viewNames' 'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledpos2' ...      
       'currMovie' 'currFrame' 'currTarget' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
@@ -18,7 +18,7 @@ classdef Labeler < handle
       'suspScore'};
     LOADPROPS = {...
       'projname' 'projMacros' ...
-      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
+      'nview' 'viewNames' 'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledpos2' ...
       'labelMode' 'nLabelPoints' 'labelTemplate' ...
       'minv' 'maxv' 'movieForceGrayscale' ...
@@ -202,7 +202,7 @@ classdef Labeler < handle
     currIm = [];            % [nview] cell vec of image data
     prevIm = [];            % single array of image data ('primary' view only)
     gdata = [];             % handles structure for figure
-    depHandles = cell(0,1); % vector of handles that should be deleted when labeler is deleted
+    depHandles = gobjects(0,1); % vector of handles that should be deleted when labeler is deleted
     
     isinit = false;         % scalar logical; true during initialization, when some invariants not respected
     
@@ -420,17 +420,16 @@ classdef Labeler < handle
     
     function addDepHandle(obj,h)
       % GC dead handles
-      tfValid = cellfun(@isvalid,obj.depHandles);
-      obj.depHandles = obj.depHandles(tfValid);
-
-      obj.depHandles{end+1,1} = h;
+      tfValid = arrayfun(@isvalid,obj.depHandles);
+      obj.depHandles = obj.depHandles(tfValid,:);
+      obj.depHandles(end+1,1) = h;
     end
     
     function delete(obj)
-      tfValid = cellfun(@isvalid,obj.depHandles);
+      tfValid = arrayfun(@isvalid,obj.depHandles);
       hValid = obj.depHandles(tfValid);
-      cellfun(@delete,hValid);
-      obj.depHandles = cell(0,1);
+      arrayfun(@delete,hValid);
+      obj.depHandles = gobjects(0,1);
     end
     
   end
@@ -928,7 +927,15 @@ classdef Labeler < handle
       
       if ~isfield(s,'labeledpos2')
         s.labeledpos2 = cellfun(@(x)nan(size(x)),s.labeledpos,'uni',0);
-      end      
+      end
+      
+      % 20160622
+      if ~isfield(s,'nview')
+        s.nview = 1;
+      end
+      if ~isfield(s,'viewNames')
+        s.viewNames = {'1'};
+      end
     end  
     
     function [I,p,md] = lblRead(lblFiles,varargin)
