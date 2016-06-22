@@ -84,6 +84,7 @@ for i=2:nview
   figs(i) = figure;
   ax(i) = axes;
 end
+handles.figs_all = figs;
 handles.axes_all = ax;
 
 ims = gobjects(1,nview);

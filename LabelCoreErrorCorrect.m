@@ -23,6 +23,10 @@ classdef LabelCoreErrorCorrect < LabelCore
   % - Marked points only toggle size
   % - By keeping selection/markedness orthogonal we can handle
   % selected+marked points more easily
+
+  properties
+    supportsMultiView = false;
+  end
   
   properties
     iPtMove;     % scalar. Either nan, or index of pt being moved

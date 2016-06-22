@@ -93,8 +93,8 @@ classdef Labeler < handle
     hasMovie;
     moviefile;
     nframes;
-    movienr;
-    movienc;
+    movienr; % [nview]
+    movienc; % [nview]
     nmovies;
   end
   
@@ -147,6 +147,8 @@ classdef Labeler < handle
     labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched.
     labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random.
     labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
+    
+    labeledposIPt2view;   % [npts] vector of indices into 1:obj.nview
     
     labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc)
   end
@@ -234,19 +236,19 @@ classdef Labeler < handle
       end
     end
     function v = get.movienr(obj)
-      mr = obj.movieReader(1);
-      if mr.isOpen
-        v = mr.nr;        
+      mr = obj.movieReader;
+      if mr(1).isOpen
+        v = [mr.nr]';
       else
-        v = [];
+        v = nan(obj.nview,1);
       end
     end
     function v = get.movienc(obj)
-      mr = obj.movieReader(1);
-      if mr.isOpen
-        v = mr.nc;        
+      mr = obj.movieReader;
+      if mr(1).isOpen
+        v = [mr.nc]';          
       else
-        v = [];
+        v = nan(obj.nview,1);
       end
     end    
     function v = get.nframes(obj)
@@ -384,6 +386,13 @@ classdef Labeler < handle
         assert(numel(pref.View.Names)==obj.nview);
         obj.viewNames = pref.View.Names;
       end
+      ipt2ax = pref.View.iAxes;
+      if numel(ipt2ax)~=pref.NumLabelPoints || ...
+          ~all(ismember(ipt2ax,1:obj.nview))
+        error('Labeler:pref',...
+          'Preferences: View: iAxes invalid specification.');
+      end
+      obj.labeledposIPt2view = pref.View.iAxes;
       
       obj.labelMode = LabelMode.(pref.LabelMode);
       obj.nLabelPoints = pref.NumLabelPoints;
@@ -592,7 +601,7 @@ classdef Labeler < handle
       % obsolete fields...
       obj.labelPointsPlotInfo = structoverlay(obj.labelPointsPlotInfo,...
         s.labelPointsPlotInfo);
-      obj.nviewHaveLbls = cellfun(@(x)any(~isnan(x(:))),obj.labeledpos);
+      obj.movieFilesAllHaveLbls = cellfun(@(x)any(~isnan(x(:))),obj.labeledpos);
       obj.isinit = false;
       
       % need this before setting movie so that .projectroot exists
@@ -2414,6 +2423,8 @@ classdef Labeler < handle
     function videoSetTargetZoomFac(obj,zoomFac)
       % zoomFac: 0 for no-zoom; 1 for max zoom
       
+      assert(~obj.isMultiView,'Unsupported for multiview labeling.');
+      
       if zoomFac < 0
         zoomFac = 0;
         warning('Labeler:zoomFac','Zoom factor must be in [0,1].');
@@ -2776,6 +2787,8 @@ classdef Labeler < handle
     
     function [x,y,th] = currentTargetLoc(obj)
       % Return current target loc, or movie center if no target
+      
+      assert(~obj.isMultiView,'Not supported for MultiView.');
       
       if obj.hasTrx
         cfrm = obj.currFrame;

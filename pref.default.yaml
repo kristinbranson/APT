@@ -5,6 +5,7 @@ LabelMode: TEMPLATE # See LabelMode.m
 
 View: # optional when NumViews>1
   Names: ['view1','view2']
+  iAxes: [1,1,2,2] # axes specification for each label pt
 
 Trx:
   ZoomRadius: 100
