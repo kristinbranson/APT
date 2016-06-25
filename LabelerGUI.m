@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 18-Jun-2016 07:08:29
+% Last Modified by GUIDE v2.5 25-Jun-2016 07:21:32
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -289,41 +289,61 @@ switch lObj.labelMode
     gd.menu_setup_template_mode.Checked = 'off';
     gd.menu_setup_highthroughput_mode.Checked = 'off';
     gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
     
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
     gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.TEMPLATE
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'on';
     gd.menu_setup_highthroughput_mode.Checked = 'off';
     gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
 
     gd.menu_setup_createtemplate.Visible = 'on';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
     gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'off';
     gd.menu_setup_highthroughput_mode.Checked = 'on';
     gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
     
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'on';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
     gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.ERRORCORRECT
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'off';
     gd.menu_setup_highthroughput_mode.Checked = 'off';
     gd.menu_setup_tracking_correction_mode.Checked = 'on';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
     
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'on';
     gd.menu_setup_lock_all_frames.Visible = 'on';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
+  case LabelMode.MULTIVIEWCALIBRATED
+    gd.menu_setup_sequential_mode.Checked = 'off';
+    gd.menu_setup_template_mode.Checked = 'off';
+    gd.menu_setup_highthroughput_mode.Checked = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'on';
+    
+    gd.menu_setup_createtemplate.Visible = 'off';
+    gd.menu_setup_set_labeling_point.Visible = 'off';
+    gd.menu_setup_unlock_all_frames.Visible = 'off';
+    gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'on';
 end
 
 function cbkTargetZoomFacChanged(src,evt)
@@ -723,9 +743,11 @@ function menu_setup_highthroughput_mode_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelingInit('labelMode',LabelMode.HIGHTHROUGHPUT);
 function menu_setup_tracking_correction_mode_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelingInit('labelMode',LabelMode.ERRORCORRECT);
+function menu_setup_multiview_calibrated_mode_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelingInit('labelMode',LabelMode.MULTIVIEWCALIBRATED);
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-npts = lObj.nLabelPoints;
+%npts = lObj.nLabelPoints;
 ipt = lObj.lblCore.iPoint;
 ret = inputdlg('Select labeling point','Point number',1,{num2str(ipt)});
 if isempty(ret)
@@ -733,6 +755,18 @@ if isempty(ret)
 end
 ret = str2double(ret{1});
 lObj.lblCore.setIPoint(ret);
+function menu_setup_load_calibration_file_Callback(hObject, eventdata, handles)
+lastCalFile = RC.getprop('lastCalibrationFile');
+if isempty(lastCalFile)
+  lastCalFile = pwd;
+end
+[fname,pth] = uigetfile('*.mat','Load Calibration File',lastCalFile);
+if isequal(fname,0)
+  return;
+end
+fname = fullfile(pth,fname);
+handles.labelerObj.labelLoadCalibrationFileRaw(fname);
+RC.saveprop('lastCalibrationFile',fname);
 
 function menu_setup_unlock_all_frames_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelPosSetAllMarked(false);

@@ -2202,6 +2202,32 @@ classdef Labeler < handle
       delete(hTxt);
       delete(hWB);
     end
+    
+    function labelLoadCalibrationFileRaw(obj,fname)
+      if exist(fname,'file')==0
+        error('Labeler:file','File ''%s'' not found.',fname);
+      end
+      if obj.labelMode~=LabelMode.MULTIVIEWCALIBRATED
+          error('Labeler:labelMode',...
+            'Cannot load calibration file unless in Multiview Calibrated labeling mode.');
+      end
+      s = load(fname,'-mat');
+      flds = fieldnames(s);
+      if numel(flds)>1
+        warning('Labeler:calrig',...
+          'Calibration file contains more than one variable. Using first variable, ''%s''.',...
+          flds{1});
+      end
+      crigObj = s.(flds{1}); 
+      if ~isa(crigObj,'CalRig')
+        error('Labeler:calrig',...
+          'Calibration file ''%s'', variable ''%s'' does not contain a CalRig object.',...
+          fname,flds{1});
+      end
+      
+      assert(isa(obj.lblCore,'LabelCoreMultiViewCalibrated'));
+      obj.lblCore.projectionSetCalRig(crigObj);
+    end
            
   end
   

@@ -55,8 +55,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     pjtHLinesEpi     % [nview]. line handles for epipolar lines
     pjtHLinesRecon   % [nview]. line handles for reconstructed pts
     
-    pjtCalRigFilename % full path filename for calibration object
-    pjtCalRig        % Scalar some-kind-of-calibration object
+    pjtCalRig         % Scalar some-kind-of-calibration object
   end
   properties (Dependent)
     pjtState         % either 0, 1, or 2 for number of defined working pts
@@ -614,9 +613,14 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       end
     end
     
+    function projectionSetCalRig(obj,crig)
+      assert(isa(crig,'CalRig'));
+      obj.pjtCalRig = crig;
+    end
+    
   end
   
-  methods    
+  methods
     
     % ADJUST/ACCEPTED-NESS
     % What is the "Adjust" state?
