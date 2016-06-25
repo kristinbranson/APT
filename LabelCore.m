@@ -68,6 +68,8 @@ classdef LabelCore < handle
           obj = LabelCoreHT(labelerObj);
         case LabelMode.ERRORCORRECT
           obj = LabelCoreErrorCorrect(labelerObj);
+        case LabelMode.MULTIVIEWCALIBRATED
+          obj = LabelCoreMultiViewCalibrated(labelerObj);
       end
     end
     

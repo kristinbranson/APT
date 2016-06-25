@@ -1,11 +1,13 @@
 ---
 NumViews: 1
-NumLabelPoints: 4 
-LabelMode: TEMPLATE # See LabelMode.m
+ViewNames: # Optional
 
-View: # optional when NumViews>1
-  Names: ['view1','view2']
-  iAxes: [1,1,2,2] # axes specification for each label pt
+NumLabelPoints: 4 
+LabelPointMap:    # Optional unless NumViews>1.
+ # Head: [1,3,5]  # 'Head' physical/3D point is: pt1 in view 1, pt4 in view 2
+ # Tail: [2,4,6]
+
+LabelMode: TEMPLATE # See LabelMode.m
 
 Trx:
   ZoomRadius: 100

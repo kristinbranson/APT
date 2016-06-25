@@ -61,8 +61,8 @@ classdef LabelCoreMultiViewTemplate < LabelCore
     function initHook(obj)
       %#MVOK
       
-      obj.iPt2Ax = obj.labeler.labeledposIPt2view;
-      
+      obj.iPt2Ax = obj.labeler.labeledposIPt2View;
+     
       % redefine .hPts, .hPtsTxt (originally initted in LabelCore.init())
       deleteValidHandles(obj.hPts);
       deleteValidHandles(obj.hPtsTxt);

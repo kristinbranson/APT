@@ -135,20 +135,23 @@ classdef Labeler < handle
   properties (SetObservable)
     labelMode;            % scalar LabelMode
   end
-  properties (SetAccess=private)
-    nLabelPoints;         % scalar integer
-  end
   properties % make public setaccess
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints        
   end
   properties (SetAccess=private)
-    labelTemplate;    
+    nLabelPoints;         % scalar integer
+    labelTemplate;        
+    
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
     labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched.
     labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random.
     labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
     
-    labeledposIPt2view;   % [npts] vector of indices into 1:obj.nview
+    labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
+                          % point indices for set iSet in various views
+    labeledposSetNames;   % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
+                          % NOTE: arguably the "point names" should be
+    labeledposIPt2View;   % [npts] vector of indices into 1:obj.nview. Convenient prop, derived from .labeledposIPtSetMap.
     
     labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc)
   end
@@ -158,6 +161,8 @@ classdef Labeler < handle
   properties (Dependent)
     labeledposCurrMovie;
     labeledpostagCurrMovie;
+    
+    labeledposNPtSets
   end
   properties
     lblCore;
@@ -318,6 +323,9 @@ classdef Labeler < handle
         v = obj.labeledpostag{obj.currMovie};
       end
     end
+    function v = get.labeledposNPtSets(obj)
+      v = size(obj.labeledposIPtSetMap,1);
+    end
   end
   
   methods % prop access
@@ -379,23 +387,58 @@ classdef Labeler < handle
     end
     
     function initFromPrefs(obj,pref)
+      % view stuff
       obj.nview = pref.NumViews;
-      if isempty(pref.View.Names)
+      if isempty(pref.ViewNames)
         obj.viewNames = arrayfun(@(x)sprintf('view%d',x),1:obj.nview,'uni',0);
       else
-        assert(numel(pref.View.Names)==obj.nview);
-        obj.viewNames = pref.View.Names;
+        if numel(pref.ViewNames)~=obj.nview
+          error('Labeler:prefs',...
+            'ViewNames: must specify %d names (one for each view)',obj.nview);
+        end
+        obj.viewNames = pref.ViewNames;
       end
-      ipt2ax = pref.View.iAxes;
-      if numel(ipt2ax)~=pref.NumLabelPoints || ...
-          ~all(ismember(ipt2ax,1:obj.nview))
-        error('Labeler:pref',...
-          'Preferences: View: iAxes invalid specification.');
+      
+      npts = pref.NumLabelPoints;
+      obj.nLabelPoints = pref.NumLabelPoints;
+      if isempty(pref.LabelPointMap) && obj.nview==1
+        % create default map
+        tmpFields = arrayfun(@(x)sprintf('pt%d',x),(1:npts)','uni',0);
+        tmpVals = num2cell((1:npts)');
+        lblPtMap = cell2struct(tmpVals,tmpFields,1);
+      else
+        lblPtMap = pref.LabelPointMap;
       end
-      obj.labeledposIPt2view = pref.View.iAxes;
+      
+      % pts, sets, views
+      setnames = fieldnames(lblPtMap);
+      nSet = size(setnames,1);
+      ipt2view = nan(npts,1);
+      setmap = nan(nSet,obj.nview);
+      for iSet = 1:nSet
+        set = setnames{iSet};
+        iPts = lblPtMap.(set);
+        if numel(iPts)~=obj.nview
+          error('Labeler:prefs',...
+            'Number of point indices specified for ''%s'' does not equal number of views (%d).',set,obj.nview);
+        end
+        setmap(iSet,:) = iPts;
+        
+        iViewNZ = find(iPts>0);
+        ipt2view(iPts(iViewNZ)) = iViewNZ;
+      end
+      iptNotInAnyView = find(isnan(ipt2view));
+      if ~isempty(iptNotInAnyView)
+        iptNotInAnyView = arrayfun(@num2str,iptNotInAnyView,'uni',0);
+        error('Labeler:prefs',...
+          'The following points are not located in any view: %s',...
+           String.cellstr2CommaSepList(iptNotInAnyView));
+      end
+      obj.labeledposIPt2View = ipt2view;
+      obj.labeledposIPtSetMap = setmap;
+      obj.labeledposSetNames = setnames;
       
       obj.labelMode = LabelMode.(pref.LabelMode);
-      obj.nLabelPoints = pref.NumLabelPoints;
       %obj.zoomRadiusDefault = pref.Trx.ZoomRadius;
       %obj.zoomRadiusTight = pref.Trx.ZoomRadiusTight;
       obj.targetZoomFac = pref.Trx.ZoomFactorDefault;
@@ -1162,6 +1205,9 @@ classdef Labeler < handle
       if exist('trxfile','var')==0
         trxfile = repmat({''},1,obj.nview);
       else
+        if isempty(trxfile)
+          trxfile = '';
+        end
         trxfile = cellstr(trxfile);
       end
       if numel(trxfile)~=obj.nview
