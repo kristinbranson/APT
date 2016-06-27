@@ -50,6 +50,12 @@ LabelPointsPlot:
     SelectedOccludedMarker: 's'
     MarkedMarkerSize: 16
 
+  MultiViewCalibratedMode:
+    EpipolarLineWidth: 2
+    ReconstructedMarker: 'o'
+    ReconstructedMarkerSize: 6
+    ReconstructedLineWidth: 2
+
 Timelines:
   FrameRadius: 50 # default timeline radius (in frames)
   XColor: [0.8,0.8,0.8] # ax.XColor

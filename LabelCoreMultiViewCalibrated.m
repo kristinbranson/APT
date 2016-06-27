@@ -219,6 +219,29 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     end 
     
     function axBDF(obj,src,evt) %#ok<INUSD>
+      [tf,iSel] = obj.selAnyPointSelected();
+      if tf
+        iAx = obj.iPt2iAx(iSel);
+        ax = obj.hAx(iAx);        
+        pos = get(ax,'CurrentPoint');
+        pos = pos(1,1:2);
+        obj.assignLabelCoordsIRaw(pos,iSel);
+        obj.setPointAdjusted(iSel);
+        obj.selToggleSelectPoint(iSel);
+        if obj.tfOcc(iSel)
+          % AL should be unnec branch
+          obj.tfOcc(iSel) = false;
+          obj.refreshOccludedPts();
+        end
+        % estOcc status unchanged
+        switch obj.state
+          case LabelState.ADJUST
+            % none
+          case LabelState.ACCEPTED
+            obj.enterAdjust(false,false);
+        end
+        obj.projectionRefresh();
+      end     
     end
     
     function ptBDF(obj,src,evt)
@@ -245,7 +268,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
         iAx = obj.iPt2iAx(iPt);
         ax = obj.hAx(iAx);
         tmp = get(ax,'CurrentPoint');
-        pos = tmp(1,1:2);        
+        pos = tmp(1,1:2);
         obj.tfMoved = true;
         obj.assignLabelCoordsIRaw(pos,iPt);
         obj.setPointAdjusted(iPt);
@@ -278,7 +301,12 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       tfShft = any(strcmp('shift',modifier));
       
       switch key
-        case {'s' 'space'}
+        case {'space'}
+          [tfSel,iSel] = obj.selAnyPointSelected();
+          if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
+            obj.projectToggleState(iSel);
+          end
+        case {'s'}
           if obj.state==LabelState.ADJUST
             obj.acceptLabels();
           end
@@ -387,13 +415,14 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
         '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
-        '* S or <space> accepts the labels for the current frame/target.'
+        '* S accepts the labels for the current frame/target.'        
         '* (The letter) O toggles occluded-estimated status.'
         '* 0..9 selects/unselects a point. When a point is selected:'
-        '* ` (backquote) increments the mapping of the 0-9 hotkeys.'
-        '* LEFT/RIGHT/UP/DOWN adjusts the point.'
-        '* Shift-LEFT, etc adjusts the point by larger steps.' 
-        '* Clicking on the image moves the selected point to that location.'};
+        '*   LEFT/RIGHT/UP/DOWN adjusts the point.'
+        '*   Shift-LEFT, etc adjusts the point by larger steps.' 
+        '*   Clicking on the image moves the selected point to that location.'
+        '*   <space> projects epipolar lines or 3d-reconstructed points for the current point.'
+        '* ` (backquote) increments the mapping of the 0-9 hotkeys.'};
     end
     
     function refreshEstOccPts(obj,varargin)
@@ -479,11 +508,16 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     function projectionInit(obj)
       obj.pjtIPts = [nan nan];
       hLEpi = gobjects(1,obj.nView);
-      hLRcn = gobjects(1,obj.nView);      
+      hLRcn = gobjects(1,obj.nView);
+      ppimvcm = obj.ptsPlotInfo.MultiViewCalibratedMode;
       for iV = 1:obj.nView
         ax = obj.labeler.gdata.axes_all(iV);        
-        hLEpi(iV) = plot(ax,nan,nan,'-','LineWidth',2); % XXXPREF
-        hLRcn(iV) = plot(ax,nan,nan,'o','LineWidth',2);
+        hLEpi(iV) = plot(ax,nan,nan,'-',...
+          'LineWidth',ppimvcm.EpipolarLineWidth,'hittest','off');
+        hLRcn(iV) = plot(ax,nan,nan,ppimvcm.ReconstructedMarker,...
+          'MarkerSize',ppimvcm.ReconstructedMarkerSize,...
+          'LineWidth',ppimvcm.ReconstructedLineWidth,...
+          'hittest','off');
       end
       obj.pjtHLinesEpi = hLEpi;
       obj.pjtHLinesRecon = hLRcn;
@@ -505,8 +539,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     end
     
     function projectToggleState(obj,iPt)
-      % Toggle projection status of point iPt. iPt must be in proper
-      % working set etc if it is a 2nd pt.
+      % Toggle projection status of point iPt. 
       
       %#CALOK
       
@@ -519,17 +552,21 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
           elseif obj.projectionWorkingSetPointInWS(iPt)
             obj.projectionSet2nd(iPt);
           else
-            % none
+            % iPt is neither anchor pt nor in anchor pt's working set
+            obj.projectionClear();
+            obj.projectionSetAnchor(iPt);
           end
         case 2
-          idx = find(obj.pjtIPts==iPt);
-          if isempty(idx)
-            % none
-          else
+          tf = iPt==obj.pjtIPts;          
+          if any(tf)
+            idx = find(tf);
             idxOther = mod(idx,2)+1;
             iPtOther = obj.pjtIPts(idxOther);
             obj.projectionClear();
-            obj.projectionSetAnchor(iPtOther);
+            obj.projectionSetAnchor(iPtOther);            
+          else
+            obj.projectionClear();
+            obj.projectionSetAnchor(iPt);
           end
       end
     end

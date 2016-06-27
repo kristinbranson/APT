@@ -181,7 +181,7 @@ varargout{1} = handles.output;
 
 function cbkAuxAxResize(src,data)
 ax = findall(src,'type','axes');
-axis(ax,'auto')
+axis(ax,'image')
 
 function cbkAuxFigCloseReq(src,data,lObj)
 
