@@ -10,7 +10,8 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' ...
       'projname' 'projMacros' ...
-      'nview' 'viewNames' 'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
+      'nview' 'viewNames' 'viewCalibrationData'...
+      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledpos2' ...      
       'currMovie' 'currFrame' 'currTarget' ...
       'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
@@ -18,7 +19,8 @@ classdef Labeler < handle
       'suspScore'};
     LOADPROPS = {...
       'projname' 'projMacros' ...
-      'nview' 'viewNames' 'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
+      'nview' 'viewNames' 'viewCalibrationData' ...
+      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledpos2' ...
       'labelMode' 'nLabelPoints' 'labelTemplate' ...
       'minv' 'maxv' 'movieForceGrayscale' ...
@@ -61,6 +63,7 @@ classdef Labeler < handle
   properties
     nview; % number of views
     viewNames % [nview] cellstr 
+    viewCalibrationData % opaque 'userdata' for calibrations for multiview. Currently, scalar CalRig object
     
     movieReader = []; % [1xnview] MovieReader objects
     minv = 0; 
@@ -151,7 +154,8 @@ classdef Labeler < handle
                           % point indices for set iSet in various views
     labeledposSetNames;   % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
                           % NOTE: arguably the "point names" should be
-    labeledposIPt2View;   % [npts] vector of indices into 1:obj.nview. Convenient prop, derived from .labeledposIPtSetMap.
+    labeledposIPt2View;   % [npts] vector of indices into 1:obj.nview. Convenience prop, derived from .labeledposIPtSetMap.
+    labeledposIPt2Set;    % [npts] vector of set indices for each point. Convenience prop
     
     labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc)
   end
@@ -414,6 +418,7 @@ classdef Labeler < handle
       setnames = fieldnames(lblPtMap);
       nSet = size(setnames,1);
       ipt2view = nan(npts,1);
+      ipt2set = nan(npts,1);
       setmap = nan(nSet,obj.nview);
       for iSet = 1:nSet
         set = setnames{iSet};
@@ -426,15 +431,17 @@ classdef Labeler < handle
         
         iViewNZ = find(iPts>0);
         ipt2view(iPts(iViewNZ)) = iViewNZ;
+        ipt2set(iPts(iViewNZ)) = iSet;
       end
       iptNotInAnyView = find(isnan(ipt2view));
       if ~isempty(iptNotInAnyView)
         iptNotInAnyView = arrayfun(@num2str,iptNotInAnyView,'uni',0);
         error('Labeler:prefs',...
-          'The following points are not located in any view: %s',...
+          'The following points are not located in any view or set: %s',...
            String.cellstr2CommaSepList(iptNotInAnyView));
       end
       obj.labeledposIPt2View = ipt2view;
+      obj.labeledposIPt2Set = ipt2set;
       obj.labeledposIPtSetMap = setmap;
       obj.labeledposSetNames = setnames;
       
@@ -450,6 +457,14 @@ classdef Labeler < handle
       if isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
         lpp.Colors = feval(lpp.ColorMapName,pref.NumLabelPoints);
       end
+      % AL20160625: prob merge this into pp immediately above
+      if isfield(lpp,'ColorMapName')
+        cmapName = lpp.ColorMapName;
+      else
+        cmapName = 'parula';
+      end
+      lpp.ColorsSets = feval(cmapName,nSet);
+      
       obj.labelPointsPlotInfo = lpp;
             
       prfTrk = pref.Track; 
@@ -1615,11 +1630,24 @@ classdef Labeler < handle
       end
       obj.lblCore = LabelCore.create(obj,lblmode);      
       obj.lblCore.init(nPts,lblPtsPlotInfo);
-      if lblmode==LabelMode.TEMPLATE && ~isempty(template)
-        obj.lblCore.setTemplate(template);
+      
+      % labelmode-specific inits
+      switch lblmode
+        case LabelMode.TEMPLATE
+          if ~isempty(template)
+            obj.lblCore.setTemplate(template);
+          end
+        case LabelMode.MULTIVIEWCALIBRATED
+          vcd = obj.viewCalibrationData;
+          if isempty(vcd)
+            warning('Labeler:labelingInit',...
+              'No calibration data loaded for MultiviewCalibrated labeling.');
+          else
+            obj.lblCore.projectionSetCalRig(vcd);
+          end
       end
-      obj.labelMode = lblmode;      
-
+      obj.labelMode = lblmode;
+      
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
           obj.gdata.axes_prev,lblPtsPlotInfo);      
           
@@ -2226,6 +2254,7 @@ classdef Labeler < handle
       end
       
       assert(isa(obj.lblCore,'LabelCoreMultiViewCalibrated'));
+      obj.viewCalibrationData = crigObj;
       obj.lblCore.projectionSetCalRig(crigObj);
     end
            
@@ -2544,6 +2573,7 @@ classdef Labeler < handle
         % none; can occur when Labeler is closed
       else
         set(obj.gdata.axes_prev,'CLim',clim);
+        set(obj.gdata.axes_all,'CLim',clim);
         obj.minv = clim(1);
         obj.maxv = clim(2);
       end
@@ -2561,7 +2591,7 @@ classdef Labeler < handle
       
       m0 = gray(256);
       m1 = imadjust(m0,[],[],gamma);
-      colormap(obj.gdata.axes_curr,m1);
+      arrayfun(@(x)colormap(x,m1),obj.gdata.axes_all);
       colormap(obj.gdata.axes_prev,m1);
     end
     

@@ -30,26 +30,22 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     % .hPts       % [npts] from LabelCore. hLine handles for pts (in
     %               respective axes)
     % .hPtsTxt    % [npts]
+    hPtsColors    % [nptsx3] colors for pts, based on prefs.ColorsSets
     iSet2iPt      % [nset x nview]. A point 'set' is a nview-tuple of point 
                   % indices that represent a single physical (3d) point.
                   % .iSet2iPt(iSet,:) are the nview pt indices that
                   % correspond to pointset iSet.
+    iPt2iSet      % [npts]. set index for each point.                 
   end
   properties (Dependent)
     nView         % scalar
     nPointSet     % scalar, number of 'point sets'.    
   end  
-  
-  %% Working set
-  properties
-    iSetWorking      % scalar. Set index of working set. Can be nan for no working set.
-    kpfIPtFor1Key;   % scalar positive integer. This is the point index that
-                     % the '1' hotkey maps to, eg typically this will take the
-                     % values 1, 11, 21, ...
-  end
-  
+    
   %% Projections
   properties
+    iSetWorking      % scalar. Set index of working set. Can be nan for no working set.
+
     pjtIPts          % [1 2] vector; current first/anchor working pt. either
                      % [nan nan], [iPt1 nan], or [iPt1 iPt2]
     pjtHLinesEpi     % [nview]. line handles for epipolar lines
@@ -69,8 +65,12 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
 
 
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
+    
+    kpfIPtFor1Key;   % scalar positive integer. This is the point index that
+    % the '1' hotkey maps to, eg typically this will take the
+    % values 1, 11, 21, ...
 
-%     tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected  
+    tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected  
   end
   
   methods % dep prop getters
@@ -118,6 +118,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
     function initHook(obj)
       obj.iPt2iAx = obj.labeler.labeledposIPt2View;
+      obj.iPt2iSet = obj.labeler.labeledposIPt2Set;
       obj.iSet2iPt = obj.labeler.labeledposIPtSetMap;
       
       % redefine .hPts, .hPtsTxt (originally initted in LabelCore.init())
@@ -126,11 +127,15 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       obj.hPts = gobjects(obj.nPts,1);
       obj.hPtsTxt = gobjects(obj.nPts,1);
       ppi = obj.ptsPlotInfo;
+      obj.hPtsColors = nan(obj.nPointSet,3);
       for iPt=1:obj.nPts
+        iSet = obj.iPt2iSet(iPt);
+        setClr = ppi.ColorsSets(iSet,:);
+        obj.hPtsColors(iPt,:) = setClr;
         ptsArgs = {nan,nan,ppi.Marker,...
           'MarkerSize',ppi.MarkerSize,...
           'LineWidth',ppi.LineWidth,...
-          'Color',ppi.Colors(iPt,:),...
+          'Color',setClr,...
           'UserData',iPt,...
           'HitTest','on',...
           'ButtonDownFcn',@(s,e)obj.ptBDF(s,e)};
@@ -138,7 +143,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
         obj.hPts(iPt) = plot(ax,ptsArgs{:});
         obj.hPtsTxt(iPt) = text(nan,nan,num2str(iPt),...
           'Parent',ax,...
-          'Color',ppi.Colors(iPt,:),...
+          'Color',setClr,...
           'FontSize',ppi.FontSize,...
           'Hittest','off');
       end
@@ -153,17 +158,15 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       set(hFigsAddnl,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
       
       obj.setRandomTemplate();
-      
-%       npts = obj.nPts;
-      
+           
       obj.tfAdjusted = false(obj.nPts,1);
-%       obj.tfPtSel = false(npts,1);
-%       
+      obj.tfPtSel = false(obj.nPts,1);       
+
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
-%       obj.refreshTxLabelCoreAux();
+      obj.refreshTxLabelCoreAux();
 
-      obj.workingSetClear();
+      obj.projectionWorkingSetClear();
       obj.projectionInit();
     end
     
@@ -203,7 +206,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     function clearLabels(obj)
       %#CALOK
       obj.enterAdjust(true,true);
-      obj.workingSetClear();
+      obj.projectionWorkingSetClear();
       obj.projectionClear();
     end
     
@@ -220,19 +223,13 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
     function ptBDF(obj,src,evt)
       %#CALOK
+      iPt = src.UserData;
       switch evt.Button
         case 1
-          iPt = src.UserData;
-          tfInWS = obj.workingSetPointInWS(iPt);
-          if tfInWS            
-            % prepare for click-drag of pt
-            obj.iPtMove = iPt;
-            obj.tfMoved = false;
-          end
+          obj.iPtMove = iPt;
+          obj.tfMoved = false;
         case 3
-          % none
-%           iPt = get(src,'UserData');
-%           obj.toggleEstOccPoint(iPt);
+          obj.toggleEstOccPoint(iPt);
       end
     end
     
@@ -240,7 +237,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       %#CALOK
       
       iPt = obj.iPtMove;
-      if ~isnan(iPt)        
+      if ~isnan(iPt)
         if obj.state==LabelState.ACCEPTED
           obj.enterAdjust(false,false);
         end
@@ -290,64 +287,65 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
         case {'a' 'hyphen'}
           obj.labeler.frameDown(tfCtrl);
         case {'o'}
-%           [tfSel,iSel] = obj.anyPointSelected();
-%           if tfSel
-%             obj.toggleEstOccPoint(iSel);
-%           end
+          [tfSel,iSel] = obj.selAnyPointSelected();
+          if tfSel
+            obj.toggleEstOccPoint(iSel);
+          end
         case {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}
-          %[tfSel,iSel] = obj.anyPointSelected();
-          if false % tfSel && ~obj.tfOcc(iSel)
-%             tfShift = any(strcmp('shift',modifier));
-%             xy = obj.getLabelCoordsI(iSel);
-%             iAx = obj.iPt2iAx(iSel);
-%             ax = obj.hAx(iAx);
-%             switch key
-%               case 'leftarrow'
-%                 xl = xlim(ax);
-%                 dx = diff(xl);
-%                 if tfShift
-%                   xy(1) = xy(1) - dx/obj.DXFACBIG;
-%                 else
-%                   xy(1) = xy(1) - dx/obj.DXFAC;
-%                 end
-%                 xy(1) = max(xy(1),1);
-%               case 'rightarrow'
-%                 xl = xlim(ax);
-%                 dx = diff(xl);
-%                 if tfShift
-%                   xy(1) = xy(1) + dx/obj.DXFACBIG;
-%                 else
-%                   xy(1) = xy(1) + dx/obj.DXFAC;
-%                 end
-%                 ncs = obj.labeler.movienc;
-%                 xy(1) = min(xy(1),ncs(iAx));
-%               case 'uparrow'
-%                 yl = ylim(ax);
-%                 dy = diff(yl);
-%                 if tfShift
-%                   xy(2) = xy(2) - dy/obj.DXFACBIG;
-%                 else
-%                   xy(2) = xy(2) - dy/obj.DXFAC;
-%                 end
-%                 xy(2) = max(xy(2),1);
-%               case 'downarrow'
-%                 yl = ylim(ax);
-%                 dy = diff(yl);
-%                 if tfShift
-%                   xy(2) = xy(2) + dy/obj.DXFACBIG;
-%                 else
-%                   xy(2) = xy(2) + dy/obj.DXFAC;
-%                 end
-%                 nrs = obj.labeler.movienr;
-%                 xy(2) = min(xy(2),nrs(iAx));
-%             end
-%             obj.assignLabelCoordsIRaw(xy,iSel);
-%             switch obj.state
-%               case LabelState.ADJUST
-%                 obj.setPointAdjusted(iSel);
-%               case LabelState.ACCEPTED
-%                 obj.enterAdjust(false,false);
-%             end
+          [tfSel,iSel] = obj.selAnyPointSelected();
+          if tfSel && ~obj.tfOcc(iSel)
+            tfShift = any(strcmp('shift',modifier));
+            xy = obj.getLabelCoordsI(iSel);
+            iAx = obj.iPt2iAx(iSel);
+            ax = obj.hAx(iAx);
+            switch key
+              case 'leftarrow'
+                xl = xlim(ax);
+                dx = diff(xl);
+                if tfShift
+                  xy(1) = xy(1) - dx/obj.DXFACBIG;
+                else
+                  xy(1) = xy(1) - dx/obj.DXFAC;
+                end
+                xy(1) = max(xy(1),1);
+              case 'rightarrow'
+                xl = xlim(ax);
+                dx = diff(xl);
+                if tfShift
+                  xy(1) = xy(1) + dx/obj.DXFACBIG;
+                else
+                  xy(1) = xy(1) + dx/obj.DXFAC;
+                end
+                ncs = obj.labeler.movienc;
+                xy(1) = min(xy(1),ncs(iAx));
+              case 'uparrow'
+                yl = ylim(ax);
+                dy = diff(yl);
+                if tfShift
+                  xy(2) = xy(2) - dy/obj.DXFACBIG;
+                else
+                  xy(2) = xy(2) - dy/obj.DXFAC;
+                end
+                xy(2) = max(xy(2),1);
+              case 'downarrow'
+                yl = ylim(ax);
+                dy = diff(yl);
+                if tfShift
+                  xy(2) = xy(2) + dy/obj.DXFACBIG;
+                else
+                  xy(2) = xy(2) + dy/obj.DXFAC;
+                end
+                nrs = obj.labeler.movienr;
+                xy(2) = min(xy(2),nrs(iAx));
+            end
+            obj.assignLabelCoordsIRaw(xy,iSel);
+            switch obj.state
+              case LabelState.ADJUST
+                obj.setPointAdjusted(iSel);
+              case LabelState.ACCEPTED
+                obj.enterAdjust(false,false);
+            end
+            obj.projectionRefresh();
           elseif strcmp(key,'leftarrow')
             if tfShft
               obj.labeler.frameUpNextLbled(true);
@@ -376,7 +374,8 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
           if iPt > obj.nPts
             return;
           end
-          obj.workingSetToggle(iPt);
+          obj.selClearSelected(iPt);
+          obj.selToggleSelectPoint(iPt);
       end      
     end
     
@@ -406,7 +405,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       %#MVOK
       
       iPts = myparse(varargin,'iPts',1:obj.nPts);
-      %obj.refreshPtMarkers(iPts);
+      obj.refreshPtMarkers(iPts);
     end
         
   end
@@ -433,48 +432,48 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
   end
   
-  methods 
+  methods
     
-    function workingSetClear(obj)
-      clrs = obj.ptsPlotInfo.Colors;
-      h = obj.hPts;
+    function projectionWorkingSetClear(obj)
+      %h = obj.hPts;
+      hClrs = obj.hPtsColors;
       for i=1:obj.nPts
-        set(h(i),'Color',clrs(i,:));
-        %set(obj.hPtsTxt,'FaceAlpha',1);
+        %set(h(i),'Color',hClrs(i,:));
+        set(obj.hPtsTxt,'Color',hClrs(i,:));
       end
       obj.iSetWorking = nan;
     end
     
-    function workingSetSet(obj,iSet)
+    function projectionWorkingSetSet(obj,iSet)
       iPtsSet = obj.iSet2iPt(iSet,:);
-      %iPtsComp = setdiff(1:obj.nPts,iPtsSet);
 
-      clrs = obj.ptsPlotInfo.Colors;
-      h = obj.hPts;
+      h = obj.hPtsTxt;
+      hClrs = obj.hPtsColors;
       for i=1:obj.nPts
-        if ~any(i==iPtsSet)
-          set(h(i),'Color',clrs(i,:)/2);
+        if any(i==iPtsSet)
+          set(h(i),'Color',hClrs(i,:));
+        else
+          set(h(i),'Color',hClrs(i,:)*.75);
         end
       end
       obj.iSetWorking = iSet;
     end
     
-    function workingSetToggle(obj,iSet)
+    function projectionWorkingSetToggle(obj,iSet)
       if isnan(obj.iSetWorking)
-        obj.workingSetSet(iSet);
+        obj.projectionWorkingSetSet(iSet);
       else
         tfMatch = obj.iSetWorking==iSet;
-        obj.workingSetClear();
+        obj.projectionWorkingSetClear();
         if ~tfMatch
-          obj.workingSetSet(iSet);
+          obj.projectionWorkingSetSet(iSet);
         end
       end
     end
     
-    function tf = workingSetPointInWS(obj,iPt)
+    function tf = projectionWorkingSetPointInWS(obj,iPt)
       % Returns true if iPt is in current working set.
-      iSet = obj.iSetWorking;
-      tf = ~isnan(iSet) && any(iPt==obj.iSet2iPt(iSet,:));
+      tf = obj.iPt2iSet(iPt)==obj.iSetWorking;
     end
     
     function projectionInit(obj)
@@ -484,7 +483,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       for iV = 1:obj.nView
         ax = obj.labeler.gdata.axes_all(iV);        
         hLEpi(iV) = plot(ax,nan,nan,'-','LineWidth',2); % XXXPREF
-        hLRcn(iV) = plot(ax,nan,nan,'o');
+        hLRcn(iV) = plot(ax,nan,nan,'o','LineWidth',2);
       end
       obj.pjtHLinesEpi = hLEpi;
       obj.pjtHLinesRecon = hLRcn;
@@ -495,14 +494,19 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       
       %# CALOK
       
-      set(obj.hPts,'Marker','o'); % XXXPREF
+      for i=1:obj.nPts
+        set(obj.hPtsTxt(i),'String',num2str(i));
+      end
+      
       obj.pjtIPts = [nan nan];
       set(obj.pjtHLinesEpi,'Visible','off');
       set(obj.pjtHLinesRecon,'Visible','off');
+      obj.projectionWorkingSetClear();
     end
     
     function projectToggleState(obj,iPt)
-      % Toggle projection status of point iPt.
+      % Toggle projection status of point iPt. iPt must be in proper
+      % working set etc if it is a 2nd pt.
       
       %#CALOK
       
@@ -512,8 +516,10 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
         case 1
           if iPt==obj.pjtIPts(1)
             obj.projectionClear();
-          else
+          elseif obj.projectionWorkingSetPointInWS(iPt)
             obj.projectionSet2nd(iPt);
+          else
+            % none
           end
         case 2
           idx = find(obj.pjtIPts==iPt);
@@ -534,11 +540,12 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       if ~isnan(obj.pjtIPts(1))
         obj.projectionClear();
       end
-      hPt1 = obj.hPts(iPt1);
-      set(hPt1,'Marker','s'); % XXXPREF
+      hPt1 = obj.hPtsTxt(iPt1);
+      set(hPt1,'String',[num2str(iPt1) 'a']);
       obj.pjtIPts(1) = iPt1;
       assert(isnan(obj.pjtIPts(2)));
-      
+      iSet = obj.iPt2iSet(iPt1);
+      obj.projectionWorkingSetSet(iSet);
       obj.projectionRefreshEPlines();
     end
     
@@ -570,7 +577,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       obj.pjtIPts(2) = iPt2;
       set(obj.pjtHLinesEpi,'Visible','off');
       
-      obj.hPts(iPt2).Marker = 's'; %XXXPREF
+      set(obj.hPtsTxt(iPt2),'String',[num2str(iPt2) 'a']);
       
       obj.projectionRefreshReconPts();
     end
@@ -618,6 +625,41 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       obj.pjtCalRig = crig;
     end
     
+  end
+  
+  methods % Selected
+    
+    function [tf,iSelected] = selAnyPointSelected(obj)
+      tf = any(obj.tfPtSel);
+      iSelected = find(obj.tfPtSel,1);
+    end
+     
+    function selClearSelected(obj,iExclude)
+      tf = obj.tfPtSel;
+      if exist('iExclude','var')>0
+        tf(iExclude) = false;
+      end
+      iSel = find(tf);
+      for i = iSel(:)'
+        obj.selToggleSelectPoint(i);
+      end
+    end
+    
+    function selToggleSelectPoint(obj,iPt)
+      tfSel = ~obj.tfPtSel(iPt);
+      obj.tfPtSel(:) = false;
+      obj.tfPtSel(iPt) = tfSel;
+      
+      obj.refreshPtMarkers(iPt);
+      % Also update hPtsOcc markers
+      if tfSel
+        mrkr = obj.ptsPlotInfo.TemplateMode.SelectedPointMarker;
+      else
+        mrkr = obj.ptsPlotInfo.Marker;
+      end
+      set(obj.hPtsOcc(iPt),'Marker',mrkr);
+    end
+
   end
   
   methods
@@ -707,14 +749,13 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       %#CALOK
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
-        clr = obj.ptsPlotInfo.Colors(iSel,:);
+        clr = obj.hPtsColors(iSel,:);
         set(obj.hPts(iSel),'Color',clr);
-        set(obj.hPtsOcc(iSel),'Color',clr);
+        %set(obj.hPtsOcc(iSel),'Color',clr);
       end
     end
     
     function toggleEstOccPoint(obj,iPt)
-      %#MVOK
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
       obj.refreshEstOccPts('iPts',iPt);
       if obj.state==LabelState.ACCEPTED
@@ -722,39 +763,21 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       end
     end
     
-%     function refreshPtMarkers(obj,iPts)
-%       % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
-% 
-%       %#MVOK
-%       
-%       ppi = obj.ptsPlotInfo;
-%       ppitm = ppi.TemplateMode;
-% 
-%       hPoints = obj.hPts(iPts);
-%       tfSel = obj.tfPtSel(iPts);
-%       tfEO = obj.tfEstOcc(iPts);
-%       
-%       set(hPoints(tfSel & tfEO),'Marker',ppitm.SelectedOccludedMarker); % historical quirk, use props instead of ppi; fix this at some pt
-%       set(hPoints(tfSel & ~tfEO),'Marker',ppitm.SelectedPointMarker);
-%       set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
-%       set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
-%     end
+    function refreshPtMarkers(obj,iPts)
+      % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
       
-%     function [tf,iSelected] = anyPointSelected(obj)
-%       tf = any(obj.tfPtSel);
-%       iSelected = find(obj.tfPtSel,1);
-%     end
-     
-%     function clearSelected(obj,iExclude)
-%       tf = obj.tfPtSel;
-%       if exist('iExclude','var')>0
-%         tf(iExclude) = false;
-%       end
-%       iSel = find(tf);
-%       for i = iSel(:)'
-%         obj.toggleSelectPoint(i);
-%       end
-%     end
+      ppi = obj.ptsPlotInfo;
+      ppitm = ppi.TemplateMode;
+
+      hPoints = obj.hPts(iPts);
+      tfSel = obj.tfPtSel(iPts);
+      tfEO = obj.tfEstOcc(iPts);
+      
+      set(hPoints(tfSel & tfEO),'Marker',ppitm.SelectedOccludedMarker); % historical quirk, use props instead of ppi; fix this at some pt
+      set(hPoints(tfSel & ~tfEO),'Marker',ppitm.SelectedPointMarker);
+      set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
+      set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
+    end
     
     function refreshTxLabelCoreAux(obj)
       iPt0 = obj.kpfIPtFor1Key;

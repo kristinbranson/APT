@@ -72,8 +72,6 @@ handles.output = hObject;
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
  
-colormap(handles.figure,gray);
-
 % multiview
 nview = handles.labelerObj.nview;
 figs = gobjects(1,nview);
@@ -89,6 +87,8 @@ end
 handles.figs_all = figs;
 handles.axes_all = ax;
 
+arrayfun(@(x)colormap(x,gray),figs);
+
 ims = gobjects(1,nview);
 for iView=1:nview
   ims(iView) = imagesc(0,'Parent',ax(iView));
@@ -99,6 +99,17 @@ for iView=1:nview
 end
 handles.images_all = ims;
 handles.image_curr = ims(1);
+
+% AL: important to get clickable points. Somehow this jiggers plot
+% lims/scaling/coords so that points are more clickable; otherwise
+% lblCore points in aux axes are impossible to click (eg without zooming
+% way in or other contortions)
+for i=2:numel(figs)
+  figs(i).ResizeFcn = @cbkAuxAxResize;
+end
+%arrayfun(@(x)axis(x,'auto'),ax);
+
+
 
 hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
@@ -168,6 +179,10 @@ guidata(hObject, handles);
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
 
+function cbkAuxAxResize(src,data)
+ax = findall(src,'type','axes');
+axis(ax,'auto')
+
 function cbkAuxFigCloseReq(src,data,lObj)
 
 if ~any(src==lObj.depHandles)
@@ -230,6 +245,7 @@ for i=1:numel(ims)
   set(hAxs(i),'CLim',minvmaxv,...
     'XLim',[.5,size(ims{i},2)+.5],...
     'YLim',[.5,size(ims{i},1)+.5]);
+  axis(hAxs(i),'image');
   zoom(hAxs(i),'reset');
 end
 
