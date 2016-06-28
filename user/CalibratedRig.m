@@ -114,7 +114,7 @@ classdef CalibratedRig < CalRig
     
   end
   
-   methods 
+  methods 
     
     function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
       % See CalRig
