@@ -102,18 +102,22 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
     function delete(obj)
       % CALTODO
-      gdata = obj.labeler.gdata;
-      hFigs = gdata.figs_all;
-      hFigsAddnl = setdiff(hFigs,gdata.figure);
-
-      % Remove any pointers to this object from callbacks in hFigsAddnl.
-      % Callbacks in gdata.figure (primary figure) are fine to leave as
-      % they are LabelCore's responsibility.
       
-      hTmp = findall(hFigsAddnl,'-property','KeyPressFcn','-not','Tag','edit_frame');
-      set(hTmp,'KeyPressFcn',[]);
-      set(hFigsAddnl,'WindowButtonMotionFcn',[]);
-      set(hFigsAddnl,'WindowButtonUpFcn',[]);
+      lObj = obj.labeler;
+      if isvalid(lObj)
+        gdata = lObj.gdata;
+        hFigs = gdata.figs_all;
+        hFigsAddnl = setdiff(hFigs,gdata.figure);
+
+        % Remove any pointers to this object from callbacks in hFigsAddnl.
+        % Callbacks in gdata.figure (primary figure) are fine to leave as
+        % they are LabelCore's responsibility.
+
+        hTmp = findall(hFigsAddnl,'-property','KeyPressFcn','-not','Tag','edit_frame');
+        set(hTmp,'KeyPressFcn',[]);
+        set(hFigsAddnl,'WindowButtonMotionFcn',[]);
+        set(hFigsAddnl,'WindowButtonUpFcn',[]);
+      end
     end
     
     function initHook(obj)
@@ -464,11 +468,10 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
   methods
     
     function projectionWorkingSetClear(obj)
-      %h = obj.hPts;
+      h = obj.hPtsTxt;
       hClrs = obj.hPtsColors;
       for i=1:obj.nPts
-        %set(h(i),'Color',hClrs(i,:));
-        set(obj.hPtsTxt,'Color',hClrs(i,:));
+        set(h(i),'Color',hClrs(i,:),'FontWeight','normal');
       end
       obj.iSetWorking = nan;
     end
@@ -480,9 +483,9 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       hClrs = obj.hPtsColors;
       for i=1:obj.nPts
         if any(i==iPtsSet)
-          set(h(i),'Color',hClrs(i,:));
+          set(h(i),'Color',hClrs(i,:),'FontWeight','bold');
         else
-          set(h(i),'Color',hClrs(i,:)*.75);
+          set(h(i),'Color',hClrs(i,:)*.75,'FontWeight','normal');
         end
       end
       obj.iSetWorking = iSet;
