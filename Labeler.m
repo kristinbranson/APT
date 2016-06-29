@@ -593,11 +593,11 @@ classdef Labeler < handle
         tCls = s.trackerClass;
         if exist(tCls,'class')==0
           error('Labeler:projLoad',...
-            'Tracker class ''%s'' cannot be found.',tCls);
+            'Project tracker class ''%s'' cannot be found.',tCls);
         end
         if ~isempty(tClsOld) && ~strcmp(tClsOld,tCls)
           warning('Labeler:projLoad',...
-            'Project tracker class ''%s'' differs from current tracker class ''%s''.',...
+            'Project tracker class ''%s'' will differ from current tracker class ''%s''.',...
             tCls,tClsOld);
         end
           
@@ -696,6 +696,7 @@ classdef Labeler < handle
       obj.projFSInfo = ProjectFSInfo('imported',fname);
       
       if ~isempty(obj.tracker)
+        warning('Labeler:projImport','Re-initting tracker.');
         obj.tracker.init();
       end
     end
@@ -2239,11 +2240,7 @@ classdef Labeler < handle
   
   %% Tracker
   methods
-    
-    function setTracker(obj,tObj)
-      obj.tracker = tObj;
-    end
-    
+        
     function setTrackParamFile(obj,prmFile)
       trker = obj.tracker;
       assert(~isempty(trker),'No tracker object currently set.');
