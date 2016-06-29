@@ -621,8 +621,7 @@ classdef Labeler < handle
 
       if ~isempty(obj.tracker)
         fprintf(1,'Loading tracker info: %s.\n',tCls);
-        trkTok = s.(tCls);
-        obj.tracker.loadSaveToken(trkTok);
+        obj.tracker.loadSaveToken(s.trackerData);
       end
     end
     
@@ -911,18 +910,23 @@ classdef Labeler < handle
       end      
       
       % 20160629
-      if ~isfield(s,'trackerClass')
+      if isfield(s,'trackerClass')
+        assert(isfield(s,'trackerData'));
+      else
         if isfield(s,'CPRLabelTracker')
           s.trackerClass = 'CPRLabelTracker';
+          s.trackerData = s.CPRLabelTracker;
         elseif isfield(s,'Interpolator')
           s.trackerClass = 'Interpolator';
+          s.trackerData = s.Interpolator;
         else
           s.trackerClass = '';
+          s.trackerData = [];
         end
       end
       if ~isempty(s.trackerClass)
-        tCls = s.trackerClass;
-        assert(isfield(s,tCls),'Missing tracker field ''%s'' in saved data.',tCls);
+        assert(isfield(s,'trackerData'),...
+          'Missing tracker data for tracker class ''%s'' in saved data.',s.trackerClass);
       end
     end
     
