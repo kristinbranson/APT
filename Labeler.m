@@ -510,11 +510,12 @@ classdef Labeler < handle
       end
       
       tObj = obj.tracker;
-      if ~isempty(tObj)
-        sTrk = tObj.getSaveToken();
-        tObjCls = class(tObj);
-        assert(~isfield(s,tObjCls));
-        s.(tObjCls) = sTrk;
+      if isempty(tObj)
+        s.trackerClass = '';
+        s.trackerData = [];
+      else
+        s.trackerClass = class(tObj);
+        s.trackerData = tObj.getSaveToken();
       end        
     end
     
