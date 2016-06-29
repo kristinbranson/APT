@@ -354,11 +354,6 @@ classdef Labeler < handle
       for prop = obj.gdata.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
         obj.(prop) = obj.(prop);
       end
-
-      if obj.trackPrefs.Enable
-        obj.tracker = feval(obj.trackPrefs.Type,obj);
-        obj.tracker.init();
-      end        
     end
     
     function initFromPrefs(obj,pref)
@@ -443,6 +438,13 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       
       if ~isempty(obj.tracker)
+        % the old tracker might be from a loaded proj etc and might not
+        % match prefs.
+        delete(obj.tracker);
+        obj.tracker = [];
+      end
+      if obj.trackPrefs.Enable
+        obj.tracker = feval(obj.trackPrefs.Type,obj);
         obj.tracker.init();
       end
     end
@@ -575,11 +577,33 @@ classdef Labeler < handle
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
 
-      tObj = obj.tracker;
-      % AL20160517 initialization hell unresolved
-%       if ~isempty(tObj)
-%         tObj.init(); % AL 20160508: needs to occur before .movieSet() below
-%       end
+      % Tracker.
+      if isempty(obj.tracker)
+        tClsOld = '';
+      else
+        tClsOld = class(obj.tracker);
+        delete(obj.tracker);
+        obj.tracker = [];
+      end
+      % obj.tracker is always empty now
+      if isempty(s.trackerClass)
+        % For now we unilaterally adopt tracker of saved project.
+      else
+        tCls = s.trackerClass;
+        if exist(tCls,'class')==0
+          error('Labeler:projLoad',...
+            'Tracker class ''%s'' cannot be found.',tCls);
+        end
+        if ~isempty(tClsOld) && ~strcmp(tClsOld,tCls)
+          warning('Labeler:projLoad',...
+            'Project tracker class ''%s'' differs from current tracker class ''%s''.',...
+            tCls,tClsOld);
+        end
+          
+        tObjNew = feval(tCls,obj);
+        tObjNew.init();
+        obj.tracker = tObjNew;
+      end
       
       if obj.nmovies==0 || s.currMovie==0
         obj.movieSetNoMovie();
@@ -587,11 +611,6 @@ classdef Labeler < handle
         obj.movieSet(s.currMovie);
       end
       
-      % AL20160517 initialization hell unresolved
-      if ~isempty(tObj)
-        tObj.init(); % AL 20160508: needs to occur before .movieSet() below
-      end
-
       assert(isa(s.labelMode,'LabelMode'));      
       obj.labeledposNeedsSave = false;
 
@@ -600,13 +619,10 @@ classdef Labeler < handle
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
 
-      if ~isempty(tObj)        
-        tObjCls = class(tObj);
-        if isfield(s,tObjCls)
-          fprintf(1,'Loading tracker info: %s.\n',tObjCls);
-          trkTok = s.(tObjCls);
-          tObj.loadSaveToken(trkTok);
-        end
+      if ~isempty(obj.tracker)
+        fprintf(1,'Loading tracker info: %s.\n',tCls);
+        trkTok = s.(tCls);
+        obj.tracker.loadSaveToken(trkTok);
       end
     end
     
@@ -893,7 +909,22 @@ classdef Labeler < handle
       if ~isfield(s,'labeledpos2')
         s.labeledpos2 = cellfun(@(x)nan(size(x)),s.labeledpos,'uni',0);
       end      
-    end  
+      
+      % 20160629
+      if ~isfield(s,'trackerClass')
+        if isfield(s,'CPRLabelTracker')
+          s.trackerClass = 'CPRLabelTracker';
+        elseif isfield(s,'Interpolator')
+          s.trackerClass = 'Interpolator';
+        else
+          s.trackerClass = '';
+        end
+      end
+      if ~isempty(s.trackerClass)
+        tCls = s.trackerClass;
+        assert(isfield(s,tCls),'Missing tracker field ''%s'' in saved data.',tCls);
+      end
+    end
     
     function [I,p,md] = lblRead(lblFiles,varargin)
       % lblFiles: [N] cellstr
