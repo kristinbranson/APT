@@ -2,7 +2,7 @@ classdef Labeler < handle
 % Labeler  Bransonlab Animal Video Labeler
 
   properties (Constant,Hidden)
-    VERSION = '0.5';
+    VERSION = '1.1';
     DEFAULT_LBLFILENAME = '%s.lbl';
     PREF_DEFAULT_FILENAME = 'pref.default.yaml';
     PREF_LOCAL_FILENAME = 'pref.yaml';
@@ -649,6 +649,13 @@ classdef Labeler < handle
           %obj.(f) = [];
         end
       end
+   
+      mr = MovieReader.empty(1,0);
+      for i=obj.nview:-1:1
+        mr(1,i) = MovieReader;
+      end
+      obj.movieReader = mr;
+
       % labeledposMarked: special treatment. This is not serialized. All
       % labels are initted as unmarked
       obj.labeledposMarked = cellfun(@(x)false(size(x)),obj.labeledposTS,'uni',0);
@@ -2431,7 +2438,7 @@ classdef Labeler < handle
         error('Labeler:track','No tracker set.');
       end      
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
-      tObj.track(iMovs,frms);      
+      tObj.track(iMovs,frms); 
     end
     
     function trackSaveResults(obj,fname)
