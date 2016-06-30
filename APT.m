@@ -48,6 +48,7 @@ classdef APT
         randomyamlfile = fullfile(APT.Root,'YAMLMatlab_0.4.3','Tests','Data','test_import','file1.yaml');
         ReadYaml(randomyamlfile);
       end
+      javaaddpath(fullfile(APT.Root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'));
     end
     
      function s = codesnapshot
