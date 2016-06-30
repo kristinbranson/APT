@@ -69,6 +69,7 @@ tblNew = uiextras.jTable.Table(...
 tblNew.MouseClickedCallback = @(src,evt)lclTblClicked(src,evt,tblNew,lObj);
 handles.tblMoviesOrig = handles.tblMovies;
 handles.tblMovies = tblNew;
+handles.cbkGetSelectedMovies = @()cbkGetSelectedMovies(tblNew);
 
 guidata(hObject,handles);
 centerfig(handles.figure1,handles.labeler.gdata.figure);
@@ -115,6 +116,11 @@ if iMov>0
 else
   tbl.SelectedRows = [];
 end
+
+function iMovs = cbkGetSelectedMovies(tbl)
+% AL20160630: IMPORTANT: currently CANNOT sort table by columns
+selRow = tbl.SelectedRows;
+iMovs = sort(selRow);
 
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
 [tfsucc,movfile,trxfile] = promptGetMovTrxFiles();

@@ -89,6 +89,7 @@ classdef Labeler < handle
     movienr;
     movienc;
     nmovies;
+    moviesSelected; % [nSel] vector of movie indices currently selected in MovieManager
   end
   
   %% Trx
@@ -246,7 +247,22 @@ classdef Labeler < handle
       else
         v = obj.movieReader.nframes;
       end
-    end      
+    end
+    function v = get.moviesSelected(obj)      
+      % Possibly questionable, find MovieManager in depHandles
+      depH = obj.depHandles;
+      names = cellfun(@(x)x.Name,depH,'uni',0);
+      tf = strcmp(names,'Manage Movies');
+      idx = find(tf);
+      if isscalar(idx)
+        hMM = depH{idx};
+        mmgd = guidata(hMM);
+        v = mmgd.cbkGetSelectedMovies();
+      else
+        error('Labeler:getMoviesSelected',...
+          'Cannot access MovieManager UI. Make sure your desired movies are selected in the Movie Manager.');
+      end
+    end
     function v = get.hasTrx(obj)
       v = ~isempty(obj.trx);
     end
@@ -390,8 +406,11 @@ classdef Labeler < handle
       % GC dead handles
       tfValid = cellfun(@isvalid,obj.depHandles);
       obj.depHandles = obj.depHandles(tfValid);
-
-      obj.depHandles{end+1,1} = h;
+      
+      tfSame = cellfun(@(x)x==h,obj.depHandles);
+      if ~any(tfSame)
+        obj.depHandles{end+1,1} = h;
+      end
     end
     
     function delete(obj)
