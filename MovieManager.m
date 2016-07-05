@@ -22,7 +22,7 @@ function varargout = MovieManager(varargin)
 
 % Edit the above text to modify the response to help MovieManager
 
-% Last Modified by GUIDE v2.5 02-Dec-2015 11:18:52
+% Last Modified by GUIDE v2.5 05-Jul-2016 09:46:13
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -123,7 +123,7 @@ selRow = tbl.SelectedRows;
 iMovs = sort(selRow);
 
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
-[tfsucc,movfile,trxfile] = promptGetMovTrxFiles();
+[tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
 if ~tfsucc
   return;
 end
@@ -165,3 +165,21 @@ if isempty(iMov)
 else
   lObj.movieSet(iMov);
 end
+
+function menu_file_add_movies_from_text_file_Callback(hObject, eventdata, handles)
+lastTxtFile = RC.getprop('lastMovieBatchFile');
+if ~isempty(lastTxtFile)
+  [~,~,ext] = fileparts(lastTxtFile);
+  ext = ['*' ext];
+  file0 = lastTxtFile;
+else
+  ext = '*.txt';
+  file0 = pwd;
+end
+[fname,pname] = uigetfile(ext,'Select movie batch file',file0);
+if isequal(fname,0)
+  return;
+end
+fname = fullfile(pname,fname);
+handles.labeler.movieAddBatchFile(fname);
+RC.saveprop('lastMovieBatchFile',fname);

@@ -1118,42 +1118,75 @@ classdef Labeler < handle
     
     function movieAdd(obj,moviefile,trxfile)
       % Add movie/trx to end of movie/trx list.
+      % moviefile: string or cellstr
+      % trxfile: (optional) string or cellstr
       %
       % moviefile: can have macros
       % trxfile: optional
       
-      if exist('trxfile','var')==0
-        trxfile = '';
+      if exist('trxfile','var')==0 || isequal(trxfile,[])
+        if ischar(moviefile)
+          trxfile = '';
+        elseif iscellstr(moviefile)
+          trxfile = repmat({''},size(moviefile));
+        else
+          error('Labeler:movieAdd','''Moviefile'' must be a char or cellstr.');
+        end
       end
-      
-      movfilefull = obj.projLocalizePath(moviefile);
-      
-      assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
-      assert(isempty(trxfile) || exist(trxfile,'file')>0,'Cannot find file ''%s''.',trxfile);
+      moviefile = cellstr(moviefile);
+      trxfile = cellstr(trxfile);
+      if numel(moviefile)~=numel(trxfile)
+        error('Labeler:movieAdd',...
+          '''Moviefile'' and ''trxfile'' arguments must have same size.');
+      end
+      nMov = numel(moviefile);
       
       mr = MovieReader();
-      mr.open(movfilefull);
-      ifo = struct();
-      ifo.nframes = mr.nframes;
-      ifo.info = mr.info;
-      mr.close();
-      
-      if ~isempty(trxfile)
-        tmp = load(trxfile);
-        nTgt = numel(tmp.trx);
-      else
-        nTgt = 1;
+      for iMov = 1:nMov
+        movFile = moviefile{iMov};
+        tFile = trxfile{iMov};
+        
+        movfilefull = obj.projLocalizePath(movFile);
+        assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
+        assert(isempty(tFile) || exist(tFile,'file')>0,'Cannot find file ''%s''.',tFile);
+
+        mr.open(movfilefull);
+        ifo = struct();
+        ifo.nframes = mr.nframes;
+        ifo.info = mr.info;
+        mr.close();
+        if ~isempty(tFile)
+          tmp = load(tFile);
+          nTgt = numel(tmp.trx);
+        else
+          nTgt = 1;
+        end
+
+        obj.movieFilesAll{end+1,1} = movFile;
+        obj.movieFilesAllHaveLbls(end+1,1) = false;
+        obj.movieInfoAll{end+1,1} = ifo;
+        obj.trxFilesAll{end+1,1} = tFile;
+        obj.labeledpos{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
+        obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,ifo.nframes,nTgt); 
+        obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,ifo.nframes,nTgt); 
+        obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,ifo.nframes,nTgt);      
+        obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
       end
+    end
+    
+    function movieAddBatchFile(obj,bfile)
+      % Read movies from batch file
       
-      obj.movieFilesAll{end+1,1} = moviefile;
-      obj.movieFilesAllHaveLbls(end+1,1) = false;
-      obj.movieInfoAll{end+1,1} = ifo;
-      obj.trxFilesAll{end+1,1} = trxfile;
-      obj.labeledpos{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
-      obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,ifo.nframes,nTgt); 
-      obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,ifo.nframes,nTgt); 
-      obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,ifo.nframes,nTgt);      
-      obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
+      if exist(bfile,'file')==0
+        error('Labeler:movieAddBatchFile','Cannot find file ''%s''.',bfile);
+      end
+      movs = importdata(bfile);
+      if ~iscellstr(movs)
+        error('Labeler:movieAddBatchFile',...
+          'Could not parse file ''%s'' for filenames.',bfile);
+      end
+      fprintf('Importing ''%d'' movies from file ''%s''.\n',numel(movs),bfile);
+      obj.movieAdd(movs);
     end
     
     function tfSucc = movieRm(obj,iMov)

@@ -581,12 +581,14 @@ lblTLObj.lObj.gdata.tbTLSelectMode.Value = lblTLObj.selectModeOn;
 function menu_file_quick_open_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
-  [tfsucc,movfile,trxfile] = promptGetMovTrxFiles();
+  [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
   if ~tfsucc
     return;
   end
+  movfile = movfile{1};
+  trxfile = trxfile{1};
+  handles.labelerObj.projQuickOpen(movfile,trxfile);
 end
-handles.labelerObj.projQuickOpen(movfile,trxfile);
 function menu_file_new_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
