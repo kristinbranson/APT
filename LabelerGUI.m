@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 18-Jun-2016 07:08:29
+% Last Modified by GUIDE v2.5 25-Jun-2016 07:21:32
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -72,13 +72,45 @@ handles.output = hObject;
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
  
-colormap(handles.figure,gray);
+% multiview
+nview = handles.labelerObj.nview;
+figs = gobjects(1,nview);
+ax = gobjects(1,nview);
+figs(1) = handles.figure;
+ax(1) = handles.axes_curr;
+for i=2:nview
+  figs(i) = figure('CloseRequestFcn',...
+    @(s,e)cbkAuxFigCloseReq(s,e,handles.labelerObj));
+  ax(i) = axes;
+  handles.labelerObj.addDepHandle(figs(i));
+end
+handles.figs_all = figs;
+handles.axes_all = ax;
 
-handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
-set(handles.image_curr,'hittest','off');
-axisoff(handles.axes_curr);
-hold(handles.axes_curr,'on');
-set(handles.axes_curr,'Color',[0 0 0]);
+arrayfun(@(x)colormap(x,gray),figs);
+
+ims = gobjects(1,nview);
+for iView=1:nview
+  ims(iView) = imagesc(0,'Parent',ax(iView));
+  set(ims(iView),'hittest','off');
+  axisoff(ax(iView));
+  hold(ax(iView),'on');
+  set(ax(iView),'Color',[0 0 0]);
+end
+handles.images_all = ims;
+handles.image_curr = ims(1);
+
+% AL: important to get clickable points. Somehow this jiggers plot
+% lims/scaling/coords so that points are more clickable; otherwise
+% lblCore points in aux axes are impossible to click (eg without zooming
+% way in or other contortions)
+for i=2:numel(figs)
+  figs(i).ResizeFcn = @cbkAuxAxResize;
+end
+%arrayfun(@(x)axis(x,'auto'),ax);
+
+
+
 hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
 axis(handles.axes_occ,[0 handles.labelerObj.nLabelPoints+1 0 2]);
@@ -147,6 +179,36 @@ guidata(hObject, handles);
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
 
+function cbkAuxAxResize(src,data)
+% AL 20160628: voodoo that may help make points more clickable. Sometimes
+% pt clickability in MultiViewCalibrated mode is unstable (eg to anchor
+% points etc)
+ax = findall(src,'type','axes');
+axis(ax,'image')
+axis(ax,'auto');
+
+function cbkAuxFigCloseReq(src,data,lObj)
+
+if ~any(src==lObj.depHandles)
+  delete(gcf);
+  return;  
+end
+
+CLOSESTR = 'Close anyway';
+DONTCLOSESTR = 'Cancel, don''t close';
+sel = questdlg('This figure is required for your current multiview project.',...
+  'Close Request Function',...
+  DONTCLOSESTR,CLOSESTR,DONTCLOSESTR);
+if isempty(sel)
+  sel = DONTCLOSESTR;
+end
+switch sel
+  case DONTCLOSESTR
+    % none
+  case CLOSESTR
+    delete(gcf)
+end
+
 function cbkWBMF(src,evt,lObj)
 lcore = lObj.lblCore;
 if ~isempty(lcore)
@@ -162,34 +224,39 @@ lObj.gdata.labelTLManual.cbkWBUF(src,evt);
 
 function cbkNewMovie(src,evt)
 lObj = src;
-movRdr = lObj.movieReader;
-nframes = movRdr.nframes;
-im = movRdr.readframe(1);
+gdata = lObj.gdata;
+movRdrs = lObj.movieReader;
+nframes = movRdrs(1).nframes;
+ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
 
 % weirdo stuff
-if isfield(movRdr.info,'bitdepth')
-  lObj.maxv = min(lObj.maxv,2^movRdr.info.bitdepth-1);
-elseif isa(im,'uint16')
+if isfield(movRdrs(1).info,'bitdepth')
+  lObj.maxv = min(lObj.maxv,2^movRdrs(1).info.bitdepth-1);
+elseif isa(ims{1},'uint16')
   lObj.maxv = min(2^16 - 1,lObj.maxv);
-elseif isa(im,'uint8')
+elseif isa(ims{1},'uint8')
   lObj.maxv = min(lObj.maxv,2^8 - 1);
 else
-  lObj.maxv = min(lObj.maxv,2^(ceil(log2(max(im(:)))/8)*8));
+  lObj.maxv = min(lObj.maxv,2^(ceil(log2(max(ims{1}(:)))/8)*8));
+end
+minvmaxv = [lObj.minv lObj.maxv];
+
+hAxs = gdata.axes_all;
+hIms = gdata.images_all;
+assert(isequal(numel(ims),numel(hAxs),numel(hIms)));
+for i=1:numel(ims)
+  set(hIms(i),'CData',ims{i});
+  set(hAxs(i),'CLim',minvmaxv,...
+    'XLim',[.5,size(ims{i},2)+.5],...
+    'YLim',[.5,size(ims{i},1)+.5]);
+  axis(hAxs(i),'image');
+  zoom(hAxs(i),'reset');
 end
 
-gdata = lObj.gdata;
-axcurr = gdata.axes_curr;
 axprev = gdata.axes_prev;
-imcurr = gdata.image_curr;
-minvmaxv = [lObj.minv lObj.maxv];
-set(imcurr,'CData',im);
-set(axcurr,'CLim',minvmaxv,...
-  'XLim',[.5,size(im,2)+.5],...
-  'YLim',[.5,size(im,1)+.5]);
 set(axprev,'CLim',minvmaxv,...
-  'XLim',[.5,size(im,2)+.5],...
-  'YLim',[.5,size(im,1)+.5]);
-zoom(axcurr,'reset');
+  'XLim',[.5,size(ims{1},2)+.5],...
+  'YLim',[.5,size(ims{1},1)+.5]);
 zoom(axprev,'reset');
 
 gdata.labelTLManual.initNewMovie();
@@ -242,41 +309,61 @@ switch lObj.labelMode
     gd.menu_setup_template_mode.Checked = 'off';
     gd.menu_setup_highthroughput_mode.Checked = 'off';
     gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
     
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
     gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.TEMPLATE
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'on';
     gd.menu_setup_highthroughput_mode.Checked = 'off';
     gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
 
     gd.menu_setup_createtemplate.Visible = 'on';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
     gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'off';
     gd.menu_setup_highthroughput_mode.Checked = 'on';
     gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
     
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'on';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
     gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.ERRORCORRECT
     gd.menu_setup_sequential_mode.Checked = 'off';
     gd.menu_setup_template_mode.Checked = 'off';
     gd.menu_setup_highthroughput_mode.Checked = 'off';
     gd.menu_setup_tracking_correction_mode.Checked = 'on';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
     
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'on';
     gd.menu_setup_lock_all_frames.Visible = 'on';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
+  case LabelMode.MULTIVIEWCALIBRATED
+    gd.menu_setup_sequential_mode.Checked = 'off';
+    gd.menu_setup_template_mode.Checked = 'off';
+    gd.menu_setup_highthroughput_mode.Checked = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'on';
+    
+    gd.menu_setup_createtemplate.Visible = 'off';
+    gd.menu_setup_set_labeling_point.Visible = 'off';
+    gd.menu_setup_unlock_all_frames.Visible = 'off';
+    gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'on';
 end
 
 function cbkTargetZoomFacChanged(src,evt)
@@ -678,9 +765,11 @@ function menu_setup_highthroughput_mode_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelingInit('labelMode',LabelMode.HIGHTHROUGHPUT);
 function menu_setup_tracking_correction_mode_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelingInit('labelMode',LabelMode.ERRORCORRECT);
+function menu_setup_multiview_calibrated_mode_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelingInit('labelMode',LabelMode.MULTIVIEWCALIBRATED);
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-npts = lObj.nLabelPoints;
+%npts = lObj.nLabelPoints;
 ipt = lObj.lblCore.iPoint;
 ret = inputdlg('Select labeling point','Point number',1,{num2str(ipt)});
 if isempty(ret)
@@ -688,6 +777,18 @@ if isempty(ret)
 end
 ret = str2double(ret{1});
 lObj.lblCore.setIPoint(ret);
+function menu_setup_load_calibration_file_Callback(hObject, eventdata, handles)
+lastCalFile = RC.getprop('lastCalibrationFile');
+if isempty(lastCalFile)
+  lastCalFile = pwd;
+end
+[fname,pth] = uigetfile('*.mat','Load Calibration File',lastCalFile);
+if isequal(fname,0)
+  return;
+end
+fname = fullfile(pth,fname);
+handles.labelerObj.labelLoadCalibrationFileRaw(fname);
+RC.saveprop('lastCalibrationFile',fname);
 
 function menu_setup_unlock_all_frames_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelPosSetAllMarked(false);

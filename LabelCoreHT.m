@@ -56,6 +56,10 @@ classdef LabelCoreHT < LabelCore
   % - Automatic capability to "resume where you left off"?
 
   properties
+    supportsMultiView = false;
+  end
+
+  properties
     iPoint;    % scalar. Either nan, or index of pt currently being labeled
     
     nFrameSkip;

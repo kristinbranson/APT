@@ -1,73 +1,22 @@
-classdef LabelCoreTemplate < LabelCore
-  
-  % DESCRIPTION
-  % In Template mode, there is a set of template/"white" points on the
-  % image at all times. (When starting, these points need to be either
-  % specified or loaded/imported.) To label a frame, adjust the points as 
-  % necessary and accept. Adjusted points are shown in colors (rather than
-  % white).
-  %
-  % Points may also be Selected using hotkeys (0..9). When a point is
-  % selected, the arrow-keys adjust the point as if by mouse. Mouse-clicks
-  % on the image also jump the point immediately to that location.
-  % Adjustment of a point in this way is identical in concept to
-  % click-dragging.
-  %
-  % To mark a point as FullyOccluded, select it with a hotkey and click in 
-  % the occluded box. To un-occlude, select it with a hotkey and click in 
-  % the main image.
-  %
-  % To toggle a point as EstimatedOccluded, right-click on the point, or
-  % use the 'o' hotkey.
-  %
-  %
-  % IMPL NOTES
-  % 2 basic states, Adjusting and Accepted
-  % - Adjusting, unlabeled frame underneath
-  % -- 'untouched' template points are white
-  % -- 'touched' template points are colored
-  % -- Accept writes to labeledpos
-  % - Adjusting, labeled frame underneath
-  % -- all pts colored/'touched'
-  % -- labeledpos exists underneath and is not overwritten until Acceptance
-  % - Accepted
-  % -- all points colored.
-  % -- Can go back into adjustment mode, but all points turn white as if from template.
-  %
-  % TRANSITIONS W/OUT TRX
-  % Note: Once a template is created/loaded, there is a set of points (either
-  %  all white/template, or partially template, or all colored) on the image
-  %  at all times.
-  % - New unlabeled frame
-  % -- Label point positions are unchanged, but all points become white.
-  %    If scrolling forward, the template from frame-1 will be used etc.
-  % -- (Enhancement? not implemented) Accepted points from 'nearest'
-  %    neighboring labeled frame (eg frm-1, or <frmLastVisited>, become
-  %    white points in new frame
-  % - New labeled frame
-  % -- Previously accepted labels shown as colored points.
-  %
-  % TRANSITIONS W/TRX
-  % - New unlabeled frame (current target)
-  % -- Existing points are auto-aligned onto new frame. The existing
-  %    points could represent previously accepted labels, or just the
-  %    previous template state.
-  % - New labeled frame (current target)
-  % -- Previously accepted labels shown as colored points.
-  % - New target (same frame), unlabeled
-  % -- Last labeled frame for new target acts as template; points auto-aligned.
-  % -- If no previously labeled frame for this target, current white points are aligned onto new target.
-  % - New target (same frame), labeled
-  % -- Previously accepted labels shown as colored points.
-  %
-  % tfAdjusted is mirrored by hPt colors;
-  % tfPtSel and tfEstOcc are mirrored by hPt Markers;
+classdef LabelCoreMultiViewTemplate < LabelCore
 
+  % Similar to LabelCoreTemplate with multiple axes. Each axis has its own
+  % template pts and you can adjust/accept as usual.
+  %
+  % In calRig mode, it also supports selection of axes, and 
+  % - Epipolar mode. "Projecting" a selected point will show EPLs in other
+  % views. Dragging a projected pt live-updates its EPLs.
+  % - Stereo mode. "Projecting" a pair of pts will show EPLs and also a
+  % reconstructed 3rd pt (3 dots).
+  
   properties
-    supportsMultiView = false;
+    supportsMultiView = true;
   end
   
   properties
+    iPt2Ax       % [npts]. iPt2Ax(iPt) gives the axis index for iPt
+    
+  
     iPtMove;     % scalar. Either nan, or index of pt being moved
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
     
@@ -75,8 +24,8 @@ classdef LabelCoreTemplate < LabelCore
     tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
     
     kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
-                 % the '1' hotkey maps to, eg typically this will take the 
-                 % values 1, 11, 21, ...
+                    % the '1' hotkey maps to, eg typically this will take the 
+                    % values 1, 11, 21, ...
   end  
   
   methods 
@@ -90,11 +39,62 @@ classdef LabelCoreTemplate < LabelCore
   
   methods
     
-    function obj = LabelCoreTemplate(varargin)
+    function obj = LabelCoreMultiViewTemplate(varargin)
       obj = obj@LabelCore(varargin{:});
     end
     
+    function delete(obj)
+      gdata = obj.labeler.gdata;
+      hFigs = gdata.figs_all;
+      hFigsAddnl = setdiff(hFigs,gdata.figure);
+
+      % Remove any pointers to this object from callbacks in hFigsAddnl.
+      % Callbacks in gdata.figure (primary figure) are fine to leave as
+      % they are LabelCore's responsibility.
+      
+      hTmp = findall(hFigsAddnl,'-property','KeyPressFcn','-not','Tag','edit_frame');
+      set(hTmp,'KeyPressFcn',[]);
+      set(hFigsAddnl,'WindowButtonMotionFcn',[]);
+      set(hFigsAddnl,'WindowButtonUpFcn',[]);
+    end
+    
     function initHook(obj)
+      %#MVOK
+      
+      obj.iPt2Ax = obj.labeler.labeledposIPt2View;
+     
+      % redefine .hPts, .hPtsTxt (originally initted in LabelCore.init())
+      deleteValidHandles(obj.hPts);
+      deleteValidHandles(obj.hPtsTxt);
+      obj.hPts = gobjects(obj.nPts,1);
+      obj.hPtsTxt = gobjects(obj.nPts,1);
+      ppi = obj.ptsPlotInfo;
+      for iPt=1:obj.nPts
+        ptsArgs = {nan,nan,ppi.Marker,...
+          'MarkerSize',ppi.MarkerSize,...
+          'LineWidth',ppi.LineWidth,...
+          'Color',ppi.Colors(iPt,:),...
+          'UserData',iPt,...
+          'HitTest','on',...
+          'ButtonDownFcn',@(s,e)obj.ptBDF(s,e)};
+        ax = obj.hAx(obj.iPt2Ax(iPt));
+        obj.hPts(iPt) = plot(ax,ptsArgs{:});
+        obj.hPtsTxt(iPt) = text(nan,nan,num2str(iPt),...
+          'Parent',ax,...
+          'Color',ppi.Colors(iPt,:),...
+          'FontSize',ppi.FontSize,...
+          'Hittest','off');
+      end
+
+      % set callbacks for addnl figs/axes
+      gdata = obj.labeler.gdata;
+      hFigs = gdata.figs_all;
+      hFigsAddnl = setdiff(hFigs,gdata.figure);
+      hTmp = findall(hFigsAddnl,'-property','KeyPressFcn','-not','Tag','edit_frame');
+      set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e)); % main axis KPF set in LabelCore.init()
+      set(hFigsAddnl,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
+      set(hFigsAddnl,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
+      
       obj.setRandomTemplate();
       
       npts = obj.nPts;
@@ -110,8 +110,8 @@ classdef LabelCoreTemplate < LabelCore
   
   methods
 
-    % For LabelCoreTemplate, newFrameAndTarget() combines all the brains of
-    % transitions for convenience reasons
+    % newFrameAndTarget() combines all the brains of transitions for 
+    % convenience reasons
     
     function newFrame(obj,iFrm0,iFrm1,iTgt)
       obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt);
@@ -122,42 +122,15 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
+      %#MVOK
+      
       [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
       if tflabeled
         obj.assignLabelCoords(lpos,'lblTags',lpostag);
         obj.enterAccepted(false);
       else
-        if iTgt0==iTgt1 % same target, new frame
-          if obj.labeler.hasTrx
-            % existing points are aligned onto new frame based on trx at
-            % (currTarget,prevFrame) and (currTarget,currFrame)
-
-            xy0 = obj.getLabelCoords();
-            xy = LabelCore.transformPtsTrx(xy0,...
-              obj.labeler.trx(iTgt0),iFrm0,...
-              obj.labeler.trx(iTgt0),iFrm1);
-            obj.assignLabelCoords(xy,'tfClip',true);
-          else
-            % none, leave pts as-is
-          end
-        else % different target
-          assert(obj.labeler.hasTrx,'Must have trx to change targets.');
-          [tfneighbor,iFrm0Neighb,lpos0] = ...
-            obj.labeler.labelPosLabeledNeighbor(iFrm1,iTgt1);
-          if tfneighbor
-            xy = LabelCore.transformPtsTrx(lpos0,...
-              obj.labeler.trx(iTgt1),iFrm0Neighb,...
-              obj.labeler.trx(iTgt1),iFrm1);
-          else
-            % no neighboring previously labeled points for new target.
-            % Just start with current points for previous target/frame.
-            xy0 = obj.getLabelCoords();
-            xy = LabelCore.transformPtsTrx(xy0,...
-              obj.labeler.trx(iTgt0),iFrm0,...
-              obj.labeler.trx(iTgt1),iFrm1);
-          end
-          obj.assignLabelCoords(xy,'tfClip',true);
-        end
+        assert(iTgt0==iTgt1,'Multiple targets unsupported.');
+        assert(~obj.labeler.hasTrx,'Targets are unsupported.');
         obj.enterAdjust(true,false);
       end
     end
@@ -176,9 +149,13 @@ classdef LabelCoreTemplate < LabelCore
     end 
     
     function axBDF(obj,src,evt) %#ok<INUSD>
+      %#MVOK
       [tf,iSel] = obj.anyPointSelected();
       if tf
-        pos = get(obj.hAx,'CurrentPoint');
+        assert(isscalar(iSel));
+        iAx = obj.iPt2Ax(iSel);
+        ax = obj.hAx(iAx);
+        pos = get(ax,'CurrentPoint');
         pos = pos(1,1:2);
         obj.assignLabelCoordsIRaw(pos,iSel);
         obj.setPointAdjusted(iSel);
@@ -198,6 +175,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function ptBDF(obj,src,evt) 
+      %#MVOK
       switch evt.Button
         case 1
           tf = obj.anyPointSelected();
@@ -220,10 +198,12 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function wbmf(obj,src,evt) %#ok<INUSD>
+      %#MVOK
       if obj.state==LabelState.ADJUST
         iPt = obj.iPtMove;
         if ~isnan(iPt)
-          ax = obj.hAx;
+          iAx = obj.iPt2Ax(iPt);
+          ax = obj.hAx(iAx);
           tmp = get(ax,'CurrentPoint');
           pos = tmp(1,1:2);
           obj.tfMoved = true;
@@ -234,6 +214,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function wbuf(obj,src,evt) %#ok<INUSD>
+      %#MVOK
       if obj.state==LabelState.ADJUST
         iPt = obj.iPtMove;
         if ~isnan(iPt) && ~obj.tfMoved
@@ -248,6 +229,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function kpf(obj,src,evt) %#ok<INUSL>
+      %#MVOK
       key = evt.Key;
       modifier = evt.Modifier;      
       tfCtrl = any(strcmp('control',modifier));
@@ -272,9 +254,11 @@ classdef LabelCoreTemplate < LabelCore
           if tfSel && ~obj.tfOcc(iSel)
             tfShift = any(strcmp('shift',modifier));
             xy = obj.getLabelCoordsI(iSel);
+            iAx = obj.iPt2Ax(iSel);
+            ax = obj.hAx(iAx);
             switch key
               case 'leftarrow'
-                xl = xlim(obj.hAx);
+                xl = xlim(ax);
                 dx = diff(xl);
                 if tfShift
                   xy(1) = xy(1) - dx/obj.DXFACBIG;
@@ -283,16 +267,17 @@ classdef LabelCoreTemplate < LabelCore
                 end
                 xy(1) = max(xy(1),1);
               case 'rightarrow'
-                xl = xlim(obj.hAx);
+                xl = xlim(ax);
                 dx = diff(xl);
                 if tfShift
                   xy(1) = xy(1) + dx/obj.DXFACBIG;
                 else
                   xy(1) = xy(1) + dx/obj.DXFAC;
                 end
-                xy(1) = min(xy(1),obj.labeler.movienc);
+                ncs = obj.labeler.movienc;
+                xy(1) = min(xy(1),ncs(iAx));
               case 'uparrow'
-                yl = ylim(obj.hAx);
+                yl = ylim(ax);
                 dy = diff(yl);
                 if tfShift
                   xy(2) = xy(2) - dy/obj.DXFACBIG;
@@ -301,14 +286,15 @@ classdef LabelCoreTemplate < LabelCore
                 end
                 xy(2) = max(xy(2),1);
               case 'downarrow'
-                yl = ylim(obj.hAx);
+                yl = ylim(ax);
                 dy = diff(yl);
                 if tfShift
                   xy(2) = xy(2) + dy/obj.DXFACBIG;
                 else
                   xy(2) = xy(2) + dy/obj.DXFAC;
                 end
-                xy(2) = min(xy(2),obj.labeler.movienr);
+                nrs = obj.labeler.movienr;
+                xy(2) = min(xy(2),nrs(iAx));
             end
             obj.assignLabelCoordsIRaw(xy,iSel);
             switch obj.state
@@ -351,6 +337,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>
+      assert(false,'Unsupported for multiview labeling');
       [tf,iSel] = obj.anyPointSelected();
       if tf
         obj.setPointAdjusted(iSel);
@@ -387,6 +374,8 @@ classdef LabelCoreTemplate < LabelCore
       % optional PVs
       % iPts. Defaults to 1:obj.nPts.
       
+      %#MVOK
+      
       iPts = myparse(varargin,'iPts',1:obj.nPts);
       obj.refreshPtMarkers(iPts);
     end
@@ -395,90 +384,30 @@ classdef LabelCoreTemplate < LabelCore
   
   methods % template
     
-    function createTemplate(obj) %#ok<MANU>
-      % Initialize "white pts" via user-clicking
-      
-      assert(false,'Currently not called');
-      
-%       obj.enterAdjust(true);
-%       
-%       msg = sprintf('Click to create %d template points.',obj.nPts);
-%       uiwait(msgbox(msg));
-%       
-%       ptsClicked = 0;
-%       axes(obj.hAx);
-%       
-%       while ptsClicked<obj.nPts;
-%         keydown = waitforbuttonpress;
-%         if get(0,'CurrentFigure') ~= obj.hFig
-%           continue;
-%         end
-%         if keydown == 0 && strcmpi(get(obj.hFig,'SelectionType'),'normal'),
-%           tmp = get(obj.hAx,'CurrentPoint');
-%           xy = tmp(1,1:2);
-%           iPt = ptsClicked+1;
-%           LabelCore.setPtsCoords(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
-%           ptsClicked = iPt;
-%         elseif keydown == 1 && double(get(obj.hFig,'CurrentCharacter')) == 27,
-%           % escape
-%           break;
-%         end
-%       end      
-    end
-    
-    function tt = getTemplate(obj)
-      % Create a template struct from current pts
-      
-      tt = struct();
-      tt.pts = obj.getLabelCoords();
-      lbler = obj.labeler;
-      if lbler.hasTrx
-        [x,y,th] = lbler.currentTargetLoc();
-        tt.loc = [x y];
-        tt.theta = th;
-      else
-        tt.loc = [nan nan];
-        tt.theta = nan;
-      end
-    end
-    
     function setTemplate(obj,tt)
-      % Set "white points" to template.
-
-      lbler = obj.labeler;      
-      tfTemplateHasTarget = ~any(isnan(tt.loc)) && ~isnan(tt.theta);
-      tfHasTrx = lbler.hasTrx;
-      
-      if tfHasTrx && ~tfTemplateHasTarget
-        warning('LabelCoreTemplate:template',...
-          'Using template saved without target coordinates');
-      elseif ~tfHasTrx && tfTemplateHasTarget
-        warning('LabelCoreTemplate:template',...
-          'Template saved with target coordinates.');
-      end
-        
-      if tfTemplateHasTarget
-        [x1,y1,th1] = lbler.currentTargetLoc;
-        xys = transformPoints(tt.pts,tt.loc,tt.theta,[x1 y1],th1);
-      else        
-        xys = tt.pts;
-      end
-      
-      obj.assignLabelCoords(xys,'tfClip',true);
-      obj.enterAdjust(true,false);
+      % none
+    end
+    
+    function tt = getTemplate(obj) %#ok<MANU>
+      tt = [];
     end
     
     function setRandomTemplate(obj)
+      %# MVOK
+      
       lbler = obj.labeler;
-      [x0,y0] = lbler.currentTargetLoc();
-      nr = lbler.movienr;
-      nc = lbler.movienc;
-      r = round(max(nr,nc)/6);
-
-      n = obj.nPts;
-      x = x0 + r*2*(rand(n,1)-0.5);
-      y = y0 + r*2*(rand(n,1)-0.5);
-      obj.assignLabelCoords([x y],'tfClip',true);
+      mrs = lbler.movieReader;
+      movszs = [[mrs.nr]' [mrs.nc]']; % [nview x 2]. col1: nr. col2: nc
+      
+      xy = nan(obj.nPts,2);
+      for iPt=1:obj.nPts
+        iAx = obj.iPt2Ax(iPt);
+        nr = movszs(iAx,1);
+        nc = movszs(iAx,2);
+        xy(iPt,1) = nc/2 + nc/3*2*(rand-0.5);
+        xy(iPt,2) = nr/2 + nr/3*2*(rand-0.5);
+      end
+      obj.assignLabelCoords(xy,'tfClip',false);        
     end
     
   end
@@ -490,6 +419,8 @@ classdef LabelCoreTemplate < LabelCore
       %
       % if tfReset, reset all points to pre-adjustment (white).
       % if tfClearLabeledPos, clear labeled pos.
+      
+      %#MVOK
       
       if tfResetPts
         tpClr = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
@@ -512,6 +443,8 @@ classdef LabelCoreTemplate < LabelCore
     function enterAccepted(obj,tfSetLabelPos)
       % Enter accepted state for current frame/tgt. All points colored. If
       % tfSetLabelPos, all points/tags written to labelpos/labelpostag.
+      
+      %#MVOK
             
       nPts = obj.nPts;
       ptsH = obj.hPts;
@@ -535,6 +468,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function setPointAdjusted(obj,iSel)
+      %#MVOK
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
         clr = obj.ptsPlotInfo.Colors(iSel,:);
@@ -544,6 +478,7 @@ classdef LabelCoreTemplate < LabelCore
     end
 
     function toggleSelectPoint(obj,iPt)
+      %#MVOK
       tfSel = ~obj.tfPtSel(iPt);
       obj.tfPtSel(:) = false;
       obj.tfPtSel(iPt) = tfSel;
@@ -559,6 +494,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function toggleEstOccPoint(obj,iPt)
+      %#MVOK
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
       obj.refreshEstOccPts('iPts',iPt);
       if obj.state==LabelState.ACCEPTED
@@ -568,6 +504,8 @@ classdef LabelCoreTemplate < LabelCore
     
     function refreshPtMarkers(obj,iPts)
       % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
+
+      %#MVOK
       
       ppi = obj.ptsPlotInfo;
       ppitm = ppi.TemplateMode;

@@ -98,7 +98,7 @@ handles = guidata(hObj);
 
 lObj = handles.labeler;
 tbl = handles.tblMovies;
-movs = lObj.movieFilesAll;
+movs = lObj.movieFilesAll(:,1);
 movsHaveLbls = lObj.movieFilesAllHaveLbls;
 iMov = lObj.currMovie;
 
