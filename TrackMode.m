@@ -47,6 +47,12 @@ classdef TrackMode
           end
           frms = frms(~tfOOB);
           frms = {frms(:)'};
+%         elseif obj==TrackMode.SelMovEveryLblFrame
+%           iMov = labelerObj.moviesSelected;
+%           nMov = numel(iMov);
+%           frms = cell(nMov,1);
+%           for i=1:nMov            
+%           end
         else % track at regular intervals
           switch obj
             case TrackMode.CurrMovEveryFrame
@@ -54,6 +60,12 @@ classdef TrackMode
               df = 1;
             case {TrackMode.CurrMovEveryNFramesSmall TrackMode.CurrMovEveryNFramesLarge}
               iMov = labelerObj.currMovie;
+              df = labelerObj.(obj.labelerProp);
+            case TrackMode.SelMovEveryFrame
+              iMov = labelerObj.moviesSelected;
+              df = 1;
+            case {TrackMode.SelMovEveryNFramesSmall TrackMode.SelMovEveryNFramesLarge}
+              iMov = labelerObj.moviesSelected;
               df = labelerObj.(obj.labelerProp);
             case TrackMode.AllMovEveryFrame
               iMov = 1:labelerObj.nmovies;
@@ -77,6 +89,9 @@ classdef TrackMode
     CurrMovEveryNFramesLarge ('Current movie, every %d frames','trackNFramesLarge')
     CurrMovSelectedFrames ('Current movie, selected frames',[])
     CurrMovNearCurrFrame ('Current movie, within %d frames of current frame','trackNFramesNear')
+    SelMovEveryFrame ('Selected movies, every frame',[])
+    SelMovEveryNFramesSmall ('Selected movies, every %d frames','trackNFramesSmall')
+    SelMovEveryNFramesLarge ('Selected movies, every %d frames','trackNFramesLarge')
     AllMovEveryFrame ('All movies, every frame',[])  
     AllMovEveryNFramesSmall ('All movies, every %d frames','trackNFramesSmall')
     AllMovEveryNFramesLarge ('All movies, every %d frames','trackNFramesLarge')

@@ -1,1 +1,2 @@
 jctrax,/path/to/jctrax/or/jaaba
+cameracalib,/path/to/camera/calibration/toolbox

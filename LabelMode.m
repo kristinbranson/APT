@@ -5,5 +5,6 @@ classdef LabelMode
     TEMPLATE
     HIGHTHROUGHPUT
     ERRORCORRECT
+    MULTIVIEWCALIBRATED
   end
 end
