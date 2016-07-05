@@ -1004,7 +1004,7 @@ classdef Labeler < handle
     
     function errUnreplacedMacros(strs)
       strs = cellstr(strs);
-      toks = cellfun(@(x)regexp(x,'\$([a-zA-Z]+)','tokens'),strs,'uni',0);
+      toks = cellfun(@(x)regexp(x,'\$([a-zA-Z0-9_]+)','tokens'),strs,'uni',0);
       toks = [toks{:}];
       toks = [toks{:}];
       if ~isempty(toks)
