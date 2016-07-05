@@ -25,6 +25,10 @@ classdef LabelCore < handle
   properties (Abstract)
     supportsMultiView % scalar logical
   end
+  
+  properties (SetObservable)
+    hideLabels; % scalar logical
+  end
         
   properties
     labeler;              % scalar Labeler obj
@@ -125,6 +129,7 @@ classdef LabelCore < handle
           'Hittest','off');
       end
       axis(axOcc,[0 obj.nPts+1 0 2]);
+      obj.hideLabels = false;
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
@@ -226,12 +231,22 @@ classdef LabelCore < handle
   methods
     function labelsHide(obj)
       [obj.hPts.Visible] = deal('off');
-      [obj.hPtsTxt.Visible] = deal('off');      
+      [obj.hPtsTxt.Visible] = deal('off'); 
+      obj.hideLabels = true;
     end
     
     function labelsShow(obj)
       [obj.hPts.Visible] = deal('on');
       [obj.hPtsTxt.Visible] = deal('on');
+      obj.hideLabels = false;      
+    end
+    
+    function labelsHideToggle(obj)
+      if obj.hideLabels
+        obj.labelsShow();
+      else
+        obj.labelsHide();
+      end
     end
   end
   

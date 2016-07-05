@@ -178,6 +178,10 @@ classdef LabelCoreErrorCorrect < LabelCore
       tfShft = any(strcmp('shift',modifier));
       
       switch key
+        case {'h'}
+          if tfCtrl
+            obj.labelsHideToggle();
+          end
         case {'s' 'space'}
           obj.acceptLabels();
         case {'d' 'equal'}
@@ -294,8 +298,9 @@ classdef LabelCoreErrorCorrect < LabelCore
         '* 0..9 selects/unselects a point. When a point is selected:'
         '* ` (backquote) increments the mapping of the 0-9 hotkeys.'
         '* LEFT/RIGHT/UP/DOWN adjusts the point.'
-        '* Shift-LEFT, etc adjusts the point by larger steps.' 
-        '* Clicking on the image moves the selected point to that location.'};
+        '* <shift>-LEFT, etc adjusts the point by larger steps.' 
+        '* Clicking on the image moves the selected point to that location.'
+        '* <ctrl>-h to show/hide labels.'};      
     end
     
     function refreshEstOccPts(obj,varargin)

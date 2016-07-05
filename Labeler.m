@@ -169,9 +169,10 @@ classdef Labeler < handle
     
     labeledposNPtSets
   end
-  properties
+  properties (SetObservable)
     lblCore;
-    
+  end
+  properties    
     lblPrev_ptsH;         % TODO: encapsulate labelsPrev (eg in a LabelCore)
     lblPrev_ptsTxtH;
     

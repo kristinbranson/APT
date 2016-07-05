@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 25-Jun-2016 07:21:32
+% Last Modified by GUIDE v2.5 05-Jul-2016 12:22:54
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -149,6 +149,7 @@ listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerN
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
+listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(handles.labelTLManual,'selectModeOn','PostSet',@cbkLabelTLManualSelectModeOn);
 handles.listeners = listeners;
@@ -208,6 +209,18 @@ switch sel
   case CLOSESTR
     delete(gcf)
 end
+
+function cbkLblCoreChanged(src,evt)
+lObj = evt.AffectedObject;
+lblCore = lObj.lblCore;
+if ~isempty(lblCore)
+  lblCore.addlistener('hideLabels','PostSet',@cbkLblCoreHideLabelsChanged);
+end
+
+function cbkLblCoreHideLabelsChanged(src,evt)
+lblCore = evt.AffectedObject;
+gdata = lblCore.labeler.gdata;
+gdata.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels);
 
 function cbkWBMF(src,evt,lObj)
 lcore = lObj.lblCore;
@@ -748,7 +761,7 @@ handles.labelerObj.labelExportTrk();
 %   end
 % end
 
-function menu_help_labeling_actions_Callback(hObject, eventdata, handles)
+function menu_help_Callback(hObject, eventdata, handles)
 lblCore = handles.labelerObj.lblCore;
 if isempty(lblCore)
   h = 'Please open a movie first.';
@@ -837,14 +850,9 @@ handles.labelerObj.videoFlipUD();
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
 handles.labelerObj.videoFlipLR();
 function menu_view_hide_labels_Callback(hObject, eventdata, handles)
-lObj = handles.labelerObj;
-switch hObject.Checked
-  case 'on'
-    lObj.lblCore.labelsShow();
-    hObject.Checked = 'off';
-  case 'off'
-    lObj.lblCore.labelsHide();
-    hObject.Checked = 'on';
+lblCore = handles.labelerObj.lblCore;
+if ~isempty(lblCore)
+  lblCore.labelsHideToggle();
 end
 
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
