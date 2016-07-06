@@ -273,11 +273,11 @@ classdef Labeler < handle
     function v = get.moviesSelected(obj)      
       % Possibly questionable, find MovieManager in depHandles
       depH = obj.depHandles;
-      names = cellfun(@(x)x.Name,depH,'uni',0);
+      names = arrayfun(@(x)x.Name,depH,'uni',0);
       tf = strcmp(names,'Manage Movies');
       idx = find(tf);
       if isscalar(idx)
-        hMM = depH{idx};
+        hMM = depH(idx);
         mmgd = guidata(hMM);
         v = mmgd.cbkGetSelectedMovies();
       else
