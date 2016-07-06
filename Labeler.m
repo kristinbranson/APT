@@ -560,7 +560,43 @@ classdef Labeler < handle
     end
       
     function projSaveRaw(obj,fname)
-      s = obj.projGetSaveStruct(); %#ok<NASGU>
+      s = obj.projGetSaveStruct();
+      
+      CHECKSAVEISSUE = true;
+      if CHECKSAVEISSUE && exist(fname,'file')>0
+        warnst = warning('off','MATLAB:load:variableNotFound');
+        tCls = load(fname,'-mat','trackerClass');
+        tDat = load(fname,'-mat','trackerData');
+        if isfield(tCls,'trackerClass')
+          tCls = tCls.trackerClass;
+        else
+          tCls = [];
+        end
+        if isfield(tDat,'trackerData')
+          tDat = tDat.trackerData;
+        else
+          tDat = [];
+        end
+        if ~isempty(tCls) && isempty(s.trackerClass) || ...
+           ~isempty(tDat) && isempty(s.trackerData)
+          qstr = sprintf('Project file ''%s'' contains a trained tracker. With your save, you will DELETE this tracker. Continue?',fname);
+          YESSTR = 'Yes, delete my saved tracker';
+          NOSTR = 'No, cancel';
+          btn = questdlg(qstr,YESSTR,NOSTR,NOSTR);
+          if isempty(btn)
+            btn = NOSTR;
+          end
+          switch btn
+            case YESSTR
+              % none; continue
+            case NOSTR
+              return;
+          end
+        end
+          
+        warning(warnst);
+      end        
+      
       save(fname,'-mat','-struct','s');
 
       obj.labeledposNeedsSave = false;
