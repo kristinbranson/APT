@@ -284,7 +284,7 @@ classdef Labeler < handle
         error('Labeler:getMoviesSelected',...
           'Cannot access MovieManager UI. Make sure your desired movies are selected in the Movie Manager.');
       end
-      end
+    end
     function v = get.hasTrx(obj)
       v = ~isempty(obj.trx);
     end
@@ -1055,11 +1055,6 @@ classdef Labeler < handle
           s.trackerData = [];
         end
       end
-      if ~isempty(s.trackerClass)
-        assert(isfield(s,'trackerData'),...
-          'Missing tracker data for tracker class ''%s'' in saved data.',s.trackerClass);
-      end
-
     end  
     
     function [I,p,md] = lblRead(lblFiles,varargin)
@@ -1275,7 +1270,7 @@ classdef Labeler < handle
       
       if exist('trxfile','var')==0 || isequal(trxfile,[])
         if ischar(moviefile)
-        trxfile = '';
+          trxfile = '';
         elseif iscellstr(moviefile)
           trxfile = repmat({''},size(moviefile));
         else
@@ -1296,32 +1291,32 @@ classdef Labeler < handle
         tFile = trxfile{iMov};
       
         movfilefull = obj.projLocalizePath(movFile);
-      assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
+        assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
         assert(isempty(tFile) || exist(tFile,'file')>0,'Cannot find file ''%s''.',tFile);
 
-      mr.open(movfilefull);
-      ifo = struct();
-      ifo.nframes = mr.nframes;
-      ifo.info = mr.info;
-      mr.close();
-
+        mr.open(movfilefull);
+        ifo = struct();
+        ifo.nframes = mr.nframes;
+        ifo.info = mr.info;
+        mr.close();
+        
         if ~isempty(tFile)
           tmp = load(tFile);
-        nTgt = numel(tmp.trx);
-      else
-        nTgt = 1;
-      end
-
+          nTgt = numel(tmp.trx);
+        else
+          nTgt = 1;
+        end
+        
         obj.movieFilesAll{end+1,1} = movFile;
-      obj.movieFilesAllHaveLbls(end+1,1) = false;
-      obj.movieInfoAll{end+1,1} = ifo;
+        obj.movieFilesAllHaveLbls(end+1,1) = false;
+        obj.movieInfoAll{end+1,1} = ifo;
         obj.trxFilesAll{end+1,1} = tFile;
-      obj.labeledpos{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
-      obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,ifo.nframes,nTgt); 
-      obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,ifo.nframes,nTgt); 
-      obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,ifo.nframes,nTgt);      
-      obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
-    end
+        obj.labeledpos{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
+        obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,ifo.nframes,nTgt);
+        obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,ifo.nframes,nTgt);
+        obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,ifo.nframes,nTgt);
+        obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
+      end
     end
     
     function movieAddBatchFile(obj,bfile)
@@ -1423,62 +1418,62 @@ classdef Labeler < handle
       for iView = 1:obj.nview
         movfile = obj.movieFilesAll{iMov,iView};
         movfileFull = obj.movieFilesAllFull{iMov,iView};
-      Labeler.errUnreplacedMacros(movfileFull);
-
-      if exist(movfileFull,'file')==0
-        if Labeler.hasMacro(movfile)
-          qstr = sprintf('Cannot find movie ''%s'', macro-expanded to ''%s''.',...
-            movfile,movfileFull);
-          resp = questdlg(qstr,'Movie not found','Redefine macros','Browse to movie','Cancel','Cancel');
-          if isempty(resp)
-            resp = 'Cancel';
-            end
-          switch resp
-            case 'Redefine macros'
-              obj.projMacroSetUI();
-                movfileFull = obj.movieFilesAllFull{iMov,iView};
-              Labeler.errUnreplacedMacros(movfileFull);
-              if exist(movfileFull,'file')==0
-                error('Labeler:mov','Cannot find movie ''%s'', macro-expanded to ''%s''',...
-                  movfile,movfileFull);
-              end
-            case 'Browse to movie'
-              % none
-            case 'Cancel'
-              return;
-          end
-        end
-
+        Labeler.errUnreplacedMacros(movfileFull);
+        
         if exist(movfileFull,'file')==0
-          % Either
-          % i) no macro in moviename OR
-          % ii) has macro but user selected browse to movie
-
-          warningNoTrace('Labeler:mov',...
-            'Cannot find movie ''%s''. Please browse to movie location.',...
-            movfileFull);
-          lastmov = RC.getprop('lbl_lastmovie');
-          if isempty(lastmov)
-            lastmov = pwd;
+          if Labeler.hasMacro(movfile)
+            qstr = sprintf('Cannot find movie ''%s'', macro-expanded to ''%s''.',...
+              movfile,movfileFull);
+            resp = questdlg(qstr,'Movie not found','Redefine macros','Browse to movie','Cancel','Cancel');
+            if isempty(resp)
+              resp = 'Cancel';
+            end
+            switch resp
+              case 'Redefine macros'
+                obj.projMacroSetUI();
+                movfileFull = obj.movieFilesAllFull{iMov,iView};
+                Labeler.errUnreplacedMacros(movfileFull);
+                if exist(movfileFull,'file')==0
+                  error('Labeler:mov','Cannot find movie ''%s'', macro-expanded to ''%s''',...
+                    movfile,movfileFull);
+                end
+              case 'Browse to movie'
+                % none
+              case 'Cancel'
+                return;
+            end
           end
-          [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
-          if isequal(newmovfile,0)
-            error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
-          end
-          movfileFull = fullfile(newmovpath,newmovfile);
+          
+          if exist(movfileFull,'file')==0
+            % Either
+            % i) no macro in moviename OR
+            % ii) has macro but user selected browse to movie
+            
+            warningNoTrace('Labeler:mov',...
+              'Cannot find movie ''%s''. Please browse to movie location.',...
+              movfileFull);
+            lastmov = RC.getprop('lbl_lastmovie');
+            if isempty(lastmov)
+              lastmov = pwd;
+            end
+            [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
+            if isequal(newmovfile,0)
+              error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
+            end
+            movfileFull = fullfile(newmovpath,newmovfile);
             obj.movieFilesAll{iMov,iView} = movfileFull;
+          end
         end
-        end
-
+        
         obj.movieReader(iView).open(movfileFull);
-      RC.saveprop('lbl_lastmovie',movfileFull);
+        RC.saveprop('lbl_lastmovie',movfileFull);
         if iView==1
-      [path0,movname] = myfileparts(obj.moviefile);
-      [~,parent] = fileparts(path0);
-      obj.moviename = fullfile(parent,movname);
+          [path0,movname] = myfileparts(obj.moviefile);
+          [~,parent] = fileparts(path0);
+          obj.moviename = fullfile(parent,movname);
         end
       end
-            
+      
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
       obj.setFrameAndTarget(1,1);
@@ -1706,8 +1701,8 @@ classdef Labeler < handle
       switch lblmode
         case LabelMode.TEMPLATE
           if ~isempty(template)
-        obj.lblCore.setTemplate(template);
-      end
+            obj.lblCore.setTemplate(template);
+          end
         case LabelMode.MULTIVIEWCALIBRATED
           vcd = obj.viewCalibrationData;
           if isempty(vcd)
