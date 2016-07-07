@@ -3,7 +3,7 @@ classdef CalRig < handle
   properties (Abstract)
     nviews
     viewNames % [nviews]. cellstr viewnames
-    viewSizes % [nviews x 2]. viewSizes(iView,:) gives [nr nc]
+    viewSizes % [nviews x 2]. viewSizes(iView,:) gives [nc nr] or [width height]
   end
     
   methods (Abstract)

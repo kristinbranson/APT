@@ -1,4 +1,5 @@
 classdef CalibratedRig < CalRig
+  % Romain calibrated rig
 
   % Coord system notes
   %
@@ -26,25 +27,47 @@ classdef CalibratedRig < CalRig
   %   then crop using the ROIs.
   
   properties (Constant)
+    BIASCONFIGFILES = struct(...
+      'L','bias_configCam0.json',...
+      'R','bias_configCam1.json',...
+      'B','bias_configCam2.json');
+
     YIMSIZE = 1200;
   end
     
   properties
     nviews = 3;
-    viewNames = {'l' 'r' 'b'};
-    viewSizes = [288 666;288 658;768 762]; % XXX CHECK THIS AGAINST LOBJ
+    viewNames = {'L' 'R' 'B'};
   end
+  properties (Dependent)
+    viewSizes
+  end        
   
   properties
+    calibFileLB; % string
+    calibFileBR; % string
+    
     stroInfo; % info from stereo calibs
 
-    int; % struct with fields 'l', 'r', 'b'. intrinsic params: .fc, .cc, etc
+    int; % struct with <viewNames> as fields. intrinsic params: .fc, .cc, etc
 
     om; % 
     T; % For om, T and R, eg X_bot = R.BL * X_left + T.BL
     R; % 
         
-    roi; % struct, eg roi.l.height, roi.l.offsetX, etc
+    roi; % struct, eg roi.<viewName>.height, roi.<viewName>.offsetX, etc
+    roiDir; % string
+  end
+  
+  methods
+    function v = get.viewSizes(obj)
+      v = nan(obj.nviews,2);
+      for iView = 1:obj.nviews
+        vName = obj.viewNames{iView};
+        vRoi = obj.roi.(vName);
+        v(iView,:) = [vRoi.width vRoi.height];
+      end
+    end
   end
     
   methods
@@ -52,35 +75,76 @@ classdef CalibratedRig < CalRig
     function obj = CalibratedRig(calibResLB,calibResBR)
       % reads intrinsic/extrinsic params from calibration files
       
-      [nameL,nameR,ifoLB,intLB,extLB] = CalibratedRig.loadStroCalibResults(calibResLB);
-      assert(strcmp(nameL,'cam0-')); %left
-      assert(strcmp(nameR,'cam2-')); %bot
-      [nameL,nameR,ifoBR,intBR,extBR] = CalibratedRig.loadStroCalibResults(calibResBR);
-      assert(strcmp(nameL,'cam2-')); %bot
-      assert(strcmp(nameR,'cam1-')); %right
+      obj.calibFileLB = calibResLB;
+      obj.calibFileBR = calibResBR;
+      
+      [nameL_LB,nameR_LB,ifoLB,intLB,extLB] = CalibratedRig.loadStroCalibResults(calibResLB);
+      [nameL_BR,nameR_BR,ifoBR,intBR,extBR] = CalibratedRig.loadStroCalibResults(calibResBR);
       
       assert(isequal(ifoLB,ifoBR));
       obj.stroInfo = ifoLB;
       
+      LRSTR = {'l' 'r'};
+      namesLR_LB = {nameL_LB;nameR_LB};
+      tfCam0 = strncmp(namesLR_LB,'cam0',4);
+      tfCam2 = strncmp(namesLR_LB,'cam2',4);
+      assert(nnz(tfCam0)==1 && nnz(tfCam2)==1,'Unexpected left/right cam names for calibResLB.');
+      RIG_LB2CAL_LR = struct();
+      RIG_LB2CAL_LR.L = LRSTR{tfCam0};
+      RIG_LB2CAL_LR.B = LRSTR{tfCam2};
+      CAL_LR2RIG_LB = struct();
+      CAL_LR2RIG_LB.(LRSTR{tfCam0}) = 'L';
+      CAL_LR2RIG_LB.(LRSTR{tfCam2}) = 'B';
+      
+      namesLR_BR = {nameL_BR;nameR_BR};
+      tfCam1 = strncmp(namesLR_BR,'cam1',4);
+      tfCam2 = strncmp(namesLR_BR,'cam2',4);
+      assert(nnz(tfCam1)==1 && nnz(tfCam2)==1,'Unexpected left/right cam names for calibResBR.');
+      RIG_BR2CAL_LR = struct();
+      RIG_BR2CAL_LR.R = LRSTR{tfCam1};
+      RIG_BR2CAL_LR.B = LRSTR{tfCam2};
+      CAL_LR2RIG_BR = struct();
+      CAL_LR2RIG_BR.(LRSTR{tfCam1}) = 'R';
+      CAL_LR2RIG_BR.(LRSTR{tfCam2}) = 'B';
+      
+      fprintf('Loaded: %s\n',calibResLB);
+      fprintf('''left'' cam: %s. ''right'' cam: %s.\n',nameL_LB,nameR_LB);
+      fprintf(' => rigL cam is ''%s'' and rigB cam is ''%s''\n',RIG_LB2CAL_LR.L,RIG_LB2CAL_LR.B);
+      fprintf('Loaded: %s\n',calibResBR);
+      fprintf('''left'' cam: %s. ''right'' cam: %s.\n',nameL_BR,nameR_BR);
+      fprintf(' => rigB cam is ''%s'' and rigR cam is ''%s''\n',RIG_BR2CAL_LR.B,RIG_BR2CAL_LR.R);
+      
       obj.int = struct();
-      obj.int.l = intLB.l;
-      obj.int.r = intBR.r;
-      assert(isequal(intLB.r,intBR.l));
-      obj.int.b = intLB.r;
+      obj.int.L = intLB.(RIG_LB2CAL_LR.L);
+      obj.int.R = intBR.(RIG_BR2CAL_LR.R);
+      assert(isequal(intLB.(RIG_LB2CAL_LR.B),intBR.(RIG_BR2CAL_LR.B)));
+      obj.int.B = intLB.(RIG_LB2CAL_LR.B);
       
       omm = struct();
       TT = struct();
       RR = struct();
-      omm.BL = extLB.om;
-      TT.BL = extLB.T;
-      RR.BL = extLB.R; % R, T for Bottom in terms of Left
-      omm.RB = extBR.om;
-      TT.RB = extBR.T;
-      RR.RB = extBR.R; % R, T for Right in terms of Bottom
+      
+      % read off om, T, R values from stereo calib results
+      rightWRTLeftLB = [CAL_LR2RIG_LB.r CAL_LR2RIG_LB.l]; % eg: 'BL'
+      rightWRTLeftBR = [CAL_LR2RIG_BR.r CAL_LR2RIG_BR.l];
+      omm.(rightWRTLeftLB) = extLB.om;
+      TT.(rightWRTLeftLB) = extLB.T;
+      RR.(rightWRTLeftLB) = extLB.R;
+      omm.(rightWRTLeftBR) = extBR.om;
+      TT.(rightWRTLeftBR) = extBR.T;
+      RR.(rightWRTLeftBR) = extBR.R;
+      
+      % invert to get reverse values
+      leftWRTRightLB = rightWRTLeftLB(end:-1:1);
+      leftWRTRightBR = rightWRTLeftBR(end:-1:1);
+      omm.(leftWRTRightLB) = -omm.(rightWRTLeftLB);
+      omm.(leftWRTRightBR) = -omm.(rightWRTLeftBR);
+      [RR.(leftWRTRightLB),TT.(leftWRTRightLB)] = ...
+        CalibratedRig.invertRT(RR.(rightWRTLeftLB),TT.(rightWRTLeftLB));
+      [RR.(leftWRTRightBR),TT.(leftWRTRightBR)] = ...
+        CalibratedRig.invertRT(RR.(rightWRTLeftBR),TT.(rightWRTLeftBR));
       
       % fill out T, R matrices for all xform pairs
-      [RR.LB,TT.LB] = CalibratedRig.invertRT(RR.BL,TT.BL);
-      [RR.BR,TT.BR] = CalibratedRig.invertRT(RR.RB,TT.RB);
       [RR.LR,TT.LR] = CalibratedRig.composeRT(RR.BR,TT.BR,RR.LB,TT.LB);
       [RR.RL,TT.RL] = CalibratedRig.composeRT(RR.BL,TT.BL,RR.RB,TT.RB);
       % Sanity
@@ -96,20 +160,17 @@ classdef CalibratedRig < CalRig
     end
       
     function setROIs(obj,expdir)
-      % Reads ROI info (sets .roi) from BIAS json files
-      
-      FILES = struct();
-      FILES.l = 'bias_configCam0.json';
-      FILES.r = 'bias_configCam1.json';
-      FILES.b = 'bias_configCam2.json';
-      
+      % Reads ROI info (sets .roi) from BIASCONFIGFILES
+            
       s = struct();
-      for cam={'l' 'r' 'b'},cam=cam{1}; %#ok<FXSET>
-        tmp = loadjson(fullfile(expdir,FILES.(cam)));
-        s.(cam) = tmp.camera.format7Settings.roi;        
+      for cam=obj.viewNames(:)',cam=cam{1}; %#ok<FXSET>
+        jsonfile = fullfile(expdir,obj.BIASCONFIGFILES.(cam));
+        tmp = loadjson(jsonfile);
+        s.(cam) = tmp.camera.format7Settings.roi;
       end
       
       obj.roi = s;
+      obj.roiDir = expdir;      
     end
     
   end
@@ -195,14 +256,15 @@ classdef CalibratedRig < CalRig
       % of image with NaN.
       %
       % y: [Nx2] (row,col) cropped coords
-      % cam: 'l','r','b'
+      % viewIdx:
       %
       % y: [Nx2], with OOB points replaced with nan in both coords
       
       assert(size(y,2)==2);
       
-      nr = obj.viewSizes(viewIdx,2);
-      nc = obj.viewSizes(viewIdx,1);
+      vSize = obj.viewSizes(viewIdx,:);
+      nc = vSize(1);
+      nr = vSize(2);
       rows = y(:,1);
       cols = y(:,2);
       tfOOB = rows<1 | rows>nr | cols<1 | cols>nc;

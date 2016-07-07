@@ -663,6 +663,24 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
     function projectionSetCalRig(obj,crig)
       assert(isa(crig,'CalRig'));
+      
+      crigViewSzs = crig.viewSizes; % [nView x 2]; each row is [nc nr]
+      lObj = obj.labeler;
+      imsAll = lObj.gdata.images_all;
+      for iView = 1:obj.nview
+        cdata = imsAll(iView).CData;
+        imnr = size(cdata,1);
+        imnc = size(cdata,2);
+        crignc = crigViewSzs(iView,1);
+        crignr = crigViewSzs(iView,2);
+        if imnr~=crignr || imnc~=crignc
+          warning('LabelCoreMultiViewCalibrated:projectionSetCalRig',...
+            'View %d (%s): image size is [nr nc]=[%d %d]; calibration based on [%d %d]',...
+            iView,crig.viewNames{iView},...
+            imnr,imnc,crignr,crignc);
+        end
+      end
+      
       obj.pjtCalRig = crig;
     end
     
