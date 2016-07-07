@@ -24,12 +24,13 @@ classdef GMMInterpolator < LabelTracker
       dampen = 0.5;
       poslambdafixed = 100;
       
+      labeler = obj.lObj;
+
       if exist('trkfiles','var')==0
         movfiles = obj.lObj.movieFilesAllFull(iMovs);
-        trkfiles = cellfun(@Labeler.defaultTrkFileName,movfiles,'uni',0);
+        trkfiles = cellfun(@labeler.defaultTrkFileName,movfiles,'uni',0);
       end
 
-      labeler = obj.lObj;
       assert(labeler.nTargets==1);
       npts = labeler.nLabelPoints;
       for i=1:numel(iMovs)

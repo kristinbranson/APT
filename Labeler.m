@@ -2146,26 +2146,32 @@ classdef Labeler < handle
     end
   end
   
-  methods (Static)
-    function trkfile = defaultTrkFileName(movfile)
-      [p,movS] = fileparts(movfile);
-      trkfile = fullfile(p,[movS '.trk']);
-    end    
-    function [tfok,trkfiles] = getTrkFileNames(movfiles)
-      % Generate trkfile names for movfiles. If trkfiles exist, ask before
-      % overwriting etc.
+  methods
+    
+    function trkfile = defaultTrkFileName(obj,movfile)
+      prjname = obj.projname;
+      [movpath,movS] = fileparts(movfile);
+      if isempty(prjname)
+        trkfile = fullfile(movpath,[movS '.trk']);
+      else
+        trkfile = fullfile(movpath,sprintf('%s_%s.trk',movS,prjname));
+      end
+    end
+
+    function [tfok,trkfiles] = getTrkFileNames(obj,movfiles)
+      % Generate trkfile names for movfiles. If trkfiles exist, ask whether
+      % overwriting is ok; user may also modify trkfilenames from default.
       %
       % movfiles: cellstr of movieFilesAllFull
       %
-      % tfcontinue: if true, trkfiles is valid, go ahead and write to
-      % those. (This may involve overwrites but user OKed it)
+      % tfok: if true, trkfiles is valid, and user has said it is ok to
+      % write to those files even if it is an overwrite.
       % trkfiles: cellstr, same size as movfiles. .trk filenames
       % corresponding to movfiles
       
-      [movpaths,movS] = cellfun(@fileparts,movfiles,'uni',0);
-      trkfiles = cellfun(@(x,y)fullfile(x,[y '.trk']),movpaths,movS,'uni',0);
-      tfok = true;      
+      trkfiles = cellfun(@obj.defaultTrkFileName,movfiles,'uni',0);
       tfexist = cellfun(@(x)exist(x,'file')>0,trkfiles);
+      tfok = true;
       if any(tfexist)
         iExist = find(tfexist,1);
         queststr = sprintf('One or more .trk files already exist, eg: %s.',trkfiles{iExist});
@@ -2179,16 +2185,15 @@ classdef Labeler < handle
             % none; use trkfiles as-is
           case 'Add datetime to filenames'
             nowstr = datestr(now,'yyyymmddTHHMMSS');
-            trkfiles = cellfun(@(x,y)fullfile(x,[y '.' nowstr '.trk']),movpaths,movS,'uni',0);
+            [trkP,trkF] = cellfun(@fileparts,trkfiles,'uni',0);            
+            trkfiles = cellfun(@(x,y)fullfile(x,[y '_' nowstr '.trk']),trkP,trkF,'uni',0);
           otherwise
             tfok = false;
             trkfiles = [];
         end
       end
     end
-  end
-  
-  methods
+    
     function labelExportTrk(obj,iMov)
       % Export label data to trk files.
       %
@@ -2201,13 +2206,14 @@ classdef Labeler < handle
       end
       
       movfiles = obj.movieFilesAllFull(iMov,1);
-      [tfok,trkfiles] = Labeler.getTrkFileNames(movfiles);
+      [tfok,trkfiles] = obj.getTrkFileNames(movfiles);
       if tfok
         nMov = numel(iMov);
         for i=1:nMov
           s = obj.labelCreateTrkContents(iMov(i)); %#ok<NASGU>
           save(trkfiles{i},'-mat','-struct','s');
         end
+        msgbox(sprintf('%d trk files exported.',nMov),'Export complete.');
       end
     end
     
@@ -2260,7 +2266,7 @@ classdef Labeler < handle
       end      
       if exist('trkfiles','var')==0
         movfiles = obj.movieFilesAllFull(iMovs,1);
-        trkfiles = cellfun(@Labeler.defaultTrkFileName,movfiles,'uni',0);
+        trkfiles = cellfun(@obj.defaultTrkFileName,movfiles,'uni',0);
       end
       
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
@@ -3162,7 +3168,7 @@ classdef Labeler < handle
       end      
       if exist('trkfiles','var')==0
         movfiles = obj.movieFilesAllFull(iMovs,1);
-        trkfiles = cellfun(@Labeler.defaultTrkFileName,movfiles,'uni',0);
+        trkfiles = cellfun(@obj.defaultTrkFileName,movfiles,'uni',0);
       end
 
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos2',[],[]);      
@@ -3189,7 +3195,7 @@ classdef Labeler < handle
       end
       
       movfiles = obj.movieFilesAllFull(iMov,1);
-      [tfok,trkfiles] = Labeler.getTrkFileNames(movfiles);
+      [tfok,trkfiles] = obj.getTrkFileNames(movfiles);
       if tfok
         nMov = numel(iMov);
         for i=1:nMov
