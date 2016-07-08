@@ -699,6 +699,14 @@ classdef Labeler < handle
       end
       RC.saveprop('lastLblFile',fname);
       
+      % AL20160708. Order important. Init MovieReaders first, as loading
+      % props may set movieReader props (eg .movieForceGrayScale)
+      mr = MovieReader.empty(1,0);
+      for i=obj.nview:-1:1
+        mr(1,i) = MovieReader;
+      end
+      obj.movieReader = mr;
+      
       s = Labeler.lblModernize(s);
       obj.isinit = true;
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
@@ -709,13 +717,7 @@ classdef Labeler < handle
           %obj.(f) = [];
         end
       end
-   
-      mr = MovieReader.empty(1,0);
-      for i=obj.nview:-1:1
-        mr(1,i) = MovieReader;
-      end
-      obj.movieReader = mr;
-      
+     
       % labelPointsPlotInfo: special treatment. For old projects,
       % obj.labelPointsPlotInfo can have new/removed fields relative to
       % s.labelPointsPlotInfo. I guess by overlaying we are not removing

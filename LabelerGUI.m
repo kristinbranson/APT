@@ -252,7 +252,7 @@ ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
 if isfield(movRdrs(1).info,'bitdepth')
   lObj.maxv = min(lObj.maxv,2^movRdrs(1).info.bitdepth-1);
 elseif isa(ims{1},'uint16')
-  lObj.maxv = min(2^16 - 1,lObj.maxv);
+  lObj.maxv = min(lObj.maxv,2^16 - 1);
 elseif isa(ims{1},'uint8')
   lObj.maxv = min(lObj.maxv,2^8 - 1);
 else
