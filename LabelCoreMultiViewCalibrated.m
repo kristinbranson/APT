@@ -18,24 +18,23 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
   %
   % This requires a 'CalibratedRig' that knows how to compute EPLs and
   % reconstruct 3dpts.
-
   
   properties
     supportsMultiView = true;
   end
   
   properties
-
     iPt2iAx       % [npts]. iPt2iAx(iPt) gives the axis index for iPt
     % .hPts       % [npts] from LabelCore. hLine handles for pts (in
     %               respective axes)
     % .hPtsTxt    % [npts]
     hPtsColors    % [nptsx3] colors for pts, based on prefs.ColorsSets
+    hPtsTxtStrs   % [npts] cellstr, text labels for each pt
     iSet2iPt      % [nset x nview]. A point 'set' is a nview-tuple of point 
                   % indices that represent a single physical (3d) point.
                   % .iSet2iPt(iSet,:) are the nview pt indices that
                   % correspond to pointset iSet.
-    iPt2iSet      % [npts]. set index for each point.                 
+    iPt2iSet      % [npts]. set index for each point.
   end
   properties (Dependent)
     nView         % scalar
@@ -132,6 +131,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       obj.hPtsTxt = gobjects(obj.nPts,1);
       ppi = obj.ptsPlotInfo;
       obj.hPtsColors = nan(obj.nPointSet,3);
+      obj.hPtsTxtStrs = cell(obj.nPts,1);
       for iPt=1:obj.nPts
         iSet = obj.iPt2iSet(iPt);
         setClr = ppi.ColorsSets(iSet,:);
@@ -146,11 +146,13 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
           'ButtonDownFcn',@(s,e)obj.ptBDF(s,e)};
         ax = obj.hAx(obj.iPt2iAx(iPt));
         obj.hPts(iPt) = plot(ax,ptsArgs{:});
-        obj.hPtsTxt(iPt) = text(nan,nan,num2str(iPt),...
+        txtStr = num2str(iSet);
+        obj.hPtsTxt(iPt) = text(nan,nan,txtStr,...
           'Parent',ax,...
           'Color',setClr,...
           'FontSize',ppi.FontSize,...
           'Hittest','off');
+        obj.hPtsTxtStrs{iPt} = txtStr;
       end
 
       % set callbacks for addnl figs/axes
@@ -532,8 +534,8 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       
       %# CALOK
       
-      for i=1:obj.nPts
-        set(obj.hPtsTxt(i),'String',num2str(i));
+      for iPt=1:obj.nPts
+        set(obj.hPtsTxt(iPt),'String',obj.hPtsTxtStrs{iPt});
       end
       
       obj.pjtIPts = [nan nan];
@@ -582,11 +584,11 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
         obj.projectionClear();
       end
       hPt1 = obj.hPtsTxt(iPt1);
-      set(hPt1,'String',[num2str(iPt1) 'a']);
+      set(hPt1,'String',[obj.hPtsTxtStrs{iPt1} 'a']);
       obj.pjtIPts(1) = iPt1;
       assert(isnan(obj.pjtIPts(2)));
-      iSet = obj.iPt2iSet(iPt1);
-      obj.projectionWorkingSetSet(iSet);
+      iSet1 = obj.iPt2iSet(iPt1);
+      obj.projectionWorkingSetSet(iSet1);
       obj.projectionRefreshEPlines();
     end
     
@@ -618,7 +620,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       obj.pjtIPts(2) = iPt2;
       set(obj.pjtHLinesEpi,'Visible','off');
       
-      set(obj.hPtsTxt(iPt2),'String',[num2str(iPt2) 'a']);
+      set(obj.hPtsTxt(iPt2),'String',[obj.hPtsTxtStrs{iPt2} 'a']);
       
       obj.projectionRefreshReconPts();
     end
