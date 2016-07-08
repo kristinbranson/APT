@@ -270,7 +270,7 @@ classdef Labeler < handle
         v = mr.nframes;
       end
     end
-    function v = get.moviesSelected(obj)      
+    function v = get.moviesSelected(obj)
       % Possibly questionable, find MovieManager in depHandles
       depH = obj.depHandles;
       names = arrayfun(@(x)x.Name,depH,'uni',0);
@@ -1371,7 +1371,59 @@ classdef Labeler < handle
       fprintf('Importing ''%d'' movies from file ''%s''.\n',numel(movs),bfile);
       obj.movieAdd(movs);
     end
-    
+
+    function movieSetAdd(obj,moviefiles)
+      % Add a set of movies (Multiview mode) to end of movie list.
+      %
+      % moviefiles: cellstr (can have macris)
+
+      if obj.nTargets~=1
+        error('Labeler:movieSetAdd','Unsupported for nTargets>1.');
+      end
+      
+      moviefiles = cellstr(moviefiles);
+      if numel(moviefiles)~=obj.nview
+        error('Labeler:movieAdd',...
+          'Number of moviefiles supplied (%d) must match number of views (%d).',...
+          numel(moviefiles),obj.nview);
+      end
+      movfilefull = cellfun(@(x)obj.projLocalizePath(x),moviefiles,'uni',0);
+      cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),movfilefull);
+            
+      ifos = cell(1,obj.nview);
+      mr = MovieReader();
+      for iView = 1:obj.nview
+        mr.open(movfilefull{iView});
+        ifo = struct();
+        ifo.nframes = mr.nframes;
+        ifo.info = mr.info;
+        mr.close();
+        ifos{iView} = ifo;
+      end
+      
+      % number of frames must be the same in all movies
+      nFrms = cellfun(@(x)x.nframes,ifos);
+      if ~all(nFrms==nFrms(1))
+        nframesstr = arrayfun(@num2str,nFrms,'uni',0);
+        nframesstr = String.cellstr2CommaSepList(nframesstr);
+        error('Labeler:movieSetAdd',...
+          'Movies do not have the same number of frames: %s',nframesstr);
+      end
+      
+      nFrms = nFrms(1);
+      nTgt = 1;
+      
+      obj.movieFilesAll(end+1,:) = moviefiles(:)';
+      obj.movieFilesAllHaveLbls(end+1,1) = false;
+      obj.movieInfoAll(end+1,:) = ifos;
+      obj.trxFilesAll(end+1,:) = repmat({''},1,obj.nview);
+      obj.labeledpos{end+1,1} = nan(obj.nLabelPoints,2,nFrms,nTgt);
+      obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,nFrms,nTgt); 
+      obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,nFrms,nTgt);
+      obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,nFrms,nTgt);      
+      obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,nFrms,nTgt);
+    end
+
     function tfSucc = movieRm(obj,iMov)
       % tfSucc: true if movie removed, false otherwise
       

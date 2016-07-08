@@ -667,7 +667,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       crigViewSzs = crig.viewSizes; % [nView x 2]; each row is [nc nr]
       lObj = obj.labeler;
       imsAll = lObj.gdata.images_all;
-      for iView = 1:obj.nview
+      for iView = 1:obj.nView
         cdata = imsAll(iView).CData;
         imnr = size(cdata,1);
         imnc = size(cdata,2);
