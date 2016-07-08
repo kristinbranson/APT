@@ -841,12 +841,14 @@ classdef CPRLabelTracker < LabelTracker
         s2 = rmfield(s2,'paramFile');
       end
       s = structmerge(s1,s2);
-      s.labelTrackerClass = class(obj);
+      %s.labelTrackerClass = class(obj);
     end
     
     function loadSaveToken(obj,s)
-      assert(strcmp(s.labelTrackerClass,class(obj)));
-      s = rmfield(s,'labelTrackerClass');
+%       assert(strcmp(s.labelTrackerClass,class(obj)));
+      if isfield(s,'labelTrackerClass')
+        s = rmfield(s,'labelTrackerClass'); % legacy
+      end
       
       % ATM just load all fields
       
@@ -998,15 +1000,16 @@ classdef CPRLabelTracker < LabelTracker
     
     function vizLoadXYPrdCurrMovie(obj)
       % sets .xyPrdCurrMovie* for current Labeler movie from .trkP, .trkPMD
+
+      lObj = obj.lObj;
       
       trkTS = obj.trkPTS;
-      if isempty(trkTS)
+      if isempty(trkTS) || lObj.currMovie==0
         obj.xyPrdCurrMovie = [];
         obj.xyPrdCurrMovieIsInterp = [];
         return;
       end
             
-      lObj = obj.lObj;
       movName = lObj.movieFilesAllFull{lObj.currMovie};
       nfrms = lObj.nframes;
       
