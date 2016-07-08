@@ -88,6 +88,12 @@ handles.figs_all = figs;
 handles.axes_all = ax;
 
 arrayfun(@(x)colormap(x,gray),figs);
+if nview>1
+  viewNames = handles.labelerObj.viewNames;
+  for i=1:nview
+    figs(i).Name = sprintf('View: %s',viewNames{i});
+  end
+end
 
 ims = gobjects(1,nview);
 for iView=1:nview

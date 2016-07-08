@@ -474,7 +474,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       h = obj.hPtsTxt;
       hClrs = obj.hPtsColors;
       for i=1:obj.nPts
-        set(h(i),'Color',hClrs(i,:),'FontWeight','normal');
+        set(h(i),'Color',hClrs(i,:),'FontWeight','normal','EdgeColor','none');
       end
       obj.iSetWorking = nan;
     end
@@ -486,9 +486,9 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       hClrs = obj.hPtsColors;
       for i=1:obj.nPts
         if any(i==iPtsSet)
-          set(h(i),'Color',hClrs(i,:),'FontWeight','bold');
+          set(h(i),'Color',hClrs(i,:),'FontWeight','bold','EdgeColor','w');
         else
-          set(h(i),'Color',hClrs(i,:)*.75,'FontWeight','normal');
+          set(h(i),'Color',hClrs(i,:)*.75,'FontWeight','normal','EdgeColor','none');
         end
       end
       obj.iSetWorking = iSet;
