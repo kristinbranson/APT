@@ -97,6 +97,9 @@ function lclUpdateTable(hObj)
 handles = guidata(hObj);
 
 lObj = handles.labeler;
+if ~lObj.hasProject
+  error('MovieManager:proj','Please open/create a project first.');
+end
 tbl = handles.tblMovies;
 movs = lObj.movieFilesAll(:,1);
 movsHaveLbls = lObj.movieFilesAllHaveLbls;
@@ -127,7 +130,12 @@ function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
 if ~tfsucc
   return;
 end
-handles.labeler.movieAdd(movfile,trxfile);
+lObj = handles.labeler;
+nmovieOrig = lObj.nmovies;
+lObj.movieAdd(movfile,trxfile);
+if nmovieOrig==0 && lObj.nmovies>0
+  lObj.movieSet(1);
+end
 
 function pbRm_Callback(hObject, eventdata, handles)
 tbl = handles.tblMovies;
@@ -180,6 +188,12 @@ end
 if isequal(fname,0)
   return;
 end
+nmovieOrig = handles.labeler.nmovies;
 fname = fullfile(pname,fname);
 handles.labeler.movieAddBatchFile(fname);
 RC.saveprop('lastMovieBatchFile',fname);
+
+if nmovieOrig==0 && handles.labeler.nmovies>0
+  handles.labeler.movieSet(1);
+end
+  

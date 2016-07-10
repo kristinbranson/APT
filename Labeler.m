@@ -51,6 +51,7 @@ classdef Labeler < handle
     projPrefs; % scalar struct containing all prefs
   end
   properties (Dependent)
+    hasProject            % scalar logical
     projectfile;          % Full path to current project 
     projectroot;          % Parent dir of projectfile, if it exists
   end
@@ -311,6 +312,12 @@ classdef Labeler < handle
       else
         v = 1;
       end
+    end
+    function v = get.hasProject(obj)
+      % AL 20160710: debateable utility/correctness, but if you try to do
+      % some things (eg open MovieManager) right on bootup from an empty
+      % Labeler you get weird errors.
+      v = size(obj.movieFilesAll,2)>0;
     end
     function v = get.projectfile(obj)
       info = obj.projFSInfo;
@@ -1370,7 +1377,7 @@ classdef Labeler < handle
         error('Labeler:movieAddBatchFile',...
           'Could not parse file ''%s'' for filenames.',bfile);
       end
-      fprintf('Importing ''%d'' movies from file ''%s''.\n',numel(movs),bfile);
+      fprintf('Importing %d movies from file ''%s''.\n',numel(movs),bfile);
       obj.movieAdd(movs);
     end
 
