@@ -127,6 +127,12 @@ classdef Labeler < handle
   %% Labeling
   properties (SetObservable)
     labelMode;            % scalar LabelMode
+    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
+    labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched.
+    labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random.
+    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
+    
+    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc)
   end
   properties (SetAccess=private)
     nLabelPoints;         % scalar integer
@@ -136,12 +142,6 @@ classdef Labeler < handle
   end
   properties (SetAccess=private)
     labelTemplate;    
-    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
-    labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched.
-    labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random.
-    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
-    
-    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc)
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
@@ -358,6 +358,9 @@ classdef Labeler < handle
       if obj.trackPrefs.Enable
         obj.tracker = feval(obj.trackPrefs.Type,obj);
         obj.tracker.init();
+        
+        % Should setting the tracker for the timeline be somehwere else?
+        obj.gdata.labelTLInfo.setTracker(obj.tracker);
       end        
     end
     
@@ -2788,7 +2791,7 @@ classdef Labeler < handle
             
       % dat should equal get(tbl,'Data')     
       if obj.hasMovie
-        obj.gdata.labelTLManual.setLabelsFrame();
+        obj.gdata.labelTLInfo.setLabelsFrame();
         obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
       end
     end    
@@ -2803,7 +2806,7 @@ classdef Labeler < handle
       set(tbl,'Data',dat);
 
       if obj.hasMovie
-        obj.gdata.labelTLManual.setLabelsFrame(1:obj.nframes);
+        obj.gdata.labelTLInfo.setLabelsFrame(1:obj.nframes);
         obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
       end
     end

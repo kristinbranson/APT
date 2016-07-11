@@ -1,9 +1,9 @@
-classdef GMMInterpolator < LabelTracker
+classdef GMMTracker < LabelTracker
     
   %% Ctor/Dtor
   methods
     
-    function obj = GMMInterpolator(lObj)
+    function obj = GMMTracker(lObj)
       obj@LabelTracker(lObj);
     end
         

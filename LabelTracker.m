@@ -112,6 +112,22 @@ classdef LabelTracker < handle
     
   end
   
+  methods % For infotimeline display
+    
+    function props = propList(obj)
+      % Return a list of properties that could be shown in the
+      % infotimeline
+      props = {};
+    end
+    
+    function data = getPropValues(obj,prop)
+      % Return the values of a particular property for
+      % infotimeline
+      data = [];
+    end
+    
+  end
+  
   methods % Utilities
     
     function prm = readParamFileYaml(obj)
