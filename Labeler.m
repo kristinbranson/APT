@@ -139,6 +139,12 @@ classdef Labeler < handle
   %% Labeling
   properties (SetObservable)
     labelMode;            % scalar LabelMode
+    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
+    labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched.
+    labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random.
+    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
+    
+    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc)
   end
   properties % make public setaccess
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints        
@@ -147,11 +153,6 @@ classdef Labeler < handle
     nLabelPoints;         % scalar integer
     labelTemplate;    
     
-    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
-    labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched.
-    labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random.
-    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
-    
     labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
                           % point indices for set iSet in various views
     labeledposSetNames;   % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
@@ -159,7 +160,6 @@ classdef Labeler < handle
     labeledposIPt2View;   % [npts] vector of indices into 1:obj.nview. Convenience prop, derived from .labeledposIPtSetMap.
     labeledposIPt2Set;    % [npts] vector of set indices for each point. Convenience prop
     
-    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc)
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
@@ -407,6 +407,14 @@ classdef Labeler < handle
       for prop = obj.gdata.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
         obj.(prop) = obj.(prop);
       end
+
+      if obj.trackPrefs.Enable
+        obj.tracker = feval(obj.trackPrefs.Type,obj);
+        obj.tracker.init();
+        
+        % Should setting the tracker for the timeline be somehwere else?
+        obj.gdata.labelTLInfo.setTracker(obj.tracker);
+      end        
     end
     
     function initFromPrefs(obj,pref)
@@ -3162,7 +3170,7 @@ classdef Labeler < handle
             
       % dat should equal get(tbl,'Data')     
       if obj.hasMovie
-        obj.gdata.labelTLManual.setLabelsFrame();
+        obj.gdata.labelTLInfo.setLabelsFrame();
         obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
       end
     end    
@@ -3177,7 +3185,7 @@ classdef Labeler < handle
       set(tbl,'Data',dat);
 
       if obj.hasMovie
-        obj.gdata.labelTLManual.setLabelsFrame(1:obj.nframes);
+        obj.gdata.labelTLInfo.setLabelsFrame(1:obj.nframes);
         obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
       end
     end

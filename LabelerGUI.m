@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 05-Jul-2016 12:22:54
+% Last Modified by GUIDE v2.5 11-Jul-2016 10:58:38
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -131,7 +131,9 @@ linkaxes([handles.axes_prev,handles.axes_curr]);
 
 lObj = handles.labelerObj;
 
-handles.labelTLManual = LabelTimeline(lObj,handles.axes_timeline_manual,true);
+% handles.labelTLManual = LabelTimeline(lObj,handles.axes_timeline_manual,true);
+handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
+set(handles.pumInfo,'String',handles.labelTLInfo.getProps());
 handles.figure.WindowButtonMotionFcn = @(src,evt)cbkWBMF(src,evt,lObj);
 handles.figure.WindowButtonUpFcn = @(src,evt)cbkWBUF(src,evt,lObj);
 
@@ -157,7 +159,8 @@ listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieC
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
-listeners{end+1,1} = addlistener(handles.labelTLManual,'selectModeOn','PostSet',@cbkLabelTLManualSelectModeOn);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectModeOn','PostSet',@cbklabelTLInfoSelectModeOn);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 handles.listeners = listeners;
 
 % These Labeler properties need their callbacks fired to properly init UI.
@@ -177,6 +180,17 @@ colnames = handles.labelerObj.TBLTRX_STATIC_COLSTBL;
 set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
 colnames = handles.labelerObj.TBLFRAMES_COLS; % AL: dumb b/c table update code uses hardcoded cols 
 set(handles.tblFrames,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
+
+% Set the size of gui slightly smaller than screen size.
+scsz = get(groot,'Screensize');
+set(hObject,'Units','Pixels');
+fsz = get(hObject,'Position');
+fsz(1) = max(25,fsz(1));
+fsz(2) = max(25,fsz(2));
+fsz(3) = min(fsz(3),round( (scsz(3)-fsz(1))*0.9));
+fsz(4) = min(fsz(4),round( (scsz(4)-fsz(2))*0.9));
+set(hObject,'Position',fsz);
+set(hObject,'Units','normalized');
 
 guidata(hObject, handles);
 
@@ -233,13 +247,13 @@ lcore = lObj.lblCore;
 if ~isempty(lcore)
   lcore.wbmf(src,evt);
 end
-lObj.gdata.labelTLManual.cbkWBMF(src,evt);
+lObj.gdata.labelTLInfo.cbkWBMF(src,evt);
 
 function cbkWBUF(src,evt,lObj)
 if ~isempty(lObj.lblCore)
   lObj.lblCore.wbuf(src,evt);
 end
-lObj.gdata.labelTLManual.cbkWBUF(src,evt);
+lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
 function cbkNewMovie(src,evt)
 lObj = src;
@@ -278,8 +292,8 @@ set(axprev,'CLim',minvmaxv,...
   'YLim',[.5,size(ims{1},1)+.5]);
 zoom(axprev,'reset');
 
-gdata.labelTLManual.initNewMovie();
-gdata.labelTLManual.setLabelsFull();
+gdata.labelTLInfo.initNewMovie();
+gdata.labelTLInfo.setLabelsFull();
 
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(gdata.slider_frame,'Value',0,'SliderStep',sliderstep);
@@ -295,7 +309,7 @@ if isnan(sldval)
   sldval = 0;
 end
 set(gdata.slider_frame,'Value',sldval);
-gdata.labelTLManual.setCurrFrame(frm);
+gdata.labelTLInfo.setCurrFrame(frm);
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -677,11 +691,18 @@ else
 end
 
 function tbTLSelectMode_Callback(hObject, eventdata, handles)
-handles.labelTLManual.selectModeOn = hObject.Value;
+handles.labelTLInfo.selectModeOn = hObject.Value;
 
-function cbkLabelTLManualSelectModeOn(src,evt)
+function cbklabelTLInfoSelectModeOn(src,evt)
 lblTLObj = evt.AffectedObject;
 lblTLObj.lObj.gdata.tbTLSelectMode.Value = lblTLObj.selectModeOn;
+
+function cbklabelTLInfoPropsUpdated(src,evt)
+% Update the props dropdown menu and timeline.
+handles = guidata(src);
+props = handles.labelTLInfo.getProps();
+set(handles.pumInfo,'String',props);
+
 
 %% menu
 function menu_file_quick_open_Callback(hObject, eventdata, handles)
@@ -891,4 +912,29 @@ function CloseGUI(handles)
 if hlpSave(handles.labelerObj)
   delete(handles.figure);
   delete(handles.labelerObj);
+end
+
+
+% --- Executes on selection change in pumInfo.
+function pumInfo_Callback(hObject, eventdata, handles)
+% hObject    handle to pumInfo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns pumInfo contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from pumInfo
+contents = cellstr(get(hObject,'String'));
+cprop = contents{get(hObject,'Value')};
+handles.labelTLInfo.setCurProp(cprop);
+
+% --- Executes during object creation, after setting all properties.
+function pumInfo_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to pumInfo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
 end

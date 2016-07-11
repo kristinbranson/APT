@@ -61,6 +61,11 @@ Timelines:
   XColor: [0.8,0.8,0.8] # ax.XColor
   dXTick: 10 
 
+InfoTimelines:
+  FrameRadius: 50 # default timeline radius (in frames)
+  XColor: [0.8,0.8,0.8] # ax.XColor
+  dXTick: 10 
+
 Track:
   Enable: 0
   Type: CPRLabelTracker  
