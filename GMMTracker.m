@@ -4,7 +4,15 @@ classdef GMMTracker < LabelTracker
     menu_gmm
     menu_simple
     curmode  % 0 for gmm, 1 for simple
+    
+    menu_track_showsamples
     showhidesamples %0 for hide, 1 for show.
+    sampleScatterH
+    colors 
+    
+    currMovie
+    sampleInfo
+    
   end
   
   %% Ctor/Dtor
@@ -18,8 +26,20 @@ classdef GMMTracker < LabelTracker
       set(obj.menu_gmm,'Checked','on');
       set(obj.menu_simple,'Checked','off');
       obj.curmode = 0;
-      obj.menu_track_showsamples = uimenu(tmenu,'Label','Show Samples','Callback',@obj.showhideSamples);
+      obj.menu_track_showsamples = uimenu(lObj.gdata.menu_track,'Label','Show Samples','Callback',@obj.showhideSamples);
       obj.showhidesamples = 0;
+      obj.colors = obj.lObj.labelPointsPlotInfo.Colors;
+      
+      npts = obj.lObj.nLabelPoints;
+      obj.sampleScatterH = gobjects(1,npts);
+      hold(obj.ax,'off')
+      for ndx = 1:npts
+        obj.sampleScatterH(ndx) = scatter(obj.ax,nan,nan,[],...
+          obj.colors(ndx,:),'x','Visible','off');
+        if ndx ==1, hold(obj.ax, 'on'); end
+      end
+      hold(obj.ax,'off');
+      set(obj.ax,'Color','None'); % Adding a scatter adds color to the axis apparently.
     end
         
   end
@@ -50,10 +70,8 @@ classdef GMMTracker < LabelTracker
       
       labeler = obj.lObj;
 
-      if exist('trkfiles','var')==0
-        movfiles = obj.lObj.movieFilesAllFull(iMovs);
-        trkfiles = cellfun(@labeler.defaultTrkFileName,movfiles,'uni',0);
-      end
+      movfiles = obj.lObj.movieFilesAllFull(iMovs);
+      trkfiles = cellfun(@labeler.defaultTrkFileName,movfiles,'uni',0);
 
       assert(labeler.nTargets==1);
       npts = labeler.nLabelPoints;
@@ -64,7 +82,11 @@ classdef GMMTracker < LabelTracker
           error('Interpolator:FramesIncorrect','frames must be consecutive');
         end
         
-        T = load(trkfiles{i},'-mat');
+        if i == obj.currMovie
+          T = obj.sampleInfo;
+        else
+          T = load(trkfiles{i},'-mat');
+        end
         
         fprintf(1,'Interpolating movie %d\n',iM);
         
@@ -156,10 +178,53 @@ classdef GMMTracker < LabelTracker
     
     %% Update display
     function newLabelerFrame(obj)
-      npts = labeler.nLabelPoints;
-      if 
-%       assert(numel(obj.sampleScatterH)==npts);
+      npts = obj.lObj.nLabelPoints;
+      assert(numel(obj.sampleScatterH)==npts);
+      obj.updateScatterH();
       
+      if obj.lObj.currMovie ~= obj.currMovie,
+        obj.newLabelerMovie();
+      end
+      curf = obj.lObj.currFrame;
+      
+      for ndx = 1:npts
+        curS = squeeze(permute(obj.sampleInfo.pSample(ndx,:,:,curf),[2,3,4,1]));
+        curWt = squeeze(obj.sampleInfo.weights(:,ndx,curf));
+        if obj.showhidesamples>0.5
+          set(obj.sampleScatterH(ndx),'XData',curS(1,:),'YData',curS(2,:),...
+            'SizeData',max(0.0001,curWt)*30,'Visible','on');
+        else
+          set(obj.sampleScatterH(ndx),'XData',nan,'YData',nan,...
+            'SizeData',1,'Visible','off');
+        end
+      end
+    end
+    
+    function newLabelerMovie(obj)
+      curmov = obj.lObj.currMovie;
+      movfile = obj.lObj.movieFilesAllFull{curmov};
+      trkfile = obj.lObj.defaultTrkFileName(movfile);
+      T = load(trkfile,'-mat');
+      obj.sampleInfo = T;
+      obj.currMovie = curmov;
+    end
+    
+    function updateScatterH(obj)
+      hold(obj.ax,'off');
+      for ndx = 1:numel(obj.sampleScatterH),
+        if ~ishghandle(obj.sampleScatterH(ndx)),
+          obj.sampleScatterH(ndx) = scatter(obj.ax,nan,nan,[],...
+            obj.colors(ndx,:),'x','Visible','off');
+        end
+        if ndx == 1
+          hold(obj.ax,'on');
+        end
+
+      end
+      hold(obj.ax,'off')
+      set(obj.ax,'Color','None'); % Adding a scatter adds color to the axis apparently.
+
+
     end
     
     
