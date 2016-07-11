@@ -22,7 +22,7 @@ function varargout = MovieManager(varargin)
 
 % Edit the above text to modify the response to help MovieManager
 
-% Last Modified by GUIDE v2.5 02-Dec-2015 11:18:52
+% Last Modified by GUIDE v2.5 05-Jul-2016 09:46:13
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -69,6 +69,7 @@ tblNew = uiextras.jTable.Table(...
 tblNew.MouseClickedCallback = @(src,evt)lclTblClicked(src,evt,tblNew,lObj);
 handles.tblMoviesOrig = handles.tblMovies;
 handles.tblMovies = tblNew;
+handles.cbkGetSelectedMovies = @()cbkGetSelectedMovies(tblNew);
 
 guidata(hObject,handles);
 centerfig(handles.figure1,handles.labeler.gdata.figure);
@@ -96,8 +97,11 @@ function lclUpdateTable(hObj)
 handles = guidata(hObj);
 
 lObj = handles.labeler;
+if ~lObj.hasProject
+  error('MovieManager:proj','Please open/create a project first.');
+end
 tbl = handles.tblMovies;
-movs = lObj.movieFilesAll;
+movs = lObj.movieFilesAll(:,1);
 movsHaveLbls = lObj.movieFilesAllHaveLbls;
 iMov = lObj.currMovie;
 
@@ -116,12 +120,22 @@ else
   tbl.SelectedRows = [];
 end
 
+function iMovs = cbkGetSelectedMovies(tbl)
+% AL20160630: IMPORTANT: currently CANNOT sort table by columns
+selRow = tbl.SelectedRows;
+iMovs = sort(selRow);
+
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
-[tfsucc,movfile,trxfile] = promptGetMovTrxFiles();
+[tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
 if ~tfsucc
   return;
 end
-handles.labeler.movieAdd(movfile,trxfile);
+lObj = handles.labeler;
+nmovieOrig = lObj.nmovies;
+lObj.movieAdd(movfile,trxfile);
+if nmovieOrig==0 && lObj.nmovies>0
+  lObj.movieSet(1);
+end
 
 function pbRm_Callback(hObject, eventdata, handles)
 tbl = handles.tblMovies;
@@ -159,3 +173,27 @@ if isempty(iMov)
 else
   lObj.movieSet(iMov);
 end
+
+function menu_file_add_movies_from_text_file_Callback(hObject, eventdata, handles)
+lastTxtFile = RC.getprop('lastMovieBatchFile');
+if ~isempty(lastTxtFile)
+  [~,~,ext] = fileparts(lastTxtFile);
+  ext = ['*' ext];
+  file0 = lastTxtFile;
+else
+  ext = '*.txt';
+  file0 = pwd;
+end
+[fname,pname] = uigetfile(ext,'Select movie batch file',file0);
+if isequal(fname,0)
+  return;
+end
+nmovieOrig = handles.labeler.nmovies;
+fname = fullfile(pname,fname);
+handles.labeler.movieAddBatchFile(fname);
+RC.saveprop('lastMovieBatchFile',fname);
+
+if nmovieOrig==0 && handles.labeler.nmovies>0
+  handles.labeler.movieSet(1);
+end
+  
