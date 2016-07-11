@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 05-Jul-2016 12:22:54
+% Last Modified by GUIDE v2.5 11-Jul-2016 10:58:38
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -133,6 +133,7 @@ lObj = handles.labelerObj;
 
 % handles.labelTLManual = LabelTimeline(lObj,handles.axes_timeline_manual,true);
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
+set(handles.pumInfo,'String',handles.labelTLInfo.getProps());
 handles.figure.WindowButtonMotionFcn = @(src,evt)cbkWBMF(src,evt,lObj);
 handles.figure.WindowButtonUpFcn = @(src,evt)cbkWBUF(src,evt,lObj);
 
@@ -700,6 +701,7 @@ function cbklabelTLInfoPropsUpdated(src,evt)
 % Update the props dropdown menu and timeline.
 handles = guidata(src);
 props = handles.labelTLInfo.getProps();
+set(handles.pumInfo,'String',props);
 
 
 %% menu
@@ -910,4 +912,29 @@ function CloseGUI(handles)
 if hlpSave(handles.labelerObj)
   delete(handles.figure);
   delete(handles.labelerObj);
+end
+
+
+% --- Executes on selection change in pumInfo.
+function pumInfo_Callback(hObject, eventdata, handles)
+% hObject    handle to pumInfo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns pumInfo contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from pumInfo
+contents = cellstr(get(hObject,'String'));
+cprop = contents{get(hObject,'Value')};
+handles.labelTLInfo.setCurProp(cprop);
+
+% --- Executes during object creation, after setting all properties.
+function pumInfo_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to pumInfo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
 end
