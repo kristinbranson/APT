@@ -8,5 +8,5 @@ for p = PROPS,p=p{1}; %#ok<FXSET>
   ax1.(p) = ax0.(p);
 end
 linkaxes([ax0 ax1]);
-hLink = linkprop([ax0 ax1],'PlotBoxAspectRatio');
+hLink = linkprop([ax0 ax1],{'PlotBoxAspectRatio' 'XDir' 'YDir'});
 ax1.UserData = hLink;
