@@ -4,6 +4,7 @@ classdef GMMTracker < LabelTracker
     menu_gmm
     menu_simple
     curmode  % 0 for gmm, 1 for simple
+    showhidesamples %0 for hide, 1 for show.
   end
   
   %% Ctor/Dtor
@@ -17,6 +18,8 @@ classdef GMMTracker < LabelTracker
       set(obj.menu_gmm,'Checked','on');
       set(obj.menu_simple,'Checked','off');
       obj.curmode = 0;
+      obj.menu_track_showsamples = uimenu(tmenu,'Label','Show Samples','Callback',@obj.showhideSamples);
+      obj.showhidesamples = 0;
     end
         
   end
@@ -149,8 +152,18 @@ classdef GMMTracker < LabelTracker
         labeler.setFrame(labeler.currFrame,'tfforcelabelupdate',true);
       end
     end
-
     
+    
+    %% Update display
+    function newLabelerFrame(obj)
+      npts = labeler.nLabelPoints;
+      if 
+%       assert(numel(obj.sampleScatterH)==npts);
+      
+    end
+    
+    
+    %% GUI Menu calls.
     function setmodeGMM(obj,src,evt)
       set(obj.menu_gmm,'Checked','on');
       set(obj.menu_simple,'Checked','off');
@@ -162,6 +175,17 @@ classdef GMMTracker < LabelTracker
       set(obj.menu_simple,'Checked','on');
       obj.curmode = 1;
     end
+    
+    function showhideSamples(obj,src,evt)
+      if obj.showhidesamples < 0.5
+        obj.showhidesamples = 1;
+        set(obj.menu_track_showsamples,'Label','Hide Samples');
+      else
+        obj.showhidesamples = 0;
+        set(obj.menu_track_showsamples,'Label','Hide Samples');
+      end
+    end
+    
   end
   
 end
