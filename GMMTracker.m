@@ -247,8 +247,9 @@ classdef GMMTracker < LabelTracker
         set(obj.menu_track_showsamples,'Label','Hide Samples');
       else
         obj.showhidesamples = 0;
-        set(obj.menu_track_showsamples,'Label','Hide Samples');
+        set(obj.menu_track_showsamples,'Label','Show Samples');
       end
+      obj.newLabelerFrame();
     end
     
   end
