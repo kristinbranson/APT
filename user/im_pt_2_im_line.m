@@ -43,6 +43,12 @@ if isempty( s_list )
     v_2 = [];
    
 else
+  
+  % AL20160712. Note the line generated here may extend beyond the
+  % boundaries of im_bndry (when projected onto image 2), apparently 
+  % because we take the absolute min and max of the various s parameters   
+  % without regard to which boundaries of image 2 are hit by the line
+  % "earlier" (inner) vs "later" (outer).
     
     s_max = max( s_list );
     

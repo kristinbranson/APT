@@ -250,27 +250,7 @@ classdef CalibratedRig < CalRig
       xRCT = [yp3(2) yx3(2) yq3(2)];
       yRCT = [yp3(1) yx3(1) yq3(1)];
     end
-    
-    function y = cropLines(obj,y,viewIdx)
-      % "Crop" lines projected on image -- replace points that lie outside
-      % of image with NaN.
-      %
-      % y: [Nx2] (row,col) cropped coords
-      % viewIdx:
-      %
-      % y: [Nx2], with OOB points replaced with nan in both coords
-      
-      assert(size(y,2)==2);
-      
-      vSize = obj.viewSizes(viewIdx,:);
-      nc = vSize(1);
-      nr = vSize(2);
-      rows = y(:,1);
-      cols = y(:,2);
-      tfOOB = rows<1 | rows>nr | cols<1 | cols>nc;
-      y(tfOOB,:) = nan;
-    end
-    
+        
   end
   
   methods % coordinate conversions, projections, reconstructions

@@ -11,6 +11,10 @@ classdef CalRigSH < CalRig
     kineDataFile; % string    
   end
     
+  properties
+    epLineNPts = 250;
+  end
+  
   methods
     
     function obj = CalRigSH
@@ -52,7 +56,11 @@ classdef CalRigSH < CalRig
       else
         assert(false);
       end
-      [xEPL,yEPL] = im_pt_2_im_line(xy1(1),xy1(2),dlt1,dlt2,[1 vsz(1) 1 vsz(2)],20);      
+      [xEPL,yEPL] = im_pt_2_im_line(xy1(1),xy1(2),dlt1,dlt2,...
+        [1 vsz(1) 1 vsz(2)],obj.epLineNPts);
+      rc = obj.cropLines([yEPL(:) xEPL(:)],iViewEpi);
+      xEPL = rc(:,2);
+      yEPL = rc(:,1);
     end
     
     function [xRCT,yRCT] = reconstruct(obj,iView1,xy1,iView2,xy2,iViewRct)

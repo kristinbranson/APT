@@ -32,4 +32,28 @@ classdef CalRig < handle
     
   end
   
+  methods % Utilities
+    
+    function y = cropLines(obj,y,viewIdx)
+      % "Crop" lines projected on image -- replace points that lie outside
+      % of image with NaN.
+      %
+      % y: [Nx2] (row,col) "cropped coords" (ie pixel coords on projected image)
+      % viewIdx: index into viewNames/viewSizes
+      %
+      % y: [Nx2], with OOB points replaced with nan in both coords
+      
+      assert(size(y,2)==2);
+      
+      vSize = obj.viewSizes(viewIdx,:);
+      nc = vSize(1);
+      nr = vSize(2);
+      rows = y(:,1);
+      cols = y(:,2);
+      tfOOB = rows<1 | rows>nr | cols<1 | cols>nc;
+      y(tfOOB,:) = nan;
+    end
+
+  end
+  
 end
