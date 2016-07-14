@@ -1,8 +1,13 @@
 ---
-LabelMode: HIGHTHROUGHPUT
-  # See LabelMode.m
+NumViews: 1
+ViewNames: # Optional
 
-NumLabelPoints: 3
+NumLabelPoints: 4 
+LabelPointMap:    # Optional unless NumViews>1.
+ # Head: [1,3,5]  # 'Head' physical/3D point is: pt1 in view 1, pt4 in view 2
+ # Tail: [2,4,6]
+
+LabelMode: TEMPLATE # See LabelMode.m
 
 Trx:
   ZoomRadius: 100
@@ -22,7 +27,7 @@ Movie:
 LabelPointsPlot:
   ColorMapName: 'spring'
   Marker: '+'
-  MarkerSize: 15
+  MarkerSize: 6
   LineWidth: 2
   FontSize: 14
   OccludedMarker: 'o'
@@ -36,8 +41,44 @@ LabelPointsPlot:
   SequenceMode:
 
   HighThroughputMode:
-    NFrameSkip: 2
+    NFrameSkip: 5
     UnlabeledPointColor: [1,1,1]
     OtherLabeledPointColor: [0,1,0]
-    
+
+  ErrorCorrectMode:
+    SelectedPointMarker: 'x'
+    SelectedOccludedMarker: 's'
+    MarkedMarkerSize: 16
+
+  MultiViewCalibratedMode:
+    EpipolarLineWidth: 2
+    ReconstructedMarker: 'o'
+    ReconstructedMarkerSize: 6
+    ReconstructedLineWidth: 2
+
+Timelines:
+  FrameRadius: 50 # default timeline radius (in frames)
+  XColor: [0.8,0.8,0.8] # ax.XColor
+  dXTick: 10 
+
+InfoTimelines:
+  FrameRadius: 50 # default timeline radius (in frames)
+  XColor: [0.8,0.8,0.8] # ax.XColor
+  dXTick: 10 
+
+Track:
+  Enable: 0
+  Type: CPRLabelTracker  
+  PredictFrameStep: 5
+  PredictFrameStepBig: 10
+  PredictNeighborhood: 100
+  PredictPointsPlot: # Plot cosmetics for tracking results
+    Marker: '+'
+    MarkerSize: 10
+    LineWidth: 2
+  PredictInterpolate: 1         # If true, tracked results are interpolated/extrapolated to all frames when visualizing
+  PredictInterpolatePointsPlot: # Plot cosmetics for interpolated tracking results
+    Marker: '+'
+    MarkerSize: 10
+    LineWidth: 2
 ...

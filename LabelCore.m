@@ -21,18 +21,27 @@ classdef LabelCore < handle
     
     LPOSTAG_OCC = 'occ';
   end
+  
+  properties (Abstract)
+    supportsMultiView % scalar logical
+  end
+  
+  properties (SetObservable)
+    hideLabels; % scalar logical
+  end
         
   properties
     labeler;              % scalar Labeler obj
-    hFig;                 % scalar figure
-    hAx;                  % scalar axis
-    hAxOcc;               % scalar handle, occluded-axis
+    hFig;                 % [nview] figure handles (first is main fig)
+    hAx;                  % [nview] axis handles (first is main axis)
+    hAxOcc;               % scalar handle, occluded-axis (primary axis only)
     tbAccept;             % scalar handle, togglebutton
-    txLblCoreAux;       % scalar handle, auxiliary text
+    pbClear;              % scalar handle, clearbutton
+    txLblCoreAux;         % scalar handle, auxiliary text (currently primary axis only)
     
-    nPts;                 % scalar integer
-    
-    state;                % scalar state
+    nPts;                 % scalar integer 
+
+    state;                % scalar LabelState
     hPts;                 % nPts x 1 handle vec, handle to points
     hPtsTxt;              % nPts x 1 handle vec, handle to text
     hPtsOcc;
@@ -54,9 +63,17 @@ classdef LabelCore < handle
         case LabelMode.SEQUENTIAL
           obj = LabelCoreSeq(labelerObj);
         case LabelMode.TEMPLATE
-          obj = LabelCoreTemplate(labelerObj);
+          if labelerObj.isMultiView
+            obj = LabelCoreMultiViewTemplate(labelerObj);
+          else
+            obj = LabelCoreTemplate(labelerObj);
+          end
         case LabelMode.HIGHTHROUGHPUT
           obj = LabelCoreHT(labelerObj);
+        case LabelMode.ERRORCORRECT
+          obj = LabelCoreErrorCorrect(labelerObj);
+        case LabelMode.MULTIVIEWCALIBRATED
+          obj = LabelCoreMultiViewCalibrated(labelerObj);
       end
     end
     
@@ -67,14 +84,19 @@ classdef LabelCore < handle
     function obj = LabelCore(labelerObj)
       obj.labeler = labelerObj;
       gd = labelerObj.gdata;
-      obj.hFig = gd.figure;
-      obj.hAx = gd.axes_curr;
+      obj.hFig = gd.figs_all;
+      obj.hAx = gd.axes_all;
       obj.hAxOcc = gd.axes_occ;
       obj.tbAccept = gd.tbAccept;
+      obj.pbClear = gd.pbClear;
       obj.txLblCoreAux = gd.txLblCoreAux;
     end
     
     function init(obj,nPts,ptsPlotInfo)
+      if obj.labeler.isMultiView && ~obj.supportsMultiView
+        error('LabelCore:MV','Multiview labeling not supported by %s.',...
+          class(obj));
+      end
       obj.nPts = nPts;
       obj.ptsPlotInfo = ptsPlotInfo;
       
@@ -86,6 +108,7 @@ classdef LabelCore < handle
       obj.hPtsOcc = gobjects(obj.nPts,1);
       obj.hPtsTxt = gobjects(obj.nPts,1);
       obj.hPtsTxtOcc = gobjects(obj.nPts,1);
+      
       ax = obj.hAx;
       axOcc = obj.hAxOcc;
       for i = 1:obj.nPts
@@ -94,29 +117,31 @@ classdef LabelCore < handle
           'LineWidth',ptsPlotInfo.LineWidth,...
           'Color',ptsPlotInfo.Colors(i,:),...
           'UserData',i};
-        obj.hPts(i) = plot(ax,ptsArgs{:}); 
+        obj.hPts(i) = plot(ax(1),ptsArgs{:});
         obj.hPtsOcc(i) = plot(axOcc,ptsArgs{:});
-        obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax,...        
+        obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax(1),...
           'Color',ptsPlotInfo.Colors(i,:),...
           'FontSize',ptsPlotInfo.FontSize,...
           'Hittest','off');
-        obj.hPtsTxtOcc(i) = text(nan,nan,num2str(i),'Parent',axOcc,...        
+        obj.hPtsTxtOcc(i) = text(nan,nan,num2str(i),'Parent',axOcc,...
           'Color',ptsPlotInfo.Colors(i,:),...
           'FontSize',ptsPlotInfo.FontSize,...
           'Hittest','off');
       end
       axis(axOcc,[0 obj.nPts+1 0 2]);
+      obj.hideLabels = false;
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
-      set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
-      set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
+%       set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
+%       set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
       set(obj.labeler.gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF);
       set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
       hTmp = findall(obj.hFig,'-property','KeyPressFcn','-not','Tag','edit_frame');
       set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
       
       set(obj.labeler.gdata.tbAccept,'Enable','on');
+      set(obj.labeler.gdata.pbClear,'Enable','on');
       obj.labeler.currImHud.updateReadoutFields('hasLblPt',false);
       
       obj.tfOcc = false(obj.nPts,1);
@@ -202,6 +227,29 @@ classdef LabelCore < handle
           
   end
   
+  %% Misc
+  methods
+    function labelsHide(obj)
+      [obj.hPts.Visible] = deal('off');
+      [obj.hPtsTxt.Visible] = deal('off'); 
+      obj.hideLabels = true;
+    end
+    
+    function labelsShow(obj)
+      [obj.hPts.Visible] = deal('on');
+      [obj.hPtsTxt.Visible] = deal('on');
+      obj.hideLabels = false;      
+    end
+    
+    function labelsHideToggle(obj)
+      if obj.hideLabels
+        obj.labelsShow();
+      else
+        obj.labelsHide();
+      end
+    end
+  end
+  
   %% Utilities to manipulate .hPts, .hPtsTxt (set position and color)
   
   methods (Hidden) 
@@ -236,8 +284,11 @@ classdef LabelCore < handle
         validateattributes(lblTags,{'cell'},{'vector' 'numel' obj.nPts});
       end        
       
-      if tfClip
+      if tfClip        
         lbler = obj.labeler;
+        
+        assert(~lbler.isMultiView,'Multi-view labeling unsupported.');
+        
         nr = lbler.movienr;
         nc = lbler.movienc;
         xyOrig = xy;
@@ -322,7 +373,7 @@ classdef LabelCore < handle
         lObj.labelPosTagSetI(tag,iPt);
       end      
     end
-                
+    
   end
     
   methods (Static) 
@@ -401,12 +452,6 @@ classdef LabelCore < handle
       tfinf = any(isinf(uv0),2); % [inf inf] rows in uv0 can be transformed into eg [inf nan] depending on angle
       uv(tfinf,:) = inf;
     end
-    
-%     function tf = isEstOccMarker(hPt,ppi)
-%       switch hPt.Marker
-%         case ppi.OccludedMarker
-%       end
-%     end
     
   end
   

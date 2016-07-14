@@ -29,6 +29,10 @@ classdef LabelCoreSeq < LabelCore
   % be occluded. In the 'adjust' state, there is currently no way to a)
   % make an occluded point non-occluded, or make a non-occluded point
   % occluded. 
+
+  properties
+    supportsMultiView = false;
+  end
         
   properties
     iPtMove;

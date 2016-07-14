@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 14-Jan-2016 13:20:41
+% Last Modified by GUIDE v2.5 11-Jul-2016 10:58:38
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -32,6 +32,8 @@ gui_Singleton = 0;
 % wonky-- couldn't figure out a clean solution. For now use two .figs
 if ispc && ~verLessThan('matlab','8.6') % 8.6==R2015b
   gui_Name = 'LabelerGUI_PC_15b';
+elseif isunix
+  gui_Name = 'LabelerGUI_lnx';
 else
   gui_Name = 'LabelerGUI_PC_14b';
 end
@@ -70,13 +72,51 @@ handles.output = hObject;
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
  
-colormap(handles.figure,gray);
+% multiview
+nview = handles.labelerObj.nview;
+figs = gobjects(1,nview);
+ax = gobjects(1,nview);
+figs(1) = handles.figure;
+ax(1) = handles.axes_curr;
+for i=2:nview
+  figs(i) = figure('CloseRequestFcn',...
+    @(s,e)cbkAuxFigCloseReq(s,e,handles.labelerObj));
+  ax(i) = axes;
+  handles.labelerObj.addDepHandle(figs(i));
+end
+handles.figs_all = figs;
+handles.axes_all = ax;
 
-handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
-set(handles.image_curr,'hittest','off');
-axisoff(handles.axes_curr);
-hold(handles.axes_curr,'on');
-set(handles.axes_curr,'Color',[0 0 0]);
+arrayfun(@(x)colormap(x,gray),figs);
+if nview>1
+  viewNames = handles.labelerObj.viewNames;
+  for i=1:nview
+    figs(i).Name = sprintf('View: %s',viewNames{i});
+  end
+end
+
+ims = gobjects(1,nview);
+for iView=1:nview
+  ims(iView) = imagesc(0,'Parent',ax(iView));
+  set(ims(iView),'hittest','off');
+  axisoff(ax(iView));
+  hold(ax(iView),'on');
+  set(ax(iView),'Color',[0 0 0]);
+end
+handles.images_all = ims;
+handles.image_curr = ims(1);
+
+% AL: important to get clickable points. Somehow this jiggers plot
+% lims/scaling/coords so that points are more clickable; otherwise
+% lblCore points in aux axes are impossible to click (eg without zooming
+% way in or other contortions)
+for i=2:numel(figs)
+  figs(i).ResizeFcn = @cbkAuxAxResize;
+end
+%arrayfun(@(x)axis(x,'auto'),ax);
+
+
+
 hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
 axis(handles.axes_occ,[0 handles.labelerObj.nLabelPoints+1 0 2]);
@@ -90,6 +130,13 @@ set(handles.axes_prev,'Color',[0 0 0]);
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
 lObj = handles.labelerObj;
+
+% handles.labelTLManual = LabelTimeline(lObj,handles.axes_timeline_manual,true);
+handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
+set(handles.pumInfo,'String',handles.labelTLInfo.getProps());
+handles.figure.WindowButtonMotionFcn = @(src,evt)cbkWBMF(src,evt,lObj);
+handles.figure.WindowButtonUpFcn = @(src,evt)cbkWBUF(src,evt,lObj);
+
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
@@ -105,9 +152,15 @@ listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged
 listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxMode','PostSet',@cbkShowTrxModeChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
+listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
+listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
+listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
-%listeners{end+1,1} = addlistener(lObj,'currSusp','PostSet',@cbkCurrSuspChanged);
+listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
+listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectModeOn','PostSet',@cbklabelTLInfoSelectModeOn);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 handles.listeners = listeners;
 
 % These Labeler properties need their callbacks fired to properly init UI.
@@ -117,6 +170,7 @@ handles.propsNeedInit = {
   'suspScore' 
   'showTrxMode' 
   'tracker' 
+  'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'movieCenterOnTarget'
   'movieForceGrayscale'};
 
@@ -127,6 +181,17 @@ set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
 colnames = handles.labelerObj.TBLFRAMES_COLS; % AL: dumb b/c table update code uses hardcoded cols 
 set(handles.tblFrames,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
 
+% Set the size of gui slightly smaller than screen size.
+scsz = get(groot,'Screensize');
+set(hObject,'Units','Pixels');
+fsz = get(hObject,'Position');
+fsz(1) = max(25,fsz(1));
+fsz(2) = max(25,fsz(2));
+fsz(3) = min(fsz(3),round( (scsz(3)-fsz(1))*0.9));
+fsz(4) = min(fsz(4),round( (scsz(4)-fsz(2))*0.9));
+set(hObject,'Position',fsz);
+set(hObject,'Units','normalized');
+
 guidata(hObject, handles);
 
 % UIWAIT makes LabelerGUI wait for user response (see UIRESUME)
@@ -135,6 +200,104 @@ guidata(hObject, handles);
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
 
+function cbkAuxAxResize(src,data)
+% AL 20160628: voodoo that may help make points more clickable. Sometimes
+% pt clickability in MultiViewCalibrated mode is unstable (eg to anchor
+% points etc)
+ax = findall(src,'type','axes');
+axis(ax,'image')
+axis(ax,'auto');
+
+function cbkAuxFigCloseReq(src,data,lObj)
+
+if ~any(src==lObj.depHandles)
+  delete(gcf);
+  return;  
+end
+
+CLOSESTR = 'Close anyway';
+DONTCLOSESTR = 'Cancel, don''t close';
+sel = questdlg('This figure is required for your current multiview project.',...
+  'Close Request Function',...
+  DONTCLOSESTR,CLOSESTR,DONTCLOSESTR);
+if isempty(sel)
+  sel = DONTCLOSESTR;
+end
+switch sel
+  case DONTCLOSESTR
+    % none
+  case CLOSESTR
+    delete(gcf)
+end
+
+function cbkLblCoreChanged(src,evt)
+lObj = evt.AffectedObject;
+lblCore = lObj.lblCore;
+if ~isempty(lblCore)
+  lblCore.addlistener('hideLabels','PostSet',@cbkLblCoreHideLabelsChanged);
+end
+
+function cbkLblCoreHideLabelsChanged(src,evt)
+lblCore = evt.AffectedObject;
+gdata = lblCore.labeler.gdata;
+gdata.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels);
+
+function cbkWBMF(src,evt,lObj)
+lcore = lObj.lblCore;
+if ~isempty(lcore)
+  lcore.wbmf(src,evt);
+end
+lObj.gdata.labelTLInfo.cbkWBMF(src,evt);
+
+function cbkWBUF(src,evt,lObj)
+if ~isempty(lObj.lblCore)
+  lObj.lblCore.wbuf(src,evt);
+end
+lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
+
+function cbkNewMovie(src,evt)
+lObj = src;
+gdata = lObj.gdata;
+movRdrs = lObj.movieReader;
+nframes = movRdrs(1).nframes;
+ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
+
+% weirdo stuff
+if isfield(movRdrs(1).info,'bitdepth')
+  lObj.maxv = min(lObj.maxv,2^movRdrs(1).info.bitdepth-1);
+elseif isa(ims{1},'uint16')
+  lObj.maxv = min(lObj.maxv,2^16 - 1);
+elseif isa(ims{1},'uint8')
+  lObj.maxv = min(lObj.maxv,2^8 - 1);
+else
+  lObj.maxv = min(lObj.maxv,2^(ceil(log2(max(ims{1}(:)))/8)*8));
+end
+minvmaxv = [lObj.minv lObj.maxv];
+
+hAxs = gdata.axes_all;
+hIms = gdata.images_all;
+assert(isequal(numel(ims),numel(hAxs),numel(hIms)));
+for i=1:numel(ims)
+  set(hIms(i),'CData',ims{i});
+  set(hAxs(i),'CLim',minvmaxv,...
+    'XLim',[.5,size(ims{i},2)+.5],...
+    'YLim',[.5,size(ims{i},1)+.5]);
+  axis(hAxs(i),'image');
+  zoom(hAxs(i),'reset');
+end
+
+axprev = gdata.axes_prev;
+set(axprev,'CLim',minvmaxv,...
+  'XLim',[.5,size(ims{1},2)+.5],...
+  'YLim',[.5,size(ims{1},1)+.5]);
+zoom(axprev,'reset');
+
+gdata.labelTLInfo.initNewMovie();
+gdata.labelTLInfo.setLabelsFull();
+
+sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
+set(gdata.slider_frame,'Value',0,'SliderStep',sliderstep);
+      
 function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
 frm = lObj.currFrame;
@@ -146,6 +309,7 @@ if isnan(sldval)
   sldval = 0;
 end
 set(gdata.slider_frame,'Value',sldval);
+gdata.labelTLInfo.setCurrFrame(frm);
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -174,29 +338,65 @@ lObj = evt.AffectedObject;
 gd = lObj.gdata;
 switch lObj.labelMode
   case LabelMode.SEQUENTIAL
-    gd.menu_setup_sequential_mode.Enable = 'on';
     gd.menu_setup_sequential_mode.Checked = 'on';
-    gd.menu_setup_template_mode.Enable = 'off';
     gd.menu_setup_template_mode.Checked = 'off';
-    gd.menu_setup_highthroughput_mode.Enable = 'off';
     gd.menu_setup_highthroughput_mode.Checked = 'off';
-    gd.menu_setup_createtemplate.Enable = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
+    
+    gd.menu_setup_createtemplate.Visible = 'off';
+    gd.menu_setup_set_labeling_point.Visible = 'off';
+    gd.menu_setup_unlock_all_frames.Visible = 'off';
+    gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.TEMPLATE
-    gd.menu_setup_sequential_mode.Enable = 'off';
     gd.menu_setup_sequential_mode.Checked = 'off';
-    gd.menu_setup_template_mode.Enable = 'on';
     gd.menu_setup_template_mode.Checked = 'on';
-    gd.menu_setup_highthroughput_mode.Enable = 'off';
     gd.menu_setup_highthroughput_mode.Checked = 'off';
-    gd.menu_setup_createtemplate.Enable = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
+
+    gd.menu_setup_createtemplate.Visible = 'on';
+    gd.menu_setup_set_labeling_point.Visible = 'off';
+    gd.menu_setup_unlock_all_frames.Visible = 'off';
+    gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
-    gd.menu_setup_sequential_mode.Enable = 'off';
     gd.menu_setup_sequential_mode.Checked = 'off';
-    gd.menu_setup_template_mode.Enable = 'off';
     gd.menu_setup_template_mode.Checked = 'off';
-    gd.menu_setup_highthroughput_mode.Enable = 'on';
     gd.menu_setup_highthroughput_mode.Checked = 'on';
-    gd.menu_setup_createtemplate.Enable = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
+    
+    gd.menu_setup_createtemplate.Visible = 'off';
+    gd.menu_setup_set_labeling_point.Visible = 'on';
+    gd.menu_setup_unlock_all_frames.Visible = 'off';
+    gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
+  case LabelMode.ERRORCORRECT
+    gd.menu_setup_sequential_mode.Checked = 'off';
+    gd.menu_setup_template_mode.Checked = 'off';
+    gd.menu_setup_highthroughput_mode.Checked = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'on';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
+    
+    gd.menu_setup_createtemplate.Visible = 'off';
+    gd.menu_setup_set_labeling_point.Visible = 'off';
+    gd.menu_setup_unlock_all_frames.Visible = 'on';
+    gd.menu_setup_lock_all_frames.Visible = 'on';
+    gd.menu_setup_load_calibration_file.Visible = 'off';
+  case LabelMode.MULTIVIEWCALIBRATED
+    gd.menu_setup_sequential_mode.Checked = 'off';
+    gd.menu_setup_template_mode.Checked = 'off';
+    gd.menu_setup_highthroughput_mode.Checked = 'off';
+    gd.menu_setup_tracking_correction_mode.Checked = 'off';
+    gd.menu_setup_multiview_calibrated_mode.Checked = 'on';
+    
+    gd.menu_setup_createtemplate.Visible = 'off';
+    gd.menu_setup_set_labeling_point.Visible = 'off';
+    gd.menu_setup_unlock_all_frames.Visible = 'off';
+    gd.menu_setup_lock_all_frames.Visible = 'off';
+    gd.menu_setup_load_calibration_file.Visible = 'on';
 end
 
 function cbkTargetZoomFacChanged(src,evt)
@@ -320,7 +520,27 @@ end
 function cbkTrackerChanged(src,evt)
 lObj = evt.AffectedObject;
 tf = ~isempty(lObj.tracker);
-lObj.gdata.menu_track_retrack.Enable = onIff(tf);
+onOff = onIff(tf);
+lObj.gdata.menu_track.Enable = onOff;
+lObj.gdata.pbTrain.Enable = onOff;
+lObj.gdata.pbTrack.Enable = onOff;
+
+function cbkTrackerNFramesChanged(src,evt)
+lObj = evt.AffectedObject;
+initPUMTrack(lObj);
+
+function initPUMTrack(lObj)
+tms = enumeration('TrackMode');
+menustrs = arrayfun(@(x)x.menuStr(lObj),tms,'uni',0);
+hPUM = lObj.gdata.pumTrack;
+hPUM.String = menustrs;
+hPUM.UserData = tms;
+
+function tm = getTrackMode(handles)
+hPUM = handles.pumTrack;
+tms = hPUM.UserData;
+val = hPUM.Value;
+tm = tms(val);
 
 function cbkMovieCenterOnTargetChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -334,7 +554,16 @@ handles = guidata(hObject);
 lObj = handles.labelerObj;
 v = get(hObject,'Value');
 f = round(1 + v * (lObj.nframes - 1));
-lObj.setFrame(f);
+cmod = handles.figure.CurrentModifier;
+if ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}))
+  if f>lObj.currFrame
+    lObj.frameUp(true);
+  else
+    lObj.frameDown(true);
+  end  
+else
+  lObj.setFrame(f);
+end
 
 function slider_frame_CreateFcn(hObject,~,~)
 % Hint: slider controls usually have a light gray background.
@@ -360,6 +589,12 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
                    get(0,'defaultUicontrolBackgroundColor'))
   set(hObject,'BackgroundColor','white');
 end
+
+function pbTrain_Callback(hObject, eventdata, handles)
+handles.labelerObj.trackTrain();
+function pbTrack_Callback(hObject, eventdata, handles)
+tm = getTrackMode(handles);
+handles.labelerObj.track(tm);
 
 function pbClear_Callback(hObject, eventdata, handles)
 handles.labelerObj.lblCore.clearLabels();
@@ -455,16 +690,32 @@ else
   hlpRemoveFocus(hObject,handles);
 end
 
+function tbTLSelectMode_Callback(hObject, eventdata, handles)
+handles.labelTLInfo.selectModeOn = hObject.Value;
+
+function cbklabelTLInfoSelectModeOn(src,evt)
+lblTLObj = evt.AffectedObject;
+lblTLObj.lObj.gdata.tbTLSelectMode.Value = lblTLObj.selectModeOn;
+
+function cbklabelTLInfoPropsUpdated(src,evt)
+% Update the props dropdown menu and timeline.
+handles = guidata(src);
+props = handles.labelTLInfo.getProps();
+set(handles.pumInfo,'String',props);
+
+
 %% menu
 function menu_file_quick_open_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
-  [tfsucc,movfile,trxfile] = promptGetMovTrxFiles();
+  [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
   if ~tfsucc
     return;
   end
+  movfile = movfile{1};
+  trxfile = trxfile{1};
+  handles.labelerObj.projQuickOpen(movfile,trxfile);
 end
-handles.labelerObj.projQuickOpen(movfile,trxfile);
 function menu_file_new_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
@@ -502,6 +753,32 @@ function menu_file_managemovies_Callback(hObject,~,handles)
 h = MovieManager(handles.labelerObj);
 handles.labelerObj.addDepHandle(h);
 
+function menu_file_import_labels_trk_curr_mov_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+if ~lObj.hasMovie
+  error('LabelerGUI:noMovie','No movie is loaded.');
+end
+iMov = lObj.currMovie;
+if lObj.labelposMovieHasLabels(iMov)
+  resp = questdlg('Current movie has labels that will be overwritten. OK?',...
+    'Import Labels','OK, Proceed','Cancel','Cancel');
+  if isempty(resp)
+    resp = 'Cancel';
+  end
+  switch resp
+    case 'OK, Proceed'
+      % none
+    case 'Cancel'
+      return;
+    otherwise
+      assert(false); 
+  end
+end
+handles.labelerObj.labelImportTrkCurrMov();
+
+function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelExportTrk();
+
 % function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
 % lObj = handles.labelerObj;
 % if hlpSave(lObj)
@@ -511,7 +788,7 @@ handles.labelerObj.addDepHandle(h);
 %   end
 % end
 
-function menu_help_labeling_actions_Callback(hObject, eventdata, handles)
+function menu_help_Callback(hObject, eventdata, handles)
 lblCore = handles.labelerObj.lblCore;
 if isempty(lblCore)
   h = 'Please open a movie first.';
@@ -520,9 +797,19 @@ else
 end
 msgbox(h,'Labeling Actions','help','modal');
 
+function menu_setup_sequential_mode_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelingInit('labelMode',LabelMode.SEQUENTIAL);
+function menu_setup_template_mode_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelingInit('labelMode',LabelMode.TEMPLATE);
+function menu_setup_highthroughput_mode_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelingInit('labelMode',LabelMode.HIGHTHROUGHPUT);
+function menu_setup_tracking_correction_mode_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelingInit('labelMode',LabelMode.ERRORCORRECT);
+function menu_setup_multiview_calibrated_mode_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelingInit('labelMode',LabelMode.MULTIVIEWCALIBRATED);
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-npts = lObj.nLabelPoints;
+%npts = lObj.nLabelPoints;
 ipt = lObj.lblCore.iPoint;
 ret = inputdlg('Select labeling point','Point number',1,{num2str(ipt)});
 if isempty(ret)
@@ -530,6 +817,23 @@ if isempty(ret)
 end
 ret = str2double(ret{1});
 lObj.lblCore.setIPoint(ret);
+function menu_setup_load_calibration_file_Callback(hObject, eventdata, handles)
+lastCalFile = RC.getprop('lastCalibrationFile');
+if isempty(lastCalFile)
+  lastCalFile = pwd;
+end
+[fname,pth] = uigetfile('*.mat','Load Calibration File',lastCalFile);
+if isequal(fname,0)
+  return;
+end
+fname = fullfile(pth,fname);
+handles.labelerObj.labelLoadCalibrationFileRaw(fname);
+RC.saveprop('lastCalibrationFile',fname);
+
+function menu_setup_unlock_all_frames_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelPosSetAllMarked(false);
+function menu_setup_lock_all_frames_Callback(hObject, eventdata, handles)
+handles.labelerObj.labelPosSetAllMarked(true);
 
 function CloseImContrast(labelerObj)
 labelerObj.videoSetContrastFromAxesCurr();
@@ -544,7 +848,7 @@ lObj.movieForceGrayscale = tf;
 if lObj.hasMovie
   % Pure convenience: update image for user rather than wait for next 
   % frame-switch. Could also put this in Labeler.set.movieForceGrayscale.
-  lObj.setFrame(lObj.currFrame,true);
+  lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 end
 function menu_view_gammacorrect_Callback(hObject, eventdata, handles)
 val = inputdlg('Gamma value:','Gamma correction');
@@ -566,15 +870,40 @@ handles.labelerObj.setShowTrxMode(ShowTrxMode.NONE);
 function menu_view_trajectories_centervideoontarget_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.movieCenterOnTarget = ~lObj.movieCenterOnTarget;
+function menu_view_flip_flipud_movie_only_Callback(hObject, eventdata, handles)
+handles.labelerObj.videoFlipUDVidOnly();
 function menu_view_flip_flipud_Callback(hObject, eventdata, handles)
 handles.labelerObj.videoFlipUD();
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
 handles.labelerObj.videoFlipLR();
+function menu_view_hide_labels_Callback(hObject, eventdata, handles)
+lblCore = handles.labelerObj.lblCore;
+if ~isempty(lblCore)
+  lblCore.labelsHideToggle();
+end
 
-function menu_track_retrack_Callback(hObject, eventdata, handles)
-handles.labelerObj.track();
-function menu_track_savenewtrx_Callback(hObject, eventdata, handles)
-handles.labelerObj.trxSave();
+function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
+prmFile = RC.getprop('lastCPRParamFile');
+if isempty(prmFile)
+  prmFile = pwd;
+end
+[f,p] = uigetfile('*.yaml','Select CPR tracking parameters file',prmFile);
+if isequal(f,0)
+  return;
+end
+prmFile = fullfile(p,f);
+RC.saveprop('lastCPRParamFile',prmFile);
+handles.labelerObj.setTrackParamFile(prmFile);
+function menu_track_select_training_data_Callback(hObject, eventdata, handles)
+handles.labelerObj.tracker.trnDataSelect();
+
+function menu_track_savetrackingresults_Callback(hObject, eventdata, handles)
+handles.labelerObj.trackSaveResultsAs();
+function menu_track_loadtrackingresults_Callback(hObject, eventdata, handles)
+handles.labelerObj.trackLoadResultsAs();
+
+function menu_track_retrain_Callback(hObject, eventdata, handles)
+handles.labelerObj.trackRetrain();
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);
@@ -586,68 +915,26 @@ if hlpSave(handles.labelerObj)
 end
 
 
-% 
-% % --------------------------------------------------------------------
-% function import_template_Callback(hObject, eventdata, handles)
-% % hObject    handle to import_template (see GCBO)
-% % eventdata  reserved - to be defined in a future version of MATLAB
-% % handles    structure with handles and user data (see GUIDATA)
-% global LARVALABELERSAVEFILE;
-% 
-% if isempty(LARVALABELERSAVEFILE),
-%   defaultfile = '';
-% else
-%   defaultfile = LARVALABELERSAVEFILE;
-% end
-% 
-% [f,p] = uigetfile('*.mat','Import template from...',defaultfile);
-% if ~ischar(f),
-%   return;
-% end
-% filename = fullfile(p,f);
-% 
-% if ~exist(filename,'file'),
-%   warndlg(sprintf('File %s does not exist',filename),'File does not exist','modal');
-%   return;
-% end
-% 
-% L = load(filename);
-% assert(isfield(L,'template'),'The file does not have any template');
-% 
-% handles.template = L.template;
-% handles.npoints = size(handles.template,1);
-% handles.templatecolors = jet(handles.npoints);%*.5+.5;
-% 
-% for ndx = 1:size(L.template,1)
-%   x = L.template(ndx,1);
-%   y = L.template(ndx,2);
-%   handles.hpoly(ndx) = plot(handles.axes_curr,x,y,'w+','MarkerSize',20,'LineWidth',3);
-%   handles.htext(ndx) = text(x+handles.dt2p,y,num2str(numel(handles.hpoly)),'Parent',handles.axes_curr);%,...
-%   set(handles.hpoly(ndx),'Color',handles.templatecolors(ndx,:),...
-%     'ButtonDownFcn',@(hObject,eventdata) PointButtonDownCallback(hObject,eventdata,handles.figure,ndx));
-%   %addNewPositionCallback(handles.hpoly(i),@(pos) UpdateLabels(pos,handles.figure,i));
-%   set(handles.htext(ndx),'Color',handles.templatecolors(ndx,:));
-% 
-% end
-%  
-% handles.labeledpos = nan([handles.npoints,2,handles.nframes,handles.nanimals]);
-% handles.labeledpos(:,:,handles.f,handles.animal) = handles.template;
-% handles.islocked = false(handles.nframes,handles.nanimals);
-% handles.pointselected = false(1,handles.npoints);
-% 
-% delete(handles.posprev(ishandle(handles.posprev)));
-% handles.posprev = nan(1,handles.npoints);
-% for i = 1:handles.npoints,
-%   handles.posprev(i) = plot(handles.axes_prev,nan,nan,'+','Color',handles.templatecolors(i,:),'MarkerSize',8);%,...
-%     %'KeyPressFcn',handles.keypressfcn);
-% end
-% 
-% if isfield(L,'templateloc')
-%   handles.templateloc = L.templateloc;
-%   handles.templatetheta = L.templatetheta;
-%   guidata(hObject,handles);
-%   pushbutton_template_Callback(hObject,eventdata,handles);
-% else
-%   guidata(hObject,handles);
-% end
+% --- Executes on selection change in pumInfo.
+function pumInfo_Callback(hObject, eventdata, handles)
+% hObject    handle to pumInfo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
 
+% Hints: contents = cellstr(get(hObject,'String')) returns pumInfo contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from pumInfo
+contents = cellstr(get(hObject,'String'));
+cprop = contents{get(hObject,'Value')};
+handles.labelTLInfo.setCurProp(cprop);
+
+% --- Executes during object creation, after setting all properties.
+function pumInfo_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to pumInfo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end

@@ -1,6 +1,6 @@
 classdef MovieReader < handle
   % MovieReader
-  % Like VideoReader; wraps get_readframe_fcn
+  % Like VideoReader; wraps get_readframe_fcn 
   
   properties (SetAccess=private)
     filename = '';
@@ -14,8 +14,28 @@ classdef MovieReader < handle
     fid = nan;
   end
   
-  properties    
+  properties (SetObservable)
+    % AL June 2016. Note on these SetObservable props.
+    %
+    % Our view of Labeler as a client of MovieReader is slightly unusual.
+    % We posit that Labeler.movieReader is part of Labeler's public API, 
+    % rather than .movieReader being purely private implementation. These
+    % MovieReader props are Public+SetObservable b/c we consider them part
+    % of Labeler's public API; users or the UI can/will set them directly, 
+    % rather than being forwarded through eg a dummy public property on 
+    % Labeler.
+    %
+    % The two main reasons for this decision are i) convenience and ii) to
+    % keep a dummy/forwarding prop on Labeler in sync, a listener would 
+    % need to be attached to the MovieReader prop anyway. I kind of like 
+    % the idea of having a select few properties of a large object like 
+    % Labeler (that contain 'permanent' scalar subobjects) to be considered 
+    % public API. It's a convenient and clean way of dividing 
+    % code/responsibility a little without creating a bunch of forwarding 
+    % props/methods.
+
     forceGrayscale = false; % if true, [MxNx3] images are run through rgb2gray
+    flipVert = false; % if true, images are flipud-ed on read
   end
   
   properties (Dependent)
@@ -57,14 +77,13 @@ classdef MovieReader < handle
     function varargout = readframe(obj,i)
       assert(obj.isOpen(),'Movie is not open.');
       [varargout{1:nargout}] = obj.readFrameFcn(i);
-      
+
+      if obj.flipVert
+        varargout{1} = flipud(varargout{1});
+      end
       if obj.forceGrayscale
-        if nargout==1
-          if size(varargout{1},3)==3 % doesn't have to be RGB but convert anyway
-            varargout{1} = rgb2gray(varargout{1});
-          end
-        else
-          warning('MovieReader:grayscale','Do not know how to convert to grayscale.');          
+        if size(varargout{1},3)==3 % doesn't have to be RGB but convert anyway
+          varargout{1} = rgb2gray(varargout{1});
         end
       end
     end

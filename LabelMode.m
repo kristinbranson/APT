@@ -4,5 +4,7 @@ classdef LabelMode
     SEQUENTIAL
     TEMPLATE
     HIGHTHROUGHPUT
+    ERRORCORRECT
+    MULTIVIEWCALIBRATED
   end
 end
