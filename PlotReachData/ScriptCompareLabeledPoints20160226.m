@@ -202,6 +202,34 @@ for mousei = 1:nmice,
   
 end
 
+%% plot all labeled points, not separating days
+
+mupertype = cell(ntrialtypes,nmice);
+Spertype = cell(ntrialtypes,nmice);
+npertype = cell(ntrialtypes,nmice);
+hfigs = nan(1,nmice);
+for mousei = 1:nmice,  
+  
+  hfigs(mousei) = figure;
+  set(hfigs(mousei),'Position',[10,10 1200 1000]);
+  hax = createsubplots(ntrialtypes,1,.05);
+  
+  for trialtypei = 1:ntrialtypes,
+    idxcurr = [labeldata(mousei).expInfo.trialtype] == trialtypei;
+    labeldatacurr = labeldata(mousei);
+    for j = 1:numel(fnscopy),
+      labeldatacurr.(fnscopy{j}) = labeldata(mousei).(fnscopy{j})(idxcurr);
+    end
+    [~,mupertype{trialtypei,mousei},Spertype{trialtypei,mousei},npertype{trialtypei,mousei}] = ...
+      PlotLabeledReachesPerMouse(labeldatacurr,'hax',hax(trialtypei),...
+      'mousename',sprintf('%s, %s',mice{mousei},trialtypenames{trialtypei}),...
+      'sepdays',false);
+  end
+  
+  SaveFigLotsOfWays(hfigs(mousei),sprintf('GrabPositions_AllDays_%s',mice{mousei}),{'pdf','png','fig'});
+  
+end
+
 
 %% plot outliers
 
@@ -231,6 +259,29 @@ for mousei = 1:nmice,
 end
 
 %% plot variability in x1 and x2
+
+hfig = figure;
+set(hfig,'Units','pixels','Position',[10 10 1600 900]);
+hax = createsubplots(nmice,ntrialtypes,.05);
+hax = reshape(hax,[nmice,ntrialtypes]);
+for mousei = 1:nmice,
+  for trialtypei = 1:ntrialtypes,
+    
+    idxcurr = [labeldata(mousei).expInfo.trialtype] == trialtypei;
+    labeldatacurr = labeldata(mousei);
+    for j = 1:numel(fnscopy),
+      labeldatacurr.(fnscopy{j}) = labeldata(mousei).(fnscopy{j})(idxcurr);
+    end
+
+    PlotLabeledReachPosXStdPerMouse(labeldatacurr,Sperday{trialtypei,mousei},days{trialtypei,mousei},...
+      'hax',hax(mousei,trialtypei),...
+      'mousename',sprintf('%s, %s',mice{mousei},trialtypenames{trialtypei}));
+  end
+end
+
+SaveFigLotsOfWays(hfig,'XPositionStd',{'pdf','png','fig'});
+
+%% plot variability in x1 and x2, averaging over all days
 
 hfig = figure;
 set(hfig,'Units','pixels','Position',[10 10 1600 900]);
