@@ -644,13 +644,13 @@ classdef CPRLabelTracker < LabelTracker
         % load existing/overlap results
         iOverlp = locMF(tfOverlp);
         obj.trkP(iOverlp,:,:) = tr.trkP(tfOverlp,:,:);
-        obj.trkPFull(iOverlp,:,:,:) = tr.trkPFull(tfOverlp,:,:,:);
+        obj.trkPFull(iOverlp,:,:,:) = tr.trkPFull(tfOverlp,:,:,:); % TODO: if trkPFull is [] (stripped)
         obj.trkPMD(iOverlp,:) = tr.trkPMD(tfOverlp,:);
         obj.trkPTS(iOverlp,:) = tr.trkPTS(tfOverlp,:);
         
         % load new results
         obj.trkP = cat(1,obj.trkP,tr.trkP(~tfOverlp,:,:));
-        obj.trkPFull = cat(1,obj.trkPFull,tr.trkPFull(~tfOverlp,:,:,:));
+        obj.trkPFull = cat(1,obj.trkPFull,tr.trkPFull(~tfOverlp,:,:,:)); % TODO: if trkPFull is [] 
         obj.trkPMD = cat(1,obj.trkPMD,tr.trkPMD(~tfOverlp,:));
         obj.trkPTS = cat(1,obj.trkPTS,tr.trkPTS(~tfOverlp,:));
       else
@@ -667,9 +667,10 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function track(obj,iMovs,frms,varargin)
-      [useRC,tblP] = myparse(varargin,...
+      [useRC,tblP,stripTrkPFull] = myparse(varargin,...
         'useRC',true,... % if true, use RegressorCascade (.trnResRC)
-        'tblP',[]... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
+        'tblP',[],... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
+        'stripTrkPFull',true... % if true, don't save .trkPFull
         );
       
       prm = obj.sPrm;
@@ -760,12 +761,22 @@ classdef CPRLabelTracker < LabelTracker
       % existing rows
       idxCur = loc(tf);
       obj.trkP(idxCur,:,:) = pTstTRed(tf,:,:);
-      obj.trkPFull(idxCur,:,:,:) = pTstT(tf,:,:,:);
+      if stripTrkPFull
+        if ~isempty(obj.trkPFull)
+          warning('CPRLabelTracker:track','Stripping 4D tracking results .trkPFull.');
+          obj.trkPFull = [];
+        end          
+      else
+        obj.trkPFull(idxCur,:,:,:) = pTstT(tf,:,:,:);
+      end
+        
       nowts = now;
       obj.trkPTS(idxCur) = nowts;
       % new rows
       obj.trkP = [obj.trkP; pTstTRed(~tf,:,:)];
-      obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,:)];
+      if ~stripTrkPFull
+        obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,:)];
+      end
       nNew = nnz(~tf);
       obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
       obj.trkPMD = [obj.trkPMD; trkPMDnew(~tf,:)];
