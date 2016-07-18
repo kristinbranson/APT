@@ -2597,9 +2597,9 @@ classdef Labeler < handle
       tObj.track(iMovs,frms);      
     end
     
-    function trackHiVolume(obj,tm)
-      % "High volume" tracking -- track one movie at a time, clearing 
-      % data in between
+    function trackAndExport(obj,tm)
+      % Track one movie at a time, exporting results to .trk files and 
+      % clearing data in between
       %
       % tm: scalar TrackMode
       
