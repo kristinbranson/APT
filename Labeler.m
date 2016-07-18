@@ -2199,22 +2199,6 @@ classdef Labeler < handle
       tf = any(~isnan(lpos(:)));
     end
     
-    % trk files, label export
-    
-    function s = labelCreateTrkContents(obj,iMov)
-      % Create .trk contents from .labeledpos, .labeledpostag etc
-      %
-      % iMov: scalar movie index
-      %
-      % s: scalar struct
-      
-      assert(isscalar(iMov));      
-      s = struct();
-      s.pTrk = obj.labeledpos{iMov};
-      s.pTrkTS = obj.labeledposTS{iMov};
-      s.pTrkTag = obj.labeledpostag{iMov};
-      s.pTrkiPt = 1:size(s.pTrk,1);
-    end
   end
   
   methods
@@ -2265,24 +2249,28 @@ classdef Labeler < handle
       end
     end
     
-    function labelExportTrk(obj,iMov)
+    function labelExportTrk(obj,iMovs)
       % Export label data to trk files.
       %
       % iMov: optional, indices into .movieFilesAll to export. Defaults to 1:obj.nmovies.
       
       %#MVOK
       
-      if exist('iMov','var')==0
-        iMov = 1:obj.nmovies;
+      if exist('iMovs','var')==0
+        iMovs = 1:obj.nmovies;
       end
       
-      movfiles = obj.movieFilesAllFull(iMov,1);
+      movfiles = obj.movieFilesAllFull(iMovs,1);
       [tfok,trkfiles] = obj.getTrkFileNames(movfiles);
       if tfok
-        nMov = numel(iMov);
+        nMov = numel(iMovs);
+        assert(numel(trkfiles)==nMov);
         for i=1:nMov
-          s = obj.labelCreateTrkContents(iMov(i)); %#ok<NASGU>
-          save(trkfiles{i},'-mat','-struct','s');
+          iMv = iMovs(i);
+          trkfile = TrkFile(obj.labeledpos{iMv},...
+            'pTrkTS',obj.labeledposTS{iMv},...
+            'pTrkTag',obj.labeledpostag{iMv});
+          trkfile.save(trkfiles{i});
         end
         msgbox(sprintf('%d trk files exported.',nMov),'Export complete.');
       end
@@ -2609,6 +2597,38 @@ classdef Labeler < handle
       tObj.track(iMovs,frms);      
     end
     
+    function trackHiVolume(obj,tm)
+      % "High volume" tracking -- track one movie at a time, clearing 
+      % data in between
+      %
+      % tm: scalar TrackMode
+      
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('Labeler:track','No tracker set.');
+      end      
+      [iMovs,frms] = tm.getMovsFramesToTrack(obj);      
+      
+      movfiles = obj.movieFilesAllFull(iMovs,1);
+      [tfok,trkfilenames] = getTrkFileNames(obj,movfiles);
+      
+      if tfok
+        nMov = numel(iMovs);
+        %hWB = waitbar(0,sprintf('Tracking movie %d/%d',0,nMov));
+        for i=1:nMov 
+          fprintf('Tracking movie %d/%d\n',i,nMov);
+          tObj.track(iMovs(i),frms(i));
+          trkFile = tObj.getTrackingResults(iMovs(i));
+          trkFile.save(trkfilenames{i});
+          fprintf('Saved: %s\n',trkfilenames{i});
+          tObj.clearTrackingResults();
+        end
+        %delete(hWB);
+      end
+    end
+    
+    % 20160718: trackSaveLoad stuff not exposed, may change
+    
     function trackSaveResults(obj,fname)
       tObj = obj.tracker;
       if isempty(tObj)
@@ -2636,11 +2656,13 @@ classdef Labeler < handle
     function [success,fname] = trackSaveResultsAs(obj)
       [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
         'uiputfile','Save tracking results','trackSaveResults');
+      % XXX unfinished, rationalize track save/load/export
     end
     
     function [success,fname] = trackLoadResultsAs(obj)
       [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
         'uigetfile','Load tracking results','trackLoadResults');
+      % XXX unfinished, rationalize track save/load/export
     end
     
     function [success,fname] = trackSaveLoadAsHelper(obj,rcprop,uifcn,...
@@ -3215,24 +3237,8 @@ classdef Labeler < handle
         obj.labeledpos2{i}(:) = nan;
       end
       obj.labels2VizUpdate();
-    end
-    
-    function s = labels2CreateTrkContents(obj,iMov)
-      % Create .trk contents from .labeledpos2
-      %
-      % iMov: scalar movie index
-      %
-      % s: scalar struct
-      
-      assert(isscalar(iMov));      
-      s = struct();
-      s.pTrk = obj.labeledpos2{iMov};
-      [npts,~,nfrm,ntgt] = size(s.pTrk);
-      s.pTrkTS = -inf(npts,nfrm,ntgt);
-      s.pTrkTag = cell(npts,nfrm,ntgt);
-      s.pTrkiPt = 1:size(s.pTrk,1);
-    end
-    
+    end    
+   
     function labels2ImportTrk(obj,iMovs,trkfiles)
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
@@ -3256,22 +3262,24 @@ classdef Labeler < handle
       obj.labels2ImportTrk(obj.currMovie);
     end
     
-    function labels2ExportTrk(obj,iMov)
+    function labels2ExportTrk(obj,iMovs)
       % Export label data to trk files.
       %
       % iMov: optional, indices into .movieFilesAll to export. Defaults to 1:obj.nmovies.
       
-      if exist('iMov','var')==0
-        iMov = 1:obj.nmovies;
+      if exist('iMovs','var')==0
+        iMovs = 1:obj.nmovies;
       end
       
-      movfiles = obj.movieFilesAllFull(iMov,1);
+      movfiles = obj.movieFilesAllFull(iMovs,1);
       [tfok,trkfiles] = obj.getTrkFileNames(movfiles);
       if tfok
-        nMov = numel(iMov);
+        nMov = numel(iMovs);
+        assert(numel(trkfiles)==nMov);
         for i=1:nMov
-          s = obj.labels2CreateTrkContents(iMov(i)); %#ok<NASGU>
-          save(trkfiles{i},'-mat','-struct','s');
+          iMv = iMovs(i);
+          trkfile = TrkFile(obj.labeledpos2{iMv});
+          trkfile.save(trkfiles{i});
         end
       end
       
