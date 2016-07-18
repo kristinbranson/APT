@@ -58,7 +58,7 @@ classdef CPRLabelTracker < LabelTracker
     trkPFull % [NTst RT trkD T+1] Tracked shapes full data
     trkPTS % [NTst] timestamp for trkP*
     trkPMD % [NTst <ncols>] table. Movie/frame md for trkP*
-    trkPiPt % [trkD] indices into 1:model.D, tracked points
+    trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. npttrk=trkD*d.
     
     % View/presentation
     xyPrdCurrMovie; % [npts d nfrm] predicted labels for current Labeler movie
@@ -355,6 +355,48 @@ classdef CPRLabelTracker < LabelTracker
       end
       obj.trnResIPt = [];
     end
+  end
+  
+  %% TrackRes
+  methods
+    
+    function [trkpos,trkposTS] = getTrackResRaw(obj,iMov)
+      % Get tracking results for movie iMov.
+      %
+      % iMov: scalar movie index
+      % 
+      % trkpos: [nptstrk x d x nfrm(iMov)]. Tracking results for iMov. 
+      %  IMPORTANT: first dim is nptstrk=numel(.trkPiPt), NOT obj.npts
+      % trkposTS: [nptstrk x nfrm(iMov)]. Timestamps for trkpos
+      
+      lObj = obj.lObj;
+      movName = lObj.movieFilesAllFull{iMov};
+      nfrms = lObj.movieInfoAll{iMov}.nframes;
+
+      d = 2;
+      pTrk = obj.trkP(:,:,end); % [NTst x D]
+      trkMD = obj.trkPMD;
+      iPtTrk = obj.trkPiPt;
+      nPtTrk = numel(iPtTrk);
+      assert(isequal(size(pTrk),[size(trkMD,1) nPtTrk*d]));
+      assert(numel(obj.trkPTS)==size(trkMD,1));
+
+      trkpos = nan(nPtTrk,d,nfrms);
+      trkposTS = -inf(nPtTrk,nfrms);
+
+      if isempty(obj.trkPTS) % proxy for no tracking results etc
+        % none
+      else
+        tfCurrMov = strcmp(trkMD.mov,movName); % these rows of trkMD are for the current Labeler movie
+        nCurrMov = nnz(tfCurrMov);
+        xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);        
+        frmCurrMov = trkMD.frm(tfCurrMov);
+        trkpos(:,:,frmCurrMov) = xyTrkCurrMov;
+        tmpTS = obj.trkPTS(tfCurrMov);
+        trkposTS(:,frmCurrMov) = repmat(tmpTS(:)',nPtTrk,1);
+      end
+    end
+          
   end
   
   %% LabelTracker overloads
@@ -802,7 +844,29 @@ classdef CPRLabelTracker < LabelTracker
       %           'fig',gcf,'nr',4,'nc',4,'md',td.MDTst(tfTstLbled,:));
       %       end
     end
-        
+      
+    function trkfiles = getTrackingResults(obj,iMovs)
+      % Get tracking results for movie iMov.
+      %
+      % iMovs: vector of movie indices
+      %
+      % trkfiles: vector of TrkFile objects, same numel as iMovs
+      
+      validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
+
+      nMov = numel(iMovs);
+      trkpipt = obj.trkPiPt;      
+      for i = nMov:-1:1
+        [trkpos,trkposTS] = obj.getTrackResRaw(iMovs(i));
+        trkfiles(i) = TrkFile(trkpos,'pTrkTS',trkposTS,'pTrkiPt',trkpipt);
+      end
+    end
+    
+    function clearTrackingResults(obj)
+      obj.initData();
+      obj.trackResInit();
+    end
+    
     function newLabelerFrame(obj)
       % Update .hXYPrdRed based on current Labeler frame and
       % .xyPrdCurrMovie
@@ -979,7 +1043,7 @@ classdef CPRLabelTracker < LabelTracker
   
   %% Viz
   methods
-
+    
     function vizInit(obj)
       obj.xyPrdCurrMovie = [];
       obj.xyPrdCurrMovieIsInterp = [];
@@ -1011,6 +1075,8 @@ classdef CPRLabelTracker < LabelTracker
     
     function vizLoadXYPrdCurrMovie(obj)
       % sets .xyPrdCurrMovie* for current Labeler movie from .trkP, .trkPMD
+      %
+      % TODO: collapse with getTrackRes(obj,iMov)
 
       lObj = obj.lObj;
       
