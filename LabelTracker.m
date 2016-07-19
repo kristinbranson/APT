@@ -110,14 +110,27 @@ classdef LabelTracker < handle
       end
     end
             
+    function importTrackingResults(obj,iMovs,trkfiles)
+      % Import tracking results for movies iMovs.
+      % Default implemation ERRORS
+      %
+      % Currently no set policy on whether to merge or overwrite existing 
+      % tracking results.
+      %
+      % iMovs: vector of movie indices
+      % trkfiles: vector of TrkFile objects, same numel as iMovs
+
+      assert(false,'Import tracking results is unsupported for this tracker.');   
+    end
+    
     function clearTrackingResults(obj)
       % Clear all current/cached tracking results. Trained tracker should
       % remain untouched. Used when tracking many movies to avoid memory
       % overflow.
 
       % Default impl: none
-    end
-    
+    end    
+        
     function newLabelerFrame(obj)
       % Called when Labeler is navigated to a new frame
     end

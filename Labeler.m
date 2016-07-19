@@ -2610,7 +2610,7 @@ classdef Labeler < handle
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);      
       
       movfiles = obj.movieFilesAllFull(iMovs,1);
-      [tfok,trkfilenames] = getTrkFileNames(obj,movfiles);
+      [tfok,trkfilenames] = obj.getTrkFileNames(movfiles);
       
       if tfok
         nMov = numel(iMovs);
@@ -2627,7 +2627,32 @@ classdef Labeler < handle
       end
     end
     
-    % 20160718: trackSaveLoad stuff not exposed, may change
+    function trackExportResults(obj,ms)
+      % Export tracking results to trk files.
+      %
+      % ms: a MovieSet
+      
+      assert(isa(ms,'MovieSet') && isscalar(ms));
+      
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('Labeler:track','No tracker set.');
+      end 
+      
+      iMovs = ms.getMovieIndices(obj);
+      tfileObjs = tObj.getTrackingResults(iMovs);
+      movfiles = obj.movieFilesAllFull(iMovs,1);
+      [tfok,trkfilenames] = obj.getTrkFileNames(movfiles);
+      if tfok
+        assert(numel(tfileObjs)==numel(trkfilenames));
+        for i=1:numel(tfilesObjs)
+          tfileObjs(i).save(trkfilenames{i});
+          fprintf('Saved %s.\n',trkfilenames{i});
+        end
+      end
+    end
+    
+    % 20160718: ALL THE STUFF BELOW IS UNUSED, MAY CHANGE.
     
     function trackSaveResults(obj,fname)
       tObj = obj.tracker;
