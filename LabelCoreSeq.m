@@ -134,9 +134,12 @@ classdef LabelCoreSeq < LabelCore
     function kpf(obj,~,evt)
       key = evt.Key;
       modifier = evt.Modifier;
-      
       tfCtrl = ismember('control',modifier);
       switch key
+        case {'h'}
+          if tfCtrl
+            obj.labelsHideToggle();
+          end
         case {'s' 'space'} % accept
           if obj.state==LabelState.ADJUST
             obj.acceptLabels();

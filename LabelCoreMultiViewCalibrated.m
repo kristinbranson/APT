@@ -308,6 +308,10 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       tfShft = any(strcmp('shift',modifier));
       
       switch key
+        case {'h'}
+          if tfCtrl
+            obj.labelsHideToggle();
+          end
         case {'space'}
           [tfSel,iSel] = obj.selAnyPointSelected();
           if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
