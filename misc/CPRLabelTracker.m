@@ -48,7 +48,7 @@ classdef CPRLabelTracker < LabelTracker
 %     trnRes % most recent training results
 %     trnResTS % timestamp for trnRes
 %     trnResPallMD % movie/frame metadata for trnRes.pAll
-    trnResIPt %
+    trnResIPt % TODO doc me. Basically like .trkPiPt.
     trnResRC % RegressorCascade
     
     % Tracking state -- set during .track()
@@ -56,7 +56,7 @@ classdef CPRLabelTracker < LabelTracker
     % omitted from tracking
     trkP % [NTst trkD T+1] reduced/pruned tracked shapes
     trkPFull % [NTst RT trkD T+1] Tracked shapes full data
-    trkPTS % [NTst] timestamp for trkP*
+    trkPTS % [NTstx1] timestamp for trkP*
     trkPMD % [NTst <ncols>] table. Movie/frame md for trkP*
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. npttrk=trkD*d.
     
@@ -68,13 +68,17 @@ classdef CPRLabelTracker < LabelTracker
     xyVizPlotArgsInterp; % cell array of args for interpolated tracking viz
   end
   properties (Dependent)
-    nPts
+    nPts % number of label points 
+    nPtsTrk % number of tracked label points; will be <= nPts. See .trkPiPt.
   end
   
   %% Dep prop getters
   methods
     function v = get.nPts(obj)
       v = obj.lObj.nLabelPoints;
+    end
+    function v = get.nPtsTrk(obj)
+      v = numel(obj.trkPiPt);
     end
   end
   
@@ -797,6 +801,16 @@ classdef CPRLabelTracker < LabelTracker
       % Augment .trkP* state with new tracking results
       % - new rows are just added
       % - existing rows are overwritten
+      
+      if ~isempty(obj.trkP)
+        assert(~isempty(obj.trkPiPt),...
+          'Tracked points specification (.trkPiPt) cannot be empty.');
+        if ~isequal(obj.trkPiPt,obj.trnResIPt)
+          error('CPRLabelTracker:track',...
+            'Existing tracked points (.trkPiPt) differ from new tracked points. New tracking results cannot be saved.');
+        end
+      end
+
       trkPMDnew = d.MDTst(:,{'mov' 'movS' 'frm'});
       trkPMDcur = obj.trkPMD;
       [tf,loc] = ismember(trkPMDnew,trkPMDcur);
@@ -810,8 +824,8 @@ classdef CPRLabelTracker < LabelTracker
         end          
       else
         obj.trkPFull(idxCur,:,:,:) = pTstT(tf,:,:,:);
-      end
-        
+      end        
+      
       nowts = now;
       obj.trkPTS(idxCur) = nowts;
       % new rows
@@ -822,6 +836,11 @@ classdef CPRLabelTracker < LabelTracker
       nNew = nnz(~tf);
       obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
       obj.trkPMD = [obj.trkPMD; trkPMDnew(~tf,:)];
+      
+      % See above check/error re .trkPiPt. Either there were originally no
+      % tracking results so we are setting .trkPiPt for the first time; or 
+      % there were original tracking results and the old .trkPiPt matches 
+      % the new (in which case this line is a no-op).
       obj.trkPiPt = obj.trnResIPt;
       
       if ~isempty(obj.lObj)
@@ -855,11 +874,117 @@ classdef CPRLabelTracker < LabelTracker
       validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
 
       nMov = numel(iMovs);
-      trkpipt = obj.trkPiPt;      
+      trkpipt = obj.trkPiPt;
+      trkinfo = struct('paramFile',obj.paramFile);
       for i = nMov:-1:1
         [trkpos,trkposTS] = obj.getTrackResRaw(iMovs(i));
-        trkfiles(i) = TrkFile(trkpos,'pTrkTS',trkposTS,'pTrkiPt',trkpipt);
+        trkfiles(i) = TrkFile(trkpos,'pTrkTS',trkposTS,'pTrkiPt',trkpipt,...
+          'trkInfo',trkinfo);
       end
+    end
+    
+    function importTrackingResults(obj,iMovs,trkfiles)
+      % Any existing tracking results in iMovs are OVERWRITTEN even if the
+      % tracking results in trkfiles are all NaNs
+      
+      lObj = obj.lObj;
+      validateattributes(iMovs,{'numeric'},...
+        {'positive' 'integer' '<=' lObj.nmovies});
+      nMovs = numel(iMovs);
+      assert(isa(trkfiles,'TrkFile') && numel(trkfiles)==nMovs);
+
+      prmFile0 = obj.paramFile;
+      
+      for i = 1:nMovs
+        iMv = iMovs(i);
+        tfile = trkfiles(i);
+        movFileFull = lObj.movieFilesAllFull{iMv};
+        [~,movFileFullS] = myfileparts(movFileFull);
+
+        prmFile1 = tfile.trkInfo.paramFile;
+        if ~isempty(prmFile0) && ~isempty(prmFile1) && ~strcmp(prmFile0,prmFile1)
+          warningNoTrace('CPRLabelTracker:paramFile',...
+            'Tracking results generated using parameter file ''%s'', which differs from current file ''%s''.',...
+            prmFile1,prmFile0);
+        end
+        % Note, we do not force the prmFiles to agree. And maybe in some
+        % weird cases, one or both are empty.
+        
+        nfrm = lObj.movieInfoAll{iMv}.nframes;
+        if size(tfile.pTrk,3)~=nfrm
+          error('CPRLabelTracker:importTrackingResults',...
+            'Trkfile inconsistent with number of frames in movie %s.',movFileFull);
+        end
+                
+        % find and clear all tracking results for this mov
+        tfCurrMov = strcmp(obj.trkPMD.mov,movFileFull);
+        if any(tfCurrMov)
+          warningNoTrace('CPRLabelTracker:importTrackingResults',...
+            'Clearing %d frames of existing tracking results for movie %s.',...
+            nnz(tfCurrMov),movFileFull);
+          obj.trkP(tfCurrMov,:,:) = [];
+          if ~isempty(obj.trkPFull)
+            assert(size(obj.trkPFull,1)==numel(tfCurrMov));
+            obj.trkPFull(tfCurrMov,:,:,:) = [];
+          end
+          obj.trkPTS(tfCurrMov,:) = [];
+          obj.trkPMD(tfCurrMov,:) = [];
+        end
+        
+        % load tracking results for this mov
+        
+        % find frames that have at least one non-nan point
+        
+        d = 2;
+        trkD = d*obj.nPtsTrk;
+        tmptrkP = reshape(tfile.pTrk,trkD,nfrm)'; % [nfrm x trkD]
+        tfNotNanFrm = any(~isnan(tmptrkP),2);
+        nRowsToAdd = nnz(tfNotNanFrm);
+        
+        if nRowsToAdd>0
+          if isempty(obj.trkPiPt)
+            assert(isempty(obj.trkP));
+            obj.trkPiPt = tfile.pTrkiPt;
+          end
+          if ~isequal(obj.trkPiPt,tfile.pTrkiPt)
+            error('CPRLabelTracker:trkPiPt',...
+              'Movie %s: ''trkPiPt'' differs in tracked results to be loaded.',...
+              movFileFull);
+          end        
+
+          TRKMDVARNAMES = {'mov' 'movS' 'frm'};
+          assert(strcmp(obj.trkPMD.Properties.VariableNames,TRKMDVARNAMES));
+
+          % OK: update .trkP, trkPFull, trkPMD, trkPTS
+          obj.trkP = cat(1,obj.trkP,tmptrkP(tfNotNanFrm,:));
+          if ~isempty(obj.trkPFull)
+            obj.trkPFull = cat(1,obj.trkPFull,...
+              nan(nRowsToAdd,size(obj.trkPFull,2),trkD,size(obj.trkPFull,4)));
+          end
+          mdMov = repmat({movFileFull},nRowsToAdd,1);
+          mdMovS = repmat({movFileFullS},nRowsToAdd,1);
+          mdFrm = find(tfNotNanFrm);
+          mdFrm = mdFrm(:);
+          mdNew = table(mdMov,mdMovS,mdFrm,'VariableNames',TRKMDVARNAMES);
+          obj.trkPMD = cat(1,obj.trkPMD,mdNew);
+          tsNew = tfile.pTrkTS(:,tfNotNanFrm);
+          tsNew = max(tsNew,1)';
+          obj.trkPTS = cat(1,obj.trkPTS,tsNew);
+
+          % tfile.pTrkTag is ignored
+          tftmp = ~cellfun(@isempty,tfile.pTrkTag);
+          if any(tftmp(:))
+            warningNoTrace('CPRLabelTracker:importTrackingResults',...
+              'Movie %s: Ignoring nontrivial .pTrkTag field in TrkFile.',movFileFull);
+          end
+          
+          fprintf(1,'Movie %s: loaded %d frames of tracking results.\n',...
+            movFileFull,nRowsToAdd);
+        end
+        
+        assert(isequal(size(obj.trkP,1),size(obj.trkPMD,1),size(obj.trkPTS,1)));
+      end
+      fprintf(1,'Loaded tracking results for %d movies.\n',nMovs);
     end
     
     function clearTrackingResults(obj)
