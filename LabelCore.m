@@ -133,12 +133,8 @@ classdef LabelCore < handle
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
-%       set(obj.hFig,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
-%       set(obj.hFig,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
       set(obj.labeler.gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF);
       set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
-      hTmp = findall(obj.hFig,'-property','KeyPressFcn','-not','Tag','edit_frame');
-      set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e));
       
       set(obj.labeler.gdata.tbAccept,'Enable','on');
       set(obj.labeler.gdata.pbClear,'Enable','on');
@@ -219,7 +215,15 @@ classdef LabelCore < handle
     function axOccBDF(obj,src,evt) %#ok<INUSD>
     end
     
-    function kpf(obj,src,evt) %#ok<INUSD>
+    function tfKPused = kpf(obj,src,evt) %#ok<INUSD>
+      % KeyPressFcn
+      % 
+      % tfKPused: if true, keypress has been consumed by LabelCore. 
+      % LabelCore has first dibs on keypresses. Unconsumed keypresses may 
+      % be passed onto other clients (eg Timeline)
+
+      % Default implementation does nothing and never consumes
+      tfKPused = false;
     end
     
     function getLabelingHelp(obj) %#ok<MANU>

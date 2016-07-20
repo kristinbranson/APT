@@ -134,8 +134,11 @@ lObj = handles.labelerObj;
 % handles.labelTLManual = LabelTimeline(lObj,handles.axes_timeline_manual,true);
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
 set(handles.pumInfo,'String',handles.labelTLInfo.getProps());
-handles.figure.WindowButtonMotionFcn = @(src,evt)cbkWBMF(src,evt,lObj);
-handles.figure.WindowButtonUpFcn = @(src,evt)cbkWBUF(src,evt,lObj);
+
+hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
+set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
+set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
+set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
 
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
@@ -242,6 +245,17 @@ lblCore = evt.AffectedObject;
 gdata = lblCore.labeler.gdata;
 gdata.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels);
 
+function cbkKPF(src,evt,lObj)
+lcore = lObj.lblCore;
+if ~isempty(lcore)
+  tfKPused = lcore.kpf(src,evt);
+else
+  tfKPused = false;
+end
+if ~tfKPused
+  % TODO timeline use me
+end
+      
 function cbkWBMF(src,evt,lObj)
 lcore = lObj.lblCore;
 if ~isempty(lcore)

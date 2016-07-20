@@ -171,11 +171,13 @@ classdef LabelCoreErrorCorrect < LabelCore
       obj.tfMoved = false;
     end
     
-    function kpf(obj,src,evt) %#ok<INUSL>
+    function tfKPused = kpf(obj,src,evt) %#ok<INUSL>
       key = evt.Key;
       modifier = evt.Modifier;      
       tfCtrl = any(strcmp('control',modifier));
       tfShft = any(strcmp('shift',modifier));
+
+      tfKPused = true;
       
       switch key
         case {'h'}
@@ -250,6 +252,8 @@ classdef LabelCoreErrorCorrect < LabelCore
             else
               obj.labeler.frameUp(tfCtrl);
             end
+          else
+            tfKPused = false;
           end
         case {'backquote'}
           iPt = obj.kpfIPtFor1Key+10;
@@ -268,7 +272,9 @@ classdef LabelCoreErrorCorrect < LabelCore
           end
           obj.clearSelected(iPt);
           obj.toggleSelectPoint(iPt);
-      end      
+        otherwise          
+          tfKPused = false;
+      end
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>

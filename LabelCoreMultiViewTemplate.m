@@ -43,19 +43,7 @@ classdef LabelCoreMultiViewTemplate < LabelCore
       obj = obj@LabelCore(varargin{:});
     end
     
-    function delete(obj)
-      gdata = obj.labeler.gdata;
-      hFigs = gdata.figs_all;
-      hFigsAddnl = setdiff(hFigs,gdata.figure);
-
-      % Remove any pointers to this object from callbacks in hFigsAddnl.
-      % Callbacks in gdata.figure (primary figure) are fine to leave as
-      % they are LabelCore's responsibility.
-      
-      hTmp = findall(hFigsAddnl,'-property','KeyPressFcn','-not','Tag','edit_frame');
-      set(hTmp,'KeyPressFcn',[]);
-      set(hFigsAddnl,'WindowButtonMotionFcn',[]);
-      set(hFigsAddnl,'WindowButtonUpFcn',[]);
+    function delete(obj)    
     end
     
     function initHook(obj)
@@ -85,15 +73,6 @@ classdef LabelCoreMultiViewTemplate < LabelCore
           'FontSize',ppi.FontSize,...
           'Hittest','off');
       end
-
-      % set callbacks for addnl figs/axes
-      gdata = obj.labeler.gdata;
-      hFigs = gdata.figs_all;
-      hFigsAddnl = setdiff(hFigs,gdata.figure);
-      hTmp = findall(hFigsAddnl,'-property','KeyPressFcn','-not','Tag','edit_frame');
-      set(hTmp,'KeyPressFcn',@(s,e)obj.kpf(s,e)); % main axis KPF set in LabelCore.init()
-      set(hFigsAddnl,'WindowButtonMotionFcn',@(s,e)obj.wbmf(s,e));
-      set(hFigsAddnl,'WindowButtonUpFcn',@(s,e)obj.wbuf(s,e));
       
       obj.setRandomTemplate();
       
@@ -228,13 +207,13 @@ classdef LabelCoreMultiViewTemplate < LabelCore
       end
     end
     
-    function kpf(obj,src,evt) %#ok<INUSL>
+    function tfKPused = kpf(obj,src,evt) %#ok<INUSL>
       %#MVOK
       key = evt.Key;
       modifier = evt.Modifier;      
       tfCtrl = any(strcmp('control',modifier));
       tfShft = any(strcmp('shift',modifier));
-      
+      tfKPused = true;
       switch key
         case {'h'}
           if tfCtrl
@@ -319,6 +298,8 @@ classdef LabelCoreMultiViewTemplate < LabelCore
             else
               obj.labeler.frameUp(tfCtrl);
             end
+          else
+            tfKPused = false;
           end
         case {'backquote'}
           iPt = obj.kpfIPtFor1Key+10;
@@ -337,6 +318,8 @@ classdef LabelCoreMultiViewTemplate < LabelCore
           end
           obj.clearSelected(iPt);
           obj.toggleSelectPoint(iPt);
+        otherwise
+          tfKPused = false;
       end      
     end
     
