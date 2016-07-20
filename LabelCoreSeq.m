@@ -131,12 +131,16 @@ classdef LabelCoreSeq < LabelCore
       end
     end
     
-    function kpf(obj,~,evt)
+    function tfKPused = kpf(obj,~,evt)
       key = evt.Key;
       modifier = evt.Modifier;
-      
       tfCtrl = ismember('control',modifier);
+      tfKPused = true;
       switch key
+        case {'h'}
+          if tfCtrl
+            obj.labelsHideToggle();
+          end
         case {'s' 'space'} % accept
           if obj.state==LabelState.ADJUST
             obj.acceptLabels();
@@ -145,6 +149,8 @@ classdef LabelCoreSeq < LabelCore
           obj.labeler.frameUp(tfCtrl);
         case {'leftarrow' 'a' 'hyphen'}
           obj.labeler.frameDown(tfCtrl);
+        otherwise
+          tfKPused = false;
       end
     end
     

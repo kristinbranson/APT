@@ -221,18 +221,24 @@ classdef LabelCoreHT < LabelCore
       end
     end    
     
-    function kpf(obj,src,evt) %#ok<INUSL>
+    function tfKPused = kpf(obj,src,evt) %#ok<INUSL>
       key = evt.Key;
-      %modifier = evt.Modifier;
-      %tfCtrl = any(strcmp('control',modifier));
-      
+      modifier = evt.Modifier;
+      tfCtrl = any(strcmp('control',modifier));
+      tfKPused = true;
       switch key
+        case {'h'}
+          if tfCtrl
+            obj.labelsHideToggle();
+          end
         case 'space'
           obj.acceptCurrentPt();
         case {'equal' 'rightarrow' 'd'}
           obj.labeler.frameUpDF(obj.nFrameSkip);
         case {'hyphen' 'leftarrow' 'a'}
           obj.labeler.frameDownDF(obj.nFrameSkip);
+        otherwise
+          tfKPused = false;
       end      
     end
     

@@ -63,7 +63,7 @@ classdef LabelTracker < handle
     
   end
   
-  methods 
+  methods
     
     function initHook(obj) %#ok<*MANU>
       % Called when a new project is created/loaded, etc
@@ -91,8 +91,46 @@ classdef LabelTracker < handle
       %
       % iMovs: [M] indices into .lObj.movieFilesAll to track
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
-    end    
+    end
     
+    function trkfiles = getTrackingResults(obj,iMovs)
+      % Get tracking results for movie iMov.
+      % Default implemation here RETURNS ALL NANS
+      %
+      % iMovs: vector of movie indices
+      %
+      % trkfiles: vector of TrkFile objects, same numel as iMovs
+      
+      validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
+      
+      nMov = numel(iMovs);
+      for i = nMov:-1:1
+        trkpos = nan(size(obj.lObj.labeledpos{iMovs(i)}));
+        trkfiles(i) = TrkFile(trkpos);
+      end
+    end
+            
+    function importTrackingResults(obj,iMovs,trkfiles)
+      % Import tracking results for movies iMovs.
+      % Default implemation ERRORS
+      %
+      % Currently no set policy on whether to merge or overwrite existing 
+      % tracking results.
+      %
+      % iMovs: vector of movie indices
+      % trkfiles: vector of TrkFile objects, same numel as iMovs
+
+      assert(false,'Import tracking results is unsupported for this tracker.');   
+    end
+    
+    function clearTrackingResults(obj)
+      % Clear all current/cached tracking results. Trained tracker should
+      % remain untouched. Used when tracking many movies to avoid memory
+      % overflow.
+
+      % Default impl: none
+    end    
+        
     function newLabelerFrame(obj)
       % Called when Labeler is navigated to a new frame
     end
@@ -101,11 +139,12 @@ classdef LabelTracker < handle
       % Called when Labeler is navigated to a new movie
     end
     
+    % AL 20160715: Don't use/overload me, still rationalizing save/load
     function s = getSaveToken(obj)
       % Get a struct to serialize
       s = struct();
     end
-    
+    % AL 20160715: Don't use/overload me, still rationalizing save/load    
     function loadSaveToken(obj,s) %#ok<*INUSD>
       
     end
