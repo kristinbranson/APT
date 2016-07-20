@@ -18,7 +18,7 @@ end
 movfile = fullfile(movpath,movfile);
 movfile = cellstr(movfile);
 
-[trxfile,trxpath] = uigetfile('*.mat','Select trx file',movpath,'multiselect',multiSelOnOff);
+[trxfile,trxpath] = uigetfile('*.mat','Select trx file (click Cancel if there is no trx file)',movpath,'multiselect',multiSelOnOff);
 if isequal(trxfile,0)
   % user canceled; interpret this as "there is no trx file"
   trxfile = repmat({''},size(movfile));
