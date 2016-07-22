@@ -1178,6 +1178,7 @@ classdef CPRLabelTracker < LabelTracker
       % init .xyVizPlotArgs*
       trackPrefs = obj.lObj.trackPrefs;
       plotPrefs = trackPrefs.PredictPointsPlot;
+      plotPrefs.HitTest = 'off';
       obj.xyVizPlotArgs = struct2paramscell(plotPrefs);
       if isfield(trackPrefs,'PredictInterpolatePointsPlot')
         obj.xyVizPlotArgsInterp = struct2paramscell(trackPrefs.PredictInterpolatePointsPlot);
