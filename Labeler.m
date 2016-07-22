@@ -3319,6 +3319,7 @@ classdef Labeler < handle
       else
         ptsPlotInfo = obj.labelPointsPlotInfo;
       end
+      ptsPlotInfo.HitTest = 'off';
       
       obj.genericInitLabelPointViz('labeledpos2_ptsH','labeledpos2_ptsTxtH',...
         obj.gdata.axes_curr,ptsPlotInfo);
@@ -3352,12 +3353,23 @@ classdef Labeler < handle
       deleteValidHandles(obj.(hTxtProp));
       obj.(hProp) = gobjects(obj.nLabelPoints,1);
       obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
+      
+      % any extra plotting parameters
+      allowedPlotParams = {'HitTest'};
+      ism = ismember(cellfun(@lower,allowedPlotParams,'Uni',0),...
+        cellfun(@lower,fieldnames(plotIfo),'Uni',0));
+      extraParams = {};
+      for i = find(ism),
+        extraParams = [extraParams,{allowedPlotParams{i},plotIfo.(allowedPlotParams{i})}]; %#ok<AGROW>
+      end
+
       for i = 1:obj.nLabelPoints
         obj.(hProp)(i) = plot(ax,nan,nan,plotIfo.Marker,...
           'MarkerSize',plotIfo.MarkerSize,...
           'LineWidth',plotIfo.LineWidth,...
           'Color',plotIfo.Colors(i,:),...
-          'UserData',i);
+          'UserData',i,...
+          extraParams{:});
         obj.(hTxtProp)(i) = text(nan,nan,num2str(i),'Parent',ax,...
           'Color',plotIfo.Colors(i,:),'Hittest','off');
       end      

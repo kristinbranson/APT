@@ -131,9 +131,9 @@ classdef LabelCore < handle
       axis(axOcc,[0 obj.nPts+1 0 2]);
       obj.hideLabels = false;
             
-      set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));
+      set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));      
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
-      set(obj.labeler.gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF);
+      set(obj.labeler.gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF(s,e));
       set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
       
       set(obj.labeler.gdata.tbAccept,'Enable','on');
@@ -208,8 +208,10 @@ classdef LabelCore < handle
     function wbuf(obj,src,evt) %#ok<INUSD>
     end
     
-    function pnlBDF(obj,src,evt) %#ok<INUSD>
+    function pnlBDF(obj,src,evt) 
       % This is called when uipanel_curr is clicked outside the axis.
+      fprintf('Panel BDF called\n');
+      obj.axBDF(src,evt);
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>
