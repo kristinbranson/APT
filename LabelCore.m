@@ -211,7 +211,14 @@ classdef LabelCore < handle
     function pnlBDF(obj,src,evt) 
       % This is called when uipanel_curr is clicked outside the axis.
       fprintf('Panel BDF called\n');
-      obj.axBDF(src,evt);
+            
+      pos = get(obj.hAx,'CurrentPoint');
+      pos = pos(1,1:2);
+      xlim = get(obj.hAx,'XLim');
+      ylim = get(obj.hAx,'YLim');
+      if pos(1) >= xlim(1) && pos(1) <= xlim(2) && pos(2) >= ylim(1) && pos(2) <= ylim(2),      
+        obj.axBDF(src,evt);
+      end
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>
