@@ -209,9 +209,8 @@ classdef LabelCore < handle
     end
     
     function pnlBDF(obj,src,evt) 
-      % This is called when uipanel_curr is clicked outside the axis.
-      fprintf('Panel BDF called\n');
-            
+      % This is called when uipanel_curr is clicked outside the axis, or
+      % when points with HitTest off plotted in overlaid axes are clicked.
       pos = get(obj.hAx,'CurrentPoint');
       pos = pos(1,1:2);
       xlim = get(obj.hAx,'XLim');
