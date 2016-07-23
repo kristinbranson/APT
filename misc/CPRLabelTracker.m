@@ -1245,10 +1245,12 @@ classdef CPRLabelTracker < LabelTracker
 
     function vizHide(obj)
       [obj.hXYPrdRed.Visible] = deal('off');
+      obj.hideViz = true;
     end
     
     function vizShow(obj)
       [obj.hXYPrdRed.Visible] = deal('on'); 
+      obj.hideViz = false;
     end
     
     function vizInterpolateXYPrdCurrMovie(obj)
