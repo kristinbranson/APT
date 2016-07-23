@@ -14,6 +14,12 @@ classdef LabelTracker < handle
     
     hLCurrMovie; % listener to lObj.currMovie
     hLCurrFrame; % listener to lObj.currFrame    
+    
+  end
+  
+  
+  properties (SetObservable)
+    hideViz = false; % scalar logical. If true, hide visualizations
   end
   
   methods
@@ -146,6 +152,24 @@ classdef LabelTracker < handle
     end
     % AL 20160715: Don't use/overload me, still rationalizing save/load    
     function loadSaveToken(obj,s) %#ok<*INUSD>
+      
+    end
+    
+    function vizHide(obj)
+      obj.hideViz = true;
+    end
+    
+    function vizShow(obj)
+      obj.hideViz = false;
+    end
+    
+    function hideVizToggle(obj)
+      
+      if obj.hideViz,
+        obj.vizShow();
+      else
+        obj.vizHide();
+      end
       
     end
     

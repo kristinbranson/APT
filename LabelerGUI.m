@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 18-Jul-2016 09:53:11
+% Last Modified by GUIDE v2.5 22-Jul-2016 18:11:40
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -71,7 +71,16 @@ handles.output = hObject;
 
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
- 
+
+% add menu item for hiding prediction markers
+handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_predictions_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Hide Predictions',...
+  'Tag','menu_view_hide_predictions',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_hide_predictions,handles.menu_view_hide_labels);
+
+
 % multiview
 nview = handles.labelerObj.nview;
 figs = gobjects(1,nview);
@@ -244,6 +253,10 @@ function cbkLblCoreHideLabelsChanged(src,evt)
 lblCore = evt.AffectedObject;
 gdata = lblCore.labeler.gdata;
 gdata.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels);
+
+function cbkTrackerHideVizChanged(src,evt,hmenu_view_hide_predictions)
+tracker = evt.AffectedObject;
+hmenu_view_hide_predictions.Checked = onIff(tracker.hideViz);
 
 function cbkKPF(src,evt,lObj)
 lcore = lObj.lblCore;
@@ -538,6 +551,9 @@ onOff = onIff(tf);
 lObj.gdata.menu_track.Enable = onOff;
 lObj.gdata.pbTrain.Enable = onOff;
 lObj.gdata.pbTrack.Enable = onOff;
+if tf,
+  lObj.tracker.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,lObj.gdata.menu_view_hide_predictions));
+end
 
 function cbkTrackerNFramesChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -894,6 +910,12 @@ function menu_view_hide_labels_Callback(hObject, eventdata, handles)
 lblCore = handles.labelerObj.lblCore;
 if ~isempty(lblCore)
   lblCore.labelsHideToggle();
+end
+
+function menu_view_hide_predictions_Callback(hObject, eventdata, handles)
+tracker = handles.labelerObj.tracker;
+if ~isempty(tracker)
+  tracker.hideVizToggle();
 end
 
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
