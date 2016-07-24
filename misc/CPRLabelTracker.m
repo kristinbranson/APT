@@ -995,23 +995,10 @@ classdef CPRLabelTracker < LabelTracker
     function newLabelerFrame(obj)
       % Update .hXYPrdRed based on current Labeler frame and
       % .xyPrdCurrMovie
-      
-      % get xy and isinterp
-      frm = obj.lObj.currFrame;
+
       npts = obj.nPts;
-      if isempty(obj.xyPrdCurrMovie)
-        xy = nan(npts,2);
-        isinterp = false;
-      else
-        % AL20160502: When changing movies, order of updates to 
-        % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
-        % be updated first, resulting in an OOB currFrame; protect against
-        % this.
-        frm = min(frm,size(obj.xyPrdCurrMovie,3));
-        
-        xy = obj.xyPrdCurrMovie(:,:,frm); % [npt x d]
-        isinterp = obj.xyPrdCurrMovieIsInterp(frm);
-      end
+      % get xy and isinterp
+      [xy,isinterp] = obj.getCurrentPrediction();
       
       if isinterp
         plotargs = obj.xyVizPlotArgsInterp;
@@ -1066,6 +1053,31 @@ classdef CPRLabelTracker < LabelTracker
       obj.vizLoadXYPrdCurrMovie();
       obj.newLabelerFrame();
     end
+    
+    % KB20160724: made a function to get the prediction for the current
+    % frame, copied code from newLabelerFrame, and replaced codeblock with
+    % function call in newLabelerFrame
+    function [xy,isinterp] = getCurrentPrediction(obj)
+      
+      frm = obj.lObj.currFrame;
+      npts = obj.nPts;
+      if isempty(obj.xyPrdCurrMovie)
+        xy = nan(npts,2);
+        isinterp = false;
+      else
+        % AL20160502: When changing movies, order of updates to 
+        % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
+        % be updated first, resulting in an OOB currFrame; protect against
+        % this.
+        frm = min(frm,size(obj.xyPrdCurrMovie,3));
+        
+        xy = obj.xyPrdCurrMovie(:,:,frm); % [npt x d]
+        isinterp = obj.xyPrdCurrMovieIsInterp(frm);
+      end
+
+      
+    end
+    
     
   end
     
