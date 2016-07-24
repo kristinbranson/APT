@@ -80,6 +80,11 @@ handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_predictions,handles.menu_view_hide_labels);
 
+% add menu item for setting current frames labels to tracked positions
+handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_set_labels_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Set manual labels to predicted pose',...
+  'Tag','menu_track_set_labels');  
 
 % multiview
 nview = handles.labelerObj.nview;
@@ -819,6 +824,9 @@ handles.labelerObj.labelExportTrk();
 % end
 
 function menu_help_Callback(hObject, eventdata, handles)
+
+function menu_help_labeling_actions_Callback(hObject, eventdata, handles)
+
 lblCore = handles.labelerObj.lblCore;
 if isempty(lblCore)
   h = 'Please open a movie first.';
@@ -944,6 +952,16 @@ handles.labelerObj.trackRetrain();
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 tm = getTrackMode(handles);
 handles.labelerObj.trackAndExport(tm);
+
+function menu_track_set_labels_Callback(hObject,eventdata,handles)
+
+xy = handles.labelerObj.tracker.getCurrentPrediction();
+if any(isnan(xy(:))),
+  fprintf('No predictions for current frame, not labeling.\n');
+  return;
+end
+disp(xy);
+handles.labelerObj.lblCore.assignLabelCoords(xy);
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);

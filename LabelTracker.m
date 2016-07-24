@@ -173,6 +173,9 @@ classdef LabelTracker < handle
       
     end
     
+    function getCurrentPrediction(obj)
+    end
+    
   end
   
   methods % For infotimeline display
