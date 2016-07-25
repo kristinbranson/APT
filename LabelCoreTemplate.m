@@ -259,7 +259,7 @@ classdef LabelCoreTemplate < LabelCore
             obj.labelsHideToggle();
           end
         case {'s' 'space'}
-          if obj.state==LabelState.ADJUST
+          if ~tfCtrl && obj.state==LabelState.ADJUST
             obj.acceptLabels();
           end
         case {'d' 'equal'}
@@ -267,9 +267,11 @@ classdef LabelCoreTemplate < LabelCore
         case {'a' 'hyphen'}
           obj.labeler.frameDown(tfCtrl);
         case {'o'}
-          [tfSel,iSel] = obj.anyPointSelected();
-          if tfSel
-            obj.toggleEstOccPoint(iSel);
+          if ~tfCtrl,
+            [tfSel,iSel] = obj.anyPointSelected();
+            if tfSel
+              obj.toggleEstOccPoint(iSel);
+            end
           end
         case {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}
           [tfSel,iSel] = obj.anyPointSelected();
