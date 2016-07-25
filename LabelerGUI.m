@@ -209,6 +209,8 @@ fsz(4) = min(fsz(4),round( (scsz(4)-fsz(2))*0.9));
 set(hObject,'Position',fsz);
 set(hObject,'Units','normalized');
 
+handles = setShortcuts(handles);
+
 guidata(hObject, handles);
 
 % UIWAIT makes LabelerGUI wait for user response (see UIRESUME)
@@ -216,6 +218,34 @@ guidata(hObject, handles);
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
+
+function handles = setShortcuts(handles)
+
+prefs = handles.labelerObj.projPrefs;
+if ~isfield(prefs,'Shortcuts'),
+  return;
+end
+prefs = prefs.Shortcuts;
+fns = fieldnames(prefs);
+ismenu = false(1,numel(fns));
+for i = 1:numel(fns),
+  h = findobj(handles.figure,'Tag',fns{i},'-property','Accelerator');
+  if isempty(h) || ~ishandle(h),
+    continue;
+  end
+  ismenu(i) = true;
+  set(h,'Accelerator',prefs.(fns{i}));
+end
+
+handles.shortcutkeys = cell(1,nnz(~ismenu));
+handles.shortcutfns = cell(1,nnz(~ismenu));
+idxnotmenu = find(~ismenu);
+
+for ii = 1:numel(idxnotmenu),
+  i = idxnotmenu(ii);
+  handles.shortcutkeys{ii} = prefs.(fns{i});
+  handles.shortcutfns{ii} = fns{i};
+end
 
 function cbkAuxAxResize(src,data)
 % AL 20160628: voodoo that may help make points more clickable. Sometimes
@@ -264,6 +294,39 @@ tracker = evt.AffectedObject;
 hmenu_view_hide_predictions.Checked = onIff(tracker.hideViz);
 
 function cbkKPF(src,evt,lObj)
+
+tfKPused = false;
+
+handles = guidata(src);
+% KB20160724: shortcuts from preferences
+if all(isfield(handles,{'shortcutkeys','shortcutfns'})),
+  % control key pressed?
+  if ismember('control',evt.Modifier) && numel(evt.Modifier) == 1 && any(strcmpi(evt.Key,handles.shortcutkeys)),
+    i = find(strcmpi(evt.Key,handles.shortcutkeys),1);
+    h = findobj(handles.figure,'Tag',handles.shortcutfns{i},'-property','Callback');
+    if isempty(h),
+      fprintf('Unknown shortcut handle %s\n',handles.shortcutfns{i});
+    else
+      cb = get(h,'Callback');
+      if isa(cb,'function_handle'),
+        cb(h,[]);
+        tfKPused = true;
+      elseif iscell(cb),
+        cb{1}(cb{2:end});
+        tfKPused = true;
+      elseif ischar(cb),
+        evalin('base',[cb,';']);
+        tfKPused = true;
+      end
+    end
+  end  
+end
+
+if tfKPused,
+  return;
+end
+
+
 lcore = lObj.lblCore;
 if ~isempty(lcore)
   tfKPused = lcore.kpf(src,evt);
