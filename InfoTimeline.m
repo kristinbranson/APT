@@ -90,7 +90,7 @@ classdef InfoTimeline < handle
       obj.hPan = hP;
       
       % Colors for plots should match the points.
-      obj.colors = obj.lObj.labelPointsPlotInfo.Colors;
+      % obj.colors = obj.lObj.labelPointsPlotInfo.Colors;
       
       % callback listeners.
       listeners = cell(0,1);
@@ -180,7 +180,6 @@ classdef InfoTimeline < handle
       else
         set(obj.hMarked,'Visible','off');
       end
-      
     end
   end
   
@@ -191,7 +190,8 @@ classdef InfoTimeline < handle
       obj.npts = obj.lObj.nLabelPoints;
       obj.nfrm = obj.lObj.nframes;
       %obj.setLabelsFull(false(obj.npts,obj.nfrm));      
-      
+      obj.colors = obj.lObj.labelPointsPlotInfo.Colors;
+
       ax = obj.hAx;
       ax.XTick = 0:obj.prefs.dXTick:obj.nfrm;
       ax.YLim = [0 1];
@@ -286,7 +286,9 @@ classdef InfoTimeline < handle
     end
     
     function cbkLabelUpdated(obj,src,~)
-      obj.setLabelsFull;
+      if ~obj.lObj.isinit
+        obj.setLabelsFull;
+      end
     end
     
     function setJumpParams(obj)

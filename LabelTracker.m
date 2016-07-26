@@ -13,10 +13,8 @@ classdef LabelTracker < handle
     trkVizInterpolate % scalar logical. If true, interpolate tracking results when visualizing
     
     hLCurrMovie; % listener to lObj.currMovie
-    hLCurrFrame; % listener to lObj.currFrame    
-    
-  end
-  
+    hLCurrFrame; % listener to lObj.currFrame
+  end  
   
   properties (SetObservable)
     hideViz = false; % scalar logical. If true, hide visualizations

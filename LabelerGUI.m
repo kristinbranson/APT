@@ -403,7 +403,9 @@ if isnan(sldval)
   sldval = 0;
 end
 set(gdata.slider_frame,'Value',sldval);
-gdata.labelTLInfo.setCurrFrame(frm);
+if ~lObj.isinit
+  gdata.labelTLInfo.setCurrFrame(frm);
+end
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
