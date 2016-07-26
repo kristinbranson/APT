@@ -6,6 +6,8 @@ classdef CPRLabelTracker < LabelTracker
       'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnResIPt' 'trnResRC'};
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
+    
+    DEFAULT_PARAMETER_FILE = fullfile(CPR.Root,'param.example.yaml');
   end
   
   %% Params
@@ -415,7 +417,14 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function setParamHook(obj)
+      s0 = CPRLabelTracker.readDefaultParams();
       sNew = obj.readParamFileYaml();
+      [sNew,s0used] = structoverlay(s0,sNew);
+      if ~isempty(s0used)
+        fprintf('Using default parameters for: %s.\n',...
+          String.cellstr2CommaSepList(s0used));
+      end
+      
       sOld = obj.sPrm;      
       obj.sPrm = sNew; % set this now so eg trnResInit() can use
       
@@ -726,6 +735,10 @@ classdef CPRLabelTracker < LabelTracker
       end
       if useRC && ~obj.trnResRC.hasTrained
         error('CPRLabelTracker:track','No tracker has been trained.');
+      end
+      
+      if isfield(prm.TestInit,'movChunkSize')
+        movChunkSize = prm.TestInit.movChunkSize;
       end
                         
       if isempty(tblP)
@@ -1265,6 +1278,10 @@ classdef CPRLabelTracker < LabelTracker
 
   %%
   methods (Static)
+    
+    function sPrm0 = readDefaultParams
+      sPrm0 = ReadYaml(CPRLabelTracker.DEFAULT_PARAMETER_FILE);
+    end
     
     function [xy,isinterp] = interpolateXY(xy)
       % xy (in): [npts d nfrm]
