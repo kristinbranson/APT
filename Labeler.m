@@ -2591,9 +2591,8 @@ classdef Labeler < handle
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end      
-      trkPrefs = obj.projPrefs.Track;
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
-      tObj.track(iMovs,frms,'movChunkSize',trkPrefs.PredictMovieChunkSize);
+      tObj.track(iMovs,frms);
     end
     
     function trackAndExport(obj,tm)
@@ -2606,7 +2605,6 @@ classdef Labeler < handle
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
-      trkPrefs = obj.projPrefs.Track;      
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);      
       
       movfiles = obj.movieFilesAllFull(iMovs,1);
@@ -2617,8 +2615,7 @@ classdef Labeler < handle
         %hWB = waitbar(0,sprintf('Tracking movie %d/%d',0,nMov));
         for i=1:nMov 
           fprintf('Tracking movie %d/%d\n',i,nMov);
-          tObj.track(iMovs(i),frms(i),...
-            'movChunkSize',trkPrefs.PredictMovieChunkSize);
+          tObj.track(iMovs(i),frms(i));
           trkFile = tObj.getTrackingResults(iMovs(i));
           trkFile.save(trkfilenames{i});
           fprintf('Saved: %s\n',trkfilenames{i});

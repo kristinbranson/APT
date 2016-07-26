@@ -1,26 +1,40 @@
-function s = structoverlay(sbase,sover,varargin)
+function [s,baseused] = structoverlay(sbase,sover,varargin)
 % s = structoverlay(sbase,sover,varargin)
 % Overlay 'leaf nodes' of sover onto sbase
+%
+% sbase: scalar base struct
+% sover: scalar overlay struct
+%
+% s: scalar struct, result of overlay
+% baseused: cellstr of 'paths' specifying fields where sbase values were
+% used/retained
 %
 % optional PVs:
 % - 'path'. String, defaults to ''. Current struct "path", eg
 % .topfield.subfield.
 
 path = myparse(varargin,'path','');
+fldsBase = fieldnames(sbase);
+fldsOver = fieldnames(sover);
+baseused = setdiff(fldsBase,fldsOver);
+baseused = strcat(path,'.',baseused(:));
 
-flds = fieldnames(sover);
-for f = flds(:)',f=f{1}; %#ok<FXSET>
+for f = fldsOver(:)',f=f{1}; %#ok<FXSET>
   newpath = [path '.' f];
   if ~isfield(sbase,f)
     warning('structoverlay:unrecognizedfield','Ignoring unrecognized field ''%s''.',...
       newpath);
   elseif isstruct(sbase.(f)) && isstruct(sover.(f))
-    sbase.(f) = structoverlay(sbase.(f),sover.(f),'path',newpath);
+    [sbase.(f),tmpBU] = structoverlay(sbase.(f),sover.(f),'path',newpath);
+    baseused = [baseused;tmpBU];
   elseif isstruct(sbase.(f)) && ~isstruct(sover.(f))
     warning('structoverlay:badval','Ignoring non-struct value of ''%s''.',...
       newpath);
+    baseused{end+1,1} = newpath;
   else % sbase.(f) is not a struct
     sbase.(f) = sover.(f);
+    % sover.(f) might be the same value as sbase.(f), but we don't consider
+    % that base is being used in that case
   end
 end
 
