@@ -195,9 +195,6 @@ classdef Labeler < handle
     trackNFramesLarge % big/coarse "
     trackNFramesNear % neighborhood radius
   end
-  properties
-    trackPrefs % Track preferences substruct
-  end
   
   %% Misc
   properties (SetObservable, AbortSet)
@@ -407,9 +404,10 @@ classdef Labeler < handle
       for prop = obj.gdata.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
         obj.(prop) = obj.(prop);
       end
-
-      if obj.trackPrefs.Enable
-        obj.tracker = feval(obj.trackPrefs.Type,obj);
+      
+      trkPrefs = obj.projPrefs.Track;
+      if trkPrefs.Enable
+        obj.tracker = feval(trkPrefs.Type,obj);
         obj.tracker.init();
         
         % Should setting the tracker for the timeline be somehwere else?
@@ -498,7 +496,6 @@ classdef Labeler < handle
       obj.trackNFramesSmall = prfTrk.PredictFrameStep;
       obj.trackNFramesLarge = prfTrk.PredictFrameStepBig;
       obj.trackNFramesNear = prfTrk.PredictNeighborhood;
-      obj.trackPrefs = prfTrk;      
       
       obj.projPrefs = pref; % redundant with some other props
     end
@@ -568,8 +565,9 @@ classdef Labeler < handle
         delete(obj.tracker);
         obj.tracker = [];
       end
-      if obj.trackPrefs.Enable
-        obj.tracker = feval(obj.trackPrefs.Type,obj);
+      trkPrefs = obj.projPrefs.Track;
+      if trkPrefs.Enable
+        obj.tracker = feval(trkPrefs.Type,obj);
         obj.tracker.init();
       end
     end
@@ -2593,8 +2591,9 @@ classdef Labeler < handle
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end      
+      trkPrefs = obj.projPrefs.Track;
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
-      tObj.track(iMovs,frms);      
+      tObj.track(iMovs,frms,'movChunkSize',trkPrefs.PredictMovieChunkSize);
     end
     
     function trackAndExport(obj,tm)
@@ -2606,7 +2605,8 @@ classdef Labeler < handle
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
-      end      
+      end
+      trkPrefs = obj.projPrefs.Track;      
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);      
       
       movfiles = obj.movieFilesAllFull(iMovs,1);
@@ -2617,7 +2617,8 @@ classdef Labeler < handle
         %hWB = waitbar(0,sprintf('Tracking movie %d/%d',0,nMov));
         for i=1:nMov 
           fprintf('Tracking movie %d/%d\n',i,nMov);
-          tObj.track(iMovs(i),frms(i));
+          tObj.track(iMovs(i),frms(i),...
+            'movChunkSize',trkPrefs.PredictMovieChunkSize);
           trkFile = tObj.getTrackingResults(iMovs(i));
           trkFile.save(trkfilenames{i});
           fprintf('Saved: %s\n',trkfilenames{i});
@@ -3313,8 +3314,9 @@ classdef Labeler < handle
     function labels2VizInit(obj)
       % Initialize view stuff for labels2  
       
-      if ~isempty(obj.trackPrefs)
-        ptsPlotInfo = obj.trackPrefs.PredictPointsPlot;
+      trkPrefs = obj.projPrefs.Track;
+      if ~isempty(trkPrefs)
+        ptsPlotInfo = trkPrefs.PredictPointsPlot;
         ptsPlotInfo.Colors = obj.labelPointsPlotInfo.Colors;
       else
         ptsPlotInfo = obj.labelPointsPlotInfo;

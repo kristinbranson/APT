@@ -29,7 +29,7 @@ classdef LabelTracker < handle
       axOver.LineWidth = 2;
       obj.ax = axOver;
       
-      trkPrefs = labelerObj.trackPrefs;
+      trkPrefs = labelerObj.projPrefs.Track;
       if isfield(trkPrefs,'PredictInterpolate')
         val = logical(trkPrefs.PredictInterpolate);
         if ~isscalar(val)

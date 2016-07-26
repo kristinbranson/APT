@@ -81,6 +81,7 @@ Track:
     Marker: '+'
     MarkerSize: 10
     LineWidth: 2
+  PredictMovieChunkSize: 5000       # Track large movies in chunks with this size
 
 Shortcuts: # shortcuts. case insensitive!
   menu_file_load: o # file -> load project
