@@ -713,10 +713,11 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function track(obj,iMovs,frms,varargin)
-      [useRC,tblP,stripTrkPFull] = myparse(varargin,...
+      [useRC,tblP,stripTrkPFull,movChunkSize] = myparse(varargin,...
         'useRC',true,... % if true, use RegressorCascade (.trnResRC)
         'tblP',[],... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
-        'stripTrkPFull',true... % if true, don't save .trkPFull
+        'stripTrkPFull',true,... % if true, don't save .trkPFull
+        'movChunkSize',5000 ... % track large movies in chunks of this size
         );
       
       prm = obj.sPrm;
@@ -735,113 +736,116 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
       
-      hWB = waitbar(0);
-      hTxt = findall(hWB,'type','text');
-      hTxt.Interpreter = 'none';
-      
-      tblP(:,'pTS') = [];
-      [tblPnew,tblPupdate] = obj.tblPDiffData(tblP);
-      obj.updateData(tblPnew,tblPupdate,'hWaitBar',hWB);
-      d = obj.data;
-      
-      tblMFTrk = tblP(:,{'mov' 'frm'});
-      tblMFAll = d.MD(:,{'mov' 'frm'});
-      [tf,loc] = ismember(tblMFTrk,tblMFAll);
-      assert(all(tf));
-      d.iTst = loc;
-      
-      fprintf(1,'Track data summary:\n');
-      d.summarize('mov',d.iTst);
-      
-      delete(hWB);
-      
-      [Is,nChan] = d.getCombinedIs(d.iTst);
-      prm.Ftr.nChn = nChan;
-      
-      %% Test on test set
-      NTst = d.NTst;
-      RT = prm.TestInit.Nrep;
-      bboxes = d.bboxesTst;
-      
-      if useRC
-        rc = obj.trnResRC;
-        p_t = rc.propagateRandInit(Is,bboxes,prm.TestInit);
-        trkMdl = rc.prmModel;
-        trkD = trkMdl.D;
-        Tp1 = rc.nMajor+1;
-      else
-        assert(false,'Unsupported');
-%         tr = obj.trnRes;
-%         if isempty(tr)
-%           error('CPRLabelTracker:noRes','No tracker has been trained.');
-%         end
-%         Tp1 = tr.regModel.T+1;
-%         trkMdl = tr.regModel.model;
-%         trkD = trkMdl.D;
-%         
-%         pGTTrnNMu = nanmean(tr.regModel.pGtN,1);
-%         pIni = shapeGt('initTest',[],bboxes,trkMdl,[],...
-%           repmat(pGTTrnNMu,NTst,1),RT,prmInit.augrotate);
-%         VERBOSE = 0;
-%         [~,p_t] = rcprTest1(Is,tr.regModel,pIni,tr.regPrm,tr.ftrPrm,...
-%           bboxes,VERBOSE,tr.prunePrm);
-      end
-      pTstT = reshape(p_t,[NTst RT trkD Tp1]);
-      
-      
-      %% Select best preds for each time
-      pTstTRed = nan(NTst,trkD,Tp1);
-      prm.Prune.prune = 1;
-      for t = 1:Tp1
-        fprintf('Pruning t=%d\n',t);
-        pTmp = permute(pTstT(:,:,:,t),[1 3 2]); % [NxDxR]
-        pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
-      end
-      
-      % Augment .trkP* state with new tracking results
-      % - new rows are just added
-      % - existing rows are overwritten
-      
-      if ~isempty(obj.trkP)
-        assert(~isempty(obj.trkPiPt),...
-          'Tracked points specification (.trkPiPt) cannot be empty.');
-        if ~isequal(obj.trkPiPt,obj.trnResIPt)
-          error('CPRLabelTracker:track',...
-            'Existing tracked points (.trkPiPt) differ from new tracked points. New tracking results cannot be saved.');
+      nFrmTrk = size(tblP,1);
+      iChunkStarts = 1:movChunkSize:nFrmTrk;
+      nChunk = numel(iChunkStarts);
+      for iChunk=1:nChunk
+        
+        idxP0 = (iChunk-1)*movChunkSize+1;
+        idxP1 = min(idxP0+movChunkSize-1,nFrmTrk);
+        tblPChunk = tblP(idxP0:idxP1,:);
+        fprintf('Tracking frames %d through %d...\n',idxP0,idxP1);
+        
+        %%% Set up .data
+        
+        if nChunk>1
+          % In this case we assume we are dealing with a 'big movie' and
+          % don't preserve/cache data          
+          obj.initData();
         end
-      end
+        
+        hWB = waitbar(0);
+        hTxt = findall(hWB,'type','text');
+        hTxt.Interpreter = 'none';
+        
+        tblPChunk(:,'pTS') = [];
+        [tblPnew,tblPupdate] = obj.tblPDiffData(tblPChunk);
+        obj.updateData(tblPnew,tblPupdate,'hWaitBar',hWB);
+        delete(hWB);
+        d = obj.data;
 
-      trkPMDnew = d.MDTst(:,{'mov' 'movS' 'frm'});
-      trkPMDcur = obj.trkPMD;
-      [tf,loc] = ismember(trkPMDnew,trkPMDcur);
-      % existing rows
-      idxCur = loc(tf);
-      obj.trkP(idxCur,:,:) = pTstTRed(tf,:,:);
-      if stripTrkPFull
-        if ~isempty(obj.trkPFull)
-          warning('CPRLabelTracker:track','Stripping 4D tracking results .trkPFull.');
-          obj.trkPFull = [];
-        end          
-      else
-        obj.trkPFull(idxCur,:,:,:) = pTstT(tf,:,:,:);
-      end        
-      
-      nowts = now;
-      obj.trkPTS(idxCur) = nowts;
-      % new rows
-      obj.trkP = [obj.trkP; pTstTRed(~tf,:,:)];
-      if ~stripTrkPFull
-        obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,:)];
-      end
-      nNew = nnz(~tf);
-      obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
-      obj.trkPMD = [obj.trkPMD; trkPMDnew(~tf,:)];
-      
-      % See above check/error re .trkPiPt. Either there were originally no
-      % tracking results so we are setting .trkPiPt for the first time; or 
-      % there were original tracking results and the old .trkPiPt matches 
-      % the new (in which case this line is a no-op).
-      obj.trkPiPt = obj.trnResIPt;
+        tblMFTrk = tblPChunk(:,{'mov' 'frm'});
+        tblMFAll = d.MD(:,{'mov' 'frm'});
+        [tf,loc] = ismember(tblMFTrk,tblMFAll);
+        assert(all(tf));
+        d.iTst = loc;
+        
+        fprintf(1,'Track data summary:\n');
+        d.summarize('mov',d.iTst);
+                
+        [Is,nChan] = d.getCombinedIs(d.iTst);
+        prm.Ftr.nChn = nChan;
+        
+        %% Test on test set
+        NTst = d.NTst;
+        RT = prm.TestInit.Nrep;
+        bboxes = d.bboxesTst;
+        
+        if useRC
+          rc = obj.trnResRC;
+          p_t = rc.propagateRandInit(Is,bboxes,prm.TestInit);
+          trkMdl = rc.prmModel;
+          trkD = trkMdl.D;
+          Tp1 = rc.nMajor+1;
+        else
+          assert(false,'Unsupported');
+        end
+        pTstT = reshape(p_t,[NTst RT trkD Tp1]);
+        
+        
+        %% Select best preds for each time
+        pTstTRed = nan(NTst,trkD,Tp1);
+        prm.Prune.prune = 1;
+        for t = 1:Tp1
+          fprintf('Pruning t=%d\n',t);
+          pTmp = permute(pTstT(:,:,:,t),[1 3 2]); % [NxDxR]
+          pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
+        end
+        
+        % Augment .trkP* state with new tracking results
+        % - new rows are just added
+        % - existing rows are overwritten
+        
+        if ~isempty(obj.trkP)
+          assert(~isempty(obj.trkPiPt),...
+            'Tracked points specification (.trkPiPt) cannot be empty.');
+          if ~isequal(obj.trkPiPt,obj.trnResIPt)
+            error('CPRLabelTracker:track',...
+              'Existing tracked points (.trkPiPt) differ from new tracked points. New tracking results cannot be saved.');
+          end
+        end
+        
+        trkPMDnew = d.MDTst(:,{'mov' 'movS' 'frm'});
+        trkPMDcur = obj.trkPMD;
+        [tf,loc] = ismember(trkPMDnew,trkPMDcur);
+        % existing rows
+        idxCur = loc(tf);
+        obj.trkP(idxCur,:,:) = pTstTRed(tf,:,:);
+        if stripTrkPFull
+          if ~isempty(obj.trkPFull)
+            warning('CPRLabelTracker:track','Stripping 4D tracking results .trkPFull.');
+            obj.trkPFull = [];
+          end
+        else
+          obj.trkPFull(idxCur,:,:,:) = pTstT(tf,:,:,:);
+        end        
+        nowts = now;
+        obj.trkPTS(idxCur) = nowts;
+        % new rows
+        obj.trkP = [obj.trkP; pTstTRed(~tf,:,:)];
+        if ~stripTrkPFull
+          obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,:)];
+        end
+        nNew = nnz(~tf);
+        obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
+        obj.trkPMD = [obj.trkPMD; trkPMDnew(~tf,:)];        
+
+        % See above check/error re .trkPiPt. Either there were originally no
+        % tracking results so we are setting .trkPiPt for the first time; or
+        % there were original tracking results and the old .trkPiPt matches
+        % the new (in which case this line is a no-op).
+        obj.trkPiPt = obj.trnResIPt;
+      end      
       
       if ~isempty(obj.lObj)
         obj.vizLoadXYPrdCurrMovie();
@@ -849,19 +853,6 @@ classdef CPRLabelTracker < LabelTracker
       else
         % headless mode
       end
-      
-      %       if ~skipLoss
-      %         %%
-      %         hFig = Shape.vizLossOverTime(td.pGTTst,pTstTRed,'md',td.MDTst);
-      %
-      %         %%
-      %         hFig(end+1) = figure('WindowStyle','docked');
-      %         iTst = td.iTst;
-      %         tfTstLbled = ismember(iTst,find(td.isFullyLabeled));
-      %         Shape.vizDiff(td.ITst(tfTstLbled),td.pGTTst(tfTstLbled,:),...
-      %           pTstTRed(tfTstLbled,:,end),tr.regModel.model,...
-      %           'fig',gcf,'nr',4,'nc',4,'md',td.MDTst(tfTstLbled,:));
-      %       end
     end
       
     function trkfiles = getTrackingResults(obj,iMovs)
@@ -1188,7 +1179,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.hXYPrdRed = [];
       
       % init .xyVizPlotArgs*
-      trackPrefs = obj.lObj.trackPrefs;
+      trackPrefs = obj.lObj.projPrefs.Track;
       plotPrefs = trackPrefs.PredictPointsPlot;
       plotPrefs.HitTest = 'off';
       obj.xyVizPlotArgs = struct2paramscell(plotPrefs);
