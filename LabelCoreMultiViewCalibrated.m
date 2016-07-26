@@ -280,120 +280,118 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       modifier = evt.Modifier;      
       tfCtrl = any(strcmp('control',modifier));
       tfShft = any(strcmp('shift',modifier));
+      
       tfKPused = true;
-      switch key
-        case {'h'}
-          if tfCtrl
-            obj.labelsHideToggle();
+      if strcmp(key,'h') && tfCtrl
+        obj.labelsHideToggle();
+      elseif strcmp(key,'space')
+        [tfSel,iSel] = obj.selAnyPointSelected();
+        if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
+          obj.projectToggleState(iSel);
+        end
+      elseif strcmp(key,'s') && ~tfCtrl
+        if obj.state==LabelState.ADJUST
+          obj.acceptLabels();
+        end
+      elseif any(strcmp(key,{'d' 'equal'}))
+        obj.labeler.frameUp(tfCtrl);
+      elseif any(strcmp(key,{'a' 'hyphen'}))
+        obj.labeler.frameDown(tfCtrl);
+      elseif strcmp(key,'o') && ~tfCtrl
+        [tfSel,iSel] = obj.selAnyPointSelected();
+        if tfSel
+          obj.toggleEstOccPoint(iSel);
+        end
+      elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
+        [tfSel,iSel] = obj.selAnyPointSelected();
+        if tfSel && ~obj.tfOcc(iSel)
+          tfShift = any(strcmp('shift',modifier));
+          xy = obj.getLabelCoordsI(iSel);
+          iAx = obj.iPt2iAx(iSel);
+          ax = obj.hAx(iAx);
+          switch key
+            case 'leftarrow'
+              xl = xlim(ax);
+              dx = diff(xl);
+              if tfShift
+                xy(1) = xy(1) - dx/obj.DXFACBIG;
+              else
+                xy(1) = xy(1) - dx/obj.DXFAC;
+              end
+              xy(1) = max(xy(1),1);
+            case 'rightarrow'
+              xl = xlim(ax);
+              dx = diff(xl);
+              if tfShift
+                xy(1) = xy(1) + dx/obj.DXFACBIG;
+              else
+                xy(1) = xy(1) + dx/obj.DXFAC;
+              end
+              ncs = obj.labeler.movienc;
+              xy(1) = min(xy(1),ncs(iAx));
+            case 'uparrow'
+              yl = ylim(ax);
+              dy = diff(yl);
+              if tfShift
+                xy(2) = xy(2) - dy/obj.DXFACBIG;
+              else
+                xy(2) = xy(2) - dy/obj.DXFAC;
+              end
+              xy(2) = max(xy(2),1);
+            case 'downarrow'
+              yl = ylim(ax);
+              dy = diff(yl);
+              if tfShift
+                xy(2) = xy(2) + dy/obj.DXFACBIG;
+              else
+                xy(2) = xy(2) + dy/obj.DXFAC;
+              end
+              nrs = obj.labeler.movienr;
+              xy(2) = min(xy(2),nrs(iAx));
           end
-        case {'space'}
-          [tfSel,iSel] = obj.selAnyPointSelected();
-          if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
-            obj.projectToggleState(iSel);
+          obj.assignLabelCoordsIRaw(xy,iSel);
+          switch obj.state
+            case LabelState.ADJUST
+              obj.setPointAdjusted(iSel);
+            case LabelState.ACCEPTED
+              obj.enterAdjust(false,false);
           end
-        case {'s'}
-          if obj.state==LabelState.ADJUST
-            obj.acceptLabels();
-          end
-        case {'d' 'equal'}
-          obj.labeler.frameUp(tfCtrl);
-        case {'a' 'hyphen'}
-          obj.labeler.frameDown(tfCtrl);
-        case {'o'}
-          [tfSel,iSel] = obj.selAnyPointSelected();
-          if tfSel
-            obj.toggleEstOccPoint(iSel);
-          end
-        case {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}
-          [tfSel,iSel] = obj.selAnyPointSelected();
-          if tfSel && ~obj.tfOcc(iSel)
-            tfShift = any(strcmp('shift',modifier));
-            xy = obj.getLabelCoordsI(iSel);
-            iAx = obj.iPt2iAx(iSel);
-            ax = obj.hAx(iAx);
-            switch key
-              case 'leftarrow'
-                xl = xlim(ax);
-                dx = diff(xl);
-                if tfShift
-                  xy(1) = xy(1) - dx/obj.DXFACBIG;
-                else
-                  xy(1) = xy(1) - dx/obj.DXFAC;
-                end
-                xy(1) = max(xy(1),1);
-              case 'rightarrow'
-                xl = xlim(ax);
-                dx = diff(xl);
-                if tfShift
-                  xy(1) = xy(1) + dx/obj.DXFACBIG;
-                else
-                  xy(1) = xy(1) + dx/obj.DXFAC;
-                end
-                ncs = obj.labeler.movienc;
-                xy(1) = min(xy(1),ncs(iAx));
-              case 'uparrow'
-                yl = ylim(ax);
-                dy = diff(yl);
-                if tfShift
-                  xy(2) = xy(2) - dy/obj.DXFACBIG;
-                else
-                  xy(2) = xy(2) - dy/obj.DXFAC;
-                end
-                xy(2) = max(xy(2),1);
-              case 'downarrow'
-                yl = ylim(ax);
-                dy = diff(yl);
-                if tfShift
-                  xy(2) = xy(2) + dy/obj.DXFACBIG;
-                else
-                  xy(2) = xy(2) + dy/obj.DXFAC;
-                end
-                nrs = obj.labeler.movienr;
-                xy(2) = min(xy(2),nrs(iAx));
-            end
-            obj.assignLabelCoordsIRaw(xy,iSel);
-            switch obj.state
-              case LabelState.ADJUST
-                obj.setPointAdjusted(iSel);
-              case LabelState.ACCEPTED
-                obj.enterAdjust(false,false);
-            end
-            obj.projectionRefresh();
-          elseif strcmp(key,'leftarrow')
-            if tfShft
-              obj.labeler.frameUpNextLbled(true);
-            else
-              obj.labeler.frameDown(tfCtrl);
-            end
-          elseif strcmp(key,'rightarrow')
-            if tfShft
-              obj.labeler.frameUpNextLbled(false);
-            else
-              obj.labeler.frameUp(tfCtrl);
-            end
+          obj.projectionRefresh();
+        elseif strcmp(key,'leftarrow')
+          if tfShft
+            obj.labeler.frameUpNextLbled(true);
           else
-            tfKPused = false;
+            obj.labeler.frameDown(tfCtrl);
           end
-        case {'backquote'}
-          iPt = obj.kpfIPtFor1Key+10;
-          if iPt > obj.nPts
-            iPt = 1;
+        elseif strcmp(key,'rightarrow')
+          if tfShft
+            obj.labeler.frameUpNextLbled(false);
+          else
+            obj.labeler.frameUp(tfCtrl);
           end
-          obj.kpfIPtFor1Key = iPt;
-        case {'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}
-          iPt = str2double(key);
-          if iPt==0
-            iPt = 10;
-          end
-          iPt = iPt+obj.kpfIPtFor1Key-1;
-          if iPt > obj.nPts
-            return;
-          end
-          obj.selClearSelected(iPt);
-          obj.selToggleSelectPoint(iPt);
-        otherwise
-          tfKPused = false;          
-      end      
+        else
+          tfKPused = false;
+        end
+      elseif strcmp(key,'backquote')
+        iPt = obj.kpfIPtFor1Key+10;
+        if iPt > obj.nPts
+          iPt = 1;
+        end
+        obj.kpfIPtFor1Key = iPt;
+      elseif any(strcmp(key,{'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
+        iPt = str2double(key);
+        if iPt==0
+          iPt = 10;
+        end
+        iPt = iPt+obj.kpfIPtFor1Key-1;
+        if iPt > obj.nPts
+          return;
+        end
+        obj.selClearSelected(iPt);
+        obj.selToggleSelectPoint(iPt);
+      else
+        tfKPused = false;
+      end
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>

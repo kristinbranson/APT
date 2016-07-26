@@ -225,20 +225,18 @@ classdef LabelCoreHT < LabelCore
       key = evt.Key;
       modifier = evt.Modifier;
       tfCtrl = any(strcmp('control',modifier));
-      tfKPused = true;
-      switch key
-        case {'h'}
-          if tfCtrl
-            obj.labelsHideToggle();
-          end
-        case 'space'
-          obj.acceptCurrentPt();
-        case {'equal' 'rightarrow' 'd'}
-          obj.labeler.frameUpDF(obj.nFrameSkip);
-        case {'hyphen' 'leftarrow' 'a'}
-          obj.labeler.frameDownDF(obj.nFrameSkip);
-        otherwise
-          tfKPused = false;
+
+      tfKPused = true;     
+      if strcmp(key,'h') && tfCtrl
+        obj.labelsHideToggle();
+      elseif strcmp(key,'space')
+        obj.acceptCurrentPt();
+      elseif any(strcmp(key,{'equal' 'rightarrow' 'd'})) && ~tfCtrl
+        obj.labeler.frameUpDF(obj.nFrameSkip);
+      elseif any(strcmp(key,{'hyphen' 'leftarrow' 'a'})) && ~tfCtrl
+        obj.labeler.frameDownDF(obj.nFrameSkip);
+      else
+        tfKPused = false;
       end      
     end
     
