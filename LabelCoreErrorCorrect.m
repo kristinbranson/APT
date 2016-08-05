@@ -176,108 +176,100 @@ classdef LabelCoreErrorCorrect < LabelCore
       modifier = evt.Modifier;      
       tfCtrl = any(strcmp('control',modifier));
       tfShft = any(strcmp('shift',modifier));
-
-      tfKPused = true;
       
-      switch key
-        case {'h'}
-          if tfCtrl
-            obj.labelsHideToggle();
+      tfKPused = true;      
+      if strcmp(key,'h') && tfCtrl
+        obj.labelsHideToggle();
+      elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl
+        obj.acceptLabels();
+      elseif any(strcmp(key,{'d' 'equal'}))
+        obj.labeler.frameUp(tfCtrl);
+      elseif any(strcmp(key,{'a' 'hyphen'}))
+        obj.labeler.frameDown(tfCtrl);
+      elseif strcmp(key,'o') && ~tfCtrl
+        [tfSel,iSel] = obj.anyPointSelected();
+        if tfSel
+          obj.toggleEstOccPoint(iSel);
+        end          
+      elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
+        [tfSel,iSel] = obj.anyPointSelected();
+        if tfSel && ~obj.tfOcc(iSel)
+          tfShift = any(strcmp('shift',modifier));
+          xy = obj.getLabelCoordsI(iSel);
+          switch key
+            case 'leftarrow'
+              xl = xlim(obj.hAx);
+              dx = diff(xl);
+              if tfShift
+                xy(1) = xy(1) - dx/obj.DXFACBIG;
+              else
+                xy(1) = xy(1) - dx/obj.DXFAC;
+              end
+              xy(1) = max(xy(1),1);
+            case 'rightarrow'
+              xl = xlim(obj.hAx);
+              dx = diff(xl);
+              if tfShift
+                xy(1) = xy(1) + dx/obj.DXFACBIG;
+              else
+                xy(1) = xy(1) + dx/obj.DXFAC;
+              end
+              xy(1) = min(xy(1),obj.labeler.movienc);
+            case 'uparrow'
+              yl = ylim(obj.hAx);
+              dy = diff(yl);
+              if tfShift
+                xy(2) = xy(2) - dy/obj.DXFACBIG;
+              else
+                xy(2) = xy(2) - dy/obj.DXFAC;
+              end
+              xy(2) = max(xy(2),1);
+            case 'downarrow'
+              yl = ylim(obj.hAx);
+              dy = diff(yl);
+              if tfShift
+                xy(2) = xy(2) + dy/obj.DXFACBIG;
+              else
+                xy(2) = xy(2) + dy/obj.DXFAC;
+              end
+              xy(2) = min(xy(2),obj.labeler.movienr);
           end
-        case {'s' 'space'}
-          if ~tfCtrl,
-            obj.acceptLabels();
-          end
-        case {'d' 'equal'}
-          obj.labeler.frameUp(tfCtrl);
-        case {'a' 'hyphen'}
-          obj.labeler.frameDown(tfCtrl);
-        case {'o'}
-          if ~tfCtrl,
-            [tfSel,iSel] = obj.anyPointSelected();
-            if tfSel
-              obj.toggleEstOccPoint(iSel);
-            end
-          end
-        case {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}
-          [tfSel,iSel] = obj.anyPointSelected();
-          if tfSel && ~obj.tfOcc(iSel)
-            tfShift = any(strcmp('shift',modifier));
-            xy = obj.getLabelCoordsI(iSel);
-            switch key
-              case 'leftarrow'
-                xl = xlim(obj.hAx);
-                dx = diff(xl);
-                if tfShift
-                  xy(1) = xy(1) - dx/obj.DXFACBIG;
-                else
-                  xy(1) = xy(1) - dx/obj.DXFAC;
-                end
-                xy(1) = max(xy(1),1);
-              case 'rightarrow'
-                xl = xlim(obj.hAx);
-                dx = diff(xl);
-                if tfShift
-                  xy(1) = xy(1) + dx/obj.DXFACBIG;
-                else
-                  xy(1) = xy(1) + dx/obj.DXFAC;
-                end
-                xy(1) = min(xy(1),obj.labeler.movienc);
-              case 'uparrow'
-                yl = ylim(obj.hAx);
-                dy = diff(yl);
-                if tfShift
-                  xy(2) = xy(2) - dy/obj.DXFACBIG;
-                else
-                  xy(2) = xy(2) - dy/obj.DXFAC;
-                end
-                xy(2) = max(xy(2),1);
-              case 'downarrow'
-                yl = ylim(obj.hAx);
-                dy = diff(yl);
-                if tfShift
-                  xy(2) = xy(2) + dy/obj.DXFACBIG;
-                else
-                  xy(2) = xy(2) + dy/obj.DXFAC;
-                end
-                xy(2) = min(xy(2),obj.labeler.movienr);
-            end
-            obj.assignLabelCoordsIRaw(xy,iSel);
-            obj.enterLocked(true,true);
-          elseif strcmp(key,'leftarrow')
-            if tfShft
-              obj.labeler.frameUpNextLbled(true);
-            else
-              obj.labeler.frameDown(tfCtrl);
-            end
-          elseif strcmp(key,'rightarrow')
-            if tfShft
-              obj.labeler.frameUpNextLbled(false);
-            else
-              obj.labeler.frameUp(tfCtrl);
-            end
+          obj.assignLabelCoordsIRaw(xy,iSel);
+          obj.enterLocked(true,true);
+        elseif strcmp(key,'leftarrow')
+          if tfShft
+            obj.labeler.frameUpNextLbled(true);
           else
-            tfKPused = false;
+            obj.labeler.frameDown(tfCtrl);
           end
-        case {'backquote'}
-          iPt = obj.kpfIPtFor1Key+10;
-          if iPt > obj.nPts
-            iPt = 1;
+        elseif strcmp(key,'rightarrow')
+          if tfShft
+            obj.labeler.frameUpNextLbled(false);
+          else
+            obj.labeler.frameUp(tfCtrl);
           end
-          obj.kpfIPtFor1Key = iPt;
-        case {'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}
-          iPt = str2double(key);
-          if iPt==0
-            iPt = 10;
-          end
-          iPt = iPt+obj.kpfIPtFor1Key-1;
-          if iPt > obj.nPts
-            return;
-          end
-          obj.clearSelected(iPt);
-          obj.toggleSelectPoint(iPt);
-        otherwise          
+        else
           tfKPused = false;
+        end
+      elseif strcmp(key,'backquote')
+        iPt = obj.kpfIPtFor1Key+10;
+        if iPt > obj.nPts
+          iPt = 1;
+        end
+        obj.kpfIPtFor1Key = iPt;
+      elseif any(strcmp(key,{'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
+        iPt = str2double(key);
+        if iPt==0
+          iPt = 10;
+        end
+        iPt = iPt+obj.kpfIPtFor1Key-1;
+        if iPt > obj.nPts
+          return;
+        end
+        obj.clearSelected(iPt);
+        obj.toggleSelectPoint(iPt);
+      else
+        tfKPused = false;
       end
     end
     

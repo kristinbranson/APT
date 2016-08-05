@@ -135,22 +135,20 @@ classdef LabelCoreSeq < LabelCore
       key = evt.Key;
       modifier = evt.Modifier;
       tfCtrl = ismember('control',modifier);
+      
       tfKPused = true;
-      switch key
-        case {'h'}
-          if tfCtrl
-            obj.labelsHideToggle();
-          end
-        case {'s' 'space'} % accept
-          if obj.state==LabelState.ADJUST
-            obj.acceptLabels();
-          end
-        case {'rightarrow' 'd' 'equal'}
-          obj.labeler.frameUp(tfCtrl);
-        case {'leftarrow' 'a' 'hyphen'}
-          obj.labeler.frameDown(tfCtrl);
-        otherwise
-          tfKPused = false;
+      if strcmp(key,'h') && tfCtrl
+        obj.labelsHideToggle();
+      elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl % accept
+        if obj.state==LabelState.ADJUST
+          obj.acceptLabels();
+        end
+      elseif any(strcmp(key,{'rightarrow' 'd' 'equal'}))
+        obj.labeler.frameUp(tfCtrl);
+      elseif any(strcmp(key,{'leftarrow' 'a' 'hyphen'}))
+        obj.labeler.frameDown(tfCtrl);
+      else
+        tfKPused = false;
       end
     end
     

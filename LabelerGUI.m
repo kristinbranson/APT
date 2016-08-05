@@ -326,16 +326,15 @@ if tfKPused,
   return;
 end
 
-
 lcore = lObj.lblCore;
 if ~isempty(lcore)
   tfKPused = lcore.kpf(src,evt);
-else
-  tfKPused = false;
+  if tfKPused
+    return;
+  end
 end
-if ~tfKPused
-  % TODO timeline use me
-end
+
+% TODO timeline use me
       
 function cbkWBMF(src,evt,lObj)
 lcore = lObj.lblCore;
@@ -404,7 +403,9 @@ if isnan(sldval)
   sldval = 0;
 end
 set(gdata.slider_frame,'Value',sldval);
-gdata.labelTLInfo.setCurrFrame(frm);
+if ~lObj.isinit
+  gdata.labelTLInfo.setCurrFrame(frm);
+end
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
