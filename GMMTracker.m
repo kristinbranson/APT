@@ -204,6 +204,22 @@ classdef GMMTracker < LabelTracker
       curmov = obj.lObj.currMovie;
       movfile = obj.lObj.movieFilesAllFull{curmov};
       trkfile = obj.lObj.defaultTrkFileName(movfile);
+      if ~exist(trkfile,'file'),
+        fprintf('Could not find trkfile %s. Please locate it.\n',trkfile);
+        [p,f] = fileparts(movfile);
+        [f,p] = uigetfile('*.trk',sprintf('Locate trkfile %s',f),p);
+        if ~ischar(f),
+          error('Could not find trkfile %s',trkfile);
+        end
+        tmptrkfile = fullfile(p,f);
+        if ~exist(tmptrkfile,'file'),
+          error('Trkfile %s does not exist',tmptrkfile);
+        end
+        [success,msg] = copyfile(tmptrkfile,trkfile);
+        if ~success,
+          error('Error copying %s to %s: %s',tmptrkfile,trkfile,msg);
+        end
+      end
       T = load(trkfile,'-mat');
       obj.sampleInfo = T;
       obj.currMovie = curmov;
