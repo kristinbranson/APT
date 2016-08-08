@@ -39,7 +39,9 @@ classdef GMMTracker < LabelTracker
         if ndx ==1, hold(obj.ax, 'on'); end
       end
       hold(obj.ax,'off');
-      set(obj.ax,'Color','None'); % Adding a scatter adds color to the axis apparently.
+      % scatter() changes many axis props. Revert at least these props;
+      % there are others as well that may not be important for now.
+      set(obj.ax,'Visible','off','HitTest','off','Color','None'); 
     end
         
   end
