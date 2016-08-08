@@ -19,7 +19,7 @@ classdef LabelTracker < handle
   properties (SetObservable)
     hideViz = false; % scalar logical. If true, hide visualizations
   end
-  
+    
   methods
     
     function obj = LabelTracker(labelerObj)
@@ -202,7 +202,7 @@ classdef LabelTracker < handle
       end
       prm = ReadYaml(prmFile);
     end
-    
+        
     function tblP = getTblPLbled(obj)
       % From .lObj, read tblP for all movies/labeledframes. Currently,
       % exclude partially-labeled frames.
@@ -220,6 +220,26 @@ classdef LabelTracker < handle
         warningNoTrace('CPRLabelTracker:nanData','Not including %d partially-labeled rows.',nnan);
       end
       tblP = tblP(~tfnan,:);
+    end
+    
+  end
+  
+  methods (Static)
+    
+    function sc = findAllSubclasses
+      % sc: cellstr of LabelTracker subclasses in APT.Root
+      
+      dd = dir(fullfile(APT.Root,'*.m'));
+      names = cell(size(dd));
+      tf = false(size(dd));
+      for i=1:numel(dd)
+        [~,names{i}] = fileparts(dd(i).name);
+        if any(strcmp('LabelTracker',superclasses(names{i})))
+          tf(i) = true;
+        end
+      end
+      
+      sc = names(tf);
     end
     
   end

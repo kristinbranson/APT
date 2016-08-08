@@ -1,5 +1,5 @@
 function [s,baseused] = structoverlay(sbase,sover,varargin)
-% s = structoverlay(sbase,sover,varargin)
+% [s,baseused] = structoverlay(sbase,sover,varargin)
 % Overlay 'leaf nodes' of sover onto sbase
 %
 % sbase: scalar base struct
