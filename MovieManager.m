@@ -114,7 +114,8 @@ dat = [movs num2cell(movsHaveLbls)];
 if ~isequal(dat,tbl.Data)
   tbl.Data = dat;
 end
-if iMov>0
+tblnrows = size(tbl.Data,1);
+if iMov>0 && iMov<=tblnrows
   tbl.SelectedRows = iMov;
 else
   tbl.SelectedRows = [];

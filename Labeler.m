@@ -1473,11 +1473,16 @@ classdef Labeler < handle
         obj.movieFilesAllHaveLbls(iMov,:) = [];
         obj.movieInfoAll(iMov,:) = [];
         obj.trxFilesAll(iMov,:) = [];
-        obj.labeledpos(iMov,:) = [];
+        
+        tfOrig = obj.isinit;
+        obj.isinit = true; % AL20160808. we do not want set.labeledpos side effects, listeners etc.
+        obj.labeledpos(iMov,:) = []; % should never throw with .isinit==true        
         obj.labeledposTS(iMov,:) = [];
         obj.labeledposMarked(iMov,:) = [];
         obj.labeledpostag(iMov,:) = [];
-        obj.labeledpos2(iMov,:) = [];        
+        obj.labeledpos2(iMov,:) = [];
+        obj.isinit = tfOrig;
+
         if obj.currMovie>iMov
           obj.movieSet(obj.currMovie-1);
         end
