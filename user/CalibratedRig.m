@@ -1,4 +1,4 @@
-classdef CalibratedRig < CalRig
+classdef CalibratedRig < CalRig & matlab.mixin.Copyable
   % Romain calibrated rig
 
   % Coord system notes
@@ -177,6 +177,59 @@ classdef CalibratedRig < CalRig
   
   methods 
     
+    function verify(obj,varargin)
+      % check self-consistency of .om, .R, .T. 
+      % TODO: just have either om or R, not both
+      
+      silent = myparse(varargin,...
+        'silent',false);
+      
+      
+      fldsOm = fieldnames(obj.om);
+      fldsR = fieldnames(obj.R);
+      fldsT = fieldnames(obj.T);
+      fldsOmR = intersect(fldsOm,fldsR);
+      if ~silent
+        fprintf('Checking om/R fields: %s\n',...
+          String.cellstr2CommaSepList(fldsOmR));
+      end
+      for f = fldsOmR(:)',f=f{1}; %#ok<FXSET>
+        d = obj.om.(f) - rodrigues(obj.R.(f));
+        assert(max(abs(d(:))) <= eps(10));
+      end
+      fldsOmUnchecked = setdiff(fldsOm,fldsOmR);
+      fldsRUnchecked = setdiff(fldsR,fldsOmR);
+      if ~isempty(fldsOmUnchecked) && ~silent
+        fprintf('Not checking .om fields (om/R): %s\n',...
+          String.cellstr2CommaSepList(fldsOmUnchecked));
+      end
+      if ~isempty(fldsRUnchecked) && ~silent
+        fprintf('Not checking .R fields (om/R): %s\n',...
+          String.cellstr2CommaSepList(fldsRUnchecked));
+      end
+      
+      fldsRT = intersect(fldsR,fldsT);
+      fldsRUnchecked = setdiff(fldsR,fldsRT);
+      fldsTUnchecked = setdiff(fldsT,fldsRT);
+      if ~silent
+        fprintf('Checking R/T fields: %s\n',...
+          String.cellstr2CommaSepList(fldsRT));
+      end
+      for f = fldsRT(:)',f=f{1}; %#ok<FXSET>
+        fflip = f(end:-1:1);
+        d = obj.T.(f) - ( -obj.R.(fflip)'*obj.T.(fflip) );
+        assert(max(abs(d(:))) <= 1e-13);
+      end
+      if ~isempty(fldsRUnchecked) && ~silent
+        fprintf('Not checking .R fields (R/T): %s\n',...
+          String.cellstr2CommaSepList(fldsRUnchecked));
+      end
+      if ~isempty(fldsTUnchecked) && ~silent
+        fprintf('Not checking .T fields (R/T): %s\n',...
+          String.cellstr2CommaSepList(fldsTUnchecked));
+      end      
+    end
+    
     function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
       % See CalRig
       
@@ -351,13 +404,13 @@ classdef CalibratedRig < CalRig
       % yB: [Nx2]. 
       %
       % XL: [3xN]. 3d coords in Left camera frame
-      % CB: [3xB].
+      % XB: [3xN].
       
-      xL = obj.y2x(yL,'l');
-      xB = obj.y2x(yB,'b');
+      xL = obj.y2x(yL,'L');
+      xB = obj.y2x(yB,'B');
       
-      intL = obj.int.l;
-      intB = obj.int.b;
+      intL = obj.int.L;
+      intB = obj.int.B;
       [XL,XB] = stereo_triangulation(xL,xB,...
         obj.om.BL,obj.T.BL,...
         intL.fc,intL.cc,intL.kc,intL.alpha_c,...
@@ -367,15 +420,38 @@ classdef CalibratedRig < CalRig
     function [XB,XR] = stereoTriangulateBR(obj,yB,yR)
       % see stereoTriangulateLB
       
-      xB = obj.y2x(yB,'b');
-      xR = obj.y2x(yR,'r');
+      xB = obj.y2x(yB,'B');
+      xR = obj.y2x(yR,'R');
       
-      intB = obj.int.b;
-      intR = obj.int.r;
+      intB = obj.int.B;
+      intR = obj.int.R;
       [XB,XR] = stereo_triangulation(xB,xR,...
         obj.om.RB,obj.T.RB,...
         intB.fc,intB.cc,intB.kc,intB.alpha_c,...
         intR.fc,intR.cc,intR.kc,intR.alpha_c);
+    end
+    
+    function [X1,X2,d] = stereoTriangulateCropped(obj,y1,y2,cam1,cam2)
+      % Like stereoTriangulate
+      %
+      % y1, y2: [nx2].
+      %
+      % X1, X2: [3xn].
+      % d: [n]
+      
+      assert(isequal(size(y1),size(y2)));
+      assert(size(y1,2)==2);
+      n = size(y1,1);
+      
+      xp1 = obj.y2x(y1,cam1); % [2xn]
+      xp2 = obj.y2x(y2,cam2);
+      
+      X1 = nan(3,n);
+      X2 = nan(3,n);
+      d = nan(1,n);
+      for i=1:n
+        [X1(:,i),X2(:,i),d(i)] = obj.stereoTriangulate(xp1(:,i),xp2(:,i),cam1,cam2);
+      end      
     end
     
     function [X1,X2,d,P,Q] = stereoTriangulate(obj,xp1,xp2,cam1,cam2)
