@@ -76,7 +76,8 @@ OBJFUNS = ...
    'objfunLRrotBint' 10; ...
    'objfunAllExt' 12; ...
    'objfunAllExtBint' 16; ...
-   'objfunBint' 4};
+   'objfunBint' 4; ...
+   'objfunAllExtAllInt' 24};
 NOBJFUNS = size(OBJFUNS,1);
 results = struct();
 
@@ -131,23 +132,25 @@ for iObjFun = 1:NOBJFUNS
 end
 
 %% assess
-% domBL(1:3) domBR(1:3) dTBL(1:3) dTBR(1:3) dccB(1:2) dfcB(1:2)
+% domBL(1:3) domBR(1:3) dTBL(1:3) dTBR(1:3) dccB(1:2) dfcB(1:2) dccL(1:2)
+% dfcL(1:2) dccR(1:2) dfcR(1:2)
 results.objfunLRrot.idxStandard = 1:6;
 results.objfunLRrotBint.idxStandard = [1:6 13:16];
 results.objfunAllExt.idxStandard = 1:12;
 results.objfunAllExtBint.idxStandard = 1:16;
 results.objfunBint.idxStandard = 13:16;
+results.objfunAllExtAllInt.idxStandard = 1:24;
 flds = fieldnames(results);
 for f=flds(:)',f=f{1}; %#ok<FXSET>
   results.(f).x1s_std = cell(size(results.(f).x1s));
   for i=1:numel(results.(f).x1s);
-    xtmp = nan(1,16);
+    xtmp = nan(1,24);
     xtmp(results.(f).idxStandard) = results.(f).x1s{i};    
     results.(f).x1s_std{i} = xtmp;
   end
 end
 %%
-x = 1:16;
+x = 1:24;
 figure;
 plot(x,results.objfunLRrot.x1s_std{1},'o-',...
 	 x,results.objfunLRrot.x1s_std{3},'o-');
@@ -160,13 +163,30 @@ plot(x,results.objfunAllExtBint.x1s_std{1},'v-',...
      x,results.objfunAllExtBint.x1s_std{3},'v-');
 plot(x,results.objfunBint.x1s_std{1},'^-',...	
 	 x,results.objfunBint.x1s_std{3},'^-');
+plot(x,results.objfunAllExtAllInt.x1s_std{1},'.-',...
+     x,results.objfunAllExtAllInt.x1s_std{3},'.-');
 grid on;
 legend(...
   'LRrot (reg)','LRrot',...
   'LRrotBint (reg)','LRrotBint',...
   'allext (reg)','allext',...
   'allextBint(reg)','allextBint',...
-  'Bint(reg)','Bint');
+  'Bint(reg)','Bint',...
+  'allExtAllInt(reg)','allExtAllInt');
+
+%%
+x = 1:24;
+figure;
+plot(x,results.objfunAllExtBint.x1s_std{1},'v-',...
+     x,results.objfunAllExtBint.x1s_std{3},'v-');
+hold on;
+plot(x,results.objfunAllExtAllInt.x1s_std{1},'.-',...
+     x,results.objfunAllExtAllInt.x1s_std{3},'.-');
+grid on;
+legend(...
+  'allextBint(reg)','allextBint',...
+  'allExtAllInt(reg)','allExtAllInt');
+
 
 %%
 % Found 33 labeled pts.
@@ -231,8 +251,18 @@ x1use = results.objfunAllExtBint.x1s{1};
 % ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [13.80 13.57 0.00] 27.36 0.30 [6.59 6.38 0.00] [1.15 1.29 0.00]
 % ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [13.87 13.48 0.00] 27.35 0.00 [6.62 6.33 0.00] [1.24 1.19 0.00]
 % ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [13.84 13.51 0.00] 27.35 0.00 [6.62 6.38 0.00] [1.22 1.25 0.00]
+% ### ObjFun: objfunAllExtAllInt
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [9.26 9.39 0.00] 18.65 0.07 [1.85 1.69 0.00] [1.12 0.83 0.00]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [9.34 9.45 0.00] 18.78 0.13 [1.54 1.90 0.00] [0.91 0.88 0.00]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [9.31 9.37 0.00] 18.67 0.00 [1.75 1.59 0.00] [1.08 0.75 0.00]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [9.26 9.50 0.00] 18.76 0.00 [1.59 2.02 0.00] [1.00 1.14 0.00]
+
 x1use = results.objfunAllExtBint.x1s{1};
 [~,~,~,~,~,~,~,~,~,crig2Mod] = objfunAllExtBint(x1use,yL,yR,yB,crig2,zeros(size(x1use)),{});
+
+%%
+x1use = results.objfunAllExtAllInt.x1s{3};
+[~,~,~,~,~,~,~,~,~,crig2AllExtAllInt] = objfunAllExtAllInt(x1use,yL,yR,yB,crig2,zeros(size(x1use)),{});
 
 %   omcurr = om + dparams(1:3);
 %   Tcurr = T + dparams(4:6);
