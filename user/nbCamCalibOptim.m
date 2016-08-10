@@ -91,7 +91,7 @@ for iObjFun = 1:NOBJFUNS
     };
   X0S = {
     zeros(nx,1);
-    .1*rand(nx,1)-0.05;
+    .02*rand(nx,1)-0.01;
     };
   NLAMBDA = numel(LAMBDAS);
   NX0S = numel(X0S);
@@ -108,9 +108,11 @@ for iObjFun = 1:NOBJFUNS
 
     [x1,fv] = ...
       fminsearch(@(x) feval(objFun,x,yL,yR,yB,crig2,lambda,{'silent',true}),x0,opts);
-    [err,errL,errR,errB,errreg] = feval(objFun,x1,yL,yR,yB,crig2,lambda,{});
-    fprintf('## After optim: [errL errR errB] err(noreg) errReg: [%.2f %.2f %.2f] %.2f %.2f\n',...
-      errL,errR,errB,errL+errR+errB,errreg);
+    [err,errL,errR,errB,errreg,~,~,~,errFull] = feval(objFun,x1,yL,yR,yB,crig2,lambda,{});
+    fprintf('## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [%.2f %.2f %.2f] %.2f %.2f [%.2f %.2f %.2f] [%.2f %.2f %.2f]\n',...
+      errL,errR,errB,errL+errR+errB,errreg,...
+	  median(errFull.L),median(errFull.R),median(errFull.B),...
+	  mad(errFull.L,1),mad(errFull.R,1),mad(errFull.B,1));
 
     x1s{end+1,1} = x1;
     fval{end+1,1} = fv;
@@ -141,14 +143,61 @@ for f=flds(:)',f=f{1}; %#ok<FXSET>
 end
 %%
 x = 1:16;
-plot(x,results.objfunLRrot.x1s_std{3},'o-');
+figure;
+plot(x,results.objfunLRrot.x1s_std{1},'o-',...
+	 x,results.objfunLRrot.x1s_std{3},'o-');
 hold on;
-plot(x,results.objfunLRrotBint.x1s_std{3},'x-');
-plot(x,results.objfunAllExt.x1s_std{3},'+-');
-plot(x,results.objfunAllExtBint.x1s_std{3},'v-');
-plot(x,results.objfunBint.x1s_std{3},'^-');
+plot(x,results.objfunLRrotBint.x1s_std{1},'x-',...
+     x,results.objfunLRrotBint.x1s_std{3},'x-');
+plot(x,results.objfunAllExt.x1s_std{1},'+-',...
+     x,results.objfunAllExt.x1s_std{3},'+-');
+plot(x,results.objfunAllExtBint.x1s_std{1},'v-',...
+     x,results.objfunAllExtBint.x1s_std{3},'v-');
+plot(x,results.objfunBint.x1s_std{1},'^-',...	
+	 x,results.objfunBint.x1s_std{3},'^-');
 grid on;
-legend('LRrot','LRrotBint','allext','allextBint','Bint');
+legend(...
+  'LRrot (reg)','LRrot',...
+  'LRrotBint (reg)','LRrotBint',...
+  'allext (reg)','allext',...
+  'allextBint(reg)','allextBint',...
+  'Bint(reg)','Bint');
+
+%%
+% Found 33 labeled pts.
+% ## Before optim: [errL errR errB] err: [4.30 1.21 2.30] 7.81
+% ### ObjFun: objfunLRrot
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.88 1.03 0.97] 2.89 0.03 [0.65 0.83 0.68] [0.45 0.64 0.47]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.94 1.05 0.99] 2.98 0.05 [0.67 0.95 0.68] [0.40 0.68 0.45]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.87 1.02 0.97] 2.87 0.00 [0.59 0.76 0.65] [0.44 0.59 0.44]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.94 1.05 0.99] 2.98 0.00 [0.66 0.95 0.68] [0.39 0.68 0.44]
+% ### ObjFun: objfunLRrotBint
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.85 1.02 0.96] 2.83 0.05 [0.55 0.85 0.60] [0.40 0.57 0.31]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.95 0.99 0.97] 2.91 0.17 [0.69 0.67 0.61] [0.43 0.55 0.39]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.88 1.03 0.96] 2.87 0.00 [0.66 0.92 0.64] [0.36 0.67 0.41]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.96 0.99 0.95] 2.91 0.00 [0.63 0.63 0.54] [0.42 0.45 0.29]
+% ### ObjFun: objfunAllExt
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.90 1.02 0.98] 2.90 0.04 [0.65 0.85 0.61] [0.42 0.61 0.42]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.01 1.05 1.06] 3.12 0.13 [0.69 0.85 0.76] [0.54 0.66 0.44]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.90 1.04 0.97] 2.91 0.00 [0.66 0.82 0.55] [0.43 0.60 0.39]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.99 1.08 1.06] 3.13 0.00 [0.73 0.96 0.75] [0.52 0.67 0.48]
+% ### ObjFun: objfunAllExtBint
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.85 1.01 0.94] 2.80 0.07 [0.55 0.76 0.49] [0.28 0.47 0.29]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.81 1.00 0.92] 2.73 0.10 [0.50 0.69 0.53] [0.26 0.59 0.29]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.81 1.00 0.90] 2.71 0.00 [0.56 0.61 0.49] [0.39 0.42 0.29]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.82 1.00 0.92] 2.74 0.00 [0.70 0.71 0.63] [0.47 0.60 0.49]
+% ### ObjFun: objfunBint
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.12 1.24 0.97] 3.33 0.52 [0.78 0.93 0.67] [0.53 0.68 0.41]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.12 1.24 0.97] 3.33 0.51 [0.80 0.94 0.67] [0.52 0.68 0.39]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.14 1.18 0.91] 3.23 0.00 [0.85 0.86 0.55] [0.50 0.44 0.40]
+% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.79 1.90 1.36] 5.05 0.00 [1.45 1.58 0.92] [0.67 0.81 0.65]
+
+% AL20160810: choose allExtBint, with regularization, start at 0, for good
+% improvement and most typical pattern of x1. As a class/objfun allExtBint 
+% seems to show best improvement overall
+x1use = results.objfunAllExtBint.x1s{1};
+[~,~,~,~,~,~,~,~,~,crig2Mod] = objfunAllExtBint(x1use,yL,yR,yB,crig2,zeros(size(x1use)),{});
+
 %   omcurr = om + dparams(1:3);
 %   Tcurr = T + dparams(4:6);
 %   [XL,XR] = stereo_triangulation(xL,xR,omcurr,Tcurr,fc_left,cc_left,kc_left,alpha_c_left,fc_right,cc_right,kc_right,alpha_c_right);

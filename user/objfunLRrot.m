@@ -1,4 +1,4 @@
-function [err,errL,errR,errB,errreg,yLre,yRre,yBre] = ...
+function [err,errL,errR,errB,errreg,yLre,yRre,yBre,errFull] = ...
   objfunLRrot(x,yL,yR,yB,crig2,lambda,varargin)
 % Objective fcn for calibration optim
 %
@@ -33,7 +33,8 @@ domBR = x(4:6);
 crig2Mod = crig2.copy(); % shallow copy but is deep for this obj
 crig2Mod.omBL = crig2Mod.omBL+domBL;
 crig2Mod.omBR = crig2Mod.omBR+domBR; 
-[yLre,yRre,yBre,errL,errR,errB] = calibRoundTrip(yL,yR,yB,crig2Mod);
+[yLre,yRre,yBre,errL,errR,errB,errFull.L,errFull.R,errFull.B] = ...
+  calibRoundTrip(yL,yR,yB,crig2Mod);
 
 errreg = mean(abs(x).*lambda(:)); 
 % lambda should be set so that all comps of lambda.*abs(x) have comparable 

@@ -1,4 +1,4 @@
-function [err,errL,errR,errB,errreg,yLre,yRre,yBre] = ...
+function [err,errL,errR,errB,errreg,yLre,yRre,yBre,errFull,crig2Mod] = ...
   objfunAllExtBint(x,yL,yR,yB,crig2,lambda,varargin)
 % Objective fcn for calibration optim
 %
@@ -32,7 +32,8 @@ crig2Mod.TBR = crig2Mod.TBR+dTBR;
 crig2Mod.int.B.cc = crig2Mod.int.B.cc+dccB;
 crig2Mod.int.B.fc = crig2Mod.int.B.fc+dfcB;
 
-[yLre,yRre,yBre,errL,errR,errB] = calibRoundTrip(yL,yR,yB,crig2Mod);
+[yLre,yRre,yBre,errL,errR,errB,errFull.L,errFull.R,errFull.B] = ...
+  calibRoundTrip(yL,yR,yB,crig2Mod);
 
 errreg = mean(abs(x).*lambda(:)); 
 % lambda should be set so that all comps of lambda.*abs(x) have comparable 
