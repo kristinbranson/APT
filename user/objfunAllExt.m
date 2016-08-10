@@ -28,8 +28,13 @@ crig2Mod.omBR = crig2Mod.omBR+domBR;
 crig2Mod.TBL = crig2Mod.TBL+dTBL;
 crig2Mod.TBR = crig2Mod.TBR+dTBR; 
 
-[yLre,yRre,yBre,errL,errR,errB,errFull.L,errFull.R,errFull.B] = ...
-  calibRoundTrip(yL,yR,yB,crig2Mod);
+% [yLre,yRre,yBre,errL,errR,errB,errFull.L,errFull.R,errFull.B] = ...
+%   calibRoundTrip(yL,yR,yB,crig2Mod);
+[yLre,yRre,errL,errR,errFull.L,errFull.R] = ...
+   calibRoundTrip2(yL,yR,yB,crig2Mod);
+yBre = [];
+errB = 0;
+errFull.B = 0;
 
 errreg = mean(abs(x).*lambda(:)); 
 % lambda should be set so that all comps of lambda.*abs(x) have comparable 
