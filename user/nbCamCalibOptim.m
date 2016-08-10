@@ -5,11 +5,11 @@ assert(strcmp(pwd,ROOTDIR));
 LBL = fullfile(ROOTDIR,'romainMV2_safeLabels.lbl');
 NVIEW = 3;
 NREALPT = 57/3;
-CRIG = fullfile(ROOTDIR,'calibratedrig_calibjun2916_roiTrackingJun22_20160707.mat');
+CRIG = fullfile(ROOTDIR,'crig2_calibjun2916_roiTrackingJun22_20160809.mat');
 
 lbl = load(LBL,'-mat');
-crig = load(CRIG,'-mat');
-crig = crig.crig;
+crig2 = load(CRIG,'-mat');
+crig2 = crig2.crig2;
 %%
 lpos = lbl.labeledpos{1};
 lpostag = lbl.labeledpostag{1};
@@ -43,7 +43,7 @@ fprintf('Found %d labeled pts.\n',nGood);
 
 %% Data cleaning
 [~,~,~,~,~,~,errfull(:,1),errfull(:,2),errfull(:,3)] = ...
-  calibRoundTrip(yL,yR,yB,crig);
+  calibRoundTrip(yL,yR,yB,crig2);
 %%
 IDXRM = 21; % strong outlier
 yL(IDXRM,:) = [];
@@ -56,55 +56,99 @@ clear errfull;
 %% run optimization
 
 % Before: compute current error
-[~,~,~,errL,errR,errB] = calibRoundTrip(yL,yR,yB,crig);
+[~,~,~,errL,errR,errB] = calibRoundTrip(yL,yR,yB,crig2);
 err = errL + errR + errB;
 fprintf('## Before optim: [errL errR errB] err: [%.2f %.2f %.2f] %.2f\n',...
   errL,errR,errB,err);
   
 %%
-NX = 16;
-% Set lambda (regularization)
-% Let's say, if any param changes by ~10% that's a big change, equivalent
-% to a 2 px error in round-tripped projected pts
-% If dParams are all ~10%*Params
+% OBJFUNS = ... % objFun, and NX
+%   {'objfunIntExtRot' 10; ...
+%    'objfunIntExtRot2' 18; ...
+%    'objfunIntExtRot3' 16};
+OBJFUNS = ...
+  {'objfunLRrot' 6; ...
+   'objfunLRrotBint' 10; ...
+   'objfunAllExt' 12; ...
+   'objfunAllExtBint' 16; ...
+   'objfunBint' 4};
+NOBJFUNS = size(OBJFUNS,1);
+results = struct();
 
-LAMBDAS = {
-  2*10*ones(NX,1);
-  zeros(NX,1)
-  };
-X0S = {
-  zeros(NX,1);
-  .1*rand(NX,1)-0.05;
-  };
-NLAMBDA = numel(LAMBDAS);
-NX0S = numel(X0S);
-
-opts = optimset('Display','off');
-
-x1s = cell(0,1);
-fval = cell(0,1);
-errs = cell(0,1);
-for iLambda = 1:NLAMBDA
-for iX0 = 1:NX0S
-  lambda = LAMBDAS{iLambda};
-  x0 = X0S{iX0};
+for iObjFun = 1:NOBJFUNS
   
-  [x1,fv] = ...
-    fminsearch(@(x) objfunIntExtRot3(x,yL,yR,yB,crig,lambda,{'silent',true}),x0,opts);
-  [err,errL,errR,errB,errreg] = objfunIntExtRot3(x1,yL,yR,yB,crig,lambda,{});
-  fprintf('## After optim: [errL errR errB] err(noreg) errReg: [%.2f %.2f %.2f] %.2f %.2f\n',...
-    errL,errR,errB,errL+errR+errB,errreg);
+  objFun = OBJFUNS{iObjFun,1};
+  nx = OBJFUNS{iObjFun,2};
+  fprintf('### ObjFun: %s\n',objFun);  
   
-  x1s{end+1,1} = x1;
-  fval{end+1,1} = fv;
-  errs{end+1,1} = [errL errR errB errreg err];
-end
+  % Set lambda (regularization)
+  % Let's say, if any param changes by ~10% that's a big change, equivalent
+  % to a 2 px error in round-tripped projected pts
+  % If dParams are all ~10%*Params
+  LAMBDAS = {
+    2*10*ones(nx,1);
+    zeros(nx,1)
+    };
+  X0S = {
+    zeros(nx,1);
+    .1*rand(nx,1)-0.05;
+    };
+  NLAMBDA = numel(LAMBDAS);
+  NX0S = numel(X0S);
+
+  opts = optimset('Display','off');
+
+  x1s = cell(0,1);
+  fval = cell(0,1);
+  errs = cell(0,1);
+  for iLambda = 1:NLAMBDA
+  for iX0 = 1:NX0S
+    lambda = LAMBDAS{iLambda};
+    x0 = X0S{iX0};
+
+    [x1,fv] = ...
+      fminsearch(@(x) feval(objFun,x,yL,yR,yB,crig2,lambda,{'silent',true}),x0,opts);
+    [err,errL,errR,errB,errreg] = feval(objFun,x1,yL,yR,yB,crig2,lambda,{});
+    fprintf('## After optim: [errL errR errB] err(noreg) errReg: [%.2f %.2f %.2f] %.2f %.2f\n',...
+      errL,errR,errB,errL+errR+errB,errreg);
+
+    x1s{end+1,1} = x1;
+    fval{end+1,1} = fv;
+    errs{end+1,1} = [errL errR errB errreg err];
+  end
+  end
+  
+  results.(objFun).x1s = x1s;
+  results.(objFun).fval = fval;
+  results.(objFun).errs = errs;
 end
 
-
+%% assess
+% domBL(1:3) domBR(1:3) dTBL(1:3) dTBR(1:3) dccB(1:2) dfcB(1:2)
+results.objfunLRrot.idxStandard = 1:6;
+results.objfunLRrotBint.idxStandard = [1:6 13:16];
+results.objfunAllExt.idxStandard = 1:12;
+results.objfunAllExtBint.idxStandard = 1:16;
+results.objfunBint.idxStandard = 13:16;
+flds = fieldnames(results);
+for f=flds(:)',f=f{1}; %#ok<FXSET>
+  results.(f).x1s_std = cell(size(results.(f).x1s));
+  for i=1:numel(results.(f).x1s);
+    xtmp = nan(1,16);
+    xtmp(results.(f).idxStandard) = results.(f).x1s{i};    
+    results.(f).x1s_std{i} = xtmp;
+  end
+end
 %%
-dp0 = dparams;
-
+x = 1:16;
+plot(x,results.objfunLRrot.x1s_std{3},'o-');
+hold on;
+plot(x,results.objfunLRrotBint.x1s_std{3},'x-');
+plot(x,results.objfunAllExt.x1s_std{3},'+-');
+plot(x,results.objfunAllExtBint.x1s_std{3},'v-');
+plot(x,results.objfunBint.x1s_std{3},'^-');
+grid on;
+legend('LRrot','LRrotBint','allext','allextBint','Bint');
 %   omcurr = om + dparams(1:3);
 %   Tcurr = T + dparams(4:6);
 %   [XL,XR] = stereo_triangulation(xL,xR,omcurr,Tcurr,fc_left,cc_left,kc_left,alpha_c_left,fc_right,cc_right,kc_right,alpha_c_right);
