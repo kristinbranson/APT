@@ -843,7 +843,7 @@ classdef Labeler < handle
         end
            
         obj.movieFilesAll{end+1,1} = movfileFull;
-        obj.movieFilesAllHaveLbls(end+1,1) = nnz(~isnan(lpos))>0;
+        obj.movieFilesAllHaveLbls(end+1,1) = any(~isnan(lpos(:)));
         obj.movieInfoAll{end+1,1} = movifo;
         obj.trxFilesAll{end+1,1} = trxfl;
         obj.labeledpos{end+1,1} = lpos;
@@ -2372,6 +2372,9 @@ classdef Labeler < handle
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
         'labeledposTS','labeledpostag');
       
+	 obj.movieFilesAllHaveLbls(iMovs) = ...
+	   cellfun(@(x)any(~isnan(x(:))),obj.labeledpos(iMovs));
+
       obj.updateFrameTableComplete();
       %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
       %now, since what we are importing is already in the .trk file.
