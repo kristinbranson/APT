@@ -873,7 +873,7 @@ if lObj.labelposMovieHasLabels(iMov)
       assert(false); 
   end
 end
-handles.labelerObj.labelImportTrkCurrMov();
+handles.labelerObj.labelImportTrkPrompt(iMov);
 
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelExportTrk();
