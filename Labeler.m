@@ -1813,14 +1813,15 @@ classdef Labeler < handle
           if ~isempty(template)
             obj.lblCore.setTemplate(template);
           end
-        case LabelMode.MULTIVIEWCALIBRATED
-          vcd = obj.viewCalibrationData;
-          if isempty(vcd)
-            warning('Labeler:labelingInit',...
-              'No calibration data loaded for MultiviewCalibrated labeling.');
-          else
-            obj.lblCore.projectionSetCalRig(vcd);
-          end
+      end
+      if obj.lblCore.supportsCalibration
+        vcd = obj.viewCalibrationData;
+        if isempty(vcd)
+          warning('Labeler:labelingInit',...
+            'No calibration data loaded for calibrated labeling.');
+        else
+          obj.lblCore.projectionSetCalRig(vcd);
+        end
       end
       obj.labelMode = lblmode;
       

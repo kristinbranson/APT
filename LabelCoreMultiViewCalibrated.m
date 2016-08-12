@@ -21,6 +21,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
   
   properties
     supportsMultiView = true;
+    supportsCalibration = true;
   end
   
   properties
