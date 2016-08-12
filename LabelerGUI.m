@@ -86,6 +86,33 @@ handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
   'Label','Set manual labels to predicted pose',...
   'Tag','menu_track_set_labels');  
 
+% MultiViewCalibrated2 labelmode
+handles.menu_setup_multiview_calibrated_mode_2 = uimenu(...
+  'Parent',handles.menu_labeling_setup,...
+  'Label','Multiview Calibrated mode 2',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_multiview_calibrated_mode_2_Callback',hObject,eventdata,guidata(hObject)),...
+  'Tag','menu_setup_multiview_calibrated_mode_2');  
+moveMenuItemAfter(handles.menu_setup_multiview_calibrated_mode_2,...
+  handles.menu_setup_multiview_calibrated_mode);
+
+% misc labelmode/Setup menu
+LABELMODE_SETUPMENU_MAP = ...
+  {LabelMode.NONE '';
+   LabelMode.SEQUENTIAL 'menu_setup_sequential_mode';
+   LabelMode.TEMPLATE 'menu_setup_template_mode';
+   LabelMode.HIGHTHROUGHPUT 'menu_setup_highthroughput_mode';
+   LabelMode.ERRORCORRECT 'menu_setup_tracking_correction_mode';
+   LabelMode.MULTIVIEWCALIBRATED 'menu_setup_multiview_calibrated_mode';
+   LabelMode.MULTIVIEWCALIBRATED2 'menu_setup_multiview_calibrated_mode_2'};
+tmp = LABELMODE_SETUPMENU_MAP;
+tmp(:,1) = cellfun(@char,tmp(:,1),'uni',0);
+tmp(2:end,2) = cellfun(@(x)handles.(x),tmp(2:end,2),'uni',0);
+tmp = tmp';
+handles.labelMode2SetupMenu = struct(tmp{:});
+tmp = LABELMODE_SETUPMENU_MAP(2:end,[2 1]);
+tmp = tmp';
+handles.setupMenu2LabelMode = struct(tmp{:});
+
 % multiview
 nview = handles.labelerObj.nview;
 figs = gobjects(1,nview);
@@ -128,8 +155,6 @@ for i=2:numel(figs)
   figs(i).ResizeFcn = @cbkAuxAxResize;
 end
 %arrayfun(@(x)axis(x,'auto'),ax);
-
-
 
 hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
@@ -429,65 +454,46 @@ else
   set(hTx,'Visible','off');
 end
 
+function menuSetupLabelModeHelp(handles,labelMode)
+% Set .Checked for menu_setup_<variousLabelModes> based on labelMode
+menus = fieldnames(handles.setupMenu2LabelMode);
+for m = menus(:)',m=m{1}; %#ok<FXSET>
+  handles.(m).Checked = 'off';
+end
+hMenu = handles.labelMode2SetupMenu.(char(labelMode));
+hMenu.Checked = 'on';
+
 function cbkLabelModeChanged(src,evt)
 lObj = evt.AffectedObject;
 gd = lObj.gdata;
-switch lObj.labelMode
+lblMode = lObj.labelMode;
+menuSetupLabelModeHelp(gd,lblMode);
+switch lblMode
   case LabelMode.SEQUENTIAL
-    gd.menu_setup_sequential_mode.Checked = 'on';
-    gd.menu_setup_template_mode.Checked = 'off';
-    gd.menu_setup_highthroughput_mode.Checked = 'off';
-    gd.menu_setup_tracking_correction_mode.Checked = 'off';
-    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
-    
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
     gd.menu_setup_lock_all_frames.Visible = 'off';
     gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.TEMPLATE
-    gd.menu_setup_sequential_mode.Checked = 'off';
-    gd.menu_setup_template_mode.Checked = 'on';
-    gd.menu_setup_highthroughput_mode.Checked = 'off';
-    gd.menu_setup_tracking_correction_mode.Checked = 'off';
-    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
-
     gd.menu_setup_createtemplate.Visible = 'on';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
     gd.menu_setup_lock_all_frames.Visible = 'off';
     gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
-    gd.menu_setup_sequential_mode.Checked = 'off';
-    gd.menu_setup_template_mode.Checked = 'off';
-    gd.menu_setup_highthroughput_mode.Checked = 'on';
-    gd.menu_setup_tracking_correction_mode.Checked = 'off';
-    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
-    
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'on';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
     gd.menu_setup_lock_all_frames.Visible = 'off';
     gd.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.ERRORCORRECT
-    gd.menu_setup_sequential_mode.Checked = 'off';
-    gd.menu_setup_template_mode.Checked = 'off';
-    gd.menu_setup_highthroughput_mode.Checked = 'off';
-    gd.menu_setup_tracking_correction_mode.Checked = 'on';
-    gd.menu_setup_multiview_calibrated_mode.Checked = 'off';
-    
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'on';
     gd.menu_setup_lock_all_frames.Visible = 'on';
     gd.menu_setup_load_calibration_file.Visible = 'off';
-  case LabelMode.MULTIVIEWCALIBRATED
-    gd.menu_setup_sequential_mode.Checked = 'off';
-    gd.menu_setup_template_mode.Checked = 'off';
-    gd.menu_setup_highthroughput_mode.Checked = 'off';
-    gd.menu_setup_tracking_correction_mode.Checked = 'off';
-    gd.menu_setup_multiview_calibrated_mode.Checked = 'on';
-    
+  case {LabelMode.MULTIVIEWCALIBRATED LabelMode.MULTIVIEWCALIBRATED2}
     gd.menu_setup_createtemplate.Visible = 'off';
     gd.menu_setup_set_labeling_point.Visible = 'off';
     gd.menu_setup_unlock_all_frames.Visible = 'off';
@@ -899,16 +905,23 @@ else
 end
 msgbox(h,'Labeling Actions','help','modal');
 
-function menu_setup_sequential_mode_Callback(hObject, eventdata, handles)
-handles.labelerObj.labelingInit('labelMode',LabelMode.SEQUENTIAL);
-function menu_setup_template_mode_Callback(hObject, eventdata, handles)
-handles.labelerObj.labelingInit('labelMode',LabelMode.TEMPLATE);
-function menu_setup_highthroughput_mode_Callback(hObject, eventdata, handles)
-handles.labelerObj.labelingInit('labelMode',LabelMode.HIGHTHROUGHPUT);
-function menu_setup_tracking_correction_mode_Callback(hObject, eventdata, handles)
-handles.labelerObj.labelingInit('labelMode',LabelMode.ERRORCORRECT);
-function menu_setup_multiview_calibrated_mode_Callback(hObject, eventdata, handles)
-handles.labelerObj.labelingInit('labelMode',LabelMode.MULTIVIEWCALIBRATED);
+
+function menu_setup_sequential_mode_Callback(hObject,eventdata,handles)
+menuSetupLabelModeCbkGeneric(hObject,handles);
+function menu_setup_template_mode_Callback(hObject,eventdata,handles)
+menuSetupLabelModeCbkGeneric(hObject,handles);
+function menu_setup_highthroughput_mode_Callback(hObject,eventdata,handles)
+menuSetupLabelModeCbkGeneric(hObject,handles);
+function menu_setup_tracking_correction_mode_Callback(hObject,eventdata,handles)
+menuSetupLabelModeCbkGeneric(hObject,handles);
+function menu_setup_multiview_calibrated_mode_Callback(hObject,eventdata,handles)
+menuSetupLabelModeCbkGeneric(hObject,handles);
+function menu_setup_multiview_calibrated_mode_2_Callback(hObject,eventdata,handles)
+menuSetupLabelModeCbkGeneric(hObject,handles);
+function menuSetupLabelModeCbkGeneric(hObject,handles)
+lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
+handles.labelerObj.labelingInit('labelMode',lblMode);
+
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 %npts = lObj.nLabelPoints;

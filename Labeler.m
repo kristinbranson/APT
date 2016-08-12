@@ -2484,9 +2484,9 @@ classdef Labeler < handle
       if exist(fname,'file')==0
         error('Labeler:file','File ''%s'' not found.',fname);
       end
-      if obj.labelMode~=LabelMode.MULTIVIEWCALIBRATED
-          error('Labeler:labelMode',...
-            'Cannot load calibration file unless in Multiview Calibrated labeling mode.');
+      if ~obj.lblCore.supportsCalibration
+          error('Labeler:calib',...
+            'Current labeling mode does not support calibration files.');
       end
       s = load(fname,'-mat');
       flds = fieldnames(s);
@@ -2502,7 +2502,6 @@ classdef Labeler < handle
           fname,flds{1});
       end
       
-      assert(isa(obj.lblCore,'LabelCoreMultiViewCalibrated'));
       obj.viewCalibrationData = crigObj;
       obj.lblCore.projectionSetCalRig(crigObj);
     end
