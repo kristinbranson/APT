@@ -26,6 +26,7 @@ classdef LabelCoreErrorCorrect < LabelCore
 
   properties
     supportsMultiView = false;
+	supportsCalibration = false;
   end
   
   properties

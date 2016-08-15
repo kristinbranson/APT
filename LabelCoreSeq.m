@@ -32,6 +32,7 @@ classdef LabelCoreSeq < LabelCore
 
   properties
     supportsMultiView = false;
+	supportsCalibration = false;
   end
         
   properties

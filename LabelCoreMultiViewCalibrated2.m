@@ -1,16 +1,24 @@
-classdef LabelCoreMultiViewCalibrated < LabelCore
+classdef LabelCoreMultiViewCalibrated2 < LabelCore
 
-  % Hitting a number key gets you "working on" a certain pt. Other pts
-  % dimmed; working pts are highlighted in all views
- 
-  % Clicking on a working point will do EPL projection on all other
-  % views. The working point can be dragged etc. When the working pt is
-  % first clicked, it will become colored, with EPLs in other views having 
-  % the same color.
-  % 
-  % At this pt, click-dragging (adjusting) another pt will provide 
-  % 3d-reconstructed point spreads in the third/remaining views. 
-  % Right-click on either of the first two points to "unadjust" it.
+  % Hitting a number key gets you "working on" a certain ptset. All pts
+  % in this set bolded; all other pts dimmed. Hitting the same number key
+  % un-selects the ptset (which also unselects any pts). Hitting a
+  % different number key un-selects the previous ptset and selects a new.
+  %
+  % Clicking on an axes when a ptset is working will i) jump the working pt
+  % in that view to the clicked loc; ii) "select" that pt, turning it into 
+  % an 'x' and enabling arrowkeys for fine adjustment; and iii) add the pt
+  % to the "anchorsset", (unless two anchored pts already exist), which 
+  % projects EPLs or RePts into other views as appropriate.
+  %
+  % Giving a window the focus when a workingset is selected will Select the
+  % WSpt in that view.
+  %
+  % To un-anchor a WSpoint, right-click it, or hit <space> when the 
+  % appropriate view has the focus.
+  %
+  % Any WSpt can be dragged, but this is lower priority since dragging is 
+  % spotty.
   %
   % When done, hit another number key to change the working point.
   %
@@ -18,10 +26,49 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
   %
   % This requires a 'CalibratedRig' that knows how to compute EPLs and
   % reconstruct 3dpts.
+ 
+  % Alternative description
+  %
+  % WSset
+  % This is the current working set of pts, one in each view. Pts in the
+  % current WSset are bolded and other pts are dimmed. Use number hotkeys
+  % to select a WSset.
+  %
+  % SelPt
+  % This is the currently selected pt. Only pts in the current WSset can be
+  % selected. When selected, a pt is shown as 'x' and can be adjusted with
+  % the hotkeys. It can also be anchored/de-anchored with <spacebar>.
+  %
+  % When a view is given the focus and in particular when its axes is 
+  % clicked, the WSset in that view (if any) is automatically selected.
+  %
+  % Pt adjustment
+  % WSset pts can be adjusted by clicking on the various axes. When an axis
+  % is clicked, i) the WSpt in that view is jumped to the clicked location,
+  % ii) the WSpt in that view is anchored (displacing other anchorpts if 
+  % nec), and iii) the pt is selected. Then, fine-adjustments can
+  % be done with the arrow keys, since the pt is selected.
+  %
+  % Alternatively one can simply give the desired view the focus, which
+  % will select the WSpt in that view, enabling adjustment with the arrow
+  % keys.
+  %
+  % AnchorSet
+  % One or two points may be anchored. When one point is anchored, EPLs are
+  % drawn in all other views. When two pts are anchored, REpts are drawn in
+  % all other views.
+  %
+  % If nviews==2, only one point may be anchored.
+  % 
+  % The anchorset starts empty when a WSset first becomes active. If an
+  % axes is clicked or a view is given focus, that view is added to the
+  % anchorset, displacing other anchored points if necessary. To un-anchor 
+  % a WSpt, give its view the focus and hit <space>.
+ 
   
   properties
     supportsMultiView = true;
-    supportsCalibration = true;
+	supportsCalibration = true;
   end
   
   properties
@@ -63,14 +110,13 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     iPtMove;     % scalar. Either nan, or index of pt being moved
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
 
-
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
     
     kpfIPtFor1Key;   % scalar positive integer. This is the point index that
     % the '1' hotkey maps to, eg typically this will take the
     % values 1, 11, 21, ...
 
-    tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected  
+    tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
   end
   
   methods % dep prop getters
@@ -94,15 +140,12 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
   end
   
-  methods
+  methods % DONE2
     
-    function obj = LabelCoreMultiViewCalibrated(varargin)
+    function obj = LabelCoreMultiViewCalibrated2(varargin)
       obj = obj@LabelCore(varargin{:});
     end
-    
-    function delete(obj)      
-    end
-    
+        
     function initHook(obj)
       obj.iPt2iAx = obj.labeler.labeledposIPt2View;
       obj.iPt2iSet = obj.labeler.labeledposIPt2Set;
@@ -201,18 +244,23 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     end 
     
     function axBDF(obj,src,evt) %#ok<INUSD>
-      [tf,iSel] = obj.selAnyPointSelected();
-      if tf
-        iAx = obj.iPt2iAx(iSel);
-        ax = obj.hAx(iAx);        
+	  iAx = find(src==obj.hAx);
+	  iWS = obj.iSetWorking;
+	  if ~isnan(iWS)
+		iPt = obj.iSet2iPt(iWS,iAx);		
+        ax = obj.hAx(iAx);
         pos = get(ax,'CurrentPoint');
         pos = pos(1,1:2);
-        obj.assignLabelCoordsIRaw(pos,iSel);
-        obj.setPointAdjusted(iSel);
-        obj.selToggleSelectPoint(iSel);
-        if obj.tfOcc(iSel)
+        obj.assignLabelCoordsIRaw(pos,iPt);
+		obj.setPointAdjusted(iPt);
+		if ~obj.tfPtSel(iPt)
+		  obj.selClearSelected();
+		  obj.selToggleSelectPoint(iPt);
+		end
+		obj.projectAddToAnchorSet(iPt)
+        if obj.tfOcc(iPt)
           % AL should be unnec branch
-          obj.tfOcc(iSel) = false;
+          obj.tfOcc(iPt) = false;
           obj.refreshOccludedPts();
         end
         % estOcc status unchanged
@@ -223,7 +271,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
             obj.enterAdjust(false,false);
         end
         obj.projectionRefresh();
-      end     
+	  end
     end
     
     function ptBDF(obj,src,evt)
@@ -380,16 +428,22 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
         end
         obj.kpfIPtFor1Key = iPt;
       elseif any(strcmp(key,{'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
-        iPt = str2double(key);
-        if iPt==0
-          iPt = 10;
+        iSet = str2double(key);
+        if iSet==0
+          iSet = 10;
         end
-        iPt = iPt+obj.kpfIPtFor1Key-1;
-        if iPt > obj.nPts
-          return;
-        end
-        obj.selClearSelected(iPt);
-        obj.selToggleSelectPoint(iPt);
+        iSet = iSet+obj.kpfIPtFor1Key-1;
+		if iSet > obj.nPointSet
+		  % none
+		else
+		  tfClearOnly = iSet==obj.iSetWorking;
+		  obj.projectionWorkingSetClear();
+		  obj.projectionClear();
+		  obj.selClearSelected();
+		  if ~tfClearOnly
+			obj.projectionWorkingSetSet(iSet);
+		  end
+		end
       else
         tfKPused = false;
       end
@@ -449,7 +503,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
   end
   
-  methods
+  methods % DONE2
     
     function projectionWorkingSetClear(obj)
       h = obj.hPtsTxt;
@@ -511,9 +565,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     end
     
     function projectionClear(obj)
-      % Clear all projection points.
-      
-      %# CALOK
+      % Clear projection state.
       
       for iPt=1:obj.nPts
         set(obj.hPtsTxt(iPt),'String',obj.hPtsTxtStrs{iPt});
@@ -522,45 +574,65 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       obj.pjtIPts = [nan nan];
       set(obj.pjtHLinesEpi,'Visible','off');
       set(obj.pjtHLinesRecon,'Visible','off');
-      obj.projectionWorkingSetClear();
-    end
+      %obj.projectionWorkingSetClear();
+	end
+	
+	function projectAddToAnchorSet(obj,iPt)
+	  if any(obj.pjtIPts==iPt)
+		% already anchored
+	  else
+		obj.projectToggleState(iPt);
+	  end
+	end
     
     function projectToggleState(obj,iPt)
       % Toggle projection status of point iPt. 
-      
-      %#CALOK
-      
-      switch obj.pjtState
-        case 0
-          obj.projectionSetAnchor(iPt);
-        case 1
-          if iPt==obj.pjtIPts(1)
-            obj.projectionClear();
-          elseif obj.projectionWorkingSetPointInWS(iPt)
-            obj.projectionSet2nd(iPt);
-          else
-            % iPt is neither anchor pt nor in anchor pt's working set
-            obj.projectionClear();
-            obj.projectionSetAnchor(iPt);
-          end
-        case 2
-          tf = iPt==obj.pjtIPts;          
-          if any(tf)
-            idx = find(tf);
-            idxOther = mod(idx,2)+1;
-            iPtOther = obj.pjtIPts(idxOther);
-            obj.projectionClear();
-            obj.projectionSetAnchor(iPtOther);            
-          else
-            obj.projectionClear();
-            obj.projectionSetAnchor(iPt);
-          end
-      end
+
+	  if obj.nView==2
+		switch obj.pjtState
+		  case 0
+			obj.projectionSetAnchor(iPt);
+		  case 1
+			if iPt==obj.pjtIPts(1)
+			  obj.projectionClear();
+			else
+			  obj.projectionClear();
+			  obj.projectionSetAnchor(iPt);
+			end
+		  case 2
+			assert(false);
+		end
+	  else
+		switch obj.pjtState
+		  case 0
+			obj.projectionSetAnchor(iPt);
+		  case 1
+			if iPt==obj.pjtIPts(1)
+			  obj.projectionClear();
+			elseif obj.projectionWorkingSetPointInWS(iPt)
+			  obj.projectionSet2nd(iPt);
+			else
+			  % iPt is neither anchor pt nor in anchor pt's working set
+			  obj.projectionClear();
+			  obj.projectionSetAnchor(iPt);
+			end
+		  case 2
+			tf = iPt==obj.pjtIPts;          
+			if any(tf)
+			  idx = find(tf);
+			  idxOther = mod(idx,2)+1;
+			  iPtOther = obj.pjtIPts(idxOther);
+			  obj.projectionClear();
+			  obj.projectionSetAnchor(iPtOther);            
+			else
+			  obj.projectionClear();
+			  obj.projectionSetAnchor(iPt);
+			end
+		end
+	  end
     end
 
     function projectionSetAnchor(obj,iPt1)
-      %# CALOK
-            
       if ~isnan(obj.pjtIPts(1))
         obj.projectionClear();
       end
@@ -669,7 +741,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
   end
   
-  methods % Selected
+  methods % Selected DONE2
     
     function [tf,iSelected] = selAnyPointSelected(obj)
       tf = any(obj.tfPtSel);
@@ -718,22 +790,8 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     % - The Button says "Accepted" =>
     % - 1) What you see is what is recorded in the Labeler (pts shown in
     %   color)
-    %
-    % WORKING SET
-    % - When a pointset is working, then all its points are shown in full
-    % alpha while others are faded.
-    % - You can have no working pointsets.
-    %
-    % PROJECTION POINTS
-    % - You can click on working pts to set them as projection pts. First
-    % pt => anchor. This changes the marker to a square and creates EPLs in
-    % the other views.
-    % - Second pt => 2nd pt. This changes the marker and creates
-    % 3dprojspreads in remaining views.
-    % - Regardless of projection-ness you can click-drag any points in the
-    % working set around.
-    % - Single-click to release/remove a pt from anchor-ness or 2nd-ness
-    % - Regardless of projection state, you can Accept, which writes
+	%
+    % Regardless of projection state, you can Accept, which writes
     % current positions to Labeler.
     
     function enterAdjust(obj,tfResetPts,tfClearLabeledPos)
@@ -769,7 +827,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
             
       nPts = obj.nPts;
       ptsH = obj.hPts;
-      clrs = obj.ptsPlotInfo.Colors;
+      clrs = obj.hPtsColors;
       for i = 1:nPts
         set(ptsH(i),'Color',clrs(i,:));
         set(obj.hPtsOcc(i),'Color',clrs(i,:));

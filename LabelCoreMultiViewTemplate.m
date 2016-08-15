@@ -11,6 +11,7 @@ classdef LabelCoreMultiViewTemplate < LabelCore
   
   properties
     supportsMultiView = true;
+	supportsCalibration = false;
   end
   
   properties

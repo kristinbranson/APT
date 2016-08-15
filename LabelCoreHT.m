@@ -57,6 +57,7 @@ classdef LabelCoreHT < LabelCore
 
   properties
     supportsMultiView = false;
+	supportsCalibration = false;
   end
 
   properties

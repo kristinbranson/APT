@@ -1,4 +1,4 @@
-classdef CalibratedRig < CalRig & matlab.mixin.Copyable
+classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
   % Romain calibrated rig
 
   % Coord system notes
@@ -63,14 +63,35 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
 
     int; % struct with <viewNames> as fields. intrinsic params: .fc, .cc, etc
     
-    
-
-    om; % 
-    T; % For om, T and R, eg X_bot = R.BL * X_left + T.BL
-    R; % 
-        
+    % core/root calibration params;
+    % X_B = R_BL*X_L + T_BL
+    % When XL=0, XB=TBL => TBL is position of left cam wrt bot
+    omBL;
+    omBR;
+    TBL;
+    TBR;
+            
     roi; % struct, eg roi.<viewName>.height, roi.<viewName>.offsetX, etc
     roiDir; % string
+  end
+  properties (Dependent,Hidden)
+    % extrinsic props all derived from .omBL, .omBR, .TBL, .TBR
+    RBL
+    RLB
+    RBR
+    RRB
+    RLR
+    RRL
+    TLB
+    TRB
+    TLR
+    TRL
+  end
+  properties (Dependent)
+    % for backwards compat
+    om
+    R
+    T    
   end
   
   methods
@@ -82,11 +103,63 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
         v(iView,:) = [vRoi.width vRoi.height];
       end
     end
+    
+    function R = get.RBL(obj)
+      R = rodrigues(obj.omBL);
+    end
+    function R = get.RLB(obj)
+      R = obj.RBL';
+    end
+    function R = get.RBR(obj)
+      R = rodrigues(obj.omBR);
+    end
+    function R = get.RRB(obj)
+      R = obj.RBR';
+    end
+    function R = get.RLR(obj)
+      R = obj.RLB*obj.RBR;
+    end
+    function R = get.RRL(obj)
+      R = obj.RRB*obj.RBL;
+    end
+    function T = get.TLB(obj)
+      T = -obj.RBL'*obj.TBL;
+    end
+    function T = get.TRB(obj)
+      T = -obj.RBR'*obj.TBR;
+    end
+    function T = get.TLR(obj)
+      T = obj.RLB*obj.TBR + obj.TLB;
+    end
+    function T = get.TRL(obj)
+      T = obj.RRB*obj.TBL + obj.TRB;
+    end
+    
+    function s = get.om(obj)
+      sR = obj.R;
+      flds = fieldnames(sR);
+      s = struct();
+      for f=flds(:)',f=f{1}; %#ok<FXSET>
+        s.(f) = rodrigues(sR.(f));
+      end
+    end      
+    function s = get.R(obj)
+      s = struct(...
+        'BR',obj.RBR,'RB',obj.RRB,...
+        'BL',obj.RBL,'LB',obj.RLB,...
+        'LR',obj.RLR,'RL',obj.RRL);
+    end
+    function s = get.T(obj)
+      s = struct(...
+        'BR',obj.TBR,'RB',obj.TRB,...
+        'BL',obj.TBL,'LB',obj.TLB,...
+        'LR',obj.TLR,'RL',obj.TRL);
+    end
   end
     
   methods
     
-    function obj = CalibratedRig(calibResLB,calibResBR)
+    function obj = CalibratedRig2(calibResLB,calibResBR)
       % reads intrinsic/extrinsic params from calibration files
       
       obj.calibFileLB = calibResLB;
@@ -136,41 +209,45 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       
       omm = struct();
       TT = struct();
-      RR = struct();
+%       RR = struct();
       
       % read off om, T, R values from stereo calib results
       rightWRTLeftLB = [CAL_LR2RIG_LB.r CAL_LR2RIG_LB.l]; % eg: 'BL'
       rightWRTLeftBR = [CAL_LR2RIG_BR.r CAL_LR2RIG_BR.l];
       omm.(rightWRTLeftLB) = extLB.om;
       TT.(rightWRTLeftLB) = extLB.T;
-      RR.(rightWRTLeftLB) = extLB.R;
+%       RR.(rightWRTLeftLB) = extLB.R;
       omm.(rightWRTLeftBR) = extBR.om;
       TT.(rightWRTLeftBR) = extBR.T;
-      RR.(rightWRTLeftBR) = extBR.R;
+%       RR.(rightWRTLeftBR) = extBR.R;
       
-      % invert to get reverse values
-      leftWRTRightLB = rightWRTLeftLB(end:-1:1);
-      leftWRTRightBR = rightWRTLeftBR(end:-1:1);
-      omm.(leftWRTRightLB) = -omm.(rightWRTLeftLB);
-      omm.(leftWRTRightBR) = -omm.(rightWRTLeftBR);
-      [RR.(leftWRTRightLB),TT.(leftWRTRightLB)] = ...
-        CalibratedRig.invertRT(RR.(rightWRTLeftLB),TT.(rightWRTLeftLB));
-      [RR.(leftWRTRightBR),TT.(leftWRTRightBR)] = ...
-        CalibratedRig.invertRT(RR.(rightWRTLeftBR),TT.(rightWRTLeftBR));
+%       % invert to get reverse values
+%       leftWRTRightLB = rightWRTLeftLB(end:-1:1);
+%       leftWRTRightBR = rightWRTLeftBR(end:-1:1);
+%       omm.(leftWRTRightLB) = -omm.(rightWRTLeftLB);
+%       omm.(leftWRTRightBR) = -omm.(rightWRTLeftBR);
+%       [RR.(leftWRTRightLB),TT.(leftWRTRightLB)] = ...
+%         CalibratedRig.invertRT(RR.(rightWRTLeftLB),TT.(rightWRTLeftLB));
+%       [RR.(leftWRTRightBR),TT.(leftWRTRightBR)] = ...
+%         CalibratedRig.invertRT(RR.(rightWRTLeftBR),TT.(rightWRTLeftBR));
       
-      % fill out T, R matrices for all xform pairs
-      [RR.LR,TT.LR] = CalibratedRig.composeRT(RR.BR,TT.BR,RR.LB,TT.LB);
-      [RR.RL,TT.RL] = CalibratedRig.composeRT(RR.BL,TT.BL,RR.RB,TT.RB);
-      % Sanity
-      [RR_RL2,TT_RL2] = CalibratedRig.invertRT(RR.LR,TT.LR);
-      dR = abs(RR.RL-RR_RL2);
-      dT = abs(TT.RL-TT_RL2);
-      fprintf(1,'Sanity check R_RL, T_RL: %.6g %.4g\n',...
-        sum(dR(:).^2),sum(dT(:).^2));      
+%       % fill out T, R matrices for all xform pairs
+%       [RR.LR,TT.LR] = CalibratedRig.composeRT(RR.BR,TT.BR,RR.LB,TT.LB);
+%       [RR.RL,TT.RL] = CalibratedRig.composeRT(RR.BL,TT.BL,RR.RB,TT.RB);
+%       % Sanity
+%       [RR_RL2,TT_RL2] = CalibratedRig.invertRT(RR.LR,TT.LR);
+%       dR = abs(RR.RL-RR_RL2);
+%       dT = abs(TT.RL-TT_RL2);
+%       fprintf(1,'Sanity check R_RL, T_RL: %.6g %.4g\n',...
+%         sum(dR(:).^2),sum(dT(:).^2));      
 
-      obj.om = omm;
-      obj.R = RR;
-      obj.T = TT;
+      obj.omBL = omm.BL;
+      obj.omBR = omm.BR;
+      obj.TBL = TT.BL;
+      obj.TBR = TT.BR;
+%       obj.om = omm;
+%       obj.R = RR;
+%       obj.T = TT;
     end
       
     function setROIs(obj,expdir)
@@ -190,59 +267,6 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
   end
   
   methods 
-    
-    function verify(obj,varargin)
-      % check self-consistency of .om, .R, .T. 
-      % TODO: just have either om or R, not both
-      
-      silent = myparse(varargin,...
-        'silent',false);
-      
-      
-      fldsOm = fieldnames(obj.om);
-      fldsR = fieldnames(obj.R);
-      fldsT = fieldnames(obj.T);
-      fldsOmR = intersect(fldsOm,fldsR);
-      if ~silent
-        fprintf('Checking om/R fields: %s\n',...
-          String.cellstr2CommaSepList(fldsOmR));
-      end
-      for f = fldsOmR(:)',f=f{1}; %#ok<FXSET>
-        d = obj.om.(f) - rodrigues(obj.R.(f));
-        assert(max(abs(d(:))) <= eps(10));
-      end
-      fldsOmUnchecked = setdiff(fldsOm,fldsOmR);
-      fldsRUnchecked = setdiff(fldsR,fldsOmR);
-      if ~isempty(fldsOmUnchecked) && ~silent
-        fprintf('Not checking .om fields (om/R): %s\n',...
-          String.cellstr2CommaSepList(fldsOmUnchecked));
-      end
-      if ~isempty(fldsRUnchecked) && ~silent
-        fprintf('Not checking .R fields (om/R): %s\n',...
-          String.cellstr2CommaSepList(fldsRUnchecked));
-      end
-      
-      fldsRT = intersect(fldsR,fldsT);
-      fldsRUnchecked = setdiff(fldsR,fldsRT);
-      fldsTUnchecked = setdiff(fldsT,fldsRT);
-      if ~silent
-        fprintf('Checking R/T fields: %s\n',...
-          String.cellstr2CommaSepList(fldsRT));
-      end
-      for f = fldsRT(:)',f=f{1}; %#ok<FXSET>
-        fflip = f(end:-1:1);
-        d = obj.T.(f) - ( -obj.R.(fflip)'*obj.T.(fflip) );
-        assert(max(abs(d(:))) <= 1e-13);
-      end
-      if ~isempty(fldsRUnchecked) && ~silent
-        fprintf('Not checking .R fields (R/T): %s\n',...
-          String.cellstr2CommaSepList(fldsRUnchecked));
-      end
-      if ~isempty(fldsTUnchecked) && ~silent
-        fprintf('Not checking .T fields (R/T): %s\n',...
-          String.cellstr2CommaSepList(fldsTUnchecked));
-      end      
-    end
     
     function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
       % See CalRig
