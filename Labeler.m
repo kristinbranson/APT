@@ -67,8 +67,8 @@ classdef Labeler < handle
     viewCalibrationData % opaque 'userdata' for calibrations for multiview. Currently, scalar CalRig object
     
     movieReader = []; % [1xnview] MovieReader objects
-    minv = 0; 
-    maxv = inf;
+    minv = 0; % [nview] lower limit clim
+    maxv = inf; % [nview] upper limit clim
     movieFrameStepBig = 10;
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
@@ -418,15 +418,18 @@ classdef Labeler < handle
     function initFromPrefs(obj,pref)
       % view stuff
       obj.nview = pref.NumViews;
-      if isempty(pref.ViewNames)
-        obj.viewNames = arrayfun(@(x)sprintf('view%d',x),1:obj.nview,'uni',0);
-      else
-        if numel(pref.ViewNames)~=obj.nview
-          error('Labeler:prefs',...
-            'ViewNames: must specify %d names (one for each view)',obj.nview);
-        end
-        obj.viewNames = pref.ViewNames;
-      end
+			if isempty(pref.ViewNames)
+				obj.viewNames = arrayfun(@(x)sprintf('view%d',x),1:obj.nview,'uni',0);
+			else
+				if numel(pref.ViewNames)~=obj.nview
+					error('Labeler:prefs',...
+						'ViewNames: must specify %d names (one for each view)',obj.nview);
+				end
+				obj.viewNames = pref.ViewNames;
+			end
+			
+			obj.minv = repmat(obj.minv,obj.nview,1);
+			obj.maxv = repmat(obj.maxv,obj.nview,1);
       
       npts = pref.NumLabelPoints;
       obj.nLabelPoints = pref.NumLabelPoints;
@@ -1107,7 +1110,15 @@ classdef Labeler < handle
       % 20160707
       if ~isfield(s,'labeledposMarked')
         s.labeledposMarked = cellfun(@(x)false(size(x)),s.labeledposTS,'uni',0);
-      end
+			end
+			
+			% 20160816
+			assert(numel(s.minv)==numel(s.maxv));
+			nminv = numel(s.minv);
+			if nminv~=s.nview
+				s.minv = repmat(s.minv(1),s.nview,1);
+				s.maxv = repmat(s.maxv(1),s.nview,1);
+			end
     end
     
     function [I,p,md] = lblRead(lblFiles,varargin)
@@ -2868,35 +2879,6 @@ classdef Labeler < handle
       v = axis(obj.gdata.axes_curr);
       x0 = mean(v(1:2));
       y0 = mean(v(3:4));
-    end
-    
-    function videoSetContrastFromAxesCurr(obj)
-      % Get video contrast from axes_curr and record/set
-      clim = get(obj.gdata.axes_curr,'CLim');
-      if isempty(clim) 
-        % none; can occur when Labeler is closed
-      else
-        set(obj.gdata.axes_prev,'CLim',clim);
-        set(obj.gdata.axes_all,'CLim',clim);
-        obj.minv = clim(1);
-        obj.maxv = clim(2);
-      end
-    end
-    
-    function videoApplyGammaGrayscale(obj,gamma)
-      % Applies gamma-corrected grayscale colormap
-      
-      validateattributes(gamma,{'numeric'},{'scalar' 'real' 'positive'});
-      
-      im = obj.gdata.image_curr;
-      if size(im.CData,3)~=1
-        error('Labeler:gamma','Gamma correction currently only supported for grayscale/intensity images.');
-      end
-      
-      m0 = gray(256);
-      m1 = imadjust(m0,[],[],gamma);
-      arrayfun(@(x)colormap(x,m1),obj.gdata.axes_all);
-      colormap(obj.gdata.axes_prev,m1);
     end
     
     function videoFlipUD(obj)

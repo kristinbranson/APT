@@ -380,36 +380,39 @@ gdata = lObj.gdata;
 movRdrs = lObj.movieReader;
 nframes = movRdrs(1).nframes;
 ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
-
-% weirdo stuff
-if isfield(movRdrs(1).info,'bitdepth')
-  lObj.maxv = min(lObj.maxv,2^movRdrs(1).info.bitdepth-1);
-elseif isa(ims{1},'uint16')
-  lObj.maxv = min(lObj.maxv,2^16 - 1);
-elseif isa(ims{1},'uint8')
-  lObj.maxv = min(lObj.maxv,2^8 - 1);
-else
-  lObj.maxv = min(lObj.maxv,2^(ceil(log2(max(ims{1}(:)))/8)*8));
-end
-minvmaxv = [lObj.minv lObj.maxv];
-
 hAxs = gdata.axes_all;
 hIms = gdata.images_all;
-assert(isequal(numel(ims),numel(hAxs),numel(hIms)));
-for i=1:numel(ims)
-  set(hIms(i),'CData',ims{i});
-  set(hAxs(i),'CLim',minvmaxv,...
-    'XLim',[.5,size(ims{i},2)+.5],...
-    'YLim',[.5,size(ims{i},1)+.5]);
-  axis(hAxs(i),'image');
-  zoom(hAxs(i),'reset');
-end
+assert(isequal(lObj.nview,numel(ims),numel(hAxs),numel(hIms),numel(lObj.minv),numel(lObj.maxv)));
 
-axprev = gdata.axes_prev;
-set(axprev,'CLim',minvmaxv,...
-  'XLim',[.5,size(ims{1},2)+.5],...
-  'YLim',[.5,size(ims{1},1)+.5]);
-zoom(axprev,'reset');
+for iView = 1:lObj.nview
+	% clip maxv
+	if isfield(movRdrs(iView).info,'bitdepth')
+		lObj.maxv(iView) = min(lObj.maxv(iView),2^movRdrs(iView).info.bitdepth-1);
+	elseif isa(ims{iView},'uint16')
+		lObj.maxv(iView) = min(lObj.maxv(iView),2^16 - 1);
+	elseif isa(ims{iView},'uint8')
+		lObj.maxv(iView) = min(lObj.maxv(iView),2^8 - 1);
+	else
+		lObj.maxv(iView) = min(lObj.maxv(iView),2^(ceil(log2(max(ims{iView}(:)))/8)*8));
+	end
+	minvmaxv = [lObj.minv(iView) lObj.maxv(iView)];
+
+	set(hIms(iView),'CData',ims{iView});
+	set(hAxs(iView),'CLim',minvmaxv,...
+		'XLim',[.5,size(ims{iView},2)+.5],...
+		'YLim',[.5,size(ims{iView},1)+.5]);
+	axis(hAxs(iView),'image');
+	zoom(hAxs(iView),'reset');
+
+	if iView==1
+		% axes_curr
+		axprev = gdata.axes_prev;
+		set(axprev,'CLim',minvmaxv,...
+			'XLim',[.5,size(ims{iView},2)+.5],...
+			'YLim',[.5,size(ims{iView},1)+.5]);
+		zoom(axprev,'reset');
+	end
+end
 
 gdata.labelTLInfo.initNewMovie();
 gdata.labelTLInfo.setLabelsFull();
@@ -950,12 +953,63 @@ handles.labelerObj.labelPosSetAllMarked(false);
 function menu_setup_lock_all_frames_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelPosSetAllMarked(true);
 
-function CloseImContrast(labelerObj)
-labelerObj.videoSetContrastFromAxesCurr();
+function CloseImContrast(lObj,iAxRead,iAxApply)
+% ReadClim from axRead and apply to axApply
+
+axAll = lObj.gdata.axes_all;
+axRead = axAll(iAxRead);
+axApply = axAll(iAxApply);
+tfApplyAxPrev = any(iAxApply==1); % axes_prev mirrors axes_curr
+
+clim = get(axRead,'CLim');
+if isempty(clim)
+	% none; can occur when Labeler is closed
+else
+	warnst = warning('off','MATLAB:graphicsversion:GraphicsVersionRemoval');
+	set(axApply,'CLim',clim);
+	warning(warnst);
+	if tfApplyAxPrev
+		set(lObj.gdata.axes_prev,'CLim',clim);
+	end
+	lObj.minv(iAxApply) = clim(1);
+	lObj.maxv(iAxApply) = clim(2);
+end		
+
+function [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(handles)
+lObj = handles.labelerObj;
+if ~lObj.isMultiView
+	tfproceed = 1;
+	iAxRead = 1;
+	iAxApply = 1;
+else
+	opts = [{'All views together'}; {handles.figs_all.Name}'];
+	[sel,tfproceed] = listdlg(...
+		'PromptString','Select view(s) to adjust',...
+		'ListString',opts,...
+		'SelectionMode','single');
+	if tfproceed
+		switch sel
+			case 1
+				iAxRead = 1;
+				iAxApply = 1:numel(handles.axes_all);
+			otherwise
+				iAxRead = sel-1;
+				iAxApply = sel-1;
+		end
+	else
+		iAxRead = nan;
+		iAxApply = nan;
+	end	
+end
 
 function menu_view_adjustbrightness_Callback(hObject, eventdata, handles)
-hConstrast = imcontrast_kb(handles.axes_curr);
-addlistener(hConstrast,'ObjectBeingDestroyed',@(s,e) CloseImContrast(handles.labelerObj));
+[tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(handles);
+if tfproceed
+	hConstrast = imcontrast_kb(handles.axes_all(iAxRead));
+	addlistener(hConstrast,'ObjectBeingDestroyed',...
+		@(s,e) CloseImContrast(handles.labelerObj,iAxRead,iAxApply));
+end
+  
 function menu_view_converttograyscale_Callback(hObject, eventdata, handles)
 tf = ~strcmp(hObject.Checked,'on');
 lObj = handles.labelerObj;
@@ -966,13 +1020,32 @@ if lObj.hasMovie
   lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 end
 function menu_view_gammacorrect_Callback(hObject, eventdata, handles)
+[tfok,~,iAxApply] = hlpAxesAdjustPrompt(handles);
+if ~tfok
+	return;
+end
 val = inputdlg('Gamma value:','Gamma correction');
 if isempty(val)
-  return;
+	return;
 end
-val = str2double(val{1});
-handles.labelerObj.videoApplyGammaGrayscale(val);
+gamma = str2double(val{1});
 
+m0 = gray(256);
+m1 = imadjust(m0,[],[],gamma);
+imsAll = handles.images_all;
+axsAll = handles.axes_all;
+for iAx = iAxApply(:)'	
+	im = imsAll(iAx);
+	if size(im.CData,3)~=1
+		error('Labeler:gamma',...
+			'Gamma correction currently only supported for grayscale/intensity images.');
+	end
+	arrayfun(@(x)colormap(x,m1),axsAll(iAx));
+	if iAx==1 % axes_curr
+		colormap(handles.axes_prev,m1);
+	end
+end
+		
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
 
