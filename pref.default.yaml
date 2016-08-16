@@ -2,10 +2,8 @@
 NumViews: 1
 ViewNames: # Optional
 
-NumLabelPoints: 4 
-LabelPointMap:    # Optional unless NumViews>1.
- # Head: [1,3,5]  # 'Head' physical/3D point is: pt1 in view 1, pt4 in view 2
- # Tail: [2,4,6]
+NumPoints: 4 
+PointNames: # Optional
 
 LabelMode: TEMPLATE # See LabelMode.m
 
