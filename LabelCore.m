@@ -24,7 +24,7 @@ classdef LabelCore < handle
   
   properties (Abstract)
     supportsMultiView % scalar logical
-	supportsCalibration % scalar logical
+    supportsCalibration % scalar logical
   end
   
   properties (SetObservable)
@@ -147,6 +147,10 @@ classdef LabelCore < handle
       obj.tfEstOcc = false(obj.nPts,1);
       
       obj.txLblCoreAux.Visible = 'off';
+      units0 = obj.txLblCoreAux.FontUnits;
+      obj.txLblCoreAux.FontUnits = 'pixels';
+      obj.txLblCoreAux.FontSize = 12;
+      obj.txLblCoreAux.FontUnits = units0;
       
       obj.initHook();
     end
