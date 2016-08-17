@@ -2090,6 +2090,7 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
+      obj.labeledposTS{iMov}(iPt,iFrm,iTgt) = now();
       obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = [];
     end
     
