@@ -22,7 +22,7 @@ function varargout = ProjectSetup(varargin)
 
 % Edit the above text to modify the response to help ProjectSetup
 
-% Last Modified by GUIDE v2.5 08-Aug-2016 15:43:05
+% Last Modified by GUIDE v2.5 17-Aug-2016 21:05:46
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -49,12 +49,10 @@ end
 % A _project configuration_ is the stuff in pref.default.yaml. It is 
 % comprised of:
 %
-% 1. Core per-project info: project name, number/names of views, 
-% number/names of points.
+% 1. Core per-project info: number/names of views, number/names of points.
 % 2. More cosmetic per-project info: how lines/markers look, frame 
 % increments in various situations, etc.
-% 3. Tracker specification and config. *In the future this will be 
-% dynamically pluggable*.
+% 3. Tracker specification and config.
 % 4. More application-level preferences, like keyboard shortcut choices. 
 % Strictly speaking these could be separated out but for now just lump them 
 % in. (Plus, who knows what turns out to be useful when configurable
@@ -74,16 +72,32 @@ end
 % pref.default.yaml is used. In all subsequent instances, you start off
 % with your most recent configuration.
 %
+% Once a project is created, much/most of the configuration info is
+% mutable. For instance, you can rename points, change labelModes, change
+% trackers, change plot cosmetics, etc. A few things are currently 
+% immutable, such as the number of labeling points. When a project is
+% saved, the saved configuration is generated from the
+% Labeler-state-at-that-time, which may differ from the project's initial
+% configuration. 
+%
 % Later, if application-wide preferences are desired/added, these can
 % override parts of the project configuration as appropriate.
 %
 % Labeler actions:
 % - Create a new/blank project from a configuration.
 % - Load an existing project (which contains a configuration).
+% - Save a project -- i) generate cfg, and ii) create project.
+%
+% Labeler 
 
 
 
 % --- Executes just before ProjectSetup is made visible.
+%
+% Modal dialog. Generates project configuration struct
+%
+% cfg = ProjectSetup(); 
+%
 function ProjectSetup_OpeningFcn(hObject, eventdata, handles, varargin)
 
 handles.output = hObject;
@@ -98,21 +112,21 @@ trackers = [{'None'};trackers];
 handles.pumTracking.String = trackers;
 
 % other init
-sBase = ReadYaml('pref.default.yaml');
+sBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
 sLast = RC.getprop('lastProjectConfig');
 if isempty(sLast)
-  data = sBase;
+  cfg = sBase;
 else
-  data = structoverlay(sBase,sLast);
+  cfg = structoverlay(sBase,sLast);
 end
 % we store these two props on handles in order to be able to revert; 
 % data/model is split between i) primary UIcontrols and ii) adv panel 
-handles.nViews = data.NumViews; 
-handles.nPoints = data.NumPoints;
+handles.nViews = cfg.NumViews; 
+handles.nPoints = cfg.NumLabelPoints;
 set(handles.etNumberOfViews,'string',num2str(handles.nViews));
 set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
 
-sMirror = data2mirror(data);
+sMirror = cfg2mirror(cfg);
 handles.propsPane = propertiesGUI(handles.pnlAdvanced,sMirror);
 
 handles.advancedOn = false;
@@ -120,17 +134,18 @@ handles.advancedOn = false;
 guidata(hObject, handles);
 
 % UIWAIT makes ProjectSetup wait for user response (see UIRESUME)
-% uiwait(handles.figure1);
+uiwait(handles.figure1);
 
 function varargout = ProjectSetup_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
+delete(handles.figure1);
 
-function sMirror = data2mirror(data)
+function sMirror = cfg2mirror(cfg)
 % convert true/full data struct to 'mirror' struct for adv table. (The term
 % 'mirror' comes from implementation detail of adv table/propertiesGUI.)
-nViews = data.NumViews;
-nPoints = data.NumPoints;
-sMirror = rmfield(data,{'NumViews' 'NumPoints' 'LabelMode'});
+nViews = cfg.NumViews;
+nPoints = cfg.NumLabelPoints;
+sMirror = rmfield(cfg,{'NumViews' 'NumLabelPoints' 'LabelMode'});
 sMirror.Track = rmfield(sMirror.Track,{'Enable' 'Type'});
 
 assert(isempty(sMirror.ViewNames) || numel(sMirror.ViewNames)==nViews);
@@ -142,32 +157,32 @@ else
 end
 sMirror.ViewNames = cell2struct(vals,flds,1);
 
-assert(isempty(sMirror.PointNames) || numel(sMirror.PointNames)==nPoints);
+assert(isempty(sMirror.LabelPointNames) || numel(sMirror.LabelPointNames)==nPoints);
 flds = arrayfun(@(i)sprintf('point%d',i),(1:nPoints)','uni',0);
-if isempty(sMirror.PointNames)
+if isempty(sMirror.LabelPointNames)
   vals = repmat({''},nPoints,1);
 else
-  vals = sMirror.PointNames;
+  vals = sMirror.LabelPointNames;
 end
-sMirror.PointNames = cell2struct(vals,flds,1);
+sMirror.LabelPointNames = cell2struct(vals,flds,1);
 
-function data = mirror2data(handles,sMirror)
+function cfg = mirror2cfg(handles,sMirror)
 
-data = sMirror;
+cfg = sMirror;
 
-assert(numel(fieldnames(data.ViewNames))==handles.nViews);
-assert(numel(fieldnames(data.PointNames))==handles.nPoints);
-data.NumViews = handles.nViews;
-data.NumPoints = handles.nPoints;
-data.ViewNames = struct2cell(data.ViewNames);
-data.PointNames = struct2cell(data.PointNames);
+assert(numel(fieldnames(cfg.ViewNames))==handles.nViews);
+assert(numel(fieldnames(cfg.LabelPointNames))==handles.nPoints);
+cfg.NumViews = handles.nViews;
+cfg.NumLabelPoints = handles.nPoints;
+cfg.ViewNames = struct2cell(cfg.ViewNames);
+cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
 pumLM = handles.pumLabelingMode;
 lmVal = pumLM.Value;
-data.LabelMode = pumLM.UserData(lmVal);
+cfg.LabelMode = char(pumLM.UserData(lmVal));
 pumTrk = handles.pumTracking;
 tracker = pumTrk.String{pumTrk.Value};
-data.Track.Enable = ~strcmpi(tracker,'none');
-data.Track.Type = tracker;
+cfg.Track.Enable = ~strcmpi(tracker,'none');
+cfg.Track.Type = tracker;
 
 function sMirror = hlpAugmentOrTruncNameField(sMirror,fld,subfld,n)
 v = sMirror.(fld);
@@ -186,7 +201,7 @@ function advTableRefresh(handles)
 ad = getappdata(handles.figure1);
 sMirror = ad.mirror;
 sMirror = hlpAugmentOrTruncNameField(sMirror,'ViewNames','view',handles.nViews);
-sMirror = hlpAugmentOrTruncNameField(sMirror,'PointNames','point',handles.nPoints);
+sMirror = hlpAugmentOrTruncNameField(sMirror,'LabelPointNames','point',handles.nPoints);
 if ~isempty(handles.propsPane)
   delete(handles.propsPane);
   handles.propsPane = [];
@@ -220,10 +235,23 @@ function pumLabelingMode_Callback(hObject, eventdata, handles)
 function pumTracking_Callback(hObject, eventdata, handles)
 function pbCreateProject_Callback(hObject, eventdata, handles)
 ad = getappdata(handles.figure1);
-data = mirror2data(handles,ad.mirror);
-assignin('base','data',data);
-fprintf(1,'Assigned ''data'' in base.\n');
-
+cfg = mirror2cfg(handles,ad.mirror);
+cfg.ProjectName = handles.etProjectName.String;
+handles.output = cfg;
+guidata(handles.figure1,handles);
+close(handles.figure1);
 function pbCancel_Callback(hObject, eventdata, handles)
+handles.output = [];
+guidata(handles.figure1,handles);
+close(handles.figure1);
 function pbCollapseNames_Callback(hObject, eventdata, handles)
 function pbAdvanced_Callback(hObject, eventdata, handles)
+
+
+function figure1_CloseRequestFcn(hObject, eventdata, handles)
+if isequal(get(hObject,'waitstatus'),'waiting')
+% The GUI is still in UIWAIT, us UIRESUME
+  uiresume(hObject);
+else  
+  delete(hObject);
+end
