@@ -69,7 +69,17 @@ end
 % 3. (Optional) view calibration info, view calibration file
 % 4. Label data (labels, timestamps, tags, flags)
 % 5. UI state: current movie/frame/target, labelMode, image colormap etc
-
+%
+% The first time you need a project configuration, the stuff in
+% pref.default.yaml is used. In all subsequent instances, you start off
+% with your most recent configuration.
+%
+% Later, if application-wide preferences are desired/added, these can
+% override parts of the project configuration as appropriate.
+%
+% Labeler actions:
+% - Create a new/blank project from a configuration.
+% - Load an existing project (which contains a configuration).
 
 
 

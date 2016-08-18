@@ -57,19 +57,15 @@ classdef InfoTimeline < handle
   methods
     
     function obj = InfoTimeline(labeler,ax)
-      obj.prefs = labeler.projPrefs.InfoTimelines;
-
       obj.lObj = labeler;
       obj.hAx = ax;
       
       obj.hCurrFrame = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 1]);
       hold(ax,'on');
       ax.Color = [0 0 0];
-      ax.XColor = obj.prefs.XColor;
       ax.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);  
 
-      obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0]);
-      
+      obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0]);      
       
       obj.hIm = [];
       obj.hPts = [];
@@ -88,10 +84,7 @@ classdef InfoTimeline < handle
       hP = pan(fig);
       setAxesPanMotion(hP,ax,'horizontal');
       obj.hPan = hP;
-      
-      % Colors for plots should match the points.
-      % obj.colors = obj.lObj.labelPointsPlotInfo.Colors;
-      
+            
       % callback listeners.
       listeners = cell(0,1);
       listeners{end+1} = addlistener(labeler,...
@@ -186,6 +179,8 @@ classdef InfoTimeline < handle
   methods
     
     function initNewMovie(obj)
+      obj.prefs = obj.lObj.projPrefs.InfoTimelines;
+
       % react to new current movie in Labeler      
       obj.npts = obj.lObj.nLabelPoints;
       obj.nfrm = obj.lObj.nframes;
@@ -193,6 +188,7 @@ classdef InfoTimeline < handle
       obj.colors = obj.lObj.labelPointsPlotInfo.Colors;
 
       ax = obj.hAx;
+      ax.XColor = obj.prefs.XColor;
       ax.XTick = 0:obj.prefs.dXTick:obj.nfrm;
       ax.YLim = [0 1];
 

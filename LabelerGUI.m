@@ -113,71 +113,30 @@ tmp = LABELMODE_SETUPMENU_MAP(2:end,[2 1]);
 tmp = tmp';
 handles.setupMenu2LabelMode = struct(tmp{:});
 
-% multiview
-nview = handles.labelerObj.nview;
-figs = gobjects(1,nview);
-ax = gobjects(1,nview);
-figs(1) = handles.figure;
-ax(1) = handles.axes_curr;
-for i=2:nview
-  figs(i) = figure('CloseRequestFcn',...
-    @(s,e)cbkAuxFigCloseReq(s,e,handles.labelerObj));
-  ax(i) = axes;
-  handles.labelerObj.addDepHandle(figs(i));
-end
-handles.figs_all = figs;
-handles.axes_all = ax;
-
-arrayfun(@(x)colormap(x,gray),figs);
-if nview>1
-  viewNames = handles.labelerObj.viewNames;
-  for i=1:nview
-    figs(i).Name = sprintf('View: %s',viewNames{i});
-  end
-end
-
-ims = gobjects(1,nview);
-for iView=1:nview
-  ims(iView) = imagesc(0,'Parent',ax(iView));
-  set(ims(iView),'hittest','off');
-  axisoff(ax(iView));
-  hold(ax(iView),'on');
-  set(ax(iView),'Color',[0 0 0]);
-end
-handles.images_all = ims;
-handles.image_curr = ims(1);
-
-% AL: important to get clickable points. Somehow this jiggers plot
-% lims/scaling/coords so that points are more clickable; otherwise
-% lblCore points in aux axes are impossible to click (eg without zooming
-% way in or other contortions)
-for i=2:numel(figs)
-  figs(i).ResizeFcn = @cbkAuxAxResize;
-end
-%arrayfun(@(x)axis(x,'auto'),ax);
-
 hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
-axis(handles.axes_occ,[0 handles.labelerObj.nLabelPoints+1 0 2]);
 
+handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
+set(handles.image_curr,'hittest','off');
+axisoff(handles.axes_curr);
+hold(handles.axes_curr,'on');
+set(handles.axes_curr,'Color',[0 0 0]);
 handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
 set(handles.image_prev,'hittest','off');
 axisoff(handles.axes_prev);
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0]);
 
+handles.figs_all = handles.figure;
+handles.axes_all = handles.axes_curr;
+handles.images_all = handles.image_curr;
+
 linkaxes([handles.axes_prev,handles.axes_curr]);
 
 lObj = handles.labelerObj;
 
-% handles.labelTLManual = LabelTimeline(lObj,handles.axes_timeline_manual,true);
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
 set(handles.pumInfo,'String',handles.labelTLInfo.getProps());
-
-hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
-set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
-set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
-set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
 
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
@@ -200,6 +159,7 @@ listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNF
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
+listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectModeOn','PostSet',@cbklabelTLInfoSelectModeOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
@@ -234,7 +194,7 @@ fsz(4) = min(fsz(4),round( (scsz(4)-fsz(2))*0.9));
 set(hObject,'Position',fsz);
 set(hObject,'Units','normalized');
 
-handles = setShortcuts(handles);
+handles.depHandles = gobjects(0,1);
 
 guidata(hObject, handles);
 
@@ -243,6 +203,22 @@ guidata(hObject, handles);
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
+
+function addDepHandle(hFig,h)
+
+handles = guidata(hFig);
+assert(handles.figure==hFig);
+
+% GC dead handles
+tfValid = arrayfun(@isvalid,handles.depHandles);
+handles.depHandles = handles.depHandles(tfValid,:);
+    
+tfSame = arrayfun(@(x)x==h,handles.depHandles);
+if ~any(tfSame)
+  handles.depHandles(end+1,1) = h;
+end
+
+guidata(hFig,handles);
 
 function handles = setShortcuts(handles)
 
@@ -373,6 +349,71 @@ if ~isempty(lObj.lblCore)
   lObj.lblCore.wbuf(src,evt);
 end
 lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
+
+function cbkNewProject(src,evt)
+
+lObj = src;
+handles = guidata(lObj.gdata.figure);
+
+% figs, axes, images
+deleteValidHandles(handles.figs_all(2:end));
+handles.figs_all = handles.figs_all(1);
+handles.axes_all = handles.axes_all(1);
+handles.images_all = handles.images_all(1);
+
+nview = lObj.nview;
+figs = gobjects(1,nview);
+axs = gobjects(1,nview);
+ims = gobjects(1,nview);
+figs(1) = handles.figs_all;
+axs(1) = handles.axes_all;
+ims(1) = handles.images_all;
+
+for i=2:nview
+  figs(i) = figure('CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj));
+  axs(i) = axes;
+  addDepHandle(handles.figure,figs(i));
+  
+  ims(iView) = imagesc(0,'Parent',axs(iView));
+  set(ims(iView),'hittest','off');
+  axisoff(axs(iView));
+  hold(axs(iView),'on');
+  set(axs(iView),'Color',[0 0 0]);
+end
+handles.figs_all = figs;
+handles.axes_all = axs;
+handles.images_all = ims;
+
+arrayfun(@(x)colormap(x,gray),figs);
+viewNames = lObj.viewNames;
+for i=1:nview
+  vname = viewNames{i};
+  if isempty(vname)
+    figs(i).Name = ''; 
+  else
+    figs(i).Name = sprintf('View: %s',vname);    
+  end
+end
+
+% AL: important to get clickable points. Somehow this jiggers plot
+% lims/scaling/coords so that points are more clickable; otherwise
+% lblCore points in aux axes are impossible to click (eg without zooming
+% way in or other contortions)
+for i=2:numel(figs)
+  figs(i).ResizeFcn = @cbkAuxAxResize;
+end
+%arrayfun(@(x)axis(x,'auto'),ax);
+
+hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
+set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
+set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
+set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
+
+axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
+
+handles = setShortcuts(handles);
+
+guidata(handles.figure,handles);
 
 function cbkNewMovie(src,evt)
 lObj = src;
@@ -856,7 +897,7 @@ end
 
 function menu_file_managemovies_Callback(hObject,~,handles)
 h = MovieManager(handles.labelerObj);
-handles.labelerObj.addDepHandle(h);
+addDepHandle(handles.figure,h);
 
 function menu_file_import_labels_trk_curr_mov_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1045,6 +1086,11 @@ CloseGUI(handles);
 
 function CloseGUI(handles)
 if hlpSave(handles.labelerObj)
+  tfValid = arrayfun(@isvalid,handles.depHandles);
+  hValid = handles.depHandles(tfValid);
+  arrayfun(@delete,hValid);
+  handles.depHandles = gobjects(0,1);
+  
   delete(handles.figure);
   delete(handles.labelerObj);
 end

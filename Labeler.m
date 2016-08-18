@@ -36,6 +36,7 @@ classdef Labeler < handle
   end
   
   events
+    newProject
     newMovie
   end
   
@@ -202,7 +203,7 @@ classdef Labeler < handle
     prevFrame = nan;      % last previously VISITED frame
     currTarget = nan;
     
-    currImHud; % scalar AxisHUD object
+    currImHud; % scalar AxisHUD object TODO: move to LabelerGUI
   end
   properties (SetObservable)
     currFrame = 1; % current frame
@@ -375,79 +376,66 @@ classdef Labeler < handle
     function obj = Labeler(varargin)
       % lObj = Labeler();
      
-      prefdeffile = fullfile(APT.Root,Labeler.PREF_DEFAULT_FILENAME);
-      assert(exist(prefdeffile,'file')>0,...
-        'Cannot find default preferences ''%s''.',prefdeffile);
-      prefdef = ReadYaml(prefdeffile,[],1);
-      fprintf(1,'Default preferences: %s\n',prefdeffile);
-
-      preflocfile = fullfile(APT.Root,Labeler.PREF_LOCAL_FILENAME);
-      if exist(preflocfile,'file')>0
-        preflocal = ReadYaml(preflocfile,[],1);
-        fprintf(1,'Found local preferences: %s\n',preflocfile);
-        pref = structoverlay(prefdef,preflocal);
-      else
-        pref = prefdef;
-      end      
-      obj.initFromPrefs(pref);
-
+%       prefdeffile = fullfile(APT.Root,Labeler.PREF_DEFAULT_FILENAME);
+%       assert(exist(prefdeffile,'file')>0,...
+%         'Cannot find default preferences ''%s''.',prefdeffile);
+%       prefdef = ReadYaml(prefdeffile,[],1);
+%       fprintf(1,'Default preferences: %s\n',prefdeffile);
+% 
+%       preflocfile = fullfile(APT.Root,Labeler.PREF_LOCAL_FILENAME);
+%       if exist(preflocfile,'file')>0
+%         preflocal = ReadYaml(preflocfile,[],1);
+%         fprintf(1,'Found local preferences: %s\n',preflocfile);
+%         pref = structoverlay(prefdef,preflocal);
+%       else
+%         pref = prefdef;
+%       end      
+%       obj.initFromPrefs(pref);
+% 
       hFig = LabelerGUI(obj);
-      obj.gdata = guidata(hFig);
-      for i=obj.nview:-1:1
-        mr(1,i) = MovieReader;
-      end
-      obj.movieReader = mr;
-      obj.currIm = cell(obj.nview,1);      
-      obj.currImHud = AxisHUD(obj.gdata.axes_curr);      
-      obj.movieSetNoMovie();
-      
-      for prop = obj.gdata.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
-        obj.(prop) = obj.(prop);
-      end
-      
-      trkPrefs = obj.projPrefs.Track;
-      if trkPrefs.Enable
-        obj.tracker = feval(trkPrefs.Type,obj);
-        obj.tracker.init();
-        
-        % Should setting the tracker for the timeline be somehwere else?
-        obj.gdata.labelTLInfo.setTracker(obj.tracker);
-      end        
+      obj.gdata = guidata(hFig);      
     end
     
-    function initFromPrefs(obj,pref)
-      % view stuff
-      obj.nview = pref.NumViews;
-      if isempty(pref.ViewNames)
+    function projNewFromCfg(obj,cfg)
+      
+      % Views
+      obj.nview = cfg.NumViews;
+      if isempty(cfg.ViewNames)
         obj.viewNames = arrayfun(@(x)sprintf('view%d',x),1:obj.nview,'uni',0);
       else
-        if numel(pref.ViewNames)~=obj.nview
+        if numel(cfg.ViewNames)~=obj.nview
           error('Labeler:prefs',...
             'ViewNames: must specify %d names (one for each view)',obj.nview);
         end
-        obj.viewNames = pref.ViewNames;
+        obj.viewNames = cfg.ViewNames;
       end
       
-      npts = pref.NumLabelPoints;
-      obj.nLabelPoints = pref.NumLabelPoints;
-      if isempty(pref.LabelPointMap) && obj.nview==1
-        % create default map
-        tmpFields = arrayfun(@(x)sprintf('pt%d',x),(1:npts)','uni',0);
-        tmpVals = num2cell((1:npts)');
-        lblPtMap = cell2struct(tmpVals,tmpFields,1);
-      else
-        lblPtMap = pref.LabelPointMap;
+      npts = cfg.NumLabelPoints;
+      obj.nLabelPoints = cfg.NumLabelPoints;
+      if isempty(cfg.LabelPointNames)
+        cfg.LabelPointNames = arrayfun(@(x)sprintf('pt%d',x),(1:cfg.NumLabelPoints)','uni',0);
       end
-      
+      assert(numel(cfg.LabelPointNames)==cfg.NumLabelPoints);
+%         
+%       if isempty(cfg.LabelPointMap) && obj.nview==1
+%         % create default map
+%         tmpFields = arrayfun(@(x)sprintf('pt%d',x),(1:npts)','uni',0);
+%         tmpVals = num2cell((1:npts)');
+%         lblPtMap = cell2struct(tmpVals,tmpFields,1);
+%       else
+%         lblPtMap = cfg.LabelPointMap;
+%       end
+%       
       % pts, sets, views
-      setnames = fieldnames(lblPtMap);
+      setnames =  cfg.LabelPointNames;%fieldnames(lblPtMap);
       nSet = size(setnames,1);
       ipt2view = nan(npts,1);
       ipt2set = nan(npts,1);
       setmap = nan(nSet,obj.nview);
       for iSet = 1:nSet
         set = setnames{iSet};
-        iPts = lblPtMap.(set);
+        %iPts = lblPtMap.(set);
+        iPts = iSet:npts:npts*obj.nview;
         if numel(iPts)~=obj.nview
           error('Labeler:prefs',...
             'Number of point indices specified for ''%s'' does not equal number of views (%d).',set,obj.nview);
@@ -470,17 +458,15 @@ classdef Labeler < handle
       obj.labeledposIPtSetMap = setmap;
       obj.labeledposSetNames = setnames;
       
-      obj.labelMode = LabelMode.(pref.LabelMode);
-      %obj.zoomRadiusDefault = pref.Trx.ZoomRadius;
-      %obj.zoomRadiusTight = pref.Trx.ZoomRadiusTight;
-      obj.targetZoomFac = pref.Trx.ZoomFactorDefault;
-      obj.movieFrameStepBig = pref.Movie.FrameStepBig;
+      obj.labelMode = LabelMode.(cfg.LabelMode);
+      obj.targetZoomFac = cfg.Trx.ZoomFactorDefault;
+      obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
       
       % AL20160614 TODO: ideally get rid of labelPointsPlotInfo and just 
       % use .pref.LabelPointsPlot
-      lpp = pref.LabelPointsPlot;
+      lpp = cfg.LabelPointsPlot;
       if isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
-        lpp.Colors = feval(lpp.ColorMapName,pref.NumLabelPoints);
+        lpp.Colors = feval(lpp.ColorMapName,cfg.NumLabelPoints);
       end
       % AL20160625: prob merge this into pp immediately above
       if isfield(lpp,'ColorMapName')
@@ -492,32 +478,41 @@ classdef Labeler < handle
       
       obj.labelPointsPlotInfo = lpp;
             
-      prfTrk = pref.Track; 
+      prfTrk = cfg.Track; 
       obj.trackNFramesSmall = prfTrk.PredictFrameStep;
       obj.trackNFramesLarge = prfTrk.PredictFrameStepBig;
       obj.trackNFramesNear = prfTrk.PredictNeighborhood;
       
-      obj.projPrefs = pref; % redundant with some other props
-    end
-    
-    function addDepHandle(obj,h)
-      % GC dead handles
-      tfValid = arrayfun(@isvalid,obj.depHandles);
-      obj.depHandles = obj.depHandles(tfValid,:);
+      obj.projPrefs = cfg; % redundant with some other props
       
-      tfSame = arrayfun(@(x)x==h,obj.depHandles);
-      if ~any(tfSame)
-        obj.depHandles(end+1,1) = h;
+      obj.notify('newProject');
+      
+      arrayfun(@delete,obj.movieReader);
+      obj.movieReader = [];
+      for i=obj.nview:-1:1
+        mr(1,i) = MovieReader;
       end
+      obj.movieReader = mr;
+      obj.currIm = cell(obj.nview,1);
+      delete(obj.currImHud);      
+      obj.currImHud = AxisHUD(obj.gdata.axes_curr); 
+      obj.movieSetNoMovie();
+      
+      for prop = obj.gdata.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
+        obj.(prop) = obj.(prop);
+      end
+      
+      trkPrefs = obj.projPrefs.Track;
+      if trkPrefs.Enable
+        obj.tracker = feval(trkPrefs.Type,obj);
+        obj.tracker.init();
+        
+        % Should setting the tracker for the timeline be somehwere else?
+        obj.gdata.labelTLInfo.setTracker(obj.tracker);
+      end
+      
     end
-    
-    function delete(obj)
-      tfValid = arrayfun(@isvalid,obj.depHandles);
-      hValid = obj.depHandles(tfValid);
-      arrayfun(@delete,hValid);
-      obj.depHandles = gobjects(0,1);
-    end
-    
+     
   end
   
   %% Project/Lbl files
