@@ -2,8 +2,8 @@
 NumViews: 1
 ViewNames: # Optional
 
-NumPoints: 4 
-PointNames: # Optional
+NumLabelPoints: 4 
+LabelPointNames: # Optional
 
 LabelMode: TEMPLATE # See LabelMode.m
 
@@ -53,11 +53,6 @@ LabelPointsPlot:
     ReconstructedMarker: 'o'
     ReconstructedMarkerSize: 6
     ReconstructedLineWidth: 2
-
-Timelines:
-  FrameRadius: 50 # default timeline radius (in frames)
-  XColor: [0.8,0.8,0.8] # ax.XColor
-  dXTick: 10 
 
 InfoTimelines:
   FrameRadius: 50 # default timeline radius (in frames)

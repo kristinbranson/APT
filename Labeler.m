@@ -4,8 +4,7 @@ classdef Labeler < handle
   properties (Constant,Hidden)
     VERSION = '1.1';
     DEFAULT_LBLFILENAME = '%s.lbl';
-    PREF_DEFAULT_FILENAME = 'pref.default.yaml';
-    PREF_LOCAL_FILENAME = 'pref.yaml';
+    DEFAULT_CFG_FILENAME = 'config.default.yaml';
     
     SAVEPROPS = { ...
       'VERSION' ...
@@ -49,7 +48,45 @@ classdef Labeler < handle
     projMacros = struct(); % scalar struct containing user-defined macros
   end
   properties
-    projPrefs; % scalar struct containing all prefs
+    % TODO: rename this to "initialConfig" or similar. This is now a
+    % "configuration" not "preferences". For the most part this does not 
+    % dup Labeler properties, b/c many of the configuration 
+    %
+    % scalar struct containing noncore (typically cosmetic) prefs
+    % TODO: rename to projConfig or similar
+    %
+    % Notes 20160818: Configuration properties
+    % projPrefs captures minor cosmetic/navigation configuration
+    % parameters. These are all settable, but currently there is no fixed
+    % policy about how the UI updates in response. Depending on the
+    % (sub)property, changes may be reflected in the UI "immediately" or on
+    % next use; changes may only be reflected after a new movie; or chnages
+    % may never be reflected (for now). Changes will always be saved to
+    % project files however.
+    %
+    % A small subset of more important configuration (legacy) params (eg
+    % movieFrameStepBig) are Dependent and forward (both set and get) to
+    % a subprop of projPrefs. This gives the user explicit property access
+    % while still storing the property within the cfg structure. Since the
+    % user-facing prop is SetObservable, UI changes can be triggered 
+    % immediately. 
+    %
+    % Finally, a small subset of the most important configuration params 
+    % (eg labelMode, nview) have their own nonDependent properties.
+    % When configurations are loaded/saved, these props are explicitly 
+    % copyied from/to the configuration struct.
+    %
+    % Maybe an improved/ultimate implementation:
+    % * Make .projPrefs and all subprops handle objects. This improves the
+    % set API by i) eliminating mistyped fieldnames, ii) making set-checks
+    % convenient, and iii) making set-observation and UI updates
+    % convenient.
+    % * Eliminate the 2nd set of params above, just use the .projPrefs
+    % structure which now has listeners attached.
+    % * The most important configuration params can still have their own
+    % props.
+    projPrefs; 
+    
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -70,7 +107,6 @@ classdef Labeler < handle
     movieReader = []; % [1xnview] MovieReader objects
     minv = 0; 
     maxv = inf;
-    movieFrameStepBig = 10;
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
   end
@@ -87,10 +123,12 @@ classdef Labeler < handle
         %
         % For MultiView, MFAHL is true if any movie in a movieset has
         % labels.
-    targetZoomFac;
     moviename; % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false; % scalar logical.
     movieForceGrayscale = false; % scalar logical
+  end  
+  properties (SetObservable,Dependent)
+    movieFrameStepBig;
   end
   properties (Dependent)
     isMultiView;
@@ -117,14 +155,17 @@ classdef Labeler < handle
     trxIdPlusPlus2Idx = [];   % (max(trx ids)+1) x 1 vector of indices into obj.trx. 
                               % Since IDs start at 0, THIS VECTOR IS INDEXED BY ID+1.
                               % ie: .trx(trxIdPlusPlus2Idx(ID+1)).id = ID. Nonexistent IDs map to NaN.
-  end  
+  end
+  properties (Dependent,SetObservable)
+    targetZoomFac;
+  end
   properties (Dependent)
     hasTrx
     currTrx
     currTrxID
     nTrx
     nTargets % nTrx, or 1 if no Trx
-  end  
+  end
   
   %% ShowTrx
   properties (SetObservable)
@@ -311,6 +352,9 @@ classdef Labeler < handle
         v = 1;
       end
     end
+    function v = get.targetZoomFac(obj)
+      v = obj.projPrefs.Trx.ZoomFactorDefault;
+    end
     function v = get.hasProject(obj)
       % AL 20160710: debateable utility/correctness, but if you try to do
       % some things (eg open MovieManager) right on bootup from an empty
@@ -334,6 +378,9 @@ classdef Labeler < handle
     function v = get.nmovies(obj)
       % for multiview labeling, this is really 'nmoviesets'
       v = size(obj.movieFilesAll,1);
+    end
+    function v = get.movieFrameStepBig(obj)
+      v = obj.projPrefs.Movie.FrameStepBig;
     end
     function v = get.labeledposCurrMovie(obj)
       if obj.currMovie==0
@@ -368,6 +415,12 @@ classdef Labeler < handle
       [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
       obj.movieForceGrayscale = v;
     end
+    function set.targetZoomFac(obj,v)
+      obj.projPrefs.Trx.ZoomFactorDefault = v;
+    end
+    function set.movieFrameStepBig(obj,v)
+      obj.projPrefs.Movie.FrameStepBig = v;
+    end
   end
   
   %% Ctor/Dtor
@@ -375,28 +428,18 @@ classdef Labeler < handle
   
     function obj = Labeler(varargin)
       % lObj = Labeler();
-     
-%       prefdeffile = fullfile(APT.Root,Labeler.PREF_DEFAULT_FILENAME);
-%       assert(exist(prefdeffile,'file')>0,...
-%         'Cannot find default preferences ''%s''.',prefdeffile);
-%       prefdef = ReadYaml(prefdeffile,[],1);
-%       fprintf(1,'Default preferences: %s\n',prefdeffile);
-% 
-%       preflocfile = fullfile(APT.Root,Labeler.PREF_LOCAL_FILENAME);
-%       if exist(preflocfile,'file')>0
-%         preflocal = ReadYaml(preflocfile,[],1);
-%         fprintf(1,'Found local preferences: %s\n',preflocfile);
-%         pref = structoverlay(prefdef,preflocal);
-%       else
-%         pref = prefdef;
-%       end      
-%       obj.initFromPrefs(pref);
-% 
       hFig = LabelerGUI(obj);
       obj.gdata = guidata(hFig);      
     end
     
-    function projNewFromCfg(obj,cfg)
+  end
+    
+    
+    %% Configurations
+  methods (Hidden)
+    
+    function initFromConfig(obj,cfg)
+      % Note: Config must be modernized
       
       % Views
       obj.nview = cfg.NumViews;
@@ -427,7 +470,7 @@ classdef Labeler < handle
 %       end
 %       
       % pts, sets, views
-      setnames =  cfg.LabelPointNames;%fieldnames(lblPtMap);
+      setnames = cfg.LabelPointNames;%fieldnames(lblPtMap);
       nSet = size(setnames,1);
       ipt2view = nan(npts,1);
       ipt2set = nan(npts,1);
@@ -459,31 +502,33 @@ classdef Labeler < handle
       obj.labeledposSetNames = setnames;
       
       obj.labelMode = LabelMode.(cfg.LabelMode);
-      obj.targetZoomFac = cfg.Trx.ZoomFactorDefault;
-      obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
       
-      % AL20160614 TODO: ideally get rid of labelPointsPlotInfo and just 
-      % use .pref.LabelPointsPlot
       lpp = cfg.LabelPointsPlot;
-      if isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
+      % Some convenience mods to .LabelPointsPlot
+      if ~isfield(lpp,'Colors') && isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
         lpp.Colors = feval(lpp.ColorMapName,cfg.NumLabelPoints);
       end
-      % AL20160625: prob merge this into pp immediately above
-      if isfield(lpp,'ColorMapName')
-        cmapName = lpp.ColorMapName;
-      else
-        cmapName = 'parula';
-      end
-      lpp.ColorsSets = feval(cmapName,nSet);
-      
+      if ~isfield(lpp,'ColorsSets')
+        if isfield(lpp,'ColorMapName')
+          cmapName = lpp.ColorMapName;
+        else
+          cmapName = 'parula';
+        end
+        lpp.ColorsSets = feval(cmapName,nSet);
+      end      
       obj.labelPointsPlotInfo = lpp;
             
-      prfTrk = cfg.Track; 
-      obj.trackNFramesSmall = prfTrk.PredictFrameStep;
-      obj.trackNFramesLarge = prfTrk.PredictFrameStepBig;
-      obj.trackNFramesNear = prfTrk.PredictNeighborhood;
+      obj.trackNFramesSmall = cfg.Track.PredictFrameStep;
+      obj.trackNFramesLarge = cfg.Track.PredictFrameStepBig;
+      obj.trackNFramesNear = cfg.Track.PredictNeighborhood;
+      cfg.Track = rmfield(cfg.Track,...
+        {'PredictFrameStep' 'PredictFrameStepBig' 'PredictNeighborhood'});
       
-      obj.projPrefs = cfg; % redundant with some other props
+      fldsRm = intersect(fieldnames(cfg),...
+        {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
+         'LabelMode' 'LabelPointsPlot' 'ProjectName'});
+      obj.projPrefs = rmfield(cfg,fldsRm); 
+      % A few minor subprops of projPrefs have explicit props
       
       obj.notify('newProject');
       
@@ -502,17 +547,38 @@ classdef Labeler < handle
         obj.(prop) = obj.(prop);
       end
       
-      trkPrefs = obj.projPrefs.Track;
-      if trkPrefs.Enable
-        obj.tracker = feval(trkPrefs.Type,obj);
-        obj.tracker.init();
-        
-        % Should setting the tracker for the timeline be somehwere else?
-        obj.gdata.labelTLInfo.setTracker(obj.tracker);
-      end
-      
     end
-     
+    
+    function cfg = getCurrentConfig(obj)
+      % cfg is modernized
+
+      cfg = obj.projPrefs;      
+      
+      cfg.NumViews = obj.nview;
+      cfg.ViewNames = obj.viewNames;
+      cfg.NumLabelPoints = obj.nLabelPoints;
+      cfg.LabelPointNames = obj.labeledposSetNames;
+      cfg.LabelMode = char(obj.labelMode);
+
+      % misc config props that have an explicit labeler prop
+      cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
+      cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
+      cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
+      cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
+    end
+    
+  end
+  
+  methods (Static)
+    
+    function cfg = cfgModernize(cfg)
+      % Bring a cfg up-to-date with latest by adding in any new fields from
+      % pref.default.yaml.
+      
+      cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfg = structoverlay(cfgBase,cfg);
+    end
+    
   end
   
   %% Project/Lbl files
@@ -531,6 +597,8 @@ classdef Labeler < handle
     end
     
     function projNew(obj,name)
+      % Create new project based on current configuration
+      
       if exist('name','var')==0
         resp = inputdlg('Project name:','New Project');
         if isempty(resp)
@@ -564,6 +632,8 @@ classdef Labeler < handle
       if trkPrefs.Enable
         obj.tracker = feval(trkPrefs.Type,obj);
         obj.tracker.init();
+
+        obj.gdata.labelTLInfo.setTracker(obj.tracker);
       end
     end
       
@@ -706,7 +776,9 @@ classdef Labeler < handle
         error('Labeler:load','Unexpected contents in Label file.');
       end
       RC.saveprop('lastLblFile',fname);
-      
+
+      s = Labeler.lblModernize(s);
+
       % AL20160708. Order important. Init MovieReaders first, as loading
       % props may set movieReader props (eg .movieForceGrayScale)
       mr = MovieReader.empty(1,0);
@@ -715,7 +787,6 @@ classdef Labeler < handle
       end
       obj.movieReader = mr;
       
-      s = Labeler.lblModernize(s);
       obj.isinit = true;
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
         if isfield(s,f)

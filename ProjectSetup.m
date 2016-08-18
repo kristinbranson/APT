@@ -112,12 +112,11 @@ trackers = [{'None'};trackers];
 handles.pumTracking.String = trackers;
 
 % other init
-sBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
-sLast = RC.getprop('lastProjectConfig');
-if isempty(sLast)
-  cfg = sBase;
+cfg = RC.getprop('lastProjectConfig');
+if isempty(cfg)
+  cfg = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
 else
-  cfg = structoverlay(sBase,sLast);
+  cfg = Labeler.modernize(cfg);
 end
 % we store these two props on handles in order to be able to revert; 
 % data/model is split between i) primary UIcontrols and ii) adv panel 

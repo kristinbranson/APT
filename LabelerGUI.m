@@ -369,10 +369,10 @@ figs(1) = handles.figs_all;
 axs(1) = handles.axes_all;
 ims(1) = handles.images_all;
 
-for i=2:nview
-  figs(i) = figure('CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj));
-  axs(i) = axes;
-  addDepHandle(handles.figure,figs(i));
+for iView=2:nview
+  figs(iView) = figure('CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj));
+  axs(iView) = axes;
+  addDepHandle(handles.figure,figs(iView));
   
   ims(iView) = imagesc(0,'Parent',axs(iView));
   set(ims(iView),'hittest','off');
@@ -865,7 +865,11 @@ end
 function menu_file_new_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
-  lObj.projNew();
+  cfg = ProjectSetup();
+  if ~isempty(cfg)    
+    lObj.initFromConfig(cfg);
+    lObj.projNew(cfg.ProjectName);
+  end
 end
 function menu_file_save_Callback(hObject, eventdata, handles)
 handles.labelerObj.projSaveSmart();
