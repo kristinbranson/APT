@@ -2263,80 +2263,87 @@ classdef Labeler < handle
             trkfiles = [];
         end
       end
-	end
+    end
 	
-	function [trkfilesCommon,kwCommon,trkfilesAll] = getTrkFileNamesForImport(obj,movfiles) %#ok<INUSL>
-	  % Find available trkfiles for import
-	  %
-	  % movfiles: cellstr of movieFilesAllFull
+    function [trkfilesCommon,kwCommon,trkfilesAll] = getTrkFileNamesForImport(obj,movfiles) %#ok<INUSL>
+      % Find available trkfiles for import
       %
-	  % trkfilesCommon: [numel(movfiles)] cell-of-cellstrs.
-	  % trkfilesCommon{i} is a cellstr with numel(kwCommon) elements.
-	  % trkfilesCommon{i}{j} contains the jth common trkfile found for 
-	  % movfiles{i}, where j indexes kwCommon.
-	  % kwCommon: [nCommonKeywords] cellstr of common keywords found.
-	  % trkfilesAll: [numel(movfiles)] cell-of-cellstrs. trkfilesAll{i}
-	  % contains all trkfiles found for movfiles{i}, a superset of
-	  % trkfilesCommon{i}.
-	  %
-	  % "Common" trkfiles are those that share the same naming pattern
-	  % <moviename>_<keyword>.trk and are present for all movfiles. 
-	  
-	  trkfilesAll = cell(size(movfiles));
-	  keywords = cell(size(movfiles));
-	  for i=1:numel(movfiles)
-		mov = movfiles{i};
-		if exist(mov,'file')==0
-		  error('Labeler:noMovie','Cannot find movie: %s.',mov);
-		end
-		
-		[movdir,movname] = fileparts(mov);
-		trkpat = [movname '*.trk'];	
-		dd = dir(fullfile(movdir,trkpat));
-		trkfilesAllShort = {dd.name}';
-		trkfilesAll{i} = cellfun(@(x)fullfile(movdir,x),trkfilesAllShort,'uni',0);
-		
-		trkpatRE = sprintf('%s(?<kw>.*).trk',movname);
-		re = regexp(trkfilesAllShort,trkpatRE,'names');
-		re = cellfun(@(x)x.kw,re,'uni',0);
-		keywords{i} = re;
-		
-		assert(numel(trkfilesAll{i})==numel(keywords{i}));
-	  end
-	  
-	  % Find common keywords
-	  kwUn = unique(cat(1,keywords{:}));
-	  tfKwUnCommon = cellfun(@(zKW) all(cellfun(@(x)any(strcmp(x,zKW)),keywords)),kwUn);
-	  kwCommon = kwUn(tfKwUnCommon);
-	  trkfilesCommon = cellfun(@(zTFs,zKWs) cellfun(@(x)zTFs(strcmp(zKWs,x)),kwCommon), ...
-		trkfilesAll,keywords,'uni',0);
-	end
+      % movfiles: cellstr of movieFilesAllFull
+      %
+      % trkfilesCommon: [numel(movfiles)] cell-of-cellstrs.
+      % trkfilesCommon{i} is a cellstr with numel(kwCommon) elements.
+      % trkfilesCommon{i}{j} contains the jth common trkfile found for
+      % movfiles{i}, where j indexes kwCommon.
+      % kwCommon: [nCommonKeywords] cellstr of common keywords found.
+      % trkfilesAll: [numel(movfiles)] cell-of-cellstrs. trkfilesAll{i}
+      % contains all trkfiles found for movfiles{i}, a superset of
+      % trkfilesCommon{i}.
+      %
+      % "Common" trkfiles are those that share the same naming pattern
+      % <moviename>_<keyword>.trk and are present for all movfiles.
+      
+      trkfilesAll = cell(size(movfiles));
+      keywords = cell(size(movfiles));
+      for i=1:numel(movfiles)
+        mov = movfiles{i};
+        if exist(mov,'file')==0
+          error('Labeler:noMovie','Cannot find movie: %s.',mov);
+        end
+        
+        [movdir,movname] = fileparts(mov);
+        trkpat = [movname '*.trk'];
+        dd = dir(fullfile(movdir,trkpat));
+        trkfilesAllShort = {dd.name}';
+        trkfilesAll{i} = cellfun(@(x)fullfile(movdir,x),trkfilesAllShort,'uni',0);
+        
+        trkpatRE = sprintf('%s(?<kw>.*).trk',movname);
+        re = regexp(trkfilesAllShort,trkpatRE,'names');
+        re = cellfun(@(x)x.kw,re,'uni',0);
+        keywords{i} = re;
+        
+        assert(numel(trkfilesAll{i})==numel(keywords{i}));
+      end
+      
+      % Find common keywords
+      kwUn = unique(cat(1,keywords{:}));
+      tfKwUnCommon = cellfun(@(zKW) all(cellfun(@(x)any(strcmp(x,zKW)),keywords)),kwUn);
+      kwCommon = kwUn(tfKwUnCommon);
+      trkfilesCommon = cellfun(@(zTFs,zKWs) cellfun(@(x)zTFs(strcmp(zKWs,x)),kwCommon), ...
+        trkfilesAll,keywords,'uni',0);
+    end
     
-    function labelExportTrk(obj,iMovs)
+    function labelExportTrk(obj,iMovs,trkfiles)
       % Export label data to trk files.
       %
-      % iMov: optional, indices into .movieFilesAll to export. Defaults to 1:obj.nmovies.
+      % iMov: optional, indices into .movieFilesAll to export. Defaults to 
+      % 1:obj.nmovies.
+      % trkfiles: optional, trkfilenames to export to. Defaults to
+      % filenames returned by getTrkFileNamesForExport.
       
-      %#MVOK
-      
-      if exist('iMovs','var')==0
+      if exist('iMovs','var')==0 
         iMovs = 1:obj.nmovies;
       end
-      
       movfiles = obj.movieFilesAllFull(iMovs,1);
-      [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles);
-      if tfok
-        nMov = numel(iMovs);
-        assert(numel(trkfiles)==nMov);
-        for i=1:nMov
-          iMv = iMovs(i);
-          trkfile = TrkFile(obj.labeledpos{iMv},...
-            'pTrkTS',obj.labeledposTS{iMv},...
-            'pTrkTag',obj.labeledpostag{iMv});
-          trkfile.save(trkfiles{i});
+      if exist('trkfiles','var')==0       
+        [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles);
+        if ~tfok
+          return;
         end
-        msgbox(sprintf('%d trk files exported.',nMov),'Export complete.');
       end
+      nMov = numel(iMovs);
+      if nMov~=numel(trkfiles)
+        error('Labeler:argSize',...
+          'Numbers of movies and trkfiles supplied must be equal.');
+      end
+        
+      for i=1:nMov
+        iMv = iMovs(i);
+        trkfile = TrkFile(obj.labeledpos{iMv},...
+          'pTrkTS',obj.labeledposTS{iMv},...
+          'pTrkTag',obj.labeledpostag{iMv});
+        trkfile.save(trkfiles{i});
+      end
+      msgbox(sprintf('%d trk files exported.',nMov),'Export complete.');
     end
     
     function labelImportTrkGeneric(obj,iMovs,trkfiles,lposFld,lposTSFld,lposTagFld)
@@ -2381,66 +2388,66 @@ classdef Labeler < handle
       % iMovs: [nMovie]. Movie indices for which to import.
       % trkfiles: [nMovie] cellstr. full filenames to trk files
       %   corresponding to iMov.
-            
+      
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
         'labeledposTS','labeledpostag');
       
-	 obj.movieFilesAllHaveLbls(iMovs) = ...
-	   cellfun(@(x)any(~isnan(x(:))),obj.labeledpos(iMovs));
-
+      obj.movieFilesAllHaveLbls(iMovs) = ...
+        cellfun(@(x)any(~isnan(x(:))),obj.labeledpos(iMovs));
+      
       obj.updateFrameTableComplete();
       %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
       %now, since what we are importing is already in the .trk file.
       obj.labelsUpdateNewFrame(true);
-	end
+    end
 	
-	function labelImportTrkPrompt(obj,iMovs)
-	  % Import label data from trk files, prompting if necessary to specify
-	  % which trk files to import.
-	  %
-	  % iMovs: [nMovie]. Optional, movie indices to import.
-	  %
-	  % labelImportTrkPrompt will look for trk files with common keywords
-	  % (consistent naming) in .movieFilesAllFull(iMovs). If there is 
-	  % precisely one consistent trkfile pattern, it will import those 
-	  % trkfiles. Otherwise it will ask the user which trk files to import.
-	  
-	  if exist('iMovs','var')==0
-		iMovs = 1:obj.nmovies;
-	  end
-	  nMov = numel(iMovs);
-	  
-	  movfiles = obj.movieFilesAllFull(iMovs,1);
-	  [trkfilesCommon,kwCommon] = obj.getTrkFileNamesForImport(movfiles);
-	  nCommon = numel(kwCommon);
-	  switch nCommon
-		case 0
-		  error('Labeler:labelImportTrkPrompt',...
-			'No consistently-named trk files found across %d given movies.',nMov);
-		case 1
-		  trkfilesUseIdx = 1;
-		otherwise
-		  msg = sprintf('Multiple consistently-named trkfiles found. Select trkfile pattern to import.');
-		  uiwait(msgbox(msg,'Multiple trkfiles found','modal'));
-		  trkfileExamples = trkfilesCommon{1};
-		  for i=1:numel(trkfileExamples)
-			[~,trkfileExamples{i}] = myfileparts(trkfileExamples{i});
-		  end
-		  [sel,ok] = listdlg(...
-			'Name','Select trkfiles',...
-			'Promptstring','Select a trkfile (pattern) to import.',...
-			'SelectionMode','single',...
-			'listsize',[300 300],...
-			'liststring',trkfileExamples);
-		  if ok
-			trkfilesUseIdx = sel;
-		  else
-			return;
-		  end
-	  end
-	  trkfilesUse = cellfun(@(x)x{trkfilesUseIdx},trkfilesCommon,'uni',0);
-	  obj.labelImportTrk(iMovs,trkfilesUse);
-	end
+    function labelImportTrkPrompt(obj,iMovs)
+      % Import label data from trk files, prompting if necessary to specify
+      % which trk files to import.
+      %
+      % iMovs: [nMovie]. Optional, movie indices to import.
+      %
+      % labelImportTrkPrompt will look for trk files with common keywords
+      % (consistent naming) in .movieFilesAllFull(iMovs). If there is
+      % precisely one consistent trkfile pattern, it will import those
+      % trkfiles. Otherwise it will ask the user which trk files to import.
+      
+      if exist('iMovs','var')==0
+        iMovs = 1:obj.nmovies;
+      end
+      nMov = numel(iMovs);
+      
+      movfiles = obj.movieFilesAllFull(iMovs,1);
+      [trkfilesCommon,kwCommon] = obj.getTrkFileNamesForImport(movfiles);
+      nCommon = numel(kwCommon);
+      switch nCommon
+        case 0
+          error('Labeler:labelImportTrkPrompt',...
+            'No consistently-named trk files found across %d given movies.',nMov);
+        case 1
+          trkfilesUseIdx = 1;
+        otherwise
+          msg = sprintf('Multiple consistently-named trkfiles found. Select trkfile pattern to import.');
+          uiwait(msgbox(msg,'Multiple trkfiles found','modal'));
+          trkfileExamples = trkfilesCommon{1};
+          for i=1:numel(trkfileExamples)
+            [~,trkfileExamples{i}] = myfileparts(trkfileExamples{i});
+          end
+          [sel,ok] = listdlg(...
+            'Name','Select trkfiles',...
+            'Promptstring','Select a trkfile (pattern) to import.',...
+            'SelectionMode','single',...
+            'listsize',[300 300],...
+            'liststring',trkfileExamples);
+          if ok
+            trkfilesUseIdx = sel;
+          else
+            return;
+          end
+      end
+      trkfilesUse = cellfun(@(x)x{trkfilesUseIdx},trkfilesCommon,'uni',0);
+      obj.labelImportTrk(iMovs,trkfilesUse);
+    end
     
     function labelMakeLabelMovie(obj,fname,varargin)
       % Make a movie of all labeled frames for current movie
