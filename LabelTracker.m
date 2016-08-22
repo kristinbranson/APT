@@ -5,6 +5,17 @@ classdef LabelTracker < handle
   % LabelTracker is a base class intended to be concretized with a 
   % particular tracking algo.
   
+  properties (Constant)
+    % Known concrete LabelTrackers
+    subclasses = {...
+      'Interpolator'
+      'SimpleInterpolator'
+      'GMMTracker'
+      'CPRLabelTracker'
+      };
+  end
+    
+  
   properties
     lObj % (back)handle to Labeler object
     paramFile; % char, current parameter file
@@ -229,17 +240,15 @@ classdef LabelTracker < handle
     function sc = findAllSubclasses
       % sc: cellstr of LabelTracker subclasses in APT.Root
       
-      dd = dir(fullfile(APT.Root,'*.m'));
-      names = cell(size(dd));
-      tf = false(size(dd));
-      for i=1:numel(dd)
-        [~,names{i}] = fileparts(dd(i).name);
-        if any(strcmp('LabelTracker',superclasses(names{i})))
-          tf(i) = true;
-        end
+      scnames = LabelTracker.subclasses; % candidates
+      nSC = numel(scnames);
+      tf = false(nSC,1);
+      for iSC=1:nSC
+        name = scnames{iSC};
+        mc = meta.class.fromName(name);
+        tf(iSC) = ~isempty(mc) && any(strcmp('LabelTracker',{mc.SuperclassList.Name}));
       end
-      
-      sc = names(tf);
+      sc = scnames(tf);
     end
     
   end

@@ -22,7 +22,7 @@ function varargout = ProjectSetup(varargin)
 
 % Edit the above text to modify the response to help ProjectSetup
 
-% Last Modified by GUIDE v2.5 17-Aug-2016 21:05:46
+% Last Modified by GUIDE v2.5 22-Aug-2016 15:35:39
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -85,12 +85,9 @@ end
 %
 % Labeler actions:
 % - Create a new/blank project from a configuration.
+% - Get the current configuration.
 % - Load an existing project (which contains a configuration).
-% - Save a project -- i) generate cfg, and ii) create project.
-%
-% Labeler 
-
-
+% - Save a project -- i) get current config, and ii) create project.
 
 % --- Executes just before ProjectSetup is made visible.
 %
@@ -111,24 +108,13 @@ trackers = LabelTracker.findAllSubclasses;
 trackers = [{'None'};trackers];
 handles.pumTracking.String = trackers;
 
-% other init
-cfg = RC.getprop('lastProjectConfig');
-if isempty(cfg)
-  cfg = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
-else
-  cfg = Labeler.modernize(cfg);
-end
-% we store these two props on handles in order to be able to revert; 
-% data/model is split between i) primary UIcontrols and ii) adv panel 
-handles.nViews = cfg.NumViews; 
-handles.nPoints = cfg.NumLabelPoints;
-set(handles.etNumberOfViews,'string',num2str(handles.nViews));
-set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
+handles.propsPane = [];
 
-sMirror = cfg2mirror(cfg);
-handles.propsPane = propertiesGUI(handles.pnlAdvanced,sMirror);
-
-handles.advancedOn = false;
+% init ui state
+cfg = Labeler.cfgGetLastProjectConfig;
+handles = setCurrentConfig(handles,cfg);
+handles.propsPane.Position(4) = handles.propsPane.Position(3); % by default table is slightly bigger than panel for some reason
+handles = advModeCollapse(handles);
 
 guidata(hObject, handles);
 
@@ -139,11 +125,70 @@ function varargout = ProjectSetup_OutputFcn(hObject, eventdata, handles)
 varargout{1} = handles.output;
 delete(handles.figure1);
 
+function cfg = genCurrentConfig(handles)
+% Generate config from the current UI state
+
+ad = getappdata(handles.figure1);
+cfg = ad.mirror;
+
+assert(numel(fieldnames(cfg.ViewNames))==handles.nViews);
+assert(numel(fieldnames(cfg.LabelPointNames))==handles.nPoints);
+cfg.NumViews = handles.nViews;
+cfg.NumLabelPoints = handles.nPoints;
+cfg.ViewNames = struct2cell(cfg.ViewNames);
+cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
+pumLM = handles.pumLabelingMode;
+lmVal = pumLM.Value;
+cfg.LabelMode = char(pumLM.UserData(lmVal));
+pumTrk = handles.pumTracking;
+tracker = pumTrk.String{pumTrk.Value};
+cfg.Track.Enable = ~strcmpi(tracker,'none');
+cfg.Track.Type = tracker;
+
+function handles = setCurrentConfig(handles,cfg)
+% Set given config on controls
+
+% we store these two props on handles in order to be able to revert; 
+% data/model is split between i) primary UIcontrols and ii) adv panel 
+handles.nViews = cfg.NumViews; 
+handles.nPoints = cfg.NumLabelPoints;
+set(handles.etNumberOfViews,'string',num2str(handles.nViews));
+set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
+
+pumLM = handles.pumLabelingMode;
+[tf,val] = ismember(cfg.LabelMode,arrayfun(@char,pumLM.UserData,'uni',0));
+if ~tf
+  % should never happen 
+  val = 1; % NONE
+end
+pumLM.Value = val;
+
+pumTrk = handles.pumTracking;
+if cfg.Track.Enable 
+  [tf,val] = strcmp(cfg.Track.Type,pumTrk.String);
+  if ~tf
+    % unexpected but maybe not impossible due to path
+    val = 1; % None
+  end
+else
+  val = 1;
+end
+pumTrk.Value = val;
+
+sMirror = cfg2mirror(cfg);
+if ~isempty(handles.propsPane) && ishandle(handles.propsPane)
+  delete(handles.propsPane);
+end
+handles.propsPane = propertiesGUI(handles.pnlAdvanced,sMirror);
+
 function sMirror = cfg2mirror(cfg)
-% convert true/full data struct to 'mirror' struct for adv table. (The term
+% Convert true/full data struct to 'mirror' struct for adv table. (The term
 % 'mirror' comes from implementation detail of adv table/propertiesGUI.)
+
 nViews = cfg.NumViews;
 nPoints = cfg.NumLabelPoints;
+
+cfg = Labeler.cfgDefaultOrder(cfg);
 sMirror = rmfield(cfg,{'NumViews' 'NumLabelPoints' 'LabelMode'});
 sMirror.Track = rmfield(sMirror.Track,{'Enable' 'Type'});
 
@@ -165,24 +210,6 @@ else
 end
 sMirror.LabelPointNames = cell2struct(vals,flds,1);
 
-function cfg = mirror2cfg(handles,sMirror)
-
-cfg = sMirror;
-
-assert(numel(fieldnames(cfg.ViewNames))==handles.nViews);
-assert(numel(fieldnames(cfg.LabelPointNames))==handles.nPoints);
-cfg.NumViews = handles.nViews;
-cfg.NumLabelPoints = handles.nPoints;
-cfg.ViewNames = struct2cell(cfg.ViewNames);
-cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
-pumLM = handles.pumLabelingMode;
-lmVal = pumLM.Value;
-cfg.LabelMode = char(pumLM.UserData(lmVal));
-pumTrk = handles.pumTracking;
-tracker = pumTrk.String{pumTrk.Value};
-cfg.Track.Enable = ~strcmpi(tracker,'none');
-cfg.Track.Type = tracker;
-
 function sMirror = hlpAugmentOrTruncNameField(sMirror,fld,subfld,n)
 v = sMirror.(fld);
 flds = fieldnames(v);
@@ -201,15 +228,43 @@ ad = getappdata(handles.figure1);
 sMirror = ad.mirror;
 sMirror = hlpAugmentOrTruncNameField(sMirror,'ViewNames','view',handles.nViews);
 sMirror = hlpAugmentOrTruncNameField(sMirror,'LabelPointNames','point',handles.nPoints);
-if ~isempty(handles.propsPane)
+if ~isempty(handles.propsPane) && ishandle(handles.propsPane)
   delete(handles.propsPane);
   handles.propsPane = [];
 end  
 handles.propsPane = propertiesGUI(handles.pnlAdvanced,sMirror);
 guidata(handles.figure1,handles);
 
-function advModeExpand(handles)
-function advModeCollapse(handles)
+function handles = advModeExpand(handles)
+h1 = findall(handles.figure1,'-property','Units');
+set(h1,'Units','pixels');
+posRight = handles.landmarkRight.Position;
+posRight = posRight(1)+posRight(3);
+pos = handles.figure1.Position;
+pos(3) = posRight;
+handles.figure1.Position = pos;
+set(h1,'Units','normalized');
+handles.advancedOn = true;
+handles.pbAdvanced.String = '< Basic';
+
+function handles = advModeCollapse(handles)
+h1 = findall(handles.figure1,'-property','Units');
+set(h1,'Units','pixels');
+posMid = handles.landmarkMid.Position;
+posMid = posMid(1)+posMid(3)/2;
+pos = handles.figure1.Position;
+pos(3) = posMid;
+handles.figure1.Position = pos;
+set(h1,'Units','normalized');
+handles.advancedOn = false;
+handles.pbAdvanced.String = 'Advanced >';
+
+function handles = advModeToggle(handles)
+if handles.advancedOn
+  handles = advModeCollapse(handles);
+else
+  handles = advModeExpand(handles);
+end
 
 function etProjectName_Callback(hObject, eventdata, handles)
 function etNumberOfPoints_Callback(hObject, eventdata, handles)
@@ -233,8 +288,7 @@ advTableRefresh(handles);
 function pumLabelingMode_Callback(hObject, eventdata, handles)
 function pumTracking_Callback(hObject, eventdata, handles)
 function pbCreateProject_Callback(hObject, eventdata, handles)
-ad = getappdata(handles.figure1);
-cfg = mirror2cfg(handles,ad.mirror);
+cfg = genCurrentConfig(handles);
 cfg.ProjectName = handles.etProjectName.String;
 handles.output = cfg;
 guidata(handles.figure1,handles);
@@ -245,7 +299,22 @@ guidata(handles.figure1,handles);
 close(handles.figure1);
 function pbCollapseNames_Callback(hObject, eventdata, handles)
 function pbAdvanced_Callback(hObject, eventdata, handles)
-
+handles = advModeToggle(handles);
+guidata(handles.figure1,handles);
+function pbCopySettingsFrom_Callback(hObject, eventdata, handles)
+lastLblFile = RC.getprop('lastLblFile');
+if isempty(lastLblFile)
+  lastLblFile = pwd;
+end
+[fname,pth] = uigetfile('*.lbl','Select project file',lastLblFile);
+if isequal(fname,0)
+  return;
+end
+lbl = load(fullfile(pth,fname),'-mat');
+lbl = Labeler.lblModernize(lbl);
+cfg = lbl.cfg;
+handles = setCurrentConfig(handles,cfg);
+guidata(handles.figure1,handles);
 
 function figure1_CloseRequestFcn(hObject, eventdata, handles)
 if isequal(get(hObject,'waitstatus'),'waiting')

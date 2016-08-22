@@ -561,6 +561,7 @@ classdef Labeler < handle
         obj.(prop) = obj.(prop);
       end
       
+      RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
     
     function cfg = getCurrentConfig(obj)
@@ -585,12 +586,33 @@ classdef Labeler < handle
     
   methods (Static)
     
+    function cfg = cfgGetLastProjectConfig
+      cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfg = RC.getprop('lastProjectConfig');
+      if isempty(cfg)
+        cfg = cfgBase;
+      else
+        cfg = structoverlay(cfgBase,cfg,'dontWarnUnrecog',true);
+      end
+    end
+    
     function cfg = cfgModernize(cfg)
       % Bring a cfg up-to-date with latest by adding in any new fields from
       % pref.default.yaml.
       
       cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       cfg = structoverlay(cfgBase,cfg);
+    end
+    
+    function cfg = cfgDefaultOrder(cfg)
+      % Reorder fields of cfg struct to default order
+      
+      cfg0 = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      flds0 = fieldnames(cfg0);
+      flds = fieldnames(cfg);
+      flds0 = flds0(ismember(flds0,flds)); 
+      fldsExtra = setdiff(flds,flds0);
+      cfg = orderfields(cfg,[flds0(:);fldsExtra(:)]);
     end
     
   end
@@ -603,6 +625,9 @@ classdef Labeler < handle
       
       assert(exist(movfile,'file')>0);
       assert(isempty(trxfile) || exist(trxfile,'file')>0);
+      
+      cfg = Labeler.cfgGetLastProjectConfig;
+      obj.initFromConfig(cfg);
       
       [~,projName,~] = fileparts(movfile);
       obj.projNew(projName);      
