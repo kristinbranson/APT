@@ -497,8 +497,9 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       hLEpi = gobjects(1,obj.nView);
       hLRcn = gobjects(1,obj.nView);
       ppimvcm = obj.ptsPlotInfo.MultiViewCalibratedMode;
+      gdata = obj.labeler.gdata;
       for iV = 1:obj.nView
-        ax = obj.labeler.gdata.axes_all(iV);        
+        ax = gdata.axes_all(iV);        
         hLEpi(iV) = plot(ax,nan,nan,'-',...
           'LineWidth',ppimvcm.EpipolarLineWidth,'hittest','off');
         hLRcn(iV) = plot(ax,nan,nan,ppimvcm.ReconstructedMarker,...

@@ -204,7 +204,7 @@ guidata(hObject, handles);
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
 
-function addDepHandle(hFig,h)
+function handles = addDepHandle(hFig,h)
 
 handles = guidata(hFig);
 assert(handles.figure==hFig);
@@ -287,8 +287,8 @@ end
 
 function cbkLblCoreHideLabelsChanged(src,evt)
 lblCore = evt.AffectedObject;
-gdata = lblCore.labeler.gdata;
-gdata.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels);
+handles = lblCore.labeler.gdata;
+handles.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels);
 
 function cbkTrackerHideVizChanged(src,evt,hmenu_view_hide_predictions)
 tracker = evt.AffectedObject;
@@ -353,7 +353,7 @@ lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 function cbkNewProject(src,evt)
 
 lObj = src;
-handles = guidata(lObj.gdata.figure);
+handles = lObj.gdata;
 
 % figs, axes, images
 deleteValidHandles(handles.figs_all(2:end));
@@ -372,7 +372,7 @@ ims(1) = handles.images_all;
 for iView=2:nview
   figs(iView) = figure('CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj));
   axs(iView) = axes;
-  addDepHandle(handles.figure,figs(iView));
+  handles = addDepHandle(handles.figure,figs(iView));
   
   ims(iView) = imagesc(0,'Parent',axs(iView));
   set(ims(iView),'hittest','off');
@@ -417,7 +417,7 @@ guidata(handles.figure,handles);
 
 function cbkNewMovie(src,evt)
 lObj = src;
-gdata = lObj.gdata;
+handles = lObj.gdata;
 movRdrs = lObj.movieReader;
 nframes = movRdrs(1).nframes;
 ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
@@ -434,8 +434,8 @@ else
 end
 minvmaxv = [lObj.minv lObj.maxv];
 
-hAxs = gdata.axes_all;
-hIms = gdata.images_all;
+hAxs = handles.axes_all;
+hIms = handles.images_all;
 assert(isequal(numel(ims),numel(hAxs),numel(hIms)));
 for i=1:numel(ims)
   set(hIms(i),'CData',ims{i});
@@ -446,31 +446,31 @@ for i=1:numel(ims)
   zoom(hAxs(i),'reset');
 end
 
-axprev = gdata.axes_prev;
+axprev = handles.axes_prev;
 set(axprev,'CLim',minvmaxv,...
   'XLim',[.5,size(ims{1},2)+.5],...
   'YLim',[.5,size(ims{1},1)+.5]);
 zoom(axprev,'reset');
 
-gdata.labelTLInfo.initNewMovie();
-gdata.labelTLInfo.setLabelsFull();
+handles.labelTLInfo.initNewMovie();
+handles.labelTLInfo.setLabelsFull();
 
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
-set(gdata.slider_frame,'Value',0,'SliderStep',sliderstep);
+set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
       
 function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
 frm = lObj.currFrame;
 nfrm = lObj.nframes;
-gdata = lObj.gdata;
-set(gdata.edit_frame,'String',num2str(frm));
+handles = lObj.gdata;
+set(handles.edit_frame,'String',num2str(frm));
 sldval = (frm-1)/(nfrm-1);
 if isnan(sldval)
   sldval = 0;
 end
-set(gdata.slider_frame,'Value',sldval);
+set(handles.slider_frame,'Value',sldval);
 if ~lObj.isinit
-  gdata.labelTLInfo.setCurrFrame(frm);
+  handles.labelTLInfo.setCurrFrame(frm);
 end
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
@@ -506,40 +506,40 @@ hMenu.Checked = 'on';
 
 function cbkLabelModeChanged(src,evt)
 lObj = evt.AffectedObject;
-gd = lObj.gdata;
+handles = lObj.gdata;
 lblMode = lObj.labelMode;
-menuSetupLabelModeHelp(gd,lblMode);
+menuSetupLabelModeHelp(handles,lblMode);
 switch lblMode
   case LabelMode.SEQUENTIAL
-    gd.menu_setup_createtemplate.Visible = 'off';
-    gd.menu_setup_set_labeling_point.Visible = 'off';
-    gd.menu_setup_unlock_all_frames.Visible = 'off';
-    gd.menu_setup_lock_all_frames.Visible = 'off';
-    gd.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_createtemplate.Visible = 'off';
+    handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_unlock_all_frames.Visible = 'off';
+    handles.menu_setup_lock_all_frames.Visible = 'off';
+    handles.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.TEMPLATE
-    gd.menu_setup_createtemplate.Visible = 'on';
-    gd.menu_setup_set_labeling_point.Visible = 'off';
-    gd.menu_setup_unlock_all_frames.Visible = 'off';
-    gd.menu_setup_lock_all_frames.Visible = 'off';
-    gd.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_createtemplate.Visible = 'on';
+    handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_unlock_all_frames.Visible = 'off';
+    handles.menu_setup_lock_all_frames.Visible = 'off';
+    handles.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
-    gd.menu_setup_createtemplate.Visible = 'off';
-    gd.menu_setup_set_labeling_point.Visible = 'on';
-    gd.menu_setup_unlock_all_frames.Visible = 'off';
-    gd.menu_setup_lock_all_frames.Visible = 'off';
-    gd.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_createtemplate.Visible = 'off';
+    handles.menu_setup_set_labeling_point.Visible = 'on';
+    handles.menu_setup_unlock_all_frames.Visible = 'off';
+    handles.menu_setup_lock_all_frames.Visible = 'off';
+    handles.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.ERRORCORRECT
-    gd.menu_setup_createtemplate.Visible = 'off';
-    gd.menu_setup_set_labeling_point.Visible = 'off';
-    gd.menu_setup_unlock_all_frames.Visible = 'on';
-    gd.menu_setup_lock_all_frames.Visible = 'on';
-    gd.menu_setup_load_calibration_file.Visible = 'off';
+    handles.menu_setup_createtemplate.Visible = 'off';
+    handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_unlock_all_frames.Visible = 'on';
+    handles.menu_setup_lock_all_frames.Visible = 'on';
+    handles.menu_setup_load_calibration_file.Visible = 'off';
   case {LabelMode.MULTIVIEWCALIBRATED LabelMode.MULTIVIEWCALIBRATED2}
-    gd.menu_setup_createtemplate.Visible = 'off';
-    gd.menu_setup_set_labeling_point.Visible = 'off';
-    gd.menu_setup_unlock_all_frames.Visible = 'off';
-    gd.menu_setup_lock_all_frames.Visible = 'off';
-    gd.menu_setup_load_calibration_file.Visible = 'on';
+    handles.menu_setup_createtemplate.Visible = 'off';
+    handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_unlock_all_frames.Visible = 'off';
+    handles.menu_setup_lock_all_frames.Visible = 'off';
+    handles.menu_setup_load_calibration_file.Visible = 'on';
 end
 
 function cbkTargetZoomFacChanged(src,evt)
@@ -549,10 +549,11 @@ set(lObj.gdata.sldZoom,'Value',zf);
 
 function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
+handles = lObj.gdata;
 pname = lObj.projname;
 str = sprintf('Project %s created (unsaved) at %s',pname,datestr(now,16));
-set(lObj.gdata.txStatus,'String',str);
-set(lObj.gdata.txProjectName,'String',pname);
+set(handles.txStatus,'String',str);
+set(handles.txProjectName,'String',pname);
 
 function cbkProjFSInfoChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -565,10 +566,11 @@ end
 function cbkMovienameChanged(src,evt)
 lObj = evt.AffectedObject;
 mname = lObj.moviename;
-set(lObj.gdata.txMoviename,'String',mname);
+handles = lObj.gdata;
+set(handles.txMoviename,'String',mname);
 if ~isempty(mname)
   str = sprintf('new movie %s at %s',mname,datestr(now,16));
-  set(lObj.gdata.txStatus,'String',str);
+  set(handles.txStatus,'String',str);
   
   % Fragile behavior when loading projects; want project status update to
   % persist and not movie status update. This depends on detailed ordering in 
@@ -585,8 +587,9 @@ lObj = evt.AffectedObject;
 ss = lObj.suspScore;
 lObj.currImHud.updateReadoutFields('hasSusp',~isempty(ss));
 
-pnlSusp = lObj.gdata.pnlSusp;
-tblSusp = lObj.gdata.tblSusp;
+handles = lObj.gdata;
+pnlSusp = handles.pnlSusp;
+tblSusp = handles.tblSusp;
 tfDoSusp = ~isempty(ss) && lObj.hasMovie && ~lObj.isinit;
 if tfDoSusp 
   nfrms = lObj.nframes;
@@ -647,28 +650,29 @@ end
 
 function cbkShowTrxModeChanged(src,evt)
 lObj = evt.AffectedObject;
-gd = lObj.gdata;
-gd.menu_view_trajectories_showall.Checked = 'off';
-gd.menu_view_trajectories_showcurrent.Checked = 'off';
-gd.menu_view_trajectories_dontshow.Checked = 'off';
+handles = lObj.gdata;
+handles.menu_view_trajectories_showall.Checked = 'off';
+handles.menu_view_trajectories_showcurrent.Checked = 'off';
+handles.menu_view_trajectories_dontshow.Checked = 'off';
 switch lObj.showTrxMode
   case ShowTrxMode.NONE
-    gd.menu_view_trajectories_dontshow.Checked = 'on';
+    handles.menu_view_trajectories_dontshow.Checked = 'on';
   case ShowTrxMode.CURRENT
-    gd.menu_view_trajectories_showcurrent.Checked = 'on';
+    handles.menu_view_trajectories_showcurrent.Checked = 'on';
   case ShowTrxMode.ALL
-    gd.menu_view_trajectories_showall.Checked = 'on';
+    handles.menu_view_trajectories_showall.Checked = 'on';
 end
 
 function cbkTrackerChanged(src,evt)
 lObj = evt.AffectedObject;
 tf = ~isempty(lObj.tracker);
 onOff = onIff(tf);
-lObj.gdata.menu_track.Enable = onOff;
-lObj.gdata.pbTrain.Enable = onOff;
-lObj.gdata.pbTrack.Enable = onOff;
+handles = lObj.gdata;
+handles.menu_track.Enable = onOff;
+handles.pbTrain.Enable = onOff;
+handles.pbTrack.Enable = onOff;
 if tf,
-  lObj.tracker.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,lObj.gdata.menu_view_hide_predictions));
+  lObj.tracker.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions));
 end
 
 function cbkTrackerNFramesChanged(src,evt)

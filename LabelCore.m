@@ -24,7 +24,7 @@ classdef LabelCore < handle
   
   properties (Abstract)
     supportsMultiView % scalar logical
-	supportsCalibration % scalar logical
+    supportsCalibration % scalar logical
   end
   
   properties (SetObservable)
@@ -136,11 +136,12 @@ classdef LabelCore < handle
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));      
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
-      set(obj.labeler.gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF(s,e));
+      gdata = obj.labeler.gdata;
+      set(gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF(s,e));
       set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
       
-      set(obj.labeler.gdata.tbAccept,'Enable','on');
-      set(obj.labeler.gdata.pbClear,'Enable','on');
+      set(gdata.tbAccept,'Enable','on');
+      set(gdata.pbClear,'Enable','on');
       obj.labeler.currImHud.updateReadoutFields('hasLblPt',false);
       
       obj.tfOcc = false(obj.nPts,1);

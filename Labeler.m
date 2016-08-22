@@ -2,26 +2,26 @@ classdef Labeler < handle
 % Labeler  Bransonlab Animal Video Labeler
 
   properties (Constant,Hidden)
-    VERSION = '1.1';
+    VERSION = '1.2';
     DEFAULT_LBLFILENAME = '%s.lbl';
     DEFAULT_CFG_FILENAME = 'config.default.yaml';
     
+    % non-config props
     SAVEPROPS = { ...
-      'VERSION' ...
-      'projname' 'projMacros' ...
-      'nview' 'viewNames' 'viewCalibrationData'...
-      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
-      'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...      
+      'VERSION' 'projname' ...
+      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros'...
+      'viewCalibrationData'...
+      'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'currMovie' 'currFrame' 'currTarget' ...
-      'labelMode' 'nLabelPoints' 'labelPointsPlotInfo' 'labelTemplate' ...
+      'labelTemplate' ...
       'minv' 'maxv' 'movieForceGrayscale'...
       'suspScore'};
-    LOADPROPS = {...
-      'projname' 'projMacros' ...
-      'nview' 'viewNames' 'viewCalibrationData' ...
-      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' ...
+    LOADPROPS = { ...
+      'projname' ...
+      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros' ...
+      'viewCalibrationData' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
-      'labelMode' 'nLabelPoints' 'labelTemplate' ...
+      'labelTemplate' ...
       'minv' 'maxv' 'movieForceGrayscale' ...
       'suspScore'};
     
@@ -252,13 +252,17 @@ classdef Labeler < handle
   properties
     currIm = [];            % [nview] cell vec of image data
     prevIm = [];            % single array of image data ('primary' view only)
-    gdata = [];             % handles structure for figure
     depHandles = gobjects(0,1); % vector of handles that should be deleted when labeler is deleted
     
     isinit = false;         % scalar logical; true during initialization, when some invariants not respected
     
     selectedFrames = [];    % vector of frames currently selected frames; typically t0:t1
+    hFig; % handle to main LabelerGUI figure
   end
+  properties (Dependent)
+    gdata; % handles structure for LabelerGUI
+  end
+
   
   %% Prop access
   methods % dependent prop getters
@@ -399,6 +403,9 @@ classdef Labeler < handle
     function v = get.labeledposNPtSets(obj)
       v = size(obj.labeledposIPtSetMap,1);
     end
+    function v = get.gdata(obj)
+      v = guidata(obj.hFig);
+    end    
   end
   
   methods % prop access
@@ -428,8 +435,14 @@ classdef Labeler < handle
   
     function obj = Labeler(varargin)
       % lObj = Labeler();
-      hFig = LabelerGUI(obj);
-      obj.gdata = guidata(hFig);      
+      obj.hFig = LabelerGUI(obj);
+    end
+    
+    function delete(obj)
+      if isvalid(obj.hFig)
+        close(obj.hFig);
+        obj.hFig = [];
+      end
     end
     
   end
@@ -539,11 +552,12 @@ classdef Labeler < handle
       end
       obj.movieReader = mr;
       obj.currIm = cell(obj.nview,1);
-      delete(obj.currImHud);      
-      obj.currImHud = AxisHUD(obj.gdata.axes_curr); 
+      delete(obj.currImHud);
+      gd = obj.gdata;
+      obj.currImHud = AxisHUD(gd.axes_curr); 
       obj.movieSetNoMovie();
       
-      for prop = obj.gdata.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
+      for prop = gd.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
         obj.(prop) = obj.(prop);
       end
       
@@ -724,6 +738,8 @@ classdef Labeler < handle
     
     function s = projGetSaveStruct(obj)
       s = struct();
+      s.cfg = obj.getCurrentConfig();
+      
       for f = obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
         s.(f) = obj.(f);
       end
@@ -778,14 +794,8 @@ classdef Labeler < handle
       RC.saveprop('lastLblFile',fname);
 
       s = Labeler.lblModernize(s);
-
-      % AL20160708. Order important. Init MovieReaders first, as loading
-      % props may set movieReader props (eg .movieForceGrayScale)
-      mr = MovieReader.empty(1,0);
-      for i=obj.nview:-1:1
-        mr(1,i) = MovieReader;
-      end
-      obj.movieReader = mr;
+      
+      obj.initFromConfig(s.cfg);
       
       obj.isinit = true;
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
@@ -796,13 +806,7 @@ classdef Labeler < handle
           %obj.(f) = [];
         end
       end
-     
-      % labelPointsPlotInfo: special treatment. For old projects,
-      % obj.labelPointsPlotInfo can have new/removed fields relative to
-      % s.labelPointsPlotInfo. I guess by overlaying we are not removing
-      % obsolete fields...
-      obj.labelPointsPlotInfo = structoverlay(obj.labelPointsPlotInfo,...
-        s.labelPointsPlotInfo);
+            
       obj.movieFilesAllHaveLbls = cellfun(@(x)any(~isnan(x(:))),obj.labeledpos);
       obj.isinit = false;
       
@@ -818,9 +822,7 @@ classdef Labeler < handle
         obj.tracker = [];
       end
       % obj.tracker is always empty now
-      if isempty(s.trackerClass)
-        % For now we unilaterally adopt tracker of saved project.
-      else
+      if ~isempty(s.trackerClass)
         tCls = s.trackerClass;
         if exist(tCls,'class')==0
           error('Labeler:projLoad',...
@@ -843,7 +845,7 @@ classdef Labeler < handle
         obj.movieSet(s.currMovie);
       end
       
-      assert(isa(s.labelMode,'LabelMode'));      
+      %assert(isa(s.labelMode,'LabelMode'));      
       obj.labeledposNeedsSave = false;
 
       obj.setFrameAndTarget(s.currFrame,s.currTarget);
@@ -1174,6 +1176,22 @@ classdef Labeler < handle
       if ~isfield(s,'labeledposMarked')
         s.labeledposMarked = cellfun(@(x)false(size(x)),s.labeledposTS,'uni',0);
       end
+      
+      % Migration issue. How do modernize legacy projects? Their .lbls
+      % contain most of the important stuff but not everything. In the old
+      % world the everything else would have been filled in from their
+      % pref.yaml. In theory, modernization can fill in with either i)
+      % factory defaults or ii) a user-specified pref.yaml. 
+% %       % 20160818: projects/configurations revamp
+% %       if ~isfield(s,'cfg')
+% %         % Create a config out what is in s. The large majority of config
+% %         % info is not present in s; all other fields start from defaults.
+% %         cfg = struct('
+% %                   nview: 1
+% %               viewNames: {'view1'}
+% %               labelMode: TEMPLATE
+% %            nLabelPoints: 5
+% %     labelPointsPlotInfo: [1x1 struct]
     end
     
     function [I,p,md] = lblRead(lblFiles,varargin)
@@ -1714,8 +1732,6 @@ classdef Labeler < handle
     function movieSetNoMovie(obj)
       % Set to iMov==0
       
-      %# MVOK
-
       obj.currMovie = 0;
       
       for i=1:obj.nview
@@ -1728,8 +1744,9 @@ classdef Labeler < handle
       obj.trxIdPlusPlus2Idx = [];
 
       obj.currFrame = 1;
-      arrayfun(@(x)set(x,'CData',0),obj.gdata.images_all);
-      imprev = obj.gdata.image_prev;
+      gd = obj.gdata;
+      arrayfun(@(x)set(x,'CData',0),gd.images_all); % TODO: UImv
+      imprev = gd.image_prev;
       set(imprev,'CData',0);
       
       obj.initShowTrx();
@@ -1883,7 +1900,7 @@ classdef Labeler < handle
       if obj.lblCore.supportsCalibration
         vcd = obj.viewCalibrationData;
         if isempty(vcd)
-          warning('Labeler:labelingInit',...
+          warningNoTrace('Labeler:labelingInit',...
             'No calibration data loaded for calibrated labeling.');
         else
           obj.lblCore.projectionSetCalRig(vcd);
@@ -2954,15 +2971,16 @@ classdef Labeler < handle
       
       validateattributes(gamma,{'numeric'},{'scalar' 'real' 'positive'});
       
-      im = obj.gdata.image_curr;
+      gd = obj.gdata;
+      im = gd.image_curr;
       if size(im.CData,3)~=1
         error('Labeler:gamma','Gamma correction currently only supported for grayscale/intensity images.');
       end
       
       m0 = gray(256);
       m1 = imadjust(m0,[],[],gamma);
-      arrayfun(@(x)colormap(x,m1),obj.gdata.axes_all);
-      colormap(obj.gdata.axes_prev,m1);
+      arrayfun(@(x)colormap(x,m1),gd.axes_all);
+      colormap(gd.axes_prev,m1);
     end
     
     function videoFlipUD(obj)
@@ -3023,7 +3041,7 @@ classdef Labeler < handle
         obj.showTrxMode = ShowTrxMode.ALL;
       end
       onoff = onIff(obj.hasTrx);
-      obj.gdata.menu_setup_trajectories.Enable = onoff;
+      obj.gdata.menu_view_trajectories.Enable = onoff;
     end
     
     function setShowTrxMode(obj,mode)
@@ -3181,9 +3199,10 @@ classdef Labeler < handle
 
       obj.prevFrame = obj.currFrame;
       obj.prevIm = obj.currIm{1};
-      set(obj.gdata.image_prev,'CData',obj.prevIm);
+      gd = obj.gdata;
+      set(gd.image_prev,'CData',obj.prevIm);
      
-      imsall = obj.gdata.images_all;
+      imsall = gd.images_all;
       for iView=1:obj.nview
         obj.currIm{iView} = obj.movieReader(iView).readframe(frm);
         set(imsall(iView),'CData',obj.currIm{iView});
