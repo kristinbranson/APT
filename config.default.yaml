@@ -2,7 +2,7 @@
 NumViews: 1
 ViewNames: # Optional
 
-NumLabelPoints: 4 
+NumLabelPoints: 4 # The number of physical/3D points
 LabelPointNames: # Optional
 
 LabelMode: TEMPLATE # See LabelMode.m

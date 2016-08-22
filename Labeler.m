@@ -192,7 +192,7 @@ classdef Labeler < handle
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints        
   end
   properties (SetAccess=private)
-    nLabelPoints;         % scalar integer
+    nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints
     labelTemplate;    
     
     labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
@@ -200,8 +200,7 @@ classdef Labeler < handle
     labeledposSetNames;   % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
                           % NOTE: arguably the "point names" should be
     labeledposIPt2View;   % [npts] vector of indices into 1:obj.nview. Convenience prop, derived from .labeledposIPtSetMap.
-    labeledposIPt2Set;    % [npts] vector of set indices for each point. Convenience prop
-    
+    labeledposIPt2Set;    % [npts] vector of set indices for each point. Convenience prop    
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
@@ -210,7 +209,7 @@ classdef Labeler < handle
     labeledposCurrMovie;
     labeledpostagCurrMovie;
     
-    labeledposNPtSets
+    nPhysPoints; % number of physical/3D points
   end
   properties (SetObservable)
     lblCore;
@@ -400,7 +399,7 @@ classdef Labeler < handle
         v = obj.labeledpostag{obj.currMovie};
       end
     end
-    function v = get.labeledposNPtSets(obj)
+    function v = get.nPhysPoints(obj)
       v = size(obj.labeledposIPtSetMap,1);
     end
     function v = get.gdata(obj)
@@ -443,10 +442,10 @@ classdef Labeler < handle
         close(obj.hFig);
         obj.hFig = [];
       end
-      end
-      
-      end
-      
+    end
+    
+  end
+  
         
     %% Configurations
   methods (Hidden)
@@ -466,8 +465,9 @@ classdef Labeler < handle
         obj.viewNames = cfg.ViewNames;
       end
      
-      npts = cfg.NumLabelPoints;
-      obj.nLabelPoints = cfg.NumLabelPoints;
+      npts3d = cfg.NumLabelPoints;
+      npts = obj.nview*npts3d;      
+      obj.nLabelPoints = npts;
       if isempty(cfg.LabelPointNames)
         cfg.LabelPointNames = arrayfun(@(x)sprintf('pt%d',x),(1:cfg.NumLabelPoints)','uni',0);
       end
@@ -491,7 +491,7 @@ classdef Labeler < handle
       for iSet = 1:nSet
         set = setnames{iSet};
         %iPts = lblPtMap.(set);
-        iPts = iSet:npts:npts*obj.nview;
+        iPts = iSet:npts3d:npts;
         if numel(iPts)~=obj.nview
           error('Labeler:prefs',...
             'Number of point indices specified for ''%s'' does not equal number of views (%d).',set,obj.nview);
@@ -519,15 +519,15 @@ classdef Labeler < handle
       lpp = cfg.LabelPointsPlot;
       % Some convenience mods to .LabelPointsPlot
       if ~isfield(lpp,'Colors') && isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
-        lpp.Colors = feval(lpp.ColorMapName,cfg.NumLabelPoints);
+        lpp.Colors = feval(lpp.ColorMapName,npts);
       end
       if ~isfield(lpp,'ColorsSets')
-      if isfield(lpp,'ColorMapName')
-        cmapName = lpp.ColorMapName;
-      else
-        cmapName = 'parula';
-      end
-      lpp.ColorsSets = feval(cmapName,nSet);
+        if isfield(lpp,'ColorMapName')
+          cmapName = lpp.ColorMapName;
+        else
+          cmapName = 'parula';
+        end
+        lpp.ColorsSets = feval(cmapName,nSet);
       end      
       obj.labelPointsPlotInfo = lpp;
             
@@ -579,9 +579,9 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
-      end
-    
     end
+    
+  end
     
   methods (Static)
     
@@ -1190,7 +1190,13 @@ classdef Labeler < handle
       % with the current pref.yaml.
       if ~isfield(s,'cfg')
         % Create a config out what is in s. The large majority of config
-        % info is not present in s; all other fields start from defaults.        
+        % info is not present in s; all other fields start from defaults.
+        
+        % first deal with multiview new def of NumLabelPoints
+        nPointsReal = s.nLabelPoints/s.nview;
+        assert(round(nPointsReal)==nPointsReal);
+        s.nLabelPoints = nPointsReal;
+        
         ptNames = arrayfun(@(x)sprintf('point%d',x),1:s.nLabelPoints,'uni',0);
         ptNames = ptNames(:);
         cfg = struct(...

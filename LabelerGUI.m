@@ -421,8 +421,8 @@ handles = lObj.gdata;
 movRdrs = lObj.movieReader;
 nframes = movRdrs(1).nframes;
 ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
-hAxs = gdata.axes_all;
-hIms = gdata.images_all;
+hAxs = handles.axes_all;
+hIms = handles.images_all;
 assert(isequal(lObj.nview,numel(ims),numel(hAxs),numel(hIms),numel(lObj.minv),numel(lObj.maxv)));
 
 for iView = 1:lObj.nview
