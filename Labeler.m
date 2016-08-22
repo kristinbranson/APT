@@ -1177,21 +1177,32 @@ classdef Labeler < handle
         s.labeledposMarked = cellfun(@(x)false(size(x)),s.labeledposTS,'uni',0);
       end
       
-      % Migration issue. How do modernize legacy projects? Their .lbls
-      % contain most of the important stuff but not everything. In the old
-      % world the everything else would have been filled in from their
-      % pref.yaml. In theory, modernization can fill in with either i)
-      % factory defaults or ii) a user-specified pref.yaml. 
-% %       % 20160818: projects/configurations revamp
-% %       if ~isfield(s,'cfg')
-% %         % Create a config out what is in s. The large majority of config
-% %         % info is not present in s; all other fields start from defaults.
-% %         cfg = struct('
-% %                   nview: 1
-% %               viewNames: {'view1'}
-% %               labelMode: TEMPLATE
-% %            nLabelPoints: 5
-% %     labelPointsPlotInfo: [1x1 struct]
+      % 20160822 Modernize legacy projects that don't have a .cfg prop. 
+      % Create a cfg from the lbl contents and fill in any missing fields 
+      % with the current pref.yaml.
+      if ~isfield(s,'cfg')
+        % Create a config out what is in s. The large majority of config
+        % info is not present in s; all other fields start from defaults.        
+        ptNames = arrayfun(@(x)sprintf('point%d',x),1:s.nLabelPoints,'uni',0);
+        ptNames = ptNames(:);
+        cfg = struct(...
+          'NumViews',s.nview,...
+          'ViewNames',{s.viewNames},...
+          'NumLabelPoints',s.nLabelPoints,...
+          'LabelPointNames',{ptNames},...
+          'LabelMode',char(s.labelMode),...
+          'LabelPointsPlot',s.labelPointsPlotInfo);
+        fldsRm = {'nview' 'viewNames' 'nLabelPoints' 'labelMode' 'labelPointsPlotInfo'};
+        s = rmfield(s,fldsRm);
+
+        cfgbase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+        if exist('pref.yaml','file')>0
+          cfg1 = ReadYaml('pref.yaml');
+          cfgbase = structoverlay(cfgbase,cfg1,'dontWarnUnrecog',true);
+        end
+        cfg = structoverlay(cfgbase,cfg,'dontWarnUnrecog',true);
+        s.cfg = cfg;
+      end
     end
     
     function [I,p,md] = lblRead(lblFiles,varargin)
