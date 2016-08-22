@@ -68,7 +68,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   
   properties
     supportsMultiView = true;
-	supportsCalibration = true;
+    supportsCalibration = true;
   end
   
   properties
@@ -144,6 +144,13 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function obj = LabelCoreMultiViewCalibrated2(varargin)
       obj = obj@LabelCore(varargin{:});
+    end
+		
+    function delete(obj)
+      deleteValidHandles(obj.pjtHLinesEpi);
+      obj.pjtHLinesEpi = [];
+      deleteValidHandles(obj.pjtHLinesRecon);
+      obj.pjtHLinesRecon = [];
     end
         
     function initHook(obj)

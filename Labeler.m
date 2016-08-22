@@ -105,8 +105,8 @@ classdef Labeler < handle
     viewCalibrationData % opaque 'userdata' for calibrations for multiview. Currently, scalar CalRig object
     
     movieReader = []; % [1xnview] MovieReader objects
-    minv = 0; 
-    maxv = inf;
+    minv = 0; % [nview] lower limit clim
+    maxv = inf; % [nview] upper limit clim
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
   end
@@ -437,23 +437,23 @@ classdef Labeler < handle
       % lObj = Labeler();
       obj.hFig = LabelerGUI(obj);
     end
-    
+     
     function delete(obj)
       if isvalid(obj.hFig)
         close(obj.hFig);
         obj.hFig = [];
       end
-    end
-    
-  end
-    
-    
+      end
+      
+      end
+      
+        
     %% Configurations
   methods (Hidden)
     
     function initFromConfig(obj,cfg)
       % Note: Config must be modernized
-      
+    
       % Views
       obj.nview = cfg.NumViews;
       if isempty(cfg.ViewNames)
@@ -465,7 +465,7 @@ classdef Labeler < handle
         end
         obj.viewNames = cfg.ViewNames;
       end
-      
+     
       npts = cfg.NumLabelPoints;
       obj.nLabelPoints = cfg.NumLabelPoints;
       if isempty(cfg.LabelPointNames)
@@ -522,12 +522,12 @@ classdef Labeler < handle
         lpp.Colors = feval(lpp.ColorMapName,cfg.NumLabelPoints);
       end
       if ~isfield(lpp,'ColorsSets')
-        if isfield(lpp,'ColorMapName')
-          cmapName = lpp.ColorMapName;
-        else
-          cmapName = 'parula';
-        end
-        lpp.ColorsSets = feval(cmapName,nSet);
+      if isfield(lpp,'ColorMapName')
+        cmapName = lpp.ColorMapName;
+      else
+        cmapName = 'parula';
+      end
+      lpp.ColorsSets = feval(cmapName,nSet);
       end      
       obj.labelPointsPlotInfo = lpp;
             
@@ -556,7 +556,7 @@ classdef Labeler < handle
       gd = obj.gdata;
       obj.currImHud = AxisHUD(gd.axes_curr); 
       obj.movieSetNoMovie();
-      
+            
       for prop = gd.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
         obj.(prop) = obj.(prop);
       end
@@ -579,10 +579,10 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
+      end
+    
     end
     
-  end
-  
   methods (Static)
     
     function cfg = cfgModernize(cfg)
@@ -806,7 +806,7 @@ classdef Labeler < handle
           %obj.(f) = [];
         end
       end
-            
+     
       obj.movieFilesAllHaveLbls = cellfun(@(x)any(~isnan(x(:))),obj.labeledpos);
       obj.isinit = false;
       
@@ -1176,7 +1176,15 @@ classdef Labeler < handle
       if ~isfield(s,'labeledposMarked')
         s.labeledposMarked = cellfun(@(x)false(size(x)),s.labeledposTS,'uni',0);
       end
-      
+			
+      % 20160816
+      assert(numel(s.minv)==numel(s.maxv));
+      nminv = numel(s.minv);
+      if nminv~=s.nview
+        s.minv = repmat(s.minv(1),s.nview,1);
+        s.maxv = repmat(s.maxv(1),s.nview,1);
+      end
+
       % 20160822 Modernize legacy projects that don't have a .cfg prop. 
       % Create a cfg from the lbl contents and fill in any missing fields 
       % with the current pref.yaml.
@@ -2173,6 +2181,7 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
+      obj.labeledposTS{iMov}(iPt,iFrm,iTgt) = now();
       obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = [];
     end
     
@@ -2354,7 +2363,7 @@ classdef Labeler < handle
       %
 	  % trkfilesCommon: [numel(movfiles)] cell-of-cellstrs.
 	  % trkfilesCommon{i} is a cellstr with numel(kwCommon) elements.
-	  % trkfilesCommon{i}{j} contains the jth common trkfile found for 
+      % trkfilesCommon{i}{j} contains the jth common trkfile found for
 	  % movfiles{i}, where j indexes kwCommon.
 	  % kwCommon: [nCommonKeywords] cellstr of common keywords found.
 	  % trkfilesAll: [numel(movfiles)] cell-of-cellstrs. trkfilesAll{i}
@@ -2362,7 +2371,7 @@ classdef Labeler < handle
 	  % trkfilesCommon{i}.
 	  %
 	  % "Common" trkfiles are those that share the same naming pattern
-	  % <moviename>_<keyword>.trk and are present for all movfiles. 
+      % <moviename>_<keyword>.trk and are present for all movfiles.
 	  
 	  trkfilesAll = cell(size(movfiles));
 	  keywords = cell(size(movfiles));
@@ -2373,7 +2382,7 @@ classdef Labeler < handle
 		end
 		
 		[movdir,movname] = fileparts(mov);
-		trkpat = [movname '*.trk'];	
+        trkpat = [movname '*.trk'];
 		dd = dir(fullfile(movdir,trkpat));
 		trkfilesAllShort = {dd.name}';
 		trkfilesAll{i} = cellfun(@(x)fullfile(movdir,x),trkfilesAllShort,'uni',0);
@@ -2394,22 +2403,30 @@ classdef Labeler < handle
 		trkfilesAll,keywords,'uni',0);
 	end
     
-    function labelExportTrk(obj,iMovs)
+    function labelExportTrk(obj,iMovs,trkfiles)
       % Export label data to trk files.
       %
-      % iMov: optional, indices into .movieFilesAll to export. Defaults to 1:obj.nmovies.
+      % iMov: optional, indices into .movieFilesAll to export. Defaults to 
+      % 1:obj.nmovies.
+      % trkfiles: optional, trkfilenames to export to. Defaults to
+      % filenames returned by getTrkFileNamesForExport.
       
-      %#MVOK
-      
-      if exist('iMovs','var')==0
+      if exist('iMovs','var')==0 
         iMovs = 1:obj.nmovies;
       end
-      
       movfiles = obj.movieFilesAllFull(iMovs,1);
+      if exist('trkfiles','var')==0       
       [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles);
-      if tfok
+        if ~tfok
+          return;
+        end
+      end
         nMov = numel(iMovs);
-        assert(numel(trkfiles)==nMov);
+      if nMov~=numel(trkfiles)
+        error('Labeler:argSize',...
+          'Numbers of movies and trkfiles supplied must be equal.');
+      end
+        
         for i=1:nMov
           iMv = iMovs(i);
           trkfile = TrkFile(obj.labeledpos{iMv},...
@@ -2419,7 +2436,6 @@ classdef Labeler < handle
         end
         msgbox(sprintf('%d trk files exported.',nMov),'Export complete.');
       end
-    end
     
     function labelImportTrkGeneric(obj,iMovs,trkfiles,lposFld,lposTSFld,lposTagFld)
       % iMovs: [N] vector of movie indices
@@ -2469,7 +2485,7 @@ classdef Labeler < handle
       
 	 obj.movieFilesAllHaveLbls(iMovs) = ...
 	   cellfun(@(x)any(~isnan(x(:))),obj.labeledpos(iMovs));
-
+      
       obj.updateFrameTableComplete();
       %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
       %now, since what we are importing is already in the .trk file.
@@ -2483,8 +2499,8 @@ classdef Labeler < handle
 	  % iMovs: [nMovie]. Optional, movie indices to import.
 	  %
 	  % labelImportTrkPrompt will look for trk files with common keywords
-	  % (consistent naming) in .movieFilesAllFull(iMovs). If there is 
-	  % precisely one consistent trkfile pattern, it will import those 
+      % (consistent naming) in .movieFilesAllFull(iMovs). If there is
+      % precisely one consistent trkfile pattern, it will import those
 	  % trkfiles. Otherwise it will ask the user which trk files to import.
 	  
 	  if exist('iMovs','var')==0
@@ -2962,36 +2978,6 @@ classdef Labeler < handle
       v = axis(obj.gdata.axes_curr);
       x0 = mean(v(1:2));
       y0 = mean(v(3:4));
-    end
-    
-    function videoSetContrastFromAxesCurr(obj)
-      % Get video contrast from axes_curr and record/set
-      clim = get(obj.gdata.axes_curr,'CLim');
-      if isempty(clim) 
-        % none; can occur when Labeler is closed
-      else
-        set(obj.gdata.axes_prev,'CLim',clim);
-        set(obj.gdata.axes_all,'CLim',clim);
-        obj.minv = clim(1);
-        obj.maxv = clim(2);
-      end
-    end
-    
-    function videoApplyGammaGrayscale(obj,gamma)
-      % Applies gamma-corrected grayscale colormap
-      
-      validateattributes(gamma,{'numeric'},{'scalar' 'real' 'positive'});
-      
-      gd = obj.gdata;
-      im = gd.image_curr;
-      if size(im.CData,3)~=1
-        error('Labeler:gamma','Gamma correction currently only supported for grayscale/intensity images.');
-      end
-      
-      m0 = gray(256);
-      m1 = imadjust(m0,[],[],gamma);
-      arrayfun(@(x)colormap(x,m1),gd.axes_all);
-      colormap(gd.axes_prev,m1);
     end
     
     function videoFlipUD(obj)

@@ -18,7 +18,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
   %
   % This requires a 'CalibratedRig' that knows how to compute EPLs and
   % reconstruct 3dpts.
-  
+  	
   properties
     supportsMultiView = true;
     supportsCalibration = true;
@@ -69,6 +69,8 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     kpfIPtFor1Key;   % scalar positive integer. This is the point index that
     % the '1' hotkey maps to, eg typically this will take the
     % values 1, 11, 21, ...
+    hAxXLabels; % [nview] xlabels for axes
+    hAxXLabelsFontSize = 11;
 
     tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected  
   end
@@ -89,7 +91,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
     function set.kpfIPtFor1Key(obj,val)
       obj.kpfIPtFor1Key = val;
-      obj.refreshTxLabelCoreAux();
+      obj.refreshHotkeyDesc();
     end
     
   end
@@ -100,7 +102,13 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       obj = obj@LabelCore(varargin{:});
     end
     
-    function delete(obj)      
+    function delete(obj)
+      deleteValidHandles(obj.pjtHLinesEpi);
+      obj.pjtHLinesEpi = [];
+      deleteValidHandles(obj.pjtHLinesRecon);
+      obj.pjtHLinesRecon = [];
+      deleteValidHandles(obj.hAxXLabels);
+      obj.hAxXLabels = [];
     end
     
     function initHook(obj)
@@ -146,10 +154,17 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
 
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
-      obj.refreshTxLabelCoreAux();
-
+      
       obj.projectionWorkingSetClear();
       obj.projectionInit();
+      
+      obj.hAxXLabels = gobjects(obj.nView,1);
+      for iView=1:obj.nView
+        ax = obj.hAx(iView);
+        obj.hAxXLabels(iView) = xlabel(ax,'','fontsize',obj.hAxXLabelsFontSize);
+      end
+      
+      obj.refreshHotkeyDesc();
     end
     
   end
@@ -822,11 +837,23 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
     end
     
-    function refreshTxLabelCoreAux(obj)
-      iPt0 = obj.kpfIPtFor1Key;
-      iPt1 = iPt0+9;
-      str = sprintf('Hotkeys 0-9 map to points %d-%d',iPt0,iPt1);
-      obj.txLblCoreAux.String = str;      
+    function refreshHotkeyDesc(obj)
+      iPtLo = obj.kpfIPtFor1Key;
+      iPtHi = min(obj.nPts,iPtLo+9);
+      iSetLo = obj.iPt2iSet(iPtLo);
+      iSetHi = obj.iPt2iSet(iPtHi);
+      iAxLo = obj.iPt2iAx(iPtLo);
+      iAxHi = obj.iPt2iAx(iPtHi);
+      vNameLo = obj.labeler.viewNames{iAxLo};
+      vNameHi = obj.labeler.viewNames{iAxHi};
+      hkHi = 1+iPtHi-iPtLo;
+      if hkHi==10
+        hkHi = 0;
+      end
+      str = sprintf('Hotkeys ''1''->''%d'': view:%s/pt%d->view:%s/pt%d',...
+        hkHi,vNameLo,iSetLo,vNameHi,iSetHi);
+      [obj.hAxXLabels.String] = deal(str);
+      obj.txLblCoreAux.String = str;
     end
             
   end
