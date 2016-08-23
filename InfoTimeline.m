@@ -43,15 +43,14 @@ classdef InfoTimeline < handle
     curprop
   end  
   
-  methods 
+  methods
     function set.selectModeOn(obj,v)
       obj.selectInProg = false; %#ok<MCSUP>
       obj.selectModeOn = v;
       if ~obj.selectModeOn,
         set(obj.selectH,'XData',[nan nan nan nan],'YData',[nan nan nan nan],'ZData',[1 1 1 1]);
       end
-    end
-    
+    end    
   end
   
   methods
@@ -193,6 +192,7 @@ classdef InfoTimeline < handle
       ax.YLim = [0 1];
 
       deleteValidHandles(obj.hIm);
+      obj.hIm = [];
       deleteValidHandles(obj.hPts);
       obj.hPts = gobjects(obj.npts,1);
       for i=1:obj.npts
@@ -342,8 +342,7 @@ classdef InfoTimeline < handle
     function setCurProp(obj,newprop)
       obj.curprop = newprop;
       obj.setLabelsFull();
-    end
-    
+    end    
   end
   
   
@@ -401,17 +400,17 @@ classdef InfoTimeline < handle
       end      
     end
     
-    function lpos = getMarkedData(obj)
-      
+    function lpos = getMarkedData(obj)      
       if obj.lObj.currMovie>0,
         if obj.lObj.hasTrx,
           currTrxId = obj.lObj.currTrxId;
         else
           currTrxId = 1;
-        end
+        end        
+        lpos = squeeze(obj.lObj.labeledposMarked{obj.lObj.currMovie}(:,:,currTrxId));
+      else
+        lpos = false(obj.lObj.nLabelPoints,1);
       end
-      lpos = squeeze(obj.lObj.labeledposMarked{obj.lObj.currMovie}(:,:,currTrxId));
-
     end
     
     function nxtFrm = findFrame(obj,dr,curFr)

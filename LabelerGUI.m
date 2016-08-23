@@ -258,7 +258,8 @@ axis(ax,'auto');
 
 function cbkAuxFigCloseReq(src,data,lObj)
 
-if ~any(src==lObj.depHandles)
+handles = lObj.gdata;
+if ~any(src==handles.depHandles)
   delete(gcf);
   return;  
 end
@@ -445,14 +446,14 @@ for iView = 1:lObj.nview
 	axis(hAxs(iView),'image');
 	zoom(hAxs(iView),'reset');
 
-        if iView==1
-        	% axes_curr
-		axprev = handles.axes_prev;
-		set(axprev,'CLim',minvmaxv,...
-			'XLim',[.5,size(ims{iView},2)+.5],...
-			'YLim',[.5,size(ims{iView},1)+.5]);
-		zoom(axprev,'reset');
-	end
+  if iView==1
+    % axes_curr
+    axprev = handles.axes_prev;
+    set(axprev,'CLim',minvmaxv,...
+      'XLim',[.5,size(ims{iView},2)+.5],...
+      'YLim',[.5,size(ims{iView},1)+.5]);
+    zoom(axprev,'reset');
+  end
 end
 
 handles.labelTLInfo.initNewMovie();
@@ -865,17 +866,36 @@ if hlpSave(lObj)
   if ~tfsucc
     return;
   end
+  
   movfile = movfile{1};
   trxfile = trxfile{1};
-  handles.labelerObj.projQuickOpen(movfile,trxfile);
+  
+  cfg = Labeler.cfgGetLastProjectConfig;
+  if cfg.NumViews>1
+    warndlg('Your last project had multiple views. Opening movie with single view.');
+    cfg.NumViews = 1;
+    cfg.ViewNames = cfg.ViewNames(1);
+  end
+  lm = LabelMode.(cfg.LabelMode);
+  if lm.multiviewOnly
+    cfg.LabelMode = char(LabelMode.TEMPLATE);
+  end
+  
+  lObj.initFromConfig(cfg);
+    
+  [~,projName,~] = fileparts(movfile);
+  lObj.projNew(projName);
+  lObj.movieAdd(movfile,trxfile);
+  lObj.movieSet(1);      
 end
 function menu_file_new_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
-  cfg = ProjectSetup();
+  cfg = ProjectSetup(handles.figure);
   if ~isempty(cfg)    
     lObj.initFromConfig(cfg);
     lObj.projNew(cfg.ProjectName);
+    menu_file_managemovies_Callback([],[],handles);
   end
 end
 function menu_file_save_Callback(hObject, eventdata, handles)
@@ -906,7 +926,7 @@ if labelerObj.labeledposNeedsSave
   end
 end
 
-function menu_file_managemovies_Callback(hObject,~,handles)
+function menu_file_managemovies_Callback(~,~,handles)
 h = MovieManager(handles.labelerObj);
 addDepHandle(handles.figure,h);
 

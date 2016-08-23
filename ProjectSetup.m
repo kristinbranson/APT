@@ -94,10 +94,21 @@ end
 % Modal dialog. Generates project configuration struct
 %
 % cfg = ProjectSetup(); 
-%
+% cfg = ProjectSetup(hParentFig); % centered on hParentFig
 function ProjectSetup_OpeningFcn(hObject, eventdata, handles, varargin)
 
-handles.output = hObject;
+h1 = findall(handles.figure1,'-property','Units');
+set(h1,'Units','Normalized');
+
+if numel(varargin)>=1
+  hParentFig = varargin{1};
+  if ~ishandle(hParentFig)
+    error('ProjectSetup:arg','Expected first argument to be a figure handle.');
+  end
+  centerOnParentFigure(hObject,hParentFig);
+end  
+  
+handles.output = [];
 
 % init PUMs that depend only on codebase
 lms = enumeration('LabelMode');
@@ -165,7 +176,7 @@ pumLM.Value = val;
 
 pumTrk = handles.pumTracking;
 if cfg.Track.Enable 
-  [tf,val] = strcmp(cfg.Track.Type,pumTrk.String);
+  [tf,val] = ismember(cfg.Track.Type,pumTrk.String);
   if ~tf
     % unexpected but maybe not impossible due to path
     val = 1; % None

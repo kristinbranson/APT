@@ -38,14 +38,15 @@ classdef Labeler < handle
     newProject
     newMovie
   end
+      
   
   %% Project
   properties (SetObservable)
-    projname              % 
+    projname              % init: PN
     projFSInfo;           % filesystem info
   end
   properties (SetAccess=private)
-    projMacros = struct(); % scalar struct containing user-defined macros
+    projMacros = struct(); % scalar struct, filesys macros. init: PN
   end
   properties
     % TODO: rename this to "initialConfig" or similar. This is now a
@@ -85,7 +86,7 @@ classdef Labeler < handle
     % structure which now has listeners attached.
     % * The most important configuration params can still have their own
     % props.
-    projPrefs; 
+    projPrefs; % init: C
     
   end
   properties (Dependent)
@@ -100,13 +101,13 @@ classdef Labeler < handle
   % referred to visual details, display, playback, etc. But I sort of
   % forgot and mixed them up so that Movie sometimes applies to the latter.
   properties
-    nview; % number of views
-    viewNames % [nview] cellstr 
-    viewCalibrationData % opaque 'userdata' for calibrations for multiview. Currently, scalar CalRig object
+    nview; % number of views. init: C
+    viewNames % [nview] cellstr. init: C
+    viewCalibrationData % opaque 'userdata' for calibrations for multiview. Currently, scalar CalRig object. init: PN
     
-    movieReader = []; % [1xnview] MovieReader objects
-    minv = 0; % [nview] lower limit clim
-    maxv = inf; % [nview] upper limit clim
+    movieReader = []; % [1xnview] MovieReader objects. init: C
+    minv = 0; % [nview] lower limit clim. init: C, IFC
+    maxv = inf; % [nview] upper limit clim. init: C, IFC
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
   end
@@ -180,27 +181,27 @@ classdef Labeler < handle
   
   %% Labeling
   properties (SetObservable)
-    labelMode;            % scalar LabelMode
-    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord
-    labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched.
-    labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random.
-    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array
+    labelMode;            % scalar LabelMode. init: C
+    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
+    labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched. init: PN
+    labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random. init: PN
+    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array. init: PN
     
-    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc)
+    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc). init: PN
   end
   properties % make public setaccess
-    labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints        
+    labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints. init: C
   end
   properties (SetAccess=private)
-    nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints
+    nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
     labelTemplate;    
     
     labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
-                          % point indices for set iSet in various views
+                          % point indices for set iSet in various views. init: C
     labeledposSetNames;   % [nptsets] cellstr names labeling rows of .labeledposIPtSetMap.
-                          % NOTE: arguably the "point names" should be
-    labeledposIPt2View;   % [npts] vector of indices into 1:obj.nview. Convenience prop, derived from .labeledposIPtSetMap.
-    labeledposIPt2Set;    % [npts] vector of set indices for each point. Convenience prop    
+                          % NOTE: arguably the "point names" should be. init: C
+    labeledposIPt2View;   % [npts] vector of indices into 1:obj.nview. Convenience prop, derived from .labeledposIPtSetMap. init: C
+    labeledposIPt2Set;    % [npts] vector of set indices for each point. Convenience prop. init: C
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
@@ -212,13 +213,13 @@ classdef Labeler < handle
     nPhysPoints; % number of physical/3D points
   end
   properties (SetObservable)
-    lblCore;
+    lblCore; % init: L
   end
   properties    
-    lblPrev_ptsH;         % TODO: encapsulate labelsPrev (eg in a LabelCore)
-    lblPrev_ptsTxtH;
+    lblPrev_ptsH;         % TODO: encapsulate labelsPrev (eg in a LabelCore). init: L
+    lblPrev_ptsTxtH;      % init: L
     
-    labeledpos2_ptsH;
+    labeledpos2_ptsH;     
     labeledpos2_ptsTxtH;
   end 
   
@@ -231,10 +232,10 @@ classdef Labeler < handle
   
   %% Tracking
   properties (SetObservable)
-    tracker % LabelTracker object
-    trackNFramesSmall % small/fine frame increment for tracking
-    trackNFramesLarge % big/coarse "
-    trackNFramesNear % neighborhood radius
+    tracker % LabelTracker object. init: PLPN
+    trackNFramesSmall % small/fine frame increment for tracking. init: C
+    trackNFramesLarge % big/coarse ". init: C
+    trackNFramesNear % neighborhood radius. init: C
   end
   
   %% Misc
@@ -243,15 +244,14 @@ classdef Labeler < handle
     prevFrame = nan;      % last previously VISITED frame
     currTarget = nan;
     
-    currImHud; % scalar AxisHUD object TODO: move to LabelerGUI
+    currImHud; % scalar AxisHUD object TODO: move to LabelerGUI. init: C
   end
   properties (SetObservable)
     currFrame = 1; % current frame
   end
   properties
-    currIm = [];            % [nview] cell vec of image data
+    currIm = [];            % [nview] cell vec of image data. init: C
     prevIm = [];            % single array of image data ('primary' view only)
-    depHandles = gobjects(0,1); % vector of handles that should be deleted when labeler is deleted
     
     isinit = false;         % scalar logical; true during initialization, when some invariants not respected
     
@@ -313,9 +313,10 @@ classdef Labeler < handle
         v = mr.nframes;
       end
     end
-    function v = get.moviesSelected(obj)
-      % Possibly questionable, find MovieManager in depHandles
-      depH = obj.depHandles;
+    function v = get.moviesSelected(obj)      
+      % Find MovieManager in LabelerGUI/depHandles
+      handles = obj.gdata;
+      depH = handles.depHandles;
       names = arrayfun(@(x)x.Name,depH,'uni',0);
       tf = strcmp(names,'Manage Movies');
       idx = find(tf);
@@ -447,9 +448,20 @@ classdef Labeler < handle
   end
   
         
-    %% Configurations
+  %% Configurations
   methods (Hidden)
-    
+
+  % Property init legend
+  % IFC: property initted during initFromConfig()
+  % PNPL: property initted during projectNew() or projLoad()
+  % L: property initted during labelingInit()
+  % (todo) TI: property initted during trackingInit()
+  %
+  % There are only two ways to start working on a project.
+  % 1. New/blank project: initFromConfig(), then projNew().
+  % 2. Existing project: projLoad(), which is (initFromConfig(), then
+  % property-initialization-equivalent-to-projNew().)
+  
     function initFromConfig(obj,cfg)
       % Note: Config must be modernized
     
@@ -472,7 +484,7 @@ classdef Labeler < handle
         cfg.LabelPointNames = arrayfun(@(x)sprintf('pt%d',x),(1:cfg.NumLabelPoints)','uni',0);
       end
       assert(numel(cfg.LabelPointNames)==cfg.NumLabelPoints);
-%         
+         
 %       if isempty(cfg.LabelPointMap) && obj.nview==1
 %         % create default map
 %         tmpFields = arrayfun(@(x)sprintf('pt%d',x),(1:npts)','uni',0);
@@ -481,7 +493,7 @@ classdef Labeler < handle
 %       else
 %         lblPtMap = cfg.LabelPointMap;
 %       end
-%       
+       
       % pts, sets, views
       setnames = cfg.LabelPointNames;%fieldnames(lblPtMap);
       nSet = size(setnames,1);
@@ -518,10 +530,10 @@ classdef Labeler < handle
       
       lpp = cfg.LabelPointsPlot;
       % Some convenience mods to .LabelPointsPlot
-      if ~isfield(lpp,'Colors') && isfield(lpp,'ColorMapName') && ~isfield(lpp,'ColorMap')
+      if (~isfield(lpp,'Colors') || size(lpp.Colors,1)~=npts) && isfield(lpp,'ColorMapName') 
         lpp.Colors = feval(lpp.ColorMapName,npts);
       end
-      if ~isfield(lpp,'ColorsSets')
+      if ~isfield(lpp,'ColorsSets') || size(lpp.ColorsSets,1)~=nSet
         if isfield(lpp,'ColorMapName')
           cmapName = lpp.ColorMapName;
         else
@@ -555,12 +567,18 @@ classdef Labeler < handle
       delete(obj.currImHud);
       gd = obj.gdata;
       obj.currImHud = AxisHUD(gd.axes_curr); 
-      obj.movieSetNoMovie();
-            
-      for prop = gd.propsNeedInit(:)', prop=prop{1}; %#ok<FXSET>
-        obj.(prop) = obj.(prop);
-      end
+      %obj.movieSetNoMovie();
       
+      nminv = numel(obj.minv);
+      assert(nminv==numel(obj.maxv));
+      if nminv<obj.nview
+        obj.minv(end+1:obj.nview,1) = 0;
+        obj.maxv(end+1:obj.nview,1) = inf;
+      elseif nminv>obj.nview
+        obj.minv = obj.minv(1:obj.nview);
+        obj.maxv = obj.maxv(1:obj.nview);
+      end
+        
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
     
@@ -571,7 +589,7 @@ classdef Labeler < handle
       
       cfg.NumViews = obj.nview;
       cfg.ViewNames = obj.viewNames;
-      cfg.NumLabelPoints = obj.nLabelPoints;
+      cfg.NumLabelPoints = obj.nPhysPoints;
       cfg.LabelPointNames = obj.labeledposSetNames;
       cfg.LabelMode = char(obj.labelMode);
 
@@ -618,23 +636,8 @@ classdef Labeler < handle
   end
   
   %% Project/Lbl files
-  methods
-    
-    function projQuickOpen(obj,movfile,trxfile)
-      % Create a new project; add the mov/trx; open the movie
-      
-      assert(exist(movfile,'file')>0);
-      assert(isempty(trxfile) || exist(trxfile,'file')>0);
-      
-      cfg = Labeler.cfgGetLastProjectConfig;
-      obj.initFromConfig(cfg);
-      
-      [~,projName,~] = fileparts(movfile);
-      obj.projNew(projName);      
-      obj.movieAdd(movfile,trxfile);
-      obj.movieSet(1);
-    end
-    
+  methods    
+   
     function projNew(obj,name)
       % Create new project based on current configuration
       
@@ -652,12 +655,16 @@ classdef Labeler < handle
       obj.movieFilesAllHaveLbls = false(0,1);
       obj.movieInfoAll = cell(0,obj.nview);
       obj.trxFilesAll = cell(0,obj.nview);
+      obj.projMacros = struct();
+      obj.viewCalibrationData = [];
+      obj.isinit = true;
       obj.movieSetNoMovie(); % order important here
       obj.labeledpos = cell(0,1);
       obj.labeledposTS = cell(0,1);
       obj.labeledposMarked = cell(0,1);
       obj.labeledpostag = cell(0,1);
       obj.labeledpos2 = cell(0,1);
+      obj.isinit = false;
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
       
@@ -673,6 +680,11 @@ classdef Labeler < handle
         obj.tracker.init();
 
         obj.gdata.labelTLInfo.setTracker(obj.tracker);
+      end
+
+      props = obj.gdata.propsNeedInit;
+      for p = props(:)', p=p{1}; %#ok<FXSET>
+        obj.(p) = obj.(p);
       end
     end
       
@@ -822,6 +834,9 @@ classdef Labeler < handle
       
       obj.initFromConfig(s.cfg);
       
+      % From here to the end of this method is a parallel initialization to
+      % projNew()
+      
       obj.isinit = true;
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
         if isfield(s,f)
@@ -881,6 +896,11 @@ classdef Labeler < handle
       if ~isempty(obj.tracker)
         fprintf(1,'Loading tracker info: %s.\n',tCls);
         obj.tracker.loadSaveToken(s.trackerData);
+      end
+      
+      props = obj.gdata.propsNeedInit;
+      for p = props(:)', p=p{1}; %#ok<FXSET>
+        obj.(p) = obj.(p);
       end
     end
     
@@ -1174,10 +1194,10 @@ classdef Labeler < handle
       end
       
       % 20160622
-      if ~isfield(s,'nview')
+      if ~isfield(s,'nview') && ~isfield(s,'cfg')
         s.nview = 1;
       end
-      if ~isfield(s,'viewNames')
+      if ~isfield(s,'viewNames') && ~isfield(s,'cfg')
         s.viewNames = {'1'};
       end
 
@@ -1200,14 +1220,6 @@ classdef Labeler < handle
       % 20160707
       if ~isfield(s,'labeledposMarked')
         s.labeledposMarked = cellfun(@(x)false(size(x)),s.labeledposTS,'uni',0);
-      end
-			
-      % 20160816
-      assert(numel(s.minv)==numel(s.maxv));
-      nminv = numel(s.minv);
-      if nminv~=s.nview
-        s.minv = repmat(s.minv(1),s.nview,1);
-        s.maxv = repmat(s.maxv(1),s.nview,1);
       end
 
       % 20160822 Modernize legacy projects that don't have a .cfg prop. 
@@ -1241,6 +1253,14 @@ classdef Labeler < handle
         end
         cfg = structoverlay(cfgbase,cfg,'dontWarnUnrecog',true);
         s.cfg = cfg;
+      end
+      
+      % 20160816
+      assert(numel(s.minv)==numel(s.maxv));
+      nminv = numel(s.minv);
+      if nminv~=s.cfg.NumViews
+        s.minv = repmat(s.minv(1),s.cfg.NumViews,1);
+        s.maxv = repmat(s.maxv(1),s.cfg.NumViews,1);
       end
     end
     

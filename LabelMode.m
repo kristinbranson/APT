@@ -15,5 +15,13 @@ classdef LabelMode
     function obj = LabelMode(pStr)
       obj.prettyString = pStr;
     end
+    function tf = multiviewOnly(obj)
+      switch obj
+        case {LabelMode.MULTIVIEWCALIBRATED LabelMode.MULTIVIEWCALIBRATED2}
+          tf = true;
+        otherwise
+          tf = false;
+      end
+    end
   end
 end
