@@ -554,9 +554,7 @@ classdef Labeler < handle
          'LabelMode' 'LabelPointsPlot' 'ProjectName'});
       obj.projPrefs = rmfield(cfg,fldsRm); 
       % A few minor subprops of projPrefs have explicit props
-      
-      obj.notify('newProject');
-      
+            
       arrayfun(@delete,obj.movieReader);
       obj.movieReader = [];
       for i=obj.nview:-1:1
@@ -578,7 +576,9 @@ classdef Labeler < handle
         obj.minv = obj.minv(1:obj.nview);
         obj.maxv = obj.maxv(1:obj.nview);
       end
-        
+      
+      obj.notify('newProject');
+
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
     
