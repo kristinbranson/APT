@@ -414,6 +414,9 @@ axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
 
 handles = setShortcuts(handles);
 
+% AL: Some init hell, initNewMovie() actually inits mostly project-level stuff 
+handles.labelTLInfo.initNewMovie(); 
+
 guidata(handles.figure,handles);
 
 function cbkNewMovie(src,evt)
