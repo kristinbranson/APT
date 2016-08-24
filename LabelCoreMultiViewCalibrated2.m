@@ -344,6 +344,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         [tfSel,iSel] = obj.selAnyPointSelected();
         if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
           obj.projectToggleState(iSel);
+        elseif ~isnan(obj.iSetWorking)
+          iView = find(gcf==obj.hFig);
+          if ~isempty(iView)
+            iPt = obj.iSet2iPt(obj.iSetWorking,iView);
+            obj.projectToggleState(iPt);
+          end
         end
       elseif strcmp(key,'s') && ~tfCtrl
         if obj.state==LabelState.ADJUST
