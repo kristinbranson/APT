@@ -65,17 +65,19 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
 
 
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
-    
-    kpfIPtFor1Key;   % scalar positive integer. This is the point index that
-    % the '1' hotkey maps to, eg typically this will take the
-    % values 1, 11, 21, ...
+        
     hAxXLabels; % [nview] xlabels for axes
     hAxXLabelsFontSize = 11;
 
     tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected  
   end
+  properties (SetAccess=private)
+    numHotKeySet; % row index into numHotKeySetInfo for currently active hot key set
+    numHotKeySetInfo; % 6 columns; see genNumHotKeySetInfo()
+  end
   
-  methods % dep prop getters
+  %% dep prop getters
+  methods
     function v = get.nView(obj)
       v = obj.labeler.nview;
     end
@@ -86,16 +88,8 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       v = nnz(~isnan(obj.pjtIPts));
     end
   end
-  
-  methods 
     
-    function set.kpfIPtFor1Key(obj,val)
-      obj.kpfIPtFor1Key = val;
-      obj.refreshHotkeyDesc();
-    end
-    
-  end
-  
+  %% Ctor/Dtor
   methods
     
     function obj = LabelCoreMultiViewCalibrated(varargin)
@@ -152,9 +146,8 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       obj.tfAdjusted = false(obj.nPts,1);
       obj.tfPtSel = false(obj.nPts,1);       
 
-      obj.txLblCoreAux.Visible = 'on';
-      obj.kpfIPtFor1Key = 1;
-      
+      obj.txLblCoreAux.Visible = 'on';      
+     
       obj.projectionWorkingSetClear();
       obj.projectionInit();
       
@@ -164,11 +157,15 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
         obj.hAxXLabels(iView) = xlabel(ax,'','fontsize',obj.hAxXLabelsFontSize);
       end
       
+      obj.numHotKeySetInfo = LabelCoreMultiViewCalibrated.genNumHotKeySetInfo(...
+        obj.nView,obj.nPointSet);
+      obj.numHotKeySet = 1;
       obj.refreshHotkeyDesc();
     end
     
   end
   
+  %% LabelCore overloads
   methods
 
     % newFrameAndTarget() combines all the brains of transitions for 
@@ -389,22 +386,21 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
           tfKPused = false;
         end
       elseif strcmp(key,'backquote')
-        iPt = obj.kpfIPtFor1Key+10;
-        if iPt > obj.nPts
-          iPt = 1;
+        if tfShft
+          obj.decrementHotKeySet();
+        else
+          obj.incrementHotKeySet();
         end
-        obj.kpfIPtFor1Key = iPt;
       elseif any(strcmp(key,{'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
         iPt = str2double(key);
         if iPt==0
           iPt = 10;
         end
-        iPt = iPt+obj.kpfIPtFor1Key-1;
-        if iPt > obj.nPts
-          return;
+        [tf,iPt] = obj.numHotKeyInRange(iPt);
+        if tf
+          obj.selClearSelected(iPt);
+          obj.selToggleSelectPoint(iPt);
         end
-        obj.selClearSelected(iPt);
-        obj.selToggleSelectPoint(iPt);
       else
         tfKPused = false;
       end
@@ -442,7 +438,8 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
         
   end
   
-  methods % template
+  %% Template
+  methods
         
     function setRandomTemplate(obj)
       %# CALOK
@@ -464,6 +461,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
   end
   
+  %% Projection
   methods
     
     function projectionWorkingSetClear(obj)
@@ -685,7 +683,8 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
     
   end
   
-  methods % Selected
+  %% Selected
+  methods 
     
     function [tf,iSelected] = selAnyPointSelected(obj)
       tf = any(obj.tfPtSel);
@@ -720,6 +719,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
 
   end
   
+  %% 
   methods
     
     % ADJUST/ACCEPTED-NESS
@@ -836,26 +836,90 @@ classdef LabelCoreMultiViewCalibrated < LabelCore
       set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
       set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
     end
-    
-    function refreshHotkeyDesc(obj)
-      iPtLo = obj.kpfIPtFor1Key;
-      iPtHi = min(obj.nPts,iPtLo+9);
-      iSetLo = obj.iPt2iSet(iPtLo);
-      iSetHi = obj.iPt2iSet(iPtHi);
-      iAxLo = obj.iPt2iAx(iPtLo);
-      iAxHi = obj.iPt2iAx(iPtHi);
-      vNameLo = obj.labeler.viewNames{iAxLo};
-      vNameHi = obj.labeler.viewNames{iAxHi};
-      hkHi = 1+iPtHi-iPtLo;
-      if hkHi==10
-        hkHi = 0;
+            
+  end
+  
+  %% Num HotKeys
+  methods
+   
+    function incrementHotKeySet(obj)
+      obj.numHotKeySet = obj.numHotKeySet+1;
+      if obj.numHotKeySet>size(obj.numHotKeySetInfo,1)
+        obj.numHotKeySet = 1;
       end
-      str = sprintf('Hotkeys ''1''->''%d'': view:%s/pt%d->view:%s/pt%d',...
-        hkHi,vNameLo,iSetLo,vNameHi,iSetHi);
+      obj.refreshHotkeyDesc();
+    end
+    
+    function decrementHotKeySet(obj)
+      obj.numHotKeySet = obj.numHotKeySet-1;
+      if obj.numHotKeySet<1
+        obj.numHotKeySet = size(obj.numHotKeySetInfo,1);
+      end
+      obj.refreshHotkeyDesc();      
+    end
+    
+    function [tf,iPt] = numHotKeyInRange(obj,keyval)
+      % keyval: 1-10
+      %
+      % tf: true if keyval is in range
+      % iPt: iPt corresponding to keyval
+      hkset = obj.numHotKeySetInfo(obj.numHotKeySet,:);
+      loKey = hkset(4);
+      hiKey = hkset(5);
+      loPt = hkset(6);
+
+      tf = loKey<=keyval && keyval<=hiKey;
+      if tf
+        iPt = loPt + keyval - loKey;
+      else
+        iPt = nan;
+      end
+    end
+      
+    function refreshHotkeyDesc(obj)
+      hkset = obj.numHotKeySetInfo(obj.numHotKeySet,:);
+      iView = hkset(1);
+      loPtSet = hkset(2);
+      hiPtSet = hkset(3);
+      loKey = hkset(4);
+      hiKey = hkset(5);
+      
+      viewName = obj.labeler.viewNames{iView};
+      str = sprintf('Hotkeys ''%d''->''%d'': view:%s pts%d->%d',...
+        loKey,hiKey,viewName,loPtSet,hiPtSet);
       [obj.hAxXLabels.String] = deal(str);
       obj.txLblCoreAux.String = str;
     end
-            
+    
+  end
+  methods (Static)
+    
+    function info = genNumHotKeySetInfo(nView,nPointSet)
+      % info: 7 cols.
+      %  1. iView
+      %  2. lo pointset in view
+      %  3. hi pointset in view
+      %  4. lo key (1 through 0==10)
+      %  5. hi key (")
+      %  6. lo iPt
+      %  7. hi iPt
+      % 
+      % Each row of info gives you a current state for num hotkeys. Let's
+      % say row = info(i,:). Then hitting hotkeys row(4) through row(5)
+      % maps to 3dpoint row(2) through row(3) in view row(1).
+      nGroupsOf10PerView = ceil(nPointSet/10);
+      info = nan(0,7);
+      for iView = 1:nView
+        tmp = [repmat(iView,nGroupsOf10PerView,1) (1:10:nPointSet)'];
+        tmp(:,3) = min(tmp(:,2)+9,nPointSet);
+        tmp(:,4) = 1;
+        tmp(:,5) = tmp(:,4)+(tmp(:,3)-tmp(:,2));
+        tmp(:,6) = (tmp(:,1)-1)*nPointSet+tmp(:,2);
+        tmp(:,7) = (tmp(:,1)-1)*nPointSet+tmp(:,3);
+        info = cat(1,info,tmp);
+      end
+    end
+    
   end
   
 end
