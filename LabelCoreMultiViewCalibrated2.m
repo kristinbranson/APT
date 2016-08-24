@@ -112,11 +112,13 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
     
-    kpfIPtFor1Key;   % scalar positive integer. This is the point index that
-    % the '1' hotkey maps to, eg typically this will take the
-    % values 1, 11, 21, ...
+    numHotKeyPtSet; % scalar positive integer. This is the pointset that 
+                    % the '1' hotkey currently maps to
 
     tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
+    
+    hAxXLabels; % [nview] xlabels for axes
+    hAxXLabelsFontSize = 11;
   end
   
   methods % dep prop getters
@@ -133,9 +135,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   
   methods 
     
-    function set.kpfIPtFor1Key(obj,val)
-      obj.kpfIPtFor1Key = val;
-      obj.refreshTxLabelCoreAux();
+    function set.numHotKeyPtSet(obj,val)
+      obj.numHotKeyPtSet = val;
+      obj.refreshHotkeyDesc();
     end
     
   end
@@ -151,6 +153,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.pjtHLinesEpi = [];
       deleteValidHandles(obj.pjtHLinesRecon);
       obj.pjtHLinesRecon = [];
+      deleteValidHandles(obj.hAxXLabels);
+      obj.hAxXLabels = [];
     end
         
     function initHook(obj)
@@ -194,9 +198,14 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.tfAdjusted = false(obj.nPts,1);
       obj.tfPtSel = false(obj.nPts,1);       
 
+      obj.hAxXLabels = gobjects(obj.nView,1);
+      for iView=1:obj.nView
+        ax = obj.hAx(iView);
+        obj.hAxXLabels(iView) = xlabel(ax,'','fontsize',obj.hAxXLabelsFontSize);
+      end
       obj.txLblCoreAux.Visible = 'on';
-      obj.kpfIPtFor1Key = 1;
-      obj.refreshTxLabelCoreAux();
+      obj.numHotKeyPtSet = 1;
+      obj.refreshHotkeyDesc();
 
       obj.projectionWorkingSetClear();
       obj.projectionInit();
@@ -435,28 +444,28 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           tfKPused = false;
         end
       elseif strcmp(key,'backquote')
-        iPt = obj.kpfIPtFor1Key+10;
-        if iPt > obj.nPts
-          iPt = 1;
+        iSet = obj.numHotKeyPtSet+10;
+        if iSet > obj.nPointSet
+          iSet = 1;
         end
-        obj.kpfIPtFor1Key = iPt;
+        obj.numHotKeyPtSet = iSet;
       elseif any(strcmp(key,{'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
         iSet = str2double(key);
         if iSet==0
           iSet = 10;
         end
-        iSet = iSet+obj.kpfIPtFor1Key-1;
-		if iSet > obj.nPointSet
-		  % none
-		else
-		  tfClearOnly = iSet==obj.iSetWorking;
-		  obj.projectionWorkingSetClear();
-		  obj.projectionClear();
-		  obj.selClearSelected();
-		  if ~tfClearOnly
-			obj.projectionWorkingSetSet(iSet);
-		  end
-		end
+        iSet = iSet+obj.numHotKeyPtSet-1;
+        if iSet > obj.nPointSet
+          % none
+        else
+          tfClearOnly = iSet==obj.iSetWorking;
+          obj.projectionWorkingSetClear();
+          obj.projectionClear();
+          obj.selClearSelected();
+          if ~tfClearOnly
+            obj.projectionWorkingSetSet(iSet);
+          end
+        end
       else
         tfKPused = false;
       end
@@ -893,11 +902,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
     end
     
-    function refreshTxLabelCoreAux(obj)
-      iPt0 = obj.kpfIPtFor1Key;
-      iPt1 = iPt0+9;
-      str = sprintf('Hotkeys 0-9 map to points %d-%d',iPt0,iPt1);
-      obj.txLblCoreAux.String = str;      
+    function refreshHotkeyDesc(obj)
+      iSet0 = obj.numHotKeyPtSet;
+      iSet1 = iSet0+9;
+      str = sprintf('Hotkeys 0-9 map to 3d points %d-%d',iSet0,iSet1);
+      [obj.hAxXLabels.String] = deal(str);
+      obj.txLblCoreAux.String = str;
     end
             
   end
