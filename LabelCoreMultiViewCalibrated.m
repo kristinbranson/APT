@@ -401,7 +401,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore & LabelCoreMVMixin
         '*   Shift-LEFT, etc adjusts the point by larger steps.' 
         '*   Clicking on the image moves the selected point to that location.'
         '*   <space> projects epipolar lines or 3d-reconstructed points for the current point.'
-        '* backquote (`) increments the mapping of the 0-9 hotkeys; shift-backquote to decrement.'};
+        '* backquote (`) increments the mapping of the 0-9 hotkeys; shift-backquote decrements.'};
     end
     
     function refreshEstOccPts(obj,varargin)
