@@ -47,12 +47,6 @@ classdef TrackMode
           end
           frms = frms(~tfOOB);
           frms = {frms(:)'};
-%         elseif obj==TrackMode.SelMovEveryLblFrame
-%           iMov = labelerObj.moviesSelected;
-%           nMov = numel(iMov);
-%           frms = cell(nMov,1);
-%           for i=1:nMov            
-%           end
         else % track at regular intervals
           switch obj
             case TrackMode.CurrMovEveryFrame
