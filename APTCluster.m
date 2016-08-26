@@ -27,3 +27,4 @@ switch action
 end
 
 delete(lObj);
+close all force;

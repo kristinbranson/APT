@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="1085157953" file="/groups/branson/home/leea30/git/apt/APTCluster.prj" location="/groups/branson/home/leea30/git/apt" name="APTCluster" preferred-package-location="/groups/branson/home/leea30/git/apt/APTCluster/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="2867092619" file="/groups/branson/home/leea30/git/apt/APTCluster.prj" location="/groups/branson/home/leea30/git/apt" name="APTCluster" preferred-package-location="/groups/branson/home/leea30/git/apt/APTCluster/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>APTCluster</param.appname>
     <param.icon />
     <param.icons />
@@ -111,6 +111,7 @@
       <file>${PROJECT_ROOT}/LabelCore.m</file>
       <file>${PROJECT_ROOT}/LabelCoreErrorCorrect.m</file>
       <file>${PROJECT_ROOT}/LabelCoreHT.m</file>
+      <file>${PROJECT_ROOT}/LabelCoreMVMixin.m</file>
       <file>${PROJECT_ROOT}/LabelCoreMultiViewCalibrated.m</file>
       <file>${PROJECT_ROOT}/LabelCoreMultiViewCalibrated2.m</file>
       <file>${PROJECT_ROOT}/LabelCoreMultiViewTemplate.m</file>
