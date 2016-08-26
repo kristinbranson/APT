@@ -2,13 +2,13 @@ classdef RC
 % Configuration file
 
   properties (Constant)
-    FILE = fullfile(APT.Root,'.apt.mat');
+    FILE = lclInitFile();
   end
   
   methods (Static)
     
     % AL 20150606: Currently every getprop involves a filesystem read
-    function v = getprop(name)
+    function v = getprop(name)      
       rc = RC.load;
       if isfield(rc,name)
         v = rc.(name);
@@ -19,11 +19,16 @@ classdef RC
     
     % AL 20150606: Currently every setprop involves a filesystem write
     function saveprop(name,v)
-      tmp = struct(name,v); %#ok<NASGU>
-      if exist(RC.FILE,'file')==2
-        save(RC.FILE,'-append','-struct','tmp');
+      file = RC.FILE;
+      if isempty(file)
+        % none
       else
-        save(RC.FILE,'-struct','tmp');
+        tmp = struct(name,v); %#ok<NASGU>
+        if exist(file,'file')==2
+          save(file,'-append','-struct','tmp');
+        else
+          save(file,'-struct','tmp');
+        end
       end
     end      
     
@@ -41,4 +46,12 @@ classdef RC
         
   end
   
+end
+
+function f = lclInitFile()
+if isdeployed
+  f = [];
+else
+  f = fullfile(APT.Root,'.apt.mat'); 
+end
 end
