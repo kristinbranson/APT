@@ -3089,7 +3089,8 @@ classdef Labeler < handle
         obj.showTrxMode = ShowTrxMode.ALL;
       end
       onoff = onIff(obj.hasTrx);
-      obj.gdata.menu_view_trajectories.Enable = onoff;
+      mnu = obj.gdata.menu_view_trajectories; % AL20160828 apparent bug in MATLAB 2014b for subsasgn on nested handle objs (tries to call setter of .gdata)
+      mnu.Enable = onoff;
     end
     
     function setShowTrxMode(obj,mode)
