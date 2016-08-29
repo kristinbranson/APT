@@ -2108,6 +2108,11 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
+    function labelPosClearFramesI(obj,frms,iPt)
+      xy = nan(2,1);
+      obj.labelPosSetFramesI(frms,xy,iPt);      
+    end
+    
     function labelPosSetFramesI(obj,frms,xy,iPt)
       % Set labelpos for current movie/target to a single (constant) point
       % across multiple frames
@@ -2115,7 +2120,7 @@ classdef Labeler < handle
       % frms: vector of frames
       
       assert(isvector(frms));
-      assert(numel(xy)==2 && ~any(isnan(xy(:))));
+      assert(numel(xy)==2);
       assert(isscalar(iPt));
       
       obj.trxCheckFramesLive(frms);
