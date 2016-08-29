@@ -2388,8 +2388,14 @@ classdef Labeler < handle
       if any(tfexist)
         iExist = find(tfexist,1);
         queststr = sprintf('One or more .trk files already exist, eg: %s.',trkfiles{iExist});
-        btn = questdlg(queststr,'Files exist','Overwrite','Add datetime to filenames',...
-          'Cancel','Add datetime to filenames');
+        if isdeployed
+          btn = 'Add datetime to filenames';
+          warning('Labeler:getTrkFileNamesForExport',...
+            'One or more .trk files already exist. Adding datetime to trk filenames.');
+        else
+          btn = questdlg(queststr,'Files exist','Overwrite','Add datetime to filenames',...
+            'Cancel','Add datetime to filenames');
+        end
         if isempty(btn)
           btn = 'Cancel';
         end

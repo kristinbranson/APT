@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="3439273154" file="/groups/branson/home/leea30/git/apt/APTCluster.prj" location="/groups/branson/home/leea30/git/apt" name="APTCluster" preferred-package-location="/groups/branson/home/leea30/git/apt/APTCluster/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="1548968504" file="/groups/branson/home/leea30/git/apt/APTCluster.prj" location="/groups/branson/home/leea30/git/apt" name="APTCluster" preferred-package-location="/groups/branson/home/leea30/git/apt/APTCluster/for_redistribution" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>APTCluster</param.appname>
     <param.icon />
     <param.icons />
@@ -132,6 +132,7 @@
       <file>${PROJECT_ROOT}/ProjectSetup.m</file>
       <file>${PROJECT_ROOT}/RC.m</file>
       <file>${PROJECT_ROOT}/ShowTrxMode.m</file>
+      <file>${PROJECT_ROOT}/TrackMode.m</file>
       <file>${PROJECT_ROOT}/TrkFile.m</file>
       <file>${PROJECT_ROOT}/YAMLMatlab_0.4.3/DateTime.m</file>
       <file>${PROJECT_ROOT}/YAMLMatlab_0.4.3/ReadYaml.m</file>
