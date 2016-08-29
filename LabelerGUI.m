@@ -587,7 +587,8 @@ end
 function cbkMovieForceGrayscaleChanged(src,evt)
 lObj = evt.AffectedObject;
 tf = lObj.movieForceGrayscale;
-lObj.gdata.menu_view_converttograyscale.Checked = onIff(tf);
+mnu = lObj.gdata.menu_view_converttograyscale;
+mnu.Checked = onIff(tf);
 
 function cbkSuspScoreChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -702,7 +703,8 @@ tm = tms(val);
 function cbkMovieCenterOnTargetChanged(src,evt)
 lObj = evt.AffectedObject;
 tf = lObj.movieCenterOnTarget;
-lObj.gdata.menu_view_trajectories_centervideoontarget.Checked = onIff(tf);
+mnu = lObj.gdata.menu_view_trajectories_centervideoontarget;
+mnu.Checked = onIff(tf);
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -852,7 +854,8 @@ handles.labelTLInfo.selectModeOn = hObject.Value;
 
 function cbklabelTLInfoSelectModeOn(src,evt)
 lblTLObj = evt.AffectedObject;
-lblTLObj.lObj.gdata.tbTLSelectMode.Value = lblTLObj.selectModeOn;
+tb = lblTLObj.lObj.gdata.tbTLSelectMode;
+tb.Value = lblTLObj.selectModeOn;
 
 function cbklabelTLInfoPropsUpdated(src,evt)
 % Update the props dropdown menu and timeline.

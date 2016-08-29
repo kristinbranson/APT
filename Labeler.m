@@ -2393,8 +2393,14 @@ classdef Labeler < handle
       if any(tfexist)
         iExist = find(tfexist,1);
         queststr = sprintf('One or more .trk files already exist, eg: %s.',trkfiles{iExist});
-        btn = questdlg(queststr,'Files exist','Overwrite','Add datetime to filenames',...
-          'Cancel','Add datetime to filenames');
+        if isdeployed
+          btn = 'Add datetime to filenames';
+          warning('Labeler:getTrkFileNamesForExport',...
+            'One or more .trk files already exist. Adding datetime to trk filenames.');
+        else
+          btn = questdlg(queststr,'Files exist','Overwrite','Add datetime to filenames',...
+            'Cancel','Add datetime to filenames');
+        end
         if isempty(btn)
           btn = 'Cancel';
         end
@@ -3094,7 +3100,8 @@ classdef Labeler < handle
         obj.showTrxMode = ShowTrxMode.ALL;
       end
       onoff = onIff(obj.hasTrx);
-      obj.gdata.menu_view_trajectories.Enable = onoff;
+      mnu = obj.gdata.menu_view_trajectories; % AL20160828 apparent bug in MATLAB 2014b for subsasgn on nested handle objs (tries to call setter of .gdata)
+      mnu.Enable = onoff;
     end
     
     function setShowTrxMode(obj,mode)
