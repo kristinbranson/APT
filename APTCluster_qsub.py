@@ -17,18 +17,8 @@ def main():
 #    parser.add_argument("--elist",help="file containing list of experiments to process")
 #    parser.add_argument("--bindir",default="/groups/flyprojects/home/leea30/git/fba.build/bubble/current")
 #    parser.add_argument("--setdir",default="/groups/flyprojects/home/leea30/git/fba.flybubble/settings")
-#    parser.add_argument("-ap","--anlsprot",default="current_bubble")
     parser.add_argument("--account",default="bransonk",help="account to charge")
     parser.add_argument("--outdir",default="/groups/branson/home/leea30/aptrun",help="output dir")
-#    parser.add_argument("--outsubdirauto",action="store_true")
-#    parser.add_argument("--aci",action="store_true")
-#    parser.add_argument("--reg",action="store_true")
-#    parser.add_argument("--sex",action="store_true")
-#    parser.add_argument("--wgt",action="store_true")
-#    parser.add_argument("--pff",action="store_true")
-#    parser.add_argument("--dec",action="store_true")
-#    parser.add_argument("--jdt",action="store_true")
-#    parser.add_argument("--mov",action="store_true")
     parser.add_argument("-pebatch",default="1",help="number of slots")
 #    parser.add_argument("exps",nargs="*",help="full path to experiments to process")
 
@@ -36,7 +26,8 @@ def main():
     
     # misc other args maybe settable in future
     if args.multithreaded:
-        args.BIN = "/groups/branson/home/leea30/git/apt/APTCluster/multithreaded/run_APTCluster.sh"
+        args.BIN = "/groups/branson/home/leea30/aptbuild/current/APTCluster/run_APTCluster_multithreaded.sh"
+        #args.BIN = "/groups/branson/home/leea30/git/apt/APTCluster/multithreaded/run_APTCluster.sh"
     else:
         args.BIN = "/groups/branson/home/leea30/git/apt/APTCluster/singlethreaded/run_APTCluster.sh"
 
