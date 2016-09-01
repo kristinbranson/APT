@@ -11,15 +11,16 @@ import re
 
 def main():
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--cmd",help="APTCluster args")
+    epilogstr = 'Examples for --cmd:\n--cmd "<projname> retrain" # performs full retraining of project\n--cmd "<projname> track <moviename>" # tracks movie using tracker in project\n--cmd "<projname> trackbatch <movielistfile>" # tracks list of movies in text file <movielistfile>'
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
+    parser.add_argument("--cmd",help="Arguments passed to APTCluster.m")
     parser.add_argument("--multithreaded",action="store_true")
 #    parser.add_argument("--elist",help="file containing list of experiments to process")
 #    parser.add_argument("--bindir",default="/groups/flyprojects/home/leea30/git/fba.build/bubble/current")
 #    parser.add_argument("--setdir",default="/groups/flyprojects/home/leea30/git/fba.flybubble/settings")
-    parser.add_argument("--account",default="bransonk",help="account to charge")
-    parser.add_argument("--outdir",default="/groups/branson/home/leea30/aptrun",help="output dir")
-    parser.add_argument("-pebatch",default="1",help="number of slots")
+    parser.add_argument("--account",default="",help="account to bill for cluster time")
+    parser.add_argument("--outdir",default=os.environ['HOME'],help="location to output qsub script and output log")
+    parser.add_argument("-pebatch",default="1",help="number of cluster slots to use")
 #    parser.add_argument("exps",nargs="*",help="full path to experiments to process")
 
     args = parser.parse_args()
@@ -27,17 +28,15 @@ def main():
     # misc other args maybe settable in future
     if args.multithreaded:
         args.BIN = "/groups/branson/home/leea30/aptbuild/current/APTCluster/run_APTCluster_multithreaded.sh"
-        #args.BIN = "/groups/branson/home/leea30/git/apt/APTCluster/multithreaded/run_APTCluster.sh"
     else:
-        args.BIN = "/groups/branson/home/leea30/git/apt/APTCluster/singlethreaded/run_APTCluster.sh"
+        args.BIN = "/groups/branson/home/leea30/aptbuild/current/APTCluster/run_APTCluster_singleithreaded.sh"
 
     args.KEYWORD = "apt"; # used for log/sh filenames, sge job name
     args.MCR = "/groups/branson/home/leea30/mlrt/v90"
     args.USERNAME = subprocess.check_output("whoami").strip()
     args.TMP_ROOT_DIR = "/scratch/" + args.USERNAME
     args.MCR_CACHE_ROOT = args.TMP_ROOT_DIR + "/mcr_cache_root"
-    args.QSUBARGS = "-pe batch " + args.pebatch + " -l sl7=true -j y -b y -cwd"
-    
+    args.QSUBARGS = "-pe batch " + args.pebatch + " -l sl7=true -j y -b y -cwd"    
         
     # summarize for user, proceed y/n?
     argsdisp = vars(args).copy()

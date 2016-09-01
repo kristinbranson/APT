@@ -2573,7 +2573,7 @@ classdef Labeler < handle
       switch nCommon
         case 0
           error('Labeler:labelImportTrkPrompt',...
-            'No consistently-named trk files found across %d given movies.',nMov);
+            'No consistently-named trk files found across %d given movies.',numel(movfiles));
         case 1
           trkfilesUseIdx = 1;
         otherwise
