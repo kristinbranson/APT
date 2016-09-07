@@ -7,7 +7,7 @@ classdef CPRLabelTracker < LabelTracker
       'trnResIPt' 'trnResRC'};
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
     
-    DEFAULT_PARAMETER_FILE = fullfile(CPR.Root,'param.example.yaml');
+    DEFAULT_PARAMETER_FILE = lclInitDefaultParameterFile();
   end
   
   %% Params
@@ -1333,4 +1333,13 @@ classdef CPRLabelTracker < LabelTracker
     
   end
   
+end
+
+function dpf = lclInitDefaultParameterFile()
+
+if isdeployed
+  dpf = fullfile(ctfroot,'param.example.yaml');
+else
+  dpf = fullfile(CPR.Root,'param.example.yaml');
+end
 end
