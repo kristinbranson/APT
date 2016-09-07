@@ -64,8 +64,10 @@ def main():
     gencode(shfile,jobid,args)
 
     # submit 
-    qargs = "-A {0:s} -o {1:s} -N {2:s} {3:s} {4:s}".format(args.account,
-                                                            logfile,jobid,args.QSUBARGS,shfile)
+    qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
+    if args.account:
+        qargs = "-A {0:s} ".format(args.account) + qargs
+
     qsubcmd = "qsub " + qargs
     print(qsubcmd)
     subprocess.call(qsubcmd,shell=True)
