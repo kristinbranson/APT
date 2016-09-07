@@ -29,7 +29,7 @@ def main():
     if args.multithreaded:
         args.BIN = "/groups/branson/home/leea30/aptbuild/current/APTCluster/run_APTCluster_multithreaded.sh"
     else:
-        args.BIN = "/groups/branson/home/leea30/aptbuild/current/APTCluster/run_APTCluster_singleithreaded.sh"
+        args.BIN = "/groups/branson/home/leea30/aptbuild/current/APTCluster/run_APTCluster_singlethreaded.sh"
 
     args.KEYWORD = "apt"; # used for log/sh filenames, sge job name
     args.MCR = "/groups/branson/home/leea30/mlrt/v90"

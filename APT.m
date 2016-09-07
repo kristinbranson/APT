@@ -131,7 +131,7 @@ classdef APT
       % Generate mcc args
       buildIfo = struct();
       buildIfo.multithreaded = {};
-      buildIfo.singlethreaded = {'-R' 'singleCompThread'};      
+      buildIfo.singlethreaded = {'-R' '-singleCompThread'};      
 
       pth = APT.getpath();
       pth = pth(:);
