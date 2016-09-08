@@ -11,21 +11,39 @@ import re
 
 def main():
 
-    epilogstr = 'Examples for --cmd:\n--cmd "<projname> retrain" # performs full retraining of project\n--cmd "<projname> track <moviename>" # tracks movie using tracker in project\n--cmd "<projname> trackbatch <movielistfile>" # tracks list of movies in text file <movielistfile>'
+    epilogstr = 'Examples:\n.../APTCluster_qsub.py /path/to/proj.lbl --pebatch 10 --multithreaded retrain\n.../APTCluster_qsub.py /path/to/proj.lbl track --pebatch 8 --mov /path/to/movie.avi\n.../APTCluster_qsub.py /path/to/proj.lbl trackbatch --pebatch 10 --multithreaded --movbatchfile /path/to/movielist.txt\n'
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
-    parser.add_argument("--cmd",help="Arguments passed to APTCluster.m")
-    parser.add_argument("--multithreaded",action="store_true")
-#    parser.add_argument("--elist",help="file containing list of experiments to process")
-#    parser.add_argument("--bindir",default="/groups/flyprojects/home/leea30/git/fba.build/bubble/current")
-#    parser.add_argument("--setdir",default="/groups/flyprojects/home/leea30/git/fba.flybubble/settings")
-    parser.add_argument("--account",default="",help="account to bill for cluster time")
-    parser.add_argument("--outdir",default=os.environ['HOME'],help="location to output qsub script and output log")
-    parser.add_argument("-pebatch",default="1",help="number of cluster slots to use")
-#    parser.add_argument("exps",nargs="*",help="full path to experiments to process")
+
+    parser.add_argument("projfile",help="APT project file")
+    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
+
+    parser.add_argument("--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
+    parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
+    parser.add_argument("--movbatchfile",help="file containing list of movies; used when action==trackbatch*",metavar="BATCHFILE")
+    parser.add_argument("--multithreaded",help="if true, run multithreaded binary",action="store_true",default=True)
+    parser.add_argument("--account",default="",help="account to bill for cluster time",metavar="ACCOUNT")
+    parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
 
     args = parser.parse_args()
     
-    # misc other args maybe settable in future
+    if not os.path.exists(args.projfile):
+        sys.exit("Cannot find project file: {0:s}".format(args.projfile))
+
+    if args.action=="track":
+        if not args.mov:
+            sys.exit("--mov must be specified for action==track")
+        elif not os.path.exists(args.mov):
+            sys.exit("Cannot find movie: {0:s}".format(args.mov))
+    if args.action in ["trackbatch","trackbatchserial"]:
+        if not args.movbatchfile:
+            sys.exit("--movbatchfile must be specified for action==trackbatch or trackbatchserial")
+        elif not os.path.exists(args.movbatchfile):
+            sys.exit("Cannot find movie batchfile: {0:s}".format(args.movbatchfile))
+    if args.action!="track" and args.mov:
+        print("Action is " + args.action + ", ignoring --mov specification")
+    if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
+        print("Action is " + args.action + ", ignoring --movbatchfile specification")
+        
     if args.multithreaded:
         args.BIN = "/groups/branson/home/leea30/aptbuild/current/APTCluster/run_APTCluster_multithreaded.sh"
     else:
@@ -36,7 +54,9 @@ def main():
     args.USERNAME = subprocess.check_output("whoami").strip()
     args.TMP_ROOT_DIR = "/scratch/" + args.USERNAME
     args.MCR_CACHE_ROOT = args.TMP_ROOT_DIR + "/mcr_cache_root"
-    args.QSUBARGS = "-pe batch " + args.pebatch + " -l sl7=true -j y -b y -cwd"    
+    args.QSUBARGS = "-pe batch " + args.pebatch + " -l sl7=true -j y -b y -cwd" 
+    if args.account:
+        args.QSUBARGS = "-A {0:s} ".format(args.account) + args.QSUBARGS
         
     # summarize for user, proceed y/n?
     argsdisp = vars(args).copy()
@@ -48,33 +68,81 @@ def main():
     pprintdict(argsdisp)
     resp = raw_input("Proceed? y/[n]")
     if not resp=="y":
-        exit()
+        sys.exit("Aborted")
 
-    DTPAT = '[0-9]{8,8}T[0-9]{6,6}'
+    if args.outdir and not os.path.exists(args.outdir):
+        print("Creating outdir: " + args.outdir)
+        os.makedirs(args.outdir)
 
-    # jobid
-    nowstr = datetime.datetime.now().strftime("%Y%m%dT%H%M%S%f")
-    nowstr = nowstr[:-3] # keep only milliseconds
-    jobid = args.KEYWORD + "-" + nowstr
-    print(jobid)
+    if args.action=="trackbatch":
+        movs = [line.rstrip('\n') for line in open(args.movbatchfile,'r')]
+        nmovtot = len(movs)
+        nmovsub = 0
+        for mov in movs:
+            mov = mov.rstrip()
 
-    # generate code
-    shfile = os.path.join(args.outdir,"{0:s}.sh".format(jobid))
-    logfile = os.path.join(args.outdir,"{0:s}.log".format(jobid))
-    gencode(shfile,jobid,args)
+            if not os.path.exists(mov):
+                print("Cannot find movie: " + mov + ". Skipping...")
+                continue
+            
+            # jobid
+            nowstr = datetime.datetime.now().strftime("%Y%m%dT%H%M%S%f")
+            nowstr = nowstr[:-3] # keep only milliseconds
+            jobid = args.KEYWORD + "-" + nowstr
+            print(jobid)
 
-    # submit 
-    qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
-    if args.account:
-        qargs = "-A {0:s} ".format(args.account) + qargs
+            # generate code
+            if args.outdir:
+                outdiruse = args.outdir
+            else:
+                outdiruse = os.path.dirname(mov)
+            shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
+            logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
+            cmd = args.projfile + " track " + mov
+            gencode(shfile,jobid,args,cmd)
 
-    qsubcmd = "qsub " + qargs
-    print(qsubcmd)
-    subprocess.call(qsubcmd,shell=True)
+            # submit 
+            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
+            qsubcmd = "qsub " + qargs
+            print(qsubcmd)
+            subprocess.call(qsubcmd,shell=True)
+            nmovsub = nmovsub+1
+
+    else:
+        # jobid
+        nowstr = datetime.datetime.now().strftime("%Y%m%dT%H%M%S%f")
+        nowstr = nowstr[:-3] # keep only milliseconds
+        jobid = args.KEYWORD + "-" + nowstr
+        print(jobid)
+
+        # generate code
+        if args.outdir:
+            outdiruse = args.outdir
+        else:
+            if args.action=="track":
+                outdiruse = os.path.dirname(args.mov)
+            else: # trackbatchserial, retrain
+                outdiruse = os.path.dirname(args.projfile)                
+        shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
+        logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
+        if args.action=="retrain":
+            cmd = args.projfile + " " + args.action
+        elif args.action=="track":
+            cmd = args.projfile + "  " + args.action + " " + args.mov
+        elif args.action=="trackbatchserial":
+            cmd = args.projfile + "  trackbatch " + args.movbatchfile
+
+        gencode(shfile,jobid,args,cmd)
+
+        # submit 
+        qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
+        qsubcmd = "qsub " + qargs
+        print(qsubcmd)
+        subprocess.call(qsubcmd,shell=True)
 
     exit()
 
-def gencode(fname,jobid,args):
+def gencode(fname,jobid,args,cmd):
     f = open(fname,'w')
     print("#!/bin/bash",file=f)
     print("",file=f)
@@ -84,7 +152,7 @@ def gencode(fname,jobid,args):
     print("echo $MCR_CACHE_ROOT",file=f)
 
     print("",file=f)
-    print(args.BIN + " " + args.MCR + " " + args.cmd,file=f)
+    print(args.BIN + " " + args.MCR + " " + cmd,file=f)
     print("",file=f)
 
     print("rm -rf",args.MCR_CACHE_ROOT+"."+jobid,file=f)
