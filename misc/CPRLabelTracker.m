@@ -475,25 +475,28 @@ classdef CPRLabelTracker < LabelTracker
       % 
       % Sets .trnRes*
       
-      useRC = myparse(varargin,...
-        'useRC',true... % always true now (use RegressorCascade)
+      [useRC,updateTrnData] = myparse(varargin,...
+        'useRC',true,... % always true now (use RegressorCascade)
+        'updateTrnData',true... % if false, don't check for new/recent Labeler labels
         );
       
       prm = obj.sPrm;
       if isempty(prm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
-            
-      % first, update the TrnData with any new labels
-      tblPNew = obj.getTblPLbledRecent();
-      [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
-      obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
-      obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
-      nowtime = now();
-      obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
-      obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(size(tblPNewTD,1),1)];
-      fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
-        size(tblPUpdateTD,1),size(tblPNewTD,1));
+
+      if updateTrnData
+        % update the TrnData with any new labels
+        tblPNew = obj.getTblPLbledRecent();
+        [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
+        obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+        obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
+        nowtime = now();
+        obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
+        obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(size(tblPNewTD,1),1)];
+        fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
+          size(tblPUpdateTD,1),size(tblPNewTD,1));
+      end
       
       tblPTrn = obj.trnDataTblP;
       if isempty(tblPTrn)
@@ -858,7 +861,7 @@ classdef CPRLabelTracker < LabelTracker
         % there were original tracking results and the old .trkPiPt matches
         % the new (in which case this line is a no-op).
         obj.trkPiPt = obj.trnResIPt;
-      end      
+      end   
       
       if ~isempty(obj.lObj)
         obj.vizLoadXYPrdCurrMovie();

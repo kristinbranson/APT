@@ -109,10 +109,11 @@ classdef RegressorCascade < handle
       end
     end
     
+    % XXX TODO3D
     function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused) % obj const
       % t: major iteration
-      % I: [N] Cell array of images
-      % bboxes: [Nx2*d]
+      % I: [NxnView] Cell array of images
+      % bboxes: [Nx2*d]. Currently unused (used only for occlusion)
       % p: [QxD] shapes, absolute coords.
       % pIidx: [Q] indices into I for rows of p
       % tfuse: if true, only compute those features used in obj.ftrsUse(t,:,:,:)
@@ -147,6 +148,7 @@ classdef RegressorCascade < handle
       end
     end
     
+    % XXX TODO3D
     function trainWithRandInit(obj,I,bboxes,pGT,varargin)
       initpGTNTrn = myparse(varargin,...
         'initpGTNTrn',false... % if true, init with .pGTNTrn rather than pGT
@@ -171,6 +173,7 @@ classdef RegressorCascade < handle
       obj.train(I,bboxes,pGT,p0,pIidx,varargin{:});
     end
     
+    % XXX TODO3D
     function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
       % 
       %
@@ -345,6 +348,7 @@ classdef RegressorCascade < handle
       end      
     end
        
+    % XXX TODO3D
     function p_t = propagate(obj,I,bboxes,p0,pIidx,varargin) % obj const
       % Propagate shapes through regressor cascade.
       %
@@ -412,6 +416,7 @@ classdef RegressorCascade < handle
       end
     end
     
+    % XXX TODO3D
     function p_t = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj const
       % 
       
@@ -429,7 +434,9 @@ classdef RegressorCascade < handle
       
       p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
     end
-        
+      
+    % ----- BELOW HERE NOT SURE TODO3D -----
+    
     function yPred = fernUpdate(obj,t,X,iFtrsComp,yTar,prmReg)
       % Incremental update of fern structures
       %
