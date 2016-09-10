@@ -14,7 +14,6 @@ classdef LabelTracker < handle
       'CPRLabelTracker'
       };
   end
-    
   
   properties
     lObj % (back)handle to Labeler object
@@ -36,9 +35,11 @@ classdef LabelTracker < handle
     function obj = LabelTracker(labelerObj)
       obj.lObj = labelerObj;   
       
-      axOver = axisOverlay(obj.lObj.gdata.axes_curr);
-      axOver.LineWidth = 2;
-      obj.ax = axOver;
+      if ~isempty(obj.lObj)
+        axOver = axisOverlay(obj.lObj.gdata.axes_curr);
+        axOver.LineWidth = 2;
+        obj.ax = axOver;
+      end
       
       trkPrefs = labelerObj.projPrefs.Track;
       if isfield(trkPrefs,'PredictInterpolate')
@@ -98,9 +99,6 @@ classdef LabelTracker < handle
       % Full Train from scratch; existing/previous results cleared 
     end
     
-%     function inspectTrainingData(obj)
-%     end
-
     function track(obj,iMovs,frms)
       % Apply trained tracker to the specified frames.
       %

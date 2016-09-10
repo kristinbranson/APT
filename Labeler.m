@@ -1544,7 +1544,7 @@ classdef Labeler < handle
     function movieSetAdd(obj,moviefiles)
       % Add a set of movies (Multiview mode) to end of movie list.
       %
-      % moviefiles: cellstr (can have macris)
+      % moviefiles: cellstr (can have macros)
 
       if obj.nTargets~=1
         error('Labeler:movieSetAdd','Unsupported for nTargets>1.');
@@ -1823,6 +1823,36 @@ classdef Labeler < handle
       
       obj.currTarget = 0;
       obj.currSusp = [];
+    end
+    
+    function H0 = movieEstimateImHist(obj,nFrmSamp)
+      % Estimate the typical image histogram H0 of movies in the project.
+      %
+      % nFrmSamp: number of frames to sample. Currently the typical image
+      % histogram is computed with all frames weighted equally, even if
+      % some movies have far more frames than others. An alternative would
+      % be eg equal-weighting by movie. nFrmSamp is only an
+      % estimate/target, the actual number of frames sampled may differ.
+      
+      assert(obj.nview==1,'Not supported for multiview.');
+            
+      nfrmsAll = cellfun(@(x)x.nframes,obj.movieInfoAll);
+      nfrmsTotInProj = sum(nfrmsAll);
+      dfSamp = ceil(nfrmsTotInProj/nFrmSamp);
+      
+      I = cell(0,1);
+      mr = MovieReader;
+      mr.forceGrayscale = true;
+      for iMov = obj.nmovies
+        mov = obj.movieFilesAllFull{iMov};
+        mr.open(mov);
+        for f = 1:dfSamp:mr.nframes
+          I{end+1,1} = mr.readframe(f); %#ok<AGROW>
+          fprintf('Read movie %d, frame %d\n',iMov,f);
+        end
+      end
+        
+      H0 = typicalImHist(I);
     end
     
   end
