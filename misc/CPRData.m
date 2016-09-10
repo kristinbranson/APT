@@ -361,41 +361,13 @@ classdef CPRData < handle
         'g',ones(obj.N,1),...
         'hWaitBar',[]);
       tfH0Given = ~isempty(H0);
-      tfWB = ~isempty(hWB);
       
       imSz = cellfun(@size,obj.I,'uni',0);
       cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
       imSz = imSz{1};
-      imNpx = numel(obj.I{1});
       
-      if tfH0Given
-        % none
-      else
-        H = nan(nbin,obj.N);
-        mu = nan(1,obj.N);
-        loc = [];
-        if tfWB
-          waitbar(0,hWB,'Performing histogram equalization...','name','Histogram Equalization');
-        end
-        for iTrl = 1:obj.N
-          if tfWB
-            waitbar(iTrl/obj.N,hWB);
-          end
-          
-          im = obj.I{iTrl};
-          [H(:,iTrl),loctmp] = imhist(im,nbin);
-          if iTrl==1
-            loc = loctmp;
-          else
-            assert(isequal(loctmp,loc));
-          end
-          mu(iTrl) = mean(im(:));
-        end
-        % normalize to brighter movies, not to dimmer movies
-        tfuse = mu >= prctile(mu,75);
-        fprintf('using %d frames to form H0:\n',nnz(tfuse));
-        H0 = median(H(:,tfuse),2);
-        H0 = H0/sum(H0)*imNpx;
+      if ~tfH0Given
+        H0 = typicalImHist(obj.I,'nbin',nbin,'hWB',hWB);
       end
       obj.H0 = H0;
       
