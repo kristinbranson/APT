@@ -1077,7 +1077,6 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function loadSaveToken(obj,s)
-%       assert(strcmp(s.labelTrackerClass,class(obj)));
       if isfield(s,'labelTrackerClass')
         s = rmfield(s,'labelTrackerClass'); % legacy
       end
@@ -1088,6 +1087,16 @@ classdef CPRLabelTracker < LabelTracker
       if ~isequal(s.paramFile,obj.paramFile)
         warningNoTrace('CPRLabelTracker:paramFile',...
           'Setting parameter file to ''%s''.',s.paramFile);
+      end
+
+      % modernize params
+      if ~isempty(s.sPrm)
+        sPrm0 = CPRLabelTracker.readDefaultParams();
+        [s.sPrm,sPrm0used] = structoverlay(sPrm0,s.sPrm);
+        if ~isempty(sPrm0used)
+          fprintf('Using default parameters for: %s.\n',...
+            String.cellstr2CommaSepList(sPrm0used));
+        end
       end
       
       flds = fieldnames(s);
