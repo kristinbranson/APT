@@ -3091,30 +3091,6 @@ classdef Labeler < handle
       y0 = mean(v(3:4));
     end
     
-    function videoFlipUD(obj)
-      % flip entire axes; movies + labels
-      
-      gd = obj.gdata;
-      gd.axes_curr.YDir = toggleAxisDir(gd.axes_curr.YDir);
-      gd.axes_prev.YDir = toggleAxisDir(gd.axes_prev.YDir);
-    end
-    function videoFlipLR(obj)
-      % flip entire axes; movies + labels
-      
-      gd = obj.gdata;
-      gd.axes_curr.XDir = toggleAxisDir(gd.axes_curr.XDir);
-      gd.axes_prev.XDir = toggleAxisDir(gd.axes_prev.XDir);
-    end
-    
-    function videoFlipUDVidOnly(obj)
-      for i=1:obj.nview
-        obj.movieReader(i).flipVert = ~obj.movieReader(i).flipVert;
-      end
-      if obj.hasMovie
-        obj.setFrame(obj.currFrame,'tfforcereadmovie',true);
-      end
-    end
-    
   end
   
   %% showTrx

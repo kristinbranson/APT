@@ -1134,11 +1134,42 @@ function menu_view_trajectories_centervideoontarget_Callback(hObject, eventdata,
 lObj = handles.labelerObj;
 lObj.movieCenterOnTarget = ~lObj.movieCenterOnTarget;
 function menu_view_flip_flipud_movie_only_Callback(hObject, eventdata, handles)
-handles.labelerObj.videoFlipUDVidOnly();
+[tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(handles);
+if tfproceed
+  lObj = handles.labelerObj;
+  for iAx = iAxApply(:)'
+    mr = lObj.movieReader(iAx);
+    mr.flipVert = ~mr.flipVert;
+  end
+  if lObj.hasMovie
+    lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
+  end
+end
 function menu_view_flip_flipud_Callback(hObject, eventdata, handles)
-handles.labelerObj.videoFlipUD();
+[tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(handles);
+if tfproceed
+  for iAx = iAxApply(:)'
+    ax = handles.axes_all(iAx);
+    ax.YDir = toggleAxisDir(ax.YDir);
+    if ax==handles.axes_curr
+      ax2 = handles.axes_prev;
+      ax2.YDir = toggleAxisDir(ax2.YDir);
+    end
+  end
+end
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
-handles.labelerObj.videoFlipLR();
+[tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(handles);
+if tfproceed
+  for iAx = iAxApply(:)'
+    ax = handles.axes_all(iAx);
+    ax.XDir = toggleAxisDir(ax.XDir);
+    if ax==handles.axes_curr
+      ax2 = handles.axes_prev;
+      ax2.XDir = toggleAxisDir(ax2.XDir);
+    end
+  end
+end
+
 function menu_view_hide_labels_Callback(hObject, eventdata, handles)
 lblCore = handles.labelerObj.lblCore;
 if ~isempty(lblCore)
