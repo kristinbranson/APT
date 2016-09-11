@@ -7,8 +7,8 @@ classdef CalRigSH < CalRig
   end
   
   properties (SetAccess=private)
-    kineData; % scalar struct; kinemat calibration data
-    kineDataFile; % string    
+    kineData; % .kineData.cal.coeff.DLT_1, ...DLT2
+    kineDataFile; % string 
   end
     
   properties
@@ -27,12 +27,20 @@ classdef CalRigSH < CalRig
         obj.kineDataFile = '';
       else
         kd = load(kdfile);
-        kd = kd.data;
-        if ~all(isfield(kd,{'types' 'cal' 'kine'}))
+        if isfield(kd,'DLT_1') && isfield(kd,'DLT_2')
+          dlt1 = kd.DLT_1;
+          dlt2 = kd.DLT_2;
+        elseif isfield(kd,'data') && isfield(kd.data,'cal')
+          dlt1 = kd.data.cal.coeff.DLT_1;
+          dlt2 = kd.data.cal.coeff.DLT_2;
+        else
           error('CalRigSH:kine',...
-            'Unexpected contents in Kinemat calibration file: ''%s''',kdfile);
+            'Do not recognize contents of calibration MAT-file: ''%s''. Expect two variables ''DLT_1'' and ''DLT_2''.',kdfile);
         end
-        obj.kineData = kd;
+        tmp = struct;
+        tmp.cal.coeff.DLT_1 = dlt1; % legacy structure
+        tmp.cal.coeff.DLT_2 = dlt2;
+        obj.kineData = tmp;
         obj.kineDataFile = kdfile;
       end
     end
