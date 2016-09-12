@@ -12,7 +12,7 @@ classdef CalRigSH < CalRig
   end
     
   properties
-    epLineNPts = 250;
+    epLineNPts = 1000;
   end
   
   methods

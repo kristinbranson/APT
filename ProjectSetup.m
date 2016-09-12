@@ -208,7 +208,7 @@ flds = arrayfun(@(i)sprintf('view%d',i),(1:nViews)','uni',0);
 if isempty(sMirror.ViewNames)
   vals = repmat({''},nViews,1);
 else
-  vals = sMirror.ViewNames;
+  vals = sMirror.ViewNames(:);
 end
 sMirror.ViewNames = cell2struct(vals,flds,1);
 
