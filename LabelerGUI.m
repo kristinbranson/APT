@@ -1057,24 +1057,30 @@ if ~lObj.isMultiView
 	iAxRead = 1;
 	iAxApply = 1;
 else
-	opts = [{'All views together'}; {handles.figs_all.Name}'];
-	[sel,tfproceed] = listdlg(...
-		'PromptString','Select view(s) to adjust',...
-		'ListString',opts,...
-		'SelectionMode','single');
-	if tfproceed
-		switch sel
-			case 1
-				iAxRead = 1;
-				iAxApply = 1:numel(handles.axes_all);
-			otherwise
-				iAxRead = sel-1;
-				iAxApply = sel-1;
-		end
-	else
-		iAxRead = nan;
-		iAxApply = nan;
-	end	
+  fignames = {handles.figs_all.Name}';
+  for iFig = 1:numel(fignames)
+    if isempty(fignames{iFig})
+      fignames{iFig} = sprintf('<unnamed view %d>',iFig);
+    end
+  end
+  opts = [{'All views together'}; fignames];
+  [sel,tfproceed] = listdlg(...
+    'PromptString','Select view(s) to adjust',...
+    'ListString',opts,...
+    'SelectionMode','single');
+  if tfproceed
+    switch sel
+      case 1
+        iAxRead = 1;
+        iAxApply = 1:numel(handles.axes_all);
+      otherwise
+        iAxRead = sel-1;
+        iAxApply = sel-1;
+    end
+  else
+    iAxRead = nan;
+    iAxApply = nan;
+  end
 end
 
 function menu_view_adjustbrightness_Callback(hObject, eventdata, handles)
