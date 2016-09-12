@@ -435,6 +435,12 @@ classdef Labeler < handle
   
     function obj = Labeler(varargin)
       % lObj = Labeler();
+      
+      if exist('moveMenuItemAfter','file')==0 || ...
+         exist('ReadYaml','file')==0
+       fprintf('Configuring your path ...');
+       APT.setpath;
+      end
       obj.hFig = LabelerGUI(obj);
     end
      
