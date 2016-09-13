@@ -15,7 +15,10 @@ classdef APT
   
   methods (Static)
   
-    function p = getpath()
+    function [p,jp] = getpath()
+      % p: cellstr, path entries      
+      % jp: cellstr, javapath entries
+      
       m = APT.Manifest;      
       jctroot = m.jctrax;
       if isfield(m,'cameracalib')
@@ -39,10 +42,14 @@ classdef APT
         fullfile(jctroot,'misc'); ...
         };
       p = [p;campath(:)];
+      
+      jp = {...
+        fullfile(APT.Root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
+        fullfile(APT.Root,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};
     end
     
     function setpath()
-      p = APT.getpath();
+      [p,jp] = APT.getpath();
       addpath(p{:},'-begin');
       
       % AL 20150824, testing of sha 1f65 on R2015a+Linux is reproducably
@@ -60,12 +67,12 @@ classdef APT
       % here on a random file, which will load the Yaml stuff before the
       % Labeler is instantiated.
       
-      mlver = ver('MATLAB');
-      if isunix && strcmp(mlver.Release,'(R2015a)')
-        randomyamlfile = fullfile(APT.Root,'YAMLMatlab_0.4.3','Tests','Data','test_import','file1.yaml');
-        ReadYaml(randomyamlfile);
-      end
-      javaaddpath(fullfile(APT.Root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'));
+%       mlver = ver('MATLAB');
+%       if isunix && strcmp(mlver.Release,'(R2015a)')
+%         randomyamlfile = fullfile(APT.Root,'YAMLMatlab_0.4.3','Tests','Data','test_import','file1.yaml');
+%         ReadYaml(randomyamlfile);
+%       end
+      javaaddpath(jp);
     end
     
     function s = codesnapshot
