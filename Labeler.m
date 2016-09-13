@@ -1597,6 +1597,13 @@ classdef Labeler < handle
       obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,nFrms,nTgt);
       obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,nFrms,nTgt);      
       obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,nFrms,nTgt);
+      
+      % This clause does not occur in movieAdd(), b/c movieAdd is called
+      % from UI functions which do this for the user. Currently movieSetAdd
+      % does not have any UI so do it here.
+      if ~obj.hasMovie && obj.nmovies>0
+        obj.movieSet(1);
+      end
     end
 
     function tfSucc = movieRm(obj,iMov)
