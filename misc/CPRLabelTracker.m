@@ -328,7 +328,8 @@ classdef CPRLabelTracker < LabelTracker
     
     function trnDataInit(obj)
       obj.trnDataFFDThresh = nan;
-      obj.trnDataTblP = [];
+      obj.trnDataTblP = struct2table(struct('mov',cell(0,1),'movS',[],...
+        'frm',[],'p',[],'tfocc',[],'pTS',[]));
       obj.trnDataTblPTS = -inf(0,1);
     end
     
@@ -540,7 +541,9 @@ classdef CPRLabelTracker < LabelTracker
       % Update .trnDataTblP* with any new labels
       tblPNew = obj.getTblPLbledRecent();
       [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
-      obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+      if ~isempty(idxTrnDataTblP) % AL 20160912: conditional should not be necessary, MATLAB API bug
+        obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+      end
       obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
       nowtime = now();
       obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
@@ -609,17 +612,18 @@ classdef CPRLabelTracker < LabelTracker
     function train(obj,varargin)
       % Incremental trainupdate using labels newer than .trnDataTblPTS
 
+      prm = obj.sPrm;
+      if isempty(prm)
+        error('CPRLabelTracker:param','Please specify tracking parameters.');
+      end
+        
       % figure out if we want an incremental train or full retrain
       rc = obj.trnResRC;
       if ~rc.hasTrained
         obj.retrain(varargin{:});
         return;
-      end        
-            
-      prm = obj.sPrm;
-      if isempty(prm)
-        error('CPRLabelTracker:param','Please specify tracking parameters.');
-      end
+      end  
+      
       tblPNew = obj.getTblPLbledRecent();
       
       if isempty(tblPNew)
