@@ -9,7 +9,10 @@ classdef CPR
 
   methods (Static)
   
-    function p = getpath()
+    function [p,jp] = getpath()
+      % p: cellstr, path
+      % jp: cellstr, javapath
+      
       m = CPR.Manifest;      
       jctroot = m.jctrax;
       aptroot = m.apt;
@@ -18,7 +21,7 @@ classdef CPR
       
       cwd = pwd;
       cd(aptroot);
-      aptpath = APT.getpath;
+      [aptpath,aptjpath] = APT.getpath;
       cd(cwd);
       
       piotrpath = genpath(piotrroot);
@@ -38,11 +41,16 @@ classdef CPR
         fullfile(jctroot,'filehandling'); ...
         };
       p = [p;aptpath;piotrpath];
+      
+      jp = aptjpath;
     end
     
     function setpath
-      p = CPR.getpath();
-      addpath(p{:},'-begin');      
+      [p,jp] = CPR.getpath();
+      warnst = warning('off','MATLAB:dispatcher:pathWarning');
+      addpath(p{:},'-begin');
+      warning(warnst);      
+      javaaddpath(jp);
     end
     
   end
