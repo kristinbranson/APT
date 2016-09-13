@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
     parser.add_argument("--movbatchfile",help="file containing list of movies; used when action==trackbatch*",metavar="BATCHFILE")
-    parser.add_argument("--multithreaded",help="if true, run multithreaded binary",action="store_true",default=True)
+    parser.add_argument("--multithreaded",help="if true, run multithreaded binary",action="store_true",default=False)
     parser.add_argument("--account",default="",help="account to bill for cluster time",metavar="ACCOUNT")
     parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
 
