@@ -305,20 +305,21 @@ classdef Features
     function [xs,prms] = generate2LM(model,varargin)
       % Generate 2-landmark features
       % 
-      % xs: F x 5 double array. xs(i,:) specifies the ith feature
+      % xs: F x 7 double array. xs(i,:) specifies the ith feature
       %   col 1: landmark index 1
       %   col 2: landmark index 2
-      %   col 3: radius FACTOR in pixels
-      %   col 4: theta
+      %   col 3: radius FACTOR
+      %   col 4: theta in (-pi,pi)
       %   col 5: "interpolation" factor in [0,1] for location of center
       %          between landmarks 1/2
-      %   col 6: channel index (identically equal to 1 unless optional
-      %     param 'nchan' specified
+      %   col 6: channel index, shared by landmarks 1 and 2. Identically 
+      %     equal to 1 unless optional param 'nchan' specified.
+      %   col 7: view index, shared by landmarks 1 and 2. Identically equal
+      %     to 1 unless model.nviews>1.
       %
       % prms: scalar struct, params used to compute xs
             
       %%% Optional input P-V params
-      
       % number of ftrs to generate
       defaultPrms.F = 20;
       % maximum distance within which to sample; dimensionless scaling
@@ -346,8 +347,8 @@ classdef Features
       if tfFidsSpeced && tfNeighborsSpeced
         warning('TwoLandmarkFeatures:params',...
           '.fids and .neighbors both specified; landmark1 chosen from .fids, landmark2 from neighbors.');
-      end      
-      if tfFidsSpeced      
+      end
+      if tfFidsSpeced
         assert(all(ismember(prms.fids,1:model.nfids)),'Invalid ''fids''.');
       else
         prms.fids = 1:model.nfids;
@@ -358,7 +359,10 @@ classdef Features
       end
 
       F = prms.F;
-      xs = nan(F,6);
+      xs = nan(F,7);
+      d = model.d;
+      nviews = model.nviews;
+      assert(d==2 && nviews==1 || d==3 && nviews>1);
 
       nfidsFtr = numel(prms.fids); % can differ from model.nfids
       if ~tfNeighborsSpeced
@@ -391,21 +395,28 @@ classdef Features
       end
       
       xs(:,6) = randint2(F,1,[1,prms.nchan]);
+      xs(:,7) = randint2(F,1,[1,nviews]);
     end
     
-    function [xF,yF,chan,info] = compute2LM(xs,xLM,yLM)
-      % xs: F x 6, from generate2LM()
-      % xLM: N x npts. xLM(i,j) gives x-positions ('columns') for ith
-      % instance, jth landmark
-      % yLM: etc
+    function [xF,yF,chan,iview,info] = compute2LM(xs,xLM,yLM)
+      % xs: [Fx7], from generate2LM(). Legacy [Fx6] okay, assume nView==1.
+      % xLM: [NxnPtsxnView]. xLM(i,:,:) gives x-coords (column pixel
+      %  indices) of ith shape, across all pts/views
+      % yLM: [NxnPtxnView]. y-coords
       %
-      % xF: N x F. xF(i,j) gives x-pos for ith instance, jth feature
+      % xF: N x F. xF(i,j) gives x-coords (in pixels) for ith instance, jth 
+      %   feature. Values are rounded. Could lie "outside" image. xF(i,j)
+      %   should be read in channel chan(i,j), view iview(i,j).
       % yF: N x F.
-      % chan: N x F. chan(i,j) gives channel in which to compute feature
-      %   for ith instance, jth feature.
+      % chan: N x F. Channels in which to read features.
+      % iview: N x F. View indices in which to read features.
       % info: struct with miscellaneous/intermediate vars
       %
-      % Note: xF and yF are in whatever units xLM and yLM are in.
+      % Note: xF and yF are in whatever units xLM and yLM are in (pixels)
+      
+      if size(xs,2)==6
+        xs(:,7) = 1;
+      end
       
       l1 = xs(:,1);
       l2 = xs(:,2);
@@ -413,19 +424,27 @@ classdef Features
       theta = xs(:,4);
       ctrFac = xs(:,5);
       chan = xs(:,6);
+      iview = xs(:,7);
       
-      N = size(xLM,1);
-      x1 = xLM(:,l1); % N X F. x, landmark 1 for each instance/feature
-      y1 = yLM(:,l1); % etc
-      x2 = xLM(:,l2);
-      y2 = yLM(:,l2);
-      theta = repmat(theta',N,1);      
+      [N,nPt,nView] = size(xLM);
+      nFlat = nPt*nView;
+      xLMFlat = reshape(xLM,N,nFlat); 
+      yLMFlat = reshape(yLM,N,nFlat);
+      iFlat1 = sub2ind([nPt nView],l1,iview);
+      iFlat2 = sub2ind([nPt nView],l2,iview);
+      x1 = xLMFlat(:,iFlat1); % N X F. x, landmark 1 x-coord for each instance/feature
+      y1 = yLMFlat(:,iFlat1); % etc
+      x2 = xLMFlat(:,iFlat2);
+      y2 = yLMFlat(:,iFlat2);
+         
+      theta = repmat(theta',N,1);
       chan = repmat(chan',N,1);
+      iview = repmat(iview',N,1);
       
-      alpha = atan2(y2-y1,x2-x1); 
-      r = sqrt((x2-x1).^2+(y2-y1).^2)/2; 
-      a = repmat(rfac',N,1).*r; 
-      b = repmat(rfac',N,1).*r/2;
+      alpha = atan2(y2-y1,x2-x1); % [NxF]
+      r = sqrt((x2-x1).^2+(y2-y1).^2)/2; % [NxF], pixels
+      a = repmat(rfac',N,1).*r; % [NxF], pixels
+      b = repmat(rfac',N,1).*r/2; % [NxF], pixels
       % AL: previously, rfac was being specified in units of pixels, 
       % leading to (apparently) very large a/b
       ctrX = bsxfun(@times,x1,ctrFac') + bsxfun(@times,x2,(1-ctrFac)');
@@ -440,9 +459,9 @@ classdef Features
       % cs1=ctrX+(repmat(xs',size(r,1),1).*r.*cos(theta+alpha));
       % rs1=ctrY+(repmat(xs',size(r,1),1).*r.*sin(theta+alpha));      
       xF = round(xF);
-      yF = round(yF);      
+      yF = round(yF);
       
-      if nargout>=4
+      if nargout>=5
         info = struct();
         info.l1 = l1;
         info.l2 = l2;
@@ -494,19 +513,21 @@ classdef Features
     function [xs,prms] = generate2LMDiff(model,varargin)
       % Generate 2-landmark features, diff
       % 
-      % xs: F x 11 double array. xs(i,:) specifies the ith feature
+      % xs: F x 13 double array. xs(i,:) specifies the ith feature
       %   col 1: pt 1, landmark index 1
       %   col 2: pt 1, landmark index 2
-      %   col 3: pt 1, radius FACTOR in pixels
-      %   col 4: pt 1, theta
+      %   col 3: pt 1, radius FACTOR 
+      %   col 4: pt 1, theta in (-pi.pi)
       %   col 5: pt 1, "interpolation" factor in [0,1] for location of center
       %          between landmarks 1/2
-      %   col 6: pt 1, channel index 
+      %   col 6: pts 1 AND 2, channel index 
+      %   col 7: pts 1 AND 2, view index
       %
-      %   col 7-12: same as cols 1-6, but for pt 2
+      %   col 8-12: same as cols 1-5, but for pt 2.
+      %   col 13: dummy col (unused)
       %
-      % For now cols 6 and 12 will always be equal, ie differences will be
-      % taken between features in the same channel.
+      % Note cols 6 and 7 apply to both points, ie differences are always
+      % taken between features in the same channel and view.
       %
       % prms: scalar struct, params used to compute xs
             
@@ -515,31 +536,40 @@ classdef Features
       [xs1,prms1] = Features.generate2LM(model,varargin{:});
       [xs2,prms2] = Features.generate2LM(model,varargin{:});
       assert(isequal(prms1,prms2));
-      assert(size(xs1,2)==6);
-      assert(size(xs2,2)==6);
+      assert(size(xs1,2)==7);
+      assert(size(xs2,2)==7);
       
-      % for now, use channel specification in xs1; should be randomly drawn
-      % from {1,2,...,nChan}
-      xs2(:,6) = xs1(:,6);
-      xs = [xs1 xs2];
+      % Use channel/view specification in xs1 for both pts; should be
+      % randomly drawn from {1,2,...,nChan} and {1,2,...,nView} resp.
+      F = size(xs1,1);
+      xs = [xs1 xs2(:,1:5) nan(F,1)];
       prms = prms1;
     end
     
-    function [xF1,yF1,xF2,yF2,chan,info] = compute2LMDiff(xs,xLM,yLM)
-      % xs: F x 12, from generate2LMDiff()
+    function [xF1,yF1,xF2,yF2,chan,view,info] = compute2LMDiff(xs,xLM,yLM)
+      % xs: [Fx13] from generate2LMDiff(). [Fx12] legacy accepted.
       % Rest: in analogy with compute2LM
       %
       % To compute jth feature for ith trial:
-      %  ftrval = intensity-at-(xF1(i,j),yF1(i,j),chan(i,j)) - 
-      %           intensity-at-(xF2(i,j),yF2(i,j),chan(i,j)) - 
+      %  ftrval = intensity-of-view(i,j)-chan(i,j)-at-(xF1(i,j),yF1(i,j)) - 
+      %           intensity-of-view(i,j)-chan(i,j)-at-(xF2(i,j),yF2(i,j)) - 
       
-      assert(size(xs,2)==12);
-      xs1 = xs(:,1:6);
-      xs2 = xs(:,7:12);
-      [xF1,yF1,chan1,info1] = Features.compute2LM(xs1,xLM,yLM);
-      [xF2,yF2,chan2,info2] = Features.compute2LM(xs2,xLM,yLM);
+      if size(xs,2)==12
+        % legacy format. cols 1-6 for pt1 and 7-12 for pt2; cols 6 and 12        
+        % match.
+        assert(isequal(xs(:,6),xs(:,12)));
+        F = size(xs,1);
+        % convert to new format. assume all iview==1.
+        xs = [xs(:,1:6) ones(F,1) xs(:,7:11) nan(F,1)];
+      end
+      xs1 = xs(:,1:7); % [Fx7] in format of generate2LM
+      xs2 = [xs(:,8:12) xs(:,6:7)]; % [Fx7] etc
+      [xF1,yF1,chan1,view1,info1] = Features.compute2LM(xs1,xLM,yLM);
+      [xF2,yF2,chan2,view2,info2] = Features.compute2LM(xs2,xLM,yLM);
       assert(isequal(chan1,chan2));
+      assert(isequal(view1,view2));
       chan = chan1;
+      view = view1;
       info = struct('info1',info1,'info2',info2);
     end
     
@@ -550,50 +580,77 @@ classdef Features
     function [xs,prms] = generate1LM(model,varargin)
       % Generate 1-landmark features
       % 
-      % xs: F x 3 double array. xs(i,:) specifies the ith feature
-      %   col 1: landmark index 1
+      % xs: F x 4 double array. xs(i,:) specifies the ith feature
+      %   col 1: pt/landmark index
       %   col 2: radius in pixels
-      %   col 3: theta
+      %   col 3: theta in (-pi,pi). This is angle relative to
+      %     absolute/fixed frame of image
+      %   col 4: view index
       %
       % prms: scalar struct, params used to compute xs
             
-      %%% Optional input P-V params
-      
+      %%% Optional input P-V params      
       % number of ftrs to generate
       defaultPrms.F = 20;
-      % maximum distance within which to sample; dimensionless scaling
-      % factor applied to ellipse size
+      % maximum pixel radius within which to sample
       defaultPrms.radius = 1;
       
       prms = getPrmDfltStruct(varargin,defaultPrms);      
       F = prms.F;
+      d = model.d;
       nfids = model.nfids;
+      nviews = model.nviews;
+      assert(d==2 && nviews==1 || d==3 && nviews>1);
       
-      xs = nan(F,3);
+      xs = nan(F,4);
       xs(:,1) = randint2(F,1,[1,nfids]);
       xs(:,2) = prms.radius*rand(F,1);
       xs(:,3) = (2*pi*rand(F,1))-pi;
+      xs(:,4) = ceil(rand(F,1)*nviews);
     end
     
-    function [xF,yF,info] = compute1LM(xs,xLM,yLM)
+    function [xF,yF,iView,info] = compute1LM(xs,xLM,yLM)
+      % xs: [Fx4] from generate1LM. Allow [Fx3] for legacy/historical with
+      %     nView==1
+      % xLM: [NxnPtxnView]. x-coords (column pixel indices) of landmark
+      %   points
+      % yLM: [NxnPtxnView]. y-coords
+      %
+      % xF: [NxF]. xF(iN,iF) is x-coord of iF'th feature for iN'th shape in
+      %   image/view iView(iF)
+      % yF: [NxF].
+      % iView: [Fx1]. view indices labeling cols of xF/yF.
+      % info: scalar struct.
 
-      l1 = xs(:,1);
+      if size(xs,2)==3
+        xs(:,4) = 1;
+      end
+      
+      iPt = xs(:,1);
       r = xs(:,2);
       theta = xs(:,3);
+      iView = xs(:,4);
       
-      x = xLM(:,l1); % N X F
-      y = yLM(:,l1); % etc
+      [N,nPt,nView] = size(xLM);
+      nFlat = nPt*nView;
+      xLMFlat = reshape(xLM,N,nFlat); 
+      yLMFlat = reshape(yLM,N,nFlat);
+      iFlat = sub2ind([nPt nView],iPt,iView);
       
-      dx = r.*cos(theta);
-      dy = r.*sin(theta);
+      x = xLMFlat(:,iFlat); % N X F 
+      y = yLMFlat(:,iFlat); % etc
+      
+      dx = r.*cos(theta); % [Fx1] angle relative to fixed frame of image, regardless of shape
+      dy = r.*sin(theta); % [Fx1]
       xF = round(bsxfun(@plus,x,dx'));
       yF = round(bsxfun(@plus,y,dy'));
       
-      if nargout>=3
+      if nargout>=4
         info = struct();
-        info.l1 = l1;
+        info.l1 = iPt;
         info.r = r;
         info.theta = theta;
+        info.iView = iView;
         info.xLM = x;
         info.yLM = y;
       end
