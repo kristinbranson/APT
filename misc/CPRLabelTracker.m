@@ -7,7 +7,7 @@ classdef CPRLabelTracker < LabelTracker
       'trnResH0' 'trnResIPt' 'trnResRC'};
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
     
-    DEFAULT_PARAMETER_FILE = lclInitDefaultParameterFile();
+    DEFAULT_PARAMETER_FILE = fullfile(CPR.Root,'param.example.yaml');
   end
   
   %% Params
@@ -1389,11 +1389,13 @@ classdef CPRLabelTracker < LabelTracker
   
 end
 
-function dpf = lclInitDefaultParameterFile()
-
-if isdeployed
-  dpf = fullfile(ctfroot,'param.example.yaml');
-else
-  dpf = fullfile(CPR.Root,'param.example.yaml');
-end
-end
+% AL20160912: this is giving the CPR.Root error, maybe it's too complicated
+% for current MATLAB class init
+% function dpf = lclInitDefaultParameterFile()
+% 
+% if isdeployed
+%   dpf = fullfile(ctfroot,'param.example.yaml');
+% else
+%   dpf = fullfile(CPR.Root,'param.example.yaml');
+% end
+% end
