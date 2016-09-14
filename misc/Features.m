@@ -318,12 +318,17 @@ classdef Features
       %     to 1 unless model.nviews>1.
       %
       % prms: scalar struct, params used to compute xs
-            
+      
       %%% Optional input P-V params
+      %
+      % Note. These options are overly complicated. For a random pt within
+      % the ellipse (a/b=2) fitting snugly between landmarks 1 and 2, use
+      % defaults of radiusFac==1, randctr=false.
+      % 
       % number of ftrs to generate
       defaultPrms.F = 20;
       % maximum distance within which to sample; dimensionless scaling
-      % factor applied to ellipse size
+      % factor applied to ellipse size. See note above.
       defaultPrms.radiusFac = 1;
       % if true, the feature "center" will be a random location chosen on 
       % the line segement connecting landmarks 1/2. If false, the center
@@ -579,6 +584,14 @@ classdef Features
       chan = chan1;
       view = view1;
       info = struct('info1',info1,'info2',info2);
+    end
+    
+    function [h,str] = visualize2LMDiff(ax,xF1,yF1,xF2,yF2,iView,info,iN,iF)
+      [h1,str1] = Features.visualize2LM(ax,xF1,yF1,iView,info.info1,iN,iF,[1 0 0]);
+      [h2,str2] = Features.visualize2LM(ax,xF2,yF2,iView,info.info2,iN,iF,[0 1 0]);
+      h = [h1(:);h2(:)];
+      str = [str1 '#' str2];
+      title(ax(iView(iN,iF)),str,'interpreter','none');
     end
     
   end
