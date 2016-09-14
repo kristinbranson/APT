@@ -619,7 +619,7 @@ classdef Features
       % xF: [NxF]. xF(iN,iF) is x-coord of iF'th feature for iN'th shape in
       %   image/view iView(iF)
       % yF: [NxF].
-      % iView: [Fx1]. view indices labeling cols of xF/yF.
+      % iView: [NxF]. view indices labeling cols of xF/yF.
       % info: scalar struct.
 
       if size(xs,2)==3
@@ -645,12 +645,13 @@ classdef Features
       xF = round(bsxfun(@plus,x,dx'));
       yF = round(bsxfun(@plus,y,dy'));
       
+      iView = repmat(iView',N,1);
+      
       if nargout>=4
         info = struct();
         info.l1 = iPt;
         info.r = r;
         info.theta = theta;
-        info.iView = iView;
         info.xLM = x;
         info.yLM = y;
       end
