@@ -469,6 +469,8 @@ classdef Features
         info.yLM1 = y1;
         info.xLM2 = x2;
         info.yLM2 = y2;
+        info.rfac = rfac;
+        info.ctrFac = ctrFac;
         info.theta = theta;
         info.alpha = alpha;
         info.r = r;
@@ -481,33 +483,39 @@ classdef Features
       end
     end
     
-    function [h,str] = visualize2LM(ax,xf,yf,info,iN,iF,clr)
+    function [h,str] = visualize2LM(ax,xF,yF,iView,info,iN,iF,clr)
       % Visualize feature pts from compute2LM
       % 
       % xf/yf/info: from compute2LM
       % iN: trial index
       % iF: feature index
       
+      assert(isequal(...
+        size(xF),size(yF),...
+        size(info.xLM1),size(info.yLM1),...
+        size(info.xLM2),size(info.yLM2)));
+      
+      xf = xF(iN,iF);
+      yf = yF(iN,iF);
       x1 = info.xLM1(iN,iF);
       x2 = info.xLM2(iN,iF);
       y1 = info.yLM1(iN,iF);
       y2 = info.yLM2(iN,iF);
       xc = info.xc(iN,iF);
       yc = info.yc(iN,iF);
+      ivw = iView(iN,iF);
+      
+      axplot = ax(ivw);
       
       h = [];
-      h(end+1) = plot(ax,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
-      h(end+1) = plot(ax,[x1;xc;x2],[y1;yc;y2],'o','Color',clr,'markerfacecolor',clr);
-%       h(end+1) = text(x1,y1,'1','parent',ax);
-%       set(h(end),'color',[0 0 1]);
-%       h(end+1) = text(x2,y2,'2','parent',ax);
-%       set(h(end),'color',[0 0 1]);
-      h(end+1) = plot(ax,xf(iN,iF),yf(iN,iF),'v','Color',clr,'markerfacecolor',clr,'MarkerSize',12);
-      %h(end+1) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',ax);
-      %h(end+1) = plot(ax,[xc;xf],[yc;yf],'-g');
-      str = sprintf('n=%d,f=%d(%d,%d). r=%.3f, theta=%.3f',iN,iF,...
-        info.l1(iF),info.l2(iF),info.r(iN,iF),info.theta(iN,iF));
-      %title(ax,str,'interpreter','none','fontweight','bold'); 
+      h(end+1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
+      h(end+1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'o','Color',clr,'markerfacecolor',clr);
+      h(end+1) = plot(axplot,xf,yf,'v','Color',clr,'markerfacecolor',clr,'MarkerSize',8);
+      h(end+1) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
+      h(end+1) = plot(axplot,[xc;xf],[yc;yf],'-g');
+      str = sprintf('n=%d,f=%d(%d,%d). randctr=%.3f,rfac=%.3f,r=%.3f,theta=%.3f',iN,iF,...
+        info.l1(iF),info.l2(iF),info.ctrFac(iF),info.rfac(iF),info.r(iN,iF),info.theta(iN,iF)/pi*180);
+      title(axplot,str,'interpreter','none','fontweight','bold'); 
     end
     
     function [xs,prms] = generate2LMDiff(model,varargin)
@@ -657,18 +665,30 @@ classdef Features
       end
     end
     
-    function [h,str] = visualize1LM(ax,xf,yf,info,iN,iF)
+    function [h,str] = visualize1LM(ax,xF,yF,iView,info,iN,iF)
+      % xF, yF, iView, info: from compute1LM
+      % iN: trial index (row index of xF/yF)
+      % iF: feature index (col index of xF/yF)
+
+      assert(isequal(size(xF),size(yF),size(info.xLM),size(info.yLM)));
+      
+      xf = xF(iN,iF);
+      yf = yF(iN,iF);
       x1 = info.xLM(iN,iF);
       y1 = info.yLM(iN,iF);
+      ivw = iView(iN,iF);
+      
+      axplot = ax(ivw);
+      %hold(axplot,'on');
       
       h = [];
-      h(end+1) = plot(ax,x1,y1,'ro','markerfacecolor',[1 0 0]);
-      h(end+1) = plot(ax,xf,yf,'go','markerfacecolor',[0 1 0]);
-      h(end+1) = ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-g','parent',ax);
-      h(end+1) = plot(ax,[x1;xf],[y1;yf],'-g');
+      h(end+1) = plot(axplot,x1,y1,'ro','markerfacecolor',[1 0 0]);
+      h(end+1) = plot(axplot,xf,yf,'go','markerfacecolor',[0 1 0]);
+      h(end+1) = ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-g','parent',axplot);
+      h(end+1) = plot(axplot,[x1;xf],[y1;yf],'-g');
       str = sprintf('n=%d,f=%d(%d). r=%.3f, theta=%.3f',iN,iF,info.l1(iF),...
-        info.r(iF),info.theta(iF));
-      title(ax,str,'interpreter','none','fontweight','bold');
+        info.r(iF),info.theta(iF)/pi*180);
+      title(axplot,str,'interpreter','none','fontweight','bold');
     end
     
   end
