@@ -233,22 +233,15 @@ if(isempty(pids)), pids=floor(linspace(0,F,2)); end
 ftrData=struct('type',type,'F',F,'nChn',nChn,'xs',xs,'pids',pids);
 end
 
+%#3DOK
 function ftrData = ftrsGenDup2( model, varargin )
 % Generate random shape indexed features, relative to
-% two landmarks outside the line that conects them (JRG contribution)
+% two landmarks outside the line that connects them (JRG contribution)
 % Features are then computed using frtsCompDup2
-%
-% USAGE
-%  ftrData = ftrsGenDup( model, varargin )
 %
 % INPUTS
 %  model    - shape model (see createModel())
-%  varargin - additional params (struct or name/value pairs)
-%   .type     - [2] feature type (1 or 2)
-%   .F        - [100] number of ftrs to generate
-%   .radius   - [2] sample initial x from circle of given radius
-%   .nChn     - [1] number of image channels (e.g. 3 for color images)
-%   .pids     - [] part ids for each x
+%  varargin - additional params (struct or name/value pairs), see below
 %
 % OUTPUTS
 %  ftrData  - struct containing generated ftrs
@@ -264,8 +257,15 @@ function ftrData = ftrsGenDup2( model, varargin )
 %
 % See also shapeGt>ftrsCompDup
 
-dfs = {'type','2lm','F',20,'radius',1,'nChn',3,'pids',[],'randctr',false,...
-  'neighbors',{},'fids',[]};
+dfs = {...
+  'type','2lm',... % feature type
+  'F',20,... % number of features to generate
+  'radius',1,... % radius or radius factor for sampling within neighborhood of certain size
+  'nChn',3,... % number of image channels
+  'pids',[],... % "part ids for each x"
+  'randctr',false,... % see Features.generate*
+  'neighbors',{},... % see Features.generate*
+  'fids',[]}; % see Features.generate*
 [type,F,radius,nChn,pids,randctr,neighbors,fids] = ...
   getPrmDflt(varargin,dfs,0);
 
@@ -305,6 +305,7 @@ dfs = {'type','','F',20,'radius',1,'nChn','REQ','pids',[],'randctr',false,...
 [type,F,radius,nChn,pids,randctr,neighbors,fids] = ...
   getPrmDflt(varargin,dfs,0);
 
+assert(model.d==2,'Have not checked for 3D.');
 assert(strcmp(type,'kborig_hack'));
 assert(nChn==19,'Expected Jan data');
 
@@ -444,7 +445,8 @@ function [ftrs,occlD] = ftrsCompDup( model, phis, Is, ftrData,...
 N = size(Is,1); nfids=model.nfids;
 if(nargin<5 || isempty(imgIds)), imgIds=1:N; end
 if(nargin<6 || isempty(pStar)),
-    pStar=compPhiStar(model,phis,0,[]);
+  assert(false,'Unsupported compPhiStar sig.');
+  %pStar=compPhiStar(model,phis,0,[]);
 end
 M=size(phis,1); assert(length(imgIds)==M);nChn=ftrData.nChn;
 
@@ -538,21 +540,19 @@ ftrs = [ftrs2 ftrs1];
 end
 
 
+%#3DOK
 function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
     imgIds, pStar, bboxes, occlPrm)
 % Compute features from ftrsGenDup2 on Is 
 %
-% #ALOK
-%
 % INPUTS
 %  model    - shape model
-%  phis     - [MxR] relative shape for each image, absolute coords. 
-%             (M might be eg NxRT and R would be npts x d.)
-%  Is       - cell [N] input images [w x h x nChn] variable w, h
-%  ftrData  - define ftrs to actually compute, output of ftrsGen
-%  imgIds   - [Mx1] image id for each phi, indices into Is.
-%  pStar   -  [1xR] average shape (see initTr)
-%  bboxes   - [Nx4] face bounding boxes. Only used for occlusion.
+%  phis     - [MxD] shape for each image, absolute coords. 
+%  Is       - cell [NxnView] input images [w x h x nChn] variable w, h
+%  ftrData  - scalar struct, feature definitions. output of ftrsGen
+%  imgIds   - [Mx1] image id for each phi, indices into rows of Is.
+%  pStar   -  [1xD] UNUSED ATM. average shape (see initTr)
+%  bboxes   - [Nx4] UNUSED ATM. face bounding boxes. Only used for occlusion.
 %  occlPrm   - struct containing occlusion reasoning parameters
 %    .nrows - [3] number of rows in face region
 %    .ncols - [3] number of columns in face region
@@ -570,22 +570,23 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 %
 % See also demoRCPR, shapeGt>ftrsGenDup
 
-N = numel(Is);
-nfids = model.nfids;
+[M,D] = size(phis);
+assert(D==model.D);
+[N,nviews] = size(Is);
+assert(nviews==model.nviews);
 if nargin<5 || isempty(imgIds)
   imgIds = 1:N; 
 end
-M = size(phis,1);
 assert(length(imgIds)==M);
+nfids = model.nfids;
 nChn = ftrData.nChn;
 
-if size(bboxes,1)==N
-  bboxes = bboxes(imgIds,:); 
-end
+% if size(bboxes,1)==N
+%   bboxes = bboxes(imgIds,:); 
+% end
 
-FTot = ftrData.F;
-ftrs = zeros(M,FTot);
-
+% Extract/compute posrs, poscs (landmark pixel coords on images) from phis
+% posrs, poscs: [MxnfidsxnView]
 if strcmp(model.name,'mouse_paw3D')
   assert(false,'AL');
     %Now using a single merged image containing each view. If using one
@@ -623,15 +624,45 @@ if strcmp(model.name,'mouse_paw3D')
     end
   end
   nfids = nfids*2;
-else
-  posrs = phis(:,nfids+1:nfids*2);
+elseif model.d==3
+  % phis are 3D coords in coord sys of iViewBase
+  iViewBase = model.Prm3D.iViewBase;
+  
+  Pbase = reshape(phis,M,nfids,model.d); % [Mxnfidsx3]
+  Pbase = permute(Pbase,[3 1 2]); % [3xMxnfids]
+  Pbase = reshape(Pbase,3,M*nfids); % [3xM*nfids]. all pt1's, then all pt2's, ...
+
+  crig = model.Prm3D.calrig;  
+  posrs = nan(M,nfids,nviews);
+  poscs = nan(M,nfids,nviews);
+  for iView = 1:nviews
+    if iView==iViewBase
+      Pview = Pbase;
+    else
+      Pview = crig.viewXform(Pbase,iViewBase,iView);
+    end
+    assert(isequal(size(Pview),[3 M*nfids]));
+    [rview,cview] = crig.project(Pview,iView);
+    % rview/cview are [M*nfids] col vecs; all pt1's, the all pt2's, ...
+    posrs(:,:,iView) = rview;
+    poscs(:,:,iView) = cview;
+  end
+elseif model.d==2 && nviews==1
+  posrs = phis(:,nfids+1:D);
   poscs = phis(:,1:nfids);
+else
+  assert(false);
+end
+if nviews==1
+  assert(isequal(size(posrs),size(poscs),[M,nfids]));
+else
+  assert(isequal(size(posrs),size(poscs),[M,nfids,nviews]));
 end
 
+FTot = ftrData.F;
 useOccl = occlPrm.Stot>1;
 if useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2'))
   assert(false,'AL');
-  
   occl = phis(:,(nfids*2)+1:nfids*3);
   occlD = struct('featOccl',zeros(M,FTot),'group',zeros(M,FTot));
 else
@@ -641,68 +672,74 @@ end
 %GET ALL POINTS
 switch ftrData.type
   case '1lm'
-    [cs1,rs1] = Features.compute1LM(ftrData.xs,poscs,posrs);
-    chn1 = ones(size(cs1));    
+    [cs1,rs1,vw] = Features.compute1LM(ftrData.xs,poscs,posrs);
+    chn = ones(size(cs1));
   case '2lm'
-    [cs1,rs1,chn1] = Features.compute2LM(ftrData.xs,poscs,posrs);
+    [cs1,rs1,chn,vw] = Features.compute2LM(ftrData.xs,poscs,posrs);
   case '2lmdiff'
-    [cs1,rs1,cs2,rs2,chn1] = Features.compute2LMDiff(ftrData.xs,poscs,posrs);
+    [cs1,rs1,cs2,rs2,chn,vw] = Features.compute2LMDiff(ftrData.xs,poscs,posrs);
   otherwise
     assert(false);
 end
 
-nGroups = occlPrm.nrows*occlPrm.ncols;
+% nGroups = occlPrm.nrows*occlPrm.ncols;
 %ticId =ticStatus('Computing feats',1,1,1);
 
-for n = 1:M
-    img = Is{imgIds(n)};
+ftrs = nan(M,FTot);
+assert(isequal(size(cs1),size(rs1),size(ftrs)));
+assert(isequal(size(vw),[1 FTot]));
+assert(all(ismember(vw,1:nviews)));
+for iview = 1:nviews
+  tfvw = vw==iview; % [F] logical. 1 where cols of cs1,rs1,ftrs are for current view  
+  for n = 1:M
+    
+    % Crop feature positions cs1,rs1 to image. This is weird, hope this 
+    % doesn't happen too often.
+    img = Is{imgIds(n),iview};
     [h,w,ch] = size(img);
     assert(nChn==ch);
-%     if ch==1 && nChn==3
-%       img = cat(3,img,img,img);
-%     elseif ch==3 && nChn==1
-%       img = rgb2gray(img);
-%     end
-    cs1(n,:) = max(1,min(w,cs1(n,:)));
-    rs1(n,:) = max(1,min(h,rs1(n,:)));
+    
+    cs1(n,tfvw) = max(1,min(w,cs1(n,tfvw)));
+    rs1(n,tfvw) = max(1,min(h,rs1(n,tfvw)));
     if strcmp(ftrData.type,'2lmdiff')
-      cs2(n,:) = max(1,min(w,cs2(n,:)));
-      rs2(n,:) = max(1,min(h,rs2(n,:)));
+      cs2(n,tfvw) = max(1,min(w,cs2(n,tfvw)));
+      rs2(n,tfvw) = max(1,min(h,rs2(n,tfvw)));
     end
-
+    
     %where are the features relative to bbox?
     if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
       assert(false,'AL');
-        %to which group (zone) does each feature belong?
-        occlD.group(n,:)=codifyPos((cs1(n,:)-bboxes(n,1))./bboxes(n,3),...
-            (rs1(n,:)-bboxes(n,2))./bboxes(n,4),...
-            occlPrm.nrows,occlPrm.ncols);
-        %to which group (zone) does each landmark belong?
-        groupF=codifyPos((poscs(n,:)-bboxes(n,1))./bboxes(n,3),...
-            (posrs(n,:)-bboxes(n,2))./bboxes(n,4),...
-            occlPrm.nrows,occlPrm.ncols);
-        %NEW
-        %therefore, what is the occlusion in each group (zone)
-        occlAm=zeros(1,nGroups);
-        for g=1:nGroups
-            occlAm(g)=sum(occl(n,groupF==g));
-        end
-        %feature occlusion = sum of occlusion on that area
-        occlD.featOccl(n,:)=occlAm(occlD.group(n,:));
+      %         %to which group (zone) does each feature belong?
+      %         occlD.group(n,:)=codifyPos((cs1(n,:)-bboxes(n,1))./bboxes(n,3),...
+      %             (rs1(n,:)-bboxes(n,2))./bboxes(n,4),...
+      %             occlPrm.nrows,occlPrm.ncols);
+      %         %to which group (zone) does each landmark belong?
+      %         groupF=codifyPos((poscs(n,:)-bboxes(n,1))./bboxes(n,3),...
+      %             (posrs(n,:)-bboxes(n,2))./bboxes(n,4),...
+      %             occlPrm.nrows,occlPrm.ncols);
+      %         %NEW
+      %         %therefore, what is the occlusion in each group (zone)
+      %         occlAm=zeros(1,nGroups);
+      %         for g=1:nGroups
+      %             occlAm(g)=sum(occl(n,groupF==g));
+      %         end
+      %         %feature occlusion = sum of occlusion on that area
+      %         occlD.featOccl(n,:)=occlAm(occlD.group(n,:));
     end
-
-    inds1 = rs1(n,:) + (cs1(n,:)-1)*h + (chn1(n,:)-1)*h*w;
-    ftrs1 = hlpFtr(img,inds1);  
+    
+    inds1 = rs1(n,tfvw) + (cs1(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
+    ftrs1 = hlpFtr(img,inds1);
     switch ftrData.type
       case {'1lm' '2lm'}
-        ftrs(n,:) = ftrs1;
-      case '2lmdiff'        
-        inds2 = rs2(n,:) + (cs2(n,:)-1)*h + (chn1(n,:)-1)*h*w;
+        ftrs(n,tfvw) = ftrs1;
+      case '2lmdiff'
+        inds2 = rs2(n,tfvw) + (cs2(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
         ftrs2 = hlpFtr(img,inds2);
-        ftrs(n,:) = ftrs1-ftrs2;
+        ftrs(n,tfvw) = ftrs1-ftrs2;
       otherwise
         assert(false);
-    end        
+    end
+  end
 end
 end
 
@@ -900,14 +937,16 @@ function phis = inverse( model, phis0, bboxes )
 phis = -projectPose(model,phis0,bboxes);
 end
 
+%#3DOK
 function [phiNStar,phisN,bboxes] = compPhiStar(model,phis,pad,bboxes)
 % Compute average location of points relative to box centers in normalized 
 % coordinates
 %
-% phis: [MxD], shapes.
+% phis: [MxD], shapes, absolute coords
 % pad: scalar, number of pixels. Used when bboxes is not supplied; pad the 
-% landmarks on each side by this amount to generate bboxes.
-% bboxes (input): optional, [Mx2*d].
+% landmarks on each side by this amount to generate bboxes. CURRENTLY
+% BBOXES MUST BE SUPPLIED SO PAD IS NEVER USED 
+% bboxes (input): [Mx2*d].
 %
 % phiNStar: [1xD] phi (normalized coords) that minimizes sum of distances 
 %   to phis, ie centroid
@@ -915,88 +954,98 @@ function [phiNStar,phisN,bboxes] = compPhiStar(model,phis,pad,bboxes)
 % [-1,1] which maps to eg left-of-bbox, right-of-bbox.
 % bboxes (output): [Mx2*d]. If bboxes is not supplied, they are generated 
 % by taking the extent of each phi and padding with pad.
-%
-% #ALOK
 
-nfids = model.nfids;
-
+% nfids = model.nfids;
 [M,D] = size(phis);
 assert(D==model.D);
 assert(isscalar(pad));
 tfBboxesSupplied = exist('bboxes','var')>0;
-if ~tfBboxesSupplied
-  if strcmp(model.name,'mouse_paw3D')
-    assert(false,'AL');
-    %       %left top width height
-    %       bboxes(n,1:3)=[min(phis(n,1:nfids))-pad ...
-    %         min(phis(n,nfids+1:2*nfids))-pad,...
-    %         min(phis(n,nfids*2+1:3*nfids))-pad];
-    %       bboxes(n,4)=max(phis(n,1:nfids))-bboxes(n,1)+2*pad;
-    %       bboxes(n,5)=max(phis(n,nfids+1:nfids*2))-bboxes(n,2)+2*pad;
-    %       bboxes(n,6)=max(phis(n,2*nfids+1:nfids*3))-bboxes(n,3)+2*pad;
-    %     szX=bboxes(imgIds(n),4)/2;szY=bboxes(imgIds(n),5)/2;szZ=bboxes(imgIds(n),6)/2;
-    %       ctr(1)=bboxes(imgIds(n),1)+szX;ctr(2) = bboxes(imgIds(n),2)+szY;ctr(3) = bboxes(imgIds(n),3)+szZ;
-  elseif model.d==2
-    %left top width height
-    % AL: minor bug here previously (height/width too big by pad) I think
-    xs = phis(:,1:nfids);
-    ys = phis(:,nfids+1:2*nfids);
-    xmin = min(xs,[],2);
-    xmax = max(xs,[],2);
-    ymin = min(ys,[],2);
-    ymax = max(ys,[],2);
-    bboxes = [xmin-pad ymin-pad xmax-xmin+2*pad ymax-ymin+2*pad];
-  else
-    assert(false,'AL');
-  end
-end
+assert(tfBboxesSupplied);
+% if ~tfBboxesSupplied
+%   if strcmp(model.name,'mouse_paw3D')
+%     assert(false,'AL');
+%     %       %left top width height
+%     %       bboxes(n,1:3)=[min(phis(n,1:nfids))-pad ...
+%     %         min(phis(n,nfids+1:2*nfids))-pad,...
+%     %         min(phis(n,nfids*2+1:3*nfids))-pad];
+%     %       bboxes(n,4)=max(phis(n,1:nfids))-bboxes(n,1)+2*pad;
+%     %       bboxes(n,5)=max(phis(n,nfids+1:nfids*2))-bboxes(n,2)+2*pad;
+%     %       bboxes(n,6)=max(phis(n,2*nfids+1:nfids*3))-bboxes(n,3)+2*pad;
+%     %     szX=bboxes(imgIds(n),4)/2;szY=bboxes(imgIds(n),5)/2;szZ=bboxes(imgIds(n),6)/2;
+%     %       ctr(1)=bboxes(imgIds(n),1)+szX;ctr(2) = bboxes(imgIds(n),2)+szY;ctr(3) = bboxes(imgIds(n),3)+szZ;
+%   elseif model.d==2
+%     %left top width height
+%     % AL: minor bug here previously (height/width too big by pad) I think
+%     xs = phis(:,1:nfids);
+%     ys = phis(:,nfids+1:2*nfids);
+%     xmin = min(xs,[],2);
+%     xmax = max(xs,[],2);
+%     ymin = min(ys,[],2);
+%     ymax = max(ys,[],2);
+%     bboxes = [xmin-pad ymin-pad xmax-xmin+2*pad ymax-ymin+2*pad];
+%   else
+%     assert(false,'AL');
+%   end
+% end
 assert(isequal(size(bboxes),[M model.d*2]));
-  
-assert(model.d==2,'AL for now');
-bboxradX = bboxes(:,3)/2;
-bboxradY = bboxes(:,4)/2;
-bboxctr = [bboxes(:,1)+bboxradX bboxes(:,2)+bboxradY];
+ 
+switch model.name
+  case {'cofw' 'fly_RF2' 'mouse_paw3D'}
+    assert(false,'Purely historical, prob works fine.');
+  otherwise
+    % none
+end
     
-% KB: not sure about how bounding boxes are initialized for the 3D case
-% we should probably introduce
-
-phisN = zeros(M,D); 
-for i = 1:M
-  %All relative to centroid, using bbox size  
-  if strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')
-    assert(false,'AL');
-%     phisN(n,:) = [(phis(n,1:nfids)-bboxctr(1))./bboxradX ...
-%       (phis(n,nfids+1:nfids*2)-bboxctr(2))./bboxradY ...
-%       phis(n,(nfids*2)+1:nfids*3)];
-  elseif strcmp(model.name,'mouse_paw3D')
-    assert(false,'AL');
-%     phisN(n,:) = [(phis(n,1:nfids)-bboxctr(1))./bboxradX ...
-%       (phis(n,nfids+1:nfids*2)-bboxctr(2))./bboxradY ...
-%       (phis(n,2*nfids+1:nfids*3)-bboxctr(3))./szZ];
-  else
-    phisN(i,:) = [(phis(i,1:nfids)-bboxctr(i,1))/bboxradX(i) ...
-                  (phis(i,nfids+1:nfids*2)-bboxctr(i,2))/bboxradY(i)];
-  end
-end
+phisN = projectPose(model,phis,bboxes);
 phiNStar = mean(phisN,1);
+
+% assert(model.d==2,'AL for now');
+% bboxradX = bboxes(:,3)/2;
+% bboxradY = bboxes(:,4)/2;
+% bboxctr = [bboxes(:,1)+bboxradX bboxes(:,2)+bboxradY];
+    
+% % KB: not sure about how bounding boxes are initialized for the 3D case
+% % we should probably introduce
+% 
+% phisN = zeros(M,D); 
+% for i = 1:M
+%   %All relative to centroid, using bbox size  
+%   if strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')
+%     assert(false,'AL');
+% %     phisN(n,:) = [(phis(n,1:nfids)-bboxctr(1))./bboxradX ...
+% %       (phis(n,nfids+1:nfids*2)-bboxctr(2))./bboxradY ...
+% %       phis(n,(nfids*2)+1:nfids*3)];
+%   elseif strcmp(model.name,'mouse_paw3D')
+%     assert(false,'AL');
+% %     phisN(n,:) = [(phis(n,1:nfids)-bboxctr(1))./bboxradX ...
+% %       (phis(n,nfids+1:nfids*2)-bboxctr(2))./bboxradY ...
+% %       (phis(n,2*nfids+1:nfids*3)-bboxctr(3))./szZ];
+%   else
+%     phisN(i,:) = [(phis(i,1:nfids)-bboxctr(i,1))/bboxradX(i) ...
+%                   (phis(i,nfids+1:nfids*2)-bboxctr(i,2))/bboxradY(i)];
+%   end
+% end
+% phiNStar = mean(phisN,1);
 end
 
+%#3DOK
 function phis1 = reprojectPose(model,phisN,bboxes)
 % Reproject normalized shape onto bounding boxes
 %
-% phisN: [MxD] Normalized shapes (all coords in range [-1,1])
+% phisN: [MxD] Normalized shapes (all coords in range [-1,1] for shapes
+%   fully enclosed by bboxes)
 % bboxes: [Mx2*d] bounding boxes
 % 
 % phis1: [MxD] Shapes in absolute (non-normalized) coords, relative to
 %   bboxes
-%
-% #ALOK
 
 [nOOB,tfOOB] = Shape.normShapeOOB(phisN);
 if nOOB>0
   warningNoTrace('reprojPose: %d coords out-of-bounds. Clipping...',nOOB);
 end
-phisN(tfOOB) = max(min(phisN(tfOOB),1),-1);
+% Note phisN(tfOOB) will have no nans; otherwise would want to use
+% 'includenan' option for max/min
+phisN(tfOOB) = max(min(phisN(tfOOB),1),-1); 
 
 [M,D] = size(phisN);
 assert(D==model.D);
@@ -1035,20 +1084,22 @@ phis1 = reshape(phis1,[M,nfids*d]);
 
 end
 
+%# 3DOK
 function phisN = projectPose(model,phis,bboxes)
 % Project shape into normalized coords given bounding boxes
 % phis: [MxD] Shapes in absolute coords
-% bboxes: [Mx2*d] bounding boxes
+% bboxes: [Mx2*d] bounding boxes. Format of each row is 
+% [offsetX offsetY widthX widthY] or 
+% [offsetX offsetY offsetZ widthX widthY widthZ]
 % 
-% phisN: [MxD] Shapes in normalized coords relative to bboxes
-%
-% #ALOK
+% phisN: [MxD] Shapes in normalized coords relative to bboxes (coords in
+% (-1,1) if bboxes fully enclose all shapes
 
 [M,D] = size(phis);
 assert(D==model.D);
 
 assert(size(bboxes,1)==M);
-d = size(bboxes,2)/2;
+d = size(bboxes,2)/2; % for each dimension, two vals: coord (offset) and width
 assert(d==model.d);
 
 nfids = model.nfids;
@@ -1080,6 +1131,7 @@ phisN = reshape(phisN,[M,nfids*d]);
 % end
 end
 
+%# 3DOK
 function [ds,dsAll] = dist(model,phis0,phis1)
 % Compute distance between two sets of shapes.
 %
@@ -1164,15 +1216,16 @@ end
 
 end
 
+%#3DOK
 function [pCur,pGt,pGtN,pStarN,imgIds,N,N1] = ...
   initTr(Is,pGt,model,pStarN,bboxes,L,pad,dorotate)
-% Is: [Nx1] cell vec of images/channels UNUSED ATM
+% Is: [NxnView] cell vec of images/channels UNUSED ATM
 % pGt: [NxD] shapes in absolute coords
 % pStarN: centroid shape in normalized coords, see compPhiStar. Optional, 
 % CURRENTLY MUST BE EMPTY
 % bboxes: [Nx2*d] bounding boxes
 % L: augmentation number
-% pad: pad value for compPhiStar(), used when pStar is empty
+% pad: pad value for compPhiStar() CURRENTLY UNUSED
 % dorotate: if true, randomly rotate shapes when augmenting
 %
 % pCur: [NLxD]. shapes in absolute coords
@@ -1184,8 +1237,6 @@ function [pCur,pGt,pGtN,pStarN,imgIds,N,N1] = ...
 % imgIds: row labels for pCur, pGt, pGtN
 % N (output): equal to N*L, or size(pCur,1)
 % N1: equal to N, or the original N
-%
-% #ALOK
   
 [N,D] = size(pGt);
 assert(D==model.D);
@@ -1231,7 +1282,8 @@ pCur = nan(N,L,D); %repmat(reshape(pGt,[N,1,D]),[1,L,1]); % [NxLxD]
 
 for n = 1:N  
   pGtNCurr = Shape.randsamp(pGtN,n,L);
-  if dorotate && d==2    
+  if dorotate
+    assert(d==2,'Currently require d==2 for rotation.');
     fprintf(1,'ShapeGT:initTr. dorotate=%d\n',dorotate);
     pGtNCurr = Shape.randrot(pGtNCurr,d);    
   end

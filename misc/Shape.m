@@ -34,6 +34,21 @@ classdef Shape
       p0 = Shape.rotateCentroid(p0,thetas);
     end
     
+    function p0 = randrot3(p0,d)
+      % p0: [Lx2d] where d==3
+      
+      assert(isequal(size(p0,2),d,3));
+      L = size(p0,1);
+      
+      % generate random unit vec on S2
+      x = rand(1,3);
+      xmag = sqrt(sum(x.^2));
+      x = x/xmag;
+      
+      % generate random magnitude and use rodrigues
+      assert(false,'NOT DONE'); 
+    end
+    
     function p1 = randsamp(p0,i,L)
       % Randomly sample shapes
       %
@@ -64,6 +79,7 @@ classdef Shape
       assert(isequal(size(p1),[L D]));      
     end
     
+    %#3DOK
     function pAug = randInitShapes(pN,Naug,model,bboxes,varargin)
       % Simple shape augmenter/randomizer
       %
@@ -95,22 +111,30 @@ classdef Shape
       pNAug = repmat(pN,Naug,1);
       pAug = zeros(N,Naug,D);
       for i=1:N
-        if dorotate && d==2
-          fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
-          pNAugCurr = Shape.randrot(pNAug,d);
+        if dorotate
+          if d==2
+            fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
+            pNAugCurr = Shape.randrot(pNAug,d);
+          else
+            assert(false,'Currently random rotations supported only for d==2');
+          end
         else
           pNAugCurr = pNAug;
         end
+        % pNAugCurr is [NaugxD] normalized shapes
 
         bbRT = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac);
         assert(isequal(size(bbRT),[Naug 2*d]));
         pAug(i,:,:) = shapeGt('reprojectPose',model,pNAugCurr,bbRT); % [NaugxD]        
-      end
-      
+      end      
     end
     
+    %# 3DOK
     function bbJ = jitterBbox(bb,L,d,uncertfac)
-      % Randomly jitter bounding box
+      % Randomly jitter bounding box. The offset (x1...xd) is jittered by
+      % random values (positive or negative) with max magnitude
+      % (w1/uncertfac... wd/uncertfac).
+      %
       % bb: [1x2d] bounding box [x1 x2 .. xd w1 w2 .. wd]
       % L: number of replicates
       % d: dimension
@@ -135,7 +159,10 @@ classdef Shape
       % 
       % nOOB: scalar double, number of out-of-bounds els of p
       % tfOOB: logical, same size as p. If true, p(i) is out-of-bounds.
-      tfOOB = ~(-1<=p & p<=1);
+      %   NaN elements are NOT considered OOB.
+      
+      inBounds = (-1<=p & p<=1);
+      tfOOB = ~inBounds & ~isnan(p);
       nOOB = nnz(tfOOB);
     end
     

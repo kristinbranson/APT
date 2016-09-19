@@ -109,14 +109,53 @@ classdef RegressorCascade < handle
       end
     end
     
-    % XXX TODO3D
+    % Notes on shapes, views, coords
+    %
+    % Pixel-coordinates on actual images are called "image coords". These
+    % are eg (row,col) for array-indexing or (x=col,y=row) for xy-style
+    % indexing. Image coords are defined per-, or with-respect-to-, a view. 
+    % A 3d-shape can be projected onto any/each view to generate image 
+    % coords.
+    %
+    % For 2D models, p-shapes in absolute coords are the same as
+    % (x=col,y=row) image coordinates.
+    %
+    % For 3D models, p-shapes in absolute coords are 3D coords in the
+    % camera coord system of model.Prm3D.iViewBase. p-shapes usually come
+    % in rows of length D, so that a set of p-shapes is [NxD]. Here,
+    % D=nfids*d, and the format of p is [x1 x2 x3... x_nfids y1 y2 y3 ...
+    % y_nfids z1 z2 z3 ... z_nfids]. model.Prm3D.calrig is a CalRig that
+    % knows how to i) go from the camera coord sys of view A to view B; and
+    % ii) knows how to go from the camera coord sys of a given view to 
+    % image coords for that view.
+    
+    % Note on bboxes. Bounding boxes are for allowing tracking videos where
+    % targets are in different locations and/or at different scales in the
+    % image.
+    %
+    % In a 2D video, bboxes will be 2D ROIs centered on targets and sized
+    % appropriately for the target (apparent) size. During training, shapes
+    % in absolute coords are "projected" onto the bounding box, ie
+    % coordinates are normalized relative to the bounding box into the
+    % range [-1,1] with -1 representing the left/lower edge and 1
+    % representing the right/upper edge of the box.
+    %
+    % For 2D videos with a single target, bboxes will often just be the
+    % entire image.
+    %
+    % For 3D videos, the shapes are in camera coords of the "base" view.
+    % BBoxes are therefore 3D ROIs in the base camera coord system.
+    
+    
+    
+    %# 3DOK
     function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused) % obj const
       % t: major iteration
-      % I: [NxnView] Cell array of images
+      % I: [NxnView] Cell array of images (nView==1) or imageSets (nView>1)
       % bboxes: [Nx2*d]. Currently unused (used only for occlusion)
-      % p: [QxD] shapes, absolute coords.
-      % pIidx: [Q] indices into I for rows of p
-      % tfuse: if true, only compute those features used in obj.ftrsUse(t,:,:,:)
+      % p: [QxD] shapes, absolute coords. p(i,:) is p-vector for image(s) I(pIidx(i),:)
+      % pIidx: [Q] indices into rows of I (imageSets) labeling 1st dim of p
+      % tfused: if true, only compute those features used in obj.ftrsUse(t,:,:,:)
       %
       % ftrs: If tfused==false, then [QxF]; otherwise [QxnUsed]
       % iFtrs: feature indices labeling cols of ftrs
@@ -134,6 +173,7 @@ classdef RegressorCascade < handle
       assert(~isempty(fspec),'No feature specifications for major iteration %d.',t);
       switch fspec.type
         case 'kborig_hack'
+          assert(obj.prmModel.d==2,'2D only at the moment.');
           assert(~tfused,'Unsupported.');
           ftrs = shapeGt('ftrsCompKBOrig',obj.prmModel,p,I,fspec,...
             pIidx,[],bboxes,obj.prmReg.occlPrm);
@@ -148,15 +188,19 @@ classdef RegressorCascade < handle
       end
     end
     
-    % XXX TODO3D
+    % 3DOK
     function trainWithRandInit(obj,I,bboxes,pGT,varargin)
+      % I: [NxnView] cell array of images
+      % bboxes: [Nx2*d]
+      % pGT: [NxD] GT labels (absolute coords)
+      
       initpGTNTrn = myparse(varargin,...
         'initpGTNTrn',false... % if true, init with .pGTNTrn rather than pGT
         );
       
       tiPrm = obj.prmTrainInit;
       if initpGTNTrn
-        N = numel(I);
+        N = size(I,1);
         Naug = tiPrm.Naug;        
         pGTTrnNMu = nanmean(obj.pGTNTrn,1);
         model = obj.prmModel;
@@ -171,17 +215,16 @@ classdef RegressorCascade < handle
       end
       
       obj.train(I,bboxes,pGT,p0,pIidx,varargin{:});
-    end
+    end    
     
-    % XXX TODO3D
+    % 3DOK
     function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
-      % 
       %
-      % I: [N] cell array of images
+      % I: [NxnView] cell array of images
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
       % p0: [QxD] initial shapes (absolute coords).
-      % pIidx: [Q] indices into I
+      % pIidx: [Q] indices into I for p0
       %
       % pAll: [QxDxT+1] propagated training shapes (absolute coords)
       
@@ -191,7 +234,10 @@ classdef RegressorCascade < handle
         'update',false... % if true, incremental update
         );
       
-      NI = numel(I);
+      model = obj.prmModel;
+      
+      [NI,nview] = size(I);
+      assert(nview==model.nviews);
       assert(isequal(size(bboxes),[NI 2*obj.mdld]));
       assert(isequal(size(pGT),[NI obj.mdlD]));      
       [Q,D] = size(p0);
@@ -203,7 +249,6 @@ classdef RegressorCascade < handle
           'Cannot perform incremental train without first doing a full train.');
       end
 
-      model = obj.prmModel;
       pGTFull = pGT(pIidx,:);
       T = obj.nMajor;
       pAll = zeros(Q,D,T+1);
@@ -212,7 +257,7 @@ classdef RegressorCascade < handle
       pCur = p0;
       bboxesFull = bboxes(pIidx,:);
       
-      if ~update  
+      if ~update
         obj.init('initTrnLog',false);
         % record normalized training shapes for propagation initialization
         pGTN = shapeGt('projectPose',model,pGT,bboxes);
@@ -232,6 +277,7 @@ classdef RegressorCascade < handle
       maxFernAbsDeltaPct = nan(1,T);
       for t=t0:T
         if paramReg.USE_AL_CORRECTION
+          assert(model.d==2,'Currently supported only for d==2.');
           pCurN_al = shapeGt('projectPose',model,pCur,bboxesFull);
           pGtN_al = shapeGt('projectPose',model,pGTFull,bboxesFull);
           assert(isequal(size(pCurN_al),size(pGtN_al)));
@@ -265,7 +311,7 @@ classdef RegressorCascade < handle
         paramReg.prm.useFern3 = true;
         fernOutput0 = squeeze(obj.fernOutput(t,:,:,:));
         if ~update
-          [regInfo,pDel] = regTrain(X,pTar,paramReg); 
+          [regInfo,pDel] = regTrain(X,pTar,paramReg);
           assert(iscell(regInfo) && numel(regInfo)==obj.nMinor);
           for u=1:obj.nMinor
             ri = regInfo{u};          
@@ -280,8 +326,9 @@ classdef RegressorCascade < handle
           end
         else
           % update: fernN, fernCounts, fernSums, fernOutput, fernTS
-          % calc: pDel          
+          % calc: pDel
           
+          assert(obj.mdld==2,'Not checked mdl.d~=2.');
           pDel = obj.fernUpdate(t,X,iFtrsComp,pTar,paramReg);
         end
         fernOutput1 = squeeze(obj.fernOutput(t,:,:,:));
@@ -289,6 +336,7 @@ classdef RegressorCascade < handle
                   
         % Apply pDel
         if paramReg.USE_AL_CORRECTION
+          assert(obj.mdld==2,'Unchecked for 3D.');
           pCur = Shape.applyRIDiff(pCurN_al,pDel,1,3); %XXXAL HARDCODED HEAD/TAIL
           pCur = shapeGt('reprojectPose',model,pCur,bboxesFull);
         else
@@ -435,8 +483,7 @@ classdef RegressorCascade < handle
       p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
     end
       
-    % ----- BELOW HERE NOT SURE TODO3D -----
-    
+    %# XXX TODO3D
     function yPred = fernUpdate(obj,t,X,iFtrsComp,yTar,prmReg)
       % Incremental update of fern structures
       %
@@ -509,6 +556,8 @@ classdef RegressorCascade < handle
       
     end
     
+        % ----- BELOW HERE NOT SURE TODO3D -----
+
     function x = computeMetaFeature(obj,X,iFtrsX,t,u,metatype)
       % Helper function to compute meta-features
       %
@@ -536,6 +585,7 @@ classdef RegressorCascade < handle
       
     end
     
+    %#3DOK
     function maxFernAbsDeltaPct = computeMaxFernAbsDelta(obj,fernOutput0,fernOutput1)
       % fernOutput0/1: [nMnr x 2^M x D]
       %
@@ -554,8 +604,7 @@ classdef RegressorCascade < handle
         maxFernAbsDeltaPct(iMnr) = max(del./mu);
       end
       
-      maxFernAbsDeltaPct = max(maxFernAbsDeltaPct);
-      
+      maxFernAbsDeltaPct = max(maxFernAbsDeltaPct);      
     end
     
     function setPrm(obj,sPrm)

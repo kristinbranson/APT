@@ -300,6 +300,7 @@ classdef Features
     
   end
   
+  %#3DOK
   methods (Static) % Two-landmark features
     
     function [xs,prms] = generate2LM(model,varargin)
@@ -414,7 +415,8 @@ classdef Features
       %   should be read in channel chan(i,j), view iview(i,j).
       % yF: N x F.
       % chan: N x F. Channels in which to read features.
-      % iview: N x F. View indices in which to read features.
+      % iview: [Fx1]. View indices in which to read features. Labels
+      % columns of xF, yF.
       % info: struct with miscellaneous/intermediate vars
       %
       % Note: xF and yF are in whatever units xLM and yLM are in (pixels)
@@ -444,7 +446,7 @@ classdef Features
          
       theta = repmat(theta',N,1);
       chan = repmat(chan',N,1);
-      iview = repmat(iview',N,1);
+      %iview = repmat(iview',N,1);
       
       alpha = atan2(y2-y1,x2-x1); % [NxF]
       r = sqrt((x2-x1).^2+(y2-y1).^2)/2; % [NxF], pixels
@@ -508,7 +510,7 @@ classdef Features
       y2 = info.yLM2(iN,iF);
       xc = info.xc(iN,iF);
       yc = info.yc(iN,iF);
-      ivw = iView(iN,iF);
+      ivw = iView(iF);
       
       axplot = ax(ivw);
       
@@ -591,11 +593,12 @@ classdef Features
       [h2,str2] = Features.visualize2LM(ax,xF2,yF2,iView,info.info2,iN,iF,[0 1 0]);
       h = [h1(:);h2(:)];
       str = [str1 '#' str2];
-      title(ax(iView(iN,iF)),str,'interpreter','none');
+      title(ax(iView(iF)),str,'interpreter','none');
     end
     
   end
   
+  %#3DOK
   methods (Static) % One-landmark features
     
     function [xs,prms] = generate1LM(model,varargin)
@@ -640,7 +643,7 @@ classdef Features
       % xF: [NxF]. xF(iN,iF) is x-coord of iF'th feature for iN'th shape in
       %   image/view iView(iF)
       % yF: [NxF].
-      % iView: [NxF]. view indices labeling cols of xF/yF.
+      % iView: [F]. view indices labeling cols of xF/yF.
       % info: scalar struct.
 
       if size(xs,2)==3
@@ -666,7 +669,7 @@ classdef Features
       xF = round(bsxfun(@plus,x,dx'));
       yF = round(bsxfun(@plus,y,dy'));
       
-      iView = repmat(iView',N,1);
+      %iView = repmat(iView',N,1);
       
       if nargout>=4
         info = struct();
