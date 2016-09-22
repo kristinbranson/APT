@@ -3,28 +3,31 @@ Animal Part Tracker
 
 #### Requirements
 * MATLAB R2014b or later. Development is being done primarily on Win7 with light testing on Linux and Mac.
-* A recent checkout of JCtrax or JAABA. Development is being done primarily against JCtrax but it's supposed to work with either.
+* A recent checkout of JCtrax or JAABA. Development is being done primarily against JAABA but it's supposed to work with either.
 
 #### Usage
-1. Copy Manifest.sample.txt to Manifest.txt and edit to point to your checkout of JCtrax or JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/). 
-2. Copy pref.default.yaml to pref.yaml and edit for your desired configuration (see below).  
-3. Open MATLAB and:
+1. Copy Manifest.sample.txt to Manifest.txt and edit to point to your checkout of JCtrax or JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/). You can ignore the cameracalib entry unless you are doing multiview labeling/tracking.
+2. Open MATLAB and:
 ```
 % in MATLAB
 cd /path/to/git/APT/checkout
 APT.setpath % configures MATLAB path
 lObj = Labeler;
 ```
-4. Go to the File> menu to open a movie or movie+trx. (If you only have a movie and don't have trajectories, just hit Cancel when prompted for a Trx file.)
+4. Go to the File> menu and either "Quick Open" a movie, or create a "New Project". (If you have never created a project, "Quick Open" may not give you the right number of labeling points for your data. However this could still be a useful jumpstart to start getting familiar with the program.)
 
 #### Description
 
-###### Configuration/Preferences: pref.yaml
-Edit the file /\<APTRoot\>/pref.yaml to set up your labeler; these are your **local settings**. Settings in this file override the default values in /\<APTRoot\>/pref.default.yaml. Your local settings can be a very small subset of pref.default.yaml, for example just a single line. Most importantly:
+###### Project Setup (new project configuration)
+Brief notes when creating a new project:
 
-* **LabelMode** specifies your labeling mode; see LabelMode.m for options. The labeling mode is also automatically set when loading an existing project.
-* **NumLabelPoints**.
-* **LabelPointsPlot**. Items under this parent specify cosmetics for clicked/labeled points. For HighThroughputMode, **NFrameSkip** specifies the frame-skip. 
+* The **Number of Points** is the number of points you will adjust/set in each frame during labeling.
+  * For a multiview project, this is the number of **physical, 3D points**. Currently it is assumed that every physical point appears in every view.
+* The **Number of Views** should be set to 1 unless you have multiple cameras/views.
+* Notes on some of the available **Labeling Modes** are below. Template Mode is a good starting point if you are new to APT.
+* **Tracking**. For CPR tracking, at the moment you will need a checkout of the CPR repository. See also https://github.com/kristinbranson/APT/wiki/CPR-Tracking-in-the-Labeler.
+* Under the Advanced pane:
+  * Properties under **LabelPointsPlot** specify cosmetics for clicked/labeled points.
 
 ###### Sequential Mode
 Click the image to label. When NumLabelPoints points are clicked, adjust the points with click-drag. Hit accept to save/lock your labels. You can hit Clear at any time, which starts you over for the current frame/target. Switch targets or frames and do more labeling; the Targets and Frames tables are clickable for navigation. See the Help> menu for hotkeys. When browsing labeled (accepted) frames/targets, you can go back into adjustment mode by click-dragging a point. You will need to re-accept to save your changes. When you are all done, File>Save will save your results.
@@ -48,7 +51,7 @@ For labeling single movies (with or without trx), use the File>Quick Open Movie 
 
 When you open a movie in this way, you are actually creating a new Project with a single movie. When you are done labeling or reach a waypoint, you may save your work via the File>Save Project or File>Save Project As.
 
-Conceptually, a Project is just a list of movies (optionally with trx files), their labels, and labeling-related metadata (such as the labeling mode in use). The File>Manage Movies menu lets you add/remove movies to your project, switch the current movie being labeled, etc. By default Projects are saved to files with the .lbl extension.
+Conceptually, a Project is a project configuration, a list of movies (optionally with trx files), their labels, and labeling-related metadata. File>Manage Movies lets you add/remove movies to your project, switch the current movie being labeled, etc. By default, Projects are saved to files with the .lbl extension.
 
 ###### Occluded
 To label a point as "fully occluded", click in the box in the lower-left of the main image. Depending on the mode, you may be able to "unocclude" a point, or you can always push Clear.
@@ -63,21 +66,3 @@ The Labeler is designed to work with pluggable "Trackers" which attempt to learn
 
 A version of CPR (Cascaded Pose Regression) has been implemented and is available for use: see
 https://github.com/kristinbranson/APT/wiki/CPR-Tracking-in-the-Labeler
-
-###### Suspiciousness
-The Labeler currently allows an externally-computed scalar statistic to be associated with each movie/frame/target. For example one may compute a "suspiciousness" parameter based on the tracking of targets in a movie. The suspiciousness can then be used for navigation within the Labeler (and in the future, notes/curation etc).
-
-Currently, suspiciousness statistics are externally computed and set on the Labeler using **setSuspScore**:
-    
-``` 
-...
-lObj = Labeler;
-% Open a movie, do some labeling etc
-ss = rand(lObj.nframes,lObj.nTargets); % generate random suspiciousness score (demo only)
-ss(~lObj.frm2trx) = nan; % set suspScore to NaN where trx do not exist
-lObj.setSuspScore({ss}); % set/apply suspScore (cell array because we are setting score for 1st/only movie) 
-```
-
-Once a suspScore is set, navigation via the Suspiciousness table is enabled. This table can be sorted by column, but for large movies the performance can be painful.
-
-Note, the Labeler property **.labeledpos** contains all labels for the current project, if these are needed for computing the Suspiciousness. 
