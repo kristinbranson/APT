@@ -23,6 +23,8 @@ def main():
     parser.add_argument("--multithreaded",help="if true, run multithreaded binary",action="store_true",default=False)
     parser.add_argument("--account",default="",help="account to bill for cluster time",metavar="ACCOUNT")
     parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
+    parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
+    parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
 
     args = parser.parse_args()
     
@@ -39,6 +41,14 @@ def main():
             sys.exit("--movbatchfile must be specified for action==trackbatch or trackbatchserial")
         elif not os.path.exists(args.movbatchfile):
             sys.exit("Cannot find movie batchfile: {0:s}".format(args.movbatchfile))
+        if args.movbatchfilelinestart:
+            args.movbatchfilelinestart = int(args.movbatchfilelinestart)
+        else:
+            args.movbatchfilelinestart = 1
+        if args.movbatchfilelineend:
+            args.movbatchfilelineend = int(args.movbatchfilelineend)
+        else:
+            args.movbatchfilelineend = sys.maxint
     if args.action!="track" and args.mov:
         print("Action is " + args.action + ", ignoring --mov specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
@@ -76,6 +86,10 @@ def main():
 
     if args.action=="trackbatch":
         movs = [line.rstrip('\n') for line in open(args.movbatchfile,'r')]
+        imov0 = args.movbatchfilelinestart-1
+        imov1 = args.movbatchfilelineend # one past end
+        movs = movs[imov0:imov1]
+
         nmovtot = len(movs)
         nmovsub = 0
         for mov in movs:
