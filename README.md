@@ -9,12 +9,12 @@ Animal Part Tracker
 ### Usage
 1. Copy Manifest.sample.txt to Manifest.txt and edit to point to your checkout of JCtrax or JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/). You can ignore the cameracalib entry unless you are doing multiview labeling/tracking.
 2. Open MATLAB and:
-```
-% in MATLAB
-cd /path/to/git/APT/checkout
-APT.setpath % configures MATLAB path
-lObj = Labeler;
-```
+    ```
+    % in MATLAB
+    cd /path/to/git/APT/checkout
+    APT.setpath % configures MATLAB path
+    lObj = Labeler;
+    ```
 3. Go to the File> menu and either "Quick Open" a movie, or create a "New Project". Quick Open will prompt you for a movie file, then a trx file; if you don't have a trx file, just Cancel.
 
 If you have never created a project, "Quick Open" may not give you the appropriate number of labeling points. However, this could still be a useful jumpstart to start getting familiar with the program.
