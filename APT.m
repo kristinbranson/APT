@@ -28,7 +28,7 @@ classdef APT
       end
       root = APT.Root;
       campath = genpath(camroot);
-      campath = regexp(campath,':','split');
+      campath = regexp(campath,pathsep,'split');
       campath = campath(~cellfun(@isempty,campath));
       p = { ...
         root; ...
