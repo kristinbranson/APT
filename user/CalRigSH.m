@@ -15,7 +15,7 @@ classdef CalRigSH < CalRig
     % AL20160923. Increasing this to a high number to workaround apparent
     % MATLAB low-level graphics issue where EPline does not display. See
     % LabelCoreMultiViewCalibrated2.
-    epLineNPts = 5e3; 
+    epLineNPts = 1e4; 
   end
   
   methods

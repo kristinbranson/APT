@@ -758,7 +758,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       %20160923 hack legacy CalRigSH objs and EPlines workaround
       if isa(crig,'CalRigSH')
-        crig.epLineNPts = 5e3;
+        crig.epLineNPts = 1e4;
       end 
       
       crigViewSzs = crig.viewSizes; % [nView x 2]; each row is [nc nr]
