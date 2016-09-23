@@ -576,8 +576,22 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       gdata = obj.labeler.gdata;
       for iV = 1:obj.nView
         ax = gdata.axes_all(iV);        
+        
+        % AL20160923 
+        % EPlines (.pjtHLinesEpi) are sporadically not displaying on SH's
+        % windows machine. Setting 'Marker' to '.' with 'MarkerSize' of 1
+        % displays the line; using no Marker with 'LineStyle' of anything
+        % doesn't show the line. No good explanation yet, when using
+        % 'LineStyle' the display would periodically fail and then
+        % re-appear on project restart. Best guess is low-level graphics
+        % weirdness/bug. opengl('software') did not help.
+        %
+        % For now, include Marker with the line and see if it resolves.
         hLEpi(iV) = plot(ax,nan,nan,'-',...
-          'LineWidth',ppimvcm.EpipolarLineWidth,'hittest','off');
+          'LineWidth',ppimvcm.EpipolarLineWidth,...
+          'Marker','.',...
+          'MarkerSize',1,...
+          'hittest','off');
         hLRcn(iV) = plot(ax,nan,nan,ppimvcm.ReconstructedMarker,...
           'MarkerSize',ppimvcm.ReconstructedMarkerSize,...
           'LineWidth',ppimvcm.ReconstructedLineWidth,...
@@ -741,6 +755,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function projectionSetCalRig(obj,crig)
       assert(isa(crig,'CalRig'));
+      
+      %20160923 hack legacy CalRigSH objs and EPlines workaround
+      if isa(crig,'CalRigSH')
+        crig.epLineNPts = 5e3;
+      end 
       
       crigViewSzs = crig.viewSizes; % [nView x 2]; each row is [nc nr]
       lObj = obj.labeler;
