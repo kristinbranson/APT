@@ -1086,7 +1086,16 @@ end
 function menu_view_adjustbrightness_Callback(hObject, eventdata, handles)
 [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(handles);
 if tfproceed
-	hConstrast = imcontrast_kb(handles.axes_all(iAxRead));
+  try
+  	hConstrast = imcontrast_kb(handles.axes_all(iAxRead));
+  catch ME
+    switch ME.identifier
+      case 'images:imcontrast:unsupportedImageType'
+        error(ME.identifier,'%s %s',ME.message,'Try View > Convert to grayscale.');
+      otherwise
+        ME.rethrow();
+    end
+  end
 	addlistener(hConstrast,'ObjectBeingDestroyed',...
 		@(s,e) CloseImContrast(handles.labelerObj,iAxRead,iAxApply));
 end
