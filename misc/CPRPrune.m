@@ -194,7 +194,7 @@ classdef CPRPrune < handle
       obj.prnTrk = pTrk;
       obj.prnTrkAbs = pTrkAbs;
       obj.prnBest = pbest;
-      obj.prnPrev = pprev;
+      obj.prnPrev = pprevloc;
       obj.prnP0sigs = p0sigs;
     end
     
