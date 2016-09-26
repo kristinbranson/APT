@@ -57,7 +57,7 @@ classdef LabelCoreHT < LabelCore
 
   properties
     supportsMultiView = false;
-	supportsCalibration = false;
+    supportsCalibration = false;
   end
 
   properties
@@ -66,7 +66,14 @@ classdef LabelCoreHT < LabelCore
     nFrameSkip;
     unlabeledPointColor = [1 1 1];
     otherLabeledPointColor = [0.4 0.4 0.4];
-  end  
+  end
+  
+  methods
+    function set.nFrameSkip(obj,val)
+      validateattributes(val,{'numeric'},{'positive' 'integer'});
+      obj.nFrameSkip = val;
+    end
+  end
   
   methods
     

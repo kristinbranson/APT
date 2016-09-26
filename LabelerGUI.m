@@ -72,6 +72,15 @@ handles.output = hObject;
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
 
+handles.menu_setup_set_nframe_skip = uimenu('Parent',handles.menu_labeling_setup,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_set_nframe_skip_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Set Frame Increment',...
+  'Tag','menu_setup_set_nframe_skip',...
+  'Checked','off',...
+  'Visible','off');
+moveMenuItemAfter(handles.menu_setup_set_nframe_skip,...
+  handles.menu_setup_set_labeling_point);
+
 % add menu item for hiding prediction markers
 handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_predictions_Callback',hObject,eventdata,guidata(hObject)),...
@@ -520,30 +529,35 @@ switch lblMode
   case LabelMode.SEQUENTIAL
     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.TEMPLATE
     handles.menu_setup_createtemplate.Visible = 'on';
     handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'on';
+    handles.menu_setup_set_nframe_skip.Visible = 'on';
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.ERRORCORRECT
     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_unlock_all_frames.Visible = 'on';
     handles.menu_setup_lock_all_frames.Visible = 'on';
     handles.menu_setup_load_calibration_file.Visible = 'off';
   case {LabelMode.MULTIVIEWCALIBRATED LabelMode.MULTIVIEWCALIBRATED2}
     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
+    handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'on';
@@ -999,6 +1013,22 @@ menuSetupLabelModeCbkGeneric(hObject,handles);
 function menuSetupLabelModeCbkGeneric(hObject,handles)
 lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
 handles.labelerObj.labelingInit('labelMode',lblMode);
+
+function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lc = lObj.lblCore;
+assert(isa(lc,'LabelCoreHT'));
+nfs = lc.nFrameSkip;
+ret = inputdlg('Select labeling frame increment','Set increment',1,{num2str(nfs)});
+if isempty(ret)
+  return;
+end
+val = str2double(ret{1});
+lc.nFrameSkip = val;
+lObj.labelPointsPlotInfo.HighThroughputMode.NFrameSkip = val;
+% This state is duped between labelCore and lppi b/c the lifetimes are
+% different. LabelCore exists only between movies etc, and is initted from
+% lppi. Hmm
 
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
