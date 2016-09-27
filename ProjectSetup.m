@@ -155,6 +155,12 @@ pumTrk = handles.pumTracking;
 tracker = pumTrk.String{pumTrk.Value};
 cfg.Track.Enable = ~strcmpi(tracker,'none');
 cfg.Track.Type = tracker;
+% propertiesGUI treats props with empty vals as strings even if they are
+% subsequently filled with numbers
+FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim'};
+for i=1:numel(cfg.View)  
+  cfg.View(i) = structLeavesStr2Double(cfg.View(i),FIELDS2DOUBLIFY);
+end
 
 function handles = setCurrentConfig(handles,cfg)
 % Set given config on controls
@@ -187,10 +193,7 @@ end
 pumTrk.Value = val;
 
 sMirror = cfg2mirror(cfg);
-if ~isempty(handles.propsPane) && ishandle(handles.propsPane)
-  delete(handles.propsPane);
-end
-handles.propsPane = propertiesGUI(handles.pnlAdvanced,sMirror);
+handles = advTableRefresh(handles,sMirror);
 
 function sMirror = cfg2mirror(cfg)
 % Convert true/full data struct to 'mirror' struct for adv table. (The term
@@ -234,17 +237,26 @@ elseif nflds<n
 end
 sMirror.(fld) = v;
 
-function advTableRefresh(handles)
-ad = getappdata(handles.figure1);
-sMirror = ad.mirror;
+function sMirror = hlpAugmentOrTruncStructField(sMirror,fld,n)
+v = sMirror.(fld);
+v = augmentOrTruncateVector(v,n);
+sMirror.(fld) = v(:);
+
+function handles = advTableRefresh(handles,sMirror)
+tfRefresh = exist('sMirror','var')==0;
+if tfRefresh
+  ad = getappdata(handles.figure1);
+  sMirror = ad.mirror;
+end
 sMirror = hlpAugmentOrTruncNameField(sMirror,'ViewNames','view',handles.nViews);
 sMirror = hlpAugmentOrTruncNameField(sMirror,'LabelPointNames','point',handles.nPoints);
+sMirror = hlpAugmentOrTruncStructField(sMirror,'View',handles.nViews);
 if ~isempty(handles.propsPane) && ishandle(handles.propsPane)
   delete(handles.propsPane);
   handles.propsPane = [];
-end  
+end
+  
 handles.propsPane = propertiesGUI(handles.pnlAdvanced,sMirror);
-guidata(handles.figure1,handles);
 
 function handles = advModeExpand(handles)
 h1 = findall(handles.figure1,'-property','Units');
@@ -282,20 +294,20 @@ function etNumberOfPoints_Callback(hObject, eventdata, handles)
 val = str2double(hObject.String);
 if floor(val)==val && val>=1
   handles.nPoints = val;
-  guidata(hObject,handles);
 else
   hObject.String = handles.nPoints;
 end
-advTableRefresh(handles);
+handles = advTableRefresh(handles);
+guidata(hObject,handles);
 function etNumberOfViews_Callback(hObject, eventdata, handles)
 val = str2double(hObject.String);
 if floor(val)==val && val>=1
   handles.nViews = val;
-  guidata(hObject,handles);
 else
   hObject.String = handles.nViews;
 end
-advTableRefresh(handles);
+handles = advTableRefresh(handles);
+guidata(hObject,handles);
 function pumLabelingMode_Callback(hObject, eventdata, handles)
 function pumTracking_Callback(hObject, eventdata, handles)
 function pbCreateProject_Callback(hObject, eventdata, handles)
@@ -334,3 +346,20 @@ if isequal(get(hObject,'waitstatus'),'waiting')
 else  
   delete(hObject);
 end
+
+function s = structLeavesStr2Double(s,flds)
+% flds: cellstr of fieldnames
+%
+% Convert nonempty leaf nodes from strs to doubles
+for f=flds(:)',f=f{1};
+  val = s.(f);
+  if isstruct(val)
+    s.(f) = structLeavesStr2Double(s.(f),fieldnames(s.(f)));
+  elseif ~isempty(val)
+    s.(f) = str2double(val);
+  else
+    % none, empty
+  end
+end
+
+

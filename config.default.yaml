@@ -19,8 +19,27 @@ Trx:
   TrxMarkerSize: 10
   TrxLineWidth: 3
 
+View: 
+  XDir: 'n'
+  YDir: 'r'
+  CLim:
+    Min: 0
+    Max: 1
+  Gamma: 
+  FigurePos:
+    left: 
+    bottom: 
+    width: 
+    height: 
+  AxisLim:
+    xmin: 
+    xmax: 
+    ymin:  
+    ymax: 
+
 Movie:
   FrameStepBig: 10
+  UpDown: 'u' # 'u' or 'l'
 
 LabelPointsPlot:
   ColorMapName: 'spring'

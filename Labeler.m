@@ -14,7 +14,7 @@ classdef Labeler < handle
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'currMovie' 'currFrame' 'currTarget' ...
       'labelTemplate' ...
-      'minv' 'maxv' 'movieForceGrayscale'...
+      'movieForceGrayscale'...
       'suspScore'};
     LOADPROPS = { ...
       'projname' ...
@@ -22,7 +22,7 @@ classdef Labeler < handle
       'viewCalibrationData' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'labelTemplate' ...
-      'minv' 'maxv' 'movieForceGrayscale' ...
+      'movieForceGrayscale' ...
       'suspScore'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
@@ -106,8 +106,6 @@ classdef Labeler < handle
     viewCalibrationData % opaque 'userdata' for calibrations for multiview. Currently, scalar CalRig object. init: PN
     
     movieReader = []; % [1xnview] MovieReader objects. init: C
-    minv = 0; % [nview] lower limit clim. init: C, IFC
-    maxv = inf; % [nview] upper limit clim. init: C, IFC
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
   end
@@ -554,13 +552,7 @@ classdef Labeler < handle
       obj.trackNFramesNear = cfg.Track.PredictNeighborhood;
       cfg.Track = rmfield(cfg.Track,...
         {'PredictFrameStep' 'PredictFrameStepBig' 'PredictNeighborhood'});
-      
-      fldsRm = intersect(fieldnames(cfg),...
-        {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
-         'LabelMode' 'LabelPointsPlot' 'ProjectName'});
-      obj.projPrefs = rmfield(cfg,fldsRm); 
-      % A few minor subprops of projPrefs have explicit props
-            
+                  
       arrayfun(@delete,obj.movieReader);
       obj.movieReader = [];
       for i=obj.nview:-1:1
@@ -572,17 +564,13 @@ classdef Labeler < handle
       gd = obj.gdata;
       obj.currImHud = AxisHUD(gd.axes_curr); 
       %obj.movieSetNoMovie();
-      
-      nminv = numel(obj.minv);
-      assert(nminv==numel(obj.maxv));
-      if nminv<obj.nview
-        obj.minv(end+1:obj.nview,1) = 0;
-        obj.maxv(end+1:obj.nview,1) = inf;
-      elseif nminv>obj.nview
-        obj.minv = obj.minv(1:obj.nview);
-        obj.maxv = obj.maxv(1:obj.nview);
-      end
-      
+           
+      fldsRm = intersect(fieldnames(cfg),...
+        {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
+        'LabelMode' 'LabelPointsPlot' 'ProjectName'});
+      obj.projPrefs = rmfield(cfg,fldsRm);
+      % A few minor subprops of projPrefs have explicit props
+
       obj.notify('newProject');
 
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
@@ -591,7 +579,7 @@ classdef Labeler < handle
     function cfg = getCurrentConfig(obj)
       % cfg is modernized
 
-      cfg = obj.projPrefs;      
+      cfg = obj.projPrefs;
       
       cfg.NumViews = obj.nview;
       cfg.ViewNames = obj.viewNames;
@@ -604,6 +592,11 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
+      
+      % View stuff: read off current state of axes
+      gd = obj.gdata;
+      viewCfg = ViewConfig.readCfgOffViews(gd.figs_all,gd.axes_all,gd.axes_prev);
+      cfg.View = viewCfg;
     end
     
   end
@@ -622,10 +615,13 @@ classdef Labeler < handle
     
     function cfg = cfgModernize(cfg)
       % Bring a cfg up-to-date with latest by adding in any new fields from
-      % pref.default.yaml.
+      % config.default.yaml.
       
       cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
-      cfg = structoverlay(cfgBase,cfg);
+      
+      cfg = structoverlay(cfgBase,cfg,'dontWarnUnrecog',true);
+      view = augmentOrTruncateVector(cfg.View,cfg.NumViews);
+      cfg.View = view(:);
     end
     
     function cfg = cfgDefaultOrder(cfg)
@@ -1259,6 +1255,8 @@ classdef Labeler < handle
         end
         cfg = structoverlay(cfgbase,cfg,'dontWarnUnrecog',true);
         s.cfg = cfg;
+      else
+        s.cfg = Labeler.cfgModernize(s.cfg);
       end
       
       % 20160816
@@ -1267,6 +1265,16 @@ classdef Labeler < handle
       if nminv~=s.cfg.NumViews
         s.minv = repmat(s.minv(1),s.cfg.NumViews,1);
         s.maxv = repmat(s.maxv(1),s.cfg.NumViews,1);
+      end
+      
+      % 20160927
+      if isfield(s,'minv')
+        assert(isequal(numel(s.minv),numel(s.maxv),s.cfg.NumViews));
+        for iView=1:s.cfg.NumViews
+          s.cfg.View(iView).CLim.Min = s.minv(iView);
+          s.cfg.View(iView).CLim.Max = s.maxv(iView);
+        end
+        s = rmfield(s,{'minv' 'maxv'});
       end
     end
     

@@ -31,9 +31,19 @@ for f = fldsOver(:)',f=f{1}; %#ok<FXSET>
         newpath);
     end
   elseif isstruct(sbase.(f)) && isstruct(sover.(f))
-    [sbase.(f),tmpBU] = structoverlay(sbase.(f),sover.(f),'path',newpath,...
-      'dontWarnUnrecog',dontWarnUnrecog);
-    baseused = [baseused;tmpBU]; %#ok<AGROW>
+    assert(isscalar(sbase.(f)));
+    % Allow nonscalar sover.(f)
+    numOver = numel(sover.(f));
+    assert(numOver>0);
+    sbaseEl = sbase.(f);
+    for i=1:numOver
+      newpathindexed = [newpath sprintf('(%d)',i)];
+      [sbase.(f)(i),tmpBU] = structoverlay(...
+        sbaseEl,sover.(f)(i),...
+        'path',newpathindexed,...
+        'dontWarnUnrecog',dontWarnUnrecog);
+      baseused = [baseused;tmpBU]; %#ok<AGROW>
+    end
   elseif isstruct(sbase.(f)) && ~isstruct(sover.(f))
     warning('structoverlay:badval','Ignoring non-struct value of ''%s''.',...
       newpath);

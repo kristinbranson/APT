@@ -54,7 +54,7 @@ else
 end
 % End initialization code - DO NOT EDIT
 
-function LabelerGUI_OpeningFcn(hObject,eventdata,handles,varargin) %#ok<INUSL>
+function LabelerGUI_OpeningFcn(hObject,eventdata,handles,varargin) 
 
 if verLessThan('matlab','8.4')
   error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
@@ -232,15 +232,15 @@ guidata(hFig,handles);
 function handles = setShortcuts(handles)
 
 prefs = handles.labelerObj.projPrefs;
-if ~isfield(prefs,'Shortcuts'),
+if ~isfield(prefs,'Shortcuts')
   return;
 end
 prefs = prefs.Shortcuts;
 fns = fieldnames(prefs);
 ismenu = false(1,numel(fns));
-for i = 1:numel(fns),
+for i = 1:numel(fns)
   h = findobj(handles.figure,'Tag',fns{i},'-property','Accelerator');
-  if isempty(h) || ~ishandle(h),
+  if isempty(h) || ~ishandle(h)
     continue;
   end
   ismenu(i) = true;
@@ -251,7 +251,7 @@ handles.shortcutkeys = cell(1,nnz(~ismenu));
 handles.shortcutfns = cell(1,nnz(~ismenu));
 idxnotmenu = find(~ismenu);
 
-for ii = 1:numel(idxnotmenu),
+for ii = 1:numel(idxnotmenu)
   i = idxnotmenu(ii);
   handles.shortcutkeys{ii} = prefs.(fns{i});
   handles.shortcutfns{ii} = fns{i};
@@ -310,22 +310,22 @@ tfKPused = false;
 
 handles = guidata(src);
 % KB20160724: shortcuts from preferences
-if all(isfield(handles,{'shortcutkeys','shortcutfns'})),
+if all(isfield(handles,{'shortcutkeys','shortcutfns'}))
   % control key pressed?
-  if ismember('control',evt.Modifier) && numel(evt.Modifier) == 1 && any(strcmpi(evt.Key,handles.shortcutkeys)),
+  if ismember('control',evt.Modifier) && numel(evt.Modifier) == 1 && any(strcmpi(evt.Key,handles.shortcutkeys))
     i = find(strcmpi(evt.Key,handles.shortcutkeys),1);
     h = findobj(handles.figure,'Tag',handles.shortcutfns{i},'-property','Callback');
-    if isempty(h),
+    if isempty(h)
       fprintf('Unknown shortcut handle %s\n',handles.shortcutfns{i});
     else
       cb = get(h,'Callback');
-      if isa(cb,'function_handle'),
+      if isa(cb,'function_handle')
         cb(h,[]);
         tfKPused = true;
-      elseif iscell(cb),
+      elseif iscell(cb)
         cb{1}(cb{2:end});
         tfKPused = true;
-      elseif ischar(cb),
+      elseif ischar(cb)
         evalin('base',[cb,';']);
         tfKPused = true;
       end
@@ -333,7 +333,7 @@ if all(isfield(handles,{'shortcutkeys','shortcutfns'})),
   end  
 end
 
-if tfKPused,
+if tfKPused
   return;
 end
 
@@ -378,7 +378,6 @@ ims = gobjects(1,nview);
 figs(1) = handles.figs_all;
 axs(1) = handles.axes_all;
 ims(1) = handles.images_all;
-
 for iView=2:nview
   figs(iView) = figure('CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj));
   axs(iView) = axes;
@@ -394,6 +393,9 @@ handles.figs_all = figs;
 handles.axes_all = axs;
 handles.images_all = ims;
 
+handles.tfAxLimSpecifiedInCfg = ViewConfig.setCfgOnViews(...
+  lObj.projPrefs.View,figs,axs,handles.axes_prev);
+
 arrayfun(@(x)colormap(x,gray),figs);
 viewNames = lObj.viewNames;
 for i=1:nview
@@ -405,14 +407,14 @@ for i=1:nview
   end
 end
 
-% AL: important to get clickable points. Somehow this jiggers plot
-% lims/scaling/coords so that points are more clickable; otherwise
-% lblCore points in aux axes are impossible to click (eg without zooming
-% way in or other contortions)
-for i=2:numel(figs)
-  figs(i).ResizeFcn = @cbkAuxAxResize;
-end
-%arrayfun(@(x)axis(x,'auto'),ax);
+% % AL: important to get clickable points. Somehow this jiggers plot
+% % lims/scaling/coords so that points are more clickable; otherwise
+% % lblCore points in aux axes are impossible to click (eg without zooming
+% % way in or other contortions)
+% for i=2:numel(figs)
+%   figs(i).ResizeFcn = @cbkAuxAxResize;
+% end
+% %arrayfun(@(x)axis(x,'auto'),ax);
 
 hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
@@ -428,6 +430,17 @@ handles.labelTLInfo.initNewMovie();
 
 guidata(handles.figure,handles);
 
+function hlpAxDir(ax,prop,val)
+if isempty(val)
+  % none
+elseif any(strcmp(val,{'n' 'r'}))
+  ax.(prop) = val;
+else
+  warning('LabelerGUI:axDir',...
+    'Ignoring invalid configuration setting ''%s'' for axis.%s.',...
+    val,prop);
+end
+  
 function cbkNewMovie(src,evt)
 lObj = src;
 handles = lObj.gdata;
@@ -436,36 +449,34 @@ nframes = movRdrs(1).nframes;
 ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
 hAxs = handles.axes_all;
 hIms = handles.images_all;
-assert(isequal(lObj.nview,numel(ims),numel(hAxs),numel(hIms),numel(lObj.minv),numel(lObj.maxv)));
+assert(isequal(lObj.nview,numel(ims),numel(hAxs),numel(hIms)));
 
-for iView = 1:lObj.nview
-	% clip maxv
-	if isfield(movRdrs(iView).info,'bitdepth')
-		lObj.maxv(iView) = min(lObj.maxv(iView),2^movRdrs(iView).info.bitdepth-1);
-	elseif isa(ims{iView},'uint16')
-		lObj.maxv(iView) = min(lObj.maxv(iView),2^16 - 1);
-	elseif isa(ims{iView},'uint8')
-		lObj.maxv(iView) = min(lObj.maxv(iView),2^8 - 1);
-	else
-		lObj.maxv(iView) = min(lObj.maxv(iView),2^(ceil(log2(max(ims{iView}(:)))/8)*8));
-	end
-	minvmaxv = [lObj.minv(iView) lObj.maxv(iView)];
-
+for iView = 1:lObj.nview	
 	set(hIms(iView),'CData',ims{iView});
-	set(hAxs(iView),'CLim',minvmaxv,...
-		'XLim',[.5,size(ims{iView},2)+.5],...
-		'YLim',[.5,size(ims{iView},1)+.5]);
-	axis(hAxs(iView),'image');
-	zoom(hAxs(iView),'reset');
-
-  if iView==1
-    % axes_curr
-    axprev = handles.axes_prev;
-    set(axprev,'CLim',minvmaxv,...
+  if handles.tfAxLimSpecifiedInCfg(iView)
+     % none
+  else
+    set(hAxs(iView),...
       'XLim',[.5,size(ims{iView},2)+.5],...
       'YLim',[.5,size(ims{iView},1)+.5]);
-    zoom(axprev,'reset');
+    axis(hAxs(iView),'image');
+    zoom(hAxs(iView),'reset');
   end
+
+  %if iView==1 % axes_curr
+    %axprev = handles.axes_prev;
+    %set(axprev,'CLim',minvmaxv);
+    
+    % axprev should be linked
+    
+%     if ~handles.tfAxLimSpecifiedInCfg(iView)
+%       set(axprev,...
+%         'XLim',[.5,size(ims{iView},2)+.5],...
+%         'YLim',[.5,size(ims{iView},1)+.5]);
+%       % is this really nec
+%       zoom(axprev,'reset');
+%     end
+  %end
 end
 
 handles.labelTLInfo.initNewMovie();
@@ -473,7 +484,7 @@ handles.labelTLInfo.setLabelsFull();
 
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
-      
+
 function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
 frm = lObj.currFrame;
@@ -693,7 +704,7 @@ handles = lObj.gdata;
 handles.menu_track.Enable = onOff;
 handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
-if tf,
+if tf
   lObj.tracker.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions));
 end
 
@@ -1076,8 +1087,8 @@ else
 	if tfApplyAxPrev
 		set(lObj.gdata.axes_prev,'CLim',clim);
 	end
-	lObj.minv(iAxApply) = clim(1);
-	lObj.maxv(iAxApply) = clim(2);
+% 	lObj.minv(iAxApply) = clim(1);
+% 	lObj.maxv(iAxApply) = clim(2);
 end		
 
 function [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(handles)
