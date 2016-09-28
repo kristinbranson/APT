@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 28-Sep-2016 07:58:56
+% Last Modified by GUIDE v2.5 28-Sep-2016 10:14:28
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -395,8 +395,7 @@ handles.figs_all = figs;
 handles.axes_all = axs;
 handles.images_all = ims;
 
-handles.tfAxLimSpecifiedInCfg = ViewConfig.setCfgOnViews(...
-  lObj.projPrefs.View,figs,axs,ims,handles.axes_prev);
+ViewConfig.setCfgOnViews(lObj.projPrefs.View,figs,axs,ims,handles.axes_prev);
 
 arrayfun(@(x)colormap(x,gray),figs);
 viewNames = lObj.viewNames;
@@ -444,30 +443,9 @@ assert(isequal(lObj.nview,numel(ims),numel(hAxs),numel(hIms)));
 
 for iView = 1:lObj.nview	
 	set(hIms(iView),'CData',ims{iView});
-  if handles.tfAxLimSpecifiedInCfg(iView)
-     % none
-  else
-    set(hAxs(iView),...
-      'XLim',[.5,size(ims{iView},2)+.5],...
-      'YLim',[.5,size(ims{iView},1)+.5]);
-    axis(hAxs(iView),'image');
-    zoom(hAxs(iView),'reset');
-  end
-
-  %if iView==1 % axes_curr
-    %axprev = handles.axes_prev;
-    %set(axprev,'CLim',minvmaxv);
-    
-    % axprev should be linked
-    
-%     if ~handles.tfAxLimSpecifiedInCfg(iView)
-%       set(axprev,...
-%         'XLim',[.5,size(ims{iView},2)+.5],...
-%         'YLim',[.5,size(ims{iView},1)+.5]);
-%       % is this really nec
-%       zoom(axprev,'reset');
-%     end
-  %end
+  
+  % Right now we leave axis lims as-is. The large majority of the time,
+  % the new movie will have the same size as the old.
 end
 
 handles.labelTLInfo.initNewMovie();
@@ -475,6 +453,13 @@ handles.labelTLInfo.setLabelsFull();
 
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
+
+function zoomOutFullView(hAx,hIm)
+set(hAx,...
+  'XLim',[.5,size(hIm.CData,2)+.5],...
+  'YLim',[.5,size(hIm.CData,1)+.5]);
+axis(hAx,'image');
+zoom(hAx,'reset');
 
 function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -1189,10 +1174,7 @@ function menu_view_flip_flipud_movie_only_Callback(hObject, eventdata, handles)
 [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(handles);
 if tfproceed
   lObj = handles.labelerObj;
-  for iAx = iAxApply(:)'
-    mr = lObj.movieReader(iAx);
-    mr.flipVert = ~mr.flipVert;
-  end
+  lObj.movieInvert(iAxApply) = ~lObj.movieInvert(iAxApply);
   if lObj.hasMovie
     lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
   end
@@ -1221,11 +1203,17 @@ if tfproceed
     end
   end
 end
+function menu_view_fit_entire_image_Callback(hObject, eventdata, handles)
+hAxs = handles.axes_all;
+hIms = handles.images_all;
+assert(numel(hAxs)==numel(hIms));
+arrayfun(@zoomOutFullView,hAxs,hIms);
+
 function menu_view_reset_views_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 viewCfg = lObj.projPrefs.View;
-handles.tfAxLimSpecifiedInCfg = ViewConfig.setCfgOnViews(viewCfg,...
-  handles.figs_all,handles.axes_all,handles.images_all,handles.axes_prev);
+ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,handles.axes_all,...
+  handles.images_all,handles.axes_prev);
 movInvert = ViewConfig.getMovieInvert(viewCfg);
 lObj.movieInvert = movInvert;
 function menu_view_hide_labels_Callback(hObject, eventdata, handles)

@@ -116,7 +116,7 @@ classdef ViewConfig
             cl = ax.CLim;
             viewCfg(i).CLim = struct('Min',cl(1),'Max',cl(2));
           otherwise
-            viewCfg(i).CLim = [];
+            viewCfg(i).CLim = struct('Min',[],'Max',[]);
         end
         fpos = fg.Position;
         viewCfg(i).FigurePos = struct(...
