@@ -565,8 +565,6 @@ classdef Labeler < handle
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
-      movInvert = ViewConfig.getMovieInvert(cfg.View);
-      obj.movieInvert = movInvert;
            
       fldsRm = intersect(fieldnames(cfg),...
         {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
@@ -575,6 +573,11 @@ classdef Labeler < handle
       % A few minor subprops of projPrefs have explicit props
 
       obj.notify('newProject');
+
+      % order important: this needs to occur after 'newProject' event so
+      % that figs are set up. (names get changed)
+      movInvert = ViewConfig.getMovieInvert(cfg.View);
+      obj.movieInvert = movInvert;
 
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
@@ -1270,9 +1273,8 @@ classdef Labeler < handle
         end
         cfg = structoverlay(cfgbase,cfg,'dontWarnUnrecog',true);
         s.cfg = cfg;
-      else
-        s.cfg = Labeler.cfgModernize(s.cfg);
-      end
+      end      
+      s.cfg = Labeler.cfgModernize(s.cfg);
       
       % 20160816
       if isfield(s,'minv')
@@ -1812,7 +1814,7 @@ classdef Labeler < handle
       if isempty(obj.labeledpos{iMov})
         obj.labeledpos{iMov} = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets);
       end
-      if isempty(obj.labeledposTS{iMov});
+      if isempty(obj.labeledposTS{iMov})
         obj.labeledposTS{iMov} = -inf(obj.nLabelPoints,obj.nframes,obj.nTargets); 
       end
       if isempty(obj.labeledposMarked{iMov})

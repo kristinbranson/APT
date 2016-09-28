@@ -37,6 +37,10 @@ View:
     ymin:  
     ymax: 
   InvertMovie:
+  AxColor: [1,1,1]
+  AxFontSize: 12
+  ShowAxTicks: 0
+  ShowGrid: 0
 
 Movie:
   ForceGrayScale: 1

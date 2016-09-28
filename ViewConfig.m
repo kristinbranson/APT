@@ -31,7 +31,10 @@ classdef ViewConfig
       tfAxLimSpecifiedInCfg = false(nview,1);
       
       for iView = 1:nview
-        fpos = viewCfg(iView).FigurePos;
+        vCfg = viewCfg(iView);
+        ax = hAx(iView);
+        
+        fpos = vCfg.FigurePos;
         tf = structfun(@isscalar,fpos);
         if all(tf)
           fpos = [fpos.left fpos.bottom fpos.width fpos.height];
@@ -43,11 +46,11 @@ classdef ViewConfig
           % all fpos elements are empty; no-op
         end
         
-        axlim = viewCfg(iView).AxisLim;
+        axlim = vCfg.AxisLim;
         tf = structfun(@isscalar,axlim);
         if all(tf)
           axlim = [axlim.xmin axlim.xmax axlim.ymin axlim.ymax];
-          axis(hAx(iView),axlim);
+          axis(ax,axlim);
           tfAxLimSpecifiedInCfg(iView) = true;
         else
           if any(tf)
@@ -55,19 +58,19 @@ classdef ViewConfig
               'Ignoring invalid configuration setting: axis limits for axis %d.',iView);
           end
           
-          axis(hAx(iView),'image'); % "auto"/default          
+          axis(ax,'image'); % "auto"/default      
         end
         
-        hlpAxDir(hAx(iView),'XDir',viewCfg(iView).XDir);
-        hlpAxDir(hAx(iView),'YDir',viewCfg(iView).YDir);
+        hlpAxDir(ax,'XDir',vCfg.XDir);
+        hlpAxDir(ax,'YDir',vCfg.YDir);
         if iView==1
-          hlpAxDir(hAxPrev,'XDir',viewCfg(iView).XDir);
-          hlpAxDir(hAxPrev,'YDir',viewCfg(iView).YDir);
+          hlpAxDir(hAxPrev,'XDir',vCfg.XDir);
+          hlpAxDir(hAxPrev,'YDir',vCfg.YDir);
         end
         
-        clim = viewCfg(iView).CLim;
+        clim = vCfg.CLim;
         if isempty(clim.Min) && isempty(clim.Max)
-          caxis(hAx(iView),'auto');
+          caxis(ax,'auto');
           if iView==1
             caxis(hAxPrev,'auto');
           end
@@ -79,19 +82,38 @@ classdef ViewConfig
           if ~isempty(clim.Max)
             climset(2) = clim.Max;
           end
-          hAx(iView).CLim = climset;
+          ax.CLim = climset;
           if iView==1
             hAxPrev.CLim = climset;
           end
         end
         
-        gam = viewCfg(iView).Gamma;
+        gam = vCfg.Gamma;
         if ~isempty(gam)
-          ViewConfig.applyGammaCorrection(hIm(iView),hAx(iView),hAxPrev,iView,gam);
+          ViewConfig.applyGammaCorrection(hIm(iView),ax,hAxPrev,iView,gam);
         else
           cm = gray(ViewConfig.GAMMA_CORRECT_CMAP_LEN);
-          colormap(hAx(iView),cm);
-          hAx(iView).UserData.gamma = [];
+          colormap(ax,cm);
+          ax.UserData.gamma = [];
+        end
+
+        ax.XAxisLocation = 'top';
+        ax.XColor = vCfg.AxColor;
+        ax.YColor = vCfg.AxColor;
+        ax.Box = 'on';
+        ax.FontUnits = 'pixels';
+        ax.FontSize = vCfg.AxFontSize;
+        if vCfg.ShowAxTicks
+          ax.XTickMode = 'auto';
+          ax.XTickMode = 'auto';          
+        else
+          ax.XTick = [];
+          ax.YTick = [];
+        end
+        if vCfg.ShowGrid
+          grid(ax,'on');
+        else
+          grid(ax,'off');
         end
       end
     end

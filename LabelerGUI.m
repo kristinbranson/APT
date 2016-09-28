@@ -84,10 +84,23 @@ moveMenuItemAfter(handles.menu_setup_set_nframe_skip,...
 % add menu item for hiding prediction markers
 handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_predictions_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Hide Predictions',...
+  'Label','Hide predictions',...
   'Tag','menu_view_hide_predictions',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_predictions,handles.menu_view_hide_labels);
+
+handles.menu_view_show_tick_labels = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_tick_labels_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Show tick labels',...
+  'Tag','menu_view_show_tick_labels',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_show_tick_labels,handles.menu_view_hide_predictions);
+handles.menu_view_show_grid = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_grid_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Show grid',...
+  'Tag','menu_view_show_grid',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_show_grid,handles.menu_view_show_tick_labels);
 
 % add menu item for setting current frames labels to tracked positions
 handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
@@ -127,12 +140,12 @@ axis(handles.axes_occ,'ij');
 
 handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
 set(handles.image_curr,'hittest','off');
-axisoff(handles.axes_curr);
+%axisoff(handles.axes_curr);
 hold(handles.axes_curr,'on');
 set(handles.axes_curr,'Color',[0 0 0]);
 handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
 set(handles.image_prev,'hittest','off');
-axisoff(handles.axes_prev);
+%axisoff(handles.axes_prev);
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0]);
 
@@ -381,13 +394,16 @@ figs(1) = handles.figs_all;
 axs(1) = handles.axes_all;
 ims(1) = handles.images_all;
 for iView=2:nview
-  figs(iView) = figure('CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj));
+  figs(iView) = figure(...
+    'CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj),...
+    'Color',figs(1).Color...
+    );
   axs(iView) = axes;
   handles = addDepHandle(handles.figure,figs(iView));
   
   ims(iView) = imagesc(0,'Parent',axs(iView));
   set(ims(iView),'hittest','off');
-  axisoff(axs(iView));
+  %axisoff(axs(iView));
   hold(axs(iView),'on');
   set(axs(iView),'Color',[0 0 0]);
 end
@@ -1227,6 +1243,30 @@ tracker = handles.labelerObj.tracker;
 if ~isempty(tracker)
   tracker.hideVizToggle();
 end
+
+function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
+% just use checked state of menu for now, no other state
+switch hObject.Checked
+  case 'on'
+    set(handles.axes_all,'XTickLabel',[],'YTickLabel',[]);
+    hObject.Checked = 'off';
+  case 'off'
+    set(handles.axes_all,'XTickMode','auto','XTickLabelMode','auto',...
+                         'YTickMode','auto','YTickLabelMode','auto');
+    hObject.Checked = 'on';
+end
+function menu_view_show_grid_Callback(hObject, eventdata, handles)
+% just use checked state of menu for now, no other state
+switch hObject.Checked
+  case 'on'
+    arrayfun(@(x)grid(x,'off'),handles.axes_all);    
+    hObject.Checked = 'off';
+  case 'off'
+    set(handles.axes_all,'XTickMode','auto','YTickMode','auto');
+    arrayfun(@(x)grid(x,'on'),handles.axes_all);
+    hObject.Checked = 'on';
+end
+
 
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 prmFile = RC.getprop('lastCPRParamFile');
