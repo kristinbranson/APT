@@ -122,7 +122,7 @@ handles.pumTracking.String = trackers;
 handles.propsPane = [];
 
 % init ui state
-cfg = Labeler.cfgGetLastProjectConfig;
+cfg = Labeler.cfgGetLastProjectConfigNoView;
 handles = setCurrentConfig(handles,cfg);
 handles.propsPane.Position(4) = handles.propsPane.Position(3); % by default table is slightly bigger than panel for some reason
 handles = advModeCollapse(handles);
@@ -350,13 +350,15 @@ end
 function s = structLeavesStr2Double(s,flds)
 % flds: cellstr of fieldnames
 %
-% Convert nonempty leaf nodes from strs to doubles
-for f=flds(:)',f=f{1};
+% Convert nonempty leaf nodes that are strs to doubles
+for f=flds(:)',f=f{1}; %#ok<FXSET>
   val = s.(f);
   if isstruct(val)
     s.(f) = structLeavesStr2Double(s.(f),fieldnames(s.(f)));
   elseif ~isempty(val)
-    s.(f) = str2double(val);
+    if ischar(val)
+      s.(f) = str2double(val);
+    end
   else
     % none, empty
   end

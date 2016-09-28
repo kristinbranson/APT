@@ -394,7 +394,7 @@ handles.axes_all = axs;
 handles.images_all = ims;
 
 handles.tfAxLimSpecifiedInCfg = ViewConfig.setCfgOnViews(...
-  lObj.projPrefs.View,figs,axs,handles.axes_prev);
+  lObj.projPrefs.View,figs,axs,ims,handles.axes_prev);
 
 arrayfun(@(x)colormap(x,gray),figs);
 viewNames = lObj.viewNames;
@@ -429,17 +429,6 @@ handles = setShortcuts(handles);
 handles.labelTLInfo.initNewMovie(); 
 
 guidata(handles.figure,handles);
-
-function hlpAxDir(ax,prop,val)
-if isempty(val)
-  % none
-elseif any(strcmp(val,{'n' 'r'}))
-  ax.(prop) = val;
-else
-  warning('LabelerGUI:axDir',...
-    'Ignoring invalid configuration setting ''%s'' for axis.%s.',...
-    val,prop);
-end
   
 function cbkNewMovie(src,evt)
 lObj = src;
@@ -901,11 +890,12 @@ if hlpSave(lObj)
   movfile = movfile{1};
   trxfile = trxfile{1};
   
-  cfg = Labeler.cfgGetLastProjectConfig;
+  cfg = Labeler.cfgGetLastProjectConfigNoView;
   if cfg.NumViews>1
     warndlg('Your last project had multiple views. Opening movie with single view.');
     cfg.NumViews = 1;
     cfg.ViewNames = cfg.ViewNames(1);
+    cfg.View = cfg.View(1);
   end
   lm = LabelMode.(cfg.LabelMode);
   if lm.multiviewOnly
@@ -1160,22 +1150,8 @@ if isempty(val)
   return;
 end
 gamma = str2double(val{1});
-
-m0 = gray(256);
-m1 = imadjust(m0,[],[],gamma);
-imsAll = handles.images_all;
-axsAll = handles.axes_all;
-for iAx = iAxApply(:)'	
-	im = imsAll(iAx);
-	if size(im.CData,3)~=1
-		error('Labeler:gamma',...
-			'Gamma correction currently only supported for grayscale/intensity images.');
-	end
-	arrayfun(@(x)colormap(x,m1),axsAll(iAx));
-	if iAx==1 % axes_curr
-		colormap(handles.axes_prev,m1);
-	end
-end
+ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
+  handles.axes_prev,iAxApply,gamma);
 		
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);

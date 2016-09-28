@@ -354,7 +354,7 @@ registerModularToolWithManager(hFig,imageHandle);
             end
             
             % Branch to account for changes to post set listener eventdata
-            if feature('HGUsingMATLABClasses')
+            if ~verLessThan('matlab','8.4.0') %feature('HGUsingMATLABClasses')
                 new_clim = get(evt.AffectedObject,'CLim');
             else
                 new_clim = evt.NewValue;

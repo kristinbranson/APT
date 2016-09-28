@@ -1,4 +1,8 @@
-classdef ViewConfig  
+classdef ViewConfig
+  
+  properties (Constant)
+    GAMMA_CORRECT_CMAP_LEN = 256;
+  end
   
   % At new-project-from-config time (cbkNewProject), all figs/axes are
   % created and setViewsToViewCfg is called to set things up accordingly.
@@ -15,9 +19,12 @@ classdef ViewConfig
   % sure to reset the view if you messed everything up.
   
   methods (Static)
-    
-    function tfAxLimSpecifiedInCfg = setCfgOnViews(viewCfg,hFig,hAx,hAxPrev)
+        
+    function tfAxLimSpecifiedInCfg = setCfgOnViews(viewCfg,hFig,hAx,hIm,hAxPrev)
       % viewCfg: currently just a struct array
+      %
+      % This not only sets the stuff in viewCfg, but also resets some stuff
+      % to "default"/auto if viewCfg doesn't say anything (has empty props)
       
       nview = numel(hFig);
       assert(isequal(nview,numel(hAx),numel(viewCfg)));
@@ -42,11 +49,13 @@ classdef ViewConfig
           axlim = [axlim.xmin axlim.xmax axlim.ymin axlim.ymax];
           axis(hAx(iView),axlim);
           tfAxLimSpecifiedInCfg(iView) = true;
-        elseif any(tf)
-          warning('LabelerGUI:axLim',...
-            'Ignoring invalid configuration setting: axis limits for axis %d.',iView);
         else
-          % all axis elements are empty; no-op
+          if any(tf)
+            warning('LabelerGUI:axLim',...
+              'Ignoring invalid configuration setting: axis limits for axis %d.',iView);
+          end
+          
+          axis(hAx(iView),'image'); % "auto"/default          
         end
         
         hlpAxDir(hAx(iView),'XDir',viewCfg(iView).XDir);
@@ -71,7 +80,16 @@ classdef ViewConfig
             hAxPrev.CLim = climset;
           end
         end
-      end      
+        
+        gam = viewCfg(iView).Gamma;
+        if ~isempty(gam)
+          ViewConfig.applyGammaCorrection(hIm(iView),hAx(iView),hAxPrev,iView,gam);
+        else
+          cm = gray(ViewConfig.GAMMA_CORRECT_CMAP_LEN);
+          colormap(hAx(iView),cm);
+          hAx(iView).UserData.gamma = [];
+        end
+      end
     end
     
     function viewCfg = readCfgOffViews(hFig,hAx,hAxPrev)
@@ -91,22 +109,67 @@ classdef ViewConfig
         viewCfg(i).YDir = ax.YDir;
         switch ax.CLimMode
           case 'manual'
-            viewCfg(i).CLim = ax.CLim;
+            cl = ax.CLim;
+            viewCfg(i).CLim = struct('Min',cl(1),'Max',cl(2));
           otherwise
             viewCfg(i).CLim = [];
         end
-        viewCfg(i).FigurePos = fg.Position;
+        fpos = fg.Position;
+        viewCfg(i).FigurePos = struct(...
+          'left',fpos(1),...
+          'bottom',fpos(2),...
+          'width',fpos(3),...
+          'height',fpos(4));
         if strcmp(ax.XLimMode,'manual') && strcmp(ax.YLimMode,'manual') % right now require both
           xl = ax.XLim;
           yl = ax.YLim;
           viewCfg(i).AxisLim.xmin = xl(1);
           viewCfg(i).AxisLim.xmax = xl(2);
           viewCfg(i).AxisLim.ymin = yl(1);
-          viewCfg(i).AxisLim.ymax = yl(2);          
+          viewCfg(i).AxisLim.ymax = yl(2);
+        end
+        
+        if isfield(ax.UserData,'gamma') && ~isempty(ax.UserData.gamma)
+          viewCfg(i).Gamma = ax.UserData.gamma;
         end
       end
     end
     
+    function applyGammaCorrection(hIms,hAxs,hAxPrev,iAxApply,gamma)
+      assert(numel(hIms)==numel(hAxs));
+
+      for iAx = iAxApply(:)'
+        im = hIms(iAx);
+        if size(im.CData,3)~=1
+          error('Labeler:gamma',...
+            'Gamma correction currently only supported for grayscale/intensity images.');
+        end
+      end
+      
+      m0 = gray(ViewConfig.GAMMA_CORRECT_CMAP_LEN);
+      m1 = imadjust(m0,[],[],gamma);
+
+      for iAx = iAxApply(:)'
+        colormap(hAxs(iAx),m1);
+        hAxs(iAx).UserData.gamma = gamma; % store gamma value that was applied
+        if iAx==1 % axes_curr
+          colormap(hAxPrev,m1);
+        end
+      end
+    end
+
   end
   
+end
+
+function hlpAxDir(ax,prop,val)
+if isempty(val)
+  % none, leave as-is, no default/"auto" value
+elseif any(strcmp(val,{'n' 'r' 'normal' 'reverse'}))
+  ax.(prop) = val;
+else
+  warning('LabelerGUI:axDir',...
+    'Ignoring invalid configuration setting ''%s'' for axis.%s.',...
+    val,prop);
+end
 end

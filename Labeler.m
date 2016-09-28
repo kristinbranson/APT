@@ -14,7 +14,6 @@ classdef Labeler < handle
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'currMovie' 'currFrame' 'currTarget' ...
       'labelTemplate' ...
-      'movieForceGrayscale'...
       'suspScore'};
     LOADPROPS = { ...
       'projname' ...
@@ -22,7 +21,6 @@ classdef Labeler < handle
       'viewCalibrationData' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'labelTemplate' ...
-      'movieForceGrayscale' ...
       'suspScore'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
@@ -65,12 +63,11 @@ classdef Labeler < handle
     % may never be reflected (for now). Changes will always be saved to
     % project files however.
     %
-    % A small subset of more important configuration (legacy) params (eg
-    % movieFrameStepBig) are Dependent and forward (both set and get) to
-    % a subprop of projPrefs. This gives the user explicit property access
-    % while still storing the property within the cfg structure. Since the
-    % user-facing prop is SetObservable, UI changes can be triggered 
-    % immediately. 
+    % A small subset of more important configuration (legacy) params are
+    % Dependent and forward (both set and get) to a subprop of projPrefs.
+    % This gives the user explicit property access while still storing the
+    % property within the cfg structure. Since the user-facing prop is
+    % SetObservable, UI changes can be triggered immediately.
     %
     % Finally, a small subset of the most important configuration params 
     % (eg labelMode, nview) have their own nonDependent properties.
@@ -124,11 +121,10 @@ classdef Labeler < handle
         % labels.
     moviename; % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false; % scalar logical.
-    movieForceGrayscale = false; % scalar logical
+    movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
+    movieFrameStepBig; % scalar positive int
+    movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
   end  
-  properties (SetObservable,Dependent)
-    movieFrameStepBig;
-  end
   properties (Dependent)
     isMultiView;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
@@ -381,9 +377,6 @@ classdef Labeler < handle
       % for multiview labeling, this is really 'nmoviesets'
       v = size(obj.movieFilesAll,1);
     end
-    function v = get.movieFrameStepBig(obj)
-      v = obj.projPrefs.Movie.FrameStepBig;
-    end
     function v = get.labeledposCurrMovie(obj)
       if obj.currMovie==0
         v = [];
@@ -420,11 +413,16 @@ classdef Labeler < handle
       [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
       obj.movieForceGrayscale = v;
     end
+    function set.movieInvert(obj,v)
+      assert(islogical(v) && numel(v)==obj.nview); %#ok<MCSUP>
+      mrs = obj.movieReader; %#ok<MCSUP>
+      for i=1:obj.nview %#ok<MCSUP>
+        mrs(i).flipVert = v(i);
+      end
+      obj.movieInvert = v;
+    end
     function set.targetZoomFac(obj,v)
       obj.projPrefs.Trx.ZoomFactorDefault = v;
-    end
-    function set.movieFrameStepBig(obj,v)
-      obj.projPrefs.Movie.FrameStepBig = v;
     end
   end
   
@@ -564,10 +562,14 @@ classdef Labeler < handle
       gd = obj.gdata;
       obj.currImHud = AxisHUD(gd.axes_curr); 
       %obj.movieSetNoMovie();
+      
+      obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
+      obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
+%      obj.movieInvert = xxx
            
       fldsRm = intersect(fieldnames(cfg),...
         {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
-        'LabelMode' 'LabelPointsPlot' 'ProjectName'});
+        'LabelMode' 'LabelPointsPlot' 'ProjectName' 'Movie'});
       obj.projPrefs = rmfield(cfg,fldsRm);
       % A few minor subprops of projPrefs have explicit props
 
@@ -587,29 +589,38 @@ classdef Labeler < handle
       cfg.LabelPointNames = obj.labeledposSetNames;
       cfg.LabelMode = char(obj.labelMode);
 
-      % misc config props that have an explicit labeler prop
-      cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
-      cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
-      cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
-      cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
-      
       % View stuff: read off current state of axes
       gd = obj.gdata;
       viewCfg = ViewConfig.readCfgOffViews(gd.figs_all,gd.axes_all,gd.axes_prev);
       cfg.View = viewCfg;
+
+      % misc config props that have an explicit labeler prop
+
+      cfg.Movie = struct(...
+        'ForceGrayScale',obj.movieForceGrayscale,...
+        'FrameStepBig',obj.movieFrameStepBig);
+
+      cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
+      cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
+      cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
+      cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
     end
     
   end
     
   methods (Static)
     
-    function cfg = cfgGetLastProjectConfig
+    function cfg = cfgGetLastProjectConfigNoView
       cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       cfg = RC.getprop('lastProjectConfig');
       if isempty(cfg)
         cfg = cfgBase;
       else
         cfg = structoverlay(cfgBase,cfg,'dontWarnUnrecog',true);
+        
+        % use "fresh"/empty View stuff on the theory that this 
+        % often/usually doesn't generalize across projects
+        cfg.View = repmat(cfgBase.View,cfg.NumViews,1); 
       end
     end
     
@@ -1260,21 +1271,28 @@ classdef Labeler < handle
       end
       
       % 20160816
-      assert(numel(s.minv)==numel(s.maxv));
-      nminv = numel(s.minv);
-      if nminv~=s.cfg.NumViews
-        s.minv = repmat(s.minv(1),s.cfg.NumViews,1);
-        s.maxv = repmat(s.maxv(1),s.cfg.NumViews,1);
-      end
-      
-      % 20160927
       if isfield(s,'minv')
+        assert(numel(s.minv)==numel(s.maxv));
+        
+        nminv = numel(s.minv);
+        if nminv~=s.cfg.NumViews
+          s.minv = repmat(s.minv(1),s.cfg.NumViews,1);
+          s.maxv = repmat(s.maxv(1),s.cfg.NumViews,1);
+        end
+        
+        % 20160927
         assert(isequal(numel(s.minv),numel(s.maxv),s.cfg.NumViews));
         for iView=1:s.cfg.NumViews
           s.cfg.View(iView).CLim.Min = s.minv(iView);
           s.cfg.View(iView).CLim.Max = s.maxv(iView);
         end
         s = rmfield(s,{'minv' 'maxv'});
+      end
+      
+      % 20160927
+      if isfield(s,'movieForceGrayscale')
+        s.cfg.Movie.ForceGrayScale = s.movieForceGrayscale;
+        s = rmfield(s,'movieForceGrayscale');
       end
     end
     
