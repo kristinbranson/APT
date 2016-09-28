@@ -60,6 +60,10 @@ classdef ViewConfig
         
         hlpAxDir(hAx(iView),'XDir',viewCfg(iView).XDir);
         hlpAxDir(hAx(iView),'YDir',viewCfg(iView).YDir);
+        if iView==1
+          hlpAxDir(hAxPrev,'XDir',viewCfg(iView).XDir);
+          hlpAxDir(hAxPrev,'YDir',viewCfg(iView).YDir);
+        end
         
         clim = viewCfg(iView).CLim;
         if isempty(clim.Min) && isempty(clim.Max)
@@ -158,6 +162,15 @@ classdef ViewConfig
       end
     end
 
+    function movInvert = getMovieInvert(viewCfg)
+      nview = numel(viewCfg);
+      movInvert = false(1,nview);
+      for i=1:nview
+        if ~isempty(viewCfg(i).InvertMovie)
+          movInvert(i) = logical(viewCfg(i).InvertMovie);
+        end
+      end
+    end
   end
   
 end

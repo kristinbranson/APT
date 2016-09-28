@@ -565,7 +565,8 @@ classdef Labeler < handle
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
-%      obj.movieInvert = xxx
+      movInvert = ViewConfig.getMovieInvert(cfg.View);
+      obj.movieInvert = movInvert;
            
       fldsRm = intersect(fieldnames(cfg),...
         {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
@@ -592,6 +593,9 @@ classdef Labeler < handle
       % View stuff: read off current state of axes
       gd = obj.gdata;
       viewCfg = ViewConfig.readCfgOffViews(gd.figs_all,gd.axes_all,gd.axes_prev);
+      for i=1:obj.nview
+        viewCfg(i).InvertMovie = obj.movieInvert(i);
+      end
       cfg.View = viewCfg;
 
       % misc config props that have an explicit labeler prop

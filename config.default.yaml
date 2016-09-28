@@ -23,8 +23,8 @@ View:
   XDir: 'n'
   YDir: 'r'
   CLim:
-    Min: 0
-    Max: 1
+    Min:
+    Max:
   Gamma: 
   FigurePos:
     left: 
@@ -36,10 +36,11 @@ View:
     xmax: 
     ymin:  
     ymax: 
+  InvertMovie:
 
 Movie:
+  ForceGrayScale: 1
   FrameStepBig: 10
-  UpDown: 'u' # 'u' or 'l'
 
 LabelPointsPlot:
   ColorMapName: 'spring'

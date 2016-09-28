@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 22-Jul-2016 18:11:40
+% Last Modified by GUIDE v2.5 28-Sep-2016 07:58:56
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -167,6 +167,7 @@ listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerN
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
+listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
@@ -183,7 +184,8 @@ handles.propsNeedInit = {
   'tracker' 
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'movieCenterOnTarget'
-  'movieForceGrayscale'};
+  'movieForceGrayscale' 
+  'movieInvert'};
 
 set(handles.output,'Toolbar','figure');
 
@@ -603,6 +605,24 @@ lObj = evt.AffectedObject;
 tf = lObj.movieForceGrayscale;
 mnu = lObj.gdata.menu_view_converttograyscale;
 mnu.Checked = onIff(tf);
+
+function cbkMovieInvertChanged(src,evt)
+lObj = evt.AffectedObject;
+figs = lObj.gdata.figs_all;
+movInvert = lObj.movieInvert;
+viewNames = lObj.viewNames;
+for i=1:lObj.nview
+  name = viewNames{i};
+  if isempty(name)
+    name = ''; 
+  else
+    name = sprintf('View: %s',name);
+  end
+  if movInvert(i)
+    name = [name ' (movie inverted)']; %#ok<AGROW>
+  end
+  figs(i).Name = name;
+end
 
 function cbkSuspScoreChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1201,7 +1221,13 @@ if tfproceed
     end
   end
 end
-
+function menu_view_reset_views_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+viewCfg = lObj.projPrefs.View;
+handles.tfAxLimSpecifiedInCfg = ViewConfig.setCfgOnViews(viewCfg,...
+  handles.figs_all,handles.axes_all,handles.images_all,handles.axes_prev);
+movInvert = ViewConfig.getMovieInvert(viewCfg);
+lObj.movieInvert = movInvert;
 function menu_view_hide_labels_Callback(hObject, eventdata, handles)
 lblCore = handles.labelerObj.lblCore;
 if ~isempty(lblCore)

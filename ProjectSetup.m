@@ -157,7 +157,7 @@ cfg.Track.Enable = ~strcmpi(tracker,'none');
 cfg.Track.Type = tracker;
 % propertiesGUI treats props with empty vals as strings even if they are
 % subsequently filled with numbers
-FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim'};
+FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie'};
 for i=1:numel(cfg.View)  
   cfg.View(i) = structLeavesStr2Double(cfg.View(i),FIELDS2DOUBLIFY);
 end
