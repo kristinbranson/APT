@@ -90,7 +90,7 @@ classdef ViewConfig
         
         gam = vCfg.Gamma;
         if ~isempty(gam)
-          ViewConfig.applyGammaCorrection(hIm(iView),ax,hAxPrev,iView,gam);
+          ViewConfig.applyGammaCorrection(hIm,hAx,hAxPrev,iView,gam);
         else
           cm = gray(ViewConfig.GAMMA_CORRECT_CMAP_LEN);
           colormap(ax,cm);

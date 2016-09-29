@@ -1246,27 +1246,32 @@ end
 
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
 % just use checked state of menu for now, no other state
-switch hObject.Checked
-  case 'on'
-    set(handles.axes_all,'XTickLabel',[],'YTickLabel',[]);
-    hObject.Checked = 'off';
-  case 'off'
-    set(handles.axes_all,'XTickMode','auto','XTickLabelMode','auto',...
-                         'YTickMode','auto','YTickLabelMode','auto');
-    hObject.Checked = 'on';
-end
+toggleOnOff(hObject,'Checked');
+hlpTickGrid(handles);
 function menu_view_show_grid_Callback(hObject, eventdata, handles)
 % just use checked state of menu for now, no other state
-switch hObject.Checked
-  case 'on'
-    arrayfun(@(x)grid(x,'off'),handles.axes_all);    
-    hObject.Checked = 'off';
-  case 'off'
-    set(handles.axes_all,'XTickMode','auto','YTickMode','auto');
-    arrayfun(@(x)grid(x,'on'),handles.axes_all);
-    hObject.Checked = 'on';
-end
+toggleOnOff(hObject,'Checked');
+hlpTickGrid(handles);
 
+function hlpTickGrid(handles)
+tfTickOn = strcmp(handles.menu_view_show_tick_labels.Checked,'on');
+tfGridOn = strcmp(handles.menu_view_show_grid.Checked,'on');
+
+if tfTickOn || tfGridOn
+  set(handles.axes_all,'XTickMode','auto','YTickMode','auto');
+else
+  set(handles.axes_all,'XTick',[],'YTick',[]);
+end
+if tfTickOn
+  set(handles.axes_all,'XTickLabelMode','auto','YTickLabelMode','auto');
+else
+  set(handles.axes_all,'XTickLabel',[],'YTickLabel',[]);
+end
+if tfGridOn
+  arrayfun(@(x)grid(x,'on'),handles.axes_all);
+else
+  arrayfun(@(x)grid(x,'off'),handles.axes_all);
+end
 
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 prmFile = RC.getprop('lastCPRParamFile');

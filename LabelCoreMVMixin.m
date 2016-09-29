@@ -87,7 +87,7 @@ classdef LabelCoreMVMixin < handle
       viewName = obj.labeler.viewNames{iView};
       str = sprintf('Hotkeys ''%d''->''%d'': view:%s pts%d->%d',...
         loKey,hiKey,viewName,loPtSet,hiPtSet);
-      [obj.hAxXLabels.String] = deal(str);
+      [obj.hAxXLabels(2:end).String] = deal(str);
       obj.txLblCoreAux.String = str;
     end
     
