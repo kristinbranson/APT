@@ -74,8 +74,37 @@ classdef CalRigSH < CalRig
       yEPL = rc(:,1);
     end
     
-    function [xRCT,yRCT] = reconstruct(obj,iView1,xy1,iView2,xy2,iViewRct)
-      assert(false,'Unsupported');
+    function dlt = getDLT(obj,iView)
+      kdata = obj.kineData;
+      switch iView
+        case 1
+          dlt = kdata.cal.coeff.DLT_1;
+        case 2
+          dlt = kdata.cal.coeff.DLT_2;
+        otherwise
+          assert(false);
+      end
+    end
+    
+    function [u_p,v_p,w_p] = reconstruct2d(obj,x,y,iView)
+      assert(isequal(size(x),size(y)));
+      assert(isvector(x));
+      
+      n = numel(x);
+      dlt = obj.getDLT(iView);      
+      u_p = nan(n,2);
+      v_p = nan(n,2);
+      w_p = nan(n,2);
+      for i=1:n
+        [u_p(i,:),v_p(i,:),w_p(i,:)] = dlt_2D_to_3D(dlt,x(i),y(i));
+      end
+    end
+        
+    function [x,y] = project3d(obj,u,v,w,iView)
+      assert(isequal(size(u),size(v),size(w)));
+      
+      dlt = obj.getDLT(iView);
+      [x,y] = arrayfun(@(uu,vv,ww)dlt_3D_to_2D(dlt,uu,vv,ww),u,v,w);
     end
     
   end

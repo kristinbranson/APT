@@ -12,25 +12,55 @@ classdef CalRig < handle
     % xy1: [2]. [x y] vector, cropped coords in iView1
     % iViewEpi: view index for target view (where EpiLine will be drawn)
     %
-    % xEPL,yEPL: epipolar line, cropped coords, iViewEpi
+    % xEPL,yEPL: epipolar line, cropped coords, iViewEpi. Note, x and y are
+    % x- and y-coords, NOT row/col coords.
     [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
     
-    % iView1: view index for anchor point
-    % xy1: [2]. [x y] vector, cropped coords in iView1
-    % iView2: view index for 2nd point
-    % xy2: [2]. etc
-    % iViewRct: view index for target view (where reconstructed point will be drawn)
-    %
-    % xRCT: [3] Reconstructed point spread, iViewRct, cropped coords
-    % yRCT: [3] etc.
-    % A "point spread" is 3 points specifying a line segment for a 
-    % reconstructed point. The midpoint of the line segment (2nd point in
-    % point spread) is the most likely reconstructed location. The two
-    % endpoints represent extremes that lie precisely on one EPL (but not
-    % necessarily the other and vice versa).
-    [xRCT,yRCT] = reconstruct(obj,iView1,xy1,iView2,xy2,iViewRct)
-    
   end
+  
+  methods % Conceptually Abstract, stubs assert
+    
+    function [xRCT,yRCT] = reconstruct(obj,iView1,xy1,iView2,xy2,iViewRct)
+      % iView1: view index for anchor point
+      % xy1: [2]. [x y] vector, cropped coords in iView1
+      % iView2: view index for 2nd point
+      % xy2: [2]. etc
+      % iViewRct: view index for target view (where reconstructed point will be drawn)
+      %
+      % xRCT: [3] Reconstructed point spread, iViewRct, cropped coords
+      % yRCT: [3] etc.
+      % A "point spread" is 3 points specifying a line segment for a 
+      % reconstructed point. The midpoint of the line segment (2nd point in
+      % point spread) is the most likely reconstructed location. The two
+      % endpoints represent extremes that lie precisely on one EPL (but not
+      % necessarily the other and vice versa).
+      
+      assert(false,'Unimplemented.');
+    end
+
+    function [u_p,v_p,w_p] = reconstruct2d(obj,x,y,iView)
+      % Project 2D cropped coords in iView to 3D/world coords
+      %
+      % x,y: [npt] vectors, cropped coords (x and y coords, NOT row/col coords)
+      %
+      % u_p, v_p, w_p: [nptx2] parameters defining 3D/world lines 
+      %   u_p = line parameters of real world u-coord in form 
+      %              u(t) = u_p(1) + u_p(2)*t
+
+      assert(false,'Unimplemented.');      
+    end
+    
+    function [x,y] = project3d(obj,u,v,w,iView)
+      % Project 3D/world coords to cropped coords in iView
+      %
+      % u,v,w: [any size] 3D/world coords
+      %
+      % x,y: [same size as u,v,w] cropped coords (x and y coords, NOT row/col coords)
+      
+      assert(false,'Unimplemented.');
+    end
+    
+  end  
   
   methods % Utilities
     
