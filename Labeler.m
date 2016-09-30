@@ -1638,6 +1638,13 @@ classdef Labeler < handle
       end
     end
 
+    function tfSucc = movieRmName(obj,movName)
+      % movName: compared to .movieFilesAll (macros UNreplaced)
+      iMov = find(strcmp(movName,obj.movieFilesAll));
+      if isscalar(iMov)
+        tfSucc = obj.movieRm(iMov);
+      end
+    end
     function tfSucc = movieRm(obj,iMov)
       % tfSucc: true if movie removed, false otherwise
       
