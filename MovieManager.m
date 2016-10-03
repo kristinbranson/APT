@@ -22,7 +22,7 @@ function varargout = MovieManager(varargin)
 
 % Edit the above text to modify the response to help MovieManager
 
-% Last Modified by GUIDE v2.5 05-Jul-2016 09:46:13
+% Last Modified by GUIDE v2.5 03-Oct-2016 13:16:20
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -57,12 +57,21 @@ handles.listener = event.proplistener(lObj,...
   mprops,'PostSet',@(src,evt)cbkUpdateTable(hObject));
 
 % 20151218: now using JTable; uitable in .fig just used for positioning
-tblOrig = handles.tblMovies;
-tblOrig.Visible = 'off';
-handles.tblMoviesOrig = tblOrig;
-tblNew = MovieManagerTable.create(lObj.nview,hObject,tblOrig.Parent,...
+if isa(handles.tblMovies,'matlab.ui.control.Table')
+  tblOrig = handles.tblMovies;
+  tblOrig.Visible = 'off';
+  handles.tblMoviesOrig = tblOrig;
+else
+  tblOrig = handles.tblMoviesOrig;
+  assert(isa(handles.tblMoviesOrig,'matlab.ui.control.Table'));
+  if isvalid(handles.tblMovies)
+    delete(handles.tblMovies);
+    handles.tblMovies = [];
+  end    
+end
+
+handles.tblMovies = MovieManagerTable.create(lObj.nview,hObject,tblOrig.Parent,...
   tblOrig.Position,@(movname)cbkSelectMovie(hObject,movname));
-handles.tblMovies = tblNew;
 
 % For Labeler/clients to access selected movies in MovieManager
 handles.cbkGetSelectedMovies = @()cbkGetSelectedMovies(hObject);
@@ -177,3 +186,11 @@ RC.saveprop('lastMovieBatchFile',fname);
 if nmovieOrig==0 && handles.labeler.nmovies>0
   handles.labeler.movieSet(1);
 end
+
+function figure1_CloseRequestFcn(hObject, eventdata, handles)
+
+if isvalid(handles.listener)
+  delete(handles.listener);
+  handles.listener = [];
+end
+delete(hObject);

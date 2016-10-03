@@ -108,6 +108,8 @@ classdef Labeler < handle
   end
   properties (SetObservable)
     movieFilesAll = {}; % [nmovset x nview] column cellstr, full paths to movies; can include macros 
+  end
+  properties (SetObservable,AbortSet)
     movieFilesAllHaveLbls = false(0,1); % [nmovsetx1] logical. 
         % How MFAHL is maintained
         % - At project load, it is updated fully.
@@ -119,6 +121,8 @@ classdef Labeler < handle
         %
         % For MultiView, MFAHL is true if any movie in a movieset has
         % labels.
+  end
+  properties (SetObservable)
     moviename; % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false; % scalar logical.
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].

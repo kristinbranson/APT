@@ -17,20 +17,21 @@ classdef MovieManagerTable < handle
     % Update currently selected row
     %
     % imov: row index into table. Currently, tables are expected never to
-    % resort by row.
+    % resort by row. For multiview projects, imov is the movie SET.
     updateSelectedMovie(obj,imov)
     
+    % For multiview projects, imovs are the selected movie SETS. 
     imovs = getSelectedMovies(obj)
     
   end
   
   methods (Static)
-    function obj = create(nView,hMM,hParent,position,cbkSelectMovie)
-      switch nView
+    function obj = create(nMovsPerSet,hMM,hParent,position,cbkSelectMovie)
+      switch nMovsPerSet
         case 1
           obj = MMTableSingle(hMM,hParent,position,cbkSelectMovie);
         otherwise
-          obj = MMTableMulti(hMM,hParent,position,cbkSelectMovie);
+          obj = MMTableMulti(nMovsPerSet,hMM,hParent,position,cbkSelectMovie);
       end
     end
   end
