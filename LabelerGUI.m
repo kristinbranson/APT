@@ -399,6 +399,7 @@ ims = gobjects(1,nview);
 figs(1) = handles.figs_all;
 axs(1) = handles.axes_all;
 ims(1) = handles.images_all;
+set(ims(1),'CData',0); % reset image
 for iView=2:nview
   figs(iView) = figure(...
     'CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj),...
@@ -449,7 +450,13 @@ axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
 handles = setShortcuts(handles);
 
 % AL: Some init hell, initNewMovie() actually inits mostly project-level stuff 
-handles.labelTLInfo.initNewMovie(); 
+handles.labelTLInfo.initNewMovie();
+
+if isfield(handles,'movieMgr') && isvalid(handles.movieMgr)
+  delete(handles.movieMgr);
+end
+handles.movieMgr = MovieManager(handles.labelerObj);
+handles.movieMgr.Visible = 'off';
 
 guidata(handles.figure,handles);
   
@@ -947,8 +954,9 @@ if hlpSave(lObj)
   if ~isempty(cfg)    
     lObj.initFromConfig(cfg);
     lObj.projNew(cfg.ProjectName);
+    handles = lObj.gdata; % initFromConfig, projNew have updated handles
     menu_file_managemovies_Callback([],[],handles);
-  end
+  end  
 end
 function menu_file_save_Callback(hObject, eventdata, handles)
 handles.labelerObj.projSaveSmart();
@@ -979,8 +987,12 @@ if labelerObj.labeledposNeedsSave
 end
 
 function menu_file_managemovies_Callback(~,~,handles)
-h = MovieManager(handles.labelerObj);
-addDepHandle(handles.figure,h);
+if isfield(handles,'movieMgr')
+  handles.movieMgr.Visible = 'on';
+  figure(handles.movieMgr);
+else
+  error('LabelerGUI:movieMgr','Please create or load a project.');
+end
 
 function menu_file_import_labels_trk_curr_mov_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1413,6 +1425,10 @@ if hlpSave(handles.labelerObj)
   hValid = handles.depHandles(tfValid);
   arrayfun(@delete,hValid);
   handles.depHandles = gobjects(0,1);
+  if isfield(handles,'movieMgr') && ~isempty(handles.movieMgr) ...
+      && isvalid(handles.movieMgr)
+    delete(handles.movieMgr);
+  end
   
   delete(handles.figure);
   delete(handles.labelerObj);

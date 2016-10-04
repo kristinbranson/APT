@@ -22,7 +22,7 @@ function varargout = MovieManager(varargin)
 
 % Edit the above text to modify the response to help MovieManager
 
-% Last Modified by GUIDE v2.5 05-Jul-2016 09:46:13
+% Last Modified by GUIDE v2.5 03-Oct-2016 13:16:20
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -45,102 +45,115 @@ end
 
 function MovieManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % MovieManager(labelerObj)
+%
+% MovieManager is created with Visible='off'.
 
 lObj = varargin{1};
 handles.labeler = lObj;
 handles.output = hObject;
+hObject.Visible = 'off';
 PROPS = {'movieFilesAll' 'movieFilesAllHaveLbls' 'currMovie'};
 mcls = metaclass(lObj);
 mprops = mcls.PropertyList;
 mprops = mprops(ismember({mprops.Name}',PROPS));
 handles.listener = event.proplistener(lObj,...
-  mprops,'PostSet',@(src,evt)lclUpdateTable(hObject));
+  mprops,'PostSet',@(src,evt)cbkUpdateTable(hObject));
 
 % 20151218: now using JTable; uitable in .fig just used for positioning
-tblOrig = handles.tblMovies;
-tblOrig.Visible = 'off';
-tblNew = uiextras.jTable.Table(...
-  'parent',tblOrig.Parent,...
-  'Position',tblOrig.Position,...
-  'SelectionMode','discontiguous',...
-  'ColumnName',{'Movie' 'Has Labels'},...
-  'ColumnPreferredWidth',[600 250],...
-  'Editable','off');
-tblNew.MouseClickedCallback = @(src,evt)lclTblClicked(src,evt,tblNew,lObj);
-handles.tblMoviesOrig = handles.tblMovies;
-handles.tblMovies = tblNew;
-handles.cbkGetSelectedMovies = @()cbkGetSelectedMovies(tblNew);
+if isa(handles.tblMovies,'matlab.ui.control.Table')
+  tblOrig = handles.tblMovies;
+  tblOrig.Visible = 'off';
+  handles.tblMoviesOrig = tblOrig;
+else
+  tblOrig = handles.tblMoviesOrig;
+  assert(isa(handles.tblMoviesOrig,'matlab.ui.control.Table'));
+  if isvalid(handles.tblMovies)
+    delete(handles.tblMovies);
+    handles.tblMovies = [];
+  end    
+end
+
+handles.tblMovies = MovieManagerTable.create(lObj.nview,hObject,tblOrig.Parent,...
+  tblOrig.Position,@(movname)cbkSelectMovie(hObject,movname));
+
+% For Labeler/clients to access selected movies in MovieManager
+handles.cbkGetSelectedMovies = @()cbkGetSelectedMovies(hObject);
+
+% MovieManager handles messages in two directions
+% 1a. Labeler/clients can fetch current selection in Table
+% 1b. Labeler prop listeners can update Table content
+% 2. Table can set current movie in Labeler (based on selection/user interaction)
 
 guidata(hObject,handles);
 centerfig(handles.figure1,handles.labeler.gdata.figure);
-lclUpdateTable(hObject);
-
-function lclTblClicked(src,evt,tbl,lObj)
-persistent chk
-PAUSE_DURATION_CHECK = 0.25;
-if isempty(chk)
-  chk = 1;
-  pause(PAUSE_DURATION_CHECK); %Add a delay to distinguish single click from a double click
-  if chk==1
-    % single-click; no-op    
-    chk = [];
-  end
-else
-  chk = [];
-  lclSwitchMoviesBasedOnSelection(tbl,lObj);
-end
+%cbkUpdateTable(hObject);
 
 function varargout = MovieManager_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
 
-function lclUpdateTable(hObj)
-handles = guidata(hObj);
+function cbkUpdateTable(hMMobj)
+% Update Table based on labeler movie props
 
+handles = guidata(hMMobj);
 lObj = handles.labeler;
 if ~lObj.hasProject
   error('MovieManager:proj','Please open/create a project first.');
 end
-tbl = handles.tblMovies;
-movs = lObj.movieFilesAll(:,1);
+movs = lObj.movieFilesAll;
 movsHaveLbls = lObj.movieFilesAllHaveLbls;
-iMov = lObj.currMovie;
 
-if numel(movs)~=numel(movsHaveLbls)
+if size(movs,1)~=numel(movsHaveLbls)
   % intermediate state, take no action
   return;
 end
-dat = [movs num2cell(movsHaveLbls)];
 
-if ~isequal(dat,tbl.Data)
-  tbl.Data = dat;
-end
-tblnrows = size(tbl.Data,1);
-if iMov>0 && iMov<=tblnrows
-  tbl.SelectedRows = iMov;
-else
-  tbl.SelectedRows = [];
+tbl = handles.tblMovies;
+tbl.updateMovieData(movs,movsHaveLbls);
+if ~isempty(lObj.currMovie) % can occur during projload
+  tbl.updateSelectedMovie(lObj.currMovie);
 end
 
-function iMovs = cbkGetSelectedMovies(tbl)
-% AL20160630: IMPORTANT: currently CANNOT sort table by columns
-selRow = tbl.SelectedRows;
-iMovs = sort(selRow);
+function imovs = cbkGetSelectedMovies(hMMobj)
+% Get current selection in Table
+handles = guidata(hMMobj);
+imovs = handles.tblMovies.getSelectedMovies();
+
+function cbkSelectMovie(hMMobj,imov)
+% Set current Labeler movie to movname
+handles = guidata(hMMobj);
+lObj = handles.labeler;
+assert(isscalar(imov));
+lObj.movieSet(imov);
 
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
-[tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
-if ~tfsucc
-  return;
-end
 lObj = handles.labeler;
-nmovieOrig = lObj.nmovies;
-lObj.movieAdd(movfile,trxfile);
+nmovieOrig = lObj.nmovies;  
+if lObj.nview==1
+  [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
+  if ~tfsucc
+    return;
+  end
+  lObj.movieAdd(movfile,trxfile);
+else
+  assert(lObj.nTargets==1,'Adding trx files currently unsupported.');  
+  lastmov = RC.getprop('lbl_lastmovie');
+  lastmovpath = fileparts(lastmov);
+  movfiles = uipickfiles(...
+    'Prompt','Select movie set',...
+    'FilterSpec',lastmovpath,...
+    'NumFiles',lObj.nview);
+  if isequal(movfiles,0)
+    return;
+  end
+  lObj.movieSetAdd(movfiles);
+end
 if nmovieOrig==0 && lObj.nmovies>0
   lObj.movieSet(1);
 end
 
 function pbRm_Callback(hObject, eventdata, handles)
 tbl = handles.tblMovies;
-selRow = tbl.SelectedRows;
+selRow = tbl.getSelectedMovies();
 selRow = sort(selRow);
 n = numel(selRow);
 lObj = handles.labeler;
@@ -154,23 +167,18 @@ for i = n:-1:1
 end
 
 function pbSwitch_Callback(~,~,handles)
-lclSwitchMoviesBasedOnSelection(handles.tblMovies,handles.labeler);
-
-function lclSwitchMoviesBasedOnSelection(tbl,lObj)
-selRow = tbl.SelectedRows;
-if numel(selRow)>1
-  warning('MovieManager:sel','Multiple movies selected; switching to first selection.');
-  selRow = selRow(1);
-end  
-if ~isempty(selRow)
-  lObj.movieSet(selRow);
+tbl = handles.tblMovies;
+imov = tbl.getSelectedMovies();
+if ~isempty(imov)
+  imov = imov(1);
+  cbkSelectMovie(handles.figure1,imov);
 end
 
 function pbNextUnlabeled_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
 iMov = find(~lObj.movieFilesAllHaveLbls,1);
 if isempty(iMov)
-  msgBox('All movies are labeled!');
+  msgbox('All movies are labeled!');
 else
   lObj.movieSet(iMov);
 end
@@ -197,4 +205,11 @@ RC.saveprop('lastMovieBatchFile',fname);
 if nmovieOrig==0 && handles.labeler.nmovies>0
   handles.labeler.movieSet(1);
 end
-  
+
+function figure1_CloseRequestFcn(hObject, eventdata, handles)
+hObject.Visible = 'off';
+% if isvalid(handles.listener)
+%   delete(handles.listener);
+%   handles.listener = [];
+% end
+% delete(hObject);

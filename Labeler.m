@@ -108,6 +108,8 @@ classdef Labeler < handle
   end
   properties (SetObservable)
     movieFilesAll = {}; % [nmovset x nview] column cellstr, full paths to movies; can include macros 
+  end
+  properties (SetObservable,AbortSet)
     movieFilesAllHaveLbls = false(0,1); % [nmovsetx1] logical. 
         % How MFAHL is maintained
         % - At project load, it is updated fully.
@@ -119,6 +121,8 @@ classdef Labeler < handle
         %
         % For MultiView, MFAHL is true if any movie in a movieset has
         % labels.
+  end
+  properties (SetObservable)
     moviename; % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false; % scalar logical.
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
@@ -308,19 +312,19 @@ classdef Labeler < handle
       end
     end
     function v = get.moviesSelected(obj) %#GUIREQ
-      % Find MovieManager in LabelerGUI/depHandles
+      % Find MovieManager in LabelerGUI
       handles = obj.gdata;
-      depH = handles.depHandles;
-      names = arrayfun(@(x)x.Name,depH,'uni',0);
-      tf = strcmp(names,'Manage Movies');
-      idx = find(tf);
-      if isscalar(idx)
-        hMM = depH(idx);
+      if isfield(handles,'movieMgr')
+        hMM = handles.movieMgr;
+      else
+        hMM = [];
+      end
+      if ~isempty(hMM) && isvalid(hMM)
         mmgd = guidata(hMM);
         v = mmgd.cbkGetSelectedMovies();
       else
         error('Labeler:getMoviesSelected',...
-          'Cannot access MovieManager UI. Make sure your desired movies are selected in the Movie Manager.');
+          'Cannot access Movie Manager. Make sure your desired movies are selected in the Movie Manager.');
       end
     end
     function v = get.hasTrx(obj)
@@ -578,6 +582,13 @@ classdef Labeler < handle
       % that figs are set up. (names get changed)
       movInvert = ViewConfig.getMovieInvert(cfg.View);
       obj.movieInvert = movInvert;
+
+      % For unclear reasons, creation of new tracker occurs downstream in
+      % projLoad() or projNew()
+      if ~isempty(obj.tracker)
+        delete(obj.tracker);
+        obj.tracker = [];
+      end
 
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
@@ -1571,12 +1582,32 @@ classdef Labeler < handle
         error('Labeler:movieAddBatchFile','Cannot find file ''%s''.',bfile);
       end
       movs = importdata(bfile);
+      try
+        movs = regexp(movs,',','split');
+        movs = cat(1,movs{:});
+      catch ME
+        error('Labeler:batchfile',...
+          'Error reading file %s: %s',bfile,ME.message);
+      end
+      if size(movs,2)~=obj.nview
+        error('Labeler:batchfile',...
+          'Expected file %s to have %d column(s), one for each view.',...
+          bfile,obj.nview);
+      end
       if ~iscellstr(movs)
         error('Labeler:movieAddBatchFile',...
           'Could not parse file ''%s'' for filenames.',bfile);
       end
-      fprintf('Importing %d movies from file ''%s''.\n',numel(movs),bfile);
-      obj.movieAdd(movs);
+      nMovSetImport = size(movs,1);
+      if obj.nview==1
+        fprintf('Importing %d movies from file ''%s''.\n',nMovSetImport,bfile);
+        obj.movieAdd(movs);
+      else
+        fprintf('Importing %d movie sets from file ''%s''.\n',nMovSetImport,bfile);
+        for i=1:nMovSetImport
+          obj.movieSetAdd(movs(i,:));
+        end
+      end
     end
 
     function movieSetAdd(obj,moviefiles)
@@ -1638,6 +1669,13 @@ classdef Labeler < handle
       end
     end
 
+    function tfSucc = movieRmName(obj,movName)
+      % movName: compared to .movieFilesAll (macros UNreplaced)
+      iMov = find(strcmp(movName,obj.movieFilesAll));
+      if isscalar(iMov)
+        tfSucc = obj.movieRm(iMov);
+      end
+    end
     function tfSucc = movieRm(obj,iMov)
       % tfSucc: true if movie removed, false otherwise
       
@@ -1785,6 +1823,10 @@ classdef Labeler < handle
       
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
+      
+      % for fun debugging
+%       obj.gdata.axes_all.addlistener('XLimMode','PreSet',@(s,e)lclTrace('preset'));
+%       obj.gdata.axes_all.addlistener('XLimMode','PostSet',@(s,e)lclTrace('postset'));
       obj.setFrameAndTarget(1,1);
       
       % 2. Set the trx
@@ -3268,19 +3310,7 @@ classdef Labeler < handle
       end
       
       % Remainder nearly identical to setFrameAndTarget()
-      
-      obj.prevFrame = obj.currFrame;
-      obj.prevIm = obj.currIm{1};
-      set(obj.gdata.image_prev,'CData',obj.prevIm);
-      
-      if obj.currFrame~=frm || tfforcereadmovie
-        imsall = obj.gdata.images_all;
-        for iView=1:obj.nview
-          obj.currIm{iView} = obj.movieReader(iView).readframe(frm);
-          set(imsall(iView),'CData',obj.currIm{iView});
-        end
-        obj.currFrame = frm;
-      end
+      obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
       
       if obj.hasTrx && obj.movieCenterOnTarget
         assert(~obj.hasMultiView);
@@ -3317,7 +3347,7 @@ classdef Labeler < handle
       obj.updateCurrSusp();
       obj.updateShowTrx();
     end
-    
+        
     function setFrameAndTarget(obj,frm,iTgt)
       % Set to new frame and target for current movie.
       % Prefer setFrame() or setTarget() if possible to
@@ -3327,17 +3357,8 @@ classdef Labeler < handle
       
       validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
 
-      obj.prevFrame = obj.currFrame;
-      obj.prevIm = obj.currIm{1};
-      gd = obj.gdata;
-      set(gd.image_prev,'CData',obj.prevIm);
-     
-      imsall = gd.images_all;
-      for iView=1:obj.nview
-        obj.currIm{iView} = obj.movieReader(iView).readframe(frm);
-        set(imsall(iView),'CData',obj.currIm{iView});
-      end
-      obj.currFrame = frm;
+      % 2nd arg true to match legacy
+      obj.hlpSetCurrPrevFrame(frm,true);
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
@@ -3534,6 +3555,46 @@ classdef Labeler < handle
       end
     end
    
+  end
+  
+  methods (Hidden)
+
+    function hlpSetCurrPrevFrame(obj,frm,tfforce)
+      % helper for setFrame, setFrameAndTarget
+      
+      currFrmOrig = obj.currFrame;
+      currIm1Orig = obj.currIm{1};
+      
+      gd = obj.gdata;
+      if obj.currFrame~=frm || tfforce
+        imsall = gd.images_all;
+        for iView=1:obj.nview
+          obj.currIm{iView} = obj.movieReader(iView).readframe(frm);
+          set(imsall(iView),'CData',obj.currIm{iView});
+        end
+        obj.currFrame = frm;
+      end
+     
+      obj.prevFrame = currFrmOrig;
+      if ~isequal(size(currIm1Orig),size(obj.currIm{1}))
+        % In this scenario we do not use currIm1Orig b/c axes_prev and 
+        % axes_curr are linked and that can force the axes into 'manual'
+        % XLimMode and so on. Generally it is disruptive to view-handling.
+        % Ideally maybe we would prefer to catch/handle this in view code,
+        % but there is no convenient hook between setting the image CData
+        % and display.
+        %
+        % Maybe more importantly, the only time the sizes will disagree are 
+        % in edge cases eg when a project is loaded or changed. In this 
+        % case currIm1Orig is not going to represent anything meaningful 
+        % anyway.
+        obj.prevIm = zeros(size(obj.currIm{1}));
+      else
+        obj.prevIm = currIm1Orig;
+      end
+      set(gd.image_prev,'CData',obj.prevIm);
+    end
+    
   end
   
   %% Labels2
