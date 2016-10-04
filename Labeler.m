@@ -1582,12 +1582,32 @@ classdef Labeler < handle
         error('Labeler:movieAddBatchFile','Cannot find file ''%s''.',bfile);
       end
       movs = importdata(bfile);
+      try
+        movs = regexp(movs,',','split');
+        movs = cat(1,movs{:});
+      catch ME
+        error('Labeler:batchfile',...
+          'Error reading file %s: %s',bfile,ME.message);
+      end
+      if size(movs,2)~=obj.nview
+        error('Labeler:batchfile',...
+          'Expected file %s to have %d column(s), one for each view.',...
+          bfile,obj.nview);
+      end
       if ~iscellstr(movs)
         error('Labeler:movieAddBatchFile',...
           'Could not parse file ''%s'' for filenames.',bfile);
       end
-      fprintf('Importing %d movies from file ''%s''.\n',numel(movs),bfile);
-      obj.movieAdd(movs);
+      nMovSetImport = size(movs,1);
+      if obj.nview==1
+        fprintf('Importing %d movies from file ''%s''.\n',nMovSetImport,bfile);
+        obj.movieAdd(movs);
+      else
+        fprintf('Importing %d movie sets from file ''%s''.\n',nMovSetImport,bfile);
+        for i=1:nMovSetImport
+          obj.movieSetAdd(movs(i,:));
+        end
+      end
     end
 
     function movieSetAdd(obj,moviefiles)
