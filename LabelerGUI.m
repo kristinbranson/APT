@@ -450,7 +450,7 @@ if isfield(handles,'movieMgr') && isvalid(handles.movieMgr)
   delete(handles.movieMgr);
 end
 handles.movieMgr = MovieManager(handles.labelerObj);
-handles.movieMgr.Visible = onIff(lObj.nmovies==0);
+handles.movieMgr.Visible = 'off';
 
 guidata(handles.figure,handles);
   
@@ -944,8 +944,9 @@ if hlpSave(lObj)
   if ~isempty(cfg)    
     lObj.initFromConfig(cfg);
     lObj.projNew(cfg.ProjectName);
+    handles = lObj.gdata; % initFromConfig, projNew have updated handles
     menu_file_managemovies_Callback([],[],handles);
-  end
+  end  
 end
 function menu_file_save_Callback(hObject, eventdata, handles)
 handles.labelerObj.projSaveSmart();
@@ -978,6 +979,7 @@ end
 function menu_file_managemovies_Callback(~,~,handles)
 if isfield(handles,'movieMgr')
   handles.movieMgr.Visible = 'on';
+  figure(handles.movieMgr);
 else
   error('LabelerGUI:movieMgr','Please create or load a project.');
 end

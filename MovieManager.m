@@ -126,13 +126,27 @@ assert(isscalar(imov));
 lObj.movieSet(imov);
 
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
-[tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
-if ~tfsucc
-  return;
-end
 lObj = handles.labeler;
-nmovieOrig = lObj.nmovies;
-lObj.movieAdd(movfile,trxfile);
+nmovieOrig = lObj.nmovies;  
+if lObj.nview==1
+  [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
+  if ~tfsucc
+    return;
+  end
+  lObj.movieAdd(movfile,trxfile);
+else
+  assert(lObj.nTargets==1,'Adding trx files currently unsupported.');  
+  lastmov = RC.getprop('lbl_lastmovie');
+  lastmovpath = fileparts(lastmov);
+  movfiles = uipickfiles(...
+    'Prompt','Select movie set',...
+    'FilterSpec',lastmovpath,...
+    'NumFiles',lObj.nview);
+  if isequal(movfiles,0)
+    return;
+  end
+  lObj.movieSetAdd(movfiles);
+end
 if nmovieOrig==0 && lObj.nmovies>0
   lObj.movieSet(1);
 end
