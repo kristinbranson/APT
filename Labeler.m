@@ -583,6 +583,13 @@ classdef Labeler < handle
       movInvert = ViewConfig.getMovieInvert(cfg.View);
       obj.movieInvert = movInvert;
 
+      % For unclear reasons, creation of new tracker occurs downstream in
+      % projLoad() or projNew()
+      if ~isempty(obj.tracker)
+        delete(obj.tracker);
+        obj.tracker = [];
+      end
+
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
     

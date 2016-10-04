@@ -178,7 +178,7 @@ function pbNextUnlabeled_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
 iMov = find(~lObj.movieFilesAllHaveLbls,1);
 if isempty(iMov)
-  msgBox('All movies are labeled!');
+  msgbox('All movies are labeled!');
 else
   lObj.movieSet(iMov);
 end
