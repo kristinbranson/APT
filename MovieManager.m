@@ -45,10 +45,13 @@ end
 
 function MovieManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % MovieManager(labelerObj)
+%
+% MovieManager is created with Visible='off'.
 
 lObj = varargin{1};
 handles.labeler = lObj;
 handles.output = hObject;
+hObject.Visible = 'off';
 PROPS = {'movieFilesAll' 'movieFilesAllHaveLbls' 'currMovie'};
 mcls = metaclass(lObj);
 mprops = mcls.PropertyList;
@@ -83,7 +86,7 @@ handles.cbkGetSelectedMovies = @()cbkGetSelectedMovies(hObject);
 
 guidata(hObject,handles);
 centerfig(handles.figure1,handles.labeler.gdata.figure);
-cbkUpdateTable(hObject);
+%cbkUpdateTable(hObject);
 
 function varargout = MovieManager_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
@@ -106,7 +109,9 @@ end
 
 tbl = handles.tblMovies;
 tbl.updateMovieData(movs,movsHaveLbls);
-tbl.updateSelectedMovie(lObj.currMovie);
+if ~isempty(lObj.currMovie) % can occur during projload
+  tbl.updateSelectedMovie(lObj.currMovie);
+end
 
 function imovs = cbkGetSelectedMovies(hMMobj)
 % Get current selection in Table
@@ -188,9 +193,9 @@ if nmovieOrig==0 && handles.labeler.nmovies>0
 end
 
 function figure1_CloseRequestFcn(hObject, eventdata, handles)
-
-if isvalid(handles.listener)
-  delete(handles.listener);
-  handles.listener = [];
-end
-delete(hObject);
+hObject.Visible = 'off';
+% if isvalid(handles.listener)
+%   delete(handles.listener);
+%   handles.listener = [];
+% end
+% delete(hObject);

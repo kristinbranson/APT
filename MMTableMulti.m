@@ -48,7 +48,7 @@ classdef MMTableMulti < MovieManagerTable
       
       iRowForSet = imov-1; % 0-based;
       
-      if iRowForSet<0 || iRowForSet>=tt.getRowCount()-1
+      if iRowForSet<0 || iRowForSet>=tt.getRowCount()
         % iRowForSet can be <- when starting up (no movies)
         % iRowForSet can be >= tt.getRowCount()-1 when removing a movie;
         % don't do anything
