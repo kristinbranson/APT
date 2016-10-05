@@ -577,14 +577,20 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       xp = KK * [xd;ones(1,n)];
     end
     
-    function [nameL,nameR,info,intrinsic,extrinsic] = loadStroCalibResults(file)
+    function [nameL,nameR,info,intrinsic,extrinsic] = loadStroCalibResults(file,tfAssertRecompute)
+      if exist('tfAssertRecompute','var')==0
+        tfAssertRecompute = true;
+      end
+      
       cr = load(file);
       
       nameL = cr.calib_name_left;
       nameR = cr.calib_name_right;
       
-      assert(cr.recompute_intrinsic_left==0);
-      assert(cr.recompute_intrinsic_right==0);      
+      if tfAssertRecompute
+        assert(cr.recompute_intrinsic_left==0);
+        assert(cr.recompute_intrinsic_right==0);
+      end
       info = struct();
       info.dX = cr.dX;
       info.nx = cr.nx;
