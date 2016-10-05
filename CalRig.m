@@ -34,7 +34,7 @@ classdef CalRig < handle
       % point spread) is the most likely reconstructed location. The two
       % endpoints represent extremes that lie precisely on one EPL (but not
       % necessarily the other and vice versa).
-      
+    
       assert(false,'Unimplemented.');
     end
 
@@ -59,8 +59,28 @@ classdef CalRig < handle
       
       assert(false,'Unimplemented.');
     end
+
+  end
+  
+  methods (Abstract) % For use with CPR/RegressorCascade, shapeGt
     
-  end  
+    % Project 3D point onto a 2D view.
+    %
+    % X: [3xN] 3d points in coords of iView cam.
+    % iView: view index
+    %
+    % r: [N]. row-coordinates, cropped coords in iView. 
+    % c: [N]. col-coords, cropped coords in iView.
+    [r,c] = project(obj,X,iView)
+    
+    % Change extrinsic/camera 3D coord systems.
+    %
+    % X1: [3xN] 3d points in coords of iView1 cam.
+    %
+    % X2: [3xN] 3d points in coords of iView2 cam.
+    X2 = viewXform(obj,X1,iView1,iView2)
+    
+  end
   
   methods % Utilities
     
