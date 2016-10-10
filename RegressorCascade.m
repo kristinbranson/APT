@@ -148,7 +148,7 @@ classdef RegressorCascade < handle
     
     
     
-    %# 3DOK
+    %#3DOK
     function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused) % obj const
       % t: major iteration
       % I: [NxnView] Cell array of images (nView==1) or imageSets (nView>1)
@@ -188,7 +188,7 @@ classdef RegressorCascade < handle
       end
     end
     
-    % 3DOK
+    %#3DOK
     function trainWithRandInit(obj,I,bboxes,pGT,varargin)
       % I: [NxnView] cell array of images
       % bboxes: [Nx2*d]
@@ -217,7 +217,7 @@ classdef RegressorCascade < handle
       obj.train(I,bboxes,pGT,p0,pIidx,varargin{:});
     end    
     
-    % 3DOK
+    %#3DOK
     function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
       %
       % I: [NxnView] cell array of images
@@ -558,6 +558,7 @@ classdef RegressorCascade < handle
     
         % ----- BELOW HERE NOT SURE TODO3D -----
 
+        
     function x = computeMetaFeature(obj,X,iFtrsX,t,u,metatype)
       % Helper function to compute meta-features
       %
