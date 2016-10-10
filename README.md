@@ -17,14 +17,13 @@ Copy Manifest.sample.txt to Manifest.txt and edit to point to your local checkou
 
 In MATLAB, instead of APT.setpath, you can run:
 
+    ```
+    % in MATLAB
+    cd /path/to/CPR/checkout
+    CPR.setpath % configures MATLAB path
+    lObj = Labeler;
+    ```
 
-```
-#!matlab
-
-CPR.setpath
-
-```
-
-This will configure all CPR paths, which include your APT paths.
+This will configure your CPR path, which will include your APT path.
 
 At the moment the only documented usage is through the APT Track/Train interface.

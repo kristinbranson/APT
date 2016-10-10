@@ -371,6 +371,7 @@ classdef Features
       assert(d==2 && nviews==1 || d==3 && nviews>1);
 
       nfidsFtr = numel(prms.fids); % can differ from model.nfids
+      assert(nfidsFtr>1,'Must sample from 2 or more features.');
       if ~tfNeighborsSpeced
         % choose two random, distinct landmarks
         xs(:,1) = randint2(F,1,[1,nfidsFtr]);
