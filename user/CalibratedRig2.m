@@ -427,11 +427,20 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
       % cam: 'l','r','b'
       %
       % xp: [2xN] projected image coords for cam
-      
+        
       assert(size(X,1)==3);
       intPrm = obj.int.(cam); 
       xp = project_points2(X,[0;0;0],[0;0;0],...
         intPrm.fc,intPrm.cc,intPrm.kc,intPrm.alpha_c);
+    end
+    
+    function [r,c] = projectCPR(obj,X,iView)
+      cam = obj.viewNames{iView};
+      xp = obj.project(X,cam);
+      y = obj.x2y(xp,cam);
+      assert(size(y,2)==2);
+      r = y(:,1);
+      c = y(:,2);
     end
     
     function [XL,XB] = stereoTriangulateLB(obj,yL,yB)
@@ -547,6 +556,12 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
       Xc2 = RR*Xc + repmat(TT,1,N);
     end
     
+    function X2 = viewXformCPR(obj,X1,iView1,iView2)
+      vNames = obj.viewNames;
+      type = lower([vNames{iView1} vNames{iView2}]);
+      X2 = obj.camxform(X1,type);     
+    end
+    
   end
   
   methods (Static)
@@ -651,6 +666,68 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
     
   end
     
+  methods
+    function [yLre,yRre,yBre,errL,errR,errB,errLfull,errRfull,errBfull,...
+        XL,XR,XB,...
+        errL_reLR,errR_reLR,errB_reLR,...
+        XLlr,XRlr,XBlr] = calibRoundTripFull(obj,yL,yR,yB)
+      % Use each pair of views to recon the 3rd
+      %
+      % yL/yR/yB: [Nx2]  (row,col) in cropped coords
+      %
+      % yLre: [Nx2] reconstructed yL from yR, yB
+      % yRre: etc
+      % errL: nanmean(errLfull)
+      % errLfull: [Nx1] L2 err for each pt
+      % XL: [3xN]: 3d recon (best guess), in camL frame
+      % errL_reLR: like errL, but computed using stereo triangularion of L/R
+      % views
+      
+      [XLlb,XBlb] = obj.stereoTriangulateLB(yL,yB);
+      [XBbr,XRbr] = obj.stereoTriangulateBR(yB,yR);
+      
+      % best guess: average lb, br recons
+      XBbest = (XBlb+XBbr)/2;
+      XRbest = obj.camxform(XBbest,'br');
+      XLbest = obj.camxform(XBbest,'bl');
+      
+      xpR_re = obj.project(XRbest,'R');
+      xpL_re = obj.project(XLbest,'L');
+      xpB_re = obj.project(XBbest,'B');
+      yRre = obj.x2y(xpR_re,'R');
+      yLre = obj.x2y(xpL_re,'L');
+      yBre = obj.x2y(xpB_re,'B');
+      
+      errLfull = sqrt(sum((yL-yLre).^2,2));
+      errRfull = sqrt(sum((yR-yRre).^2,2));
+      errBfull = sqrt(sum((yB-yBre).^2,2));
+      errL = nanmean(errLfull); % mean L2 distance (in px) across all GT pts
+      errR = nanmean(errRfull);
+      errB = nanmean(errBfull);
+      
+      XL = XLbest;
+      XR = XRbest;
+      XB = XBbest;
+      
+      [XLlr,XRlr] = obj.stereoTriangulateCropped(yL,yR,'L','R');
+      XBlr = obj.camxform(XLlr,'lb');
+      xpR_reLR = obj.project(XRlr,'R');
+      xpL_reLR = obj.project(XLlr,'L');
+      xpB_reLR = obj.project(XBlr,'B');
+      yR_reLR = obj.x2y(xpR_reLR,'R');
+      yL_reLR = obj.x2y(xpL_reLR,'L');
+      yB_reLR = obj.x2y(xpB_reLR,'B');
+      
+      errLfull_reLR = sqrt(sum((yL-yL_reLR).^2,2));
+      errRfull_reLR = sqrt(sum((yR-yR_reLR).^2,2));
+      errBfull_reLR = sqrt(sum((yB-yB_reLR).^2,2));
+      errL_reLR = nanmean(errLfull_reLR); % mean L2 distance (in px) across all GT pts
+      errR_reLR = nanmean(errRfull_reLR);
+      errB_reLR = nanmean(errBfull_reLR);
+    end
+  end
+  
+  
 % [XL,XR] = stereo_triangulation(xL,xR,om,T,fc_left,cc_left,kc_left,alpha_c_left,fc_right,cc_right,kc_right,alpha_c_right);
 % [xL_re] = project_points2(XL,zeros(size(om)),zeros(size(T)),fc_left,cc_left,kc_left,alpha_c_left);
 % [xR_re] = project_points2(XR,zeros(size(om)),zeros(size(T)),fc_right,cc_right,kc_right,alpha_c_right);

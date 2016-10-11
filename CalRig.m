@@ -62,23 +62,28 @@ classdef CalRig < handle
 
   end
   
-  methods (Abstract) % For use with CPR/RegressorCascade, shapeGt
+  methods % Conceptually abstract, for use with CPR/RegressorCascade, shapeGt
     
-    % Project 3D point onto a 2D view.
-    %
-    % X: [3xN] 3d points in coords of iView cam.
-    % iView: view index
-    %
-    % r: [N]. row-coordinates, cropped coords in iView. 
-    % c: [N]. col-coords, cropped coords in iView.
-    [r,c] = project(obj,X,iView)
+    function [r,c] = projectCPR(obj,X,iView)
+      % Project 3D point onto a 2D view.
+      %
+      % X: [3xN] 3d points in coords of iView cam.
+      % iView: view index
+      %
+      % r: [N]. row-coordinates, cropped coords in iView. 
+      % c: [N]. col-coords, cropped coords in iView.
+      assert(false,'Unimplemented.');
+    end
     
-    % Change extrinsic/camera 3D coord systems.
-    %
-    % X1: [3xN] 3d points in coords of iView1 cam.
-    %
-    % X2: [3xN] 3d points in coords of iView2 cam.
-    X2 = viewXform(obj,X1,iView1,iView2)
+    function X2 = viewXformCPR(obj,X1,iView1,iView2)
+      % Change extrinsic/camera 3D coord systems.
+      %
+      % X1: [3xN] 3d points in coords of iView1 cam.
+      % iView1, iView2: view indices
+      %
+      % X2: [3xN] 3d points in coords of iView2 cam.
+      assert(false,'Unimplemented.');
+    end
     
   end
   
