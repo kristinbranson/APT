@@ -639,10 +639,10 @@ elseif model.d==3
     if iView==iViewBase
       Pview = Pbase;
     else
-      Pview = crig.viewXform(Pbase,iViewBase,iView);
+      Pview = crig.viewXformCPR(Pbase,iViewBase,iView);
     end
     assert(isequal(size(Pview),[3 M*nfids]));
-    [rview,cview] = crig.project(Pview,iView);
+    [rview,cview] = crig.projectCPR(Pview,iView);
     % rview/cview are [M*nfids] col vecs; all pt1's, the all pt2's, ...
     posrs(:,:,iView) = rview;
     poscs(:,:,iView) = cview;
