@@ -548,7 +548,15 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
       assert(d==3);
       
       type = upper(type);
-      assert(ismember(type,{'LR' 'RL' 'BL' 'LB' 'BR' 'RB'}));      
+      switch type
+        case {'LL' 'RR' 'BB'}
+          Xc2 = Xc;
+          return;
+        case {'LR' 'RL' 'BL' 'LB' 'BR' 'RB'}
+          % none
+        otherwise
+          error('CalibratedRig2:type','Unsupported type: ''%s''.',type);
+      end
       type = type([2 1]); % convention for specification of T/R
       
       RR = obj.R.(type);
@@ -558,7 +566,7 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
     
     function X2 = viewXformCPR(obj,X1,iView1,iView2)
       vNames = obj.viewNames;
-      type = lower([vNames{iView1} vNames{iView2}]);
+      type = [vNames{iView1} vNames{iView2}];
       X2 = obj.camxform(X1,type);     
     end
     

@@ -236,9 +236,152 @@ for iF=1:numel(frms)
   input(num2str(iF));
 end
 
+%% gen I, bboxes, pGT
+
+% take codes 'lrb' 'lb' 'br'
+tfNoLR = t19aug.nPtsLRCode==0;
+fprintf(1,'%d/%d rows have at least one ''lr'' code. Taking remaining %d rows.\n',...
+  nnz(~tfNoLR),size(t19aug,1),nnz(tfNoLR));
+t19AugNoLR = t19aug(tfNoLR,:);
+
+tbl = t19AugNoLR;
+
+codes = cat(1,tbl.iVwsLblNOCode{:});
+codesUn = unique(codes);
+codesUnCnt = cellfun(@(x)nnz(strcmp(x,codes)),codesUn);
+fprintf(1,'Distro of codes:\n');
+[codesUn num2cell(codesUnCnt)]
+
+% accum pGT
+nRows = size(tbl,1);
+pGT = nan(nRows,19*3);
+for i=1:nRows
+  x = tbl.XL{i}; % 3x19
+  x = x';
+  szassert(x,[19 3]);
+  pGT(i,:) = x(:);
+end
+
+% I
+MOVDIR = 'F:\Dropbox\MultiViewFlyLegTracking\trackingJun22-11-02';
+MOVS = {
+  'bias_video_cam_0_date_2016_06_22_time_11_02_02_v001.avi'
+  'bias_video_cam_1_date_2016_06_22_time_11_02_13_v001.avi'
+  'bias_video_cam_2_date_2016_06_22_time_11_02_28_v001.avi'
+  };
+movsFull = fullfile(MOVDIR,MOVS);
+nView = 3;
+assert(numel(movsFull)==nView);
+for iView=1:nView
+  mr(iView) = MovieReader();
+  mr(iView).open(movsFull{iView});
+  mr(iView).forceGrayscale = true;
+end
+I = cell(nRows,nView);
+for iRow=1:nRows
+  frm = tbl.frm(iRow);
+  for iView=1:nView
+    I{iRow,iView} = mr(iView).readframe(frm);
+  end
+  if mod(iRow,10)==0
+    fprintf(1,'Read row %d\n',iRow);
+  end
+end
+
+%% viz pGT in 3d
+pGT2 = reshape(pGT_1_7_13,nRows,3,3);
+clrs = parula(3);
+hFig = figure('windowstyle','docked');
+ax = axes;
+hold(ax,'on');
+for iRow = 1:nRows
+  for iPt=1:3
+    x = pGT2(iRow,iPt,1);
+    y = pGT2(iRow,iPt,2);
+    z = pGT2(iRow,iPt,3);
+    plot3(ax,x,y,z,'o','MarkerFaceColor',clrs(iPt,:));
+    text(x,y,z,num2str(iPt),'parent',ax,'Color',[0 0 0],'fontsize',12);
+  end
+end
+ax.XLim = [bboxes(1) bboxes(1)+bboxes(4)];
+ax.YLim = [bboxes(2) bboxes(2)+bboxes(5)];
+ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
+
+%% bboxes
+pGT2mins = nan(1,3);
+pGT2maxs = nan(1,3);
+for i=1:3
+  x = pGT2(:,:,i); % x-, y-, or z-coords for all rows, pts
+  pGT2mins(i) = min(x(:));
+  pGT2maxs(i) = max(x(:));
+end
+dels = pGT2maxs-pGT2mins;
+% pad by 50% in every dir
+pads = dels/2;
+widths = 2*dels; % del (shapes footprint) + 2*pads (one on each side)
+bboxes = [pGT2mins-pads widths];
+
+[pGT2mins; pGT2maxs; dels] 
+bboxes
+
+%% pGT for 1-7-13
+iPts_1_7_13 = [1 7 13];
+pGT_1_7_13 = pGT(:,[iPts_1_7_13 iPts_1_7_13+19 iPts_1_7_13+38]);
 
 
+%%
+PARAMFILE = 'f:\romain\tp@3pts.yaml';
+sPrm = ReadYaml(PARAMFILE);
+sPrm.Model.nviews = 3;
+sPrm.Model.Prm3D.iViewBase = 1;
+sPrm.Model.Prm3D.calrig = crig2;
+rc = RegressorCascade(sPrm);
+rc.init();
+
+%%
+N = size(I,1);
+pAll = rc.trainWithRandInit(I,repmat(bboxes,N,1),pGT_1_7_13);
+pAll = reshape(pAll,197,50,9,31);
+
+%% Browse trained replicates
+pIidx = repmat((1:197)',50,1); % labels rows of pAll; indices into rows of tbl, I
+TROWIDX = 1;
+frame = tbl.frm(TROWIDX);
+lObj.setFrame(frame);
+%lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
+axAll = lObj.gdata.axes_all;
+deleteValidHandles(hLine);
+hLine = gobjects(3,3);
+for iAx = 1:3
+  ax = axAll(iAx);
+  hold(ax,'on');
+  clrs = [1 0 0;1 1 0;0 1 0];
+  for iPt = 1:3
+    hLine(iAx,iPt) = plot(ax,nan,nan,'.',...
+      'markersize',20,...
+      'Color',clrs(iPt,:));
+  end
+end
+
+pRepTrow = squeeze(pAll(TROWIDX,:,:,:));
+szassert(pRepTrow,[50 9 31]);
+
+for t=1:31
+  pRep = pRepTrow(:,:,t);
+  pRep = reshape(pRep,50,3,3); % (iRep,iPt,iDim)
+  for iVw=1:3
+    for iPt=1:3
+      X = squeeze(pRep(:,iPt,:)); % [50x3]
+      Xvw = crig2.viewXformCPR(X',1,iVw); % iViewBase==1
+      [r,c] = crig2.projectCPR(Xvw,iVw);
+      
+      h = hLine(iVw,iPt);
+      set(h,'XData',c,'YData',r);
+    end
+  end
   
+  input(sprintf('t=%d',t));
+end
 
 %%
 %
