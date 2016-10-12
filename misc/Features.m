@@ -644,7 +644,7 @@ classdef Features
       % xF: [NxF]. xF(iN,iF) is x-coord of iF'th feature for iN'th shape in
       %   image/view iView(iF)
       % yF: [NxF].
-      % iView: [F]. view indices labeling cols of xF/yF.
+      % iView: [Fx1]. view indices labeling cols of xF/yF.
       % info: scalar struct.
 
       if size(xs,2)==3

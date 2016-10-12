@@ -644,8 +644,8 @@ elseif model.d==3
     assert(isequal(size(Pview),[3 M*nfids]));
     [rview,cview] = crig.projectCPR(Pview,iView);
     % rview/cview are [M*nfids] col vecs; all pt1's, the all pt2's, ...
-    posrs(:,:,iView) = rview;
-    poscs(:,:,iView) = cview;
+    posrs(:,:,iView) = reshape(rview,M,nfids);
+    poscs(:,:,iView) = reshape(cview,M,nfids);
   end
 elseif model.d==2 && nviews==1
   posrs = phis(:,nfids+1:D);
@@ -687,7 +687,7 @@ end
 
 ftrs = nan(M,FTot);
 assert(isequal(size(cs1),size(rs1),size(ftrs)));
-assert(isequal(size(vw),[1 FTot]));
+assert(isequal(size(vw),[FTot 1]));
 assert(all(ismember(vw,1:nviews)));
 for iview = 1:nviews
   tfvw = vw==iview; % [F] logical. 1 where cols of cs1,rs1,ftrs are for current view  

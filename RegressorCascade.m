@@ -189,7 +189,7 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function trainWithRandInit(obj,I,bboxes,pGT,varargin)
+    function [pAll,pIidx] = trainWithRandInit(obj,I,bboxes,pGT,varargin)
       % I: [NxnView] cell array of images
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
@@ -214,7 +214,7 @@ classdef RegressorCascade < handle
           tiPrm.Naug,tiPrm.augpad,tiPrm.augrotate);
       end
       
-      obj.train(I,bboxes,pGT,p0,pIidx,varargin{:});
+      pAll = obj.train(I,bboxes,pGT,p0,pIidx,varargin{:});
     end    
     
     %#3DOK
