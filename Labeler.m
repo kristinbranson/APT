@@ -181,6 +181,9 @@ classdef Labeler < handle
   properties (SetObservable)
     labelMode;            % scalar LabelMode. init: C
     labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
+    % Multiview. Right now all 3d pts must live in all views, eg
+    % .nLabelPoints=nView*NumLabelPoints. first dim of labeledpos is
+    % ordered as {pt1vw1,pt2vw1,...ptNvw1,pt1vw2,...ptNvwK}
     labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched. init: PN
     labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random. init: PN
     labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array. init: PN
@@ -1382,21 +1385,26 @@ classdef Labeler < handle
         labeledpostags,1:nMov,frms,varargin{:});
     end
     
+    %#3DOK
     function [I,tbl] = lblCompileContentsRaw(...
         movieNames,lposes,lpostags,iMovs,frms,varargin)
       % Read moviefiles with landmark labels
       %
-      % movieNames: [N] cellstr of movienames
-      % lposes: [N] cell array of labeledpos arrays [nptsx2xnfrms]
+      % movieNames: [NxnView] cellstr of movienames
+      % lposes: [N] cell array of labeledpos arrays [nptsx2xnfrms]. For
+      %   multiview, npts=nView*NumLabelPoints.
       % lpostags: [N] cell array of labeledpostags [nptsxnfrms]      
-      % iMovs. [M] indices into movieNames to read.
+      % iMovs. [M] (row) indices into movieNames to read.
       % frms. [M] cell array. frms{i} is a vector of frames to read for
       % movie iMovs(i). frms{i} may also be:
       %     * 'all' indicating "all frames" 
       %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)   
       %
-      % I: [Ntrl] cell vec of images
+      % I: [NtrlxnView] cell vec of images
       % tbl: [NTrl rows] labels/metadata table.
+      %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
+      %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
+      %   index, 2. view index, 3. coord index (x vs y)
       %
       % Optional PVs:
       % - hWaitBar. Waitbar object
@@ -1417,37 +1425,60 @@ classdef Labeler < handle
       tfWB = ~isempty(hWB);
       
       assert(iscellstr(movieNames));
+      [N,nView] = size(movieNames);
       assert(iscell(lposes) && iscell(lpostags));
-      assert(isequal(numel(movieNames),numel(lposes),numel(lpostags)));
+      assert(isequal(N,numel(lposes),numel(lpostags)));
       tfLposTS = ~isempty(lposTS);
       if tfLposTS
-        cellfun(@(x,y)assert(size(x,1)==size(y,1) && size(x,2)==size(y,3)),...
-          lposTS,lposes);
+        assert(numel(tfLposTS)==N);
+      end
+      for i=1:N
+        assert(size(lposes{i},1)==size(lpostags{i},1) && ...
+               size(lposes{i},3)==size(lpostags{i},2));
+        if tfLposTS
+          assert(isequal(size(lposTS{i}),size(lpostags{i})));
+        end
       end
       
-      mr = MovieReader();
+      for iVw=nView:-1:1
+        mr(iVw) = MovieReader();
+      end
 
       I = [];
+      % Here, for multiview, mov/movS are for the first movie in each set
       s = struct('mov',cell(0,1),'movS',[],'frm',[],'p',[],'tfocc',[]);
       
       nMov = numel(iMovs);
       fprintf('Reading %d movies.\n',nMov);
+      if nView>1
+        fprintf('nView=%d.\n',nView);
+      end
       for i = 1:nMov
-        iMov = iMovs(i);
-        mov = movieNames{iMov};
-        [~,movS] = myfileparts(mov);
-        lpos = lposes{iMov}; % npts x 2 x nframes
-        lpostag = lpostags{iMov};
+        iMovSet = iMovs(i);
+        lpos = lposes{iMovSet}; % npts x 2 x nframes
+        lpostag = lpostags{iMovSet};
 
         [npts,d,nFrmAll] = size(lpos);
+        assert(d==2);
         if isempty(lpos)
           assert(isempty(lpostag));
           lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
         end
-        assert(isequal(size(lpostag),[npts nFrmAll]));
+        szassert(lpostag,[npts nFrmAll]);
         D = d*npts;
+        % Ordering of d is: {x1,x2,x3,...xN,y1,..yN} which for multiview is
+        % {xp1v1,xp2v1,...xpnv1,xp1v2,...xpnvk,yp1v1,...}. In other words,
+        % in decreasing raster order we have 1. pt index, 2. view index, 3.
+        % coord index (x vs y)
         
-        mr.open(mov);
+        for iVw=1:nView
+          movfull = movieNames{iMovSet,iVw};
+          mr(iVw).open(movfull);
+          if iVw==1
+            movFull1 = movfull;            
+            [~,movS1] = myfileparts(movfull);
+          end
+        end
         
         % find labeled/tagged frames (considering ALL frames for this
         % movie)
@@ -1466,13 +1497,13 @@ classdef Labeler < handle
         end
         nFrmRead = numel(frms2Read);
         
-        ITmp = cell(nFrmRead,1);
-        fprintf('  mov %d, D=%d, reading %d frames\n',iMov,D,nFrmRead);
+        ITmp = cell(nFrmRead,nView);
+        fprintf('  mov(set) %d, D=%d, reading %d frames\n',iMovSet,D,nFrmRead);
         
         if tfWB
           hWB.Name = 'Reading movies';
           wbStr = sprintf('Reading movie %s',movS);
-          waitbar(0,hWB,wbStr);          
+          waitbar(0,hWB,wbStr);
         end
         for iFrm = 1:nFrmRead
           if tfWB
@@ -1480,28 +1511,29 @@ classdef Labeler < handle
           end
           
           f = frms2Read(iFrm);
+
           if noImg
-            im = [];
+            % none; ITmp(iFrm,:) will have [] els
           else
-            im = mr.readframe(f);
-            if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
-              im = rgb2gray(im);
+            for iVw=1:nView
+              im = mr(iVw).readframe(f);
+              if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
+                im = rgb2gray(im);
+              end
+              ITmp{iFrm,iVw} = im;
             end
           end
           
-          %fprintf('iMov=%d, read frame %d (%d/%d)\n',iMov,f,iFrm,nFrmRead);
-          
-          ITmp{iFrm} = im;
           lblsFrmXY = lpos(:,:,f);
           tags = lpostag(:,f);
           
-          s(end+1,1).mov = mov; %#ok<AGROW>
-          s(end).movS = movS;
+          s(end+1,1).mov = movFull1; %#ok<AGROW>
+          s(end).movS = movS1;
           s(end).frm = f;
           s(end).p = Shape.xy2vec(lblsFrmXY);
           s(end).tfocc = strcmp('occ',tags(:)');
           if tfLposTS
-            lts = lposTS{iMov};
+            lts = lposTS{iMovSet};
             s(end).pTS = lts(:,f)';
           end
         end
