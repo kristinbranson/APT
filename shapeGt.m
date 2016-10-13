@@ -602,7 +602,7 @@ if strcmp(model.name,'mouse_paw3D')
   imsz = size(Is{1});
   posrs = zeros(M,2*nfids);
   poscs = zeros(M,2*nfids);
-  rotmat = rodrigues(Prm3D.om0);
+  %rotmat = rodrigues(Prm3D.om0);
   if nfids>1, assert(false); end; % Speed up computation for more than nfids.
   if nfids == 1
     X3d = phis';
@@ -1322,20 +1322,19 @@ N1 = N;
 N = N*L;
 end
 
+%#3DOK
 function p = initTest(Is,bboxes,model,pStar,pGtN,RT1,dorotate,varargin)
 %Randomly initialize testing shapes using training shapes (RT1 different)
 %
 % Is: currently unused
 % bboxes: [Nx2d]
 % pStar: [?xD] currently unused (asserted false codepath)
-% pGtN: [NxD] GT images for Is, NORMALIZED coords
+% pGtN: [NxD] GT shapes for Is, NORMALIZED coords
 % RT1: number of replicate shapes
 % Optional PVs:
 % - bboxJitterFac. Defaults to 16, see Shape.jitterBbox
 %
 % p: [NxDxRT1] initial shapes
-
-% ALOK
 
 dfs = {'bboxJitterFac',16};
 bboxJitterFac = getPrmDflt(varargin,dfs,1);
@@ -1344,7 +1343,7 @@ bboxJitterFac = bboxJitterFac.bboxJitterFac; % getPrmDflt API
 d = model.d;
 D = model.D;
 N = size(bboxes,1);
-assert(isequal(size(bboxes),[N 2*model.d]));
+assert(size(bboxes,2)==2*model.d);
 %assert(isequal(size(pStar),[N D]));
 assert(isequal(size(pGtN),[N D]));
 nOOB = Shape.normShapeOOB(pGtN);
@@ -1363,7 +1362,8 @@ elseif ismatrix(bboxes) % && (size(bboxes,2)==4 || size(bboxes,2)==6)
   %gt=regModel.phisT;
   for n = 1:N
     phisNCurr = Shape.randsamp(phisN,n,RT1);
-    if dorotate && model.d==2
+    if dorotate
+      assert(model.d==2,'Unsupported 3d.');
       fprintf(1,'ShapeGT:initTest. dorotate=%d\n',dorotate);
       phisNCurr = Shape.randrot(phisNCurr,model.d);
     end

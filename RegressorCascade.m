@@ -396,31 +396,32 @@ classdef RegressorCascade < handle
       end      
     end
        
-    % XXX TODO3D
+    %#3DOK
     function p_t = propagate(obj,I,bboxes,p0,pIidx,varargin) % obj const
       % Propagate shapes through regressor cascade.
       %
-      % I: [N] Cell array of images
+      % I: [NxnView] Cell array of images
       % bboxes: [Nx2*d]
       % p0: [QxD] initial shapes, absolute coords, eg Q=N*augFactor
-      % pIidx: [Q] indices into I for rows of p0
+      % pIidx: [Q] indices into (rows of) I for rows of p0
       %
       % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
       % is shape after T'th major iteration.
-      %
-      
+         
       [t0,hWB] = myparse(varargin,...
         't0',1,... % initial/starting major iteration
         'hWaitBar',[]);
       tfWB = ~isempty(hWB);
-  
-      NI = numel(I);
+    
+      model = obj.prmModel;
+
+      [NI,nview] = size(I);
+      assert(nview==model.nviews);
       assert(isequal(size(bboxes),[NI 2*obj.mdld]));
       [Q,D] = size(p0);
       assert(numel(pIidx)==Q && all(ismember(pIidx,1:NI)));
       assert(D==obj.mdlD);
   
-      model = obj.prmModel;
       ftrMetaType = obj.prmFtr.metatype;
       bbs = bboxes(pIidx,:);
       T = obj.nMajor;
@@ -454,6 +455,7 @@ classdef RegressorCascade < handle
         end
         
         if obj.prmReg.USE_AL_CORRECTION
+          assert(model.d==2,'Unchecked 3d');
           p1 = shapeGt('projectPose',model,p,bbs); % p1 is normalized        
           p = Shape.applyRIDiff(p1,pDel,1,3); % XXXAL HARDCODED HEAD/TAIL
         else
@@ -464,23 +466,29 @@ classdef RegressorCascade < handle
       end
     end
     
-    % XXX TODO3D
-    function p_t = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj const
-      % 
+    %#3DOK
+    function [p_t,pIidx] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj const
+      % Wrapper for propagate(), randomly init replicate cloud from
+      % obj.pGTNTrn
+      %
+      % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
+      % is shape after T'th major iteration.
+      % pIidx: labels for rows of p_t, indices into I
       
       model = obj.prmModel;
-      n = numel(I);
-      assert(isequal(size(bboxes),[n 2*model.d]))
+      [NI,nview] = size(I);
+      assert(nview==model.nviews);
+      assert(isequal(size(bboxes),[NI 2*model.d]))
       
       nRep = prmTestInit.Nrep;
       pGTTrnNMu = nanmean(obj.pGTNTrn,1);
       p0 = shapeGt('initTest',[],bboxes,model,[],...
-        repmat(pGTTrnNMu,n,1),nRep,prmTestInit.augrotate); % [nxDxnRep]
+        repmat(pGTTrnNMu,NI,1),nRep,prmTestInit.augrotate); % [nxDxnRep]
       p0 = permute(p0,[1 3 2]); % [nxnRepxD]
-      p0 = reshape(p0,[n*nRep model.D]);
-      pIidx = repmat(1:n,[1 nRep])';
+      p0 = reshape(p0,[NI*nRep model.D]);
+      pIidx = repmat(1:NI,[1 nRep])';
       
-      p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
+      p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});
     end
       
     %# XXX TODO3D
@@ -558,7 +566,7 @@ classdef RegressorCascade < handle
     
         % ----- BELOW HERE NOT SURE TODO3D -----
 
-        
+    %#3DOK
     function x = computeMetaFeature(obj,X,iFtrsX,t,u,metatype)
       % Helper function to compute meta-features
       %
@@ -582,8 +590,7 @@ classdef RegressorCascade < handle
           [~,loc1] = ismember(iFtrsUsed(:,1),iFtrsX);
           [~,loc2] = ismember(iFtrsUsed(:,2),iFtrsX);
           x = X(:,loc1)-X(:,loc2);
-      end      
-      
+      end     
     end
     
     %#3DOK

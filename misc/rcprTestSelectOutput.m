@@ -9,9 +9,9 @@ if prunePrm.usemaxdensity
   p = nan(N,D);
   maxpr = nan(1,N);
   pRT1 = reshape(pRT,[N,model.nfids,model.d,RT1]);
-  for n = 1:N,
+  for n = 1:N
     pr = 0;
-    for part = 1:model.nfids,
+    for part = 1:model.nfids
       d = pdist(reshape(pRT1(n,part,:,:),[model.d,RT1])').^2; 
       %d = pdist(reshape(pRT(n,[1,3],:),[2,RT1])').^2;
       % d is pairwise distances between rows of [RT1xd] array of coords for
