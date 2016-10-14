@@ -219,7 +219,7 @@ classdef RegressorCascade < handle
         pNInitSet = obj.pGTNTrn;
         selfSample = false;
       else % init from pGt
-        pNInitSet = shapeGt('projectPose',model,pGt,bboxes);
+        pNInitSet = shapeGt('projectPose',model,pGT,bboxes);
         selfSample = true;
       end
       p0 = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
@@ -484,13 +484,14 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function [p_t,pIidx] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj const
+    function [p_t,pIidx,p0info] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj const
       % Wrapper for propagate(), randomly init replicate cloud from
       % obj.pGTNTrn
       %
       % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
       % is shape after T'th major iteration.
       % pIidx: labels for rows of p_t, indices into I
+      % p0info: struct containing initial shape info
       
       model = obj.prmModel;
       [N,nview] = size(I);
@@ -499,15 +500,17 @@ classdef RegressorCascade < handle
       
       Naug = prmTestInit.Nrep;
       pNInitSet = obj.pGTNTrn;
-      p0 = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
+      [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
         'dorotate',prmTestInit.augrotate,...
         'bboxJitterfac',prmTestInit.augjitterfac,...
         'selfSample',false);
       szassert(p0,[N Naug model.D]);
+      p0info.p0_1 = squeeze(p0(1,:,:)); % absolute coords
+      p0info.bbox1 = bboxes(1,:);
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
-      p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});
+      p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
     end
     
     %# XXX TODO3D
@@ -641,6 +644,46 @@ classdef RegressorCascade < handle
       obj.prmTrainInit = sPrm.TrainInit;
       obj.prmReg = sPrm.Reg;
       obj.prmFtr = sPrm.Ftr;      
+    end
+    
+  end
+  
+  methods (Static) % utils
+    
+    function hFig = createP0DiagImg(I,p0info)
+      % Visualize initial random shapes
+      %
+      % I: [NxnView] cell array of iamges
+      % p0Info: struct containing initial shape randomization info, see eg
+      %   propagateRandInit()
+      
+      model = p0info.model;
+      assert(model.d==2,'Unsupported for d~=2.');
+      
+      hFig = figure;
+      axes;
+      imagesc([-1 1],[-1 1],I{1});
+      truesize;
+      colormap gray;
+      hold on;
+      p0_1 = p0info.p0_1;
+      bbox1 = p0info.bbox1;
+      p0_1N = shapeGt('projectPose',model,p0_1,repmat(bbox1,size(p0_1,1),1));
+      pNmu = p0info.pNmu;
+      [Naug,D] = size(p0_1); %#ok<ASGLU>
+      szassert(pNmu,[1 D]);
+      
+      npts = D/p0info.model.d;
+      colors = lines(npts);
+      for ipt=1:npts
+        clr = colors(ipt,:);
+        plot(p0_1N(:,ipt),p0_1N(:,ipt+npts),'.','Color',clr); % plot all replicates for ipt
+        plot(pNmu(ipt),pNmu(ipt+npts),'wo','MarkerFaceColor',clr*.75+.25);
+      end
+      tstr = sprintf('npN:%d. doRot:%d. jitter:%d.',...
+        p0info.npN,p0info.doRotate,p0info.bboxJitterFac);
+      title(tstr,'interpreter','none','fontweight','bold');
+      hFig.UserData = p0info;
     end
     
   end

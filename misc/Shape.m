@@ -80,7 +80,7 @@ classdef Shape
     end
     
     %#3DOK
-    function pAug = randInitShapes(pN,Naug,model,bboxes,varargin)
+    function [pAug,info] = randInitShapes(pN,Naug,model,bboxes,varargin)
       % Simple shape augmenter/randomizer
       %
       % pN: [MxD] set of NORMALIZED shapes to sample/draw from 
@@ -88,6 +88,7 @@ classdef Shape
       % bboxes: [Nx2d] bounding boxes
       %
       % pAug: [NxNaugxD] randomized shapes, ABSOLUTE coords
+      % info: struct, info on randomization
       %
       % Shapes are randomly drawn from pN, optionally randomly rotated,
       % then projected onto randomly jittered bboxes.
@@ -138,6 +139,14 @@ classdef Shape
         szassert(bbRT,[Naug 2*d]);
         pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,bbRT); % [NaugxD]        
       end
+      
+      info = struct(...
+        'model',model,...
+        'pNmu',mean(pN,1),...
+        'npN',M,...
+        'doRotate',dorotate,...
+        'bboxJitterFac',bboxJitterFac,...
+        'selfSample',selfSample);
     end
     
     %# 3DOK

@@ -3,8 +3,8 @@ Model:
   name: 'FlyOnBall'
   nfids: 7    # Number of labeled points per frame
   d: 2        # Physical dimension of label-space (only 2 works at the moment)
+  nviews: 1
   isFace: 1   # currently unused  
-  nviews:     # currently unused
   Prm3D:      # currently unused
 
 PreProc:

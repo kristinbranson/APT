@@ -784,10 +784,11 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function track(obj,iMovs,frms,varargin)
-      [tblP,stripTrkPFull,movChunkSize] = myparse(varargin,...
+      [tblP,stripTrkPFull,movChunkSize,p0DiagImg] = myparse(varargin,...
         'tblP',[],... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
         'stripTrkPFull',true,... % if true, don't save .trkPFull
-        'movChunkSize',5000 ... % track large movies in chunks of this size
+        'movChunkSize',5000, ... % track large movies in chunks of this size
+        'p0DiagImg',[] ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
         );
       
       prm = obj.sPrm;
@@ -849,8 +850,13 @@ classdef CPRLabelTracker < LabelTracker
         RT = prm.TestInit.Nrep;
         bboxes = d.bboxesTst;
         
-        rc = obj.trnResRC;
-        p_t = rc.propagateRandInit(Is,bboxes,prm.TestInit);
+        rc = obj.trnResRC;        
+        [p_t,~,p0Info] = rc.propagateRandInit(Is,bboxes,prm.TestInit);
+        if iChunk==1 && ~isempty(p0DiagImg)
+          hFigP0DiagImg = RegressorCascade.createP0DiagImg(Is,p0Info);
+          savefig(hFigP0DiagImg,p0DiagImg);
+          delete(hFigP0DiagImg);          
+        end
         trkMdl = rc.prmModel;
         trkD = trkMdl.D;
         Tp1 = rc.nMajor+1;
