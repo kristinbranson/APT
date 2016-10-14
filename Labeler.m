@@ -1502,7 +1502,7 @@ classdef Labeler < handle
         
         if tfWB
           hWB.Name = 'Reading movies';
-          wbStr = sprintf('Reading movie %s',movS);
+          wbStr = sprintf('Reading movie %s',movS1);
           waitbar(0,hWB,wbStr);
         end
         for iFrm = 1:nFrmRead
