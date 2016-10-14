@@ -50,14 +50,14 @@ classdef Shape
     end
     
     function p1 = randsamp(p0,i,L)
-      % Randomly sample shapes
+      % Randomly sample N shapes, omitting ith shape
       %
       % p0 (in): [NxD] all shapes
       % i: index of 'current' shape (1..N)
       % L: number of shapes to return
       %
-      % p1: [LxD] shapes randomly sampled from p0, *omitting* the nth
-      %   shape, ie p0(n,:).
+      % p1: [LxD] shapes randomly sampled from p0, *omitting* the ith
+      %   shape, ie p0(i,:).
             
       [N,D] = size(p0);
       assert(any(i==1:N));      
@@ -76,57 +76,68 @@ classdef Shape
       end
       
       % p1: Set of L shapes, explicitly doesn't include p0(n,:)
-      assert(isequal(size(p1),[L D]));      
+      szassert(p1,[L D]);
     end
     
     %#3DOK
     function pAug = randInitShapes(pN,Naug,model,bboxes,varargin)
       % Simple shape augmenter/randomizer
       %
-      % pN: [1xD] NORMALIZED shape
+      % pN: [MxD] set of NORMALIZED shapes to sample/draw from 
       % Naug: number of shapes to generate per image (per row of bboxes)
       % bboxes: [Nx2d] bounding boxes
       %
       % pAug: [NxNaugxD] randomized shapes, ABSOLUTE coords
       %
-      % The shape pN is randomly jittered and rotated (optionally), then
-      % projected onto bboxes.
+      % Shapes are randomly drawn from pN, optionally randomly rotated,
+      % then projected onto randomly jittered bboxes.
       
-      [dorotate,bboxJitterFac] = myparse(varargin,...
-        'dorotate',false,... % if true, randomly rotate mages
-        'bboxJitterfac',16 ... % jitter by 1/16th of bounding box dims
+      [dorotate,bboxJitterFac,selfSample] = myparse(varargin,...
+        'dorotate',false,... % if true, randomly rotate shapes
+        'bboxJitterfac',16, ... % jitter by 1/16th of bounding box dims
+        'selfSample',false ... % if true, then M==N, ie the set pN corresponds to bboxes. pN(i,:) will 
+                           ... % not be drawn/included when generating pAug(i,:,:).
         );
-      
+  
+      assert(~any(strcmp(model.name,{'cofw' 'fly_RF2' 'mouse_paw3D'})),...
+        'Purely historical, prob works fine.');
+  
+      M = size(pN,1);
       N = size(bboxes,1);
       d = model.d;
       D = model.D;
-      assert(isequal(size(bboxes),[N 2*d]));
-      assert(isequal(size(pN),[1 D]));
+      szassert(pN,[M D]);
+      szassert(bboxes,[N 2*d]);
+      if selfSample
+        assert(M==N);
+      end
 
       nOOB = Shape.normShapeOOB(pN);
       if nOOB>0
-        warningNoTrace('Shape:randInitShapes. pN falls outside [-1,1] in %d els.',nOOB);
+        warningNoTrace('Shape:randInitShapes. pN (%d shapes) falls outside [-1,1] in %d els.',...
+        M,nOOB);
       end
            
-      pNAug = repmat(pN,Naug,1);
       pAug = zeros(N,Naug,D);
       for i=1:N
-        if dorotate
-          if d==2
-            fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
-            pNAugCurr = Shape.randrot(pNAug,d);
-          else
-            assert(false,'Currently random rotations supported only for d==2');
-          end
+        if selfSample
+          pNAug = Shape.randsamp(pN,i,Naug);
         else
-          pNAugCurr = pNAug;
+          % Duplicate first row of pN, then specify that row to randsamp.
+          % The effect is to sample just from pN
+          pNAug = Shape.randsamp([pN(1,:);pN],1,Naug);
         end
-        % pNAugCurr is [NaugxD] normalized shapes
+        if dorotate
+          assert(d==2,'Currently random rotations supported only for d==2');
+          fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
+          pNAug = Shape.randrot(pNAug,d);
+        end
+        szassert(pNAug,[Naug D]);
 
         bbRT = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac);
-        assert(isequal(size(bbRT),[Naug 2*d]));
-        pAug(i,:,:) = shapeGt('reprojectPose',model,pNAugCurr,bbRT); % [NaugxD]        
-      end      
+        szassert(bbRT,[Naug 2*d]);
+        pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,bbRT); % [NaugxD]        
+      end
     end
     
     %# 3DOK

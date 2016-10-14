@@ -193,27 +193,44 @@ classdef RegressorCascade < handle
       % I: [NxnView] cell array of images
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
+      %
+      % pAll: [(N*Naug)xDx(T+1)] propagated training shapes (absolute coords)
+      % pIidx: [N*Naug] indices into I labeling rows of pAll
+      %
+      % Initialization notes. Two sets of shapes to draw from for
+      % initialization. If initpGTNTrn, use the set .pGTNTrn; otherwise,
+      % use pGT. Typically, initpGTNTrn would be used for incremental
+      % (re)trains, where .pGTNTrn is set and pGT is small/limited.
+      % Meanwhile, pGT would be used on first/fresh trains, where .pGTNTrn
+      % may not be populated and pGT is large.
+      %
+      % In drawing from a set shape distribution, we are biasing towards
+      % the most/more common shapes. However, we also jitter, so that may
+      % be okay.
       
       initpGTNTrn = myparse(varargin,...
         'initpGTNTrn',false... % if true, init with .pGTNTrn rather than pGT
         );
       
+      model = obj.prmModel;
       tiPrm = obj.prmTrainInit;
+      Naug = tiPrm.Naug;  
       if initpGTNTrn
-        N = size(I,1);
-        Naug = tiPrm.Naug;        
-        pGTTrnNMu = nanmean(obj.pGTNTrn,1);
-        model = obj.prmModel;
-        
-        p0 = Shape.randInitShapes(pGTTrnNMu,Naug,model,bboxes,...
-          'dorotate',tiPrm.augrotate); % [NxNaugxD]
-        p0 = reshape(p0,[N*Naug model.D]);
-        pIidx = repmat(1:N,[1 Naug])'; 
-      else
-        [p0,~,~,~,pIidx] = shapeGt('initTr',[],pGT,obj.prmModel,[],bboxes,...
-          tiPrm.Naug,tiPrm.augpad,tiPrm.augrotate);
+        pNInitSet = obj.pGTNTrn;
+        selfSample = false;
+      else % init from pGt
+        pNInitSet = shapeGt('projectPose',model,pGt,bboxes);
+        selfSample = true;
       end
+      p0 = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
+        'dorotate',tiPrm.augrotate,...
+        'bboxJitterfac',tiPrm.augjitterfac,...
+        'selfSample',selfSample);
+      N = size(I,1);
+      szassert(p0,[N Naug model.D]);
       
+      p0 = reshape(p0,[N*Naug model.D]);
+      pIidx = repmat(1:N,[1 Naug])';
       pAll = obj.train(I,bboxes,pGT,p0,pIidx,varargin{:});
     end    
     
@@ -476,21 +493,23 @@ classdef RegressorCascade < handle
       % pIidx: labels for rows of p_t, indices into I
       
       model = obj.prmModel;
-      [NI,nview] = size(I);
+      [N,nview] = size(I);
       assert(nview==model.nviews);
-      assert(isequal(size(bboxes),[NI 2*model.d]))
+      szassert(bboxes,[N 2*model.d]);
       
-      nRep = prmTestInit.Nrep;
-      pGTTrnNMu = nanmean(obj.pGTNTrn,1);
-      p0 = shapeGt('initTest',[],bboxes,model,[],...
-        repmat(pGTTrnNMu,NI,1),nRep,prmTestInit.augrotate); % [nxDxnRep]
-      p0 = permute(p0,[1 3 2]); % [nxnRepxD]
-      p0 = reshape(p0,[NI*nRep model.D]);
-      pIidx = repmat(1:NI,[1 nRep])';
+      Naug = prmTestInit.Nrep;
+      pNInitSet = obj.pGTNTrn;
+      p0 = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
+        'dorotate',prmTestInit.augrotate,...
+        'bboxJitterfac',prmTestInit.augjitterfac,...
+        'selfSample',false);
+      szassert(p0,[N Naug model.D]);
       
+      p0 = reshape(p0,[N*Naug model.D]);
+      pIidx = repmat(1:N,[1 Naug])';
       p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});
     end
-      
+    
     %# XXX TODO3D
     function yPred = fernUpdate(obj,t,X,iFtrsComp,yTar,prmReg)
       % Incremental update of fern structures
