@@ -99,11 +99,13 @@ classdef LabelTracker < handle
       % Full Train from scratch; existing/previous results cleared 
     end
     
-    function track(obj,iMovs,frms)
+    function track(obj,iMovs,frms,varargin)
       % Apply trained tracker to the specified frames.
       %
       % iMovs: [M] indices into .lObj.movieFilesAll to track
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
+      %
+      % Optional PVs.
     end
     
     function trkfiles = getTrackingResults(obj,iMovs)

@@ -3019,11 +3019,14 @@ classdef Labeler < handle
       tObj.track(iMovs,frms);
     end
     
-    function trackAndExport(obj,tm)
+    function trackAndExport(obj,tm,varargin)
       % Track one movie at a time, exporting results to .trk files and 
       % clearing data in between
       %
       % tm: scalar TrackMode
+            
+      trackArgs = myparse(varargin,...
+        'trackArgs',{});
       
       tObj = obj.tracker;
       if isempty(tObj)
@@ -3039,7 +3042,7 @@ classdef Labeler < handle
         %hWB = waitbar(0,sprintf('Tracking movie %d/%d',0,nMov));
         for i=1:nMov 
           fprintf('Tracking movie %d/%d\n',i,nMov);
-          tObj.track(iMovs(i),frms(i));
+          tObj.track(iMovs(i),frms(i),trackArgs{:});
           trkFile = tObj.getTrackingResults(iMovs(i));
           trkFile.save(trkfilenames{i});
           fprintf('Saved: %s\n',trkfilenames{i});

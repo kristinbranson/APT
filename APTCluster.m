@@ -6,6 +6,8 @@ function APTCluster(varargin)
 %
 % % Track a single movie
 % APTCluster(lblFile,'track',moviefullpath)
+% % Options passed to Labeler.trackAndExport, 'trackArgs'
+% APTCluster(lblFile,'track',moviefullpath,varargin)
 %
 
 lblFile = varargin{1};
@@ -28,7 +30,8 @@ switch action
     lObj.projSaveRaw(outfile);
   case 'track'
     mov = varargin{3};
-    lclTrackAndExportSingleMov(lObj,mov);    
+    trackArgs = varargin(4:end);
+    lclTrackAndExportSingleMov(lObj,mov,trackArgs);    
   case 'trackbatch'
     movfile = varargin{3};
     if exist(movfile,'file')==0
@@ -40,7 +43,7 @@ switch action
     end
     nmov = numel(movs);
     for iMov = 1:nmov
-      lclTrackAndExportSingleMov(lObj,movs{iMov});    
+      lclTrackAndExportSingleMov(lObj,movs{iMov},{});
     end
   otherwise
     error('APTCluster:action','Unrecognized action ''%s''.',action);
@@ -50,7 +53,7 @@ delete(lObj);
 close all force;
 
 
-function lclTrackAndExportSingleMov(lObj,mov)
+function lclTrackAndExportSingleMov(lObj,mov,trackArgs)
 if exist(mov,'file')==0
   error('APTCluster:file','Cannot find movie file ''%s''.',mov);
 end
@@ -65,4 +68,4 @@ lObj.movieSet(iMov);
 assert(strcmp(lObj.movieFilesAllFull{lObj.currMovie},mov));
 
 tm = TrackMode.CurrMovEveryFrame;
-lObj.trackAndExport(tm);
+lObj.trackAndExport(tm,'trackArgs',trackArgs);
