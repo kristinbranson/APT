@@ -1430,7 +1430,7 @@ classdef Labeler < handle
       assert(isequal(N,numel(lposes),numel(lpostags)));
       tfLposTS = ~isempty(lposTS);
       if tfLposTS
-        assert(numel(tfLposTS)==N);
+        assert(numel(lposTS)==N);
       end
       for i=1:N
         assert(size(lposes{i},1)==size(lpostags{i},1) && ...
