@@ -23,8 +23,10 @@ def main():
     parser.add_argument("--multithreaded",help="if true, run multithreaded binary",action="store_true",default=False)
     parser.add_argument("--account",default="",help="account to bill for cluster time",metavar="ACCOUNT")
     parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
+    parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'") 
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
+    parser.add_argument("-p0di","--p0DiagImg",help="use with action==track. short filename for shape initialization diagnostics image (p0DiagImg)")
 
     args = parser.parse_args()
     
@@ -51,15 +53,24 @@ def main():
             args.movbatchfilelineend = sys.maxint
     if args.action!="track" and args.mov:
         print("Action is " + args.action + ", ignoring --mov specification")
+    if args.action!="track" and args.p0DiagImg:
+        print("Action is " + args.action + ", ignoring --p0DiagImg specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
         
-    if args.multithreaded:
-        args.BIN = "/groups/branson/home/leea30/aptbuild/current/APTCluster/run_APTCluster_multithreaded.sh"
-    else:
-        args.BIN = "/groups/branson/home/leea30/aptbuild/current/APTCluster/run_APTCluster_singlethreaded.sh"
+    args.APTBUILDROOTDIR = "/groups/branson/home/leea30/aptbuild"
+    if not args.bindate:
+        args.bindate = "current"
+    args.binroot = os.path.join(args.APTBUILDROOTDIR,args.bindate)
 
-    args.KEYWORD = "apt"; # used for log/sh filenames, sge job name
+    if args.multithreaded:
+        args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_multithreaded.sh")
+    else:
+        args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_singlethreaded.sh")
+    if not os.path.exists(args.bin):
+        sys.exit("Cannot find binary: {0:s}".format(args.bin))
+
+    args.KEYWORD = "apt" # used for log/sh filenames, sge job name
     args.MCR = "/groups/branson/home/leea30/mlrt/v90"
     args.USERNAME = subprocess.check_output("whoami").strip()
     args.TMP_ROOT_DIR = "/scratch/" + args.USERNAME
@@ -142,7 +153,11 @@ def main():
         if args.action=="retrain":
             cmd = args.projfile + " " + args.action
         elif args.action=="track":
-            cmd = args.projfile + "  " + args.action + " " + args.mov
+            if args.p0DiagImg:
+                p0DiagImgFull = os.path.join(outdiruse,args.p0DiagImg)
+                cmd = args.projfile + "  " + args.action + " " + args.mov + " p0DiagImg " + p0DiagImgFull
+            else:
+                cmd = args.projfile + "  " + args.action + " " + args.mov
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
 
@@ -166,7 +181,7 @@ def gencode(fname,jobid,args,cmd):
     print("echo $MCR_CACHE_ROOT",file=f)
 
     print("",file=f)
-    print(args.BIN + " " + args.MCR + " " + cmd,file=f)
+    print(args.bin + " " + args.MCR + " " + cmd,file=f)
     print("",file=f)
 
     print("rm -rf",args.MCR_CACHE_ROOT+"."+jobid,file=f)
