@@ -671,18 +671,18 @@ classdef RegressorCascade < handle
       bbox1 = p0info.bbox1;
       p0_1N = shapeGt('projectPose',model,p0_1,repmat(bbox1,size(p0_1,1),1));
       pNmu = p0info.pNmu;
-      [Naug,D] = size(p0_1); %#ok<ASGLU>
+      [Naug,D] = size(p0_1); 
       szassert(pNmu,[1 D]);
       
       npts = D/p0info.model.d;
       colors = lines(npts);
       for ipt=1:npts
         clr = colors(ipt,:);
-        plot(ax,p0_1N(:,ipt),p0_1N(:,ipt+npts),'.','Color',clr); % plot all replicates for ipt
-        plot(ax,pNmu(ipt),pNmu(ipt+npts),'wo','MarkerFaceColor',clr*.75+.25);
+        plot(ax,p0_1N(:,ipt),p0_1N(:,ipt+npts),'.','Color',clr,'MarkerSize',10); % plot all replicates for ipt
+        plot(ax,pNmu(ipt),pNmu(ipt+npts),'ws','MarkerFaceColor',clr*.75+.25);
       end
-      tstr = sprintf('npN:%d. doRot:%d. jitter:%d.',...
-        p0info.npN,p0info.doRotate,p0info.bboxJitterFac);
+      tstr = sprintf('naug:%d. npN:%d. doRot:%d. jitterfac:%d.',...
+        Naug,p0info.npN,p0info.doRotate,p0info.bboxJitterFac);
       title(ax,tstr,'interpreter','none','fontweight','bold');
       hFig.UserData = p0info;
     end
