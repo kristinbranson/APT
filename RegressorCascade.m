@@ -1,6 +1,6 @@
 classdef RegressorCascade < handle
   
-  properties (SetAccess=private)
+  properties
     % model/params
     prmModel 
     prmTrainInit
@@ -653,7 +653,7 @@ classdef RegressorCascade < handle
     function hFig = createP0DiagImg(I,p0info)
       % Visualize initial random shapes
       %
-      % I: [NxnView] cell array of iamges
+      % I: [NxnView] cell array of images
       % p0Info: struct containing initial shape randomization info, see eg
       %   propagateRandInit()
       
@@ -661,11 +661,12 @@ classdef RegressorCascade < handle
       assert(model.d==2,'Unsupported for d~=2.');
       
       hFig = figure;
-      axes;
-      imagesc([-1 1],[-1 1],I{1});
-      truesize;
-      colormap gray;
-      hold on;
+      ax = axes;
+      im = I{1}(:,:,1);
+      imagesc([-1 1],[-1 1],im,'parent',ax);
+      truesize(hFig);
+      colormap(ax,'gray');
+      hold(ax,'on');
       p0_1 = p0info.p0_1;
       bbox1 = p0info.bbox1;
       p0_1N = shapeGt('projectPose',model,p0_1,repmat(bbox1,size(p0_1,1),1));
@@ -677,12 +678,12 @@ classdef RegressorCascade < handle
       colors = lines(npts);
       for ipt=1:npts
         clr = colors(ipt,:);
-        plot(p0_1N(:,ipt),p0_1N(:,ipt+npts),'.','Color',clr); % plot all replicates for ipt
-        plot(pNmu(ipt),pNmu(ipt+npts),'wo','MarkerFaceColor',clr*.75+.25);
+        plot(ax,p0_1N(:,ipt),p0_1N(:,ipt+npts),'.','Color',clr); % plot all replicates for ipt
+        plot(ax,pNmu(ipt),pNmu(ipt+npts),'wo','MarkerFaceColor',clr*.75+.25);
       end
       tstr = sprintf('npN:%d. doRot:%d. jitter:%d.',...
         p0info.npN,p0info.doRotate,p0info.bboxJitterFac);
-      title(tstr,'interpreter','none','fontweight','bold');
+      title(ax,tstr,'interpreter','none','fontweight','bold');
       hFig.UserData = p0info;
     end
     

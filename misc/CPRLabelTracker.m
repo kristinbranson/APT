@@ -480,9 +480,19 @@ classdef CPRLabelTracker < LabelTracker
         fprintf('Using default parameters for: %s.\n',...
           String.cellstr2CommaSepList(s0used));
       end
+      if isempty(sNew.Model.nviews)
+        % Model.nviews now required. structoverlay would not overlay new
+        % default value on top of existing/legacy empty [] value.
+        sNew.Model.nviews = 1;
+      end
       
       sOld = obj.sPrm;      
       obj.sPrm = sNew; % set this now so eg trnResInit() can use
+      
+      if isempty(sOld.Model.nviews)
+        sOld.Model.nviews = 1;
+        % set this to enable comparisons below
+      end
       
       if isempty(sOld)
         obj.initData();
@@ -1112,6 +1122,37 @@ classdef CPRLabelTracker < LabelTracker
         if ~isempty(sPrm0used)
           fprintf('Using default parameters for: %s.\n',...
             String.cellstr2CommaSepList(sPrm0used));
+        end
+        
+        % 20161017
+        % changes to default params param.example.yaml:
+        % - Model:nviews now necessary and defaults to 1
+        % - TrainInit:augjitterfac, default val 16
+        % - TestInit:augjitterfac, default val 16
+        %
+        % A bit of a bind here b/c some parameter state is dup-ed in
+        % RegressorCascade (whoops); we do not want to
+        % reinit RegressorCascade (.trnResRC) for legacy projs, because
+        % legacy projs implicitly used all the above "new" parameters and 
+        % so re-init is not necessary. See hack below.      
+        
+        if isempty(s.sPrm.Model.nviews)          
+          % Model.nviews now required. structoverlay would not overlay new
+          % default value on top of existing/legacy empty [] value.
+          s.sPrm.Model.nviews = 1;          
+        end
+        
+        % Hack, double-update legacy RegressorCascades (.trnResRC).
+        rc = s.trnResRC;
+        if ~isempty(rc)
+          if isempty(rc.prmModel.nviews)
+            assert(s.sPrm.Model.nviews==1); 
+            rc.prmModel.nviews = 1;
+          end
+          if ~isfield(rc.prmTrainInit,'augjitterfac')
+            assert(s.sPrm.TrainInit.augjitterfac==16);
+            rc.prmTrainInit.augjitterfac = 16;
+          end
         end
       end
       
