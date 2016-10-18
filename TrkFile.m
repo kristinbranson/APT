@@ -6,6 +6,7 @@ classdef TrkFile < handle
   
   properties
     pTrk = TrkFile.unsetVal; % [npttrked x 2 x nfrm], like labeledpos
+    pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nfrm], with replicates
     pTrkTS = TrkFile.unsetVal; % [npttrked x nfrm], liked labeledposTS
     pTrkTag = TrkFile.unsetVal; % [npttrked x nfrm] cell, like labeledposTag
     pTrkiPt = TrkFile.unsetVal; % [npttrked]. point indices labeling rows of .pTrk*. If 
@@ -35,7 +36,13 @@ classdef TrkFile < handle
         error('TrkFile:TrkFile','Expected d==2.');
       end
       obj.pTrk = ptrk;     
-      
+
+      if isequal(obj.pTrkFull,TrkFile.unsetVal)
+        obj.pTrkFull = zeros(npttrk,2,0,nfrm);
+      end
+      nRep = size(obj.pTrkFull,3);
+      validateattributes(obj.pTrkFull,{'numeric'},{'size' [npttrk 2 nRep nfrm]},'','pTrkFull');
+
       if isequal(obj.pTrkTS,TrkFile.unsetVal)
         obj.pTrkTS = zeros(npttrk,nfrm);
       end

@@ -67,5 +67,12 @@ end
 lObj.movieSet(iMov);
 assert(strcmp(lObj.movieFilesAllFull{lObj.currMovie},mov));
 
+% filter trackArgs
+i = find(strcmpi(trackArgs,'trkFilename'));
+assert(isempty(i) || isscalar(i));
+trackArgs = trackArgs(:);
+trkFilenameArgs = trackArgs(i:i+1);
+trackArgs(i:i+1,:) = [];
+
 tm = TrackMode.CurrMovEveryFrame;
-lObj.trackAndExport(tm,'trackArgs',trackArgs);
+lObj.trackAndExport(tm,'trackArgs',trackArgs,trkFilenameArgs{:});
