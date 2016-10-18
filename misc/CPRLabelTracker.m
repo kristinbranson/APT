@@ -422,7 +422,7 @@ classdef CPRLabelTracker < LabelTracker
   %% TrackRes
   methods
     
-    function [trkpos,trkposTS] = getTrackResRaw(obj,iMov)
+    function [trkpos,trkposTS,trkposFull] = getTrackResRaw(obj,iMov)
       % Get tracking results for movie iMov.
       %
       % iMov: scalar movie index
@@ -430,21 +430,34 @@ classdef CPRLabelTracker < LabelTracker
       % trkpos: [nptstrk x d x nfrm(iMov)]. Tracking results for iMov. 
       %  IMPORTANT: first dim is nptstrk=numel(.trkPiPt), NOT obj.npts
       % trkposTS: [nptstrk x nfrm(iMov)]. Timestamps for trkpos
+      % trkposFull: [nptstrk x d x nRep x nfrm(iMov)]. 4d results.
       
       lObj = obj.lObj;
       movName = lObj.movieFilesAllFull{iMov};
       nfrms = lObj.movieInfoAll{iMov}.nframes;
 
-      d = 2;
       pTrk = obj.trkP(:,:,end); % [NTst x D]
+      [NTrk,DTrk] = size(pTrk);
       trkMD = obj.trkPMD;
       iPtTrk = obj.trkPiPt;
       nPtTrk = numel(iPtTrk);
-      assert(isequal(size(pTrk),[size(trkMD,1) nPtTrk*d]));
-      assert(numel(obj.trkPTS)==size(trkMD,1));
+      d = 2;
+      assert(size(trkMD,1)==NTrk);
+      assert(nPtTrk*d==DTrk);
+          
+      if isempty(obj.trkPFull)
+        pTrkFull = nan(NTrk,0,DTrk);
+      else
+        pTrkFull = obj.trkPFull(:,:,:,end);
+      end
+      nRep = size(pTrkFull,2);
+      szassert(pTrkFull,[NTrk nRep DTrk]);
+      
+      assert(numel(obj.trkPTS)==NTrk);
 
       trkpos = nan(nPtTrk,d,nfrms);
       trkposTS = -inf(nPtTrk,nfrms);
+      trkposFull = nan(nPtTrk,d,nRep,nfrms);
 
       if isempty(obj.trkPTS) % proxy for no tracking results etc
         % none
@@ -456,6 +469,11 @@ classdef CPRLabelTracker < LabelTracker
         trkpos(:,:,frmCurrMov) = xyTrkCurrMov;
         tmpTS = obj.trkPTS(tfCurrMov);
         trkposTS(:,frmCurrMov) = repmat(tmpTS(:)',nPtTrk,1);
+        
+        xyTrkFullCurrMov = pTrkFull(tfCurrMov,:,:); % [nCurrMov nRep D]
+        xyTrkFullCurrMov = permute(xyTrkFullCurrMov,[3 2 1]);
+        xyTrkFullCurrMov = reshape(xyTrkFullCurrMov,[nPtTrk d nRep nCurrMov]);
+        trkposFull(:,:,:,frmCurrMov) = xyTrkFullCurrMov;
       end
     end
           
@@ -948,9 +966,9 @@ classdef CPRLabelTracker < LabelTracker
       trkpipt = obj.trkPiPt;
       trkinfo = struct('paramFile',obj.paramFile);
       for i = nMov:-1:1
-        [trkpos,trkposTS] = obj.getTrackResRaw(iMovs(i));
-        trkfiles(i) = TrkFile(trkpos,'pTrkTS',trkposTS,'pTrkiPt',trkpipt,...
-          'trkInfo',trkinfo);
+        [trkpos,trkposTS,trkposFull] = obj.getTrackResRaw(iMovs(i));
+        trkfiles(i) = TrkFile(trkpos,'pTrkFull',trkposFull,...
+          'pTrkTS',trkposTS,'pTrkiPt',trkpipt,'trkInfo',trkinfo);
       end
     end
     
