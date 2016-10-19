@@ -29,7 +29,7 @@ classdef CPRPrune < handle
       obj.imnc = imnc;
       obj.sigD = sigd;
       
-      RAD = 200;
+      RAD = 255;
       [xgridbig,ygridbig] = meshgrid(-RAD:1:RAD,-RAD:1:RAD);
       obj.bigD = obj.computeD(xgridbig,ygridbig,0,0,sigd);
     end
