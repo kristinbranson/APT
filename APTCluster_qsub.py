@@ -27,6 +27,7 @@ def main():
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
     parser.add_argument("--trackargs",help="use with action==track. enclose in quotes, additional/optional prop-val pairs (eg p0DiagImg, trkFilename, stripTrkPFull)")
+    parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
 
     args = parser.parse_args()
     
@@ -71,7 +72,10 @@ def main():
         sys.exit("Cannot find binary: {0:s}".format(args.bin))
 
     args.KEYWORD = "apt" # used for log/sh filenames, sge job name
-    args.MCR = "/groups/branson/home/leea30/mlrt/v90"
+    args.MCRROOT = "/groups/branson/home/leea30/mlrt/"
+    args.MCR = os.path.join(args.MCRROOT,args.mcr)
+    if not os.path.exists(args.MCR):
+        sys.exit("Cannot find mcr: {0:s}".format(args.MCR))
     args.USERNAME = subprocess.check_output("whoami").strip()
     args.TMP_ROOT_DIR = "/scratch/" + args.USERNAME
     args.MCR_CACHE_ROOT = args.TMP_ROOT_DIR + "/mcr_cache_root"
@@ -155,7 +159,7 @@ def main():
         elif args.action=="track":
             cmd = args.projfile + "  " + args.action + " " + args.mov         
             if args.trackargs:
-                 cmd = cmd + args.trackargs
+                 cmd = cmd + " " + args.trackargs
          
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
