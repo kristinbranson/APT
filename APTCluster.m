@@ -127,12 +127,18 @@ end
 lObj.movieSet(iMov);
 assert(strcmp(lObj.movieFilesAllFull{lObj.currMovie},mov));
 
-% filter trackArgs
+% filter/massage trackArgs
 i = find(strcmpi(trackArgs,'trkFilename'));
 assert(isempty(i) || isscalar(i));
 trackArgs = trackArgs(:);
 trkFilenameArgs = trackArgs(i:i+1);
 trackArgs(i:i+1,:) = [];
+
+i = find(strcmpi(trackArgs,'stripTrkPFull'));
+assert(isempty(i) || isscalar(i));
+if isscalar(i) && ischar(trackArgs{i+1})
+  trackArgs{i+1} = str2double(trackArgs{i+1});
+end
 
 tm = TrackMode.CurrMovEveryFrame;
 lObj.trackAndExport(tm,'trackArgs',trackArgs,trkFilenameArgs{:});
