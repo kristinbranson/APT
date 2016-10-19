@@ -29,7 +29,7 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
         sigd = str2double(sigd);
       end
       
-      assert(~verLessThan('matlab','R2016b'),'''prunejan'' requires MATLAB R2016b or later.');
+      assert(~verLessThan('matlab','R2016a'),'''prunejan'' requires MATLAB R2016b or later.');
       
       trk = load(trkfile,'-mat');
       trkPFull = trk.pTrkFull;
