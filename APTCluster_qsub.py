@@ -27,6 +27,7 @@ def main():
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
     parser.add_argument("--trackargs",help="use with action==track. enclose in quotes, additional/optional prop-val pairs (eg p0DiagImg, trkFilename, stripTrkPFull)")
+    parser.add_argument("-p0di","--p0DiagImg",help="use with action==track. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
 
     args = parser.parse_args()
@@ -54,6 +55,8 @@ def main():
             args.movbatchfilelineend = sys.maxint
     if args.action!="track" and args.mov:
         print("Action is " + args.action + ", ignoring --mov specification")
+    if args.action!="track" and args.p0DiagImg:
+        print("Action is " + args.action + ", ignoring --p0DiagImg specification")    
     if args.action!="track" and args.trackargs:
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
@@ -160,7 +163,9 @@ def main():
             cmd = args.projfile + "  " + args.action + " " + args.mov         
             if args.trackargs:
                  cmd = cmd + " " + args.trackargs
-         
+            if args.p0DiagImg:
+                p0DiagImgFull = os.path.join(outdiruse,args.p0DiagImg)
+                cmd = cmd + " p0DiagImg " + p0DiagImgFull
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
 
