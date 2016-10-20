@@ -1791,7 +1791,7 @@ classdef Labeler < handle
       
       %# MVOK
       
-      assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.');
+      assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.',iMov);
       
       % 1. Set the movie
       for iView = 1:obj.nview

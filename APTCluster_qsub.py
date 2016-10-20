@@ -15,7 +15,7 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
 
     parser.add_argument("projfile",help="APT project file")
-    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
+    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","prune"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
 
     parser.add_argument("--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
@@ -29,10 +29,13 @@ def main():
     parser.add_argument("--trackargs",help="use with action==track. enclose in quotes, additional/optional prop-val pairs (eg p0DiagImg, trkFilename, stripTrkPFull)")
     parser.add_argument("-p0di","--p0DiagImg",help="use with action==track. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
+    parser.add_argument("--trkfile",help="use with action==prune. full path to trkfile to prune")
+    parser.add_argument("--pruneargs",help="use with action=prune. enclose in quotes; '<sigd> <ipt>'");
+
 
     args = parser.parse_args()
     
-    if not os.path.exists(args.projfile):
+    if args.action!="prune" and not os.path.exists(args.projfile):
         sys.exit("Cannot find project file: {0:s}".format(args.projfile))
 
     if args.action=="track":
@@ -61,6 +64,10 @@ def main():
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
+    if args.action!="prune" and args.pruneargs:
+        print("Action is " + args.action + ", ignoring --pruneargs specification")
+    if args.action!="prune" and args.trkfile:
+        print("Action is " + args.action + ", ignoring --trkfile specification")
         
     args.APTBUILDROOTDIR = "/groups/branson/home/leea30/aptbuild"
     if not args.bindate:
@@ -153,6 +160,8 @@ def main():
         else:
             if args.action=="track":
                 outdiruse = os.path.dirname(args.mov)
+            elif args.action=="prune":
+                outdiruse = os.path.dirname(args.trkfile)
             else: # trackbatchserial, retrain
                 outdiruse = os.path.dirname(args.projfile)                
         shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
@@ -168,6 +177,8 @@ def main():
                 cmd = cmd + " p0DiagImg " + p0DiagImgFull
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
+        elif args.action=="prune":
+            cmd = "0 prunejan " + args.trkfile + " " +  args.pruneargs
 
         gencode(shfile,jobid,args,cmd)
 
