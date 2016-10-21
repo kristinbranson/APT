@@ -8,10 +8,12 @@ import argparse
 import subprocess
 import datetime
 import re
+import glob
+import warnings
 
 def main():
 
-    epilogstr = 'Examples:\n.../APTCluster_qsub.py /path/to/proj.lbl --pebatch 10 --multithreaded retrain\n.../APTCluster_qsub.py /path/to/proj.lbl track --pebatch 8 --mov /path/to/movie.avi\n.../APTCluster_qsub.py /path/to/proj.lbl trackbatch --pebatch 10 --multithreaded --movbatchfile /path/to/movielist.txt\n'
+    epilogstr = 'Examples:\n.../APTCluster_qsub.py /path/to/proj.lbl --pebatch 10 retrain\n.../APTCluster_qsub.py /path/to/proj.lbl track --pebatch 8 --mov /path/to/movie.avi\n.../APTCluster_qsub.py /path/to/proj.lbl trackbatch --pebatch 10 --movbatchfile /path/to/movielist.txt\n'
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
 
     parser.add_argument("projfile",help="APT project file")
@@ -20,7 +22,7 @@ def main():
     parser.add_argument("--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
     parser.add_argument("--movbatchfile",help="file containing list of movies; used when action==trackbatch*",metavar="BATCHFILE")
-    parser.add_argument("--multithreaded",help="if true, run multithreaded binary",action="store_true",default=False)
+    #parser.add_argument("--multithreaded",help="if true, run multithreaded binary",action="store_true",default=False)
     parser.add_argument("--account",default="",help="account to bill for cluster time",metavar="ACCOUNT")
     parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
     parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'") 
@@ -30,7 +32,8 @@ def main():
     parser.add_argument("-p0di","--p0DiagImg",help="use with action==track. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
     parser.add_argument("--trkfile",help="use with action==prune. full path to trkfile to prune")
-    parser.add_argument("--pruneargs",help="use with action=prune. enclose in quotes; '<sigd> <ipt>'");
+    parser.add_argument("--pruneargs",help="use with action=prune. enclose in quotes; '<sigd> <ipt>'")
+    parser.add_argument("--prunesig")
 
 
     args = parser.parse_args()
@@ -74,12 +77,24 @@ def main():
         args.bindate = "current"
     args.binroot = os.path.join(args.APTBUILDROOTDIR,args.bindate)
 
+    args.multithreaded = int(args.pebatch)>1
     if args.multithreaded:
         args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_multithreaded.sh")
     else:
         args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_singlethreaded.sh")
     if not os.path.exists(args.bin):
         sys.exit("Cannot find binary: {0:s}".format(args.bin))
+
+    # check for mlrt tokens to specify/override mcr
+    bindir = os.path.dirname(args.bin)
+    mlrtTok = glob.glob(os.path.join(bindir,"MLRT_*"))
+    if len(mlrtTok)>1:
+        warnings.warn("More than one MLRT_ token found in bindir: {0:s}".format(bindir))
+    if mlrtTok:
+        mlrtTok = os.path.basename(mlrtTok[-1])
+        mlrtMcr = mlrtTok[5:]
+        print("Found token in bindir: {0:s}. Using --mcr: {1:s}".format(mlrtTok,mlrtMcr))
+        args.mcr = mlrtMcr
 
     args.KEYWORD = "apt" # used for log/sh filenames, sge job name
     args.MCRROOT = "/groups/branson/home/leea30/mlrt/"
@@ -95,11 +110,9 @@ def main():
         
     # summarize for user, proceed y/n?
     argsdisp = vars(args).copy()
-    del argsdisp['MCR_CACHE_ROOT']
-    del argsdisp['TMP_ROOT_DIR']
-    del argsdisp['MCR']
-    del argsdisp['KEYWORD']
-    
+    argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','MCR','KEYWORD','bindate','binroot','pebatch','USERNAME','account','multithreaded']
+    for fld in argsdispRmFlds:
+        del argsdisp[fld]    
     pprintdict(argsdisp)
     resp = raw_input("Proceed? y/[n]")
     if not resp=="y":
@@ -146,6 +159,27 @@ def main():
             print(qsubcmd)
             subprocess.call(qsubcmd,shell=True)
             nmovsub = nmovsub+1
+    elif args.action=="prune" and args.prunesig:
+        outdiruse = os.path.dirname(args.trkfile)
+
+        for leg in ['4','5','6','7']:
+            nowstr = datetime.datetime.now().strftime("%Y%m%dT%H%M%S%f")
+            nowstr = nowstr[:-3] # keep only milliseconds
+            jobid = args.KEYWORD + "-" + nowstr + "-leg" + leg 
+            print(jobid)
+        
+            shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
+            logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
+            cmd = "0 prunejan " + args.trkfile + " " + args.prunesig + " " + leg
+
+            gencode(shfile,jobid,args,cmd)
+
+            # submit 
+            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
+            qsubcmd = "qsub " + qargs
+            print(qsubcmd)
+            subprocess.call(qsubcmd,shell=True)
+        
 
     else:
         # jobid

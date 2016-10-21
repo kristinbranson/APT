@@ -3038,8 +3038,8 @@ classdef Labeler < handle
             
       [trackArgs,trkFilename] = myparse(varargin,...
         'trackArgs',{},...
-        'trkFilename',[]... % char. if supplied, export results to trkfiles with this name. Don't include .trk extension.
-        );
+        'trkFilename',[]... % char. if supplied, export results to trkfiles alongside movies with this (short) name. Don't include .trk extension.
+        ); % Uhoh, if movies are all in a single dir this will break
       
       tObj = obj.tracker;
       if isempty(tObj)
