@@ -451,7 +451,6 @@ Tp1 = rc.nMajor+1;
 nTestAug = sPrm.TestInit.Nrep;
 pTstT = reshape(p_t,[nTest nTestAug trkD Tp1]);
 
-%% Select best preds for each time
 pTstTRed = nan(nTest,trkD,Tp1);
 assert(sPrm.Prune.prune==1);
 for t = 1:Tp1
@@ -478,12 +477,12 @@ for iAx = 1:3
   end
 end
 
-pTstTRedFinalT = reshape(pTstTRedFinalT,274,3,3);
-for iF=1:numel(frmTest)
-  f = frmTest(iF);
+pTstTRedFinalT2 = reshape(pTstTRedFinalT2,nTest2,3,3);
+for iF=1:numel(frmTest2)
+  f = frmTest2(iF);
   lObj.setFrame(f);
 
-  pTstBest = squeeze(pTstTRedFinalT(iF,:,:));
+  pTstBest = squeeze(pTstTRedFinalT2(iF,:,:));
   for iVw=1:3
     for iPt=1:3
       X = pTstBest(iPt,:);
@@ -497,3 +496,31 @@ for iF=1:numel(frmTest)
   
   input(sprintf('frame=%d',f));
 end
+
+%% Propagate on ENTIRE MOVIE ish
+
+frmTest2 = 1000:5:3500;
+[ITest2,tblTest2] = Labeler.lblCompileContentsRaw(...
+  lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,1,{frmTest2},...
+  'hWaitBar',waitbar(0));
+% NOTE: tblTest.p is projected/concatenated
+
+%%
+nTest2 = size(ITest2,1);
+[p_t2,pIidx2] = rc.propagateRandInit(ITest2,repmat(bboxes,nTest2,1),sPrm.TestInit);
+p_t2 = reshape(p_t2,nTest2,50,9,31);
+
+%%
+trkD = rc.prmModel.D;
+Tp1 = rc.nMajor+1;
+nTestAug = sPrm.TestInit.Nrep;
+pTstT2 = reshape(p_t2,[nTest2 nTestAug trkD Tp1]);
+
+pTstTRed2 = nan(nTest2,trkD,Tp1);
+assert(sPrm.Prune.prune==1);
+for t = 1:Tp1
+  fprintf('Pruning t=%d\n',t);
+  pTmp = permute(pTstT2(:,:,:,t),[1 3 2]); % [NxDxR]
+  pTstTRed2(:,:,t) = rcprTestSelectOutput(pTmp,sPrm.Model,sPrm.Prune);
+end
+pTstTRedFinalT2 = pTstTRed2(:,:,end);
