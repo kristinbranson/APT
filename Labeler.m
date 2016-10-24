@@ -1962,7 +1962,7 @@ classdef Labeler < handle
       I = cell(0,1);
       mr = MovieReader;
       mr.forceGrayscale = true;
-      for iMov = obj.nmovies
+      for iMov = 1:obj.nmovies
         mov = obj.movieFilesAllFull{iMov};
         mr.open(mov);
         for f = 1:dfSamp:mr.nframes
