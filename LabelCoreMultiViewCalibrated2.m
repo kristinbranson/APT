@@ -260,20 +260,20 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end 
     
     function axBDF(obj,src,evt) %#ok<INUSD>
-	  iAx = find(src==obj.hAx);
-	  iWS = obj.iSetWorking;
-	  if ~isnan(iWS)
-		iPt = obj.iSet2iPt(iWS,iAx);		
+      iAx = find(src==obj.hAx);
+      iWS = obj.iSetWorking;
+      if ~isnan(iWS)
+        iPt = obj.iSet2iPt(iWS,iAx);
         ax = obj.hAx(iAx);
         pos = get(ax,'CurrentPoint');
         pos = pos(1,1:2);
         obj.assignLabelCoordsIRaw(pos,iPt);
-		obj.setPointAdjusted(iPt);
-		if ~obj.tfPtSel(iPt)
-		  obj.selClearSelected();
-		  obj.selToggleSelectPoint(iPt);
-		end
-		obj.projectAddToAnchorSet(iPt)
+        obj.setPointAdjusted(iPt);
+        if ~obj.tfPtSel(iPt)
+          obj.selClearSelected();
+          obj.selToggleSelectPoint(iPt);
+        end
+        obj.projectAddToAnchorSet(iPt)
         if obj.tfOcc(iPt)
           % AL should be unnec branch
           obj.tfOcc(iPt) = false;
@@ -287,7 +287,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
             obj.enterAdjust(false,false);
         end
         obj.projectionRefresh();
-	  end
+      end
     end
     
     function ptBDF(obj,src,evt)
@@ -533,19 +533,23 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       for i=1:obj.nPts
         set(h(i),'Color',hClrs(i,:),'FontWeight','normal','EdgeColor','none');
       end
+      set(obj.hPts,'HitTest','on');     
       obj.iSetWorking = nan;
     end
     
     function projectionWorkingSetSet(obj,iSet)
       iPtsSet = obj.iSet2iPt(iSet,:);
 
-      h = obj.hPtsTxt;
+      h = obj.hPts;
+      hPT = obj.hPtsTxt;
       hClrs = obj.hPtsColors;
       for i=1:obj.nPts
         if any(i==iPtsSet)
-          set(h(i),'Color',hClrs(i,:),'FontWeight','bold','EdgeColor','w');
+          set(hPT(i),'Color',hClrs(i,:),'FontWeight','bold','EdgeColor','w');
+          set(h(i),'HitTest','on');
         else
-          set(h(i),'Color',hClrs(i,:)*.75,'FontWeight','normal','EdgeColor','none');
+          set(hPT(i),'Color',hClrs(i,:)*.75,'FontWeight','normal','EdgeColor','none');
+          set(h(i),'HitTest','off');
         end
       end
       obj.iSetWorking = iSet;
@@ -612,63 +616,63 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       set(obj.pjtHLinesEpi,'Visible','off');
       set(obj.pjtHLinesRecon,'Visible','off');
       %obj.projectionWorkingSetClear();
-	end
-	
-	function projectAddToAnchorSet(obj,iPt)
-	  if any(obj.pjtIPts==iPt)
-		% already anchored
-	  else
-		obj.projectToggleState(iPt);
-	  end
-	end
+    end
+    
+    function projectAddToAnchorSet(obj,iPt)
+      if any(obj.pjtIPts==iPt)
+        % already anchored
+      else
+        obj.projectToggleState(iPt);
+      end
+    end
     
     function projectToggleState(obj,iPt)
-      % Toggle projection status of point iPt. 
-
-	  if obj.nView==2
-		switch obj.pjtState
-		  case 0
-			obj.projectionSetAnchor(iPt);
-		  case 1
-			if iPt==obj.pjtIPts(1)
-			  obj.projectionClear();
-			else
-			  obj.projectionClear();
-			  obj.projectionSetAnchor(iPt);
-			end
-		  case 2
-			assert(false);
-		end
-	  else
-		switch obj.pjtState
-		  case 0
-			obj.projectionSetAnchor(iPt);
-		  case 1
-			if iPt==obj.pjtIPts(1)
-			  obj.projectionClear();
-			elseif obj.projectionWorkingSetPointInWS(iPt)
-			  obj.projectionSet2nd(iPt);
-			else
-			  % iPt is neither anchor pt nor in anchor pt's working set
-			  obj.projectionClear();
-			  obj.projectionSetAnchor(iPt);
-			end
-		  case 2
-			tf = iPt==obj.pjtIPts;          
-			if any(tf)
-			  idx = find(tf);
-			  idxOther = mod(idx,2)+1;
-			  iPtOther = obj.pjtIPts(idxOther);
-			  obj.projectionClear();
-			  obj.projectionSetAnchor(iPtOther);            
-			else
-			  obj.projectionClear();
-			  obj.projectionSetAnchor(iPt);
-			end
-		end
-	  end
+      % Toggle projection status of point iPt.
+      
+      if obj.nView==2
+        switch obj.pjtState
+          case 0
+            obj.projectionSetAnchor(iPt);
+          case 1
+            if iPt==obj.pjtIPts(1)
+              obj.projectionClear();
+            else
+              obj.projectionClear();
+              obj.projectionSetAnchor(iPt);
+            end
+          case 2
+            assert(false);
+        end
+      else
+        switch obj.pjtState
+          case 0
+            obj.projectionSetAnchor(iPt);
+          case 1
+            if iPt==obj.pjtIPts(1)
+              obj.projectionClear();
+            elseif obj.projectionWorkingSetPointInWS(iPt)
+              obj.projectionSet2nd(iPt);
+            else
+              % iPt is neither anchor pt nor in anchor pt's working set
+              obj.projectionClear();
+              obj.projectionSetAnchor(iPt);
+            end
+          case 2
+            tf = iPt==obj.pjtIPts;
+            if any(tf)
+              idx = find(tf);
+              idxOther = mod(idx,2)+1;
+              iPtOther = obj.pjtIPts(idxOther);
+              obj.projectionClear();
+              obj.projectionSetAnchor(iPtOther);
+            else
+              obj.projectionClear();
+              obj.projectionSetAnchor(iPt);
+            end
+        end
+      end
     end
-
+    
     function projectionSetAnchor(obj,iPt1)
       if ~isnan(obj.pjtIPts(1))
         obj.projectionClear();
