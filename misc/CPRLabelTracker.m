@@ -506,12 +506,7 @@ classdef CPRLabelTracker < LabelTracker
       
       sOld = obj.sPrm;      
       obj.sPrm = sNew; % set this now so eg trnResInit() can use
-      
-      if isempty(sOld.Model.nviews)
-        sOld.Model.nviews = 1;
-        % set this to enable comparisons below
-      end
-      
+            
       if isempty(sOld)
         obj.initData();
         obj.trnDataInit();
@@ -519,6 +514,11 @@ classdef CPRLabelTracker < LabelTracker
         obj.trackResInit();
         obj.vizInit();
       else
+        if isempty(sOld.Model.nviews)
+          sOld.Model.nviews = 1;
+          % set this to enable comparisons below
+        end
+      
         % Figure out what changed
         flds = fieldnames(sOld);
         tfunchanged = struct();

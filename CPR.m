@@ -1,8 +1,7 @@
 classdef CPR
   
-  properties (Constant)    
+  properties (Constant)
     Root = fileparts(mfilename('fullpath'));
-
     MANIFESTFILE = 'Manifest.txt';
     Manifest = lclReadManifest( fullfile(CPR.Root,CPR.MANIFESTFILE) );
   end
@@ -13,16 +12,14 @@ classdef CPR
       % p: cellstr, path
       % jp: cellstr, javapath
       
-      m = CPR.Manifest;      
+      m = CPR.Manifest;
       jctroot = m.jctrax;
       aptroot = m.apt;
       piotrroot = m.piotr;
       root = CPR.Root;
       
-      cwd = pwd;
-      cd(aptroot);
+      addpath(aptroot);
       [aptpath,aptjpath] = APT.getpath;
-      cd(cwd);
       
       piotrpath = genpath(piotrroot);
       piotrpath = regexp(piotrpath,pathsep,'split');
