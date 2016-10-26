@@ -16,7 +16,7 @@ classdef MMTableSingle < MovieManagerTable
         'ColumnName',{'Movie' 'Has Labels'},...
         'ColumnPreferredWidth',[600 250],...
         'Editable','off');
-      jt.MouseClickedCallback = @(src,evt)cbkClicked(obj,src,evt);      
+      jt.MouseClickedCallback = @(src,evt)obj.cbkClickedDefault(src,evt);      
       obj.jtable = jt;
     end
     
@@ -45,29 +45,6 @@ classdef MMTableSingle < MovieManagerTable
       jt = obj.jtable;
       selRow = jt.SelectedRows;
       imovs = sort(selRow);
-    end
-    
-    function cbkClicked(obj,src,evt)
-      persistent chk
-      PAUSE_DURATION_CHECK = 0.25;
-      if isempty(chk)
-        chk = 1;
-        pause(PAUSE_DURATION_CHECK); %Add a delay to distinguish single click from a double click
-        if chk==1
-          % single-click; no-op
-          chk = [];
-        end
-      else
-        chk = [];
-        jt = obj.jtable;
-        selRow = jt.SelectedRows;
-        if numel(selRow)>1
-          warning('MMTableSingle:sel',...
-            'Multiple movies selected; switching to first selection.');
-          selRow = selRow(1);
-        end
-        obj.cbkSelectMovie(selRow);
-      end
     end
         
   end

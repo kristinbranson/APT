@@ -45,8 +45,8 @@ classdef MovieManagerTable < handle
       % hParent: handle to parent of new table
       % position: [4] position vec (pixels)
       % cbkSelectMovie: function handle with sig 
-      %   cbkSelectMovie(movname). This is the only message that can be sent
-      %   from MMTable to MM.
+      %   cbkSelectMovie(iMovSet). This is the only message that can be 
+      %   sent from MMTable to MM.
       
       assert(ishandle(hMM));
       assert(ishandle(hParent));
@@ -58,5 +58,34 @@ classdef MovieManagerTable < handle
     end
 
   end
-    
+  
+  methods % util    
+    function cbkClickedDefault(obj,src,evt)
+      persistent chk
+      PAUSE_DURATION_CHECK = 0.25;
+      if isempty(chk)
+        chk = 1;
+        pause(PAUSE_DURATION_CHECK); %Add a delay to distinguish single click from a double click
+        if chk==1
+          % single-click; no-op
+          chk = [];
+        end
+      else
+        chk = [];
+        imovs = obj.getSelectedMovies();
+        if numel(imovs)>1
+          warning('MovieManagerTable:sel',...
+            'Multiple movies selected. Switching to first selection.');
+          imovs = imovs(1);
+        end
+        try
+          obj.cbkSelectMovie(imovs);
+        catch ME
+          disp(ME.message);
+        end
+      end
+      
+    end    
+  end
+  
 end

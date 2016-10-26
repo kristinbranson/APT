@@ -32,8 +32,11 @@ classdef MMTableMulti < MovieManagerTable
         'ColumnTypes',obj.COLTYPES,...
         'ColumnEditable',obj.COLEDIT,...
         'Groupable',true,...
-        'IconFilenames',{'' '' ''});
+        'IconFilenames',...
+            {'' fullfile(matlabroot,'/toolbox/matlab/icons/file_open.png') fullfile(matlabroot,'/toolbox/matlab/icons/foldericon.gif')});
       
+      tt.MouseClickedCallback = @(s,e)obj.cbkClickedDefault(s,e);
+      tt.setDoubleClickEnabled(false);
       obj.tbl = tt;
     end
   
@@ -87,6 +90,6 @@ classdef MMTableMulti < MovieManagerTable
       end
       imovs = unique(imovs);
     end
-    
+   
   end
 end
