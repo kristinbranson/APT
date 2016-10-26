@@ -2578,17 +2578,17 @@ classdef Labeler < handle
   
   methods
 	
-    function [trkfilesCommon,kwCommon,trkfilesAll] = getTrkFileNamesForImport(obj,movfiles) %#ok<INUSL>
+    function [trkfilesCommon,kwCommon,trkfilesAll] = getTrkFileNamesForImport(obj,movfiles)
       % Find available trkfiles for import
       %
       % movfiles: cellstr of movieFilesAllFull
       %
-      % trkfilesCommon: [numel(movfiles)] cell-of-cellstrs.
+      % trkfilesCommon: [size(movfiles)] cell-of-cellstrs.
       % trkfilesCommon{i} is a cellstr with numel(kwCommon) elements.
       % trkfilesCommon{i}{j} contains the jth common trkfile found for
       % movfiles{i}, where j indexes kwCommon.
       % kwCommon: [nCommonKeywords] cellstr of common keywords found.
-      % trkfilesAll: [numel(movfiles)] cell-of-cellstrs. trkfilesAll{i}
+      % trkfilesAll: [size(movfiles)] cell-of-cellstrs. trkfilesAll{i}
       % contains all trkfiles found for movfiles{i}, a superset of
       % trkfilesCommon{i}.
       %
@@ -2619,7 +2619,7 @@ classdef Labeler < handle
       
       % Find common keywords
       kwUn = unique(cat(1,keywords{:}));
-      tfKwUnCommon = cellfun(@(zKW) all(cellfun(@(x)any(strcmp(x,zKW)),keywords)),kwUn);
+      tfKwUnCommon = cellfun(@(zKW) all(cellfun(@(x)any(strcmp(x,zKW)),keywords(:))),kwUn);
       kwCommon = kwUn(tfKwUnCommon);
       trkfilesCommon = cellfun(@(zTFs,zKWs) cellfun(@(x)zTFs(strcmp(zKWs,x)),kwCommon), ...
         trkfilesAll,keywords,'uni',0);
@@ -2649,48 +2649,61 @@ classdef Labeler < handle
           'Numbers of movies and trkfiles supplied must be equal.');
       end
         
-        for i=1:nMov
-          iMv = iMovs(i);
-          trkfile = TrkFile(obj.labeledpos{iMv},...
-            'pTrkTS',obj.labeledposTS{iMv},...
-            'pTrkTag',obj.labeledpostag{iMv});
-          trkfile.save(trkfiles{i});
-        end
-        msgbox(sprintf('%d trk files exported.',nMov),'Export complete.');
+      for i=1:nMov
+        iMv = iMovs(i);
+        trkfile = TrkFile(obj.labeledpos{iMv},...
+          'pTrkTS',obj.labeledposTS{iMv},...
+          'pTrkTag',obj.labeledpostag{iMv});
+        trkfile.save(trkfiles{i});
       end
+      msgbox(sprintf('%d trk files exported.',nMov),'Export complete.');
+    end
     
-    function labelImportTrkGeneric(obj,iMovs,trkfiles,lposFld,lposTSFld,lposTagFld)
-      % iMovs: [N] vector of movie indices
-      % trkfiles: [N] cellstr of trk filenames
+    function labelImportTrkGeneric(obj,iMovSets,trkfiles,lposFld,lposTSFld,lposTagFld)
+      % iMovStes: [N] vector of movie set indices
+      % trkfiles: [Nxnview] cellstr of trk filenames
       % lpos*Fld: property names for labeledpos, labeledposTS,
       % labeledposTag. Can be empty to not set that prop.
       
-      nMov = numel(iMovs);
-      assert(nMov==numel(trkfiles));
+      nMovSets = numel(iMovSets);
+      szassert(trkfiles,[nMovSets obj.nview]);
+      nPhysPts = obj.nPhysPoints;      
+      tfMV = obj.isMultiView;
       
-      for i=1:nMov
-        iM = iMovs(i);
-        s = load(trkfiles{i},'-mat');
-        fprintf(1,'Loaded trk file: %s\n',trkfiles{i});
+      for i=1:nMovSets
+        iMov = iMovSets(i);
+        lpos = nan(size(obj.labeledpos{iMov}));
+        lposTS = -inf(size(obj.labeledposTS{iMov}));
+        lpostag = cell(size(obj.labeledpostag{iMov}));
         
-        lpos = nan(size(obj.labeledpos{iM}));
-        lposTS = -inf(size(obj.labeledposTS{iM}));
-        lpostag = cell(size(obj.labeledpostag{iM}));
-        if isfield(s,'pTrkiPt')
-          iPt = s.pTrkiPt;
-        else
-          iPt = 1:size(lpos,1); % all pts
+        if tfMV
+          fprintf('MovieSet %d...\n',iMov);
         end
-        lpos(iPt,:,:,:) = s.pTrk;
-        lposTS(iPt,:,:) = s.pTrkTS;
-        lpostag(iPt,:,:) = s.pTrkTag;
-        
-        obj.(lposFld){iM} = lpos;
+        for iVw = 1:obj.nview
+          tfile = trkfiles{i,iVw};          
+          s = load(tfile,'-mat');
+          fprintf(1,'... Loaded trk file: %s\n',tfile);
+
+          if isfield(s,'pTrkiPt')
+            iPt = s.pTrkiPt;
+          else
+            iPt = 1:nPhysPts;
+            if ~tfMV
+              assert(nPhysPts==size(lpos,1));
+            end
+          end
+          iPt = iPt + (iVw-1)*nPhysPts;                     
+          lpos(iPt,:,:,:) = s.pTrk;
+          lposTS(iPt,:,:) = s.pTrkTS;
+          lpostag(iPt,:,:) = s.pTrkTag;
+        end
+
+        obj.(lposFld){iMov} = lpos;
         if ~isempty(lposTSFld)
-          obj.(lposTSFld){iM} = lposTS;
+          obj.(lposTSFld){iMov} = lposTS;
         end
         if ~isempty(lposTagFld)
-          obj.(lposTagFld){iM} = lpostag;
+          obj.(lposTagFld){iMov} = lpostag;
         end
       end      
     end
@@ -2698,12 +2711,12 @@ classdef Labeler < handle
     function labelImportTrk(obj,iMovs,trkfiles)
       % Import label data from trk files.
       %
-      % iMovs: [nMovie]. Movie indices for which to import.
-      % trkfiles: [nMovie] cellstr. full filenames to trk files
+      % iMovs: [nMovie]. Movie(set) indices for which to import.
+      % trkfiles: [nMoviexnview] cellstr. full filenames to trk files
       %   corresponding to iMov.
       
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
-        'labeledposTS','labeledpostag');
+          'labeledposTS','labeledpostag');
       
       obj.movieFilesAllHaveLbls(iMovs) = ...
         cellfun(@(x)any(~isnan(x(:))),obj.labeledpos(iMovs));
@@ -2718,7 +2731,7 @@ classdef Labeler < handle
       % Find trkfiles present for given movies. Prompt user to pick a set
       % if more than one exists.
       %
-      % movfiles: cellstr
+      % movfiles: [nTrials x nview] cellstr
       %
       % tfsucc: if true, trkfilesUse is valid; if false, trkfilesUse is
       % intedeterminate
@@ -2763,7 +2776,7 @@ classdef Labeler < handle
       % Import label data from trk files, prompting if necessary to specify
       % which trk files to import.
       %
-      % iMovs: [nMovie]. Optional, movie indices to import.
+      % iMovs: [nMovie]. Optional, movie(set) indices to import.
       %
       % labelImportTrkPrompt will look for trk files with common keywords
       % (consistent naming) in .movieFilesAllFull(iMovs). If there is
@@ -2774,7 +2787,7 @@ classdef Labeler < handle
         iMovs = 1:obj.nmovies;
       end
       
-      movfiles = obj.movieFilesAllFull(iMovs,1);
+      movfiles = obj.movieFilesAllFull(iMovs,:);
       [tfsucc,trkfilesUse] = obj.labelImportTrkFindTrkFilesPrompt(movfiles);
       if tfsucc
         obj.labelImportTrk(iMovs,trkfilesUse);
