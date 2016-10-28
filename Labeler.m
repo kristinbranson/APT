@@ -1039,9 +1039,10 @@ classdef Labeler < handle
       
       s = obj.projMacros;
       macros = fieldnames(s);
+      macrosdisp = cellfun(@(x)['$' x],macros,'uni',0);
       vals = struct2cell(s);
-      
-      resp = inputdlg(macros,'Project macros',1,vals);
+
+      resp = inputdlg(macrosdisp,'Project macros',1,vals);
       if ~isempty(resp)
         assert(isequal(numel(macros),numel(vals),numel(resp)));
         for i=1:numel(macros)
@@ -1049,7 +1050,7 @@ classdef Labeler < handle
             obj.projMacroSet(macros{i},resp{i});
           catch ME
             warningNoTrace('Labeler:macro','Cannot set macro ''%s'': %s',...
-              macros{i},ME.message);
+              macrosdisp{i},ME.message);
           end
         end
       end     
