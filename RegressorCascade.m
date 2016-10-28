@@ -208,7 +208,7 @@ classdef RegressorCascade < handle
       % the most/more common shapes. However, we also jitter, so that may
       % be okay.
       
-      initpGTNTrn = myparse(varargin,...
+      [initpGTNTrn,loArgs] = myparse_nocheck(varargin,...
         'initpGTNTrn',false... % if true, init with .pGTNTrn rather than pGT
         );
       
@@ -231,7 +231,7 @@ classdef RegressorCascade < handle
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
-      pAll = obj.train(I,bboxes,pGT,p0,pIidx,varargin{:});
+      pAll = obj.train(I,bboxes,pGT,p0,pIidx,loArgs{:});
     end    
     
     %#3DOK
@@ -371,7 +371,7 @@ classdef RegressorCascade < handle
       end
       
       if update
-        act = 'retrain';
+        act = 'update';
       else
         act = 'train';
       end      
