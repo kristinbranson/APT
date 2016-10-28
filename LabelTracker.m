@@ -214,15 +214,31 @@ classdef LabelTracker < handle
       prm = ReadYaml(prmFile);
     end
         
+    function tblP = getTblP(obj,iMovs,frms)
+      % From .lObj, read tblP for given movies/frames.
+      
+      labelerObj = obj.lObj;
+      
+      movID = labelerObj.movieFilesAll;
+      movID = FSPath.standardPath(movID);
+      [~,tblP] = Labeler.lblCompileContentsRaw(labelerObj.movieFilesAllFull,...
+        labelerObj.labeledpos,labelerObj.labeledpostag,iMovs,frms,...
+        'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
+    end
+
     function tblP = getTblPLbled(obj)
       % From .lObj, read tblP for all movies/labeledframes. Currently,
       % exclude partially-labeled frames.
       %
-      % tblP: table of labeled frames, one row per frame.       
+      % tblP: MFTable of labeled frames
       
       labelerObj = obj.lObj;
-      [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,labelerObj.labeledpos,...
-        labelerObj.labeledpostag,'lbl','noImg',true,'lposTS',labelerObj.labeledposTS);
+      
+      movID = labelerObj.movieFilesAll;
+      movID = FSPath.standardPath(movID);
+      [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,...
+        labelerObj.labeledpos,labelerObj.labeledpostag,'lbl',...
+        'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
       
       p = tblP.p;
       tfnan = any(isnan(p),2);

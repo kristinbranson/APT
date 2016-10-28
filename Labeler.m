@@ -275,9 +275,8 @@ classdef Labeler < handle
         % This conditional allows user to explictly specify project root
         sMacro.projroot = obj.projectroot;
       end
-      v = obj.movieFilesAll;
-      v = cellfun(@(x)obj.projLocalizePath(x),v,'uni',0);
-      Labeler.warnUnreplacedMacros(v);
+      v = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,obj.projMacros);
+      FSPath.warnUnreplacedMacros(v);
     end
     function v = get.hasMovie(obj)
       v = obj.movieReader(1).isOpen;
@@ -970,7 +969,7 @@ classdef Labeler < handle
       nMov = size(s.movieFilesAll,1);
       for iMov = 1:nMov
         movfile = s.movieFilesAll{iMov,1};
-        movfileFull = Labeler.platformize(Labeler.macroReplace(movfile,s.projMacros));
+        movfileFull = Labeler.platformize(FSPath.macroReplace(movfile,s.projMacros));
         movifo = s.movieInfoAll{iMov,1};
         trxfl = s.trxFilesAll{iMov,1};
         lpos = s.labeledpos{iMov};
@@ -1068,7 +1067,7 @@ classdef Labeler < handle
     end
     
     function p = projLocalizePath(obj,p)
-      p = Labeler.platformizePath(Labeler.macroReplace(p,obj.projMacros));
+      p = FSPath.platformizePath(FSPath.macroReplace(p,obj.projMacros));
     end
     
     function projNewImStack(obj,ims,varargin)
@@ -1160,53 +1159,6 @@ classdef Labeler < handle
   end
   
   methods (Static)
-    
-    function str = macroReplace(str,sMacro)
-      % sMacro: macro struct
-      
-      macros = fieldnames(sMacro);
-      for i=1:numel(macros)
-        mpat = ['\$' macros{i}];
-        val = sMacro.(macros{i});
-        val = regexprep(val,'\\','\\\\');
-        str = regexprep(str,mpat,val);
-      end
-    end
-    
-    function str = platformizePath(str)
-      % Depending on platform, replace / with \ or vice versa
-      
-      if ispc
-        str = regexprep(str,'/','\');
-      else
-        str = regexprep(str,'\\','/');
-      end
-    end
-    
-    function tf = hasMacro(str)
-      tf = ~isempty(regexp(str,'\$','once'));
-    end
-    
-    function warnUnreplacedMacros(strs)
-      toks = cellfun(@(x)regexp(x,'\$([a-zA-Z]+)','tokens'),strs,'uni',0);
-      toks = [toks{:}];
-      toks = [toks{:}];
-      if ~isempty(toks)
-        toks = unique(toks);
-        cellfun(@(x)warningNoTrace('Labeler:macro','Unreplaced macro: $%s',x),toks);
-      end
-    end
-    
-    function errUnreplacedMacros(strs)
-      strs = cellstr(strs);
-      toks = cellfun(@(x)regexp(x,'\$([a-zA-Z0-9_]+)','tokens'),strs,'uni',0);
-      toks = [toks{:}];
-      toks = [toks{:}];
-      if ~isempty(toks)
-        tokstr = String.cellstr2CommaSepList(toks);
-        error('Labeler:macro','Unreplaced macros: $%s',tokstr);
-      end
-    end
     
     function s = lblModernize(s)
       % s: struct, .lbl contents
@@ -1328,42 +1280,42 @@ classdef Labeler < handle
       
       assert(false,'TODO: deal with movieFilesAll, macros etc.');
 
-      assert(iscellstr(lblFiles));
-      nLbls = numel(lblFiles);
-
-      tfAllFrames = myparse(varargin,'tfAllFrames',false);
-      if tfAllFrames
-        readMovsLblsType = 'all';
-      else
-        readMovsLblsType = 'lbl';
-      end
-      I = cell(0,1);
-      p = [];
-      md = [];
-      for iLbl = 1:nLbls
-        lblName = lblFiles{iLbl};
-        lbl = load(lblName,'-mat');
-        fprintf('Lblfile: %s\n',lblName);
-        
-        movFiles = lbl.movieFilesAllFull; % TODO
-        assert(iscolumn(movFiles),'Multiview .lbl file not supported.');
-        
-        [ILbl,tMDLbl] = Labeler.lblCompileContents(movFiles,...
-          lbl.labeledpos,lbl.labeledpostag,readMovsLblsType);
-        pLbl = tMDLbl.p;
-        tMDLbl(:,'p') = [];
-        
-        nrows = numel(ILbl);
-        tMDLbl.lblFile = repmat({lblName},nrows,1);
-        [~,lblNameS] = myfileparts(lblName);
-        tMDLbl.lblFileS = repmat({lblNameS},nrows,1);
-        
-        I = [I;ILbl]; %#ok<AGROW>
-        p = [p;pLbl]; %#ok<AGROW>
-        md = [md;tMDLbl]; %#ok<AGROW>
-      end
-      
-      assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
+%       assert(iscellstr(lblFiles));
+%       nLbls = numel(lblFiles);
+% 
+%       tfAllFrames = myparse(varargin,'tfAllFrames',false);
+%       if tfAllFrames
+%         readMovsLblsType = 'all';
+%       else
+%         readMovsLblsType = 'lbl';
+%       end
+%       I = cell(0,1);
+%       p = [];
+%       md = [];
+%       for iLbl = 1:nLbls
+%         lblName = lblFiles{iLbl};
+%         lbl = load(lblName,'-mat');
+%         fprintf('Lblfile: %s\n',lblName);
+%         
+%         movFiles = lbl.movieFilesAllFull; % TODO
+%         assert(iscolumn(movFiles),'Multiview .lbl file not supported.');
+%         
+%         [ILbl,tMDLbl] = Labeler.lblCompileContents(movFiles,...
+%           lbl.labeledpos,lbl.labeledpostag,readMovsLblsType);
+%         pLbl = tMDLbl.p;
+%         tMDLbl(:,'p') = [];
+%         
+%         nrows = numel(ILbl);
+%         tMDLbl.lblFile = repmat({lblName},nrows,1);
+%         [~,lblNameS] = myfileparts(lblName);
+%         tMDLbl.lblFileS = repmat({lblNameS},nrows,1);
+%         
+%         I = [I;ILbl]; %#ok<AGROW>
+%         p = [p;pLbl]; %#ok<AGROW>
+%         md = [md;tMDLbl]; %#ok<AGROW>
+%       end
+%       
+%       assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
     end
     
     function [I,tbl] = lblCompileContents(movieNames,labeledposes,...
@@ -1401,7 +1353,7 @@ classdef Labeler < handle
       %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)   
       %
       % I: [NtrlxnView] cell vec of images
-      % tbl: [NTrl rows] labels/metadata table.
+      % tbl: [NTrl rows] labels/metadata MFTable.
       %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
       %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
       %   index, 2. view index, 3. coord index (x vs y)
@@ -1411,11 +1363,16 @@ classdef Labeler < handle
       % - noImg. logical scalar default false. If true, all elements of I
       % will be empty.
       % - lposTS. [N] cell array of labeledposTS arrays [nptsxnfrms]
+      % - movieNamesID. [NxnView] Like movieNames (input arg). Use these
+      % names in tbl instead of movieNames. The point is that movieNames
+      % may be macro-replaced, platformized, etc; otoh in the MD table we
+      % might want macros unreplaced, a standard format etc.
       
-      [hWB,noImg,lposTS] = myparse(varargin,...
+      [hWB,noImg,lposTS,movieNamesID] = myparse(varargin,...
         'hWaitBar',[],...
         'noImg',false,...
-        'lposTS',[]);
+        'lposTS',[],...
+        'movieNamesID',[]);
       assert(numel(iMovs)==numel(frms));
       for i = 1:numel(frms)
         val = frms{i};
@@ -1440,13 +1397,20 @@ classdef Labeler < handle
         end
       end
       
+      if ~isempty(movieNamesID)
+        assert(iscellstr(movieNamesID));
+        szassert(movieNamesID,size(movieNames)); 
+      else
+        movieNamesID = movieNames;
+      end
+      
       for iVw=nView:-1:1
         mr(iVw) = MovieReader();
       end
 
       I = [];
-      % Here, for multiview, mov/movS are for the first movie in each set
-      s = struct('mov',cell(0,1),'movS',[],'frm',[],'p',[],'tfocc',[]);
+      % Here, for multiview, mov are for the first movie in each set
+      s = struct('mov',cell(0,1),'frm',[],'p',[],'tfocc',[]);
       
       nMov = numel(iMovs);
       fprintf('Reading %d movies.\n',nMov);
@@ -1475,8 +1439,7 @@ classdef Labeler < handle
           movfull = movieNames{iMovSet,iVw};
           mr(iVw).open(movfull);
           if iVw==1
-            movFull1 = movfull;            
-            [~,movS1] = myfileparts(movfull);
+            movID1 = movieNamesID{iMovSet,1};
           end
         end
         
@@ -1502,7 +1465,7 @@ classdef Labeler < handle
         
         if tfWB
           hWB.Name = 'Reading movies';
-          wbStr = sprintf('Reading movie %s',movS1);
+          wbStr = sprintf('Reading movie %s',movID1);
           waitbar(0,hWB,wbStr);
         end
         for iFrm = 1:nFrmRead
@@ -1527,8 +1490,8 @@ classdef Labeler < handle
           lblsFrmXY = lpos(:,:,f);
           tags = lpostag(:,f);
           
-          s(end+1,1).mov = movFull1; %#ok<AGROW>
-          s(end).movS = movS1;
+          s(end+1,1).mov = movID1; %#ok<AGROW>
+          %s(end).movS = movS1;
           s(end).frm = f;
           s(end).p = Shape.xy2vec(lblsFrmXY);
           s(end).tfocc = strcmp('occ',tags(:)');
@@ -1797,10 +1760,10 @@ classdef Labeler < handle
       for iView = 1:obj.nview
         movfile = obj.movieFilesAll{iMov,iView};
         movfileFull = obj.movieFilesAllFull{iMov,iView};
-        Labeler.errUnreplacedMacros(movfileFull);
+        FSPath.errUnreplacedMacros(movfileFull);
         
         if exist(movfileFull,'file')==0
-          if Labeler.hasMacro(movfile)
+          if FSPath.hasMacro(movfile)
             qstr = sprintf('Cannot find movie ''%s'', macro-expanded to ''%s''.',...
               movfile,movfileFull);
             resp = questdlg(qstr,'Movie not found','Redefine macros','Browse to movie','Cancel','Cancel');
@@ -1811,7 +1774,7 @@ classdef Labeler < handle
               case 'Redefine macros'
                 obj.projMacroSetUI();
                 movfileFull = obj.movieFilesAllFull{iMov,iView};
-                Labeler.errUnreplacedMacros(movfileFull);
+                FSPath.errUnreplacedMacros(movfileFull);
                 if exist(movfileFull,'file')==0
                   error('Labeler:mov','Cannot find movie ''%s'', macro-expanded to ''%s''',...
                     movfile,movfileFull);
