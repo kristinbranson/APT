@@ -2853,18 +2853,58 @@ classdef Labeler < handle
           error('Labeler:calib',...
             'Current labeling mode does not support calibration files.');
       end
-      s = load(fname,'-mat');
-      flds = fieldnames(s);
-      if numel(flds)>1
-        warning('Labeler:calrig',...
-          'Calibration file contains more than one variable. Using first variable, ''%s''.',...
-          flds{1});
+      s = load(fname,'-mat'); % Could use whos('-file') with superclasses()
+      vars = fieldnames(s);
+      if numel(vars)==0
+        error('Labeler:calib','No variables found in file: %s.',fname);
       end
-      crigObj = s.(flds{1}); 
-      if ~isa(crigObj,'CalRig')
-        error('Labeler:calrig',...
-          'Calibration file ''%s'', variable ''%s'' does not contain a CalRig object.',...
-          fname,flds{1});
+      
+      nView = obj.nview;
+      if isa(s.(vars{1}),'CalRig') % Could check all vars
+        crigObj = s.(vars{1});
+      elseif all(ismember({'DLT_1' 'DLT_2'},vars))
+        % hardcode case: SH
+        crigObj = CalRigSH;
+        crigObj.setKineData(fname);
+        
+        ifo = obj.movieInfoAll;
+        widths = cellfun(@(x)x.info.Width,ifo);
+        heights = cellfun(@(x)x.info.Height,ifo);
+        if ~all(widths(:)==widths(1)) || ~all(heights(:)==heights(1))
+          warning('Labeler:calib',...
+            'The movies in this project have varying view/image sizes. Something likely wrong, proceed at your own risk.');
+        end
+        
+        if obj.currMovie==0
+          if obj.nmovies==0
+            error('Labeler:calib',...
+              'Add a movie first so that the view size can be determined.');
+          end
+          iMov = 1;
+        else
+          iMov = obj.currMovie;
+        end
+        szassert(widths,[obj.nmovies nView]);
+        szassert(heights,[obj.nmovies nView]);
+        for iVw=1:nView
+          w = widths(iMov,iVw);
+          h = heights(iMov,iVw);
+          crigObj.viewSizes(iVw,:) = [w h];
+          fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
+            w,h,iVw,crigObj.viewNames{iVw});
+        end
+      else
+        error('Labeler:calib',...
+          'Calibration file ''%s'' has unrecognized contents.',fname);
+      end
+        
+      if nView~=crigObj.nviews
+        error('Labeler:calib',...
+          'Number of views in project inconsistent with calibration object.');
+      end
+      if ~all(strcmpi(obj.viewNames(:),crigObj.viewNames(:)))
+        warning('Labeler:calib',...
+          'Project viewnames do not match viewnames in calibration object.');
       end
       
       obj.viewCalibrationData = crigObj;
