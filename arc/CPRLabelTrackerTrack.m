@@ -9,6 +9,8 @@ function CPRLabelTrackerTrack(tObjFile,resFileBase,movFiles,frmSpec)
 % frmSpec: currently, an integer specifying df (frame spacing) for tracked
 % results
 
+% OBSOLETE FILE AL 20161028
+
 if ischar(movFiles) && exist(movFiles,'file')>0
   movFiles = importdata(movFiles);
 end

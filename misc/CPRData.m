@@ -148,9 +148,9 @@ classdef CPRData < handle
             md(:,'p') = [];
           else
             assert(false,'Unsupported');
-            lblFiles = varargin{1};
-            tfAllFrames = varargin{2};
-            [Is,p,md] = Labeler.lblRead(lblFiles,'tfAllFrames',tfAllFrames);
+%             lblFiles = varargin{1};
+%             tfAllFrames = varargin{2};
+%             [Is,p,md] = Labeler.lblRead(lblFiles,'tfAllFrames',tfAllFrames);
           end
           sz = cellfun(@(x)size(x'),Is,'uni',0);
           bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
@@ -261,17 +261,17 @@ classdef CPRData < handle
       md = struct2table(sMD);
     end
     
-    function I = getFrames(tbl)
+    function I = getFrames(tblMF)
       % Read frames from movies given MD table
       % 
-      % tbl: [NxR] metadata table
+      % tblMF: [NxR] MFTable
       % 
       % I: [N] cell vector of images for each row of tbl
       
-      N = size(tbl,1);
-      movsUn = unique(tbl.mov);
-      [~,movUnIdx] = ismember(tbl.mov,movsUn);
-      frms = tbl.frm;
+      N = size(tblMF,1);
+      movsUn = unique(tblMF.mov);
+      [~,movUnIdx] = ismember(tblMF.mov,movsUn);
+      frms = tblMF.frm;
       
       % open movies in MovieReaders
       nMovUn = numel(movsUn);

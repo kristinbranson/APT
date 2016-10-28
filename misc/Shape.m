@@ -468,7 +468,9 @@ classdef Shape
           end
         end
         if tfMD
-          str = sprintf('%d %s f%d',iIm,opts.md.movS{iIm},opts.md.frm(iIm));
+          movID = opts.md.movID{hIm};
+          [~,movS] = myfileparts(movID);
+          str = sprintf('%d %s f%d',iIm,movS,opts.md.frm(iIm));
         else
           str = num2str(iIm);
         end
