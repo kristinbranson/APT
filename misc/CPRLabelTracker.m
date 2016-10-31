@@ -1132,6 +1132,35 @@ classdef CPRLabelTracker < LabelTracker
         assert(isempty(s.trnResRC));
       end
       
+      %%% 20161031 modernize tables: .trnDataTblP, .trkPMD
+      
+      % remove .movS field
+      if ~isempty(s.trnDataTblP)
+        s.trnDataTblP = MFTable.rmMovS(s.trnDataTblP);
+      end
+      if ~isempty(s.trkPMD)
+        s.trkPMD = MFTable.rmMovS(s.trkPMD);
+      end
+      
+      assert(~obj.lObj.isMultiView);
+      
+      allProjMovIDs = FSPath.standardPath(obj.lObj.movieFilesAll);
+      allProjMovsFull = obj.lObj.movieFilesAllFull;
+      if ~isempty(s.trnDataTblP)
+        tblDesc = 'Training data';
+        s.trnDataTblP = MFTable.replaceMovieFullWithMovieID(s.trnDataTblP,...
+          allProjMovIDs,allProjMovsFull,tblDesc);
+        CPRLabelTracker.warnMoviesMissingFromProj(s.trnDataTblP.mov,allProjMovIDs,tblDesc);
+        MFTable.warnDupMovFrmKey(s.trnDataTblP,tblDesc);
+      end      
+      if ~isempty(s.trkPMD)
+        tblDesc = 'Tracking results';
+        s.trkPMD = MFTable.replaceMovieFullWithMovieID(s.trkPMD,...
+          allProjMovIDs,allProjMovsFull,tblDesc);
+        CPRLabelTracker.warnMoviesMissingFromProj(s.trkPMD.mov,allProjMovIDs,tblDesc);
+        MFTable.warnDupMovFrmKey(s.trkPMD,tblDesc);
+      end
+      
       % set parameter struct s.sPrm on obj
       assert(isfield(s,'paramFile'));
       if ~isequal(s.paramFile,obj.paramFile)
@@ -1383,6 +1412,14 @@ classdef CPRLabelTracker < LabelTracker
         % default value on top of existing/legacy empty [] value.
         sPrm.Model.nviews = 1;
       end      
+    end
+    
+    function warnMoviesMissingFromProj(movs,movsProj,movTypeStr)
+      tfMissing = ~ismember(movs,movsProj);
+      movMiss = movs(tfMissing);
+      movMiss = unique(movMiss);
+      cellfun(@(x)warningNoTrace('CPRLabelTracker:mov',...
+        '%s movie not in project: ''%s''',movTypeStr,x),movMiss);
     end
     
     function [xy,isinterp] = interpolateXY(xy)
