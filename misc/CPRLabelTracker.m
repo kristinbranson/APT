@@ -472,23 +472,18 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function setParamHook(obj)
-      s0 = CPRLabelTracker.readDefaultParams();
       sNew = obj.readParamFileYaml();
-      [sNew,s0used] = structoverlay(s0,sNew);
-      if ~isempty(s0used)
-        fprintf('Using default parameters for: %s.\n',...
-          String.cellstr2CommaSepList(s0used));
-      end
-      if isempty(sNew.Model.nviews)
-        % Model.nviews now required. structoverlay would not overlay new
-        % default value on top of existing/legacy empty [] value.
-        sNew.Model.nviews = 1;
-      end
+      sNew = CPRLabelTracker.modernizeParams(sNew);
+      obj.setParamContentsSmart(sNew);
+    end
+    
+    function setParamContentsSmart(obj,sNew)
+      % Set parameter contents (.sPrm), looking at what top-level fields 
+      % have changed and clearing obj state appropriately.
       
       sOld = obj.sPrm;      
-      obj.sPrm = sNew; % set this now so eg trnResInit() can use
-            
-      if isempty(sOld)
+      obj.sPrm = sNew; % set this now so eg trnResInit() can use            
+      if isempty(sOld) || isempty(sNew)
         obj.initData();
         obj.trnDataInit();
         obj.trnResInit();
@@ -534,9 +529,9 @@ classdef CPRLabelTracker < LabelTracker
           obj.trackResInit();
           obj.vizInit();
         end
-      end
+      end      
     end
-    
+        
     function retrain(obj,varargin)
       % Full train using all of obj.trnDataTblP as training data
       % 
@@ -1090,39 +1085,23 @@ classdef CPRLabelTracker < LabelTracker
     
     function s = getSaveToken(obj)
       % See save philosophy below. ATM we return a "full" struct with
-      % 1(subset)+2+3+4;
+      % 2+3+4;
       
       s1 = obj.getTrainedTrackerSaveStruct();
       s2 = obj.getTrackResSaveStruct();
-      if isfield(s1,'paramFile') && isfield(s2,'paramFile')
-        assert(isequal(s1.paramFile,s2.paramFile));
-        s2 = rmfield(s2,'paramFile');
-      end
+      assert(isequal(s1.paramFile,s2.paramFile));
+      s2 = rmfield(s2,'paramFile');
       s = structmerge(s1,s2);
-      %s.labelTrackerClass = class(obj);
     end
     
     function loadSaveToken(obj,s)
       if isfield(s,'labelTrackerClass')
         s = rmfield(s,'labelTrackerClass'); % legacy
-      end
-      
-      % ATM just load all fields
-      
-      assert(isfield(s,'paramFile'));
-      if ~isequal(s.paramFile,obj.paramFile)
-        warningNoTrace('CPRLabelTracker:paramFile',...
-          'Setting parameter file to ''%s''.',s.paramFile);
-      end
-
+      end            
+     
       % modernize params
       if ~isempty(s.sPrm)
-        sPrm0 = CPRLabelTracker.readDefaultParams();
-        [s.sPrm,sPrm0used] = structoverlay(sPrm0,s.sPrm);
-        if ~isempty(sPrm0used)
-          fprintf('Using default parameters for: %s.\n',...
-            String.cellstr2CommaSepList(sPrm0used));
-        end
+        s.sPrm = CPRLabelTracker.modernizeParams(s.sPrm);       
         
         % 20161017
         % changes to default params param.example.yaml:
@@ -1135,16 +1114,11 @@ classdef CPRLabelTracker < LabelTracker
         % reinit RegressorCascade (.trnResRC) for legacy projs, because
         % legacy projs implicitly used all the above "new" parameters and 
         % so re-init is not necessary. See hack below.      
-        
-        if isempty(s.sPrm.Model.nviews)          
-          % Model.nviews now required. structoverlay would not overlay new
-          % default value on top of existing/legacy empty [] value.
-          s.sPrm.Model.nviews = 1;          
-        end
-        
+                
         % Hack, double-update legacy RegressorCascades (.trnResRC).
         rc = s.trnResRC;
         if ~isempty(rc)
+          assert(isa(rc,'RegressorCascade')); % handle obj
           if isempty(rc.prmModel.nviews)
             assert(s.sPrm.Model.nviews==1); 
             rc.prmModel.nviews = 1;
@@ -1154,9 +1128,21 @@ classdef CPRLabelTracker < LabelTracker
             rc.prmTrainInit.augjitterfac = 16;
           end
         end
+      else
+        assert(isempty(s.trnResRC));
       end
       
+      % set parameter struct s.sPrm on obj
+      assert(isfield(s,'paramFile'));
+      if ~isequal(s.paramFile,obj.paramFile)
+        warningNoTrace('CPRLabelTracker:paramFile',...
+          'Setting parameter file to ''%s''.',s.paramFile);
+      end
+      obj.setParamContentsSmart(s.sPrm);
+     
+      % set everything else
       flds = fieldnames(s);
+      flds = setdiff(flds,'sPrm');
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         obj.(f) = s.(f);
       end
@@ -1184,11 +1170,8 @@ classdef CPRLabelTracker < LabelTracker
         
         xy = obj.xyPrdCurrMovie(:,:,frm); % [npt x d]
         isinterp = obj.xyPrdCurrMovieIsInterp(frm);
-      end
-
-      
+      end      
     end
-    
     
   end
     
@@ -1207,16 +1190,14 @@ classdef CPRLabelTracker < LabelTracker
   % save the .data itself.
   % - You might want to save just 2., but much more commonly you will want
   % to save 2+3. If you want to save 3, it really makes sense to save 2 as
-  % well. So we support saving 1(subset)+2+3. This is saving/loading a 
-  % "trained tracker".
+  % well. So we support saving 2+3. This is saving/loading a "trained 
+  % tracker".
   % - You might want to save 4. You might want to do this independent of
-  % 1(subset)+2+3. So we support saving 4 orthogonally, although of course
-  % sometimes you will want to save everything.
+  % 2+3. So we support saving 4 orthogonally, although of course sometimes 
+  % you will want to save everything.
   %
   methods
-    
-    % AL 20160530 all these meths need review after sPrm, various cleanups
-    
+        
     function s = getTrainedTrackerSaveStruct(obj)
       s = struct();
       props = obj.TRAINEDTRACKER_SAVEPROPS;
@@ -1224,30 +1205,6 @@ classdef CPRLabelTracker < LabelTracker
       for p=props(:)',p=p{1}; %#ok<FXSET>
         s.(p) = obj.(p);
       end
-    end
-    
-    function loadTrainedTrackerSaveStruct(obj,s)
-      if ~isempty(obj.paramFile) && ~isequal(s.paramFile,obj.paramFile)
-        warningNoTrace('CPRLabelTracker:paramFile',...
-          'Tracker trained using parameter file ''%s'', which differs from current file ''%s''.',...
-          s.paramFile,obj.paramFile);
-      end      
-      
-      obj.paramFile = s.paramFile;
-      props = obj.TRAINEDTRACKER_SAVEPROPS;
-      for p=props(:)',p=p{1}; %#ok<FXSET>
-        obj.(p) = s.(p);
-      end
-    end
-    
-    function saveTrainedTracker(obj,fname)
-      s = obj.getTrainedTrackerSaveStruct(); %#ok<NASGU>
-      save(fname,'-mat','-struct','s');
-    end
-    
-    function loadTrainedTracker(obj,fname)
-      s = load(fname,'-mat');
-      obj.loadTrainedTrackerSaveStruct(s);
     end
     
     function s = getTrackResSaveStruct(obj)
@@ -1259,23 +1216,47 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
-    function loadTrackResSaveStruct(obj,s)
-      if ~isempty(obj.paramFile) && ~isequal(s.paramFile,obj.paramFile)
-        warningNoTrace('CPRLabelTracker:paramFile',...
-          'Results tracked using parameter file ''%s'', which differs from current file ''%s''.',...
-          s.paramFile,obj.paramFile);
-      end
-      obj.paramFile = s.paramFile;
-      props = obj.TRACKRES_SAVEPROPS;
-      for p=props(:)',p=p{1}; %#ok<FXSET>
-        obj.(p) = s.(p);
-      end
-    end
+%     function loadTrainedTrackerSaveStruct(obj,s)
+%       if ~isempty(obj.paramFile) && ~isequal(s.paramFile,obj.paramFile)
+%         warningNoTrace('CPRLabelTracker:paramFile',...
+%           'Tracker trained using parameter file ''%s'', which differs from current file ''%s''.',...
+%           s.paramFile,obj.paramFile);
+%       end      
+%       
+%       obj.paramFile = s.paramFile;
+%       props = obj.TRAINEDTRACKER_SAVEPROPS;
+%       for p=props(:)',p=p{1}; %#ok<FXSET>
+%         obj.(p) = s.(p);
+%       end
+%     end
     
-    function saveTrackRes(obj,fname)
-      s = obj.getTrackResSaveStruct(); %#ok<NASGU>
-      save(fname,'-mat','-struct','s');
-    end
+%     function saveTrainedTracker(obj,fname)
+%       s = obj.getTrainedTrackerSaveStruct(); %#ok<NASGU>
+%       save(fname,'-mat','-struct','s');
+%     end
+    
+%     function loadTrainedTracker(obj,fname)
+%       s = load(fname,'-mat');
+%       obj.loadTrainedTrackerSaveStruct(s);
+%     end
+        
+%     function loadTrackResSaveStruct(obj,s)
+%       if ~isempty(obj.paramFile) && ~isequal(s.paramFile,obj.paramFile)
+%         warningNoTrace('CPRLabelTracker:paramFile',...
+%           'Results tracked using parameter file ''%s'', which differs from current file ''%s''.',...
+%           s.paramFile,obj.paramFile);
+%       end
+%       obj.paramFile = s.paramFile;
+%       props = obj.TRACKRES_SAVEPROPS;
+%       for p=props(:)',p=p{1}; %#ok<FXSET>
+%         obj.(p) = s.(p);
+%       end
+%     end
+    
+%     function saveTrackRes(obj,fname)
+%       s = obj.getTrackResSaveStruct(); %#ok<NASGU>
+%       save(fname,'-mat','-struct','s');
+%     end
     
     function trackResInit(obj)
       % init obj.TRACKRES_SAVEPROPS
@@ -1388,6 +1369,20 @@ classdef CPRLabelTracker < LabelTracker
     
     function sPrm0 = readDefaultParams
       sPrm0 = ReadYaml(CPRLabelTracker.DEFAULT_PARAMETER_FILE);
+    end
+    
+    function sPrm = modernizeParams(sPrm)
+      s0 = CPRLabelTracker.readDefaultParams();
+      [sPrm,s0used] = structoverlay(s0,sPrm);
+      if ~isempty(s0used)
+        fprintf('Using default parameters for: %s.\n',...
+          String.cellstr2CommaSepList(s0used));
+      end
+      if isempty(sPrm.Model.nviews)
+        % Model.nviews now required. structoverlay would not overlay new
+        % default value on top of existing/legacy empty [] value.
+        sPrm.Model.nviews = 1;
+      end      
     end
     
     function [xy,isinterp] = interpolateXY(xy)
