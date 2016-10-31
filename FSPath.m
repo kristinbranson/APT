@@ -38,15 +38,15 @@ classdef FSPath
       
       p = regexprep(p,'\\','/');
 
-      tfLeadingDoubleSlash = numel(p)>=2 && strcmp(p(1:2),'//');      
+      %tfLeadingDoubleSlash = numel(p)>=2 && strcmp(p(1:2),'//');      
       pnew = regexprep(p,'//','/');
       while ~strcmp(pnew,p)
         p = pnew;
         pnew = regexprep(p,'//','/');
       end
-      if tfLeadingDoubleSlash
-        p = ['/' p];
-      end
+%       if tfLeadingDoubleSlash
+%         p = ['/' p];
+%       end
       
       stdfull = p;
       [upper,stdshort] = myfileparts(p);
@@ -77,11 +77,20 @@ classdef FSPath
       s = cellfun(@(x)FSPath.fullyLocalizeStandardizeChar(x,sMacro),s,'uni',0);
     end
       
-    function str = platformizePath(str)
+    function str = platformizePath(str,ispcval)
       % Depending on platform, replace / with \ or vice versa
       
-      if ispc
+      assert(ischar(str));
+      
+      if exist('ispcval','var')==0
+        ispcval = ispc();
+      end
+      
+      if ispcval
         str = regexprep(str,'/','\');
+        if numel(str)>=2 && strcmp(str(1),'\') && ~strcmp(str(2),'\')
+          str = ['\' str];
+        end
       else
         str = regexprep(str,'\\','/');
       end
