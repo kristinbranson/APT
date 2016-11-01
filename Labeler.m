@@ -2869,6 +2869,8 @@ classdef Labeler < handle
         tfSetViewSizes = true;
       elseif all(ismember({'om' 'T' 'R' 'active_images_left' 'recompute_intrinsic_right'},vars))
         % Bouget Calib_Results_stereo.mat file
+        % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes that
+        % are set below
         crigObj = CalRig2CamCaltech(fname);
         tfSetViewSizes = true;        
       else
