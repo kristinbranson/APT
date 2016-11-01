@@ -137,7 +137,11 @@ if lObj.nview==1
 else
   assert(lObj.nTargets==1,'Adding trx files currently unsupported.');  
   lastmov = RC.getprop('lbl_lastmovie');
-  lastmovpath = fileparts(lastmov);
+  if isempty(lastmov)
+    lastmovpath = pwd;
+  else
+    lastmovpath = fileparts(lastmov);
+  end
   movfiles = uipickfiles(...
     'Prompt','Select movie set',...
     'FilterSpec',lastmovpath,...
