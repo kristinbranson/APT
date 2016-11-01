@@ -2876,16 +2876,6 @@ classdef Labeler < handle
           'Calibration file ''%s'' has unrecognized contents.',fname);
       end
       
-      % First check movie widths/heights in project
-      ifo = obj.movieInfoAll;
-      widths = cellfun(@(x)x.info.Width,ifo);
-      heights = cellfun(@(x)x.info.Height,ifo);
-      tfAllSizesSame = all(widths(:)==widths(1)) && all(heights(:)==heights(1));
-      if ~tfAllSizesSame
-        warndlg('The movies in this project have varying view/image sizes. This probably doesn''t work well with calibrations; proceed at your own risk.',...
-          'Image sizes vary','non-modal');
-      end
-        
       nView = obj.nview;
       if nView~=crigObj.nviews
         error('Labeler:calib',...
@@ -2896,21 +2886,38 @@ classdef Labeler < handle
           'Project viewnames do not match viewnames in calibration object.');
       end
       
+      % First check movie widths/heights in project
+      ifo = obj.movieInfoAll;
+      widths = cellfun(@(x)x.info.Width,ifo);
+      heights = cellfun(@(x)x.info.Height,ifo);
+      szassert(widths,[obj.nmovies nView]);
+      szassert(heights,[obj.nmovies nView]);
+      tfAllSizesSame = true(1,nView);
+      if obj.nmovies>0
+        for iVw=1:nView
+          tfAllSizesSame(iVw) = all(widths(:,iVw)==widths(1,iVw)) && ...
+                           all(heights(:,iVw)==heights(1,iVw));
+          if ~tfAllSizesSame(iVw)
+            warnstr = sprintf('The movies in this project have varying view/image sizes for view %d (%s). This probably doesn''t work well with calibrations; proceed at your own risk.',...
+              iVw,obj.viewNames{iVw});
+            warndlg(warnstr,'Image sizes vary','non-modal');
+          end
+        end
+      end
+      
       if tfSetViewSizes
         if obj.nmovies==0
           error('Labeler:calib','Add a movie first so the view size can be determined.');
         end
-        if tfAllSizesSame
+        if all(tfAllSizesSame)
           iMovUse = 1;
         else
           iMovUse = obj.currMovie;
           if iMovUse==0
-            iMovUse = 1;
+            iMovUse = 1; % dangerous for user, but we already warned them
           end
         end
         
-        szassert(widths,[obj.nmovies nView]);
-        szassert(heights,[obj.nmovies nView]);
         vwSizes = [widths(iMovUse,:)' heights(iMovUse,:)'];
         crigObj.viewSizes = vwSizes;
         for iVw=1:nView

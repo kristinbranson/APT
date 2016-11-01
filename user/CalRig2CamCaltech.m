@@ -45,7 +45,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
     % high nonlinearities. To avoid these spurious artifacts,
     % normalized2projected() crops normalized points outside the
     % viewXNlimits.
-    viewXNLimits = [-.2 .2 -.2 .2;-.2 .2 -.2 .2];
+    viewXNLimits = [-.35 .35 -.35 .35;-.35 .35 -.35 .35];
   end
   
   properties
@@ -106,7 +106,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       fprintf('Loaded: %s\n',calibRes);
       fprintf('''left'' cam: %s. ''right'' cam: %s.\n',nameL,nameR);
       
-      obj.viewNames = {nameL nameR};            
+      obj.viewNames = {'L' 'R'}; % For now all props expect these viewNames
       obj.stroInfo = ifo;
       obj.int = struct('L',int.l,'R',int.r);
       obj.omRL = ext.om;
