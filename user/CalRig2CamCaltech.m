@@ -28,8 +28,8 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
   % Abstract in CalRig
   properties
     nviews = 2;
-    viewNames = {'L' 'R'}; % cam0 cam1
-    viewSizes = [560 476;496 410]; % XXX hardcode 
+    viewNames = {'' ''}; % cam0 cam1
+    viewSizes = [nan nan; nan nan];
   end
   properties
     % Min/Max meaningful values of normalized coords xn. For view iView,
@@ -101,11 +101,12 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       obj.calibFile = calibRes;
       
       [nameL,nameR,ifo,int,ext] = CalibratedRig.loadStroCalibResults(calibRes,false);
-      assert(strncmp(nameL,'cam0',4),'Unexpected left/right cam names for stereo calibration results.');
-      assert(strncmp(nameR,'cam1',4),'Unexpected left/right cam names for stereo calibration results.');
+      %assert(strncmp(nameL,'cam0',4),'Unexpected left/right cam names for stereo calibration results.');
+      %assert(strncmp(nameR,'cam1',4),'Unexpected left/right cam names for stereo calibration results.');
       fprintf('Loaded: %s\n',calibRes);
       fprintf('''left'' cam: %s. ''right'' cam: %s.\n',nameL,nameR);
-            
+      
+      obj.viewNames = {nameL nameR};            
       obj.stroInfo = ifo;
       obj.int = struct('L',int.l,'R',int.r);
       obj.omRL = ext.om;
