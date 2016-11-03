@@ -1470,6 +1470,10 @@ classdef CPRLabelTracker < LabelTracker
       td.computeIpp([],[],[],'iTrl',1:td.N,'jan',true,varargin{:});
     end
     
+    function tdPPRF(td,varargin)
+      td.computeIpp([],[],[],'iTrl',1:td.N,'romain',true,varargin{:});
+    end
+    
   end
   
 end

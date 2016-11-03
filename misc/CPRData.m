@@ -422,9 +422,9 @@ classdef CPRData < handle
         sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
         sig2 = [0 2 4 8];
         iChan = [...
-          2 3 4 ... % blur sig1(1:3)
-          6:8 9:12 13:16 18:19 ... % SGS
-          23:24 26:28 29:32 33:36]; % SLS
+          2 3 4];% ... % blur sig1(1:3)
+%          6:8 9:12 13:16 18:19 ... % SGS
+ %         23:24 26:28 29:32 33:36]; % SLS
       end
       
       [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,'hWaitBar',hWB);
