@@ -220,7 +220,7 @@ iPtLegs = [...
   5 11 17; % RM
   6 12 18]; % RH
 
-iLegsUse = [1 3 4 6];
+iLegsUse = 1:6;
 iPtLegsAllUsed = iPtLegs(iLegsUse,:);
 
 %% find frames with 4-corners 2-view-NO labeled
@@ -262,8 +262,8 @@ figure('windowstyle','docked');
 ax = axes;
 hold(ax,'on');
 MARKERS = {'o' 's' 'v'};
-COLORS = {'b' 'g' 'r' 'k'};
-for i=1:4
+COLORS = {'b' 'g' 'r' 'k' 'y' 'm'};
+for i=1:6
   iLeg = iLegsUse(i);
   iptsleg = iPtLegs(iLeg,:);
   for j=1:3
@@ -280,7 +280,43 @@ zlabel('z','fontweight','bold');
 ax.XLim = [bboxes(1) bboxes(1)+bboxes(4)];
 ax.YLim = [bboxes(2) bboxes(2)+bboxes(5)];
 ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
-%% montage pGT
+%% histeq I
+H0 = cell(1,NVIEW);
+tfuse = cell(1,NVIEW);
+for iView=1:NVIEW
+ [H0{iView},tfuse{iView}] = typicalImHist(I(:,iView));
+end
+
+IHE = cell(size(I));
+for iRow=1:nrows
+  for iView=1:NVIEW
+    IHE{iRow,iView} = histeq(I{iRow,iView},H0{iView});
+  end
+  if mod(iRow,10)==0
+    fprintf(1,'histeq row %d\n',iRow);
+  end
+end
+%% histeq
+Nlook = 5;
+axs = createsubplots(3,5);
+axs = reshape(axs,3,5);
+randrows = randint2(1,Nlook,[1 nrows]);
+GAMMA = .3;
+mgray = gray(256);
+mgray2 = imadjust(mgray,[],[],GAMMA);
+for iLook=1:Nlook
+  row = randrows(iLook);
+  for iVw=1:3
+    ax = axs(iVw,iLook);
+    axes(ax);
+    imagesc([I{row,iVw};IHE{row,iVw}]);
+    colormap(ax,mgray2);
+    axis(ax,'equal');
+  end
+end  
+
+%% montage I/pGT
+Imontage = I;
 Nmont = 1;
 figure('windowstyle','docked');
 axs = createsubplots(Nmont,3);
@@ -294,7 +330,7 @@ for iMont=1:Nmont
   for iView=1:3
     ax = axs(iMont,iView);
     axes(ax);
-    imagesc(I{iRow,iView});
+    imagesc(Imontage{iRow,iView});
     colormap(ax,mgray2);
     axis(ax,'equal')
     
@@ -308,18 +344,19 @@ for iMont=1:Nmont
   end
   
   X = cell(1,3);
-  X{1} = squeeze(pGt3d3(iRow,:,:))';
-  szassert(X{1},[3 19]);
+  X{1} = squeeze(pGT3dLegs3(iRow,:,:))';
+  szassert(X{1},[3 18]);
   X{2} = crig2.camxform(X{1},'lr');
   X{3} = crig2.camxform(X{1},'lb');
   
   MARKERS = {'o' 's' 'v'};
-  COLORS = {[1 0 0] [0 1 0] [0 1 1] [1 1 0]};
-  for i=1:4
+  COLORS = {[1 0 0] [0 1 0] [0 1 1] [1 1 0] [0 0 1] [1 0 1]};
+  for i=1:6
     iLeg = iLegsUse(i);
     iptsleg = iPtLegs(iLeg,:);
     for j=1:3
-      ipt = iptsleg(j);
+      %ipt = iptsleg(j);
+      ipt = (i-1)*3+j;
       for iView=1:3
         ax = axs(iMont,iView);
         hold(ax,'on');
@@ -330,6 +367,155 @@ for iMont=1:Nmont
     end
   end
 end
+
+
+
+%%
+PARAMFILE = 'f:\romain\tp@18pts.yaml';
+sPrm = ReadYaml(PARAMFILE);
+sPrm.Model.nviews = 3;
+sPrm.Model.Prm3D.iViewBase = 1;
+sPrm.Model.Prm3D.calrig = crig2;
+rc = RegressorCascade(sPrm);
+rc.init();
+
+%%
+tmp = iPtLegsAllUsed';
+idxD = tmp(:)';
+idxD = [idxD idxD+19 idxD+2*19];
+pGT3dLegs = pGT3d(:,idxD);
+pGT3dLegs3 = reshape(pGT3dLegs,[199 18 3]);
+
+%%
+N = size(I,1);
+pAll = rc.trainWithRandInit(I,repmat(bboxes,N,1),pGT3dLegs);
+pAll = reshape(pAll,199,50,18*3,31);
+
+%% Browse propagated replicates
+TESTROWIDX = 2;
+NPTS = 18;
+frame = tMFP.frm(TESTROWIDX);
+lObj.setFrame(frame);
+%lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
+axAll = lObj.gdata.axes_all;
+if exist('hLine','var')>0
+  deleteValidHandles(hLine);
+end
+hLine = gobjects(3,NPTS);
+for iAx = 1:3
+  ax = axAll(iAx);
+  hold(ax,'on');
+  clrs = [1 0 0;1 0 0;1 0 0; ...
+          1 1 0;1 1 0;1 1 0; ...
+          0 1 0;0 1 0;0 1 0; ...
+          0 1 1;0 1 1;0 1 1; ...
+          0 0 1;0 0 1;0 0 1; ...
+          1 0 1;1 0 1;1 0 1];
+          
+  for iPt = 1:NPTS
+    hLine(iAx,iPt) = plot(ax,nan,nan,'.',...
+      'markersize',20,...
+      'Color',clrs(iPt,:));
+  end
+end
+
+pRepTrow = squeeze(pAll(TESTROWIDX,:,:,:));
+szassert(pRepTrow,[50 18*3 31]);
+
+for t=1:31
+  pRep = pRepTrow(:,:,t);
+  pRep = reshape(pRep,50,18,3); % (iRep,iPt,iDim)
+  for iVw=1:3
+    for iPt=1:18 
+      X = squeeze(pRep(:,iPt,:)); % [50x3]
+      Xvw = crig2.viewXformCPR(X',1,iVw); % iViewBase==1
+      [r,c] = crig2.projectCPR(Xvw,iVw);
+      
+      h = hLine(iVw,iPt);
+      set(h,'XData',c,'YData',r);
+    end
+  end
+  
+  input(sprintf('t=%d',t));
+end
+
+%% Propagate on labeled, nontraining data
+
+frmTest = 10850:11849;
+[ITest,tblTest] = Labeler.lblCompileContentsRaw(...
+  lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,1,{frmTest},...
+  'hWaitBar',waitbar(0));
+% NOTE: tblTest.p is projected/concatenated
+%%
+nTest = size(ITest,1);
+[pAllTest,pIidxTest] = rc.propagateRandInit(ITest,repmat(bboxes,nTest,1),sPrm.TestInit);
+%pAllTest = reshape(pAllTest,nTest,50,36,31);
+
+%% PRUNE PROPAGATED REPLICATES
+trkD = rc.prmModel.D;
+Tp1 = rc.nMajor+1;
+nTestAug = sPrm.TestInit.Nrep;
+pTstT = reshape(pAllTest,[nTest nTestAug trkD Tp1]);
+%pTstT = pAllTest;
+
+pTstTRed = nan(nTest,trkD,Tp1);
+assert(sPrm.Prune.prune==1);
+for t = 1:Tp1
+  fprintf('Pruning t=%d\n',t);
+  pTmp = permute(pTstT(:,:,:,t),[1 3 2]); % [NxDxR]
+  pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,sPrm.Model,sPrm.Prune);
+end
+pTstTRedFinalT = pTstTRed(:,:,end);
+
+%% Browse test frames
+axAll = lObj.gdata.axes_all;
+if exist('hLine','var')>0
+  deleteValidHandles(hLine);
+end
+
+hLine = gobjects(3,NPTS);
+for iAx = 1:3
+  ax = axAll(iAx);
+  hold(ax,'on');
+  clrs = [1 0 0;1 0 0;1 0 0; ...
+          1 1 0;1 1 0;1 1 0; ...
+          0 1 0;0 1 0;0 1 0; ...
+          0 1 1;0 1 1;0 1 1; ...
+          1 0 1;1 0 1;1 0 1; ...
+          0 0 1;0 0 1;0 0 1];
+  for iPt = 1:NPTS
+    hLine(iAx,iPt) = plot(ax,nan,nan,'.',...
+      'markersize',20,...
+      'Color',clrs(iPt,:));
+  end
+end
+
+nTest = size(pTstTRedFinalT,1);
+pTstTRedFinalT = reshape(pTstTRedFinalT,nTest,18,3);
+for iF=1:numel(frmTest)
+  f = frmTest(iF);
+  lObj.setFrame(f);
+
+  pTstBest = squeeze(pTstTRedFinalT(iF,:,:));
+  for iVw=1:3
+    for iPt=1:18
+      X = pTstBest(iPt,:);
+      Xvw = crig2.viewXformCPR(X',1,iVw); % iViewBase==1
+      [r,c] = crig2.projectCPR(Xvw,iVw);
+      
+      h = hLine(iVw,iPt);
+      set(h,'XData',c,'YData',r);
+    end
+  end
+  
+  drawnow
+  %input(sprintf('frame=%d',f));
+end
+
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% END
+%%%%%%%%%%%%%%%%%%%%
 
 
 
