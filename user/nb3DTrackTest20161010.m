@@ -77,15 +77,18 @@ tFrmPts = table(frm,npts2VwLblNO,ipts2VwLblNO,iVwsLblNO,iVwsLblNOCode,nPtsLRCode
 % nGood = numel(iPtGood);
 % fprintf('Found %d labeled pts.\n',nGood);
 
-%% 
-for i=1:size(tFrmPts,1)
-  codes = tFrmPts.iVwsLblNOCode{i};
-  for iV = 1:numel(codes)
-    if strcmp(codes{iV},'lr')
-      fprintf(1,'%d: %d\n',tFrmPts.frm(i),tFrmPts.ipts2VwLblNO{i}(iV));
-    end
-  end
-end
+%% KB: SKIP AHEAD TO "BEGIN 4-CORNER TRACKING"
+
+%% Look at LR codes
+% for i=1:size(tFrmPts,1)
+%   codes = tFrmPts.iVwsLblNOCode{i};
+%   for iV = 1:numel(codes)
+%     if strcmp(codes{iV},'lr')
+%       fprintf(1,'%d: %d\n',tFrmPts.frm(i),tFrmPts.ipts2VwLblNO{i}(iV));
+%     end
+%   end
+% end
+
 
 %%
 %%%%%%%%%%%%%%%%%%
@@ -209,7 +212,7 @@ t19expandedLRB = t19expandedLRB(t19expandedLRB.ipt~=19,:);
 
 %% 
 %%%%%%%%%%%%%%%%%
-%% BEGIN 4-corner tracking 20161102
+%% BEGIN 4-corner tracking 20161102 (now not 4-corner, all legs)
 %%%%%%%%%%%%%%%%%
 
 iPtLegs = [...
@@ -237,8 +240,13 @@ for i=1:N
 end
 tMFP = tFrmPts(tfLegsLbledBinc,:);
 
+% tMFP contains all rows for frames labeled i) in at least 2 views (with 
+% non-Occluded labels), where one of the views is the Bottom (eg the Bottom
+% must be labeled)
+
 %%
 mfa = lbl.movieFilesAll;
+% KB: modify regexprep for your local filesystem
 mfa = regexprep(mfa,'C:\\Users\\nielsone\\Dropbox \(HHMI\)','f:\\Dropbox');
 movs = repmat(mfa,size(tMFP,1),1);
 movs = struct('movs',{movs});
@@ -281,39 +289,39 @@ ax.XLim = [bboxes(1) bboxes(1)+bboxes(4)];
 ax.YLim = [bboxes(2) bboxes(2)+bboxes(5)];
 ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
 %% histeq I
-H0 = cell(1,NVIEW);
-tfuse = cell(1,NVIEW);
-for iView=1:NVIEW
- [H0{iView},tfuse{iView}] = typicalImHist(I(:,iView));
-end
-
-IHE = cell(size(I));
-for iRow=1:nrows
-  for iView=1:NVIEW
-    IHE{iRow,iView} = histeq(I{iRow,iView},H0{iView});
-  end
-  if mod(iRow,10)==0
-    fprintf(1,'histeq row %d\n',iRow);
-  end
-end
+% H0 = cell(1,NVIEW);
+% tfuse = cell(1,NVIEW);
+% for iView=1:NVIEW
+%  [H0{iView},tfuse{iView}] = typicalImHist(I(:,iView));
+% end
+% 
+% IHE = cell(size(I));
+% for iRow=1:nrows
+%   for iView=1:NVIEW
+%     IHE{iRow,iView} = histeq(I{iRow,iView},H0{iView});
+%   end
+%   if mod(iRow,10)==0
+%     fprintf(1,'histeq row %d\n',iRow);
+%   end
+% end
 %% histeq
-Nlook = 5;
-axs = createsubplots(3,5);
-axs = reshape(axs,3,5);
-randrows = randint2(1,Nlook,[1 nrows]);
-GAMMA = .3;
-mgray = gray(256);
-mgray2 = imadjust(mgray,[],[],GAMMA);
-for iLook=1:Nlook
-  row = randrows(iLook);
-  for iVw=1:3
-    ax = axs(iVw,iLook);
-    axes(ax);
-    imagesc([I{row,iVw};IHE{row,iVw}]);
-    colormap(ax,mgray2);
-    axis(ax,'equal');
-  end
-end  
+% Nlook = 5;
+% axs = createsubplots(3,5);
+% axs = reshape(axs,3,5);
+% randrows = randint2(1,Nlook,[1 nrows]);
+% GAMMA = .3;
+% mgray = gray(256);
+% mgray2 = imadjust(mgray,[],[],GAMMA);
+% for iLook=1:Nlook
+%   row = randrows(iLook);
+%   for iVw=1:3
+%     ax = axs(iVw,iLook);
+%     axes(ax);
+%     imagesc([I{row,iVw};IHE{row,iVw}]);
+%     colormap(ax,mgray2);
+%     axis(ax,'equal');
+%   end
+% end  
 
 %% montage I/pGT
 Imontage = I;
@@ -344,8 +352,10 @@ for iMont=1:Nmont
   end
   
   X = cell(1,3);
-  X{1} = squeeze(pGT3dLegs3(iRow,:,:))';
-  szassert(X{1},[3 18]);
+  %X{1} = squeeze(pGT3dLegs3(iRow,:,:))';
+  X{1} = squeeze(pGt3d3(iRow,:,:))';
+  %szassert(X{1},[3 18]);
+  szassert(X{1},[3 19]);
   X{2} = crig2.camxform(X{1},'lr');
   X{3} = crig2.camxform(X{1},'lb');
   
@@ -355,8 +365,8 @@ for iMont=1:Nmont
     iLeg = iLegsUse(i);
     iptsleg = iPtLegs(iLeg,:);
     for j=1:3
-      %ipt = iptsleg(j);
-      ipt = (i-1)*3+j;
+      ipt = iptsleg(j);
+      %ipt = (i-1)*3+j;
       for iView=1:3
         ax = axs(iMont,iView);
         hold(ax,'on');
@@ -371,7 +381,7 @@ end
 
 
 %%
-PARAMFILE = 'f:\romain\tp@18pts.yaml';
+PARAMFILE = 'f:\romain\tp@18pts@3d.yaml'; % KB: this is in .../forKB
 sPrm = ReadYaml(PARAMFILE);
 sPrm.Model.nviews = 3;
 sPrm.Model.Prm3D.iViewBase = 1;
@@ -384,17 +394,19 @@ tmp = iPtLegsAllUsed';
 idxD = tmp(:)';
 idxD = [idxD idxD+19 idxD+2*19];
 pGT3dLegs = pGT3d(:,idxD);
-pGT3dLegs3 = reshape(pGT3dLegs,[199 18 3]);
+pGT3dLegs3 = reshape(pGT3dLegs,[size(pGT3dLegs,1) 18 3]);
 
 %%
 N = size(I,1);
 pAll = rc.trainWithRandInit(I,repmat(bboxes,N,1),pGT3dLegs);
-pAll = reshape(pAll,199,50,18*3,31);
+pAll = reshape(pAll,N,50,18*3,rc.nMajor+1);
 
 %% Browse propagated replicates
-TESTROWIDX = 2;
+TESTROWIDX = 2; % Pick any training row to view convergence
 NPTS = 18;
 frame = tMFP.frm(TESTROWIDX);
+lObj = Labeler;
+lObj.projLoad(LBL); % KB: this won't be able to find movies will prompt you to locate
 lObj.setFrame(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
@@ -420,9 +432,9 @@ for iAx = 1:3
 end
 
 pRepTrow = squeeze(pAll(TESTROWIDX,:,:,:));
-szassert(pRepTrow,[50 18*3 31]);
+szassert(pRepTrow,[50 18*3 rc.nMajor+1]);
 
-for t=1:31
+for t=1:rc.nMajor+1
   pRep = pRepTrow(:,:,t);
   pRep = reshape(pRep,50,18,3); % (iRep,iPt,iDim)
   for iVw=1:3
@@ -440,18 +452,19 @@ for t=1:31
 end
 
 %% Propagate on labeled, nontraining data
-
+%frmTest = 1:1000;
 frmTest = 10850:11849;
 [ITest,tblTest] = Labeler.lblCompileContentsRaw(...
   lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,1,{frmTest},...
   'hWaitBar',waitbar(0));
+
 % NOTE: tblTest.p is projected/concatenated
 %%
 nTest = size(ITest,1);
 [pAllTest,pIidxTest] = rc.propagateRandInit(ITest,repmat(bboxes,nTest,1),sPrm.TestInit);
 %pAllTest = reshape(pAllTest,nTest,50,36,31);
 
-%% PRUNE PROPAGATED REPLICATES
+%% Prune Propagated Replicates
 trkD = rc.prmModel.D;
 Tp1 = rc.nMajor+1;
 nTestAug = sPrm.TestInit.Nrep;
@@ -467,7 +480,7 @@ for t = 1:Tp1
 end
 pTstTRedFinalT = pTstTRed(:,:,end);
 
-%% Browse test frames
+%% Browse test frames in Labeler
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
   deleteValidHandles(hLine);
@@ -517,6 +530,10 @@ end
 %% END
 %%%%%%%%%%%%%%%%%%%%
 
+
+%%%%%%%
+% OLD STUFF STARTING HERE
+%%%%%%%%%%%%%
 
 
 %% viz pGT in 3d
