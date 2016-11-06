@@ -1,6 +1,15 @@
 classdef Features
   
   properties (Constant)
+    % take s = S{i1,1}; it will have a hist in range [0,max; this array
+    % gives the 99.9 %tile for sig1=[0 2 4 7 10]
+    RF_S_99P9_SIG024710_161104 = [
+      79.0000
+      73.7676
+      69.5524
+      65.5992
+      63.0589];
+    
     % take sgs = SGS{i1,i2}; it will have a hist in range [0,max]; this
     % array gives the maxes for sig1,sig2 = [0 2 4 8]
     JAN_SGS_MAX_SIG0248 = [
@@ -12,6 +21,14 @@ classdef Features
       18.5000   17.5000   14.5000    9.5000
       10.5000   10.5000    9.5000    7.5000];
     
+    % sig1,sig2 = [0 2 4 7 10]
+    RF_SGS_99P9_SIG024710_161104 = [
+      17.9531   13.0496   11.0252   9.5984    8.7760
+      8.6777    7.1927    6.0619    5.1314    4.5763
+      4.6514    4.2882    3.7511    3.1606    2.8182
+      2.7285    2.6477    2.4650    2.1589    1.9324
+      1.9482    1.9168    1.8350    1.6691    1.5166];    
+        
     % take sls = SLS{i1,i2}; it will have a mean of ~0 and a span; this
     % array gives the spans for sig1,sig2 = [0 2 4 8]
     JAN_SLS_SPAN_SIG0248 = [
@@ -29,6 +46,14 @@ classdef Features
       35    25    15     7
       63    56    41    22
       97    93    83    60];
+    
+    RF_SLS_SPAN99_SIG024710_161104 = [
+      18.0000    3.6647    1.1118    0.3786    0.1934
+      14.6676    8.4421    3.6316    1.4076    0.7424
+      17.8001   14.4949    9.3165    4.6640    2.6856
+      18.4867   17.1754   14.2511    9.6674    6.5228
+      19.1706   18.4485   16.7169   13.2812   10.0928
+    ];
   end
   %% preprocessing/channels
   methods (Static)
@@ -45,6 +70,10 @@ classdef Features
       %   defaults to 2.5. Applied to blurring by both sig1 and sig2.
       % - laplaceKernel. Defaults to fspecial('laplacian',0).
       %
+      % - sRescale. Scalar logical. Defaults FALSE. If true, rescale S by
+      % sRescaleFacs and convert to uint8.
+      % - sRescaleFacs. [n1]. Must be supplied if sRescale is true.
+      % 
       % - sgsRescale. Scalar logical. If true (default), multiply SGS by
       % sgsRescaleFacs and convert to uint8.
       % - sgsRescaleFacs. [n1xn2] Defaults to values for Jan data, sig=[0 2 4 8].
@@ -59,6 +88,8 @@ classdef Features
       opts = struct();
       opts.gaussFiltRadius = 2.5;
       opts.laplaceKernel = fspecial('laplacian',0);
+      opts.sRescale = false;
+      opts.sRescaleFacs = nan;
       opts.sgsRescale = true;
       opts.sgsRescaleFacs = 200./Features.JAN_SGS_99P9_SIG0248_160211; % 200 instead of 256 for safety buffer
       opts.slsRescale = true;
@@ -74,6 +105,9 @@ classdef Features
       n1 = numel(sig1);
       n2 = numel(sig2);
       validateattributes(opts.gaussFiltRadius,{'numeric'},{'scalar' 'real' 'positive'});
+      if opts.sRescale
+        assert(numel(opts.sRescaleFacs)==n1);
+      end
       if opts.sgsRescale
         assert(isequal(size(opts.sgsRescaleFacs),[n1 n2]));
       end
@@ -115,7 +149,18 @@ classdef Features
         for i1 = 1:n1
           s1 = sig1(i1);
           sIm = gaussSmooth(im,s1,'same',opts.gaussFiltRadius);
-          S{iTrl,i1} = sIm;
+          S{iTrl,i1} = sIm;          
+          if opts.sRescale
+            s = S{iTrl,i1}*opts.sRescaleFacs(i1);
+            tfOOB = s<0 | s>255;
+            pctOOB = nnz(tfOOB)/numel(tfOOB)*100;
+            if pctOOB>opts.sgsRescaleClipPctThresh
+              warningNoTrace('Features:oob','Rescaling S. %d/%d pxs (%.2f %%) clipped.',...
+                nnz(tfOOB),numel(tfOOB),pctOOB);
+            end
+            S{iTrl,i1} = uint8(s);
+          end
+          
           GsIm = gradientMag(single(sIm));
           LsIm = zeros(size(sIm));
           LsIm(1+lkRad:end-lkRad,1+lkRad:end-lkRad) = ...
@@ -203,8 +248,14 @@ classdef Features
             'interpreter','tex','fontsize',16,'fontweight','bold'};
           
           imshow(SGS{iTrl,i1,i2},'parent',axSGS(iAx));
-          imshow(SLS{iTrl,i1,i2},'parent',axSLS(iAx));
-          %imagesc(SLS{iTrl,i1,i2},'parent',axSLS(iAx));
+          %imshow(SLS{iTrl,i1,i2},'parent',axSLS(iAx));
+          imagesc(SLS{iTrl,i1,i2},'parent',axSLS(iAx));
+          tmp = SLS{iTrl,i1,i2}(:);
+          tmpclass = class(tmp);
+          ptilesclass = feval(tmpclass,[5 95]);
+          p5_95 = prctile(SLS{iTrl,i1,i2}(:),ptilesclass);
+          caxis(axSLS(iAx),p5_95);
+
           axSLS(iAx).XTickLabel = [];
           axSLS(iAx).YTickLabel = [];
           
@@ -228,6 +279,97 @@ classdef Features
       linkaxes([axS(:);axSGS(:);axSLS(:)]);
     end
     
+    function [S99p9,SGSmax,SGS99p9,SLSspn,SLSspn99,SLSspn98,SLSmu,SLSmdn] = ...
+        ppCalib(S,SGS,SLS,sig1,sig2)
+      % Compute scale factors for SGS and SLS.
+      %
+      % SGS matrices take values in [0,maxgradient]. For channel images we
+      % need these to fit in uint8s [0,256). So we need to compute the
+      % max/maxish of SGS.
+      %
+      % SLS matrices take values in [minLaplace,maxLaplace], where
+      % minLaplace is negative and |minLaplace|~|maxLaplace|. Again, to
+      % utilize SLS data as 'channel' images, we need something in range
+      % [0,256). So we compute the spans of SLS.
+      %
+      % S: [nTrl x numel(sig1)];
+      % SGS/SLS: [nTrlxnumel(sig1)xnumel(sig2)]
+      % 
+      % SGSmax: [numel(sig1)xnumel(sig2)]. maximum of each SGS taken over
+      % all trials.
+      % SGS99p9: 99.9 percentile of each SGS, etc.
+      % SLSspn: [numel(sig1)xnumel(sig2)] cell. Each element is a two-vec
+      % [lo hi] giving the span.
+      
+      n1 = numel(sig1);
+      n2 = numel(sig2);
+      
+      % aggregate data
+      sbig = cell(n1,1);
+      sgsbig = cell(n1,n2);
+      slsbig = cell(n1,n2);
+      for i1=1:n1
+        sall = S(:,i1);
+        sall = cellfun(@(x)x(:),sall,'uni',0);
+        sbig{i1} = cat(1,sall{:});
+        for i2=1:n2
+          sgsall = SGS(:,i1,i2);
+          sgsall = cellfun(@(x)x(:),sgsall,'uni',0);
+          sgsbig{i1,i2} = cat(1,sgsall{:});
+          
+          slsall = SLS(:,i1,i2);
+          slsall = cellfun(@(x)x(:),slsall,'uni',0);
+          slsbig{i1,i2} = cat(1,slsall{:});          
+        end
+      end
+      
+      % compute stats
+      S99p9 = nan(n1,1);
+      SGSmax = nan(n1,n2);
+      SGS99p9 = nan(n1,n2);
+      SLSspn = cell(n1,n2);
+      SLSspn99 = cell(n1,n2);
+      SLSspn98 = cell(n1,n2);
+      SLSmu = nan(n1,n2);
+      SLSmdn = nan(n1,n2);
+      for i1=1:n1
+        s = sbig{i1};
+        assert(iscolumn(s) && all(s>=0));
+        S99p9(i1) = prctile(s,99.9);        
+        for i2=1:n2
+          sgs = sgsbig{i1,i2};
+          assert(iscolumn(sgs) && all(sgs>=0));
+          SGSmax(i1,i2) = max(sgs);
+          SGS99p9(i1,i2) = prctile(sgs,99.9);
+          
+          sls = slsbig{i1,i2};
+          assert(iscolumn(sls));  
+          span = [min(sls) max(sls)];          
+          span99 = prctile(sls,[1 99]);
+          span98 = prctile(sls,[2 98]);
+          assert(span(1)<0 && span(2)>0);
+          assert(span99(1)<0 && span99(2)>0);
+          assert(span98(1)<0 && span98(2)>0);
+%           skewfcn = @(x)sum(x)/mean(abs(x));
+%           spanskew = skewfcn(span);
+%           span99skew = skewfcn(span99);
+%           span98skew = skewfcn(span98);
+%           UNEXPECTED_SKEW_THRESH = .25;
+%           if abs(spanskew)>UNEXPECTED_SKEW_THRESH || ...
+%              abs(span99skew)>UNEXPECTED_SKEW_THRESH || ...
+%              abs(span98skew)>UNEXPECTED_SKEW_THRESH 
+%             warning('Features:ppCalib','Unexpected skew, SLS(:,%d,%d). spanskew span99skew span98skew: %.2f %.2f %.2f',....
+%               i1,i2,spanskew,span99skew,span98skew);
+%           end
+          
+          SLSspn{i1,i2} = span;
+          SLSspn99{i1,i2} = span99;
+          SLSspn98{i1,i2} = span98;          
+          SLSmu(i1,i2) = mean(sls); 
+          SLSmdn(i1,i2) = median(sls);
+        end
+      end
+    end    
   end
   
   
@@ -715,8 +857,8 @@ end
 function [mx,mn] = lclImMaxMin(Is)
 % Is: cell array of images of same size
 
-Is = cat(1,Is{:});
-Is = Is(:);
-mx = max(Is);
-mn = min(Is);
+Ismax = cellfun(@(x)max(x(:)),Is);
+Ismin = cellfun(@(x)min(x(:)),Is);
+mx = max(Ismax(:));
+mn = min(Ismin(:));
 end

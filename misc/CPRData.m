@@ -406,6 +406,7 @@ classdef CPRData < handle
         'hWaitBar',[]);
       nTrl = numel(iTrl);
       
+      ppAdnlArgs = {};
       if jan
         fprintf(1,'Using "Jan" settings.\n');
         pause(2);
@@ -415,8 +416,7 @@ classdef CPRData < handle
           2 3 ... % blur sig1(1:3)
           5 6 7 9 10 11 13 14 17 ... % SGS
           22 23 25 26 27 29 30]; % SLS
-      end
-      if romain
+      elseif isscalar(romain) && islogical(romain) && romain
         fprintf(1,'Using "Romain" settings.\n');
         pause(2);
         sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
@@ -425,9 +425,27 @@ classdef CPRData < handle
           2 3 4];% ... % blur sig1(1:3)
 %          6:8 9:12 13:16 18:19 ... % SGS
  %         23:24 26:28 29:32 33:36]; % SLS
+      elseif ischar(romain) && strcmp(romain,'full')
+        fprintf(1,'Using "RomainFull" settings.\n');
+        pause(2);
+        sig1 = [0 2 4 7 10];
+        sig2 = [0 2 4 7 10];
+        iChan = [... % really iChan is "iAddnlChan" or "iPreProcChans". iChan indexes the addnl/pp channels, not including original image
+          (2:5) ... % all S except (1,1) which is same as orig image
+          (2:3:23)+5 ... % SGS([2 5 8 ... 23])
+          (4:3:25)+5+25]; % SLS
+        % the list of addnl chans is:
+        % [S(1)..S(5) SGS(1,1)..SGS(5,1)..SGS(5,5) SLS(1,1)..SLS(5,1)..SLS(5,5)]
+        % There are 5 S's, 25 SGS's, 25 SLS's
+        ppAdnlArgs = { ...
+          'sRescale',true,...
+          'sRescaleFacs',200./Features.RF_S_99P9_SIG024710_161104,...
+          'sgsRescaleFacs',200./Features.RF_SGS_99P9_SIG024710_161104,...
+          'slsRescaleFacs',200./Features.RF_SLS_SPAN99_SIG024710_161104,...
+          'sgsRescaleClipPctThresh',2};
       end
       
-      [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,'hWaitBar',hWB);
+      [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,'hWaitBar',hWB,ppAdnlArgs{:});
       
       n1 = numel(sig1);
       n2 = numel(sig2);

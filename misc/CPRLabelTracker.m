@@ -1474,6 +1474,10 @@ classdef CPRLabelTracker < LabelTracker
       td.computeIpp([],[],[],'iTrl',1:td.N,'romain',true,varargin{:});
     end
     
+    function tdPPRFfull(td,varargin)
+      td.computeIpp([],[],[],'iTrl',1:td.N,'romain','full',varargin{:});
+    end
+    
   end
   
 end
