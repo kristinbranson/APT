@@ -29,7 +29,12 @@ classdef CalRigSH < CalRig
         obj.kineData = [];
         obj.kineDataFile = '';
       else
+        %try
         kd = load(kdfile);
+        %catch ME
+         % warning('CalRigSH:kine','Error caught loading kineData file: %s: %s\n',...
+         %   kdfile,ME.message);
+        %end
         if isfield(kd,'DLT_1') && isfield(kd,'DLT_2')
           dlt1 = kd.DLT_1;
           dlt2 = kd.DLT_2;

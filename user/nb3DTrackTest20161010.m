@@ -1,6 +1,7 @@
 %%
 ROOTDIR = 'f:\Dropbox\MultiViewFlyLegTracking\multiview labeling';
 %assert(strcmp(pwd,ROOTDIR));
+%LBLF2 = 'f:\Dropbox\MultiViewFlyLegTracking\trackingApril28-14-53\20160428T145316_allen.lbl';
 
 LBL = 'romainJun22NewLabels.lbl';
 LBL = fullfile(ROOTDIR,LBL);
@@ -76,18 +77,23 @@ tFrmPts = table(frm,npts2VwLblNO,ipts2VwLblNO,iVwsLblNO,iVwsLblNOCode,nPtsLRCode
 % nGood = numel(iPtGood);
 % fprintf('Found %d labeled pts.\n',nGood);
 
-%% 
-for i=1:size(tFrmPts,1)
-  codes = tFrmPts.iVwsLblNOCode{i};
-  for iV = 1:numel(iVws)
-    if strcmp(codes{iV},'lr')
-      fprintf(1,'%d: %d\n',tFrmPts.frm(i),tFrmPts.ipts2VwLblNO{i}(iV));
-    end
-  end
-end
+%% KB: SKIP AHEAD TO "BEGIN 4-CORNER TRACKING"
+
+%% Look at LR codes
+% for i=1:size(tFrmPts,1)
+%   codes = tFrmPts.iVwsLblNOCode{i};
+%   for iV = 1:numel(codes)
+%     if strcmp(codes{iV},'lr')
+%       fprintf(1,'%d: %d\n',tFrmPts.frm(i),tFrmPts.ipts2VwLblNO{i}(iV));
+%     end
+%   end
+% end
 
 
-%% Add reconstruct/err stats
+%%
+%%%%%%%%%%%%%%%%%%
+%% Reconstruct/err stats for rows with 19 2-view-NO labeled pts
+%%%%%%%%%%%%%%%%%%
 %
 % For points labeled in all three views ('lrb'):
 %  * Use each viewpair to recon/project in 3rd view and compute error.
@@ -199,6 +205,358 @@ end
 
 %%
 t19expandedLRB = t19expandedLRB(t19expandedLRB.ipt~=19,:);
+
+%%%%%%%%%%%%%%%%%%
+%% END Reconstruct/err stats for rows with 19 2-view-NO labeled pts
+%%%%%%%%%%%%%%%%%%
+
+%% 
+%%%%%%%%%%%%%%%%%
+%% BEGIN 4-corner tracking 20161102 (now not 4-corner, all legs)
+%%%%%%%%%%%%%%%%%
+
+iPtLegs = [...
+  1 7 13; % LF
+  2 8 14; % LM
+  3 9 15; % LH
+  4 10 16; % RF
+  5 11 17; % RM
+  6 12 18]; % RH
+
+iLegsUse = 1:6;
+iPtLegsAllUsed = iPtLegs(iLegsUse,:);
+
+%% find frames with 4-corners 2-view-NO labeled
+N = size(tFrmPts,1);
+tfLegsLbled = arrayfun(@(x)all(ismember(iPtLegsAllUsed(:),tFrmPts.ipts2VwLblNO{x})),(1:N)');
+tfLegsLbledBinc = false(N,1);
+for i=1:N  
+  [tf,loc] = ismember(iPtLegsAllUsed(:),tFrmPts.ipts2VwLblNO{i});
+  if all(tf)
+    vwCodes = tFrmPts.iVwsLblNOCode{i};
+    vwCodesLegs = vwCodes(loc);
+    tfLegsLbledBinc(i) = all(cellfun(@(x)any(x=='b'),vwCodesLegs));
+  end
+end
+tMFP = tFrmPts(tfLegsLbledBinc,:);
+
+% tMFP contains all rows for frames labeled i) in at least 2 views (with 
+% non-Occluded labels), where one of the views is the Bottom (eg the Bottom
+% must be labeled)
+
+%%
+mfa = lbl.movieFilesAll;
+% KB: modify regexprep for your local filesystem
+mfa = regexprep(mfa,'C:\\Users\\nielsone\\Dropbox \(HHMI\)','f:\\Dropbox');
+movs = repmat(mfa,size(tMFP,1),1);
+movs = struct('movs',{movs});
+movs = struct2table(movs);
+tMFP = [tMFP movs];
+%%
+[I,pGT3d,bboxes,pGt3dRCerr] = rfCompileData3D(tMFP,mfa,lbl.labeledpos,crig2);
+
+%% check all legs have a coord
+nrows = size(I,1);
+pGt3d3 = reshape(pGT3d,nrows,19,3);
+for iLeg=iLegsUse
+  ipts = iPtLegs(iLeg,:);
+  z = pGt3d3(:,ipts,:); 
+  szassert(z,[nrows numel(ipts) 3]);
+  assert(nnz(isnan(z))==0);
+end
+  
+%% viz pGT with bboxes
+figure('windowstyle','docked');
+ax = axes;
+hold(ax,'on');
+MARKERS = {'o' 's' 'v'};
+COLORS = {'b' 'g' 'r' 'k' 'y' 'm'};
+for i=1:6
+  iLeg = iLegsUse(i);
+  iptsleg = iPtLegs(iLeg,:);
+  for j=1:3
+    ipt = iptsleg(j);
+    xyz = squeeze(pGt3d3(:,ipt,:));
+    szassert(xyz,[nrows 3]);
+    scatter3(ax,xyz(:,1),xyz(:,2),xyz(:,3),20,COLORS{i},MARKERS{j},'filled');
+  end
+end
+grid(ax,'on');
+xlabel('x','fontweight','bold');
+ylabel('y','fontweight','bold');
+zlabel('z','fontweight','bold');
+ax.XLim = [bboxes(1) bboxes(1)+bboxes(4)];
+ax.YLim = [bboxes(2) bboxes(2)+bboxes(5)];
+ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
+%% histeq I
+% H0 = cell(1,NVIEW);
+% tfuse = cell(1,NVIEW);
+% for iView=1:NVIEW
+%  [H0{iView},tfuse{iView}] = typicalImHist(I(:,iView));
+% end
+% 
+% IHE = cell(size(I));
+% for iRow=1:nrows
+%   for iView=1:NVIEW
+%     IHE{iRow,iView} = histeq(I{iRow,iView},H0{iView});
+%   end
+%   if mod(iRow,10)==0
+%     fprintf(1,'histeq row %d\n',iRow);
+%   end
+% end
+%% histeq
+% Nlook = 5;
+% axs = createsubplots(3,5);
+% axs = reshape(axs,3,5);
+% randrows = randint2(1,Nlook,[1 nrows]);
+% GAMMA = .3;
+% mgray = gray(256);
+% mgray2 = imadjust(mgray,[],[],GAMMA);
+% for iLook=1:Nlook
+%   row = randrows(iLook);
+%   for iVw=1:3
+%     ax = axs(iVw,iLook);
+%     axes(ax);
+%     imagesc([I{row,iVw};IHE{row,iVw}]);
+%     colormap(ax,mgray2);
+%     axis(ax,'equal');
+%   end
+% end  
+
+%% montage I/pGT
+Imontage = I;
+Nmont = 1;
+figure('windowstyle','docked');
+axs = createsubplots(Nmont,3);
+axs = reshape(axs,Nmont,3);
+randrows = randint2(1,Nmont,[1 nrows]);
+GAMMA = .3;
+mgray = gray(256);
+mgray2 = imadjust(mgray,[],[],GAMMA);
+for iMont=1:Nmont
+  iRow = randrows(iMont);
+  for iView=1:3
+    ax = axs(iMont,iView);
+    axes(ax);
+    imagesc(Imontage{iRow,iView});
+    colormap(ax,mgray2);
+    axis(ax,'equal')
+    
+    if iView==1
+      title(ax,num2str(iRow),'fontweight','bold');
+    end
+    if ~(iView==3 && iMont==1)
+      ax.XTick = [];
+      ax.YTick = [];
+    end
+  end
+  
+  X = cell(1,3);
+  %X{1} = squeeze(pGT3dLegs3(iRow,:,:))';
+  X{1} = squeeze(pGt3d3(iRow,:,:))';
+  %szassert(X{1},[3 18]);
+  szassert(X{1},[3 19]);
+  X{2} = crig2.camxform(X{1},'lr');
+  X{3} = crig2.camxform(X{1},'lb');
+  
+  MARKERS = {'o' 's' 'v'};
+  COLORS = {[1 0 0] [0 1 0] [0 1 1] [1 1 0] [0 0 1] [1 0 1]};
+  for i=1:6
+    iLeg = iLegsUse(i);
+    iptsleg = iPtLegs(iLeg,:);
+    for j=1:3
+      ipt = iptsleg(j);
+      %ipt = (i-1)*3+j;
+      for iView=1:3
+        ax = axs(iMont,iView);
+        hold(ax,'on');
+        Xtmp = X{iView}(:,ipt);
+        [r,c] = crig2.projectCPR(Xtmp,iView);
+        plot(ax,c,r,[MARKERS{j}],'markersize',8,'color',COLORS{i},'markerfacecolor',COLORS{i});
+      end
+    end
+  end
+end
+
+
+
+%%
+PARAMFILE = 'f:\romain\tp@18pts@3d.yaml'; % KB: this is in .../forKB
+sPrm = ReadYaml(PARAMFILE);
+sPrm.Model.nviews = 3;
+sPrm.Model.Prm3D.iViewBase = 1;
+sPrm.Model.Prm3D.calrig = crig2;
+rc = RegressorCascade(sPrm);
+rc.init();
+
+%%
+tmp = iPtLegsAllUsed';
+idxD = tmp(:)';
+idxD = [idxD idxD+19 idxD+2*19];
+pGT3dLegs = pGT3d(:,idxD);
+pGT3dLegs3 = reshape(pGT3dLegs,[size(pGT3dLegs,1) 18 3]);
+
+%%
+N = size(I,1);
+pAll = rc.trainWithRandInit(I,repmat(bboxes,N,1),pGT3dLegs);
+pAll = reshape(pAll,N,50,18*3,rc.nMajor+1);
+
+%% Browse propagated replicates
+TESTROWIDX = 2; % Pick any training row to view convergence
+NPTS = 18;
+frame = tMFP.frm(TESTROWIDX);
+lObj = Labeler;
+lObj.projLoad(LBL); % KB: this won't be able to find movies will prompt you to locate
+lObj.setFrame(frame);
+%lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
+axAll = lObj.gdata.axes_all;
+if exist('hLine','var')>0
+  deleteValidHandles(hLine);
+end
+hLine = gobjects(3,NPTS);
+for iAx = 1:3
+  ax = axAll(iAx);
+  hold(ax,'on');
+  clrs = [1 0 0;1 0 0;1 0 0; ...
+          1 1 0;1 1 0;1 1 0; ...
+          0 1 0;0 1 0;0 1 0; ...
+          0 1 1;0 1 1;0 1 1; ...
+          0 0 1;0 0 1;0 0 1; ...
+          1 0 1;1 0 1;1 0 1];
+          
+  for iPt = 1:NPTS
+    hLine(iAx,iPt) = plot(ax,nan,nan,'.',...
+      'markersize',20,...
+      'Color',clrs(iPt,:));
+  end
+end
+
+pRepTrow = squeeze(pAll(TESTROWIDX,:,:,:));
+szassert(pRepTrow,[50 18*3 rc.nMajor+1]);
+
+for t=1:rc.nMajor+1
+  pRep = pRepTrow(:,:,t);
+  pRep = reshape(pRep,50,18,3); % (iRep,iPt,iDim)
+  for iVw=1:3
+    for iPt=1:18 
+      X = squeeze(pRep(:,iPt,:)); % [50x3]
+      Xvw = crig2.viewXformCPR(X',1,iVw); % iViewBase==1
+      [r,c] = crig2.projectCPR(Xvw,iVw);
+      
+      h = hLine(iVw,iPt);
+      set(h,'XData',c,'YData',r);
+    end
+  end
+  
+  input(sprintf('t=%d',t));
+end
+
+%% Propagate on labeled, nontraining data
+%frmTest = 1:1000;
+frmTest = 10850:11849;
+[ITest,tblTest] = Labeler.lblCompileContentsRaw(...
+  lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,1,{frmTest},...
+  'hWaitBar',waitbar(0));
+
+% NOTE: tblTest.p is projected/concatenated
+%%
+nTest = size(ITest,1);
+[pAllTest,pIidxTest] = rc.propagateRandInit(ITest,repmat(bboxes,nTest,1),sPrm.TestInit);
+%pAllTest = reshape(pAllTest,nTest,50,36,31);
+
+%% Prune Propagated Replicates
+trkD = rc.prmModel.D;
+Tp1 = rc.nMajor+1;
+nTestAug = sPrm.TestInit.Nrep;
+pTstT = reshape(pAllTest,[nTest nTestAug trkD Tp1]);
+%pTstT = pAllTest;
+
+pTstTRed = nan(nTest,trkD,Tp1);
+assert(sPrm.Prune.prune==1);
+for t = 1:Tp1
+  fprintf('Pruning t=%d\n',t);
+  pTmp = permute(pTstT(:,:,:,t),[1 3 2]); % [NxDxR]
+  pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,sPrm.Model,sPrm.Prune);
+end
+pTstTRedFinalT = pTstTRed(:,:,end);
+
+%% Browse test frames in Labeler
+axAll = lObj.gdata.axes_all;
+if exist('hLine','var')>0
+  deleteValidHandles(hLine);
+end
+
+hLine = gobjects(3,NPTS);
+for iAx = 1:3
+  ax = axAll(iAx);
+  hold(ax,'on');
+  clrs = [1 0 0;1 0 0;1 0 0; ...
+          1 1 0;1 1 0;1 1 0; ...
+          0 1 0;0 1 0;0 1 0; ...
+          0 1 1;0 1 1;0 1 1; ...
+          1 0 1;1 0 1;1 0 1; ...
+          0 0 1;0 0 1;0 0 1];
+  for iPt = 1:NPTS
+    hLine(iAx,iPt) = plot(ax,nan,nan,'.',...
+      'markersize',20,...
+      'Color',clrs(iPt,:));
+  end
+end
+
+nTest = size(pTstTRedFinalT,1);
+pTstTRedFinalT = reshape(pTstTRedFinalT,nTest,18,3);
+for iF=1:numel(frmTest)
+  f = frmTest(iF);
+  lObj.setFrame(f);
+
+  pTstBest = squeeze(pTstTRedFinalT(iF,:,:));
+  for iVw=1:3
+    for iPt=1:18
+      X = pTstBest(iPt,:);
+      Xvw = crig2.viewXformCPR(X',1,iVw); % iViewBase==1
+      [r,c] = crig2.projectCPR(Xvw,iVw);
+      
+      h = hLine(iVw,iPt);
+      set(h,'XData',c,'YData',r);
+    end
+  end
+  
+  drawnow
+  %input(sprintf('frame=%d',f));
+end
+
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% END
+%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%%%%
+% OLD STUFF STARTING HERE
+%%%%%%%%%%%%%
+
+
+%% viz pGT in 3d
+pGT2 = reshape(pGT_1_7_13,nRows,3,3);
+clrs = parula(3);
+hFig = figure('windowstyle','docked');
+ax = axes;
+hold(ax,'on');
+for iRow = 1:nRows
+  for iPt=1:3
+    x = pGT2(iRow,iPt,1);
+    y = pGT2(iRow,iPt,2);
+    z = pGT2(iRow,iPt,3);
+    plot3(ax,x,y,z,'o','MarkerFaceColor',clrs(iPt,:));
+    text(x,y,z,num2str(iPt),'parent',ax,'Color',[0 0 0],'fontsize',12);
+  end
+end
+ax.XLim = [bboxes(1) bboxes(1)+bboxes(4)];
+ax.YLim = [bboxes(2) bboxes(2)+bboxes(5)];
+ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
+
+
+
 %% Browse original/recon labels for given frame/pt
 % CONC: first one is mislabel in side view. second one is mislabel in
 % bottom view. 
@@ -236,100 +594,6 @@ for iF=1:numel(frms)
   input(num2str(iF));
 end
 
-%% gen I, bboxes, pGT
-
-% take codes 'lrb' 'lb' 'br'
-tfNoLR = t19aug.nPtsLRCode==0;
-fprintf(1,'%d/%d rows have at least one ''lr'' code. Taking remaining %d rows.\n',...
-  nnz(~tfNoLR),size(t19aug,1),nnz(tfNoLR));
-t19AugNoLR = t19aug(tfNoLR,:);
-
-tbl = t19AugNoLR;
-
-codes = cat(1,tbl.iVwsLblNOCode{:});
-codesUn = unique(codes);
-codesUnCnt = cellfun(@(x)nnz(strcmp(x,codes)),codesUn);
-fprintf(1,'Distro of codes:\n');
-[codesUn num2cell(codesUnCnt)]
-
-% accum pGT
-% NOTE: for p-vectors or shapes, there are two flavors:
-% * "concatenated-projected", ie you take the projected labels and
-% concatenate. numel here is npts x nView x 2, raster order is pt, view,
-% coord (x vs y).
-% * absolute/3d, numel here is npts x 3, raster order is pt, coord (x vs y
-% vs z).
-
-nRows = size(tbl,1);
-pGT = nan(nRows,19*3);
-for i=1:nRows
-  x = tbl.XL{i}; % 3x19
-  x = x';
-  szassert(x,[19 3]);
-  pGT(i,:) = x(:);
-end
-
-% I
-MOVDIR = 'F:\Dropbox\MultiViewFlyLegTracking\trackingJun22-11-02';
-MOVS = {
-  'bias_video_cam_0_date_2016_06_22_time_11_02_02_v001.avi'
-  'bias_video_cam_1_date_2016_06_22_time_11_02_13_v001.avi'
-  'bias_video_cam_2_date_2016_06_22_time_11_02_28_v001.avi'
-  };
-movsFull = fullfile(MOVDIR,MOVS);
-nView = 3;
-assert(numel(movsFull)==nView);
-for iView=1:nView
-  mr(iView) = MovieReader();
-  mr(iView).open(movsFull{iView});
-  mr(iView).forceGrayscale = true;
-end
-I = cell(nRows,nView);
-for iRow=1:nRows
-  frm = tbl.frm(iRow);
-  for iView=1:nView
-    I{iRow,iView} = mr(iView).readframe(frm);
-  end
-  if mod(iRow,10)==0
-    fprintf(1,'Read row %d\n',iRow);
-  end
-end
-
-%% viz pGT in 3d
-pGT2 = reshape(pGT_1_7_13,nRows,3,3);
-clrs = parula(3);
-hFig = figure('windowstyle','docked');
-ax = axes;
-hold(ax,'on');
-for iRow = 1:nRows
-  for iPt=1:3
-    x = pGT2(iRow,iPt,1);
-    y = pGT2(iRow,iPt,2);
-    z = pGT2(iRow,iPt,3);
-    plot3(ax,x,y,z,'o','MarkerFaceColor',clrs(iPt,:));
-    text(x,y,z,num2str(iPt),'parent',ax,'Color',[0 0 0],'fontsize',12);
-  end
-end
-ax.XLim = [bboxes(1) bboxes(1)+bboxes(4)];
-ax.YLim = [bboxes(2) bboxes(2)+bboxes(5)];
-ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
-
-%% bboxes
-pGT2mins = nan(1,3);
-pGT2maxs = nan(1,3);
-for i=1:3
-  x = pGT2(:,:,i); % x-, y-, or z-coords for all rows, pts
-  pGT2mins(i) = min(x(:));
-  pGT2maxs(i) = max(x(:));
-end
-dels = pGT2maxs-pGT2mins;
-% pad by 50% in every dir
-pads = dels/2;
-widths = 2*dels; % del (shapes footprint) + 2*pads (one on each side)
-bboxes = [pGT2mins-pads widths];
-
-[pGT2mins; pGT2maxs; dels] 
-bboxes
 
 %% pGT for 1-7-13
 iPts_1_7_13 = [1 7 13];

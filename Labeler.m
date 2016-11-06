@@ -2817,18 +2817,97 @@ classdef Labeler < handle
           error('Labeler:calib',...
             'Current labeling mode does not support calibration files.');
       end
-      s = load(fname,'-mat');
-      flds = fieldnames(s);
-      if numel(flds)>1
-        warning('Labeler:calrig',...
-          'Calibration file contains more than one variable. Using first variable, ''%s''.',...
-          flds{1});
+      s = load(fname,'-mat'); % Could use whos('-file') with superclasses()
+      vars = fieldnames(s);
+      if numel(vars)==0
+        error('Labeler:calib','No variables found in file: %s.',fname);
       end
-      crigObj = s.(flds{1}); 
-      if ~isa(crigObj,'CalRig')
-        error('Labeler:calrig',...
-          'Calibration file ''%s'', variable ''%s'' does not contain a CalRig object.',...
-          fname,flds{1});
+      
+      if isa(s.(vars{1}),'CalRig') % Could check all vars
+        crigObj = s.(vars{1});
+        tfSetViewSizes = false;
+      elseif all(ismember({'DLT_1' 'DLT_2'},vars))
+        % SH
+        crigObj = CalRigSH;
+        crigObj.setKineData(fname);
+        tfSetViewSizes = true;
+      elseif all(ismember({'om' 'T' 'R' 'active_images_left' 'recompute_intrinsic_right'},vars))
+        % Bouget Calib_Results_stereo.mat file
+        % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes that
+        % are set below
+        crigObj = CalRig2CamCaltech(fname);
+        tfSetViewSizes = true;        
+      else
+        error('Labeler:calib',...
+          'Calibration file ''%s'' has unrecognized contents.',fname);
+      end
+      
+      nView = obj.nview;
+      if nView~=crigObj.nviews
+        error('Labeler:calib',...
+          'Number of views in project inconsistent with calibration object.');
+      end
+      if ~all(strcmpi(obj.viewNames(:),crigObj.viewNames(:)))
+        warning('Labeler:calib',...
+          'Project viewnames do not match viewnames in calibration object.');
+      end
+      
+      % First check movie widths/heights in project
+      ifo = obj.movieInfoAll;
+      widths = cellfun(@(x)x.info.Width,ifo);
+      heights = cellfun(@(x)x.info.Height,ifo);
+      szassert(widths,[obj.nmovies nView]);
+      szassert(heights,[obj.nmovies nView]);
+      tfAllSizesSame = true(1,nView);
+      if obj.nmovies>0
+        for iVw=1:nView
+          tfAllSizesSame(iVw) = all(widths(:,iVw)==widths(1,iVw)) && ...
+                           all(heights(:,iVw)==heights(1,iVw));
+          if ~tfAllSizesSame(iVw)
+            warnstr = sprintf('The movies in this project have varying view/image sizes for view %d (%s). This probably doesn''t work well with calibrations; proceed at your own risk.',...
+              iVw,obj.viewNames{iVw});
+            warndlg(warnstr,'Image sizes vary','non-modal');
+          end
+        end
+      end
+      
+      if tfSetViewSizes
+        if obj.nmovies==0
+          error('Labeler:calib','Add a movie first so the view size can be determined.');
+        end
+        if all(tfAllSizesSame)
+          iMovUse = 1;
+        else
+          iMovUse = obj.currMovie;
+          if iMovUse==0
+            iMovUse = 1; % dangerous for user, but we already warned them
+          end
+        end
+        
+        vwSizes = [widths(iMovUse,:)' heights(iMovUse,:)'];
+        crigObj.viewSizes = vwSizes;
+        for iVw=1:nView
+          fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
+            vwSizes(iVw,1),vwSizes(iVw,2),iVw,crigObj.viewNames{iVw});
+        end
+      else
+        % Don't set view sizes, but check them
+        iMovCheck = obj.currMovie;
+        if iMovCheck==0 
+          if obj.nmovies==0
+            iMovCheck = nan;
+          else
+            iMovCheck = 1;
+          end
+        end
+        if ~isnan(iMovCheck)
+          vwSizesExpect = [widths(iMovCheck,:)' heights(iMovCheck,:)'];
+          if ~isequal(crigObj.viewSizes,vwSizesExpect)
+            warnstr = sprintf('View sizes in calibration object (%s) do not match movie (%s).',...
+              mat2str(crigObj.viewSizes),mat2str(vwSizesExpect));
+            warndlg(warnstr,'View size mismatch','non-modal');
+          end
+        end
       end
       
       obj.viewCalibrationData = crigObj;
