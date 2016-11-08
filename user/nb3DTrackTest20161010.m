@@ -41,10 +41,18 @@ iVwsLblNOCode = cell(0,1);
 % yR = nan(0,2);
 % yB = nan(0,2);
 VIEWCODES = 'lrb';
+
+frmAny = nan(0,1);
+npts2VwLblAny = nan(0,1);
+ipts2VwLblAny = cell(0,1);
+iVwsLblAny = cell(0,1);
+iVwsLblAnyCode = cell(0,1);
 for f=1:nfrm
   
   iVwLbledNonOccPt = cell(NREALPT,1);
   tf2VwLbledNonOcc = false(NREALPT,1);
+  iVwLbledAnyPt = cell(NREALPT,1);
+  tf2VwLbledAny = false(NREALPT,1);
   for ipt = 1:NREALPT
     lposptfrm = squeeze(lpos(ipt,:,:,f));
     ltagptfrm = squeeze(lpostag(ipt,:,f));
@@ -55,6 +63,9 @@ for f=1:nfrm
     tfVwNotOcc = cellfun(@isempty,ltagptfrm);    
     iVwLbledNonOccPt{ipt} = find(tfVwLbled & tfVwNotOcc);      
     tf2VwLbledNonOcc(ipt) = numel(iVwLbledNonOccPt{ipt})>=2;
+    
+    iVwLbledAnyPt{ipt} = find(tfVwLbled);
+    tf2VwLbledAny(ipt) = nnz(tfVwLbled)>=2;
   end
 
   if any(tf2VwLbledNonOcc)
@@ -64,6 +75,15 @@ for f=1:nfrm
     iVwsLblNO{end+1,1} = iVwLbledNonOccPt(tf2VwLbledNonOcc);
     iVwsLblNOCode{end+1,1} = cellfun(@(x)VIEWCODES(x),...
       iVwLbledNonOccPt(tf2VwLbledNonOcc),'uni',0);
+  end
+  
+  if any(tf2VwLbledAny)
+    frmAny(end+1,1) = f;
+    npts2VwLblAny(end+1,1) = nnz(tf2VwLbledAny);
+    ipts2VwLblAny{end+1,1} = find(tf2VwLbledAny);
+    iVwsLblAny{end+1,1} = iVwLbledAnyPt(tf2VwLbledAny);
+    iVwsLblAnyCode{end+1,1} = cellfun(@(x)VIEWCODES(x),...
+      iVwLbledAnyPt(tf2VwLbledAny),'uni',0);    
   end
   
 %   tf2VwLbledNonOcc(end+1,1) = nnz(tfVwLbled & tfVwNotOcc)>=2;
@@ -76,7 +96,8 @@ nPtsLRCode = cellfun(@(x)nnz(strcmp('lr',x)),iVwsLblNOCode);
 tFrmPts = table(frm,npts2VwLblNO,ipts2VwLblNO,iVwsLblNO,iVwsLblNOCode,nPtsLRCode);
 % nGood = numel(iPtGood);
 % fprintf('Found %d labeled pts.\n',nGood);
-
+tFrmPtsAny = table(frmAny,npts2VwLblAny,ipts2VwLblAny,iVwsLblAny,iVwsLblAnyCode);
+tFrmPtsAny.Properties.VariableNames{'frmAny'} = 'frm';
 %% KB: SKIP AHEAD TO "BEGIN 4-CORNER TRACKING"
 
 %% Look at LR codes
@@ -228,7 +249,7 @@ iPtLegsAllUsed = iPtLegs(iLegsUse,:);
 
 %% find frames with 4-corners 2-view-NO labeled
 N = size(tFrmPts,1);
-tfLegsLbled = arrayfun(@(x)all(ismember(iPtLegsAllUsed(:),tFrmPts.ipts2VwLblNO{x})),(1:N)');
+%tfLegsLbled = arrayfun(@(x)all(ismember(iPtLegsAllUsed(:),tFrmPts.ipts2VwLblNO{x})),(1:N)');
 tfLegsLbledBinc = false(N,1);
 for i=1:N  
   [tf,loc] = ismember(iPtLegsAllUsed(:),tFrmPts.ipts2VwLblNO{i});
@@ -244,16 +265,35 @@ tMFP = tFrmPts(tfLegsLbledBinc,:);
 % non-Occluded labels), where one of the views is the Bottom (eg the Bottom
 % must be labeled)
 
+%% find frames with legs 2-view labeled (occlusion OK), bot must have label
+N = size(tFrmPtsAny,1);
+tfLegsLbledBinc = false(N,1);
+for i=1:N
+  [tf,loc] = ismember(iPtLegsAllUsed(:),tFrmPtsAny.ipts2VwLblAny{i});
+  if all(tf)
+    vwCodes = tFrmPtsAny.iVwsLblAnyCode{i};
+    vwCodesLegs = vwCodes(loc);
+    tfLegsLbledBinc(i) = all(cellfun(@(x)any(x=='b'),vwCodesLegs));
+    assert(all(cellfun(@(x)numel(x)>=2,vwCodesLegs)));
+  end
+end
+tMFPAny = tFrmPtsAny(tfLegsLbledBinc,:);
+
+% tMFPAny contains all rows for frames labeled in at least 2 views
+% (occluded or not), where the Bottom is labeled.
+
 %%
+tMFPTrn = tMFPAny;
+
 mfa = lbl.movieFilesAll;
 % KB: modify regexprep for your local filesystem
 mfa = regexprep(mfa,'C:\\Users\\nielsone\\Dropbox \(HHMI\)','f:\\Dropbox');
-movs = repmat(mfa,size(tMFP,1),1);
+movs = repmat(mfa,size(tMFPTrn,1),1);
 movs = struct('movs',{movs});
 movs = struct2table(movs);
-tMFP = [tMFP movs];
+tMFPTrn = [tMFPTrn movs];
 %%
-[I,pGT3d,bboxes,pGt3dRCerr] = rfCompileData3D(tMFP,mfa,lbl.labeledpos,crig2);
+[I,pGT3d,bboxes,pGt3dRCerr] = rfCompileData3D(tMFPTrn,mfa,lbl.labeledpos,crig2);
 
 %% check all legs have a coord
 nrows = size(I,1);
@@ -402,11 +442,13 @@ pAll = rc.trainWithRandInit(I,repmat(bboxes,N,1),pGT3dLegs);
 pAll = reshape(pAll,N,50,18*3,rc.nMajor+1);
 
 %% Browse propagated replicates
-TESTROWIDX = 2; % Pick any training row to view convergence
+TESTROWIDX = 222; % Pick any training row to view convergence
 NPTS = 18;
-frame = tMFP.frm(TESTROWIDX);
-lObj = Labeler;
-lObj.projLoad(LBL); % KB: this won't be able to find movies will prompt you to locate
+frame = tMFPTrn.frm(TESTROWIDX);
+if exist('lObj','var')==0
+  lObj = Labeler;
+  lObj.projLoad(LBL); % KB: this won't be able to find movies will prompt you to locate
+end
 lObj.setFrame(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
@@ -452,17 +494,18 @@ for t=1:rc.nMajor+1
 end
 
 %% Propagate on labeled, nontraining data
-%frmTest = 1:1000;
-frmTest = 10850:11849;
+frmTest = 1:1000;
+%frmTest = 10850:11849;
+hWB = waitbar(0);
 [ITest,tblTest] = Labeler.lblCompileContentsRaw(...
   lObj.movieFilesAll,lObj.labeledpos,lObj.labeledpostag,1,{frmTest},...
-  'hWaitBar',waitbar(0));
+  'hWaitBar',hWB);
+delete(hWB);
 
 % NOTE: tblTest.p is projected/concatenated
 %%
 nTest = size(ITest,1);
 [pAllTest,pIidxTest] = rc.propagateRandInit(ITest,repmat(bboxes,nTest,1),sPrm.TestInit);
-%pAllTest = reshape(pAllTest,nTest,50,36,31);
 
 %% Prune Propagated Replicates
 trkD = rc.prmModel.D;
@@ -524,6 +567,96 @@ for iF=1:numel(frmTest)
   drawnow
   %input(sprintf('frame=%d',f));
 end
+
+%%
+close all
+
+%% Make a movie
+OUTMOV = '3d_1_1000_2.avi';
+FRAMERATE = 24;
+GAMMA = .3;
+mgray = gray(256);
+mgray2 = imadjust(mgray,[],[],GAMMA);
+
+bigim = nan(640+624,672);
+mrs = lObj.movieReader;
+hFig = figure;
+ax = axes;
+hIm = imagesc(ax,bigim);
+colormap(ax,mgray2);
+truesize(hFig);
+hold(ax,'on');
+ax.XTick = [];
+ax.YTick = [];
+
+hLine = gobjects(3,NPTS);
+for iVw = 1:3
+  clrs = [1 0 0;1 0 0;1 0 0; ...
+          1 1 0;1 1 0;1 1 0; ...
+          0 1 0;0 1 0;0 1 0; ...
+          0 1 1;0 1 1;0 1 1; ...
+          1 0 1;1 0 1;1 0 1; ...
+          0 0 1;0 0 1;0 0 1];
+  for iPt = 1:NPTS
+    hLine(iVw,iPt) = plot(ax,nan,nan,'.',...
+      'markersize',28,...
+      'Color',clrs(iPt,:));
+  end
+end
+
+vr = VideoWriter(OUTMOV);      
+vr.FrameRate = FRAMERATE;
+vr.open();
+
+hTxt = text(10,15,'','parent',ax,'Color','white','fontsize',24);
+hWB = waitbar(0,'Writing video');
+
+for iF=1:numel(frmTest)
+  f = frmTest(iF);
+  
+  imL = mrs(1).readframe(f);
+  imR = mrs(2).readframe(f);
+  imB = mrs(3).readframe(f);  
+  bigim(24+(1:592),48+(1:288)) = imL;
+  bigim(1:640,48+288+(1:288)) = imR;
+  bigim(640+(1:624),1:672) = imB;  
+  hIm.CData = bigim;
+  
+  pTstBest = squeeze(pTstTRedFinalT(iF,:,:));
+  for iVw=1:3
+    for iPt=1:18
+      X = pTstBest(iPt,:);
+      Xvw = crig2.viewXformCPR(X',1,iVw); % iViewBase==1
+      [r,c] = crig2.projectCPR(Xvw,iVw);
+
+      switch iVw
+        case 1
+          rr = r+24;
+          cc = c+48;
+        case 2
+          rr = r;
+          cc = c+48+288;
+        case 3
+          rr = r+640;
+          cc = c;
+      end
+      
+      hL = hLine(iVw,iPt);
+      set(hL,'XData',cc,'YData',rr);
+    end
+  end
+  
+  hTxt.String = sprintf('%04d',f);
+  drawnow
+  
+  tmpFrame = getframe(ax);
+  vr.writeVideo(tmpFrame);
+  waitbar(iF/numel(frmTest),hWB,sprintf('Wrote frame %d\n',f));
+end
+       
+vr.close();
+delete(hTxt);
+delete(hWB);
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
