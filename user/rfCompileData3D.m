@@ -36,6 +36,31 @@ function [I,pGT3d,bboxes,pGt3dRCerr,tMFP] = rfCompileData3D(tMFP,lblMovSets,lblL
 % * absolute/3d, numel here is npts x 3, raster order is pt, coord (x vs y
 % vs z).
 
+tMFPflds = tMFP.Properties.VariableNames;
+tf = strncmp('npts',tMFPflds,4);
+assert(nnz(tf)==1);
+fldNptsLbled = tMFPflds{tf};
+tf = strncmp('ipts',tMFPflds,4);
+assert(nnz(tf)==1);
+fldIptsLbled = tMFPflds{tf};
+tf = ~cellfun(@isempty,regexpi(tMFPflds,'code','once'));
+assert(nnz(tf)==1);
+fldCodeLbled = tMFPflds{tf};
+
+str = sprintf('Found fields in tMFP: (npts,ipts,code)->(%s,%s,%s). OK?.',...
+  fldNptsLbled,fldIptsLbled,fldCodeLbled);
+btn = questdlg(str,'Confirm table fields','OK','Cancel','OK');
+if isempty(btn)
+  btn = 'Cancel';
+end
+switch btn
+  case 'OK'
+    % none
+  case 'Cancel'
+    return;
+end
+    
+
 
 %%
 nRows = size(tMFP,1);
@@ -58,7 +83,7 @@ for iMovSet=1:nMovSet
 end
 
 %% Label codes, distributions
-codes = cat(1,tMFP.iVwsLblNOCode{:});
+codes = cat(1,tMFP.(fldCodeLbled){:});
 codes = categorical(codes);
 fprintf(1,'Codes summary: \n');
 summary(codes);
@@ -85,9 +110,9 @@ for iRow = 1:nRows
   lpos = reshape(lblLpos{iMovSet},[19 nView 2 nFrames(iMovSet)]);
 
   frm = tMFP.frm(iRow);
-  nptsLbled = tMFP.npts2VwLblNO(iRow);
-  iptsLbled = tMFP.ipts2VwLblNO{iRow};
-  iVwCodeLbled = tMFP.iVwsLblNOCode{iRow};
+  nptsLbled = tMFP.(fldNptsLbled)(iRow);
+  iptsLbled = tMFP.(fldIptsLbled){iRow};
+  iVwCodeLbled = tMFP.(fldCodeLbled){iRow};
   szassert(iptsLbled,[nptsLbled 1]);
   szassert(iVwCodeLbled,[nptsLbled 1]);  
   
