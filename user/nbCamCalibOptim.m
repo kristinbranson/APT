@@ -1,30 +1,48 @@
-%%
-ROOTDIR = 'f:\Dropbox\MultiViewFlyLegTracking\multiview labeling';
-assert(strcmp(pwd,ROOTDIR));
+%% Load safe labels and starting calibration
 
-LBL = fullfile(ROOTDIR,'romainMV2_safeLabels.lbl');
-NVIEW = 3;
-NREALPT = 57/3;
-CRIG = fullfile(ROOTDIR,'crig2_calibjun2916_roiTrackingJun22_20160809.mat');
+% SET ME: project/lbl file containing safe/sure labels. Currently, the
+% project is expected to contain only a single movie.
+LBL = 'f:\Dropbox\MultiViewFlyLegTracking\multiview labeling\romainMV2_safeLabels.lbl';
+
+% SET ME: base/starting CalibratedRig2 object (eg calibration object used
+% to generate labels in LBL)
+CRIG = 'f:\Dropbox\MultiViewFlyLegTracking\multiview labeling\crig2_calibjun2916_roiTrackingJun22_20160809.mat';
+%CRIG = 'f:\Dropbox\MultiViewFlyLegTracking\multiview labeling\crig2Optimized_calibjun2916_roiTrackingJun22_20160810_AllExtAllInt.mat';
 
 lbl = load(LBL,'-mat');
+lbl = Labeler.lblModernize(lbl);
+if numel(lbl.movieFilesAll)>1
+  warning('Project has more than one movie. Only using labels for first movie.');
+end  
+
 crig2 = load(CRIG,'-mat');
-crig2 = crig2.crig2;
-%%
+flds = fieldnames(crig2);
+assert(isstruct(crig2) && isscalar(flds),...
+  'Unexpected contents in calibration rig file: %s',CRIG);
+crig2 = crig2.(flds{1});
+if ~isa(crig2,'CalibratedRig2')
+  warning('Expected a CalibratedRig2 object.');
+end
+
+%% Read table of labeled data
+nView = lbl.cfg.NumViews;
+assert(nView==3);
+nRealPt = lbl.cfg.NumLabelPoints;
+assert(nRealPt==57/3);
+
 lpos = lbl.labeledpos{1};
 lpostag = lbl.labeledpostag{1};
 nfrm = size(lpos,3);
-lpos = reshape(lpos,[NREALPT NVIEW 2 nfrm]);
-lpostag = reshape(lpostag,[NREALPT NVIEW nfrm]);
+lpos = reshape(lpos,[nRealPt nView 2 nfrm]);
+lpostag = reshape(lpostag,[nRealPt nView nfrm]);
 
-%%
 iPtGood = nan(0,1);
 frmGood = nan(0,1);
 yL = nan(0,2); % GT pts: (row,col) cropped coords in L view
 yR = nan(0,2);
 yB = nan(0,2);
 for f=1:nfrm
-for ipt = 1:NREALPT
+for ipt = 1:nRealPt
   tflbled = nnz(isnan(lpos(ipt,:,:,f)))==0;
   tfnotocc = all(cellfun(@isempty,lpostag(ipt,:,f)));
   tf = tflbled & tfnotocc;  
@@ -38,39 +56,74 @@ for ipt = 1:NREALPT
   end
 end
 end
-nGood = numel(iPtGood);
-fprintf('Found %d labeled pts.\n',nGood);
 
-%% Data cleaning
-% [~,~,~,~,~,~,errfull(:,1),errfull(:,2),errfull(:,3)] = ...
-%   calibRoundTrip(yL,yR,yB,crig2);
+tFP = table(frmGood,iPtGood,yL,yR,yB);
+tFP.Properties.VariableNames{'frmGood'} = 'frm';
+tFP.Properties.VariableNames{'iPtGood'} = 'ipt';
+nGood = size(tFP,1);
+fprintf('Found %d labeled (non-occluded) pts.\n',nGood);
+
+clear iPtGood frmGood yL yR yB;
+
+%% Inspect data. Browse the table tFPerr0. The errL and errR columns 
+% represent reconstruction error (in pixels) in the left/right views, based 
+% on the current calibration object. Unusual outliers could indicate 
+% corrupt or mislabeled points.
 clear errfull;
-[~,~,~,~,errfull(:,1),errfull(:,2)] = calibRoundTrip2(yL,yR,yB,crig2);
+[~,~,~,~,errfull(:,1),errfull(:,2)] = calibRoundTrip2(tFP.yL,tFP.yR,tFP.yB,crig2);
+tFPerr0 = table(tFP.frm,tFP.ipt,errfull(:,1),errfull(:,2),...
+  'VariableNames',{'frm','ipt','errL','errR'})
 
-%%
-IDXRM = 21; % strong outlier
-yL(IDXRM,:) = [];
-yR(IDXRM,:) = [];
-yB(IDXRM,:) = [];
-frmGood(IDXRM) = [];
-iPtGood(IDXRM) = [];
-clear errfull;
+%% (Optional) Remove any outlier rows from data (skip this cell if no 
+% outlier rows)
 
-%% run optimization
+% SET ME: Optionally specify the row numbers as an array here. These rows 
+% will be removed. 
+ROWRM = 1;
 
-% Before: compute current error
-% [~,~,~,errL,errR,errB] = calibRoundTrip(yL,yR,yB,crig2);
-% err = errL + errR + errB;
-% fprintf('## Before optim: [errL errR errB] err: [%.2f %.2f %.2f] %.2f\n',...
-%   errL,errR,errB,err);
-[~,~,errL,errR] = calibRoundTrip2(yL,yR,yB,crig2);
+tFP(ROWRM,:) = [];
+tFPerr0(ROWRM,:) = [];
+fprintf('Removed %d rows, leaving %d rows of data remaining.\n',numel(ROWRM),size(tFP,1));
+
+%% Run optimization: summary of "before" error
+[~,~,errL,errR] = calibRoundTrip2(tFP.yL,tFP.yR,tFP.yB,crig2);
 fprintf('## Before optim: [errL errR] err: [%.2f %.2f] %.2f\n',errL,errR,errL+errR);
   
-%%
-% OBJFUNS = ... % objFun, and NX
-%   {'objfunIntExtRot' 10; ...
-%    'objfunIntExtRot2' 18; ...
-%    'objfunIntExtRot3' 16};
+%% Run optimization
+%
+% This cell tries a few different objective functions that optimize over
+% different sets of parameters. Eg:
+%
+% objfunLRRot: left and right cameras can rotate
+% objfunLRrotBint: left and right cams can rotate, plus bottom intrinsic params
+% objfunAllExt: all extrinsic parameters
+% ...etc
+%
+% For each objective function, we currently run the optimization in four 
+% ways ("types"):
+% 1. With regularization, initialize at 0
+% 2. W/out reguarization, initialize at 0
+% 3. With regularization, initialize with a little randomization
+% 4. W/out regularization, initialize with a little randomization
+%
+% Regularization adds a "damping" parameter that introduces a cost in the 
+% optimization for varying the parameters. The idea is that the 
+% original/starting parameters are probably pretty reasonable, so we
+% discourage huge changes during the optimization. 
+%
+% Starting the optimization at 0 means that the calibration starts off
+% precisely equal to the original/baseline calibration. This is intuitively
+% natural. Randomizing the starting point by a small amount might 
+% check/confirm that the optimization is robust. If the results are very 
+% different for the randomized starting point it may indicate overly
+% an sensitive parameter landscape.
+%
+% The most important number to focus on in the output is the err(noreg) 
+% value (the first number not-in-a-bracket). This is the residual 
+% projection error after each optimization, in pixels. This number can be 
+% compared with the "before" error (again, number not-in-brackets).
+
+% Some different flavors of objective functions 
 OBJFUNS = ...
   {'objfunLRrot' 6; ...
    'objfunLRrotBint' 10; ...
@@ -113,8 +166,8 @@ for iObjFun = 1:NOBJFUNS
     x0 = X0S{iX0};
 
     [x1,fv] = ...
-      fminsearch(@(x) feval(objFun,x,yL,yR,yB,crig2,lambda,{'silent',true}),x0,opts);
-    [err,errL,errR,errB,errreg,~,~,~,errFull] = feval(objFun,x1,yL,yR,yB,crig2,lambda,{});
+      fminsearch(@(x) feval(objFun,x,tFP.yL,tFP.yR,tFP.yB,crig2,lambda,{'silent',true}),x0,opts);
+    [err,errL,errR,errB,errreg,~,~,~,errFull] = feval(objFun,x1,tFP.yL,tFP.yR,tFP.yB,crig2,lambda,{});
     fprintf('## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [%.2f %.2f %.2f] %.2f %.2f [%.2f %.2f %.2f] [%.2f %.2f %.2f]\n',...
       errL,errR,errB,errL+errR+errB,errreg,...
 	  median(errFull.L),median(errFull.R),median(errFull.B),...
@@ -131,7 +184,7 @@ for iObjFun = 1:NOBJFUNS
   results.(objFun).errs = errs;
 end
 
-%% assess
+%% (Skippable) Try to visualize results 
 % domBL(1:3) domBR(1:3) dTBL(1:3) dTBR(1:3) dccB(1:2) dfcB(1:2) dccL(1:2)
 % dfcL(1:2) dccR(1:2) dfcR(1:2)
 results.objfunLRrot.idxStandard = 1:6;
@@ -143,13 +196,13 @@ results.objfunAllExtAllInt.idxStandard = 1:24;
 flds = fieldnames(results);
 for f=flds(:)',f=f{1}; %#ok<FXSET>
   results.(f).x1s_std = cell(size(results.(f).x1s));
-  for i=1:numel(results.(f).x1s);
+  for i=1:numel(results.(f).x1s)
     xtmp = nan(1,24);
     xtmp(results.(f).idxStandard) = results.(f).x1s{i};    
     results.(f).x1s_std{i} = xtmp;
   end
 end
-%%
+%% (Skippable) Try to visualize results 
 x = 1:24;
 figure;
 plot(x,results.objfunLRrot.x1s_std{1},'o-',...
@@ -174,7 +227,7 @@ legend(...
   'Bint(reg)','Bint',...
   'allExtAllInt(reg)','allExtAllInt');
 
-%%
+%% (Skippable) Try to visualize results 
 x = 1:24;
 figure;
 plot(x,results.objfunAllExtBint.x1s_std{1},'v-',...
@@ -188,42 +241,7 @@ legend(...
   'allExtAllInt(reg)','allExtAllInt');
 
 
-%%
-% Found 33 labeled pts.
-% ## Before optim: [errL errR errB] err: [4.30 1.21 2.30] 7.81
-% ### ObjFun: objfunLRrot
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.88 1.03 0.97] 2.89 0.03 [0.65 0.83 0.68] [0.45 0.64 0.47]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.94 1.05 0.99] 2.98 0.05 [0.67 0.95 0.68] [0.40 0.68 0.45]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.87 1.02 0.97] 2.87 0.00 [0.59 0.76 0.65] [0.44 0.59 0.44]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.94 1.05 0.99] 2.98 0.00 [0.66 0.95 0.68] [0.39 0.68 0.44]
-% ### ObjFun: objfunLRrotBint
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.85 1.02 0.96] 2.83 0.05 [0.55 0.85 0.60] [0.40 0.57 0.31]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.95 0.99 0.97] 2.91 0.17 [0.69 0.67 0.61] [0.43 0.55 0.39]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.88 1.03 0.96] 2.87 0.00 [0.66 0.92 0.64] [0.36 0.67 0.41]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.96 0.99 0.95] 2.91 0.00 [0.63 0.63 0.54] [0.42 0.45 0.29]
-% ### ObjFun: objfunAllExt
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.90 1.02 0.98] 2.90 0.04 [0.65 0.85 0.61] [0.42 0.61 0.42]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.01 1.05 1.06] 3.12 0.13 [0.69 0.85 0.76] [0.54 0.66 0.44]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.90 1.04 0.97] 2.91 0.00 [0.66 0.82 0.55] [0.43 0.60 0.39]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.99 1.08 1.06] 3.13 0.00 [0.73 0.96 0.75] [0.52 0.67 0.48]
-% ### ObjFun: objfunAllExtBint
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.85 1.01 0.94] 2.80 0.07 [0.55 0.76 0.49] [0.28 0.47 0.29]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.81 1.00 0.92] 2.73 0.10 [0.50 0.69 0.53] [0.26 0.59 0.29]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.81 1.00 0.90] 2.71 0.00 [0.56 0.61 0.49] [0.39 0.42 0.29]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [0.82 1.00 0.92] 2.74 0.00 [0.70 0.71 0.63] [0.47 0.60 0.49]
-% ### ObjFun: objfunBint
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.12 1.24 0.97] 3.33 0.52 [0.78 0.93 0.67] [0.53 0.68 0.41]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.12 1.24 0.97] 3.33 0.51 [0.80 0.94 0.67] [0.52 0.68 0.39]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.14 1.18 0.91] 3.23 0.00 [0.85 0.86 0.55] [0.50 0.44 0.40]
-% ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [1.79 1.90 1.36] 5.05 0.00 [1.45 1.58 0.92] [0.67 0.81 0.65]
-
-% AL20160810: choose allExtBint, with regularization, start at 0, for good
-% improvement and most typical pattern of x1. As a class/objfun allExtBint 
-% seems to show best improvement overall
-x1use = results.objfunAllExtBint.x1s{1};
-[~,~,~,~,~,~,~,~,~,crig2Mod] = objfunAllExtBint(x1use,yL,yR,yB,crig2,zeros(size(x1use)),{});
-
-%% Oops use calibRoundTrip2
+%% Results 20160810
 %
 % ## Before optim: [errL errR] err: [16.85 13.54] 30.39
 % ### ObjFun: objfunLRrot
@@ -257,30 +275,26 @@ x1use = results.objfunAllExtBint.x1s{1};
 % ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [9.31 9.37 0.00] 18.67 0.00 [1.75 1.59 0.00] [1.08 0.75 0.00]
 % ## After optim: [errL errR errB] err(noreg) errReg med[errL errR errB] mad[errL errR errB]: [9.26 9.50 0.00] 18.76 0.00 [1.59 2.02 0.00] [1.00 1.14 0.00]
 
-x1use = results.objfunAllExtBint.x1s{1};
-[~,~,~,~,~,~,~,~,~,crig2Mod] = objfunAllExtBint(x1use,yL,yR,yB,crig2,zeros(size(x1use)),{});
+%% Generate an optimized calibration file
+%
+% After looking at optimization results, select a row (objective function,
+% plus "type" 1-4) that you want to use/save. In August, we went with
+% allExtBint and allExtAllInt as looking pretty good.
+%
+% AL20160810: allExtBint, with regularization, start at 0, shows good
+% improvement and most typical pattern of x1.
 
-%%
-x1use = results.objfunAllExtAllInt.x1s{3};
-[~,~,~,~,~,~,~,~,~,crig2AllExtAllInt] = objfunAllExtAllInt(x1use,yL,yR,yB,crig2,zeros(size(x1use)),{});
+type = 1; % With regularization, start at 0
+x1use = results.objfunAllExtBint.x1s{type};
+[~,~,~,~,~,~,~,~,~,crig2Mod] = objfunAllExtBint(x1use,tFP.yL,tFP.yR,tFP.yB,crig2,zeros(size(x1use)),{});
 
-%   omcurr = om + dparams(1:3);
-%   Tcurr = T + dparams(4:6);
-%   [XL,XR] = stereo_triangulation(xL,xR,omcurr,Tcurr,fc_left,cc_left,kc_left,alpha_c_left,fc_right,cc_right,kc_right,alpha_c_right);
-%   [xL_re] = project_points2(XL,zeros(size(om)),zeros(size(T)),fc_left,cc_left,kc_left,alpha_c_left);
-%   [xR_re] = project_points2(XR,zeros(size(om)),zeros(size(T)),fc_right,cc_right,kc_right,alpha_c_right);
-%   d1 = median(xL_re-xL,2);
-%   d2 = median(xR_re-xR,2);
-%   tweakmederr1(:,mousei) = d1;
-%   tweakmederr2(:,mousei) = d2;
-%   s1 = median(abs(bsxfun(@minus,d1,xL_re-xL)),2);
-%   s2 = median(abs(bsxfun(@minus,d1,xR_re-xR)),2);
-%   tweakmaderr1(:,mousei) = s1;
-%   tweakmaderr2(:,mousei) = s2;
-%   tweakT(:,mousei) = Tcurr;
-%   tweakom(:,mousei) = omcurr;
-% 
-%   fprintf('Mouse %s: med err1 = %s, err2 = %s, mad err1 = %s, mad err2 = %s\n',...
-%     mice{mousei},mat2str(d1,3),mat2str(d2,3),mat2str(s1,3),mat2str(s2,3));
-%   fprintf('dT = %s, dom*180/pi = %s\n',mat2str(dparams(4:6),3),mat2str(dparams(1:3)*180/pi,3));
+% Uncomment this to save calibration object
+% save crig2Optimized_calibjun2916_roiTrackingJun22_20160810_2.mat crig2Mod
 
+%% AL20160810: allExtAllInt also looks good. No regularization, start at 0
+
+type = 3; % No reguarization, start at 0
+x1use = results.objfunAllExtAllInt.x1s{type};
+[~,~,~,~,~,~,~,~,~,crig2AllExtAllInt] = objfunAllExtAllInt(x1use,tFP.yL,tFP.yR,tFP.yB,crig2,zeros(size(x1use)),{});
+
+% save crig2Optimized_calibjun2916_roiTrackingJun22_20160810_AllExtAllInt.mat crig2AllExtAllInt
