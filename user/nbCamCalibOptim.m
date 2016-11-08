@@ -11,7 +11,7 @@ CRIG = 'f:\Dropbox\MultiViewFlyLegTracking\multiview labeling\crig2_calibjun2916
 
 lbl = load(LBL,'-mat');
 lbl = Labeler.lblModernize(lbl);
-if numel(lbl.movieFilesAll)>1
+if size(lbl.movieFilesAll,1)>1
   warning('Project has more than one movie. Only using labels for first movie.');
 end  
 
@@ -290,6 +290,10 @@ x1use = results.objfunAllExtBint.x1s{type};
 
 % Uncomment this to save calibration object
 % save crig2Optimized_calibjun2916_roiTrackingJun22_20160810_2.mat crig2Mod
+
+% Summary of "after" error
+[~,~,errL,errR] = calibRoundTrip2(tFP.yL,tFP.yR,tFP.yB,crig2Mod);
+fprintf('## After optim: [errL errR] err: [%.2f %.2f] %.2f\n',errL,errR,errL+errR);
 
 %% AL20160810: allExtAllInt also looks good. No regularization, start at 0
 
