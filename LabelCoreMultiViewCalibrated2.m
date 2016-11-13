@@ -480,12 +480,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
         '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
         '* S accepts the labels for the current frame/target.'        
-        '* (The letter) O toggles occluded-estimated status.'
-        '* 0..9 selects/unselects a point. When a point is selected:'
-        '*   LEFT/RIGHT/UP/DOWN adjusts the point.'
-        '*   Shift-LEFT, etc adjusts the point by larger steps.' 
-        '*   Clicking on the image moves the selected point to that location.'
-        '*   <space> projects epipolar lines or 3d-reconstructed points for the current point.'
+        '* 0..9 selects/unselects a point (in all views). When a point is selected:'
+        '*   Clicking any view jumps the point to the clicked location.'         
+        '*   After clicking, LEFT/RIGHT/UP/DOWN adjusts the point.'
+        '*   <shift>-LEFT, etc adjusts the point by larger steps.' 
+        '*   <space> can toggle display of epipolar lines or reconstructed points.' 
         '* ` (backquote) increments the mapping of the 0-9 hotkeys.'};
     end
     
