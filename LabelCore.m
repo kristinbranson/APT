@@ -386,16 +386,14 @@ classdef LabelCore < handle
     end
     
     function setLabelPosTagFromEstOcc(obj)
-      tag = obj.LPOSTAG_OCC;
       lObj = obj.labeler;      
       tfEO = obj.tfEstOcc;
-      for iPt = 1:obj.nPts
-        if tfEO(iPt)
-          lObj.labelPosTagSetI(tag,iPt);
-        else
-          lObj.labelPosTagClearI(iPt);
-        end
-      end      
+      iPtEO = find(tfEO);
+      iPtNO = find(~tfEO);
+
+      tag = obj.LPOSTAG_OCC;
+      lObj.labelPosTagSetI(tag,iPtEO); %#ok<FNDSB>
+      lObj.labelPosTagClearI(iPtNO); %#ok<FNDSB>
     end
     
   end

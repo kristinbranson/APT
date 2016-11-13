@@ -2339,19 +2339,28 @@ classdef Labeler < handle
     end
         
     function labelPosTagSetI(obj,tag,iPt)
+      % Set a single tag onto points
+      %
+      % tag: char. 
+      % iPt: can be vector
+      %
+      % The same tag value will be set to all elements of iPt.      
+      
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
       obj.labeledposTS{iMov}(iPt,iFrm,iTgt) = now();
-      obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = tag;      
+      [obj.labeledpostag{iMov}{iPt,iFrm,iTgt}] = deal(tag); 
     end
     
     function labelPosTagClearI(obj,iPt)
+      % iPt: can be vector
+      
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
       obj.labeledposTS{iMov}(iPt,iFrm,iTgt) = now();
-      obj.labeledpostag{iMov}{iPt,iFrm,iTgt} = [];
+      [obj.labeledpostag{iMov}{iPt,iFrm,iTgt}] = deal([]);
     end
     
     function labelPosTagSetFramesI(obj,tag,iPt,frms)
