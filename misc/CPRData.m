@@ -4,20 +4,21 @@ classdef CPRData < handle
     Name    % Name of this CPRData
     MD      % [NxR] Table of Metadata
     
-    I       % [N] column cell vec, images
+    I       % [NxnView] cell vec, images
     pGT     % [NxD] GT shapes for I
     bboxes  % [Nx2d] bboxes for I 
     
-    Ipp     % [N] cell vec of preprocessed 'channel' images. .iPP{i} is [nrxncxnchan]
+    Ipp     % [NxnView] cell vec of preprocessed 'channel' images. .iPP{i,iView} is [nrxncxnchan]
     IppInfo % [nchan] cellstr describing each channel (3rd dim) of .Ipp
     
     H0      % [256x1] for histeq
     
-    iTrn    % [Ntrn] indices into I for training set
-    iTst    % [Ntst] indices into I for test set
+    iTrn    % [1xNtrn] row indices into I for training set
+    iTst    % [1xNtst] row indices into I for test set
   end
   properties (Dependent)
     N
+    nView
     d
     D
     nfids
@@ -30,8 +31,8 @@ classdef CPRData < handle
     
     NTrn
     NTst
-    ITrn
-    ITst
+    ITrn % [NTrn x nView]
+    ITst % [NTst x nView]
     pGTTrn
     pGTTst
     bboxesTrn
@@ -43,7 +44,10 @@ classdef CPRData < handle
   %% Dep prop getters
   methods 
     function v = get.N(obj)
-      v = numel(obj.I);
+      v = size(obj.I,1);
+    end
+    function v = get.nView(obj)
+      v = size(obj.I,2);
     end
     function v = get.d(obj)
       v = size(obj.bboxes,2)/2;
@@ -130,6 +134,7 @@ classdef CPRData < handle
       % obj = CPRData(movFiles)
       % obj = CPRData(lblFiles,tfAllFrames)
       % obj = CPRData(I,tblP)
+      % obj = CPRData(I,tblP,bboxes)
       % obj = CPRData(movFiles,lpos,lpostags,type,varargin)
       % obj = CPRData(movFiles,lpos,lpostags,iMov,frms,varargin)
       
@@ -152,9 +157,15 @@ classdef CPRData < handle
 %             tfAllFrames = varargin{2};
 %             [Is,p,md] = Labeler.lblRead(lblFiles,'tfAllFrames',tfAllFrames);
           end
+          assert(size(Is,2)==1,'Multiview unsupported.');
           sz = cellfun(@(x)size(x'),Is,'uni',0);
           bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
-        otherwise % 3+
+        case 3
+          [Is,tblP,bb] = deal(varargin{:});
+          p = tblP.p;
+          md = tblP;
+          md(:,'p') = [];
+        otherwise % 4+          
           [movFiles,lposes,lpostags] = deal(varargin{1:3});
           if ischar(varargin{4}) && any(strcmp(varargin{4},{'all' 'lbl'}))
             type = varargin{4};
@@ -170,19 +181,19 @@ classdef CPRData < handle
           tbl(:,'p') = [];
           md = tbl;
           
+          assert(size(Is,2)==1,'Multiview unsupported.');
           sz = cellfun(@(x)size(x'),Is,'uni',0);
-          bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
+          bb = cellfun(@(x)[[1 1] x],sz,'uni',0);          
       end
       
-      assert(iscolumn(Is) && iscell(Is));
-      N = numel(Is);
-      assert(size(p,1)==N);
+      assert(iscell(Is));
+      N = size(Is,1);
       if iscell(bb)
         bb = cat(1,bb{:});
       end
-      assert(size(bb,1)==N);  
+      assert(isequal(N,size(md,1),size(p,1),size(bb,1)));
 
-      obj.MD = md;      
+      obj.MD = md;
       obj.I = Is;
       obj.pGT = p;
       obj.bboxes = bb;
@@ -193,13 +204,16 @@ classdef CPRData < handle
       % 
       % data.append(data1,data2,...)
 
+      assert(isrow(obj.iTrn));
+      assert(isrow(obj.iTst));
       for i = 1:numel(varargin)
         dd = varargin{i};
+        assert(dd.nView==obj.nView,'Number of views differ for data index %d.',i);
         assert(isequaln(dd.H0,obj.H0),'Different H0 found for data index %d.',i);
         assert(isequal(dd.IppInfo,obj.IppInfo),...
           'Different IppInfo found for data index %d.',i);
         
-        Nbefore = numel(obj.I);
+        Nbefore = size(obj.I,1);
         
         obj.MD = cat(1,obj.MD,dd.MD);
         obj.I = cat(1,obj.I,dd.I);
@@ -224,6 +238,8 @@ classdef CPRData < handle
       % I: [Nx1] cell array of images (frames)
       % bb: [Nx2d] bboxes
       % md: [Nxm] metadata table
+      %
+      % Single-view only.
 
       assert(iscellstr(movFiles));
       nMov = numel(movFiles);
@@ -304,6 +320,8 @@ classdef CPRData < handle
         'nbin',256);
       tfsmooth = ~isnan(smoothspan);
       
+      assert(obj.nView==1,'Single-view only.');
+      
       H = nan(nbin,obj.N);
       for i = 1:obj.N
         H(:,i) = imhist(obj.I{i},nbin);
@@ -362,6 +380,8 @@ classdef CPRData < handle
         'hWaitBar',[]);
       tfH0Given = ~isempty(H0);
       
+      assert(obj.nView==1,'Single-view only.');
+      
       imSz = cellfun(@size,obj.I,'uni',0);
       cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
       imSz = imSz{1};
@@ -406,8 +426,10 @@ classdef CPRData < handle
         'hWaitBar',[]);
       nTrl = numel(iTrl);
       
-      ppAdnlArgs = {};
+      tfBPP = false;
+      nVw = obj.nView;
       if jan
+        assert(nVw==1);
         fprintf(1,'Using "Jan" settings.\n');
         pause(2);
         sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
@@ -416,64 +438,61 @@ classdef CPRData < handle
           2 3 ... % blur sig1(1:3)
           5 6 7 9 10 11 13 14 17 ... % SGS
           22 23 25 26 27 29 30]; % SLS
-      elseif isscalar(romain) && islogical(romain) && romain
-        fprintf(1,'Using "Romain" settings.\n');
-        pause(2);
-        sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
-        sig2 = [0 2 4 8];
-        iChan = [...
-          2 3 4];% ... % blur sig1(1:3)
-%          6:8 9:12 13:16 18:19 ... % SGS
- %         23:24 26:28 29:32 33:36]; % SLS
-      elseif ischar(romain) && strcmp(romain,'full')
-        fprintf(1,'Using "RomainFull" settings.\n');
-        pause(2);
-        sig1 = [0 2 4 7 10];
-        sig2 = [0 2 4 7 10];
-        iChan = [... % really iChan is "iAddnlChan" or "iPreProcChans". iChan indexes the addnl/pp channels, not including original image
-          (2:5) ... % all S except (1,1) which is same as orig image
-          (2:3:23)+5 ... % SGS([2 5 8 ... 23])
-          (4:3:25)+5+25]; % SLS
-        % the list of addnl chans is:
-        % [S(1)..S(5) SGS(1,1)..SGS(5,1)..SGS(5,5) SLS(1,1)..SLS(5,1)..SLS(5,5)]
-        % There are 5 S's, 25 SGS's, 25 SLS's
-        ppAdnlArgs = { ...
-          'sRescale',true,...
-          'sRescaleFacs',200./Features.RF_S_99P9_SIG024710_161104,...
-          'sgsRescaleFacs',200./Features.RF_SGS_99P9_SIG024710_161104,...
-          'slsRescaleFacs',200./Features.RF_SLS_SPAN99_SIG024710_161104,...
-          'sgsRescaleClipPctThresh',2};
+      elseif iscell(romain) && isa(romain{1},'CPRBlurPreProc')
+        bppCell = romain;
+        assert(numel(bppCell)==nVw);
+        fprintf(1,'Using Romain/CPRBlurPreProc settings.\n');
+        tfBPP = true;
       end
-      
-      [S,SGS,SLS] = Features.pp(obj.I(iTrl),sig1,sig2,'hWaitBar',hWB,ppAdnlArgs{:});
-      
-      n1 = numel(sig1);
-      n2 = numel(sig2);
-      assert(iscell(S) && isequal(size(S),[nTrl n1]));
-      assert(iscell(SGS) && isequal(size(SGS),[nTrl n1 n2]));
-      assert(iscell(SLS) && isequal(size(SLS),[nTrl n1 n2]));
-      
-      ipp = cell(nTrl,1);
-      for i = 1:nTrl
-        ipp{i} = cat(3,S{i,:},SGS{i,:},SLS{i,:});
-        assert(size(ipp{i},3)==n1+n1*n2+n1*n2);
-      end
-      ippInfo = arrayfun(@(x)sprintf('S:sig1=%.2f',x),sig1(:),'uni',0);
-      for i2 = 1:n2 % note raster order corresponding to order of ipp{iTrl}
-        for i1 = 1:n1
-          ippInfo{end+1,1} = sprintf('SGS:sig1=%.2f,sig2=%.2f',sig1(i1),sig2(i2)); %#ok<AGROW>
+        
+      ipp = cell(nTrl,nVw);
+      ippInfo = cell(1,nVw);
+      for iVw=1:nVw
+        if tfBPP
+          bpp = bppCell{iVw};
+          [S,SGS,SLS] = Features.pp(obj.I(iTrl,iVw),bpp.sig1,bpp.sig2,...
+            'sRescale',bpp.sRescale,'sRescaleFacs',bpp.sRescaleFacs,...
+            'sgsRescale',bpp.sgsRescale,'sgsRescaleFacs',bpp.sgsRescaleFacs,...
+            'slsRescale',bpp.slsRescale,'slsRescaleFacs',bpp.slsRescaleFacs,...
+            'sgsRescaleClipPctThresh',2,...
+            'hWaitBar',hWB);
+          sig1 = bpp.sig1;
+          sig2 = bpp.sig2;
+          iChan = bpp.iChan;
+        else
+          [S,SGS,SLS] = Features.pp(obj.I(iTrl,iVw),sig1,sig2,'hWaitBar',hWB);
         end
-      end
-      for i2 = 1:n2 % etc
-        for i1 = 1:n1
-          ippInfo{end+1,1} = sprintf('SLS:sig1=%.2f,sig2=%.2f',sig1(i1),sig2(i2)); %#ok<AGROW>
+        n1 = numel(sig1);
+        n2 = numel(sig2);
+        nPPfull = n1+n1*n2+n1*n2;
+        assert(iscell(S) && isequal(size(S),[nTrl n1]));
+        assert(iscell(SGS) && isequal(size(SGS),[nTrl n1 n2]));
+        assert(iscell(SLS) && isequal(size(SLS),[nTrl n1 n2]));
+
+        for i=1:nTrl
+          ipp{i,iVw} = cat(3,S{i,:},SGS{i,:},SLS{i,:});
+          assert(size(ipp{i,iVw},3)==nPPfull);
         end
+        
+        info = arrayfun(@(x)sprintf('S:sig1=%.2f',x),sig1(:),'uni',0);
+        for i2 = 1:n2 % note raster order corresponding to order of ipp{iTrl}
+          for i1 = 1:n1
+            info{end+1,1} = sprintf('SGS:sig1=%.2f,sig2=%.2f',sig1(i1),sig2(i2)); %#ok<AGROW>
+          end
+        end
+        for i2 = 1:n2 % etc
+          for i1 = 1:n1
+            info{end+1,1} = sprintf('SLS:sig1=%.2f,sig2=%.2f',sig1(i1),sig2(i2)); %#ok<AGROW>
+          end
+        end
+        szassert(info,[nPPfull 1]);
+        
+        ipp(:,iVw) = cellfun(@(x)x(:,:,iChan),ipp(:,iVw),'uni',0);
+        ippInfo{iVw} = info(iChan);
       end
       
-      ipp = cellfun(@(x)x(:,:,iChan),ipp,'uni',0);
-      ippInfo = ippInfo(iChan);
-      obj.Ipp = cell(obj.N,1);
-      obj.Ipp(iTrl) = ipp;
+      obj.Ipp = cell(obj.N,nVw);
+      obj.Ipp(iTrl,:) = ipp;
       obj.IppInfo = ippInfo;
     end
     
@@ -482,6 +501,8 @@ classdef CPRData < handle
       
       tfCntsSupplied = exist('cnts','var')>0;
       
+      assert(obj.nView==1,'Single-view only.');
+
       edges = 0:1:256;
       
       if ~tfCntsSupplied
@@ -539,35 +560,45 @@ classdef CPRData < handle
       %
       % iTrl: [nTrl] vector of trials
       %
-      % Is: [nTrl] cell vec of image stacks [nr nc nChan] where
+      % Is: [nTrlxnView] cell vec of image stacks [nr nc nChan] where
       %   nChan=1+numel(obj.Ipp)
       % nChan: number of TOTAL channels used/found
       
-      nChanPP = numel(obj.IppInfo);
+      if obj.nView==1
+        nChanPP = numel(obj.IppInfo);
+      else
+        nChanPP = cellfun(@numel,obj.IppInfo);
+        nChanPP = unique(nChanPP);
+        assert(isscalar(nChanPP));
+      end
       fprintf(1,'Using %d additional channels.\n',nChanPP);
       
       nTrl = numel(iTrl);
-      Is = cell(nTrl,1);
+      nVw = obj.nView;
+      Is = cell(nTrl,nVw);
       for i=1:nTrl
         iT = iTrl(i);
-        
-        im = obj.I{iT};
-        if nChanPP==0
-          impp = nan(size(im,1),size(im,2),0);
-        else
-          impp = obj.Ipp{iT};
+        for iVw=1:nVw        
+          im = obj.I{iT,iVw};
+          if nChanPP==0
+            impp = nan(size(im,1),size(im,2),0);
+          else
+            impp = obj.Ipp{iT,iVw};
+          end
+          assert(size(impp,3)==nChanPP);
+          Is{i,iVw} = cat(3,im,impp);
         end
-        assert(size(impp,3)==nChanPP);
-        Is{i} = cat(3,im,impp);
       end
       
       nChan = nChanPP+1;
     end
     
-    function [sgscnts,slscnts,sgsedge,slsedge] = calibIpp(obj,nsamp)
+    function [sgscnts,slscnts,sgsedge,slsedge] = calibIppJan(obj,nsamp)
       % Sample SGS/SLS intensity histograms
       %
       % nsamp: number of trials to sample
+      
+      assert(obj.nView==1);
       
       sig1 = [0 2 4 8]; % for now, normalizing/rescaling channels assuming these sigs
       sig2 = [0 2 4 8];
@@ -602,7 +633,10 @@ classdef CPRData < handle
   end
   
   methods (Static)
-    function [sgsthresh,slsspan] = calibIpp2(sgscnts,slscnts,sgsedge,slsedge)
+    function [sgsthresh,slsspan] = calibIppJan2(sgscnts,slscnts,sgsedge,slsedge)
+      
+      assert(obj.nView==1);
+
       ntmp1 = cellfun(@sum,sgscnts);
       ntmp2 = cellfun(@sum,slscnts);
       n = unique([ntmp1(:);ntmp2(:)]);
@@ -708,6 +742,8 @@ classdef CPRData < handle
       % sim: Similarity scores corresponding to iSim (will be monotonically
       %  decreasing). Right now this is a regular correlation coef.
       
+      assert(obj.nView==1);
+
       nTest = numel(iTest);
       im0col = double(obj.I{iTrl}(:));
       sim = nan(nTest,1);
@@ -870,7 +906,7 @@ classdef CPRData < handle
       
       obj.iTrn = iTrnAcc;
       obj.iTst = iTstAcc;      
-    end    
+    end
         
     function hFig = vizWithFurthestFirst(obj)
       % Display furthestfirst plot for all training data (.iTrn);
@@ -921,7 +957,9 @@ classdef CPRData < handle
       % * For the group of idTest, we include all labeled data with a
       % furthestfirst distance greater than a threshold, except we do not
       % included any data for the file/id itTest itself.
-            
+           
+      assert(obj.nView==1);
+
       dfTest = idTest(1:9);
       
       tfLbled = obj.isFullyLabeled;
@@ -1021,6 +1059,8 @@ classdef CPRData < handle
     function vizITrnITst(obj,iTrn,iTstAll,iTstLbl)
       % Summarize/visualize iTrn/etc
       
+      assert(obj.nView==1);
+
       fprintf(2,'Summary: iTrn\n');
       obj.summarize(iTrn);
       fprintf(2,'Summary: iTstAll\n');

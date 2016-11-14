@@ -1,15 +1,6 @@
 classdef Features
   
-  properties (Constant)
-    % take s = S{i1,1}; it will have a hist in range [0,max; this array
-    % gives the 99.9 %tile for sig1=[0 2 4 7 10]
-    RF_S_99P9_SIG024710_161104 = [
-      79.0000
-      73.7676
-      69.5524
-      65.5992
-      63.0589];
-    
+  properties (Constant)      
     % take sgs = SGS{i1,i2}; it will have a hist in range [0,max]; this
     % array gives the maxes for sig1,sig2 = [0 2 4 8]
     JAN_SGS_MAX_SIG0248 = [
@@ -20,15 +11,7 @@ classdef Features
       29.5000   24.5000   18.5000   12.5000
       18.5000   17.5000   14.5000    9.5000
       10.5000   10.5000    9.5000    7.5000];
-    
-    % sig1,sig2 = [0 2 4 7 10]
-    RF_SGS_99P9_SIG024710_161104 = [
-      17.9531   13.0496   11.0252   9.5984    8.7760
-      8.6777    7.1927    6.0619    5.1314    4.5763
-      4.6514    4.2882    3.7511    3.1606    2.8182
-      2.7285    2.6477    2.4650    2.1589    1.9324
-      1.9482    1.9168    1.8350    1.6691    1.5166];    
-        
+            
     % take sls = SLS{i1,i2}; it will have a mean of ~0 and a span; this
     % array gives the spans for sig1,sig2 = [0 2 4 8]
     JAN_SLS_SPAN_SIG0248 = [
@@ -46,14 +29,6 @@ classdef Features
       35    25    15     7
       63    56    41    22
       97    93    83    60];
-    
-    RF_SLS_SPAN99_SIG024710_161104 = [
-      18.0000    3.6647    1.1118    0.3786    0.1934
-      14.6676    8.4421    3.6316    1.4076    0.7424
-      17.8001   14.4949    9.3165    4.6640    2.6856
-      18.4867   17.1754   14.2511    9.6674    6.5228
-      19.1706   18.4485   16.7169   13.2812   10.0928
-    ];
   end
   %% preprocessing/channels
   methods (Static)

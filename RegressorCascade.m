@@ -513,7 +513,7 @@ classdef RegressorCascade < handle
       p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
     end
     
-    %# XXX TODO3D
+    %#3DOK
     function yPred = fernUpdate(obj,t,X,iFtrsComp,yTar,prmReg)
       % Incremental update of fern structures
       %
@@ -536,7 +536,7 @@ classdef RegressorCascade < handle
       ySum = zeros(Q,D); % running accumulation of approx to pTar
       for u=1:obj.nMinor
         yTarMnr = yTar - ySum;
-        x = obj.computeMetaFeature(X,iFtrsComp,t,u,ftrMetaType);
+        x = obj.computeMetaFeature(X,iFtrsComp,t,u,ftrMetaType); 
         assert(isequal(size(x),[Q MM]));
         thrs = squeeze(obj.fernThresh(t,u,:));
         
@@ -586,8 +586,6 @@ classdef RegressorCascade < handle
       
     end
     
-        % ----- BELOW HERE NOT SURE TODO3D -----
-
     %#3DOK
     function x = computeMetaFeature(obj,X,iFtrsX,t,u,metatype)
       % Helper function to compute meta-features
