@@ -293,7 +293,8 @@ movs = struct('movs',{movs});
 movs = struct2table(movs);
 tMFPTrn = [tMFPTrn movs];
 %%
-[I,pGT3d,bboxes,pGt3dRCerr] = rfCompileData3D(tMFPTrn,mfa,lbl.labeledpos,crig2);
+[I,pGT3d,bboxes,pGt3dRCerr,tMFPout] = rfCompileData3D(...
+  tMFPTrn,mfa,lbl.labeledpos,crig2);
 
 %% check all legs have a coord
 nrows = size(I,1);
@@ -328,6 +329,98 @@ zlabel('z','fontweight','bold');
 ax.XLim = [bboxes(1) bboxes(1)+bboxes(4)];
 ax.YLim = [bboxes(2) bboxes(2)+bboxes(5)];
 ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
+%% Preprocessing
+tblP = [tMFPTrn(:,{'movs' 'frm'}) table(pGT3d,'VariableNames',{'p'})];
+td = CPRData(I,tblP,repmat(bboxes,size(I,1),1));
+%%
+NTRIAL_SAMP = 30; % sample this many rows for intensity histogram
+dTrl = floor(td.N/NTRIAL_SAMP);
+I = td.I;
+iTrls = 1:dTrl:size(I,1);
+
+SIG1 = {[0 2 4 7] [0 2 4 7] [0 2 4 7 10]};
+SIG2 = {[0 2 4 7] [0 2 4 7] [0 2 4 7 10]};
+S = cell(1,3);
+SGS = cell(1,3);
+SLS = cell(1,3);
+for iVw=1:3
+  [S{iVw},SGS{iVw},SLS{iVw}] = Features.pp(I(iTrls,iVw),SIG1{iVw},SIG2{iVw},...
+    'sRescale',false,'sgsRescale',false,'slsRescale',false);
+end
+%%
+%[axS,axSGS,axSLS] = Features.ppViz(S,SGS,SLS,sig1,sig2,1);
+%%
+[S99p9,SGSmax,SGS99p9,SLSspn,SLSspn99,SLSspn98,SLSmu,SLSmdn] = ...
+  cellfun(@(s,sgs,sls,sig1,sig2)Features.ppCalib(s,sgs,sls,sig1,sig2),...
+    S,SGS,SLS,SIG1,SIG2,'uni',0);
+
+%%
+S99p9{:}
+%%
+SGS99p9{:}
+%%
+thisim = cellfun(@(x)cellfun(@diff,x),SLSspn99,'uni',0);
+thisim{:}
+%%
+NAMES = {'rf left' 'rf right' 'rf bot'};
+clear bpp;
+bpp = cell(1,3);
+ICHANS = {
+  [2:4  ...
+   ([2 3 6:11 13]+4) ... % SGS([2 3 6:11 13])
+   ([2 3 5 7 9:12]+4+16)]; % SLS
+  [2:4  ...
+   ([2 3 6:11 13]+4) ... % SGS([2 3 6:11 13])
+   ([2 3 5 7 9:12]+4+16)]; % SLS
+  [(2:5) ... % all S except (1,1) which is same as orig image
+   (2:3:23)+5 ... % SGS([2 5 8 ... 23])
+   (4:3:25)+5+25] }; % SLS
+  
+for iVw=1:3
+  bpp{iVw} = CPRBlurPreProc(NAMES{iVw},SIG1{iVw},SIG2{iVw});
+  bpp{iVw}.iChan = ICHANS{iVw};
+  
+  bpp{iVw}.sRescale = true;
+  bpp{iVw}.sRescaleFacs = 200./S99p9{iVw};
+  bpp{iVw}.sgsRescale = true;
+  bpp{iVw}.sgsRescaleFacs = 200./SGS99p9{iVw};
+  bpp{iVw}.slsRescale = true;
+  bpp{iVw}.slsRescaleFacs = 200./cellfun(@diff,SLSspn99{iVw});
+end
+save rfBlurPreProc bpp
+
+%% test calibs
+rf = load('rfBlurPreProc.mat');
+%%
+td.computeIpp([],[],[],'romain',rf.bpp,'iTrl',2:20:td.N);
+%%
+hFig = figure('windowstyle','docked');
+axs = createsubplots(4,5);
+iTrl = 342;
+iVw = 1;
+im = td.Ipp{iTrl,iVw};
+info = td.IppInfo{iVw};
+for i=1:20
+  axes(axs(i));
+  thisim = im(:,:,i);
+  if true
+    imhist(thisim);
+    %hist(double(thisim(:)),255);
+  else
+    imagesc(thisim);
+    colormap gray;
+    caxis([0 255]);
+  end
+  fprintf('%s. 99ptile: %.3f. 99.9: %.3f\n',info{i},prctile(thisim(:),99),...
+      prctile(thisim(:),99.9));
+end
+
+%%
+GAMMA = .3;
+mgray = gray(256);
+mgray2 = imadjust(mgray,[],[],GAMMA);
+arrayfun(@(x)colormap(x,mgray2),axS);
+
 %% histeq I
 % H0 = cell(1,NVIEW);
 % tfuse = cell(1,NVIEW);
@@ -430,15 +523,20 @@ rc = RegressorCascade(sPrm);
 rc.init();
 
 %%
-tmp = iPtLegsAllUsed';
-idxD = tmp(:)';
+thisim = iPtLegsAllUsed';
+idxD = thisim(:)';
 idxD = [idxD idxD+19 idxD+2*19];
-pGT3dLegs = pGT3d(:,idxD);
+%%
+pGT3dLegs = td.pGT(:,idxD);
+%pGT3dLegs = pGT3d(:,idxD);
 pGT3dLegs3 = reshape(pGT3dLegs,[size(pGT3dLegs,1) 18 3]);
 
 %%
-N = size(I,1);
-pAll = rc.trainWithRandInit(I,repmat(bboxes,N,1),pGT3dLegs);
+N = td.N;
+[Is,nChan] = td.getCombinedIs(1:td.N);
+bboxes = td.bboxes;
+%%
+pAll = rc.trainWithRandInit(Is,bboxes,pGT3dLegs);
 pAll = reshape(pAll,N,50,18*3,rc.nMajor+1);
 
 %% Browse propagated replicates
