@@ -204,8 +204,8 @@ classdef CPRData < handle
       % 
       % data.append(data1,data2,...)
 
-      assert(isrow(obj.iTrn));
-      assert(isrow(obj.iTst));
+      assert(isrow(obj.iTrn) || isequal(obj.iTrn,[]));
+      assert(isrow(obj.iTst) || isequal(obj.iTst,[]));
       for i = 1:numel(varargin)
         dd = varargin{i};
         assert(dd.nView==obj.nView,'Number of views differ for data index %d.',i);
