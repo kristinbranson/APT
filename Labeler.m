@@ -1368,12 +1368,15 @@ classdef Labeler < handle
       % names in tbl instead of movieNames. The point is that movieNames
       % may be macro-replaced, platformized, etc; otoh in the MD table we
       % might want macros unreplaced, a standard format etc.
+      % - tblMovArray. Scalar logical, defaults to false. If true, use
+      % array of movies in tbl.mov.
       
-      [hWB,noImg,lposTS,movieNamesID] = myparse(varargin,...
+      [hWB,noImg,lposTS,movieNamesID,tblMovArray] = myparse(varargin,...
         'hWaitBar',[],...
         'noImg',false,...
         'lposTS',[],...
-        'movieNamesID',[]);
+        'movieNamesID',[],...
+        'tblMovArray',false);
       assert(numel(iMovs)==numel(frms));
       for i = 1:numel(frms)
         val = frms{i};
@@ -1491,7 +1494,11 @@ classdef Labeler < handle
           lblsFrmXY = lpos(:,:,f);
           tags = lpostag(:,f);
           
-          s(end+1,1).mov = movID1; %#ok<AGROW>
+          if tblMovArray
+            s(end+1,1).mov = movieNamesID(iMovSet,:); %#ok<AGROW>
+          else
+            s(end+1,1).mov = movID1; %#ok<AGROW>
+          end
           %s(end).movS = movS1;
           s(end).frm = f;
           s(end).p = Shape.xy2vec(lblsFrmXY);
