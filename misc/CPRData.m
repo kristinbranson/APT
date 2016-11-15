@@ -204,8 +204,8 @@ classdef CPRData < handle
       % 
       % data.append(data1,data2,...)
 
-      assert(isrow(obj.iTrn) || isequal(obj.iTrn,[]));
-      assert(isrow(obj.iTst) || isequal(obj.iTst,[]));
+      obj.iTrn = obj.iTrn(:)';
+      obj.iTst = obj.iTst(:)';
       for i = 1:numel(varargin)
         dd = varargin{i};
         assert(dd.nView==obj.nView,'Number of views differ for data index %d.',i);
@@ -221,8 +221,8 @@ classdef CPRData < handle
         obj.bboxes = cat(1,obj.bboxes,dd.bboxes);
         obj.Ipp = cat(1,obj.Ipp,dd.Ipp);
         
-        obj.iTrn = cat(2,obj.iTrn,dd.iTrn+Nbefore);
-        obj.iTst = cat(2,obj.iTst,dd.iTst+Nbefore);
+        obj.iTrn = cat(2,obj.iTrn,dd.iTrn(:)'+Nbefore);
+        obj.iTst = cat(2,obj.iTst,dd.iTst(:)'+Nbefore);
       end
     end    
     
@@ -442,6 +442,9 @@ classdef CPRData < handle
         bppCell = romain;
         assert(numel(bppCell)==nVw);
         fprintf(1,'Using Romain/CPRBlurPreProc settings.\n');
+        for i=1:numel(bppCell)
+          fprintf(1,'... %d: %s\n',i,bppCell{i}.name);
+        end
         tfBPP = true;
       end
         
@@ -493,7 +496,11 @@ classdef CPRData < handle
       
       obj.Ipp = cell(obj.N,nVw);
       obj.Ipp(iTrl,:) = ipp;
-      obj.IppInfo = ippInfo;
+      if nVw==1
+        obj.IppInfo = ippInfo{1};
+      else
+        obj.IppInfo = ippInfo;
+      end
     end
     
     function cnts = channelDiagnostics(obj,iTrl,cnts)
