@@ -1764,6 +1764,8 @@ classdef Labeler < handle
         FSPath.errUnreplacedMacros(movfileFull);
         
         if exist(movfileFull,'file')==0
+          tfBrowse = false;
+
           if FSPath.hasMacro(movfile)
             qstr = sprintf('Cannot find movie ''%s'', macro-expanded to ''%s''.',...
               movfile,movfileFull);
@@ -1781,20 +1783,25 @@ classdef Labeler < handle
                     movfile,movfileFull);
                 end
               case 'Browse to movie'
-                % none
+                tfBrowse = true;
+              case 'Cancel'
+                return;
+            end
+          else
+            qstr = sprintf('Cannot find movie ''%s''.',movfile);
+            resp = questdlg(qstr,'Movie not found','Browse to movie','Cancel','Cancel');
+            if isempty(resp)
+              resp = 'Cancel';
+            end
+            switch resp             
+              case 'Browse to movie'
+                tfBrowse = true;
               case 'Cancel'
                 return;
             end
           end
           
-          if exist(movfileFull,'file')==0
-            % Either
-            % i) no macro in moviename OR
-            % ii) has macro but user selected browse to movie
-            
-            warningNoTrace('Labeler:mov',...
-              'Cannot find movie ''%s''. Please browse to movie location.',...
-              movfileFull);
+          if tfBrowse
             lastmov = RC.getprop('lbl_lastmovie');
             if isempty(lastmov)
               lastmov = pwd;
@@ -1804,8 +1811,13 @@ classdef Labeler < handle
               error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
             end
             movfileFull = fullfile(newmovpath,newmovfile);
+            if exist(movfileFull,'file')==0
+              error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
+            end
             obj.movieFilesAll{iMov,iView} = movfileFull;
           end
+          
+          assert(exist(movfileFull,'file')>0);
         end
         
         obj.movieReader(iView).open(movfileFull);
