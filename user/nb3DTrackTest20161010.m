@@ -6,7 +6,7 @@ ROOTDIR = 'f:\Dropbox\MultiViewFlyLegTracking\multiview labeling';
 LBL = 'romainJun22NewLabels.lbl';
 LBL = fullfile(ROOTDIR,LBL);
 
-CRIG = 'crig2Optimized_calibjun2916_roiTrackingJun22_20160810_2.mat';
+CRIG = 'crig2Optimized_calibjun2916_roiTrackingJun22_20160810_AllExtAllInt.mat';
 CRIG = fullfile(ROOTDIR,CRIG);
 
 NVIEW = 3;
@@ -15,7 +15,8 @@ NREALPT = 57/3;
 %%
 lbl = load(LBL,'-mat');
 crig2 = load(CRIG,'-mat');
-crig2 = crig2.crig2Mod;
+%crig2 = crig2.crig2Mod;
+crig2 = crig2.crig2AllExtAllInt;
 
 %%
 lpos = lbl.labeledpos{1};
@@ -292,9 +293,40 @@ movs = repmat(mfa,size(tMFPTrn,1),1);
 movs = struct('movs',{movs});
 movs = struct2table(movs);
 tMFPTrn = [tMFPTrn movs];
+
 %%
 [I,pGT3d,bboxes,pGt3dRCerr,tMFPout] = rfCompileData3D(...
   tMFPTrn,mfa,lbl.labeledpos,crig2);
+
+%%
+thisim = iPtLegsAllUsed';
+idxD = thisim(:)';
+idxD = [idxD idxD+19 idxD+2*19];
+%% 
+%pGT3dLegs = td.pGT(:,idxD);
+pGT3dLegs = pGT3d(:,idxD);
+pGT3dLegs3 = reshape(pGT3dLegs,[size(pGT3dLegs,1) 18 3]);
+
+%% TrnDataSel
+tblP = table(pGT3dLegs,'VariableNames',{'p'});
+[grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
+hFig1 = CPRData.ffTrnSetSelect(tblP,grps,ffd,ffdiTrl);
+% Grand total of 481/515 (93%) shapes selected for training.
+%%
+iTrlSel = ffdiTrl{1}(1:481);
+tblPSel = table(pGT3dLegs(iTrlSel,:),'VariableNames',{'p'});
+[grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblPSel,[]);
+hFig1 = CPRData.ffTrnSetSelect(tblPSel,grps,ffd,ffdiTrl);
+
+%%
+tMFPTrnSel = tMFPTrn(iTrlSel,:);
+[I,pGT3d,bboxes,pGt3dRCerr,tMFPout] = rfCompileData3D(...
+  tMFPTrnSel,mfa,lbl.labeledpos,crig2);
+thisim = iPtLegsAllUsed';
+idxD = thisim(:)';
+idxD = [idxD idxD+19 idxD+2*19];
+pGT3dLegs = pGT3d(:,idxD);
+pGT3dLegs3 = reshape(pGT3dLegs,[size(pGT3dLegs,1) 18 3]);
 
 %% check all legs have a coord
 nrows = size(I,1);
@@ -330,7 +362,9 @@ ax.XLim = [bboxes(1) bboxes(1)+bboxes(4)];
 ax.YLim = [bboxes(2) bboxes(2)+bboxes(5)];
 ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
 %% Preprocessing
-tblP = [tMFPTrn(:,{'movs' 'frm'}) table(pGT3d,'VariableNames',{'p'})];
+[I,pGT3d,bboxes] = rfCompileData3D(tMFPTrnSel,mfa,lbl.labeledpos,crig2);
+%%
+tblP = [tMFPTrnSel(:,{'movs' 'frm'}) table(pGT3dLegs,'VariableNames',{'p'})];
 td = CPRData(I,tblP,repmat(bboxes,size(I,1),1));
 %%
 NTRIAL_SAMP = 30; % sample this many rows for intensity histogram
@@ -389,10 +423,28 @@ for iVw=1:3
 end
 save rfBlurPreProc bpp
 
+%%
+NAMES = {'rf left' 'rf right' 'rf bot'};
+clear bpp;
+bpp = cell(1,3);
+SIG1 = {[0 2 4 8] [0 2 4 8] [0 2 4 8]};
+SIG2 = {[0 2 4 8] [0 2 4 8] [0 2 4 8]};
+ICHANS = { 2:4; 2:4; 2:4 };
+  
+for iVw=1:3
+  bpp{iVw} = CPRBlurPreProc(NAMES{iVw},SIG1{iVw},SIG2{iVw});
+  bpp{iVw}.iChan = ICHANS{iVw};
+  
+  bpp{iVw}.sRescale = false;
+  bpp{iVw}.sgsRescale = false;
+  bpp{iVw}.slsRescale = false;
+end
+save rfBPPSimple3D bpp
+
 %% test calibs
 rf = load('rfBlurPreProc.mat');
 %%
-td.computeIpp([],[],[],'romain',rf.bpp,'iTrl',2:20:td.N);
+td.computeIpp([],[],[],'romain',bpp,'iTrl',1:td.N);
 %%
 hFig = figure('windowstyle','docked');
 axs = createsubplots(4,5);
@@ -458,7 +510,7 @@ arrayfun(@(x)colormap(x,mgray2),axS);
 
 %% montage I/pGT
 Imontage = I;
-Nmont = 1;
+Nmont = 3;
 figure('windowstyle','docked');
 axs = createsubplots(Nmont,3);
 axs = reshape(axs,Nmont,3);
@@ -485,10 +537,10 @@ for iMont=1:Nmont
   end
   
   X = cell(1,3);
-  %X{1} = squeeze(pGT3dLegs3(iRow,:,:))';
-  X{1} = squeeze(pGt3d3(iRow,:,:))';
-  %szassert(X{1},[3 18]);
-  szassert(X{1},[3 19]);
+  X{1} = squeeze(pGT3dLegs3(iRow,:,:))';
+  %X{1} = squeeze(pGt3d3(iRow,:,:))';
+  szassert(X{1},[3 18]);
+  %szassert(X{1},[3 19]);
   X{2} = crig2.camxform(X{1},'lr');
   X{3} = crig2.camxform(X{1},'lb');
   
@@ -498,8 +550,8 @@ for iMont=1:Nmont
     iLeg = iLegsUse(i);
     iptsleg = iPtLegs(iLeg,:);
     for j=1:3
-      ipt = iptsleg(j);
-      %ipt = (i-1)*3+j;
+      %ipt = iptsleg(j);
+      ipt = (i-1)*3+j;
       for iView=1:3
         ax = axs(iMont,iView);
         hold(ax,'on');
@@ -522,27 +574,20 @@ sPrm.Model.Prm3D.calrig = crig2;
 rc = RegressorCascade(sPrm);
 rc.init();
 
-%%
-thisim = iPtLegsAllUsed';
-idxD = thisim(:)';
-idxD = [idxD idxD+19 idxD+2*19];
-%%
-pGT3dLegs = td.pGT(:,idxD);
-%pGT3dLegs = pGT3d(:,idxD);
-pGT3dLegs3 = reshape(pGT3dLegs,[size(pGT3dLegs,1) 18 3]);
 
 %%
-N = td.N;
-[Is,nChan] = td.getCombinedIs(1:td.N);
-bboxes = td.bboxes;
+% N = td.N;
+% [Is,nChan] = td.getCombinedIs(1:td.N);
+% bboxes = td.bboxes;
 %%
-pAll = rc.trainWithRandInit(Is,bboxes,pGT3dLegs);
-pAll = reshape(pAll,N,50,18*3,rc.nMajor+1);
+nTrn = size(I,1);
+pAll = rc.trainWithRandInit(I,repmat(bboxes,nTrn,1),pGT3dLegs);
+pAll = reshape(pAll,nTrn,50,18*3,rc.nMajor+1);
 
 %% Browse propagated replicates
 TESTROWIDX = 222; % Pick any training row to view convergence
 NPTS = 18;
-frame = tMFPTrn.frm(TESTROWIDX);
+frame = tMFPTrnSel.frm(TESTROWIDX);
 if exist('lObj','var')==0
   lObj = Labeler;
   lObj.projLoad(LBL); % KB: this won't be able to find movies will prompt you to locate
@@ -670,7 +715,7 @@ end
 close all
 
 %% Make a movie
-OUTMOV = '3d_1_1000_2.avi';
+OUTMOV = '3dmoo.avi';
 FRAMERATE = 24;
 GAMMA = .3;
 mgray = gray(256);
@@ -680,7 +725,7 @@ bigim = nan(640+624,672);
 mrs = lObj.movieReader;
 hFig = figure;
 ax = axes;
-hIm = imagesc(ax,bigim);
+hIm = imagesc(bigim,'parent',ax);
 colormap(ax,mgray2);
 truesize(hFig);
 hold(ax,'on');
@@ -755,6 +800,25 @@ end
 vr.close();
 delete(hTxt);
 delete(hWB);
+
+%% compare movs
+vr1 = VideoReader('3d_nopp_allTrnData_20161115.avi');
+vr2 = VideoReader('3d_nopp_481TrnData_20161116.avi');
+%%
+figure;
+ax = createsubplots(1,2);
+hIm1 = imagesc(uint8(zeros(1265,674,3)),'parent',ax(1));
+hIm2 = imagesc(uint8(zeros(1265,674,3)),'parent',ax(2));
+%%
+f = 1;
+while 1
+  im1 = vr1.readFrame();
+  im2 = vr2.readFrame();
+  hIm1.CData = im1;
+  hIm2.CData = im2;
+  input(num2str(f));
+end
+  
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
