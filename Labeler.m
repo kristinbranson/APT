@@ -3678,6 +3678,10 @@ classdef Labeler < handle
         obj.gdata.labelTLInfo.setLabelsFrame();
         obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
       end
+      
+      tx = obj.gdata.txTotalFramesLabeled;
+      nrow = size(dat,1);
+      tx.String = num2str(nrow);
     end    
     function updateFrameTableComplete(obj)
       [nTgts,nPts] = obj.labelPosLabeledFramesStats();
@@ -3693,8 +3697,11 @@ classdef Labeler < handle
         obj.gdata.labelTLInfo.setLabelsFrame(1:obj.nframes);
         obj.movieFilesAllHaveLbls(obj.currMovie) = size(dat,1)>0;
       end
+      
+      tx = obj.gdata.txTotalFramesLabeled;
+      nrow = size(dat,1);
+      tx.String = num2str(nrow);
     end
-   
   end
   
   methods (Hidden)
