@@ -1,11 +1,24 @@
-function [Xbest,idx,totalcost,poslambda] = ChooseBestTrajectory(X,appearancecost,varargin)
+function [Xbest,idx,totalcost,poslambda] = ...
+  ChooseBestTrajectory(X,appearancecost,varargin)
+% Select trajectory through CPR-generated replicate clouds 
+%
+% X: [DxTxK] full CPR tracking results
+% appearancecost: [TxK] scalar cost for each shape
+%
+% Xbest: [DxT] selected replicates representing "best" traj
+% idx: [T] replicate indices (indices into 3rd dim of X). Xbest(:,t) is
+% equal to X(:,t,idx(t))
 
-[priordistfun,poslambda,dampen,fix] = myparse(varargin,'priordist',@(x) zeros(size(x,1),1),'poslambda',[],'dampen',.5,...
+[priordistfun,poslambda,dampen,fix] = myparse(varargin,...
+  'priordist',@(x) zeros(size(x,1),1),...  % [K] = priordist([KxD]) returns assumed/prior position cost for t=1
+  'poslambda',[],... % position costs are multiplied by this scale factor when added to appearance costs
+  'dampen',.5,... % velocity damping factor. pos(t) is predicted as pos(t-1)+dampen*(pos(t-1)-pos(t-2)). 1=>full extrapolation, 0
   'fix',[]);
 
 [D,T,K] = size(X);
+szassert(appearancecost,[T K]);
 
-if ~isempty(fix) && numel(fix) ~= T,
+if ~isempty(fix) && numel(fix) ~= T, %#ok<*NOCOL>
   error('fix must be a vector of length T');
 end
 
@@ -64,8 +77,7 @@ if ~isempty(fix) && ~all(isnan(fix)),
 end
 
 X = permute(X,[3,1,2]);
-% X is now K x D x T
-
+szassert(X,[K D T]);
 
 % there are more efficient ways to do this...
 if ~isempty(fix),  
@@ -74,10 +86,16 @@ if ~isempty(fix),
   end  
 end
 
-% costprev(w,v) is the min cost that ends at t = w and t-1 = v
-
-if isempty(poslambda),
-  % compute the standard deviation
+if isempty(poslambda), 
+  
+  % Estimate poslambda as ratio of (typical variability in appearance cost)
+  % to (typical variability in position cost). The total cost at each
+  % timepoint t is poslambda*poscost+appearancecost, and this value is 
+  % minimized to find the best trajectory. Note the absolute scales of
+  % poscost and appearancecost are irrelevant, the idea here is that
+  % poslambda is set so that fluctuations in positioncost and 
+  % appearancecost carry comparable weight in the minimization.
+  
   Ksample = 5;
   count = (T-2) * Ksample^3;
   errs = nan(1,count);
@@ -100,21 +118,31 @@ if isempty(poslambda),
   end
   mad_pos = median( abs( errs(:) - median(errs(:))) );
   mad_app = median( abs( appearancecost(:) - median(appearancecost(:))) );
-  poslambda = mad_app/mad_pos;
-  
+  poslambda = mad_app/mad_pos;  
 end
+
 
 % initialization
 
 % first frame: position cost is from prior
 poscost0 = priordistfun(X(:,:,1));
+assert(isvector(poscost0) && numel(poscost0)==K);
+
 % second frame: position cost assumes zero velocity
-% poscost1(w,v) corresponds to 2 = w, 1 = v
+% poscost1(w,v) corresponds to w at t=2, v at t=1
 poscost1 = poslambda * pdist2(X(:,:,2),X(:,:,1),'sqeuclidean');
 
-costprev = bsxfun(@plus, poscost0(:)'+appearancecost(1,:), bsxfun(@plus, appearancecost(2,:)', poscost1));
+% [KxK]. costprev(w,v) is the minimum total cost that ends at w at t-1 and
+% v at t-2. (Here we will be starting at t=3.)
+% This cost is computed as (assumed/prior cost for t=1)+(appearancecost for
+% t=1)+(position cost for transitioning from t=1 to t=2)+(appearance cost
+% for t=2)
+costprev = bsxfun(@plus, poscost0(:)'+appearancecost(1,:), ...
+                         bsxfun(@plus, appearancecost(2,:)', poscost1));
 
 % for tracking back and finding optimal states
+% prev(v,u,t) gives replicate index (index into 1..K) giving best/chosen 
+% replicate w giving minimum w->u->v progression over (t-2)->(t-1)->t
 prev = nan(K,K,T);
 
 for t = 3:T,
@@ -150,9 +178,7 @@ idx = nan(1,T);
 [idx(T),idx(T-1)] = ind2sub([K,K],i);
 
 for t = T-2:-1:1,
-  
   idx(t) = prev(idx(t+2),idx(t+1),t+2);
-  
 end
 
 Xbest = nan(D,T);
