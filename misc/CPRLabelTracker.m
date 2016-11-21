@@ -1100,7 +1100,7 @@ classdef CPRLabelTracker < LabelTracker
       end            
      
       % modernize params
-      if ~isempty(s.sPrm)
+      if isfield(s,'sPrm') && ~isempty(s.sPrm)
         s.sPrm = CPRLabelTracker.modernizeParams(s.sPrm);       
         
         % 20161017
@@ -1476,6 +1476,13 @@ classdef CPRLabelTracker < LabelTracker
     
     function tdPPRFfull(td,varargin)
       td.computeIpp([],[],[],'iTrl',1:td.N,'romain','full',varargin{:});
+    end
+    
+    function tdPP2dL(td,varargin)
+      bppFile = 'f:\romain\rfBlurPreProc.mat';
+      bpp = load(bppFile);
+      bpp = bpp.bpp(1);
+      td.computeIpp([],[],[],'iTrl',1:td.N,'romain',bpp,varargin{:});
     end
     
   end
