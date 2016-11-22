@@ -47,7 +47,7 @@ When you open a movie with "Quick Open", you are actually creating a project and
 
 After creating a project, the "Manage Movies" window should appear. This window lets you add, remove and select movies.
 
-For multi-camera projects, the **Add Movie** button actually adds a **movieset**, a group of associated movies, one for each camera/view. When prompted, select all movies for a new movieset at once (order is important). 
+For multi-camera projects, the **Add Movie** button actually adds a **movieset**, a group of associated movies, one for each camera/view. When prompted, select all movies for a new movieset at once. The ordering here is important; make sure you are consistent about the ordering of cameras/views in moviesets. (During project setup, you can optionally name the views, eg View1="Front" and View2="Side".) 
 
 ### Labeling Modes
 
@@ -75,7 +75,9 @@ For calibrated labeling, first go to Setup> Load Calibration File to load a cali
 
 The number keys 0-9 select a physical point. Each view has its own projection of this point and the selected point will be indicated on all views. After a point is selected, clicking on any view will jump the point in that view to the clicked location. Epipolar lines will be projected in the other views. The point in the first/original view is now adjustable by click-dragging, or with the arrow or <shift>-arrow keys. The epipolar lines should live-update as the first point is adjusted.
 
-For projects with three or more views: Clicking on a second view jumps the selected point in  the second view to the clicked location. With the point "anchored" in two views, reconstructed best-guesses for the point are shown in all remaining views. The reconstruction shows three points indicating a spread of possible locations based on the first two clicked locations. The middle point is the most likely location. Spacebar toggles the "anchoring" state of a point in a view. 
+For projects with three or more views: Clicking on a second view jumps the selected point in  the second view to the clicked location. With the point **anchored** in two views, reconstructed best-guesses for the point are shown in all remaining views. The reconstruction shows three points indicating a spread of possible locations based on the first two clicked locations. The middle point is the most likely location. 
+
+Spacebar toggles the anchoring state of a point in a view. Anchored points have the letter 'a' appended to their text label. When a point is anchored, epipolar lines or reconstructed points are shown in the other views. Points that are shown as 'x' rather than '+' are adjustable with the arrow keys (fine adjustment) or <shift>-arrow keys (coarse adjustment).   
 
 When all points are in their desired locations, the Accept button (or 's' hotkey) accepts the labels.
 
