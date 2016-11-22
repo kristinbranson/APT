@@ -6,16 +6,16 @@ Animal Part Tracker
 * Windows, Linux, and Mac are all supported, but Windows and Linux get priority.
 * A recent checkout of [JAABA](https://github.com/kristinbranson/JAABA).
 * If you are working with multi-camera data, you may need calibration software for your rig, eg
-  * [Caltech toolbox](https://www.vision.caltech.edu/bouguetj/calib_doc/)
+  * [Caltech camera calibration toolbox](https://www.vision.caltech.edu/bouguetj/calib_doc/)
 
 ## Setup
-1. Copy Manifest.sample.txt to Manifest.txt and edit to point to your checkout of JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/). 
-2. For multi-camera rigs, edit the cameracalib entry to point to your calibration software.
+1. Copy <APT>\Manifest.sample.txt to Manifest.txt and edit to point to your checkout of JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/). 
+2. For multi-camera data, edit the 'cameracalib' entry to point to your calibration software.
 2. Open MATLAB and:
 
     ```
     % in MATLAB
-    cd /path/to/git/APT/checkout % Alternatively, add this location to your path
+    cd /path/to/git/APT/checkout
     APT.setpath % configures MATLAB path for running APT
     lObj = Labeler;
     ```
@@ -47,7 +47,7 @@ When you open a movie with "Quick Open", you are actually creating a project and
 
 After creating a project, the "Manage Movies" window should appear. This window lets you add, remove and select movies.
 
-For multi-camera projects, the **Add Movie** button actually adds a **movieset** or a group of associated movies, one for each camera/view. When prompted, select all movies for a new movieset at once (the ordering is important). 
+For multi-camera projects, the **Add Movie** button actually adds a **movieset**, a group of associated movies, one for each camera/view. When prompted, select all movies for a new movieset at once (order is important). 
 
 ### Labeling Modes
 
