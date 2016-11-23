@@ -306,11 +306,13 @@ classdef Labeler < handle
       end
     end    
     function v = get.nframes(obj)
-      mr = obj.movieReader(1);
-      if isempty(mr)
+      if obj.currMovie==0
         v = nan;
       else
-        v = mr.nframes;
+        % multiview case: ifos have .nframes set identically if movies have
+        % different lengths
+        ifo = obj.movieInfoAll{obj.currMovie,1};
+        v = ifo.nframes;
       end
     end
     function v = get.moviesSelected(obj) %#GUIREQ
@@ -1647,11 +1649,16 @@ classdef Labeler < handle
       if ~all(nFrms==nFrms(1))
         nframesstr = arrayfun(@num2str,nFrms,'uni',0);
         nframesstr = String.cellstr2CommaSepList(nframesstr);
-        error('Labeler:movieSetAdd',...
-          'Movies do not have the same number of frames: %s',nframesstr);
+        nFrms = min(nFrms);
+        warningNoTrace('Labeler:movieSetAdd',...
+          'Movies do not have the same number of frames: %s. The number of frames will be set to %d for this movieset.',...
+          nframesstr,nFrms);
+        for iView=1:obj.nview
+          ifos{iView}.nframes = nFrms;
+        end
+      else
+        nFrms = nFrms(1);
       end
-      
-      nFrms = nFrms(1);
       nTgt = 1;
       
       obj.movieFilesAll(end+1,:) = moviefiles(:)';
