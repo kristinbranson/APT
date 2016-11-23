@@ -306,7 +306,7 @@ classdef Labeler < handle
       end
     end    
     function v = get.nframes(obj)
-      if obj.currMovie==0
+      if isempty(obj.currMovie) || obj.currMovie==0
         v = nan;
       else
         % multiview case: ifos have .nframes set identically if movies have
