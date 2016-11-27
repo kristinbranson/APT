@@ -464,7 +464,6 @@ function cbkNewMovie(src,evt)
 lObj = src;
 handles = lObj.gdata;
 movRdrs = lObj.movieReader;
-nframes = movRdrs(1).nframes;
 ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
 hAxs = handles.axes_all;
 hIms = handles.images_all;
@@ -480,6 +479,7 @@ end
 handles.labelTLInfo.initNewMovie();
 handles.labelTLInfo.setLabelsFull();
 
+nframes = lObj.nframes;
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
 
