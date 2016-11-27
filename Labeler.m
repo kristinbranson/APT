@@ -1325,7 +1325,7 @@ classdef Labeler < handle
       %
       % type: either 'all' or 'lbl'
 
-      nMov = numel(movieNames);      
+      nMov = size(movieNames,1); 
       switch type
         case 'all'
           frms = repmat({'all'},nMov,1);
@@ -1368,8 +1368,9 @@ classdef Labeler < handle
       % names in tbl instead of movieNames. The point is that movieNames
       % may be macro-replaced, platformized, etc; otoh in the MD table we
       % might want macros unreplaced, a standard format etc.
-      % - tblMovArray. Scalar logical, defaults to false. If true, use
-      % array of movies in tbl.mov.
+      % - tblMovArray. Scalar logical, defaults to false. Only relevant for
+      % multiview data. If true, use array of movies in tbl.mov. Otherwise, 
+      % use single compactified string ID.
       
       [hWB,noImg,lposTS,movieNamesID,tblMovArray] = myparse(varargin,...
         'hWaitBar',[],...
@@ -1442,10 +1443,9 @@ classdef Labeler < handle
         for iVw=1:nView
           movfull = movieNames{iMovSet,iVw};
           mr(iVw).open(movfull);
-          if iVw==1
-            movID1 = movieNamesID{iMovSet,1};
-          end
         end
+        
+        movID = FSPath.formMultiMovieID(movieNamesID(iMovSet,:));
         
         % find labeled/tagged frames (considering ALL frames for this
         % movie)
@@ -1469,7 +1469,7 @@ classdef Labeler < handle
         
         if tfWB
           hWB.Name = 'Reading movies';
-          wbStr = sprintf('Reading movie %s',movID1);
+          wbStr = sprintf('Reading movie %s',movID);
           waitbar(0,hWB,wbStr);
         end
         for iFrm = 1:nFrmRead
@@ -1497,7 +1497,7 @@ classdef Labeler < handle
           if tblMovArray
             s(end+1,1).mov = movieNamesID(iMovSet,:); %#ok<AGROW>
           else
-            s(end+1,1).mov = movID1; %#ok<AGROW>
+            s(end+1,1).mov = movID; %#ok<AGROW>
           end
           %s(end).movS = movS1;
           s(end).frm = f;

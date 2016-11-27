@@ -83,7 +83,7 @@ classdef LabelTracker < handle
     
     function initHook(obj) %#ok<*MANU>
       % Called when a new project is created/loaded, etc
-    end    
+    end
     
     function setParamHook(obj)
       % Called when a new parameter file is specified
@@ -214,11 +214,11 @@ classdef LabelTracker < handle
       prm = ReadYaml(prmFile);
     end
         
+    %#MV
     function tblP = getTblP(obj,iMovs,frms)
       % From .lObj, read tblP for given movies/frames.
       
       labelerObj = obj.lObj;
-      
       movID = labelerObj.movieFilesAll;
       movID = FSPath.standardPath(movID);
       [~,tblP] = Labeler.lblCompileContentsRaw(labelerObj.movieFilesAllFull,...
@@ -226,14 +226,14 @@ classdef LabelTracker < handle
         'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
     end
 
+    %#MV
     function tblP = getTblPLbled(obj)
       % From .lObj, read tblP for all movies/labeledframes. Currently,
       % exclude partially-labeled frames.
       %
       % tblP: MFTable of labeled frames
       
-      labelerObj = obj.lObj;
-      
+      labelerObj = obj.lObj;      
       movID = labelerObj.movieFilesAll;
       movID = FSPath.standardPath(movID);
       [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,...

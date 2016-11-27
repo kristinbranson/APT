@@ -3,8 +3,13 @@ classdef MFTable
   %
   % An MFTable is a table with cols 'mov' and 'frm' indicating movies and
   % frame numbers. 
+  %
+  % 'mov' is usually filled with "movieIDs": FSPath/"standardized" 
+  % moviepaths, which can include macros. For multiview data, 'mov' can 
+  % contain multiuple movieIDs delimited by #.
   
   methods (Static)
+    
     function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)
       % Compare tblP to tblP0
       %
@@ -28,6 +33,22 @@ classdef MFTable
       [tf,loc] = ismember(tblPupdate(:,{'mov' 'frm'}),tblMF0);
       assert(all(tf));
       idx0update = loc(tf);
+    end
+
+    function movID = formMultiMovieID(movs)
+      % Form multimovie char ID
+      %
+      % movs: row cellstr vec
+      %
+      % movID: char
+      
+      assert(iscellstr(movs) && isrow(movs));
+      movID = sprintf('%s#',movs{:});
+      movID = movID(1:end-1);
+    end
+    
+    function movs = unpackMultiMovieID(movID)
+      movs = regexp(movID,'#','split');
     end
     
     function tblMF = rmMovS(tblMF)
