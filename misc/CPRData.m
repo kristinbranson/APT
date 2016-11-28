@@ -156,10 +156,14 @@ classdef CPRData < handle
 %             lblFiles = varargin{1};
 %             tfAllFrames = varargin{2};
 %             [Is,p,md] = Labeler.lblRead(lblFiles,'tfAllFrames',tfAllFrames);
+          end          
+          if size(Is,2)==1
+            sz = cellfun(@(x)size(x'),Is,'uni',0);
+            bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
+          else
+            warning('CPRData:bb','Multiview CPRData.');
+            bb = nan(size(Is,1),0);
           end
-          assert(size(Is,2)==1,'Multiview unsupported.');
-          sz = cellfun(@(x)size(x'),Is,'uni',0);
-          bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
         case 3
           [Is,tblP,bb] = deal(varargin{:});
           p = tblP.p;
@@ -208,7 +212,7 @@ classdef CPRData < handle
       obj.iTst = obj.iTst(:)';
       for i = 1:numel(varargin)
         dd = varargin{i};
-        assert(dd.nView==obj.nView,'Number of views differ for data index %d.',i);
+        assert(dd.nView==obj.nView || obj.N==0,'Number of views differ for data index %d.',i);
         assert(isequaln(dd.H0,obj.H0),'Different H0 found for data index %d.',i);
         assert(isequal(dd.IppInfo,obj.IppInfo),...
           'Different IppInfo found for data index %d.',i);
@@ -216,7 +220,12 @@ classdef CPRData < handle
         Nbefore = size(obj.I,1);
         
         obj.MD = cat(1,obj.MD,dd.MD);
-        obj.I = cat(1,obj.I,dd.I);
+        if isempty(obj.I)
+          tmpI = [];
+        else
+          tmpI = obj.I;
+        end
+        obj.I = cat(1,tmpI,dd.I);
         obj.pGT = cat(1,obj.pGT,dd.pGT);
         obj.bboxes = cat(1,obj.bboxes,dd.bboxes);
         obj.Ipp = cat(1,obj.Ipp,dd.Ipp);
@@ -280,31 +289,34 @@ classdef CPRData < handle
     function I = getFrames(tblMF)
       % Read frames from movies given MD table
       % 
-      % tblMF: [NxR] MFTable
+      % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
+      % multiview data.
       % 
-      % I: [N] cell vector of images for each row of tbl
+      % I: [NxnView] cell vector of images for each row of tbl
       
       N = size(tblMF,1);
-      movsUn = unique(tblMF.mov);
-      [~,movUnIdx] = ismember(tblMF.mov,movsUn);
+      nView = size(tblMF.mov,2);
+      movsUn = unique(tblMF.mov(:));
       frms = tblMF.frm;
       
       % open movies in MovieReaders
       nMovUn = numel(movsUn);
-      for iTrl = nMovUn:-1:1
-        mrs(iTrl,1) = MovieReader();
-        mrs(iTrl).forceGrayscale = true;
-        mrs(iTrl).open(movsUn{iTrl});
+      for iMovUn = nMovUn:-1:1
+        mrs(iMovUn,1) = MovieReader();
+        mrs(iMovUn).forceGrayscale = true;
+        mrs(iMovUn).open(movsUn{iMovUn});
       end
       
-      I = cell(N,1);
+      I = cell(N,nView);
       for iTrl = 1:N
-        iMov = movUnIdx(iTrl);
         f = frms(iTrl);
-        
-        mr = mrs(iMov);
-        im = mr.readframe(f); % currently forceGrayscale
-        I{iTrl} = im;
+        [~,movUnIdx] = ismember(tblMF.mov(iTrl,:),movsUn);
+        for iVw=1:nView
+          iMov = movUnIdx(iVw);        
+          mr = mrs(iMov);
+          im = mr.readframe(f); % currently forceGrayscale
+          I{iTrl,iVw} = im;
+        end
       end
     end
 
@@ -574,8 +586,12 @@ classdef CPRData < handle
       if obj.nView==1
         nChanPP = numel(obj.IppInfo);
       else
-        nChanPP = cellfun(@numel,obj.IppInfo);
-        nChanPP = unique(nChanPP);
+        if isempty(obj.IppInfo)
+          nChanPP = 0;
+        else
+          nChanPP = cellfun(@numel,obj.IppInfo);
+          nChanPP = unique(nChanPP);
+        end
         assert(isscalar(nChanPP));
       end
       fprintf(1,'Using %d additional channels.\n',nChanPP);
@@ -773,6 +789,7 @@ classdef CPRData < handle
   %% partitions
   methods (Static)
     
+    %#MV
     function [grps,ffd,ffdiTrl] = ffTrnSet(tblP,gvar)
       % Furthest-first training set analysis
       %
@@ -818,6 +835,7 @@ classdef CPRData < handle
       end
     end
     
+    %#MV
     function hFig1 = ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,varargin)
       % Display furthestfirst distances for groups in subplots; enable
       % clicking on subplots to visualize training shape

@@ -56,14 +56,14 @@ classdef CPRLabelTracker < LabelTracker
   % way, .mov is well-suited to serve as a unique movie ID in the tables,
   % and can be serialized/loaded and concretized to the runtime platform as
   % appropriate.
+  %
+  % Multiview data: movie IDs computed as above are delimiter-concatenated
+  % to form a single unique ID for each movieset.
   
   %% Train/Track
   properties
     
     % Training state -- set during .train()
-%     trnRes % most recent training results
-%     trnResTS % timestamp for trnRes
-%     trnResPallMD % movie/frame metadata for trnRes.pAll
     trnResH0 % image hist used for current training results (trnResRC)
     trnResIPt % TODO doc me. Basically like .trkPiPt.
     trnResRC % RegressorCascade
@@ -134,6 +134,7 @@ classdef CPRLabelTracker < LabelTracker
     % - The RegressorCascade in .trnResRC has its own timestamps for
     % training time and so on.
     
+    %#MV
     function tblP = getTblPLbledRecent(obj)
       % tblP: labeled data from Labeler that is more recent than anything 
       % in .trnDataTblPTS
@@ -144,7 +145,8 @@ classdef CPRLabelTracker < LabelTracker
       tf = maxTS > maxTDTS;
       tblP = tblP(tf,:);
     end 
-        
+      
+    %#MV
     function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP)
       td = obj.data;
       tbl0 = td.MD;
@@ -152,10 +154,12 @@ classdef CPRLabelTracker < LabelTracker
       [tblPnew,tblPupdate] = MFTable.tblPDiff(tbl0,tblP);
     end
     
+    %#MV
     function [tblPnew,tblPupdate,idxTrnDataTblP] = tblPDiffTrnData(obj,tblP)
       [tblPnew,tblPupdate,idxTrnDataTblP] = MFTable.tblPDiff(obj.trnDataTblP,tblP);
     end
     
+    %#MV
     function initData(obj)
       % Initialize .data*
       
@@ -166,6 +170,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.dataTS = now;
     end
     
+    %#MV
     function updateData(obj,tblP)
       % Update .data to include tblP
       
@@ -177,6 +182,7 @@ classdef CPRLabelTracker < LabelTracker
       delete(hWB);
     end
     
+    %#MV
     function updateDataRaw(obj,tblPNew,tblPupdate,varargin)
       % Incremental data update
       %
@@ -206,6 +212,12 @@ classdef CPRLabelTracker < LabelTracker
       
       if prmpp.histeq
         assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.trnResH0));
+        assert(obj.lObj.nview==1,...
+          'Histogram Equalization currently unsupported for multiview tracking.');
+      end
+      if ~isempty(prmpp.channelsFcn)
+        assert(obj.lObj.nview==1,...
+          'Channels preprocessing currently unsupported for multiview tracking.');
       end
       
       %%% EXISTING ROWS -- just update pGT and tfocc. Existing images are
@@ -224,8 +236,13 @@ classdef CPRLabelTracker < LabelTracker
       tblMFnew = tblPNew(:,{'mov' 'frm'});
       assert(~any(ismember(tblMFnew,tblMFcurr)));
       tblMFnewConcrete = tblMFnew;
+      if obj.lObj.isMultiView && ~isempty(tblMFnewConcrete.mov)
+        tmp = cellfun(@MFTable.unpackMultiMovieID,tblMFnewConcrete.mov,'uni',0);
+        tblMFnewConcrete.mov = cat(1,tmp{:});
+      end
       tblMFnewConcrete.mov = FSPath.fullyLocalizeStandardize(...
-        tblMFnewConcrete.mov,obj.lObj.projMacros); 
+        tblMFnewConcrete.mov,obj.lObj.projMacros);
+      % tblMFnewConcerete.mov is now [NxnView] 
       nNew = size(tblPNew,1);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
@@ -307,6 +324,7 @@ classdef CPRLabelTracker < LabelTracker
   %% Training Data Selection
   methods
     
+    %#MV
     function trnDataInit(obj)
       obj.trnDataFFDThresh = nan;
       obj.trnDataTblP = struct2table(struct('mov',cell(0,1),...
@@ -314,6 +332,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnDataTblPTS = -inf(0,1);
     end
     
+    %#MV
     function trnDataSelect(obj)
       % Furthest-first selection of training data.
       %
@@ -339,7 +358,7 @@ classdef CPRLabelTracker < LabelTracker
       tblP = obj.getTblPLbled(); % start with all labeled data
       [grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
       
-      mov = categorical(tblP.mov);
+      mov = categorical(tblP.mov); % multiview data: mov and related are multimov IDs
       movUn = categories(mov);
       nMovUn = numel(movUn);
       movUnCnt = countcats(mov);
@@ -1142,17 +1161,22 @@ classdef CPRLabelTracker < LabelTracker
         s.trkPMD = MFTable.rmMovS(s.trkPMD);
       end
       
-      assert(~obj.lObj.isMultiView);
-      
       allProjMovIDs = FSPath.standardPath(obj.lObj.movieFilesAll);
       allProjMovsFull = obj.lObj.movieFilesAllFull;
+      if obj.lObj.isMultiView
+        allProjMovIDs = MFTable.formMultiMovieID(allProjMovIDs);
+        allProjMovsFull = MFTable.formMultiMovieID(allProjMovsFull);
+      end
+      % 20161128. Multiview tracking is being put in after the transition
+      % to using movieIDs in all tables, so the replaceMovieFullWithMovieID
+      % business in the following should be no-ops for multiview projects.
       if ~isempty(s.trnDataTblP)
         tblDesc = 'Training data';
         s.trnDataTblP = MFTable.replaceMovieFullWithMovieID(s.trnDataTblP,...
           allProjMovIDs,allProjMovsFull,tblDesc);
         CPRLabelTracker.warnMoviesMissingFromProj(s.trnDataTblP.mov,allProjMovIDs,tblDesc);
         MFTable.warnDupMovFrmKey(s.trnDataTblP,tblDesc);
-      end      
+      end
       if ~isempty(s.trkPMD)
         tblDesc = 'Tracking results';
         s.trkPMD = MFTable.replaceMovieFullWithMovieID(s.trkPMD,...
@@ -1160,7 +1184,7 @@ classdef CPRLabelTracker < LabelTracker
         CPRLabelTracker.warnMoviesMissingFromProj(s.trkPMD.mov,allProjMovIDs,tblDesc);
         MFTable.warnDupMovFrmKey(s.trkPMD,tblDesc);
       end
-      
+
       % set parameter struct s.sPrm on obj
       assert(isfield(s,'paramFile'));
       if ~isequal(s.paramFile,obj.paramFile)
