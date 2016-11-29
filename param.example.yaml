@@ -1,7 +1,7 @@
 ---
 Model:
   name: 'FlyOnBall'
-  nfids: 7    # Number of labeled points per frame
+  nfids: 7    # Number of physical points to be tracked
   d: 2        # Physical dimension of label-space (only 2 works at the moment)
   nviews: 1
   isFace: 1   # currently unused  

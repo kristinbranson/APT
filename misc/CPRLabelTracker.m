@@ -66,7 +66,7 @@ classdef CPRLabelTracker < LabelTracker
     % Training state -- set during .train()
     trnResH0 % image hist used for current training results (trnResRC)
     trnResIPt % TODO doc me. Basically like .trkPiPt.
-    trnResRC % RegressorCascade
+    trnResRC % [1xnView] RegressorCascade.
     
     % Tracking state -- set during .track()
     % Note: trkD here can be less than the full/model D if some pts are
@@ -339,7 +339,7 @@ classdef CPRLabelTracker < LabelTracker
       % Based on user interaction, .trnDataFFDThresh, .trnDataTblP* are set.
       % For .trnDataTblP*, this is a fresh reset, not an update.
       
-      if ~isempty(obj.trnResRC) && obj.trnResRC.hasTrained
+      if ~isempty(obj.trnResRC) && any([obj.trnResRC.hasTrained])
         resp = questdlg('A tracker has already been trained. Re-selecting training data will clear all previous trained/tracked results. Proceed?',...
           'Tracker Trained','Yes, clear previous tracker','Cancel','Cancel');
         if isempty(resp)
@@ -412,7 +412,14 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(obj.sPrm)
         obj.trnResRC = [];
       else
-        obj.trnResRC = RegressorCascade(obj.sPrm);
+        nview = obj.lObj.nview;
+        sPrmUse = obj.sPrm;
+        %sPrmUse.Model.nfids = sPrmUse.Model.nfids/nview;
+        sPrmUse.Model.nviews = 1;
+        for i=1:nview
+          rc(1,i) = RegressorCascade(sPrmUse); %#ok<AGROW>
+        end
+        obj.trnResRC = rc;
       end
       obj.trnResIPt = [];
       obj.trnResH0 = [];
@@ -422,6 +429,7 @@ classdef CPRLabelTracker < LabelTracker
   %% TrackRes
   methods
 
+    %#MV
     function [trkpos,trkposTS,trkposFull] = getTrackResRaw(obj,iMov)
       % Get tracking results for movie iMov.
       %
@@ -482,6 +490,7 @@ classdef CPRLabelTracker < LabelTracker
   %% LabelTracker overloads
   methods
     
+    %#MV
     function initHook(obj)
       obj.initData();
       obj.trnDataInit();
@@ -490,18 +499,32 @@ classdef CPRLabelTracker < LabelTracker
       obj.vizInit();
     end
     
+    %#MV
     function setParamHook(obj)
       sNew = obj.readParamFileYaml();
       sNew = CPRLabelTracker.modernizeParams(sNew);
       obj.setParamContentsSmart(sNew);
     end
     
+    %#MV
     function setParamContentsSmart(obj,sNew)
       % Set parameter contents (.sPrm), looking at what top-level fields 
       % have changed and clearing obj state appropriately.
       
-      sOld = obj.sPrm;      
-      obj.sPrm = sNew; % set this now so eg trnResInit() can use            
+      if sNew.Model.nviews~=obj.lObj.nview
+        error('CPRLabelTracker:nviews',...
+          'Number of views in parameters.Model (%d) does not match number of views in project (%d).',...
+          sNew.Model.nviews,obj.lObj.nviews);
+      end
+      if sNew.Model.nfids~=obj.lObj.nPhysPoints
+        error('CPRLabelTracker:npts',...
+          'Number of points in parameters.Model (%d) does not match number of physical points in project (%d).',...
+          sNew.Model.nfids,obj.lObj.nPhysPoints);
+      end
+      
+      sOld = obj.sPrm;
+      obj.sPrm = sNew; % set this now so eg trnResInit() can use
+      
       if isempty(sOld) || isempty(sNew)
         obj.initData();
         obj.trnDataInit();
@@ -551,6 +574,7 @@ classdef CPRLabelTracker < LabelTracker
       end      
     end
         
+    %#MV
     function retrain(obj,varargin)
       % Full train using all of obj.trnDataTblP as training data
       % 
@@ -588,7 +612,10 @@ classdef CPRLabelTracker < LabelTracker
       
       % update .trnResH0; clear .data if necessary (if .trnResH0 is
       % out-of-date)
-      if prm.PreProc.histeq        
+      if prm.PreProc.histeq
+        assert(obj.lObj.nview==1,...
+          'Histogram Equalization currently unsupported for multiview projects.');
+        
         nFrmSampH0 = prm.PreProc.histeqH0NumFrames;
         H0 = obj.lObj.movieEstimateImHist(nFrmSampH0);
         
@@ -614,6 +641,7 @@ classdef CPRLabelTracker < LabelTracker
       tblMF = d.MD(:,{'mov' 'frm'});
       tblTrnMF = tblPTrn(:,{'mov','frm'});
       tf = ismember(tblMF,tblTrnMF);
+      assert(nnz(tf)==size(tblTrnMF,1));
       d.iTrn = find(tf);
       
       fprintf(1,'Training data summary:\n');
@@ -624,17 +652,40 @@ classdef CPRLabelTracker < LabelTracker
       
       iPt = prm.TrainInit.iPt;
       nfids = prm.Model.nfids;
+      nviews = prm.Model.nviews;
       assert(prm.Model.d==2);
       nfidsInTD = size(d.pGT,2)/prm.Model.d;
       if isempty(iPt)
-        assert(nfidsInTD==nfids);
+        assert(nfidsInTD==nfids*nviews);
         iPt = 1:nfidsInTD;
+      else
+        assert(obj.lObj.nview==1,'TrainInit.iPt specification currently unsupported for multiview projects.');
       end
       iPGT = [iPt iPt+nfidsInTD];
       fprintf(1,'iPGT: %s\n',mat2str(iPGT));
-      
       pTrn = d.pGTTrn(:,iPGT);
-      obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn);
+      % pTrn col order is: [iPGT(1)_x iPGT(2)_x ... iPGT(end)_x iPGT(1)_y ... iPGT(end)_y]
+      
+      nView = obj.lObj.nview;
+      if nView==1 % doesn't need its own branch, just leaving old path
+        obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn);
+      else
+        assert(size(Is,2)==nView);
+        assert(size(pTrn,2)==obj.lObj.nPhysPoints*nView*prm.Model.d); 
+        assert(nfidsInTD==obj.lObj.nPhysPoints*nView);
+        % col order of pTrn should be:
+        % [p1v1_x p2v1_x .. pkv1_x p1v2_x .. pkv2_x .. pkvW_x
+        nPhysPoints = obj.lObj.nPhysPoints;
+        for iView=1:nView
+          IsVw = Is(:,iView);
+          bbVw = CPRData.getBboxes2D(IsVw);
+          iPtVw = (1:nPhysPoints)+(iView-1)*nPhysPoints;
+          assert(isequal(iPtVw(:),find(obj.lObj.labeledposIPt2View==iView)));
+          pTrnVw = pTrn(:,[iPtVw iPtVw+nfidsInTD]);
+          
+          obj.trnResRC(iView).trainWithRandInit(IsVw,bbVw,pTrnVw);
+        end
+      end
       obj.trnResIPt = iPt;
     end
     
@@ -648,11 +699,14 @@ classdef CPRLabelTracker < LabelTracker
         
       % figure out if we want an incremental train or full retrain
       rc = obj.trnResRC;
-      if ~rc.hasTrained
+      if any(~[rc.hasTrained])
         obj.retrain(varargin{:});
         return;
       end        
             
+      assert(obj.lObj.nview==1,...
+        'Incremental training currently unsupported for multiview projects.');
+      
       tblPNew = obj.getTblPLbledRecent();
       
       if isempty(tblPNew)
@@ -715,10 +769,11 @@ classdef CPRLabelTracker < LabelTracker
       assert(isequal(obj.trnResIPt,iPt));
     end
     
+    %#MV
     function trainPrintDiagnostics(obj,iTL)
       % iTL: Index into .trnLog at which to start
       
-      rc = obj.trnResRC;
+      rc = obj.trnResRC(1);
       tsFullTrn = rc.trnLog(iTL).ts;
 
       nTL = numel(rc.trnLog);
@@ -808,6 +863,7 @@ classdef CPRLabelTracker < LabelTracker
 %       fprintf(1,'Loaded tracking results for %d frames.\n',nfLoad);
     end
     
+    %#MV
     function track(obj,iMovs,frms,varargin)
       [tblP,stripTrkPFull,movChunkSize,p0DiagImg] = myparse(varargin,...
         'tblP',[],... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
@@ -820,7 +876,7 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(prm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
-      if ~obj.trnResRC.hasTrained
+      if ~all([obj.trnResRC.hasTrained])
         error('CPRLabelTracker:track','No tracker has been trained.');
       end
       
@@ -873,30 +929,53 @@ classdef CPRLabelTracker < LabelTracker
         %% Test on test set
         NTst = d.NTst;
         RT = prm.TestInit.Nrep;
-        bboxes = d.bboxesTst;
-        
-        rc = obj.trnResRC;        
-        [p_t,~,p0Info] = rc.propagateRandInit(Is,bboxes,prm.TestInit);
-        if iChunk==1 && ~isempty(p0DiagImg)
-          hFigP0DiagImg = RegressorCascade.createP0DiagImg(Is,p0Info);
-          savefig(hFigP0DiagImg,p0DiagImg);
-          delete(hFigP0DiagImg);          
+
+        nview = obj.sPrm.Model.nviews;
+        nfids = prm.Model.nfids;
+        assert(nview==numel(obj.trnResRC));
+        assert(nview==size(Is,2));
+        assert(prm.Model.d==2);
+        Dfull = nfids*nview*prm.Model.d;
+        pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
+        pTstTRed = nan(NTst,Dfull,prm.Reg.T+1);
+        for iView=1:nview
+          rc = obj.trnResRC(iView);
+          IsVw = Is(:,iView);          
+          bboxesVw = CPRData.getBboxes2D(IsVw);
+          if nview==1
+            assert(isequal(bboxesVw,d.bboxesTst));
+          end
+          
+          [p_t,~,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,prm.TestInit);
+          if iChunk==1 && ~isempty(p0DiagImg)
+            hFigP0DiagImg = RegressorCascade.createP0DiagImg(IsVw,p0Info);
+            [ptmp,ftmp,etmp] = fileparts(p0DiagImg);
+            p0DiagImgVw = fullfile(ptmp,sprintf('%s_view%d.%s',ftmp,iView,etmp));
+            savefig(hFigP0DiagImg,p0DiagImgVw);
+            delete(hFigP0DiagImg);
+          end
+          trkMdl = rc.prmModel;
+          trkD = trkMdl.D;
+          Tp1 = rc.nMajor+1;
+          pTstTVw = reshape(p_t,[NTst RT trkD Tp1]);
+          
+          %% Select best preds for each time
+          pTstTRedVw = nan(NTst,trkD,Tp1);
+          prm.Prune.prune = 1;
+          for t = 1:Tp1
+            fprintf('Pruning t=%d\n',t);
+            pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
+            pTstTRedVw(:,:,t) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
+          end
+          
+          assert(trkD==Dfull/nview);
+          assert(mod(trkD,2)==0);
+          iFull = (1:nfids)+(iView-1)*nfids;
+          iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
+          pTstT(:,:,iFull,:) = pTstTVw;
+          pTstTRed(:,iFull,:) = pTstTRedVw;
         end
-        trkMdl = rc.prmModel;
-        trkD = trkMdl.D;
-        Tp1 = rc.nMajor+1;
-        pTstT = reshape(p_t,[NTst RT trkD Tp1]);
-        
-        
-        %% Select best preds for each time
-        pTstTRed = nan(NTst,trkD,Tp1);
-        prm.Prune.prune = 1;
-        for t = 1:Tp1
-          fprintf('Pruning t=%d\n',t);
-          pTmp = permute(pTstT(:,:,:,t),[1 3 2]); % [NxDxR]
-          pTstTRed(:,:,t) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
-        end
-        
+          
         % Augment .trkP* state with new tracking results
         % - new rows are just added
         % - existing rows are overwritten
@@ -940,7 +1019,7 @@ classdef CPRLabelTracker < LabelTracker
         % there were original tracking results and the old .trkPiPt matches
         % the new (in which case this line is a no-op).
         obj.trkPiPt = obj.trnResIPt;
-      end      
+      end
       
       if ~isempty(obj.lObj)
         obj.vizLoadXYPrdCurrMovie();
@@ -950,6 +1029,7 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
       
+    %#MV
     function trkfiles = getTrackingResults(obj,iMovs)
       % Get tracking results for movie iMov.
       %
@@ -1369,8 +1449,14 @@ classdef CPRLabelTracker < LabelTracker
         obj.xyPrdCurrMovieIsInterp = [];
         return;
       end
-            
-      movNameID = FSPath.standardPath(lObj.movieFilesAll{lObj.currMovie});
+      
+      if lObj.isMultiView
+        movNameID = FSPath.standardPath(lObj.movieFilesAll(lObj.currMovie,:));
+        movNameID = MFTable.formMultiMovieID(movNameID);
+      else
+        movNameID = FSPath.standardPath(lObj.movieFilesAll{lObj.currMovie});
+      end
+        
       nfrms = lObj.nframes;
       
       d = 2;

@@ -161,7 +161,7 @@ classdef CPRData < handle
             sz = cellfun(@(x)size(x'),Is,'uni',0);
             bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
           else
-            warning('CPRData:bb','Multiview CPRData.');
+            warningNoTrace('CPRData:bb','Multiview CPRData.');
             bb = nan(size(Is,1),0);
           end
         case 3
@@ -318,6 +318,19 @@ classdef CPRData < handle
           I{iTrl,iVw} = im;
         end
       end
+    end
+
+    function bboxes = getBboxes2D(I)
+      % Compute default 2D bounding boxes for image set
+      %
+      % I: [N] column cell vec of images
+      % 
+      % bboxes: [Nx4] 2d bboxes
+      
+      assert(iscell(I) && iscolumn(I));
+      sz = cellfun(@(x)size(x'),I,'uni',0);
+      bboxes = cellfun(@(x)[[1 1] x],sz,'uni',0);
+      bboxes = cat(1,bboxes{:});      
     end
 
   end
