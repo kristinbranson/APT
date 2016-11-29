@@ -1447,7 +1447,7 @@ classdef Labeler < handle
           mr(iVw).open(movfull);
         end
         
-        movID = FSPath.formMultiMovieID(movieNamesID(iMovSet,:));
+        movID = MFTable.formMultiMovieID(movieNamesID(iMovSet,:));
         
         % find labeled/tagged frames (considering ALL frames for this
         % movie)
@@ -2627,22 +2627,22 @@ classdef Labeler < handle
     function labelExportTrk(obj,iMovs,trkfiles)
       % Export label data to trk files.
       %
-      % iMov: optional, indices into .movieFilesAll to export. Defaults to 
-      % 1:obj.nmovies.
+      % iMov: optional, indices into (rows of) .movieFilesAll to export. 
+      %   Defaults to 1:obj.nmovies.
       % trkfiles: optional, trkfilenames to export to. Defaults to
       % filenames returned by getTrkFileNamesForExport.
       
       if exist('iMovs','var')==0 
         iMovs = 1:obj.nmovies;
       end
-      movfiles = obj.movieFilesAllFull(iMovs,1);
+      movfiles = obj.movieFilesAllFull(iMovs,:);
       if exist('trkfiles','var')==0       
-      [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles);
+        [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles);
         if ~tfok
           return;
         end
       end
-        nMov = numel(iMovs);
+      nMov = numel(iMovs);
       if nMov~=numel(trkfiles)
         error('Labeler:argSize',...
           'Numbers of movies and trkfiles supplied must be equal.');

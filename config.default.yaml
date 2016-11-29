@@ -105,6 +105,7 @@ Shortcuts: # shortcuts. case insensitive!
   menu_file_save: s # file -> save project
   menu_file_managemovies: m # file -> manage movies
   menu_file_quit: q # file -> quit
+  menu_view_hide_labels: h # view -> hide labels
   menu_view_hide_predictions: p # view -> hide predictions
   menu_track_select_training_data: f # track -> select training data
   menu_track_retrain: r # track -> retrain

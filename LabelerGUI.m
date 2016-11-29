@@ -1020,15 +1020,6 @@ handles.labelerObj.labelImportTrkPrompt(iMov);
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelExportTrk();
 
-% function menu_file_openmovietrx_Callback(hObject, eventdata, handles)
-% lObj = handles.labelerObj;
-% if hlpSave(lObj)
-%   lObj.loadMovie([],[]);
-%   if lObj.hasMovie
-%     lObj.labelingInit();
-%   end
-% end
-
 function menu_help_Callback(hObject, eventdata, handles)
 
 function menu_help_labeling_actions_Callback(hObject, eventdata, handles)

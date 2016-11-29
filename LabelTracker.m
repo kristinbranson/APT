@@ -33,13 +33,7 @@ classdef LabelTracker < handle
   methods
     
     function obj = LabelTracker(labelerObj)
-      obj.lObj = labelerObj;   
-      
-      if ~isempty(obj.lObj)
-        axOver = axisOverlay(obj.lObj.gdata.axes_curr);
-        axOver.LineWidth = 2;
-        obj.ax = axOver;
-      end
+      obj.lObj = labelerObj;      
       
       trkPrefs = labelerObj.projPrefs.Track;
       if isfield(trkPrefs,'PredictInterpolate')
@@ -58,7 +52,16 @@ classdef LabelTracker < handle
     
     function init(obj)
       % Called when a new project is created/loaded, etc
-      axisOverlay(obj.lObj.gdata.axes_curr,obj.ax);
+
+      deleteValidHandles(obj.ax);     
+      axAll = obj.lObj.gdata.axes_all;
+      axOver = gobjects(size(axAll));
+      for i=1:numel(axAll)
+        axOver(i) = axisOverlay(axAll(i));
+        axOver(i).LineWidth = 2;
+      end
+      obj.ax = axOver;
+      
       obj.initHook();
     end
     
