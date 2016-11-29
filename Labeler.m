@@ -2537,14 +2537,15 @@ classdef Labeler < handle
       % whether overwriting is ok; alternatively trkfiles may be 
       % modified/uniqueified using datetimestamps.
       %
-      % trkfiles (input): cellstr of proposed trkfile names (full paths)
+      % trkfiles (input): cellstr of proposed trkfile names (full paths).
+      % Can be an array.
       %
       % tfok: if true, trkfiles (output) is valid, and user has said it is 
       % ok to write to those files even if it is an overwrite.
       % trkfiles (output): cellstr, same size as trkfiles. .trk filenames
       % that are okay to write/overwrite to. Will match input if possible.
       
-      tfexist = cellfun(@(x)exist(x,'file')>0,trkfiles);
+      tfexist = cellfun(@(x)exist(x,'file')>0,trkfiles(:));
       tfok = true;
       if any(tfexist)
         iExist = find(tfexist,1);
@@ -2643,19 +2644,40 @@ classdef Labeler < handle
         end
       end
       nMov = numel(iMovs);
-      if nMov~=numel(trkfiles)
+      nView = obj.nview;
+      if size(trkfiles,1)~=nMov
         error('Labeler:argSize',...
           'Numbers of movies and trkfiles supplied must be equal.');
       end
-        
-      for i=1:nMov
-        iMv = iMovs(i);
-        trkfile = TrkFile(obj.labeledpos{iMv},...
-          'pTrkTS',obj.labeledposTS{iMv},...
-          'pTrkTag',obj.labeledpostag{iMv});
-        trkfile.save(trkfiles{i});
+      if size(trkfiles,2)~=nView
+        error('Labeler:argSize',...
+          'Number of columns in trkfiles (%d) must equal number of views in project (%d).',...
+          size(trkfiles,2),nView);
       end
-      msgbox(sprintf('%d trk files exported.',nMov),'Export complete.');
+        
+      nPhysPts = obj.nPhysPoints;
+      for i=1:nMov
+        iMvSet = iMovs(i);
+        lposFull = obj.labeledpos{iMvSet};
+        lposTSFull = obj.labeledposTS{iMvSet};
+        lposTagFull = obj.labeledpostag{iMvSet};
+        
+        for iView=1:nView
+          iPt = (1:nPhysPts) + (iView-1)*nPhysPts;
+          if nView==1
+            assert(nPhysPts==size(lposFull,1));
+          else
+            tmp = find(obj.labeledposIPt2View==iView);
+            assert(isequal(tmp(:),iPt(:)));
+          end
+          trkfile = TrkFile(lposFull(iPt,:,:,:),...
+            'pTrkTS',lposTSFull(iPt,:,:),...
+            'pTrkTag',lposTagFull(iPt,:,:));
+          trkfile.save(trkfiles{i,iView});
+          fprintf('Saved trkfile: %s\n',trkfiles{i,iView});
+        end
+      end
+      msgbox(sprintf('Results for %d moviesets exported.',nMov),'Export complete.');
     end
     
     function labelImportTrkGeneric(obj,iMovSets,trkfiles,lposFld,lposTSFld,lposTagFld)
