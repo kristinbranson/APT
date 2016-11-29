@@ -1216,7 +1216,10 @@ classdef CPRLabelTracker < LabelTracker
                 
         % Hack, double-update legacy RegressorCascades (.trnResRC).
         rc = s.trnResRC;
-        if ~isempty(rc)
+        if ~isempty(rc) && isscalar(rc) 
+          % 20161128: multiview projs (nonscalar rc) should not require
+          % these updates.
+          
           assert(isa(rc,'RegressorCascade')); % handle obj
           if isempty(rc.prmModel.nviews)
             assert(s.sPrm.Model.nviews==1); 
@@ -1244,8 +1247,15 @@ classdef CPRLabelTracker < LabelTracker
       allProjMovIDs = FSPath.standardPath(obj.lObj.movieFilesAll);
       allProjMovsFull = obj.lObj.movieFilesAllFull;
       if obj.lObj.isMultiView
-        allProjMovIDs = MFTable.formMultiMovieID(allProjMovIDs);
-        allProjMovsFull = MFTable.formMultiMovieID(allProjMovsFull);
+        nrow = size(allProjMovIDs,1);
+        tmpIDs = cell(nrow,1);
+        tmpFull = cell(nrow,1);
+        for i=1:nrow
+          tmpIDs{i} = MFTable.formMultiMovieID(allProjMovIDs(i,:));
+          tmpFull{i} = MFTable.formMultiMovieID(allProjMovsFull(i,:));
+        end
+        allProjMovIDs = tmpIDs;
+        allProjMovsFull = tmpFull;
       end
       % 20161128. Multiview tracking is being put in after the transition
       % to using movieIDs in all tables, so the replaceMovieFullWithMovieID
@@ -1426,12 +1436,14 @@ classdef CPRLabelTracker < LabelTracker
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
       ax = obj.ax;
-      cla(ax);
-      hold(ax,'on');
+      arrayfun(@cla,ax);
+      arrayfun(@(x)hold(x,'on'),ax);
+      ipt2View = obj.lObj.labeledposIPt2View;
       hTmp = gobjects(npts,1);
       for iPt = 1:npts
         clr = ptsClrs(iPt,:);
-        hTmp(iPt) = plot(ax,nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
+        iVw = ipt2View(iPt);
+        hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
       end
       obj.hXYPrdRed = hTmp;
     end
