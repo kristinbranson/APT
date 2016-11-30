@@ -511,17 +511,6 @@ classdef CPRLabelTracker < LabelTracker
       % Set parameter contents (.sPrm), looking at what top-level fields 
       % have changed and clearing obj state appropriately.
       
-      if sNew.Model.nviews~=obj.lObj.nview
-        error('CPRLabelTracker:nviews',...
-          'Number of views in parameters.Model (%d) does not match number of views in project (%d).',...
-          sNew.Model.nviews,obj.lObj.nviews);
-      end
-      if sNew.Model.nfids~=obj.lObj.nPhysPoints
-        error('CPRLabelTracker:npts',...
-          'Number of points in parameters.Model (%d) does not match number of physical points in project (%d).',...
-          sNew.Model.nfids,obj.lObj.nPhysPoints);
-      end
-      
       sOld = obj.sPrm;
       obj.sPrm = sNew; % set this now so eg trnResInit() can use
       
@@ -531,7 +520,18 @@ classdef CPRLabelTracker < LabelTracker
         obj.trnResInit();
         obj.trackResInit();
         obj.vizInit();
-      else
+      else % Both sOld, sNew nonempty
+        if sNew.Model.nviews~=obj.lObj.nview
+          error('CPRLabelTracker:nviews',...
+            'Number of views in parameters.Model (%d) does not match number of views in project (%d).',...
+            sNew.Model.nviews,obj.lObj.nviews);
+        end
+        if sNew.Model.nfids~=obj.lObj.nPhysPoints
+          error('CPRLabelTracker:npts',...
+            'Number of points in parameters.Model (%d) does not match number of physical points in project (%d).',...
+            sNew.Model.nfids,obj.lObj.nPhysPoints);
+        end
+        
         if isempty(sOld.Model.nviews)
           sOld.Model.nviews = 1;
           % set this to enable comparisons below
