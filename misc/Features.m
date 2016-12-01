@@ -124,7 +124,7 @@ classdef Features
         for i1 = 1:n1
           s1 = sig1(i1);
           sIm = gaussSmooth(im,s1,'same',opts.gaussFiltRadius);
-          S{iTrl,i1} = sIm;          
+          S{iTrl,i1} = sIm;
           if opts.sRescale
             s = S{iTrl,i1}*opts.sRescaleFacs(i1);
             tfOOB = s<0 | s>255;
@@ -134,6 +134,8 @@ classdef Features
                 nnz(tfOOB),numel(tfOOB),pctOOB);
             end
             S{iTrl,i1} = uint8(s);
+          else
+            S{iTrl,i1} = uint8(S{iTrl,i1});
           end
           
           GsIm = gradientMag(single(sIm));
@@ -167,6 +169,8 @@ classdef Features
                   nnz(tfOOB),numel(tfOOB),pctOOB);
               end
               SGS{iTrl,i1,i2} = uint8(sgs);
+            else
+              SGS{iTrl,i1,i2} = uint8(SGS{iTrl,i1,i2});
             end
             if opts.slsRescale
               sls = SLS{iTrl,i1,i2}*opts.slsRescaleFacs(i1,i2)+128;
@@ -177,6 +181,8 @@ classdef Features
                   nnz(tfOOB),numel(tfOOB),pctOOB);
               end
               SLS{iTrl,i1,i2} = uint8(sls);
+            else
+              SLS{iTrl,i1,i2} = uint8(SLS{iTrl,i1,i2});
             end
           end
         end
