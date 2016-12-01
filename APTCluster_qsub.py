@@ -28,8 +28,8 @@ def main():
     parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'") 
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
-    parser.add_argument("--trackargs",help="use with action==track. enclose in quotes, additional/optional prop-val pairs (eg p0DiagImg, trkFilename, stripTrkPFull)")
-    parser.add_argument("-p0di","--p0DiagImg",help="use with action==track. short filename for shape initialization diagnostics image")
+    parser.add_argument("--trackargs",help="use with action==track or trackbatch. enclose in quotes, additional/optional prop-val pairs (eg trkFilename, stripTrkPFull)")
+    parser.add_argument("-p0di","--p0DiagImg",help="use with action==track or trackbatch. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
     parser.add_argument("--trkfile",help="use with action==prune. full path to trkfile to prune")
     parser.add_argument("--pruneargs",help="use with action=prune. enclose in quotes; '<sigd> <ipt>'")
@@ -61,9 +61,9 @@ def main():
             args.movbatchfilelineend = sys.maxint
     if args.action!="track" and args.mov:
         print("Action is " + args.action + ", ignoring --mov specification")
-    if args.action!="track" and args.p0DiagImg:
+    if args.action not in ["track","trackbatch"] and args.p0DiagImg:
         print("Action is " + args.action + ", ignoring --p0DiagImg specification")    
-    if args.action!="track" and args.trackargs:
+    if args.action not in ["track","trackbatch"] and args.trackargs:
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
@@ -104,7 +104,7 @@ def main():
     args.USERNAME = subprocess.check_output("whoami").strip()
     args.TMP_ROOT_DIR = "/scratch/" + args.USERNAME
     args.MCR_CACHE_ROOT = args.TMP_ROOT_DIR + "/mcr_cache_root"
-    args.QSUBARGS = "-pe batch " + args.pebatch + " -l sl7=true -j y -b y -cwd" 
+    args.QSUBARGS = "-pe batch " + args.pebatch + " -j y -b y -cwd" 
     if args.account:
         args.QSUBARGS = "-A {0:s} ".format(args.account) + args.QSUBARGS
         
@@ -150,7 +150,13 @@ def main():
                 outdiruse = os.path.dirname(mov)
             shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
             logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
-            cmd = args.projfile + " track " + mov
+
+            cmd = args.projfile + " track  " + mov
+            if args.trackargs:
+                cmd = cmd + " " + args.trackargs
+            if args.p0DiagImg:
+                p0DiagImgFull = os.path.join(outdiruse,args.p0DiagImg) # won't work well when args.outdir supplied
+                cmd = cmd + " p0DiagImg " + p0DiagImgFull
             gencode(shfile,jobid,args,cmd)
 
             # submit 

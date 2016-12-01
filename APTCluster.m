@@ -135,11 +135,27 @@ lObj.movieSet(iMov);
 assert(strcmp(lObj.movieFilesAllFull{lObj.currMovie},mov));
 
 % filter/massage trackArgs
+trackArgs = trackArgs(:);
+
 i = find(strcmpi(trackArgs,'trkFilename'));
 assert(isempty(i) || isscalar(i));
-trackArgs = trackArgs(:);
 trkFilenameArgs = trackArgs(i:i+1);
 trackArgs(i:i+1,:) = [];
+
+i = find(strcmpi(trackArgs,'startFrame'));
+assert(isempty(i) || isscalar(i));
+startArgs = trackArgs(i:i+1);
+trackArgs(i:i+1,:) = [];
+if numel(startArgs)==2 && ischar(startArgs{2})
+  startArgs{2} = str2double(startArgs{2});
+end  
+i = find(strcmpi(trackArgs,'endFrame'));
+assert(isempty(i) || isscalar(i));
+endArgs = trackArgs(i:i+1);
+trackArgs(i:i+1,:) = [];
+if numel(endArgs)==2 && ischar(endArgs{2})
+  endArgs{2} = str2double(endArgs{2});
+end
 
 i = find(strcmpi(trackArgs,'stripTrkPFull'));
 assert(isempty(i) || isscalar(i));
@@ -147,5 +163,11 @@ if isscalar(i) && ischar(trackArgs{i+1})
   trackArgs{i+1} = str2double(trackArgs{i+1});
 end
 
-tm = TrackMode.CurrMovEveryFrame;
+tfStartEnd = numel(startArgs)==2 && numel(endArgs)==2;
+if tfStartEnd
+  tm = TrackMode.CurrMovCustomFrames;
+  tm.info = startArgs{2}:endArgs{2};
+else
+  tm = TrackMode.CurrMovEveryFrame;
+end
 lObj.trackAndExport(tm,'trackArgs',trackArgs,trkFilenameArgs{:});

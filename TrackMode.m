@@ -1,12 +1,14 @@
-classdef TrackMode 
+classdef TrackMode < handle
   properties
     prettyStringPat
     labelerProp
+    info
   end
   methods
     function obj = TrackMode(pspat,lprop)
       obj.prettyStringPat = pspat;
       obj.labelerProp = lprop;
+      obj.info = [];
     end
     function str = menuStr(obj,labelerObj)
       % Create pretty-string for UI
@@ -47,6 +49,11 @@ classdef TrackMode
           end
           frms = frms(~tfOOB);
           frms = {frms(:)'};
+        elseif obj==TrackMode.CurrMovCustomFrames
+          iMov = labelerObj.currMovie;
+          frms = obj.info;
+          validateattributes(frms,{'numeric'},{'positive' 'integer' 'vector'});
+          frms = {frms};
         else % track at regular intervals
           switch obj
             case TrackMode.CurrMovEveryFrame
@@ -83,6 +90,7 @@ classdef TrackMode
     CurrMovEveryNFramesLarge ('Current movie, every %d frames','trackNFramesLarge')
     CurrMovSelectedFrames ('Current movie, selected frames',[])
     CurrMovNearCurrFrame ('Current movie, within %d frames of current frame','trackNFramesNear')
+    CurrMovCustomFrames ('Current movie, custom frames',[])
     SelMovEveryFrame ('Selected movies, every frame',[])
     SelMovEveryNFramesSmall ('Selected movies, every %d frames','trackNFramesSmall')
     SelMovEveryNFramesLarge ('Selected movies, every %d frames','trackNFramesLarge')
