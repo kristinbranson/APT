@@ -80,8 +80,8 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
   trkPrunedAbs = TrkFile(pLegsPrunedAbs,'pTrkiPt',ipt,'pTrkFrm',frmstart:frmend);
   
   [trkfileP,trkfileS] = fileparts(trkfile);
-  filebase = sprintf('_prune%02d.trk',ipt);
-  filebaseAbs = sprintf('_pruneAbs%02d.trk',ipt);
+  filebase = sprintf('_prune%02d_sig%02d_%d_%d.trk',ipt,round(sigd),frmstart,frmend);
+  filebaseAbs = sprintf('_pruneAbs%02d_sig%02d_%d_%d.trk',ipt,round(sigd),frmstart,frmend);
   trkfilePruned = fullfile(trkfileP,[trkfileS filebase]);
   trkfilePrunedAbs = fullfile(trkfileP,[trkfileS filebaseAbs]);
   
