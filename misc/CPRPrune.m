@@ -29,8 +29,8 @@ classdef CPRPrune < handle
       obj.imnc = imnc;
       obj.sigD = sigd;
       
-      RAD = 255;
-      [xgridbig,ygridbig] = meshgrid(-RAD:1:RAD,-RAD:1:RAD);
+      rad = max(imnr,imnc);
+      [xgridbig,ygridbig] = meshgrid(-rad:1:rad,-rad:1:rad);
       obj.bigD = obj.computeD(xgridbig,ygridbig,0,0,sigd);
     end
     
