@@ -10,7 +10,7 @@ function APTCluster(varargin)
 % APTCluster(lblFile,'track',moviefullpath,varargin)
 %
 % % Prune legs of a trkfile, saving results alongside trkfile
-% APTCluster(0,'prunejan',trkfullpath,sigd,leg)
+% APTCluster(0,'prunejan',trkfullpath,sigd,ipt,frmstart,frmend)
 
 lblFile = varargin{1};
 action = varargin{2};
@@ -19,63 +19,77 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
   % NON-LBLFILE ACTIONS
   
   switch action
+    case 'prunerf'
+      IMNR = 624;
+      IMNC = 672;
     case 'prunejan'
-      trkfile = varargin{3};
-      if exist(trkfile,'file')==0
-        error('APTCluster:file','Cannot find file: ''%s''.',trkfile);
-      end
-      sigd = varargin{4};
-      if ~isnumeric(sigd)
-        sigd = str2double(sigd);
-      end
-      ipt = varargin{5};
-      if ~isnumeric(ipt)
-        ipt = str2double(ipt);
-      end
-      
-      assert(~verLessThan('matlab','R2016a'),'''prunejan'' requires MATLAB R2016a or later.');
-      
-      trk = load(trkfile,'-mat');
-      trkPFull = trk.pTrkFull;
-      [npttrk,d,nRep,nfrm] = size(trkPFull);
-      trkD = npttrk*d;
-      trkPFull = reshape(trkPFull,[trkD nRep nfrm]);
-      trkPFull = permute(trkPFull,[3 2 1]);
-      trkPiPt = trk.pTrkiPt;
-      assert(numel(trkPiPt)==npttrk);
-
       IMNR = 256;
       IMNC = 256;
-      %LEGS = 4:7;
-      %NLEG = numel(LEGS);
-      NLEG = 1;
-      pLegsPruned = nan(NLEG,2,nfrm);
-      pLegsPrunedAbs = nan(NLEG,2,nfrm);
-      %for iLeg = 1:NLEG
-        %ipt = LEGS(iLeg);
-        pObj = CPRPrune(IMNR,IMNC,sigd);
-        pObj.init(trkPFull,trkPiPt,ipt,1,nfrm);
-        pObj.run();
-        pLegsPruned(1,:,:) = pObj.prnTrk';
-        pLegsPrunedAbs(1,:,:) = pObj.prnTrkAbs';
-      %end
-      trkPruned = TrkFile(pLegsPruned,'pTrkiPt',ipt);
-      trkPrunedAbs = TrkFile(pLegsPrunedAbs,'pTrkiPt',ipt);
-      
-      [trkfileP,trkfileS] = fileparts(trkfile);
-      filebase = sprintf('_prune%d.trk',ipt);
-      filebaseAbs = sprintf('_pruneAbs%d.trk',ipt);
-      trkfilePruned = fullfile(trkfileP,[trkfileS filebase]);
-      trkfilePrunedAbs = fullfile(trkfileP,[trkfileS filebaseAbs]);
-      
-      fprintf(1,'Saving: %s...\n',trkfilePruned);
-      trkPruned.save(trkfilePruned);
-      fprintf(1,'Saving: %s...\n',trkfilePrunedAbs);
-      trkPrunedAbs.save(trkfilePrunedAbs);            
     otherwise
       assert(false,'Unrecognized action.');
   end
   
+  % APTCluster(0,'prune*',trkfullpath,sigd,ipt,startfrm,endfrm)
+ 
+  [trkfile,sigd,ipt,frmstart,frmend] = deal(varargin{3:7});
+  if exist(trkfile,'file')==0
+    error('APTCluster:file','Cannot find file: ''%s''.',trkfile);
+  end
+  if ~isnumeric(sigd)
+    sigd = str2double(sigd);
+  end
+  if ~isnumeric(ipt)
+    ipt = str2double(ipt);
+  end  
+  assert(isscalar(ipt));
+  if ~isnumeric(frmstart)
+    frmstart = str2double(frmstart);
+  end  
+  if ~isnumeric(frmend)
+    frmend = str2double(frmend);
+  end  
+  
+  assert(~verLessThan('matlab','R2016a'),...
+    '''prunejan'' requires MATLAB R2016a or later.');
+  
+  trk = load(trkfile,'-mat');
+  trkPFull = trk.pTrkFull;
+  [npttrk,d,nRep,nfrmtrk] = size(trkPFull);
+  trkD = npttrk*d;
+  trkPFull = reshape(trkPFull,[trkD nRep nfrmtrk]);
+  trkPFull = permute(trkPFull,[3 2 1]);
+  trkPiPt = trk.pTrkiPt;
+  assert(numel(trkPiPt)==npttrk);
+  
+  if isfield(trk,'pTrkFrm')
+    pTrkFrm = trk.pTrkFrm;
+    assert(isequal(pTrkFrm,1:pTrkFrm(end)));
+    assert(frmstart<=pTrkFrm(end) && frmend<=pTrkFrm(end));
+  end
+  
+  NPTPRUNE = 1;
+  nfrmprune = frmend-frmstart+1;
+  pLegsPruned = nan(NPTPRUNE,2,nfrmprune);
+  pLegsPrunedAbs = nan(NPTPRUNE,2,nfrmprune);
+  pObj = CPRPrune(IMNR,IMNC,sigd);
+  pObj.init(trkPFull,trkPiPt,ipt,frmstart,frmend);
+  pObj.run();
+  pLegsPruned(1,:,:) = pObj.prnTrk';
+  pLegsPrunedAbs(1,:,:) = pObj.prnTrkAbs';  
+  trkPruned = TrkFile(pLegsPruned,'pTrkiPt',ipt,'pTrkFrm',frmstart:frmend);
+  trkPrunedAbs = TrkFile(pLegsPrunedAbs,'pTrkiPt',ipt,'pTrkFrm',frmstart:frmend);
+  
+  [trkfileP,trkfileS] = fileparts(trkfile);
+  filebase = sprintf('_prune%02d.trk',ipt);
+  filebaseAbs = sprintf('_pruneAbs%02d.trk',ipt);
+  trkfilePruned = fullfile(trkfileP,[trkfileS filebase]);
+  trkfilePrunedAbs = fullfile(trkfileP,[trkfileS filebaseAbs]);
+  
+  fprintf(1,'Saving: %s...\n',trkfilePruned);
+  trkPruned.save(trkfilePruned);
+  fprintf(1,'Saving: %s...\n',trkfilePrunedAbs);
+  trkPrunedAbs.save(trkfilePrunedAbs);
+
   return;
 end
  

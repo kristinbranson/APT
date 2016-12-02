@@ -11,6 +11,7 @@ classdef TrkFile < handle
     pTrkTag = TrkFile.unsetVal; % [npttrked x nfrm] cell, like labeledposTag
     pTrkiPt = TrkFile.unsetVal; % [npttrked]. point indices labeling rows of .pTrk*. If 
                            % npttrked=labeled.nLabelPoints, then .pTrkiPt=1:npttrked.
+    pTrkFrm = TrkFile.unsetVal; % [nfrm]. frames tracked
     trkInfo % "user data" for tracker
   end
   
@@ -58,6 +59,12 @@ classdef TrkFile < handle
       end
       validateattributes(obj.pTrkiPt,{'numeric'},...
         {'vector' 'numel' npttrk 'positive' 'integer'},'','pTrkiPt');
+      
+      if isequal(obj.pTrkFrm,TrkFile.unsetVal)
+        obj.pTrkFrm = 1:nfrm;
+      end
+      validateattributes(obj.pTrkFrm,{'numeric'},...
+        {'vector' 'numel' nfrm 'positive' 'integer'},'','pTrkFrm');
     end
     
     function save(obj,filename)

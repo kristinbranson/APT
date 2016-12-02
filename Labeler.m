@@ -2703,8 +2703,7 @@ classdef Labeler < handle
         for iVw = 1:obj.nview
           tfile = trkfiles{i,iVw};          
           s = load(tfile,'-mat');
-          fprintf(1,'... Loaded trk file: %s\n',tfile);
-
+          
           if isfield(s,'pTrkiPt')
             iPt = s.pTrkiPt;
           else
@@ -2713,10 +2712,19 @@ classdef Labeler < handle
               assert(nPhysPts==size(lpos,1));
             end
           end
+          if isfield(s,'pTrkFrm')
+            frms = s.pTrkFrm;
+          else
+            frms = 1:size(lpos,3);
+          end
+          
+          fprintf(1,'... Loaded %d frames for %d points from trk file: %s.\n',...
+            numel(frms),numel(iPt),tfile);
+
           iPt = iPt + (iVw-1)*nPhysPts;                     
-          lpos(iPt,:,:,:) = s.pTrk;
-          lposTS(iPt,:,:) = s.pTrkTS;
-          lpostag(iPt,:,:) = s.pTrkTag;
+          lpos(iPt,:,frms,:) = s.pTrk;
+          lposTS(iPt,frms,:) = s.pTrkTS;
+          lpostag(iPt,frms,:) = s.pTrkTag;
         end
 
         obj.(lposFld){iMov} = lpos;
@@ -2746,6 +2754,8 @@ classdef Labeler < handle
       %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
       %now, since what we are importing is already in the .trk file.
       obj.labelsUpdateNewFrame(true);
+      
+      RC.saveprop('lastTrkFileImported',trkfiles{end});
     end
     
     function [tfsucc,trkfilesUse] = labelImportTrkFindTrkFilesPrompt(obj,movfiles)
@@ -2766,8 +2776,9 @@ classdef Labeler < handle
       trkfilesUse = [];
       switch nCommon
         case 0
-          error('Labeler:labelImportTrkPrompt',...
+          warningNoTrace('Labeler:labelImportTrkPrompt',...
             'No consistently-named trk files found across %d given movies.',numel(movfiles));
+          return;
         case 1
           trkfilesUseIdx = 1;
         otherwise
@@ -2812,6 +2823,23 @@ classdef Labeler < handle
       [tfsucc,trkfilesUse] = obj.labelImportTrkFindTrkFilesPrompt(movfiles);
       if tfsucc
         obj.labelImportTrk(iMovs,trkfilesUse);
+      else
+        if isscalar(iMovs) && obj.nview==1
+          % In this case (single movie, single view) failure can occur if 
+          % no trkfile is found alongside movie, or if user cancels during
+          % a prompt.
+          
+          lastTrkFileImported = RC.getprop('lastTrkFileImported');
+          if isempty(lastTrkFileImported)
+            lastTrkFileImported = pwd;
+          end
+          [fname,pth] = uigetfile('*.trk','Import trkfile',lastTrkFileImported);
+          if isequal(fname,0)
+            return;
+          end
+          trkfile = fullfile(pth,fname);
+          obj.labelImportTrk(iMovs,{trkfile});
+        end
       end
     end
     
