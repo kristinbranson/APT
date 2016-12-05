@@ -17,12 +17,12 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
 
     parser.add_argument("projfile",help="APT project file")
-    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","prune"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
+    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","prunerf","pruneja"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
 
     parser.add_argument("--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
     parser.add_argument("--movbatchfile",help="file containing list of movies; used when action==trackbatch*",metavar="BATCHFILE")
-    #parser.add_argument("--multithreaded",help="if true, run multithreaded binary",action="store_true",default=False)
+    parser.add_argument("--singlethreaded",help="if true, force run singlethreaded binary",action="store_true",default=False)
     parser.add_argument("--account",default="",help="account to bill for cluster time",metavar="ACCOUNT")
     parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
     parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'") 
@@ -31,14 +31,14 @@ def main():
     parser.add_argument("--trackargs",help="use with action==track or trackbatch. enclose in quotes, additional/optional prop-val pairs (eg trkFilename, stripTrkPFull)")
     parser.add_argument("-p0di","--p0DiagImg",help="use with action==track or trackbatch. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
-    parser.add_argument("--trkfile",help="use with action==prune. full path to trkfile to prune")
-    parser.add_argument("--pruneargs",help="use with action=prune. enclose in quotes; '<sigd> <ipt>'")
+    parser.add_argument("--trkfile",help="use with action==prune*. full path to trkfile to prune")
+    parser.add_argument("--pruneargs",help="use with action=prune*. enclose in quotes; '<sigd> <ipt> <frmstart> <frmend>'")
     parser.add_argument("--prunesig")
 
 
     args = parser.parse_args()
     
-    if args.action!="prune" and not os.path.exists(args.projfile):
+    if not args.action.startswith("prune") and not os.path.exists(args.projfile):
         sys.exit("Cannot find project file: {0:s}".format(args.projfile))
 
     if args.action=="track":
@@ -67,9 +67,9 @@ def main():
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
-    if args.action!="prune" and args.pruneargs:
+    if not args.action.startswith("prune") and args.pruneargs:
         print("Action is " + args.action + ", ignoring --pruneargs specification")
-    if args.action!="prune" and args.trkfile:
+    if not args.action.startswith("prune") and args.trkfile:
         print("Action is " + args.action + ", ignoring --trkfile specification")
         
     args.APTBUILDROOTDIR = "/groups/branson/home/leea30/aptbuild"
@@ -77,7 +77,7 @@ def main():
         args.bindate = "current"
     args.binroot = os.path.join(args.APTBUILDROOTDIR,args.bindate)
 
-    args.multithreaded = int(args.pebatch)>1
+    args.multithreaded = not args.singlethreaded and int(args.pebatch)>1
     if args.multithreaded:
         args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_multithreaded.sh")
     else:
@@ -165,7 +165,7 @@ def main():
             print(qsubcmd)
             subprocess.call(qsubcmd,shell=True)
             nmovsub = nmovsub+1
-    elif args.action=="prune" and args.prunesig:
+    elif args.action=="pruneja" and args.prunesig:
         outdiruse = os.path.dirname(args.trkfile)
 
         for leg in ['4','5','6','7']:
@@ -200,7 +200,7 @@ def main():
         else:
             if args.action=="track":
                 outdiruse = os.path.dirname(args.mov)
-            elif args.action=="prune":
+            elif args.action.startswith("prune"):
                 outdiruse = os.path.dirname(args.trkfile)
             else: # trackbatchserial, retrain
                 outdiruse = os.path.dirname(args.projfile)                
@@ -217,7 +217,9 @@ def main():
                 cmd = cmd + " p0DiagImg " + p0DiagImgFull
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
-        elif args.action=="prune":
+        elif args.action=="prunerf":
+            cmd = "0 prunerf " + args.trkfile + " " +  args.pruneargs
+        elif args.action=="pruneja": 
             cmd = "0 prunejan " + args.trkfile + " " +  args.pruneargs
 
         gencode(shfile,jobid,args,cmd)
