@@ -108,6 +108,18 @@ handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
 
+handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
+  'Label','Export current tracking results',...
+  'Tag','menu_track_export_base');  
+handles.menu_track_export_current_movie = uimenu('Parent',handles.menu_track_export_base,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_export_current_movie_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Current movie only',...
+  'Tag','menu_track_export_current_movie');  
+handles.menu_track_export_all_movies = uimenu('Parent',handles.menu_track_export_base,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_export_all_movies_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','All movies',...
+  'Tag','menu_track_export_all_movies');  
+
 % add menu item for setting current frames labels to tracked positions
 handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_set_labels_Callback',hObject,eventdata,guidata(hObject)),...
@@ -1385,11 +1397,6 @@ handles.labelerObj.setTrackParamFile(prmFile);
 function menu_track_select_training_data_Callback(hObject, eventdata, handles)
 handles.labelerObj.tracker.trnDataSelect();
 
-function menu_track_savetrackingresults_Callback(hObject, eventdata, handles)
-handles.labelerObj.trackSaveResultsAs();
-function menu_track_loadtrackingresults_Callback(hObject, eventdata, handles)
-handles.labelerObj.trackLoadResultsAs();
-
 function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();
 
@@ -1397,8 +1404,23 @@ function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 tm = getTrackMode(handles);
 handles.labelerObj.trackAndExport(tm);
 
-function menu_track_set_labels_Callback(hObject,eventdata,handles)
+function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+iMov = lObj.currMovie;
+if iMov==0
+  error('LabelerGUI:noMov','No movie currently set.');
+end
+lObj.trackExportResults(iMov);
 
+function menu_track_export_all_movies_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+nMov = lObj.nmovies;
+if nMov==0
+  error('LabelerGUI:noMov','No movies in project.');
+end
+lObj.trackExportResults(1:nMov);
+
+function menu_track_set_labels_Callback(hObject,eventdata,handles)
 xy = handles.labelerObj.tracker.getCurrentPrediction();
 if any(isnan(xy(:))),
   fprintf('No predictions for current frame, not labeling.\n');

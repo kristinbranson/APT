@@ -111,20 +111,25 @@ classdef LabelTracker < handle
       % Optional PVs.
     end
     
-    function trkfiles = getTrackingResults(obj,iMovs)
-      % Get tracking results for movie iMov.
-      % Default implemation here RETURNS ALL NANS
+    function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovs)
+      % Get tracking results for movie(set) iMovs.
+      % Default implemation returns all NaNs and tfHasRes=false.
       %
-      % iMovs: vector of movie indices
+      % iMovs: [nMov] vector of movie(set) indices
       %
-      % trkfiles: vector of TrkFile objects, same numel as iMovs
+      % trkfiles: [nMovxnView] vector of TrkFile objects
+      % tfHasRes: [nMov] logical. If true, corresponding movie(set) has 
+      % tracking nontrivial (nonempty) tracking results
       
       validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
+      
+      assert(~obj.lObj.isMultiView,'Multiview unsupported.');
       
       nMov = numel(iMovs);
       for i = nMov:-1:1
         trkpos = nan(size(obj.lObj.labeledpos{iMovs(i)}));
         trkfiles(i) = TrkFile(trkpos);
+        tfHasRes(i) = false;
       end
     end
             

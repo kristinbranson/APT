@@ -3171,6 +3171,7 @@ classdef Labeler < handle
       tObj.track(iMovs,frms);
     end
     
+    %#MV
     function trackAndExport(obj,tm,varargin)
       % Track one movie at a time, exporting results to .trk files and 
       % clearing data in between
@@ -3180,15 +3181,15 @@ classdef Labeler < handle
       [trackArgs,trkFilename] = myparse(varargin,...
         'trackArgs',{},...
         'trkFilename',[]... % char. if supplied, export results to trkfiles alongside movies with this (short) name. Don't include .trk extension.
-        ); % Uhoh, if movies are all in a single dir this will break
+        );                  % Uhoh, if movies are all in a single dir this will break
       
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
-      [iMovs,frms] = tm.getMovsFramesToTrack(obj);      
+      [iMovs,frms] = tm.getMovsFramesToTrack(obj);
       
-      movfiles = obj.movieFilesAllFull(iMovs,1);
+      movfiles = obj.movieFilesAllFull(iMovs,:);
       if ~isempty(trkFilename)
         assert(ischar(trkFilename));
         movpaths = cellfun(@fileparts,movfiles,'uni',0);
@@ -3196,119 +3197,143 @@ classdef Labeler < handle
       else
         trkfiles = cellfun(@obj.defaultTrkFileName,movfiles,'uni',0);
       end
-      [tfok,trkfilenames] = Labeler.checkTrkFileNamesExport(trkfiles);    
+      [tfok,trkfiles] = Labeler.checkTrkFileNamesExport(trkfiles);    
 
       if tfok
         nMov = numel(iMovs);
-        %hWB = waitbar(0,sprintf('Tracking movie %d/%d',0,nMov));
-        for i=1:nMov 
-          fprintf('Tracking movie %d/%d\n',i,nMov);
+        nVw = obj.nview;
+        szassert(trkfiles,[nMov nVw]);
+        if obj.isMultiView
+          moviestr = 'movieset';
+        else
+          moviestr = 'movie';
+        end
+        for i=1:nMov
+          fprintf('Tracking %s %d (%d/%d)\n',moviestr,iMovs(i),i,nMov);
           tObj.track(iMovs(i),frms(i),trackArgs{:});
           trkFile = tObj.getTrackingResults(iMovs(i));
-          trkFile.pTrkFull = single(trkFile.pTrkFull);
-          trkFile.save(trkfilenames{i});
-          fprintf('Saved: %s\n',trkfilenames{i});
+          szassert(trkFile,[1 nVw]);
+          for iVw=1:nVw
+            trkFile(iVw).pTrkFull = single(trkFile(iVw).pTrkFull);
+            trkFile(iVw).save(trkfiles{i,iVw});
+            fprintf('...saved: %s\n',trkfiles{i,iVw});
+          end
           tObj.clearTrackingResults();
         end
-        %delete(hWB);
       end
     end
     
-    function trackExportResults(obj,ms)
+    function trackExportResults(obj,iMovs)
       % Export tracking results to trk files.
       %
-      % ms: a MovieSet
-      
-      assert(isa(ms,'MovieSet') && isscalar(ms));
+      % iMovs: [nMov] vector of movie(set)s whose tracking should be
+      % exported.
+      %
+      % If a movie has no current tracking results, a warning is thrown and
+      % no trkfile is created.
       
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end 
+
+      movfiles = obj.movieFilesAllFull(iMovs,:);
+      trkfiles = cellfun(@obj.defaultTrkFileName,movfiles,'uni',0);
+      [tfok,trkfiles] = Labeler.checkTrkFileNamesExport(trkfiles);
       
-      iMovs = ms.getMovieIndices(obj);
-      tfileObjs = tObj.getTrackingResults(iMovs);
-      movfiles = obj.movieFilesAllFull(iMovs,1);
-      [tfok,trkfilenames] = obj.getTrkFileNamesForExport(movfiles);
       if tfok
-        assert(numel(tfileObjs)==numel(trkfilenames));
-        for i=1:numel(tfilesObjs)
-          tfileObjs(i).save(trkfilenames{i});
-          fprintf('Saved %s.\n',trkfilenames{i});
+        [trkFileObjs,tfHasRes] = tObj.getTrackingResults(iMovs);
+        nMov = numel(iMovs);
+        nVw = obj.nview;
+        szassert(trkFileObjs,[nMov nVw]);
+        szassert(trkfiles,[nMov nVw]);
+        for iMv=1:nMov
+          if tfHasRes(iMv)
+            for iVw=1:nVw
+              trkFileObjs(iMv,iVw).save(trkfiles{iMv,iVw});
+              fprintf('Saved %s.\n',trkfiles{iMv,iVw});
+            end
+          else
+            if obj.isMultiView
+              moviestr = 'movieset';
+            else
+              moviestr = 'movie';
+            end
+            warningNoTrace('Labeler:noRes','No current tracking results for %s %s.',...
+              moviestr,MFTable.formMultiMovieID(movfiles(iMv,:)));
+          end
         end
       end
     end
-    
-    % 20160718: ALL THE STUFF BELOW IS UNUSED, MAY CHANGE.
-    
-    function trackSaveResults(obj,fname)
-      tObj = obj.tracker;
-      if isempty(tObj)
-        error('Labeler:track','No tracker set.');
-      end
-      s = tObj.getSaveToken(); %#ok<NASGU>
-      
-      save(fname,'-mat','-struct','s');
-      obj.projFSInfo = ProjectFSInfo('tracking results saved',fname);
-      RC.saveprop('lastTrackingResultsFile',fname);
-    end
-    
-    function trackLoadResults(obj,fname)
-      tObj = obj.tracker;
-      if isempty(tObj)
-        error('Labeler:track','No tracker set.');
-      end
-      s = load(fname);
-      tObj.loadSaveToken(s);
-      
-      obj.projFSInfo = ProjectFSInfo('tracking results loaded',fname);
-      RC.saveprop('lastTrackingResultsFile',fname);
-    end
+        
+%     function trackSaveResults(obj,fname)
+%       tObj = obj.tracker;
+%       if isempty(tObj)
+%         error('Labeler:track','No tracker set.');
+%       end
+%       s = tObj.getSaveToken(); %#ok<NASGU>
+%       
+%       save(fname,'-mat','-struct','s');
+%       obj.projFSInfo = ProjectFSInfo('tracking results saved',fname);
+%       RC.saveprop('lastTrackingResultsFile',fname);
+%     end
+%     
+%     function trackLoadResults(obj,fname)
+%       tObj = obj.tracker;
+%       if isempty(tObj)
+%         error('Labeler:track','No tracker set.');
+%       end
+%       s = load(fname);
+%       tObj.loadSaveToken(s);
+%       
+%       obj.projFSInfo = ProjectFSInfo('tracking results loaded',fname);
+%       RC.saveprop('lastTrackingResultsFile',fname);
+%     end
           
-    function [success,fname] = trackSaveResultsAs(obj)
-      [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
-        'uiputfile','Save tracking results','trackSaveResults');
-      % XXX unfinished, rationalize track save/load/export
-    end
-    
-    function [success,fname] = trackLoadResultsAs(obj)
-      [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
-        'uigetfile','Load tracking results','trackLoadResults');
-      % XXX unfinished, rationalize track save/load/export
-    end
-    
-    function [success,fname] = trackSaveLoadAsHelper(obj,rcprop,uifcn,...
-        promptstr,rawMeth)
-      % rcprop: Name of RC property for guessing path
-      % uifcn: either 'uiputfile' or 'uigetfile'
-      % promptstr: used in uiputfile
-      % rawMeth: track*Raw method to call when a file is specified
-      
-      % Guess a path/location for save/load
-      lastFile = RC.getprop(rcprop);
-      if isempty(lastFile)
-        projFile = obj.projectfile;
-        if ~isempty(projFile)
-          savepath = fileparts(projFile);
-        else
-          savepath = pwd;
-        end
-      else
-        savepath = fileparts(lastFile);
-      end
-      
-      filterspec = fullfile(savepath,'*.mat');
-      [fname,pth] = feval(uifcn,filterspec,promptstr);
-      if isequal(fname,0)
-        fname = [];
-        success = false;
-      else
-        fname = fullfile(pth,fname);
-        success = true;
-        obj.(rawMeth)(fname);
-      end
-    end
-    
+%     function [success,fname] = trackSaveResultsAs(obj)
+%       [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
+%         'uiputfile','Save tracking results','trackSaveResults');
+%       % XXX unfinished, rationalize track save/load/export
+%     end
+%     
+%     function [success,fname] = trackLoadResultsAs(obj)
+%       [success,fname] = obj.trackSaveLoadAsHelper('lastTrackingResultsFile',...
+%         'uigetfile','Load tracking results','trackLoadResults');
+%       % XXX unfinished, rationalize track save/load/export
+%     end
+%     
+%     function [success,fname] = trackSaveLoadAsHelper(obj,rcprop,uifcn,...
+%         promptstr,rawMeth)
+%       % rcprop: Name of RC property for guessing path
+%       % uifcn: either 'uiputfile' or 'uigetfile'
+%       % promptstr: used in uiputfile
+%       % rawMeth: track*Raw method to call when a file is specified
+%       
+%       % Guess a path/location for save/load
+%       lastFile = RC.getprop(rcprop);
+%       if isempty(lastFile)
+%         projFile = obj.projectfile;
+%         if ~isempty(projFile)
+%           savepath = fileparts(projFile);
+%         else
+%           savepath = pwd;
+%         end
+%       else
+%         savepath = fileparts(lastFile);
+%       end
+%       
+%       filterspec = fullfile(savepath,'*.mat');
+%       [fname,pth] = feval(uifcn,filterspec,promptstr);
+%       if isequal(fname,0)
+%         fname = [];
+%         success = false;
+%       else
+%         fname = fullfile(pth,fname);
+%         success = true;
+%         obj.(rawMeth)(fname);
+%       end
+%     end
+     
   end
    
   %% Video
