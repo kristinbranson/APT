@@ -430,19 +430,23 @@ classdef CPRLabelTracker < LabelTracker
   methods
 
     %#MV
-    function [trkpos,trkposTS,trkposFull] = getTrackResRaw(obj,iMov)
-      % Get tracking results for movie iMov.
+    function [trkpos,trkposTS,trkposFull,tfHasRes] = getTrackResRaw(obj,iMov)
+      % Get tracking results for movie(set) iMov.
       %
-      % iMov: scalar movie index
+      % iMov: scalar movie(set) index
       % 
       % trkpos: [nptstrk x d x nfrm(iMov)]. Tracking results for iMov. 
-      %  IMPORTANT: first dim is nptstrk=numel(.trkPiPt), NOT obj.npts
-      % trkposTS: [nptstrk x nfrm(iMov)]. Timestamps for trkpos
+      %  IMPORTANT: first dim is nptstrk=numel(.trkPiPt), NOT obj.npts. If
+      %  movies in a movieset have differing numbers of frames, then nfrm
+      %  will equal the minimum number of frames across the movieset.
+      % trkposTS: [nptstrk x nfrm(iMov)]. Timestamps for trkpos.
       % trkposFull: [nptstrk x d x nRep x nfrm(iMov)]. 4d results.
+      % tfHasRes: if true, nontrivial tracking results returned
       
       lObj = obj.lObj;
-      movNameID = FSPath.standardPath(lObj.movieFilesAll{iMov});
-      nfrms = lObj.movieInfoAll{iMov}.nframes;
+      movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
+      movNameID = MFTable.formMultiMovieID(movNameID);
+      nfrms = lObj.movieInfoAll{iMov}.nframes; % For moviesets with movies with differing # of frames, this should be the common minimum
 
       pTrk = obj.trkP(:,:,end); % [NTst x D]
       [NTrk,DTrk] = size(pTrk);
@@ -468,9 +472,9 @@ classdef CPRLabelTracker < LabelTracker
       trkposFull = nan(nPtTrk,d,nRep,nfrms);
 
       if isempty(obj.trkPTS) % proxy for no tracking results etc
-        % none
+        tfHasRes = false;
       else
-        tfCurrMov = strcmp(trkMD.mov,movNameID); % these rows of trkMD are for the current Labeler movie
+        tfCurrMov = strcmp(trkMD.mov,movNameID); % these rows of trkMD are for the movie(set) iMov
         nCurrMov = nnz(tfCurrMov);
         xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);        
         frmCurrMov = trkMD.frm(tfCurrMov);
@@ -482,7 +486,10 @@ classdef CPRLabelTracker < LabelTracker
         xyTrkFullCurrMov = permute(xyTrkFullCurrMov,[3 2 1]);
         xyTrkFullCurrMov = reshape(xyTrkFullCurrMov,[nPtTrk d nRep nCurrMov]);
         trkposFull(:,:,:,frmCurrMov) = xyTrkFullCurrMov;
+        
+        tfHasRes = (nCurrMov>0);
       end
+      
     end
           
   end
@@ -1030,22 +1037,52 @@ classdef CPRLabelTracker < LabelTracker
     end
       
     %#MV
-    function trkfiles = getTrackingResults(obj,iMovs)
-      % Get tracking results for movie iMov.
+    function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovs)
+      % Get tracking results for movie(set) iMov.
       %
-      % iMovs: vector of movie indices
+      % iMovs: [nMov] vector of movie(set) indices
       %
-      % trkfiles: vector of TrkFile objects, same numel as iMovs
+      % trkfiles: [nMovxnView] TrkFile objects
+      % tfHasRes: [nMov] logical. If true, corresponding movie has tracking
+      % nontrivial (nonempty) tracking results
       
       validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
 
+      if isempty(obj.trkPTS)
+        error('CPRLabelTracker:noRes','No current tracking results.');
+      end
+      
       nMov = numel(iMovs);
       trkpipt = obj.trkPiPt;
-      trkinfo = struct('paramFile',obj.paramFile);
-      for i = nMov:-1:1
-        [trkpos,trkposTS,trkposFull] = obj.getTrackResRaw(iMovs(i));
-        trkfiles(i) = TrkFile(trkpos,'pTrkFull',trkposFull,...
-          'pTrkTS',trkposTS,'pTrkiPt',trkpipt,'trkInfo',trkinfo);
+      trkinfobase = struct('paramFile',obj.paramFile);
+      
+      tfMultiView = obj.lObj.isMultiView;
+      if tfMultiView
+        nPhysPts = obj.lObj.nPhysPoints;
+        nview = obj.lObj.nview;
+        assert(isequal(trkpipt,1:nPhysPts*nview));
+        ipt2vw = meshgrid(1:nview,1:nPhysPts);
+        assert(isequal(obj.lObj.labeledposIPt2View,ipt2vw(:)));
+      end
+        
+      for i = nMov:-1:1        
+        [trkpos,trkposTS,trkposFull,tfHasRes(i)] = obj.getTrackResRaw(iMovs(i));        
+        if tfMultiView
+          assert(size(trkpos,1)==nPhysPts*nview);
+          for ivw=nview:-1:1
+            iptCurrVw = (1:nPhysPts) + (ivw-1)*nPhysPts;
+            trkinfo = trkinfobase;
+            trkinfo.view = ivw;
+            trkfiles(i,ivw) = TrkFile(trkpos(iptCurrVw,:,:),...
+              'pTrkFull',trkposFull(iptCurrVw,:,:,:),...
+              'pTrkTS',trkposTS(iptCurrVw,:),...
+              'pTrkiPt',1:nPhysPts,...
+              'trkInfo',trkinfo);
+          end
+        else
+          trkfiles(i,1) = TrkFile(trkpos,'pTrkFull',trkposFull,...
+            'pTrkTS',trkposTS,'pTrkiPt',trkpipt,'trkInfo',trkinfobase);
+        end
       end
     end
     
@@ -1461,13 +1498,9 @@ classdef CPRLabelTracker < LabelTracker
         obj.xyPrdCurrMovieIsInterp = [];
         return;
       end
-      
-      if lObj.isMultiView
-        movNameID = FSPath.standardPath(lObj.movieFilesAll(lObj.currMovie,:));
-        movNameID = MFTable.formMultiMovieID(movNameID);
-      else
-        movNameID = FSPath.standardPath(lObj.movieFilesAll{lObj.currMovie});
-      end
+
+      movNameID = FSPath.standardPath(lObj.movieFilesAll(lObj.currMovie,:));
+      movNameID = MFTable.formMultiMovieID(movNameID);
         
       nfrms = lObj.nframes;
       
