@@ -23,6 +23,10 @@ classdef TrkFile < handle
       %
       % Example: tfObj = TrkFile(myTrkPos,'pTrkTS',myTrkTS);
       
+      if nargin==0        
+        return;
+      end
+      
       nArg = numel(varargin);
       for i=1:2:nArg
         prop = varargin{i};
