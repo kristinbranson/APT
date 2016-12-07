@@ -1,5 +1,30 @@
 classdef CPRPrune < handle
   
+  % AL20161206. Well something seems wrong with this
+  % implementation/formulation but I am not sure what. One clear issue is
+  % that summing over all possible p_tminus1 positions to generate the pdf 
+  % for p_t seems better than just taking the max/best p_tm1. Eg imagine a
+  % bimodal p_tm1 distribution with one narrow sharp peak and one much
+  % larger but shallower peak. (A) Just taking the max does not adequately
+  % represent the total probability for arriving at p_t; (B) taking the 
+  % argmax does not accurately represent the "previous pointer" or
+  % where-did-I-most-likely-come-from. (A) can be addressed by summing over 
+  % all possible p_tm1 locations. Don't know what to do about (B).
+  %
+  % The seemingly deeper issue is that I am encountering a situation where 
+  % I have fixed a certain location x and am looking at the distribution 
+  % over previous locations, ie Q=p_t(x|y)*p_tm1(y). The location x is 
+  % located between two peaks in p_tm1, one small and one large, yet Q is 
+  % largely centered on the smaller peak. Numerically this seems to arise 
+  % due to the normalization constant A, which is much larger near the 
+  % small peak. However physically the situation makes no sense -- summing 
+  % the distribution near the small peak shows that it is overwhelmingly more
+  % likely that y(at t-1) is located near the small peak, vs anywhere else
+  % (eg near the large peak). That is the contribution to Q seems to come
+  % wholly from the small peak. This seems unphysical and I suspect the
+  % mathematical formulation must be wrong somehow. I may also be getting
+  % confused about probabilities vs likelihoods etc.
+  
   properties
     imnr % number rows image
     imnc % number cols image
@@ -15,6 +40,7 @@ classdef CPRPrune < handle
     frmtrk1
     nfrmtrk
     
+    prnAmat % [roinr,roinc,T]. Amat
     prnTrk % [Tx2]. (x,y) for optimal track using back-propagation. In orig/absolute coords.
     prnTrkAbs %: [Tx2]. (x,y) for track simply following maxima of pbest. In orig/absolute coords.
     prnBest %: [roinr,roinc,T]. pbest(i,j,t) gives the maximum/best probability of reaching (xgrid(i,j),ygrid(i,j)) at time t. [sum of pbest(:,:,t)] ~ 1.
@@ -110,6 +136,7 @@ classdef CPRPrune < handle
       pbest = nan(nr,nc,T); % pbest(i,j,t) gives the maximum/best probability of reaching (xgrid(i,j),ygrid(i,j)) at time t. [sum of pbest(:,:,t)] ~ 1.
       pprevloc = nan(nr,nc,T); % pprevloc(i,j,t) is a linear index into the image (or xgrid/ygrid) giving the previous location (at t-1) leading to pbest(i,j,t).
       p0sigs = nan(T,2); % 2D bandwidth
+      Amatbig = nan(nr,nc,T);
       
       [p0_1,p0sigs(1,:)] = obj.estimateP0(xy3d(:,:,1),xgrid,ygrid);
       pbest(:,:,1) = p0_1;
@@ -118,13 +145,16 @@ classdef CPRPrune < handle
       % iter
       for t=2:T
         
-        [p0_t,p0sigs(t,:)] = obj.estimateP0(xy3d(:,:,t),xgrid,ygrid);
+        [p0_t,p0sigs(t,:)] = obj.estimateP0(xy3d(:,:,t),xgrid,ygrid); % p0_t indexed by r_t
+        tmp = sum(p0_t(:));
+        fprintf(1,'Sum p0_t is: %.3f\n',tmp);
         Amat = obj.computeAmat(p0_t,xgrid,ygrid); % Amat indexed by r_(t-1)
+        p_tm1 = pbest(:,:,t-1); % p_tm1 indexed by r_(t-1)        
+        Amatbig(:,:,t) = Amat;
  
-        % loop over x_t
+        % loop over r_t
         for i=1:nr
         for j=1:nc
-          p_tm1 = pbest(:,:,t-1);
           
           % for this pt (x_t,y_t): maximize P_t((x_t,y_t),{observed reps at t} |
           % (x_[t-1],y_[t-1])) * P_[t-1](x_[t-1],y_[t-1]) over (x_[t-1],y_[t-1])
@@ -141,10 +171,20 @@ classdef CPRPrune < handle
           Dmat = obj.fetchD(obj.bigD,i,j,nr,nc);
           assert(isequal(size(Dmat),[nr nc]));
           assert(Dmat(i,j)==1);
-          % Dmat is conceptually indexed by x_[t-1],y_[t-1]
-          %Dmat = CPRPrune.computeD(xgrid,ygrid,x_t,y_t,obj.sigD);
-          p_t_givenRepsAnd_p_tm1 = Amat.*p0_t(i,j).*Dmat.*p_tm1; % indexed by x_[t-1],y_[t-1]
-          [pbest(i,j,t),pprevloc(i,j,t)] = max(p_t_givenRepsAnd_p_tm1(:));
+          % Dmat is conceptually indexed by x_[t-1],y_[t-1]          
+          
+          % p_t_and_p_tm1(u,v) is net/joint probability of being
+          % at (u,v) at time t-1 and (i,j) at time t. First 3 terms in this
+          % product are p_t_given_p_tm1.
+          p_t_and_p_tm1 = Amat.*p0_t(i,j).*Dmat.*p_tm1; % indexed by x_[t-1],y_[t-1]
+          
+          %[pbest(i,j,t),pprevloc(i,j,t)] = max(p_t_and_p_tm1(:));    
+          %
+          % AL20161206: Don't just take the max; sum over all locs at t-1.
+          % However, still use argmax for previous pointer. 
+          assert(all(p_t_and_p_tm1(:)>=0));
+          pbest(i,j,t) = sum(p_t_and_p_tm1(:));
+          [~,pprevloc(i,j,t)] = max(p_t_and_p_tm1(:));
         end
         end
         
@@ -190,7 +230,8 @@ classdef CPRPrune < handle
       pTrk(:,1) = pTrk(:,1)+cOffset;
       pTrk(:,2) = pTrk(:,2)+rOffset;
       pTrkAbs(:,1) = pTrkAbs(:,1)+cOffset;
-      pTrkAbs(:,2) = pTrkAbs(:,2)+rOffset;      
+      pTrkAbs(:,2) = pTrkAbs(:,2)+rOffset;    
+      obj.prnAmat = Amatbig;
       obj.prnTrk = pTrk;
       obj.prnTrkAbs = pTrkAbs;
       obj.prnBest = pbest;
@@ -198,8 +239,15 @@ classdef CPRPrune < handle
       obj.prnP0sigs = p0sigs;
     end
     
+    function compactify(obj)
+      obj.prnBest = single(obj.prnBest);
+      obj.prnPrev = single(obj.prnPrev);
+    end
+    
     function Amat = computeAmat(obj,p0,xgrid,ygrid)
       % Compute A assuming (x0,y0) at all grid points
+      
+      assert(isequal(size(p0),size(xgrid),size(ygrid)));
       
       [nr,nc] = size(p0);
       Amat = nan(size(p0));

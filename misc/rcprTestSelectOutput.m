@@ -17,14 +17,21 @@ if prunePrm.usemaxdensity
       % d is pairwise distances between rows of [RT1xd] array of coords for
       % landmark 'part', trial n
       
-      w = sum(squareform(exp( -d/prunePrm.maxdensity_sigma^2/2 )),1);
+      % The sum-of-guassians here is ~ a "neighbor-counter" where each
+      % neighbor within sigma adds a 1 and all others have no effect.
+      %
       % squareform(...) is the symmetric matrix of "boltzmann weights"
       % computed from squared-distances in d. small weight => large
       % distance, large weight => small distance
       %
       % sum(...,1) forms a sum-of-weights for the ith replicate. Larger 
       % values mean more likely replicate.
+      w = sum(squareform(exp( -d/prunePrm.maxdensity_sigma^2/2 )),1);
+      
+      % Normalizing gives a 'probability' per replicate (for this
+      % landmark/part). Replicates
       w = w / sum(w);
+            
       pr = pr + log(w); %accumulate by summing over pts/parts
     end
     [maxpr(n),i] = max(pr); % 'best' or most-likely replicate for this trial

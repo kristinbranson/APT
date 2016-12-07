@@ -12,7 +12,7 @@ function [Xbest,idx,totalcost,poslambda] = ...
 [priordistfun,poslambda,dampen,fix] = myparse(varargin,...
   'priordist',@(x) zeros(size(x,1),1),...  % [K] = priordist([KxD]) returns assumed/prior position cost for t=1
   'poslambda',[],... % position costs are multiplied by this scale factor when added to appearance costs
-  'dampen',.5,... % velocity damping factor. pos(t) is predicted as pos(t-1)+dampen*(pos(t-1)-pos(t-2)). 1=>full extrapolation, 0
+  'dampen',.5,... % velocity damping factor. pos(t) is predicted as pos(t-1)+dampen*(pos(t-1)-pos(t-2)). 1=>full extrapolation, 0=>velocity irrelevant
   'fix',[]);
 
 [D,T,K] = size(X);
