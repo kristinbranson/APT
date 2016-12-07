@@ -17,7 +17,7 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
 
     parser.add_argument("projfile",help="APT project file")
-    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","prunerf","pruneja"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
+    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","prunerf","prunerf2","pruneja"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
 
     parser.add_argument("--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
@@ -34,6 +34,7 @@ def main():
     parser.add_argument("--trkfile",help="use with action==prune*. full path to trkfile to prune")
     parser.add_argument("--pruneargs",help="use with action=prune*. enclose in quotes; '<sigd> <ipt> <frmstart> <frmend>'")
     parser.add_argument("--prunesig")
+    parser.add_argument("-f","--force",help="if true, don't ask for confirmation",action="store_true",default=False)
 
 
     args = parser.parse_args()
@@ -113,10 +114,11 @@ def main():
     argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','MCR','KEYWORD','bindate','binroot','pebatch','USERNAME','account','multithreaded']
     for fld in argsdispRmFlds:
         del argsdisp[fld]    
-    pprintdict(argsdisp)
-    resp = raw_input("Proceed? y/[n]")
-    if not resp=="y":
-        sys.exit("Aborted")
+    if not args.force:
+        pprintdict(argsdisp)
+        resp = raw_input("Proceed? y/[n]")
+        if not resp=="y":
+            sys.exit("Aborted")
 
     if args.outdir and not os.path.exists(args.outdir):
         print("Creating outdir: " + args.outdir)
@@ -217,8 +219,24 @@ def main():
                 cmd = cmd + " p0DiagImg " + p0DiagImgFull
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
-        elif args.action=="prunerf":
-            cmd = "0 prunerf " + args.trkfile + " " +  args.pruneargs
+        elif args.action.startswith("prunerf"):
+            if "%" in args.pruneargs:
+                legs = range(1,19)
+                for leg in legs:
+                    pruneargsuse = args.pruneargs.replace("%",str(leg))
+                    cmd = "0 " + args.action + " " + args.trkfile + " " +  pruneargsuse
+                    print(cmd)
+                    jobiduse = jobid + "-leg{0:02d}".format(leg)
+                    shfileuse = os.path.join(outdiruse,"{0:s}.sh".format(jobiduse))
+                    logfileuse = os.path.join(outdiruse,"{0:s}.log".format(jobiduse))
+                    gencode(shfileuse,jobiduse,args,cmd)
+                    qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfileuse,jobiduse,args.QSUBARGS,shfileuse)
+                    qsubcmd = "qsub " + qargs
+                    print(qsubcmd)
+                    subprocess.call(qsubcmd,shell=True)
+                exit()                    
+            else:
+                cmd = "0 " + args.action + " " + args.trkfile + " " +  args.pruneargs
         elif args.action=="pruneja": 
             cmd = "0 prunejan " + args.trkfile + " " +  args.pruneargs
 
