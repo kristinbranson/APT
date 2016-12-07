@@ -56,7 +56,7 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
     lambda = varargin{8};
     if ~isnumeric(lambda)
       lambda = str2double(lambda);
-    end      
+  end  
   end
   
   assert(~verLessThan('matlab','R2016a'),...
@@ -85,7 +85,7 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
     case 'prunerf2'
       pObj = CPRPruneGen(IMNR,IMNC,sigd,lambda);
     otherwise
-      pObj = CPRPrune(IMNR,IMNC,sigd);
+  pObj = CPRPrune(IMNR,IMNC,sigd);
   end
   pObj.init(trkPFull,trkPiPt,ipt,frmstart,frmend);
   pObj.run();
@@ -96,9 +96,8 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
   trkPrunedAbs = TrkFile(pLegsPrunedAbs,'pTrkiPt',ipt,'pTrkFrm',frmstart:frmend);
   
   [trkfileP,trkfileS] = fileparts(trkfile);
-  filebase = sprintf('_prune%02d.trk',ipt);
-  filebaseAbs = sprintf('_pruneAbs%02d.trk',ipt);
-  filebaseObj = sprintf('_pruneObj%02d.mat',ipt);
+  filebase = sprintf('_prune%02d_sig%02d_%d_%d.trk',ipt,round(sigd),frmstart,frmend);
+  filebaseAbs = sprintf('_pruneAbs%02d_sig%02d_%d_%d.trk',ipt,round(sigd),frmstart,frmend);
   trkfilePruned = fullfile(trkfileP,[trkfileS filebase]);
   trkfilePrunedAbs = fullfile(trkfileP,[trkfileS filebaseAbs]);
   objFile = fullfile(trkfileP,[trkfileS filebaseObj]);
