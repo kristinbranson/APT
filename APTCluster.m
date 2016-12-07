@@ -19,9 +19,12 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
   % NON-LBLFILE ACTIONS
   
   switch action
-    case 'prunerf'
+    case 'prunerf2'
       IMNR = 624;
       IMNC = 672;
+    case 'prunerf'
+      IMNR = 624;
+      IMNC = 672;      
     case 'prunejan'
       IMNR = 256;
       IMNC = 256;
@@ -47,7 +50,14 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
   end  
   if ~isnumeric(frmend)
     frmend = str2double(frmend);
-  end  
+  end
+  
+  if strcmp(action,'prunerf2')
+    lambda = varargin{8};
+    if ~isnumeric(lambda)
+      lambda = str2double(lambda);
+    end      
+  end
   
   assert(~verLessThan('matlab','R2016a'),...
     '''prunejan'' requires MATLAB R2016a or later.');
@@ -71,9 +81,15 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
   nfrmprune = frmend-frmstart+1;
   pLegsPruned = nan(NPTPRUNE,2,nfrmprune);
   pLegsPrunedAbs = nan(NPTPRUNE,2,nfrmprune);
-  pObj = CPRPrune(IMNR,IMNC,sigd);
+  switch action
+    case 'prunerf2'
+      pObj = CPRPruneGen(IMNR,IMNC,sigd,lambda);
+    otherwise
+      pObj = CPRPrune(IMNR,IMNC,sigd);
+  end
   pObj.init(trkPFull,trkPiPt,ipt,frmstart,frmend);
   pObj.run();
+  pObj.compactify();
   pLegsPruned(1,:,:) = pObj.prnTrk';
   pLegsPrunedAbs(1,:,:) = pObj.prnTrkAbs';  
   trkPruned = TrkFile(pLegsPruned,'pTrkiPt',ipt,'pTrkFrm',frmstart:frmend);
@@ -82,13 +98,17 @@ if isequal(lblFile,'0') || isequal(lblFile,0)
   [trkfileP,trkfileS] = fileparts(trkfile);
   filebase = sprintf('_prune%02d.trk',ipt);
   filebaseAbs = sprintf('_pruneAbs%02d.trk',ipt);
+  filebaseObj = sprintf('_pruneObj%02d.mat',ipt);
   trkfilePruned = fullfile(trkfileP,[trkfileS filebase]);
   trkfilePrunedAbs = fullfile(trkfileP,[trkfileS filebaseAbs]);
+  objFile = fullfile(trkfileP,[trkfileS filebaseObj]);
   
   fprintf(1,'Saving: %s...\n',trkfilePruned);
   trkPruned.save(trkfilePruned);
   fprintf(1,'Saving: %s...\n',trkfilePrunedAbs);
   trkPrunedAbs.save(trkfilePrunedAbs);
+  fprintf(1,'Saving: %s...\n',objFile);
+  save(objFile,'-mat','pObj');
 
   return;
 end
