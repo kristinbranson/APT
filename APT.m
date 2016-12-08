@@ -19,8 +19,14 @@ classdef APT
       % p: cellstr, path entries      
       % jp: cellstr, javapath entries
       
-      m = APT.Manifest;      
-      jctroot = m.jctrax;
+      m = APT.Manifest;
+      if isfield(m,'jaaba')
+        jaabaroot = m.jaaba;
+      elseif isfield(m,'jctrax')
+        jaabaroot = m.jctrax;
+      else
+        error('APT:noPath','Cannot find ''jaaba'' Manifest specification.');
+      end
       if isfield(m,'cameracalib')
         camroot = m.cameracalib;
       else
@@ -40,8 +46,8 @@ classdef APT
         fullfile(root,'propertiesGUI'); ...
         fullfile(root,'treeTable'); ...
         fullfile(root,'jsonlab-1.2','jsonlab'); ...
-        fullfile(jctroot,'filehandling'); ...
-        fullfile(jctroot,'misc'); ...
+        fullfile(jaabaroot,'filehandling'); ...
+        fullfile(jaabaroot,'misc'); ...
         };
       p = [p;campath(:)];
       
@@ -83,7 +89,7 @@ classdef APT
       % dependencies). Do a quick+dirty check of this assumption.
       grf = which('get_readframe_fcn');
       manifest = APT.Manifest;
-      if ~isequal(fileparts(grf),fullfile(manifest.jctrax,'filehandling'))
+      if ~isequal(fileparts(grf),fullfile(manifest.jaaba,'filehandling'))
         warning('APT:manifest',...
           'Runtime path appears to differ from that specified by Manifest. Code snapshot is likely to be incorrect.');
       end
