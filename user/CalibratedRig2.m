@@ -266,7 +266,7 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
     
   end
   
-  methods 
+  methods
     
     function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
       % See CalRig
@@ -403,7 +403,7 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
         intprm.alpha_c,intprm.cc,intprm.fc,intprm.kc);
     end
     
-    function [xn,fval] = projected2normalized(obj,xp,cam)
+    function [xn,fval] = projected2normalized(obj,xp,cam,varargin)
       % Find normalized coords corresponding to projected coords.
       % This uses search/optimization to invert normalized2projected; note
       % the toolbox also has normalize().
@@ -414,12 +414,20 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
       % xn: [2x1]
       % fval: optimization stuff, eg final residual
 
+      tfUseFminSearch = myparse(varargin,'tfUseFminSearch',false);
+      
       assert(isequal(size(xp),[2 1]));
       
-      fcn = @(xnguess) sum( (xp-obj.normalized2projected(xnguess(:),cam)).^2 );
-      xn0 = [0;0];
-      opts = optimset('TolX',1e-6);
-      [xn,fval] = fminsearch(fcn,xn0,opts);
+      if tfUseFminSearch
+        fcn = @(xnguess) sum( (xp-obj.normalized2projected(xnguess(:),cam)).^2 );
+        xn0 = [0;0];
+        opts = optimset('TolX',1e-6);
+        [xn,fval] = fminsearch(fcn,xn0,opts);        
+      else
+        intCam = obj.int.(cam);
+        xn = normalize_pixel(xp,intCam.fc,intCam.cc,intCam.kc,intCam.alpha_c);
+        fval = [];
+      end
     end
     
     function xp = project(obj,X,cam)
@@ -514,7 +522,7 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
       % frame of camera 2
       % Q: 3D point of closest approach on normalized ray of camera 2, in
       % frame of camera 2
-      
+            
       xn1 = obj.projected2normalized(xp1,cam1);
       xn2 = obj.projected2normalized(xp2,cam2);
       xn1 = [xn1;1];
@@ -532,6 +540,16 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
       
       X2 = (P+Q)/2;
       X1 = obj.camxform(X2,[cam2 cam1]);      
+    end
+    
+    function [X1,X2] = stereoTriangulateFast(obj,xp1,xp2,cam1,cam2)
+      int1 = obj.int.(cam1);
+      int2 = obj.int.(cam2);
+      cam21 = [cam2 cam1];
+      [X1,X2] = stereo_triangulation(xp1,xp2,...
+        obj.om.(cam21),obj.T.(cam21),...
+        int1.fc,int1.cc,int1.kc,int1.alpha_c,...
+        int2.fc,int2.cc,int2.kc,int2.alpha_c);
     end
         
     function Xc2 = camxform(obj,Xc,type)
