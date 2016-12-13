@@ -87,6 +87,43 @@ classdef CalRig < handle
     
   end
   
+  methods (Static)
+    
+    function [obj,tfSetViewSizes] = loadCreateCalRigObjFromFile(fname)
+      % Create/load a concerete CalRig object from file
+      %
+      % obj: Scalar CalRig object; concrete type depends on file contents
+      % tfSetViewSizes: scalar logical. If true, obj.viewSizes need setting
+      
+      if exist(fname,'file')==0
+        error('Labeler:file','File ''%s'' not found.',fname);
+      end
+      s = load(fname,'-mat'); % Could use whos('-file') with superclasses()
+      vars = fieldnames(s);
+      if numel(vars)==0
+        error('CalRig:load','No variables found in file: %s.',fname);
+      end
+      
+      if isa(s.(vars{1}),'CalRig') % Could check all vars
+        obj = s.(vars{1});
+        tfSetViewSizes = false;
+      elseif all(ismember({'DLT_1' 'DLT_2'},vars))
+        % SH
+        obj = CalRigSH;
+        obj.setKineData(fname);
+        tfSetViewSizes = true;
+      elseif all(ismember({'om' 'T' 'R' 'active_images_left' 'recompute_intrinsic_right'},vars))
+        % Bouget Calib_Results_stereo.mat file
+        % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes
+        obj = CalRig2CamCaltech(fname);
+        tfSetViewSizes = true;        
+      else
+        error('CalRig:load',...
+          'Calibration file ''%s'' has unrecognized contents.',fname);
+      end
+    end
+  end
+  
   methods % Utilities
     
     function y = cropLines(obj,y,viewIdx)

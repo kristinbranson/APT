@@ -43,7 +43,7 @@ gui_State = struct('gui_Name',       gui_Name, ...
                    'gui_OutputFcn',  @LabelerGUI_OutputFcn, ...
                    'gui_LayoutFcn',  [] , ...
                    'gui_Callback',   []);
-if nargin && ischar(varargin{1}) && exist(varargin{1}),
+if nargin && ischar(varargin{1}) && exist(varargin{1}), %#ok<EXIST>
     gui_State.gui_Callback = str2func(varargin{1});
 end
 
@@ -1079,7 +1079,6 @@ lObj.labelPointsPlotInfo.HighThroughputMode.NFrameSkip = val;
 
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-%npts = lObj.nLabelPoints;
 ipt = lObj.lblCore.iPoint;
 ret = inputdlg('Select labeling point','Point number',1,{num2str(ipt)});
 if isempty(ret)
@@ -1097,7 +1096,41 @@ if isequal(fname,0)
   return;
 end
 fname = fullfile(pth,fname);
-handles.labelerObj.labelLoadCalibrationFileRaw(fname);
+
+[crObj,tfSetViewSizes] = CalRig.loadCreateCalRigObjFromFile(fname);
+
+lObj = handles.labelerObj;
+vcdPW = lObj.viewCalProjWide;
+if isempty(vcdPW)
+  resp = questdlg('Should calibration apply to i) all movies in project or ii) current movie only?',...
+    'Calibration load',...
+    'All movies in project',...
+    'Current movie only',...
+    'Cancel',...
+    'All movies in project');
+  if isempty(resp)
+    resp = 'Cancel';
+  end
+  switch resp
+    case 'All movies in project'
+      tfProjWide = true;      
+    case 'Current movie only'
+      tfProjWide = false;      
+    otherwise
+      return;
+  end
+else
+  tfProjWide = vcdPW;
+end
+
+% Currently there is no UI for altering lObj.viewCalProjWide once it is set
+
+if tfProjWide
+  lObj.viewCalSetProjWide(crObj,'tfSetViewSizes',tfSetViewSizes);
+else
+  lObj.viewCalSetCurrMovie(crObj,'tfSetViewSizes',tfSetViewSizes);
+end
+
 RC.saveprop('lastCalibrationFile',fname);
 
 function menu_setup_unlock_all_frames_Callback(hObject, eventdata, handles)
