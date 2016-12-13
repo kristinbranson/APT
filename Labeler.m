@@ -1947,8 +1947,9 @@ classdef Labeler < handle
         obj.labeledpos2{iMov} = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets);
       end      
       
-      obj.labelingInit();
+      % KB 20161213: moved this up here so that we could redo in initHook
       obj.labels2VizInit();
+      obj.labelingInit();
       
       notify(obj,'newMovie');
       

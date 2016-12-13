@@ -30,7 +30,7 @@ classdef CalRigSH < CalRig
         obj.kineDataFile = '';
       else
         %try
-        kd = load(kdfile);
+        kd = load(kdfile,'data','DLT_1','DLT_2');
         %catch ME
          % warning('CalRigSH:kine','Error caught loading kineData file: %s: %s\n',...
          %   kdfile,ME.message);
