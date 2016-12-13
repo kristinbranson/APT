@@ -1765,6 +1765,8 @@ classdef Labeler < handle
       end
       
       if tfProceedRm
+        nMovOrig = obj.nmovies;
+        
         obj.movieFilesAll(iMov,:) = [];
         obj.movieFilesAllHaveLbls(iMov,:) = [];
         obj.movieInfoAll(iMov,:) = [];
@@ -1778,7 +1780,12 @@ classdef Labeler < handle
         obj.labeledpostag(iMov,:) = [];
         obj.labeledpos2(iMov,:) = [];
         obj.isinit = tfOrig;
-
+        
+        if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
+          szassert(obj.viewCalibrationData,[nMovOrig 1]);
+          obj.viewCalibrationData(iMov,:) = [];
+        end
+        
         if obj.currMovie>iMov
           obj.movieSet(obj.currMovie-1);
         end
@@ -2995,6 +3002,18 @@ classdef Labeler < handle
   end  
   methods
     
+    function viewCalClear(obj)
+      obj.viewCalProjWide = [];
+      obj.viewCalibrationData = [];
+      % Currently lblCore is not cleared, change will be reflected in
+      % labelCore at next movie change etc
+      
+%       lc = obj.lblCore;      
+%       if lc.supportsCalibration
+%         warning('Labeler:viewCal','');
+%       end
+    end
+    
     function viewCalSetProjWide(obj,crObj,varargin)
       % Set project-wide calibration object.
       
@@ -3008,12 +3027,11 @@ classdef Labeler < handle
       obj.viewCalCheckCalRigObj(crObj);
       
       vcdPW = obj.viewCalProjWide;
-      if ~isempty(vcdPW) && ~vcdPW        
+      if ~isempty(vcdPW) && ~vcdPW
         warningNoTrace('Labeler:viewCal',...
           'Discarding movie-specific calibration data. Calibration data will apply to all movies.');
         obj.viewCalProjWide = true;
-        obj.viewCalibrationData = [];
-        
+        obj.viewCalibrationData = [];    
       end
       [tfAllSame,movWidths,movHeights] = obj.viewCalCheckMovSizes();
       
