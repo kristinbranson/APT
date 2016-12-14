@@ -64,6 +64,14 @@ else
    
     [ u_2, v_2 ] = dlt_3D_to_2D( DLT_2, x, y, z );
     
+%     fprintf('u_2 = %s, v_2 = %s\n',mat2str(u_2),mat2str(v_2));
+%     fprintf('x = %s, y = %s, z = %s\n',mat2str(x),mat2str(y),mat2str(z));
+%     fprintf('u_1 = %s, v_1 = %s\n',mat2str(u_1),mat2str(v_1));
+%     fprintf('DLT_1 = %s, DLT_2 = %s\n',mat2str(DLT_1),mat2str(DLT_2));
+%     fprintf('s_list = %s\n',mat2str(s_list));
+%     fprintf('numer_min = %f, denom_min = %f, numer_max = %f, denom_max = %f\n',...
+%       numer_min,denom_min,numer_max,denom_max);
+    
 end
 
 % -------------------------------------------------------------------------

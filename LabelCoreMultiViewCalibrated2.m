@@ -200,7 +200,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         ptsArgs2 = {nan,nan,ppi2.Marker,...
           'MarkerSize',ppi2.MarkerSize,...
           'LineWidth',ppi2.LineWidth,...
-          'Color',setClr2};
+          'Color',setClr2,...
+          'HitTest','off'};
         ax = obj.hAx(obj.iPt2iAx(iPt));
         obj.hPts(iPt) = plot(ax,ptsArgs{:});
         obj.labeler.labeledpos2_ptsH(iPt) = plot(ax,ptsArgs2{:});
@@ -725,6 +726,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx);
         hEpi = obj.pjtHLinesEpi(iAx);
         set(hEpi,'XData',x,'YData',y,'Visible','on','Color',hPt1.Color);
+        %fprintf('Epipolar line for axes %d should be visible, x = %s, y = %s\n',iAx,mat2str(x),mat2str(y));
       end
       set(obj.pjtHLinesEpi(iAx1),'Visible','off');
     end
@@ -786,7 +788,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       %20160923 hack legacy CalRigSH objs and EPlines workaround
       if isa(crig,'CalRigSH')
-        crig.epLineNPts = 1e4;
+        %crig.epLineNPts = 1e4;
+        crig.epLineNPts = 2;
       end 
       
       crigViewSzs = crig.viewSizes; % [nView x 2]; each row is [nc nr]

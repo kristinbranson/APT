@@ -145,6 +145,42 @@ classdef CalRig < handle
       tfOOB = rows<1 | rows>nr | cols<1 | cols>nc;
       y(tfOOB,:) = nan;
     end
+    
+    function y = getLineWithinAxes(obj,y,viewIdx)
+
+      assert(size(y,2)==2);
+      
+      vSize = obj.viewSizes(viewIdx,:);
+      nc = vSize(1);
+      nr = vSize(2);
+      
+      r = y(:,1);
+      c = y(:,2);
+      
+      [maxr,maxri] = max(r);
+      [minr,minri] = min(r);
+      [maxc,maxci] = max(c);
+      [minc,minci] = min(c);
+      dr = maxr-minr;
+      dc = maxc-minc;
+      if dr > dc,
+        m = (c(maxri)-c(minri)) / dr;
+        % equation of the line:
+        % (y-minr) = m*(x-c(minri))
+        % solve for x at y = 1 and y = nr
+        rout = [1;nr];
+        cout = (rout-minr)/m+c(minri);
+      else
+        m = (r(maxci)-r(minci)) / dc;
+        % equation of the line:
+        % (y-r(minci)) = m*(x-minc)
+        % solve for y at x = 1 and x = nc
+        cout = [1;nc];
+        rout = m*(cout-minc)+r(minci);        
+      end
+      y = [rout,cout];
+
+    end
 
   end
   
