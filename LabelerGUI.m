@@ -1347,7 +1347,7 @@ else
     error('LabelerGUI:multiView',...
       'Labeling mode must support multiple, calibrated views.');
   end
-  vcd = lObj.viewCalibrationData;
+  vcd = lObj.viewCalibrationDataCurrent;
   if isempty(vcd)
     error('LabelerGUI:vcd','No view calibration data set.');
   end
