@@ -10,7 +10,7 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' 'projname' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros'...
-      'viewCalibrationData'...
+      'viewCalibrationData' 'viewCalProjWide' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'currMovie' 'currFrame' 'currTarget' ...
       'labelTemplate' ...
@@ -18,7 +18,7 @@ classdef Labeler < handle
     LOADPROPS = { ...
       'projname' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros' ...
-      'viewCalibrationData' ...
+      'viewCalibrationData' 'viewCalProjWide' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'labelTemplate' ...
       'suspScore'};
@@ -100,11 +100,22 @@ classdef Labeler < handle
   properties
     nview; % number of views. init: C
     viewNames % [nview] cellstr. init: C
-    viewCalibrationData % opaque 'userdata' for calibrations for multiview. Currently, scalar CalRig object. init: PN
+    
+    % States of viewCalProjWide/viewCalData:
+    % .viewCalProjWide=[], .vCD=any. Here .vcPW is uninitted and .vCD is unset/immaterial.
+    % .viewCalProjWide=true, .vCD=<scalar Calrig obj>. Scalar Calrig obj apples to all movies.
+    % .viewCalProjWide=false, .vCD=[nMovSet] cell array of calRigs. .vCD
+    % applies element-wise to movies. .vCD{i} can be empty indicating unset
+    % calibration object for that movie.
+    viewCalProjWide % [], true, or false. init: PN
+    viewCalibrationData % Opaque calibration 'useradata' for multiview. init: PN
     
     movieReader = []; % [1xnview] MovieReader objects. init: C
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
+  end
+  properties (Dependent)
+    viewCalibrationDataCurrent % view calibration data applicable to current movie
   end
   properties (SetObservable)
     movieFilesAll = {}; % [nmovset x nview] column cellstr, full paths to movies; can include macros 
@@ -266,6 +277,23 @@ classdef Labeler < handle
   
   %% Prop access
   methods % dependent prop getters
+    function v = get.viewCalibrationDataCurrent(obj)
+      vcdPW = obj.viewCalProjWide;
+      vcd = obj.viewCalibrationData;
+      if isempty(vcdPW)
+        v = [];
+      elseif vcdPW
+        assert(isequal(vcd,[]) || isscalar(vcd));
+        v = vcd;
+      else % ~vcdPW
+        assert(iscell(vcd) && numel(vcd)==obj.nmovies);
+        if obj.nmovies==0 || obj.currMovie==0
+          v = [];
+        else
+          v = vcd{obj.currMovie};
+        end
+      end
+    end
     function v = get.isMultiView(obj)
       v = obj.nview>1;
     end
@@ -691,6 +719,7 @@ classdef Labeler < handle
       obj.movieInfoAll = cell(0,obj.nview);
       obj.trxFilesAll = cell(0,obj.nview);
       obj.projMacros = struct();
+      obj.viewCalProjWide = [];
       obj.viewCalibrationData = [];
       obj.isinit = true;
       obj.movieSetNoMovie(); % order important here
@@ -726,6 +755,7 @@ classdef Labeler < handle
     function projSaveRaw(obj,fname)
       s = obj.projGetSaveStruct();
       
+      % AL XXX DELETE ME
       CHECKSAVEISSUE = true;
       if CHECKSAVEISSUE && exist(fname,'file')>0
         warnst = warning('off','MATLAB:load:variableNotFound');
@@ -1269,9 +1299,20 @@ classdef Labeler < handle
         s.cfg.Movie.ForceGrayScale = s.movieForceGrayscale;
         s = rmfield(s,'movieForceGrayscale');
       end
+      
+      % 20161213
+      if ~isfield(s,'viewCalProjWide')
+        if ~isempty(s.viewCalibrationData)
+          % Prior to today, all viewCalibrationDatas were always proj-wide
+          s.viewCalProjWide = true;
+          assert(isscalar(s.viewCalibrationData));
+        else
+          s.viewCalProjWide = [];
+        end
+      end
     end
     
-    function [I,p,md] = lblRead(lblFiles,varargin)
+%     function [I,p,md] = lblRead(lblFiles,varargin)
       % lblFiles: [N] cellstr
       % Optional PVs:
       %  - tfAllFrames. scalar logical, defaults to false. If true, read in
@@ -1281,7 +1322,7 @@ classdef Labeler < handle
       % p: [NxD] positions
       % md: [Nxm] metadata table
       
-      assert(false,'TODO: deal with movieFilesAll, macros etc.');
+      %assert(false,'TODO: deal with movieFilesAll, macros etc.');
 
 %       assert(iscellstr(lblFiles));
 %       nLbls = numel(lblFiles);
@@ -1319,7 +1360,7 @@ classdef Labeler < handle
 %       end
 %       
 %       assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
-    end
+%     end
     
     function [I,tbl] = lblCompileContents(movieNames,labeledposes,...
         labeledpostags,type,varargin)
@@ -1577,6 +1618,10 @@ classdef Labeler < handle
         obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,ifo.nframes,nTgt);
         obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,ifo.nframes,nTgt);
         obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,ifo.nframes,nTgt);
+
+        if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
+          obj.viewCalibrationData{end+1,1} = [];
+        end
       end
     end
     
@@ -1671,6 +1716,10 @@ classdef Labeler < handle
       obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,nFrms,nTgt);      
       obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,nFrms,nTgt);
       
+      if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
+        obj.viewCalibrationData{end+1,1} = [];
+      end
+      
       % This clause does not occur in movieAdd(), b/c movieAdd is called
       % from UI functions which do this for the user. Currently movieSetAdd
       % does not have any UI so do it here.
@@ -1716,6 +1765,8 @@ classdef Labeler < handle
       end
       
       if tfProceedRm
+        nMovOrig = obj.nmovies;
+        
         obj.movieFilesAll(iMov,:) = [];
         obj.movieFilesAllHaveLbls(iMov,:) = [];
         obj.movieInfoAll(iMov,:) = [];
@@ -1729,7 +1780,12 @@ classdef Labeler < handle
         obj.labeledpostag(iMov,:) = [];
         obj.labeledpos2(iMov,:) = [];
         obj.isinit = tfOrig;
-
+        
+        if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
+          szassert(obj.viewCalibrationData,[nMovOrig 1]);
+          obj.viewCalibrationData(iMov,:) = [];
+        end
+        
         if obj.currMovie>iMov
           obj.movieSet(obj.currMovie-1);
         end
@@ -1891,8 +1947,9 @@ classdef Labeler < handle
         obj.labeledpos2{iMov} = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets);
       end      
       
-      obj.labelingInit();
+      % KB 20161213: moved this up here so that we could redo in initHook
       obj.labels2VizInit();
+      obj.labelingInit();
       
       notify(obj,'newMovie');
       
@@ -2107,7 +2164,7 @@ classdef Labeler < handle
           end
       end
       if obj.lblCore.supportsCalibration
-        vcd = obj.viewCalibrationData;
+        vcd = obj.viewCalibrationDataCurrent;        
         if isempty(vcd)
           warningNoTrace('Labeler:labelingInit',...
             'No calibration data loaded for calibrated labeling.');
@@ -2893,74 +2950,94 @@ classdef Labeler < handle
       delete(hTxt);
       delete(hWB);
     end
-           
-    function labelLoadCalibrationFileRaw(obj,fname)
-      if exist(fname,'file')==0
-        error('Labeler:file','File ''%s'' not found.',fname);
-      end
-      if ~obj.lblCore.supportsCalibration
-          error('Labeler:calib',...
-            'Current labeling mode does not support calibration files.');
-      end
-      s = load(fname,'-mat'); % Could use whos('-file') with superclasses()
-      vars = fieldnames(s);
-      if numel(vars)==0
-        error('Labeler:calib','No variables found in file: %s.',fname);
-      end
+    
+  end
+  
+  %% ViewCal
+  methods (Access=private)
+    function viewCalCheckCalRigObj(obj,crObj)
+      % Basic checks on calrig obj
       
-      if isa(s.(vars{1}),'CalRig') % Could check all vars
-        crigObj = s.(vars{1});
-        tfSetViewSizes = false;
-      elseif all(ismember({'DLT_1' 'DLT_2'},vars))
-        % SH
-        crigObj = CalRigSH;
-        crigObj.setKineData(fname);
-        tfSetViewSizes = true;
-      elseif all(ismember({'om' 'T' 'R' 'active_images_left' 'recompute_intrinsic_right'},vars))
-        % Bouget Calib_Results_stereo.mat file
-        % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes that
-        % are set below
-        crigObj = CalRig2CamCaltech(fname);
-        tfSetViewSizes = true;        
-      else
-        error('Labeler:calib',...
-          'Calibration file ''%s'' has unrecognized contents.',fname);
+      if ~(isequal(crObj,[]) || isa(crObj,'CalRig')&&isscalar(crObj))
+        error('Labeler:viewCal','Invalid calibration object.');
       end
-      
       nView = obj.nview;
-      if nView~=crigObj.nviews
-        error('Labeler:calib',...
+      if nView~=crObj.nviews
+        error('Labeler:viewCal',...
           'Number of views in project inconsistent with calibration object.');
       end
-      if ~all(strcmpi(obj.viewNames(:),crigObj.viewNames(:)))
-        warning('Labeler:calib',...
+      if ~all(strcmpi(obj.viewNames(:),crObj.viewNames(:)))
+        warningNoTrace('Labeler:viewCal',...
           'Project viewnames do not match viewnames in calibration object.');
       end
-      
-      % First check movie widths/heights in project
+    end
+    
+    function [tfAllSame,movWidths,movHeights] = viewCalCheckMovSizes(obj)
+      % Check for consistency of movie sizes in current proj. Throw
+      % warndlgs for each view where sizes differ.
+      %
+      % tfAllSame: [1 nView] logical. If true, all movies in that view
+      % have the same size.
+      % movWidths, movHeights: [nMovSetxnView] arrays
+            
+      nView = obj.nview;
       ifo = obj.movieInfoAll;
-      widths = cellfun(@(x)x.info.Width,ifo);
-      heights = cellfun(@(x)x.info.Height,ifo);
-      szassert(widths,[obj.nmovies nView]);
-      szassert(heights,[obj.nmovies nView]);
-      tfAllSizesSame = true(1,nView);
+      movWidths = cellfun(@(x)x.info.Width,ifo);
+      movHeights = cellfun(@(x)x.info.Height,ifo);
+      szassert(movWidths,[obj.nmovies nView]);
+      szassert(movHeights,[obj.nmovies nView]);
+      
+      tfAllSame = true(1,nView);
       if obj.nmovies>0
         for iVw=1:nView
-          tfAllSizesSame(iVw) = all(widths(:,iVw)==widths(1,iVw)) && ...
-                           all(heights(:,iVw)==heights(1,iVw));
-          if ~tfAllSizesSame(iVw)
-            warnstr = sprintf('The movies in this project have varying view/image sizes for view %d (%s). This probably doesn''t work well with calibrations; proceed at your own risk.',...
-              iVw,obj.viewNames{iVw});
-            warndlg(warnstr,'Image sizes vary','non-modal');
-          end
+          tfAllSame(iVw) = ...
+            all(movWidths(:,iVw)==movWidths(1,iVw)) && ...
+            all(movHeights(:,iVw)==movHeights(1,iVw));          
+        end
+        if ~all(tfAllSame)
+          warnstr = 'The movies in this project have varying view/image sizes. This probably doesn''t work well with calibrations. Proceed at your own risk.';
+          warndlg(warnstr,'Image sizes vary','modal');
         end
       end
+    end 
+  end  
+  methods
+    
+    function viewCalClear(obj)
+      obj.viewCalProjWide = [];
+      obj.viewCalibrationData = [];
+      % Currently lblCore is not cleared, change will be reflected in
+      % labelCore at next movie change etc
+      
+%       lc = obj.lblCore;      
+%       if lc.supportsCalibration
+%         warning('Labeler:viewCal','');
+%       end
+    end
+    
+    function viewCalSetProjWide(obj,crObj,varargin)
+      % Set project-wide calibration object.
+      
+      tfSetViewSizes = myparse(varargin,...
+        'tfSetViewSizes',false); % If true, set viewSizes on crObj per current movieInfo
+      
+      if obj.nmovies==0
+        error('Labeler:calib','Add a movie first before setting the calibration object.');
+      end
+      
+      obj.viewCalCheckCalRigObj(crObj);
+      
+      vcdPW = obj.viewCalProjWide;
+      if ~isempty(vcdPW) && ~vcdPW
+        warningNoTrace('Labeler:viewCal',...
+          'Discarding movie-specific calibration data. Calibration data will apply to all movies.');
+        obj.viewCalProjWide = true;
+        obj.viewCalibrationData = [];    
+      end
+      [tfAllSame,movWidths,movHeights] = obj.viewCalCheckMovSizes();
       
       if tfSetViewSizes
-        if obj.nmovies==0
-          error('Labeler:calib','Add a movie first so the view size can be determined.');
-        end
-        if all(tfAllSizesSame)
+        if all(tfAllSame)
           iMovUse = 1;
         else
           iMovUse = obj.currMovie;
@@ -2968,17 +3045,16 @@ classdef Labeler < handle
             iMovUse = 1; % dangerous for user, but we already warned them
           end
         end
-        
-        vwSizes = [widths(iMovUse,:)' heights(iMovUse,:)'];
-        crigObj.viewSizes = vwSizes;
-        for iVw=1:nView
+        vwSizes = [movWidths(iMovUse,:)' movHeights(iMovUse,:)'];
+        crObj.viewSizes = vwSizes;
+        for iVw=1:obj.nview
           fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
-            vwSizes(iVw,1),vwSizes(iVw,2),iVw,crigObj.viewNames{iVw});
+            vwSizes(iVw,1),vwSizes(iVw,2),iVw,crObj.viewNames{iVw});
         end
       else
-        % Don't set view sizes, but check them
+        % Check view sizes        
         iMovCheck = obj.currMovie;
-        if iMovCheck==0 
+        if iMovCheck==0
           if obj.nmovies==0
             iMovCheck = nan;
           else
@@ -2986,19 +3062,78 @@ classdef Labeler < handle
           end
         end
         if ~isnan(iMovCheck)
-          vwSizesExpect = [widths(iMovCheck,:)' heights(iMovCheck,:)'];
-          if ~isequal(crigObj.viewSizes,vwSizesExpect)
+          vwSizesExpect = [movWidths(iMovCheck,:)' movHeights(iMovCheck,:)'];
+          if ~isequal(crObj.viewSizes,vwSizesExpect)
             warnstr = sprintf('View sizes in calibration object (%s) do not match movie (%s).',...
-              mat2str(crigObj.viewSizes),mat2str(vwSizesExpect));
+              mat2str(crObj.viewSizes),mat2str(vwSizesExpect));
             warndlg(warnstr,'View size mismatch','non-modal');
           end
         end
+      end      
+      
+      obj.viewCalProjWide = true;
+      obj.viewCalibrationData = crObj;
+
+      lc = obj.lblCore;
+      if lc.supportsCalibration
+        lc.projectionSetCalRig(crObj);
+      else
+        warning('Labeler:viewCal','Current labeling mode does not utilize view calibration.');
+      end
+    end
+    
+    function viewCalSetCurrMovie(obj,crObj,varargin)
+      % Set calibration object for current movie
+
+      tfSetViewSizes = myparse(varargin,...
+        'tfSetViewSizes',false); % If true, set viewSizes on crObj per current movieInfo
+      
+      if obj.nmovies==0 || obj.currMovie==0
+        error('Labeler:calib','Add/select a movie first before setting the calibration object.');
+      end
+
+      obj.viewCalCheckCalRigObj(crObj);      
+
+      vcdPW = obj.viewCalProjWide;
+      if isempty(vcdPW)
+        obj.viewCalProjWide = false;
+        obj.viewCalibrationData = cell(obj.nmovies,1);
+      elseif vcdPW
+        warningNoTrace('Labeler:viewCal',...
+          'Discarding project-wide calibration data. Calibration data will need to be set on other movies.');
+        obj.viewCalProjWide = false;
+        obj.viewCalibrationData = cell(obj.nmovies,1);
+      else
+        assert(iscell(obj.viewCalibrationData));
+        szassert(obj.viewCalibrationData,[obj.nmovies 1]);
+      end        
+      
+      ifo = obj.movieInfoAll(obj.currMovie,:);
+      movWidths = cellfun(@(x)x.info.Width,ifo);
+      movHeights = cellfun(@(x)x.info.Height,ifo);
+      vwSizes = [movWidths' movHeights'];
+      if tfSetViewSizes
+        crObj.viewSizes = vwSizes;
+        arrayfun(@(x)fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
+            vwSizes(x,1),vwSizes(x,2),x,crObj.viewNames{x}),1:obj.nview);
+      else
+        if ~isequal(crObj.viewSizes,vwSizes)
+          warnstr = sprintf('View sizes in calibration object (%s) do not match movie (%s).',...
+            mat2str(crObj.viewSizes),mat2str(vwSizes));
+          warndlg(warnstr,'View size mismatch','non-modal');
+        end
       end
       
-      obj.viewCalibrationData = crigObj;
-      obj.lblCore.projectionSetCalRig(crigObj);
+      obj.viewCalibrationData{obj.currMovie} = crObj;
+      
+      lc = obj.lblCore;
+      if lc.supportsCalibration
+        lc.projectionSetCalRig(crObj);
+      else
+        warning('Labeler:viewCal','Current labeling mode does not utilize view calibration.');
+      end
     end
-           
+    
   end
   
   methods (Static)

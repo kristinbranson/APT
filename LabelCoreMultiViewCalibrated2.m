@@ -163,16 +163,31 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.iSet2iPt = obj.labeler.labeledposIPtSetMap;
       
       % redefine .hPts, .hPtsTxt (originally initted in LabelCore.init())
+      % KB 20161213: Added redefining of labeledpos2_ptsH and
+      % labeledpos2_ptsTxtH, originally initted in
+      % Labelers.labels2VizInit()
       deleteValidHandles(obj.hPts);
       deleteValidHandles(obj.hPtsTxt);
+      deleteValidHandles(obj.labeler.labeledpos2_ptsH);
+      deleteValidHandles(obj.labeler.labeledpos2_ptsTxtH);
       obj.hPts = gobjects(obj.nPts,1);
       obj.hPtsTxt = gobjects(obj.nPts,1);
+      obj.labeler.labeledpos2_ptsH = gobjects(obj.nPts,1);
+      obj.labeler.labeledpos2_ptsTxtH = gobjects(obj.nPts,1);
       ppi = obj.ptsPlotInfo;
       obj.hPtsColors = nan(obj.nPointSet,3);
       obj.hPtsTxtStrs = cell(obj.nPts,1);
+      trkPrefs = obj.labeler.projPrefs.Track;
+      if ~isempty(trkPrefs)
+        ppi2 = trkPrefs.PredictPointsPlot;
+      else
+        ppi2 = obj.ptsPlotInfo;
+      end
+      ppi2.FontSize = ppi.FontSize;
       for iPt=1:obj.nPts
         iSet = obj.iPt2iSet(iPt);
         setClr = ppi.ColorsSets(iSet,:);
+        setClr2 = setClr;
         obj.hPtsColors(iPt,:) = setClr;
         ptsArgs = {nan,nan,ppi.Marker,...
           'ZData',1,... % AL 20160628: seems to help with making points clickable but who knows
@@ -182,8 +197,14 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           'UserData',iPt,...
           'HitTest','on',...
           'ButtonDownFcn',@(s,e)obj.ptBDF(s,e)};
+        ptsArgs2 = {nan,nan,ppi2.Marker,...
+          'MarkerSize',ppi2.MarkerSize,...
+          'LineWidth',ppi2.LineWidth,...
+          'Color',setClr2,...
+          'HitTest','off'};
         ax = obj.hAx(obj.iPt2iAx(iPt));
         obj.hPts(iPt) = plot(ax,ptsArgs{:});
+        obj.labeler.labeledpos2_ptsH(iPt) = plot(ax,ptsArgs2{:});
         txtStr = num2str(iSet);
         obj.hPtsTxt(iPt) = text(nan,nan,txtStr,...
           'Parent',ax,...
@@ -191,6 +212,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           'FontSize',ppi.FontSize,...
           'Hittest','off');
         obj.hPtsTxtStrs{iPt} = txtStr;
+        obj.labeler.labeledpos2_ptsTxtH(iPt) = text(nan,nan,txtStr,...
+          'Parent',ax,...
+          'Color',setClr2,...
+          'FontSize',ppi2.FontSize,...
+          'Hittest','off');
       end
       
       obj.setRandomTemplate();
@@ -700,6 +726,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx);
         hEpi = obj.pjtHLinesEpi(iAx);
         set(hEpi,'XData',x,'YData',y,'Visible','on','Color',hPt1.Color);
+        %fprintf('Epipolar line for axes %d should be visible, x = %s, y = %s\n',iAx,mat2str(x),mat2str(y));
       end
       set(obj.pjtHLinesEpi(iAx1),'Visible','off');
     end
@@ -761,7 +788,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       %20160923 hack legacy CalRigSH objs and EPlines workaround
       if isa(crig,'CalRigSH')
-        crig.epLineNPts = 1e4;
+        %crig.epLineNPts = 1e4;
+        crig.epLineNPts = 2;
       end 
       
       crigViewSzs = crig.viewSizes; % [nView x 2]; each row is [nc nr]

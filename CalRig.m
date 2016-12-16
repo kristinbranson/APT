@@ -87,6 +87,43 @@ classdef CalRig < handle
     
   end
   
+  methods (Static)
+    
+    function [obj,tfSetViewSizes] = loadCreateCalRigObjFromFile(fname)
+      % Create/load a concerete CalRig object from file
+      %
+      % obj: Scalar CalRig object; concrete type depends on file contents
+      % tfSetViewSizes: scalar logical. If true, obj.viewSizes need setting
+      
+      if exist(fname,'file')==0
+        error('Labeler:file','File ''%s'' not found.',fname);
+      end
+      s = load(fname,'-mat'); % Could use whos('-file') with superclasses()
+      vars = fieldnames(s);
+      if numel(vars)==0
+        error('CalRig:load','No variables found in file: %s.',fname);
+      end
+      
+      if isa(s.(vars{1}),'CalRig') % Could check all vars
+        obj = s.(vars{1});
+        tfSetViewSizes = false;
+      elseif all(ismember({'DLT_1' 'DLT_2'},vars))
+        % SH
+        obj = CalRigSH;
+        obj.setKineData(fname);
+        tfSetViewSizes = true;
+      elseif all(ismember({'om' 'T' 'R' 'active_images_left' 'recompute_intrinsic_right'},vars))
+        % Bouget Calib_Results_stereo.mat file
+        % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes
+        obj = CalRig2CamCaltech(fname);
+        tfSetViewSizes = true;        
+      else
+        error('CalRig:load',...
+          'Calibration file ''%s'' has unrecognized contents.',fname);
+      end
+    end
+  end
+  
   methods % Utilities
     
     function y = cropLines(obj,y,viewIdx)
@@ -107,6 +144,42 @@ classdef CalRig < handle
       cols = y(:,2);
       tfOOB = rows<1 | rows>nr | cols<1 | cols>nc;
       y(tfOOB,:) = nan;
+    end
+    
+    function y = getLineWithinAxes(obj,y,viewIdx)
+
+      assert(size(y,2)==2);
+      
+      vSize = obj.viewSizes(viewIdx,:);
+      nc = vSize(1);
+      nr = vSize(2);
+      
+      r = y(:,1);
+      c = y(:,2);
+      
+      [maxr,maxri] = max(r);
+      [minr,minri] = min(r);
+      [maxc,maxci] = max(c);
+      [minc,minci] = min(c);
+      dr = maxr-minr;
+      dc = maxc-minc;
+      if dr > dc,
+        m = (c(maxri)-c(minri)) / dr;
+        % equation of the line:
+        % (y-minr) = m*(x-c(minri))
+        % solve for x at y = 1 and y = nr
+        rout = [1;nr];
+        cout = (rout-minr)/m+c(minri);
+      else
+        m = (r(maxci)-r(minci)) / dc;
+        % equation of the line:
+        % (y-r(minci)) = m*(x-minc)
+        % solve for y at x = 1 and x = nc
+        cout = [1;nc];
+        rout = m*(cout-minc)+r(minci);        
+      end
+      y = [rout,cout];
+
     end
 
   end

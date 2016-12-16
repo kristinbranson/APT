@@ -30,7 +30,7 @@ classdef CalRigSH < CalRig
         obj.kineDataFile = '';
       else
         %try
-        kd = load(kdfile);
+        kd = load(kdfile,'data','DLT_1','DLT_2');
         %catch ME
          % warning('CalRigSH:kine','Error caught loading kineData file: %s: %s\n',...
          %   kdfile,ME.message);
@@ -74,7 +74,8 @@ classdef CalRigSH < CalRig
       end
       [xEPL,yEPL] = im_pt_2_im_line(xy1(1),xy1(2),dlt1,dlt2,...
         [1 vsz(1) 1 vsz(2)],obj.epLineNPts);
-      rc = obj.cropLines([yEPL(:) xEPL(:)],iViewEpi);
+      %rc = obj.cropLines([yEPL(:) xEPL(:)],iViewEpi);
+      rc = obj.getLineWithinAxes([yEPL(:) xEPL(:)],iViewEpi);
       xEPL = rc(:,2);
       yEPL = rc(:,1);
     end
