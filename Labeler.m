@@ -200,6 +200,7 @@ classdef Labeler < handle
     labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array. init: PN
     
     labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc). init: PN
+    labels2Hide;      % scalar logical
   end
   properties % make public setaccess
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints. init: C
@@ -621,6 +622,8 @@ classdef Labeler < handle
         delete(obj.tracker);
         obj.tracker = [];
       end
+      
+      obj.labels2Hide = false;
 
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
@@ -2860,26 +2863,12 @@ classdef Labeler < handle
       trkfilesUse = cellfun(@(x)x{trkfilesUseIdx},trkfilesCommon,'uni',0);
       tfsucc = true;
     end
-	
-    function labelImportTrkPrompt(obj,iMovs)
-      % Import label data from trk files, prompting if necessary to specify
-      % which trk files to import.
-      %
-      % iMovs: [nMovie]. Optional, movie(set) indices to import.
-      %
-      % labelImportTrkPrompt will look for trk files with common keywords
-      % (consistent naming) in .movieFilesAllFull(iMovs). If there is
-      % precisely one consistent trkfile pattern, it will import those
-      % trkfiles. Otherwise it will ask the user which trk files to import.
-      
-      if exist('iMovs','var')==0
-        iMovs = 1:obj.nmovies;
-      end
-      
+    
+    function labelImportTrkPromptGeneric(obj,iMovs,importFcn)
       movfiles = obj.movieFilesAllFull(iMovs,:);
       [tfsucc,trkfilesUse] = obj.labelImportTrkFindTrkFilesPrompt(movfiles);
       if tfsucc
-        obj.labelImportTrk(iMovs,trkfilesUse);
+        feval(importFcn,obj,iMovs,trkfilesUse);
       else
         if isscalar(iMovs) && obj.nview==1
           % In this case (single movie, single view) failure can occur if 
@@ -2895,9 +2884,27 @@ classdef Labeler < handle
             return;
           end
           trkfile = fullfile(pth,fname);
-          obj.labelImportTrk(iMovs,{trkfile});
+          feval(importFcn,obj,iMovs,{trkfile});
         end
       end
+      
+    end
+	
+    function labelImportTrkPrompt(obj,iMovs)
+      % Import label data from trk files, prompting if necessary to specify
+      % which trk files to import.
+      %
+      % iMovs: [nMovie]. Optional, movie(set) indices to import.
+      %
+      % labelImportTrkPrompt will look for trk files with common keywords
+      % (consistent naming) in .movieFilesAllFull(iMovs). If there is
+      % precisely one consistent trkfile pattern, it will import those
+      % trkfiles. Otherwise it will ask the user which trk files to import.
+      
+      if exist('iMovs','var')==0
+        iMovs = 1:obj.nmovies;
+      end
+      obj.labelImportTrkPromptGeneric(iMovs,'labelImportTrk');
     end
     
     function labelMakeLabelMovie(obj,fname,varargin)
@@ -3987,19 +3994,18 @@ classdef Labeler < handle
     end
     
     function labels2ImportTrkPrompt(obj,iMovs)
+      % See labelImportTrkPrompt() 
+      
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
-      end      
-      movfiles = obj.movieFilesAllFull(iMovs,1);
-      [tfsucc,trkfilesUse] = obj.labelImportTrkFindTrkFilesPrompt(movfiles);
-      if tfsucc
-        obj.labels2ImportTrk(iMovs,trkfilesUse);
       end
+      obj.labelImportTrkPromptGeneric(iMovs,'labels2ImportTrk');
     end
    
     function labels2ImportTrk(obj,iMovs,trkfiles)
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos2',[],[]);
       obj.labels2VizUpdate();
+      RC.saveprop('lastTrkFileImported',trkfiles{end});
     end
     
     function labels2ImportTrkCurrMov(obj)
@@ -4052,21 +4058,31 @@ classdef Labeler < handle
     end
     
     function labels2VizUpdate(obj)
-        iMov = obj.currMovie;
-        frm = obj.currFrame;
-        iTgt = obj.currTarget;
-        lpos = obj.labeledpos2{iMov}(:,:,frm,iTgt);
-        LabelCore.setPtsCoords(lpos,obj.labeledpos2_ptsH,obj.labeledpos2_ptsTxtH);
+      iMov = obj.currMovie;
+      frm = obj.currFrame;
+      iTgt = obj.currTarget;
+      lpos = obj.labeledpos2{iMov}(:,:,frm,iTgt);
+      LabelCore.setPtsCoords(lpos,obj.labeledpos2_ptsH,obj.labeledpos2_ptsTxtH);
     end
     
     function labels2VizShow(obj)
       [obj.labeledpos2_ptsH.Visible] = deal('on');
       [obj.labeledpos2_ptsTxtH.Visible] = deal('on');
+      obj.labels2Hide = false;
     end
     
     function labels2VizHide(obj)
       [obj.labeledpos2_ptsH.Visible] = deal('off');
       [obj.labeledpos2_ptsTxtH.Visible] = deal('off');
+      obj.labels2Hide = true;
+    end
+    
+    function labels2VizToggle(obj)
+      if obj.labels2Hide
+        obj.labels2VizShow();
+      else
+        obj.labels2VizHide();
+      end
     end
      
   end

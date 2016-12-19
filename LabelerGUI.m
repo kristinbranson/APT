@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 28-Sep-2016 10:14:28
+% Last Modified by GUIDE v2.5 19-Dec-2016 06:00:58
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -187,6 +187,7 @@ listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChang
 listeners{end+1,1} = addlistener(lObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
+listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
@@ -740,7 +741,7 @@ lObj = evt.AffectedObject;
 tf = ~isempty(lObj.tracker);
 onOff = onIff(tf);
 handles = lObj.gdata;
-handles.menu_track.Enable = onOff;
+%handles.menu_track.Enable = onOff;
 handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
 if tf
@@ -1029,6 +1030,29 @@ if lObj.labelposMovieHasLabels(iMov)
 end
 handles.labelerObj.labelImportTrkPrompt(iMov);
 
+function menu_file_import_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+if ~lObj.hasMovie
+  error('LabelerGUI:noMovie','No movie is loaded.');
+end
+iMov = lObj.currMovie;
+% if lObj.labelposMovieHasLabels(iMov)
+%   resp = questdlg('Current movie has labels that will be overwritten. OK?',...
+%     'Import Labels','OK, Proceed','Cancel','Cancel');
+%   if isempty(resp)
+%     resp = 'Cancel';
+%   end
+%   switch resp
+%     case 'OK, Proceed'
+%       % none
+%     case 'Cancel'
+%       return;
+%     otherwise
+%       assert(false); 
+%   end
+% end
+lObj.labels2ImportTrkPrompt(iMov);
+
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 handles.labelerObj.labelExportTrk();
 
@@ -1297,9 +1321,19 @@ if ~isempty(lblCore)
 end
 
 function menu_view_hide_predictions_Callback(hObject, eventdata, handles)
-tracker = handles.labelerObj.tracker;
+lObj = handles.labelerObj;
+tracker = lObj.tracker;
 if ~isempty(tracker)
   tracker.hideVizToggle();
+else
+  lObj.labels2VizToggle();
+end
+
+function cbkLabels2HideChanged(src,evt)
+lObj = evt.AffectedObject;
+if isempty(lObj.tracker)
+  handles = lObj.gdata;
+  handles.menu_view_hide_predictions.Checked = onIff(lObj.labels2Hide);
 end
 
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
@@ -1454,13 +1488,36 @@ end
 lObj.trackExportResults(1:nMov);
 
 function menu_track_set_labels_Callback(hObject,eventdata,handles)
-xy = handles.labelerObj.tracker.getCurrentPrediction();
-if any(isnan(xy(:))),
-  fprintf('No predictions for current frame, not labeling.\n');
-  return;
+lObj = handles.labelerObj;
+tObj = lObj.tracker;
+if ~isempty(tObj)
+  xy = tObj.getCurrentPrediction();
+  if any(isnan(xy(:))),
+    fprintf('No predictions for current frame, not labeling.\n');
+    return;
+  end
+  disp(xy);
+  
+  % AL20161219: possibly dangerous, assignLabelCoords prob was intended
+  % only as a util method for subclasses rather than public API. This may
+  % not do the right thing for some concrete LabelCores.
+  lObj.lblCore.assignLabelCoords(xy);
+else
+  if lObj.nTrx>1
+    error('LabelerGUI:setLabels','Unsupported for multiple targets.');
+  end  
+  iMov = lObj.currMovie;
+  frm = lObj.currFrame;
+  if iMov==0
+    error('LabelerGUI:setLabels','No movie open.');
+  end
+  lpos2 = lObj.labeledpos2{iMov};
+  assert(size(lpos2,4)==1);
+  lpos2xy = lpos2(:,:,frm);
+  lObj.labelPosSet(lpos2xy);
+  
+  lObj.lblCore.newFrame(frm,frm,1);
 end
-disp(xy);
-handles.labelerObj.lblCore.assignLabelCoords(xy);
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);
