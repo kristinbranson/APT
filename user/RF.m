@@ -2,6 +2,31 @@ classdef RF
   
   methods (Static)
     
+    function tf = ptWrongSide()
+      % tf: [18x3]. tf(ipt,ivw) is true if point ipt is on "far side" in view ivw
+      
+      tf = [ ...
+        0 1 0
+        0 1 0
+        0 1 0
+        1 0 0
+        1 0 0
+        1 0 0
+        0 1 0
+        0 1 0
+        0 1 0
+        1 0 0
+        1 0 0
+        1 0 0
+        0 1 0
+        0 1 0
+        0 1 0
+        1 0 0
+        1 0 0
+        1 0 0];
+      tf = logical(tf);
+    end
+    
     function [npttot,nphyspt,nview,nfrm] = lposDim(lpos)
       [npttot,d,nfrm] = size(lpos);
       assert(d==2);
@@ -17,6 +42,7 @@ classdef RF
         for ivw=1:nview
           desc = olDesc{iphyspt,ivw};
           if ~isempty(desc)
+            tfout = strcmp(desc,'out');
             shi = regexp(desc,'hi(?<num>[0-9]+)','names');
             slo = regexp(desc,'lo(?<num>[0-9]+)','names');
             tfhi = ~isempty(shi);
@@ -26,8 +52,10 @@ classdef RF
             end
             if tflo
               ylo = str2double(slo.num);
-            end              
-            if tfhi && tflo
+            end 
+            if tfout
+              fcn = @(xy) true(size(xy(:,1)));
+            elseif tfhi && tflo
               fcn = @(xy) xy(:,2)>yhi | xy(:,2)<ylo;
             elseif tfhi
               fcn = @(xy) xy(:,2)>yhi;
@@ -149,17 +177,17 @@ classdef RF
     end
     
     function tFP = FPtable(lpos,lpostag)
-      % Generate Frame-Point md table
+      % Generate Frame-Pos table
       % 
       % lpos: [npttot x d x nfrm] labeledpos
       % lpostag: [npttot x nfrm] labeledpostag
       %
-      % tFrmPts: Frame-Pt table
+      % tFrmPts: Frame-Pos table
       
       d = 2;
-      [~,nptphys,nview,nfrm] = RF.lposDim(lpos);
-      lpos = reshape(lpos,[nptphys nview 2 nfrm]);
-      lpostag = reshape(lpostag,[nptphys nview nfrm]);
+      [npttot,nptphys,nview,nfrm] = RF.lposDim(lpos);
+      lpos4d = reshape(lpos,[nptphys nview 2 nfrm]);
+      lpostag4d = reshape(lpostag,[nptphys nview nfrm]);
 
       
       %% Generate MD table
@@ -176,14 +204,15 @@ classdef RF
       ipts2VwLbl = cell(0,1);
       tfVws2VwLbl = cell(0,1);
       occ2VwLbl = cell(0,1); % true => occluded
+      p = nan(0,npttot*d); % allx, then ally
       
       for f=1:nfrm
         tf2VwLbledAny = false(1,nptphys);
         tfVwLbledAnyPt = cell(1,nptphys);
         occStatusPt = cell(1,nptphys);
         for ippt = 1:nptphys
-          lposptfrm = squeeze(lpos(ippt,:,:,f));
-          ltagptfrm = squeeze(lpostag(ippt,:,f));
+          lposptfrm = squeeze(lpos4d(ippt,:,:,f));
+          ltagptfrm = squeeze(lpostag4d(ippt,:,f));
           ltagptfrm = ltagptfrm(:);
           szassert(lposptfrm,[nview d]);
           szassert(ltagptfrm,[nview 1]);
@@ -197,6 +226,8 @@ classdef RF
         
         if any(tf2VwLbledAny)
           frm(end+1,1) = f; %#ok<AGROW>
+          lpos4dthisfrm = lpos4d(:,:,:,f);
+          p(end+1,:) = lpos4dthisfrm(:); %#ok<AGROW> % raster order: pt, view, d
           npts2VwLbl(end+1,1) = nnz(tf2VwLbledAny); %#ok<AGROW>
           ipts2VwLbl{end+1,1} = find(tf2VwLbledAny); %#ok<AGROW>
           tmp = tfVwLbledAnyPt(tf2VwLbledAny);
@@ -214,10 +245,10 @@ classdef RF
         end
       end
       
-      tFP = table(frm,npts2VwLbl,ipts2VwLbl,tfVws2VwLbl,occ2VwLbl);
+      tFP = table(frm,p,npts2VwLbl,ipts2VwLbl,tfVws2VwLbl,occ2VwLbl);
     end
     
-    function tFPaug = recon3D(tFP,lpos,crig2)
+    function tFPaug = recon3D(tFP,crig2)
       % Reconstruct/err stats for pts labeled in 2 views
       %
       % For points labeled in all three views ('lrb'):
@@ -233,12 +264,11 @@ classdef RF
       %  * errReconR. etc
       %  * errReconB.
       
-      [~,nphyspt,nview,nfrm] = RF.lposDim(lpos);
-      lpos = reshape(lpos,[nphyspt nview 2 nfrm]);
-      % szassert(lpos,[nptphys nview 2 nfrm]);
+      nview = 3;
+      nphyspt = 18;
+      assert(all(tFP.npts2VwLbl==nphyspt));
       
-      tFP18 = tFP(tFP.npts2VwLbl==nphyspt,:);
-      nRows = size(tFP18,1);
+      nRows = size(tFP,1);
       XL = cell(nRows,1);
       err = cell(nRows,1);
       % XLlr = cell(nRows,1);
@@ -249,17 +279,24 @@ classdef RF
       % errReconR_lr = nan(nRows,nphyspt);
       % errReconB_lr = nan(nRows,nphyspt);
       for iRow = 1:nRows
-        frm = tFP18.frm(iRow);
+        %frm = tFP.frm(iRow);
+        if mod(iRow,100)==0
+          disp(iRow);
+        end
+        
+        p = tFP.p(iRow,:);
+        assert(numel(p)==nphyspt*nview*2);
+        p3d = reshape(p,[nphyspt nview 2]);
         XLrow = nan(3,nphyspt); % first dim is x-y-z dimensions
         errRE = nan(3,nphyspt); % first dim is L-R-B views
         %   XLlrrow = nan(3,nphyspt);
         for iPt = 1:nphyspt
-          lposPt = squeeze(lpos(iPt,:,:,frm));
+          lposPt = squeeze(p3d(iPt,:,:));
           szassert(lposPt,[nview 2]);
           yL = lposPt(1,[2 1]);
           yR = lposPt(2,[2 1]);
           yB = lposPt(3,[2 1]);
-          tfViewsLabeled = tFP18.tfVws2VwLbl{iRow}(:,iPt);
+          tfViewsLabeled = tFP.tfVws2VwLbl{iRow}(:,iPt);
           assert(nnz(tfViewsLabeled)>=2);
           viewsLbled = find(tfViewsLabeled);
           viewsLbled = viewsLbled(:)';
@@ -310,7 +347,7 @@ classdef RF
         err{iRow} = errRE;
       end
       
-      tFPaug = [tFP18 table(XL,err)];
+      tFPaug = [tFP table(XL,err)];
     end
     
   end

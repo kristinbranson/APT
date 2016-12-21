@@ -2342,15 +2342,15 @@ classdef Labeler < handle
       %
       % xy: [nptx2xnfrm]
       
-      iMov = obj.currMovie;      
-      lposOld = obj.labeledpos{iMov};      
-      assert(isequal(size(xy),size(lposOld)));      
-      obj.labeledpos{iMov} = xy;      
+      iMov = obj.currMovie;
+      lposOld = obj.labeledpos{iMov};
+      szassert(xy,size(lposOld));
+      obj.labeledpos{iMov} = xy;
       obj.labeledposTS{iMov}(:) = now();
       obj.labeledposMarked{iMov}(:) = true; % not sure of right treatment
       
       obj.updateFrameTableComplete();
-      obj.labeledposNeedsSave = true;  
+      obj.labeledposNeedsSave = true;
     end
     
     function labelPosSetUnmarkedFramesMovieFramesUnmarked(obj,xy,iMov,frms)
