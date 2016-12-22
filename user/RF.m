@@ -1,5 +1,21 @@
 classdef RF
   
+  properties (Constant)
+    
+    PTMAP = [ %out  %mid   %inn
+                1     7     13; % LF
+                2     8     14; % LM
+                3     9     15; % LH
+                4     10    16; % RF
+                5     11    17; % RM
+                6     12    18; % RH
+            ];
+    PTMAPCOLS = {'out' 'mid' 'inn'};
+    PTMAPROWS = {'lf' 'lm' 'lh' 'rf' 'rm' 'rh'};
+    PTMAPROWS_LSIDE = logical([1 1 1 0 0 0]);
+    PTMAPROWS_RSIDE = logical([0 0 0 1 1 1]);
+  end
+  
   methods (Static)
     
     function tf = ptWrongSide()
