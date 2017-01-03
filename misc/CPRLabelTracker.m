@@ -1637,9 +1637,16 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function tdPP2dL(td,varargin)
-      bppFile = 'f:\romain\rfBlurPreProc.mat';
+      bppFile = '/groups/branson/home/leea30/rf/rfBlurPreProc.mat';
       bpp = load(bppFile);
       bpp = bpp.bpp(1);
+      td.computeIpp([],[],[],'iTrl',1:td.N,'romain',bpp,varargin{:});
+    end
+    
+    function tdPP2dR(td,varargin)
+      bppFile = '/groups/branson/home/leea30/rf/rfBlurPreProc.mat';
+      bpp = load(bppFile);
+      bpp = bpp.bpp(2);
       td.computeIpp([],[],[],'iTrl',1:td.N,'romain',bpp,varargin{:});
     end
     
