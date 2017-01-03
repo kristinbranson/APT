@@ -5,12 +5,7 @@ classdef FSPath
   % double-separators etc. Standardized paths are supposed to look the same 
   % across platforms, modulo differing filesystem mount names etc.
   %
-  % MACROS begin look like $datadir and be substituted.
-  %
-  % 
-  % 
-  %
-  % 
+  % MACROS begin look like $datadir and be substituted.   
   
   methods (Static)
   
@@ -121,6 +116,51 @@ classdef FSPath
       end
     end
     
+    function parts = fullfileparts(p)
+      % Break up a path into its parts
+      % 
+      % p: a path
+      %
+      % parts: row cellstr, fully broken-up path
+      
+      % Some bizzare edge cases can occur with eg p=='///a/b//'
+      
+      parts = cell(1,0);
+      while ~isempty(p) && ~strcmp(p,'\') 
+        [pnew,fe] = myfileparts(p);
+        if isempty(fe) && strcmp(pnew,p)          
+          parts{1,end+1} = p; %#ok<AGROW>
+          p = '';
+        elseif isempty(fe) && ~strcmp(pnew,p)
+          p = pnew;
+        else % ~isempty(fe)
+          parts{1,end+1} = fe; %#ok<AGROW>
+          p = pnew;
+        end        
+      end
+      parts = parts(end:-1:1);
+    end
+    
+    function base = commonbase(p)
+      % Find common base of paths
+      %
+      % p: cellstr of paths
+      %
+      % base: char, common base path. Will be '' if there is no base path.
+      
+      nchar = cellfun(@numel,p);
+      n = min(nchar);
+      base = '';
+      for i=1:n
+        c = cellfun(@(x)x(i),p);
+        if all(c==c(1))
+          base(1,end+1) = c(1); %#ok<AGROW>
+        else
+          break;
+        end
+      end
+    end
+      
   end
   
 end
