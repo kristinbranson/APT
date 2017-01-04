@@ -1099,7 +1099,15 @@ classdef Labeler < handle
     end
     
     function tf = projMacroIsMacro(obj,macro)
-      tf = isfield(obj.projMacro,macro);
+      tf = isfield(obj.projMacros,macro);
+    end
+   
+    function s = projMacroStrs(obj)
+      m = obj.projMacros;
+      flds = fieldnames(m);
+      vals = struct2cell(m);
+      n = numel(flds);
+      s = cellfun(@(x,y)sprintf('%s -> %s',x,y),flds,vals,'uni',0);
     end
     
     function p = projLocalizePath(obj,p)
@@ -1862,13 +1870,75 @@ classdef Labeler < handle
             end
           else
             qstr = sprintf('Cannot find movie ''%s''.',movfile);
-            resp = questdlg(qstr,'Movie not found','Browse to movie','Cancel','Cancel');
+
+            mfaAll = obj.movieFilesAll;
+            tfMfaAllHasMacro = cellfun(@FSPath.hasMacro,mfaAll);
+            mfaNoMacro = mfaAll(~tfMfaAllHasMacro);
+            mfaNoMacroBase = FSPath.commonbase(mfaNoMacro);
+            while ~isempty(mfaNoMacroBase) && ...
+                  (mfaNoMacroBase(end)=='/' || mfaNoMacroBase(end)=='\')
+                mfaNoMacroBase = mfaNoMacroBase(1:end-1);
+            end
+            if ~isempty(mfaNoMacroBase) && numel(mfaNoMacro)>=3
+              resp = questdlg(qstr,'Movie not found','Browse to movie','Create/set path macro','Cancel','Cancel');
+            else
+              resp = questdlg(qstr,'Movie not found','Browse to movie','Cancel','Cancel');
+            end
             if isempty(resp)
               resp = 'Cancel';
             end
             switch resp             
-              case 'Browse to movie'
-                tfBrowse = true;
+              case 'Browse to movie'                
+                tfBrowse = true;                
+              case 'Create/set path macro'
+                macrostrs = obj.projMacroStrs;
+                if isempty(macrostrs)
+                  macrostrs = '<none>';
+                else
+                  macrostrs = sprintf('\n%s',macrostrs{:});
+                end
+                macrostr = sprintf('%d movies share common base path: %s. Existing macros: %s\n',...
+                  numel(mfaNoMacro),mfaNoMacroBase,macrostrs);
+                respMacro = questdlg(macrostr,'Create/set macro','Use existing macro','Create new macro','Cancel','Cancel');
+                if isempty(respMacro)
+                  respMacro = 'Cancel';
+                end
+                switch respMacro
+                  case 'Create new macro'
+                    answ = inputdlg('Enter new macro name','Create macro',1);
+                    if isempty(answ)
+                      return;
+                    end
+                    macroName = answ{1};
+                    if obj.projMacroIsMacro(macroName)
+                      error('Labeler:macro','A macro named ''%s'' already exists.',macroName);
+                    end
+                    answ = inputdlg('Enter path represented by macro:','Set macro',1);
+                    if isempty(answ)
+                      return;
+                    end
+                    answ = answ{1};
+                    obj.movieFilesMacroize(mfaNoMacroBase,macroName);
+                    obj.projMacroSet(macroName,answ);
+                    movfileFull = obj.movieFilesAllFull{iMov,iView};
+                    if exist(movfileFull,'file')==0
+                      error('Labeler:mov','Cannot find movie ''%s'', macro-expanded to ''%s''',...
+                        obj.movieFilesAll{iMov,iView},movfileFull);
+                    end
+                  case 'Use existing macro'
+                    assert(false,'Currently unsupported.');
+                    macros = fieldnames(obj.projMacros);
+                    [sel,ok] = listdlg(...
+                      'ListString',macros,...
+                      'SelectionMode','single',...
+                      'Name','Select macro',...
+                      'PromptString',sprintf('Select macro to replace base path %s',mfaNoMacroBase));
+                    if ~ok
+                      return;
+                    end                    
+                  case 'Cancel'
+                    return;
+                end
               case 'Cancel'
                 return;
             end
