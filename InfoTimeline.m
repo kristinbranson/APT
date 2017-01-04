@@ -25,13 +25,12 @@ classdef InfoTimeline < handle
     ylims
     colors
     
-    listeners % listeners
+    listeners
     
     tracker
     
     jumpThreshold
     jumpCondition
-    
   end
   properties (SetAccess=private)
     selectInProg % scalar logical
@@ -39,7 +38,7 @@ classdef InfoTimeline < handle
   
   properties (SetObservable)
     selectModeOn % scalar logical, if true, mouse-click-drag will select time intervals    
-    props % list of properties to show
+    props % [npropx3]. Col 1: pretty/display name. Col 2: Type, eg 'Labels', 'Labels2' or 'Tracks'. Col3: non-pretty name/id
     curprop
   end  
   
@@ -47,8 +46,8 @@ classdef InfoTimeline < handle
     function set.selectModeOn(obj,v)
       obj.selectInProg = false; %#ok<MCSUP>
       obj.selectModeOn = v;
-      if ~obj.selectModeOn,
-        set(obj.selectH,'XData',[nan nan nan nan],'YData',[nan nan nan nan],'ZData',[1 1 1 1]);
+      if ~obj.selectModeOn
+        set(obj.selectH,'XData',[nan nan nan nan],'YData',[nan nan nan nan],'ZData',[1 1 1 1]); %#ok<MCSUP>
       end
     end    
   end
@@ -95,8 +94,14 @@ classdef InfoTimeline < handle
       obj.listeners = listeners;
       
       obj.props = {};
-      obj.props(:,1) = {'x','y','dx','dy','|dx|','|dy|','occluded'};
-      obj.props(:,2) = {'Labels'};
+      props1(:,1) = {'x','y','dx','dy','|dx|','|dy|','occluded'};
+      props1(:,2) = {'Labels'};
+      props1(:,3) = {'x','y','dx','dy','|dx|','|dy|','occluded'};
+      props2(:,1) = {'x (pred)','y (pred)','dx (pred)','dy (pred)','|dx| (pred)','|dy| (pred)'};
+      props2(:,2) = {'Labels2'};
+      props2(:,3) = {'x','y','dx','dy','|dx|','|dy|'};      
+      obj.props = [props1;props2];
+      
       obj.curprop = obj.props{1,1};
       
       obj.jumpThreshold = nan;
@@ -167,7 +172,7 @@ classdef InfoTimeline < handle
     end
     
     function cbkLabelMode(obj,src,evt)
-      if obj.lObj.labelMode == LabelMode.ERRORCORRECT,
+      if obj.lObj.labelMode == LabelMode.ERRORCORRECT
         set(obj.hMarked,'Visible','on');
       else
         set(obj.hMarked,'Visible','off');
@@ -205,9 +210,10 @@ classdef InfoTimeline < handle
     function setTracker(obj,tracker)
       obj.tracker = tracker;
       newprops = tracker.propList();
-      for ndx = 1:numel(newprops),
+      for ndx = 1:numel(newprops)
         obj.props(end+1,1) = newprops{count};
         obj.props(end,2) = 'Tracks';
+        obj.props(end,3) = newprops{count};
       end
     end
     
@@ -226,7 +232,7 @@ classdef InfoTimeline < handle
       obj.ylims = nan(1,2);
       obj.ylims(1) = y1-(y2-y1)*0.01;
       obj.ylims(2) = y2+(y2-y1)*0.01;
-      if any(isnan(obj.ylims)),
+      if any(isnan(obj.ylims))
         obj.ylims = [0 1];
       end
       if obj.ylims(2)-obj.ylims(1)==0
@@ -333,7 +339,7 @@ classdef InfoTimeline < handle
   end
   
   methods %getters setters
-    function props = getProps(obj)
+    function props = getPropsDisp(obj)
       props = obj.props(:,1);
     end
     function props = getCurProp(obj)
@@ -347,46 +353,48 @@ classdef InfoTimeline < handle
   
   
   %% Private methods
-  methods(Access = private)
+  methods (Access = private)
     function lpos = getData(obj)
       
       pndx = find(strcmp(obj.props(:,1),obj.curprop));
-      switch obj.props{pndx,2},
-        
-        case 'Labels'
+      ptype = obj.props{pndx,2};
+      pcode = obj.props{pndx,3};
       
-          if obj.lObj.currMovie>0,
-            if obj.lObj.hasTrx,
-              currTrxId = obj.lObj.currTrxId;
+      switch ptype
+        case {'Labels' 'Labels2'}
+          iMov = obj.lObj.currMovie;            
+          if iMov>0
+            if strcmp(ptype,'Labels')
+              lObjlpos = obj.lObj.labeledpos{iMov};
             else
-              currTrxId = 1;
+              lObjlpos = obj.lObj.labeledpos2{iMov};
             end
-            
-            switch obj.props{pndx,1}
-              case 'x',
-                lpos = squeeze(obj.lObj.labeledpos{obj.lObj.currMovie}(:,1,:,currTrxId));
-              case 'y',
-                lpos = squeeze(obj.lObj.labeledpos{obj.lObj.currMovie}(:,2,:,currTrxId));
-              case 'dx',
-                lpos = squeeze(obj.lObj.labeledpos{obj.lObj.currMovie}(:,1,:,currTrxId));
+            iTgt = obj.lObj.currTarget;
+            switch pcode
+              case 'x'
+                lpos = squeeze(lObjlpos(:,1,:,iTgt));
+              case 'y'
+                lpos = squeeze(lObjlpos(:,2,:,iTgt));
+              case 'dx'
+                lpos = squeeze(lObjlpos(:,1,:,iTgt));
                 lpos = lpos(:,2:end)-lpos(:,1:end-1);
                 lpos(:,end+1) = nan;
-              case 'dy',
-                lpos = squeeze(obj.lObj.labeledpos{obj.lObj.currMovie}(:,2,:,currTrxId));
+              case 'dy'
+                lpos = squeeze(lObjlpos(:,2,:,iTgt));
                 lpos = lpos(:,2:end)-lpos(:,1:end-1);
                 lpos(:,end+1) = nan;
-              case '|dx|',
-                lpos = squeeze(obj.lObj.labeledpos{obj.lObj.currMovie}(:,1,:,currTrxId));
+              case '|dx|'
+                lpos = squeeze(lObjlpos(:,1,:,iTgt));
                 lpos = abs(lpos(:,2:end)-lpos(:,1:end-1));
                 lpos(:,end+1) = nan;
-              case '|dy|',
-                lpos = squeeze(obj.lObj.labeledpos{obj.lObj.currMovie}(:,2,:,currTrxId));
+              case '|dy|'
+                lpos = squeeze(lObjlpos(:,2,:,iTgt));
                 lpos = abs(lpos(:,2:end)-lpos(:,1:end-1));
                 lpos(:,end+1) = nan;
-              case 'occluded',
-                curd = obj.lObj.labeledpostag{obj.lObj.currMovie}(:,:,currTrxId);
+              case 'occluded'
+                curd = obj.lObj.labeledpostag{iMov}(:,:,iTgt);
                 lpos =  double(strcmp(curd,'occ'));
-              otherwise,
+              otherwise
                 warndlg('Unknown property to display');
                 lpos = nan(obj.lObj.nLabelPoints,1);
             end
@@ -394,13 +402,13 @@ classdef InfoTimeline < handle
             lpos = nan(obj.lObj.nLabelPoints,1);
           end
         
-        case 'Tracks',
-          lpos = obj.tracker.getPropValues(obj.props{pndx,1});
+        case 'Tracks'
+          lpos = obj.tracker.getPropValues(pcode);
         
-      end      
+      end
     end
     
-    function lpos = getMarkedData(obj)      
+    function lpos = getMarkedData(obj)
       if obj.lObj.currMovie>0,
         if obj.lObj.hasTrx,
           currTrxId = obj.lObj.currTrxId;
@@ -417,38 +425,36 @@ classdef InfoTimeline < handle
       % Finds the next or previous frame which satisfy conditions.
       % dr = 0 is back, 1 is forward
       nxtFrm = nan;
-      if isnan(obj.jumpThreshold),
+      if isnan(obj.jumpThreshold)
         warndlg('Threhold value is not for navigation');
         obj.thresholdGUI();
-        if isnan(obj.jumpThreshold),
+        if isnan(obj.jumpThreshold)
           return;
         end
       end
       
       data = obj.getData();
-      if obj.jumpCondition > 0,
+      if obj.jumpCondition > 0
         locs = any(data>obj.jumpThreshold,1);
       else
         locs = any(data<=obj.jumpThreshold,1);
       end
       
-      if dr > 0.5,
+      if dr > 0.5
         locs = locs(curFr:end);
         nxtlocs = find( (~locs(1:end-1))&(locs(2:end)),1);
-        if isempty(nxtlocs),
+        if isempty(nxtlocs)
           return;
         end
         nxtFrm = curFr + nxtlocs - 1;
       else
         locs = locs(1:curFr);
         nxtlocs = find( (locs(1:end-1))&(~locs(2:end)),1,'last');
-        if isempty(nxtlocs),
+        if isempty(nxtlocs)
           return;
         end
         nxtFrm = nxtlocs;
       end
-      
-    
     end
   end
   

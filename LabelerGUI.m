@@ -176,7 +176,7 @@ linkaxes([handles.axes_prev,handles.axes_curr]);
 lObj = handles.labelerObj;
 
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
-set(handles.pumInfo,'String',handles.labelTLInfo.getProps());
+set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp());
 
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
@@ -925,7 +925,7 @@ tb.Value = lblTLObj.selectModeOn;
 function cbklabelTLInfoPropsUpdated(src,evt)
 % Update the props dropdown menu and timeline.
 handles = guidata(src);
-props = handles.labelTLInfo.getProps();
+props = handles.labelTLInfo.getPropsDisp();
 set(handles.pumInfo,'String',props);
 
 
