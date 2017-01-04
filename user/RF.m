@@ -14,6 +14,9 @@ classdef RF
     PTMAPROWS = {'lf' 'lm' 'lh' 'rf' 'rm' 'rh'};
     PTMAPROWS_LSIDE = logical([1 1 1 0 0 0]);
     PTMAPROWS_RSIDE = logical([0 0 0 1 1 1]);
+    
+    PTS_LSIDE = [1 2 3 7 8 9 13 14 15];
+    PTS_RSIDE = [4 5 6 10 11 12 16 17 18];
   end
   
   methods (Static)
@@ -368,7 +371,7 @@ classdef RF
     
   end
   
-  methods
+  methods (Static)
     
     function makeTrkMovie2D(movfile,trkfile,movout,varargin)
       % Make 'results movie'
@@ -380,8 +383,12 @@ classdef RF
       % 
       % movout: char
 
-      trkfilefull = myparse(varargin,...
-        'trkfilefull',[]);
+      [trkfilefull,trkIPt] = myparse(varargin,...
+        'trkfilefull',[],...
+        'trkIPt',[]);   % for colors; specification of "global" points 
+                        % indices for points in trkfile. if trkfile 
+                        % contains n tracked points, this is an index
+                        % vector of length n into 1:18
       
       FRAMERATE = 24;
       GAMMA = .2;
@@ -412,10 +419,17 @@ classdef RF
         %assert(npts==18);
         assert(d==2);
         tflbl{i} = arrayfun(@(x)nnz(~isnan(ptrk{i}(:,:,x)))>0,1:nfrm);
-      end
+      end      
       [subnr,subnc] = size(movfile);
       mr = reshape(mr,[subnr,subnc]);
       ptrk = reshape(ptrk,[subnr,subnc]);
+      
+      if ~isempty(trkIPt)        
+        validateattributes(trkIPt,{'numeric'},...
+          {'positive' 'integer' 'vector' 'numel' npts '<=' 18});
+      else
+        trkIPt = 1:npts;
+      end
       
       % figure out frames for output movie
       lbledFrms = cellfun(@find,tflbl,'uni',0);
@@ -440,11 +454,11 @@ classdef RF
 
       hLines = gobjects(nmov,npts);
       for iMov=1:nmov
-      for iPt = 1:npts
-        hLines(iMov,iPt) = plot(ax,nan,nan,'.',...
-          'markersize',28,...
-          'Color',COLORS{iPt});
-      end
+        for iPt = 1:npts
+          hLines(iMov,iPt) = plot(ax,nan,nan,'.',...
+            'markersize',28,...
+            'Color',COLORS{trkIPt(iPt)});
+        end
       end
       if ~isempty(trkfilefull)
         trkfull = load(trkfilefull,'-mat');
@@ -452,7 +466,21 @@ classdef RF
         nptsFull = size(ptrkFull,1);
         for iPt=1:nptsFull
           hLinesFull(iPt,1) = plot(ax,nan,nan,'.',...
-            'markersize',10,'Color',COLORS{iPt});
+            'markersize',10,'Color',COLORS{trkIPt(iPt)});
+        end
+      end
+      
+      hTxtTitle = gobjects(subnr,subnc);
+      for irow=1:subnr
+        for icol=1:subnc
+          % lower-left corner
+          OFFSETPX = 18;
+          rowloc = irow*imnr-OFFSETPX;
+          colloc = (icol-1)*imnc+OFFSETPX;
+          
+          [~,trkfileS] = fileparts(trkfile{irow,icol});
+          hTxtTitle(irow,icol) = text(ax,colloc,rowloc,trkfileS,...
+            'FontSize',12,'Color',[1 1 1],'interpreter','none');
         end
       end
       
