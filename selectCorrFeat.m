@@ -89,9 +89,11 @@ switch ftrPrm.metatype
     dB = bsxfun(@minus,Bsamp,BsampMu);
     assert(isequal(size(stdFtrs),[1 F]));
     % Try a sanity check on stdFtrs vs std(ftrs(dosample,:))
-    stdFtrsSamp1 = std(ftrs(dosample,1),[],1);
-    fprintf(1,'stdFtrs sanity. stdFtrs: %.3g. stdFtrsSamp: %.3g\n',...
-      stdFtrs(1),stdFtrsSamp1);
+    if false
+      stdFtrsSamp1 = std(ftrs(dosample,1),[],1);
+      fprintf(1,'stdFtrs sanity. stdFtrs: %.3g. stdFtrsSamp: %.3g\n',...
+        stdFtrs(1),stdFtrsSamp1);
+    end
     use = selectFeatSingle(dfFtrs(dosample,:),stdFtrs,dB,BsampSD);
     
     assert(numel(use)==S);
