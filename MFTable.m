@@ -51,6 +51,46 @@ classdef MFTable
       movs = regexp(movID,'#','split');
     end
     
+    function I = fetchImages(tMF)
+      %
+      % tMF: MFTable, n rows.
+      %
+      % I: [nxnview]
+      
+      movsets = tMF.movSet;
+      movIDs = cellfun(@MFTable.formMultiMovieID,movsets,'uni',0);
+      [movIDsUn,idx] = unique(movIDs);
+      
+      % open moviereaders
+      movsetsUn = movsets(idx);
+      movsetsUn = cat(1,movsetsUn{:});
+      [nMovsetsUn,nView] = size(movsetsUn);
+      mrcell = cell(size(movsetsUn));
+      for iMovSet=1:nMovsetsUn
+        for iView=1:nView
+          mr = MovieReader();
+          mr.open(movsetsUn{iMovSet,iView});
+          mr.forceGrayscale = true;
+          mrcell{iMovSet,iView} = mr;
+        end
+      end
+      
+      nRows = size(tMF,1);
+      I = cell(nRows,nView);
+      for iRow=1:nRows
+        frm = tMF.frm(iRow);
+        id = movIDs{iRow};
+        iMovSet = strcmp(id,movIDsUn);
+        assert(nnz(iMovSet)==1);
+        for iView=1:nView
+          I{iRow,iView} = mrcell{iMovSet,iView}.readframe(frm);
+        end
+        if mod(iRow,10)==0
+          fprintf(1,'Read images: row %d\n',iRow);
+        end
+      end
+    end
+    
     function tblMF = rmMovS(tblMF)
       % remove legacy 'movS' field from MFTable
       

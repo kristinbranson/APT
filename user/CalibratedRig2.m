@@ -509,7 +509,7 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
       end      
     end
     
-    function [X1,X2,d,P,Q] = stereoTriangulate(obj,xp1,xp2,cam1,cam2)
+    function [X1,X2,d,P,Q] = stereoTriangulate(obj,xp1,xp2,cam1,cam2,varargin)
       % xp1: [2x1]. projected pixel coords, camera1
       % xp2: etc
       % cam1: 'l, 'r', or 'b'
@@ -523,8 +523,8 @@ classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
       % Q: 3D point of closest approach on normalized ray of camera 2, in
       % frame of camera 2
             
-      xn1 = obj.projected2normalized(xp1,cam1);
-      xn2 = obj.projected2normalized(xp2,cam2);
+      xn1 = obj.projected2normalized(xp1,cam1,varargin{:});
+      xn2 = obj.projected2normalized(xp2,cam2,varargin{:});
       xn1 = [xn1;1];
       xn2 = [xn2;1];
       

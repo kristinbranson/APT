@@ -369,6 +369,70 @@ classdef RF
       tFPaug = [tFP table(XL,err)];
     end
     
+    function bboxes = generateBBoxes(p)
+      %
+      % p: [nxnPtxd]
+      %
+      % bboxes: [1x2d]
+
+      [n,npt,d] = size(p); %#ok<ASGLU>
+      pcoordmins = nan(1,d);
+      pcoordmaxs = nan(1,d);
+      for iCoord=1:d
+        z = p(:,:,iCoord); % x-, y-, or z-coords for all rows, pts
+        pcoordmins(iCoord) = nanmin(z(:));
+        pcoordmaxs(iCoord) = nanmax(z(:));
+      end
+      dels = pcoordmaxs-pcoordmins;
+      % pad by 50% in every dir
+      pads = dels/2;
+      widths = 2*dels; % del (shapes footprint) + 2*pads (one on each side)
+      bboxes = [pcoordmins-pads widths];
+    end
+    
+    function [h,m,t,phi] = flyOrientation2D(xy)
+      % 
+      % xy: [18x2] x- and y-coords for landmarks
+      %
+      % h: [1x2] head loc (xy)
+      % m: abdomen loc etc
+      % t: tail loc etc
+      % phi: orientation of t->h vector
+      
+      szassert(xy,[18 2]);
+      
+      FOREPTS = [1 7 13 4 10 16];
+      MIDDPTS = [2 8 14 5 11 17];
+      HINDPTS = [3 9 15 6 12 18];
+      
+      xyFore = xy(FOREPTS,:);
+      xyMidd = xy(MIDDPTS,:);
+      xyHind = xy(HINDPTS,:);
+      
+      h = nanmean(xyFore,1);
+      m = nanmean(xyMidd,1);
+      t = nanmean(xyHind,1);
+      
+      hvec = h-t;
+      phi = atan2(hvec(2),hvec(1));
+    end
+    
+    function plotShapes3D(ax,p)
+      % p: [nx18x3]
+
+      n = size(p,1);
+      szassert(p,[n 18 3]);
+      
+      LEGCOLORS = lines(6);
+      hold(ax,'on');
+      for i=1:n
+        for leg=1:6
+          pleg = squeeze(p(i,[leg leg+6 leg+12],:)); % [3x3]
+          plot3(pleg(:,1),pleg(:,2),pleg(:,3),'-','Color',LEGCOLORS(leg,:),'parent',ax);
+        end
+      end
+    end
+    
   end
   
   methods (Static)
