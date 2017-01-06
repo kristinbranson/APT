@@ -149,7 +149,7 @@ classdef RegressorCascade < handle
     
     
     %#3DOK
-    function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused) % obj const
+    function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused,calrig) % obj const
       % t: major iteration
       % I: [NxnView] Cell array of images (nView==1) or imageSets (nView>1)
       % bboxes: [Nx2*d]. Currently unused (used only for occlusion)
@@ -182,7 +182,7 @@ classdef RegressorCascade < handle
           fspec.F = numel(iFtrs);
           fspec.xs = fspec.xs(iFtrs,:);
           ftrs = shapeGt('ftrsCompDup2',obj.prmModel,p,I,fspec,...
-            pIidx,[],bboxes,obj.prmReg.occlPrm);
+            pIidx,[],bboxes,obj.prmReg.occlPrm,calrig);
         otherwise
           assert(false,'Unrecognized feature specification type.');
       end
@@ -245,10 +245,11 @@ classdef RegressorCascade < handle
       %
       % pAll: [QxDxT+1] propagated training shapes (absolute coords)
       
-      [verbose,hWB,update] = myparse(varargin,...
+      [verbose,hWB,update,calrig] = myparse(varargin,...
         'verbose',1,...
         'hWaitBar',[],...
-        'update',false... % if true, incremental update
+        'update',false,... % if true, incremental update
+        'calrig',[]... % [N] vector of calrig objs for ecah row of I. Optional, for 3d training only.
         );
       
       model = obj.prmModel;
@@ -260,6 +261,10 @@ classdef RegressorCascade < handle
       [Q,D] = size(p0);
       assert(D==obj.mdlD);
       assert(numel(pIidx)==Q);
+      
+      if ~isempty(calrig)
+        assert(isa(calrig,'CalRig') && isvector(calrig) && numel(calrig)==N);
+      end
       
       if update && ~obj.hasTrained
         error('RegressorCascade:noTrain',...
@@ -321,7 +326,7 @@ classdef RegressorCascade < handle
         end
         
         % compute features for current training shapes
-        [X,iFtrsComp] = obj.computeFeatures(t,I,bboxes,pCur,pIidx,update);
+        [X,iFtrsComp] = obj.computeFeatures(t,I,bboxes,pCur,pIidx,update,calrig);
         
         % Regress
         paramReg.ftrPrm = paramFtr;
@@ -456,7 +461,7 @@ classdef RegressorCascade < handle
           fprintf(1,'Applying cascaded regressor: %d/%d\n',t,T);
         end
               
-        [X,iFtrsComp] = obj.computeFeatures(t,I,bboxes,p,pIidx,true);
+        [X,iFtrsComp] = obj.computeFeatures(t,I,bboxes,p,pIidx,true,xxx);
         assert(numel(iFtrsComp)==size(X,2));
 
         % Compute shape correction (normalized units) by summing over

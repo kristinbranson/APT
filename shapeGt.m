@@ -542,7 +542,7 @@ end
 
 %#3DOK
 function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
-    imgIds, pStar, bboxes, occlPrm)
+    imgIds, pStar, bboxes, occlPrm, calrig)
 % Compute features from ftrsGenDup2 on Is 
 %
 % INPUTS
@@ -630,23 +630,38 @@ elseif model.d==3
   
   Pbase = reshape(phis,M,nfids,model.d); % [Mxnfidsx3]
   Pbase = permute(Pbase,[3 1 2]); % [3xMxnfids]
-  Pbase = reshape(Pbase,3,M*nfids); % [3xM*nfids]. all pt1's, then all pt2's, ...
+  %Pbase = reshape(Pbase,3,M*nfids); % [3xM*nfids]. all pt1's, then all pt2's, ...
 
-  crig = model.Prm3D.calrig;  
+  crigAll = calrig;
+  assert(isa(crigAll,'CalRig') && isvector(crigAll) && numel(crigAll)==N);
+  crigUn = unique(crigAll);
+  nCrigUn = numel(crigUn);
+  crigP = crigAll(imgIds);
+  
+  % Compute projected r/c pixel locs for each shape/pt/vw
   posrs = nan(M,nfids,nviews);
   poscs = nan(M,nfids,nviews);
-  for iView = 1:nviews
-    if iView==iViewBase
-      Pview = Pbase;
-    else
-      Pview = crig.viewXformCPR(Pbase,iViewBase,iView);
+
+  for iCrigUn = 1:nCrigUn
+    crig = crigUn(iCrigUn);
+    tfP = crigP==crig;
+    nPThisCrig = nnz(tfP);
+    PbaseThisCrig = Pbase(:,tfP,:);
+    PbaseThisCrig = reshape(PbaseThisCrig,[3 nPThisCrig*nfids]);
+
+    for iView = 1:nviews
+      if iView==iViewBase
+        PviewThisCrig = PbaseThisCrig;
+      else
+        PviewThisCrig = crig.viewXformCPR(PbaseThisCrig,iViewBase,iView);
+      end
+      assert(isequal(size(PviewThisCrig),[3 nPThisCrig*nfids]));
+      [rview,cview] = crig.projectCPR(PviewThisCrig,iView);
+      % rview/cview are [nPThisCrig*nfids] col vecs; all pt1's, the all pt2's, ...
+      posrs(tfP,:,iView) = reshape(rview,nPThisCrig,nfids);
+      poscs(tfP,:,iView) = reshape(cview,nPThisCrig,nfids);
     end
-    assert(isequal(size(Pview),[3 M*nfids]));
-    [rview,cview] = crig.projectCPR(Pview,iView);
-    % rview/cview are [M*nfids] col vecs; all pt1's, the all pt2's, ...
-    posrs(:,:,iView) = reshape(rview,M,nfids);
-    poscs(:,:,iView) = reshape(cview,M,nfids);
-  end
+  end  
 elseif model.d==2 && nviews==1
   posrs = phis(:,nfids+1:D);
   poscs = phis(:,1:nfids);
