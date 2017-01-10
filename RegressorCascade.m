@@ -430,11 +430,12 @@ classdef RegressorCascade < handle
       % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
       % is shape after T'th major iteration.
          
-      [t0,hWB] = myparse(varargin,...
+      [t0,hWB,calrig] = myparse(varargin,...
         't0',1,... % initial/starting major iteration
-        'hWaitBar',[]);
+        'hWaitBar',[],...
+        'calrig',[]);
       tfWB = ~isempty(hWB);
-    
+
       model = obj.prmModel;
 
       [NI,nview] = size(I);
@@ -443,6 +444,10 @@ classdef RegressorCascade < handle
       [Q,D] = size(p0);
       assert(numel(pIidx)==Q && all(ismember(pIidx,1:NI)));
       assert(D==obj.mdlD);
+      
+      if ~isempty(calrig)
+        assert(isa(calrig,'CalRig') && isvector(calrig) && numel(calrig)==NI);
+      end
   
       ftrMetaType = obj.prmFtr.metatype;
       bbs = bboxes(pIidx,:);
@@ -461,7 +466,7 @@ classdef RegressorCascade < handle
           fprintf(1,'Applying cascaded regressor: %d/%d\n',t,T);
         end
               
-        [X,iFtrsComp] = obj.computeFeatures(t,I,bboxes,p,pIidx,true,xxx);
+        [X,iFtrsComp] = obj.computeFeatures(t,I,bboxes,p,pIidx,true,calrig);
         assert(numel(iFtrsComp)==size(X,2));
 
         % Compute shape correction (normalized units) by summing over
