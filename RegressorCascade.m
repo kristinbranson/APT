@@ -263,7 +263,7 @@ classdef RegressorCascade < handle
       assert(numel(pIidx)==Q);
       
       if ~isempty(calrig)
-        assert(isa(calrig,'CalRig') && isvector(calrig) && numel(calrig)==N);
+        assert(isa(calrig,'CalRig') && isvector(calrig) && numel(calrig)==NI);
       end
       
       if update && ~obj.hasTrained
