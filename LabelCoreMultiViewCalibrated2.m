@@ -65,10 +65,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   % anchorset, displacing other anchored points if necessary. To un-anchor 
   % a WSpt, give its view the focus and hit <space>.
  
-  properties
+  properties (SetObservable)
     % If true, streamlined labeling process; labels not shown unless they
     % exist
-    minimal = true; 
+    streamlined = true; 
   end
   properties
     supportsMultiView = true;
@@ -314,7 +314,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         end
         % estOcc status unchanged
         
-        if obj.minimal && all(obj.tfAdjusted)
+        if obj.streamlined && all(obj.tfAdjusted)
           obj.enterAccepted(true);
         else
           switch obj.state
@@ -888,7 +888,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       %#CALOK
       
       if tfResetPts
-        if obj.minimal
+        if obj.streamlined
           [obj.hPts.XData] = deal(nan);
           [obj.hPts.YData] = deal(nan);
           [obj.hPtsTxt.Position] = deal([nan nan 1]);
@@ -925,7 +925,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
       obj.tfAdjusted(:) = true;
-%       if obj.minimal
+%       if obj.streamlined
 %         [obj.hPts.Visible] = deal('on');
 %         [obj.hPtsTxt.Visible] = deal('on');
 %       end

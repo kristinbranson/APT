@@ -81,6 +81,16 @@ handles.menu_setup_set_nframe_skip = uimenu('Parent',handles.menu_labeling_setup
 moveMenuItemAfter(handles.menu_setup_set_nframe_skip,...
   handles.menu_setup_set_labeling_point);
 
+handles.menu_setup_streamlined = uimenu('Parent',handles.menu_labeling_setup,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_streamlined_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Streamlined',...
+  'Tag','menu_setup_streamlined',...
+  'Checked','off',...
+  'Separator','on',...
+  'Visible','off');
+moveMenuItemAfter(handles.menu_setup_streamlined,...
+  handles.menu_setup_set_labeling_point);
+
 % add menu item for hiding prediction markers
 handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_predictions_Callback',hObject,eventdata,guidata(hObject)),...
@@ -126,6 +136,7 @@ handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
   'Label','Set manual labels to predicted pose',...
   'Tag','menu_track_set_labels');  
 
+ 
 % MultiViewCalibrated2 labelmode
 handles.menu_setup_multiview_calibrated_mode_2 = uimenu(...
   'Parent',handles.menu_labeling_setup,...
@@ -134,6 +145,9 @@ handles.menu_setup_multiview_calibrated_mode_2 = uimenu(...
   'Tag','menu_setup_multiview_calibrated_mode_2');  
 moveMenuItemAfter(handles.menu_setup_multiview_calibrated_mode_2,...
   handles.menu_setup_multiview_calibrated_mode);
+
+delete(handles.menu_setup_multiview_calibrated_mode);
+handles.menu_setup_multiview_calibrated_mode = [];
 
 % misc labelmode/Setup menu
 LABELMODE_SETUPMENU_MAP = ...
@@ -327,12 +341,22 @@ lObj = evt.AffectedObject;
 lblCore = lObj.lblCore;
 if ~isempty(lblCore)
   lblCore.addlistener('hideLabels','PostSet',@cbkLblCoreHideLabelsChanged);
+  cbkLblCoreHideLabelsChanged([],struct('AffectedObject',lblCore));
+  if isprop(lblCore,'streamlined')
+    lblCore.addlistener('streamlined','PostSet',@cbkLblCoreStreamlinedChanged);
+    cbkLblCoreStreamlinedChanged([],struct('AffectedObject',lblCore));
+  end
 end
 
 function cbkLblCoreHideLabelsChanged(src,evt)
 lblCore = evt.AffectedObject;
 handles = lblCore.labeler.gdata;
 handles.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels);
+
+function cbkLblCoreStreamlinedChanged(src,evt)
+lblCore = evt.AffectedObject;
+handles = lblCore.labeler.gdata;
+handles.menu_setup_streamlined.Checked = onIff(lblCore.streamlined);
 
 function cbkTrackerHideVizChanged(src,evt,hmenu_view_hide_predictions)
 tracker = evt.AffectedObject;
@@ -559,6 +583,7 @@ switch lblMode
     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
+    handles.menu_setup_streamlined.Visible = 'off';
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
@@ -566,6 +591,7 @@ switch lblMode
     handles.menu_setup_createtemplate.Visible = 'on';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
+    handles.menu_setup_streamlined.Visible = 'off';
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
@@ -573,6 +599,7 @@ switch lblMode
     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'on';
     handles.menu_setup_set_nframe_skip.Visible = 'on';
+    handles.menu_setup_streamlined.Visible = 'off';
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
@@ -580,6 +607,7 @@ switch lblMode
     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
+    handles.menu_setup_streamlined.Visible = 'off';
     handles.menu_setup_unlock_all_frames.Visible = 'on';
     handles.menu_setup_lock_all_frames.Visible = 'on';
     handles.menu_setup_load_calibration_file.Visible = 'off';
@@ -587,6 +615,7 @@ switch lblMode
     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
+    handles.menu_setup_streamlined.Visible = 'on';
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'on';
@@ -1077,8 +1106,8 @@ function menu_setup_highthroughput_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
 function menu_setup_tracking_correction_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
-function menu_setup_multiview_calibrated_mode_Callback(hObject,eventdata,handles)
-menuSetupLabelModeCbkGeneric(hObject,handles);
+% function menu_setup_multiview_calibrated_mode_Callback(hObject,eventdata,handles)
+% menuSetupLabelModeCbkGeneric(hObject,handles);
 function menu_setup_multiview_calibrated_mode_2_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
 function menuSetupLabelModeCbkGeneric(hObject,handles)
@@ -1100,6 +1129,12 @@ lObj.labelPointsPlotInfo.HighThroughputMode.NFrameSkip = val;
 % This state is duped between labelCore and lppi b/c the lifetimes are
 % different. LabelCore exists only between movies etc, and is initted from
 % lppi. Hmm
+
+function menu_setup_streamlined_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lc = lObj.lblCore;
+assert(isa(lc,'LabelCoreMultiViewCalibrated2'));
+lc.streamlined = ~lc.streamlined;
 
 function menu_setup_set_labeling_point_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1314,6 +1349,7 @@ ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,handles.axes_all,...
   handles.images_all,handles.axes_prev);
 movInvert = ViewConfig.getMovieInvert(viewCfg);
 lObj.movieInvert = movInvert;
+
 function menu_view_hide_labels_Callback(hObject, eventdata, handles)
 lblCore = handles.labelerObj.lblCore;
 if ~isempty(lblCore)
