@@ -65,7 +65,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   % anchorset, displacing other anchored points if necessary. To un-anchor 
   % a WSpt, give its view the focus and hit <space>.
  
-  
+  properties
+    % If true, streamlined labeling process; labels not shown unless they
+    % exist
+    minimal = true; 
+  end
   properties
     supportsMultiView = true;
     supportsCalibration = true;
@@ -233,8 +237,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.numHotKeyPtSet = 1;
       obj.refreshHotkeyDesc();
 
+      obj.labeler.currImHud.updateReadoutFields('hasLblPt',true);
+
       obj.projectionWorkingSetClear();
-      obj.projectionInit();
+      obj.projectionInit();      
     end
     
   end
@@ -266,8 +272,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       % working set: unchanged
       
-      % projection state: very crude refresh
-      obj.projectionRefresh();
+      obj.projectionClear();
     end
     
     function clearLabels(obj)
@@ -560,6 +565,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       set(obj.hPts,'HitTest','on');     
       obj.iSetWorking = nan;
+      obj.labeler.currImHud.updateLblPoint(nan,obj.nPointSet);
     end
     
     function projectionWorkingSetSet(obj,iSet)
@@ -578,6 +584,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         end
       end
       obj.iSetWorking = iSet;
+      obj.labeler.currImHud.updateLblPoint(iSet,obj.nPointSet);
     end
     
     function projectionWorkingSetToggle(obj,iSet)
@@ -876,8 +883,13 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       %#CALOK
       
       if tfResetPts
-        tpClr = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
-        arrayfun(@(x)set(x,'Color',tpClr),obj.hPts);
+        if obj.minimal
+          [obj.hPts.Visible] = deal('off');
+          [obj.hPtsTxt.Visible] = deal('off');
+        else
+          tpClr = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
+          arrayfun(@(x)set(x,'Color',tpClr),obj.hPts);
+        end
         obj.tfAdjusted(:) = false;
       end
       if tfClearLabeledPos
@@ -907,6 +919,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
       obj.tfAdjusted(:) = true;
+      if obj.minimal
+        [obj.hPts.Visible] = deal('on');
+        [obj.hPtsTxt.Visible] = deal('on');
+      end
       
       if tfSetLabelPos
         xy = obj.getLabelCoords();
@@ -918,13 +934,17 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.state = LabelState.ACCEPTED;
     end
     
-    function setPointAdjusted(obj,iSel)
-      %#CALOK
+    function setPointAdjusted(obj,iSel)      
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
-        clr = obj.hPtsColors(iSel,:);
-        set(obj.hPts(iSel),'Color',clr);
-        %set(obj.hPtsOcc(iSel),'Color',clr);
+        if obj.minimal
+          obj.hPts(iSel).Visible = 'on';
+          obj.hPtsTxt(iSel).Visible = 'on';
+        else
+          clr = obj.hPtsColors(iSel,:);
+          set(obj.hPts(iSel),'Color',clr);
+          %set(obj.hPtsOcc(iSel),'Color',clr);
+        end
       end
     end
     

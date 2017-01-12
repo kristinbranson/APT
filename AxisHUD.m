@@ -16,7 +16,7 @@ classdef AxisHUD < handle
   end
   
   properties
-    ax; % scalar axis handle    
+    hParent; % scalar handle    
     hTxts; % col vec of handles to text uicontrols
     hTxtTgt; % scalar handle (for convenience; owned by hTxts)
     hTxtLblPt; 
@@ -29,9 +29,9 @@ classdef AxisHUD < handle
   
   methods
     
-    function obj = AxisHUD(ax)
-      assert(isa(ax,'matlab.graphics.axis.Axes'));
-      obj.ax = ax;
+    function obj = AxisHUD(h)
+      assert(ishandle(h));
+      obj.hParent = h;
       obj.initHTxts();
       obj.hasTgt = false;
       obj.hasLblPt = false;
@@ -82,11 +82,11 @@ classdef AxisHUD < handle
         'hasLblPt',obj.hasLblPt,...
         'hasSusp',obj.hasSusp);
 
-      units0 = obj.ax.Units;
-      obj.ax.Units = 'pixels';
-      axpos = obj.ax.Position;
-      obj.ax.Units = units0;
-      y1 = axpos(2)+axpos(4); % current 'top' of axis
+      units0 = obj.hParent.Units;
+      obj.hParent.Units = 'pixels';
+      parentpos = obj.hParent.Position;
+      obj.hParent.Units = units0;
+      y1 = parentpos(4) - obj.txtHgt; % just below top of hParent
       if obj.hasTgt
         [obj.hTxtTgt,y1] = obj.addTxt(y1,obj.txtClrTarget);
         obj.hTxts(end+1,1) = obj.hTxtTgt;
@@ -129,7 +129,7 @@ classdef AxisHUD < handle
       hTxt = uicontrol(...
         'Style','text',...
         'HorizontalAlignment','left',...
-        'Parent',obj.ax.Parent,...
+        'Parent',obj.hParent,...
         'FontUnits','pixels',...
         'FontName','Helvetica',...
         'FontSize',14,...

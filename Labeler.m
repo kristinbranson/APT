@@ -597,7 +597,7 @@ classdef Labeler < handle
       obj.currIm = cell(obj.nview,1);
       delete(obj.currImHud);
       gd = obj.gdata;
-      obj.currImHud = AxisHUD(gd.axes_curr); 
+      obj.currImHud = AxisHUD(gd.axes_curr.Parent); 
       %obj.movieSetNoMovie();
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
