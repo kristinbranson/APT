@@ -2223,11 +2223,18 @@ classdef Labeler < handle
         %
         % With this explicit cleanup the segv goes away and of course the
         % extra labelpts are fixed as well.
+        
+        hideLabelsPrev = lc.hideLabels;
         delete(lc);
         obj.lblCore = [];
+      else
+        hideLabelsPrev = false;
       end
-      obj.lblCore = LabelCore.create(obj,lblmode);      
+      obj.lblCore = LabelCore.create(obj,lblmode);
       obj.lblCore.init(nPts,lblPtsPlotInfo);
+      if hideLabelsPrev
+        obj.lblCore.labelsHide();
+      end
       
       % labelmode-specific inits
       switch lblmode

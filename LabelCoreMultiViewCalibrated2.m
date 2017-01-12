@@ -146,7 +146,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
   end
   
-  methods % DONE2
+  methods
     
     function obj = LabelCoreMultiViewCalibrated2(varargin)
       obj = obj@LabelCore(varargin{:});
@@ -300,10 +300,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         pos = pos(1,1:2);
         obj.assignLabelCoordsIRaw(pos,iPt);
         obj.setPointAdjusted(iPt);
+        
         if ~obj.tfPtSel(iPt)
           obj.selClearSelected();
           obj.selToggleSelectPoint(iPt);
         end
+        
         obj.projectAddToAnchorSet(iPt)
         if obj.tfOcc(iPt)
           % AL should be unnec branch
@@ -311,11 +313,16 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           obj.refreshOccludedPts();
         end
         % estOcc status unchanged
-        switch obj.state
-          case LabelState.ADJUST
-            % none
-          case LabelState.ACCEPTED
-            obj.enterAdjust(false,false);
+        
+        if obj.minimal && all(obj.tfAdjusted)
+          obj.enterAccepted(true);
+        else
+          switch obj.state
+            case LabelState.ADJUST
+              % none
+            case LabelState.ACCEPTED
+              obj.enterAdjust(false,false);
+          end
         end
         obj.projectionRefresh();
       end
@@ -378,9 +385,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       tfShft = any(strcmp('shift',modifier));
       
       tfKPused = true;
-      if strcmp(key,'h') && tfCtrl
-        obj.labelsHideToggle();
-      elseif strcmp(key,'space')
+      if strcmp(key,'space')
         [tfSel,iSel] = obj.selAnyPointSelected();
         if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
           obj.projectToggleState(iSel);
@@ -532,7 +537,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
         
   end
-  
+    
   methods % template
         
     function setRandomTemplate(obj)
@@ -555,7 +560,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
   end
   
-  methods % DONE2
+  methods
     
     function projectionWorkingSetClear(obj)
       h = obj.hPtsTxt;
@@ -821,7 +826,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
   end
   
-  methods % Selected DONE2
+  methods
     
     function [tf,iSelected] = selAnyPointSelected(obj)
       tf = any(obj.tfPtSel);
@@ -884,8 +889,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       if tfResetPts
         if obj.minimal
-          [obj.hPts.Visible] = deal('off');
-          [obj.hPtsTxt.Visible] = deal('off');
+          [obj.hPts.XData] = deal(nan);
+          [obj.hPts.YData] = deal(nan);
+          [obj.hPtsTxt.Position] = deal([nan nan 1]);
         else
           tpClr = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
           arrayfun(@(x)set(x,'Color',tpClr),obj.hPts);
@@ -919,10 +925,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
       obj.tfAdjusted(:) = true;
-      if obj.minimal
-        [obj.hPts.Visible] = deal('on');
-        [obj.hPtsTxt.Visible] = deal('on');
-      end
+%       if obj.minimal
+%         [obj.hPts.Visible] = deal('on');
+%         [obj.hPtsTxt.Visible] = deal('on');
+%       end
       
       if tfSetLabelPos
         xy = obj.getLabelCoords();
@@ -937,14 +943,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     function setPointAdjusted(obj,iSel)      
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
-        if obj.minimal
-          obj.hPts(iSel).Visible = 'on';
-          obj.hPtsTxt(iSel).Visible = 'on';
-        else
-          clr = obj.hPtsColors(iSel,:);
-          set(obj.hPts(iSel),'Color',clr);
-          %set(obj.hPtsOcc(iSel),'Color',clr);
-        end
+        clr = obj.hPtsColors(iSel,:);
+        set(obj.hPts(iSel),'Color',clr);
+        %set(obj.hPtsOcc(iSel),'Color',clr);
       end
     end
     
