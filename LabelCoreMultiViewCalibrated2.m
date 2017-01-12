@@ -68,7 +68,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   properties (SetObservable)
     % If true, streamlined labeling process; labels not shown unless they
     % exist
-    streamlined = true; 
+    streamlined = false; 
   end
   properties
     supportsMultiView = true;
@@ -272,6 +272,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       % working set: unchanged
       
+      obj.selClearSelected();
+      
       obj.projectionClear();
     end
     
@@ -385,7 +387,14 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       tfShft = any(strcmp('shift',modifier));
       
       tfKPused = true;
-      if strcmp(key,'space')
+      if strcmp(key,'h') && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
+        % AL HACK multiview. MATLAB menu accelerators only work when
+        % figure-containing-the-menu (main fig) has focus
+        obj.labelsHideToggle();
+      elseif strcmp(key,'p') && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
+        % AL HACK etc
+        obj.labeler.labels2VizToggle();        
+      elseif strcmp(key,'space')
         [tfSel,iSel] = obj.selAnyPointSelected();
         if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
           obj.projectToggleState(iSel);

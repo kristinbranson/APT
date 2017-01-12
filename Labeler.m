@@ -2224,7 +2224,12 @@ classdef Labeler < handle
         % With this explicit cleanup the segv goes away and of course the
         % extra labelpts are fixed as well.
         
+        % AL: Need strategy for persisting/carrying lblCore state between
+        % movies. newMovie prob doesn't need to call labelingInit.
         hideLabelsPrev = lc.hideLabels;
+        if isprop(lc,'streamlined')
+          streamlinedPrev = lc.streamlined;
+        end
         delete(lc);
         obj.lblCore = [];
       else
@@ -2234,6 +2239,9 @@ classdef Labeler < handle
       obj.lblCore.init(nPts,lblPtsPlotInfo);
       if hideLabelsPrev
         obj.lblCore.labelsHide();
+      end
+      if isprop(obj.lblCore,'streamlined') && exist('streamlinedPrev','var')>0
+        obj.lblCore.streamlined = streamlinedPrev;
       end
       
       % labelmode-specific inits
