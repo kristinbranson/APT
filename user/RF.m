@@ -17,6 +17,14 @@ classdef RF
     
     PTS_LSIDE = [1 2 3 7 8 9 13 14 15];
     PTS_RSIDE = [4 5 6 10 11 12 16 17 18];
+    
+    COLORS = {...
+      [1 0 0] [1 0 0] [1 0 0]; ...
+      [1 1 0] [1 1 0] [1 1 0]; ...
+      [0 1 0] [0 1 0] [0 1 0]; ...
+      [0 1 1] [0 1 1] [0 1 1]; ...
+      [1 0 1] [1 0 1] [1 0 1]; ...
+      [1 204/255 77/255] [1 204/255 77/255] [1 204/255 77/255]};
   end
   
   methods (Static)
@@ -437,6 +445,129 @@ classdef RF
   
   methods (Static)
     
+    function makeTrkMovie3D(movset,movout,varargin)
+      
+      trkRes3D = myparse(varargin,...
+        'trkRes3D',[]); % struct with fields .X [3x18xnfrm], frm, crig
+      
+      if ~isempty(trkRes3D)
+        nfrm = numel(trkRes3D.frm);
+        szassert(trkRes3D.X,[3 18 nfrm]);
+        assert(isa(trkRes3D.crig,'CalRig'));
+      end
+        
+      NPTS = 18;
+      FRAMERATE = 24;
+      GAMMA = .3;
+      mgray = gray(256);
+      mgray2 = imadjust(mgray,[],[],GAMMA);
+      
+      assert(iscellstr(movset) && numel(movset)==3);
+      for i=3:-1:1
+        mr(i) = MovieReader();
+        mr(i).open(movset{i});
+        mr(i).forceGrayscale = true;
+      end
+      
+      hts = [mr.nr];
+      wds = [mr.nc];
+      bigImHt = max(hts(1:2)) + hts(3);
+      bigImWd = wds(3);
+      % imL occupies cols [1,midline] inclusive
+      % imR occupies cols [midline+1,wds(3)] inclusive
+      midline = floor(wds(3)/2);                 
+      assert(wds(1)<=midline);
+      assert(wds(2)<=bigImWd-midline);
+      bigim = nan(bigImHt,bigImWd);
+      
+      rowOffsets = {max(hts(1:2))-hts(1); max(hts(1:2))-hts(2); max(hts(1:2))};
+      colOffsets = {midline-wds(1); midline; 0};
+      bigimIdxL = {(1:hts(1))+rowOffsets{1},(1:wds(1))+colOffsets{1}};
+      bigimIdxR = {(1:hts(2))+rowOffsets{2},(1:wds(2))+colOffsets{2}};
+      bigimIdxB = {(1:hts(3))+rowOffsets{3},(1:wds(3))+colOffsets{3}};
+
+      hFig = figure;
+      ax = axes;
+      hIm = imagesc(bigim,'parent',ax);
+      colormap(ax,mgray2);
+      truesize(hFig);
+      hold(ax,'on');
+      ax.XTick = [];
+      ax.YTick = [];
+
+      hLine = gobjects(3,NPTS);
+      for iVw = 1:3
+        for iPt = 1:NPTS
+          hLine(iVw,iPt) = plot(ax,nan,nan,'.',...
+            'markersize',28,...
+            'Color',RF.COLORS{iPt});
+        end
+      end
+      
+      %trk = load(trkfile,'-mat');
+
+      vr = VideoWriter(movout);
+      vr.FrameRate = FRAMERATE;
+      vr.open();
+      
+      hTxt = text(10,15,'','parent',ax,'Color','white','fontsize',24);
+      hWB = waitbar(0,'Writing video');
+
+      crig = trkRes3D.crig;
+      frms = trkRes3D.frm;
+      nfrm = numel(frms);
+      for iF=1:nfrm
+        f = frms(iF);
+        
+        imL = mr(1).readframe(f);
+        imR = mr(2).readframe(f);
+        imB = mr(3).readframe(f);
+        bigim(bigimIdxL{:}) = imL;
+        bigim(bigimIdxR{:}) = imR;
+        bigim(bigimIdxB{:}) = imB;
+        hIm.CData = bigim;
+        
+        
+        Xbase = trkRes3D.X(:,:,iF);
+        for iVw=1:3
+          for iPt=1:18
+            X = Xbase(:,iPt);
+            Xvw = crig.viewXformCPR(X,1,iVw); % iViewBase==1
+            [r,c] = crig.projectCPR(Xvw,iVw);
+            
+            radj = r + rowOffsets{iVw};
+            cadj = c + colOffsets{iVw};
+            
+            switch iVw
+              case 1
+                if ~any(iPt==RF.PTS_LSIDE)
+                  radj = nan;
+                  cadj = nan;
+                end
+              case 2
+                if ~any(iPt==RF.PTS_RSIDE)
+                  radj = nan;
+                  cadj = nan;
+                end
+            end
+            hL = hLine(iVw,iPt);
+            set(hL,'XData',cadj,'YData',radj);
+          end
+        end
+        
+        hTxt.String = sprintf('%04d',f);
+        drawnow
+        
+        tmpFrame = getframe(ax);
+        vr.writeVideo(tmpFrame);
+        waitbar(iF/nfrm,hWB,sprintf('Wrote frame %d\n',f));
+      end
+      
+      vr.close();
+      delete(hTxt);
+      delete(hWB);      
+    end
+    
     function makeTrkMovie2D(movfile,trkfile,movout,varargin)
       % Make 'results movie'
       % 
@@ -458,13 +589,6 @@ classdef RF
       GAMMA = .2;
       mgray = gray(256);
       mgray2 = imadjust(mgray,[],[],GAMMA);
-      COLORS = {...
-        [1 0 0] [1 0 0] [1 0 0]; ...
-        [1 1 0] [1 1 0] [1 1 0]; ...
-        [0 1 0] [0 1 0] [0 1 0]; ...
-        [0 1 1] [0 1 1] [0 1 1]; ...
-        [1 0 1] [1 0 1] [1 0 1]; ...
-        [1 204/255 77/255] [1 204/255 77/255] [1 204/255 77/255]};
       
       movfile = cellstr(movfile);
       trkfile = cellstr(trkfile);
@@ -521,7 +645,7 @@ classdef RF
         for iPt = 1:npts
           hLines(iMov,iPt) = plot(ax,nan,nan,'.',...
             'markersize',28,...
-            'Color',COLORS{trkIPt(iPt)});
+            'Color',RF.COLORS{trkIPt(iPt)});
         end
       end
       if ~isempty(trkfilefull)
@@ -530,7 +654,7 @@ classdef RF
         nptsFull = size(ptrkFull,1);
         for iPt=1:nptsFull
           hLinesFull(iPt,1) = plot(ax,nan,nan,'.',...
-            'markersize',10,'Color',COLORS{trkIPt(iPt)});
+            'markersize',10,'Color',RF.COLORS{trkIPt(iPt)});
         end
       end
       
