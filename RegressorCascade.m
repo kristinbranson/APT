@@ -496,14 +496,19 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function [p_t,pIidx,p0info] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj const
+    function [p_t,pIidx,p0,p0info] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj const
       % Wrapper for propagate(), randomly init replicate cloud from
       % obj.pGTNTrn
       %
       % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
       % is shape after T'th major iteration.
       % pIidx: labels for rows of p_t, indices into I
+      % p0: initial shapes (absolute coords)
       % p0info: struct containing initial shape info
+      
+      [initUseFF,loArgs] = myparse_nocheck(varargin,...
+        'initUseFF',false... % if true, use "furthestfirst" initialization alg
+        );
       
       model = obj.prmModel;
       [N,nview] = size(I);
@@ -515,14 +520,15 @@ classdef RegressorCascade < handle
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
         'dorotate',prmTestInit.augrotate,...
         'bboxJitterfac',prmTestInit.augjitterfac,...
-        'selfSample',false);
+        'selfSample',false,...
+        'furthestfirst',initUseFF);
       szassert(p0,[N Naug model.D]);
-      p0info.p0_1 = squeeze(p0(1,:,:)); % absolute coords
+      %p0info.p0_1 = squeeze(p0(1,:,:)); % absolute coords
       p0info.bbox1 = bboxes(1,:);
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
-      p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
+      p_t = obj.propagate(I,bboxes,p0,pIidx,loArgs{:});      
     end
     
     %#3DOK
