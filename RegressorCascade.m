@@ -189,7 +189,7 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function [pAll,pIidx] = trainWithRandInit(obj,I,bboxes,pGT,varargin)
+    function [pAll,pIidx,p0,p0info] = trainWithRandInit(obj,I,bboxes,pGT,varargin)
       % I: [NxnView] cell array of images
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
@@ -208,8 +208,9 @@ classdef RegressorCascade < handle
       % the most/more common shapes. However, we also jitter, so that may
       % be okay.
       
-      [initpGTNTrn,loArgs] = myparse_nocheck(varargin,...
-        'initpGTNTrn',false... % if true, init with .pGTNTrn rather than pGT
+      [initpGTNTrn,initUseFF,loArgs] = myparse_nocheck(varargin,...
+        'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
+        'initUseFF',false... % if true, use "furthestfirst" initialization alg
         );
       
       model = obj.prmModel;
@@ -222,10 +223,11 @@ classdef RegressorCascade < handle
         pNInitSet = shapeGt('projectPose',model,pGT,bboxes);
         selfSample = true;
       end
-      p0 = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
+      [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
         'dorotate',tiPrm.augrotate,...
         'bboxJitterfac',tiPrm.augjitterfac,...
-        'selfSample',selfSample);
+        'selfSample',selfSample,...
+        'furthestfirst',initUseFF);
       N = size(I,1);
       szassert(p0,[N Naug model.D]);
       

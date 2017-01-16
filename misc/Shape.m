@@ -49,7 +49,7 @@ classdef Shape
       assert(false,'NOT DONE'); 
     end
     
-    function p1 = randsamp(p0,i,L)
+    function p1 = randsamp(p0,i,L,varargin)
       % Randomly sample N shapes, omitting ith shape
       %
       % p0 (in): [NxD] all shapes
@@ -58,12 +58,19 @@ classdef Shape
       %
       % p1: [LxD] shapes randomly sampled from p0, *omitting* the ith
       %   shape, ie p0(i,:).
+      
+      useFF = myparse(varargin,...
+        'useFF',false); % if true, use furthestfirst
             
       [N,D] = size(p0);
       assert(any(i==1:N));      
       
       iOther = [1:i-1,i+1:N];
-      if L <= N-1
+      if useFF
+        assert(L<=N-1);
+        pOther = p0(iOther,:);
+        p1 = furthestfirst(pOther,L,'Start',[]); % 'Start' empty => random first/starting center
+      elseif L <= N-1
         i1 = randSample(iOther,L,true); %[n randSample(1:N,L-1)];
         p1 = p0(i1,:);
       else % L>N-1
@@ -93,11 +100,12 @@ classdef Shape
       % Shapes are randomly drawn from pN, optionally randomly rotated,
       % then projected onto randomly jittered bboxes.
       
-      [dorotate,bboxJitterFac,selfSample] = myparse(varargin,...
+      [dorotate,bboxJitterFac,selfSample,useFF] = myparse(varargin,...
         'dorotate',false,... % if true, randomly rotate shapes
-        'bboxJitterfac',16, ... % jitter by 1/16th of bounding box dims
-        'selfSample',false ... % if true, then M==N, ie the set pN corresponds to bboxes. pN(i,:) will 
+        'bboxJitterfac',16, ... % jitter by 1/16th of bounding box dims. If useFF is true, can be [D] vector.
+        'selfSample',false, ... % if true, then M==N, ie the set pN corresponds to bboxes. pN(i,:) will 
                            ... % not be drawn/included when generating pAug(i,:,:).
+        'furthestfirst',false ... % if true, try to sample more diverse shapes using furthestfirst
         );
   
       assert(~any(strcmp(model.name,{'cofw' 'fly_RF2' 'mouse_paw3D'})),...
@@ -112,6 +120,19 @@ classdef Shape
       if selfSample
         assert(M==N);
       end
+      
+      if useFF
+        if isscalar(bboxJitterFac) 
+          bboxJitterFac = repmat(bboxJitterFac,1,D);
+        end
+        assert(isvector(bboxJitterFac)&&numel(bboxJitterFac)==D);
+        
+        if selfSample
+          warningNoTrace('Shape:arg','Ignoring selfSample==true since furthestfirst==true.');
+        end
+      else
+        assert(isscalar(bboxJitterFac));
+      end
 
       nOOB = Shape.normShapeOOB(pN);
       if nOOB>0
@@ -120,24 +141,44 @@ classdef Shape
       end
            
       pAug = zeros(N,Naug,D);
-      for i=1:N
-        if selfSample
-          pNAug = Shape.randsamp(pN,i,Naug);
+      for i=1:N        
+        if useFF
+          % jitter normalized shapes directly, then select via FF
+          pNJittered = pN;
+          for col=1:D
+            jit = 2*(rand(M,1)-0.5)*(1/bboxJitterFac(col));
+            pNJittered(:,col) = pNJittered(:,col)+jit;
+            tfSml = pNJittered(:,col)<-1;
+            tfBig = pNJittered(:,col)>1;            
+            pNJittered(tfSml,col) = -1;
+            pNJittered(tfBig,col) = 1;
+          end
+          
+          % sample them
+          szassert(pNJittered,[M D]);
+          pNAug = Shape.randsamp([pNJittered;pNJittered(end,:)],M+1,Naug,...
+            'useFF',true);
+          pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,...
+            repmat(bboxes(i,:),Naug,1)); % [NaugxD]
         else
-          % Duplicate first row of pN, then specify that row to randsamp.
-          % The effect is to sample just from pN
-          pNAug = Shape.randsamp([pN(1,:);pN],1,Naug);
-        end
-        if dorotate
-          assert(d==2,'Currently random rotations supported only for d==2');
-          fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
-          pNAug = Shape.randrot(pNAug,d);
-        end
-        szassert(pNAug,[Naug D]);
+          if selfSample
+            pNAug = Shape.randsamp(pN,i,Naug);
+          else
+            % Duplicate first row of pN, then specify that row to randsamp.
+            % The effect is to sample just from pN
+            pNAug = Shape.randsamp([pN(1,:);pN],1,Naug);
+          end
+          if dorotate
+            assert(d==2,'Currently random rotations supported only for d==2');
+            fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
+            pNAug = Shape.randrot(pNAug,d);
+          end
+          szassert(pNAug,[Naug D]);
 
-        bbRT = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac);
-        szassert(bbRT,[Naug 2*d]);
-        pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,bbRT); % [NaugxD]        
+          bbRT = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac);
+          szassert(bbRT,[Naug 2*d]);
+          pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,bbRT); % [NaugxD]
+        end
       end
       
       info = struct(...
@@ -146,7 +187,8 @@ classdef Shape
         'npN',M,...
         'doRotate',dorotate,...
         'bboxJitterFac',bboxJitterFac,...
-        'selfSample',selfSample);
+        'selfSample',selfSample,...
+        'furthestfirst',useFF);
     end
     
     %# 3DOK
