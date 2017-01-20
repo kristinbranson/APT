@@ -224,7 +224,7 @@ classdef APT
           if ~succ
             error('APT:build','Failed to create build dir: %s\n',msg);
           end
-        end        
+        end      
         APT.buildmv(binsrc,bindst);
         APT.buildmv(runsrc,rundst);
         APT.buildmv(mccsrc,mccdst);
@@ -244,6 +244,13 @@ classdef APT
       sssrc = APT.BUILDSNAPSHOTFULLFILE;
       ssdst = fullfile(bindir,proj,APT.BUILDSNAPSHOTFILE);
       APT.buildmv(sssrc,ssdst);
+      
+      % drop a token for matlab version
+      if isunix
+        mlver = version('-release');
+        cmd = sprintf('touch %s',fullfile(bindir,proj,mlver));
+        system(cmd);
+      end
     end
     
     function s = settingssnapshot(settingsdir)
