@@ -953,11 +953,13 @@ classdef CPRLabelTracker < LabelTracker
             assert(isequal(bboxesVw,d.bboxesTst));
           end
           
-          [p_t,~,~,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,prm.TestInit);
+          [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,prm.TestInit);
           if iChunk==1 && ~isempty(p0DiagImg)
+            tf1 = pIidx==1;
+            p0Info.p0_1 = p0(tf1,:);
             hFigP0DiagImg = RegressorCascade.createP0DiagImg(IsVw,p0Info);
-            [ptmp,ftmp,etmp] = fileparts(p0DiagImg);
-            p0DiagImgVw = fullfile(ptmp,sprintf('%s_view%d.%s',ftmp,iView,etmp));
+            [ptmp,ftmp] = fileparts(p0DiagImg);
+            p0DiagImgVw = fullfile(ptmp,sprintf('%s_view%d.fig',ftmp,iView));
             savefig(hFigP0DiagImg,p0DiagImgVw);
             delete(hFigP0DiagImg);
           end
