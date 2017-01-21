@@ -208,14 +208,23 @@ classdef RegressorCascade < handle
       % the most/more common shapes. However, we also jitter, so that may
       % be okay.
       
-      [initpGTNTrn,initUseFF,loArgs] = myparse_nocheck(varargin,...
-        'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
-        'initUseFF',false... % if true, use "furthestfirst" initialization alg
+      [initpGTNTrn,loArgs] = myparse_nocheck(varargin,...
+        'initpGTNTrn',false... % if true, init with .pGTNTrn rather than pGT
         );
       
       model = obj.prmModel;
       tiPrm = obj.prmTrainInit;
       Naug = tiPrm.Naug;  
+      
+      if isfield(tiPrm,'augUseFF')
+        initUseFF = tiPrm.augUseFF;
+      else
+        initUseFF = false;
+      end
+      
+      fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
+        initpGTNTrn,initUseFF);
+      
       if initpGTNTrn
         pNInitSet = obj.pGTNTrn;
         selfSample = false;
@@ -505,15 +514,19 @@ classdef RegressorCascade < handle
       % pIidx: labels for rows of p_t, indices into I
       % p0: initial shapes (absolute coords)
       % p0info: struct containing initial shape info
-      
-      [initUseFF,loArgs] = myparse_nocheck(varargin,...
-        'initUseFF',false... % if true, use "furthestfirst" initialization alg
-        );
-      
+            
       model = obj.prmModel;
       [N,nview] = size(I);
       assert(nview==model.nviews);
       szassert(bboxes,[N 2*model.d]);
+      
+      if isfield(prmTestInit,'augUseFF')
+        useFF = prmTestInit.augUseFF;
+      else
+        useFF = false;
+      end
+      
+      fprintf('propagateRandInit: useFF=%d\n',useFF);
       
       Naug = prmTestInit.Nrep;
       pNInitSet = obj.pGTNTrn;
@@ -521,14 +534,14 @@ classdef RegressorCascade < handle
         'dorotate',prmTestInit.augrotate,...
         'bboxJitterfac',prmTestInit.augjitterfac,...
         'selfSample',false,...
-        'furthestfirst',initUseFF);
+        'furthestfirst',useFF);
       szassert(p0,[N Naug model.D]);
       %p0info.p0_1 = squeeze(p0(1,:,:)); % absolute coords
       p0info.bbox1 = bboxes(1,:);
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
-      p_t = obj.propagate(I,bboxes,p0,pIidx,loArgs{:});      
+      p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
     end
     
     %#3DOK
