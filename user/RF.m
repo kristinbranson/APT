@@ -25,6 +25,14 @@ classdef RF
       [0 1 1] [0 1 1] [0 1 1]; ...
       [1 0 1] [1 0 1] [1 0 1]; ...
       [1 204/255 77/255] [1 204/255 77/255] [1 204/255 77/255]};
+    
+    MARKERS = {...
+      '^' 'o' 's';
+      '^' 'o' 's';
+      '^' 'o' 's';
+      '^' 'o' 's';
+      '^' 'o' 's';
+      '^' 'o' 's'};
   end
   
   methods (Static)
@@ -291,9 +299,14 @@ classdef RF
       %  * errReconR. etc
       %  * errReconB.
       
+      np1 = numel(tFP.p(1,:));
       nview = 3;
-      nphyspt = 18;
-      assert(all(tFP.npts2VwLbl==nphyspt));
+      nphyspt = np1/nview/2;
+      assert(round(nphyspt)==nphyspt);      
+      assert(all(tFP.npts2VwLbl==nphyspt));      
+      
+      fprintf('nphyspt=%d.\n',nphyspt);
+      pause(3);
       
       nRows = size(tFP,1);
       XL = cell(nRows,1);
@@ -499,8 +512,10 @@ classdef RF
       for iVw = 1:3
         for iPt = 1:NPTS
           hLine(iVw,iPt) = plot(ax,nan,nan,'.',...
-            'markersize',28,...
-            'Color',RF.COLORS{iPt});
+            'markersize',6,...
+            'marker',RF.MARKERS{iPt},...
+            'Color',RF.COLORS{iPt},...
+            'MarkerFaceColor',RF.COLORS{iPt});
         end
       end
       
