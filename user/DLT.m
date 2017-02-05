@@ -24,22 +24,17 @@ classdef DLT
   % x = K*U where K is the 3x3 camera matrix typically with zero skew and 
   % x is a projective 2-vec (normalize by the 3rd coord to get u and v).
   
-  methods (Static)
-  
-    function x0y0z0 = misc(L)
-      szassert(L,[11 1]);
-      tmpM = [L(1:3)'; L(5:7)'; L(9:11)'];
-      tmpA = -[L(4);L(8);1];
-      x0y0z0 = tmpM\tmpA;
-    end
+  methods (Static)  
     
-    function [detval,normval] = checkPhysicality(L)
+    function [detval,normval] = checkRot(L)
       [~,~,~,TIO] = DLT.dlt2cam(L);
       detval = det(TIO);
       normval = norm(TIO*TIO.' - eye(3));
     end     
     
-    function [gam,s,u0v0,R,om,x0y0z0,t,K] = dlt2cam(L)
+    function [gam,s,u0v0,R,om,x0y0z0,t] = dlt2cam(L,varargin)
+      % Convert 11-vec DLT params to camera params
+      %
       % gam: [2] u/v scale facs, in pixels
       % s: [1] skew
       % u0v0: [2] u/v principal point coords, in pixels
@@ -59,6 +54,9 @@ classdef DLT
       %
       % is a projective vec x=[u;v;w] for the image coords
       
+      tfdiag = myparse(varargin,...
+        'tfdiag',false);
+      
       szassert(L,[11 1]);
       
       tmpM = [L(1:3)'; L(5:7)'; L(9:11)'];
@@ -66,35 +64,85 @@ classdef DLT
       x0y0z0 = tmpM\tmpA;
       
       D2 = 1/sum(L(9:11).^2);
-      D = sqrt(D2);
       u0 = D2*(L(1)*L(9)+L(2)*L(10)+L(3)*L(11));
       v0 = D2*(L(5)*L(9)+L(6)*L(10)+L(7)*L(11));
       
       du2 = D2*( (u0*L(9)-L(1))^2 + (u0*L(10)-L(2))^2 + (u0*L(11)-L(3))^2);
       dv2 = D2*( (v0*L(9)-L(5))^2 + (v0*L(10)-L(6))^2 + (v0*L(11)-L(7))^2);
+      
+      % SIGNS, SIGNS, EVERYWHERE ETC
+      %
+      % This follows the derivation at www.kwon3d.com.
+      %
+      % D is equal to 
+      %
+      %     - (vec-to-focal-pt) dot (camera-z-axis)  [in world coords].
+      %
+      %   This will be negative if the cam z-axis is oriented away from the
+      %   world origin, which is as presented in the derivation. Note that
+      %   it does not appear that this must necessarily hold for an
+      %   arbitrary rig.
+      %
+      % If D is indeed negative, then we expect du and dv to be positive
+      % per the derivation (the d quantity is positive).
+      %
+      % At the moment we assert that D<0, du>0, dv>0, and check that the
+      % resulting rotation matrix has det(R)>0. 
+      
       du = sqrt(du2);
       dv = sqrt(dv2);
-      
+      R = [ (u0*L(9)-L(1))/du  (u0*L(10)-L(2))/du  (u0*L(11)-L(3))/du;
+            (v0*L(9)-L(5))/dv  (v0*L(10)-L(6))/dv  (v0*L(11)-L(7))/dv;
+            L(9)               L(10)                L(11)];
+      D = -sqrt(D2);
+      R = D*R;
+      if det(R)<0
+        warning('Sign assumptions incorrect.');      
+        R = -R;
+      end
+      %assert(det(R)>0,'Sign assumptions incorrect.');      
+
+      om = rodrigues(R);
+      t = -R*x0y0z0;
+
       % intrinsic params
       gam = [du;dv];
       s = 0;
       u0v0 = [u0;v0];
-      % This form of K b/c the DLT params are derived with the image plane
-      % at w=-d in the cam coord sys. 
-      K = [-gam(1) s u0;0 -gam(2) v0;0 0 1];
       
-      % R, t, om
-      TIO = [ (u0*L(9)-L(1))/du  (u0*L(10)-L(2))/du  (u0*L(11)-L(3))/du;
-              (v0*L(9)-L(5))/dv  (v0*L(10)-L(6))/dv  (v0*L(11)-L(7))/dv;
-              L(9)               L(10)                L(11)];
-      TIO = D*TIO;
-      if det(TIO)<0
-        TIO = -TIO;
-      end  
-            
-      R = TIO;
-      om = rodrigues(R);
-      t = -R*x0y0z0;
+      AXCOLORS = {[1 0 0] [0 1 0] [1 1 0]};
+      if tfdiag
+        % plot world axis and cam in world-space
+        hFig = figure;
+        axs = createsubplots(1,2);
+
+        ax = axs(1);
+        hold(ax,'on');
+        plot3(ax,[0 1],[0 0],[0 0],'Color',AXCOLORS{1},'LineWidth',5); 
+        plot3(ax,[0 0],[0 1],[0 0],'Color',AXCOLORS{2},'LineWidth',5); 
+        plot3(ax,[0 0],[0 0],[0 1],'Color',AXCOLORS{3},'LineWidth',5); 
+        
+        for i=1:3
+          plot3(ax,x0y0z0(1)+[0 R(i,1)],x0y0z0(2)+[0 R(i,2)],x0y0z0(3)+[0 R(i,3)],...
+            'Color',AXCOLORS{i},'LineWidth',2); 
+        end
+        
+        axis(ax,'square','equal');
+        grid(ax,'on');
+        view(ax,3);
+        
+        ax = axs(2);
+        [u0,v0] = dlt_3D_to_2D(L,0,0,0);
+        [ux,vx] = dlt_3D_to_2D(L,1,0,0);
+        [uy,vy] = dlt_3D_to_2D(L,0,1,0);
+        [uz,vz] = dlt_3D_to_2D(L,0,0,1);
+        hold(ax,'on');
+        plot(ax,[u0 ux],[v0 vx],'-','Color',AXCOLORS{1},'LineWidth',5);
+        plot(ax,[u0 uy],[v0 vy],'-','Color',AXCOLORS{2},'LineWidth',5);
+        plot(ax,[u0 uz],[v0 vz],'-','Color',AXCOLORS{3},'LineWidth',5);
+        axis(ax,'square','equal','ij');
+        grid(ax,'on');
+      end
     end
     
     function L = cam2dlt(gam,s,u0v0,om,x0y0z0)
@@ -114,6 +162,10 @@ classdef DLT
       end
       
       D = -(x0*R(3,1) + y0*R(3,2) + z0*R(3,3));
+      
+      % see sign discussion in dlt2cam.
+      assert(du>0 && dv>0,'Expect positive gammas.');
+      assert(D<0,'Sign assumption incorrect.');
       
       L = nan(11,1);
       L(1) = (u0*R(3,1)-du*R(1,1))/D;
@@ -205,6 +257,7 @@ classdef DLT
       n = size(X,1);
       szassert(X,[n 3]);
       
+      % TODO: sign issues
       K = [-gam(1) s u0v0(1);0 -gam(2) u0v0(2);0 0 1];
 
       R = rodrigues(om);
