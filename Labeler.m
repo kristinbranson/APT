@@ -2422,6 +2422,20 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
+    function labelPosSetFromLabeledPos2(obj)
+      % copy .labeledpos2 to .labeledpos for current movie/frame/target
+      
+      iMov = obj.currMovie;
+      if iMov>0
+        frm = obj.currFrame;
+        iTgt = obj.currTarget;
+        lpos = obj.labeledpos2{iMov}(:,:,frm,iTgt);
+        obj.labelPosSet(lpos);
+      else
+        warning('labeler:noMovie','No movie.');
+      end
+    end        
+    
     function labelPosBulkImport(obj,xy)
       % Set ALL labels for current movie/target
       %

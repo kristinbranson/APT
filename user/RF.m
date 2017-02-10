@@ -10,8 +10,15 @@ classdef RF
                 5     11    17; % RM
                 6     12    18; % RH
             ];
+    PTNAMES = { ...
+      'LFt' 'LFm' 'LFh'
+      'LMt' 'LMm' 'LMh'
+      'LHt' 'LHm' 'LHh'
+      'RFt' 'RFm' 'RFh'
+      'RMt' 'RMm' 'RMh'
+      'RHt' 'RHm' 'RHh'};
     PTMAPCOLS = {'out' 'mid' 'inn'};
-    PTMAPROWS = {'lf' 'lm' 'lh' 'rf' 'rm' 'rh'};
+    PTMAPROWS = {'LF' 'LM' 'LH' 'RF' 'RM' 'RH'};
     PTMAPROWS_LSIDE = logical([1 1 1 0 0 0]);
     PTMAPROWS_RSIDE = logical([0 0 0 1 1 1]);
     
@@ -452,6 +459,23 @@ classdef RF
           plot3(pleg(:,1),pleg(:,2),pleg(:,3),'-','Color',LEGCOLORS(leg,:),'parent',ax);
         end
       end
+    end
+    
+    function hLine = addLinesToLabelerAxis(lObj)
+      ax = lObj.gdata.axes_curr;
+      if isfield(ax.UserData,'hLine')
+        deleteValidHandles(ax.UserData.hLine);
+      end
+      NPTS = 18;
+      hLine = gobjects(NPTS,1);
+      hold(ax,'on');
+      clrs = RF.COLORS;
+      for iPt = 1:NPTS
+        hLine(iPt) = plot(ax,nan,nan,'.',...
+          'markersize',20,...
+          'Color',clrs{iPt});
+      end
+      ax.UserData.hLine = hLine;
     end
     
   end
