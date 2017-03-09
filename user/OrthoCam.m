@@ -55,6 +55,9 @@ classdef OrthoCam
       
       dsum = sum(d);
     end
-    
+    function d = oFcn1D(p,nCalIm,calibWorldPtsXYZ,calibImPts)
+      d = OrthoCam.oFcn(p,nCalIm,calibWorldPtsXYZ,calibImPts);
+      d = sqrt(mean(d.^2));
+    end
   end
 end
