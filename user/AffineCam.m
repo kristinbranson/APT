@@ -1,4 +1,4 @@
-classdef OrthoCam
+classdef AffineCam
   methods (Static)
 
     function [mx,my,u0,v0,k1,k2,rvecs,t2vecs] = oFcnUnpack(p,nCalIm)
@@ -25,7 +25,7 @@ classdef OrthoCam
       %
       % d: [nCalPt*nCalIm x 1] euclidean dist reproj err for each cal pt
             
-      [mx,my,u0,v0,k1,k2,rvecs,t2vecs] = OrthoCam.oFcnUnpack(p,nCalIm);
+      [mx,my,u0,v0,k1,k2,rvecs,t2vecs] = AffineCam.oFcnUnpack(p,nCalIm);
       
       % compute projected pts
       nCalPt = size(calibWorldPtsXYZ,2);
@@ -56,7 +56,7 @@ classdef OrthoCam
       dsum = sum(d);
     end
     function d = oFcn1D(p,nCalIm,calibWorldPtsXYZ,calibImPts)
-      d = OrthoCam.oFcn(p,nCalIm,calibWorldPtsXYZ,calibImPts);
+      d = AffineCam.oFcn(p,nCalIm,calibWorldPtsXYZ,calibImPts);
       d = sqrt(mean(d.^2));
     end
   end
