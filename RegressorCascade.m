@@ -309,12 +309,13 @@ classdef RegressorCascade < handle
       
       maxFernAbsDeltaPct = nan(1,T);
       for t=t0:T
-        if paramReg.USE_AL_CORRECTION
+        if paramReg.rotCorrection.use
           assert(model.d==2,'Currently supported only for d==2.');
           pCurN_al = shapeGt('projectPose',model,pCur,bboxesFull);
           pGtN_al = shapeGt('projectPose',model,pGTFull,bboxesFull);
           assert(isequal(size(pCurN_al),size(pGtN_al)));
-          pDiffN_al = Shape.rotInvariantDiff(pCurN_al,pGtN_al,1,3); % XXXAL HARDCODED HEAD/TAIL
+          pDiffN_al = Shape.rotInvariantDiff(pCurN_al,pGtN_al,...
+            paramReg.rotCorrection.iPtHead,paramReg.rotCorrection.iPtTail);
           pTar = pDiffN_al;
         else
           pTar = shapeGt('inverse',model,pCur,bboxesFull); % pCur: absolute. pTar: normalized
@@ -368,9 +369,10 @@ classdef RegressorCascade < handle
         maxFernAbsDeltaPct(t) = obj.computeMaxFernAbsDelta(fernOutput0,fernOutput1);
                   
         % Apply pDel
-        if paramReg.USE_AL_CORRECTION
+        if paramReg.rotCorrection.use
           assert(obj.mdld==2,'Unchecked for 3D.');
-          pCur = Shape.applyRIDiff(pCurN_al,pDel,1,3); %XXXAL HARDCODED HEAD/TAIL
+          pCur = Shape.applyRIDiff(pCurN_al,pDel,...
+            paramReg.rotCorrection.iPtHead,paramReg.rotCorrection.iPtTail);
           pCur = shapeGt('reprojectPose',model,pCur,bboxesFull);
         else
           pCur = shapeGt('compose',model,pDel,pCur,bboxesFull);
@@ -492,10 +494,11 @@ classdef RegressorCascade < handle
           pDel = pDel + yFern; % normalized units
         end
         
-        if obj.prmReg.USE_AL_CORRECTION
+        prmRotCorr = obj.prmReg.rotCorrection;
+        if prmRotCorr.use
           assert(model.d==2,'Unchecked 3d');
           p1 = shapeGt('projectPose',model,p,bbs); % p1 is normalized        
-          p = Shape.applyRIDiff(p1,pDel,1,3); % XXXAL HARDCODED HEAD/TAIL
+          p = Shape.applyRIDiff(p1,pDel,prmRotCorr.iPtHead,prmRotCorr.iPtTail);
         else
           p = shapeGt('compose',model,pDel,p,bbs); % p (output) is normalized
         end

@@ -22,7 +22,10 @@ Reg:
   prm:        # Reg.type-dependent parameters 
     thrr: [-.2,.2]      # fern thresholds
     reg: .01            # fern regularization
-  USE_AL_CORRECTION: 0  # 1=use rotational correction
+  rotCorrection: 
+    use: 0     # 1=use rotational correction
+    iPtHead: 1
+    iPtTail: 2
   occlPrm:
     Stot: 1     # 1=noocclusion
     nrows: 3    # rest in this subsection unused
