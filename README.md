@@ -5,22 +5,25 @@ Animal Part Tracker
 * MATLAB R2014b or later.
 * Windows, Linux, and Mac are all supported, but Windows and Linux get priority.
 * A recent checkout of [JAABA](https://github.com/kristinbranson/JAABA).
+* To enable tracking with Cascaded Pose Regression (CPR):
+  * MATLAB Image Processing and Stats toolboxes
+  * A recent checkout of [Piotr Dollar's toolbox](https://github.com/pdollar/toolbox)
 * If you are working with multi-camera data, you may need calibration software for your rig, eg
   * [Caltech camera calibration toolbox](https://www.vision.caltech.edu/bouguetj/calib_doc/)
 
 ## Setup
-1. Copy <APT>\Manifest.sample.txt to Manifest.txt and edit to point to your checkout of JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/). 
-2. For multi-camera data, edit the 'cameracalib' entry to point to your calibration software.
-2. Open MATLAB and:
+1. Copy <APT\>\Manifest.sample.txt to Manifest.txt and edit to point to your checkout of JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/).
+2. To enable CPR tracking, edit the 'piotr' entry to point to your local checkout of Piotr Dollar's toolbox.   
+3. For multi-camera data, edit the 'cameracalib' entry to point to your local calibration software.
+4. Open MATLAB and:
 
     ```
     % in MATLAB
-    cd /path/to/git/APT/checkout
-    APT.setpath % configures MATLAB path for running APT
+    cd /path/to/git/APT/checkout    
     lObj = Labeler;
     ```
     
-3. Go to the File> menu and either "Quick Open" a movie, or create a "New Project". Quick Open will prompt you for a movie file, then a trx file; if you don't have a trx file, just Cancel.
+5. Go to the File> menu and either "Quick Open" a movie, or create a "New Project". Quick Open will prompt you for a movie file, then a trx file; if you don't have a trx file, just Cancel.
 
 If you have never created a project before, "Quick Open" may not give you the appropriate number of labeling points. However, this could still be a useful jumpstart to start getting familiar with the program.
 
@@ -33,7 +36,7 @@ When creating a new project:
   * For a multi-camera project, this is the number of **physical, 3D points**. Currently it is assumed that every physical point appears in every view.
 * The **Number of Views** should be set to the number of cameras/views for your data. Typically this will be 1.
 * Notes on some of the available **Labeling Modes** are below. **Template Mode** is a good starting point if you are new to APT. For multi-camera projects, **Multiview Calibrated 2** is most popular.
-* **Tracking**. For CPR tracking, at the moment you will need a checkout of the CPR repository. See also https://github.com/kristinbranson/APT/wiki/CPR-Tracking-in-the-Labeler.
+* **Tracking**. If CPR tracking is desired, select 'CPRLabelTracker'.
 * Under the Advanced pane:
   * Properties under **LabelPointsPlot** specify cosmetics for clicked/labeled points.
 
