@@ -1,25 +1,38 @@
 classdef APT 
   
   properties (Constant)
-    Root = fileparts(mfilename('fullpath'));    
-    MANIFESTFILE = 'Manifest.txt';    
-    Manifest = lclReadManifest( fullfile(APT.Root,APT.MANIFESTFILE) );    
-    SnapshotScript = fullfile(APT.Root,'repo_snapshot.sh');   
+    Root = fileparts(mfilename('fullpath'));
+    MANIFESTFILE = 'Manifest.txt';
+    SnapshotScript = fullfile(APT.Root,'repo_snapshot.sh');
     
     BUILDSNAPSHOTFILE = 'build.snapshot';
     BUILDSNAPSHOTFULLFILE = fullfile(APT.Root,APT.BUILDSNAPSHOTFILE);
     
     BUILDMCCFILE = 'build.mcc';
-    BUILDMCCFULLFILE = fullfile(APT.Root,APT.BUILDMCCFILE);    
+    BUILDMCCFULLFILE = fullfile(APT.Root,APT.BUILDMCCFILE);
   end
   
   methods (Static)
+    
+    function m = readManifest()
+      fname = fullfile(APT.Root,APT.MANIFESTFILE);
+      if exist(fname,'file')==0
+        error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.sample.txt and edit for your machine.',fname);
+      end
+      tmp = importdata(fname);
+      tmp = regexp(tmp,',','split');
+      tmp = cat(1,tmp{:});
+      m = cell2struct(tmp(:,2),tmp(:,1));
+    end
   
     function [p,jp] = getpath()
       % p: cellstr, path entries      
       % jp: cellstr, javapath entries
       
-      m = APT.Manifest;
+      m = APT.readManifest;
+      
+      root = APT.Root;
+      cprroot = fullfile(root,'trackers','cpr');
       if isfield(m,'jaaba')
         jaabaroot = m.jaaba;
       elseif isfield(m,'jctrax')
@@ -27,16 +40,23 @@ classdef APT
       else
         error('APT:noPath','Cannot find ''jaaba'' Manifest specification.');
       end
+      if isfield(m,'piotr')
+        pdolroot = m.piotr;
+      else
+        pdolroot = '';
+      end      
       if isfield(m,'cameracalib')
         camroot = m.cameracalib;
       else
         camroot = '';
       end
-      root = APT.Root;
-      campath = genpath(camroot);
-      campath = regexp(campath,pathsep,'split');
-      campath = campath(~cellfun(@isempty,campath));
-      p = { ...
+      
+      if isempty(pdolroot)
+        warnstr = 'No ''piotr'' Manifest entry found; CPR tracking will be unavailable. See Manifest.sample.txt.';
+        warndlg(warnstr,'CPR/Tracking dependency missing','modal');        
+      end
+      
+      aptpath = { ...
         root; ...
         fullfile(root,'misc'); ...
         fullfile(root,'private_imuitools'); ...
@@ -46,14 +66,36 @@ classdef APT
         fullfile(root,'propertiesGUI'); ...
         fullfile(root,'treeTable'); ...
         fullfile(root,'jsonlab-1.2','jsonlab'); ...
+        };
+      
+      cprpath = { ...
+        cprroot; ...
+        fullfile(cprroot,'misc'); ...
+        fullfile(cprroot,'video_tracking'); ...
+        fullfile(cprroot,'jan'); ...
+        fullfile(cprroot,'romain'); ...
+        };
+      
+      jaabapath = { ...
         fullfile(jaabaroot,'filehandling'); ...
         fullfile(jaabaroot,'misc'); ...
         };
-      p = [p;campath(:)];
+      
+      pdolpath = genpath(pdolroot);
+      pdolpath = regexp(pdolpath,pathsep,'split');
+      pdolpath = pdolpath(:);     
+      tfRm = cellfun(@(x)~isempty(regexp(x,'__MACOSX','once')) || isempty(x),pdolpath);
+      pdolpath(tfRm,:) = [];
+
+      campath = genpath(camroot);
+      campath = regexp(campath,pathsep,'split');
+      campath = campath(~cellfun(@isempty,campath));
+     
+      p = [aptpath(:);jaabapath(:);cprpath(:);pdolpath(:);campath(:)];
       
       jp = {...
-        fullfile(APT.Root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
-        fullfile(APT.Root,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};
+        fullfile(root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
+        fullfile(root,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};     
     end
     
     function setpath()
@@ -88,7 +130,7 @@ classdef APT
       % APT.setpath (so that the Manifest correclty reflects
       % dependencies). Do a quick+dirty check of this assumption.
       grf = which('get_readframe_fcn');
-      manifest = APT.Manifest;
+      manifest = APT.readManifest;
       if ~isequal(fileparts(grf),fullfile(manifest.jaaba,'filehandling'))
         warning('APT:manifest',...
           'Runtime path appears to differ from that specified by Manifest. Code snapshot is likely to be incorrect.');
@@ -199,7 +241,7 @@ classdef APT
         mcc(mccargs{:});
         
         % postbuild
-        mnfst = APT.Manifest;
+        mnfst = APT.readManifest;
         bindir = fullfile(mnfst.build,today);
         if exist(bindir,'dir')==0
           fprintf('Creating bin dir %s...\n',bindir);
@@ -275,14 +317,4 @@ classdef APT
     
   end
   
-end
-
-function s = lclReadManifest(fname)
-if exist(fname,'file')==0
-  error('APT:Manifest','Cannot find Manifest file ''%s''. Please copy from Manifest.txt.sample and edit for your machine.',fname);
-end
-tmp = importdata(fname);
-tmp = regexp(tmp,',','split');
-tmp = cat(1,tmp{:});
-s = cell2struct(tmp(:,2),tmp(:,1));
 end

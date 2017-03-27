@@ -1664,6 +1664,7 @@ function dpf = lclInitDefaultParameterFile()
 if isdeployed
   dpf = fullfile(ctfroot,'param.example.yaml');
 else
-  dpf = fullfile(CPR.Root,'param.example.yaml');
+  cprroot = fileparts(fileparts(mfilename('fullpath')));
+  dpf = fullfile(cprroot,'param.example.yaml');
 end
 end
