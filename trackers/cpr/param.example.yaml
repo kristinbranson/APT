@@ -1,0 +1,70 @@
+---
+Model:
+  name: 'FlyOnBall'
+  nfids: 7    # Number of physical points to be tracked
+  d: 2        # Physical dimension of label-space (only 2 works at the moment)
+  nviews: 1
+  isFace: 1   # currently unused  
+  Prm3D:      # currently unused
+
+PreProc:
+  histeq: 1     # 1=do histogram equalization
+  histeqH0NumFrames: 1000 # number of frames in project to sample when computing typical image histogram H0
+  channelsFcn:  # optional preprocessing function with signature: fcn(cprDataObj,p1,v1,...)
+
+Reg:
+  T: 30       # cascade depth
+  K: 50       # num boosted regressors
+  type: 1     # 1=fern
+  M: 5        # fern depth
+  R: 0        # feature selection type. 0=by correlation
+  loss: 'L2'  # used only if R>0
+  prm:        # Reg.type-dependent parameters 
+    thrr: [-.2,.2]      # fern thresholds
+    reg: .01            # fern regularization
+  rotCorrection: 
+    use: 0     # 1=use rotational correction
+    iPtHead: 1
+    iPtTail: 2
+  occlPrm:
+    Stot: 1     # 1=noocclusion
+    nrows: 3    # rest in this subsection unused
+    ncols: 3
+    nzones: 1
+    th: 0.5
+    
+Ftr:
+  type: '2lm'         # how feature points are generated
+  metatype: 'diff'    # how generated feature points are used/combined (selectCorrFeat). 'diff' or 'single'
+  F: 400              # num features to generate
+  nChn: 1             # num image 'channels'
+  radius: 1           # feature generation radius
+  nsample_std: 1000   # num samples used in computing std for feature-selection
+  nsample_cor: 5000   # num samples used in computing correlations for feature-selection
+  neighbors:
+
+TrainInit:
+  Naug: 50            # number of replicates for training
+  augpad: 10
+  augrotate: 0 
+  augjitterfac: 16
+  augUseFF: 0         # If true, init using most different replicates using furthestfirst
+  iPt:
+
+TestInit:
+  Nrep: 50            # number of replicates for tracking/testing
+  augrotate: 0
+  augjitterfac: 16
+  augUseFF: 0         # If true, init using most different replicates using furthestfirst
+  movChunkSize: 3000  # track (big) movies in chunks of this size
+
+Prune:
+  prune: 1
+  numInit: 50
+  usemaxdensity: 1
+  maxIter: 2
+  th: .5
+  tIni: 10
+  maxdensity_sigma: 5
+  
+
