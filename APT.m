@@ -52,8 +52,9 @@ classdef APT
       end
       
       if isempty(pdolroot)
-        warnstr = 'No ''piotr'' Manifest entry found; CPR tracking will be unavailable. See Manifest.sample.txt.';
-        warndlg(warnstr,'CPR/Tracking dependency missing','modal');        
+        %warnstr = 'No ''piotr'' Manifest entry found; CPR tracking will be unavailable. See Manifest.sample.txt.';
+        %warningNoTrace('APT:cpr',warnstr);
+        %warndlg(warnstr,'CPR/Tracking dependency missing','modal');        
       end
       
       aptpath = { ...
