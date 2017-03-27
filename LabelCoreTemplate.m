@@ -255,9 +255,7 @@ classdef LabelCoreTemplate < LabelCore
       tfShft = any(strcmp('shift',modifier));
       
       tfKPused = true;
-      if strcmp(key,'h') && tfCtrl
-        obj.labelsHideToggle();
-      elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl
+      if any(strcmp(key,{'s' 'space'})) && ~tfCtrl
         if obj.state==LabelState.ADJUST
           obj.acceptLabels();
         end
