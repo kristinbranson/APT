@@ -121,10 +121,101 @@ classdef Session < handle
         end
         
         %------------------------------------------------------------------
-        function imagesUsed = calibrate(this)
-            disp('MINE');
-            pause(3);
-          
+
+    end
+    
+    methods (Static)
+      function pOpt = hlpOrthoSingleCalib(camidx,camSess)
+        camParams = camSess.CameraParameters;
+        nCalIm = camParams.NumPatterns;
+        worldPts = camParams.WorldPoints;
+        bs = camSess.BoardSet;
+        imPtsUV = bs.BoardPoints;
+        
+        p0 = OrthoCam.p0fromRsTs(...
+          permute(camParams.RotationMatrices,[2 1 3]),...
+          camParams.TranslationVectors);
+        
+        fprintf(1,'Calibrating camera %d... ',camidx);
+        pause(1);
+        pOpt = OrthoCam.calibrate1cam(nCalIm,worldPts,imPtsUV,p0);
+        fprintf(1,'done.\n');
+        pause(1);
+      end
+    end
+    methods
+      function [sess,sessMatfile] = hlpLoadAndCheckSingleCamSession(this,camidx)
+        str = sprintf('Select Camera%d Session/MAT-file saved from MATLAB Camera Calibrator App',camidx);
+        [fname,pth] = uigetfile('*.mat',str);
+        if isequal(fname,0)
+          sess = [];
+          sessMatfile = '';
+        else
+          sessMatfile = fullfile(pth,fname);
+          sess = load(sessMatfile,'-mat');
+          sess = sess.calibrationSession;
+          tf = ismember(this.BoardSet.FullPathNames(camidx,:)',sess.BoardSet.FullPathNames');
+          if ~all(tf)
+            error('Session:cal','One or more %s calibration images are not present in single-camera session: %s\n',...
+              ['cam' num2str(camidx)],sessMatfile);
+          end
+        end
+      end
+      function [r2vecs,t2vecs] = hlpSelSingleCamExtrinsics(this,iCam,pOpt,nCalIm,boardset)
+        fpnsMono = boardset.FullPathNames';
+        szassert(fpnsMono,[nCalIm 1]);
+        fpnsStro = this.BoardSet.FullPathNames(iCam,:)';
+        [tf,loc] = ismember(fpnsStro,fpnsMono);
+        assert(all(tf));
+        fprintf(1,'Selecting %d (rvec,tvec) extrinsic pairs out of %d from cam%d extrinsics:\n',...
+          numel(fpnsStro),nCalIm,iCam);
+
+        [~,~,~,~,~,~,r2vecs,t2vecs] = OrthoCam.unpack1cam(pOpt,nCalIm);
+        r2vecs = r2vecs(:,loc);
+        t2vecs = t2vecs(:,loc);        
+      end
+      
+      function imagesUsed = calibrate(this)        
+        info = struct();
+        [info.cam1Sess,info.cam1SessMatfile] = this.hlpLoadAndCheckSingleCamSession(1);
+        [info.cam2Sess,info.cam2SessMatfile] = this.hlpLoadAndCheckSingleCamSession(2);
+        
+        % Optional: opt-out of single-cam orthocal and load existing
+        % Orthocal
+
+        pOpt1 = this.hlpOrthoSingleCalib(1,info.cam1Sess);
+        pOpt2 = this.hlpOrthoSingleCalib(2,info.cam2Sess);
+        nCalIm1 = info.cam1Sess.CameraParameters.NumPatterns;
+        nCalIm2 = info.cam2Sess.CameraParameters.NumPatterns;
+        t = [ OrthoCam.summarizeIntrinsics(pOpt1,nCalIm1); ...
+          OrthoCam.summarizeIntrinsics(pOpt2,nCalIm2)];
+        t.Properties.RowNames = {'cam1' 'cam2'};
+        
+        fprintf(1,'Done with single-cam calibrations. Results:\n');
+        disp(t);
+        input('hit enter to continue');
+        
+        [r2vecs1,t2vecs1] = this.hlpSelSingleCamExtrinsics(1,pOpt1,nCalIm1,info.cam1Sess.BoardSet);
+        [r2vecs2,t2vecs2] = this.hlpSelSingleCamExtrinsics(2,pOpt2,nCalIm2,info.cam2Sess.BoardSet);
+        
+        input('hk');
+          % pick out extrinsics1
+          % pick out extrinsics2
+          % estimate extrinsicsStro
+%           [r2veccam1,t2veccam1,r2veccam2,t2veccam2,rvecsPat,tvecsPat] = ...
+%   AffineCam.estimateExtrinsics(r2vecs1',t2vecs1',r2vecs2',t2vecs2');
+
+      % p0 = AffineCam.packParamsStro(...
+      %       mx1,my1,u01,v01,k1_1,k2_1,...
+      %       mx2,my2,u02,v02,k1_2,k2_2,...
+      %       r2veccam1,t2veccam1,r2veccam2,t2veccam2,rvecsPat,tvecsPat);
+      
+      % run the optim
+      
+      % RP err
+      
+      % viz extrinsics
+
             if isempty(this.OptimizationOptions) || ...
                     isempty(this.OptimizationOptions.InitialDistortion)
                 numRadial = this.CameraModel.NumDistortionCoefficients;                

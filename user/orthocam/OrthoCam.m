@@ -1,5 +1,5 @@
-classdef AffineCam
-  % AffineCam  Weak Perspective Calibrated Camera(s)
+classdef OrthoCam
+  % OrthoCam  Weak Perspective Calibrated Camera(s)
   %
   % If the z-depth and focal length of a pinhole camera (model) are much 
   % larger than the z-dimension of a target/calibration object, the 
@@ -19,7 +19,7 @@ classdef AffineCam
   % single-cam calibrations are highly uncertain along the optical axes, 
   % reasonable optimization/reconciliation may become very difficult.
   %
-  % AffineCam addresses these problems by reducing the DOF of the camera
+  % OrthoCam addresses these problems by reducing the DOF of the camera
   % model by 1. A camera is modeled as "at infinity" along a particular
   % optical axis. The target is simply projected onto the image plane, and 
   % a scale/zoom factor is applied. The model includes radial distortion 
@@ -38,7 +38,7 @@ classdef AffineCam
   % the last row of R2 is irrelevant/discarded and t2=[tx ty]' is a
   % two-dimensional translation vec representing the location of the 
   % World origin as seen in Cam Coords at infinity. R2 and t2 together 
-  % (5 DOF) fully specify an AffineCam's extrinsic position in the World 
+  % (5 DOF) fully specify an OrthoCam's extrinsic position in the World 
   % Sys.
   %
   % Equivalent to the 5 DOFs (R2,t2) is the triple (Xopt,nopt,phi) where
@@ -46,7 +46,7 @@ classdef AffineCam
   % z=0 World plane, nopt=[nx ny nz]' is the unit vector pointing from Xopt 
   % towards the camera at infinity along the optical axis, and phi 
   % specifies the rotation of the Cameras x-y axes about its optical axis. 
-  % Both sets (R2,t2) and (Xopt,nopt,phi) fully specify an AffineCam's
+  % Both sets (R2,t2) and (Xopt,nopt,phi) fully specify an OrthoCam's
   % extrinsic position with 5 DOF.
   %
   % Image coords are 2D coords, eg I = [u v]', where I=[1 1] is the
@@ -54,7 +54,25 @@ classdef AffineCam
   % the usual Wd = W*radialdistortion(r) and [I;1] = K*[Wd;1].
   
   methods (Static) % single-cam calib
-    function [mx,my,u0,v0,k1,k2,r2vecs,t2vecs] = oFcnUnpack(p,nCalIm)
+    function t = summarizeIntrinsics(p,nCalIm)
+      [mx,my,u0,v0,k1,k2] = OrthoCam.unpack1cam(p,nCalIm);
+      t = table(mx,my,u0,v0,k1,k2);
+    end
+    function p = pack1cam(mx,my,u0,v0,k1,k2,r2vecs,t2vecs)
+      sclrassert(mx);
+      sclrassert(my);
+      sclrassert(u0);
+      sclrassert(v0);
+      sclrassert(k1);
+      sclrassert(k2);
+      nCalIm = size(r2vecs,2);
+      szassert(r2vecs,[3 nCalIm]);
+      szassert(t2vecs,[2 nCalIm]);
+      p = [mx;my;u0;v0;k1;k2;r2vecs(:);t2vecs(:)];
+      szassert(p,[6+nCalIm*3+nCalIm*2 1]);
+    end
+    function [mx,my,u0,v0,k1,k2,r2vecs,t2vecs] = unpack1cam(p,nCalIm)
+      p = p(:); % lsqnonlin is calling this with a row apparently due to lb/ub
       szassert(p,[6+nCalIm*3+nCalIm*2 1]);
       mx = p(1);
       my = p(2);
@@ -64,21 +82,21 @@ classdef AffineCam
       k2 = p(6);
       r2vecs = reshape(p(7:7+nCalIm*3-1),3,nCalIm);
       t2vecs = reshape(p(7+nCalIm*3:7+nCalIm*3+nCalIm*2-1),2,nCalIm);      
-    end
+    end    
     function [d,dsum] = oFcn(p,nCalIm,calibWorldPtsXYZ,calibImPts)
       % Objective fcn for Orthogonal projection single-cam calib
       %
-      % p = [mx; my; u0; v0; k1; k2; rvecs; t2vecs] where
-      %   rvecs: [3xnCalIm] rotation vecs for calib images
+      % p = [mx; my; u0; v0; k1; k2; r2vecs; t2vecs] where
+      %   r2vecs: [3xnCalIm] rotation vecs for calib images
       %   t2vecs: [2xnCalIm] tx ty vecs for calib images
       %   all others: scalars
       %
       % calibWorldPtsXYZ: [3xnCalPt] calibration world pts (x, y in calib pattern world frame)
-      % calibImPts: [2 x nCalPt x nCalIm] x, y image pts for each cal pattern/pt      
+      % calibImPts: [2 x nCalPt x nCalIm] x, y image pts for each cal pattern/pt
       %
       % d: [nCalPt*nCalIm x 1] euclidean dist reproj err for each cal pt
             
-      [mx,my,u0,v0,k1,k2,rvecs,t2vecs] = AffineCam.oFcnUnpack(p,nCalIm);
+      [mx,my,u0,v0,k1,k2,r2vecs,t2vecs] = OrthoCam.unpack1cam(p,nCalIm);
       
       % compute projected pts
       nCalPt = size(calibWorldPtsXYZ,2);
@@ -87,7 +105,7 @@ classdef AffineCam
       
       uvAll = nan(2,nCalPt,nCalIm);
       for iCalIm=1:nCalIm
-        R = vision.internal.calibration.rodriguesVectorToMatrix(rvecs(:,iCalIm));
+        R = vision.internal.calibration.rodriguesVectorToMatrix(r2vecs(:,iCalIm));
         R2 = R(1:2,:);
         t2 = t2vecs(:,iCalIm);
         
@@ -109,7 +127,7 @@ classdef AffineCam
       dsum = sum(d);
     end
     function d = oFcn1D(p,nCalIm,calibWorldPtsXYZ,calibImPts)
-      d = AffineCam.oFcn(p,nCalIm,calibWorldPtsXYZ,calibImPts);
+      d = OrthoCam.oFcn(p,nCalIm,calibWorldPtsXYZ,calibImPts);
       d = sqrt(mean(d.^2));
     end
     function uv = project(X,R2,t2,k1,k2,mx,my,u0,v0)
@@ -133,7 +151,8 @@ classdef AffineCam
       distort = 1 + k1*r2 + k2*r2.^2; % [1xnpts]
       
       Wd = W.*distort;
-      uv = [ mx*Wd(1,:) + u0 ; my*Wd(2,:) + v0 ]; % [2xnpts]
+      uv = [ mx*Wd(1,:) + u0 ; ...
+             my*Wd(2,:) + v0 ]; % [2xnpts]
     end
     function [x0y0,n] = opticalCenter(R2cam,t2cam)
       % Find the "optical center" for a cam; the WorldPoint (x0,y0,0) where
@@ -158,7 +177,82 @@ classdef AffineCam
       end
       n = n/sqrt(sum(n.^2));
     end
-    
+    function p0 = p0default1cam(nCalIm)
+      mx0 = 255;
+      my0 = 255;
+      u0 = 384;
+      v0 = 256;
+      k1_0 = 0;
+      k2_0 = 0;
+      r2vecs0 = zeros(3,nCalIm);
+      t2vecs0 = zeros(2,nCalIm);
+      
+      p0 = OrthoCam.pack1cam(mx0,my0,u0,v0,k1_0,k2_0,r2vecs0,t2vecs0);
+    end
+    function p0 = p0fromRsTs(Rmats,Ts)
+      % Create a p0 vector from ML-generated Rmatrices and T vecs
+
+      nCalIm = size(Rmats,3);
+      szassert(Rmats,[3 3 nCalIm]);
+      szassert(Ts,[nCalIm 3]);
+      r2vecs = nan(3,nCalIm);
+      t2vecs = nan(2,nCalIm);
+      for iCalIm=1:nCalIm
+        r2vecs(:,iCalIm) = vision.internal.calibration.rodriguesMatrixToVector(Rmats(:,:,iCalIm));
+        t2vecs(:,iCalIm) = Ts(iCalIm,1:2)';
+      end
+      
+      [mx,my,u0,v0,k1,k2,r2vecs0,t2vecs0] = ...
+        OrthoCam.unpack1cam(OrthoCam.p0default1cam(nCalIm),nCalIm);
+      szassert(r2vecs,size(r2vecs0));
+      szassert(t2vecs,size(t2vecs0));
+      p0 = OrthoCam.pack1cam(mx,my,u0,v0,k1,k2,r2vecs,t2vecs);
+    end
+    function opts = defaultopts1cam()
+      opts = optimset;
+      opts.Display = 'iter';
+      opts.TolFun = 1e-8;
+      opts.TolX = 1e-8;
+      opts.MaxFunEvals = 1e6;
+      opts.MaxIter = 1e3;
+    end
+    function pOpt = calibrate1cam(nCalIm,worldPoints,imPtsUV,p0,varargin)
+      % p0: optional
+      
+      [extonly,opts] = myparse(varargin,...
+        'extonly',false,...
+        'opts',[]);      
+      if isempty(opts)
+        opts = OrthoCam.defaultopts1cam();
+      end
+      
+      nPts = size(worldPoints,1);
+      szassert(worldPoints,[nPts 2]);
+      worldPtsXYZ = [worldPoints zeros(nPts,1)]';           
+      szassert(imPtsUV,[nPts 2 nCalIm]);
+      calibImPts = permute(imPtsUV,[2 1 3]);
+      
+      oFcn = @(p)OrthoCam.oFcn(p,nCalIm,worldPtsXYZ,calibImPts);
+      
+      if exist('p0','var')==0 || isempty(p0)
+        p0 = OrthoCam.p0default1cam(nCalIm);
+      end
+      [~,dsum0] = oFcn(p0);
+      fprintf('Starting residual: %.4g\n',dsum0);      
+      
+      if extonly
+%         lb = -inf(size(pOpt));
+%         ub = inf(size(pOpt));
+%         lb(1:6) = pOpt(1:6);
+%         ub(1:6) = pOpt(1:6);
+        [pOpt,resnorm,res] = lsqnonlin(oFcn,p0,p0(1:6),p0(1:6),opts);
+      else
+        [pOpt,resnorm,res] = lsqnonlin(oFcn,p0,[],[],opts);
+      end
+
+      [~,dsum1] = oFcn(pOpt);
+      fprintf('Ending residual: %.4g\n',dsum1);
+    end
   end
   methods (Static) % stereo calib
     
@@ -231,7 +325,7 @@ classdef AffineCam
       tvecs = reshape(p(23+3*nPatm1:23+3*nPatm1+3*nPatm1-1),[nPatm1 3]);
     end
     function [d,dsum] = oFcnStro(p,nPat,patPtsXYZ,patImPts1,patImPts2)
-      % Objective Fcn, stereo AffineCam calib
+      % Objective Fcn, stereo OrthoCam calib
       %
       % patPtsXYZ: [3 x nPts] calibration world pts (x, y, z in calib pattern world frame)
       % patImPts1: [2 x nPts x nPat] x, y image pts for each cal pattern/pt in cam 1
@@ -249,7 +343,7 @@ classdef AffineCam
 
       [mx1,my1,u01,v01,k1_1,k2_1,...
         mx2,my2,u02,v02,k1_2,k2_2,...
-        r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = AffineCam.unpackParamsStro(p,nPat);
+        r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = OrthoCam.unpackParamsStro(p,nPat);
       
       % compute projected pts
       R2WorldToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec1);
@@ -268,8 +362,8 @@ classdef AffineCam
           patPtsWorld = RPatIToWorld*patPtsXYZ + tPatIToWorld;
         end
         
-        uvcam1(:,:,iPat) = AffineCam.project(patPtsWorld,R2WorldToCam1,t2WorldToCam1,k1_1,k2_1,mx1,my1,u01,v01);
-        uvcam2(:,:,iPat) = AffineCam.project(patPtsWorld,R2WorldToCam2,t2WorldToCam2,k1_2,k2_2,mx2,my2,u02,v02);
+        uvcam1(:,:,iPat) = OrthoCam.project(patPtsWorld,R2WorldToCam1,t2WorldToCam1,k1_1,k2_1,mx1,my1,u01,v01);
+        uvcam2(:,:,iPat) = OrthoCam.project(patPtsWorld,R2WorldToCam2,t2WorldToCam2,k1_2,k2_2,mx2,my2,u02,v02);
       end
      
       d2cam1 = sum((uvcam1-patImPts1).^2,1); % [1 nPts nPat]
