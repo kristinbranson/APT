@@ -187,30 +187,63 @@ classdef Session < handle
         pOpt2 = this.hlpOrthoSingleCalib(2,info.cam2Sess);
         nCalIm1 = info.cam1Sess.CameraParameters.NumPatterns;
         nCalIm2 = info.cam2Sess.CameraParameters.NumPatterns;
-        t = [ OrthoCam.summarizeIntrinsics(pOpt1,nCalIm1); ...
-          OrthoCam.summarizeIntrinsics(pOpt2,nCalIm2)];
-        t.Properties.RowNames = {'cam1' 'cam2'};
+        tblIntsMono = [ OrthoCam.summarizeIntrinsics(pOpt1,nCalIm1); ...
+                        OrthoCam.summarizeIntrinsics(pOpt2,nCalIm2)];
+        tblIntsMono.Properties.RowNames = {'monocal-cam1' 'monocal-cam2'};
         
         fprintf(1,'Done with single-cam calibrations. Results:\n');
-        disp(t);
+        disp(tblIntsMono);
         input('hit enter to continue');
         
+        % pick out extrinsics
         [r2vecs1,t2vecs1] = this.hlpSelSingleCamExtrinsics(1,pOpt1,nCalIm1,info.cam1Sess.BoardSet);
         [r2vecs2,t2vecs2] = this.hlpSelSingleCamExtrinsics(2,pOpt2,nCalIm2,info.cam2Sess.BoardSet);
-        
-        input('hk');
-          % pick out extrinsics1
-          % pick out extrinsics2
-          % estimate extrinsicsStro
-%           [r2veccam1,t2veccam1,r2veccam2,t2veccam2,rvecsPat,tvecsPat] = ...
-%   AffineCam.estimateExtrinsics(r2vecs1',t2vecs1',r2vecs2',t2vecs2');
 
-      % p0 = AffineCam.packParamsStro(...
-      %       mx1,my1,u01,v01,k1_1,k2_1,...
-      %       mx2,my2,u02,v02,k1_2,k2_2,...
-      %       r2veccam1,t2veccam1,r2veccam2,t2veccam2,rvecsPat,tvecsPat);
-      
-      % run the optim
+        [r2veccam1,t2veccam1,r2veccam2,t2veccam2,rvecsPat,tvecsPat] = ...
+          OrthoCam.estimateStroExtrinsics(r2vecs1',t2vecs1',r2vecs2',t2vecs2');
+        
+        tblInts1 = tblIntsMono(1,:);
+        tblInts2 = tblIntsMono(2,:);
+        p0 = OrthoCam.packParamsStro( ...
+          tblInts1.mx,tblInts1.my,tblInts1.u0,tblInts1.v0,tblInts1.k1,tblInts1.k2,...
+          tblInts2.mx,tblInts2.my,tblInts2.u0,tblInts2.v0,tblInts2.k1,tblInts2.k2,...
+          r2veccam1,t2veccam1,r2veccam2,t2veccam2,rvecsPat,tvecsPat);
+        
+        bset = this.BoardSet;
+        nPat = bset.NumBoards;
+        % SELECT WORLD COORDSYS/"first" pattern
+%         fpnsStro1 = bset.FullPathNames(1,:)';
+%         [sel,ok] = listdlg('PromptString','Select pattern to serve as world 
+        
+        pOpt = p0;
+        dsums = nan(0,2);
+        while 1
+          [pOpt,dsums(end+1,1),dsums(end+1,2)] = OrthoCam.calibrateStro(nPat,bset.WorldPoints,...
+            bset.BoardPoints(:,:,:,1),bset.BoardPoints(:,:,:,2),pOpt);
+          STOP = 'Stop optimization, looks good';
+          RESTART = 'Restart optimization';
+          CANCEL = 'Cancel';
+          resp = questdlg('Restart optimization?','Optimization waypoint',...
+            STOP,RESTART,CANCEL,STOP);
+          if isempty(resp)
+            resp = CANCEL;
+          end
+          switch resp
+            case STOP
+              break;
+            case RESTART
+              % none; while loop will proceed
+            case CANCEL
+              error('Session:cal','Calibration canceled.');
+          end
+        end
+        
+        % Summarize
+        tblIntsStro = OrthoCam.summarizeIntrinsicsStro(pOpt,nPat);
+        tblInts = [tblIntsMono;tblIntsStro];
+        tblInts.Properties.RowNames = ...
+          {'cam1/monocal' 'cam2/monocal' 'cam1/strocal' 'cam2/strocal'};
+        tblInts = tblInts([1 3 2 4],:);
       
       % RP err
       
