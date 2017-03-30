@@ -236,7 +236,7 @@ classdef OrthoCam
       opts.MaxFunEvals = 1e6;
       opts.MaxIter = 1e3;
     end
-    function pOpt = calibrate1cam(nCalIm,worldPoints,imPtsUV,p0,varargin)
+    function [pOpt,oFcn] = calibrate1cam(nCalIm,worldPoints,imPtsUV,p0,varargin)
       % p0: optional
       
       [extonly,opts] = myparse(varargin,...
@@ -458,10 +458,10 @@ classdef OrthoCam
       end
     end
     function hFig = viewExtrinsics(patPtsXYZ,rvecs,tvecs,...
-        r2vec1,t2vec1,r2vec2,t2vec2,dOptAx)
-      %
-      % dOptAx: length of optical axis to plot (world coords)
-      % 
+        r2vec1,t2vec1,r2vec2,t2vec2,varargin)
+      
+      dOptAx = myparse(varargin,...
+        'dOptAx',10); % length of optical axis to plot (world coords)
       
       nPts = size(patPtsXYZ,2);
       szassert(patPtsXYZ,[3 nPts]);
@@ -517,10 +517,10 @@ classdef OrthoCam
       t2WorldToCam1 = t2vec1;
       RWorldToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec2);
       t2WorldToCam2 = t2vec2;
-      [x0y0cam1,n1,x1y0cam1,x0y1cam1] = AffineCam.opticalCenter(RWorldToCam1,t2WorldToCam1);
-      [x0y0cam2,n2,x1y0cam2,x0y1cam2] = AffineCam.opticalCenter(RWorldToCam2,t2WorldToCam2);
-      [~,~,az1,el1] = AffineCam.azEl(n1);
-      [~,~,az2,el2] = AffineCam.azEl(n2);
+      [x0y0cam1,n1,x1y0cam1,x0y1cam1] = OrthoCam.opticalCenter(RWorldToCam1,t2WorldToCam1);
+      [x0y0cam2,n2,x1y0cam2,x0y1cam2] = OrthoCam.opticalCenter(RWorldToCam2,t2WorldToCam2);
+      [~,~,az1,el1] = OrthoCam.azEl(n1);
+      [~,~,az2,el2] = OrthoCam.azEl(n2);
       
       plot3(x0y0cam1(1),x0y0cam1(2),0,'x','markersize',10,'linewidth',3,'color',[0 0 0]);
       plot3(x0y0cam2(1),x0y0cam2(2),0,'x','markersize',10,'linewidth',3,'color',[0 0 0]);
@@ -597,7 +597,7 @@ classdef OrthoCam
       opts.Display = 'iter';
       opts.TolFun = 1e-6;
       opts.TolX = 1e-6;
-      opts.MaxFunEvals = 3e4; 
+      opts.MaxFunEvals = 2e4; 
       opts.MaxIter = 1e4;
     end
     function [pOpt,oFcn,dsum0,dsum1] = calibrateStro(nPat,worldPoints,imPtsUV1,imPtsUV2,p0,varargin)
@@ -639,7 +639,7 @@ classdef OrthoCam
       end
 
       axes(ax);
-      bar(counts,'stacked');
+      bar(ctrs,counts,'stacked');
       grid on;
       xlabel('RP err (px)','fontweight','bold');
     end
