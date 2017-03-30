@@ -154,7 +154,7 @@ classdef OrthoCam
       uv = [ mx*Wd(1,:) + u0 ; ...
              my*Wd(2,:) + v0 ]; % [2xnpts]
     end
-    function [x0y0,n] = opticalCenter(R2cam,t2cam)
+    function [x0y0,n,x1y0,x0y1] = opticalCenter(R2cam,t2cam)
       % Find the "optical center" for a cam; the WorldPoint (x0,y0,0) where
       % the cam's optical axis intersects the World plane z=0
       %
@@ -164,6 +164,8 @@ classdef OrthoCam
       % n: [3x1] [nx;ny;nz] normal vec pointing from optical center to cam
       %   (at infinity) along optical axis. Cam is assumed to be at
       %   negative z.
+      % x1y0: [2x1] [x;y] that gets mapped to uv=[1;0]
+      % x0y1: [2x1]    " uv=[0;1]
       
       szassert(R2cam,[3 3]);
       szassert(t2cam,[2 1]);
@@ -176,7 +178,25 @@ classdef OrthoCam
         n = -n;
       end
       n = n/sqrt(sum(n.^2));
+      n = n(:);
+      
+      x1y0 = R12\([1;0]-t2cam);
+      x0y1 = R12\([0;1]-t2cam);
     end
+    function [theta,phi,az,el] = azEl(n)
+      theta = acos(n(3)/norm(n));
+      phi = atan2(n(2),n(1));      
+      if 0<=phi && phi<=pi/2
+        az = phi+pi/2;
+      elseif pi/2<phi && phi<pi
+        az = -(3/2*pi-phi);
+      elseif -pi/2<phi && phi<0
+        az = pi/2+phi;
+      else % phi in (-pi/2,-pi)
+        az = phi+pi/2;
+      end
+      el = pi/2-theta;
+    end   
     function p0 = p0default1cam(nCalIm)
       mx0 = 255;
       my0 = 255;
@@ -270,6 +290,15 @@ classdef OrthoCam
     % (rvecs1,tvecs1) (6 DOF per calPat) sets the extrinsic position of
     % calPat i relative to the World Sys (calPat 1).
            
+    function tblInts = summarizeIntrinsicsStro(p,nPat)
+      [mx1,my1,u01,v01,k1_1,k2_1,...
+       mx2,my2,u02,v02,k1_2,k2_2] = OrthoCam.unpackParamsStro(p,nPat);
+      VARNAMES = {'mx' 'my' 'u0' 'v0' 'k1' 'k2'};
+      t1 = table(mx1,my1,u01,v01,k1_1,k2_1,'VariableNames',VARNAMES);
+      t2 = table(mx2,my2,u02,v02,k1_2,k2_2,'VariableNames',VARNAMES);
+      tblInts = [t1;t2];
+      tblInts.Properties.RowNames = {'cam1' 'cam2'};
+    end
     function p = packParamsStro(...
         mx1,my1,u01,v01,k1_1,k2_1,...
         mx2,my2,u02,v02,k1_2,k2_2,...
@@ -324,7 +353,7 @@ classdef OrthoCam
       rvecs = reshape(p(23:23+3*nPatm1-1),[nPatm1 3]);
       tvecs = reshape(p(23+3*nPatm1:23+3*nPatm1+3*nPatm1-1),[nPatm1 3]);
     end
-    function [d,dsum] = oFcnStro(p,nPat,patPtsXYZ,patImPts1,patImPts2)
+    function [d,dsum,uvcam1,uvcam2] = oFcnStro(p,nPat,patPtsXYZ,patImPts1,patImPts2)
       % Objective Fcn, stereo OrthoCam calib
       %
       % patPtsXYZ: [3 x nPts] calibration world pts (x, y, z in calib pattern world frame)
@@ -377,7 +406,7 @@ classdef OrthoCam
       dsum = sum(d);
     end
     function [r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = ...
-        estimateExtrinsics(r2vecsCalIms1,t2vecsCalIms1,r2vecsCalIms2,t2vecsCalIms2)
+        estimateStroExtrinsics(r2vecsCalIms1,t2vecsCalIms1,r2vecsCalIms2,t2vecsCalIms2)
       % estimate Extrinsic components of parameters from intrinsic
       % calibration results.
       %
@@ -418,8 +447,8 @@ classdef OrthoCam
         
         RPatIToPat1_fromcam1 = RPat1ToCam1\RPatIToCam1;
         tPatIToPat1_fromcam1 = RPat1ToCam1\[t2PatIToCam1-t2Pat1ToCam1;0];
-        RPatIToPat1_fromcam2 = RPat1ToCam2\RPatIToCam2;
-        tPatIToPat1_fromcam2 = RPat1ToCam2\[t2PatIToCam2-t2Pat1ToCam2;0];
+        %RPatIToPat1_fromcam2 = RPat1ToCam2\RPatIToCam2;
+        %tPatIToPat1_fromcam2 = RPat1ToCam2\[t2PatIToCam2-t2Pat1ToCam2;0];
         
         R = RPatIToPat1_fromcam1; % just take fromcam1 for now, don't try to average
         t = tPatIToPat1_fromcam1;
@@ -428,6 +457,191 @@ classdef OrthoCam
         tvecs(iPat-1,:) = t(:)';
       end
     end
+    function hFig = viewExtrinsics(patPtsXYZ,rvecs,tvecs,...
+        r2vec1,t2vec1,r2vec2,t2vec2,dOptAx)
+      %
+      % dOptAx: length of optical axis to plot (world coords)
+      % 
+      
+      nPts = size(patPtsXYZ,2);
+      szassert(patPtsXYZ,[3 nPts]);
+      nPatm1 = size(rvecs,1);
+      nPat = nPatm1+1;
+      szassert(rvecs,[nPatm1 3]);
+      szassert(tvecs,[nPatm1 3]);
+        
+      szassert(r2vec1,[3 1]);
+      szassert(t2vec1,[2 1]);
+      szassert(r2vec2,[3 1]);
+      szassert(t2vec2,[2 1]);
+      
+      hFig = figure;
+      ax = axes;
+      hold(ax,'on');
+      
+      % plot the pats
+      patPtsMins = min(patPtsXYZ,[],2);
+      patPtsMaxs = max(patPtsXYZ,[],2);
+      patX0 = patPtsMins(1);
+      patX1 = patPtsMaxs(1);
+      patY0 = patPtsMins(2);
+      patY1 = patPtsMaxs(2);
+      patZ0 = patPtsMins(3);
+      patZ1 = patPtsMaxs(3);
+      assert(patZ0==patZ1);
+      patPtsCorners = [ ...
+        patX0 patX1 patX1 patX0; ...
+        patY0 patY0 patY1 patY1; ...
+        patZ0 patZ0 patZ0 patZ0; ];
+      clrs = jet(nPat);
+      for iPat=1:nPat
+        if iPat==1
+          patPtsCornersWorld = patPtsCorners;
+        else
+          RPatI2World = vision.internal.calibration.rodriguesVectorToMatrix(rvecs(iPat-1,:)');
+          tPatI2World = tvecs(iPat-1,:)';
+          patPtsCornersWorld = RPatI2World*patPtsCorners + tPatI2World;          
+        end
+        fill3(patPtsCornersWorld(1,:),patPtsCornersWorld(2,:),...
+              patPtsCornersWorld(3,:),clrs(iPat,:),'FaceAlpha',0.5);
+            
+        % plot origin + yaxis in bold
+        orig = patPtsCornersWorld(:,1);
+        plot3(orig(1),orig(2),orig(3),'.','markersize',26,'color',[0 0 0]);
+        plot3(patPtsCornersWorld(1,[1 4]),patPtsCornersWorld(2,[1 4]),...
+          patPtsCornersWorld(3,[1 4]),'-','linewidth',3,'color',[0 0 0]);
+      end
+            
+      % plot the optical ctrs/axes
+      RWorldToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec1);
+      t2WorldToCam1 = t2vec1;
+      RWorldToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec2);
+      t2WorldToCam2 = t2vec2;
+      [x0y0cam1,n1,x1y0cam1,x0y1cam1] = AffineCam.opticalCenter(RWorldToCam1,t2WorldToCam1);
+      [x0y0cam2,n2,x1y0cam2,x0y1cam2] = AffineCam.opticalCenter(RWorldToCam2,t2WorldToCam2);
+      [~,~,az1,el1] = AffineCam.azEl(n1);
+      [~,~,az2,el2] = AffineCam.azEl(n2);
+      
+      plot3(x0y0cam1(1),x0y0cam1(2),0,'x','markersize',10,'linewidth',3,'color',[0 0 0]);
+      plot3(x0y0cam2(1),x0y0cam2(2),0,'x','markersize',10,'linewidth',3,'color',[0 0 0]);
+      
+      DX = 1;
+      x0y0z0cam1 = [x0y0cam1;0];
+      x0y0z0cam2 = [x0y0cam2;0];
+      optAx1 = [x0y0z0cam1 x0y0z0cam1+n1*dOptAx];
+      optAx2 = [x0y0z0cam2 x0y0z0cam2+n2*dOptAx];
+      optAx1Plus = x0y0z0cam1+n1*(dOptAx+DX);
+      optAx2Plus = x0y0z0cam2+n2*(dOptAx+DX);
+      optAx1Mid = x0y0z0cam1+n1*dOptAx/2; 
+      optAx2Mid = x0y0z0cam2+n2*dOptAx/2;
+      
+      plot3(optAx1(1,:),optAx1(2,:),optAx1(3,:),'--','linewidth',2,'color',[0 0 0]);
+      plot3(optAx2(1,:),optAx2(2,:),optAx2(3,:),'--','linewidth',2,'color',[0 0 0]);      
+      BROWN = [139 69 19]/255;
+      text(optAx1Plus(1),optAx1Plus(2),optAx1Plus(3),'C1',...
+        'fontweight','bold','fontsize',12,'color',BROWN);
+      text(optAx2Plus(1),optAx2Plus(2),optAx2Plus(3),'C2',...
+        'fontweight','bold','fontsize',12,'color',BROWN);
+      
+      % draw the cam x/y axes 
+      pxcam1 = [x1y0cam1-x0y0cam1;0]; % vector in z=0 plane pointing to positive cam1-x (when projected)
+      pycam1 = [x0y1cam1-x0y0cam1;0];
+      pxcam2 = [x1y0cam2-x0y0cam2;0];
+      pycam2 = [x0y1cam2-x0y0cam2;0];
+      % remove components pxcam1,... along n1 and n2
+      pxcam1 = pxcam1-dot(pxcam1,n1)*n1; % Vector normal to n1 that projects to cam1-x
+      pycam1 = pycam1-dot(pycam1,n1)*n1;
+      pxcam2 = pxcam2-dot(pxcam2,n2)*n2;
+      pycam2 = pycam2-dot(pycam2,n2)*n2;
+      pxcam1 = pxcam1/norm(pxcam1);
+      pycam1 = pycam1/norm(pycam1);
+      pxcam2 = pxcam2/norm(pxcam2);
+      pycam2 = pycam2/norm(pycam2);
+      
+      % Check: x0y0cam1+pxcam1 should project to [1 0] etc
+      % draw pxcam1,... at dOptAx/2
+      optAxMid1CamXax = [optAx1Mid optAx1Mid+pxcam1(:)];
+      optAxMid1CamYax = [optAx1Mid optAx1Mid+pycam1(:)];
+      optAxMid2CamXax = [optAx2Mid optAx2Mid+pxcam2(:)];
+      optAxMid2CamYax = [optAx2Mid optAx2Mid+pycam2(:)];
+      optAxMid1CamXaxPlus = optAx1Mid+1.5*pxcam1(:);
+      optAxMid1CamYaxPlus = optAx1Mid+1.5*pycam1(:);
+      optAxMid2CamXaxPlus = optAx2Mid+1.5*pxcam2(:);
+      optAxMid2CamYaxPlus = optAx2Mid+1.5*pycam2(:);
+      
+      plot3(optAxMid1CamXax(1,:),optAxMid1CamXax(2,:),optAxMid1CamXax(3,:),'b-','linewidth',2);
+      plot3(optAxMid1CamYax(1,:),optAxMid1CamYax(2,:),optAxMid1CamYax(3,:),'b-','linewidth',2);
+      plot3(optAxMid2CamXax(1,:),optAxMid2CamXax(2,:),optAxMid2CamXax(3,:),'b-','linewidth',2);
+      plot3(optAxMid2CamYax(1,:),optAxMid2CamYax(2,:),optAxMid2CamYax(3,:),'b-','linewidth',2);
+      text(optAxMid1CamXaxPlus(1),optAxMid1CamXaxPlus(2),optAxMid1CamXaxPlus(3),...
+        'x','fontweight','bold','fontsize',9,'color',[0 0 1]);
+      text(optAxMid1CamYaxPlus(1),optAxMid1CamYaxPlus(2),optAxMid1CamYaxPlus(3),...
+        'y','fontweight','bold','fontsize',9,'color',[0 0 1]);
+      text(optAxMid2CamXaxPlus(1),optAxMid2CamXaxPlus(2),optAxMid2CamXaxPlus(3),...
+        'x','fontweight','bold','fontsize',9,'color',[0 0 1]);
+      text(optAxMid2CamYaxPlus(1),optAxMid2CamYaxPlus(2),optAxMid2CamYaxPlus(3),...
+        'y','fontweight','bold','fontsize',9,'color',[0 0 1]);
+      
+      angleInDeg = acos(dot(n1,n2))/pi*180;
+      grid on;
+      tstr = sprintf('%d pats. camAngle=%.1f. cam1 (az,el)=(%.2f,%.2f). cam2 (%.2f,%.2f)\n',...
+        nPat,angleInDeg,az1/pi*180,el1/pi*180,az2/pi*180,el2/pi*180);
+      title(ax,tstr,'fontweight','bold','interpreter','tex');
+      xlabel(ax,'x (mm)','fontweight','bold');
+      ylabel(ax,'y (mm)','fontweight','bold');
+      zlabel(ax,'z (mm)','fontweight','bold');  
+      axis(ax,'equal');
+    end
+    function opts = defaultoptsStro()
+      opts = optimset;
+      opts.Display = 'iter';
+      opts.TolFun = 1e-6;
+      opts.TolX = 1e-6;
+      opts.MaxFunEvals = 3e4; 
+      opts.MaxIter = 1e4;
+    end
+    function [pOpt,oFcn,dsum0,dsum1] = calibrateStro(nPat,worldPoints,imPtsUV1,imPtsUV2,p0,varargin)
+      opts = myparse(varargin,...
+        'opts',[]);
+      if isempty(opts)
+        opts = OrthoCam.defaultoptsStro();
+      end
+      
+      nPts = size(worldPoints,1);
+      szassert(worldPoints,[nPts 2]);
+      patPtsXYZ = [worldPoints zeros(nPts,1)]';           
+      szassert(imPtsUV1,[nPts 2 nPat]);
+      szassert(imPtsUV2,[nPts 2 nPat]);
+      patImPts1 = permute(imPtsUV1,[2 1 3]);
+      patImPts2 = permute(imPtsUV2,[2 1 3]);
+            
+      oFcn = @(p)OrthoCam.oFcnStro(p,nPat,patPtsXYZ,patImPts1,patImPts2);
+      
+      [~,dsum0] = oFcn(p0);
+      fprintf('Starting residual: %.4g\n',dsum0);
+      
+      [pOpt,resnorm,res] = lsqnonlin(oFcn,p0,[],[],opts);
 
+      [~,dsum1] = oFcn(pOpt);
+      fprintf('Ending residual: %.4g\n',dsum1);
+    end
+  end
+  methods (Static) % misc 
+    function vizRPerr(ax,dRP)
+      [npts,npat] = size(dRP); %#ok<ASGLU>
+      [~,edges] = histcounts(dRP(:));
+      ctrs = (edges(1:end-1)+edges(2:end))/2;
+      nbin = numel(ctrs);
+      
+      counts = nan(nbin,npat);
+      for ipat=1:npat
+        counts(:,ipat) = histcounts(dRP(:,ipat),edges);
+      end
+
+      axes(ax);
+      bar(counts,'stacked');
+      grid on;
+      xlabel('RP err (px)','fontweight','bold');
+    end
   end
 end
