@@ -355,26 +355,29 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       iWS = obj.iSetWorking;
       if ~isnan(iWS)
         iPt = obj.iSet2iPt(iWS,iAx); 
-        obj.setPointAdjusted(iPt);
-        obj.selClearSelected();
-
-        obj.tfOcc(iPt) = true;
-        obj.tfEstOcc(iPt) = false;
-        obj.refreshOccludedPts();
-        obj.refreshEstOccPts('iPts',iPt);
-        
-        if obj.streamlined && all(obj.tfAdjusted)
-          obj.enterAccepted(true);
-        else
-          switch obj.state
-            case LabelState.ADJUST
-              % none
-            case LabelState.ACCEPTED
-              obj.enterAdjust(false,false);
-          end
-        end
-        obj.projectionRefresh();
+        obj.setPtFullOcc(iPt);
       end      
+    end
+    function setPtFullOcc(obj,iPt)
+      obj.setPointAdjusted(iPt);
+      obj.selClearSelected();
+      
+      obj.tfOcc(iPt) = true;
+      obj.tfEstOcc(iPt) = false;
+      obj.refreshOccludedPts();
+      obj.refreshEstOccPts('iPts',iPt);
+      
+      if obj.streamlined && all(obj.tfAdjusted)
+        obj.enterAccepted(true);
+      else
+        switch obj.state
+          case LabelState.ADJUST
+            % none
+          case LabelState.ACCEPTED
+            obj.enterAdjust(false,false);
+        end
+      end
+      obj.projectionRefresh();
     end
     
     function ptBDF(obj,src,evt)
@@ -464,6 +467,13 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         [tfSel,iSel] = obj.selAnyPointSelected();
         if tfSel
           obj.toggleEstOccPoint(iSel);
+        end
+      elseif strcmp(key,'u') && ~tfCtrl
+        iAx = find(gcf==obj.hFig);
+        iWS = obj.iSetWorking;        
+        if isscalar(iAx) && ~isnan(iWS)
+          iPt = obj.iSet2iPt(iWS,iAx);
+          obj.setPtFullOcc(iPt);
         end
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.selAnyPointSelected();
