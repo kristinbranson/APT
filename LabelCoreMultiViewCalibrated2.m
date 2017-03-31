@@ -170,12 +170,18 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % KB 20161213: Added redefining of labeledpos2_ptsH and
       % labeledpos2_ptsTxtH, originally initted in
       % Labelers.labels2VizInit()
+      % AL 20170330 At this pt may be able to do multi-view in LabelCore; 
+      % alternatively this is acting as multiview lblCore baseclass
       deleteValidHandles(obj.hPts);
       deleteValidHandles(obj.hPtsTxt);
+      deleteValidHandles(obj.hPtsOcc);
+      deleteValidHandles(obj.hPtsTxtOcc);
       deleteValidHandles(obj.labeler.labeledpos2_ptsH);
       deleteValidHandles(obj.labeler.labeledpos2_ptsTxtH);
       obj.hPts = gobjects(obj.nPts,1);
       obj.hPtsTxt = gobjects(obj.nPts,1);
+      obj.hPtsOcc = gobjects(obj.nPts,1);
+      obj.hPtsTxtOcc = gobjects(obj.nPts,1);
       obj.labeler.labeledpos2_ptsH = gobjects(obj.nPts,1);
       obj.labeler.labeledpos2_ptsTxtH = gobjects(obj.nPts,1);
       ppi = obj.ptsPlotInfo;
@@ -201,26 +207,40 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           'UserData',iPt,...
           'HitTest','on',...
           'ButtonDownFcn',@(s,e)obj.ptBDF(s,e)};
+        ptsArgsOcc = {nan,nan,ppi.Marker,...
+          'MarkerSize',ppi.MarkerSize,...
+          'LineWidth',ppi.LineWidth,...
+          'Color',setClr,...
+          'UserData',iPt,...
+          'HitTest','off'};        
         ptsArgs2 = {nan,nan,ppi2.Marker,...
           'MarkerSize',ppi2.MarkerSize,...
           'LineWidth',ppi2.LineWidth,...
           'Color',setClr2,...
           'HitTest','off'};
         ax = obj.hAx(obj.iPt2iAx(iPt));
+        axocc = obj.hAxOcc(obj.iPt2iAx(iPt));
         obj.hPts(iPt) = plot(ax,ptsArgs{:});
+        obj.hPtsOcc(iPt) = plot(axocc,ptsArgsOcc{:});
         obj.labeler.labeledpos2_ptsH(iPt) = plot(ax,ptsArgs2{:});
         txtStr = num2str(iSet);
-        obj.hPtsTxt(iPt) = text(nan,nan,txtStr,...
-          'Parent',ax,...
-          'Color',setClr,...
+        txtargs = {'Color',setClr,...
           'FontSize',ppi.FontSize,...
-          'Hittest','off');
+          'Hittest','off'};
+        obj.hPtsTxt(iPt) = text(nan,nan,txtStr,...
+          'Parent',ax,txtargs{:});
         obj.hPtsTxtStrs{iPt} = txtStr;
+        obj.hPtsTxtOcc(iPt) = text(nan,nan,txtStr,...
+          'Parent',axocc,txtargs{:});
         obj.labeler.labeledpos2_ptsTxtH(iPt) = text(nan,nan,txtStr,...
           'Parent',ax,...
           'Color',setClr2,...
           'FontSize',ppi2.FontSize,...
           'Hittest','off');
+      end
+      
+      for iVw=1:obj.nView
+        axis(obj.hAxOcc(iVw),[0 obj.nPointSet+1 0 2]);
       end
       
       obj.setRandomTemplate();
@@ -310,7 +330,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         
         obj.projectAddToAnchorSet(iPt)
         if obj.tfOcc(iPt)
-          % AL should be unnec branch
           obj.tfOcc(iPt) = false;
           obj.refreshOccludedPts();
         end
@@ -328,6 +347,34 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         end
         obj.projectionRefresh();
       end
+    end
+    
+    function axOccBDF(obj,src,evt) %#ok<INUSD>
+      iAx = find(src==obj.hAxOcc);
+      assert(isscalar(iAx));
+      iWS = obj.iSetWorking;
+      if ~isnan(iWS)
+        iPt = obj.iSet2iPt(iWS,iAx); 
+        obj.setPointAdjusted(iPt);
+        obj.selClearSelected();
+
+        obj.tfOcc(iPt) = true;
+        obj.tfEstOcc(iPt) = false;
+        obj.refreshOccludedPts();
+        obj.refreshEstOccPts('iPts',iPt);
+        
+        if obj.streamlined && all(obj.tfAdjusted)
+          obj.enterAccepted(true);
+        else
+          switch obj.state
+            case LabelState.ADJUST
+              % none
+            case LabelState.ACCEPTED
+              obj.enterAdjust(false,false);
+          end
+        end
+        obj.projectionRefresh();
+      end      
     end
     
     function ptBDF(obj,src,evt)
@@ -379,7 +426,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.tfMoved = false;
     end
     
-    function tfKPused = kpf(obj,src,evt) %#ok<INUSL>
+    function tfKPused = kpf(obj,src,evt) 
       %#CALOK
       key = evt.Key;
       modifier = evt.Modifier;      
@@ -516,10 +563,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
     end
     
-    function axOccBDF(obj,src,evt) %#ok<INUSD>
-      assert(false,'Unsupported for multiview labeling');     
-    end
-
     function h = getLabelingHelp(obj) %#ok<MANU>
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
@@ -543,6 +586,23 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       iPts = myparse(varargin,'iPts',1:obj.nPts);
       obj.refreshPtMarkers(iPts);
+    end
+    
+    function refreshOccludedPts(obj)
+      % Based on .tfOcc: 'Hide' occluded points in main image; arrange
+      % occluded points in occluded box.
+      
+      tf = obj.tfOcc;
+      assert(isvector(tf) && numel(tf)==obj.nPts);
+      nOcc = nnz(tf);
+      iOcc = find(tf);
+      LabelCore.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
+      for iPt=iOcc(:)'
+        iSet = obj.iPt2iSet(iPt);
+        LabelCore.setPtsCoordsOcc([iSet 1],obj.hPtsOcc(iPt),obj.hPtsTxtOcc(iPt));
+      end
+      LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
+        obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
     end
         
   end
@@ -954,7 +1014,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         obj.tfAdjusted(iSel) = true;
         clr = obj.hPtsColors(iSel,:);
         set(obj.hPts(iSel),'Color',clr);
-        %set(obj.hPtsOcc(iSel),'Color',clr);
+        set(obj.hPtsOcc(iSel),'Color',clr);
       end
     end
     

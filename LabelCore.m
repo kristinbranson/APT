@@ -35,7 +35,7 @@ classdef LabelCore < handle
     labeler;              % scalar Labeler obj
     hFig;                 % [nview] figure handles (first is main fig)
     hAx;                  % [nview] axis handles (first is main axis)
-    hAxOcc;               % scalar handle, occluded-axis (primary axis only)
+    hAxOcc;               % [nview] scalar handle, occluded-axis
     tbAccept;             % scalar handle, togglebutton
     pbClear;              % scalar handle, clearbutton
     txLblCoreAux;         % scalar handle, auxiliary text (currently primary axis only)
@@ -45,8 +45,8 @@ classdef LabelCore < handle
     state;                % scalar LabelState
     hPts;                 % nPts x 1 handle vec, handle to points
     hPtsTxt;              % nPts x 1 handle vec, handle to text
-    hPtsOcc;
-    hPtsTxtOcc;           % nPts x 1 handle vec, handle to occ points
+    hPtsOcc;              % nPts x 1 handle vec, handle to occ points
+    hPtsTxtOcc;           % nPts x 1 handle vec, handle to occ text
     ptsPlotInfo;          % struct, points plotting cosmetic info    
     
     tfOcc;                % nPts x 1 logical
@@ -121,17 +121,16 @@ classdef LabelCore < handle
           'Color',ptsPlotInfo.Colors(i,:),...
           'UserData',i};
         obj.hPts(i) = plot(ax(1),ptsArgs{:});
-        obj.hPtsOcc(i) = plot(axOcc,ptsArgs{:});
+        obj.hPtsOcc(i) = plot(axOcc(1),ptsArgs{:});
         obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax(1),...
           'Color',ptsPlotInfo.Colors(i,:),...
           'FontSize',ptsPlotInfo.FontSize,...
           'Hittest','off');
-        obj.hPtsTxtOcc(i) = text(nan,nan,num2str(i),'Parent',axOcc,...
+        obj.hPtsTxtOcc(i) = text(nan,nan,num2str(i),'Parent',axOcc(1),...
           'Color',ptsPlotInfo.Colors(i,:),...
           'FontSize',ptsPlotInfo.FontSize,...
           'Hittest','off');
       end
-      axis(axOcc,[0 obj.nPts+1 0 2]);
       obj.hideLabels = false;
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));      
@@ -408,14 +407,18 @@ classdef LabelCore < handle
       xy = [x y];
     end
     
-    function setPtsCoords(xy,hPts,hTxt)
+    function setPtsCoords(xy,hPts,hTxt,varargin)
+      [dxTxt,dyTxt] = myparse(varargin,...
+        'dxTxt',LabelCore.DT2P,...
+        'dyTxt',LabelCore.DT2P);
+      
       nPoints = size(xy,1);
       assert(size(xy,2)==2);
       assert(isequal(nPoints,numel(hPts),numel(hTxt)));
       
       for i = 1:nPoints
         set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
-        set(hTxt(i),'Position',[xy(i,1)+LabelCore.DT2P xy(i,2)+LabelCore.DT2P 1]);
+        set(hTxt(i),'Position',[xy(i,1)+dxTxt xy(i,2)+dyTxt 1]);
       end
     end
             
@@ -436,14 +439,7 @@ classdef LabelCore < handle
     end
     
     function setPtsCoordsOcc(xy,hPts,hTxt)
-      nPoints = size(xy,1);
-      assert(size(xy,2)==2);
-      assert(isequal(nPoints,numel(hPts),numel(hTxt)));
-      
-      for i = 1:nPoints
-        set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
-        set(hTxt(i),'Position',[xy(i,1)+0.25 xy(i,2)+0.25 1]);
-      end
+      LabelCore.setPtsCoords(xy,hPts,hTxt,'dxTxt',0.25,'dyTxt',0.25);
     end
     
     function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)

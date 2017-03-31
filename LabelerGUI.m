@@ -428,14 +428,25 @@ deleteValidHandles(handles.figs_all(2:end));
 handles.figs_all = handles.figs_all(1);
 handles.axes_all = handles.axes_all(1);
 handles.images_all = handles.images_all(1);
+handles.axes_occ = handles.axes_occ(1);
 
 nview = lObj.nview;
 figs = gobjects(1,nview);
 axs = gobjects(1,nview);
 ims = gobjects(1,nview);
+axsOcc = gobjects(1,nview);
 figs(1) = handles.figs_all;
 axs(1) = handles.axes_all;
 ims(1) = handles.images_all;
+axsOcc(1) = handles.axes_occ;
+
+% all occluded-axes will have ratios widthAxsOcc:widthAxs and 
+% heightAxsOcc:heightAxs equal to that of axsOcc(1):axs(1)
+axsOcc1Pos = axsOcc(1).Position;
+ax1Pos = axs(1).Position;
+axOccSzRatios = axsOcc1Pos(3:4)./ax1Pos(3:4);
+axOcc1XColor = axsOcc(1).XColor;
+
 set(ims(1),'CData',0); % reset image
 for iView=2:nview
   figs(iView) = figure(...
@@ -452,11 +463,24 @@ for iView=2:nview
   %axisoff(axs(iView));
   hold(axs(iView),'on');
   set(axs(iView),'Color',[0 0 0]);
+  
+  axparent = axs(iView).Parent;
+  axpos = axs(iView).Position;
+  axunits = axs(iView).Units;
+  axpos(3:4) = axpos(3:4).*axOccSzRatios;
+  axsOcc(iView) = axes('Parent',axparent,'Position',axpos,'Units',axunits,...
+    'Color',[0 0 0],'Box','on','XTick',[],'YTick',[],'XColor',axOcc1XColor,...
+    'YColor',axOcc1XColor);
+  hold(axsOcc(iView),'on');
+  axis(axsOcc(iView),'ij');
 end
 handles.figs_all = figs;
 handles.axes_all = axs;
 handles.images_all = ims;
+handles.axes_occ = axsOcc;
 
+axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
+ 
 ViewConfig.setCfgOnViews(lObj.projPrefs.View,figs,axs,ims,handles.axes_prev);
 
 arrayfun(@(x)colormap(x,gray),figs);
@@ -483,8 +507,6 @@ hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_fra
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
-
-axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
 
 handles = setShortcuts(handles);
 
