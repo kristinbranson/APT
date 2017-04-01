@@ -154,7 +154,7 @@ classdef OrthoCam
       uv = [ mx*Wd(1,:) + u0 ; ...
              my*Wd(2,:) + v0 ]; % [2xnpts]
     end
-    function [x0y0,n,x1y0,x0y1] = opticalCenter(R2cam,t2cam)
+    function [x0y0,n,x1y0,x0y1,ijkCamWorld] = opticalCenter(R2cam,t2cam)
       % Find the "optical center" for a cam; the WorldPoint (x0,y0,0) where
       % the cam's optical axis intersects the World plane z=0
       %
@@ -166,6 +166,14 @@ classdef OrthoCam
       %   negative z.
       % x1y0: [2x1] [x;y] that gets mapped to uv=[1;0]
       % x0y1: [2x1]    " uv=[0;1]
+      % ijkCamWorld: [3x3]. Definition of "Camera World Coords". These are
+      %   world coords with:
+      %   * Origin at WorldCoords=(x0,y0,0), ie the optical center
+      %   * x-axis aligned with cam x-axis
+      %   * y-axis aligned with cam y-axis
+      %   * z-axis equal to -n
+      %   The columns of ijkCamWorld are the CamWorldCoords i, j, and k 
+      %   unit vectors in the original WorldCoordSys.
       
       szassert(R2cam,[3 3]);
       szassert(t2cam,[2 1]);
@@ -182,6 +190,16 @@ classdef OrthoCam
       
       x1y0 = R12\([1;0]-t2cam);
       x0y1 = R12\([0;1]-t2cam);
+      
+      xcam = [x1y0-x0y0;0]; % vector in z=0 plane pointing to positive cam1-x (when projected)
+      ycam = [x0y1-x0y0;0];
+      % remove components pxcam1,... along n1 and n2
+      xcam = xcam-dot(xcam,n)*n; % Vector normal to n that projects to cam1-x
+      ycam = ycam-dot(ycam,n)*n;
+      xcam = xcam/norm(xcam); % unit vector, normal to n, that projects to cam1-x
+      ycam = ycam/norm(ycam);
+      
+      ijkCamWorld = [xcam(:) ycam(:) -n(:)];
     end
     function [theta,phi,az,el] = azEl(n)
       theta = acos(n(3)/norm(n));
@@ -292,7 +310,7 @@ classdef OrthoCam
            
     function tblInts = summarizeIntrinsicsStro(p,nPat)
       [mx1,my1,u01,v01,k1_1,k2_1,...
-       mx2,my2,u02,v02,k1_2,k2_2] = OrthoCam.unpackParamsStro(p,nPat);
+     mx2,my2,u02,v02,k1_2,k2_2] = OrthoCam.unpackParamsStro(p,nPat);
       VARNAMES = {'mx' 'my' 'u0' 'v0' 'k1' 'k2'};
       t1 = table(mx1,my1,u01,v01,k1_1,k2_1,'VariableNames',VARNAMES);
       t2 = table(mx2,my2,u02,v02,k1_2,k2_2,'VariableNames',VARNAMES);
@@ -457,7 +475,7 @@ classdef OrthoCam
         tvecs(iPat-1,:) = t(:)';
       end
     end
-    function hFig = viewExtrinsics(patPtsXYZ,rvecs,tvecs,...
+    function hFig = viewExtrinsics(patPtsXYZ,rvecsFull,tvecsFull,...
         r2vec1,t2vec1,r2vec2,t2vec2,varargin)
       
       dOptAx = myparse(varargin,...
@@ -465,17 +483,15 @@ classdef OrthoCam
       
       nPts = size(patPtsXYZ,2);
       szassert(patPtsXYZ,[3 nPts]);
-      nPatm1 = size(rvecs,1);
-      nPat = nPatm1+1;
-      szassert(rvecs,[nPatm1 3]);
-      szassert(tvecs,[nPatm1 3]);
-        
+      nPat = size(rvecsFull,1);
+      szassert(rvecsFull,[nPat 3]);
+      szassert(tvecsFull,[nPat 3]);        
       szassert(r2vec1,[3 1]);
       szassert(t2vec1,[2 1]);
       szassert(r2vec2,[3 1]);
       szassert(t2vec2,[2 1]);
       
-      hFig = figure;
+      hFig = figure('Name','OrthoCam: Calibration Extrinsics');
       ax = axes;
       hold(ax,'on');
       
@@ -495,13 +511,9 @@ classdef OrthoCam
         patZ0 patZ0 patZ0 patZ0; ];
       clrs = jet(nPat);
       for iPat=1:nPat
-        if iPat==1
-          patPtsCornersWorld = patPtsCorners;
-        else
-          RPatI2World = vision.internal.calibration.rodriguesVectorToMatrix(rvecs(iPat-1,:)');
-          tPatI2World = tvecs(iPat-1,:)';
-          patPtsCornersWorld = RPatI2World*patPtsCorners + tPatI2World;          
-        end
+        RPatI2World = vision.internal.calibration.rodriguesVectorToMatrix(rvecsFull(iPat,:)');
+        tPatI2World = tvecsFull(iPat,:)';
+        patPtsCornersWorld = RPatI2World*patPtsCorners + tPatI2World;
         fill3(patPtsCornersWorld(1,:),patPtsCornersWorld(2,:),...
               patPtsCornersWorld(3,:),clrs(iPat,:),'FaceAlpha',0.5);
             
@@ -597,7 +609,7 @@ classdef OrthoCam
       opts.Display = 'iter';
       opts.TolFun = 1e-6;
       opts.TolX = 1e-6;
-      opts.MaxFunEvals = 2e4; 
+      opts.MaxFunEvals = 1e4; 
       opts.MaxIter = 1e4;
     end
     function [pOpt,oFcn,dsum0,dsum1] = calibrateStro(nPat,worldPoints,imPtsUV1,imPtsUV2,p0,varargin)

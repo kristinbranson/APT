@@ -181,9 +181,11 @@ classdef Session < handle
           calRes = load(calResFile,'-mat');
         end
       end
-      function calResFile = hlpSaveSingleOrthoCamCalRes(calres,camidx) %#ok<INUSL>
+      function calResFile = hlpSaveSingleOrthoCamCalRes(calres,camsessmatfile,camidx) %#ok<INUSL>
+        [sesspath,sessfile] = fileparts(camsessmatfile);
+        calResFileProposed = fullfile(sesspath,[sessfile '_orthocam_monocal.mat']);
         str = sprintf('Save single-Orthocam calibration for Camera%d.',camidx);
-        [fname,pth] = uiputfile('*.mat',str);
+        [fname,pth] = uiputfile(calResFileProposed,str);
         if isequal(fname,0)
           calResFile = '';
         else
@@ -226,7 +228,12 @@ classdef Session < handle
         t2vecs = t2vecs(:,loc);        
       end
       
-      function imagesUsed = calibrate(this)        
+      function imagesUsed = calibrate(this)
+        
+        if verLessThan('matlab','R2016b')
+          error('Session:cal','MATLAB R2016b or later required for Orthocam calibration.');
+        end
+        
         info = struct();
         [info.cam1Sess,info.cam1SessMatfile] = this.hlpLoadAndCheckSingleCamSession(1);
         [info.cam2Sess,info.cam2SessMatfile] = this.hlpLoadAndCheckSingleCamSession(2);
@@ -282,7 +289,7 @@ classdef Session < handle
         dRP2 = this.hlpAssessOrthoSingleCalib(info.cam2Sess,info.cam2calres.pOpt);
         mu1 = mean(dRP1(:));
         mu2 = mean(dRP2(:));        
-        hFig = figure;
+        hFig = figure('Name','OrthoCam: Reprojection Error');
         ax = subplot(1,2,1);
         OrthoCam.vizRPerr(ax,dRP1);
         cprms1 = info.cam1Sess.CameraParameters;
@@ -319,8 +326,8 @@ classdef Session < handle
             end
             switch resp
               case 'Yes, save'
-                info.cam1calresfile = this.hlpSaveSingleOrthoCamCalRes(info.cam1calres,1);
-                info.cam2calresfile = this.hlpSaveSingleOrthoCamCalRes(info.cam2calres,2);
+                info.cam1calresfile = this.hlpSaveSingleOrthoCamCalRes(info.cam1calres,info.cam1Sess.Filename,1);
+                info.cam2calresfile = this.hlpSaveSingleOrthoCamCalRes(info.cam2calres,info.cam2Sess.Filename,2);
                 % files may be '' if user cancels
               case 'No'
                 % none
@@ -376,7 +383,7 @@ classdef Session < handle
         dRP = oFcn(pOpt);
         npts = size(this.BoardSet.BoardPoints,1);
         dRP = reshape(dRP,[npts nPat 2]);
-        hFig = figure;
+        hFig = figure('Name','OrthoCam: Reprojection Error');
         dRP1 = dRP(:,:,1);
         dRP2 = dRP(:,:,2);
         mu1 = mean(dRP1(:));
@@ -389,7 +396,7 @@ classdef Session < handle
         ax = subplot(1,2,2);
         OrthoCam.vizRPerr(ax,dRP2);
         title(sprintf('Stereo calib, cam2. meanRP err=%.3f px',mu2),'fontweight','bold');
-      
+
         % Summarize
         tblIntsStro = OrthoCam.summarizeIntrinsicsStro(pOpt,nPat);
         tblInts = [tblIntsMono;tblIntsStro];
@@ -402,14 +409,17 @@ classdef Session < handle
         patPtsXYZ = [patPtsXYZ; zeros(1,npts)];
         [~,~,~,~,~,~,~,~,~,~,~,~,r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = ...
           OrthoCam.unpackParamsStro(pOpt,nPat);
+      
         hFig = OrthoCam.viewExtrinsics(patPtsXYZ,rvecs,tvecs,...
           r2vec1,t2vec1,r2vec2,t2vec2);
 
-        res = struct();
-        res.p0 = p0;
-        res.pOpt = pOpt;        
-        res.boardSet = bset;
-        res.ts = now();
+        calObj = OrthoCamCalPair(pOpt,nPat,npts,patPtsXYZ,...
+          permute(bset.BoardPoints,[2 1 3 4]),bset.FullPathNames');
+%         res = struct();
+%         res.p0 = p0;
+%         res.pOpt = pOpt;        
+%         res.boardSet = bset;
+%         res.ts = now();
         
         
         
