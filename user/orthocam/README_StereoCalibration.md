@@ -4,19 +4,21 @@ This is a step-by-step guide to running an OrthoCam stereo camera calibration. O
 
 #### Setup
 
-* Add the <APT> repo to your MATLAB path, or navigate to the <APT> repo root directory. Then run `APT.setpath` to fully configure your MATLAB path.
+* Add the APT repo to your MATLAB path, or navigate to the <APT> repo root directory. Then run `APT.setpath` to fully configure your MATLAB path.
 
 #### Step 1: Run single-cam calibrations of each camera in the MATLAB Camera Calibrator App.
-The MATLAB App should do single-camera calibrations pretty well, except the (z-depth, focal length) parameter pair will not be well-resolved. Check that the calibration looks good (low reprojection error). Then do a "Save Session". This will save the calibration images you used with their detected corners, along with the calibration results.
+The MATLAB Camera Calibrator App should do single-camera calibrations pretty well, except the (z-depth, focal length) parameter pair will not be well-resolved. Check that the calibration looks good (low reprojection error). Then do a "Save Session". This will save the calibration images you used with their detected corners, along with the calibration results.
+
+Run/save single-camera calibrations for both cameras. These will be used by OrthoCam.
 
 #### Step 2: Open the MATLAB Stereo Camera Calibrator App and Create a new Stereo Project.
 Add the calibration image pairs you would like to use and verify that the corners are detected appropriately etc.
 
-**Important:** All calibration images included/used here need to have been included in the single-camera calibrations in Step 1.
+**Important:** *All calibration images included/used in the stereo project need to have been included in the single-camera calibrations in Step 1.*
 
-#### Step 3: Click Calibrate. If your MATLAB path is set up, this will run the OrthoCam stereo calibration instead of the MATLAB calibration.
+#### Step 3: Click Calibrate. If your MATLAB path is configured correctly, this will run the OrthoCam stereo calibration instead of the MATLAB calibration.
 
-**Step 3a. Obtain single- (or mono-) camera Orthocam calibrations for each camera.**
+**Step 3a. Obtain single-camera Orthocam calibrations for each camera.**
   
 First, you will be prompted to load your saved single-camera calibration sessions from the MATLAB App, first for camera 1, then camera 2.
 
@@ -24,7 +26,7 @@ Single-camera OrthoCam calibrations will be done on each camera, using the MATLA
 
 Verify that the reproduction error is good with these single-camera calibrations.
 
-After both single Orthocam calibrations are done, you can save the results. The next time you need to run this stereo calibration, you can skip the mono-calibrations and directly load these single-camera calibration results.
+After both single Orthocam calibrations are done, you can save the results. The next time you need to run this stereo calibration, you can skip the mono-calibrations and directly load these single-camera OrthoCam calibration results.
 
 **Step 3b. Optionally, select a "base" pattern for the stereo calibration.**
 This is a technical quirk with the current implementation. One calibration-pattern-pair is currently selected to serve as a common coordinate system for the optimization. Pattern-pairs that are "unusual" (eg upside-down, far from image center(s) etc) should not be chosen as they can lead to convergence problems. Select a very "normal" pattern-pair for this step.
@@ -40,6 +42,6 @@ Verify the extrinsics.
 
 You will be prompted to save your Orthocam calibration.
 
-At this point you are done -- the results are not integrated with the MATLAB Stereo Camera Calibration App, so you may not see the usual MATLAB App display after completion. 
+At this point you are done -- the final results are not integrated with the MATLAB Stereo Camera Calibration App, so you may not see the usual MATLAB App display after completion. 
  
 
