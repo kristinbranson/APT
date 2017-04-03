@@ -212,12 +212,14 @@ classdef Session < handle
           end
         end
       end
-      function [r2vecs,t2vecs] = hlpSelSingleCamExtrinsics(this,iCam,res)
+    end
+    methods (Static)
+      function [r2vecs,t2vecs] = hlpSelSingleCamExtrinsics(iCam,res,bset)
         pOpt = res.pOpt;
         nCalIm = res.nPat;
-        fpnsMono = res.boardSetFPNs(:);        
+        fpnsMono = res.boardSetFPNs(:);
         szassert(fpnsMono,[nCalIm 1]);
-        fpnsStro = this.BoardSet.FullPathNames(iCam,:)';
+        fpnsStro = bset.FullPathNames(iCam,:)';
         [tf,loc] = ismember(fpnsStro,fpnsMono);
         assert(all(tf));
         fprintf(1,'Selecting %d (rvec,tvec) extrinsic pairs out of %d from cam%d extrinsics:\n',...
@@ -227,21 +229,19 @@ classdef Session < handle
         r2vecs = r2vecs(:,loc);
         t2vecs = t2vecs(:,loc);        
       end
-      
+    end
+    methods      
       function imagesUsed = calibrate(this)
         
         if verLessThan('matlab','R2016b')
           error('Session:cal','MATLAB R2016b or later required for Orthocam calibration.');
         end
         
-        info = struct();
-        [info.cam1Sess,info.cam1SessMatfile] = this.hlpLoadAndCheckSingleCamSession(1);
-        [info.cam2Sess,info.cam2SessMatfile] = this.hlpLoadAndCheckSingleCamSession(2);
-                
+        info = struct();                
         LOAD = 'Load existing orthocam calibrations';
         CALIB = 'Perform orthocam calibrations now';
         CANCEL = 'Cancel';
-        resp = questdlg('Do you have existing single-camera OrthoCam calibrations for these two cameras?',...
+        resp = questdlg('Do you have existing single-camera OrthoCam calibrations for these two cameras? The calibrations must include all images included in this Stereo calibration project.',...
           'Load existing OrthoCam calibrations (single-cam)',...
           LOAD,CALIB,CANCEL,CALIB);
         if isempty(resp)
@@ -275,49 +275,43 @@ classdef Session < handle
         end
         switch info.monoCalOrigin
           case 'run'
+            % Run it
+            [info.cam1Sess,info.cam1SessMatfile] = this.hlpLoadAndCheckSingleCamSession(1);
+            [info.cam2Sess,info.cam2SessMatfile] = this.hlpLoadAndCheckSingleCamSession(2);
             info.cam1calres = this.hlpOrthoSingleCalib(1,info.cam1Sess);
             info.cam2calres = this.hlpOrthoSingleCalib(2,info.cam2Sess);
             info.cam1calresfile = '';
             info.cam2calresfile = '';
             fprintf(1,'Done with single-cam calibrations. Results:\n');
-          case 'loaded'
-            fprintf(1,'Loaded single-cam calibrations. Reproj error on current images:\n');
-        end
-        
-        % summarize intrinsics; and RP err
-        dRP1 = this.hlpAssessOrthoSingleCalib(info.cam1Sess,info.cam1calres.pOpt);
-        dRP2 = this.hlpAssessOrthoSingleCalib(info.cam2Sess,info.cam2calres.pOpt);
-        mu1 = mean(dRP1(:));
-        mu2 = mean(dRP2(:));        
-        hFig = figure('Name','OrthoCam: Reprojection Error');
-        ax = subplot(1,2,1);
-        OrthoCam.vizRPerr(ax,dRP1);
-        cprms1 = info.cam1Sess.CameraParameters;
-        tstr = sprintf('cam1 mono-calib. %dpats, %dpts. mean RPerr=%.3f px',...
-            cprms1.NumPatterns,size(cprms1.WorldPoints,1),mu1); 
-        title(tstr,'fontweight','bold');
-        ylabel('count','fontweight','bold');
-        ax = subplot(1,2,2);
-        OrthoCam.vizRPerr(ax,dRP2);
-        cprms2 = info.cam2Sess.CameraParameters;
-        tstr = sprintf('cam2 mono-calib. %dpats, %dpts. mean RPerr=%.3f px',...
-            cprms2.NumPatterns,size(cprms2.WorldPoints,1),mu2);
-        title(tstr,'fontweight','bold');
-                
-        nCalIm1 = cprms1.NumPatterns;
-        nCalIm2 = cprms2.NumPatterns;
-        pOpt1 = info.cam1calres.pOpt;
-        pOpt2 = info.cam2calres.pOpt;
-        tblIntsMono = [ OrthoCam.summarizeIntrinsics(pOpt1,nCalIm1); ...
-                        OrthoCam.summarizeIntrinsics(pOpt2,nCalIm2) ];
-        tblIntsMono.Properties.RowNames = {'monocal-cam1' 'monocal-cam2'};        
-        disp(tblIntsMono);
-        input('hit enter to continue');
-        
-        % offer to save monocal res if we just ran
-        % XXX default filename: based on info.cam1SessMatfile etc
-        switch info.monoCalOrigin
-          case 'run'
+            
+            dRP1 = this.hlpAssessOrthoSingleCalib(info.cam1Sess,info.cam1calres.pOpt);
+            dRP2 = this.hlpAssessOrthoSingleCalib(info.cam2Sess,info.cam2calres.pOpt);
+            mu1 = mean(dRP1(:));
+            mu2 = mean(dRP2(:));
+            hFig = figure('Name','OrthoCam: Reprojection Error');
+            ax = subplot(1,2,1);
+            OrthoCam.vizRPerr(ax,dRP1);
+            cprms1 = info.cam1Sess.CameraParameters;
+            tstr = sprintf('cam1 mono-calib. %dpats, %dpts. mean RPerr=%.3f px',...
+              cprms1.NumPatterns,size(cprms1.WorldPoints,1),mu1);
+            title(tstr,'fontweight','bold');
+            ylabel('count','fontweight','bold');
+            ax = subplot(1,2,2);
+            OrthoCam.vizRPerr(ax,dRP2);
+            cprms2 = info.cam2Sess.CameraParameters;
+            tstr = sprintf('cam2 mono-calib. %dpats, %dpts. mean RPerr=%.3f px',...
+              cprms2.NumPatterns,size(cprms2.WorldPoints,1),mu2);
+            title(tstr,'fontweight','bold');
+            
+            % summarize intrinsics; and RP err
+            tblIntsMono = [ ...
+              OrthoCam.summarizeIntrinsics(info.cam1calres.pOpt,info.cam1calres.nPat); ...
+              OrthoCam.summarizeIntrinsics(info.cam2calres.pOpt,info.cam2calres.nPat) ];
+            tblIntsMono.Properties.RowNames = {'monocal-cam1' 'monocal-cam2'};
+            disp(tblIntsMono);
+            input('hit enter to continue');
+            
+            % offer to save monocal res if we just ran
             resp = questdlg('Save single-camera OrthoCam calibrations?',...
               'Save calibrations',...
               'Yes, save','No','Cancel','Yes, save');
@@ -334,11 +328,37 @@ classdef Session < handle
               case 'Cancel'
                 error('Session:cal','Calibration canceled.');
             end
+          case 'loaded'
+            fprintf(1,'Loaded single-cam calibrations:\n');
+            tblIntsMono = [ ...
+              OrthoCam.summarizeIntrinsics(info.cam1calres.pOpt,info.cam1calres.nPat); ...
+              OrthoCam.summarizeIntrinsics(info.cam2calres.pOpt,info.cam2calres.nPat) ];
+            tblIntsMono.Properties.RowNames = {'monocal-cam1' 'monocal-cam2'};
+            disp(tblIntsMono);
+            input('hit enter to continue');
         end
         
+        % SELECT WORLD COORDSYS/"first" pattern 
+%         fpnsStro1 = bset.FullPathNames(1,:)';
+        [sel,ok] = listdlg(...
+          'PromptString','Select pattern to serve as common World Coordsys (for calibration/optimization only)',...
+          'ListString',this.BoardSet.BoardLabels',...
+          'SelectionMode','single',...
+          'ListSize',[400 400]);
+        if ~ok
+          error('Session:cal','Calibration canceled.');
+        end
+        
+        boardPerm = [sel 1:sel-1 sel+1:this.BoardSet.NumBoards];
+        boardSetUse = struct();
+        boardSetUse.FullPathNames = this.BoardSet.FullPathNames(:,boardPerm);
+        boardSetUse.BoardPoints = this.BoardSet.BoardPoints(:,:,boardPerm,:);
+        boardSetUse.WorldPoints = this.BoardSet.WorldPoints;
+        boardSetUse.NumBoards = this.BoardSet.NumBoards;
+               
         % pick out extrinsics
-        [r2vecs1,t2vecs1] = this.hlpSelSingleCamExtrinsics(1,info.cam1calres);
-        [r2vecs2,t2vecs2] = this.hlpSelSingleCamExtrinsics(2,info.cam2calres);
+        [r2vecs1,t2vecs1] = this.hlpSelSingleCamExtrinsics(1,info.cam1calres,boardSetUse);
+        [r2vecs2,t2vecs2] = this.hlpSelSingleCamExtrinsics(2,info.cam2calres,boardSetUse);
 
         [r2veccam1,t2veccam1,r2veccam2,t2veccam2,rvecsPat,tvecsPat] = ...
           OrthoCam.estimateStroExtrinsics(r2vecs1',t2vecs1',r2vecs2',t2vecs2');
@@ -350,11 +370,8 @@ classdef Session < handle
           tblInts2.mx,tblInts2.my,tblInts2.u0,tblInts2.v0,tblInts2.k1,tblInts2.k2,...
           r2veccam1,t2veccam1,r2veccam2,t2veccam2,rvecsPat,tvecsPat);
         
-        bset = this.BoardSet;
+        bset = boardSetUse;
         nPat = bset.NumBoards;
-        % SELECT WORLD COORDSYS/"first" pattern
-%         fpnsStro1 = bset.FullPathNames(1,:)';
-%         [sel,ok] = listdlg('PromptString','Select pattern to serve as world 
         
         pOpt = p0;
         dsums = nan(0,2);
@@ -365,7 +382,7 @@ classdef Session < handle
           RESTART = 'Restart optimization';
           CANCEL = 'Cancel';
           resp = questdlg('Restart optimization?','Optimization waypoint',...
-            STOP,RESTART,CANCEL,STOP);
+            STOP,RESTART,CANCEL,RESTART);
           if isempty(resp)
             resp = CANCEL;
           end
@@ -381,7 +398,7 @@ classdef Session < handle
               
         % RP err
         dRP = oFcn(pOpt);
-        npts = size(this.BoardSet.BoardPoints,1);
+        npts = size(bset.BoardPoints,1);
         dRP = reshape(dRP,[npts nPat 2]);
         hFig = figure('Name','OrthoCam: Reprojection Error');
         dRP1 = dRP(:,:,1);
@@ -405,23 +422,33 @@ classdef Session < handle
         tblInts = tblInts([1 3 2 4],:);
         disp(tblInts);
 
-        patPtsXYZ = this.BoardSet.WorldPoints';
+        patPtsXYZ = bset.WorldPoints';
         patPtsXYZ = [patPtsXYZ; zeros(1,npts)];
-        [~,~,~,~,~,~,~,~,~,~,~,~,r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = ...
-          OrthoCam.unpackParamsStro(pOpt,nPat);
-      
-        hFig = OrthoCam.viewExtrinsics(patPtsXYZ,rvecs,tvecs,...
-          r2vec1,t2vec1,r2vec2,t2vec2);
+%         [~,~,~,~,~,~,~,~,~,~,~,~,r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = ...
+%           OrthoCam.unpackParamsStro(pOpt,nPat);      
+% %         hFig = OrthoCam.viewExtrinsics(patPtsXYZ,rvecs,tvecs,...
+%           r2vec1,t2vec1,r2vec2,t2vec2);
 
         calObj = OrthoCamCalPair(pOpt,nPat,npts,patPtsXYZ,...
           permute(bset.BoardPoints,[2 1 3 4]),bset.FullPathNames');
-%         res = struct();
-%         res.p0 = p0;
-%         res.pOpt = pOpt;        
-%         res.boardSet = bset;
-%         res.ts = now();
+        calObj.xformWorldSys(calObj.ijkCamWorld1');
+        hFig = calObj.viewExtrinsics();
         
+        [thispath,thisfile] = fileparts(this.Filename);
+        calResFileProposed = fullfile(thispath,[thisfile '_orthocam_strocal.mat']);
+        [fname,pth] = uiputfile('*.mat','Save stereo Orthocam calibration.',calResFileProposed);
+        if isequal(fname,0)
+          % none
+        else          
+          calResFile = fullfile(pth,fname);
+          save(calResFile,'calObj');
+          fprintf(1,'Saved %s.\n',calResFile);
+        end
         
+        msgbox('Stereo Orthocam calibration complete.');
+        imagesUsed = [];
+        return;
+                
         
         
         % viz extrinsics

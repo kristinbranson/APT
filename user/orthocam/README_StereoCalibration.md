@@ -4,7 +4,7 @@ This is a step-by-step guide to running an OrthoCam stereo camera calibration. O
 
 #### Setup
 
-* Add <APT>/user/orthocam to your MATLAB path. 
+* Add the <APT> repo to your MATLAB path, or navigate to the <APT> repo root directory. Then run `APT.setpath` to fully configure your MATLAB path.
 
 #### Step 1: Run single-cam calibrations of each camera in the MATLAB Camera Calibrator App.
 The MATLAB App should do single-camera calibrations pretty well, except the (z-depth, focal length) parameter pair will not be well-resolved. Check that the calibration looks good (low reprojection error). Then do a "Save Session". This will save the calibration images you used with their detected corners, along with the calibration results.
@@ -16,19 +16,30 @@ Add the calibration image pairs you would like to use and verify that the corner
 
 #### Step 3: Click Calibrate. If your MATLAB path is set up, this will run the OrthoCam stereo calibration instead of the MATLAB calibration.
 
+**Step 3a. Obtain single- (or mono-) camera Orthocam calibrations for each camera.**
+  
 First, you will be prompted to load your saved single-camera calibration sessions from the MATLAB App, first for camera 1, then camera 2.
 
 Single-camera OrthoCam calibrations will be done on each camera, using the MATLAB results as a guideline/starting point. Currently, the MATLAB optimizer *lsqnonlin* is used to run these optimizations. In the progress display, the third column of numbers indicates the current optimizer residual. A "good" value for this residual is say 1000 or less. This residual may decreases slowly at times but will often make large "quantum leaps".  
 
 Verify that the reproduction error is good with these single-camera calibrations.
 
-After both cameras have been single-camera calibrated, you can optionally save the single-camera calibrations.
+After both single Orthocam calibrations are done, you can save the results. The next time you need to run this stereo calibration, you can skip the mono-calibrations and directly load these single-camera calibration results.
 
-Now, the stereo OrthoCam calibration will proceed. Again, *lsqnonlin* is used. This optimization is tougher, and usually requires restarts. (Rather than just letting the optimizer run continuously for a long time, using restarts seems to shock/randomize the optimizer and provides for a faster overall optimization.) Again, the residual will decrease slowly at times and will make large leaps at other times. A "good" value again is say in the range of 1000.
+**Step 3b. Optionally, select a "base" pattern for the stereo calibration.**
+This is a technical quirk with the current implementation. One calibration-pattern-pair is currently selected to serve as a common coordinate system for the optimization. Pattern-pairs that are "unusual" (eg upside-down, far from image center(s) etc) should not be chosen as they can lead to convergence problems. Select a very "normal" pattern-pair for this step.
+
+**Step 3c. Run the stereo optimization.**
+Again, *lsqnonlin* is used for the optimization. This optimization is tougher, and usually requires restarts. Rather than just letting the optimizer run continuously for a long time, using restarts seems to shock/randomize the optimizer and provides for a faster overall optimization. The residual will decrease slowly at times and will make large leaps at other times. 
+
+You can restart/repeat the optimization until the final optimizer message is "Possible minimum found" etc rather than "Maximum iterations/evaluations exceeded". Again, a "good" residual value (3rd column of numbers in display) is say in the range of 1000 or less.
 
 Verify that the reproduction error is good with the stereo calibration. 
 
 Verify the extrinsics.
 
-You can now save the stereo Orthocam calibration. 
+You will be prompted to save your Orthocam calibration.
+
+At this point you are done -- the results are not integrated with the MATLAB Stereo Camera Calibration App, so you may not see the usual MATLAB App display after completion. 
+ 
 

@@ -475,11 +475,27 @@ classdef OrthoCam
         tvecs(iPat-1,:) = t(:)';
       end
     end
+    
+    function [optCtr,n,ijkCam] = hlpExtrinsics(camInfo,r2vec,t2vec)
+      if ~isempty(camInfo)
+        optCtr = camInfo.optCtr;
+        n = camInfo.n;
+        ijkCam = camInfo.ijkCamWorld;
+      else
+        RWorldToCam = vision.internal.calibration.rodriguesVectorToMatrix(r2vec);
+        t2WorldToCam = t2vec;
+        [x0y0cam,n,~,~,ijkCam] = OrthoCam.opticalCenter(RWorldToCam,t2WorldToCam);
+        optCtr = [x0y0cam(:);0];
+      end
+    end
     function hFig = viewExtrinsics(patPtsXYZ,rvecsFull,tvecsFull,...
         r2vec1,t2vec1,r2vec2,t2vec2,varargin)
       
-      dOptAx = myparse(varargin,...
-        'dOptAx',10); % length of optical axis to plot (world coords)
+      [dOptAx,cam1info,cam2info] = myparse(varargin,...
+        'dOptAx',10,... % length of optical axis to plot (world coords)
+        'cam1info',[],... % if nonempty, supplemental extrinsics info for cam1. Otherwise, recomputed
+        'cam2info',[]...
+        );                    
       
       nPts = size(patPtsXYZ,2);
       szassert(patPtsXYZ,[3 nPts]);
@@ -525,27 +541,21 @@ classdef OrthoCam
       end
             
       % plot the optical ctrs/axes
-      RWorldToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec1);
-      t2WorldToCam1 = t2vec1;
-      RWorldToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec2);
-      t2WorldToCam2 = t2vec2;
-      [x0y0cam1,n1,x1y0cam1,x0y1cam1] = OrthoCam.opticalCenter(RWorldToCam1,t2WorldToCam1);
-      [x0y0cam2,n2,x1y0cam2,x0y1cam2] = OrthoCam.opticalCenter(RWorldToCam2,t2WorldToCam2);
+      [optCtr1,n1,ijkCam1] = OrthoCam.hlpExtrinsics(cam1info,r2vec1,t2vec1);
+      [optCtr2,n2,ijkCam2] = OrthoCam.hlpExtrinsics(cam2info,r2vec2,t2vec2);
       [~,~,az1,el1] = OrthoCam.azEl(n1);
       [~,~,az2,el2] = OrthoCam.azEl(n2);
-      
-      plot3(x0y0cam1(1),x0y0cam1(2),0,'x','markersize',10,'linewidth',3,'color',[0 0 0]);
-      plot3(x0y0cam2(1),x0y0cam2(2),0,'x','markersize',10,'linewidth',3,'color',[0 0 0]);
+     
+      plot3(optCtr1(1),optCtr1(2),optCtr1(3),'x','markersize',10,'linewidth',3,'color',[0 0 0]);
+      plot3(optCtr2(1),optCtr2(2),optCtr2(3),'x','markersize',10,'linewidth',3,'color',[0 0 0]);
       
       DX = 1;
-      x0y0z0cam1 = [x0y0cam1;0];
-      x0y0z0cam2 = [x0y0cam2;0];
-      optAx1 = [x0y0z0cam1 x0y0z0cam1+n1*dOptAx];
-      optAx2 = [x0y0z0cam2 x0y0z0cam2+n2*dOptAx];
-      optAx1Plus = x0y0z0cam1+n1*(dOptAx+DX);
-      optAx2Plus = x0y0z0cam2+n2*(dOptAx+DX);
-      optAx1Mid = x0y0z0cam1+n1*dOptAx/2; 
-      optAx2Mid = x0y0z0cam2+n2*dOptAx/2;
+      optAx1 = [optCtr1 optCtr1+n1*dOptAx];
+      optAx2 = [optCtr2 optCtr2+n2*dOptAx];
+      optAx1Plus = optCtr1+n1*(dOptAx+DX);
+      optAx2Plus = optCtr2+n2*(dOptAx+DX);
+      optAx1Mid = optCtr1+n1*dOptAx/2; 
+      optAx2Mid = optCtr2+n2*dOptAx/2;
       
       plot3(optAx1(1,:),optAx1(2,:),optAx1(3,:),'--','linewidth',2,'color',[0 0 0]);
       plot3(optAx2(1,:),optAx2(2,:),optAx2(3,:),'--','linewidth',2,'color',[0 0 0]);      
@@ -554,32 +564,18 @@ classdef OrthoCam
         'fontweight','bold','fontsize',12,'color',BROWN);
       text(optAx2Plus(1),optAx2Plus(2),optAx2Plus(3),'C2',...
         'fontweight','bold','fontsize',12,'color',BROWN);
-      
-      % draw the cam x/y axes 
-      pxcam1 = [x1y0cam1-x0y0cam1;0]; % vector in z=0 plane pointing to positive cam1-x (when projected)
-      pycam1 = [x0y1cam1-x0y0cam1;0];
-      pxcam2 = [x1y0cam2-x0y0cam2;0];
-      pycam2 = [x0y1cam2-x0y0cam2;0];
-      % remove components pxcam1,... along n1 and n2
-      pxcam1 = pxcam1-dot(pxcam1,n1)*n1; % Vector normal to n1 that projects to cam1-x
-      pycam1 = pycam1-dot(pycam1,n1)*n1;
-      pxcam2 = pxcam2-dot(pxcam2,n2)*n2;
-      pycam2 = pycam2-dot(pycam2,n2)*n2;
-      pxcam1 = pxcam1/norm(pxcam1);
-      pycam1 = pycam1/norm(pycam1);
-      pxcam2 = pxcam2/norm(pxcam2);
-      pycam2 = pycam2/norm(pycam2);
+     
       
       % Check: x0y0cam1+pxcam1 should project to [1 0] etc
       % draw pxcam1,... at dOptAx/2
-      optAxMid1CamXax = [optAx1Mid optAx1Mid+pxcam1(:)];
-      optAxMid1CamYax = [optAx1Mid optAx1Mid+pycam1(:)];
-      optAxMid2CamXax = [optAx2Mid optAx2Mid+pxcam2(:)];
-      optAxMid2CamYax = [optAx2Mid optAx2Mid+pycam2(:)];
-      optAxMid1CamXaxPlus = optAx1Mid+1.5*pxcam1(:);
-      optAxMid1CamYaxPlus = optAx1Mid+1.5*pycam1(:);
-      optAxMid2CamXaxPlus = optAx2Mid+1.5*pxcam2(:);
-      optAxMid2CamYaxPlus = optAx2Mid+1.5*pycam2(:);
+      optAxMid1CamXax = [optAx1Mid optAx1Mid+ijkCam1(:,1)];
+      optAxMid1CamYax = [optAx1Mid optAx1Mid+ijkCam1(:,2)];
+      optAxMid2CamXax = [optAx2Mid optAx2Mid+ijkCam2(:,1)];
+      optAxMid2CamYax = [optAx2Mid optAx2Mid+ijkCam2(:,2)];
+      optAxMid1CamXaxPlus = optAx1Mid+1.5*ijkCam1(:,1);
+      optAxMid1CamYaxPlus = optAx1Mid+1.5*ijkCam1(:,2);
+      optAxMid2CamXaxPlus = optAx2Mid+1.5*ijkCam2(:,1);
+      optAxMid2CamYaxPlus = optAx2Mid+1.5*ijkCam2(:,2);
       
       plot3(optAxMid1CamXax(1,:),optAxMid1CamXax(2,:),optAxMid1CamXax(3,:),'b-','linewidth',2);
       plot3(optAxMid1CamYax(1,:),optAxMid1CamYax(2,:),optAxMid1CamYax(3,:),'b-','linewidth',2);
@@ -602,7 +598,9 @@ classdef OrthoCam
       xlabel(ax,'x (mm)','fontweight','bold');
       ylabel(ax,'y (mm)','fontweight','bold');
       zlabel(ax,'z (mm)','fontweight','bold');  
+      axis(ax,'square');      
       axis(ax,'equal');
+      view(0,0);
     end
     function opts = defaultoptsStro()
       opts = optimset;
