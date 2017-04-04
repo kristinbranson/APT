@@ -1,2 +1,2 @@
-function szassert(x,sz)
-assert(isequal(size(x),sz));
+function szassert(x,sz,varargin)
+assert(isequal(size(x),sz),varargin{:});
