@@ -433,7 +433,9 @@ classdef Features
       %   col 1: landmark index 1
       %   col 2: landmark index 2
       %   col 3: radius FACTOR
-      %   col 4: theta in (-pi,pi)
+      %   col 4: theta in (-pi,pi). NOTE: this is not the actual angle on
+      %   the ellipse; it is an angle-like parameterization of pts on the
+      %   surface of an ellipse!
       %   col 5: "interpolation" factor in [0,1] for location of center
       %          between landmarks 1/2
       %   col 6: channel index, shared by landmarks 1 and 2. Identically 
@@ -552,7 +554,7 @@ classdef Features
       l1 = xs(:,1);
       l2 = xs(:,2);
       rfac = xs(:,3);
-      theta = xs(:,4);
+      theta = xs(:,4); % NOTE: this is not the actual angle, this is an angle-like parameterization
       ctrFac = xs(:,5);
       chan = xs(:,6);
       iview = xs(:,7);
@@ -585,6 +587,10 @@ classdef Features
       sint = sin(theta);
       cosa = cos(alpha);
       sina = sin(alpha);
+      % 1. First we have parametrized pts on an ellipse with major/minor 
+      % axis a/b via (x,y)=(a*cos(theta),b*sin(theta)). Note, here theta 
+      % IS NOT THE ACTUAL ANGLE of (x,y) relative to the origin.
+      % 2. We have rotated the entire ellipse counterclockwise by alpha      
       xF = ctrX + a.*cost.*cosa - b.*sint.*sina;
       yF = ctrY + a.*cost.*sina + b.*sint.*cosa;
       % cs1=ctrX+(repmat(xs',size(r,1),1).*r.*cos(theta+alpha));
