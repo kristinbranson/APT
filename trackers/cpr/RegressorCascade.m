@@ -224,6 +224,7 @@ classdef RegressorCascade < handle
       
       fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
         initpGTNTrn,initUseFF);
+      pause(5);
       
       if initpGTNTrn
         pNInitSet = obj.pGTNTrn;

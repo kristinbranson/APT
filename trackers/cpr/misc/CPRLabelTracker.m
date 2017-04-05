@@ -3,7 +3,7 @@ classdef CPRLabelTracker < LabelTracker
   properties (Constant,Hidden)
     TRAINEDTRACKER_SAVEPROPS = { ...
       'sPrm' ...
-      'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
+      'trnDataDownSamp' 'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnResH0' 'trnResIPt' 'trnResRC'};
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
     
@@ -34,6 +34,9 @@ classdef CPRLabelTracker < LabelTracker
   end
   
   %% Training Data Selection
+  properties (SetObservable,SetAccess=private)
+    trnDataDownSamp = false; % scalar logical. 
+  end
   properties
     % Furthest-first distance threshold for training data.
     trnDataFFDThresh
@@ -87,6 +90,8 @@ classdef CPRLabelTracker < LabelTracker
   properties (Dependent)
     nPts % number of label points 
     nPtsTrk % number of tracked label points; will be <= nPts. See .trkPiPt.
+    
+    hasTrained
   end
   
   %% Dep prop getters
@@ -96,6 +101,9 @@ classdef CPRLabelTracker < LabelTracker
     end
     function v = get.nPtsTrk(obj)
       v = numel(obj.trkPiPt);
+    end
+    function v = get.hasTrained(obj)
+      v = ~isempty(obj.trnResRC) && any([obj.trnResRC.hasTrained]);
     end
   end
   
@@ -326,10 +334,23 @@ classdef CPRLabelTracker < LabelTracker
     
     %#MV
     function trnDataInit(obj)
+      obj.trnDataDownSamp = false;
       obj.trnDataFFDThresh = nan;
       obj.trnDataTblP = struct2table(struct('mov',cell(0,1),...
         'frm',[],'p',[],'tfocc',[],'pTS',[]));
       obj.trnDataTblPTS = -inf(0,1);
+    end
+    
+    function trnDataUseAll(obj)
+      if obj.trnDataDownSamp
+        if obj.hasTrained
+          warningNoTrace('CPRLabelTracker:clear','Clearing existing tracker.');
+        end
+        obj.trnDataInit();
+        obj.trnResInit();
+        obj.trackResInit();
+        obj.vizInit();
+      end
     end
     
     %#MV
@@ -339,21 +360,9 @@ classdef CPRLabelTracker < LabelTracker
       % Based on user interaction, .trnDataFFDThresh, .trnDataTblP* are set.
       % For .trnDataTblP*, this is a fresh reset, not an update.
       
-      if ~isempty(obj.trnResRC) && any([obj.trnResRC.hasTrained])
-        resp = questdlg('A tracker has already been trained. Re-selecting training data will clear all previous trained/tracked results. Proceed?',...
-          'Tracker Trained','Yes, clear previous tracker','Cancel','Cancel');
-        if isempty(resp)
-          resp = 'Cancel';
-        end
-        switch resp
-          case 'Yes, clear previous tracker'
-            obj.trnResInit();
-            obj.trackResInit();
-            obj.vizInit();
-          case 'Cancel'
-            return;
-        end
-      end
+      obj.trnResInit();
+      obj.trackResInit();
+      obj.vizInit();
         
       tblP = obj.getTblPLbled(); % start with all labeled data
       [grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
@@ -393,6 +402,7 @@ classdef CPRLabelTracker < LabelTracker
         end
         switch lower(res)
           case 'y'
+            obj.trnDataDownSamp = true;
             obj.trnDataFFDThresh = ffdThresh;
             obj.trnDataTblP = tblPSel;
             obj.trnDataTblPTS = now*ones(size(tblPSel,1),1);
@@ -531,7 +541,7 @@ classdef CPRLabelTracker < LabelTracker
         if sNew.Model.nviews~=obj.lObj.nview
           error('CPRLabelTracker:nviews',...
             'Number of views in parameters.Model (%d) does not match number of views in project (%d).',...
-            sNew.Model.nviews,obj.lObj.nviews);
+            sNew.Model.nviews,obj.lObj.nview);
         end
         if sNew.Model.nfids~=obj.lObj.nPhysPoints
           error('CPRLabelTracker:npts',...
@@ -583,12 +593,12 @@ classdef CPRLabelTracker < LabelTracker
         
     %#MV
     function retrain(obj,varargin)
-      % Full train using all of obj.trnDataTblP as training data
+      % Full train 
       % 
       % Sets .trnRes*
       
       updateTrnData = myparse(varargin,...
-        'updateTrnData',true ... % if false, don't check for new/recent Labeler labels
+        'updateTrnData',true ... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true.
         );
       
       prm = obj.sPrm;
@@ -596,24 +606,39 @@ classdef CPRLabelTracker < LabelTracker
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
        
-      if updateTrnData
-        % first, update the TrnData with any new labels
-        tblPNew = obj.getTblPLbledRecent();
-        [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
-        if ~isempty(idxTrnDataTblP) % AL 20160912: conditional should not be necessary, MATLAB API bug
-          obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+      if obj.trnDataDownSamp
+        if updateTrnData
+          % first, update the TrnData with any new labels
+          tblPNew = obj.getTblPLbledRecent();
+          [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
+          if ~isempty(idxTrnDataTblP) % AL 20160912: conditional should not be necessary, MATLAB API bug
+            obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+          end
+          obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
+          nowtime = now();
+          nNewRows = size(tblPNewTD,1);
+          obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
+          obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(nNewRows,1)];
+          fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
+            size(tblPUpdateTD,1),nNewRows);
         end
-        obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
+        tblPTrn = obj.trnDataTblP;
+      else
+        % use all labeled data
+        tblPTrn = obj.getTblPLbled();
+        
+        assert(isnan(obj.trnDataFFDThresh));
+        % still set .trnDataTblP, .trnDataTblPTS to enable incremental
+        % training
+        obj.trnDataTblP = tblPTrn;
         nowtime = now();
-        obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
-        obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(size(tblPNewTD,1),1)];
-        fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
-          size(tblPUpdateTD,1),size(tblPNewTD,1));
+        obj.trnDataTblPTS = nowtime*ones(size(tblPTrn,1),1);
       end
       
-      tblPTrn = obj.trnDataTblP;
       if isempty(tblPTrn)
         error('CPRLabelTracker:noTrnData','No training data set.');
+      else
+        fprintf(1,'Training with %d rows.\n',size(tblPTrn,1));
       end
       tblPTrn(:,'pTS') = [];
       
@@ -721,11 +746,13 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      %%% do incremental train 
+      %%% do incremental train
       
       % update the TrnData
       [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
-      obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+      if ~isempty(idxTrnDataTblP) % AL: conditional should not be necessary, MATLAB API bug
+        obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+      end
       obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
       nowtime = now();
       obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
@@ -1312,6 +1339,11 @@ classdef CPRLabelTracker < LabelTracker
           allProjMovIDs,allProjMovsFull,tblDesc);
         CPRLabelTracker.warnMoviesMissingFromProj(s.trkPMD.mov,allProjMovIDs,tblDesc);
         MFTable.warnDupMovFrmKey(s.trkPMD,tblDesc);
+      end
+      
+      % 20170405. trnDataDownSamp
+      if ~isfield(s,'trnDataDownSamp')
+        s.trnDataDownSamp = false;
       end
 
       % set parameter struct s.sPrm on obj

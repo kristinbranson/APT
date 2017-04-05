@@ -118,6 +118,16 @@ handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
 
+handles.menu_track_use_all_labels_to_train = uimenu(...
+  'Parent',handles.menu_track,...
+  'Label','Include all labels in training data',...
+  'Tag','menu_track_use_all_labels_to_train',...
+  'Separator','on',...
+  'Callback',@(h,evtdata)LabelerGUI('menu_track_use_all_labels_to_train_Callback',h,evtdata,guidata(h)));
+moveMenuItemAfter(handles.menu_track_use_all_labels_to_train,handles.menu_track_setparametersfile);
+handles.menu_track_select_training_data.Label = 'Downsample training data';
+moveMenuItemAfter(handles.menu_track_select_training_data,handles.menu_track_use_all_labels_to_train);
+
 handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
   'Label','Export current tracking results',...
   'Tag','menu_track_export_base');  
@@ -799,6 +809,7 @@ handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
 if tf
   lObj.tracker.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions));
+  lObj.tracker.addlistener('trnDataDownSamp','PostSet',@(src1,evt1) cbkTrackerTrnDataDownSampChanged(src1,evt1,handles));
 end
 
 function cbkTrackerNFramesChanged(src,evt)
@@ -1534,8 +1545,54 @@ end
 prmFile = fullfile(p,f);
 RC.saveprop('lastCPRParamFile',prmFile);
 handles.labelerObj.setTrackParamFile(prmFile);
+
+function cbkTrackerTrnDataDownSampChanged(src,evt,handles)
+tracker = evt.AffectedObject;
+if tracker.trnDataDownSamp
+  handles.menu_track_use_all_labels_to_train.Checked = 'off';
+  handles.menu_track_select_training_data.Checked = 'on';
+else
+  handles.menu_track_use_all_labels_to_train.Checked = 'on';
+  handles.menu_track_select_training_data.Checked = 'off';
+end
+
+function menu_track_use_all_labels_to_train_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+tObj = lObj.tracker;
+if isempty(tObj)
+  error('LabelerGUI:tracker','No tracker for this project.');
+end
+if tObj.hasTrained && tObj.trnDataDownSamp
+  resp = questdlg('A tracker has already been trained with downsampled training data. Proceeding will clear all previous trained/tracked results. OK?',...
+    'Clear Existing Tracker','Yes, clear previous tracker','Cancel','Cancel');
+  if isempty(resp)
+    resp = 'Cancel';
+  end
+  switch resp
+    case 'Yes, clear previous tracker'
+      % none
+    case 'Cancel'
+      return;
+  end
+end
+tObj.trnDataUseAll();
+
 function menu_track_select_training_data_Callback(hObject, eventdata, handles)
-handles.labelerObj.tracker.trnDataSelect();
+tObj = handles.labelerObj.tracker;
+if tObj.hasTrained
+  resp = questdlg('A tracker has already been trained. Downsampling training data will clear all previous trained/tracked results. Proceed?',...
+    'Clear Existing Tracker','Yes, clear previous tracker','Cancel','Cancel');
+  if isempty(resp)
+    resp = 'Cancel';
+  end
+  switch resp
+    case 'Yes, clear previous tracker'
+      % none
+    case 'Cancel'
+      return;
+  end
+end
+tObj.trnDataSelect();
 
 function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();

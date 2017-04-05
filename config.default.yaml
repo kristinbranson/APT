@@ -107,7 +107,7 @@ Shortcuts: # shortcuts. case insensitive!
   menu_file_quit: q # file -> quit
   menu_view_hide_labels: h # view -> hide labels
   menu_view_hide_predictions: p # view -> hide predictions
-  menu_track_select_training_data: f # track -> select training data
+  # menu_track_select_training_data: f # track -> select training data
   menu_track_retrain: r # track -> retrain
   menu_track_set_labels: l # track -> set manual labels to predicted pose
   tbAccept: x # accept toggle button

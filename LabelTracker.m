@@ -26,7 +26,7 @@ classdef LabelTracker < handle
     hLCurrFrame; % listener to lObj.currFrame
   end  
   
-  properties (SetObservable)
+  properties (SetObservable,SetAccess=private)
     hideViz = false; % scalar logical. If true, hide visualizations
   end
     
@@ -181,13 +181,11 @@ classdef LabelTracker < handle
     end
     
     function hideVizToggle(obj)
-      
-      if obj.hideViz,
+      if obj.hideViz
         obj.vizShow();
       else
         obj.vizHide();
       end
-      
     end
     
     function getCurrentPrediction(obj)

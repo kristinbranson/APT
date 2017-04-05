@@ -170,7 +170,7 @@ classdef Shape
           end
           if dorotate
             assert(d==2,'Currently random rotations supported only for d==2');
-            fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
+            %fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
             pNAug = Shape.randrot(pNAug,d);
           end
           szassert(pNAug,[Naug D]);
