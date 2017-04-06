@@ -35,7 +35,7 @@ classdef CPRLabelTracker < LabelTracker
   
   %% Training Data Selection
   properties (SetObservable,SetAccess=private)
-    trnDataDownSamp = false; % scalar logical. 
+    trnDataDownSamp = false; % scalar logical.
   end
   properties
     % Furthest-first distance threshold for training data.
@@ -64,8 +64,7 @@ classdef CPRLabelTracker < LabelTracker
   % to form a single unique ID for each movieset.
   
   %% Train/Track
-  properties
-    
+  properties    
     % Training state -- set during .train()
     trnResH0 % image hist used for current training results (trnResRC)
     trnResIPt % TODO doc me. Basically like .trkPiPt.
@@ -75,17 +74,26 @@ classdef CPRLabelTracker < LabelTracker
     % Note: trkD here can be less than the full/model D if some pts are
     % omitted from tracking
     trkP % [NTst trkD T+1] reduced/pruned tracked shapes
-    trkPFull % [NTst RT trkD T+1] Tracked shapes full data
+    trkPFull % Either [], or [NTst RT trkD T+1] Tracked shapes full data. Stored only if .storeFullTracking=true.
     trkPTS % [NTstx1] timestamp for trkP*
     trkPMD % [NTst <ncols>] table. MFTable (no other cols) for trkP*
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. npttrk=trkD*d.
+  end
     
+  properties (SetObservable)
+    showVizReplicates = false; % scalar logical.
+    storeFullTracking = false; % scalar logical.
+  end
+  properties
     % View/presentation
     xyPrdCurrMovie; % [npts d nfrm] predicted labels for current Labeler movie
     xyPrdCurrMovieIsInterp; % [nfrm] logical vec indicating whether xyPrdCurrMovie(:,:,i) is interpolated
+    xyPrdCurrMovieFull % [npts d nrep nfrm] predicted replicates for current Labeler movie
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame
-    xyVizPlotArgs; % cell array of args for regular tracking viz
+    hXYPrdFull; % [npts] plot handles for replicats, current frame
+    xyVizPlotArgs; % cell array of args for regular tracking viz    
     xyVizPlotArgsInterp; % cell array of args for interpolated tracking viz
+    xyVizFullPlotArgs; % cell array of args for regular tracking viz    
   end
   properties (Dependent)
     nPts % number of label points 
@@ -104,6 +112,31 @@ classdef CPRLabelTracker < LabelTracker
     end
     function v = get.hasTrained(obj)
       v = ~isempty(obj.trnResRC) && any([obj.trnResRC.hasTrained]);
+    end
+  end
+  methods
+    function set.storeFullTracking(obj,v)
+      assert(isscalar(v));
+      v = logical(v);
+      if v
+        if isempty(obj.trkP) %#ok<MCSUP>
+          assert(isempty(obj.trkPFull)); %#ok<MCSUP>
+        else
+          [ntrkfrm,D,Tp1] = size(obj.trkP); %#ok<MCSUP>
+          nrep = obj.sPrm.TestInit.Nrep; %#ok<MCSUP>
+          if isempty(obj.trkPFull) %#ok<MCSUP>
+            warningNoTrace('CPRLabelTracker:trkPFull',...
+              'Tracking results already exist; existing tracked frames will not have full tracking results.');
+            obj.trkPFull = nan(ntrkfrm,nrep,D,Tp1); %#ok<MCSUP>
+          else
+            szassert(obj.trkPFull,[ntrkfrm nrep D Tp1]); %#ok<MCSUP>
+          end
+        end
+      else
+        obj.trkPFull = []; %#ok<MCSUP>
+        obj.xyPrdCurrMovieFull = []; %#ok<MCSUP>
+      end
+      obj.storeFullTracking = v;
     end
   end
   
@@ -467,12 +500,12 @@ classdef CPRLabelTracker < LabelTracker
       assert(size(trkMD,1)==NTrk);
       assert(nPtTrk*d==DTrk);
           
+      nRep = obj.sPrm.TestInit.Nrep;
       if isempty(obj.trkPFull)
-        pTrkFull = nan(NTrk,0,DTrk);
+        pTrkFull = nan(NTrk,nRep,DTrk);
       else
         pTrkFull = obj.trkPFull(:,:,:,end);
       end
-      nRep = size(pTrkFull,2);
       szassert(pTrkFull,[NTrk nRep DTrk]);
       
       assert(numel(obj.trkPTS)==NTrk);
@@ -899,9 +932,8 @@ classdef CPRLabelTracker < LabelTracker
     
     %#MV
     function track(obj,iMovs,frms,varargin)
-      [tblP,stripTrkPFull,movChunkSize,p0DiagImg] = myparse(varargin,...
+      [tblP,movChunkSize,p0DiagImg] = myparse(varargin,...
         'tblP',[],... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
-        'stripTrkPFull',true,... % if true, don't save .trkPFull
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'p0DiagImg',[] ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
         );
@@ -1031,19 +1063,17 @@ classdef CPRLabelTracker < LabelTracker
         % existing rows
         idxCur = loc(tf);
         obj.trkP(idxCur,:,:) = pTstTRed(tf,:,:);
-        if stripTrkPFull
-          if ~isempty(obj.trkPFull)
-            warning('CPRLabelTracker:track','Stripping 4D tracking results .trkPFull.');
-            obj.trkPFull = [];
-          end
-        else
+        if obj.storeFullTracking
+          szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull prm.Reg.T+1]);
           obj.trkPFull(idxCur,:,:,:) = pTstT(tf,:,:,:);
-        end        
+        else
+          assert(isempty(obj.trkPFull));
+        end 
         nowts = now;
         obj.trkPTS(idxCur) = nowts;
         % new rows
         obj.trkP = [obj.trkP; pTstTRed(~tf,:,:)];
-        if ~stripTrkPFull
+        if obj.storeFullTracking
           obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,:)];
         end
         nNew = nnz(~tf);
@@ -1188,6 +1218,7 @@ classdef CPRLabelTracker < LabelTracker
           assert(strcmp(obj.trkPMD.Properties.VariableNames,TRKMDVARNAMES));
 
           % OK: update .trkP, trkPFull, trkPMD, trkPTS
+          % XXX TODO HERE TO REMAINDER OF FCN
           obj.trkP = cat(1,obj.trkP,tmptrkP(tfNotNanFrm,:));
           if ~isempty(obj.trkPFull)
             obj.trkPFull = cat(1,obj.trkPFull,...
@@ -1224,7 +1255,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function newLabelerFrame(obj)
-      % Update .hXYPrdRed based on current Labeler frame and
+      % Update .hXYPrdRed based on current Labeler frame and 
       % .xyPrdCurrMovie
 
       npts = obj.nPts;
@@ -1489,6 +1520,7 @@ classdef CPRLabelTracker < LabelTracker
     
     function vizInit(obj)
       obj.xyPrdCurrMovie = [];
+      obj.xyPrdCurrMovieFull = [];
       obj.xyPrdCurrMovieIsInterp = [];
       deleteValidHandles(obj.hXYPrdRed);
       obj.hXYPrdRed = [];
@@ -1521,8 +1553,6 @@ classdef CPRLabelTracker < LabelTracker
     
     function vizLoadXYPrdCurrMovie(obj)
       % sets .xyPrdCurrMovie* for current Labeler movie from .trkP, .trkPMD
-      %
-      % TODO: collapse with getTrackRes(obj,iMov)
 
       lObj = obj.lObj;
       
@@ -1530,38 +1560,39 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(trkTS) || lObj.currMovie==0
         obj.xyPrdCurrMovie = [];
         obj.xyPrdCurrMovieIsInterp = [];
+        obj.xyPrdCurrMovieFull = [];
         return;
       end
-
-      movNameID = FSPath.standardPath(lObj.movieFilesAll(lObj.currMovie,:));
-      movNameID = MFTable.formMultiMovieID(movNameID);
-        
+      
+      [trkpos,~,trkposfull] = obj.getTrackResRaw(lObj.currMovie);
       nfrms = lObj.nframes;
-      
-      d = 2;
       nfids = obj.nPts;
-      pTrk = obj.trkP(:,:,end);
-      trkMD = obj.trkPMD;
+      d = 2;
+      nrep = obj.sPrm.TestInit.Nrep;
       iPtTrk = obj.trkPiPt;
-      nPtTrk = numel(iPtTrk);
-      assert(isequal(size(pTrk),[size(trkMD,1) nPtTrk*d]));
+      nptsTrk = numel(iPtTrk);
       
-      tfCurrMov = strcmp(trkMD.mov,movNameID); % these rows of trkMD are for the current Labeler movie
-      nCurrMov = nnz(tfCurrMov);
-      xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);
+      szassert(trkpos,[nptsTrk d nfrms]);
+      szassert(trkposfull,[nptsTrk d nrep nfrms]);
       
-      frmCurrMov = trkMD.frm(tfCurrMov);
       xy = nan(nfids,d,nfrms);
-      xy(iPtTrk,:,frmCurrMov) = xyTrkCurrMov;
-      
+      xyfull = nan(nfids,d,nrep,nfrms);
+      xy(iPtTrk,:,:) = trkpos;
+      xyfull(iPtTrk,:,:,:) = trkposfull;
+            
       if obj.trkVizInterpolate
         [xy,isinterp3] = CPRLabelTracker.interpolateXY(xy);
         isinterp = CPRLabelTracker.collapseIsInterp(isinterp3(iPtTrk,:,:));
       else
         isinterp = false(nfrms,1);
       end
-      
+
       obj.xyPrdCurrMovie = xy;
+      if obj.storeFullTracking
+        obj.xyPrdCurrMovieFull = xyfull;
+      else
+        obj.xyPrdCurrMovieFull = [];
+      end
       obj.xyPrdCurrMovieIsInterp = isinterp;
     end
 
@@ -1575,6 +1606,17 @@ classdef CPRLabelTracker < LabelTracker
       obj.hideViz = false;
     end
     
+    function set.showVizReplicates(obj,v)
+      assert(isscalar(v));
+      v = logical(v);
+      if v
+        [obj.hXYPrdFull.Visible] = deal('on'); %#ok<MCSUP>
+      else
+        [obj.hXYPrdFull.Visible] = deal('off'); %#ok<MCSUP>
+      end
+      obj.showVizReplicates = v;      
+    end
+
     function vizInterpolateXYPrdCurrMovie(obj)
       [obj.xyPrdCurrMovie,isinterp3] = CPRLabelTracker.interpolateXY(obj.xyPrdCurrMovie);
       obj.xyPrdCurrMovieIsInterp = CPRLabelTracker.collapseIsInterp(isinterp3);
