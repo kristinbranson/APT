@@ -73,7 +73,7 @@ classdef CPRLabelTracker < LabelTracker
     % Tracking state -- set during .track()
     % Note: trkD here can be less than the full/model D if some pts are
     % omitted from tracking
-    trkP % [NTst trkD T+1] reduced/pruned tracked shapes
+    trkP % [NTst trkD] reduced/pruned tracked shapes
     trkPFull % Either [], or [NTst RT trkD T+1] Tracked shapes full data. Stored only if .storeFullTracking=true.
     trkPTS % [NTstx1] timestamp for trkP*
     trkPMD % [NTst <ncols>] table. MFTable (no other cols) for trkP*
@@ -122,8 +122,9 @@ classdef CPRLabelTracker < LabelTracker
         if isempty(obj.trkP) %#ok<MCSUP>
           assert(isempty(obj.trkPFull)); %#ok<MCSUP>
         else
-          [ntrkfrm,D,Tp1] = size(obj.trkP); %#ok<MCSUP>
+          [ntrkfrm,D] = size(obj.trkP); %#ok<MCSUP>
           nrep = obj.sPrm.TestInit.Nrep; %#ok<MCSUP>
+          Tp1 = obj.sPrm.Reg.T+1; %#ok<MCSUP>
           if isempty(obj.trkPFull) %#ok<MCSUP>
             warningNoTrace('CPRLabelTracker:trkPFull',...
               'Tracking results already exist; existing tracked frames will not have full tracking results.');
@@ -491,7 +492,7 @@ classdef CPRLabelTracker < LabelTracker
       movNameID = MFTable.formMultiMovieID(movNameID);
       nfrms = lObj.movieInfoAll{iMov}.nframes; % For moviesets with movies with differing # of frames, this should be the common minimum
 
-      pTrk = obj.trkP(:,:,end); % [NTst x D]
+      pTrk = obj.trkP;
       [NTrk,DTrk] = size(pTrk);
       trkMD = obj.trkPMD;
       iPtTrk = obj.trkPiPt;
@@ -1062,7 +1063,7 @@ classdef CPRLabelTracker < LabelTracker
         [tf,loc] = ismember(trkPMDnew,trkPMDcur);
         % existing rows
         idxCur = loc(tf);
-        obj.trkP(idxCur,:,:) = pTstTRed(tf,:,:);
+        obj.trkP(idxCur,:) = pTstTRed(tf,:,end);
         if obj.storeFullTracking
           szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull prm.Reg.T+1]);
           obj.trkPFull(idxCur,:,:,:) = pTstT(tf,:,:,:);
@@ -1072,7 +1073,7 @@ classdef CPRLabelTracker < LabelTracker
         nowts = now;
         obj.trkPTS(idxCur) = nowts;
         % new rows
-        obj.trkP = [obj.trkP; pTstTRed(~tf,:,:)];
+        obj.trkP = [obj.trkP; pTstTRed(~tf,:,end)];
         if obj.storeFullTracking
           obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,:)];
         end
@@ -1184,7 +1185,7 @@ classdef CPRLabelTracker < LabelTracker
           warningNoTrace('CPRLabelTracker:importTrackingResults',...
             'Clearing %d frames of existing tracking results for movie %s.',...
             nnz(tfCurrMov),movFileID);
-          obj.trkP(tfCurrMov,:,:) = [];
+          obj.trkP(tfCurrMov,:) = [];
           if ~isempty(obj.trkPFull)
             assert(size(obj.trkPFull,1)==numel(tfCurrMov));
             obj.trkPFull(tfCurrMov,:,:,:) = [];
@@ -1375,6 +1376,12 @@ classdef CPRLabelTracker < LabelTracker
       % 20170405. trnDataDownSamp
       if ~isfield(s,'trnDataDownSamp')
         s.trnDataDownSamp = false;
+      end
+      
+      % 20170406. Reduce .trkP
+      if ~isempty(s.trkP)
+        % Go from [ntrkfrm x D x Tp1] -> [ntrkfrm x D]
+        s.trkP = s.trkP(:,:,end);
       end
 
       % set parameter struct s.sPrm on obj
