@@ -54,7 +54,6 @@ LabelPointsPlot:
   FontSize: 14
   OccludedMarker: 'o'
   
-
   TemplateMode:
     TemplatePointColor: [1,1,1]
     SelectedPointMarker: 'x'
@@ -93,11 +92,15 @@ Track:
     Marker: '+'
     MarkerSize: 10
     LineWidth: 2
-  PredictInterpolate: 1         # If true, tracked results are interpolated/extrapolated to all frames when visualizing
+  PredictInterpolate: 0         # If true, tracked results are interpolated/extrapolated to all frames when visualizing
   PredictInterpolatePointsPlot: # Plot cosmetics for interpolated tracking results
-    Marker: '+'
-    MarkerSize: 10
-    LineWidth: 2
+    Marker: '.'
+    MarkerSize: 5
+    LineWidth: 1
+  PredictReplicatesPlot: # Plot cosmetics for tracking replicates
+    Marker: '.'
+    MarkerSize: 5
+    LineWidth: 1
 
 Shortcuts: # shortcuts. case insensitive!
   menu_file_load: o # file -> load project
