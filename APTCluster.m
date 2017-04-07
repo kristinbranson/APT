@@ -198,7 +198,8 @@ if numel(endArgs)==2 && ischar(endArgs{2})
   endArgs{2} = str2double(endArgs{2});
 end
 
-i = find(strcmpi(trackArgs,'stripTrkPFull'));
+assert(false,'TODO: fix stripTrkPFull');
+i = find(strcmpi(trackArgs,'stripTrkPFull')); 
 assert(isempty(i) || isscalar(i));
 if isscalar(i) && ischar(trackArgs{i+1})
   trackArgs{i+1} = str2double(trackArgs{i+1});

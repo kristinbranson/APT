@@ -128,7 +128,7 @@ classdef CPRLabelTracker < LabelTracker
           if isempty(obj.trkPFull) %#ok<MCSUP>
             warningNoTrace('CPRLabelTracker:trkPFull',...
               'Tracking results already exist; existing tracked frames will not have full tracking results.');
-            obj.trkPFull = nan(ntrkfrm,nrep,D,Tp1); %#ok<MCSUP>
+            obj.trkPFull = single(nan(ntrkfrm,nrep,D,Tp1)); %#ok<MCSUP>
           else
             szassert(obj.trkPFull,[ntrkfrm nrep D Tp1]); %#ok<MCSUP>
           end
@@ -151,6 +151,8 @@ classdef CPRLabelTracker < LabelTracker
     function delete(obj)
       deleteValidHandles(obj.hXYPrdRed);
       obj.hXYPrdRed = [];
+      deleteValidHandles(obj.hXYPrdFull);
+      obj.hXYPrdFull = [];      
     end
     
   end
@@ -503,7 +505,7 @@ classdef CPRLabelTracker < LabelTracker
           
       nRep = obj.sPrm.TestInit.Nrep;
       if isempty(obj.trkPFull)
-        pTrkFull = nan(NTrk,nRep,DTrk);
+        pTrkFull = single(nan(NTrk,nRep,DTrk));
       else
         pTrkFull = obj.trkPFull(:,:,:,end);
       end
@@ -543,6 +545,10 @@ classdef CPRLabelTracker < LabelTracker
     
     %#MV
     function initHook(obj)
+      % "config init"
+      obj.storeFullTracking = obj.lObj.projPrefs.CPRLabelTracker.StoreFullTracking;
+      
+      
       obj.initData();
       obj.trnDataInit();
       obj.trnResInit();
@@ -1065,8 +1071,10 @@ classdef CPRLabelTracker < LabelTracker
         idxCur = loc(tf);
         obj.trkP(idxCur,:) = pTstTRed(tf,:,end);
         if obj.storeFullTracking
-          szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull prm.Reg.T+1]);
-          obj.trkPFull(idxCur,:,:,:) = pTstT(tf,:,:,:);
+          if ~isequal(obj.trkPFull,[])
+            szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull prm.Reg.T+1]);
+          end
+          obj.trkPFull(idxCur,:,:,:) = single(pTstT(tf,:,:,:));
         else
           assert(isempty(obj.trkPFull));
         end 
@@ -1075,7 +1083,7 @@ classdef CPRLabelTracker < LabelTracker
         % new rows
         obj.trkP = [obj.trkP; pTstTRed(~tf,:,end)];
         if obj.storeFullTracking
-          obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,:)];
+          obj.trkPFull = [obj.trkPFull; single(pTstT(~tf,:,:,:))];
         end
         nNew = nnz(~tf);
         obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
@@ -1145,110 +1153,132 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
     end
+
+    % TODO AL20170406.
+    % This is in approximate shape, started fixing with issue #77 but
+    % realized no clients. 
+    % Size-check TrkFile.pTrk, .pTrkFull, .pTrkFrm, .pTrkiPt. This isn't
+    % careful and assumes dimensions (nframes, trkiPt etc) all match.
     
-    function importTrackingResults(obj,iMovs,trkfiles)
-      % Any existing tracking results in iMovs are OVERWRITTEN even if the
-      % tracking results in trkfiles are all NaNs
-      
-      lObj = obj.lObj;
-      validateattributes(iMovs,{'numeric'},...
-        {'positive' 'integer' '<=' lObj.nmovies});
-      nMovs = numel(iMovs);
-      assert(isa(trkfiles,'TrkFile') && numel(trkfiles)==nMovs);
-
-      prmFile0 = obj.paramFile;
-      
-      for i = 1:nMovs
-        iMv = iMovs(i);
-        tfile = trkfiles(i);
-        movFileID = FSPath.standardPath(lObj.movieFilesAll{iMv});
-        movFileFull = lObj.movieFilesAllFull{iMv};
-
-        prmFile1 = tfile.trkInfo.paramFile;
-        if ~isempty(prmFile0) && ~isempty(prmFile1) && ~strcmp(prmFile0,prmFile1)
-          warningNoTrace('CPRLabelTracker:paramFile',...
-            'Tracking results generated using parameter file ''%s'', which differs from current file ''%s''.',...
-            prmFile1,prmFile0);
-        end
-        % Note, we do not force the prmFiles to agree. And maybe in some
-        % weird cases, one or both are empty.
-        
-        nfrm = lObj.movieInfoAll{iMv}.nframes;
-        if size(tfile.pTrk,3)~=nfrm
-          error('CPRLabelTracker:importTrackingResults',...
-            'Trkfile inconsistent with number of frames in movie %s.',movFileFull);
-        end
-                
-        % find and clear all tracking results for this mov
-        tfCurrMov = strcmp(obj.trkPMD.mov,movFileID);
-        if any(tfCurrMov)
-          warningNoTrace('CPRLabelTracker:importTrackingResults',...
-            'Clearing %d frames of existing tracking results for movie %s.',...
-            nnz(tfCurrMov),movFileID);
-          obj.trkP(tfCurrMov,:) = [];
-          if ~isempty(obj.trkPFull)
-            assert(size(obj.trkPFull,1)==numel(tfCurrMov));
-            obj.trkPFull(tfCurrMov,:,:,:) = [];
-          end
-          obj.trkPTS(tfCurrMov,:) = [];
-          obj.trkPMD(tfCurrMov,:) = [];
-        end
-        
-        % load tracking results for this mov
-        
-        % find frames that have at least one non-nan point
-        
-        d = 2;
-        trkD = d*obj.nPtsTrk;
-        tmptrkP = reshape(tfile.pTrk,trkD,nfrm)'; % [nfrm x trkD]
-        tfNotNanFrm = any(~isnan(tmptrkP),2);
-        nRowsToAdd = nnz(tfNotNanFrm);
-        
-        if nRowsToAdd>0
-          if isempty(obj.trkPiPt)
-            assert(isempty(obj.trkP));
-            obj.trkPiPt = tfile.pTrkiPt;
-          end
-          if ~isequal(obj.trkPiPt,tfile.pTrkiPt)
-            error('CPRLabelTracker:trkPiPt',...
-              'Movie %s: ''trkPiPt'' differs in tracked results to be loaded.',...
-              movFileFull);
-          end        
-
-          TRKMDVARNAMES = {'mov' 'frm'};
-          assert(strcmp(obj.trkPMD.Properties.VariableNames,TRKMDVARNAMES));
-
-          % OK: update .trkP, trkPFull, trkPMD, trkPTS
-          % XXX TODO HERE TO REMAINDER OF FCN
-          obj.trkP = cat(1,obj.trkP,tmptrkP(tfNotNanFrm,:));
-          if ~isempty(obj.trkPFull)
-            obj.trkPFull = cat(1,obj.trkPFull,...
-              nan(nRowsToAdd,size(obj.trkPFull,2),trkD,size(obj.trkPFull,4)));
-          end
-          mdMov = repmat({movFileID},nRowsToAdd,1);
-          mdFrm = find(tfNotNanFrm);
-          mdFrm = mdFrm(:);
-          mdNew = table(mdMov,mdFrm,'VariableNames',TRKMDVARNAMES);
-          obj.trkPMD = cat(1,obj.trkPMD,mdNew);
-          tsNew = tfile.pTrkTS(:,tfNotNanFrm);
-          tsNew = max(tsNew,1)';
-          obj.trkPTS = cat(1,obj.trkPTS,tsNew);
-
-          % tfile.pTrkTag is ignored
-          tftmp = ~cellfun(@isempty,tfile.pTrkTag);
-          if any(tftmp(:))
-            warningNoTrace('CPRLabelTracker:importTrackingResults',...
-              'Movie %s: Ignoring nontrivial .pTrkTag field in TrkFile.',movFileFull);
-          end
-          
-          fprintf(1,'Movie %s: loaded %d frames of tracking results.\n',...
-            movFileFull,nRowsToAdd);
-        end
-        
-        assert(isequal(size(obj.trkP,1),size(obj.trkPMD,1),size(obj.trkPTS,1)));
-      end
-      fprintf(1,'Loaded tracking results for %d movies.\n',nMovs);
-    end
+%     function importTrackingResults(obj,iMovs,trkfiles)
+%       % Any existing tracking results in iMovs are OVERWRITTEN even if the
+%       % tracking results in trkfiles are all NaNs
+%       
+%       lObj = obj.lObj;
+%       
+%       if lObj.isMultiView
+%         error('CPRLabelTracker:mv','Unsupported for multiview projects.');
+%       end
+%       
+%       validateattributes(iMovs,{'numeric'},...
+%         {'positive' 'integer' '<=' lObj.nmovies});
+%       nMovs = numel(iMovs);
+%       assert(isa(trkfiles,'TrkFile') && numel(trkfiles)==nMovs);
+% 
+%       prmFile0 = obj.paramFile;
+%       
+%       for i = 1:nMovs
+%         iMv = iMovs(i);
+%         tfile = trkfiles(i);
+%         movFileID = FSPath.standardPath(lObj.movieFilesAll{iMv});
+%         movFileFull = lObj.movieFilesAllFull{iMv};
+% 
+%         prmFile1 = tfile.trkInfo.paramFile;
+%         if ~isempty(prmFile0) && ~isempty(prmFile1) && ~strcmp(prmFile0,prmFile1)
+%           warningNoTrace('CPRLabelTracker:paramFile',...
+%             'Tracking results generated using parameter file ''%s'', which differs from current file ''%s''.',...
+%             prmFile1,prmFile0);
+%         end
+%         % Note, we do not force the prmFiles to agree. And maybe in some
+%         % weird cases, one or both are empty.
+%         
+%         nfrm = lObj.movieInfoAll{iMv}.nframes;
+%         if size(tfile.pTrk,3)~=nfrm
+%           error('CPRLabelTracker:importTrackingResults',...
+%             'Trkfile inconsistent with number of frames in movie %s.',movFileFull);
+%         end
+%                 
+%         % find and clear all tracking results for this mov
+%         tfCurrMov = strcmp(obj.trkPMD.mov,movFileID);
+%         if any(tfCurrMov)
+%           warningNoTrace('CPRLabelTracker:importTrackingResults',...
+%             'Clearing %d frames of existing tracking results for movie %s.',...
+%             nnz(tfCurrMov),movFileID);
+%           obj.trkP(tfCurrMov,:) = [];
+%           if ~isempty(obj.trkPFull)
+%             assert(size(obj.trkPFull,1)==numel(tfCurrMov));
+%             obj.trkPFull(tfCurrMov,:,:,:) = [];
+%           end
+%           obj.trkPTS(tfCurrMov,:) = [];
+%           obj.trkPMD(tfCurrMov,:) = [];
+%         end
+%         
+%         % load tracking results for this mov
+%         
+%         % find frames that have at least one non-nan point
+%         
+%         d = 2;
+%         trkD = d*obj.nPtsTrk;
+%         tmptrkP = reshape(tfile.pTrk,trkD,nfrm)'; % [nfrm x trkD]
+%         if obj.storeFullTracking
+%           if isempty(tfile.pTrkFull) % could be eg [npttrked x 2 x nRep=0 x nfrm]
+%             warning('CPRLabelTracker:trkPFull',...
+%               'TrkFile field .pTrkFull is empty. Full tracking results will be unavailable for movie movFileFull.');
+%             tmptrkPfull = nan(xxx,xxxx);
+%           elseif 
+%             el
+%           tmptrkPfull = reshape(
+%         end
+%         tfNotNanFrm = any(~isnan(tmptrkP),2);
+%         nRowsToAdd = nnz(tfNotNanFrm);
+%         
+%         if nRowsToAdd>0
+%           if isempty(obj.trkPiPt)
+%             assert(isempty(obj.trkP));
+%             obj.trkPiPt = tfile.pTrkiPt;
+%           end
+%           if ~isequal(obj.trkPiPt,tfile.pTrkiPt)
+%             error('CPRLabelTracker:trkPiPt',...
+%               'Movie %s: ''trkPiPt'' differs in tracked results to be loaded.',...
+%               movFileFull);
+%           end        
+% 
+%           TRKMDVARNAMES = {'mov' 'frm'};
+%           assert(strcmp(obj.trkPMD.Properties.VariableNames,TRKMDVARNAMES));
+% 
+%           % OK: update .trkP, trkPFull, trkPMD, trkPTS
+%           obj.trkP = cat(1,obj.trkP,tmptrkP(tfNotNanFrm,:));
+%           if obj.storeFullTracking
+%             obj.trkPFull = cat(1,obj.trkPFull,...
+%               nan(nRowsToAdd,size(obj.trkPFull,2),trkD,size(obj.trkPFull,4)));
+%           end
+%           mdMov = repmat({movFileID},nRowsToAdd,1);
+%           mdFrm = find(tfNotNanFrm);
+%           mdFrm = mdFrm(:);
+%           mdNew = table(mdMov,mdFrm,'VariableNames',TRKMDVARNAMES);
+%           obj.trkPMD = cat(1,obj.trkPMD,mdNew);
+%           tsNew = tfile.pTrkTS(:,tfNotNanFrm);
+%           tsNew = max(tsNew,1)';
+%           obj.trkPTS = cat(1,obj.trkPTS,tsNew);
+% 
+%           % tfile.pTrkTag is ignored
+%           tftmp = ~cellfun(@isempty,tfile.pTrkTag);
+%           if any(tftmp(:))
+%             warningNoTrace('CPRLabelTracker:importTrackingResults',...
+%               'Movie %s: Ignoring nontrivial .pTrkTag field in TrkFile.',movFileFull);
+%           end
+%           
+%           fprintf(1,'Movie %s: loaded %d frames of tracking results.\n',...
+%             movFileFull,nRowsToAdd);
+%         end
+%         
+%         assert(isequal(size(obj.trkP,1),size(obj.trkPMD,1),size(obj.trkPTS,1)));
+%         if obj.storeFullTracking
+%           assert(size(obj.trkP,1)==size(obj.trkPFull,1));
+%         end
+%       end
+%       fprintf(1,'Loaded tracking results for %d movies.\n',nMovs);
+%     end
     
     function clearTrackingResults(obj)
       obj.initData();
@@ -1256,12 +1286,11 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function newLabelerFrame(obj)
-      % Update .hXYPrdRed based on current Labeler frame and 
-      % .xyPrdCurrMovie
+      % Update .hXYPrdRed based on current Labeler frame and .xyPrdCurrMovie
 
       npts = obj.nPts;
       % get xy and isinterp
-      [xy,isinterp] = obj.getCurrentPrediction();
+      [xy,isinterp,xyfull] = obj.getCurrentPrediction();
       
       if isinterp
         plotargs = obj.xyVizPlotArgsInterp;
@@ -1272,6 +1301,14 @@ classdef CPRLabelTracker < LabelTracker
       hXY = obj.hXYPrdRed;
       for iPt = 1:npts
         set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2),plotargs{:});
+      end
+      
+      if obj.showVizReplicates && obj.storeFullTracking
+        hXY = obj.hXYPrdFull;
+        plotargs = obj.xyVizFullPlotArgs;
+        for iPt = 1:npts
+          set(hXY(iPt),'XData',xyfull(iPt,1,:),'YData',xyfull(iPt,2,:),plotargs{:});
+        end
       end
     end
     
@@ -1406,7 +1443,10 @@ classdef CPRLabelTracker < LabelTracker
     % KB20160724: made a function to get the prediction for the current
     % frame, copied code from newLabelerFrame, and replaced codeblock with
     % function call in newLabelerFrame
-    function [xy,isinterp] = getCurrentPrediction(obj)
+    function [xy,isinterp,xyfull] = getCurrentPrediction(obj)
+      % xy: [nPtsx2]
+      % isinterp: scalar logical
+      % xyfull: [nPtsx2xnRep]. Only available if .storeFullTracking is true 
       
       frm = obj.lObj.currFrame;
       npts = obj.nPts;
@@ -1422,7 +1462,15 @@ classdef CPRLabelTracker < LabelTracker
         
         xy = obj.xyPrdCurrMovie(:,:,frm); % [npt x d]
         isinterp = obj.xyPrdCurrMovieIsInterp(frm);
-      end      
+      end
+      if obj.storeFullTracking
+        % frm should have gone through 'else' branch above and should be
+        % in-range for .xyPrdMovieFull
+        
+        xyfull = obj.xyPrdCurrMovieFull(:,:,:,frm);        
+      else
+        xyfull = [];
+      end
     end
     
   end
@@ -1531,9 +1579,12 @@ classdef CPRLabelTracker < LabelTracker
       obj.xyPrdCurrMovieIsInterp = [];
       deleteValidHandles(obj.hXYPrdRed);
       obj.hXYPrdRed = [];
+      deleteValidHandles(obj.hXYPrdFull);
+      obj.hXYPrdFull = [];
       
       % init .xyVizPlotArgs*
       trackPrefs = obj.lObj.projPrefs.Track;
+      cprPrefs = obj.lObj.projPrefs.CPRLabelTracker;
       plotPrefs = trackPrefs.PredictPointsPlot;
       plotPrefs.HitTest = 'off';
       obj.xyVizPlotArgs = struct2paramscell(plotPrefs);
@@ -1541,7 +1592,8 @@ classdef CPRLabelTracker < LabelTracker
         obj.xyVizPlotArgsInterp = struct2paramscell(trackPrefs.PredictInterpolatePointsPlot);
       else
         obj.xyVizPlotArgsInterp = obj.xyVizPlotArgs;
-      end      
+      end
+      obj.xyVizFullPlotArgs = struct2paramscell(cprPrefs.PredictReplicatesPlot);
       
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
@@ -1550,12 +1602,15 @@ classdef CPRLabelTracker < LabelTracker
       arrayfun(@(x)hold(x,'on'),ax);
       ipt2View = obj.lObj.labeledposIPt2View;
       hTmp = gobjects(npts,1);
+      hTmp2 = gobjects(npts,1);
       for iPt = 1:npts
         clr = ptsClrs(iPt,:);
         iVw = ipt2View(iPt);
         hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
+        hTmp2(iPt) = plot(ax(iVw),nan,nan,obj.xyVizFullPlotArgs{:},'Color',clr);
       end
       obj.hXYPrdRed = hTmp;
+      obj.hXYPrdFull = hTmp2;
     end
     
     function vizLoadXYPrdCurrMovie(obj)
@@ -1617,6 +1672,10 @@ classdef CPRLabelTracker < LabelTracker
       assert(isscalar(v));
       v = logical(v);
       if v
+        if ~obj.storeFullTracking %#ok<MCSUP>
+          warning('CPRLabelTracker:viz',...
+            'Currently not storing full tracking; replicate visualization will be unavailable.');
+        end
         [obj.hXYPrdFull.Visible] = deal('on'); %#ok<MCSUP>
       else
         [obj.hXYPrdFull.Visible] = deal('off'); %#ok<MCSUP>

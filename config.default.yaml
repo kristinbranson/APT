@@ -84,7 +84,7 @@ InfoTimelines:
 
 Track:
   Enable: 0
-  Type: CPRLabelTracker  
+  Type: CPRLabelTracker
   PredictFrameStep: 5
   PredictFrameStepBig: 10
   PredictNeighborhood: 100
@@ -97,6 +97,9 @@ Track:
     Marker: '.'
     MarkerSize: 5
     LineWidth: 1
+
+CPRLabelTracker:
+  StoreFullTracking: 0 # If true, store tracking results with replicates/iterations
   PredictReplicatesPlot: # Plot cosmetics for tracking replicates
     Marker: '.'
     MarkerSize: 5

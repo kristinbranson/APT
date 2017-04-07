@@ -108,8 +108,9 @@ handles.menu_view_show_tick_labels = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_tick_labels_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Show tick labels',...
   'Tag','menu_view_show_tick_labels',...
+  'Separator','on',...
   'Checked','off');
-moveMenuItemAfter(handles.menu_view_show_tick_labels,handles.menu_view_hide_predictions);
+moveMenuItemAfter(handles.menu_view_show_tick_labels,handles.menu_view_show_replicates);
 handles.menu_view_show_grid = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_grid_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Show grid',...
@@ -122,6 +123,13 @@ handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_show_3D_axes',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
+
+handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Store tracking replicates/iterations',...
+  'Tag','menu_track_store_full_tracking',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_track_store_full_tracking,handles.menu_track_track_and_export);
 
 handles.menu_track_use_all_labels_to_train = uimenu(...
   'Parent',handles.menu_track,...
@@ -184,6 +192,7 @@ handles.setupMenu2LabelMode = struct(tmp{:});
 
 hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
+set(handles.axes_occ,'XTick',[],'YTick',[]);
 
 handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
 set(handles.image_curr,'hittest','off');
@@ -816,6 +825,7 @@ if tf
   lObj.tracker.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions));
   lObj.tracker.addlistener('trnDataDownSamp','PostSet',@(src1,evt1) cbkTrackerTrnDataDownSampChanged(src1,evt1,handles));
   lObj.tracker.addlistener('showVizReplicates','PostSet',@(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles));
+  lObj.tracker.addlistener('storeFullTracking','PostSet',@(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
 end
 
 function cbkTrackerNFramesChanged(src,evt)
@@ -1425,7 +1435,21 @@ handles.menu_view_show_replicates.Checked = ...
 
 function menu_view_show_replicates_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
-tObj.vizShowReplicates = ~tObj.vizShowReplicates;
+vsr = tObj.showVizReplicates;
+vsrnew = ~vsr;
+sft = tObj.storeFullTracking;
+if vsrnew && ~sft
+  qstr = 'Replicates will be stored with tracking results. This can significantly increase program memory usage.';
+  resp = questdlg(qstr,'Warning','OK, continue','Cancel','OK, continue');
+  if isempty(resp)
+    resp = 'Cancel';
+  end
+  if strcmp(resp,'Cancel')
+    return;
+  end
+  tObj.storeFullTracking = true;
+end
+tObj.showVizReplicates = vsrnew;
 
 function cbkLabels2HideChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1611,6 +1635,28 @@ tObj.trnDataSelect();
 function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();
 
+function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
+handles.menu_track_store_full_tracking.Checked = ...
+  onIff(handles.labelerObj.tracker.storeFullTracking);
+
+function menu_track_store_full_tracking_Callback(hObject, eventdata, handles)
+tObj = handles.labelerObj.tracker;
+svr = tObj.showVizReplicates;
+sft = tObj.storeFullTracking;
+sftnew = ~sft;
+if ~sftnew && svr
+  qstr = 'Replicates will no longer by shown. OK?';
+  resp = questdlg(qstr,'Warning','OK, continue','No, cancel','OK, continue');
+  if isempty(resp)
+    resp = 'No, cancel';
+  end
+  if strcmp(resp,'No, cancel')
+    return;
+  end
+  tObj.showVizReplicates = false;
+end
+tObj.storeFullTracking = sftnew;
+
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 tm = getTrackMode(handles);
@@ -1650,7 +1696,7 @@ lObj = handles.labelerObj;
 tObj = lObj.tracker;
 if ~isempty(tObj)
   xy = tObj.getCurrentPrediction();
-  if any(isnan(xy(:))),
+  if any(isnan(xy(:)))
     fprintf('No predictions for current frame, not labeling.\n');
     return;
   end

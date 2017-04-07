@@ -188,7 +188,9 @@ classdef LabelTracker < handle
       end
     end
     
-    function getCurrentPrediction(obj)
+    function xy = getCurrentPrediction(obj)
+      % xy: [nptsx2] tracked results for current Labeler frame
+      xy = [];
     end
     
   end
