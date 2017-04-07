@@ -1440,7 +1440,7 @@ vsrnew = ~vsr;
 sft = tObj.storeFullTracking;
 if vsrnew && ~sft
   qstr = 'Replicates will be stored with tracking results. This can significantly increase program memory usage.';
-  resp = questdlg(qstr,'Warning','OK, continue','Cancel','OK, continue');
+  resp = questdlg(qstr,'Warning: Memory Usage','OK, continue','Cancel','OK, continue');
   if isempty(resp)
     resp = 'Cancel';
   end
@@ -1646,7 +1646,7 @@ sft = tObj.storeFullTracking;
 sftnew = ~sft;
 if ~sftnew && svr
   qstr = 'Replicates will no longer by shown. OK?';
-  resp = questdlg(qstr,'Warning','OK, continue','No, cancel','OK, continue');
+  resp = questdlg(qstr,'Tracking Storage','OK, continue','No, cancel','OK, continue');
   if isempty(resp)
     resp = 'No, cancel';
   end

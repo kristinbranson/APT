@@ -102,8 +102,7 @@ CPRLabelTracker:
   StoreFullTracking: 0 # If true, store tracking results with replicates/iterations
   PredictReplicatesPlot: # Plot cosmetics for tracking replicates
     Marker: '.'
-    MarkerSize: 5
-    LineWidth: 1
+    MarkerSize: 15
 
 Shortcuts: # shortcuts. case insensitive!
   menu_file_load: o # file -> load project

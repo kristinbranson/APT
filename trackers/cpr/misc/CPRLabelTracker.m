@@ -3,6 +3,7 @@ classdef CPRLabelTracker < LabelTracker
   properties (Constant,Hidden)
     TRAINEDTRACKER_SAVEPROPS = { ...
       'sPrm' ...
+      'storeFullTracking' 'showVizReplicates' ...
       'trnDataDownSamp' 'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnResH0' 'trnResIPt' 'trnResRC'};
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
@@ -10,6 +11,10 @@ classdef CPRLabelTracker < LabelTracker
     DEFAULT_PARAMETER_FILE = lclInitDefaultParameterFile();
   end
   
+  properties
+    isInit = false; % true during load; invariants can be broken
+  end
+    
   %% Params
   properties
     sPrm % full parameter struct
@@ -136,6 +141,7 @@ classdef CPRLabelTracker < LabelTracker
       else
         obj.trkPFull = []; %#ok<MCSUP>
         obj.xyPrdCurrMovieFull = []; %#ok<MCSUP>
+        obj.vizClearReplicates();
       end
       obj.storeFullTracking = v;
     end
@@ -486,7 +492,8 @@ classdef CPRLabelTracker < LabelTracker
       %  movies in a movieset have differing numbers of frames, then nfrm
       %  will equal the minimum number of frames across the movieset.
       % trkposTS: [nptstrk x nfrm(iMov)]. Timestamps for trkpos.
-      % trkposFull: [nptstrk x d x nRep x nfrm(iMov)]. 4d results.
+      % trkposFull: [nptstrk x d x nRep x nfrm(iMov)]. 4d results. 
+      %   Currently this is all nans if .storeFullTracking is false.
       % tfHasRes: if true, nontrivial tracking results returned
       
       lObj = obj.lObj;
@@ -546,8 +553,7 @@ classdef CPRLabelTracker < LabelTracker
     %#MV
     function initHook(obj)
       % "config init"
-      obj.storeFullTracking = obj.lObj.projPrefs.CPRLabelTracker.StoreFullTracking;
-      
+      obj.storeFullTracking = obj.lObj.projPrefs.CPRLabelTracker.StoreFullTracking;      
       
       obj.initData();
       obj.trnDataInit();
@@ -1134,7 +1140,10 @@ classdef CPRLabelTracker < LabelTracker
       end
         
       for i = nMov:-1:1        
-        [trkpos,trkposTS,trkposFull,tfHasRes(i)] = obj.getTrackResRaw(iMovs(i));        
+        [trkpos,trkposTS,trkposFull,tfHasRes(i)] = obj.getTrackResRaw(iMovs(i));
+        if ~obj.storeFullTracking
+          trkposFull = trkposFull(:,:,[],:);
+        end        
         if tfMultiView
           assert(size(trkpos,1)==nPhysPts*nview);
           for ivw=nview:-1:1
@@ -1303,7 +1312,7 @@ classdef CPRLabelTracker < LabelTracker
         set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2),plotargs{:});
       end
       
-      if obj.showVizReplicates && obj.storeFullTracking
+      if obj.showVizReplicates && obj.storeFullTracking && ~isequal(xyfull,[])
         hXY = obj.hXYPrdFull;
         plotargs = obj.xyVizFullPlotArgs;
         for iPt = 1:npts
@@ -1420,6 +1429,14 @@ classdef CPRLabelTracker < LabelTracker
         % Go from [ntrkfrm x D x Tp1] -> [ntrkfrm x D]
         s.trkP = s.trkP(:,:,end);
       end
+      
+      % 20170407: storeFullTracking, showVizReplicates
+      if ~isfield(s,'storeFullTracking')
+        s.storeFullTracking = false;
+      end
+      if ~isfield(s,'showVizReplicates')
+        s.showVizReplicates = false;
+      end
 
       % set parameter struct s.sPrm on obj
       assert(isfield(s,'paramFile'));
@@ -1432,9 +1449,16 @@ classdef CPRLabelTracker < LabelTracker
       % set everything else
       flds = fieldnames(s);
       flds = setdiff(flds,'sPrm');
-      for f=flds(:)',f=f{1}; %#ok<FXSET>
-        obj.(f) = s.(f);
+      obj.isInit = true;
+      try
+        for f=flds(:)',f=f{1}; %#ok<FXSET>
+          obj.(f) = s.(f);
+        end
+      catch ME
+        obj.isInit = false;
+        ME.rethrow();
       end
+      obj.isInit = false;
       
       obj.vizLoadXYPrdCurrMovie();
       obj.newLabelerFrame();
@@ -1463,7 +1487,7 @@ classdef CPRLabelTracker < LabelTracker
         xy = obj.xyPrdCurrMovie(:,:,frm); % [npt x d]
         isinterp = obj.xyPrdCurrMovieIsInterp(frm);
       end
-      if obj.storeFullTracking
+      if obj.storeFullTracking && ~isequal(obj.xyPrdCurrMovieFull,[])
         % frm should have gone through 'else' branch above and should be
         % in-range for .xyPrdMovieFull
         
@@ -1593,7 +1617,8 @@ classdef CPRLabelTracker < LabelTracker
       else
         obj.xyVizPlotArgsInterp = obj.xyVizPlotArgs;
       end
-      obj.xyVizFullPlotArgs = struct2paramscell(cprPrefs.PredictReplicatesPlot);
+      obj.xyVizFullPlotArgs = ...
+        [struct2paramscell(cprPrefs.PredictReplicatesPlot) {'LineStyle' 'none'}];
       
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
@@ -1611,6 +1636,15 @@ classdef CPRLabelTracker < LabelTracker
       end
       obj.hXYPrdRed = hTmp;
       obj.hXYPrdFull = hTmp2;
+    end
+    
+    function vizClearReplicates(obj)
+      hXY = obj.hXYPrdFull;
+      if ~isempty(hXY) % can be empty during initHook
+        for iPt = 1:obj.nPts
+          set(hXY(iPt),'XData',nan,'YData',nan);
+        end
+      end
     end
     
     function vizLoadXYPrdCurrMovie(obj)
@@ -1672,7 +1706,7 @@ classdef CPRLabelTracker < LabelTracker
       assert(isscalar(v));
       v = logical(v);
       if v
-        if ~obj.storeFullTracking %#ok<MCSUP>
+        if ~obj.storeFullTracking && ~obj.isInit %#ok<MCSUP>
           warning('CPRLabelTracker:viz',...
             'Currently not storing full tracking; replicate visualization will be unavailable.');
         end
