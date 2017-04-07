@@ -233,6 +233,11 @@ classdef Session < handle
     methods      
       function imagesUsed = calibrate(this)
         
+        if this.IsValidSingleCameraSession && ~this.IsValidStereoCameraSession
+          imagesUsed = this.calibrateOrig();
+          return;
+        end
+        
         if verLessThan('matlab','R2016b')
           error('Session:cal','MATLAB R2016b or later required for Orthocam calibration.');
         end
@@ -447,12 +452,11 @@ classdef Session < handle
         
         msgbox('Stereo Orthocam calibration complete.');
         imagesUsed = [];
-        return;
-                
+        return;                
+      end
         
-        
-        % viz extrinsics
-
+        %------------------------------------------------------------------
+        function imagesUsed = calibrateOrig(this)
             if isempty(this.OptimizationOptions) || ...
                     isempty(this.OptimizationOptions.InitialDistortion)
                 numRadial = this.CameraModel.NumDistortionCoefficients;                
@@ -485,6 +489,7 @@ classdef Session < handle
             this.CameraParameters = cameraParams;
             this.EstimationErrors = estimationErrors;
         end
+ 
         
         %------------------------------------------------------------------
         function codeString = generateCode(this)

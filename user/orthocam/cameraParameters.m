@@ -382,8 +382,7 @@ classdef cameraParameters < vision.internal.calibration.CameraParametersImpl & m
             xdata = repmat(this.WorldPoints, [numImages, 1]);            
             ydata = arrangeImagePointsIntoMatrix(imagePoints);    
                
-            %options = optimset('Display', 'iter', 'Jacobian', 'on','TolFun',1e-8,'tolX',1e-10,'maxiter',2e4);
-            options = optimset('Display', 'iter', 'Jacobian', 'on','TolFun',1e-8,'tolX',1e-10,'maxiter',2);
+            options = optimset('Display', 'iter', 'Jacobian', 'on','TolFun',1e-8,'tolX',1e-10,'maxiter',2e4);
             
             worldPoints = this.WorldPoints;
             worldPointsXYZ = [worldPoints, zeros(size(worldPoints, 1), 1)]';
