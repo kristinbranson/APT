@@ -439,8 +439,16 @@ classdef Session < handle
         calObj.xformWorldSys(calObj.ijkCamWorld1');
         hFig = calObj.viewExtrinsics();
         
-        [thispath,thisfile] = fileparts(this.Filename);
-        calResFileProposed = fullfile(thispath,[thisfile '_orthocam_strocal.mat']);
+        if ~isempty(this.Filename)
+          [stropath,strofile] = fileparts(this.Filename);
+          calResFileProposed = fullfile(stropath,[strofile '_orthocam_strocal.mat']);
+        elseif isfield(info,'cam1calresfile') && ~isempty(info.cam1calresfile)
+          stropath = fileparts(info.cam1calresfile);
+          calResFileProposed = fullfile(stropath,'orthocam_strocal.mat');
+        else
+          stropath = pwd;
+          calResFileProposed = fullfile(stropath,'orthocam_strocal.mat');
+        end
         [fname,pth] = uiputfile('*.mat','Save stereo Orthocam calibration.',calResFileProposed);
         if isequal(fname,0)
           % none
