@@ -1016,7 +1016,7 @@ classdef CPRLabelTracker < LabelTracker
         assert(prm.Model.d==2);
         Dfull = nfids*nview*prm.Model.d;
         pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
-        pTstTRed = nan(NTst,Dfull,prm.Reg.T+1);
+        pTstTRed = nan(NTst,Dfull);
         for iView=1:nview
           rc = obj.trnResRC(iView);
           IsVw = Is(:,iView);          
@@ -1041,12 +1041,12 @@ classdef CPRLabelTracker < LabelTracker
           pTstTVw = reshape(p_t,[NTst RT trkD Tp1]);
           
           %% Select best preds for each time
-          pTstTRedVw = nan(NTst,trkD,Tp1);
+          pTstTRedVw = nan(NTst,trkD);
           prm.Prune.prune = 1;
-          for t = 1:Tp1
+          for t=Tp1
             fprintf('Pruning t=%d\n',t);
             pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
-            pTstTRedVw(:,:,t) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
+            pTstTRedVw(:,:) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
           end
           
           assert(trkD==Dfull/nview);
@@ -1054,7 +1054,7 @@ classdef CPRLabelTracker < LabelTracker
           iFull = (1:nfids)+(iView-1)*nfids;
           iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
           pTstT(:,:,iFull,:) = pTstTVw;
-          pTstTRed(:,iFull,:) = pTstTRedVw;
+          pTstTRed(:,iFull) = pTstTRedVw;
         end
           
         % Augment .trkP* state with new tracking results
@@ -1075,7 +1075,7 @@ classdef CPRLabelTracker < LabelTracker
         [tf,loc] = ismember(trkPMDnew,trkPMDcur);
         % existing rows
         idxCur = loc(tf);
-        obj.trkP(idxCur,:) = pTstTRed(tf,:,end);
+        obj.trkP(idxCur,:) = pTstTRed(tf,:);
         if obj.storeFullTracking
           if ~isequal(obj.trkPFull,[])
             szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull prm.Reg.T+1]);
@@ -1087,7 +1087,7 @@ classdef CPRLabelTracker < LabelTracker
         nowts = now;
         obj.trkPTS(idxCur) = nowts;
         % new rows
-        obj.trkP = [obj.trkP; pTstTRed(~tf,:,end)];
+        obj.trkP = [obj.trkP; pTstTRed(~tf,:)];
         if obj.storeFullTracking
           obj.trkPFull = [obj.trkPFull; single(pTstT(~tf,:,:,:))];
         end
