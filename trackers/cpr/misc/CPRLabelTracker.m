@@ -673,9 +673,9 @@ classdef CPRLabelTracker < LabelTracker
         % use all labeled data
         tblPTrn = obj.getTblPLbled();
         
-        assert(isnan(obj.trnDataFFDThresh));
+        obj.trnDataFFDThresh = nan;
         % still set .trnDataTblP, .trnDataTblPTS to enable incremental
-        % training
+        % training        
         obj.trnDataTblP = tblPTrn;
         nowtime = now();
         obj.trnDataTblPTS = nowtime*ones(size(tblPTrn,1),1);
