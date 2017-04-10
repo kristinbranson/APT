@@ -29,7 +29,7 @@ Verify that the reproduction error is good with these single-camera calibrations
 After both single Orthocam calibrations are done, you can save the results. The next time you need to run this stereo calibration, you can skip the mono-calibrations and directly load these single-camera OrthoCam calibration results.
 
 **Step 3b. Optionally, select a "base" pattern for the stereo calibration.**
-This is a technical quirk with the current implementation. One calibration-pattern-pair is currently selected to serve as a common coordinate system for the optimization. Pattern-pairs that are "unusual" (eg upside-down, far from image center(s) etc) should not be chosen as they can lead to convergence problems. Select a very "normal" pattern-pair for this step.
+This is a technical quirk with the current implementation. One calibration-pattern-pair is currently selected to serve as a common coordinate system for the optimization. Pattern-pairs that are "unusual" (eg upside-down, far from image center(s) etc) should not be chosen as they can lead to convergence problems. Select a very "normal" pattern-pair for this step  (X to right; Y down).
 
 **Step 3c. Run the stereo optimization.**
 Again, *lsqnonlin* is used for the optimization. This optimization is tougher, and usually requires restarts. Rather than just letting the optimizer run continuously for a long time, using restarts seems to shock/randomize the optimizer and provides for a faster overall optimization. The residual will decrease slowly at times and will make large leaps at other times. 
