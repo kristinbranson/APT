@@ -147,12 +147,7 @@ classdef OrthoCam
       
       W = R2(1:2,:)*X + t2;
       szassert(W,[2 npts]);
-      r2 = sum(W.^2,1); % [1xnpts]
-      distort = 1 + k1*r2 + k2*r2.^2; % [1xnpts]
-      
-      Wd = W.*distort;
-      uv = [ mx*Wd(1,:) + u0 ; ...
-             my*Wd(2,:) + v0 ]; % [2xnpts]
+      uv = OrthoCam.normalized2projected(mx,my,u0,v0,k1,k2,W);
     end
     function [x0y0,n,x1y0,x0y1,ijkCamWorld] = opticalCenter(R2cam,t2cam)
       % Find the "optical center" for a cam; the WorldPoint (x0,y0,0) where
@@ -214,7 +209,45 @@ classdef OrthoCam
         az = phi+pi/2;
       end
       el = pi/2-theta;
-    end   
+    end
+    function uv = normalized2projected(mx,my,u0,v0,k1,k2,pq)
+      % pq: [2xn]
+      % uv: [2xn]
+      
+      assert(size(pq,1)==2);
+      
+      r2 = sum(pq.^2,1); % [1xn]
+      distort = 1 + k1*r2 + k2*r2.^2; % [1xn]
+      
+      pqD = pq.*distort;
+      uv = [ mx*pqD(1,:) + u0 ; ...
+             my*pqD(2,:) + v0 ]; % [2xn]  
+    end
+    function pq = projected2normalized(mx,my,u0,v0,k1,k2,uv)
+      % uv: [2xn] 
+      % pq: [2xn]
+      
+      n = size(uv,2);
+      szassert(uv,[2 n]);
+      
+      udel = uv(1,:)-u0;
+      vdel = uv(2,:)-v0;
+      th = atan2(mx*vdel,my*udel);
+      szassert(th,[1 n]);
+      
+      rfuncreate = @(zUdel,zVdel) @(zR) zR^2*(1+k1*zR^2+k2*zR^4)^2 - zUdel^2/mx^2 - zVdel^2/my^2;
+      r = nan(1,n);
+      for i=1:n
+        rfun = rfuncreate(udel(i),vdel(i));
+        r(i) = fzero(rfun,0);
+      end
+      r = abs(r);
+      
+      p = r.*cos(th);
+      q = r.*sin(th);
+      pq = [p;q];
+      szassert(pq,[2 n]);
+    end
     function p0 = p0default1cam(nCalIm)
       mx0 = 255;
       my0 = 255;
