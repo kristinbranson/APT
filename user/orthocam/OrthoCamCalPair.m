@@ -98,6 +98,7 @@ classdef OrthoCamCalPair < handle
     % uv=[u;v] Image coords; (col,row) pixel coords on image
     
     function [X,d,uvreL,uvreR] = stereoTriangulate(obj,uvL,uvR)
+      % [X,d,uvreL,uvreR] = stereoTriangulate(obj,uvL,uvR)
       % Stereo triangulation
       %
       % uvL, uvR: [2xN] x-y image coords
@@ -133,6 +134,7 @@ classdef OrthoCamCalPair < handle
     end
     
     function uv = project(obj,X,icam)
+      % uv = project(obj,X,icam)
       % Project 3D world coords to camera image
       % 
       % X: [3xn] world coords
