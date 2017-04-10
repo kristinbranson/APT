@@ -128,17 +128,32 @@ classdef OrthoCamCalPair < handle
         X(:,i) = (P+Q)/2;
       end
       
-      R2L = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1);
-      t2L = obj.t2vec1;
-      R2R = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
-      t2R = obj.t2vec2;
-      int1 = obj.tblInt(1,:);
-      int2 = obj.tblInt(2,:);     
-      uvreL = OrthoCam.project(X,R2L,t2L,...
-        int1.k1,int1.k2,int1.mx,int1.my,int1.u0,int1.v0);
-      uvreR = OrthoCam.project(X,R2R,t2R,...
-        int2.k1,int2.k2,int2.mx,int2.my,int2.u0,int2.v0);
-    end    
+      uvreL = obj.project(X,1);
+      uvreR = obj.project(X,2);
+    end
+    
+    function uv = project(obj,X,icam)
+      % Project 3D world coords to camera image
+      % 
+      % X: [3xn] world coords
+      % icam: camera index, 1/2 for left/right resp
+      %
+      % uv: [2xn] x- and y-pixel coords (NOT row/col) in camera icam
+      
+      assert(size(X,1)==3);
+      assert(icam==1 || icam==2);
+      
+      switch icam
+        case 1
+          R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1);
+          t2 = obj.t2vec1;
+        case 2
+          R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
+          t2 = obj.t2vec2;
+      end
+      int = obj.tblInt(icam,:);
+      uv = OrthoCam.project(X,R2,t2,int.k1,int.k2,int.mx,int.my,int.u0,int.v0);
+    end
     
     function pq = projected2normalized(obj,uv,icam)
       % uv: [2xN]
