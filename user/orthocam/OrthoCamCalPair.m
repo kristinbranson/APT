@@ -104,7 +104,7 @@ classdef OrthoCamCalPair < handle
       % 
       % X: [3xN]: reconstructed world coords
       % d: [1xN]: error/discrepancy in closest approach. d=0 indicates
-      % apparently "perfect" reconstruction where epipolar rays meet
+      %   apparently "perfect" reconstruction where epipolar rays meet
       % uvreL, uvreR: [2xN]: reprojected x-y image coords
       
       pqL = obj.projected2normalized(uvL,1);
