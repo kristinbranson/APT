@@ -104,7 +104,10 @@ classdef CalRig < handle
         error('CalRig:load','No variables found in file: %s.',fname);
       end
       
-      if isa(s.(vars{1}),'CalRig') % Could check all vars
+      if isa(s.(vars{1}),'OrthoCamCalPair')
+        obj = s.(vars{1});
+        tfSetViewSizes = true;
+      elseif isa(s.(vars{1}),'CalRig') % Could check all vars
         obj = s.(vars{1});
         tfSetViewSizes = false;
       elseif all(ismember({'DLT_1' 'DLT_2'},vars))
@@ -179,7 +182,6 @@ classdef CalRig < handle
         rout = m*(cout-minc)+r(minci);        
       end
       y = [rout,cout];
-
     end
 
   end

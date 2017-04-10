@@ -1,4 +1,4 @@
-classdef OrthoCamCalPair < handle
+classdef OrthoCamCalPair < CalRig
   % A pair of calibrated Orthocams, with calibration info
   
   properties
@@ -18,9 +18,7 @@ classdef OrthoCamCalPair < handle
     % issues due to the cameras being at precisely 90deg, etc.
     optCtr1 % [3x1] World coords where cam1 optical axis intersected original WorldSys (cal pattern) at z=0 
     optCtr2 % [3x1] " cam2
-    n1 % [3x1] unit normal vec pointing from optCtr1 to cam1 at infinity; optical axis
-    n2 % [3x1] " cam2
-    ijkCamWorld1 % [3x3] columns are "CamWorldCoords" i/j/k unit vecs in WorldSys for cam1
+    ijkCamWorld1 % [3x3] columns are "CamWorldCoords" i/j/k unit vecs in WorldSys for cam1; k is negatice optical axis
     ijkCamWorld2 % "
 
     calNumPatterns % number of calibration patterns used
@@ -29,6 +27,12 @@ classdef OrthoCamCalPair < handle
     calImPoints % [2xnPtsxnPatx2] (x,y) for each point, pattern, camera
     calPatternFPNs % [nPatx2] cellstr of calibration images
     calTS % timestamp of most recent calibration
+  end
+  
+  properties % CalRig
+    nviews = 2;
+    viewNames = {'side' 'front'};
+    viewSizes = [1024 1024;1024 1024];;    
   end
 
   methods
@@ -49,9 +53,9 @@ classdef OrthoCamCalPair < handle
       obj.calWorldPoints = worldPts;
       obj.calImPoints = imPts;
       obj.calPatternFPNs = calPatFPNs;
-      [obj.optCtr1,obj.n1,~,~,obj.ijkCamWorld1] = ...
+      [obj.optCtr1,~,~,~,obj.ijkCamWorld1] = ...
         OrthoCam.opticalCenter(vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1),obj.t2vec1);
-      [obj.optCtr2,obj.n2,~,~,obj.ijkCamWorld2] = ...
+      [obj.optCtr2,~,~,~,obj.ijkCamWorld2] = ...
         OrthoCam.opticalCenter(vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2),obj.t2vec2);
       obj.optCtr1(end+1) = 0;
       obj.optCtr2(end+1) = 0;
@@ -61,8 +65,8 @@ classdef OrthoCamCalPair < handle
     function hFig = viewExtrinsics(obj)
       hFig = OrthoCam.viewExtrinsics(obj.calWorldPoints,...
         obj.rvecs,obj.tvecs,obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,...
-        'cam1info',struct('optCtr',obj.optCtr1,'n',obj.n1,'ijkCamWorld',obj.ijkCamWorld1),...
-        'cam2info',struct('optCtr',obj.optCtr2,'n',obj.n2,'ijkCamWorld',obj.ijkCamWorld2));
+        'cam1info',struct('optCtr',obj.optCtr1,'n',-obj.ijkCamWorld1(:,3),'ijkCamWorld',obj.ijkCamWorld1),...
+        'cam2info',struct('optCtr',obj.optCtr2,'n',-obj.ijkCamWorld2(:,3),'ijkCamWorld',obj.ijkCamWorld2));
     end
     
     function xformWorldSys(obj,R)
@@ -85,8 +89,6 @@ classdef OrthoCamCalPair < handle
       
       obj.optCtr1 = R*obj.optCtr1;
       obj.optCtr2 = R*obj.optCtr2;
-      obj.n1 = R*obj.n1;
-      obj.n2 = R*obj.n2;
       obj.ijkCamWorld1 = R*obj.ijkCamWorld1;
       obj.ijkCamWorld2 = R*obj.ijkCamWorld2;
     end
@@ -123,9 +125,10 @@ classdef OrthoCamCalPair < handle
       szassert(OR,[3 n]);
       X = nan(3,n);
       d = nan(1,n);      
+      n1 = -obj.ijkCamWorld1(:,3);
+      n2 = -obj.ijkCamWorld2(:,3);
       for i=1:n
-        [P,Q,d(i)] = CalibratedRig.stereoTriangulateRays(OL(:,i),obj.n1,...
-          OR(:,i),obj.n2);
+        [P,Q,d(i)] = CalibratedRig.stereoTriangulateRays(OL(:,i),n1,OR(:,i),n2);
         X(:,i) = (P+Q)/2;
       end
       
@@ -158,13 +161,90 @@ classdef OrthoCamCalPair < handle
     end
     
     function pq = projected2normalized(obj,uv,icam)
-      % uv: [2xN]
+      % uv: [2xn]
       % icam: camera index
+      %
+      % pq: [2xn]
       
       assert(isnumeric(icam) && (icam==1 || icam==2));
       ints = obj.tblInt(icam,:);
       pq = OrthoCam.projected2normalized(ints.mx,ints.my,ints.u0,ints.v0,...
         ints.k1,ints.k2,uv);
+    end
+    
+  end
+  
+  methods %CalRig
+    
+    function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,uv1,iViewEpi)
+      % [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
+      % 
+      % iView1: either 1 (L) or 2 (R)
+      % uv1: [2] x-y image coords
+      % iViewEpi: either 1 (L) or 2 (R)
+      %
+      % xEPL, yEPL: [nx1] each; points in epipolar line
+
+      assert(iView1==1 || iView1==2);
+      assert(numel(uv1)==2);
+      assert(iViewEpi==1 || iViewEpi==2);
+      
+      pq1 = obj.projected2normalized(uv1(:),iView1);
+      
+      switch iView1
+        case 1
+          optCtr = obj.optCtr1;
+          ijkCam = obj.ijkCamWorld1;
+        case 2
+          optCtr = obj.optCtr2;
+          ijkCam = obj.ijkCamWorld2;
+      end
+      
+      O1 = optCtr + pq1(1)*ijkCam(:,1) + pq1(2)*ijkCam(:,2);
+      szassert(O1,[3 1]);
+      MAXS = 7; % mm
+      DS = .05; % mm
+      s = -MAXS:DS:MAXS;
+      XEPL = O1 + s.*ijkCam(:,3);
+      
+      uvEPL = obj.project(XEPL,iViewEpi);
+      rc = uvEPL([2 1],:)';
+      rcCrop = obj.cropLines(rc,iViewEpi);
+      xEPL = rcCrop(:,2);
+      yEPL = rcCrop(:,1);
+    end
+
+    function [u_p,v_p,w_p] = reconstruct2d(obj,x,y,iView)
+      assert(isequal(size(x),size(y)));
+      assert(isvector(x));
+      
+      uv = [x(:) y(:)]';
+      pq = obj.projected2normalized(uv,iView); % [2xn]
+      
+      assert(false,'TODO');
+%       
+%       % each col of pq is a normalized pt. The World-line corresponding to
+%       % pq(:,i) is the camera axis 
+%       szassert(pq,[2 n]);
+%       
+%       
+%       n = numel(x);
+%       dlt = obj.getDLT(iView);      
+%       u_p = nan(n,2);
+%       v_p = nan(n,2);
+%       w_p = nan(n,2);
+%       for i=1:n
+%         [u_p(i,:),v_p(i,:),w_p(i,:)] = dlt_2D_to_3D(dlt,x(i),y(i));
+%       end
+    end
+        
+    function [x,y] = project3d(obj,u,v,w,iView)
+      assert(isequal(size(u),size(v),size(w)));
+      
+      X = [u(:)';v(:)';w(:)'];
+      uv = obj.project(X,iView);
+      x = uv(1,:)';
+      y = uv(2,:)';
     end
     
   end
