@@ -132,6 +132,14 @@ handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
   'Checked','off');
 moveMenuItemBefore(handles.menu_track_store_full_tracking,handles.menu_track_track_and_export);
 
+handles.menu_track_view_tracking_diagnostics = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_view_tracking_diagnostics_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','View tracking diagnostics',...
+  'Tag','menu_track_view_tracking_diagnostics',...
+  'Separator','off',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_track_view_tracking_diagnostics,handles.menu_track_store_full_tracking);
+
 handles.menu_track_track_and_export.Separator = 'off';
 
 handles.menu_track_use_all_labels_to_train = uimenu(...
@@ -1659,6 +1667,10 @@ if ~sftnew && svr
   tObj.showVizReplicates = false;
 end
 tObj.storeFullTracking = sftnew;
+
+function menu_track_view_tracking_diagnostics_Callback(hObject, eventdata, handles)
+hVizGUI = CPRVizTrackDiagsGUI(handles.labelerObj);
+addDepHandle(handles.figure,hVizGUI);
 
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

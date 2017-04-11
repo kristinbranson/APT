@@ -13,7 +13,7 @@ classdef RegressorCascade < handle
     
     ftrSpecs % [nMjr] cell array of feature definitions/specifications. ftrSpecs{i} is either [], or a struct specifying F features
     %ftrs % [nMjr] cell array of instantiated features. ftrs{i} is either [], or NxF    
-    ftrsUse % [nMjr x nMnr x M x nUse] selected feature subsets (M=fern depth). ftrsUse(iMjr,iMnr,:,:) contains selected features for given iteration. nUse is 1 by default or can equal 2 for ftr.metatype='diff'.        
+    ftrsUse % [nMjr x nMnr x M x nUse] selected feature subsets (M=fern depth). ftrsUse(iMjr,iMnr,:,:) contains selected features for given iteration. nUse is 1 by default or can equal 2 for ftr.metatype='diff'.
     
     fernN % [nMjr x nMnr] total number of data points run through fern regression 
     fernMu % [nMjr x nMnr x D] mean output (Y) encountered by fern regression
@@ -677,6 +677,36 @@ classdef RegressorCascade < handle
       obj.prmTrainInit = sPrm.TrainInit;
       obj.prmReg = sPrm.Reg;
       obj.prmFtr = sPrm.Ftr;      
+    end
+    
+    function [ipts,ftrType] = getLandmarksUsed(obj,t)
+      % t: major iter
+      
+      fUsed = squeeze(obj.ftrsUse(t,:,:,:)); % [nMnr x M x nUse]. Feature indices (indices into rows of xs)
+      fSpec = obj.ftrSpecs{t};
+      xs = fSpec.xs;
+      ftrType = fSpec.type;
+      
+      % AL: following fragile, likely to break if/when fSpec changes
+      switch ftrType
+        case '1lm'
+          assert(size(xs,2)==4);
+          fAll = xs(:,1);
+        case '2lm'
+          assert(size(xs,2)==7);
+          fAll = xs(:,[1 2]);
+        case '2lmdiff'
+          assert(size(xs,2)==13);
+          fAll = xs(:,[1 2 8 9]);          
+      end
+      
+      % At the moment, we do the simplest thing. We return all landmarks
+      % selected/used across all minor iters; Ferns; if nUse==2
+      % (metatype = 'diff') we include both terms; for features generated
+      % using 2 landmarks, we include both
+      fUsed = fUsed(:);
+      ipts = fAll(fUsed,:);
+      ipts = ipts(:);
     end
     
   end
