@@ -29,6 +29,7 @@ classdef RegressorCascade < handle
     nMajor
     nMinor
     M
+    metaNUse
     mdld
     mdlD
     hasTrained % scalar logical; true if at least one full training has occurred
@@ -43,6 +44,17 @@ classdef RegressorCascade < handle
     end
     function v = get.M(obj)
       v = obj.prmReg.M;
+    end
+    function v = get.metaNUse(obj)
+      ftrMetaType = obj.prmFtr.metatype;
+      switch ftrMetaType
+        case 'single'
+          v = 1;
+        case 'diff'
+          v = 2;
+        otherwise
+          assert(false);
+      end
     end
     function v = get.mdld(obj)
       v = obj.prmModel.d;
@@ -83,18 +95,9 @@ classdef RegressorCascade < handle
       nMjr = obj.nMajor;
       nMnr = obj.nMinor;
       MM = obj.M;
-      ftrMetaType = obj.prmFtr.metatype;
-      switch ftrMetaType
-        case 'single'
-          nUse = 1;
-        case 'diff'
-          nUse = 2;
-        otherwise
-          assert(false);
-      end      
       
       obj.ftrSpecs = cell(nMjr,1);
-      obj.ftrsUse = nan(nMjr,nMnr,MM,nUse);
+      obj.ftrsUse = nan(nMjr,nMnr,MM,obj.metaNUse);
       
       obj.fernN = zeros(nMjr,nMnr);
       obj.fernMu = nan(nMjr,nMnr,obj.mdlD);    
@@ -633,7 +636,7 @@ classdef RegressorCascade < handle
       %
       % x: [QxM] meta-features
       
-      iFtrsUsed = squeeze(obj.ftrsUse(t,u,:,:)); % [MxnUse]
+      iFtrsUsed = squeeze(obj.ftrsUse(t,u,:,:)); % [MxnUse]      
       nUse = size(iFtrsUsed,2);
       switch metatype
         case 'single'

@@ -1,6 +1,6 @@
 function varargout = CPRVizTrackDiagsGUI(varargin)
 
-% Last Modified by GUIDE v2.5 11-Apr-2017 12:51:17
+% Last Modified by GUIDE v2.5 11-Apr-2017 14:08:24
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -97,9 +97,13 @@ vizObj.gdata.spinReplicate.setValue(rep);
 function updateLandmarkDist(vizObj)
 [ipts,ftrType] = vizObj.getLandmarksUsed();
 ax = vizObj.gdata.axLandmarkDist;
-histogram(ax,ipts,0.5:1:vizObj.lObj.nLabelPoints);
+histogram(ax,ipts,0.5:1:vizObj.lObj.nLabelPoints+0.5);
 xlabel('landmark','fontweight','bold');
 grid(ax,'on');
-tstr = sprintf('%d minorIters, %d ferns, ftrType ''%s''',vizObj.uMax,...
-  vizObj.rcObj.M,ftrType);
+tstr = sprintf('N=%d. %d minorIters, %d ferns, ftrType ''%s''',numel(ipts),...
+  vizObj.uMax,vizObj.rcObj.M,ftrType);
 title(tstr,'fontweight','bold','interpreter','none');
+
+function cbShowDiagPlots_Callback(hObject, eventdata, handles)
+
+

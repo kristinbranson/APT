@@ -620,12 +620,15 @@ classdef Features
       end
     end
     
-    function [h,str] = visualize2LM(ax,xF,yF,iView,info,iN,iF,clr)
+    function [hPlot,str] = visualize2LM(ax,xF,yF,iView,info,iN,iF,clr,varargin)
       % Visualize feature pts from compute2LM
       % 
       % xf/yf/info: from compute2LM
       % iN: trial index
       % iF: feature index
+      
+      hPlot = myparse(varargin,...
+        'hPlot',[]);
       
       assert(isequal(...
         size(xF),size(yF),...
@@ -644,12 +647,22 @@ classdef Features
       
       axplot = ax(ivw);
       
-      h = [];
-      h(end+1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
-      h(end+1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'o','Color',clr,'markerfacecolor',clr);
-      h(end+1) = plot(axplot,xf,yf,'v','Color',clr,'markerfacecolor',clr,'MarkerSize',8);
-      h(end+1) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
-      h(end+1) = plot(axplot,[xc;xf],[yc;yf],'-g');
+      if isequal(hPlot,[])
+        hPlot = gobjects(5,1);
+        hPlot(1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
+        hPlot(2) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'o','Color',clr,'markerfacecolor',clr);
+        hPlot(3) = plot(axplot,xf,yf,'v','Color',clr,'markerfacecolor',clr,'MarkerSize',8);
+        hPlot(4) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
+        hPlot(5) = plot(axplot,[xc;xf],[yc;yf],'-g');
+      else
+        assert(numel(hPlot)==5);
+        set(hPlot(1),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
+        set(hPlot(2),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
+        set(hPlot(3),'XData',xf,'YData',yf);
+        delete(hPlot(4));
+        hPlot(4) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
+        set(hPlot(5),'XData',[xc;xf],'YData',[yc;yf]);
+      end
       str = sprintf('n=%d,f=%d(%d,%d). randctr=%.3f,rfac=%.3f,r=%.3f,theta=%.3f',iN,iF,...
         info.l1(iF),info.l2(iF),info.ctrFac(iF),info.rfac(iF),info.r(iN,iF),info.theta(iN,iF)/pi*180);
       title(axplot,str,'interpreter','none','fontweight','bold'); 

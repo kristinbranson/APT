@@ -286,7 +286,7 @@ classdef CPRData < handle
       md = struct2table(sMD);
     end
     
-    function I = getFrames(tblMF)
+    function I = getFrames(tblMF,varargin)
       % Read frames from movies given MD table
       % 
       % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
@@ -294,6 +294,13 @@ classdef CPRData < handle
       % 
       % I: [NxnView] cell vector of images for each row of tbl
       
+      hWB = myparse(varargin,'hWB',[]);
+      tfWB = ~isempty(hWB);
+      
+      if tfWB
+        waitbar(0,hWB,'Reading movie frames ...');
+      end
+  
       N = size(tblMF,1);
       nView = size(tblMF.mov,2);
       movsUn = unique(tblMF.mov(:));
@@ -309,6 +316,9 @@ classdef CPRData < handle
       
       I = cell(N,nView);
       for iTrl = 1:N
+        if tfWB
+          waitbar(iTrl/N,hWB);
+        end
         f = frms(iTrl);
         [~,movUnIdx] = ismember(tblMF.mov(iTrl,:),movsUn);
         for iVw=1:nView

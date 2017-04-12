@@ -296,7 +296,7 @@ classdef CPRLabelTracker < LabelTracker
       nNew = size(tblPNew,1);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
-        I = CPRData.getFrames(tblMFnewConcrete);
+        I = CPRData.getFrames(tblMFnewConcrete,'hWB',hWB);
         dataNew = CPRData(I,tblPNew);
         if prmpp.histeq
           H0 = obj.trnResH0;
@@ -544,7 +544,37 @@ classdef CPRLabelTracker < LabelTracker
       end
       
     end
-          
+    
+    function trkposFull = getTrackResFull(obj,iMov,frm)
+      % Get full tracking results for movie iMov, frame frm.
+      %
+      % trkposFull: [nptstrk x d x nRep x (T+1)], or [] if iMov/frm not
+      % found in .trkPFull'
+      
+      assert(obj.storeFullTracking);
+      
+      trkMD = obj.trkPMD;
+      iPtTrk = obj.trkPiPt;
+      nPtTrk = numel(iPtTrk);
+      d = 2;
+      nRep = obj.sPrm.TestInit.Nrep;
+      
+      lObj = obj.lObj;
+      movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
+      movNameID = MFTable.formMultiMovieID(movNameID);
+
+      tfMovFrm = strcmp(trkMD.mov,movNameID) & trkMD.frm==frm;
+      nMovFrm = nnz(tfMovFrm);
+      assert(nMovFrm==0 || nMovFrm==1);
+      if nMovFrm==0
+        trkposFull = [];
+      else
+        trkposFull = squeeze(obj.trkPFull(tfMovFrm,:,:,:)); % [nRep Dtrk Tp1]
+        Tp1 = size(trkposFull,3);
+        trkposFull = reshape(trkposFull,[nRep nPtTrk d Tp1]);
+        trkposFull = permute(trkposFull,[2 3 1 4]);
+      end
+    end          
   end
   
   %% LabelTracker overloads
@@ -1044,7 +1074,7 @@ classdef CPRLabelTracker < LabelTracker
           pTstTRedVw = nan(NTst,trkD);
           prm.Prune.prune = 1;
           for t=Tp1
-            fprintf('Pruning t=%d\n',t);
+            %fprintf('Pruning t=%d\n',t);
             pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
             pTstTRedVw(:,:) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
           end
