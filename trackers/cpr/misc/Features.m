@@ -426,7 +426,7 @@ classdef Features
   %#3DOK
   methods (Static) % Two-landmark features
     
-    function [xs,prms] = generate2LM(model,varargin)
+    function [xs,prms,xslbls] = generate2LM(model,varargin)
       % Generate 2-landmark features
       % 
       % xs: F x 7 double array. xs(i,:) specifies the ith feature
@@ -444,6 +444,8 @@ classdef Features
       %     to 1 unless model.nviews>1.
       %
       % prms: scalar struct, params used to compute xs
+      %
+      % xslbls: [1x7] labels for cols of xs
       
       %%% Optional input P-V params
       %
@@ -528,6 +530,8 @@ classdef Features
       
       xs(:,6) = randint2(F,1,[1,prms.nchan]);
       xs(:,7) = randint2(F,1,[1,nviews]);
+      
+      xslbls = {'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'};
     end
     
     function [xF,yF,chan,iview,info] = compute2LM(xs,xLM,yLM)
@@ -653,7 +657,9 @@ classdef Features
         hPlot(2) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'o','Color',clr,'markerfacecolor',clr);
         hPlot(3) = plot(axplot,xf,yf,'v','Color',clr,'markerfacecolor',clr,'MarkerSize',8);
         hPlot(4) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
-        hPlot(5) = plot(axplot,[xc;xf],[yc;yf],'-g');
+        hPlot(4).Color = clr;
+        hPlot(5) = plot(axplot,[xc;xf],[yc;yf],'-','Color',clr);
+        [hPlot.LineWidth] = deal(1);
       else
         assert(numel(hPlot)==5);
         set(hPlot(1),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
@@ -661,6 +667,7 @@ classdef Features
         set(hPlot(3),'XData',xf,'YData',yf);
         delete(hPlot(4));
         hPlot(4) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
+        hPlot(4).Color = clr;
         set(hPlot(5),'XData',[xc;xf],'YData',[yc;yf]);
       end
       str = sprintf('n=%d,f=%d(%d,%d). randctr=%.3f,rfac=%.3f,r=%.3f,theta=%.3f',iN,iF,...

@@ -1,5 +1,7 @@
 classdef CPRVizTrackDiags < handle
   properties
+    isinit % true during initialization
+    
     hFig % CPRVizTrackDiagsGUI
     gdata % handles
     
@@ -71,6 +73,8 @@ classdef CPRVizTrackDiags < handle
       obj.hFig = [];
     end
     function init(obj)
+      obj.isinit = true;
+      
       obj.gdata = guidata(obj.hFig);
 
       obj.iRep = 1;
@@ -81,6 +85,17 @@ classdef CPRVizTrackDiags < handle
       
       obj.cleanupHViz();
       obj.hViz = cell(obj.M,obj.metaNUse);
+      
+      obj.isinit = false;
+    end
+    function fireSetObs(obj)
+      mc = meta.class.fromName('CPRVizTrackDiags');
+      props = mc.PropertyList;
+      props = props([props.SetObservable]);
+      for i=1:numel(props)
+        p = props(i).Name;
+        obj.(p) = obj.(p);
+      end
     end
     function cleanupHViz(obj)
       if ~isempty(obj.hViz)
@@ -97,9 +112,13 @@ classdef CPRVizTrackDiags < handle
       rc = obj.rcObj;
       [ipts,ftrtype] = rc.getLandmarksUsed(obj.t);
     end
-    function vizUpdate(obj)
+    function [fUse,xsUse,xsLbl] = vizUpdate(obj)      
+      % fuse: [MxnUse] feature indices used
+      % xsUse: [MxnUse] cell array, feature definitions (row of ftrSpec.xs)
+      % xsLbl: [1xncol] labels for row vecs in xsUse
+      
       rc = obj.rcObj;
-      fuse = squeeze(rc.ftrsUse(obj.t,obj.u,:,:)); % [MxnUse]
+      fUse = squeeze(rc.ftrsUse(obj.t,obj.u,:,:)); % [MxnUse]
       fspec = rc.ftrSpecs{obj.t};
       ax = obj.lObj.gdata.axes_curr;
       
@@ -114,21 +133,50 @@ classdef CPRVizTrackDiags < handle
       
       % viz2LM
       clrs = lines(obj.M);
+      xsUse = cell(obj.M,obj.metaNUse);
       for iFern=1:obj.M
         for iUse=1:obj.metaNUse
           switch fspec.type
             case '1lm'
             case '2lm'
               [xF,yF,chan,iview,info] = Features.compute2LM(fspec.xs,xLM,yLM);
+              xsLbl = {'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'}; % TODO: hardcoded, should get it from Features or similar
+
               iN = 1;
-              iF = fuse(iFern,iUse);
+              iF = fUse(iFern,iUse);
               hPlot = Features.visualize2LM(ax,xF,yF,iview,info,iN,iF,...
                 clrs(iFern,:),'hPlot',obj.hViz{iFern,iUse});
               obj.hViz{iFern,iUse} = hPlot;
+              
+              xsUse{iFern,iUse} = fspec.xs(iF,:);              
             case '2lmdiff'
             otherwise
               assert(false);
           end        
+        end
+      end
+    end
+    function vizHiliteFernSet(obj,iFern)      
+      assert(1<=iFern && iFern<=obj.M);
+      for iF=1:obj.M
+        for iUse=1:obj.metaNUse
+          hs = obj.hViz{iF,iUse};
+          if iF==iFern
+            [hs.LineWidth] = deal(2);
+            [hs.Visible] = deal('on');
+          else
+            [hs.LineWidth] = deal(1);
+            [hs.Visible] = deal('off');
+          end
+        end
+      end
+    end
+    function vizHiliteFernClear(obj)
+      for iF=1:obj.M
+        for iUse=1:obj.metaNUse
+          hs = obj.hViz{iF,iUse};
+          [hs.LineWidth] = deal(1);
+          [hs.Visible] = deal('on');
         end
       end
     end
