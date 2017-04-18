@@ -236,7 +236,7 @@ HELPSTR = { ...
   ''
   'The table details features selected for the current (major iteration, minor iteration) pair. Click a row of the table to highlight a single feature.'
   ''
-  'Features are visualized in the main APT window. White squares indicate computed, shape-indexed feature locations.'};
+  'Features are visualized in the main APT window. Solid triangles represent the estimated pose/shape given the current (replicate,major iteration) pair. White squares indicate computed, shape-indexed feature locations.'};
 helpdlg(HELPSTR,'CPR Feature Visualization');
 
 function cbkNewProj(src,evt,vizObj)
