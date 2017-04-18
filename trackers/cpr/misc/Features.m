@@ -654,21 +654,21 @@ classdef Features
       if isequal(hPlot,[])
         hPlot = gobjects(5,1);
         hPlot(1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
-        hPlot(2) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'o','Color',clr,'markerfacecolor',clr);
-        hPlot(3) = plot(axplot,xf,yf,'v','Color',clr,'markerfacecolor',clr,'MarkerSize',8);
-        hPlot(4) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
-        hPlot(4).Color = clr;
-        hPlot(5) = plot(axplot,[xc;xf],[yc;yf],'-','Color',clr);
+        hPlot(2) = plot(axplot,xc,yc,'o','Color',clr,'markerfacecolor',clr);
+        hPlot(3) = plot(axplot,nan,nan,'o','Color',[1 1 1],'markerfacecolor',[1 1 1]);        
+        hPlot(4) = plot(axplot,xf,yf,'s','Color',clr,'MarkerSize',8,'markerfacecolor',[1 1 1]);
+        hPlot(5) = ellipsedraw(info.a(iN,iF),info.b(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
+        hPlot(5).Color = clr;
+        hPlot(6) = plot(axplot,[xc;xf],[yc;yf],'-','Color',clr);
         [hPlot.LineWidth] = deal(1);
       else
-        assert(numel(hPlot)==5);
+        assert(numel(hPlot)==6);
         set(hPlot(1),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
         set(hPlot(2),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
-        set(hPlot(3),'XData',xf,'YData',yf);
-        delete(hPlot(4));
-        hPlot(4) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
-        hPlot(4).Color = clr;
-        set(hPlot(5),'XData',[xc;xf],'YData',[yc;yf]);
+        %set(hPlot(3),'XData',x1,'YData',y1);
+        set(hPlot(4),'XData',xf,'YData',yf);
+        ellipsedraw(info.a(iN,iF),info.b(iN,iF),xc,yc,info.alpha(iN,iF),'-g','hEllipse',hPlot(5),'parent',axplot);
+        set(hPlot(6),'XData',[xc;xf],'YData',[yc;yf]);
       end
       str = sprintf('n=%d,f=%d(%d,%d). randctr=%.3f,rfac=%.3f,r=%.3f,theta=%.3f',iN,iF,...
         info.l1(iF),info.l2(iF),info.ctrFac(iF),info.rfac(iF),info.r(iN,iF),info.theta(iN,iF)/pi*180);

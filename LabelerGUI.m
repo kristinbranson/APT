@@ -1670,6 +1670,22 @@ end
 tObj.storeFullTracking = sftnew;
 
 function menu_track_view_tracking_diagnostics_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+
+% Look for existing/open CPRVizTrackDiagsGUI
+for i=1:numel(handles.depHandles)
+  h = handles.depHandles(i);
+  if isvalid(h) && strcmp(h.Tag,'figCPRVizTrackDiagsGUI')
+    figure(h);
+    return;
+  end
+end
+
+lc = lObj.lblCore;
+if ~isempty(lc) && ~lc.hideLabels
+  warningNoTrace('LabelerGUI:hideLabels','Hiding labels.');
+  lc.labelsHide();
+end
 hVizGUI = CPRVizTrackDiagsGUI(handles.labelerObj);
 addDepHandle(handles.figure,hVizGUI);
 

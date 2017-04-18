@@ -9,14 +9,22 @@ classdef CPRVizTrackDiags < handle
     tObj % Tracker obj
     rcObj % RegressorCascade obj
     
-    hViz % [MxnUse] cell array of handles for visualization 
+    hLM % [npts] plot handles for landmarks for current replicate
+    hLMTxt % [npts]
+    hViz % [MxnUse] cell array of handles for visualization     
   end
   properties (SetObservable)    
     iRep % replicate index
     t % major iter
     u % minor iter
   end
+  properties (SetObservable,SetAccess=private)    
+    % These props govern what is shown for 'Feature Details'
+    iFernHilite % scalar, in 0..M. If 0, then no fern hilighted, all feature details shown. Otherwise, show details only for given fern.
+    vizShow % scalar logical
+  end
   properties (Dependent,SetAccess=private)
+    nPts % number of label points
     nRep % number of replicates
     tMax % maximum major iter
     uMax % max minor iter    
@@ -41,6 +49,9 @@ classdef CPRVizTrackDiags < handle
     end
   end
   methods
+    function v = get.nPts(obj)
+      v = obj.lObj.nLabelPoints;
+    end
     function v = get.nRep(obj)
       v = obj.tObj.sPrm.TestInit.Nrep;
     end
@@ -68,6 +79,8 @@ classdef CPRVizTrackDiags < handle
       obj.rcObj = lObj.tracker.trnResRC;      
     end
     function delete(obj)
+      deleteValidHandles(obj.hLM);
+      deleteValidHandles(obj.hLMTxt);
       obj.cleanupHViz();
       delete(obj.hFig);
       obj.hFig = [];
@@ -76,13 +89,17 @@ classdef CPRVizTrackDiags < handle
       obj.isinit = true;
       
       obj.gdata = guidata(obj.hFig);
-
+      
       obj.iRep = 1;
       obj.t = 1;
       obj.u = 1;
       
       assert(~obj.lObj.isMultiView,'Currently unsupported for multiview projs.');
-      
+
+      obj.iFernHilite = 0;
+      obj.vizShow = 1;
+
+      obj.vizLMInit();
       obj.cleanupHViz();
       obj.hViz = cell(obj.M,obj.metaNUse);
       
@@ -106,13 +123,16 @@ classdef CPRVizTrackDiags < handle
       obj.hViz = [];
     end
   end
-  methods    
+  methods
     function [ipts,ftrtype] = getLandmarksUsed(obj)
       % f: [nMinor x M x nUse]
       rc = obj.rcObj;
       [ipts,ftrtype] = rc.getLandmarksUsed(obj.t);
     end
-    function [fUse,xsUse,xsLbl] = vizUpdate(obj)      
+    function [fUse,xsUse,xsLbl] = vizUpdate(obj)
+      % Update Feature Details (.hViz) and Landmarks (.hLM, .hLMTxt) --
+      % locations only, not visibility
+      %
       % fuse: [MxnUse] feature indices used
       % xsUse: [MxnUse] cell array, feature definitions (row of ftrSpec.xs)
       % xsLbl: [1xncol] labels for row vecs in xsUse
@@ -132,7 +152,7 @@ classdef CPRVizTrackDiags < handle
       % Compute2LM
       
       % viz2LM
-      clrs = lines(obj.M);
+      clrs = rgbbrighten(lines(obj.M),0.5);
       xsUse = cell(obj.M,obj.metaNUse);
       for iFern=1:obj.M
         for iUse=1:obj.metaNUse
@@ -152,45 +172,72 @@ classdef CPRVizTrackDiags < handle
             case '2lmdiff'
             otherwise
               assert(false);
-          end        
+          end          
         end
       end
+      
+      obj.vizLMUpdate([xLM(:) yLM(:)]);
     end
-    function vizHiliteFernSet(obj,iFern)      
-      assert(1<=iFern && iFern<=obj.M);
+    function vizLMInit(obj)
+      deleteValidHandles(obj.hLM);
+      deleteValidHandles(obj.hLMTxt);
+      obj.hLM = gobjects(obj.nPts,1);
+      obj.hLMTxt = gobjects(obj.nPts,1);
+      
+      ax = obj.lObj.gdata.axes_curr;
+      plotIfo = obj.lObj.labelPointsPlotInfo;
+      for i = 1:obj.nPts
+        obj.hLM(i) = plot(ax,nan,nan,'^',...
+          'MarkerSize',plotIfo.MarkerSize,...
+          'LineWidth',plotIfo.LineWidth,...
+          'Color',plotIfo.Colors(i,:),...
+          'HitTest','off');
+        obj.hLMTxt(i) = text(nan,nan,num2str(i),'Parent',ax,...
+          'Color',plotIfo.Colors(i,:),'Hittest','off');
+      end
+    end
+    function vizLMUpdate(obj,xyLM)
+      npts = obj.nPts;
+      szassert(xyLM,[npts 2]);
+      LabelCore.setPtsCoords(xyLM,obj.hLM,obj.hLMTxt);
+    end
+  end
+  methods % Feature Detail Visibility
+    function vizDetailUpdate(obj)
+      % update .hViz based on .iFernHilite, .vizShow
+      
       for iF=1:obj.M
+        if obj.vizShow
+          tfShowFern = obj.iFernHilite==0 || obj.iFernHilite==iF;
+        else
+          tfShowFern = false;
+        end
+        showFernOnOff = onIff(tfShowFern); 
+        lwidth = 1;
+%         if iF==obj.iFernHilite
+%           lwidth = 2;
+%         else
+%           lwidth = 1;
+%         end
         for iUse=1:obj.metaNUse
           hs = obj.hViz{iF,iUse};
-          if iF==iFern
-            [hs.LineWidth] = deal(2);
-            [hs.Visible] = deal('on');
-          else
-            [hs.LineWidth] = deal(1);
-            [hs.Visible] = deal('off');
-          end
+          [hs.Visible] = deal(showFernOnOff);
+          [hs.LineWidth] = deal(lwidth);
         end
-      end
-    end
-    function vizHiliteFernClear(obj)
-      for iF=1:obj.M
-        for iUse=1:obj.metaNUse
-          hs = obj.hViz{iF,iUse};
-          [hs.LineWidth] = deal(1);
-          [hs.Visible] = deal('on');
-        end
-      end
-    end
-    function vizHide(obj)
-      hV = obj.hViz;
-      for i=1:numel(hV)
-        [hV{i}.Visible] = deal('off');
-      end
-    end
-    function vizShow(obj)
-      hV = obj.hViz;
-      for i=1:numel(hV)
-        [hV{i}.Visible] = deal('on');
       end      
+    end      
+    function vizHiliteFernSet(obj,iFern)
+      assert(0<=iFern && iFern<=obj.M);
+      obj.iFernHilite = iFern;
+      obj.vizDetailUpdate();
     end
-  end  
+    function vizDetailHide(obj)
+      obj.vizShow = false;
+      obj.vizDetailUpdate();
+    end
+    function vizDetailShow(obj)
+      obj.vizShow = true;
+      obj.vizDetailUpdate();
+    end
+  end
 end

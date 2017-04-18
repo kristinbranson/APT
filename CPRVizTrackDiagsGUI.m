@@ -1,9 +1,9 @@
 function varargout = CPRVizTrackDiagsGUI(varargin)
 
-% Last Modified by GUIDE v2.5 17-Apr-2017 11:49:55
+% Last Modified by GUIDE v2.5 18-Apr-2017 11:47:27
 
 % Begin initialization code - DO NOT EDIT
-gui_Singleton = 1;
+gui_Singleton = 0;
 gui_State = struct('gui_Name',       mfilename, ...
                    'gui_Singleton',  gui_Singleton, ...
                    'gui_OpeningFcn', @CPRVizTrackDiagsGUI_OpeningFcn, ...
@@ -35,8 +35,21 @@ listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@(s,e)cbkCurrFrameCh
 listeners{end+1,1} = addlistener(vizObj,'iRep','PostSet',@cbkRepChanged);
 listeners{end+1,1} = addlistener(vizObj,'t','PostSet',@cbkMajorIterChanged);
 listeners{end+1,1} = addlistener(vizObj,'u','PostSet',@cbkMinorIterChanged);
+listeners{end+1,1} = addlistener(vizObj,'iFernHilite','PostSet',@cbkIFernHiliteChanged);
 handles.listeners = listeners;
 handles.vizObj = vizObj;
+
+tblpos = handles.tblFeatures.Position;
+tblposunits = handles.tblFeatures.Units;
+jt = uiextras.jTable.Table(...
+  'parent',handles.tblFeatures.Parent,...
+  'Units',tblposunits,...
+  'SelectionMode','discontiguous',...
+  'Editable','off');
+jt.Position = tblpos;
+jt.MouseClickedCallback = @(src,evt)cbkTblFeaturesClicked(src,evt);
+delete(handles.tblFeatures);
+handles.tblFeatures = jt;
 
 handles.output = hObject;
 
@@ -59,7 +72,7 @@ hSld.Max = vizObj.uMax;
 hSld.SliderStep = [1/hSld.Max 1/hSld.Max*5];
 
 handles.cbShowViz.Value = 1;
-handles.tblFeatures.ColumnWidth = repmat({50},1,20);
+%handles.tblFeatures.ColumnWidth = repmat({50},1,20);
 
 vizObj.init();
 vizObj.fireSetObs();
@@ -71,7 +84,7 @@ handles.txMetaType = vizObj.rcObj.prmFtr.metatype;
 handles.txNumFeatures.String = num2str(vizObj.rcObj.prmFtr.F);
 
 % UIWAIT makes CPRVizTrackDiagsGUI wait for user response (see UIRESUME)
-% uiwait(handles.figure1);
+% uiwait(handles.figCPRVizTrackDiagsGUI);
 
 function varargout = CPRVizTrackDiagsGUI_OutputFcn(hObject, eventdata, handles)
 varargout{1} = handles.output;
@@ -132,13 +145,13 @@ function cbkCurrFrameChanged(src,evt,vizObj) %#ok<*INUSD>
 updateVizFeaturesAndTable(vizObj);
 
 function updateLandmarkDist(vizObj)
-[ipts,ftrType] = vizObj.getLandmarksUsed();
+ipts = vizObj.getLandmarksUsed();
 ax = vizObj.gdata.axLandmarkDist;
 histogram(ax,ipts,0.5:1:vizObj.lObj.nLabelPoints+0.5);
 xlabel('landmark','fontweight','bold');
 grid(ax,'on');
-tstr = sprintf('N=%d. %d minorIters, %d ferns, ftrType ''%s''',numel(ipts),...
-  vizObj.uMax,vizObj.rcObj.M,ftrType);
+ax.XTick = 1:vizObj.lObj.nLabelPoints;
+tstr = sprintf('Landmarks Used, majorIter %d (N=%d).',vizObj.t,numel(ipts));
 title(tstr,'fontweight','bold','interpreter','none');
 
 function updateVizFeaturesAndTable(vizObj)
@@ -158,10 +171,16 @@ for iFern=1:M
   end
   tbldat(iFern,:) = row(:)'; % when iUse=2, interleave iUse1 and iUse2
 end
-rowlbl = repmat([{'iF'} xsLbl],2,1);
+rowlbl = repmat([{'iF'} xsLbl],nUse,1);
 if nUse==2
   for iUse=1:nUse
-    rowlbl(iUse,:) = cellfun(@(x)[x num2str(iUse)],rowlbl(iUse,:),'uni',0);
+    for j=1:size(rowlbl,2)
+      str = rowlbl{iUse,j};
+      if str(end)=='1' || str(end)=='2'
+        str = [str '_']; %#ok<AGROW>
+      end
+      rowlbl{iUse,j} = [str num2str(iUse)];
+    end
   end
 end
 tblcollbls = rowlbl(:)';
@@ -169,27 +188,41 @@ tblcollbls = rowlbl(:)';
 vizObj.gdata.tblFeatures.Data = tbldat;
 vizObj.gdata.tblFeatures.ColumnName = tblcollbls;
 
-function tblFeatures_CellSelectionCallback(hObject, eventdata, handles)
-if isempty(eventdata.Indices) 
-  handles.vizObj.vizHiliteFernClear();
-else
-  row = eventdata.Indices(1);
-  handles.vizObj.vizHiliteFernSet(row);
+function cbkTblFeaturesClicked(src,evt)
+rows = src.SelectedRows;
+if isempty(rows) 
+  rows = 0;  
 end
+handles = guidata(src.Parent);
+handles.vizObj.vizHiliteFernSet(rows(1));
 
 function cbShowViz_Callback(hObject, eventdata, handles)
 val = hObject.Value;
 if val
-  handles.vizObj.vizShow();
+  handles.vizObj.vizDetailShow();
 else
-  handles.vizObj.vizHide();
+  handles.vizObj.vizDetailHide();
 end
 
-function figure1_CloseRequestFcn(hObject, eventdata, handles)
+function pbClearFeatureSelection_Callback(hObject, eventdata, handles)
+handles.vizObj.vizHiliteFernSet(0);
+
+function cbkIFernHiliteChanged(src,evt)
+vizObj = evt.AffectedObject;
+if ~vizObj.isinit
+  iFHset = vizObj.iFernHilite;
+  if iFHset==0
+    iFHset = [];
+  end
+  vizObj.gdata.tblFeatures.SelectedRows = iFHset;
+end
+
+function figCPRVizTrackDiagsGUI_CloseRequestFcn(hObject, eventdata, handles)
 hList = handles.listeners;
 for i=1:numel(hList)
   delete(hList{i});
 end
+%delete(handles.tblFeatures); % parented to panel, should be auto-deleted
 delete(handles.vizObj);
 delete(hObject);
 
