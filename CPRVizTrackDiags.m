@@ -140,43 +140,58 @@ classdef CPRVizTrackDiags < handle
       rc = obj.rcObj;
       fUse = squeeze(rc.ftrsUse(obj.t,obj.u,:,:)); % [MxnUse]
       fspec = rc.ftrSpecs{obj.t};
-      ax = obj.lObj.gdata.axes_curr;
+      xsLbl = Features.TYPE2XSCOLLBLS(fspec.type);
+      xsUse = arrayfun(@(iF)fspec.xs(iF,:),fUse,'uni',0);
       
-      trkPFull = obj.tObj.getTrackResFull(obj.lObj.currMovie,obj.lObj.currFrame);
-      % [nptstrk x d x nRep x (T+1)] 
-      trkPFull = trkPFull(:,:,obj.iRep,obj.t); % [nptstrkx2]
-      nptstrk = size(trkPFull,1);
-      nview = 1;
-      xLM = reshape(trkPFull(:,1),[1 nptstrk nview]);
-      yLM = reshape(trkPFull(:,2),[1 nptstrk nview]);
-      % Compute2LM
+      iMov = obj.lObj.currMovie;
+      frm = obj.lObj.currFrame;
+      trkPFull = obj.tObj.getTrackResFull(iMov,frm);
       
-      % viz2LM
-      clrs = rgbbrighten(lines(obj.M),0.5);
-      xsUse = cell(obj.M,obj.metaNUse);
-      for iFern=1:obj.M
-        for iUse=1:obj.metaNUse
-          switch fspec.type
-            case '1lm'
-            case '2lm'
-              [xF,yF,chan,iview,info] = Features.compute2LM(fspec.xs,xLM,yLM);
-              xsLbl = {'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'}; % TODO: hardcoded, should get it from Features or similar
-
-              iN = 1;
-              iF = fUse(iFern,iUse);
-              hPlot = Features.visualize2LM(ax,xF,yF,iview,info,iN,iF,...
-                clrs(iFern,:),'hPlot',obj.hViz{iFern,iUse});
-              obj.hViz{iFern,iUse} = hPlot;
-              
-              xsUse{iFern,iUse} = fspec.xs(iF,:);              
-            case '2lmdiff'
-            otherwise
-              assert(false);
-          end          
+      if isequal(trkPFull,[])
+        % no tracking avail for this iMov/frm
+        for iFern=1:obj.M
+          for iUse=1:obj.metaNUse
+            h = obj.hViz{iFern,iUse};
+            set(h,'XData',nan,'YData',nan); % Works for empty h
+          end
         end
+        set(obj.hLM,'XData',nan,'YData',nan);
+        set(obj.hLMTxt,'Position',[nan nan 1]);
+      else
+        % trkPFull is [nptstrk x d x nRep x (T+1)] 
+        
+        % Get xLM/yLM, landmark positions at this mov/frm/replicate/majoriter
+        trkPFull = trkPFull(:,:,obj.iRep,obj.t); % [nptstrkx2]
+        nptstrk = size(trkPFull,1);
+        nview = 1;
+        xLM = reshape(trkPFull(:,1),[1 nptstrk nview]);
+        yLM = reshape(trkPFull(:,2),[1 nptstrk nview]);
+
+        ax = obj.lObj.gdata.axes_curr;      
+        clrs = rgbbrighten(lines(obj.M),0.5);
+        for iFern=1:obj.M
+          for iUse=1:obj.metaNUse
+            iFuse = fUse(iFern,iUse);
+            switch fspec.type
+              case '1lm'                
+                [xF,yF,iview,info] = Features.compute1LM(fspec.xs(iFuse,:),xLM,yLM);
+                hPlot = Features.visualize1LM(ax,xF,yF,iview,info,1,1,...
+                  clrs(iFern,:),'hPlot',obj.hViz{iFern,iUse});
+              case '2lm'
+                [xF,yF,~,iview,info] = Features.compute2LM(fspec.xs(iFuse,:),xLM,yLM);
+                hPlot = Features.visualize2LM(ax,xF,yF,iview,info,1,1,...
+                  clrs(iFern,:),'hPlot',obj.hViz{iFern,iUse});
+              case '2lmdiff'
+                assert(false,'Currently unsupported');
+              otherwise
+                assert(false);
+            end   
+            obj.hViz{iFern,iUse} = hPlot;
+          end
+        end
+
+        obj.vizLMUpdate([xLM(:) yLM(:)]);
       end
-      
-      obj.vizLMUpdate([xLM(:) yLM(:)]);
     end
     function vizLMInit(obj)
       deleteValidHandles(obj.hLM);

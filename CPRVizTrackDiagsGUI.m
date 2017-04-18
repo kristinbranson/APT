@@ -1,6 +1,6 @@
 function varargout = CPRVizTrackDiagsGUI(varargin)
 
-% Last Modified by GUIDE v2.5 18-Apr-2017 11:47:27
+% Last Modified by GUIDE v2.5 18-Apr-2017 16:27:46
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -32,7 +32,11 @@ end
 vizObj = CPRVizTrackDiags(lObj,hObject);
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@(s,e)cbkCurrFrameChanged(s,e,vizObj));
+listeners{end+1,1} = addlistener(lObj,'newProject',@(s,e)cbkNewProj(s,e,vizObj));
 listeners{end+1,1} = addlistener(vizObj,'iRep','PostSet',@cbkRepChanged);
+listeners{end+1,1} = addlistener(handles.sldReplicate,'ContinuousValueChange',@(s,e)sldReplicate_Callback(s,e,struct('vizObj',vizObj)));
+listeners{end+1,1} = addlistener(handles.sldMajorIter,'ContinuousValueChange',@(s,e)sldMajorIter_Callback(s,e,struct('vizObj',vizObj)));
+listeners{end+1,1} = addlistener(handles.sldMinorIter,'ContinuousValueChange',@(s,e)sldMinorIter_Callback(s,e,struct('vizObj',vizObj)));
 listeners{end+1,1} = addlistener(vizObj,'t','PostSet',@cbkMajorIterChanged);
 listeners{end+1,1} = addlistener(vizObj,'u','PostSet',@cbkMinorIterChanged);
 listeners{end+1,1} = addlistener(vizObj,'iFernHilite','PostSet',@cbkIFernHiliteChanged);
@@ -50,6 +54,13 @@ jt.Position = tblpos;
 jt.MouseClickedCallback = @(src,evt)cbkTblFeaturesClicked(src,evt);
 delete(handles.tblFeatures);
 handles.tblFeatures = jt;
+
+handles.txReplicate.TooltipString = handles.etReplicate.TooltipString;
+handles.sldReplicate.TooltipString = handles.etReplicate.TooltipString;
+handles.txMajorIter.TooltipString = handles.etMajorIter.TooltipString;
+handles.sldMajorIter.TooltipString = handles.etMajorIter.TooltipString;
+handles.txMinorIter.TooltipString = handles.etMinorIter.TooltipString;
+handles.sldMinorIter.TooltipString = handles.etMinorIter.TooltipString;
 
 handles.output = hObject;
 
@@ -82,6 +93,8 @@ handles.txNumUsed.String = num2str(vizObj.metaNUse);
 handles.txFtrType = vizObj.rcObj.prmFtr.type;
 handles.txMetaType = vizObj.rcObj.prmFtr.metatype;
 handles.txNumFeatures.String = num2str(vizObj.rcObj.prmFtr.F);
+
+guidata(hObject, handles);
 
 % UIWAIT makes CPRVizTrackDiagsGUI wait for user response (see UIRESUME)
 % uiwait(handles.figCPRVizTrackDiagsGUI);
@@ -124,7 +137,7 @@ if ~vizObj.isinit
   updateVizFeaturesAndTable(vizObj);
 end
 
-function etReplicateSpinner_Callback(hObject, eventdata, handles)
+function etReplicate_Callback(hObject, eventdata, handles)
 val = round(str2double(hObject.String));
 if ~isnan(val)
   handles.vizObj.iRep = val;
@@ -136,7 +149,7 @@ function cbkRepChanged(src,evt)
 vizObj = evt.AffectedObject;
 if ~vizObj.isinit
   rep = vizObj.iRep;
-  vizObj.gdata.etReplicateSpinner.String = num2str(rep);
+  vizObj.gdata.etReplicate.String = num2str(rep);
   vizObj.gdata.sldReplicate.Value = rep;
   updateVizFeaturesAndTable(vizObj);
 end
@@ -148,11 +161,11 @@ function updateLandmarkDist(vizObj)
 ipts = vizObj.getLandmarksUsed();
 ax = vizObj.gdata.axLandmarkDist;
 histogram(ax,ipts,0.5:1:vizObj.lObj.nLabelPoints+0.5);
-xlabel('landmark','fontweight','bold');
+xlabel(ax,'landmark','fontweight','bold');
 grid(ax,'on');
 ax.XTick = 1:vizObj.lObj.nLabelPoints;
 tstr = sprintf('Landmarks Used, majorIter %d (N=%d).',vizObj.t,numel(ipts));
-title(tstr,'fontweight','bold','interpreter','none');
+title(ax,tstr,'fontweight','bold','interpreter','none');
 
 function updateVizFeaturesAndTable(vizObj)
 % all tblFeatures info is driven by (implied) 1. prms.Ftr and (direct) 
@@ -217,6 +230,18 @@ if ~vizObj.isinit
   vizObj.gdata.tblFeatures.SelectedRows = iFHset;
 end
 
+function menu_help_Callback(hObject, eventdata, handles)
+HELPSTR = { ...
+  'The landmark histogram includes all landmarks used in features selected during the current major iteration (including all minor iterations).'
+  ''
+  'The table details features selected for the current (major iteration, minor iteration) pair. Click a row of the table to highlight a single feature.'
+  ''
+  'Features are visualized in the main APT window. White squares indicate computed, shape-indexed feature locations.'};
+helpdlg(HELPSTR,'CPR Feature Visualization');
+
+function cbkNewProj(src,evt,vizObj)
+close(vizObj.gdata.figCPRVizTrackDiagsGUI);
+
 function figCPRVizTrackDiagsGUI_CloseRequestFcn(hObject, eventdata, handles)
 hList = handles.listeners;
 for i=1:numel(hList)
@@ -225,4 +250,3 @@ end
 %delete(handles.tblFeatures); % parented to panel, should be auto-deleted
 delete(handles.vizObj);
 delete(hObject);
-
