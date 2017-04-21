@@ -152,7 +152,7 @@ classdef RegressorCascade < handle
     
     
     %#3DOK
-    function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused,calrig) % obj const
+    function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused,calrig) % obj CONST
       % t: major iteration
       % I: [NxnView] Cell array of images (nView==1) or imageSets (nView>1)
       % bboxes: [Nx2*d]. Currently unused (used only for occlusion)
@@ -447,11 +447,11 @@ classdef RegressorCascade < handle
       % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
       % is shape after T'th major iteration.
          
-      [t0,hWB,calrig] = myparse(varargin,...
+      [t0,wbObj,calrig] = myparse(varargin,...
         't0',1,... % initial/starting major iteration
-        'hWaitBar',[],...
+        'wbObj',[],... % WaitBarWithCancel. If cancel, obj is unchanged and p_t is partially filled
         'calrig',[]);
-      tfWB = ~isempty(hWB);
+      tfWB = ~isempty(wbObj);
 
       model = obj.prmModel;
 
@@ -474,11 +474,14 @@ classdef RegressorCascade < handle
       p = p0; % current/working shape, absolute coords
                    
       if tfWB
-        waitbar(0,hWB,'Applying cascaded regressor');
+        wbObj.update(0,'Applying cascaded regressor');
       end
       for t = t0:T
         if tfWB
-          waitbar(t/T,hWB);
+          tfCancel = wbObj.update(t/T);
+          if tfCancel
+            return;
+          end
         else
           fprintf(1,'Applying cascaded regressor: %d/%d\n',t,T);
         end
@@ -512,7 +515,7 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function [p_t,pIidx,p0,p0info] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj const
+    function [p_t,pIidx,p0,p0info] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj CONST
       % Wrapper for propagate(), randomly init replicate cloud from
       % obj.pGTNTrn
       %
@@ -522,6 +525,9 @@ classdef RegressorCascade < handle
       % p0: initial shapes (absolute coords)
       % p0info: struct containing initial shape info
             
+      wbObj = myparse(varargin,...
+        'wbObj',[]); %#ok<NASGU> % WaitBarWithCancel. If cancel, obj is unchanged, p_t partially filled, pIidx,p0,p0info appear 'correct'
+      
       model = obj.prmModel;
       [N,nview] = size(I);
       assert(nview==model.nviews);
@@ -625,7 +631,7 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function x = computeMetaFeature(obj,X,iFtrsX,t,u,metatype)
+    function x = computeMetaFeature(obj,X,iFtrsX,t,u,metatype) % obj CONST
       % Helper function to compute meta-features
       %
       % X: [QxZ] computed features

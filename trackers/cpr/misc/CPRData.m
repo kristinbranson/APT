@@ -293,12 +293,15 @@ classdef CPRData < handle
       % multiview data.
       % 
       % I: [NxnView] cell vector of images for each row of tbl
+      %
+      % Options: wbObj: WaitBarWithCancel. If canceled, I will be
+      % 'incomplete', ie partially filled.
       
-      hWB = myparse(varargin,'hWB',[]);
-      tfWB = ~isempty(hWB);
+      wbObj = myparse(varargin,'wbObj',[]);
+      tfWB = ~isempty(wbObj);
       
       if tfWB
-        waitbar(0,hWB,'Reading movie frames ...');
+        wbObj.update(0,'Reading movie frames ...');
       end
   
       N = size(tblMF,1);
@@ -317,7 +320,10 @@ classdef CPRData < handle
       I = cell(N,nView);
       for iTrl = 1:N
         if tfWB
-          waitbar(iTrl/N,hWB);
+          tfCancel = wbObj.update(iTrl/N);
+          if tfCancel
+            return;
+          end
         end
         f = frms(iTrl);
         [~,movUnIdx] = ismember(tblMF.mov(iTrl,:),movsUn);
@@ -408,11 +414,11 @@ classdef CPRData < handle
       % the same value of g are histogram-equalized together. For example,
       % g might indicate which movie the image is taken from.
       
-      [H0,nbin,g,hWB] = myparse(varargin,...
+      [H0,nbin,g,wbObj] = myparse(varargin,...
         'H0',[],...
         'nbin',256,...
         'g',ones(obj.N,1),...
-        'hWaitBar',[]);
+        'wbObj',[]); % WaitBarWithCancel. If canceled, obj UNCHANGED and H0 indeterminate
       tfH0Given = ~isempty(H0);
       
       assert(obj.nView==1,'Single-view only.');
@@ -422,7 +428,10 @@ classdef CPRData < handle
       imSz = imSz{1};
       
       if ~tfH0Given
-        H0 = typicalImHist(obj.I,'nbin',nbin,'hWB',hWB);
+        H0 = typicalImHist(obj.I,'nbin',nbin,'hWB',wbObj);
+        if wbObj.isCancel
+          return;
+        end
       end
       obj.H0 = H0;
       
