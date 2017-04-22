@@ -606,7 +606,7 @@ classdef CPRData < handle
       linkaxes(axs);
     end
     
-    function [Is,nChan] = getCombinedIs(obj,iTrl)
+    function [Is,nChan] = getCombinedIs(obj,iTrl) % obj CONST
       % Get .I combined with .Ipp for specified trials.
       %
       % iTrl: [nTrl] vector of trials

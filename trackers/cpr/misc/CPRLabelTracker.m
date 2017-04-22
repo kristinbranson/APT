@@ -221,12 +221,13 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     %#MV
-    function updateData(obj,tblP)
+    function updateData(obj,tblP,varargin)
       % Update .data to include tblP
       
+      wbObj = myparse(varargin,...
+        'wbObj',[]); % WaitBarWithCancel. If cancel, obj unchanged.
+      
       [tblPnew,tblPupdate] = obj.tblPDiffData(tblP);
-      wbObj = WaitBarWithCancel('Update Data');
-      oc = onCleanup(@()delete(wbObj));
       obj.updateDataRaw(tblPnew,tblPupdate,'wbObj',wbObj);      
     end
     
@@ -249,6 +250,7 @@ classdef CPRLabelTracker < LabelTracker
       
       wbObj = myparse(varargin,...
         'wbObj',[]); % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
+      tfWB = ~isempty(wbObj);
       
       if isempty(obj.sPrm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
@@ -283,7 +285,7 @@ classdef CPRLabelTracker < LabelTracker
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
         I = CPRData.getFrames(tblMFnewConcrete,'wbObj',wbObj);
-        if wbObj.isCancel
+        if tfWB && wbObj.isCancel
           % obj unchanged
           return;
         end
@@ -293,7 +295,7 @@ classdef CPRLabelTracker < LabelTracker
           assert(~isempty(H0),'H0 unavailable for histeq/preprocessing.');
           gHE = categorical(dataNew.MD.mov);
           dataNew.histEq('g',gHE,'H0',H0,'wbObj',wbObj);
-          if wbObj.isCancel
+          if tfWB && wbObj.isCancel
             % obj unchanged
             return;
           end
@@ -1039,11 +1041,15 @@ classdef CPRLabelTracker < LabelTracker
     
     %#MV
     function track(obj,iMovs,frms,varargin)
-      [tblP,movChunkSize,p0DiagImg] = myparse(varargin,...
+      [tblP,movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
         'tblP',[],... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
         'movChunkSize',5000, ... % track large movies in chunks of this size
-        'p0DiagImg',[] ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
+        'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
+        'wbObj',[] ... % WaitBarWithCancel. If cancel:
+                   ... %  1. obj.data might be cleared
+                   ... %  2. tracking results may be partally updated
         );
+      tfWB = ~isempty(wbObj);
       
       prm = obj.sPrm;
       if isempty(prm)
@@ -1065,6 +1071,10 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
       
+      % if tfWB, then canceling can early-return. In all return cases we
+      % want to run hlpTrackWrapupViz.
+      oc = onCleanup(@()hlpTrackWrapupViz(obj));
+      
       nFrmTrk = size(tblP,1);
       iChunkStarts = 1:movChunkSize:nFrmTrk;
       nChunk = numel(iChunkStarts);
@@ -1084,9 +1094,17 @@ classdef CPRLabelTracker < LabelTracker
         end
         
         tblPChunk(:,'pTS') = [];
-        obj.updateData(tblPChunk);
+        obj.updateData(tblPChunk,'wbObj',wbObj);
+        if tfWB && wbObj.isCancel
+          % Single-chunk: data unchanged, tracking results unchanged => 
+          % obj unchanged.
+          %
+          % Multi-chunk: data cleared. If 2nd chunk or later, tracking
+          % results updated to some extent.
+          return;
+        end
+        
         d = obj.data;
-
         tblMFTrk = tblPChunk(:,{'mov' 'frm'});
         tblMFAll = d.MD(:,{'mov' 'frm'});
         [tf,loc] = ismember(tblMFTrk,tblMFAll);
@@ -1099,10 +1117,9 @@ classdef CPRLabelTracker < LabelTracker
         [Is,nChan] = d.getCombinedIs(d.iTst);
         prm.Ftr.nChn = nChan;
         
-        %% Test on test set
+        %% Test on test set; fill/generate pTstT/pTstTRed for this chunk
         NTst = d.NTst;
         RT = prm.TestInit.Nrep;
-
         nview = obj.sPrm.Model.nviews;
         nfids = prm.Model.nfids;
         assert(nview==numel(obj.trnResRC));
@@ -1111,7 +1128,7 @@ classdef CPRLabelTracker < LabelTracker
         Dfull = nfids*nview*prm.Model.d;
         pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
         pTstTRed = nan(NTst,Dfull);
-        for iView=1:nview
+        for iView=1:nview % obj CONST over this loop
           rc = obj.trnResRC(iView);
           IsVw = Is(:,iView);          
           bboxesVw = CPRData.getBboxes2D(IsVw);
@@ -1119,7 +1136,20 @@ classdef CPRLabelTracker < LabelTracker
             assert(isequal(bboxesVw,d.bboxesTst));
           end
           
-          [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,prm.TestInit);
+          [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,...
+            prm.TestInit,'wbObj',wbObj);
+          if tfWB && wbObj.isCancel
+            % obj has CHANGED. If we were really smart, we could use/store
+            % partial tracking results in p_t. Or, in practice client can 
+            % decrease chunk size as tracking results are saved at those
+            % increments.
+            % 
+            % Single-chunk: data updated 
+            %
+            % Multi-chunk: data updated. If 2nd chunk or later, tracking
+            % results updated to some extent.
+            return;
+          end
           if iChunk==1 && ~isempty(p0DiagImg)
             tf1 = pIidx==1;
             p0Info.p0_1 = p0(tf1,:);
@@ -1149,17 +1179,16 @@ classdef CPRLabelTracker < LabelTracker
           iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
           pTstT(:,:,iFull,:) = pTstTVw;
           pTstTRed(:,iFull) = pTstTRedVw;
-        end
+        end % end obj CONST
         
         trkPMDnew = d.MDTst(:,{'mov' 'frm'});
         obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
-      end
-      
+      end      
+    end
+    function hlpTrackWrapupViz(obj)
       if ~isempty(obj.lObj)
         obj.vizLoadXYPrdCurrMovie();
         obj.newLabelerFrame();
-      else
-        % headless mode
       end
     end
       
