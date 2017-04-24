@@ -3447,7 +3447,7 @@ classdef Labeler < handle
       tObj.retrain();
     end
     
-    function track(obj,tm)
+    function track(obj,tm,varargin)
       % tm: a TrackMode
       
       tObj = obj.tracker;
@@ -3455,7 +3455,7 @@ classdef Labeler < handle
         error('Labeler:track','No tracker set.');
       end      
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
-      tObj.track(iMovs,frms);
+      tObj.track(iMovs,frms,varargin{:});
     end
     
     function trackAndExport(obj,tm,varargin)

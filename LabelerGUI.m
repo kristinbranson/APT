@@ -910,7 +910,12 @@ function pbTrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackTrain();
 function pbTrack_Callback(hObject, eventdata, handles)
 tm = getTrackMode(handles);
-handles.labelerObj.track(tm);
+wbObj = WaitBarWithCancel('Tracking');
+oc = onCleanup(@()delete(wbObj));
+handles.labelerObj.track(tm,'wbObj',wbObj);
+if wbObj.isCancel
+  msgbox('Tracking canceled.','Cancel');
+end
 
 function pbClear_Callback(hObject, eventdata, handles)
 handles.labelerObj.lblCore.clearLabels();

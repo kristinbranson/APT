@@ -37,12 +37,12 @@ H = nan(nbin,N);
 mu = nan(1,N);
 loc = [];
 if tfWB
-  wbObj.update(0,'Performing histogram equalization...',...
-    'name','Histogram Equalization');
+  wbObj.startCancelablePeriod('Performing histogram equalization');
+  oc = onCleanup(@()wbObj.endCancelablePeriod);
 end
 for i = 1:N
   if tfWB
-    tfCancel = wbObj.update(i/N);
+    tfCancel = wbObj.updateFrac(i/N);
     if tfCancel
       H0 = nan(nbin,1);
       tfuse = false(N,1);      

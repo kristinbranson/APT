@@ -1092,6 +1092,9 @@ classdef CPRLabelTracker < LabelTracker
           % don't preserve/cache data          
           obj.initData();
         end
+        if tfWB && nChunk>1
+          wbObj.msgPat = sprintf('Chunk %d/%d: %%s',iChunk,nChunk);
+        end
         
         tblPChunk(:,'pTS') = [];
         obj.updateData(tblPChunk,'wbObj',wbObj);

@@ -301,7 +301,8 @@ classdef CPRData < handle
       tfWB = ~isempty(wbObj);
       
       if tfWB
-        wbObj.update(0,'Reading movie frames ...');
+        wbObj.startCancelablePeriod('Reading movie frames');
+        oc = onCleanup(@()wbObj.endCancelablePeriod);
       end
   
       N = size(tblMF,1);
@@ -320,7 +321,7 @@ classdef CPRData < handle
       I = cell(N,nView);
       for iTrl = 1:N
         if tfWB
-          tfCancel = wbObj.update(iTrl/N);
+          tfCancel = wbObj.updateFrac(iTrl/N);
           if tfCancel
             return;
           end
@@ -333,7 +334,7 @@ classdef CPRData < handle
           im = mr.readframe(f); % currently forceGrayscale
           I{iTrl,iVw} = im;
         end
-      end
+      end      
     end
 
     function bboxes = getBboxes2D(I)
