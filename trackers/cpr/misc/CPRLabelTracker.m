@@ -884,7 +884,7 @@ classdef CPRLabelTracker < LabelTracker
       tblPNew = obj.getTblPLbledRecent();
       
       if isempty(tblPNew)
-        msgbox('Trained tracker is up-to-date with labels.','Tracker up-to-date');
+        msgbox('Trained tracker is up-to-date with labels.','Train');
         return;
       end
       
@@ -1104,6 +1104,10 @@ classdef CPRLabelTracker < LabelTracker
           %
           % Multi-chunk: data cleared. If 2nd chunk or later, tracking
           % results updated to some extent.
+          
+          if iChunk>1 % implies nChunk>1
+            wbObj.cancelData = struct('msg','Partial tracking results available.');
+          end
           return;
         end
         
@@ -1151,6 +1155,11 @@ classdef CPRLabelTracker < LabelTracker
             %
             % Multi-chunk: data updated. If 2nd chunk or later, tracking
             % results updated to some extent.
+            
+            if iChunk>1 % implies nChunk>1
+              wbObj.cancelData = struct('msg','Partial tracking results available.');
+            end
+            
             return;
           end
           if iChunk==1 && ~isempty(p0DiagImg)

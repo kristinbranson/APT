@@ -37,8 +37,8 @@ H = nan(nbin,N);
 mu = nan(1,N);
 loc = [];
 if tfWB
-  wbObj.startCancelablePeriod('Performing histogram equalization');
-  oc = onCleanup(@()wbObj.endCancelablePeriod);
+  wbObj.startPeriod('Performing histogram equalization');
+  oc = onCleanup(@()wbObj.endPeriod);
 end
 for i = 1:N
   if tfWB

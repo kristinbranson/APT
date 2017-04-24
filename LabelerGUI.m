@@ -914,7 +914,12 @@ wbObj = WaitBarWithCancel('Tracking');
 oc = onCleanup(@()delete(wbObj));
 handles.labelerObj.track(tm,'wbObj',wbObj);
 if wbObj.isCancel
-  msgbox('Tracking canceled.','Cancel');
+  if isempty(wbObj.cancelData)
+    str = 'Tracking canceled.';
+  else
+    str = sprintf('Tracking canceled: %s',wbObj.cancelData.msg);
+  end
+  msgbox(str,'Track');
 end
 
 function pbClear_Callback(hObject, eventdata, handles)

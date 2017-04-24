@@ -2081,19 +2081,27 @@ classdef Labeler < handle
       nfrmsTotInProj = sum(nfrmsAll);
       dfSamp = ceil(nfrmsTotInProj/nFrmSamp);
       
+      wbObj = WaitBarWithCancel('Histogram Equalization','cancelDisabled',true);
+      oc = onCleanup(@()delete(wbObj));
+
       I = cell(0,1);
       mr = MovieReader;
       mr.forceGrayscale = true;
+      iSamp = 0;
+      wbObj.startPeriod('Reading data...');
       for iMov = 1:obj.nmovies
         mov = obj.movieFilesAllFull{iMov};
         mr.open(mov);
         for f = 1:dfSamp:mr.nframes
+          wbObj.updateFrac(iSamp/nFrmSamp);
+          iSamp = iSamp+1;
           I{end+1,1} = mr.readframe(f); %#ok<AGROW>
-          fprintf('Read movie %d, frame %d\n',iMov,f);
+          %fprintf('Read movie %d, frame %d\n',iMov,f);
         end
       end
-        
-      H0 = typicalImHist(I);
+      wbObj.endPeriod();      
+      
+      H0 = typicalImHist(I,'wbObj',wbObj);
     end
     
   end

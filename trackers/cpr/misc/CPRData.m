@@ -301,8 +301,8 @@ classdef CPRData < handle
       tfWB = ~isempty(wbObj);
       
       if tfWB
-        wbObj.startCancelablePeriod('Reading movie frames');
-        oc = onCleanup(@()wbObj.endCancelablePeriod);
+        wbObj.startPeriod('Reading movie frames');
+        oc = onCleanup(@()wbObj.endPeriod);
       end
   
       N = size(tblMF,1);

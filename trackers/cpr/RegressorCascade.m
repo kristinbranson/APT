@@ -474,8 +474,8 @@ classdef RegressorCascade < handle
       p = p0; % current/working shape, absolute coords
                    
       if tfWB
-        wbObj.startCancelablePeriod('Applying cascaded regressor');
-        oc = onCleanup(@()wbObj.endCancelablePeriod());
+        wbObj.startPeriod('Applying cascaded regressor');
+        oc = onCleanup(@()wbObj.endPeriod());
       end
       for t = t0:T
         if tfWB
