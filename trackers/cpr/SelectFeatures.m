@@ -15,11 +15,8 @@ classdef SelectFeatures
 
       N = size(X,1);
       
-      if isfield(ftrPrm,'nsample_std'),
-        nsample = ftrPrm.nsample_std;
-      else
-        nsample = N;
-      end
+      assert(isfield(ftrPrm,'nsample_std'));
+      nsample = ftrPrm.nsample_std;
       
       muFtrs = mean(X);
       dfFtrs = bsxfun(@minus,X,muFtrs);
