@@ -127,14 +127,6 @@ function [hPropsPane,parameters] = propertiesGUI(hParent, parameters)
 
 % 2017 - Modified by Allen Lee for Branson Lab, JRC/HHMI
 
-try
-  parameters = get(parameters);
-catch
-  oldWarn = warning('off','MATLAB:structOnObject');
-  parameters = struct(parameters);
-  warning(oldWarn);
-end
-
 com.mathworks.mwswing.MJUtilities.initJIDE;
 
 % Prepare the list of properties
@@ -365,9 +357,8 @@ try isco  = iscom(object);      catch, isco  = false; end
 hasProps = ~isempty(object) && (isst || isjav || isobj || isco);
 end
 
-% Customize the property-pane's appearance
 function customizePropertyPane(pane)
-pane.setShowDescription(false);  % YMA: we don't currently have textual descriptions of the parameters, so no use showing an empty box that just takes up GUI space...
+pane.setShowDescription(true);
 pane.setShowToolBar(false);
 pane.setOrder(2);  % uncategorized, unsorted - see http://undocumentedmatlab.com/blog/advanced-jide-property-grids/#comment-42057
 end
@@ -402,17 +393,25 @@ parameters.font_property = java.awt.Font('Arial', java.awt.Font.BOLD, 12);
 try parameters.class_object_property = matlab.desktop.editor.getActive; catch, end
 end  % demoParameters
 
-% Prepare a list of properties
-function propsList = preparePropsList(parameters, isEditable)
+function propsList = preparePropsList(parameters)
+% parameters: Tree from parseConfigYaml
+
+assert(isa(parameters,'TreeNode'));
+propsList = java.util.ArrayList();
+parameters.traverse(@nstFcn);
+
+  function nstFcn(t)
+    newProp = newProperty(t,@propUpdatedCallback);
+    propsList.add(newProp);
+  end
+end
+
+function propsList = preparePropsListLegacy(parameters)
 propsList = java.util.ArrayList();
 
-% Convert a class object into a struct
 if isobject(parameters)
   parameters = struct(parameters);
 end
-
-% Check for an array of inputs (currently unsupported)
-%if numel(parameters) > 1,  error('YMA:propertiesGUI:ArrayParameters','Non-scalar inputs are currently unsupported');  end
 
 % Prepare a dynamic list of properties, based on the struct fields
 if isstruct(parameters) && ~isempty(parameters)
@@ -583,7 +582,7 @@ else
   propsList.add(newProperty(parameters, 'int_prop_name',    'Now an integer',  isEditable, 'unsigned',           '123 456...',           @propUpdatedCallback));
   propsList.add(newProperty(parameters, 'choice_prop_name', 'And a drop-down', isEditable, {'Yes','No','Maybe'}, 'no description here!', @propUpdatedCallback));
 end
-end  % preparePropsList
+end
 
 % Get a normalized field label (see also checkFieldName() below)
 function field_label = getFieldLabel(field_name)
@@ -592,53 +591,24 @@ field_label = strrep(field_label,'_',' ');
 field_label(1) = upper(field_label(1));
 end
 
-% Prepare a data property
-function prop = newProperty(dataStruct, propName, label, isEditable, dataType, description, propUpdatedCallback)
-% Auto-generate the label from the property name, if the label was not specified
-if isempty(label)
-  label = getFieldLabel(propName);
-end
+function prop = newProperty(t,propUpdatedCallback)
+pgp = t.Data;
+propName = pgp.Field;
+label = pgp.DispNameUse;
+dataType = pgp.Type;
+description = pgp.Description;
 
-% Create a new property with the chosen label
-prop = javaObjectEDT(com.jidesoft.grid.DefaultProperty);  % UNDOCUMENTED internal MATLAB component
+prop = javaObjectEDT(com.jidesoft.grid.DefaultProperty); % UNDOCUMENTED internal MATLAB component
 prop.setName(label);
 prop.setExpanded(true);
+prop.setValue(pgp.Value);
+prop.setEditable(pgp.isEditable);
 
-% Set the property to the current patient's data value
-try
-  thisProp = dataStruct.(propName);
-catch
-  thisProp = dataStruct;
-end
-origProp = thisProp;
-if isstruct(thisProp)  %hasProperties(thisProp)
-  % Accept any object having data fields/properties
-  try
-    thisProp = get(thisProp);
-  catch
-    oldWarn = warning('off','MATLAB:structOnObject');
-    thisProp = struct(thisProp);
-    warning(oldWarn);
+for i=1:numel(t.Children)
+  children = toArray(preparePropsList(t.Children(i)));
+  for j = 1:numel(children)
+    prop.addChild(children(j));
   end
-  
-  % Parse the children props and add them to this property
-  %summary = regexprep(evalc('disp(thisProp)'),' +',' ');
-  %prop.setValue(summary);  % TODO: display summary dynamically
-  if numel(thisProp) < 2
-    prop.setValue('');
-  else
-    sz = size(thisProp);
-    szStr = regexprep(num2str(sz),' +','x');
-    prop.setValue(['[' szStr ' struct array]']);
-  end
-  prop.setEditable(false);
-  children = toArray(preparePropsList(thisProp, isEditable));
-  for childIdx = 1 : length(children)
-    prop.addChild(children(childIdx));
-  end
-else
-  prop.setValue(thisProp);
-  prop.setEditable(isEditable);
 end
 
 % Set property editor, renderer and alignment
@@ -685,21 +655,21 @@ if iscell(dataType)
     editor = com.jidesoft.grid.ListComboBoxCellEditor(dataType);
     try editor.getComboBox.setEditable(cbIsEditable); catch, end % #ok<NOCOM>
     %set(editor,'EditingStoppedCallback',{@propUpdatedCallback,tagName,propName});
-    alignProp(prop, editor);
+    alignProp(prop,editor);
     try prop.setValue(origProp{firstIndex}); catch, end
   end
 else
   switch lower(dataType)
-    case 'signed',    %alignProp(prop, com.jidesoft.grid.IntegerCellEditor,    'int32');
+    case 'signed'    %alignProp(prop, com.jidesoft.grid.IntegerCellEditor,    'int32');
       model = javax.swing.SpinnerNumberModel(prop.getValue, -intmax, intmax, 1);
       editor = com.jidesoft.grid.SpinnerCellEditor(model);
       alignProp(prop, editor, 'int32');
-    case 'unsigned',  %alignProp(prop, com.jidesoft.grid.IntegerCellEditor,    'uint32');
+    case 'unsigned'  %alignProp(prop, com.jidesoft.grid.IntegerCellEditor,    'uint32');
       val = max(0, min(prop.getValue, intmax));
       model = javax.swing.SpinnerNumberModel(val, 0, intmax, 1);
       editor = com.jidesoft.grid.SpinnerCellEditor(model);
       alignProp(prop, editor, 'uint32');
-    case 'float',     %alignProp(prop, com.jidesoft.grid.CalculatorCellEditor, 'double');  % DoubleCellEditor
+    case 'float'     %alignProp(prop, com.jidesoft.grid.CalculatorCellEditor, 'double');  % DoubleCellEditor
       alignProp(prop, com.jidesoft.grid.DoubleCellEditor, 'double');
     case 'boolean',   alignProp(prop, com.jidesoft.grid.BooleanCheckBoxCellEditor, 'logical');
     case 'folder',    alignProp(prop, com.jidesoft.grid.FolderCellEditor);
@@ -1210,7 +1180,7 @@ if any(index)
   selectedProp.removeAllChildren();
   
   % Make a new list
-  newList = preparePropsList(data, true);
+  newList = preparePropsListLegacy(data, true);
   
   % Conver the list to an array
   newArray = newList.toArray();

@@ -1,38 +1,56 @@
-Track:
-  Type: ['',['cpr'],false,Type of tracker,cpr]
-  HistEq: 
-    Use: ['Enable',boolean,true,Enable histogram equalization as preprocessing step,false]
-    NSampleH0: ['',unsigned,true,Number of frames to sample to estimate type image histogram,500]
+# * Each node has a list of metadata:
+# - pretty name (displayed). Note, the node name/identifier itself is also meaningful as the fieldname in the data struct.
+# - type (see PropertiesGUIProp.m for options)
+# - isEditable
+# - description
+# - default value
+# * After the metadata comes a list of child nodes.
+# * As a shortcut, leaf nodes can contain the metadata directly as their value.
 
-CPR: 
-  NumMajorIter: ['',unsigned,true,Number of major iterations in regressor cascade,50]
-  NumMinorIter: ['',unsigned,true,Number of minor iterations (boosted regressors) per major iteration,30]
-  Ferns:
-    Depth: ['',unsigned,true,Number of features used for fern binning,5]
-    Threshold:
-      Lo: ['',float,true,Low threshold,-.2]
-      Hi: ['',float,true,High threhold,.2]
-    RegFactor: ['',float,true,Regularization factor,.01]
-  Feature:
-    Type: ['',['1lm','2lm','2lmdiff'],true,Method/type of feature generation,'2lm']
-    Metatype: ['',['single',diff'],true,Feature combination strategy to form ''true'' features,'diff']
-    NGenerate: ['',float,true,Number of features to generate/consider at each major iteration,400]
-    Radius: ['',float,true,Distance or distance scalefactor for feature generation,1.5]
-    Nsample_std: ['',float,true,Number of samples used to approximate SD during feature selection,1000]
-    Nsample_cor: ['',float,true,Number of samples used to compute correlation during feature selection,5000]
-  RotCorrection:
-    Use: ['Enable',boolean,true,Enable rotationally invariant regression for arbitrarily-oriented animals,false]
-    HeadPoint: ['',unsigned,true,Landmark/point representing animal ''Head'',0]
-    TailPoint: ['',unsigned,true,Landmark/point representing animal ''Tail'',0]
-  Replicates:
-    NrepTrain: ['',unsigned,true,Training set augmentation factor. Each training shape is utilized/replicated this many times,50]
-    NrepTrack: ['',unsigned,true,Number of replicates to use when tracking. The final tracking result is estimated from a central measure of the replicate cloud.,50]
-    AugRotate: ['',boolean,true,Randomize orientation of training/tracking shapes. If enabled rotational correction should also be enabled.',false] # CONFIRM TIED TOGETHER
-    AugJitterFac: ['',float,true,reciprocalize,12] # RECIPROCALIZE; CONFIRM TIED TOGETHER
-    AugUseFF: ['',boolean,true,Maximize distance between training/tracking initial conditions,false] # CONFIRM TIED TOGETHER
-  Track:
-    ChunkSize: ['',unsigned,true,Track large movies in batches with this many frames in each batch.',3000]
-    Prune:
-      MaxDensitySigma: ['',float,true,Length scale (in pixels) for Gaussian kernel used during pruning. Larger values include more distant shapes when computing a given shape's likelihood',5]
-  
+Track:
+  - ['','',false,General tracking settings,'']
+  - Type: ['',['cpr'],false,Type of tracker,cpr]
+  - HistEq:
+    - ['','',false,Histogram Equalization,'']
+    - Use: ['Enable',boolean,true,Enable histogram equalization as preprocessing step,false]
+    - NSampleH0: ['',unsigned,true,Number of frames to sample to estimate type image histogram,500]
+
+CPR:
+  - ['','',false,Settings for Cascaded Pose Regression (CPR),'']
+  - NumMajorIter: ['',unsigned,true,Number of major iterations in regressor cascade,50]
+  - NumMinorIter: ['',unsigned,true,Number of minor iterations (boosted regressors) per major iteration,30]
+  - Ferns:
+    - ['','',false,Random ferns,'']
+    - Depth: ['',unsigned,true,Number of features used for fern binning,5]
+    - Threshold:
+      - ['','',false,Random fern thresholds,'']
+      - Lo: ['',float,true,Low threshold,-.2]
+      - Hi: ['',float,true,High threhold,.2]
+    - RegFactor: ['',float,true,Regularization factor,.01]
+  - Feature:
+    - ['','',false,Feature generation,'']
+    - Type: ['',['1lm','2lm','2lmdiff'],true,Method/type of feature generation,'2lm']
+    - Metatype: ['',['single','diff'],true,Feature combination strategy to form ''true'' features,'diff']
+    - NGenerate: ['',unsigned,true,Number of features to generate/consider at each major iteration,400]
+    - Radius: ['',float,true,Distance or distance scalefactor for feature generation,1.5]
+    - Nsample_std: ['',unsigned,true,Number of samples used to approximate SD during feature selection,1000]
+    - Nsample_cor: ['',unsigned,true,Number of samples used to compute correlation during feature selection,5000]
+  - RotCorrection:
+    - ['','',false,Rotational invariance for randomly-oriented animals,'']
+    - Use: ['Enable',boolean,true,Enable rotationally invariant regression for arbitrarily-oriented animals,false]
+    - HeadPoint: ['',unsigned,true,Landmark/point representing animal ''Head'',0]
+    - TailPoint: ['',unsigned,true,Landmark/point representing animal ''Tail'',0]
+  - Replicates:
+    - ['','',false,'','']
+    - NrepTrain: ['',unsigned,true,Training set augmentation factor. Each training shape is utilized/replicated this many times,50]
+    - NrepTrack: ['',unsigned,true,Number of replicates to use when tracking. The final tracking result is estimated from a central measure of the replicate cloud.,50]
+    - AugRotate: ['',boolean,true,Randomize orientation of training/tracking shapes. If enabled rotational correction should also be enabled.',false] # CONFIRM TIED TOGETHER
+    - AugJitterFac: ['',float,true,reciprocalize,12] # RECIPROCALIZE; CONFIRM TIED TOGETHER
+    - AugUseFF: ['',boolean,true,Maximize distance between training/tracking initial conditions,false] # CONFIRM TIED TOGETHER
+  - Track:
+    - ['','',false,CPR tracking/propagation,'']
+    - ChunkSize: ['',unsigned,true,Track large movies in batches with this many frames in each batch.',3000]
+    - Prune:
+      - ['','',false,'','']
+      - MaxDensitySigma: ['',float,true,Length scale (in pixels) for Gaussian kernel used during pruning. Larger values include more distant shapes when computing a given shape's likelihood',5]
   
