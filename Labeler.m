@@ -3671,7 +3671,7 @@ classdef Labeler < handle
       obj.targetZoomFac = zoomFac;
         
       zr0 = max(obj.movienr,obj.movienc)/2; % no-zoom: large radius
-      zr1 = obj.projPref.Trx.ZoomRadiusTight; % tight zoom: small radius
+      zr1 = obj.projPrefs.Trx.ZoomRadiusTight; % tight zoom: small radius
       
       if zr1>zr0
         zr = zr0;
@@ -3806,7 +3806,7 @@ classdef Labeler < handle
         'tfforcelabelupdate',false);
             
       if obj.hasTrx
-        assert(~obj.isMultView,'MultiView labeling not supported with trx.');
+        assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
         
         tfTargetLive = obj.frm2trx(frm,:);      
         if ~tfTargetLive(obj.currTarget)
