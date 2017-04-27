@@ -2081,19 +2081,27 @@ classdef Labeler < handle
       nfrmsTotInProj = sum(nfrmsAll);
       dfSamp = ceil(nfrmsTotInProj/nFrmSamp);
       
+      wbObj = WaitBarWithCancel('Histogram Equalization','cancelDisabled',true);
+      oc = onCleanup(@()delete(wbObj));
+
       I = cell(0,1);
       mr = MovieReader;
       mr.forceGrayscale = true;
+      iSamp = 0;
+      wbObj.startPeriod('Reading data...');
       for iMov = 1:obj.nmovies
         mov = obj.movieFilesAllFull{iMov};
         mr.open(mov);
         for f = 1:dfSamp:mr.nframes
+          wbObj.updateFrac(iSamp/nFrmSamp);
+          iSamp = iSamp+1;
           I{end+1,1} = mr.readframe(f); %#ok<AGROW>
-          fprintf('Read movie %d, frame %d\n',iMov,f);
+          %fprintf('Read movie %d, frame %d\n',iMov,f);
         end
       end
-        
-      H0 = typicalImHist(I);
+      wbObj.endPeriod();      
+      
+      H0 = typicalImHist(I,'wbObj',wbObj);
     end
     
   end
@@ -3447,7 +3455,7 @@ classdef Labeler < handle
       tObj.retrain();
     end
     
-    function track(obj,tm)
+    function track(obj,tm,varargin)
       % tm: a TrackMode
       
       tObj = obj.tracker;
@@ -3455,7 +3463,7 @@ classdef Labeler < handle
         error('Labeler:track','No tracker set.');
       end      
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
-      tObj.track(iMovs,frms);
+      tObj.track(iMovs,frms,varargin{:});
     end
     
     function trackAndExport(obj,tm,varargin)
@@ -3663,7 +3671,7 @@ classdef Labeler < handle
       obj.targetZoomFac = zoomFac;
         
       zr0 = max(obj.movienr,obj.movienc)/2; % no-zoom: large radius
-      zr1 = obj.projPref.Trx.ZoomRadiusTight; % tight zoom: small radius
+      zr1 = obj.projPrefs.Trx.ZoomRadiusTight; % tight zoom: small radius
       
       if zr1>zr0
         zr = zr0;
@@ -3798,7 +3806,7 @@ classdef Labeler < handle
         'tfforcelabelupdate',false);
             
       if obj.hasTrx
-        assert(~obj.isMultView,'MultiView labeling not supported with trx.');
+        assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
         
         tfTargetLive = obj.frm2trx(frm,:);      
         if ~tfTargetLive(obj.currTarget)

@@ -29,6 +29,10 @@ classdef Features
       35    25    15     7
       63    56    41    22
       97    93    83    60];
+    
+    TYPE2XSCOLLBLS = containers.Map(...
+      {'1lm' '2lm' '2lmdiff'},{{'lm' 'radius' 'theta' 'view'},{'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'},[]});
+      % TODO: 2lmdiff. TODO: hardcoded here -- see generate/compute/visualize1LM, 2LM etc
   end
   %% preprocessing/channels
   methods (Static)
@@ -426,7 +430,7 @@ classdef Features
   %#3DOK
   methods (Static) % Two-landmark features
     
-    function [xs,prms] = generate2LM(model,varargin)
+    function [xs,prms,xslbls] = generate2LM(model,varargin)
       % Generate 2-landmark features
       % 
       % xs: F x 7 double array. xs(i,:) specifies the ith feature
@@ -444,6 +448,8 @@ classdef Features
       %     to 1 unless model.nviews>1.
       %
       % prms: scalar struct, params used to compute xs
+      %
+      % xslbls: [1x7] labels for cols of xs
       
       %%% Optional input P-V params
       %
@@ -528,6 +534,8 @@ classdef Features
       
       xs(:,6) = randint2(F,1,[1,prms.nchan]);
       xs(:,7) = randint2(F,1,[1,nviews]);
+      
+      xslbls = {'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'};
     end
     
     function [xF,yF,chan,iview,info] = compute2LM(xs,xLM,yLM)
@@ -620,12 +628,15 @@ classdef Features
       end
     end
     
-    function [h,str] = visualize2LM(ax,xF,yF,iView,info,iN,iF,clr)
+    function [hPlot,str] = visualize2LM(ax,xF,yF,iView,info,iN,iF,clr,varargin)
       % Visualize feature pts from compute2LM
       % 
       % xf/yf/info: from compute2LM
       % iN: trial index
       % iF: feature index
+      
+      hPlot = myparse(varargin,...
+        'hPlot',[]);
       
       assert(isequal(...
         size(xF),size(yF),...
@@ -644,12 +655,24 @@ classdef Features
       
       axplot = ax(ivw);
       
-      h = [];
-      h(end+1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
-      h(end+1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'o','Color',clr,'markerfacecolor',clr);
-      h(end+1) = plot(axplot,xf,yf,'v','Color',clr,'markerfacecolor',clr,'MarkerSize',8);
-      h(end+1) = ellipsedraw(info.araw(iN,iF),info.braw(iN,iF),xc,yc,info.alpha(iN,iF),'-g','parent',axplot);
-      h(end+1) = plot(axplot,[xc;xf],[yc;yf],'-g');
+      if isequal(hPlot,[])
+        hPlot = gobjects(5,1);
+        hPlot(1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
+        hPlot(2) = plot(axplot,xc,yc,'o','Color',clr,'markerfacecolor',clr);
+        hPlot(3) = plot(axplot,nan,nan,'o','Color',[1 1 1],'markerfacecolor',[1 1 1]);        
+        hPlot(4) = plot(axplot,xf,yf,'s','Color','w','MarkerSize',8,'markerfacecolor',[1 1 1]);
+        hPlot(5) = ellipsedraw(info.a(iN,iF),info.b(iN,iF),xc,yc,info.alpha(iN,iF),'-','parent',axplot,'Color',clr);
+        hPlot(6) = plot(axplot,[xc;xf],[yc;yf],'-','Color',clr);
+        [hPlot.LineWidth] = deal(1);
+      else
+        assert(numel(hPlot)==6);
+        set(hPlot(1),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
+        set(hPlot(2),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
+        %set(hPlot(3),'XData',x1,'YData',y1);
+        set(hPlot(4),'XData',xf,'YData',yf);
+        ellipsedraw(info.a(iN,iF),info.b(iN,iF),xc,yc,info.alpha(iN,iF),'-','hEllipse',hPlot(5),'parent',axplot);
+        set(hPlot(6),'XData',[xc;xf],'YData',[yc;yf]);
+      end
       str = sprintf('n=%d,f=%d(%d,%d). randctr=%.3f,rfac=%.3f,r=%.3f,theta=%.3f',iN,iF,...
         info.l1(iF),info.l2(iF),info.ctrFac(iF),info.rfac(iF),info.r(iN,iF),info.theta(iN,iF)/pi*180);
       title(axplot,str,'interpreter','none','fontweight','bold'); 
@@ -811,10 +834,13 @@ classdef Features
       end
     end
     
-    function [h,str] = visualize1LM(ax,xF,yF,iView,info,iN,iF)
+    function [hPlot,str] = visualize1LM(ax,xF,yF,iView,info,iN,iF,clr,varargin)
       % xF, yF, iView, info: from compute1LM
       % iN: trial index (row index of xF/yF)
       % iF: feature index (col index of xF/yF)
+
+      hPlot = myparse(varargin,...
+        'hPlot',[]);
 
       assert(isequal(size(xF),size(yF),size(info.xLM),size(info.yLM)));
       
@@ -822,16 +848,23 @@ classdef Features
       yf = yF(iN,iF);
       x1 = info.xLM(iN,iF);
       y1 = info.yLM(iN,iF);
-      ivw = iView(iN,iF);
+      ivw = iView(iF);
       
       axplot = ax(ivw);
-      %hold(axplot,'on');
       
-      h = [];
-      h(end+1) = plot(axplot,x1,y1,'ro','markerfacecolor',[1 0 0]);
-      h(end+1) = plot(axplot,xf,yf,'go','markerfacecolor',[0 1 0]);
-      h(end+1) = ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-g','parent',axplot);
-      h(end+1) = plot(axplot,[x1;xf],[y1;yf],'-g');
+      if isequal(hPlot,[])
+        hPlot = gobjects(4,1);
+        hPlot(1) = plot(axplot,nan,nan,'o','color',clr,'markerfacecolor',clr);
+        hPlot(2) = plot(axplot,xf,yf,'s','color','w','markerfacecolor',[1 1 1]);
+        hPlot(3) = ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-','parent',axplot,'Color',clr);
+        hPlot(4) = plot(axplot,[x1;xf],[y1;yf],'-','Color',clr);
+      else
+        assert(numel(hPlot)==4);
+        set(hPlot(1),'XData',x1,'YData',y1);
+        set(hPlot(2),'XData',xf,'YData',yf);
+        ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-','parent',axplot,'hEllipse',hPlot(3));
+        set(hPlot(4),'XData',[x1;xf],'YData',[y1;yf]);        
+      end
       str = sprintf('n=%d,f=%d(%d). r=%.3f, theta=%.3f',iN,iF,info.l1(iF),...
         info.r(iF),info.theta(iF)/pi*180);
       title(axplot,str,'interpreter','none','fontweight','bold');

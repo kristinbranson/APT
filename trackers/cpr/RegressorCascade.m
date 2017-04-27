@@ -13,7 +13,7 @@ classdef RegressorCascade < handle
     
     ftrSpecs % [nMjr] cell array of feature definitions/specifications. ftrSpecs{i} is either [], or a struct specifying F features
     %ftrs % [nMjr] cell array of instantiated features. ftrs{i} is either [], or NxF    
-    ftrsUse % [nMjr x nMnr x M x nUse] selected feature subsets (M=fern depth). ftrsUse(iMjr,iMnr,:,:) contains selected features for given iteration. nUse is 1 by default or can equal 2 for ftr.metatype='diff'.        
+    ftrsUse % [nMjr x nMnr x M x nUse] selected feature subsets (M=fern depth). ftrsUse(iMjr,iMnr,:,:) contains selected features for given iteration. nUse is 1 by default or can equal 2 for ftr.metatype='diff'.
     
     fernN % [nMjr x nMnr] total number of data points run through fern regression 
     fernMu % [nMjr x nMnr x D] mean output (Y) encountered by fern regression
@@ -29,6 +29,7 @@ classdef RegressorCascade < handle
     nMajor
     nMinor
     M
+    metaNUse
     mdld
     mdlD
     hasTrained % scalar logical; true if at least one full training has occurred
@@ -43,6 +44,17 @@ classdef RegressorCascade < handle
     end
     function v = get.M(obj)
       v = obj.prmReg.M;
+    end
+    function v = get.metaNUse(obj)
+      ftrMetaType = obj.prmFtr.metatype;
+      switch ftrMetaType
+        case 'single'
+          v = 1;
+        case 'diff'
+          v = 2;
+        otherwise
+          assert(false);
+      end
     end
     function v = get.mdld(obj)
       v = obj.prmModel.d;
@@ -83,18 +95,9 @@ classdef RegressorCascade < handle
       nMjr = obj.nMajor;
       nMnr = obj.nMinor;
       MM = obj.M;
-      ftrMetaType = obj.prmFtr.metatype;
-      switch ftrMetaType
-        case 'single'
-          nUse = 1;
-        case 'diff'
-          nUse = 2;
-        otherwise
-          assert(false);
-      end      
       
       obj.ftrSpecs = cell(nMjr,1);
-      obj.ftrsUse = nan(nMjr,nMnr,MM,nUse);
+      obj.ftrsUse = nan(nMjr,nMnr,MM,obj.metaNUse);
       
       obj.fernN = zeros(nMjr,nMnr);
       obj.fernMu = nan(nMjr,nMnr,obj.mdlD);    
@@ -149,7 +152,7 @@ classdef RegressorCascade < handle
     
     
     %#3DOK
-    function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused,calrig) % obj const
+    function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused,calrig) % obj CONST
       % t: major iteration
       % I: [NxnView] Cell array of images (nView==1) or imageSets (nView>1)
       % bboxes: [Nx2*d]. Currently unused (used only for occlusion)
@@ -444,11 +447,11 @@ classdef RegressorCascade < handle
       % p_t: [QxDx(T+1)] All shapes over time. p_t(:,:,1)=p0; p_t(:,:,end)
       % is shape after T'th major iteration.
          
-      [t0,hWB,calrig] = myparse(varargin,...
+      [t0,wbObj,calrig] = myparse(varargin,...
         't0',1,... % initial/starting major iteration
-        'hWaitBar',[],...
+        'wbObj',[],... % WaitBarWithCancel. If cancel, obj is unchanged and p_t is partially filled
         'calrig',[]);
-      tfWB = ~isempty(hWB);
+      tfWB = ~isempty(wbObj);
 
       model = obj.prmModel;
 
@@ -471,11 +474,15 @@ classdef RegressorCascade < handle
       p = p0; % current/working shape, absolute coords
                    
       if tfWB
-        waitbar(0,hWB,'Applying cascaded regressor');
+        wbObj.startPeriod('Applying cascaded regressor');
+        oc = onCleanup(@()wbObj.endPeriod());
       end
       for t = t0:T
         if tfWB
-          waitbar(t/T,hWB);
+          tfCancel = wbObj.updateFrac(t/T);
+          if tfCancel
+            return;
+          end
         else
           fprintf(1,'Applying cascaded regressor: %d/%d\n',t,T);
         end
@@ -509,7 +516,7 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function [p_t,pIidx,p0,p0info] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj const
+    function [p_t,pIidx,p0,p0info] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj CONST
       % Wrapper for propagate(), randomly init replicate cloud from
       % obj.pGTNTrn
       %
@@ -519,6 +526,9 @@ classdef RegressorCascade < handle
       % p0: initial shapes (absolute coords)
       % p0info: struct containing initial shape info
             
+      wbObj = myparse(varargin,...
+        'wbObj',[]); %#ok<NASGU> % WaitBarWithCancel. If cancel, obj is unchanged, p_t partially filled, pIidx,p0,p0info appear 'correct'
+      
       model = obj.prmModel;
       [N,nview] = size(I);
       assert(nview==model.nviews);
@@ -622,7 +632,7 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function x = computeMetaFeature(obj,X,iFtrsX,t,u,metatype)
+    function x = computeMetaFeature(obj,X,iFtrsX,t,u,metatype) % obj CONST
       % Helper function to compute meta-features
       %
       % X: [QxZ] computed features
@@ -633,7 +643,7 @@ classdef RegressorCascade < handle
       %
       % x: [QxM] meta-features
       
-      iFtrsUsed = squeeze(obj.ftrsUse(t,u,:,:)); % [MxnUse]
+      iFtrsUsed = squeeze(obj.ftrsUse(t,u,:,:)); % [MxnUse]      
       nUse = size(iFtrsUsed,2);
       switch metatype
         case 'single'
@@ -677,6 +687,36 @@ classdef RegressorCascade < handle
       obj.prmTrainInit = sPrm.TrainInit;
       obj.prmReg = sPrm.Reg;
       obj.prmFtr = sPrm.Ftr;      
+    end
+    
+    function [ipts,ftrType] = getLandmarksUsed(obj,t)
+      % t: major iter
+      
+      fUsed = squeeze(obj.ftrsUse(t,:,:,:)); % [nMnr x M x nUse]. Feature indices (indices into rows of xs)
+      fSpec = obj.ftrSpecs{t};
+      xs = fSpec.xs;
+      ftrType = fSpec.type;
+      
+      % AL: following fragile, likely to break if/when fSpec changes
+      switch ftrType
+        case '1lm'
+          assert(size(xs,2)==4);
+          fAll = xs(:,1);
+        case '2lm'
+          assert(size(xs,2)==7);
+          fAll = xs(:,[1 2]);
+        case '2lmdiff'
+          assert(size(xs,2)==13);
+          fAll = xs(:,[1 2 8 9]);          
+      end
+      
+      % At the moment, we do the simplest thing. We return all landmarks
+      % selected/used across all minor iters; Ferns; if nUse==2
+      % (metatype = 'diff') we include both terms; for features generated
+      % using 2 landmarks, we include both
+      fUsed = fUsed(:);
+      ipts = fAll(fUsed,:);
+      ipts = ipts(:);
     end
     
   end

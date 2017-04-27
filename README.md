@@ -12,9 +12,10 @@ Animal Part Tracker
   * [Caltech camera calibration toolbox](https://www.vision.caltech.edu/bouguetj/calib_doc/)
 
 ## Setup
-1. Copy <APT\>\Manifest.sample.txt to Manifest.txt and edit to point to your checkout of JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/).
-2. To enable CPR tracking, edit the 'piotr' entry to point to your local checkout of Piotr Dollar's toolbox.   
-3. For multi-camera data, edit the 'cameracalib' entry to point to your local calibration software.
+1. Copy <APT\>\Manifest.sample.txt to Manifest.txt and edit as follows:
+  * Edit the 'jaaba' entry to point to your checkout of JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/).
+  * To enable CPR tracking, edit the 'piotr' entry to point to your local checkout of Piotr Dollar's toolbox. 
+  * For multi-camera data, edit the 'cameracalib' entry to point to your local calibration software.
 4. Open MATLAB and:
 
     ```
@@ -95,5 +96,5 @@ Fully occluded points appear as inf in the .labeledpos Labeler property; occlude
 
 The Labeler is designed to work with pluggable "Trackers" which attempt to learn from and predict labeled data.
 
-A version of CPR (Cascaded Pose Regression) has been implemented and is available for use: see
+A version of CPR (Cascaded Pose Regression) is integrated into APT: see
 https://github.com/kristinbranson/APT/wiki/CPR-Tracking-in-the-Labeler

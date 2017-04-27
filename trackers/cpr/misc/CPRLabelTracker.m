@@ -221,15 +221,14 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     %#MV
-    function updateData(obj,tblP)
+    function updateData(obj,tblP,varargin)
       % Update .data to include tblP
       
+      wbObj = myparse(varargin,...
+        'wbObj',[]); % WaitBarWithCancel. If cancel, obj unchanged.
+      
       [tblPnew,tblPupdate] = obj.tblPDiffData(tblP);
-      hWB = waitbar(0);
-      hTxt = findall(hWB,'type','text');
-      hTxt.Interpreter = 'none';
-      obj.updateDataRaw(tblPnew,tblPupdate,'hWaitBar',hWB);
-      delete(hWB);
+      obj.updateDataRaw(tblPnew,tblPupdate,'wbObj',wbObj);      
     end
     
     %#MV
@@ -249,8 +248,9 @@ classdef CPRLabelTracker < LabelTracker
       %
       % sets .data, .dataTS      
       
-      [hWB] = myparse(varargin,...
-        'hWaitBar',[]);
+      wbObj = myparse(varargin,...
+        'wbObj',[]); % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
+      tfWB = ~isempty(wbObj);
       
       if isempty(obj.sPrm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
@@ -258,7 +258,6 @@ classdef CPRLabelTracker < LabelTracker
       
       prmpp = obj.sPrm.PreProc;
       dataCurr = obj.data;
-      tblMFcurr = dataCurr.MD(:,{'mov' 'frm'});
       
       if prmpp.histeq
         assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.trnResH0));
@@ -270,20 +269,9 @@ classdef CPRLabelTracker < LabelTracker
           'Channels preprocessing currently unsupported for multiview tracking.');
       end
       
-      %%% EXISTING ROWS -- just update pGT and tfocc. Existing images are
-      %%% OK and already histeq'ed correctly
-      nUpdate = size(tblPupdate,1);
-      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB table indexing API may not be polished
-        fprintf(1,'Updating labels for %d rows...\n',nUpdate);
-        tblMFupdate = tblPupdate(:,{'mov' 'frm'});
-        [tf,loc] = ismember(tblMFupdate,tblMFcurr);
-        assert(all(tf));
-        dataCurr.MD{loc,'tfocc'} = tblPupdate.tfocc; % AL 20160413 throws if nUpdate==0
-        dataCurr.pGT(loc,:) = tblPupdate.p;
-      end
-      
-      %%% NEW ROWS -- read images + PP
+      %%% NEW ROWS read images + PP. Append to dataCurr. %%%
       tblMFnew = tblPNew(:,{'mov' 'frm'});
+      tblMFcurr = dataCurr.MD(:,{'mov' 'frm'});
       assert(~any(ismember(tblMFnew,tblMFcurr)));
       tblMFnewConcrete = tblMFnew;
       if obj.lObj.isMultiView && ~isempty(tblMFnewConcrete.mov)
@@ -296,13 +284,21 @@ classdef CPRLabelTracker < LabelTracker
       nNew = size(tblPNew,1);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
-        I = CPRData.getFrames(tblMFnewConcrete);
+        I = CPRData.getFrames(tblMFnewConcrete,'wbObj',wbObj);
+        if tfWB && wbObj.isCancel
+          % obj unchanged
+          return;
+        end
         dataNew = CPRData(I,tblPNew);
         if prmpp.histeq
           H0 = obj.trnResH0;
           assert(~isempty(H0),'H0 unavailable for histeq/preprocessing.');
           gHE = categorical(dataNew.MD.mov);
-          dataNew.histEq('g',gHE,'H0',H0,'hWaitBar',hWB);
+          dataNew.histEq('g',gHE,'H0',H0,'wbObj',wbObj);
+          if tfWB && wbObj.isCancel
+            % obj unchanged
+            return;
+          end
           assert(isequal(dataNew.H0,H0));
           if dataCurr.N==0
             dataCurr.H0 = H0;
@@ -310,7 +306,7 @@ classdef CPRLabelTracker < LabelTracker
           end
         end
         if ~isempty(prmpp.channelsFcn)
-          feval(prmpp.channelsFcn,dataNew,'hWaitBar',hWB);
+          feval(prmpp.channelsFcn,dataNew);
           assert(~isempty(dataNew.IppInfo),...
             'Preprocessing channelsFcn did not set .IppInfo.');
           if isempty(dataCurr.IppInfo)
@@ -322,8 +318,20 @@ classdef CPRLabelTracker < LabelTracker
         dataCurr.append(dataNew);
       end
       
+      %%% EXISTING ROWS -- just update pGT and tfocc. Existing images are
+      %%% OK and already histeq'ed correctly
+      nUpdate = size(tblPupdate,1);
+      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB table indexing API may not be polished
+        fprintf(1,'Updating labels for %d rows...\n',nUpdate);
+        tblMFupdate = tblPupdate(:,{'mov' 'frm'});
+        tblMFcurr = dataCurr.MD(:,{'mov' 'frm'});
+        [tf,loc] = ismember(tblMFupdate,tblMFcurr);
+        assert(all(tf));
+        dataCurr.MD{loc,'tfocc'} = tblPupdate.tfocc; % AL 20160413 throws if nUpdate==0
+        dataCurr.pGT(loc,:) = tblPupdate.p;
+      end
+      
       if nUpdate>0 || nNew>0
-        %obj.data = dataCurr;
         assert(obj.data==dataCurr); % handles
         obj.dataTS = now;
       else
@@ -544,7 +552,95 @@ classdef CPRLabelTracker < LabelTracker
       end
       
     end
-          
+    
+    function trkposFull = getTrackResFull(obj,iMov,frm)
+      % Get full tracking results for movie iMov, frame frm.
+      %
+      % trkposFull: [nptstrk x d x nRep x (T+1)], or [] if iMov/frm not
+      % found in .trkPFull'
+      
+      assert(obj.storeFullTracking);
+      
+      trkMD = obj.trkPMD;
+      iPtTrk = obj.trkPiPt;
+      nPtTrk = numel(iPtTrk);
+      d = 2;
+      nRep = obj.sPrm.TestInit.Nrep;
+      
+      lObj = obj.lObj;
+      movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
+      movNameID = MFTable.formMultiMovieID(movNameID);
+
+      tfMovFrm = strcmp(trkMD.mov,movNameID) & trkMD.frm==frm;
+      nMovFrm = nnz(tfMovFrm);
+      assert(nMovFrm==0 || nMovFrm==1);
+      if nMovFrm==0
+        trkposFull = [];
+      else
+        trkposFull = squeeze(obj.trkPFull(tfMovFrm,:,:,:)); % [nRep Dtrk Tp1]
+        Tp1 = size(trkposFull,3);
+        trkposFull = reshape(trkposFull,[nRep nPtTrk d Tp1]);
+        trkposFull = permute(trkposFull,[2 3 1 4]);
+      end
+    end
+    
+    function updateTrackRes(obj,tblMFtrk,pTstTRed,pTstT)
+      % Augment .trkP* state with new tracking results
+      %
+      % tblMF: [nTst x nCol] MF table for pTstTRed/pTstT
+      % pTstTRed: [nTst x Dfull]
+      % pTstT: [nTst x RT x Dfull x Tp1]
+      % 
+      % - new rows are just added
+      % - existing rows are overwritten
+      
+      nTst = size(tblMFtrk,1);
+      RT = obj.sPrm.TestInit.Nrep;
+      mdlPrms = obj.sPrm.Model;
+      Dfull = mdlPrms.nfids*mdlPrms.nviews*mdlPrms.d;
+      Tp1 = obj.sPrm.Reg.T+1;
+      szassert(pTstTRed,[nTst Dfull]);
+      szassert(pTstT,[nTst RT Dfull Tp1]);
+      
+      if ~isempty(obj.trkP)
+        assert(~isempty(obj.trkPiPt),...
+          'Tracked points specification (.trkPiPt) cannot be empty.');
+        if ~isequal(obj.trkPiPt,obj.trnResIPt) % TODO: conceptually the second arg should be passed in. This assumes the tracking-points-to-be-added come from a particular source
+          error('CPRLabelTracker:track',...
+            'Existing tracked points (.trkPiPt) differ from new tracked points. New tracking results cannot be saved.');
+        end
+      end
+      
+      [tf,loc] = ismember(tblMFtrk,obj.trkPMD);
+      % existing rows
+      idxCur = loc(tf);
+      obj.trkP(idxCur,:) = pTstTRed(tf,:);
+      if obj.storeFullTracking
+        if ~isequal(obj.trkPFull,[])
+          szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull Tp1]);
+        end
+        obj.trkPFull(idxCur,:,:,:) = single(pTstT(tf,:,:,:));
+      else
+        assert(isempty(obj.trkPFull));
+      end
+      nowts = now;
+      obj.trkPTS(idxCur) = nowts;
+      % new rows
+      obj.trkP = [obj.trkP; pTstTRed(~tf,:)];
+      if obj.storeFullTracking
+        obj.trkPFull = [obj.trkPFull; single(pTstT(~tf,:,:,:))];
+      end
+      nNew = nnz(~tf);
+      obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
+      obj.trkPMD = [obj.trkPMD; tblMFtrk(~tf,:)];
+
+      % See above check/error re .trkPiPt. Either there were originally no
+      % tracking results so we are setting .trkPiPt for the first time; or
+      % there were original tracking results and the old .trkPiPt matches
+      % the new (in which case this line is a no-op).
+      % TODO: again should not assume where results are coming from
+      obj.trkPiPt = obj.trnResIPt;
+    end
   end
   
   %% LabelTracker overloads
@@ -788,7 +884,7 @@ classdef CPRLabelTracker < LabelTracker
       tblPNew = obj.getTblPLbledRecent();
       
       if isempty(tblPNew)
-        msgbox('Trained tracker is up-to-date with labels.','Tracker up-to-date');
+        msgbox('Trained tracker is up-to-date with labels.','Train');
         return;
       end
       
@@ -945,11 +1041,15 @@ classdef CPRLabelTracker < LabelTracker
     
     %#MV
     function track(obj,iMovs,frms,varargin)
-      [tblP,movChunkSize,p0DiagImg] = myparse(varargin,...
+      [tblP,movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
         'tblP',[],... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
         'movChunkSize',5000, ... % track large movies in chunks of this size
-        'p0DiagImg',[] ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
+        'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
+        'wbObj',[] ... % WaitBarWithCancel. If cancel:
+                   ... %  1. obj.data might be cleared
+                   ... %  2. tracking results may be partally updated
         );
+      tfWB = ~isempty(wbObj);
       
       prm = obj.sPrm;
       if isempty(prm)
@@ -971,6 +1071,10 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
       
+      % if tfWB, then canceling can early-return. In all return cases we
+      % want to run hlpTrackWrapupViz.
+      oc = onCleanup(@()hlpTrackWrapupViz(obj));
+      
       nFrmTrk = size(tblP,1);
       iChunkStarts = 1:movChunkSize:nFrmTrk;
       nChunk = numel(iChunkStarts);
@@ -988,11 +1092,26 @@ classdef CPRLabelTracker < LabelTracker
           % don't preserve/cache data          
           obj.initData();
         end
+        if tfWB && nChunk>1
+          wbObj.msgPat = sprintf('Chunk %d/%d: %%s',iChunk,nChunk);
+        end
         
         tblPChunk(:,'pTS') = [];
-        obj.updateData(tblPChunk);
+        obj.updateData(tblPChunk,'wbObj',wbObj);
+        if tfWB && wbObj.isCancel
+          % Single-chunk: data unchanged, tracking results unchanged => 
+          % obj unchanged.
+          %
+          % Multi-chunk: data cleared. If 2nd chunk or later, tracking
+          % results updated to some extent.
+          
+          if iChunk>1 % implies nChunk>1
+            wbObj.cancelData = struct('msg','Partial tracking results available.');
+          end
+          return;
+        end
+        
         d = obj.data;
-
         tblMFTrk = tblPChunk(:,{'mov' 'frm'});
         tblMFAll = d.MD(:,{'mov' 'frm'});
         [tf,loc] = ismember(tblMFTrk,tblMFAll);
@@ -1005,10 +1124,9 @@ classdef CPRLabelTracker < LabelTracker
         [Is,nChan] = d.getCombinedIs(d.iTst);
         prm.Ftr.nChn = nChan;
         
-        %% Test on test set
+        %% Test on test set; fill/generate pTstT/pTstTRed for this chunk
         NTst = d.NTst;
         RT = prm.TestInit.Nrep;
-
         nview = obj.sPrm.Model.nviews;
         nfids = prm.Model.nfids;
         assert(nview==numel(obj.trnResRC));
@@ -1017,7 +1135,7 @@ classdef CPRLabelTracker < LabelTracker
         Dfull = nfids*nview*prm.Model.d;
         pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
         pTstTRed = nan(NTst,Dfull);
-        for iView=1:nview
+        for iView=1:nview % obj CONST over this loop
           rc = obj.trnResRC(iView);
           IsVw = Is(:,iView);          
           bboxesVw = CPRData.getBboxes2D(IsVw);
@@ -1025,7 +1143,25 @@ classdef CPRLabelTracker < LabelTracker
             assert(isequal(bboxesVw,d.bboxesTst));
           end
           
-          [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,prm.TestInit);
+          [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,...
+            prm.TestInit,'wbObj',wbObj);
+          if tfWB && wbObj.isCancel
+            % obj has CHANGED. If we were really smart, we could use/store
+            % partial tracking results in p_t. Or, in practice client can 
+            % decrease chunk size as tracking results are saved at those
+            % increments.
+            % 
+            % Single-chunk: data updated 
+            %
+            % Multi-chunk: data updated. If 2nd chunk or later, tracking
+            % results updated to some extent.
+            
+            if iChunk>1 % implies nChunk>1
+              wbObj.cancelData = struct('msg','Partial tracking results available.');
+            end
+            
+            return;
+          end
           if iChunk==1 && ~isempty(p0DiagImg)
             tf1 = pIidx==1;
             p0Info.p0_1 = p0(tf1,:);
@@ -1044,7 +1180,7 @@ classdef CPRLabelTracker < LabelTracker
           pTstTRedVw = nan(NTst,trkD);
           prm.Prune.prune = 1;
           for t=Tp1
-            fprintf('Pruning t=%d\n',t);
+            %fprintf('Pruning t=%d\n',t);
             pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
             pTstTRedVw(:,:) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
           end
@@ -1055,58 +1191,16 @@ classdef CPRLabelTracker < LabelTracker
           iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
           pTstT(:,:,iFull,:) = pTstTVw;
           pTstTRed(:,iFull) = pTstTRedVw;
-        end
-          
-        % Augment .trkP* state with new tracking results
-        % - new rows are just added
-        % - existing rows are overwritten
-        
-        if ~isempty(obj.trkP)
-          assert(~isempty(obj.trkPiPt),...
-            'Tracked points specification (.trkPiPt) cannot be empty.');
-          if ~isequal(obj.trkPiPt,obj.trnResIPt)
-            error('CPRLabelTracker:track',...
-              'Existing tracked points (.trkPiPt) differ from new tracked points. New tracking results cannot be saved.');
-          end
-        end
+        end % end obj CONST
         
         trkPMDnew = d.MDTst(:,{'mov' 'frm'});
-        trkPMDcur = obj.trkPMD;
-        [tf,loc] = ismember(trkPMDnew,trkPMDcur);
-        % existing rows
-        idxCur = loc(tf);
-        obj.trkP(idxCur,:) = pTstTRed(tf,:);
-        if obj.storeFullTracking
-          if ~isequal(obj.trkPFull,[])
-            szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull prm.Reg.T+1]);
-          end
-          obj.trkPFull(idxCur,:,:,:) = single(pTstT(tf,:,:,:));
-        else
-          assert(isempty(obj.trkPFull));
-        end 
-        nowts = now;
-        obj.trkPTS(idxCur) = nowts;
-        % new rows
-        obj.trkP = [obj.trkP; pTstTRed(~tf,:)];
-        if obj.storeFullTracking
-          obj.trkPFull = [obj.trkPFull; single(pTstT(~tf,:,:,:))];
-        end
-        nNew = nnz(~tf);
-        obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
-        obj.trkPMD = [obj.trkPMD; trkPMDnew(~tf,:)];        
-
-        % See above check/error re .trkPiPt. Either there were originally no
-        % tracking results so we are setting .trkPiPt for the first time; or
-        % there were original tracking results and the old .trkPiPt matches
-        % the new (in which case this line is a no-op).
-        obj.trkPiPt = obj.trnResIPt;
-      end
-      
+        obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
+      end      
+    end
+    function hlpTrackWrapupViz(obj)
       if ~isempty(obj.lObj)
         obj.vizLoadXYPrdCurrMovie();
         obj.newLabelerFrame();
-      else
-        % headless mode
       end
     end
       

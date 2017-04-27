@@ -7,14 +7,14 @@ function [H0,tfuse] = typicalImHist(I,varargin)
 % tfuse: [N] logical indicating whether each image in I was used in 
 %   computing H
 
-[nbin,hWB,incPrctile] = myparse(varargin,...
+[nbin,wbObj,incPrctile] = myparse(varargin,...
   'nbin',256,...
-  'hWB',[],... % optional, waitbar handle
+  'wbObj',[],... % WaitBarWithCancel. If canceled, H0 and tfuse are indeterminate
   'incPrctile',75 ... % include images in I with average intensity at this 
                   ... % prctile or above (prefer brighter images)
   );
 
-tfWB = ~isempty(hWB);
+tfWB = ~isempty(wbObj);
 
 if ~iscell(I) 
   error('typicalImHist:I','Input I must be a cell array of images.');
@@ -23,6 +23,7 @@ N = numel(I);
 if N==0
   warning('typicalImHist:I','Empty input image array.');
   H0 = 1/nbin*ones(nbin,1);
+  tfuse = false(N,1);
   return;
 end
 
@@ -36,12 +37,17 @@ H = nan(nbin,N);
 mu = nan(1,N);
 loc = [];
 if tfWB
-  waitbar(0,hWB,'Performing histogram equalization...',...
-    'name','Histogram Equalization');
+  wbObj.startPeriod('Performing histogram equalization');
+  oc = onCleanup(@()wbObj.endPeriod);
 end
 for i = 1:N
   if tfWB
-    waitbar(i/N,hWB);
+    tfCancel = wbObj.updateFrac(i/N);
+    if tfCancel
+      H0 = nan(nbin,1);
+      tfuse = false(N,1);      
+      return
+    end
   end
   
   im = I{i};

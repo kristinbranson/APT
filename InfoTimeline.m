@@ -411,7 +411,7 @@ classdef InfoTimeline < handle
     function lpos = getMarkedData(obj)
       if obj.lObj.currMovie>0,
         if obj.lObj.hasTrx,
-          currTrxId = obj.lObj.currTrxId;
+          currTrxId = obj.lObj.currTrxID;
         else
           currTrxId = 1;
         end        

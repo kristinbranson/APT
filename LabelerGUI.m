@@ -132,6 +132,14 @@ handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
   'Checked','off');
 moveMenuItemBefore(handles.menu_track_store_full_tracking,handles.menu_track_track_and_export);
 
+handles.menu_track_view_tracking_diagnostics = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_view_tracking_diagnostics_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','View tracking diagnostics',...
+  'Tag','menu_track_view_tracking_diagnostics',...
+  'Separator','off',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_track_view_tracking_diagnostics,handles.menu_track_store_full_tracking);
+
 handles.menu_track_track_and_export.Separator = 'off';
 
 handles.menu_track_use_all_labels_to_train = uimenu(...
@@ -480,6 +488,7 @@ for iView=2:nview
     'CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj),...
     'Color',figs(1).Color,...
     'Menubar','none',...
+    'Toolbar','figure',...
     'UserData',struct('view',iView)...
     );
   axs(iView) = axes;
@@ -901,7 +910,17 @@ function pbTrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackTrain();
 function pbTrack_Callback(hObject, eventdata, handles)
 tm = getTrackMode(handles);
-handles.labelerObj.track(tm);
+wbObj = WaitBarWithCancel('Tracking');
+oc = onCleanup(@()delete(wbObj));
+handles.labelerObj.track(tm,'wbObj',wbObj);
+if wbObj.isCancel
+  if isempty(wbObj.cancelData)
+    str = 'Tracking canceled.';
+  else
+    str = sprintf('Tracking canceled: %s',wbObj.cancelData.msg);
+  end
+  msgbox(str,'Track');
+end
 
 function pbClear_Callback(hObject, eventdata, handles)
 handles.labelerObj.lblCore.clearLabels();
@@ -1659,6 +1678,26 @@ if ~sftnew && svr
   tObj.showVizReplicates = false;
 end
 tObj.storeFullTracking = sftnew;
+
+function menu_track_view_tracking_diagnostics_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+
+% Look for existing/open CPRVizTrackDiagsGUI
+for i=1:numel(handles.depHandles)
+  h = handles.depHandles(i);
+  if isvalid(h) && strcmp(h.Tag,'figCPRVizTrackDiagsGUI')
+    figure(h);
+    return;
+  end
+end
+
+lc = lObj.lblCore;
+if ~isempty(lc) && ~lc.hideLabels
+  warningNoTrace('LabelerGUI:hideLabels','Hiding labels.');
+  lc.labelsHide();
+end
+hVizGUI = CPRVizTrackDiagsGUI(handles.labelerObj);
+addDepHandle(handles.figure,hVizGUI);
 
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

@@ -223,7 +223,7 @@ classdef LabelTracker < handle
     end
         
     %#MV
-    function tblP = getTblP(obj,iMovs,frms)
+    function tblP = getTblP(obj,iMovs,frms) % obj CONST
       % From .lObj, read tblP for given movies/frames.
       
       labelerObj = obj.lObj;
