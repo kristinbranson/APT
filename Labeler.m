@@ -2132,8 +2132,8 @@ classdef Labeler < handle
                   
       f2t = false(obj.nframes,obj.nTrx);
       if obj.hasTrx
-        if ~isfield(obj.trx,'id'),
-          for i = 1:numel(obj.trx),
+        if ~isfield(obj.trx,'id')
+          for i = 1:numel(obj.trx)
             obj.trx(i).id = i;
           end
         end
@@ -2182,16 +2182,28 @@ classdef Labeler < handle
       end
     end
    
-    function trxCheckFramesLive(obj,frms)
-      % Check that current target is live for given frames; err if not
+    function tf = trxCheckFramesLive(obj,frms)
+      % Check that current target is live for given frames
+      %
+      % frms: [n] vector of frame indices
+      %
+      % tf: [n] logical vector
       
       iTgt = obj.currTarget;
       if obj.hasTrx
-        tfLive = obj.frm2trx(frms,iTgt);
-        if ~all(tfLive)
-          error('Labeler:labelpos',...
-            'Target %d is not live during all desired frames.',iTgt);
-        end
+        tf = obj.frm2trx(frms,iTgt);
+      else
+        tf = true(numel(frms),1);
+      end
+    end
+    
+    function trxCheckFramesLiveErr(obj,frms)
+      % Check that current target is live for given frames; err if not
+      
+      tf = obj.trxCheckFramesLive(frms);
+      if ~all(tf)
+        error('Labeler:target',...
+          'Target %d is not live during specified frames.',obj.currTarget);
       end
     end
     
@@ -2417,7 +2429,7 @@ classdef Labeler < handle
       assert(numel(xy)==2);
       assert(isscalar(iPt));
       
-      obj.trxCheckFramesLive(frms);
+      obj.trxCheckFramesLiveErr(frms);
 
       iMov = obj.currMovie;
       iTgt = obj.currTarget;
@@ -2561,7 +2573,7 @@ classdef Labeler < handle
     function labelPosTagSetFramesI(obj,tag,iPt,frms)
       % Set tags for current movie/target, given pt/frames
 
-      obj.trxCheckFramesLive(frms);
+      obj.trxCheckFramesLiveErr(frms);
       iMov = obj.currMovie;
       iTgt = obj.currTarget;
       obj.labeledpostag{iMov}(iPt,frms,iTgt) = {tag};
@@ -3796,30 +3808,33 @@ classdef Labeler < handle
   %% Navigation
   methods
   
+    function tfSetOccurred = setFrameProtected(obj,frm,varargin)
+      % Protected set against frm being out-of-bounds for current target.
+      
+      if obj.hasTrx 
+        iTgt = obj.currTarget;
+        if ~obj.frm2trx(frm,iTgt)
+          tfSetOccurred = false;
+          return;
+        end
+      end
+      
+      tfSetOccurred = true;
+      obj.setFrame(frm,varargin{:});      
+    end
+    
     function setFrame(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
-      
-      %# MVOK
-      
+            
       [tfforcereadmovie,tfforcelabelupdate] = myparse(varargin,...
         'tfforcereadmovie',false,...
         'tfforcelabelupdate',false);
             
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
-        
-        tfTargetLive = obj.frm2trx(frm,:);      
-        if ~tfTargetLive(obj.currTarget)
-          iTgt = find(tfTargetLive,1);
-          if isempty(iTgt)
-            error('Labeler:noTarget','No live targets in frame %d.',frm);
-          end
-
-          warningNoTrace('Labeler:targetNotLive',...
-            'Current target idx=%d is not live in frame %d. Switching to target idx=%d.',...
-            obj.currTarget,frm,iTgt);
-          obj.setFrameAndTarget(frm,iTgt);
-          return;
+        if ~obj.frm2trx(frm,obj.currTarget)
+          error('Labeler:target','Target idx %d not live in frame %d.',...
+            obj.currTarget,frm);
         end
       end
       
@@ -3827,7 +3842,7 @@ classdef Labeler < handle
       obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
       
       if obj.hasTrx && obj.movieCenterOnTarget
-        assert(~obj.hasMultiView);
+        assert(~obj.isMultiView);
         obj.videoCenterOnCurrTarget();
       end
       obj.labelsUpdateNewFrame(tfforcelabelupdate);
@@ -3848,8 +3863,15 @@ classdef Labeler < handle
       % Set target index, maintaining current movie/frameframe.
       % iTgt: INDEX into obj.trx
       
-      validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
+      validateattributes(iTgt,{'numeric'},...
+        {'positive' 'integer' '<=' obj.nTargets});
       
+      frm = obj.currFrame;
+      if ~obj.frm2trx(frm,iTgt)
+        error('Labeler:target',...
+          'Target idx %d is not live at current frame (%d).',iTgt,frm);
+      end
+         
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
       if obj.hasTrx 
@@ -3866,11 +3888,14 @@ classdef Labeler < handle
       % Set to new frame and target for current movie.
       % Prefer setFrame() or setTarget() if possible to
       % provide better continuity wrt labeling etc.
-     
-      %# MVOK
       
       validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
 
+      if ~obj.isinit && ~obj.frm2trx(frm,iTgt)
+        error('Labeler:target',...
+          'Target idx %d is not live at current frame (%d).',iTgt,frm);
+      end
+        
       % 2nd arg true to match legacy
       obj.hlpSetCurrPrevFrame(frm,true);
       
@@ -3885,34 +3910,34 @@ classdef Labeler < handle
         obj.updateCurrSusp();
         obj.updateShowTrx();
       end
-    end
+    end    
     
-    function frameUpDF(obj,df)
+    function tfSetOccurred = frameUpDF(obj,df)
       f = min(obj.currFrame+df,obj.nframes);
-      obj.setFrame(f); 
+      tfSetOccurred = obj.setFrameProtected(f); 
     end
     
-    function frameDownDF(obj,df)
+    function tfSetOccurred = frameDownDF(obj,df)
       f = max(obj.currFrame-df,1);
-      obj.setFrame(f);
+      tfSetOccurred = obj.setFrameProtected(f);
     end
     
-    function frameUp(obj,tfBigstep)
+    function tfSetOccurred = frameUp(obj,tfBigstep)
       if tfBigstep
         df = obj.movieFrameStepBig;
       else
         df = 1;
       end
-      obj.frameUpDF(df);
+      tfSetOccurred = obj.frameUpDF(df);
     end
     
-    function frameDown(obj,tfBigstep)
+    function tfSetOccurred = frameDown(obj,tfBigstep)
       if tfBigstep
         df = obj.movieFrameStepBig;
       else
         df = 1;
       end
-      obj.frameDownDF(df);
+      tfSetOccurred = obj.frameDownDF(df);
     end
     
     function frameUpNextLbled(obj,tfback)
@@ -3939,7 +3964,7 @@ classdef Labeler < handle
         for iPt = 1:npt
         for j = 1:2
           if ~isnan(lpos(iPt,j,f))
-            obj.setFrame(f);
+            obj.setFrameProtected(f);
             return;
           end
         end
@@ -3958,7 +3983,7 @@ classdef Labeler < handle
         ctrx = obj.currTrx;
 
         if cfrm < ctrx.firstframe || cfrm > ctrx.endframe
-          warning('Labeler:target','No track for current target at frame %d.',cfrm);
+          warningNoTrace('Labeler:target','No track for current target at frame %d.',cfrm);
           x = round(obj.movienc/2);
           y = round(obj.movienr/2);
           th = 0;

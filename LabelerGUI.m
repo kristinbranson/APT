@@ -870,15 +870,24 @@ handles = guidata(hObject);
 lObj = handles.labelerObj;
 v = get(hObject,'Value');
 f = round(1 + v * (lObj.nframes - 1));
+
 cmod = handles.figure.CurrentModifier;
 if ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}))
   if f>lObj.currFrame
-    lObj.frameUp(true);
+    tfSetOccurred = lObj.frameUp(true);
   else
-    lObj.frameDown(true);
-  end  
+    tfSetOccurred = lObj.frameDown(true);
+  end
 else
-  lObj.setFrame(f);
+  tfSetOccurred = lObj.setFrameProtected(f);
+end
+  
+if ~tfSetOccurred
+  sldval = (lObj.currFrame-1)/(lObj.nframes-1);
+  if isnan(sldval)
+    sldval = 0;
+  end
+  set(hObject,'Value',sldval);
 end
 
 function slider_frame_CreateFcn(hObject,~,~)
@@ -895,6 +904,12 @@ if isnan(f)
   return;
 end
 f = min(max(1,round(f)),lObj.nframes);
+if ~lObj.trxCheckFramesLive(f)
+  set(hObject,'String',num2str(lObj.currFrame));
+  warnstr = sprintf('Frame %d is out-of-range for current target.',f);
+  warndlg(warnstr,'Out of range');
+  return;
+end
 set(hObject,'String',num2str(f));
 if f ~= lObj.currFrame
   lObj.setFrame(f)
