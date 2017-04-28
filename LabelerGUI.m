@@ -91,6 +91,14 @@ handles.menu_setup_streamlined = uimenu('Parent',handles.menu_labeling_setup,...
 moveMenuItemAfter(handles.menu_setup_streamlined,...
   handles.menu_setup_set_labeling_point);
 
+handles.menu_view_rotate_video_target_up = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_rotate_video_target_up_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Rotate video so target always points up',...
+  'Tag','menu_view_rotate_video_target_up',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_rotate_video_target_up,...
+  handles.menu_view_trajectories_centervideoontarget);
+
 handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_predictions_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Hide predictions',...
@@ -247,6 +255,7 @@ listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerN
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
+listeners{end+1,1} = addlistener(lObj,'movieRotateTargetUp','PostSet',@cbkMovieRotateTargetUpChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
@@ -518,6 +527,10 @@ handles.axes_occ = axsOcc;
 axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
  
 ViewConfig.setCfgOnViews(lObj.projPrefs.View,figs,axs,ims,handles.axes_prev);
+handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
+handles.menu_view_show_grid.Checked = axs(1).XGrid;
+% handles.menu_view_trajectories_centervideoontarget = onIff(lObj.movieCenterOnTarget);
+% handles.menu_view_rotate_video_target_up = onIff(lObj.movieRotateTargetUp);
 
 arrayfun(@(x)colormap(x,gray),figs);
 viewNames = lObj.viewNames;
@@ -580,12 +593,16 @@ nframes = lObj.nframes;
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
 
-function zoomOutFullView(hAx,hIm)
+function zoomOutFullView(hAx,hIm,resetCamUpVec)
 set(hAx,...
   'XLim',[.5,size(hIm.CData,2)+.5],...
   'YLim',[.5,size(hIm.CData,1)+.5]);
-axis(hAx,'image');
+axis(hAx,'image','xy');
 zoom(hAx,'reset');
+if resetCamUpVec
+  hAx.CameraUpVector = [0 1 0];
+end
+hAx.CameraViewAngleMode = 'auto';
 
 function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -609,7 +626,7 @@ set(lObj.gdata.txPrevIm,'String',num2str(frm));
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
-if lObj.hasTrx
+if lObj.hasTrx && ~lObj.isinit
   id = lObj.currTrxID;
   lObj.currImHud.updateTarget(id);
 end
@@ -863,6 +880,12 @@ tf = lObj.movieCenterOnTarget;
 mnu = lObj.gdata.menu_view_trajectories_centervideoontarget;
 mnu.Checked = onIff(tf);
 
+function cbkMovieRotateTargetUpChanged(src,evt)
+lObj = evt.AffectedObject;
+tf = lObj.movieRotateTargetUp;
+mnu = lObj.gdata.menu_view_rotate_video_target_up;
+mnu.Checked = onIff(tf);
+
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
@@ -1006,8 +1029,10 @@ lObj.videoSetTargetZoomFac(zoomFac);
 hlpRemoveFocus(hObject,handles);
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
-lObj = handles.labelerObj;
-lObj.videoResetView();
+hAxs = handles.axes_all;
+hIms = handles.images_all;
+assert(numel(hAxs)==numel(hIms));
+arrayfun(@zoomOutFullView,hAxs,hIms,false);
 
 function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1404,6 +1429,9 @@ handles.labelerObj.setShowTrxMode(ShowTrxMode.NONE);
 function menu_view_trajectories_centervideoontarget_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.movieCenterOnTarget = ~lObj.movieCenterOnTarget;
+function menu_view_rotate_video_target_up_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.movieRotateTargetUp = ~lObj.movieRotateTargetUp;
 function menu_view_flip_flipud_movie_only_Callback(hObject, eventdata, handles)
 [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(handles);
 if tfproceed
@@ -1441,13 +1469,15 @@ function menu_view_fit_entire_image_Callback(hObject, eventdata, handles)
 hAxs = handles.axes_all;
 hIms = handles.images_all;
 assert(numel(hAxs)==numel(hIms));
-arrayfun(@zoomOutFullView,hAxs,hIms);
+arrayfun(@zoomOutFullView,hAxs,hIms,true);
 
 function menu_view_reset_views_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 viewCfg = lObj.projPrefs.View;
 ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,handles.axes_all,...
   handles.images_all,handles.axes_prev);
+handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
+handles.menu_view_show_grid.Checked = axs(1).XGrid;
 movInvert = ViewConfig.getMovieInvert(viewCfg);
 lObj.movieInvert = movInvert;
 

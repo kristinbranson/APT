@@ -31,7 +31,7 @@ classdef Labeler < handle
     TBLFRAMES_COLS = {'frame' 'tgts' 'pts'};
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
-    NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
+    NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);    
   end
   
   events
@@ -138,10 +138,11 @@ classdef Labeler < handle
   properties (SetObservable)
     moviename; % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false; % scalar logical.
+    movieRotateTargetUp = false;
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
-  end  
+  end
   properties (Dependent)
     isMultiView;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
@@ -460,6 +461,22 @@ classdef Labeler < handle
       end
       obj.movieInvert = v;
     end
+    function set.movieCenterOnTarget(obj,v)
+      obj.movieCenterOnTarget = v;
+      if obj.hasTrx %#ok<MCSUP>
+        obj.videoCenterOnCurrTarget();
+      end
+    end
+    function set.movieRotateTargetUp(obj,v)
+      if ~obj.movieCenterOnTarget %#ok<MCSUP>
+        %warningNoTrace('Labeler:prop','Setting .movieCenterOnTarget to true.');
+        obj.movieCenterOnTarget = true; %#ok<MCSUP>
+      end
+      obj.movieRotateTargetUp = v;
+      if obj.hasTrx %#ok<MCSUP>
+        obj.videoCenterOnCurrTarget();
+      end
+    end
     function set.targetZoomFac(obj,v)
       obj.projPrefs.Trx.ZoomFactorDefault = v;
     end
@@ -617,7 +634,9 @@ classdef Labeler < handle
       % that figs are set up. (names get changed)
       movInvert = ViewConfig.getMovieInvert(cfg.View);
       obj.movieInvert = movInvert;
-
+      obj.movieCenterOnTarget = cfg.View(1).CenterOnTarget;
+      obj.movieRotateTargetUp = cfg.View(1).RotateTargetUp;
+ 
       % For unclear reasons, creation of new tracker occurs downstream in
       % projLoad() or projNew()
       if ~isempty(obj.tracker)
@@ -646,6 +665,8 @@ classdef Labeler < handle
       viewCfg = ViewConfig.readCfgOffViews(gd.figs_all,gd.axes_all,gd.axes_prev);
       for i=1:obj.nview
         viewCfg(i).InvertMovie = obj.movieInvert(i);
+        viewCfg(i).CenterOnTarget = obj.movieCenterOnTarget;
+        viewCfg(i).RotateTargetUp = obj.movieRotateTargetUp;
       end
       cfg.View = viewCfg;
 
@@ -759,43 +780,6 @@ classdef Labeler < handle
       
     function projSaveRaw(obj,fname)
       s = obj.projGetSaveStruct();
-      
-      % AL XXX DELETE ME
-      CHECKSAVEISSUE = true;
-      if CHECKSAVEISSUE && exist(fname,'file')>0
-        warnst = warning('off','MATLAB:load:variableNotFound');
-        tCls = load(fname,'-mat','trackerClass');
-        tDat = load(fname,'-mat','trackerData');
-        if isfield(tCls,'trackerClass')
-          tCls = tCls.trackerClass;
-        else
-          tCls = [];
-        end
-        if isfield(tDat,'trackerData')
-          tDat = tDat.trackerData;
-        else
-          tDat = [];
-        end
-        if ~isempty(tCls) && isempty(s.trackerClass) || ...
-           ~isempty(tDat) && isempty(s.trackerData)
-          qstr = sprintf('Project file ''%s'' contains a trained tracker. With your save, you will DELETE this tracker. Continue?',fname);
-          YESSTR = 'Yes, delete my saved tracker';
-          NOSTR = 'No, cancel';
-          btn = questdlg(qstr,YESSTR,NOSTR,NOSTR);
-          if isempty(btn)
-            btn = NOSTR;
-          end
-          switch btn
-            case YESSTR
-              % none; continue
-            case NOSTR
-              return;
-          end
-        end
-          
-        warning(warnst);
-      end        
-      
       save(fname,'-mat','-struct','s');
 
       obj.labeledposNeedsSave = false;
@@ -3642,20 +3626,24 @@ classdef Labeler < handle
    
   %% Video
   methods
-    
-    function videoResetView(obj)
-      axis(obj.gdata.axes_curr,'auto','image');
-      %axis(obj.gdata.axes_prev,'auto','image');
-    end
-    
+        
     function videoCenterOnCurrTarget(obj)
       [x0,y0] = obj.videoCurrentCenter;
-      [x,y] = obj.currentTargetLoc();
+      [x,y,th] = obj.currentTargetLoc();
       
       dx = x-x0;
       dy = y-y0;
-      axisshift(obj.gdata.axes_curr,dx,dy);
-      %axisshift(obj.gdata.axes_prev,dx,dy);
+      ax = obj.gdata.axes_curr;
+      axisshift(ax,dx,dy);
+      if obj.movieRotateTargetUp
+        ax.CameraUpVector = [cos(th) sin(th) 0];
+        if strcmp(ax.CameraViewAngleMode,'auto')
+          cva = ax.CameraViewAngle;
+          ax.CameraViewAngle = cva/2;
+        end
+      else
+        ax.CameraUpVectorMode = 'auto';
+      end
     end
     
     function videoZoom(obj,zoomRadius)
@@ -3891,7 +3879,7 @@ classdef Labeler < handle
       
       validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
 
-      if ~obj.isinit && ~obj.frm2trx(frm,iTgt)
+      if ~obj.isinit && obj.hasTrx && ~obj.frm2trx(frm,iTgt)
         error('Labeler:target',...
           'Target idx %d is not live at current frame (%d).',iTgt,frm);
       end
