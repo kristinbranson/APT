@@ -170,7 +170,7 @@ classdef Labeler < handle
                               % ie: .trx(trxIdPlusPlus2Idx(ID+1)).id = ID. Nonexistent IDs map to NaN.
   end
   properties (Dependent,SetObservable)
-    targetZoomFac;
+    targetZoomRadiusDefault;
   end
   properties (Dependent)
     hasTrx
@@ -390,7 +390,7 @@ classdef Labeler < handle
         v = 1;
       end
     end
-    function v = get.targetZoomFac(obj)
+    function v = get.targetZoomRadiusDefault(obj)
       v = obj.projPrefs.Trx.ZoomFactorDefault;
     end
     function v = get.hasProject(obj)
@@ -463,12 +463,15 @@ classdef Labeler < handle
     end
     function set.movieCenterOnTarget(obj,v)
       obj.movieCenterOnTarget = v;
+      if ~v && obj.movieRotateTargetUp %#ok<MCSUP>
+        obj.movieRotateTargetUp = false; %#ok<MCSUP>
+      end
       if obj.hasTrx %#ok<MCSUP>
         obj.videoCenterOnCurrTarget();
       end
     end
     function set.movieRotateTargetUp(obj,v)
-      if ~obj.movieCenterOnTarget %#ok<MCSUP>
+      if v && ~obj.movieCenterOnTarget %#ok<MCSUP>
         %warningNoTrace('Labeler:prop','Setting .movieCenterOnTarget to true.');
         obj.movieCenterOnTarget = true; %#ok<MCSUP>
       end
@@ -477,7 +480,7 @@ classdef Labeler < handle
         obj.videoCenterOnCurrTarget();
       end
     end
-    function set.targetZoomFac(obj,v)
+    function set.targetZoomRadiusDefault(obj,v)
       obj.projPrefs.Trx.ZoomFactorDefault = v;
     end
   end
@@ -1973,7 +1976,7 @@ classdef Labeler < handle
         assert(~obj.isMultiView,'Multiview labeling with targets unsupported.');
         tmp = load(trxFile);
         obj.trxSet(tmp.trx);
-        obj.videoSetTargetZoomFac(obj.targetZoomFac);
+        %obj.videoSetTargetZoomFac(obj.targetZoomRadiusDefault);
       else
         obj.trxSet([]);
       end
@@ -3628,6 +3631,13 @@ classdef Labeler < handle
   methods
         
     function videoCenterOnCurrTarget(obj)
+      % Shift axis center/target and CameraUpVector without touching zoom.
+      % 
+      % Potential TODO: CamViewAngle treatment looks a little bizzare but
+      % seems to work ok. Theoretically better (?), at movieSet time, cache
+      % a default CameraViewAngle, and at movieRotateTargetUp set time, set
+      % the CamViewAngle to either the default or the default/2 etc.
+      
       [x0,y0] = obj.videoCurrentCenter;
       [x,y,th] = obj.currentTargetLoc();
       
@@ -3649,38 +3659,11 @@ classdef Labeler < handle
     function videoZoom(obj,zoomRadius)
       % Zoom to square window over current frame center with given radius.
       
-      [x0,y0] = obj.videoCurrentCenter();      
+      [x0,y0] = obj.videoCurrentCenter();
       lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
       axis(obj.gdata.axes_curr,lims);
-      axis(obj.gdata.axes_prev,lims);      
-    end
-    function videoSetTargetZoomFac(obj,zoomFac)
-      % zoomFac: 0 for no-zoom; 1 for max zoom
-      
-      assert(~obj.isMultiView,'Unsupported for multiview labeling.');
-      
-      if zoomFac < 0
-        zoomFac = 0;
-        warning('Labeler:zoomFac','Zoom factor must be in [0,1].');
-      end
-      if zoomFac > 1
-        zoomFac = 1;
-        warning('Labeler:zoomFac','Zoom factor must be in [0,1].');
-      end
-      
-      obj.targetZoomFac = zoomFac;
-        
-      zr0 = max(obj.movienr,obj.movienc)/2; % no-zoom: large radius
-      zr1 = obj.projPrefs.Trx.ZoomRadiusTight; % tight zoom: small radius
-      
-      if zr1>zr0
-        zr = zr0;
-      else
-        zr = zr0 + zoomFac*(zr1-zr0);
-      end
-      obj.videoZoom(zr);
-    end
-    
+      axis(obj.gdata.axes_prev,lims);
+    end    
     function [xsz,ysz] = videoCurrentSize(obj)
       v = axis(obj.gdata.axes_curr);
       xsz = v(2)-v(1);

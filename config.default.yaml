@@ -10,7 +10,7 @@ LabelMode: TEMPLATE # See LabelMode.m
 Trx:
   ZoomRadius: 100
   ZoomRadiusTight: 10
-  ZoomFactorDefault: 0.4
+  ZoomFactorDefault: 0.4 # Should be named 'ZoomRadiusDefault'
   TrajColor: [1,1,0]
   TrajLineStyle: '-'
   TrajLineWidth: 1

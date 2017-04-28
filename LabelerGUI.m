@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 19-Dec-2016 06:00:58
+% Last Modified by GUIDE v2.5 28-Apr-2017 13:56:34
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -238,6 +238,7 @@ set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp());
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
+listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescurrXLimChanged(s,e,handles));
 listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
@@ -245,7 +246,7 @@ listeners{end+1,1} = addlistener(lObj,'prevFrame','PostSet',@cbkPrevFrameChanged
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
-listeners{end+1,1} = addlistener(lObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
+%listeners{end+1,1} = addlistener(lObj,'targetZoomRadius','PostSet',@cbkTargetZoomFacChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
 listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
@@ -294,6 +295,10 @@ fsz(3) = min(fsz(3),round( (scsz(3)-fsz(1))*0.9));
 fsz(4) = min(fsz(4),round( (scsz(4)-fsz(2))*0.9));
 set(hObject,'Position',fsz);
 set(hObject,'Units','normalized');
+
+handles.sldZoom.Min = 0;
+handles.sldZoom.Max = 1;
+handles.sldZoom.Value = 0;
 
 handles.depHandles = gobjects(0,1);
 
@@ -593,6 +598,11 @@ nframes = lObj.nframes;
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
 
+ifo = lObj.movieInfoAll{lObj.currMovie,1}.info;
+minzoomrad = 10;
+maxzoomrad = (ifo.nc+ifo.nr)/4;
+handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
+
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 set(hAx,...
   'XLim',[.5,size(hIm.CData,2)+.5],...
@@ -702,10 +712,10 @@ lc = lObj.lblCore;
 tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
 handles.menu_view_show_3D_axes.Enable = onIff(tfShow3DAxes);
 
-function cbkTargetZoomFacChanged(src,evt)
-lObj = evt.AffectedObject;
-zf = lObj.targetZoomFac;
-set(lObj.gdata.sldZoom,'Value',zf);
+% function cbkTargetZoomFacChanged(src,evt)
+% lObj = evt.AffectedObject;
+% zf = lObj.targetZoomFac;
+% set(lObj.gdata.sldZoom,'Value',zf);
 
 function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1021,11 +1031,57 @@ end
 
 hlpRemoveFocus(hObject,handles);
 
+% 20170428
+% Notes -- Zooms Views Angles et al
+% 
+% Zoom.
+% In APT we refer to the "zoom" as effective magnification determined by 
+% the axis limits, ie how many pixels are shown along x and y. Currently
+% the pixels and axis are always square.
+% 
+% The zoom level can be adjusted in a variety of ways: via the zoom slider,
+% the Unzoom button, the manual zoom tools in the toolbar, or 
+% View > Zoom out. 
+%
+% Camroll.
+% When Trx are available, the movie can be rotated so that the Trx are
+% always at a given orientation (currently, "up"). This is achieved by
+% "camrolling" the axes, ie setting axes.CameraUpVector. Currently
+% manually camrolling is not available.
+%
+% CamViewAngle.
+% The CameraViewAngle is the AOV of the 'camera' viewing the axes. When
+% "camroll" is off (either there are no Trx, or rotateSoTargetIsUp is
+% off), axis.CameraViewAngleMode is set to 'auto' and MATLAB selects a
+% CameraViewAngle so that the axis fills its outerposition. When camroll is
+% on, MATLAB by default chooses a CameraViewAngle that is relatively wide, 
+% so that the square axes is very visible as it rotates around. This is a
+% bit distracting so currently we choose a smaller CamViewAngle (very 
+% arbitrarily). There may be a better way to handle this.
+
+function axescurrXLimChanged(hObject,eventdata,handles)
+% log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
+ax = eventdata.AffectedObject;
+radius = diff(ax.XLim)/2;
+hSld = handles.sldZoom;
+if ~isempty(hSld.UserData) % empty during init
+  userdata = hSld.UserData;
+  logzoomradmin = userdata(1);
+  logzoomradmax = userdata(2);
+  sldval = (log(radius)-logzoomradmax)/(logzoomradmin-logzoomradmax);
+  sldval = min(max(sldval,0),1);
+  hSld.Value = sldval;
+end
+
 function sldZoom_Callback(hObject, eventdata, ~)
+% log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
 handles = guidata(hObject);
 lObj = handles.labelerObj;
-zoomFac = get(hObject,'Value');
-lObj.videoSetTargetZoomFac(zoomFac);
+v = hObject.Value;
+userdata = hObject.UserData;
+logzoomrad = userdata(2)+v*(userdata(1)-userdata(2));
+zoomRad = exp(logzoomrad);
+lObj.videoZoom(zoomRad);
 hlpRemoveFocus(hObject,handles);
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
@@ -1033,6 +1089,14 @@ hAxs = handles.axes_all;
 hIms = handles.images_all;
 assert(numel(hAxs)==numel(hIms));
 arrayfun(@zoomOutFullView,hAxs,hIms,false);
+
+function pbSetZoom_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.targetZoomRadiusDefault = diff(handles.axes_curr.XLim)/2;
+
+function pbRecallZoom_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.videoZoom(lObj.targetZoomRadiusDefault);
 
 function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1837,3 +1901,4 @@ function pumInfo_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+
