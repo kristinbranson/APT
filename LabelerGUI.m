@@ -989,13 +989,25 @@ function tblTrx_CellSelectionCallback(hObject, eventdata, handles) %#ok<*DEFNU>
 % eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
 %	Indices: row and column indices of the cell(s) currently selecteds
 % handles    structure with handles and user data (see GUIDATA)
+
+% Current/last row selection is maintained in hObject.UserData
+
+rows = eventdata.Indices(:,1);
+rowsprev = hObject.UserData;
+hObject.UserData = rows;
+dat = hObject.Data;
+
 lObj = handles.labelerObj;
-row = eventdata.Indices;
-if ~isempty(row)
-  row = row(1);
-  dat = get(hObject,'Data');
-  id = dat{row,1};
+
+if isscalar(rows)
+  id = dat{rows(1),1};
   lObj.setTargetID(id);
+  lObj.labelsOtherTargetHideAll();
+else
+  % addon to existing selection
+  rowsnew = setdiff(rows,rowsprev);  
+  idsnew = cell2mat(dat(rowsnew,1));
+  lObj.labelsOtherTargetShowIDs(idsnew);
 end
 
 hlpRemoveFocus(hObject,handles);

@@ -232,11 +232,13 @@ classdef Labeler < handle
     lblCore; % init: L
   end
   properties    
-    lblPrev_ptsH;         % TODO: encapsulate labelsPrev (eg in a LabelCore). init: L
-    lblPrev_ptsTxtH;      % init: L
+    lblPrev_ptsH;         % [npts] gobjects. TODO: encapsulate labelsPrev (eg in a LabelCore). init: L
+    lblPrev_ptsTxtH;      % [npts] etc. init: L
     
-    labeledpos2_ptsH;     
-    labeledpos2_ptsTxtH;
+    labeledpos2_ptsH;     % [npts]
+    labeledpos2_ptsTxtH;  % [npts]
+    
+    lblOtherTgts_ptsH;    % [npts]
   end 
   
   %% Suspiciousness
@@ -2019,7 +2021,7 @@ classdef Labeler < handle
       end      
       
       % KB 20161213: moved this up here so that we could redo in initHook
-      obj.labels2VizInit();
+      obj.labelsMiscInit();
       obj.labelingInit();
       
       notify(obj,'newMovie');
@@ -4123,7 +4125,7 @@ classdef Labeler < handle
     
   end
   
-  %% Labels2
+  %% Labels2/OtherTarget labels
   methods
     
     function labels2BulkSet(obj,lpos)
@@ -4198,8 +4200,8 @@ classdef Labeler < handle
       end      
     end
     
-    function labels2VizInit(obj)
-      % Initialize view stuff for labels2  
+    function labelsMiscInit(obj)
+      % Initialize view stuff for labels2, lblOtherTgts
       
       trkPrefs = obj.projPrefs.Track;
       if ~isempty(trkPrefs)
@@ -4211,6 +4213,8 @@ classdef Labeler < handle
       ptsPlotInfo.HitTest = 'off';
       
       obj.genericInitLabelPointViz('labeledpos2_ptsH','labeledpos2_ptsTxtH',...
+        obj.gdata.axes_curr,ptsPlotInfo);
+      obj.genericInitLabelPointViz('lblOtherTgts_ptsH',[],...
         obj.gdata.axes_curr,ptsPlotInfo);
     end
     
@@ -4244,21 +4248,51 @@ classdef Labeler < handle
      
   end
   
+  methods % OtherTarget
+    
+    function labelsOtherTargetShowIDs(obj,tgtIDs)
+      iTgts = obj.trxIdPlusPlus2Idx(tgtIDs+1);
+      frm = obj.currFrame;
+      iMov = obj.currMovie;
+      lpos = squeeze(obj.labeledpos{iMov}(:,:,frm,iTgts)); % [npts x 2 x numel(iTgts)]
+
+      npts = obj.nLabelPoints;     
+      hPts = obj.lblOtherTgts_ptsH;
+      for ipt=1:npts
+        xnew = squeeze(lpos(ipt,1,:));
+        ynew = squeeze(lpos(ipt,2,:));
+        set(hPts(ipt),'XData',[hPts(ipt).XData xnew'],...
+                      'YData',[hPts(ipt).YData ynew']);
+      end
+    end
+    
+    function labelsOtherTargetHideAll(obj)
+      npts = obj.nLabelPoints;
+      hPts = obj.lblOtherTgts_ptsH;
+      for ipt=1:npts
+        set(hPts(ipt),'XData',[],'YData',[]);
+      end      
+    end
+    
+  end
+  
   %% Util
   methods
     
     function genericInitLabelPointViz(obj,hProp,hTxtProp,ax,plotIfo)
       deleteValidHandles(obj.(hProp));
-      deleteValidHandles(obj.(hTxtProp));
       obj.(hProp) = gobjects(obj.nLabelPoints,1);
-      obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
+      if ~isempty(hTxtProp)
+        deleteValidHandles(obj.(hTxtProp));
+        obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
+      end
       
       % any extra plotting parameters
       allowedPlotParams = {'HitTest'};
       ism = ismember(cellfun(@lower,allowedPlotParams,'Uni',0),...
         cellfun(@lower,fieldnames(plotIfo),'Uni',0));
       extraParams = {};
-      for i = find(ism),
+      for i = find(ism)
         extraParams = [extraParams,{allowedPlotParams{i},plotIfo.(allowedPlotParams{i})}]; %#ok<AGROW>
       end
 
@@ -4269,8 +4303,10 @@ classdef Labeler < handle
           'Color',plotIfo.Colors(i,:),...
           'UserData',i,...
           extraParams{:});
-        obj.(hTxtProp)(i) = text(nan,nan,num2str(i),'Parent',ax,...
-          'Color',plotIfo.Colors(i,:),'Hittest','off');
+        if ~isempty(hTxtProp)
+          obj.(hTxtProp)(i) = text(nan,nan,num2str(i),'Parent',ax,...
+            'Color',plotIfo.Colors(i,:),'Hittest','off');
+        end
       end      
     end
     
