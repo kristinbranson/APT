@@ -41,8 +41,8 @@ View:
   AxFontSize: 12
   ShowAxTicks: 0
   ShowGrid: 0
-  CenterOnTarget: 1
-  RotateTargetUp: 1
+  CenterOnTarget: 0
+  RotateTargetUp: 0
 
 Movie:
   ForceGrayScale: 1

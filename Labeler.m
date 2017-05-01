@@ -466,8 +466,13 @@ classdef Labeler < handle
       if ~v && obj.movieRotateTargetUp %#ok<MCSUP>
         obj.movieRotateTargetUp = false; %#ok<MCSUP>
       end
-      if obj.hasTrx %#ok<MCSUP>
-        obj.videoCenterOnCurrTarget();
+      if v
+        if obj.hasTrx %#ok<MCSUP>
+          obj.videoCenterOnCurrTarget();
+        else
+          warningNoTrace('Labeler:trx',...
+            'The current movie does not have an associated trx file. Property ''movieCenterOnTarget'' will have no effect.');
+        end
       end
     end
     function set.movieRotateTargetUp(obj,v)
@@ -476,8 +481,12 @@ classdef Labeler < handle
         obj.movieCenterOnTarget = true; %#ok<MCSUP>
       end
       obj.movieRotateTargetUp = v;
-      if obj.hasTrx %#ok<MCSUP>
+      if obj.hasTrx && obj.movieCenterOnTarget %#ok<MCSUP>
         obj.videoCenterOnCurrTarget();
+      end
+      if v && ~obj.hasTrx %#ok<MCSUP>
+          warningNoTrace('Labeler:trx',...
+            'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
       end
     end
     function set.targetZoomRadiusDefault(obj,v)
