@@ -31,7 +31,7 @@ classdef Labeler < handle
     TBLFRAMES_COLS = {'frame' 'tgts' 'pts'};
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
-    NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
+    NEIGHBORING_FRAME_OFFSETS = neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);    
   end
   
   events
@@ -138,10 +138,11 @@ classdef Labeler < handle
   properties (SetObservable)
     moviename; % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false; % scalar logical.
+    movieRotateTargetUp = false;
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
-  end  
+  end
   properties (Dependent)
     isMultiView;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
@@ -169,7 +170,7 @@ classdef Labeler < handle
                               % ie: .trx(trxIdPlusPlus2Idx(ID+1)).id = ID. Nonexistent IDs map to NaN.
   end
   properties (Dependent,SetObservable)
-    targetZoomFac;
+    targetZoomRadiusDefault;
   end
   properties (Dependent)
     hasTrx
@@ -389,7 +390,7 @@ classdef Labeler < handle
         v = 1;
       end
     end
-    function v = get.targetZoomFac(obj)
+    function v = get.targetZoomRadiusDefault(obj)
       v = obj.projPrefs.Trx.ZoomFactorDefault;
     end
     function v = get.hasProject(obj)
@@ -460,7 +461,35 @@ classdef Labeler < handle
       end
       obj.movieInvert = v;
     end
-    function set.targetZoomFac(obj,v)
+    function set.movieCenterOnTarget(obj,v)
+      obj.movieCenterOnTarget = v;
+      if ~v && obj.movieRotateTargetUp %#ok<MCSUP>
+        obj.movieRotateTargetUp = false; %#ok<MCSUP>
+      end
+      if v
+        if obj.hasTrx %#ok<MCSUP>
+          obj.videoCenterOnCurrTarget();
+        else
+          warningNoTrace('Labeler:trx',...
+            'The current movie does not have an associated trx file. Property ''movieCenterOnTarget'' will have no effect.');
+        end
+      end
+    end
+    function set.movieRotateTargetUp(obj,v)
+      if v && ~obj.movieCenterOnTarget %#ok<MCSUP>
+        %warningNoTrace('Labeler:prop','Setting .movieCenterOnTarget to true.');
+        obj.movieCenterOnTarget = true; %#ok<MCSUP>
+      end
+      obj.movieRotateTargetUp = v;
+      if obj.hasTrx && obj.movieCenterOnTarget %#ok<MCSUP>
+        obj.videoCenterOnCurrTarget();
+      end
+      if v && ~obj.hasTrx %#ok<MCSUP>
+          warningNoTrace('Labeler:trx',...
+            'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
+      end
+    end
+    function set.targetZoomRadiusDefault(obj,v)
       obj.projPrefs.Trx.ZoomFactorDefault = v;
     end
   end
@@ -617,7 +646,9 @@ classdef Labeler < handle
       % that figs are set up. (names get changed)
       movInvert = ViewConfig.getMovieInvert(cfg.View);
       obj.movieInvert = movInvert;
-
+      obj.movieCenterOnTarget = cfg.View(1).CenterOnTarget;
+      obj.movieRotateTargetUp = cfg.View(1).RotateTargetUp;
+ 
       % For unclear reasons, creation of new tracker occurs downstream in
       % projLoad() or projNew()
       if ~isempty(obj.tracker)
@@ -646,6 +677,8 @@ classdef Labeler < handle
       viewCfg = ViewConfig.readCfgOffViews(gd.figs_all,gd.axes_all,gd.axes_prev);
       for i=1:obj.nview
         viewCfg(i).InvertMovie = obj.movieInvert(i);
+        viewCfg(i).CenterOnTarget = obj.movieCenterOnTarget;
+        viewCfg(i).RotateTargetUp = obj.movieRotateTargetUp;
       end
       cfg.View = viewCfg;
 
@@ -759,43 +792,6 @@ classdef Labeler < handle
       
     function projSaveRaw(obj,fname)
       s = obj.projGetSaveStruct();
-      
-      % AL XXX DELETE ME
-      CHECKSAVEISSUE = true;
-      if CHECKSAVEISSUE && exist(fname,'file')>0
-        warnst = warning('off','MATLAB:load:variableNotFound');
-        tCls = load(fname,'-mat','trackerClass');
-        tDat = load(fname,'-mat','trackerData');
-        if isfield(tCls,'trackerClass')
-          tCls = tCls.trackerClass;
-        else
-          tCls = [];
-        end
-        if isfield(tDat,'trackerData')
-          tDat = tDat.trackerData;
-        else
-          tDat = [];
-        end
-        if ~isempty(tCls) && isempty(s.trackerClass) || ...
-           ~isempty(tDat) && isempty(s.trackerData)
-          qstr = sprintf('Project file ''%s'' contains a trained tracker. With your save, you will DELETE this tracker. Continue?',fname);
-          YESSTR = 'Yes, delete my saved tracker';
-          NOSTR = 'No, cancel';
-          btn = questdlg(qstr,YESSTR,NOSTR,NOSTR);
-          if isempty(btn)
-            btn = NOSTR;
-          end
-          switch btn
-            case YESSTR
-              % none; continue
-            case NOSTR
-              return;
-          end
-        end
-          
-        warning(warnst);
-      end        
-      
       save(fname,'-mat','-struct','s');
 
       obj.labeledposNeedsSave = false;
@@ -1989,7 +1985,7 @@ classdef Labeler < handle
         assert(~obj.isMultiView,'Multiview labeling with targets unsupported.');
         tmp = load(trxFile);
         obj.trxSet(tmp.trx);
-        obj.videoSetTargetZoomFac(obj.targetZoomFac);
+        %obj.videoSetTargetZoomFac(obj.targetZoomRadiusDefault);
       else
         obj.trxSet([]);
       end
@@ -2132,8 +2128,8 @@ classdef Labeler < handle
                   
       f2t = false(obj.nframes,obj.nTrx);
       if obj.hasTrx
-        if ~isfield(obj.trx,'id'),
-          for i = 1:numel(obj.trx),
+        if ~isfield(obj.trx,'id')
+          for i = 1:numel(obj.trx)
             obj.trx(i).id = i;
           end
         end
@@ -2182,16 +2178,28 @@ classdef Labeler < handle
       end
     end
    
-    function trxCheckFramesLive(obj,frms)
-      % Check that current target is live for given frames; err if not
+    function tf = trxCheckFramesLive(obj,frms)
+      % Check that current target is live for given frames
+      %
+      % frms: [n] vector of frame indices
+      %
+      % tf: [n] logical vector
       
       iTgt = obj.currTarget;
       if obj.hasTrx
-        tfLive = obj.frm2trx(frms,iTgt);
-        if ~all(tfLive)
-          error('Labeler:labelpos',...
-            'Target %d is not live during all desired frames.',iTgt);
-        end
+        tf = obj.frm2trx(frms,iTgt);
+      else
+        tf = true(numel(frms),1);
+      end
+    end
+    
+    function trxCheckFramesLiveErr(obj,frms)
+      % Check that current target is live for given frames; err if not
+      
+      tf = obj.trxCheckFramesLive(frms);
+      if ~all(tf)
+        error('Labeler:target',...
+          'Target %d is not live during specified frames.',obj.currTarget);
       end
     end
     
@@ -2417,7 +2425,7 @@ classdef Labeler < handle
       assert(numel(xy)==2);
       assert(isscalar(iPt));
       
-      obj.trxCheckFramesLive(frms);
+      obj.trxCheckFramesLiveErr(frms);
 
       iMov = obj.currMovie;
       iTgt = obj.currTarget;
@@ -2561,7 +2569,7 @@ classdef Labeler < handle
     function labelPosTagSetFramesI(obj,tag,iPt,frms)
       % Set tags for current movie/target, given pt/frames
 
-      obj.trxCheckFramesLive(frms);
+      obj.trxCheckFramesLiveErr(frms);
       iMov = obj.currMovie;
       iTgt = obj.currTarget;
       obj.labeledpostag{iMov}(iPt,frms,iTgt) = {tag};
@@ -3630,57 +3638,41 @@ classdef Labeler < handle
    
   %% Video
   methods
-    
-    function videoResetView(obj)
-      axis(obj.gdata.axes_curr,'auto','image');
-      %axis(obj.gdata.axes_prev,'auto','image');
-    end
-    
+        
     function videoCenterOnCurrTarget(obj)
+      % Shift axis center/target and CameraUpVector without touching zoom.
+      % 
+      % Potential TODO: CamViewAngle treatment looks a little bizzare but
+      % seems to work ok. Theoretically better (?), at movieSet time, cache
+      % a default CameraViewAngle, and at movieRotateTargetUp set time, set
+      % the CamViewAngle to either the default or the default/2 etc.
+      
       [x0,y0] = obj.videoCurrentCenter;
-      [x,y] = obj.currentTargetLoc();
+      [x,y,th] = obj.currentTargetLoc();
       
       dx = x-x0;
       dy = y-y0;
-      axisshift(obj.gdata.axes_curr,dx,dy);
-      %axisshift(obj.gdata.axes_prev,dx,dy);
+      ax = obj.gdata.axes_curr;
+      axisshift(ax,dx,dy);
+      if obj.movieRotateTargetUp
+        ax.CameraUpVector = [cos(th) sin(th) 0];
+        if strcmp(ax.CameraViewAngleMode,'auto')
+          cva = ax.CameraViewAngle;
+          ax.CameraViewAngle = cva/2;
+        end
+      else
+        ax.CameraUpVectorMode = 'auto';
+      end
     end
     
     function videoZoom(obj,zoomRadius)
       % Zoom to square window over current frame center with given radius.
       
-      [x0,y0] = obj.videoCurrentCenter();      
+      [x0,y0] = obj.videoCurrentCenter();
       lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
       axis(obj.gdata.axes_curr,lims);
-      axis(obj.gdata.axes_prev,lims);      
-    end
-    function videoSetTargetZoomFac(obj,zoomFac)
-      % zoomFac: 0 for no-zoom; 1 for max zoom
-      
-      assert(~obj.isMultiView,'Unsupported for multiview labeling.');
-      
-      if zoomFac < 0
-        zoomFac = 0;
-        warning('Labeler:zoomFac','Zoom factor must be in [0,1].');
-      end
-      if zoomFac > 1
-        zoomFac = 1;
-        warning('Labeler:zoomFac','Zoom factor must be in [0,1].');
-      end
-      
-      obj.targetZoomFac = zoomFac;
-        
-      zr0 = max(obj.movienr,obj.movienc)/2; % no-zoom: large radius
-      zr1 = obj.projPrefs.Trx.ZoomRadiusTight; % tight zoom: small radius
-      
-      if zr1>zr0
-        zr = zr0;
-      else
-        zr = zr0 + zoomFac*(zr1-zr0);
-      end
-      obj.videoZoom(zr);
-    end
-    
+      axis(obj.gdata.axes_prev,lims);
+    end    
     function [xsz,ysz] = videoCurrentSize(obj)
       v = axis(obj.gdata.axes_curr);
       xsz = v(2)-v(1);
@@ -3796,30 +3788,33 @@ classdef Labeler < handle
   %% Navigation
   methods
   
+    function tfSetOccurred = setFrameProtected(obj,frm,varargin)
+      % Protected set against frm being out-of-bounds for current target.
+      
+      if obj.hasTrx 
+        iTgt = obj.currTarget;
+        if ~obj.frm2trx(frm,iTgt)
+          tfSetOccurred = false;
+          return;
+        end
+      end
+      
+      tfSetOccurred = true;
+      obj.setFrame(frm,varargin{:});      
+    end
+    
     function setFrame(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
-      
-      %# MVOK
-      
+            
       [tfforcereadmovie,tfforcelabelupdate] = myparse(varargin,...
         'tfforcereadmovie',false,...
         'tfforcelabelupdate',false);
             
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
-        
-        tfTargetLive = obj.frm2trx(frm,:);      
-        if ~tfTargetLive(obj.currTarget)
-          iTgt = find(tfTargetLive,1);
-          if isempty(iTgt)
-            error('Labeler:noTarget','No live targets in frame %d.',frm);
-          end
-
-          warningNoTrace('Labeler:targetNotLive',...
-            'Current target idx=%d is not live in frame %d. Switching to target idx=%d.',...
-            obj.currTarget,frm,iTgt);
-          obj.setFrameAndTarget(frm,iTgt);
-          return;
+        if ~obj.frm2trx(frm,obj.currTarget)
+          error('Labeler:target','Target idx %d not live in frame %d.',...
+            obj.currTarget,frm);
         end
       end
       
@@ -3827,7 +3822,7 @@ classdef Labeler < handle
       obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
       
       if obj.hasTrx && obj.movieCenterOnTarget
-        assert(~obj.hasMultiView);
+        assert(~obj.isMultiView);
         obj.videoCenterOnCurrTarget();
       end
       obj.labelsUpdateNewFrame(tfforcelabelupdate);
@@ -3848,8 +3843,15 @@ classdef Labeler < handle
       % Set target index, maintaining current movie/frameframe.
       % iTgt: INDEX into obj.trx
       
-      validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
+      validateattributes(iTgt,{'numeric'},...
+        {'positive' 'integer' '<=' obj.nTargets});
       
+      frm = obj.currFrame;
+      if ~obj.frm2trx(frm,iTgt)
+        error('Labeler:target',...
+          'Target idx %d is not live at current frame (%d).',iTgt,frm);
+      end
+         
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
       if obj.hasTrx 
@@ -3866,11 +3868,14 @@ classdef Labeler < handle
       % Set to new frame and target for current movie.
       % Prefer setFrame() or setTarget() if possible to
       % provide better continuity wrt labeling etc.
-     
-      %# MVOK
       
       validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
 
+      if ~obj.isinit && obj.hasTrx && ~obj.frm2trx(frm,iTgt)
+        error('Labeler:target',...
+          'Target idx %d is not live at current frame (%d).',iTgt,frm);
+      end
+        
       % 2nd arg true to match legacy
       obj.hlpSetCurrPrevFrame(frm,true);
       
@@ -3885,34 +3890,34 @@ classdef Labeler < handle
         obj.updateCurrSusp();
         obj.updateShowTrx();
       end
-    end
+    end    
     
-    function frameUpDF(obj,df)
+    function tfSetOccurred = frameUpDF(obj,df)
       f = min(obj.currFrame+df,obj.nframes);
-      obj.setFrame(f); 
+      tfSetOccurred = obj.setFrameProtected(f); 
     end
     
-    function frameDownDF(obj,df)
+    function tfSetOccurred = frameDownDF(obj,df)
       f = max(obj.currFrame-df,1);
-      obj.setFrame(f);
+      tfSetOccurred = obj.setFrameProtected(f);
     end
     
-    function frameUp(obj,tfBigstep)
+    function tfSetOccurred = frameUp(obj,tfBigstep)
       if tfBigstep
         df = obj.movieFrameStepBig;
       else
         df = 1;
       end
-      obj.frameUpDF(df);
+      tfSetOccurred = obj.frameUpDF(df);
     end
     
-    function frameDown(obj,tfBigstep)
+    function tfSetOccurred = frameDown(obj,tfBigstep)
       if tfBigstep
         df = obj.movieFrameStepBig;
       else
         df = 1;
       end
-      obj.frameDownDF(df);
+      tfSetOccurred = obj.frameDownDF(df);
     end
     
     function frameUpNextLbled(obj,tfback)
@@ -3939,7 +3944,7 @@ classdef Labeler < handle
         for iPt = 1:npt
         for j = 1:2
           if ~isnan(lpos(iPt,j,f))
-            obj.setFrame(f);
+            obj.setFrameProtected(f);
             return;
           end
         end
@@ -3958,7 +3963,7 @@ classdef Labeler < handle
         ctrx = obj.currTrx;
 
         if cfrm < ctrx.firstframe || cfrm > ctrx.endframe
-          warning('Labeler:target','No track for current target at frame %d.',cfrm);
+          warningNoTrace('Labeler:target','No track for current target at frame %d.',cfrm);
           x = round(obj.movienc/2);
           y = round(obj.movienr/2);
           th = 0;

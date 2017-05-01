@@ -458,17 +458,23 @@ classdef LabelCore < handle
       assert(trx0.off==1-trx0.firstframe);
       assert(trx1.off==1-trx1.firstframe);
       
-      iFrm0 = iFrm0+trx0.off;
-      xy0 = [trx0.x(iFrm0) trx0.y(iFrm0)];
-      th0 = trx0.theta(iFrm0);
-      
-      iFrm1 = iFrm1+trx1.off;
-      xy1 = [trx1.x(iFrm1) trx1.y(iFrm1)];
-      th1 = trx1.theta(iFrm1);
-      
-      uv = transformPoints(uv0,xy0,th0,xy1,th1);
-      tfinf = any(isinf(uv0),2); % [inf inf] rows in uv0 can be transformed into eg [inf nan] depending on angle
-      uv(tfinf,:) = inf;
+      tfFrmsInBounds = trx0.firstframe<=iFrm0 && iFrm0<=trx0.endframe && ...
+                       trx1.firstframe<=iFrm1 && iFrm1<=trx1.endframe;
+      if tfFrmsInBounds
+        iFrm0 = iFrm0+trx0.off;
+        xy0 = [trx0.x(iFrm0) trx0.y(iFrm0)];
+        th0 = trx0.theta(iFrm0);
+
+        iFrm1 = iFrm1+trx1.off;
+        xy1 = [trx1.x(iFrm1) trx1.y(iFrm1)];
+        th1 = trx1.theta(iFrm1);
+
+        uv = transformPoints(uv0,xy0,th0,xy1,th1);
+        tfinf = any(isinf(uv0),2); % [inf inf] rows in uv0 can be transformed into eg [inf nan] depending on angle
+        uv(tfinf,:) = inf;
+      else
+        uv = uv0; % what else?
+      end
     end
     
   end
