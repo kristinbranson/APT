@@ -398,12 +398,8 @@ function propsList = preparePropsList(parameters)
 
 assert(isa(parameters,'TreeNode'));
 propsList = java.util.ArrayList();
-parameters.traverse(@nstFcn);
-
-  function nstFcn(t)
-    newProp = newProperty(t,@propUpdatedCallback);
-    propsList.add(newProp);
-  end
+newProp = newProperty(parameters,@propUpdatedCallback);
+propsList.add(newProp);
 end
 
 function propsList = preparePropsListLegacy(parameters)
@@ -829,7 +825,6 @@ end
 com.jidesoft.grid.CellEditorManager.registerEditor(propType, editor, context);
 end  % alignProp
 
-% Property updated callback function
 function propUpdatedCallback(prop, eventData, propName, fileData)
 try if strcmpi(char(eventData.getPropertyName),'parent'),  return;  end;  catch, end
 
@@ -876,51 +871,60 @@ propName = getRecursivePropName(prop, propName);
 
 % Find if the original item was a cell array and the mirror accordingly
 items = strread(propName,'%s','delimiter','.');
-if ~isempty(data)
-  cpy = data;
-  for idx = 1 : length(items)
-    % This is for dealing with structs with multiple levels...
-    [flag, index] = CheckStringForBrackets(items{idx});
-    if flag
-      cpy = cpy(index);
-    else
-      if isfield(cpy,items{idx})
-        cpy = cpy.(items{idx});
-      else
-        return
-      end
-    end
-  end
-  if nargin == 4
-    if iscell(cpy) && iscell(fileData) %%&& length(fileData)==1 % if mirror and filedata are cells then update the data -> otherwise overright.
-      propValue=UpdateCellArray(cpy,fileData);
-    end
-  else
-    if iscell(cpy)
-      propValue = UpdateCellArray(cpy, propValue);
-    end
-  end
-end
+% if ~isempty(data)
+%   cpy = data;
+%   for idx = 1 : length(items)
+%     % This is for dealing with structs with multiple levels...
+%     [flag, index] = CheckStringForBrackets(items{idx});
+%     if flag
+%       cpy = cpy(index);
+%     else
+%       if isfield(cpy,items{idx})
+%         cpy = cpy.(items{idx});
+%       else
+%         return
+%       end
+%     end
+%   end
+%   if nargin == 4
+%     if iscell(cpy) && iscell(fileData) %%&& length(fileData)==1 % if mirror and filedata are cells then update the data -> otherwise overright.
+%       propValue=UpdateCellArray(cpy,fileData);
+%     end
+%   else
+%     if iscell(cpy)
+%       propValue = UpdateCellArray(cpy, propValue);
+%     end
+%   end
+% end
 
-% Check for loading from file and long string which has been truncated
-if nargin == 4
-  propValue = checkCharFieldForAbreviation(propValue,fileData);
-  if ~isempty(propValue) && strcmp(propValue(1),'[') && ~isempty(strfind(propValue,' struct array]'))
-    propValue = fileData;
-  end
-  if isempty(propValue) % a struct
-    propValue = fileData;
-  end
-end
+% % Check for loading from file and long string which has been truncated
+% if nargin == 4
+%   propValue = checkCharFieldForAbreviation(propValue,fileData);
+%   if ~isempty(propValue) && strcmp(propValue(1),'[') && ~isempty(strfind(propValue,' struct array]'))
+%     propValue = fileData;
+%   end
+%   if isempty(propValue) % a struct
+%     propValue = fileData;
+%   end
+% end
 
 % For items with .(N) in the struct -> remove from path for eval
 propName = regexprep(propName,'\.(','(');
 
 % Update the mirror with the updated field value
 %data.(propName) = propValue;  % croaks on multiple sub-fields
-eval(['data.' propName ' = propValue;']);
+%eval(['data.' propName ' = propValue;']);
+nodes = data;
+for i=1:numel(items)
+  it = items{i};
+  flds = arrayfun(@(x)x.Data.Field,nodes,'uni',0);
+  tf = strcmp(flds,it);
+  assert(nnz(tf)==1);
+  node = nodes(tf);
+  nodes = node.Children;
+end
+node.Data.Value = propValue;
 
-% Update the local mirror
 setappdata(hFig, 'mirror',data);
 
 % Update the display
