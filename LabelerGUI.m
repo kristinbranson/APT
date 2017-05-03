@@ -1803,8 +1803,9 @@ function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();
 
 function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
-handles.menu_track_store_full_tracking.Checked = ...
-  onIff(handles.labelerObj.tracker.storeFullTracking);
+onoff = onIff(handles.labelerObj.tracker.storeFullTracking);
+handles.menu_track_store_full_tracking.Checked = onoff;
+handles.menu_track_view_tracking_diagnostics.Enable = onoff;
 
 function menu_track_store_full_tracking_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
