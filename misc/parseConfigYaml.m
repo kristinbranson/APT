@@ -5,8 +5,9 @@ function t = parseConfigYaml(filename)
 s = ReadYaml(filename);
 t = lclParse(s);
 
-function t = lclParse(s)
+function tagg = lclParse(s)
 fns = fieldnames(s);
+tagg = [];
 for f=fns(:)',f=f{1}; %#ok<FXSET>
   val = s.(f);
   isLeaf = iscell(val) && ischar(val{1});
@@ -20,4 +21,5 @@ for f=fns(:)',f=f{1}; %#ok<FXSET>
     children = cellfun(@lclParse,val(2:end),'uni',0);
     t.Children = cat(1,children{:}); 
   end
+  tagg = [tagg;t]; %#ok<AGROW>
 end

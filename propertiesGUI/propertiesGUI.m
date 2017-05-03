@@ -132,6 +132,7 @@ com.mathworks.mwswing.MJUtilities.initJIDE;
 % Prepare the list of properties
 oldWarn = warning('off','MATLAB:hg:JavaSetHGProperty');
 warning off MATLAB:hg:PossibleDeprecatedJavaSetHGProperty
+assert(isa(parameters,'TreeNode'));
 propsList = preparePropsList(parameters);
 
 % Create a mapping propName => prop
@@ -396,10 +397,11 @@ end  % demoParameters
 function propsList = preparePropsList(parameters)
 % parameters: Tree from parseConfigYaml
 
-assert(isa(parameters,'TreeNode'));
 propsList = java.util.ArrayList();
-newProp = newProperty(parameters,@propUpdatedCallback);
-propsList.add(newProp);
+for i=1:numel(parameters)
+  newProp = newProperty(parameters(i),@propUpdatedCallback);
+  propsList.add(newProp);
+end
 end
 
 function propsList = preparePropsListLegacy(parameters)

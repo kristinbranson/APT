@@ -3671,7 +3671,7 @@ classdef Labeler < handle
       obj.targetZoomFac = zoomFac;
         
       zr0 = max(obj.movienr,obj.movienc)/2; % no-zoom: large radius
-      zr1 = obj.projPref.Trx.ZoomRadiusTight; % tight zoom: small radius
+      zr1 = obj.projPrefs.Trx.ZoomRadiusTight; % tight zoom: small radius
       
       if zr1>zr0
         zr = zr0;

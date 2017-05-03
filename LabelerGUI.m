@@ -141,7 +141,8 @@ handles.menu_track_view_tracking_diagnostics = uimenu('Parent',handles.menu_trac
 moveMenuItemAfter(handles.menu_track_view_tracking_diagnostics,handles.menu_track_store_full_tracking);
 
 handles.menu_track_track_and_export.Separator = 'off';
-
+handles.menu_track_setparametersfile.Label = 'Configure tracking parameters';
+handles.menu_track_setparametersfile.Callback = @(hObject,eventdata)LabelerGUI('menu_track_setparametersfile_Callback',hObject,eventdata,guidata(hObject));
 handles.menu_track_use_all_labels_to_train = uimenu(...
   'Parent',handles.menu_track,...
   'Label','Include all labels in training data',...
@@ -830,7 +831,7 @@ lObj = evt.AffectedObject;
 tf = ~isempty(lObj.tracker);
 onOff = onIff(tf);
 handles = lObj.gdata;
-%handles.menu_track.Enable = onOff;
+handles.menu_track.Enable = onOff;
 handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
 if tf
@@ -1594,17 +1595,38 @@ end
 guidata(hObject,handles);
 
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
-prmFile = RC.getprop('lastCPRParamFile');
-if isempty(prmFile)
-  prmFile = pwd;
+% Really, "configure parameters"
+
+lObj = handles.labelerObj;
+tObj = lObj.tracker;
+assert(~isempty(tObj));
+assert(isa(tObj,'CPRLabelTracker'));
+
+% Start with "new" parameter tree/specification which provides "new"
+% parameters structure, types etc
+prmBaseYaml = fullfile(APT.Root,'trackers','cpr','params_apt.yaml');
+tPrm = parseConfigYaml(prmBaseYaml);
+
+% Now overlay either the current parameters or some other starting pt
+sPrmOld = tObj.getParams(); 
+if isempty(sPrmOld) % eg new tracker
+  sPrmNewOverlay = RC.getprop('lastCPRAPTParams');
+  if isempty(sPrmNewOverlay)
+    sPrmNewOverlay = CPRParam.old2new(CPRLabelTracker.readDefaultParams());
+  end
+else
+  sPrmNewOverlay = CPRParam.old2new(sPrmOld);
 end
-[f,p] = uigetfile('*.yaml','Select CPR tracking parameters file',prmFile);
-if isequal(f,0)
-  return;
+tPrm.structapply(sPrmNewOverlay);
+
+sPrm = ParameterSetup(handles.figure,tPrm); % modal
+
+if isempty(sPrm)
+  % user canceled; none
+else
+  RC.saveprop('lastCPRAPTParams',sPrm);
+  tObj.setParams(sPrm);  
 end
-prmFile = fullfile(p,f);
-RC.saveprop('lastCPRParamFile',prmFile);
-handles.labelerObj.setTrackParamFile(prmFile);
 
 function cbkTrackerTrnDataDownSampChanged(src,evt,handles)
 tracker = evt.AffectedObject;

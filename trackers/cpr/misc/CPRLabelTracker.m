@@ -16,7 +16,7 @@ classdef CPRLabelTracker < LabelTracker
   end
     
   %% Params
-  properties
+  properties (SetAccess=private)
     sPrm % full parameter struct
   end
   
@@ -665,6 +665,16 @@ classdef CPRLabelTracker < LabelTracker
       obj.setParamContentsSmart(sNew);
     end
     
+    function setParams(obj,sPrm)
+      sPrm = CPRLabelTracker.modernizeParams(sPrm);
+      obj.setParamContentsSmart(sPrm);
+      obj.paramFile = '';
+    end
+    
+    function sPrm = getParams(obj)
+      sPrm = obj.sPrm;
+    end
+    
     %#MV
     function setParamContentsSmart(obj,sNew)
       % Set parameter contents (.sPrm), looking at what top-level fields 
@@ -1222,7 +1232,7 @@ classdef CPRLabelTracker < LabelTracker
       
       nMov = numel(iMovs);
       trkpipt = obj.trkPiPt;
-      trkinfobase = struct('paramFile',obj.paramFile);
+      trkinfobase = struct('paramFile',obj.paramFile,'param',obj.sPrm);
       
       tfMultiView = obj.lObj.isMultiView;
       if tfMultiView
@@ -1533,10 +1543,9 @@ classdef CPRLabelTracker < LabelTracker
       end
 
       % set parameter struct s.sPrm on obj
-      assert(isfield(s,'paramFile'));
-      if ~isequal(s.paramFile,obj.paramFile)
-        warningNoTrace('CPRLabelTracker:paramFile',...
-          'Setting parameter file to ''%s''.',s.paramFile);
+      if ~isequaln(obj.sPrm,s.sPrm)
+        warningNoTrace('CPRLabelTracker:param',...
+          'CPR tracking parameters changed to saved values.');
       end
       obj.setParamContentsSmart(s.sPrm);
      

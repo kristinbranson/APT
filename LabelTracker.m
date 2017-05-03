@@ -66,6 +66,8 @@ classdef LabelTracker < handle
     end
     
     function setParamFile(obj,prmFile)
+      % See also setParams.
+      
       obj.paramFile = prmFile;
       obj.setParamHook();
     end
@@ -90,6 +92,17 @@ classdef LabelTracker < handle
     
     function setParamHook(obj)
       % Called when a new parameter file is specified
+      
+      % See setParams.
+    end
+    
+    function setParams(obj,sPrm)
+      % Directly set params. Note, methods .setParamFile and .setParams
+      % "overlap". Subclasses should do something intelligent.
+    end
+    
+    function sPrm = getParams(obj)
+      sPrm = struct();
     end
        
     function train(obj)
