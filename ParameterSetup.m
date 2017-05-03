@@ -10,7 +10,9 @@ function sPrm = ParameterSetup(hParent,tree)
 
 assert(isscalar(hParent) && ishandle(hParent));
 
-hFig = figure('ToolBar','none','Visible','off','menubar','none','Name','CPR Tracking Parameters');
+hFig = figure('Visible','off','ToolBar','none','menubar','none',...
+  'Name','CPR Tracking Parameters');
+hFig.Position(3) = 400;
 centerOnParentFigure(hFig,hParent);
 
 assert(isa(tree,'TreeNode') && isscalar(tree));
