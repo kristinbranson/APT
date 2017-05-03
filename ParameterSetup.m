@@ -21,7 +21,7 @@ assert(strcmp(tree.Data.Field,'ROOT'));
 rootnode = tree;
 children = tree.Children;
 rootnode.Children = [];
-propertiesGUI(hFig,children);
+propertiesGUI2(hFig,children);
 setappdata(hFig,'rootnode',rootnode); % save to glue rootnode back on at output
 
 h = findall(hFig,'type','hgjavacomponent');

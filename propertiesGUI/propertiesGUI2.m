@@ -1,4 +1,4 @@
-function [hPropsPane,parameters] = propertiesGUI(hParent, parameters)
+function [hPropsPane,parameters] = propertiesGUI2(hParent, parameters)
 % propertiesGUI displays formatted editable list of properties
 %
 % Syntax:
