@@ -1617,6 +1617,7 @@ if isempty(sPrmOld) % eg new tracker
 else
   sPrmNewOverlay = CPRParam.old2new(sPrmOld);
 end
+
 tPrm.structapply(sPrmNewOverlay);
 
 sPrm = ParameterSetup(handles.figure,tPrm); % modal
@@ -1625,6 +1626,7 @@ if isempty(sPrm)
   % user canceled; none
 else
   RC.saveprop('lastCPRAPTParams',sPrm);
+  sPrm = CPRParam.new2old(sPrm,lObj.nLabelPoints,lObj.nview);
   tObj.setParams(sPrm);  
 end
 

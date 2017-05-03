@@ -911,7 +911,7 @@ items = strread(propName,'%s','delimiter','.');
 % end
 
 % For items with .(N) in the struct -> remove from path for eval
-propName = regexprep(propName,'\.(','(');
+%propName = regexprep(propName,'\.(','(');
 
 % Update the mirror with the updated field value
 %data.(propName) = propValue;  % croaks on multiple sub-fields

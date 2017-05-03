@@ -1,4 +1,4 @@
-classdef PropertiesGUIProp 
+classdef PropertiesGUIProp < handle
   properties
     Field % char, fieldname on struct/obj
     DispName % displayname in table
@@ -18,6 +18,23 @@ classdef PropertiesGUIProp
         v = obj.Field;
       end
     end
+    function set.Value(obj,val)
+      type = obj.Type; %#ok<MCSUP>
+      if ischar(type) % type can be a cell for enums
+        switch type
+          case 'unsigned'
+            % Doesn't look required by propertiesGUI
+            % val = uint64(val);
+          case 'signed'
+            % Doesn't look required by propertiesGUI
+            % val = int64(val);
+          case 'boolean'
+            % REQUIRED by propertiesGUI
+            val = logical(val);
+        end
+      end
+      obj.Value = val;
+    end
   end
   methods 
     function obj = PropertiesGUIProp(fld,dispname,type,editable,desc,dfltval,val)
@@ -26,7 +43,7 @@ classdef PropertiesGUIProp
       obj.Type = type;
       obj.isEditable = editable;
       obj.Description = desc;
-      obj.DefaultValue = dfltval;
+      obj.DefaultValue = dfltval;      
       obj.Value = val;
     end
   end
