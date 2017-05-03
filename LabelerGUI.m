@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 19-Dec-2016 06:00:58
+% Last Modified by GUIDE v2.5 28-Apr-2017 13:56:34
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -90,6 +90,14 @@ handles.menu_setup_streamlined = uimenu('Parent',handles.menu_labeling_setup,...
   'Visible','off');
 moveMenuItemAfter(handles.menu_setup_streamlined,...
   handles.menu_setup_set_labeling_point);
+
+handles.menu_view_rotate_video_target_up = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_rotate_video_target_up_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Rotate video so target always points up',...
+  'Tag','menu_view_rotate_video_target_up',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_rotate_video_target_up,...
+  handles.menu_view_trajectories_centervideoontarget);
 
 handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_predictions_Callback',hObject,eventdata,guidata(hObject)),...
@@ -231,6 +239,7 @@ set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp());
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
+listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescurrXLimChanged(s,e,handles));
 listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
@@ -238,7 +247,7 @@ listeners{end+1,1} = addlistener(lObj,'prevFrame','PostSet',@cbkPrevFrameChanged
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
-listeners{end+1,1} = addlistener(lObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
+%listeners{end+1,1} = addlistener(lObj,'targetZoomRadius','PostSet',@cbkTargetZoomFacChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
 listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
@@ -248,6 +257,7 @@ listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerN
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
+listeners{end+1,1} = addlistener(lObj,'movieRotateTargetUp','PostSet',@cbkMovieRotateTargetUpChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
@@ -286,6 +296,10 @@ fsz(3) = min(fsz(3),round( (scsz(3)-fsz(1))*0.9));
 fsz(4) = min(fsz(4),round( (scsz(4)-fsz(2))*0.9));
 set(hObject,'Position',fsz);
 set(hObject,'Units','normalized');
+
+handles.sldZoom.Min = 0;
+handles.sldZoom.Max = 1;
+handles.sldZoom.Value = 0;
 
 handles.depHandles = gobjects(0,1);
 
@@ -519,6 +533,10 @@ handles.axes_occ = axsOcc;
 axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
  
 ViewConfig.setCfgOnViews(lObj.projPrefs.View,figs,axs,ims,handles.axes_prev);
+handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
+handles.menu_view_show_grid.Checked = axs(1).XGrid;
+% handles.menu_view_trajectories_centervideoontarget = onIff(lObj.movieCenterOnTarget);
+% handles.menu_view_rotate_video_target_up = onIff(lObj.movieRotateTargetUp);
 
 arrayfun(@(x)colormap(x,gray),figs);
 viewNames = lObj.viewNames;
@@ -581,12 +599,21 @@ nframes = lObj.nframes;
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
 
-function zoomOutFullView(hAx,hIm)
+ifo = lObj.movieInfoAll{lObj.currMovie,1}.info;
+minzoomrad = 10;
+maxzoomrad = (ifo.nc+ifo.nr)/4;
+handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
+
+function zoomOutFullView(hAx,hIm,resetCamUpVec)
 set(hAx,...
   'XLim',[.5,size(hIm.CData,2)+.5],...
   'YLim',[.5,size(hIm.CData,1)+.5]);
-axis(hAx,'image');
+axis(hAx,'image','xy');
 zoom(hAx,'reset');
+if resetCamUpVec
+  hAx.CameraUpVector = [0 1 0];
+end
+hAx.CameraViewAngleMode = 'auto';
 
 function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -610,7 +637,7 @@ set(lObj.gdata.txPrevIm,'String',num2str(frm));
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
-if lObj.hasTrx
+if lObj.hasTrx && ~lObj.isinit
   id = lObj.currTrxID;
   lObj.currImHud.updateTarget(id);
 end
@@ -686,10 +713,10 @@ lc = lObj.lblCore;
 tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
 handles.menu_view_show_3D_axes.Enable = onIff(tfShow3DAxes);
 
-function cbkTargetZoomFacChanged(src,evt)
-lObj = evt.AffectedObject;
-zf = lObj.targetZoomFac;
-set(lObj.gdata.sldZoom,'Value',zf);
+% function cbkTargetZoomFacChanged(src,evt)
+% lObj = evt.AffectedObject;
+% zf = lObj.targetZoomFac;
+% set(lObj.gdata.sldZoom,'Value',zf);
 
 function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -864,6 +891,12 @@ tf = lObj.movieCenterOnTarget;
 mnu = lObj.gdata.menu_view_trajectories_centervideoontarget;
 mnu.Checked = onIff(tf);
 
+function cbkMovieRotateTargetUpChanged(src,evt)
+lObj = evt.AffectedObject;
+tf = lObj.movieRotateTargetUp;
+mnu = lObj.gdata.menu_view_rotate_video_target_up;
+mnu.Checked = onIff(tf);
+
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
@@ -871,15 +904,24 @@ handles = guidata(hObject);
 lObj = handles.labelerObj;
 v = get(hObject,'Value');
 f = round(1 + v * (lObj.nframes - 1));
+
 cmod = handles.figure.CurrentModifier;
 if ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}))
   if f>lObj.currFrame
-    lObj.frameUp(true);
+    tfSetOccurred = lObj.frameUp(true);
   else
-    lObj.frameDown(true);
-  end  
+    tfSetOccurred = lObj.frameDown(true);
+  end
 else
-  lObj.setFrame(f);
+  tfSetOccurred = lObj.setFrameProtected(f);
+end
+  
+if ~tfSetOccurred
+  sldval = (lObj.currFrame-1)/(lObj.nframes-1);
+  if isnan(sldval)
+    sldval = 0;
+  end
+  set(hObject,'Value',sldval);
 end
 
 function slider_frame_CreateFcn(hObject,~,~)
@@ -896,6 +938,12 @@ if isnan(f)
   return;
 end
 f = min(max(1,round(f)),lObj.nframes);
+if ~lObj.trxCheckFramesLive(f)
+  set(hObject,'String',num2str(lObj.currFrame));
+  warnstr = sprintf('Frame %d is out-of-range for current target.',f);
+  warndlg(warnstr,'Out of range');
+  return;
+end
 set(hObject,'String',num2str(f));
 if f ~= lObj.currFrame
   lObj.setFrame(f)
@@ -942,13 +990,25 @@ function tblTrx_CellSelectionCallback(hObject, eventdata, handles) %#ok<*DEFNU>
 % eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
 %	Indices: row and column indices of the cell(s) currently selecteds
 % handles    structure with handles and user data (see GUIDATA)
+
+% Current/last row selection is maintained in hObject.UserData
+
+rows = eventdata.Indices(:,1);
+rowsprev = hObject.UserData;
+hObject.UserData = rows;
+dat = hObject.Data;
+
 lObj = handles.labelerObj;
-row = eventdata.Indices;
-if ~isempty(row)
-  row = row(1);
-  dat = get(hObject,'Data');
-  id = dat{row,1};
+
+if isscalar(rows)
+  id = dat{rows(1),1};
   lObj.setTargetID(id);
+  lObj.labelsOtherTargetHideAll();
+else
+  % addon to existing selection
+  rowsnew = setdiff(rows,rowsprev);  
+  idsnew = cell2mat(dat(rowsnew,1));
+  lObj.labelsOtherTargetShowIDs(idsnew);
 end
 
 hlpRemoveFocus(hObject,handles);
@@ -984,16 +1044,72 @@ end
 
 hlpRemoveFocus(hObject,handles);
 
+% 20170428
+% Notes -- Zooms Views Angles et al
+% 
+% Zoom.
+% In APT we refer to the "zoom" as effective magnification determined by 
+% the axis limits, ie how many pixels are shown along x and y. Currently
+% the pixels and axis are always square.
+% 
+% The zoom level can be adjusted in a variety of ways: via the zoom slider,
+% the Unzoom button, the manual zoom tools in the toolbar, or 
+% View > Zoom out. 
+%
+% Camroll.
+% When Trx are available, the movie can be rotated so that the Trx are
+% always at a given orientation (currently, "up"). This is achieved by
+% "camrolling" the axes, ie setting axes.CameraUpVector. Currently
+% manually camrolling is not available.
+%
+% CamViewAngle.
+% The CameraViewAngle is the AOV of the 'camera' viewing the axes. When
+% "camroll" is off (either there are no Trx, or rotateSoTargetIsUp is
+% off), axis.CameraViewAngleMode is set to 'auto' and MATLAB selects a
+% CameraViewAngle so that the axis fills its outerposition. When camroll is
+% on, MATLAB by default chooses a CameraViewAngle that is relatively wide, 
+% so that the square axes is very visible as it rotates around. This is a
+% bit distracting so currently we choose a smaller CamViewAngle (very 
+% arbitrarily). There may be a better way to handle this.
+
+function axescurrXLimChanged(hObject,eventdata,handles)
+% log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
+ax = eventdata.AffectedObject;
+radius = diff(ax.XLim)/2;
+hSld = handles.sldZoom;
+if ~isempty(hSld.UserData) % empty during init
+  userdata = hSld.UserData;
+  logzoomradmin = userdata(1);
+  logzoomradmax = userdata(2);
+  sldval = (log(radius)-logzoomradmax)/(logzoomradmin-logzoomradmax);
+  sldval = min(max(sldval,0),1);
+  hSld.Value = sldval;
+end
+
 function sldZoom_Callback(hObject, eventdata, ~)
+% log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
 handles = guidata(hObject);
 lObj = handles.labelerObj;
-zoomFac = get(hObject,'Value');
-lObj.videoSetTargetZoomFac(zoomFac);
+v = hObject.Value;
+userdata = hObject.UserData;
+logzoomrad = userdata(2)+v*(userdata(1)-userdata(2));
+zoomRad = exp(logzoomrad);
+lObj.videoZoom(zoomRad);
 hlpRemoveFocus(hObject,handles);
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
+hAxs = handles.axes_all;
+hIms = handles.images_all;
+assert(numel(hAxs)==numel(hIms));
+arrayfun(@zoomOutFullView,hAxs,hIms,false);
+
+function pbSetZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-lObj.videoResetView();
+lObj.targetZoomRadiusDefault = diff(handles.axes_curr.XLim)/2;
+
+function pbRecallZoom_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.videoZoom(lObj.targetZoomRadiusDefault);
 
 function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1390,6 +1506,9 @@ handles.labelerObj.setShowTrxMode(ShowTrxMode.NONE);
 function menu_view_trajectories_centervideoontarget_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.movieCenterOnTarget = ~lObj.movieCenterOnTarget;
+function menu_view_rotate_video_target_up_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.movieRotateTargetUp = ~lObj.movieRotateTargetUp;
 function menu_view_flip_flipud_movie_only_Callback(hObject, eventdata, handles)
 [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(handles);
 if tfproceed
@@ -1427,13 +1546,15 @@ function menu_view_fit_entire_image_Callback(hObject, eventdata, handles)
 hAxs = handles.axes_all;
 hIms = handles.images_all;
 assert(numel(hAxs)==numel(hIms));
-arrayfun(@zoomOutFullView,hAxs,hIms);
+arrayfun(@zoomOutFullView,hAxs,hIms,true);
 
 function menu_view_reset_views_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 viewCfg = lObj.projPrefs.View;
 ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,handles.axes_all,...
   handles.images_all,handles.axes_prev);
+handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
+handles.menu_view_show_grid.Checked = axs(1).XGrid;
 movInvert = ViewConfig.getMovieInvert(viewCfg);
 lObj.movieInvert = movInvert;
 
@@ -1816,3 +1937,4 @@ function pumInfo_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+

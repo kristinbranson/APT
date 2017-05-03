@@ -107,8 +107,8 @@ classdef ViewConfig
           ax.XTickMode = 'auto';
           ax.XTickMode = 'auto';          
         else
-          ax.XTick = [];
-          ax.YTick = [];
+          ax.XTickLabel = [];
+          ax.YTickLabel = [];
         end
         if vCfg.ShowGrid
           grid(ax,'on');
@@ -158,6 +158,9 @@ classdef ViewConfig
         if isfield(ax.UserData,'gamma') && ~isempty(ax.UserData.gamma)
           viewCfg(i).Gamma = ax.UserData.gamma;
         end
+        
+        viewCfg(i).ShowAxTicks = ~isempty(ax.XTickLabel);
+        viewCfg(i).ShowGrid = strcmp(ax.XGrid,'on');
       end
     end
     

@@ -409,13 +409,13 @@ classdef InfoTimeline < handle
     end
     
     function lpos = getMarkedData(obj)
-      if obj.lObj.currMovie>0,
-        if obj.lObj.hasTrx,
-          currTrxId = obj.lObj.currTrxId;
+      if obj.lObj.currMovie>0
+        if obj.lObj.hasTrx
+          iTgt = obj.lObj.currTarget;
         else
-          currTrxId = 1;
+          iTgt = 1;
         end        
-        lpos = squeeze(obj.lObj.labeledposMarked{obj.lObj.currMovie}(:,:,currTrxId));
+        lpos = squeeze(obj.lObj.labeledposMarked{obj.lObj.currMovie}(:,:,iTgt));
       else
         lpos = false(obj.lObj.nLabelPoints,1);
       end
