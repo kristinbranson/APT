@@ -67,6 +67,7 @@ classdef TrkFile < handle
       if isequal(obj.pTrkFrm,TrkFile.unsetVal)
         obj.pTrkFrm = 1:nfrm;
       end
+      assert(issorted(obj.pTrkFrm));
       validateattributes(obj.pTrkFrm,{'numeric'},...
         {'vector' 'numel' nfrm 'positive' 'integer'},'','pTrkFrm');
     end

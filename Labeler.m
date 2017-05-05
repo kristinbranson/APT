@@ -2924,7 +2924,7 @@ classdef Labeler < handle
           fprintf('MovieSet %d...\n',iMov);
         end
         for iVw = 1:obj.nview
-          tfile = trkfiles{i,iVw};          
+          tfile = trkfiles{i,iVw};
           s = load(tfile,'-mat');
           
           if isfield(s,'pTrkiPt')
@@ -2935,19 +2935,33 @@ classdef Labeler < handle
               assert(nPhysPts==size(lpos,1));
             end
           end
+          
           if isfield(s,'pTrkFrm')
-            frms = s.pTrkFrm;
+            frmsTrk = s.pTrkFrm;
           else
-            frms = 1:size(lpos,3);
+            frmsTrk = 1:size(s.pTrk,3);
           end
           
+          nfrmLpos = size(lpos,3);
+          tfInBounds = 1<=frmsTrk & frmsTrk<=nfrmLpos;          
+          if any(~tfInBounds)
+            warningNoTrace('Labeler:trkImport',...
+              'Trkfile contains information for frames beyond end of movie (number of frames=%d). Ignoring additional frames.',...
+              nfrmLpos);
+          end
+          if nnz(tfInBounds)<nfrmLpos
+            warningNoTrace('Labeler:trkImport',...
+              'Trkfile does not contain information for all frames in movie. Frames missing from Trkfile will be unlabeled.');
+          end
+          
+          frmsTrkIB = frmsTrk(tfInBounds);
           fprintf(1,'... Loaded %d frames for %d points from trk file: %s.\n',...
-            numel(frms),numel(iPt),tfile);
+            numel(frmsTrkIB),numel(iPt),tfile);
 
-          iPt = iPt + (iVw-1)*nPhysPts;                     
-          lpos(iPt,:,frms,:) = s.pTrk;
-          lposTS(iPt,frms,:) = s.pTrkTS;
-          lpostag(iPt,frms,:) = s.pTrkTag;
+          iPt = iPt + (iVw-1)*nPhysPts;
+          lpos(iPt,:,frmsTrkIB,:) = s.pTrk(:,:,tfInBounds);
+          lposTS(iPt,frmsTrkIB,:) = s.pTrkTS(:,tfInBounds);
+          lpostag(iPt,frmsTrkIB,:) = s.pTrkTag(:,tfInBounds);
         end
 
         obj.(lposFld){iMov} = lpos;

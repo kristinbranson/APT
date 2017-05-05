@@ -1255,21 +1255,6 @@ if ~lObj.hasMovie
   error('LabelerGUI:noMovie','No movie is loaded.');
 end
 iMov = lObj.currMovie;
-% if lObj.labelposMovieHasLabels(iMov)
-%   resp = questdlg('Current movie has labels that will be overwritten. OK?',...
-%     'Import Labels','OK, Proceed','Cancel','Cancel');
-%   if isempty(resp)
-%     resp = 'Cancel';
-%   end
-%   switch resp
-%     case 'OK, Proceed'
-%       % none
-%     case 'Cancel'
-%       return;
-%     otherwise
-%       assert(false); 
-%   end
-% end
 lObj.labels2ImportTrkPrompt(iMov);
 
 function [tfok,basetrkname] = hlpBasetrkname(lObj)
