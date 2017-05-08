@@ -2913,26 +2913,48 @@ classdef Labeler < handle
       szassert(trkfiles,[nMovSets obj.nview]);
       nPhysPts = obj.nPhysPoints;      
       tfMV = obj.isMultiView;
+      nView = obj.nview;
       
       for i=1:nMovSets
         iMov = iMovSets(i);
         lpos = nan(size(obj.labeledpos{iMov}));
         lposTS = -inf(size(obj.labeledposTS{iMov}));
         lpostag = cell(size(obj.labeledpostag{iMov}));
+        assert(size(lpos,1)==nPhysPts*nView);
         
         if tfMV
           fprintf('MovieSet %d...\n',iMov);
         end
-        for iVw = 1:obj.nview
+        for iVw = 1:nView
           tfile = trkfiles{i,iVw};
           s = load(tfile,'-mat');
           
           if isfield(s,'pTrkiPt')
             iPt = s.pTrkiPt;
           else
-            iPt = 1:nPhysPts;
-            if ~tfMV
-              assert(nPhysPts==size(lpos,1));
+            iPt = 1:size(s.pTrk,1);
+          end
+          tfInBounds = 1<=iPt & iPt<=nPhysPts;
+          if any(~tfInBounds)
+            if tfMV
+              error('Labeler:trkImport',...
+                'View %d: trkfile contains information for more points than exist in project (number physical points=%d).',...
+                iVw,nPhysPts);
+            else
+              error('Labeler:trkImport',...
+                'Trkfile contains information for more points than exist in project (number of points=%d).',...
+                nPhysPts);
+            end
+          end
+          if nnz(tfInBounds)<nPhysPts
+            if tfMV
+              warningNoTrace('Labeler:trkImport',...
+                'View %d: trkfile does not contain labels for all points in project (number physical points=%d).',...
+                iVw,nPhysPts);              
+            else
+               warningNoTrace('Labeler:trkImport',...
+                 'Trkfile does not contain information for all points in project (number of points=%d).',...
+                 nPhysPts);
             end
           end
           
@@ -2943,7 +2965,7 @@ classdef Labeler < handle
           end
           
           nfrmLpos = size(lpos,3);
-          tfInBounds = 1<=frmsTrk & frmsTrk<=nfrmLpos;          
+          tfInBounds = 1<=frmsTrk & frmsTrk<=nfrmLpos;
           if any(~tfInBounds)
             warningNoTrace('Labeler:trkImport',...
               'Trkfile contains information for frames beyond end of movie (number of frames=%d). Ignoring additional frames.',...
