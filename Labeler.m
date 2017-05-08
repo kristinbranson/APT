@@ -3670,8 +3670,33 @@ classdef Labeler < handle
       dy = y-y0;
       ax = obj.gdata.axes_curr;
       axisshift(ax,dx,dy);
+      ax.CameraPositionMode = 'auto'; % issue #86, behavior differs between 16b and 15b. Use of manual zoom toggles .CPM into manual mode
+      ax.CameraTargetMode = 'auto'; % issue #86, etc Use of manual zoom toggles .CTM into manual mode
+      %ax.CameraViewAngleMode = 'auto';
       if obj.movieRotateTargetUp
         ax.CameraUpVector = [cos(th) sin(th) 0];
+        if verLessThan('matlab','R2016a')
+          % See iss#86. In R2016a, the zoom/pan behavior of axes in 3D mode
+          % (currently, any axis with CameraViewAngleMode manually set)
+          % changed. Prior to R2016a, zoom on such an axis altered camera
+          % position via .CameraViewAngle, etc, with the axis limits
+          % unchanged. Starting in R2016a, zoom on 3D axes changes the axis
+          % limits while the camera position is unchanged.
+          %
+          % Currently we prefer the modern treatment and the
+          % center-on-target, rotate-target, zoom slider, etc treatments
+          % are built around that treatment. For prior MATLABs, we work
+          % around -- it is a little awkward as the fundamental strategy
+          % behind zoom is different. For prior MATLABs users should prefer
+          % the Zoom slider in the Targets panel as opposed to using the
+          % zoom tools in the toolbar.
+          hF = obj.gdata.figure;
+          tf = getappdata(hF,'manualZoomOccured');
+          if tf
+            ax.CameraViewAngleMode = 'auto';
+            setappdata(hF,'manualZoomOccured',false);
+          end
+        end
         if strcmp(ax.CameraViewAngleMode,'auto')
           cva = ax.CameraViewAngle;
           ax.CameraViewAngle = cva/2;

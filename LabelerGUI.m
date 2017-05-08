@@ -267,6 +267,9 @@ listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectModeOn','PostSet',@c
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 handles.listeners = listeners;
 
+hZ = zoom(hObject);
+hZ.ActionPostCallback = @cbkPostZoom;
+
 % These Labeler properties need their callbacks fired to properly init UI.
 % Labeler will read .propsNeedInit from the GUIData to comply.
 handles.propsNeedInit = {
@@ -614,6 +617,8 @@ if resetCamUpVec
   hAx.CameraUpVector = [0 1 0];
 end
 hAx.CameraViewAngleMode = 'auto';
+hAx.CameraPositionMode = 'auto';
+hAx.CameraTargetMode = 'auto';
 
 function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -1096,6 +1101,11 @@ logzoomrad = userdata(2)+v*(userdata(1)-userdata(2));
 zoomRad = exp(logzoomrad);
 lObj.videoZoom(zoomRad);
 hlpRemoveFocus(hObject,handles);
+
+function cbkPostZoom(src,evt)
+if verLessThan('matlab','R2016a')
+  setappdata(src,'manualZoomOccured',true);
+end
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
 hAxs = handles.axes_all;
