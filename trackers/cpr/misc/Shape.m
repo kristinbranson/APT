@@ -19,7 +19,7 @@ classdef Shape
       xy = [p(1:n/2) p(n/2+1:end)];
     end
     
-    function p0 = randrot(p0,d)
+    function [p0,thetas] = randrot(p0,d)
       % Randomly rotate shapes about centroids
       % 
       % p0 (in): [Lx2d] shapes
@@ -27,6 +27,7 @@ classdef Shape
       %
       % p0 (out): [Lx2d] randomly rotated shapes (each row of p0 randomly
       %   rotated)
+      % thetas: [Lx1] rotation angle for each shape
       
       assert(d==2);
       L = size(p0,1); 
@@ -49,37 +50,60 @@ classdef Shape
       assert(false,'NOT DONE'); 
     end
     
-    function p1 = randsamp(p0,i,L,varargin)
-      % Randomly sample N shapes, omitting ith shape
+    function p1 = randsamp(p0,L,varargin)
+      % Randomly sample shapes
       %
-      % p0 (in): [NxD] all shapes
-      % i: index of 'current' shape (1..N)
+      % p0: [NxD] input shapes
       % L: number of shapes to return
       %
-      % p1: [LxD] shapes randomly sampled from p0, *omitting* the ith
-      %   shape, ie p0(i,:).
+      % p1: [LxD] shapes randomly sampled from p0
       
-      useFF = myparse(varargin,...
-        'useFF',false); % if true, use furthestfirst
-            
+      [omitRow,randomlyOriented,iHead,iTail,useFF] = myparse(varargin,...
+        'omitRow',nan,... % optional row of p0 to omit from sampling
+        'randomlyOriented',false, ... % scalar logical. If true, p0 are randomly oriented
+        'iHead',nan,... % head pt used if randomlyOriented==true
+        'iTail',nan,... % etc
+        'useFF',false ... % if true, use furthestfirst to select most different shapes
+        );
+      
       [N,D] = size(p0);
-      assert(any(i==1:N));      
       
-      iOther = [1:i-1,i+1:N];
+      tfOmit = ~isnan(omitRow);
+      if tfOmit
+        assert(any(omitRow==1:N));
+        iUse = [1:omitRow-1,omitRow+1:N];
+      else
+        iUse = 1:N;
+      end
+      nUse = numel(iUse);
+      
+      if randomlyOriented
+        assert(~isnan(iHead));
+        assert(~isnan(iTail));
+      end
+      
       if useFF
-        assert(L<=N-1);
-        pOther = p0(iOther,:);
-        p1 = furthestfirst(pOther,L,'Start',[]); % 'Start' empty => random first/starting center
+        assert(L<=nUse,'Not enough shapes to use furthest first.');
+        pUse = p0(iUse,:);
+        if randomlyOriented
+          [pUse,th] = Shape.alignOrientations(pUse,iHead,iTail);
+          [~,~,idx] = furthestfirst(pUse,L,'Start',[]);
+          pUse = Shape.rotateCentroid(pUse(idx,:),-th(idx));
+        else
+          pUse = furthestfirst(pUse,L,'Start',[]);
+        end
       elseif L <= N-1
-        i1 = randSample(iOther,L,true); %[n randSample(1:N,L-1)];
+        i1 = iUse(randsample(LENGTH(POPULATION),K)
+
+        i1 = randSample(iUse,L,false);
         p1 = p0(i1,:);
       else % L>N-1
         % Not enough other shapes. Select pairs of shapes and average them
-        % AL: min() seems unnecessary if use (N-1)*rand(...)
         nExtra = L-(N-1);
-        iAv = iOther(ceil((N-1)*rand([nExtra,2]))); % [nExtrax2] random elements of iOther
+
+        iAv = iUse(ceil((N-1)*rand([nExtra,2]))); % [nExtrax2] random elements of iUse
         pAv = (p0(iAv(:,1),:) + p0(iAv(:,2),:))/2; % [nExtraxD] randomly averaged shapes
-        p1 = cat(1,p0(iOther,:),pAv);
+        p1 = cat(1,p0(iUse,:),pAv);
       end
       
       % p1: Set of L shapes, explicitly doesn't include p0(n,:)
@@ -100,11 +124,11 @@ classdef Shape
       % Shapes are randomly drawn from pN, optionally randomly rotated,
       % then projected onto randomly jittered bboxes.
       
-      [dorotate,bboxJitterFac,selfSample,useFF] = myparse(varargin,...
-        'dorotate',false,... % if true, randomly rotate shapes
+      [randomlyOriented,bboxJitterFac,selfSample,useFF] = myparse(varargin,...
+        'randomlyOriented',false,... % if true, shapes in pN have arbitrary orientations; orientation of shapes in pAug will be randomized
         'bboxJitterfac',16, ... % jitter by 1/16th of bounding box dims. If useFF is true, can be [D] vector.
         'selfSample',false, ... % if true, then M==N, ie the set pN corresponds to bboxes. pN(i,:) will 
-                           ... % not be drawn/included when generating pAug(i,:,:).
+                            ... % not be drawn/included when generating pAug(i,:,:).
         'furthestfirst',false ... % if true, try to sample more diverse shapes using furthestfirst
         );
   
@@ -157,35 +181,32 @@ classdef Shape
           % sample them
           szassert(pNJittered,[M D]);
           pNAug = Shape.randsamp([pNJittered;pNJittered(end,:)],M+1,Naug,...
-            'useFF',true);
-          pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,...
-            repmat(bboxes(i,:),Naug,1)); % [NaugxD]
+            d,randomlyOriented,'useFF',true);
+          bbRP = repmat(bboxes(i,:),Naug,1);
         else
           if selfSample
-            pNAug = Shape.randsamp(pN,i,Naug);
+            pNAug = Shape.randsamp(pN,i,Naug,d,randomlyOriented);
           else
             % Duplicate first row of pN, then specify that row to randsamp.
             % The effect is to sample just from pN
-            pNAug = Shape.randsamp([pN(1,:);pN],1,Naug);
+            pNAug = Shape.randsamp([pN(1,:);pN],1,Naug,d,randomlyOriented);
           end
-          if dorotate
-            assert(d==2,'Currently random rotations supported only for d==2');
-            %fprintf(1,'Shape:randInitShapes. dorotate=%d\n',dorotate);
-            pNAug = Shape.randrot(pNAug,d);
-          end
-          szassert(pNAug,[Naug D]);
-
-          bbRT = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac);
-          szassert(bbRT,[Naug 2*d]);
-          pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,bbRT); % [NaugxD]
+          bbRP = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac);
         end
+        if randomlyOriented
+          assert(d==2,'Currently random rotations supported only for d==2');
+          pNAug = Shape.randrot(pNAug,d);
+        end
+        szassert(pNAug,[Naug D]);
+        szassert(bbRP,[Naug 2*d]);
+        pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,bbRP); % [NaugxD]
       end
       
       info = struct(...
         'model',model,...
-        'pNmu',mean(pN,1),...
+        'pNmu',mean(pN,1),... % Note: not meaningful for randomly-oriented pN
         'npN',M,...
-        'doRotate',dorotate,...
+        'randomlyOriented',randomlyOriented,...
         'bboxJitterFac',bboxJitterFac,...
         'selfSample',selfSample,...
         'furthestfirst',useFF);
@@ -344,6 +365,19 @@ classdef Shape
       xy0 = bsxfun(@minus,xy0,xyc);
       xy1 = Shape.rotateXY(xy0,theta);
       xy1 = bsxfun(@plus,xy1,xyc);
+    end
+    
+    function [pA,th] = alignOrientations(p,iHead,iTail)
+      % Align orientations of shapes
+      %
+      % p: [NxD] shapes
+      % iHead/iTail: head/tail landmarks per canonicalRot()
+      %
+      % pA: [NxD] shapes, canonically rotated
+      % th: [Nx1] thetas which, when applied to p, result in pA 
+      
+      th = Shape.canonicalRot(p,iHead,iTail);
+      pA = Shape.rotateCentroid(p,th);
     end
     
     function th = canonicalRot(p,iHead,iTail)

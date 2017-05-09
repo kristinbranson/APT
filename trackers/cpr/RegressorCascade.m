@@ -150,7 +150,6 @@ classdef RegressorCascade < handle
     % BBoxes are therefore 3D ROIs in the base camera coord system.
     
     
-    
     %#3DOK
     function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused,calrig) % obj CONST
       % t: major iteration
@@ -206,6 +205,10 @@ classdef RegressorCascade < handle
       % (re)trains, where .pGTNTrn is set and pGT is small/limited.
       % Meanwhile, pGT would be used on first/fresh trains, where .pGTNTrn
       % may not be populated and pGT is large.
+      %
+      % Note, for randomly-oriented targets, pGT (and .pGTNTrn as
+      % appropriate) will be randomly-oriented; obj.prmTrainInit.augrotate
+      % had better be on.
       %
       % In drawing from a set shape distribution, we are biasing towards
       % the most/more common shapes. However, we also jitter, so that may
@@ -755,7 +758,7 @@ classdef RegressorCascade < handle
         plot(ax,pNmu(ipt),pNmu(ipt+npts),'ws','MarkerFaceColor',clr*.75+.25);
       end
       tstr = sprintf('naug:%d. npN:%d. doRot:%d. jitterfac:%d.',...
-        Naug,p0info.npN,p0info.doRotate,p0info.bboxJitterFac);
+        Naug,p0info.npN,p0info.randomlyOriented,p0info.bboxJitterFac);
       title(ax,tstr,'interpreter','none','fontweight','bold');
       hFig.UserData = p0info;
     end
