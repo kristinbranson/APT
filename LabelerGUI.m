@@ -1295,15 +1295,13 @@ lObj.labelExportTrk(1:lObj.nmovies,'basefilename',basetrkname);
 function menu_help_Callback(hObject, eventdata, handles)
 
 function menu_help_labeling_actions_Callback(hObject, eventdata, handles)
-
 lblCore = handles.labelerObj.lblCore;
 if isempty(lblCore)
   h = 'Please open a movie first.';
 else
   h = lblCore.getLabelingHelp();
 end
-msgbox(h,'Labeling Actions','help','modal');
-
+msgbox(h,'Labeling Actions','help');
 
 function menu_setup_sequential_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
