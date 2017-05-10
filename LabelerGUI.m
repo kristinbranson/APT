@@ -111,6 +111,21 @@ handles.menu_view_show_replicates = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_show_replicates',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_replicates,handles.menu_view_hide_predictions);
+handles.menu_view_hide_trajectories = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_trajectories_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Hide trajectories',...
+  'Tag','menu_view_hide_trajectories',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_hide_trajectories,handles.menu_view_show_replicates);
+handles.menu_view_plot_trajectories_current_target_only = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_plot_trajectories_current_target_only_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Plot trajectories only for current target',...
+  'Tag','menu_view_plot_trajectories_current_target_only',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_plot_trajectories_current_target_only,...
+  handles.menu_view_hide_trajectories);
+
+delete(handles.menu_view_trajectories);
 
 handles.menu_view_show_tick_labels = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_tick_labels_Callback',hObject,eventdata,guidata(hObject)),...
@@ -118,7 +133,8 @@ handles.menu_view_show_tick_labels = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_show_tick_labels',...
   'Separator','on',...
   'Checked','off');
-moveMenuItemAfter(handles.menu_view_show_tick_labels,handles.menu_view_show_replicates);
+moveMenuItemAfter(handles.menu_view_show_tick_labels,...
+  handles.menu_view_plot_trajectories_current_target_only);
 handles.menu_view_show_grid = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_grid_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Show grid',...
@@ -251,7 +267,8 @@ listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideCha
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
 listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
-listeners{end+1,1} = addlistener(lObj,'showTrxMode','PostSet',@cbkShowTrxModeChanged);
+listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
+listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
@@ -275,7 +292,8 @@ hZ.ActionPostCallback = @cbkPostZoom;
 handles.propsNeedInit = {
   'labelMode' 
   'suspScore' 
-  'showTrxMode' 
+  'showTrx' 
+  'showTrxCurrTargetOnly'
   'tracker' 
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'movieCenterOnTarget'
@@ -538,8 +556,6 @@ axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
 ViewConfig.setCfgOnViews(lObj.projPrefs.View,figs,axs,ims,handles.axes_prev);
 handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
 handles.menu_view_show_grid.Checked = axs(1).XGrid;
-% handles.menu_view_trajectories_centervideoontarget = onIff(lObj.movieCenterOnTarget);
-% handles.menu_view_rotate_video_target_up = onIff(lObj.movieRotateTargetUp);
 
 arrayfun(@(x)colormap(x,gray),figs);
 viewNames = lObj.viewNames;
@@ -606,6 +622,14 @@ ifo = lObj.movieInfoAll{lObj.currMovie,1}.info;
 minzoomrad = 10;
 maxzoomrad = (ifo.nc+ifo.nr)/4;
 handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
+
+TRX_MENUS = {...
+  'menu_view_trajectories_centervideoontarget'
+  'menu_view_rotate_video_target_up'
+  'menu_view_hide_trajectories'
+  'menu_view_plot_trajectories_current_target_only'};
+onOff = onIff(lObj.hasTrx);
+cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 set(hAx,...
@@ -842,21 +866,6 @@ end
 % if ~isequal(ss,[])
 %   lObj.currImHud.updateSusp(ss);
 % end
-
-function cbkShowTrxModeChanged(src,evt)
-lObj = evt.AffectedObject;
-handles = lObj.gdata;
-handles.menu_view_trajectories_showall.Checked = 'off';
-handles.menu_view_trajectories_showcurrent.Checked = 'off';
-handles.menu_view_trajectories_dontshow.Checked = 'off';
-switch lObj.showTrxMode
-  case ShowTrxMode.NONE
-    handles.menu_view_trajectories_dontshow.Checked = 'on';
-  case ShowTrxMode.CURRENT
-    handles.menu_view_trajectories_showcurrent.Checked = 'on';
-  case ShowTrxMode.ALL
-    handles.menu_view_trajectories_showall.Checked = 'on';
-end
 
 function cbkTrackerChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1492,12 +1501,23 @@ ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
 
-function menu_view_trajectories_showall_Callback(hObject, eventdata, handles)
-handles.labelerObj.setShowTrxMode(ShowTrxMode.ALL);
-function menu_view_trajectories_showcurrent_Callback(hObject, eventdata, handles)
-handles.labelerObj.setShowTrxMode(ShowTrxMode.CURRENT);
-function menu_view_trajectories_dontshow_Callback(hObject, eventdata, handles)
-handles.labelerObj.setShowTrxMode(ShowTrxMode.NONE);
+function cbkShowTrxChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(~lObj.showTrx);
+handles.menu_view_hide_trajectories.Checked = onOff;
+function cbkShowTrxCurrTargetOnlyChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(lObj.showTrxCurrTargetOnly);
+handles.menu_view_plot_trajectories_current_target_only.Checked = onOff;
+function menu_view_hide_trajectories_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.setShowTrx(~lObj.showTrx);
+function menu_view_plot_trajectories_current_target_only_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.setShowTrxCurrTargetOnly(~lObj.showTrxCurrTargetOnly);
+
 function menu_view_trajectories_centervideoontarget_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.movieCenterOnTarget = ~lObj.movieCenterOnTarget;
