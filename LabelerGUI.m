@@ -1566,8 +1566,9 @@ arrayfun(@zoomOutFullView,hAxs,hIms,true);
 function menu_view_reset_views_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 viewCfg = lObj.projPrefs.View;
-ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,handles.axes_all,...
-  handles.images_all,handles.axes_prev);
+axs = handles.axes_all;
+ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,axs,handles.images_all,...
+  handles.axes_prev);
 handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
 handles.menu_view_show_grid.Checked = axs(1).XGrid;
 movInvert = ViewConfig.getMovieInvert(viewCfg);

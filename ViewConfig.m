@@ -105,7 +105,7 @@ classdef ViewConfig
         ax.FontSize = vCfg.AxFontSize;
         if vCfg.ShowAxTicks
           ax.XTickMode = 'auto';
-          ax.XTickMode = 'auto';          
+          ax.YTickMode = 'auto';          
         else
           ax.XTickLabel = [];
           ax.YTickLabel = [];
