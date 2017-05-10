@@ -65,7 +65,7 @@ classdef LabelCoreTemplate < LabelCore
 
   properties
     supportsMultiView = false;
-	supportsCalibration = false;
+    supportsCalibration = false;
   end
   
   properties
@@ -401,34 +401,7 @@ classdef LabelCoreTemplate < LabelCore
   methods % template
     
     function createTemplate(obj) %#ok<MANU>
-      % Initialize "white pts" via user-clicking
-      
       assert(false,'Currently not called');
-      
-%       obj.enterAdjust(true);
-%       
-%       msg = sprintf('Click to create %d template points.',obj.nPts);
-%       uiwait(msgbox(msg));
-%       
-%       ptsClicked = 0;
-%       axes(obj.hAx);
-%       
-%       while ptsClicked<obj.nPts;
-%         keydown = waitforbuttonpress;
-%         if get(0,'CurrentFigure') ~= obj.hFig
-%           continue;
-%         end
-%         if keydown == 0 && strcmpi(get(obj.hFig,'SelectionType'),'normal'),
-%           tmp = get(obj.hAx,'CurrentPoint');
-%           xy = tmp(1,1:2);
-%           iPt = ptsClicked+1;
-%           LabelCore.setPtsCoords(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
-%           ptsClicked = iPt;
-%         elseif keydown == 1 && double(get(obj.hFig,'CurrentCharacter')) == 27,
-%           % escape
-%           break;
-%         end
-%       end      
     end
     
     function tt = getTemplate(obj)

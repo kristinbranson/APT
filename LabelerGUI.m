@@ -245,7 +245,12 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
-linkaxes([handles.axes_prev,handles.axes_curr]);
+%linkaxes([handles.axes_prev,handles.axes_curr]);
+AX_LINKPROPS = {'XLim' 'YLim' 'CameraPositionMode' 'CameraTargetMode' ...
+  'CameraUpVector' 'CameraUpVectorMode' ...
+  'CameraViewAngle' 'CameraViewAngleMode'};
+handles.hLinkPrevCurr = ...
+  linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
 
 lObj = handles.labelerObj;
 
