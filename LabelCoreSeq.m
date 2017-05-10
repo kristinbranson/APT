@@ -29,12 +29,6 @@ classdef LabelCoreSeq < LabelCore
   %
   % Occluded. In the 'label' state, clicking in the full-occluded subaxis
   % sets the current point to be fully occluded. 
-
-  % C+P
-  properties (Constant,Hidden) 
-    DXFAC = 500;
-    DXFACBIG = 50;
-  end
   
   properties
     supportsMultiView = false;
@@ -182,7 +176,8 @@ classdef LabelCoreSeq < LabelCore
       key = evt.Key;
       modifier = evt.Modifier;
       tfCtrl = ismember('control',modifier);
-      
+      tfShft = any(strcmp('shift',modifier));
+
       tfKPused = true;
       if strcmp(key,'h') && tfCtrl
         obj.labelsHideToggle();
@@ -240,9 +235,9 @@ classdef LabelCoreSeq < LabelCore
           obj.assignLabelCoordsIRaw(xy,iSel);
           switch obj.state
             case LabelState.ADJUST
-              obj.setPointAdjusted(iSel);
-            case LabelState.ACCEPTED
-              obj.enterAdjust(false,false);
+              % none
+            case LabelState.ACCEPTED              
+              obj.beginAdjust();
           end
         elseif strcmp(key,'leftarrow')
           if tfShft
@@ -257,6 +252,7 @@ classdef LabelCoreSeq < LabelCore
             obj.labeler.frameUp(tfCtrl);
           end
         else
+          % should never occur
           tfKPused = false;
         end
       elseif strcmp(key,'backquote')
