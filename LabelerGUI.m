@@ -580,7 +580,10 @@ end
 % for i=2:numel(figs)
 %   figs(i).ResizeFcn = @cbkAuxAxResize;
 % end
-% %arrayfun(@(x)axis(x,'auto'),ax);
+% for i=1:numel(axs)
+%   zoomOutFullView(axs(i),[],true);
+% end
+
 
 hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
@@ -612,8 +615,11 @@ assert(isequal(lObj.nview,numel(ims),numel(hAxs),numel(hIms)));
 for iView = 1:lObj.nview	
 	set(hIms(iView),'CData',ims{iView});
   
-  % Right now we leave axis lims as-is. The large majority of the time,
-  % the new movie will have the same size as the old.
+  % AL20170511. When a new project is created and the first time a movie is
+  % added, APT doesn't know what axis size/lims to use. Moreover, for
+  % movies-with-trx that are rotated, we prob do not want the rotation to
+  % persist when switching movies.
+  zoomOutFullView(hAxs(iView),hIms(iView),true);
 end
 
 handles.labelTLInfo.initNewMovie();
@@ -637,9 +643,13 @@ onOff = onIff(lObj.hasTrx);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
-set(hAx,...
-  'XLim',[.5,size(hIm.CData,2)+.5],...
-  'YLim',[.5,size(hIm.CData,1)+.5]);
+if isequal(hIm,[])
+  axis(hAx,'auto');
+else
+  set(hAx,...
+    'XLim',[.5,size(hIm.CData,2)+.5],...
+    'YLim',[.5,size(hIm.CData,1)+.5]);
+end
 axis(hAx,'image','xy');
 zoom(hAx,'reset');
 if resetCamUpVec
@@ -1125,7 +1135,7 @@ function pbResetZoom_Callback(hObject, eventdata, handles)
 hAxs = handles.axes_all;
 hIms = handles.images_all;
 assert(numel(hAxs)==numel(hIms));
-arrayfun(@zoomOutFullView,hAxs,hIms,false);
+arrayfun(@zoomOutFullView,hAxs,hIms,false(1,numel(hIms)));
 
 function pbSetZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1564,7 +1574,7 @@ function menu_view_fit_entire_image_Callback(hObject, eventdata, handles)
 hAxs = handles.axes_all;
 hIms = handles.images_all;
 assert(numel(hAxs)==numel(hIms));
-arrayfun(@zoomOutFullView,hAxs,hIms,true);
+arrayfun(@zoomOutFullView,hAxs,hIms,true(1,numel(hAxs)));
 
 function menu_view_reset_views_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
