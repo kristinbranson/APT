@@ -179,6 +179,7 @@ classdef LabelCoreSeq < LabelCore
       tfShft = any(strcmp('shift',modifier));
 
       tfKPused = true;
+      lObj = obj.labeler;
       if strcmp(key,'h') && tfCtrl
         obj.labelsHideToggle();
       elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl % accept
@@ -186,9 +187,9 @@ classdef LabelCoreSeq < LabelCore
           obj.acceptLabels();
         end
       elseif any(strcmp(key,{'d' 'equal'}))
-        obj.labeler.frameUp(tfCtrl);
+        lObj.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
-        obj.labeler.frameDown(tfCtrl);
+        lObj.frameDown(tfCtrl);
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)
@@ -196,42 +197,20 @@ classdef LabelCoreSeq < LabelCore
           xy = obj.getLabelCoordsI(iSel);
           switch key
             case 'leftarrow'
-              xl = xlim(obj.hAx);
-              dx = diff(xl);
-              if tfShift
-                xy(1) = xy(1) - dx/obj.DXFACBIG;
-              else
-                xy(1) = xy(1) - dx/obj.DXFAC;
-              end
-              xy(1) = max(xy(1),1);
+              dxdy = -lObj.videoCurrentRightVec();
             case 'rightarrow'
-              xl = xlim(obj.hAx);
-              dx = diff(xl);
-              if tfShift
-                xy(1) = xy(1) + dx/obj.DXFACBIG;
-              else
-                xy(1) = xy(1) + dx/obj.DXFAC;
-              end
-              xy(1) = min(xy(1),obj.labeler.movienc);
+              dxdy = lObj.videoCurrentRightVec();
             case 'uparrow'
-              yl = ylim(obj.hAx);
-              dy = diff(yl);
-              if tfShift
-                xy(2) = xy(2) - dy/obj.DXFACBIG;
-              else
-                xy(2) = xy(2) - dy/obj.DXFAC;
-              end
-              xy(2) = max(xy(2),1);
+              dxdy = lObj.videoCurrentUpVec();
             case 'downarrow'
-              yl = ylim(obj.hAx);
-              dy = diff(yl);
-              if tfShift
-                xy(2) = xy(2) + dy/obj.DXFACBIG;
-              else
-                xy(2) = xy(2) + dy/obj.DXFAC;
-              end
-              xy(2) = min(xy(2),obj.labeler.movienr);
+              dxdy = -lObj.videoCurrentUpVec();
           end
+          if tfShift
+            xy = xy + dxdy*10;
+          else
+            xy = xy + dxdy;
+          end
+          xy = lObj.videoClipToVideo(xy);
           obj.assignLabelCoordsIRaw(xy,iSel);
           switch obj.state
             case LabelState.ADJUST
@@ -241,15 +220,15 @@ classdef LabelCoreSeq < LabelCore
           end
         elseif strcmp(key,'leftarrow')
           if tfShft
-            obj.labeler.frameUpNextLbled(true);
+            lObj.frameUpNextLbled(true);
           else
-            obj.labeler.frameDown(tfCtrl);
+            lObj.frameDown(tfCtrl);
           end
         elseif strcmp(key,'rightarrow')
           if tfShft
-            obj.labeler.frameUpNextLbled(false);
+            lObj.frameUpNextLbled(false);
           else
-            obj.labeler.frameUp(tfCtrl);
+            lObj.frameUp(tfCtrl);
           end
         else
           % should never occur
@@ -338,6 +317,7 @@ classdef LabelCoreSeq < LabelCore
         xy = obj.getLabelCoords();
         obj.labeler.labelPosSet(xy);
       end
+      obj.clearSelected();
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
         'Value',1,'Enable','on');
       obj.state = LabelState.ACCEPTED;
