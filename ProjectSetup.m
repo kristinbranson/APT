@@ -22,7 +22,7 @@ function varargout = ProjectSetup(varargin)
 
 % Edit the above text to modify the response to help ProjectSetup
 
-% Last Modified by GUIDE v2.5 22-Aug-2016 15:35:39
+% Last Modified by GUIDE v2.5 11-May-2017 09:56:40
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -363,5 +363,3 @@ for f=flds(:)',f=f{1}; %#ok<FXSET>
     % none, empty
   end
 end
-
-
