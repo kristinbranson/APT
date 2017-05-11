@@ -261,6 +261,8 @@ listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
 listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescurrXLimChanged(s,e,handles));
+listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescurrXDirChanged(s,e,handles));
+listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
@@ -1114,6 +1116,10 @@ if ~isempty(hSld.UserData) % empty during init
   sldval = min(max(sldval,0),1);
   hSld.Value = sldval;
 end
+function axescurrXDirChanged(hObject,eventdata,handles)
+handles.labelerObj.videoRotateTargetUpAxisDirCheckWarn();
+function axescurrYDirChanged(hObject,eventdata,handles)
+handles.labelerObj.videoRotateTargetUpAxisDirCheckWarn();
 
 function sldZoom_Callback(hObject, eventdata, ~)
 % log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)

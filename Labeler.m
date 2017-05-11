@@ -487,9 +487,12 @@ classdef Labeler < handle
       if obj.hasTrx && obj.movieCenterOnTarget %#ok<MCSUP>
         obj.videoCenterOnCurrTarget();
       end
-      if v && ~obj.hasTrx %#ok<MCSUP>
+      if v
+        obj.videoRotateTargetUpAxisDirCheckWarn();
+        if ~obj.hasTrx %#ok<MCSUP>
           warningNoTrace('Labeler:trx',...
             'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
+        end
       end
     end
     function set.targetZoomRadiusDefault(obj,v)
@@ -3752,6 +3755,58 @@ classdef Labeler < handle
       v = axis(obj.gdata.axes_curr);
       x0 = mean(v(1:2));
       y0 = mean(v(3:4));
+    end
+    
+    function xy = videoClipToVideo(obj,xy)
+      % Clip coords to video size.
+      %
+      % xy (in): [nx2] xy-coords
+      %
+      % xy (out): [nx2] xy-coords, clipped so that x in [1,nc] and y in [1,nr]
+      
+      xy(:,1) = min(max(xy(:,1),1),obj.movienc);
+      xy(:,2) = min(max(xy(:,2),1),obj.movienr);      
+    end
+    function dxdy = videoCurrentUpVec(obj)
+      % The main axis can be rotated, flipped, etc; Get the current unit 
+      % "up" vector in (x,y) coords
+      %
+      % dxdy: [2] unit vector [dx dy] 
+      
+      ax = obj.gdata.axes_curr;
+      if obj.hasTrx && obj.movieRotateTargetUp
+        v = ax.CameraUpVector; % should be norm 1
+        dxdy = v(1:2);
+      else
+        dxdy = [0 1];
+      end
+    end
+    function dxdy = videoCurrentRightVec(obj)
+      % The main axis can be rotated, flipped, etc; Get the current unit 
+      % "right" vector in (x,y) coords
+      %
+      % dxdy: [2] unit vector [dx dy] 
+
+      ax = obj.gdata.axes_curr;
+      if obj.hasTrx && obj.movieRotateTargetUp
+        v = ax.CameraUpVector; % should be norm 1
+        parity = mod(strcmp(ax.XDir,'normal') + strcmp(ax.YDir,'normal'),2);
+        if parity
+          dxdy = [-v(2) v(1)]; % etc
+        else
+          dxdy = [v(2) -v(1)]; % rotate v by -pi/2.
+        end
+      else
+        dxdy = [1 0];
+      end      
+    end
+    function videoRotateTargetUpAxisDirCheckWarn(obj)
+      ax = obj.gdata.axes_curr;
+      if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
+          obj.movieRotateTargetUp
+        warningNoTrace('LabelerGUI:axes',...
+          'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
+      end
     end
     
   end
