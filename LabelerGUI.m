@@ -655,7 +655,7 @@ end
 axis(hAx,'image','xy');
 zoom(hAx,'reset');
 if resetCamUpVec
-  hAx.CameraUpVector = [0 1 0];
+  hAx.CameraUpVectorMode = 'auto';
 end
 hAx.CameraViewAngleMode = 'auto';
 hAx.CameraPositionMode = 'auto';
