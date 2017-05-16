@@ -246,9 +246,9 @@ handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
 %linkaxes([handles.axes_prev,handles.axes_curr]);
-AX_LINKPROPS = {'XLim' 'YLim' 'CameraPositionMode' 'CameraTargetMode' ...
-  'CameraUpVector' 'CameraUpVectorMode' ...
-  'CameraViewAngle' 'CameraViewAngleMode'};
+AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir' 'CameraPositionMode' 'CameraTargetMode' ...
+   'CameraViewAngle' 'CameraViewAngleMode'};
+%  'CameraUpVector' 'CameraUpVectorMode' ...
 handles.hLinkPrevCurr = ...
   linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
 
@@ -1558,10 +1558,10 @@ if tfproceed
   for iAx = iAxApply(:)'
     ax = handles.axes_all(iAx);
     ax.YDir = toggleAxisDir(ax.YDir);
-    if ax==handles.axes_curr
-      ax2 = handles.axes_prev;
-      ax2.YDir = toggleAxisDir(ax2.YDir);
-    end
+%     if ax==handles.axes_curr
+%       ax2 = handles.axes_prev;
+%       ax2.YDir = toggleAxisDir(ax2.YDir);
+%     end
   end
 end
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
@@ -1570,10 +1570,10 @@ if tfproceed
   for iAx = iAxApply(:)'
     ax = handles.axes_all(iAx);
     ax.XDir = toggleAxisDir(ax.XDir);
-    if ax==handles.axes_curr
-      ax2 = handles.axes_prev;
-      ax2.XDir = toggleAxisDir(ax2.XDir);
-    end
+%     if ax==handles.axes_curr
+%       ax2 = handles.axes_prev;
+%       ax2.XDir = toggleAxisDir(ax2.XDir);
+%     end
   end
 end
 function menu_view_fit_entire_image_Callback(hObject, eventdata, handles)
