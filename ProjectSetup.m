@@ -103,7 +103,7 @@ set(h1,'Units','Normalized');
 if numel(varargin)>=1
   hParentFig = varargin{1};
   if ~ishandle(hParentFig)
-    error('ProjectSetup:arg','Expected first argument to be a figure handle.');
+    error('ProjectSetup:arg','Expected argument to be a figure handle.');
   end
   centerOnParentFigure(hObject,hParentFig);
 end  
@@ -291,6 +291,7 @@ end
 
 function etProjectName_Callback(hObject, eventdata, handles)
 function etNumberOfPoints_Callback(hObject, eventdata, handles)
+%fprintf('etNOP enter');
 val = str2double(hObject.String);
 if floor(val)==val && val>=1
   handles.nPoints = val;
@@ -299,6 +300,7 @@ else
 end
 handles = advTableRefresh(handles);
 guidata(hObject,handles);
+%fprintf('etNOP end');
 function etNumberOfViews_Callback(hObject, eventdata, handles)
 val = str2double(hObject.String);
 if floor(val)==val && val>=1
@@ -311,11 +313,13 @@ guidata(hObject,handles);
 function pumLabelingMode_Callback(hObject, eventdata, handles)
 function pumTracking_Callback(hObject, eventdata, handles)
 function pbCreateProject_Callback(hObject, eventdata, handles)
+%fprintf('pbCreate start');
 cfg = genCurrentConfig(handles);
 cfg.ProjectName = handles.etProjectName.String;
 handles.output = cfg;
 guidata(handles.figure1,handles);
 close(handles.figure1);
+%fprintf('pbCreate end');
 function pbCancel_Callback(hObject, eventdata, handles)
 handles.output = [];
 guidata(handles.figure1,handles);
