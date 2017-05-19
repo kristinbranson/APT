@@ -472,7 +472,7 @@ classdef Labeler < handle
       if v
         if obj.hasTrx %#ok<MCSUP>
           obj.videoCenterOnCurrTarget();
-        else
+        elseif ~obj.isinit %#ok<MCSUP>
           warningNoTrace('Labeler:trx',...
             'The current movie does not have an associated trx file. Property ''movieCenterOnTarget'' will have no effect.');
         end
@@ -488,8 +488,7 @@ classdef Labeler < handle
         obj.videoCenterOnCurrTarget();
       end
       if v
-        obj.videoRotateTargetUpAxisDirCheckWarn();
-        if ~obj.hasTrx %#ok<MCSUP>
+        if ~obj.hasTrx && ~obj.isinit %#ok<MCSUP>
           warningNoTrace('Labeler:trx',...
             'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
         end
@@ -910,12 +909,13 @@ classdef Labeler < handle
 
       s = Labeler.lblModernize(s);
       
+      obj.isinit = true;
+
       obj.initFromConfig(s.cfg);
       
       % From here to the end of this method is a parallel initialization to
       % projNew()
       
-      obj.isinit = true;
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
         if isfield(s,f)
           obj.(f) = s.(f);          
@@ -1745,7 +1745,7 @@ classdef Labeler < handle
       % from UI functions which do this for the user. Currently movieSetAdd
       % does not have any UI so do it here.
       if ~obj.hasMovie && obj.nmovies>0
-        obj.movieSet(1);
+        obj.movieSet(1,'isFirstMovie',true);
       end
     end
 
@@ -1841,12 +1841,15 @@ classdef Labeler < handle
       end
     end
     
-    function movieSet(obj,iMov)
-      % iMov: If multivew, movieSet index (row index into .movieFilesAll)
+    function movieSet(obj,iMov,varargin)
+      % iMov: If multivew, movieSet index (row index into .movieFilesAll)      
       
       %# MVOK
       
       assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.',iMov);
+      
+      isFirstMovie = myparse(varargin,...
+        'isFirstMovie',false); % passing true for the first time a movie is added to a proj helps the UI
       
       % 1. Set the movie
       for iView = 1:obj.nview
@@ -2034,7 +2037,8 @@ classdef Labeler < handle
       obj.labelsMiscInit();
       obj.labelingInit();
       
-      notify(obj,'newMovie');
+      edata = NewMovieEventData(isFirstMovie);
+      notify(obj,'newMovie',edata);
       
       % Not a huge fan of this, maybe move to UI
       obj.updateFrameTableComplete();
@@ -3799,14 +3803,6 @@ classdef Labeler < handle
       else
         dxdy = [1 0];
       end      
-    end
-    function videoRotateTargetUpAxisDirCheckWarn(obj)
-      ax = obj.gdata.axes_curr;
-      if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
-          obj.movieRotateTargetUp
-        warningNoTrace('LabelerGUI:axes',...
-          'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
-      end
     end
     
   end

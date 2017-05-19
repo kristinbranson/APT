@@ -245,13 +245,6 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
-%linkaxes([handles.axes_prev,handles.axes_curr]);
-AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir' 'CameraPositionMode' 'CameraTargetMode' ...
-   'CameraViewAngle' 'CameraViewAngleMode'};
-%  'CameraUpVector' 'CameraUpVectorMode' ...
-handles.hLinkPrevCurr = ...
-  linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
-
 lObj = handles.labelerObj;
 
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
@@ -559,10 +552,16 @@ handles.images_all = ims;
 handles.axes_occ = axsOcc;
 
 axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
- 
-ViewConfig.setCfgOnViews(lObj.projPrefs.View,figs,axs,ims,handles.axes_prev);
-handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
-handles.menu_view_show_grid.Checked = axs(1).XGrid;
+
+% The link destruction/recreation may not be necessary
+if isfield(handles,'hLinkPrevCurr') && isvalid(handles.hLinkPrevCurr)
+  delete(handles.hLinkPrevCurr);
+end
+viewCfg = lObj.projPrefs.View;
+hlpSetConfigOnViews(viewCfg,handles,viewCfg(1).CenterOnTarget); % lObj.CenterOnTarget is not set yet
+AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
+handles.hLinkPrevCurr = ...
+  linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
 
 arrayfun(@(x)colormap(x,gray),figs);
 viewNames = lObj.viewNames;
@@ -586,7 +585,8 @@ end
 %   zoomOutFullView(axs(i),[],true);
 % end
 
-
+arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
+arrayfun(@(x)pan(x,'off'),handles.figs_all);
 hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
@@ -608,20 +608,48 @@ guidata(handles.figure,handles);
 function cbkNewMovie(src,evt)
 lObj = src;
 handles = lObj.gdata;
-movRdrs = lObj.movieReader;
-ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
+%movRdrs = lObj.movieReader;
+%ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
 hAxs = handles.axes_all;
-hIms = handles.images_all;
-assert(isequal(lObj.nview,numel(ims),numel(hAxs),numel(hIms)));
+hIms = handles.images_all; % Labeler has already loaded with first frame
+assert(isequal(lObj.nview,numel(hAxs),numel(hIms)));
 
-for iView = 1:lObj.nview	
-	set(hIms(iView),'CData',ims{iView});
+tfResetAxLims = evt.isFirstMovieOfProject || lObj.movieRotateTargetUp;
+tfResetCLims = evt.isFirstMovieOfProject;
+
+% Deal with Axis and Color limits.
+for iView = 1:lObj.nview	  
+  % AL20170518. Different scenarios leads to different desired behavior
+  % here:
+  %
+  % 1. User created a new project (without specifying axis lims in the cfg)
+  % and added the first movie. Here, ViewConfig.setCfgOnViews should have
+  % set .X/YLimMode to 'auto', so that the axis would  rescale for the 
+  % first frame to be shown. However, given the practical vagaries of 
+  % initialization, it is too fragile to rely on this. Instead, in the case 
+  % of a first-movie-of-a-proj, we explicitly zoom the axes out to fit the 
+  % image.
+  %
+  % 2. User changed movies in an existing project (no targets).
+  % Here, the user has already set axis limits appropriately so we do not
+  % want to touch the axis limits.
+  %
+  % 3. User changed movies in an existing project with targets and 
+  % Center/Rotate Movie on Target is on. 
+  % Here, the user will probably appreciate a wide/full view before zooming
+  % back into a target.
+  %
+  % 4. User changed movies in an eixsting project, except the new movie has
+  % a different size compared to the previous. CURRENTLY THIS IS
+  % 'UNSUPPORTED' ie we don't attempt to make this behave nicely. The vast
+  % majority of projects will have movies of a given/fixed size.
   
-  % AL20170511. When a new project is created and the first time a movie is
-  % added, APT doesn't know what axis size/lims to use. Moreover, for
-  % movies-with-trx that are rotated, we prob do not want the rotation to
-  % persist when switching movies.
-  zoomOutFullView(hAxs(iView),hIms(iView),true);
+  if tfResetAxLims
+    zoomOutFullView(hAxs(iView),hIms(iView),true);
+  end
+  if tfResetCLims
+    hAxs(iView).CLimMode = 'auto';
+  end
 end
 
 handles.labelTLInfo.initNewMovie();
@@ -640,7 +668,8 @@ TRX_MENUS = {...
   'menu_view_trajectories_centervideoontarget'
   'menu_view_rotate_video_target_up'
   'menu_view_hide_trajectories'
-  'menu_view_plot_trajectories_current_target_only'};
+  'menu_view_plot_trajectories_current_target_only'
+  'tblTrx'};
 onOff = onIff(lObj.hasTrx);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
 
@@ -652,7 +681,7 @@ else
     'XLim',[.5,size(hIm.CData,2)+.5],...
     'YLim',[.5,size(hIm.CData,1)+.5]);
 end
-axis(hAx,'image','xy');
+axis(hAx,'image');
 zoom(hAx,'reset');
 if resetCamUpVec
   hAx.CameraUpVectorMode = 'auto';
@@ -925,6 +954,17 @@ mnu.Checked = onIff(tf);
 function cbkMovieRotateTargetUpChanged(src,evt)
 lObj = evt.AffectedObject;
 tf = lObj.movieRotateTargetUp;
+if tf
+  ax = lObj.gdata.axes_curr;
+  warnst = warning('off','LabelerGUI:axDir');
+  for f={'XDir' 'YDir'},f=f{1}; %#ok<FXSET>
+    if strcmp(ax.(f),'reverse')
+      warningNoTrace('LabelerGUI:ax','Setting main axis .%s to ''normal''.',f);
+      ax.(f) = 'normal';
+    end
+  end
+  warning(warnst);
+end
 mnu = lObj.gdata.menu_view_rotate_video_target_up;
 mnu.Checked = onIff(tf);
 
@@ -1024,12 +1064,15 @@ function tblTrx_CellSelectionCallback(hObject, eventdata, handles) %#ok<*DEFNU>
 
 % Current/last row selection is maintained in hObject.UserData
 
+lObj = handles.labelerObj;
+if ~lObj.hasTrx
+  return;
+end
+
 rows = eventdata.Indices(:,1);
 rowsprev = hObject.UserData;
 hObject.UserData = rows;
 dat = hObject.Data;
-
-lObj = handles.labelerObj;
 
 if isscalar(rows)
   id = dat{rows(1),1};
@@ -1117,9 +1160,16 @@ if ~isempty(hSld.UserData) % empty during init
   hSld.Value = sldval;
 end
 function axescurrXDirChanged(hObject,eventdata,handles)
-handles.labelerObj.videoRotateTargetUpAxisDirCheckWarn();
+videoRotateTargetUpAxisDirCheckWarn(handles);
 function axescurrYDirChanged(hObject,eventdata,handles)
-handles.labelerObj.videoRotateTargetUpAxisDirCheckWarn();
+videoRotateTargetUpAxisDirCheckWarn(handles);
+function videoRotateTargetUpAxisDirCheckWarn(handles)
+ax = handles.axes_curr;
+if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
+    handles.labelerObj.movieRotateTargetUp
+  warningNoTrace('LabelerGUI:axDir',...
+    'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
+end
 
 function sldZoom_Callback(hObject, eventdata, ~)
 % log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
@@ -1217,7 +1267,7 @@ if hlpSave(lObj)
   [~,projName,~] = fileparts(movfile);
   lObj.projNew(projName);
   lObj.movieAdd(movfile,trxfile);
-  lObj.movieSet(1);      
+  lObj.movieSet(1,'isFirstMovie',true);      
 end
 function menu_file_new_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1585,13 +1635,24 @@ arrayfun(@zoomOutFullView,hAxs,hIms,true(1,numel(hAxs)));
 function menu_view_reset_views_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 viewCfg = lObj.projPrefs.View;
-axs = handles.axes_all;
-ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,axs,handles.images_all,...
-  handles.axes_prev);
-handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
-handles.menu_view_show_grid.Checked = axs(1).XGrid;
+hlpSetConfigOnViews(viewCfg,handles,lObj.movieCenterOnTarget);
 movInvert = ViewConfig.getMovieInvert(viewCfg);
 lObj.movieInvert = movInvert;
+lObj.movieCenterOnTarget = viewCfg(1).CenterOnTarget;
+lObj.movieRotateTargetUp = viewCfg(1).RotateTargetUp;
+
+function hlpSetConfigOnViews(viewCfg,handles,centerOnTarget)
+axs = handles.axes_all;
+ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,axs,...
+  handles.images_all,handles.axes_prev);
+if ~centerOnTarget
+  [axs.CameraUpVectorMode] = deal('auto');
+  [axs.CameraViewAngleMode] = deal('auto');
+  [axs.CameraTargetMode] = deal('auto');
+  [axs.CameraPositionMode] = deal('auto');
+end
+handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
+handles.menu_view_show_grid.Checked = axs(1).XGrid;
 
 function menu_view_hide_labels_Callback(hObject, eventdata, handles)
 lblCore = handles.labelerObj.lblCore;
