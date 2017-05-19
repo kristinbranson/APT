@@ -152,7 +152,7 @@ else
   lObj.movieSetAdd(movfiles);
 end
 if nmovieOrig==0 && lObj.nmovies>0
-  lObj.movieSet(1);
+  lObj.movieSet(1,'isFirstMovie',true);
 end
 
 function pbRm_Callback(hObject, eventdata, handles)

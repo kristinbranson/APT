@@ -182,7 +182,8 @@ classdef Labeler < handle
   
   %% ShowTrx
   properties (SetObservable)
-    showTrxMode;              % scalar ShowTrxMode
+    showTrx;                  % true to show trajectories
+    showTrxCurrTargetOnly;    % if true, plot only current target
   end
   properties
     hTraj;                    % nTrx x 1 vector of line handles
@@ -471,7 +472,7 @@ classdef Labeler < handle
       if v
         if obj.hasTrx %#ok<MCSUP>
           obj.videoCenterOnCurrTarget();
-        else
+        elseif ~obj.isinit %#ok<MCSUP>
           warningNoTrace('Labeler:trx',...
             'The current movie does not have an associated trx file. Property ''movieCenterOnTarget'' will have no effect.');
         end
@@ -486,9 +487,11 @@ classdef Labeler < handle
       if obj.hasTrx && obj.movieCenterOnTarget %#ok<MCSUP>
         obj.videoCenterOnCurrTarget();
       end
-      if v && ~obj.hasTrx %#ok<MCSUP>
+      if v
+        if ~obj.hasTrx && ~obj.isinit %#ok<MCSUP>
           warningNoTrace('Labeler:trx',...
             'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
+        end
       end
     end
     function set.targetZoomRadiusDefault(obj,v)
@@ -658,6 +661,9 @@ classdef Labeler < handle
         obj.tracker = [];
       end
       
+      obj.showTrx = cfg.Trx.ShowTrx;
+      obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
+      
       obj.labels2Hide = false;
 
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
@@ -691,6 +697,8 @@ classdef Labeler < handle
         'FrameStepBig',obj.movieFrameStepBig);
 
       cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
+      cfg.Trx.ShowTrx = obj.showTrx;
+      cfg.Trx.ShowTrxCurrentTargetOnly = obj.showTrxCurrTargetOnly;
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
@@ -768,6 +776,7 @@ classdef Labeler < handle
       obj.labeledposMarked = cell(0,1);
       obj.labeledpostag = cell(0,1);
       obj.labeledpos2 = cell(0,1);
+      obj.labelTemplate = [];
       obj.isinit = false;
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
@@ -900,12 +909,13 @@ classdef Labeler < handle
 
       s = Labeler.lblModernize(s);
       
+      obj.isinit = true;
+
       obj.initFromConfig(s.cfg);
       
       % From here to the end of this method is a parallel initialization to
       % projNew()
       
-      obj.isinit = true;
       for f = obj.LOADPROPS,f=f{1}; %#ok<FXSET>
         if isfield(s,f)
           obj.(f) = s.(f);          
@@ -1735,7 +1745,7 @@ classdef Labeler < handle
       % from UI functions which do this for the user. Currently movieSetAdd
       % does not have any UI so do it here.
       if ~obj.hasMovie && obj.nmovies>0
-        obj.movieSet(1);
+        obj.movieSet(1,'isFirstMovie',true);
       end
     end
 
@@ -1831,12 +1841,15 @@ classdef Labeler < handle
       end
     end
     
-    function movieSet(obj,iMov)
-      % iMov: If multivew, movieSet index (row index into .movieFilesAll)
+    function movieSet(obj,iMov,varargin)
+      % iMov: If multivew, movieSet index (row index into .movieFilesAll)      
       
       %# MVOK
       
       assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.',iMov);
+      
+      isFirstMovie = myparse(varargin,...
+        'isFirstMovie',false); % passing true for the first time a movie is added to a proj helps the UI
       
       % 1. Set the movie
       for iView = 1:obj.nview
@@ -2024,7 +2037,8 @@ classdef Labeler < handle
       obj.labelsMiscInit();
       obj.labelingInit();
       
-      notify(obj,'newMovie');
+      edata = NewMovieEventData(isFirstMovie);
+      notify(obj,'newMovie',edata);
       
       % Not a huge fan of this, maybe move to UI
       obj.updateFrameTableComplete();
@@ -3747,6 +3761,50 @@ classdef Labeler < handle
       y0 = mean(v(3:4));
     end
     
+    function xy = videoClipToVideo(obj,xy)
+      % Clip coords to video size.
+      %
+      % xy (in): [nx2] xy-coords
+      %
+      % xy (out): [nx2] xy-coords, clipped so that x in [1,nc] and y in [1,nr]
+      
+      xy(:,1) = min(max(xy(:,1),1),obj.movienc);
+      xy(:,2) = min(max(xy(:,2),1),obj.movienr);      
+    end
+    function dxdy = videoCurrentUpVec(obj)
+      % The main axis can be rotated, flipped, etc; Get the current unit 
+      % "up" vector in (x,y) coords
+      %
+      % dxdy: [2] unit vector [dx dy] 
+      
+      ax = obj.gdata.axes_curr;
+      if obj.hasTrx && obj.movieRotateTargetUp
+        v = ax.CameraUpVector; % should be norm 1
+        dxdy = v(1:2);
+      else
+        dxdy = [0 1];
+      end
+    end
+    function dxdy = videoCurrentRightVec(obj)
+      % The main axis can be rotated, flipped, etc; Get the current unit 
+      % "right" vector in (x,y) coords
+      %
+      % dxdy: [2] unit vector [dx dy] 
+
+      ax = obj.gdata.axes_curr;
+      if obj.hasTrx && obj.movieRotateTargetUp
+        v = ax.CameraUpVector; % should be norm 1
+        parity = mod(strcmp(ax.XDir,'normal') + strcmp(ax.YDir,'normal'),2);
+        if parity
+          dxdy = [-v(2) v(1)]; % etc
+        else
+          dxdy = [v(2) -v(1)]; % rotate v by -pi/2.
+        end
+      else
+        dxdy = [1 0];
+      end      
+    end
+    
   end
   
   %% showTrx
@@ -3775,24 +3833,23 @@ classdef Labeler < handle
           'Color',pref.TrajColor',...
           'MarkerSize',pref.TrxMarkerSize,...
           'LineWidth',pref.TrxLineWidth);
-      end
-      
-      if isempty(obj.showTrxMode)
-        obj.showTrxMode = ShowTrxMode.ALL;
-      end
-      onoff = onIff(obj.hasTrx);
-      mnu = obj.gdata.menu_view_trajectories; % AL20160828 apparent bug in MATLAB 2014b for subsasgn on nested handle objs (tries to call setter of .gdata)
-      mnu.Enable = onoff;
+      end      
     end
     
-    function setShowTrxMode(obj,mode)
-      assert(isa(mode,'ShowTrxMode'));      
-      obj.showTrxMode = mode;
+    function setShowTrx(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showTrx = tf;
+      obj.updateShowTrx();
+    end
+    
+    function setShowTrxCurrTargetOnly(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showTrxCurrTargetOnly = tf;
       obj.updateShowTrx();
     end
     
     function updateShowTrx(obj)
-      % Update .hTrx, .hTraj based on .trx, .tfShowTrx, .currFrame
+      % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
       
       if ~obj.hasTrx
         return;
@@ -3804,16 +3861,17 @@ classdef Labeler < handle
       nPst = obj.showTrxPostNFrm;
       pref = obj.projPrefs.Trx;
       
-      switch obj.showTrxMode
-        case ShowTrxMode.NONE
-          tfShow = false(obj.nTrx,1);
-        case ShowTrxMode.CURRENT
+      if obj.showTrx        
+        if obj.showTrxCurrTargetOnly
           tfShow = false(obj.nTrx,1);
           tfShow(obj.currTarget) = true;
-        case ShowTrxMode.ALL
+        else
           tfShow = true(obj.nTrx,1);
-      end
-      
+        end
+      else
+        tfShow = false(obj.nTrx,1);
+      end        
+  
       for iTrx = 1:obj.nTrx
         if tfShow(iTrx)
           trxCurr = trxAll(iTrx);
