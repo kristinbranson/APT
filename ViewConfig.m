@@ -60,7 +60,11 @@ classdef ViewConfig
       cvamode = {axs.CameraViewAngleMode}';
       cuv = cat(1,axs.CameraUpVector);
       cuvmode = {axs.CameraUpVectorMode}';
-      t = table(xls,yls,dxdyls,xlmode,ylmode,xdir,ydir,clim,clmode,cva,cvamode,cuv,cuvmode);
+      xtmode = {axs.XTickMode}';
+      ytmode = {axs.YTickMode}';
+      xtlmode = {axs.XTickLabelMode}';
+      ytlmode = {axs.YTickLabelMode}';      
+      t = table(xls,yls,dxdyls,xlmode,ylmode,xdir,ydir,clim,clmode,cva,cvamode,cuv,cuvmode,xtmode,ytmode,xtlmode,ytlmode);
     end
         
     function tfAxLimSpecifiedInCfg = setCfgOnViews(viewCfg,hFig,hAx,hIm,hAxPrev)
@@ -149,7 +153,9 @@ classdef ViewConfig
         ax.FontSize = vCfg.AxFontSize;
         if vCfg.ShowAxTicks
           ax.XTickMode = 'auto';
-          ax.YTickMode = 'auto';          
+          ax.YTickMode = 'auto';
+          ax.XTickLabelMode = 'auto';
+          ax.YTickLabelMode = 'auto';
         else
           ax.XTickLabel = [];
           ax.YTickLabel = [];
