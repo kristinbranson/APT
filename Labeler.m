@@ -1333,56 +1333,6 @@ classdef Labeler < handle
       end
     end
     
-%     function [I,p,md] = lblRead(lblFiles,varargin)
-      % lblFiles: [N] cellstr
-      % Optional PVs:
-      %  - tfAllFrames. scalar logical, defaults to false. If true, read in
-      %  unlabeled as well as labeled frames.
-      % 
-      % I: [Nx1] cell array of images (frames)
-      % p: [NxD] positions
-      % md: [Nxm] metadata table
-      
-      %assert(false,'TODO: deal with movieFilesAll, macros etc.');
-
-%       assert(iscellstr(lblFiles));
-%       nLbls = numel(lblFiles);
-% 
-%       tfAllFrames = myparse(varargin,'tfAllFrames',false);
-%       if tfAllFrames
-%         readMovsLblsType = 'all';
-%       else
-%         readMovsLblsType = 'lbl';
-%       end
-%       I = cell(0,1);
-%       p = [];
-%       md = [];
-%       for iLbl = 1:nLbls
-%         lblName = lblFiles{iLbl};
-%         lbl = load(lblName,'-mat');
-%         fprintf('Lblfile: %s\n',lblName);
-%         
-%         movFiles = lbl.movieFilesAllFull; % TODO
-%         assert(iscolumn(movFiles),'Multiview .lbl file not supported.');
-%         
-%         [ILbl,tMDLbl] = Labeler.lblCompileContents(movFiles,...
-%           lbl.labeledpos,lbl.labeledpostag,readMovsLblsType);
-%         pLbl = tMDLbl.p;
-%         tMDLbl(:,'p') = [];
-%         
-%         nrows = numel(ILbl);
-%         tMDLbl.lblFile = repmat({lblName},nrows,1);
-%         [~,lblNameS] = myfileparts(lblName);
-%         tMDLbl.lblFileS = repmat({lblNameS},nrows,1);
-%         
-%         I = [I;ILbl]; %#ok<AGROW>
-%         p = [p;pLbl]; %#ok<AGROW>
-%         md = [md;tMDLbl]; %#ok<AGROW>
-%       end
-%       
-%       assert(isequal(size(md,1),numel(I),size(p,1),size(bb,1)));
-%     end
-    
     function [I,tbl] = lblCompileContents(movieNames,labeledposes,...
         labeledpostags,type,varargin)
       % convenience signature 
@@ -1408,14 +1358,14 @@ classdef Labeler < handle
       % Read moviefiles with landmark labels
       %
       % movieNames: [NxnView] cellstr of movienames
-      % lposes: [N] cell array of labeledpos arrays [nptsx2xnfrms]. For
-      %   multiview, npts=nView*NumLabelPoints.
-      % lpostags: [N] cell array of labeledpostags [nptsxnfrms]      
+      % lposes: [N] cell array of labeledpos arrays [npts x 2 x nfrms x ntgts]. 
+      %   For multiview, npts=nView*NumLabelPoints.
+      % lpostags: [N] cell array of labeledpostags [npts x nfrms x ntgts]
       % iMovs. [M] (row) indices into movieNames to read.
       % frms. [M] cell array. frms{i} is a vector of frames to read for
       % movie iMovs(i). frms{i} may also be:
       %     * 'all' indicating "all frames" 
-      %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)   
+      %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)
       %
       % I: [NtrlxnView] cell vec of images
       % tbl: [NTrl rows] labels/metadata MFTable.
