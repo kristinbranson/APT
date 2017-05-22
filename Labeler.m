@@ -142,6 +142,8 @@ classdef Labeler < handle
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
+    
+    movieIsPlaying = false;
   end
   properties (Dependent)
     isMultiView;
@@ -3803,6 +3805,15 @@ classdef Labeler < handle
       else
         dxdy = [1 0];
       end      
+    end
+    
+    function videoPlaySegment(obj,f1,f2)
+      gd = obj.gdata;
+      gd.hLinkProp.Enabled = 'off';
+      for f=f1:f2
+        obj.setFrame(f);
+        drawnow limitrate
+      end
     end
     
   end
