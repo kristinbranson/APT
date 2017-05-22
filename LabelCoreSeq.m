@@ -6,7 +6,7 @@ classdef LabelCoreSeq < LabelCore
   % During the labeling state, points are be ing clicked in order. This
   % includes the state where there are zero points clicked (fresh image).
   %
-  % Once all points have been clicked, the  adjustment state is entered.
+  % Once all points have been clicked, the adjustment state is entered.
   % Points may be adjusted by click-dragging or using hotkeys as in
   % Template Mode.
   %
@@ -131,10 +131,31 @@ classdef LabelCoreSeq < LabelCore
 %               obj.refreshOccludedPts();
 %             end
             % estOcc status unchanged
-            if obj.state==LabelState.ACCEPTED              
+            if obj.state==LabelState.ACCEPTED
               obj.beginAdjust();
             end
           end
+      end
+    end
+    
+    function undoLastLabel(obj)
+      switch obj.state
+        case {LabelState.LABEL LabelState.ADJUST}
+          nlbled = obj.nPtsLabeled;
+          if nlbled>0
+            if obj.tfOcc(nlbled)
+              obj.tfOcc(nlbled) = false;
+              obj.refreshOccludedPts();
+            else
+              obj.assignLabelCoordsIRaw([nan nan],nlbled);
+            end
+            obj.nPtsLabeled = nlbled-1;
+            
+            if obj.state==LabelState.ADJUST
+              assert(nlbled==obj.nPts);
+              obj.adjust2Label();
+            end
+          end          
       end
     end
         
@@ -180,7 +201,9 @@ classdef LabelCoreSeq < LabelCore
 
       tfKPused = true;
       lObj = obj.labeler;
-      if strcmp(key,'h') && tfCtrl
+      if strcmp(key,'z') && tfCtrl
+        obj.undoLastLabel();
+      elseif strcmp(key,'h') && tfCtrl
         obj.labelsHideToggle();
       elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl % accept
         if obj.state==LabelState.ADJUST
@@ -288,23 +311,27 @@ classdef LabelCoreSeq < LabelCore
       % frame/target
       
       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-        'String','','Enable','off','Value',0);
-      
+        'String','','Enable','off','Value',0);      
       obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
       obj.iPtMove = nan;
-      obj.labeler.labelPosClear();
-      
+      obj.labeler.labelPosClear();      
       obj.state = LabelState.LABEL;      
     end
+    
+    function adjust2Label(obj)
+      % enter LABEL from ADJUST
+      set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
+        'String','','Enable','off','Value',0);      
+      obj.iPtMove = nan;
+      obj.state = LabelState.LABEL;      
+    end      
        
     function beginAdjust(obj)
       % Enter adjustment state for current frame/target
       
       assert(obj.nPtsLabeled==obj.nPts);
-            
       obj.iPtMove = nan;
-      
       set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
         'Value',0,'Enable','on');
       obj.state = LabelState.ADJUST;
