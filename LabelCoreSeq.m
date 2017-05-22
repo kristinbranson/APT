@@ -79,7 +79,7 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function clearLabels(obj)
-      obj.beginLabel();
+      obj.beginLabel(true);
     end
     
     function acceptLabels(obj)
@@ -302,11 +302,11 @@ classdef LabelCoreSeq < LabelCore
         obj.iPtMove = nan;
         obj.beginAccepted(false); % I guess could just call with true arg
       else
-        obj.beginLabel();
+        obj.beginLabel(false);
       end
     end
     
-    function beginLabel(obj)
+    function beginLabel(obj,tfClearLabels)
       % Enter Label state and clear all mode1 label state for current
       % frame/target
       
@@ -315,7 +315,9 @@ classdef LabelCoreSeq < LabelCore
       obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
       obj.iPtMove = nan;
-      obj.labeler.labelPosClear();      
+      if tfClearLabels
+        obj.labeler.labelPosClear();
+      end
       obj.state = LabelState.LABEL;      
     end
     
