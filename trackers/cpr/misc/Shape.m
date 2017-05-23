@@ -617,13 +617,15 @@ classdef Shape
       % nr, nc - subplot size
       % idxs - indices of images to plot; must have nr*nc els. if 
       %   unspecified, these are randomly selected.
+      % framelbls
       % labelpts - if true, number landmarks. default false
       % md - optional, table of MD for I
       
       opts.fig = [];
       opts.nr = 4;
       opts.nc = 5;
-      opts.idxs = [];      
+      opts.idxs = [];
+      opts.framelbls = [];
       opts.labelpts = false;
       opts.md = [];
       opts = getPrmDfltStruct(varargin,opts);
@@ -651,6 +653,11 @@ classdef Shape
         assert(nplot<=naxes,...
           'Number of ''idxs'' specified must be <= nr*nc=%d.',naxes);
         iPlot = opts.idxs;
+      end
+      
+      tfFrameLbls = ~isempty(opts.framelbls);
+      if tfFrameLbls
+        assert(iscellstr(opts.framelbls) && numel(opts.framelbls)==nplot);
       end
       
       [imnr,imnc] = size(I{1});
@@ -681,8 +688,10 @@ classdef Shape
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
           iIm = iPlot(iPlt);
-          h = text( 1+imnc*(iCol-1),1.5+imnr*(iRow-1), num2str(iIm) );
-          h.Color = [0.7 0 0.7];
+          if tfFrameLbls
+            h = text( 1+imnc*(iCol-1),1.5+imnr*(iRow-1), opts.framelbls{iPlt} );
+            h.Color = [1 1 1];
+          end
         end
       end
       set(opts.fig,'Color',[0 0 0]);
