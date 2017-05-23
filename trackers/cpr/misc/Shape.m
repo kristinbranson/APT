@@ -605,7 +605,98 @@ classdef Shape
           'verticalalignment','top','interpreter','none');
       end
     end
-    
+
+    function montage(I,p,varargin)
+      % Visualize many Images+Shapes from a Trial set
+      % 
+      % I: [N] cell vec of images, all same size
+      % p: [NxD] shapes
+      %
+      % optional pvs
+      % fig - handle to figure to use
+      % nr, nc - subplot size
+      % idxs - indices of images to plot; must have nr*nc els. if 
+      %   unspecified, these are randomly selected.
+      % labelpts - if true, number landmarks. default false
+      % md - optional, table of MD for I
+      
+      opts.fig = [];
+      opts.nr = 4;
+      opts.nc = 5;
+      opts.idxs = [];      
+      opts.labelpts = false;
+      opts.md = [];
+      opts = getPrmDfltStruct(varargin,opts);
+      if isempty(opts.fig)
+        opts.fig = figure('windowstyle','docked');
+      else
+        figure(opts.fig);
+        clf;
+      end
+      tfMD = ~isempty(opts.md);
+      
+      N = numel(I);
+      assert(size(p,1)==N);
+      npts = size(p,2)/2;
+      if tfMD
+        assert(size(opts.md,1)==N);
+      end
+      
+      naxes = opts.nr*opts.nc;
+      if isempty(opts.idxs)
+        nplot = naxes;
+        iPlot = randsample(N,nplot);
+      else
+        nplot = numel(opts.idxs);
+        assert(nplot<=naxes,...
+          'Number of ''idxs'' specified must be <= nr*nc=%d.',naxes);
+        iPlot = opts.idxs;
+      end
+      
+      [imnr,imnc] = size(I{1});
+      bigIm = nan(imnr*opts.nr,imnc*opts.nc);
+      bigP = nan(npts,2,nplot);
+      for iRow=1:opts.nr
+        for iCol=1:opts.nc
+          iPlt = iCol+opts.nc*(iRow-1);
+          iIm = iPlot(iPlt);          
+          bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1) ) = I{iIm};
+          xytmp = reshape(p(iIm,:),npts,2);
+          xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
+          xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
+          bigP(:,:,iIm) = xytmp;
+        end
+      end
+      
+      imagesc(bigIm);
+      axis image off
+      hold on
+      colormap gray
+      colors = jet(npts);
+      for ipt=1:npts
+        plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...          
+            'wo','MarkerFaceColor',colors(ipt,:));
+      end
+      for iRow=1:opts.nr
+        for iCol=1:opts.nc
+          iPlt = iCol+opts.nc*(iRow-1);
+          iIm = iPlot(iPlt);
+          h = text( 1+imnc*(iCol-1),1.5+imnr*(iRow-1), num2str(iIm) );
+          h.Color = [0.7 0 0.7];
+        end
+      end
+      set(opts.fig,'Color',[0 0 0]);
+%         if tfMD
+%           movID = opts.md.movID{hIm};
+%           [~,movS] = myfileparts(movID);
+%           str = sprintf('%d %s f%d',iIm,movS,opts.md.frm(iIm));
+%         else
+%           str = num2str(iIm);
+%         end
+%         text(1,1,str,'parent',hax(iPlt),'color',[1 1 .2],...
+%           'verticalalignment','top','interpreter','none');
+    end
+
     function muFtrDist = vizRepsOverTime(I,pT,iTrl,mdl,varargin)
       % Visualize Replicates over time for a single Trial from a Trial set
       % 
