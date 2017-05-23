@@ -426,7 +426,91 @@ classdef Shape
       d = squeeze(d); % [NxnptxRT]
       
       dav = squeeze(nanmean(d,2)); % [NxRT]      
-    end        
+    end
+    
+    function [roi,tfOOBview] = xyAndTrx2ROI(xy,trx,nphysPts,frm,iTgt,radius)
+      % Generate ROI/bounding boxes from shape and trx
+      %
+      % Currently we do this with a fixed radius and warn if a shape is
+      % outside.
+      % 
+      % xy: [nptx2] xy coords
+      % trx: [1xnview] cell array of trx structures for each view
+      % nphysPts: scalar
+      % iTgt: scalar index into trx
+      % radius: roi square radius, in px, must be integer
+      %
+      % roi: [1x4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
+      %   NOTE: roi may be outside range of image, eg xlo could be negative
+      %   or xhi could exceed number of cols.
+      % tfOOBview: [1xnview] logical. If true, shape is out-of-bounds of
+      %   trx ROI box in that view.
+      %
+      
+      [npt,d] = size(xy);
+      assert(d==2);
+      nview = npt/nphysPts;
+      szassert(trx,[1 nview]);
+      validateattributes(radius,{'numeric'},{'positive' 'integer'});
+      
+      roi = nan(1,4*nview);
+      tfOOBview = false(1,nview);
+      for iview=1:nview
+        trxI = trx{iview}(iTgt);
+        trxIdx = frm+trxI.off;
+        x0 = round(trxI.x(trxIdx));
+        y0 = round(trxI.y(trxIdx));
+        xlo = x0-radius;
+        xhi = x0+radius;
+        ylo = y0-radius;
+        yhi = y0+radius;
+        
+        ipts = (1:nphysPts)+nphysPts*(iview-1);
+        xs = xy(ipts,1);
+        ys = xy(ipts,2);
+        tfOOBx = xs<xlo | xs>xhi;
+        tfOOBy = ys<ylo | ys>yhi;
+
+        roi((1:4)+4*(iview-1)) = [xlo xhi ylo yhi];
+        tfOOBview(iview) = any(tfOOBx) || any(tfOOBy);
+      end
+%       if tfOOBview(iview)
+%         warningNoTrace('shape:oob','Shape out of bounds of target ROI in at least one view.');
+%       end
+    end
+    
+    function radii = suggestROIradius(xy,nphysPts)
+      % Suggest an ROI radius for xyAndTrx2ROI
+      %
+      % xy: [nptx2xN] xy coords (row raster order: physpt,view)
+      % nphysPts: scalar
+      %
+      % radii: [1xnview] roi square radius, in px, for each view
+
+      [npt,d,N] = size(xy);
+      assert(d==2);
+      nview = npt/nphysPts;
+      radii = nan(1,nview);
+      if npt==0
+        warningNoTrace('Shape:empty','Empty xy supplied.');
+        return;
+      end
+      
+      xy = permute(xy,[1 3 2]); % [npt x N x 2]
+      xy = reshape(xy,nphysPts,nview,N,2);
+      xy = permute(xy,[1 3 2 4]); % [nphysPts x N x nview x 2]
+      
+      xyCentroid = median(xy,1); % [1 x N x nview x 2] median for each shape/view/coord
+      xy = xy-xyCentroid; % de-centroided
+      xy = reshape(xy,[nphysPts*N,nview,2]);
+      xymaxdev = max(abs(xy),[],1); % [1 x nview x 2], max abs deviation from centroid
+      
+      radii = reshape(xymaxdev,[nview 2]);
+      radii = max(radii,[],2);
+      szassert(radii,[nview 1]);
+      radii = radii';
+    end
+    
   end
   
   %% Visualization

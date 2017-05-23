@@ -1333,6 +1333,7 @@ classdef Labeler < handle
       end
     end
     
+    % DONTUSEME, SEE labelGetMFTableTrxStc
     function [I,tbl] = lblCompileContents(movieNames,labeledposes,...
         labeledpostags,type,varargin)
       % convenience signature 
@@ -1352,6 +1353,7 @@ classdef Labeler < handle
         labeledpostags,1:nMov,frms,varargin{:});
     end
     
+    % DONTUSEME, SEE labelGetMFTableTrxStc
     %#3DOK
     function [I,tbl] = lblCompileContentsRaw(...
         movieNames,lposes,lpostags,iMovs,frms,varargin)
@@ -2652,7 +2654,7 @@ classdef Labeler < handle
       lpos = obj.labeledpos{iMov};
       tf = any(~isnan(lpos(:)));
     end
-    
+
   end
   
   methods (Static)    
@@ -3119,8 +3121,117 @@ classdef Labeler < handle
       vr.close();
       delete(hTxt);
       delete(hWB);
+    end   
+    
+    function tblMF = labelGetMFTableTrx(obj,roiRadius,varargin)
+      movIDs = FSPath.standardPath(obj.movieFilesAll);
+      tblMF = Labeler.labelGetMFTableTrxStc(movIDs,obj.labeledpos,...
+        obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius,varargin{:});
     end
     
+  end
+  
+  methods (Static)
+    function tblMF = labelGetMFTableTrxStc(movID,lpos,lpostag,lposTS,...
+        trxFilesAll,roiRadius,varargin)
+      % Compile MFtable
+      %
+      % movID: [NxnView] cellstr of movie IDs (use non-macro-replaced etc)
+      % movInfo: [NxnView] movieInfo structures
+      % lposes: [N] cell array of labeledpos arrays [npts x 2 x nfrms x ntgts]. 
+      %   For multiview, npts=nView*NumLabelPoints.
+      % lpostags: [N] cell array of labeledpostags [npts x nfrms x ntgts]
+      % lposTS: [N] cell array of labeledposTS [npts x nfrms x ntgts]
+      % trxFilesAll: [NxnView] cellstr of trxfiles corresponding to movID
+      %
+      % tblMF: [NTrl rows] MFTable, one row per labeled movie/frame/target.
+      %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
+      %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
+      %   index, 2. view index, 3. coord index (x vs y)
+      
+      s = struct(...
+        'mov',cell(0,1),... % single string unique ID for movieSetID combo
+        'frm',[],... % 1-based frame index
+        'iTgt',[],... % 1-based trx index
+        'pAbs',[],... % Absolute label positions (px). Raster order: physpt,view,{x,y}
+        'pTS',[],... % [npts=nphyspt*nview] timestamps
+        'tfOcc',[],... % [npts=nphyspt*nview] logical occluded flag
+        'pTrx',[],... % [2*nview], trx .x and .y. Raster order: view,{x,y}
+        'roi',[]); % [2*2*nview]. Raster order: {lo,hi},{x,y},view
+      
+      [nMov,nView] = size(movID);
+      szassert(lpos,[nMov 1]);
+      szassert(lpostag,[nMov 1]);
+      szassert(lposTS,[nMov 1]);
+      szassert(trxFilesAll,[nMov nView]);
+      
+      for iMov = 1:nMov
+%         if tfWB
+%           hWB.Name = 'Scanning movies';
+%           wbStr = sprintf('Reading movie %s',movID);
+%           waitbar(0,hWB,wbStr);
+%         end        
+        
+        movIDI = movID(iMov,:);
+        lposI = lpos{iMov};
+        lpostagI = lpostag{iMov};
+        lposTSI = lposTS{iMov};
+        [npts,d,nfrms,ntgts] = size(lposI);
+        assert(d==2);
+        nphysPts = npts/nView;
+        szassert(lpostagI,[npts nfrms ntgts]);
+        szassert(lposTSI,[npts nfrms ntgts]);
+        
+        trxI = cell(1,nView);
+        for iView=1:nView
+          tfile = trxFilesAll{iView};
+          if exist(tfile,'file')==0
+            error('Labeler:file','Cannot find trxfile ''%s''.',tfile);
+          end
+          tmp = load(tfile,'-mat','trx');
+          trx = tmp.trx;
+          assert(numel(trx)==ntgts);
+          trxI{iView} = trx;
+        end
+        if nView>1 && isfield(trxI{1},'id')
+          trxids = cellfun(@(x)[x.id],trxI,'uni',0);
+          assert(isequal(trxids{:}),'Trx ids differ.');
+        end
+        
+%         if isempty(lpos)
+%           assert(isempty(lpostag));
+%           lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
+%         end
+        for f=1:nfrms
+          for iTgt=1:ntgts
+            lposIFrmTgt = lposI(:,:,f,iTgt);
+            if any(~isnan(lposIFrmTgt(:)))
+              lpostagIFrmTgt = lpostagI(:,f,iTgt);
+              lposTSIFrmTgt = lposTSI(:,f,iTgt);
+              
+              [roi,tfOOBview] = Shape.xyAndTrx2ROI(lposIFrmTgt,trxI,nphysPts,f,iTgt,roiRadius);
+              if any(tfOOBview)
+                warningNoTrace('Labeler:oob',...
+                  'Movie(set) ''%s'', frame %d, target %d: shape out of bounds of target ROI. Not including this row.',...
+                  MFTable.formMultiMovieID(movIDI),f,iTgt);
+              else
+                xtrxs = cellfun(@(xx)xx(iTgt).x(f+xx(iTgt).off),trxI);
+                ytrxs = cellfun(@(xx)xx(iTgt).y(f+xx(iTgt).off),trxI);
+                s(end+1,1).mov = movIDI; %#ok<AGROW>
+                s(end).frm = f;
+                s(end).iTgt = iTgt;
+                s(end).pAbs = Shape.xy2vec(lposIFrmTgt);
+                s(end).pTS = lposTSIFrmTgt';
+                s(end).tfOcc = strcmp(lpostagIFrmTgt','occ');
+                s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
+                s(end).roi = roi;
+              end
+            end
+          end
+        end
+      end
+      tblMF = struct2table(s,'AsArray',true);      
+    end
   end
   
   %% ViewCal

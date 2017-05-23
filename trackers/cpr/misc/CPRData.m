@@ -287,7 +287,7 @@ classdef CPRData < handle
     end
     
     function I = getFrames(tblMF,varargin)
-      % Read frames from movies given MD table
+      % Read frames from movies given MF table
       % 
       % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
       % multiview data.
@@ -297,7 +297,10 @@ classdef CPRData < handle
       % Options: wbObj: WaitBarWithCancel. If canceled, I will be
       % 'incomplete', ie partially filled.
       
-      wbObj = myparse(varargin,'wbObj',[]);
+      [wbObj,padval] = myparse(varargin,...
+        'wbObj',[],...
+        'padval',0 ... % when tblMF has .roi
+        );
       tfWB = ~isempty(wbObj);
       
       if tfWB
@@ -309,6 +312,10 @@ classdef CPRData < handle
       nView = size(tblMF.mov,2);
       movsUn = unique(tblMF.mov(:));
       frms = tblMF.frm;
+      tfROI = any(strcmp('roi',tblMF.Properties.VariableNames));
+      if tfROI
+        roi = tblMF.roi;
+      end
       
       % open movies in MovieReaders
       nMovUn = numel(movsUn);
@@ -319,7 +326,7 @@ classdef CPRData < handle
       end
       
       I = cell(N,nView);
-      for iTrl = 1:N
+      for iTrl=1:N
         if tfWB
           tfCancel = wbObj.updateFrac(iTrl/N);
           if tfCancel
@@ -332,6 +339,10 @@ classdef CPRData < handle
           iMov = movUnIdx(iVw);        
           mr = mrs(iMov);
           im = mr.readframe(f); % currently forceGrayscale
+          if tfROI
+            roiVw = roi(iTrl,(1:4)+4*(iVw-1)); % [xlo xhi ylo yhi]
+            im = padgrab(im,padval,roiVw(3),roiVw(4),roiVw(1),roiVw(2));
+          end
           I{iTrl,iVw} = im;
         end
       end      
