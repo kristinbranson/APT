@@ -428,7 +428,7 @@ classdef Shape
       dav = squeeze(nanmean(d,2)); % [NxRT]      
     end
     
-    function [roi,tfOOBview] = xyAndTrx2ROI(xy,trx,nphysPts,frm,iTgt,radius)
+    function [roi,tfOOBview,xyRoi] = xyAndTrx2ROI(xy,trx,nphysPts,frm,iTgt,radius)
       % Generate ROI/bounding boxes from shape and trx
       %
       % Currently we do this with a fixed radius and warn if a shape is
@@ -445,7 +445,8 @@ classdef Shape
       %   or xhi could exceed number of cols.
       % tfOOBview: [1xnview] logical. If true, shape is out-of-bounds of
       %   trx ROI box in that view.
-      %
+      % xyRoi: [nptx2] xy coords relatvive to ROIs; x==1 => first col of
+      %   ROI etc.
       
       [npt,d] = size(xy);
       assert(d==2);
@@ -455,6 +456,7 @@ classdef Shape
       
       roi = nan(1,4*nview);
       tfOOBview = false(1,nview);
+      xyRoi = nan(npt,2);
       for iview=1:nview
         trxI = trx{iview}(iTgt);
         trxIdx = frm+trxI.off;
@@ -473,10 +475,9 @@ classdef Shape
 
         roi((1:4)+4*(iview-1)) = [xlo xhi ylo yhi];
         tfOOBview(iview) = any(tfOOBx) || any(tfOOBy);
+        xyRoi(ipts,1) = xs-xlo+1;
+        xyRoi(ipts,2) = ys-ylo+1;
       end
-%       if tfOOBview(iview)
-%         warningNoTrace('shape:oob','Shape out of bounds of target ROI in at least one view.');
-%       end
     end
     
     function radii = suggestROIradius(xy,nphysPts)

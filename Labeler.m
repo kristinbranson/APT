@@ -3154,6 +3154,7 @@ classdef Labeler < handle
         'frm',[],... % 1-based frame index
         'iTgt',[],... % 1-based trx index
         'pAbs',[],... % Absolute label positions (px). Raster order: physpt,view,{x,y}
+        'pRoi',[],... % Like pAbs, but positions relative to roi (px). x==1 => first col of roi.
         'pTS',[],... % [npts=nphyspt*nview] timestamps
         'tfOcc',[],... % [npts=nphyspt*nview] logical occluded flag
         'pTrx',[],... % [2*nview], trx .x and .y. Raster order: view,{x,y}
@@ -3209,7 +3210,8 @@ classdef Labeler < handle
               lpostagIFrmTgt = lpostagI(:,f,iTgt);
               lposTSIFrmTgt = lposTSI(:,f,iTgt);
               
-              [roi,tfOOBview] = Shape.xyAndTrx2ROI(lposIFrmTgt,trxI,nphysPts,f,iTgt,roiRadius);
+              [roi,tfOOBview,lposIFrmTgtRoi] = ...
+                Shape.xyAndTrx2ROI(lposIFrmTgt,trxI,nphysPts,f,iTgt,roiRadius);
               if any(tfOOBview)
                 warningNoTrace('Labeler:oob',...
                   'Movie(set) ''%s'', frame %d, target %d: shape out of bounds of target ROI. Not including this row.',...
@@ -3217,10 +3219,12 @@ classdef Labeler < handle
               else
                 xtrxs = cellfun(@(xx)xx(iTgt).x(f+xx(iTgt).off),trxI);
                 ytrxs = cellfun(@(xx)xx(iTgt).y(f+xx(iTgt).off),trxI);
+                
                 s(end+1,1).mov = movIDI; %#ok<AGROW>
                 s(end).frm = f;
                 s(end).iTgt = iTgt;
-                s(end).pAbs = Shape.xy2vec(lposIFrmTgt);
+                s(end).pAbs = Shape.xy2vec(lposIFrmTgt);                
+                s(end).pRoi = Shape.xy2vec(lposIFrmTgtRoi);  
                 s(end).pTS = lposTSIFrmTgt';
                 s(end).tfOcc = strcmp(lpostagIFrmTgt','occ');
                 s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
