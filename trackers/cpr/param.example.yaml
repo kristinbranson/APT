@@ -10,6 +10,9 @@ Model:
 PreProc:
   histeq: 1     # 1=do histogram equalization
   histeqH0NumFrames: 1000 # number of frames in project to sample when computing typical image histogram H0
+  TargetCrop:
+    Radius: 50
+    PadBkgd: 0
   channelsFcn:  # optional preprocessing function with signature: fcn(cprDataObj,p1,v1,...)
 
 Reg:

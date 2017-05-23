@@ -185,6 +185,37 @@ classdef CPRLabelTracker < LabelTracker
     % training time and so on.
     
     %#MV
+    function tblP = getTblPLbled(obj)
+      % From .lObj, read tblP for all movies/labeledframes. Currently,
+      % exclude partially-labeled frames.
+      %
+      % tblP: MFTable of labeled frames
+      
+      labelerObj = obj.lObj;
+      
+      if labelerObj.hasTrx
+        prmRC = obj.sPrm.PreProc.TargetCrop;
+        tblP = labelerObj.labelGetMFTableTrx(prmRC.Radius);
+        tblP.p = tblP.pRoi;
+      else
+        % TODO: deprecate lblCompileContents 
+        movID = labelerObj.movieFilesAll;
+        movID = FSPath.standardPath(movID);
+        [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,...
+          labelerObj.labeledpos,labelerObj.labeledpostag,'lbl',...
+          'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
+      end
+      
+      p = tblP.p;
+      tfnan = any(isnan(p),2);
+      nnan = nnz(tfnan);
+      if nnan>0
+        warningNoTrace('CPRLabelTracker:nanData','Not including %d partially-labeled rows.',nnan);
+      end
+      tblP = tblP(~tfnan,:);
+    end
+    
+    %#MV
     function tblP = getTblPLbledRecent(obj)
       % tblP: labeled data from Labeler that is more recent than anything 
       % in .trnDataTblPTS
@@ -214,13 +245,13 @@ classdef CPRLabelTracker < LabelTracker
       % Initialize .data*
       
       I = cell(0,1);
-      tblP = struct2table(struct('mov',cell(0,1),'frm',[],'p',[],'tfocc',[]));
-      
+      tblP = struct2table(struct('mov',cell(0,1),'frm',[],'iTgt',[],...
+        'p',[],'tfocc',[]));
       obj.data = CPRData(I,tblP);
       obj.dataTS = now;
     end
     
-    %#MV
+    %#TGTOK
     function updateData(obj,tblP,varargin)
       % Update .data to include tblP
       
@@ -231,7 +262,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.updateDataRaw(tblPnew,tblPupdate,'wbObj',wbObj);      
     end
     
-    %#MV
+    %#TGTOK
     function updateDataRaw(obj,tblPNew,tblPupdate,varargin)
       % Incremental data update
       %
@@ -270,8 +301,9 @@ classdef CPRLabelTracker < LabelTracker
       end
       
       %%% NEW ROWS read images + PP. Append to dataCurr. %%%
-      tblMFnew = tblPNew(:,{'mov' 'frm'});
-      tblMFcurr = dataCurr.MD(:,{'mov' 'frm'});
+      FLDSID = MFTable.FLDSID;
+      tblMFnew = tblPNew(:,FLDSID);
+      tblMFcurr = dataCurr.MD(:,FLDSID);
       assert(~any(ismember(tblMFnew,tblMFcurr)));
       tblMFnewConcrete = tblMFnew;
       if obj.lObj.isMultiView && ~isempty(tblMFnewConcrete.mov)
@@ -323,8 +355,8 @@ classdef CPRLabelTracker < LabelTracker
       nUpdate = size(tblPupdate,1);
       if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB table indexing API may not be polished
         fprintf(1,'Updating labels for %d rows...\n',nUpdate);
-        tblMFupdate = tblPupdate(:,{'mov' 'frm'});
-        tblMFcurr = dataCurr.MD(:,{'mov' 'frm'});
+        tblMFupdate = tblPupdate(:,FLDSID);
+        tblMFcurr = dataCurr.MD(:,FLDSID);
         [tf,loc] = ismember(tblMFupdate,tblMFcurr);
         assert(all(tf));
         dataCurr.MD{loc,'tfocc'} = tblPupdate.tfocc; % AL 20160413 throws if nUpdate==0
@@ -759,6 +791,7 @@ classdef CPRLabelTracker < LabelTracker
       end
        
       if obj.trnDataDownSamp
+        assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
         if updateTrnData
           % first, update the TrnData with any new labels
           tblPNew = obj.getTblPLbledRecent();
@@ -822,8 +855,8 @@ classdef CPRLabelTracker < LabelTracker
       obj.updateData(tblPTrn);
       
       d = obj.data;
-      tblMF = d.MD(:,{'mov' 'frm'});
-      tblTrnMF = tblPTrn(:,{'mov','frm'});
+      tblMF = d.MD(:,MFTable.FLDSID);
+      tblTrnMF = tblPTrn(:,MFTable.FLDSID);
       tf = ismember(tblMF,tblTrnMF);
       assert(nnz(tf)==size(tblTrnMF,1));
       d.iTrn = find(tf);
@@ -854,6 +887,7 @@ classdef CPRLabelTracker < LabelTracker
       if nView==1 % doesn't need its own branch, just leaving old path
         obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn);
       else
+        assert(~obj.lObj.hasTrx,'Currently unsupported for projects with trx.');
         assert(size(Is,2)==nView);
         assert(size(pTrn,2)==obj.lObj.nPhysPoints*nView*prm.Model.d); 
         assert(nfidsInTD==obj.lObj.nPhysPoints*nView);

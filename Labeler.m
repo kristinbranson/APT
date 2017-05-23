@@ -3156,7 +3156,7 @@ classdef Labeler < handle
         'pAbs',[],... % Absolute label positions (px). Raster order: physpt,view,{x,y}
         'pRoi',[],... % Like pAbs, but positions relative to roi (px). x==1 => first col of roi.
         'pTS',[],... % [npts=nphyspt*nview] timestamps
-        'tfOcc',[],... % [npts=nphyspt*nview] logical occluded flag
+        'tfocc',[],... % [npts=nphyspt*nview] logical occluded flag
         'pTrx',[],... % [2*nview], trx .x and .y. Raster order: view,{x,y}
         'roi',[]); % [2*2*nview]. Raster order: {lo,hi},{x,y},view
       

@@ -246,29 +246,6 @@ classdef LabelTracker < handle
         labelerObj.labeledpos,labelerObj.labeledpostag,iMovs,frms,...
         'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
     end
-
-    %#MV
-    function tblP = getTblPLbled(obj)
-      % From .lObj, read tblP for all movies/labeledframes. Currently,
-      % exclude partially-labeled frames.
-      %
-      % tblP: MFTable of labeled frames
-      
-      labelerObj = obj.lObj;      
-      movID = labelerObj.movieFilesAll;
-      movID = FSPath.standardPath(movID);
-      [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,...
-        labelerObj.labeledpos,labelerObj.labeledpostag,'lbl',...
-        'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
-      
-      p = tblP.p;
-      tfnan = any(isnan(p),2);
-      nnan = nnz(tfnan);
-      if nnan>0
-        warningNoTrace('CPRLabelTracker:nanData','Not including %d partially-labeled rows.',nnan);
-      end
-      tblP = tblP(~tfnan,:);
-    end
     
   end
   
