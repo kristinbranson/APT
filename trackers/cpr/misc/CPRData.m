@@ -219,7 +219,13 @@ classdef CPRData < handle
         
         Nbefore = size(obj.I,1);
         
-        obj.MD = cat(1,obj.MD,dd.MD);
+        if isempty(obj.MD)
+          % Fieldnames of initial obj.MD vs dd.MD might differ eg for 
+          % multiTarget; special-case empty obj.MD to deal with this.
+          obj.MD = dd.MD;
+        else
+          obj.MD = cat(1,obj.MD,dd.MD);
+        end
         if isempty(obj.I)
           tmpI = [];
         else
@@ -434,6 +440,7 @@ classdef CPRData < handle
       tfH0Given = ~isempty(H0);
       
       assert(obj.nView==1,'Single-view only.');
+      assert(numel(g)==obj.N);
       
       imSz = cellfun(@size,obj.I,'uni',0);
       cellfun(@(x)assert(isequal(x,imSz{1})),imSz);

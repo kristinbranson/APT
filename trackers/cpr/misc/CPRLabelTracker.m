@@ -294,6 +294,8 @@ classdef CPRLabelTracker < LabelTracker
         assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.trnResH0));
         assert(obj.lObj.nview==1,...
           'Histogram Equalization currently unsupported for multiview tracking.');
+        assert(~obj.lObj.hasTrx,...
+          'Histogram Equalization currently unsupported for multitarget tracking.');
       end
       if ~isempty(prmpp.channelsFcn)
         assert(obj.lObj.nview==1,...
@@ -302,21 +304,20 @@ classdef CPRLabelTracker < LabelTracker
       
       %%% NEW ROWS read images + PP. Append to dataCurr. %%%
       FLDSID = MFTable.FLDSID;
-      tblMFnew = tblPNew(:,FLDSID);
-      tblMFcurr = dataCurr.MD(:,FLDSID);
-      assert(~any(ismember(tblMFnew,tblMFcurr)));
-      tblMFnewConcrete = tblMFnew;
-      if obj.lObj.isMultiView && ~isempty(tblMFnewConcrete.mov)
-        tmp = cellfun(@MFTable.unpackMultiMovieID,tblMFnewConcrete.mov,'uni',0);
-        tblMFnewConcrete.mov = cat(1,tmp{:});
+      assert(~any(ismember(tblPNew(:,FLDSID),dataCurr.MD(:,FLDSID))));
+
+      tblPNewConcrete = tblPNew; % will concretize movie/movieIDs
+      if obj.lObj.isMultiView && ~isempty(tblPNewConcrete.mov)
+        tmp = cellfun(@MFTable.unpackMultiMovieID,tblPNewConcrete.mov,'uni',0);
+        tblPNewConcrete.mov = cat(1,tmp{:});
       end
-      tblMFnewConcrete.mov = FSPath.fullyLocalizeStandardize(...
-        tblMFnewConcrete.mov,obj.lObj.projMacros);
+      tblPNewConcrete.mov = FSPath.fullyLocalizeStandardize(...
+        tblPNewConcrete.mov,obj.lObj.projMacros);
       % tblMFnewConcerete.mov is now [NxnView] 
       nNew = size(tblPNew,1);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
-        I = CPRData.getFrames(tblMFnewConcrete,'wbObj',wbObj);
+        I = CPRData.getFrames(tblPNewConcrete,'wbObj',wbObj);
         if tfWB && wbObj.isCancel
           % obj unchanged
           return;
@@ -832,6 +833,8 @@ classdef CPRLabelTracker < LabelTracker
       if prm.PreProc.histeq
         assert(obj.lObj.nview==1,...
           'Histogram Equalization currently unsupported for multiview projects.');
+        assert(~obj.lObj.hasTrx,...
+          'Histogram Equalization currently unsupported for multitarget projects.');
         
         nFrmSampH0 = prm.PreProc.histeqH0NumFrames;
         H0 = obj.lObj.movieEstimateImHist(nFrmSampH0);

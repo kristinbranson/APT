@@ -3226,7 +3226,7 @@ classdef Labeler < handle
                 s(end).pAbs = Shape.xy2vec(lposIFrmTgt);                
                 s(end).pRoi = Shape.xy2vec(lposIFrmTgtRoi);  
                 s(end).pTS = lposTSIFrmTgt';
-                s(end).tfOcc = strcmp(lpostagIFrmTgt','occ');
+                s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
                 s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
                 s(end).roi = roi;
               end
