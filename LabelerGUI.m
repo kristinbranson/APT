@@ -564,7 +564,8 @@ if isfield(handles,'hLinkPrevCurr') && isvalid(handles.hLinkPrevCurr)
   delete(handles.hLinkPrevCurr);
 end
 viewCfg = lObj.projPrefs.View;
-hlpSetConfigOnViews(viewCfg,handles,viewCfg(1).CenterOnTarget); % lObj.CenterOnTarget is not set yet
+handles.newProjAxLimsSetInConfig = hlpSetConfigOnViews(viewCfg,handles,...
+  viewCfg(1).CenterOnTarget); % lObj.CenterOnTarget is not set yet
 AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
 handles.hLinkPrevCurr = ...
   linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
@@ -621,6 +622,13 @@ hIms = handles.images_all; % Labeler has already loaded with first frame
 assert(isequal(lObj.nview,numel(hAxs),numel(hIms)));
 
 tfResetAxLims = evt.isFirstMovieOfProject || lObj.movieRotateTargetUp;
+tfResetAxLims = repmat(tfResetAxLims,lObj.nview,1);
+if isfield(handles,'newProjAxLimsSetInConfig')
+  % AL20170520 Legacy projects did not save their axis lims in the .lbl
+  % file. 
+  tfResetAxLims = tfResetAxLims | ~handles.newProjAxLimsSetInConfig;
+  handles = rmfield(handles,'newProjAxLimsSetInConfig');
+end
 tfResetCLims = evt.isFirstMovieOfProject;
 
 % Deal with Axis and Color limits.
@@ -650,7 +658,7 @@ for iView = 1:lObj.nview
   % 'UNSUPPORTED' ie we don't attempt to make this behave nicely. The vast
   % majority of projects will have movies of a given/fixed size.
   
-  if tfResetAxLims
+  if tfResetAxLims(iView)
     zoomOutFullView(hAxs(iView),hIms(iView),true);
   end
   if tfResetCLims
@@ -678,6 +686,8 @@ TRX_MENUS = {...
   'tblTrx'};
 onOff = onIff(lObj.hasTrx);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
+
+guidata(handles.figure,handles);
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
@@ -1647,9 +1657,9 @@ lObj.movieInvert = movInvert;
 lObj.movieCenterOnTarget = viewCfg(1).CenterOnTarget;
 lObj.movieRotateTargetUp = viewCfg(1).RotateTargetUp;
 
-function hlpSetConfigOnViews(viewCfg,handles,centerOnTarget)
+function tfAxLimsSpecifiedInCfg = hlpSetConfigOnViews(viewCfg,handles,centerOnTarget)
 axs = handles.axes_all;
-ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,axs,...
+tfAxLimsSpecifiedInCfg = ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,axs,...
   handles.images_all,handles.axes_prev);
 if ~centerOnTarget
   [axs.CameraUpVectorMode] = deal('auto');
@@ -1657,6 +1667,7 @@ if ~centerOnTarget
   [axs.CameraTargetMode] = deal('auto');
   [axs.CameraPositionMode] = deal('auto');
 end
+[axs.DataAspectRatio] = deal([1 1 1]);
 handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
 handles.menu_view_show_grid.Checked = axs(1).XGrid;
 
