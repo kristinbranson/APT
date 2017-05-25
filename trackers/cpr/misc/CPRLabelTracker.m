@@ -776,6 +776,38 @@ classdef CPRLabelTracker < LabelTracker
       end      
     end
         
+    function trainingDataMontage(obj)
+      if obj.lObj.isMultiView
+        error('CPRLabelTracker:multiview',...
+          'Currently unsupported for multiview projects.');
+      end
+      tblTrn = obj.trnDataTblP;
+      if isempty(tblTrn) || ~obj.hasTrained
+        msgbox('Please train a tracker first.');
+        return;
+      end
+      
+      obj.updateData(tblTrn);
+      d = obj.data;
+      
+      tblMF = d.MD(:,MFTable.FLDSID);
+      tblTrnMF = tblTrn(:,MFTable.FLDSID);
+      tf = ismember(tblMF,tblTrnMF);
+      assert(nnz(tf)==size(tblTrnMF,1));
+      iTrn = find(tf);
+      nTrn = numel(iTrn);
+      fprintf(1,'%d training rows in total.\n',nTrn);
+      
+      if nTrn>=48
+        nrMtg = 6;
+        ncMtg = 8;
+      else
+        nrMtg = floor(sqrt(nTrn));      
+        ncMtg = floor(nTrn/nrMtg);
+      end
+      Shape.montage(d.I(iTrn,:),d.pGT(iTrn,:),'nr',nrMtg,'nc',ncMtg)  
+    end
+    
     %#MV
     function retrain(obj,varargin)
       % Full train 

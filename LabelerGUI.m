@@ -176,6 +176,12 @@ handles.menu_track_use_all_labels_to_train = uimenu(...
 moveMenuItemAfter(handles.menu_track_use_all_labels_to_train,handles.menu_track_setparametersfile);
 handles.menu_track_select_training_data.Label = 'Downsample training data';
 moveMenuItemAfter(handles.menu_track_select_training_data,handles.menu_track_use_all_labels_to_train);
+handles.menu_track_training_data_montage = uimenu(...
+  'Parent',handles.menu_track,...
+  'Label','Training Data Montage',...
+  'Tag','menu_track_training_data_montage',...
+  'Callback',@(h,evtdata)LabelerGUI('menu_track_training_data_montage_Callback',h,evtdata,guidata(h)));
+moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
 
 handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
   'Label','Export current tracking results',...
@@ -1894,6 +1900,10 @@ if tObj.hasTrained
   end
 end
 tObj.trnDataSelect();
+
+function menu_track_training_data_montage_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+lObj.tracker.trainingDataMontage();
 
 function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();
