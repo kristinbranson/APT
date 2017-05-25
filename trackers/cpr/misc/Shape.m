@@ -434,7 +434,7 @@ classdef Shape
       % Currently we do this with a fixed radius and warn if a shape is
       % outside.
       % 
-      % xy: [nptx2] xy coords
+      % xy: [nptx2] xy coords. npt=nphysPts*nview, raster order is ipt,iview
       % trx: [1xnview] cell array of trx structures for each view
       % nphysPts: scalar
       % iTgt: scalar index into trx
@@ -477,6 +477,31 @@ classdef Shape
         tfOOBview(iview) = any(tfOOBx) || any(tfOOBy);
         xyRoi(ipts,1) = xs-xlo+1;
         xyRoi(ipts,2) = ys-ylo+1;
+      end
+    end
+    
+    function xy = xyRoi2xy(xyRoi,roi)
+      % Convert relative/roi xy to absolute xy
+      %
+      % xyRoi: [nptx2xN] xy coords relative to roi. npt=nphyspt*nview, with
+      %   that raster order
+      % roi: [Nx4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
+      %
+      % xy: [nptx2xN] xy coords, absolute.
+      
+      [npt,d,N] = size(xyRoi);
+      assert(d==2);
+      assert(size(roi,1)==N);
+      nView = size(roi,2)/4;
+      nPhysPt = npt/nView;
+      assert(round(nView)==nView && round(nPhysPt)==nPhysPt);
+      
+      xy = nan(npt,2,N);
+      for iView=1:nView
+        xloylo = roi(:,[1 3]+4*(iView-1)); % [Nx2]
+        xloyloArr = reshape(xloylo',[1 2 N]);
+        ipts = (1:nPhysPts)+nPhysPts*(iView-1);
+        xy(ipts,:,:) = xyRoi(ipts,:,:) + xloyloArr - 1; % nPhysPtx2xN, scalar expansions
       end
     end
     

@@ -47,12 +47,15 @@ classdef CPRLabelTracker < LabelTracker
     trnDataFFDThresh
     
     % Currently selected training data (includes updates/additions)
-    trnDataTblP % cols: 
+    trnDataTblP % cols: (mov|frm|iTgt combo should be unique key)
                 % .mov. unique ID for movie; standardized path
-                % .frm. frame number. The combo mov|frm should be a unique key for the table.
+                % .frm. frame number.
+                % .iTgt. target index (always 1 if not multitarget proj)
                 % .p. [1xD] labeled shape
                 % .tfocc. [1xd] occluded flags
                 % .pTS. [1xd] timestamps for .p.
+                % OPTIONAL for multitarget
+                %   . roi [1x2*2*nview] .p is relative to this roi.
     trnDataTblPTS % [size(trnDataTblP,1)x1] timestamps for when rows of trnDataTblP were added to CPRLabelTracker
   end
   
@@ -81,7 +84,12 @@ classdef CPRLabelTracker < LabelTracker
     trkP % [NTst trkD] reduced/pruned tracked shapes
     trkPFull % Either [], or [NTst RT trkD T+1] Tracked shapes full data. Stored only if .storeFullTracking=true.
     trkPTS % [NTstx1] timestamp for trkP*
-    trkPMD % [NTst <ncols>] table. MFTable (no other cols) for trkP*
+    trkPMD % [NTst <ncols>] table. MFTable for trkP*. cols: 
+           %    .mov. 
+           %    .frm. 
+           %    .iTgt. 
+           % OPTIONAL for multitarget
+           %   . roi [1x4] Tracking was generated using this target ROI.
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. npttrk=trkD*d.
   end
     
@@ -617,6 +625,7 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
+    % TGTOK
     function updateTrackRes(obj,tblMFtrk,pTstTRed,pTstT)
       % Augment .trkP* state with new tracking results
       %
@@ -635,6 +644,27 @@ classdef CPRLabelTracker < LabelTracker
       szassert(pTstTRed,[nTst Dfull]);
       szassert(pTstT,[nTst RT Dfull Tp1]);
       
+      tfROI = any(strcmp('roi',tblMFtrk.Properties.VariableNames));
+      if tfROI
+        % Convert pTstT and pTstTRed from relative/ROI coords to absolute
+        % coords
+        assert(mdlPrms.d==2);
+        npts = mdlPrms.nfids*mdlPrms.nviews;
+        xyTmp = reshape(pTstTRed,[nTst npts 2]);
+        xyTmp = permute(xyTmp,[2 3 1]);
+        xyTmp = Shape.xyRoi2xy(xyTmp,tblMFtrk.roi); % npt x 2 x nTst
+        xyTmp = permute(xyTmp,[3 1 2]);
+        pTstTRed = reshape(xyTmp,[nTst Dfull]);
+        
+        xyTmp = reshape(pTstT,[nTst RT npts 2 Tp1]);
+        xyTmp = permute(xyTmp,[3 4 1 2 5]); % [npts 2 nTst RT Tp1]
+        xyTmp = reshape(xyTmp,[npts 2 nTst*RT*Tp1]);
+        xyTmp = Shape.xyRoi2xy(xyTmp,repmat(tblMFtrk.roi,RT*Tp1,1));
+        xyTmp = reshape(xyTmp,[npts 2 nTst RT Tp1]);
+        xyTmp = permute(xyTmp,[3 4 1 2 5]); % [nTst RT npts 2 Tp1]
+        pTstT = reshape(xyTmp,[nTst RT Dfull Tp1]);
+      end
+
       if ~isempty(obj.trkP)
         assert(~isempty(obj.trkPiPt),...
           'Tracked points specification (.trkPiPt) cannot be empty.');
@@ -644,7 +674,8 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
       
-      [tf,loc] = ismember(tblMFtrk,obj.trkPMD);
+      [tf,loc] = ismember(tblMFtrk(:,MFTable.FLDSID),...
+                          obj.trkPMD(:,MFTable.FLDSID));
       % existing rows
       idxCur = loc(tf);
       obj.trkP(idxCur,:) = pTstTRed(tf,:);
@@ -1119,9 +1150,10 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     %#MV
+    %#TGTOK
     function track(obj,iMovs,frms,varargin)
       [tblP,movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
-        'tblP',[],... % table with props {'mov' 'frm' 'p'} containing movs/frms to track
+        'tblP',[],... % MFtable. Req'd flds: .mov, .frm, .p. If multitarget, also: .iTgt, .roi
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
         'wbObj',[] ... % WaitBarWithCancel. If cancel:
@@ -1143,13 +1175,14 @@ classdef CPRLabelTracker < LabelTracker
       end
                         
       if isempty(tblP)
+        assert(~obj.hasTrx);
         tblP = obj.getTblP(iMovs,frms);
         if isempty(tblP)
           msgbox('No frames specified for tracking.');
           return;
         end
-      end
-      
+      end      
+     
       % if tfWB, then canceling can early-return. In all return cases we
       % want to run hlpTrackWrapupViz.
       oc = onCleanup(@()hlpTrackWrapupViz(obj));
@@ -1191,11 +1224,11 @@ classdef CPRLabelTracker < LabelTracker
         end
         
         d = obj.data;
-        tblMFTrk = tblPChunk(:,{'mov' 'frm'});
-        tblMFAll = d.MD(:,{'mov' 'frm'});
+        tblMFAll = d.MD(:,MFTable.FLDSID);
+        tblMFTrk = tblPChunk(:,MFTable.FLDSID);
         [tf,loc] = ismember(tblMFTrk,tblMFAll);
         assert(all(tf));
-        d.iTst = loc;
+        d.iTst = loc;             
         
         fprintf(1,'Track data summary:\n');
         d.summarize('mov',d.iTst);
@@ -1272,9 +1305,9 @@ classdef CPRLabelTracker < LabelTracker
           pTstTRed(:,iFull) = pTstTRedVw;
         end % end obj CONST
         
-        trkPMDnew = d.MDTst(:,{'mov' 'frm'});
+        trkPMDnew = d.MDTst(:,MFTable.FLDSID);
         obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
-      end      
+      end
     end
     function hlpTrackWrapupViz(obj)
       if ~isempty(obj.lObj)
