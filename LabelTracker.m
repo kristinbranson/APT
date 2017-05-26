@@ -248,6 +248,7 @@ classdef LabelTracker < handle
     end
         
     %#MV
+    % TODO: DEPRECATE
     function tblP = getTblP(obj,iMovs,frms) % obj CONST
       % From .lObj, read tblP for given movies/frames.
             

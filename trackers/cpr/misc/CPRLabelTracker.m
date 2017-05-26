@@ -116,7 +116,8 @@ classdef CPRLabelTracker < LabelTracker
     xyPrdCurrMovie; % [npts d nfrm ntgt] predicted labels for current Labeler movie
     xyPrdCurrMovieIsInterp; % [nfrm] logical vec indicating whether xyPrdCurrMovie(:,:,i) is interpolated. Applies only when nTgts==1.
     xyPrdCurrMovieFull % [npts d nrep nfrm] predicted replicates for current Labeler movie, current target.
-    hXYPrdRed; % [npts ntgt] plot handles for 'reduced' tracking results, current frame
+    hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame and target
+    hXYPrdRedOther; % [npts] plot handles for 'reduced' tracking results, current frame, non-current-target
     hXYPrdFull; % [npts] plot handles for replicates, current frame, current target
     xyVizPlotArgs; % cell array of args for regular tracking viz    
     xyVizPlotArgsNonTarget; % " for non current target viz
@@ -180,6 +181,8 @@ classdef CPRLabelTracker < LabelTracker
     function delete(obj)
       deleteValidHandles(obj.hXYPrdRed);
       obj.hXYPrdRed = [];
+      deleteValidHandles(obj.hXYPrdRedOther);
+      obj.hXYPrdRedOther = [];
       deleteValidHandles(obj.hXYPrdFull);
       obj.hXYPrdFull = [];      
     end
@@ -220,7 +223,7 @@ classdef CPRLabelTracker < LabelTracker
       
       if labelerObj.hasTrx
         prmRC = obj.sPrm.PreProc.TargetCrop;
-        tblP = labelerObj.labelGetMFTableTrx(prmRC.Radius);
+        tblP = labelerObj.labelGetMFTableLabeled(prmRC.Radius);
         tblP.p = tblP.pRoi;
       else
         % TODO: deprecate lblCompileContents 
@@ -1219,8 +1222,13 @@ classdef CPRLabelTracker < LabelTracker
       end
                         
       if isempty(tblP)
-        assert(~obj.hasTrx);
-        tblP = obj.getTblP(iMovs,frms);
+        if obj.lObj.hasTrx
+          prmRC = prm.PreProc.TargetCrop;
+          tblP = obj.lObj.labelGetMFTableAll(iMovs,frms,prmRC.Radius);
+          tblP.p = tblP.pRoi;
+        else
+          tblP = obj.getTblP(iMovs,frms);
+        end
         if isempty(tblP)
           msgbox('No frames specified for tracking.');
           return;
@@ -1548,6 +1556,10 @@ classdef CPRLabelTracker < LabelTracker
     function newLabelerFrame(obj)
       % Update .hXYPrdRed based on current Labeler frame and .xyPrdCurrMovie
 
+      if obj.lObj.isinit
+        return;
+      end
+      
       [xy,isinterp,xyfull] = obj.getPredictionCurrentFrame();
     
       if isinterp
@@ -1557,12 +1569,11 @@ classdef CPRLabelTracker < LabelTracker
       end
       
       npts = obj.nPts;
-      ntgt = obj.lObj.nTargets;
+      %ntgt = obj.lObj.nTargets;
+      itgt = obj.lObj.currTarget;
       hXY = obj.hXYPrdRed;
       for iPt=1:npts
-        for itgt=1:ntgt
-          set(hXY(iPt,itgt),'XData',xy(iPt,1,itgt),'YData',xy(iPt,2,itgt),plotargs{:});
-        end
+        set(hXY(iPt),'XData',xy(iPt,1,itgt),'YData',xy(iPt,2,itgt),plotargs{:});
       end
       
       if obj.showVizReplicates && obj.storeFullTracking && ~isequal(xyfull,[])
@@ -1579,6 +1590,9 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function newLabelerMovie(obj)
+      if obj.lObj.hasTrx
+        obj.vizInit(); % The number of trx might change
+      end      
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
     end
@@ -1846,7 +1860,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkPFull = [];
       obj.trkPTS = zeros(0,1);
       % wrong fields but will get overwritten
-      obj.trkPMD = struct2table(struct('mov',cell(0,1),'frm',[])); 
+      obj.trkPMD = struct2table(struct('mov',cell(0,1),'frm',[],'iTgt',[])); 
       obj.trkPiPt = [];
     end
     
@@ -1862,6 +1876,8 @@ classdef CPRLabelTracker < LabelTracker
       obj.xyPrdCurrMovieIsInterp = [];
       deleteValidHandles(obj.hXYPrdRed);
       obj.hXYPrdRed = [];
+      deleteValidHandles(obj.hXYPrdRedOther);
+      obj.hXYPrdRedOther = [];
       deleteValidHandles(obj.hXYPrdFull);
       obj.hXYPrdFull = [];
       
@@ -1886,18 +1902,18 @@ classdef CPRLabelTracker < LabelTracker
       arrayfun(@cla,ax);
       arrayfun(@(x)hold(x,'on'),ax);
       ipt2View = obj.lObj.labeledposIPt2View;
-      nTgts = obj.lObj.nTargets;
-      hTmp = gobjects(npts,nTgts);
+      hTmp = gobjects(npts,1);
+      hTmpOther = gobjects(npts,1);
       hTmp2 = gobjects(npts,1);
       for iPt = 1:npts
         clr = ptsClrs(iPt,:);
         iVw = ipt2View(iPt);
-        for iTgt=1:nTgts
-          hTmp(iPt,iTgt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
-        end
+        hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
+        hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);        
         hTmp2(iPt) = plot(ax(iVw),nan,nan,obj.xyVizFullPlotArgs{:},'Color',clr);
       end
       obj.hXYPrdRed = hTmp;
+      obj.hXYPrdRedOther = hTmpOther;
       obj.hXYPrdFull = hTmp2;
     end
     
@@ -1960,11 +1976,13 @@ classdef CPRLabelTracker < LabelTracker
 
     function vizHide(obj)
       [obj.hXYPrdRed.Visible] = deal('off');
+      [obj.hXYPrdRedOther.Visible] = deal('off');
       obj.hideViz = true;
     end
     
     function vizShow(obj)
       [obj.hXYPrdRed.Visible] = deal('on'); 
+      [obj.hXYPrdRedOther.Visible] = deal('on'); 
       obj.hideViz = false;
     end
     

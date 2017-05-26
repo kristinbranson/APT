@@ -434,17 +434,21 @@ classdef Shape
       % Currently we do this with a fixed radius and warn if a shape is
       % outside.
       % 
-      % xy: [nptx2] xy coords. npt=nphysPts*nview, raster order is ipt,iview
+      % xy: [nptx2] xy coords. npt=nphysPts*nview, raster order is 
+      %   ipt,iview. Can be nans
       % trx: [1xnview] cell array of trx structures for each view
       % nphysPts: scalar
+      % frm: 
       % iTgt: scalar index into trx
       % radius: roi square radius, in px, must be integer
       %
       % roi: [1x4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
+      %   Square roi based on trx(iTgt) at frm.
       %   NOTE: roi may be outside range of image, eg xlo could be negative
       %   or xhi could exceed number of cols.
       % tfOOBview: [1xnview] logical. If true, shape is out-of-bounds of
-      %   trx ROI box in that view.
+      %   trx ROI box in that view. A shape with nan coords is not 
+      %   considered OOB.
       % xyRoi: [nptx2] xy coords relatvive to ROIs; x==1 => first col of
       %   ROI etc.
       
