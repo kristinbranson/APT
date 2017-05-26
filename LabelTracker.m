@@ -118,8 +118,16 @@ classdef LabelTracker < handle
     function track(obj,iMovs,frms,varargin)
       % Apply trained tracker to the specified frames.
       %
+      % Legacy/Single-target API:
+      %   track(obj,iMovs,frms,...)
+      %
       % iMovs: [M] indices into .lObj.movieFilesAll to track
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
+      %
+      % Newer/multi-target API:
+      %     track(obj,[],[],'tblP',tblMF)
+      %
+      % tblMF: MFTable with rows specifying movie/frame/target
       %
       % Optional PVs.
     end
@@ -171,6 +179,10 @@ classdef LabelTracker < handle
       % Called when Labeler is navigated to a new frame
     end
     
+    function newLabelerTarget(obj)
+      % Called when Labeler is navigated to a new target
+    end
+    
     function newLabelerMovie(obj)
       % Called when Labeler is navigated to a new movie
     end
@@ -201,8 +213,8 @@ classdef LabelTracker < handle
       end
     end
     
-    function xy = getCurrentPrediction(obj)
-      % xy: [nptsx2] tracked results for current Labeler frame
+    function xy = getPredictionCurrentFrame(obj)
+      % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
       xy = [];
     end
     
@@ -238,8 +250,10 @@ classdef LabelTracker < handle
     %#MV
     function tblP = getTblP(obj,iMovs,frms) % obj CONST
       % From .lObj, read tblP for given movies/frames.
-      
+            
       labelerObj = obj.lObj;
+      assert(~labelerObj.hasTrx,...
+        'Legacy codepath not intended for multitarget projects.');
       movID = labelerObj.movieFilesAll;
       movID = FSPath.standardPath(movID);
       [~,tblP] = Labeler.lblCompileContentsRaw(labelerObj.movieFilesAllFull,...

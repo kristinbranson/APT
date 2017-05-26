@@ -15,7 +15,7 @@ classdef MFTable
   methods (Static)
     
     function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)
-      % Compare tblP to tblP0
+      % Compare tblP to tblP0 wrt fields FLDSFULL (see below)
       %
       % tblP0, tblP: MF tables
       %

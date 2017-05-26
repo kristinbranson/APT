@@ -2000,7 +2000,8 @@ function menu_track_set_labels_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
 if ~isempty(tObj)
-  xy = tObj.getCurrentPrediction();
+  xy = tObj.getPredictionCurrentFrame();
+  xy = xy(:,:,lObj.currTarget); % "targets" treatment differs from below
   if any(isnan(xy(:)))
     fprintf('No predictions for current frame, not labeling.\n');
     return;
@@ -2021,7 +2022,7 @@ else
     error('LabelerGUI:setLabels','No movie open.');
   end
   lpos2 = lObj.labeledpos2{iMov};
-  assert(size(lpos2,4)==1);
+  assert(size(lpos2,4)==1); % "targets" treatment differs from above
   lpos2xy = lpos2(:,:,frm);
   lObj.labelPosSet(lpos2xy);
   
