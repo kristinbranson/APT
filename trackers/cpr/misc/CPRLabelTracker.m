@@ -735,7 +735,13 @@ classdef CPRLabelTracker < LabelTracker
       end
       nNew = nnz(~tf);
       obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
-      obj.trkPMD = [obj.trkPMD; tblMFtrk(~tf,:)];
+      if isempty(obj.trkPMD)
+        % .trkPMD might not be initted with the .roi col in the multitarget
+        % case
+        obj.trkPMD = tblMFtrk(~tf,:); 
+      else
+        obj.trkPMD = [obj.trkPMD; tblMFtrk(~tf,:)];
+      end
 
       % See above check/error re .trkPiPt. Either there were originally no
       % tracking results so we are setting .trkPiPt for the first time; or
@@ -1357,7 +1363,11 @@ classdef CPRLabelTracker < LabelTracker
           pTstTRed(:,iFull) = pTstTRedVw;
         end % end obj CONST
         
-        trkPMDnew = d.MDTst(:,MFTable.FLDSID);
+        fldsTmp = MFTable.FLDSID;
+        if any(strcmp(d.MDTst.Properties.VariableNames,'roi'))
+          fldsTmp{1,end+1} = 'roi'; %#ok<AGROW>
+        end
+        trkPMDnew = d.MDTst(:,fldsTmp);
         obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
       end
     end

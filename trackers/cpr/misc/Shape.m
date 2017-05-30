@@ -504,7 +504,7 @@ classdef Shape
       for iView=1:nView
         xloylo = roi(:,[1 3]+4*(iView-1)); % [Nx2]
         xloyloArr = reshape(xloylo',[1 2 N]);
-        ipts = (1:nPhysPts)+nPhysPts*(iView-1);
+        ipts = (1:nPhysPt)+nPhysPt*(iView-1);
         xy(ipts,:,:) = xyRoi(ipts,:,:) + xloyloArr - 1; % nPhysPtx2xN, scalar expansions
       end
     end
