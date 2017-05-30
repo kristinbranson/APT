@@ -2895,7 +2895,7 @@ classdef Labeler < handle
       
       nMovSets = numel(iMovSets);
       szassert(trkfiles,[nMovSets obj.nview]);
-      nPhysPts = obj.nPhysPoints;      
+      nPhysPts = obj.nPhysPoints;   
       tfMV = obj.isMultiView;
       nView = obj.nview;
       
@@ -2959,15 +2959,33 @@ classdef Labeler < handle
             warningNoTrace('Labeler:trkImport',...
               'Trkfile does not contain information for all frames in movie. Frames missing from Trkfile will be unlabeled.');
           end
-          
           frmsTrkIB = frmsTrk(tfInBounds);
-          fprintf(1,'... Loaded %d frames for %d points from trk file: %s.\n',...
-            numel(frmsTrkIB),numel(iPt),tfile);
+          
+          if isfield(s,'pTrkiTgt')
+            iTgt = s.pTrkiTgt;
+          else
+            iTgt = 1;
+          end
+          assert(size(s.pTrk,4)==numel(iTgt));
+          nTgtProj = size(lpos,4);
+          tfiTgtIB = 1<=iTgt & iTgt<=nTgtProj;
+          if any(~tfiTgtIB)
+            warningNoTrace('Labeler:trkImport',...
+              'Trkfile contains information for targets not present in movie. Ignoring extra targets.');
+          end
+          if nnz(tfiTgtIB)<nTgtProj
+            warningNoTrace('Labeler:trkImport',...
+              'Trkfile does not contain information for all targets in movie.');
+          end
+          iTgtsIB = iTgt(tfiTgtIB);
+          
+          fprintf(1,'... Loaded %d frames for %d points, %d targets from trk file: %s.\n',...
+            numel(frmsTrkIB),numel(iPt),numel(iTgtsIB),tfile);
 
           iPt = iPt + (iVw-1)*nPhysPts;
-          lpos(iPt,:,frmsTrkIB,:) = s.pTrk(:,:,tfInBounds);
-          lposTS(iPt,frmsTrkIB,:) = s.pTrkTS(:,tfInBounds);
-          lpostag(iPt,frmsTrkIB,:) = s.pTrkTag(:,tfInBounds);
+          lpos(iPt,:,frmsTrkIB,iTgtsIB) = s.pTrk(:,:,tfInBounds,tfiTgtIB);
+          lposTS(iPt,frmsTrkIB,iTgtsIB) = s.pTrkTS(:,tfInBounds,tfiTgtIB);
+          lpostag(iPt,frmsTrkIB,iTgtsIB) = s.pTrkTag(:,tfInBounds,tfiTgtIB);
         end
 
         obj.(lposFld){iMov} = lpos;

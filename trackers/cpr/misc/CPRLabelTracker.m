@@ -291,6 +291,10 @@ classdef CPRLabelTracker < LabelTracker
       wbObj = myparse(varargin,...
         'wbObj',[]); % WaitBarWithCancel. If cancel, obj unchanged.
       
+      if any(strcmp('pTS',tblP.Properties.VariableNames))
+        % AL20170530: Not sure why we do this, but we do
+        tblP(:,'pTS') = [];
+      end
       [tblPnew,tblPupdate] = obj.tblPDiffData(tblP);
       obj.updateDataRaw(tblPnew,tblPupdate,'wbObj',wbObj);      
     end
@@ -572,7 +576,7 @@ classdef CPRLabelTracker < LabelTracker
       %  movies in a movieset have differing numbers of frames, then nfrm
       %  will equal the minimum number of frames across the movieset.
       % trkposTS: [nptstrk x nfrm(iMov) x ntgt(iMov)]. Timestamps for trkpos.
-      % trkposFull: [nptstrk x d x nRep x nfrm(iMov) x ntgt(iMov)]. 4d results. 
+      % trkposFull: [nptstrk x d x nRep x nfrm(iMov) x ntgt(iMov)]. 5d results. 
       %   Currently this is all nans if .storeFullTracking is false.
       % tfHasRes: if true, nontrivial tracking results returned
       
@@ -938,7 +942,6 @@ classdef CPRLabelTracker < LabelTracker
       else
         fprintf(1,'Training with %d rows.\n',size(tblPTrn,1));
       end
-      tblPTrn(:,'pTS') = [];
       
       % update .trnResH0; clear .data if necessary (if .trnResH0 is
       % out-of-date)
@@ -1068,7 +1071,6 @@ classdef CPRLabelTracker < LabelTracker
       fprintf('Most recent full train at %s\n',datestr(tsFullTrn,'mmm-dd-yyyy HH:MM:SS'));
       obj.trainPrintDiagnostics(iTL);
      
-      tblPNew(:,'pTS') = [];
       obj.updateData(tblPNew);
       
       % set iTrn and summarize
@@ -1266,7 +1268,6 @@ classdef CPRLabelTracker < LabelTracker
           wbObj.msgPat = sprintf('Chunk %d/%d: %%s',iChunk,nChunk);
         end
         
-        tblPChunk(:,'pTS') = [];
         obj.updateData(tblPChunk,'wbObj',wbObj);
         if tfWB && wbObj.isCancel
           % Single-chunk: data unchanged, tracking results unchanged => 
@@ -1378,6 +1379,7 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
       
+    %MTGT
     %#MV
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovs)
       % Get tracking results for movie(set) iMov.
@@ -1386,7 +1388,7 @@ classdef CPRLabelTracker < LabelTracker
       %
       % trkfiles: [nMovxnView] TrkFile objects
       % tfHasRes: [nMov] logical. If true, corresponding movie has tracking
-      % nontrivial (nonempty) tracking results
+      %   nontrivial (nonempty) tracking results
       
       validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
 
@@ -1407,10 +1409,10 @@ classdef CPRLabelTracker < LabelTracker
         assert(isequal(obj.lObj.labeledposIPt2View,ipt2vw(:)));
       end
         
-      for i = nMov:-1:1        
+      for i = nMov:-1:1
         [trkpos,trkposTS,trkposFull,tfHasRes(i)] = obj.getTrackResRaw(iMovs(i));
         if ~obj.storeFullTracking
-          trkposFull = trkposFull(:,:,[],:);
+          trkposFull = trkposFull(:,:,[],:,:);
         end        
         if tfMultiView
           assert(size(trkpos,1)==nPhysPts*nview);
@@ -1418,9 +1420,9 @@ classdef CPRLabelTracker < LabelTracker
             iptCurrVw = (1:nPhysPts) + (ivw-1)*nPhysPts;
             trkinfo = trkinfobase;
             trkinfo.view = ivw;
-            trkfiles(i,ivw) = TrkFile(trkpos(iptCurrVw,:,:),...
-              'pTrkFull',trkposFull(iptCurrVw,:,:,:),...
-              'pTrkTS',trkposTS(iptCurrVw,:),...
+            trkfiles(i,ivw) = TrkFile(trkpos(iptCurrVw,:,:,:),...
+              'pTrkFull',trkposFull(iptCurrVw,:,:,:,:),...
+              'pTrkTS',trkposTS(iptCurrVw,:,:),...
               'pTrkiPt',1:nPhysPts,...
               'trkInfo',trkinfo);
           end
@@ -1560,6 +1562,8 @@ classdef CPRLabelTracker < LabelTracker
     function clearTrackingResults(obj)
       obj.initData();
       obj.trackResInit();
+      obj.vizLoadXYPrdCurrMovieTarget();
+      obj.newLabelerFrame();
     end
     
     %#MTGT
@@ -1605,7 +1609,7 @@ classdef CPRLabelTracker < LabelTracker
     function newLabelerMovie(obj)
       if obj.lObj.hasTrx
         obj.vizInit(); % The number of trx might change
-      end      
+      end
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
     end
