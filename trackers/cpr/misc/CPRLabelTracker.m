@@ -1596,7 +1596,10 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function newLabelerTarget(obj)
-      
+      if obj.storeFullTracking
+        obj.vizLoadXYPrdCurrMovieTarget(); % needed to reload full tracking results
+      end
+      obj.newLabelerFrame();
     end
     
     function newLabelerMovie(obj)
@@ -1909,7 +1912,7 @@ classdef CPRLabelTracker < LabelTracker
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
       ax = obj.ax;
-      arrayfun(@cla,ax);
+      %arrayfun(@cla,ax);
       arrayfun(@(x)hold(x,'on'),ax);
       ipt2View = obj.lObj.labeledposIPt2View;
       hTmp = gobjects(npts,1);

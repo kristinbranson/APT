@@ -24,6 +24,7 @@ classdef LabelTracker < handle
     
     hLCurrMovie; % listener to lObj.currMovie
     hLCurrFrame; % listener to lObj.currFrame
+    hLCurrTarget; % listener to lObj.currTarget
   end  
   
   properties (SetObservable,SetAccess=protected)
@@ -33,35 +34,32 @@ classdef LabelTracker < handle
   methods
     
     function obj = LabelTracker(labelerObj)
-      obj.lObj = labelerObj;      
+      obj.lObj = labelerObj;
       
       trkPrefs = labelerObj.projPrefs.Track;
       if isfield(trkPrefs,'PredictInterpolate')
         val = logical(trkPrefs.PredictInterpolate);
         if ~isscalar(val)
-          error('LabelTracker:init','Expected scalar value for ''PredictInterpolate'' preference.');
+          error('LabelTracker:init','Expected scalar value for ''PredictInterpolate''.');
         end
       else
+        val = false;
+      end
+      if obj.lObj.hasTrx && val
+        warningNoTrace('LabelTracker:interp',...
+          'Project has trajectories; turning off tracking interpolation.');
         val = false;
       end
       obj.trkVizInterpolate = val;
       
       obj.hLCurrMovie = addlistener(labelerObj,'currMovie','PostSet',@(s,e)obj.newLabelerMovie());
       obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
+      obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
     end
     
     function init(obj)
       % Called when a new project is created/loaded, etc
-
-      deleteValidHandles(obj.ax);     
-      axAll = obj.lObj.gdata.axes_all;
-      axOver = gobjects(size(axAll));
-      for i=1:numel(axAll)
-        axOver(i) = axisOverlay(axAll(i));
-        axOver(i).LineWidth = 2;
-      end
-      obj.ax = axOver;
-      
+      obj.ax = obj.lObj.gdata.axes_all;
       obj.initHook();
     end
     
@@ -73,13 +71,15 @@ classdef LabelTracker < handle
     end
     
     function delete(obj)
-      deleteValidHandles(obj.ax);
       if ~isempty(obj.hLCurrMovie)
         delete(obj.hLCurrMovie);
       end
       if ~isempty(obj.hLCurrFrame)
         delete(obj.hLCurrFrame);
       end
+      if ~isempty(obj.hLCurrTarget)
+        delete(obj.hLCurrTarget);
+      end      
     end
     
   end

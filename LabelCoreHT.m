@@ -235,9 +235,9 @@ classdef LabelCoreHT < LabelCore
       tfCtrl = any(strcmp('control',modifier));
 
       tfKPused = true;     
-      if strcmp(key,'h') && tfCtrl
-        obj.labelsHideToggle();
-      elseif strcmp(key,'space')
+%       if strcmp(key,'h') && tfCtrl
+%         obj.labelsHideToggle();
+      if strcmp(key,'space')
         obj.acceptCurrentPt();
       elseif any(strcmp(key,{'equal' 'rightarrow' 'd'})) && ~tfCtrl
         obj.labeler.frameUpDF(obj.nFrameSkip);

@@ -116,7 +116,7 @@ classdef MFTable
     function warnDupMovFrmKey(tblMF,tblDescStr)
       % Warn when tblMF contains duplicate mov|frm IDs
       
-      tMF = tblMF(:,{'mov' 'frm'});
+      tMF = tblMF(:,MFTable.FLDSID);
       sz0 = size(tMF,1);
       tMF = unique(tMF);
       sz1 = size(tMF,1);
