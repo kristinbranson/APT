@@ -1974,6 +1974,11 @@ classdef CPRLabelTracker < LabelTracker
       xy(iPtTrk,:,:,:) = trkpos;
       xyfull(iPtTrk,:,:,:) = trkposfull(:,:,:,:,lObj.currTarget);
             
+      if obj.trkVizInterpolate && lObj.hasTrx
+        warningNoTrace('CPRLabelTracker:interp',...
+          'Turning off tracking interpolation; project has trx.');
+        obj.trkVizInterpolate = false;
+      end
       if obj.trkVizInterpolate
         assert(ntgts==1,'Currently unsupported for multiple targets.');
         [xy,isinterp3] = CPRLabelTracker.interpolateXY(xy);

@@ -2788,6 +2788,8 @@ classdef Labeler < handle
           'Number of columns in trkfiles (%d) must equal number of views in project (%d).',...
           size(trkfiles,2),nView);
       end
+      
+      tfok = true;
     end
   end
   
