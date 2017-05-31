@@ -1333,7 +1333,7 @@ classdef Labeler < handle
       end
     end
     
-    % DONTUSEME, SEE labelGetMFTableTrxStc
+    % DEPRECATE, SEE labelGetMFTableLabeledStc
     function [I,tbl] = lblCompileContents(movieNames,labeledposes,...
         labeledpostags,type,varargin)
       % convenience signature 
@@ -1353,7 +1353,7 @@ classdef Labeler < handle
         labeledpostags,1:nMov,frms,varargin{:});
     end
     
-    % DONTUSEME, SEE labelGetMFTableTrxStc
+    % DEPRECATE, SEE labelGetMFTableLabeledStc
     %#3DOK
     function [I,tbl] = lblCompileContentsRaw(...
         movieNames,lposes,lpostags,iMovs,frms,varargin)
@@ -2087,14 +2087,15 @@ classdef Labeler < handle
       % trx's existence.
       
       if ~obj.isinit
-        assert(isequal(numel(trx),obj.nTargets));
+        % AL: seems bizzare, would you ever swap out the trx for the
+        % current movie?
+        assert(isequal(numel(trx),obj.nTargets)); 
 
         % TODO: check for labels that are "out of bounds" for new trx
       end
       
       obj.trx = trx;
-                  
-      f2t = false(obj.nframes,obj.nTrx);
+
       if obj.hasTrx
         if ~isfield(obj.trx,'id')
           for i = 1:numel(obj.trx)
@@ -2107,18 +2108,35 @@ classdef Labeler < handle
       end
       id2t = nan(maxID+1,1);
       for i = 1:obj.nTrx
-        frm0 = obj.trx(i).firstframe;
-        frm1 = obj.trx(i).endframe;
-        f2t(frm0:frm1,i) = true;
         id2t(obj.trx(i).id+1) = i;
       end
-      obj.frm2trx = f2t;
       obj.trxIdPlusPlus2Idx = id2t;
+      obj.frm2trx = Labeler.trxHlpComputeF2t(obj.nframes,trx);
       
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
       obj.initShowTrx();
     end
-    
+  end
+  methods (Static)    
+    function f2t = trxHlpComputeF2t(nfrm,trx)
+      % Compute f2t array for trx structure
+      %
+      % nfrm: number of frames in movie corresponding to trx
+      % trx: trx struct array
+      %
+      % f2t: [nfrm x nTrx] logical. f2t(f,iTgt) is true iff trx(iTgt) is
+      % live at frame f.
+      
+      nTrx = numel(trx);
+      f2t = false(nfrm,nTrx);
+      for iTgt=1:nTrx
+        frm0 = trx(iTgt).firstframe;
+        frm1 = trx(iTgt).endframe;
+        f2t(frm0:frm1,iTgt) = true;
+      end
+    end
+  end  
+  methods    
     function trxSave(obj)
       % Save the current .trx to .trxfile. 
     
@@ -2158,8 +2176,8 @@ classdef Labeler < handle
         tf = obj.frm2trx(frms,iTgt);
       else
         tf = true(numel(frms),1);
-        end
       end
+    end
     
     function trxCheckFramesLiveErr(obj,frms)
       % Check that current target is live for given frames; err if not
@@ -2877,7 +2895,7 @@ classdef Labeler < handle
       
       nMovSets = numel(iMovSets);
       szassert(trkfiles,[nMovSets obj.nview]);
-      nPhysPts = obj.nPhysPoints;      
+      nPhysPts = obj.nPhysPoints;   
       tfMV = obj.isMultiView;
       nView = obj.nview;
       
@@ -2941,15 +2959,33 @@ classdef Labeler < handle
             warningNoTrace('Labeler:trkImport',...
               'Trkfile does not contain information for all frames in movie. Frames missing from Trkfile will be unlabeled.');
           end
-          
           frmsTrkIB = frmsTrk(tfInBounds);
-          fprintf(1,'... Loaded %d frames for %d points from trk file: %s.\n',...
-            numel(frmsTrkIB),numel(iPt),tfile);
+          
+          if isfield(s,'pTrkiTgt')
+            iTgt = s.pTrkiTgt;
+          else
+            iTgt = 1;
+          end
+          assert(size(s.pTrk,4)==numel(iTgt));
+          nTgtProj = size(lpos,4);
+          tfiTgtIB = 1<=iTgt & iTgt<=nTgtProj;
+          if any(~tfiTgtIB)
+            warningNoTrace('Labeler:trkImport',...
+              'Trkfile contains information for targets not present in movie. Ignoring extra targets.');
+          end
+          if nnz(tfiTgtIB)<nTgtProj
+            warningNoTrace('Labeler:trkImport',...
+              'Trkfile does not contain information for all targets in movie.');
+          end
+          iTgtsIB = iTgt(tfiTgtIB);
+          
+          fprintf(1,'... Loaded %d frames for %d points, %d targets from trk file: %s.\n',...
+            numel(frmsTrkIB),numel(iPt),numel(iTgtsIB),tfile);
 
           iPt = iPt + (iVw-1)*nPhysPts;
-          lpos(iPt,:,frmsTrkIB,:) = s.pTrk(:,:,tfInBounds);
-          lposTS(iPt,frmsTrkIB,:) = s.pTrkTS(:,tfInBounds);
-          lpostag(iPt,frmsTrkIB,:) = s.pTrkTag(:,tfInBounds);
+          lpos(iPt,:,frmsTrkIB,iTgtsIB) = s.pTrk(:,:,tfInBounds,tfiTgtIB);
+          lposTS(iPt,frmsTrkIB,iTgtsIB) = s.pTrkTS(:,tfInBounds,tfiTgtIB);
+          lpostag(iPt,frmsTrkIB,iTgtsIB) = s.pTrkTag(:,tfInBounds,tfiTgtIB);
         end
 
         obj.(lposFld){iMov} = lpos;
@@ -3123,18 +3159,35 @@ classdef Labeler < handle
       delete(hWB);
     end   
     
-    function tblMF = labelGetMFTableTrx(obj,roiRadius,varargin)
+    function tblMF = labelGetMFTableLabeled(obj,roiRadius)
+      % Compile mov/frm/tgt MFTable. Include all labeled frames/tgts
       movIDs = FSPath.standardPath(obj.movieFilesAll);
-      tblMF = Labeler.labelGetMFTableTrxStc(movIDs,obj.labeledpos,...
-        obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius,varargin{:});
+      tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
+        obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius);
+    end
+    
+    function tblMF = labelGetMFTableAll(obj,iMov,frmCell,roiRadius)
+      % Compile mov/frm/tgt MFTable for given movies/frames.
+      %
+      % iMov: [n] vector of movie(set) indices
+      % frmsCell: [n] cell vector. frms{i} is a vector of frames to read 
+      %   for movie iMov(i), or the string 'all' for all frames in the
+      %   movie.
+      % roiRadius: scalar, roi crop radius. Ignored if ~hasTrx.
+      
+      movIDs = FSPath.standardPath(obj.movieFilesAll);
+      tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
+        obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius,...
+        'iMovRead',iMov,'frmReadCell',frmCell,'tgtsRead','live');
     end
     
   end
   
   methods (Static)
-    function tblMF = labelGetMFTableTrxStc(movID,lpos,lpostag,lposTS,...
+        
+    function tblMF = labelGetMFTableLabeledStc(movID,lpos,lpostag,lposTS,...
         trxFilesAll,roiRadius,varargin)
-      % Compile MFtable
+      % Compile MFtable, by default for all labeled mov/frm/tgts
       %
       % movID: [NxnView] cellstr of movie IDs (use non-macro-replaced etc)
       % movInfo: [NxnView] movieInfo structures
@@ -3149,6 +3202,12 @@ classdef Labeler < handle
       %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
       %   index, 2. view index, 3. coord index (x vs y)
       
+       [iMovRead,frmReadCell,tgtsRead] = myparse(varargin,...
+        'iMovRead',[],... % row indices into movID for movies to read/include
+        'frmReadCell',[], ... % [N], or [numel(iMovRead)] if iMovRead supplied. Cell array of frames to read for each movie. If not supplied, all labeled frame/trx are included
+        'tgtsRead','lbl' ... % char. Either 'lbl' to include all labeled targets for each mov/frame read; or 'live' to include all live targets for each mov/frame read
+        );
+      
       s = struct(...
         'mov',cell(0,1),... % single string unique ID for movieSetID combo
         'frm',[],... % 1-based frame index
@@ -3156,7 +3215,7 @@ classdef Labeler < handle
         'pAbs',[],... % Absolute label positions (px). Raster order: physpt,view,{x,y}
         'pRoi',[],... % Like pAbs, but positions relative to roi (px). x==1 => first col of roi.
         'pTS',[],... % [npts=nphyspt*nview] timestamps
-        'tfOcc',[],... % [npts=nphyspt*nview] logical occluded flag
+        'tfocc',[],... % [npts=nphyspt*nview] logical occluded flag
         'pTrx',[],... % [2*nview], trx .x and .y. Raster order: view,{x,y}
         'roi',[]); % [2*2*nview]. Raster order: {lo,hi},{x,y},view
       
@@ -3166,7 +3225,17 @@ classdef Labeler < handle
       szassert(lposTS,[nMov 1]);
       szassert(trxFilesAll,[nMov nView]);
       
-      for iMov = 1:nMov
+      if isequal(iMovRead,[])
+        iMovRead = 1:nMov;
+      end
+      nMovRead = numel(iMovRead);
+      if isequal(frmReadCell,[])
+        frmReadCell = repmat({'all'},nMovRead,1);
+      end
+      assert(iscell(frmReadCell) && numel(frmReadCell)==nMovRead);
+      
+      for iRead = 1:nMovRead
+        iMov = iMovRead(iRead);
 %         if tfWB
 %           hWB.Name = 'Scanning movies';
 %           wbStr = sprintf('Reading movie %s',movID);
@@ -3183,9 +3252,11 @@ classdef Labeler < handle
         szassert(lpostagI,[npts nfrms ntgts]);
         szassert(lposTSI,[npts nfrms ntgts]);
         
+        % load trx for all views
         trxI = cell(1,nView);
+        frm2trx = cell(1,nView);
         for iView=1:nView
-          tfile = trxFilesAll{iView};
+          tfile = trxFilesAll{iMov,iView};
           if exist(tfile,'file')==0
             error('Labeler:file','Cannot find trxfile ''%s''.',tfile);
           end
@@ -3193,20 +3264,50 @@ classdef Labeler < handle
           trx = tmp.trx;
           assert(numel(trx)==ntgts);
           trxI{iView} = trx;
+          frm2trx{iView} = Labeler.trxHlpComputeF2t(nfrms,trx);
         end
+        % In multiview multitarget projs, the each view's trx must contain
+        % the same number of els and these elements must correspond across
+        % views. 
         if nView>1 && isfield(trxI{1},'id')
           trxids = cellfun(@(x)[x.id],trxI,'uni',0);
           assert(isequal(trxids{:}),'Trx ids differ.');
         end
+        frm2trxOverall = frm2trx{1};
+        for iView=2:nView
+          frm2trxOverall = or(frm2trxOverall,frm2trx{iView});
+        end
+        % frm2trxOverall: [nfrm x ntgts] logical array, true at (i,j) iff
+        % target j is live in any view at frame i 
         
 %         if isempty(lpos)
 %           assert(isempty(lpostag));
 %           lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
 %         end
-        for f=1:nfrms
+        frmsRead = frmReadCell{iRead};
+        if ischar(frmsRead) && strcmp(frmsRead,'all')
+          frmsRead = 1:nfrms; %all frames in this movie
+        end
+        nFrmsRead = numel(frmsRead);
+      
+        for iF=1:nFrmsRead
+          f = frmsRead(iF);
           for iTgt=1:ntgts
             lposIFrmTgt = lposI(:,:,f,iTgt);
-            if any(~isnan(lposIFrmTgt(:)))
+            switch tgtsRead
+              case 'lbl'
+                % read if any point (in any view) is labeled for this 
+                % (frame,target)
+                tfReadTgt = any(~isnan(lposIFrmTgt(:)));
+                if tfReadTgt
+                  assert(frm2trxOverall(f,iTgt),'Labeled target is not live.');
+                end
+              case 'live'
+                tfReadTgt = frm2trxOverall(f,iTgt);                
+              otherwise
+                assert(false);
+            end
+            if tfReadTgt
               lpostagIFrmTgt = lpostagI(:,f,iTgt);
               lposTSIFrmTgt = lposTSI(:,f,iTgt);
               
@@ -3226,7 +3327,7 @@ classdef Labeler < handle
                 s(end).pAbs = Shape.xy2vec(lposIFrmTgt);                
                 s(end).pRoi = Shape.xy2vec(lposIFrmTgtRoi);  
                 s(end).pTS = lposTSIFrmTgt';
-                s(end).tfOcc = strcmp(lpostagIFrmTgt','occ');
+                s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
                 s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
                 s(end).roi = roi;
               end

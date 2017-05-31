@@ -44,8 +44,10 @@ classdef CPRParam
       sOld.Model.nviews = nviews;
       
       he = sNew.ROOT.Track.HistEq;
+      tc = sNew.ROOT.Track.TargetCrop;
       sOld.PreProc.histeq = he.Use;
       sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
+      sOld.PreProc.TargetCrop = tc;
       sOld.PreProc.channelsFcn = [];
       
       cpr = sNew.ROOT.CPR;
@@ -102,6 +104,7 @@ classdef CPRParam
       sNew.ROOT.Track.Type = 'cpr';
       sNew.ROOT.Track.HistEq.Use = sOld.PreProc.histeq;
       sNew.ROOT.Track.HistEq.NSampleH0 = sOld.PreProc.histeqH0NumFrames;
+      sNew.ROOT.Track.TargetCrop = sOld.PreProc.TargetCrop;
       assert(isempty(sOld.PreProc.channelsFcn));
       
       sNew.ROOT.CPR.NumMajorIter = sOld.Reg.T;

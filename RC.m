@@ -30,7 +30,15 @@ classdef RC
           save(file,'-struct','tmp');
         end
       end
-    end      
+    end  
+    
+    function reset()
+      % Clear entire RC contents
+      file = RC.FILE;
+      if exist(file,'file')>0
+        delete(file);
+      end
+    end
     
   end
   
