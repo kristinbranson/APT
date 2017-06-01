@@ -109,7 +109,7 @@ classdef MFTable
           warnstr = unique(warnstr);
           cellfun(@(x)warningNoTrace('MFTable:movS','Unexpected movS field: %s.',x),warnstr);
         end
-        tblMF(:,'movS') = [];        
+        tblMF(:,'movS') = [];
       end
     end
     

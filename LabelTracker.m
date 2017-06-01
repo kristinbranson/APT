@@ -187,12 +187,11 @@ classdef LabelTracker < handle
       % Called when Labeler is navigated to a new movie
     end
     
-    % AL 20160715: Don't use/overload me, still rationalizing save/load
     function s = getSaveToken(obj)
       % Get a struct to serialize
       s = struct();
     end
-    % AL 20160715: Don't use/overload me, still rationalizing save/load    
+
     function loadSaveToken(obj,s) %#ok<*INUSD>
       
     end
@@ -260,6 +259,7 @@ classdef LabelTracker < handle
       [~,tblP] = Labeler.lblCompileContentsRaw(labelerObj.movieFilesAllFull,...
         labelerObj.labeledpos,labelerObj.labeledpostag,iMovs,frms,...
         'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
+      tblP.iTgt = ones(height(tblP),1);
     end
     
   end

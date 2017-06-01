@@ -10,8 +10,10 @@ classdef CPRLabelTracker < LabelTracker
     
     DEFAULT_PARAMETER_FILE = lclInitDefaultParameterFile();
     
-    DATA_MD_COLS = {'mov' 'frm' 'iTgt' 'tfocc' 'pTrx' 'roi'};
-  end
+    DATA_INIT_COLS = {'mov' 'frm' 'iTgt' 'p' 'tfocc'};
+    TRNDATA_INIT_COLS = {'mov' 'frm' 'iTgt' 'p' 'tfocc' 'pTS'};
+    TRKRES_INIT_COLS = {'mov' 'frm' 'iTgt'};
+end
   
   properties
     isInit = false; % true during load; invariants can be broken
@@ -232,6 +234,7 @@ classdef CPRLabelTracker < LabelTracker
         [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,...
           labelerObj.labeledpos,labelerObj.labeledpostag,'lbl',...
           'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
+        tblP.iTgt = ones(height(tblP),1);
       end
       
       p = tblP.p;
@@ -278,8 +281,7 @@ classdef CPRLabelTracker < LabelTracker
       % Initialize .data*
       
       I = cell(0,1);
-      tblP = struct2table(struct('mov',cell(0,1),'frm',[],'iTgt',[],...
-        'p',[],'tfocc',[]));
+      tblP = lclInitTable(CPRLabelTracker.DATA_INIT_COLS);
       obj.data = CPRData(I,tblP);
       obj.dataTS = now;
     end
@@ -457,8 +459,7 @@ classdef CPRLabelTracker < LabelTracker
     function trnDataInit(obj)
       obj.trnDataDownSamp = false;
       obj.trnDataFFDThresh = nan;
-      obj.trnDataTblP = struct2table(struct('mov',cell(0,1),...
-        'frm',[],'iTgt',[],'p',[],'tfocc',[],'pTS',[]));
+      obj.trnDataTblP = lclInitTable(CPRLabelTracker.TRNDATA_INIT_COLS);
       obj.trnDataTblPTS = -inf(0,1);
     end
     
@@ -1626,6 +1627,8 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function loadSaveToken(obj,s)
+      % Currently we only call this on new/initted trackers.
+
       if isfield(s,'labelTrackerClass')
         s = rmfield(s,'labelTrackerClass'); % legacy
       end            
@@ -1641,10 +1644,25 @@ classdef CPRLabelTracker < LabelTracker
         % - TestInit:augjitterfac, default val 16
         %
         % A bit of a bind here b/c some parameter state is dup-ed in
-        % RegressorCascade (whoops); we do not want to
-        % reinit RegressorCascade (.trnResRC) for legacy projs, because
-        % legacy projs implicitly used all the above "new" parameters and 
-        % so re-init is not necessary. See hack below.      
+        % RegressorCascade; we do not want to reinit RegressorCascade 
+        % (.trnResRC) for legacy projs, because legacy projs implicitly 
+        % used all the above "new" parameters and so re-init is not 
+        % necessary. See hack below.
+        %
+        % 20170531 
+        % Considered making RegressorCascade.prm* handle objects rather
+        % than structs. Considered either hardcoded handle objects or 
+        % dynamicprops "handle structs". RegressorCascade has a copy of a 
+        % subset of parameters b/c it is standalone-functional (eg without
+        % APT or CPRLabelTracker). So using some kind handle struct shared 
+        % with CPRLabelTracker would be most natural.
+        %
+        % The downsides of using a handle struct are i) maintenance and ii)
+        % (prob very minor) performance. Maintenance is the bigger issue,
+        % the up-to-date parameters with defaults are already provided in
+        % the param.example.yaml and a separate structure would require a
+        % double-update (unless using dynamicprops which is 10x slower than
+        % a struct).
                 
         % Hack, double-update legacy RegressorCascades (.trnResRC).
         rc = s.trnResRC;
@@ -1662,18 +1680,36 @@ classdef CPRLabelTracker < LabelTracker
             rc.prmTrainInit.augjitterfac = 16;
           end
         end
+
+        % 20170531 legacy projs prm.Reg.USE_AL_CORRECTION
+        for i=1:numel(rc)
+          if isfield(rc(i).prmReg,'USE_AL_CORRECTION')
+            rc(i).prmReg = s.sPrm.Reg;
+          end
+        end
       else
         assert(isempty(s.trnResRC));
       end
       
       %%% 20161031 modernize tables: .trnDataTblP, .trkPMD
-      
+      % 20170531 add .iTgt to tables
       % remove .movS field
-      if ~isempty(s.trnDataTblP)
+      if isempty(s.trnDataTblP)
+        % just re-init table
+        s.trnDataTblP  = lclInitTable(CPRLabelTracker.TRNDATA_INIT_COLS);
+      else
         s.trnDataTblP = MFTable.rmMovS(s.trnDataTblP);
+        if ~any(strcmp(s.trnDataTblP.Properties.VariableNames,'iTgt'))
+          s.trnDataTblP.iTgt = ones(height(s.trnDataTblP),1);
+        end
       end
-      if ~isempty(s.trkPMD)
+      if isempty(s.trkPMD)
+        s.trkPMD = lclInitTable(CPRLabelTracker.TRKRES_INIT_COLS);
+      else
         s.trkPMD = MFTable.rmMovS(s.trkPMD);
+        if ~any(strcmp(s.trkPMD.Properties.VariableNames,'iTgt'))
+          s.trkPMD.iTgt = ones(height(s.trkPMD),1);
+        end
       end
       
       allProjMovIDs = FSPath.standardPath(obj.lObj.movieFilesAll);
@@ -1876,8 +1912,8 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkP = [];
       obj.trkPFull = [];
       obj.trkPTS = zeros(0,1);
-      % wrong fields but will get overwritten
-      obj.trkPMD = struct2table(struct('mov',cell(0,1),'frm',[],'iTgt',[])); 
+      % wrong fields but will get overwritten. 20170531 why not use right fields?
+      obj.trkPMD = lclInitTable(CPRLabelTracker.TRKRES_INIT_COLS);
       obj.trkPiPt = [];
     end
     
@@ -2033,8 +2069,34 @@ classdef CPRLabelTracker < LabelTracker
       sPrm0 = ReadYaml(CPRLabelTracker.DEFAULT_PARAMETER_FILE);
     end
     
-    function sPrm = modernizeParams(sPrm)
-      s0 = CPRLabelTracker.readDefaultParams();
+    function sPrm = modernizeParams(sPrm)      
+      % IMPORTANT philisophical note. This CPR parameter-updating-function
+      % currently does not ever alter sPrm in such a way as to invalidate
+      % any previous trained trackers or tracking results based on sPrm.
+      % Instead, parameters may be renamed, new parameters added, etc; but
+      % eg any new parameters added should be added with default values 
+      % that effectively would have been previously used.
+      %
+      % The point is that while most clients of modernizeParams immediately 
+      % call .setParamContentsSmart, loadSaveToken() DOES NOT. There, the 
+      % contents of the saveToken (trained tracker, results etc) are simply
+      % written onto the object. If modernizeParams were to alter the 
+      % parameters "materially" then these assignments would be invalid.
+      %
+      % In the future, if it is necessary to materially alter sPrm, then we
+      % need to return a flag indicating whether a material change has
+      % occurred so that loadSaveToken can react.
+
+      s0 = CPRLabelTracker.readDefaultParams();        
+      if isfield(sPrm.Reg,'USE_AL_CORRECTION')
+        if sPrm.Reg.USE_AL_CORRECTION
+          error('CPRLabelTracker:prm',...
+            'Project contains obsolete CPR tracking parameter Reg.USE_AL_CORRECTION.');
+        end
+        assert(~s0.Reg.rotCorrection.use);
+        sPrm.Reg = rmfield(sPrm.Reg,'USE_AL_CORRECTION');
+      end
+
       [sPrm,s0used] = structoverlay(s0,sPrm);
       if ~isempty(s0used)
         fprintf('Using default parameters for: %s.\n',...
@@ -2143,4 +2205,8 @@ else
   cprroot = fileparts(fileparts(mfilename('fullpath')));
   dpf = fullfile(cprroot,'param.example.yaml');
 end
+end
+
+function t = lclInitTable(cols)
+t = cell2table(cell(0,numel(cols)),'VariableNames',cols);
 end

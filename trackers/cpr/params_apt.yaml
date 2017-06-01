@@ -17,7 +17,7 @@ ROOT:
       - Use: ['Enable',boolean,true,Enable histogram equalization as preprocessing step,false]
       - NSampleH0: ['Num frames sample',unsigned,true,Number of frames to sample to estimate type image histogram,500]
     - TargetCrop:
-      - ['Target cropping','',false,Form target ROIs by cropping about trx,'']
+      - ['Multiple Targets','',false,"When multple targets are present, image patches are cropped from movies based on trajectory data.",'']
       - Radius: ['Target crop radius',unsigned,true,Crop a square with this radius (in pixels) about each target for training/tracking,30]
       - PadBkgd: ['Pad background',unsigned,true,Pad ROIs with this background value (grayscale) if necessary,0]
   - CPR:
