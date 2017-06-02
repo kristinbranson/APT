@@ -18,7 +18,7 @@ classdef OrthoCamCalPair < CalRig
     % issues due to the cameras being at precisely 90deg, etc.
     optCtr1 % [3x1] World coords where cam1 optical axis intersected original WorldSys (cal pattern) at z=0 
     optCtr2 % [3x1] " cam2
-    ijkCamWorld1 % [3x3] columns are "CamWorldCoords" i/j/k unit vecs in WorldSys for cam1; k is negatice optical axis
+    ijkCamWorld1 % [3x3] columns are "CamWorldCoords" i/j/k unit vecs in WorldSys for cam1; k is negative optical axis
     ijkCamWorld2 % "
 
     calNumPatterns % number of calibration patterns used
@@ -62,9 +62,18 @@ classdef OrthoCamCalPair < CalRig
       obj.calTS = now;
     end
     
-    function hFig = viewExtrinsics(obj)
+    function hFig = viewExtrinsics(obj,varargin)
+      firstPatOnly = myparse(varargin,...
+        'firstPatOnly',false);
+      
+      if firstPatOnly
+        iRTVecsPlot = 1;
+      else
+        iRTVecsPlot = 1:size(obj.rvecs,1);
+      end
       hFig = OrthoCam.viewExtrinsics(obj.calWorldPoints,...
-        obj.rvecs,obj.tvecs,obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,...
+        obj.rvecs(iRTVecsPlot,:),obj.tvecs(iRTVecsPlot,:),...
+        obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,...
         'cam1info',struct('optCtr',obj.optCtr1,'n',-obj.ijkCamWorld1(:,3),'ijkCamWorld',obj.ijkCamWorld1),...
         'cam2info',struct('optCtr',obj.optCtr2,'n',-obj.ijkCamWorld2(:,3),'ijkCamWorld',obj.ijkCamWorld2));
     end
@@ -170,6 +179,73 @@ classdef OrthoCamCalPair < CalRig
       ints = obj.tblInt(icam,:);
       pq = OrthoCam.projected2normalized(ints.mx,ints.my,ints.u0,ints.v0,...
         ints.k1,ints.k2,uv);
+    end
+    
+    function [dmu,d,uvcam] = computeRPerr(obj)
+      % dmu: [2] mean of d for cam1, cam2
+      % d: [nPts nPat 2] Eucld RP distance for iPt,iPat,cam
+      % uvcam: [2 nPts nPat 2]. (x,y) x iPt x iPat x (cam1,cam2)
+      
+      nPts = obj.calNumPoints;
+      nPat = obj.calNumPatterns;
+      uvcam = nan(2,nPts,nPat,2); 
+
+      int1 = obj.tblInt(1,:);
+      int2 = obj.tblInt(2,:);
+      patPtsXYZ = obj.calWorldPoints;
+      R2WorldToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1);
+      t2WorldToCam1 = obj.t2vec1;
+      R2WorldToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
+      t2WorldToCam2 = obj.t2vec2;
+      for iPat=1:nPat
+        RPatIToWorld = vision.internal.calibration.rodriguesVectorToMatrix(obj.rvecs(iPat,:)');
+        tPatIToWorld = obj.tvecs(iPat,:)';
+        patPtsWorld = RPatIToWorld*patPtsXYZ + tPatIToWorld;
+        uvcam(:,:,iPat,1) = OrthoCam.project(patPtsWorld,R2WorldToCam1,...
+          t2WorldToCam1,int1.k1,int1.k2,int1.mx,int1.my,int1.u0,int1.v0);
+        uvcam(:,:,iPat,2) = OrthoCam.project(patPtsWorld,R2WorldToCam2,...
+          t2WorldToCam2,int2.k1,int2.k2,int2.mx,int2.my,int2.u0,int2.v0);
+      end
+     
+      d2 = sum((uvcam-obj.calImPoints).^2,1); % [1 nPts nPat 2]
+      d2 = squeeze(d2);
+      szassert(d2,[nPts nPat 2]);      
+      d = sqrt(d2);
+      
+      dtmp = reshape(d,[nPts*nPat 2]);
+      dmu = mean(dtmp);
+    end
+    
+    function invertSH(obj)
+      % Specialized inversion for SH-style rig, where cam1 and cam2 are at
+      % right angles with a common y (down-in-image) axis
+      
+      % extrinsics
+      R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
+      R2(1,:) = -R2(1,:); % x-coord in camera frame flipped
+      obj.r2vec2 = vision.internal.calibration.rodriguesMatrixToVector(R2);      
+      obj.t2vec2(1) = -obj.t2vec2(1);
+      for iPat=1:obj.calNumPatterns
+        r = obj.rvecs(iPat,:);
+        t = obj.tvecs(iPat,:);
+        R = vision.internal.calibration.rodriguesVectorToMatrix(r);
+        R(3,:) = -R(3,:); % all calpats are mirrored z<->-z
+        r = vision.internal.calibration.rodriguesMatrixToVector(R);
+        t(3) = -t(3);
+
+        obj.rvecs(iPat,:) = r;
+        obj.tvecs(iPat,:) = t;
+      end
+      
+      % optCtr1 unchanged
+      % optCtr2 unchanged
+      % ijkCamWorld1 unchanged % [3x3] columns are "CamWorldCoords" i/j/k unit vecs in WorldSys for cam1; k is negatice optical axis
+      ijkCW2 = [-1 0 0;0 1 0;0 0 -1]*obj.ijkCamWorld2; % x,z flipped
+      [~,~,~,~,obj.ijkCamWorld2] = OrthoCam.opticalCenter(R2,obj.t2vec2);
+      fprintf(1,'Manully adjusted ijkCamWorld2: \n');
+      disp(ijkCW2);
+      fprintf(1,'Recomputed ijkCamWorld2: \n');
+      disp(obj.ijkCamWorld2);      
     end
     
   end
