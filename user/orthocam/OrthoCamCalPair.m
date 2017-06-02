@@ -181,25 +181,57 @@ classdef OrthoCamCalPair < CalRig
         ints.k1,ints.k2,uv);
     end
     
-    function [dmu,d,uvcam] = computeRPerr(obj)
+    function [dmu,d,uvcam] = computeRPerr(obj)      
+      [dmu,d,uvcam] = OrthoCamCalPair.computeRPerrStc(obj.r2vec1,obj.t2vec1,...
+        obj.r2vec2,obj.t2vec2,obj.rvecs,obj.tvecs,...
+        obj.tblInt(1,:),obj.tblInt(2,:),obj.calWorldPoints,obj.calImPoints);        
+    end
+    
+  end
+  
+  methods (Static)
+    
+    function [d,dsum] = oFcnStro(p,nPat,patPtsXYZ,patImPts)
+      nPts = size(patPtsXYZ,2);
+      szassert(patPtsXYZ,[3 nPts]);
+      szassert(patImPts,[2 nPts nPat 2]);
+      
+      [int1.mx,int1.my,int1.u0,int1.v0,int1.k1,int1.k2,...
+       int2.mx,int2.my,int2.u0,int2.v0,int2.k1,int2.k2,...
+       r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = ...
+        OrthoCam.unpackParamsStro(p,nPat+1); % quirk of unpackParamsStro
+      [~,d] = OrthoCamCalPair.computeRPerrStc(r2vec1,t2vec1,r2vec2,t2vec2,...
+        rvecs,tvecs,int1,int2,patPtsXYZ,patImPts);
+      d = d(:);
+      dsum = sum(d);
+    end
+    
+    function [dmu,d,uvcam] = computeRPerrStc(r2vec1,t2vec1,r2vec2,t2vec2,...
+        rvecs,tvecs,int1,int2,patPtsXYZ,patImPts)
       % dmu: [2] mean of d for cam1, cam2
       % d: [nPts nPat 2] Eucld RP distance for iPt,iPat,cam
       % uvcam: [2 nPts nPat 2]. (x,y) x iPt x iPat x (cam1,cam2)
       
-      nPts = obj.calNumPoints;
-      nPat = obj.calNumPatterns;
-      uvcam = nan(2,nPts,nPat,2); 
-
-      int1 = obj.tblInt(1,:);
-      int2 = obj.tblInt(2,:);
-      patPtsXYZ = obj.calWorldPoints;
-      R2WorldToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1);
-      t2WorldToCam1 = obj.t2vec1;
-      R2WorldToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
-      t2WorldToCam2 = obj.t2vec2;
+      szassert(r2vec1,[3 1]);
+      szassert(t2vec1,[2 1]);
+      szassert(r2vec2,[3 1]);
+      szassert(t2vec2,[2 1]);
+      nPat = size(rvecs,1);
+      szassert(rvecs,[nPat 3]);
+      szassert(tvecs,[nPat 3]);      
+      nPts = size(patPtsXYZ,2);
+      szassert(patPtsXYZ,[3 nPts]);
+      szassert(patImPts,[2 nPts nPat 2]);
+      
+      R2WorldToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec1);
+      t2WorldToCam1 = t2vec1;
+      R2WorldToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec2);
+      t2WorldToCam2 = t2vec2;
+      
+      uvcam = nan(2,nPts,nPat,2);
       for iPat=1:nPat
-        RPatIToWorld = vision.internal.calibration.rodriguesVectorToMatrix(obj.rvecs(iPat,:)');
-        tPatIToWorld = obj.tvecs(iPat,:)';
+        RPatIToWorld = vision.internal.calibration.rodriguesVectorToMatrix(rvecs(iPat,:)');
+        tPatIToWorld = tvecs(iPat,:)';
         patPtsWorld = RPatIToWorld*patPtsXYZ + tPatIToWorld;
         uvcam(:,:,iPat,1) = OrthoCam.project(patPtsWorld,R2WorldToCam1,...
           t2WorldToCam1,int1.k1,int1.k2,int1.mx,int1.my,int1.u0,int1.v0);
@@ -207,7 +239,7 @@ classdef OrthoCamCalPair < CalRig
           t2WorldToCam2,int2.k1,int2.k2,int2.mx,int2.my,int2.u0,int2.v0);
       end
      
-      d2 = sum((uvcam-obj.calImPoints).^2,1); % [1 nPts nPat 2]
+      d2 = sum((uvcam-patImPts).^2,1); % [1 nPts nPat 2]
       d2 = squeeze(d2);
       szassert(d2,[nPts nPat 2]);      
       d = sqrt(d2);
@@ -215,6 +247,9 @@ classdef OrthoCamCalPair < CalRig
       dtmp = reshape(d,[nPts*nPat 2]);
       dmu = mean(dtmp);
     end
+  end
+  
+  methods
     
     function invertSH(obj)
       % Specialized inversion for SH-style rig, where cam1 and cam2 are at
@@ -222,19 +257,21 @@ classdef OrthoCamCalPair < CalRig
       
       % extrinsics
       R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
-      R2(1,:) = -R2(1,:); % x-coord in camera frame flipped
+      R2(1,:) = -R2(1,:); % x-, z-coord in camera frame flipped
+      R2(3,:) = -R2(3,:);
       obj.r2vec2 = vision.internal.calibration.rodriguesMatrixToVector(R2);      
       obj.t2vec2(1) = -obj.t2vec2(1);
+      c = [4*.1;2.5*.1;0];
+      khat = -obj.ijkCamWorld1(:,3);
       for iPat=1:obj.calNumPatterns
         r = obj.rvecs(iPat,:);
         t = obj.tvecs(iPat,:);
         R = vision.internal.calibration.rodriguesVectorToMatrix(r);
-        R(3,:) = -R(3,:); % all calpats are mirrored z<->-z
-        r = vision.internal.calibration.rodriguesMatrixToVector(R);
-        t(3) = -t(3);
+        [Rp,tp] = OrthoCam.computeDualPattern(R,t(:),c(:),khat(:));
+        rp = vision.internal.calibration.rodriguesMatrixToVector(Rp);
 
-        obj.rvecs(iPat,:) = r;
-        obj.tvecs(iPat,:) = t;
+        obj.rvecs(iPat,:) = rp;
+        obj.tvecs(iPat,:) = tp;
       end
       
       % optCtr1 unchanged
@@ -246,6 +283,36 @@ classdef OrthoCamCalPair < CalRig
       disp(ijkCW2);
       fprintf(1,'Recomputed ijkCamWorld2: \n');
       disp(obj.ijkCamWorld2);      
+    end
+     
+    function pOpt = recalibrate(obj)
+      nPat = obj.calNumPatterns;
+      nPts = obj.calNumPoints;
+      patPtsXYZ = obj.calWorldPoints;
+      patImPts = obj.calImPoints;
+      oFcn = @(p)OrthoCamCalPair.oFcnStro(p,nPat,patPtsXYZ,patImPts);
+
+      int1 = obj.tblInt(1,:);
+      int2 = obj.tblInt(2,:);
+      p0 = OrthoCam.packParamsStro(...
+        int1.mx,int1.my,int1.u0,int1.v0,int1.k1,int1.k2,...
+        int2.mx,int2.my,int2.u0,int2.v0,int2.k1,int2.k2,...
+        obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,obj.rvecs,obj.tvecs);
+
+      [~,dsum0] = oFcn(p0);
+      fprintf('Starting residual: %.4g\n',dsum0);
+      opts = OrthoCam.defaultoptsStro();
+      pOpt = p0;      
+      
+      while 1
+        pOpt = lsqnonlin(oFcn,pOpt,[],[],opts);
+        [~,dsum0] = oFcn(pOpt);
+        if dsum0>1000
+          % none
+        else
+          break;
+        end
+      end
     end
     
   end

@@ -210,6 +210,26 @@ classdef OrthoCam
       end
       el = pi/2-theta;
     end
+    function [Rp,tp,Q2theta] = computeDualPattern(R,t,c,khat)
+      % Compute "dual" pattern extrinsic 
+      %
+      % R: [3x3]. With t, implicitly defines extrinsic position of calpat
+      % t: [3x1].
+      % c: [3x1]. Location of calibration pattern Center in calpat coords
+      % khat: [3x1]. Unit optical vector pointing to cam1 at infinity, in worldcoords
+      
+      nhat = R*[0;0;-1]; % unit normal vector for pattern, in worldcoords
+      ehat = cross(nhat,khat);
+      
+      theta = acos(dot(nhat,khat));
+      Q2theta = vision.internal.calibration.rodriguesVectorToMatrix(2*theta*ehat);
+      % Q2theta rotates pattern into dual pattern
+      
+      Rp = Q2theta*R;
+      tp = -Q2theta*R*c + R*c + t;
+      
+      fprintf(1,'Check: %.3f == 0\n',norm(R*c+t - (Rp*c+tp)));
+    end
     function uv = normalized2projected(mx,my,u0,v0,k1,k2,pq)
       % pq: [2xn]
       % uv: [2xn]
