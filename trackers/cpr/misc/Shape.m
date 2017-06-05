@@ -505,7 +505,11 @@ classdef Shape
         xloylo = roi(:,[1 3]+4*(iView-1)); % [Nx2]
         xloyloArr = reshape(xloylo',[1 2 N]);
         ipts = (1:nPhysPt)+nPhysPt*(iView-1);
-        xy(ipts,:,:) = xyRoi(ipts,:,:) + xloyloArr - 1; % nPhysPtx2xN, scalar expansions
+        if verLessThan('matlab','R2016b')
+          xy(ipts,:,:) = xyRoi(ipts,:,:) + repmat(xloyloArr,[nPhysPt 1 1]) - 1;
+        else
+          xy(ipts,:,:) = xyRoi(ipts,:,:) + xloyloArr - 1; % nPhysPtx2xN, scalar expansions
+        end
       end
     end
     
