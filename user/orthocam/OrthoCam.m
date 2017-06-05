@@ -344,6 +344,115 @@ classdef OrthoCam
       [~,dsum1] = oFcn(pOpt);
       fprintf('Ending residual: %.4g\n',dsum1);
     end
+    
+    function hFig = viewExtrinsics1cam(worldPts,r2vecs,t2vecs,varargin)
+      
+      [dOptAx,cam1info,cam2info] = myparse(varargin,...
+        'dOptAx',10,... % length of optical axis to plot (world coords)
+        'cam1info',[],... % if nonempty, supplemental extrinsics info for cam1. Otherwise, recomputed
+        'cam2info',[]...
+        );                    
+      
+      nPts = size(worldPts,1);
+      szassert(worldPts,[nPts 2]);
+      patPtsXYZ = worldPts';
+      patPtsXYZ(3,:) = 0; % z=0
+      nPat = size(r2vecs,1);
+      szassert(r2vecs,[nPat 3]);
+      szassert(t2vecs,[nPat 2]);
+      
+      % z-depth of patterns is undefined for single-cam. Assume 0, ie
+      % pattern origin is at z=0 in cam sys.
+      t2vecs(:,3) = 0; 
+      
+      hFig = figure('Name','OrthoCam: Calibration Extrinsics');
+      ax = axes;
+      hold(ax,'on');
+      
+      % plot the pats
+      patPtsMins = min(patPtsXYZ,[],2);
+      patPtsMaxs = max(patPtsXYZ,[],2);
+      patX0 = patPtsMins(1);
+      patX1 = patPtsMaxs(1);
+      patY0 = patPtsMins(2);
+      patY1 = patPtsMaxs(2);
+      patZ0 = patPtsMins(3);
+      patZ1 = patPtsMaxs(3);
+      assert(patZ0==patZ1);
+      patPtsCorners = [ ...
+        patX0 patX1 patX1 patX0; ...
+        patY0 patY0 patY1 patY1; ...
+        patZ0 patZ0 patZ0 patZ0; ];
+      clrs = jet(nPat);
+      for iPat=1:nPat
+        RPatI2World = vision.internal.calibration.rodriguesVectorToMatrix(r2vecs(iPat,:)');
+        tPatI2World = t2vecs(iPat,:)';
+        patPtsCornersWorld = RPatI2World*patPtsCorners + tPatI2World;
+        fill3(patPtsCornersWorld(1,:),patPtsCornersWorld(2,:),...
+              patPtsCornersWorld(3,:),clrs(iPat,:),'FaceAlpha',0.5);
+            
+        % plot origin + yaxis in bold
+        orig = patPtsCornersWorld(:,1);
+        plot3(orig(1),orig(2),orig(3),'.','markersize',26,'color',[0 0 0]);
+        plot3(patPtsCornersWorld(1,[1 4]),patPtsCornersWorld(2,[1 4]),...
+          patPtsCornersWorld(3,[1 4]),'-','linewidth',3,'color',[0 0 0]);
+      end
+      
+%       
+%       DX = 1;
+%       optAx1 = [optCtr1 optCtr1+n1*dOptAx];
+%       optAx2 = [optCtr2 optCtr2+n2*dOptAx];
+%       optAx1Plus = optCtr1+n1*(dOptAx+DX);
+%       optAx2Plus = optCtr2+n2*(dOptAx+DX);
+%       optAx1Mid = optCtr1+n1*dOptAx/2; 
+%       optAx2Mid = optCtr2+n2*dOptAx/2;
+%       
+%       plot3(optAx1(1,:),optAx1(2,:),optAx1(3,:),'--','linewidth',2,'color',[0 0 0]);
+%       plot3(optAx2(1,:),optAx2(2,:),optAx2(3,:),'--','linewidth',2,'color',[0 0 0]);      
+%       BROWN = [139 69 19]/255;
+%       text(optAx1Plus(1),optAx1Plus(2),optAx1Plus(3),'C1',...
+%         'fontweight','bold','fontsize',12,'color',BROWN);
+%       text(optAx2Plus(1),optAx2Plus(2),optAx2Plus(3),'C2',...
+%         'fontweight','bold','fontsize',12,'color',BROWN);
+%      
+%       
+%       % Check: x0y0cam1+pxcam1 should project to [1 0] etc
+%       % draw pxcam1,... at dOptAx/2
+%       optAxMid1CamXax = [optAx1Mid optAx1Mid+ijkCam1(:,1)];
+%       optAxMid1CamYax = [optAx1Mid optAx1Mid+ijkCam1(:,2)];
+%       optAxMid2CamXax = [optAx2Mid optAx2Mid+ijkCam2(:,1)];
+%       optAxMid2CamYax = [optAx2Mid optAx2Mid+ijkCam2(:,2)];
+%       optAxMid1CamXaxPlus = optAx1Mid+1.5*ijkCam1(:,1);
+%       optAxMid1CamYaxPlus = optAx1Mid+1.5*ijkCam1(:,2);
+%       optAxMid2CamXaxPlus = optAx2Mid+1.5*ijkCam2(:,1);
+%       optAxMid2CamYaxPlus = optAx2Mid+1.5*ijkCam2(:,2);
+%       
+%       plot3(optAxMid1CamXax(1,:),optAxMid1CamXax(2,:),optAxMid1CamXax(3,:),'b-','linewidth',2);
+%       plot3(optAxMid1CamYax(1,:),optAxMid1CamYax(2,:),optAxMid1CamYax(3,:),'b-','linewidth',2);
+%       plot3(optAxMid2CamXax(1,:),optAxMid2CamXax(2,:),optAxMid2CamXax(3,:),'b-','linewidth',2);
+%       plot3(optAxMid2CamYax(1,:),optAxMid2CamYax(2,:),optAxMid2CamYax(3,:),'b-','linewidth',2);
+%       text(optAxMid1CamXaxPlus(1),optAxMid1CamXaxPlus(2),optAxMid1CamXaxPlus(3),...
+%         'x','fontweight','bold','fontsize',9,'color',[0 0 1]);
+%       text(optAxMid1CamYaxPlus(1),optAxMid1CamYaxPlus(2),optAxMid1CamYaxPlus(3),...
+%         'y','fontweight','bold','fontsize',9,'color',[0 0 1]);
+%       text(optAxMid2CamXaxPlus(1),optAxMid2CamXaxPlus(2),optAxMid2CamXaxPlus(3),...
+%         'x','fontweight','bold','fontsize',9,'color',[0 0 1]);
+%       text(optAxMid2CamYaxPlus(1),optAxMid2CamYaxPlus(2),optAxMid2CamYaxPlus(3),...
+%         'y','fontweight','bold','fontsize',9,'color',[0 0 1]);
+%       
+%       angleInDeg = acos(dot(n1,n2))/pi*180;
+%       grid on;
+%       tstr = sprintf('%d pats. camAngle=%.1f. cam1 (az,el)=(%.2f,%.2f). cam2 (%.2f,%.2f)\n',...
+%         nPat,angleInDeg,az1/pi*180,el1/pi*180,az2/pi*180,el2/pi*180);
+%       title(ax,tstr,'fontweight','bold','interpreter','tex');
+%       xlabel(ax,'x (mm)','fontweight','bold');
+      ylabel(ax,'y (mm)','fontweight','bold');
+      zlabel(ax,'z (mm)','fontweight','bold');  
+      axis(ax,'square');      
+      axis(ax,'equal');
+      view(0,0);
+    end
+
   end
   methods (Static) % stereo calib
     
