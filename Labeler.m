@@ -728,7 +728,8 @@ classdef Labeler < handle
       
       cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       
-      cfg = structoverlay(cfgBase,cfg,'dontWarnUnrecog',true);
+      cfg = structoverlay(cfgBase,cfg,'dontWarnUnrecog',true,...
+        'allowedUnrecogFlds',{'Colors' 'ColorsSets'});
       view = augmentOrTruncateVector(cfg.View,cfg.NumViews);
       cfg.View = view(:);
     end
