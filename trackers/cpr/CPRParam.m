@@ -30,7 +30,7 @@ classdef CPRParam
   
   methods (Static)
     
-    function sOld = new2old(sNew,npts,nviews)
+    function sOld = new2old(sNew,nphyspts,nviews)
       % Convert new-style parameters to old-style parameters. Defaults are
       % used for old fields when appropriate. Some old-style fields that 
       % are currently unnecessary are omitted.
@@ -39,7 +39,7 @@ classdef CPRParam
       
       sOld = struct();
       sOld.Model.name = '';
-      sOld.Model.nfids = npts;
+      sOld.Model.nfids = nphyspts;
       sOld.Model.d = 2;
       sOld.Model.nviews = nviews;
       

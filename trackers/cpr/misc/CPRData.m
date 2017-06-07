@@ -161,7 +161,8 @@ classdef CPRData < handle
             sz = cellfun(@(x)size(x'),Is,'uni',0);
             bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
           else
-            warningNoTrace('CPRData:bb','Multiview CPRData.');
+            warningNoTrace('CPRData:bb',...
+              'Multiview CPRData. Deferring computation of bounding boxes.');
             bb = nan(size(Is,1),0);
           end
         case 3

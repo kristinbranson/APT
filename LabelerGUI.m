@@ -1861,7 +1861,7 @@ if isempty(sPrm)
   % user canceled; none
 else
   RC.saveprop('lastCPRAPTParams',sPrm);
-  sPrm = CPRParam.new2old(sPrm,lObj.nLabelPoints,lObj.nview);
+  sPrm = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
   tObj.setParams(sPrm);  
 end
 
