@@ -718,7 +718,7 @@ if isnan(sldval)
 end
 set(handles.slider_frame,'Value',sldval);
 if ~lObj.isinit
-  handles.labelTLInfo.setCurrFrame(frm);
+  handles.labelTLInfo.newFrame(frm);
 end
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
@@ -731,6 +731,7 @@ lObj = evt.AffectedObject;
 if lObj.hasTrx && ~lObj.isinit
   id = lObj.currTrxID;
   lObj.currImHud.updateTarget(id);
+  lObj.gdata.labelTLInfo.newTarget();
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)

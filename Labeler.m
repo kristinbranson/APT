@@ -261,7 +261,7 @@ classdef Labeler < handle
   properties (SetObservable, AbortSet)
     currMovie;            % idx into .movieFilesAll (row index, when obj.multiView is true)
     prevFrame = nan;      % last previously VISITED frame
-    currTarget = nan;
+    currTarget = nan;     % always 1 if proj doesn't have trx
     
     currImHud; % scalar AxisHUD object TODO: move to LabelerGUI. init: C
   end
