@@ -85,8 +85,11 @@ classdef APT
       
       pdolpath = genpath(pdolroot);
       pdolpath = regexp(pdolpath,pathsep,'split');
-      pdolpath = pdolpath(:);     
-      tfRm = cellfun(@(x)~isempty(regexp(x,'__MACOSX','once')) || isempty(x),pdolpath);
+      pdolpath = pdolpath(:);
+      tfRm = cellfun(@(x) ~isempty(regexp(x,'__MACOSX','once')) || ...
+                          ~isempty(regexp(x,'\.git','once')) || ...
+                          ~isempty(regexp(x,'[\\/]doc[\\/]','once')) || ...
+                          isempty(x), pdolpath);
       pdolpath(tfRm,:) = [];
 
       campath = genpath(camroot);
