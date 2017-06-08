@@ -1794,17 +1794,26 @@ classdef Labeler < handle
       end
     end
     
-    function movieSet(obj,iMov,varargin)
-      % iMov: If multivew, movieSet index (row index into .movieFilesAll)      
+    function tfsuccess = movieCheckFilesExist(obj,iMov) % NOT obj const
+      % Helper function for movieSet(), check that movie/trxfiles exist
+      %
+      % tfsuccess: false indicates user canceled or similar. True indicates
+      % that i) obj.movieFilesAllFull(iMov,:) all exist; ii) if obj.hasTrx,
+      % obj.trxFilesAll(iMov,:) all exist.
+      %
+      % This function can also harderror.
+      %
+      % This function is NOT obj const -- macro-related state can be
+      % mutated eg in multiview projects when the user does something for
+      % movie 1 but then movie 2 errors out. This is not that bad so we
+      % accept it for now.
       
-      %# MVOK
+      tfsuccess = false;
       
-      assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.',iMov);
-      
-      isFirstMovie = myparse(varargin,...
-        'isFirstMovie',false); % passing true for the first time a movie is added to a proj helps the UI
-      
-      % 1. Set the movie
+      if ~all(cellfun(@isempty,obj.trxFilesAll(iMov,:)))
+        assert(~obj.isMultiView,'Multiview labeling with targets unsupported.');
+      end
+                
       for iView = 1:obj.nview
         movfile = obj.movieFilesAll{iMov,iView};
         movfileFull = obj.movieFilesAllFull{iMov,iView};
@@ -1812,7 +1821,6 @@ classdef Labeler < handle
         
         if exist(movfileFull,'file')==0
           tfBrowse = false;
-
           if FSPath.hasMacro(movfile)
             qstr = sprintf('Cannot find movie ''%s'', macro-expanded to ''%s''.',...
               movfile,movfileFull);
@@ -1836,14 +1844,14 @@ classdef Labeler < handle
             end
           else
             qstr = sprintf('Cannot find movie ''%s''.',movfile);
-
+            
             mfaAll = obj.movieFilesAll;
             tfMfaAllHasMacro = cellfun(@FSPath.hasMacro,mfaAll);
             mfaNoMacro = mfaAll(~tfMfaAllHasMacro);
             mfaNoMacroBase = FSPath.commonbase(mfaNoMacro);
             while ~isempty(mfaNoMacroBase) && ...
-                  (mfaNoMacroBase(end)=='/' || mfaNoMacroBase(end)=='\')
-                mfaNoMacroBase = mfaNoMacroBase(1:end-1);
+                (mfaNoMacroBase(end)=='/' || mfaNoMacroBase(end)=='\')
+              mfaNoMacroBase = mfaNoMacroBase(1:end-1);
             end
             if ~isempty(mfaNoMacroBase) && numel(mfaNoMacro)>=3
               resp = questdlg(qstr,'Movie not found','Browse to movie','Create/set path macro','Cancel','Cancel');
@@ -1853,9 +1861,9 @@ classdef Labeler < handle
             if isempty(resp)
               resp = 'Cancel';
             end
-            switch resp             
-              case 'Browse to movie'                
-                tfBrowse = true;                
+            switch resp
+              case 'Browse to movie'
+                tfBrowse = true;
               case 'Create/set path macro'
                 macrostrs = obj.projMacroStrs;
                 if isempty(macrostrs)
@@ -1893,15 +1901,15 @@ classdef Labeler < handle
                     end
                   case 'Use existing macro'
                     assert(false,'Currently unsupported.');
-                    macros = fieldnames(obj.projMacros);
-                    [sel,ok] = listdlg(...
-                      'ListString',macros,...
-                      'SelectionMode','single',...
-                      'Name','Select macro',...
-                      'PromptString',sprintf('Select macro to replace base path %s',mfaNoMacroBase));
-                    if ~ok
-                      return;
-                    end                    
+                    %                     macros = fieldnames(obj.projMacros);
+                    %                     [sel,ok] = listdlg(...
+                    %                       'ListString',macros,...
+                    %                       'SelectionMode','single',...
+                    %                       'Name','Select macro',...
+                    %                       'PromptString',sprintf('Select macro to replace base path %s',mfaNoMacroBase));
+                    %                     if ~ok
+                    %                       return;
+                    %                     end
                   case 'Cancel'
                     return;
                 end
@@ -1926,9 +1934,71 @@ classdef Labeler < handle
             obj.movieFilesAll{iMov,iView} = movfileFull;
           end
           
+          % At this point, either we have i) harderrored, ii)
+          % early-returned with tfsuccess=false, or iii) movfileFull is set
           assert(exist(movfileFull,'file')>0);
-        end
+          assert(strcmp(movfileFull,obj.movieFilesAllFull{iMov,iView}));
+        end        
         
+        trxFile = obj.trxFilesAll{iMov,iView};
+        tfTrx = ~isempty(trxFile);
+        if tfTrx
+          if exist(trxFile,'file')==0
+            qstr = sprintf('Cannot find trxfile ''%s''.',trxFile);
+            resp = questdlg(qstr,'Trx file not found','Browse to trxfile','Cancel','Cancel');
+            if isempty(resp)
+              resp = 'Cancel';
+            end
+            switch resp
+              case 'Browse to trxfile'
+                % none
+              case 'Cancel'
+                return;
+            end
+            
+            lasttrxfile = RC.getprop('lbl_lasttrxfile');
+            if isempty(lasttrxfile)
+              lasttrxfile = RC.getprop('lbl_lastmovie');
+            end
+            if isempty(lasttrxfile)
+              lasttrxfile = pwd;
+            end
+            [newtrxfile,newtrxfilepath] = uigetfile('*.*','Select trxfile',lasttrxfile);
+            if isequal(newtrxfile,0)
+              return;
+            end
+            trxFile = fullfile(newtrxfilepath,newtrxfile);
+            if exist(trxFile,'file')==0
+              error('Labeler:trx','Cannot find trxfile ''%s''.',trxFile);
+            end
+            
+            assert(exist(trxFile,'file')>0);
+            obj.trxFilesAll{iMov,iView} = trxFile;
+          end
+          RC.saveprop('lbl_lasttrxfile',trxFile);
+        end
+      end
+      
+      tfsuccess = true;
+    end
+    
+    function tfsuccess = movieSet(obj,iMov,varargin)
+      % iMov: If multivew, movieSet index (row index into .movieFilesAll)      
+      
+      %# MVOK
+      
+      assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.',iMov);
+      
+      isFirstMovie = myparse(varargin,...
+        'isFirstMovie',false); % passing true for the first time a movie is added to a proj helps the UI
+      
+      tfsuccess = obj.movieCheckFilesExist(iMov); % throws
+      if ~tfsuccess
+        return;
+      end
+      
+      for iView=1:obj.nview
+        movfileFull = obj.movieFilesAllFull{iMov,iView};
         obj.movieReader(iView).open(movfileFull);
         RC.saveprop('lbl_lastmovie',movfileFull);
         if iView==1
@@ -1942,23 +2012,29 @@ classdef Labeler < handle
       obj.currMovie = iMov;
       
       % for fun debugging
-%       obj.gdata.axes_all.addlistener('XLimMode','PreSet',@(s,e)lclTrace('preset'));
-%       obj.gdata.axes_all.addlistener('XLimMode','PostSet',@(s,e)lclTrace('postset'));
+      %       obj.gdata.axes_all.addlistener('XLimMode','PreSet',@(s,e)lclTrace('preset'));
+      %       obj.gdata.axes_all.addlistener('XLimMode','PostSet',@(s,e)lclTrace('postset'));
       obj.setFrameAndTarget(1,1);
       
-      % 2. Set the trx
       trxFile = obj.trxFilesAll{iMov,1};
       tfTrx = ~isempty(trxFile);
       if tfTrx
-        assert(~obj.isMultiView,'Multiview labeling with targets unsupported.');
-        tmp = load(trxFile);
-        obj.trxSet(tmp.trx);
-        %obj.videoSetTargetZoomFac(obj.targetZoomRadiusDefault);
+        assert(~obj.isMultiView,...
+          'Multiview labeling with targets is currently unsupported.');
+        RC.saveprop('lbl_lasttrxfile',trxFile);
+        tmp = load(trxFile,'trx');
+        if isfield(tmp,'trx')
+          trxvar = tmp.trx;
+        else
+          warningNoTrace('Labeler:trx','No ''trx'' variable found in trxfile %s.',trxFile);
+          trxvar = [];
+        end
       else
-        obj.trxSet([]);
+        trxvar = [];
       end
+      obj.trxSet(trxvar);
       obj.trxfile = trxFile; % this must come after .trxSet() call
-      
+        
       obj.isinit = false; % end Initialization hell      
 
       % AL20160615: omg this is the plague.
