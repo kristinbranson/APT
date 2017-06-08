@@ -86,7 +86,10 @@ classdef APT
       pdolpath = genpath(pdolroot);
       pdolpath = regexp(pdolpath,pathsep,'split');
       pdolpath = pdolpath(:);     
-      tfRm = cellfun(@(x)~isempty(regexp(x,'__MACOSX','once')) || isempty(x),pdolpath);
+      tfRm = cellfun(@(x) ~isempty(regexp(x,'__MACOSX','once')) || ...
+                          ~isempty(regexp(x,'\.git','once')) || ...
+                          ~isempty(regexp(x,'[\\/]doc[\\/]','once')) || ...
+                          isempty(x), pdolpath);
       pdolpath(tfRm,:) = [];
 
       campath = genpath(camroot);
@@ -197,7 +200,7 @@ classdef APT
       Ipth = [repmat({'-I'},numel(pth),1) pth];
       Ipth = Ipth';      
       aptroot = APT.Root;
-      cprroot = CPR.Root;
+      cprroot = fullfile(aptroot,'trackers','cpr');
       
       outdir = fullfile(aptroot,proj);
       if exist(outdir,'dir')==0

@@ -469,8 +469,8 @@ I = im2single(Igray);
 % the value of sigma
 sigma = 2; 
 
-%minCornerMetric = 0.15; % threshold for corner metric
-minCornerMetric = 0.02; % threshold for corner metric
+minCornerMetric = 0.15; % threshold for corner metric
+%minCornerMetric =  0.02; % threshold for corner metric
 
 [points, boardSize] = vision.internal.calibration.checkerboard.detectCheckerboard(...
     I, sigma, minCornerMetric);

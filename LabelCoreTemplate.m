@@ -65,7 +65,7 @@ classdef LabelCoreTemplate < LabelCore
 
   properties
     supportsMultiView = false;
-	supportsCalibration = false;
+    supportsCalibration = false;
   end
   
   properties
@@ -255,14 +255,15 @@ classdef LabelCoreTemplate < LabelCore
       tfShft = any(strcmp('shift',modifier));
       
       tfKPused = true;
+      lObj = obj.labeler;
       if any(strcmp(key,{'s' 'space'})) && ~tfCtrl
         if obj.state==LabelState.ADJUST
           obj.acceptLabels();
         end
       elseif any(strcmp(key,{'d' 'equal'}))
-        obj.labeler.frameUp(tfCtrl);
+        lObj.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
-        obj.labeler.frameDown(tfCtrl);
+        lObj.frameDown(tfCtrl);
       elseif strcmp(key,'o') && ~tfCtrl
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel
@@ -275,42 +276,20 @@ classdef LabelCoreTemplate < LabelCore
           xy = obj.getLabelCoordsI(iSel);
           switch key
             case 'leftarrow'
-              xl = xlim(obj.hAx);
-              dx = diff(xl);
-              if tfShift
-                xy(1) = xy(1) - dx/obj.DXFACBIG;
-              else
-                xy(1) = xy(1) - dx/obj.DXFAC;
-              end
-              xy(1) = max(xy(1),1);
+              dxdy = -lObj.videoCurrentRightVec();
             case 'rightarrow'
-              xl = xlim(obj.hAx);
-              dx = diff(xl);
-              if tfShift
-                xy(1) = xy(1) + dx/obj.DXFACBIG;
-              else
-                xy(1) = xy(1) + dx/obj.DXFAC;
-              end
-              xy(1) = min(xy(1),obj.labeler.movienc);
+              dxdy = lObj.videoCurrentRightVec();
             case 'uparrow'
-              yl = ylim(obj.hAx);
-              dy = diff(yl);
-              if tfShift
-                xy(2) = xy(2) - dy/obj.DXFACBIG;
-              else
-                xy(2) = xy(2) - dy/obj.DXFAC;
-              end
-              xy(2) = max(xy(2),1);
+              dxdy = lObj.videoCurrentUpVec();
             case 'downarrow'
-              yl = ylim(obj.hAx);
-              dy = diff(yl);
-              if tfShift
-                xy(2) = xy(2) + dy/obj.DXFACBIG;
-              else
-                xy(2) = xy(2) + dy/obj.DXFAC;
-              end
-              xy(2) = min(xy(2),obj.labeler.movienr);
+              dxdy = -lObj.videoCurrentUpVec();
           end
+          if tfShift
+            xy = xy + dxdy*10;
+          else
+            xy = xy + dxdy;
+          end
+          xy = lObj.videoClipToVideo(xy);
           obj.assignLabelCoordsIRaw(xy,iSel);
           switch obj.state
             case LabelState.ADJUST
@@ -320,15 +299,15 @@ classdef LabelCoreTemplate < LabelCore
           end
         elseif strcmp(key,'leftarrow')
           if tfShft
-            obj.labeler.frameUpNextLbled(true);
+            lObj.frameUpNextLbled(true);
           else
-            obj.labeler.frameDown(tfCtrl);
+            lObj.frameDown(tfCtrl);
           end
         elseif strcmp(key,'rightarrow')
           if tfShft
-            obj.labeler.frameUpNextLbled(false);
+            lObj.frameUpNextLbled(false);
           else
-            obj.labeler.frameUp(tfCtrl);
+            lObj.frameUp(tfCtrl);
           end
         else
           tfKPused = false;
@@ -401,34 +380,7 @@ classdef LabelCoreTemplate < LabelCore
   methods % template
     
     function createTemplate(obj) %#ok<MANU>
-      % Initialize "white pts" via user-clicking
-      
       assert(false,'Currently not called');
-      
-%       obj.enterAdjust(true);
-%       
-%       msg = sprintf('Click to create %d template points.',obj.nPts);
-%       uiwait(msgbox(msg));
-%       
-%       ptsClicked = 0;
-%       axes(obj.hAx);
-%       
-%       while ptsClicked<obj.nPts;
-%         keydown = waitforbuttonpress;
-%         if get(0,'CurrentFigure') ~= obj.hFig
-%           continue;
-%         end
-%         if keydown == 0 && strcmpi(get(obj.hFig,'SelectionType'),'normal'),
-%           tmp = get(obj.hAx,'CurrentPoint');
-%           xy = tmp(1,1:2);
-%           iPt = ptsClicked+1;
-%           LabelCore.setPtsCoords(xy,obj.hPts(iPt),obj.hPtsTxt(iPt));
-%           ptsClicked = iPt;
-%         elseif keydown == 1 && double(get(obj.hFig,'CurrentCharacter')) == 27,
-%           % escape
-%           break;
-%         end
-%       end      
     end
     
     function tt = getTemplate(obj)
@@ -455,10 +407,10 @@ classdef LabelCoreTemplate < LabelCore
       tfHasTrx = lbler.hasTrx;
       
       if tfHasTrx && ~tfTemplateHasTarget
-        warning('LabelCoreTemplate:template',...
+        warningNoTrace('LabelCoreTemplate:template',...
           'Using template saved without target coordinates');
       elseif ~tfHasTrx && tfTemplateHasTarget
-        warning('LabelCoreTemplate:template',...
+        warningNoTrace('LabelCoreTemplate:template',...
           'Template saved with target coordinates.');
       end
         

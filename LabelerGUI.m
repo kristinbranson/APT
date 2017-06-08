@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 19-Dec-2016 06:00:58
+% Last Modified by GUIDE v2.5 28-Apr-2017 13:56:34
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -91,6 +91,14 @@ handles.menu_setup_streamlined = uimenu('Parent',handles.menu_labeling_setup,...
 moveMenuItemAfter(handles.menu_setup_streamlined,...
   handles.menu_setup_set_labeling_point);
 
+handles.menu_view_rotate_video_target_up = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_rotate_video_target_up_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Rotate video so target always points up',...
+  'Tag','menu_view_rotate_video_target_up',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_rotate_video_target_up,...
+  handles.menu_view_trajectories_centervideoontarget);
+
 handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_predictions_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Hide predictions',...
@@ -103,6 +111,21 @@ handles.menu_view_show_replicates = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_show_replicates',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_replicates,handles.menu_view_hide_predictions);
+handles.menu_view_hide_trajectories = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_trajectories_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Hide trajectories',...
+  'Tag','menu_view_hide_trajectories',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_hide_trajectories,handles.menu_view_show_replicates);
+handles.menu_view_plot_trajectories_current_target_only = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_plot_trajectories_current_target_only_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Plot trajectories only for current target',...
+  'Tag','menu_view_plot_trajectories_current_target_only',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_plot_trajectories_current_target_only,...
+  handles.menu_view_hide_trajectories);
+
+delete(handles.menu_view_trajectories);
 
 handles.menu_view_show_tick_labels = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_tick_labels_Callback',hObject,eventdata,guidata(hObject)),...
@@ -110,7 +133,8 @@ handles.menu_view_show_tick_labels = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_show_tick_labels',...
   'Separator','on',...
   'Checked','off');
-moveMenuItemAfter(handles.menu_view_show_tick_labels,handles.menu_view_show_replicates);
+moveMenuItemAfter(handles.menu_view_show_tick_labels,...
+  handles.menu_view_plot_trajectories_current_target_only);
 handles.menu_view_show_grid = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_grid_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Show grid',...
@@ -141,7 +165,8 @@ handles.menu_track_view_tracking_diagnostics = uimenu('Parent',handles.menu_trac
 moveMenuItemAfter(handles.menu_track_view_tracking_diagnostics,handles.menu_track_store_full_tracking);
 
 handles.menu_track_track_and_export.Separator = 'off';
-
+handles.menu_track_setparametersfile.Label = 'Configure tracking parameters';
+handles.menu_track_setparametersfile.Callback = @(hObject,eventdata)LabelerGUI('menu_track_setparametersfile_Callback',hObject,eventdata,guidata(hObject));
 handles.menu_track_use_all_labels_to_train = uimenu(...
   'Parent',handles.menu_track,...
   'Label','Include all labels in training data',...
@@ -151,6 +176,12 @@ handles.menu_track_use_all_labels_to_train = uimenu(...
 moveMenuItemAfter(handles.menu_track_use_all_labels_to_train,handles.menu_track_setparametersfile);
 handles.menu_track_select_training_data.Label = 'Downsample training data';
 moveMenuItemAfter(handles.menu_track_select_training_data,handles.menu_track_use_all_labels_to_train);
+handles.menu_track_training_data_montage = uimenu(...
+  'Parent',handles.menu_track,...
+  'Label','Training Data Montage',...
+  'Tag','menu_track_training_data_montage',...
+  'Callback',@(h,evtdata)LabelerGUI('menu_track_training_data_montage_Callback',h,evtdata,guidata(h)));
+moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
 
 handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
   'Label','Export current tracking results',...
@@ -220,8 +251,6 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
-linkaxes([handles.axes_prev,handles.axes_curr]);
-
 lObj = handles.labelerObj;
 
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
@@ -230,6 +259,9 @@ set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp());
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
+listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescurrXLimChanged(s,e,handles));
+listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescurrXDirChanged(s,e,handles));
+listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
@@ -237,16 +269,18 @@ listeners{end+1,1} = addlistener(lObj,'prevFrame','PostSet',@cbkPrevFrameChanged
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
-listeners{end+1,1} = addlistener(lObj,'targetZoomFac','PostSet',@cbkTargetZoomFacChanged);
+%listeners{end+1,1} = addlistener(lObj,'targetZoomRadius','PostSet',@cbkTargetZoomFacChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
 listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
-listeners{end+1,1} = addlistener(lObj,'showTrxMode','PostSet',@cbkShowTrxModeChanged);
+listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
+listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
+listeners{end+1,1} = addlistener(lObj,'movieRotateTargetUp','PostSet',@cbkMovieRotateTargetUpChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
@@ -256,12 +290,16 @@ listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectModeOn','PostSet',@c
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 handles.listeners = listeners;
 
+hZ = zoom(hObject);
+hZ.ActionPostCallback = @cbkPostZoom;
+
 % These Labeler properties need their callbacks fired to properly init UI.
 % Labeler will read .propsNeedInit from the GUIData to comply.
 handles.propsNeedInit = {
   'labelMode' 
   'suspScore' 
-  'showTrxMode' 
+  'showTrx' 
+  'showTrxCurrTargetOnly'
   'tracker' 
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'movieCenterOnTarget'
@@ -285,6 +323,10 @@ fsz(3) = min(fsz(3),round( (scsz(3)-fsz(1))*0.9));
 fsz(4) = min(fsz(4),round( (scsz(4)-fsz(2))*0.9));
 set(hObject,'Position',fsz);
 set(hObject,'Units','normalized');
+
+handles.sldZoom.Min = 0;
+handles.sldZoom.Max = 1;
+handles.sldZoom.Value = 0;
 
 handles.depHandles = gobjects(0,1);
 
@@ -516,8 +558,17 @@ handles.images_all = ims;
 handles.axes_occ = axsOcc;
 
 axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
- 
-ViewConfig.setCfgOnViews(lObj.projPrefs.View,figs,axs,ims,handles.axes_prev);
+
+% The link destruction/recreation may not be necessary
+if isfield(handles,'hLinkPrevCurr') && isvalid(handles.hLinkPrevCurr)
+  delete(handles.hLinkPrevCurr);
+end
+viewCfg = lObj.projPrefs.View;
+handles.newProjAxLimsSetInConfig = hlpSetConfigOnViews(viewCfg,handles,...
+  viewCfg(1).CenterOnTarget); % lObj.CenterOnTarget is not set yet
+AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
+handles.hLinkPrevCurr = ...
+  linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
 
 arrayfun(@(x)colormap(x,gray),figs);
 viewNames = lObj.viewNames;
@@ -537,8 +588,12 @@ end
 % for i=2:numel(figs)
 %   figs(i).ResizeFcn = @cbkAuxAxResize;
 % end
-% %arrayfun(@(x)axis(x,'auto'),ax);
+% for i=1:numel(axs)
+%   zoomOutFullView(axs(i),[],true);
+% end
 
+arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
+arrayfun(@(x)pan(x,'off'),handles.figs_all);
 hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
@@ -560,17 +615,55 @@ guidata(handles.figure,handles);
 function cbkNewMovie(src,evt)
 lObj = src;
 handles = lObj.gdata;
-movRdrs = lObj.movieReader;
-ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
+%movRdrs = lObj.movieReader;
+%ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
 hAxs = handles.axes_all;
-hIms = handles.images_all;
-assert(isequal(lObj.nview,numel(ims),numel(hAxs),numel(hIms)));
+hIms = handles.images_all; % Labeler has already loaded with first frame
+assert(isequal(lObj.nview,numel(hAxs),numel(hIms)));
 
-for iView = 1:lObj.nview	
-	set(hIms(iView),'CData',ims{iView});
+tfResetAxLims = evt.isFirstMovieOfProject || lObj.movieRotateTargetUp;
+tfResetAxLims = repmat(tfResetAxLims,lObj.nview,1);
+if isfield(handles,'newProjAxLimsSetInConfig')
+  % AL20170520 Legacy projects did not save their axis lims in the .lbl
+  % file. 
+  tfResetAxLims = tfResetAxLims | ~handles.newProjAxLimsSetInConfig;
+  handles = rmfield(handles,'newProjAxLimsSetInConfig');
+end
+tfResetCLims = evt.isFirstMovieOfProject;
+
+% Deal with Axis and Color limits.
+for iView = 1:lObj.nview	  
+  % AL20170518. Different scenarios leads to different desired behavior
+  % here:
+  %
+  % 1. User created a new project (without specifying axis lims in the cfg)
+  % and added the first movie. Here, ViewConfig.setCfgOnViews should have
+  % set .X/YLimMode to 'auto', so that the axis would  rescale for the 
+  % first frame to be shown. However, given the practical vagaries of 
+  % initialization, it is too fragile to rely on this. Instead, in the case 
+  % of a first-movie-of-a-proj, we explicitly zoom the axes out to fit the 
+  % image.
+  %
+  % 2. User changed movies in an existing project (no targets).
+  % Here, the user has already set axis limits appropriately so we do not
+  % want to touch the axis limits.
+  %
+  % 3. User changed movies in an existing project with targets and 
+  % Center/Rotate Movie on Target is on. 
+  % Here, the user will probably appreciate a wide/full view before zooming
+  % back into a target.
+  %
+  % 4. User changed movies in an eixsting project, except the new movie has
+  % a different size compared to the previous. CURRENTLY THIS IS
+  % 'UNSUPPORTED' ie we don't attempt to make this behave nicely. The vast
+  % majority of projects will have movies of a given/fixed size.
   
-  % Right now we leave axis lims as-is. The large majority of the time,
-  % the new movie will have the same size as the old.
+  if tfResetAxLims(iView)
+    zoomOutFullView(hAxs(iView),hIms(iView),true);
+  end
+  if tfResetCLims
+    hAxs(iView).CLimMode = 'auto';
+  end
 end
 
 handles.labelTLInfo.initNewMovie();
@@ -580,12 +673,38 @@ nframes = lObj.nframes;
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
 
-function zoomOutFullView(hAx,hIm)
-set(hAx,...
-  'XLim',[.5,size(hIm.CData,2)+.5],...
-  'YLim',[.5,size(hIm.CData,1)+.5]);
+ifo = lObj.movieInfoAll{lObj.currMovie,1}.info;
+minzoomrad = 10;
+maxzoomrad = (ifo.nc+ifo.nr)/4;
+handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
+
+TRX_MENUS = {...
+  'menu_view_trajectories_centervideoontarget'
+  'menu_view_rotate_video_target_up'
+  'menu_view_hide_trajectories'
+  'menu_view_plot_trajectories_current_target_only'
+  'tblTrx'};
+onOff = onIff(lObj.hasTrx);
+cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
+
+guidata(handles.figure,handles);
+
+function zoomOutFullView(hAx,hIm,resetCamUpVec)
+if isequal(hIm,[])
+  axis(hAx,'auto');
+else
+  set(hAx,...
+    'XLim',[.5,size(hIm.CData,2)+.5],...
+    'YLim',[.5,size(hIm.CData,1)+.5]);
+end
 axis(hAx,'image');
 zoom(hAx,'reset');
+if resetCamUpVec
+  hAx.CameraUpVectorMode = 'auto';
+end
+hAx.CameraViewAngleMode = 'auto';
+hAx.CameraPositionMode = 'auto';
+hAx.CameraTargetMode = 'auto';
 
 function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -599,7 +718,7 @@ if isnan(sldval)
 end
 set(handles.slider_frame,'Value',sldval);
 if ~lObj.isinit
-  handles.labelTLInfo.setCurrFrame(frm);
+  handles.labelTLInfo.newFrame(frm);
 end
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
@@ -609,9 +728,10 @@ set(lObj.gdata.txPrevIm,'String',num2str(frm));
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
-if lObj.hasTrx
+if lObj.hasTrx && ~lObj.isinit
   id = lObj.currTrxID;
   lObj.currImHud.updateTarget(id);
+  lObj.gdata.labelTLInfo.newTarget();
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
@@ -685,10 +805,10 @@ lc = lObj.lblCore;
 tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
 handles.menu_view_show_3D_axes.Enable = onIff(tfShow3DAxes);
 
-function cbkTargetZoomFacChanged(src,evt)
-lObj = evt.AffectedObject;
-zf = lObj.targetZoomFac;
-set(lObj.gdata.sldZoom,'Value',zf);
+% function cbkTargetZoomFacChanged(src,evt)
+% lObj = evt.AffectedObject;
+% zf = lObj.targetZoomFac;
+% set(lObj.gdata.sldZoom,'Value',zf);
 
 function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -810,27 +930,12 @@ end
 %   lObj.currImHud.updateSusp(ss);
 % end
 
-function cbkShowTrxModeChanged(src,evt)
-lObj = evt.AffectedObject;
-handles = lObj.gdata;
-handles.menu_view_trajectories_showall.Checked = 'off';
-handles.menu_view_trajectories_showcurrent.Checked = 'off';
-handles.menu_view_trajectories_dontshow.Checked = 'off';
-switch lObj.showTrxMode
-  case ShowTrxMode.NONE
-    handles.menu_view_trajectories_dontshow.Checked = 'on';
-  case ShowTrxMode.CURRENT
-    handles.menu_view_trajectories_showcurrent.Checked = 'on';
-  case ShowTrxMode.ALL
-    handles.menu_view_trajectories_showall.Checked = 'on';
-end
-
 function cbkTrackerChanged(src,evt)
 lObj = evt.AffectedObject;
 tf = ~isempty(lObj.tracker);
 onOff = onIff(tf);
 handles = lObj.gdata;
-%handles.menu_track.Enable = onOff;
+handles.menu_track.Enable = onOff;
 handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
 if tf
@@ -863,6 +968,23 @@ tf = lObj.movieCenterOnTarget;
 mnu = lObj.gdata.menu_view_trajectories_centervideoontarget;
 mnu.Checked = onIff(tf);
 
+function cbkMovieRotateTargetUpChanged(src,evt)
+lObj = evt.AffectedObject;
+tf = lObj.movieRotateTargetUp;
+if tf
+  ax = lObj.gdata.axes_curr;
+  warnst = warning('off','LabelerGUI:axDir');
+  for f={'XDir' 'YDir'},f=f{1}; %#ok<FXSET>
+    if strcmp(ax.(f),'reverse')
+      warningNoTrace('LabelerGUI:ax','Setting main axis .%s to ''normal''.',f);
+      ax.(f) = 'normal';
+    end
+  end
+  warning(warnst);
+end
+mnu = lObj.gdata.menu_view_rotate_video_target_up;
+mnu.Checked = onIff(tf);
+
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
@@ -870,15 +992,24 @@ handles = guidata(hObject);
 lObj = handles.labelerObj;
 v = get(hObject,'Value');
 f = round(1 + v * (lObj.nframes - 1));
+
 cmod = handles.figure.CurrentModifier;
 if ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}))
   if f>lObj.currFrame
-    lObj.frameUp(true);
+    tfSetOccurred = lObj.frameUp(true);
   else
-    lObj.frameDown(true);
-  end  
+    tfSetOccurred = lObj.frameDown(true);
+  end
 else
-  lObj.setFrame(f);
+  tfSetOccurred = lObj.setFrameProtected(f);
+end
+  
+if ~tfSetOccurred
+  sldval = (lObj.currFrame-1)/(lObj.nframes-1);
+  if isnan(sldval)
+    sldval = 0;
+  end
+  set(hObject,'Value',sldval);
 end
 
 function slider_frame_CreateFcn(hObject,~,~)
@@ -895,6 +1026,12 @@ if isnan(f)
   return;
 end
 f = min(max(1,round(f)),lObj.nframes);
+if ~lObj.trxCheckFramesLive(f)
+  set(hObject,'String',num2str(lObj.currFrame));
+  warnstr = sprintf('Frame %d is out-of-range for current target.',f);
+  warndlg(warnstr,'Out of range');
+  return;
+end
 set(hObject,'String',num2str(f));
 if f ~= lObj.currFrame
   lObj.setFrame(f)
@@ -941,13 +1078,28 @@ function tblTrx_CellSelectionCallback(hObject, eventdata, handles) %#ok<*DEFNU>
 % eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
 %	Indices: row and column indices of the cell(s) currently selecteds
 % handles    structure with handles and user data (see GUIDATA)
+
+% Current/last row selection is maintained in hObject.UserData
+
 lObj = handles.labelerObj;
-row = eventdata.Indices;
-if ~isempty(row)
-  row = row(1);
-  dat = get(hObject,'Data');
-  id = dat{row,1};
+if ~lObj.hasTrx
+  return;
+end
+
+rows = eventdata.Indices(:,1);
+rowsprev = hObject.UserData;
+hObject.UserData = rows;
+dat = hObject.Data;
+
+if isscalar(rows)
+  id = dat{rows(1),1};
   lObj.setTargetID(id);
+  lObj.labelsOtherTargetHideAll();
+else
+  % addon to existing selection
+  rowsnew = setdiff(rows,rowsprev);  
+  idsnew = cell2mat(dat(rowsnew,1));
+  lObj.labelsOtherTargetShowIDs(idsnew);
 end
 
 hlpRemoveFocus(hObject,handles);
@@ -983,16 +1135,88 @@ end
 
 hlpRemoveFocus(hObject,handles);
 
+% 20170428
+% Notes -- Zooms Views Angles et al
+% 
+% Zoom.
+% In APT we refer to the "zoom" as effective magnification determined by 
+% the axis limits, ie how many pixels are shown along x and y. Currently
+% the pixels and axis are always square.
+% 
+% The zoom level can be adjusted in a variety of ways: via the zoom slider,
+% the Unzoom button, the manual zoom tools in the toolbar, or 
+% View > Zoom out. 
+%
+% Camroll.
+% When Trx are available, the movie can be rotated so that the Trx are
+% always at a given orientation (currently, "up"). This is achieved by
+% "camrolling" the axes, ie setting axes.CameraUpVector. Currently
+% manually camrolling is not available.
+%
+% CamViewAngle.
+% The CameraViewAngle is the AOV of the 'camera' viewing the axes. When
+% "camroll" is off (either there are no Trx, or rotateSoTargetIsUp is
+% off), axis.CameraViewAngleMode is set to 'auto' and MATLAB selects a
+% CameraViewAngle so that the axis fills its outerposition. When camroll is
+% on, MATLAB by default chooses a CameraViewAngle that is relatively wide, 
+% so that the square axes is very visible as it rotates around. This is a
+% bit distracting so currently we choose a smaller CamViewAngle (very 
+% arbitrarily). There may be a better way to handle this.
+
+function axescurrXLimChanged(hObject,eventdata,handles)
+% log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
+ax = eventdata.AffectedObject;
+radius = diff(ax.XLim)/2;
+hSld = handles.sldZoom;
+if ~isempty(hSld.UserData) % empty during init
+  userdata = hSld.UserData;
+  logzoomradmin = userdata(1);
+  logzoomradmax = userdata(2);
+  sldval = (log(radius)-logzoomradmax)/(logzoomradmin-logzoomradmax);
+  sldval = min(max(sldval,0),1);
+  hSld.Value = sldval;
+end
+function axescurrXDirChanged(hObject,eventdata,handles)
+videoRotateTargetUpAxisDirCheckWarn(handles);
+function axescurrYDirChanged(hObject,eventdata,handles)
+videoRotateTargetUpAxisDirCheckWarn(handles);
+function videoRotateTargetUpAxisDirCheckWarn(handles)
+ax = handles.axes_curr;
+if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'reverse')) && ...
+    handles.labelerObj.movieRotateTargetUp
+  warningNoTrace('LabelerGUI:axDir',...
+    'Main axis ''XDir'' or ''YDir'' is set to ''reverse'' and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
+end
+
 function sldZoom_Callback(hObject, eventdata, ~)
+% log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
 handles = guidata(hObject);
 lObj = handles.labelerObj;
-zoomFac = get(hObject,'Value');
-lObj.videoSetTargetZoomFac(zoomFac);
+v = hObject.Value;
+userdata = hObject.UserData;
+logzoomrad = userdata(2)+v*(userdata(1)-userdata(2));
+zoomRad = exp(logzoomrad);
+lObj.videoZoom(zoomRad);
 hlpRemoveFocus(hObject,handles);
 
+function cbkPostZoom(src,evt)
+if verLessThan('matlab','R2016a')
+  setappdata(src,'manualZoomOccured',true);
+end
+
 function pbResetZoom_Callback(hObject, eventdata, handles)
+hAxs = handles.axes_all;
+hIms = handles.images_all;
+assert(numel(hAxs)==numel(hIms));
+arrayfun(@zoomOutFullView,hAxs,hIms,false(1,numel(hIms)));
+
+function pbSetZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-lObj.videoResetView();
+lObj.targetZoomRadiusDefault = diff(handles.axes_curr.XLim)/2;
+
+function pbRecallZoom_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.videoZoom(lObj.targetZoomRadiusDefault);
 
 function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1060,7 +1284,7 @@ if hlpSave(lObj)
   [~,projName,~] = fileparts(movfile);
   lObj.projNew(projName);
   lObj.movieAdd(movfile,trxfile);
-  lObj.movieSet(1);      
+  lObj.movieSet(1,'isFirstMovie',true);      
 end
 function menu_file_new_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1138,21 +1362,6 @@ if ~lObj.hasMovie
   error('LabelerGUI:noMovie','No movie is loaded.');
 end
 iMov = lObj.currMovie;
-% if lObj.labelposMovieHasLabels(iMov)
-%   resp = questdlg('Current movie has labels that will be overwritten. OK?',...
-%     'Import Labels','OK, Proceed','Cancel','Cancel');
-%   if isempty(resp)
-%     resp = 'Cancel';
-%   end
-%   switch resp
-%     case 'OK, Proceed'
-%       % none
-%     case 'Cancel'
-%       return;
-%     otherwise
-%       assert(false); 
-%   end
-% end
 lObj.labels2ImportTrkPrompt(iMov);
 
 function [tfok,basetrkname] = hlpBasetrkname(lObj)
@@ -1174,15 +1383,13 @@ lObj.labelExportTrk(1:lObj.nmovies,'basefilename',basetrkname);
 function menu_help_Callback(hObject, eventdata, handles)
 
 function menu_help_labeling_actions_Callback(hObject, eventdata, handles)
-
 lblCore = handles.labelerObj.lblCore;
 if isempty(lblCore)
   h = 'Please open a movie first.';
 else
   h = lblCore.getLabelingHelp();
 end
-msgbox(h,'Labeling Actions','help','modal');
-
+msgbox(h,'Labeling Actions','help');
 
 function menu_setup_sequential_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
@@ -1380,15 +1587,29 @@ ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
 
-function menu_view_trajectories_showall_Callback(hObject, eventdata, handles)
-handles.labelerObj.setShowTrxMode(ShowTrxMode.ALL);
-function menu_view_trajectories_showcurrent_Callback(hObject, eventdata, handles)
-handles.labelerObj.setShowTrxMode(ShowTrxMode.CURRENT);
-function menu_view_trajectories_dontshow_Callback(hObject, eventdata, handles)
-handles.labelerObj.setShowTrxMode(ShowTrxMode.NONE);
+function cbkShowTrxChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(~lObj.showTrx);
+handles.menu_view_hide_trajectories.Checked = onOff;
+function cbkShowTrxCurrTargetOnlyChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(lObj.showTrxCurrTargetOnly);
+handles.menu_view_plot_trajectories_current_target_only.Checked = onOff;
+function menu_view_hide_trajectories_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.setShowTrx(~lObj.showTrx);
+function menu_view_plot_trajectories_current_target_only_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.setShowTrxCurrTargetOnly(~lObj.showTrxCurrTargetOnly);
+
 function menu_view_trajectories_centervideoontarget_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.movieCenterOnTarget = ~lObj.movieCenterOnTarget;
+function menu_view_rotate_video_target_up_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.movieRotateTargetUp = ~lObj.movieRotateTargetUp;
 function menu_view_flip_flipud_movie_only_Callback(hObject, eventdata, handles)
 [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(handles);
 if tfproceed
@@ -1404,10 +1625,10 @@ if tfproceed
   for iAx = iAxApply(:)'
     ax = handles.axes_all(iAx);
     ax.YDir = toggleAxisDir(ax.YDir);
-    if ax==handles.axes_curr
-      ax2 = handles.axes_prev;
-      ax2.YDir = toggleAxisDir(ax2.YDir);
-    end
+%     if ax==handles.axes_curr
+%       ax2 = handles.axes_prev;
+%       ax2.YDir = toggleAxisDir(ax2.YDir);
+%     end
   end
 end
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
@@ -1416,25 +1637,40 @@ if tfproceed
   for iAx = iAxApply(:)'
     ax = handles.axes_all(iAx);
     ax.XDir = toggleAxisDir(ax.XDir);
-    if ax==handles.axes_curr
-      ax2 = handles.axes_prev;
-      ax2.XDir = toggleAxisDir(ax2.XDir);
-    end
+%     if ax==handles.axes_curr
+%       ax2 = handles.axes_prev;
+%       ax2.XDir = toggleAxisDir(ax2.XDir);
+%     end
   end
 end
 function menu_view_fit_entire_image_Callback(hObject, eventdata, handles)
 hAxs = handles.axes_all;
 hIms = handles.images_all;
 assert(numel(hAxs)==numel(hIms));
-arrayfun(@zoomOutFullView,hAxs,hIms);
+arrayfun(@zoomOutFullView,hAxs,hIms,true(1,numel(hAxs)));
 
 function menu_view_reset_views_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 viewCfg = lObj.projPrefs.View;
-ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,handles.axes_all,...
-  handles.images_all,handles.axes_prev);
+hlpSetConfigOnViews(viewCfg,handles,lObj.movieCenterOnTarget);
 movInvert = ViewConfig.getMovieInvert(viewCfg);
 lObj.movieInvert = movInvert;
+lObj.movieCenterOnTarget = viewCfg(1).CenterOnTarget;
+lObj.movieRotateTargetUp = viewCfg(1).RotateTargetUp;
+
+function tfAxLimsSpecifiedInCfg = hlpSetConfigOnViews(viewCfg,handles,centerOnTarget)
+axs = handles.axes_all;
+tfAxLimsSpecifiedInCfg = ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,axs,...
+  handles.images_all,handles.axes_prev);
+if ~centerOnTarget
+  [axs.CameraUpVectorMode] = deal('auto');
+  [axs.CameraViewAngleMode] = deal('auto');
+  [axs.CameraTargetMode] = deal('auto');
+  [axs.CameraPositionMode] = deal('auto');
+end
+[axs.DataAspectRatio] = deal([1 1 1]);
+handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axs(1).XTickLabel));
+handles.menu_view_show_grid.Checked = axs(1).XGrid;
 
 function menu_view_hide_labels_Callback(hObject, eventdata, handles)
 lblCore = handles.labelerObj.lblCore;
@@ -1594,17 +1830,40 @@ end
 guidata(hObject,handles);
 
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
-prmFile = RC.getprop('lastCPRParamFile');
-if isempty(prmFile)
-  prmFile = pwd;
+% Really, "configure parameters"
+
+lObj = handles.labelerObj;
+tObj = lObj.tracker;
+assert(~isempty(tObj));
+assert(isa(tObj,'CPRLabelTracker'));
+
+% Start with "new" parameter tree/specification which provides "new"
+% parameters structure, types etc
+prmBaseYaml = fullfile(APT.Root,'trackers','cpr','params_apt.yaml');
+tPrm = parseConfigYaml(prmBaseYaml);
+
+% Now overlay either the current parameters or some other starting pt
+sPrmOld = tObj.getParams(); 
+if isempty(sPrmOld) % eg new tracker
+  sPrmNewOverlay = RC.getprop('lastCPRAPTParams');
+  if isempty(sPrmNewOverlay)
+    sPrmNewOverlay = CPRParam.old2new(CPRLabelTracker.readDefaultParams());
+  end
+else
+  sPrmNewOverlay = CPRParam.old2new(sPrmOld);
 end
-[f,p] = uigetfile('*.yaml','Select CPR tracking parameters file',prmFile);
-if isequal(f,0)
-  return;
+
+tPrm.structapply(sPrmNewOverlay);
+
+sPrm = ParameterSetup(handles.figure,tPrm); % modal
+
+if isempty(sPrm)
+  % user canceled; none
+else
+  RC.saveprop('lastCPRAPTParams',sPrm);
+  sPrm = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
+  tObj.setParams(sPrm);  
 end
-prmFile = fullfile(p,f);
-RC.saveprop('lastCPRParamFile',prmFile);
-handles.labelerObj.setTrackParamFile(prmFile);
 
 function cbkTrackerTrnDataDownSampChanged(src,evt,handles)
 tracker = evt.AffectedObject;
@@ -1654,12 +1913,17 @@ if tObj.hasTrained
 end
 tObj.trnDataSelect();
 
+function menu_track_training_data_montage_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+lObj.tracker.trainingDataMontage();
+
 function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();
 
 function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
-handles.menu_track_store_full_tracking.Checked = ...
-  onIff(handles.labelerObj.tracker.storeFullTracking);
+onoff = onIff(handles.labelerObj.tracker.storeFullTracking);
+handles.menu_track_store_full_tracking.Checked = onoff;
+handles.menu_track_view_tracking_diagnostics.Enable = onoff;
 
 function menu_track_store_full_tracking_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
@@ -1681,6 +1945,10 @@ tObj.storeFullTracking = sftnew;
 
 function menu_track_view_tracking_diagnostics_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
+
+if lObj.hasTrx
+  error('LabelerGUI:trx','Currently unsupported for multitarget projects.');
+end
 
 % Look for existing/open CPRVizTrackDiagsGUI
 for i=1:numel(handles.depHandles)
@@ -1737,7 +2005,8 @@ function menu_track_set_labels_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
 if ~isempty(tObj)
-  xy = tObj.getCurrentPrediction();
+  xy = tObj.getPredictionCurrentFrame();
+  xy = xy(:,:,lObj.currTarget); % "targets" treatment differs from below
   if any(isnan(xy(:)))
     fprintf('No predictions for current frame, not labeling.\n');
     return;
@@ -1758,7 +2027,7 @@ else
     error('LabelerGUI:setLabels','No movie open.');
   end
   lpos2 = lObj.labeledpos2{iMov};
-  assert(size(lpos2,4)==1);
+  assert(size(lpos2,4)==1); % "targets" treatment differs from above
   lpos2xy = lpos2(:,:,frm);
   lObj.labelPosSet(lpos2xy);
   
@@ -1792,3 +2061,4 @@ function pumInfo_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+

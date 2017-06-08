@@ -269,7 +269,7 @@ function [hPropsPane,parameters] = propertiesGUI(hParent, parameters, filename, 
       wasFigCreated = true;
   else
       % Set the component's position
-      drawnow;
+      drawnow nocallbacks;
       pos = getpixelposition(hParent);
       pos(1:2) = 5;
       pos = pos - [0,0,10,10];
@@ -1064,7 +1064,7 @@ function checkProps(propsList, hContainer, isInit)
     set(btOK, 'Enable',okEnabled);
     set(findall(get(hContainer,'parent'), 'tag','btApply'),  'Enable',okEnabled);
     set(findall(get(hContainer,'parent'), 'tag','btRevert'), 'Enable',okEnabled);
-    try; drawnow; pause(0.01); end
+    try; drawnow nocallbacks; pause(0.01); end
 
     % Update the figure title to indicate dirty-ness (if the figure is visible)
     hFig = ancestor(hContainer,'figure');

@@ -41,11 +41,10 @@ F = size(ftrs,2);
 b = rand(D,S)*2-1; 
 b = bsxfun(@rdivide,b,sqrt(sum(b.^2,1))); % [DxS], each col is a D-dim unit vec
 
-if isfield(ftrPrm,'nsample_cor')
-  nsample = ftrPrm.nsample_cor;
-else
-  nsample = N;
-end
+
+assert(isfield(ftrPrm,'nsample_cor'));
+nsample = ftrPrm.nsample_cor;
+
 if nsample < N
   dosample = rand(N,1) <= nsample/N;
 else

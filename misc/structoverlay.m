@@ -14,10 +14,13 @@ function [s,baseused] = structoverlay(sbase,sover,varargin)
 % .topfield.subfield.
 % - 'dontWarnUnrecog'. Logical scalar, defaults to false. If true, don't 
 % throw unrecognized field warning.
+% - 'allowedUnrecogFlds'. Cellstr, fields that may not be in sbase but
+% which will be included in s
 
-[path,dontWarnUnrecog] = myparse(varargin,...
+[path,dontWarnUnrecog,allowedUnrecogFlds] = myparse(varargin,...
   'path','',...
-  'dontWarnUnrecog',false);
+  'dontWarnUnrecog',false,...
+  'allowedUnrecogFlds',cell(1,0));
 fldsBase = fieldnames(sbase);
 fldsOver = fieldnames(sover);
 baseused = setdiff(fldsBase,fldsOver);
@@ -25,10 +28,14 @@ baseused = strcat(path,'.',baseused(:));
 
 for f = fldsOver(:)',f=f{1}; %#ok<FXSET>
   newpath = [path '.' f];
-  if ~isfield(sbase,f) 
-    if ~dontWarnUnrecog
-      warning('structoverlay:unrecognizedfield','Ignoring unrecognized field ''%s''.',...
-        newpath);
+  if ~isfield(sbase,f)
+    if any(strcmp(f,allowedUnrecogFlds))
+      sbase.(f) = sover.(f);
+    else
+      if ~dontWarnUnrecog
+        warning('structoverlay:unrecognizedfield','Ignoring unrecognized field ''%s''.',...
+         newpath);
+      end
     end
   elseif isstruct(sbase.(f)) && isstruct(sover.(f))
     assert(isscalar(sbase.(f)));
@@ -36,17 +43,20 @@ for f = fldsOver(:)',f=f{1}; %#ok<FXSET>
     numOver = numel(sover.(f));
     assert(numOver>0);
     sbaseEl = sbase.(f);
+    sbase.(f) = [];
     for i=1:numOver
       newpathindexed = [newpath sprintf('(%d)',i)];
-      [sbase.(f)(i),tmpBU] = structoverlay(...
+      [newEl,newBU] = structoverlay( ...
         sbaseEl,sover.(f)(i),...
         'path',newpathindexed,...
-        'dontWarnUnrecog',dontWarnUnrecog);
-      baseused = [baseused;tmpBU]; %#ok<AGROW>
+        'dontWarnUnrecog',dontWarnUnrecog,...
+        'allowedUnrecogFlds',allowedUnrecogFlds);
+      sbase.(f) = structappend(sbase.(f),newEl,1);
+      baseused = [baseused;newBU]; %#ok<AGROW>
     end
   elseif isstruct(sbase.(f)) && ~isstruct(sover.(f))
     warning('structoverlay:badval','Ignoring non-struct value of ''%s''.',...
-      newpath);
+      newpath );
     baseused{end+1,1} = newpath; %#ok<AGROW>
   else % sbase.(f) is not a struct
     sbase.(f) = sover.(f);

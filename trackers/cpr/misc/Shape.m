@@ -426,7 +426,125 @@ classdef Shape
       d = squeeze(d); % [NxnptxRT]
       
       dav = squeeze(nanmean(d,2)); % [NxRT]      
-    end        
+    end
+    
+    function [roi,tfOOBview,xyRoi] = xyAndTrx2ROI(xy,trx,nphysPts,frm,iTgt,radius)
+      % Generate ROI/bounding boxes from shape and trx
+      %
+      % Currently we do this with a fixed radius and warn if a shape is
+      % outside.
+      % 
+      % xy: [nptx2] xy coords. npt=nphysPts*nview, raster order is 
+      %   ipt,iview. Can be nans
+      % trx: [1xnview] cell array of trx structures for each view
+      % nphysPts: scalar
+      % frm: 
+      % iTgt: scalar index into trx
+      % radius: roi square radius, in px, must be integer
+      %
+      % roi: [1x4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
+      %   Square roi based on trx(iTgt) at frm.
+      %   NOTE: roi may be outside range of image, eg xlo could be negative
+      %   or xhi could exceed number of cols.
+      % tfOOBview: [1xnview] logical. If true, shape is out-of-bounds of
+      %   trx ROI box in that view. A shape with nan coords is not 
+      %   considered OOB.
+      % xyRoi: [nptx2] xy coords relatvive to ROIs; x==1 => first col of
+      %   ROI etc.
+      
+      [npt,d] = size(xy);
+      assert(d==2);
+      nview = npt/nphysPts;
+      szassert(trx,[1 nview]);
+      validateattributes(radius,{'numeric'},{'positive' 'integer'});
+      
+      roi = nan(1,4*nview);
+      tfOOBview = false(1,nview);
+      xyRoi = nan(npt,2);
+      for iview=1:nview
+        trxI = trx{iview}(iTgt);
+        trxIdx = frm+trxI.off;
+        x0 = round(trxI.x(trxIdx));
+        y0 = round(trxI.y(trxIdx));
+        xlo = x0-radius;
+        xhi = x0+radius;
+        ylo = y0-radius;
+        yhi = y0+radius;
+        
+        ipts = (1:nphysPts)+nphysPts*(iview-1);
+        xs = xy(ipts,1);
+        ys = xy(ipts,2);
+        tfOOBx = xs<xlo | xs>xhi;
+        tfOOBy = ys<ylo | ys>yhi;
+
+        roi((1:4)+4*(iview-1)) = [xlo xhi ylo yhi];
+        tfOOBview(iview) = any(tfOOBx) || any(tfOOBy);
+        xyRoi(ipts,1) = xs-xlo+1;
+        xyRoi(ipts,2) = ys-ylo+1;
+      end
+    end
+    
+    function xy = xyRoi2xy(xyRoi,roi)
+      % Convert relative/roi xy to absolute xy
+      %
+      % xyRoi: [nptx2xN] xy coords relative to roi. npt=nphyspt*nview, with
+      %   that raster order
+      % roi: [Nx4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
+      %
+      % xy: [nptx2xN] xy coords, absolute.
+      
+      [npt,d,N] = size(xyRoi);
+      assert(d==2);
+      assert(size(roi,1)==N);
+      nView = size(roi,2)/4;
+      nPhysPt = npt/nView;
+      assert(round(nView)==nView && round(nPhysPt)==nPhysPt);
+      
+      xy = nan(npt,2,N);
+      for iView=1:nView
+        xloylo = roi(:,[1 3]+4*(iView-1)); % [Nx2]
+        xloyloArr = reshape(xloylo',[1 2 N]);
+        ipts = (1:nPhysPt)+nPhysPt*(iView-1);
+        if verLessThan('matlab','R2016b')
+          xy(ipts,:,:) = xyRoi(ipts,:,:) + repmat(xloyloArr,[nPhysPt 1 1]) - 1;
+        else
+          xy(ipts,:,:) = xyRoi(ipts,:,:) + xloyloArr - 1; % nPhysPtx2xN, scalar expansions
+        end
+      end
+    end
+    
+    function radii = suggestROIradius(xy,nphysPts)
+      % Suggest an ROI radius for xyAndTrx2ROI
+      %
+      % xy: [nptx2xN] xy coords (row raster order: physpt,view)
+      % nphysPts: scalar
+      %
+      % radii: [1xnview] roi square radius, in px, for each view
+
+      [npt,d,N] = size(xy);
+      assert(d==2);
+      nview = npt/nphysPts;
+      radii = nan(1,nview);
+      if npt==0
+        warningNoTrace('Shape:empty','Empty xy supplied.');
+        return;
+      end
+      
+      xy = permute(xy,[1 3 2]); % [npt x N x 2]
+      xy = reshape(xy,nphysPts,nview,N,2);
+      xy = permute(xy,[1 3 2 4]); % [nphysPts x N x nview x 2]
+      
+      xyCentroid = median(xy,1); % [1 x N x nview x 2] median for each shape/view/coord
+      xy = xy-xyCentroid; % de-centroided
+      xy = reshape(xy,[nphysPts*N,nview,2]);
+      xymaxdev = max(abs(xy),[],1); % [1 x nview x 2], max abs deviation from centroid
+      
+      radii = reshape(xymaxdev,[nview 2]);
+      radii = max(radii,[],2);
+      szassert(radii,[nview 1]);
+      radii = radii';
+    end
+    
   end
   
   %% Visualization
@@ -520,7 +638,107 @@ classdef Shape
           'verticalalignment','top','interpreter','none');
       end
     end
-    
+
+    function montage(I,p,varargin)
+      % Visualize many Images+Shapes from a Trial set
+      % 
+      % I: [N] cell vec of images, all same size
+      % p: [NxD] shapes
+      %
+      % optional pvs
+      % fig - handle to figure to use
+      % nr, nc - subplot size
+      % idxs - indices of images to plot; must have nr*nc els. if 
+      %   unspecified, these are randomly selected.
+      % framelbls
+      % labelpts - if true, number landmarks. default false
+      % md - optional, table of MD for I
+      
+      opts.fig = [];
+      opts.nr = 4;
+      opts.nc = 5;
+      opts.idxs = [];
+      opts.framelbls = [];
+      opts.labelpts = false;
+      opts.md = [];
+      opts = getPrmDfltStruct(varargin,opts);
+      if isempty(opts.fig)
+        opts.fig = figure('windowstyle','docked');
+      else
+        figure(opts.fig);
+        clf;
+      end
+      tfMD = ~isempty(opts.md);
+      
+      N = numel(I);
+      assert(size(p,1)==N);
+      npts = size(p,2)/2;
+      if tfMD
+        assert(size(opts.md,1)==N);
+      end
+      
+      naxes = opts.nr*opts.nc;
+      if isempty(opts.idxs)
+        nplot = naxes;
+        iPlot = randsample(N,nplot);
+      else
+        nplot = numel(opts.idxs);
+        assert(nplot<=naxes,...
+          'Number of ''idxs'' specified must be <= nr*nc=%d.',naxes);
+        iPlot = opts.idxs;
+      end
+      
+      tfFrameLbls = ~isempty(opts.framelbls);
+      if tfFrameLbls
+        assert(iscellstr(opts.framelbls) && numel(opts.framelbls)==nplot);
+      end
+      
+      [imnr,imnc] = size(I{1});
+      bigIm = nan(imnr*opts.nr,imnc*opts.nc);
+      bigP = nan(npts,2,nplot);
+      for iRow=1:opts.nr
+        for iCol=1:opts.nc
+          iPlt = iCol+opts.nc*(iRow-1);
+          iIm = iPlot(iPlt);          
+          bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1) ) = I{iIm};
+          xytmp = reshape(p(iIm,:),npts,2);
+          xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
+          xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
+          bigP(:,:,iIm) = xytmp;
+        end
+      end
+      
+      imagesc(bigIm);
+      axis image off
+      hold on
+      colormap gray
+      colors = jet(npts);
+      for ipt=1:npts
+        plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...          
+            'wo','MarkerFaceColor',colors(ipt,:));
+      end
+      for iRow=1:opts.nr
+        for iCol=1:opts.nc
+          iPlt = iCol+opts.nc*(iRow-1);
+          iIm = iPlot(iPlt);
+          if tfFrameLbls
+            h = text( 1+imnc*(iCol-1),1.5+imnr*(iRow-1), opts.framelbls{iPlt} );
+            h.Color = [1 1 1];
+          end
+        end
+      end
+      set(opts.fig,'Color',[0 0 0]);
+%         if tfMD
+%           movID = opts.md.movID{hIm};
+%           [~,movS] = myfileparts(movID);
+%           str = sprintf('%d %s f%d',iIm,movS,opts.md.frm(iIm));
+%         else
+%           str = num2str(iIm);
+%         end
+%         text(1,1,str,'parent',hax(iPlt),'color',[1 1 .2],...
+%           'verticalalignment','top','interpreter','none');
+    end
+
     function muFtrDist = vizRepsOverTime(I,pT,iTrl,mdl,varargin)
       % Visualize Replicates over time for a single Trial from a Trial set
       % 
