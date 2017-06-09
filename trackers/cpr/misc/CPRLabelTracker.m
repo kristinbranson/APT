@@ -1681,11 +1681,14 @@ end
           end
         end
 
-        % 20170531 legacy projs prm.Reg.USE_AL_CORRECTION
         for i=1:numel(rc)
+          % 20170531 legacy projs prm.Reg.USE_AL_CORRECTION
           if isfield(rc(i).prmReg,'USE_AL_CORRECTION')
             rc(i).prmReg = s.sPrm.Reg;
           end
+          
+          % 20170609 iss84
+          rc(i).prmTrainInit.augrotate = [];
         end
       else
         assert(isempty(s.trnResRC));
@@ -2092,7 +2095,8 @@ end
       % need to return a flag indicating whether a material change has
       % occurred so that loadSaveToken can react.
 
-      s0 = CPRLabelTracker.readDefaultParams();        
+      s0 = CPRLabelTracker.readDefaultParams();
+      
       if isfield(sPrm.Reg,'USE_AL_CORRECTION')
         if sPrm.Reg.USE_AL_CORRECTION
           error('CPRLabelTracker:prm',...
@@ -2101,7 +2105,7 @@ end
         assert(~s0.Reg.rotCorrection.use);
         sPrm.Reg = rmfield(sPrm.Reg,'USE_AL_CORRECTION');
       end
-
+      
       [sPrm,s0used] = structoverlay(s0,sPrm);
       if ~isempty(s0used)
         fprintf('Using default parameters for: %s.\n',...
@@ -2112,6 +2116,17 @@ end
         % default value on top of existing/legacy empty [] value.
         sPrm.Model.nviews = 1;
       end      
+      
+      % 20170609 iss84. Reg.rotCorrection.use is now the master flag wrt
+      % rotations. For now we leave TrainInit.augrotate and
+      % TestInit.augrotate present (but empty).
+      if ~isempty(sPrm.TrainInit.augrotate) || ~isempty(sPrm.TestInit.augrotate)
+        assert(isequal(sPrm.TrainInit.augrotate,sPrm.TestInit.augrotate,...
+                       sPrm.Reg.rotCorrection.use),...
+          'Inconsistent values of TrainInit.augrotate, TestInit.augrotate, and Reg.rotCorrection.use.');
+        sPrm.TrainInit.augrotate = [];
+        sPrm.TestInit.augrotate = [];
+      end
     end
     
     function warnMoviesMissingFromProj(movs,movsProj,movTypeStr)

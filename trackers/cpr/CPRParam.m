@@ -78,13 +78,13 @@ classdef CPRParam
       sOld.Ftr.neighbors = [];
       
       sOld.TrainInit.Naug = cpr.Replicates.NrepTrain;
-      sOld.TrainInit.augrotate = cpr.Replicates.AugRotate;
+      sOld.TrainInit.augrotate = []; % obsolete
       sOld.TrainInit.augjitterfac = cpr.Replicates.AugJitterFac;
       sOld.TrainInit.augUseFF = cpr.Replicates.AugUseFF;
       sOld.TrainInit.iPt = [];
       
       sOld.TestInit.Nrep = cpr.Replicates.NrepTrack;
-      sOld.TestInit.augrotate = cpr.Replicates.AugRotate;
+      sOld.TestInit.augrotate = []; % obsolete
       sOld.TestInit.augjitterfac = cpr.Replicates.AugJitterFac;
       sOld.TestInit.augUseFF = cpr.Replicates.AugUseFF;
       sOld.TestInit.movChunkSize = cpr.Track.ChunkSize;
@@ -136,10 +136,17 @@ classdef CPRParam
       
       sNew.ROOT.CPR.Replicates.NrepTrain = sOld.TrainInit.Naug;
       sNew.ROOT.CPR.Replicates.NrepTrack = sOld.TestInit.Nrep;
-      assert(sOld.TrainInit.augrotate==sOld.TestInit.augrotate);
+      if ~isempty(sOld.TrainInit.augrotate)
+        assert(sOld.TrainInit.augrotate==sOld.TestInit.augrotate);
+        if sOld.TrainInit.augrotate~=sOld.Reg.rotCorrection.use
+          warningNoTrace('CPRParam:rot',...
+            'TrainInit.augrotate (%d) differs from Reg.rotCorrection.use (%d). Ignoring value of TrainInit.augrotate.',...
+            sOld.TrainInit.augrotate,sOld.Reg.rotCorrection.use);
+        end
+      end
       assert(sOld.TrainInit.augjitterfac==sOld.TestInit.augjitterfac);
       assert(sOld.TrainInit.augUseFF==sOld.TestInit.augUseFF);
-      sNew.ROOT.CPR.Replicates.AugRotate = sOld.TrainInit.augrotate;
+      %sNew.ROOT.CPR.Replicates.AugRotate = sOld.TrainInit.augrotate;
       sNew.ROOT.CPR.Replicates.AugJitterFac = sOld.TrainInit.augjitterfac;
       sNew.ROOT.CPR.Replicates.AugUseFF = sOld.TrainInit.augUseFF;
       assert(isempty(sOld.TrainInit.iPt));

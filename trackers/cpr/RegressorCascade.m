@@ -221,8 +221,8 @@ classdef RegressorCascade < handle
       % may not be populated and pGT is large.
       %
       % Note, for randomly-oriented targets, pGT (and .pGTNTrn as
-      % appropriate) will be randomly-oriented; obj.prmTrainInit.augrotate
-      % had better be on.
+      % appropriate) will be randomly-oriented; rotCorrection had better be 
+      % on.
       %
       % In drawing from a set shape distribution, we are biasing towards
       % the most/more common shapes. However, we also jitter, so that may
