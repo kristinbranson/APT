@@ -181,10 +181,28 @@ classdef OrthoCamCalPair < CalRig
         ints.k1,ints.k2,uv);
     end
     
-    function [dmu,d,uvcam] = computeRPerr(obj)      
+    function [dmu,d,uvcam] = computeRPerr(obj)
       [dmu,d,uvcam] = OrthoCamCalPair.computeRPerrStc(obj.r2vec1,obj.t2vec1,...
         obj.r2vec2,obj.t2vec2,obj.rvecs,obj.tvecs,...
         obj.tblInt(1,:),obj.tblInt(2,:),obj.calWorldPoints,obj.calImPoints);        
+    end
+    
+    function [dmu,d,uvre1,uvre2] = computeRPerrStroTri(obj,uv1,uv2)
+      % Compute RP err, using observed image points only: stereo
+      % triangulate and reproject.
+      
+      n = size(uv1,2);
+      szassert(uv1,[2 n]);
+      szassert(uv2,[2 n]);
+      
+      [~,~,uvre1,uvre2] = obj.stereoTriangulate(uv1,uv2);
+      d2_1 = sum((uvre1-uv1).^2,1); % [1 n]
+      d2_2 = sum((uvre2-uv2).^2,1); 
+      d2 = [d2_1;d2_2]; % [2 n]
+      d = sqrt(d2)';
+      szassert(d,[n 2]);
+      
+      dmu = mean(d);      
     end
     
   end
@@ -208,6 +226,9 @@ classdef OrthoCamCalPair < CalRig
     
     function [dmu,d,uvcam] = computeRPerrStc(r2vec1,t2vec1,r2vec2,t2vec2,...
         rvecs,tvecs,int1,int2,patPtsXYZ,patImPts)
+      % Compute RP err, using known pattern points and optimized/estimated
+      % extrinsics for each pattern
+      %
       % dmu: [2] mean of d for cam1, cam2
       % d: [nPts nPat 2] Eucld RP distance for iPt,iPat,cam
       % uvcam: [2 nPts nPat 2]. (x,y) x iPt x iPat x (cam1,cam2)
@@ -247,6 +268,7 @@ classdef OrthoCamCalPair < CalRig
       dtmp = reshape(d,[nPts*nPat 2]);
       dmu = mean(dtmp);
     end
+   
   end
   
   methods
