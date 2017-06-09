@@ -9,7 +9,7 @@ classdef RegressorCascade < handle
   end
   
   properties
-    pGTNTrn % [NtrnxD] normalized shapes used during most recent full training
+    pGTNTrn % [NtrnxD] normalized shapes used during most recent full training. Randomly oriented as appropriate.
     
     ftrSpecs % [nMjr] cell array of feature definitions/specifications. ftrSpecs{i} is either [], or a struct specifying F features
     %ftrs % [nMjr] cell array of instantiated features. ftrs{i} is either [], or NxF    
@@ -33,6 +33,10 @@ classdef RegressorCascade < handle
     mdld
     mdlD
     hasTrained % scalar logical; true if at least one full training has occurred
+  end
+  
+  properties
+    tmp % non-critical non-persisted
   end
   
   methods
@@ -149,7 +153,20 @@ classdef RegressorCascade < handle
     % For 3D videos, the shapes are in camera coords of the "base" view.
     % BBoxes are therefore 3D ROIs in the base camera coord system.
     
-    
+    % Notes on Rotational Correction 20170609
+    % 
+    % One algorithmic aspect of rotational correction relates to the CPR 
+    % regression and the use of rotationally invariant diffs when 
+    % propagating shapes.
+    %
+    % A second algorithmic aspect concerns replicate initialization, 
+    % wherein replicate shapes are randomly rotated during initialization.
+    %
+    % From the user perspective, we imagine that their data is taken either
+    % i) with a fixed/given orientation (eg animal "upright") or ii) with
+    % the animal free to point in any 2D orientation. In the latter case,
+    % the user will require both algorithmic aspects, so for the moment we 
+    % will expose a single user flag. 
     
     %#3DOK
     function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused,calrig) % obj CONST
@@ -207,6 +224,10 @@ classdef RegressorCascade < handle
       % Meanwhile, pGT would be used on first/fresh trains, where .pGTNTrn
       % may not be populated and pGT is large.
       %
+      % Note, for randomly-oriented targets, pGT (and .pGTNTrn as
+      % appropriate) will be randomly-oriented; rotCorrection had better be 
+      % on.
+      %
       % In drawing from a set shape distribution, we are biasing towards
       % the most/more common shapes. However, we also jitter, so that may
       % be okay.
@@ -216,11 +237,11 @@ classdef RegressorCascade < handle
         );
       
       model = obj.prmModel;
-      tiPrm = obj.prmTrainInit;
-      Naug = tiPrm.Naug;  
+      prmTI = obj.prmTrainInit;
+      Naug = prmTI.Naug;  
       
-      if isfield(tiPrm,'augUseFF')
-        initUseFF = tiPrm.augUseFF;
+      if isfield(prmTI,'augUseFF')
+        initUseFF = prmTI.augUseFF;
       else
         initUseFF = false;
       end
@@ -236,18 +257,25 @@ classdef RegressorCascade < handle
         pNInitSet = shapeGt('projectPose',model,pGT,bboxes);
         selfSample = true;
       end
+      % pNInitSet in normalized coords
+      
+      prmRotCorr = obj.prmReg.rotCorrection;
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
-        'dorotate',tiPrm.augrotate,...
-        'bboxJitterfac',tiPrm.augjitterfac,...
+        'randomlyOriented',prmRotCorr.use,...
+        'iHead',prmRotCorr.iPtHead,...
+        'iTail',prmRotCorr.iPtTail,...
+        'bboxJitterfac',prmTI.augjitterfac,...
         'selfSample',selfSample,...
         'furthestfirst',initUseFF);
+      obj.tmp.p0info = p0info;
+      
       N = size(I,1);
       szassert(p0,[N Naug model.D]);
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
       pAll = obj.train(I,bboxes,pGT,p0,pIidx,loArgs{:});
-    end    
+    end
     
     %#3DOK
     function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
@@ -544,14 +572,16 @@ classdef RegressorCascade < handle
       
       Naug = prmTestInit.Nrep;
       pNInitSet = obj.pGTNTrn;
+      prmRotCorr = obj.prmReg.rotCorrection;
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
-        'dorotate',prmTestInit.augrotate,...
+        'randomlyOriented',prmRotCorr.use,...
+        'iHead',prmRotCorr.iPtHead,...
+        'iTail',prmRotCorr.iPtTail,...
         'bboxJitterfac',prmTestInit.augjitterfac,...
         'selfSample',false,...
         'furthestfirst',useFF);
       szassert(p0,[N Naug model.D]);
-      %p0info.p0_1 = squeeze(p0(1,:,:)); % absolute coords
-      p0info.bbox1 = bboxes(1,:);
+      obj.tmp.p0info = p0info;
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
@@ -726,7 +756,7 @@ classdef RegressorCascade < handle
     function hFig = createP0DiagImg(I,p0info)
       % Visualize initial random shapes
       %
-      % I: [NxnView] cell array of images
+      % I: [NxnView] cell array of images. Currently only using I{1}
       % p0Info: struct containing initial shape randomization info, see eg
       %   propagateRandInit()
       
@@ -755,7 +785,7 @@ classdef RegressorCascade < handle
         plot(ax,pNmu(ipt),pNmu(ipt+npts),'ws','MarkerFaceColor',clr*.75+.25);
       end
       tstr = sprintf('naug:%d. npN:%d. doRot:%d. jitterfac:%d.',...
-        Naug,p0info.npN,p0info.doRotate,p0info.bboxJitterFac);
+        Naug,p0info.npN,p0info.randomlyOriented,p0info.bboxJitterFac);
       title(ax,tstr,'interpreter','none','fontweight','bold');
       hFig.UserData = p0info;
     end

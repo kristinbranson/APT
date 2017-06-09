@@ -203,8 +203,8 @@ classdef LabelCoreSeq < LabelCore
       lObj = obj.labeler;
       if strcmp(key,'z') && tfCtrl
         obj.undoLastLabel();
-      elseif strcmp(key,'h') && tfCtrl
-        obj.labelsHideToggle();
+%       elseif strcmp(key,'h') && tfCtrl
+%         obj.labelsHideToggle();
       elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl % accept
         if obj.state==LabelState.ADJUST
           obj.acceptLabels();

@@ -8,31 +8,38 @@ classdef MFTable
   % moviepaths, which can include macros. For multiview data, 'mov' can 
   % contain multiuple movieIDs delimited by #.
   
+  properties (Constant)
+    FLDSID = {'mov' 'frm' 'iTgt'};
+  end
+  
   methods (Static)
     
     function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)
-      % Compare tblP to tblP0
+      % Compare tblP to tblP0 wrt fields FLDSFULL (see below)
       %
       % tblP0, tblP: MF tables
       %
-      % tblPNew: new frames (rows of tblP whose movie-frame ID are not in tblP0)
+      % tblPNew: new frames (rows of tblP whose movie-frame-tgt ID are not in tblP0)
       % tblPupdate: existing frames with new positions/tags (rows of tblP
-      %   whos movie+frame ID are in tblP0, but whose eg p field is different).
+      %   whos movie-frame-tgt ID are in tblP0, but whose eg p field is different).
       % idx0update: indices into rows of tblP0 corresponding to tblPupdate;
       %   ie tblP0(idx0update,:) ~ tblPupdate
       
-      tblMF0 = tblP0(:,{'mov' 'frm'});
-      tblMF = tblP(:,{'mov' 'frm'});
-      tfPotentiallyUpdatedRows = ismember(tblMF,tblMF0);
-      tfNewRows = ~tfPotentiallyUpdatedRows;
+      FLDSID = MFTable.FLDSID;
+      FLDSFULL = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+      assert(all(ismember(FLDSFULL,tblP0.Properties.VariableNames)));
+      assert(all(ismember(FLDSFULL,tblP.Properties.VariableNames)));
       
-      tblPnew = tblP(tfNewRows,:);
-      tblPupdate = tblP(tfPotentiallyUpdatedRows,:);
-      tblPupdate = setdiff(tblPupdate,tblP0);
-      
-      [tf,loc] = ismember(tblPupdate(:,{'mov' 'frm'}),tblMF0);
+      tfNew = ~ismember(tblP(:,FLDSID),tblP0(:,FLDSID));
+      tfDiff = ~ismember(tblP(:,FLDSFULL),tblP0(:,FLDSFULL));
+      tfUpdate = tfDiff & ~tfNew; 
+            
+      tblPnew = tblP(tfNew,:);
+      tblPupdate = tblP(tfUpdate,:);            
+     
+      [tf,loc] = ismember(tblPupdate(:,FLDSID),tblP0(:,FLDSID));
       assert(all(tf));
-      idx0update = loc(tf);
+      idx0update = loc;
     end
 
     function movID = formMultiMovieID(movs)
@@ -102,14 +109,14 @@ classdef MFTable
           warnstr = unique(warnstr);
           cellfun(@(x)warningNoTrace('MFTable:movS','Unexpected movS field: %s.',x),warnstr);
         end
-        tblMF(:,'movS') = [];        
+        tblMF(:,'movS') = [];
       end
     end
     
     function warnDupMovFrmKey(tblMF,tblDescStr)
       % Warn when tblMF contains duplicate mov|frm IDs
       
-      tMF = tblMF(:,{'mov' 'frm'});
+      tMF = tblMF(:,MFTable.FLDSID);
       sz0 = size(tMF,1);
       tMF = unique(tMF);
       sz1 = size(tMF,1);
@@ -132,7 +139,7 @@ classdef MFTable
       cellfun(@(x)warningNoTrace('MFTable:mov',...
         '%s table: replaced %s to match project.',tblDesc,x),replacestrs);
     end
-      
+          
   end
   
 end

@@ -176,6 +176,12 @@ handles.menu_track_use_all_labels_to_train = uimenu(...
 moveMenuItemAfter(handles.menu_track_use_all_labels_to_train,handles.menu_track_setparametersfile);
 handles.menu_track_select_training_data.Label = 'Downsample training data';
 moveMenuItemAfter(handles.menu_track_select_training_data,handles.menu_track_use_all_labels_to_train);
+handles.menu_track_training_data_montage = uimenu(...
+  'Parent',handles.menu_track,...
+  'Label','Training Data Montage',...
+  'Tag','menu_track_training_data_montage',...
+  'Callback',@(h,evtdata)LabelerGUI('menu_track_training_data_montage_Callback',h,evtdata,guidata(h)));
+moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
 
 handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
   'Label','Export current tracking results',...
@@ -712,7 +718,7 @@ if isnan(sldval)
 end
 set(handles.slider_frame,'Value',sldval);
 if ~lObj.isinit
-  handles.labelTLInfo.setCurrFrame(frm);
+  handles.labelTLInfo.newFrame(frm);
 end
 
 function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
@@ -725,6 +731,7 @@ lObj = evt.AffectedObject;
 if lObj.hasTrx && ~lObj.isinit
   id = lObj.currTrxID;
   lObj.currImHud.updateTarget(id);
+  lObj.gdata.labelTLInfo.newTarget();
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
@@ -1854,7 +1861,7 @@ if isempty(sPrm)
   % user canceled; none
 else
   RC.saveprop('lastCPRAPTParams',sPrm);
-  sPrm = CPRParam.new2old(sPrm,lObj.nLabelPoints,lObj.nview);
+  sPrm = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
   tObj.setParams(sPrm);  
 end
 
@@ -1906,6 +1913,10 @@ if tObj.hasTrained
 end
 tObj.trnDataSelect();
 
+function menu_track_training_data_montage_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+lObj.tracker.trainingDataMontage();
+
 function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();
 
@@ -1934,6 +1945,10 @@ tObj.storeFullTracking = sftnew;
 
 function menu_track_view_tracking_diagnostics_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
+
+if lObj.hasTrx
+  error('LabelerGUI:trx','Currently unsupported for multitarget projects.');
+end
 
 % Look for existing/open CPRVizTrackDiagsGUI
 for i=1:numel(handles.depHandles)
@@ -1990,7 +2005,8 @@ function menu_track_set_labels_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
 if ~isempty(tObj)
-  xy = tObj.getCurrentPrediction();
+  xy = tObj.getPredictionCurrentFrame();
+  xy = xy(:,:,lObj.currTarget); % "targets" treatment differs from below
   if any(isnan(xy(:)))
     fprintf('No predictions for current frame, not labeling.\n');
     return;
@@ -2011,7 +2027,7 @@ else
     error('LabelerGUI:setLabels','No movie open.');
   end
   lpos2 = lObj.labeledpos2{iMov};
-  assert(size(lpos2,4)==1);
+  assert(size(lpos2,4)==1); % "targets" treatment differs from above
   lpos2xy = lpos2(:,:,frm);
   lObj.labelPosSet(lpos2xy);
   

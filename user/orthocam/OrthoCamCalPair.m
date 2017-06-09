@@ -18,7 +18,7 @@ classdef OrthoCamCalPair < CalRig
     % issues due to the cameras being at precisely 90deg, etc.
     optCtr1 % [3x1] World coords where cam1 optical axis intersected original WorldSys (cal pattern) at z=0 
     optCtr2 % [3x1] " cam2
-    ijkCamWorld1 % [3x3] columns are "CamWorldCoords" i/j/k unit vecs in WorldSys for cam1; k is negatice optical axis
+    ijkCamWorld1 % [3x3] columns are "CamWorldCoords" i/j/k unit vecs in WorldSys for cam1; k is negative optical axis
     ijkCamWorld2 % "
 
     calNumPatterns % number of calibration patterns used
@@ -62,9 +62,18 @@ classdef OrthoCamCalPair < CalRig
       obj.calTS = now;
     end
     
-    function hFig = viewExtrinsics(obj)
+    function hFig = viewExtrinsics(obj,varargin)
+      firstPatOnly = myparse(varargin,...
+        'firstPatOnly',false);
+      
+      if firstPatOnly
+        iRTVecsPlot = 1;
+      else
+        iRTVecsPlot = 1:size(obj.rvecs,1);
+      end
       hFig = OrthoCam.viewExtrinsics(obj.calWorldPoints,...
-        obj.rvecs,obj.tvecs,obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,...
+        obj.rvecs(iRTVecsPlot,:),obj.tvecs(iRTVecsPlot,:),...
+        obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,...
         'cam1info',struct('optCtr',obj.optCtr1,'n',-obj.ijkCamWorld1(:,3),'ijkCamWorld',obj.ijkCamWorld1),...
         'cam2info',struct('optCtr',obj.optCtr2,'n',-obj.ijkCamWorld2(:,3),'ijkCamWorld',obj.ijkCamWorld2));
     end
@@ -170,6 +179,212 @@ classdef OrthoCamCalPair < CalRig
       ints = obj.tblInt(icam,:);
       pq = OrthoCam.projected2normalized(ints.mx,ints.my,ints.u0,ints.v0,...
         ints.k1,ints.k2,uv);
+    end
+    
+    function [dmu,d,uvcam] = computeRPerr(obj)
+      [dmu,d,uvcam] = OrthoCamCalPair.computeRPerrStc(obj.r2vec1,obj.t2vec1,...
+        obj.r2vec2,obj.t2vec2,obj.rvecs,obj.tvecs,...
+        obj.tblInt(1,:),obj.tblInt(2,:),obj.calWorldPoints,obj.calImPoints);        
+    end
+    
+    function [dmu,d,uvre1,uvre2] = computeRPerrStroTri(obj,uv1,uv2)
+      % Compute RP err, using observed image points only: stereo
+      % triangulate and reproject.
+      
+      n = size(uv1,2);
+      szassert(uv1,[2 n]);
+      szassert(uv2,[2 n]);
+      
+      [~,~,uvre1,uvre2] = obj.stereoTriangulate(uv1,uv2);
+      d2_1 = sum((uvre1-uv1).^2,1); % [1 n]
+      d2_2 = sum((uvre2-uv2).^2,1); 
+      d2 = [d2_1;d2_2]; % [2 n]
+      d = sqrt(d2)';
+      szassert(d,[n 2]);
+      
+      dmu = mean(d);      
+    end
+    
+    function viewCompare(objs,varargin)
+      % View/Compare multiple OrthoCamCalPairs
+      %
+      % objs: [ncal] vector of OrthoCamCalPairs
+      
+      [viewLimX,viewLimY] = myparse(varargin,...
+        'viewLimX',[1 768],...
+        'viewLimY',[1 512]);
+      
+      hFig = figure;
+      axs = createsubplots(1,2,.1);
+      title(axs(1),'Cam1','fontsize',14,'fontweight','bold');
+      title(axs(2),'Cam2','fontsize',14,'fontweight','bold');
+      arrayfun(@(x)axis(x,'equal'),axs);
+      arrayfun(@(x)axis(x,[viewLimX viewLimY]),axs);
+      arrayfun(@(x)grid(x,'on'),axs);
+      arrayfun(@(x)hold(x,'on'),axs);
+      [axs.Color] = deal([0 0 0]);
+      [axs.GridColor] = deal([1 1 1]);
+      [axs.FontSize] = deal(12);
+      
+      ncal = numel(objs);
+      hLine = gobjects(2,ncal);
+      % hLine(iView,iCal) is EPline in view iView calib iCal
+      colors = lines(ncal);
+      for ical=1:ncal
+        hLine(:,ical) = [...
+          plot(axs(1),nan,nan,'color',colors(ical,:),'linewidth',2,'displayname',['cal' num2str(ical)]);
+          plot(axs(2),nan,nan,'color',colors(ical,:),'linewidth',2,'displayname',['cal' num2str(ical)])];
+      end
+      hLeg = legend(axs(2),'show');
+      set(hLeg,'color',[0.15 0.15 0.15],'textcolor',[1 1 1]);
+      hPt1 = impoint(axs(1),100,200);
+      hPt2 = impoint(axs(2),100,200);
+      addNewPositionCallback(hPt1,@(xy) nstUpdateEP(xy,1,2) );
+      addNewPositionCallback(hPt2,@(xy) nstUpdateEP(xy,2,1) );
+      
+      function nstUpdateEP(xy,iViewPt,iViewEP)
+        for icalnst=1:ncal
+          [xEPL,yEPL] = objs(icalnst).computeEpiPolarLine(iViewPt,xy,iViewEP);
+
+          tfIB = viewLimX(1)<=xEPL & xEPL<=viewLimX(2) & ...
+                 viewLimY(1)<=yEPL & yEPL<=viewLimY(2);
+          xEPL = xEPL(tfIB);
+          yEPL = yEPL(tfIB);
+          set(hLine(iViewEP,icalnst),'XData',xEPL,'YData',yEPL);
+        end
+      end
+    end
+    
+  end
+  
+  methods (Static)
+    
+    function [d,dsum] = oFcnStro(p,nPat,patPtsXYZ,patImPts)
+      nPts = size(patPtsXYZ,2);
+      szassert(patPtsXYZ,[3 nPts]);
+      szassert(patImPts,[2 nPts nPat 2]);
+      
+      [int1.mx,int1.my,int1.u0,int1.v0,int1.k1,int1.k2,...
+       int2.mx,int2.my,int2.u0,int2.v0,int2.k1,int2.k2,...
+       r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = ...
+        OrthoCam.unpackParamsStro(p,nPat+1); % quirk of unpackParamsStro
+      [~,d] = OrthoCamCalPair.computeRPerrStc(r2vec1,t2vec1,r2vec2,t2vec2,...
+        rvecs,tvecs,int1,int2,patPtsXYZ,patImPts);
+      d = d(:);
+      dsum = sum(d);
+    end
+    
+    function [dmu,d,uvcam] = computeRPerrStc(r2vec1,t2vec1,r2vec2,t2vec2,...
+        rvecs,tvecs,int1,int2,patPtsXYZ,patImPts)
+      % Compute RP err, using known pattern points and optimized/estimated
+      % extrinsics for each pattern
+      %
+      % dmu: [2] mean of d for cam1, cam2
+      % d: [nPts nPat 2] Eucld RP distance for iPt,iPat,cam
+      % uvcam: [2 nPts nPat 2]. (x,y) x iPt x iPat x (cam1,cam2)
+      
+      szassert(r2vec1,[3 1]);
+      szassert(t2vec1,[2 1]);
+      szassert(r2vec2,[3 1]);
+      szassert(t2vec2,[2 1]);
+      nPat = size(rvecs,1);
+      szassert(rvecs,[nPat 3]);
+      szassert(tvecs,[nPat 3]);      
+      nPts = size(patPtsXYZ,2);
+      szassert(patPtsXYZ,[3 nPts]);
+      szassert(patImPts,[2 nPts nPat 2]);
+      
+      R2WorldToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec1);
+      t2WorldToCam1 = t2vec1;
+      R2WorldToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec2);
+      t2WorldToCam2 = t2vec2;
+      
+      uvcam = nan(2,nPts,nPat,2);
+      for iPat=1:nPat
+        RPatIToWorld = vision.internal.calibration.rodriguesVectorToMatrix(rvecs(iPat,:)');
+        tPatIToWorld = tvecs(iPat,:)';
+        patPtsWorld = RPatIToWorld*patPtsXYZ + tPatIToWorld;
+        uvcam(:,:,iPat,1) = OrthoCam.project(patPtsWorld,R2WorldToCam1,...
+          t2WorldToCam1,int1.k1,int1.k2,int1.mx,int1.my,int1.u0,int1.v0);
+        uvcam(:,:,iPat,2) = OrthoCam.project(patPtsWorld,R2WorldToCam2,...
+          t2WorldToCam2,int2.k1,int2.k2,int2.mx,int2.my,int2.u0,int2.v0);
+      end
+     
+      d2 = sum((uvcam-patImPts).^2,1); % [1 nPts nPat 2]
+      d2 = squeeze(d2);
+      szassert(d2,[nPts nPat 2]);      
+      d = sqrt(d2);
+      
+      dtmp = reshape(d,[nPts*nPat 2]);
+      dmu = mean(dtmp);
+    end
+   
+  end
+  
+  methods
+    
+    function invertSH(obj)
+      % Specialized inversion for SH-style rig, where cam1 and cam2 are at
+      % right angles with a common y (down-in-image) axis
+      
+      % extrinsics
+      R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
+      R2(1,:) = -R2(1,:); % x-, z-coord in camera frame flipped
+      R2(3,:) = -R2(3,:);
+      obj.r2vec2 = vision.internal.calibration.rodriguesMatrixToVector(R2);      
+      obj.t2vec2(1) = -obj.t2vec2(1);
+      c = [4*.1;2.5*.1;0];
+      khat = -obj.ijkCamWorld1(:,3);
+      for iPat=1:obj.calNumPatterns
+        r = obj.rvecs(iPat,:);
+        t = obj.tvecs(iPat,:);
+        R = vision.internal.calibration.rodriguesVectorToMatrix(r);
+        [Rp,tp] = OrthoCam.computeDualPattern(R,t(:),c(:),khat(:));
+        rp = vision.internal.calibration.rodriguesMatrixToVector(Rp);
+
+        obj.rvecs(iPat,:) = rp;
+        obj.tvecs(iPat,:) = tp;
+      end
+      
+      % optCtr1 unchanged
+      % optCtr2 unchanged
+      % ijkCamWorld1 unchanged % [3x3] columns are "CamWorldCoords" i/j/k unit vecs in WorldSys for cam1; k is negatice optical axis
+      ijkCW2 = [-1 0 0;0 1 0;0 0 -1]*obj.ijkCamWorld2; % x,z flipped
+      [~,~,~,~,obj.ijkCamWorld2] = OrthoCam.opticalCenter(R2,obj.t2vec2);
+      fprintf(1,'Manully adjusted ijkCamWorld2: \n');
+      disp(ijkCW2);
+      fprintf(1,'Recomputed ijkCamWorld2: \n');
+      disp(obj.ijkCamWorld2);      
+    end
+     
+    function pOpt = recalibrate(obj)
+      nPat = obj.calNumPatterns;
+      nPts = obj.calNumPoints;
+      patPtsXYZ = obj.calWorldPoints;
+      patImPts = obj.calImPoints;
+      oFcn = @(p)OrthoCamCalPair.oFcnStro(p,nPat,patPtsXYZ,patImPts);
+
+      int1 = obj.tblInt(1,:);
+      int2 = obj.tblInt(2,:);
+      p0 = OrthoCam.packParamsStro(...
+        int1.mx,int1.my,int1.u0,int1.v0,int1.k1,int1.k2,...
+        int2.mx,int2.my,int2.u0,int2.v0,int2.k1,int2.k2,...
+        obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,obj.rvecs,obj.tvecs);
+
+      [~,dsum0] = oFcn(p0);
+      fprintf('Starting residual: %.4g\n',dsum0);
+      opts = OrthoCam.defaultoptsStro();
+      pOpt = p0;      
+      
+      while 1
+        pOpt = lsqnonlin(oFcn,pOpt,[],[],opts);
+        [~,dsum0] = oFcn(pOpt);
+        if dsum0>1000
+          % none
+        else
+          break;
+        end
+      end
     end
     
   end

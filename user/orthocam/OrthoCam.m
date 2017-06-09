@@ -323,6 +323,183 @@ classdef OrthoCam
 
       [~,dsum1] = oFcn(pOpt);
       fprintf('Ending residual: %.4g\n',dsum1);
+    end    
+    function [hFig,tffliped,r2vecs,t2vecs] = viewExtrinsics1cam(worldPts,r2vecs,t2vecs,varargin)
+      [dOptAx,patByPat] = myparse(varargin,...
+        'dOptAx',10,... % length of optical axis to plot (world coords)
+        'patByPat',false... % if true, scroll through patterns one by one
+        );
+      
+      nPts = size(worldPts,1);
+      szassert(worldPts,[nPts 2]);
+      patPtsXYZ = worldPts';
+      patPtsXYZ(3,:) = 0; % z=0
+      nPat = size(r2vecs,2);
+      szassert(r2vecs,[3 nPat]);
+      szassert(t2vecs,[2 nPat]);
+            
+      % z-depth of patterns is undefined for single-cam. Assume 0, ie
+      % pattern origin is at z=0 in cam sys.
+      t2vecs(3,:) = 0;
+      
+      hFig = figure('Name','OrthoCam: Calibration Extrinsics',...
+        'units','normalized','outerposition',[0 0 1 1]);
+      ax = axes;
+      hold(ax,'on');
+      
+      optCtr1 = [0;0;0];
+      n1 = [0;0;-1];
+      ijkCam1 = eye(3);
+      DX = 1;
+      optAx1 = [optCtr1 optCtr1+n1*dOptAx];
+      optAx1Plus = optCtr1+n1*(dOptAx+DX);
+      optAx1Mid = optCtr1+n1*dOptAx/2;
+      plot3(optAx1(1,:),optAx1(2,:),optAx1(3,:),'--','linewidth',2,'color',[0 0 0]);
+      BROWN = [139 69 19]/255;
+      text(optAx1Plus(1),optAx1Plus(2),optAx1Plus(3),'C',...
+        'fontweight','bold','fontsize',12,'color',BROWN);
+
+      % Check: x0y0cam1+pxcam1 should project to [1 0] etc
+      % draw pxcam1,... at dOptAx/2
+      optAxMid1CamXax = [optAx1Mid optAx1Mid+ijkCam1(:,1)];
+      optAxMid1CamYax = [optAx1Mid optAx1Mid+ijkCam1(:,2)];
+      optAxMid1CamXaxPlus = optAx1Mid+1.5*ijkCam1(:,1);
+      optAxMid1CamYaxPlus = optAx1Mid+1.5*ijkCam1(:,2);
+      
+      plot3(optAxMid1CamXax(1,:),optAxMid1CamXax(2,:),optAxMid1CamXax(3,:),'b-','linewidth',2);
+      plot3(optAxMid1CamYax(1,:),optAxMid1CamYax(2,:),optAxMid1CamYax(3,:),'b-','linewidth',2);
+      text(optAxMid1CamXaxPlus(1),optAxMid1CamXaxPlus(2),optAxMid1CamXaxPlus(3),...
+        'x','fontweight','bold','fontsize',9,'color',[0 0 1]);
+      text(optAxMid1CamYaxPlus(1),optAxMid1CamYaxPlus(2),optAxMid1CamYaxPlus(3),...
+        'y','fontweight','bold','fontsize',9,'color',[0 0 1]);
+
+      grid on;
+      tstr = sprintf('%d pats',nPat);
+      title(ax,tstr,'fontweight','bold','interpreter','tex');
+      xlabel(ax,'x (mm)','fontweight','bold');
+      ylabel(ax,'y (mm)','fontweight','bold');
+      zlabel(ax,'z (mm)','fontweight','bold');  
+      axis(ax,'square');      
+      axis(ax,'equal');
+      view(0,0);
+      
+      % plot the pats
+      patPtsMins = min(patPtsXYZ,[],2);
+      patPtsMaxs = max(patPtsXYZ,[],2);
+      patX0 = patPtsMins(1);
+      patX1 = patPtsMaxs(1);
+      patY0 = patPtsMins(2);
+      patY1 = patPtsMaxs(2);
+      patZ0 = patPtsMins(3);
+      patZ1 = patPtsMaxs(3);
+      assert(patZ0==patZ1);
+      patPtsCorners = [ ...
+        patX0 patX1 patX1 patX0; ...
+        patY0 patY0 patY1 patY1; ...
+        patZ0 patZ0 patZ0 patZ0; ];
+      clrs = jet(nPat);
+      hPat = gobjects(3,1);
+      tffliped = false(nPat,1);
+      iPat = 1;
+      while iPat<=nPat
+        r2vecCurr = r2vecs(:,iPat);
+        t2vecCurr = t2vecs(:,iPat);
+        if patByPat
+          deleteValidHandles(hPat);
+        end
+        
+        RPatI2World = vision.internal.calibration.rodriguesVectorToMatrix(r2vecCurr);
+        tPatI2World = t2vecCurr;
+        patPtsCornersWorld = RPatI2World*patPtsCorners + tPatI2World;
+        hPat(1) = fill3(patPtsCornersWorld(1,:),patPtsCornersWorld(2,:),...
+              patPtsCornersWorld(3,:),clrs(iPat,:),'FaceAlpha',0.5);
+            
+        % plot origin + yaxis in bold
+        orig = patPtsCornersWorld(:,1);
+        hPat(2) = plot3(orig(1),orig(2),orig(3),'.','markersize',26,'color',[0 0 0]);
+        hPat(3) = plot3(patPtsCornersWorld(1,[1 4]),patPtsCornersWorld(2,[1 4]),...
+          patPtsCornersWorld(3,[1 4]),'-','linewidth',3,'color',[0 0 0]);
+        
+        if patByPat
+          in = input(sprintf('Pattern %d/%d. Enter -1 for flip.',iPat,nPat));
+          if isequal(in,-1)
+            assert(t2vecCurr(3)==0);
+            [r2vecs(:,iPat),t2vecs(1:2,iPat)] = OrthoCam.flipPattern(r2vecCurr,t2vecCurr(1:2));
+            % iPat unchanged
+            tffliped(iPat) = ~tffliped(iPat);
+          else
+            iPat = iPat+1;
+          end
+        end
+      end
+      
+      assert(all(ismembertol(t2vecs(3,:),0)));
+      t2vecs = t2vecs(1:2,:);
+    end
+    function [Rp,tp,Q2theta] = computeDualPattern(R,t,c,khat)
+      % Compute "dual" pattern extrinsic 
+      %
+      % R: [3x3]. With t, implicitly defines extrinsic position of calpat
+      % t: [3x1].
+      % c: [3x1]. Location of calibration pattern Center in calpat coords
+      % khat: [3x1]. Unit optical vector pointing to cam1 at infinity, in worldcoords
+      
+      nhat = R*[0;0;-1]; % unit normal vector for pattern, in worldcoords
+      assert(ismembertol(norm(nhat),1),'nhat is not a unit vec.');
+      assert(ismembertol(norm(khat),1),'khat is not a unit vec.');      
+      ehat = cross(nhat,khat);
+      ehat = ehat/norm(ehat);
+      
+      theta = acos(dot(nhat,khat));
+      Q2theta = vision.internal.calibration.rodriguesVectorToMatrix(2*theta*ehat);
+      % Q2theta rotates pattern into dual pattern
+      
+      Rp = Q2theta*R;
+      tp = -Q2theta*R*c + R*c + t;
+      
+%       nhat2 = Q2theta*nhat;
+%       ehat2 = cross(nhat2,khat);
+      
+      fprintf(1,'Check: %.3f == 0\n',norm(R*c+t - (Rp*c+tp)));
+    end
+    function [r2vecnew,t2vecnew] = flipPattern(r2vec,t2vec,varargin)
+      % Flip pattern to dual pattern
+      %
+      % r2vec: [3] rot vector for pattern
+      % t2vec: [2] translation 2-vec for pattern
+      %
+      % r2vecnew: [3] rot vector for flipped/dual pattern
+      % t2vecnew: [2] etc
+      
+      xyPatCtr = myparse(varargin,...
+        'xyPatCtr',[4;2.5]*.1); % center of pattern in pat-coords. Default 20170605: 8x5 pattern, .1mm checkboard size
+      
+      assert(numel(r2vec)==3);
+      assert(numel(t2vec)==2);
+      assert(numel(xyPatCtr)==2);
+      
+      R = vision.internal.calibration.rodriguesVectorToMatrix(r2vec(:));
+      t2vec = t2vec(:);
+      t2vec(3) = 0;
+      xyPatCtr = xyPatCtr(:);
+      xyPatCtr(3) = 0;
+      khat = [0;0;-1];
+      
+      [Rp,tp] = OrthoCam.computeDualPattern(R,t2vec,xyPatCtr,khat);
+      r2vecnew = vision.internal.calibration.rodriguesMatrixToVector(Rp);
+      t2vecnew = tp(1:2);      
+    end
+    function [r2vecs,t2vecs] = flipPatternSet(r2vecs,t2vecs,tfflip,varargin)
+      nPat = size(r2vecs,2);
+      szassert(r2vecs,[3 nPat]);
+      szassert(t2vecs,[2 nPat]);
+      assert(numel(tfflip)==nPat && islogical(tfflip));
+      for iPat=1:nPat
+        if tfflip(iPat)
+          [r2vecs(:,iPat),t2vecs(:,iPat)] = ...
+            OrthoCam.flipPattern(r2vecs(:,iPat),t2vecs(:,iPat),varargin{:});
+        end
+      end
     end
   end
   methods (Static) % stereo calib
