@@ -9,7 +9,7 @@ classdef RegressorCascade < handle
   end
   
   properties
-    pGTNTrn % [NtrnxD] normalized shapes used during most recent full training
+    pGTNTrn % [NtrnxD] normalized shapes used during most recent full training. Randomly oriented as appropriate.
     
     ftrSpecs % [nMjr] cell array of feature definitions/specifications. ftrSpecs{i} is either [], or a struct specifying F features
     %ftrs % [nMjr] cell array of instantiated features. ftrs{i} is either [], or NxF    
@@ -149,6 +149,20 @@ classdef RegressorCascade < handle
     % For 3D videos, the shapes are in camera coords of the "base" view.
     % BBoxes are therefore 3D ROIs in the base camera coord system.
     
+    % Notes on Rotational Correction 20170609
+    % 
+    % One algorithmic aspect of rotational correction relates to the CPR 
+    % regression and the use of rotationally invariant diffs when 
+    % propagating shapes.
+    %
+    % A second algorithmic aspect concerns replicate initialization, 
+    % wherein replicate shapes are randomly rotated during initialization.
+    %
+    % From the user perspective, we imagine that their data is taken either
+    % i) with a fixed/given orientation (eg animal "upright") or ii) with
+    % the animal free to point in any 2D orientation. In the latter case,
+    % the user will require both algorithmic aspects, so for the moment we 
+    % will expose a single user flag. 
     
     %#3DOK
     function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused,calrig) % obj CONST
@@ -219,11 +233,11 @@ classdef RegressorCascade < handle
         );
       
       model = obj.prmModel;
-      tiPrm = obj.prmTrainInit;
-      Naug = tiPrm.Naug;  
+      prmTI = obj.prmTrainInit;
+      Naug = prmTI.Naug;  
       
-      if isfield(tiPrm,'augUseFF')
-        initUseFF = tiPrm.augUseFF;
+      if isfield(prmTI,'augUseFF')
+        initUseFF = prmTI.augUseFF;
       else
         initUseFF = false;
       end
@@ -239,14 +253,14 @@ classdef RegressorCascade < handle
         pNInitSet = shapeGt('projectPose',model,pGT,bboxes);
         selfSample = true;
       end
-      randomlyOriented = XXX;
-      iHead = xxx;
-      iTail = xxx;
+      % pNInitSet in normalized coords
       
+      prmRotCorr = obj.prmReg.rotCorrection;
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
-        'randomlyOriented',randomlyOriented,...
-        'iHead',iHead,'iTail',iTail,...
-        'bboxJitterfac',tiPrm.augjitterfac,...
+        'randomlyOriented',prmRotCorr.use,...
+        'iHead',prmRotCorr.iPtHead,...
+        'iTail',prmRotCorr.iPtTail,...
+        'bboxJitterfac',prmTI.augjitterfac,...
         'selfSample',selfSample,...
         'furthestfirst',initUseFF);
       N = size(I,1);
@@ -255,7 +269,7 @@ classdef RegressorCascade < handle
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
       pAll = obj.train(I,bboxes,pGT,p0,pIidx,loArgs{:});
-    end    
+    end
     
     %#3DOK
     function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
@@ -552,8 +566,11 @@ classdef RegressorCascade < handle
       
       Naug = prmTestInit.Nrep;
       pNInitSet = obj.pGTNTrn;
+      prmRotCorr = obj.prmReg.rotCorrection;
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
-        'dorotate',prmTestInit.augrotate,...
+        'randomlyOriented',prmRotCorr.use,...
+        'iHead',prmRotCorr.iPtHead,...
+        'iTail',prmRotCorr.iPtTail,...
         'bboxJitterfac',prmTestInit.augjitterfac,...
         'selfSample',false,...
         'furthestfirst',useFF);

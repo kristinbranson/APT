@@ -60,7 +60,7 @@ classdef Shape
       
       [omitRow,randomlyOriented,iHead,iTail,useFF] = myparse(varargin,...
         'omitRow',nan,... % optional, row of p0 to omit from sampling
-        'randomlyOriented',false, ... % scalar logical. If true, p0 are randomly oriented
+        'randomlyOriented',false, ... % scalar logical. If true, p0 are randomly oriented; pUse will be drawn from p0 and hence "similarly" randomly oriented 
         'iHead',nan,... % head pt used if randomlyOriented==true
         'iTail',nan,... % etc
         'useFF',false ... % if true, use furthestfirst to select most different shapes
@@ -120,7 +120,7 @@ classdef Shape
       
       szassert(p1,[L D]);
       % Conceptual check: if randomlyOriented, then p1 is randomly
-      % oriented, and if not, then p1 is aligned
+      % oriented, and if not, then p1 has same overall alignment as p0
     end
     
     %#3DOK
@@ -136,6 +136,21 @@ classdef Shape
       %
       % Shapes are randomly drawn from pN, optionally randomly rotated,
       % then projected onto randomly jittered bboxes.
+      %
+      % Note on randomlyOriented option. This flag serves two purposes. The
+      % first is that, if the incoming shapes (pN) are randomly oriented,
+      % then this is passed onto Shape.randsamp so it can properly do its
+      % job. For instance, in the case where there are not enough distinct 
+      % input shapes to sample, randInitShapes creates new input shapes by 
+      % averaging shapes; if shapes are randomly oriented, they must first
+      % be aligned.
+      %
+      % The second purpose is that, if randomlyOriented is on, then pAug is
+      % randomized (in terms of orientation) when sampling (Shape.randsamp)
+      % is complete. This second randomization may not be strictly
+      % necessary but it doesn't seem to hurt and may help when the input
+      % shapes are randomly oriented but in some particular nonuniform way 
+      % that may not generally hold.
       
       [randomlyOriented,bboxJitterFac,selfSample,useFF] = myparse(varargin,...
         'randomlyOriented',false,... % if true, shapes in pN have arbitrary orientations; orientation of shapes in pAug will be randomized
@@ -173,7 +188,7 @@ classdef Shape
       nOOB = Shape.normShapeOOB(pN);
       if nOOB>0
         warningNoTrace('Shape:randInitShapes. pN (%d shapes) falls outside [-1,1] in %d els.',...
-        M,nOOB);
+          M,nOOB);
       end
            
       pAug = zeros(N,Naug,D);
@@ -209,6 +224,10 @@ classdef Shape
           bbRP = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac);
         end
         if randomlyOriented
+          % See notes on 'randomlyOriented' above. Strictly this 
+          % randomization may be unnecessary or optional, as the output of
+          % Shape.randsamp should have "(random) orientation 
+          % characteristics" of the input pN.
           assert(d==2,'Currently random rotations supported only for d==2');
           pNAug = Shape.randrot(pNAug,d);
         end
