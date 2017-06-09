@@ -205,6 +205,56 @@ classdef OrthoCamCalPair < CalRig
       dmu = mean(d);      
     end
     
+    function viewCompare(objs,varargin)
+      % View/Compare multiple OrthoCamCalPairs
+      %
+      % objs: [ncal] vector of OrthoCamCalPairs
+      
+      [viewLimX,viewLimY] = myparse(varargin,...
+        'viewLimX',[1 768],...
+        'viewLimY',[1 512]);
+      
+      hFig = figure;
+      axs = createsubplots(1,2,.1);
+      title(axs(1),'Cam1','fontsize',14,'fontweight','bold');
+      title(axs(2),'Cam2','fontsize',14,'fontweight','bold');
+      arrayfun(@(x)axis(x,'equal'),axs);
+      arrayfun(@(x)axis(x,[viewLimX viewLimY]),axs);
+      arrayfun(@(x)grid(x,'on'),axs);
+      arrayfun(@(x)hold(x,'on'),axs);
+      [axs.Color] = deal([0 0 0]);
+      [axs.GridColor] = deal([1 1 1]);
+      [axs.FontSize] = deal(12);
+      
+      ncal = numel(objs);
+      hLine = gobjects(2,ncal);
+      % hLine(iView,iCal) is EPline in view iView calib iCal
+      colors = lines(ncal);
+      for ical=1:ncal
+        hLine(:,ical) = [...
+          plot(axs(1),nan,nan,'color',colors(ical,:),'linewidth',2,'displayname',['cal' num2str(ical)]);
+          plot(axs(2),nan,nan,'color',colors(ical,:),'linewidth',2,'displayname',['cal' num2str(ical)])];
+      end
+      hLeg = legend(axs(2),'show');
+      set(hLeg,'color',[0.15 0.15 0.15],'textcolor',[1 1 1]);
+      hPt1 = impoint(axs(1),100,200);
+      hPt2 = impoint(axs(2),100,200);
+      addNewPositionCallback(hPt1,@(xy) nstUpdateEP(xy,1,2) );
+      addNewPositionCallback(hPt2,@(xy) nstUpdateEP(xy,2,1) );
+      
+      function nstUpdateEP(xy,iViewPt,iViewEP)
+        for icalnst=1:ncal
+          [xEPL,yEPL] = objs(icalnst).computeEpiPolarLine(iViewPt,xy,iViewEP);
+
+          tfIB = viewLimX(1)<=xEPL & xEPL<=viewLimX(2) & ...
+                 viewLimY(1)<=yEPL & yEPL<=viewLimY(2);
+          xEPL = xEPL(tfIB);
+          yEPL = yEPL(tfIB);
+          set(hLine(iViewEP,icalnst),'XData',xEPL,'YData',yEPL);
+        end
+      end
+    end
+    
   end
   
   methods (Static)
