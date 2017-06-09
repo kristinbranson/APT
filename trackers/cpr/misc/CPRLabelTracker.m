@@ -1335,8 +1335,6 @@ end
             return;
           end
           if iChunk==1 && ~isempty(p0DiagImg)
-            tf1 = pIidx==1;
-            p0Info.p0_1 = p0(tf1,:);
             hFigP0DiagImg = RegressorCascade.createP0DiagImg(IsVw,p0Info);
             [ptmp,ftmp] = fileparts(p0DiagImg);
             p0DiagImgVw = fullfile(ptmp,sprintf('%s_view%d.fig',ftmp,iView));

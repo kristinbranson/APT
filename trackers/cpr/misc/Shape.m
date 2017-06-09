@@ -50,7 +50,7 @@ classdef Shape
       assert(false,'NOT DONE'); 
     end
     
-    function pUse = randsamp(p0,L,varargin)
+    function p1 = randsamp(p0,L,varargin)
       % Randomly sample shapes
       %
       % p0: [NxD] input shapes
@@ -152,16 +152,17 @@ classdef Shape
       % shapes are randomly oriented but in some particular nonuniform way 
       % that may not generally hold.
       
-      [randomlyOriented,bboxJitterFac,selfSample,useFF] = myparse(varargin,...
-        'randomlyOriented',false,... % if true, shapes in pN have arbitrary orientations; orientation of shapes in pAug will be randomized
-        'iHead',nan,... % head pt used if randomlyOriented==true
-        'iTail',nan,... % etc
-        'bboxJitterfac',16, ... % jitter by 1/16th of bounding box dims. If useFF is true, can be [D] vector.
-        'selfSample',false, ... % if true, then M==N, ie the set pN corresponds to bboxes. pN(i,:) will 
-                            ... % not be drawn/included when generating pAug(i,:,:).
-        'furthestfirst',false ... % if true, try to sample more diverse shapes using furthestfirst
-        );
-    
+      [randomlyOriented,iHead,iTail,bboxJitterFac,selfSample,useFF] = ...
+        myparse(varargin,...
+          'randomlyOriented',false,... % if true, shapes in pN have arbitrary orientations; orientation of shapes in pAug will be randomized
+          'iHead',nan,... % head pt used if randomlyOriented==true
+          'iTail',nan,... % etc
+          'bboxJitterfac',16, ... % jitter by 1/16th of bounding box dims. If useFF is true, can be [D] vector.
+          'selfSample',false, ... % if true, then M==N, ie the set pN corresponds to bboxes. pN(i,:) will
+                              ... % not be drawn/included when generating pAug(i,:,:).
+          'furthestfirst',false ... % if true, try to sample more diverse shapes using furthestfirst
+          );
+
       M = size(pN,1);
       N = size(bboxes,1);
       d = model.d;
@@ -243,7 +244,9 @@ classdef Shape
         'randomlyOriented',randomlyOriented,...
         'bboxJitterFac',bboxJitterFac,...
         'selfSample',selfSample,...
-        'furthestfirst',useFF);
+        'furthestfirst',useFF,...
+        'p0_1',squeeze(pAug(1,:,:)),... % absolute coords
+        'bbox1',bboxes(1,:));
     end
     
     %# 3DOK

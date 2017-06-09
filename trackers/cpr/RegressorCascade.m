@@ -35,6 +35,10 @@ classdef RegressorCascade < handle
     hasTrained % scalar logical; true if at least one full training has occurred
   end
   
+  properties
+    tmp % non-critical non-persisted
+  end
+  
   methods
     function v = get.nMajor(obj)
       v = obj.prmReg.T;
@@ -263,6 +267,8 @@ classdef RegressorCascade < handle
         'bboxJitterfac',prmTI.augjitterfac,...
         'selfSample',selfSample,...
         'furthestfirst',initUseFF);
+      obj.tmp.p0info = p0info;
+      
       N = size(I,1);
       szassert(p0,[N Naug model.D]);
       
@@ -575,8 +581,7 @@ classdef RegressorCascade < handle
         'selfSample',false,...
         'furthestfirst',useFF);
       szassert(p0,[N Naug model.D]);
-      %p0info.p0_1 = squeeze(p0(1,:,:)); % absolute coords
-      p0info.bbox1 = bboxes(1,:);
+      obj.tmp.p0info = p0info;
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
@@ -751,7 +756,7 @@ classdef RegressorCascade < handle
     function hFig = createP0DiagImg(I,p0info)
       % Visualize initial random shapes
       %
-      % I: [NxnView] cell array of images
+      % I: [NxnView] cell array of images. Currently only using I{1}
       % p0Info: struct containing initial shape randomization info, see eg
       %   propagateRandInit()
       
