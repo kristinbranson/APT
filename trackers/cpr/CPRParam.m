@@ -30,7 +30,7 @@ classdef CPRParam
   
   methods (Static)
     
-    function sOld = new2old(sNew,npts,nviews)
+    function sOld = new2old(sNew,nphyspts,nviews)
       % Convert new-style parameters to old-style parameters. Defaults are
       % used for old fields when appropriate. Some old-style fields that 
       % are currently unnecessary are omitted.
@@ -39,13 +39,15 @@ classdef CPRParam
       
       sOld = struct();
       sOld.Model.name = '';
-      sOld.Model.nfids = npts;
+      sOld.Model.nfids = nphyspts;
       sOld.Model.d = 2;
       sOld.Model.nviews = nviews;
       
       he = sNew.ROOT.Track.HistEq;
+      tc = sNew.ROOT.Track.TargetCrop;
       sOld.PreProc.histeq = he.Use;
       sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
+      sOld.PreProc.TargetCrop = tc;
       sOld.PreProc.channelsFcn = [];
       
       cpr = sNew.ROOT.CPR;
@@ -102,6 +104,7 @@ classdef CPRParam
       sNew.ROOT.Track.Type = 'cpr';
       sNew.ROOT.Track.HistEq.Use = sOld.PreProc.histeq;
       sNew.ROOT.Track.HistEq.NSampleH0 = sOld.PreProc.histeqH0NumFrames;
+      sNew.ROOT.Track.TargetCrop = sOld.PreProc.TargetCrop;
       assert(isempty(sOld.PreProc.channelsFcn));
       
       sNew.ROOT.CPR.NumMajorIter = sOld.Reg.T;

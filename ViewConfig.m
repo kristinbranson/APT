@@ -63,8 +63,13 @@ classdef ViewConfig
       xtmode = {axs.XTickMode}';
       ytmode = {axs.YTickMode}';
       xtlmode = {axs.XTickLabelMode}';
-      ytlmode = {axs.YTickLabelMode}';      
-      t = table(xls,yls,dxdyls,xlmode,ylmode,xdir,ydir,clim,clmode,cva,cvamode,cuv,cuvmode,xtmode,ytmode,xtlmode,ytlmode);
+      ytlmode = {axs.YTickLabelMode}'; 
+      dar = cat(1,axs.DataAspectRatio);
+      darm = {axs.DataAspectRatioMode}';
+      pbarm = {axs.PlotBoxAspectRatioMode}';
+      t = table(xls,yls,dxdyls,xlmode,ylmode,xdir,ydir,clim,clmode,...
+        cva,cvamode,cuv,cuvmode,xtmode,ytmode,xtlmode,ytlmode,...
+        dar,darm,pbarm);
     end
         
     function tfAxLimSpecifiedInCfg = setCfgOnViews(viewCfg,hFig,hAx,hIm,hAxPrev)

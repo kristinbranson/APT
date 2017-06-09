@@ -24,6 +24,7 @@ classdef LabelTracker < handle
     
     hLCurrMovie; % listener to lObj.currMovie
     hLCurrFrame; % listener to lObj.currFrame
+    hLCurrTarget; % listener to lObj.currTarget
   end  
   
   properties (SetObservable,SetAccess=protected)
@@ -33,35 +34,32 @@ classdef LabelTracker < handle
   methods
     
     function obj = LabelTracker(labelerObj)
-      obj.lObj = labelerObj;      
+      obj.lObj = labelerObj;
       
       trkPrefs = labelerObj.projPrefs.Track;
       if isfield(trkPrefs,'PredictInterpolate')
         val = logical(trkPrefs.PredictInterpolate);
         if ~isscalar(val)
-          error('LabelTracker:init','Expected scalar value for ''PredictInterpolate'' preference.');
+          error('LabelTracker:init','Expected scalar value for ''PredictInterpolate''.');
         end
       else
+        val = false;
+      end
+      if obj.lObj.hasTrx && val
+        warningNoTrace('LabelTracker:interp',...
+          'Project has trajectories; turning off tracking interpolation.');
         val = false;
       end
       obj.trkVizInterpolate = val;
       
       obj.hLCurrMovie = addlistener(labelerObj,'currMovie','PostSet',@(s,e)obj.newLabelerMovie());
       obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
+      obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
     end
     
     function init(obj)
       % Called when a new project is created/loaded, etc
-
-      deleteValidHandles(obj.ax);     
-      axAll = obj.lObj.gdata.axes_all;
-      axOver = gobjects(size(axAll));
-      for i=1:numel(axAll)
-        axOver(i) = axisOverlay(axAll(i));
-        axOver(i).LineWidth = 2;
-      end
-      obj.ax = axOver;
-      
+      obj.ax = obj.lObj.gdata.axes_all;
       obj.initHook();
     end
     
@@ -73,13 +71,15 @@ classdef LabelTracker < handle
     end
     
     function delete(obj)
-      deleteValidHandles(obj.ax);
       if ~isempty(obj.hLCurrMovie)
         delete(obj.hLCurrMovie);
       end
       if ~isempty(obj.hLCurrFrame)
         delete(obj.hLCurrFrame);
       end
+      if ~isempty(obj.hLCurrTarget)
+        delete(obj.hLCurrTarget);
+      end      
     end
     
   end
@@ -118,8 +118,16 @@ classdef LabelTracker < handle
     function track(obj,iMovs,frms,varargin)
       % Apply trained tracker to the specified frames.
       %
+      % Legacy/Single-target API:
+      %   track(obj,iMovs,frms,...)
+      %
       % iMovs: [M] indices into .lObj.movieFilesAll to track
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
+      %
+      % Newer/multi-target API:
+      %     track(obj,[],[],'tblP',tblMF)
+      %
+      % tblMF: MFTable with rows specifying movie/frame/target
       %
       % Optional PVs.
     end
@@ -171,16 +179,19 @@ classdef LabelTracker < handle
       % Called when Labeler is navigated to a new frame
     end
     
+    function newLabelerTarget(obj)
+      % Called when Labeler is navigated to a new target
+    end
+    
     function newLabelerMovie(obj)
       % Called when Labeler is navigated to a new movie
     end
     
-    % AL 20160715: Don't use/overload me, still rationalizing save/load
     function s = getSaveToken(obj)
       % Get a struct to serialize
       s = struct();
     end
-    % AL 20160715: Don't use/overload me, still rationalizing save/load    
+
     function loadSaveToken(obj,s) %#ok<*INUSD>
       
     end
@@ -201,8 +212,8 @@ classdef LabelTracker < handle
       end
     end
     
-    function xy = getCurrentPrediction(obj)
-      % xy: [nptsx2] tracked results for current Labeler frame
+    function xy = getPredictionCurrentFrame(obj)
+      % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
       xy = [];
     end
     
@@ -236,38 +247,19 @@ classdef LabelTracker < handle
     end
         
     %#MV
+    % TODO: DEPRECATE
     function tblP = getTblP(obj,iMovs,frms) % obj CONST
       % From .lObj, read tblP for given movies/frames.
-      
+            
       labelerObj = obj.lObj;
+      assert(~labelerObj.hasTrx,...
+        'Legacy codepath not intended for multitarget projects.');
       movID = labelerObj.movieFilesAll;
       movID = FSPath.standardPath(movID);
       [~,tblP] = Labeler.lblCompileContentsRaw(labelerObj.movieFilesAllFull,...
         labelerObj.labeledpos,labelerObj.labeledpostag,iMovs,frms,...
         'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
-    end
-
-    %#MV
-    function tblP = getTblPLbled(obj)
-      % From .lObj, read tblP for all movies/labeledframes. Currently,
-      % exclude partially-labeled frames.
-      %
-      % tblP: MFTable of labeled frames
-      
-      labelerObj = obj.lObj;      
-      movID = labelerObj.movieFilesAll;
-      movID = FSPath.standardPath(movID);
-      [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,...
-        labelerObj.labeledpos,labelerObj.labeledpostag,'lbl',...
-        'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
-      
-      p = tblP.p;
-      tfnan = any(isnan(p),2);
-      nnan = nnz(tfnan);
-      if nnan>0
-        warningNoTrace('CPRLabelTracker:nanData','Not including %d partially-labeled rows.',nnan);
-      end
-      tblP = tblP(~tfnan,:);
+      tblP.iTgt = ones(height(tblP),1);
     end
     
   end
