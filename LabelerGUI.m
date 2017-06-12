@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 28-Apr-2017 13:56:34
+% Last Modified by GUIDE v2.5 12-Jun-2017 07:14:40
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -2062,3 +2062,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
+function pbPlaySeg_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.videoPlaySegment();

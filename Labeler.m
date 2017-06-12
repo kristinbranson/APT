@@ -141,6 +141,7 @@ classdef Labeler < handle
     movieRotateTargetUp = false;
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
+    moviePlaySegRadius; % scalar int
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
     
     movieIsPlaying = false;
@@ -640,6 +641,7 @@ classdef Labeler < handle
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
+      obj.moviePlaySegRadius = cfg.Movie.PlaySegmentRadius;
            
       fldsRm = intersect(fieldnames(cfg),...
         {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
@@ -696,7 +698,8 @@ classdef Labeler < handle
 
       cfg.Movie = struct(...
         'ForceGrayScale',obj.movieForceGrayscale,...
-        'FrameStepBig',obj.movieFrameStepBig);
+        'FrameStepBig',obj.movieFrameStepBig,...
+        'PlaySegmentRadius',obj.moviePlaySegRadius);
 
       cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
       cfg.Trx.ShowTrx = obj.showTrx;
@@ -4052,13 +4055,24 @@ classdef Labeler < handle
       end      
     end
     
-    function videoPlaySegment(obj,f1,f2)
+    function videoPlaySegment(obj)
+      % Play segment centererd at .currFrame
+      
+      f = obj.currFrame;
+      df = obj.moviePlaySegRadius;
+      fstart = max(1,f-df);
+      fend = min(obj.nframes,f+df);
+      obj.videoPlaySegmentRaw(fstart,fend,f);
+    end
+    
+    function videoPlaySegmentRaw(obj,fstart,fend,freset)
       gd = obj.gdata;
       gd.hLinkProp.Enabled = 'off';
-      for f=f1:f2
-        obj.setFrame(f);
+      for f=fstart:fend
+        obj.setFrame(f,'fastdirty',true);
         drawnow limitrate
       end
+      obj.setFrame(freset);
     end
     
   end
@@ -4183,9 +4197,10 @@ classdef Labeler < handle
     function setFrame(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
       
-      [tfforcereadmovie,tfforcelabelupdate] = myparse(varargin,...
+      [tfforcereadmovie,tfforcelabelupdate,fastdirty] = myparse(varargin,...
         'tfforcereadmovie',false,...
-        'tfforcelabelupdate',false);
+        'tfforcelabelupdate',false,...
+        'fastdirty',false);
             
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
@@ -4202,10 +4217,13 @@ classdef Labeler < handle
         assert(~obj.isMultiView);
         obj.videoCenterOnCurrTarget();
       end
-      obj.labelsUpdateNewFrame(tfforcelabelupdate);
-      obj.updateTrxTable();
-      obj.updateCurrSusp();
-      obj.updateShowTrx();
+      
+      if ~fastdirty
+        obj.labelsUpdateNewFrame(tfforcelabelupdate);
+        obj.updateTrxTable();
+        obj.updateCurrSusp();
+        obj.updateShowTrx();
+      end
     end
     
     function setTargetID(obj,tgtID)

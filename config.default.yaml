@@ -49,6 +49,7 @@ View:
 Movie:
   ForceGrayScale: 1
   FrameStepBig: 10
+  PlaySegmentRadius: 50
 
 LabelPointsPlot:
   ColorMapName: 'spring'
