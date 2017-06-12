@@ -4059,7 +4059,8 @@ classdef Labeler < handle
     end
     
     function videoPlay(obj)
-      obj.videoPlaySegmentCore(obj.currFrame,obj.nframes);
+      obj.videoPlaySegmentCore(obj.currFrame,obj.nframes,...
+        'setFrameArgs',{'updateTables',false});
     end
     
     function videoPlaySegment(obj)
@@ -4069,18 +4070,17 @@ classdef Labeler < handle
       df = obj.moviePlaySegRadius;
       fstart = max(1,f-df);
       fend = min(obj.nframes,f+df);
-      obj.videoPlaySegmentCore(fstart,fend,'freset',f);
+      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
+        'setFrameArgs',{'updateTables',false,'updateLabels',false});
     end
     
     function videoPlaySegmentCore(obj,fstart,fend,varargin)
       
-      freset = myparse(varargin,...
+      [setFrameArgs,freset] = myparse(varargin,...
+        'setFrameArgs',{},...
         'freset',nan);
       tfreset = ~isnan(freset);
-      
-      gd = obj.gdata;
-      gd.hLinkProp.Enabled = 'off'; % XXX
-      
+            
       ticker = tic;
       while true
         % Ways to exit loop:
@@ -4100,8 +4100,8 @@ classdef Labeler < handle
           break;
         end
 
-        obj.setFrame(f,'fastdirty',true);
-        drawnow
+        obj.setFrame(f,setFrameArgs{:});
+        drawnow;
 
 %         dtsec = toc(ticker);
 %         pause_time = (f-fstart)/obj.moviePlayFPS - dtsec;
@@ -4251,10 +4251,13 @@ classdef Labeler < handle
       % (full/completed) setFrame() call should fix things up. We could
       % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
-      [tfforcereadmovie,tfforcelabelupdate,fastdirty] = myparse(varargin,...
+      [tfforcereadmovie,tfforcelabelupdate,updateLabels,updateTables,...
+        updateTrajs] = myparse(varargin,...
         'tfforcereadmovie',false,...
         'tfforcelabelupdate',false,...
-        'fastdirty',false);
+        'updateLabels',true,...
+        'updateTables',true,...
+        'updateTrajs',true);
             
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
@@ -4272,10 +4275,14 @@ classdef Labeler < handle
         obj.videoCenterOnCurrTarget();
       end
       
-      if ~fastdirty
+      if updateLabels
         obj.labelsUpdateNewFrame(tfforcelabelupdate);
+      end
+      if updateTables
         obj.updateTrxTable();
         obj.updateCurrSusp();
+      end
+      if updateTrajs
         obj.updateShowTrx();
       end
     end
