@@ -67,6 +67,13 @@ set(handles.txStatus,'String','');
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
 
+% Transparentify pbPlaySeg icon
+cdata = handles.pbPlaySeg.CData;
+cdata = double(cdata)/256;
+cdata(cdata==0) = nan;
+handles.pbPlaySeg.CData = cdata;
+handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
+
 handles.output = hObject;
 
 handles.labelerObj = varargin{1};
