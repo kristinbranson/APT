@@ -60,6 +60,8 @@ if verLessThan('matlab','8.4')
   error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
 end
 
+hObject.Name = 'APT';
+
 % reinit uicontrol strings etc from GUIDE for cosmetic purposes
 set(handles.txPrevIm,'String','');
 set(handles.edit_frame,'String','');
@@ -213,6 +215,13 @@ moveMenuItemAfter(handles.menu_setup_multiview_calibrated_mode_2,...
 
 delete(handles.menu_setup_multiview_calibrated_mode);
 handles.menu_setup_multiview_calibrated_mode = [];
+
+handles.menu_help_about = uimenu(...
+  'Parent',handles.menu_help,...
+  'Label','About',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_help_about_Callback',hObject,eventdata,guidata(hObject)),...
+  'Tag','menu_help_about');  
+moveMenuItemBefore(handles.menu_help_about,handles.menu_help_labeling_actions);
 
 % misc labelmode/Setup menu
 LABELMODE_SETUPMENU_MAP = ...
@@ -1396,6 +1405,10 @@ else
   h = lblCore.getLabelingHelp();
 end
 msgbox(h,'Labeling Actions','help');
+
+function menu_help_about_Callback(hObject, eventdata, handles)
+str = {'APT: Branson Lab Animal Part Tracker'};
+msgbox(str,'About');
 
 function menu_setup_sequential_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
