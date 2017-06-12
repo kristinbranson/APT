@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 12-Jun-2017 07:14:40
+% Last Modified by GUIDE v2.5 12-Jun-2017 14:19:29
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -66,13 +66,6 @@ set(handles.edit_frame,'String','');
 set(handles.txStatus,'String','');
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
-
-% Transparentify pbPlaySeg icon
-cdata = handles.pbPlaySeg.CData;
-cdata = double(cdata)/256;
-cdata(cdata==0) = nan;
-handles.pbPlaySeg.CData = cdata;
-handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
 handles.output = hObject;
 
@@ -336,6 +329,12 @@ handles.sldZoom.Max = 1;
 handles.sldZoom.Value = 0;
 
 handles.depHandles = gobjects(0,1);
+
+handles.isPlaying = false;
+handles.pbPlay.CData = Icons.ims.play;
+handles.pbPlay.BackgroundColor = handles.edit_frame.BackgroundColor;
+handles.pbPlaySeg.CData = Icons.ims.playsegment;
+handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
 guidata(hObject, handles);
 
@@ -2069,6 +2068,20 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-function pbPlaySeg_Callback(hObject, eventdata, handles)
+function play(hObject,handles,iconStrPlay,playMeth)
 lObj = handles.labelerObj;
-lObj.videoPlaySegment();
+
+if ~handles.isPlaying
+  handles.isPlaying = true;
+  guidata(hObject,handles);
+  hObject.CData = Icons.ims.stop;
+  lObj.(playMeth); % XXX catch ctrl-C
+end
+hObject.CData = Icons.ims.(iconStrPlay);
+handles.isPlaying = false;
+guidata(hObject,handles);
+
+function pbPlaySeg_Callback(hObject, eventdata, handles)
+play(hObject,handles,'playsegment','videoPlaySegment');
+function pbPlay_Callback(hObject, eventdata, handles)
+play(hObject,handles,'play','videoPlay');

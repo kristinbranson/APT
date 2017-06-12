@@ -142,6 +142,7 @@ classdef Labeler < handle
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
     moviePlaySegRadius; % scalar int
+    moviePlayFPS; 
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
     
     movieIsPlaying = false;
@@ -642,6 +643,7 @@ classdef Labeler < handle
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
       obj.moviePlaySegRadius = cfg.Movie.PlaySegmentRadius;
+      obj.moviePlayFPS = cfg.Movie.PlayFPS;
            
       fldsRm = intersect(fieldnames(cfg),...
         {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
@@ -699,7 +701,8 @@ classdef Labeler < handle
       cfg.Movie = struct(...
         'ForceGrayScale',obj.movieForceGrayscale,...
         'FrameStepBig',obj.movieFrameStepBig,...
-        'PlaySegmentRadius',obj.moviePlaySegRadius);
+        'PlaySegmentRadius',obj.moviePlaySegRadius,...
+        'PlayFPS',obj.moviePlayFPS);
 
       cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
       cfg.Trx.ShowTrx = obj.showTrx;
@@ -4055,6 +4058,10 @@ classdef Labeler < handle
       end      
     end
     
+    function videoPlay(obj)
+      obj.videoPlaySegmentCore(obj.currFrame,obj.nframes);
+    end
+    
     function videoPlaySegment(obj)
       % Play segment centererd at .currFrame
       
@@ -4062,17 +4069,59 @@ classdef Labeler < handle
       df = obj.moviePlaySegRadius;
       fstart = max(1,f-df);
       fend = min(obj.nframes,f+df);
-      obj.videoPlaySegmentRaw(fstart,fend,f);
+      obj.videoPlaySegmentCore(fstart,fend,'freset',f);
     end
     
-    function videoPlaySegmentRaw(obj,fstart,fend,freset)
+    function videoPlaySegmentCore(obj,fstart,fend,varargin)
+      
+      freset = myparse(varargin,...
+        'freset',nan);
+      tfreset = ~isnan(freset);
+      
       gd = obj.gdata;
-      gd.hLinkProp.Enabled = 'off';
-      for f=fstart:fend
+      gd.hLinkProp.Enabled = 'off'; % XXX
+      
+      ticker = tic;
+      while true
+        % Ways to exit loop:
+        % 1. user cancels playback through GUI mutation of gdata.isPlaying
+        % 2. fend reached
+        % 3. ctrl-c
+        
+        guidata = obj.gdata;
+        if ~guidata.isPlaying
+          break;
+        end
+                  
+        dtsec = toc(ticker);
+        df = dtsec*obj.moviePlayFPS;
+        f = ceil(df)+fstart;
+        if f > fend
+          break;
+        end
+
         obj.setFrame(f,'fastdirty',true);
-        drawnow limitrate
+        drawnow
+
+%         dtsec = toc(ticker);
+%         pause_time = (f-fstart)/obj.moviePlayFPS - dtsec;
+%         if pause_time <= 0,
+%           if handles.guidata.mat_lt_8p4
+%             drawnow;
+%             % MK Aug 2015: There is a drawnow in status update so no need to draw again here
+%             % for 2014b onwards.
+%             %     else
+%             %       drawnow('limitrate');
+%           end
+%         else
+%           pause(pause_time);
+%         end
       end
-      obj.setFrame(freset);
+      
+      if tfreset
+        obj.setFrame(freset);
+      end
+      % - icon managed by caller      
     end
     
   end
@@ -4196,6 +4245,11 @@ classdef Labeler < handle
     
     function setFrame(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
+      %
+      % CTRL-C note: This is fairly ctrl-c safe; a ctrl-c break may leave
+      % obj state a little askew but it should be cosmetic and another
+      % (full/completed) setFrame() call should fix things up. We could
+      % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
       [tfforcereadmovie,tfforcelabelupdate,fastdirty] = myparse(varargin,...
         'tfforcereadmovie',false,...
