@@ -2070,13 +2070,14 @@ end
 
 function play(hObject,handles,iconStrPlay,playMeth)
 lObj = handles.labelerObj;
-
+oc = onCleanup(@()playCleanup(hObject,handles,iconStrPlay));
 if ~handles.isPlaying
   handles.isPlaying = true;
   guidata(hObject,handles);
   hObject.CData = Icons.ims.stop;
-  lObj.(playMeth); % XXX catch ctrl-C
+  lObj.(playMeth);
 end
+function playCleanup(hObject,handles,iconStrPlay)
 hObject.CData = Icons.ims.(iconStrPlay);
 handles.isPlaying = false;
 guidata(hObject,handles);
