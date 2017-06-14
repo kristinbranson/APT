@@ -13,7 +13,7 @@ classdef CPRLabelTracker < LabelTracker
     DATA_INIT_COLS = {'mov' 'frm' 'iTgt' 'p' 'tfocc'};
     TRNDATA_INIT_COLS = {'mov' 'frm' 'iTgt' 'p' 'tfocc' 'pTS'};
     TRKRES_INIT_COLS = {'mov' 'frm' 'iTgt'};
-end
+  end
   
   properties
     isInit = false; % true during load; invariants can be broken
@@ -108,6 +108,13 @@ end
     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt, (opt) .roi
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. trkD=npttrk*d.
   end
+  
+  %% Async
+  properties
+    asyncPredictOn = false; % if true, newLabelerFrame will fire a parfeval to predict. Could try relying on asyncBGClient.isRunning
+    asyncPredictCPRLTObj; % scalar "detached" CPRLabelTracker object that is deep-copied on clients
+    asyncBGClient; % scalar BGClient object    
+  end
       
   properties (SetObservable)
     showVizReplicates = false; % scalar logical.
@@ -176,8 +183,26 @@ end
   %% Ctor/Dtor
   methods
     
-    function obj = CPRLabelTracker(lObj)
+    function obj = CPRLabelTracker(lObj,varargin)
+      detached = myparse(varargin,...
+        'detached',false);
+      
       obj@LabelTracker(lObj);
+      if detached
+        s = struct(...
+          'projMacros',lObj.projMacros,...
+          'isMultiView',lObj.isMultiView,...
+          'hasTrx',lObj.hasTrx,...
+          'nview',lObj.nview);
+        obj.lObj = s;
+        obj.ax = [];
+        delete(obj.hLCurrMovie);
+        delete(obj.hLCurrFrame);
+        delete(obj.hLCurrTarget);
+        obj.hLCurrMovie = [];
+        obj.hLCurrFrame = [];
+        obj.hLCurrTarget = [];
+      end
     end
     
     function delete(obj)
@@ -1204,6 +1229,170 @@ end
 %       nfLoad = size(tr.trkP,1);
 %       fprintf(1,'Loaded tracking results for %d frames.\n',nfLoad);
     end
+
+    
+    
+    
+    
+    
+        
+    function asyncInit(obj)
+      if ~isempty(obj.asyncBGClient)
+        delete(obj.asyncBGClient);
+      end
+      obj.asyncBGClient = [];
+      
+      bgc = BGClient;
+      cbkResult = @(sRes)obj.asyncResultReceived(sRes);
+      objDetached = obj.asyncDetachCopy();
+      bgc.configure(cbkResult,objDetached,'asyncCompute');
+
+      obj.asyncPredictOn = false;
+      obj.asyncPredictCPRLTObj = objDetached; % XXX destructor
+      obj.asyncBGClient = bgc;
+    end
+    
+    function asyncTrackCurrFrame(obj)
+      % Send command to BGWorker
+      assert(obj.asyncPredictOn);
+      tblP = obj.getTblP(obj.lObj.currMovie,{obj.lObj.currFrame});
+      sCmd = struct('action','track','data',tblP);
+      obj.asyncBGClient.sendCommand(sCmd);
+    end
+    
+    function asyncResultReceived(obj,sRes)
+      if obj.asyncPredictOn % Should be on except possibly in edge cases when user turns asyncPredict off
+        res = sRes.result;
+        switch sRes.action          
+          case 'track'            
+            obj.updateTrackRes(res.trkPMDnew,res.pTstTRed,res.pTstT);
+            obj.vizLoadXYPrdCurrMovieTarget();
+            obj.newLabelerFrame();
+          case 'summarize'
+            nData = res(1);
+            nTrk = res(2);
+            fprintf(1,'async worker status: nData=%d, nTrk=%d\n',nData,nTrk);
+        end
+      end
+    end
+    
+    function sRes = asyncCompute(obj,sCmd)
+      % Runs on BGWorker with detached obj      
+      assert(isstruct(obj.lObj));
+      
+      switch sCmd.action
+        case 'track'
+          tblP = sCmd.data;
+          assert(istable(tblP));
+          [sRes.trkPMDnew,sRes.pTstTRed,sRes.pTstT] = obj.trackCore(tblP);
+        case 'summarize'
+          sRes = obj.asyncSummarizeState();
+      end
+    end
+    function res = asyncSummarizeState(obj)
+      nData = size(obj.data,1);
+      nTrk = size(obj.trkPMD,1);
+      res = [nData nTrk];
+    end
+    
+    function asyncStartBGWorker(obj)
+      bgc = obj.asyncBGClient;
+      bgc.startWorker();
+      obj.asyncPredictOn = true;
+    end
+    
+    function asyncStopBGWorker(obj)
+      bgc = obj.asyncBGClient;
+      bgc.scopWorker();
+      obj.asyncPredictOn = false;
+    end
+    
+    % BGKD
+    function obj2 = asyncDetachCopy(obj)
+      obj2 = CPRLabelTracker(obj.lObj,'detached',true);
+      
+      CPFLDS = {'sPrm' 'data' 'dataTS' 'trnResH0' 'trnResIPt' 'trnResRC' 'storeFullTracking'};
+      for f=CPFLDS,f=f{1}; %#ok<FXSET>
+        obj2.(f) = obj.(f);
+      end
+      obj2.trackResInit();
+    end
+    
+    % BGKD -- PROB JUST USE TRACK
+    function [trkPMDnew,pTstTRed,pTstT] = trackCore(obj,tblP)      
+      prm = obj.sPrm;
+      if isempty(prm)
+        error('CPRLabelTracker:param','Please specify tracking parameters.');
+      end
+      if ~all([obj.trnResRC.hasTrained])
+        error('CPRLabelTracker:track','No tracker has been trained.');
+      end
+                            
+      %%% Set up .data
+      obj.updateData(tblP);
+      d = obj.data;
+      tblMFAll = d.MD(:,MFTable.FLDSID);
+      tblMFTrk = tblP(:,MFTable.FLDSID);
+      [tf,loc] = ismember(tblMFTrk,tblMFAll);
+      assert(all(tf));
+      d.iTst = loc;
+      fprintf(1,'Track data summary:\n');
+      d.summarize('mov',d.iTst);
+                
+      [Is,nChan] = d.getCombinedIs(d.iTst);
+      prm.Ftr.nChn = nChan;
+        
+      %% Test on test set; fill/generate pTstT/pTstTRed for this chunk
+      NTst = d.NTst;
+      RT = prm.TestInit.Nrep;
+      nview = obj.sPrm.Model.nviews;
+      nfids = prm.Model.nfids;
+      assert(nview==numel(obj.trnResRC));
+      assert(nview==size(Is,2));
+      assert(prm.Model.d==2);
+      Dfull = nfids*nview*prm.Model.d;
+      pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
+      pTstTRed = nan(NTst,Dfull);
+      for iView=1:nview % obj CONST over this loop
+        rc = obj.trnResRC(iView);
+        IsVw = Is(:,iView);
+        bboxesVw = CPRData.getBboxes2D(IsVw);
+        if nview==1
+          assert(isequal(bboxesVw,d.bboxesTst));
+        end
+          
+        [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,...
+          prm.TestInit);
+
+        trkMdl = rc.prmModel;
+        trkD = trkMdl.D;
+        Tp1 = rc.nMajor+1;
+        pTstTVw = reshape(p_t,[NTst RT trkD Tp1]);
+        
+        %% Select best preds for each time
+        pTstTRedVw = nan(NTst,trkD);
+        prm.Prune.prune = 1;
+        for t=Tp1
+          %fprintf('Pruning t=%d\n',t);
+          pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
+          pTstTRedVw(:,:) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
+        end
+        
+        assert(trkD==Dfull/nview);
+        assert(mod(trkD,2)==0);
+        iFull = (1:nfids)+(iView-1)*nfids;
+        iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
+        pTstT(:,:,iFull,:) = pTstTVw;
+        pTstTRed(:,iFull) = pTstTRedVw;
+      end % end obj CONST
+        
+      fldsTmp = MFTable.FLDSID;
+      if any(strcmp(d.MDTst.Properties.VariableNames,'roi'))
+        fldsTmp{1,end+1} = 'roi';
+      end
+      trkPMDnew = d.MDTst(:,fldsTmp);
+      obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
+    end
     
     %#MTGT
     %#MV
@@ -1575,6 +1764,10 @@ end
       
       [xy,isinterp,xyfull] = obj.getPredictionCurrentFrame();
     
+      if obj.asyncPredictOn && all(isnan(xy(:)))
+        obj.asyncTrackCurrFrame();
+      end
+      
       if isinterp
         plotargs = obj.xyVizPlotArgsInterp;
       else
