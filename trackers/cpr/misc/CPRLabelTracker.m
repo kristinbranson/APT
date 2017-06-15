@@ -120,11 +120,11 @@ end
     xyPrdCurrMovieFull % [npts d nrep nfrm] predicted replicates for current Labeler movie, current target.
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame and target
     hXYPrdRedOther; % [npts] plot handles for 'reduced' tracking results, current frame, non-current-target
-    hXYPrdFull; % [npts] plot handles for replicates, current frame, current target
+    hXYPrdFull; % [npts] scatter handles for replicates, current frame, current target
     xyVizPlotArgs; % cell array of args for regular tracking viz    
     xyVizPlotArgsNonTarget; % " for non current target viz
     xyVizPlotArgsInterp; % " for interpolated tracking viz
-    xyVizFullPlotArgs; % " for tracking viz w/replicates
+    xyVizFullPlotArgs; % " for tracking viz w/replicates. These are PV pairs for scatter() not line()
   end
   properties (Dependent)
     nPts % number of label points 
@@ -1937,7 +1937,7 @@ end
       
       % init .xyVizPlotArgs*
       trackPrefs = obj.lObj.projPrefs.Track;
-      cprPrefs = obj.lObj.projPrefs.CPRLabelTracker;
+      cprPrefs = obj.lObj.projPrefs.CPRLabelTracker.PredictReplicatesPlot;
       plotPrefs = trackPrefs.PredictPointsPlot;
       plotPrefs.HitTest = 'off';
       obj.xyVizPlotArgs = struct2paramscell(plotPrefs);
@@ -1947,8 +1947,11 @@ end
         obj.xyVizPlotArgsInterp = obj.xyVizPlotArgs;
       end
       obj.xyVizPlotArgsNonTarget = obj.xyVizPlotArgs; % TODO: customize
-      obj.xyVizFullPlotArgs = ...
-        [struct2paramscell(cprPrefs.PredictReplicatesPlot) {'LineStyle' 'none'}];
+      if isfield(cprPrefs,'MarkerSize') % AL 201706015: Currently always true
+        cprPrefs.SizeData = cprPrefs.MarkerSize^2; % Scatter.SizeData 
+        cprPrefs = rmfield(cprPrefs,'MarkerSize');
+      end
+      obj.xyVizFullPlotArgs = struct2paramscell(cprPrefs);
       
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
@@ -1964,7 +1967,9 @@ end
         iVw = ipt2View(iPt);
         hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
         hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);        
-        hTmp2(iPt) = plot(ax(iVw),nan,nan,obj.xyVizFullPlotArgs{:},'Color',clr);
+        hTmp2(iPt) = scatter(ax(iVw),nan,nan);
+        set(hTmp2(iPt),'MarkerFaceColor',clr,'MarkerEdgeColor',clr,...
+          obj.xyVizFullPlotArgs{:});
       end
       obj.hXYPrdRed = hTmp;
       obj.hXYPrdRedOther = hTmpOther;
