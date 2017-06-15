@@ -586,6 +586,8 @@ classdef CPRLabelTracker < LabelTracker
       end
       obj.trnResIPt = [];
       obj.trnResH0 = [];
+      
+      obj.asyncReset();
     end
   end
   
@@ -935,6 +937,8 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(prm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
+      
+      obj.asyncReset();
        
       if obj.trnDataDownSamp
         assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
@@ -991,7 +995,7 @@ classdef CPRLabelTracker < LabelTracker
         if ~isequal(H0,obj.data.H0)
           obj.initData();
         end
-        if ~isequal(H0,obj.trnResH0)
+        if ~isequal(H0,obj.trnResH0)          
           obj.trnResH0 = H0;
         end
       else
@@ -1069,6 +1073,8 @@ classdef CPRLabelTracker < LabelTracker
         obj.retrain(varargin{:});
         return;
       end
+      
+      obj.asyncReset();
             
       assert(obj.lObj.nview==1,...
         'Incremental training currently unsupported for multiview projects.');
@@ -1735,6 +1741,8 @@ classdef CPRLabelTracker < LabelTracker
     function loadSaveToken(obj,s)
       % Currently we only call this on new/initted trackers.
 
+      obj.asyncReset();
+      
       if isfield(s,'labelTrackerClass')
         s = rmfield(s,'labelTrackerClass'); % legacy
       end            
