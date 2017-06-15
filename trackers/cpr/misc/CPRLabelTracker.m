@@ -108,20 +108,22 @@ classdef CPRLabelTracker < LabelTracker
     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt, (opt) .roi
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. trkD=npttrk*d.
   end
+  properties (SetObservable)
+    storeFullTracking = false; % scalar logical.
+  end  
   
   %% Async
   properties
-    asyncPredictOn = false; % if true, newLabelerFrame will fire a parfeval to predict. Could try relying on asyncBGClient.isRunning
-    asyncPredictCPRLTObj; % scalar "detached" CPRLabelTracker object that is deep-copied on clients
-    asyncBGClient; % scalar BGClient object    
+    asyncPredictOn = false; % if true, background worker is running. newLabelerFrame will fire a parfeval to predict. Could try relying on asyncBGClient.isRunning
+    asyncPredictCPRLTObj; % scalar "detached" CPRLabelTracker object that is deep-copied onto workers. Contains current trained tracker used in backgorund pred.
+    asyncBGClient; % scalar BGClient object, manages comms with background worker.
   end
-      
+     
+  %% Visualization
   properties (SetObservable)
     showVizReplicates = false; % scalar logical.
-    storeFullTracking = false; % scalar logical.
   end
   properties 
-    % View/presentation
     xyPrdCurrMovie; % [npts d nfrm ntgt] predicted labels for current Labeler movie
     xyPrdCurrMovieIsInterp; % [nfrm] logical vec indicating whether xyPrdCurrMovie(:,:,i) is interpolated. Applies only when nTgts==1.
     xyPrdCurrMovieFull % [npts d nrep nfrm] predicted replicates for current Labeler movie, current target.
@@ -211,7 +213,8 @@ classdef CPRLabelTracker < LabelTracker
       deleteValidHandles(obj.hXYPrdRedOther);
       obj.hXYPrdRedOther = [];
       deleteValidHandles(obj.hXYPrdFull);
-      obj.hXYPrdFull = [];      
+      obj.hXYPrdFull = [];
+      obj.asyncReset();
     end
     
   end
@@ -1230,94 +1233,6 @@ classdef CPRLabelTracker < LabelTracker
 %       fprintf(1,'Loaded tracking results for %d frames.\n',nfLoad);
     end
 
-    
-    
-    
-    
-    
-        
-    function asyncInit(obj)
-      if ~isempty(obj.asyncBGClient)
-        delete(obj.asyncBGClient);
-      end
-      obj.asyncBGClient = [];
-      
-      bgc = BGClient;
-      cbkResult = @(sRes)obj.asyncResultReceived(sRes);
-      objDetached = obj.asyncDetachCopy();
-      bgc.configure(cbkResult,objDetached,'asyncCompute');
-
-      obj.asyncPredictOn = false;
-      obj.asyncPredictCPRLTObj = objDetached; % XXX destructor
-      obj.asyncBGClient = bgc;
-    end
-    
-    function asyncTrackCurrFrame(obj)
-      % Send command to BGWorker
-      assert(obj.asyncPredictOn);
-      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt();
-      sCmd = struct('action','track','data',tblP);
-      obj.asyncBGClient.sendCommand(sCmd);
-    end
-    
-    function asyncResultReceived(obj,sRes)
-      if obj.asyncPredictOn % Should be on except possibly in edge cases when user turns asyncPredict off
-        res = sRes.result;
-        switch sRes.action          
-          case 'track'            
-            obj.updateTrackRes(res.trkPMDnew,res.pTstTRed,res.pTstT);
-            obj.vizLoadXYPrdCurrMovieTarget();
-            obj.newLabelerFrame();
-          case 'summarize'
-            nData = res(1);
-            nTrk = res(2);
-            fprintf(1,'async worker status: nData=%d, nTrk=%d\n',nData,nTrk);
-        end
-      end
-    end
-    
-    function sRes = asyncCompute(obj,sCmd)
-      % Runs on BGWorker with detached obj      
-      assert(isstruct(obj.lObj));
-      
-      switch sCmd.action
-        case 'track'
-          tblP = sCmd.data;
-          assert(istable(tblP));
-          [sRes.trkPMDnew,sRes.pTstTRed,sRes.pTstT] = obj.trackCore(tblP);
-        case 'summarize'
-          sRes = obj.asyncSummarizeState();
-      end
-    end
-    function res = asyncSummarizeState(obj)
-      nData = size(obj.data,1);
-      nTrk = size(obj.trkPMD,1);
-      res = [nData nTrk];
-    end
-    
-    function asyncStartBGWorker(obj)
-      bgc = obj.asyncBGClient;
-      bgc.startWorker();
-      obj.asyncPredictOn = true;
-    end
-    
-    function asyncStopBGWorker(obj)
-      bgc = obj.asyncBGClient;
-      bgc.scopWorker();
-      obj.asyncPredictOn = false;
-    end
-    
-    % BGKD
-    function obj2 = asyncDetachCopy(obj)
-      obj2 = CPRLabelTracker(obj.lObj,'detached',true);
-      
-      CPFLDS = {'sPrm' 'data' 'dataTS' 'trnResH0' 'trnResIPt' 'trnResRC' 'storeFullTracking'};
-      for f=CPFLDS,f=f{1}; %#ok<FXSET>
-        obj2.(f) = obj.(f);
-      end
-      obj2.trackResInit();
-    end
-    
     % BGKD -- PROB JUST USE TRACK
     function [trkPMDnew,pTstTRed,pTstT] = trackCore(obj,tblP)      
       prm = obj.sPrm;
@@ -1451,7 +1366,7 @@ classdef CPRLabelTracker < LabelTracker
         
         if nChunk>1
           % In this case we assume we are dealing with a 'big movie' and
-          % don't preserve/cache data          
+          % don't preserve/cache data
           obj.initData();
         end
         if tfWB && nChunk>1
@@ -1765,7 +1680,7 @@ classdef CPRLabelTracker < LabelTracker
       [xy,isinterp,xyfull] = obj.getPredictionCurrentFrame();
     
       if obj.asyncPredictOn && all(isnan(xy(:)))
-        obj.asyncTrackCurrFrame();
+        obj.asyncTrackCurrFrameBG();
       end
       
       if isinterp
@@ -2113,6 +2028,127 @@ classdef CPRLabelTracker < LabelTracker
     
   end
   
+  %% Async -- Background tracking
+  
+  methods
+    
+    function asyncReset(obj)
+      % Clear all async* state
+
+      obj.asyncPredictOn = false;
+      if ~isempty(obj.asyncBGClient)
+        delete(obj.asyncBGClient);
+      end
+      obj.asyncBGClient = [];
+      if ~isempty(obj.asyncPredictCPRLTObj)
+        delete(obj.asyncPredictCPRLTObj)
+      end
+      obj.asyncPredictCPRLTObj = [];
+    end
+    
+    function asyncPrepare(obj)
+      % Take current trained tracker and detach; prepare to start worker
+      
+      obj.asyncReset();
+      
+      cbkResult = @(sRes)obj.asyncResultReceived(sRes);
+      objDetached = obj.asyncDetachCopy();
+      bgc = BGClient;
+      bgc.configure(cbkResult,objDetached,'asyncCompute');
+      obj.asyncBGClient = bgc;
+      obj.asyncPredictCPRLTObj = objDetached;
+    end
+    
+    function asyncStartBGWorker(obj)
+      % Start worker(s) in background thread
+      
+      bgc = obj.asyncBGClient;
+      bgc.startWorker();
+      obj.asyncPredictOn = true;
+    end
+    
+    function asyncStopBGWorker(obj)
+      % Stop worker(s) on background thread
+      
+      bgc = obj.asyncBGClient;
+      bgc.stopWorker();
+      obj.asyncPredictOn = false;
+    end
+    
+    function asyncTrackCurrFrameBG(obj)
+      % Track current frame in background
+      
+      assert(obj.asyncPredictOn);
+      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt();
+      sCmd = struct('action','track','data',tblP);
+      obj.asyncBGClient.sendCommand(sCmd);
+    end
+
+  end
+  
+  methods (Access=private)
+    
+    function obj2 = asyncDetachCopy(obj)
+      % Create a "detached" copy of obj containing the current trained
+      % tracker. This copy contains only that subset of properties
+      % necessary for tracking and will be deep-copied onto any/all
+      % background workers.
+      
+      obj2 = CPRLabelTracker(obj.lObj,'detached',true);
+      
+      CPFLDS = {'sPrm' 'data' 'dataTS' 'trnResH0' 'trnResIPt' 'trnResRC' ...
+                'storeFullTracking'};
+      for f=CPFLDS,f=f{1}; %#ok<FXSET>
+        obj2.(f) = obj.(f);
+      end
+      obj2.trackResInit();
+    end
+    
+    function asyncResultReceived(obj,sRes)
+      % Callback executed when new computation result received from
+      % bg worker(s)
+      
+      if obj.asyncPredictOn % Should always be true, except possibly in 
+                            % edge cases when user turns asyncPredict off
+        res = sRes.result;
+        switch sRes.action
+          case 'track'
+            obj.updateTrackRes(res.trkPMDnew,res.pTstTRed,res.pTstT);
+            obj.vizLoadXYPrdCurrMovieTarget();
+            obj.newLabelerFrame();
+          case 'summarize'
+            nData = res(1);
+            nTrk = res(2);
+            fprintf(1,'Async worker status: nData=%d, nTrk=%d\n',nData,nTrk);
+          otherwise
+            assert(false,'Unrecognized async result received.');
+        end
+      end
+    end
+    
+    function sRes = asyncCompute(obj,sCmd)
+      % This method intended to run on BGWorker with a "detached" obj
+      
+      assert(isstruct(obj.lObj),'Expected ''detached'' object.');
+      
+      switch sCmd.action
+        case 'track'
+          tblP = sCmd.data;
+          assert(istable(tblP));
+          [sRes.trkPMDnew,sRes.pTstTRed,sRes.pTstT] = obj.trackCore(tblP);
+        case 'summarize'
+          sRes = obj.asyncSummarizeState();
+      end
+    end
+    
+    function res = asyncSummarizeState(obj)
+      nData = size(obj.data,1);
+      nTrk = size(obj.trkPMD,1);
+      res = [nData nTrk];
+    end    
+        
+  end
+  
   %% Viz
   methods
     
@@ -2268,7 +2304,7 @@ classdef CPRLabelTracker < LabelTracker
       sPrm0 = ReadYaml(CPRLabelTracker.DEFAULT_PARAMETER_FILE);
     end
     
-    function sPrm = modernizeParams(sPrm)      
+    function sPrm = modernizeParams(sPrm)
       % IMPORTANT philisophical note. This CPR parameter-updating-function
       % currently does not ever alter sPrm in such a way as to invalidate
       % any previous trained trackers or tracking results based on sPrm.
