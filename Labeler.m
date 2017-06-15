@@ -3268,6 +3268,79 @@ classdef Labeler < handle
         'iMovRead',iMov,'frmReadCell',frmCell,'tgtsRead','live');
     end
     
+    function tblMF = labelGetMFTableCurrMovFrmTgt(obj,roiRadius)
+      % XXX DOC me; roiRadius
+      %
+      % tblMF: [NTrl rows] MFTable, one row per labeled movie/frame/target.
+      %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
+      %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
+      %   index, 2. view index, 3. coord index (x vs y)
+      
+      s = struct(...
+        'mov',cell(0,1),... % single string unique ID for movieSetID combo
+        'frm',[],... % 1-based frame index
+        'iTgt',[],... % 1-based trx index
+        'pAbs',[],... % Absolute label positions (px). Raster order: physpt,view,{x,y}
+        'pRoi',[],... % Like pAbs, but positions relative to roi (px). x==1 => first col of roi.
+        'p',[],...
+        'pTS',[],... % [npts=nphyspt*nview] timestamps
+        'tfocc',[],... % [npts=nphyspt*nview] logical occluded flag
+        'pTrx',[],... % [2*nview], trx .x and .y. Raster order: view,{x,y}
+        'roi',[]); % [2*2*nview]. Raster order: {lo,hi},{x,y},view
+      
+      iMov = obj.currMovie;
+      frm = obj.currFrame;
+      iTgt = obj.currTarget;
+      lposFrmTgt = obj.labeledpos{iMov}(:,:,frm,iTgt);
+      lpostagFrmTgt = obj.labeledpostag{iMov}(:,frm,iTgt);
+      lposTSFrmTgt = obj.labeledposTS{iMov}(:,frm,iTgt);      
+      movID = FSPath.standardPath(obj.movieFilesAll(iMov,:));
+
+      if obj.hasTrx
+        assert(~obj.isMultiView);
+        assert(obj.frm2trx(frm,iTgt));
+        trxCurr = obj.trx;
+        nphysPts = obj.nPhysPoints;
+        [roi,tfOOBview,lposFrmTgtRoi] = ...
+          Shape.xyAndTrx2ROI(lposFrmTgt,trxCurr,nphysPts,frm,iTgt,roiRadius);
+        if any(tfOOBview)
+          warningNoTrace('Labeler:oob',...
+            'Movie(set) ''%s'', frame %d, target %d: shape out of bounds of target ROI. Not including this row.',...
+            MFTable.formMultiMovieID(movID),frm,iTgt);
+        else
+          xtrxs = trxCurr(iTgt).x(frm+trxCurr(iTgt).off);
+          ytrxs = trxCurr(iTgt).y(frm+trxCurr(iTgt).off);
+          s(end+1,1).mov = movID;
+          s(end).frm = frm;
+          s(end).iTgt = iTgt;
+          s(end).pAbs = Shape.xy2vec(lposFrmTgt);
+          s(end).pRoi = Shape.xy2vec(lposFrmTgtRoi);
+          s(end).p = s(end).pRoi;
+          s(end).pTS = lposTSFrmTgt';
+          s(end).tfocc = strcmp(lpostagFrmTgt','occ');
+          s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
+          s(end).roi = roi;
+        end        
+      else
+        s(end+1,1).mov = movID;
+        s(end).frm = frm;
+        s(end).iTgt = iTgt;
+        s(end).pAbs = Shape.xy2vec(lposFrmTgt);
+        s(end).pRoi = [];
+        s(end).p = s(end).pAbs;
+        s(end).pTS = lposTSFrmTgt';
+        s(end).tfocc = strcmp(lpostagFrmTgt','occ');
+        s(end).pTrx = [];
+        s(end).roi = [];
+      end
+      
+      % XXX hack
+      if ~obj.hasTrx
+        s = rmfield(s,{'pRoi' 'pTrx' 'roi'});
+      end
+      
+      tblMF = struct2table(s,'AsArray',true);
+    end
   end
   
   methods (Static)

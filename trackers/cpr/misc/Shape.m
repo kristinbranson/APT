@@ -520,7 +520,7 @@ classdef Shape
       % tfOOBview: [1xnview] logical. If true, shape is out-of-bounds of
       %   trx ROI box in that view. A shape with nan coords is not 
       %   considered OOB.
-      % xyRoi: [nptx2] xy coords relatvive to ROIs; x==1 => first col of
+      % xyRoi: [nptx2] xy coords relative to ROIs; x==1 => first col of
       %   ROI etc.
       
       [npt,d] = size(xy);

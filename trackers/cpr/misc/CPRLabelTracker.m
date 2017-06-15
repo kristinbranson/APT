@@ -1255,7 +1255,7 @@ classdef CPRLabelTracker < LabelTracker
     function asyncTrackCurrFrame(obj)
       % Send command to BGWorker
       assert(obj.asyncPredictOn);
-      tblP = obj.getTblP(obj.lObj.currMovie,{obj.lObj.currFrame});
+      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt();
       sCmd = struct('action','track','data',tblP);
       obj.asyncBGClient.sendCommand(sCmd);
     end
