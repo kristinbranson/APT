@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 12-Jun-2017 14:19:29
+% Last Modified by GUIDE v2.5 16-Jun-2017 15:12:09
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -302,7 +302,7 @@ listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertCha
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
-listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectModeOn','PostSet',@cbklabelTLInfoSelectModeOn);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 handles.listeners = listeners;
 
@@ -509,13 +509,13 @@ lcore = lObj.lblCore;
 if ~isempty(lcore)
   lcore.wbmf(src,evt);
 end
-lObj.gdata.labelTLInfo.cbkWBMF(src,evt);
+%lObj.gdata.labelTLInfo.cbkWBMF(src,evt);
 
 function cbkWBUF(src,evt,lObj)
 if ~isempty(lObj.lblCore)
   lObj.lblCore.wbuf(src,evt);
 end
-lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
+%lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
 function cbkNewProject(src,evt)
 
@@ -1264,12 +1264,15 @@ else
 end
 
 function tbTLSelectMode_Callback(hObject, eventdata, handles)
-handles.labelTLInfo.selectModeOn = hObject.Value;
+handles.labelTLInfo.selectOn = hObject.Value;
 
-function cbklabelTLInfoSelectModeOn(src,evt)
+function pbClearSelection_Callback(hObject, eventdata, handles)
+handles.labelTLInfo.selectClearSelection();
+
+function cbklabelTLInfoSelectOn(src,evt)
 lblTLObj = evt.AffectedObject;
 tb = lblTLObj.lObj.gdata.tbTLSelectMode;
-tb.Value = lblTLObj.selectModeOn;
+tb.Value = lblTLObj.selectOn;
 
 function cbklabelTLInfoPropsUpdated(src,evt)
 % Update the props dropdown menu and timeline.
