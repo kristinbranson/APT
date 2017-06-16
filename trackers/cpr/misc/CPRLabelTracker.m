@@ -1968,7 +1968,7 @@ end
         hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
         hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);        
         hTmp2(iPt) = scatter(ax(iVw),nan,nan);
-        set(hTmp2(iPt),'MarkerFaceColor',clr,'MarkerEdgeColor',clr,...
+        setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,'MarkerEdgeColor',clr,...
           obj.xyVizFullPlotArgs{:});
       end
       obj.hXYPrdRed = hTmp;
