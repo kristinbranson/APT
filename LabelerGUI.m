@@ -1875,25 +1875,32 @@ prmBaseYaml = fullfile(APT.Root,'trackers','cpr','params_apt.yaml');
 tPrm = parseConfigYaml(prmBaseYaml);
 
 % Now overlay either the current parameters or some other starting pt
-sPrmOld = tObj.getParams(); 
+sPrmOld = tObj.getParams();
 if isempty(sPrmOld) % eg new tracker
   sPrmNewOverlay = RC.getprop('lastCPRAPTParams');
-  if isempty(sPrmNewOverlay)
-    sPrmNewOverlay = CPRParam.old2new(CPRLabelTracker.readDefaultParams());
-  end
+  % sPrmNewOverlay could be [] if prop hasn't been set
 else
-  sPrmNewOverlay = CPRParam.old2new(sPrmOld);
+  sPrmNewOverlay = CPRParam.old2new(sPrmOld,lObj);
 end
 
-tPrm.structapply(sPrmNewOverlay);
+% Set new-style params that map to Labeler props instead of old-style 
+% params.
+%
+% Note. sPrmNewOverlay could be [] (see above). In this case, the following 
+% lines will create the sPrmNewOverlay struct.
+sPrmNewOverlay.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
+sPrmNewOverlay.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
+sPrmNewOverlay.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
 
+tPrm.structapply(sPrmNewOverlay);
 sPrm = ParameterSetup(handles.figure,tPrm); % modal
 
 if isempty(sPrm)
   % user canceled; none
 else
   RC.saveprop('lastCPRAPTParams',sPrm);
-  sPrm = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
+  [sPrm,lObj.trackNFramesSmall,lObj.trackNFramesLarge,...
+    lObj.trackNFramesNear] = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
   tObj.setParams(sPrm);  
 end
 
