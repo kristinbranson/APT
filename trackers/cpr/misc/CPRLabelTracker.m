@@ -636,15 +636,13 @@ end
     end
     
     %#MTGT
-    function trkposFull = getTrackResFull(obj,iMov,frm)
-      % Get full tracking results for movie iMov, frame frm.
+    function trkposFull = getTrackResFullCurrTgt(obj,iMov,frm)
+      % Get full tracking results for movie iMov, frame frm, curr tgt.
       %
       % trkposFull: [nptstrk x d x nRep x (T+1)], or [] if iMov/frm not
       % found in .trkPFull'
       
       assert(obj.storeFullTracking);
-      assert(~obj.lObj.hasTrx,...
-        'Currently unsupported for multitarget projects.');
       
       trkMD = obj.trkPMD;
       iPtTrk = obj.trkPiPt;
@@ -655,8 +653,9 @@ end
       lObj = obj.lObj;
       movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
       movNameID = MFTable.formMultiMovieID(movNameID);
+      iTgt = lObj.currTarget;
 
-      tfMovFrm = strcmp(trkMD.mov,movNameID) & trkMD.frm==frm;
+      tfMovFrm = strcmp(trkMD.mov,movNameID) & trkMD.frm==frm & trkMD.iTgt==iTgt;
       nMovFrm = nnz(tfMovFrm);
       assert(nMovFrm==0 || nMovFrm==1);
       if nMovFrm==0

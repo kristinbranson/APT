@@ -1987,10 +1987,6 @@ tObj.storeFullTracking = sftnew;
 function menu_track_view_tracking_diagnostics_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 
-if lObj.hasTrx
-  error('LabelerGUI:trx','Currently unsupported for multitarget projects.');
-end
-
 % Look for existing/open CPRVizTrackDiagsGUI
 for i=1:numel(handles.depHandles)
   h = handles.depHandles(i);
