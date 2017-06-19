@@ -22,7 +22,7 @@ function varargout = LabelerGUI(varargin)
 
 % Edit the above text to modify the response to help LarvaLabeler
 
-% Last Modified by GUIDE v2.5 12-Jun-2017 14:19:29
+% Last Modified by GUIDE v2.5 16-Jun-2017 15:12:09
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -107,12 +107,19 @@ handles.menu_view_hide_predictions = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_hide_predictions',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_predictions,handles.menu_view_hide_labels);
+handles.menu_view_hide_imported_predictions = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_imported_predictions_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Hide imported predictions',...
+  'Tag','menu_view_hide_imported_predictions',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_hide_imported_predictions,handles.menu_view_hide_predictions);
+
 handles.menu_view_show_replicates = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_replicates_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Show predicted replicates',...
   'Tag','menu_view_show_replicates',...
   'Checked','off');
-moveMenuItemAfter(handles.menu_view_show_replicates,handles.menu_view_hide_predictions);
+moveMenuItemAfter(handles.menu_view_show_replicates,handles.menu_view_hide_imported_predictions);
 handles.menu_view_hide_trajectories = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_trajectories_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Hide trajectories',...
@@ -295,7 +302,7 @@ listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertCha
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
-listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectModeOn','PostSet',@cbklabelTLInfoSelectModeOn);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 handles.listeners = listeners;
 
@@ -344,6 +351,8 @@ handles.pbPlay.CData = Icons.ims.play;
 handles.pbPlay.BackgroundColor = handles.edit_frame.BackgroundColor;
 handles.pbPlaySeg.CData = Icons.ims.playsegment;
 handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
+
+handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated';
 
 guidata(hObject, handles);
 
@@ -502,13 +511,13 @@ lcore = lObj.lblCore;
 if ~isempty(lcore)
   lcore.wbmf(src,evt);
 end
-lObj.gdata.labelTLInfo.cbkWBMF(src,evt);
+%lObj.gdata.labelTLInfo.cbkWBMF(src,evt);
 
 function cbkWBUF(src,evt,lObj)
 if ~isempty(lObj.lblCore)
   lObj.lblCore.wbuf(src,evt);
 end
-lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
+%lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
 function cbkNewProject(src,evt)
 
@@ -953,6 +962,7 @@ handles = lObj.gdata;
 handles.menu_track.Enable = onOff;
 handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
+handles.menu_view_hide_predictions.Enable = onOff;
 if tf
   lObj.tracker.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions));
   lObj.tracker.addlistener('trnDataDownSamp','PostSet',@(src1,evt1) cbkTrackerTrnDataDownSampChanged(src1,evt1,handles));
@@ -1256,12 +1266,17 @@ else
 end
 
 function tbTLSelectMode_Callback(hObject, eventdata, handles)
-handles.labelTLInfo.selectModeOn = hObject.Value;
+tl = handles.labelTLInfo;
+tl.selectOn = hObject.Value;
 
-function cbklabelTLInfoSelectModeOn(src,evt)
+function pbClearSelection_Callback(hObject, eventdata, handles)
+tl = handles.labelTLInfo;
+tl.selectClearSelection();
+
+function cbklabelTLInfoSelectOn(src,evt)
 lblTLObj = evt.AffectedObject;
 tb = lblTLObj.lObj.gdata.tbTLSelectMode;
-tb.Value = lblTLObj.selectModeOn;
+tb.Value = lblTLObj.selectOn;
 
 function cbklabelTLInfoPropsUpdated(src,evt)
 % Update the props dropdown menu and timeline.
@@ -1702,9 +1717,11 @@ lObj = handles.labelerObj;
 tracker = lObj.tracker;
 if ~isempty(tracker)
   tracker.hideVizToggle();
-else
-  lObj.labels2VizToggle();
 end
+
+function menu_view_hide_imported_predictions_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.labels2VizToggle();
 
 function cbkTrackerShowVizReplicatesChanged(hObject, eventdata, handles)
 handles.menu_view_show_replicates.Checked = ...
@@ -1862,25 +1879,32 @@ prmBaseYaml = fullfile(APT.Root,'trackers','cpr','params_apt.yaml');
 tPrm = parseConfigYaml(prmBaseYaml);
 
 % Now overlay either the current parameters or some other starting pt
-sPrmOld = tObj.getParams(); 
+sPrmOld = tObj.getParams();
 if isempty(sPrmOld) % eg new tracker
   sPrmNewOverlay = RC.getprop('lastCPRAPTParams');
-  if isempty(sPrmNewOverlay)
-    sPrmNewOverlay = CPRParam.old2new(CPRLabelTracker.readDefaultParams());
-  end
+  % sPrmNewOverlay could be [] if prop hasn't been set
 else
-  sPrmNewOverlay = CPRParam.old2new(sPrmOld);
+  sPrmNewOverlay = CPRParam.old2new(sPrmOld,lObj);
 end
 
-tPrm.structapply(sPrmNewOverlay);
+% Set new-style params that map to Labeler props instead of old-style 
+% params.
+%
+% Note. sPrmNewOverlay could be [] (see above). In this case, the following 
+% lines will create the sPrmNewOverlay struct.
+sPrmNewOverlay.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
+sPrmNewOverlay.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
+sPrmNewOverlay.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
 
+tPrm.structapply(sPrmNewOverlay);
 sPrm = ParameterSetup(handles.figure,tPrm); % modal
 
 if isempty(sPrm)
   % user canceled; none
 else
   RC.saveprop('lastCPRAPTParams',sPrm);
-  sPrm = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
+  [sPrm,lObj.trackNFramesSmall,lObj.trackNFramesLarge,...
+    lObj.trackNFramesNear] = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
   tObj.setParams(sPrm);  
 end
 
@@ -1964,10 +1988,6 @@ tObj.storeFullTracking = sftnew;
 
 function menu_track_view_tracking_diagnostics_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-
-if lObj.hasTrx
-  error('LabelerGUI:trx','Currently unsupported for multitarget projects.');
-end
 
 % Look for existing/open CPRVizTrackDiagsGUI
 for i=1:numel(handles.depHandles)

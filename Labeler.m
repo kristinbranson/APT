@@ -4192,8 +4192,11 @@ classdef Labeler < handle
       end
       
       if tfreset
-        obj.setFrame(freset);
+        % AL20170619 passing setFrameArgs a bit fragile; needed for current
+        % callers (don't update labels in videoPlaySegment)
+        obj.setFrame(freset,setFrameArgs{:}); 
       end
+      
       % - icon managed by caller      
     end
     

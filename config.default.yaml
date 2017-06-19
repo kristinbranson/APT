@@ -109,6 +109,8 @@ CPRLabelTracker:
   PredictReplicatesPlot: # Plot cosmetics for tracking replicates
     Marker: '.'
     MarkerSize: 15
+    MarkerFaceAlpha: 0.5
+    MarkerEdgeAlpha: 0.5
 
 Shortcuts: # shortcuts. case insensitive!
   menu_file_load: o # file -> load project
