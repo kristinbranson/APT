@@ -33,6 +33,7 @@ classdef InfoTimeline < handle
   properties (SetAccess=private)
     hSelIm % scalar image handle for selection
     selectOnStartFrm 
+    isinit
   end
   properties (SetObservable)
     selectOn % scalar logical, if true, select "Pen" is down
@@ -44,12 +45,15 @@ classdef InfoTimeline < handle
   methods
     function set.selectOn(obj,v)
       obj.selectOn = v;
-      if v        
-        obj.selectOnStartFrm = obj.lObj.currFrame; %#ok<MCSUP>
-        obj.hCurrFrame.LineWidth = 3; %#ok<MCSUP>
-      else
-        obj.selectOnStartFrm = []; %#ok<MCSUP>
-        obj.hCurrFrame.LineWidth = 0.5; %#ok<MCSUP>
+      if ~obj.isinit %#ok<MCSUP>
+        if v        
+          obj.selectOnStartFrm = obj.lObj.currFrame; %#ok<MCSUP>
+          obj.hCurrFrame.LineWidth = 3; %#ok<MCSUP>
+        else
+          obj.selectOnStartFrm = []; %#ok<MCSUP>
+          obj.hCurrFrame.LineWidth = 0.5; %#ok<MCSUP>
+          obj.setLabelerSelectedFrames();
+        end
       end
     end
     function v = get.prefs(obj)
@@ -103,9 +107,11 @@ classdef InfoTimeline < handle
       obj.jumpThreshold = nan;
       obj.jumpCondition = nan;
       
+      obj.isinit = true;
       obj.hSelIm = [];
       obj.selectOn = false;
       obj.selectOnStartFrm = [];
+      obj.isinit = false;
       
       hCMenu = uicontextmenu('parent',ax.Parent,...
         'callback',@(src,evt)obj.cbkContextMenu(src,evt),...
@@ -254,32 +260,33 @@ classdef InfoTimeline < handle
     function selectInit(obj)
       if obj.lObj.isinit, return; end
 
-      obj.selectOn = false;
-      obj.selectOnStartFrm = [];
       deleteValidHandles(obj.hSelIm);
       obj.hSelIm = image(1:obj.nfrm,0.5,uint8(zeros(1,obj.nfrm)),...
         'parent',obj.hAx,'alphadata',obj.SELECTALPHA,'HitTest','off',...
         'CDataMapping','direct');
+
+      obj.selectOn = false;
+      obj.selectOnStartFrm = [];
       colorTBSelect = obj.lObj.gdata.tbTLSelectMode.BackgroundColor;
       colormap(obj.hAx,[0 0 0;colorTBSelect]);
+      
+      obj.setLabelerSelectedFrames();
     end
 
     function bouts = selectGetSelection(obj)
       % Get currently selected bouts (can be noncontiguous)
       %
       % bouts: [nBout x 2]. col1 is startframe, col2 is one-past-endframe
-      [sp,ep] = get_interval_ends(obj.hSelIm.CData);
+
+      cdata = obj.hSelIm.CData;
+      [sp,ep] = get_interval_ends(cdata);
       bouts = [sp(:) ep(:)];
     end
     
     function selectClearSelection(obj)
       obj.selectInit();
     end
-    
-    function selectClearBout(obj,iBout)
-      [sp,ep] = get_interval_ends
-    end
-    
+        
     function setJumpParams(obj)
       % GUI to get jump parameters,
       f = figure('Visible','on','Position',[360,500,200,90],...
@@ -395,14 +402,23 @@ classdef InfoTimeline < handle
       end
     end
     function cbkClearBout(obj,src,evt)
+      % Prob should have a select* method, for now just do everything here
       iBout = src.UserData.iBout;
       boutsAll = src.Parent.UserData.bouts;
       bout = boutsAll(iBout,:);
       obj.hSelIm.CData(:,bout(1):bout(2)-1) = 0;
+      obj.setLabelerSelectedFrames();
     end
   end
 
   methods (Access=private)
+    function setLabelerSelectedFrames(obj)
+      % For the moment Labeler owns the property-of-record on what frames
+      % are set
+      selFrames = bouts2frames(obj.selectGetSelection);
+      obj.lObj.setSelectedFrames(selFrames);
+    end
+
     function lpos = getDataCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
       

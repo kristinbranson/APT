@@ -1264,10 +1264,12 @@ else
 end
 
 function tbTLSelectMode_Callback(hObject, eventdata, handles)
-handles.labelTLInfo.selectOn = hObject.Value;
+tl = handles.labelTLInfo;
+tl.selectOn = hObject.Value;
 
 function pbClearSelection_Callback(hObject, eventdata, handles)
-handles.labelTLInfo.selectClearSelection();
+tl = handles.labelTLInfo;
+tl.selectClearSelection();
 
 function cbklabelTLInfoSelectOn(src,evt)
 lblTLObj = evt.AffectedObject;
