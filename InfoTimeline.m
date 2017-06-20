@@ -258,7 +258,7 @@ classdef InfoTimeline < handle
     end
 
     function selectInit(obj)
-      if obj.lObj.isinit, return; end
+      if obj.lObj.isinit || isnan(obj.nfrm), return; end
 
       deleteValidHandles(obj.hSelIm);
       obj.hSelIm = image(1:obj.nfrm,0.5,uint8(zeros(1,obj.nfrm)),...
