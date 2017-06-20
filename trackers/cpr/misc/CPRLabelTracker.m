@@ -118,6 +118,9 @@ classdef CPRLabelTracker < LabelTracker
     asyncPredictCPRLTObj; % scalar "detached" CPRLabelTracker object that is deep-copied onto workers. Contains current trained tracker used in backgorund pred.
     asyncBGClient; % scalar BGClient object, manages comms with background worker.
   end
+  properties (Dependent)
+    asyncIsPrepared % If true, asyncPrepare() has been called and asyncStartBGWorker() can be called
+  end
      
   %% Visualization
   properties (SetObservable)
@@ -152,6 +155,9 @@ classdef CPRLabelTracker < LabelTracker
     end
     function v = get.hasTrained(obj)
       v = ~isempty(obj.trnResRC) && any([obj.trnResRC.hasTrained]);
+    end
+    function v = get.asyncIsPrepared(obj)
+      v = ~isempty(obj.asyncBGClient);
     end
   end
   methods
@@ -2079,8 +2085,10 @@ classdef CPRLabelTracker < LabelTracker
       obj.asyncReset();
       
       cbkResult = @(sRes)obj.asyncResultReceived(sRes);
+      fprintf(1,'Detaching trained tracker...\n');
       objDetached = obj.asyncDetachCopy();
       bgc = BGClient;
+      fprintf(1,'Configuring background worker...\n');
       bgc.configure(cbkResult,objDetached,'asyncCompute');
       obj.asyncBGClient = bgc;
       obj.asyncPredictCPRLTObj = objDetached;
@@ -2090,8 +2098,10 @@ classdef CPRLabelTracker < LabelTracker
       % Start worker(s) in background thread
       
       bgc = obj.asyncBGClient;
+      fprintf(1,'Starting background worker...\n');
       bgc.startWorker();
       obj.asyncPredictOn = true;
+      fprintf(1,'Background tracking enabled.\n');
     end
     
     function asyncStopBGWorker(obj)
@@ -2100,6 +2110,7 @@ classdef CPRLabelTracker < LabelTracker
       bgc = obj.asyncBGClient;
       bgc.stopWorker();
       obj.asyncPredictOn = false;
+      fprintf(1,'Background tracking disabled.\n');
     end
     
     function asyncTrackCurrFrameBG(obj)
@@ -2110,6 +2121,33 @@ classdef CPRLabelTracker < LabelTracker
       sCmd = struct('action','track','data',tblP);
       obj.asyncBGClient.sendCommand(sCmd);
     end
+    
+    function asyncSummarizeStateBG(obj)
+      assert(obj.asyncPredictOn);
+      sCmd = struct('action','summarize');
+      obj.asyncBGClient.sendCommand(sCmd);      
+    end
+        
+    function sRes = asyncCompute(obj,sCmd)
+      % This method intended to run on BGWorker with a "detached" obj
+      
+      assert(isstruct(obj.lObj),'Expected ''detached'' object.');
+      
+      switch sCmd.action
+        case 'track'
+          tblP = sCmd.data;
+          assert(istable(tblP));
+          [sRes.trkPMDnew,sRes.pTstTRed,sRes.pTstT] = obj.trackCore(tblP);
+        case 'summarize'
+          sRes = obj.asyncSummarizeState();
+      end
+    end
+    
+    function res = asyncSummarizeState(obj)
+      nData = size(obj.data,1);
+      nTrk = size(obj.trkPMD,1);
+      res = [nData nTrk];
+    end    
 
   end
   
@@ -2144,36 +2182,16 @@ classdef CPRLabelTracker < LabelTracker
             obj.vizLoadXYPrdCurrMovieTarget();
             obj.newLabelerFrame();
           case 'summarize'
-            nData = res(1);
+            nData = res(1); %#ok<NASGU>
             nTrk = res(2);
-            fprintf(1,'Async worker status: nData=%d, nTrk=%d\n',nData,nTrk);
+            fprintf(1,'Async worker status:\n');
+            fprintf(1,' Number of frames tracked in background: %d\n',nTrk);
           otherwise
             assert(false,'Unrecognized async result received.');
         end
       end
     end
-    
-    function sRes = asyncCompute(obj,sCmd)
-      % This method intended to run on BGWorker with a "detached" obj
-      
-      assert(isstruct(obj.lObj),'Expected ''detached'' object.');
-      
-      switch sCmd.action
-        case 'track'
-          tblP = sCmd.data;
-          assert(istable(tblP));
-          [sRes.trkPMDnew,sRes.pTstTRed,sRes.pTstT] = obj.trackCore(tblP);
-        case 'summarize'
-          sRes = obj.asyncSummarizeState();
-      end
-    end
-    
-    function res = asyncSummarizeState(obj)
-      nData = size(obj.data,1);
-      nTrk = size(obj.trkPMD,1);
-      res = [nData nTrk];
-    end    
-        
+            
   end
   
   %% Viz

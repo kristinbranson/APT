@@ -9,6 +9,8 @@ classdef BGClient < handle
     qMe2Worker % matlab.pool.PollableDataQueue for sending data to Client (polled)    
     fevalFuture % FevalFuture output from parfeval
     idPool % scalar uint for cmd ids
+    
+    printlog = false; % if true, logging messages are displayed
   end
   properties (Dependent)
     isConfigured
@@ -113,9 +115,13 @@ classdef BGClient < handle
   
   methods (Access=private)
     
-    function log(obj,varargin) %#ok<INUSL>
-      str = sprintf(varargin{:});
-      fprintf(1,'BGClient (%s): %s\n',datestr(now,'yyyymmddTHHMMSS'),str);
+    function log(obj,varargin)
+      if obj.printlog
+        str = sprintf(varargin{:});
+        fprintf(1,'BGClient (%s): %s\n',datestr(now,'yyyymmddTHHMMSS'),str);
+      else
+        % for now don't do anything
+      end
     end
     
     function afterEach(obj,dat)
