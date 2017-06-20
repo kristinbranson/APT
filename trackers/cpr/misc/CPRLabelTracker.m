@@ -2124,7 +2124,7 @@ classdef CPRLabelTracker < LabelTracker
     
     function asyncSummarizeStateBG(obj)
       assert(obj.asyncPredictOn);
-      sCmd = struct('action','summarize');
+      sCmd = struct('action',BGWorker.STATACTION,'data',[]);
       obj.asyncBGClient.sendCommand(sCmd);      
     end
         
@@ -2138,8 +2138,6 @@ classdef CPRLabelTracker < LabelTracker
           tblP = sCmd.data;
           assert(istable(tblP));
           [sRes.trkPMDnew,sRes.pTstTRed,sRes.pTstT] = obj.trackCore(tblP);
-        case 'summarize'
-          sRes = obj.asyncSummarizeState();
       end
     end
     
@@ -2181,11 +2179,16 @@ classdef CPRLabelTracker < LabelTracker
             obj.updateTrackRes(res.trkPMDnew,res.pTstTRed,res.pTstT);
             obj.vizLoadXYPrdCurrMovieTarget();
             obj.newLabelerFrame();
-          case 'summarize'
-            nData = res(1); %#ok<NASGU>
-            nTrk = res(2);
+          case BGWorker.STATACTION
+            computeTimes = res;
+            nTrk = numel(computeTimes);
+            tMu = mean(computeTimes);
+            tMax = max(computeTimes);
+            tMin = min(computeTimes);
             fprintf(1,'Async worker status:\n');
             fprintf(1,' Number of frames tracked in background: %d\n',nTrk);
+            fprintf(1,' [min mean max] compute time (s) per frame: %s\n',...
+              mat2str([tMin tMu tMax],2));
           otherwise
             assert(false,'Unrecognized async result received.');
         end

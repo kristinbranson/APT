@@ -1,6 +1,11 @@
 classdef BGWorker < handle
   properties (Constant)
     STOPACTION = 'STOP';
+    STATACTION = 'STAT';
+  end
+  
+  properties
+    computeTimes = zeros(0,1); % vector of tic/toc compute time elapsed for each compute command received
   end
   
   methods    
@@ -32,11 +37,17 @@ classdef BGWorker < handle
           assert(isstruct(data) && all(isfield(data,{'action' 'data' 'id'})));
           action = data.action;          
           obj.log('Received %s',action);
-          if strcmp(action,BGWorker.STOPACTION)
-            break;
-          else
-            result = cObj.(cObjMeth)(data);
-            dataQueue.send(struct('id',data.id,'action',action,'result',result));
+          switch action
+            case BGWorker.STOPACTION
+              break;
+            case BGWorker.STATACTION
+              sResp = struct('id',data.id,'action',action,'result',obj.computeTimes);
+              dataQueue.send(sResp);
+            otherwise
+              tic;
+              result = cObj.(cObjMeth)(data);
+              obj.computeTimes(end+1,1) = toc;
+              dataQueue.send(struct('id',data.id,'action',action,'result',result));
           end
         end
       end
