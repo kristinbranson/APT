@@ -501,6 +501,7 @@ classdef CPRLabelTracker < LabelTracker
         obj.trnResInit();
         obj.trackResInit();
         obj.vizInit();
+        obj.asyncReset();
       end
     end
     
@@ -515,6 +516,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResInit();
       obj.trackResInit();
       obj.vizInit();
+      obj.asyncReset();
         
       tblP = obj.getTblPLbled(); % start with all labeled data
       [grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
@@ -800,6 +802,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResInit();
       obj.trackResInit();
       obj.vizInit();
+      obj.asyncReset();
     end
     
     %#MTGT
@@ -835,6 +838,7 @@ classdef CPRLabelTracker < LabelTracker
         obj.trnResInit();
         obj.trackResInit();
         obj.vizInit();
+        obj.asyncReset();
       else % Both sOld, sNew nonempty
         if sNew.Model.nviews~=obj.lObj.nview
           error('CPRLabelTracker:nviews',...
@@ -864,6 +868,7 @@ classdef CPRLabelTracker < LabelTracker
         if ~modelPPUC
           fprintf(2,'Parameter change: CPRLabelTracker data cleared.\n');
           obj.initData();
+          obj.asyncReset();
         end
         
         % trainingdata
@@ -885,6 +890,7 @@ classdef CPRLabelTracker < LabelTracker
           fprintf(2,'Parameter change: CPRLabelTracker tracking results cleared.\n');
           obj.trackResInit();
           obj.vizInit();
+          obj.asyncReset();
         end
       end      
     end
@@ -1672,6 +1678,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trackResInit();
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
+      % Don't asyncReset() here
     end
     
     %#MTGT
@@ -2041,6 +2048,19 @@ classdef CPRLabelTracker < LabelTracker
     
     function asyncReset(obj)
       % Clear all async* state
+      %
+      % See asyncDetachedCopy for the state copied onto the BG worker. The
+      % BG worker depends on: .sPrm, preprocessing parameters/H0/etc for
+      % .data*, .trnRes*.
+      %
+      % - In some cases where .initData() is called, preprocessing
+      % parameters, H0, or channels etc are being mutated. This invalidates
+      % the preprocessing procedure on the BG worker and so an asyncReset()
+      % often piggybacks initData() calls.
+      % - .trnRes* state is set during train/retrain operations. At the
+      % start of these operations we do an asyncReset();
+      % - trackResInit() is sometimes called when a change in prune 
+      % parameters etc is made. In these cases an asyncReset() will follow
 
       obj.asyncPredictOn = false;
       if ~isempty(obj.asyncBGClient)
