@@ -141,7 +141,11 @@ classdef Labeler < handle
     movieRotateTargetUp = false;
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
+    moviePlaySegRadius; % scalar int
+    moviePlayFPS; 
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
+    
+    movieIsPlaying = false;
   end
   properties (Dependent)
     isMultiView;
@@ -638,6 +642,8 @@ classdef Labeler < handle
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
+      obj.moviePlaySegRadius = cfg.Movie.PlaySegmentRadius;
+      obj.moviePlayFPS = cfg.Movie.PlayFPS;
            
       fldsRm = intersect(fieldnames(cfg),...
         {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
@@ -694,7 +700,9 @@ classdef Labeler < handle
 
       cfg.Movie = struct(...
         'ForceGrayScale',obj.movieForceGrayscale,...
-        'FrameStepBig',obj.movieFrameStepBig);
+        'FrameStepBig',obj.movieFrameStepBig,...
+        'PlaySegmentRadius',obj.moviePlaySegRadius,...
+        'PlayFPS',obj.moviePlayFPS);
 
       cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
       cfg.Trx.ShowTrx = obj.showTrx;
@@ -4050,6 +4058,75 @@ classdef Labeler < handle
       end      
     end
     
+    function videoPlay(obj)
+      obj.videoPlaySegmentCore(obj.currFrame,obj.nframes,...
+        'setFrameArgs',{'updateTables',false});
+    end
+    
+    function videoPlaySegment(obj)
+      % Play segment centererd at .currFrame
+      
+      f = obj.currFrame;
+      df = obj.moviePlaySegRadius;
+      fstart = max(1,f-df);
+      fend = min(obj.nframes,f+df);
+      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
+        'setFrameArgs',{'updateTables',false,'updateLabels',false});
+    end
+    
+    function videoPlaySegmentCore(obj,fstart,fend,varargin)
+      
+      [setFrameArgs,freset] = myparse(varargin,...
+        'setFrameArgs',{},...
+        'freset',nan);
+      tfreset = ~isnan(freset);
+            
+      ticker = tic;
+      while true
+        % Ways to exit loop:
+        % 1. user cancels playback through GUI mutation of gdata.isPlaying
+        % 2. fend reached
+        % 3. ctrl-c
+        
+        guidata = obj.gdata;
+        if ~guidata.isPlaying
+          break;
+        end
+                  
+        dtsec = toc(ticker);
+        df = dtsec*obj.moviePlayFPS;
+        f = ceil(df)+fstart;
+        if f > fend
+          break;
+        end
+
+        obj.setFrame(f,setFrameArgs{:});
+        drawnow;
+
+%         dtsec = toc(ticker);
+%         pause_time = (f-fstart)/obj.moviePlayFPS - dtsec;
+%         if pause_time <= 0,
+%           if handles.guidata.mat_lt_8p4
+%             drawnow;
+%             % MK Aug 2015: There is a drawnow in status update so no need to draw again here
+%             % for 2014b onwards.
+%             %     else
+%             %       drawnow('limitrate');
+%           end
+%         else
+%           pause(pause_time);
+%         end
+      end
+      
+      if tfreset
+        % AL20170619 passing setFrameArgs a bit fragile; needed for current
+        % callers (don't update labels in videoPlaySegment)
+        obj.setFrame(freset,setFrameArgs{:}); 
+      end
+      
+      % - icon managed by caller      
+    end
+    
   end
   
   %% showTrx
@@ -4171,10 +4248,19 @@ classdef Labeler < handle
     
     function setFrame(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
+      %
+      % CTRL-C note: This is fairly ctrl-c safe; a ctrl-c break may leave
+      % obj state a little askew but it should be cosmetic and another
+      % (full/completed) setFrame() call should fix things up. We could
+      % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
-      [tfforcereadmovie,tfforcelabelupdate] = myparse(varargin,...
+      [tfforcereadmovie,tfforcelabelupdate,updateLabels,updateTables,...
+        updateTrajs] = myparse(varargin,...
         'tfforcereadmovie',false,...
-        'tfforcelabelupdate',false);
+        'tfforcelabelupdate',false,...
+        'updateLabels',true,...
+        'updateTables',true,...
+        'updateTrajs',true);
             
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
@@ -4191,10 +4277,17 @@ classdef Labeler < handle
         assert(~obj.isMultiView);
         obj.videoCenterOnCurrTarget();
       end
-      obj.labelsUpdateNewFrame(tfforcelabelupdate);
-      obj.updateTrxTable();
-      obj.updateCurrSusp();
-      obj.updateShowTrx();
+      
+      if updateLabels
+        obj.labelsUpdateNewFrame(tfforcelabelupdate);
+      end
+      if updateTables
+        obj.updateTrxTable();
+        obj.updateCurrSusp();
+      end
+      if updateTrajs
+        obj.updateShowTrx();
+      end
     end
     
     function setTargetID(obj,tgtID)

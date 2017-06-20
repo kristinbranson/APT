@@ -120,11 +120,11 @@ end
     xyPrdCurrMovieFull % [npts d nrep nfrm] predicted replicates for current Labeler movie, current target.
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame and target
     hXYPrdRedOther; % [npts] plot handles for 'reduced' tracking results, current frame, non-current-target
-    hXYPrdFull; % [npts] plot handles for replicates, current frame, current target
+    hXYPrdFull; % [npts] scatter handles for replicates, current frame, current target
     xyVizPlotArgs; % cell array of args for regular tracking viz    
     xyVizPlotArgsNonTarget; % " for non current target viz
     xyVizPlotArgsInterp; % " for interpolated tracking viz
-    xyVizFullPlotArgs; % " for tracking viz w/replicates
+    xyVizFullPlotArgs; % " for tracking viz w/replicates. These are PV pairs for scatter() not line()
   end
   properties (Dependent)
     nPts % number of label points 
@@ -636,15 +636,13 @@ end
     end
     
     %#MTGT
-    function trkposFull = getTrackResFull(obj,iMov,frm)
-      % Get full tracking results for movie iMov, frame frm.
+    function trkposFull = getTrackResFullCurrTgt(obj,iMov,frm)
+      % Get full tracking results for movie iMov, frame frm, curr tgt.
       %
       % trkposFull: [nptstrk x d x nRep x (T+1)], or [] if iMov/frm not
       % found in .trkPFull'
       
       assert(obj.storeFullTracking);
-      assert(~obj.lObj.hasTrx,...
-        'Currently unsupported for multitarget projects.');
       
       trkMD = obj.trkPMD;
       iPtTrk = obj.trkPiPt;
@@ -655,8 +653,9 @@ end
       lObj = obj.lObj;
       movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
       movNameID = MFTable.formMultiMovieID(movNameID);
+      iTgt = lObj.currTarget;
 
-      tfMovFrm = strcmp(trkMD.mov,movNameID) & trkMD.frm==frm;
+      tfMovFrm = strcmp(trkMD.mov,movNameID) & trkMD.frm==frm & trkMD.iTgt==iTgt;
       nMovFrm = nnz(tfMovFrm);
       assert(nMovFrm==0 || nMovFrm==1);
       if nMovFrm==0
@@ -1335,8 +1334,6 @@ end
             return;
           end
           if iChunk==1 && ~isempty(p0DiagImg)
-            tf1 = pIidx==1;
-            p0Info.p0_1 = p0(tf1,:);
             hFigP0DiagImg = RegressorCascade.createP0DiagImg(IsVw,p0Info);
             [ptmp,ftmp] = fileparts(p0DiagImg);
             p0DiagImgVw = fullfile(ptmp,sprintf('%s_view%d.fig',ftmp,iView));
@@ -1681,11 +1678,14 @@ end
           end
         end
 
-        % 20170531 legacy projs prm.Reg.USE_AL_CORRECTION
         for i=1:numel(rc)
+          % 20170531 legacy projs prm.Reg.USE_AL_CORRECTION
           if isfield(rc(i).prmReg,'USE_AL_CORRECTION')
             rc(i).prmReg = s.sPrm.Reg;
           end
+          
+          % 20170609 iss84
+          rc(i).prmTrainInit.augrotate = [];
         end
       else
         assert(isempty(s.trnResRC));
@@ -1936,7 +1936,7 @@ end
       
       % init .xyVizPlotArgs*
       trackPrefs = obj.lObj.projPrefs.Track;
-      cprPrefs = obj.lObj.projPrefs.CPRLabelTracker;
+      cprPrefs = obj.lObj.projPrefs.CPRLabelTracker.PredictReplicatesPlot;
       plotPrefs = trackPrefs.PredictPointsPlot;
       plotPrefs.HitTest = 'off';
       obj.xyVizPlotArgs = struct2paramscell(plotPrefs);
@@ -1946,8 +1946,11 @@ end
         obj.xyVizPlotArgsInterp = obj.xyVizPlotArgs;
       end
       obj.xyVizPlotArgsNonTarget = obj.xyVizPlotArgs; % TODO: customize
-      obj.xyVizFullPlotArgs = ...
-        [struct2paramscell(cprPrefs.PredictReplicatesPlot) {'LineStyle' 'none'}];
+      if isfield(cprPrefs,'MarkerSize') % AL 201706015: Currently always true
+        cprPrefs.SizeData = cprPrefs.MarkerSize^2; % Scatter.SizeData 
+        cprPrefs = rmfield(cprPrefs,'MarkerSize');
+      end
+      obj.xyVizFullPlotArgs = struct2paramscell(cprPrefs);
       
       npts = obj.nPts;
       ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
@@ -1963,7 +1966,9 @@ end
         iVw = ipt2View(iPt);
         hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
         hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);        
-        hTmp2(iPt) = plot(ax(iVw),nan,nan,obj.xyVizFullPlotArgs{:},'Color',clr);
+        hTmp2(iPt) = scatter(ax(iVw),nan,nan);
+        setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,'MarkerEdgeColor',clr,...
+          obj.xyVizFullPlotArgs{:});
       end
       obj.hXYPrdRed = hTmp;
       obj.hXYPrdRedOther = hTmpOther;
@@ -2092,7 +2097,8 @@ end
       % need to return a flag indicating whether a material change has
       % occurred so that loadSaveToken can react.
 
-      s0 = CPRLabelTracker.readDefaultParams();        
+      s0 = CPRLabelTracker.readDefaultParams();
+      
       if isfield(sPrm.Reg,'USE_AL_CORRECTION')
         if sPrm.Reg.USE_AL_CORRECTION
           error('CPRLabelTracker:prm',...
@@ -2101,7 +2107,7 @@ end
         assert(~s0.Reg.rotCorrection.use);
         sPrm.Reg = rmfield(sPrm.Reg,'USE_AL_CORRECTION');
       end
-
+      
       [sPrm,s0used] = structoverlay(s0,sPrm);
       if ~isempty(s0used)
         fprintf('Using default parameters for: %s.\n',...
@@ -2112,6 +2118,17 @@ end
         % default value on top of existing/legacy empty [] value.
         sPrm.Model.nviews = 1;
       end      
+      
+      % 20170609 iss84. Reg.rotCorrection.use is now the master flag wrt
+      % rotations. For now we leave TrainInit.augrotate and
+      % TestInit.augrotate present (but empty).
+      if ~isempty(sPrm.TrainInit.augrotate) || ~isempty(sPrm.TestInit.augrotate)
+        assert(isequal(sPrm.TrainInit.augrotate,sPrm.TestInit.augrotate,...
+                       sPrm.Reg.rotCorrection.use),...
+          'Inconsistent values of TrainInit.augrotate, TestInit.augrotate, and Reg.rotCorrection.use.');
+        sPrm.TrainInit.augrotate = [];
+        sPrm.TestInit.augrotate = [];
+      end
     end
     
     function warnMoviesMissingFromProj(movs,movsProj,movTypeStr)

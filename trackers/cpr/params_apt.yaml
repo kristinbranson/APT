@@ -20,6 +20,10 @@ ROOT:
       - ['Multiple Targets','',false,"When multple targets are present, image patches are cropped from movies based on trajectory data.",'']
       - Radius: ['Target crop radius',unsigned,true,Crop a square with this radius (in pixels) about each target for training/tracking,30]
       - PadBkgd: ['Pad background',unsigned,true,Pad ROIs with this background value (grayscale) if necessary,0]
+    - NFramesSmall: ['Decimation Small',unsigned,true,Small frame increment when tracking every Nth frame,5]
+    - NFramesLarge: ['Decimation Large',unsigned,true,Large frame increment when tracking every Nth frame,10]
+    - NFramesNeighborhood: ['Neighborhood Radius',unsigned,true,Radius of neighborhood when tracking near current frame,50]
+    - ChunkSize: ['Chunk Size',unsigned,true,Track large movies in chunks of this size (in frames),3000]
   - CPR:
     - ['','',false,Settings for Cascaded Pose Regression (CPR),'']
     - NumMajorIter: ['Num iterations',unsigned,true,Number of major iterations in regressor cascade,50]
@@ -41,21 +45,17 @@ ROOT:
       - Nsample_std: ['Num samples std',unsigned,true,Number of samples used to approximate SD during feature selection,1000]
       - Nsample_cor: ['Num samples correlation',unsigned,true,Number of samples used to compute correlation during feature selection,5000]
     - RotCorrection:
-      - ['Rotational Correction','',false,Rotational invariance for randomly-oriented animals,'']
-      - Use: ['Enable',boolean,true,Enable rotationally invariant regression for arbitrarily-oriented animals,false]
+      - ['Rotational Invariance','',false,Rotational invariance for randomly-oriented animals,'']
+      - Use: ['Enable',boolean,true,Check if animals have arbitrary heading in space,false]
       - HeadPoint: ['Head landmark',unsigned,true,Landmark/point representing animal ''Head'',0]
       - TailPoint: ['Tail landmark',unsigned,true,Landmark/point representing animal ''Tail'',0]
     - Replicates:
       - ['','',false,'','']
       - NrepTrain: ['Num training replicates',unsigned,true,Training set augmentation factor. Each training shape is utilized/replicated this many times,50]
       - NrepTrack: ['Num tracking replicates',unsigned,true,Number of replicates to use when tracking. The final tracking result is estimated from a central measure of the replicate cloud.,50]
-      - AugRotate: ['Randomize initial orientations',boolean,true,'Randomize orientation of training/tracking shapes. If enabled, rotational correction should also be enabled.',false] # CONFIRM TIED TOGETHER
       - AugJitterFac: ['Spatial randomization factor',float,true,'Initial conditions are jittered by the reciprocal of this factor. For instance, for a single-target project, a value of 12 indicates that initial conditions will be randomized by 1/12th of the image size.',12] # CONFIRM TIED TOGETHER
       - AugUseFF: ['Maximize spread of initial conditions',boolean,true,Maximize distance between training/tracking initial conditions,false] # CONFIRM TIED TOGETHER
-    - Track:
-      - ['','',false,CPR tracking/propagation,'']
-      - ChunkSize: ['Chunk Size',unsigned,true,Track large movies in batches with this many frames in each batch,3000]
-      - Prune:
-        - ['','',false,Estimation of final tracking result from replicate cloud,'']
-        - MaxDensitySigma: ['Sigma',float,true,Length scale (in pixels) for Gaussian kernel used during pruning. Larger values include more distant shapes when computing a given shape's likelihood,5]
+    - Prune:
+      - ['','',false,Estimation of final tracking result from replicate cloud,'']
+      - MaxDensitySigma: ['Sigma',float,true,Length scale (in pixels) for Gaussian kernel used during pruning. Larger values include more distant shapes when computing a given shape's likelihood,5]
   
