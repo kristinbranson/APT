@@ -4516,11 +4516,13 @@ classdef Labeler < handle
     
     function setSelectedFrames(obj,frms)
       if ~obj.hasMovie
-        error('Labeler:noMovie',...
+        warningNoTrace('Labeler:noMovie',...
           'Cannot set selected frames when no movie is loaded.');
+        obj.selectedFrames = [];
+      else
+        validateattributes(frms,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes});
+        obj.selectedFrames = frms;  
       end
-      validateattributes(frms,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes});
-      obj.selectedFrames = frms;
     end
                 
     % TODO prob use listener/event for this; maintain relevant
