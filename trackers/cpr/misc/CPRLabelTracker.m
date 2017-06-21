@@ -356,6 +356,12 @@ classdef CPRLabelTracker < LabelTracker
         'wbObj',[]); % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
       tfWB = ~isempty(wbObj);
       
+      FLDSEXPECTED = [MFTable.FLDSID {'p' 'tfocc'}];
+      if ~all(ismember(FLDSEXPECTED',tblPNew.Properties.VariableNames')) || ...
+         ~all(ismember(FLDSEXPECTED',tblPupdate.Properties.VariableNames'))
+        error('CPRLabelTracker:flds','Tables missing required fields.')
+      end
+      
       if isempty(obj.sPrm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
@@ -395,7 +401,9 @@ classdef CPRLabelTracker < LabelTracker
           % obj unchanged
           return;
         end
-        dataNew = CPRData(I,tblPNew);
+        % Include only FLDSEXPECTED in metadata to keep CPRData md
+        % consistent (so can be appended)
+        dataNew = CPRData(I,tblPNew(:,FLDSEXPECTED));
         if prmpp.histeq
           H0 = obj.trnResH0;
           assert(~isempty(H0),'H0 unavailable for histeq/preprocessing.');
@@ -507,7 +515,7 @@ classdef CPRLabelTracker < LabelTracker
         obj.trnResInit();
         obj.trackResInit();
         obj.vizInit();
-        obj.asyncReset();
+        obj.asyncReset(true);
       end
     end
     
@@ -522,7 +530,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResInit();
       obj.trackResInit();
       obj.vizInit();
-      obj.asyncReset();
+      obj.asyncReset(true);
         
       tblP = obj.getTblPLbled(); % start with all labeled data
       [grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
@@ -949,7 +957,7 @@ classdef CPRLabelTracker < LabelTracker
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
       
-      obj.asyncReset();
+      obj.asyncReset(true);
        
       if obj.trnDataDownSamp
         assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
@@ -1085,7 +1093,7 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      obj.asyncReset();
+      obj.asyncReset(true);
             
       assert(obj.lObj.nview==1,...
         'Incremental training currently unsupported for multiview projects.');
@@ -2052,7 +2060,7 @@ classdef CPRLabelTracker < LabelTracker
   
   methods
     
-    function asyncReset(obj)
+    function asyncReset(obj,tfwarn)
       % Clear all async* state
       %
       % See asyncDetachedCopy for the state copied onto the BG worker. The
@@ -2068,21 +2076,35 @@ classdef CPRLabelTracker < LabelTracker
       % - trackResInit() is sometimes called when a change in prune 
       % parameters etc is made. In these cases an asyncReset() will follow
 
+      if exist('tfwarn','var')==0
+        tfwarn = false;
+      end
+      
       obj.asyncPredictOn = false;
       if ~isempty(obj.asyncBGClient)
         delete(obj.asyncBGClient);
+      else
+        tfwarn = false;
       end
       obj.asyncBGClient = [];
       if ~isempty(obj.asyncPredictCPRLTObj)
         delete(obj.asyncPredictCPRLTObj)
       end
       obj.asyncPredictCPRLTObj = [];
+      
+      if tfwarn
+        warningNoTrace('CPRLabelTracker:bg','Cleared background tracker.');
+      end
     end
     
     function asyncPrepare(obj)
       % Take current trained tracker and detach; prepare to start worker
       
       obj.asyncReset();
+      
+      if ~obj.hasTrained
+        error('CPRLabelTracker:async','A tracker has not been trained.');
+      end
       
       cbkResult = @(sRes)obj.asyncResultReceived(sRes);
       fprintf(1,'Detaching trained tracker...\n');
@@ -2122,10 +2144,16 @@ classdef CPRLabelTracker < LabelTracker
       obj.asyncBGClient.sendCommand(sCmd);
     end
     
-    function asyncSummarizeStateBG(obj)
-      assert(obj.asyncPredictOn);
-      sCmd = struct('action',BGWorker.STATACTION,'data',[]);
-      obj.asyncBGClient.sendCommand(sCmd);      
+    function asyncComputeStats(obj)
+      if ~obj.asyncIsPrepared
+        error('CPRLabelTracker:async','No background tracking information available.');
+      end
+      bgc = obj.asyncBGClient;
+      tocs = bgc.idTocs;
+      if isnan(tocs(end))
+        tocs = tocs(1:end-1);
+      end
+      CPRLabelTracker.asyncComputeStatsStc(tocs);
     end
         
     function sRes = asyncCompute(obj,sCmd)
@@ -2141,12 +2169,6 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
-    function res = asyncSummarizeState(obj)
-      nData = size(obj.data,1);
-      nTrk = size(obj.trkPMD,1);
-      res = [nData nTrk];
-    end    
-
   end
   
   methods (Access=private)
@@ -2181,20 +2203,25 @@ classdef CPRLabelTracker < LabelTracker
             obj.newLabelerFrame();
           case BGWorker.STATACTION
             computeTimes = res;
-            nTrk = numel(computeTimes);
-            tMu = mean(computeTimes);
-            tMax = max(computeTimes);
-            tMin = min(computeTimes);
-            fprintf(1,'Async worker status:\n');
-            fprintf(1,' Number of frames tracked in background: %d\n',nTrk);
-            fprintf(1,' [min mean max] compute time (s) per frame: %s\n',...
-              mat2str([tMin tMu tMax],2));
+            CPRLabelTracker.asyncComputeStatsStc(computeTimes);
           otherwise
             assert(false,'Unrecognized async result received.');
         end
       end
+    end    
+  end
+  methods (Static)
+    function asyncComputeStatsStc(computeTimes)
+      computeTimes = computeTimes(:);
+      nTrk = numel(computeTimes);
+      tMu = mean(computeTimes);
+      tMax = max(computeTimes);
+      tMin = min(computeTimes);
+      fprintf(1,'Background compute statistics:\n');
+      fprintf(1,' Number of frames tracked in background: %d\n',nTrk);
+      fprintf(1,' [min mean max] compute time (s) per frame: %s\n',...
+        mat2str([tMin tMu tMax],2));
     end
-            
   end
   
   %% Viz

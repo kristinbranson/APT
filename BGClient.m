@@ -9,6 +9,8 @@ classdef BGClient < handle
     qMe2Worker % matlab.pool.PollableDataQueue for sending data to Client (polled)    
     fevalFuture % FevalFuture output from parfeval
     idPool % scalar uint for cmd ids
+    idTics % [numIDsSent] uint64 col vec of start times for each command id sent 
+    idTocs % [numIDsReceived] col vec of compute elapsed times, set when response to each command id is received
     
     printlog = false; % if true, logging messages are displayed
   end
@@ -78,6 +80,8 @@ classdef BGClient < handle
       obj.fevalFuture = parfeval('start',1,workerObj,queue,obj.computeObj,obj.computeObjMeth); 
       
       obj.idPool = uint32(1);
+      obj.idTics = uint64(0);
+      obj.idTocs = nan;
     end
         
     function sendCommand(obj,sCmd)
@@ -97,6 +101,7 @@ classdef BGClient < handle
       if isempty(q)
         warningNoTrace('BGClient:queue','Send queue not configured.');
       else
+        obj.idTics(sCmd.id) = tic;
         q.send(sCmd);
         obj.log('Sent command id %d',sCmd.id);
       end
@@ -130,6 +135,7 @@ classdef BGClient < handle
         obj.log('Received pollableDataQueue from worker.');
       else
         obj.log('Received results id %d',dat.id);
+        obj.idTocs(dat.id) = toc(obj.idTics(dat.id));
         obj.cbkResult(dat);
       end
     end    

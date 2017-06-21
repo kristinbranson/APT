@@ -2100,6 +2100,10 @@ tObj = handles.labelerObj.tracker;
 if tObj.asyncIsPrepared
   tObj.asyncStartBGWorker();
 else
+  if ~tObj.hasTrained
+    errordlg('A tracker has not been trained.','Background Tracking');
+    return;
+  end
   tObj.asyncPrepare();
   tObj.asyncStartBGWorker();
 end
@@ -2109,13 +2113,13 @@ tObj = handles.labelerObj.tracker;
 if tObj.asyncIsPrepared
   tObj.asyncStopBGWorker();
 else
-  warndlg('Background worker was not running.','Background tracking');
+  warndlg('Background worker is not running.','Background tracking');
 end
 
 function menu_track_background_predict_stats_Callback(hObject,eventdata,handles)
 tObj = handles.labelerObj.tracker;
 if tObj.asyncIsPrepared
-  tObj.asyncSummarizeStateBG();
+  tObj.asyncComputeStats();
 else
   warningNoTrace('LabelerGUI:bgTrack',...
     'No background tracking information available.','Background tracking');
