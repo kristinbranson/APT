@@ -5,8 +5,8 @@ classdef Labeler < handle
     VERSION = '1.2';
     DEFAULT_LBLFILENAME = '%s.lbl';
     DEFAULT_CFG_FILENAME = 'config.default.yaml';
-    DEFAULT_TRKFILE = '$movname_$projname';
-    DEFAULT_TRKFILE_NOPROJ = '$movname';
+    DEFAULT_TRKFILE = '$movfile_$projname';
+    DEFAULT_TRKFILE_NOPROJ = '$movfile';
     
     % non-config props
     SAVEPROPS = { ...
@@ -2761,14 +2761,13 @@ classdef Labeler < handle
   end
   
   methods (Static)    
-    function trkfile = genTrkFileName(basename,sMacro,movfile)
-      % Generate a trkfilename from the basename.
-      [movpath,sMacro.movname] = fileparts(movfile);
-      trkfileS = FSPath.macroReplace(basename,sMacro);
-      if ~(numel(basename)>=4 && strcmp(basename(end-3:end),'.trk'))
-        trkfileS = [trkfileS '.trk'];
+    function trkfile = genTrkFileName(rawname,sMacro,movfile)
+      % Generate a trkfilename from rawname by macro-replacing.      
+      [sMacro.movdir,sMacro.movfile] = fileparts(movfile);
+      trkfile = FSPath.macroReplace(rawname,sMacro);
+      if ~(numel(rawname)>=4 && strcmp(rawname(end-3:end),'.trk'))
+        trkfile = [trkfile '.trk'];
       end
-      trkfile = fullfile(movpath,trkfileS);  
     end
     function [tfok,trkfiles] = checkTrkFileNamesExport(trkfiles)
       % Check/confirm trkfile names for export. If any trkfiles exist, ask 
@@ -2816,32 +2815,35 @@ classdef Labeler < handle
 
   methods
     
-    function trkfile = defaultTrkFileName(obj,movfile)
+    function sMacro = baseTrkFileMacros(obj)
       sMacro = struct();
-      sMacro.projname = obj.projname;      
-      [~,sMacro.projfile] = fileparts(obj.projectfile);
-      basename = obj.defaultTrkBasename();
-      trkfile = Labeler.genTrkFileName(basename,sMacro,movfile);
+      sMacro.projname = obj.projname;
+      [sMacro.projdir,sMacro.projfile] = fileparts(obj.projectfile);
     end
     
-    function basename = defaultTrkBasename(obj)
+    function trkfile = defaultTrkFileName(obj,movfile)
+      trkfile = Labeler.genTrkFileName(obj.defaultTrkRawname(),...
+        obj.baseTrkFileMacros(),movfile);
+    end
+    
+    function rawname = defaultTrkRawname(obj)
       prjname = obj.projname;
       if isempty(prjname)
         basename = Labeler.DEFAULT_TRKFILE_NOPROJ;
       else
         basename = Labeler.DEFAULT_TRKFILE;        
       end
+      rawname = fullfile('$movdir',basename);
     end
         
-    function [tfok,trkfiles] = getTrkFileNamesForExport(obj,movfiles,basename)
-      sMacro = struct();
-      sMacro.projname = obj.projname;
-      [~,sMacro.projfile] = fileparts(obj.projectfile);      
-      trkfiles = cellfun(@(x)Labeler.genTrkFileName(basename,sMacro,x),movfiles,'uni',0);
+    function [tfok,trkfiles] = getTrkFileNamesForExport(obj,movfiles,rawname)
+      sMacro = obj.baseTrkFileMacros();
+      trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),movfiles,'uni',0);
       [tfok,trkfiles] = Labeler.checkTrkFileNamesExport(trkfiles);
     end
     
-    function [tfok,trkfiles] = resolveTrkfilesVsBasename(obj,iMovs,trkfiles,basename)
+    function [tfok,trkfiles] = resolveTrkfilesVsRawname(obj,iMovs,...
+        trkfiles,rawname)
       % Input arg helper -- use basename if trkfiles not supplied; check
       % sizes. 
       %
@@ -2853,10 +2855,10 @@ classdef Labeler < handle
       
       movfiles = obj.movieFilesAllFull(iMovs,:);
       if isempty(trkfiles)
-        if isempty(basename)
-          basename = Labeler.DEFAULT_TRKFILE;
+        if isempty(rawname)
+          rawname = obj.defaultTrkRawname;
         end
-        [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,basename);
+        [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,rawname);
         if ~tfok
           return;
         end
@@ -2933,16 +2935,16 @@ classdef Labeler < handle
       % iMov: optional, indices into (rows of) .movieFilesAll to export. 
       %   Defaults to 1:obj.nmovies.
       
-      [trkfiles,basefilename] = myparse(varargin,...
+      [trkfiles,rawtrkname] = myparse(varargin,...
         'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
-        'basefilename',[]... % string, basename to apply over iMovs to generate trkfiles
+        'rawtrkname',[]... % string, rawname to apply over iMovs to generate trkfiles
         );
       
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
       end
       
-      [tfok,trkfiles] = obj.resolveTrkfilesVsBasename(iMovs,trkfiles,basefilename);
+      [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovs,trkfiles,rawtrkname);
       if ~tfok
         return;
       end
@@ -3858,9 +3860,9 @@ classdef Labeler < handle
       %
       % tm: scalar TrackMode
             
-      [trackArgs,basefilename] = myparse(varargin,...
+      [trackArgs,rawtrkname] = myparse(varargin,...
         'trackArgs',{},...
-        'trkFilename',[]...
+        'rawtrkname',[]...
         );
       
       tObj = obj.tracker;
@@ -3869,7 +3871,7 @@ classdef Labeler < handle
       end
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
       
-      [tfok,trkfiles] = obj.resolveTrkfilesVsBasename(iMovs,[],basefilename);
+      [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovs,[],rawtrkname);
       if ~tfok
         return;
       end
@@ -3905,9 +3907,9 @@ classdef Labeler < handle
       % If a movie has no current tracking results, a warning is thrown and
       % no trkfile is created.
       
-      [trkfiles,basefilename] = myparse(varargin,...
+      [trkfiles,rawtrkname] = myparse(varargin,...
         'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
-        'basefilename',[]... % string, basename to apply over iMovs to generate trkfiles
+        'rawtrkname',[]... % string, basename to apply over iMovs to generate trkfiles
         );
       
       tObj = obj.tracker;
@@ -3915,7 +3917,7 @@ classdef Labeler < handle
         error('Labeler:track','No tracker set.');
       end 
       
-      [tfok,trkfiles] = obj.resolveTrkfilesVsBasename(iMovs,trkfiles,basefilename);
+      [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovs,trkfiles,rawtrkname);
       if ~tfok
         return;
       end
@@ -4717,8 +4719,8 @@ classdef Labeler < handle
       end
       
       movfiles = obj.movieFilesAllFull(iMovs,1);
-      basename = obj.defaultTrkBasename();
-      [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,basename);
+      rawname = obj.defaultTrkRawname();
+      [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,rawname);
       if tfok
         nMov = numel(iMovs);
         assert(numel(trkfiles)==nMov);
