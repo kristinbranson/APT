@@ -88,6 +88,10 @@ InfoTimelines:
   XColor: [0.8,0.8,0.8] # ax.XColor
   dXTick: 10 
 
+PrevAxes:
+  Mode: LASTSEEN
+  ModeInfo: 
+
 Track:
   Enable: 0
   Type: CPRLabelTracker

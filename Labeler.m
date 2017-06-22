@@ -261,6 +261,7 @@ classdef Labeler < handle
   properties
     prevIm = []; % single array of image data ('primary' view only)
     prevAxesMode; % scalar PrevAxesMode
+    prevAxesModeInfo; % "userdata" for .prevAxesMode
     lblPrev_ptsH; % [npts] gobjects. init: L
     lblPrev_ptsTxtH; % [npts] etc. init: L
   end
@@ -673,8 +674,10 @@ classdef Labeler < handle
       
       obj.labels2Hide = false;
 
-      obj.prevAxesMode = PrevAxesMode.LASTSEEN;
-      
+      % New projs must start with LASTSEEN as there is nothing to freeze
+      % yet. projLoad() will further set any loaded info
+      obj.setPrevAxesMode(PrevAxesMode.LASTSEEN,[]);
+
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
     
@@ -713,6 +716,9 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
+      
+      cfg.PrevAxes.Mode = char(obj.prevAxesMode);
+      cfg.PrevAxes.ModeInfo = obj.prevAxesModeInfo;
     end
     
   end
@@ -987,6 +993,10 @@ classdef Labeler < handle
         fprintf(1,'Loading tracker info: %s.\n',tCls);
         obj.tracker.loadSaveToken(s.trackerData);
       end
+      
+      % This needs to occur after .labeledpos etc has been set
+      pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
+      obj.setPrevAxesMode(pamode,s.cfg.PrevAxes.ModeInfo);
       
       props = obj.gdata.propsNeedInit;
       for p = props(:)', p=p{1}; %#ok<FXSET>
@@ -4638,31 +4648,71 @@ classdef Labeler < handle
   %% 
   methods % PrevAxes
     
-    function setPrevAxesMode(obj,pamode)
-      gd = obj.gdata;
-      axc = gd.axes_curr;
-      axp = gd.axes_prev;
+    function setPrevAxesMode(obj,pamode,pamodeinfo)
+      % Set .prevAxesMode, .prevAxesModeInfo
+      %
+      % pamode: PrevAxesMode
+      % pamodeinfo: (optional) userdata for pamode.
+      
+      if exist('pamodeinfo','var')==0
+        pamodeinfo = [];
+      end
+      
       switch pamode
         case PrevAxesMode.LASTSEEN
+          obj.prevAxesMode = pamode;
+          obj.prevAxesModeInfo = pamodeinfo;
           obj.prevAxesImFrmUpdate();
           obj.prevAxesLabelsUpdate();
-          gd.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
+          gd = obj.gdata;
+          axp = gd.axes_prev;
           set(axp,...
             'CameraUpVectorMode','auto',...
             'CameraViewAngleMode','auto');
+          gd.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
         case PrevAxesMode.FROZEN
-          gd.image_prev.CData = obj.currIm{1};
-          gd.txPrevIm.String = num2str(obj.currFrame);
-          obj.prevAxesSetLabels(obj.currMovie,obj.currFrame,obj.currTarget);
-          
-          gd.hLinkPrevCurr.Enabled = 'off';
-          set(axp,...
-            'XLim',axc.XLim,'YLim',axc.YLim,... % Setting XLim/XDir etc unnec coming from PrevAxesMode.LASTSEEN, but can be nec for a "refreeze"
-            'XDir',axc.XDir,'YDir',axc.YDir,...
-            'CameraUpVector',axc.CameraUpVector,...
-            'CameraViewAngle',axc.CameraViewAngle);
+          obj.prevAxesFreeze(pamodeinfo);
+        otherwise
+          assert(false);
       end
-      obj.prevAxesMode = pamode;
+    end
+    
+    function prevAxesFreeze(obj,freezeInfo)
+      % Freeze the current frame/labels in the previous axis. Sets
+      % .prevAxesMode, .prevAxesModeInfo.
+      %
+      % freezeInfo: Optional freezeInfo to apply. If not supplied,
+      % image/labels taken from current movie/frame/etc.
+      
+      gd = obj.gdata;
+      if isequal(freezeInfo,[])
+        axc = gd.axes_curr;
+        freezeInfo = struct(...
+          'iMov',obj.currMovie,...
+          'frm',obj.currFrame,...
+          'iTgt',obj.currTarget,...
+          'im',obj.currIm{1},...
+          'axes_curr',struct('XLim',axc.XLim,'YLim',axc.YLim,...
+                             'XDir',axc.XDir,'YDir',axc.YDir,...
+                             'CameraUpVector',axc.CameraUpVector,...
+                             'CameraViewAngle',axc.CameraViewAngle));
+      end
+      
+      gd.image_prev.CData = freezeInfo.im;
+      gd.txPrevIm.String = num2str(freezeInfo.frm);
+      obj.prevAxesSetLabels(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt);
+      
+      gd.hLinkPrevCurr.Enabled = 'off';
+      axp = gd.axes_prev;
+      axcProps = freezeInfo.axes_curr;
+      for prop=fieldnames(axcProps)',prop=prop{1}; %#ok<FXSET>
+        axp.(prop) = axcProps.(prop);
+      end
+      % Setting XLim/XDir etc unnec coming from PrevAxesMode.LASTSEEN, but 
+      % sometimes nec eg for a "refreeze"
+      
+      obj.prevAxesMode = PrevAxesMode.FROZEN;
+      obj.prevAxesModeInfo = freezeInfo;
     end
     
     function prevAxesImFrmUpdate(obj)
@@ -4675,8 +4725,10 @@ classdef Labeler < handle
       end
     end
     
-    % CONSIDER: encapsulating labelsPrev (eg in a LabelCore)
     function prevAxesLabelsUpdate(obj)
+      % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on 
+      % .prevFrame etc 
+      
       if obj.isinit || obj.prevAxesMode==PrevAxesMode.FROZEN
         return;
       end
@@ -4687,6 +4739,8 @@ classdef Labeler < handle
       end
     end
     
+  end
+  methods (Access=private)
     function prevAxesSetLabels(obj,iMov,frm,iTgt)
       persistent tfWarningThrownAlready
       
@@ -4703,7 +4757,6 @@ classdef Labeler < handle
         end
       end
     end
-    
   end
   
   %% Labels2/OtherTarget labels
