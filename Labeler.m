@@ -237,12 +237,8 @@ classdef Labeler < handle
     lblCore; % init: L
   end
   properties    
-    lblPrev_ptsH;         % [npts] gobjects. TODO: encapsulate labelsPrev (eg in a LabelCore). init: L
-    lblPrev_ptsTxtH;      % [npts] etc. init: L
-    
     labeledpos2_ptsH;     % [npts]
-    labeledpos2_ptsTxtH;  % [npts]
-    
+    labeledpos2_ptsTxtH;  % [npts]    
     lblOtherTgts_ptsH;    % [npts]
   end 
   
@@ -261,6 +257,14 @@ classdef Labeler < handle
     trackNFramesNear % neighborhood radius. init: C
   end
   
+  %% Prev
+  properties
+    prevIm = []; % single array of image data ('primary' view only)
+    prevAxesMode; % scalar PrevAxesMode
+    lblPrev_ptsH; % [npts] gobjects. init: L
+    lblPrev_ptsTxtH; % [npts] etc. init: L
+  end
+  
   %% Misc
   properties (SetObservable, AbortSet)
     currMovie;            % idx into .movieFilesAll (row index, when obj.multiView is true)
@@ -274,10 +278,7 @@ classdef Labeler < handle
   end
   properties
     currIm = [];            % [nview] cell vec of image data. init: C
-    prevIm = [];            % single array of image data ('primary' view only)
-    
     isinit = false;         % scalar logical; true during initialization, when some invariants not respected
-    
     selectedFrames = [];    % vector of frames currently selected frames; typically t0:t1
     hFig; % handle to main LabelerGUI figure
   end
@@ -672,6 +673,8 @@ classdef Labeler < handle
       
       obj.labels2Hide = false;
 
+      obj.prevAxesMode = PrevAxesMode.LASTSEEN;
+      
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
     
@@ -2352,7 +2355,7 @@ classdef Labeler < handle
       obj.labelMode = lblmode;
       
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
-          obj.gdata.axes_prev,lblPtsPlotInfo);      
+          obj.gdata.axes_prev,lblPtsPlotInfo);
           
       if tfLblModeChange
         % sometimes labelcore need this kick to get properly set up
@@ -3715,7 +3718,7 @@ classdef Labeler < handle
       if ~isempty(obj.lblCore) && (obj.prevFrame~=obj.currFrame || force)
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
-      obj.labelsPrevUpdate();
+      obj.prevAxesLabelsUpdate();
       obj.labels2VizUpdate();
     end
     
@@ -3723,7 +3726,7 @@ classdef Labeler < handle
       if ~isempty(obj.lblCore)
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
-      obj.labelsPrevUpdate();
+      obj.prevAxesLabelsUpdate();
       obj.labels2VizUpdate();
     end
     
@@ -3733,39 +3736,10 @@ classdef Labeler < handle
           prevFrm,obj.currFrame,...
           prevTgt,obj.currTarget);
       end
-      obj.labelsPrevUpdate();
+      obj.prevAxesLabelsUpdate();
       obj.labels2VizUpdate();
     end
-    
-    % CONSIDER: encapsulating labelsPrev (eg in a LabelCore)
-    function labelsPrevUpdate(obj)
-      persistent tfWarningThrownAlready
-
-      if obj.isinit
-        return;
-      end
-      if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
-        iMov = obj.currMovie;
-        frm = obj.prevFrame;
-        iTgt = obj.currTarget;
         
-        lpos = obj.labeledpos{iMov}(:,:,frm,iTgt);
-        obj.lblCore.assignLabelCoords(lpos,...
-          'hPts',obj.lblPrev_ptsH,...
-          'hPtsTxt',obj.lblPrev_ptsTxtH);
-        
-        lpostag = obj.labeledpostag{iMov}(:,frm,iTgt);
-        if ~all(cellfun(@isempty,lpostag))
-          if isempty(tfWarningThrownAlready)
-            warningNoTrace('Labeler:labelsPrev','TODO: label tags in previous frame not visualized.');
-            tfWarningThrownAlready = true;
-          end
-        end
-      else
-        LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
-      end
-    end
-    
   end
    
   %% Susp 
@@ -4074,7 +4048,6 @@ classdef Labeler < handle
       [x0,y0] = obj.videoCurrentCenter();
       lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
       axis(obj.gdata.axes_curr,lims);
-      axis(obj.gdata.axes_prev,lims);
     end    
     function [xsz,ysz] = videoCurrentSize(obj)
       v = axis(obj.gdata.axes_curr);
@@ -4650,7 +4623,78 @@ classdef Labeler < handle
       else
         obj.prevIm = currIm1Orig;
       end
-      set(gd.image_prev,'CData',obj.prevIm);
+      obj.prevAxesImFrmUpdate();
+    end
+    
+  end
+  
+  %% 
+  methods % PrevAxes
+    
+    function setPrevAxesMode(obj,pamode)
+      gd = obj.gdata;
+      axc = gd.axes_curr;
+      axp = gd.axes_prev;
+      switch pamode
+        case PrevAxesMode.LASTSEEN
+          obj.prevAxesImFrmUpdate();
+          obj.prevAxesLabelsUpdate();
+          gd.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
+          set(axp,...
+            'CameraUpVectorMode','auto',...
+            'CameraViewAngleMode','auto');
+        case PrevAxesMode.FROZEN
+          gd.image_prev.CData = obj.currIm{1};
+          gd.txPrevIm.String = num2str(obj.currFrame);
+          obj.prevAxesSetLabels(obj.currMovie,obj.currFrame,obj.currTarget);
+          
+          gd.hLinkPrevCurr.Enabled = 'off';
+          set(axp,...
+            'XLim',axc.XLim,'YLim',axc.YLim,... % Setting XLim/XDir etc unnec coming from PrevAxesMode.LASTSEEN, but can be nec for a "refreeze"
+            'XDir',axc.XDir,'YDir',axc.YDir,...
+            'CameraUpVector',axc.CameraUpVector,...
+            'CameraViewAngle',axc.CameraViewAngle);
+      end
+      obj.prevAxesMode = pamode;
+    end
+    
+    function prevAxesImFrmUpdate(obj)
+      % update prevaxes image and txframe based on .prevIm, .prevFrame
+      switch obj.prevAxesMode
+        case PrevAxesMode.LASTSEEN
+          gd = obj.gdata;
+          gd.image_prev.CData = obj.prevIm;
+          gd.txPrevIm.String = num2str(obj.prevFrame);
+      end
+    end
+    
+    % CONSIDER: encapsulating labelsPrev (eg in a LabelCore)
+    function prevAxesLabelsUpdate(obj)
+      if obj.isinit || obj.prevAxesMode==PrevAxesMode.FROZEN
+        return;
+      end
+      if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
+        obj.prevAxesSetLabels(obj.currMovie,obj.prevFrame,obj.currTarget);
+      else
+        LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
+      end
+    end
+    
+    function prevAxesSetLabels(obj,iMov,frm,iTgt)
+      persistent tfWarningThrownAlready
+      
+      lpos = obj.labeledpos{iMov}(:,:,frm,iTgt);
+      lpostag = obj.labeledpostag{iMov}(:,frm,iTgt);
+      ipts = 1:obj.nPhysPoints;
+      LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
+        obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts));
+      if ~all(cellfun(@isempty,lpostag(ipts)))
+        if isempty(tfWarningThrownAlready)
+          warningNoTrace('Labeler:labelsPrev',...
+            'Label tags in previous frame not visualized.');
+          tfWarningThrownAlready = true;
+        end
+      end
     end
     
   end

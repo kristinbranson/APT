@@ -399,6 +399,23 @@ classdef LabelCore < handle
     
   methods (Static) 
     
+    function assignLabelCoordsStc(xy,hPts,hTxt)
+      % Simpler version of assignLabelCoords()
+      %
+      % xy: [nptsx2]
+      % hPts: [npts]
+      % hTxt: [npts]
+      
+      [npts,d] = size(xy);
+      assert(d==2);
+      assert(isequal(npts,numel(hPts),numel(hTxt)));
+      
+      % FullyOccluded
+      tfOccld = any(isinf(xy),2);
+      LabelCore.setPtsCoords(xy(~tfOccld,:),hPts(~tfOccld),hTxt(~tfOccld));      
+      LabelCore.setPtsCoords(nan(nnz(tfOccld),2),hPts(tfOccld),hTxt(tfOccld));
+    end
+    
     function xy = getCoordsFromPts(hPts)
       x = get(hPts,{'XData'});
       y = get(hPts,{'YData'});

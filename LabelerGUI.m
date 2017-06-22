@@ -252,6 +252,13 @@ handles.menu_help_about = uimenu(...
   'Tag','menu_help_about');  
 moveMenuItemBefore(handles.menu_help_about,handles.menu_help_labeling_actions);
 
+hCMenu = uicontextmenu('parent',handles.figure);
+uimenu('Parent',hCMenu,'Label','Freeze to current main window',...
+  'Callback',@(src,evt)cbkFreezePrevAxesToMainWindow(src,evt));
+uimenu('Parent',hCMenu,'Label','Display last frame seen in main window',...
+  'Callback',@(src,evt)cbkUnfreezePrevAxes(src,evt));
+handles.axes_prev.UIContextMenu = hCMenu;
+
 % misc labelmode/Setup menu
 LABELMODE_SETUPMENU_MAP = ...
   {LabelMode.NONE '';
@@ -276,12 +283,10 @@ set(handles.axes_occ,'XTick',[],'YTick',[]);
 
 handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
 set(handles.image_curr,'hittest','off');
-%axisoff(handles.axes_curr);
 hold(handles.axes_curr,'on');
 set(handles.axes_curr,'Color',[0 0 0]);
 handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
 set(handles.image_prev,'hittest','off');
-%axisoff(handles.axes_prev);
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0]);
 
@@ -303,7 +308,6 @@ listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescu
 listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
-listeners{end+1,1} = addlistener(lObj,'prevFrame','PostSet',@cbkPrevFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
@@ -766,11 +770,6 @@ set(handles.slider_frame,'Value',sldval);
 if ~lObj.isinit
   handles.labelTLInfo.newFrame(frm);
 end
-
-function cbkPrevFrameChanged(src,evt) %#ok<*INUSD>
-lObj = evt.AffectedObject;
-frm = lObj.prevFrame;
-set(lObj.gdata.txPrevIm,'String',num2str(frm));
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -1306,6 +1305,12 @@ handles = guidata(src);
 props = handles.labelTLInfo.getPropsDisp();
 set(handles.pumInfo,'String',props);
 
+function cbkFreezePrevAxesToMainWindow(src,evt)
+handles = guidata(src);
+handles.labelerObj.setPrevAxesMode(PrevAxesMode.FROZEN);
+function cbkUnfreezePrevAxes(src,evt)
+handles = guidata(src);
+handles.labelerObj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
 
 %% menu
 function menu_file_quick_open_Callback(hObject, eventdata, handles)
@@ -1564,8 +1569,6 @@ else
 	if tfApplyAxPrev
 		set(lObj.gdata.axes_prev,'CLim',clim);
 	end
-% 	lObj.minv(iAxApply) = clim(1);
-% 	lObj.maxv(iAxApply) = clim(2);
 end		
 
 function [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(handles)
@@ -1681,10 +1684,6 @@ if tfproceed
   for iAx = iAxApply(:)'
     ax = handles.axes_all(iAx);
     ax.YDir = toggleAxisDir(ax.YDir);
-%     if ax==handles.axes_curr
-%       ax2 = handles.axes_prev;
-%       ax2.YDir = toggleAxisDir(ax2.YDir);
-%     end
   end
 end
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
