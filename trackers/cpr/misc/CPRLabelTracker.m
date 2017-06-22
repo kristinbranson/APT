@@ -2140,10 +2140,11 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function asyncTrackCurrFrameBG(obj)
-      % Track current frame in background
+      % Track current frame (send cmd to background)
       
       assert(obj.asyncPredictOn);
-      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt();
+      prmRC = obj.sPrm.PreProc.TargetCrop;
+      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt(prmRC.Radius);
       sCmd = struct('action','track','data',tblP);
       obj.asyncBGClient.sendCommand(sCmd);
     end

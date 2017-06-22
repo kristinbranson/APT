@@ -3271,9 +3271,11 @@ classdef Labeler < handle
     end
     
     function tblMF = labelGetMFTableCurrMovFrmTgt(obj,roiRadius)
-      % XXX DOC me; roiRadius
+      % Get MFTable for current movie/frame/target (single-row table)
       %
-      % tblMF: [NTrl rows] MFTable, one row per labeled movie/frame/target.
+      % roiRadius: only used if .hasTrx
+      %
+      % tblMF: [NTrl rows] MFTable
       %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
       %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
       %   index, 2. view index, 3. coord index (x vs y)
@@ -3304,7 +3306,7 @@ classdef Labeler < handle
         trxCurr = obj.trx;
         nphysPts = obj.nPhysPoints;
         [roi,tfOOBview,lposFrmTgtRoi] = ...
-          Shape.xyAndTrx2ROI(lposFrmTgt,trxCurr,nphysPts,frm,iTgt,roiRadius);
+          Shape.xyAndTrx2ROI(lposFrmTgt,{trxCurr},nphysPts,frm,iTgt,roiRadius);
         if any(tfOOBview)
           warningNoTrace('Labeler:oob',...
             'Movie(set) ''%s'', frame %d, target %d: shape out of bounds of target ROI. Not including this row.',...
