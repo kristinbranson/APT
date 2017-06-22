@@ -10,7 +10,7 @@ for i=1:2:numel(varargin)
   try
     set(h,prop,val);
   catch ME
-    warningNoTrace('setIgnoreUnknown:unk',...
-      'Ignoring property set on ''%s'': %s',prop,ME.message);
+%     warningNoTrace('setIgnoreUnknown:unk',...
+%       'Ignoring property set on ''%s'': %s',prop,ME.message);
   end
 end

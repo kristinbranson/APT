@@ -356,9 +356,10 @@ classdef CPRLabelTracker < LabelTracker
         'wbObj',[]); % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
       tfWB = ~isempty(wbObj);
       
-      FLDSEXPECTED = [MFTable.FLDSID {'p' 'tfocc'}];
-      if ~all(ismember(FLDSEXPECTED',tblPNew.Properties.VariableNames')) || ...
-         ~all(ismember(FLDSEXPECTED',tblPupdate.Properties.VariableNames'))
+      FLDSREQUIRED = [MFTable.FLDSID {'p' 'tfocc'}];
+      FLDSALLOWED = [MFTable.FLDSID {'p' 'tfocc' 'roi'}];
+      if ~all(ismember(FLDSREQUIRED',tblPNew.Properties.VariableNames')) || ...
+         ~all(ismember(FLDSREQUIRED',tblPupdate.Properties.VariableNames'))
         error('CPRLabelTracker:flds','Tables missing required fields.')
       end
       
@@ -403,7 +404,10 @@ classdef CPRLabelTracker < LabelTracker
         end
         % Include only FLDSEXPECTED in metadata to keep CPRData md
         % consistent (so can be appended)
-        dataNew = CPRData(I,tblPNew(:,FLDSEXPECTED));
+        
+        tfColsAllowed = ismember(tblPNew.Properties.VariableNames,...
+          FLDSALLOWED);
+        dataNew = CPRData(I,tblPNew(:,tfColsAllowed));
         if prmpp.histeq
           H0 = obj.trnResH0;
           assert(~isempty(H0),'H0 unavailable for histeq/preprocessing.');
@@ -2136,10 +2140,11 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function asyncTrackCurrFrameBG(obj)
-      % Track current frame in background
+      % Track current frame (send cmd to background)
       
       assert(obj.asyncPredictOn);
-      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt();
+      prmRC = obj.sPrm.PreProc.TargetCrop;
+      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt(prmRC.Radius);
       sCmd = struct('action','track','data',tblP);
       obj.asyncBGClient.sendCommand(sCmd);
     end

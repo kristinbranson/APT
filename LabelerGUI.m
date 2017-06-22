@@ -1421,21 +1421,21 @@ end
 iMov = lObj.currMovie;
 lObj.labels2ImportTrkPrompt(iMov);
 
-function [tfok,basetrkname] = hlpBasetrkname(lObj)
-basetrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movname, $projname, $projfile.',...
-  'Export Trk File',1,{lObj.defaultTrkBasename()});
-tfok = ~isempty(basetrkname);
+function [tfok,rawtrkname] = hlpRawtrkname(lObj)
+rawtrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movdir, $movfile, $projdir, $projfile, $projname.',...
+  'Export Trk File',1,{lObj.defaultTrkRawname()});
+tfok = ~isempty(rawtrkname);
 if tfok
-  basetrkname = basetrkname{1};
+  rawtrkname = rawtrkname{1};
 end
 
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-[tfok,basetrkname] = hlpBasetrkname(lObj);
+[tfok,rawtrkname] = hlpRawtrkname(lObj);
 if ~tfok
   return;
 end
-lObj.labelExportTrk(1:lObj.nmovies,'basefilename',basetrkname);
+lObj.labelExportTrk(1:lObj.nmovies,'rawtrkname',rawtrkname);
 
 function menu_help_Callback(hObject, eventdata, handles)
 
@@ -2030,11 +2030,11 @@ addDepHandle(handles.figure,hVizGUI);
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 tm = getTrackMode(handles);
-[tfok,basetrkname] = hlpBasetrkname(lObj);
+[tfok,rawtrkname] = hlpRawtrkname(lObj);
 if ~tfok
   return;
 end
-handles.labelerObj.trackAndExport(tm,'trkFilename',basetrkname);
+handles.labelerObj.trackAndExport(tm,'rawtrkname',rawtrkname);
 
 function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -2042,11 +2042,11 @@ iMov = lObj.currMovie;
 if iMov==0
   error('LabelerGUI:noMov','No movie currently set.');
 end
-[tfok,basetrkname] = hlpBasetrkname(lObj);
+[tfok,rawtrkname] = hlpRawtrkname(lObj);
 if ~tfok
   return;
 end
-lObj.trackExportResults(iMov,'basefilename',basetrkname);
+lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
 
 function menu_track_export_all_movies_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -2055,11 +2055,11 @@ if nMov==0
   error('LabelerGUI:noMov','No movies in project.');
 end
 iMov=1:nMov;
-[tfok,basetrkname] = hlpBasetrkname(lObj);
+[tfok,rawtrkname] = hlpRawtrkname(lObj);
 if ~tfok
   return;
 end
-lObj.trackExportResults(iMov,'basefilename',basetrkname);
+lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
 
 function menu_track_set_labels_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
