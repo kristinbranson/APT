@@ -4694,8 +4694,12 @@ classdef Labeler < handle
           'im',obj.currIm{1},...
           'axes_curr',struct('XLim',axc.XLim,'YLim',axc.YLim,...
                              'XDir',axc.XDir,'YDir',axc.YDir,...
-                             'CameraUpVector',axc.CameraUpVector,...
-                             'CameraViewAngle',axc.CameraViewAngle));
+                             'CameraUpVector',axc.CameraUpVector));
+        if strcmp(axc.CameraViewAngleMode,'auto')
+          freezeInfo.axes_curr.CameraViewAngleMode = 'auto';
+        else
+          freezeInfo.axes_curr.CameraViewAngle = axc.CameraViewAngle;
+        end
       end
       
       gd.image_prev.CData = freezeInfo.im;
