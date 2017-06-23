@@ -193,10 +193,13 @@ classdef InfoTimeline < handle
       if isnan(obj.npts), return; end
       
       lpos = obj.getDataCurrMovTgt(); % [nptsxnfrm]
-      y1 = min(lpos(:));
-      y2 = max(lpos(:));
+      lpos(isinf(lpos)) = nan;
+      lposnoninfnan = lpos(~isnan(lpos));
+
+      y1 = min(lposnoninfnan(:));
+      y2 = max(lposnoninfnan(:));
       dy = max(y2-y1,eps);
-      lposNorm = (lpos-y1)/dy; % in [0,1]
+      lposNorm = (lpos-y1)/dy; % Either nan, or in [0,1]
       x = 1:size(lposNorm,2);
       for i=1:obj.npts
         set(obj.hPts(i),'XData',x,'YData',lposNorm(i,:));
