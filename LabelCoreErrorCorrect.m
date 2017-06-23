@@ -26,15 +26,13 @@ classdef LabelCoreErrorCorrect < LabelCore
 
   properties
     supportsMultiView = false;
-	supportsCalibration = false;
+    supportsCalibration = false;
   end
   
   properties
     iPtMove;     % scalar. Either nan, or index of pt being moved
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
-    
-    tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
-    
+        
     kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
                  % the '1' hotkey maps to, eg typically this will take the 
                  % values 1, 11, 21, ...
@@ -59,9 +57,6 @@ classdef LabelCoreErrorCorrect < LabelCore
     end
     
     function initHook(obj)
-      npts = obj.nPts;
-      obj.tfPtSel = false(npts,1);
-      
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
       obj.refreshTxLabelCoreAux();
@@ -275,22 +270,7 @@ classdef LabelCoreErrorCorrect < LabelCore
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>
-      warning('LabelCoreEC:axOcc','Occluded currently unsupported.');
-%       [tf,iSel] = obj.anyPointSelected();
-%       if tf
-%         %obj.setPointAdjusted(iSel);
-%         obj.toggleSelectPoint(iSel);
-%         obj.tfOcc(iSel) = true;
-%         obj.tfEstOcc(iSel) = false;
-%         obj.refreshOccludedPts();
-%         obj.refreshEstOccPts('iPts',iSel);
-%         switch obj.state
-%           case LabelState.ADJUST
-%             % none
-%           case LabelState.ACCEPTED
-%             obj.enterUnlocked();
-%         end
-%       end   
+      error('LabelCoreEC:axOcc','Occluded currently unsupported.');
     end
 
     function h = getLabelingHelp(obj) %#ok<MANU>
@@ -305,17 +285,7 @@ classdef LabelCoreErrorCorrect < LabelCore
         '* Clicking on the image moves the selected point to that location.'
         '* <ctrl>-h to show/hide labels.'};      
     end
-    
-    function refreshEstOccPts(obj,varargin)
-      % React to an updated .tfEstOcc.
-      %
-      % optional PVs
-      % iPts. Defaults to 1:obj.nPts.
-      
-      iPts = myparse(varargin,'iPts',1:obj.nPts);
-      obj.refreshPtMarkers(iPts);
-    end
-        
+            
   end
     
   methods (Access=private)
@@ -355,62 +325,15 @@ classdef LabelCoreErrorCorrect < LabelCore
         'Value',1,'Enable','on');
       obj.state = LabelState.ACCEPTED;
     end
-    
-    function toggleSelectPoint(obj,iPt)
-      tfSel = ~obj.tfPtSel(iPt);
-      obj.tfPtSel(:) = false;
-      obj.tfPtSel(iPt) = tfSel;
-
-      obj.refreshPtMarkers(iPt);
-      % Also update hPtsOcc markers
-      if tfSel
-        mrkr = obj.ptsPlotInfo.ErrorCorrectMode.SelectedPointMarker;
-      else
-        mrkr = obj.ptsPlotInfo.Marker;
-      end
-      set(obj.hPtsOcc(iPt),'Marker',mrkr);
-    end
-    
+   
     function toggleEstOccPoint(obj,iPt)
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
-      obj.refreshEstOccPts('iPts',iPt);
+      obj.refreshPtMarkers('iPts',iPt);
       if obj.state==LabelState.ACCEPTED
         obj.enterUnlocked(false);
       end
     end
-    
-    function refreshPtMarkers(obj,iPts)
-      % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
-      
-      ppi = obj.ptsPlotInfo;
-      ppiecm = ppi.ErrorCorrectMode;
-
-      hPoints = obj.hPts(iPts);
-      tfSel = obj.tfPtSel(iPts);
-      tfEO = obj.tfEstOcc(iPts);
-      
-      set(hPoints(tfSel & tfEO),'Marker',ppiecm.SelectedOccludedMarker);
-      set(hPoints(tfSel & ~tfEO),'Marker',ppiecm.SelectedPointMarker);
-      set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
-      set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
-    end
-      
-    function [tf,iSelected] = anyPointSelected(obj)
-      tf = any(obj.tfPtSel);
-      iSelected = find(obj.tfPtSel,1);
-    end
-    
-    function clearSelected(obj,iExclude)
-      tf = obj.tfPtSel;
-      if exist('iExclude','var')>0
-        tf(iExclude) = false;
-      end
-      iSel = find(tf);
-      for i = iSel(:)'
-        obj.toggleSelectPoint(i);
-      end
-    end
-    
+              
     function refreshTxLabelCoreAux(obj)
       iPt0 = obj.kpfIPtFor1Key;
       iPt1 = iPt0+9;

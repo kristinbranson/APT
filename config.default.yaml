@@ -73,8 +73,6 @@ LabelPointsPlot:
     OtherLabeledPointColor: [0,1,0]
 
   ErrorCorrectMode:
-    SelectedPointMarker: 'x'
-    SelectedOccludedMarker: 's'
     MarkedMarkerSize: 16
 
   MultiViewCalibratedMode:
