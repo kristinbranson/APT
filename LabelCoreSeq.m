@@ -1,4 +1,4 @@
-classdef LabelCoreSeq < LabelCore   
+classdef LabelCoreSeq < LabelCore
   % Label mode 1 (Sequential)
   %
   % There are three labeling states: 'label', 'adjust', 'accepted'.
@@ -40,7 +40,6 @@ classdef LabelCoreSeq < LabelCore
     nPtsLabeled; % scalar integer. 0..nPts, or inf.
 
     % Templatemode-like behavior in 'adjust' and 'accepted' stages
-    tfPtSel; % [nPtsx1] logical vec. If true, pt is currently selected.
     kpfIPtFor1Key; % scalar positive integer. This is the point index that
                    % the '1' hotkey maps to, eg typically this will take the 
                    % values 1, 11, 21, ...
@@ -60,7 +59,6 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function initHook(obj)
-      obj.tfPtSel = false(obj.nPts,1);
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
       obj.refreshTxLabelCoreAux();
@@ -90,46 +88,24 @@ classdef LabelCoreSeq < LabelCore
       obj.beginAdjust();
     end
     
-    function axBDF(obj,~,~)
-      obj.axOrAxOccBDF(false);
-    end
-    
-    function axOccBDF(obj,~,~)
-      obj.axOrAxOccBDF(true);
-    end
-   
-    function axOrAxOccBDF(obj,tfAxOcc)
+    function axBDF(obj,src,evt) %#ok<INUSD>
+      mod = obj.hFig.CurrentModifier;
+      tfShift = any(strcmp(mod,'shift'));
       switch obj.state
         case LabelState.LABEL
-          ax = obj.hAx;
-          
-          nlbled = obj.nPtsLabeled;
-          assert(nlbled<obj.nPts);
-          i = nlbled+1;
-          if tfAxOcc
-            obj.tfOcc(i) = true;
-            obj.refreshOccludedPts();
-          else
-            tmp = get(ax,'CurrentPoint');
-            x = tmp(1,1);
-            y = tmp(1,2);
-            obj.assignLabelCoordsIRaw([x y],i);
-          end
-          obj.nPtsLabeled = i;
-          if i==obj.nPts
-            obj.beginAdjust();
-          end
+          obj.hlpAxBDFLabelState(false,tfShift);
         case {LabelState.ADJUST LabelState.ACCEPTED}
           [tf,iSel] = obj.anyPointSelected();
           if tf
             pos = get(obj.hAx,'CurrentPoint');
             pos = pos(1,1:2);
             obj.assignLabelCoordsIRaw(pos,iSel);
+            obj.tfEstOcc(iSel) = tfShift; % following toggleSelectPoint call will call refreshPtMarkers
             obj.toggleSelectPoint(iSel);
-%             if obj.tfOcc(iSel)
-%               obj.tfOcc(iSel) = false;
-%               obj.refreshOccludedPts();
-%             end
+            if obj.tfOcc(iSel)
+              obj.tfOcc(iSel) = false;
+              obj.refreshOccludedPts();
+            end
             % estOcc status unchanged
             if obj.state==LabelState.ACCEPTED
               obj.beginAdjust();
@@ -138,17 +114,69 @@ classdef LabelCoreSeq < LabelCore
       end
     end
     
+    function axOccBDF(obj,~,~)
+      mod = obj.hFig.CurrentModifier;
+      tfShift = any(strcmp(mod,'shift'));
+
+      switch obj.state
+        case LabelState.LABEL
+          obj.hlpAxBDFLabelState(true,tfShift);
+        case {LabelState.ADJUST LabelState.ACCEPTED}
+          [tf,iSel] = obj.anyPointSelected();
+          if tf
+            if obj.tfEstOcc(iSel)
+              obj.tfEstOcc(iSel) = false; 
+              % following toggleSelectPoint call will call refreshPtMarkers
+            end
+            obj.toggleSelectPoint(iSel);        
+            obj.tfOcc(iSel) = true;
+            obj.refreshOccludedPts();
+            % estOcc status unchanged
+            if obj.state==LabelState.ACCEPTED
+              obj.beginAdjust();
+            end
+          end
+      end
+    end
+       
+    function hlpAxBDFLabelState(obj,tfAxOcc,tfShift)
+      % BDF in LabelState.LABEL. .tfOcc, .tfEstOcc, .tfSel start off as all
+      % false in beginLabel();
+      
+      nlbled = obj.nPtsLabeled;
+      assert(nlbled<obj.nPts);
+      i = nlbled+1;
+      if tfAxOcc
+        obj.tfOcc(i) = true;
+        obj.refreshOccludedPts();
+      else
+        ax = obj.hAx;
+        tmp = get(ax,'CurrentPoint');
+        x = tmp(1,1);
+        y = tmp(1,2);
+        obj.assignLabelCoordsIRaw([x y],i);
+        if tfShift
+          obj.tfEstOcc(i) = true;
+        end
+        obj.refreshPtMarkers('iPts',i);
+      end
+      obj.nPtsLabeled = i;
+      if i==obj.nPts
+        obj.beginAdjust();
+      end
+    end
+    
     function undoLastLabel(obj)
       switch obj.state
         case {LabelState.LABEL LabelState.ADJUST}
           nlbled = obj.nPtsLabeled;
           if nlbled>0
-            if obj.tfOcc(nlbled)
-              obj.tfOcc(nlbled) = false;
-              obj.refreshOccludedPts();
-            else
-              obj.assignLabelCoordsIRaw([nan nan],nlbled);
-            end
+            obj.tfSel(nlbled) = false;
+            obj.tfEstOcc(nlbled) = false;
+            obj.tfOcc(nlbled) = false;
+            obj.refreshOccludedPts();
+            obj.refreshPtMarkers('iPts',nlbled,'doPtsOcc',true);
+            obj.assignLabelCoordsIRaw([nan nan],nlbled);
             obj.nPtsLabeled = nlbled-1;
             
             if obj.state==LabelState.ADJUST
@@ -203,8 +231,11 @@ classdef LabelCoreSeq < LabelCore
       lObj = obj.labeler;
       if strcmp(key,'z') && tfCtrl
         obj.undoLastLabel();
-%       elseif strcmp(key,'h') && tfCtrl
-%         obj.labelsHideToggle();
+      elseif strcmp(key,'o') && ~tfCtrl
+        [tfSel,iSel] = obj.anyPointSelected();
+        if tfSel
+          obj.toggleEstOccPoint(iSel);
+        end
       elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl % accept
         if obj.state==LabelState.ADJUST
           obj.acceptLabels();
@@ -264,16 +295,18 @@ classdef LabelCoreSeq < LabelCore
         end
         obj.kpfIPtFor1Key = iPt;
       elseif any(strcmp(key,{'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
-        iPt = str2double(key);
-        if iPt==0
-          iPt = 10;
+        if obj.state~=LabelState.LABEL
+          iPt = str2double(key);
+          if iPt==0
+            iPt = 10;
+          end
+          iPt = iPt+obj.kpfIPtFor1Key-1;
+          if iPt>obj.nPts
+            return;
+          end
+          obj.clearSelected(iPt);
+          obj.toggleSelectPoint(iPt);
         end
-        iPt = iPt+obj.kpfIPtFor1Key-1;
-        if iPt>obj.nPts
-          return;
-        end
-        obj.clearSelected(iPt);
-        obj.toggleSelectPoint(iPt);
       else
         tfKPused = false;
       end
@@ -291,16 +324,16 @@ classdef LabelCoreSeq < LabelCore
   methods
     
     function newFrameTarget(obj,iFrm,iTgt)
-      % React to new frame or target. Set mode1 label state (.lbl1_*)
-      % according to labelpos. If a frame is not labeled, then start fresh
-      % in Label state. Otherwise, start in Accepted state with saved labels.
+      % React to new frame or target. If a frame is not labeled, then start 
+      % fresh in Label state. Otherwise, start in Accepted state with saved 
+      % labels.
       
-      [tflabeled,lpos] = obj.labeler.labelPosIsLabeled(iFrm,iTgt);
+      [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm,iTgt);
       if tflabeled
         obj.nPtsLabeled = obj.nPts;
-        obj.assignLabelCoords(lpos);
+        obj.assignLabelCoords(lpos,'lblTags',lpostag);
         obj.iPtMove = nan;
-        obj.beginAccepted(false); % I guess could just call with true arg
+        obj.beginAccepted(false); % Could possibly just call with true arg
       else
         obj.beginLabel(false);
       end
@@ -311,10 +344,13 @@ classdef LabelCoreSeq < LabelCore
       % frame/target
       
       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-        'String','','Enable','off','Value',0);      
+        'String','','Enable','off','Value',0);
       obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
       obj.iPtMove = nan;
+      obj.tfOcc(:) = false;
+      obj.tfEstOcc(:) = false;
+      obj.tfSel(:) = false;
       if tfClearLabels
         obj.labeler.labelPosClear();
       end
@@ -345,63 +381,12 @@ classdef LabelCoreSeq < LabelCore
       if tfSetLabelPos
         xy = obj.getLabelCoords();
         obj.labeler.labelPosSet(xy);
+        obj.setLabelPosTagFromEstOcc();
       end
       obj.clearSelected();
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
         'Value',1,'Enable','on');
       obj.state = LabelState.ACCEPTED;
-    end
-     
-    % C+P
-    function [tf,iSelected] = anyPointSelected(obj)
-      tf = any(obj.tfPtSel);
-      iSelected = find(obj.tfPtSel,1);
-    end
-    
-    %C+P
-    function clearSelected(obj,iExclude)
-      tf = obj.tfPtSel;
-      if exist('iExclude','var')>0
-        tf(iExclude) = false;
-      end
-      iSel = find(tf);
-      for i = iSel(:)'
-        obj.toggleSelectPoint(i);
-      end
-    end
-    
-    % C+P
-    function toggleSelectPoint(obj,iPt)
-      tfSel = ~obj.tfPtSel(iPt);
-      obj.tfPtSel(:) = false;
-      obj.tfPtSel(iPt) = tfSel;
-
-      obj.refreshPtMarkers(iPt);
-      
-%       % Also update hPtsOcc markers
-%       if tfSel
-%         mrkr = obj.ptsPlotInfo.TemplateMode.SelectedPointMarker;
-%       else
-%         mrkr = obj.ptsPlotInfo.Marker;
-%       end
-%       set(obj.hPtsOcc(iPt),'Marker',mrkr);
-    end
-    
-    % C+P
-    function refreshPtMarkers(obj,iPts)
-      % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
-      
-      ppi = obj.ptsPlotInfo;
-      ppitm = ppi.TemplateMode;
-
-      hPoints = obj.hPts(iPts);
-      tfSel = obj.tfPtSel(iPts);
-      %tfEO = obj.tfEstOcc(iPts);
-      
-      %set(hPoints(tfSel & tfEO),'Marker',ppitm.SelectedOccludedMarker); % historical quirk, use props instead of ppi; fix this at some pt
-      set(hPoints(tfSel),'Marker',ppitm.SelectedPointMarker);
-      %set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
-      set(hPoints(~tfSel),'Marker',ppi.Marker);
     end
     
     % C+P
@@ -410,6 +395,15 @@ classdef LabelCoreSeq < LabelCore
       iPt1 = iPt0+9;
       str = sprintf('Hotkeys 0-9 map to points %d-%d',iPt0,iPt1);
       obj.txLblCoreAux.String = str;      
+    end
+    
+    function toggleEstOccPoint(obj,iPt)
+      obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
+      assert(~(obj.tfEstOcc(iPt) && obj.tfOcc(iPt)));
+      obj.refreshPtMarkers('iPts',iPt);
+      if obj.state==LabelState.ACCEPTED
+        obj.beginAdjust();
+      end
     end
 
   end
