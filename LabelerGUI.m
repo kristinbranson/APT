@@ -244,6 +244,8 @@ moveMenuItemAfter(handles.menu_setup_multiview_calibrated_mode_2,...
 
 delete(handles.menu_setup_multiview_calibrated_mode);
 handles.menu_setup_multiview_calibrated_mode = [];
+delete(handles.menu_setup_tracking_correction_mode);
+handles.menu_setup_tracking_correction_mode = [];
 
 handles.menu_help_about = uimenu(...
   'Parent',handles.menu_help,...
@@ -265,8 +267,6 @@ LABELMODE_SETUPMENU_MAP = ...
    LabelMode.SEQUENTIAL 'menu_setup_sequential_mode';
    LabelMode.TEMPLATE 'menu_setup_template_mode';
    LabelMode.HIGHTHROUGHPUT 'menu_setup_highthroughput_mode';
-   LabelMode.ERRORCORRECT 'menu_setup_tracking_correction_mode';
-   LabelMode.MULTIVIEWCALIBRATED 'menu_setup_multiview_calibrated_mode';
    LabelMode.MULTIVIEWCALIBRATED2 'menu_setup_multiview_calibrated_mode_2'};
 tmp = LABELMODE_SETUPMENU_MAP;
 tmp(:,1) = cellfun(@char,tmp(:,1),'uni',0);
@@ -1458,10 +1458,6 @@ function menu_setup_template_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
 function menu_setup_highthroughput_mode_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
-function menu_setup_tracking_correction_mode_Callback(hObject,eventdata,handles)
-menuSetupLabelModeCbkGeneric(hObject,handles);
-% function menu_setup_multiview_calibrated_mode_Callback(hObject,eventdata,handles)
-% menuSetupLabelModeCbkGeneric(hObject,handles);
 function menu_setup_multiview_calibrated_mode_2_Callback(hObject,eventdata,handles)
 menuSetupLabelModeCbkGeneric(hObject,handles);
 function menuSetupLabelModeCbkGeneric(hObject,handles)
