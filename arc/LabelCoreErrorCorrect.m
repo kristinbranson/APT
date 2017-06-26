@@ -54,6 +54,7 @@ classdef LabelCoreErrorCorrect < LabelCore
     
     function obj = LabelCoreErrorCorrect(varargin)
       obj = obj@LabelCore(varargin{:});
+      assert(false,'Currently deprecated');
     end
     
     function initHook(obj)
