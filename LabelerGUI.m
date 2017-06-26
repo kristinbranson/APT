@@ -847,15 +847,15 @@ switch lblMode
     handles.menu_setup_unlock_all_frames.Visible = 'off';
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
-  case LabelMode.ERRORCORRECT
-    handles.menu_setup_createtemplate.Visible = 'off';
-    handles.menu_setup_set_labeling_point.Visible = 'off';
-    handles.menu_setup_set_nframe_skip.Visible = 'off';
-    handles.menu_setup_streamlined.Visible = 'off';
-    handles.menu_setup_unlock_all_frames.Visible = 'on';
-    handles.menu_setup_lock_all_frames.Visible = 'on';
-    handles.menu_setup_load_calibration_file.Visible = 'off';
-  case {LabelMode.MULTIVIEWCALIBRATED LabelMode.MULTIVIEWCALIBRATED2}
+%   case LabelMode.ERRORCORRECT
+%     handles.menu_setup_createtemplate.Visible = 'off';
+%     handles.menu_setup_set_labeling_point.Visible = 'off';
+%     handles.menu_setup_set_nframe_skip.Visible = 'off';
+%     handles.menu_setup_streamlined.Visible = 'off';
+%     handles.menu_setup_unlock_all_frames.Visible = 'on';
+%     handles.menu_setup_lock_all_frames.Visible = 'on';
+%     handles.menu_setup_load_calibration_file.Visible = 'off';
+  case {LabelMode.MULTIVIEWCALIBRATED2}
     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';

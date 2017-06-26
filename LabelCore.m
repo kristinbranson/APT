@@ -82,10 +82,10 @@ classdef LabelCore < handle
           end
         case LabelMode.HIGHTHROUGHPUT
           obj = LabelCoreHT(labelerObj);
-        case LabelMode.ERRORCORRECT
-          obj = LabelCoreErrorCorrect(labelerObj);
-        case LabelMode.MULTIVIEWCALIBRATED
-          obj = LabelCoreMultiViewCalibrated(labelerObj);
+%         case LabelMode.ERRORCORRECT
+%           obj = LabelCoreErrorCorrect(labelerObj);
+%         case LabelMode.MULTIVIEWCALIBRATED
+%           obj = LabelCoreMultiViewCalibrated(labelerObj);
         case LabelMode.MULTIVIEWCALIBRATED2
           obj = LabelCoreMultiViewCalibrated2(labelerObj);
       end

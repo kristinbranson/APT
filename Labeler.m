@@ -1589,6 +1589,16 @@ classdef Labeler < handle
       
         movfilefull = obj.projLocalizePath(movFile);
         assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
+        if any(strcmp(movFile,obj.movieFilesAll))
+          warningNoTrace('Labeler:dupmov',...
+            'Movie ''%s'' is already in project. Not adding.',movFile);
+          continue;
+        end
+        if any(strcmp(movfilefull,obj.movieFilesAllFull))
+          warningNoTrace('Labeler:dupmov',...
+            'Movie ''%s'', macro-expanded to ''%s'', is already in project.',...
+            movFile,movfilefull);
+        end
         assert(isempty(tFile) || exist(tFile,'file')>0,'Cannot find file ''%s''.',tFile);
 
         mr.open(movfilefull);
@@ -4733,7 +4743,7 @@ classdef Labeler < handle
       % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on 
       % .prevFrame etc 
       
-      if obj.isinit || obj.prevAxesMode==PrevAxesMode.FROZEN
+      if obj.isinit || ~obj.hasMovie || obj.prevAxesMode==PrevAxesMode.FROZEN
         return;
       end
       if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)

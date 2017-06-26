@@ -96,12 +96,14 @@ classdef FSPath
     end
     
     function warnUnreplacedMacros(strs)
-      toks = cellfun(@(x)regexp(x,'\$([a-zA-Z]+)','tokens'),strs,'uni',0);
-      toks = [toks{:}];
-      toks = [toks{:}];
-      if ~isempty(toks)
-        toks = unique(toks);
-        cellfun(@(x)warningNoTrace('FSPath:macro','Unreplaced macro: $%s',x),toks);
+      if ~isempty(strs)
+        toks = cellfun(@(x)regexp(x,'\$([a-zA-Z]+)','tokens'),strs,'uni',0);
+        toks = [toks{:}];
+        toks = [toks{:}];
+        if ~isempty(toks)
+          toks = unique(toks);
+          cellfun(@(x)warningNoTrace('FSPath:macro','Unreplaced macro: $%s',x),toks);
+        end
       end
     end
     

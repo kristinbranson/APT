@@ -370,7 +370,8 @@ classdef InfoTimeline < handle
       end
     end
     function cbkLabelMode(obj,src,evt) %#ok<INUSD>
-      onoff = onIff(obj.lObj.labelMode==LabelMode.ERRORCORRECT);
+%       onoff = onIff(obj.lObj.labelMode==LabelMode.ERRORCORRECT);
+      onoff = 'off';
       set(obj.hMarked,'Visible',onoff);
     end
     function cbkLabelUpdated(obj,src,~) %#ok<INUSD>
