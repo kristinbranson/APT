@@ -195,6 +195,14 @@ classdef InfoTimeline < handle
       lpos = obj.getDataCurrMovTgt(); % [nptsxnfrm]
       lpos(isinf(lpos)) = nan;
       lposnoninfnan = lpos(~isnan(lpos));
+      
+      if isempty(lposnoninfnan)
+        for i=1:obj.npts
+          set(obj.hPts(i),'XData',nan,'YData',nan);
+        end
+        set(obj.hMarked,'XData',nan,'YData',nan);
+        return;
+      end
 
       y1 = min(lposnoninfnan(:));
       y2 = max(lposnoninfnan(:));
