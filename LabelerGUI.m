@@ -549,7 +549,7 @@ function cbkWSWF(src,evt,lObj)
 scrollcnt = evt.VerticalScrollCount;
 scrollamt = evt.VerticalScrollAmount;
 fcurr = lObj.currFrame;
-f = fcurr + round(scrollcnt*scrollamt);
+f = fcurr - round(scrollcnt*scrollamt); % scroll "up" => larger frame number
 f = min(max(f,1),lObj.nframes);
 cmod = lObj.gdata.figure.CurrentModifier;
 tfMod = ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}));
