@@ -545,6 +545,24 @@ if ~isempty(lObj.lblCore)
 end
 %lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
+function cbkWSWF(src,evt,lObj)
+scrollcnt = evt.VerticalScrollCount;
+scrollamt = evt.VerticalScrollAmount;
+fcurr = lObj.currFrame;
+f = fcurr + round(scrollcnt*scrollamt);
+f = min(max(f,1),lObj.nframes);
+cmod = lObj.gdata.figure.CurrentModifier;
+tfMod = ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}));
+if tfMod
+  if f>fcurr
+    lObj.frameUp(true);
+  else
+    lObj.frameDown(true);
+  end
+else
+  lObj.setFrameProtected(f);
+end
+
 function cbkNewProject(src,evt)
 
 lObj = src;
@@ -648,6 +666,7 @@ hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_fra
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
+set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
 
 handles = setShortcuts(handles);
 
