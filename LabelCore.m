@@ -70,16 +70,28 @@ classdef LabelCore < handle
   
   methods (Static)
     
+    function obj = createSafe(labelerObj,labelMode)
+      if labelerObj.isMultiView && labelMode~=LabelMode.MULTIVIEWCALIBRATED2
+        labelModeOldStr = labelMode.prettyString;
+        labelMode = LabelMode.MULTIVIEWCALIBRATED2;
+        warningNoTrace('LabelCore:mv',...
+          'Labeling mode ''%s'' does not support multiview projects. Using mode ''%s''.',...
+        labelModeOldStr,labelMode.prettyString);
+      elseif ~labelerObj.isMultiView && labelMode==LabelMode.MULTIVIEWCALIBRATED2
+        labelModeOldStr = labelMode.prettyString;
+        labelMode = LabelMode.TEMPLATE;
+        warningNoTrace('LabelCore:mv',...
+          'Labeling mode ''%s'' cannot be used for single-view projects. Using mode ''%s''.',...
+          labelModeOldStr,labelMode.prettyString);
+      end
+      obj = LabelCore.create(labelerObj,labelMode);
+    end
     function obj = create(labelerObj,labelMode)
       switch labelMode
         case LabelMode.SEQUENTIAL
           obj = LabelCoreSeq(labelerObj);
         case LabelMode.TEMPLATE
-          if labelerObj.isMultiView
-            obj = LabelCoreMultiViewTemplate(labelerObj);
-          else
-            obj = LabelCoreTemplate(labelerObj);
-          end
+          obj = LabelCoreTemplate(labelerObj);
         case LabelMode.HIGHTHROUGHPUT
           obj = LabelCoreHT(labelerObj);
 %         case LabelMode.ERRORCORRECT
@@ -89,6 +101,7 @@ classdef LabelCore < handle
         case LabelMode.MULTIVIEWCALIBRATED2
           obj = LabelCoreMultiViewCalibrated2(labelerObj);
       end
+      
     end
     
   end
@@ -96,6 +109,11 @@ classdef LabelCore < handle
   methods (Sealed=true)
     
     function obj = LabelCore(labelerObj)
+      if labelerObj.isMultiView && ~obj.supportsMultiView
+        error('LabelCore:MV','Multiview labeling not supported by %s.',...
+          class(obj));
+      end
+
       obj.labeler = labelerObj;
       gd = labelerObj.gdata;
       obj.hFig = gd.figs_all;
@@ -107,10 +125,6 @@ classdef LabelCore < handle
     end
     
     function init(obj,nPts,ptsPlotInfo)
-      if obj.labeler.isMultiView && ~obj.supportsMultiView
-        error('LabelCore:MV','Multiview labeling not supported by %s.',...
-          class(obj));
-      end
       obj.nPts = nPts;
       obj.ptsPlotInfo = ptsPlotInfo;
       

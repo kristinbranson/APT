@@ -1590,9 +1590,14 @@ classdef Labeler < handle
         movfilefull = obj.projLocalizePath(movFile);
         assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
         if any(strcmp(movFile,obj.movieFilesAll))
-          warningNoTrace('Labeler:dupmov',...
-            'Movie ''%s'' is already in project. Not adding.',movFile);
-          continue;
+          if nMov==1
+            error('Labeler:dupmov',...
+              'Movie ''%s'' is already in project.',movFile);
+          else
+            warningNoTrace('Labeler:dupmov',...
+              'Movie ''%s'' is already in project and will not be added to project.',movFile);
+            continue;
+          end
         end
         if any(strcmp(movfilefull,obj.movieFilesAllFull))
           warningNoTrace('Labeler:dupmov',...
@@ -1660,7 +1665,13 @@ classdef Labeler < handle
       else
         fprintf('Importing %d movie sets from file ''%s''.\n',nMovSetImport,bfile);
         for i=1:nMovSetImport
-          obj.movieSetAdd(movs(i,:));
+          try
+            obj.movieSetAdd(movs(i,:));
+          catch ME
+            warningNoTrace('Labeler:mov',...
+              'Error trying to add movieset %d: %s Movieset not added to project.',...
+              i,ME.message);
+          end
         end
       end
     end
@@ -1680,13 +1691,37 @@ classdef Labeler < handle
           'Number of moviefiles supplied (%d) must match number of views (%d).',...
           numel(moviefiles),obj.nview);
       end
-      movfilefull = cellfun(@(x)obj.projLocalizePath(x),moviefiles,'uni',0);
-      cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),movfilefull);
+      moviefilesfull = cellfun(@(x)obj.projLocalizePath(x),moviefiles,'uni',0);
+      cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),moviefilesfull);
+      tfMFeq = arrayfun(@(x)strcmp(moviefiles{x},obj.movieFilesAll(:,x)),1:obj.nview,'uni',0);
+      tfMFFeq = arrayfun(@(x)strcmp(moviefilesfull{x},obj.movieFilesAllFull(:,x)),1:obj.nview,'uni',0);
+      tfMFeq = cat(2,tfMFeq{:}); % [nmoviesetxnview], true when moviefiles matches movieFilesAll
+      tfMFFeq = cat(2,tfMFFeq{:}); % [nmoviesetxnview], true when movfilefull matches movieFilesAllFull
+      iAllViewsMatch = find(all(tfMFeq,2));
+      if ~isempty(iAllViewsMatch)
+        error('Labeler:dupmov',...
+          'Movieset matches current movieset %d in project.',iAllViewsMatch(1));
+      end
+      for iView=1:obj.nview
+        iMFmatches = find(tfMFeq(:,iView));
+        iMFFmatches = find(tfMFFeq(:,iView));
+        iMFFmatches = setdiff(iMFFmatches,iMFmatches);
+        if ~isempty(iMFmatches)
+          warningNoTrace('Labeler:dupmov',...
+            'Movie ''%s'' (view %d) already exists in project.',...
+            moviefiles{iView},iView);
+        end          
+        if ~isempty(iMFFmatches)
+          warningNoTrace('Labeler:dupmov',...
+            'Movie ''%s'' (view %d), macro-expanded to ''%s'', is already in project.',...
+            moviefiles{iView},iView,moviefilesfull{iView});
+        end
+      end
             
       ifos = cell(1,obj.nview);
       mr = MovieReader();
       for iView = 1:obj.nview
-        mr.open(movfilefull{iView});
+        mr.open(moviefilesfull{iView});
         ifo = struct();
         ifo.nframes = mr.nframes;
         ifo.info = mr.info;
@@ -2347,7 +2382,7 @@ classdef Labeler < handle
       else
         hideLabelsPrev = false;
       end
-      obj.lblCore = LabelCore.create(obj,lblmode);
+      obj.lblCore = LabelCore.createSafe(obj,lblmode);
       obj.lblCore.init(nPts,lblPtsPlotInfo);
       if hideLabelsPrev
         obj.lblCore.labelsHide();
