@@ -246,7 +246,7 @@ classdef LabelCoreTemplate < LabelCore
       end
     end
     
-    function tfKPused = kpf(obj,src,evt) %#ok<INUSL>      
+    function tfKPused = kpf(obj,src,evt)       
       key = evt.Key;
       modifier = evt.Modifier;
       tfCtrl = any(strcmp('control',modifier));
@@ -258,7 +258,10 @@ classdef LabelCoreTemplate < LabelCore
       % Hack iss#58. Ensure focus is not on slider_frame. In practice this
       % callback is called before slider_frame_Callback when slider_frame
       % has focus.
-      uicontrol(lObj.gdata.txStatus);
+      txStatus = lObj.gdata.txStatus;
+      if src~=txStatus % protect against repeated kpfs (eg scrolling vid)
+        uicontrol(lObj.gdata.txStatus);
+      end
 
       if any(strcmp(key,{'s' 'space'})) && ~tfCtrl
         if obj.state==LabelState.ADJUST
