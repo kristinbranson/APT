@@ -42,6 +42,7 @@ Ftr:
   F: 400              # num features to generate
   nChn: 1             # num image 'channels'
   radius: 1           # feature generation radius
+  abratio: 2          # ratio of ellipse major/minor axes (when applicable, depending on 'type')
   nsample_std: 1000   # num samples used in computing std for feature-selection
   nsample_cor: 5000   # num samples used in computing correlations for feature-selection
   neighbors:

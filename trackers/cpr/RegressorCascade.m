@@ -197,7 +197,7 @@ classdef RegressorCascade < handle
           assert(~tfused,'Unsupported.');
           ftrs = shapeGt('ftrsCompKBOrig',obj.prmModel,p,I,fspec,...
             pIidx,[],bboxes,obj.prmReg.occlPrm);
-        case {'1lm' '2lm' '2lmdiff'}
+        case {'1lm' '2lm' '2lmdiff' 'two landmark elliptical'}
           fspec = rmfield(fspec,'pids');
           fspec.F = numel(iFtrs);
           fspec.xs = fspec.xs(iFtrs,:);
@@ -363,7 +363,7 @@ classdef RegressorCascade < handle
           switch paramFtr.type
             case {'kborig_hack'}
               fspec = shapeGt('ftrsGenKBOrig',model,paramFtr);
-            case {'1lm' '2lm' '2lmdiff'}
+            case {'1lm' '2lm' 'two landmark elliptical' '2lmdiff'}
               fspec = shapeGt('ftrsGenDup2',model,paramFtr);
           end
           obj.ftrSpecs{t} = fspec;
@@ -735,6 +735,8 @@ classdef RegressorCascade < handle
         case '2lm'
           assert(size(xs,2)==7);
           fAll = xs(:,[1 2]);
+        case 'two landmark elliptical'
+          fAll = [xs.lm1 xs.lm2];
         case '2lmdiff'
           assert(size(xs,2)==13);
           fAll = xs(:,[1 2 8 9]);          

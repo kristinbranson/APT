@@ -261,12 +261,13 @@ dfs = {...
   'type','2lm',... % feature type
   'F',20,... % number of features to generate
   'radius',1,... % radius or radius factor for sampling within neighborhood of certain size
+  'abratio',2,... 
   'nChn',3,... % number of image channels
   'pids',[],... % "part ids for each x"
   'randctr',false,... % see Features.generate*
   'neighbors',{},... % see Features.generate*
   'fids',[]}; % see Features.generate*
-[type,F,radius,nChn,pids,randctr,neighbors,fids] = ...
+[type,F,radius,abratio,nChn,pids,randctr,neighbors,fids] = ...
   getPrmDflt(varargin,dfs,0);
 
 switch type
@@ -278,6 +279,9 @@ switch type
     % landmarks 
     xs = Features.generate2LM(model,'F',F,'radiusFac',radius,...
       'randctr',randctr,'neighbors',neighbors,'fids',fids,'nchan',nChn);
+  case 'two landmark elliptical'
+    xs = Features.generate2LMelliptical(model,'F',F,'radiusFac',radius,...
+      'abratio',abratio,'nchan',nChn);
   case '2lmdiff'
     % differences between 2 features in the same channel, where features
     % are generated relative to two landmarks
@@ -675,6 +679,7 @@ else
 end
 
 FTot = ftrData.F;
+assert(FTot==size(ftrData.xs,1));
 useOccl = occlPrm.Stot>1;
 if useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2'))
   assert(false,'AL');
@@ -691,6 +696,8 @@ switch ftrData.type
     chn = ones(size(cs1));
   case '2lm'
     [cs1,rs1,chn,vw] = Features.compute2LM(ftrData.xs,poscs,posrs);
+  case 'two landmark elliptical'
+    [cs1,rs1,chn,vw] = Features.compute2LMelliptical(ftrData.xs,poscs,posrs);    
   case '2lmdiff'
     [cs1,rs1,cs2,rs2,chn,vw] = Features.compute2LMDiff(ftrData.xs,poscs,posrs);
   otherwise
@@ -745,7 +752,7 @@ for iview = 1:nviews
     inds1 = rs1(n,tfvw) + (cs1(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
     ftrs1 = hlpFtr(img,inds1);
     switch ftrData.type
-      case {'1lm' '2lm'}
+      case {'1lm' '2lm' 'two landmark elliptical'}
         ftrs(n,tfvw) = ftrs1;
       case '2lmdiff'
         inds2 = rs2(n,tfvw) + (cs2(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;

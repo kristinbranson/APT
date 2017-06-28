@@ -401,30 +401,6 @@ classdef Features
       end
     end
     
-    function t = compileFeatureInfo(regs)
-      s = struct('iReg',cell(0,1),'iRegInfo',[],'fidpos',[],'fid',[],'chan',[]);
-      nReg = numel(regs);
-      for iReg = 1:nReg
-        fprintf(1,'Working on iReg=%d\n',iReg);
-        chans = regs(iReg).ftrPos.xs(:,end);
-        
-        ri = regs(iReg).regInfo;
-        nRI = numel(ri);
-        for iRI = 1:nRI
-          fids = ri{iRI}.fids(:);
-          for iFID = 1:numel(fids)
-            s(end+1,1).iReg = iReg;
-            s(end).iRegInfo = iRI;
-            s(end).fidpos = iFID;
-            s(end).fid = fids(iFID);
-            s(end).chan = chans(fids(iFID));
-          end
-        end
-      end
-      
-      t = struct2table(s);
-    end
-    
   end
   
   %#3DOK
@@ -636,9 +612,9 @@ classdef Features
       % out theta and abratio.
 
       r = rand(F,1);
-      reff = prm.radiusFac*sqrt(r);
+      reff = prms.radiusFac*sqrt(r);
       theta = (2*pi*rand(F,1))-pi;
-      abratio = prm.abratio;
+      abratio = prms.abratio;
       xeff = reff.*cos(theta);
       yeff = reff.*sin(theta)/abratio;
       chan = randint2(F,1,[1,prms.nchan]);
@@ -788,7 +764,7 @@ classdef Features
             
       xc = (x1+x2)/2; % [NxF]
       yc = (y1+y2)/2; % [NxF]
-      alpha = atan2(y2-y1,x2-x1); % [NxF]
+      alpha = atan2(y2-y1,x2-x1); % [NxF] % OPTIM skip the trig just use dx, dy, d
       cosa = cos(alpha); % [NxF]
       sina = sin(alpha); % [NxF]
       xF = xc + xEll.*cosa - yEll.*sina;

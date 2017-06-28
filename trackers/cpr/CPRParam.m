@@ -80,6 +80,7 @@ classdef CPRParam
       sOld.Ftr.F = cpr.Feature.NGenerate;
       sOld.Ftr.nChn = 1;
       sOld.Ftr.radius = cpr.Feature.Radius;
+      sOld.Ftr.abratio = cpr.Feature.ABRatio;
       sOld.Ftr.nsample_std = cpr.Feature.Nsample_std;
       sOld.Ftr.nsample_cor = cpr.Feature.Nsample_cor;
       sOld.Ftr.neighbors = [];
@@ -145,6 +146,7 @@ classdef CPRParam
       sNew.ROOT.CPR.Feature.NGenerate = sOld.Ftr.F;
       assert(sOld.Ftr.nChn==1);
       sNew.ROOT.CPR.Feature.Radius = sOld.Ftr.radius;
+      sNew.ROOT.CPR.Feature.ABRatio = sOld.Ftr.abratio;
       sNew.ROOT.CPR.Feature.Nsample_std = sOld.Ftr.nsample_std;
       sNew.ROOT.CPR.Feature.Nsample_cor = sOld.Ftr.nsample_cor;
       assert(isempty(sOld.Ftr.neighbors));
