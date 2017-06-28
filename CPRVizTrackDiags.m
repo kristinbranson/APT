@@ -141,6 +141,10 @@ classdef CPRVizTrackDiags < handle
       fUse = squeeze(rc.ftrsUse(obj.t,obj.u,:,:)); % [MxnUse]
       fspec = rc.ftrSpecs{obj.t};
       xsLbl = Features.TYPE2XSCOLLBLS(fspec.type);
+      if istable(fspec.xs)
+        assert(isempty(xsLbl));
+        xsLbl = fspec.xs.Properties.VariableNames;
+      end
       xsUse = arrayfun(@(iF)fspec.xs(iF,:),fUse,'uni',0);
       
       iMov = obj.lObj.currMovie;
@@ -181,6 +185,10 @@ classdef CPRVizTrackDiags < handle
                 [xF,yF,~,iview,info] = Features.compute2LM(fspec.xs(iFuse,:),xLM,yLM);
                 hPlot = Features.visualize2LM(ax,xF,yF,iview,info,1,1,...
                   clrs(iFern,:),'hPlot',obj.hViz{iFern,iUse});
+              case 'two landmark elliptical'
+                [xF,yF,~,iview,info] = Features.compute2LMelliptical(fspec.xs(iFuse,:),xLM,yLM);
+                hPlot = Features.visualize2LMelliptical(ax,xF,yF,iview,info,1,1,...
+                  clrs(iFern,:),'hPlot',obj.hViz{iFern,iUse});                
               case '2lmdiff'
                 assert(false,'Currently unsupported');
               otherwise

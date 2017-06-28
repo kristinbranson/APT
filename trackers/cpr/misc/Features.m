@@ -31,7 +31,11 @@ classdef Features
       97    93    83    60];
     
     TYPE2XSCOLLBLS = containers.Map(...
-      {'1lm' '2lm' '2lmdiff'},{{'lm' 'radius' 'theta' 'view'},{'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'},[]});
+      {'1lm' '2lm' '2lmdiff' 'two landmark elliptical'},...
+      { {'lm' 'radius' 'theta' 'view'},...
+        {'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'},...
+        [],...
+        []});
       % TODO: 2lmdiff. TODO: hardcoded here -- see generate/compute/visualize1LM, 2LM etc
   end
   %% preprocessing/channels
@@ -887,7 +891,7 @@ classdef Features
         set(hPlot(6),'XData',[xc;xf],'YData',[yc;yf]);
       end
       str = sprintf('n=%d,f=%d(%d,%d). reff=%.3f,theta=%.3f',iN,iF,...
-        info.l1(iF),info.l2(iF),info.tbl.reff(iF),info.tbl.theta(iF)/pi*180);
+        info.tbl.lm1(iF),info.tbl.lm2(iF),info.tbl.reff(iF),info.tbl.theta(iF)/pi*180);
       title(axplot,str,'interpreter','none','fontweight','bold'); 
     end
     

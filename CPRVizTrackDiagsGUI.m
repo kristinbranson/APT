@@ -177,16 +177,25 @@ function updateVizFeaturesAndTable(vizObj)
 [fUse,xsUse,xsLbl] = vizObj.vizUpdate();
 [M,nUse] = size(fUse);
 szassert(xsUse,[M nUse]);
-ncol = numel(xsLbl);
+xsUse1 = xsUse{1};
+ncol = size(xsUse1,2);
+cellfun(@(x)assert(size(x,2)==ncol),xsUse);
+assert(numel(xsLbl)==ncol);
+
 tbldat = cell(M,nUse*(ncol+1));
 for iFern=1:M
   row = cell(nUse,ncol+1);
   for iUse=1:nUse
     row{iUse,1} = fUse(iFern,iUse);
-    row(iUse,2:end) = num2cell(xsUse{iFern,iUse});
+    if istable(xsUse{iFern,iUse})
+      row(iUse,2:end) = table2cell(xsUse{iFern,iUse});
+    else
+      row(iUse,2:end) = num2cell(xsUse{iFern,iUse});
+    end
   end
   tbldat(iFern,:) = row(:)'; % when iUse=2, interleave iUse1 and iUse2
 end
+
 rowlbl = repmat([{'iF'} xsLbl],nUse,1);
 if nUse==2
   for iUse=1:nUse
