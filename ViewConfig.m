@@ -53,6 +53,8 @@ classdef ViewConfig
       ylmode = {axs.YLimMode}';
       xdir = {axs.XDir}';
       ydir = {axs.YDir}';
+      xdirmode = {axs.XDirMode}';
+      ydirmode = {axs.YDirMode}';
       clim = {axs.CLim}';
       clim = cat(1,clim{:});
       clmode = {axs.CLimMode}';
@@ -67,7 +69,8 @@ classdef ViewConfig
       dar = cat(1,axs.DataAspectRatio);
       darm = {axs.DataAspectRatioMode}';
       pbarm = {axs.PlotBoxAspectRatioMode}';
-      t = table(xls,yls,dxdyls,xlmode,ylmode,xdir,ydir,clim,clmode,...
+      t = table(xls,yls,dxdyls,xlmode,ylmode,xdir,ydir,xdirmode,ydirmode,...
+        clim,clmode,...
         cva,cvamode,cuv,cuvmode,xtmode,ytmode,xtlmode,ytlmode,...
         dar,darm,pbarm);
     end

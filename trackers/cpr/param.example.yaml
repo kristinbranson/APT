@@ -49,14 +49,14 @@ Ftr:
 TrainInit:
   Naug: 50            # number of replicates for training
   augpad: 10
-  augrotate: 0 
+  augrotate:         # unused as of 20170609
   augjitterfac: 16
   augUseFF: 0         # If true, init using most different replicates using furthestfirst
   iPt:
 
 TestInit:
   Nrep: 50            # number of replicates for tracking/testing
-  augrotate: 0
+  augrotate:         # unused as of 20170609
   augjitterfac: 16
   augUseFF: 0         # If true, init using most different replicates using furthestfirst
   movChunkSize: 3000  # track (big) movies in chunks of this size

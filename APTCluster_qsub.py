@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'") 
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
-    parser.add_argument("--trackargs",help="use with action==track or trackbatch. enclose in quotes, additional/optional prop-val pairs (eg trkFilename, stripTrkPFull)")
+    parser.add_argument("--trackargs",help="use with action==track or trackbatch. enclose in quotes, additional/optional prop-val pairs (eg rawtrkname, stripTrkPFull)")
     parser.add_argument("-p0di","--p0DiagImg",help="use with action==track or trackbatch. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
     parser.add_argument("--trkfile",help="use with action==prune*. full path to trkfile to prune")

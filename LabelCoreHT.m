@@ -234,9 +234,7 @@ classdef LabelCoreHT < LabelCore
       modifier = evt.Modifier;
       tfCtrl = any(strcmp('control',modifier));
 
-      tfKPused = true;     
-%       if strcmp(key,'h') && tfCtrl
-%         obj.labelsHideToggle();
+      tfKPused = true;
       if strcmp(key,'space')
         obj.acceptCurrentPt();
       elseif any(strcmp(key,{'equal' 'rightarrow' 'd'})) && ~tfCtrl
@@ -368,17 +366,6 @@ classdef LabelCoreHT < LabelCore
         warningNoTrace('LabelCoreHT:EOM','End of movie reached.');
       end
     end
-
-%     function acceptCurrentPtN(obj,nrpt)
-%       for i = 1:nrpt
-%         tfEOM = obj.acceptCurrentPt();
-%         drawnow();
-%         if tfEOM
-%           warningNoTrace('LabelCoreHT:EOM','End of movie reached.');
-%           break;
-%         end
-%       end        
-%     end
     
     function acceptCurrentPtNPrompt(obj)
       resp = inputdlg('Number of times to accept point:','Label current point repeatedly',1,{'1'});

@@ -61,7 +61,7 @@ classdef LabelCoreTemplate < LabelCore
   % -- Previously accepted labels shown as colored points.
   %
   % tfAdjusted is mirrored by hPt colors;
-  % tfPtSel and tfEstOcc are mirrored by hPt Markers;
+  % tfSel and tfEstOcc are mirrored by hPt Markers;
 
   properties
     supportsMultiView = false;
@@ -73,7 +73,6 @@ classdef LabelCoreTemplate < LabelCore
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
     
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
-    tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
     
     kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
                  % the '1' hotkey maps to, eg typically this will take the 
@@ -100,7 +99,6 @@ classdef LabelCoreTemplate < LabelCore
       
       npts = obj.nPts;
       obj.tfAdjusted = false(npts,1);
-      obj.tfPtSel = false(npts,1);
       
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
@@ -248,7 +246,7 @@ classdef LabelCoreTemplate < LabelCore
       end
     end
     
-    function tfKPused = kpf(obj,src,evt) %#ok<INUSL>
+    function tfKPused = kpf(obj,src,evt)       
       key = evt.Key;
       modifier = evt.Modifier;
       tfCtrl = any(strcmp('control',modifier));
@@ -256,6 +254,15 @@ classdef LabelCoreTemplate < LabelCore
       
       tfKPused = true;
       lObj = obj.labeler;
+      
+      % Hack iss#58. Ensure focus is not on slider_frame. In practice this
+      % callback is called before slider_frame_Callback when slider_frame
+      % has focus.
+      txStatus = lObj.gdata.txStatus;
+      if src~=txStatus % protect against repeated kpfs (eg scrolling vid)
+        uicontrol(lObj.gdata.txStatus);
+      end
+
       if any(strcmp(key,{'s' 'space'})) && ~tfCtrl
         if obj.state==LabelState.ADJUST
           obj.acceptLabels();
@@ -342,7 +349,7 @@ classdef LabelCoreTemplate < LabelCore
         obj.tfOcc(iSel) = true;
         obj.tfEstOcc(iSel) = false;
         obj.refreshOccludedPts();
-        obj.refreshEstOccPts('iPts',iSel);
+        obj.refreshPtMarkers('iPts',iSel);
         switch obj.state
           case LabelState.ADJUST
             % none
@@ -364,24 +371,10 @@ classdef LabelCoreTemplate < LabelCore
         '* Shift-LEFT, etc adjusts the point by larger steps.' 
         '* Clicking on the image moves the selected point to that location.'};
     end
-    
-    function refreshEstOccPts(obj,varargin)
-      % React to an updated .tfEstOcc.
-      %
-      % optional PVs
-      % iPts. Defaults to 1:obj.nPts.
-      
-      iPts = myparse(varargin,'iPts',1:obj.nPts);
-      obj.refreshPtMarkers(iPts);
-    end
-        
+            
   end
   
   methods % template
-    
-    function createTemplate(obj) %#ok<MANU>
-      assert(false,'Currently not called');
-    end
     
     function tt = getTemplate(obj)
       % Create a template struct from current pts
@@ -499,59 +492,12 @@ classdef LabelCoreTemplate < LabelCore
         set(obj.hPtsOcc(iSel),'Color',clr);
       end
     end
-
-    function toggleSelectPoint(obj,iPt)
-      tfSel = ~obj.tfPtSel(iPt);
-      obj.tfPtSel(:) = false;
-      obj.tfPtSel(iPt) = tfSel;
-
-      obj.refreshPtMarkers(iPt);
-      % Also update hPtsOcc markers
-      if tfSel
-        mrkr = obj.ptsPlotInfo.TemplateMode.SelectedPointMarker;
-      else
-        mrkr = obj.ptsPlotInfo.Marker;
-      end
-      set(obj.hPtsOcc(iPt),'Marker',mrkr);
-    end
     
     function toggleEstOccPoint(obj,iPt)
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
-      obj.refreshEstOccPts('iPts',iPt);
+      obj.refreshPtMarkers('iPts',iPt);
       if obj.state==LabelState.ACCEPTED
         obj.enterAdjust(false,false);
-      end
-    end
-    
-    function refreshPtMarkers(obj,iPts)
-      % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
-      
-      ppi = obj.ptsPlotInfo;
-      ppitm = ppi.TemplateMode;
-
-      hPoints = obj.hPts(iPts);
-      tfSel = obj.tfPtSel(iPts);
-      tfEO = obj.tfEstOcc(iPts);
-      
-      set(hPoints(tfSel & tfEO),'Marker',ppitm.SelectedOccludedMarker); % historical quirk, use props instead of ppi; fix this at some pt
-      set(hPoints(tfSel & ~tfEO),'Marker',ppitm.SelectedPointMarker);
-      set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
-      set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
-    end
-      
-    function [tf,iSelected] = anyPointSelected(obj)
-      tf = any(obj.tfPtSel);
-      iSelected = find(obj.tfPtSel,1);
-    end
-    
-    function clearSelected(obj,iExclude)
-      tf = obj.tfPtSel;
-      if exist('iExclude','var')>0
-        tf(iExclude) = false;
-      end
-      iSel = find(tf);
-      for i = iSel(:)'
-        obj.toggleSelectPoint(i);
       end
     end
     

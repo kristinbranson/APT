@@ -31,7 +31,7 @@ classdef LabelCore < handle
     hideLabels; % scalar logical
   end
         
-  properties
+  properties % handles
     labeler;              % scalar Labeler obj
     hFig;                 % [nview] figure handles (first is main fig)
     hAx;                  % [nview] axis handles (first is main axis)
@@ -39,45 +39,69 @@ classdef LabelCore < handle
     tbAccept;             % scalar handle, togglebutton
     pbClear;              % scalar handle, clearbutton
     txLblCoreAux;         % scalar handle, auxiliary text (currently primary axis only)
-    
-    nPts;                 % scalar integer 
 
-    state;                % scalar LabelState
     hPts;                 % nPts x 1 handle vec, handle to points
     hPtsTxt;              % nPts x 1 handle vec, handle to text
     hPtsOcc;              % nPts x 1 handle vec, handle to occ points
     hPtsTxtOcc;           % nPts x 1 handle vec, handle to occ text
     ptsPlotInfo;          % struct, points plotting cosmetic info    
+  end
+
+  properties
+    nPts;                 % scalar integer 
+    state;                % scalar LabelState
+
+    % Optional logical "decorator" flags 
+    % 
+    % These flags provide additional metadata/state for labeled landmarks.
+    % 
+    % Use of these flags is not mandatory in subclasses, but it occurs 
+    % frequently. For convenience/code-sharing purposes the state lives
+    % here. LabelCore utilities can aid in the maintenance of this state;
+    % and if this state is properly maintained, LabelCore utilities can be
+    % utilized to write to Labeler as appropriate.
     
-    tfOcc;                % nPts x 1 logical
-    tfEstOcc;             % nPts x 1 logical. Current Est-occ impl: 
-                          % TemplateMode uses .tfEstOcc.
-                          % SequenceMode does not have est-occ implemented.
-                          % HT mode does not use .tfEstOcc, relies on
-                          % markers.
+    tfOcc;                % [nPts x 1] logical. Fully occluded.
+    tfEstOcc;             % [nPts x 1] logical. Estimated-occluded.
+                          %   (HT mode does not use .tfEstOcc, relies on
+                          %   markers.)
+    tfSel;                % [nPts x 1] logical. If true, pt is currently selected.
   end
   
   methods (Static)
     
+    function obj = createSafe(labelerObj,labelMode)
+      if labelerObj.isMultiView && labelMode~=LabelMode.MULTIVIEWCALIBRATED2
+        labelModeOldStr = labelMode.prettyString;
+        labelMode = LabelMode.MULTIVIEWCALIBRATED2;
+        warningNoTrace('LabelCore:mv',...
+          'Labeling mode ''%s'' does not support multiview projects. Using mode ''%s''.',...
+        labelModeOldStr,labelMode.prettyString);
+      elseif ~labelerObj.isMultiView && labelMode==LabelMode.MULTIVIEWCALIBRATED2
+        labelModeOldStr = labelMode.prettyString;
+        labelMode = LabelMode.TEMPLATE;
+        warningNoTrace('LabelCore:mv',...
+          'Labeling mode ''%s'' cannot be used for single-view projects. Using mode ''%s''.',...
+          labelModeOldStr,labelMode.prettyString);
+      end
+      obj = LabelCore.create(labelerObj,labelMode);
+    end
     function obj = create(labelerObj,labelMode)
       switch labelMode
         case LabelMode.SEQUENTIAL
           obj = LabelCoreSeq(labelerObj);
         case LabelMode.TEMPLATE
-          if labelerObj.isMultiView
-            obj = LabelCoreMultiViewTemplate(labelerObj);
-          else
-            obj = LabelCoreTemplate(labelerObj);
-          end
+          obj = LabelCoreTemplate(labelerObj);
         case LabelMode.HIGHTHROUGHPUT
           obj = LabelCoreHT(labelerObj);
-        case LabelMode.ERRORCORRECT
-          obj = LabelCoreErrorCorrect(labelerObj);
-        case LabelMode.MULTIVIEWCALIBRATED
-          obj = LabelCoreMultiViewCalibrated(labelerObj);
+%         case LabelMode.ERRORCORRECT
+%           obj = LabelCoreErrorCorrect(labelerObj);
+%         case LabelMode.MULTIVIEWCALIBRATED
+%           obj = LabelCoreMultiViewCalibrated(labelerObj);
         case LabelMode.MULTIVIEWCALIBRATED2
           obj = LabelCoreMultiViewCalibrated2(labelerObj);
       end
+      
     end
     
   end
@@ -85,6 +109,11 @@ classdef LabelCore < handle
   methods (Sealed=true)
     
     function obj = LabelCore(labelerObj)
+      if labelerObj.isMultiView && ~obj.supportsMultiView
+        error('LabelCore:MV','Multiview labeling not supported by %s.',...
+          class(obj));
+      end
+
       obj.labeler = labelerObj;
       gd = labelerObj.gdata;
       obj.hFig = gd.figs_all;
@@ -96,10 +125,6 @@ classdef LabelCore < handle
     end
     
     function init(obj,nPts,ptsPlotInfo)
-      if obj.labeler.isMultiView && ~obj.supportsMultiView
-        error('LabelCore:MV','Multiview labeling not supported by %s.',...
-          class(obj));
-      end
       obj.nPts = nPts;
       obj.ptsPlotInfo = ptsPlotInfo;
       
@@ -145,6 +170,7 @@ classdef LabelCore < handle
       
       obj.tfOcc = false(obj.nPts,1);
       obj.tfEstOcc = false(obj.nPts,1);
+      obj.tfSel = false(obj.nPts,1);
       
       obj.txLblCoreAux.Visible = 'off';
       units0 = obj.txLblCoreAux.FontUnits;
@@ -166,7 +192,7 @@ classdef LabelCore < handle
     end
   end
   
-  methods
+  methods % public API
     
     function initHook(obj) %#ok<MANU>
       % Called from Labeler.labelingInit->LabelCore.init
@@ -218,11 +244,11 @@ classdef LabelCore < handle
     function pnlBDF(obj,src,evt) 
       % This is called when uipanel_curr is clicked outside the axis, or
       % when points with HitTest off plotted in overlaid axes are clicked.
-      pos = get(obj.hAx,'CurrentPoint');
+      pos = get(obj.hAx(1),'CurrentPoint');
       pos = pos(1,1:2);
-      xlim = get(obj.hAx,'XLim');
-      ylim = get(obj.hAx,'YLim');
-      if pos(1) >= xlim(1) && pos(1) <= xlim(2) && pos(2) >= ylim(1) && pos(2) <= ylim(2),      
+      xlim = get(obj.hAx(1),'XLim');
+      ylim = get(obj.hAx(1),'YLim');
+      if pos(1)>=xlim(1) && pos(1)<=xlim(2) && pos(2)>=ylim(1) && pos(2)<=ylim(2)
         obj.axBDF(src,evt);
       end
     end
@@ -246,8 +272,8 @@ classdef LabelCore < handle
           
   end
   
-  %% Misc
-  methods
+  %% 
+  methods % show/hide viz
     function labelsHide(obj)
       [obj.hPts.Visible] = deal('off');
       [obj.hPtsTxt.Visible] = deal('off'); 
@@ -269,10 +295,11 @@ classdef LabelCore < handle
     end
   end
   
-  %% Utilities to manipulate .hPts, .hPtsTxt (set position and color)
+  %% 
   
-  methods (Hidden) 
+  methods (Hidden) % Utilities
     
+    % AL20170623 This meth is confused.
     function assignLabelCoords(obj,xy,varargin)
       % Assign specified label points xy to .hPts, .hPtsTxt; set .tfOcc
       % based on xy (in case of tfMainAxis)
@@ -344,25 +371,27 @@ classdef LabelCore < handle
           
         end
         obj.tfEstOcc = tfEO;
-        obj.refreshEstOccPts(); % currently only implemented in TemplateMode        
+        obj.refreshPtMarkers(); % currently only implemented in TemplateMode 
       else
         % none; tfEstOcc, hPts markers unchanged
       end
     end
     
     function assignLabelCoordsIRaw(obj,xy,iPt)
-      % Set coords and reset color for hPts(iPt), hPtsTxt(iPt)
+      % Set coords for hPts(iPt), hPtsTxt(iPt)
       %
       % Unlike assignLabelCoords, no clipping or occluded-handling
       hPoint = obj.hPts(iPt);
       hTxt = obj.hPtsTxt(iPt);
       LabelCore.setPtsCoords(xy,hPoint,hTxt);
-%       LabelCore.setPtsColor(hPoint,hTxt,obj.ptsPlotInfo.Colors(iPt,:));
     end
     
+    % XXX RENAME: refreshFullOccPtLocs
     function refreshOccludedPts(obj)
-      % Based on .tfOcc: 'Hide' occluded points in main image; arrange
-      % occluded points in occluded box.
+      % Set .hPts, .hPtsTxt, .hPtsOcc, .hPtsTxtOcc locs based on .tfOcc.
+      %
+      % .hPts, .hPtsTxt: 'Hide' occluded points. Non-occluded, no action.
+      % .hPtsOcc, .hPtsTxtOcc: shown/hidden/positioned as appropriate
       
       tf = obj.tfOcc;      
       assert(isvector(tf) && numel(tf)==obj.nPts);
@@ -372,6 +401,33 @@ classdef LabelCore < handle
       LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],obj.hPtsOcc(tf),obj.hPtsTxtOcc(tf));
       LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
         obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
+    end
+    
+    function refreshPtMarkers(obj,varargin)
+      % Update obj.hPts (and optionally, .hPtsOcc) Markers based on 
+      % .tfEstOcc and .tfSel.
+     
+      [iPts,doPtsOcc] = myparse(varargin,...
+        'iPts',1:obj.nPts,...
+        'doPtsOcc',false);
+      
+      ppi = obj.ptsPlotInfo;
+      ppitm = ppi.TemplateMode;
+
+      hPoints = obj.hPts(iPts);
+      tfSl = obj.tfSel(iPts);
+      tfEO = obj.tfEstOcc(iPts);
+      
+      set(hPoints(tfSl & tfEO),'Marker',ppitm.SelectedOccludedMarker);
+      set(hPoints(tfSl & ~tfEO),'Marker',ppitm.SelectedPointMarker);
+      set(hPoints(~tfSl & tfEO),'Marker',ppi.OccludedMarker);
+      set(hPoints(~tfSl & ~tfEO),'Marker',ppi.Marker);
+      
+      if doPtsOcc
+        hPointsOcc = obj.hPtsOcc(iPts);
+        set(hPointsOcc(tfSl),'Marker',ppitm.SelectedPointMarker);
+        set(hPointsOcc(~tfSl),'Marker',ppi.Marker);
+      end
     end
         
     function xy = getLabelCoords(obj)
@@ -384,12 +440,34 @@ classdef LabelCore < handle
       xy = LabelCore.getCoordsFromPts(obj.hPts(iPt));
     end
     
+    function [tf,iSelected] = anyPointSelected(obj)
+      iSelected = find(obj.tfSel,1);
+      tf = ~isempty(iSelected);
+    end
+    
+    function toggleSelectPoint(obj,iPts)
+      tfSl = ~obj.tfSel(iPts);
+      obj.tfSel(:) = false;
+      obj.tfSel(iPts) = tfSl;
+      obj.refreshPtMarkers('iPts',iPts,'doPtsOcc',true);
+    end
+    
+    function clearSelected(obj,iExclude)
+      tf = obj.tfSel;
+      if exist('iExclude','var')>0
+        tf(iExclude) = false;
+      end
+      iSelPts = find(tf);
+      obj.toggleSelectPoint(iSelPts); %#ok<FNDSB>
+    end
+    
     function setLabelPosTagFromEstOcc(obj)
-      lObj = obj.labeler;      
+      lObj = obj.labeler;
       tfEO = obj.tfEstOcc;
+      assert(~any(tfEO & obj.tfOcc));
+
       iPtEO = find(tfEO);
       iPtNO = find(~tfEO);
-
       tag = obj.LPOSTAG_OCC;
       lObj.labelPosTagSetI(tag,iPtEO); %#ok<FNDSB>
       lObj.labelPosTagClearI(iPtNO); %#ok<FNDSB>
@@ -397,7 +475,24 @@ classdef LabelCore < handle
     
   end
     
-  methods (Static) 
+  methods (Static) % Utilities
+    
+    function assignLabelCoordsStc(xy,hPts,hTxt)
+      % Simpler version of assignLabelCoords()
+      %
+      % xy: [nptsx2]
+      % hPts: [npts]
+      % hTxt: [npts]
+      
+      [npts,d] = size(xy);
+      assert(d==2);
+      assert(isequal(npts,numel(hPts),numel(hTxt)));
+      
+      % FullyOccluded
+      tfOccld = any(isinf(xy),2);
+      LabelCore.setPtsCoords(xy(~tfOccld,:),hPts(~tfOccld),hTxt(~tfOccld));      
+      LabelCore.setPtsCoords(nan(nnz(tfOccld),2),hPts(tfOccld),hTxt(tfOccld));
+    end
     
     function xy = getCoordsFromPts(hPts)
       x = get(hPts,{'XData'});

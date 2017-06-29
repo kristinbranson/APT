@@ -5,8 +5,8 @@ classdef Labeler < handle
     VERSION = '1.2';
     DEFAULT_LBLFILENAME = '%s.lbl';
     DEFAULT_CFG_FILENAME = 'config.default.yaml';
-    DEFAULT_TRKFILE = '$movname_$projname';
-    DEFAULT_TRKFILE_NOPROJ = '$movname';
+    DEFAULT_TRKFILE = '$movfile_$projname';
+    DEFAULT_TRKFILE_NOPROJ = '$movfile';
     
     % non-config props
     SAVEPROPS = { ...
@@ -141,7 +141,11 @@ classdef Labeler < handle
     movieRotateTargetUp = false;
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
+    moviePlaySegRadius; % scalar int
+    moviePlayFPS; 
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
+    
+    movieIsPlaying = false;
   end
   properties (Dependent)
     isMultiView;
@@ -233,12 +237,8 @@ classdef Labeler < handle
     lblCore; % init: L
   end
   properties    
-    lblPrev_ptsH;         % [npts] gobjects. TODO: encapsulate labelsPrev (eg in a LabelCore). init: L
-    lblPrev_ptsTxtH;      % [npts] etc. init: L
-    
     labeledpos2_ptsH;     % [npts]
-    labeledpos2_ptsTxtH;  % [npts]
-    
+    labeledpos2_ptsTxtH;  % [npts]    
     lblOtherTgts_ptsH;    % [npts]
   end 
   
@@ -257,6 +257,15 @@ classdef Labeler < handle
     trackNFramesNear % neighborhood radius. init: C
   end
   
+  %% Prev
+  properties
+    prevIm = []; % single array of image data ('primary' view only)
+    prevAxesMode; % scalar PrevAxesMode
+    prevAxesModeInfo; % "userdata" for .prevAxesMode
+    lblPrev_ptsH; % [npts] gobjects. init: L
+    lblPrev_ptsTxtH; % [npts] etc. init: L
+  end
+  
   %% Misc
   properties (SetObservable, AbortSet)
     currMovie;            % idx into .movieFilesAll (row index, when obj.multiView is true)
@@ -270,10 +279,7 @@ classdef Labeler < handle
   end
   properties
     currIm = [];            % [nview] cell vec of image data. init: C
-    prevIm = [];            % single array of image data ('primary' view only)
-    
     isinit = false;         % scalar logical; true during initialization, when some invariants not respected
-    
     selectedFrames = [];    % vector of frames currently selected frames; typically t0:t1
     hFig; % handle to main LabelerGUI figure
   end
@@ -638,6 +644,8 @@ classdef Labeler < handle
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
+      obj.moviePlaySegRadius = cfg.Movie.PlaySegmentRadius;
+      obj.moviePlayFPS = cfg.Movie.PlayFPS;
            
       fldsRm = intersect(fieldnames(cfg),...
         {'NumViews' 'ViewNames' 'NumLabelPoints' 'LabelPointNames' ...
@@ -665,6 +673,10 @@ classdef Labeler < handle
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
       
       obj.labels2Hide = false;
+
+      % New projs must start with LASTSEEN as there is nothing to freeze
+      % yet. projLoad() will further set any loaded info
+      obj.setPrevAxesMode(PrevAxesMode.LASTSEEN,[]);
 
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
@@ -694,7 +706,9 @@ classdef Labeler < handle
 
       cfg.Movie = struct(...
         'ForceGrayScale',obj.movieForceGrayscale,...
-        'FrameStepBig',obj.movieFrameStepBig);
+        'FrameStepBig',obj.movieFrameStepBig,...
+        'PlaySegmentRadius',obj.moviePlaySegRadius,...
+        'PlayFPS',obj.moviePlayFPS);
 
       cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
       cfg.Trx.ShowTrx = obj.showTrx;
@@ -702,6 +716,9 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
+      
+      cfg.PrevAxes.Mode = char(obj.prevAxesMode);
+      cfg.PrevAxes.ModeInfo = obj.prevAxesModeInfo;
     end
     
   end
@@ -976,6 +993,10 @@ classdef Labeler < handle
         fprintf(1,'Loading tracker info: %s.\n',tCls);
         obj.tracker.loadSaveToken(s.trackerData);
       end
+      
+      % This needs to occur after .labeledpos etc has been set
+      pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
+      obj.setPrevAxesMode(pamode,s.cfg.PrevAxes.ModeInfo);
       
       props = obj.gdata.propsNeedInit;
       for p = props(:)', p=p{1}; %#ok<FXSET>
@@ -1568,6 +1589,21 @@ classdef Labeler < handle
       
         movfilefull = obj.projLocalizePath(movFile);
         assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
+        if any(strcmp(movFile,obj.movieFilesAll))
+          if nMov==1
+            error('Labeler:dupmov',...
+              'Movie ''%s'' is already in project.',movFile);
+          else
+            warningNoTrace('Labeler:dupmov',...
+              'Movie ''%s'' is already in project and will not be added to project.',movFile);
+            continue;
+          end
+        end
+        if any(strcmp(movfilefull,obj.movieFilesAllFull))
+          warningNoTrace('Labeler:dupmov',...
+            'Movie ''%s'', macro-expanded to ''%s'', is already in project.',...
+            movFile,movfilefull);
+        end
         assert(isempty(tFile) || exist(tFile,'file')>0,'Cannot find file ''%s''.',tFile);
 
         mr.open(movfilefull);
@@ -1629,7 +1665,13 @@ classdef Labeler < handle
       else
         fprintf('Importing %d movie sets from file ''%s''.\n',nMovSetImport,bfile);
         for i=1:nMovSetImport
-          obj.movieSetAdd(movs(i,:));
+          try
+            obj.movieSetAdd(movs(i,:));
+          catch ME
+            warningNoTrace('Labeler:mov',...
+              'Error trying to add movieset %d: %s Movieset not added to project.',...
+              i,ME.message);
+          end
         end
       end
     end
@@ -1649,13 +1691,37 @@ classdef Labeler < handle
           'Number of moviefiles supplied (%d) must match number of views (%d).',...
           numel(moviefiles),obj.nview);
       end
-      movfilefull = cellfun(@(x)obj.projLocalizePath(x),moviefiles,'uni',0);
-      cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),movfilefull);
+      moviefilesfull = cellfun(@(x)obj.projLocalizePath(x),moviefiles,'uni',0);
+      cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),moviefilesfull);
+      tfMFeq = arrayfun(@(x)strcmp(moviefiles{x},obj.movieFilesAll(:,x)),1:obj.nview,'uni',0);
+      tfMFFeq = arrayfun(@(x)strcmp(moviefilesfull{x},obj.movieFilesAllFull(:,x)),1:obj.nview,'uni',0);
+      tfMFeq = cat(2,tfMFeq{:}); % [nmoviesetxnview], true when moviefiles matches movieFilesAll
+      tfMFFeq = cat(2,tfMFFeq{:}); % [nmoviesetxnview], true when movfilefull matches movieFilesAllFull
+      iAllViewsMatch = find(all(tfMFeq,2));
+      if ~isempty(iAllViewsMatch)
+        error('Labeler:dupmov',...
+          'Movieset matches current movieset %d in project.',iAllViewsMatch(1));
+      end
+      for iView=1:obj.nview
+        iMFmatches = find(tfMFeq(:,iView));
+        iMFFmatches = find(tfMFFeq(:,iView));
+        iMFFmatches = setdiff(iMFFmatches,iMFmatches);
+        if ~isempty(iMFmatches)
+          warningNoTrace('Labeler:dupmov',...
+            'Movie ''%s'' (view %d) already exists in project.',...
+            moviefiles{iView},iView);
+        end          
+        if ~isempty(iMFFmatches)
+          warningNoTrace('Labeler:dupmov',...
+            'Movie ''%s'' (view %d), macro-expanded to ''%s'', is already in project.',...
+            moviefiles{iView},iView,moviefilesfull{iView});
+        end
+      end
             
       ifos = cell(1,obj.nview);
       mr = MovieReader();
       for iView = 1:obj.nview
-        mr.open(movfilefull{iView});
+        mr.open(moviefilesfull{iView});
         ifo = struct();
         ifo.nframes = mr.nframes;
         ifo.info = mr.info;
@@ -2316,7 +2382,7 @@ classdef Labeler < handle
       else
         hideLabelsPrev = false;
       end
-      obj.lblCore = LabelCore.create(obj,lblmode);
+      obj.lblCore = LabelCore.createSafe(obj,lblmode);
       obj.lblCore.init(nPts,lblPtsPlotInfo);
       if hideLabelsPrev
         obj.lblCore.labelsHide();
@@ -2344,7 +2410,7 @@ classdef Labeler < handle
       obj.labelMode = lblmode;
       
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
-          obj.gdata.axes_prev,lblPtsPlotInfo);      
+          obj.gdata.axes_prev,lblPtsPlotInfo);
           
       if tfLblModeChange
         % sometimes labelcore need this kick to get properly set up
@@ -2753,14 +2819,13 @@ classdef Labeler < handle
   end
   
   methods (Static)    
-    function trkfile = genTrkFileName(basename,sMacro,movfile)
-      % Generate a trkfilename from the basename.
-      [movpath,sMacro.movname] = fileparts(movfile);
-      trkfileS = FSPath.macroReplace(basename,sMacro);
-      if ~(numel(basename)>=4 && strcmp(basename(end-3:end),'.trk'))
-        trkfileS = [trkfileS '.trk'];
+    function trkfile = genTrkFileName(rawname,sMacro,movfile)
+      % Generate a trkfilename from rawname by macro-replacing.      
+      [sMacro.movdir,sMacro.movfile] = fileparts(movfile);
+      trkfile = FSPath.macroReplace(rawname,sMacro);
+      if ~(numel(rawname)>=4 && strcmp(rawname(end-3:end),'.trk'))
+        trkfile = [trkfile '.trk'];
       end
-      trkfile = fullfile(movpath,trkfileS);  
     end
     function [tfok,trkfiles] = checkTrkFileNamesExport(trkfiles)
       % Check/confirm trkfile names for export. If any trkfiles exist, ask 
@@ -2808,32 +2873,35 @@ classdef Labeler < handle
 
   methods
     
-    function trkfile = defaultTrkFileName(obj,movfile)
+    function sMacro = baseTrkFileMacros(obj)
       sMacro = struct();
-      sMacro.projname = obj.projname;      
-      [~,sMacro.projfile] = fileparts(obj.projectfile);
-      basename = obj.defaultTrkBasename();
-      trkfile = Labeler.genTrkFileName(basename,sMacro,movfile);
+      sMacro.projname = obj.projname;
+      [sMacro.projdir,sMacro.projfile] = fileparts(obj.projectfile);
     end
     
-    function basename = defaultTrkBasename(obj)
+    function trkfile = defaultTrkFileName(obj,movfile)
+      trkfile = Labeler.genTrkFileName(obj.defaultTrkRawname(),...
+        obj.baseTrkFileMacros(),movfile);
+    end
+    
+    function rawname = defaultTrkRawname(obj)
       prjname = obj.projname;
       if isempty(prjname)
         basename = Labeler.DEFAULT_TRKFILE_NOPROJ;
       else
         basename = Labeler.DEFAULT_TRKFILE;        
       end
+      rawname = fullfile('$movdir',basename);
     end
         
-    function [tfok,trkfiles] = getTrkFileNamesForExport(obj,movfiles,basename)
-      sMacro = struct();
-      sMacro.projname = obj.projname;
-      [~,sMacro.projfile] = fileparts(obj.projectfile);      
-      trkfiles = cellfun(@(x)Labeler.genTrkFileName(basename,sMacro,x),movfiles,'uni',0);
+    function [tfok,trkfiles] = getTrkFileNamesForExport(obj,movfiles,rawname)
+      sMacro = obj.baseTrkFileMacros();
+      trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),movfiles,'uni',0);
       [tfok,trkfiles] = Labeler.checkTrkFileNamesExport(trkfiles);
     end
     
-    function [tfok,trkfiles] = resolveTrkfilesVsBasename(obj,iMovs,trkfiles,basename)
+    function [tfok,trkfiles] = resolveTrkfilesVsRawname(obj,iMovs,...
+        trkfiles,rawname)
       % Input arg helper -- use basename if trkfiles not supplied; check
       % sizes. 
       %
@@ -2845,10 +2913,10 @@ classdef Labeler < handle
       
       movfiles = obj.movieFilesAllFull(iMovs,:);
       if isempty(trkfiles)
-        if isempty(basename)
-          basename = Labeler.DEFAULT_TRKFILE;
+        if isempty(rawname)
+          rawname = obj.defaultTrkRawname;
         end
-        [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,basename);
+        [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,rawname);
         if ~tfok
           return;
         end
@@ -2925,16 +2993,16 @@ classdef Labeler < handle
       % iMov: optional, indices into (rows of) .movieFilesAll to export. 
       %   Defaults to 1:obj.nmovies.
       
-      [trkfiles,basefilename] = myparse(varargin,...
+      [trkfiles,rawtrkname] = myparse(varargin,...
         'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
-        'basefilename',[]... % string, basename to apply over iMovs to generate trkfiles
+        'rawtrkname',[]... % string, rawname to apply over iMovs to generate trkfiles
         );
       
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
       end
       
-      [tfok,trkfiles] = obj.resolveTrkfilesVsBasename(iMovs,trkfiles,basefilename);
+      [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovs,trkfiles,rawtrkname);
       if ~tfok
         return;
       end
@@ -3260,6 +3328,81 @@ classdef Labeler < handle
         'iMovRead',iMov,'frmReadCell',frmCell,'tgtsRead','live');
     end
     
+    function tblMF = labelGetMFTableCurrMovFrmTgt(obj,roiRadius)
+      % Get MFTable for current movie/frame/target (single-row table)
+      %
+      % roiRadius: only used if .hasTrx
+      %
+      % tblMF: [NTrl rows] MFTable
+      %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
+      %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
+      %   index, 2. view index, 3. coord index (x vs y)
+      
+      s = struct(...
+        'mov',cell(0,1),... % single string unique ID for movieSetID combo
+        'frm',[],... % 1-based frame index
+        'iTgt',[],... % 1-based trx index
+        'pAbs',[],... % Absolute label positions (px). Raster order: physpt,view,{x,y}
+        'pRoi',[],... % Like pAbs, but positions relative to roi (px). x==1 => first col of roi.
+        'p',[],...
+        'pTS',[],... % [npts=nphyspt*nview] timestamps
+        'tfocc',[],... % [npts=nphyspt*nview] logical occluded flag
+        'pTrx',[],... % [2*nview], trx .x and .y. Raster order: view,{x,y}
+        'roi',[]); % [2*2*nview]. Raster order: {lo,hi},{x,y},view
+      
+      iMov = obj.currMovie;
+      frm = obj.currFrame;
+      iTgt = obj.currTarget;
+      lposFrmTgt = obj.labeledpos{iMov}(:,:,frm,iTgt);
+      lpostagFrmTgt = obj.labeledpostag{iMov}(:,frm,iTgt);
+      lposTSFrmTgt = obj.labeledposTS{iMov}(:,frm,iTgt);      
+      movID = FSPath.standardPath(obj.movieFilesAll(iMov,:));
+
+      if obj.hasTrx
+        assert(~obj.isMultiView);
+        assert(obj.frm2trx(frm,iTgt));
+        trxCurr = obj.trx;
+        nphysPts = obj.nPhysPoints;
+        [roi,tfOOBview,lposFrmTgtRoi] = ...
+          Shape.xyAndTrx2ROI(lposFrmTgt,{trxCurr},nphysPts,frm,iTgt,roiRadius);
+        if any(tfOOBview)
+          warningNoTrace('Labeler:oob',...
+            'Movie(set) ''%s'', frame %d, target %d: shape out of bounds of target ROI. Not including this row.',...
+            MFTable.formMultiMovieID(movID),frm,iTgt);
+        else
+          xtrxs = trxCurr(iTgt).x(frm+trxCurr(iTgt).off);
+          ytrxs = trxCurr(iTgt).y(frm+trxCurr(iTgt).off);
+          s(end+1,1).mov = movID;
+          s(end).frm = frm;
+          s(end).iTgt = iTgt;
+          s(end).pAbs = Shape.xy2vec(lposFrmTgt);
+          s(end).pRoi = Shape.xy2vec(lposFrmTgtRoi);
+          s(end).p = s(end).pRoi;
+          s(end).pTS = lposTSFrmTgt';
+          s(end).tfocc = strcmp(lpostagFrmTgt','occ');
+          s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
+          s(end).roi = roi;
+        end        
+      else
+        s(end+1,1).mov = movID;
+        s(end).frm = frm;
+        s(end).iTgt = iTgt;
+        s(end).pAbs = Shape.xy2vec(lposFrmTgt);
+        s(end).pRoi = [];
+        s(end).p = s(end).pAbs;
+        s(end).pTS = lposTSFrmTgt';
+        s(end).tfocc = strcmp(lpostagFrmTgt','occ');
+        s(end).pTrx = [];
+        s(end).roi = [];
+      end
+      
+      % XXX hack
+      if ~obj.hasTrx
+        s = rmfield(s,{'pRoi' 'pTrx' 'roi'});
+      end
+      
+      tblMF = struct2table(s,'AsArray',true);
+    end
   end
   
   methods (Static)
@@ -3634,7 +3777,7 @@ classdef Labeler < handle
       if ~isempty(obj.lblCore) && (obj.prevFrame~=obj.currFrame || force)
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
-      obj.labelsPrevUpdate();
+      obj.prevAxesLabelsUpdate();
       obj.labels2VizUpdate();
     end
     
@@ -3642,7 +3785,7 @@ classdef Labeler < handle
       if ~isempty(obj.lblCore)
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
-      obj.labelsPrevUpdate();
+      obj.prevAxesLabelsUpdate();
       obj.labels2VizUpdate();
     end
     
@@ -3652,39 +3795,10 @@ classdef Labeler < handle
           prevFrm,obj.currFrame,...
           prevTgt,obj.currTarget);
       end
-      obj.labelsPrevUpdate();
+      obj.prevAxesLabelsUpdate();
       obj.labels2VizUpdate();
     end
-    
-    % CONSIDER: encapsulating labelsPrev (eg in a LabelCore)
-    function labelsPrevUpdate(obj)
-      persistent tfWarningThrownAlready
-
-      if obj.isinit
-        return;
-      end
-      if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
-        iMov = obj.currMovie;
-        frm = obj.prevFrame;
-        iTgt = obj.currTarget;
         
-        lpos = obj.labeledpos{iMov}(:,:,frm,iTgt);
-        obj.lblCore.assignLabelCoords(lpos,...
-          'hPts',obj.lblPrev_ptsH,...
-          'hPtsTxt',obj.lblPrev_ptsTxtH);
-        
-        lpostag = obj.labeledpostag{iMov}(:,frm,iTgt);
-        if ~all(cellfun(@isempty,lpostag))
-          if isempty(tfWarningThrownAlready)
-            warningNoTrace('Labeler:labelsPrev','TODO: label tags in previous frame not visualized.');
-            tfWarningThrownAlready = true;
-          end
-        end
-      else
-        LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
-      end
-    end
-    
   end
    
   %% Susp 
@@ -3777,9 +3891,9 @@ classdef Labeler < handle
       %
       % tm: scalar TrackMode
             
-      [trackArgs,basefilename] = myparse(varargin,...
+      [trackArgs,rawtrkname] = myparse(varargin,...
         'trackArgs',{},...
-        'trkFilename',[]...
+        'rawtrkname',[]...
         );
       
       tObj = obj.tracker;
@@ -3788,7 +3902,7 @@ classdef Labeler < handle
       end
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
       
-      [tfok,trkfiles] = obj.resolveTrkfilesVsBasename(iMovs,[],basefilename);
+      [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovs,[],rawtrkname);
       if ~tfok
         return;
       end
@@ -3824,9 +3938,9 @@ classdef Labeler < handle
       % If a movie has no current tracking results, a warning is thrown and
       % no trkfile is created.
       
-      [trkfiles,basefilename] = myparse(varargin,...
+      [trkfiles,rawtrkname] = myparse(varargin,...
         'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
-        'basefilename',[]... % string, basename to apply over iMovs to generate trkfiles
+        'rawtrkname',[]... % string, basename to apply over iMovs to generate trkfiles
         );
       
       tObj = obj.tracker;
@@ -3834,7 +3948,7 @@ classdef Labeler < handle
         error('Labeler:track','No tracker set.');
       end 
       
-      [tfok,trkfiles] = obj.resolveTrkfilesVsBasename(iMovs,trkfiles,basefilename);
+      [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovs,trkfiles,rawtrkname);
       if ~tfok
         return;
       end
@@ -3993,7 +4107,6 @@ classdef Labeler < handle
       [x0,y0] = obj.videoCurrentCenter();
       lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
       axis(obj.gdata.axes_curr,lims);
-      axis(obj.gdata.axes_prev,lims);
     end    
     function [xsz,ysz] = videoCurrentSize(obj)
       v = axis(obj.gdata.axes_curr);
@@ -4048,6 +4161,75 @@ classdef Labeler < handle
       else
         dxdy = [1 0];
       end      
+    end
+    
+    function videoPlay(obj)
+      obj.videoPlaySegmentCore(obj.currFrame,obj.nframes,...
+        'setFrameArgs',{'updateTables',false});
+    end
+    
+    function videoPlaySegment(obj)
+      % Play segment centererd at .currFrame
+      
+      f = obj.currFrame;
+      df = obj.moviePlaySegRadius;
+      fstart = max(1,f-df);
+      fend = min(obj.nframes,f+df);
+      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
+        'setFrameArgs',{'updateTables',false,'updateLabels',false});
+    end
+    
+    function videoPlaySegmentCore(obj,fstart,fend,varargin)
+      
+      [setFrameArgs,freset] = myparse(varargin,...
+        'setFrameArgs',{},...
+        'freset',nan);
+      tfreset = ~isnan(freset);
+            
+      ticker = tic;
+      while true
+        % Ways to exit loop:
+        % 1. user cancels playback through GUI mutation of gdata.isPlaying
+        % 2. fend reached
+        % 3. ctrl-c
+        
+        guidata = obj.gdata;
+        if ~guidata.isPlaying
+          break;
+        end
+                  
+        dtsec = toc(ticker);
+        df = dtsec*obj.moviePlayFPS;
+        f = ceil(df)+fstart;
+        if f > fend
+          break;
+        end
+
+        obj.setFrame(f,setFrameArgs{:});
+        drawnow;
+
+%         dtsec = toc(ticker);
+%         pause_time = (f-fstart)/obj.moviePlayFPS - dtsec;
+%         if pause_time <= 0,
+%           if handles.guidata.mat_lt_8p4
+%             drawnow;
+%             % MK Aug 2015: There is a drawnow in status update so no need to draw again here
+%             % for 2014b onwards.
+%             %     else
+%             %       drawnow('limitrate');
+%           end
+%         else
+%           pause(pause_time);
+%         end
+      end
+      
+      if tfreset
+        % AL20170619 passing setFrameArgs a bit fragile; needed for current
+        % callers (don't update labels in videoPlaySegment)
+        obj.setFrame(freset,setFrameArgs{:}); 
+      end
+      
+      % - icon managed by caller      
     end
     
   end
@@ -4171,10 +4353,19 @@ classdef Labeler < handle
     
     function setFrame(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
+      %
+      % CTRL-C note: This is fairly ctrl-c safe; a ctrl-c break may leave
+      % obj state a little askew but it should be cosmetic and another
+      % (full/completed) setFrame() call should fix things up. We could
+      % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
-      [tfforcereadmovie,tfforcelabelupdate] = myparse(varargin,...
+      [tfforcereadmovie,tfforcelabelupdate,updateLabels,updateTables,...
+        updateTrajs] = myparse(varargin,...
         'tfforcereadmovie',false,...
-        'tfforcelabelupdate',false);
+        'tfforcelabelupdate',false,...
+        'updateLabels',true,...
+        'updateTables',true,...
+        'updateTrajs',true);
             
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
@@ -4191,10 +4382,17 @@ classdef Labeler < handle
         assert(~obj.isMultiView);
         obj.videoCenterOnCurrTarget();
       end
-      obj.labelsUpdateNewFrame(tfforcelabelupdate);
-      obj.updateTrxTable();
-      obj.updateCurrSusp();
-      obj.updateShowTrx();
+      
+      if updateLabels
+        obj.labelsUpdateNewFrame(tfforcelabelupdate);
+      end
+      if updateTables
+        obj.updateTrxTable();
+        obj.updateCurrSusp();
+      end
+      if updateTrajs
+        obj.updateShowTrx();
+      end
     end
     
     function setTargetID(obj,tgtID)
@@ -4347,12 +4545,15 @@ classdef Labeler < handle
     end
     
     function setSelectedFrames(obj,frms)
-      if ~obj.hasMovie
+      if isempty(frms)
+        obj.selectedFrames = frms;        
+      elseif ~obj.hasMovie
         error('Labeler:noMovie',...
           'Cannot set selected frames when no movie is loaded.');
+      else
+        validateattributes(frms,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes});
+        obj.selectedFrames = frms;  
       end
-      validateattributes(frms,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes});
-      obj.selectedFrames = frms;
     end
                 
     % TODO prob use listener/event for this; maintain relevant
@@ -4484,9 +4685,127 @@ classdef Labeler < handle
       else
         obj.prevIm = currIm1Orig;
       end
-      set(gd.image_prev,'CData',obj.prevIm);
+      obj.prevAxesImFrmUpdate();
     end
     
+  end
+  
+  %% 
+  methods % PrevAxes
+    
+    function setPrevAxesMode(obj,pamode,pamodeinfo)
+      % Set .prevAxesMode, .prevAxesModeInfo
+      %
+      % pamode: PrevAxesMode
+      % pamodeinfo: (optional) userdata for pamode.
+      
+      if exist('pamodeinfo','var')==0
+        pamodeinfo = [];
+      end
+      
+      switch pamode
+        case PrevAxesMode.LASTSEEN
+          obj.prevAxesMode = pamode;
+          obj.prevAxesModeInfo = pamodeinfo;
+          obj.prevAxesImFrmUpdate();
+          obj.prevAxesLabelsUpdate();
+          gd = obj.gdata;
+          axp = gd.axes_prev;
+          set(axp,...
+            'CameraUpVectorMode','auto',...
+            'CameraViewAngleMode','auto');
+          gd.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
+        case PrevAxesMode.FROZEN
+          obj.prevAxesFreeze(pamodeinfo);
+        otherwise
+          assert(false);
+      end
+    end
+    
+    function prevAxesFreeze(obj,freezeInfo)
+      % Freeze the current frame/labels in the previous axis. Sets
+      % .prevAxesMode, .prevAxesModeInfo.
+      %
+      % freezeInfo: Optional freezeInfo to apply. If not supplied,
+      % image/labels taken from current movie/frame/etc.
+      
+      gd = obj.gdata;
+      if isequal(freezeInfo,[])
+        axc = gd.axes_curr;
+        freezeInfo = struct(...
+          'iMov',obj.currMovie,...
+          'frm',obj.currFrame,...
+          'iTgt',obj.currTarget,...
+          'im',obj.currIm{1},...
+          'axes_curr',struct('XLim',axc.XLim,'YLim',axc.YLim,...
+                             'XDir',axc.XDir,'YDir',axc.YDir,...
+                             'CameraUpVector',axc.CameraUpVector));
+        if strcmp(axc.CameraViewAngleMode,'auto')
+          freezeInfo.axes_curr.CameraViewAngleMode = 'auto';
+        else
+          freezeInfo.axes_curr.CameraViewAngle = axc.CameraViewAngle;
+        end
+      end
+      
+      gd.image_prev.CData = freezeInfo.im;
+      gd.txPrevIm.String = num2str(freezeInfo.frm);
+      obj.prevAxesSetLabels(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt);
+      
+      gd.hLinkPrevCurr.Enabled = 'off';
+      axp = gd.axes_prev;
+      axcProps = freezeInfo.axes_curr;
+      for prop=fieldnames(axcProps)',prop=prop{1}; %#ok<FXSET>
+        axp.(prop) = axcProps.(prop);
+      end
+      % Setting XLim/XDir etc unnec coming from PrevAxesMode.LASTSEEN, but 
+      % sometimes nec eg for a "refreeze"
+      
+      obj.prevAxesMode = PrevAxesMode.FROZEN;
+      obj.prevAxesModeInfo = freezeInfo;
+    end
+    
+    function prevAxesImFrmUpdate(obj)
+      % update prevaxes image and txframe based on .prevIm, .prevFrame
+      switch obj.prevAxesMode
+        case PrevAxesMode.LASTSEEN
+          gd = obj.gdata;
+          gd.image_prev.CData = obj.prevIm;
+          gd.txPrevIm.String = num2str(obj.prevFrame);
+      end
+    end
+    
+    function prevAxesLabelsUpdate(obj)
+      % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on 
+      % .prevFrame etc 
+      
+      if obj.isinit || ~obj.hasMovie || obj.prevAxesMode==PrevAxesMode.FROZEN
+        return;
+      end
+      if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
+        obj.prevAxesSetLabels(obj.currMovie,obj.prevFrame,obj.currTarget);
+      else
+        LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
+      end
+    end
+    
+  end
+  methods (Access=private)
+    function prevAxesSetLabels(obj,iMov,frm,iTgt)
+      persistent tfWarningThrownAlready
+      
+      lpos = obj.labeledpos{iMov}(:,:,frm,iTgt);
+      lpostag = obj.labeledpostag{iMov}(:,frm,iTgt);
+      ipts = 1:obj.nPhysPoints;
+      LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
+        obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts));
+      if ~all(cellfun(@isempty,lpostag(ipts)))
+        if isempty(tfWarningThrownAlready)
+          warningNoTrace('Labeler:labelsPrev',...
+            'Label tags in previous frame not visualized.');
+          tfWarningThrownAlready = true;
+        end
+      end
+    end
   end
   
   %% Labels2/OtherTarget labels
@@ -4551,8 +4870,8 @@ classdef Labeler < handle
       end
       
       movfiles = obj.movieFilesAllFull(iMovs,1);
-      basename = obj.defaultTrkBasename();
-      [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,basename);
+      rawname = obj.defaultTrkRawname();
+      [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,rawname);
       if tfok
         nMov = numel(iMovs);
         assert(numel(trkfiles)==nMov);

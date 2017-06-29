@@ -112,6 +112,8 @@ handles.output = [];
 
 % init PUMs that depend only on codebase
 lms = enumeration('LabelMode');
+tfnone = lms==LabelMode.NONE;
+lms(tfnone,:) = [];
 lmStrs = arrayfun(@(x)x.prettyString,lms,'uni',0);
 handles.pumLabelingMode.String = lmStrs;
 handles.pumLabelingMode.UserData = lms;

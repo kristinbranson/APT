@@ -118,8 +118,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     numHotKeyPtSet; % scalar positive integer. This is the pointset that 
                     % the '1' hotkey currently maps to
-
-    tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
     
     hAxXLabels; % [nview] xlabels for axes
     hAxXLabelsFontSize = 11;
@@ -246,7 +244,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.setRandomTemplate();
            
       obj.tfAdjusted = false(obj.nPts,1);
-      obj.tfPtSel = false(obj.nPts,1);       
 
       obj.hAxXLabels = gobjects(obj.nView,1);
       for iView=1:obj.nView
@@ -292,7 +289,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       % working set: unchanged
       
-      obj.selClearSelected();
+      obj.clearSelected();
       
       obj.projectionClear();
     end
@@ -323,9 +320,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         obj.assignLabelCoordsIRaw(pos,iPt);
         obj.setPointAdjusted(iPt);
         
-        if ~obj.tfPtSel(iPt)
-          obj.selClearSelected();
-          obj.selToggleSelectPoint(iPt);
+        if ~obj.tfSel(iPt)
+          obj.clearSelected();
+          obj.toggleSelectPoint(iPt);
         end
         
         obj.projectAddToAnchorSet(iPt)
@@ -360,12 +357,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     function setPtFullOcc(obj,iPt)
       obj.setPointAdjusted(iPt);
-      obj.selClearSelected();
+      obj.clearSelected();
       
       obj.tfOcc(iPt) = true;
       obj.tfEstOcc(iPt) = false;
       obj.refreshOccludedPts();
-      obj.refreshEstOccPts('iPts',iPt);
+      obj.refreshPtMarkers('iPts',iPt);
       
       if obj.streamlined && all(obj.tfAdjusted)
         obj.enterAccepted(true);
@@ -445,7 +442,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         % AL HACK etc
         obj.labeler.labels2VizToggle();        
       elseif strcmp(key,'space')
-        [tfSel,iSel] = obj.selAnyPointSelected();
+        [tfSel,iSel] = obj.anyPointSelected();
         if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
           obj.projectToggleState(iSel);
         elseif ~isnan(obj.iSetWorking)
@@ -464,7 +461,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       elseif any(strcmp(key,{'a' 'hyphen'}))
         obj.labeler.frameDown(tfCtrl);
       elseif strcmp(key,'o') && ~tfCtrl
-        [tfSel,iSel] = obj.selAnyPointSelected();
+        [tfSel,iSel] = obj.anyPointSelected();
         if tfSel
           obj.toggleEstOccPoint(iSel);
         end
@@ -476,7 +473,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           obj.setPtFullOcc(iPt);
         end
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
-        [tfSel,iSel] = obj.selAnyPointSelected();
+        [tfSel,iSel] = obj.anyPointSelected();
         if tfSel && ~obj.tfOcc(iSel)
           tfShift = any(strcmp('shift',modifier));
           xy = obj.getLabelCoordsI(iSel);
@@ -563,7 +560,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           tfClearOnly = iSet==obj.iSetWorking;
           obj.projectionWorkingSetClear();
           obj.projectionClear();
-          obj.selClearSelected();
+          obj.clearSelected();
           if ~tfClearOnly
             obj.projectionWorkingSetSet(iSet);
           end
@@ -584,18 +581,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         '*   <shift>-LEFT, etc adjusts the point by larger steps.' 
         '*   <space> can toggle display of epipolar lines or reconstructed points.' 
         '* ` (backquote) increments the mapping of the 0-9 hotkeys.'};
-    end
-    
-    function refreshEstOccPts(obj,varargin)
-      % React to an updated .tfEstOcc.
-      %
-      % optional PVs
-      % iPts. Defaults to 1:obj.nPts.
-      
-      %#MVOK
-      
-      iPts = myparse(varargin,'iPts',1:obj.nPts);
-      obj.refreshPtMarkers(iPts);
     end
     
     function refreshOccludedPts(obj)
@@ -907,41 +892,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   
   methods
     
-    function [tf,iSelected] = selAnyPointSelected(obj)
-      tf = any(obj.tfPtSel);
-      iSelected = find(obj.tfPtSel,1);
-    end
-     
-    function selClearSelected(obj,iExclude)
-      tf = obj.tfPtSel;
-      if exist('iExclude','var')>0
-        tf(iExclude) = false;
-      end
-      iSel = find(tf);
-      for i = iSel(:)'
-        obj.selToggleSelectPoint(i);
-      end
-    end
-    
-    function selToggleSelectPoint(obj,iPt)
-      tfSel = ~obj.tfPtSel(iPt);
-      obj.tfPtSel(:) = false;
-      obj.tfPtSel(iPt) = tfSel;
-      
-      obj.refreshPtMarkers(iPt);
-      % Also update hPtsOcc markers
-      if tfSel
-        mrkr = obj.ptsPlotInfo.TemplateMode.SelectedPointMarker;
-      else
-        mrkr = obj.ptsPlotInfo.Marker;
-      end
-      set(obj.hPtsOcc(iPt),'Marker',mrkr);
-    end
-
-  end
-  
-  methods
-    
     % ADJUST/ACCEPTED-NESS
     % What is the "Adjust" state?
     % - The button says "Accept" => Either
@@ -1004,10 +954,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
       obj.tfAdjusted(:) = true;
-%       if obj.streamlined
-%         [obj.hPts.Visible] = deal('on');
-%         [obj.hPtsTxt.Visible] = deal('on');
-%       end
       
       if tfSetLabelPos
         xy = obj.getLabelCoords();
@@ -1030,28 +976,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function toggleEstOccPoint(obj,iPt)
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
-      obj.refreshEstOccPts('iPts',iPt);
+      obj.refreshPtMarkers('iPts',iPt);
       if obj.state==LabelState.ACCEPTED
         obj.enterAdjust(false,false);
       end
     end
-    
-    function refreshPtMarkers(obj,iPts)
-      % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
-      
-      ppi = obj.ptsPlotInfo;
-      ppitm = ppi.TemplateMode;
-
-      hPoints = obj.hPts(iPts);
-      tfSel = obj.tfPtSel(iPts);
-      tfEO = obj.tfEstOcc(iPts);
-      
-      set(hPoints(tfSel & tfEO),'Marker',ppitm.SelectedOccludedMarker); % historical quirk, use props instead of ppi; fix this at some pt
-      set(hPoints(tfSel & ~tfEO),'Marker',ppitm.SelectedPointMarker);
-      set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
-      set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
-    end
-    
+        
     function refreshHotkeyDesc(obj)
       iSet0 = obj.numHotKeyPtSet;
       iSet1 = iSet0+9;

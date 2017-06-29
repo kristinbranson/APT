@@ -49,6 +49,8 @@ View:
 Movie:
   ForceGrayScale: 1
   FrameStepBig: 10
+  PlayFPS: 20
+  PlaySegmentRadius: 50
 
 LabelPointsPlot:
   ColorMapName: 'spring'
@@ -71,8 +73,6 @@ LabelPointsPlot:
     OtherLabeledPointColor: [0,1,0]
 
   ErrorCorrectMode:
-    SelectedPointMarker: 'x'
-    SelectedOccludedMarker: 's'
     MarkedMarkerSize: 16
 
   MultiViewCalibratedMode:
@@ -85,6 +85,10 @@ InfoTimelines:
   FrameRadius: 50 # default timeline radius (in frames)
   XColor: [0.8,0.8,0.8] # ax.XColor
   dXTick: 10 
+
+PrevAxes:
+  Mode: LASTSEEN
+  ModeInfo: 
 
 Track:
   Enable: 0
@@ -107,6 +111,8 @@ CPRLabelTracker:
   PredictReplicatesPlot: # Plot cosmetics for tracking replicates
     Marker: '.'
     MarkerSize: 15
+    MarkerFaceAlpha: 0.5
+    MarkerEdgeAlpha: 0.5
 
 Shortcuts: # shortcuts. case insensitive!
   menu_file_load: o # file -> load project

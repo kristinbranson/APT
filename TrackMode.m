@@ -49,6 +49,12 @@ classdef TrackMode < handle
           end
           frms = frms(~tfOOB);
           frms = {frms(:)'};
+        elseif obj==TrackMode.CurrMovSelectedFramesEveryNFramesLarge || ...
+               obj==TrackMode.CurrMovSelectedFramesEveryNFramesSmall
+          iMov = labelerObj.currMovie;
+          df = labelerObj.(obj.labelerProp);
+          frms = labelerObj.selectedFrames;
+          frms = {frms(1:df:end)};
         elseif obj==TrackMode.CurrMovCustomFrames
           iMov = labelerObj.currMovie;
           frms = obj.info;
@@ -89,6 +95,8 @@ classdef TrackMode < handle
     CurrMovEveryNFramesSmall ('Current movie, every %d frames','trackNFramesSmall')
     CurrMovEveryNFramesLarge ('Current movie, every %d frames','trackNFramesLarge')
     CurrMovSelectedFrames ('Current movie, selected frames',[])
+    CurrMovSelectedFramesEveryNFramesSmall ('Current movie, selected frames, every %d frames','trackNFramesSmall')
+    CurrMovSelectedFramesEveryNFramesLarge ('Current movie, selected frames, every %d frames','trackNFramesLarge')
     CurrMovNearCurrFrame ('Current movie, within %d frames of current frame','trackNFramesNear')
     CurrMovCustomFrames ('Current movie, custom frames',[])
     SelMovEveryFrame ('Selected movies, every frame',[])

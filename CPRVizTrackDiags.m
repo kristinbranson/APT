@@ -145,7 +145,7 @@ classdef CPRVizTrackDiags < handle
       
       iMov = obj.lObj.currMovie;
       frm = obj.lObj.currFrame;
-      trkPFull = obj.tObj.getTrackResFull(iMov,frm);
+      trkPFull = obj.tObj.getTrackResFullCurrTgt(iMov,frm);
       
       if isequal(trkPFull,[])
         % no tracking avail for this iMov/frm

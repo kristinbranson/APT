@@ -7,8 +7,7 @@ classdef LabelMode
     SEQUENTIAL ('Sequential')
     TEMPLATE ('Template')
     HIGHTHROUGHPUT ('HighThroughput')
-    ERRORCORRECT ('ErrorCorrect')
-    MULTIVIEWCALIBRATED ('Multiview Calibrated')
+%     ERRORCORRECT ('ErrorCorrect')
     MULTIVIEWCALIBRATED2 ('Multiview Calibrated2')
   end
   methods
@@ -17,7 +16,7 @@ classdef LabelMode
     end
     function tf = multiviewOnly(obj)
       switch obj
-        case {LabelMode.MULTIVIEWCALIBRATED LabelMode.MULTIVIEWCALIBRATED2}
+        case {LabelMode.MULTIVIEWCALIBRATED2}
           tf = true;
         otherwise
           tf = false;
