@@ -2818,7 +2818,7 @@ classdef Labeler < handle
 
   end
   
-  methods (Static)    
+  methods (Static)
     function trkfile = genTrkFileName(rawname,sMacro,movfile)
       % Generate a trkfilename from rawname by macro-replacing.      
       [sMacro.movdir,sMacro.movfile] = fileparts(movfile);
@@ -3307,10 +3307,28 @@ classdef Labeler < handle
     end   
     
     function tblMF = labelGetMFTableLabeled(obj,roiRadius)
-      % Compile mov/frm/tgt MFTable. Include all labeled frames/tgts
+      % Compile mov/frm/tgt MFTable; include all labeled frames/tgts
+      %
+      % roiRadius: used to generate .pRoi when .hasTrx is true.
+      %
+      % tblMF: will have fields .mov, .frm, .iTgt, .pAbs, .pRoi. If
+      %   ~obj.hasTrx, .pRoi will equal .pAbs
+      
       movIDs = FSPath.standardPath(obj.movieFilesAll);
-      tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
-        obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius);
+      if obj.hasTrx        
+        tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
+          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius);
+      else
+        [~,tblMF] = Labeler.lblCompileContents(obj.movieFilesAllFull,...
+          obj.labeledpos,obj.labeledpostag,'lbl',...
+          'noImg',true,'lposTS',obj.labeledposTS,'movieNamesID',movIDs);
+        tblMF.pAbs = tblMF.p;
+        tblMF.pRoi = tblMF.p;
+        tblMF(:,'p') = [];
+        tblMF.iTgt = ones(height(tblMF),1);
+      end
+      
+      % XXX CHECK FIELDS
     end
     
     function tblMF = labelGetMFTableAll(obj,iMov,frmCell,roiRadius)
@@ -3320,12 +3338,21 @@ classdef Labeler < handle
       % frmsCell: [n] cell vector. frms{i} is a vector of frames to read 
       %   for movie iMov(i), or the string 'all' for all frames in the
       %   movie.
-      % roiRadius: scalar, roi crop radius. Ignored if ~hasTrx.
+      % roiRadius: scalar, roi crop radius. Ignored if ~.hasTrx.
       
       movIDs = FSPath.standardPath(obj.movieFilesAll);
-      tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
-        obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius,...
-        'iMovRead',iMov,'frmReadCell',frmCell,'tgtsRead','live');
+      if obj.hasTrx        
+        tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
+          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius,...
+          'iMovRead',iMov,'frmReadCell',frmCell,'tgtsRead','live');
+      else
+        [~,tblP] = Labeler.lblCompileContentsRaw(obj.movieFilesAllFull,...
+          obj.labeledpos,obj.labeledpostag,iMovs,frms,...
+          'noImg',true,'lposTS',obj.labeledposTS,'movieNamesID',movIDs);
+        tblP.iTgt = ones(height(tblP),1);        
+      end
+      
+      % XXX CHECK FIELDS
     end
     
     function tblMF = labelGetMFTableCurrMovFrmTgt(obj,roiRadius)
@@ -3420,7 +3447,7 @@ classdef Labeler < handle
       % trxFilesAll: [NxnView] cellstr of trxfiles corresponding to movID
       %
       % tblMF: [NTrl rows] MFTable, one row per labeled movie/frame/target.
-      %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
+      %   MULTIVIEW NOTE: tbl.p* is the 2d/projected label positions, ie
       %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
       %   index, 2. view index, 3. coord index (x vs y)
       
@@ -3977,6 +4004,76 @@ classdef Labeler < handle
       end
     end
         
+    function dGTTrkXVCell = trackCrossValidate(obj,varargin)
+      % Run k-fold crossvalidation
+      %
+      % dGTTrkXVCell: [nfoldx1], see below
+      
+      [kFold,initData,wbObj] = myparse(varargin,...
+        'kfold',7,... % number of folds
+        'initData',true,... % if true, call .initData() between folds to minimize mem usage
+        'wbObj',[]... % WaitBarWithCancel
+        );
+      
+      tfWB = ~isempty(wbObj);
+      
+      % Data structures
+      %
+      % Define MFTp table = Movie/Frame/Target table with numeric .p field
+      %   (D wide)
+      %
+      % pGT: [nGTx4] MFTp table for all lbled data in proj
+      % pTrkXVCell: [nfoldx1] cell. pTrkXVCell{iFold} is [nTrkIx4] tracking
+      %   results MFTp table for ith fold (nTrkI can be diff across folds)
+      % dGTTrkXVCell: [nfoldx1] cell. dGTTrkXVCell{iFold} is [nTrkIxnPt] L2
+      %   dist between trk and GT for ith fold
+      
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('Labeler:tracker','No tracker is available for this project.');
+      end
+      
+      % Get all the labeled data
+      roiRadius = nan; % irrelevant here
+      tblMFTp = obj.labelGetMFTableLabeled(roiRadius);
+      
+      % Partition MFT table
+      movC = categorical(tblMFTp.mov);
+      tgtC = categorical(tblMFTp.iTgt);
+      grpC = movC.*tgtC;
+      cvp = cvpartition(grpC,'kfold',kFold);
+      
+      pTrkXVCell = cell(kFold,1);
+      dGTTrkXVCell = cell(kFold,1);
+      for iFold=1:kFold
+        if initData
+          tObj.initData();
+        end
+                
+        tblMFTpTrain = tblMFTp(cvp.training(iFold),:);
+        tblMFTpTrack = tblMFTp(cvp.test(iFold),:);
+        
+        tObj.trackResInit();
+        tObj.retrain('fooXXX',fooXXX,'trnTbl',tblMFTpTrain);
+        tObj.track([],[],'tblP',tblMFTpTrack,'wbObj',wbObj);
+
+        if tfWB && wbObj.isCancel
+          % XXX clear training result? 
+          
+          return;
+        end
+        
+        
+        % get tracking results and acc
+
+      end
+      
+      if initData
+        tObj.initData();
+      end
+      tObj.trackResInit();
+    end
+    
 %     function trackSaveResults(obj,fname)
 %       tObj = obj.tracker;
 %       if isempty(tObj)

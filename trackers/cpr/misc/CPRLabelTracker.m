@@ -255,24 +255,10 @@ classdef CPRLabelTracker < LabelTracker
       % tblP: MFTable of labeled frames. Precise cols depends on whether
       % labeler.hasTrx is true
       
-      labelerObj = obj.lObj;
-      
-      if labelerObj.hasTrx
-        prmRC = obj.sPrm.PreProc.TargetCrop;
-        tblP = labelerObj.labelGetMFTableLabeled(prmRC.Radius);
-        tblP.p = tblP.pRoi;
-      else
-        % TODO: deprecate lblCompileContents 
-        movID = labelerObj.movieFilesAll;
-        movID = FSPath.standardPath(movID);
-        [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,...
-          labelerObj.labeledpos,labelerObj.labeledpostag,'lbl',...
-          'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
-        tblP.iTgt = ones(height(tblP),1);
-      end
-      
-      p = tblP.p;
-      tfnan = any(isnan(p),2);
+      prmRC = obj.sPrm.PreProc.TargetCrop;
+      tblP = obj.lObj.labelGetMFTableLabeled(prmRC.Radius);
+      tblP.p = tblP.pRoi;
+      tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
       if nnan>0
         warningNoTrace('CPRLabelTracker:nanData',...
@@ -297,6 +283,9 @@ classdef CPRLabelTracker < LabelTracker
     %#MTGT
     %#MV
     function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP)
+      % Compare tblP to current .data MD wrt 
+      % FLDSFULL = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+
       td = obj.data;
       tbl0 = td.MD;
       tbl0.p = td.pGT;
@@ -323,6 +312,14 @@ classdef CPRLabelTracker < LabelTracker
     %#MTGT
     function updateData(obj,tblP,varargin)
       % Update .data to include tblP
+      %
+      % tblP field listing:
+      %
+      % MFTable.FLDSFULL: required
+      % .roi: optional (but prob needs to be either consistently there or
+      %   not-there for a given obj or initData() "session"
+      % .pTS: optional (if present, deleted)
+      
       
       wbObj = myparse(varargin,...
         'wbObj',[]); % WaitBarWithCancel. If cancel, obj unchanged.
@@ -347,17 +344,21 @@ classdef CPRLabelTracker < LabelTracker
       %
       % QUESTION: why is pTS not updated?
       %
-      % tblPNew: new rows
-      % tblPupdate: updated rows (rows with updated pGT/tfocc)
+      % tblPNew: new rows. MFTable.FLDSFULL are required fields. .roi may 
+      %   be present and if so will be included in data/MD. Other fields 
+      %   are ignored.
+      % tblPupdate: updated rows (rows with updated pGT/tfocc).
+      %   MFTable.FLDSFULL fields are required. Only .pGT and .tfocc are 
+      %   otherwise used. Other fields ignored.
       %
-      % sets .data, .dataTS      
+      % sets .data, .dataTS 
       
       wbObj = myparse(varargin,...
         'wbObj',[]); % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
       tfWB = ~isempty(wbObj);
       
-      FLDSREQUIRED = [MFTable.FLDSID {'p' 'tfocc'}];
-      FLDSALLOWED = [MFTable.FLDSID {'p' 'tfocc' 'roi'}];
+      FLDSREQUIRED = MFTable.FLDSFULL;
+      FLDSALLOWED = [MFTable.FLDSFULL {'roi'}];
       if ~all(ismember(FLDSREQUIRED',tblPNew.Properties.VariableNames')) || ...
          ~all(ismember(FLDSREQUIRED',tblPupdate.Properties.VariableNames'))
         error('CPRLabelTracker:flds','Tables missing required fields.')
@@ -402,7 +403,7 @@ classdef CPRLabelTracker < LabelTracker
           % obj unchanged
           return;
         end
-        % Include only FLDSEXPECTED in metadata to keep CPRData md
+        % Include only FLDSALLOWED in metadata to keep CPRData md
         % consistent (so can be appended)
         
         tfColsAllowed = ismember(tblPNew.Properties.VariableNames,...
@@ -952,8 +953,9 @@ classdef CPRLabelTracker < LabelTracker
       % 
       % Sets .trnRes*
       
-      updateTrnData = myparse(varargin,...
-        'updateTrnData',true ... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true.
+      [tblPTrn,updateTrnData] = myparse(varargin,...
+        'tblPTrn',[],... % optional MFTp table of training data. if supplied, set .trnData* state based on this table
+        'updateTrnData',true ... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
         );
       
       prm = obj.sPrm;
@@ -963,34 +965,38 @@ classdef CPRLabelTracker < LabelTracker
       
       obj.asyncReset(true);
        
-      if obj.trnDataDownSamp
-        assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
-        if updateTrnData
-          % first, update the TrnData with any new labels
-          tblPNew = obj.getTblPLbledRecent();
-          [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
-          if ~isempty(idxTrnDataTblP) % AL 20160912: conditional should not be necessary, MATLAB API bug
-            obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
-          end
-          obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
-          nowtime = now();
-          nNewRows = size(tblPNewTD,1);
-          obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
-          obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(nNewRows,1)];
-          fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
-            size(tblPUpdateTD,1),nNewRows);
-        end
-        tblPTrn = obj.trnDataTblP;
-      else
-        % use all labeled data
-        tblPTrn = obj.getTblPLbled();
+      if ~isempty(tblPTrn)
         
-        obj.trnDataFFDThresh = nan;
-        % still set .trnDataTblP, .trnDataTblPTS to enable incremental
-        % training        
-        obj.trnDataTblP = tblPTrn;
-        nowtime = now();
-        obj.trnDataTblPTS = nowtime*ones(size(tblPTrn,1),1);
+      else
+        if obj.trnDataDownSamp
+          assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
+          if updateTrnData
+            % first, update the TrnData with any new labels
+            tblPNew = obj.getTblPLbledRecent();
+            [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
+            if ~isempty(idxTrnDataTblP) % AL 20160912: conditional should not be necessary, MATLAB API bug
+              obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+            end
+            obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
+            nowtime = now();
+            nNewRows = size(tblPNewTD,1);
+            obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
+            obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(nNewRows,1)];
+            fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
+              size(tblPUpdateTD,1),nNewRows);
+          end
+          tblPTrn = obj.trnDataTblP;
+        else
+          % use all labeled data
+          tblPTrn = obj.getTblPLbled();
+
+          obj.trnDataFFDThresh = nan;
+          % still set .trnDataTblP, .trnDataTblPTS to enable incremental
+          % training        
+          obj.trnDataTblP = tblPTrn;
+          nowtime = now();
+          obj.trnDataTblPTS = nowtime*ones(size(tblPTrn,1),1);
+        end
       end
       
       if isempty(tblPTrn)
@@ -1263,7 +1269,7 @@ classdef CPRLabelTracker < LabelTracker
     end
 
     % BGKD -- PROB JUST USE TRACK
-    function [trkPMDnew,pTstTRed,pTstT] = trackCore(obj,tblP)      
+    function [trkPMDnew,pTstTRed,pTstT] = trackCore(obj,tblP)
       prm = obj.sPrm;
       if isempty(prm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
@@ -1364,13 +1370,9 @@ classdef CPRLabelTracker < LabelTracker
       end
                         
       if isempty(tblP)
-        if obj.lObj.hasTrx
-          prmRC = prm.PreProc.TargetCrop;
-          tblP = obj.lObj.labelGetMFTableAll(iMovs,frms,prmRC.Radius);
-          tblP.p = tblP.pRoi;
-        else
-          tblP = obj.getTblP(iMovs,frms);
-        end
+        prmRC = prm.PreProc.TargetCrop;
+        tblP = obj.lObj.labelGetMFTableAll(iMovs,frms,prmRC.Radius);
+        % XXX CHECK FIELDS
         if isempty(tblP)
           msgbox('No frames specified for tracking.');
           return;

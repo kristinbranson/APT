@@ -10,6 +10,7 @@ classdef MFTable
   
   properties (Constant)
     FLDSID = {'mov' 'frm' 'iTgt'};
+    FLDSFULL = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
   end
   
   methods (Static)
@@ -26,7 +27,7 @@ classdef MFTable
       %   ie tblP0(idx0update,:) ~ tblPupdate
       
       FLDSID = MFTable.FLDSID;
-      FLDSFULL = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+      FLDSFULL = MFTable.FLDSFULL;
       assert(all(ismember(FLDSFULL,tblP0.Properties.VariableNames)));
       assert(all(ismember(FLDSFULL,tblP.Properties.VariableNames)));
       

@@ -245,23 +245,7 @@ classdef LabelTracker < handle
       end
       prm = ReadYaml(prmFile);
     end
-        
-    %#MV
-    % TODO: DEPRECATE
-    function tblP = getTblP(obj,iMovs,frms) % obj CONST
-      % From .lObj, read tblP for given movies/frames.
             
-      labelerObj = obj.lObj;
-      assert(~labelerObj.hasTrx,...
-        'Legacy codepath not intended for multitarget projects.');
-      movID = labelerObj.movieFilesAll;
-      movID = FSPath.standardPath(movID);
-      [~,tblP] = Labeler.lblCompileContentsRaw(labelerObj.movieFilesAllFull,...
-        labelerObj.labeledpos,labelerObj.labeledpostag,iMovs,frms,...
-        'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
-      tblP.iTgt = ones(height(tblP),1);
-    end
-    
   end
   
   methods (Static)
