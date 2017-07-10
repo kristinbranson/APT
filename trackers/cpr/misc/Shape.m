@@ -173,6 +173,22 @@ classdef Shape
         assert(M==N);
       end
       
+      if randomlyOriented
+        if model.nviews~=1
+          error('Shape:rot','Rotational invariance not supported for multiview projects.');
+        end
+        if ~any(iHead==1:model.nfids)
+          error('Shape:rot',...
+            'Head landmark for rotational invariance must specify one of the %d landmarks/points.',...
+            model.nfids);
+        end
+        if ~any(iTail==1:model.nfids)
+          error('Shape:rot',...
+            'Tail landmark for rotational invariance must specify one of the %d landmarks/points.',...
+            model.nfids);
+        end
+      end
+      
       if useFF
         if isscalar(bboxJitterFac) 
           bboxJitterFac = repmat(bboxJitterFac,1,D);
