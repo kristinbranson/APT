@@ -1,0 +1,3 @@
+function tblfldscontainsassert(t,flds)
+assert(all(ismember(flds(:),t.Properties.VariableNames(:))),...
+  'Table fields do not contain expected entries.');

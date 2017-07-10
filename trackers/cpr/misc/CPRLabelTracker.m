@@ -9,10 +9,6 @@ classdef CPRLabelTracker < LabelTracker
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
     
     DEFAULT_PARAMETER_FILE = lclInitDefaultParameterFile();
-    
-    DATA_INIT_COLS = {'mov' 'frm' 'iTgt' 'p' 'tfocc'};
-    TRNDATA_INIT_COLS = {'mov' 'frm' 'iTgt' 'p' 'tfocc' 'pTS'};
-    TRKRES_INIT_COLS = {'mov' 'frm' 'iTgt'};
   end
   
   properties
@@ -226,6 +222,21 @@ classdef CPRLabelTracker < LabelTracker
   end
   
   %% Data
+  methods (Access=private)
+    function tblP = hlpAddRoi(obj,tblP)
+      % addROI to MF tables
+      labelerObj = obj.lObj;
+      if labelerObj.hasTrx
+        roiRadius = obj.sPrm.PreProc.TargetCrop.Radius;
+        tblP = labelerObj.labelMFTableAddROI(tblP,roiRadius);
+        tblP.pAbs = tblP.p;
+        tblP.p = tblP.pRoi;
+      else
+        % none; tblP.p is .pAbs. No .roi field.
+      end
+    end
+  end
+  
   methods
     
     % AL 20160531 Data and timestamps
@@ -252,12 +263,14 @@ classdef CPRLabelTracker < LabelTracker
       % From .lObj, read tblP for all movies/labeledframes. Currently,
       % exclude partially-labeled frames.
       %
-      % tblP: MFTable of labeled frames. Precise cols depends on whether
-      % labeler.hasTrx is true
+      % tblP: MFTable of labeled frames. Precise cols may vary. However:
+      % - MFTable.FLDSFULL are guaranteed where .p is:
+      %   * The absolute position for single-target trackers
+      %   * The position relative to .roi for multi-target trackers
+      % - .roi is guaranteed when lObj.hasTrx.
       
-      prmRC = obj.sPrm.PreProc.TargetCrop;
-      tblP = obj.lObj.labelGetMFTableLabeled(prmRC.Radius);
-      tblP.p = tblP.pRoi;
+      tblP = obj.lObj.labelGetMFTableLabeled();
+      tblP = obj.hlpAddRoi(tblP);
       tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
       if nnan>0
@@ -280,11 +293,15 @@ classdef CPRLabelTracker < LabelTracker
       tblP = tblP(tf,:);
     end
     
+    function tblP = getTblPAll(obj,iMovs,frmCell)
+      tblP = obj.lObj.labelGetMFTableAll(iMovs,frmCell);
+      tblP = obj.hlpAddRoi(tblP);
+    end
+    
     %#MTGT
     %#MV
     function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP)
-      % Compare tblP to current .data MD wrt 
-      % FLDSFULL = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+      % Compare tblP to current .data MD wrt MFTable.FLDSCORE
 
       td = obj.data;
       tbl0 = td.MD;
@@ -304,7 +321,7 @@ classdef CPRLabelTracker < LabelTracker
       % Initialize .data*
       
       I = cell(0,1);
-      tblP = lclInitTable(CPRLabelTracker.DATA_INIT_COLS);
+      tblP = lclInitTable(MFTable.FLDSCORE);
       obj.data = CPRData(I,tblP);
       obj.dataTS = now;
     end
@@ -313,13 +330,12 @@ classdef CPRLabelTracker < LabelTracker
     function updateData(obj,tblP,varargin)
       % Update .data to include tblP
       %
-      % tblP field listing:
-      %
-      % MFTable.FLDSFULL: required
-      % .roi: optional (but prob needs to be either consistently there or
-      %   not-there for a given obj or initData() "session"
-      % .pTS: optional (if present, deleted)
-      
+      % tblP: 
+      %   - MFTable.FLDSCORE: required.  
+      %   - .roi: optional, USED WHEN PRESENT. (prob needs to be either 
+      %   consistently there or not-there for a given obj or initData() 
+      %   "session"
+      %   - .pTS: optional (if present, deleted)      
       
       wbObj = myparse(varargin,...
         'wbObj',[]); % WaitBarWithCancel. If cancel, obj unchanged.
@@ -333,7 +349,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     %#MTGT
-    function updateDataRaw(obj,tblPNew,tblPupdate,varargin)
+    function updateDataRaw(obj,tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
       % * Rows appended and pGT/tfocc updated; but other information
@@ -344,11 +360,11 @@ classdef CPRLabelTracker < LabelTracker
       %
       % QUESTION: why is pTS not updated?
       %
-      % tblPNew: new rows. MFTable.FLDSFULL are required fields. .roi may 
-      %   be present and if so will be included in data/MD. Other fields 
-      %   are ignored.
+      % tblPNew: new rows. MFTable.FLDSCORE are required fields. .roi may 
+      %   be present and if so WILL BE USED to grab images and included in 
+      %   data/MD. Other fields are ignored.
       % tblPupdate: updated rows (rows with updated pGT/tfocc).
-      %   MFTable.FLDSFULL fields are required. Only .pGT and .tfocc are 
+      %   MFTable.FLDSCORE fields are required. Only .pGT and .tfocc are 
       %   otherwise used. Other fields ignored.
       %
       % sets .data, .dataTS 
@@ -357,12 +373,10 @@ classdef CPRLabelTracker < LabelTracker
         'wbObj',[]); % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
       tfWB = ~isempty(wbObj);
       
-      FLDSREQUIRED = MFTable.FLDSFULL;
-      FLDSALLOWED = [MFTable.FLDSFULL {'roi'}];
-      if ~all(ismember(FLDSREQUIRED',tblPNew.Properties.VariableNames')) || ...
-         ~all(ismember(FLDSREQUIRED',tblPupdate.Properties.VariableNames'))
-        error('CPRLabelTracker:flds','Tables missing required fields.')
-      end
+      FLDSREQUIRED = MFTable.FLDSCORE;
+      FLDSALLOWED = [MFTable.FLDSCORE {'roi'}];
+      tblfldscontainsassert(tblPnew,FLDSREQUIRED);
+      tblfldscontainsassert(tblPupdate,FLDSREQUIRED);
       
       if isempty(obj.sPrm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
@@ -385,9 +399,9 @@ classdef CPRLabelTracker < LabelTracker
       
       %%% NEW ROWS read images + PP. Append to dataCurr. %%%
       FLDSID = MFTable.FLDSID;
-      assert(~any(ismember(tblPNew(:,FLDSID),dataCurr.MD(:,FLDSID))));
+      assert(~any(ismember(tblPnew(:,FLDSID),dataCurr.MD(:,FLDSID))));
 
-      tblPNewConcrete = tblPNew; % will concretize movie/movieIDs
+      tblPNewConcrete = tblPnew; % will concretize movie/movieIDs
       if obj.lObj.isMultiView && ~isempty(tblPNewConcrete.mov)
         tmp = cellfun(@MFTable.unpackMultiMovieID,tblPNewConcrete.mov,'uni',0);
         tblPNewConcrete.mov = cat(1,tmp{:});
@@ -395,7 +409,7 @@ classdef CPRLabelTracker < LabelTracker
       tblPNewConcrete.mov = FSPath.fullyLocalizeStandardize(...
         tblPNewConcrete.mov,obj.lObj.projMacros);
       % tblMFnewConcerete.mov is now [NxnView] 
-      nNew = size(tblPNew,1);
+      nNew = size(tblPnew,1);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
         I = CPRData.getFrames(tblPNewConcrete,'wbObj',wbObj);
@@ -406,9 +420,9 @@ classdef CPRLabelTracker < LabelTracker
         % Include only FLDSALLOWED in metadata to keep CPRData md
         % consistent (so can be appended)
         
-        tfColsAllowed = ismember(tblPNew.Properties.VariableNames,...
+        tfColsAllowed = ismember(tblPnew.Properties.VariableNames,...
           FLDSALLOWED);
-        dataNew = CPRData(I,tblPNew(:,tfColsAllowed));
+        dataNew = CPRData(I,tblPnew(:,tfColsAllowed));
         if prmpp.histeq
           H0 = obj.trnResH0;
           assert(~isempty(H0),'H0 unavailable for histeq/preprocessing.');
@@ -506,7 +520,7 @@ classdef CPRLabelTracker < LabelTracker
     function trnDataInit(obj)
       obj.trnDataDownSamp = false;
       obj.trnDataFFDThresh = nan;
-      obj.trnDataTblP = lclInitTable(CPRLabelTracker.TRNDATA_INIT_COLS);
+      obj.trnDataTblP = lclInitTable(MFTable.FLDSFULL);
       obj.trnDataTblPTS = -inf(0,1);
     end
     
@@ -1348,7 +1362,7 @@ classdef CPRLabelTracker < LabelTracker
     %#MV
     function track(obj,iMovs,frms,varargin)
       [tblP,movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
-        'tblP',[],... % MFtable. Req'd flds: .mov, .frm, .p. If multitarget, also: .iTgt, .roi
+        'tblP',[],... % MFtable. Req'd flds: MFTable.FLDSCORE. If multitarget, also: .roi
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
         'wbObj',[] ... % WaitBarWithCancel. If cancel:
@@ -1370,14 +1384,17 @@ classdef CPRLabelTracker < LabelTracker
       end
                         
       if isempty(tblP)
-        prmRC = prm.PreProc.TargetCrop;
-        tblP = obj.lObj.labelGetMFTableAll(iMovs,frms,prmRC.Radius);
-        % XXX CHECK FIELDS
+        tblP = obj.getTblPAll(iMovs,frms);
         if isempty(tblP)
           msgbox('No frames specified for tracking.');
           return;
         end
-      end      
+      end
+      FLDSREQD = MFTable.FLDSCORE;
+      if obj.lObj.hasTrx
+        FLDSREQD{1,end+1} = 'roi';
+      end
+      tblfldscontainsassert(tblP,FLDSREQD);
      
       % if tfWB, then canceling can early-return. In all return cases we
       % want to run hlpTrackWrapupViz.
@@ -1839,7 +1856,7 @@ classdef CPRLabelTracker < LabelTracker
       % remove .movS field
       if isempty(s.trnDataTblP)
         % just re-init table
-        s.trnDataTblP  = lclInitTable(CPRLabelTracker.TRNDATA_INIT_COLS);
+        s.trnDataTblP  = lclInitTable(MFTable.FLDSFULL);
       else
         s.trnDataTblP = MFTable.rmMovS(s.trnDataTblP);
         if ~any(strcmp(s.trnDataTblP.Properties.VariableNames,'iTgt'))
@@ -1847,7 +1864,7 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
       if isempty(s.trkPMD)
-        s.trkPMD = lclInitTable(CPRLabelTracker.TRKRES_INIT_COLS);
+        s.trkPMD = lclInitTable(MFTable.FLDSID);
       else
         s.trkPMD = MFTable.rmMovS(s.trkPMD);
         if ~any(strcmp(s.trkPMD.Properties.VariableNames,'iTgt'))
@@ -2056,7 +2073,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkPFull = [];
       obj.trkPTS = zeros(0,1);
       % wrong fields but will get overwritten. 20170531 why not use right fields?
-      obj.trkPMD = lclInitTable(CPRLabelTracker.TRKRES_INIT_COLS);
+      obj.trkPMD = lclInitTable(MFTable.FLDSID);
       obj.trkPiPt = [];
     end
     
@@ -2145,8 +2162,8 @@ classdef CPRLabelTracker < LabelTracker
       % Track current frame (send cmd to background)
       
       assert(obj.asyncPredictOn);
-      prmRC = obj.sPrm.PreProc.TargetCrop;
-      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt(prmRC.Radius);
+      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt();
+      tblP = obj.hlpAddRoi(tblP);
       sCmd = struct('action','track','data',tblP);
       obj.asyncBGClient.sendCommand(sCmd);
     end

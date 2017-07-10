@@ -1355,7 +1355,8 @@ classdef Labeler < handle
       end
     end
     
-    % DEPRECATE, SEE labelGetMFTableLabeledStc
+    % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
+    % .hasTrx
     function [I,tbl] = lblCompileContents(movieNames,labeledposes,...
         labeledpostags,type,varargin)
       % convenience signature 
@@ -1375,7 +1376,8 @@ classdef Labeler < handle
         labeledpostags,1:nMov,frms,varargin{:});
     end
     
-    % DEPRECATE, SEE labelGetMFTableLabeledStc
+    % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
+    % .hasTrx
     %#3DOK
     function [I,tbl] = lblCompileContentsRaw(...
         movieNames,lposes,lpostags,iMovs,frms,varargin)
@@ -3306,32 +3308,27 @@ classdef Labeler < handle
       delete(hWB);
     end   
     
-    function tblMF = labelGetMFTableLabeled(obj,roiRadius)
+    function tblMF = labelGetMFTableLabeled(obj)
       % Compile mov/frm/tgt MFTable; include all labeled frames/tgts
       %
-      % roiRadius: used to generate .pRoi when .hasTrx is true.
-      %
-      % tblMF: will have fields .mov, .frm, .iTgt, .pAbs, .pRoi. If
-      %   ~obj.hasTrx, .pRoi will equal .pAbs
+      % tblMF: See MFTable.FLDSFULLTRX.
       
       movIDs = FSPath.standardPath(obj.movieFilesAll);
-      if obj.hasTrx        
+      if obj.hasTrx
         tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
-          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius);
+          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll);
       else
         [~,tblMF] = Labeler.lblCompileContents(obj.movieFilesAllFull,...
           obj.labeledpos,obj.labeledpostag,'lbl',...
           'noImg',true,'lposTS',obj.labeledposTS,'movieNamesID',movIDs);
-        tblMF.pAbs = tblMF.p;
-        tblMF.pRoi = tblMF.p;
-        tblMF(:,'p') = [];
         tblMF.iTgt = ones(height(tblMF),1);
+        tblMF.pTrx = nan(height(tblMF,2));
       end
       
-      % XXX CHECK FIELDS
+      tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
     end
     
-    function tblMF = labelGetMFTableAll(obj,iMov,frmCell,roiRadius)
+    function tblMF = labelGetMFTableAll(obj,iMov,frmCell)
       % Compile mov/frm/tgt MFTable for given movies/frames.
       %
       % iMov: [n] vector of movie(set) indices
@@ -3339,44 +3336,30 @@ classdef Labeler < handle
       %   for movie iMov(i), or the string 'all' for all frames in the
       %   movie.
       % roiRadius: scalar, roi crop radius. Ignored if ~.hasTrx.
+      %
+      % tblMF: See MFTable.FLDSFULLTRX.
       
       movIDs = FSPath.standardPath(obj.movieFilesAll);
       if obj.hasTrx        
         tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
-          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,roiRadius,...
+          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,...
           'iMovRead',iMov,'frmReadCell',frmCell,'tgtsRead','live');
       else
-        [~,tblP] = Labeler.lblCompileContentsRaw(obj.movieFilesAllFull,...
-          obj.labeledpos,obj.labeledpostag,iMovs,frms,...
+        [~,tblMF] = Labeler.lblCompileContentsRaw(obj.movieFilesAllFull,...
+          obj.labeledpos,obj.labeledpostag,iMovs,frmCell,...
           'noImg',true,'lposTS',obj.labeledposTS,'movieNamesID',movIDs);
-        tblP.iTgt = ones(height(tblP),1);        
+        tblMF.iTgt = ones(height(tblMF),1);
+        tblMF.pTrx = nan(height(tblMF,2));
       end
       
-      % XXX CHECK FIELDS
+      tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
     end
     
-    function tblMF = labelGetMFTableCurrMovFrmTgt(obj,roiRadius)
+    function tblMF = labelGetMFTableCurrMovFrmTgt(obj)
       % Get MFTable for current movie/frame/target (single-row table)
       %
-      % roiRadius: only used if .hasTrx
-      %
-      % tblMF: [NTrl rows] MFTable
-      %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
-      %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
-      %   index, 2. view index, 3. coord index (x vs y)
-      
-      s = struct(...
-        'mov',cell(0,1),... % single string unique ID for movieSetID combo
-        'frm',[],... % 1-based frame index
-        'iTgt',[],... % 1-based trx index
-        'pAbs',[],... % Absolute label positions (px). Raster order: physpt,view,{x,y}
-        'pRoi',[],... % Like pAbs, but positions relative to roi (px). x==1 => first col of roi.
-        'p',[],...
-        'pTS',[],... % [npts=nphyspt*nview] timestamps
-        'tfocc',[],... % [npts=nphyspt*nview] logical occluded flag
-        'pTrx',[],... % [2*nview], trx .x and .y. Raster order: view,{x,y}
-        'roi',[]); % [2*2*nview]. Raster order: {lo,hi},{x,y},view
-      
+      % tblMF: See MFTable.FLDSFULLTRX.
+                  
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;
@@ -3385,64 +3368,75 @@ classdef Labeler < handle
       lposTSFrmTgt = obj.labeledposTS{iMov}(:,frm,iTgt);      
       movID = FSPath.standardPath(obj.movieFilesAll(iMov,:));
 
+      mov = movID;
+      p = Shape.xy2vec(lposFrmTgt); % absolute position
+      pTS = lposTSFrmTgt';
+      tfocc = strcmp(lpostagFrmTgt','occ');
       if obj.hasTrx
-        assert(~obj.isMultiView);
+        assert(~obj.isMultiView,'Unsupported for multiview.');
         assert(obj.frm2trx(frm,iTgt));
-        trxCurr = obj.trx;
-        nphysPts = obj.nPhysPoints;
-        [roi,tfOOBview,lposFrmTgtRoi] = ...
-          Shape.xyAndTrx2ROI(lposFrmTgt,{trxCurr},nphysPts,frm,iTgt,roiRadius);
-        if any(tfOOBview)
-          warningNoTrace('Labeler:oob',...
-            'Movie(set) ''%s'', frame %d, target %d: shape out of bounds of target ROI. Not including this row.',...
-            MFTable.formMultiMovieID(movID),frm,iTgt);
-        else
-          xtrxs = trxCurr(iTgt).x(frm+trxCurr(iTgt).off);
-          ytrxs = trxCurr(iTgt).y(frm+trxCurr(iTgt).off);
-          s(end+1,1).mov = movID;
-          s(end).frm = frm;
-          s(end).iTgt = iTgt;
-          s(end).pAbs = Shape.xy2vec(lposFrmTgt);
-          s(end).pRoi = Shape.xy2vec(lposFrmTgtRoi);
-          s(end).p = s(end).pRoi;
-          s(end).pTS = lposTSFrmTgt';
-          s(end).tfocc = strcmp(lpostagFrmTgt','occ');
-          s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
-          s(end).roi = roi;
-        end        
+        trxCurr = obj.trx(iTgt);
+        xtrxs = trxCurr.x(frm+trxCurr.off);
+        ytrxs = trxCurr.y(frm+trxCurr.off);
+        sclrassert(xtrxs); % legacy check
+        sclrassert(ytrxs);
+        pTrx = [xtrxs ytrxs];
       else
-        s(end+1,1).mov = movID;
-        s(end).frm = frm;
-        s(end).iTgt = iTgt;
-        s(end).pAbs = Shape.xy2vec(lposFrmTgt);
-        s(end).pRoi = [];
-        s(end).p = s(end).pAbs;
-        s(end).pTS = lposTSFrmTgt';
-        s(end).tfocc = strcmp(lpostagFrmTgt','occ');
-        s(end).pTrx = [];
-        s(end).roi = [];
+        pTrx = [nan nan];
       end
       
-      % XXX hack
-      if ~obj.hasTrx
-        s = rmfield(s,{'pRoi' 'pTrx' 'roi'});
-      end
-      
-      tblMF = struct2table(s,'AsArray',true);
+      tblMF = table(mov,frm,iTgt,p,pTS,tfocc,pTrx);
     end
+    
+    function tblMF = labelMFTableAddROI(obj,tblMF,roiRadius)
+      % Add .pRoi and .roi to tblMF
+      %
+      % tblMF.pRoi: Just like tblMF.p, but relative to tblMF.roi (p==1 => 
+      %   first row/col of ROI)
+      % tblMF.roi: [nrow x 2*2*nview]. Raster order {lo,hi},{x,y},view
+      
+      tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
+      
+      nphyspts = obj.nPhysPoints;
+      nrow = height(tblMF);
+      p = tblMF.p;
+      pTrx = tblMF.pTrx;
+      
+      tfRmRow = false(nrow,1);
+      pRoi = nan(size(p));
+      roi = nan(nrow,4*obj.nview);
+      for i=1:nrow
+        xy = Shape.vec2xy(p(i,:));
+        xyTrx = Shape.vec2xy(pTrx(i,:));
+        [roiCurr,tfOOBview,xyROIcurr] = ...
+          Shape.xyAndTrx2ROI(xy,xyTrx,nphyspts,roiRadius);
+        if any(tfOOBview)
+          warningNoTrace('CPRLabelTracker:oob',...
+            'Movie(set) ''%s'', frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
+            tblMF.mov{i},tblMF.frm(i),tblMF.iTgt(i));
+          tfRmRow(i) = true;
+        else
+          pRoi(i,:) = Shape.xy2vec(xyROIcurr);
+          roi(i,:) = roiCurr;
+        end
+      end
+      
+      tblMF = [tblMF table(pRoi,roi)];
+      tblMF(tfRmRow,:) = [];
+    end
+    
   end
   
   methods (Static)
-        
+    
     function tblMF = labelGetMFTableLabeledStc(movID,lpos,lpostag,lposTS,...
-        trxFilesAll,roiRadius,varargin)
+        trxFilesAll,varargin)
       % Compile MFtable, by default for all labeled mov/frm/tgts
       %
       % movID: [NxnView] cellstr of movie IDs (use non-macro-replaced etc)
-      % movInfo: [NxnView] movieInfo structures
-      % lposes: [N] cell array of labeledpos arrays [npts x 2 x nfrms x ntgts]. 
+      % lpos: [N] cell array of labeledpos arrays [npts x 2 x nfrms x ntgts]. 
       %   For multiview, npts=nView*NumLabelPoints.
-      % lpostags: [N] cell array of labeledpostags [npts x nfrms x ntgts]
+      % lpostag: [N] cell array of labeledpostags [npts x nfrms x ntgts]
       % lposTS: [N] cell array of labeledposTS [npts x nfrms x ntgts]
       % trxFilesAll: [NxnView] cellstr of trxfiles corresponding to movID
       %
@@ -3450,6 +3444,9 @@ classdef Labeler < handle
       %   MULTIVIEW NOTE: tbl.p* is the 2d/projected label positions, ie
       %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
       %   index, 2. view index, 3. coord index (x vs y)
+      %   
+      %   Fields: {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'}
+      %   Here 'p' is 'pAbs' or absolute position
       
        [iMovRead,frmReadCell,tgtsRead] = myparse(varargin,...
         'iMovRead',[],... % row indices into movID for movies to read/include
@@ -3457,16 +3454,7 @@ classdef Labeler < handle
         'tgtsRead','lbl' ... % char. Either 'lbl' to include all labeled targets for each mov/frame read; or 'live' to include all live targets for each mov/frame read
         );
       
-      s = struct(...
-        'mov',cell(0,1),... % single string unique ID for movieSetID combo
-        'frm',[],... % 1-based frame index
-        'iTgt',[],... % 1-based trx index
-        'pAbs',[],... % Absolute label positions (px). Raster order: physpt,view,{x,y}
-        'pRoi',[],... % Like pAbs, but positions relative to roi (px). x==1 => first col of roi.
-        'pTS',[],... % [npts=nphyspt*nview] timestamps
-        'tfocc',[],... % [npts=nphyspt*nview] logical occluded flag
-        'pTrx',[],... % [2*nview], trx .x and .y. Raster order: view,{x,y}
-        'roi',[]); % [2*2*nview]. Raster order: {lo,hi},{x,y},view
+      s = structconstruct(MFTable.FLDSFULLTRX,[0 1]);
       
       [nMov,nView] = size(movID);
       szassert(lpos,[nMov 1]);
@@ -3497,7 +3485,6 @@ classdef Labeler < handle
         lposTSI = lposTS{iMov};
         [npts,d,nfrms,ntgts] = size(lposI);
         assert(d==2);
-        nphysPts = npts/nView;
         szassert(lpostagI,[npts nfrms ntgts]);
         szassert(lposTSI,[npts nfrms ntgts]);
         
@@ -3559,27 +3546,16 @@ classdef Labeler < handle
             if tfReadTgt
               lpostagIFrmTgt = lpostagI(:,f,iTgt);
               lposTSIFrmTgt = lposTSI(:,f,iTgt);
+              xtrxs = cellfun(@(xx)xx(iTgt).x(f+xx(iTgt).off),trxI);
+              ytrxs = cellfun(@(xx)xx(iTgt).y(f+xx(iTgt).off),trxI);
               
-              [roi,tfOOBview,lposIFrmTgtRoi] = ...
-                Shape.xyAndTrx2ROI(lposIFrmTgt,trxI,nphysPts,f,iTgt,roiRadius);
-              if any(tfOOBview)
-                warningNoTrace('Labeler:oob',...
-                  'Movie(set) ''%s'', frame %d, target %d: shape out of bounds of target ROI. Not including this row.',...
-                  MFTable.formMultiMovieID(movIDI),f,iTgt);
-              else
-                xtrxs = cellfun(@(xx)xx(iTgt).x(f+xx(iTgt).off),trxI);
-                ytrxs = cellfun(@(xx)xx(iTgt).y(f+xx(iTgt).off),trxI);
-                
-                s(end+1,1).mov = movIDI; %#ok<AGROW>
-                s(end).frm = f;
-                s(end).iTgt = iTgt;
-                s(end).pAbs = Shape.xy2vec(lposIFrmTgt);                
-                s(end).pRoi = Shape.xy2vec(lposIFrmTgtRoi);  
-                s(end).pTS = lposTSIFrmTgt';
-                s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
-                s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
-                s(end).roi = roi;
-              end
+              s(end+1,1).mov = movIDI; %#ok<AGROW>
+              s(end).frm = f;
+              s(end).iTgt = iTgt;
+              s(end).p = Shape.xy2vec(lposIFrmTgt);
+              s(end).pTS = lposTSIFrmTgt';
+              s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
+              s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
             end
           end
         end
@@ -4035,7 +4011,7 @@ classdef Labeler < handle
       
       % Get all the labeled data
       roiRadius = nan; % irrelevant here
-      tblMFTp = obj.labelGetMFTableLabeled(roiRadius);
+      tblMFTp = obj.labelGetMFTableLabeled(roiRadius); % XXX NOTE FIELDS CHANGED
       
       % Partition MFT table
       movC = categorical(tblMFTp.mov);

@@ -9,14 +9,29 @@ classdef MFTable
   % contain multiuple movieIDs delimited by #.
   
   properties (Constant)
+    % Uniquely IDs a frame/target
     FLDSID = {'mov' 'frm' 'iTgt'};
-    FLDSFULL = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+    
+    % Core training/test data. Notion of roi (for multitarget) has been
+    % abstracted away
+    FLDSCORE = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+
+    FLDSFULL = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc'};
+    
+    %  mov    single string unique ID for movieSetID combo
+    %  frm    1-based frame index
+    %  iTgt   1-based trx index
+    %  p      Absolute label positions (px). Raster order: physpt,view,{x,y}
+    %  pTS    [npts=nphyspt*nview] timestamps
+    %  tfocc  [npts=nphyspt*nview] logical occluded flag
+    %  pTrx   [nview*2], trx .x and .y. Raster order: view,{x,y}
+    FLDSFULLTRX = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'};    
   end
   
   methods (Static)
     
     function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)
-      % Compare tblP to tblP0 wrt fields FLDSFULL (see below)
+      % Compare tblP to tblP0 wrt fields FLDSCORE (see below)
       %
       % tblP0, tblP: MF tables
       %
@@ -27,12 +42,12 @@ classdef MFTable
       %   ie tblP0(idx0update,:) ~ tblPupdate
       
       FLDSID = MFTable.FLDSID;
-      FLDSFULL = MFTable.FLDSFULL;
-      assert(all(ismember(FLDSFULL,tblP0.Properties.VariableNames)));
-      assert(all(ismember(FLDSFULL,tblP.Properties.VariableNames)));
+      FLDSCORE = MFTable.FLDSCORE;
+      tblfldscontainsassert(tblP0,FLDSCORE);
+      tblfldscontainsassert(tblP,FLDSCORE);
       
       tfNew = ~ismember(tblP(:,FLDSID),tblP0(:,FLDSID));
-      tfDiff = ~ismember(tblP(:,FLDSFULL),tblP0(:,FLDSFULL));
+      tfDiff = ~ismember(tblP(:,FLDSCORE),tblP0(:,FLDSCORE));
       tfUpdate = tfDiff & ~tfNew; 
             
       tblPnew = tblP(tfNew,:);

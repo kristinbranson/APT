@@ -14,7 +14,7 @@ classdef Shape
       % 
       % xy: [dx2] x/y coords
       assert(isvector(p));
-      n = numel(p);      
+      n = numel(p);
       p = p(:);
       xy = [p(1:n/2) p(n/2+1:end)];
     end
@@ -499,22 +499,20 @@ classdef Shape
       dav = squeeze(nanmean(d,2)); % [NxRT]      
     end
     
-    function [roi,tfOOBview,xyRoi] = xyAndTrx2ROI(xy,trx,nphysPts,frm,iTgt,radius)
+    function [roi,tfOOBview,xyRoi] = xyAndTrx2ROI(xy,xyTrx,nphysPts,radius)
       % Generate ROI/bounding boxes from shape and trx
       %
-      % Currently we do this with a fixed radius and warn if a shape is
-      % outside.
+      % Currently we do this with a fixed radius and warn if a shape falls 
+      % outside the ROI.
       % 
       % xy: [nptx2] xy coords. npt=nphysPts*nview, raster order is 
       %   ipt,iview. Can be nans
-      % trx: [1xnview] cell array of trx structures for each view
+      % xyTrx: [nviewx2] xy coords of trx center for this shape
       % nphysPts: scalar
-      % frm: 
-      % iTgt: scalar index into trx
       % radius: roi square radius, in px, must be integer
       %
       % roi: [1x4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
-      %   Square roi based on trx(iTgt) at frm.
+      %   Square roi based on xyTrx.
       %   NOTE: roi may be outside range of image, eg xlo could be negative
       %   or xhi could exceed number of cols.
       % tfOOBview: [1xnview] logical. If true, shape is out-of-bounds of
@@ -526,17 +524,15 @@ classdef Shape
       [npt,d] = size(xy);
       assert(d==2);
       nview = npt/nphysPts;
-      szassert(trx,[1 nview]);
+      szassert(xyTrx,[nview 2]);
       validateattributes(radius,{'numeric'},{'positive' 'integer'});
       
       roi = nan(1,4*nview);
       tfOOBview = false(1,nview);
       xyRoi = nan(npt,2);
       for iview=1:nview
-        trxI = trx{iview}(iTgt);
-        trxIdx = frm+trxI.off;
-        x0 = round(trxI.x(trxIdx));
-        y0 = round(trxI.y(trxIdx));
+        x0 = xyTrx(iview,1);
+        y0 = xyTrx(iview,2);
         xlo = x0-radius;
         xhi = x0+radius;
         ylo = y0-radius;
