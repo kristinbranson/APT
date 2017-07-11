@@ -1886,6 +1886,12 @@ classdef Labeler < handle
         FSPath.errUnreplacedMacros(movfileFull);
         
         if exist(movfileFull,'file')==0
+          if isdeployed
+            error('Labeler:mov',...
+              'Cannot find movie ''%s'', macro-expanded to ''%s''.',...
+              movfile,movfileFull);
+          end
+          
           tfBrowse = false;
           if FSPath.hasMacro(movfile)
             qstr = sprintf('Cannot find movie ''%s'', macro-expanded to ''%s''.',...
