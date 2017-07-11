@@ -11,15 +11,17 @@ import re
 import glob
 import warnings
 
+USEQSUB = False
+
 def main():
 
-    epilogstr = 'Examples:\n.../APTCluster_qsub.py /path/to/proj.lbl --pebatch 10 retrain\n.../APTCluster_qsub.py /path/to/proj.lbl track --pebatch 8 --mov /path/to/movie.avi\n.../APTCluster_qsub.py /path/to/proj.lbl trackbatch --pebatch 10 --movbatchfile /path/to/movielist.txt\n'
+    epilogstr = 'Examples:\n.../APTCluster_qsub.py /path/to/proj.lbl -n 10 retrain\n.../APTCluster_qsub.py /path/to/proj.lbl track -n 8 --mov /path/to/movie.avi\n.../APTCluster_qsub.py /path/to/proj.lbl trackbatch -n 10 --movbatchfile /path/to/movielist.txt\n'
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
 
     parser.add_argument("projfile",help="APT project file")
     parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","prunerf","prunerf2","pruneja"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
 
-    parser.add_argument("--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
+    parser.add_argument("-n","--nslots","--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
     parser.add_argument("--movbatchfile",help="file containing list of movies; used when action==trackbatch*",metavar="BATCHFILE")
     parser.add_argument("--singlethreaded",help="if true, force run singlethreaded binary",action="store_true",default=False)
@@ -78,7 +80,7 @@ def main():
         args.bindate = "current"
     args.binroot = os.path.join(args.APTBUILDROOTDIR,args.bindate)
 
-    args.multithreaded = not args.singlethreaded and int(args.pebatch)>1
+    args.multithreaded = not args.singlethreaded and int(args.nslots)>1
     if args.multithreaded:
         args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_multithreaded.sh")
     else:
@@ -105,13 +107,19 @@ def main():
     args.USERNAME = subprocess.check_output("whoami").strip()
     args.TMP_ROOT_DIR = "/scratch/" + args.USERNAME
     args.MCR_CACHE_ROOT = args.TMP_ROOT_DIR + "/mcr_cache_root"
-    args.QSUBARGS = "-pe batch " + args.pebatch + " -j y -b y -cwd" 
-    if args.account:
-        args.QSUBARGS = "-A {0:s} ".format(args.account) + args.QSUBARGS
+
+    if USEQSUB:
+        args.QSUBARGS = "-pe batch " + args.nslots + " -j y -b y -cwd" 
+        if args.account:
+            args.QSUBARGS = "-A {0:s} ".format(args.account) + args.QSUBARGS
+    else:
+        args.QSUBARGS = "-n " + args.nslots 
+        if args.account:
+            args.QSUBARGS = "-P {0:s} ".format(args.account) + args.QSUBARGS
         
     # summarize for user, proceed y/n?
     argsdisp = vars(args).copy()
-    argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','MCR','KEYWORD','bindate','binroot','pebatch','USERNAME','account','multithreaded']
+    argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','MCR','KEYWORD','bindate','binroot','nslots','USERNAME','account','multithreaded']
     for fld in argsdispRmFlds:
         del argsdisp[fld]    
     if not args.force:
@@ -162,12 +170,17 @@ def main():
             gencode(shfile,jobid,args,cmd)
 
             # submit 
-            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
-            qsubcmd = "qsub " + qargs
+            if USEQSUB:
+                qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
+                qsubcmd = "qsub " + qargs
+            else:
+                qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.QSUBARGS,logfile,jobid,shfile)
+                qsubcmd = "bsub " + qargs
             print(qsubcmd)
             subprocess.call(qsubcmd,shell=True)
             nmovsub = nmovsub+1
     elif args.action=="pruneja" and args.prunesig:
+        sys.exit("Codepath not updated for LSF")
         outdiruse = os.path.dirname(args.trkfile)
 
         for leg in ['4','5','6','7']:
@@ -220,6 +233,7 @@ def main():
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
         elif args.action.startswith("prunerf"):
+            sys.exit("not updated for LSF")
             if "%" in args.pruneargs:
                 legs = range(1,19)
                 for leg in legs:
@@ -234,7 +248,7 @@ def main():
                     qsubcmd = "qsub " + qargs
                     print(qsubcmd)
                     subprocess.call(qsubcmd,shell=True)
-                exit()                    
+                sys.exit()                    
             else:
                 cmd = "0 " + args.action + " " + args.trkfile + " " +  args.pruneargs
         elif args.action=="pruneja": 
@@ -243,12 +257,17 @@ def main():
         gencode(shfile,jobid,args,cmd)
 
         # submit 
-        qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
-        qsubcmd = "qsub " + qargs
+        if USEQSUB:
+            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
+            qsubcmd = "qsub " + qargs
+        else:
+            qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.QSUBARGS,logfile,jobid,shfile)
+            qsubcmd = "bsub " + qargs
+
         print(qsubcmd)
         subprocess.call(qsubcmd,shell=True)
 
-    exit()
+    sys.exit()
 
 def gencode(fname,jobid,args,cmd):
     f = open(fname,'w')
