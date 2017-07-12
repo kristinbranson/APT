@@ -104,22 +104,22 @@ def main():
     args.MCR = os.path.join(args.MCRROOT,args.mcr)
     if not os.path.exists(args.MCR):
         sys.exit("Cannot find mcr: {0:s}".format(args.MCR))
-    args.USERNAME = subprocess.check_output("whoami").strip()
-    args.TMP_ROOT_DIR = "/scratch/" + args.USERNAME
+    #args.USERNAME = subprocess.check_output("whoami").strip()
+    args.TMP_ROOT_DIR = "/scratch/`whoami`"
     args.MCR_CACHE_ROOT = args.TMP_ROOT_DIR + "/mcr_cache_root"
 
     if USEQSUB:
-        args.QSUBARGS = "-pe batch " + args.nslots + " -j y -b y -cwd" 
+        args.BSUBARGS = "-pe batch " + args.nslots + " -j y -b y -cwd" 
         if args.account:
-            args.QSUBARGS = "-A {0:s} ".format(args.account) + args.QSUBARGS
+            args.BSUBARGS = "-A {0:s} ".format(args.account) + args.BSUBARGS
     else:
-        args.QSUBARGS = "-n " + args.nslots 
+        args.BSUBARGS = "-n " + args.nslots 
         if args.account:
-            args.QSUBARGS = "-P {0:s} ".format(args.account) + args.QSUBARGS
+            args.BSUBARGS = "-P {0:s} ".format(args.account) + args.BSUBARGS
         
     # summarize for user, proceed y/n?
     argsdisp = vars(args).copy()
-    argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','MCR','KEYWORD','bindate','binroot','nslots','USERNAME','account','multithreaded']
+    argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','MCR','KEYWORD','bindate','binroot','nslots','account','multithreaded']
     for fld in argsdispRmFlds:
         del argsdisp[fld]    
     if not args.force:
@@ -171,10 +171,10 @@ def main():
 
             # submit 
             if USEQSUB:
-                qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
+                qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.BSUBARGS,shfile)
                 qsubcmd = "qsub " + qargs
             else:
-                qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.QSUBARGS,logfile,jobid,shfile)
+                qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfile,jobid,shfile)
                 qsubcmd = "bsub " + qargs
             print(qsubcmd)
             subprocess.call(qsubcmd,shell=True)
@@ -196,7 +196,7 @@ def main():
             gencode(shfile,jobid,args,cmd)
 
             # submit 
-            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
+            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.BSUBARGS,shfile)
             qsubcmd = "qsub " + qargs
             print(qsubcmd)
             subprocess.call(qsubcmd,shell=True)
@@ -244,7 +244,7 @@ def main():
                     shfileuse = os.path.join(outdiruse,"{0:s}.sh".format(jobiduse))
                     logfileuse = os.path.join(outdiruse,"{0:s}.log".format(jobiduse))
                     gencode(shfileuse,jobiduse,args,cmd)
-                    qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfileuse,jobiduse,args.QSUBARGS,shfileuse)
+                    qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfileuse,jobiduse,args.BSUBARGS,shfileuse)
                     qsubcmd = "qsub " + qargs
                     print(qsubcmd)
                     subprocess.call(qsubcmd,shell=True)
@@ -258,10 +258,10 @@ def main():
 
         # submit 
         if USEQSUB:
-            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.QSUBARGS,shfile)
+            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.BSUBARGS,shfile)
             qsubcmd = "qsub " + qargs
         else:
-            qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.QSUBARGS,logfile,jobid,shfile)
+            qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfile,jobid,shfile)
             qsubcmd = "bsub " + qargs
 
         print(qsubcmd)
@@ -275,6 +275,7 @@ def gencode(fname,jobid,args,cmd):
     print("",file=f)
     print("source ~/.bashrc",file=f)
     print("umask 002",file=f)
+    print("unset DISPLAY",file=f)
     print("export MCR_CACHE_ROOT="+args.MCR_CACHE_ROOT + "." + jobid,file=f)
     print("echo $MCR_CACHE_ROOT",file=f)
 
