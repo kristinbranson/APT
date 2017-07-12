@@ -531,8 +531,8 @@ classdef Shape
       tfOOBview = false(1,nview);
       xyRoi = nan(npt,2);
       for iview=1:nview
-        x0 = xyTrx(iview,1);
-        y0 = xyTrx(iview,2);
+        x0 = round(xyTrx(iview,1));
+        y0 = round(xyTrx(iview,2));
         xlo = x0-radius;
         xhi = x0+radius;
         ylo = y0-radius;

@@ -2197,12 +2197,12 @@ classdef Labeler < handle
       mr = MovieReader;
       mr.forceGrayscale = true;
       iSamp = 0;
-      wbObj.startPeriod('Reading data...');
+      wbObj.startPeriod('Reading data','showfrac',true,'denominator',nFrmSamp);
       for iMov = 1:obj.nmovies
         mov = obj.movieFilesAllFull{iMov};
         mr.open(mov);
         for f = 1:dfSamp:mr.nframes
-          wbObj.updateFrac(iSamp/nFrmSamp);
+          wbObj.updateFracWithNumDen(iSamp);
           iSamp = iSamp+1;
           I{end+1,1} = mr.readframe(f); %#ok<AGROW>
           %fprintf('Read movie %d, frame %d\n',iMov,f);
@@ -3980,10 +3980,18 @@ classdef Labeler < handle
       end
     end
         
-    function dGTTrkXVCell = trackCrossValidate(obj,varargin)
+    function [dGTTrkCell,pTrkCell,tblMFgt,cvPart] = ...
+                                  trackCrossValidate(obj,varargin)
       % Run k-fold crossvalidation
       %
-      % dGTTrkXVCell: [nfoldx1], see below
+      % dGTTrkCell: [nfoldx1] cell. dGTTrkCell{iFold} is [nTrkIxnpts] L2 
+      %   dist between trk and GT for ith fold
+      % pTrkCell: [nfoldx1] cell. pTrkCell{iFold} is [nTrkIxncol] 
+      %   tracking results table for ith fold (nTrkI can be diff across 
+      %   folds)
+      % tblMFgt: [nGTxncol] FLDSCORE or FLDSCOREROI table for all lbled/gt
+      %   data in proj
+      % cvPart: cvpartition used in crossvalidation
       
       [kFold,initData,wbObj] = myparse(varargin,...
         'kfold',7,... % number of folds
@@ -3991,63 +3999,76 @@ classdef Labeler < handle
         'wbObj',[]... % WaitBarWithCancel
         );
       
-      tfWB = ~isempty(wbObj);
-      
-      % Data structures
-      %
-      % Define MFTp table = Movie/Frame/Target table with numeric .p field
-      %   (D wide)
-      %
-      % pGT: [nGTx4] MFTp table for all lbled data in proj
-      % pTrkXVCell: [nfoldx1] cell. pTrkXVCell{iFold} is [nTrkIx4] tracking
-      %   results MFTp table for ith fold (nTrkI can be diff across folds)
-      % dGTTrkXVCell: [nfoldx1] cell. dGTTrkXVCell{iFold} is [nTrkIxnPt] L2
-      %   dist between trk and GT for ith fold
+      tfWB = ~isempty(wbObj);      
       
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:tracker','No tracker is available for this project.');
       end
       
-      % Get all the labeled data
-      roiRadius = nan; % irrelevant here
-      tblMFTp = obj.labelGetMFTableLabeled(roiRadius); % XXX NOTE FIELDS CHANGED
+      % Get labeled/gt data
+      tblMFgt = obj.labelGetMFTableLabeled();
+      tblMFgt = tObj.hlpAddRoiIfNec(tblMFgt);
       
       % Partition MFT table
-      movC = categorical(tblMFTp.mov);
-      tgtC = categorical(tblMFTp.iTgt);
+      movC = categorical(tblMFgt.mov);
+      tgtC = categorical(tblMFgt.iTgt);
       grpC = movC.*tgtC;
-      cvp = cvpartition(grpC,'kfold',kFold);
-      
-      pTrkXVCell = cell(kFold,1);
-      dGTTrkXVCell = cell(kFold,1);
-      for iFold=1:kFold
-        if initData
-          tObj.initData();
-        end
-                
-        tblMFTpTrain = tblMFTp(cvp.training(iFold),:);
-        tblMFTpTrack = tblMFTp(cvp.test(iFold),:);
-        
-        tObj.trackResInit();
-        tObj.retrain('fooXXX',fooXXX,'trnTbl',tblMFTpTrain);
-        tObj.track([],[],'tblP',tblMFTpTrack,'wbObj',wbObj);
+      cvPart = cvpartition(grpC,'kfold',kFold);
 
-        if tfWB && wbObj.isCancel
-          % XXX clear training result? 
-          
-          return;
-        end
-        
-        
-        % get tracking results and acc
-
-      end
-      
+      % Basically an initHook() here
       if initData
         tObj.initData();
       end
+      tObj.trnDataInit(); % not strictly necessary as .retrain() should do it 
+      tObj.trnResInit(); % not strictly necessary as .retrain() should do it 
       tObj.trackResInit();
+      tObj.vizInit();
+      tObj.asyncReset();
+      
+      npts = obj.nLabelPoints;
+      pTrkCell = cell(kFold,1);
+      dGTTrkCell = cell(kFold,1);
+      if tfWB
+        wbObj.startPeriod('Fold','showfrac',true,'denominator',kFold);
+      end
+      for iFold=1:kFold
+        if tfWB
+          wbObj.updateFracWithNumDen(iFold);
+        end
+        tblMFgtTrain = tblMFgt(cvPart.training(iFold),:);
+        tblMFgtTrack = tblMFgt(cvPart.test(iFold),:);
+        tObj.retrain('tblPTrn',tblMFgtTrain);
+        tObj.track([],[],'tblP',tblMFgtTrack,'wbObj',wbObj);        
+        [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
+        if initData
+          tObj.initData();
+        end
+        tObj.trnDataInit();
+        tObj.trnResInit();
+        tObj.trackResInit();
+        if tfWB && wbObj.isCancel
+          return;
+        end
+        
+        assert(isequal(pTrkiPt(:)',1:npts));
+        assert(isequal(tblTrkRes(:,MFTable.FLDSID),...
+                       tblMFgtTrack(:,MFTable.FLDSID)));
+        if obj.hasTrx
+          pGT = tblMFgtTrack.pAbs;
+        else
+          tblfldsdonotcontainassert(tblMFgtTrack,'pAbs');
+          pGT = tblMFgtTrack.p;
+        end
+        d = tblTrkRes.pTrk - pGT;
+        [ntst,Dtrk] = size(d);
+        assert(Dtrk==npts*2); % npts=nPhysPts*nview
+        d = reshape(d,ntst,npts,2);
+        d = sqrt(sum(d.^2,3)); % [ntst x npts]
+        
+        pTrkCell{iFold} = tblTrkRes;
+        dGTTrkCell{iFold} = d;
+      end
     end
     
 %     function trackSaveResults(obj,fname)

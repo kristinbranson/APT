@@ -1,0 +1,3 @@
+function tblfldsdonotcontainassert(t,flds)
+assert(~any(ismember(flds(:),t.Properties.VariableNames(:))),...
+  'Table fields contain unexpected entries.');

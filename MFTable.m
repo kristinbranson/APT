@@ -12,9 +12,10 @@ classdef MFTable
     % Uniquely IDs a frame/target
     FLDSID = {'mov' 'frm' 'iTgt'};
     
-    % Core training/test data. Notion of roi (for multitarget) has been
-    % abstracted away
+    % Core training/test data.
     FLDSCORE = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+    % In ROI case, .p is relative to .ROI
+    FLDSCOREROI = {'mov' 'frm' 'iTgt' 'tfocc' 'p' 'roi'};
 
     FLDSFULL = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc'};
     

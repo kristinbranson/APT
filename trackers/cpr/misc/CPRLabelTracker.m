@@ -95,7 +95,7 @@ classdef CPRLabelTracker < LabelTracker
     % Tracking state -- set during .track()
     % Note: trkD here can be less than the full/model D if some pts are
     % omitted from tracking
-    trkP % [NTst trkD] reduced/pruned tracked shapes
+    trkP % [NTst trkD] reduced/pruned tracked shapes. In ABSOLUTE coords
     
     % Either [], or [NTst RT trkD T+1] Tracked shapes full data. Stored 
     % only if .storeFullTracking=true.
@@ -222,9 +222,16 @@ classdef CPRLabelTracker < LabelTracker
   end
   
   %% Data
-  methods (Access=private)
-    function tblP = hlpAddRoi(obj,tblP)
-      % addROI to MF tables
+  methods
+    function tblP = hlpAddRoiIfNec(obj,tblP)
+      % If hasTrx, modify tblP as follows:
+      % - add .roi
+      % - set .p to be .pRoi, ie relative to ROI
+      % - set .pAbs to be absolute .p
+      % If not hasTrx,
+      % - .p will be pAbs
+      % - no .roi
+      
       labelerObj = obj.lObj;
       if labelerObj.hasTrx
         roiRadius = obj.sPrm.PreProc.TargetCrop.Radius;
@@ -270,7 +277,7 @@ classdef CPRLabelTracker < LabelTracker
       % - .roi is guaranteed when lObj.hasTrx.
       
       tblP = obj.lObj.labelGetMFTableLabeled();
-      tblP = obj.hlpAddRoi(tblP);
+      tblP = obj.hlpAddRoiIfNec(tblP);
       tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
       if nnan>0
@@ -295,7 +302,7 @@ classdef CPRLabelTracker < LabelTracker
     
     function tblP = getTblPAll(obj,iMovs,frmCell)
       tblP = obj.lObj.labelGetMFTableAll(iMovs,frmCell);
-      tblP = obj.hlpAddRoi(tblP);
+      tblP = obj.hlpAddRoiIfNec(tblP);
     end
     
     %#MTGT
@@ -629,6 +636,20 @@ classdef CPRLabelTracker < LabelTracker
   %% TrackRes
   methods
 
+    function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj) % obj const
+      % Get all current tracking results in a table
+      %
+      % tblTrkRes: [NTrk x ncol] table of tracking results
+      %            .pTrk, like obj.trkP; ABSOLUTE coords
+      % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
+      %          size(tblTrkRes.pTrk,2)==npttrk*d
+
+      tblTrkRes = obj.trkPMD;
+      tblTrkRes.pTrk = obj.trkP;
+      tblTrkRes.pTrkTS = obj.trkPTS;
+      pTrkiPt = obj.trkPiPt;
+    end
+    
     %#MTGT
     %#MV
     function [trkpos,trkposTS,trkposFull,tfHasRes] = getTrackResRaw(obj,iMov)
@@ -819,6 +840,7 @@ classdef CPRLabelTracker < LabelTracker
       % TODO: again should not assume where results are coming from
       obj.trkPiPt = obj.trnResIPt;
     end
+    
   end
   
   %% LabelTracker overloads
@@ -979,45 +1001,47 @@ classdef CPRLabelTracker < LabelTracker
       
       obj.asyncReset(true);
        
-      if ~isempty(tblPTrn)
-        
-      else
-        if obj.trnDataDownSamp
-          assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
-          if updateTrnData
-            % first, update the TrnData with any new labels
-            tblPNew = obj.getTblPLbledRecent();
-            [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
-            if ~isempty(idxTrnDataTblP) % AL 20160912: conditional should not be necessary, MATLAB API bug
-              obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
-            end
-            obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
-            nowtime = now();
-            nNewRows = size(tblPNewTD,1);
-            obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
-            obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(nNewRows,1)];
-            fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
-              size(tblPUpdateTD,1),nNewRows);
+      if isempty(tblPTrn) && obj.trnDataDownSamp
+        assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
+        if updateTrnData
+          % first, update the TrnData with any new labels
+          tblPNew = obj.getTblPLbledRecent();
+          [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
+          if ~isempty(idxTrnDataTblP) % AL 20160912: conditional should not be necessary, MATLAB API bug
+            obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
           end
-          tblPTrn = obj.trnDataTblP;
-        else
+          obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
+          nowtime = now();
+          nNewRows = size(tblPNewTD,1);
+          obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
+          obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(nNewRows,1)];
+          fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
+            size(tblPUpdateTD,1),nNewRows);
+        end
+        tblPTrn = obj.trnDataTblP;
+      else % Either use supplied tblPTrn, or use all labeled data
+        if isempty(tblPTrn)
           % use all labeled data
           tblPTrn = obj.getTblPLbled();
-
-          obj.trnDataFFDThresh = nan;
-          % still set .trnDataTblP, .trnDataTblPTS to enable incremental
-          % training        
-          obj.trnDataTblP = tblPTrn;
-          nowtime = now();
-          obj.trnDataTblPTS = nowtime*ones(size(tblPTrn,1),1);
         end
+        if obj.lObj.hasTrx
+          tblfldscontainsassert(tblPTrn,MFTable.FLDSCOREROI);
+        else
+          tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+        end
+
+        obj.trnDataFFDThresh = nan;
+        % still set .trnDataTblP, .trnDataTblPTS to enable incremental
+        % training
+        obj.trnDataTblP = tblPTrn;
+        nowtime = now();
+        obj.trnDataTblPTS = nowtime*ones(height(tblPTrn),1);
       end
-      
+                
       if isempty(tblPTrn)
         error('CPRLabelTracker:noTrnData','No training data set.');
-      else
-        fprintf(1,'Training with %d rows.\n',size(tblPTrn,1));
       end
+      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
       
       % update .trnResH0; clear .data if necessary (if .trnResH0 is
       % out-of-date)
@@ -1362,7 +1386,7 @@ classdef CPRLabelTracker < LabelTracker
     %#MV
     function track(obj,iMovs,frms,varargin)
       [tblP,movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
-        'tblP',[],... % MFtable. Req'd flds: MFTable.FLDSCORE. If multitarget, also: .roi
+        'tblP',[],... % MFtable. Req'd flds: MFTable.FLDSCORE or .FLDSCOREROI if multitarget.
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
         'wbObj',[] ... % WaitBarWithCancel. If cancel:
@@ -1390,11 +1414,11 @@ classdef CPRLabelTracker < LabelTracker
           return;
         end
       end
-      FLDSREQD = MFTable.FLDSCORE;
       if obj.lObj.hasTrx
-        FLDSREQD{1,end+1} = 'roi';
+        tblfldscontainsassert(tblP,MFTable.FLDSCOREROI);
+      else
+        tblfldscontainsassert(tblP,MFTable.FLDSCORE);
       end
-      tblfldscontainsassert(tblP,FLDSREQD);
      
       % if tfWB, then canceling can early-return. In all return cases we
       % want to run hlpTrackWrapupViz.
@@ -1403,7 +1427,15 @@ classdef CPRLabelTracker < LabelTracker
       nFrmTrk = size(tblP,1);
       iChunkStarts = 1:movChunkSize:nFrmTrk;
       nChunk = numel(iChunkStarts);
+      if tfWB && nChunk>1
+        wbObj.startPeriod('Tracking chunks','showfrac',true,'denominator',nChunk);
+        oc = onCleanup(@()wbObj.endPeriod());
+      end
       for iChunk=1:nChunk
+        
+        if tfWB && nChunk>1
+          wbObj.updateFracWithNumDen(iChunk);
+        end
         
         idxP0 = (iChunk-1)*movChunkSize+1;
         idxP1 = min(idxP0+movChunkSize-1,nFrmTrk);
@@ -1416,9 +1448,6 @@ classdef CPRLabelTracker < LabelTracker
           % In this case we assume we are dealing with a 'big movie' and
           % don't preserve/cache data
           obj.initData();
-        end
-        if tfWB && nChunk>1
-          wbObj.msgPat = sprintf('Chunk %d/%d: %%s',iChunk,nChunk);
         end
         
         obj.updateData(tblPChunk,'wbObj',wbObj);
@@ -2163,7 +2192,7 @@ classdef CPRLabelTracker < LabelTracker
       
       assert(obj.asyncPredictOn);
       tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt();
-      tblP = obj.hlpAddRoi(tblP);
+      tblP = obj.hlpAddRoiIfNec(tblP);
       sCmd = struct('action','track','data',tblP);
       obj.asyncBGClient.sendCommand(sCmd);
     end

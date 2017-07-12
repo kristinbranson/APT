@@ -55,10 +55,12 @@ classdef WaitBarWithCancel < handle
   
   properties
     hWB % waitbar handle
+    hTxt % handle to text obj in hWB
     isCancel % scalar logical
     cancelData % optional data set on main thread by clients for passing info upstream
     
-    msgPat % if nonempty, apply this printf-style pat for msgs
+    % Stack of running contexts. contexts(end) is the top of the stack.
+    contexts = WaitBarWithCancelContext.empty(0,1)
   end
   
   methods
@@ -83,10 +85,11 @@ classdef WaitBarWithCancel < handle
         h = waitbar(0,'','Name',title,varargin{:},'Visible','off',...
           'CreateCancelBtn',@(s,e)obj.cbkCancel(s,e));
       end
-      hTxt = findall(h,'type','text');
-      hTxt.Interpreter = 'none';
+      hText = findall(h,'type','text');
+      hText.Interpreter = 'none';
       
       obj.hWB = h;
+      obj.hTxt = hText;
       obj.isCancel = false;
     end
     
@@ -103,27 +106,56 @@ classdef WaitBarWithCancel < handle
   methods
 
     function startPeriod(obj,msg,varargin)
-      % Start a new cancelable period with waitbar message msg.
+      % Start a new cancelable period with waitbar message msg. Push new
+      % context onto stack.
+      %
+      % varargin: optionally include 'showfrac', 'denominator'
       
-      obj.isCancel = false;
-      
-      if ~isempty(obj.msgPat)
-        msg = sprintf(obj.msgPat,msg);
-      end
-      obj.hWB.Visible = 'on';      
-      waitbar(0,obj.hWB,msg,varargin{:});
+      %obj.isCancel = false;
+      newContext = WaitBarWithCancelContext(msg,'numerator',0,varargin{:});
+      obj.contexts(end+1,1) = newContext; % push
+      waitbar(0,obj.hWB);
+      obj.updateMessage();
+      obj.hWB.Visible = 'on';
     end
       
     function tfCancel = updateFrac(obj,frac)
+      % Update waitbar fraction in top context.
+      assert(~isempty(obj.contexts));
+      assert(~logical(obj.contexts(end).showfrac));
       tfCancel = obj.isCancel;
-      waitbar(frac,obj.hWB);
+      waitbar(frac,obj.hWB); % msg is unchanged
+    end
+    
+    function tfCancel = updateFracWithNumDen(obj,numerator)
+      % Update waitbar fraction in top context.
+      assert(~isempty(obj.contexts));
+      ctxt = obj.contexts(end);
+      assert(logical(ctxt.showfrac));
+      ctxt.numerator = numerator;
+      frac = numerator/ctxt.denominator;
+      
+      tfCancel = obj.isCancel;
+      waitbar(frac,obj.hWB); 
+      obj.updateMessage();
     end
     
     function endPeriod(obj)
-      obj.hWB.Visible = 'off';      
-    end    
+      % End current/topmost context.
+      assert(~isempty(obj.contexts));
+      obj.contexts = obj.contexts(1:end-1,:); % pop
+      obj.updateMessage();
+      if isempty(obj.contexts)
+        obj.hWB.Visible = 'off';
+      end
+    end
       
   end
-    
+  
+  methods (Access=private)
+    function updateMessage(obj)
+      obj.hTxt.String = obj.contexts.fullmessage();
+    end
+  end
   
 end
