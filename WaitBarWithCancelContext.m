@@ -2,9 +2,10 @@ classdef WaitBarWithCancelContext < handle
   
   properties
     message = '' % "Base" message
-    showfrac = false % If true, show fractional degree of completion, eg (3/500), in message
-    numerator = nan % Numerator if showfrac==true
-    denominator = nan % Denominator (total number of units to run) if showfrac==true
+    nobar = false % If true, no graphical fraction bar shown
+    shownumden = false % If true, show fractional degree of completion eg (3/500) in message
+    numerator = nan % Numerator if shownumden==true
+    denominator = nan % Denominator (total number of units to run) if shownumden==true
   end  
   
   methods
@@ -23,7 +24,7 @@ classdef WaitBarWithCancelContext < handle
     function m = fullmessage(objs)
       m = '';
       for i=1:numel(objs)
-        if objs(i).showfrac
+        if objs(i).shownumden
           mnew = sprintf('%s (%d/%d)',objs(i).message,objs(i).numerator,...
             objs(i).denominator);
         else

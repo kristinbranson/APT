@@ -2203,7 +2203,7 @@ classdef Labeler < handle
       mr = MovieReader;
       mr.forceGrayscale = true;
       iSamp = 0;
-      wbObj.startPeriod('Reading data','showfrac',true,'denominator',nFrmSamp);
+      wbObj.startPeriod('Reading data','shownumden',true,'denominator',nFrmSamp);
       for iMov = 1:obj.nmovies
         mov = obj.movieFilesAllFull{iMov};
         mr.open(mov);
@@ -4036,7 +4036,7 @@ classdef Labeler < handle
       pTrkCell = cell(kFold,1);
       dGTTrkCell = cell(kFold,1);
       if tfWB
-        wbObj.startPeriod('Fold','showfrac',true,'denominator',kFold);
+        wbObj.startPeriod('Fold','shownumden',true,'denominator',kFold);
       end
       for iFold=1:kFold
         if tfWB
@@ -4044,7 +4044,13 @@ classdef Labeler < handle
         end
         tblMFgtTrain = tblMFgt(cvPart.training(iFold),:);
         tblMFgtTrack = tblMFgt(cvPart.test(iFold),:);
+        if tfWB
+          wbObj.startPeriod('Training','nobar',true);
+        end
         tObj.retrain('tblPTrn',tblMFgtTrain);
+        if tfWB
+          wbObj.endPeriod();
+        end
         tObj.track([],[],'tblP',tblMFgtTrack,'wbObj',wbObj);        
         [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
         if initData

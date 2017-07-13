@@ -56,6 +56,7 @@ classdef WaitBarWithCancel < handle
   properties
     hWB % waitbar handle
     hTxt % handle to text obj in hWB
+    hBar % handle to hgjavacomponent graphical waitbar
     isCancel % scalar logical
     cancelData % optional data set on main thread by clients for passing info upstream
     
@@ -90,6 +91,7 @@ classdef WaitBarWithCancel < handle
       
       obj.hWB = h;
       obj.hTxt = hText;
+      obj.hBar = findall(h,'type','hgjavacomponent');
       obj.isCancel = false;
     end
     
@@ -109,20 +111,21 @@ classdef WaitBarWithCancel < handle
       % Start a new cancelable period with waitbar message msg. Push new
       % context onto stack.
       %
-      % varargin: optionally include 'showfrac', 'denominator'
+      % varargin: see options for WaitBarWithCancelContext
       
       %obj.isCancel = false;
       newContext = WaitBarWithCancelContext(msg,'numerator',0,varargin{:});
       obj.contexts(end+1,1) = newContext; % push
       waitbar(0,obj.hWB);
       obj.updateMessage();
+      obj.updateShowBar();
       obj.hWB.Visible = 'on';
     end
       
     function tfCancel = updateFrac(obj,frac)
       % Update waitbar fraction in top context.
       assert(~isempty(obj.contexts));
-      assert(~logical(obj.contexts(end).showfrac));
+      assert(~logical(obj.contexts(end).shownumden));
       tfCancel = obj.isCancel;
       waitbar(frac,obj.hWB); % msg is unchanged
     end
@@ -131,7 +134,7 @@ classdef WaitBarWithCancel < handle
       % Update waitbar fraction in top context.
       assert(~isempty(obj.contexts));
       ctxt = obj.contexts(end);
-      assert(logical(ctxt.showfrac));
+      assert(logical(ctxt.shownumden));
       ctxt.numerator = numerator;
       frac = numerator/ctxt.denominator;
       
@@ -145,6 +148,7 @@ classdef WaitBarWithCancel < handle
       assert(~isempty(obj.contexts));
       obj.contexts = obj.contexts(1:end-1,:); % pop
       obj.updateMessage();
+      obj.updateShowBar();
       if isempty(obj.contexts)
         obj.hWB.Visible = 'off';
       end
@@ -155,6 +159,10 @@ classdef WaitBarWithCancel < handle
   methods (Access=private)
     function updateMessage(obj)
       obj.hTxt.String = obj.contexts.fullmessage();
+    end
+    function updateShowBar(obj)
+      onoff = onIff(~obj.contexts(end).nobar);
+      obj.hBar.Visible = onoff;
     end
   end
   
