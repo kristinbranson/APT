@@ -2053,7 +2053,6 @@ for imov=1:height(tblErrMov)
     trow.count,trow.err); %#ok<AGROW>
 end 
 
-% XXX TESTING
 hDlg = dialog('Name','Cross Validation','resize','on','WindowStyle','normal');
 BORDER = 0.025;
 hTxt = uicontrol('Parent',hDlg,'Style','edit',...
