@@ -891,9 +891,13 @@ classdef Labeler < handle
       end        
     end
     
-    function projLoad(obj,fname)
+    function projLoad(obj,fname,varargin)
       % Load a lbl file, along with moviefile and trxfile referenced therein
             
+      nomovie = myparse(varargin,...
+        'nomovie',false ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
+        );
+      
       if exist('fname','var')==0
         lastLblFile = RC.getprop('lastLblFile');
         if isempty(lastLblFile)
@@ -975,16 +979,15 @@ classdef Labeler < handle
         obj.tracker = tObjNew;
       end
       
-      if obj.nmovies==0 || s.currMovie==0
+      if obj.nmovies==0 || s.currMovie==0 || nomovie
         obj.movieSetNoMovie();
       else
         obj.movieSet(s.currMovie);
+        obj.setFrameAndTarget(s.currFrame,s.currTarget);
       end
       
       %assert(isa(s.labelMode,'LabelMode'));      
       obj.labeledposNeedsSave = false;
-
-      obj.setFrameAndTarget(s.currFrame,s.currTarget);
       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
@@ -2154,28 +2157,60 @@ classdef Labeler < handle
     end
     
     function movieSetNoMovie(obj)
-      % Set to iMov==0
-      
-      obj.currMovie = 0;
-      
+      % Set .currMov to 0
+           
+          % Stripped cut+paste form movieSet() for reference 20170714
+          %       obj.movieReader(iView).open(movfileFull);
+          %       obj.moviename = fullfile(parent,movname);
+%       obj.isinit = true; % Initialization hell, invariants momentarily broken
+          %       obj.currMovie = iMov;
+          %       obj.setFrameAndTarget(1,1);
+          %       obj.trxSet(trxvar);
+          %       obj.trxfile = trxFile; % this must come after .trxSet() call
+%       obj.isinit = false; % end Initialization hell
+          %       obj.labelsMiscInit();
+          %       obj.labelingInit();
+          %       edata = NewMovieEventData(isFirstMovie);
+          %       notify(obj,'newMovie',edata);
+          %       obj.updateFrameTableComplete();
+          %       if obj.hasTrx
+          %         obj.setFrameAndTarget(obj.currTrx.firstframe,obj.currTarget);
+          %       else
+          %         obj.setFrameAndTarget(1,1);
+          %       end
+              
       for i=1:obj.nview
         obj.movieReader(i).close();
       end
       obj.moviename = '';
       obj.trxfile = '';
-      obj.trx = [];
-      obj.frm2trx = [];
-      obj.trxIdPlusPlus2Idx = [];
-
+      obj.isinit = true;
+      obj.currMovie = 0;
+      obj.trxSet([]);
       obj.currFrame = 1;
-      gd = obj.gdata;
-      arrayfun(@(x)set(x,'CData',0),gd.images_all); % TODO: UIMOVE
-      imprev = gd.image_prev;
-      set(imprev,'CData',0);
-      
-      obj.initShowTrx();
-      
       obj.currTarget = 0;
+      obj.isinit = false;
+      
+      obj.labelsMiscInit();
+      obj.labelingInit();
+      edata = NewMovieEventData(false);
+      notify(obj,'newMovie',edata);
+      obj.updateFrameTableComplete();
+
+      % Set state equivalent to obj.setFrameAndTarget();
+      gd = obj.gdata;
+      imsall = gd.images_all;
+      for iView=1:obj.nview
+        obj.currIm{iView} = 0;
+        set(imsall(iView),'CData',0);
+      end
+      obj.prevIm = 0;
+      imprev = gd.image_prev;
+      set(imprev,'CData',0);              
+      obj.currTarget = 1;
+      obj.currFrame = 1;
+      obj.prevFrame = 1;
+      
       obj.currSusp = [];
     end
     
@@ -2260,7 +2295,11 @@ classdef Labeler < handle
         id2t(obj.trx(i).id+1) = i;
       end
       obj.trxIdPlusPlus2Idx = id2t;
-      obj.frm2trx = Labeler.trxHlpComputeF2t(obj.nframes,trx);
+      if isnan(obj.nframes)
+        obj.frm2trx = [];
+      else
+        obj.frm2trx = Labeler.trxHlpComputeF2t(obj.nframes,trx);
+      end
       
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
       obj.initShowTrx();
