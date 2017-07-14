@@ -9,6 +9,9 @@ function APTCluster(varargin)
 % % Options passed to Labeler.trackAndExport, 'trackArgs'
 % APTCluster(lblFile,'track',moviefullpath,varargin)
 %
+% % Track a set of movies
+% APTCluster(lblFile,'trackbatch',moviesetfile,varargin)
+%
 % % Prune legs of a trkfile, saving results alongside trkfile
 % APTCluster(0,'prunejan',trkfullpath,sigd,ipt,frmstart,frmend)
 
@@ -125,28 +128,29 @@ if exist(lblFile,'file')==0
 end
 
 lObj = Labeler();
-lObj.projLoad(lblFile);
+fprintf('APTCluster: ''%s'' on project ''%s''.\n',action,lblFile);
 
 switch action
   case 'retrain'
-    fprintf('APTCluster: ''%s'' on project ''%s''.\n',action,lblFile);
-
+    lObj.projLoad(lblFile);
     lObj.trackRetrain();
     [p,f,e] = fileparts(lblFile);
     outfile = fullfile(p,[f '_retrain' datestr(now,'yyyymmddTHHMMSS') e]);
     fprintf('APTCluster: saving retrained project: %s\n',outfile);
     lObj.projSaveRaw(outfile);
   case 'track'
+    lObj.projLoad(lblFile,'nomovie',true);
     mov = varargin{3};
     trackArgs = varargin(4:end);
     lclTrackAndExportSingleMov(lObj,mov,trackArgs);    
   case 'trackbatch'
+    lObj.projLoad(lblFile,'nomovie',true);
     movfile = varargin{3};
     if exist(movfile,'file')==0
       error('APTCluster:file','Cannot find batch movie file ''%s''.',movfile);
     end
     movs = importdata(movfile);
-    if ~iscellstr(movs)
+    if ~iscellstr(movs) 
       error('APTCluster:movfile','Error reading batch movie file ''%s''.',movfile);
     end
     nmov = numel(movs);

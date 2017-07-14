@@ -61,6 +61,7 @@ if verLessThan('matlab','8.4')
 end
 
 hObject.Name = 'APT';
+hObject.HandleVisibility = 'on';
 
 % reinit uicontrol strings etc from GUIDE for cosmetic purposes
 set(handles.txPrevIm,'String','');
@@ -674,7 +675,9 @@ hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_fra
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
-set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
+if ispc
+  set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
+end
 
 handles = setShortcuts(handles);
 
@@ -750,10 +753,13 @@ nframes = lObj.nframes;
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
 
-ifo = lObj.movieInfoAll{lObj.currMovie,1}.info;
-minzoomrad = 10;
-maxzoomrad = (ifo.nc+ifo.nr)/4;
-handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
+tfHasMovie = lObj.currMovie>0;
+if tfHasMovie
+  ifo = lObj.movieInfoAll{lObj.currMovie,1}.info;
+  minzoomrad = 10;
+  maxzoomrad = (ifo.nc+ifo.nr)/4;
+  handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
+end
 
 TRX_MENUS = {...
   'menu_view_trajectories_centervideoontarget'
