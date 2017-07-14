@@ -153,7 +153,16 @@ classdef WaitBarWithCancel < handle
         obj.hWB.Visible = 'off';
       end
     end
-      
+    
+    function msg = cancelMessage(obj,msgbase)
+      cdata = obj.cancelData;
+      if isempty(cdata)
+        msg = [msgbase '.'];
+      else
+        msg = sprintf('%s: %s',msgbase,cdata.msg);
+      end
+    end
+    
   end
   
   methods (Access=private)

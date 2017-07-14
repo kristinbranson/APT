@@ -4083,6 +4083,29 @@ classdef Labeler < handle
       end
     end
     
+  end
+  methods (Static)
+    
+    function [nGT,nFold,muErr,muErrPt,tblErrMov,tbl] = ...
+        trackCrossValidateStats(dGTTrkCell,pTrkCell)
+
+      assert(iscell(dGTTrkCell) && iscell(pTrkCell) && ...
+            numel(dGTTrkCell)==numel(pTrkCell));
+          
+      tbl = cat(1,pTrkCell{:});
+      tbl.err = cat(1,dGTTrkCell{:});
+      nGT = height(tbl);
+      nFold = numel(dGTTrkCell);
+      muErrPt = nanmean(tbl.err,1); % [1xnpt]
+      muErr = nanmean(muErrPt); % each pt equal wt
+      movUn = unique(tbl.mov);
+      muErrMov = cellfun(@(x) nanmean(nanmean(tbl.err(strcmp(tbl.mov,x),:),1)), ...
+        movUn); % each pt equal wt
+      movUnCnt = cellfun(@(x)nnz(strcmp(tbl.mov,x)),movUn);
+      tblErrMov = table(movUn,movUnCnt,muErrMov,...
+        'VariableNames',{'mov' 'count' 'err'});
+    end
+    
 %     function trackSaveResults(obj,fname)
 %       tObj = obj.tracker;
 %       if isempty(tObj)

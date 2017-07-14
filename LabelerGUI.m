@@ -157,6 +157,14 @@ handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
 
+handles.menu_track_crossvalidate = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_crossvalidate_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Perform cross validation',...
+  'Tag','menu_track_crossvalidate',...
+  'Separator','off',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_track_crossvalidate,handles.menu_track_retrain);
+
 handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Store tracking replicates/iterations',...
@@ -1116,12 +1124,8 @@ wbObj = WaitBarWithCancel('Tracking');
 oc = onCleanup(@()delete(wbObj));
 handles.labelerObj.track(tm,'wbObj',wbObj);
 if wbObj.isCancel
-  if isempty(wbObj.cancelData)
-    str = 'Tracking canceled.';
-  else
-    str = sprintf('Tracking canceled: %s',wbObj.cancelData.msg);
-  end
-  msgbox(str,'Track');
+  msg = wbObj.cancelMessage('Tracking canceled');
+  msgbox(msg,'Track');
 end
 
 function pbClear_Callback(hObject, eventdata, handles)
@@ -1998,6 +2002,64 @@ lObj.tracker.trainingDataMontage();
 
 function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();
+
+function menu_track_crossvalidate_Callback(hObject, eventdata, handles)
+
+lObj = handles.labelerObj;
+if lObj.tracker.hasTrained
+  resp = questdlg('Any existing trained tracker and tracking results will be cleared. Proceed?',...
+    'Cross Validation',...
+    'OK, Proceed','Cancel','Cancel');
+  if isempty(resp)
+    resp = 'Cancel';
+  end
+  switch resp
+    case 'OK, Proceed'
+      % none
+    case 'Cancel'
+      return;
+    otherwise
+      assert(false);
+  end
+end
+
+wbObj = WaitBarWithCancel('Cross Validation');
+oc = onCleanup(@()delete(wbObj));
+[dGTTrkCell,pTrkCell] = lObj.trackCrossValidate('wbObj',wbObj);
+if wbObj.isCancel
+  msg = wbObj.cancelMessage('Cross validation canceled');
+  msgbox(msg,'Cross Validation');
+  return;
+end
+
+[nGT,nFold,muErr,muErrPt,tblErrMov] = ...
+  Labeler.trackCrossValidateStats(dGTTrkCell,pTrkCell);
+str = { ...
+  sprintf('GT dataset: %d labeled frames across %d movies',nGT,height(tblErrMov));
+  sprintf('Number of folds: %d',nFold);
+  '';
+  sprintf('Mean err, all points (px): %.2f',muErr)};
+for ipt=1:numel(muErrPt)
+  str{end+1,1} = sprintf('  ... point %d: %.2f',ipt,muErrPt(ipt)); %#ok<AGROW>
+end
+str{end+1,1} = '';
+str{end+1,1} = sprintf('Mean err, all movies (px): %.2f',muErr);
+for imov=1:height(tblErrMov)
+  trow = tblErrMov(imov,:);
+  [path,movS] = myfileparts(trow.mov{1});
+  [~,path] = myfileparts(path);
+  mov = fullfile(path,movS);
+  str{end+1,1} = sprintf('  ... movie %s (%d rows): %.2f',mov,...
+    trow.count,trow.err); %#ok<AGROW>
+end 
+
+% XXX TESTING
+hDlg = dialog('Name','Cross Validation','resize','on','WindowStyle','normal');
+BORDER = 0.025;
+hTxt = uicontrol('Parent',hDlg,'Style','edit',...
+  'units','normalized','position',[BORDER BORDER 1-2*BORDER 1-2*BORDER],...
+  'enable','on','Max',2,'horizontalalignment','left',...
+  'String',str,'FontName','Courier New');
 
 function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
 onoff = onIff(handles.labelerObj.tracker.storeFullTracking);
