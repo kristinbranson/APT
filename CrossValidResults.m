@@ -65,9 +65,11 @@ varargout{1} = handles.output;
 
 function pbExport_Callback(hObject, eventdata, handles)
 assignin('base','aptXVRes',handles.tblXVRes);
-fprintf(1,'Wrote variable ''aptXVRes'' in base workspace.\n');
+msgbox('Wrote variable ''aptXVRes'' in base workspace.','Export results');
 
 function pbViewTrackingResults_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
 tObj.setAllTrackResTable(handles.tblXVRes,1:lObj.nLabelPoints);
+str = 'Set tracking results in APT.';
+msgbox(str,'View results');
