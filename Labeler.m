@@ -4038,10 +4038,11 @@ classdef Labeler < handle
       %   data in proj
       % cvPart: cvpartition used in crossvalidation
       
-      [kFold,initData,wbObj] = myparse(varargin,...
+      [kFold,initData,wbObj,tblMFgt] = myparse(varargin,...
         'kfold',7,... % number of folds
         'initData',true,... % if true, call .initData() between folds to minimize mem usage
-        'wbObj',[]... % WaitBarWithCancel
+        'wbObj',[],... % WaitBarWithCancel
+        'tblMFgt',[]... % optional, labeled/gt data to use
         );
       
       tfWB = ~isempty(wbObj);      
@@ -4052,8 +4053,10 @@ classdef Labeler < handle
       end
       
       % Get labeled/gt data
-      tblMFgt = obj.labelGetMFTableLabeled();
-      tblMFgt = tObj.hlpAddRoiIfNec(tblMFgt);
+      if isempty(tblMFgt)
+        tblMFgt = obj.labelGetMFTableLabeled();
+        tblMFgt = tObj.hlpAddRoiIfNec(tblMFgt);
+      end
       
       % Partition MFT table
       movC = categorical(tblMFgt.mov);
