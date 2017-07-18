@@ -160,7 +160,7 @@ moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
 
 handles.menu_track_crossvalidate = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_crossvalidate_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Perform cross validation',...
+  'Label','Cross validate',...
   'Tag','menu_track_crossvalidate',...
   'Separator','off',...
   'Checked','off');
@@ -2029,9 +2029,23 @@ if lObj.tracker.hasTrained
   end
 end
 
+tblMFgt = lObj.labelGetMFTableLabeled();
+tblMFgt = lObj.tracker.hlpAddRoiIfNec(tblMFgt);
+inputstr = sprintf('This project has %d labeled frames.\nNumber of folds for k-fold cross validation:',...
+  height(tblMFgt));
+resp = inputdlg(inputstr,'Cross Validation',1,{'7'});
+if isempty(resp)
+  return;
+end
+nfold = str2double(resp{1});
+if round(nfold)~=nfold || nfold<=1
+  error('LabelerGUI:xvalid','Number of folds must be a positive integer greater than 1.');
+end
+      
 wbObj = WaitBarWithCancel('Cross Validation');
 oc = onCleanup(@()delete(wbObj));
-[dGTTrkCell,pTrkCell] = lObj.trackCrossValidate('wbObj',wbObj);
+[dGTTrkCell,pTrkCell] = lObj.trackCrossValidate('kfold',nfold,...
+  'wbObj',wbObj,'tblMFgt',tblMFgt);
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Cross validation canceled');
   msgbox(msg,'Cross Validation');
@@ -2059,12 +2073,38 @@ for imov=1:height(tblErrMov)
     trow.count,trow.err); %#ok<AGROW>
 end 
 
-hDlg = dialog('Name','Cross Validation','resize','on','WindowStyle','normal');
-BORDER = 0.025;
-hTxt = uicontrol('Parent',hDlg,'Style','edit',...
-  'units','normalized','position',[BORDER BORDER 1-2*BORDER 1-2*BORDER],...
-  'enable','on','Max',2,'horizontalalignment','left',...
-  'String',str,'FontName','Courier New');
+% pTrkCell
+% dGTTrkCell
+% tblMFgt
+pTrkAll = cat(1,pTrkCell{:});
+dGTTrkAll = cat(1,dGTTrkCell{:});
+assert(isequal(height(pTrkAll),height(tblMFgt),size(dGTTrkAll,1)));
+fldsID = MFTable.FLDSID;
+[tf,loc] = ismember(tblMFgt(:,fldsID),pTrkAll(:,fldsID));
+assert(all(tf));
+pTrkAll = pTrkAll(loc,:);
+dGTTrkAll = dGTTrkAll(loc,:);
+
+if tblfldscontains(tblMFgt,'roi')
+  flds = MFTable.FLDSCOREROI;
+else
+  flds = MFTable.FLDSCORE;
+end
+tblXVres = tblMFgt(:,flds);
+if tblfldscontains(tblMFgt,'pAbs')
+  tblXVres.p = tblMFgt.pAbs;
+end
+tblXVres.pTrk = pTrkAll.pTrk;
+tblXVres.dGTTrk = dGTTrkAll;
+
+CrossValidResults(lObj,str,tblXVres);
+
+% hDlg = dialog('Name','Cross Validation','resize','on','WindowStyle','normal');
+% BORDER = 0.025;
+% hTxt = uicontrol('Parent',hDlg,'Style','edit',...
+%   'units','normalized','position',[BORDER BORDER 1-2*BORDER 1-2*BORDER],...
+%   'enable','on','Max',2,'horizontalalignment','left',...
+%   'String',str,'FontName','Courier New');
 
 function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
 onoff = onIff(handles.labelerObj.tracker.storeFullTracking);

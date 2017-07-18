@@ -636,6 +636,38 @@ classdef CPRLabelTracker < LabelTracker
   %% TrackRes
   methods
 
+    function setAllTrackResTable(obj,tblTrkRes,pTrkiPt)
+      % Set all current tracking results in a table. 
+      % USE WITH CAUTION
+      %
+      % tblTrkRes: [NTrk x ncol] table of tracking results. Flds 
+      %   'mov','frm','iTgt',(opt) 'roi','pTrk'. pTrk like obj.trkP; 
+      %    ABSOLUTE coords
+      % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
+      %          size(tblTrkRes.pTrk,2)==npttrk*d
+
+      tblfldscontainsassert(tblTrkRes,[MFTable.FLDSID 'pTrk']);
+      fldsMD = MFTable.FLDSID;
+      if tblfldscontains(tblTrkRes,'roi')
+        fldsMD{end+1} = 'roi';
+      end
+      
+      nTrk = height(tblTrkRes);
+      assert(size(tblTrkRes.pTrk,2)==numel(pTrkiPt)*2);
+      
+      obj.trkPMD = tblTrkRes(:,fldsMD);
+      obj.trkP = tblTrkRes.pTrk;
+      obj.trkPTS = repmat(now,nTrk,1);
+      obj.trkPiPt = pTrkiPt;
+      if obj.storeFullTracking
+        warningNoTrace('CPRLabelTracker:trk','Full tracking results not set.');
+      end
+      obj.trkPFull = [];
+      
+      obj.vizLoadXYPrdCurrMovieTarget();
+      obj.newLabelerFrame();
+    end
+    
     function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj) % obj const
       % Get all current tracking results in a table
       %
