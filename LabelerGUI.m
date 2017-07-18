@@ -1,26 +1,5 @@
 function varargout = LabelerGUI(varargin)
-% LARVALABELER MATLAB code for LarvaLabeler.fig
-%      LARVALABELER, by itself, creates a new LARVALABELER or raises the existing
-%      singleton*.
-%
-%      H = LARVALABELER returns the handle to a new LARVALABELER or the handle to
-%      the existing singleton*.
-%
-%      LARVALABELER('CALLBACK',hObject,eventData,handles,...) calls the local
-%      function named CALLBACK in LARVALABELER.M with the given input arguments.
-%
-%      LARVALABELER('Property','Value',...) creates a new LARVALABELER or raises the
-%      existing singleton*.  Starting from the left, property value pairs are
-%      applied to the GUI before LabelerGUI_OpeningFcn gets called.  An
-%      unrecognized property name or invalid value makes property application
-%      stop.  All inputs are passed to LabelerGUI_OpeningFcn via varargin.
-%
-%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
-%      instance to run (singleton)".
-%
-% See also: GUIDE, GUIDATA, GUIHANDLES
-
-% Edit the above text to modify the response to help LarvaLabeler
+% Labeler GUI
 
 % Last Modified by GUIDE v2.5 16-Jun-2017 15:12:09
 

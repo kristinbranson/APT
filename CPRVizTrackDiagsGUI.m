@@ -1,6 +1,5 @@
 function varargout = CPRVizTrackDiagsGUI(varargin)
-
-% Last Modified by GUIDE v2.5 18-Apr-2017 16:27:46
+% CPR diagnostics visualization
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;

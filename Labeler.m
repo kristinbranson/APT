@@ -1,5 +1,5 @@
 classdef Labeler < handle
-% Labeler  Bransonlab Animal Video Labeler
+% Bransonlab Animal Video Labeler/Tracker
 
   properties (Constant,Hidden)
     VERSION = '1.2';
@@ -2771,7 +2771,7 @@ classdef Labeler < handle
       
       iMov = obj.currMovie;
       lposTrx = obj.labeledpos{iMov}(:,:,:,iTrx);
-      for dFrm = 0:obj.NEIGHBORING_FRAME_OFFSETS 
+      for dFrm = 0:obj.NEIGHBORING_FRAME_OFFSETS % xxx AL apparent bug
         iFrm0 = iFrm + dFrm;
         iFrm0 = max(iFrm0,1);
         iFrm0 = min(iFrm0,obj.nframes);

@@ -1,26 +1,5 @@
 function varargout = ProjectSetup(varargin)
-% PROJECTSETUP MATLAB code for ProjectSetup.fig
-%      PROJECTSETUP, by itself, creates a new PROJECTSETUP or raises the existing
-%      singleton*.
-%
-%      H = PROJECTSETUP returns the handle to a new PROJECTSETUP or the handle to
-%      the existing singleton*.
-%
-%      PROJECTSETUP('CALLBACK',hObject,eventData,handles,...) calls the local
-%      function named CALLBACK in PROJECTSETUP.M with the given input arguments.
-%
-%      PROJECTSETUP('Property','Value',...) creates a new PROJECTSETUP or raises the
-%      existing singleton*.  Starting from the left, property value pairs are
-%      applied to the GUI before ProjectSetup_OpeningFcn gets called.  An
-%      unrecognized property name or invalid value makes property application
-%      stop.  All inputs are passed to ProjectSetup_OpeningFcn via varargin.
-%
-%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
-%      instance to run (singleton)".
-%
-% See also: GUIDE, GUIDATA, GUIHANDLES
-
-% Edit the above text to modify the response to help ProjectSetup
+% New project creation
 
 % Last Modified by GUIDE v2.5 11-May-2017 09:56:40
 

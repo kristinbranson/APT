@@ -1,4 +1,6 @@
 classdef LabelCoreSeq < LabelCore
+% Sequential labeling  
+  
   % Label mode 1 (Sequential)
   %
   % There are three labeling states: 'label', 'adjust', 'accepted'.

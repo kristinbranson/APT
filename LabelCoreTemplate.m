@@ -1,4 +1,5 @@
 classdef LabelCoreTemplate < LabelCore
+% Template-based labeling  
   
   % DESCRIPTION
   % In Template mode, there is a set of template/"white" points on the
