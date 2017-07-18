@@ -3367,7 +3367,7 @@ classdef Labeler < handle
           obj.labeledpos,obj.labeledpostag,'lbl',...
           'noImg',true,'lposTS',obj.labeledposTS,'movieNamesID',movIDs);
         tblMF.iTgt = ones(height(tblMF),1);
-        tblMF.pTrx = nan(height(tblMF,2));
+        tblMF.pTrx = nan(height(tblMF),2);
       end
       
       tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
