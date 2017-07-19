@@ -2054,6 +2054,12 @@ end
 
 [nGT,nFold,muErr,muErrPt,tblErrMov] = ...
   Labeler.trackCrossValidateStats(dGTTrkCell,pTrkCell);
+
+movIDs = lObj.movieSetIDsAll;
+[tf,loc] = ismember(tblErrMov.mov,movIDs);
+assert(all(tf));
+tblErrMov.movIdx = loc;
+
 str = { ...
   sprintf('GT dataset: %d labeled frames across %d movies',nGT,height(tblErrMov));
   sprintf('Number of folds: %d',nFold);
@@ -2069,7 +2075,7 @@ for imov=1:height(tblErrMov)
   [path,movS] = myfileparts(trow.mov{1});
   [~,path] = myfileparts(path);
   mov = fullfile(path,movS);
-  str{end+1,1} = sprintf('  ... movie %s (%d rows): %.2f',mov,...
+  str{end+1,1} = sprintf('  ... movie %d, %s (%d rows): %.2f',trow.movIdx,mov,...
     trow.count,trow.err); %#ok<AGROW>
 end 
 

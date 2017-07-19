@@ -150,6 +150,8 @@ classdef Labeler < handle
   properties (Dependent)
     isMultiView;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
+    movieIDsAll; % like movieFilesAll, but standardized
+    movieSetIDsAll; % [nmovsetx1] ids, single char for each movieset
     hasMovie;
     moviefile;
     nframes;
@@ -268,11 +270,13 @@ classdef Labeler < handle
   
   %% Misc
   properties (SetObservable, AbortSet)
-    currMovie;            % idx into .movieFilesAll (row index, when obj.multiView is true)
     prevFrame = nan;      % last previously VISITED frame
     currTarget = nan;     % always 1 if proj doesn't have trx
     
     currImHud; % scalar AxisHUD object TODO: move to LabelerGUI. init: C
+  end
+  properties (AbortSet)
+    currMovie; % idx into .movieFilesAll (row index, when obj.multiView is true)
   end
   properties (SetObservable)
     currFrame = 1; % current frame
@@ -318,6 +322,12 @@ classdef Labeler < handle
       end
       v = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,obj.projMacros);
       FSPath.warnUnreplacedMacros(v);
+    end
+    function v = get.movieIDsAll(obj)
+      v = FSPath.standardPath(obj.movieFilesAll);
+    end
+    function v = get.movieSetIDsAll(obj)
+      v = MFTable.formMultiMovieIDArray(obj.movieIDsAll);
     end
     function v = get.hasMovie(obj)
       v = obj.movieReader(1).isOpen;
@@ -3594,7 +3604,7 @@ classdef Labeler < handle
               xtrxs = cellfun(@(xx)xx(iTgt).x(f+xx(iTgt).off),trxI);
               ytrxs = cellfun(@(xx)xx(iTgt).y(f+xx(iTgt).off),trxI);
               
-              s(end+1,1).mov = movIDI; %#ok<AGROW>
+              s(end+1,1).mov = movIDI; %#ok<AGROW> % xxx apparent bug, need FSPath.formMultiMovieID; but only for hasTrx + multiview which is currently unsupported
               s(end).frm = f;
               s(end).iTgt = iTgt;
               s(end).p = Shape.xy2vec(lposIFrmTgt);

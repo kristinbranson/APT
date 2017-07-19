@@ -64,8 +64,8 @@ function varargout = CrossValidResults_OutputFcn(hObject, eventdata, handles)
 varargout{1} = handles.output;
 
 function pbExport_Callback(hObject, eventdata, handles)
-assignin('base','aptXVRes',handles.tblXVRes);
-msgbox('Wrote variable ''aptXVRes'' in base workspace.','Export results');
+assignin('base','aptXVresults',handles.tblXVRes);
+msgbox('Wrote variable ''aptXVresults'' in base workspace.','Export results');
 
 function pbViewTrackingResults_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

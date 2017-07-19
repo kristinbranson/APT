@@ -52,7 +52,7 @@ classdef LabelTracker < handle
       end
       obj.trkVizInterpolate = val;
       
-      obj.hLCurrMovie = addlistener(labelerObj,'currMovie','PostSet',@(s,e)obj.newLabelerMovie());
+      obj.hLCurrMovie = addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
       obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
       obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
     end

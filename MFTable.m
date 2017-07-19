@@ -71,6 +71,15 @@ classdef MFTable
       movID = movID(1:end-1);
     end
     
+    function movIDs = formMultiMovieIDArray(movs)
+      % movs: [nxnview] cellstr
+      %
+      % movIDs: [nx1] cellstr
+      assert(iscellstr(movs) && ismatrix(movs));
+      movIDs = arrayfun(@(x)MFTable.formMultiMovieID(movs(x,:)),...
+        (1:size(movs,1))','uni',0);
+    end
+    
     function movs = unpackMultiMovieID(movID)
       movs = regexp(movID,'#','split');
     end

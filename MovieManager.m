@@ -52,12 +52,13 @@ lObj = varargin{1};
 handles.labeler = lObj;
 handles.output = hObject;
 hObject.Visible = 'off';
-PROPS = {'movieFilesAll' 'movieFilesAllHaveLbls' 'currMovie'};
+PROPS = {'movieFilesAll' 'movieFilesAllHaveLbls'};
 mcls = metaclass(lObj);
 mprops = mcls.PropertyList;
 mprops = mprops(ismember({mprops.Name}',PROPS));
-handles.listener = event.proplistener(lObj,...
+handles.listener{1,1} = event.proplistener(lObj,...
   mprops,'PostSet',@(src,evt)cbkUpdateTable(hObject));
+handles.listener{2,1} = addlistener(lObj,'newMovie',@(src,evt)cbkUpdateTable(hObject));
 
 % 20151218: now using JTable; uitable in .fig just used for positioning
 if isa(handles.tblMovies,'matlab.ui.control.Table')
