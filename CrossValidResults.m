@@ -1,26 +1,5 @@
 function varargout = CrossValidResults(varargin)
-% CROSSVALIDRESULTS MATLAB code for CrossValidResults.fig
-%      CROSSVALIDRESULTS, by itself, creates a new CROSSVALIDRESULTS or raises the existing
-%      singleton*.
-%
-%      H = CROSSVALIDRESULTS returns the handle to a new CROSSVALIDRESULTS or the handle to
-%      the existing singleton*.
-%
-%      CROSSVALIDRESULTS('CALLBACK',hObject,eventData,handles,...) calls the local
-%      function named CALLBACK in CROSSVALIDRESULTS.M with the given input arguments.
-%
-%      CROSSVALIDRESULTS('Property','Value',...) creates a new CROSSVALIDRESULTS or raises the
-%      existing singleton*.  Starting from the left, property value pairs are
-%      applied to the GUI before CrossValidResults_OpeningFcn gets called.  An
-%      unrecognized property name or invalid value makes property application
-%      stop.  All inputs are passed to CrossValidResults_OpeningFcn via varargin.
-%
-%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
-%      instance to run (singleton)".
-%
-% See also: GUIDE, GUIDATA, GUIHANDLES
-
-% Edit the above text to modify the response to help CrossValidResults
+% Display/UI for cross-validation results
 
 % Last Modified by GUIDE v2.5 18-Jul-2017 09:55:33
 
