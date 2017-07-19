@@ -1,4 +1,6 @@
 classdef LabelTracker < handle
+% Tracker base class
+
   % LabelTracker knows how to take a bunch of images+labels and learn a
   % classifier to predict/track labels on new images.
   %

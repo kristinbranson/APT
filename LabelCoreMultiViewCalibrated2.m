@@ -1,4 +1,5 @@
 classdef LabelCoreMultiViewCalibrated2 < LabelCore
+% Multiview labeling for calibrated cameras  
 
   % Hitting a number key gets you "working on" a certain ptset. All pts
   % in this set bolded; all other pts dimmed. Hitting the same number key

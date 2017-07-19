@@ -1,5 +1,5 @@
 function APTCluster(varargin)
-% APTCluster(varargin)
+% Compiled APT operations
 %
 % % Do a full retrain of a project's tracker
 % APTCluster(lblFile,'retrain')

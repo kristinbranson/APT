@@ -1,11 +1,11 @@
 classdef FSPath
-  % FSPath -- File System Path utilities
-  
-  % STANDARDIZED paths use the separator '/' and eliminate
-  % double-separators etc. Standardized paths are supposed to look the same 
-  % across platforms, modulo differing filesystem mount names etc.
-  %
-  % MACROS begin look like $datadir and be substituted.   
+% Filesystem path utilities
+%  
+% STANDARDIZED paths use the separator '/' and eliminate
+% double-separators etc. Standardized paths are supposed to look the same 
+% across platforms, modulo differing filesystem mount names etc.
+%
+% MACROS begin look like $datadir and be substituted.   
   
   methods (Static)
   

@@ -1,18 +1,19 @@
 classdef LabelCore < handle
-  % LabelCore 
-  % Handles the details of labeling: the labeling state machine, 
-  % managing in-progress labels, etc. 
-  %
-  % LabelCore intercepts all axes_curr (and children) BDFs, figure 
-  % Window*Fcns, figure keypresses, and tbAccept/pbClear signals to
-  % implement the labeling state machine; ie labelng is enabled by ptsBDF, 
-  % figWBMF, figWBUF acting in concert. When labels are accepted, they are 
-  % written back to the Labeler.
-  %
-  % Labeler provides LabelCore with target/frame transitions, trx info,
-  % accepted labels info. LabelCore read/writes labeledpos through
-  % Labeler's API, and for convenience directly manages limited uicontrols 
-  % on LabelerGUI (pbClear, tbAccept).
+% Labeling base class 
+%
+% Handles the details of labeling: the labeling state machine, managing 
+% in-progress labels, etc.
+%
+% LabelCore intercepts all axes_curr (and children) BDFs, figure
+% Window*Fcns, figure keypresses, and tbAccept/pbClear signals to
+% implement the labeling state machine; ie labelng is enabled by ptsBDF,
+% figWBMF, figWBUF acting in concert. When labels are accepted, they are
+% written back to the Labeler.
+%
+% Labeler provides LabelCore with target/frame transitions, trx info,
+% accepted labels info. LabelCore read/writes labeledpos through
+% Labeler's API, and for convenience directly manages limited uicontrols
+% on LabelerGUI (pbClear, tbAccept).
   
   properties (Constant,Hidden)
     DT2P = 5;

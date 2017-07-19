@@ -1,12 +1,12 @@
 classdef MFTable
-  % MFTable -- Movie/Frame tables
-  %
-  % An MFTable is a table with cols 'mov' and 'frm' indicating movies and
-  % frame numbers. 
-  %
-  % 'mov' is usually filled with "movieIDs": FSPath/"standardized" 
-  % moviepaths, which can include macros. For multiview data, 'mov' can 
-  % contain multiuple movieIDs delimited by #.
+% Movie/Frame tables
+%
+% An MFTable is a table with cols 'mov' and 'frm' indicating movies and
+% frame numbers.
+%
+% 'mov' is usually filled with "movieIDs": FSPath/"standardized"
+% moviepaths, which can include macros. For multiview data, 'mov' can
+% contain multiuple movieIDs delimited by #.
   
   properties (Constant)
     % Uniquely IDs a frame/target

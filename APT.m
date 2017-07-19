@@ -1,4 +1,4 @@
-classdef APT 
+classdef APT
   
   properties (Constant)
     Root = fileparts(mfilename('fullpath'));

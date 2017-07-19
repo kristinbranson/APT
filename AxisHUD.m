@@ -1,5 +1,5 @@
 classdef AxisHUD < handle
-  % Heads-up display for an axis; right now specifically for Labeler
+% Axis heads-up display
   
   properties % basically Constant
     txtXoff = 10;
