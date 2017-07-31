@@ -1,4 +1,6 @@
 classdef LabelTracker < handle
+% Tracker base class
+
   % LabelTracker knows how to take a bunch of images+labels and learn a
   % classifier to predict/track labels on new images.
   %
@@ -52,7 +54,7 @@ classdef LabelTracker < handle
       end
       obj.trkVizInterpolate = val;
       
-      obj.hLCurrMovie = addlistener(labelerObj,'currMovie','PostSet',@(s,e)obj.newLabelerMovie());
+      obj.hLCurrMovie = addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
       obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
       obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
     end
@@ -245,23 +247,7 @@ classdef LabelTracker < handle
       end
       prm = ReadYaml(prmFile);
     end
-        
-    %#MV
-    % TODO: DEPRECATE
-    function tblP = getTblP(obj,iMovs,frms) % obj CONST
-      % From .lObj, read tblP for given movies/frames.
             
-      labelerObj = obj.lObj;
-      assert(~labelerObj.hasTrx,...
-        'Legacy codepath not intended for multitarget projects.');
-      movID = labelerObj.movieFilesAll;
-      movID = FSPath.standardPath(movID);
-      [~,tblP] = Labeler.lblCompileContentsRaw(labelerObj.movieFilesAllFull,...
-        labelerObj.labeledpos,labelerObj.labeledpostag,iMovs,frms,...
-        'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
-      tblP.iTgt = ones(height(tblP),1);
-    end
-    
   end
   
   methods (Static)

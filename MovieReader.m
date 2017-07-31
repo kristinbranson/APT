@@ -1,6 +1,5 @@
 classdef MovieReader < handle
-  % MovieReader
-  % Like VideoReader; wraps get_readframe_fcn 
+% Like VideoReader, but wraps get_readframe_fcn
   
   properties (SetAccess=private)
     filename = '';

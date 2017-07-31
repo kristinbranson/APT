@@ -1,21 +1,38 @@
 classdef MFTable
-  % MFTable -- Movie/Frame tables
-  %
-  % An MFTable is a table with cols 'mov' and 'frm' indicating movies and
-  % frame numbers. 
-  %
-  % 'mov' is usually filled with "movieIDs": FSPath/"standardized" 
-  % moviepaths, which can include macros. For multiview data, 'mov' can 
-  % contain multiuple movieIDs delimited by #.
+% Movie/Frame tables
+%
+% An MFTable is a table with cols 'mov' and 'frm' indicating movies and
+% frame numbers.
+%
+% 'mov' is usually filled with "movieIDs": FSPath/"standardized"
+% moviepaths, which can include macros. For multiview data, 'mov' can
+% contain multiuple movieIDs delimited by #.
   
   properties (Constant)
+    % Uniquely IDs a frame/target
     FLDSID = {'mov' 'frm' 'iTgt'};
+    
+    % Core training/test data.
+    FLDSCORE = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+    % In ROI case, .p is relative to .ROI
+    FLDSCOREROI = {'mov' 'frm' 'iTgt' 'tfocc' 'p' 'roi'};
+
+    FLDSFULL = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc'};
+    
+    %  mov    single string unique ID for movieSetID combo
+    %  frm    1-based frame index
+    %  iTgt   1-based trx index
+    %  p      Absolute label positions (px). Raster order: physpt,view,{x,y}
+    %  pTS    [npts=nphyspt*nview] timestamps
+    %  tfocc  [npts=nphyspt*nview] logical occluded flag
+    %  pTrx   [nview*2], trx .x and .y. Raster order: view,{x,y}
+    FLDSFULLTRX = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'};    
   end
   
   methods (Static)
     
     function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)
-      % Compare tblP to tblP0 wrt fields FLDSFULL (see below)
+      % Compare tblP to tblP0 wrt fields FLDSCORE (see below)
       %
       % tblP0, tblP: MF tables
       %
@@ -26,12 +43,12 @@ classdef MFTable
       %   ie tblP0(idx0update,:) ~ tblPupdate
       
       FLDSID = MFTable.FLDSID;
-      FLDSFULL = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
-      assert(all(ismember(FLDSFULL,tblP0.Properties.VariableNames)));
-      assert(all(ismember(FLDSFULL,tblP.Properties.VariableNames)));
+      FLDSCORE = MFTable.FLDSCORE;
+      tblfldscontainsassert(tblP0,FLDSCORE);
+      tblfldscontainsassert(tblP,FLDSCORE);
       
       tfNew = ~ismember(tblP(:,FLDSID),tblP0(:,FLDSID));
-      tfDiff = ~ismember(tblP(:,FLDSFULL),tblP0(:,FLDSFULL));
+      tfDiff = ~ismember(tblP(:,FLDSCORE),tblP0(:,FLDSCORE));
       tfUpdate = tfDiff & ~tfNew; 
             
       tblPnew = tblP(tfNew,:);
@@ -52,6 +69,15 @@ classdef MFTable
       assert(iscellstr(movs) && isrow(movs));
       movID = sprintf('%s#',movs{:});
       movID = movID(1:end-1);
+    end
+    
+    function movIDs = formMultiMovieIDArray(movs)
+      % movs: [nxnview] cellstr
+      %
+      % movIDs: [nx1] cellstr
+      assert(iscellstr(movs) && ismatrix(movs));
+      movIDs = arrayfun(@(x)MFTable.formMultiMovieID(movs(x,:)),...
+        (1:size(movs,1))','uni',0);
     end
     
     function movs = unpackMultiMovieID(movID)

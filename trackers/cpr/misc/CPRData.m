@@ -297,7 +297,7 @@ classdef CPRData < handle
       % Read frames from movies given MF table
       % 
       % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
-      % multiview data.
+      % multiview data. Fields: .mov, .frm, (optional, but used) .roi
       % 
       % I: [NxnView] cell vector of images for each row of tbl
       %

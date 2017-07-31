@@ -1,8 +1,16 @@
 classdef Icons
   properties (Constant)
-    GFXDIR = fullfile(fileparts(mfilename('fullpath')),'gfx');
+    GFXDIR = lclInitGfxDir();
     ims = lclInitIms(); % ims.keyword is [nxnx3] RGB icon image with nan for transparency
   end
+end
+
+function d = lclInitGfxDir()
+if isdeployed
+  d = fullfile(ctfroot,'gfx');
+else
+  d = fullfile(APT.Root,'gfx');
+end
 end
 
 function s = lclInitIms()

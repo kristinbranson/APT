@@ -1,26 +1,5 @@
 function varargout = MovieManager(varargin)
-% MOVIEMANAGER MATLAB code for MovieManager.fig
-%      MOVIEMANAGER, by itself, creates a new MOVIEMANAGER or raises the existing
-%      singleton*.
-%
-%      H = MOVIEMANAGER returns the handle to a new MOVIEMANAGER or the handle to
-%      the existing singleton*.
-%
-%      MOVIEMANAGER('CALLBACK',hObject,eventData,handles,...) calls the local
-%      function named CALLBACK in MOVIEMANAGER.M with the given input arguments.
-%
-%      MOVIEMANAGER('Property','Value',...) creates a new MOVIEMANAGER or raises the
-%      existing singleton*.  Starting from the left, property value pairs are
-%      applied to the GUI before MovieManager_OpeningFcn gets called.  An
-%      unrecognized property name or invalid value makes property application
-%      stop.  All inputs are passed to MovieManager_OpeningFcn via varargin.
-%
-%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
-%      instance to run (singleton)".
-%
-% See also: GUIDE, GUIDATA, GUIHANDLES
-
-% Edit the above text to modify the response to help MovieManager
+% Movie table GUI
 
 % Last Modified by GUIDE v2.5 03-Oct-2016 13:16:20
 
@@ -52,12 +31,13 @@ lObj = varargin{1};
 handles.labeler = lObj;
 handles.output = hObject;
 hObject.Visible = 'off';
-PROPS = {'movieFilesAll' 'movieFilesAllHaveLbls' 'currMovie'};
+PROPS = {'movieFilesAll' 'movieFilesAllHaveLbls'};
 mcls = metaclass(lObj);
 mprops = mcls.PropertyList;
 mprops = mprops(ismember({mprops.Name}',PROPS));
-handles.listener = event.proplistener(lObj,...
+handles.listener{1,1} = event.proplistener(lObj,...
   mprops,'PostSet',@(src,evt)cbkUpdateTable(hObject));
+handles.listener{2,1} = addlistener(lObj,'newMovie',@(src,evt)cbkUpdateTable(hObject));
 
 % 20151218: now using JTable; uitable in .fig just used for positioning
 if isa(handles.tblMovies,'matlab.ui.control.Table')

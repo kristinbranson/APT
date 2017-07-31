@@ -1,26 +1,5 @@
 function varargout = LabelerGUI(varargin)
-% LARVALABELER MATLAB code for LarvaLabeler.fig
-%      LARVALABELER, by itself, creates a new LARVALABELER or raises the existing
-%      singleton*.
-%
-%      H = LARVALABELER returns the handle to a new LARVALABELER or the handle to
-%      the existing singleton*.
-%
-%      LARVALABELER('CALLBACK',hObject,eventData,handles,...) calls the local
-%      function named CALLBACK in LARVALABELER.M with the given input arguments.
-%
-%      LARVALABELER('Property','Value',...) creates a new LARVALABELER or raises the
-%      existing singleton*.  Starting from the left, property value pairs are
-%      applied to the GUI before LabelerGUI_OpeningFcn gets called.  An
-%      unrecognized property name or invalid value makes property application
-%      stop.  All inputs are passed to LabelerGUI_OpeningFcn via varargin.
-%
-%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
-%      instance to run (singleton)".
-%
-% See also: GUIDE, GUIDATA, GUIHANDLES
-
-% Edit the above text to modify the response to help LarvaLabeler
+% Labeler GUI
 
 % Last Modified by GUIDE v2.5 16-Jun-2017 15:12:09
 
@@ -61,6 +40,7 @@ if verLessThan('matlab','8.4')
 end
 
 hObject.Name = 'APT';
+hObject.HandleVisibility = 'on';
 
 % reinit uicontrol strings etc from GUIDE for cosmetic purposes
 set(handles.txPrevIm,'String','');
@@ -156,6 +136,14 @@ handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_show_3D_axes',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
+
+handles.menu_track_crossvalidate = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_crossvalidate_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Cross validate',...
+  'Tag','menu_track_crossvalidate',...
+  'Separator','off',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_track_crossvalidate,handles.menu_track_retrain);
 
 handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_Callback',hObject,eventdata,guidata(hObject)),...
@@ -666,7 +654,9 @@ hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_fra
 set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
 set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
-set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
+if ispc
+  set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
+end
 
 handles = setShortcuts(handles);
 
@@ -742,10 +732,13 @@ nframes = lObj.nframes;
 sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
 set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
 
-ifo = lObj.movieInfoAll{lObj.currMovie,1}.info;
-minzoomrad = 10;
-maxzoomrad = (ifo.nc+ifo.nr)/4;
-handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
+tfHasMovie = lObj.currMovie>0;
+if tfHasMovie
+  ifo = lObj.movieInfoAll{lObj.currMovie,1}.info;
+  minzoomrad = 10;
+  maxzoomrad = (ifo.nc+ifo.nr)/4;
+  handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
+end
 
 TRX_MENUS = {...
   'menu_view_trajectories_centervideoontarget'
@@ -1116,12 +1109,8 @@ wbObj = WaitBarWithCancel('Tracking');
 oc = onCleanup(@()delete(wbObj));
 handles.labelerObj.track(tm,'wbObj',wbObj);
 if wbObj.isCancel
-  if isempty(wbObj.cancelData)
-    str = 'Tracking canceled.';
-  else
-    str = sprintf('Tracking canceled: %s',wbObj.cancelData.msg);
-  end
-  msgbox(str,'Track');
+  msg = wbObj.cancelMessage('Tracking canceled');
+  msgbox(msg,'Track');
 end
 
 function pbClear_Callback(hObject, eventdata, handles)
@@ -1998,6 +1987,109 @@ lObj.tracker.trainingDataMontage();
 
 function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();
+
+function menu_track_crossvalidate_Callback(hObject, eventdata, handles)
+
+lObj = handles.labelerObj;
+if lObj.tracker.hasTrained
+  resp = questdlg('Any existing trained tracker and tracking results will be cleared. Proceed?',...
+    'Cross Validation',...
+    'OK, Proceed','Cancel','Cancel');
+  if isempty(resp)
+    resp = 'Cancel';
+  end
+  switch resp
+    case 'OK, Proceed'
+      % none
+    case 'Cancel'
+      return;
+    otherwise
+      assert(false);
+  end
+end
+
+tblMFgt = lObj.labelGetMFTableLabeled();
+tblMFgt = lObj.tracker.hlpAddRoiIfNec(tblMFgt);
+inputstr = sprintf('This project has %d labeled frames.\nNumber of folds for k-fold cross validation:',...
+  height(tblMFgt));
+resp = inputdlg(inputstr,'Cross Validation',1,{'7'});
+if isempty(resp)
+  return;
+end
+nfold = str2double(resp{1});
+if round(nfold)~=nfold || nfold<=1
+  error('LabelerGUI:xvalid','Number of folds must be a positive integer greater than 1.');
+end
+      
+wbObj = WaitBarWithCancel('Cross Validation');
+oc = onCleanup(@()delete(wbObj));
+[dGTTrkCell,pTrkCell] = lObj.trackCrossValidate('kfold',nfold,...
+  'wbObj',wbObj,'tblMFgt',tblMFgt);
+if wbObj.isCancel
+  msg = wbObj.cancelMessage('Cross validation canceled');
+  msgbox(msg,'Cross Validation');
+  return;
+end
+
+[nGT,nFold,muErr,muErrPt,tblErrMov] = ...
+  Labeler.trackCrossValidateStats(dGTTrkCell,pTrkCell);
+
+movIDs = lObj.movieSetIDsAll;
+[tf,loc] = ismember(tblErrMov.mov,movIDs);
+assert(all(tf));
+tblErrMov.movIdx = loc;
+
+str = { ...
+  sprintf('GT dataset: %d labeled frames across %d movies',nGT,height(tblErrMov));
+  sprintf('Number of folds: %d',nFold);
+  '';
+  sprintf('Mean err, all points (px): %.2f',muErr)};
+for ipt=1:numel(muErrPt)
+  str{end+1,1} = sprintf('  ... point %d: %.2f',ipt,muErrPt(ipt)); %#ok<AGROW>
+end
+str{end+1,1} = '';
+str{end+1,1} = sprintf('Mean err, all movies (px): %.2f',muErr);
+for imov=1:height(tblErrMov)
+  trow = tblErrMov(imov,:);
+  [path,movS] = myfileparts(trow.mov{1});
+  [~,path] = myfileparts(path);
+  mov = fullfile(path,movS);
+  str{end+1,1} = sprintf('  ... movie %d, %s (%d rows): %.2f',trow.movIdx,mov,...
+    trow.count,trow.err); %#ok<AGROW>
+end 
+
+% pTrkCell
+% dGTTrkCell
+% tblMFgt
+pTrkAll = cat(1,pTrkCell{:});
+dGTTrkAll = cat(1,dGTTrkCell{:});
+assert(isequal(height(pTrkAll),height(tblMFgt),size(dGTTrkAll,1)));
+fldsID = MFTable.FLDSID;
+[tf,loc] = ismember(tblMFgt(:,fldsID),pTrkAll(:,fldsID));
+assert(all(tf));
+pTrkAll = pTrkAll(loc,:);
+dGTTrkAll = dGTTrkAll(loc,:);
+
+if tblfldscontains(tblMFgt,'roi')
+  flds = MFTable.FLDSCOREROI;
+else
+  flds = MFTable.FLDSCORE;
+end
+tblXVres = tblMFgt(:,flds);
+if tblfldscontains(tblMFgt,'pAbs')
+  tblXVres.p = tblMFgt.pAbs;
+end
+tblXVres.pTrk = pTrkAll.pTrk;
+tblXVres.dGTTrk = dGTTrkAll;
+
+CrossValidResults(lObj,str,tblXVres);
+
+% hDlg = dialog('Name','Cross Validation','resize','on','WindowStyle','normal');
+% BORDER = 0.025;
+% hTxt = uicontrol('Parent',hDlg,'Style','edit',...
+%   'units','normalized','position',[BORDER BORDER 1-2*BORDER 1-2*BORDER],...
+%   'enable','on','Max',2,'horizontalalignment','left',...
+%   'String',str,'FontName','Courier New');
 
 function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
 onoff = onIff(handles.labelerObj.tracker.storeFullTracking);
