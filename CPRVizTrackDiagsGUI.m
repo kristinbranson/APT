@@ -27,6 +27,9 @@ lObj = varargin{1};
 if isempty(lObj.tracker)
   error('CPRVizTrackDiagsGUI:track','No tracker found');
 end
+if ~lObj.tracker.hasTrained
+  error('CPRVizTrackDiagsGUI:train','Tracker has not been trained.');
+end
 
 vizObj = CPRVizTrackDiags(lObj,hObject);
 listeners = cell(0,1);
@@ -90,8 +93,8 @@ vizObj.fireSetObs();
 
 handles.txNumFerns.String = num2str(vizObj.M);
 handles.txNumUsed.String = num2str(vizObj.metaNUse);
-handles.txFtrType = vizObj.rcObj.prmFtr.type;
-handles.txMetaType = vizObj.rcObj.prmFtr.metatype;
+handles.txFtrType.String = vizObj.rcObj.prmFtr.type;
+handles.txMetaType.String = vizObj.rcObj.prmFtr.metatype;
 handles.txNumFeatures.String = num2str(vizObj.rcObj.prmFtr.F);
 
 guidata(hObject, handles);
