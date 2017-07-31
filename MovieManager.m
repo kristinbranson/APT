@@ -66,7 +66,7 @@ handles.cbkGetSelectedMovies = @()cbkGetSelectedMovies(hObject);
 
 guidata(hObject,handles);
 centerfig(handles.figure1,handles.labeler.gdata.figure);
-%cbkUpdateTable(hObject);
+handles.figure1.DeleteFcn = @lclDeleteFig;
 
 function varargout = MovieManager_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
@@ -192,8 +192,14 @@ end
 
 function figure1_CloseRequestFcn(hObject, eventdata, handles)
 hObject.Visible = 'off';
-% if isvalid(handles.listener)
-%   delete(handles.listener);
-%   handles.listener = [];
-% end
-% delete(hObject);
+
+function lclDeleteFig(src,evt)
+handles = guidata(src);
+listenObjs = handles.listener;
+for i=1:numel(listenObjs)
+  o = listenObjs{i};
+  if isvalid(o)
+    delete(o);
+  end
+end
+
