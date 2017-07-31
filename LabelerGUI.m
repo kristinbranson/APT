@@ -2061,6 +2061,10 @@ end
 % pTrkCell
 % dGTTrkCell
 % tblMFgt
+for i=1:numel(pTrkCell)
+  tblFold = table(repmat(i,height(pTrkCell{i}),1),'VariableNames',{'fold'});
+  pTrkCell{i} = [tblFold pTrkCell{i}];
+end
 pTrkAll = cat(1,pTrkCell{:});
 dGTTrkAll = cat(1,dGTTrkCell{:});
 assert(isequal(height(pTrkAll),height(tblMFgt),size(dGTTrkAll,1)));
@@ -2081,6 +2085,7 @@ if tblfldscontains(tblMFgt,'pAbs')
 end
 tblXVres.pTrk = pTrkAll.pTrk;
 tblXVres.dGTTrk = dGTTrkAll;
+tblXVres = [pTrkAll(:,'fold') tblXVres];
 
 CrossValidResults(lObj,str,tblXVres);
 
