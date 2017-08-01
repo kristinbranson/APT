@@ -25,12 +25,9 @@ classdef CPRLabelTracker < LabelTracker
   % There are three MD tables in CPRLabelTracker: in .data.MD (data),
   % .trnDataTblP (train), and .trkPMD (track).
   %
-  % These are all MFTables (Movie-frame tables) where .mov is computed as
-  % FSPath.standardPath(lObj.movieFilesAll(...)). That is, .mov has
-  % unreplaced macros, and is not localized/platformized. Stored in this
-  % way, .mov is well-suited to serve as a unique movie ID in the tables,
-  % and can be serialized/loaded and concretized to the runtime platform as
-  % appropriate.
+  % These are all MFTables (Movie-frame tables) where .mov is an index into
+  % a row of lObj.movieFilesAll. Conceptually, .mov represents a unique
+  % movie ID.
   %
   % Multiview data: movie IDs computed as above are delimiter-concatenated
   % to form a single unique ID for each movieset.
@@ -41,7 +38,7 @@ classdef CPRLabelTracker < LabelTracker
   % other additional fields such as .tfocc.
   %
   % Some defs:
-  % .mov. unique ID for movie; standardized path, NOT localized/platformized
+  % .mov. unique ID for movie, integer index into lObj.movieFilesAll.
   % .frm. frame number
   % .iTgt. 1-based target index (always 1 for single target proj)
   % .p. [1 x npt*nvw*d=2] labeled shape
@@ -409,13 +406,8 @@ classdef CPRLabelTracker < LabelTracker
       assert(~any(ismember(tblPnew(:,FLDSID),dataCurr.MD(:,FLDSID))));
 
       tblPNewConcrete = tblPnew; % will concretize movie/movieIDs
-      if obj.lObj.isMultiView && ~isempty(tblPNewConcrete.mov)
-        tmp = cellfun(@MFTable.unpackMultiMovieID,tblPNewConcrete.mov,'uni',0);
-        tblPNewConcrete.mov = cat(1,tmp{:});
-      end
-      tblPNewConcrete.mov = FSPath.fullyLocalizeStandardize(...
-        tblPNewConcrete.mov,obj.lObj.projMacros);
-      % tblMFnewConcerete.mov is now [NxnView] 
+      iMov = tblPNewConcrete.mov;
+      tblPNewConcrete.mov = obj.lObj.movieFilesAllFull(iMov,:); % [NxnView] 
       nNew = size(tblPnew,1);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
@@ -700,8 +692,8 @@ classdef CPRLabelTracker < LabelTracker
       % tfHasRes: if true, nontrivial tracking results returned
       
       lObj = obj.lObj;
-      movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
-      movNameID = MFTable.formMultiMovieID(movNameID);
+%       movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
+%       movNameID = MFTable.formMultiMovieID(movNameID);
       nfrms = lObj.movieInfoAll{iMov}.nframes; % For moviesets with movies with differing # of frames, this should be the common minimum
       lpos = lObj.labeledpos{iMov};
       assert(size(lpos,3)==nfrms);
@@ -733,7 +725,7 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(obj.trkPTS) % proxy for no tracking results etc
         tfHasRes = false;
       else
-        tfCurrMov = strcmp(trkMD.mov,movNameID); % these rows of trkMD are for the movie(set) iMov
+        tfCurrMov = trkMD.mov==iMov;
         trkMDCurrMov = trkMD(tfCurrMov,:);
         nCurrMov = nnz(tfCurrMov);
         xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);
@@ -769,11 +761,11 @@ classdef CPRLabelTracker < LabelTracker
       nRep = obj.sPrm.TestInit.Nrep;
       
       lObj = obj.lObj;
-      movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
-      movNameID = MFTable.formMultiMovieID(movNameID);
+%       movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
+%       movNameID = MFTable.formMultiMovieID(movNameID);
       iTgt = lObj.currTarget;
 
-      tfMovFrm = strcmp(trkMD.mov,movNameID) & trkMD.frm==frm & trkMD.iTgt==iTgt;
+      tfMovFrm = trkMD.mov==iMov & trkMD.frm==frm & trkMD.iTgt==iTgt;
       nMovFrm = nnz(tfMovFrm);
       assert(nMovFrm==0 || nMovFrm==1);
       if nMovFrm==0
@@ -1951,16 +1943,23 @@ classdef CPRLabelTracker < LabelTracker
       % business in the following should be no-ops for multiview projects.
       if ~isempty(s.trnDataTblP)
         tblDesc = 'Training data';
-        s.trnDataTblP = MFTable.replaceMovieFullWithMovieID(s.trnDataTblP,...
+        s.trnDataTblP = MFTable.replaceMovieStrWithMovieIdx(s.trnDataTblP,...
           allProjMovIDs,allProjMovsFull,tblDesc);
-        CPRLabelTracker.warnMoviesMissingFromProj(s.trnDataTblP.mov,allProjMovIDs,tblDesc);
+        if any(s.trnDataTblP.mov==0)
+          warndlg('One or more training rows in this project contain an unrecognized movie. This can occur when movies are moved or removed. Retraining your project is recommended.',...
+            'Unrecognized movie');
+        end
         MFTable.warnDupMovFrmKey(s.trnDataTblP,tblDesc);
       end
       if ~isempty(s.trkPMD)
         tblDesc = 'Tracking results';
-        s.trkPMD = MFTable.replaceMovieFullWithMovieID(s.trkPMD,...
+        s.trkPMD = MFTable.replaceMovieStrWithMovieIdx(s.trkPMD,...
           allProjMovIDs,allProjMovsFull,tblDesc);
-        CPRLabelTracker.warnMoviesMissingFromProj(s.trkPMD.mov,allProjMovIDs,tblDesc);
+        if any(s.trkPMD.mov==0)
+          warningNoTrace('CPRLabelTracker:mov',...
+            'One or more tracking result rows in this project contain an unrecognized movie. This can occur when movies in a project are moved or removed. These tracking results will be ignored.',...
+            'Unrecognized tracking results');
+        end
         MFTable.warnDupMovFrmKey(s.trkPMD,tblDesc);
       end
       
@@ -2520,15 +2519,7 @@ classdef CPRLabelTracker < LabelTracker
         sPrm.TestInit.augrotate = [];
       end
     end
-    
-    function warnMoviesMissingFromProj(movs,movsProj,movTypeStr)
-      tfMissing = ~ismember(movs,movsProj);
-      movMiss = movs(tfMissing);
-      movMiss = unique(movMiss);
-      cellfun(@(x)warningNoTrace('CPRLabelTracker:mov',...
-        '%s movie not in project: ''%s''',movTypeStr,x),movMiss);
-    end
-    
+        
     function [xy,isinterp] = interpolateXY(xy)
       % xy (in): [npts d nfrm]
       %

@@ -1548,9 +1548,10 @@ classdef Labeler < handle
           tags = lpostag(:,f);
           
           if tblMovArray
-            s(end+1,1).mov = movieNamesID(iMovSet,:); %#ok<AGROW>
+            assert(false,'Unsupported codepath');
+            %s(end+1,1).mov = movieNamesID(iMovSet,:); %#ok<AGROW>
           else
-            s(end+1,1).mov = movID; %#ok<AGROW>
+            s(end+1,1).mov = iMovSet; %#ok<AGROW>
           end
           %s(end).movS = movS1;
           s(end).frm = f;
@@ -3401,10 +3402,10 @@ classdef Labeler < handle
           'iMovRead',iMov,'frmReadCell',frmCell,'tgtsRead','live');
       else
         [~,tblMF] = Labeler.lblCompileContentsRaw(obj.movieFilesAllFull,...
-          obj.labeledpos,obj.labeledpostag,iMovs,frmCell,...
+          obj.labeledpos,obj.labeledpostag,iMov,frmCell,...
           'noImg',true,'lposTS',obj.labeledposTS,'movieNamesID',movIDs);
         tblMF.iTgt = ones(height(tblMF),1);
-        tblMF.pTrx = nan(height(tblMF,2));
+        tblMF.pTrx = nan(height(tblMF),2);
       end
       
       tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
@@ -3421,9 +3422,10 @@ classdef Labeler < handle
       lposFrmTgt = obj.labeledpos{iMov}(:,:,frm,iTgt);
       lpostagFrmTgt = obj.labeledpostag{iMov}(:,frm,iTgt);
       lposTSFrmTgt = obj.labeledposTS{iMov}(:,frm,iTgt);      
-      movID = FSPath.standardPath(obj.movieFilesAll(iMov,:));
+      %movID = FSPath.standardPath(obj.movieFilesAll(iMov,:));
 
-      mov = movID;
+      %mov = movID;
+      mov = iMov;
       p = Shape.xy2vec(lposFrmTgt); % absolute position
       pTS = lposTSFrmTgt';
       tfocc = strcmp(lpostagFrmTgt','occ');
@@ -3467,8 +3469,8 @@ classdef Labeler < handle
           Shape.xyAndTrx2ROI(xy,xyTrx,nphyspts,roiRadius);
         if any(tfOOBview)
           warningNoTrace('CPRLabelTracker:oob',...
-            'Movie(set) ''%s'', frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
-            tblMF.mov{i},tblMF.frm(i),tblMF.iTgt(i));
+            'Movie(set) %d, frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
+            tblMF.mov(i),tblMF.frm(i),tblMF.iTgt(i));
           tfRmRow(i) = true;
         else
           pRoi(i,:) = Shape.xy2vec(xyROIcurr);
@@ -3534,7 +3536,7 @@ classdef Labeler < handle
 %           waitbar(0,hWB,wbStr);
 %         end        
         
-        movIDI = movID(iMov,:);
+        %movIDI = movID(iMov,:);
         lposI = lpos{iMov};
         lpostagI = lpostag{iMov};
         lposTSI = lposTS{iMov};
@@ -3604,7 +3606,7 @@ classdef Labeler < handle
               xtrxs = cellfun(@(xx)xx(iTgt).x(f+xx(iTgt).off),trxI);
               ytrxs = cellfun(@(xx)xx(iTgt).y(f+xx(iTgt).off),trxI);
               
-              s(end+1,1).mov = movIDI; %#ok<AGROW> % xxx apparent bug, need FSPath.formMultiMovieID; but only for hasTrx + multiview which is currently unsupported
+              s(end+1,1).mov = iMov; %#ok<AGROW> 
               s(end).frm = f;
               s(end).iTgt = iTgt;
               s(end).p = Shape.xy2vec(lposIFrmTgt);
@@ -4150,12 +4152,19 @@ classdef Labeler < handle
       nFold = numel(dGTTrkCell);
       muErrPt = nanmean(tbl.err,1); % [1xnpt]
       muErr = nanmean(muErrPt); % each pt equal wt
-      movUn = unique(tbl.mov);
-      muErrMov = cellfun(@(x) nanmean(nanmean(tbl.err(strcmp(tbl.mov,x),:),1)), ...
-        movUn); % each pt equal wt
-      movUnCnt = cellfun(@(x)nnz(strcmp(tbl.mov,x)),movUn);
-      tblErrMov = table(movUn,movUnCnt,muErrMov,...
-        'VariableNames',{'mov' 'count' 'err'});
+      
+      fcnMuErr = @(zErr)nanmean(zErr(:));
+      tblErrMov = rowfun(fcnMuErr,tbl,'GroupingVariables','mov',...
+        'InputVariables',{'err'},'OutputVariableNames',{'err'});
+      assert(isequal(tblErrMov.Properties.VariableNames,{'mov' 'GroupCount','err'}));
+      tblErrMov.Properties.VariableNames{2} = 'count';
+      
+%      movUn = unique(tbl.mov);
+%       muErrMov = arrayfun(@(x) nanmean(nanmean(tbl.err(tbl.mov==x,:),1)), ...
+%         movUn); % each pt equal wt
+%       movUnCnt = arrayfun(@(x) nnz(tbl.mov==x),movUn);
+%       tblErrMov = table(movUn,movUnCnt,muErrMov,...
+%         'VariableNames',{'mov' 'count' 'err'});
     end
     
 %     function trackSaveResults(obj,fname)

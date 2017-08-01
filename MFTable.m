@@ -154,16 +154,50 @@ classdef MFTable
       end
     end
     
-    function tblMF = replaceMovieFullWithMovieID(tblMF,movIDs,movFull,tblDesc)
-      % Replace "platformized"/full movies with movieIDs/keys
+    function tblMF = replaceMovieStrWithMovieIdx(tblMF,movIDs,movFull,tblDesc)
+      % Replace localized movies or movieIDs with movie idxs
+      %
+      % movIDs: [nx1] cellstr movie IDs
+      % movFull: [nx1] cellstr localized movies
+      % tblDesc: string description of table (for warning messages)
+      %
+      % tblMF: .mov field updated to indices into movIDs/movFull. Warnings
+      % thrown for unrecognized elements of .mov; these indices will be 0.
       
       szassert(movIDs,size(movFull));
-      [tf,loc] = ismember(tblMF.mov,movFull);
-      tblMF.mov(tf) = movIDs(loc(tf));
-      replacestrs = strcat(movFull(loc(tf)),{'->'},movIDs(loc(tf)));
-      replacestrs = unique(replacestrs);
-      cellfun(@(x)warningNoTrace('MFTable:mov',...
-        '%s table: replaced %s to match project.',tblDesc,x),replacestrs);
+      nrow = height(tblMF);
+      assert(iscellstr(tblMF.mov) && size(tblMF.mov,2)==1);
+      tblMFiMov = zeros(nrow,1); % indices into movIDs/movFull for each el of mov
+      mapUnrecognizedMovies = containers.Map();
+      for irow=1:nrow
+        mov = tblMF.mov{irow};
+        
+        iMov = find(strcmp(mov,movIDs));
+        if isscalar(iMov)
+          tblMFiMov(irow) = iMov;
+          continue;
+        else
+          assert(isempty(iMov),'Duplicate movieIDs found.');
+        end
+        
+        iMov = find(strcmp(mov,movFull));
+        if isscalar(iMov)
+          tblMFiMov(irow) = iMov;
+          continue;
+        else
+          assert(isempty(iMov),'Duplicate movie found.');
+        end
+        
+        % If made it to here, mov is not recognized.
+        assert(tblMFiMov(irow)==0);
+        if ~mapUnrecognizedMovies.isKey(mov)
+          warningNoTrace('MFTable:mov',...
+            'Unrecognized movie in table ''%s'': %s',tblDesc,mov);
+          mapUnrecognizedMovies(mov) = 1;
+        end
+      end
+      
+      tblMF.mov = tblMFiMov;
     end
           
   end
