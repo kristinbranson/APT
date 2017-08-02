@@ -77,9 +77,9 @@ classdef CPRLabelTracker < LabelTracker
     % Currently selected training data (includes updates/additions)
     % MD fields: .mov, .frm, .iTgt, .p, .tfocc, .pTS, (opt) .pTrx, (opt) .roi
     trnDataTblP
-    % [size(trnDataTblP,1)x1] timestamps for when rows of trnDataTblP were 
+    % [size(trnDataTblP,1)x1] timestamps for when rows of trnDataTblP were
     % added to CPRLabelTracker
-    trnDataTblPTS 
+    trnDataTblPTS
   end
     
   %% Train/Track
@@ -108,7 +108,7 @@ classdef CPRLabelTracker < LabelTracker
   %% Async
   properties
     asyncPredictOn = false; % if true, background worker is running. newLabelerFrame will fire a parfeval to predict. Could try relying on asyncBGClient.isRunning
-    asyncPredictCPRLTObj; % scalar "detached" CPRLabelTracker object that is deep-copied onto workers. Contains current trained tracker used in backgorund pred.
+    asyncPredictCPRLTObj; % scalar "detached" CPRLabelTracker object that is deep-copied onto workers. Contains current trained tracker used in background pred.
     asyncBGClient; % scalar BGClient object, manages comms with background worker.
   end
   properties (Dependent)
@@ -137,7 +137,7 @@ classdef CPRLabelTracker < LabelTracker
     
     hasTrained
   end
-  
+    
   %% Dep prop getters
   methods
     function v = get.nPts(obj)
@@ -1809,6 +1809,9 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function newLabelerTarget(obj)
+      if obj.lObj.isinit
+        return;
+      end
       if obj.storeFullTracking
         obj.vizLoadXYPrdCurrMovieTarget(); % needed to reload full tracking results
       end
@@ -1819,6 +1822,66 @@ classdef CPRLabelTracker < LabelTracker
       if obj.lObj.hasTrx
         obj.vizInit(); % The number of trx might change
       end
+      obj.vizLoadXYPrdCurrMovieTarget();
+      obj.newLabelerFrame();
+    end
+    
+    function labelerMovieRemoved(obj,eventdata)
+      iMovOrig2New = eventdata.iMovOrig2New;
+      iMovRm = find(iMovOrig2New==0);
+      assert(isscalar(iMovRm)); % for now
+      
+      % .data*. Remove any removed movies from .data cache, relabel MD.mov
+      obj.data.movieRemap(iMovOrig2New);
+      
+      % trnData*. If a movie is being removed that is in trnDataTblP, the
+      % to be safe we invalidate any trained tracker and tracking results.
+      tfRm = obj.trnDataTblP.mov==iMovRm;
+      if any(tfRm)
+        if isdeployed
+          error('CPRLabelTracker:movieRemoved',...
+            'Unexpected codepath for deployed APT.');
+        else
+          resp = questdlg('A movie present in the training data has been removed. Any trained tracker and tracking results will be cleared.',...
+            'Training row removed',...
+            'OK','(Dangerous) Do not clear tracker/tracking results','OK');
+          if isempty(resp)
+            resp = 'OK';
+          end
+          switch resp
+            case 'OK'
+              obj.trnDataInit();
+              obj.trnResInit();
+              obj.trackResInit();
+              obj.vizInit();
+              obj.asyncReset();
+            case '(Dangerous) Do not clear tracker/tracking results'
+              obj.trnDataInit();
+              % trnRes not cleared
+              % trackRes not cleared
+            otherwise
+              assert(false);
+          end
+        end
+      else
+        % .trnDataTblP does not contain a movie-being-removed, but we still
+        % need to relabel movie indices.
+        obj.trnDataTblP.mov = iMovOrig2New(obj.trnDataTblP.mov);
+        assert(~any(obj.trnDataTblP.mov==0));
+      end
+      
+      % trkP*. Relabel .mov in tables; remove any removed movies from 
+      % tracking results. 
+      obj.trkPMD.mov = iMovOrig2New(obj.trkPMD.mov);
+      tfRm = obj.trkPMD.mov==0;
+
+      obj.trkP(tfRm,:) = [];
+      if ~isequal(obj.trkPFull,[])
+        obj.trkPFull(tfRm,:,:,:) = [];
+      end
+      obj.trkPTS(tfRm,:) = [];
+      obj.trkPMD(tfRm,:) = [];
+      
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
     end
@@ -1943,22 +2006,26 @@ classdef CPRLabelTracker < LabelTracker
       % business in the following should be no-ops for multiview projects.
       if ~isempty(s.trnDataTblP)
         tblDesc = 'Training data';
-        s.trnDataTblP = MFTable.replaceMovieStrWithMovieIdx(s.trnDataTblP,...
-          allProjMovIDs,allProjMovsFull,tblDesc);
-        if any(s.trnDataTblP.mov==0)
-          warndlg('One or more training rows in this project contain an unrecognized movie. This can occur when movies are moved or removed. Retraining your project is recommended.',...
-            'Unrecognized movie');
+        if iscellstr(s.trnDataTblP.mov)
+          s.trnDataTblP = MFTable.replaceMovieStrWithMovieIdx(s.trnDataTblP,...
+            allProjMovIDs,allProjMovsFull,tblDesc);
+          if any(s.trnDataTblP.mov==0)
+            warndlg('One or more training rows in this project contain an unrecognized movie. This can occur when movies are moved or removed. Retraining your project is recommended.',...
+              'Unrecognized movie');
+          end
         end
         MFTable.warnDupMovFrmKey(s.trnDataTblP,tblDesc);
       end
       if ~isempty(s.trkPMD)
         tblDesc = 'Tracking results';
-        s.trkPMD = MFTable.replaceMovieStrWithMovieIdx(s.trkPMD,...
-          allProjMovIDs,allProjMovsFull,tblDesc);
-        if any(s.trkPMD.mov==0)
-          warningNoTrace('CPRLabelTracker:mov',...
-            'One or more tracking result rows in this project contain an unrecognized movie. This can occur when movies in a project are moved or removed. These tracking results will be ignored.',...
-            'Unrecognized tracking results');
+        if iscellstr(s.trkPMD.mov)
+          s.trkPMD = MFTable.replaceMovieStrWithMovieIdx(s.trkPMD,...
+            allProjMovIDs,allProjMovsFull,tblDesc);
+          if any(s.trkPMD.mov==0)
+            warningNoTrace('CPRLabelTracker:mov',...
+              'One or more tracking result rows in this project contain an unrecognized movie. This can occur when movies in a project are moved or removed. These tracking results will be ignored.',...
+              'Unrecognized tracking results');
+          end
         end
         MFTable.warnDupMovFrmKey(s.trkPMD,tblDesc);
       end

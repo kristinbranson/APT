@@ -27,6 +27,7 @@ classdef LabelTracker < handle
     hLCurrMovie; % listener to lObj.currMovie
     hLCurrFrame; % listener to lObj.currFrame
     hLCurrTarget; % listener to lObj.currTarget
+    hLMovieRemoved % " lObj/movieRemoved
   end  
   
   properties (SetObservable,SetAccess=protected)
@@ -57,6 +58,7 @@ classdef LabelTracker < handle
       obj.hLCurrMovie = addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
       obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
       obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
+      obj.hLMovieRemoved = addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
     end
     
     function init(obj)
@@ -81,7 +83,11 @@ classdef LabelTracker < handle
       end
       if ~isempty(obj.hLCurrTarget)
         delete(obj.hLCurrTarget);
-      end      
+      end
+      if ~isempty(obj.hLMovieRemoved)
+        delete(obj.hLMovieRemoved);
+      end
+      
     end
     
   end
@@ -187,6 +193,10 @@ classdef LabelTracker < handle
     
     function newLabelerMovie(obj)
       % Called when Labeler is navigated to a new movie
+    end
+    
+    function labelerMovieRemoved(obj,eventdata)
+      % Called on Labeler/movieRemoved
     end
     
     function s = getSaveToken(obj)

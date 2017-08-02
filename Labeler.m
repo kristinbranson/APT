@@ -37,6 +37,10 @@ classdef Labeler < handle
   events
     newProject
     newMovie
+    % evtdata.iMovOrig2New is map from original->new movie indices, ie 
+    % iMov2Orig2New(iMovOrig) gives the movie index iMov post-ordering.
+    % Original movie indices that have been removed will map to 0.
+    movieRemoved
   end
       
   
@@ -1786,6 +1790,7 @@ classdef Labeler < handle
 
     function tfSucc = movieRmName(obj,movName)
       % movName: compared to .movieFilesAll (macros UNreplaced)
+      assert(~obj.isMultiView,'Unsupported for multiview projects.');
       iMov = find(strcmp(movName,obj.movieFilesAll));
       if isscalar(iMov)
         tfSucc = obj.movieRm(iMov);
@@ -1836,6 +1841,9 @@ classdef Labeler < handle
         obj.labeledpostag(iMov,:) = [];
         obj.labeledpos2(iMov,:) = [];
         obj.isinit = tfOrig;
+        
+        edata = MovieRemovedEventData(iMov,nMovOrig);
+        notify(obj,'movieRemoved',edata);
         
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           szassert(obj.viewCalibrationData,[nMovOrig 1]);

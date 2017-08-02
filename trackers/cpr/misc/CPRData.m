@@ -240,7 +240,21 @@ classdef CPRData < handle
         obj.iTrn = cat(2,obj.iTrn,dd.iTrn(:)'+Nbefore);
         obj.iTst = cat(2,obj.iTst,dd.iTst(:)'+Nbefore);
       end
-    end    
+    end
+    
+    function tfRm = movieRemap(obj,iMovOrig2New)
+      obj.MD.mov = iMovOrig2New(obj.MD.mov);
+      tfRm = obj.MD.mov==0;
+      obj.MD(tfRm,:) = [];
+      obj.I(tfRm,:) = [];
+      obj.pGT(tfRm,:) = [];
+      obj.bboxes(tfRm,:) = [];
+      if ~isempty(obj.Ipp)
+        obj.Ipp(tfRm,:) = [];
+      end
+      obj.iTrn = [];
+      obj.iTst = [];
+    end
     
   end
   
