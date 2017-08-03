@@ -1222,10 +1222,18 @@ classdef Labeler < handle
       for m=macrosAll(:)',m=m{1}; %#ok<FXSET>
         val = sMacros.(m);
         pat = regexprep(val,'\\','\\\\');
-        idx = regexp(pathstr,pat,'once');
+        if ispc
+          idx = regexpi(pathstr,pat,'once');
+        else
+          idx = regexp(pathstr,pat,'once');
+        end
         if ~isempty(idx)
           macros{end+1,1} = m; %#ok<AGROW>
-          pathstrMacroized{end+1,1} = regexprep(pathstr,pat,['$' m]); %#ok<AGROW>
+          if ispc
+            pathstrMacroized{end+1,1} = regexprep(pathstr,pat,['$' m],'ignorecase'); %#ok<AGROW>
+          else
+            pathstrMacroized{end+1,1} = regexprep(pathstr,pat,['$' m]); %#ok<AGROW>
+          end
         end
       end
     end
@@ -1264,7 +1272,7 @@ classdef Labeler < handle
           'SelectionMode','single',...
           'ListSize',[700 200],...
           'Name','Macros Available',...
-          'PromptString','Select (optional) macro to use');
+          'PromptString','Select (optional) macro to use in moviefile');
         tfCancel = ~ok;
         if ok
           if sel==1
@@ -1282,7 +1290,7 @@ classdef Labeler < handle
         else
           macro = [];
           pathstrsMacroized = [];
-        end        
+        end
       end
     end
     
@@ -2022,7 +2030,6 @@ classdef Labeler < handle
       % Replace a string with a macro throughout .movieFilesAll. A project
       % macro is also added for macro->string.
       %
-      %
       % str: a string 
       % macro: macro which will replace all matches of string (macro should
       % NOT include leading $)
@@ -2038,29 +2045,11 @@ classdef Labeler < handle
         
       strpat = regexprep(str,'\\','\\\\');      
       mfa0 = obj.movieFilesAll;
-      mfa1 = regexprep(mfa0,strpat,['$' macro]);
-      % AL: people can see effect/results in MovieManager. If they don't
-      % like it, they can unMacroize
-%       tf = ~strcmp(mfa0,mfa1);
-%       nMacroized = nnz(tf);
-%       str = strcat(mfa0(tf),'->',mfa1(tf));
-%       MAXDISP = 8;
-%       if nMacroized>MAXDISP
-%         str = str(1:MAXDISP);
-%         str{end+1,1} = ' ... ';
-%       end
-%       str = [{sprintf('%d movies to be macroized:',nMacroized)};str];
-%       btn = questdlg(str,'Confirm Macroization','Yes','Cancel','Cancel');
-%       if isempty(btn)
-%         btn = 'Cancel';
-%       end
-%       switch btn
-%         case 'Yes'
-%           % none
-%         case 'Cancel'
-%           return;
-%       end
-
+      if ispc
+        mfa1 = regexprep(mfa0,strpat,['$' macro],'ignorecase');
+      else
+        mfa1 = regexprep(mfa0,strpat,['$' macro]);
+      end
       obj.movieFilesAll = mfa1;
       
       if ~isfield(obj.projMacros,macro) 
