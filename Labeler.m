@@ -905,12 +905,24 @@ classdef Labeler < handle
       end        
     end
     
-    function projLoad(obj,fname,varargin)
-      % Load a lbl file, along with moviefile and trxfile referenced therein
+    function currMovInfo = projLoad(obj,fname,varargin)
+      % Load a lbl file
+      %
+      % currProjInfo: scalar struct containing diagnostic info. When the
+      % project is loaded, APT attempts to set the movie to the last-known
+      % (saved) movie. If this movie is not found in the filesys, the
+      % project will be set to "nomovie" and currProjInfo will contain:
+      %   .iMov: movie(set) index for desired-but-not-found movie
+      %   .badfile: path of file-not-found
+      %
+      % If the movie is able to set the project correctly, currProjInfo
+      % will be [].
             
       nomovie = myparse(varargin,...
         'nomovie',false ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
         );
+      
+      currMovInfo = [];
       
       if exist('fname','var')==0
         lastLblFile = RC.getprop('lastLblFile');
@@ -992,14 +1004,20 @@ classdef Labeler < handle
         tObjNew.init();
         obj.tracker = tObjNew;
       end
-      
+            
       if obj.nmovies==0 || s.currMovie==0 || nomovie
         obj.movieSetNoMovie();
       else
-        obj.movieSet(s.currMovie);
-        obj.setFrameAndTarget(s.currFrame,s.currTarget);
-      end
-      
+        [tfok,badfile] = obj.movieCheckFilesExistSimple(s.currMovie);
+        if ~tfok
+          currMovInfo.iMov = s.currMovie;
+          currMovInfo.badfile = badfile;
+          obj.movieSetNoMovie();
+        else
+          obj.movieSet(s.currMovie);
+          obj.setFrameAndTarget(s.currFrame,s.currTarget);
+        end
+      end      
       %assert(isa(s.labelMode,'LabelMode'));      
       obj.labeledposNeedsSave = false;
       obj.suspScore = obj.suspScore;
@@ -1097,6 +1115,14 @@ classdef Labeler < handle
         obj.tracker.init();
       end
     end
+  end
+%   methods (Static)
+%     function pathstr = hlpStripTrailingSlash(pathstr)
+%       pat = '[\\/]+$';
+%       pathstr = regexprep(pathstr,pat,'');
+%     end
+%   end
+  methods    
     
     function projMacroAdd(obj,macro,val)
       if isfield(obj.projMacros,macro)
@@ -1147,6 +1173,21 @@ classdef Labeler < handle
       obj.projMacros = rmfield(obj.projMacros,macro);
     end
     
+    function projMacroClear(obj)
+      obj.projMacros = struct();
+    end
+    
+    function projMacroClearUnused(obj)
+      mAll = fieldnames(obj.projMacros);
+      mfa = obj.movieFilesAll(:);
+      for macro=mAll(:)',macro=macro{1}; %#ok<FXSET>
+        tfContainsMacro = cellfun(@(x)FSPath.hasMacro(x,macro),mfa);
+        if ~any(tfContainsMacro)
+          obj.projMacroRm(macro);
+        end
+      end
+    end
+    
     function tf = projMacroIsMacro(obj,macro)
       tf = isfield(obj.projMacros,macro);
     end
@@ -1155,8 +1196,94 @@ classdef Labeler < handle
       m = obj.projMacros;
       flds = fieldnames(m);
       vals = struct2cell(m);
-      n = numel(flds);
       s = cellfun(@(x,y)sprintf('%s -> %s',x,y),flds,vals,'uni',0);
+    end
+    
+    function [macros,pathstrMacroized] = projMacrosPresent(obj,pathstr)
+      % Check to see if any macros could apply to pathstr, ie if any macro
+      % values are present in pathstr. If so, return which macros apply,
+      % and return the macroized pathstr.
+      %
+      % macros: [nmatchx1] cellstr. Macros that matched. nmatch==0 if there
+      % are no matches.
+      % pathstrmacroized: [nmatchx1] cellstr. Macroized versions of
+      % pathstr, where matching strings have been replaced with $<macro>. 
+      %
+      % Example: Suppose a project has a single macro, 
+      % $dataroot->/path/to/data. If pathstr='/path/to/data/exp1/mov.avi',
+      % then 
+      %   - macros = {'dataroot'}
+      %   - pathstrmacroized = {'$dataroot/exp1/mov.avi'}
+      
+      sMacros = obj.projMacros;
+      macrosAll = fieldnames(sMacros);
+      macros = cell(0,1);
+      pathstrMacroized = cell(0,1);
+      for m=macrosAll(:)',m=m{1}; %#ok<FXSET>
+        val = sMacros.(m);
+        pat = regexprep(val,'\\','\\\\');
+        idx = regexp(pathstr,pat,'once');
+        if ~isempty(idx)
+          macros{end+1,1} = m; %#ok<AGROW>
+          pathstrMacroized{end+1,1} = regexprep(pathstr,pat,['$' m]); %#ok<AGROW>
+        end
+      end
+    end
+    
+    function [tfCancel,macro,pathstrsMacroized] = projMacrosOfferMacroization(obj,pathstrs)
+      % If any macros are present in all pathstrs, let user optionally
+      % select macroized versions of pathstrs. Macroization can only be
+      % done with a single macro that is common to all pathstrs.
+      %
+      % tfCancel: if true, user canceled
+      % macro: project macro used/replaced, or [] if no macro 
+      %   found/selected.
+      % pathstrsMacroized: same size as pathstrs; macroized pathstrs (using
+      %   macro), or original pathstrs if macro is [].
+
+      assert(iscellstr(pathstrs) && isvector(pathstrs));
+      
+      npstrs = numel(pathstrs);
+      [macroMatchCell,pathstrMacroizedCell] = ...
+        cellfun(@(zzP)obj.projMacrosPresent(zzP),pathstrs,'uni',0);
+      macrosMatch = macroMatchCell{1};
+      for i=2:npstrs
+        macrosMatch = intersect(macrosMatch,macroMatchCell{i});
+      end
+      if isempty(macrosMatch)
+        tfCancel = false;
+        macro = [];
+        pathstrsMacroized = pathstrs;
+      else
+        % 1+ macros are common to all pathstrs
+        [tf,loc] = ismember(macrosMatch,macroMatchCell{1});
+        assert(all(tf));
+        pathstr1Macroized = pathstrMacroizedCell{1}(loc);
+        liststr = [{pathstrs{1}};pathstr1Macroized];
+        [sel,ok] = listdlg('ListString',liststr,...
+          'SelectionMode','single',...
+          'ListSize',[700 200],...
+          'Name','Macros Available',...
+          'PromptString','Select (optional) macro to use');
+        tfCancel = ~ok;
+        if ok
+          if sel==1
+            macro = [];
+            pathstrsMacroized = pathstrs;
+          else
+            macro = macrosMatch{sel-1};
+            pathstrsMacroized = cell(size(pathstrs));
+            for i=1:npstrs
+              [tf,loc] = ismember(macro,macroMatchCell{i});
+              assert(tf);
+              pathstrsMacroized{i} = pathstrMacroizedCell{i}{loc};
+            end
+          end
+        else
+          macro = [];
+          pathstrsMacroized = [];
+        end        
+      end
     end
     
     function p = projLocalizePath(obj,p)
@@ -1577,13 +1704,17 @@ classdef Labeler < handle
   %% Movie
   methods
     
-    function movieAdd(obj,moviefile,trxfile)
+    function movieAdd(obj,moviefile,trxfile,varargin)
       % Add movie/trx to end of movie/trx list.
       %
       % moviefile: string or cellstr (can have macros)
       % trxfile: (optional) string or cellstr 
       
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
+      
+      offerMacroization = myparse(varargin,...
+        'offerMacroization',true ... % If true, look for matches with existing macros
+        );
       
       if exist('trxfile','var')==0 || isequal(trxfile,[])
         if ischar(moviefile)
@@ -1606,6 +1737,18 @@ classdef Labeler < handle
       for iMov = 1:nMov
         movFile = moviefile{iMov};
         tFile = trxfile{iMov};
+        
+        if offerMacroization
+          [tfCancel,macro,movFileMacroized] = obj.projMacrosOfferMacroization({movFile});
+          if tfCancel
+            continue;
+          end
+          tfMacroize = ~isempty(macro);
+          if tfMacroize
+            assert(isscalar(movFileMacroized));
+            movFile = movFileMacroized{1};
+          end
+        end
       
         movfilefull = obj.projLocalizePath(movFile);
         assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
@@ -1681,12 +1824,12 @@ classdef Labeler < handle
       nMovSetImport = size(movs,1);
       if obj.nview==1
         fprintf('Importing %d movies from file ''%s''.\n',nMovSetImport,bfile);
-        obj.movieAdd(movs);
+        obj.movieAdd(movs,'offerMacroization',false);
       else
         fprintf('Importing %d movie sets from file ''%s''.\n',nMovSetImport,bfile);
         for i=1:nMovSetImport
           try
-            obj.movieSetAdd(movs(i,:));
+            obj.movieSetAdd(movs(i,:),'offerMacroization',false);
           catch ME
             warningNoTrace('Labeler:mov',...
               'Error trying to add movieset %d: %s Movieset not added to project.',...
@@ -1696,14 +1839,18 @@ classdef Labeler < handle
       end
     end
 
-    function movieSetAdd(obj,moviefiles)
+    function movieSetAdd(obj,moviefiles,varargin)
       % Add a set of movies (Multiview mode) to end of movie list.
       %
       % moviefiles: cellstr (can have macros)
 
+      offerMacroization = myparse(varargin,...
+        'offerMacroization',true ... % If true, look for matches with existing macros
+        );
+
       if obj.nTargets~=1
         error('Labeler:movieSetAdd','Unsupported for nTargets>1.');
-      end
+      end      
       
       moviefiles = cellstr(moviefiles);
       if numel(moviefiles)~=obj.nview
@@ -1711,6 +1858,19 @@ classdef Labeler < handle
           'Number of moviefiles supplied (%d) must match number of views (%d).',...
           numel(moviefiles),obj.nview);
       end
+      
+      if offerMacroization
+        [tfCancel,macro,moviefilesMacroized] = ...
+          obj.projMacrosOfferMacroization(moviefiles);
+        if tfCancel
+          return;
+        end
+        tfMacroize = ~isempty(macro);
+        if tfMacroize
+          moviefiles = moviefilesMacroized;
+        end
+      end
+      
       moviefilesfull = cellfun(@(x)obj.projLocalizePath(x),moviefiles,'uni',0);
       cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),moviefilesfull);
       tfMFeq = arrayfun(@(x)strcmp(moviefiles{x},obj.movieFilesAll(:,x)),1:obj.nview,'uni',0);
@@ -1867,22 +2027,120 @@ classdef Labeler < handle
       % macro: macro which will replace all matches of string (macro should
       % NOT include leading $)
       
-      strpat = regexprep(str,'\\','\\\\');
-      obj.movieFilesAll = regexprep(obj.movieFilesAll,strpat,['$' macro]);
-      
       if isfield(obj.projMacros,macro) 
         currVal = obj.projMacros.(macro);
-        if strcmp(currVal,str)
-          % good; current macro val is equal to str          
-        else
-          warningNoTrace('Labeler:macro',...
+        if ~strcmp(currVal,str)
+          error('Labeler:macro',...
             'Project macro ''%s'' is currently defined as ''%s''.',...
             macro,currVal);
         end
-      else
+      end
+        
+      strpat = regexprep(str,'\\','\\\\');      
+      mfa0 = obj.movieFilesAll;
+      mfa1 = regexprep(mfa0,strpat,['$' macro]);
+      % AL: people can see effect/results in MovieManager. If they don't
+      % like it, they can unMacroize
+%       tf = ~strcmp(mfa0,mfa1);
+%       nMacroized = nnz(tf);
+%       str = strcat(mfa0(tf),'->',mfa1(tf));
+%       MAXDISP = 8;
+%       if nMacroized>MAXDISP
+%         str = str(1:MAXDISP);
+%         str{end+1,1} = ' ... ';
+%       end
+%       str = [{sprintf('%d movies to be macroized:',nMacroized)};str];
+%       btn = questdlg(str,'Confirm Macroization','Yes','Cancel','Cancel');
+%       if isempty(btn)
+%         btn = 'Cancel';
+%       end
+%       switch btn
+%         case 'Yes'
+%           % none
+%         case 'Cancel'
+%           return;
+%       end
+
+      obj.movieFilesAll = mfa1;
+      
+      if ~isfield(obj.projMacros,macro) 
         obj.projMacroAdd(macro,str);
       end
     end
+    
+    function movieFilesUnMacroize(obj,macro)
+      % "Undo" macro by replacing $<macro> with its value throughout
+      % .movieFilesAll.
+      %
+      % macro: must be a currently defined macro
+      
+      if ~obj.projMacroIsMacro(macro)
+        error('Labeler:macro','''%s'' is not a currently defined macro.',...
+          macro);
+      end
+      
+      sMacro = struct(macro,obj.projMacros.(macro));
+      mfa = obj.movieFilesAll;
+      obj.movieFilesAll = FSPath.macroReplace(mfa,sMacro);
+    end
+    
+    function movieFilesUnMacroizeAll(obj)
+      % Replace .movieFilesAll with .movieFilesAllFull; warn if a movie
+      % cannot be found
+      
+      mfaf = obj.movieFilesAllFull;
+      for iMov=1:obj.nmovies
+        for iView=1:obj.nview
+          mov = mfaf{iMov,iView};
+          if exist(mov,'file')==0
+            warningNoTrace('Labeler:mov','Movie ''%s'' cannot be found.',mov);
+          end
+          obj.movieFilesAll{iMov,iView} = mov;
+        end
+      end
+    end
+    
+    function [tfok,badfile] = movieCheckFilesExistSimple(obj,iMov) % obj const
+      % tfok: true if movie/trxfiles for iMov all exist, false otherwise.
+      % badfile: if ~tfok, badfile contains a file that could not be found.
+      
+      if ~all(cellfun(@isempty,obj.trxFilesAll(iMov,:)))
+        assert(~obj.isMultiView,'Multiview labeling with targets unsupported.');
+      end
+      
+      for iView = 1:obj.nview
+        movfileFull = obj.movieFilesAllFull{iMov,iView};        
+        trxFile = obj.trxFilesAll{iMov,iView};
+        if exist(movfileFull,'file')==0
+          tfok = false;
+          badfile = movfileFull;
+          return;
+        elseif ~isempty(trxFile) && exist(trxFile,'file')==0
+          tfok = false;
+          badfile = trxFile;
+          return;
+        end
+      end
+      
+      tfok = true;
+      badfile = [];
+    end
+  end
+  methods (Static)
+    function estr = hlpErrStrFileNotFoundMacroAware(file,fileFull,fileType)
+      % Macro-aware file-not-found error string
+      % file: raw file possibly with macros
+      % fileFull: macro-replaced file
+      % fileType: eg 'movie' or 'trxfile'      
+      if ~FSPath.hasAnyMacro(file)
+        estr = sprintf('Cannot find %s ''%s''.',fileType,file);
+      else
+        estr = sprintf('Cannot find %s ''%s'', macro-expanded to ''%s''.',...
+          fileType,file,fileFull);
+      end
+    end
+  end
+  methods
     
     function tfsuccess = movieCheckFilesExist(obj,iMov) % NOT obj const
       % Helper function for movieSet(), check that movie/trxfiles exist
@@ -1894,147 +2152,69 @@ classdef Labeler < handle
       % This function can also harderror.
       %
       % This function is NOT obj const -- macro-related state can be
-      % mutated eg in multiview projects when the user does something for
-      % movie 1 but then movie 2 errors out. This is not that bad so we
-      % accept it for now.
+      % mutated, users can browse to movies etc.
       
       tfsuccess = false;
       
       if ~all(cellfun(@isempty,obj.trxFilesAll(iMov,:)))
-        assert(~obj.isMultiView,'Multiview labeling with targets unsupported.');
+        assert(~obj.isMultiView,...
+          'Multiview labeling with targets unsupported.');
       end
                 
       for iView = 1:obj.nview
         movfile = obj.movieFilesAll{iMov,iView};
         movfileFull = obj.movieFilesAllFull{iMov,iView};
-        FSPath.errUnreplacedMacros(movfileFull);
+        %FSPath.errUnreplacedMacros(movfileFull);
         
         if exist(movfileFull,'file')==0
+          qstr = Labeler.hlpErrStrFileNotFoundMacroAware(movfile,...
+            movfileFull,'movie');
+          qtitle = 'Movie not found';
           if isdeployed
-            error('Labeler:mov',...
-              'Cannot find movie ''%s'', macro-expanded to ''%s''.',...
-              movfile,movfileFull);
+            error('Labeler:mov',qstr);
           end
           
-          tfBrowse = false;
-          if FSPath.hasMacro(movfile)
-            qstr = sprintf('Cannot find movie ''%s'', macro-expanded to ''%s''.',...
-              movfile,movfileFull);
-            resp = questdlg(qstr,'Movie not found','Redefine macros','Browse to movie','Cancel','Cancel');
-            if isempty(resp)
-              resp = 'Cancel';
-            end
-            switch resp
-              case 'Redefine macros'
-                obj.projMacroSetUI();
-                movfileFull = obj.movieFilesAllFull{iMov,iView};
-                FSPath.errUnreplacedMacros(movfileFull);
-                if exist(movfileFull,'file')==0
-                  error('Labeler:mov','Cannot find movie ''%s'', macro-expanded to ''%s''',...
-                    movfile,movfileFull);
-                end
-              case 'Browse to movie'
-                tfBrowse = true;
-              case 'Cancel'
-                return;
-            end
+          if FSPath.hasAnyMacro(movfile)
+            qargs = {'Redefine macros','Browse to movie','Cancel','Cancel'};
           else
-            qstr = sprintf('Cannot find movie ''%s''.',movfile);
-            
-            mfaAll = obj.movieFilesAll;
-            tfMfaAllHasMacro = cellfun(@FSPath.hasMacro,mfaAll);
-            mfaNoMacro = mfaAll(~tfMfaAllHasMacro);
-            mfaNoMacroBase = FSPath.commonbase(mfaNoMacro);
-            while ~isempty(mfaNoMacroBase) && ...
-                (mfaNoMacroBase(end)=='/' || mfaNoMacroBase(end)=='\')
-              mfaNoMacroBase = mfaNoMacroBase(1:end-1);
-            end
-            if ~isempty(mfaNoMacroBase) && numel(mfaNoMacro)>=3
-              resp = questdlg(qstr,'Movie not found','Browse to movie','Create/set path macro','Cancel','Cancel');
-            else
-              resp = questdlg(qstr,'Movie not found','Browse to movie','Cancel','Cancel');
-            end
-            if isempty(resp)
-              resp = 'Cancel';
-            end
-            switch resp
-              case 'Browse to movie'
-                tfBrowse = true;
-              case 'Create/set path macro'
-                macrostrs = obj.projMacroStrs;
-                if isempty(macrostrs)
-                  macrostrs = '<none>';
-                else
-                  macrostrs = sprintf('\n%s',macrostrs{:});
-                end
-                macrostr = sprintf('%d movies share common base path: %s. Existing macros: %s\n',...
-                  numel(mfaNoMacro),mfaNoMacroBase,macrostrs);
-                respMacro = questdlg(macrostr,'Create/set macro','Use existing macro','Create new macro','Cancel','Cancel');
-                if isempty(respMacro)
-                  respMacro = 'Cancel';
-                end
-                switch respMacro
-                  case 'Create new macro'
-                    answ = inputdlg('Enter new macro name','Create macro',1);
-                    if isempty(answ)
-                      return;
-                    end
-                    macroName = answ{1};
-                    if obj.projMacroIsMacro(macroName)
-                      error('Labeler:macro','A macro named ''%s'' already exists.',macroName);
-                    end
-                    answ = inputdlg('Enter path represented by macro:','Set macro',1);
-                    if isempty(answ)
-                      return;
-                    end
-                    answ = answ{1};
-                    obj.movieFilesMacroize(mfaNoMacroBase,macroName);
-                    obj.projMacroSet(macroName,answ);
-                    movfileFull = obj.movieFilesAllFull{iMov,iView};
-                    if exist(movfileFull,'file')==0
-                      error('Labeler:mov','Cannot find movie ''%s'', macro-expanded to ''%s''',...
-                        obj.movieFilesAll{iMov,iView},movfileFull);
-                    end
-                  case 'Use existing macro'
-                    assert(false,'Currently unsupported.');
-                    %                     macros = fieldnames(obj.projMacros);
-                    %                     [sel,ok] = listdlg(...
-                    %                       'ListString',macros,...
-                    %                       'SelectionMode','single',...
-                    %                       'Name','Select macro',...
-                    %                       'PromptString',sprintf('Select macro to replace base path %s',mfaNoMacroBase));
-                    %                     if ~ok
-                    %                       return;
-                    %                     end
-                  case 'Cancel'
-                    return;
-                end
-              case 'Cancel'
-                return;
-            end
+            qargs = {'Browse to movie','Cancel','Cancel'};
+          end           
+          resp = questdlg(qstr,qtitle,qargs{:});
+          if isempty(resp)
+            resp = 'Cancel';
           end
-          
-          if tfBrowse
-            lastmov = RC.getprop('lbl_lastmovie');
-            if isempty(lastmov)
-              lastmov = pwd;
-            end
-            [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
-            if isequal(newmovfile,0)
-              error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
-            end
-            movfileFull = fullfile(newmovpath,newmovfile);
-            if exist(movfileFull,'file')==0
-              error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
-            end
-            obj.movieFilesAll{iMov,iView} = movfileFull;
+          switch resp
+            case 'Cancel'
+              return;
+            case 'Redefine macros'
+              obj.projMacroSetUI();
+              movfileFull = obj.movieFilesAllFull{iMov,iView};
+              if exist(movfileFull,'file')==0
+                error('Labeler:mov',...
+                  Labeler.hlpErrStrFileNotFoundMacroAware(movfile,...
+                  movfileFull,'movie'));
+              end
+            case 'Browse to movie'
+              lastmov = RC.getprop('lbl_lastmovie');
+              if isempty(lastmov)
+                lastmov = pwd;
+              end
+              [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
+              if isequal(newmovfile,0)
+                return; % Cancel
+              end
+              movfileFull = fullfile(newmovpath,newmovfile);
+              if exist(movfileFull,'file')==0
+                error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
+              end
+              obj.movieFilesAll{iMov,iView} = movfileFull;
           end
           
           % At this point, either we have i) harderrored, ii)
           % early-returned with tfsuccess=false, or iii) movfileFull is set
           assert(exist(movfileFull,'file')>0);
           assert(strcmp(movfileFull,obj.movieFilesAllFull{iMov,iView}));
-        end        
+        end
         
         trxFile = obj.trxFilesAll{iMov,iView};
         tfTrx = ~isempty(trxFile);

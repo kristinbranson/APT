@@ -78,11 +78,11 @@ classdef MovieManagerTable < handle
             'Multiple movies selected. Switching to first selection.');
           imovs = imovs(1);
         end
-        try
-          obj.cbkSelectMovie(imovs);
-        catch ME
-          disp(ME.message);
-        end
+%         try
+        obj.cbkSelectMovie(imovs);
+%         catch ME
+%           disp(ME.message);
+%         end
       end
       
     end    

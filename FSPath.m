@@ -91,8 +91,11 @@ classdef FSPath
       end
     end
     
-    function tf = hasMacro(str)
+    function tf = hasAnyMacro(str)
       tf = ~isempty(regexp(str,'\$','once'));
+    end
+    function tf = hasMacro(str,macro)
+      tf = ~isempty(regexp(str,['\$' macro],'once'));
     end
     
     function warnUnreplacedMacros(strs)

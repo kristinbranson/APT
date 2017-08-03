@@ -1369,7 +1369,15 @@ handles.labelerObj.projSaveAs();
 function menu_file_load_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
-  lObj.projLoad();
+  currMovInfo = lObj.projLoad();
+  if ~isempty(currMovInfo)
+    wstr = sprintf('Could not find file for movie(set) %d: %s. Project opened with no movie selected.',...
+      currMovInfo.iMov,currMovInfo.badfile);
+    hWarn = warndlg(wstr,'Moviefile not found','modal');
+    handles = lObj.gdata; % projLoad updated stuff
+    handles.movieMgr.Visible = 'on';
+    figure(hWarn);
+  end
 end
 
 function tfcontinue = hlpSave(labelerObj)

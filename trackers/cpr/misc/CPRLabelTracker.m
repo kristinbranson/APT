@@ -1819,11 +1819,11 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function newLabelerMovie(obj)
-      if obj.lObj.hasTrx
-        obj.vizInit(); % The number of trx might change
+      obj.vizInit();
+      if obj.lObj.hasMovie
+        obj.vizLoadXYPrdCurrMovieTarget();
+        obj.newLabelerFrame();
       end
-      obj.vizLoadXYPrdCurrMovieTarget();
-      obj.newLabelerFrame();
     end
     
     function labelerMovieRemoved(obj,eventdata)
