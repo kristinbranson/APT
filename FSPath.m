@@ -59,7 +59,7 @@ classdef FSPath
         val = regexprep(val,'\\','\\\\');
         str = regexprep(str,mpat,val);
       end
-    end
+    end    
     
     function str = fullyLocalizeStandardizeChar(str,sMacro)
       str = FSPath.macroReplace(str,sMacro);
@@ -98,6 +98,140 @@ classdef FSPath
       tf = ~isempty(regexp(str,['\$' macro],'once'));
     end
     
+    function [macros,pathstrMacroized] = macrosPresent(pathstr,sMacro)
+      % Check to see if any macros in sMacro could apply to pathstr, ie if 
+      % any macro values are present in pathstr. If so, return which macros 
+      % apply, and return the macroized pathstr.
+      %
+      % pathstr: char
+      % sMacro: macro struct
+      % 
+      % macros: [nmatchx1] cellstr. Macros that matched. nmatch==0 if there
+      % are no matches.
+      % pathstrmacroized: [nmatchx1] cellstr. Macroized versions of
+      % pathstr, where matching strings have been replaced with $<macro>. 
+      %
+      % Example: pathstr='/path/to/data/exp1/mov.avi', 
+      %   sMacro.dataroot=/path/to/data. Then
+      %
+      %   - macros = {'dataroot'}
+      %   - pathstrmacroized = {'$dataroot/exp1/mov.avi'}
+      
+      macrosAll = fieldnames(sMacro);
+      macros = cell(0,1);
+      pathstrMacroized = cell(0,1);
+      for m=macrosAll(:)',m=m{1}; %#ok<FXSET>
+        val = sMacro.(m);
+        pat = regexprep(val,'\\','\\\\');
+        if ispc
+          idx = regexpi(pathstr,pat,'once');
+        else
+          idx = regexp(pathstr,pat,'once');
+        end
+        if ~isempty(idx)
+          macros{end+1,1} = m; %#ok<AGROW>
+          if ispc
+            pathstrMacroized{end+1,1} = regexprep(pathstr,pat,['$' m],'ignorecase'); %#ok<AGROW>
+          else
+            pathstrMacroized{end+1,1} = regexprep(pathstr,pat,['$' m]); %#ok<AGROW>
+          end
+        end
+      end
+    end 
+    
+    function [tfCancel,macro,pathstrsMacroized] = ...
+                                    offerMacroization(sMacro,pathstrs)
+      % If any macros are present in all pathstrs, let user optionally
+      % select macroized versions of pathstrs. Macroization can only be
+      % done with a single macro that is common to all pathstrs.
+      %
+      % sMacro: macro struct
+      % pathstrs: cellstr (can be nonscalar)
+      %
+      % tfCancel: if true, user canceled
+      % macro: macro used/replaced, or [] if no macro found/selected.
+      % pathstrsMacroized: same size as pathstrs; macroized pathstrs (using
+      %   macro), or original pathstrs if macro is [].
+
+      assert(iscellstr(pathstrs) && isvector(pathstrs));
+      
+      [macroMatchCell,pathstrMacroizedCell] = ...
+        cellfun(@(zzP)FSPath.macrosPresent(zzP,sMacro),pathstrs,'uni',0);
+      macrosMatch = macroMatchCell{1};
+      npstrs = numel(pathstrs);
+      for i=2:npstrs
+        macrosMatch = intersect(macrosMatch,macroMatchCell{i});
+      end
+      if isempty(macrosMatch)
+        tfCancel = false;
+        macro = [];
+        pathstrsMacroized = pathstrs;
+      else
+        % 1+ macros are common to all pathstrs
+        [tf,loc] = ismember(macrosMatch,macroMatchCell{1});
+        assert(all(tf));
+        pathstr1Macroized = pathstrMacroizedCell{1}(loc);
+        liststr = [{pathstrs{1}};pathstr1Macroized];
+        [sel,ok] = listdlg('ListString',liststr,...
+          'SelectionMode','single',...
+          'ListSize',[700 200],...
+          'Name','Macros Available',...
+          'PromptString','Select optional macro to use for moviefile(s):');
+        tfCancel = ~ok;
+        if ok
+          if sel==1
+            macro = [];
+            pathstrsMacroized = pathstrs;
+          else
+            macro = macrosMatch{sel-1};
+            pathstrsMacroized = cell(size(pathstrs));
+            for i=1:npstrs
+              [tf,loc] = ismember(macro,macroMatchCell{i});
+              assert(tf);
+              pathstrsMacroized{i} = pathstrMacroizedCell{i}{loc};
+            end
+          end
+        else
+          macro = [];
+          pathstrsMacroized = [];
+        end
+      end
+    end
+    
+    function [tfMatch,trxFileMacroized] = ...
+                      tryTrxfileMacroization(trxFile,movdir)
+      % Try to match standard pattern <movdir>/<trxFile>
+      %
+      % trxFile: full path to trxfile (no macros)
+      % movdir: full path to movie directory
+      %
+      % tfMatch: if true, trxFile looks like <movdir>/trxFileShort (with 
+      %   appropriate filesep)
+      % trxFileMacroized: If tfMatch is true, then $movdir/trxFileShort 
+      %   (with appropriate filesep). Indeterminate otherwise
+      
+      tfile = FSPath.standardPathChar(trxFile);
+      movdir = FSPath.standardPathChar(movdir);
+      nmovdir = numel(movdir);
+      if numel(tfile)>nmovdir
+        if ispc
+          tfMatch = strncmpi(tfile,movdir,nmovdir);
+        else
+          tfMatch = strncmp(tfile,movdir,nmovdir);
+        end
+        tfMatch = tfMatch && tfile(nmovdir+1)=='/';
+      else
+        tfMatch = false;
+      end
+      
+      if tfMatch
+        [~,tfileS] = myfileparts(tfile);
+        trxFileMacroized = FSPath.platformizePath(['$movdir/' tfileS]);
+      else
+        trxFileMacroized = [];
+      end
+    end
+    
     function warnUnreplacedMacros(strs)
       if ~isempty(strs)
         toks = cellfun(@(x)regexp(x,'\$([a-zA-Z]+)','tokens'),strs,'uni',0);
@@ -119,6 +253,31 @@ classdef FSPath
         tokstr = String.cellstr2CommaSepList(toks);
         error('FSPath:macro','Unreplaced macros: $%s',tokstr);
       end
+    end
+    
+    function estr = errStrFileNotFoundMacroAware(file,fileFull,fileType)
+      % Macro-aware file-not-found error string
+      % file: raw file possibly with macros
+      % fileFull: macro-replaced file
+      % fileType: eg 'movie' or 'trxfile'      
+      if ~FSPath.hasAnyMacro(file)
+        estr = sprintf('Cannot find %s ''%s''.',fileType,file);
+      else
+        estr = sprintf('Cannot find %s ''%s'', macro-expanded to ''%s''.',...
+          fileType,file,fileFull);
+      end
+    end
+    function throwErrFileNotFoundMacroAware(file,fileFull,fileType)
+      estr = FSPath.errStrFileNotFoundMacroAware(file,fileFull,fileType);
+      error('apt:fileNotFound',estr);
+    end
+    
+    function str = fileStrMacroAware(file,fileFull)
+      if ~FSPath.hasAnyMacro(file)
+        str = file;
+      else
+        str = sprintf('%s, macro-expanded to %s.',file,fileFull);
+      end      
     end
     
     function parts = fullfileparts(p)

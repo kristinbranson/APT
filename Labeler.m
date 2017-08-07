@@ -183,6 +183,7 @@ classdef Labeler < handle
     targetZoomRadiusDefault;
   end
   properties (Dependent)
+    trxFilesAllFull % like .movieFilesAllFull, but for .trxFilesAll
     hasTrx
     currTrx
     currTrxID
@@ -319,14 +320,19 @@ classdef Labeler < handle
       v = obj.nview>1;
     end
     function v = get.movieFilesAllFull(obj)
+      % See also .projLocalizePath()
       sMacro = obj.projMacros;
-      if ~isfield(sMacro,'projroot')
-        % This conditional allows user to explictly specify project root
-        sMacro.projroot = obj.projectroot;
-      end
-      v = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,obj.projMacros);
+%       if ~isfield(sMacro,'projdir')
+%         % This conditional allows user to explictly specify project root
+%         % Seems questionable
+%         sMacro.projdir = obj.projectroot;
+%       end
+      v = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
       FSPath.warnUnreplacedMacros(v);
     end
+    function v = get.trxFilesAllFull(obj)
+      v = Labeler.trxFilesLocalize(obj.trxFilesAll,obj.movieFilesAllFull);
+    end    
     function v = get.movieIDsAll(obj)
       v = FSPath.standardPath(obj.movieFilesAll);
     end
@@ -791,7 +797,9 @@ classdef Labeler < handle
         end
         name = resp{1};
       end
-      
+
+      obj.isinit = true;
+
       obj.projname = name;
       obj.projFSInfo = [];
       obj.movieFilesAll = cell(0,obj.nview);
@@ -801,7 +809,6 @@ classdef Labeler < handle
       obj.projMacros = struct();
       obj.viewCalProjWide = [];
       obj.viewCalibrationData = [];
-      obj.isinit = true;
       obj.movieSetNoMovie(); % order important here
       obj.labeledpos = cell(0,1);
       obj.labeledposTS = cell(0,1);
@@ -809,7 +816,9 @@ classdef Labeler < handle
       obj.labeledpostag = cell(0,1);
       obj.labeledpos2 = cell(0,1);
       obj.labelTemplate = [];
+      
       obj.isinit = false;
+      
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
       
@@ -1062,8 +1071,8 @@ classdef Labeler < handle
       
       assert(~obj.isMultiView && iscolumn(s.movieFilesAll));
       
-      if isfield(s,'projMacros') && ~isfield(s.projMacros,'projroot')
-        s.projMacros.projroot = fileparts(fname);
+      if isfield(s,'projMacros') && ~isfield(s.projMacros,'projdir')
+        s.projMacros.projdir = fileparts(fname);
       else
         s.projMacros = struct();
       end
@@ -1115,14 +1124,21 @@ classdef Labeler < handle
         obj.tracker.init();
       end
     end
+    
   end
-%   methods (Static)
-%     function pathstr = hlpStripTrailingSlash(pathstr)
-%       pat = '[\\/]+$';
-%       pathstr = regexprep(pathstr,pat,'');
-%     end
-%   end
-  methods    
+  
+  methods % projMacros
+    
+    % Macros defined in .projMacros are conceptually for movie files (or
+    % "experiments", which are typically located at arbitrary locations in
+    % the filesystem (which bear no relation to eg the location of the
+    % project file).
+    %
+    % Other macros can be defined depending on the context. For instance,
+    % trxFiles most typically are located in relation to their
+    % corresponding movie and currently only a limited number of 
+    % movie-related macros are supported. TrkFiles (tracking outputs) might 
+    % be located in relation to their movies or perhaps their projects. etc
     
     function projMacroAdd(obj,macro,val)
       if isfield(obj.projMacros,macro)
@@ -1197,105 +1213,10 @@ classdef Labeler < handle
       flds = fieldnames(m);
       vals = struct2cell(m);
       s = cellfun(@(x,y)sprintf('%s -> %s',x,y),flds,vals,'uni',0);
-    end
-    
-    function [macros,pathstrMacroized] = projMacrosPresent(obj,pathstr)
-      % Check to see if any macros could apply to pathstr, ie if any macro
-      % values are present in pathstr. If so, return which macros apply,
-      % and return the macroized pathstr.
-      %
-      % macros: [nmatchx1] cellstr. Macros that matched. nmatch==0 if there
-      % are no matches.
-      % pathstrmacroized: [nmatchx1] cellstr. Macroized versions of
-      % pathstr, where matching strings have been replaced with $<macro>. 
-      %
-      % Example: Suppose a project has a single macro, 
-      % $dataroot->/path/to/data. If pathstr='/path/to/data/exp1/mov.avi',
-      % then 
-      %   - macros = {'dataroot'}
-      %   - pathstrmacroized = {'$dataroot/exp1/mov.avi'}
-      
-      sMacros = obj.projMacros;
-      macrosAll = fieldnames(sMacros);
-      macros = cell(0,1);
-      pathstrMacroized = cell(0,1);
-      for m=macrosAll(:)',m=m{1}; %#ok<FXSET>
-        val = sMacros.(m);
-        pat = regexprep(val,'\\','\\\\');
-        if ispc
-          idx = regexpi(pathstr,pat,'once');
-        else
-          idx = regexp(pathstr,pat,'once');
-        end
-        if ~isempty(idx)
-          macros{end+1,1} = m; %#ok<AGROW>
-          if ispc
-            pathstrMacroized{end+1,1} = regexprep(pathstr,pat,['$' m],'ignorecase'); %#ok<AGROW>
-          else
-            pathstrMacroized{end+1,1} = regexprep(pathstr,pat,['$' m]); %#ok<AGROW>
-          end
-        end
-      end
-    end
-    
-    function [tfCancel,macro,pathstrsMacroized] = projMacrosOfferMacroization(obj,pathstrs)
-      % If any macros are present in all pathstrs, let user optionally
-      % select macroized versions of pathstrs. Macroization can only be
-      % done with a single macro that is common to all pathstrs.
-      %
-      % tfCancel: if true, user canceled
-      % macro: project macro used/replaced, or [] if no macro 
-      %   found/selected.
-      % pathstrsMacroized: same size as pathstrs; macroized pathstrs (using
-      %   macro), or original pathstrs if macro is [].
-
-      assert(iscellstr(pathstrs) && isvector(pathstrs));
-      
-      npstrs = numel(pathstrs);
-      [macroMatchCell,pathstrMacroizedCell] = ...
-        cellfun(@(zzP)obj.projMacrosPresent(zzP),pathstrs,'uni',0);
-      macrosMatch = macroMatchCell{1};
-      for i=2:npstrs
-        macrosMatch = intersect(macrosMatch,macroMatchCell{i});
-      end
-      if isempty(macrosMatch)
-        tfCancel = false;
-        macro = [];
-        pathstrsMacroized = pathstrs;
-      else
-        % 1+ macros are common to all pathstrs
-        [tf,loc] = ismember(macrosMatch,macroMatchCell{1});
-        assert(all(tf));
-        pathstr1Macroized = pathstrMacroizedCell{1}(loc);
-        liststr = [{pathstrs{1}};pathstr1Macroized];
-        [sel,ok] = listdlg('ListString',liststr,...
-          'SelectionMode','single',...
-          'ListSize',[700 200],...
-          'Name','Macros Available',...
-          'PromptString','Select (optional) macro to use in moviefile');
-        tfCancel = ~ok;
-        if ok
-          if sel==1
-            macro = [];
-            pathstrsMacroized = pathstrs;
-          else
-            macro = macrosMatch{sel-1};
-            pathstrsMacroized = cell(size(pathstrs));
-            for i=1:npstrs
-              [tf,loc] = ismember(macro,macroMatchCell{i});
-              assert(tf);
-              pathstrsMacroized{i} = pathstrMacroizedCell{i}{loc};
-            end
-          end
-        else
-          macro = [];
-          pathstrsMacroized = [];
-        end
-      end
-    end
+    end    
     
     function p = projLocalizePath(obj,p)
-      p = FSPath.platformizePath(FSPath.macroReplace(p,obj.projMacros));
+      p = FSPath.fullyLocalizeStandardizeChar(p,obj.projMacros);
     end
     
     function projNewImStack(obj,ims,varargin)
@@ -1735,10 +1656,7 @@ classdef Labeler < handle
       end
       moviefile = cellstr(moviefile);
       trxfile = cellstr(trxfile);
-      if numel(moviefile)~=numel(trxfile)
-        error('Labeler:movieAdd',...
-          '''Moviefile'' and ''trxfile'' arguments must have same size.');
-      end
+      szassert(moviefile,size(trxfile));
       nMov = numel(moviefile);
       
       mr = MovieReader();
@@ -1746,8 +1664,10 @@ classdef Labeler < handle
         movFile = moviefile{iMov};
         tFile = trxfile{iMov};
         
-        if offerMacroization
-          [tfCancel,macro,movFileMacroized] = obj.projMacrosOfferMacroization({movFile});
+        if offerMacroization 
+          % Optionally replace movFile, tFile with macroized versions
+          [tfCancel,macro,movFileMacroized] = ...
+            FSPath.offerMacroization(obj.projMacros,{movFile});
           if tfCancel
             continue;
           end
@@ -1755,6 +1675,16 @@ classdef Labeler < handle
           if tfMacroize
             assert(isscalar(movFileMacroized));
             movFile = movFileMacroized{1};
+          end
+          
+          % trx
+          % Note, tFile could already look like $movdir\trx.mat which would
+          % be fine.
+          movFileFull = obj.projLocalizePath(movFile);
+          [tfMatch,tFileMacroized] = FSPath.tryTrxfileMacroization(...
+            tFile,fileparts(movFileFull));
+          if tfMatch
+            tFile = tFileMacroized;
           end
         end
       
@@ -1775,7 +1705,11 @@ classdef Labeler < handle
             'Movie ''%s'', macro-expanded to ''%s'', is already in project.',...
             movFile,movfilefull);
         end
-        assert(isempty(tFile) || exist(tFile,'file')>0,'Cannot find file ''%s''.',tFile);
+        
+        tFileFull = Labeler.trxFilesLocalize(tFile,movfilefull);
+        if ~(isempty(tFileFull) || exist(tFileFull,'file')>0)
+          FSPath.throwErrFileNotFoundMacroAware(tFile,tFileFull,'trxfile');
+        end
 
         mr.open(movfilefull);
         ifo = struct();
@@ -1783,8 +1717,8 @@ classdef Labeler < handle
         ifo.info = mr.info;
         mr.close();
         
-        if ~isempty(tFile)
-          tmp = load(tFile);
+        if ~isempty(tFileFull)
+          tmp = load(tFileFull);
           nTgt = numel(tmp.trx);
         else
           nTgt = 1;
@@ -1869,7 +1803,7 @@ classdef Labeler < handle
       
       if offerMacroization
         [tfCancel,macro,moviefilesMacroized] = ...
-          obj.projMacrosOfferMacroization(moviefiles);
+          FSPath.offerMacroization(obj.projMacros,moviefiles);
         if tfCancel
           return;
         end
@@ -2087,6 +2021,8 @@ classdef Labeler < handle
           obj.movieFilesAll{iMov,iView} = mov;
         end
       end
+      
+      obj.projMacroClear;
     end
     
     function [tfok,badfile] = movieCheckFilesExistSimple(obj,iMov) % obj const
@@ -2094,19 +2030,20 @@ classdef Labeler < handle
       % badfile: if ~tfok, badfile contains a file that could not be found.
       
       if ~all(cellfun(@isempty,obj.trxFilesAll(iMov,:)))
-        assert(~obj.isMultiView,'Multiview labeling with targets unsupported.');
+        assert(~obj.isMultiView,...
+          'Multiview labeling with targets unsupported.');
       end
       
       for iView = 1:obj.nview
-        movfileFull = obj.movieFilesAllFull{iMov,iView};        
-        trxFile = obj.trxFilesAll{iMov,iView};
+        movfileFull = obj.movieFilesAllFull{iMov,iView};
+        trxFileFull = obj.trxFilesAllFull{iMov,iView};
         if exist(movfileFull,'file')==0
           tfok = false;
           badfile = movfileFull;
           return;
-        elseif ~isempty(trxFile) && exist(trxFile,'file')==0
+        elseif ~isempty(trxFileFull) && exist(trxFileFull,'file')==0
           tfok = false;
-          badfile = trxFile;
+          badfile = trxFileFull;
           return;
         end
       end
@@ -2114,34 +2051,19 @@ classdef Labeler < handle
       tfok = true;
       badfile = [];
     end
-  end
-  methods (Static)
-    function estr = hlpErrStrFileNotFoundMacroAware(file,fileFull,fileType)
-      % Macro-aware file-not-found error string
-      % file: raw file possibly with macros
-      % fileFull: macro-replaced file
-      % fileType: eg 'movie' or 'trxfile'      
-      if ~FSPath.hasAnyMacro(file)
-        estr = sprintf('Cannot find %s ''%s''.',fileType,file);
-      else
-        estr = sprintf('Cannot find %s ''%s'', macro-expanded to ''%s''.',...
-          fileType,file,fileFull);
-      end
-    end
-  end
-  methods
     
     function tfsuccess = movieCheckFilesExist(obj,iMov) % NOT obj const
       % Helper function for movieSet(), check that movie/trxfiles exist
       %
       % tfsuccess: false indicates user canceled or similar. True indicates
       % that i) obj.movieFilesAllFull(iMov,:) all exist; ii) if obj.hasTrx,
-      % obj.trxFilesAll(iMov,:) all exist.
+      % obj.trxFilesAllFull(iMov,:) all exist. User can update these fields
+      % by browsing, updating macros etc.
       %
-      % This function can also harderror.
+      % This function can harderror.
       %
-      % This function is NOT obj const -- macro-related state can be
-      % mutated, users can browse to movies etc.
+      % This function is NOT obj const -- users can browse to 
+      % movies/trxfiles, macro-related state can be mutated etc.
       
       tfsuccess = false;
       
@@ -2153,10 +2075,9 @@ classdef Labeler < handle
       for iView = 1:obj.nview
         movfile = obj.movieFilesAll{iMov,iView};
         movfileFull = obj.movieFilesAllFull{iMov,iView};
-        %FSPath.errUnreplacedMacros(movfileFull);
         
         if exist(movfileFull,'file')==0
-          qstr = Labeler.hlpErrStrFileNotFoundMacroAware(movfile,...
+          qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
             movfileFull,'movie');
           qtitle = 'Movie not found';
           if isdeployed
@@ -2179,9 +2100,8 @@ classdef Labeler < handle
               obj.projMacroSetUI();
               movfileFull = obj.movieFilesAllFull{iMov,iView};
               if exist(movfileFull,'file')==0
-                error('Labeler:mov',...
-                  Labeler.hlpErrStrFileNotFoundMacroAware(movfile,...
-                  movfileFull,'movie'));
+                FSPath.throwErrFileNotFoundMacroAware(movfile,...
+                  movfileFull,'movie');
               end
             case 'Browse to movie'
               lastmov = RC.getprop('lbl_lastmovie');
@@ -2201,16 +2121,21 @@ classdef Labeler < handle
           
           % At this point, either we have i) harderrored, ii)
           % early-returned with tfsuccess=false, or iii) movfileFull is set
-          assert(exist(movfileFull,'file')>0);
-          assert(strcmp(movfileFull,obj.movieFilesAllFull{iMov,iView}));
+          assert(exist(movfileFull,'file')>0);          
         end
-        
+
+        % trxfile
+        movfile = obj.movieFilesAll{iMov,iView};
+        assert(strcmp(movfileFull,obj.movieFilesAllFull{iMov,iView}));
         trxFile = obj.trxFilesAll{iMov,iView};
+        trxFileFull = obj.trxFilesAllFull{iMov,iView};
         tfTrx = ~isempty(trxFile);
         if tfTrx
-          if exist(trxFile,'file')==0
-            qstr = sprintf('Cannot find trxfile ''%s''.',trxFile);
-            resp = questdlg(qstr,'Trx file not found','Browse to trxfile','Cancel','Cancel');
+          if exist(trxFileFull,'file')==0
+            qstr = FSPath.errStrFileNotFoundMacroAware(trxFile,...
+              trxFileFull,'trxfile');
+            resp = questdlg(qstr,'Trxfile not found',...
+              'Browse to trxfile','Cancel','Cancel');
             if isempty(resp)
               resp = 'Cancel';
             end
@@ -2221,14 +2146,11 @@ classdef Labeler < handle
                 return;
             end
             
-            lasttrxfile = RC.getprop('lbl_lasttrxfile');
-            if isempty(lasttrxfile)
-              lasttrxfile = RC.getprop('lbl_lastmovie');
-            end
-            if isempty(lasttrxfile)
-              lasttrxfile = pwd;
-            end
-            [newtrxfile,newtrxfilepath] = uigetfile('*.*','Select trxfile',lasttrxfile);
+            movfilepath = fileparts(movfileFull);
+            movfilestr = FSPath.fileStrMacroAware(movfile,movfileFull);
+            promptstr = sprintf('Select trx file for %s',movfilestr);
+            [newtrxfile,newtrxfilepath] = uigetfile('*.mat',promptstr,...
+              movfilepath);
             if isequal(newtrxfile,0)
               return;
             end
@@ -2236,11 +2158,30 @@ classdef Labeler < handle
             if exist(trxFile,'file')==0
               error('Labeler:trx','Cannot find trxfile ''%s''.',trxFile);
             end
-            
-            assert(exist(trxFile,'file')>0);
+            [tfMatch,trxFileMacroized] = FSPath.tryTrxfileMacroization( ...
+              trxFile,movfilepath);
+            if tfMatch
+              trxFile = trxFileMacroized;
+            end
             obj.trxFilesAll{iMov,iView} = trxFile;
           end
           RC.saveprop('lbl_lasttrxfile',trxFile);
+        end
+      end
+      
+      % For multiview projs a user could theoretically alter macros in 
+      % such a way as to incrementally locate files, breaking previously
+      % found files
+      for iView = 1:obj.nview
+        movfile = obj.movieFilesAll{iMov,iView};
+        movfileFull = obj.movieFilesAllFull{iMov,iView};
+        tfile = obj.trxFilesAll{iMov,iView};
+        tfileFull = obj.trxFilesAllFull{iMov,iView};
+        if exist(movfileFull,'file')==0
+          FSPath.throwErrFileNotFoundMacroAware(movfile,movfileFull,'movie');
+        end
+        if ~isempty(tfileFull) && exist(tfileFull,'file')==0
+          FSPath.throwErrFileNotFoundMacroAware(tfile,tfileFull,'trxfile');
         end
       end
       
@@ -2281,7 +2222,7 @@ classdef Labeler < handle
       %       obj.gdata.axes_all.addlistener('XLimMode','PostSet',@(s,e)lclTrace('postset'));
       obj.setFrameAndTarget(1,1);
       
-      trxFile = obj.trxFilesAll{iMov,1};
+      trxFile = obj.trxFilesAllFull{iMov,1};
       tfTrx = ~isempty(trxFile);
       if tfTrx
         assert(~obj.isMultiView,...
@@ -2298,7 +2239,7 @@ classdef Labeler < handle
         trxvar = [];
       end
       obj.trxSet(trxvar);
-      obj.trxfile = trxFile; % this must come after .trxSet() call
+      %obj.trxfile = trxFile; % this must come after .trxSet() call
         
       obj.isinit = false; % end Initialization hell      
 
@@ -2373,7 +2314,7 @@ classdef Labeler < handle
         obj.movieReader(i).close();
       end
       obj.moviename = '';
-      obj.trxfile = '';
+      %obj.trxfile = '';
       obj.isinit = true;
       obj.currMovie = 0;
       obj.trxSet([]);
@@ -2445,7 +2386,7 @@ classdef Labeler < handle
   end
   
   %% Trx
-  methods 
+  methods
     
     function trxSet(obj,trx)
       % Set the trajectories for the current movie (.trx).
@@ -2494,52 +2435,34 @@ classdef Labeler < handle
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
       obj.initShowTrx();
     end
-  end
-  methods (Static)    
-    function f2t = trxHlpComputeF2t(nfrm,trx)
-      % Compute f2t array for trx structure
-      %
-      % nfrm: number of frames in movie corresponding to trx
-      % trx: trx struct array
-      %
-      % f2t: [nfrm x nTrx] logical. f2t(f,iTgt) is true iff trx(iTgt) is
-      % live at frame f.
-      
-      nTrx = numel(trx);
-      f2t = false(nfrm,nTrx);
-      for iTgt=1:nTrx
-        frm0 = trx(iTgt).firstframe;
-        frm1 = trx(iTgt).endframe;
-        f2t(frm0:frm1,iTgt) = true;
-      end
-    end
-  end  
-  methods    
+    
     function trxSave(obj)
       % Save the current .trx to .trxfile. 
     
-      tfile = obj.trxfile;
-      tExist = load(tfile);
-      tNew = struct('trx',obj.trx);
-      if isequaln(tExist,tNew)
-        msgbox(sprintf('Current trx matches that in ''%s''.',tfile));
-      else
-        SAVEBTN = 'OK, save and overwrite';
-        CANCBTN = 'Cancel';
-        str = sprintf('This will OVERWRITE the file ''%s''. Please back up your original trx!',tfile);
-        ret = questdlg(str,'Save Trx',SAVEBTN,CANCBTN,CANCBTN);
-        if isempty(ret)
-          ret = CANCBTN;
-        end
-        switch ret
-          case SAVEBTN
-            save(tfile,'-struct','tNew');
-          case CANCBTN
-            % none
-          otherwise
-            assert(false);
-        end
-      end
+      assert(false,'Unsupported');
+      
+%       tfile = obj.trxfile;
+%       tExist = load(tfile);
+%       tNew = struct('trx',obj.trx);
+%       if isequaln(tExist,tNew)
+%         msgbox(sprintf('Current trx matches that in ''%s''.',tfile));
+%       else
+%         SAVEBTN = 'OK, save and overwrite';
+%         CANCBTN = 'Cancel';
+%         str = sprintf('This will OVERWRITE the file ''%s''. Please back up your original trx!',tfile);
+%         ret = questdlg(str,'Save Trx',SAVEBTN,CANCBTN,CANCBTN);
+%         if isempty(ret)
+%           ret = CANCBTN;
+%         end
+%         switch ret
+%           case SAVEBTN
+%             save(tfile,'-struct','tNew');
+%           case CANCBTN
+%             % none
+%           otherwise
+%             assert(false);
+%         end
+%       end
     end
    
     function tf = trxCheckFramesLive(obj,frms)
@@ -2565,9 +2488,61 @@ classdef Labeler < handle
         error('Labeler:target',...
           'Target %d is not live during specified frames.',obj.currTarget);
       end
-    end
+    end   
     
+    function trxFilesUnMacroize(obj)
+      obj.trxFilesAll = obj.trxFilesAllFull;
+    end
+        
   end
+  methods (Static)
+    function f2t = trxHlpComputeF2t(nfrm,trx)
+      % Compute f2t array for trx structure
+      %
+      % nfrm: number of frames in movie corresponding to trx
+      % trx: trx struct array
+      %
+      % f2t: [nfrm x nTrx] logical. f2t(f,iTgt) is true iff trx(iTgt) is
+      % live at frame f.
+      
+      nTrx = numel(trx);
+      f2t = false(nfrm,nTrx);
+      for iTgt=1:nTrx
+        frm0 = trx(iTgt).firstframe;
+        frm1 = trx(iTgt).endframe;
+        f2t(frm0:frm1,iTgt) = true;
+      end
+    end
+    function sMacro = trxFilesMacros(movFileFull)
+      sMacro = struct();
+      sMacro.movdir = fileparts(movFileFull);
+    end
+    function trxFilesFull = trxFilesLocalize(trxFiles,movFilesFull)
+      % Localize trxFiles based on macros+movFiles
+      %
+      % trxFiles: can be char or cellstr
+      % movFilesFull: like trxFiles, if cellstr same size as trxFiles.
+      %   Should NOT CONTAIN macros
+      %
+      % trxFilesFull: char or cellstr, if cellstr same size as trxFiles
+      
+      tfChar = ischar(trxFiles);
+      trxFiles = cellstr(trxFiles);
+      movFilesFull = cellstr(movFilesFull);
+      szassert(trxFiles,size(movFilesFull));
+      trxFilesFull = cell(size(trxFiles));
+      
+      for i=1:numel(trxFiles)
+        sMacro = Labeler.trxFilesMacros(movFilesFull{i});
+        trxFilesFull{i} = FSPath.fullyLocalizeStandardizeChar(trxFiles{i},sMacro);
+      end
+      FSPath.warnUnreplacedMacros(trxFilesFull);
+      
+      if tfChar
+        trxFilesFull = trxFilesFull{1};
+      end
+    end
+  end  
    
   %% Labeling
   methods
@@ -3109,6 +3084,7 @@ classdef Labeler < handle
   methods
     
     function sMacro = baseTrkFileMacros(obj)
+      % Set of built-in macros appropriate to exporting files/data
       sMacro = struct();
       sMacro.projname = obj.projname;
       [sMacro.projdir,sMacro.projfile] = fileparts(obj.projectfile);
@@ -3131,7 +3107,8 @@ classdef Labeler < handle
         
     function [tfok,trkfiles] = getTrkFileNamesForExport(obj,movfiles,rawname)
       sMacro = obj.baseTrkFileMacros();
-      trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),movfiles,'uni',0);
+      trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),...
+        movfiles,'uni',0);
       [tfok,trkfiles] = Labeler.checkTrkFileNamesExport(trkfiles);
     end
     
@@ -3549,7 +3526,7 @@ classdef Labeler < handle
       movIDs = FSPath.standardPath(obj.movieFilesAll);
       if obj.hasTrx
         tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
-          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll);
+          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAllFull);
       else
         [~,tblMF] = Labeler.lblCompileContents(obj.movieFilesAllFull,...
           obj.labeledpos,obj.labeledpostag,'lbl',...
@@ -3575,7 +3552,7 @@ classdef Labeler < handle
       movIDs = FSPath.standardPath(obj.movieFilesAll);
       if obj.hasTrx        
         tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
-          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAll,...
+          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAllFull,...
           'iMovRead',iMov,'frmReadCell',frmCell,'tgtsRead','live');
       else
         [~,tblMF] = Labeler.lblCompileContentsRaw(obj.movieFilesAllFull,...

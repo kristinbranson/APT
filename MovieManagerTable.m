@@ -1,18 +1,27 @@
 classdef MovieManagerTable < handle
   
+  properties (Constant)
+    JTABLEPROPS_NOTRX = {'ColumnName',{'Movie' 'Has Labels'},...
+                         'ColumnPreferredWidth',[600 250]};
+    JTABLEPROPS_TRX = {'ColumnName',{'Movie' 'Trx' 'Has Labels'},...
+                         'ColumnPreferredWidth',[550 200 100]};
+  end
   properties
     hMM
     hParent
     cbkSelectMovie
+    
+    trxShown % scalar logical. If true, table displays trxfiles
   end
 
   methods (Abstract)
         
     % Update movienames/flags
     %
-    % movNames: [nMovxnView] cellstr. Movies, macros allowed
+    % movNames: [nMovxnView] cellstr. Movie files
+    % trxNames: [nMovxnView] cellstr. trx files
     % movsHaveLbls: [nMov x 1] logical.
-    updateMovieData(obj,movNames,movsHaveLbls)
+    updateMovieData(obj,movNames,trxNames,movsHaveLbls)
   
     % Update currently selected row
     %

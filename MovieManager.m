@@ -31,7 +31,7 @@ lObj = varargin{1};
 handles.labeler = lObj;
 handles.output = hObject;
 hObject.Visible = 'off';
-PROPS = {'movieFilesAll' 'movieFilesAllHaveLbls'};
+PROPS = {'movieFilesAll' 'trxFilesAll' 'movieFilesAllHaveLbls'};
 mcls = metaclass(lObj);
 mprops = mcls.PropertyList;
 mprops = mprops(ismember({mprops.Name}',PROPS));
@@ -76,19 +76,23 @@ function cbkUpdateTable(hMMobj)
 
 handles = guidata(hMMobj);
 lObj = handles.labeler;
+if lObj.isinit
+  return;
+end
 if ~lObj.hasProject
   error('MovieManager:proj','Please open/create a project first.');
 end
 movs = lObj.movieFilesAll;
+trxs = lObj.trxFilesAll;
 movsHaveLbls = lObj.movieFilesAllHaveLbls;
 
-if size(movs,1)~=numel(movsHaveLbls)
+if ~isequal(size(movs,1),size(trxs,1),numel(movsHaveLbls))
   % intermediate state, take no action
   return;
 end
 
 tbl = handles.tblMovies;
-tbl.updateMovieData(movs,movsHaveLbls);
+tbl.updateMovieData(movs,trxs,movsHaveLbls);
 if ~isempty(lObj.currMovie) % can occur during projload
   tbl.updateSelectedMovie(lObj.currMovie);
 end
