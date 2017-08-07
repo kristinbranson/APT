@@ -1167,8 +1167,10 @@ classdef Labeler < handle
       macros = fieldnames(s);
       macrosdisp = cellfun(@(x)['$' x],macros,'uni',0);
       vals = struct2cell(s);
-
-      resp = inputdlg(macrosdisp,'Project macros',1,vals);
+      nmacros = numel(macros);
+      INPUTBOXWIDTH = 100;
+      resp = inputdlg(macrosdisp,'Project macros',...
+        repmat([1 INPUTBOXWIDTH],nmacros,1),vals);
       if ~isempty(resp)
         assert(isequal(numel(macros),numel(vals),numel(resp)));
         for i=1:numel(macros)
