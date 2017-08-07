@@ -343,15 +343,7 @@ set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
 colnames = handles.labelerObj.TBLFRAMES_COLS; % AL: dumb b/c table update code uses hardcoded cols 
 set(handles.tblFrames,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
 
-% Set the size of gui slightly smaller than screen size.
-scsz = get(groot,'Screensize');
-set(hObject,'Units','Pixels');
-fsz = get(hObject,'Position');
-fsz(1) = max(25,fsz(1));
-fsz(2) = max(25,fsz(2));
-fsz(3) = min(fsz(3),round( (scsz(3)-fsz(1))*0.9));
-fsz(4) = min(fsz(4),round( (scsz(4)-fsz(2))*0.9));
-set(hObject,'Position',fsz);
+figSetPosAPTDefault(hObject);
 set(hObject,'Units','normalized');
 
 handles.sldZoom.Min = 0;

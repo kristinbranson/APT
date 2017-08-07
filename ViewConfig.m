@@ -81,8 +81,7 @@ classdef ViewConfig
       % tfAxLimSpecifiedInCfg: [nviewx1] logical
       %
       % This not only sets the stuff in viewCfg, but also resets some stuff
-      % to "default"/auto if viewCfg doesn't say anything (has empty props)
-      
+      % to "default"/auto if viewCfg doesn't say anything (has empty props)      
       
       nview = numel(hFig);
       assert(isequal(nview,numel(hAx),numel(viewCfg)));
@@ -101,6 +100,9 @@ classdef ViewConfig
             'Ignoring invalid configuration setting: position for figure %d.',iView);
         else
           % all fpos elements are empty; no-op
+        end
+        if figIsOffScreen(hFig(iView))
+          figSetPosAPTDefault(hFig(iView));
         end
         
         axlim = vCfg.AxisLim;
