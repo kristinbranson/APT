@@ -282,6 +282,11 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
+handles.figure.ResizeFcn = @cbkResize;
+% Iss #116. Appears nec to get proper resize behavior
+handles.pumTrack.Max = 2;
+cbkResize(handles.figure,[]);
+
 lObj = handles.labelerObj;
 
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
@@ -663,6 +668,18 @@ handles.movieMgr.Visible = 'off';
 
 guidata(handles.figure,handles);
   
+function cbkResize(src,evt)
+handles = guidata(src);
+
+% Resize pumTrack width otherwise text clipped on Linux
+pum = handles.pumTrack;
+pb = handles.pbTrack;
+pbPos = pb.Position;
+rightEdge = pbPos(1)+pbPos(3);
+width = 1.1*pum.Extent(3);
+pum.Position(1) = rightEdge-width;
+pum.Position(3) = width;
+
 function cbkNewMovie(src,evt)
 lObj = src;
 handles = lObj.gdata;
@@ -1363,12 +1380,11 @@ lObj = handles.labelerObj;
 if hlpSave(lObj)
   currMovInfo = lObj.projLoad();
   if ~isempty(currMovInfo)
+    handles = lObj.gdata; % projLoad updated stuff
+    handles.movieMgr.Visible = 'on';
     wstr = sprintf('Could not find file for movie(set) %d: %s. Project opened with no movie selected.',...
       currMovInfo.iMov,currMovInfo.badfile);
     hWarn = warndlg(wstr,'Movie not found','modal');
-    handles = lObj.gdata; % projLoad updated stuff
-    handles.movieMgr.Visible = 'on';
-    figure(hWarn);
   end
 end
 
