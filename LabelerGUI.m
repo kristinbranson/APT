@@ -282,10 +282,14 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
-handles.figure.ResizeFcn = @cbkResize;
-% Iss #116. Appears nec to get proper resize behavior
-handles.pumTrack.Max = 2;
-cbkResize(handles.figure,[]);
+if ispc || ismac
+  % none
+else
+  handles.figure.ResizeFcn = @cbkResize;
+  % Iss #116. Appears nec to get proper resize behavior
+  handles.pumTrack.Max = 2;
+  cbkResize(handles.figure,[]);
+end
 handles.pumTrack.Callback = ...
   @(hObj,edata)LabelerGUI('pumTrack_Callback',hObj,edata,guidata(hObj));
 
