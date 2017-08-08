@@ -16,6 +16,7 @@ classdef Labeler < handle
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'currMovie' 'currFrame' 'currTarget' ...
       'labelTemplate' ...
+      'trackModeIdx' ...
       'suspScore'};
     LOADPROPS = { ...
       'projname' ...
@@ -23,6 +24,7 @@ classdef Labeler < handle
       'viewCalibrationData' 'viewCalProjWide' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'labelTemplate' ...
+      'trackModeIdx' ...
       'suspScore'};
     
     TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
@@ -259,6 +261,7 @@ classdef Labeler < handle
   %% Tracking
   properties (SetObservable)
     tracker % LabelTracker object. init: PLPN
+    trackModeIdx % index into enumeration('TrackMode') for current trackmode
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
@@ -1427,6 +1430,11 @@ classdef Labeler < handle
         else
           s.viewCalProjWide = [];
         end
+      end
+      
+      % 20170808
+      if ~isfield(s,'trackModeIdx')
+        s.trackModeIdx = 1;
       end
     end
     

@@ -286,6 +286,8 @@ handles.figure.ResizeFcn = @cbkResize;
 % Iss #116. Appears nec to get proper resize behavior
 handles.pumTrack.Max = 2;
 cbkResize(handles.figure,[]);
+handles.pumTrack.Callback = ...
+  @(hObj,edata)LabelerGUI('pumTrack_Callback',hObj,edata,guidata(hObj));
 
 lObj = handles.labelerObj;
 
@@ -311,6 +313,7 @@ listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
+listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
@@ -1012,22 +1015,31 @@ if tf
   lObj.tracker.addlistener('storeFullTracking','PostSet',@(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
 end
 
+function cbkTrackModeIdxChanged(src,evt)
+lObj = evt.AffectedObject;
+hPUM = lObj.gdata.pumTrack;
+hPUM.Value = lObj.trackModeIdx;
+
 function cbkTrackerNFramesChanged(src,evt)
 lObj = evt.AffectedObject;
-initPUMTrack(lObj);
+setPUMTrackStrs(lObj);
 
-function initPUMTrack(lObj)
+function setPUMTrackStrs(lObj)
 tms = enumeration('TrackMode');
 menustrs = arrayfun(@(x)x.menuStr(lObj),tms,'uni',0);
 hPUM = lObj.gdata.pumTrack;
 hPUM.String = menustrs;
-hPUM.UserData = tms;
+%hPUM.UserData = tms;
+
+function pumTrack_Callback(hObj,edata,handles)
+lObj = handles.labelerObj;
+lObj.trackModeIdx = hObj.Value;
 
 function tm = getTrackMode(handles)
-hPUM = handles.pumTrack;
-tms = hPUM.UserData;
-val = hPUM.Value;
-tm = tms(val);
+lObj = handles.labelerObj;
+idx = lObj.trackModeIdx;
+tms = enumeration('TrackMode');
+tm = tms(idx);
 
 function cbkMovieCenterOnTargetChanged(src,evt)
 lObj = evt.AffectedObject;
