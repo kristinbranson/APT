@@ -694,7 +694,7 @@ classdef CPRLabelTracker < LabelTracker
       lObj = obj.lObj;
 %       movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
 %       movNameID = MFTable.formMultiMovieID(movNameID);
-      nfrms = lObj.movieInfoAll{iMov}.nframes; % For moviesets with movies with differing # of frames, this should be the common minimum
+      nfrms = lObj.movieInfoAllGTaware{iMov}.nframes; % For moviesets with movies with differing # of frames, this should be the common minimum
       lpos = lObj.labeledpos{iMov};
       assert(size(lpos,3)==nfrms);
       ntgts = size(lpos,4);

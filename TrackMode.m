@@ -83,7 +83,7 @@ classdef TrackMode < handle
             otherwise
               assert(false);
           end
-          movIfoAll = labelerObj.movieInfoAll;
+          movIfoAll = labelerObj.movieInfoAllGTaware;
           frms = arrayfun(@(x)1:df:movIfoAll{x}.nframes,iMov,'uni',0);
         end                 
       end

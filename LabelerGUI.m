@@ -750,7 +750,7 @@ set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
 
 tfHasMovie = lObj.currMovie>0;
 if tfHasMovie
-  ifo = lObj.movieInfoAll{lObj.currMovie,1}.info;
+  ifo = lObj.movieInfoAllGTaware{lObj.currMovie,1}.info;
   minzoomrad = 10;
   maxzoomrad = (ifo.nc+ifo.nr)/4;
   handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
@@ -1435,6 +1435,7 @@ lObj = handles.labelerObj;
 if ~lObj.hasMovie
   error('LabelerGUI:noMovie','No movie is loaded.');
 end
+lObj.gtThrowErrIfInGTMode();
 iMov = lObj.currMovie;
 if lObj.labelposMovieHasLabels(iMov)
   resp = questdlg('Current movie has labels that will be overwritten. OK?',...

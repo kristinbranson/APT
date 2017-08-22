@@ -82,9 +82,9 @@ end
 if ~lObj.hasProject
   error('MovieManager:proj','Please open/create a project first.');
 end
-movs = lObj.movieFilesAll;
-trxs = lObj.trxFilesAll;
-movsHaveLbls = lObj.movieFilesAllHaveLbls;
+movs = lObj.movieFilesAllGT;
+trxs = lObj.trxFilesAllGT;
+movsHaveLbls = lObj.movieFilesAllGTHaveLbls;
 
 if ~isequal(size(movs,1),size(trxs,1),numel(movsHaveLbls))
   % intermediate state, take no action
@@ -164,7 +164,7 @@ end
 
 function pbNextUnlabeled_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
-iMov = find(~lObj.movieFilesAllHaveLbls,1);
+iMov = find(~lObj.movieFilesAllGTHaveLbls,1);
 if isempty(iMov)
   msgbox('All movies are labeled!');
 else
