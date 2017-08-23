@@ -150,6 +150,7 @@ classdef Labeler < handle
   end
   properties (Dependent)
     movieInfoAllGTaware; 
+    viewCalibrationDataGTaware % Either viewCalData or viewCalDataGT
     viewCalibrationDataCurrent % view calibration data applicable to current movie
   end
   properties (SetObservable)
@@ -349,9 +350,16 @@ classdef Labeler < handle
   
   %% Prop access
   methods % dependent prop getters
+    function v = get.viewCalibrationDataGTaware(obj)
+      if obj.gtIsGTMode
+        v = obj.viewCalibrationDataGT;
+      else
+        v = obj.viewCalibrationData;
+      end      
+    end
     function v = get.viewCalibrationDataCurrent(obj)
       vcdPW = obj.viewCalProjWide;
-      vcd = obj.viewCalibrationData;
+      vcd = obj.viewCalibrationDataGTaware;
       if isempty(vcdPW)
         v = [];
       elseif vcdPW
