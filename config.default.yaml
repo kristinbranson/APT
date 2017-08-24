@@ -18,8 +18,12 @@ Trx:
   TrxMarker: 'x'
   TrxMarkerSize: 10
   TrxLineWidth: 3
+  TrxIDLblFontSize: 10
+  TrxIDLblFontWeight: bold
+  TrxIDLblOffset: 2.5 # in pixels, dx/dy offset of text ID lbl
   ShowTrx: 1
   ShowTrxCurrentTargetOnly: 0
+  ShowTrxIDLbl: 1
 
 View: 
   XDir: 'n'
@@ -58,6 +62,7 @@ LabelPointsPlot:
   MarkerSize: 6
   LineWidth: 2
   FontSize: 14
+  LblOffset: 5
   OccludedMarker: 'o'
   
   TemplateMode:

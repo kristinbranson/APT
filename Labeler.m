@@ -197,10 +197,12 @@ classdef Labeler < handle
   properties (SetObservable)
     showTrx;                  % true to show trajectories
     showTrxCurrTargetOnly;    % if true, plot only current target
+    showTrxIDLbl;             % true to show id label 
   end
   properties
     hTraj;                    % nTrx x 1 vector of line handles
-    hTrx;                     % nTrx x 1 vector of line handles    
+    hTrx;                     % nTrx x 1 vector of line handles
+    hTrxTxt;                  % nTrx x 1 vector of text handles
     showTrxPreNFrm = 15;      % number of preceding frames to show in traj
     showTrxPostNFrm = 5;      % number of following frames to show in traj
   end
@@ -245,7 +247,7 @@ classdef Labeler < handle
   properties (SetObservable)
     lblCore; % init: L
   end
-  properties    
+  properties
     labeledpos2_ptsH;     % [npts]
     labeledpos2_ptsTxtH;  % [npts]    
     lblOtherTgts_ptsH;    % [npts]
@@ -694,6 +696,7 @@ classdef Labeler < handle
       
       obj.showTrx = cfg.Trx.ShowTrx;
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
+      obj.showTrxIDLbl = cfg.Trx.ShowTrxIDLbl;
       
       obj.labels2Hide = false;
 
@@ -736,6 +739,7 @@ classdef Labeler < handle
       cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
       cfg.Trx.ShowTrx = obj.showTrx;
       cfg.Trx.ShowTrxCurrentTargetOnly = obj.showTrxCurrTargetOnly;
+      cfg.Trx.ShowTrxIDLbl = obj.showTrxIDLbl;
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
@@ -4632,8 +4636,10 @@ classdef Labeler < handle
     function initShowTrx(obj)
       deleteValidHandles(obj.hTraj);
       deleteValidHandles(obj.hTrx);
+      deleteValidHandles(obj.hTrxTxt);
       obj.hTraj = matlab.graphics.primitive.Line.empty(0,1);
       obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
+      obj.hTrxTxt = matlab.graphics.primitive.Text.empty(0,1);
       
       ax = obj.gdata.axes_curr;
       pref = obj.projPrefs.Trx;
@@ -4646,13 +4652,21 @@ classdef Labeler < handle
           'linestyle',pref.TrajLineStyle, ...
           'linewidth',pref.TrajLineWidth, ...
           'HitTest','off');
+
         obj.hTrx(i,1) = plot(ax,...
           nan,nan,pref.TrxMarker);
         set(obj.hTrx(i,1),'HitTest','off',...
-          'Color',pref.TrajColor',...
+          'Color',pref.TrajColor,...
           'MarkerSize',pref.TrxMarkerSize,...
           'LineWidth',pref.TrxLineWidth);
-      end      
+        
+        id = find(obj.trxIdPlusPlus2Idx==i)-1;
+        obj.hTrxTxt(i,1) = text(nan,nan,num2str(id),'Parent',ax,...
+          'Color',pref.TrajColor,...
+          'Fontsize',pref.TrxIDLblFontSize,...
+          'Fontweight',pref.TrxIDLblFontWeight,...
+          'HitTest','off');
+      end
     end
     
     function setShowTrx(obj,tf)
@@ -4664,6 +4678,12 @@ classdef Labeler < handle
     function setShowTrxCurrTargetOnly(obj,tf)
       assert(isscalar(tf) && islogical(tf));
       obj.showTrxCurrTargetOnly = tf;
+      obj.updateShowTrx();
+    end
+    
+    function setShowTrxIDLbl(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showTrxIDLbl = tf;
       obj.updateShowTrx();
     end
     
@@ -4691,6 +4711,7 @@ classdef Labeler < handle
         tfShow = false(obj.nTrx,1);
       end        
   
+      % update coords/positions
       for iTrx = 1:obj.nTrx
         if tfShow(iTrx)
           trxCurr = trxAll(iTrx);
@@ -4714,13 +4735,25 @@ classdef Labeler < handle
             xTrx = nan;
             yTrx = nan;
           end
-          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx,'Color',color);          
+          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx,'Color',color);
+          
+          if obj.showTrxIDLbl
+            dx = pref.TrxIDLblOffset;
+            set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1],...
+              'Color',color);
+          end
         end
       end
       set(obj.hTraj(tfShow),'Visible','on');
       set(obj.hTraj(~tfShow),'Visible','off');
       set(obj.hTrx(tfShow),'Visible','on');
       set(obj.hTrx(~tfShow),'Visible','off');
+      if obj.showTrxIDLbl
+        set(obj.hTrxTxt(tfShow),'Visible','on');
+        set(obj.hTrxTxt(~tfShow),'Visible','off');
+      else
+        set(obj.hTrxTxt,'Visible','off');
+      end
     end
     
   end
@@ -5188,8 +5221,9 @@ classdef Labeler < handle
       lpos = obj.labeledpos{iMov}(:,:,frm,iTgt);
       lpostag = obj.labeledpostag{iMov}(:,frm,iTgt);
       ipts = 1:obj.nPhysPoints;
+      txtOffset = obj.labelPointsPlotInfo.LblOffset;
       LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
-        obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts));
+        obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts),txtOffset);
       if ~all(cellfun(@isempty,lpostag(ipts)))
         if isempty(tfWarningThrownAlready)
           warningNoTrace('Labeler:labelsPrev',...
@@ -5298,7 +5332,9 @@ classdef Labeler < handle
       frm = obj.currFrame;
       iTgt = obj.currTarget;
       lpos = obj.labeledpos2{iMov}(:,:,frm,iTgt);
-      LabelCore.setPtsCoords(lpos,obj.labeledpos2_ptsH,obj.labeledpos2_ptsTxtH);
+      txtOffset = obj.labelPointsPlotInfo.LblOffset;
+      LabelCore.setPtsCoordsStc(lpos,obj.labeledpos2_ptsH,...
+        obj.labeledpos2_ptsTxtH,txtOffset);
     end
     
     function labels2VizShow(obj)

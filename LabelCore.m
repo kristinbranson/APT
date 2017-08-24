@@ -353,14 +353,14 @@ classdef LabelCore < handle
             
       % FullyOccluded
       tfOccld = any(isinf(xy),2);
-      LabelCore.setPtsCoords(xy(~tfOccld,:),hPoints(~tfOccld),hPointsTxt(~tfOccld));
+      obj.setPtsCoords(xy(~tfOccld,:),hPoints(~tfOccld),hPointsTxt(~tfOccld));
       
       tfMainAxis = isequal(hPoints,obj.hPts) && isequal(hPointsTxt,obj.hPtsTxt);
       if tfMainAxis
         obj.tfOcc = tfOccld;
         obj.refreshOccludedPts();
       else
-        LabelCore.setPtsCoords(nan(nnz(tfOccld),2),hPoints(tfOccld),hPointsTxt(tfOccld));
+        obj.setPtsCoords(nan(nnz(tfOccld),2),hPoints(tfOccld),hPointsTxt(tfOccld));
       end
       
       % Tags
@@ -384,7 +384,7 @@ classdef LabelCore < handle
       % Unlike assignLabelCoords, no clipping or occluded-handling
       hPoint = obj.hPts(iPt);
       hTxt = obj.hPtsTxt(iPt);
-      LabelCore.setPtsCoords(xy,hPoint,hTxt);
+      obj.setPtsCoords(xy,hPoint,hTxt);
     end
     
     % XXX RENAME: refreshFullOccPtLocs
@@ -398,7 +398,7 @@ classdef LabelCore < handle
       assert(isvector(tf) && numel(tf)==obj.nPts);
       nOcc = nnz(tf);
       iOcc = find(tf);
-      LabelCore.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
+      obj.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
       LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],obj.hPtsOcc(tf),obj.hPtsTxtOcc(tf));
       LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
         obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
@@ -478,7 +478,7 @@ classdef LabelCore < handle
     
   methods (Static) % Utilities
     
-    function assignLabelCoordsStc(xy,hPts,hTxt)
+    function assignLabelCoordsStc(xy,hPts,hTxt,txtOffset)
       % Simpler version of assignLabelCoords()
       %
       % xy: [nptsx2]
@@ -491,8 +491,10 @@ classdef LabelCore < handle
       
       % FullyOccluded
       tfOccld = any(isinf(xy),2);
-      LabelCore.setPtsCoords(xy(~tfOccld,:),hPts(~tfOccld),hTxt(~tfOccld));      
-      LabelCore.setPtsCoords(nan(nnz(tfOccld),2),hPts(tfOccld),hTxt(tfOccld));
+      LabelCore.setPtsCoordsStc(xy(~tfOccld,:),...
+        hPts(~tfOccld),hTxt(~tfOccld),txtOffset);      
+      LabelCore.setPtsCoordsStc(nan(nnz(tfOccld),2),...
+        hPts(tfOccld),hTxt(tfOccld),txtOffset);
     end
     
     function xy = getCoordsFromPts(hPts)
@@ -502,25 +504,30 @@ classdef LabelCore < handle
       y = cell2mat(y);
       xy = [x y];
     end
-    
-    function setPtsCoords(xy,hPts,hTxt,varargin)
-      [dxTxt,dyTxt] = myparse(varargin,...
-        'dxTxt',LabelCore.DT2P,...
-        'dyTxt',LabelCore.DT2P);
-      
+  end
+  methods
+    function setPtsCoords(obj,xy,hPts,hTxt)
+      txtOffset = obj.labeler.labelPointsPlotInfo.LblOffset;
+      LabelCore.setPtsCoordsStc(xy,hPts,hTxt,txtOffset);
+    end
+  end
+  methods (Static)
+    function setPtsCoordsStc(xy,hPts,hTxt,txtOffset)      
       nPoints = size(xy,1);
       assert(size(xy,2)==2);
       assert(isequal(nPoints,numel(hPts),numel(hTxt)));
       
       for i = 1:nPoints
         set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
-        set(hTxt(i),'Position',[xy(i,1)+dxTxt xy(i,2)+dyTxt 1]);
+        set(hTxt(i),'Position',[xy(i,1)+txtOffset xy(i,2)+txtOffset 1]);
       end
     end
             
     function setPtsOffaxis(hPts,hTxt)
       % Set pts/txt to be "offscreen" ie positions to NaN.
-      LabelCore.setPtsCoords(nan(numel(hPts),2),hPts,hTxt);
+      TXTOFFSET_IRRELEVANT = 1;
+      LabelCore.setPtsCoordsStc(nan(numel(hPts),2),hPts,hTxt,...
+        TXTOFFSET_IRRELEVANT);
     end
     
     function setPtsColor(hPts,hTxt,colors)
@@ -535,7 +542,7 @@ classdef LabelCore < handle
     end
     
     function setPtsCoordsOcc(xy,hPts,hTxt)
-      LabelCore.setPtsCoords(xy,hPts,hTxt,'dxTxt',0.25,'dyTxt',0.25);
+      LabelCore.setPtsCoordsStc(xy,hPts,hTxt,0.25);
     end
     
     function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)

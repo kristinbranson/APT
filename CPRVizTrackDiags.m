@@ -223,7 +223,8 @@ classdef CPRVizTrackDiags < handle
     function vizLMUpdate(obj,xyLM)
       npts = obj.nPts;
       szassert(xyLM,[npts 2]);
-      LabelCore.setPtsCoords(xyLM,obj.hLM,obj.hLMTxt);
+      LabelCore.setPtsCoordsStc(xyLM,obj.hLM,obj.hLMTxt,...
+        obj.lObj.labelPointsPlotInfo.LblOffset);
     end
   end
   methods % Feature Detail Visibility
