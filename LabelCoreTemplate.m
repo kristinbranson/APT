@@ -60,9 +60,38 @@ classdef LabelCoreTemplate < LabelCore
   % -- If no previously labeled frame for this target, current white points are aligned onto new target.
   % - New target (same frame), labeled
   % -- Previously accepted labels shown as colored points.
+  
+  % STATE + COSMETICS (besides the coordinates)
   %
-  % tfAdjusted is mirrored by hPt colors;
-  % tfSel and tfEstOcc are mirrored by hPt Markers;
+  % Adjustedness. 
+  % Conceptually, unadjusted points have not been touched by a person. They 
+  % are either template-guesses (white) or template-from-tracking-
+  % predictions (colored, but with different markersize/linewidth). 
+  % Existing labels, or points that have been moved have been adjusted. 
+  % Currently, as an implementation edge case, toggling selectedness (see 
+  % next) or estocc-ness (see next) does not affect adjustness although 
+  % arguably these actions should set adjustedness.
+  %
+  % Adjustedness is stored in .tfAdjusted and should be mutated only with
+  % the adjusted* api. Adjustedness is indicated in the UI via hPt color, 
+  % linewidth, markersize and hPtTxt FontAngle.
+  %
+  % Selectedness.
+  % A selected point is one that is currently being "worked on". This gives
+  % the point "focus" and enables eg using arrow keys for adjustment. Only 
+  % one point can be selected at a time. 
+  %
+  % Selectedness is stored in .tfSel and should be mutated only through the
+  % LabelCore/selected* api. Selectedness is indicated in the UI via hPt
+  % markers; use refreshPtMarkers() to update the UI.
+  %
+  % Estimated-occluded-ness.
+  % An estimated-occluded point is one whose position is uncertain to some
+  % degree due to occlusions in the image. 
+  %
+  % Estimated-occ-ness is stored in .tfEstOcc and should be mutated only
+  % through toggleEstOcc. Est-occ-ness is indicated in the UI via hPt
+  % markers, and again refreshPtMarkers() is the universal update.
 
   properties
     supportsMultiView = false;
@@ -73,14 +102,18 @@ classdef LabelCoreTemplate < LabelCore
     iPtMove;     % scalar. Either nan, or index of pt being moved
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
     
-    tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
+    tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from 
+                 % template or tracking prediction
     
     kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
                  % the '1' hotkey maps to, eg typically this will take the 
                  % values 1, 11, 21, ...
+                 
+    hPtsPVRegAdjustedness; % HG PV-pairs for normal marker size, linewidth
+    hPtsPVPredAdjustedness; % " for unadjusted tracking predictions
   end  
   
-  methods 
+  methods
     
     function set.kpfIPtFor1Key(obj,val)
       obj.kpfIPtFor1Key = val;
@@ -97,13 +130,29 @@ classdef LabelCoreTemplate < LabelCore
     
     function initHook(obj)
       obj.setRandomTemplate();
-      
+            
       npts = obj.nPts;
       obj.tfAdjusted = false(npts,1);
+      
+      ppi = obj.ptsPlotInfo;
+      obj.hPtsPVRegAdjustedness = struct( ...
+        'MarkerSize',ppi.MarkerSize,...
+        'LineWidth',ppi.LineWidth);
+      obj.hPtsPVPredAdjustedness = struct( ...
+        'MarkerSize',ppi.MarkerSize*1.5,...
+        'LineWidth',ppi.LineWidth/2);
       
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
       obj.refreshTxLabelCoreAux();
+
+      % LabelCore should prob not talk directly to tracker
+      tObj = obj.labeler.tracker;
+      if ~isempty(tObj) && ~tObj.hideViz
+        warningNoTrace('LabelCoreTemplate:viz',...
+          'Enabling View>Hide Predictions. Tracking predictions (when present) are now shown as template points in Template Mode.');
+        tObj.vizHide();
+      end
     end
     
   end
@@ -122,57 +171,68 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
-      [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
+      lObj = obj.labeler;
+      
+      [tflabeled,lpos,lpostag] = lObj.labelPosIsLabeled(iFrm1,iTgt1);
       if tflabeled
         obj.assignLabelCoords(lpos,'lblTags',lpostag);
         obj.enterAccepted(false);
-      else
-        if iTgt0==iTgt1 % same target, new frame
-          if obj.labeler.hasTrx
-            % existing points are aligned onto new frame based on trx at
-            % (currTarget,prevFrame) and (currTarget,currFrame)
-
-            xy0 = obj.getLabelCoords();
-            xy = LabelCore.transformPtsTrx(xy0,...
-              obj.labeler.trx(iTgt0),iFrm0,...
-              obj.labeler.trx(iTgt0),iFrm1);
-            obj.assignLabelCoords(xy,'tfClip',true);
-          else
-            % none, leave pts as-is
-          end
-        else % different target
-          assert(obj.labeler.hasTrx,'Must have trx to change targets.');
-          [tfneighbor,iFrm0Neighb,lpos0] = ...
-            obj.labeler.labelPosLabeledNeighbor(iFrm1,iTgt1);
-          if tfneighbor
-            xy = LabelCore.transformPtsTrx(lpos0,...
-              obj.labeler.trx(iTgt1),iFrm0Neighb,...
-              obj.labeler.trx(iTgt1),iFrm1);
-          else
-            % no neighboring previously labeled points for new target.
-            % Just start with current points for previous target/frame.
-            xy0 = obj.getLabelCoords();
-            xy = LabelCore.transformPtsTrx(xy0,...
-              obj.labeler.trx(iTgt0),iFrm0,...
-              obj.labeler.trx(iTgt1),iFrm1);
-          end
-          obj.assignLabelCoords(xy,'tfClip',true);
-        end
-        obj.enterAdjust(true,false);
+        return;
       end
+      
+      assert(iFrm1==lObj.currFrame);
+      [tftrked,lposTrk] = lObj.trackIsCurrMovFrmTracked(iTgt1);
+      if tftrked
+        obj.assignLabelCoords(lposTrk);
+        obj.enterAdjust(LabelCoreTemplateResetType.RESETPREDICTED,false);
+        return;
+      end
+      
+      if iTgt0==iTgt1 % same target, new frame
+        if lObj.hasTrx
+          % existing points are aligned onto new frame based on trx at
+          % (currTarget,prevFrame) and (currTarget,currFrame)
+          
+          xy0 = obj.getLabelCoords();
+          xy = LabelCore.transformPtsTrx(xy0,...
+            lObj.trx(iTgt0),iFrm0,...
+            lObj.trx(iTgt0),iFrm1);
+          obj.assignLabelCoords(xy,'tfClip',true);
+        else
+          % none, leave pts as-is
+        end
+      else % different target
+        assert(lObj.hasTrx,'Must have trx to change targets.');
+        [tfneighbor,iFrm0Neighb,lpos0] = ...
+          lObj.labelPosLabeledNeighbor(iFrm1,iTgt1);
+        if tfneighbor
+          xy = LabelCore.transformPtsTrx(lpos0,...
+            lObj.trx(iTgt1),iFrm0Neighb,...
+            lObj.trx(iTgt1),iFrm1);
+        else
+          % no neighboring previously labeled points for new target.
+          % Just start with current points for previous target/frame.
+          xy0 = obj.getLabelCoords();
+          xy = LabelCore.transformPtsTrx(xy0,...
+            lObj.trx(iTgt0),iFrm0,...
+            lObj.trx(iTgt1),iFrm1);
+        end
+        obj.assignLabelCoords(xy,'tfClip',true);
+      end
+      obj.enterAdjust(LabelCoreTemplateResetType.RESET,false);
     end
     
     function clearLabels(obj)
       obj.clearSelected();
-      obj.enterAdjust(true,true);
+      obj.enterAdjust(LabelCoreTemplateResetType.RESET,true);
     end
     
-    function acceptLabels(obj) 
+    function acceptLabels(obj)
       obj.enterAccepted(true);
     end
     
     function unAcceptLabels(obj)
-      obj.enterAdjust(false,false);
+      obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
     end 
     
     function axBDF(obj,src,evt) %#ok<INUSD>
@@ -192,12 +252,12 @@ classdef LabelCoreTemplate < LabelCore
           case LabelState.ADJUST
             % none
           case LabelState.ACCEPTED
-            obj.enterAdjust(false,false);
+            obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
         end
       end     
     end
     
-    function ptBDF(obj,src,evt) 
+    function ptBDF(obj,src,evt)
       switch evt.Button
         case 1
           tf = obj.anyPointSelected();
@@ -207,7 +267,7 @@ classdef LabelCoreTemplate < LabelCore
             % prepare for click-drag of pt
             
             if obj.state==LabelState.ACCEPTED
-              obj.enterAdjust(false,false);
+              obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
             end
             iPt = get(src,'UserData');
             obj.iPtMove = iPt;
@@ -247,7 +307,7 @@ classdef LabelCoreTemplate < LabelCore
       end
     end
     
-    function tfKPused = kpf(obj,src,evt)       
+    function tfKPused = kpf(obj,src,evt)
       key = evt.Key;
       modifier = evt.Modifier;
       tfCtrl = any(strcmp('control',modifier));
@@ -303,7 +363,7 @@ classdef LabelCoreTemplate < LabelCore
             case LabelState.ADJUST
               obj.setPointAdjusted(iSel);
             case LabelState.ACCEPTED
-              obj.enterAdjust(false,false);
+              obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
           end
         elseif strcmp(key,'leftarrow')
           if tfShft
@@ -355,7 +415,7 @@ classdef LabelCoreTemplate < LabelCore
           case LabelState.ADJUST
             % none
           case LabelState.ACCEPTED
-            obj.enterAdjust(false,false);
+            obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
         end
       end   
     end
@@ -416,7 +476,7 @@ classdef LabelCoreTemplate < LabelCore
       end
       
       obj.assignLabelCoords(xys,'tfClip',true);
-      obj.enterAdjust(true,false);
+      obj.enterAdjust(LabelCoreTemplateResetType.RESET,false);
     end
     
     function setRandomTemplate(obj)
@@ -436,18 +496,16 @@ classdef LabelCoreTemplate < LabelCore
   
   methods (Access=private)
     
-    function enterAdjust(obj,tfResetPts,tfClearLabeledPos)
+    function enterAdjust(obj,resetType,tfClearLabeledPos)
       % Enter adjustment state for current frame/tgt.
       %
-      % if tfReset, reset all points to pre-adjustment (white).
+      % resetType: LabelCoreTemplateResetType
       % if tfClearLabeledPos, clear labeled pos.
       
-      if tfResetPts
-        tpClr = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
-        arrayfun(@(x)set(x,'Color',tpClr),obj.hPts);
-        arrayfun(@(x)set(x,'Color',tpClr),obj.hPtsOcc);
-        obj.tfAdjusted(:) = false;
+      if resetType > LabelCoreTemplateResetType.NORESET
+        obj.setAllPointsUnadjusted(resetType);
       end
+      
       if tfClearLabeledPos
         obj.labeler.labelPosClear();
       end
@@ -463,16 +521,8 @@ classdef LabelCoreTemplate < LabelCore
     function enterAccepted(obj,tfSetLabelPos)
       % Enter accepted state for current frame/tgt. All points colored. If
       % tfSetLabelPos, all points/tags written to labelpos/labelpostag.
-            
-      nPts = obj.nPts;
-      ptsH = obj.hPts;
-      clrs = obj.ptsPlotInfo.Colors;
-      for i = 1:nPts
-        set(ptsH(i),'Color',clrs(i,:));
-        set(obj.hPtsOcc(i),'Color',clrs(i,:));
-      end
-      
-      obj.tfAdjusted(:) = true;
+         
+      obj.setAllPointsAdjusted();
       obj.clearSelected();
       
       if tfSetLabelPos
@@ -489,16 +539,56 @@ classdef LabelCoreTemplate < LabelCore
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
         clr = obj.ptsPlotInfo.Colors(iSel,:);
-        set(obj.hPts(iSel),'Color',clr);
-        set(obj.hPtsOcc(iSel),'Color',clr);
+        pv = obj.hPtsPVRegAdjustedness;
+        pv.Color = clr;
+        set(obj.hPts(iSel),pv);
+        set(obj.hPtsOcc(iSel),pv);
+        set(obj.hPtsTxt(iSel),'FontAngle','normal');
       end
+    end
+    
+    function setAllPointsAdjusted(obj)
+      clrs = obj.ptsPlotInfo.Colors;
+      pv = obj.hPtsPVRegAdjustedness;
+      for i=1:obj.nPts
+        pv.Color = clrs(i,:);
+        set(obj.hPts(i),pv);
+        set(obj.hPtsOcc(i),pv);
+        set(obj.hPtsTxt(i),'FontAngle','normal');
+      end
+      obj.tfAdjusted(:) = true;
+    end
+    
+    function setAllPointsUnadjusted(obj,resetType)
+      assert(isa(resetType,'LabelCoreTemplateResetType'));
+      switch resetType
+        case LabelCoreTemplateResetType.RESET
+          pv = obj.hPtsPVRegAdjustedness;
+          pv.Color = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
+          set(obj.hPts,pv);
+          set(obj.hPtsOcc,pv);
+          set(obj.hPtsTxt,'FontAngle','normal');
+        case LabelCoreTemplateResetType.RESETPREDICTED
+          %clrs = rgbbrighten(obj.ptsPlotInfo.Colors,0);
+          clrs = obj.ptsPlotInfo.Colors;
+          pv = obj.hPtsPVPredAdjustedness;
+          for i=1:obj.nPts
+            pv.Color = clrs(i,:);
+            set(obj.hPts(i),pv);
+            set(obj.hPtsOcc(i),pv);
+            set(obj.hPtsTxt(i),'FontAngle','italic');
+          end
+        otherwise
+          assert(false);
+      end      
+      obj.tfAdjusted(:) = false;
     end
     
     function toggleEstOccPoint(obj,iPt)
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
       obj.refreshPtMarkers('iPts',iPt);
       if obj.state==LabelState.ACCEPTED
-        obj.enterAdjust(false,false);
+        obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
       end
     end
     

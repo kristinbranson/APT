@@ -372,7 +372,7 @@ classdef LabelCore < handle
           
         end
         obj.tfEstOcc = tfEO;
-        obj.refreshPtMarkers(); % currently only implemented in TemplateMode 
+        obj.refreshPtMarkers();
       else
         % none; tfEstOcc, hPts markers unchanged
       end

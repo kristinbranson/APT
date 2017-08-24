@@ -1017,16 +1017,18 @@ classdef Labeler < handle
         obj.tracker = tObjNew;
       end
             
+      % We call labelingInit() directly later, hence 'noLabelingInit' args;
+      % see below
       if obj.nmovies==0 || s.currMovie==0 || nomovie
-        obj.movieSetNoMovie();
+        obj.movieSetNoMovie('noLabelingInit',true);
       else
         [tfok,badfile] = obj.movieCheckFilesExistSimple(s.currMovie);
         if ~tfok
           currMovInfo.iMov = s.currMovie;
           currMovInfo.badfile = badfile;
-          obj.movieSetNoMovie();
+          obj.movieSetNoMovie('noLabelingInit',true);
         else
-          obj.movieSet(s.currMovie);
+          obj.movieSet(s.currMovie,'noLabelingInit',true);
           obj.setFrameAndTarget(s.currFrame,s.currTarget);
         end
       end      
@@ -1040,6 +1042,12 @@ classdef Labeler < handle
         fprintf(1,'Loading tracker info: %s.\n',tCls);
         obj.tracker.loadSaveToken(s.trackerData);
       end
+      
+      % Needs to occur after tracker has been set up so that labelCore can
+      % communicate with tracker if necessary (in particular, Template Mode 
+      % <-> Hide Predictions)
+      obj.labelingInit();
+      obj.labelsUpdateNewFrame(true);
       
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
@@ -2205,8 +2213,9 @@ classdef Labeler < handle
       
       assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.',iMov);
       
-      isFirstMovie = myparse(varargin,...
-        'isFirstMovie',false); % passing true for the first time a movie is added to a proj helps the UI
+      [isFirstMovie,noLabelingInit] = myparse(varargin,...
+        'isFirstMovie',false,... % passing true for the first time a movie is added to a proj helps the UI
+        'noLabelingInit',false); 
       
       tfsuccess = obj.movieCheckFilesExist(iMov); % throws
       if ~tfsuccess
@@ -2280,7 +2289,9 @@ classdef Labeler < handle
       
       % KB 20161213: moved this up here so that we could redo in initHook
       obj.labelsMiscInit();
-      obj.labelingInit();
+      if ~noLabelingInit
+        obj.labelingInit();
+      end
       
       edata = NewMovieEventData(isFirstMovie);
       notify(obj,'newMovie',edata);
@@ -2294,11 +2305,14 @@ classdef Labeler < handle
         obj.setFrameAndTarget(obj.currTrx.firstframe,obj.currTarget);
       else
         obj.setFrameAndTarget(1,1);
-      end      
+      end
     end
     
-    function movieSetNoMovie(obj)
+    function movieSetNoMovie(obj,varargin)
       % Set .currMov to 0
+      
+      noLabelingInit = myparse(varargin,...
+        'noLabelingInit',false);
            
           % Stripped cut+paste form movieSet() for reference 20170714
           %       obj.movieReader(iView).open(movfileFull);
@@ -2333,7 +2347,9 @@ classdef Labeler < handle
       obj.isinit = false;
       
       obj.labelsMiscInit();
-      obj.labelingInit();
+      if ~noLabelingInit
+        obj.labelingInit();
+      end
       edata = NewMovieEventData(false);
       notify(obj,'newMovie',edata);
       obj.updateFrameTableComplete();
@@ -4107,6 +4123,9 @@ classdef Labeler < handle
       end      
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
       tObj.track(iMovs,frms,varargin{:});
+      
+      % For template mode to see new tracking results
+      obj.labelsUpdateNewFrame(true); 
     end
     
     function trackAndExport(obj,tm,varargin)
@@ -4298,6 +4317,25 @@ classdef Labeler < handle
         
         pTrkCell{iFold} = tblTrkRes;
         dGTTrkCell{iFold} = d;
+      end
+    end
+    
+    function [tf,lposTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
+      % tf: scalar logical, true if tracker has results/predictions for 
+      %   currentMov/frm/iTgt 
+      % lposTrk: [nptsx2] if tf is true, xy coords from tracker; otherwise
+      %   indeterminate
+      
+      tObj = obj.tracker;
+      if isempty(tObj)
+        tf = false;
+        lposTrk = [];
+      else
+        xy = tObj.getPredictionCurrentFrame(); % [nPtsx2xnTgt]
+        szassert(xy,[obj.nLabelPoints 2 obj.nTargets]);
+        lposTrk = xy(:,:,iTgt);
+        tfnan = isnan(xy);
+        tf = any(~tfnan(:));
       end
     end
     

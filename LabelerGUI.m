@@ -1400,7 +1400,7 @@ if hlpSave(lObj)
     handles.movieMgr.Visible = 'on';
     wstr = sprintf('Could not find file for movie(set) %d: %s. Project opened with no movie selected.',...
       currMovInfo.iMov,currMovInfo.badfile);
-    hWarn = warndlg(wstr,'Movie not found','modal');
+    warndlg(wstr,'Movie not found','modal');
   end
 end
 

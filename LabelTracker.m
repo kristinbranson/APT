@@ -161,7 +161,12 @@ classdef LabelTracker < handle
         tfHasRes(i) = false;
       end
     end
-            
+    
+    function xy = getPredictionCurrentFrame(obj)
+      % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
+      xy = [];
+    end
+
     function importTrackingResults(obj,iMovs,trkfiles)
       % Import tracking results for movies iMovs.
       % Default implemation ERRORS
@@ -223,12 +228,7 @@ classdef LabelTracker < handle
         obj.vizHide();
       end
     end
-    
-    function xy = getPredictionCurrentFrame(obj)
-      % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
-      xy = [];
-    end
-    
+        
   end
   
   methods % For infotimeline display

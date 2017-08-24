@@ -1895,6 +1895,7 @@ classdef CPRLabelTracker < LabelTracker
       assert(isequal(s1.paramFile,s2.paramFile));
       s2 = rmfield(s2,'paramFile');
       s = structmerge(s1,s2);
+      s.hideViz = obj.hideViz;
     end
     
     function loadSaveToken(obj,s)
@@ -2048,6 +2049,11 @@ classdef CPRLabelTracker < LabelTracker
       if ~isfield(s,'showVizReplicates')
         s.showVizReplicates = false;
       end
+      
+      % 20170823
+      if ~isfield(s,'hideViz')
+        s.hideViz = false;
+      end
 
       % set parameter struct s.sPrm on obj
       if ~isequaln(obj.sPrm,s.sPrm)
@@ -2058,7 +2064,7 @@ classdef CPRLabelTracker < LabelTracker
      
       % set everything else
       flds = fieldnames(s);
-      flds = setdiff(flds,'sPrm');
+      flds = setdiff(flds,{'sPrm' 'hideViz'});
       obj.isInit = true;
       try
         for f=flds(:)',f=f{1}; %#ok<FXSET>
@@ -2069,6 +2075,12 @@ classdef CPRLabelTracker < LabelTracker
         ME.rethrow();
       end
       obj.isInit = false;
+      
+      if s.hideViz
+        obj.vizHide();
+      else
+        obj.vizShow();
+      end
       
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
