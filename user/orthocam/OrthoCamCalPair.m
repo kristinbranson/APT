@@ -77,6 +77,61 @@ classdef OrthoCamCalPair < CalRig
         'cam1info',struct('optCtr',obj.optCtr1,'n',-obj.ijkCamWorld1(:,3),'ijkCamWorld',obj.ijkCamWorld1),...
         'cam2info',struct('optCtr',obj.optCtr2,'n',-obj.ijkCamWorld2(:,3),'ijkCamWorld',obj.ijkCamWorld2));
     end
+   
+  end
+  methods (Hidden)
+    function hFig = viewRPerrHlp(obj,dRP,titleStr,varargin)
+      % Helper for RP viz that does plotting
+      %
+      % dRP: [npts nPat 2] where dRP(:,:,1) is cam1 and dRP(:,:,2) is cam2
+      
+      showLegPatFilenames = myparse(varargin,...
+        'showLegPatFilenames',true);
+      
+      npts = obj.calNumPoints;
+      nPat = obj.calNumPatterns;
+      szassert(dRP,[npts nPat 2]);
+
+      hFig = figure('Name',titleStr);
+      dRP1 = dRP(:,:,1);
+      dRP2 = dRP(:,:,2);
+      mu1 = mean(dRP1(:));
+      mu2 = mean(dRP2(:));
+      ax(1) = subplot(1,2,1);
+      hBar{1} = OrthoCam.vizRPerr(ax(1),dRP1);
+      title(sprintf('Stereo calib, cam1. %dpats, %dpts. mean RPerr=%.3f px',nPat,npts,mu1),...
+        'fontweight','bold');
+      ylabel('count','fontweight','bold');
+      ax(2) = subplot(1,2,2);
+      hBar{2} = OrthoCam.vizRPerr(ax(2),dRP2);
+      title(sprintf('Stereo calib, cam2. meanRP err=%.3f px',mu2),'fontweight','bold');
+      
+      linkaxes(ax,'x');
+      if showLegPatFilenames
+        fpns = obj.calPatternFPNs;
+        fpns = cellfun(@basename,fpns,'uni',0);
+        %legend(ax(1),hBar{1},fpns(:,1),'interpreter','none');
+        legend(ax(2),hBar{2},fpns(:,2),'interpreter','none');
+      end
+    end
+  end
+  methods
+    function hFig = viewRPerr(obj)
+      % View histograms of RP error using calibrated/estimated extrinsic
+      % positions, known structure of calpats etc.      
+      [~,dRP] = obj.computeRPerr();
+      dRP = reshape(dRP,[obj.calNumPoints obj.calNumPatterns 2]);
+      TITLE = 'RP error using extrinsic positions';
+      hFig = obj.viewRPerrHlp(dRP,TITLE);
+    end
+    
+    function hFig = viewRPerrStroTri(obj)
+      % View histograms of RP error using only stereo triangulation of
+      % calibration image points.      
+      dRP = obj.computeRPerrStroTriCalPts();
+      TITLE = 'RP error, stereo-triangulation only';
+      hFig = obj.viewRPerrHlp(dRP,TITLE);
+    end
     
     function xformWorldSys(obj,R)
       % Transform WorldCoords by rotation (origin unchanged)
@@ -187,10 +242,24 @@ classdef OrthoCamCalPair < CalRig
         obj.tblInt(1,:),obj.tblInt(2,:),obj.calWorldPoints,obj.calImPoints);        
     end
     
-    function [dmu,d,uvre1,uvre2] = computeRPerrStroTri(obj,uv1,uv2)
-      % Compute RP err, using observed image points only: stereo
-      % triangulate and reproject.
-      
+    function d = computeRPerrStroTriCalPts(obj)
+      % Compute RP err, using calpat image points only: stereo triangulate 
+      % and reproject.
+      %
+      % d: [nPts nPat 2] Eucld RP distance for iPt,iPat,cam
+
+      nPat = obj.calNumPatterns;
+      nPtsPat = obj.calNumPoints;      
+      uv1 = obj.calImPoints(:,:,:,1);
+      uv2 = obj.calImPoints(:,:,:,2);
+      uv1 = reshape(uv1,[2 nPtsPat*nPat]); % dim2 raster order: ... allptsPat1..., allptsPat2 ... , ....
+      uv2 = reshape(uv2,[2 nPtsPat*nPat]);
+      [~,d] = obj.computeRPerrStroTriGeneral(uv1,uv2);
+      % d is [nPtsPat*nPat x 2]
+      d = reshape(d,[nPtsPat nPat 2]);
+    end
+    
+    function [dmu,d,uvre1,uvre2] = computeRPerrStroTriGeneral(obj,uv1,uv2)      
       n = size(uv1,2);
       szassert(uv1,[2 n]);
       szassert(uv2,[2 n]);
