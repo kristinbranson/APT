@@ -209,8 +209,8 @@ classdef Labeler < handle
   properties
     trxfile = '';             % full path current trxfile
     trx = [];                 % trx object
-    %zoomRadiusDefault = 100; % default zoom box size in pixels
-    %zoomRadiusTight = 10;    % zoom size on maximum zoom (smallest pixel val)
+    %zoomRadiusDefault = 100;  % default zoom box size in pixels
+    %zoomRadiusTight = 10;     % zoom size on maximum zoom (smallest pixel val)
     frm2trx = [];             % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm
     trxIdPlusPlus2Idx = [];   % (max(trx ids)+1) x 1 vector of indices into obj.trx. 
                               % Since IDs start at 0, THIS VECTOR IS INDEXED BY ID+1.
@@ -233,10 +233,12 @@ classdef Labeler < handle
   properties (SetObservable)
     showTrx;                  % true to show trajectories
     showTrxCurrTargetOnly;    % if true, plot only current target
+    showTrxIDLbl;             % true to show id label 
   end
   properties
     hTraj;                    % nTrx x 1 vector of line handles
-    hTrx;                     % nTrx x 1 vector of line handles    
+    hTrx;                     % nTrx x 1 vector of line handles
+    hTrxTxt;                  % nTrx x 1 vector of text handles
     showTrxPreNFrm = 15;      % number of preceding frames to show in traj
     showTrxPostNFrm = 5;      % number of following frames to show in traj
   end
@@ -253,7 +255,7 @@ classdef Labeler < handle
     labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array. init: PN
     
     labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc). init: PN
-    labels2Hide;          % scalar logical
+    labels2Hide;      % scalar logical
     
     labeledposGT          % like .labeledpos
   end
@@ -283,7 +285,7 @@ classdef Labeler < handle
   properties (SetObservable)
     lblCore; % init: L
   end
-  properties    
+  properties
     labeledpos2_ptsH;     % [npts]
     labeledpos2_ptsTxtH;  % [npts]    
     lblOtherTgts_ptsH;    % [npts]
@@ -778,6 +780,7 @@ classdef Labeler < handle
       
       obj.showTrx = cfg.Trx.ShowTrx;
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
+      obj.showTrxIDLbl = cfg.Trx.ShowTrxIDLbl;
       
       obj.labels2Hide = false;
 
@@ -820,6 +823,7 @@ classdef Labeler < handle
       cfg.LabelPointsPlot = obj.labelPointsPlotInfo;
       cfg.Trx.ShowTrx = obj.showTrx;
       cfg.Trx.ShowTrxCurrentTargetOnly = obj.showTrxCurrTargetOnly;
+      cfg.Trx.ShowTrxIDLbl = obj.showTrxIDLbl;
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
@@ -1109,16 +1113,18 @@ classdef Labeler < handle
         obj.tracker = tObjNew;
       end
             
+      % We call labelingInit() directly later, hence 'noLabelingInit' args;
+      % see below
       if obj.nmovies==0 || s.currMovie==0 || nomovie
-        obj.movieSetNoMovie();
+        obj.movieSetNoMovie('noLabelingInit',true);
       else
         [tfok,badfile] = obj.movieCheckFilesExistSimple(s.currMovie,s.gtIsGTMode);
         if ~tfok
           currMovInfo.iMov = s.currMovie;
           currMovInfo.badfile = badfile;
-          obj.movieSetNoMovie();
+          obj.movieSetNoMovie('noLabelingInit',true);
         else
-          obj.movieSet(s.currMovie);
+          obj.movieSet(s.currMovie,'noLabelingInit',true);
           obj.setFrameAndTarget(s.currFrame,s.currTarget);
         end
       end      
@@ -1131,6 +1137,14 @@ classdef Labeler < handle
       if ~isempty(obj.tracker)
         fprintf(1,'Loading tracker info: %s.\n',tCls);
         obj.tracker.loadSaveToken(s.trackerData);
+      end
+      
+      % Needs to occur after tracker has been set up so that labelCore can
+      % communicate with tracker if necessary (in particular, Template Mode 
+      % <-> Hide Predictions)
+      obj.labelingInit();
+      if obj.currMovie>0
+        obj.labelsUpdateNewFrame(true);
       end
       
       % This needs to occur after .labeledpos etc has been set
@@ -1992,9 +2006,9 @@ classdef Labeler < handle
         obj.(PROPS.VCD){end+1,1} = [];
       end
       if ~gt
-        obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,nFrms,nTgt); 
+        obj.labeledposTS{end+1,1} = -inf(obj.nLabelPoints,nFrms,nTgt);
         obj.labeledposMarked{end+1,1} = false(obj.nLabelPoints,nFrms,nTgt);
-        obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,nFrms,nTgt);      
+        obj.labeledpostag{end+1,1} = cell(obj.nLabelPoints,nFrms,nTgt);
         obj.labeledpos2{end+1,1} = nan(obj.nLabelPoints,2,nFrms,nTgt);
       end
       
@@ -2224,7 +2238,7 @@ classdef Labeler < handle
             movfileFull,'movie');
           qtitle = 'Movie not found';
           if isdeployed
-            error('Labeler:mov',qstr);
+            error(qstr);
           end
           
           if FSPath.hasAnyMacro(movfile)
@@ -2243,23 +2257,45 @@ classdef Labeler < handle
               obj.projMacroSetUI();
               movfileFull = obj.(PROPS.MFAF){iMov,iView};
               if exist(movfileFull,'file')==0
-                FSPath.throwErrFileNotFoundMacroAware(movfile,...
+                emsg = FSPath.errStrFileNotFoundMacroAware(movfile,...
                   movfileFull,'movie');
+                FSPath.errDlgFileNotFound(emsg);
+                return;
               end
             case 'Browse to movie'
-              lastmov = RC.getprop('lbl_lastmovie');
-              if isempty(lastmov)
-                lastmov = pwd;
+              pathguess = FSPath.maxExistingBasePath(movfileFull);
+              if isempty(pathguess)
+                pathguess = RC.getprop('lbl_lastmovie');
               end
-              [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
+              if isempty(pathguess)
+                pathguess = pwd;
+              end
+              promptstr = sprintf('Select movie for %s',movfileFull);
+              [newmovfile,newmovpath] = uigetfile('*.*',promptstr,pathguess);
               if isequal(newmovfile,0)
                 return; % Cancel
               end
               movfileFull = fullfile(newmovpath,newmovfile);
               if exist(movfileFull,'file')==0
-                error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
+                emsg = FSPath.errStrFileNotFound(movfileFull,'movie');
+                FSPath.errDlgFileNotFound(emsg);
+                return;
               end
-              obj.(PROPS.MFA){iMov,iView} = movfileFull;
+              
+              % If possible, offer macroized movFile
+              [tfCancel,macro,movfileMacroized] = ...
+                FSPath.offerMacroization(obj.projMacros,{movfileFull});
+              if tfCancel
+                return;
+              end
+              tfMacroize = ~isempty(macro);
+              if tfMacroize
+                assert(isscalar(movfileMacroized));
+                obj.(PROPS.MFA){iMov,iView} = movfileMacroized{1};
+                movfileFull = obj.(PROPS.MFAF){iMov,iView};
+              else
+                obj.(PROPS.MFA){iMov,iView} = movfileFull;
+              end
           end
           
           % At this point, either we have i) harderrored, ii)
@@ -2290,8 +2326,7 @@ classdef Labeler < handle
             end
             
             movfilepath = fileparts(movfileFull);
-            movfilestr = FSPath.fileStrMacroAware(movfile,movfileFull);
-            promptstr = sprintf('Select trx file for %s',movfilestr);
+            promptstr = sprintf('Select trx file for %s',movfileFull);
             [newtrxfile,newtrxfilepath] = uigetfile('*.mat',promptstr,...
               movfilepath);
             if isequal(newtrxfile,0)
@@ -2299,7 +2334,9 @@ classdef Labeler < handle
             end
             trxFile = fullfile(newtrxfilepath,newtrxfile);
             if exist(trxFile,'file')==0
-              error('Labeler:trx','Cannot find trxfile ''%s''.',trxFile);
+              emsg = FSPath.errStrFileNotFound(trxFile,'trxfile');
+              FSPath.errDlgFileNotFound(emsg);
+              return;
             end
             [tfMatch,trxFileMacroized] = FSPath.tryTrxfileMacroization( ...
               trxFile,movfilepath);
@@ -2338,8 +2375,9 @@ classdef Labeler < handle
       
       assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.',iMov);
       
-      isFirstMovie = myparse(varargin,...
-        'isFirstMovie',false); % passing true for the first time a movie is added to a proj helps the UI
+      [isFirstMovie,noLabelingInit] = myparse(varargin,...
+        'isFirstMovie',false,... % passing true for the first time a movie is added to a proj helps the UI
+        'noLabelingInit',false); 
       
       tfsuccess = obj.movieCheckFilesExist(iMov); % throws
       if ~tfsuccess
@@ -2413,7 +2451,9 @@ classdef Labeler < handle
       
       % KB 20161213: moved this up here so that we could redo in initHook
       obj.labelsMiscInit();
-      obj.labelingInit();
+      if ~noLabelingInit
+        obj.labelingInit();
+      end
       
       edata = NewMovieEventData(isFirstMovie);
       notify(obj,'newMovie',edata);
@@ -2427,11 +2467,14 @@ classdef Labeler < handle
         obj.setFrameAndTarget(obj.currTrx.firstframe,obj.currTarget);
       else
         obj.setFrameAndTarget(1,1);
-      end      
+      end
     end
     
-    function movieSetNoMovie(obj)
+    function movieSetNoMovie(obj,varargin)
       % Set .currMov to 0
+           
+      noLabelingInit = myparse(varargin,...
+        'noLabelingInit',false);
            
           % Stripped cut+paste form movieSet() for reference 20170714
           %       obj.movieReader(iView).open(movfileFull);
@@ -2466,7 +2509,9 @@ classdef Labeler < handle
       obj.isinit = false;
       
       obj.labelsMiscInit();
-      obj.labelingInit();
+      if ~noLabelingInit
+        obj.labelingInit();
+      end
       edata = NewMovieEventData(false);
       notify(obj,'newMovie',edata);
       obj.updateFrameTableComplete();
@@ -2580,7 +2625,7 @@ classdef Labeler < handle
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
       obj.initShowTrx();
     end
-   
+    
     function tf = trxCheckFramesLive(obj,frms)
       % Check that current target is live for given frames
       %
@@ -4029,7 +4074,7 @@ classdef Labeler < handle
             warndlg(warnstr,'View size mismatch','non-modal');
           end
         end
-      end     
+      end      
       
       obj.viewCalProjWide = true;
       obj.viewCalibrationData = crObj;
@@ -4266,6 +4311,9 @@ classdef Labeler < handle
       end      
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
       tObj.track(iMovs,frms,varargin{:});
+      
+      % For template mode to see new tracking results
+      obj.labelsUpdateNewFrame(true); 
     end
     
     function trackAndExport(obj,tm,varargin)
@@ -4459,6 +4507,25 @@ classdef Labeler < handle
         
         pTrkCell{iFold} = tblTrkRes;
         dGTTrkCell{iFold} = d;
+      end
+    end
+    
+    function [tf,lposTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
+      % tf: scalar logical, true if tracker has results/predictions for 
+      %   currentMov/frm/iTgt 
+      % lposTrk: [nptsx2] if tf is true, xy coords from tracker; otherwise
+      %   indeterminate
+      
+      tObj = obj.tracker;
+      if isempty(tObj)
+        tf = false;
+        lposTrk = [];
+      else
+        xy = tObj.getPredictionCurrentFrame(); % [nPtsx2xnTgt]
+        szassert(xy,[obj.nLabelPoints 2 obj.nTargets]);
+        lposTrk = xy(:,:,iTgt);
+        tfnan = isnan(xy);
+        tf = any(~tfnan(:));
       end
     end
     
@@ -4755,8 +4822,10 @@ classdef Labeler < handle
     function initShowTrx(obj)
       deleteValidHandles(obj.hTraj);
       deleteValidHandles(obj.hTrx);
+      deleteValidHandles(obj.hTrxTxt);
       obj.hTraj = matlab.graphics.primitive.Line.empty(0,1);
       obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
+      obj.hTrxTxt = matlab.graphics.primitive.Text.empty(0,1);
       
       ax = obj.gdata.axes_curr;
       pref = obj.projPrefs.Trx;
@@ -4769,13 +4838,21 @@ classdef Labeler < handle
           'linestyle',pref.TrajLineStyle, ...
           'linewidth',pref.TrajLineWidth, ...
           'HitTest','off');
+
         obj.hTrx(i,1) = plot(ax,...
           nan,nan,pref.TrxMarker);
         set(obj.hTrx(i,1),'HitTest','off',...
-          'Color',pref.TrajColor',...
+          'Color',pref.TrajColor,...
           'MarkerSize',pref.TrxMarkerSize,...
           'LineWidth',pref.TrxLineWidth);
-      end      
+        
+        id = find(obj.trxIdPlusPlus2Idx==i)-1;
+        obj.hTrxTxt(i,1) = text(nan,nan,num2str(id),'Parent',ax,...
+          'Color',pref.TrajColor,...
+          'Fontsize',pref.TrxIDLblFontSize,...
+          'Fontweight',pref.TrxIDLblFontWeight,...
+          'HitTest','off');
+      end
     end
     
     function setShowTrx(obj,tf)
@@ -4787,6 +4864,12 @@ classdef Labeler < handle
     function setShowTrxCurrTargetOnly(obj,tf)
       assert(isscalar(tf) && islogical(tf));
       obj.showTrxCurrTargetOnly = tf;
+      obj.updateShowTrx();
+    end
+    
+    function setShowTrxIDLbl(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showTrxIDLbl = tf;
       obj.updateShowTrx();
     end
     
@@ -4814,6 +4897,7 @@ classdef Labeler < handle
         tfShow = false(obj.nTrx,1);
       end        
   
+      % update coords/positions
       for iTrx = 1:obj.nTrx
         if tfShow(iTrx)
           trxCurr = trxAll(iTrx);
@@ -4837,13 +4921,25 @@ classdef Labeler < handle
             xTrx = nan;
             yTrx = nan;
           end
-          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx,'Color',color);          
+          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx,'Color',color);
+          
+          if obj.showTrxIDLbl
+            dx = pref.TrxIDLblOffset;
+            set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1],...
+              'Color',color);
+          end
         end
       end
       set(obj.hTraj(tfShow),'Visible','on');
       set(obj.hTraj(~tfShow),'Visible','off');
       set(obj.hTrx(tfShow),'Visible','on');
       set(obj.hTrx(~tfShow),'Visible','off');
+      if obj.showTrxIDLbl
+        set(obj.hTrxTxt(tfShow),'Visible','on');
+        set(obj.hTrxTxt(~tfShow),'Visible','off');
+      else
+        set(obj.hTrxTxt,'Visible','off');
+      end
     end
     
   end
@@ -5108,7 +5204,7 @@ classdef Labeler < handle
       % assumes .labelpos and tblFrames differ at .currFrame at most
       %
       % might be unnecessary/premature optim
-            
+      
       tbl = obj.gdata.tblFrames;
       dat = get(tbl,'Data');
       tblFrms = cell2mat(dat(:,1));      
@@ -5314,8 +5410,9 @@ classdef Labeler < handle
       lpos = obj.labeledpos{iMov}(:,:,frm,iTgt);
       lpostag = obj.labeledpostag{iMov}(:,frm,iTgt);
       ipts = 1:obj.nPhysPoints;
+      txtOffset = obj.labelPointsPlotInfo.LblOffset;
       LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
-        obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts));
+        obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts),txtOffset);
       if ~all(cellfun(@isempty,lpostag(ipts)))
         if isempty(tfWarningThrownAlready)
           warningNoTrace('Labeler:labelsPrev',...
@@ -5426,7 +5523,9 @@ classdef Labeler < handle
       frm = obj.currFrame;
       iTgt = obj.currTarget;
       lpos = obj.labeledpos2{iMov}(:,:,frm,iTgt);
-      LabelCore.setPtsCoords(lpos,obj.labeledpos2_ptsH,obj.labeledpos2_ptsTxtH);
+      txtOffset = obj.labelPointsPlotInfo.LblOffset;
+      LabelCore.setPtsCoordsStc(lpos,obj.labeledpos2_ptsH,...
+        obj.labeledpos2_ptsTxtH,txtOffset);
     end
     
     function labels2VizShow(obj)

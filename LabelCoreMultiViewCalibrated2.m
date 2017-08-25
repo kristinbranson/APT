@@ -592,7 +592,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       assert(isvector(tf) && numel(tf)==obj.nPts);
       nOcc = nnz(tf);
       iOcc = find(tf);
-      LabelCore.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
+      obj.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
       for iPt=iOcc(:)'
         iSet = obj.iPt2iSet(iPt);
         LabelCore.setPtsCoordsOcc([iSet 1],obj.hPtsOcc(iPt),obj.hPtsTxtOcc(iPt));
