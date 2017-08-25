@@ -1,7 +1,7 @@
 function varargout = MovieManager(varargin)
 % Movie table GUI
 
-% Last Modified by GUIDE v2.5 03-Oct-2016 13:16:20
+% Last Modified by GUIDE v2.5 24-Aug-2017 11:16:51
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -207,3 +207,8 @@ for i=1:numel(listenObjs)
   end
 end
 
+% function menu_help_Callback(hObject, eventdata, handles)
+% str = {...
+%   'This window shows all movies currently in the project.'; 
+%   'To change movies, double-click a table row or use the ''Switch to Movie'' button.'};
+% msgbox(str,'Help');

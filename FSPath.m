@@ -5,7 +5,7 @@ classdef FSPath
 % double-separators etc. Standardized paths are supposed to look the same 
 % across platforms, modulo differing filesystem mount names etc.
 %
-% MACROS begin look like $datadir and be substituted.   
+% MACROS look like $datadir and can be replaced/substituted.
   
   methods (Static)
   
@@ -255,11 +255,17 @@ classdef FSPath
       end
     end
     
+    function estr = errStrFileNotFound(file,fileType)
+      estr = sprintf('Cannot find %s ''%s''.',fileType,file);
+    end
     function estr = errStrFileNotFoundMacroAware(file,fileFull,fileType)
-      % Macro-aware file-not-found error string
+      % Macro-aware file-not-found error string. 
+      % Backslash (\) is NOT ESCAPED.
+      %
       % file: raw file possibly with macros
       % fileFull: macro-replaced file
-      % fileType: eg 'movie' or 'trxfile'      
+      % fileType: eg 'movie' or 'trxfile'
+      
       if ~FSPath.hasAnyMacro(file)
         estr = sprintf('Cannot find %s ''%s''.',fileType,file);
       else
@@ -267,9 +273,12 @@ classdef FSPath
           fileType,file,fileFull);
       end
     end
+    function errDlgFileNotFound(estr)
+      errordlg(estr,'File not found');
+    end
     function throwErrFileNotFoundMacroAware(file,fileFull,fileType)
-      estr = FSPath.errStrFileNotFoundMacroAware(file,fileFull,fileType);
-      error('apt:fileNotFound',estr);
+      emsg = FSPath.errStrFileNotFoundMacroAware(file,fileFull,fileType);
+      errorNoTrace(emsg);
     end
     
     function str = fileStrMacroAware(file,fileFull)
@@ -303,6 +312,23 @@ classdef FSPath
         end        
       end
       parts = parts(end:-1:1);
+    end
+    
+    function pbase = maxExistingBasePath(p)
+      % Find maximum existing basepath of p
+      %
+      % p: full path
+      %
+      % pbase: maximmal base path of p that exists. Can be ''.
+      
+      pbase = p;
+      while ~isempty(pbase) && exist(pbase,'dir')==0
+        pbase2 = fileparts(pbase);
+        if strcmp(pbase2,pbase)
+          pbase2 = '';
+        end
+        pbase = pbase2;
+      end
     end
     
     function base = commonbase(p)

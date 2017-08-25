@@ -1051,7 +1051,9 @@ classdef Labeler < handle
       % communicate with tracker if necessary (in particular, Template Mode 
       % <-> Hide Predictions)
       obj.labelingInit();
-      obj.labelsUpdateNewFrame(true);
+      if obj.currMovie>0
+        obj.labelsUpdateNewFrame(true);
+      end
       
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
@@ -2103,7 +2105,7 @@ classdef Labeler < handle
             movfileFull,'movie');
           qtitle = 'Movie not found';
           if isdeployed
-            error('Labeler:mov',qstr);
+            error(qstr);
           end
           
           if FSPath.hasAnyMacro(movfile)
@@ -2122,23 +2124,45 @@ classdef Labeler < handle
               obj.projMacroSetUI();
               movfileFull = obj.movieFilesAllFull{iMov,iView};
               if exist(movfileFull,'file')==0
-                FSPath.throwErrFileNotFoundMacroAware(movfile,...
+                emsg = FSPath.errStrFileNotFoundMacroAware(movfile,...
                   movfileFull,'movie');
+                FSPath.errDlgFileNotFound(emsg);
+                return;
               end
             case 'Browse to movie'
-              lastmov = RC.getprop('lbl_lastmovie');
-              if isempty(lastmov)
-                lastmov = pwd;
+              pathguess = FSPath.maxExistingBasePath(movfileFull);
+              if isempty(pathguess)
+                pathguess = RC.getprop('lbl_lastmovie');
               end
-              [newmovfile,newmovpath] = uigetfile('*.*','Select movie',lastmov);
+              if isempty(pathguess)
+                pathguess = pwd;
+              end
+              promptstr = sprintf('Select movie for %s',movfileFull);
+              [newmovfile,newmovpath] = uigetfile('*.*',promptstr,pathguess);
               if isequal(newmovfile,0)
                 return; % Cancel
               end
               movfileFull = fullfile(newmovpath,newmovfile);
               if exist(movfileFull,'file')==0
-                error('Labeler:mov','Cannot find movie ''%s''.',movfileFull);
+                emsg = FSPath.errStrFileNotFound(movfileFull,'movie');
+                FSPath.errDlgFileNotFound(emsg);
+                return;
               end
-              obj.movieFilesAll{iMov,iView} = movfileFull;
+              
+              % If possible, offer macroized movFile
+              [tfCancel,macro,movfileMacroized] = ...
+                FSPath.offerMacroization(obj.projMacros,{movfileFull});
+              if tfCancel
+                return;
+              end
+              tfMacroize = ~isempty(macro);
+              if tfMacroize
+                assert(isscalar(movfileMacroized));
+                obj.movieFilesAll{iMov,iView} = movfileMacroized{1};
+                movfileFull = obj.movieFilesAllFull{iMov,iView};
+              else
+                obj.movieFilesAll{iMov,iView} = movfileFull;
+              end
           end
           
           % At this point, either we have i) harderrored, ii)
@@ -2147,7 +2171,6 @@ classdef Labeler < handle
         end
 
         % trxfile
-        movfile = obj.movieFilesAll{iMov,iView};
         assert(strcmp(movfileFull,obj.movieFilesAllFull{iMov,iView}));
         trxFile = obj.trxFilesAll{iMov,iView};
         trxFileFull = obj.trxFilesAllFull{iMov,iView};
@@ -2169,8 +2192,7 @@ classdef Labeler < handle
             end
             
             movfilepath = fileparts(movfileFull);
-            movfilestr = FSPath.fileStrMacroAware(movfile,movfileFull);
-            promptstr = sprintf('Select trx file for %s',movfilestr);
+            promptstr = sprintf('Select trx file for %s',movfileFull);
             [newtrxfile,newtrxfilepath] = uigetfile('*.mat',promptstr,...
               movfilepath);
             if isequal(newtrxfile,0)
@@ -2178,7 +2200,9 @@ classdef Labeler < handle
             end
             trxFile = fullfile(newtrxfilepath,newtrxfile);
             if exist(trxFile,'file')==0
-              error('Labeler:trx','Cannot find trxfile ''%s''.',trxFile);
+              emsg = FSPath.errStrFileNotFound(trxFile,'trxfile');
+              FSPath.errDlgFileNotFound(emsg);
+              return;
             end
             [tfMatch,trxFileMacroized] = FSPath.tryTrxfileMacroization( ...
               trxFile,movfilepath);
