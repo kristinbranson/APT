@@ -676,7 +676,8 @@ classdef CPRLabelTracker < LabelTracker
     
     %#MTGT
     %#MV
-    function [trkpos,trkposTS,trkposFull,tfHasRes] = getTrackResRaw(obj,iMov)
+    function [trkpos,trkposTS,trkposFull,trkposFullMFT,tfHasRes] = ...
+        getTrackResRaw(obj,iMov)
       % Get tracking results for movie(set) iMov.
       %
       % iMov: scalar movie(set) index
@@ -687,14 +688,17 @@ classdef CPRLabelTracker < LabelTracker
       %  movies in a movieset have differing numbers of frames, then nfrm
       %  will equal the minimum number of frames across the movieset.
       % trkposTS: [nptstrk x nfrm(iMov) x ntgt(iMov)]. Timestamps for trkpos.
-      % trkposFull: [nptstrk x d x nRep x nfrm(iMov) x ntgt(iMov)]. 5d results. 
+      % trkposFull: [nptstrk x d x nRep x nTrkRows]. 
       %   Currently this is all nans if .storeFullTracking is false.
+      % trkposFullMFT: MFTable (height nTrkRows) labeling 4th dim of
+      %   trkposFull
       % tfHasRes: if true, nontrivial tracking results returned
       
       lObj = obj.lObj;
-%       movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
-%       movNameID = MFTable.formMultiMovieID(movNameID);
-      nfrms = lObj.movieInfoAll{iMov}.nframes; % For moviesets with movies with differing # of frames, this should be the common minimum
+      
+      % For moviesets with movies with differing # of frames, this should 
+      % be the common minimum
+      nfrms = lObj.movieInfoAll{iMov}.nframes; 
       lpos = lObj.labeledpos{iMov};
       assert(size(lpos,3)==nfrms);
       ntgts = size(lpos,4);
@@ -720,29 +724,32 @@ classdef CPRLabelTracker < LabelTracker
 
       trkpos = nan(nPtTrk,d,nfrms,ntgts);
       trkposTS = -inf(nPtTrk,nfrms,ntgts);
-      trkposFull = nan(nPtTrk,d,nRep,nfrms,ntgts);
-
-      if isempty(obj.trkPTS) % proxy for no tracking results etc
-        tfHasRes = false;
-      else
-        tfCurrMov = trkMD.mov==iMov;
-        trkMDCurrMov = trkMD(tfCurrMov,:);
-        nCurrMov = nnz(tfCurrMov);
-        xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);
+      
+      tfCurrMov = trkMD.mov==iMov;
+      trkMDCurrMov = trkMD(tfCurrMov,:);
+      nRowCurrMov = height(trkMDCurrMov);
+      trkposFull = nan(nPtTrk,d,nRep,nRowCurrMov);
+      trkposFullMFT = trkMDCurrMov(:,MFTable.FLDSID);
+      
+      % First cond is proxy for no tracking results 
+      tfHasRes = ~isempty(obj.trkPTS) && (nRowCurrMov>0);
+      if tfHasRes
+        xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nRowCurrMov);
         trkPTSCurrMov = obj.trkPTS(tfCurrMov);
-        pTrkFullCurrMov = pTrkFull(tfCurrMov,:,:); % [nCurrMov nRep D]
-        pTrkFullCurrMov = permute(pTrkFullCurrMov,[3 2 1]); % [D nRep nCurrMov]
-        xyTrkFullCurrMov = reshape(pTrkFullCurrMov,[nPtTrk d nRep nCurrMov]);
-        for i=1:nCurrMov
+        pTrkFullCurrMov = pTrkFull(tfCurrMov,:,:); % [nRowCurrMov nRep D]
+        pTrkFullCurrMov = permute(pTrkFullCurrMov,[3 2 1]); % [D nRep nRowCurrMov]
+        trkposFull = reshape(pTrkFullCurrMov,[nPtTrk d nRep nRowCurrMov]);
+        tfEmptyRow = arrayfun(@(x)nnz(~isnan(trkposFull(:,:,:,x)))==0,...
+          (1:nRowCurrMov)');
+        trkposFull(:,:,:,tfEmptyRow) = [];
+        trkposFullMFT(tfEmptyRow,:) = [];
+        for i=1:nRowCurrMov
           frm = trkMDCurrMov.frm(i);
           iTgt = trkMDCurrMov.iTgt(i);
           trkpos(:,:,frm,iTgt) = xyTrkCurrMov(:,:,i);
           trkposTS(:,frm,iTgt) = trkPTSCurrMov(i);
-          trkposFull(:,:,:,frm,iTgt) = xyTrkFullCurrMov(:,:,:,i);
-        end        
-        tfHasRes = (nCurrMov>0);
+        end
       end
-      
     end
     
     %#MTGT
@@ -1614,10 +1621,8 @@ classdef CPRLabelTracker < LabelTracker
       end
         
       for i = nMov:-1:1
-        [trkpos,trkposTS,trkposFull,tfHasRes(i)] = obj.getTrackResRaw(iMovs(i));
-        if ~obj.storeFullTracking
-          trkposFull = trkposFull(:,:,[],:,:);
-        end        
+        [trkpos,trkposTS,trkposFull,trkposFullMFT,tfHasRes(i)] = ...
+                                        obj.getTrackResRaw(iMovs(i));
         if tfMultiView
           assert(size(trkpos,1)==nPhysPts*nview);
           for ivw=nview:-1:1
@@ -1625,14 +1630,19 @@ classdef CPRLabelTracker < LabelTracker
             trkinfo = trkinfobase;
             trkinfo.view = ivw;
             trkfiles(i,ivw) = TrkFile(trkpos(iptCurrVw,:,:,:),...
-              'pTrkFull',trkposFull(iptCurrVw,:,:,:,:),...
               'pTrkTS',trkposTS(iptCurrVw,:,:),...
               'pTrkiPt',1:nPhysPts,...
+              'pTrkFull',trkposFull(iptCurrVw,:,:,:),...
+              'pTrkFullFT',trkposFullMFT(:,{'frm' 'iTgt'}),...
               'trkInfo',trkinfo);
           end
         else
-          trkfiles(i,1) = TrkFile(trkpos,'pTrkFull',trkposFull,...
-            'pTrkTS',trkposTS,'pTrkiPt',trkpipt,'trkInfo',trkinfobase);
+          trkfiles(i,1) = TrkFile(trkpos,...            
+            'pTrkTS',trkposTS,...
+            'pTrkiPt',trkpipt,...
+            'pTrkFull',trkposFull,...
+            'pTrkFullFT',trkposFullMFT(:,{'frm' 'iTgt'}),...
+            'trkInfo',trkinfobase);
         end
       end
     end
@@ -2076,12 +2086,7 @@ classdef CPRLabelTracker < LabelTracker
       end
       obj.isInit = false;
       
-      if s.hideViz
-        obj.vizHide();
-      else
-        obj.vizShow();
-      end
-      
+      obj.setHideViz(s.hideViz);
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
     end
@@ -2441,6 +2446,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.hXYPrdRed = hTmp;
       obj.hXYPrdRedOther = hTmpOther;
       obj.hXYPrdFull = hTmp2;
+      obj.setHideViz(obj.hideViz);
     end
     
     %#MTGT
@@ -2455,7 +2461,8 @@ classdef CPRLabelTracker < LabelTracker
     
     %#MTGT
     function vizLoadXYPrdCurrMovieTarget(obj)
-      % sets .xyPrdCurrMovie* for current Labeler movie from .trkP, .trkPMD
+      % sets .xyPrdCurrMovie* for current Labeler movie and target from 
+      % .trkP, .trkPMD
 
       lObj = obj.lObj;
       
@@ -2467,21 +2474,28 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      [trkpos,~,trkposfull] = obj.getTrackResRaw(lObj.currMovie);
       nfrms = lObj.nframes;
       ntgts = lObj.nTargets;
       nfids = obj.nPts;
       d = 2;
+      iMov = lObj.currMovie;
+      iTgt = lObj.currTarget;
       nrep = obj.sPrm.TestInit.Nrep;
+      
+      [trkpos,~,trkposfull,trkposfullMFT] = obj.getTrackResRaw(iMov);
       iPtTrk = obj.trkPiPt;
       nptsTrk = numel(iPtTrk);
       szassert(trkpos,[nptsTrk d nfrms ntgts]);
-      szassert(trkposfull,[nptsTrk d nrep nfrms ntgts]);
+      ntrkfull = height(trkposfullMFT);
+      szassert(trkposfull,[nptsTrk d nrep ntrkfull]);
       
       xy = nan(nfids,d,nfrms,ntgts);
-      xyfull = nan(nfids,d,nrep,nfrms);
       xy(iPtTrk,:,:,:) = trkpos;
-      xyfull(iPtTrk,:,:,:) = trkposfull(:,:,:,:,lObj.currTarget);
+      xyfull = nan(nfids,d,nrep,nfrms);
+      tfTgt = trkposfullMFT.iTgt==iTgt;
+      trkposfullMFT = trkposfullMFT(tfTgt,:);
+      trkposfull = trkposfull(:,:,:,tfTgt);
+      xyfull(iPtTrk,:,:,trkposfullMFT.frm) = trkposfull;
             
       if obj.trkVizInterpolate && lObj.hasTrx
         warningNoTrace('CPRLabelTracker:interp',...
@@ -2505,18 +2519,13 @@ classdef CPRLabelTracker < LabelTracker
       obj.xyPrdCurrMovieIsInterp = isinterp;
     end
 
-    function vizHide(obj)
-      [obj.hXYPrdRed.Visible] = deal('off');
-      [obj.hXYPrdRedOther.Visible] = deal('off');
-      obj.hideViz = true;
+    function setHideViz(obj,tf)
+      onoff = onIff(~tf);
+      [obj.hXYPrdRed.Visible] = deal(onoff);
+      [obj.hXYPrdRedOther.Visible] = deal(onoff);
+      obj.hideViz = tf;
     end
-    
-    function vizShow(obj)
-      [obj.hXYPrdRed.Visible] = deal('on'); 
-      [obj.hXYPrdRedOther.Visible] = deal('on'); 
-      obj.hideViz = false;
-    end
-    
+            
     function set.showVizReplicates(obj,v)
       assert(isscalar(v));
       v = logical(v);

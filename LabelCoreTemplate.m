@@ -151,7 +151,7 @@ classdef LabelCoreTemplate < LabelCore
       if ~isempty(tObj) && ~tObj.hideViz
         warningNoTrace('LabelCoreTemplate:viz',...
           'Enabling View>Hide Predictions. Tracking predictions (when present) are now shown as template points in Template Mode.');
-        tObj.vizHide();
+        tObj.setHideViz(true);
       end
     end
     
