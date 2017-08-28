@@ -151,7 +151,7 @@ classdef Labeler < handle
   properties (Dependent)
     movieInfoAllGTaware; 
     viewCalibrationDataGTaware % Either viewCalData or viewCalDataGT
-    viewCalibrationDataCurrent % view calibration data applicable to current movie
+    viewCalibrationDataCurrent % view calibration data applicable to current movie (gt aware)
   end
   properties (SetObservable)
     movieFilesAll = {}; % [nmovset x nview] column cellstr, full paths to movies; can include macros 
@@ -188,6 +188,8 @@ classdef Labeler < handle
     isMultiView;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
     movieFilesAllGTFull; % etc
+    movieFilesAllFullGTaware;
+    movieFilesAllHaveLblsGTaware;
 %     movieIDsAll; % like movieFilesAll, but standardized
 %     movieSetIDsAll; % [nmovsetx1] ids, single char for each movieset
     hasMovie;
@@ -222,6 +224,7 @@ classdef Labeler < handle
   properties (Dependent)
     trxFilesAllFull % like .movieFilesAllFull, but for .trxFilesAll
     trxFilesAllGTFull % etc
+    trxFilesAllFullGTaware
     hasTrx
     currTrx
     currTrxID
@@ -361,15 +364,17 @@ classdef Labeler < handle
     end
     function v = get.viewCalibrationDataCurrent(obj)
       vcdPW = obj.viewCalProjWide;
-      vcd = obj.viewCalibrationDataGTaware;
       if isempty(vcdPW)
         v = [];
       elseif vcdPW
+        vcd = obj.viewCalibrationData; % applies to regular and GT movs
         assert(isequal(vcd,[]) || isscalar(vcd));
         v = vcd;
       else % ~vcdPW
-        assert(iscell(vcd) && numel(vcd)==obj.nmovies);
-        if obj.nmovies==0 || obj.currMovie==0
+        vcd = obj.viewCalibrationDataGTaware;
+        nmov = obj.nmoviesGTaware;
+        assert(iscell(vcd) && numel(vcd)==nmov);
+        if nmov==0 || obj.currMovie==0
           v = [];
         else
           v = vcd{obj.currMovie};
@@ -394,13 +399,34 @@ classdef Labeler < handle
       sMacro = obj.projMacros;
       v = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       FSPath.warnUnreplacedMacros(v);
-    end    
+    end
+    function v = get.movieFilesAllFullGTaware(obj)
+      if obj.gtIsGTMode
+        v = obj.movieFilesAllGTFull;
+      else        
+        v = obj.movieFilesAllFull;
+      end
+    end
+    function v = get.movieFilesAllHaveLblsGTaware(obj)
+      if obj.gtIsGTMode
+        v = obj.movieFilesAllGTHaveLbls;
+      else
+        v = obj.movieFilesAllHaveLbls;
+      end
+    end
     function v = get.trxFilesAllFull(obj)
       v = Labeler.trxFilesLocalize(obj.trxFilesAll,obj.movieFilesAllFull);
     end    
     function v = get.trxFilesAllGTFull(obj)
       v = Labeler.trxFilesLocalize(obj.trxFilesAllGT,obj.movieFilesAllGTFull);
-    end    
+    end
+    function v = get.trxFilesAllFullGTaware(obj)
+      if obj.gtIsGTMode
+        v = obj.trxFilesAllGTFull;
+      else
+        v = obj.trxFilesAllFull;
+      end
+    end
 %     function v = get.movieIDsAll(obj)
 %       v = FSPath.standardPath(obj.movieFilesAll);
 %     end
@@ -1115,7 +1141,7 @@ classdef Labeler < handle
             
       % We call labelingInit() directly later, hence 'noLabelingInit' args;
       % see below
-      if obj.nmovies==0 || s.currMovie==0 || nomovie
+      if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
         obj.movieSetNoMovie('noLabelingInit',true);
       else
         [tfok,badfile] = obj.movieCheckFilesExistSimple(s.currMovie,s.gtIsGTMode);
@@ -1540,11 +1566,22 @@ classdef Labeler < handle
           s.viewCalProjWide = [];
         end
       end
-      
+            
       % 20170808
       if ~isfield(s,'trackModeIdx')
         s.trackModeIdx = 1;
       end
+      
+      % 20170828
+      % ADD in ALL NEW PROPS
+%       if ~isfield(s,'viewCalibrationDataGT')
+%         if s.viewCalProjWide
+%           s.viewCalibrationDataGT = [];
+%         else
+%           s.viewCalibrationGT = cell(s.
+%         end
+%       end
+
     end
     
     % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
@@ -2015,7 +2052,7 @@ classdef Labeler < handle
       % This clause does not occur in movieAdd(), b/c movieAdd is called
       % from UI functions which do this for the user. Currently movieSetAdd
       % does not have any UI so do it here.
-      if ~obj.hasMovie && obj.nmovies>0
+      if ~obj.hasMovie && obj.nmoviesGTaware>0
         obj.movieSet(1,'isFirstMovie',true);
       end
     end
@@ -2304,7 +2341,7 @@ classdef Labeler < handle
         end
 
         % trxfile
-        movfile = obj.(PROPS.MFA){iMov,iView};
+        %movfile = obj.(PROPS.MFA){iMov,iView};
         assert(strcmp(movfileFull,obj.(PROPS.MFAF){iMov,iView}));
         trxFile = obj.(PROPS.TFA){iMov,iView};
         trxFileFull = obj.(PROPS.TFAF){iMov,iView};
@@ -2373,21 +2410,23 @@ classdef Labeler < handle
       
       %# MVOK
       
-      assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.',iMov);
+      assert(any(iMov==1:obj.nmoviesGTaware),...
+                    'Invalid movie index ''%d''.',iMov);
       
       [isFirstMovie,noLabelingInit] = myparse(varargin,...
         'isFirstMovie',false,... % passing true for the first time a movie is added to a proj helps the UI
-        'noLabelingInit',false); 
+        'noLabelingInit',false);
       
       tfsuccess = obj.movieCheckFilesExist(iMov); % throws
       if ~tfsuccess
         return;
       end
       
+      movsAllFull = obj.movieFilesAllFullGTaware;
       for iView=1:obj.nview
-        movfileFull = obj.movieFilesAllFull{iMov,iView};
-        obj.movieReader(iView).open(movfileFull);
-        RC.saveprop('lbl_lastmovie',movfileFull);
+        mov = movsAllFull{iMov,iView};
+        obj.movieReader(iView).open(mov);
+        RC.saveprop('lbl_lastmovie',mov);
         if iView==1
           [path0,movname] = myfileparts(obj.moviefile);
           [~,parent] = fileparts(path0);
@@ -2403,7 +2442,7 @@ classdef Labeler < handle
       %       obj.gdata.axes_all.addlistener('XLimMode','PostSet',@(s,e)lclTrace('postset'));
       obj.setFrameAndTarget(1,1);
       
-      trxFile = obj.trxFilesAllFull{iMov,1};
+      trxFile = obj.trxFilesAllFullGTaware{iMov,1};
       tfTrx = ~isempty(trxFile);
       if tfTrx
         assert(~obj.isMultiView,...
@@ -2433,21 +2472,12 @@ classdef Labeler < handle
       % maybe it's worth keeping the ability to have empty els for space
       % reasons (as opposed to eg filling in all els in lblModernize()).
       % Wait and see.
-      if isempty(obj.labeledpos{iMov})
-        obj.labeledpos{iMov} = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets);
-      end
-      if isempty(obj.labeledposTS{iMov})
-        obj.labeledposTS{iMov} = -inf(obj.nLabelPoints,obj.nframes,obj.nTargets); 
-      end
-      if isempty(obj.labeledposMarked{iMov})
-        obj.labeledposMarked{iMov} = false(obj.nLabelPoints,obj.nframes,obj.nTargets); 
-      end
-      if isempty(obj.labeledpostag{iMov})
-        obj.labeledpostag{iMov} = cell(obj.nLabelPoints,obj.nframes,obj.nTargets);
-      end
-      if isempty(obj.labeledpos2{iMov})
-        obj.labeledpos2{iMov} = nan(obj.nLabelPoints,2,obj.nframes,obj.nTargets);
-      end      
+      % AL20170828 convert to asserts 
+      assert(~isempty(obj.labeledpos{iMov})); % XXX SHADOW
+      assert(~isempty(obj.labeledposTS{iMov}));
+      assert(~isempty(obj.labeledposMarked{iMov}));
+      assert(~isempty(obj.labeledpostag{iMov}));
+      assert(~isempty(obj.labeledpos2{iMov}));
       
       % KB 20161213: moved this up here so that we could redo in initHook
       obj.labelsMiscInit();
@@ -3381,6 +3411,8 @@ classdef Labeler < handle
         'rawtrkname',[]... % string, rawname to apply over iMovs to generate trkfiles
         );
       
+      assert(~obj.gtIsGTMode);
+      
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
       end
@@ -3639,6 +3671,7 @@ classdef Labeler < handle
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
       end
+      assert(~obj.gtIsGTMode);
       obj.labelImportTrkPromptGeneric(iMovs,'labelImportTrk');
     end
     
@@ -3976,22 +4009,22 @@ classdef Labeler < handle
     function [tfAllSame,movWidths,movHeights] = viewCalCheckMovSizes(obj)
       % Check for consistency of movie sizes in current proj. Throw
       % warndlgs for each view where sizes differ.
-      %
+      % 
       % tfAllSame: [1 nView] logical. If true, all movies in that view
-      % have the same size.
+      % have the same size. This includes both .movieInfoAll AND 
+      % .movieInfoAllGT.
       % movWidths, movHeights: [nMovSetxnView] arrays
             
-      nView = obj.nview;
-      PROPS = obj.gtGetSharedProps();
-      ifo = obj.(PROPS.MIA);
+      ifo = cat(1,obj.movieInfoAll,obj.movieInfoAllGT);
       movWidths = cellfun(@(x)x.info.Width,ifo);
       movHeights = cellfun(@(x)x.info.Height,ifo);
-      nMov = obj.nmoviesGTaware;
-      szassert(movWidths,[nMov nView]);
-      szassert(movHeights,[nMov nView]);
+      nrow = obj.nmovies + obj.nmoviesGT;
+      nView = obj.nview;
+      szassert(movWidths,[nrow nView]);
+      szassert(movHeights,[nrow nView]);
       
       tfAllSame = true(1,nView);
-      if nMov>0
+      if nrow>0
         for iVw=1:nView
           tfAllSame(iVw) = ...
             all(movWidths(:,iVw)==movWidths(1,iVw)) && ...
@@ -4003,7 +4036,39 @@ classdef Labeler < handle
         end
       end
     end
-  end  
+    
+    function viewCalSetCheckViewSizes(obj,iMov,crObj,tfSet)
+      % Check/set movie image size for movie iMov on calrig object 
+      %
+      % iMov: movie index, applied in GT-aware fashion (eg .currMovie)
+      % crObj: scalar calrig object
+      % tfSet: if true, set the movie size on the calrig (with diagnostic
+      % printf); if false, throw warndlg if the sizes don't match
+            
+      assert(iMov>0);
+      movInfo = obj.movieInfoAllGTaware(iMov,:);
+      movWidths = cellfun(@(x)x.info.Width,movInfo);
+      movHeights = cellfun(@(x)x.info.Height,movInfo);
+      vwSizes = [movWidths(:) movHeights(:)];
+      if tfSet
+        % If movie sizes differ in this project, setting of viewsizes may
+        % be hazardous. Assume warning has been thrown if necessary
+        crObj.viewSizes = vwSizes;
+        for iVw=1:obj.nview
+          fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
+            vwSizes(iVw,1),vwSizes(iVw,2),iVw,crObj.viewNames{iVw});
+        end
+      else
+        % Check view sizes
+        if ~isequal(crObj.viewSizes,vwSizes)
+          warnstr = sprintf('View sizes in calibration object (%s) do not match movie %d (%s).',...
+            mat2str(crObj.viewSizes),iMov,mat2str(vwSizes));
+          warndlg(warnstr,'View size mismatch','non-modal');
+        end
+      end
+    end
+    
+  end
   methods
     
     function viewCalClear(obj)
@@ -4013,20 +4078,24 @@ classdef Labeler < handle
       % Currently lblCore is not cleared, change will be reflected in
       % labelCore at next movie change etc
       
-%       lc = obj.lblCore;      
-%       if lc.supportsCalibration
-%         warning('Labeler:viewCal','');
-%       end
+      % lc = obj.lblCore;      
+      % if lc.supportsCalibration
+      %   warning('Labeler:viewCal','');
+      % end
     end
     
     function viewCalSetProjWide(obj,crObj,varargin)
       % Set project-wide calibration object.
+      %
+      % .viewCalibrationData or .viewCalibrationDataGT set depending on
+      % .gtIsGTMode.
       
       tfSetViewSizes = myparse(varargin,...
         'tfSetViewSizes',false); % If true, set viewSizes on crObj per current movieInfo
       
-      if obj.nmovies==0
-        error('Labeler:calib','Add a movie first before setting the calibration object.');
+      if obj.nmovies==0 || obj.currMovie==0
+        error('Labeler:calib',...
+          'Add/select a movie first before setting the calibration object.');
       end
       
       obj.viewCalCheckCalRigObj(crObj);
@@ -4039,42 +4108,9 @@ classdef Labeler < handle
         obj.viewCalibrationData = [];
         obj.viewCalibrationDataGT = [];
       end
-      [tfAllSame,movWidths,movHeights] = obj.viewCalCheckMovSizes();
       
-      if tfSetViewSizes
-        if all(tfAllSame)
-          iMovUse = 1;
-        else
-          iMovUse = obj.currMovie;
-          if iMovUse==0
-            iMovUse = 1; % dangerous for user, but we already warned them
-          end
-        end
-        vwSizes = [movWidths(iMovUse,:)' movHeights(iMovUse,:)'];
-        crObj.viewSizes = vwSizes;
-        for iVw=1:obj.nview
-          fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
-            vwSizes(iVw,1),vwSizes(iVw,2),iVw,crObj.viewNames{iVw});
-        end
-      else
-        % Check view sizes        
-        iMovCheck = obj.currMovie;
-        if iMovCheck==0
-          if obj.nmovies==0
-            iMovCheck = nan;
-          else
-            iMovCheck = 1;
-          end
-        end
-        if ~isnan(iMovCheck)
-          vwSizesExpect = [movWidths(iMovCheck,:)' movHeights(iMovCheck,:)'];
-          if ~isequal(crObj.viewSizes,vwSizesExpect)
-            warnstr = sprintf('View sizes in calibration object (%s) do not match movie (%s).',...
-              mat2str(crObj.viewSizes),mat2str(vwSizesExpect));
-            warndlg(warnstr,'View size mismatch','non-modal');
-          end
-        end
-      end      
+      obj.viewCalCheckMovSizes();
+      obj.viewCalSetCheckViewSizes(obj.currMovie,crObj,tfSetViewSizes);
       
       obj.viewCalProjWide = true;
       obj.viewCalibrationData = crObj;
@@ -4087,7 +4123,7 @@ classdef Labeler < handle
         warning('Labeler:viewCal','Current labeling mode does not utilize view calibration.');
       end
     end
-    
+        
     function viewCalSetCurrMovie(obj,crObj,varargin)
       % Set calibration object for current movie
 
@@ -4120,35 +4156,21 @@ classdef Labeler < handle
         szassert(obj.viewCalibrationDataGT,[obj.nmoviesGT 1]);
       end
       
-      PROPS = obj.gtGetSharedProps();
-      ifo = obj.(PROPS.MIA)(obj.currMovie,:);
-      movWidths = cellfun(@(x)x.info.Width,ifo);
-      movHeights = cellfun(@(x)x.info.Height,ifo);
-      vwSizes = [movWidths' movHeights'];
-      if tfSetViewSizes
-        crObj.viewSizes = vwSizes;
-        arrayfun(@(x)fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
-            vwSizes(x,1),vwSizes(x,2),x,crObj.viewNames{x}),1:obj.nview);
-      else
-        if ~isequal(crObj.viewSizes,vwSizes)
-          warnstr = sprintf('View sizes in calibration object (%s) do not match movie (%s).',...
-            mat2str(crObj.viewSizes),mat2str(vwSizes));
-          warndlg(warnstr,'View size mismatch','non-modal');
-        end
-      end
-      
+      obj.viewCalSetCheckViewSizes(obj.currMovie,crObj,tfSetViewSizes);
+
       obj.(PROPS.VCD){obj.currMovie} = crObj;
       
       lc = obj.lblCore;
       if lc.supportsCalibration
         lc.projectionSetCalRig(crObj);
       else
-        warning('Labeler:viewCal','Current labeling mode does not utilize view calibration.');
+        warning('Labeler:viewCal',...
+          'Current labeling mode does not utilize view calibration.');
       end
     end
     
   end
-  
+    
   methods (Static)
     function nptsLbled = labelPosNPtsLbled(lpos)
       % poor man's export of LabelPosLabeledFramesStats
@@ -5044,7 +5066,8 @@ classdef Labeler < handle
       % Prefer setFrame() or setTarget() if possible to
       % provide better continuity wrt labeling etc.
      
-      validateattributes(iTgt,{'numeric'},{'positive' 'integer' '<=' obj.nTargets});
+      validateattributes(iTgt,{'numeric'},...
+        {'positive' 'integer' '<=' obj.nTargets});
 
       if ~obj.isinit && obj.hasTrx && ~obj.frm2trx(frm,iTgt)
         error('Labeler:target',...
@@ -5248,7 +5271,7 @@ classdef Labeler < handle
       tfFrm = nTgts>0;
       iFrm = find(tfFrm);
       
-      dat = [num2cell(iFrm) num2cell(nTgts(tfFrm)) num2cell(nPts(tfFrm)) ];
+      dat = [num2cell(iFrm) num2cell(nTgts(tfFrm)) num2cell(nPts(tfFrm))];
       tbl = obj.gdata.tblFrames;
       set(tbl,'Data',dat);
 
@@ -5454,6 +5477,9 @@ classdef Labeler < handle
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
       end
+      
+      assert(~obj.gtIsGTMode);
+      
       obj.labelImportTrkPromptGeneric(iMovs,'labels2ImportTrk');
     end
    
