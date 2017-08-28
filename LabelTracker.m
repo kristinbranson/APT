@@ -213,20 +213,12 @@ classdef LabelTracker < handle
       
     end
     
-    function vizHide(obj)
-      obj.hideViz = true;
-    end
-    
-    function vizShow(obj)
-      obj.hideViz = false;
+    function setHideViz(obj,tf)
+      obj.hideViz = tf;
     end
     
     function hideVizToggle(obj)
-      if obj.hideViz
-        obj.vizShow();
-      else
-        obj.vizHide();
-      end
+      obj.setHideViz(~obj.hideViz);
     end
         
   end

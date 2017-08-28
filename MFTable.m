@@ -1,5 +1,5 @@
 classdef MFTable
-% Movie/Frame tables
+% Movie/Frame/(Target) tables
 %
 % An MFTable is a table with cols 'mov' and 'frm' indicating movies and
 % frame numbers.
