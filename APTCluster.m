@@ -166,6 +166,9 @@ close all force;
 
 
 function lclTrackAndExportSingleMov(lObj,mov,trackArgs)
+if lObj.gtIsGTMode
+  error('APTCluster:gt','Unsupported for GT mode.');
+end
 if exist(mov,'file')==0
   error('APTCluster:file','Cannot find movie file ''%s''.',mov);
 end

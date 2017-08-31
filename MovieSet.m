@@ -26,7 +26,7 @@ classdef MovieSet
           case MovieSet.SelMov
             iMovs = labelerObj.moviesSelected;            
           case MovieSet.AllMov
-            iMovs = 1:labelerObj.nmovies;
+            iMovs = 1:labelerObj.nmoviesGTaware;
           otherwise
             assert(false,'Unknown movieset.');
         end

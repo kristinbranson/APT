@@ -156,7 +156,7 @@ classdef LabelTracker < handle
       
       nMov = numel(iMovs);
       for i = nMov:-1:1
-        trkpos = nan(size(obj.lObj.labeledpos{iMovs(i)}));
+        trkpos = nan(size(obj.lObj.labeledposGTaware{iMovs(i)}));
         trkfiles(i) = TrkFile(trkpos);
         tfHasRes(i) = false;
       end

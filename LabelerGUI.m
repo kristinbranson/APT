@@ -1476,7 +1476,7 @@ lObj = handles.labelerObj;
 if ~tfok
   return;
 end
-lObj.labelExportTrk(1:lObj.nmovies,'rawtrkname',rawtrkname);
+lObj.labelExportTrk(1:lObj.nmoviesGTaware,'rawtrkname',rawtrkname);
 
 function menu_help_Callback(hObject, eventdata, handles)
 
@@ -2195,6 +2195,7 @@ lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
 
 function menu_track_export_all_movies_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
+assert(~lObj.gtIsGTMode,'Unsupported in GT mode.');
 nMov = lObj.nmovies;
 if nMov==0
   error('LabelerGUI:noMov','No movies in project.');

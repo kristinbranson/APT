@@ -407,7 +407,7 @@ classdef CPRLabelTracker < LabelTracker
 
       tblPNewConcrete = tblPnew; % will concretize movie/movieIDs
       iMov = tblPNewConcrete.mov;
-      tblPNewConcrete.mov = obj.lObj.movieFilesAllFull(iMov,:); % [NxnView] 
+      tblPNewConcrete.mov = obj.lObj.movieFilesAllFullGTaware(iMov,:); % [NxnView] 
       nNew = size(tblPnew,1);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
@@ -699,7 +699,7 @@ classdef CPRLabelTracker < LabelTracker
       % For moviesets with movies with differing # of frames, this should be
       % the common minimum
       nfrms = lObj.movieInfoAllGTaware{iMov}.nframes; 
-      lpos = lObj.labeledpos{iMov};
+      lpos = lObj.labeledposGTaware{iMov};
       assert(size(lpos,3)==nfrms);
       ntgts = size(lpos,4);
 
@@ -1997,6 +1997,14 @@ classdef CPRLabelTracker < LabelTracker
         if ~any(strcmp(s.trkPMD.Properties.VariableNames,'iTgt'))
           s.trkPMD.iTgt = ones(height(s.trkPMD),1);
         end
+      end
+      
+      % 20170831. Any project with non-trivial GT mode should have already 
+      % converted (if necessary) all char movieIDs in MD tables to 
+      % movieIdxs.
+      if obj.lObj.nmoviesGT>0
+        assert(~iscellstr(s.trnDataTblP.mov));
+        assert(~iscellstr(s.trkPMD.mov));
       end
       
       allProjMovIDs = FSPath.standardPath(obj.lObj.movieFilesAll);

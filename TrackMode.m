@@ -75,10 +75,10 @@ classdef TrackMode < handle
               iMov = labelerObj.moviesSelected;
               df = labelerObj.(obj.labelerProp);
             case TrackMode.AllMovEveryFrame
-              iMov = 1:labelerObj.nmovies;
+              iMov = 1:labelerObj.nmoviesGTaware;
               df = 1;
             case {TrackMode.AllMovEveryNFramesSmall TrackMode.AllMovEveryNFramesLarge}
-              iMov = 1:labelerObj.nmovies;
+              iMov = 1:labelerObj.nmoviesGTaware;
               df = labelerObj.(obj.labelerProp);
             otherwise
               assert(false);
