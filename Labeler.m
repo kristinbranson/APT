@@ -301,7 +301,7 @@ classdef Labeler < handle
   end
   
   %% GT mode
-  properties (SetObservable)
+  properties (SetObservable,SetAccess=private)
     gtIsGTMode % scalar logical
   end
   properties
@@ -344,6 +344,9 @@ classdef Labeler < handle
   end
   properties (AbortSet)
     currMovie; % idx into .movieFilesAll (row index, when obj.multiView is true), or .movieFilesAllGT when .gtIsGTmode is on
+  end
+  properties (Dependent)
+    currMovieSigned; % returns -.currMovie when gtMode is on
   end
   properties (SetObservable)
     currFrame = 1; % current frame
@@ -567,7 +570,10 @@ classdef Labeler < handle
       end
     end
     function v = get.labeledposGTaware(obj)
-      if obj.gtIsGTMode
+      v = obj.getlabeledposGTawareArg(obj.gtIsGTMode);
+    end
+    function v = getlabeledposGTawareArg(obj,gt)
+      if gt
         v = obj.labeledposGT;
       else
         v = obj.labeledpos;
@@ -608,9 +614,16 @@ classdef Labeler < handle
     function v = get.nPhysPoints(obj)
       v = size(obj.labeledposIPtSetMap,1);
     end
+    function v = get.currMovieSigned(obj)
+      if obj.gtIsGTMode
+        v = -obj.currMovie;
+      else
+        v = obj.currMovie;
+      end
+    end
     function v = get.gdata(obj)
       v = guidata(obj.hFig);
-    end    
+    end
   end
   
   methods % prop access
@@ -1139,7 +1152,7 @@ classdef Labeler < handle
       % projNew()
 
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
-                                              Labeler.SAVEBUTNOLOADPROPS));
+                                              Labeler.SAVEBUTNOTLOADPROPS));
       for f = LOADPROPS(:)',f=f{1}; %#ok<FXSET>
         if isfield(s,f)
           obj.(f) = s.(f);          
@@ -1674,6 +1687,7 @@ classdef Labeler < handle
     
     % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
     % .hasTrx
+    %#GTOK
     %#3DOK
     function [I,tbl] = lblCompileContentsRaw(...
         movieNames,lposes,lpostags,iMovs,frms,varargin)
@@ -1848,8 +1862,10 @@ classdef Labeler < handle
         
         I = [I;ITmp]; %#ok<AGROW>
       end
-      tbl = struct2table(s,'AsArray',true);      
-    end    
+      tbl = struct2table(s,'AsArray',true);
+      
+      fprintf(2,'Labeler:lblCompileContentsRaw: table.mov not GT-ized\n');
+    end
         
   end 
   
@@ -2148,9 +2164,7 @@ classdef Labeler < handle
       if iMov==obj.currMovie
         error('Labeler:movieRm','Cannot remove current movie.');
       end
-      
-      PROPS = Labeler.gtGetSharedPropsStc(gt);
-      
+            
       tfProceedRm = true;
       if obj.labelposMovieHasLabels(iMov,'gt',gt) && ...
          ~obj.movieDontAskRmMovieWithLabels
@@ -2172,7 +2186,11 @@ classdef Labeler < handle
         end
       end
       
-      if tfProceedRm        
+      if tfProceedRm
+        PROPS = Labeler.gtGetSharedPropsStc(gt);
+        nMovOrigReg = obj.nmovies;
+        nMovOrigGT = obj.nmoviesGT;
+        
         obj.(PROPS.MFA)(iMov,:) = [];
         obj.(PROPS.MFAHL)(iMov,:) = [];
         obj.(PROPS.MIA)(iMov,:) = [];
@@ -2187,15 +2205,19 @@ classdef Labeler < handle
           obj.labeledposMarked(iMov,:) = [];
           obj.labeledpos2(iMov,:) = [];
         end
-        obj.isinit = tfOrig;
-        
-        edata = MovieRemovedEventData(iMov,nMovOrig);
-        notify(obj,'movieRemoved',edata);
-        
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           szassert(obj.(PROPS.VCD),[nMovOrig 1]);
           obj.(PROPS.VCD)(iMov,:) = [];
         end
+        obj.isinit = tfOrig;
+        
+        if gt
+          iMovSigned = -iMov;
+        else
+          iMovSigned = iMov;
+        end
+        edata = MovieRemovedEventData(iMovSigned,nMovOrigReg,nMovOrigGT);
+        notify(obj,'movieRemoved',edata);
         
         if obj.currMovie>iMov && gt==obj.gtIsGTMode
           obj.movieSet(obj.currMovie-1);
@@ -3820,13 +3842,18 @@ classdef Labeler < handle
       delete(hWB);
     end   
     
+    %#GTOK
     function tblMF = labelGetMFTableLabeled(obj)
-      % Compile mov/frm/tgt MFTable; include all labeled frames/tgts
+      % Compile mov/frm/tgt MFTable; include all labeled frames/tgts. 
+      %
+      % Does not include GT frames.
       %
       % tblMF: See MFTable.FLDSFULLTRX.
-      
-      assert(~obj.gtIsGTMode);
-      
+
+      if obj.gtIsGTMode
+        error('Labeler:gt','Not supported in GT mode.');
+      end
+       
       movIDs = FSPath.standardPath(obj.movieFilesAll);
       if obj.hasTrx
         tblMF = Labeler.labelGetMFTableLabeledStc(movIDs,obj.labeledpos,...
@@ -3842,10 +3869,12 @@ classdef Labeler < handle
       tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
     end
     
+    %#GTOK
     function tblMF = labelGetMFTableAll(obj,iMov,frmCell)
       % Compile mov/frm/tgt MFTable for given movies/frames.
       %
-      % iMov: [n] vector of movie(set) indices
+      % iMov: [n] vector of movie(set) indices. All positive, GT indices
+      %   not supported.
       % frmsCell: [n] cell vector. frms{i} is a vector of frames to read 
       %   for movie iMov(i), or the string 'all' for all frames in the
       %   movie.
@@ -3853,7 +3882,9 @@ classdef Labeler < handle
       %
       % tblMF: See MFTable.FLDSFULLTRX.
       
-      assert(~obj.gtIsGTMode);
+      if obj.gtIsGTMode
+        error('Labeler:gt','Not supported in GT mode.');
+      end
       
       movIDs = FSPath.standardPath(obj.movieFilesAll);
       if obj.hasTrx        
@@ -3871,22 +3902,24 @@ classdef Labeler < handle
       tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
     end
     
+    %#GTOK
     function tblMF = labelGetMFTableCurrMovFrmTgt(obj)
       % Get MFTable for current movie/frame/target (single-row table)
       %
       % tblMF: See MFTable.FLDSFULLTRX.
          
-      assert(~obj.gtIsGTMode);
-
+      if obj.gtIsGTMode
+        % Easy to support in GT mode, just unnec for now
+        error('Labeler:gt','Not supported in GT mode.');
+      end
+      
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;
       lposFrmTgt = obj.labeledpos{iMov}(:,:,frm,iTgt);
       lpostagFrmTgt = obj.labeledpostag{iMov}(:,frm,iTgt);
       lposTSFrmTgt = obj.labeledposTS{iMov}(:,frm,iTgt);      
-      %movID = FSPath.standardPath(obj.movieFilesAll(iMov,:));
 
-      %mov = movID;
       mov = iMov;
       p = Shape.xy2vec(lposFrmTgt); % absolute position
       pTS = lposTSFrmTgt';
@@ -3907,6 +3940,7 @@ classdef Labeler < handle
       tblMF = table(mov,frm,iTgt,p,pTS,tfocc,pTrx);
     end
     
+    %#GTOK
     function tblMF = labelMFTableAddROI(obj,tblMF,roiRadius)
       % Add .pRoi and .roi to tblMF
       %
@@ -3914,8 +3948,6 @@ classdef Labeler < handle
       %   first row/col of ROI)
       % tblMF.roi: [nrow x 2*2*nview]. Raster order {lo,hi},{x,y},view
       
-      assert(~obj.gtIsGTMode);
-
       tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
       
       nphyspts = obj.nPhysPoints;
@@ -3950,6 +3982,7 @@ classdef Labeler < handle
   
   methods (Static)
     
+    %#GTOK
     function tblMF = labelGetMFTableLabeledStc(movID,lpos,lpostag,lposTS,...
         trxFilesAll,varargin)
       % Compile MFtable, by default for all labeled mov/frm/tgts
@@ -4081,7 +4114,9 @@ classdef Labeler < handle
           end
         end
       end
-      tblMF = struct2table(s,'AsArray',true);      
+      tblMF = struct2table(s,'AsArray',true);
+      
+      fprintf(2,'labelGetMFTableLabeledStc, .mov fields not GT-ized.\n');      
     end
   end
   
@@ -4328,6 +4363,22 @@ classdef Labeler < handle
    
   %% GT mode
   methods
+    function gtSetGTMode(obj,tf)
+      validateattributes(tf,{'numeric' 'logical'},{'scalar'});
+      tf = logical(tf);
+      if tf==obj.gtIsGTMode
+        % none, value unchanged
+      else
+        obj.gtIsGTMode = tf;
+        nMov = obj.nmoviesGTaware;
+        if nMov==0
+          obj.movieSetNoMovie();
+        else
+          IMOV = 1; % FUTURE: remember last/previous iMov in "other" gt mode
+          obj.movieSet(IMOV);
+        end          
+      end
+    end
     function gtThrowErrIfInGTMode(obj)
       if obj.gtIsGTMode
         error('Labeler:gt','Unsupported when in GT mode.');
@@ -4373,6 +4424,10 @@ classdef Labeler < handle
     
     function updateCurrSusp(obj)
       % Update .currSusp from .suspScore, currMovie, .currFrm, .currTarget
+      
+      if obj.gtIsGTMode
+        return;
+      end
       
       tfDoSusp = ~isempty(obj.suspScore) && ...
                   obj.hasMovie && ...
@@ -4451,7 +4506,11 @@ classdef Labeler < handle
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
+      if obj.gtIsGTMode
+        error('Labeler:track','Unsupported in GT mode.');
+      end
       [iMovs,frms] = tm.getMovsFramesToTrack(obj);
+      assert(all(iMovs>0),'Unsupported in GT mode.');
       
       [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovs,[],rawtrkname);
       if ~tfok
@@ -5598,6 +5657,7 @@ classdef Labeler < handle
       % Try to import default trk file for current movie into labels2. If
       % the file is not there, error.
       
+      assert(~obj.gtIsGTMode,'Unsupported in GT mode.');
       if ~obj.hasMovie
         error('Labeler:nomov','No movie is loaded.');
       end
@@ -5650,6 +5710,7 @@ classdef Labeler < handle
     end
     
     function labels2VizUpdate(obj)
+      
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;

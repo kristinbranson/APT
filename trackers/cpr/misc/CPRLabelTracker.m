@@ -27,10 +27,11 @@ classdef CPRLabelTracker < LabelTracker
   %
   % These are all MFTables (Movie-frame tables) where .mov is an index into
   % a row of lObj.movieFilesAll. Conceptually, .mov represents a unique
-  % movie ID.
+  % movie(set) key/ID.
   %
-  % Multiview data: movie IDs computed as above are delimiter-concatenated
-  % to form a single unique ID for each movieset.
+  % The .mov fields in these tables are "signed movie indices" and can take 
+  % negative values representing indexing into rows of 
+  % lObj.movieFilesAllGT. Zero values (.mov==0) should never occur.
   %
   % All tables must have the key fields .mov, .frm, .iTgt. Together, these 
   % three fields act as a unique row key. The track table has only the 
@@ -38,7 +39,8 @@ classdef CPRLabelTracker < LabelTracker
   % other additional fields such as .tfocc.
   %
   % Some defs:
-  % .mov. unique ID for movie, integer index into lObj.movieFilesAll.
+  % .mov. unique ID for movie, integer index into lObj.movieFilesAll or 
+  %   negative index into lObj.movieFilesAllGT.
   % .frm. frame number
   % .iTgt. 1-based target index (always 1 for single target proj)
   % .p. [1 x npt*nvw*d=2] labeled shape
@@ -298,6 +300,8 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function tblP = getTblPAll(obj,iMovs,frmCell)
+      % iMovs: all positive, GT unsupported
+      assert(all(iMovs>0));
       tblP = obj.lObj.labelGetMFTableAll(iMovs,frmCell);
       tblP = obj.hlpAddRoiIfNec(tblP);
     end
@@ -406,9 +410,15 @@ classdef CPRLabelTracker < LabelTracker
       assert(~any(ismember(tblPnew(:,FLDSID),dataCurr.MD(:,FLDSID))));
 
       tblPNewConcrete = tblPnew; % will concretize movie/movieIDs
-      iMov = tblPNewConcrete.mov;
-      tblPNewConcrete.mov = obj.lObj.movieFilesAllFullGTaware(iMov,:); % [NxnView] 
       nNew = size(tblPnew,1);
+      iMovSgnd = tblPNewConcrete.mov;
+      tfRegRow = iMovSgnd>0;
+      tfGTRow = iMovSgnd<0;
+      assert(~any(iMovSgnd==0));
+      movStr = cell(nNew,obj.lObj.nview);
+      movStr(tfRegRow,:) = obj.lObj.movieFilesAll(iMovSgnd(tfRegRow),:); % [NxnView] 
+      movStr(tfGTRow,:) = obj.lObj.movieFilesAllGT(-iMovSgnd(tfGTRow),:);
+      tblPNewConcrete.mov = movStr;
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
         I = CPRData.getFrames(tblPNewConcrete,'wbObj',wbObj);
@@ -553,6 +563,7 @@ classdef CPRLabelTracker < LabelTracker
       tblP = obj.getTblPLbled(); % start with all labeled data
       [grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
       
+      assert(all(tblP.mov>0),'Training on GT data.');
       mov = categorical(tblP.mov); % multiview data: mov and related are multimov IDs
       movUn = categories(mov);
       nMovUn = numel(movUn);
@@ -677,10 +688,10 @@ classdef CPRLabelTracker < LabelTracker
     %#MTGT
     %#MV
     function [trkpos,trkposTS,trkposFull,trkposFullMFT,tfHasRes] = ...
-        getTrackResRaw(obj,iMov)
+        getTrackResRaw(obj,iMovSigned)
       % Get tracking results for movie(set) iMov.
       %
-      % iMov: scalar movie(set) index
+      % iMov: scalar movie(set) index. Negative indices for GT movies.
       % 
       % trkpos: [nptstrk x d x nfrm(iMov) x ntgt(iMov)]. Tracking results 
       % for iMov. 
@@ -694,12 +705,17 @@ classdef CPRLabelTracker < LabelTracker
       %   trkposFull
       % tfHasRes: if true, nontrivial tracking results returned
       
+      assert(isscalar(iMovSigned));
+      
       lObj = obj.lObj;
-
+      tfGT = iMovSigned<0;
+      iMovAbs = abs(iMovSigned);
+      PROPS = Labeler.gtGetSharedPropsStc(tfGT);
+      
       % For moviesets with movies with differing # of frames, this should be
       % the common minimum
-      nfrms = lObj.movieInfoAllGTaware{iMov}.nframes; 
-      lpos = lObj.labeledposGTaware{iMov};
+      nfrms = lObj.(PROPS.MIA){iMovAbs}.nframes; % first col/view if multiview
+      lpos = lObj.(PROPS.LPOS){iMovAbs};
       assert(size(lpos,3)==nfrms);
       ntgts = size(lpos,4);
 
@@ -725,8 +741,8 @@ classdef CPRLabelTracker < LabelTracker
       trkpos = nan(nPtTrk,d,nfrms,ntgts);
       trkposTS = -inf(nPtTrk,nfrms,ntgts);
       
-        tfCurrMov = trkMD.mov==iMov;
-        trkMDCurrMov = trkMD(tfCurrMov,:);
+      tfCurrMov = trkMD.mov==iMovSigned;
+      trkMDCurrMov = trkMD(tfCurrMov,:);
       nRowCurrMov = height(trkMDCurrMov);
       trkposFull = nan(nPtTrk,d,nRep,nRowCurrMov);
       trkposFullMFT = trkMDCurrMov(:,MFTable.FLDSID);
@@ -748,17 +764,20 @@ classdef CPRLabelTracker < LabelTracker
           iTgt = trkMDCurrMov.iTgt(i);
           trkpos(:,:,frm,iTgt) = xyTrkCurrMov(:,:,i);
           trkposTS(:,frm,iTgt) = trkPTSCurrMov(i);
-      end
+        end
       end
     end
     
     %#MTGT
-    function trkposFull = getTrackResFullCurrTgt(obj,iMov,frm)
+    function trkposFull = getTrackResFullCurrTgt(obj,iMovSigned,frm)
       % Get full tracking results for movie iMov, frame frm, curr tgt.
       %
+      % iMov: scalar movie index (negative for GT movies)
+      % 
       % trkposFull: [nptstrk x d x nRep x (T+1)], or [] if iMov/frm not
       % found in .trkPFull'
       
+      assert(isscalar(iMovSigned));
       assert(obj.storeFullTracking);
       
       trkMD = obj.trkPMD;
@@ -768,11 +787,9 @@ classdef CPRLabelTracker < LabelTracker
       nRep = obj.sPrm.TestInit.Nrep;
       
       lObj = obj.lObj;
-%       movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
-%       movNameID = MFTable.formMultiMovieID(movNameID);
       iTgt = lObj.currTarget;
 
-      tfMovFrm = trkMD.mov==iMov & trkMD.frm==frm & trkMD.iTgt==iTgt;
+      tfMovFrm = trkMD.mov==iMovSigned & trkMD.frm==frm & trkMD.iTgt==iTgt;
       nMovFrm = nnz(tfMovFrm);
       assert(nMovFrm==0 || nMovFrm==1);
       if nMovFrm==0
@@ -1439,12 +1456,14 @@ classdef CPRLabelTracker < LabelTracker
       end
                         
       if isempty(tblP)
+        assert(all(iMovs>0),'GT mode');
         tblP = obj.getTblPAll(iMovs,frms);
         if isempty(tblP)
           msgbox('No frames specified for tracking.');
           return;
         end
       end
+      assert(all(tblP.mov>0),'GT mode');
       if obj.lObj.hasTrx
         tblfldscontainsassert(tblP,MFTable.FLDSCOREROI);
       else
@@ -1589,10 +1608,10 @@ classdef CPRLabelTracker < LabelTracker
         obj.newLabelerFrame();
       end
     end
-      
+          
     %MTGT
     %#MV
-    function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovs)
+    function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
       % Get tracking results for movie(set) iMov.
       %
       % iMovs: [nMov] vector of movie(set) indices
@@ -1601,13 +1620,13 @@ classdef CPRLabelTracker < LabelTracker
       % tfHasRes: [nMov] logical. If true, corresponding movie has tracking
       %   nontrivial (nonempty) tracking results
       
-      validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
+      validateattributes(iMovsSgned,{'numeric'},{'vector' 'integer'});
 
       if isempty(obj.trkPTS)
         error('CPRLabelTracker:noRes','No current tracking results.');
       end
       
-      nMov = numel(iMovs);
+      nMov = numel(iMovsSgned);
       trkpipt = obj.trkPiPt;
       trkinfobase = struct('paramFile',obj.paramFile,'param',obj.sPrm);
       
@@ -1622,7 +1641,7 @@ classdef CPRLabelTracker < LabelTracker
         
       for i = nMov:-1:1
         [trkpos,trkposTS,trkposFull,trkposFullMFT,tfHasRes(i)] = ...
-                                        obj.getTrackResRaw(iMovs(i));
+                                        obj.getTrackResRaw(iMovsSgned(i));
         if tfMultiView
           assert(size(trkpos,1)==nPhysPts*nview);
           for ivw=nview:-1:1
@@ -1838,14 +1857,17 @@ classdef CPRLabelTracker < LabelTracker
     
     function labelerMovieRemoved(obj,eventdata)
       iMovOrig2New = eventdata.iMovOrig2New;
-      iMovRm = find(iMovOrig2New==0);
+      keys = cell2mat(iMovOrig2New.keys);
+      vals = cell2mat(iMovOrig2New.values);
+      szassert(keys,size(vals));
+      iMovRm = keys(vals==0);
       assert(isscalar(iMovRm)); % for now
       
       % .data*. Remove any removed movies from .data cache, relabel MD.mov
       obj.data.movieRemap(iMovOrig2New);
       
-      % trnData*. If a movie is being removed that is in trnDataTblP, the
-      % to be safe we invalidate any trained tracker and tracking results.
+      % trnData*. If a movie is being removed that is in trnDataTblP, to be 
+      % safe we invalidate any trained tracker and tracking results.
       tfRm = obj.trnDataTblP.mov==iMovRm;
       if any(tfRm)
         if isdeployed
@@ -1876,13 +1898,14 @@ classdef CPRLabelTracker < LabelTracker
       else
         % .trnDataTblP does not contain a movie-being-removed, but we still
         % need to relabel movie indices.
-        obj.trnDataTblP.mov = iMovOrig2New(obj.trnDataTblP.mov);
+        obj.trnDataTblP.mov = arrayfun(@(x)iMovOrig2New(x),...
+                                        obj.trnDataTblP.mov);
         assert(~any(obj.trnDataTblP.mov==0));
       end
       
       % trkP*. Relabel .mov in tables; remove any removed movies from 
       % tracking results. 
-      obj.trkPMD.mov = iMovOrig2New(obj.trkPMD.mov);
+      obj.trkPMD.mov = arrayfun(@(x)iMovOrig2New(x),obj.trkPMD.mov);
       tfRm = obj.trkPMD.mov==0;
 
       obj.trkP(tfRm,:) = [];
@@ -1895,7 +1918,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
     end
-    
+        
     function s = getSaveToken(obj)
       % See save philosophy below. ATM we return a "full" struct with
       % 2+3+4;
@@ -2486,11 +2509,11 @@ classdef CPRLabelTracker < LabelTracker
       ntgts = lObj.nTargets;
       nfids = obj.nPts;
       d = 2;
-      iMov = lObj.currMovie;
+      iMovSgnd = lObj.currMovieSigned;
       iTgt = lObj.currTarget;
       nrep = obj.sPrm.TestInit.Nrep;
       
-      [trkpos,~,trkposfull,trkposfullMFT] = obj.getTrackResRaw(iMov);
+      [trkpos,~,trkposfull,trkposfullMFT] = obj.getTrackResRaw(iMovSgnd);
       iPtTrk = obj.trkPiPt;
       nptsTrk = numel(iPtTrk);
       szassert(trkpos,[nptsTrk d nfrms ntgts]);

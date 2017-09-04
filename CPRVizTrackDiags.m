@@ -137,6 +137,8 @@ classdef CPRVizTrackDiags < handle
       % xsUse: [MxnUse] cell array, feature definitions (row of ftrSpec.xs)
       % xsLbl: [1xncol] labels for row vecs in xsUse
       
+      assert(~obj.lObj.gtIsGTMode,'Unsupported for GT mode.');
+      
       rc = obj.rcObj;
       fUse = squeeze(rc.ftrsUse(obj.t,obj.u,:,:)); % [MxnUse]
       fspec = rc.ftrSpecs{obj.t};
@@ -147,9 +149,9 @@ classdef CPRVizTrackDiags < handle
       end
       xsUse = arrayfun(@(iF)fspec.xs(iF,:),fUse,'uni',0);
       
-      iMov = obj.lObj.currMovie;
-      frm = obj.lObj.currFrame;
-      trkPFull = obj.tObj.getTrackResFullCurrTgt(iMov,frm);
+      iMov = obj.lObj.currMovie; % TODO GT
+      frm = obj.lObj.currFrame; 
+      trkPFull = obj.tObj.getTrackResFullCurrTgt(iMov,frm); % TODO GT
       
       if isequal(trkPFull,[])
         % no tracking avail for this iMov/frm

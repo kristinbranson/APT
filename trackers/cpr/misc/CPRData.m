@@ -243,7 +243,12 @@ classdef CPRData < handle
     end
     
     function tfRm = movieRemap(obj,iMovOrig2New)
-      obj.MD.mov = iMovOrig2New(obj.MD.mov);
+      % iMovOrig2New: containers.Map, int keys and values. 
+      %   iMovOrig2New(oldIdx)==newIdx where oldIdx and/or newIdx can be 
+      %   negative.
+      
+      assert(isa(iMovOrig2New,'containers.Map'));
+      obj.MD.mov = arrayfun(@(x)iMovOrig2New(x),obj.MD.mov);
       tfRm = obj.MD.mov==0;
       obj.MD(tfRm,:) = [];
       obj.I(tfRm,:) = [];

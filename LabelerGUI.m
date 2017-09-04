@@ -313,7 +313,7 @@ listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideCha
 %listeners{end+1,1} = addlistener(lObj,'targetZoomRadius','PostSet',@cbkTargetZoomFacChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
-listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
+%listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
@@ -937,64 +937,66 @@ for i=1:lObj.nview
   figs(i).Name = name;
 end
 
-function cbkSuspScoreChanged(src,evt)
-lObj = evt.AffectedObject;
-ss = lObj.suspScore;
-lObj.currImHud.updateReadoutFields('hasSusp',~isempty(ss));
-
-handles = lObj.gdata;
-pnlSusp = handles.pnlSusp;
-tblSusp = handles.tblSusp;
-tfDoSusp = ~isempty(ss) && lObj.hasMovie && ~lObj.isinit;
-if tfDoSusp 
-  nfrms = lObj.nframes;
-  ntgts = lObj.nTargets;
-  [tgt,frm] = meshgrid(1:ntgts,1:nfrms);
-  ss = ss{lObj.currMovie};
-  
-  frm = frm(:);
-  tgt = tgt(:);
-  ss = ss(:);
-  tfnan = isnan(ss);
-  frm = frm(~tfnan);
-  tgt = tgt(~tfnan);
-  ss = ss(~tfnan);
-  
-  [ss,idx] = sort(ss,1,'descend');
-  frm = frm(idx);
-  tgt = tgt(idx);
-  
-  mat = [frm tgt ss];
-  tblSusp.Data = mat;
-  pnlSusp.Visible = 'on';
-  
-  if verLessThan('matlab','R2015b') % findjobj doesn't work for >=2015b
-    
-    % make tblSusp column-sortable. 
-    % AL 201510: Tried putting this in opening_fcn but
-    % got weird behavior (findjobj couldn't find jsp)
-    jscrollpane = findjobj(tblSusp);
-    jtable = jscrollpane.getViewport.getView;
-    jtable.setSortable(true);		% or: set(jtable,'Sortable','on');
-    jtable.setAutoResort(true);
-    jtable.setMultiColumnSortable(true);
-    jtable.setPreserveSelectionsAfterSorting(true);
-    % reset ColumnWidth, jtable messes it up
-    cwidth = tblSusp.ColumnWidth;
-    cwidth{end} = cwidth{end}-1;
-    tblSusp.ColumnWidth = cwidth;
-    cwidth{end} = cwidth{end}+1;
-    tblSusp.ColumnWidth = cwidth;
-  
-    tblSusp.UserData = struct('jtable',jtable);   
-  else
-    % none
-  end
-  lObj.updateCurrSusp();
-else
-  tblSusp.Data = cell(0,3);
-  pnlSusp.Visible = 'off';
-end
+% function cbkSuspScoreChanged(src,evt)
+% lObj = evt.AffectedObject;
+% ss = lObj.suspScore;
+% lObj.currImHud.updateReadoutFields('hasSusp',~isempty(ss));
+% 
+% assert(~lObj.gtIsGTMode,'Unsupported in GT mode.');
+% 
+% handles = lObj.gdata;
+% pnlSusp = handles.pnlSusp;
+% tblSusp = handles.tblSusp;
+% tfDoSusp = ~isempty(ss) && lObj.hasMovie && ~lObj.isinit;
+% if tfDoSusp 
+%   nfrms = lObj.nframes;
+%   ntgts = lObj.nTargets;
+%   [tgt,frm] = meshgrid(1:ntgts,1:nfrms);
+%   ss = ss{lObj.currMovie};
+%   
+%   frm = frm(:);
+%   tgt = tgt(:);
+%   ss = ss(:);
+%   tfnan = isnan(ss);
+%   frm = frm(~tfnan);
+%   tgt = tgt(~tfnan);
+%   ss = ss(~tfnan);
+%   
+%   [ss,idx] = sort(ss,1,'descend');
+%   frm = frm(idx);
+%   tgt = tgt(idx);
+%   
+%   mat = [frm tgt ss];
+%   tblSusp.Data = mat;
+%   pnlSusp.Visible = 'on';
+%   
+%   if verLessThan('matlab','R2015b') % findjobj doesn't work for >=2015b
+%     
+%     % make tblSusp column-sortable. 
+%     % AL 201510: Tried putting this in opening_fcn but
+%     % got weird behavior (findjobj couldn't find jsp)
+%     jscrollpane = findjobj(tblSusp);
+%     jtable = jscrollpane.getViewport.getView;
+%     jtable.setSortable(true);		% or: set(jtable,'Sortable','on');
+%     jtable.setAutoResort(true);
+%     jtable.setMultiColumnSortable(true);
+%     jtable.setPreserveSelectionsAfterSorting(true);
+%     % reset ColumnWidth, jtable messes it up
+%     cwidth = tblSusp.ColumnWidth;
+%     cwidth{end} = cwidth{end}-1;
+%     tblSusp.ColumnWidth = cwidth;
+%     cwidth{end} = cwidth{end}+1;
+%     tblSusp.ColumnWidth = cwidth;
+%   
+%     tblSusp.UserData = struct('jtable',jtable);   
+%   else
+%     % none
+%   end
+%   lObj.updateCurrSusp();
+% else
+%   tblSusp.Data = cell(0,3);
+%   pnlSusp.Visible = 'off';
+% end
 
 % function cbkCurrSuspChanged(src,evt)
 % lObj = evt.AffectedObject;
@@ -1458,6 +1460,9 @@ function menu_file_import_labels2_trk_curr_mov_Callback(hObject, eventdata, hand
 lObj = handles.labelerObj;
 if ~lObj.hasMovie
   error('LabelerGUI:noMovie','No movie is loaded.');
+end
+if lObj.gtIsGTMode
+  error('LabelerGUI:gt','Unsupported in GT mode.');
 end
 iMov = lObj.currMovie;
 lObj.labels2ImportTrkPrompt(iMov);
@@ -2210,6 +2215,9 @@ lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
 function menu_track_set_labels_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
+if lObj.gtIsGTMode
+  error('LabelerGUI:gt','Unsupported in GT mode.');
+end
 if ~isempty(tObj)
   xy = tObj.getPredictionCurrentFrame();
   xy = xy(:,:,lObj.currTarget); % "targets" treatment differs from below

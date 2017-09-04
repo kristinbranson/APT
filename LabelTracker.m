@@ -7,6 +7,19 @@ classdef LabelTracker < handle
   % LabelTracker is a base class intended to be concretized with a 
   % particular tracking algo.
   
+  % Note re "iMovSgned". Specification of movies in this API is done via
+  % variables named "iMovSgned" which represent vectors of indices into
+  % .lObj.movieFilesAll (when iMovSgned is positive) and 
+  % .lObj.movieFilesAllGT (when iMovSgned is negative).
+  %
+  % In this way a single scalar (integer) value continues to serve as a
+  % unique key/ID for a movie in the project; these values are used in APIs
+  % as well as Metadata tables (eg in .mov field).
+  %
+  % Moving forward, if another "list of movie(set)s" crops up then this
+  % signed index vector will need to be replaced with some other ID
+  % mechanism (eg uuid or two-column ID {'movieList' 'idx'}.
+  
   properties (Constant)
     % Known concrete LabelTrackers
     subclasses = {...
@@ -123,13 +136,14 @@ classdef LabelTracker < handle
       % Full Train from scratch; existing/previous results cleared 
     end
     
-    function track(obj,iMovs,frms,varargin)
+    function track(obj,iMovsSgned,frms,varargin)
       % Apply trained tracker to the specified frames.
       %
       % Legacy/Single-target API:
       %   track(obj,iMovs,frms,...)
       %
-      % iMovs: [M] indices into .lObj.movieFilesAll to track
+      % iMovsSgned: [M] indices into .lObj.movieFilesAll to track; negative
+      %   indices are into .lObj.movieFilesAllGT.
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
       %
       % Newer/multi-target API:
@@ -140,23 +154,27 @@ classdef LabelTracker < handle
       % Optional PVs.
     end
     
-    function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovs)
+    function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
       % Get tracking results for movie(set) iMovs.
       % Default implemation returns all NaNs and tfHasRes=false.
       %
-      % iMovs: [nMov] vector of movie(set) indices
+      % iMovsSgned: [nMov] vector of movie(set) indices, negative for GT
       %
       % trkfiles: [nMovxnView] vector of TrkFile objects
       % tfHasRes: [nMov] logical. If true, corresponding movie(set) has 
       % tracking nontrivial (nonempty) tracking results
       
-      validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
+      validateattributes(iMovsSgned,{'numeric'},{'vector' 'integer'});
       
       assert(~obj.lObj.isMultiView,'Multiview unsupported.');
       
-      nMov = numel(iMovs);
+      nMov = numel(iMovsSgned);
       for i = nMov:-1:1
-        trkpos = nan(size(obj.lObj.labeledposGTaware{iMovs(i)}));
+        iMovS = iMovsSgned(i);
+        iMov = abs(iMovS);
+        tfGT = iMovS<0;
+        lpos = obj.lObj.getlabeledposGTawareArg(tfGT);
+        trkpos = nan(size(lpos{iMov}));
         trkfiles(i) = TrkFile(trkpos);
         tfHasRes(i) = false;
       end
@@ -167,7 +185,7 @@ classdef LabelTracker < handle
       xy = [];
     end
 
-    function importTrackingResults(obj,iMovs,trkfiles)
+    function importTrackingResults(obj,iMovSgned,trkfiles)
       % Import tracking results for movies iMovs.
       % Default implemation ERRORS
       %

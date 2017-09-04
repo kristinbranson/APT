@@ -86,7 +86,8 @@ classdef InfoTimeline < handle
             
       listeners = cell(0,1);
       listeners{end+1,1} = addlistener(labeler,...
-        {'labeledpos','labeledposMarked','labeledpostag'},...
+        {'labeledpos','labeledposMarked','labeledpostag','labeledposGT',...
+         'labeledpostagGT'},... 
         'PostSet',@obj.cbkLabelUpdated);
       listeners{end+1,1} = addlistener(labeler,...
         'labelMode','PostSet',@obj.cbkLabelMode);      
@@ -437,16 +438,22 @@ classdef InfoTimeline < handle
       pndx = find(strcmp(obj.props(:,1),obj.curprop));
       ptype = obj.props{pndx,2};
       pcode = obj.props{pndx,3};
-      
       switch ptype
         case {'Labels' 'Labels2'}
-          iMov = obj.lObj.currMovie;
-          iTgt = obj.lObj.currTarget;
+          labeler = obj.lObj;
+          iMov = labeler.currMovie;
+          iTgt = labeler.currTarget;
           if iMov>0
             if strcmp(ptype,'Labels')
-              lObjlpos = obj.lObj.labeledpos{iMov};
+              lObjlpos = labeler.labeledposGTaware{iMov};
             else
-              lObjlpos = obj.lObj.labeledpos2{iMov};
+              if labeler.gtIsGTMode
+                warningNoTrace('InfoTimeline:gt',...
+                  '''Labels2'' unavailable in GT mode.');
+                lObjlpos = nan(obj.npts,2,labeler.nframes,labeler.ntargets);
+              else
+                lObjlpos = labeler.labeledpos2{iMov};
+              end
             end
             switch pcode
               case 'x'
@@ -470,7 +477,7 @@ classdef InfoTimeline < handle
                 lpos = abs(diff(lpos,1,2));
                 lpos(:,end+1) = nan;
               case 'occluded'
-                curd = obj.lObj.labeledpostag{iMov}(:,:,iTgt);
+                curd = labeler.labeledpostagGTaware{iMov}(:,:,iTgt);
                 lpos =  double(strcmp(curd,'occ'));
               otherwise
                 warndlg('Unknown property to display');
@@ -488,12 +495,17 @@ classdef InfoTimeline < handle
     function lpos = getMarkedDataCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
       
-      iMov = obj.lObj.currMovie;
+      labeler = obj.lObj;
+      iMov = labeler.currMovie;
       if iMov>0
-        iTgt = obj.lObj.currTarget;
-        lpos = squeeze(obj.lObj.labeledposMarked{iMov}(:,:,iTgt));
+        if ~labeler.gtIsGTMode
+          iTgt = labeler.currTarget;
+          lpos = squeeze(labeler.labeledposMarked{iMov}(:,:,iTgt)); % AL: squeeze seems unnec
+        else
+          lpos = false(labeler.nLabelPoints,labeler.nframes);
+        end
       else
-        lpos = false(obj.lObj.nLabelPoints,1);
+        lpos = false(labeler.nLabelPoints,1);
       end
     end
     
