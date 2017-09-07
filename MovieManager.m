@@ -27,87 +27,15 @@ function MovieManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*IN
 %
 % MovieManager is created with Visible='off'.
 
-lObj = varargin{1};
-handles.labeler = lObj;
+mmc = varargin{1};
+handles.mmController = mmc;
 handles.output = hObject;
 hObject.Visible = 'off';
-PROPS = {'movieFilesAll' 'trxFilesAll' 'movieFilesAllHaveLbls'};
-mcls = metaclass(lObj);
-mprops = mcls.PropertyList;
-mprops = mprops(ismember({mprops.Name}',PROPS));
-handles.listener{1,1} = event.proplistener(lObj,...
-  mprops,'PostSet',@(src,evt)cbkUpdateTable(hObject));
-handles.listener{2,1} = addlistener(lObj,'newMovie',@(src,evt)cbkUpdateTable(hObject));
-
-% 20151218: now using JTable; uitable in .fig just used for positioning
-if isa(handles.tblMovies,'matlab.ui.control.Table')
-  tblOrig = handles.tblMovies;
-  tblOrig.Visible = 'off';
-  handles.tblMoviesOrig = tblOrig;
-else
-  tblOrig = handles.tblMoviesOrig;
-  assert(isa(handles.tblMoviesOrig,'matlab.ui.control.Table'));
-  if isvalid(handles.tblMovies)
-    delete(handles.tblMovies);
-    handles.tblMovies = [];
-  end    
-end
-
-handles.tblMovies = MovieManagerTable.create(lObj.nview,hObject,tblOrig.Parent,...
-  tblOrig.Position,@(movname)cbkSelectMovie(hObject,movname));
-
-% For Labeler/clients to access selected movies in MovieManager
-handles.cbkGetSelectedMovies = @()cbkGetSelectedMovies(hObject);
-
-% MovieManager handles messages in two directions
-% 1a. Labeler/clients can fetch current selection in Table
-% 1b. Labeler prop listeners can update Table content
-% 2. Table can set current movie in Labeler (based on selection/user interaction)
-
+hObject.DeleteFcn = @(s,e)delete(mmc);
 guidata(hObject,handles);
-centerfig(handles.figure1,handles.labeler.gdata.figure);
-handles.figure1.DeleteFcn = @lclDeleteFig;
 
 function varargout = MovieManager_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
-
-function cbkUpdateTable(hMMobj)
-% Update Table based on labeler movie props
-
-handles = guidata(hMMobj);
-lObj = handles.labeler;
-if lObj.isinit
-  return;
-end
-if ~lObj.hasProject
-  error('MovieManager:proj','Please open/create a project first.');
-end
-movs = lObj.movieFilesAll;
-trxs = lObj.trxFilesAll;
-movsHaveLbls = lObj.movieFilesAllHaveLbls;
-
-if ~isequal(size(movs,1),size(trxs,1),numel(movsHaveLbls))
-  % intermediate state, take no action
-  return;
-end
-
-tbl = handles.tblMovies;
-tbl.updateMovieData(movs,trxs,movsHaveLbls);
-if ~isempty(lObj.currMovie) % can occur during projload
-  tbl.updateSelectedMovie(lObj.currMovie);
-end
-
-function imovs = cbkGetSelectedMovies(hMMobj)
-% Get current selection in Table
-handles = guidata(hMMobj);
-imovs = handles.tblMovies.getSelectedMovies();
-
-function cbkSelectMovie(hMMobj,imov)
-% Set current Labeler movie to movname
-handles = guidata(hMMobj);
-lObj = handles.labeler;
-assert(isscalar(imov));
-lObj.movieSet(imov);
 
 function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
 lObj = handles.labeler;
@@ -197,15 +125,15 @@ end
 function figure1_CloseRequestFcn(hObject, eventdata, handles)
 hObject.Visible = 'off';
 
-function lclDeleteFig(src,evt)
-handles = guidata(src);
-listenObjs = handles.listener;
-for i=1:numel(listenObjs)
-  o = listenObjs{i};
-  if isvalid(o)
-    delete(o);
-  end
-end
+% function lclDeleteFig(src,evt)
+% handles = guidata(src);
+% listenObjs = handles.listener;
+% for i=1:numel(listenObjs)
+%   o = listenObjs{i};
+%   if isvalid(o)
+%     delete(o);
+%   end
+% end
 
 % function menu_help_Callback(hObject, eventdata, handles)
 % str = {...

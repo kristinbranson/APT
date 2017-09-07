@@ -6,8 +6,8 @@ classdef MMTableSingle < MovieManagerTable
   
   methods
     
-    function obj = MMTableSingle(hMM,hParent,position,cbkSelectMovie)
-      obj@MovieManagerTable(hMM,hParent,position,cbkSelectMovie);
+    function obj = MMTableSingle(hParent,position,cbkSelectMovie)
+      obj@MovieManagerTable(hParent,position,cbkSelectMovie);
       
       jt = uiextras.jTable.Table(...
         'parent',hParent,...

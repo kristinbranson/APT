@@ -1,0 +1,289 @@
+classdef MovieManagerController < handle
+  properties (SetAccess=private)
+    hFig % scalar handle to MovieManager fig
+    
+    labeler % scalar labeler Obj
+    listeners % cell array of listener objs
+    
+    hTG % tab group
+    hTabs % [2] uitabs
+    mmTbls % [2] MovieManagerTables
+    gdatas % [2] "handles" struct array
+    hPBs % [2] cell array, convenience handles. hPBs{1/2} contains handle array of reg/gt pb handles
+  end
+  properties (Dependent)
+    gtTabSelected % true if GT tab is current tab selection
+    mmTblCurr % element of .mmTbls for given .gtSelected
+  end
+  
+  methods
+    function v = get.gtTabSelected(obj)
+      v = obj.hTG.SelectedTab==obj.hTabs(2);
+    end
+    function v = get.mmTblCurr(obj)
+      v = obj.getMMTblGT(obj.gtTabSelected);
+    end
+    function v = getMMTblGT(obj,gt)
+      if gt
+        v = obj.mmTbls(2);
+      else
+        v = obj.mmTbls(1);
+      end
+    end
+  end  
+  
+  methods
+    
+    % MovieManagerController messages between Labeler and Tables
+    % 1. Labeler/clients can fetch current selection in Table
+    % 2. Labeler prop changes fire MMC listeners to update Table content
+    % 3. MMC Tables can set current movie in Labeler based on user action
+    % 4. MMC buttons can add/rm labeler movies
+
+    function obj = MovieManagerController(lObj)
+      assert(isa(lObj,'Labeler'));
+      obj.hFig = MovieManager(obj);
+      %obj.gdata = guidata(obj.hFig);
+      obj.labeler = lObj;
+      
+      PROPS = {'movieFilesAll' 'trxFilesAll' 'movieFilesAllHaveLbls'};
+      GTPROPS = {'movieFilesAllGT' 'trxFilesAllGT' 'movieFilesAllGTHaveLbls'};
+      lObjs = cell(0,1);
+      lObjs{end+1,1} = listenPropsPostSet(lObj,PROPS,@(s,e)obj.lblerLstnCbkUpdateTable(s,e));
+      lObjs{end+1,1} = listenPropsPostSet(lObj,GTPROPS,@(s,e)obj.lblerLstnCbkUpdateTableGT(s,e));
+      lObjs{end+1,1} = addlistener(lObj,'projLoaded',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
+      lObjs{end+1,1} = addlistener(lObj,'newMovie',@(s,e)obj.lblerLstnCbkNewMovie(s,e));
+      lObjs{end+1,1} = lObj.addlistener('gtIsGTMode','PostSet',@(s,e)obj.lblerLstnCbkGTMode(s,e));
+      obj.listeners = lObjs;
+      
+      obj.tabSetup();
+      
+      centerfig(obj.hFig,obj.labeler.gdata.figure);
+    end
+    
+    function tabSetup(obj)
+      obj.hTG = uitabgroup(obj.hFig,...
+        'Position',[0 0 1 1],'Units','normalized',...
+        'SelectionChangedFcn',@(s,e)obj.cbkTabGrpSelChanged(s,e));
+      hT1 = uitab(obj.hTG,'Title','Reg');
+      hT2 = uitab(obj.hTG,'Title','GT');
+      obj.hTabs = [hT1 hT2];
+      
+      gdata = struct();
+      
+      % Take everything in MovieManager and move it onto reg tab
+      HANDLES = {'uipanel1' 'pbSwitch' 'pbNextUnlabeled' 'pbAdd' 'pbRm'};
+      mmgd = guidata(obj.hFig);
+      hpbs = cell(1,2);
+      for tag=HANDLES,tag=tag{1}; %#ok<FXSET>
+        h = mmgd.(tag);
+        h.Tag = tag;
+        h.Parent = hT1;
+        gdata(1).(tag) = h;
+        if isequal(tag(1:2),'pb')
+          h.Callback = @(s,e)obj.cbkPushButton(s,e);
+          hpbs{1}(end+1,1) = h;
+        end
+      end
+      tblOrig = mmgd.tblMovies;
+      tblOrig.Visible = 'off';
+      tblReg = MovieManagerTable.create(obj.labeler.nview,tblOrig.Parent,...
+        tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
+      
+      % Copy stuff onto GT tab
+      HANDLES = {'uipanel1' 'pbSwitch' 'pbAdd' 'pbRm'};
+      for tag=HANDLES,tag=tag{1}; %#ok<FXSET>
+        h = copyobj(mmgd.(tag),hT2);
+        h.Tag = tag;
+        gdata(2).(tag) = h;
+        if isequal(tag(1:2),'pb')
+          h.Callback = @(s,e)obj.cbkPushButton(s,e);
+          hpbs{2}(end+1,1) = h;
+        end
+      end
+      tblGT = MovieManagerTable.create(obj.labeler.nview,gdata(2).uipanel1,...
+        tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
+      
+      obj.mmTbls = [tblReg tblGT];
+      obj.gdatas = gdata;
+      obj.hPBs = hpbs;
+      
+      obj.selectTab(1);
+    end
+    
+    function delete(obj)
+      delete(obj.hFig);
+      for i=1:numel(obj.listeners)
+        delete(obj.listeners{i});
+      end
+      obj.listeners = [];
+    end
+    
+  end
+  
+  methods
+    
+    function setVisible(obj,tf)
+      onoff = onIff(tf);
+      obj.hFig.Visible = onoff;
+      if tf
+        figure(obj.hFig);
+      end
+    end
+        
+    function iMovSgned = getSelectedMovies(obj)
+      iMovSgned = obj.mmTblCurr.getSelectedMovies();
+      if obj.gtTabSelected
+        iMovSgned = -iMovSgned;
+      end
+    end
+    
+    function cbkTabGrpSelChanged(obj,src,evt)
+      % When ~obj.labeler.gtIsGTMode, only tab1 can be selected
+      % When obj.labeler.gtIsGTMode, both tabs can be selected
+      
+      iSelTab = find(src.SelectedTab==obj.hTabs);
+      switch iSelTab
+        case 1
+          % none
+        case 2
+          if ~obj.labeler.gtIsGTMode
+            src.SelectedTab = obj.hTabs(1);
+            error('MovieManager:gt','GT mode is not enabled.');
+          end
+        otherwise
+          assert(false);
+      end
+    end
+    
+    function tblCbkMovieSelected(obj,iMov)
+      assert(isscalar(iMov) && iMov>0);
+      % iMov is gt-aware movie index (unsigned)
+      lObj = obj.labeler;
+      if obj.gtTabSelected==lObj.gtIsGTMode
+        lObj.movieSet(iMov);
+      else
+        if lObj.gtIsGTMode
+          warnstr = 'Labeler is in GT mode; select ''GT'' Tab in Movie Manager if you wish to browse movies via the table.';
+        else
+          warnstr = 'Labeler is not in GT mode; select ''Regular'' Tab in Movie Manager if you wish to browse movies via the table.';
+        end
+        warningNoTrace('MovieManagerController:nav',warnstr);
+      end
+    end
+    
+    function cbkPushButton(obj,src,evt)
+      iTab = find(src.Parent==obj.hTabs);
+      tfGT = obj.lObj.gtIsGTMode;
+      assert(iTab==double(tfGT)+1);
+      
+      switch src.Tag
+        case 'pbAdd'
+        case '
+      XXXXX
+    end
+    
+    function lblerLstnCbkUpdateTable(obj,src,evt)
+      obj.hlpLblerLstnCbkUpdateTable(false);
+    end
+    
+    function lblerLstnCbkUpdateTableGT(obj,src,evt)
+      obj.hlpLblerLstnCbkUpdateTable(true);      
+    end
+    
+    function lblerLstnCbkProjLoaded(obj,src,evt)
+      obj.hlpLblerLstnCbkUpdateTable(false);
+      obj.hlpLblerLstnCbkUpdateTable(true);
+    end
+    
+    function lblerLstnCbkNewMovie(obj,src,evt)
+      obj.updateMMTblRowSelection();
+    end
+    
+    function lblerLstnCbkGTMode(obj,src,evt)
+      tfGT = obj.labeler.gtIsGTMode;
+      assert(islogical(tfGT));
+      
+      if tfGT
+        obj.showGTTab();
+      end
+      obj.updatePushButtonEnable(tfGT);
+      obj.updateMMTblRowSelection();
+      iTab = double(tfGT)+1;
+      obj.selectTab(iTab);      
+      if ~tfGT
+        obj.hideGTTab();
+      end      
+    end
+  end
+  
+  methods (Hidden)
+    
+    function showGTTab(obj)
+      obj.hTabs(2).Parent = obj.hTG;
+    end
+    function hideGTTab(obj)
+      obj.hTabs(2).Parent = [];
+    end
+    
+    function selectTab(obj,iTab)
+      assert(any(iTab==1:2));
+      obj.hTG.SelectedTab = obj.hTabs(iTab);
+    end
+    
+    function updatePushButtonEnable(obj,tfGT)
+      if tfGT
+        set(obj.hPBs{1},'Enable','off');
+        set(obj.hPBs{2},'Enable','on');
+      else
+        set(obj.hPBs{1},'Enable','on');
+        set(obj.hPBs{2},'Enable','off');        
+      end
+    end
+    
+    function updateMMTblRowSelection(obj)
+      % Update one of the MM tables per lObj.currMovie, lObj.gtIsGTMode
+      
+      lObj = obj.labeler;
+      tfGT = lObj.gtIsGTMode;
+      tbl = obj.getMMTblGT(tfGT);
+      iMov = lObj.currMovie;
+      if ~isempty(iMov)
+        % - first clause: this can occur during projload
+        tbl.updateSelectedMovie(iMov);
+      end
+    end
+    
+    function hlpLblerLstnCbkUpdateTable(obj,tfGT)
+      assert(islogical(tfGT));
+      
+      lObj = obj.labeler;
+      if lObj.isinit
+        return;
+      end
+      if ~lObj.hasProject
+        error('MovieManagerController:proj',...
+          'Please open/create a project first.');
+      end
+      
+      PROPS = Labeler.gtGetSharedPropsStc(tfGT);
+      movs = lObj.(PROPS.MFA);
+      trxs = lObj.(PROPS.TFA);
+      movsHaveLbls = lObj.(PROPS.MFAHL);
+      if ~isequal(size(movs,1),size(trxs,1),numel(movsHaveLbls))
+        % intermediate state, take no action
+        return;
+      end
+      
+      iTbl = double(tfGT)+1;
+      tbl = obj.mmTbls(iTbl);
+      tbl.updateMovieData(movs,trxs,movsHaveLbls);
+      if tfGT==lObj.gtIsGTMode
+        % Not conditional is necessary, could just always update
+        obj.updateMMTblRowSelection();
+      end
+    end
+    
+  end
+  
+end

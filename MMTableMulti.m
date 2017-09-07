@@ -13,8 +13,8 @@ classdef MMTableMulti < MovieManagerTable
   
   methods
     
-    function obj = MMTableMulti(nMovsPerSet,hMM,hParent,position,cbkSelectMovie)
-      obj@MovieManagerTable(hMM,hParent,position,cbkSelectMovie);
+    function obj = MMTableMulti(nMovsPerSet,hParent,position,cbkSelectMovie)
+      obj@MovieManagerTable(hParent,position,cbkSelectMovie);
       obj.nmovsPerSet = nMovsPerSet;      
     end
     

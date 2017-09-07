@@ -670,8 +670,8 @@ handles.labelTLInfo.initNewMovie();
 if isfield(handles,'movieMgr') && isvalid(handles.movieMgr)
   delete(handles.movieMgr);
 end
-handles.movieMgr = MovieManager(handles.labelerObj);
-handles.movieMgr.Visible = 'off';
+handles.movieMgr = MovieManagerController(handles.labelerObj);
+handles.movieMgr.setVisible(false);
 
 guidata(handles.figure,handles);
   
@@ -1399,7 +1399,7 @@ if hlpSave(lObj)
   currMovInfo = lObj.projLoad();
   if ~isempty(currMovInfo)
     handles = lObj.gdata; % projLoad updated stuff
-    handles.movieMgr.Visible = 'on';
+    handles.movieMgr.setVisible(true);
     wstr = sprintf('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.',...
       currMovInfo.iMov,currMovInfo.badfile);
     warndlg(wstr,'Movie not found','modal');
@@ -1426,8 +1426,7 @@ end
 
 function menu_file_managemovies_Callback(~,~,handles)
 if isfield(handles,'movieMgr')
-  handles.movieMgr.Visible = 'on';
-  figure(handles.movieMgr);
+  handles.movieMgr.setVisible(true);
 else
   error('LabelerGUI:movieMgr','Please create or load a project.');
 end

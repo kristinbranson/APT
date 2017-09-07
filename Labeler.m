@@ -63,6 +63,7 @@ classdef Labeler < handle
   
   events
     newProject
+    projLoaded
     newMovie
     % evtdata.iMovOrig2New is map from original->new movie indices, ie 
     % iMov2Orig2New(iMovOrig) gives the movie index iMov post-ordering.
@@ -340,8 +341,9 @@ classdef Labeler < handle
     
     currImHud; % scalar AxisHUD object TODO: move to LabelerGUI. init: C
   end
-  properties (AbortSet,SetObservable)
+  properties (AbortSet)
     currMovie; % idx into .movieFilesAll (row index, when obj.multiView is true), or .movieFilesAllGT when .gtIsGTmode is on
+    % Don't observe this, listen to 'newMovie'
   end
   properties (Dependent)
     currMovieSigned; % returns -.currMovie when gtMode is on
@@ -481,13 +483,12 @@ classdef Labeler < handle
       % Find MovieManager in LabelerGUI
       handles = obj.gdata;
       if isfield(handles,'movieMgr')
-        hMM = handles.movieMgr;
+        mmc = handles.movieMgr;
       else
-        hMM = [];
+        mmc = [];
       end
-      if ~isempty(hMM) && isvalid(hMM)
-        mmgd = guidata(hMM);
-        v = mmgd.cbkGetSelectedMovies();
+      if ~isempty(mmc) && isvalid(mmc)
+        v = mmc.getSelectedMovies();
       else
         error('Labeler:getMoviesSelected',...
           'Cannot access Movie Manager. Make sure your desired movies are selected in the Movie Manager.');
@@ -1236,6 +1237,8 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      
+      obj.notify('projLoaded');
     end
     
     function projImport(obj,fname)
