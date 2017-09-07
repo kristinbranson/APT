@@ -303,8 +303,6 @@ classdef Labeler < handle
   %% GT mode
   properties (SetObservable,SetAccess=private)
     gtIsGTMode % scalar logical
-  end
-  properties
     gtSuggMFTable % [nrow x ncol] MFTable for suggested frames to label 
     gtSuggMFTableLbled % [nrowx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
   end
@@ -342,7 +340,7 @@ classdef Labeler < handle
     
     currImHud; % scalar AxisHUD object TODO: move to LabelerGUI. init: C
   end
-  properties (AbortSet)
+  properties (AbortSet,SetObservable)
     currMovie; % idx into .movieFilesAll (row index, when obj.multiView is true), or .movieFilesAllGT when .gtIsGTmode is on
   end
   properties (Dependent)
