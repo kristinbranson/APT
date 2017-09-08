@@ -8,17 +8,21 @@ classdef MovieManagerController < handle
     hTG % tab group
     hTabs % [2] uitabs
     mmTbls % [2] MovieManagerTables
-    gdatas % [2] "handles" struct array
+    tabHandles % [2] "handles" struct array
     hPBs % [2] cell array, convenience handles. hPBs{1/2} contains handle array of reg/gt pb handles
   end
   properties (Dependent)
     gtTabSelected % true if GT tab is current tab selection
+    selectedTabMatchesLabelerGTMode % if true, the current tab selection is consistent with .labeler.gtIsGTMode
     mmTblCurr % element of .mmTbls for given .gtSelected
   end
   
   methods
     function v = get.gtTabSelected(obj)
       v = obj.hTG.SelectedTab==obj.hTabs(2);
+    end
+    function v = get.selectedTabMatchesLabelerGTMode(obj)
+      v = obj.gtTabSelected==obj.labeler.gtIsGTMode;
     end
     function v = get.mmTblCurr(obj)
       v = obj.getMMTblGT(obj.gtTabSelected);
@@ -58,6 +62,10 @@ classdef MovieManagerController < handle
       
       obj.tabSetup();
       
+      gdata = guidata(obj.hFig);
+      gdata.menu_file_add_movies_from_text_file.Callback = ...
+          @(s,e)obj.mnuFileAddMoviesBatch();
+      
       centerfig(obj.hFig,obj.labeler.gdata.figure);
     end
     
@@ -65,8 +73,8 @@ classdef MovieManagerController < handle
       obj.hTG = uitabgroup(obj.hFig,...
         'Position',[0 0 1 1],'Units','normalized',...
         'SelectionChangedFcn',@(s,e)obj.cbkTabGrpSelChanged(s,e));
-      hT1 = uitab(obj.hTG,'Title','Reg');
-      hT2 = uitab(obj.hTG,'Title','GT');
+      hT1 = uitab(obj.hTG,'Title','Movie List');
+      hT2 = uitab(obj.hTG,'Title','GT Movie List');
       obj.hTabs = [hT1 hT2];
       
       gdata = struct();
@@ -105,7 +113,7 @@ classdef MovieManagerController < handle
         tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
       
       obj.mmTbls = [tblReg tblGT];
-      obj.gdatas = gdata;
+      obj.tabHandles = gdata;
       obj.hPBs = hpbs;
       
       obj.selectTab(1);
@@ -154,13 +162,14 @@ classdef MovieManagerController < handle
         otherwise
           assert(false);
       end
+      obj.updateMenusEnable();
     end
     
     function tblCbkMovieSelected(obj,iMov)
       assert(isscalar(iMov) && iMov>0);
       % iMov is gt-aware movie index (unsigned)
       lObj = obj.labeler;
-      if obj.gtTabSelected==lObj.gtIsGTMode
+      if obj.selectedTabMatchesLabelerGTMode
         lObj.movieSet(iMov);
       else
         if lObj.gtIsGTMode
@@ -174,13 +183,32 @@ classdef MovieManagerController < handle
     
     function cbkPushButton(obj,src,evt)
       iTab = find(src.Parent==obj.hTabs);
-      tfGT = obj.lObj.gtIsGTMode;
-      assert(iTab==double(tfGT)+1);
+      lObj = obj.labeler;
+      tfGT = lObj.gtIsGTMode;
+      assert(iTab==double(tfGT)+1); % "wrong tab" buttons are disabled
       
       switch src.Tag
         case 'pbAdd'
-        case '
-      XXXXX
+          obj.addLabelerMovie();
+        case 'pbRm'
+          obj.rmLabelerMovie();
+        case 'pbSwitch' 
+          iMov = obj.mmTblCurr.getSelectedMovies();
+          if ~isempty(iMov)
+            iMov = iMov(1);
+            obj.tblCbkMovieSelected(iMov);
+          end
+        case 'pbNextUnlabeled'
+          assert(~tfGT);
+          iMov = find(~lObj.movieFilesAllHaveLbls,1);
+          if isempty(iMov)
+            msgbox('All movies are labeled!');
+          else
+            lObj.movieSet(iMov);
+          end
+        otherwise
+          assert(false);
+      end
     end
     
     function lblerLstnCbkUpdateTable(obj,src,evt)
@@ -207,13 +235,41 @@ classdef MovieManagerController < handle
       if tfGT
         obj.showGTTab();
       end
-      obj.updatePushButtonEnable(tfGT);
+      obj.updatePushButtonsEnable(tfGT);
       obj.updateMMTblRowSelection();
       iTab = double(tfGT)+1;
       obj.selectTab(iTab);      
       if ~tfGT
         obj.hideGTTab();
-      end      
+      end
+      
+      obj.updateMenusEnable();
+    end
+    
+    function mnuFileAddMoviesBatch(obj)
+      assert(obj.selectedTabMatchesLabelerGTMode);
+      lastTxtFile = RC.getprop('lastMovieBatchFile');
+      if ~isempty(lastTxtFile)
+        [~,~,ext] = fileparts(lastTxtFile);
+        ext = ['*' ext];
+        file0 = lastTxtFile;
+      else
+        ext = '*.txt';
+        file0 = pwd;
+      end
+      [fname,pname] = uigetfile(ext,'Select movie batch file',file0);
+      if isequal(fname,0)
+        return;
+      end
+      
+      lObj = obj.labeler;
+      nmovieOrig = lObj.nmovies;
+      fname = fullfile(pname,fname);
+      lObj.movieAddBatchFile(fname);
+      RC.saveprop('lastMovieBatchFile',fname);
+      if nmovieOrig==0 && lObj.nmovies>0
+        lObj.movieSet(1);
+      end
     end
   end
   
@@ -231,14 +287,20 @@ classdef MovieManagerController < handle
       obj.hTG.SelectedTab = obj.hTabs(iTab);
     end
     
-    function updatePushButtonEnable(obj,tfGT)
+    function updatePushButtonsEnable(obj,tfGT)
       if tfGT
         set(obj.hPBs{1},'Enable','off');
         set(obj.hPBs{2},'Enable','on');
       else
         set(obj.hPBs{1},'Enable','on');
-        set(obj.hPBs{2},'Enable','off');        
+        set(obj.hPBs{2},'Enable','off');
       end
+    end
+    
+    function updateMenusEnable(obj)
+      onoff = onIff(obj.selectedTabMatchesLabelerGTMode);
+      gdata = guidata(obj.hFig);
+      gdata.menu_file_add_movies_from_text_file.Enable = onoff;
     end
     
     function updateMMTblRowSelection(obj)
@@ -281,6 +343,52 @@ classdef MovieManagerController < handle
       if tfGT==lObj.gtIsGTMode
         % Not conditional is necessary, could just always update
         obj.updateMMTblRowSelection();
+      end
+    end
+    
+    function addLabelerMovie(obj)
+      lObj = obj.labeler;
+      nmovieOrig = lObj.nmovies;
+      if lObj.nview==1
+        [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
+        if ~tfsucc
+          return;
+        end
+        lObj.movieAdd(movfile,trxfile);
+      else
+        assert(lObj.nTargets==1,'Adding trx files currently unsupported.');
+        lastmov = RC.getprop('lbl_lastmovie');
+        if isempty(lastmov)
+          lastmovpath = pwd;
+        else
+          lastmovpath = fileparts(lastmov);
+        end
+        movfiles = uipickfiles(...
+          'Prompt','Select movie set',...
+          'FilterSpec',lastmovpath,...
+          'NumFiles',lObj.nview);
+        if isequal(movfiles,0)
+          return;
+        end
+        lObj.movieSetAdd(movfiles);
+      end
+      if nmovieOrig==0 && lObj.nmovies>0
+        lObj.movieSet(1,'isFirstMovie',true);
+      end
+    end
+    
+    function rmLabelerMovie(obj)
+      selRow = obj.mmTblCurr.getSelectedMovies();
+      selRow = sort(selRow);
+      n = numel(selRow);
+      lObj = obj.labeler;
+      for i = n:-1:1
+        row = selRow(i);
+        tfSucc = lObj.movieRm(row);
+        if ~tfSucc
+          % user stopped/canceled
+          break;
+        end
       end
     end
     
