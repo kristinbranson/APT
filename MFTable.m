@@ -4,6 +4,32 @@ classdef MFTable
 % An MFTable is a table with cols 'mov' and 'frm' indicating movies and
 % frame numbers.
 
+  methods (Static) % General table utils
+    
+    function [tblNew,tfRm] = remapIntegerKey(tbl,keyfld,keymap)
+      % tbl: any table with a "key" field which takes nonzero integer 
+      %   values
+      % keyfld: fieldname of tbl
+      % map: containers.Map where map(oldKeyVal)==newKeyVal. if
+      % map(oldKeyVal)==0, then that row is to be removed.
+      %
+      % tblNew: tbl with keys remapped and rows removed as appropriate
+      % tfRm: [height(tbl)x1] logical. True for rows of tbl that were 
+      %   removed.
+      
+      assert(istable(tbl));
+      assert(isa(keymap,'containers.Map'));
+      
+      keys = tbl{:,keyfld};
+      keysnew = arrayfun(@(x)keymap(x),keys);
+      
+      tblNew = tbl;      
+      tblNew.(keyfld) = keysnew;
+      tfRm = keysnew==0;
+      tblNew(tfRm,:) = [];
+    end
+    
+  end
   
   properties (Constant)
     % Uniquely IDs a frame/target

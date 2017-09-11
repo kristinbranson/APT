@@ -28,6 +28,7 @@ classdef NavigationTreeTable < handle
     navOnSingleClick % If true, navigate on single click; otherwise require double-click
   end
   properties (Dependent)
+    nData % height(.treeTblData)
     fields % cellstr of fields in current data
     groupFieldName % name of grouping field (first col in table)
     groupTreeTblRowREPat % regexp pat for grouping rows in treeTable
@@ -42,6 +43,9 @@ classdef NavigationTreeTable < handle
   end
   
   methods
+    function v = get.nData(obj)
+      v = height(obj.treeTblData);
+    end
     function v = get.fields(obj)
       tblDat = obj.treeTblData;
       if isempty(tblDat)
@@ -178,6 +182,21 @@ classdef NavigationTreeTable < handle
       rowObj = obj.treeTblRowObjs{iTTExpanded1B};
       col0B = obj.fld2ttCol0B(fld);
       rowObj.setValueAt(val,col0B);
+    end
+    
+    function updateDataColumn(obj,fld,valCell)
+      % Same as updateDataRow over all rows
+      
+      nDat = obj.nData;
+      assert(iscell(valCell) && iscolumn(valCell) && numel(valCell)==nDat);
+      iData2iTT1B = obj.iData2iTTExpanded1B;
+      ttRowObjs = obj.treeTblRowObjs;
+      col0B = obj.fld2ttCol0B(fld);
+      for iData=1:nDat
+        iTTExpanded1B = iData2iTT1B(iData);
+        rowObj = ttRowObjs{iTTExpanded1B};
+        rowObj.setValueAt(valCell{iData},col0B);
+      end
     end
   
     function expandSetI(obj,iSet)

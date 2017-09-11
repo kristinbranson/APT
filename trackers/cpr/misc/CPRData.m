@@ -247,10 +247,7 @@ classdef CPRData < handle
       %   iMovOrig2New(oldIdx)==newIdx where oldIdx and/or newIdx can be 
       %   negative.
       
-      assert(isa(iMovOrig2New,'containers.Map'));
-      obj.MD.mov = arrayfun(@(x)iMovOrig2New(x),obj.MD.mov);
-      tfRm = obj.MD.mov==0;
-      obj.MD(tfRm,:) = [];
+      [obj.MD,tfRm] = MFTable.remapIntegerKey(obj.MD,'mov',iMovOrig2New);
       obj.I(tfRm,:) = [];
       obj.pGT(tfRm,:) = [];
       obj.bboxes(tfRm,:) = [];

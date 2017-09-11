@@ -1905,15 +1905,12 @@ classdef CPRLabelTracker < LabelTracker
       
       % trkP*. Relabel .mov in tables; remove any removed movies from 
       % tracking results. 
-      obj.trkPMD.mov = arrayfun(@(x)iMovOrig2New(x),obj.trkPMD.mov);
-      tfRm = obj.trkPMD.mov==0;
-
+      [obj.trkPMD,tfRm] = MFTable.remapIntegerKey(obj.trkPMD,'mov',iMovOrig2New);
       obj.trkP(tfRm,:) = [];
       if ~isequal(obj.trkPFull,[])
         obj.trkPFull(tfRm,:,:,:) = [];
       end
       obj.trkPTS(tfRm,:) = [];
-      obj.trkPMD(tfRm,:) = [];
       
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();

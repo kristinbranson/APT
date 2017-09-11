@@ -1,7 +1,7 @@
 function varargout = GTManager(varargin)
 % Movie table GUI
 
-% Last Modified by GUIDE v2.5 08-Aug-2017 15:57:05
+% Last Modified by GUIDE v2.5 04-Sep-2017 17:00:20
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -16,6 +16,7 @@ if nargin && ischar(varargin{1})
 end
 
 if nargout
+  
     [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
 else
     gui_mainfcn(gui_State, varargin{:});
@@ -27,80 +28,131 @@ function GTManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL
 %
 % GTManager is created with Visible='off'.
 
+% GTManager<->Labeler messaging:
+% 2. GTManager sets current movie/frame/target in Labeler based on 
+%   treeTable interaction
+% 3a. Labeler prop listeners completely refresh GTTable content (gtSuggMFTable)
+% 3b. Labeler prop listeners incrementally update GTTable content (gtSuggMFTableLbled)
+% 3c. Labeler prop listeners update GTTable selection, expand/collapse
+%   (frame, target etc)
+
 lObj = varargin{1};
 handles.labeler = lObj;
 handles.output = hObject;
 hObject.Visible = 'off';
 
-PROPS = {'gtSuggMFT' 'gtSuggLbled'};
-mcls = metaclass(lObj);
-mprops = mcls.PropertyList;
-mprops = mprops(ismember({mprops.Name}',PROPS));
-handles.listener{1,1} = event.proplistener(lObj,...
-  mprops,'PostSet',@(src,evt)cbkUpdateTable(hObject));
-%handles.listener{2,1} = addlistener(lObj,'newMovie',@(src,evt)cbkUpdateTable(hObject));
-
-if isa(handles.tblMFT,'matlab.ui.control.Table')
-  tblOrig = handles.tblMFT;
+if isa(handles.tblGT,'matlab.ui.control.Table')
+  tblOrig = handles.tblGT;
   tblOrig.Visible = 'off';
-  handles.tblMoviesOrig = tblOrig;
+  handles.tblGTOrig = tblOrig;
 else
-  tblOrig = handles.tblMoviesOrig;
-  assert(isa(handles.tblMoviesOrig,'matlab.ui.control.Table'));
-  if isvalid(handles.tblMFT)
-    delete(handles.tblMFT);
-    handles.tblMFT = [];
-  end    
+  assert(false);
 end
 
-handles.tblMFT = MovieManagerTable.create(lObj.nview,hObject,tblOrig.Parent,...
-  tblOrig.Position,@(movname)cbkSelectMovie(hObject,movname));
+cbkNavDataRow = @(iData)cbkTreeTableDataRowNaved(hObject,iData);
+% The Data table of this NTT has fields mov/frm/iTgt/hasLbl/GTerr. mov is
+% an index into lObj.movieFilesAllGT.
+ntt = NavigationTreeTable(tblOrig.Parent,[],cbkNavDataRow);
+handles.navTreeTbl = ntt;
 
-% For Labeler/clients to access selected movies in GTManager
-handles.cbkGetSelectedMovies = @()cbkGetSelectedMovies(hObject);
+handles.listener = cell(0,1);
+% Following listeners for table maintenance
+handles.listener{end+1,1} = addlistener(lObj,...
+  'gtIsGTMode','PostSet',@(s,e)cbkGTisGTModeChanged(hObject,s,e));
+handles.listener{end+1,1} = addlistener(lObj,...
+  'gtSuggMFTable','PostSet',@(s,e)cbkGTTableChanged(hObject,s,e));
+handles.listener{end+1,1} = addlistener(lObj,...
+  'gtSuggMFTableLbled','PostSet',@(s,e)cbkGTSuggMFTableLbledChanged(hObject,s,e));
+handles.listener{end+1,1} = addlistener(lObj,...
+  'movieRemoved',@(s,e)cbkMovieRemoved(hObject,s,e));
+% Following listeners for table row selection
+handles.listener{end+1,1} = addlistener(lObj,...
+  'newMovie',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
+handles.listener{end+1,1} = addlistener(lObj,...
+  'currFrame','PostSet',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
+handles.listener{end+1,1} = addlistener(lObj,...
+  'currTarget','PostSet',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
 
-% GTManager handles messages in two directions
-% 1a. Labeler/clients can fetch current selection in Table
-% 1b. Labeler prop listeners can update Table content
-% 2. Table can set current movie in Labeler (based on selection/user interaction)
-
-guidata(hObject,handles);
-centerfig(handles.figure1,handles.labeler.gdata.figure);
 handles.figure1.DeleteFcn = @lclDeleteFig;
+guidata(hObject,handles);
+centerfig(handles.figure1,lObj.gdata.figure);
 
 function varargout = GTManager_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
 
-function cbkUpdateTable(hMMobj)
-% Update Table based on labeler movie props
+function figure1_CloseRequestFcn(hObject, eventdata, handles)
+hObject.Visible = 'off';
 
-handles = guidata(hMMobj);
+function lclDeleteFig(src,evt)
+handles = guidata(src);
+listenObjs = handles.listener;
+for i=1:numel(listenObjs)
+  o = listenObjs{i};
+  if isvalid(o)
+    delete(o);
+  end
+end
+
+function cbkGTisGTModeChanged(hObject,src,evt)
+% none atm
+
+function cbkGTTableChanged(hObject,src,evt)
+handles = guidata(hObject);
 lObj = handles.labeler;
-if lObj.isinit
+ntt = handles.navTreeTbl;
+tbl = lObj.gtSuggMFTable;
+ntt.setData(tbl);
+
+function cbkGTSuggMFTableLbledChanged(hObject,src,evt)
+handles = guidata(hObject);
+lObj = handles.labeler;
+ntt = handles.navTreeTbl;
+tf = lObj.gtSuggMFTableLbled;
+ntt.updateDataColumn('hasLbl',num2cell(tf));
+
+function cbkMovieRemoved(hObject,src,evt)
+iMovOrig2New = evt.iMovOrig2New;
+handles = guidata(hObject);
+ntt = handles.navTreeTbl;
+tblData = ntt.treeTblData;
+tblData = MFTable.remapIntegerKey(tblData,'mov',iMovOrig2New);
+ntt.setData(tblData);
+
+function cbkCurrMovFrmTgtChanged(hObject,src,evt)
+handles = guidata(hObject);
+lObj = handles.labeler;
+if ~lObj.gtIsGTMode
   return;
 end
-if ~lObj.hasProject
-  error('MovieManager:proj','Please open/create a project first.');
-end
-movs = lObj.movieFilesAllGT;
-trxs = lObj.trxFilesAllGT;
-movsHaveLbls = lObj.movieFilesAllGTHaveLbls;
+mov = lObj.currMovie;
+frm = lObj.currFrame;
+iTgt = lObj.currTarget;
+mftRow = table(mov,frm,iTgt);
+ntt = handles.navTreeTbl;
+[tf,iData] = ismember(mftRow,ntt.treeTblDat(:,MFTable.FLDSID));
+if tf
+  ntt.setSelectedDataRow(iData);
+end  
 
-if ~isequal(size(movs,1),size(trxs,1),numel(movsHaveLbls))
-  % intermediate state, take no action
+function cbkTreeTableDataRowNaved(hObject,iData)
+handles = guidata(hObject);
+lObj = handles.labeler;
+if ~lObj.gtIsGTMode
+  warningNoTrace('GTManager:nav',...
+    'Nagivation via GT Manager is disabled. Labeler is not in GT mode.');
   return;
 end
-
-tbl = handles.tblMFT;
-tbl.updateMovieData(movs,trxs,movsHaveLbls);
-if ~isempty(lObj.currMovie) % can occur during projload
-  tbl.updateSelectedMovie(lObj.currMovie);
+ntt = handles.navTreeTbl;
+mftRow = ntt.treeTblData(iData,:);
+if 
+XXX STOPPED HERE
 end
+
 
 function imovs = cbkGetSelectedMovies(hMMobj)
 % Get current selection in Table
 handles = guidata(hMMobj);
-imovs = handles.tblMFT.getSelectedMovies();
+imovs = handles.navTreeTbl.getSelectedMovies();
 
 function cbkSelectMovie(hMMobj,imov)
 % Set current Labeler movie to movname
@@ -109,38 +161,8 @@ lObj = handles.labeler;
 assert(isscalar(imov));
 lObj.movieSet(imov);
 
-function pbAdd_Callback(hObject, eventdata, handles) %#ok<*DEFNU,*INUSD>
-lObj = handles.labeler;
-nmovieOrig = lObj.nmovies;  
-if lObj.nview==1
-  [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
-  if ~tfsucc
-    return;
-  end
-  lObj.movieAdd(movfile,trxfile);
-else
-  assert(lObj.nTargets==1,'Adding trx files currently unsupported.');  
-  lastmov = RC.getprop('lbl_lastmovie');
-  if isempty(lastmov)
-    lastmovpath = pwd;
-  else
-    lastmovpath = fileparts(lastmov);
-  end
-  movfiles = uipickfiles(...
-    'Prompt','Select movie set',...
-    'FilterSpec',lastmovpath,...
-    'NumFiles',lObj.nview);
-  if isequal(movfiles,0)
-    return;
-  end
-  lObj.movieSetAdd(movfiles);
-end
-if nmovieOrig==0 && lObj.nmovies>0
-  lObj.movieSet(1,'isFirstMovie',true);
-end
-
 function pbComputeGT_Callback(hObject, eventdata, handles)
-tbl = handles.tblMFT;
+tbl = handles.navTreeTbl;
 selRow = tbl.getSelectedMovies();
 selRow = sort(selRow);
 n = numel(selRow);
@@ -155,7 +177,7 @@ for i = n:-1:1
 end
 
 function pbSwitch_Callback(~,~,handles)
-tbl = handles.tblMFT;
+tbl = handles.navTreeTbl;
 imov = tbl.getSelectedMovies();
 if ~isempty(imov)
   imov = imov(1);
@@ -171,47 +193,8 @@ else
   lObj.movieSet(iMov);
 end
 
-function menu_file_add_movies_from_text_file_Callback(hObject, eventdata, handles)
-lastTxtFile = RC.getprop('lastMovieBatchFile');
-if ~isempty(lastTxtFile)
-  [~,~,ext] = fileparts(lastTxtFile);
-  ext = ['*' ext];
-  file0 = lastTxtFile;
-else
-  ext = '*.txt';
-  file0 = pwd;
-end
-[fname,pname] = uigetfile(ext,'Select movie batch file',file0);
-if isequal(fname,0)
-  return;
-end
-nmovieOrig = handles.labeler.nmovies;
-fname = fullfile(pname,fname);
-handles.labeler.movieAddBatchFile(fname);
-RC.saveprop('lastMovieBatchFile',fname);
-
-if nmovieOrig==0 && handles.labeler.nmovies>0
-  handles.labeler.movieSet(1);
-end
-
-function figure1_CloseRequestFcn(hObject, eventdata, handles)
-hObject.Visible = 'off';
-
-function lclDeleteFig(src,evt)
-handles = guidata(src);
-listenObjs = handles.listener;
-for i=1:numel(listenObjs)
-  o = listenObjs{i};
-  if isvalid(o)
-    delete(o);
-  end
-end
 
 
-
-% --- Executes when selected cell(s) is changed in tblMFT.
-function tblMFT_CellSelectionCallback(hObject, eventdata, handles)
-% hObject    handle to tblMFT (see GCBO)
-% eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
-%	Indices: row and column indices of the cell(s) currently selecteds
-% handles    structure with handles and user data (see GUIDATA)
+function pbSuggestGTFrames_Callback(hObject, eventdata, handles)
+function pbAddMovie_Callback(hObject, eventdata, handles)
+function pbRmMovie_Callback(hObject, eventdata, handles)
