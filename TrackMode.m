@@ -1,110 +1,90 @@
 classdef TrackMode < handle
+  % A TrackMode is a specification of what movies/frames/targets to track
+  % in an APT project. 
+  %
+  % Conceptually, it is the 4-way cross product of i) a movie
+  % specification (eg "current movie"), ii) a frameset specification (eg
+  % "frames 1:100", iii) a target specification (eg "all targets") and iv)
+  % a decimation factor (eg 2->"every other frame").
+  
   properties
-    prettyStringPat
-    labelerProp
-    info
+    movieIndexSet % scalar MovieIndexSet
+    frameSet % scalar FrameSet
+    decimation % scale FrameDecimation
+    targetSet % scalar TargetSet
   end
+  
   methods
-    function obj = TrackMode(pspat,lprop)
-      obj.prettyStringPat = pspat;
-      obj.labelerProp = lprop;
-      obj.info = [];
+  
+    function obj = TrackMode(mset,fset,dec,tset)
+      obj.movieIndexSet = mset;
+      obj.frameSet = fset;
+      obj.decimation = dec;
+      obj.targetSet = tset;
     end
-    function str = menuStr(obj,labelerObj)
+    
+    function str = getPrettyStr(obj,labelerObj)
       % Create pretty-string for UI
-      lprop = obj.labelerProp;
-      if isempty(lprop)
-        str = obj.prettyStringPat;
+      
+      movstr = obj.movieIndexSet.prettyString;
+      frmstr = lower(obj.frameSet.getPrettyString(labelerObj));
+      [decstr,decval] = obj.decimation.getPrettyString(labelerObj);
+      decstr = lower(decstr);
+      if labelerObj.nTargets>1
+        tgtstr = lower(obj.targetSet.prettyString);
+        if strcmpi(movstr,'current movie') && strcmpi(tgtstr,'current target')
+          movtgtstr = 'current movie/target';
+        else
+          movtgtstr = sprintf('%s, %s',movstr,tgtstr);
+        end
+        if decval==1
+          str = sprintf('%s, %s',movtgtstr,frmstr);
+        else
+          str = sprintf('%s, %s, %s',movtgtstr,frmstr,decstr);
+        end
       else
-        val = labelerObj.(lprop);
-        str = sprintf(obj.prettyStringPat,val);
+        if decval==1
+          str = sprintf('%s, %s',movstr,frmstr);
+        else
+          str = sprintf('%s, %s, %s',movstr,frmstr,decstr);
+        end
       end
+      str(1) = upper(str(1));
     end
-    function [iMov,frms] = getMovsFramesToTrack(obj,labelerObj)
+    
+    function tblMFT = getMFTableTrack(obj,labelerObj)
+      % tblMFT: MFTable with MFTable.ID
+      
       if ~labelerObj.hasMovie
-        iMov = zeros(0,1);
-        frms = cell(0,1);
+        mov = zeros(0,1);
+        frm = zeros(0,1);
+        iTgt = zeros(0,1);
+        tblMFT = table(mov,frm,iTgt);
       else
-        if obj==TrackMode.CurrMovNearCurrFrame
-          iMov = labelerObj.currMovie;
-          nf = labelerObj.nframes;
-          currFrm = labelerObj.currFrame;
-          df = labelerObj.(obj.labelerProp);
-          frm0 = max(currFrm-df,1);
-          frm1 = min(currFrm+df,nf);
-          frms = {frm0:frm1};
-        elseif obj==TrackMode.CurrMovEveryLblFrame
-          iMov = labelerObj.currMovie;
-          [~,nPts] = labelerObj.labelPosLabeledFramesStats();
-          frms = {find(nPts>0)};
-        elseif obj==TrackMode.CurrMovSelectedFrames
-          iMov = labelerObj.currMovie;
-          nf = labelerObj.nframes;
-          frms = labelerObj.selectedFrames;
-          assert(all(frms>0));
-          tfOOB = frms>nf;
-          if any(tfOOB)
-            warning('TrackMode:oob',...
-              'Ignoring %d out-of-bounds selected frames.',nnz(tfOOB));
+        iMovs = obj.movieIndexSet.getMovieIndices(labelerObj);
+        decFac = obj.decimation.getDecimation(labelerObj);
+        tgtSet = obj.targetSet;
+        frmSet = obj.frameSet;
+        
+        nMovs = numel(iMovs);
+        tblMFT = cell(0,1);
+        for i=1:nMovs
+          iMov = iMovs(i);
+          iTgts = tgtSet.getTargets(labelerObj,iMov);
+          for j=1:numel(iTgts)
+            iTgt = iTgts(j);
+            frms = frmSet.getFrames(labelerObj,iMov,iTgt,decFac);
+            nfrm = numel(frms);
+            tblMFT{end+1,1} = table(...
+              repmat(iMov,nfrm,1),frms(:),repmat(iTgt,nfrm,1),...
+              'VariableNames',{'mov' 'frm' 'iTgt'}); %#ok<AGROW>
           end
-          frms = frms(~tfOOB);
-          frms = {frms(:)'};
-        elseif obj==TrackMode.CurrMovSelectedFramesEveryNFramesLarge || ...
-               obj==TrackMode.CurrMovSelectedFramesEveryNFramesSmall
-          iMov = labelerObj.currMovie;
-          df = labelerObj.(obj.labelerProp);
-          frms = labelerObj.selectedFrames;
-          frms = {frms(1:df:end)};
-        elseif obj==TrackMode.CurrMovCustomFrames
-          iMov = labelerObj.currMovie;
-          frms = obj.info;
-          validateattributes(frms,{'numeric'},{'positive' 'integer' 'vector'});
-          frms = {frms};
-        else % track at regular intervals
-          switch obj
-            case TrackMode.CurrMovEveryFrame
-              iMov = labelerObj.currMovie;
-              df = 1;
-            case {TrackMode.CurrMovEveryNFramesSmall TrackMode.CurrMovEveryNFramesLarge}
-              iMov = labelerObj.currMovie;
-              df = labelerObj.(obj.labelerProp);
-            case TrackMode.SelMovEveryFrame
-              iMov = labelerObj.moviesSelected;
-              df = 1;
-            case {TrackMode.SelMovEveryNFramesSmall TrackMode.SelMovEveryNFramesLarge}
-              iMov = labelerObj.moviesSelected;
-              df = labelerObj.(obj.labelerProp);
-            case TrackMode.AllMovEveryFrame
-              iMov = 1:labelerObj.nmovies;
-              df = 1;
-            case {TrackMode.AllMovEveryNFramesSmall TrackMode.AllMovEveryNFramesLarge}
-              iMov = 1:labelerObj.nmovies;
-              df = labelerObj.(obj.labelerProp);
-            otherwise
-              assert(false);
-          end
-          movIfoAll = labelerObj.movieInfoAll;
-          frms = arrayfun(@(x)1:df:movIfoAll{x}.nframes,iMov,'uni',0);
-        end                 
+        end
+        tblMFT = cat(1,tblMFT{:});
       end
     end
-  end      
-  enumeration
-    CurrMovEveryFrame ('Current movie, every frame',[])
-    CurrMovEveryLblFrame ('Current movie, every labeled frame',[])    
-    CurrMovEveryNFramesSmall ('Current movie, every %d frames','trackNFramesSmall')
-    CurrMovEveryNFramesLarge ('Current movie, every %d frames','trackNFramesLarge')
-    CurrMovSelectedFrames ('Current movie, selected frames',[])
-    CurrMovSelectedFramesEveryNFramesSmall ('Current movie, selected frames, every %d frames','trackNFramesSmall')
-    CurrMovSelectedFramesEveryNFramesLarge ('Current movie, selected frames, every %d frames','trackNFramesLarge')
-    CurrMovNearCurrFrame ('Current movie, within %d frames of current frame','trackNFramesNear')
-    CurrMovCustomFrames ('Current movie, custom frames',[])
-    SelMovEveryFrame ('Selected movies, every frame',[])
-    SelMovEveryNFramesSmall ('Selected movies, every %d frames','trackNFramesSmall')
-    SelMovEveryNFramesLarge ('Selected movies, every %d frames','trackNFramesLarge')
-    AllMovEveryFrame ('All movies, every frame',[])  
-    AllMovEveryNFramesSmall ('All movies, every %d frames','trackNFramesSmall')
-    AllMovEveryNFramesLarge ('All movies, every %d frames','trackNFramesLarge')
-  end
+    
+  end 
+ 
 end
     

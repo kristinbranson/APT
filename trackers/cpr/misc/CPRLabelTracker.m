@@ -231,10 +231,14 @@ classdef CPRLabelTracker < LabelTracker
       
       labelerObj = obj.lObj;
       if labelerObj.hasTrx
-        roiRadius = obj.sPrm.PreProc.TargetCrop.Radius;
-        tblP = labelerObj.labelMFTableAddROI(tblP,roiRadius);
-        tblP.pAbs = tblP.p;
-        tblP.p = tblP.pRoi;
+        tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
+        assert(all(tf) || ~any(tf));
+        if ~any(tf)
+          roiRadius = obj.sPrm.PreProc.TargetCrop.Radius;
+          tblP = labelerObj.labelMFTableAddROI(tblP,roiRadius);
+          tblP.pAbs = tblP.p;
+          tblP.p = tblP.pRoi;
+        end
       else
         % none; tblP.p is .pAbs. No .roi field.
       end
@@ -1417,7 +1421,7 @@ classdef CPRLabelTracker < LabelTracker
     %#MV
     function track(obj,iMovs,frms,varargin)
       [tblP,movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
-        'tblP',[],... % MFtable. Req'd flds: MFTable.FLDSCORE or .FLDSCOREROI if multitarget.
+        'tblP',[],... % MFtable. Req'd flds: MFTable.ID. Maybe rename this to tblMFT
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
         'wbObj',[] ... % WaitBarWithCancel. If cancel:
@@ -1438,12 +1442,17 @@ classdef CPRLabelTracker < LabelTracker
         movChunkSize = prm.TestInit.movChunkSize;
       end
                         
-      if isempty(tblP)
+      if isequal(tblP,[])
         tblP = obj.getTblPAll(iMovs,frms);
-        if isempty(tblP)
-          msgbox('No frames specified for tracking.');
-          return;
-        end
+      end
+      if isempty(tblP)
+        msgbox('No frames specified for tracking.');
+        return;
+      end
+      tblfldscontainsassert(tblP,MFTable.FLDSID);
+      if any(~tblfldscontains(tblP,MFTable.FLDSCORE))
+        tblP = obj.lObj.labelAddLabelsMFTable(tblP);
+        tblP = obj.hlpAddRoiIfNec(tblP);
       end
       if obj.lObj.hasTrx
         tblfldscontainsassert(tblP,MFTable.FLDSCOREROI);
@@ -1785,7 +1794,7 @@ classdef CPRLabelTracker < LabelTracker
     function newLabelerFrame(obj)
       % Update .hXYPrdRed based on current Labeler frame and .xyPrdCurrMovie
 
-      if obj.lObj.isinit
+      if obj.lObj.isinit || ~obj.lObj.hasMovie
         return;
       end
       
@@ -2467,7 +2476,7 @@ classdef CPRLabelTracker < LabelTracker
       lObj = obj.lObj;
       
       trkTS = obj.trkPTS;
-      if isempty(trkTS) || lObj.currMovie==0
+      if isempty(trkTS) || ~lObj.hasMovie || lObj.currMovie==0
         obj.xyPrdCurrMovie = [];
         obj.xyPrdCurrMovieIsInterp = [];
         obj.xyPrdCurrMovieFull = [];

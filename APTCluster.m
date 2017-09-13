@@ -213,6 +213,7 @@ end
 
 tfStartEnd = numel(startArgs)==2 && numel(endArgs)==2;
 if tfStartEnd
+  assert(false,'XXX TODO\n');
   tm = TrackMode.CurrMovCustomFrames;
   tm.info = startArgs{2}:endArgs{2};
 else

@@ -1029,8 +1029,8 @@ lObj = evt.AffectedObject;
 setPUMTrackStrs(lObj);
 
 function setPUMTrackStrs(lObj)
-tms = enumeration('TrackMode');
-menustrs = arrayfun(@(x)x.menuStr(lObj),tms,'uni',0);
+tms = enumeration('TrackModeEnum');
+menustrs = arrayfun(@(x)x.getPrettyStr(lObj),tms,'uni',0);
 hPUM = lObj.gdata.pumTrack;
 hPUM.String = menustrs;
 %hPUM.UserData = tms;
@@ -1042,7 +1042,7 @@ lObj.trackModeIdx = hObj.Value;
 function tm = getTrackMode(handles)
 lObj = handles.labelerObj;
 idx = lObj.trackModeIdx;
-tms = enumeration('TrackMode');
+tms = enumeration('TrackModeEnum');
 tm = tms(idx);
 
 function cbkMovieCenterOnTargetChanged(src,evt)
