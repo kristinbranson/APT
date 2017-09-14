@@ -5,7 +5,7 @@ classdef MFTSet < handle
   % specification (eg "current movie"), ii) a frameset specification (eg
   % "frames 1:100", iii) a target specification (eg "all targets") and iv)
   % a decimation factor (eg 2->"every other frame").
-  
+    
   properties
     movieIndexSet % scalar MovieIndexSet
     frameSet % scalar FrameSet
@@ -56,7 +56,7 @@ classdef MFTSet < handle
       str(1) = upper(str(1));
     end
     
-    function tblMFT = getMFTableTrack(obj,labelerObj)
+    function tblMFT = getMFTable(obj,labelerObj)
       % tblMFT: MFTable with MFTable.ID
       
       if ~labelerObj.hasMovie

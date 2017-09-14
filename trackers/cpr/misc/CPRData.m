@@ -153,9 +153,6 @@ classdef CPRData < handle
             md(:,'p') = [];
           else
             assert(false,'Unsupported');
-%             lblFiles = varargin{1};
-%             tfAllFrames = varargin{2};
-%             [Is,p,md] = Labeler.lblRead(lblFiles,'tfAllFrames',tfAllFrames);
           end          
           if size(Is,2)==1
             sz = cellfun(@(x)size(x'),Is,'uni',0);
@@ -170,25 +167,8 @@ classdef CPRData < handle
           p = tblP.p;
           md = tblP;
           md(:,'p') = [];
-        otherwise % 4+          
-          [movFiles,lposes,lpostags] = deal(varargin{1:3});
-          if ischar(varargin{4}) && any(strcmp(varargin{4},{'all' 'lbl'}))
-            type = varargin{4};
-            varargin = varargin(5:end);
-            [Is,tbl] = Labeler.lblCompileContents(movFiles,lposes,lpostags,type,varargin{:});
-          else
-            iMovs = varargin{4};
-            frms = varargin{5};
-            varargin = varargin(6:end);
-            [Is,tbl] = Labeler.lblCompileContentsRaw(movFiles,lposes,lpostags,iMovs,frms,varargin{:});
-          end
-          p = tbl.p;
-          tbl(:,'p') = [];
-          md = tbl;
-          
-          assert(size(Is,2)==1,'Multiview unsupported.');
-          sz = cellfun(@(x)size(x'),Is,'uni',0);
-          bb = cellfun(@(x)[[1 1] x],sz,'uni',0);          
+        otherwise % 4+         
+          assert(false,'Unsupported');
       end
       
       assert(iscell(Is));

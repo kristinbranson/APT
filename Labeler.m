@@ -264,7 +264,7 @@ classdef Labeler < handle
   %% Tracking
   properties (SetObservable)
     tracker % LabelTracker object. init: PLPN
-    trackModeIdx % index into enumeration('TrackMFTSetEnum') for current trackmode
+    trackModeIdx % index into MFTSetEnum.TrackingMenu for current trackmode
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
@@ -2297,6 +2297,39 @@ classdef Labeler < handle
         end
       end
     end
+    
+    function [trxCell,frm2trxCell,frm2trxTotAnd] = ...
+                          getTrxCacheAcrossViewsStc(trxCache,filenames,nfrm)
+      % Similar to getTrxCacheStc, but for an array of filenames and with
+      % some checks
+      %
+      % filenames: cellstr of trxfiles containing trx with the same total 
+      %   frame number, eg trx across all views in a single movieset
+      % nfrm: common number of frames
+      % 
+      % trxCell: cell array, same size as filenames, containing trx
+      %   structarrays
+      % frm2trxCell: cell array, same size as filenames, containing
+      %   frm2trx arrays for each trx
+      % frm2trxTotAnd: AND(frm2trxCell{:})
+      
+      assert(~isempty(filenames));
+      
+      [trxCell,frm2trxCell] = cellfun(@(x)Labeler.getTrxCacheStc(trxCache,x,nfrm),...
+          filenames,'uni',0);
+      cellfun(@(x)assert(numel(x)==numel(trxCell{1})),trxCell);
+
+      % In multiview multitarget projs, the each view's trx must contain
+      % the same number of els and these elements must correspond across
+      % views.
+      nTrx = numel(filenames);
+      if nTrx>1 && isfield(trxCell{1},'id')
+        trxids = cellfun(@(x)[x.id],trxCell,'uni',0);
+        assert(isequal(trxids{:}),'Trx ids differ.');
+      end
+      
+      frm2trxTotAnd = cellaccumulate(frm2trxCell,@and);
+    end
   end
   methods
         
@@ -3407,46 +3440,15 @@ classdef Labeler < handle
       %
       % tblMF: See MFTable.FLDSFULLTRX.
       
+      mfts = MFTSetEnum.AllMovAllLabeled;
+      tblMF = mfts.getMFTable(obj);
       if obj.hasTrx
-        tblMF = Labeler.labelGetMFTableLabeledStc(obj.labeledpos,...
-          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAllFull,...
-          obj.trxCache);
+        args = {'trxFilesAllFull',obj.trxFilesAllFull,'trxCache',obj.trxCache};
       else
-        movIDs = FSPath.standardPath(obj.movieFilesAll);
-        [~,tblMF] = Labeler.lblCompileContents(obj.movieFilesAllFull,...
-          obj.labeledpos,obj.labeledpostag,'lbl',...
-          'noImg',true,'lposTS',obj.labeledposTS,'movieNamesID',movIDs);
-        tblMF.iTgt = ones(height(tblMF),1);
-        tblMF.pTrx = nan(height(tblMF),2);
+        args = {};
       end
-      
-      tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
-    end
-    
-    function tblMF = labelGetMFTableAll(obj,iMov,frmCell)
-      % Compile mov/frm/tgt MFTable for given movies/frames.
-      %
-      % iMov: [n] vector of movie(set) indices
-      % frmsCell: [n] cell vector. frms{i} is a vector of frames to read 
-      %   for movie iMov(i), or the string 'all' for all frames in the
-      %   movie.
-      % roiRadius: scalar, roi crop radius. Ignored if ~.hasTrx.
-      %
-      % tblMF: See MFTable.FLDSFULLTRX.
-      
-      if obj.hasTrx        
-        tblMF = Labeler.labelGetMFTableLabeledStc(obj.labeledpos,...
-          obj.labeledpostag,obj.labeledposTS,obj.trxFilesAllFull,...
-          obj.trxCache,...
-          'iMovRead',iMov,'frmReadCell',frmCell,'tgtsRead','live');
-      else
-        movIDs = FSPath.standardPath(obj.movieFilesAll);
-        [~,tblMF] = Labeler.lblCompileContentsRaw(obj.movieFilesAllFull,...
-          obj.labeledpos,obj.labeledpostag,iMov,frmCell,...
-          'noImg',true,'lposTS',obj.labeledposTS,'movieNamesID',movIDs);
-        tblMF.iTgt = ones(height(tblMF),1);
-        tblMF.pTrx = nan(height(tblMF),2);
-      end
+      tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,obj.labeledpos,...
+        obj.labeledpostag,obj.labeledposTS,args{:});
       
       tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
     end
@@ -3537,137 +3539,65 @@ classdef Labeler < handle
   
   methods (Static)
     
-    function tblMF = labelGetMFTableLabeledStc(lpos,lpostag,lposTS,...
-        trxFilesAllFull,trxCache,varargin)
-      % Compile MFtable, by default for all labeled mov/frm/tgts
-      %
-      % lpos: [N] cell array of labeledpos arrays [npts x 2 x nfrms x ntgts]. 
-      %   For multiview, npts=nView*NumLabelPoints.
-      % lpostag: [N] cell array of labeledpostags [npts x nfrms x ntgts]
-      % lposTS: [N] cell array of labeledposTS [npts x nfrms x ntgts]
-      % trxFilesAll: [NxnView] cellstr of trxfiles (macro-expanded) corresponding to movID
-      %
-      % tblMF: [NTrl rows] MFTable, one row per labeled movie/frame/target.
-      %   MULTIVIEW NOTE: tbl.p* is the 2d/projected label positions, ie
-      %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
-      %   index, 2. view index, 3. coord index (x vs y)
-      %   
-      %   Fields: {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'}
-      %   Here 'p' is 'pAbs' or absolute position
-      
-      % AL20170913 Refactor candidate: this is the same as
-      % tm=MFTSet(allmovs,labeledframes,decimation=1,alltgts);
-      % tblMF=tm.getTableMFT();
-      % tblMF=Labeler.labelAddLabelsMFTableStc(tblMF);
-      % 
-      % The MFTSet thing can probably sweep away all labelGetMFTable*,
-      % lblCompileContents*, who knows what else
-      
-       [iMovRead,frmReadCell,tgtsRead] = myparse(varargin,...
-        'iMovRead',[],... % row indices into movID for movies to read/include
-        'frmReadCell',[], ... % [N], or [numel(iMovRead)] if iMovRead supplied. Cell array of frames to read for each movie. If not supplied, all labeled frame/trx are included
-        'tgtsRead','lbl' ... % char. Either 'lbl' to include all labeled targets for each mov/frame read; or 'live' to include all live targets for each mov/frame read
-        );
-      
-      s = structconstruct(MFTable.FLDSFULLTRX,[0 1]);
-      
-      nMov = size(lpos,1);
-      nView = size(trxFilesAllFull,2);
-      szassert(lpos,[nMov 1]);
-      szassert(lpostag,[nMov 1]);
-      szassert(lposTS,[nMov 1]);
-      szassert(trxFilesAllFull,[nMov nView]);
-      
-      if isequal(iMovRead,[])
-        iMovRead = 1:nMov;
-      end
-      nMovRead = numel(iMovRead);
-      if isequal(frmReadCell,[])
-        frmReadCell = repmat({'all'},nMovRead,1);
-      end
-      assert(iscell(frmReadCell) && numel(frmReadCell)==nMovRead);
-      
-      for iRead = 1:nMovRead
-        iMov = iMovRead(iRead);
-%         if tfWB
-%           hWB.Name = 'Scanning movies';
-%           wbStr = sprintf('Reading movie %s',movID);
-%           waitbar(0,hWB,wbStr);
-%         end        
-        
-        %movIDI = movID(iMov,:);
-        lposI = lpos{iMov};
-        lpostagI = lpostag{iMov};
-        lposTSI = lposTS{iMov};
-        [npts,d,nfrms,ntgts] = size(lposI);
-        assert(d==2);
-        szassert(lpostagI,[npts nfrms ntgts]);
-        szassert(lposTSI,[npts nfrms ntgts]);
-        
-        [trxI,frm2trx] = cellfun(@(x)Labeler.getTrxCacheStc(trxCache,x,nfrms),...
-          trxFilesAllFull(iMov,:),'uni',0);
-        cellfun(@(x)assert(numel(x)==ntgts),trxI);
-
-        % In multiview multitarget projs, the each view's trx must contain
-        % the same number of els and these elements must correspond across
-        % views. 
-        if nView>1 && isfield(trxI{1},'id')
-          trxids = cellfun(@(x)[x.id],trxI,'uni',0);
-          assert(isequal(trxids{:}),'Trx ids differ.');
-        end
-        frm2trxOverall = frm2trx{1};
-        for iView=2:nView
-          frm2trxOverall = or(frm2trxOverall,frm2trx{iView});
-        end
-        % frm2trxOverall: [nfrm x ntgts] logical array, true at (i,j) iff
-        % target j is live in any view at frame i 
-        
-%         if isempty(lpos)
-%           assert(isempty(lpostag));
-%           lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
+%     function tblMF = labelGetMFTableLabeledStc(lpos,lpostag,lposTS,...
+%         trxFilesAllFull,trxCache)
+%       % Compile MFtable, by default for all labeled mov/frm/tgts
+%       %
+%       % tblMF: [NTrl rows] MFTable, one row per labeled movie/frame/target.
+%       %   MULTIVIEW NOTE: tbl.p* is the 2d/projected label positions, ie
+%       %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
+%       %   index, 2. view index, 3. coord index (x vs y)
+%       %   
+%       %   Fields: {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'}
+%       %   Here 'p' is 'pAbs' or absolute position
+%                   
+%       s = structconstruct(MFTable.FLDSFULLTRX,[0 1]);
+%       
+%       nMov = size(lpos,1);
+%       nView = size(trxFilesAllFull,2);
+%       szassert(lpos,[nMov 1]);
+%       szassert(lpostag,[nMov 1]);
+%       szassert(lposTS,[nMov 1]);
+%       szassert(trxFilesAllFull,[nMov nView]);
+%       
+%       for iMov = 1:nMov
+%         lposI = lpos{iMov};
+%         lpostagI = lpostag{iMov};
+%         lposTSI = lposTS{iMov};
+%         [npts,d,nfrms,ntgts] = size(lposI);
+%         assert(d==2);
+%         szassert(lpostagI,[npts nfrms ntgts]);
+%         szassert(lposTSI,[npts nfrms ntgts]);
+%         
+%         [trxI,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
+%                                   trxCache,trxFilesAllFull(iMov,:),nfrms);        
+%         cellfun(@(x)assert(numel(x)==ntgts),trxI);        
+%         for f=1:nfrms
+%           for iTgt=1:ntgts
+%             lposIFrmTgt = lposI(:,:,f,iTgt);
+%             % read if any point (in any view) is labeled for this
+%             % (frame,target)
+%             tfReadTgt = any(~isnan(lposIFrmTgt(:)));
+%             if tfReadTgt
+%               assert(frm2trxTotAnd(f,iTgt),'Labeled target is not live.');
+%               lpostagIFrmTgt = lpostagI(:,f,iTgt);
+%               lposTSIFrmTgt = lposTSI(:,f,iTgt);
+%               xtrxs = cellfun(@(xx)xx(iTgt).x(f+xx(iTgt).off),trxI);
+%               ytrxs = cellfun(@(xx)xx(iTgt).y(f+xx(iTgt).off),trxI);
+%               
+%               s(end+1,1).mov = iMov; %#ok<AGROW> 
+%               s(end).frm = f;
+%               s(end).iTgt = iTgt;
+%               s(end).p = Shape.xy2vec(lposIFrmTgt);
+%               s(end).pTS = lposTSIFrmTgt';
+%               s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
+%               s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
+%             end
+%           end
 %         end
-        frmsRead = frmReadCell{iRead};
-        if ischar(frmsRead) && strcmp(frmsRead,'all')
-          frmsRead = 1:nfrms; %all frames in this movie
-        end
-        nFrmsRead = numel(frmsRead);
-      
-        for iF=1:nFrmsRead
-          f = frmsRead(iF);
-          for iTgt=1:ntgts
-            lposIFrmTgt = lposI(:,:,f,iTgt);
-            switch tgtsRead
-              case 'lbl'
-                % read if any point (in any view) is labeled for this 
-                % (frame,target)
-                tfReadTgt = any(~isnan(lposIFrmTgt(:)));
-                if tfReadTgt
-                  assert(frm2trxOverall(f,iTgt),'Labeled target is not live.');
-                end
-              case 'live'
-                tfReadTgt = frm2trxOverall(f,iTgt);                
-              otherwise
-                assert(false);
-            end
-            if tfReadTgt
-              lpostagIFrmTgt = lpostagI(:,f,iTgt);
-              lposTSIFrmTgt = lposTSI(:,f,iTgt);
-              xtrxs = cellfun(@(xx)xx(iTgt).x(f+xx(iTgt).off),trxI);
-              ytrxs = cellfun(@(xx)xx(iTgt).y(f+xx(iTgt).off),trxI);
-              
-              s(end+1,1).mov = iMov; %#ok<AGROW> 
-              s(end).frm = f;
-              s(end).iTgt = iTgt;
-              s(end).p = Shape.xy2vec(lposIFrmTgt);
-              s(end).pTS = lposTSIFrmTgt';
-              s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
-              s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
-            end
-          end
-        end
-      end
-      tblMF = struct2table(s,'AsArray',true);      
-    end
+%       end
+%       tblMF = struct2table(s,'AsArray',true);      
+%     end
     
     function tblMF = labelAddLabelsMFTableStc(tblMF,lpos,lpostag,lposTS,...
         varargin)
@@ -3763,6 +3693,8 @@ classdef Labeler < handle
           xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
           ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
           s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
+        else
+          s(end).pTrx = [nan nan]; % Wrong when nview>1, but this is currently undesigned/unsupported
         end
       end
       
@@ -3774,205 +3706,184 @@ classdef Labeler < handle
       tblMF = [tblMF tLbl];
     end
     
-    % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
-    % .hasTrx
-    function [I,tbl] = lblCompileContents(movieNames,labeledposes,...
-        labeledpostags,type,varargin)
-      % convenience signature 
-      %
-      % type: either 'all' or 'lbl'
-
-      nMov = size(movieNames,1); 
-      switch type
-        case 'all'
-          frms = repmat({'all'},nMov,1);
-        case 'lbl'
-          frms = repmat({'lbl'},nMov,1);
-        otherwise
-          assert(false);
-      end
-      [I,tbl] = Labeler.lblCompileContentsRaw(movieNames,labeledposes,...
-        labeledpostags,1:nMov,frms,varargin{:});
-    end
-    
-    % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
-    % .hasTrx
-    %#3DOK
-    function [I,tbl] = lblCompileContentsRaw(...
-        movieNames,lposes,lpostags,iMovs,frms,varargin)
-      % Read moviefiles with landmark labels
-      %
-      % movieNames: [NxnView] cellstr of movienames
-      % lposes: [N] cell array of labeledpos arrays [npts x 2 x nfrms x ntgts]. 
-      %   For multiview, npts=nView*NumLabelPoints.
-      % lpostags: [N] cell array of labeledpostags [npts x nfrms x ntgts]
-      % iMovs. [M] (row) indices into movieNames to read.
-      % frms. [M] cell array. frms{i} is a vector of frames to read for
-      % movie iMovs(i). frms{i} may also be:
-      %     * 'all' indicating "all frames" 
-      %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)
-      %
-      % I: [NtrlxnView] cell vec of images
-      % tbl: [NTrl rows] labels/metadata MFTable.
-      %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
-      %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
-      %   index, 2. view index, 3. coord index (x vs y)
-      %
-      % Optional PVs:
-      % - hWaitBar. Waitbar object
-      % - noImg. logical scalar default false. If true, all elements of I
-      % will be empty.
-      % - lposTS. [N] cell array of labeledposTS arrays [nptsxnfrms]
-      % - movieNamesID. [NxnView] Like movieNames (input arg). Use these
-      % names in tbl instead of movieNames. The point is that movieNames
-      % may be macro-replaced, platformized, etc; otoh in the MD table we
-      % might want macros unreplaced, a standard format etc.
-      % - tblMovArray. Scalar logical, defaults to false. Only relevant for
-      % multiview data. If true, use array of movies in tbl.mov. Otherwise, 
-      % use single compactified string ID.
-      
-      [hWB,noImg,lposTS,movieNamesID,tblMovArray] = myparse(varargin,...
-        'hWaitBar',[],...
-        'noImg',false,...
-        'lposTS',[],...
-        'movieNamesID',[],...
-        'tblMovArray',false);
-      assert(numel(iMovs)==numel(frms));
-      for i = 1:numel(frms)
-        val = frms{i};
-        assert(isnumeric(val) && isvector(val) || ismember(val,{'all' 'lbl'}));
-      end
-      
-      tfWB = ~isempty(hWB);
-      
-      assert(iscellstr(movieNames));
-      [N,nView] = size(movieNames);
-      assert(iscell(lposes) && iscell(lpostags));
-      assert(isequal(N,numel(lposes),numel(lpostags)));
-      tfLposTS = ~isempty(lposTS);
-      if tfLposTS
-        assert(numel(lposTS)==N);
-      end
-      for i=1:N
-        assert(size(lposes{i},1)==size(lpostags{i},1) && ...
-               size(lposes{i},3)==size(lpostags{i},2));
-        if tfLposTS
-          assert(isequal(size(lposTS{i}),size(lpostags{i})));
-        end
-      end
-      
-      if ~isempty(movieNamesID)
-        assert(iscellstr(movieNamesID));
-        szassert(movieNamesID,size(movieNames)); 
-      else
-        movieNamesID = movieNames;
-      end
-      
-      for iVw=nView:-1:1
-        mr(iVw) = MovieReader();
-      end
-
-      I = [];
-      % Here, for multiview, mov are for the first movie in each set
-      s = struct('mov',cell(0,1),'frm',[],'p',[],'tfocc',[]);
-      
-      nMov = numel(iMovs);
-      fprintf('Reading %d movies.\n',nMov);
-      if nView>1
-        fprintf('nView=%d.\n',nView);
-      end
-      for i = 1:nMov
-        iMovSet = iMovs(i);
-        lpos = lposes{iMovSet}; % npts x 2 x nframes
-        lpostag = lpostags{iMovSet};
-
-        [npts,d,nFrmAll] = size(lpos);
-        assert(d==2);
-        if isempty(lpos)
-          assert(isempty(lpostag));
-          lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
-        end
-        szassert(lpostag,[npts nFrmAll]);
-        D = d*npts;
-        % Ordering of d is: {x1,x2,x3,...xN,y1,..yN} which for multiview is
-        % {xp1v1,xp2v1,...xpnv1,xp1v2,...xpnvk,yp1v1,...}. In other words,
-        % in decreasing raster order we have 1. pt index, 2. view index, 3.
-        % coord index (x vs y)
-        
-        for iVw=1:nView
-          movfull = movieNames{iMovSet,iVw};
-          mr(iVw).open(movfull);
-        end
-        
-        movID = MFTable.formMultiMovieID(movieNamesID(iMovSet,:));
-        
-        % find labeled/tagged frames (considering ALL frames for this
-        % movie)
-        tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
-        frmsLbled = find(tfLbled);
-        tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
-        ntagged = sum(tftagged,1);
-        frmsTagged = find(ntagged);
-        assert(all(ismember(frmsTagged,frmsLbled)));
-
-        frms2Read = frms{i};
-        if strcmp(frms2Read,'all')
-          frms2Read = 1:nFrmAll;
-        elseif strcmp(frms2Read,'lbl')
-          frms2Read = frmsLbled;
-        end
-        nFrmRead = numel(frms2Read);
-        
-        ITmp = cell(nFrmRead,nView);
-        fprintf('  mov(set) %d, D=%d, reading %d frames\n',iMovSet,D,nFrmRead);
-        
-        if tfWB
-          hWB.Name = 'Reading movies';
-          wbStr = sprintf('Reading movie %s',movID);
-          waitbar(0,hWB,wbStr);
-        end
-        for iFrm = 1:nFrmRead
-          if tfWB
-            waitbar(iFrm/nFrmRead,hWB);
-          end
-          
-          f = frms2Read(iFrm);
-
-          if noImg
-            % none; ITmp(iFrm,:) will have [] els
-          else
-            for iVw=1:nView
-              im = mr(iVw).readframe(f);
-              if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
-                im = rgb2gray(im);
-              end
-              ITmp{iFrm,iVw} = im;
-            end
-          end
-          
-          lblsFrmXY = lpos(:,:,f);
-          tags = lpostag(:,f);
-          
-          if tblMovArray
-            assert(false,'Unsupported codepath');
-            %s(end+1,1).mov = movieNamesID(iMovSet,:); %#ok<AGROW>
-          else
-            s(end+1,1).mov = iMovSet; %#ok<AGROW>
-          end
-          %s(end).movS = movS1;
-          s(end).frm = f;
-          s(end).p = Shape.xy2vec(lblsFrmXY);
-          s(end).tfocc = strcmp('occ',tags(:)');
-          if tfLposTS
-            lts = lposTS{iMovSet};
-            s(end).pTS = lts(:,f)';
-          end
-        end
-        
-        I = [I;ITmp]; %#ok<AGROW>
-      end
-      tbl = struct2table(s,'AsArray',true);      
-    end    
+%     % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
+%     % .hasTrx
+%     %#3DOK
+%     function [I,tbl] = lblCompileContentsRaw(...
+%         movieNames,lposes,lpostags,iMovs,frms,varargin)
+%       % Read moviefiles with landmark labels
+%       %
+%       % movieNames: [NxnView] cellstr of movienames
+%       % lposes: [N] cell array of labeledpos arrays [npts x 2 x nfrms x ntgts]. 
+%       %   For multiview, npts=nView*NumLabelPoints.
+%       % lpostags: [N] cell array of labeledpostags [npts x nfrms x ntgts]
+%       % iMovs. [M] (row) indices into movieNames to read.
+%       % frms. [M] cell array. frms{i} is a vector of frames to read for
+%       % movie iMovs(i). frms{i} may also be:
+%       %     * 'all' indicating "all frames" 
+%       %     * 'lbl' indicating "all labeled frames" (currently includes partially-labeled)
+%       %
+%       % I: [NtrlxnView] cell vec of images
+%       % tbl: [NTrl rows] labels/metadata MFTable.
+%       %   MULTIVIEW NOTE: tbl.p is the 2d/projected label positions, ie
+%       %   each shape has nLabelPoints*nView*2 coords, raster order is 1. pt
+%       %   index, 2. view index, 3. coord index (x vs y)
+%       %
+%       % Optional PVs:
+%       % - hWaitBar. Waitbar object
+%       % - noImg. logical scalar default false. If true, all elements of I
+%       % will be empty.
+%       % - lposTS. [N] cell array of labeledposTS arrays [nptsxnfrms]
+%       % - movieNamesID. [NxnView] Like movieNames (input arg). Use these
+%       % names in tbl instead of movieNames. The point is that movieNames
+%       % may be macro-replaced, platformized, etc; otoh in the MD table we
+%       % might want macros unreplaced, a standard format etc.
+%       % - tblMovArray. Scalar logical, defaults to false. Only relevant for
+%       % multiview data. If true, use array of movies in tbl.mov. Otherwise, 
+%       % use single compactified string ID.
+%       
+%       [hWB,noImg,lposTS,movieNamesID,tblMovArray] = myparse(varargin,...
+%         'hWaitBar',[],...
+%         'noImg',false,...
+%         'lposTS',[],...
+%         'movieNamesID',[],...
+%         'tblMovArray',false);
+%       assert(numel(iMovs)==numel(frms));
+%       for i = 1:numel(frms)
+%         val = frms{i};
+%         assert(isnumeric(val) && isvector(val) || ismember(val,{'all' 'lbl'}));
+%       end
+%       
+%       tfWB = ~isempty(hWB);
+%       
+%       assert(iscellstr(movieNames));
+%       [N,nView] = size(movieNames);
+%       assert(iscell(lposes) && iscell(lpostags));
+%       assert(isequal(N,numel(lposes),numel(lpostags)));
+%       tfLposTS = ~isempty(lposTS);
+%       if tfLposTS
+%         assert(numel(lposTS)==N);
+%       end
+%       for i=1:N
+%         assert(size(lposes{i},1)==size(lpostags{i},1) && ...
+%                size(lposes{i},3)==size(lpostags{i},2));
+%         if tfLposTS
+%           assert(isequal(size(lposTS{i}),size(lpostags{i})));
+%         end
+%       end
+%       
+%       if ~isempty(movieNamesID)
+%         assert(iscellstr(movieNamesID));
+%         szassert(movieNamesID,size(movieNames)); 
+%       else
+%         movieNamesID = movieNames;
+%       end
+%       
+%       for iVw=nView:-1:1
+%         mr(iVw) = MovieReader();
+%       end
+% 
+%       I = [];
+%       % Here, for multiview, mov are for the first movie in each set
+%       s = struct('mov',cell(0,1),'frm',[],'p',[],'tfocc',[]);
+%       
+%       nMov = numel(iMovs);
+%       fprintf('Reading %d movies.\n',nMov);
+%       if nView>1
+%         fprintf('nView=%d.\n',nView);
+%       end
+%       for i = 1:nMov
+%         iMovSet = iMovs(i);
+%         lpos = lposes{iMovSet}; % npts x 2 x nframes
+%         lpostag = lpostags{iMovSet};
+% 
+%         [npts,d,nFrmAll] = size(lpos);
+%         assert(d==2);
+%         if isempty(lpos)
+%           assert(isempty(lpostag));
+%           lpostag = cell(npts,nFrmAll); % edge case: when lpos/lpostag are [], uninitted/degenerate case
+%         end
+%         szassert(lpostag,[npts nFrmAll]);
+%         D = d*npts;
+%         % Ordering of d is: {x1,x2,x3,...xN,y1,..yN} which for multiview is
+%         % {xp1v1,xp2v1,...xpnv1,xp1v2,...xpnvk,yp1v1,...}. In other words,
+%         % in decreasing raster order we have 1. pt index, 2. view index, 3.
+%         % coord index (x vs y)
+%         
+%         for iVw=1:nView
+%           movfull = movieNames{iMovSet,iVw};
+%           mr(iVw).open(movfull);
+%         end
+%         
+%         movID = MFTable.formMultiMovieID(movieNamesID(iMovSet,:));
+%         
+%         % find labeled/tagged frames (considering ALL frames for this
+%         % movie)
+%         tfLbled = arrayfun(@(x)nnz(~isnan(lpos(:,:,x)))>0,(1:nFrmAll)');
+%         frmsLbled = find(tfLbled);
+%         tftagged = ~cellfun(@isempty,lpostag); % [nptxnfrm]
+%         ntagged = sum(tftagged,1);
+%         frmsTagged = find(ntagged);
+%         assert(all(ismember(frmsTagged,frmsLbled)));
+% 
+%         frms2Read = frms{i};
+%         if strcmp(frms2Read,'all')
+%           frms2Read = 1:nFrmAll;
+%         elseif strcmp(frms2Read,'lbl')
+%           frms2Read = frmsLbled;
+%         end
+%         nFrmRead = numel(frms2Read);
+%         
+%         ITmp = cell(nFrmRead,nView);
+%         fprintf('  mov(set) %d, D=%d, reading %d frames\n',iMovSet,D,nFrmRead);
+%         
+%         if tfWB
+%           hWB.Name = 'Reading movies';
+%           wbStr = sprintf('Reading movie %s',movID);
+%           waitbar(0,hWB,wbStr);
+%         end
+%         for iFrm = 1:nFrmRead
+%           if tfWB
+%             waitbar(iFrm/nFrmRead,hWB);
+%           end
+%           
+%           f = frms2Read(iFrm);
+% 
+%           if noImg
+%             % none; ITmp(iFrm,:) will have [] els
+%           else
+%             for iVw=1:nView
+%               im = mr(iVw).readframe(f);
+%               if size(im,3)==3 && isequal(im(:,:,1),im(:,:,2),im(:,:,3))
+%                 im = rgb2gray(im);
+%               end
+%               ITmp{iFrm,iVw} = im;
+%             end
+%           end
+%           
+%           lblsFrmXY = lpos(:,:,f);
+%           tags = lpostag(:,f);
+%           
+%           if tblMovArray
+%             assert(false,'Unsupported codepath');
+%             %s(end+1,1).mov = movieNamesID(iMovSet,:); %#ok<AGROW>
+%           else
+%             s(end+1,1).mov = iMovSet; %#ok<AGROW>
+%           end
+%           %s(end).movS = movS1;
+%           s(end).frm = f;
+%           s(end).p = Shape.xy2vec(lblsFrmXY);
+%           s(end).tfocc = strcmp('occ',tags(:)');
+%           if tfLposTS
+%             lts = lposTS{iMovSet};
+%             s(end).pTS = lts(:,f)';
+%           end
+%         end
+%         
+%         I = [I;ITmp]; %#ok<AGROW>
+%       end
+%       tbl = struct2table(s,'AsArray',true);      
+%     end
         
   end
   
@@ -4297,8 +4208,8 @@ classdef Labeler < handle
         error('Labeler:track','No tracker set.');
       end
       assert(isa(mftset,'MFTSet'));
-      tblMFT = mftset.getMFTableTrack(obj);
-      tObj.track([],[],'tblP',tblMFT,varargin{:});
+      tblMFT = mftset.getMFTable(obj);
+      tObj.track(tblMFT,varargin{:});
       
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true); 
@@ -4319,7 +4230,7 @@ classdef Labeler < handle
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
-      tblMFT = mftset.getMFTableTrack(obj);
+      tblMFT = mftset.getMFTable(obj);
       
       iMovsUn = unique(tblMFT.mov);      
       [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovsUn,[],rawtrkname);
@@ -4341,7 +4252,7 @@ classdef Labeler < handle
         
         tfMov = tblMFT.mov==iMov;
         tblMFTmov = tblMFT(tfMov,:);
-        tObj.track([],[],'tblP',tblMFTmov,trackArgs{:});
+        tObj.track(tblMFTmov,trackArgs{:});
         trkFile = tObj.getTrackingResults(iMov);
         szassert(trkFile,[1 nVw]);
         for iVw=1:nVw
@@ -4469,7 +4380,7 @@ classdef Labeler < handle
         if tfWB
           wbObj.endPeriod();
         end
-        tObj.track([],[],'tblP',tblMFgtTrack,'wbObj',wbObj);        
+        tObj.track(tblMFgtTrack,'wbObj',wbObj);        
         [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
         if initData
           tObj.initData();

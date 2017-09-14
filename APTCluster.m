@@ -214,9 +214,9 @@ end
 tfStartEnd = numel(startArgs)==2 && numel(endArgs)==2;
 if tfStartEnd
   assert(false,'XXX TODO\n');
-  tm = TrackMFTSetEnum.CurrMovCustomFrames;
+  tm = MFTSetEnum.CurrMovCustomFrames;
   tm.info = startArgs{2}:endArgs{2};
 else
-  tm = TrackMFTSetEnum.CurrMovEveryFrame;
+  tm = MFTSetEnum.CurrMovEveryFrame;
 end
 lObj.trackAndExport(tm,'trackArgs',trackArgs,trkFilenameArgs{:});

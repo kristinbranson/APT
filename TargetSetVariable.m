@@ -30,13 +30,17 @@ end
 function iTgts = lclAllTargetsFcn(lObj,iMov)
 % Multiview: assume first view is representative; trx elements
 % are supposed to match across views
-tfaf = lObj.trxFilesAllFull{iMov,1}; % XXX GT MERGE
-nfrm = lObj.movieInfoAll{iMov,1}.nframes; % XXX GT MERGE
-trx = lObj.getTrx(tfaf,nfrm);
-ntrx = numel(trx);
+if lObj.hasTrx
+  tfaf = lObj.trxFilesAllFull{iMov,1}; % XXX GT MERGE
+  nfrm = lObj.movieInfoAll{iMov,1}.nframes; % XXX GT MERGE
+  trx = lObj.getTrx(tfaf,nfrm);
+  ntrx = numel(trx);
 
-iTgts = 1:ntrx;
-% iTgts represents all targest present in the movie, without
-% regard to frame. Not all targets are necessarily live for all
-% frames.
+  iTgts = 1:ntrx;
+  % iTgts represents all targest present in the movie, without
+  % regard to frame. Not all targets are necessarily live for all
+  % frames.
+else
+  iTgts = 1;
+end
 end

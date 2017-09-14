@@ -123,21 +123,17 @@ classdef LabelTracker < handle
       % Full Train from scratch; existing/previous results cleared 
     end
     
-    function track(obj,iMovs,frms,varargin)
+    function track(obj,tblMFT,varargin)
       % Apply trained tracker to the specified frames.
+      % 
+      % tblMFT: MFTable with cols MFTable.FLDSID
       %
-      % Legacy/Single-target API:
+      %
+      % DEPRECATED Legacy/Single-target API:
       %   track(obj,iMovs,frms,...)
       %
       % iMovs: [M] indices into .lObj.movieFilesAll to track
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
-      %
-      % Newer/multi-target API:
-      %     track(obj,[],[],'tblP',tblMF)
-      %
-      % tblMF: MFTable with rows specifying movie/frame/target
-      %
-      % Optional PVs.
     end
     
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovs)

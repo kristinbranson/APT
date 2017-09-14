@@ -300,12 +300,7 @@ classdef CPRLabelTracker < LabelTracker
       tf = maxTS > maxTDTS;
       tblP = tblP(tf,:);
     end
-    
-    function tblP = getTblPAll(obj,iMovs,frmCell)
-      tblP = obj.lObj.labelGetMFTableAll(iMovs,frmCell);
-      tblP = obj.hlpAddRoiIfNec(tblP);
-    end
-    
+        
     %#MTGT
     %#MV
     function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP)
@@ -1419,9 +1414,10 @@ classdef CPRLabelTracker < LabelTracker
     
     %#MTGT
     %#MV
-    function track(obj,iMovs,frms,varargin)
-      [tblP,movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
-        'tblP',[],... % MFtable. Req'd flds: MFTable.ID. Maybe rename this to tblMFT
+    function track(obj,tblMFT,varargin)
+      % tblMFT: MFtable. Req'd flds: MFTable.ID.
+      
+      [movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
         'wbObj',[] ... % WaitBarWithCancel. If cancel:
@@ -1441,30 +1437,27 @@ classdef CPRLabelTracker < LabelTracker
       if isfield(prm.TestInit,'movChunkSize')
         movChunkSize = prm.TestInit.movChunkSize;
       end
-                        
-      if isequal(tblP,[])
-        tblP = obj.getTblPAll(iMovs,frms);
-      end
-      if isempty(tblP)
+      
+      if isempty(tblMFT)
         msgbox('No frames specified for tracking.');
         return;
       end
-      tblfldscontainsassert(tblP,MFTable.FLDSID);
-      if any(~tblfldscontains(tblP,MFTable.FLDSCORE))
-        tblP = obj.lObj.labelAddLabelsMFTable(tblP);
-        tblP = obj.hlpAddRoiIfNec(tblP);
+      tblfldscontainsassert(tblMFT,MFTable.FLDSID);
+      if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE))
+        tblMFT = obj.lObj.labelAddLabelsMFTable(tblMFT);
+        tblMFT = obj.hlpAddRoiIfNec(tblMFT);
       end
       if obj.lObj.hasTrx
-        tblfldscontainsassert(tblP,MFTable.FLDSCOREROI);
+        tblfldscontainsassert(tblMFT,MFTable.FLDSCOREROI);
       else
-        tblfldscontainsassert(tblP,MFTable.FLDSCORE);
+        tblfldscontainsassert(tblMFT,MFTable.FLDSCORE);
       end
      
       % if tfWB, then canceling can early-return. In all return cases we
       % want to run hlpTrackWrapupViz.
       oc = onCleanup(@()hlpTrackWrapupViz(obj));
       
-      nFrmTrk = size(tblP,1);
+      nFrmTrk = size(tblMFT,1);
       iChunkStarts = 1:movChunkSize:nFrmTrk;
       nChunk = numel(iChunkStarts);
       if tfWB && nChunk>1
@@ -1479,7 +1472,7 @@ classdef CPRLabelTracker < LabelTracker
         
         idxP0 = (iChunk-1)*movChunkSize+1;
         idxP1 = min(idxP0+movChunkSize-1,nFrmTrk);
-        tblPChunk = tblP(idxP0:idxP1,:);
+        tblMFTChunk = tblMFT(idxP0:idxP1,:);
         fprintf('Tracking frames %d through %d...\n',idxP0,idxP1);
         
         %%% Set up .data
@@ -1490,7 +1483,7 @@ classdef CPRLabelTracker < LabelTracker
           obj.initData();
         end
         
-        obj.updateData(tblPChunk,'wbObj',wbObj);
+        obj.updateData(tblMFTChunk,'wbObj',wbObj);
         if tfWB && wbObj.isCancel
           % Single-chunk: data unchanged, tracking results unchanged => 
           % obj unchanged.
@@ -1506,7 +1499,7 @@ classdef CPRLabelTracker < LabelTracker
         
         d = obj.data;
         tblMFAll = d.MD(:,MFTable.FLDSID);
-        tblMFTrk = tblPChunk(:,MFTable.FLDSID);
+        tblMFTrk = tblMFTChunk(:,MFTable.FLDSID);
         [tf,loc] = ismember(tblMFTrk,tblMFAll);
         assert(all(tf));
         d.iTst = loc;             

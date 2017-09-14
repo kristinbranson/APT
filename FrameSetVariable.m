@@ -92,8 +92,8 @@ frm1 = min(currFrm+df,nfrm);
 frms = frm0:frm1;
 end
 function frms = lclLabeledFrmGetFrms(lObj,iMov,nfrm,iTgt)
-npts = labelerObj.nLabelPoints;
-lpos = labelerObj.labeledpos{iMov}; % [nptsx2xnfrmxntgt] % XXX GT MERGE
+npts = lObj.nLabelPoints;
+lpos = lObj.labeledpos{iMov}; % [nptsx2xnfrmxntgt] % XXX GT MERGE
 lposTgt = reshape(lpos(:,:,:,iTgt),[2*npts nfrm]);
 tfLbledFrm = any(~isnan(lposTgt),1); % considered labeled if any x- or y-coord is non-nan
 frms = find(tfLbledFrm);
