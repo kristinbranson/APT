@@ -17,6 +17,11 @@ classdef TrackMode < handle
   methods
   
     function obj = TrackMode(mset,fset,dec,tset)
+      assert(isa(mset,'MovieIndexSet'));
+      assert(isa(fset,'FrameSet'));
+      assert(isa(dec,'FrameDecimation'));
+      assert(isa(tset,'TargetSet'));
+      
       obj.movieIndexSet = mset;
       obj.frameSet = fset;
       obj.decimation = dec;
@@ -26,12 +31,12 @@ classdef TrackMode < handle
     function str = getPrettyStr(obj,labelerObj)
       % Create pretty-string for UI
       
-      movstr = obj.movieIndexSet.prettyString;
+      movstr = obj.movieIndexSet.getPrettyString;
       frmstr = lower(obj.frameSet.getPrettyString(labelerObj));
       [decstr,decval] = obj.decimation.getPrettyString(labelerObj);
       decstr = lower(decstr);
       if labelerObj.nTargets>1
-        tgtstr = lower(obj.targetSet.prettyString);
+        tgtstr = lower(obj.targetSet.getPrettyString(labelerObj));
         if strcmpi(movstr,'current movie') && strcmpi(tgtstr,'current target')
           movtgtstr = 'current movie/target';
         else
@@ -70,7 +75,7 @@ classdef TrackMode < handle
         tblMFT = cell(0,1);
         for i=1:nMovs
           iMov = iMovs(i);
-          iTgts = tgtSet.getTargets(labelerObj,iMov);
+          iTgts = tgtSet.getTargetIndices(labelerObj,iMov);
           for j=1:numel(iTgts)
             iTgt = iTgts(j);
             frms = frmSet.getFrames(labelerObj,iMov,iTgt,decFac);
