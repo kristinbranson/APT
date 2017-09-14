@@ -58,6 +58,14 @@ classdef MFTSet < handle
     
     function tblMFT = getMFTable(obj,labelerObj)
       % tblMFT: MFTable with MFTable.ID
+      %
+      % tblMFT is computed via the following procedure.
+      % 1. List of movie indices is found by querying .movieIndexSet.
+      % 2. For each movie, the list of targets is found by querying
+      %   .targetSet.
+      % 3. The decimation is found by querying .decimation.
+      % 4. For each movie/target/decimation, the list of frames is found by
+      % querying .frameSet.
       
       if ~labelerObj.hasMovie
         mov = zeros(0,1);

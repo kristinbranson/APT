@@ -44,15 +44,13 @@ classdef FrameSetVariable < FrameSet
       
       if labelerObj.hasTrx
         tfaf = labelerObj.trxFilesAllFull(iMov,:);
-        [~,frm2trxI] = cellfun(@(x)labelerObj.getTrx(x,nfrm),tfaf,'uni',0);
-        frm2trxOverallTgt = frm2trxI{1}(:,iTgt);
-        for iView=2:numel(frm2trxI)
-          frm2trxOverallTgt = and(frm2trxOverallTgt,frm2trxI{iView}(:,iTgt));
-        end
+        [~,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
+          labelerObj.trxCache,tfaf,nfrm);
+        frm2trxTotAndTgt = frm2trxTotAnd(:,iTgt);        
         % frm2trxOverallTgt is [nfrmx1] logical, true at frames where iTgt 
         % is live in all views
         
-        tfFrmOK = frm2trxOverallTgt(frms);
+        tfFrmOK = frm2trxTotAndTgt(frms);
         frms(~tfFrmOK) = [];
       else
         % no target-based restriction

@@ -3652,28 +3652,9 @@ classdef Labeler < handle
         end
         
         if tfTrx
-          [trxI,frm2trxI] = cellfun(@(x)Labeler.getTrxCacheStc(trxCache,x,nfrms),...
-            trxFilesAllFull(iMov,:),'uni',0);
-
-          cellfun(@(x)assert(numel(x)==ntgts),trxI);
-
-          % Multiview+trx: each view's trx must contain the same number of 
-          % els and these elements must correspond across views.
-          nView = size(trxFilesAllFull,2);
-          if nView>1 && isfield(trxI{1},'id')
-            trxids = cellfun(@(x)[x.id],trxI,'uni',0);
-            assert(isequal(trxids{:}),'Trx ids differ.');
-          end
-          
-          % For this MFT row to be valid, iTgt must be live in all views
-          frm2trxOverall = frm2trxI{1};
-          for iView=2:nView
-            frm2trxOverall = and(frm2trxOverall,frm2trxI{iView});
-          end
-          % frm2trxOverall: [nfrm x ntgts] logical array, true at (i,j) iff
-          % target j is live in all views at frame i
-          
-          tgtLiveInFrm = frm2trxOverall(frm,iTgt);
+          [trxI,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
+            trxCache,trxFilesAllFull(iMov,:),nfrms);          
+          tgtLiveInFrm = frm2trxTotAnd(frm,iTgt);
           if ~tgtLiveInFrm
             tfInvalid(irow) = true;
             continue;
