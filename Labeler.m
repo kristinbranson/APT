@@ -264,7 +264,7 @@ classdef Labeler < handle
   %% Tracking
   properties (SetObservable)
     tracker % LabelTracker object. init: PLPN
-    trackModeIdx % index into enumeration('TrackMode') for current trackmode
+    trackModeIdx % index into enumeration('TrackMFTSetEnum') for current trackmode
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
@@ -3556,11 +3556,11 @@ classdef Labeler < handle
       %   Here 'p' is 'pAbs' or absolute position
       
       % AL20170913 Refactor candidate: this is the same as
-      % tm=TrackMode(allmovs,labeledframes,decimation=1,alltgts);
+      % tm=MFTSet(allmovs,labeledframes,decimation=1,alltgts);
       % tblMF=tm.getTableMFT();
       % tblMF=Labeler.labelAddLabelsMFTableStc(tblMF);
       % 
-      % The TrackMode thing can probably sweep away all labelGetMFTable*,
+      % The MFTSet thing can probably sweep away all labelGetMFTable*,
       % lblCompileContents*, who knows what else
       
        [iMovRead,frmReadCell,tgtsRead] = myparse(varargin,...
@@ -4289,26 +4289,26 @@ classdef Labeler < handle
       tObj.retrain();
     end
     
-    function track(obj,tm,varargin)
-      % tm: a TrackMode
+    function track(obj,mftset,varargin)
+      % mftset: an MFTSet
       
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
-      assert(isa(tm,'TrackMode'));
-      tblMFT = tm.getMFTableTrack(obj);
+      assert(isa(mftset,'MFTSet'));
+      tblMFT = mftset.getMFTableTrack(obj);
       tObj.track([],[],'tblP',tblMFT,varargin{:});
       
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true); 
     end
     
-    function trackAndExport(obj,tm,varargin)
+    function trackAndExport(obj,mftset,varargin)
       % Track one movie at a time, exporting results to .trk files and 
       % clearing data in between
       %
-      % tm: scalar TrackMode
+      % mftset: scalar MFTSet
             
       [trackArgs,rawtrkname] = myparse(varargin,...
         'trackArgs',{},...
@@ -4319,7 +4319,7 @@ classdef Labeler < handle
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
-      tblMFT = tm.getMFTableTrack(obj);
+      tblMFT = mftset.getMFTableTrack(obj);
       
       iMovsUn = unique(tblMFT.mov);      
       [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovsUn,[],rawtrkname);

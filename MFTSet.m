@@ -1,6 +1,5 @@
-classdef TrackMode < handle
-  % A TrackMode is a specification of what movies/frames/targets to track
-  % in an APT project. 
+classdef MFTSet < handle
+  % An MFTSet is a set of movies/frames/targets in an APT project.
   %
   % Conceptually, it is the 4-way cross product of i) a movie
   % specification (eg "current movie"), ii) a frameset specification (eg
@@ -16,7 +15,7 @@ classdef TrackMode < handle
   
   methods
   
-    function obj = TrackMode(mset,fset,dec,tset)
+    function obj = MFTSet(mset,fset,dec,tset)
       assert(isa(mset,'MovieIndexSet'));
       assert(isa(fset,'FrameSet'));
       assert(isa(dec,'FrameDecimation'));

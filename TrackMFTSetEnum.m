@@ -1,5 +1,5 @@
-classdef TrackModeEnum < TrackMode
-  % Some "canned" TrackModes for track pulldown menu.
+classdef TrackMFTSetEnum < MFTSet
+  % Some "canned" MFTSets for eg track pulldown menu.
   
   enumeration
     CurrMovTgtEveryFrame (...
