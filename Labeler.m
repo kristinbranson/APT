@@ -1028,28 +1028,25 @@ classdef Labeler < handle
         obj.tracker.loadSaveToken(s.trackerData);
       end
 
-      % Needs to occur after tracker has been set up so that labelCore can
-      % communicate with tracker if necessary (in particular, Template Mode 
-      % <-> Hide Predictions)
-      obj.labelingInit();
-
-      % We call labelingInit() directly later, hence 'noLabelingInit' args;
-      % see below
-      % AL 20170913 can maybe remove 'noLabelingInit' business/args
       if obj.nmovies==0 || s.currMovie==0 || nomovie
-        obj.movieSetNoMovie('noLabelingInit',true);
+        obj.movieSetNoMovie();
       else
         [tfok,badfile] = obj.movieCheckFilesExistSimple(s.currMovie);
         if ~tfok
           currMovInfo.iMov = s.currMovie;
           currMovInfo.badfile = badfile;
-          obj.movieSetNoMovie('noLabelingInit',true);
+          obj.movieSetNoMovie();
         else
-          obj.movieSet(s.currMovie,'noLabelingInit',true);
+          obj.movieSet(s.currMovie);
           obj.setFrameAndTarget(s.currFrame,s.currTarget);
         end
-      end      
-      %assert(isa(s.labelMode,'LabelMode'));      
+      end
+      
+%       % Needs to occur after tracker has been set up so that labelCore can
+%       % communicate with tracker if necessary (in particular, Template Mode 
+%       % <-> Hide Predictions)
+%       obj.labelingInit();
+
       obj.labeledposNeedsSave = false;
       obj.suspScore = obj.suspScore;
             
@@ -2051,7 +2048,7 @@ classdef Labeler < handle
       
       [isFirstMovie,noLabelingInit] = myparse(varargin,...
         'isFirstMovie',false,... % passing true for the first time a movie is added to a proj helps the UI
-        'noLabelingInit',false); 
+        'noLabelingInit',false); % DELETE OPTION
       
       tfsuccess = obj.movieCheckFilesExist(iMov); % throws
       if ~tfsuccess
@@ -2140,8 +2137,8 @@ classdef Labeler < handle
     function movieSetNoMovie(obj,varargin)
       % Set .currMov to 0
       
-      noLabelingInit = myparse(varargin,...
-        'noLabelingInit',false);
+      noLabelingInit = myparse(varargin,... 
+        'noLabelingInit',false); % DELETE OPTION
            
           % Stripped cut+paste form movieSet() for reference 20170714
           %       obj.movieReader(iView).open(movfileFull);
@@ -2466,10 +2463,13 @@ classdef Labeler < handle
     
     function labelingInit(obj,varargin)
       % Create LabelCore and call labelCore.init() based on current 
-      % .labelMode, .nLabelPoints, .labelPointsPlotInfo, .labelTemplate      
+      % .labelMode, .nLabelPoints, .labelPointsPlotInfo, .labelTemplate  
+      % For calibrated labelCores, can also require .currMovie, 
+      % .viewCalibrationData, .vewCalibrationDataProjWide to be properly 
+      % initted
       
       lblmode = myparse(varargin,...
-        'labelMode',[]);
+        'labelMode',[]); % if true, force a call to labelsUpdateNewFrame(true) at end of call. Poorly named option.
       tfLblModeChange = ~isempty(lblmode);
       if tfLblModeChange
         assert(isa(lblmode,'LabelMode'));
