@@ -347,7 +347,7 @@ classdef Labeler < handle
     % Don't observe this, listen to 'newMovie'
   end
   properties (Dependent)
-    currMovieSigned; % returns -.currMovie when gtMode is on
+    currMovIdx; % scalar MovieIndex
   end
   properties (SetObservable)
     currFrame = 1; % current frame
@@ -435,7 +435,16 @@ classdef Labeler < handle
         v = obj.trxFilesAllGTFull;
       else
         v = obj.trxFilesAllFull;
+      end
     end
+    function v = getTrxFilesAllMovIdx(obj,mIdx)
+      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
+      [iMov,gt] = mIdx.get();
+      if gt
+        v = obj.trxFilesAllGT(iMov,:);
+      else
+        v = obj.trxFilesAll(iMov,:);        
+      end
     end
 %     function v = get.movieIDsAll(obj)
 %       v = FSPath.standardPath(obj.movieFilesAll);
@@ -480,6 +489,16 @@ classdef Labeler < handle
         v = ifo.nframes;
       end
     end
+    function v = getNFramesMovIdx(obj,mIdx)
+      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
+      [iMov,gt] = mIdx.get();
+      if gt        
+        movInfo = obj.movieInfoAllGT{iMov,1};
+      else
+        movInfo = obj.movieInfoAll{iMov,1};
+      end
+      v = movInfo.nframes;
+    end
     function v = get.moviesSelected(obj) %#GUIREQ
       % Find MovieManager in LabelerGUI
       handles = obj.gdata;
@@ -514,6 +533,15 @@ classdef Labeler < handle
     end
     function v = get.nTrx(obj)
       v = numel(obj.trx);
+    end
+    function v = getnTrxMovIdx(obj,mIdx)
+      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
+      [iMov,gt] = mIdx.get();
+      PROPS = obj.gtGetSharedPropsStc(gt);
+      tfaf = obj.(PROPS.TFAF){iMov,1};
+      nfrm = obj.(PROPS.MFA){iMov,1}.nframes;
+      trxI = obj.getTrx(tfaf,nfrm);
+      v = numel(trxI);
     end
     function v = get.nTargets(obj)
       if obj.hasTrx
@@ -579,6 +607,15 @@ classdef Labeler < handle
         v = obj.labeledpos;
       end
     end
+    function v = getLabeledPosMovIdx(obj,mIdx)
+      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
+      [iMov,gt] = mIdx.get();
+      if gt
+        v = obj.labeledposGT{iMov};
+      else 
+        v = obj.labeledpos{iMov};
+      end
+    end
     function v = get.labeledposTSGTaware(obj)
       if obj.gtIsGTMode
         v = obj.labeledposTSGT;
@@ -614,11 +651,11 @@ classdef Labeler < handle
     function v = get.nPhysPoints(obj)
       v = size(obj.labeledposIPtSetMap,1);
     end
-    function v = get.currMovieSigned(obj)
+    function v = get.currMovIdx(obj)
       if obj.gtIsGTMode
-        v = -obj.currMovie;
+        v = MovieIndex(-obj.currMovie);
       else
-        v = obj.currMovie;
+        v = MovieIndex(obj.currMovie);
       end
     end
     function v = get.gdata(obj)
@@ -2012,11 +2049,11 @@ classdef Labeler < handle
         obj.isinit = tfOrig;
         
         if gt
-          iMovSigned = -iMov;
+          movIdx = MovieIndex(-iMov);
         else
-          iMovSigned = iMov;
+          movIdx = MovieIndex(iMov);
         end
-        edata = MovieRemovedEventData(iMovSigned,nMovOrigReg,nMovOrigGT);
+        edata = MovieRemovedEventData(movIdx,nMovOrigReg,nMovOrigGT);
         notify(obj,'movieRemoved',edata);
         
         if obj.currMovie>iMov && gt==obj.gtIsGTMode
@@ -2339,7 +2376,8 @@ classdef Labeler < handle
       if tfTrx
         assert(~obj.isMultiView,...
           'Multiview labeling with targets is currently unsupported.');
-        trxvar = obj.getTrx(trxFile,obj.movieInfoAll{iMov,1}.nframes); % XXX GT MERGE
+        nfrm = obj.movieInfoAllGTaware{iMov,1}.nframes;
+        trxvar = obj.getTrx(trxFile,nfrm);
       else
         trxvar = [];
       end
@@ -3832,6 +3870,7 @@ classdef Labeler < handle
     end
     
     function tblMF = labelAddLabelsMFTable(obj,tblMF)
+      assert(~obj.gtIsGTMode);
       if obj.hasTrx
         tfaf = obj.trxFilesAllFull;
       else
@@ -3907,7 +3946,7 @@ classdef Labeler < handle
     
     function tblMF = labelAddLabelsMFTableStc(tblMF,lpos,lpostag,lposTS,...
         varargin)
-      % Add label/trx information to an MFTable % XXX GTMERGE
+      % Add label/trx information to an MFTable
       %
       % tblMF (input): MFTable with flds MFTable.FLDSID. tblMF.mov are
       %   indices into lpos,lpostag,lposTS.
@@ -3921,6 +3960,7 @@ classdef Labeler < handle
         'trxCache',[]); % must be supplied if trxFilesAllFull is supplied
       
       assert(istable(tblMF));
+      assert(all(tblMF.mov>0));
       tblfldscontainsassert(tblMF,MFTable.FLDSID);
       nMov = size(lpos,1);
       szassert(lpos,[nMov 1]);
@@ -3955,7 +3995,7 @@ classdef Labeler < handle
         if frm<1 || frm>nfrms
           tfInvalid(irow) = true;
           continue;
-          end
+        end
         
         if tfTrx
           [trxI,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
@@ -3964,34 +4004,34 @@ classdef Labeler < handle
           if ~tgtLiveInFrm
             tfInvalid(irow) = true;
             continue;
-        end
+          end
         else
           assert(iTgt==1);
-            end
+        end
               
         lposIFrmTgt = lposI(:,:,frm,iTgt);
         lpostagIFrmTgt = lpostagI(:,frm,iTgt);
         lposTSIFrmTgt = lposTSI(:,frm,iTgt);
         s(end+1,1).p = Shape.xy2vec(lposIFrmTgt); %#ok<AGROW>
-              s(end).pTS = lposTSIFrmTgt';
-              s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
+        s(end).pTS = lposTSIFrmTgt';
+        s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
 
         if tfTrx
           xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
           ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
-              s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
+          s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
         else
           s(end).pTrx = [nan nan]; % Wrong when nview>1, but this is currently undesigned/unsupported
-            end
-          end
+        end
+      end
       
       if any(tfInvalid)
         warningNoTrace('Removed %d invalid rows of MFTable.',nnz(tfInvalid));
-        end
+      end
       tblMF = tblMF(~tfInvalid,:);
       tLbl = struct2table(s);
       tblMF = [tblMF tLbl];
-      end
+    end
     
 %     % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
 %     % .hasTrx

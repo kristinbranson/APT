@@ -1,7 +1,7 @@
 classdef MovieIndexSetVariable < MovieIndexSet
   properties
     prettyString
-    getMovieIndicesHook % fcn with sig iMovs = fcn(labeler)
+    getMovieIndicesHook % fcn with sig mIdx = fcn(labeler)
   end
   methods
     function obj = MovieIndexSetVariable(ps,fcn)
@@ -11,19 +11,29 @@ classdef MovieIndexSetVariable < MovieIndexSet
     function str = getPrettyString(obj)
       str = obj.prettyString;
     end
-    function iMovs = getMovieIndices(obj,lObj)
+    function mIdx = getMovieIndices(obj,lObj)
       if ~lObj.hasMovie
-        iMovs = zeros(1,0);
+        mIdx = MovieIndex(zeros(1,0));
       else
-        iMovs = obj.getMovieIndicesHook(lObj);
-        iMovs = iMovs(:)';
+        mIdx = obj.getMovieIndicesHook(lObj);
+        mIdx = mIdx(:)';
       end
     end
   end
   
   properties (Constant) % canned/enumerated vals
-    AllMov = MovieIndexSetVariable('All movies',@(lo)1:lo.nmovies);
-    CurrMov = MovieIndexSetVariable('Current movie',@(lo)lo.currMovie);
-    SelMov = MovieIndexSetVariable('Selected movies',@(lo)lo.moviesSelected);
+    AllMov = MovieIndexSetVariable('All movies',@(lo)MovieIndex(1:lo.nmovies)); % "All regular movies"
+    CurrMov = MovieIndexSetVariable('Current movie',@lclCurrMovieGetMovieIndexHook);
+    SelMov = MovieIndexSetVariable('Selected movies',@lclSelMovieGetMovieIndexHook);
   end  
+end
+
+function mIdx = lclCurrMovieGetMovieIndexHook(lObj)
+assert(~lObj.gtIsGTMode);
+mIdx = MovieIndex(lObj.currMovie);
+end
+
+function mIdx = lclSelMovieGetMovieIndexHook(lObj)
+assert(~lObj.gtIsGTMode);
+mIdx = MovieIndex(lObj.moviesSelected);
 end

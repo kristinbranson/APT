@@ -1,16 +1,27 @@
 classdef MovieIndexSetFixed < MovieIndexSet
   properties
-    movs
+    mIdxs
   end
   methods
-    function obj = MovieIndexSetFixed(iMovs)
-      obj.movs = iMovs(:)';
+    function obj = MovieIndexSetFixed(mi)
+      assert(isa(mi,'MovieIndex'));
+      obj.mIdxs = mi(:)';
     end
     function str = getPrettyString(obj)
-      str = sprintf('Movies: %s',mat2str(obj.movs));
+      mi = obj.mIdxs;
+      [tf,gt] = mi.isConsistentSet;
+      if tf
+        if gt
+          str = sprintf('Movies (gt): %s',mat2str(abs(mi)));
+        else
+          str = sprintf('Movies: %s',mat2str(abs(mi)));
+        end
+      else
+        str = sprintf('Movies (mixed GT/reg): %s',mat2str(int32(mi)));
+      end
     end
-    function iMovs = getMovieIndices(obj,lObj)
-      iMovs = obj.movs;
+    function mIdx = getMovieIndices(obj,lObj)
+      mIdx = obj.mIdxs;
     end
   end
 end

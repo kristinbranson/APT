@@ -73,22 +73,22 @@ classdef MFTSet < handle
         iTgt = zeros(0,1);
         tblMFT = table(mov,frm,iTgt);
       else
-        iMovs = obj.movieIndexSet.getMovieIndices(labelerObj);
+        mis = obj.movieIndexSet.getMovieIndices(labelerObj);
         decFac = obj.decimation.getDecimation(labelerObj);
         tgtSet = obj.targetSet;
         frmSet = obj.frameSet;
         
-        nMovs = numel(iMovs);
+        nMovs = numel(mis);
         tblMFT = cell(0,1);
         for i=1:nMovs
-          iMov = iMovs(i);
-          iTgts = tgtSet.getTargetIndices(labelerObj,iMov);
+          mIdx = mis(i);
+          iTgts = tgtSet.getTargetIndices(labelerObj,mIdx);
           for j=1:numel(iTgts)
             iTgt = iTgts(j);
-            frms = frmSet.getFrames(labelerObj,iMov,iTgt,decFac);
+            frms = frmSet.getFrames(labelerObj,mIdx,iTgt,decFac);
             nfrm = numel(frms);
             tblMFT{end+1,1} = table(...
-              repmat(iMov,nfrm,1),frms(:),repmat(iTgt,nfrm,1),...
+              repmat(mIdx,nfrm,1),frms(:),repmat(iTgt,nfrm,1),...
               'VariableNames',{'mov' 'frm' 'iTgt'}); %#ok<AGROW>
           end
         end

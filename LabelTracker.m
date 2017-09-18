@@ -136,7 +136,7 @@ classdef LabelTracker < handle
       % Full Train from scratch; existing/previous results cleared 
     end
     
-    function track(obj,tblMFT,varargin) % XXX GT MERGE
+    function track(obj,tblMFT,varargin)
       % Apply trained tracker to the specified frames.
       % 
       % tblMFT: MFTable with cols MFTable.FLDSID

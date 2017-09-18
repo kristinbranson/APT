@@ -6,23 +6,23 @@ classdef MovieRemovedEventData < event.EventData
     iMovOrig2New 
   end
   methods
-    function obj = MovieRemovedEventData(iMovRmSigned,nMovOrigReg,...
+    function obj = MovieRemovedEventData(mIdx,nMovOrigReg,...
                                          nMovOrigGT)
-      % iMovRmSigned: positive/negative for reg/gt movies
+      % mIdx: scalar MovieIndex
       % nMovOrigReg: original number of regular movies
       % nMovOrigGT: " GT movies
       
-      assert(isscalar(iMovRmSigned) && iMovRmSigned~=0);
+      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       assert(nMovOrigReg>0);
       assert(nMovOrigGT>0);
       
       origIdxs = [1:nMovOrigReg -1:-1:-nMovOrigGT];
-      if iMovRmSigned>0
-        newIdxs = [1:iMovRmSigned-1 0 iMovRmSigned:nMovOrigReg-1 ...
+      if mIdx>0
+        newIdxs = [1:mIdx-1 0 mIdx:nMovOrigReg-1 ...
                   -1:-1:-nMovOrigGT];
       else
         newIdxs = [1:nMovOrigReg ...
-                   -1:-1:iMovRmSigned+1 0 iMovRmSigned:-1:-nMovOrigGT+1];
+                   -1:-1:mIdx+1 0 mIdx:-1:-nMovOrigGT+1];
       end
       obj.iMovOrig2New = containers.Map(origIdxs,newIdxs);
     end
