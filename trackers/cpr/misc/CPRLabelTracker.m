@@ -233,10 +233,14 @@ classdef CPRLabelTracker < LabelTracker
       
       labelerObj = obj.lObj;
       if labelerObj.hasTrx
+        tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
+        assert(all(tf) || ~any(tf));
+        if ~any(tf)
         roiRadius = obj.sPrm.PreProc.TargetCrop.Radius;
         tblP = labelerObj.labelMFTableAddROI(tblP,roiRadius);
         tblP.pAbs = tblP.p;
         tblP.p = tblP.pRoi;
+        end
       else
         % none; tblP.p is .pAbs. No .roi field.
       end
@@ -297,13 +301,6 @@ classdef CPRLabelTracker < LabelTracker
       maxTDTS = max([obj.trnDataTblPTS(:);-inf]);
       tf = maxTS > maxTDTS;
       tblP = tblP(tf,:);
-    end
-    
-    function tblP = getTblPAll(obj,iMovs,frmCell)
-      % iMovs: all positive, GT unsupported
-      assert(all(iMovs>0));
-      tblP = obj.lObj.labelGetMFTableAll(iMovs,frmCell);
-      tblP = obj.hlpAddRoiIfNec(tblP);
     end
     
     %#MTGT
@@ -1432,9 +1429,10 @@ classdef CPRLabelTracker < LabelTracker
     
     %#MTGT
     %#MV
-    function track(obj,iMovs,frms,varargin)
-      [tblP,movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
-        'tblP',[],... % MFtable. Req'd flds: MFTable.FLDSCORE or .FLDSCOREROI if multitarget.
+    function track(obj,tblMFT,varargin)
+      % tblMFT: MFtable. Req'd flds: MFTable.ID.
+      
+      [movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
         'wbObj',[] ... % WaitBarWithCancel. If cancel:
@@ -1455,26 +1453,27 @@ classdef CPRLabelTracker < LabelTracker
         movChunkSize = prm.TestInit.movChunkSize;
       end
                         
-      if isempty(tblP)
-        assert(all(iMovs>0),'GT mode');
-        tblP = obj.getTblPAll(iMovs,frms);
-        if isempty(tblP)
+      if isempty(tblMFT)
           msgbox('No frames specified for tracking.');
           return;
         end
+      tblfldscontainsassert(tblMFT,MFTable.FLDSID);
+      if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE))
+        tblMFT = obj.lObj.labelAddLabelsMFTable(tblMFT);
+        tblMFT = obj.hlpAddRoiIfNec(tblMFT);
       end
       assert(all(tblP.mov>0),'GT mode');
       if obj.lObj.hasTrx
-        tblfldscontainsassert(tblP,MFTable.FLDSCOREROI);
+        tblfldscontainsassert(tblMFT,MFTable.FLDSCOREROI);
       else
-        tblfldscontainsassert(tblP,MFTable.FLDSCORE);
+        tblfldscontainsassert(tblMFT,MFTable.FLDSCORE);
       end
      
       % if tfWB, then canceling can early-return. In all return cases we
       % want to run hlpTrackWrapupViz.
       oc = onCleanup(@()hlpTrackWrapupViz(obj));
       
-      nFrmTrk = size(tblP,1);
+      nFrmTrk = size(tblMFT,1);
       iChunkStarts = 1:movChunkSize:nFrmTrk;
       nChunk = numel(iChunkStarts);
       if tfWB && nChunk>1
@@ -1489,7 +1488,7 @@ classdef CPRLabelTracker < LabelTracker
         
         idxP0 = (iChunk-1)*movChunkSize+1;
         idxP1 = min(idxP0+movChunkSize-1,nFrmTrk);
-        tblPChunk = tblP(idxP0:idxP1,:);
+        tblMFTChunk = tblMFT(idxP0:idxP1,:);
         fprintf('Tracking frames %d through %d...\n',idxP0,idxP1);
         
         %%% Set up .data
@@ -1500,7 +1499,7 @@ classdef CPRLabelTracker < LabelTracker
           obj.initData();
         end
         
-        obj.updateData(tblPChunk,'wbObj',wbObj);
+        obj.updateData(tblMFTChunk,'wbObj',wbObj);
         if tfWB && wbObj.isCancel
           % Single-chunk: data unchanged, tracking results unchanged => 
           % obj unchanged.
@@ -1516,7 +1515,7 @@ classdef CPRLabelTracker < LabelTracker
         
         d = obj.data;
         tblMFAll = d.MD(:,MFTable.FLDSID);
-        tblMFTrk = tblPChunk(:,MFTable.FLDSID);
+        tblMFTrk = tblMFTChunk(:,MFTable.FLDSID);
         [tf,loc] = ismember(tblMFTrk,tblMFAll);
         assert(all(tf));
         d.iTst = loc;             
@@ -1608,7 +1607,7 @@ classdef CPRLabelTracker < LabelTracker
         obj.newLabelerFrame();
       end
     end
-          
+      
     %MTGT
     %#MV
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
@@ -1804,7 +1803,7 @@ classdef CPRLabelTracker < LabelTracker
     function newLabelerFrame(obj)
       % Update .hXYPrdRed based on current Labeler frame and .xyPrdCurrMovie
 
-      if obj.lObj.isinit
+      if obj.lObj.isinit || ~obj.lObj.hasMovie
         return;
       end
       
@@ -1915,7 +1914,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
     end
-        
+    
     function s = getSaveToken(obj)
       % See save philosophy below. ATM we return a "full" struct with
       % 2+3+4;
@@ -2495,7 +2494,7 @@ classdef CPRLabelTracker < LabelTracker
       lObj = obj.lObj;
       
       trkTS = obj.trkPTS;
-      if isempty(trkTS) || lObj.currMovie==0
+      if isempty(trkTS) || ~lObj.hasMovie || lObj.currMovie==0
         obj.xyPrdCurrMovie = [];
         obj.xyPrdCurrMovieIsInterp = [];
         obj.xyPrdCurrMovieFull = [];
@@ -2553,7 +2552,7 @@ classdef CPRLabelTracker < LabelTracker
       [obj.hXYPrdRedOther.Visible] = deal(onoff);
       obj.hideViz = tf;
     end
-    
+            
     function set.showVizReplicates(obj,v)
       assert(isscalar(v));
       v = logical(v);
