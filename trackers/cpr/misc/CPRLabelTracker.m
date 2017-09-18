@@ -804,6 +804,8 @@ classdef CPRLabelTracker < LabelTracker
       % - new rows are just added
       % - existing rows are overwritten
       
+      tblMFtrk.mov = int32(tblMFtrk.mov);
+      
       nTst = size(tblMFtrk,1);
       RT = obj.sPrm.TestInit.Nrep;
       mdlPrms = obj.sPrm.Model;

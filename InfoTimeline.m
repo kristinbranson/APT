@@ -171,7 +171,8 @@ classdef InfoTimeline < handle
       prefsTL = obj.prefs;
       ax.XColor = prefsTL.XColor;
       ax.XTick = 0:prefsTL.dXTick:obj.nfrm;
-      ax.YLim = [0 1];
+      dy = .01;
+      ax.YLim = [0-dy 1+dy];
       
       set(obj.hCurrFrame,'XData',[nan nan],'ZData',[1 1]);
       

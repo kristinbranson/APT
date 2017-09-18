@@ -28,7 +28,7 @@ classdef FrameSetVariable < FrameSet
       
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       
-      nfrm = labelerObj.getNFrameMovIdx(mIdx);
+      nfrm = labelerObj.getNFramesMovIdx(mIdx);
       
       % Step 1: figure out "base" frms, independent of target/decimation
       frms = obj.getFramesBase(labelerObj,mIdx,nfrm,iTgt);
@@ -43,7 +43,7 @@ classdef FrameSetVariable < FrameSet
       frms = frms(~tfOOB);
       
       if labelerObj.hasTrx
-        tfaf = labelerObj.getTrxFilesAllMovIdx(mIdx);
+        tfaf = labelerObj.getTrxFilesAllFullMovIdx(mIdx);
         [~,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
           labelerObj.trxCache,tfaf,nfrm);
         frm2trxTotAndTgt = frm2trxTotAnd(:,iTgt);        
@@ -63,7 +63,7 @@ classdef FrameSetVariable < FrameSet
   end
   
   properties (Constant) % canned/enumerated vals
-    AllFrm = FrameSetVariable(@(lo)'All frame',@lclAllFrmGetFrms);
+    AllFrm = FrameSetVariable(@(lo)'All frames',@lclAllFrmGetFrms);
     SelFrm = FrameSetVariable(@(lo)'Selected frames',@lclSelFrmGetFrms);
     WithinCurrFrm = FrameSetVariable(@lclWithinCurrFrmPrettyStr,@lclWithinCurrFrmGetFrms);
     LabeledFrm = FrameSetVariable(@(lo)'Labeled frames',@lclLabeledFrmGetFrms);

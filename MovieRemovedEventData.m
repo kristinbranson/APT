@@ -16,6 +16,7 @@ classdef MovieRemovedEventData < event.EventData
       assert(nMovOrigReg>0);
       assert(nMovOrigGT>0);
       
+      mIdx = int32(mIdx);
       origIdxs = [1:nMovOrigReg -1:-1:-nMovOrigGT];
       if mIdx>0
         newIdxs = [1:mIdx-1 0 mIdx:nMovOrigReg-1 ...

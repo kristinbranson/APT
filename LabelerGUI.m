@@ -49,6 +49,8 @@ set(handles.txStatus,'String','');
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
 
+handles.pnlSusp.Visible = 'off';
+
 handles.output = hObject;
 
 handles.labelerObj = varargin{1};

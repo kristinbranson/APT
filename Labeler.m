@@ -437,13 +437,13 @@ classdef Labeler < handle
         v = obj.trxFilesAllFull;
       end
     end
-    function v = getTrxFilesAllMovIdx(obj,mIdx)
+    function v = getTrxFilesAllFullMovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
       if gt
-        v = obj.trxFilesAllGT(iMov,:);
+        v = obj.trxFilesAllGTFull(iMov,:);
       else
-        v = obj.trxFilesAll(iMov,:);        
+        v = obj.trxFilesAllFull(iMov,:);        
       end
     end
 %     function v = get.movieIDsAll(obj)
@@ -539,7 +539,7 @@ classdef Labeler < handle
       [iMov,gt] = mIdx.get();
       PROPS = obj.gtGetSharedPropsStc(gt);
       tfaf = obj.(PROPS.TFAF){iMov,1};
-      nfrm = obj.(PROPS.MFA){iMov,1}.nframes;
+      nfrm = obj.(PROPS.MIA){iMov,1}.nframes;
       trxI = obj.getTrx(tfaf,nfrm);
       v = numel(trxI);
     end
@@ -1798,7 +1798,7 @@ classdef Labeler < handle
         mr.close();
         
         if ~isempty(tFileFull)
-          tmptrx = obj.getTrx(tFileFull,info.nframes);
+          tmptrx = obj.getTrx(tFileFull,ifo.nframes);
           nTgt = numel(tmptrx);
         else
           nTgt = 1;
