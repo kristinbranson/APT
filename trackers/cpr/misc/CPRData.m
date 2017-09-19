@@ -835,7 +835,7 @@ classdef CPRData < handle
   %% partitions
   methods (Static)
     
-    %#MV
+    %#%MV
     function [grps,ffd,ffdiTrl] = ffTrnSet(tblP,gvar)
       % Furthest-first training set analysis
       %
@@ -881,7 +881,7 @@ classdef CPRData < handle
       end
     end
     
-    %#MV
+    %#%MV
     function hFig1 = ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,varargin)
       % Display furthestfirst distances for groups in subplots; enable
       % clicking on subplots to visualize training shape

@@ -74,7 +74,7 @@ classdef MovieReader < handle
     end
     
     function varargout = readframe(obj,i)
-      assert(obj.isOpen(),'Movie is not open.');
+      assert(obj.isOpen,'Movie is not open.');
       [varargout{1:nargout}] = obj.readFrameFcn(i);
 
       if obj.flipVert

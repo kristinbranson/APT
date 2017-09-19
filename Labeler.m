@@ -382,7 +382,7 @@ classdef Labeler < handle
         v = ifo.nframes;
       end
     end
-    function v = get.moviesSelected(obj) %#GUIREQ
+    function v = get.moviesSelected(obj) %#%GUIREQ
       % Find MovieManager in LabelerGUI
       handles = obj.gdata;
       if isfield(handles,'movieMgr')
@@ -2042,7 +2042,7 @@ classdef Labeler < handle
     function tfsuccess = movieSet(obj,iMov,varargin)
       % iMov: If multivew, movieSet index (row index into .movieFilesAll)      
       
-      %# MVOK
+      %#%MVOK
       
       assert(any(iMov==1:obj.nmovies),'Invalid movie index ''%d''.',iMov);
       
@@ -2610,7 +2610,7 @@ classdef Labeler < handle
       %
       % tf: [nframes-for-iMov], true if any point labeled in that mov/frame
 
-      %#MVOK
+      %#%MVOK
       
       ifo = obj.movieInfoAll{iMov,1};
       nf = ifo.nframes;
