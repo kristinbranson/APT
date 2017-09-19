@@ -139,14 +139,6 @@ handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
 
-handles.menu_track_crossvalidate = uimenu('Parent',handles.menu_track,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_crossvalidate_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Cross validate',...
-  'Tag','menu_track_crossvalidate',...
-  'Separator','off',...
-  'Checked','off');
-moveMenuItemAfter(handles.menu_track_crossvalidate,handles.menu_track_retrain);
-
 handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Store tracking replicates/iterations',...
@@ -244,6 +236,21 @@ handles.menu_help_about = uimenu(...
   'Tag','menu_help_about');  
 moveMenuItemBefore(handles.menu_help_about,handles.menu_help_labeling_actions);
 
+% Evaluate menu
+handles.menu_evaluate = uimenu('Parent',handles.figure,'Position',5,'Label','Evaluate');
+handles.menu_evaluate_crossvalidate = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_crossvalidate_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Cross validate',...
+  'Tag','menu_evaluate_crossvalidate',...
+  'Separator','off',...
+  'Checked','off');
+handles.menu_evaluate_gtmode = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtmode_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Ground-Truthing Mode',...
+  'Tag','menu_evaluate_gtmode',...
+  'Separator','off',...
+  'Checked','off');
+
 hCMenu = uicontextmenu('parent',handles.figure);
 uimenu('Parent',hCMenu,'Label','Freeze to current main window',...
   'Callback',@(src,evt)cbkFreezePrevAxesToMainWindow(src,evt));
@@ -328,6 +335,7 @@ listeners{end+1,1} = addlistener(lObj,'movieRotateTargetUp','PostSet',@cbkMovieR
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
+listeners{end+1,1} = addlistener(lObj,'gtIsGTMode','PostSet',@cbkGtIsGTModeChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
@@ -674,6 +682,13 @@ if isfield(handles,'movieMgr') && isvalid(handles.movieMgr)
 end
 handles.movieMgr = MovieManagerController(handles.labelerObj);
 handles.movieMgr.setVisible(false);
+
+handles.GTMgr = GTManager(handles.labelerObj);
+handles.GTMgr.Visible = 'off';
+
+MovieManagerController(handles.labelerObj);
+handles.movieMgr.setVisible(false);
+
 
 guidata(handles.figure,handles);
   
@@ -1440,7 +1455,10 @@ if ~lObj.hasMovie
 end
 lObj.gtThrowErrIfInGTMode();
 iMov = lObj.currMovie;
-if lObj.labelposMovieHasLabels(iMov)
+haslbls1 = lObj.labelPosMovieHasLabels(iMov); % TODO: method should be unnec
+haslbls2 = lObj.movieFilesAllHaveLbls(iMov);
+assert(haslbls1==haslbls2);
+if haslbls1
   resp = questdlg('Current movie has labels that will be overwritten. OK?',...
     'Import Labels','OK, Proceed','Cancel','Cancel');
   if isempty(resp)
@@ -2027,7 +2045,7 @@ lObj.tracker.trainingDataMontage();
 function menu_track_retrain_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackRetrain();
 
-function menu_track_crossvalidate_Callback(hObject, eventdata, handles)
+function menu_evaluate_crossvalidate_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
 if lObj.tracker.hasTrained
@@ -2278,6 +2296,24 @@ else
   warningNoTrace('LabelerGUI:bgTrack',...
     'No background tracking information available.','Background tracking');
 end
+
+function menu_evaluate_gtmode_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+gt = lObj.gtIsGTMode;
+gtNew = ~gt;
+lObj.gtSetGTMode(gtNew);
+% hGTMgr = lObj.gdata.GTMgr;
+if gtNew
+  hMovMgr = lObj.gdata.movieMgr;
+  hMovMgr.setVisible(true);
+  figure(hMovMgr.hFig);
+end
+  
+function cbkGtIsGTModeChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+gt = lObj.gtIsGTMode;
+handles.menu_evaluate_gtmode.Checked = onIff(gt);
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);

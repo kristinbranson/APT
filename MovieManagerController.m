@@ -109,6 +109,11 @@ classdef MovieManagerController < handle
           hpbs{2}(end+1,1) = h;
         end
       end
+      % Special case, pbSwitch
+      gdata(2).pbSwitch.String = 'GT Frames';
+      gdata(2).pbSwitch.Tag = 'pbGTFrames';
+      gdata(2).pbGTFrames = gdata(2).pbSwitch;
+      gdata(2).pbSwitch = [];
       tblGT = MovieManagerTable.create(obj.labeler.nview,gdata(2).uipanel1,...
         tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
       
@@ -206,6 +211,10 @@ classdef MovieManagerController < handle
           else
             lObj.movieSet(iMov);
           end
+        case 'pbGTFrames'
+          hGTMgr = lObj.gdata.GTMgr;
+          hGTMgr.Visible = 'on';
+          figure(hGTMgr);
         otherwise
           assert(false);
       end

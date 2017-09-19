@@ -44,7 +44,7 @@ classdef NavigationTreeTable < handle
   
   methods
     function v = get.nData(obj)
-      v = height(obj.treeTblData);
+      v = size(obj.treeTblData,1);
     end
     function v = get.fields(obj)
       tblDat = obj.treeTblData;
@@ -188,6 +188,10 @@ classdef NavigationTreeTable < handle
       % Same as updateDataRow over all rows
       
       nDat = obj.nData;
+      if nDat==0
+        assert(isempty(valCell));
+        return;
+      end
       assert(iscell(valCell) && iscolumn(valCell) && numel(valCell)==nDat);
       iData2iTT1B = obj.iData2iTTExpanded1B;
       ttRowObjs = obj.treeTblRowObjs;

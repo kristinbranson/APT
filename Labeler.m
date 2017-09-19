@@ -305,8 +305,11 @@ classdef Labeler < handle
   %% GT mode
   properties (SetObservable,SetAccess=private)
     gtIsGTMode % scalar logical
-    gtSuggMFTable % [nrow x ncol] MFTable for suggested frames to label 
+    gtSuggMFTable % [nrow x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
     gtSuggMFTableLbled % [nrowx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
+  end
+  properties (Dependent)
+    gtNumSugg % height(gtSuggMFTable)
   end
   
   
@@ -418,11 +421,14 @@ classdef Labeler < handle
       end
     end
     function v = get.movieFilesAllHaveLblsGTaware(obj)
-      if obj.gtIsGTMode
+      v = obj.getMovieFilesAllHaveLblsArg(obj.gtIsGTMode);
+    end
+    function v = getMovieFilesAllHaveLblsArg(obj,gt)
+      if gt
         v = obj.movieFilesAllGTHaveLbls;
       else
         v = obj.movieFilesAllHaveLbls;
-      end
+      end      
     end
     function v = get.trxFilesAllFull(obj)
       v = Labeler.trxFilesLocalize(obj.trxFilesAll,obj.movieFilesAllFull);
@@ -661,6 +667,9 @@ classdef Labeler < handle
     function v = get.gdata(obj)
       v = guidata(obj.hFig);
     end
+    function v = get.gtNumSugg(obj)
+      v = height(obj.gtSuggMFTable);
+    end
   end
   
   methods % prop access
@@ -676,7 +685,8 @@ classdef Labeler < handle
       obj.labeledposGT = v;
       if ~obj.isinit %#ok<MCSUP> 
         obj.updateTrxTable();
-        obj.updateFrameTableIncremental(); 
+        obj.updateFrameTableIncremental();
+        obj.gtUpdateSuggMFTableLbledIncremental();
       end
     end
     function set.movieForceGrayscale(obj,v)
@@ -1262,6 +1272,7 @@ classdef Labeler < handle
       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
+      obj.gtUpdateSuggMFTableLbledComplete();
       
       if obj.currMovie>0
         obj.labelsUpdateNewFrame(true);
@@ -1988,6 +1999,7 @@ classdef Labeler < handle
 %         tfSucc = obj.movieRm(iMov);
 %       end
 %     end
+
     function tfSucc = movieRm(obj,iMov,varargin)
       % tfSucc: true if movie removed, false otherwise
       
@@ -2003,8 +2015,10 @@ classdef Labeler < handle
       end
       
       tfProceedRm = true;
-      if obj.labelposMovieHasLabels(iMov,'gt',gt) && ...
-         ~obj.movieDontAskRmMovieWithLabels
+      haslbls1 = lObj.labelPosMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
+      haslbls2 = lObj.getMovieFilesAllHaveLblsArg(gt);
+      assert(haslbls1==haslbls2);
+      if haslbls1 && ~obj.movieDontAskRmMovieWithLabels
         str = sprintf('Movie index %d has labels. Are you sure you want to remove?',iMov);
         BTN_NO = 'No, cancel';
         BTN_YES = 'Yes';
@@ -2039,8 +2053,8 @@ classdef Labeler < handle
         obj.(PROPS.LPOSTS)(iMov,:) = [];
         obj.(PROPS.LPOSTAG)(iMov,:) = [];
         if ~gt
-        obj.labeledposMarked(iMov,:) = [];
-        obj.labeledpos2(iMov,:) = [];
+          obj.labeledposMarked(iMov,:) = [];
+          obj.labeledpos2(iMov,:) = [];
         end
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           szassert(obj.(PROPS.VCD),[nMovOrig 1]);
@@ -2053,7 +2067,12 @@ classdef Labeler < handle
         else
           movIdx = MovieIndex(iMov);
         end
-        edata = MovieRemovedEventData(movIdx,nMovOrigReg,nMovOrigGT);
+        edata = MovieRemovedEventData(movIdx,nMovOrigReg,nMovOrigGT);        
+        if gt
+          [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
+            obj.gtSuggMFTable,'mov',edata.iMovOrig2New);
+          obj.gtSuggMFTableLbled(tfRm,:) = [];
+        end
         notify(obj,'movieRemoved',edata);
         
         if obj.currMovie>iMov && gt==obj.gtIsGTMode
@@ -2991,6 +3010,9 @@ classdef Labeler < handle
       obj.(PROPS.LPOS){iMov}(iPt,1,frms,iTgt) = xy(1);
       obj.(PROPS.LPOS){iMov}(iPt,2,frms,iTgt) = xy(2);
       obj.updateFrameTableComplete(); % above sets mutate .labeledpos{obj.currMovie} in more than just .currFrame
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete();
+      end
       
       obj.(PROPS.LPOSTS){iMov}(iPt,frms,iTgt) = now();
       if ~obj.gtIsGTMode
@@ -3031,6 +3053,9 @@ classdef Labeler < handle
       obj.labeledposMarked{iMov}(:) = true; % not sure of right treatment
       
       obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete();
+      end
       obj.labeledposNeedsSave = true;
     end
     
@@ -3067,6 +3092,9 @@ classdef Labeler < handle
       obj.labeledpos{iMov}(tfLPosSet) = xy(tfXYSet);
       
       obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete();
+      end
       obj.labeledposNeedsSave = true;  
       
 %       for iTgt = 1:ntgts
@@ -3256,7 +3284,7 @@ classdef Labeler < handle
     function tf = labelposMovieHasLabels(obj,iMov,varargin)
       gt = myparse(varargin,'gt',obj.gtIsGTMode);
       if ~gt
-      lpos = obj.labeledpos{iMov};
+        lpos = obj.labeledpos{iMov};
       else
         lpos = obj.labeledposGT{iMov};
       end
@@ -3616,6 +3644,10 @@ classdef Labeler < handle
         cellfun(@(x)any(~isnan(x(:))),obj.labeledpos(iMovs));
       
       obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete();
+      end
+      
       %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
       %now, since what we are importing is already in the .trk file.
       obj.labelsUpdateNewFrame(true);
@@ -4470,7 +4502,8 @@ classdef Labeler < handle
         else
           IMOV = 1; % FUTURE: remember last/previous iMov in "other" gt mode
           obj.movieSet(IMOV);
-        end          
+        end
+        obj.updateFrameTableComplete();
       end
     end
     function gtThrowErrIfInGTMode(obj)
@@ -4481,7 +4514,60 @@ classdef Labeler < handle
     function PROPS = gtGetSharedProps(obj)
       PROPS = Labeler.gtGetSharedPropsStc(obj.gtIsGTMode);
     end
-  end
+    function gtSuggInitSuggestions(obj,gtSuggType,nSamp)
+      tblMFT = obj.gtGenerateSuggestions(gtSuggType,nSamp);
+      obj.gtSuggMFTable = tblMFT;
+      obj.gtUpdateSuggMFTableLbledComplete();
+    end
+    function gtUpdateSuggMFTableLbledComplete(obj)
+      % update .gtUpdateSuggMFTableLbled from .gtSuggMFTable/.labeledposGT
+      
+      tbl = obj.gtSuggMFTable;
+      if isempty(tbl)
+        obj.gtSuggMFTableLbled = false(0,1);
+        return;
+      end
+      
+      lposCell = obj.labeledposGT;
+      fcn = @(zm,zf,zt) (nnz(isnan(lposCell{-zm}(:,:,zf,zt)))==0);
+      % a mft row is labeled if all pts are either labeled, or estocc, or
+      % fullocc (lpos will be inf which is not nan)
+      tfAllTgtsLbled = rowfun(fcn,tbl,...
+        'InputVariables',{'mov' 'frm' 'iTgt'},...
+        'OutputFormat','uni');
+      szassert(tfAllTgtsLbled,[height(tbl) 1]);
+      obj.gtSuggMFTableLbled = tfAllTgtsLbled;
+    end
+    function gtUpdateSuggMFTableLbledIncremental(obj)
+      % Assume that .labeledposGT and .gtSuggMFTableLbled differ at most in
+      % currMov/currTarget/currFrame
+      
+      assert(obj.gtIsGTMode);
+      % If not gtMode, currMovie/Frame/Target do not apply to GT
+      % movies/labels. Maybe call gtUpdateSuggMFTableLbledComplete() in
+      % this case.
+      
+      iMov = obj.currMovie;
+      frm = obj.currFrame;
+      iTgt = obj.currTarget;
+      tblGT = obj.gtSuggMFTable;
+      
+      tfInTbl = tblGT.mov==(-iMov) & tblGT.frm==frm & tblGT.iTgt==iTgt;
+      nRow = nnz(tfInTbl);
+      if nRow>0
+        assert(nRow==1);
+        lposXY = obj.labeledposGT{iMov}(:,:,frm,iTgt);
+        obj.gtSuggMFTableLbled(tfInTbl) = nnz(isnan(lposXY))==0;
+      end
+    end
+    function tblMFT = gtGenerateSuggestions(obj,gtSuggType,nSamp)
+      assert(isa(gtSuggType,'GTSuggestionType'));
+      
+      % Start with full table (every frame), then sample
+      mfts = MFTSetEnum.AllMovAllTgtAllFrm;
+      tblMFT = mfts.getMFTable(obj);
+      tblMFT = gtSuggType.sampleMFTTable(tblMFT,nSamp);    end
+    end
   methods (Static)
     function PROPS = gtGetSharedPropsStc(gt)
       PROPS = Labeler.PROPS_GTSHARED;
@@ -5339,7 +5425,7 @@ classdef Labeler < handle
         obj.updateCurrSusp();
         obj.updateShowTrx();
       end
-    end    
+    end   
     
     function tfSetOccurred = frameUpDF(obj,df)
       f = min(obj.currFrame+df,obj.nframes);
@@ -5489,7 +5575,6 @@ classdef Labeler < handle
       cfrm = obj.currFrame;
       tfRow = (tblFrms==cfrm);
       
-      % XXX SHADOW
       [nTgtsCurFrm,nPtsCurFrm] = obj.labelPosLabeledFramesStats(cfrm);
       if nTgtsCurFrm>0
         if any(tfRow)
