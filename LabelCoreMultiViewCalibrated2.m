@@ -277,7 +277,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
-      %#CALOK
+      %#%CALOK
       [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
       if tflabeled
         obj.assignLabelCoords(lpos,'lblTags',lpostag);
@@ -296,7 +296,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function clearLabels(obj)
-      %#CALOK
+      %#%CALOK
       obj.enterAdjust(true,true);
       obj.projectionWorkingSetClear();
       obj.projectionClear();
@@ -379,7 +379,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function ptBDF(obj,src,evt)
-      %#CALOK
+      %#%CALOK
       iPt = src.UserData;
       switch evt.Button
         case 1
@@ -391,7 +391,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function wbmf(obj,src,evt) %#ok<INUSD>
-      %#CALOK
+      %#%CALOK
       
       iPt = obj.iPtMove;
       if ~isnan(iPt)
@@ -412,7 +412,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function wbuf(obj,src,evt) %#ok<INUSD>
-      %#CALOK
+      %#%CALOK
       
       iPt = obj.iPtMove;
       if ~isnan(iPt)
@@ -428,7 +428,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function tfKPused = kpf(obj,src,evt) 
-      %#CALOK
+      %#%CALOK
       key = evt.Key;
       modifier = evt.Modifier;      
       tfCtrl = any(strcmp('control',modifier));
@@ -606,7 +606,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   methods % template
         
     function setRandomTemplate(obj)
-      %# CALOK
+      %#%CALOK
       
       lbler = obj.labeler;
       mrs = lbler.movieReader;
@@ -809,7 +809,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function projectionSet2nd(obj,iPt2)
-      %# CALOK
+      %#%CALOK
     
       assert(~isnan(obj.pjtIPts(1)));
       assert(isnan(obj.pjtIPts(2)));
@@ -915,7 +915,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % if tfReset, reset all points to pre-adjustment (white).
       % if tfClearLabeledPos, clear labeled pos.
 
-      %#CALOK
+      %#%CALOKedit LabelCoreMul
       
       if tfResetPts
         if obj.streamlined
@@ -944,7 +944,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % Enter accepted state for current frame/tgt. All points colored. If
       % tfSetLabelPos, all points/tags written to labelpos/labelpostag.
       
-      %#CALOK
+      %#%CALOK
             
       nPts = obj.nPts;
       ptsH = obj.hPts;

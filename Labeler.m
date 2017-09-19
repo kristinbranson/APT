@@ -2356,7 +2356,7 @@ classdef Labeler < handle
     function tfsuccess = movieSet(obj,iMov,varargin)
       % iMov: If multivew, movieSet index (row index into .movieFilesAll)      
       
-      %# MVOK
+      %#%MVOK
       
       assert(any(iMov==1:obj.nmoviesGTaware),...
                     'Invalid movie index ''%d''.',iMov);
@@ -2921,20 +2921,20 @@ classdef Labeler < handle
       end
     end 
     
-%     function tf = labelPosIsLabeledMov(obj,iMov)
-%       % iMov: movie index (row index into .movieFilesAll)
-%       %
-%       % tf: [nframes-for-iMov], true if any point labeled in that mov/frame
-% 
-%       %#MVOK
-%       
-%       ifo = obj.movieInfoAll{iMov,1};
-%       nf = ifo.nframes;
-%       lpos = obj.labeledpos{iMov};
-%       lposnnan = ~isnan(lpos);
-%       
-%       tf = arrayfun(@(x)nnz(lposnnan(:,:,x,:))>0,(1:nf)');
-%     end
+    function tf = labelPosIsLabeledMov(obj,iMov)
+      % iMov: movie index (row index into .movieFilesAll)
+      %
+      % tf: [nframes-for-iMov], true if any point labeled in that mov/frame
+
+      %#%MVOK
+      
+      ifo = obj.movieInfoAll{iMov,1};
+      nf = ifo.nframes;
+      lpos = obj.labeledpos{iMov};
+      lposnnan = ~isnan(lpos);
+      
+      tf = arrayfun(@(x)nnz(lposnnan(:,:,x,:))>0,(1:nf)');
+    end
     
     function tf = labelPosIsOccluded(obj,iFrm,iTrx)
       % Here Occluded refers to "pure occluded"

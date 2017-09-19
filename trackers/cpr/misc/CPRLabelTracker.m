@@ -267,8 +267,8 @@ classdef CPRLabelTracker < LabelTracker
     % - The RegressorCascade in .trnResRC has its own timestamps for
     % training time and so on.
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function tblP = getTblPLbled(obj)
       % From .lObj, read tblP for all movies/labeledframes. Currently,
       % exclude partially-labeled frames.
@@ -290,8 +290,8 @@ classdef CPRLabelTracker < LabelTracker
       tblP = tblP(~tfnan,:);
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function tblP = getTblPLbledRecent(obj)
       % tblP: labeled data from Labeler that is more recent than anything 
       % in .trnDataTblPTS
@@ -302,9 +302,9 @@ classdef CPRLabelTracker < LabelTracker
       tf = maxTS > maxTDTS;
       tblP = tblP(tf,:);
     end
-    
-    %#MTGT
-    %#MV
+        
+    %#%MTGT
+    %#%MV
     function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP)
       % Compare tblP to current .data MD wrt MFTable.FLDSCORE
 
@@ -314,14 +314,14 @@ classdef CPRLabelTracker < LabelTracker
       [tblPnew,tblPupdate] = MFTable.tblPDiff(tbl0,tblP);
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function [tblPnew,tblPupdate,idxTrnDataTblP] = tblPDiffTrnData(obj,tblP)
       [tblPnew,tblPupdate,idxTrnDataTblP] = MFTable.tblPDiff(obj.trnDataTblP,tblP);
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function initData(obj)
       % Initialize .data*
       
@@ -331,7 +331,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.dataTS = now;
     end
     
-    %#MTGT
+    %#%MTGT
     function updateData(obj,tblP,varargin)
       % Update .data to include tblP
       %
@@ -353,7 +353,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.updateDataRaw(tblPnew,tblPupdate,'wbObj',wbObj);      
     end
     
-    %#MTGT
+    %#%MTGT
     function updateDataRaw(obj,tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
@@ -521,8 +521,8 @@ classdef CPRLabelTracker < LabelTracker
   %% Training Data Selection
   methods
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function trnDataInit(obj)
       obj.trnDataDownSamp = false;
       obj.trnDataFFDThresh = nan;
@@ -530,7 +530,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnDataTblPTS = -inf(0,1);
     end
     
-    %#MTGT
+    %#%MTGT
     function trnDataUseAll(obj)
       if obj.trnDataDownSamp
         if obj.hasTrained
@@ -544,8 +544,8 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
-    %#MTGT PROB OK not 100% sure
-    %#MV
+    %#%MTGT PROB OK not 100% sure
+    %#%MV
     function trnDataSelect(obj)
       % Furthest-first selection of training data.
       %
@@ -612,7 +612,7 @@ classdef CPRLabelTracker < LabelTracker
   
   %% TrainRes
   methods
-    %#MTGT
+    %#%MTGT
     function trnResInit(obj)
       if isempty(obj.sPrm)
         obj.trnResRC = [];
@@ -682,8 +682,8 @@ classdef CPRLabelTracker < LabelTracker
       pTrkiPt = obj.trkPiPt;
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function [trkpos,trkposTS,trkposFull,trkposFullMFT,tfHasRes] = ...
         getTrackResRaw(obj,mIdx)
       % Get tracking results for movie(set) iMov.
@@ -793,7 +793,7 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
-    %#MTGT
+    %#%MTGT
     function updateTrackRes(obj,tblMFtrk,pTstTRed,pTstT)
       % Augment .trkP* state with new tracking results
       %
@@ -887,8 +887,8 @@ classdef CPRLabelTracker < LabelTracker
   %% LabelTracker overloads
   methods
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function initHook(obj)
       % "config init"
       obj.storeFullTracking = obj.lObj.projPrefs.CPRLabelTracker.StoreFullTracking;      
@@ -901,15 +901,15 @@ classdef CPRLabelTracker < LabelTracker
       obj.asyncReset();
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function setParamHook(obj)
       sNew = obj.readParamFileYaml();
       sNew = CPRLabelTracker.modernizeParams(sNew);
       obj.setParamContentsSmart(sNew);
     end
     
-    %#MTGT
+    %#%MTGT
     function setParams(obj,sPrm)
       sPrm = CPRLabelTracker.modernizeParams(sPrm);
       obj.setParamContentsSmart(sPrm);
@@ -920,7 +920,7 @@ classdef CPRLabelTracker < LabelTracker
       sPrm = obj.sPrm;
     end
     
-    %#MV
+    %#%MV
     function setParamContentsSmart(obj,sNew)
       % Set parameter contents (.sPrm), looking at what top-level fields 
       % have changed and clearing obj state appropriately.
@@ -991,7 +991,7 @@ classdef CPRLabelTracker < LabelTracker
       end      
     end
      
-    %#MTGT
+    %#%MTGT
     function trainingDataMontage(obj)
       if obj.lObj.isMultiView
         error('CPRLabelTracker:multiview',...
@@ -1024,7 +1024,7 @@ classdef CPRLabelTracker < LabelTracker
       Shape.montage(d.I(iTrn,:),d.pGT(iTrn,:),'nr',nrMtg,'nc',ncMtg)  
     end
     
-    %#MTGT
+    %#%MTGT
     function retrain(obj,varargin)
       % Full train 
       % 
@@ -1166,7 +1166,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResIPt = iPt;
     end
     
-    %#MTGT
+    %#%MTGT
     function train(obj,varargin)
       % Incremental trainupdate using labels newer than .trnDataTblPTS
 
@@ -1252,8 +1252,8 @@ classdef CPRLabelTracker < LabelTracker
       assert(isequal(obj.trnResIPt,iPt));
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function trainPrintDiagnostics(obj,iTL)
       % iTL: Index into .trnLog at which to start
       
@@ -1423,8 +1423,8 @@ classdef CPRLabelTracker < LabelTracker
       obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function track(obj,tblMFT,varargin)
       % tblMFT: MFtable. Req'd flds: MFTable.ID.
       
@@ -1795,7 +1795,7 @@ classdef CPRLabelTracker < LabelTracker
       % Don't asyncReset() here
     end
     
-    %#MTGT
+    %#%MTGT
     function newLabelerFrame(obj)
       % Update .hXYPrdRed based on current Labeler frame and .xyPrdCurrMovie
 
@@ -2114,7 +2114,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.newLabelerFrame();
     end
     
-    %#MTGT
+    %#%MTGT
     function [xy,isinterp,xyfull] = getPredictionCurrentFrame(obj)
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
       % isinterp: scalar logical, only relevant if nTgt==1
@@ -2418,7 +2418,7 @@ classdef CPRLabelTracker < LabelTracker
   %% Viz
   methods
     
-    %#MTGT
+    %#%MTGT
     function vizInit(obj)
       obj.xyPrdCurrMovie = [];
       obj.xyPrdCurrMovieFull = [];
@@ -2472,7 +2472,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.setHideViz(obj.hideViz);
     end
     
-    %#MTGT
+    %#%MTGT
     function vizClearReplicates(obj)
       hXY = obj.hXYPrdFull;
       if ~isempty(hXY) % can be empty during initHook
@@ -2482,7 +2482,7 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
-    %#MTGT
+    %#%MTGT
     function vizLoadXYPrdCurrMovieTarget(obj)
       % sets .xyPrdCurrMovie* for current Labeler movie and target from 
       % .trkP, .trkPMD
