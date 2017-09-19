@@ -505,7 +505,7 @@ classdef Labeler < handle
       end
       v = movInfo.nframes;
     end
-    function v = get.moviesSelected(obj) %#GUIREQ
+    function v = get.moviesSelected(obj) %#%GUIREQ
       % Find MovieManager in LabelerGUI
       handles = obj.gdata;
       if isfield(handles,'movieMgr')
@@ -3799,7 +3799,7 @@ classdef Labeler < handle
       delete(hWB);
     end   
     
-    %#GTOK
+    %#%GTOK
     function tblMF = labelGetMFTableLabeled(obj)
       % Compile mov/frm/tgt MFTable; include all labeled frames/tgts. 
       %
@@ -3824,7 +3824,7 @@ classdef Labeler < handle
       tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
     end
     
-    %#GTOK
+    %#%GTOK
     function tblMF = labelGetMFTableCurrMovFrmTgt(obj)
       % Get MFTable for current movie/frame/target (single-row table)
       %
@@ -3862,7 +3862,7 @@ classdef Labeler < handle
       tblMF = table(mov,frm,iTgt,p,pTS,tfocc,pTrx);
     end
     
-    %#GTOK
+    %#%GTOK
     function tblMF = labelMFTableAddROI(obj,tblMF,roiRadius)
       % Add .pRoi and .roi to tblMF
       %

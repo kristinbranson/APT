@@ -759,7 +759,7 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
-    %#MTGT
+    %#%MTGT
     function trkposFull = getTrackResFullCurrTgt(obj,mIdx,frm)
       % Get full tracking results for movie iMov, frame frm, curr tgt.
       %
@@ -1605,7 +1605,7 @@ classdef CPRLabelTracker < LabelTracker
     end
       
     %MTGT
-    %#MV
+    %#%MV
     function [trkfiles,tfHasRes] = getTrackingResults(obj,mIdx)
       % Get tracking results for movie(set) iMov.
       %
