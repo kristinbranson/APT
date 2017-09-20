@@ -314,6 +314,13 @@ classdef FSPath
       parts = parts(end:-1:1);
     end
     
+    function fname2 = twoLevelFilename(fname)
+      % eg folder/file.txt
+      [path0,base] = myfileparts(fname);
+      [~,parent] = fileparts(path0);
+      fname2 = fullfile(parent,base);
+    end
+    
     function pbase = maxExistingBasePath(p)
       % Find maximum existing basepath of p
       %

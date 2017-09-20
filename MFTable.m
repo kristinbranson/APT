@@ -29,6 +29,11 @@ classdef MFTable
       tblNew(tfRm,:) = [];
     end
     
+    function tbl = emptyFLDSID()
+      x = zeros(0,1);
+      tbl = table(MovieIndex(x),x,x,'VariableNames',MFTable.FLDSID);
+    end
+    
   end
   
   properties (Constant)

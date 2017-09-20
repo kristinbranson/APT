@@ -53,15 +53,16 @@ cbkNavDataRow = @(iData)cbkTreeTableDataRowNaved(hObject,iData);
 % an index into lObj.movieFilesAllGT.
 ntt = NavigationTreeTable(tblOrig.Parent,[],cbkNavDataRow);
 handles.navTreeTbl = ntt;
+handles.navTreeTblMovIdxs = nan(0,1);
 
 handles.listener = cell(0,1);
 % Following listeners for table maintenance
 handles.listener{end+1,1} = addlistener(lObj,...
   'gtIsGTMode','PostSet',@(s,e)cbkGTisGTModeChanged(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
-  'gtSuggMFTable','PostSet',@(s,e)cbkGTTableChanged(hObject,s,e));
+  'gtSuggUpdated',@(s,e)cbkGTSuggUpdated(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
-  'gtSuggMFTableLbled','PostSet',@(s,e)cbkGTSuggMFTableLbledChanged(hObject,s,e));
+  'gtSuggMFTableLbledUpdated',@(s,e)cbkGTSuggMFTableLbledUpdated(hObject,s,e));
 % Following listeners for table row selection
 handles.listener{end+1,1} = addlistener(lObj,...
   'newMovie',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
@@ -93,19 +94,25 @@ end
 function cbkGTisGTModeChanged(hObject,src,evt)
 % none atm
 
-function cbkGTTableChanged(hObject,src,evt)
+function cbkGTSuggUpdated(hObject,src,evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
-if lObj.isinit
-  return;
-end
+% if lObj.isinit
+%   return;
+% end
 ntt = handles.navTreeTbl;
 tbl = lObj.gtSuggMFTable;
+tblMovIdxs = tbl.mov;
+movstrs = lObj.getMovieFilesAllFullMovIdx(tblMovIdxs);
+movstrs = cellfun(@FSPath.twoLevelFilename,movstrs,'uni',0);
+tbl.mov = movstrs;
 hasLbl = lObj.gtSuggMFTableLbled;
 tbl = [tbl table(hasLbl)];
 ntt.setData(tbl);
+handles.navTreeTblMovIdxs = tblMovIdxs;
+guidata(hObject,handles);
 
-function cbkGTSuggMFTableLbledChanged(hObject,src,evt)
+function cbkGTSuggMFTableLbledUpdated(hObject,src,evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
 ntt = handles.navTreeTbl;
@@ -118,16 +125,21 @@ lObj = handles.labeler;
 if ~lObj.gtIsGTMode
   return;
 end
-mov = lObj.currMovie;
+mIdx = lObj.currMovIdx;
 frm = lObj.currFrame;
 iTgt = lObj.currTarget;
-mftRow = table(mov,frm,iTgt);
 ntt = handles.navTreeTbl;
-if ntt.nData>0
-  [tf,iData] = ismember(mftRow,ntt.treeTblData(:,MFTable.FLDSID));
-  if tf
+nttData = ntt.treeTblData;
+nData = ntt.nData;
+nttMovIdxs = handles.navTreeTblMovIdxs;
+assert(nData==numel(nttMovIdxs));
+if nData>0
+  tf = mIdx==nttMovIdxs & frm==nttData.frm & iTgt==nttData.iTgt;
+  iData = find(tf);
+  if ~isempty(iData)
+    assert(isscalar(iData));
     ntt.setSelectedDataRow(iData);
-  end  
+  end
 end
 
 function cbkTreeTableDataRowNaved(hObject,iData)
@@ -140,6 +152,7 @@ if ~lObj.gtIsGTMode
 end
 ntt = handles.navTreeTbl;
 mftRow = ntt.treeTblData(iData,:);
+mftRow.mov = handles.navTreeTblMovIdxs(iData);
 lclNavToMFT(lObj,mftRow);
 
 function lclNavToMFT(lObj,mftRow)
@@ -183,6 +196,7 @@ if numel(iData)>1
   iData = iData(1);
 end
 mftRow = ntt.treeTblData(iData,:);
+mftRow.mov = handles.navTreeTblMovIdxs(iData);
 lObj = handles.labeler;
 lclNavToMFT(lObj,mftRow);
 

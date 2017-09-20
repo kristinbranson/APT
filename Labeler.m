@@ -305,11 +305,22 @@ classdef Labeler < handle
   %% GT mode
   properties (SetObservable,SetAccess=private)
     gtIsGTMode % scalar logical
+  end
+  properties (SetAccess=private)
     gtSuggMFTable % [nrow x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
     gtSuggMFTableLbled % [nrowx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
   end
   properties (Dependent)
     gtNumSugg % height(gtSuggMFTable)
+  end
+  events
+    % Instead of making gtSuggMFTable* SetObservable, we use these events.
+    % The two variables are coupled (number of rows must be equal,
+    % so updating them is a nonatomic (2-step) process. Listeners directly
+    % listening to property sets will sometimes see inconsistent state.
+    
+    gtSuggUpdated % general update occurred of gtSuggMFTable*
+    gtSuggMFTableLbledUpdated % incremental update of gtSuggMFTableLbled occurred
   end
   
   
@@ -418,6 +429,24 @@ classdef Labeler < handle
         v = obj.movieFilesAllGTFull;
       else        
         v = obj.movieFilesAllFull;
+      end
+    end
+    function v = getMovieFilesAllFullMovIdx(obj,mIdx)
+      % mIdx: MovieIndex vector
+      % v: [numel(mIdx)xnview] movieFilesAllFull/GT 
+      
+      assert(isa(mIdx,'MovieIndex'));
+      [iMov,gt] = mIdx.get();
+      n = numel(iMov);
+      v = cell(n,obj.nview);
+      mfaf = obj.movieFilesAllFull;
+      mfafGT = obj.movieFilesAllGTFull;
+      for i=1:n
+        if gt(i)
+          v(i,:) = mfafGT(iMov(i),:);
+        else
+          v(i,:) = mfaf(iMov(i),:);
+        end
       end
     end
     function v = get.movieFilesAllHaveLblsGTaware(obj)
@@ -658,11 +687,7 @@ classdef Labeler < handle
       v = size(obj.labeledposIPtSetMap,1);
     end
     function v = get.currMovIdx(obj)
-      if obj.gtIsGTMode
-        v = MovieIndex(-obj.currMovie);
-      else
-        v = MovieIndex(obj.currMovie);
-      end
+      v = MovieIndex(obj.currMovie,obj.gtIsGTMode);
     end
     function v = get.gdata(obj)
       v = guidata(obj.hFig);
@@ -915,6 +940,8 @@ classdef Labeler < handle
       obj.setPrevAxesMode(PrevAxesMode.LASTSEEN,[]);
       
       obj.trxCache = containers.Map();
+      
+      obj.gtSuggMFTable = MFTable.emptyFLDSID();
 
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
@@ -1288,6 +1315,7 @@ classdef Labeler < handle
       end
       
       obj.notify('projLoaded');
+      obj.notify('gtSuggUpdated');
     end
     
     function projImport(obj,fname)
@@ -1711,7 +1739,7 @@ classdef Labeler < handle
           s.viewCalibrationDataGT = cell(0,1);
         end
         s.gtIsGTMode = false;
-        s.gtSuggMFTable = [];
+        s.gtSuggMFTable = MFTable.emptyFLDSID();
       end
     end  
         
@@ -2072,6 +2100,7 @@ classdef Labeler < handle
           [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
             obj.gtSuggMFTable,'mov',edata.iMovOrig2New);
           obj.gtSuggMFTableLbled(tfRm,:) = [];
+          obj.notify('gtSuggUpdated');
         end
         notify(obj,'movieRemoved',edata);
         
@@ -2376,9 +2405,7 @@ classdef Labeler < handle
         obj.movieReader(iView).open(mov);
         RC.saveprop('lbl_lastmovie',mov);
         if iView==1
-          [path0,movname] = myfileparts(obj.moviefile);
-          [~,parent] = fileparts(path0);
-          obj.moviename = fullfile(parent,movname);
+          obj.moviename = FSPath.twoLevelFilename(obj.moviefile);
         end
       end
       
@@ -3011,12 +3038,12 @@ classdef Labeler < handle
       obj.(PROPS.LPOS){iMov}(iPt,2,frms,iTgt) = xy(2);
       obj.updateFrameTableComplete(); % above sets mutate .labeledpos{obj.currMovie} in more than just .currFrame
       if obj.gtIsGTMode
-        obj.gtUpdateSuggMFTableLbledComplete();
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       end
       
       obj.(PROPS.LPOSTS){iMov}(iPt,frms,iTgt) = now();
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(iPt,frms,iTgt) = true;
+        obj.labeledposMarked{iMov}(iPt,frms,iTgt) = true;
       end
 
       obj.labeledposNeedsSave = true;
@@ -3054,7 +3081,7 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
-        obj.gtUpdateSuggMFTableLbledComplete();
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       end
       obj.labeledposNeedsSave = true;
     end
@@ -3093,7 +3120,7 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
-        obj.gtUpdateSuggMFTableLbledComplete();
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       end
       obj.labeledposNeedsSave = true;  
       
@@ -3645,7 +3672,7 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
-        obj.gtUpdateSuggMFTableLbledComplete();
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       end
       
       %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
@@ -4518,13 +4545,20 @@ classdef Labeler < handle
       tblMFT = obj.gtGenerateSuggestions(gtSuggType,nSamp);
       obj.gtSuggMFTable = tblMFT;
       obj.gtUpdateSuggMFTableLbledComplete();
+      obj.notify('gtSuggUpdated');
     end
-    function gtUpdateSuggMFTableLbledComplete(obj)
+    function gtUpdateSuggMFTableLbledComplete(obj,varargin)
       % update .gtUpdateSuggMFTableLbled from .gtSuggMFTable/.labeledposGT
+      
+      donotify = myparse(varargin,...
+        'donotify',false); 
       
       tbl = obj.gtSuggMFTable;
       if isempty(tbl)
         obj.gtSuggMFTableLbled = false(0,1);
+        if donotify
+          obj.notify('gtSuggMFTableLbledUpdated');
+        end
         return;
       end
       
@@ -4537,6 +4571,9 @@ classdef Labeler < handle
         'OutputFormat','uni');
       szassert(tfAllTgtsLbled,[height(tbl) 1]);
       obj.gtSuggMFTableLbled = tfAllTgtsLbled;
+      if donotify
+        obj.notify('gtSuggMFTableLbledUpdated');
+      end
     end
     function gtUpdateSuggMFTableLbledIncremental(obj)
       % Assume that .labeledposGT and .gtSuggMFTableLbled differ at most in
@@ -4558,6 +4595,7 @@ classdef Labeler < handle
         assert(nRow==1);
         lposXY = obj.labeledposGT{iMov}(:,:,frm,iTgt);
         obj.gtSuggMFTableLbled(tfInTbl) = nnz(isnan(lposXY))==0;
+        obj.notify('gtSuggMFTableLbledUpdated');
       end
     end
     function tblMFT = gtGenerateSuggestions(obj,gtSuggType,nSamp)
@@ -4566,8 +4604,9 @@ classdef Labeler < handle
       % Start with full table (every frame), then sample
       mfts = MFTSetEnum.AllMovAllTgtAllFrm;
       tblMFT = mfts.getMFTable(obj);
-      tblMFT = gtSuggType.sampleMFTTable(tblMFT,nSamp);    end
+      tblMFT = gtSuggType.sampleMFTTable(tblMFT,nSamp);
     end
+  end
   methods (Static)
     function PROPS = gtGetSharedPropsStc(gt)
       PROPS = Labeler.PROPS_GTSHARED;

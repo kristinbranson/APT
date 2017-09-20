@@ -4,8 +4,9 @@ classdef NavigationTreeTable < handle
   % Like NavigationTable but using treeTable
   
   % The "data" table .treeTblData is the underlying data model. Currently
-  % the first col is always taken to be the grouping variable. The data 
-  % table is indexed by a row index iData.
+  % the first col is always taken to be the grouping variable. For the 
+  % moment this first col must be of char type. The data table is indexed 
+  % by a row index iData.
   %
   % "Groups" and "sets" are synonymous.
   %
@@ -35,8 +36,6 @@ classdef NavigationTreeTable < handle
   end
   
   properties (Constant)
-%     HEADERS = {'' 'Movie' 'Target' 'Frame' 'Has Labels'};
-%     COLTYPES = {'char' 'char' 'int' 'int' 'logical'};
     ICONFILENAMES = {'' ...
       fullfile(matlabroot,'/toolbox/matlab/icons/file_open.png') ...
       fullfile(matlabroot,'/toolbox/matlab/icons/foldericon.gif')};
@@ -63,7 +62,7 @@ classdef NavigationTreeTable < handle
       end
     end      
     function v = get.groupTreeTblRowREPat(obj)
-      v = sprintf('%s: (?<set>[a-zA-Z0-9]+)',obj.groupFieldName);
+      v = sprintf('%s: (?<set>.+)$',obj.groupFieldName);
     end
   end
   
@@ -117,12 +116,11 @@ classdef NavigationTreeTable < handle
       dat = [dat(:,1) repmat({''},ndatarow,1) dat(:,2:end)]; 
       hdrs = tbl.Properties.VariableNames;
       hdrs = hdrs([1 1:end]);
-      types = arrayfun(@(x)NavigationTreeTable.col2type(dat(:,x)),...
-        1:tblwidth+1,'uni',0);
-      editable = num2cell(false(1,tblwidth));
+%       types = arrayfun(@(x)NavigationTreeTable.col2type(dat(:,x)),...
+%         1:tblwidth+1,'uni',0);
+      editable = num2cell(false(1,tblwidth+1));
       
-      tt = treeTable(obj.hParent,hdrs,dat,...
-        'ColumnTypes',types,...
+      tt = treeTable(obj.hParent,hdrs,dat,...%        'ColumnTypes',types,...
         'ColumnEditable',editable,...
         'Groupable',true,...
         'IconFilenames',NavigationTreeTable.ICONFILENAMES,...
@@ -375,8 +373,13 @@ classdef NavigationTreeTable < handle
       % sorted/bunched by the grouping variable, ie all group1's come
       % first, then all group2's, etc.
       
-      g = findgroups(dataTbl(:,1));
-      if all(diff(g)>=0)
+      g = dataTbl{:,1};
+      if ~iscellstr(g)
+        error('NavigationTreeTable:dataTable',...
+          'Grouping variable must be cellstr.');
+      end
+      [~,~,idx] = unique(g,'stable');
+      if all(diff(idx)>=0)
         % g monotonically increasing;
       else        
         error('NavigationTreeTable:dataTable',...

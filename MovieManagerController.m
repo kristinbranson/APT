@@ -357,7 +357,7 @@ classdef MovieManagerController < handle
     
     function addLabelerMovie(obj)
       lObj = obj.labeler;
-      nmovieOrig = lObj.nmovies;
+      nmovieOrig = lObj.nmoviesGTaware;
       if lObj.nview==1
         [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
         if ~tfsucc
@@ -381,7 +381,7 @@ classdef MovieManagerController < handle
         end
         lObj.movieSetAdd(movfiles);
       end
-      if nmovieOrig==0 && lObj.nmovies>0
+      if nmovieOrig==0 && lObj.nmoviesGTaware>0
         lObj.movieSet(1,'isFirstMovie',true);
       end
     end

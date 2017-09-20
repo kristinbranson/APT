@@ -22,17 +22,20 @@ classdef MovieIndexSetVariable < MovieIndexSet
   end
   
   properties (Constant) % canned/enumerated vals
-    AllMov = MovieIndexSetVariable('All movies',@(lo)MovieIndex(1:lo.nmovies)); % "All regular movies"
+    AllMov = MovieIndexSetVariable('All movies',@lclAllMoviesGetMovieIndexHook); % "All regular movies"
     CurrMov = MovieIndexSetVariable('Current movie',@lclCurrMovieGetMovieIndexHook);
     SelMov = MovieIndexSetVariable('Selected movies',@lclSelMovieGetMovieIndexHook);
   end  
 end
 
+function mIdx = lclAllMoviesGetMovieIndexHook(lObj)
+nmov = lObj.nmoviesGTaware;
+mIdx = MovieIndex(1:nmov,lObj.gtIsGTMode);
+end
 function mIdx = lclCurrMovieGetMovieIndexHook(lObj)
 assert(~lObj.gtIsGTMode);
 mIdx = MovieIndex(lObj.currMovie);
 end
-
 function mIdx = lclSelMovieGetMovieIndexHook(lObj)
 assert(~lObj.gtIsGTMode);
 mIdx = MovieIndex(lObj.moviesSelected);
