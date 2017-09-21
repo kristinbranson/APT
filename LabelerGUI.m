@@ -51,6 +51,9 @@ set(handles.txLblCoreAux,'Visible','off');
 
 handles.pnlSusp.Visible = 'off';
 
+PURP = [80 31 124]/256;
+handles.tbTLSelectMode.BackgroundColor = PURP;
+
 handles.output = hObject;
 
 handles.labelerObj = varargin{1};
@@ -291,14 +294,10 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
-if ispc || ismac
-  % none
-else
-  handles.figure.ResizeFcn = @cbkResize;
-  % Iss #116. Appears nec to get proper resize behavior
-  handles.pumTrack.Max = 2;
-  cbkResize(handles.figure,[]);
-end
+aptResize = APTResize(handles);
+handles.figure.ResizeFcn = @(src,evt)aptResize.resize(src,evt);
+aptResize.resize(handles.figure,[]);
+
 handles.pumTrack.Callback = ...
   @(hObj,edata)LabelerGUI('pumTrack_Callback',hObj,edata,guidata(hObj));
 
@@ -337,6 +336,7 @@ listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertCha
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'gtIsGTMode','PostSet',@cbkGtIsGTModeChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
+%listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
@@ -627,6 +627,12 @@ handles.axes_all = axs;
 handles.images_all = ims;
 handles.axes_occ = axsOcc;
 
+if isfield(handles,'allAxHiliteMgr') && ~isempty(handles.allAxHiliteMgr)
+  % Explicit deletion not supposed to be nec
+  delete(handles.allAxHiliteMgr);
+end
+handles.allAxHiliteMgr = AxesHighlightManager(axs);
+
 axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
 
 % The link destruction/recreation may not be necessary
@@ -689,21 +695,8 @@ handles.GTMgr.Visible = 'off';
 MovieManagerController(handles.labelerObj);
 handles.movieMgr.setVisible(false);
 
-
 guidata(handles.figure,handles);
   
-function cbkResize(src,evt)
-handles = guidata(src);
-
-% Resize pumTrack width otherwise text clipped on Linux
-pum = handles.pumTrack;
-pb = handles.pbTrack;
-pbPos = pb.Position;
-rightEdge = pbPos(1)+pbPos(3);
-width = 1.1*pum.Extent(3);
-pum.Position(1) = rightEdge-width;
-pum.Position(3) = width;
-
 function cbkNewMovie(src,evt)
 lObj = src;
 handles = lObj.gdata;
@@ -784,6 +777,12 @@ cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
 
 guidata(handles.figure,handles);
 
+% See note in AxesHighlightManager: Trx vs noTrx, Axes vs Panels
+handles.allAxHiliteMgr.setHilitePnl(lObj.hasTrx);
+
+hlpUpdateAxHilite(lObj);
+
+
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
   axis(hAx,'auto');
@@ -814,7 +813,16 @@ end
 set(handles.slider_frame,'Value',sldval);
 if ~lObj.isinit
   handles.labelTLInfo.newFrame(frm);
+  hlpUpdateAxHilite(lObj);
 end
+
+function hlpUpdateAxHilite(lObj)
+if lObj.gtIsGTMode
+  tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
+else
+  tfHilite = false;
+end
+lObj.gdata.allAxHiliteMgr.setHighlight(tfHilite);
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
@@ -822,6 +830,7 @@ if lObj.hasTrx && ~lObj.isinit
   id = lObj.currTrxID;
   lObj.currImHud.updateTarget(id);
   lObj.gdata.labelTLInfo.newTarget();
+  hlpUpdateAxHilite(lObj);
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
@@ -2313,7 +2322,9 @@ function cbkGtIsGTModeChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
 gt = lObj.gtIsGTMode;
-handles.menu_evaluate_gtmode.Checked = onIff(gt);
+onIffGT = onIff(gt);
+handles.menu_evaluate_gtmode.Checked = onIffGT;
+handles.txGTMode.Visible = onIffGT;
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);

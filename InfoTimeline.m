@@ -1,13 +1,14 @@
 classdef InfoTimeline < handle
 
-  properties (Constant)
-    SELECTALPHA = 0.5;
-  end
+%   % AL: Not using transparency for now due to perf issues on Linux
+%   properties (Constant)
+%     SELECTALPHA = 0.5;
+%   end
   properties
     lObj % scalar Labeler handle
     hAx % scalar handle to timeline axis
     hCurrFrame % scalar line handle current frame
-    hMarked % scalar line handle, indicates marked frames
+%     hMarked % scalar line handle, indicates marked frames
     hCMenuClearAll % scalar context menu
     hCMenuClearBout % scalar context menu
 
@@ -30,6 +31,8 @@ classdef InfoTimeline < handle
     jumpThreshold
     jumpCondition
   end
+  
+  %% Select
   properties (SetAccess=private)
     hSelIm % scalar image handle for selection
     selectOnStartFrm 
@@ -38,6 +41,14 @@ classdef InfoTimeline < handle
   properties (SetObservable)
     selectOn % scalar logical, if true, select "Pen" is down
   end
+  
+  %% GT/highlighting
+  properties 
+    hSegLineGT % scalar SegmentedLine
+    hSegLineGTLbled % scalar SegmentedLine
+  end
+  
+  %%
   properties (Dependent)
     prefs % projPrefs.InfoTimelines preferences substruct
   end
@@ -70,7 +81,7 @@ classdef InfoTimeline < handle
       hold(ax,'on');
       obj.hAx = ax;
       obj.hCurrFrame = plot(ax,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off');
-      obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0],'hittest','off');
+%       obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0],'hittest','off');
       
       fig = ax.Parent;
       hZ = zoom(fig);
@@ -90,7 +101,11 @@ classdef InfoTimeline < handle
          'labeledpostagGT'},... 
         'PostSet',@obj.cbkLabelUpdated);
       listeners{end+1,1} = addlistener(labeler,...
-        'labelMode','PostSet',@obj.cbkLabelMode);      
+        'gtSuggUpdated',@obj.cbkGTSuggUpdated);
+      listeners{end+1,1} = addlistener(labeler,...
+        'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated);      
+%       listeners{end+1,1} = addlistener(labeler,...
+%         'labelMode','PostSet',@obj.cbkLabelMode);      
       obj.listeners = listeners;
       
       obj.tracker = [];
@@ -112,6 +127,8 @@ classdef InfoTimeline < handle
       obj.hSelIm = [];
       obj.selectOn = false;
       obj.selectOnStartFrm = [];
+      obj.hSegLineGT = SegmentedLine(ax);
+      obj.hSegLineGTLbled = SegmentedLine(ax);
       obj.isinit = false;
       
       hCMenu = uicontextmenu('parent',ax.Parent,...
@@ -133,8 +150,8 @@ classdef InfoTimeline < handle
     function delete(obj)
       deleteValidHandles(obj.hCurrFrame);
       obj.hCurrFrame = [];
-      deleteValidHandles(obj.hMarked);
-      obj.hMarked = [];
+%       deleteValidHandles(obj.hMarked);
+%       obj.hMarked = [];
       if ~isempty(obj.hZoom)
         delete(obj.hZoom);
       end
@@ -147,6 +164,10 @@ classdef InfoTimeline < handle
       obj.listeners = [];
       deleteValidHandles(obj.hSelIm);
       obj.hSelIm = [];
+      deleteValidHandles(obj.hSegLineGT);
+      obj.hSegLineGT = [];
+      deleteValidHandles(obj.hSegLineGTLbled);
+      obj.hSegLineGTLbled = [];
     end
     
   end  
@@ -177,6 +198,13 @@ classdef InfoTimeline < handle
       set(obj.hCurrFrame,'XData',[nan nan],'ZData',[1 1]);
       
       obj.selectInit();
+      
+      xlims = [1 obj.nfrm];
+      SEGLINEYLOC = 1;
+      sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
+      sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
+      obj.hSegLineGT.init(xlims,SEGLINEYLOC,sPV);
+      obj.hSegLineGTLbled.init(xlims,SEGLINEYLOC,sPVLbled);
     end
     
     function setTracker(obj,tracker)
@@ -202,7 +230,7 @@ classdef InfoTimeline < handle
         for i=1:obj.npts
           set(obj.hPts(i),'XData',nan,'YData',nan);
         end
-        set(obj.hMarked,'XData',nan,'YData',nan);
+%         set(obj.hMarked,'XData',nan,'YData',nan);
         return;
       end
 
@@ -215,13 +243,13 @@ classdef InfoTimeline < handle
         set(obj.hPts(i),'XData',x,'YData',lposNorm(i,:));
       end
       
-      markedFrms = find(any(obj.getMarkedDataCurrMovTgt(),1));
-      xxm = repmat(markedFrms,[3 1]);
-      xxm = xxm(:)+0.05; 
+%       markedFrms = find(any(obj.getMarkedDataCurrMovTgt(),1));
+%       xxm = repmat(markedFrms,[3 1]);
+%       xxm = xxm(:)+0.05; 
       % slightly off so that both current frame and labeled frame are both
       % visible.
-      yym = repmat([0 1 nan],[1 size(markedFrms,2)]);
-      set(obj.hMarked,'XData',xxm(:),'YData',yym(:));
+%       yym = repmat([0 1 nan],[1 size(markedFrms,2)]);
+%       set(obj.hMarked,'XData',xxm(:),'YData',yym(:));
     end
     
     function setLabelsFrame(obj,frm)
@@ -371,11 +399,11 @@ classdef InfoTimeline < handle
         obj.lObj.setFrame(frm);
       end
     end
-    function cbkLabelMode(obj,src,evt) %#ok<INUSD>
-%       onoff = onIff(obj.lObj.labelMode==LabelMode.ERRORCORRECT);
-      onoff = 'off';
-      set(obj.hMarked,'Visible',onoff);
-    end
+%     function cbkLabelMode(obj,src,evt) %#ok<INUSD>
+% %       onoff = onIff(obj.lObj.labelMode==LabelMode.ERRORCORRECT);
+%       onoff = 'off';
+%       set(obj.hMarked,'Visible',onoff);
+%     end
     function cbkLabelUpdated(obj,src,~) %#ok<INUSD>
       if ~obj.lObj.isinit
         obj.setLabelsFull;
@@ -422,6 +450,12 @@ classdef InfoTimeline < handle
       bout = boutsAll(iBout,:);
       obj.hSelIm.CData(:,bout(1):bout(2)-1) = 0;
       obj.setLabelerSelectedFrames();
+    end
+    function cbkGTSuggUpdated(obj,src,evt)
+      XXX STOPPED HERE
+    end
+    function cbkGTSuggMFTableLbledUpdated(obj,src,evt)
+      
     end
   end
 

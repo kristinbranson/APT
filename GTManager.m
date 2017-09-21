@@ -104,6 +104,7 @@ ntt = handles.navTreeTbl;
 tbl = lObj.gtSuggMFTable;
 tblMovIdxs = tbl.mov;
 movstrs = lObj.getMovieFilesAllFullMovIdx(tblMovIdxs);
+movstrs = movstrs(:,1);
 movstrs = cellfun(@FSPath.twoLevelFilename,movstrs,'uni',0);
 tbl.mov = movstrs;
 hasLbl = lObj.gtSuggMFTableLbled;
@@ -122,7 +123,7 @@ ntt.updateDataColumn('hasLbl',num2cell(tf));
 function cbkCurrMovFrmTgtChanged(hObject,src,evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
-if ~lObj.gtIsGTMode
+if ~lObj.gtIsGTMode || ~lObj.hasMovie
   return;
 end
 mIdx = lObj.currMovIdx;

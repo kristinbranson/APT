@@ -4,6 +4,14 @@ classdef MMTableMulti < MovieManagerTable
     nmovsPerSet
     tbl % treeTable
   end
+  properties (Dependent)
+    hasData
+  end
+  methods 
+    function v = get.hasData(obj)
+      v = ~isempty(obj.tbl);
+    end
+  end
   properties (Constant)
     HEADERS = {'Set' 'Movie' 'Has Labels'};
     COLTYPES = {'' 'char' 'logical'};
@@ -51,6 +59,11 @@ classdef MMTableMulti < MovieManagerTable
       % imov is the movie SET (1-based)
       %
       % Collapse all rows, expand the selected set
+      
+      if ~obj.hasData
+        % occurs during init
+        return;
+      end
       
       tt = obj.tbl;
       m = tt.getModel;

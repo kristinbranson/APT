@@ -238,7 +238,11 @@ classdef MovieManagerController < handle
     end
     
     function lblerLstnCbkGTMode(obj,src,evt)
-      tfGT = obj.labeler.gtIsGTMode;
+      lObj = obj.labeler;
+      if lObj.isinit
+        return;
+      end
+      tfGT = lObj.gtIsGTMode;
       assert(islogical(tfGT));
       
       if tfGT

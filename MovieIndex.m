@@ -14,7 +14,7 @@ classdef MovieIndex < int32
         iMovSgned = varargin{1};
       else
         iMov = varargin{1};
-        assert(iMov>0);
+        assert(iMov>=0);
         gt = varargin{2};
         assert(isscalar(gt) && islogical(gt));
         if gt
@@ -23,7 +23,7 @@ classdef MovieIndex < int32
           iMovSgned = iMov;
         end
       end
-      assert(~any(iMovSgned==0));
+      %assert(~any(iMovSgned==0));
       obj@int32(iMovSgned);
     end
     

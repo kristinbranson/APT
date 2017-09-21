@@ -101,7 +101,8 @@ classdef APT
       
       jp = {...
         fullfile(root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
-        fullfile(root,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};     
+        fullfile(root,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
+        fullfile(root,'treeTable')};
     end
     
     function setpath()

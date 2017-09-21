@@ -2904,7 +2904,7 @@ classdef Labeler < handle
       obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = now();
       obj.(PROPS.LPOSTAG){iMov}(:,iFrm,iTgt) = {[]};
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
       end
     end
     
@@ -2927,7 +2927,7 @@ classdef Labeler < handle
       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
       obj.(PROPS.LPOSTAG){iMov}{iPt,iFrm,iTgt} = [];
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
       end
     end
     
@@ -4491,7 +4491,9 @@ classdef Labeler < handle
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate();
+      if ~obj.gtIsGTMode
+        obj.labels2VizUpdate();
+      end
     end
     
     function labelsUpdateNewTarget(obj,prevTarget)
@@ -4499,7 +4501,9 @@ classdef Labeler < handle
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate();
+      if ~obj.gtIsGTMode
+        obj.labels2VizUpdate();
+      end
     end
     
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -4509,7 +4513,9 @@ classdef Labeler < handle
           prevTgt,obj.currTarget);
       end
       obj.prevAxesLabelsUpdate();
-      obj.labels2VizUpdate();
+      if ~obj.gtIsGTMode
+        obj.labels2VizUpdate();
+      end
     end
         
   end
@@ -4605,6 +4611,23 @@ classdef Labeler < handle
       mfts = MFTSetEnum.AllMovAllTgtAllFrm;
       tblMFT = mfts.getMFTable(obj);
       tblMFT = gtSuggType.sampleMFTTable(tblMFT,nSamp);
+    end
+    function [tf,idx] = gtCurrMovFrmTgtIsInGTSuggestions(obj)
+      % Determine if current movie/frm/target is in gt suggestions.
+      % 
+      % tf: scalar logical
+      % idx: if tf==true, row index into .gtSuggMFTable. If tf==false, idx
+      %  is indeterminate.
+      
+      assert(obj.gtIsGTMode);
+      mIdx = obj.currMovIdx;
+      frm = obj.currFrame;
+      iTgt = obj.currTarget;
+      tblGT = obj.gtSuggMFTable;
+      tf = mIdx==tblGT.mov & frm==tblGT.frm & iTgt==tblGT.iTgt;
+      idx = find(tf);
+      assert(isempty(idx) || isscalar(idx));
+      tf = ~isempty(idx);
     end
   end
   methods (Static)
@@ -5835,8 +5858,10 @@ classdef Labeler < handle
       for i=1:numel(lpos)
         assert(isequal(size(lpos{i}),size(obj.labeledpos2{i})))
         obj.labeledpos2{i} = lpos{i};
-      end      
-      obj.labels2VizUpdate();
+      end
+      if ~obj.gtIsGTMode
+        obj.labels2VizUpdate();
+      end
     end
     
     function labels2SetCurrMovie(obj,lpos)
@@ -5850,7 +5875,9 @@ classdef Labeler < handle
       for i=1:numel(obj.labeledpos2)
         obj.labeledpos2{i}(:) = nan;
       end
-      obj.labels2VizUpdate();
+      if ~obj.gtIsGTMode
+        obj.labels2VizUpdate();
+      end
     end
     
     function labels2ImportTrkPrompt(obj,iMovs)
@@ -5861,13 +5888,14 @@ classdef Labeler < handle
       end
       
       assert(~obj.gtIsGTMode);
-      
       obj.labelImportTrkPromptGeneric(iMovs,'labels2ImportTrk');
     end
    
     function labels2ImportTrk(obj,iMovs,trkfiles)
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos2',[],[]);
-      obj.labels2VizUpdate();
+      if ~obj.gtIsGTMode
+        obj.labels2VizUpdate();
+      end
       RC.saveprop('lastTrkFileImported',trkfiles{end});
     end
     
@@ -5928,7 +5956,7 @@ classdef Labeler < handle
     end
     
     function labels2VizUpdate(obj)
-      
+      assert(~obj.gtIsGTMode);
       iMov = obj.currMovie;
       frm = obj.currFrame;
       iTgt = obj.currTarget;
@@ -5995,8 +6023,8 @@ classdef Labeler < handle
       deleteValidHandles(obj.(hProp));
       obj.(hProp) = gobjects(obj.nLabelPoints,1);
       if ~isempty(hTxtProp)
-      deleteValidHandles(obj.(hTxtProp));
-      obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
+        deleteValidHandles(obj.(hTxtProp));
+        obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
       end
       
       % any extra plotting parameters
