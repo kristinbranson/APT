@@ -48,6 +48,7 @@ set(handles.edit_frame,'String','');
 set(handles.txStatus,'String','');
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
+set(handles.pnlSusp,'Visible','off');
 
 handles.output = hObject;
 

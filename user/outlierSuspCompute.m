@@ -72,7 +72,8 @@ for imov=1:nmov
 end
 
 tblsusp = struct2table(tblsusp);
-[~,idx] = sort(tblsusp.susp,'descend');
-tblsusp = tblsusp(idx,:);
+sortvars = {'mov' 'susp'};
+sortmode = {'ascend' 'descend'};
+tblsusp = sortrows(tblsusp,sortvars,sortmode);
 
 diagstr = sprintf('zsThresh=%.3f',zsThresh);
