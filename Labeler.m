@@ -258,7 +258,14 @@ classdef Labeler < handle
   properties (SetObservable,SetAccess=private)
     suspScore; % column cell vec same size as labeledpos. suspScore{iMov} is nFrm(iMov) x nTrx(iMov)
     suspSelectedMFT; % MFT table of selected suspicous frames.
-    suspComputeFcn; % Function with sig [score,tblMFT]=fcn(labelerObj) that computes suspScore, suspSelectedMFT 
+    suspComputeFcn; 
+    % Function with sig [score,tblMFT,diagstr]=fcn(labelerObj) that 
+    % computes suspScore, suspSelectedMFT.
+    % See .suspScore for required size/dims of suspScore and contents.
+    % diagstr is arbitrary diagnostic info (assumed char for now).
+    
+    suspDiag; % Transient "userdata", diagnostic output from suspComputeFcn
+    
 %     currSusp; % suspScore for current mov/frm/tgt. Can be [] indicating 'N/A'
     %     suspNotes; % column cell vec same size as labeledpos. suspNotes{iMov} is a nFrm x nTrx column cellstr
   end
@@ -655,6 +662,7 @@ classdef Labeler < handle
       obj.trackNFramesSmall = cfg.Track.PredictFrameStep;
       obj.trackNFramesLarge = cfg.Track.PredictFrameStepBig;
       obj.trackNFramesNear = cfg.Track.PredictNeighborhood;
+      obj.trackModeIdx = 1;
       cfg.Track = rmfield(cfg.Track,...
         {'PredictFrameStep' 'PredictFrameStepBig' 'PredictNeighborhood'});
                   
@@ -4133,17 +4141,18 @@ classdef Labeler < handle
       obj.suspComputeFcn = fcn;
     end
     
-    function suspCompute(obj)
+    function tfsucc = suspCompute(obj)
       % Populate .suspScore, .suspSelectedMFT by calling .suspComputeFcn
       
       fcn = obj.suspComputeFcn;
       if isempty(fcn)
         error('Labeler:susp','No suspiciousness function has been set.');
       end
-      [suspscore,tblsusp] = fcn(obj);
+      [suspscore,tblsusp,diagstr] = fcn(obj);
       if isempty(suspscore)
         % cancel/fail
         warningNoTrace('Labeler:susp','No suspicious scores computed.');
+        tfsucc = false;
         return;
       end
       
@@ -4158,18 +4167,27 @@ classdef Labeler < handle
       
       obj.suspScore = suspscore;
       obj.suspSelectedMFT = tblsusp;
+      obj.suspDiag = diagstr;
+      
+      tfsucc = true;
     end
     
     function suspComputeUI(obj)
-      obj.suspCompute();
-      hF = figure('Name','Suspicious frames');
+      tfsucc = obj.suspCompute();
+      if ~tfsucc
+        return;
+      end
+      figtitle = sprintf('Suspicious frames: %s',obj.suspDiag);
+      hF = figure('Name',figtitle);
       tbl = obj.suspSelectedMFT;
       tblFlds = tbl.Properties.VariableNames;
       nt = NavigationTable(hF,[0 0 1 1],@(i)obj.suspCbkTblNaved(i),...
         'ColumnName',tblFlds);
       nt.setData(tbl);
-      kph = SuspKeyPressHandler(nt);
-      setappdata(hF,'keyPressHandler',kph);
+%       nt.navOnSingleClick = true;
+      hF.UserData = nt;
+%       kph = SuspKeyPressHandler(nt);
+%       setappdata(hF,'keyPressHandler',kph);
 
       % See LabelerGUI/addDepHandle
       handles = obj.gdata;

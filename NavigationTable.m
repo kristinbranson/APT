@@ -16,7 +16,6 @@ classdef NavigationTable < handle
     end
   end
   
-  
   methods
     function obj = NavigationTable(hParent,posn,cbkSelectRow,varargin)
       % varargin: eg {'ColumnName',{'col1' 'col2'},...
@@ -29,8 +28,8 @@ classdef NavigationTable < handle
         'parent',hParent,...
         'Position',posn,...
         'SelectionMode','discontiguous',...
-        'Editable','off',...
-        'MouseClickedCallback',@(src,evt)obj.cbkTableClick(src,evt),...
+        'Editable','off',... %        'MouseClickedCallback',@(src,evt)obj.cbkTableClick(src,evt),...
+        'CellSelectionCallback',@(src,evt)obj.cbkCellSelection(src,evt),...
         varargin{:});
       obj.jtable = jt;
       
@@ -71,7 +70,7 @@ classdef NavigationTable < handle
       jt = obj.jtable;
       rows = sort(jt.SelectedRows);
     end
-    
+        
   end
   
   methods
@@ -86,6 +85,15 @@ classdef NavigationTable < handle
             'Multiple rows selected. Using first row selected.');
         end
         obj.fcnRowSelected(rows(1));
+      end
+    end
+    
+    function cbkCellSelection(obj,src,evt)
+      if isfield(evt,'Indices')
+        rows = evt.Indices;
+        if ~isempty(rows)
+          obj.fcnRowSelected(rows(1));
+        end
       end
     end
     

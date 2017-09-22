@@ -1,9 +1,10 @@
-function [suspscore,tblsusp] = outlierSuspCompute(lObj)
+function [suspscore,tblsusp,diagstr] = outlierSuspCompute(lObj)
 
-resp = inputdlg('Specify z-score threshold','',1,'2.5');
+resp = inputdlg('Specify z-score threshold','',1,{'2.5'});
 if isempty(resp)
   suspscore = [];
   tblsusp = [];
+  diagstr = [];
   return;
 end
 zsThresh = str2double(resp{1});
@@ -21,14 +22,14 @@ ntotfrm = size(lposMega,3);
 szassert(lposMega,[npts 2 ntotfrm]);
 szassert(dlposMega,[npts 2 ntotfrm-nmov]);
 % All these are [nptsx2]
-lposMu = nanmean(lposMeta,3); 
-dlposMu = nanmean(dlposMeta,3);
+lposMu = nanmean(lposMega,3); 
+dlposMu = nanmean(dlposMega,3);
 lposSd = nanstd(lposMega,0,3);
-dlposSd = nanstd(dlposMeta,0,3);
+dlposSd = nanstd(dlposMega,0,3);
 
 % Compute z-scores
 suspscore = cell(nmov,1);
-tblsusp = struct('mov',cell(0,1),'frm',[],'iTgt',[],'susp',[],'suspPt');
+tblsusp = struct('mov',cell(0,1),'frm',[],'iTgt',[],'susp',[],'suspPt',[]);
 for imov=1:nmov
   lposI = lpos{imov}; % [npts x 2 x nfrm]
   dlposI = dlpos{imov}; % [npts x 2 x (nfrm-1)]
@@ -58,16 +59,20 @@ for imov=1:nmov
   [zsMax,idx] = max(zsBigI,[],1);
   % maximum zscore across {all pts}, {x and y}, {pos and vel}
 
-  suspscore{imov} = zsMax;
+  suspscore{imov} = zsMax(:);
   for f=1:nfrm
     if zsMax(f)>zsThresh
       tblsusp(end+1,1).mov = imov; %#ok<AGROW>
       tblsusp(end).frm = f;
       tblsusp(end).iTgt = 1;
-      tblsusp(end).susp = zsMax;
+      tblsusp(end).susp = zsMax(f);
       tblsusp(end).suspPt = zsBigILbl{idx(f)};
     end
   end
 end
 
 tblsusp = struct2table(tblsusp);
+[~,idx] = sort(tblsusp.susp,'descend');
+tblsusp = tblsusp(idx,:);
+
+diagstr = sprintf('zsThresh=%.3f',zsThresh);

@@ -282,6 +282,7 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
+handles.pumTrack.Value = 1;
 if ispc || ismac
   % none
 else
@@ -313,7 +314,7 @@ listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideCha
 %listeners{end+1,1} = addlistener(lObj,'targetZoomRadius','PostSet',@cbkTargetZoomFacChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
-listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
+% listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
@@ -344,6 +345,7 @@ handles.propsNeedInit = {
   'showTrxCurrTargetOnly'
   'tracker' 
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
+  'trackModeIdx'
   'movieCenterOnTarget'
   'movieForceGrayscale' 
   'movieInvert'};
@@ -380,8 +382,11 @@ guidata(hObject, handles);
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
 
-function handles = addDepHandle(hFig,h)
+function handles = clearDepHandles(handles)
+deleteValidHandles(handles.depHandles);
+handles.depHandles = gobjects(0,1);
 
+function handles = addDepHandle(hFig,h)
 handles = guidata(hFig);
 assert(handles.figure==hFig);
 
@@ -393,7 +398,6 @@ tfSame = arrayfun(@(x)x==h,handles.depHandles);
 if ~any(tfSame)
   handles.depHandles(end+1,1) = h;
 end
-
 guidata(hFig,handles);
 
 function handles = setShortcuts(handles)
@@ -513,18 +517,21 @@ if tfKPused
   return;
 end
 
-% Dependent figs with KeyPressHandlers
-depH = handles.depHandles;
-for i=1:numel(depH)
-  h = depH(i);
-  kph = getappdata(h,'keyPressHandler');
-  if ~isempty(kph)
-    tfKPused = kph.handleKeyPress(evt);
-    if tfKPused
-      return;
-    end
-  end
-end
+% % Dependent figs with KeyPressHandlers
+% depH = handles.depHandles;
+% for i=1:numel(depH)
+%   h = depH(i);
+%   if ~isvalid(h)
+%     continue;
+%   end    
+%   kph = getappdata(h,'keyPressHandler');
+%   if ~isempty(kph)
+%     tfKPused = kph.handleKeyPress(evt);
+%     if tfKPused
+%       return;
+%     end
+%   end
+% end
 
 % LabelCore
 lcore = lObj.lblCore;
@@ -572,6 +579,8 @@ function cbkNewProject(src,evt)
 
 lObj = src;
 handles = lObj.gdata;
+
+handles = clearDepHandles(handles);
 
 % figs, axes, images
 deleteValidHandles(handles.figs_all(2:end));
@@ -950,64 +959,64 @@ for i=1:lObj.nview
   figs(i).Name = name;
 end
 
-function cbkSuspScoreChanged(src,evt)
-lObj = evt.AffectedObject;
-ss = lObj.suspScore;
-lObj.currImHud.updateReadoutFields('hasSusp',~isempty(ss));
-
-handles = lObj.gdata;
-pnlSusp = handles.pnlSusp;
-tblSusp = handles.tblSusp;
-tfDoSusp = ~isempty(ss) && lObj.hasMovie && ~lObj.isinit;
-if tfDoSusp 
-  nfrms = lObj.nframes;
-  ntgts = lObj.nTargets;
-  [tgt,frm] = meshgrid(1:ntgts,1:nfrms);
-  ss = ss{lObj.currMovie};
-  
-  frm = frm(:);
-  tgt = tgt(:);
-  ss = ss(:);
-  tfnan = isnan(ss);
-  frm = frm(~tfnan);
-  tgt = tgt(~tfnan);
-  ss = ss(~tfnan);
-  
-  [ss,idx] = sort(ss,1,'descend');
-  frm = frm(idx);
-  tgt = tgt(idx);
-  
-  mat = [frm tgt ss];
-  tblSusp.Data = mat;
-  pnlSusp.Visible = 'on';
-  
-  if verLessThan('matlab','R2015b') % findjobj doesn't work for >=2015b
-    
-    % make tblSusp column-sortable. 
-    % AL 201510: Tried putting this in opening_fcn but
-    % got weird behavior (findjobj couldn't find jsp)
-    jscrollpane = findjobj(tblSusp);
-    jtable = jscrollpane.getViewport.getView;
-    jtable.setSortable(true);		% or: set(jtable,'Sortable','on');
-    jtable.setAutoResort(true);
-    jtable.setMultiColumnSortable(true);
-    jtable.setPreserveSelectionsAfterSorting(true);
-    % reset ColumnWidth, jtable messes it up
-    cwidth = tblSusp.ColumnWidth;
-    cwidth{end} = cwidth{end}-1;
-    tblSusp.ColumnWidth = cwidth;
-    cwidth{end} = cwidth{end}+1;
-    tblSusp.ColumnWidth = cwidth;
-  
-    tblSusp.UserData = struct('jtable',jtable);   
-  else
-    % none
-  end
-%   lObj.updateCurrSusp();
-else
-  tblSusp.Data = cell(0,3);
-  pnlSusp.Visible = 'off';
-end
+% function cbkSuspScoreChanged(src,evt)
+% lObj = evt.AffectedObject;
+% ss = lObj.suspScore;
+% lObj.currImHud.updateReadoutFields('hasSusp',~isempty(ss));
+% 
+% handles = lObj.gdata;
+% pnlSusp = handles.pnlSusp;
+% tblSusp = handles.tblSusp;
+% tfDoSusp = ~isempty(ss) && lObj.hasMovie && ~lObj.isinit;
+% if tfDoSusp 
+%   nfrms = lObj.nframes;
+%   ntgts = lObj.nTargets;
+%   [tgt,frm] = meshgrid(1:ntgts,1:nfrms);
+%   ss = ss{lObj.currMovie};
+%   
+%   frm = frm(:);
+%   tgt = tgt(:);
+%   ss = ss(:);
+%   tfnan = isnan(ss);
+%   frm = frm(~tfnan);
+%   tgt = tgt(~tfnan);
+%   ss = ss(~tfnan);
+%   
+%   [ss,idx] = sort(ss,1,'descend');
+%   frm = frm(idx);
+%   tgt = tgt(idx);
+%   
+%   mat = [frm tgt ss];
+%   tblSusp.Data = mat;
+%   pnlSusp.Visible = 'on';
+%   
+%   if verLessThan('matlab','R2015b') % findjobj doesn't work for >=2015b
+%     
+%     % make tblSusp column-sortable. 
+%     % AL 201510: Tried putting this in opening_fcn but
+%     % got weird behavior (findjobj couldn't find jsp)
+%     jscrollpane = findjobj(tblSusp);
+%     jtable = jscrollpane.getViewport.getView;
+%     jtable.setSortable(true);		% or: set(jtable,'Sortable','on');
+%     jtable.setAutoResort(true);
+%     jtable.setMultiColumnSortable(true);
+%     jtable.setPreserveSelectionsAfterSorting(true);
+%     % reset ColumnWidth, jtable messes it up
+%     cwidth = tblSusp.ColumnWidth;
+%     cwidth{end} = cwidth{end}-1;
+%     tblSusp.ColumnWidth = cwidth;
+%     cwidth{end} = cwidth{end}+1;
+%     tblSusp.ColumnWidth = cwidth;
+%   
+%     tblSusp.UserData = struct('jtable',jtable);   
+%   else
+%     % none
+%   end
+% %   lObj.updateCurrSusp();
+% else
+%   tblSusp.Data = cell(0,3);
+%   pnlSusp.Visible = 'off';
+% end
 
 % function cbkCurrSuspChanged(src,evt)
 % lObj = evt.AffectedObject;
@@ -2286,15 +2295,11 @@ CloseGUI(handles);
 
 function CloseGUI(handles)
 if hlpSave(handles.labelerObj)
-  tfValid = arrayfun(@isvalid,handles.depHandles);
-  hValid = handles.depHandles(tfValid);
-  arrayfun(@delete,hValid);
-  handles.depHandles = gobjects(0,1);
+  handles = clearDepHandles(handles);
   if isfield(handles,'movieMgr') && ~isempty(handles.movieMgr) ...
       && isvalid(handles.movieMgr)
     delete(handles.movieMgr);
-  end
-  
+  end  
   delete(handles.figure);
   delete(handles.labelerObj);
 end
