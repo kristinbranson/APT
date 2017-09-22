@@ -6,6 +6,16 @@ classdef NavigationTable < handle
     fcnRowSelected % fcn handle, fcnRowSelected(row)
     navOnSingleClick % If true, navigate on single click; otherwise require double-click
   end
+  properties (Dependent)
+    height % height of jtable
+  end
+  methods
+    function v = get.height(obj)
+      jt = obj.jtable;
+      v = size(jt.Data,1);
+    end
+  end
+  
   
   methods
     function obj = NavigationTable(hParent,posn,cbkSelectRow,varargin)
@@ -34,7 +44,8 @@ classdef NavigationTable < handle
     function setData(obj,tbl)
       jt = obj.jtable;
       assert(isequal(jt.ColumnName,tbl.Properties.VariableNames));
-      newdat = tbl{:,:};
+      %newdat = tbl{:,:};
+      newdat = table2cell(tbl);
       if ~isequal(jt.Data,newdat)
         jt.Data = newdat;
       end

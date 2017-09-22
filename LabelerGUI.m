@@ -509,11 +509,24 @@ if all(isfield(handles,{'shortcutkeys','shortcutfns'}))
     end
   end  
 end
-
 if tfKPused
   return;
 end
 
+% Dependent figs with KeyPressHandlers
+depH = handles.depHandles;
+for i=1:numel(depH)
+  h = depH(i);
+  kph = getappdata(h,'keyPressHandler');
+  if ~isempty(kph)
+    tfKPused = kph.handleKeyPress(evt);
+    if tfKPused
+      return;
+    end
+  end
+end
+
+% LabelCore
 lcore = lObj.lblCore;
 if ~isempty(lcore)
   tfKPused = lcore.kpf(src,evt);
@@ -990,7 +1003,7 @@ if tfDoSusp
   else
     % none
   end
-  lObj.updateCurrSusp();
+%   lObj.updateCurrSusp();
 else
   tblSusp.Data = cell(0,3);
   pnlSusp.Visible = 'off';

@@ -27,9 +27,16 @@ classdef MFTable
     %  tfocc  [npts=nphyspt*nview] logical occluded flag
     %  pTrx   [nview*2], trx .x and .y. Raster order: view,{x,y}
     FLDSFULLTRX = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'};    
+
+    FLDSSUSP = {'mov' 'frm' 'iTgt' 'susp'};
   end
   
   methods (Static)
+    
+    function tbl = emptySusp()
+      x = nan(0,1);
+      tbl = table(x,x,x,x,'VariableNames',MFTable.FLDSSUSP);
+    end
     
     function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)
       % Compare tblP to tblP0 wrt fields FLDSCORE (see below)
