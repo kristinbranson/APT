@@ -21,7 +21,7 @@ classdef Labeler < handle
       'gtIsGTMode' 'gtSuggMFTable' ...
       'labelTemplate' ...
       'trackModeIdx' ...
-      'suspScore'};
+      'suspScore' 'suspSelectedMFT' 'suspComputeFcn'};
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};
     
@@ -214,8 +214,8 @@ classdef Labeler < handle
     trxCache = [];            % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
     %trxfile = '';             % full path current trxfile
     trx = [];                 % trx object
-    %zoomRadiusDefault = 100;  % default zoom box size in pixels
-    %zoomRadiusTight = 10;     % zoom size on maximum zoom (smallest pixel val)
+    %zoomRadiusDefault = 100; % default zoom box size in pixels
+    %zoomRadiusTight = 10;    % zoom size on maximum zoom (smallest pixel val)
     frm2trx = [];             % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm (for current movie)
     trxIdPlusPlus2Idx = [];   % (max(trx ids)+1) x 1 vector of indices into obj.trx. 
                               % Since IDs start at 0, THIS VECTOR IS INDEXED BY ID+1.
@@ -325,10 +325,19 @@ classdef Labeler < handle
   
   
   %% Suspiciousness
-  properties (SetObservable)
+  properties (SetObservable,SetAccess=private)
     suspScore; % column cell vec same size as labeledpos. suspScore{iMov} is nFrm(iMov) x nTrx(iMov)
-    suspNotes; % column cell vec same size as labeledpos. suspNotes{iMov} is a nFrm x nTrx column cellstr
-    currSusp; % suspScore for current mov/frm/tgt. Can be [] indicating 'N/A'
+    suspSelectedMFT; % MFT table of selected suspicous frames.
+    suspComputeFcn; 
+    % Function with sig [score,tblMFT,diagstr]=fcn(labelerObj) that 
+    % computes suspScore, suspSelectedMFT.
+    % See .suspScore for required size/dims of suspScore and contents.
+    % diagstr is arbitrary diagnostic info (assumed char for now).
+    
+    suspDiag; % Transient "userdata", diagnostic output from suspComputeFcn
+    
+%     currSusp; % suspScore for current mov/frm/tgt. Can be [] indicating 'N/A'
+    %     suspNotes; % column cell vec same size as labeledpos. suspNotes{iMov} is a nFrm x nTrx column cellstr
   end
   
   %% Tracking
@@ -470,7 +479,7 @@ classdef Labeler < handle
         v = obj.trxFilesAllGTFull;
       else
         v = obj.trxFilesAllFull;
-      end
+    end
     end
     function v = getTrxFilesAllFullMovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
@@ -887,6 +896,7 @@ classdef Labeler < handle
       obj.trackNFramesSmall = cfg.Track.PredictFrameStep;
       obj.trackNFramesLarge = cfg.Track.PredictFrameStepBig;
       obj.trackNFramesNear = cfg.Track.PredictNeighborhood;
+      obj.trackModeIdx = 1;
       cfg.Track = rmfield(cfg.Track,...
         {'PredictFrameStep' 'PredictFrameStepBig' 'PredictNeighborhood'});
                   
@@ -1297,7 +1307,7 @@ classdef Labeler < handle
 %       obj.labelingInit();
 
       obj.labeledposNeedsSave = false;
-      obj.suspScore = obj.suspScore;
+%       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
       
@@ -1383,9 +1393,9 @@ classdef Labeler < handle
         if ~isempty(obj.suspScore)
           obj.suspScore{end+1,1} = suspscr;
         end
-        if ~isempty(obj.suspNotes)
-          obj.suspNotes{end+1,1} = [];
-        end
+%         if ~isempty(obj.suspNotes)
+%           obj.suspNotes{end+1,1} = [];
+%         end
       end
 
       obj.labeledposNeedsSave = true;
@@ -1741,8 +1751,16 @@ classdef Labeler < handle
         s.gtIsGTMode = false;
         s.gtSuggMFTable = MFTable.emptyFLDSID();
       end
+
+      % 20170922
+      if ~isfield(s,'suspSelectedMFT')
+        s.suspSelectedMFT = [];
+      end
+      if ~isfield(s,'suspComputeFcn')
+        s.suspComputeFcn = [];
+      end
     end  
-        
+    
   end 
   
   %% Movie
@@ -2081,8 +2099,8 @@ classdef Labeler < handle
         obj.(PROPS.LPOSTS)(iMov,:) = [];
         obj.(PROPS.LPOSTAG)(iMov,:) = [];
         if ~gt
-          obj.labeledposMarked(iMov,:) = [];
-          obj.labeledpos2(iMov,:) = [];
+        obj.labeledposMarked(iMov,:) = [];
+        obj.labeledpos2(iMov,:) = [];
         end
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           szassert(obj.(PROPS.VCD),[nMovOrig 1]);
@@ -2529,7 +2547,7 @@ classdef Labeler < handle
       obj.currFrame = 1;
       obj.prevFrame = 1;
       
-      obj.currSusp = [];
+%       obj.currSusp = [];
     end
     
     function H0 = movieEstimateImHist(obj,nFrmSamp)
@@ -2666,7 +2684,7 @@ classdef Labeler < handle
     end
   end
   methods
-    
+        
     function trxSet(obj,trx)
       % Set the trajectories for the current movie (.trx).
       %
@@ -2715,7 +2733,7 @@ classdef Labeler < handle
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
       obj.initShowTrx();
     end
-    
+   
     function tf = trxCheckFramesLive(obj,frms)
       % Check that current target is live for given frames
       %
@@ -2801,7 +2819,7 @@ classdef Labeler < handle
     
     function labelingInit(obj,varargin)
       % Create LabelCore and call labelCore.init() based on current 
-      % .labelMode, .nLabelPoints, .labelPointsPlotInfo, .labelTemplate      
+      % .labelMode, .nLabelPoints, .labelPointsPlotInfo, .labelTemplate  
       % For calibrated labelCores, can also require .currMovie, 
       % .viewCalibrationData, .vewCalibrationDataProjWide to be properly 
       % initted
@@ -2904,7 +2922,7 @@ classdef Labeler < handle
       obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = now();
       obj.(PROPS.LPOSTAG){iMov}(:,iFrm,iTgt) = {[]};
       if ~obj.gtIsGTMode
-        obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+      obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
       end
     end
     
@@ -2927,7 +2945,7 @@ classdef Labeler < handle
       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
       obj.(PROPS.LPOSTAG){iMov}{iPt,iFrm,iTgt} = [];
       if ~obj.gtIsGTMode
-        obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+      obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
       end
     end
     
@@ -3043,7 +3061,7 @@ classdef Labeler < handle
       
       obj.(PROPS.LPOSTS){iMov}(iPt,frms,iTgt) = now();
       if ~obj.gtIsGTMode
-        obj.labeledposMarked{iMov}(iPt,frms,iTgt) = true;
+      obj.labeledposMarked{iMov}(iPt,frms,iTgt) = true;
       end
 
       obj.labeledposNeedsSave = true;
@@ -3311,7 +3329,7 @@ classdef Labeler < handle
     function tf = labelposMovieHasLabels(obj,iMov,varargin)
       gt = myparse(varargin,'gt',obj.gtIsGTMode);
       if ~gt
-        lpos = obj.labeledpos{iMov};
+      lpos = obj.labeledpos{iMov};
       else
         lpos = obj.labeledposGT{iMov};
       end
@@ -4031,7 +4049,7 @@ classdef Labeler < handle
         nView = size(trxFilesAllFull,2);
         szassert(trxFilesAllFull,[nMov nView]);
       end
-      
+  
       % Maybe Optimize: group movies together
 
       nrow = height(tblMF);
@@ -4067,7 +4085,7 @@ classdef Labeler < handle
         else
           assert(iTgt==1);
         end
-              
+ 
         lposIFrmTgt = lposI(:,:,frm,iTgt);
         lpostagIFrmTgt = lpostagI(:,frm,iTgt);
         lposTSIFrmTgt = lposTSI(:,frm,iTgt);
@@ -4644,49 +4662,144 @@ classdef Labeler < handle
   %% Susp 
   methods
     
-    function setSuspScore(obj,ss)
-      assert(~obj.isMultiView);
-      assert(~obj.gtIsGTMode);
-      
-      if isequal(ss,[])
-        % none; this is ok
-      else
-        nMov = obj.nmovies;
-        nTgt = obj.nTargets;
-        assert(iscell(ss) && isvector(ss) && numel(ss)==nMov);
-        for iMov = 1:nMov
-          ifo = obj.movieInfoAll{iMov,1}; 
-          assert(isequal(size(ss{iMov}),[ifo.nframes nTgt]),...
-            'Size mismatch for score for movie %d.',iMov);
-        end
-      end
-      
-      obj.suspScore = ss;
+    function suspInit(obj)
+      obj.suspScore = cell(size(obj.labeledpos));
+      obj.suspSelectedMFT = MFTable.emptySusp;
+      obj.suspComputeFcn = [];
     end
     
-    function updateCurrSusp(obj)
-      % Update .currSusp from .suspScore, currMovie, .currFrm, .currTarget
+    function suspSetComputeFcn(obj,fcn)
+      assert(isa(fcn,'function_handle'));      
+      obj.suspInit();
+      obj.suspComputeFcn = fcn;
+    end
+    
+    function tfsucc = suspCompute(obj)
+      % Populate .suspScore, .suspSelectedMFT by calling .suspComputeFcn
       
-      if obj.gtIsGTMode
+      fcn = obj.suspComputeFcn;
+      if isempty(fcn)
+        error('Labeler:susp','No suspiciousness function has been set.');
+      end
+      [suspscore,tblsusp,diagstr] = fcn(obj);
+      if isempty(suspscore)
+        % cancel/fail
+        warningNoTrace('Labeler:susp','No suspicious scores computed.');
+        tfsucc = false;
         return;
       end
       
-      tfDoSusp = ~isempty(obj.suspScore) && ...
-                  obj.hasMovie && ...
-                  obj.currMovie>0 && ...
-                  obj.currFrame>0;
-      if tfDoSusp
-        ss = obj.suspScore{obj.currMovie};
-        obj.currSusp = ss(obj.currFrame,obj.currTarget);       
-      else
-        obj.currSusp = [];
+      obj.suspVerifyScore(suspscore);
+      if ~isempty(tblsusp)
+        if ~istable(tblsusp) && all(ismember(MFTable.FLDSSUSP,...
+                                  tblsusp.Properties.VariableNames'))
+          error('Labeler:susp',...
+            'Invalid ''tblsusp'' output from suspicisouness computation.');
+        end
       end
-      if ~isequal(obj.currSusp,[])
-        obj.currImHud.updateSusp(obj.currSusp);
+      
+      obj.suspScore = suspscore;
+      obj.suspSelectedMFT = tblsusp;
+      obj.suspDiag = diagstr;
+      
+      tfsucc = true;
+    end
+    
+    function suspComputeUI(obj)
+      tfsucc = obj.suspCompute();
+      if ~tfsucc
+        return;
       end
+      figtitle = sprintf('Suspicious frames: %s',obj.suspDiag);
+      hF = figure('Name',figtitle);
+      tbl = obj.suspSelectedMFT;
+      tblFlds = tbl.Properties.VariableNames;
+      nt = NavigationTable(hF,[0 0 1 1],@(i)obj.suspCbkTblNaved(i),...
+        'ColumnName',tblFlds);
+      nt.setData(tbl);
+%       nt.navOnSingleClick = true;
+      hF.UserData = nt;
+%       kph = SuspKeyPressHandler(nt);
+%       setappdata(hF,'keyPressHandler',kph);
+
+      % See LabelerGUI/addDepHandle
+      handles = obj.gdata;
+      handles.depHandles(end+1,1) = hF;
+      guidata(obj.hFig,handles);
     end
       
+    function suspCbkTblNaved(obj,i)
+      % i: row index into .suspSelectedMFT;
+      tbl = obj.suspSelectedMFT;
+      nrow = height(tbl);
+      if i<1 || i>nrow
+        error('Labeler:susp','Row ''%d'' out of bounds.',i);
+      end
+      mftrow = tbl(i,:);
+      if obj.currMovie~=mftrow.mov
+        obj.movieSet(mftrow.mov);
+      end
+      obj.setFrameAndTarget(mftrow.frm,mftrow.iTgt);
+    end
   end
+      
+  methods (Hidden)
+    
+    function suspVerifyScore(obj,suspscore)
+      nmov = obj.nmovies;
+      if ~(iscell(suspscore) && numel(suspscore)==nmov)
+        error('Labeler:susp',...
+          'Invalid ''suspscore'' output from suspicisouness computation.');
+      end
+      lpos = obj.labeledpos;
+      for imov=1:nmov
+        [~,~,nfrm,ntgt] = size(lpos{imov});
+        if ~isequal(size(suspscore{imov}),[nfrm ntgt])
+          error('Labeler:susp',...
+            'Invalid ''suspscore'' output from suspicisouness computation.');
+        end
+      end
+    end
+  end
+
+    
+        
+%     function setSuspScore(obj,ss)
+%       assert(~obj.isMultiView);
+%       
+%       if isequal(ss,[])
+%         % none; this is ok
+%       else
+%         nMov = obj.nmovies;
+%         nTgt = obj.nTargets;
+%         assert(iscell(ss) && isvector(ss) && numel(ss)==nMov);
+%         for iMov = 1:nMov
+%           ifo = obj.movieInfoAll{iMov,1}; 
+%           assert(isequal(size(ss{iMov}),[ifo.nframes nTgt]),...
+%             'Size mismatch for score for movie %d.',iMov);
+%         end
+%       end
+%       
+%       obj.suspScore = ss;
+%     end
+    
+%     function updateCurrSusp(obj)
+%       % Update .currSusp from .suspScore, currMovie, .currFrm, .currTarget
+%       
+%       tfDoSusp = ~isempty(obj.suspScore) && ...
+%                   obj.hasMovie && ...
+%                   obj.currMovie>0 && ...
+%                   obj.currFrame>0;
+%       if tfDoSusp
+%         ss = obj.suspScore{obj.currMovie};
+%         obj.currSusp = ss(obj.currFrame,obj.currTarget);       
+%       else
+%         obj.currSusp = [];
+%       end
+%       if ~isequal(obj.currSusp,[])
+%         obj.currImHud.updateSusp(obj.currSusp);
+%       end
+%     end
   
   %% Tracker
   methods
@@ -5420,7 +5533,7 @@ classdef Labeler < handle
       end
       if updateTables
         obj.updateTrxTable();
-        obj.updateCurrSusp();
+%         obj.updateCurrSusp();
       end
       if updateTrajs
         obj.updateShowTrx();
@@ -5456,7 +5569,7 @@ classdef Labeler < handle
           obj.videoCenterOnCurrTarget();
         end
       end
-      obj.updateCurrSusp();
+%       obj.updateCurrSusp();
       obj.updateShowTrx();
     end
         
@@ -5484,10 +5597,10 @@ classdef Labeler < handle
       if ~obj.isinit
         obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
         obj.updateTrxTable();
-        obj.updateCurrSusp();
+%         obj.updateCurrSusp();
         obj.updateShowTrx();
       end
-    end   
+    end    
     
     function tfSetOccurred = frameUpDF(obj,df)
       f = min(obj.currFrame+df,obj.nframes);
@@ -5860,8 +5973,8 @@ classdef Labeler < handle
         obj.labeledpos2{i} = lpos{i};
       end
       if ~obj.gtIsGTMode
-        obj.labels2VizUpdate();
-      end
+      obj.labels2VizUpdate();
+    end
     end
     
     function labels2SetCurrMovie(obj,lpos)
@@ -5876,8 +5989,8 @@ classdef Labeler < handle
         obj.labeledpos2{i}(:) = nan;
       end
       if ~obj.gtIsGTMode
-        obj.labels2VizUpdate();
-      end
+      obj.labels2VizUpdate();
+    end
     end
     
     function labels2ImportTrkPrompt(obj,iMovs)
@@ -5894,7 +6007,7 @@ classdef Labeler < handle
     function labels2ImportTrk(obj,iMovs,trkfiles)
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos2',[],[]);
       if ~obj.gtIsGTMode
-        obj.labels2VizUpdate();
+      obj.labels2VizUpdate();
       end
       RC.saveprop('lastTrkFileImported',trkfiles{end});
     end
@@ -6023,8 +6136,8 @@ classdef Labeler < handle
       deleteValidHandles(obj.(hProp));
       obj.(hProp) = gobjects(obj.nLabelPoints,1);
       if ~isempty(hTxtProp)
-        deleteValidHandles(obj.(hTxtProp));
-        obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
+      deleteValidHandles(obj.(hTxtProp));
+      obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
       end
       
       % any extra plotting parameters

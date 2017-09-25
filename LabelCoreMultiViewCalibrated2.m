@@ -434,14 +434,24 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       tfCtrl = any(strcmp('control',modifier));
       tfShft = any(strcmp('shift',modifier));
       
+      lObj = obj.labeler;
+      scPrefs = lObj.projPrefs.Shortcuts;     
       tfKPused = true;
-      if strcmp(key,'h') && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
-        % AL HACK multiview. MATLAB menu accelerators only work when
+      if strcmp(key,scPrefs.menu_view_hide_labels) && tfCtrl ...
+          && isfield(src.UserData,'view') && src.UserData.view>1
+        % HACK multiview. MATLAB menu accelerators only work when
         % figure-containing-the-menu (main fig) has focus
         obj.labelsHideToggle();
-      elseif strcmp(key,'p') && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
-        % AL HACK etc
-        obj.labeler.labels2VizToggle();        
+      elseif strcmp(key,scPrefs.menu_view_hide_predictions) && tfCtrl ...
+          && isfield(src.UserData,'view') && src.UserData.view>1
+        % Hack etc
+        tracker = lObj.tracker;
+        if ~isempty(tracker)
+          tracker.hideVizToggle();
+        end
+      elseif strcmp(key,scPrefs.menu_view_hide_imported_predictions) ...
+          && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
+        lObj.labels2VizToggle();
       elseif strcmp(key,'space')
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
@@ -458,9 +468,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           obj.acceptLabels();
         end
       elseif any(strcmp(key,{'d' 'equal'}))
-        obj.labeler.frameUp(tfCtrl);
+        lObj.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
-        obj.labeler.frameDown(tfCtrl);
+        lObj.frameDown(tfCtrl);
       elseif strcmp(key,'o') && ~tfCtrl
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel
@@ -498,7 +508,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               else
                 xy(1) = xy(1) + dx/obj.DXFAC;
               end
-              ncs = obj.labeler.movienc;
+              ncs = lObj.movienc;
               xy(1) = min(xy(1),ncs(iAx));
             case 'uparrow'
               yl = ylim(ax);
@@ -517,7 +527,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               else
                 xy(2) = xy(2) + dy/obj.DXFAC;
               end
-              nrs = obj.labeler.movienr;
+              nrs = lObj.movienr;
               xy(2) = min(xy(2),nrs(iAx));
           end
           obj.assignLabelCoordsIRaw(xy,iSel);
@@ -530,15 +540,15 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           obj.projectionRefresh();
         elseif strcmp(key,'leftarrow')
           if tfShft
-            obj.labeler.frameUpNextLbled(true);
+            lObj.frameUpNextLbled(true);
           else
-            obj.labeler.frameDown(tfCtrl);
+            lObj.frameDown(tfCtrl);
           end
         elseif strcmp(key,'rightarrow')
           if tfShft
-            obj.labeler.frameUpNextLbled(false);
+            lObj.frameUpNextLbled(false);
           else
-            obj.labeler.frameUp(tfCtrl);
+            lObj.frameUp(tfCtrl);
           end
         else
           tfKPused = false;

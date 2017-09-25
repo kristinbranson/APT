@@ -48,6 +48,7 @@ set(handles.edit_frame,'String','');
 set(handles.txStatus,'String','');
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
+set(handles.pnlSusp,'Visible','off');
 
 handles.pnlSusp.Visible = 'off';
 
@@ -294,10 +295,10 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
+handles.pumTrack.Value = 1;
 aptResize = APTResize(handles);
 handles.figure.ResizeFcn = @(src,evt)aptResize.resize(src,evt);
 aptResize.resize(handles.figure,[]);
-
 handles.pumTrack.Callback = ...
   @(hObj,edata)LabelerGUI('pumTrack_Callback',hObj,edata,guidata(hObj));
 
@@ -354,6 +355,7 @@ handles.propsNeedInit = {
   'showTrxCurrTargetOnly'
   'tracker' 
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
+  'trackModeIdx'
   'movieCenterOnTarget'
   'movieForceGrayscale' 
   'movieInvert'};
@@ -390,8 +392,11 @@ guidata(hObject, handles);
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
 
-function handles = addDepHandle(hFig,h)
+function handles = clearDepHandles(handles)
+deleteValidHandles(handles.depHandles);
+handles.depHandles = gobjects(0,1);
 
+function handles = addDepHandle(hFig,h)
 handles = guidata(hFig);
 assert(handles.figure==hFig);
 
@@ -403,7 +408,6 @@ tfSame = arrayfun(@(x)x==h,handles.depHandles);
 if ~any(tfSame)
   handles.depHandles(end+1,1) = h;
 end
-
 guidata(hFig,handles);
 
 function handles = setShortcuts(handles)
@@ -519,11 +523,27 @@ if all(isfield(handles,{'shortcutkeys','shortcutfns'}))
     end
   end  
 end
-
 if tfKPused
   return;
 end
 
+% % Dependent figs with KeyPressHandlers
+% depH = handles.depHandles;
+% for i=1:numel(depH)
+%   h = depH(i);
+%   if ~isvalid(h)
+%     continue;
+%   end    
+%   kph = getappdata(h,'keyPressHandler');
+%   if ~isempty(kph)
+%     tfKPused = kph.handleKeyPress(evt);
+%     if tfKPused
+%       return;
+%     end
+%   end
+% end
+
+% LabelCore
 lcore = lObj.lblCore;
 if ~isempty(lcore)
   tfKPused = lcore.kpf(src,evt);
@@ -569,6 +589,8 @@ function cbkNewProject(src,evt)
 
 lObj = src;
 handles = lObj.gdata;
+
+handles = clearDepHandles(handles);
 
 % figs, axes, images
 deleteValidHandles(handles.figs_all(2:end));
@@ -2330,15 +2352,11 @@ CloseGUI(handles);
 
 function CloseGUI(handles)
 if hlpSave(handles.labelerObj)
-  tfValid = arrayfun(@isvalid,handles.depHandles);
-  hValid = handles.depHandles(tfValid);
-  arrayfun(@delete,hValid);
-  handles.depHandles = gobjects(0,1);
+  handles = clearDepHandles(handles);
   if isfield(handles,'movieMgr') && ~isempty(handles.movieMgr) ...
       && isvalid(handles.movieMgr)
     delete(handles.movieMgr);
-  end
-  
+  end  
   delete(handles.figure);
   delete(handles.labelerObj);
 end
