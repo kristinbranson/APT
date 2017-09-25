@@ -5237,16 +5237,17 @@ classdef Labeler < handle
       end
       
       tx = obj.gdata.txTotalFramesLabeled;
-      nrow = size(dat,1);
-      tx.String = num2str(nrow);
+      nTgtsTot = sum(cell2mat(dat(:,2)));
+      tx.String = num2str(nTgtsTot);
     end    
     function updateFrameTableComplete(obj)
       [nTgts,nPts] = obj.labelPosLabeledFramesStats();
       assert(isequal(nTgts>0,nPts>0));
       tfFrm = nTgts>0;
       iFrm = find(tfFrm);
-      
-      dat = [num2cell(iFrm) num2cell(nTgts(tfFrm)) num2cell(nPts(tfFrm)) ];
+
+      nTgtsLbledFrms = nTgts(tfFrm);
+      dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) ];
       tbl = obj.gdata.tblFrames;
       set(tbl,'Data',dat);
 
@@ -5256,8 +5257,8 @@ classdef Labeler < handle
       end
       
       tx = obj.gdata.txTotalFramesLabeled;
-      nrow = size(dat,1);
-      tx.String = num2str(nrow);
+      nTgtsTot = sum(nTgtsLbledFrms);
+      tx.String = num2str(nTgtsTot);
     end
   end
   
