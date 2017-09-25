@@ -1565,7 +1565,7 @@ classdef Labeler < handle
         mr.close();
         
         if ~isempty(tFileFull)
-          tmptrx = obj.getTrx(tFileFull,info.nframes);
+          tmptrx = obj.getTrx(tFileFull,ifo.nframes);
           nTgt = numel(tmptrx);
         else
           nTgt = 1;
