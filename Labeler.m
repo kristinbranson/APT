@@ -1240,7 +1240,8 @@ classdef Labeler < handle
      
       fcnAnyNonNan = @(x)any(~isnan(x(:)));
       obj.movieFilesAllHaveLbls = cellfun(fcnAnyNonNan,obj.labeledpos);
-      obj.movieFilesAllGTHaveLbls = cellfun(fcnAnyNonNan,obj.labeledposGT);
+      obj.movieFilesAllGTHaveLbls = cellfun(fcnAnyNonNan,obj.labeledposGT);      
+      obj.gtUpdateSuggMFTableLbledComplete();
       obj.isinit = false;
       
       % need this before setting movie so that .projectroot exists
@@ -1299,7 +1300,6 @@ classdef Labeler < handle
       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
-      obj.gtUpdateSuggMFTableLbledComplete();
       
       if obj.currMovie>0
         obj.labelsUpdateNewFrame(true);
@@ -4563,7 +4563,7 @@ classdef Labeler < handle
       if isempty(tbl)
         obj.gtSuggMFTableLbled = false(0,1);
         if donotify
-          obj.notify('gtSuggMFTableLbledUpdated');
+          obj.notify('gtSuggUpdated'); % use this event for full/general update
         end
         return;
       end
@@ -4578,7 +4578,7 @@ classdef Labeler < handle
       szassert(tfAllTgtsLbled,[height(tbl) 1]);
       obj.gtSuggMFTableLbled = tfAllTgtsLbled;
       if donotify
-        obj.notify('gtSuggMFTableLbledUpdated');
+        obj.notify('gtSuggUpdated'); % use this event for full/general update
       end
     end
     function gtUpdateSuggMFTableLbledIncremental(obj)

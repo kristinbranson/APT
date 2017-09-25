@@ -680,8 +680,7 @@ end
 
 handles = setShortcuts(handles);
 
-% AL: Some init hell, initNewMovie() actually inits mostly project-level stuff 
-handles.labelTLInfo.initNewMovie();
+handles.labelTLInfo.initNewProject();
 
 if isfield(handles,'movieMgr') && isvalid(handles.movieMgr)
   delete(handles.movieMgr);

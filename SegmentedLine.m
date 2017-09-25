@@ -46,17 +46,39 @@ classdef SegmentedLine < handle
         delete(obj.hLine);
       end
       obj.hLine = [];
-    end 
+    end
+    
+    function setOnAtOnly(obj,x)
+      obj.setOnOffAt(x,true);
+      xall = obj.xLims(1):obj.xLims(2);
+      xcomp = setdiff(xall,x);
+      obj.setOnOffAt(xcomp,false);
+    end
+    
       
-    function setOnOff(obj,x,tf)
-      assert(obj.xLims(1)<=x && x<=obj.xLims(2));
+    function setOnOffAt(obj,x,tf)
+      % Set segment on/off at location(s) x
+      %
+      % x: positive integer vector of coords/locs
       
-      yDataIdx = (x-1)*3+[1 2];
+      if isempty(x)
+        return;
+      end
+      x = x(:);
+        
+      assert(all(obj.xLims(1)<=x & x<=obj.xLims(2)));
+      
+      xx = (x-1)*3;
+      yDataIdx = [xx+1;xx+2];
       if tf
         obj.hLine.YData(yDataIdx) = obj.yLoc;
       else
         obj.hLine.YData(yDataIdx) = nan;
       end
+    end
+    
+    function setVisible(obj,tf)
+      set(obj.hLine,'Visible',onIff(tf));
     end
     
   end

@@ -101,6 +101,8 @@ classdef InfoTimeline < handle
          'labeledpostagGT'},... 
         'PostSet',@obj.cbkLabelUpdated);
       listeners{end+1,1} = addlistener(labeler,...
+        'gtIsGTMode','PostSet',@obj.cbkGTIsGTModeUpdated);
+      listeners{end+1,1} = addlistener(labeler,...
         'gtSuggUpdated',@obj.cbkGTSuggUpdated);
       listeners{end+1,1} = addlistener(labeler,...
         'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated);      
@@ -174,11 +176,8 @@ classdef InfoTimeline < handle
   
   methods
     
-    function initNewMovie(obj)
-      % react to new current movie in Labeler
-
+    function initNewProject(obj)      
       obj.npts = obj.lObj.nLabelPoints;
-      obj.nfrm = obj.lObj.nframes;
 
       deleteValidHandles(obj.hPts);
       obj.hPts = gobjects(obj.npts,1);
@@ -191,12 +190,18 @@ classdef InfoTimeline < handle
       
       prefsTL = obj.prefs;
       ax.XColor = prefsTL.XColor;
-      ax.XTick = 0:prefsTL.dXTick:obj.nfrm;
       dy = .01;
       ax.YLim = [0-dy 1+dy];
       
       set(obj.hCurrFrame,'XData',[nan nan],'ZData',[1 1]);
-      
+    end
+    
+    function initNewMovie(obj)
+      obj.nfrm = obj.lObj.nframes;
+      ax = obj.hAx;
+      prefsTL = obj.prefs;
+      ax.XTick = 0:prefsTL.dXTick:obj.nfrm;
+
       obj.selectInit();
       
       xlims = [1 obj.nfrm];
@@ -205,6 +210,8 @@ classdef InfoTimeline < handle
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       obj.hSegLineGT.init(xlims,SEGLINEYLOC,sPV);
       obj.hSegLineGTLbled.init(xlims,SEGLINEYLOC,sPVLbled);
+      
+      cbkGTSuggUpdated(obj,[],[]);
     end
     
     function setTracker(obj,tracker)
@@ -450,12 +457,64 @@ classdef InfoTimeline < handle
       bout = boutsAll(iBout,:);
       obj.hSelIm.CData(:,bout(1):bout(2)-1) = 0;
       obj.setLabelerSelectedFrames();
+    end    
+    function cbkGTIsGTModeUpdated(obj,src,evt)
+      lblObj = obj.lObj;
+      gt = lblObj.gtIsGTMode;
+      if gt
+        obj.cbkGTSuggUpdated([],[]);
+      end
+      onOff = onIff(gt);
+      obj.hSegLineGT.setVisible(onOff);
+      obj.hSegLineGTLbled.setVisible(onOff);
     end
     function cbkGTSuggUpdated(obj,src,evt)
-      XXX STOPPED HERE
+      % full update to any change to labeler.gtSuggMFTable*
+      
+      lblObj = obj.lObj;
+      if ~lblObj.gtIsGTMode || lblObj.isinit
+        % segLines are not visible; more importantly, cannot set segLine
+        % highlighting based on suggestions in current movie
+        return;
+      end
+      
+      % find rows for current movie
+      tblLbled = table(lblObj.gtSuggMFTableLbled,'variableNames',{'hasLbl'});
+      tbl = [lblObj.gtSuggMFTable tblLbled];
+      mIdx = lblObj.currMovIdx;
+      tf = mIdx==tbl.mov;
+      tblCurrMov = tbl(tf,:); % current mov, various frm/tgts
+      
+      % for hSegLineGT, we highlight any/all frames (regardless of, or across all, targets)
+      frmsOn = tblCurrMov.frm; % could contain repeat frames (across diff targets)
+      obj.hSegLineGT.setOnAtOnly(frmsOn);
+      
+      % For hSegLineGTLbled, we turn on a given frame only if all
+      % targets/rows for that frame are labeled.
+      tblRes = rowfun(@(zzHasLbl)all(zzHasLbl),tblCurrMov,...
+        'groupingVariables',{'frm'},'inputVariables','hasLbl',...
+        'outputVariableNames',{'allTgtsLbled'});
+      frmsAllTgtsLbled = tblRes.frm(tblRes.allTgtsLbled);
+      obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
     end
     function cbkGTSuggMFTableLbledUpdated(obj,src,evt)
+      % React to incremental update to labeler.gtSuggMFTableLbled
       
+      lblObj = obj.lObj;
+      if ~lblObj.gtIsGTMode
+        % segLines are not visible,; more importantly, cannot set segLine
+        % highlighting based on suggestions in current movie
+        return;
+      end
+      
+      % find rows for current movie/frm
+      tbl = lblObj.gtSuggMFTable;
+      currFrm = lblObj.currFrame;
+      tfCurrMovFrm = tbl.mov==lblObj.currMovIdx & tbl.frm==currFrm;
+      tfLbled = lblObj.gtSuggMFTableLbled;
+      tfLbledCurrMovFrm = tfLbled(tfCurrMovFrm,:);
+      tfHiliteOn = numel(tfLbledCurrMovFrm)>0 && all(tfLbledCurrMovFrm);
+      obj.hSegLineGTLbled.setOnOffAt(currFrm,tfHiliteOn);
     end
   end
 
