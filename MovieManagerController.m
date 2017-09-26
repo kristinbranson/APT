@@ -276,11 +276,11 @@ classdef MovieManagerController < handle
       end
       
       lObj = obj.labeler;
-      nmovieOrig = lObj.nmovies;
+      nmovieOrig = lObj.nmoviesGTaware;
       fname = fullfile(pname,fname);
       lObj.movieAddBatchFile(fname);
       RC.saveprop('lastMovieBatchFile',fname);
-      if nmovieOrig==0 && lObj.nmovies>0
+      if nmovieOrig==0 && lObj.nmoviesGTaware>0
         lObj.movieSet(1);
       end
     end

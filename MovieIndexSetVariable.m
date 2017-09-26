@@ -25,6 +25,7 @@ classdef MovieIndexSetVariable < MovieIndexSet
     AllMov = MovieIndexSetVariable('All movies',@lclAllMoviesGetMovieIndexHook); % "All regular movies"
     CurrMov = MovieIndexSetVariable('Current movie',@lclCurrMovieGetMovieIndexHook);
     SelMov = MovieIndexSetVariable('Selected movies',@lclSelMovieGetMovieIndexHook);
+    AllGTMov = MovieIndexSetVariable('All GT movies',@lclAllGTMoviesGetMovieIndexHook);
   end  
 end
 
@@ -39,4 +40,8 @@ end
 function mIdx = lclSelMovieGetMovieIndexHook(lObj)
 assert(~lObj.gtIsGTMode);
 mIdx = MovieIndex(lObj.moviesSelected);
+end
+function mIdx = lclAllGTMoviesGetMovieIndexHook(lObj)
+iMovs = 1:lObj.nmoviesGT;
+mIdx = MovieIndex(-iMovs);
 end

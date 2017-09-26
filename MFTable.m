@@ -7,11 +7,11 @@ classdef MFTable
   methods (Static) % General table utils
     
     function [tblNew,tfRm] = remapIntegerKey(tbl,keyfld,keymap)
-      % tbl: any table with a "key" field which takes nonzero integer 
-      %   values
+      % tbl: any table with a "key" field which takes nonzero integer
+      %   values; MovieIndex values also accepted
       % keyfld: fieldname of tbl
       % map: containers.Map where map(oldKeyVal)==newKeyVal. if
-      % map(oldKeyVal)==0, then that row is to be removed.
+      %   map(oldKeyVal)==0, then that row is to be removed.
       %
       % tblNew: tbl with keys remapped and rows removed as appropriate
       % tfRm: [height(tbl)x1] logical. True for rows of tbl that were 
@@ -21,17 +21,33 @@ classdef MFTable
       assert(isa(keymap,'containers.Map'));
       
       keys = tbl{:,keyfld};
+      tfMovIdx = isa(keys,'MovieIndex');
+      if tfMovIdx
+        keys = int32(keys);
+      end
       keysnew = arrayfun(@(x)keymap(x),keys);
-      
-      tblNew = tbl;      
-      tblNew.(keyfld) = keysnew;
       tfRm = keysnew==0;
+      if tfMovIdx
+        keysnew = MovieIndex(keysnew);
+      end
+      
+      tblNew = tbl;
+      tblNew.(keyfld) = keysnew;
       tblNew(tfRm,:) = [];
     end
     
     function tbl = emptyFLDSID()
       x = zeros(0,1);
       tbl = table(MovieIndex(x),x,x,'VariableNames',MFTable.FLDSID);
+    end
+        
+    function tbl = emptyTable(varNames)
+      % Create an empty MFTable 
+
+      assert(strcmp(varNames{1},'mov'));
+      n = numel(varNames);
+      tbl = cell2table(cell(0,n),'VariableNames',varNames);
+      tbl.mov = MovieIndex(tbl.mov);
     end
     
   end

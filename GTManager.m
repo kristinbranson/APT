@@ -212,4 +212,7 @@ else
 end
 
 function pbComputeGT_Callback(hObject, eventdata, handles)
-assert(false,'TODO');
+lObj = handles.labeler;
+tblGTres = lObj.gtComputeGTPerformance();
+assignin('base','tblGTres',tblGTres);
+msgbox('Assigned results in variable ''tblGTres''.');

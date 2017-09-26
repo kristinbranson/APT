@@ -68,7 +68,7 @@ classdef MFTSet < handle
       % querying .frameSet.
       
       if ~labelerObj.hasMovie
-        mov = zeros(0,1);
+        mov = MovieIndex(zeros(0,1));
         frm = zeros(0,1);
         iTgt = zeros(0,1);
         tblMFT = table(mov,frm,iTgt);

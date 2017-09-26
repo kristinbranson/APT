@@ -25,13 +25,8 @@ classdef CPRLabelTracker < LabelTracker
   % There are three MD tables in CPRLabelTracker: in .data.MD (data),
   % .trnDataTblP (train), and .trkPMD (track).
   %
-  % These are all MFTables (Movie-frame tables) where .mov is an index into
-  % a row of lObj.movieFilesAll. Conceptually, .mov represents a unique
-  % movie(set) key/ID.
-  %
-  % The .mov fields in these tables are "signed movie indices" and can take 
-  % negative values representing indexing into rows of 
-  % lObj.movieFilesAllGT. Zero values (.mov==0) should never occur.
+  % These are all MFTables (Movie-frame tables) where .mov are MovieIndex
+  % arrays.
   %
   % All tables must have the key fields .mov, .frm, .iTgt. Together, these 
   % three fields act as a unique row key. The track table has only the 
@@ -39,8 +34,8 @@ classdef CPRLabelTracker < LabelTracker
   % other additional fields such as .tfocc.
   %
   % Some defs:
-  % .mov. unique ID for movie, integer index into lObj.movieFilesAll or 
-  %   negative index into lObj.movieFilesAllGT.
+  % .mov. unique ID for movie. Currently, if positive this is an index into 
+  %  lObj.movieFilesAll, if negative an index into lObj.movieFilesAllGT.
   % .frm. frame number
   % .iTgt. 1-based target index (always 1 for single target proj)
   % .p. [1 x npt*nvw*d=2] labeled shape
@@ -78,6 +73,7 @@ classdef CPRLabelTracker < LabelTracker
     
     % Currently selected training data (includes updates/additions)
     % MD fields: .mov, .frm, .iTgt, .p, .tfocc, .pTS, (opt) .pTrx, (opt) .roi
+    % .mov has type MovieIndex
     trnDataTblP
     % [size(trnDataTblP,1)x1] timestamps for when rows of trnDataTblP were
     % added to CPRLabelTracker
@@ -101,6 +97,7 @@ classdef CPRLabelTracker < LabelTracker
     trkPFull 
     trkPTS % [NTstx1] timestamp for trkP*
     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt, (opt) .roi
+           % .mov has class movieIndex 
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. trkD=npttrk*d.
   end
   properties (SetObservable)
@@ -236,10 +233,10 @@ classdef CPRLabelTracker < LabelTracker
         tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
         assert(all(tf) || ~any(tf));
         if ~any(tf)
-        roiRadius = obj.sPrm.PreProc.TargetCrop.Radius;
-        tblP = labelerObj.labelMFTableAddROI(tblP,roiRadius);
-        tblP.pAbs = tblP.p;
-        tblP.p = tblP.pRoi;
+          roiRadius = obj.sPrm.PreProc.TargetCrop.Radius;
+          tblP = labelerObj.labelMFTableAddROI(tblP,roiRadius);
+          tblP.pAbs = tblP.p;
+          tblP.p = tblP.pRoi;
         end
       else
         % none; tblP.p is .pAbs. No .roi field.
@@ -305,7 +302,8 @@ classdef CPRLabelTracker < LabelTracker
         
     %#%MTGT
     %#%MV
-    function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP)
+    %#%MIDXOK
+    function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP) % obj const
       % Compare tblP to current .data MD wrt MFTable.FLDSCORE
 
       td = obj.data;
@@ -326,7 +324,7 @@ classdef CPRLabelTracker < LabelTracker
       % Initialize .data*
       
       I = cell(0,1);
-      tblP = lclInitTable(MFTable.FLDSCORE);
+      tblP = MFTable.emptyTable(MFTable.FLDSCORE);
       obj.data = CPRData(I,tblP);
       obj.dataTS = now;
     end
@@ -408,13 +406,13 @@ classdef CPRLabelTracker < LabelTracker
 
       tblPNewConcrete = tblPnew; % will concretize movie/movieIDs
       nNew = size(tblPnew,1);
-      iMovSgnd = tblPNewConcrete.mov;
-      tfRegRow = iMovSgnd>0;
-      tfGTRow = iMovSgnd<0;
-      assert(~any(iMovSgnd==0));
+      mIdx = tblPNewConcrete.mov;
+      [iMovAbs,tfGTRow] = mIdx.get();
+      tfRegRow = ~tfGTRow;
+      assert(~any(iMovAbs==0));
       movStr = cell(nNew,obj.lObj.nview);
-      movStr(tfRegRow,:) = obj.lObj.movieFilesAll(iMovSgnd(tfRegRow),:); % [NxnView] 
-      movStr(tfGTRow,:) = obj.lObj.movieFilesAllGT(-iMovSgnd(tfGTRow),:);
+      movStr(tfRegRow,:) = obj.lObj.movieFilesAll(iMovAbs(tfRegRow),:); % [NxnView] 
+      movStr(tfGTRow,:) = obj.lObj.movieFilesAllGT(iMovAbs(tfGTRow),:);
       tblPNewConcrete.mov = movStr;
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
@@ -460,7 +458,8 @@ classdef CPRLabelTracker < LabelTracker
       %%% EXISTING ROWS -- just update pGT and tfocc. Existing images are
       %%% OK and already histeq'ed correctly
       nUpdate = size(tblPupdate,1);
-      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB table indexing API may not be polished
+      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB 
+                   % table indexing API may not be polished
         fprintf(1,'Updating labels for %d rows...\n',nUpdate);
         tblMFupdate = tblPupdate(:,FLDSID);
         tblMFcurr = dataCurr.MD(:,FLDSID);
@@ -526,7 +525,7 @@ classdef CPRLabelTracker < LabelTracker
     function trnDataInit(obj)
       obj.trnDataDownSamp = false;
       obj.trnDataFFDThresh = nan;
-      obj.trnDataTblP = lclInitTable(MFTable.FLDSFULL);
+      obj.trnDataTblP = MFTable.emptyTable(MFTable.FLDSFULL);
       obj.trnDataTblPTS = -inf(0,1);
     end
     
@@ -565,7 +564,7 @@ classdef CPRLabelTracker < LabelTracker
       movUn = categories(mov);
       nMovUn = numel(movUn);
       movUnCnt = countcats(mov);
-      n = size(tblP,1);
+      n = height(tblP);
       
       hFig = CPRData.ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,...
         'cbkFcn',@(xSel,ySel)nst(xSel,ySel));
@@ -716,7 +715,7 @@ classdef CPRLabelTracker < LabelTracker
       iPtTrk = obj.trkPiPt;
       nPtTrk = numel(iPtTrk);
       d = 2;
-      assert(size(trkMD,1)==NTrk);
+      assert(height(trkMD)==NTrk);
       assert(nPtTrk*d==DTrk);
           
       nRep = obj.sPrm.TestInit.Nrep;
@@ -749,7 +748,12 @@ classdef CPRLabelTracker < LabelTracker
         tfEmptyRow = arrayfun(@(x)nnz(~isnan(trkposFull(:,:,:,x)))==0,...
           (1:nRowCurrMov)');
         trkposFull(:,:,:,tfEmptyRow) = [];
-        trkposFullMFT(tfEmptyRow,:) = [];
+        % AL20170926: ML2015b table subsasgn but where first col is of type
+        % MovieIndex. Row-deletion using subasgn appears impossible on any 
+        % table containing MovieIndex objects in a column.
+        % 
+        % trkposFullMFT(tfEmptyRow,:) = [];
+        trkposFullMFT = trkposFullMFT(~tfEmptyRow,:);
         for i=1:nRowCurrMov
           frm = trkMDCurrMov.frm(i);
           iTgt = trkMDCurrMov.iTgt(i);
@@ -803,10 +807,8 @@ classdef CPRLabelTracker < LabelTracker
       % 
       % - new rows are just added
       % - existing rows are overwritten
-      
-      tblMFtrk.mov = int32(tblMFtrk.mov);
-      
-      nTst = size(tblMFtrk,1);
+            
+      nTst = height(tblMFtrk);
       RT = obj.sPrm.TestInit.Nrep;
       mdlPrms = obj.sPrm.Model;
       Dfull = mdlPrms.nfids*mdlPrms.nviews*mdlPrms.d;
@@ -814,7 +816,7 @@ classdef CPRLabelTracker < LabelTracker
       szassert(pTstTRed,[nTst Dfull]);
       szassert(pTstT,[nTst RT Dfull Tp1]);
       
-      tfROI = any(strcmp('roi',tblMFtrk.Properties.VariableNames));
+      tfROI = tblfldscontains(tblMFtrk,'roi');
       if tfROI
         % Convert pTstT and pTstTRed from relative/ROI coords to absolute
         % coords
@@ -844,8 +846,8 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
       
-      [tf,loc] = ismember(tblMFtrk(:,MFTable.FLDSID),...
-                          obj.trkPMD(:,MFTable.FLDSID));
+      [tf,loc] = tblismember(tblMFtrk,obj.trkPMD,MFTable.FLDSID);
+      
       % existing rows
       idxCur = loc(tf);
       obj.trkP(idxCur,:) = pTstTRed(tf,:);
@@ -1006,10 +1008,8 @@ classdef CPRLabelTracker < LabelTracker
       obj.updateData(tblTrn);
       d = obj.data;
       
-      tblMF = d.MD(:,MFTable.FLDSID);
-      tblTrnMF = tblTrn(:,MFTable.FLDSID);
-      tf = ismember(tblMF,tblTrnMF);
-      assert(nnz(tf)==size(tblTrnMF,1));
+      tf = tblismember(d.MD,tblTrn,MFTable.FLDSID);
+      assert(nnz(tf)==height(tblTrn));
       iTrn = find(tf);
       nTrn = numel(iTrn);
       fprintf(1,'%d training rows in total.\n',nTrn);
@@ -1114,10 +1114,8 @@ classdef CPRLabelTracker < LabelTracker
       obj.updateData(tblPTrn);
       
       d = obj.data;
-      tblMF = d.MD(:,MFTable.FLDSID);
-      tblTrnMF = tblPTrn(:,MFTable.FLDSID);
-      tf = ismember(tblMF,tblTrnMF);
-      assert(nnz(tf)==size(tblTrnMF,1));
+      tf = tblismember(d.MD,tblPTrn,MFTable.FLDSID);
+      assert(nnz(tf)==height(tblPTrn));
       d.iTrn = find(tf);
       
       fprintf(1,'Training data summary:\n');
@@ -1218,10 +1216,8 @@ classdef CPRLabelTracker < LabelTracker
       
       % set iTrn and summarize
       d = obj.data;
-      tblMF = d.MD(:,{'mov' 'frm'});
-      tblNewMF = tblPNew(:,{'mov','frm'});
-      tf = ismember(tblMF,tblNewMF);
-      assert(nnz(tf)==size(tblNewMF,1));
+      tf = tblismember(d.MD,tblPNew,{'mov' 'frm'});
+      assert(nnz(tf)==height(tblPNew));
       d.iTrn = find(tf);
       
       fprintf(1,'Training data summary:\n');
@@ -1360,9 +1356,7 @@ classdef CPRLabelTracker < LabelTracker
       %%% Set up .data
       obj.updateData(tblP);
       d = obj.data;
-      tblMFAll = d.MD(:,MFTable.FLDSID);
-      tblMFTrk = tblP(:,MFTable.FLDSID);
-      [tf,loc] = ismember(tblMFTrk,tblMFAll);
+      [tf,loc] = tblismember(tblP,d.MD,MFTable.FLDSID);
       assert(all(tf));
       d.iTst = loc;
       fprintf(1,'Track data summary:\n');
@@ -1454,7 +1448,7 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       tblfldscontainsassert(tblMFT,MFTable.FLDSID);
-      assert(all(tblMFT.mov>0),'GT mode');
+      assert(isa(tblMFT.mov,'MovieIndex'));
       if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE))
         tblMFT = obj.lObj.labelAddLabelsMFTable(tblMFT);
         tblMFT = obj.hlpAddRoiIfNec(tblMFT);
@@ -1510,9 +1504,7 @@ classdef CPRLabelTracker < LabelTracker
         end
         
         d = obj.data;
-        tblMFAll = d.MD(:,MFTable.FLDSID);
-        tblMFTrk = tblMFTChunk(:,MFTable.FLDSID);
-        [tf,loc] = ismember(tblMFTrk,tblMFAll);
+        [tf,loc] = tblismember(tblMFTChunk,d.MD,MFTable.FLDSID);
         assert(all(tf));
         d.iTst = loc;             
         
@@ -1590,7 +1582,7 @@ classdef CPRLabelTracker < LabelTracker
         end % end obj CONST
         
         fldsTmp = MFTable.FLDSID;
-        if any(strcmp(d.MDTst.Properties.VariableNames,'roi'))
+        if tblfldscontains(d.MDTst,'roi')
           fldsTmp{1,end+1} = 'roi'; %#ok<AGROW>
         end
         trkPMDnew = d.MDTst(:,fldsTmp);
@@ -1855,15 +1847,16 @@ classdef CPRLabelTracker < LabelTracker
       keys = cell2mat(iMovOrig2New.keys);
       vals = cell2mat(iMovOrig2New.values);
       szassert(keys,size(vals));
-      iMovRm = keys(vals==0);
-      assert(isscalar(iMovRm)); % for now
+      mIdx = keys(vals==0);
+      mIdx = MovieIndex(mIdx);
+      assert(isscalar(mIdx)); % for now
       
       % .data*. Remove any removed movies from .data cache, relabel MD.mov
       obj.data.movieRemap(iMovOrig2New);
       
       % trnData*. If a movie is being removed that is in trnDataTblP, to be 
       % safe we invalidate any trained tracker and tracking results.
-      tfRm = obj.trnDataTblP.mov==iMovRm;
+      tfRm = obj.trnDataTblP.mov==mIdx;
       if any(tfRm)
         if isdeployed
           error('CPRLabelTracker:movieRemoved',...
@@ -1893,14 +1886,15 @@ classdef CPRLabelTracker < LabelTracker
       else
         % .trnDataTblP does not contain a movie-being-removed, but we still
         % need to relabel movie indices.
-        obj.trnDataTblP.mov = arrayfun(@(x)iMovOrig2New(x),...
-                                        obj.trnDataTblP.mov);
+        obj.trnDataTblP = MFTable.remapIntegerKey(obj.trnDataTblP,'mov',...
+          iMovOrig2New);
         assert(~any(obj.trnDataTblP.mov==0));
       end
       
       % trkP*. Relabel .mov in tables; remove any removed movies from 
       % tracking results. 
-      [obj.trkPMD,tfRm] = MFTable.remapIntegerKey(obj.trkPMD,'mov',iMovOrig2New);
+      [obj.trkPMD,tfRm] = MFTable.remapIntegerKey(obj.trkPMD,'mov',...
+        iMovOrig2New);
       obj.trkP(tfRm,:) = [];
       if ~isequal(obj.trkPFull,[])
         obj.trkPFull(tfRm,:,:,:) = [];
@@ -1998,18 +1992,18 @@ classdef CPRLabelTracker < LabelTracker
       % remove .movS field
       if isempty(s.trnDataTblP)
         % just re-init table
-        s.trnDataTblP  = lclInitTable(MFTable.FLDSFULL);
+        s.trnDataTblP  = MFTable.emptyTable(MFTable.FLDSFULL);
       else
         s.trnDataTblP = MFTable.rmMovS(s.trnDataTblP);
-        if ~any(strcmp(s.trnDataTblP.Properties.VariableNames,'iTgt'))
+        if ~tblfldscontains(s.trnDataTblP,'iTgt')
           s.trnDataTblP.iTgt = ones(height(s.trnDataTblP),1);
         end
       end
       if isempty(s.trkPMD)
-        s.trkPMD = lclInitTable(MFTable.FLDSID);
+        s.trkPMD = MFTable.emptyTable(MFTable.FLDSID);
       else
         s.trkPMD = MFTable.rmMovS(s.trkPMD);
-        if ~any(strcmp(s.trkPMD.Properties.VariableNames,'iTgt'))
+        if ~tblfldscontains(s.trkPMD,'iTgt')
           s.trkPMD.iTgt = ones(height(s.trkPMD),1);
         end
       end
@@ -2086,6 +2080,14 @@ classdef CPRLabelTracker < LabelTracker
       % 20170823
       if ~isfield(s,'hideViz')
         s.hideViz = false;
+      end
+      
+      % 20170926
+      if ~isa(s.trnDataTblP.mov,'MovieIndex')
+        s.trnDataTblP.mov = MovieIndex(s.trnDataTblP.mov);
+      end
+      if ~isa(s.trkPMD.mov,'MovieIndex')
+        s.trkPMD.mov = MovieIndex(s.trkPMD.mov);
       end
 
       % set parameter struct s.sPrm on obj
@@ -2240,7 +2242,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkPFull = [];
       obj.trkPTS = zeros(0,1);
       % wrong fields but will get overwritten. 20170531 why not use right fields?
-      obj.trkPMD = lclInitTable(MFTable.FLDSID);
+      obj.trkPMD = MFTable.emptyTable(MFTable.FLDSID);
       obj.trkPiPt = [];
     end
     
@@ -2719,8 +2721,4 @@ else
   cprroot = fileparts(fileparts(mfilename('fullpath')));
   dpf = fullfile(cprroot,'param.example.yaml');
 end
-end
-
-function t = lclInitTable(cols)
-t = cell2table(cell(0,numel(cols)),'VariableNames',cols);
 end

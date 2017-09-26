@@ -3947,14 +3947,20 @@ classdef Labeler < handle
     end
     
     function tblMF = labelAddLabelsMFTable(obj,tblMF)
-      assert(~obj.gtIsGTMode);
+      mIdx = tblMF.mov;
+      assert(isa(mIdx,'MovieIndex'));
+      [~,gt] = mIdx.get();
+      assert(all(gt) || all(~gt),...
+        'Currently only all-GT or all-nonGT supported.');
+      gt = gt(1);
+      PROPS = Labeler.gtGetSharedPropsStc(gt);
       if obj.hasTrx
-        tfaf = obj.trxFilesAllFull;
+        tfaf = obj.(PROPS.TFAF);
       else
         tfaf = [];
       end
       tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,...
-        obj.labeledpos,obj.labeledpostag,obj.labeledposTS,...
+        obj.(PROPS.LPOS),obj.(PROPS.LPOSTAG),obj.(PROPS.LPOSTS),...
         'trxFilesAllFull',tfaf,'trxCache',obj.trxCache);
     end
   end
@@ -4025,8 +4031,8 @@ classdef Labeler < handle
         varargin)
       % Add label/trx information to an MFTable
       %
-      % tblMF (input): MFTable with flds MFTable.FLDSID. tblMF.mov are
-      %   indices into lpos,lpostag,lposTS.
+      % tblMF (input): MFTable with flds MFTable.FLDSID. tblMF.mov are 
+      %   MovieIndices. tblMF.mov.get() are indices into lpos,lpostag,lposTS.
       % lpos...lposTS: as in labelGetMFTableLabeledStc
       %
       % tblMF (output): Same rows as tblMF, but with addnl label-related
@@ -4037,7 +4043,6 @@ classdef Labeler < handle
         'trxCache',[]); % must be supplied if trxFilesAllFull is supplied
       
       assert(istable(tblMF));
-      assert(all(tblMF.mov>0));
       tblfldscontainsassert(tblMF,MFTable.FLDSID);
       nMov = size(lpos,1);
       szassert(lpos,[nMov 1]);
@@ -4057,7 +4062,7 @@ classdef Labeler < handle
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
       for irow=1:nrow
         tblrow = tblMF(irow,:);
-        iMov = tblrow.mov;
+        iMov = tblrow.mov.get;
         frm = tblrow.frm;
         iTgt = tblrow.iTgt;
 
@@ -4646,6 +4651,52 @@ classdef Labeler < handle
       idx = find(tf);
       assert(isempty(idx) || isscalar(idx));
       tf = ~isempty(idx);
+    end
+    function tblGTres = gtComputeGTPerformance(obj)
+      tblMFTSugg = obj.gtSuggMFTable;
+      mfts = MFTSet(MovieIndexSetVariable.AllGTMov,...
+        FrameSetVariable.LabeledFrm,FrameDecimationFixed(1),...
+        TargetSetVariable.AllTgts);    
+      tblMFTLbld = mfts.getMFTable(obj);
+      
+      if ~all(obj.gtSuggMFTableLbled)
+        warningNoTrace('Labeler:gt',...
+          '%d suggested GT frames have not been labeled.',...
+          nnz(~obj.gtSuggMFTableLbled));
+      end
+      
+      tfLbledNotSuggested = ~ismember(tblMFTLbld,tblMFTSugg);
+      nLbledNotSuggested = nnz(tfLbledNotSuggested);
+      if nLbledNotSuggested>0
+        warningNoTrace('Labeler:gt',...
+          '%d labeled GT frames were not in list of suggestions. These labels will still be used in assessing GT performance.',...
+          nLbledNotSuggested);
+      end
+        
+      tObj = obj.tracker;
+      tObj.track(tblMFTLbld);
+            
+      % get results and compute GT perf
+      tblTrkRes = tObj.getAllTrackResTable();
+      [tf,loc] = tblismember(tfMFTLbld,tblTrkRes,MFTable.FLDSID);
+      assert(all(tf));
+      tblTrkRes = tblTrkRes(loc);
+      tblMFTLbld = obj.labelAddLabelsMFTable(tblMFTLbld);
+      pTrk = tblTrkRes.pTrk;
+      pLbl = tblMFTLbld.p;
+      nrow = height(pTrk);
+      npts = obj.nLabelPoints;
+      szassert(pTrk,[nrow 2*npts]);
+      szassert(pLbl,[nrow 2*npts]);
+      
+      % L2 err matrix: [nrow x npt]
+      pTrk = reshape(pTrk,[nrow npt 2]);
+      pLbl = reshape(pLbl,[nrow npt 2]);
+      err = sqrt(sum((pTrk-pLbl).^2,3));
+      
+      tblTmp = tblMFTLbld(:,{'p' 'pTS' 'tfocc' 'pTrx'});
+      tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
+      tblGTres = [tblTrkRes tblTmp table(err,'VariableNames',{'L2err'})];
     end
   end
   methods (Static)
