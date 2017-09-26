@@ -481,7 +481,7 @@ classdef LabelCoreTemplate < LabelCore
     
     function setRandomTemplate(obj)
       lbler = obj.labeler;
-      [x0,y0] = lbler.currentTargetLoc();
+      [x0,y0] = lbler.currentTargetLoc('nowarn',true);
       nr = lbler.movienr;
       nc = lbler.movienc;
       r = round(max(nr,nc)/6);

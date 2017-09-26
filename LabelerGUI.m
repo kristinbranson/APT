@@ -335,7 +335,7 @@ listeners{end+1,1} = addlistener(lObj,'movieRotateTargetUp','PostSet',@cbkMovieR
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
-listeners{end+1,1} = addlistener(lObj,'gtIsGTMode','PostSet',@cbkGtIsGTModeChanged);
+listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 %listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
@@ -2340,7 +2340,7 @@ if gtNew
 end
   
 function cbkGtIsGTModeChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src;
 handles = lObj.gdata;
 gt = lObj.gtIsGTMode;
 onIffGT = onIff(gt);

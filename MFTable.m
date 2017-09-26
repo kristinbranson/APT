@@ -3,8 +3,31 @@ classdef MFTable
 %
 % An MFTable is a table with cols 'mov' and 'frm' indicating movies and
 % frame numbers.
+  
+  properties (Constant)
+    % Uniquely IDs a frame/target
+    FLDSID = {'mov' 'frm' 'iTgt'};
+    
+    % Core training/test data.
+    FLDSCORE = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+    % In ROI case, .p is relative to .ROI
+    FLDSCOREROI = {'mov' 'frm' 'iTgt' 'tfocc' 'p' 'roi'};
 
-  methods (Static) % General table utils
+    FLDSFULL = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc'};
+    
+    %  mov    single string unique ID for movieSetID combo
+    %  frm    1-based frame index
+    %  iTgt   1-based trx index
+    %  p      Absolute label positions (px). Raster order: physpt,view,{x,y}
+    %  pTS    [npts=nphyspt*nview] timestamps
+    %  tfocc  [npts=nphyspt*nview] logical occluded flag
+    %  pTrx   [nview*2], trx .x and .y. Raster order: view,{x,y}
+    FLDSFULLTRX = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'};    
+
+    FLDSSUSP = {'mov' 'frm' 'iTgt' 'susp'};
+  end
+  
+  methods (Static) % MFTables
     
     function [tblNew,tfRm] = remapIntegerKey(tbl,keyfld,keymap)
       % tbl: any table with a "key" field which takes nonzero integer
@@ -35,14 +58,9 @@ classdef MFTable
       tblNew.(keyfld) = keysnew;
       tblNew(tfRm,:) = [];
     end
-    
-    function tbl = emptyFLDSID()
-      x = zeros(0,1);
-      tbl = table(MovieIndex(x),x,x,'VariableNames',MFTable.FLDSID);
-    end
-        
+
     function tbl = emptyTable(varNames)
-      % Create an empty MFTable 
+      % Create an empty MFTable with MovieIndex .movs
 
       assert(strcmp(varNames{1},'mov'));
       n = numel(varNames);
@@ -50,36 +68,20 @@ classdef MFTable
       tbl.mov = MovieIndex(tbl.mov);
     end
     
-  end
-  
-  properties (Constant)
-    % Uniquely IDs a frame/target
-    FLDSID = {'mov' 'frm' 'iTgt'};
-    
-    % Core training/test data.
-    FLDSCORE = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
-    % In ROI case, .p is relative to .ROI
-    FLDSCOREROI = {'mov' 'frm' 'iTgt' 'tfocc' 'p' 'roi'};
-
-    FLDSFULL = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc'};
-    
-    %  mov    single string unique ID for movieSetID combo
-    %  frm    1-based frame index
-    %  iTgt   1-based trx index
-    %  p      Absolute label positions (px). Raster order: physpt,view,{x,y}
-    %  pTS    [npts=nphyspt*nview] timestamps
-    %  tfocc  [npts=nphyspt*nview] logical occluded flag
-    %  pTrx   [nview*2], trx .x and .y. Raster order: view,{x,y}
-    FLDSFULLTRX = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'};    
-
-    FLDSSUSP = {'mov' 'frm' 'iTgt' 'susp'};
-  end
-  
-  methods (Static)
-    
     function tbl = emptySusp()
       x = nan(0,1);
       tbl = table(x,x,x,x,'VariableNames',MFTable.FLDSSUSP);
+    end
+    
+    function tbl = sortCanonical(tbl)
+      assert(isa(tbl.mov,'MovieIndex'));
+      tfgt = tbl.mov<0;
+      tblGT = tbl(tfgt,:);
+      tblReg = tbl(~tfgt,:);
+      sortvars = {'mov' 'iTgt' 'frm'};
+      tblReg = sortrows(tblReg,sortvars,{'ascend' 'ascend' 'ascend'});
+      tblGT = sortrows(tblGT,sortvars,{'descend' 'ascend' 'ascend'});
+      tbl = [tblReg; tblGT];
     end
     
     function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)

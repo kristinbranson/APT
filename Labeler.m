@@ -319,6 +319,7 @@ classdef Labeler < handle
     % so updating them is a nonatomic (2-step) process. Listeners directly
     % listening to property sets will sometimes see inconsistent state.
     
+    gtIsGTModeChanged 
     gtSuggUpdated % general update occurred of gtSuggMFTable*
     gtSuggMFTableLbledUpdated % incremental update of gtSuggMFTableLbled occurred
   end
@@ -951,7 +952,7 @@ classdef Labeler < handle
       
       obj.trxCache = containers.Map();
       
-      obj.gtSuggMFTable = MFTable.emptyFLDSID();
+      obj.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
 
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
@@ -1749,7 +1750,7 @@ classdef Labeler < handle
           s.viewCalibrationDataGT = cell(0,1);
         end
         s.gtIsGTMode = false;
-        s.gtSuggMFTable = MFTable.emptyFLDSID();
+        s.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
       end
 
       % 20170922
@@ -4560,6 +4561,7 @@ classdef Labeler < handle
           obj.movieSet(IMOV);
         end
         obj.updateFrameTableComplete();
+        obj.notify('gtIsGTModeChanged');
       end
     end
     function gtThrowErrIfInGTMode(obj)
@@ -4678,7 +4680,7 @@ classdef Labeler < handle
             
       % get results and compute GT perf
       tblTrkRes = tObj.getAllTrackResTable();
-      [tf,loc] = tblismember(tfMFTLbld,tblTrkRes,MFTable.FLDSID);
+      [tf,loc] = tblismember(tblMFTLbld,tblTrkRes,MFTable.FLDSID);
       assert(all(tf));
       tblTrkRes = tblTrkRes(loc);
       tblMFTLbld = obj.labelAddLabelsMFTable(tblMFTLbld);
@@ -5718,8 +5720,14 @@ classdef Labeler < handle
       end
     end
     
-    function [x,y,th] = currentTargetLoc(obj)
+    function [x,y,th] = currentTargetLoc(obj,varargin)
       % Return current target loc, or movie center if no target
+      
+      nowarn = myparse(varargin,...
+        'nowarn',false ... % If true, don't warn about incompatible .currFrame/.currTrx. 
+          ... % The incompatibility really shouldn't happen but it's an edge case
+          ... % and not worth the trouble to fix for now.
+        );
       
       assert(~obj.isMultiView,'Not supported for MultiView.');
       
@@ -5728,7 +5736,10 @@ classdef Labeler < handle
         ctrx = obj.currTrx;
 
         if cfrm < ctrx.firstframe || cfrm > ctrx.endframe
-          warningNoTrace('Labeler:target','No track for current target at frame %d.',cfrm);
+          if ~nowarn
+            warningNoTrace('Labeler:target',...
+              'No track for current target at frame %d.',cfrm);
+          end
           x = round(obj.movienc/2);
           y = round(obj.movienr/2);
           th = 0;

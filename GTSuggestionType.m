@@ -37,6 +37,7 @@ classdef GTSuggestionType
       
       idx = GTSuggestionType.balancedSample(nrow,nsamp,g);
       tblMFT = tblMFT(idx,:);
+      tblMFT = MFTable.sortCanonical(tblMFT);
     end
   end
   

@@ -58,7 +58,7 @@ handles.navTreeTblMovIdxs = nan(0,1);
 handles.listener = cell(0,1);
 % Following listeners for table maintenance
 handles.listener{end+1,1} = addlistener(lObj,...
-  'gtIsGTMode','PostSet',@(s,e)cbkGTisGTModeChanged(hObject,s,e));
+  'gtIsGTModeChanged',@(s,e)cbkGTisGTModeChanged(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
   'gtSuggUpdated',@(s,e)cbkGTSuggUpdated(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
@@ -103,9 +103,14 @@ lObj = handles.labeler;
 ntt = handles.navTreeTbl;
 tbl = lObj.gtSuggMFTable;
 tblMovIdxs = tbl.mov;
+[iMovAbs,gt] = tblMovIdxs.get;
+assert(all(gt));
 movstrs = lObj.getMovieFilesAllFullMovIdx(tblMovIdxs);
 movstrs = movstrs(:,1);
 movstrs = cellfun(@FSPath.twoLevelFilename,movstrs,'uni',0);
+numDigits = floor(log10(lObj.nmoviesGT)+1);
+fmt = sprintf('(%%0%dd) ',numDigits);
+movstrs = strcat(arrayfun(@(x)sprintf(fmt,x),iMovAbs,'uni',0),movstrs);
 tbl.mov = movstrs;
 hasLbl = lObj.gtSuggMFTableLbled;
 tbl = [tbl table(hasLbl)];
