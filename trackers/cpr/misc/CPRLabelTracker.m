@@ -402,7 +402,7 @@ classdef CPRLabelTracker < LabelTracker
       
       %%% NEW ROWS read images + PP. Append to dataCurr. %%%
       FLDSID = MFTable.FLDSID;
-      assert(~any(ismember(tblPnew(:,FLDSID),dataCurr.MD(:,FLDSID))));
+      assert(~any(tblismember(tblPnew,dataCurr.MD,FLDSID)));
 
       tblPNewConcrete = tblPnew; % will concretize movie/movieIDs
       nNew = size(tblPnew,1);
@@ -411,8 +411,8 @@ classdef CPRLabelTracker < LabelTracker
       tfRegRow = ~tfGTRow;
       assert(~any(iMovAbs==0));
       movStr = cell(nNew,obj.lObj.nview);
-      movStr(tfRegRow,:) = obj.lObj.movieFilesAll(iMovAbs(tfRegRow),:); % [NxnView] 
-      movStr(tfGTRow,:) = obj.lObj.movieFilesAllGT(iMovAbs(tfGTRow),:);
+      movStr(tfRegRow,:) = obj.lObj.movieFilesAllFull(iMovAbs(tfRegRow),:); % [NxnView] 
+      movStr(tfGTRow,:) = obj.lObj.movieFilesAllGTFull(iMovAbs(tfGTRow),:);
       tblPNewConcrete.mov = movStr;
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);

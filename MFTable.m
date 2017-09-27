@@ -64,7 +64,9 @@ classdef MFTable
 
       assert(strcmp(varNames{1},'mov'));
       n = numel(varNames);
-      tbl = cell2table(cell(0,n),'VariableNames',varNames);
+      x = nan(0,1);
+      args = repmat({x},1,n);
+      tbl = table(args{:},'VariableNames',varNames);
       tbl.mov = MovieIndex(tbl.mov);
     end
     

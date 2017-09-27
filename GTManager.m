@@ -1,7 +1,7 @@
 function varargout = GTManager(varargin)
 % Movie table GUI
 
-% Last Modified by GUIDE v2.5 04-Sep-2017 17:00:20
+% Last Modified by GUIDE v2.5 27-Sep-2017 06:22:13
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -188,23 +188,23 @@ if isnan(nGT) || nGT<=0 || round(nGT)~=nGT
 end
 lObj.gtSuggInitSuggestions(GTSuggestionType.RANDOM,nGT);
 
-function pbSwitch_Callback(~,~,handles)
-% Switch to selected row (mov/frm/tgt)
-
-ntt = handles.navTreeTbl;
-iData = ntt.getSelectedDataRow();
-if isempty(iData)
-  msgbox('Please select a row in the table.','No row selected');
-  return;
-end
-if numel(iData)>1
-  warningNoTrace('Multiple rows selected. Using first selected row.');
-  iData = iData(1);
-end
-mftRow = ntt.treeTblData(iData,:);
-mftRow.mov = handles.navTreeTblMovIdxs(iData);
-lObj = handles.labeler;
-lclNavToMFT(lObj,mftRow);
+% function pbSwitch_Callback(~,~,handles)
+% % Switch to selected row (mov/frm/tgt)
+% 
+% ntt = handles.navTreeTbl;
+% iData = ntt.getSelectedDataRow();
+% if isempty(iData)
+%   msgbox('Please select a row in the table.','No row selected');
+%   return;
+% end
+% if numel(iData)>1
+%   warningNoTrace('Multiple rows selected. Using first selected row.');
+%   iData = iData(1);
+% end
+% mftRow = ntt.treeTblData(iData,:);
+% mftRow.mov = handles.navTreeTblMovIdxs(iData);
+% lObj = handles.labeler;
+% lclNavToMFT(lObj,mftRow);
 
 function pbNextUnlabeled_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
@@ -221,3 +221,4 @@ lObj = handles.labeler;
 tblGTres = lObj.gtComputeGTPerformance();
 assignin('base','tblGTres',tblGTres);
 msgbox('Assigned results in variable ''tblGTres''.');
+lObj.gtReport(tblGTres);

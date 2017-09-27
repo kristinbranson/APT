@@ -1105,6 +1105,7 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      obj.notify('gtIsGTModeChanged');
     end
       
     function projSaveRaw(obj,fname)
@@ -1326,6 +1327,7 @@ classdef Labeler < handle
       end
       
       obj.notify('projLoaded');
+      obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
     end
     
@@ -4682,23 +4684,78 @@ classdef Labeler < handle
       tblTrkRes = tObj.getAllTrackResTable();
       [tf,loc] = tblismember(tblMFTLbld,tblTrkRes,MFTable.FLDSID);
       assert(all(tf));
-      tblTrkRes = tblTrkRes(loc);
+      tblTrkRes = tblTrkRes(loc,:);
       tblMFTLbld = obj.labelAddLabelsMFTable(tblMFTLbld);
       pTrk = tblTrkRes.pTrk;
       pLbl = tblMFTLbld.p;
-      nrow = height(pTrk);
+      nrow = size(pTrk,1);
       npts = obj.nLabelPoints;
       szassert(pTrk,[nrow 2*npts]);
       szassert(pLbl,[nrow 2*npts]);
       
       % L2 err matrix: [nrow x npt]
-      pTrk = reshape(pTrk,[nrow npt 2]);
-      pLbl = reshape(pLbl,[nrow npt 2]);
+      pTrk = reshape(pTrk,[nrow npts 2]);
+      pLbl = reshape(pLbl,[nrow npts 2]);
       err = sqrt(sum((pTrk-pLbl).^2,3));
       
       tblTmp = tblMFTLbld(:,{'p' 'pTS' 'tfocc' 'pTrx'});
       tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
       tblGTres = [tblTrkRes tblTmp table(err,'VariableNames',{'L2err'})];
+    end
+    function h = gtReport(obj,tblGTres)
+      t = tblGTres;
+      t.meanOverPtsL2err = mean(t.L2err,2);
+      clrs =  obj.labelPointsPlotInfo.Colors;
+      nclrs = size(clrs,1);
+      npts = size(t.L2err,2);
+      if nclrs~=npts
+        warningNoTrace('Labeler:gt',...
+          'Number of colors do not match number of points.');
+      end
+      
+      % Err by landmark
+      h = figure('Name','GT err by landmark');
+      ax = axes;
+      boxplot(t.L2err,'colors',clrs,'boxstyle','filled');
+      args = {'fontweight' 'bold' 'interpreter' 'none'};
+      xlabel(ax,'Landmark/point',args{:});
+      ylabel(ax,'L2 err (px)',args{:});
+      title(ax,'GT err by landmark',args{:});
+      ax.YGrid = 'on';
+      
+      % AvErrAcrossPts by movie
+      h(end+1,1) = figure('Name','Mean GT err by movie');
+      ax = axes;
+      [iMovAbs,gt] = t.mov.get;
+      assert(all(gt));
+      boxplot(t.meanOverPtsL2err,iMovAbs,'colors',clrs,'boxstyle','filled');
+      args = {'fontweight' 'bold' 'interpreter' 'none'};
+      xlabel(ax,'Movie',args{:});
+      ylabel(ax,'L2 err (px)',args{:});
+      title(ax,'Mean (over landmarks) GT err by movie',args{:});
+      ax.YGrid = 'on';
+      
+      % Mean err by movie, pt
+      h(end+1,1) = figure('Name','Mean GT err by movie, landmark');
+      ax = axes;
+      dsstats = grpstats(t(:,{'mov' 'L2err'}),{'mov'});
+      movUnCnt = dsstats.GroupCount; % [nmovx1]
+      meanL2Err = dsstats.mean_L2err; % [nmovxnpt]
+      nmovUn = size(movUnCnt,1);
+      szassert(meanL2Err,[nmovUn npts]);
+      meanL2Err(:,end+1) = nan; % pad for pcolor
+      meanL2Err(end+1,:) = nan;       
+      hPC = pcolor(meanL2Err);
+      hPC.LineStyle = 'none';
+      colorbar;
+      xlabel(ax,'Landmark/point',args{:});
+      ylabel(ax,'Movie index',args{:});
+      xticklbl = arrayfun(@num2str,1:npts,'uni',0);
+      yticklbl = arrayfun(@(x)sprintf('mov%d (n=%d)',x,movUnCnt(x)),1:nmovUn,'uni',0);
+      set(ax,'YTick',0.5+(1:nmovUn),'YTickLabel',yticklbl);
+      set(ax,'XTick',0.5+(1:npts),'XTickLabel',xticklbl);
+      axis(ax,'ij');
+      title(ax,'Mean GT err (px) by movie, landmark',args{:});
     end
   end
   methods (Static)

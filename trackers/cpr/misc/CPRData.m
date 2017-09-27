@@ -213,7 +213,11 @@ classdef CPRData < handle
           tmpI = obj.I;
         end
         obj.I = cat(1,tmpI,dd.I);
-        obj.pGT = cat(1,obj.pGT,dd.pGT);
+        if isempty(obj.pGT)
+          obj.pGT = dd.pGT;
+        else
+          obj.pGT = cat(1,obj.pGT,dd.pGT);
+        end
         obj.bboxes = cat(1,obj.bboxes,dd.bboxes);
         obj.Ipp = cat(1,obj.Ipp,dd.Ipp);
         

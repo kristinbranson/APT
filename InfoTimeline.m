@@ -197,7 +197,11 @@ classdef InfoTimeline < handle
     end
     
     function initNewMovie(obj)
-      obj.nfrm = obj.lObj.nframes;
+      if obj.lObj.hasMovie
+        obj.nfrm = obj.lObj.nframes;
+      else
+        obj.nfrm = 1;
+      end
       ax = obj.hAx;
       prefsTL = obj.prefs;
       ax.XTick = 0:prefsTL.dXTick:obj.nfrm;
