@@ -18,7 +18,7 @@ classdef Labeler < handle
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'labeledposGT' 'labeledpostagGT' 'labeledposTSGT'...
       'currMovie' 'currFrame' 'currTarget' ...
-      'gtIsGTMode' 'gtSuggMFTable' ...
+      'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
       'trackModeIdx' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn'};
@@ -309,6 +309,8 @@ classdef Labeler < handle
   properties (SetAccess=private)
     gtSuggMFTable % [nrow x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
     gtSuggMFTableLbled % [nrowx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
+
+    gtTblRes % table. Most recent GT results. This is purely a convenience prop so GT results are saved with proj.
   end
   properties (Dependent)
     gtNumSugg % height(gtSuggMFTable)
@@ -4701,13 +4703,16 @@ classdef Labeler < handle
       tblTmp = tblMFTLbld(:,{'p' 'pTS' 'tfocc' 'pTrx'});
       tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
       tblGTres = [tblTrkRes tblTmp table(err,'VariableNames',{'L2err'})];
+      
+      obj.gtTblRes = tblGTres;
     end
-    function h = gtReport(obj,tblGTres)
-      t = tblGTres;
+    function h = gtReport(obj)
+      t = obj.gtTblRes;
       t.meanOverPtsL2err = mean(t.L2err,2);
       clrs =  obj.labelPointsPlotInfo.Colors;
       nclrs = size(clrs,1);
       npts = size(t.L2err,2);
+      assert(npts==obj.nLabelPoints);
       if nclrs~=npts
         warningNoTrace('Labeler:gt',...
           'Number of colors do not match number of points.');
@@ -4724,11 +4729,15 @@ classdef Labeler < handle
       ax.YGrid = 'on';
       
       % AvErrAcrossPts by movie
-      h(end+1,1) = figure('Name','Mean GT err by movie');
+      h(end+1,1) = figurecascaded(h(end),'Name','Mean GT err by movie');
       ax = axes;
       [iMovAbs,gt] = t.mov.get;
       assert(all(gt));
-      boxplot(t.meanOverPtsL2err,iMovAbs,'colors',clrs,'boxstyle','filled');
+      grp = categorical(iMovAbs);
+      grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
+        categories(grp),countcats(grp),'uni',0);
+      boxplot(t.meanOverPtsL2err,grp,'colors',clrs,'boxstyle','filled',...
+        'labels',grplbls);
       args = {'fontweight' 'bold' 'interpreter' 'none'};
       xlabel(ax,'Movie',args{:});
       ylabel(ax,'L2 err (px)',args{:});
@@ -4736,11 +4745,13 @@ classdef Labeler < handle
       ax.YGrid = 'on';
       
       % Mean err by movie, pt
-      h(end+1,1) = figure('Name','Mean GT err by movie, landmark');
+      h(end+1,1) = figurecascaded(h(end),'Name','Mean GT err by movie, landmark');
       ax = axes;
-      dsstats = grpstats(t(:,{'mov' 'L2err'}),{'mov'});
-      movUnCnt = dsstats.GroupCount; % [nmovx1]
-      meanL2Err = dsstats.mean_L2err; % [nmovxnpt]
+      tblStats = grpstats(t(:,{'mov' 'L2err'}),{'mov'});
+      tblStats.mov = tblStats.mov.get;
+      tblStats = sortrows(tblStats,{'mov'});
+      movUnCnt = tblStats.GroupCount; % [nmovx1]
+      meanL2Err = tblStats.mean_L2err; % [nmovxnpt]
       nmovUn = size(movUnCnt,1);
       szassert(meanL2Err,[nmovUn npts]);
       meanL2Err(:,end+1) = nan; % pad for pcolor
@@ -4749,13 +4760,54 @@ classdef Labeler < handle
       hPC.LineStyle = 'none';
       colorbar;
       xlabel(ax,'Landmark/point',args{:});
-      ylabel(ax,'Movie index',args{:});
+      ylabel(ax,'Movie',args{:});
       xticklbl = arrayfun(@num2str,1:npts,'uni',0);
       yticklbl = arrayfun(@(x)sprintf('mov%d (n=%d)',x,movUnCnt(x)),1:nmovUn,'uni',0);
       set(ax,'YTick',0.5+(1:nmovUn),'YTickLabel',yticklbl);
       set(ax,'XTick',0.5+(1:npts),'XTickLabel',xticklbl);
       axis(ax,'ij');
       title(ax,'Mean GT err (px) by movie, landmark',args{:});
+      
+      % Montage
+      t = sortrows(t,{'meanOverPtsL2err'},{'descend'});
+      % Could look first in .tracker.data, and/or use .tracker.updateData()
+      tConcrete = obj.mftTableConcretizeMov(t);
+      I = CPRData.getFrames(tConcrete);
+      pTrk = t.pTrk;
+      pLbl = t.pLbl;
+      if tblfldscontains(t,{'roi'})
+        roi = t.roi;
+        assert(size(pTrk,2)==2*npts);
+        assert(size(pLbl,2)==2*npts);
+        xlo = roi(:,1);
+        ylo = roi(:,3);
+        pTrk(:,1:npts) = bsxfun(@minus,pTrk(:,1:npts),xlo)+1;
+        pLbl(:,1:npts) = bsxfun(@minus,pLbl(:,1:npts),xlo)+1;
+        pTrk(:,npts+1:end) = bsxfun(@minus,pTrk(:,npts+1:end),ylo)+1;
+        pLbl(:,npts+1:end) = bsxfun(@minus,pLbl(:,npts+1:end),ylo)+1; 
+      end
+      plotIdxs = 1:min(12,height(t));      
+      frmLbls = arrayfun(@(x)sprintf('err=%.2f',x),t.meanOverPtsL2err,'uni',0);
+      frmLbls = frmLbls(1:numel(plotIdxs));
+      h(end+1,1) = figurecascaded(h(end),'Name','Ground-Truth Montage');      
+      Shape.montage(I,pLbl,'fig',h(end),'nr',3,'nc',4,'idxs',plotIdxs,...
+        'framelbls',frmLbls,'framelblscolor',[1 0 0],'p2',pTrk,...
+        'p2marker','+','titlestr','Ground-Truth Montage, descending err (''+'' is tracked)');
+      
+      % Visualize many Images+Shapes from a Trial set
+      % 
+      % I: [N] cell vec of images, all same size
+      % p: [NxD] shapes
+      %
+      % optional pvs
+      % fig - handle to figure to use
+      % nr, nc - subplot size
+      % idxs - indices of images to plot; must have nr*nc els. if 
+      %   unspecified, these are randomly selected.
+      % framelbls - cellstr of labels (eg upper-right) for each plot
+      % labelpts - if true, number landmarks. default false
+      % md - (UNUSED atm) table of MD for I
+      % p2 - [NxD] second set of shapes
     end
   end
   methods (Static)
@@ -6251,6 +6303,26 @@ classdef Labeler < handle
   
   %% Util
   methods
+    
+    function tblConcrete = mftTableConcretizeMov(obj,tbl)
+      % tbl: MFTable where .mov is MovieIndex array
+      %
+      % tblConcrete: Same table where .mov is [NxNview] cellstr
+      
+      assert(isa(tbl,'table'));
+
+      nNew = height(tbl);
+      tblConcrete = tbl;
+      mIdx = tblConcrete.mov;
+      assert(isa(mIdx,'MovieIndex'));
+      [iMovAbs,tfGTRow] = mIdx.get();
+      tfRegRow = ~tfGTRow;
+      assert(~any(iMovAbs==0));
+      movStr = cell(nNew,obj.nview);
+      movStr(tfRegRow,:) = obj.movieFilesAllFull(iMovAbs(tfRegRow),:); % [NxnView] 
+      movStr(tfGTRow,:) = obj.movieFilesAllGTFull(iMovAbs(tfGTRow),:);
+      tblConcrete.mov = movStr;
+    end
     
     function genericInitLabelPointViz(obj,hProp,hTxtProp,ax,plotIfo)
       deleteValidHandles(obj.(hProp));

@@ -219,6 +219,5 @@ end
 function pbComputeGT_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
 tblGTres = lObj.gtComputeGTPerformance();
-assignin('base','tblGTres',tblGTres);
-msgbox('Assigned results in variable ''tblGTres''.');
-lObj.gtReport(tblGTres);
+msgbox('Assigned results in Labeler property ''gtTblRes''.');
+lObj.gtReport();

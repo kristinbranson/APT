@@ -733,17 +733,22 @@ classdef Shape
       % nr, nc - subplot size
       % idxs - indices of images to plot; must have nr*nc els. if 
       %   unspecified, these are randomly selected.
-      % framelbls
+      % framelbls - cellstr of labels (eg upper-right) for each plot
       % labelpts - if true, number landmarks. default false
-      % md - optional, table of MD for I
+      % md - (UNUSED atm) table of MD for I
+      % p2 - [NxD] second set of shapes
       
       opts.fig = [];
       opts.nr = 4;
       opts.nc = 5;
       opts.idxs = [];
       opts.framelbls = [];
+      opts.framelblscolor = [1 1 1];
       opts.labelpts = false;
       opts.md = [];
+      opts.p2 = [];
+      opts.p2marker = '+';
+      opts.titlestr = 'Montage';
       opts = getPrmDfltStruct(varargin,opts);
       if isempty(opts.fig)
         opts.fig = figure('windowstyle','docked');
@@ -759,7 +764,7 @@ classdef Shape
       if tfMD
         assert(size(opts.md,1)==N);
       end
-      
+            
       naxes = opts.nr*opts.nc;
       if isempty(opts.idxs)
         nplot = naxes;
@@ -775,19 +780,33 @@ classdef Shape
       if tfFrameLbls
         assert(iscellstr(opts.framelbls) && numel(opts.framelbls)==nplot);
       end
+
+      tfP2 = ~isempty(opts.p2);
+      if tfP2
+        szassert(opts.p2,size(p));        
+      end
       
       [imnr,imnc] = size(I{1});
       bigIm = nan(imnr*opts.nr,imnc*opts.nc);
       bigP = nan(npts,2,nplot);
+      bigP2 = nan(npts,2,nplot);
       for iRow=1:opts.nr
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
           iIm = iPlot(iPlt);          
           bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1) ) = I{iIm};
+          
           xytmp = reshape(p(iIm,:),npts,2);
           xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
           xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
           bigP(:,:,iIm) = xytmp;
+          
+          if tfP2
+            xytmp = reshape(opts.p2(iIm,:),npts,2);
+            xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
+            xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
+            bigP2(:,:,iIm) = xytmp;            
+          end
         end
       end
       
@@ -797,20 +816,27 @@ classdef Shape
       colormap gray
       colors = jet(npts);
       for ipt=1:npts
-        plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...          
+        plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...
             'wo','MarkerFaceColor',colors(ipt,:));
+        if tfP2
+          plot(squeeze(bigP2(ipt,1,:)),squeeze(bigP2(ipt,2,:)),...          
+            opts.p2marker,'MarkerFaceColor',colors(ipt,:),...
+            'MarkerEdgeColor',colors(ipt,:),'linewidth',2);
+        end
       end
       for iRow=1:opts.nr
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
-          iIm = iPlot(iPlt);
+          %iIm = iPlot(iPlt);
           if tfFrameLbls
-            h = text( 1+imnc*(iCol-1),1.5+imnr*(iRow-1), opts.framelbls{iPlt} );
-            h.Color = [1 1 1];
+            h = text( imnc/15+imnc*(iCol-1),imnr/15+imnr*(iRow-1), opts.framelbls{iPlt} );
+            h.Color = opts.framelblscolor;
           end
         end
       end
       set(opts.fig,'Color',[0 0 0]);
+      title(opts.titlestr,'fontweight','bold','Color','w');
+        
 %         if tfMD
 %           movID = opts.md.movID{hIm};
 %           [~,movS] = myfileparts(movID);

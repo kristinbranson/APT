@@ -2346,6 +2346,7 @@ gt = lObj.gtIsGTMode;
 onIffGT = onIff(gt);
 handles.menu_evaluate_gtmode.Checked = onIffGT;
 handles.txGTMode.Visible = onIffGT;
+handles.GTMgr.Visible = onIffGT;
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);
