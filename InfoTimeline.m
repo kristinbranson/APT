@@ -476,7 +476,7 @@ classdef InfoTimeline < handle
       % full update to any change to labeler.gtSuggMFTable*
       
       lblObj = obj.lObj;
-      if ~lblObj.gtIsGTMode || lblObj.isinit
+      if lblObj.isinit || ~lblObj.hasMovie || ~lblObj.gtIsGTMode
         % segLines are not visible; more importantly, cannot set segLine
         % highlighting based on suggestions in current movie
         return;

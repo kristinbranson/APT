@@ -793,6 +793,11 @@ classdef Shape
       for iRow=1:opts.nr
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
+          if iPlt>nplot
+            % only breaks inner loop, so we will come back here but that's
+            % ok
+            break;
+          end
           iIm = iPlot(iPlt);          
           bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1) ) = I{iIm};
           
@@ -827,6 +832,9 @@ classdef Shape
       for iRow=1:opts.nr
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
+          if iPlt>nplot
+            break;
+          end
           %iIm = iPlot(iPlt);
           if tfFrameLbls
             h = text( imnc/15+imnc*(iCol-1),imnr/15+imnr*(iRow-1), opts.framelbls{iPlt} );

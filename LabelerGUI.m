@@ -396,10 +396,7 @@ function handles = clearDepHandles(handles)
 deleteValidHandles(handles.depHandles);
 handles.depHandles = gobjects(0,1);
 
-function handles = addDepHandle(hFig,h)
-handles = guidata(hFig);
-assert(handles.figure==hFig);
-
+function handles = addDepHandle(handles,h)
 % GC dead handles
 tfValid = arrayfun(@isvalid,handles.depHandles);
 handles.depHandles = handles.depHandles(tfValid,:);
@@ -408,7 +405,6 @@ tfSame = arrayfun(@(x)x==h,handles.depHandles);
 if ~any(tfSame)
   handles.depHandles(end+1,1) = h;
 end
-guidata(hFig,handles);
 
 function handles = setShortcuts(handles)
 
@@ -626,7 +622,7 @@ for iView=2:nview
     'UserData',struct('view',iView)...
     );
   axs(iView) = axes;
-  handles = addDepHandle(handles.figure,figs(iView));
+  handles = addDepHandle(handles,figs(iView));
   
   ims(iView) = imagesc(0,'Parent',axs(iView));
   set(ims(iView),'hittest','off');
@@ -712,9 +708,7 @@ handles.movieMgr.setVisible(false);
 
 handles.GTMgr = GTManager(handles.labelerObj);
 handles.GTMgr.Visible = 'off';
-
-MovieManagerController(handles.labelerObj);
-handles.movieMgr.setVisible(false);
+handles = addDepHandle(handles,handles.GTMgr);
 
 guidata(handles.figure,handles);
   
@@ -2224,7 +2218,8 @@ if ~isempty(lc) && ~lc.hideLabels
   lc.labelsHide();
 end
 hVizGUI = CPRVizTrackDiagsGUI(handles.labelerObj);
-addDepHandle(handles.figure,hVizGUI);
+handles = addDepHandle(handles,hVizGUI);
+guidata(handles.figure,handles);
 
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

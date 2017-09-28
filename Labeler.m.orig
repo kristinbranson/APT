@@ -18,7 +18,7 @@ classdef Labeler < handle
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'labeledposGT' 'labeledpostagGT' 'labeledposTSGT'...
       'currMovie' 'currFrame' 'currTarget' ...
-      'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
+      'gtIsGTMode' 'gtSuggMFTable' ...
       'labelTemplate' ...
       'trackModeIdx' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn'};
@@ -309,8 +309,6 @@ classdef Labeler < handle
   properties (SetAccess=private)
     gtSuggMFTable % [nrow x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
     gtSuggMFTableLbled % [nrowx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
-
-    gtTblRes % table. Most recent GT results. This is purely a convenience prop so GT results are saved with proj.
   end
   properties (Dependent)
     gtNumSugg % height(gtSuggMFTable)
@@ -378,13 +376,11 @@ classdef Labeler < handle
   properties (SetObservable)
     currFrame = 1; % current frame
   end
-  properties 
+  properties
     currIm = [];            % [nview] cell vec of image data. init: C
+    isinit = false;         % scalar logical; true during initialization, when some invariants not respected
     selectedFrames = [];    % vector of frames currently selected frames; typically t0:t1
     hFig; % handle to main LabelerGUI figure
-  end
-  properties (SetAccess=private)
-    isinit = false;         % scalar logical; true during initialization, when some invariants not respected
   end
   properties (Dependent)
     gdata; % handles structure for LabelerGUI
@@ -493,7 +489,7 @@ classdef Labeler < handle
         v = obj.trxFilesAllGTFull(iMov,:);
       else
         v = obj.trxFilesAllFull(iMov,:);        
-    end
+      end
     end
 %     function v = get.movieIDsAll(obj)
 %       v = FSPath.standardPath(obj.movieFilesAll);
@@ -956,6 +952,8 @@ classdef Labeler < handle
       
       obj.trxCache = containers.Map();
       
+      obj.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
+
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
     end
     
@@ -1083,10 +1081,6 @@ classdef Labeler < handle
       obj.labeledpostagGT = cell(0,1);
       obj.labeledpos2 = cell(0,1);
       obj.labelTemplate = [];
-      obj.gtIsGTMode = false;
-      obj.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
-      obj.gtSuggMFTableLbled = false(0,1);
-      obj.gtTblRes = [];
       
       obj.isinit = false;
       
@@ -1111,7 +1105,6 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
-      obj.notify('gtIsGTModeChanged');
     end
       
     function projSaveRaw(obj,fname)
@@ -1333,7 +1326,6 @@ classdef Labeler < handle
       end
       
       obj.notify('projLoaded');
-      obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
     end
     
@@ -1739,7 +1731,6 @@ classdef Labeler < handle
         'viewCalibrationDataGT'
         'gtIsGTMode'
         'gtSuggMFTable'
-        'gtTblRes'
       };
       tfGTProps = isfield(s,GTPROPS);
       allGTPresent = all(tfGTProps);
@@ -1760,7 +1751,6 @@ classdef Labeler < handle
         end
         s.gtIsGTMode = false;
         s.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
-        s.gtTblRes = [];
       end
 
       % 20170922
@@ -2110,8 +2100,8 @@ classdef Labeler < handle
         obj.(PROPS.LPOSTS)(iMov,:) = [];
         obj.(PROPS.LPOSTAG)(iMov,:) = [];
         if ~gt
-          obj.labeledposMarked(iMov,:) = [];
-          obj.labeledpos2(iMov,:) = [];
+        obj.labeledposMarked(iMov,:) = [];
+        obj.labeledpos2(iMov,:) = [];
         end
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           szassert(obj.(PROPS.VCD),[nMovOrig 1]);
@@ -2438,7 +2428,6 @@ classdef Labeler < handle
         end
       end
       
-      isInitOrig = obj.isinit;
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
       
@@ -2460,7 +2449,7 @@ classdef Labeler < handle
       obj.trxSet(trxvar);
       %obj.trxfile = trxFile; % this must come after .trxSet() call
         
-      obj.isinit = isInitOrig; % end Initialization hell      
+      obj.isinit = false; % end Initialization hell      
 
       % AL20160615: omg this is the plague.
       % AL20160605: These three calls semi-obsolete. new projects will not
@@ -2530,13 +2519,12 @@ classdef Labeler < handle
       end
       obj.moviename = '';
       %obj.trxfile = '';
-      isInitOrig = obj.isinit;
       obj.isinit = true;
       obj.currMovie = 0;
       obj.trxSet([]);
       obj.currFrame = 1;
       obj.currTarget = 0;
-      obj.isinit = isInitOrig;
+      obj.isinit = false;
       
       obj.labelsMiscInit();
       if ~noLabelingInit
@@ -4528,8 +4516,8 @@ classdef Labeler < handle
       end
       obj.prevAxesLabelsUpdate();
       if ~obj.gtIsGTMode
-      obj.labels2VizUpdate();
-    end
+        obj.labels2VizUpdate();
+      end
     end
     
     function labelsUpdateNewTarget(obj,prevTarget)
@@ -4538,8 +4526,8 @@ classdef Labeler < handle
       end
       obj.prevAxesLabelsUpdate();
       if ~obj.gtIsGTMode
-      obj.labels2VizUpdate();
-    end
+        obj.labels2VizUpdate();
+      end
     end
     
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -4550,8 +4538,8 @@ classdef Labeler < handle
       end
       obj.prevAxesLabelsUpdate();
       if ~obj.gtIsGTMode
-      obj.labels2VizUpdate();
-    end
+        obj.labels2VizUpdate();
+      end
     end
         
   end
@@ -4683,133 +4671,34 @@ classdef Labeler < handle
       nLbledNotSuggested = nnz(tfLbledNotSuggested);
       if nLbledNotSuggested>0
         warningNoTrace('Labeler:gt',...
-          '%d labeled GT frames were not in list of suggestions. These labels will NOT be used in assessing GT performance.',...
+          '%d labeled GT frames were not in list of suggestions. These labels will still be used in assessing GT performance.',...
           nLbledNotSuggested);
       end
-      tblMFT_gt = tblMFTLbld(~tfLbledNotSuggested,:);
         
       tObj = obj.tracker;
-      tObj.track(tblMFT_gt);
+      tObj.track(tblMFTLbld);
             
       % get results and compute GT perf
       tblTrkRes = tObj.getAllTrackResTable();
-      [tf,loc] = tblismember(tblMFT_gt,tblTrkRes,MFTable.FLDSID);
+      [tf,loc] = tblismember(tblMFTLbld,tblTrkRes,MFTable.FLDSID);
       assert(all(tf));
-      tblTrkRes = tblTrkRes(loc,:);
-      tblMFT_gt = obj.labelAddLabelsMFTable(tblMFT_gt);
+      tblTrkRes = tblTrkRes(loc);
+      tblMFTLbld = obj.labelAddLabelsMFTable(tblMFTLbld);
       pTrk = tblTrkRes.pTrk;
-      pLbl = tblMFT_gt.p;
-      nrow = size(pTrk,1);
+      pLbl = tblMFTLbld.p;
+      nrow = height(pTrk);
       npts = obj.nLabelPoints;
       szassert(pTrk,[nrow 2*npts]);
       szassert(pLbl,[nrow 2*npts]);
       
       % L2 err matrix: [nrow x npt]
-      pTrk = reshape(pTrk,[nrow npts 2]);
-      pLbl = reshape(pLbl,[nrow npts 2]);
+      pTrk = reshape(pTrk,[nrow npt 2]);
+      pLbl = reshape(pLbl,[nrow npt 2]);
       err = sqrt(sum((pTrk-pLbl).^2,3));
       
-      tblTmp = tblMFT_gt(:,{'p' 'pTS' 'tfocc' 'pTrx'});
+      tblTmp = tblMFTLbld(:,{'p' 'pTS' 'tfocc' 'pTrx'});
       tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
       tblGTres = [tblTrkRes tblTmp table(err,'VariableNames',{'L2err'})];
-      
-      obj.gtTblRes = tblGTres;
-    end
-    function h = gtReport(obj)
-      t = obj.gtTblRes;
-      t.meanOverPtsL2err = mean(t.L2err,2);
-      clrs =  obj.labelPointsPlotInfo.Colors;
-      nclrs = size(clrs,1);
-      npts = size(t.L2err,2);
-      assert(npts==obj.nLabelPoints);
-      if nclrs~=npts
-        warningNoTrace('Labeler:gt',...
-          'Number of colors do not match number of points.');
-      end
-      
-      % Err by landmark
-      h = figure('Name','GT err by landmark');
-      ax = axes;
-      boxplot(t.L2err,'colors',clrs,'boxstyle','filled');
-      args = {'fontweight' 'bold' 'interpreter' 'none'};
-      xlabel(ax,'Landmark/point',args{:});
-      ylabel(ax,'L2 err (px)',args{:});
-      title(ax,'GT err by landmark',args{:});
-      ax.YGrid = 'on';
-      
-      % AvErrAcrossPts by movie
-      h(end+1,1) = figurecascaded(h(end),'Name','Mean GT err by movie');
-      ax = axes;
-      [iMovAbs,gt] = t.mov.get;
-      assert(all(gt));
-      grp = categorical(iMovAbs);
-      grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
-        categories(grp),countcats(grp),'uni',0);
-      boxplot(t.meanOverPtsL2err,grp,'colors',clrs,'boxstyle','filled',...
-        'labels',grplbls);
-      args = {'fontweight' 'bold' 'interpreter' 'none'};
-      xlabel(ax,'Movie',args{:});
-      ylabel(ax,'L2 err (px)',args{:});
-      title(ax,'Mean (over landmarks) GT err by movie',args{:});
-      ax.YGrid = 'on';
-      
-      % Mean err by movie, pt
-      h(end+1,1) = figurecascaded(h(end),'Name','Mean GT err by movie, landmark');
-      ax = axes;
-      tblStats = grpstats(t(:,{'mov' 'L2err'}),{'mov'});
-      tblStats.mov = tblStats.mov.get;
-      tblStats = sortrows(tblStats,{'mov'});
-      movUnCnt = tblStats.GroupCount; % [nmovx1]
-      meanL2Err = tblStats.mean_L2err; % [nmovxnpt]
-      nmovUn = size(movUnCnt,1);
-      szassert(meanL2Err,[nmovUn npts]);
-      meanL2Err(:,end+1) = nan; % pad for pcolor
-      meanL2Err(end+1,:) = nan;       
-      hPC = pcolor(meanL2Err);
-      hPC.LineStyle = 'none';
-      colorbar;
-      xlabel(ax,'Landmark/point',args{:});
-      ylabel(ax,'Movie',args{:});
-      xticklbl = arrayfun(@num2str,1:npts,'uni',0);
-      yticklbl = arrayfun(@(x)sprintf('mov%d (n=%d)',x,movUnCnt(x)),1:nmovUn,'uni',0);
-      set(ax,'YTick',0.5+(1:nmovUn),'YTickLabel',yticklbl);
-      set(ax,'XTick',0.5+(1:npts),'XTickLabel',xticklbl);
-      axis(ax,'ij');
-      title(ax,'Mean GT err (px) by movie, landmark',args{:});
-      
-      % Montage
-      t = sortrows(t,{'meanOverPtsL2err'},{'descend'});
-      % Could look first in .tracker.data, and/or use .tracker.updateData()
-      tConcrete = obj.mftTableConcretizeMov(t);
-      I = CPRData.getFrames(tConcrete);
-      pTrk = t.pTrk;
-      pLbl = t.pLbl;
-      if tblfldscontains(t,{'roi'})
-        roi = t.roi;
-        assert(size(pTrk,2)==2*npts);
-        assert(size(pLbl,2)==2*npts);
-        xlo = roi(:,1);
-        ylo = roi(:,3);
-        pTrk(:,1:npts) = bsxfun(@minus,pTrk(:,1:npts),xlo)+1;
-        pLbl(:,1:npts) = bsxfun(@minus,pLbl(:,1:npts),xlo)+1;
-        pTrk(:,npts+1:end) = bsxfun(@minus,pTrk(:,npts+1:end),ylo)+1;
-        pLbl(:,npts+1:end) = bsxfun(@minus,pLbl(:,npts+1:end),ylo)+1; 
-      end
-      NR = 3;
-      NC = 4;
-      plotIdxs = 1:min(NR*NC,height(t));      
-      frmLbls = arrayfun(@(x)sprintf('err=%.2f',x),t.meanOverPtsL2err,'uni',0);
-      frmLbls = frmLbls(1:numel(plotIdxs));
-      nphyspts = obj.nPhysPoints;
-      for iView=1:obj.nview
-        h(end+1,1) = figurecascaded(h(end),'Name','Ground-Truth Montage'); %#ok<AGROW>
-        pColIdx = (1:nphyspts)+(iView-1)*nphyspts;
-        pColIdx = [pColIdx pColIdx+npts]; %#ok<AGROW>
-        Shape.montage(I(:,iView),pLbl(:,pColIdx),'fig',h(end),...
-          'nr',NR,'nc',NC,'idxs',plotIdxs,...
-          'framelbls',frmLbls,'framelblscolor',[1 0 0],'p2',pTrk(:,pColIdx),...
-          'p2marker','+','titlestr','Ground-Truth Montage, descending err (''+'' is tracked)');
-      end
     end
   end
   methods (Static)
@@ -4891,7 +4780,7 @@ classdef Labeler < handle
       handles.depHandles(end+1,1) = hF;
       guidata(obj.hFig,handles);
     end
-    
+      
     function suspCbkTblNaved(obj,i)
       % i: row index into .suspSelectedMFT;
       tbl = obj.suspSelectedMFT;
@@ -4906,7 +4795,7 @@ classdef Labeler < handle
       obj.setFrameAndTarget(mftrow.frm,mftrow.iTgt);
     end
   end
-  
+      
   methods (Hidden)
     
     function suspVerifyScore(obj,suspscore)
@@ -5958,9 +5847,14 @@ classdef Labeler < handle
       assert(isequal(nTgts>0,nPts>0));
       tfFrm = nTgts>0;
       iFrm = find(tfFrm);
+<<<<<<< HEAD
+      
+      dat = [num2cell(iFrm) num2cell(nTgts(tfFrm)) num2cell(nPts(tfFrm))];
+=======
 
       nTgtsLbledFrms = nTgts(tfFrm);
       dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPts(tfFrm)) ];
+>>>>>>> master
       tbl = obj.gdata.tblFrames;
       set(tbl,'Data',dat);
 
@@ -6305,26 +6199,6 @@ classdef Labeler < handle
   
   %% Util
   methods
-    
-    function tblConcrete = mftTableConcretizeMov(obj,tbl)
-      % tbl: MFTable where .mov is MovieIndex array
-      %
-      % tblConcrete: Same table where .mov is [NxNview] cellstr
-      
-      assert(isa(tbl,'table'));
-
-      nNew = height(tbl);
-      tblConcrete = tbl;
-      mIdx = tblConcrete.mov;
-      assert(isa(mIdx,'MovieIndex'));
-      [iMovAbs,tfGTRow] = mIdx.get();
-      tfRegRow = ~tfGTRow;
-      assert(~any(iMovAbs==0));
-      movStr = cell(nNew,obj.nview);
-      movStr(tfRegRow,:) = obj.movieFilesAllFull(iMovAbs(tfRegRow),:); % [NxnView] 
-      movStr(tfGTRow,:) = obj.movieFilesAllGTFull(iMovAbs(tfGTRow),:);
-      tblConcrete.mov = movStr;
-    end
     
     function genericInitLabelPointViz(obj,hProp,hTxtProp,ax,plotIfo)
       deleteValidHandles(obj.(hProp));

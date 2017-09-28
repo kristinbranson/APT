@@ -128,7 +128,7 @@ ntt.updateDataColumn('hasLbl',num2cell(tf));
 function cbkCurrMovFrmTgtChanged(hObject,src,evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
-if ~lObj.gtIsGTMode || ~lObj.hasMovie
+if lObj.isinit || ~lObj.hasMovie || ~lObj.gtIsGTMode
   return;
 end
 mIdx = lObj.currMovIdx;
@@ -175,6 +175,26 @@ lObj.setFrameAndTarget(mftRow.frm,mftRow.iTgt);
 
 function pbSuggestGTFrames_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
+
+if ~isempty(lObj.gtSuggMFTable) && any(lObj.gtSuggMFTableLbled)
+  qmsg = 'One or more GT frames have been labeled. These labels will not be used/considered if new suggestions are generated.';
+  resp = questdlg(qmsg,'GT labels exist','OK, proceed','Cancel','OK, proceed');
+  if isempty(resp)
+    resp = 'Cancel';
+  end
+  switch resp
+    case 'OK, proceed'
+      % none
+    case 'Cancel'
+      return;
+    otherwise
+      assert(false);
+  end
+end
+
+% Note, any existing labels are not deleted. On gtCompute these other
+% labels are not currently used however.
+
 DEFAULT_NSAMP = 40;
 PROMPT = 'Enter desired number of frames to label';
 NAME = 'GT Suggest';
