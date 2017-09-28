@@ -51,8 +51,8 @@ function [regInfo,ysPr] = regTrain(data,ys,varargin)
 
 dfs = {'type',1,'ftrPrm','REQ','K',1,...
   'loss','L2','R',0,'M',5,'model',[],'prm',{},...
-  'occlD',[],'occlPrm',struct('Stot',1)};
-[regType,ftrPrm,K,loss,R,M,model,regPrm,occlD,occlPrm] = ...
+  'occlD',[],'occlPrm',struct('Stot',1),'checkPath',false};
+[regType,ftrPrm,K,loss,R,M,model,regPrm,occlD,occlPrm,checkPath] = ...
   getPrmDflt(varargin,dfs,0);
 
 switch regType
@@ -65,6 +65,14 @@ assert(any(strcmp(loss,{'L1','L2'})));
 
 % precompute feature stats to be used by selectCorrFeat
 if R==0
+  if checkPath
+    sfPath = fileparts(which('SelectFeatures'));
+    [~,sfBase] = fileparts(sfPath);
+    if strcmpi(sfBase,'perframe')
+      error('regTrain:path',...
+        'Class definition ''SelectFeatures.m'' appears to be shadowed by JAABA. Please check your path.');
+    end
+  end
   [stdFtrs,dfFtrs] = SelectFeatures.statsFtrs(data,ftrPrm);
 else %random step optimization selection
   assert(false,'AL unused');
