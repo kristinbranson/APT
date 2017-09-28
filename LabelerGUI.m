@@ -801,7 +801,7 @@ guidata(handles.figure,handles);
 % See note in AxesHighlightManager: Trx vs noTrx, Axes vs Panels
 handles.allAxHiliteMgr.setHilitePnl(lObj.hasTrx);
 
-hlpUpdateAxHilite(lObj);
+hlpGTUpdateAxHilite(lObj);
 
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
@@ -834,10 +834,10 @@ end
 set(handles.slider_frame,'Value',sldval);
 if ~lObj.isinit
   handles.labelTLInfo.newFrame(frm);
-  hlpUpdateAxHilite(lObj);
+  hlpGTUpdateAxHilite(lObj);
 end
 
-function hlpUpdateAxHilite(lObj)
+function hlpGTUpdateAxHilite(lObj)
 if lObj.gtIsGTMode
   tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
 else
@@ -851,7 +851,7 @@ if lObj.hasTrx && ~lObj.isinit
   id = lObj.currTrxID;
   lObj.currImHud.updateTarget(id);
   lObj.gdata.labelTLInfo.newTarget();
-  hlpUpdateAxHilite(lObj);
+  hlpGTUpdateAxHilite(lObj);
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
@@ -2347,6 +2347,7 @@ onIffGT = onIff(gt);
 handles.menu_evaluate_gtmode.Checked = onIffGT;
 handles.txGTMode.Visible = onIffGT;
 handles.GTMgr.Visible = onIffGT;
+hlpGTUpdateAxHilite(lObj);
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 CloseGUI(handles);
