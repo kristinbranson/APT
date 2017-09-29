@@ -63,7 +63,7 @@ classdef FrameSetVariable < FrameSet
   end
   
   properties (Constant) % canned/enumerated vals
-    AllFrm = FrameSetVariable(@(lo)'All frame',@lclAllFrmGetFrms);
+    AllFrm = FrameSetVariable(@(lo)'All frames',@lclAllFrmGetFrms);
     SelFrm = FrameSetVariable(@(lo)'Selected frames',@lclSelFrmGetFrms);
     WithinCurrFrm = FrameSetVariable(@lclWithinCurrFrmPrettyStr,@lclWithinCurrFrmGetFrms);
     LabeledFrm = FrameSetVariable(@(lo)'Labeled frames',@lclLabeledFrmGetFrms);

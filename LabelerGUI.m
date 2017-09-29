@@ -790,6 +790,8 @@ cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
 
 guidata(handles.figure,handles);
 
+setPUMTrackStrs(lObj);
+
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
   axis(hAx,'auto');
@@ -1044,18 +1046,36 @@ end
 
 function cbkTrackModeIdxChanged(src,evt)
 lObj = evt.AffectedObject;
+if lObj.isinit
+  return;
+end
 hPUM = lObj.gdata.pumTrack;
 hPUM.Value = lObj.trackModeIdx;
+% Edge case: conceivably, pumTrack.Strings may not be updated (eg for a
+% noTrx->hasTrx transition before this callback fires). In this case,
+% hPUM.Value (trackModeIdx) will be out of bounds and a warning till be
+% thrown, PUM will not be displayed etc. However when hPUM.value is
+% updated, this should resolve.
 
 function cbkTrackerNFramesChanged(src,evt)
 lObj = evt.AffectedObject;
+if lObj.isinit
+  return;
+end
 setPUMTrackStrs(lObj);
 
 function setPUMTrackStrs(lObj)
-mfts = MFTSetEnum.TrackingMenu;
+if lObj.hasTrx
+  mfts = MFTSetEnum.TrackingMenuTrx;
+else
+  mfts = MFTSetEnum.TrackingMenuNoTrx;
+end
 menustrs = arrayfun(@(x)x.getPrettyStr(lObj),mfts,'uni',0);
 hPUM = lObj.gdata.pumTrack;
 hPUM.String = menustrs;
+if lObj.trackModeIdx>numel(menustrs)
+  lObj.trackModeIdx = 1;
+end
 %hPUM.UserData = tms;
 
 function pumTrack_Callback(hObj,edata,handles)
@@ -1063,9 +1083,10 @@ lObj = handles.labelerObj;
 lObj.trackModeIdx = hObj.Value;
 
 function mftset = getTrackMode(handles)
-lObj = handles.labelerObj;
-idx = lObj.trackModeIdx;
-mfts = MFTSetEnum.TrackingMenu;
+idx = handles.pumTrack.Value;
+% Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
+% .TrackingMenuTrx.
+mfts = MFTSetEnum.TrackingMenuTrx;
 mftset = mfts(idx);
 
 function cbkMovieCenterOnTargetChanged(src,evt)

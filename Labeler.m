@@ -273,7 +273,10 @@ classdef Labeler < handle
   %% Tracking
   properties (SetObservable)
     tracker % LabelTracker object. init: PLPN
-    trackModeIdx % index into MFTSetEnum.TrackingMenu for current trackmode
+    trackModeIdx % index into MFTSetEnum.TrackingMenu* for current trackmode. 
+     %Note MFTSetEnum.TrackingMenuNoTrx==MFTSetEnum.TrackingMenuTrx(1:K).
+     %Values of trackModeIdx 1..K apply to either the NoTrx or Trx cases; 
+     %larger values apply only the Trx case.
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
