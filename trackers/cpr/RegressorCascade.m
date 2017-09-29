@@ -377,6 +377,7 @@ classdef RegressorCascade < handle
         paramReg.prm.useFern3 = true;
         fernOutput0 = squeeze(obj.fernOutput(t,:,:,:));
         if ~update
+          paramReg.checkPath = (t==t0);
           [regInfo,pDel] = regTrain(X,pTar,paramReg);
           assert(iscell(regInfo) && numel(regInfo)==obj.nMinor);
           for u=1:obj.nMinor
