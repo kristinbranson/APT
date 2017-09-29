@@ -48,6 +48,9 @@ else
   assert(false);
 end
 
+h = findall(handles.figure1,'-property','Units');
+set(h,'Units','normalized');
+
 cbkNavDataRow = @(iData)cbkTreeTableDataRowNaved(hObject,iData);
 % The Data table of this NTT has fields mov/frm/iTgt/hasLbl/GTerr. mov is
 % an index into lObj.movieFilesAllGT.
@@ -63,6 +66,8 @@ handles.listener{end+1,1} = addlistener(lObj,...
   'gtSuggUpdated',@(s,e)cbkGTSuggUpdated(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
   'gtSuggMFTableLbledUpdated',@(s,e)cbkGTSuggMFTableLbledUpdated(hObject,s,e));
+handles.listener{end+1,1} = addlistener(lObj,...
+  'gtResUpdated',@(s,e)cbkGTResUpdated(hObject,s,e));
 % Following listeners for table row selection
 handles.listener{end+1,1} = addlistener(lObj,...
   'newMovie',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
@@ -102,6 +107,11 @@ lObj = handles.labeler;
 % end
 ntt = handles.navTreeTbl;
 tbl = lObj.gtSuggMFTable;
+err = hlpGetGTErr(tbl,lObj);
+hasLbl = lObj.gtSuggMFTableLbled;
+tbl = [tbl table(hasLbl,err)];
+
+% replace .mov with strings
 tblMovIdxs = tbl.mov;
 [iMovAbs,gt] = tblMovIdxs.get;
 assert(all(gt));
@@ -112,9 +122,11 @@ numDigits = floor(log10(lObj.nmoviesGT)+1);
 fmt = sprintf('(%%0%dd) ',numDigits);
 movstrs = strcat(arrayfun(@(x)sprintf(fmt,x),iMovAbs,'uni',0),movstrs);
 tbl.mov = movstrs;
-hasLbl = lObj.gtSuggMFTableLbled;
-tbl = [tbl table(hasLbl)];
-ntt.setData(tbl);
+
+COLS = [MFTable.FLDSID {'hasLbl' 'err'}];
+PRETTYCOLS = {'Movie' 'Frame' 'Target' 'Has Labels' 'Error'};
+tbl = tbl(:,COLS);
+ntt.setData(tbl,'prettyHdrs',PRETTYCOLS);
 handles.navTreeTblMovIdxs = tblMovIdxs;
 guidata(hObject,handles);
 
@@ -124,6 +136,24 @@ lObj = handles.labeler;
 ntt = handles.navTreeTbl;
 tf = lObj.gtSuggMFTableLbled;
 ntt.updateDataColumn('hasLbl',num2cell(tf));
+
+function cbkGTResUpdated(hObject,src,evt)
+handles = guidata(hObject);
+lObj = handles.labeler;
+tblSugg = lObj.gtSuggMFTable;
+ntt = handles.navTreeTbl;
+err = hlpGetGTErr(tblSugg,lObj);
+ntt.updateDataColumn('err',num2cell(err));
+
+function err = hlpGetGTErr(tblSugg,lObj)
+% Get computed GT results/err for given suggestion table
+n = height(tblSugg);
+err = nan(n,1);
+tblRes = lObj.gtTblRes;
+if ~isempty(tblRes)
+  [tf,loc] = tblismember(tblSugg,tblRes,MFTable.FLDSID);
+  err(tf) = tblRes.meanL2err(loc(tf));
+end
 
 function cbkCurrMovFrmTgtChanged(hObject,src,evt)
 handles = guidata(hObject);
@@ -206,7 +236,7 @@ nGT = str2double(resp{1});
 if isnan(nGT) || nGT<=0 || round(nGT)~=nGT
   error('Invalid number of frames.');
 end
-lObj.gtSuggInitSuggestions(GTSuggestionType.RANDOM,nGT);
+lObj.gtInitSuggestions(GTSuggestionType.RANDOM,nGT);
 
 % function pbSwitch_Callback(~,~,handles)
 % % Switch to selected row (mov/frm/tgt)

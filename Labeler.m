@@ -307,10 +307,10 @@ classdef Labeler < handle
     gtIsGTMode % scalar logical
   end
   properties (SetAccess=private)
-    gtSuggMFTable % [nrow x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
-    gtSuggMFTableLbled % [nrowx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
+    gtSuggMFTable % [nGTSugg x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
+    gtSuggMFTableLbled % [nGTSuggx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
 
-    gtTblRes % table. Most recent GT results. This is purely a convenience prop so GT results are saved with proj.
+    gtTblRes % [nGTcomp x ncol] table, or []. Most recent GT performance results. 
   end
   properties (Dependent)
     gtNumSugg % height(gtSuggMFTable)
@@ -324,6 +324,7 @@ classdef Labeler < handle
     gtIsGTModeChanged 
     gtSuggUpdated % general update occurred of gtSuggMFTable*
     gtSuggMFTableLbledUpdated % incremental update of gtSuggMFTableLbled occurred
+    gtResUpdated % update of GT performance results occurred
   end
   
   
@@ -1335,6 +1336,7 @@ classdef Labeler < handle
       obj.notify('projLoaded');
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
+      obj.notify('gtResUpdated');
     end
     
     function projImport(obj,fname)
@@ -2129,7 +2131,12 @@ classdef Labeler < handle
           [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
             obj.gtSuggMFTable,'mov',edata.iMovOrig2New);
           obj.gtSuggMFTableLbled(tfRm,:) = [];
+          if ~isempty(obj.gtTblRes)
+            obj.gtTblRes = MFTable.remapIntegerKey(obj.gtTblRes,'mov',...
+              edata.iMovOrig2New);
+          end
           obj.notify('gtSuggUpdated');
+          obj.notify('gtResUpdated');
         end
         notify(obj,'movieRemoved',edata);
         
@@ -4584,11 +4591,13 @@ classdef Labeler < handle
     function PROPS = gtGetSharedProps(obj)
       PROPS = Labeler.gtGetSharedPropsStc(obj.gtIsGTMode);
     end
-    function gtSuggInitSuggestions(obj,gtSuggType,nSamp)
+    function gtInitSuggestions(obj,gtSuggType,nSamp)
       tblMFT = obj.gtGenerateSuggestions(gtSuggType,nSamp);
       obj.gtSuggMFTable = tblMFT;
       obj.gtUpdateSuggMFTableLbledComplete();
+      obj.gtTblRes = [];
       obj.notify('gtSuggUpdated');
+      obj.notify('gtResUpdated');
     end
     function gtUpdateSuggMFTableLbledComplete(obj,varargin)
       % update .gtUpdateSuggMFTableLbled from .gtSuggMFTable/.labeledposGT
@@ -4673,32 +4682,36 @@ classdef Labeler < handle
         TargetSetVariable.AllTgts);    
       tblMFTLbld = mfts.getMFTable(obj);
       
-      if ~all(obj.gtSuggMFTableLbled)
+      [tf,loc] = ismember(tblMFTSugg,tblMFTLbld);
+      assert(isequal(tf,obj.gtSuggMFTableLbled));
+      nSuggLbled = nnz(tf);
+      nSuggUnlbled = nnz(~tf);
+      if nSuggUnlbled>0
         warningNoTrace('Labeler:gt',...
-          '%d suggested GT frames have not been labeled.',...
-          nnz(~obj.gtSuggMFTableLbled));
+          '%d suggested GT frames have not been labeled.',nSuggUnlbled);
       end
       
-      tfLbledNotSuggested = ~ismember(tblMFTLbld,tblMFTSugg);
-      nLbledNotSuggested = nnz(tfLbledNotSuggested);
-      if nLbledNotSuggested>0
+      nTotGTLbled = height(tblMFTLbld);
+      if nTotGTLbled>nSuggLbled
         warningNoTrace('Labeler:gt',...
           '%d labeled GT frames were not in list of suggestions. These labels will NOT be used in assessing GT performance.',...
-          nLbledNotSuggested);
-      end
-      tblMFT_gt = tblMFTLbld(~tfLbledNotSuggested,:);
+          nTotGTLbled-nSuggLbled);
+      end 
+      
+      % Labeled GT table, in order of tblMFTSugg
+      tblMFT_SuggAndLbled = tblMFTLbld(loc(tf),:);
         
       tObj = obj.tracker;
-      tObj.track(tblMFT_gt);
+      tObj.track(tblMFT_SuggAndLbled);
             
       % get results and compute GT perf
       tblTrkRes = tObj.getAllTrackResTable();
-      [tf,loc] = tblismember(tblMFT_gt,tblTrkRes,MFTable.FLDSID);
+      [tf,loc] = tblismember(tblMFT_SuggAndLbled,tblTrkRes,MFTable.FLDSID);
       assert(all(tf));
       tblTrkRes = tblTrkRes(loc,:);
-      tblMFT_gt = obj.labelAddLabelsMFTable(tblMFT_gt);
+      tblMFT_SuggAndLbled = obj.labelAddLabelsMFTable(tblMFT_SuggAndLbled);
       pTrk = tblTrkRes.pTrk;
-      pLbl = tblMFT_gt.p;
+      pLbl = tblMFT_SuggAndLbled.p;
       nrow = size(pTrk,1);
       npts = obj.nLabelPoints;
       szassert(pTrk,[nrow 2*npts]);
@@ -4708,12 +4721,14 @@ classdef Labeler < handle
       pTrk = reshape(pTrk,[nrow npts 2]);
       pLbl = reshape(pLbl,[nrow npts 2]);
       err = sqrt(sum((pTrk-pLbl).^2,3));
+      muerr = mean(err,2);
       
-      tblTmp = tblMFT_gt(:,{'p' 'pTS' 'tfocc' 'pTrx'});
+      tblTmp = tblMFT_SuggAndLbled(:,{'p' 'pTS' 'tfocc' 'pTrx'});
       tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
-      tblGTres = [tblTrkRes tblTmp table(err,'VariableNames',{'L2err'})];
+      tblGTres = [tblTrkRes tblTmp table(err,muerr,'VariableNames',{'L2err' 'meanL2err'})];
       
       obj.gtTblRes = tblGTres;
+      obj.notify('gtResUpdated');
     end
     function h = gtReport(obj)
       t = obj.gtTblRes;

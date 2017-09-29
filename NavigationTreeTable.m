@@ -20,6 +20,7 @@ classdef NavigationTreeTable < handle
     hParent % graphics handle
     
     treeTblData % table form of treeTbl data for convenience -- treeTbl API is a bit opaque
+    treeTblDataPrettyHeaders 
     treeTbl % treeTable handle
     treeTblRowObjs % [nTreeTableRowx1] cell array of row objects; generated when treeTable fully expanded
     iData2iTTExpanded1B % [nDataRowx1] index vectors. .iData2iTT(iData) gives the 1-based row index into .treeTableRowObjs
@@ -31,7 +32,7 @@ classdef NavigationTreeTable < handle
   properties (Dependent)
     nData % height(.treeTblData)
     fields % cellstr of fields in current data
-    groupFieldName % name of grouping field (first col in table)
+    groupFieldPrettyName % name of grouping field (first col in table)
     groupTreeTblRowREPat % regexp pat for grouping rows in treeTable
   end
   
@@ -53,16 +54,16 @@ classdef NavigationTreeTable < handle
         v = tblDat.Properties.VariableNames;
       end
     end
-    function v = get.groupFieldName(obj)
-      tblDat = obj.treeTblData;
-      if isempty(tblDat)
+    function v = get.groupFieldPrettyName(obj)
+      pHdrs = obj.treeTblDataPrettyHeaders;
+      if isempty(pHdrs)
         v = [];
       else
-        v = tblDat.Properties.VariableNames{1};
+        v = pHdrs{1};
       end
     end      
     function v = get.groupTreeTblRowREPat(obj)
-      v = sprintf('%s: (?<set>.+)$',obj.groupFieldName);
+      v = sprintf('%s: (?<set>.+)$',obj.groupFieldPrettyName);
     end
   end
   
@@ -76,6 +77,7 @@ classdef NavigationTreeTable < handle
       % don't actually create the treetable here
       obj.hParent = hPrnt;
       obj.treeTblData = [];
+      obj.treeTblDataPrettyHeaders = [];
       obj.treeTbl = [];
       obj.treeTblRowObjs = [];
       obj.iData2iTTExpanded1B = [];
@@ -91,6 +93,15 @@ classdef NavigationTreeTable < handle
   
   methods
     
+    function tf = isfield(obj,fld)
+      tblDat = obj.treeTblData;
+      if isempty(tblDat)
+        tf = false;
+      else
+        tf = tblfldscontains(tblDat,fld);
+      end
+    end
+    
     function setData(obj,tbl,varargin)
       % tbl: table. First variable is assumed to be Set/Grouping variable.
       %
@@ -98,29 +109,40 @@ classdef NavigationTreeTable < handle
       % variable values are of char type, but generalizing should be 
       % straightforward.
       %
-      % create the treetablehere
+      % create the treetable here
       
-      [colPreferredWidths,treeTableArgs] = myparse(varargin,...
+      [colPreferredWidths,treeTableArgs,prettyHdrs] = myparse(varargin,...
         'colPreferredWidths',[],... % containers.Map. Keys, columns of tbl. Vals, normalized col widths. All vals sum to 1.0.
-        'treeTableArgs',{});
+        'treeTableArgs',{},...
+        'prettyHdrs',[]... % optional, cellstr of headings to use
+        );
 
       assert(istable(tbl));
       [ndatarow,tblwidth] = size(tbl);
       assert(tblwidth>=2);
-      
+            
       NavigationTreeTable.verifyDataTable(tbl);
+      tfPrettyHdrs = ~isempty(prettyHdrs);
+      if tfPrettyHdrs
+        assert(iscellstr(prettyHdrs) && numel(prettyHdrs)==width(tbl));
+      end
 
       dat = table2cell(tbl);
       % insert an empty 2nd column; the 2nd column header appears in the 
       % 1st physical column
-      dat = [dat(:,1) repmat({''},ndatarow,1) dat(:,2:end)]; 
-      hdrs = tbl.Properties.VariableNames;
-      hdrs = hdrs([1 1:end]);
+      dat = [dat(:,1) repmat({''},ndatarow,1) dat(:,2:end)];
+      rawHdrs = tblflds(tbl);
+      if ~tfPrettyHdrs
+        prettyHdrs = rawHdrs;
+      end
+      prettyHdrsOrig = prettyHdrs;
+      rawHdrs = rawHdrs([1 1:end]);
+      prettyHdrs = prettyHdrs([1 1:end]);
 %       types = arrayfun(@(x)NavigationTreeTable.col2type(dat(:,x)),...
 %         1:tblwidth+1,'uni',0);
       editable = num2cell(false(1,tblwidth+1));
       
-      tt = treeTable(obj.hParent,hdrs,dat,...%        'ColumnTypes',types,...
+      tt = treeTable(obj.hParent,prettyHdrs,dat,...%        'ColumnTypes',types,...
         'ColumnEditable',editable,...
         'Groupable',true,...
         'IconFilenames',NavigationTreeTable.ICONFILENAMES,...
@@ -146,10 +168,10 @@ classdef NavigationTreeTable < handle
       obj.iData2iTTExpanded1B = iD2TT;
       
       mFld2TT0B = containers.Map;
-      for i=3:numel(hdrs)
+      for i=3:numel(rawHdrs)
         % hdrs{1} is the grouping var; it's not a treeTable col
         % hdrs{2} is a "dummy" var for the 1st treeTable col, col0B==0
-        mFld2TT0B(hdrs{i}) = i-2;
+        mFld2TT0B(rawHdrs{i}) = i-2;
       end
       obj.fld2ttCol0B = mFld2TT0B;
       
@@ -157,7 +179,7 @@ classdef NavigationTreeTable < handle
         assert(isa(colPreferredWidths,'containers.Map'));        
         keys = colPreferredWidths.keys;
         vals = cell2mat(colPreferredWidths.values);
-        assert(all(ismember(hdrs,keys)),...
+        assert(all(ismember(rawHdrs,keys)),...
           'One or more table columns has no column width.');
         if sum(vals)~=1.0
           error('NagivationTreeTable:colwidth',...
@@ -173,6 +195,7 @@ classdef NavigationTreeTable < handle
       end
       
       obj.treeTblData = tbl;
+      obj.treeTblDataPrettyHeaders = prettyHdrsOrig;
     end
     
     function updateDataRow(obj,iData,fld,val)
