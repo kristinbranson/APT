@@ -220,6 +220,6 @@ if tfStartEnd
   tm = MFTSetEnum.CurrMovCustomFrames;
   tm.info = startArgs{2}:endArgs{2};
 else
-  tm = MFTSetEnum.CurrMovEveryFrame;
+  tm = MFTSetEnum.CurrMovAllTgtsEveryFrame;
 end
 lObj.trackAndExport(tm,'trackArgs',trackArgs,trkFilenameArgs{:});
