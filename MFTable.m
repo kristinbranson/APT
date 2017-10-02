@@ -56,7 +56,8 @@ classdef MFTable
       
       tblNew = tbl;
       tblNew.(keyfld) = keysnew;
-      tblNew(tfRm,:) = [];
+      %tblNew(tfRm,:) = []; AL 20171002 ML subsasgn bug with movieIndex col
+      tblNew = tblNew(~tfRm,:);
     end
 
     function tbl = emptyTable(varNames)

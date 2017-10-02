@@ -704,6 +704,9 @@ if isfield(handles,'movieMgr') && isvalid(handles.movieMgr)
   delete(handles.movieMgr);
 end
 handles.movieMgr = MovieManagerController(handles.labelerObj);
+drawnow; % 20171002 Without this, new tabbed MovieManager shows up with 
+  % buttons clipped at bottom edge of UI (manually resizing UI then "snaps"
+  % buttons/figure back into a good state)   
 handles.movieMgr.setVisible(false);
 
 handles.GTMgr = GTManager(handles.labelerObj);

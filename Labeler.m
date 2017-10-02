@@ -68,6 +68,11 @@ classdef Labeler < handle
     % evtdata.iMovOrig2New is map from original->new movie indices, ie 
     % iMov2Orig2New(iMovOrig) gives the movie index iMov post-ordering.
     % Original movie indices that have been removed will map to 0.
+    %
+    % This event is thrown immediately before .currMovie is updated (if 
+    % necessary). Listeners should not rely on the value of .currMovie at
+    % event time. currMovie will be subsequently updated (in the usual way) 
+    % if necessary
     movieRemoved
   end
       
@@ -311,6 +316,9 @@ classdef Labeler < handle
     gtSuggMFTableLbled % [nGTSuggx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
 
     gtTblRes % [nGTcomp x ncol] table, or []. Most recent GT performance results. 
+      % gtTblRes(:,MFTable.FLDSID) need not match
+      % gtSuggMFTable(:,MFTable.FLDSID) because eg GT performance can be 
+      % computed even if some suggested frames are not be labeled.
   end
   properties (Dependent)
     gtNumSugg % height(gtSuggMFTable)
@@ -2071,14 +2079,15 @@ classdef Labeler < handle
       
       assert(isscalar(iMov));
       nMovOrig = obj.getnmoviesGTawareArg(gt);
-      assert(any(iMov==1:nMovOrig),'Invalid movie index ''%d''.');
+      assert(any(iMov==1:nMovOrig),'Invalid movie index ''%d''.',iMov);
       if iMov==obj.currMovie
         error('Labeler:movieRm','Cannot remove current movie.');
       end
       
       tfProceedRm = true;
-      haslbls1 = lObj.labelPosMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
-      haslbls2 = lObj.getMovieFilesAllHaveLblsArg(gt);
+      haslbls1 = obj.labelposMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
+      haslbls2 = obj.getMovieFilesAllHaveLblsArg(gt);
+      haslbls2 = haslbls2(iMov);
       assert(haslbls1==haslbls2);
       if haslbls1 && ~obj.movieDontAskRmMovieWithLabels
         str = sprintf('Movie index %d has labels. Are you sure you want to remove?',iMov);
@@ -3352,7 +3361,7 @@ classdef Labeler < handle
     function tf = labelposMovieHasLabels(obj,iMov,varargin)
       gt = myparse(varargin,'gt',obj.gtIsGTMode);
       if ~gt
-      lpos = obj.labeledpos{iMov};
+        lpos = obj.labeledpos{iMov};
       else
         lpos = obj.labeledposGT{iMov};
       end
@@ -3538,8 +3547,8 @@ classdef Labeler < handle
     function labelExportTrk(obj,iMovs,varargin)
       % Export label data to trk files.
       %
-      % iMov: optional, indices into (rows of) .movieFilesAll to export. 
-      %   Defaults to 1:obj.nmoviesGTaware.
+      % iMov: optional, indices into (rows of) .movieFilesAllGTaware to 
+      %   export. Defaults to 1:obj.nmoviesGTaware.
       
       [trkfiles,rawtrkname] = myparse(varargin,...
         'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to

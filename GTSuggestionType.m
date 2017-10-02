@@ -22,15 +22,20 @@ classdef GTSuggestionType
         case GTSuggestionType.RANDOM
           g = repmat(ones,nrow,1);
         case GTSuggestionType.BALANCEDMOVIE
-          g = tblMFT.mov;
+          assert(isa(tblMFT.mov,'MovieIndex'));
+          g = tblMFT.mov.get();
         case GTSuggestionType.BALANCEDTARGET
-          assert(all(tblMFT.mov>0));
+          assert(isa(tblMFT.mov,'MovieIndex'));
+          iMovAbs = tblMFT.mov.get();
+          assert(all(iMovAbs>0));
+          iMovAbs = uint64(iMovAbs);
           assert(all(tblMFT.iTgt>0));
-          maxMov = max(tblMFT.mov);
-          maxTgt = max(tblMFT.iTgt);
+          iTgt = uint64(tblMFT.iTgt);
+          maxMov = max(iMovAbs);
+          maxTgt = max(iTgt);
           MAXKEY = intmax('uint64');
           assert(maxMov*maxTgt<MAXKEY);
-          g = (tblMFT.mov-1)*maxTgt + tblMFT.iTgt;
+          g = (iMovAbs-1)*maxTgt + iTgt;
         otherwise
           assert(false);
       end

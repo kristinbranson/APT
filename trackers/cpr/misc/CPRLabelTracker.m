@@ -1893,8 +1893,8 @@ classdef CPRLabelTracker < LabelTracker
       end
       obj.trkPTS(tfRm,:) = [];
       
-      obj.vizLoadXYPrdCurrMovieTarget();
-      obj.newLabelerFrame();
+%       obj.vizLoadXYPrdCurrMovieTarget();
+%       obj.newLabelerFrame();
     end
     
     function s = getSaveToken(obj)
