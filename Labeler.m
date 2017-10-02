@@ -2,7 +2,7 @@ classdef Labeler < handle
 % Bransonlab Animal Video Labeler/Tracker
 
   properties (Constant,Hidden)
-    VERSION = '1.2';
+    VERSION = '3.0';
     DEFAULT_LBLFILENAME = '%s.lbl';
     DEFAULT_CFG_FILENAME = 'config.default.yaml';
     DEFAULT_TRKFILE = '$movfile_$projname';
