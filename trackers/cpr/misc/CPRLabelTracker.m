@@ -2623,6 +2623,12 @@ classdef CPRLabelTracker < LabelTracker
         sPrm.TrainInit.augrotate = [];
         sPrm.TestInit.augrotate = [];
       end
+      
+      % 20171003 new jittering, CONSIDER
+      assert(~sPrm.TrainInit.augUseFF && ~sPrm.TestInit.augUseFF,...
+          'Cannot update tracking parameters with augUseFF=true.');
+      sPrm.TrainInit.doptjitter = false;
+      sPrm.TestInit.doptjitter = false;
     end
         
     function [xy,isinterp] = interpolateXY(xy)

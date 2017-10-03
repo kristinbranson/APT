@@ -134,8 +134,8 @@ classdef Shape
       % pAug: [NxNaugxD] randomized shapes, ABSOLUTE coords
       % info: struct, info on randomization
       %
-      % Shapes are randomly drawn from pN, optionally randomly rotated,
-      % then projected onto randomly jittered bboxes.
+      % Shapes are randomly drawn from pN, optionally randomly rotated and
+      % jittered, then projected onto optionally jittered bboxes.
       %
       % Note on randomlyOriented option. This flag serves two purposes. The
       % first is that, if the incoming shapes (pN) are randomly oriented,
@@ -151,13 +151,28 @@ classdef Shape
       % necessary but it doesn't seem to hurt and may help when the input
       % shapes are randomly oriented but in some particular nonuniform way 
       % that may not generally hold.
+      %
+      % Note on bboxJitter and ptJitter. 
+      % - bboxJitter/fac jitters the bounding boxes. Currently, only the
+      % bounding box *locations* or *centers* are randomized, but in the 
+      % future the bbox radii could be randomized as well. Conceptually, 
+      % randomizing bbox centers represents uncertainty in the shape 
+      % location (eg the COM location) within the target's image or ROI. 
+      % Randomizing the radii (in the future) represents uncertainty in 
+      % object size/scale.
+      % - ptJitter/PxMax jitters individual landmarks. This represents
+      % uncertainty in individual landmarks.
       
-      [randomlyOriented,iHead,iTail,bboxJitterFac,selfSample,useFF] = ...
+      [randomlyOriented,iHead,iTail,bboxJitter,bboxJitterFac,ptJitter,...
+        ptJitterFac,selfSample,useFF] = ...
         myparse(varargin,...
-          'randomlyOriented',false,... % if true, shapes in pN have arbitrary orientations; orientation of shapes in pAug will be randomized
+          'randomlyOriented',false,... % if true, i) shapes in pN have arbitrary orientations; and ii) orientation of shapes in pAug will be randomized
           'iHead',nan,... % head pt used if randomlyOriented==true
           'iTail',nan,... % etc
-          'bboxJitterfac',16, ... % jitter by 1/16th of bounding box dims. If useFF is true, can be [D] vector.
+          'bboxJitter',true,... % if true, jitter bboxes          
+          'bboxJitterFac',16, ... % eg jitter bbox locations by 1/16th of bounding box radii.
+          'ptJitter',true,... % if true, jitter individual points.
+          'ptJitterFac',12,... % eg jitter individual points 1/10 in normalized coords. Either a scalar, or a vector of length [D]
           'selfSample',false, ... % if true, then M==N, ie the set pN corresponds to bboxes. pN(i,:) will
                               ... % not be drawn/included when generating pAug(i,:,:).
           'furthestfirst',false ... % if true, try to sample more diverse shapes using furthestfirst
@@ -189,17 +204,19 @@ classdef Shape
         end
       end
       
-      if useFF
-        if isscalar(bboxJitterFac) 
-          bboxJitterFac = repmat(bboxJitterFac,1,D);
-        end
-        assert(isvector(bboxJitterFac)&&numel(bboxJitterFac)==D);
-        
-        if selfSample
-          warningNoTrace('Shape:arg','Ignoring selfSample==true since furthestfirst==true.');
-        end
-      else
+      if bboxJitter
         assert(isscalar(bboxJitterFac));
+      end      
+      if ptJitter
+        if isscalar(ptJitterFac)
+          ptJitterFac = repmat(ptJitterFac,1,D);
+        end
+        assert(isvector(ptJitterFac) && numel(ptJitterFac)==D);
+      end
+      
+      if useFF && selfSample
+        warningNoTrace('Shape:arg',...
+          'Ignoring selfSample==true since furthestfirst==true.');
       end
 
       nOOB = Shape.normShapeOOB(pN);
@@ -210,36 +227,39 @@ classdef Shape
            
       pAug = zeros(N,Naug,D);
       for i=1:N
-        if useFF
-          % jitter normalized shapes directly, then select via FF
-          pNJittered = pN;
+        % Jitter indiv points (optional)
+        % We jitter individual points of the entire set pN here so that in
+        % the case of useFF below we can select from already jittered pts
+        pNJitteredPts = pN;
+        if ptJitter
           for col=1:D
-            jit = 2*(rand(M,1)-0.5)*(1/bboxJitterFac(col));
-            pNJittered(:,col) = pNJittered(:,col)+jit;
-            tfSml = pNJittered(:,col)<-1;
-            tfBig = pNJittered(:,col)>1;            
-            pNJittered(tfSml,col) = -1;
-            pNJittered(tfBig,col) = 1;
+            % jitter each pt/coord in normalized space
+            jit = 2*(rand(M,1)-0.5)*(1/ptJitterFac(col));
+            pNJitteredPts(:,col) = pNJitteredPts(:,col)+jit;
+            tfSml = pNJitteredPts(:,col)<-1; % we still do not allow shape to exceed bounding box
+            tfBig = pNJitteredPts(:,col)>1;            
+            pNJitteredPts(tfSml,col) = -1;
+            pNJitteredPts(tfBig,col) = 1;
           end
-          
-          % sample them
-          szassert(pNJittered,[M D]);
-          pNAug = Shape.randsamp(pNJittered,Naug,...
-            'randomlyOriented',randomlyOriented,...
-            'iHead',iHead,'iTail',iTail,...
-            'useFF',true);
-          bbRP = repmat(bboxes(i,:),Naug,1);
-        else
-          if selfSample
-            omitRow = i;
-          else
-            omitRow = nan;
-          end
-          pNAug = Shape.randsamp(pN,Naug,'omitRow',omitRow,...
-            'randomlyOriented',randomlyOriented,...
-            'iHead',iHead,'iTail',iTail);
-          bbRP = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac);
         end
+        szassert(pNJitteredPts,[M D]);
+        
+        % Select shapes
+        if selfSample && ~useFF
+          omitRow = i;
+        else
+          omitRow = nan;
+        end
+        pNAug = Shape.randsamp(pNJitteredPts,Naug,...
+          'omitRow',omitRow,...
+          'randomlyOriented',randomlyOriented,...
+          'iHead',iHead,'iTail',iTail,...
+          'useFF',useFF);
+        
+        % At this pt have Naug shapes randomly drawn from pN. If
+        % randomlyOriented, these shapes are arbitrarily/randomly oriented.
+        % Otherwise, they are oriented as in pN
+
         if randomlyOriented
           % See notes on 'randomlyOriented' above. Strictly this 
           % randomization may be unnecessary or optional, as the output of
@@ -249,8 +269,17 @@ classdef Shape
           pNAug = Shape.randrot(pNAug,d);
         end
         szassert(pNAug,[Naug D]);
-        szassert(bbRP,[Naug 2*d]);
-        pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,bbRP); % [NaugxD]
+        
+        % Jitter bboxes (optional). This randomly translates shape
+        if bboxJitter
+          bbJittered = Shape.jitterBbox(bboxes(i,:),Naug,d,bboxJitterFac); 
+        else
+          bbJittered = repmat(bboxes(i,:),Naug,1);
+        end
+        szassert(bbJittered,[Naug 2*d]);
+        
+        % Reproject
+        pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,bbJittered); % [NaugxD]
       end
       
       info = struct(...
@@ -258,6 +287,9 @@ classdef Shape
         'pNmu',mean(pN,1),... % Note: not meaningful for randomly-oriented pN
         'npN',M,...
         'randomlyOriented',randomlyOriented,...
+        'ptJitter',ptJitter,...
+        'ptJitterFac',ptJitterFac,...
+        'bboxJitter',bboxJitter,...
         'bboxJitterFac',bboxJitterFac,...
         'selfSample',selfSample,...
         'furthestfirst',useFF,...
