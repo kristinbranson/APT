@@ -5038,6 +5038,13 @@ classdef Labeler < handle
       obj.labelsUpdateNewFrame(true); 
     end
     
+    function trackTbl(obj,tblMFT,varargin)
+      tObj = obj.tracker;
+      tObj.track(tblMFT,varargin{:});
+      % For template mode to see new tracking results
+      obj.labelsUpdateNewFrame(true); 
+    end
+    
     function trackAndExport(obj,mftset,varargin)
       % Track one movie at a time, exporting results to .trk files and 
       % clearing data in between

@@ -149,9 +149,9 @@ classdef CPRVizTrackDiags < handle
       end
       xsUse = arrayfun(@(iF)fspec.xs(iF,:),fUse,'uni',0);
       
-      iMov = obj.lObj.currMovie; % TODO GT
+      mIdx = obj.lObj.currMovIdx;
       frm = obj.lObj.currFrame; 
-      trkPFull = obj.tObj.getTrackResFullCurrTgt(iMov,frm); % TODO GT
+      trkPFull = obj.tObj.getTrackResFullCurrTgt(mIdx,frm);
       
       if isequal(trkPFull,[])
         % no tracking avail for this iMov/frm
