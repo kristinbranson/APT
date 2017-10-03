@@ -4995,11 +4995,11 @@ classdef Labeler < handle
   %% Tracker
   methods
     
-    function setTrackParamFile(obj,prmFile)
-      trker = obj.tracker;
-      assert(~isempty(trker),'No tracker object currently set.');
-      trker.setParamFile(prmFile);      
-    end      
+%     function setTrackParamFile(obj,prmFile)
+%       trker = obj.tracker;
+%       assert(~isempty(trker),'No tracker object currently set.');
+%       trker.setParamFile(prmFile);      
+%     end      
     
     function trackTrain(obj)
       tObj = obj.tracker;

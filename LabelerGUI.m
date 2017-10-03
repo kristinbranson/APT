@@ -2035,7 +2035,7 @@ else
   RC.saveprop('lastCPRAPTParams',sPrm);
   [sPrm,lObj.trackNFramesSmall,lObj.trackNFramesLarge,...
     lObj.trackNFramesNear] = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
-  tObj.setParams(sPrm);  
+  tObj.setParams(sPrm);
 end
 
 function cbkTrackerTrnDataDownSampChanged(src,evt,handles)

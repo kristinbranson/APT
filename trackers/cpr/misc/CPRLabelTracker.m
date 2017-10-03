@@ -895,17 +895,15 @@ classdef CPRLabelTracker < LabelTracker
       obj.asyncReset();
     end
     
-    %#%MTGT
-    %#%MV
-    function setParamHook(obj)
-      sNew = obj.readParamFileYaml();
-      sNew = CPRLabelTracker.modernizeParams(sNew);
-      obj.setParamContentsSmart(sNew);
-    end
+%     function setParamHook(obj)
+%       sNew = obj.readParamFileYaml();
+%       sNew = CPRLabelTracker.modernizeParams(sNew);
+%       obj.setParamContentsSmart(sNew);
+%     end
     
     %#%MTGT
     function setParams(obj,sPrm)
-      sPrm = CPRLabelTracker.modernizeParams(sPrm);
+      % sPrm must be FULLY MODERNIZED
       obj.setParamContentsSmart(sPrm);
       obj.paramFile = '';
     end
@@ -2624,11 +2622,22 @@ classdef CPRLabelTracker < LabelTracker
         sPrm.TestInit.augrotate = [];
       end
       
-      % 20171003 new jittering, CONSIDER
-      assert(~sPrm.TrainInit.augUseFF && ~sPrm.TestInit.augUseFF,...
-          'Cannot update tracking parameters with augUseFF=true.');
-      sPrm.TrainInit.doptjitter = false;
-      sPrm.TestInit.doptjitter = false;
+      % 20171003 new jitter fields
+      JITTERFLDS = {'doptjitter' 'ptjitterfac' 'doboxjitter'};
+      tfTrnInit = isfield(sPrm.TrainInit,JITTERFLDS);
+      tfTstInit = isfield(sPrm.TestInit,JITTERFLDS);
+      tf = [tfTrnInit(:); tfTstInit(:)];
+      assert(all(tf) || ~any(tf));
+      if ~any(tf) % needs updating
+        assert(~sPrm.TrainInit.augUseFF && ~sPrm.TestInit.augUseFF,...
+            'Cannot update tracking parameters with augUseFF=true.');
+        sPrm.TrainInit.doptjitter = false;
+        sPrm.TestInit.doptjitter = false;
+        sPrm.TrainInit.ptjitterfac = 16; % only placeholder/default, no effect since doptjitter is off
+        sPrm.TestInit.ptjitterfac = 16; % etc
+        sPrm.TrainInit.doboxjitter = true; % on by default prior to 20171003
+        sPrm.TestInit.doboxjitter = true; % on by default prior to 20171003
+      end
     end
         
     function [xy,isinterp] = interpolateXY(xy)

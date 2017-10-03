@@ -80,12 +80,12 @@ classdef LabelTracker < handle
       obj.initHook();
     end
     
-    function setParamFile(obj,prmFile)
-      % See also setParams.
-      
-      obj.paramFile = prmFile;
-      obj.setParamHook();
-    end
+%     function setParamFile(obj,prmFile)
+%       % See also setParams.
+%       
+%       obj.paramFile = prmFile;
+%       obj.setParamHook();
+%     end
     
     function delete(obj)
       if ~isempty(obj.hLCurrMovie)
