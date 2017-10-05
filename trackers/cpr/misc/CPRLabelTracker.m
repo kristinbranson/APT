@@ -1056,7 +1056,7 @@ classdef CPRLabelTracker < LabelTracker
           tblPTrn = obj.getTblPLbled();
         end
         if obj.lObj.hasTrx
-          tblfldscontainsassert(tblPTrn,MFTable.FLDSCOREROI);
+          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
         else
           tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
         end
@@ -1131,8 +1131,15 @@ classdef CPRLabelTracker < LabelTracker
       % pTrn col order is: [iPGT(1)_x iPGT(2)_x ... iPGT(end)_x iPGT(1)_y ... iPGT(end)_y]
       
       nView = obj.lObj.nview;
-      if nView==1 % doesn't need its own branch, just leaving old path
-        obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn);
+      if nView==1 % doesn't need its own branch, just leaving old path        
+        assert(isequal(d.MDTrn(:,MFTable.FLDSID),tblPTrn(:,MFTable.FLDSID)));
+        if tblfldscontains(tblPTrn,'thetaTrx')
+          oThetas = tblPTrn.thetaTrx;
+        else
+          oThetas = [];
+        end
+        obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn,...
+          'orientationThetas',oThetas);
       else
         assert(~obj.lObj.hasTrx,'Currently unsupported for projects with trx.');
         assert(size(Is,2)==nView);
@@ -1148,6 +1155,8 @@ classdef CPRLabelTracker < LabelTracker
           assert(isequal(iPtVw(:),find(obj.lObj.labeledposIPt2View==iView)));
           pTrnVw = pTrn(:,[iPtVw iPtVw+nfidsInTD]);
           
+          % Future todo: orientationThetas
+          % Should break internally if 'orientationThetas' is req'd
           obj.trnResRC(iView).trainWithRandInit(IsVw,bbVw,pTrnVw);
         end
       end
@@ -1230,6 +1239,8 @@ classdef CPRLabelTracker < LabelTracker
       
       pTrn = d.pGTTrn(:,iPGT);
 
+      % future todo: orientationThetas
+      % Should break internally if 'orientationThetas' is req'd
       rc = obj.trnResRC;
       rc.trainWithRandInit(Is,d.bboxesTrn,pTrn,'update',true,'initpGTNTrn',true);
 
@@ -1374,6 +1385,8 @@ classdef CPRLabelTracker < LabelTracker
           assert(isequal(bboxesVw,d.bboxesTst));
         end
           
+        % Future todo, orientationThetas
+        % Should break internally if 'orientationThetas' is req'd
         [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,...
           prm.TestInit);
 
@@ -1523,8 +1536,14 @@ classdef CPRLabelTracker < LabelTracker
             assert(isequal(bboxesVw,d.bboxesTst));
           end
           
+          assert(isequal(d.MDTst(:,MFTable.FLDSID),tblMFTChunk(:,MFTable.FLDSID)));
+          if tblfldscontains(tblMFTChunk,'thetaTrx')
+            oThetas = tblMFTChunk.thetaTrx;
+          else
+            oThetas = [];
+          end
           [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,...
-            prm.TestInit,'wbObj',wbObj);
+            prm.TestInit,'wbObj',wbObj,'orientationThetas',oThetas);
           if tfWB && wbObj.isCancel
             % obj has CHANGED. If we were really smart, we could use/store
             % partial tracking results in p_t. Or, in practice client can 
@@ -2637,6 +2656,15 @@ classdef CPRLabelTracker < LabelTracker
         sPrm.TestInit.ptjitterfac = 16; % etc
         sPrm.TrainInit.doboxjitter = true; % on by default prior to 20171003
         sPrm.TestInit.doboxjitter = true; % on by default prior to 20171003
+      end
+      
+      % 20171004 rotcorrection from trx
+      tf = [isfield(sPrm.TrainInit,'usetrxorientation'); ...
+            isfield(sPrm.TestInit,'usetrxorientation')];
+      assert(all(tf) || ~any(tf));
+      if ~any(tf) % needs updating
+        sPrm.TrainInit.usetrxorientation = false;
+        sPrm.TestInit.usetrxorientation = false;
       end
     end
         

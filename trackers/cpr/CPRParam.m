@@ -66,10 +66,17 @@ classdef CPRParam
       sOld.Reg.loss = 'L2';
       sOld.Reg.prm.thrr = [cpr.Ferns.Threshold.Lo cpr.Ferns.Threshold.Hi];
       sOld.Reg.prm.reg = cpr.Ferns.RegFactor;
-      sOld.Reg.rotCorrection.use = cpr.RotCorrection.Use;
+      switch cpr.RotCorrection.OrientationType
+        case 'fixed'
+          sOld.Reg.rotCorrection.use = false;
+        case {'arbitrary' 'arbitrary trx-specified'}
+          sOld.Reg.rotCorrection.use = true;
+        otherwise
+          assert(false);
+      end
       sOld.Reg.rotCorrection.iPtHead = cpr.RotCorrection.HeadPoint;
       sOld.Reg.rotCorrection.iPtTail = cpr.RotCorrection.TailPoint;
-%       sOld.Reg.occlPrm.Stot = 1; 
+      sOld.Reg.occlPrm.Stot = 1; 
 %       sOld.Reg.occlPrm.nrows = 3;
 %       sOld.Reg.occlPrm.ncols = 3;
 %       sOld.Reg.occlPrm.nzones = 1;
@@ -87,6 +94,8 @@ classdef CPRParam
       
       sOld.TrainInit.Naug = cpr.Replicates.NrepTrain;
       sOld.TrainInit.augrotate = []; % obsolete
+      sOld.TrainInit.usetrxorientation = ...
+        strcmp(cpr.RotCorrection.OrientationType,'arbitrary trx-specified');
       sOld.TrainInit.doptjitter = cpr.Replicates.DoPtJitter;
       sOld.TrainInit.ptjitterfac = cpr.Replicates.PtJitterFac;
       sOld.TrainInit.doboxjitter = cpr.Replicates.DoBBoxJitter;
@@ -96,6 +105,7 @@ classdef CPRParam
       
       sOld.TestInit.Nrep = cpr.Replicates.NrepTrack;
       sOld.TestInit.augrotate = []; % obsolete
+      sOld.TestInit.usetrxorientation = sOld.TrainInit.usetrxorientation;
       sOld.TestInit.doptjitter = cpr.Replicates.DoPtJitter;
       sOld.TestInit.ptjitterfac = cpr.Replicates.PtJitterFac;
       sOld.TestInit.doboxjitter = cpr.Replicates.DoBBoxJitter;
@@ -138,10 +148,22 @@ classdef CPRParam
       sNew.ROOT.CPR.Ferns.Threshold.Lo = sOld.Reg.prm.thrr(1);
       sNew.ROOT.CPR.Ferns.Threshold.Hi = sOld.Reg.prm.thrr(2);
       sNew.ROOT.CPR.Ferns.RegFactor = sOld.Reg.prm.reg;
-      sNew.ROOT.CPR.RotCorrection.Use = sOld.Reg.rotCorrection.use;
+
+      % dups assert below for doc purposes
+      assert(sOld.TrainInit.usetrxorientation==sOld.TestInit.usetrxorientation);
+      if sOld.Reg.rotCorrection.use
+        if sOld.TrainInit.usetrxorientation
+          sNew.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary trx-specified'; 
+        else
+          sNew.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';        
+        end
+      else
+        sNew.ROOT.CPR.RotCorrection.OrientationType = 'fixed';
+      end
       sNew.ROOT.CPR.RotCorrection.HeadPoint = sOld.Reg.rotCorrection.iPtHead;
       sNew.ROOT.CPR.RotCorrection.TailPoint = sOld.Reg.rotCorrection.iPtTail;
-%       sOld.Reg.occlPrm.Stot = 1; 
+      
+      assert(sOld.Reg.occlPrm.Stot==1); 
 %       sOld.Reg.occlPrm.nrows = 3;
 %       sOld.Reg.occlPrm.ncols = 3;
 %       sOld.Reg.occlPrm.nzones = 1;
@@ -167,6 +189,7 @@ classdef CPRParam
             sOld.TrainInit.augrotate,sOld.Reg.rotCorrection.use);
         end
       end
+      assert(sOld.TrainInit.usetrxorientation==sOld.TestInit.usetrxorientation);
       assert(sOld.TrainInit.doptjitter==sOld.TestInit.doptjitter);
       assert(sOld.TrainInit.ptjitterfac==sOld.TestInit.ptjitterfac);
       assert(sOld.TrainInit.doboxjitter==sOld.TestInit.doboxjitter);

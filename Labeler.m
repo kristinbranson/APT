@@ -4090,7 +4090,7 @@ classdef Labeler < handle
       % Maybe Optimize: group movies together
 
       nrow = height(tblMF);
-      s = struct('p',cell(0,1),'pTS',[],'tfocc',[],'pTrx',[]);
+      s = struct('p',cell(0,1),'pTS',[],'tfocc',[],'pTrx',[],'thetaTrx',[]);
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
       for irow=1:nrow
         tblrow = tblMF(irow,:);
@@ -4134,8 +4134,11 @@ classdef Labeler < handle
           xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
           ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
           s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
+          thetas = cellfun(@(xx)xx(iTgt).theta(frm+xx(iTgt).off),trxI);
+          s(end).thetaTrx = thetas(:)';
         else
           s(end).pTrx = [nan nan]; % Wrong when nview>1, but this is currently undesigned/unsupported
+          s(end).thetaTrx = nan; % Wrong when nview>1 etc
         end
       end
       

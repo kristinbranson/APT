@@ -137,20 +137,28 @@ classdef Shape
       % Shapes are randomly drawn from pN, optionally randomly rotated and
       % jittered, then projected onto optionally jittered bboxes.
       %
-      % Note on randomlyOriented option. This flag serves two purposes. The
-      % first is that, if the incoming shapes (pN) are randomly oriented,
-      % then this is passed onto Shape.randsamp so it can properly do its
-      % job. For instance, in the case where there are not enough distinct 
-      % input shapes to sample, randInitShapes creates new input shapes by 
-      % averaging shapes; if shapes are randomly oriented, they must first
-      % be aligned.
+      % Note on pNRandomlyOriented, pAugOrientation.
+      % pNRandomlyOriented indicates if the incoming shapes (pN) are 
+      % randomly oriented. This is passed onto Shape.randsamp so it can 
+      % properly do its job. For instance, in the case where there are not 
+      % enough distinct input shapes to sample, randInitShapes creates new 
+      % input shapes by averaging shapes; if shapes are randomly oriented, 
+      % they must first be aligned.
       %
-      % The second purpose is that, if randomlyOriented is on, then pAug is
-      % randomized (in terms of orientation) when sampling (Shape.randsamp)
-      % is complete. This second randomization may not be strictly
-      % necessary but it doesn't seem to hurt and may help when the input
-      % shapes are randomly oriented but in some particular nonuniform way 
-      % that may not generally hold.
+      % pAugOrientation determines the final orientation of shapes returned
+      % in pAug.
+      % - When RAW, we currently prohibit pNRandomlyOriented==true
+      % - When RANDOMIZED, pNRandomlyOriented is probably true, and the 
+      % second randomization may not be strictly necessary (as subsets
+      % sampled from pN should already be randomly-oriented). It shouldn't
+      % hurt through and may help if the initial pool pN is biased in some
+      % way.
+      %
+      % So the current used combos of pNRandomlyOriented and
+      % pAugOrientation are
+      % - pNRandomlyOriented=false, pAugOrientation=FIXED
+      % - pNRandomlyOriented=true, pAugOrientation=RANDOMIZED
+      % - pNRandomlyOriented=true, pAugOrientation=SPECIFIED
       %
       % Note on bboxJitter and ptJitter. 
       % - bboxJitter/fac jitters the bounding boxes. Currently, only the
@@ -163,10 +171,13 @@ classdef Shape
       % - ptJitter/PxMax jitters individual landmarks. This represents
       % uncertainty in individual landmarks.
       
-      [randomlyOriented,iHead,iTail,bboxJitter,bboxJitterFac,ptJitter,...
-        ptJitterFac,selfSample,useFF] = ...
+      [pNRandomlyOriented,pAugOrientation,pAugOrientationTheta,iHead,iTail,...
+        bboxJitter,bboxJitterFac,ptJitter,ptJitterFac,...
+        selfSample,useFF] = ...
         myparse(varargin,...
-          'randomlyOriented',false,... % if true, i) shapes in pN have arbitrary orientations; and ii) orientation of shapes in pAug will be randomized
+          'pNRandomlyOriented',false,... % true iff shapes in drawing pool pN have arbitrary orientations
+          'pAugOrientation',ShapeAugOrientation.RAW,... % RAW, RANDOMIZED, or SPECIFIED. 
+          'pAugOrientationTheta',[],... Used when pAugOrientation==ShapeAugOrientation.SPECIFIED. [N] vector of angles at which the iTail->iHead vector should point for each row of pAug
           'iHead',nan,... % head pt used if randomlyOriented==true
           'iTail',nan,... % etc
           'bboxJitter',true,... % if true, jitter bboxes          
@@ -188,7 +199,7 @@ classdef Shape
         assert(M==N);
       end
       
-      if randomlyOriented
+      if pNRandomlyOriented
         if model.nviews~=1
           error('Shape:rot','Rotational invariance not supported for multiview projects.');
         end
@@ -202,6 +213,22 @@ classdef Shape
             'Tail landmark for rotational invariance must specify one of the %d landmarks/points.',...
             model.nfids);
         end
+      end
+      
+      assert(isa(pAugOrientation,'ShapeAugOrientation'));
+      switch pAugOrientation
+        case ShapeAugOrientation.RAW
+          assert(~pNRandomlyOriented);
+        case ShapeAugOrientation.RANDOMIZED
+          if ~pNRandomlyOriented
+            warningNoTrace('Randomizing orientations of shapes drawn from pool with fixed orientations.');
+          end
+        case ShapeAugOrientation.SPECIFIED
+          % Typically expect pNRandomlyOriented==true
+          assert(isvector(pAugOrientationTheta) ...
+                              && numel(pAugOrientationTheta)==N);
+        otherwise
+          assert(false);
       end
       
       if bboxJitter
@@ -252,21 +279,26 @@ classdef Shape
         end
         pNAug = Shape.randsamp(pNJitteredPts,Naug,...
           'omitRow',omitRow,...
-          'randomlyOriented',randomlyOriented,...
+          'randomlyOriented',pNRandomlyOriented,...
           'iHead',iHead,'iTail',iTail,...
           'useFF',useFF);
         
         % At this pt have Naug shapes randomly drawn from pN. If
-        % randomlyOriented, these shapes are arbitrarily/randomly oriented.
-        % Otherwise, they are oriented as in pN
+        % pNRandomlyOriented, these shapes are arbitrarily/randomly 
+        % oriented. Otherwise, they are oriented as in pN
 
-        if randomlyOriented
-          % See notes on 'randomlyOriented' above. Strictly this 
-          % randomization may be unnecessary or optional, as the output of
-          % Shape.randsamp should have "(random) orientation 
-          % characteristics" of the input pN.
-          assert(d==2,'Currently random rotations supported only for d==2');
-          pNAug = Shape.randrot(pNAug,d);
+        assert(d==2,'Currently random rotations supported only for d==2'); % legacy
+        switch pAugOrientation
+          case ShapeAugOrientation.RAW
+            % none
+          case ShapeAugOrientation.RANDOMIZED
+            pNAug = Shape.randrot(pNAug,d);
+          case ShapeAugOrientation.SPECIFIED
+            theta = pAugOrientationTheta(i);
+            thetas0 = Shape.canonicalRot(pNAug,iHead,iTail); % [Naugx1]
+            pNAug = Shape.rotateCentroid(pNAug,thetas0+theta);
+          otherwise
+            assert(false);
         end
         szassert(pNAug,[Naug D]);
         
@@ -286,7 +318,7 @@ classdef Shape
         'model',model,...
         'pNmu',mean(pN,1),... % Note: not meaningful for randomly-oriented pN
         'npN',M,...
-        'randomlyOriented',randomlyOriented,...
+        'pNRandomlyOriented',pNRandomlyOriented,...
         'ptJitter',ptJitter,...
         'ptJitterFac',ptJitterFac,...
         'bboxJitter',bboxJitter,...
@@ -344,10 +376,14 @@ classdef Shape
       % xyhat: [1x2] unit vector in "forwards"/head direction.
       %
       % This method computes xyhat by finding the long axis of the
-      % covariance ellipse and picking a sign using iHead/iTail.
+      % covariance ellipse and picking a sign using iHead/iTail. Only
+      % points iHead..iTail are used in computing the covariance ellipse.
       
       [~,d] = size(xy);
       assert(d==2);
+
+      assert(iHead<iTail);
+      xy = xy(iHead:iTail,:); % use only "body" points iHead..iTail
       
       c = cov(xy);
       [v,d] = eig(c);
@@ -357,8 +393,8 @@ classdef Shape
       vlong2 = -vlong1;
       
       % pick sign
-      xyH = xy(iHead,:);
-      xyT = xy(iTail,:);
+      xyH = xy(1,:);
+      xyT = xy(end,:);
       xyHT = xyH-xyT;
       
       if dot(xyHT,vlong1) > dot(xyHT,vlong2)

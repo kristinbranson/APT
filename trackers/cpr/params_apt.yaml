@@ -47,9 +47,9 @@ ROOT:
       - Nsample_cor: ['Num samples correlation',unsigned,true,Number of samples used to compute correlation during feature selection,5000]
     - RotCorrection:
       - ['Rotational Invariance','',false,Rotational invariance for randomly-oriented animals,'']
-      - Use: ['Enable',boolean,true,Check if animals have arbitrary heading in space,false]
-      - HeadPoint: ['Head landmark',unsigned,true,Landmark/point representing animal ''Head'',0]
-      - TailPoint: ['Tail landmark',unsigned,true,Landmark/point representing animal ''Tail'',0]
+      - OrientationType: ['Orientation',['fixed','arbitrary','arbitrary trx-specified'],true,Specification of animal orientation,'fixed']
+      - HeadPoint: ['Head landmark',unsigned,true,Landmark/point representing animal ''Head''; used when orientation is not fixed,0]
+      - TailPoint: ['Tail landmark',unsigned,true,Landmark/point representing animal ''Tail''; used when orientation is not fixed,0]
     - Replicates:
       - ['','',false,'','']
       - NrepTrain: ['Num training replicates',unsigned,true,Training set augmentation factor. Each training shape is utilized/replicated this many times,50]

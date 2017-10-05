@@ -232,9 +232,15 @@ classdef RegressorCascade < handle
       % the most/more common shapes. However, we also jitter, so that may
       % be okay.
       
-      [initpGTNTrn,loArgs] = myparse_nocheck(varargin,...
-        'initpGTNTrn',false... % if true, init with .pGTNTrn rather than pGT
+      [initpGTNTrn,orientationThetas,loArgs] = myparse_nocheck(varargin,...
+        'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
+        'orientationThetas',[]... % [N] vector of "externally" known orientations for animals. Required if prmRotCurr.use and prmTrainInit.usetrxorientation
         );
+      
+      N = size(I,1);      
+      if ~isempty(orientationThetas)
+        assert(isvector(orientationThetas) && numel(orientationThetas)==N);
+      end
       
       model = obj.prmModel;
       prmTI = obj.prmTrainInit;
@@ -260,8 +266,32 @@ classdef RegressorCascade < handle
       % pNInitSet in normalized coords
       
       prmRotCorr = obj.prmReg.rotCorrection;
+      orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
+        prmTI.usetrxorientation,orientationThetas);      
+      if orientation==ShapeAugOrientation.SPECIFIED
+        % Check externally-supplied orientations against pGT
+        
+        thetaCnn = Shape.canonicalRot(pGT,prmRotCorr.iPtHead,prmRotCorr.iPtTail);
+        thetasPGT = -thetaCnn;
+        assert(isequal(N,numel(thetasPGT),numel(orientationThetas)));
+        dtheta = modrange(thetasPGT(:)-orientationThetas(:),-pi,pi);
+        % angle diff between i) orientation per trx and ii) orientation per
+        % labeled shape
+        DTHETA_THRESHOLD_WARN_DEGREES = 10;
+        dthetaThresh = DTHETA_THRESHOLD_WARN_DEGREES/180*pi;
+        nExceed = nnz(abs(dtheta)>dthetaThresh);
+        if nExceed>0
+          warningNoTrace('RegressorCascade:orientation',...
+            '%d/%d training shapes have externally-specified orientations that differ significantly from orientation implied by labels.',...
+            nExceed,N);
+        end
+        
+        % Use the externally-specified orientations in any case
+      end
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
-        'randomlyOriented',prmRotCorr.use,...
+        'pNRandomlyOriented',prmRotCorr.use,...
+        'pAugOrientation',orientation,...
+        'pAugOrientationTheta',orientationThetas,...
         'iHead',prmRotCorr.iPtHead,...
         'iTail',prmRotCorr.iPtTail,...
         'ptJitter',prmTI.doptjitter,...
@@ -272,7 +302,6 @@ classdef RegressorCascade < handle
         'furthestfirst',initUseFF);
       obj.tmp.p0info = p0info;
       
-      N = size(I,1);
       szassert(p0,[N Naug model.D]);
       
       p0 = reshape(p0,[N*Naug model.D]);
@@ -548,7 +577,8 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function [p_t,pIidx,p0,p0info] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj CONST
+    function [p_t,pIidx,p0,p0info] = propagateRandInit(...
+                        obj,I,bboxes,prmTestInit,varargin) % obj CONST
       % Wrapper for propagate(), randomly init replicate cloud from
       % obj.pGTNTrn
       %
@@ -558,13 +588,18 @@ classdef RegressorCascade < handle
       % p0: initial shapes (absolute coords)
       % p0info: struct containing initial shape info
             
-      wbObj = myparse(varargin,...
-        'wbObj',[]); %#ok<NASGU> % WaitBarWithCancel. If cancel, obj is unchanged, p_t partially filled, pIidx,p0,p0info appear 'correct'
+      [wbObj,orientationThetas] = myparse(varargin,...
+        'wbObj',[],... %#ok<NASGU> % WaitBarWithCancel. If cancel, obj is unchanged, p_t partially filled, pIidx,p0,p0info appear 'correct'
+        'orientationThetas',[]...  % [N] vector of known orientations for animals, required if xxx
+        ); 
       
       model = obj.prmModel;
       [N,nview] = size(I);
       assert(nview==model.nviews);
       szassert(bboxes,[N 2*model.d]);
+      if ~isempty(orientationThetas)
+        assert(isvector(orientationThetas) && numel(orientationThetas)==N);
+      end
       
       if isfield(prmTestInit,'augUseFF')
         useFF = prmTestInit.augUseFF;
@@ -577,8 +612,12 @@ classdef RegressorCascade < handle
       Naug = prmTestInit.Nrep;
       pNInitSet = obj.pGTNTrn;
       prmRotCorr = obj.prmReg.rotCorrection;
+      orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
+        prmTestInit.usetrxorientation,orientationThetas);
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
-        'randomlyOriented',prmRotCorr.use,...
+        'pNRandomlyOriented',prmRotCorr.use,...
+        'pAugOrientation',orientation,...
+        'pAugOrientationTheta',orientationThetas,...
         'iHead',prmRotCorr.iPtHead,...
         'iTail',prmRotCorr.iPtTail,...
         'ptJitter',prmTestInit.doptjitter,...

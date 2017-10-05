@@ -26,7 +26,7 @@ Reg:
     thrr: [-.2,.2]      # fern thresholds
     reg: .01            # fern regularization
   rotCorrection: 
-    use: 0     # 1=use rotational correction
+    use: 0     # 1=use rotationally-invariant diffs when performing regression.
     iPtHead: 1
     iPtTail: 2
   occlPrm:
@@ -51,6 +51,7 @@ TrainInit:
   Naug: 50            # number of replicates for training
   augpad: 10
   augrotate:          # unused as of 20170609
+  usetrxorientation: 0  # 1=initialize using orientation from trx (currently hardcoded to trx.theta) 
   doptjitter: 1       # 1=jitter pts, 0=don't
   ptjitterfac: 16     # eg jitter individual pts by 1/16 in normalized coords  
   doboxjitter: 1      # 1=jitter bboxes, 0=don't
@@ -61,6 +62,7 @@ TrainInit:
 TestInit:
   Nrep: 50            # number of replicates for tracking/testing
   augrotate:          # unused as of 20170609
+  usetrxorientation: 0  # 1=initialize using orientation from trx (currently hardcoded to trx.theta) 
   doptjitter: 1       # 1=jitter pts, 0=don't
   ptjitterfac: 16     # eg jitter individual pts by 1/16 in normalized coords  
   doboxjitter: 1      # 1=jitter bboxes, 0=don't

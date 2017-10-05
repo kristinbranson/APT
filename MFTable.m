@@ -22,7 +22,8 @@ classdef MFTable
     %  pTS    [npts=nphyspt*nview] timestamps
     %  tfocc  [npts=nphyspt*nview] logical occluded flag
     %  pTrx   [nview*2], trx .x and .y. Raster order: view,{x,y}
-    FLDSFULLTRX = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx'};    
+    %  thetaTrx [nview], trx .theta
+    FLDSFULLTRX = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx'};    
 
     FLDSSUSP = {'mov' 'frm' 'iTgt' 'susp'};
   end
