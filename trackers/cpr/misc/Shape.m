@@ -19,8 +19,9 @@ classdef Shape
       xy = [p(1:n/2) p(n/2+1:end)];
     end
     
-    function [p0,thetas] = randrot(p0,d)
-      % Randomly rotate shapes about centroids
+    function [p0,thetas] = randrot(p0,d,varargin)
+      % Randomly rotate shapes about centroids. Optionally takes 
+      % 'iptsCentroid', see rotateCentroid
       % 
       % p0 (in): [Lx2d] shapes
       % d: model.d. Must be 2.
@@ -29,10 +30,12 @@ classdef Shape
       %   rotated)
       % thetas: [Lx1] rotation angle for each shape
       
+      % varargin: passed through to rotateCentroid
+      
       assert(d==2);
       L = size(p0,1); 
       thetas = 2*pi*rand(L,1);
-      p0 = Shape.rotateCentroid(p0,thetas);
+      p0 = Shape.rotateCentroid(p0,thetas,varargin{:});
     end
     
     function p0 = randrot3(p0,d)
@@ -50,13 +53,16 @@ classdef Shape
       assert(false,'NOT DONE'); 
     end
     
-    function p1 = randsamp(p0,L,varargin)
-      % Randomly sample shapes
+    function pN1 = randsampNormalized(pN0,L,varargin)
+      % Randomly sample normalized shapes
       %
-      % p0: [NxD] input shapes
+      % p0: [NxD] input shapes -- must be in normalized coords
       % L: number of shapes to return
       %
       % p1: [LxD] shapes randomly sampled from p0
+      %
+      % p0 must be in normalized coords b/c of edge cases with respect to
+      % shape orientations.
       
       [omitRow,randomlyOriented,iHead,iTail,useFF] = myparse(varargin,...
         'omitRow',nan,... % optional, row of p0 to omit from sampling
@@ -66,7 +72,7 @@ classdef Shape
         'useFF',false ... % if true, use furthestfirst to select most different shapes
         );
       
-      [N,D] = size(p0);
+      [N,D] = size(pN0);
       
       tfOmit = ~isnan(omitRow);
       if tfOmit
@@ -76,7 +82,7 @@ classdef Shape
         iUse = 1:N;
       end
       nUse = numel(iUse);
-      pUse = p0(iUse,:);
+      pUse = pN0(iUse,:);
       
       if randomlyOriented
         assert(~isnan(iHead));
@@ -86,21 +92,21 @@ classdef Shape
       if useFF
         assert(L<=nUse,'Too few shapes to use furthest first.');
         if randomlyOriented
-          [pUse,th] = Shape.alignOrientations(pUse,iHead,iTail);
+          [pUse,th] = Shape.alignOrientationsOrigin(pUse,iHead,iTail);
           [~,~,idx] = furthestfirst(pUse,L,'Start',[]);
-          p1 = Shape.rotateCentroid(pUse(idx,:),-th(idx));
+          pN1 = Shape.rotate(pUse(idx,:),-th(idx),[0 0]);
         else
-          p1 = furthestfirst(pUse,L,'Start',[]);
+          pN1 = furthestfirst(pUse,L,'Start',[]);
         end
       elseif L<=nUse
         iTmp = randSample(1:nUse,L,true); % pdollar
-        p1 = pUse(iTmp,:);
+        pN1 = pUse(iTmp,:);
       else % L>nUse
         % Not enough shapes to sample L without replacement. Select pairs 
         % of shapes and average them.
         
         if randomlyOriented
-          [pUseAverage,th] = Shape.alignOrientations(pUse,iHead,iTail);
+          [pUseAverage,th] = Shape.alignOrientationsOrigin(pUse,iHead,iTail);
         else
           pUseAverage = pUse;
         end
@@ -112,13 +118,13 @@ classdef Shape
           % comes from averaging two rows of pUseAligned, so the "original"
           % orientation is ill-defined. We use the first shape in the
           % averaging (first col of iAv) for no particular reason.
-          pAv = Shape.rotateCentroid(pAv,-th(iAv(:,1)));
+          pAv = Shape.rotate(pAv,-th(iAv(:,1)),[0 0]);
         end
         
-        p1 = cat(1,pUse,pAv);
+        pN1 = cat(1,pUse,pAv);
       end
       
-      szassert(p1,[L D]);
+      szassert(pN1,[L D]);
       % Conceptual check: if randomlyOriented, then p1 is randomly
       % oriented, and if not, then p1 has same overall alignment as p0
     end
@@ -178,7 +184,7 @@ classdef Shape
           'pNRandomlyOriented',false,... % true iff shapes in drawing pool pN have arbitrary orientations
           'pAugOrientation',ShapeAugOrientation.RAW,... % RAW, RANDOMIZED, or SPECIFIED. 
           'pAugOrientationTheta',[],... Used when pAugOrientation==ShapeAugOrientation.SPECIFIED. [N] vector of angles at which the iTail->iHead vector should point for each row of pAug
-          'iHead',nan,... % head pt used if randomlyOriented==true
+          'iHead',nan,... % head pt used if pNRandomlyOriented==true
           'iTail',nan,... % etc
           'bboxJitter',true,... % if true, jitter bboxes          
           'bboxJitterFac',16, ... % eg jitter bbox locations by 1/16th of bounding box radii.
@@ -203,16 +209,6 @@ classdef Shape
         if model.nviews~=1
           error('Shape:rot','Rotational invariance not supported for multiview projects.');
         end
-        if ~any(iHead==1:model.nfids)
-          error('Shape:rot',...
-            'Head landmark for rotational invariance must specify one of the %d landmarks/points.',...
-            model.nfids);
-        end
-        if ~any(iTail==1:model.nfids)
-          error('Shape:rot',...
-            'Tail landmark for rotational invariance must specify one of the %d landmarks/points.',...
-            model.nfids);
-        end
       end
       
       assert(isa(pAugOrientation,'ShapeAugOrientation'));
@@ -229,6 +225,21 @@ classdef Shape
                               && numel(pAugOrientationTheta)==N);
         otherwise
           assert(false);
+      end
+      
+      if pNRandomlyOriented ...
+          || pAugOrientation==ShapeAugOrientation.RANDOMIZED ...
+          || pAugOrientation==ShapeAugOrientation.SPECIFIED
+        if ~any(iHead==1:model.nfids)
+          error('Shape:rot',...
+            'Head landmark for rotational invariance must specify one of the %d landmarks/points.',...
+            model.nfids);
+        end
+        if ~any(iTail==1:model.nfids)
+          error('Shape:rot',...
+            'Tail landmark for rotational invariance must specify one of the %d landmarks/points.',...
+            model.nfids);
+        end
       end
       
       if bboxJitter
@@ -277,7 +288,7 @@ classdef Shape
         else
           omitRow = nan;
         end
-        pNAug = Shape.randsamp(pNJitteredPts,Naug,...
+        pNAug = Shape.randsampNormalized(pNJitteredPts,Naug,...
           'omitRow',omitRow,...
           'randomlyOriented',pNRandomlyOriented,...
           'iHead',iHead,'iTail',iTail,...
@@ -285,18 +296,36 @@ classdef Shape
         
         % At this pt have Naug shapes randomly drawn from pN. If
         % pNRandomlyOriented, these shapes are arbitrarily/randomly 
-        % oriented. Otherwise, they are oriented as in pN
+        % oriented. Otherwise, they are oriented as in pN.
+        %
+        % Important technical note on rotations/orientations.
+        % For shapes/animals that can be arbitrarily rotated, we implicitly
+        % assume that the origin of the normalized coord sys (which maps to 
+        % the origin of bboxes) represents a fixed/standard point on the
+        % animal: eg a nose, center-of-torso, etc. When we rotate the
+        % objects here according to their pAugOrientation, we rotate about
+        % this normalized origin.
 
         assert(d==2,'Currently random rotations supported only for d==2'); % legacy
         switch pAugOrientation
           case ShapeAugOrientation.RAW
             % none
           case ShapeAugOrientation.RANDOMIZED
-            pNAug = Shape.randrot(pNAug,d);
+            assert(size(pNAug,1)==Naug);
+            thetas = 2*pi*rand(Naug,1);
+            pNAug = Shape.rotate(pNAug,thetas,[0 0]);
+            % pNAug = Shape.randrot(pNAug,d,'iptsCentroid',iHead:iTail);
+            %
+            % See note above. We rotate about the normalized origin
+
           case ShapeAugOrientation.SPECIFIED
             theta = pAugOrientationTheta(i);
             thetas0 = Shape.canonicalRot(pNAug,iHead,iTail); % [Naugx1]
-            pNAug = Shape.rotateCentroid(pNAug,thetas0+theta);
+            pNAug = Shape.rotate(pNAug,theta+thetas0,[0 0]);
+            
+            % See note above
+            % pNAug = Shape.rotateCentroid(pNAug,thetas0+theta,...
+            %  'iptsCentroid',iHead:iTail);
           otherwise
             assert(false);
         end
@@ -313,12 +342,13 @@ classdef Shape
         % Reproject
         pAug(i,:,:) = shapeGt('reprojectPose',model,pNAug,bbJittered); % [NaugxD]
       end
-      
+            
       info = struct(...
         'model',model,...
         'pNmu',mean(pN,1),... % Note: not meaningful for randomly-oriented pN
         'npN',M,...
         'pNRandomlyOriented',pNRandomlyOriented,...
+        'pAugOrientation',pAugOrientation,...
         'ptJitter',ptJitter,...
         'ptJitterFac',ptJitterFac,...
         'bboxJitter',bboxJitter,...
@@ -369,6 +399,8 @@ classdef Shape
     function xyhat = findOrientation2d(xy,iHead,iTail)
       % Compute orientation of shape.
       %
+      % Only points iHead..iTail are considered.
+      %
       % xy: [nptx2] landmark coordinates
       % iHead: scalar integer, 1..npt. Index for 'head' landmark.
       % iTail: etc. Index for 'tail' landmark.
@@ -376,8 +408,7 @@ classdef Shape
       % xyhat: [1x2] unit vector in "forwards"/head direction.
       %
       % This method computes xyhat by finding the long axis of the
-      % covariance ellipse and picking a sign using iHead/iTail. Only
-      % points iHead..iTail are used in computing the covariance ellipse.
+      % covariance ellipse and picking a sign using iHead/iTail.
       
       [~,d] = size(xy);
       assert(d==2);
@@ -414,6 +445,7 @@ classdef Shape
       % p1: [NxD], rotated shapes
       
       d = 2;
+      assert(ismatrix(p0));
       [N,D] = size(p0);
       nfids = D/d;
       assert(isvector(theta) && numel(theta)==N);
@@ -436,7 +468,7 @@ classdef Shape
       p1 = p0;
     end
     
-    function [p1,mu] = rotateCentroid(p0,theta)
+    function [p1,mu] = rotateCentroid(p0,theta,varargin)
       % Rotate shapes around centroid
       % 
       % p0: [NxD], shapes
@@ -444,15 +476,20 @@ classdef Shape
       %
       % p1: [NxD], rotated shapes
       % mu: [Nx2], centroids
-      
+
       d = 2;
+      assert(ismatrix(p0));
       [N,D] = size(p0);
       nfids = D/d;
       assert(isvector(theta) && numel(theta)==N);
       
+      iptsCentroid = myparse(varargin,...
+        'iptsCentroid',1:nfids); % optional, only consider iptsCentroid when computing centroid
+      
       p0 = reshape(p0,[N,nfids,d]); % [Nxnfidsxd] 
-      mu = squeeze(mean(p0,2)); % [Nx2] centroids
-      p1 = Shape.rotate(p0,theta,mu);
+      mu = mean(p0(:,iptsCentroid,:),2); % [Nx1xd]
+      mu = reshape(mu,[N d]); % [Nx2] centroids
+      p1 = Shape.rotate(reshape(p0,[N D]),theta,mu);
     end
     
     function xy1 = rotateXY(xy0,theta)
@@ -488,21 +525,27 @@ classdef Shape
       xy1 = bsxfun(@plus,xy1,xyc);
     end
     
-    function [pA,th] = alignOrientations(p,iHead,iTail)
-      % Align orientations of shapes
+    function [pNA,th] = alignOrientationsOrigin(pN,iHead,iTail)
+      % Align orientations of shapes by finding iHead:iTail canonicalRot 
+      % angle and applying/rotating about origin
       %
-      % p: [NxD] shapes
+      % pN: [NxD] shapes, MUST BE in eg NORMALIZED COORDS because we are
+      %   rotating about origin
       % iHead/iTail: head/tail landmarks per canonicalRot()
       %
-      % pA: [NxD] shapes, canonically rotated
-      % th: [Nx1] thetas which, when applied to p, result in pA 
+      % pNA: [NxD] shapes, canonically rotated about oritin
+      % th: [Nx1] thetas which, when applied to pN (about origin) result in
+      %   pNA
       
-      th = Shape.canonicalRot(p,iHead,iTail);
-      pA = Shape.rotateCentroid(p,th);
+      th = Shape.canonicalRot(pN,iHead,iTail);
+      %pNA = Shape.rotateCentroid(pN,th,'iptsCentroid',iHead:iTail);
+      pNA = Shape.rotate(pN,th,[0 0]);
     end
     
     function th = canonicalRot(p,iHead,iTail)
       % Find rotations that transform p to canonical coords.
+      %
+      % Only points iHead..iTail are considered
       % 
       % p: [NxD] shapes
       % 
@@ -526,16 +569,20 @@ classdef Shape
       % pTgt: [NxD] target (eg GT) shape, normalized coords
       % iHead/iTail: 1/3 for FlyBubble
       %
-      % pDiff: [NxD] This is pTgt-p, but taken in the coordinate system 
+      % pRIDel: [NxD] This is pTgt-p, but taken in the coordinate system 
       % where p is canonically oriented. 
       
       assert(isequal(size(p),size(pTgt)));
 
       theta = Shape.canonicalRot(p,iHead,iTail); % [Nx1]
+      % AL20171006 note precise rotOrigin should not impact 
+      % difference/result pRIDel
       rotOrigin = [0 0]; % all shapes are in normalized coords which should be in [-1,1]
       pCanon = Shape.rotate(p,theta,rotOrigin); % make sure to rotate pCanon, pTgtCanon about same origin
       pTgtCanon = Shape.rotate(pTgt,theta,rotOrigin);
       pRIDel = pTgtCanon - pCanon;
+      % AL20171006 prob better computed as 
+      % pRIDel = Shape.rotate(pTgtCanon-pCanon,theta,[0 0])
     end
     
     function p1 = applyRIDiff(p0,pRIDel,iHead,iTail)
@@ -554,7 +601,7 @@ classdef Shape
       % pRIDel is a "difference shape", taken in coord system where p0 is
       % canonically rotated. theta rotates p0 to canonical orientation, so
       % -theta rotates from canonical orientation to p0 orientation.
-      ROTORIGIN = [0 0]; % difference vectors should be rotated about origin
+      ROTORIGIN = [0 0]; % difference vectors should/must be rotated about origin
       pRIDel = Shape.rotate(pRIDel,-theta,ROTORIGIN);
       p1 = p0+pRIDel;
     end
