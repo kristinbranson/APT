@@ -588,11 +588,11 @@ classdef RegressorCascade < handle
       % p0: initial shapes (absolute coords)
       % p0info: struct containing initial shape info
             
-      [wbObj,orientationThetas] = myparse(varargin,...
+      [wbObj,orientationThetas,loArgs] = myparse_nocheck(varargin,...
         'wbObj',[],... %#ok<NASGU> % WaitBarWithCancel. If cancel, obj is unchanged, p_t partially filled, pIidx,p0,p0info appear 'correct'
         'orientationThetas',[]...  % [N] vector of known orientations for animals, required if xxx
         ); 
-      
+            
       model = obj.prmModel;
       [N,nview] = size(I);
       assert(nview==model.nviews);
@@ -631,7 +631,7 @@ classdef RegressorCascade < handle
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
-      p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
+      p_t = obj.propagate(I,bboxes,p0,pIidx,'wbObj',wbObj,loArgs{:});      
     end
     
     %#3DOK

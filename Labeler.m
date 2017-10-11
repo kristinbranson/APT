@@ -796,7 +796,7 @@ classdef Labeler < handle
       
       if exist('moveMenuItemAfter','file')==0 || ...
          exist('ReadYaml','file')==0
-       fprintf('Configuring your path ...');
+       fprintf('Configuring your path ...\n');
        APT.setpath;
       end
       obj.NEIGHBORING_FRAME_OFFSETS = ...
