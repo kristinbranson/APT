@@ -380,6 +380,9 @@ classdef Labeler < handle
     
     currImHud; % scalar AxisHUD object TODO: move to LabelerGUI. init: C
   end
+  properties (SetObservable)
+    keyPressHandlers; % [nhandlerx1] cell array of LabelerKeyEventHandlers.
+  end
   properties (AbortSet)
     currMovie; % idx into .movieFilesAll (row index, when obj.multiView is true), or .movieFilesAllGT when .gtIsGTmode is on
     % Don't observe this, listen to 'newMovie'

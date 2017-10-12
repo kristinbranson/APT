@@ -495,6 +495,15 @@ function cbkKPF(src,evt,lObj)
 
 tfKPused = false;
 
+% first try user-defined KeyPressHandlers
+kph = lObj.keyPressHandlers;
+for i=1:numel(kph)
+  tfKPused = kph(i).handleKeyPress(evt,lObj);
+  if tfKPused
+    return;
+  end
+end
+
 handles = guidata(src);
 % KB20160724: shortcuts from preferences
 if all(isfield(handles,{'shortcutkeys','shortcutfns'}))
