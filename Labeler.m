@@ -4563,8 +4563,8 @@ classdef Labeler < handle
       end
       obj.prevAxesLabelsUpdate();
       if ~obj.gtIsGTMode
-      obj.labels2VizUpdate();
-    end
+        obj.labels2VizUpdate();
+      end
     end
     
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -4575,8 +4575,8 @@ classdef Labeler < handle
       end
       obj.prevAxesLabelsUpdate();
       if ~obj.gtIsGTMode
-      obj.labels2VizUpdate();
-    end
+        obj.labels2VizUpdate();
+      end
     end
         
   end
