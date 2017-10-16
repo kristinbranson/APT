@@ -4811,38 +4811,7 @@ classdef Labeler < handle
       title(ax,'Mean GT err (px) by movie, landmark',args{:});
       
       % Montage
-      t = sortrows(t,{'meanOverPtsL2err'},{'descend'});
-      % Could look first in .tracker.data, and/or use .tracker.updateData()
-      tConcrete = obj.mftTableConcretizeMov(t);
-      I = CPRData.getFrames(tConcrete);
-      pTrk = t.pTrk;
-      pLbl = t.pLbl;
-      if tblfldscontains(t,{'roi'})
-        roi = t.roi;
-        assert(size(pTrk,2)==2*npts);
-        assert(size(pLbl,2)==2*npts);
-        xlo = roi(:,1);
-        ylo = roi(:,3);
-        pTrk(:,1:npts) = bsxfun(@minus,pTrk(:,1:npts),xlo)+1;
-        pLbl(:,1:npts) = bsxfun(@minus,pLbl(:,1:npts),xlo)+1;
-        pTrk(:,npts+1:end) = bsxfun(@minus,pTrk(:,npts+1:end),ylo)+1;
-        pLbl(:,npts+1:end) = bsxfun(@minus,pLbl(:,npts+1:end),ylo)+1; 
-      end
-      NR = 3;
-      NC = 4;
-      plotIdxs = 1:min(NR*NC,height(t));      
-      frmLbls = arrayfun(@(x)sprintf('err=%.2f',x),t.meanOverPtsL2err,'uni',0);
-      frmLbls = frmLbls(1:numel(plotIdxs));
-      nphyspts = obj.nPhysPoints;
-      for iView=1:obj.nview
-        h(end+1,1) = figurecascaded(h(end),'Name','Ground-Truth Montage'); %#ok<AGROW>
-        pColIdx = (1:nphyspts)+(iView-1)*nphyspts;
-        pColIdx = [pColIdx pColIdx+npts]; %#ok<AGROW>
-        Shape.montage(I(:,iView),pLbl(:,pColIdx),'fig',h(end),...
-          'nr',NR,'nc',NC,'idxs',plotIdxs,...
-          'framelbls',frmLbls,'framelblscolor',[1 0 0],'p2',pTrk(:,pColIdx),...
-          'p2marker','+','titlestr','Ground-Truth Montage, descending err (''+'' is tracked)');
-      end
+      obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h);
     end
   end
   methods (Static)
@@ -5269,6 +5238,56 @@ classdef Labeler < handle
       end
     end
     
+    function trackLabelMontage(obj,tbl,errfld,varargin)
+      [nr,nc,h,npts,nphyspts] = myparse(varargin,...
+        'nr',3,...
+        'nc',4,...
+        'hPlot',[],...
+        'npts',nan,... % hack
+        'nphyspts',nan); % hack
+      tbl = sortrows(tbl,{errfld},{'descend'});
+      % Could look first in .tracker.data, and/or use .tracker.updateData()
+      tConcrete = obj.mftTableConcretizeMov(tbl);
+      I = CPRData.getFrames(tConcrete);
+      pTrk = tbl.pTrk;
+      pLbl = tbl.pLbl;
+      if isnan(npts)
+        npts = obj.nLabelPoints;
+      end
+      if tblfldscontains(tbl,{'roi'})
+        roi = tbl.roi;
+        assert(size(pTrk,2)==2*npts);
+        assert(size(pLbl,2)==2*npts);
+        xlo = roi(:,1);
+        ylo = roi(:,3);
+        pTrk(:,1:npts) = bsxfun(@minus,pTrk(:,1:npts),xlo)+1;
+        pLbl(:,1:npts) = bsxfun(@minus,pLbl(:,1:npts),xlo)+1;
+        pTrk(:,npts+1:end) = bsxfun(@minus,pTrk(:,npts+1:end),ylo)+1;
+        pLbl(:,npts+1:end) = bsxfun(@minus,pLbl(:,npts+1:end),ylo)+1; 
+      end
+      
+      frmLblsAll = arrayfun(@(x1,x2)sprintf('frm=%d,err=%.2f',x1,x2),...
+        tbl.frm,tbl.(errfld),'uni',0);
+      if isnan(nphyspts)
+        nphyspts = obj.nPhysPoints;
+      end
+      
+      nrows = height(tbl);
+      startIdxs = 1:nr*nc:nrows;
+      for i=1:numel(startIdxs)
+        plotIdxs = startIdxs(i):min(startIdxs(i)+nr*nc-1,nrows);
+        frmLblsThis = frmLblsAll(plotIdxs);
+        for iView=1:obj.nview
+          h(end+1,1) = figure('Name','Tracking Error Montage','windowstyle','docked'); %#ok<AGROW>
+          pColIdx = (1:nphyspts)+(iView-1)*nphyspts;
+          pColIdx = [pColIdx pColIdx+npts]; %#ok<AGROW>
+          Shape.montage(I(:,iView),pLbl(:,pColIdx),'fig',h(end),...
+            'nr',nr,'nc',nc,'idxs',plotIdxs,...
+            'framelbls',frmLblsThis,'framelblscolor',[1 1 .75],'p2',pTrk(:,pColIdx),...
+            'p2marker','+','titlestr','Tracking Montage, descending err (''+'' is tracked)');
+        end
+      end
+    end
   end
   methods (Static)
     
