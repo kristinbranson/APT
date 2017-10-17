@@ -1476,7 +1476,7 @@ classdef Labeler < handle
       vals = struct2cell(s);
       nmacros = numel(macros);
       INPUTBOXWIDTH = 100;
-      resp = inputdlg(macrosdisp,'Project macros',...
+      resp = inputdlgWithBrowse(macrosdisp,'Project macros',...
         repmat([1 INPUTBOXWIDTH],nmacros,1),vals);
       if ~isempty(resp)
         assert(isequal(numel(macros),numel(vals),numel(resp)));
