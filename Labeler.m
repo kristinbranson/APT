@@ -5119,18 +5119,8 @@ classdef Labeler < handle
       end
     end
         
-    function [dGTTrkCell,pTrkCell,tblMFgt,cvPart] = ...
-                                  trackCrossValidate(obj,varargin)
+    function tblXVres = trackCrossValidate(obj,varargin)
       % Run k-fold crossvalidation
-      %
-      % dGTTrkCell: [nfoldx1] cell. dGTTrkCell{iFold} is [nTrkIxnpts] L2 
-      %   dist between trk and GT for ith fold
-      % pTrkCell: [nfoldx1] cell. pTrkCell{iFold} is [nTrkIxncol] 
-      %   tracking results table for ith fold (nTrkI can be diff across 
-      %   folds)
-      % tblMFgt: [nGTxncol] FLDSCORE or FLDSCOREROI table for all lbled/gt
-      %   data in proj
-      % cvPart: cvpartition used in crossvalidation
       
       [kFold,initData,wbObj,tblMFgt] = myparse(varargin,...
         'kfold',7,... % number of folds
@@ -5217,6 +5207,89 @@ classdef Labeler < handle
         pTrkCell{iFold} = tblTrkRes;
         dGTTrkCell{iFold} = d;
       end
+
+      % create output table
+      for iFold=1:kFold
+        tblFold = table(repmat(iFold,height(pTrkCell{iFold}),1),...
+          'VariableNames',{'fold'});
+        pTrkCell{iFold} = [tblFold pTrkCell{iFold}];
+      end
+      pTrkAll = cat(1,pTrkCell{:});
+      dGTTrkAll = cat(1,dGTTrkCell{:});
+      assert(isequal(height(pTrkAll),height(tblMFgt),size(dGTTrkAll,1)));
+      [tf,loc] = tblismember(tblMFgt,pTrkAll,MFTable.FLDSID);
+      assert(all(tf));
+      pTrkAll = pTrkAll(loc,:);
+      dGTTrkAll = dGTTrkAll(loc,:);
+      
+      if tblfldscontains(tblMFgt,'roi')
+        flds = MFTable.FLDSCOREROI;
+      else
+        flds = MFTable.FLDSCORE;
+      end
+      tblXVres = tblMFgt(:,flds);
+      if tblfldscontains(tblMFgt,'pAbs')
+        tblXVres.p = tblMFgt.pAbs;
+      end
+      tblXVres.pTrk = pTrkAll.pTrk;
+      tblXVres.dGTTrk = dGTTrkAll;
+      tblXVres = [pTrkAll(:,'fold') tblXVres];      
+    end
+    
+    function trackCrossValidateVizPrctiles(obj,tblXVres,varargin)
+      ptiles = myparse(varargin,...
+        'prctiles',[50 75 90 95]);
+      
+      assert(~obj.isMultiView,'Not supported for multiview.');
+      assert(~obj.gtIsGTMode,'Not supported in GT mode.');
+      
+      err = tblXVres.dGTTrk;
+      npts = obj.nLabelPoints;
+      assert(size(err,2)==npts);
+      nptiles = numel(ptiles);
+      ptl = prctile(err,ptiles)'; % [nLabelPoints x nptiles]
+      
+      % for now always viz with first row
+      iVizRow = 1;
+      vizrow = tblXVres(iVizRow,:);
+      mr = MovieReader;
+      mr.open(obj.movieFilesAllFull{vizrow.mov,1});
+      mr.forceGrayscale = obj.movieForceGrayscale;
+      im = mr.readframe(vizrow.frm);
+      pLbl = vizrow.p;
+      if tblfldscontains(vizrow,'roi')
+        xlo = vizrow.roi(1);
+        xhi = vizrow.roi(2);
+        ylo = vizrow.roi(3);
+        yhi = vizrow.roi(4);
+        szassert(pLbl,[1 2*npts]);
+        pLbl(1:npts) = pLbl(1:npts)-xlo+1;
+        pLbl(npts+1:end) = pLbl(npts+1:end)-ylo+1;
+        im = im(ylo:yhi,xlo:xhi);
+      end
+      xyLbl = Shape.vec2xy(pLbl);
+      szassert(xyLbl,[npts 2]);
+      
+      figure('Name','Tracker performance');
+      imagesc(im);
+      colormap gray;
+      hold on;
+      clrs = hsv(nptiles)*.75;
+      for ipt=1:npts
+        for iptile=1:nptiles        
+          r = ptl(ipt,iptile);
+          pos = [xyLbl(ipt,:)-r 2*r 2*r];
+           rectangle('position',pos,'curvature',1,'edgecolor',clrs(iptile,:));
+        end
+      end
+      axis square xy
+      grid on;
+      tstr = sprintf('Cross-validation ptiles: %s. n=%d, mean err=%.3fpx.',...
+        mat2str(ptiles),height(tblXVres),mean(err(:)));
+      title(tstr,'fontweight','bold','interpreter','none');
+      hLeg = arrayfun(@(x)plot(nan,nan,'-','Color',clrs(x,:)),1:nptiles,...
+        'uni',0);      
+      legend([hLeg{:}],arrayfun(@num2str,ptiles,'uni',0));
     end
     
     function [tf,lposTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
@@ -5288,36 +5361,10 @@ classdef Labeler < handle
         end
       end
     end
+    
   end
   methods (Static)
-    
-    function [nGT,nFold,muErr,muErrPt,tblErrMov,tbl] = ...
-        trackCrossValidateStats(dGTTrkCell,pTrkCell)
-
-      assert(iscell(dGTTrkCell) && iscell(pTrkCell) && ...
-            numel(dGTTrkCell)==numel(pTrkCell));
-          
-      tbl = cat(1,pTrkCell{:});
-      tbl.err = cat(1,dGTTrkCell{:});
-      nGT = height(tbl);
-      nFold = numel(dGTTrkCell);
-      muErrPt = nanmean(tbl.err,1); % [1xnpt]
-      muErr = nanmean(muErrPt); % each pt equal wt
-      
-      fcnMuErr = @(zErr)nanmean(zErr(:));
-      tblErrMov = rowfun(fcnMuErr,tbl,'GroupingVariables','mov',...
-        'InputVariables',{'err'},'OutputVariableNames',{'err'});
-      assert(isequal(tblErrMov.Properties.VariableNames,{'mov' 'GroupCount','err'}));
-      tblErrMov.Properties.VariableNames{2} = 'count';
-      
-%      movUn = unique(tbl.mov);
-%       muErrMov = arrayfun(@(x) nanmean(nanmean(tbl.err(tbl.mov==x,:),1)), ...
-%         movUn); % each pt equal wt
-%       movUnCnt = arrayfun(@(x) nnz(tbl.mov==x),movUn);
-%       tblErrMov = table(movUn,movUnCnt,muErrMov,...
-%         'VariableNames',{'mov' 'count' 'err'});
-    end
-    
+        
 %     function trackSaveResults(obj,fname)
 %       tObj = obj.tracker;
 %       if isempty(tObj)

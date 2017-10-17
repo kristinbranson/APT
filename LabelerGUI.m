@@ -2137,78 +2137,64 @@ end
       
 wbObj = WaitBarWithCancel('Cross Validation');
 oc = onCleanup(@()delete(wbObj));
-[dGTTrkCell,pTrkCell] = lObj.trackCrossValidate('kfold',nfold,...
-  'wbObj',wbObj,'tblMFgt',tblMFgt);
+tblXVres = lObj.trackCrossValidate('kfold',nfold,'wbObj',wbObj,...
+  'tblMFgt',tblMFgt);
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Cross validation canceled');
   msgbox(msg,'Cross Validation');
   return;
 end
 
-[nGT,nFold,muErr,muErrPt,tblErrMov] = ...
-  Labeler.trackCrossValidateStats(dGTTrkCell,pTrkCell);
+nGT = height(tblXVres);
+nFold = max(tblXVres.fold);
+muErrPt = nanmean(tblXVres.dGTTrk,1); % [1xnpt]
+muErr = nanmean(muErrPt); % each pt equal wt
+fcnMuErr = @(zErr)nanmean(zErr(:));
+tblErrMov = rowfun(fcnMuErr,tblXVres,'GroupingVariables','mov',...
+  'InputVariables',{'dGTTrk'},'OutputVariableNames',{'err'});
+tblfldsassert(tblErrMov,{'mov' 'GroupCount','err'});
+tblErrMov.Properties.VariableNames{2} = 'count';
 
-% movIDs = lObj.movieSetIDsAll;
-% [tf,loc] = ismember(tblErrMov.mov,movIDs);
-% assert(all(tf));
-% tblErrMov.movIdx = loc;
+PTILES = [50 75 90 95];
+errptls = prctile(tblXVres.dGTTrk(:),PTILES);
+errptls = num2cell(errptls);
+errptlsstr = sprintf('%.1f, ',errptls{:});
+errptlsstr = errptlsstr(1:end-2);
 
 str = { ...
-  sprintf('GT dataset: %d labeled frames across %d movies',nGT,height(tblErrMov));
-  sprintf('Number of folds: %d',nFold);
+  sprintf('GT dataset: %d labeled frames across %d movies',nGT,...
+    height(tblErrMov));
+  sprintf('Number of cross-validation folds: %d',nFold);
   '';
-  sprintf('Mean err, all points (px): %.2f',muErr)};
-for ipt=1:numel(muErrPt)
-  str{end+1,1} = sprintf('  ... point %d: %.2f',ipt,muErrPt(ipt)); %#ok<AGROW>
-end
-str{end+1,1} = '';
-str{end+1,1} = sprintf('Mean err, all movies (px): %.2f',muErr);
+  sprintf('Mean err, all points (px): %.2f',muErr);
+  };
+  
 for imov=1:height(tblErrMov)
   trow = tblErrMov(imov,:);
-%   [path,movS] = myfileparts(trow.mov{1});
-%   [~,path] = myfileparts(path);
-%   mov = fullfile(path,movS);
-  str{end+1,1} = sprintf('  ... movie %d (%d rows): %.2f',trow.mov,...
+  %   [path,movS] = myfileparts(trow.mov{1});
+  %   [~,path] = myfileparts(path);
+  %   mov = fullfile(path,movS);
+  str{end+1,1} = sprintf(' ... movie %d (%d rows): %.2f',trow.mov,...
     trow.count,trow.err); %#ok<AGROW>
-end 
-
-% pTrkCell
-% dGTTrkCell
-% tblMFgt
-for i=1:numel(pTrkCell)
-  tblFold = table(repmat(i,height(pTrkCell{i}),1),'VariableNames',{'fold'});
-  pTrkCell{i} = [tblFold pTrkCell{i}];
 end
-pTrkAll = cat(1,pTrkCell{:});
-dGTTrkAll = cat(1,dGTTrkCell{:});
-assert(isequal(height(pTrkAll),height(tblMFgt),size(dGTTrkAll,1)));
-fldsID = MFTable.FLDSID;
-[tf,loc] = ismember(tblMFgt(:,fldsID),pTrkAll(:,fldsID));
-assert(all(tf));
-pTrkAll = pTrkAll(loc,:);
-dGTTrkAll = dGTTrkAll(loc,:);
 
-if tblfldscontains(tblMFgt,'roi')
-  flds = MFTable.FLDSCOREROI;
-else
-  flds = MFTable.FLDSCORE;
-end
-tblXVres = tblMFgt(:,flds);
-if tblfldscontains(tblMFgt,'pAbs')
-  tblXVres.p = tblMFgt.pAbs;
-end
-tblXVres.pTrk = pTrkAll.pTrk;
-tblXVres.dGTTrk = dGTTrkAll;
-tblXVres = [pTrkAll(:,'fold') tblXVres];
+str{end+1,1} = '';
+str{end+1,1} = sprintf('Error, %sth percentiles (px):',mat2str(PTILES));
 
+errptlspts = prctile(tblXVres.dGTTrk,PTILES)'; % [nLabelPoints x nptiles]
+npts = size(errptlspts,1);
+for ipt=1:npts
+  errptlsI = errptlspts(ipt,:);
+  errptlsI = num2cell(errptlsI);
+  errptlsIstr = sprintf('%.1f, ',errptlsI{:});
+  errptlsIstr = errptlsIstr(1:end-2);
+  str{end+1,1} = sprintf(' ... point %d: %s',ipt,errptlsIstr); %#ok<AGROW>
+end
+str{end+1,1} = sprintf(' ... all points: %s',errptlsstr);
+str{end+1,1} = '';
+
+lObj.trackCrossValidateVizPrctiles(tblXVres,'prctiles',PTILES);
 CrossValidResults(lObj,str,tblXVres);
-
-% hDlg = dialog('Name','Cross Validation','resize','on','WindowStyle','normal');
-% BORDER = 0.025;
-% hTxt = uicontrol('Parent',hDlg,'Style','edit',...
-%   'units','normalized','position',[BORDER BORDER 1-2*BORDER 1-2*BORDER],...
-%   'enable','on','Max',2,'horizontalalignment','left',...
-%   'String',str,'FontName','Courier New');
 
 function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
 onoff = onIff(handles.labelerObj.tracker.storeFullTracking);
