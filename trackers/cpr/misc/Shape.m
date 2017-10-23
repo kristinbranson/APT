@@ -529,8 +529,9 @@ classdef Shape
       % Align orientations of shapes by finding iHead:iTail canonicalRot 
       % angle and applying/rotating about origin
       %
-      % pN: [NxD] shapes, MUST BE in eg NORMALIZED COORDS because we are
-      %   rotating about origin
+      % pN: [NxD] shapes, SHOULD BE in eg NORMALIZED COORDS because we are
+      %   rotating about origin (unless it is ok that output has random
+      %   offsets)
       % iHead/iTail: head/tail landmarks per canonicalRot()
       %
       % pNA: [NxD] shapes, canonically rotated about oritin
