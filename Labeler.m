@@ -5096,7 +5096,8 @@ classdef Labeler < handle
       end
       
       movfiles = obj.movieFilesAllFull(iMovs,:);
-      [trkFileObjs,tfHasRes] = tObj.getTrackingResults(iMovs);
+      mIdx = MovieIndex(iMovs);
+      [trkFileObjs,tfHasRes] = tObj.getTrackingResults(mIdx);
       nMov = numel(iMovs);
       nVw = obj.nview;
       szassert(trkFileObjs,[nMov nVw]);
