@@ -499,7 +499,7 @@ classdef Labeler < handle
         v = obj.trxFilesAllGTFull;
       else
         v = obj.trxFilesAllFull;
-    end
+      end
     end
     function v = getTrxFilesAllFullMovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
@@ -507,8 +507,8 @@ classdef Labeler < handle
       if gt
         v = obj.trxFilesAllGTFull(iMov,:);
       else
-        v = obj.trxFilesAllFull(iMov,:);        
-    end
+        v = obj.trxFilesAllFull(iMov,:);
+      end
     end
 %     function v = get.movieIDsAll(obj)
 %       v = FSPath.standardPath(obj.movieFilesAll);
