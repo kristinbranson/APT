@@ -4504,7 +4504,7 @@ classdef Labeler < handle
       end
       
       obj.viewCalSetCheckViewSizes(obj.currMovie,crObj,tfSetViewSizes);
-
+      PROPS = obj.gtGetSharedProps();
       obj.(PROPS.VCD){obj.currMovie} = crObj;
       
       lc = obj.lblCore;
