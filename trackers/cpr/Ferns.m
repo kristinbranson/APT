@@ -4,7 +4,7 @@ classdef Ferns
     
     function [inds,mu,ysFern,count] = test
       N = 1000;
-      M = 5;
+      M = 6;
       D = 7;
       fids = 1:M;
       reg = .01;
@@ -81,6 +81,22 @@ classdef Ferns
         dyFernSum(s,tfgood) = dyFernSum(s,tfgood) + dY(i,tfgood);
         dyFernCnt(s,tfgood) = dyFernCnt(s,tfgood) + 1;
       end      
+    end
+    
+    function idxs = indsSimple(bitvecs)
+      % bitvecs: [NxS] bit vectors. Fern depth S, one row per fern. MSB
+      %  comes first
+      % idxs: [N] 1-based index in 1..2^S
+      
+      assert(all(bitvecs(:)==0 | bitvecs(:)==1));
+      
+      [N,S] = size(bitvecs);
+      idxs = zeros(N,1);
+      fac = 2.^(S-1:-1:0);
+      for i=1:N
+        idxs(i) = sum(fac.*bitvecs(i,:));
+      end
+      idxs = idxs + 1; % 1-based
     end
     
   end

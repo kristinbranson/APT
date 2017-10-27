@@ -1,4 +1,7 @@
-function szassert(x,sz,varargin)
+function szassert(x,sz)
 sz = rmTrailingSingletonDims(sz);
-assert(isequal(size(x),sz),varargin{:});
+if ~isequal(size(x),sz)
+  me = MException('sz:assert','Unexpected array size.');
+  me.throwAsCaller();
+end
 
