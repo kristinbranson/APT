@@ -226,12 +226,12 @@ classdef CPRData < handle
       end
     end
     
-    function tfRm = movieRemap(obj,iMovOrig2New)
-      % iMovOrig2New: containers.Map, int keys and values. 
-      %   iMovOrig2New(oldIdx)==newIdx where oldIdx and/or newIdx can be 
+    function tfRm = movieRemap(obj,mIdxOrig2New)
+      % mIdxOrig2New: containers.Map, int32 keys and values. 
+      %   mIdxOrig2New(oldIdx)==newIdx where oldIdx and/or newIdx can be 
       %   negative.
       
-      [obj.MD,tfRm] = MFTable.remapIntegerKey(obj.MD,'mov',iMovOrig2New);
+      [obj.MD,tfRm] = MFTable.remapIntegerKey(obj.MD,'mov',mIdxOrig2New);
       obj.I(tfRm,:) = [];
       obj.pGT(tfRm,:) = [];
       obj.bboxes(tfRm,:) = [];

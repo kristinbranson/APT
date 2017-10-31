@@ -65,15 +65,18 @@ classdef Labeler < handle
     newProject
     projLoaded
     newMovie
-    % evtdata.iMovOrig2New is map from original->new movie indices, ie 
-    % iMov2Orig2New(iMovOrig) gives the movie index iMov post-ordering.
-    % Original movie indices that have been removed will map to 0.
-    %
+      
     % This event is thrown immediately before .currMovie is updated (if 
     % necessary). Listeners should not rely on the value of .currMovie at
     % event time. currMovie will be subsequently updated (in the usual way) 
-    % if necessary
+    % if necessary. 
+    %
+    % The EventData for this event is a MoviesRemappedEventData which
+    % provides details on the old->new movie idx mapping.
     movieRemoved
+    
+    % EventData is a MoviesRemappedEventData
+    moviesReordered
   end
       
   
@@ -2141,7 +2144,8 @@ classdef Labeler < handle
         else
           movIdx = MovieIndex(iMov);
         end
-        edata = MovieRemovedEventData(movIdx,nMovOrigReg,nMovOrigGT);        
+        edata = MoviesRemappedEventData.movieRemovedEventData(...
+          movIdx,nMovOrigReg,nMovOrigGT);
         if gt
           [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
             obj.gtSuggMFTable,'mov',edata.iMovOrig2New);
@@ -2161,6 +2165,60 @@ classdef Labeler < handle
       end
       
       tfSucc = tfProceedRm;
+    end
+    
+    function movieReorder(obj,p)
+      % Reorder (regular/nonGT) movies 
+      %
+      % p: permutation of 1:obj.nmovies. Must contain all indices.
+      
+      nmov = obj.nmovies;
+      p = p(:);
+      if ~isequal(sort(p),(1:nmov)')
+        error('Input argument ''p'' must be a permutation of 1..%d.',nmov);
+      end
+      
+      if ~isempty(obj.suspScore) || ~isempty(obj.suspSelectedMFT)
+        error('Reordering is currently unsupported for projects with suspiciousness.');
+      end
+      
+      iMov0 = obj.currMovie;
+
+      % Stage 1, outside obj.isinit block so listeners can update.
+      % Future: clean up .isinit, listener policy etc it is getting too 
+      % complex
+      FLDS1 = {'movieInfoAll' 'movieFilesAll' 'movieFilesAllHaveLbls'...
+        'trxFilesAll'};
+      for f=FLDS1,f=f{1}; %#ok<FXSET>
+        obj.(f) = obj.(f)(p,:);
+      end
+      
+      tfOrig = obj.isinit;
+      obj.isinit = true;
+
+      vcpw = obj.viewCalProjWide;
+      if isempty(vcpw) || vcpw
+        % none
+      else
+        obj.viewCalibrationData = obj.viewCalibrationData(p);
+      end      
+      FLDS2 = {...
+        'labeledpos' 'labeledposTS' 'labeledposMarked' 'labeledpostag' ...
+        'labeledpos2'};
+      for f=FLDS2,f=f{1}; %#ok<FXSET>
+        obj.(f) = obj.(f)(p,:);
+      end
+      
+      obj.isinit = tfOrig;
+      
+      edata = MoviesRemappedEventData.moviesReorderedEventData(...
+        p,nmov,obj.nmoviesGT);      
+      notify(obj,'moviesReordered',edata);
+
+      if ~obj.gtIsGTMode
+        iMovNew = find(p==iMov0);
+        obj.movieSet(iMovNew); %#ok<FNDSB>
+      end
     end
     
     function movieFilesMacroize(obj,str,macro)

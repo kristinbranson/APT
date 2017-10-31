@@ -1852,16 +1852,16 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function labelerMovieRemoved(obj,eventdata)
-      iMovOrig2New = eventdata.iMovOrig2New;
-      keys = cell2mat(iMovOrig2New.keys);
-      vals = cell2mat(iMovOrig2New.values);
+      mIdxOrig2New = eventdata.mIdxOrig2New;
+      keys = cell2mat(mIdxOrig2New.keys);
+      vals = cell2mat(mIdxOrig2New.values);
       szassert(keys,size(vals));
       mIdx = keys(vals==0);
       mIdx = MovieIndex(mIdx);
       assert(isscalar(mIdx)); % for now
       
       % .data*. Remove any removed movies from .data cache, relabel MD.mov
-      obj.data.movieRemap(iMovOrig2New);
+      obj.data.movieRemap(mIdxOrig2New);
       
       % trnData*. If a movie is being removed that is in trnDataTblP, to be 
       % safe we invalidate any trained tracker and tracking results.
@@ -1896,14 +1896,14 @@ classdef CPRLabelTracker < LabelTracker
         % .trnDataTblP does not contain a movie-being-removed, but we still
         % need to relabel movie indices.
         obj.trnDataTblP = MFTable.remapIntegerKey(obj.trnDataTblP,'mov',...
-          iMovOrig2New);
+          mIdxOrig2New);
         assert(~any(obj.trnDataTblP.mov==0));
       end
       
       % trkP*. Relabel .mov in tables; remove any removed movies from 
       % tracking results. 
       [obj.trkPMD,tfRm] = MFTable.remapIntegerKey(obj.trkPMD,'mov',...
-        iMovOrig2New);
+        mIdxOrig2New);
       obj.trkP(tfRm,:) = [];
       if ~isequal(obj.trkPFull,[])
         obj.trkPFull(tfRm,:,:,:) = [];
@@ -1912,6 +1912,17 @@ classdef CPRLabelTracker < LabelTracker
       
 %       obj.vizLoadXYPrdCurrMovieTarget();
 %       obj.newLabelerFrame();
+    end
+    
+    function labelerMoviesReordered(obj,eventdata)
+      mIdxOrig2New = eventdata.mIdxOrig2New;
+      vals = cell2mat(mIdxOrig2New.values);
+      assert(~any(vals==0),'Unexpected movie removal.');
+      
+      obj.data.movieRemap(mIdxOrig2New);
+      obj.trnDataTblP = MFTable.remapIntegerKey(obj.trnDataTblP,'mov',...
+        mIdxOrig2New);
+      obj.trkPMD = MFTable.remapIntegerKey(obj.trkPMD,'mov',mIdxOrig2New);
     end
     
     function s = getSaveToken(obj)

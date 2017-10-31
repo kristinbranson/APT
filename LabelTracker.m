@@ -41,6 +41,7 @@ classdef LabelTracker < handle
     hLCurrFrame; % listener to lObj.currFrame
     hLCurrTarget; % listener to lObj.currTarget
     hLMovieRemoved % " lObj/movieRemoved
+    hLMoviesReordered % "
   end  
   
   properties (SetObservable,SetAccess=protected)
@@ -72,6 +73,7 @@ classdef LabelTracker < handle
       obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
       obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
       obj.hLMovieRemoved = addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
+      obj.hLMoviesReordered = addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
     end
     
     function init(obj)
@@ -100,7 +102,9 @@ classdef LabelTracker < handle
       if ~isempty(obj.hLMovieRemoved)
         delete(obj.hLMovieRemoved);
       end
-      
+      if ~isempty(obj.hLMoviesReordered)
+        delete(obj.hLMoviesReordered);
+      end      
     end
     
   end
@@ -216,6 +220,9 @@ classdef LabelTracker < handle
     
     function labelerMovieRemoved(obj,eventdata)
       % Called on Labeler/movieRemoved
+    end
+
+    function labelerMoviesReordered(obj,eventdata)      
     end
     
     function s = getSaveToken(obj)
