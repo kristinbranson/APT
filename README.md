@@ -16,7 +16,7 @@ Animal Part Tracker
   * Edit the 'jaaba' entry to point to your checkout of JAABA (specify the root directory, which contains the subfolders filehandling/ and misc/).
   * To enable CPR tracking, edit the 'piotr' entry to point to your local checkout of Piotr Dollar's toolbox. 
   * For multi-camera data, edit the 'cameracalib' entry to point to your local calibration software.
-4. Open MATLAB and:
+2. Open MATLAB and:
 
     ```
     % in MATLAB
@@ -24,7 +24,7 @@ Animal Part Tracker
     lObj = Labeler;
     ```
     
-5. Go to the File> menu and either "Quick Open" a movie, or create a "New Project". Quick Open will prompt you for a movie file, then a trx file; if you don't have a trx file, just Cancel.
+3. Go to the File> menu and either "Quick Open" a movie, or create a "New Project". Quick Open will prompt you for a movie file, then a trx file; if you don't have a trx file, just Cancel.
 
 If you have never created a project before, "Quick Open" may not give you the appropriate number of labeling points. However, this could still be a useful jumpstart to start getting familiar with the program.
 
