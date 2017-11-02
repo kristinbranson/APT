@@ -2877,11 +2877,17 @@ classdef Labeler < handle
       tblBig = trackGetBigLabeledTrackedTable(obj);
       tblSumm = obj.trackGetSummaryTable(tblBig);
       hF = figure('Name','Target Summary','MenuBar','none');
+      FLDS = {'mov' 'iTgt' 'trajlen' 'frm1' 'nFrmLbl' 'nFrmTrk' 'nFrmLblTrk' 'lblTrkMeanErr' 'nFrmXV' 'xvMeanErr'};
+      FLDSNICE = {'Movie' 'Target' 'Traj. Length' 'Start Frame' '# Frames Labeled' '# Frames Tracked' '# Frames Labeled&Tracked' 'Label vs Track Err' '# Frames XV' 'XV Err'};
+      tblfldsassert(tblSumm,FLDS);
       nt = NavigationTable(hF,[0 0 1 1],...
         @(i)obj.setMFT(tblSumm.mov(i),tblSumm.frm1(i),tblSumm.iTgt(i)),...
-        'ColumnName',tblflds(tblSumm),...
-        'ColumnFormat',{'integer' 'integer' 'integer' 'integer' 'integer' 'integer' 'integer' '' 'integer' ''});
+        'ColumnName',FLDSNICE,...
+        'ColumnFormat',{'integer' 'integer' 'integer' 'integer' 'integer' 'integer' 'integer' '' 'integer' ''},...        
+        'ColumnPreferredWidth',[50 50 100 100 50 50 50 100 50 100],...
+        'Editable','off');
       nt.setData(tblSumm);
+      hF.UserData = nt;
 
       % See LabelerGUI/addDepHandle
       handles = obj.gdata;
