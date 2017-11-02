@@ -2137,14 +2137,14 @@ end
       
 wbObj = WaitBarWithCancel('Cross Validation');
 oc = onCleanup(@()delete(wbObj));
-tblXVres = lObj.trackCrossValidate('kfold',nfold,'wbObj',wbObj,...
-  'tblMFgt',tblMFgt);
+lObj.trackCrossValidate('kfold',nfold,'wbObj',wbObj,'tblMFgt',tblMFgt);
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Cross validation canceled');
   msgbox(msg,'Cross Validation');
   return;
 end
 
+tblXVres = lObj.xvResults;
 nGT = height(tblXVres);
 nFold = max(tblXVres.fold);
 muErrPt = nanmean(tblXVres.dGTTrk,1); % [1xnpt]

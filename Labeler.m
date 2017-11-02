@@ -21,7 +21,8 @@ classdef Labeler < handle
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
       'trackModeIdx' ...
-      'suspScore' 'suspSelectedMFT' 'suspComputeFcn'};
+      'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
+      'xvResults' 'xvResultsTS'};
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};
     
@@ -365,6 +366,15 @@ classdef Labeler < handle
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
+  end
+  
+  %% CrossValidation
+  properties
+    xvResults % table of most recent cross-validation results. This table
+      % has a row for every labeled frame present at the time xvalidation 
+      % was run. So it should be fairly explicit if/when it is out-of-date 
+      % relative to the project (eg when labels are added or removed)
+    xvResultsTS % timestamp for xvResults
   end
   
   %% Prev
@@ -1788,6 +1798,12 @@ classdef Labeler < handle
       end
       if ~isfield(s,'suspComputeFcn')
         s.suspComputeFcn = [];
+      end
+      
+      % 20171102
+      if ~isfield(s,'xvResults')
+        s.xvResults = [];
+        s.xvResultsTS = [];
       end
     end  
     
@@ -5178,8 +5194,8 @@ classdef Labeler < handle
       end
     end
         
-    function tblXVres = trackCrossValidate(obj,varargin)
-      % Run k-fold crossvalidation
+    function trackCrossValidate(obj,varargin)
+      % Run k-fold crossvalidation. Results stored in .xvResults
       
       [kFold,initData,wbObj,tblMFgt] = myparse(varargin,...
         'kfold',7,... % number of folds
@@ -5292,7 +5308,10 @@ classdef Labeler < handle
       end
       tblXVres.pTrk = pTrkAll.pTrk;
       tblXVres.dGTTrk = dGTTrkAll;
-      tblXVres = [pTrkAll(:,'fold') tblXVres];      
+      tblXVres = [pTrkAll(:,'fold') tblXVres];
+      
+      obj.xvResults = tblXVres;
+      obj.xvResultsTS = now;
     end
     
     function trackCrossValidateVizPrctiles(obj,tblXVres,varargin)
