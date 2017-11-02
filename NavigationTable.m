@@ -75,18 +75,18 @@ classdef NavigationTable < handle
   
   methods
 
-    function navSelected(obj)
-      rows = obj.getSelectedRows();
-      if isempty(rows)
-        % none
-      else
-        if numel(rows)>1
-          warningNoTrace('NavigationTable:rows',...
-            'Multiple rows selected. Using first row selected.');
-        end
-        obj.fcnRowSelected(rows(1));
-      end
-    end
+%     function navSelected(obj)
+%       rows = obj.getSelectedRows();
+%       if isempty(rows)
+%         % none
+%       else
+%         if numel(rows)>1
+%           warningNoTrace('NavigationTable:rows',...
+%             'Multiple rows selected. Using first row selected.');
+%         end
+%         obj.fcnRowSelected(rows(1));
+%       end
+%     end
     
     function cbkCellSelection(obj,src,evt)
       if isfield(evt,'Indices')
@@ -97,28 +97,28 @@ classdef NavigationTable < handle
       end
     end
     
-    function cbkTableClick(obj,src,evt)
-      persistent chk
-      PAUSE_DURATION_CHECK = 0.25;
-      
-      if obj.navOnSingleClick
-        obj.navSelected();
-        return;
-      end
-      
-      if isempty(chk)
-        chk = 1;
-        pause(PAUSE_DURATION_CHECK); %Add a delay to distinguish single click from a double click
-        if chk==1          
-          % single-click
-          chk = [];
-        end
-      else
-        % double-click
-        chk = [];
-        obj.navSelected();
-      end      
-    end
+%     function cbkTableClick(obj,src,evt)
+%       persistent chk
+%       PAUSE_DURATION_CHECK = 0.25;
+%       
+%       if obj.navOnSingleClick
+%         obj.navSelected();
+%         return;
+%       end
+%       
+%       if isempty(chk)
+%         chk = 1;
+%         pause(PAUSE_DURATION_CHECK); %Add a delay to distinguish single click from a double click
+%         if chk==1          
+%           % single-click
+%           chk = [];
+%         end
+%       else
+%         % double-click
+%         chk = [];
+%         obj.navSelected();
+%       end      
+%     end
     
   end
   

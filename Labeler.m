@@ -2872,6 +2872,22 @@ classdef Labeler < handle
       obj.trxFilesAll = obj.trxFilesAllFull;
       obj.trxFilesAllGT = obj.trxFilesAllGTFull;
     end
+    
+    function targetsTableUI(obj)      
+      tblBig = trackGetBigLabeledTrackedTable(obj);
+      tblSumm = obj.trackGetSummaryTable(tblBig);
+      hF = figure('Name','Target Summary','MenuBar','none');
+      nt = NavigationTable(hF,[0 0 1 1],...
+        @(i)obj.setMFT(tblSumm.mov(i),tblSumm.frm1(i),tblSumm.iTgt(i)),...
+        'ColumnName',tblflds(tblSumm),...
+        'ColumnFormat',{'integer' 'integer' 'integer' 'integer' 'integer' 'integer' 'integer' '' 'integer' ''});
+      nt.setData(tblSumm);
+
+      % See LabelerGUI/addDepHandle
+      handles = obj.gdata;
+      handles.depHandles(end+1,1) = hF;
+      guidata(obj.hFig,handles);
+    end
         
   end
   methods (Static)
@@ -5191,13 +5207,7 @@ classdef Labeler < handle
   
   %% Tracker
   methods
-    
-%     function setTrackParamFile(obj,prmFile)
-%       trker = obj.tracker;
-%       assert(~isempty(trker),'No tracker object currently set.');
-%       trker.setParamFile(prmFile);      
-%     end      
-    
+        
     function trackTrain(obj)
       tObj = obj.tracker;
       if isempty(tObj)
@@ -5588,9 +5598,144 @@ classdef Labeler < handle
       end
     end
     
+    function tblBig = trackGetBigLabeledTrackedTable(obj)
+      % tbl: 
+      
+      tblLbled = obj.labelGetMFTableLabeled();
+      tblLbled = tblLbled(:,[MFTable.FLDSID {'p'}]);
+      isLbled = true(height(tblLbled),1);
+      tblLbled = [tblLbled table(isLbled)];
+      
+      npts = obj.nLabelPoints;
+      
+      tObj = obj.tracker;
+      if ~isempty(tObj)
+        tblTrked = tObj.trkPMD(:,MFTable.FLDSID);
+        pTrk = tObj.trkP;
+        if isempty(pTrk)
+          % edge case, tracker not initting properly
+          pTrk = nan(0,npts*2);
+        end
+        isTrked = true(height(tblTrked),1);
+        tblTrked = [tblTrked table(pTrk,isTrked)];
+      else
+        tblTrked = table(nan(0,1),nan(0,1),nan(0,1),nan(0,npts*2),false(0,1),...
+          'VariableNames',{'mov' 'frm' 'iTgt' 'pTrk' 'isTrked'});
+      end
+        
+      tblBig = outerjoin(tblLbled,tblTrked,'Keys',MFTable.FLDSID,...
+        'MergeKeys',true);
+        
+      % Compute tracking err (for rows both labeled and tracked)
+      tf = tblBig.isLbled & tblBig.isTrked;
+      pLbl = tblBig.p(tf,:);
+      pTrk = tblBig.pTrk(tf,:);
+      szassert(pLbl,size(pTrk));
+      nTrkLbl = size(pLbl,1);
+      dErr = pLbl-pTrk;
+      npts = obj.nLabelPoints;
+      dErr = reshape(dErr,nTrkLbl,npts,2);
+      dErr = sqrt(sum(dErr.^2,3)); % [nTrkLbl x npts] L2 err
+      dErr = mean(dErr,2); % [nTrkLblx1] L2 err, mean across pts
+      
+      trkErr = nan(height(tblBig),1);
+      trkErr(tf) = dErr;
+      tblBig = [tblBig table(trkErr)];
+      
+      xvres = obj.xvResults;
+      tfhasXV = ~isempty(xvres);
+      if tfhasXV
+        tblXVerr = rowfun(@nanmean,xvres,'InputVariables',{'dGTTrk'},...
+          'OutputVariableNames',{'xvErr'});
+        hasXV = true(height(xvres),1);
+        tblXV = [xvres(:,MFTable.FLDSID) tblXVerr table(hasXV)];        
+      else
+        tblXV = table(nan(0,1),nan(0,1),nan(0,1),nan(0,1),false(0,1),...
+          'VariableNames',{'mov' 'frm' 'iTgt' 'xvErr' 'hasXV'});
+      end
+      
+      tblBig = outerjoin(tblBig,tblXV,'Keys',MFTable.FLDSID,'MergeKeys',true);
+      tblBig = tblBig(:,[MFTable.FLDSID {'trkErr' 'xvErr' 'isLbled' 'isTrked' 'hasXV'}]);
+      if tfhasXV && ~isequal(tblBig.isLbled,tblXV.hasXV)
+        warningNoTrace('Cross-validation results appear out-of-date with respect to current set of labeled frames.');
+      end
+    end
+    
+    function tblSumm = trackGetSummaryTable(obj,tblBig)
+      % tblSumm: Big summary table, one row per (mov,tgt)
+      
+      assert(obj.nview==1,'Currently unsupported for multiview projects.');
+      assert(~obj.gtIsGTMode,'Currently unsupported in GT mode.');
+      
+      tfaf = obj.trxFilesAllFull;
+      dataacc = nan(0,4); % mov, tgt, trajlen, frm1
+      for iMov=1:obj.nmovies
+        tfile = tfaf{iMov,1};
+        tifo = obj.trxCache(tfile);
+        frm2trxI = tifo.frm2trx;
+        
+        nTgt = size(frm2trxI,2);
+        for iTgt=1:nTgt
+          tflive = frm2trxI(:,iTgt);
+          sp = get_interval_ends(tflive);
+          if isempty(sp)
+            trajlen = 0;
+            frm1 = nan;
+          else
+            if numel(sp)>1
+              warningNoTrace('Movie %d, target %d is live over non-consecutive frames.',...
+                iMov,iTgt);
+            end
+            trajlen = nnz(tflive); % when numel(sp)>1, track is 
+            % non-consecutive and this won't strictly be trajlen
+            frm1 = sp(1);
+          end
+          dataacc(end+1,:) = [iMov iTgt trajlen frm1]; %#ok<AGROW>
+        end
+      end
+      
+      % Contains every (mov,tgt)
+      tblSummBase = array2table(dataacc,'VariableNames',{'mov' 'iTgt' 'trajlen' 'frm1'});
+      
+      tblStats = rowfun(@Labeler.hlpTrackTgtStats,tblBig,...
+        'InputVariables',{'isLbled' 'isTrked' 'hasXV' 'trkErr' 'xvErr'},...
+        'GroupingVariables',{'mov' 'iTgt'},...
+        'OutputVariableNames',{'nFrmLbl' 'nFrmTrk' 'nFrmLblTrk' 'lblTrkMeanErr' 'nFrmXV' 'xvMeanErr'},...
+        'NumOutputs',6);
+
+      [tblSumm,iTblSumm,iTblStats] = outerjoin(tblSummBase,tblStats,...
+        'Keys',{'mov' 'iTgt'},'MergeKeys',true);
+      assert(~any(iTblSumm==0)); % tblSumm should contain every (mov,tgt)
+      tblSumm(:,{'GroupCount'}) = [];
+      tfNoStats = iTblStats==0;
+      % These next 4 sets replace NaNs from the join (due to "no
+      % corresponding row in tblStats") with zeros
+      tblSumm.nFrmLbl(tfNoStats) = 0;
+      tblSumm.nFrmTrk(tfNoStats) = 0;
+      tblSumm.nFrmLblTrk(tfNoStats) = 0;
+      tblSumm.nFrmXV(tfNoStats) = 0;
+    end    
   end
   methods (Static)
+      function [nFrmLbl,nFrmTrk,nFrmLblTrk,lblTrkMeanErr,nFrmXV,xvMeanErr] = ...
+          hlpTrackTgtStats(isLbled,isTrked,hasXV,trkErr,xvErr)
+        % nFrmLbl: number of labeled frames
+        % nFrmTrk: number of tracked frames
+        % nFrmLblTrk: " labeled&tracked frames
+        % lblTrkMeanErr: L2 err, mean across pts, mean over labeled&tracked frames
+        % nFrmXV: number of frames with XV res (should be same as nFrmLbl unless XV
+        %   out-of-date)
+        % xvMeanErr: L2 err, mean across pts, mean over xv frames
         
+        nFrmLbl = nnz(isLbled);
+        nFrmTrk = nnz(isTrked);
+        tfLbledTrked = isLbled & isTrked;
+        nFrmLblTrk = nnz(tfLbledTrked);
+        lblTrkMeanErr = nanmean(trkErr(tfLbledTrked));
+        nFrmXV = nnz(hasXV);
+        xvMeanErr = mean(xvErr(hasXV));
+      end
+      
 %     function trackSaveResults(obj,fname)
 %       tObj = obj.tracker;
 %       if isempty(tObj)
@@ -5849,6 +5994,13 @@ classdef Labeler < handle
   
   %% Navigation
   methods
+    
+    function setMFT(obj,iMov,frm,iTgt)
+      if obj.currMovie~=iMov
+        obj.movieSet(iMov);
+      end
+      obj.setFrameAndTarget(frm,iTgt);
+    end
   
     function tfSetOccurred = setFrameProtected(obj,frm,varargin)
       % Protected set against frm being out-of-bounds for current target.
