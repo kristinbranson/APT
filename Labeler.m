@@ -2922,7 +2922,155 @@ classdef Labeler < handle
       end
     end
   end  
-   
+  methods % showTrx
+    
+    function initShowTrx(obj)
+      deleteValidHandles(obj.hTraj);
+      deleteValidHandles(obj.hTrx);
+      deleteValidHandles(obj.hTrxEll);
+      deleteValidHandles(obj.hTrxTxt);
+      obj.hTraj = matlab.graphics.primitive.Line.empty(0,1);
+      obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
+      obj.hTrxEll = matlab.graphics.primitive.Line.empty(0,1);
+      obj.hTrxTxt = matlab.graphics.primitive.Text.empty(0,1);
+      
+      ax = obj.gdata.axes_curr;
+      pref = obj.projPrefs.Trx;
+      for i = 1:obj.nTrx
+        obj.hTraj(i,1) = line(...
+          'parent',ax,...
+          'xdata',nan, ...
+          'ydata',nan, ...
+          'color',pref.TrajColor,...
+          'linestyle',pref.TrajLineStyle, ...
+          'linewidth',pref.TrajLineWidth, ...
+          'HitTest','off');
+
+        obj.hTrx(i,1) = plot(ax,...
+          nan,nan,pref.TrxMarker);
+        set(obj.hTrx(i,1),'HitTest','off',...
+          'Color',pref.TrajColor,...
+          'MarkerSize',pref.TrxMarkerSize,...
+          'LineWidth',pref.TrxLineWidth);
+        
+        obj.hTrxEll(i,1) = plot(ax,nan,nan,'-');
+        set(obj.hTrxEll(i,1),'HitTest','off',...
+          'Color',pref.TrajColor);
+        
+        id = find(obj.trxIdPlusPlus2Idx==i)-1;
+        obj.hTrxTxt(i,1) = text(nan,nan,num2str(id),'Parent',ax,...
+          'Color',pref.TrajColor,...
+          'Fontsize',pref.TrxIDLblFontSize,...
+          'Fontweight',pref.TrxIDLblFontWeight,...
+          'HitTest','off');
+      end
+    end
+    
+    function setShowTrx(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showTrx = tf;
+      obj.updateShowTrx();
+    end
+    
+    function setShowTrxCurrTargetOnly(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showTrxCurrTargetOnly = tf;
+      obj.updateShowTrx();
+    end
+    
+    function setShowTrxIDLbl(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showTrxIDLbl = tf;
+      obj.updateShowTrx();
+    end
+    
+    function updateShowTrx(obj)
+      % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
+      
+      if ~obj.hasTrx
+        return;
+      end
+      
+      t = obj.currFrame;
+      trxAll = obj.trx;
+      nPre = obj.showTrxPreNFrm;
+      nPst = obj.showTrxPostNFrm;
+      pref = obj.projPrefs.Trx;
+      
+      if obj.showTrx        
+        if obj.showTrxCurrTargetOnly
+          tfShow = false(obj.nTrx,1);
+          tfShow(obj.currTarget) = true;
+        else
+          tfShow = true(obj.nTrx,1);
+        end
+      else
+        tfShow = false(obj.nTrx,1);
+      end
+      
+      tfShowEll = isscalar(obj.showTrxEll) && obj.showTrxEll ...
+        && all(isfield(trxAll,{'a' 'b' 'x' 'y' 'theta'}));
+  
+      % update coords/positions
+      for iTrx = 1:obj.nTrx
+        if tfShow(iTrx)
+          trxCurr = trxAll(iTrx);
+          t0 = trxCurr.firstframe;
+          t1 = trxCurr.endframe;
+          tTraj = max(t-nPre,t0):min(t+nPst,t1); % could be empty array
+          iTraj = tTraj + trxCurr.off;
+          xTraj = trxCurr.x(iTraj);
+          yTraj = trxCurr.y(iTraj);
+          if iTrx==obj.currTarget
+            color = pref.TrajColorCurrent;
+          else
+            color = pref.TrajColor;
+          end
+          set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj,'Color',color);
+
+          if t0<=t && t<=t1
+            idx = t+trxCurr.off;
+            xTrx = trxCurr.x(idx);
+            yTrx = trxCurr.y(idx);
+          else
+            xTrx = nan;
+            yTrx = nan;
+          end
+          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx,'Color',color);
+          
+          if obj.showTrxIDLbl
+            dx = pref.TrxIDLblOffset;
+            set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1],...
+              'Color',color);
+          end
+          
+          if tfShowEll && t0<=t && t<=t1
+            ellipsedraw(2*trxCurr.a(idx),2*trxCurr.b(idx),...
+              trxCurr.x(idx),trxCurr.y(idx),trxCurr.theta(idx),'-',...
+              'hEllipse',obj.hTrxEll(iTrx),'noseLine',true);
+          end
+        end
+      end
+      set(obj.hTraj(tfShow),'Visible','on');
+      set(obj.hTraj(~tfShow),'Visible','off');
+      set(obj.hTrx(tfShow),'Visible','on');
+      set(obj.hTrx(~tfShow),'Visible','off');
+      if obj.showTrxIDLbl
+        set(obj.hTrxTxt(tfShow),'Visible','on');
+        set(obj.hTrxTxt(~tfShow),'Visible','off');
+      else
+        set(obj.hTrxTxt,'Visible','off');
+      end
+      if tfShowEll
+        set(obj.hTrxEll(tfShow),'Visible','on');
+        set(obj.hTrxEll(~tfShow),'Visible','off');
+      else
+        set(obj.hTrxEll,'Visible','off');
+      end
+    end
+    
+  end
+  
   %% Labeling
   methods
     
@@ -5697,134 +5845,7 @@ classdef Labeler < handle
     end
     
   end
-  
-  %% showTrx
-  methods
-    
-    function initShowTrx(obj)
-      deleteValidHandles(obj.hTraj);
-      deleteValidHandles(obj.hTrx);
-      deleteValidHandles(obj.hTrxTxt);
-      obj.hTraj = matlab.graphics.primitive.Line.empty(0,1);
-      obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
-      obj.hTrxTxt = matlab.graphics.primitive.Text.empty(0,1);
-      
-      ax = obj.gdata.axes_curr;
-      pref = obj.projPrefs.Trx;
-      for i = 1:obj.nTrx
-        obj.hTraj(i,1) = line(...
-          'parent',ax,...
-          'xdata',nan, ...
-          'ydata',nan, ...
-          'color',pref.TrajColor,...
-          'linestyle',pref.TrajLineStyle, ...
-          'linewidth',pref.TrajLineWidth, ...
-          'HitTest','off');
-
-        obj.hTrx(i,1) = plot(ax,...
-          nan,nan,pref.TrxMarker);
-        set(obj.hTrx(i,1),'HitTest','off',...
-          'Color',pref.TrajColor,...
-          'MarkerSize',pref.TrxMarkerSize,...
-          'LineWidth',pref.TrxLineWidth);
-        
-        id = find(obj.trxIdPlusPlus2Idx==i)-1;
-        obj.hTrxTxt(i,1) = text(nan,nan,num2str(id),'Parent',ax,...
-          'Color',pref.TrajColor,...
-          'Fontsize',pref.TrxIDLblFontSize,...
-          'Fontweight',pref.TrxIDLblFontWeight,...
-          'HitTest','off');
-      end
-    end
-    
-    function setShowTrx(obj,tf)
-      assert(isscalar(tf) && islogical(tf));
-      obj.showTrx = tf;
-      obj.updateShowTrx();
-    end
-    
-    function setShowTrxCurrTargetOnly(obj,tf)
-      assert(isscalar(tf) && islogical(tf));
-      obj.showTrxCurrTargetOnly = tf;
-      obj.updateShowTrx();
-    end
-    
-    function setShowTrxIDLbl(obj,tf)
-      assert(isscalar(tf) && islogical(tf));
-      obj.showTrxIDLbl = tf;
-      obj.updateShowTrx();
-    end
-    
-    function updateShowTrx(obj)
-      % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
-      
-      if ~obj.hasTrx
-        return;
-      end
-      
-      t = obj.currFrame;
-      trxAll = obj.trx;
-      nPre = obj.showTrxPreNFrm;
-      nPst = obj.showTrxPostNFrm;
-      pref = obj.projPrefs.Trx;
-      
-      if obj.showTrx        
-        if obj.showTrxCurrTargetOnly
-          tfShow = false(obj.nTrx,1);
-          tfShow(obj.currTarget) = true;
-        else
-          tfShow = true(obj.nTrx,1);
-        end
-      else
-        tfShow = false(obj.nTrx,1);
-      end        
-  
-      % update coords/positions
-      for iTrx = 1:obj.nTrx
-        if tfShow(iTrx)
-          trxCurr = trxAll(iTrx);
-          t0 = trxCurr.firstframe;
-          t1 = trxCurr.endframe;
-          tTraj = max(t-nPre,t0):min(t+nPst,t1); % could be empty array
-          iTraj = tTraj + trxCurr.off;
-          xTraj = trxCurr.x(iTraj);
-          yTraj = trxCurr.y(iTraj);
-          if iTrx==obj.currTarget
-            color = pref.TrajColorCurrent;
-          else
-            color = pref.TrajColor;
-          end
-          set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj,'Color',color);
-
-          if t0<=t && t<=t1
-            xTrx = trxCurr.x(t+trxCurr.off);
-            yTrx = trxCurr.y(t+trxCurr.off);
-          else
-            xTrx = nan;
-            yTrx = nan;
-          end
-          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx,'Color',color);
-          
-          if obj.showTrxIDLbl
-            dx = pref.TrxIDLblOffset;
-            set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1],...
-              'Color',color);
-          end
-        end
-      end
-      set(obj.hTraj(tfShow),'Visible','on');
-      set(obj.hTraj(~tfShow),'Visible','off');
-      set(obj.hTrx(tfShow),'Visible','on');
-      set(obj.hTrx(~tfShow),'Visible','off');
-      if obj.showTrxIDLbl
-        set(obj.hTrxTxt(tfShow),'Visible','on');
-        set(obj.hTrxTxt(~tfShow),'Visible','off');
-      else
-        set(obj.hTrxTxt,'Visible','off');
-      end
-    end
-    
-  end
+ 
   
   %% Navigation
   methods
