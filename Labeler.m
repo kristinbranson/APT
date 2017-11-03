@@ -2961,11 +2961,11 @@ classdef Labeler < handle
     function initShowTrx(obj)
       deleteValidHandles(obj.hTraj);
       deleteValidHandles(obj.hTrx);
-      deleteValidHandles(obj.hTrxEll);
+%       deleteValidHandles(obj.hTrxEll);
       deleteValidHandles(obj.hTrxTxt);
       obj.hTraj = matlab.graphics.primitive.Line.empty(0,1);
       obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
-      obj.hTrxEll = matlab.graphics.primitive.Line.empty(0,1);
+%       obj.hTrxEll = matlab.graphics.primitive.Line.empty(0,1);
       obj.hTrxTxt = matlab.graphics.primitive.Text.empty(0,1);
       
       ax = obj.gdata.axes_curr;
@@ -2987,9 +2987,9 @@ classdef Labeler < handle
           'MarkerSize',pref.TrxMarkerSize,...
           'LineWidth',pref.TrxLineWidth);
         
-        obj.hTrxEll(i,1) = plot(ax,nan,nan,'-');
-        set(obj.hTrxEll(i,1),'HitTest','off',...
-          'Color',pref.TrajColor);
+%         obj.hTrxEll(i,1) = plot(ax,nan,nan,'-');
+%         set(obj.hTrxEll(i,1),'HitTest','off',...
+%           'Color',pref.TrajColor);
         
         id = find(obj.trxIdPlusPlus2Idx==i)-1;
         obj.hTrxTxt(i,1) = text(nan,nan,num2str(id),'Parent',ax,...
@@ -3042,9 +3042,9 @@ classdef Labeler < handle
         tfShow = false(obj.nTrx,1);
       end
       
-      tfShowEll = isscalar(obj.showTrxEll) && obj.showTrxEll ...
-        && all(isfield(trxAll,{'a' 'b' 'x' 'y' 'theta'}));
-  
+%       tfShowEll = isscalar(obj.showTrxEll) && obj.showTrxEll ...
+%         && all(isfield(trxAll,{'a' 'b' 'x' 'y' 'theta'}));
+   
       % update coords/positions
       for iTrx = 1:obj.nTrx
         if tfShow(iTrx)
@@ -3078,11 +3078,11 @@ classdef Labeler < handle
               'Color',color);
           end
           
-          if tfShowEll && t0<=t && t<=t1
-            ellipsedraw(2*trxCurr.a(idx),2*trxCurr.b(idx),...
-              trxCurr.x(idx),trxCurr.y(idx),trxCurr.theta(idx),'-',...
-              'hEllipse',obj.hTrxEll(iTrx),'noseLine',true);
-          end
+%           if tfShowEll && t0<=t && t<=t1
+%             ellipsedraw(2*trxCurr.a(idx),2*trxCurr.b(idx),...
+%               trxCurr.x(idx),trxCurr.y(idx),trxCurr.theta(idx),'-',...
+%               'hEllipse',obj.hTrxEll(iTrx),'noseLine',true);
+%           end
         end
       end
       set(obj.hTraj(tfShow),'Visible','on');
@@ -3095,12 +3095,12 @@ classdef Labeler < handle
       else
         set(obj.hTrxTxt,'Visible','off');
       end
-      if tfShowEll
-        set(obj.hTrxEll(tfShow),'Visible','on');
-        set(obj.hTrxEll(~tfShow),'Visible','off');
-      else
-        set(obj.hTrxEll,'Visible','off');
-      end
+%       if tfShowEll
+%         set(obj.hTrxEll(tfShow),'Visible','on');
+%         set(obj.hTrxEll(~tfShow),'Visible','off');
+%       else
+%         set(obj.hTrxEll,'Visible','off');
+%       end
     end
     
   end
