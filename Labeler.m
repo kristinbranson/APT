@@ -2874,20 +2874,32 @@ classdef Labeler < handle
     end
     
     function targetsTableUI(obj)      
-      tblBig = trackGetBigLabeledTrackedTable(obj);
+      tblBig = obj.trackGetBigLabeledTrackedTable();
       tblSumm = obj.trackGetSummaryTable(tblBig);
-      hF = figure('Name','Target Summary','MenuBar','none');
+      hF = figure('Name','Target Summary (click row to navigate)',...
+        'MenuBar','none','Visible','off');
+      hF.Position(3:4) = [1000 500];
+      centerfig(hF,obj.hFig);
+      hPnl = uipanel('Parent',hF,'Position',[0 .08 1 .92]);
+      BTNWIDTH = 100;
+      DXY = 4;
+      btnHeight = hPnl.Position(2)*hF.Position(4)-2*DXY;
+      btnPos = [hF.Position(3)-BTNWIDTH-DXY DXY BTNWIDTH btnHeight];      
+      hBtn = uicontrol('Style','pushbutton','Parent',hF,...
+        'Position',btnPos,'String','Update',...
+        'fontsize',12);
       FLDS = {'mov' 'iTgt' 'trajlen' 'frm1' 'nFrmLbl' 'nFrmTrk' 'nFrmLblTrk' 'lblTrkMeanErr' 'nFrmXV' 'xvMeanErr'};
-      FLDSNICE = {'Movie' 'Target' 'Traj. Length' 'Start Frame' '# Frames Labeled' '# Frames Tracked' '# Frames Labeled&Tracked' 'Label vs Track Err' '# Frames XV' 'XV Err'};
+      FLDSNICE = {'Movie' 'Target' 'Traj. Length' 'Start Frame' '# Frames Labeled' '# Frames Tracked' '# Frames Lbled&Trked' 'Track Err' '# Frames XV' 'XV Err'};
       tblfldsassert(tblSumm,FLDS);
-      nt = NavigationTable(hF,[0 0 1 1],...
-        @(i)obj.setMFT(tblSumm.mov(i),tblSumm.frm1(i),tblSumm.iTgt(i)),...
+      nt = NavigationTable(hPnl,[0 0 1 1],...
+        @(row,rowdata)obj.setMFT(rowdata.mov,rowdata.frm1,rowdata.iTgt),...
         'ColumnName',FLDSNICE,...
-        'ColumnFormat',{'integer' 'integer' 'integer' 'integer' 'integer' 'integer' 'integer' '' 'integer' ''},...        
-        'ColumnPreferredWidth',[50 50 100 100 50 50 50 100 50 100],...
-        'Editable','off');
+        'ColumnFormat',{'integer' 'integer' 'integer' 'integer' 'integer' 'integer' 'integer' '' 'integer' 'float'},...
+        'ColumnPreferredWidth',[30 30 45 30 60 60 90 40 40 40]);
       nt.setData(tblSumm);
       hF.UserData = nt;
+      hBtn.Callback = @(s,e)nt.setData(obj.trackGetSummaryTable(obj.trackGetBigLabeledTrackedTable()));
+      hF.Visible = 'on';
 
       % See LabelerGUI/addDepHandle
       handles = obj.gdata;
@@ -5124,7 +5136,7 @@ classdef Labeler < handle
       hF = figure('Name',figtitle);
       tbl = obj.suspSelectedMFT;
       tblFlds = tbl.Properties.VariableNames;
-      nt = NavigationTable(hF,[0 0 1 1],@(i)obj.suspCbkTblNaved(i),...
+      nt = NavigationTable(hF,[0 0 1 1],@(i,rowdata)obj.suspCbkTblNaved(i),...
         'ColumnName',tblFlds);
       nt.setData(tbl);
 %       nt.navOnSingleClick = true;

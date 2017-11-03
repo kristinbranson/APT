@@ -3,8 +3,10 @@ classdef NavigationTable < handle
   
   properties
     jtable
-    fcnRowSelected % fcn handle, fcnRowSelected(row)
+    fcnRowSelected % fcn handle with sig: fcnRowSelected(row,rowdata) 
+      % row is 1-based index into .data; rowdata is .data(row,:)
     navOnSingleClick % If true, navigate on single click; otherwise require double-click
+    data % data in table form. jtable has it in cell form as well
   end
   properties (Dependent)
     height % height of jtable
@@ -18,6 +20,8 @@ classdef NavigationTable < handle
   
   methods
     function obj = NavigationTable(hParent,posn,cbkSelectRow,varargin)
+      % cbkSelectRow: function handle with sig as in .fcnRowSelected
+      % 
       % varargin: eg {'ColumnName',{'col1' 'col2'},...
       %   'ColumnPreferredWidth',[100 200]}
       assert(isgraphics(hParent) && isscalar(hParent));
@@ -31,6 +35,7 @@ classdef NavigationTable < handle
         'Editable','off',... %        'MouseClickedCallback',@(src,evt)obj.cbkTableClick(src,evt),...
         'CellSelectionCallback',@(src,evt)obj.cbkCellSelection(src,evt),...
         varargin{:});
+      jt.ColumnEditable(:) = false;
       obj.jtable = jt;
       
       obj.fcnRowSelected = cbkSelectRow;
@@ -42,11 +47,12 @@ classdef NavigationTable < handle
     % tbl: [nxnFld] table
     function setData(obj,tbl)
       jt = obj.jtable;
-      assert(isequal(jt.ColumnName,tbl.Properties.VariableNames));
+      %assert(isequal(jt.ColumnName,tbl.Properties.VariableNames));
       %newdat = tbl{:,:};
       newdat = table2cell(tbl);
       if ~isequal(jt.Data,newdat)
         jt.Data = newdat;
+        obj.data = tbl;
       end
     end
     
@@ -92,7 +98,8 @@ classdef NavigationTable < handle
       if isfield(evt,'Indices')
         rows = evt.Indices;
         if ~isempty(rows)
-          obj.fcnRowSelected(rows(1));
+          r = rows(1);
+          obj.fcnRowSelected(r,obj.data(r,:));
         end
       end
     end
