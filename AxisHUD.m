@@ -10,7 +10,7 @@ classdef AxisHUD < handle
     txtClrLblPoint = [1 1 0];
     txtClrSusp = [1 1 1];
     
-    tgtFmt = 'tgtID: %d';
+    tgtFmt = 'tgt: %d';
     lblPointFmt = 'Lbl pt: %d/%d';
     suspFmt = 'susp: %.10g';
   end

@@ -26,8 +26,7 @@ classdef Labeler < handle
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};
     
-    TBLTRX_STATIC_COLSTBL = {'id' 'labeled'};
-    TBLTRX_STATIC_COLSTRX = {'id' 'labeled'};
+    TBLTRX_STATIC_COLSTRX = {'idx' 'labeled'};
     
     TBLFRAMES_COLS = {'frame' 'tgts' 'pts'};
     
@@ -227,9 +226,9 @@ classdef Labeler < handle
     %zoomRadiusDefault = 100; % default zoom box size in pixels
     %zoomRadiusTight = 10;    % zoom size on maximum zoom (smallest pixel val)
     frm2trx = [];             % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm (for current movie)
-    trxIdPlusPlus2Idx = [];   % (max(trx ids)+1) x 1 vector of indices into obj.trx. 
-                              % Since IDs start at 0, THIS VECTOR IS INDEXED BY ID+1.
-                              % ie: .trx(trxIdPlusPlus2Idx(ID+1)).id = ID. Nonexistent IDs map to NaN.
+%     trxIdPlusPlus2Idx = [];   % (max(trx ids)+1) x 1 vector of indices into obj.trx. 
+%                               % Since IDs start at 0, THIS VECTOR IS INDEXED BY ID+1.
+%                               % ie: .trx(trxIdPlusPlus2Idx(ID+1)).id = ID. Nonexistent IDs map to NaN.
   end
   properties (Dependent,SetObservable)
     targetZoomRadiusDefault;
@@ -240,7 +239,7 @@ classdef Labeler < handle
     trxFilesAllFullGTaware
     hasTrx
     currTrx
-    currTrxID
+%     currTrxID
     nTrx
     nTargets % nTrx, or 1 if no Trx
   end
@@ -602,13 +601,13 @@ classdef Labeler < handle
         v = [];
       end
     end
-    function v = get.currTrxID(obj)
-      if obj.hasTrx
-        v = obj.trx(obj.currTarget).id;
-      else
-        v = nan;
-      end
-    end
+%     function v = get.currTrxID(obj)
+%       if obj.hasTrx
+%         v = obj.trx(obj.currTarget).id;
+%       else
+%         v = nan;
+%       end
+%     end
     function v = get.nTrx(obj)
       v = numel(obj.trx);
     end
@@ -2830,11 +2829,11 @@ classdef Labeler < handle
       else
         maxID = -1;
       end
-      id2t = nan(maxID+1,1);
-      for i = 1:obj.nTrx
-        id2t(obj.trx(i).id+1) = i;
-      end
-      obj.trxIdPlusPlus2Idx = id2t;
+%       id2t = nan(maxID+1,1);
+%       for i = 1:obj.nTrx
+%         id2t(obj.trx(i).id+1) = i;
+%       end
+%       obj.trxIdPlusPlus2Idx = id2t;
       if isnan(obj.nframes)
         obj.frm2trx = [];
       else
@@ -2994,8 +2993,8 @@ classdef Labeler < handle
 %         set(obj.hTrxEll(i,1),'HitTest','off',...
 %           'Color',pref.TrajColor);
         
-        id = find(obj.trxIdPlusPlus2Idx==i)-1;
-        obj.hTrxTxt(i,1) = text(nan,nan,num2str(id),'Parent',ax,...
+%         id = find(obj.trxIdPlusPlus2Idx==i)-1;
+        obj.hTrxTxt(i,1) = text(nan,nan,num2str(i),'Parent',ax,...
           'Color',pref.TrajColor,...
           'Fontsize',pref.TrxIDLblFontSize,...
           'Fontweight',pref.TrxIDLblFontWeight,...
@@ -6098,13 +6097,13 @@ classdef Labeler < handle
       end
     end
     
-    function setTargetID(obj,tgtID)
-      % Set target ID, maintaining current movie/frame.
-      
-      iTgt = obj.trxIdPlusPlus2Idx(tgtID+1);
-      assert(~isnan(iTgt),'Invalid target ID: %d.');
-      obj.setTarget(iTgt);
-    end
+%     function setTargetID(obj,tgtID)
+%       % Set target ID, maintaining current movie/frame.
+%       
+%       iTgt = obj.trxIdPlusPlus2Idx(tgtID+1);
+%       assert(~isnan(iTgt),'Invalid target ID: %d.');
+%       obj.setTarget(iTgt);
+%     end
     
     function setTarget(obj,iTgt)
       % Set target index, maintaining current movie/frameframe.
@@ -6285,8 +6284,6 @@ classdef Labeler < handle
       end
     end
                 
-    % TODO prob use listener/event for this; maintain relevant
-    % datastructure in Labeler
     function updateTrxTable(obj)
       % based on .frm2trxm, .currFrame, .labeledpos
       
@@ -6296,24 +6293,13 @@ classdef Labeler < handle
         return;
       end
       
-      colnames = obj.TBLTRX_STATIC_COLSTRX(1:end-1);
-
-      tfLive = obj.frm2trx(obj.currFrame,:);
-      trxLive = obj.trx(tfLive);
-      trxLive = trxLive(:);
-      trxLive = rmfield(trxLive,setdiff(fieldnames(trxLive),colnames));
-      trxLive = orderfields(trxLive,colnames);
-      tbldat = struct2cell(trxLive)';
-      
-      iTrxLive = find(tfLive);
-      tfLbled = false(size(iTrxLive(:)));
+      f = obj.currFrame;
+      tfLive = obj.frm2trx(f,:);
+      idxLive = find(tfLive);
+      idxLive = idxLive(:);
       lpos = obj.labeledposCurrMovie;
-      cfrm = obj.currFrame;
-      for i = 1:numel(iTrxLive)
-        tfLbled(i) = any(lpos(:,1,cfrm,iTrxLive(i))); % nans counted as 0
-      end
-      tbldat(:,end+1) = num2cell(tfLbled);
-      
+      tfLbled = arrayfun(@(x)any(lpos(:,1,f,x)),idxLive); % nans counted as 0
+      tbldat = [num2cell(idxLive) num2cell(tfLbled)];      
       set(tbl,'Data',tbldat);
     end
     
@@ -6683,8 +6669,7 @@ classdef Labeler < handle
   
   methods % OtherTarget
     
-    function labelsOtherTargetShowIDs(obj,tgtIDs)
-      iTgts = obj.trxIdPlusPlus2Idx(tgtIDs+1);
+    function labelsOtherTargetShowIdxs(obj,iTgts)
       frm = obj.currFrame;
       lpos = obj.labeledposCurrMovie;
       lpos = squeeze(lpos(:,:,frm,iTgts)); % [npts x 2 x numel(iTgts)]

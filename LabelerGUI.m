@@ -377,7 +377,7 @@ handles.propsNeedInit = {
 
 set(handles.output,'Toolbar','figure');
 
-colnames = handles.labelerObj.TBLTRX_STATIC_COLSTBL;
+colnames = handles.labelerObj.TBLTRX_STATIC_COLSTRX;
 set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
 colnames = handles.labelerObj.TBLFRAMES_COLS; % AL: dumb b/c table update code uses hardcoded cols 
 set(handles.tblFrames,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
@@ -895,8 +895,8 @@ lObj.gdata.allAxHiliteMgr.setHighlight(tfHilite);
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
 if lObj.hasTrx && ~lObj.isinit
-  id = lObj.currTrxID;
-  lObj.currImHud.updateTarget(id);
+  iTgt = lObj.currTarget;
+  lObj.currImHud.updateTarget(iTgt);
   lObj.gdata.labelTLInfo.newTarget();
   hlpGTUpdateAxHilite(lObj);
 end
@@ -1286,14 +1286,14 @@ hObject.UserData = rows;
 dat = hObject.Data;
 
 if isscalar(rows)
-  id = dat{rows(1),1};
-  lObj.setTargetID(id);
+  idx = dat{rows(1),1};
+  lObj.setTarget(idx);
   lObj.labelsOtherTargetHideAll();
 else
   % addon to existing selection
   rowsnew = setdiff(rows,rowsprev);  
-  idsnew = cell2mat(dat(rowsnew,1));
-  lObj.labelsOtherTargetShowIDs(idsnew);
+  idxsnew = cell2mat(dat(rowsnew,1));
+  lObj.labelsOtherTargetShowIdxs(idxsnew);
 end
 
 hlpRemoveFocus(hObject,handles);
