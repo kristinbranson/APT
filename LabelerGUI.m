@@ -519,11 +519,14 @@ for i=1:numel(kph)
   end
 end
 
+tfShift = any(strcmp('shift',evt.Modifier));
+tfCtrl = any(strcmp('control',evt.Modifier));
+
 handles = guidata(src);
 % KB20160724: shortcuts from preferences
 if all(isfield(handles,{'shortcutkeys','shortcutfns'}))
   % control key pressed?
-  if ismember('control',evt.Modifier) && numel(evt.Modifier) == 1 && any(strcmpi(evt.Key,handles.shortcutkeys))
+  if tfCtrl && numel(evt.Modifier)==1 && any(strcmpi(evt.Key,handles.shortcutkeys))
     i = find(strcmpi(evt.Key,handles.shortcutkeys),1);
     h = findobj(handles.figure,'Tag',handles.shortcutfns{i},'-property','Callback');
     if isempty(h)
@@ -563,7 +566,6 @@ end
 %   end
 % end
 
-% LabelCore
 lcore = lObj.lblCore;
 if ~isempty(lcore)
   tfKPused = lcore.kpf(src,evt);
@@ -572,7 +574,29 @@ if ~isempty(lcore)
   end
 end
 
-% TODO timeline use me
+if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
+  if tfShift
+    sam = lObj.movieShiftArrowNavMode;
+    lpos = sam.getLposSeek(lObj);
+  end
+  switch evt.Key
+    case 'leftarrow'
+      if tfShift
+        lObj.frameUpNextLbled(true,'lpos',lpos);
+      else
+        lObj.frameDown(tfCtrl);
+      end
+    case 'rightarrow'
+      if tfShift
+        lObj.frameUpNextLbled(false,'lpos',lpos);
+      else
+        lObj.frameUp(tfCtrl);
+      end
+  end
+  return;
+end
+
+% timeline?
       
 function cbkWBMF(src,evt,lObj)
 lcore = lObj.lblCore;
@@ -2121,6 +2145,7 @@ function menu_go_targets_summary_Callback(hObject, eventdata, handles)
 handles.labelerObj.targetsTableUI();
 
 function menu_go_nav_prefs_Callback(hObject, eventdata, handles)
+handles.labelerObj.navPrefsUI();
 
 function menu_evaluate_crossvalidate_Callback(hObject, eventdata, handles)
 

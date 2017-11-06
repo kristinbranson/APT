@@ -53,6 +53,7 @@ View:
 Movie:
   ForceGrayScale: 1
   FrameStepBig: 10
+  ShiftArrowNavMode: NEXTLABELED
   PlayFPS: 20
   PlaySegmentRadius: 50
 

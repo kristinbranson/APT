@@ -189,6 +189,7 @@ classdef Labeler < handle
     movieRotateTargetUp = false;
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
+    movieShiftArrowNavMode; % scalar ShiftArrowMovieNavMode
     moviePlaySegRadius; % scalar int
     moviePlayFPS; 
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
@@ -947,6 +948,7 @@ classdef Labeler < handle
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
+      obj.movieShiftArrowNavMode = ShiftArrowMovieNavMode.(cfg.Movie.ShiftArrowNavMode);
       obj.moviePlaySegRadius = cfg.Movie.PlaySegmentRadius;
       obj.moviePlayFPS = cfg.Movie.PlayFPS;
            
@@ -1013,6 +1015,7 @@ classdef Labeler < handle
       cfg.Movie = struct(...
         'ForceGrayScale',obj.movieForceGrayscale,...
         'FrameStepBig',obj.movieFrameStepBig,...
+        'ShiftArrowNavMode',char(obj.movieShiftArrowNavMode),...
         'PlaySegmentRadius',obj.moviePlaySegRadius,...
         'PlayFPS',obj.moviePlayFPS);
 
@@ -2107,7 +2110,7 @@ classdef Labeler < handle
       end
       
       tfProceedRm = true;
-      haslbls1 = obj.labelposMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
+      haslbls1 = obj.labelPosMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
       haslbls2 = obj.getMovieFilesAllHaveLblsArg(gt);
       haslbls2 = haslbls2(iMov);
       assert(haslbls1==haslbls2);
@@ -3617,7 +3620,7 @@ classdef Labeler < handle
       end
     end
     
-    function tf = labelposMovieHasLabels(obj,iMov,varargin)
+    function tf = labelPosMovieHasLabels(obj,iMov,varargin)
       gt = myparse(varargin,'gt',obj.gtIsGTMode);
       if ~gt
         lpos = obj.labeledpos{iMov};
@@ -6025,6 +6028,10 @@ classdef Labeler < handle
   %% Navigation
   methods
     
+    function navPrefsUI(obj)
+      NavPrefs(obj);
+    end
+    
     function setMFT(obj,iMov,frm,iTgt)
       if obj.currMovie~=iMov
         obj.movieSet(iMov);
@@ -6181,10 +6188,13 @@ classdef Labeler < handle
       tfSetOccurred = obj.frameDownDF(df);
     end
     
-    function frameUpNextLbled(obj,tfback)
+    function frameUpNextLbled(obj,tfback,varargin)
       % call obj.setFrame() on next labeled frame. 
       % 
-      % tfback: optional. if true, go backwards.
+      % tfback: optional. if true, seek backwards.
+      
+      lpos = myparse(varargin,...
+        'lpos','__UNSET__'); % optional, explicit specification of labeledpos array to use/search
       
       if ~obj.hasMovie || obj.currMovie==0
         return;
@@ -6197,18 +6207,27 @@ classdef Labeler < handle
         df = -1;
       else
         df = 1;
-      end
-      
-      lpos = obj.labeledposCurrMovie;
+      end      
+
       f = obj.currFrame;
       nf = obj.nframes;
       npt = obj.nLabelPoints;
+      itgt = obj.currTarget;
+
+      if strcmp(lpos,'__UNSET__')
+        lpos = obj.labeledposCurrMovie;
+      elseif isequal(lpos,[])
+        % edge case, equivalent to all-nan lpos
+        return;
+      else
+        szassert(lpos,[npt 2 nf obj.nTargets]);
+      end      
       
       f = f+df;
       while 0<f && f<=nf
-        for iPt = 1:npt
+        for ipt = 1:npt
         for j = 1:2
-          if ~isnan(lpos(iPt,j,f))
+          if ~isnan(lpos(ipt,j,f,itgt))
             obj.setFrameProtected(f);
             return;
           end
@@ -6550,8 +6569,8 @@ classdef Labeler < handle
         obj.labeledpos2{i}(:) = nan;
       end
       if ~obj.gtIsGTMode
-      obj.labels2VizUpdate();
-    end
+        obj.labels2VizUpdate();
+      end
     end
     
     function labels2ImportTrkPrompt(obj,iMovs)

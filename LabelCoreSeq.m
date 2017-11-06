@@ -274,20 +274,7 @@ classdef LabelCoreSeq < LabelCore
             case LabelState.ACCEPTED              
               obj.beginAdjust();
           end
-        elseif strcmp(key,'leftarrow')
-          if tfShft
-            lObj.frameUpNextLbled(true);
-          else
-            lObj.frameDown(tfCtrl);
-          end
-        elseif strcmp(key,'rightarrow')
-          if tfShft
-            lObj.frameUpNextLbled(false);
-          else
-            lObj.frameUp(tfCtrl);
-          end
         else
-          % should never occur
           tfKPused = false;
         end
       elseif strcmp(key,'backquote')

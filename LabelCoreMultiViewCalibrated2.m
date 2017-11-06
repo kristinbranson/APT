@@ -538,18 +538,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               obj.enterAdjust(false,false);
           end
           obj.projectionRefresh();
-        elseif strcmp(key,'leftarrow')
-          if tfShft
-            lObj.frameUpNextLbled(true);
-          else
-            lObj.frameDown(tfCtrl);
-          end
-        elseif strcmp(key,'rightarrow')
-          if tfShft
-            lObj.frameUpNextLbled(false);
-          else
-            lObj.frameUp(tfCtrl);
-          end
         else
           tfKPused = false;
         end
