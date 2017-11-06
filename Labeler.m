@@ -5620,6 +5620,7 @@ classdef Labeler < handle
       % tbl: 
       
       tblLbled = obj.labelGetMFTableLabeled();
+      tblLbled.mov = int32(tblLbled.mov);
       tblLbled = tblLbled(:,[MFTable.FLDSID {'p'}]);
       isLbled = true(height(tblLbled),1);
       tblLbled = [tblLbled table(isLbled)];
@@ -5629,6 +5630,7 @@ classdef Labeler < handle
       tObj = obj.tracker;
       if ~isempty(tObj)
         tblTrked = tObj.trkPMD(:,MFTable.FLDSID);
+        tblTrked.mov = int32(tblTrked.mov); % from MovieIndex
         pTrk = tObj.trkP;
         if isempty(pTrk)
           % edge case, tracker not initting properly
@@ -5682,38 +5684,48 @@ classdef Labeler < handle
     function tblSumm = trackGetSummaryTable(obj,tblBig)
       % tblSumm: Big summary table, one row per (mov,tgt)
       
-      assert(obj.nview==1,'Currently unsupported for multiview projects.');
       assert(~obj.gtIsGTMode,'Currently unsupported in GT mode.');
       
-      tfaf = obj.trxFilesAllFull;
-      dataacc = nan(0,4); % mov, tgt, trajlen, frm1
-      for iMov=1:obj.nmovies
-        tfile = tfaf{iMov,1};
-        tifo = obj.trxCache(tfile);
-        frm2trxI = tifo.frm2trx;
-        
-        nTgt = size(frm2trxI,2);
-        for iTgt=1:nTgt
-          tflive = frm2trxI(:,iTgt);
-          sp = get_interval_ends(tflive);
-          if isempty(sp)
-            trajlen = 0;
-            frm1 = nan;
-          else
-            if numel(sp)>1
-              warningNoTrace('Movie %d, target %d is live over non-consecutive frames.',...
-                iMov,iTgt);
+      % generate tblSummBase
+      if obj.hasTrx
+        assert(obj.nview==1,'Currently unsupported for multiview projects.');
+        tfaf = obj.trxFilesAllFull;
+        dataacc = nan(0,4); % mov, tgt, trajlen, frm1
+        for iMov=1:obj.nmovies
+          tfile = tfaf{iMov,1};
+          tifo = obj.trxCache(tfile);
+          frm2trxI = tifo.frm2trx;
+
+          nTgt = size(frm2trxI,2);
+          for iTgt=1:nTgt
+            tflive = frm2trxI(:,iTgt);
+            sp = get_interval_ends(tflive);
+            if isempty(sp)
+              trajlen = 0;
+              frm1 = nan;
+            else
+              if numel(sp)>1
+                warningNoTrace('Movie %d, target %d is live over non-consecutive frames.',...
+                  iMov,iTgt);
+              end
+              trajlen = nnz(tflive); % when numel(sp)>1, track is 
+              % non-consecutive and this won't strictly be trajlen
+              frm1 = sp(1);
             end
-            trajlen = nnz(tflive); % when numel(sp)>1, track is 
-            % non-consecutive and this won't strictly be trajlen
-            frm1 = sp(1);
+            dataacc(end+1,:) = [iMov iTgt trajlen frm1]; %#ok<AGROW>
           end
-          dataacc(end+1,:) = [iMov iTgt trajlen frm1]; %#ok<AGROW>
         end
-      end
       
-      % Contains every (mov,tgt)
-      tblSummBase = array2table(dataacc,'VariableNames',{'mov' 'iTgt' 'trajlen' 'frm1'});
+        % Contains every (mov,tgt)
+        tblSummBase = array2table(dataacc,'VariableNames',{'mov' 'iTgt' 'trajlen' 'frm1'});
+      else
+        mov = (1:obj.nmovies)';
+        iTgt = ones(size(mov));
+        nframes = cellfun(@(x)x.nframes,obj.movieInfoAll(:,1));
+        trajlen = nframes;
+        frm1 = iTgt;
+        tblSummBase = table(mov,iTgt,trajlen,frm1);
+      end
       
       tblStats = rowfun(@Labeler.hlpTrackTgtStats,tblBig,...
         'InputVariables',{'isLbled' 'isTrked' 'hasXV' 'trkErr' 'xvErr'},...
