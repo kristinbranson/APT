@@ -5262,14 +5262,18 @@ classdef Labeler < handle
       tObj.track(tblMFT,varargin{:});
       
       % For template mode to see new tracking results
-      obj.labelsUpdateNewFrame(true); 
+      obj.labelsUpdateNewFrame(true);
+      
+      fprintf('Tracking complete at %s.\n',datestr(now));
     end
     
     function trackTbl(obj,tblMFT,varargin)
       tObj = obj.tracker;
       tObj.track(tblMFT,varargin{:});
       % For template mode to see new tracking results
-      obj.labelsUpdateNewFrame(true); 
+      obj.labelsUpdateNewFrame(true);
+      
+      fprintf('Tracking complete at %s.\n',datestr(now));
     end
     
     function trackAndExport(obj,mftset,varargin)

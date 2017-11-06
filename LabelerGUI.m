@@ -336,7 +336,7 @@ listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 %listeners{end+1,1} = addlistener(lObj,'targetZoomRadius','PostSet',@cbkTargetZoomFacChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
-listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
+%listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
 %listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
@@ -850,6 +850,22 @@ handles.allAxHiliteMgr.setHilitePnl(lObj.hasTrx);
 
 hlpGTUpdateAxHilite(lObj);
 
+% update HUD, statusbar
+mname = lObj.moviename;
+if lObj.gtIsGTMode
+  str = sprintf('Movie %d (GT): %s',lObj.currMovie,mname);  
+else
+  str = sprintf('Movie %d: %s',lObj.currMovie,mname);
+end
+set(handles.txMoviename,'String',str);
+if ~isempty(mname)
+  str = sprintf('new movie %s at %s',mname,datestr(now,16));
+  set(handles.txStatus,'String',str);
+  
+  % Fragile behavior when loading projects; want project status update to
+  % persist and not movie status update. This depends on detailed ordering in 
+  % Labeler.projLoad
+end
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
@@ -991,20 +1007,6 @@ info = lObj.projFSInfo;
 if ~isempty(info)  
   str = sprintf('Project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
   set(lObj.gdata.txStatus,'String',str);
-end
-
-function cbkMovienameChanged(src,evt)
-lObj = evt.AffectedObject;
-mname = lObj.moviename;
-handles = lObj.gdata;
-set(handles.txMoviename,'String',mname);
-if ~isempty(mname)
-  str = sprintf('new movie %s at %s',mname,datestr(now,16));
-  set(handles.txStatus,'String',str);
-  
-  % Fragile behavior when loading projects; want project status update to
-  % persist and not movie status update. This depends on detailed ordering in 
-  % Labeler.projLoad
 end
 
 function cbkMovieForceGrayscaleChanged(src,evt)
