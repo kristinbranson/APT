@@ -1104,9 +1104,10 @@ classdef CPRLabelTracker < LabelTracker
       obj.updateData(tblPTrn);
       
       d = obj.data;
-      tf = tblismember(d.MD,tblPTrn,MFTable.FLDSID);
+      [tf,locDataInTblP] = tblismember(d.MD,tblPTrn,MFTable.FLDSID);
       assert(nnz(tf)==height(tblPTrn));
       d.iTrn = find(tf);
+      locDataInTblP = locDataInTblP(tf);
       
       fprintf(1,'Training data summary:\n');
       d.summarize('mov',d.iTrn);
@@ -1131,10 +1132,13 @@ classdef CPRLabelTracker < LabelTracker
       % pTrn col order is: [iPGT(1)_x iPGT(2)_x ... iPGT(end)_x iPGT(1)_y ... iPGT(end)_y]
       
       nView = obj.lObj.nview;
-      if nView==1 % doesn't need its own branch, just leaving old path        
-        assert(isequal(d.MDTrn(:,MFTable.FLDSID),tblPTrn(:,MFTable.FLDSID)));
-        if tblfldscontains(tblPTrn,'thetaTrx')
-          oThetas = tblPTrn.thetaTrx;
+      if nView==1 % doesn't need its own branch, just leaving old path
+        % expect a permutation
+        assert(isequal(sort(locDataInTblP(:)'),1:height(tblPTrn))); %#ok<TRSRT>
+        tblPTrnPerm = tblPTrn(locDataInTblP,:);
+        assert(isequal(d.MDTrn(:,MFTable.FLDSID),tblPTrnPerm(:,MFTable.FLDSID)));
+        if tblfldscontains(tblPTrnPerm,'thetaTrx')
+          oThetas = tblPTrnPerm.thetaTrx;
         else
           oThetas = [];
         end
