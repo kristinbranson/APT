@@ -852,14 +852,19 @@ hlpGTUpdateAxHilite(lObj);
 
 % update HUD, statusbar
 mname = lObj.moviename;
-if lObj.gtIsGTMode
-  str = sprintf('Movie %d (GT): %s',lObj.currMovie,mname);  
+if lObj.nview>1
+  movstr = 'Movieset';
 else
-  str = sprintf('Movie %d: %s',lObj.currMovie,mname);
+  movstr = 'Movie';
+end
+if lObj.gtIsGTMode
+  str = sprintf('%s %d (GT): %s',movstr,lObj.currMovie,mname);  
+else
+  str = sprintf('%s %d: %s',movstr,lObj.currMovie,mname);
 end
 set(handles.txMoviename,'String',str);
 if ~isempty(mname)
-  str = sprintf('new movie %s at %s',mname,datestr(now,16));
+  str = sprintf('new %s %s at %s',lower(movstr),mname,datestr(now,16));
   set(handles.txStatus,'String',str);
   
   % Fragile behavior when loading projects; want project status update to

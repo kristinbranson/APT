@@ -5648,9 +5648,17 @@ classdef Labeler < handle
         tblTrked = table(nan(0,1),nan(0,1),nan(0,1),nan(0,npts*2),false(0,1),...
           'VariableNames',{'mov' 'frm' 'iTgt' 'pTrk' 'isTrked'});
       end
-        
-      tblBig = outerjoin(tblLbled,tblTrked,'Keys',MFTable.FLDSID,...
-        'MergeKeys',true);
+
+      if isempty(tblTrked)
+        % 20171106 ML bug 2015b outerjoin empty input table
+        % Seems fixed in 16b
+        pTrk = nan(size(tblLbled.p));
+        isTrked = false(size(tblLbled.isLbled));
+        tblBig = [tblLbled table(pTrk,isTrked)];
+      else
+        tblBig = outerjoin(tblLbled,tblTrked,'Keys',MFTable.FLDSID,...
+          'MergeKeys',true);
+      end
         
       % Compute tracking err (for rows both labeled and tracked)
       tf = tblBig.isLbled & tblBig.isTrked;
@@ -5680,6 +5688,7 @@ classdef Labeler < handle
           'VariableNames',{'mov' 'frm' 'iTgt' 'xvErr' 'hasXV'});
       end
       
+      % 20171106 ML bug 2015b outerjoin empty input table
       tblBig = outerjoin(tblBig,tblXV,'Keys',MFTable.FLDSID,'MergeKeys',true);
       tblBig = tblBig(:,[MFTable.FLDSID {'trkErr' 'xvErr' 'isLbled' 'isTrked' 'hasXV'}]);
       if tfhasXV && ~isequal(tblBig.isLbled,tblXV.hasXV)
