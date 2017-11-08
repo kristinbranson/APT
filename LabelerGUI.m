@@ -575,20 +575,24 @@ if ~isempty(lcore)
 end
 
 if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
-  if tfShift
-    sam = lObj.movieShiftArrowNavMode;
-    lpos = sam.getLposSeek(lObj);
-  end
   switch evt.Key
     case 'leftarrow'
       if tfShift
-        lObj.frameUpNextLbled(true,'lpos',lpos);
+        sam = lObj.movieShiftArrowNavMode;
+        [tffound,f] = sam.seekFrame(lObj,-1);
+        if tffound
+          lObj.setFrameProtected(f);          
+        end
       else
         lObj.frameDown(tfCtrl);
       end
     case 'rightarrow'
       if tfShift
-        lObj.frameUpNextLbled(false,'lpos',lpos);
+        sam = lObj.movieShiftArrowNavMode;
+        [tffound,f] = sam.seekFrame(lObj,1);
+        if tffound
+          lObj.setFrameProtected(f);          
+        end
       else
         lObj.frameUp(tfCtrl);
       end

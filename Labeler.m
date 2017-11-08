@@ -6190,7 +6190,62 @@ classdef Labeler < handle
       end
       tfSetOccurred = obj.frameUpDF(df);
     end
-    
+  end
+  methods (Static) % seek utils
+    function [tffound,f] = seekBigLpos(lpos,f0,df,iTgt)
+      % lpos: [npts x d x nfrm x ntgt]
+      % f0: starting frame
+      % df: frame increment
+      % iTgt: target of interest
+      % 
+      % tffound: logical
+      % f: first frame encountered with (non-nan) label, applicable if
+      %   tffound==true
+      
+      [npts,d,nfrm,ntgt] = size(lpos); %#ok<ASGLU>
+      assert(d==2);
+      
+      f = f0+df;
+      while 0<f && f<=nfrm
+        for ipt = 1:npts
+          %for j = 1:2
+          if ~isnan(lpos(ipt,1,f,iTgt))
+            tffound = true;
+            return;
+          end
+          %end
+        end
+        f = f+df;
+      end
+      tffound = false;
+      f = nan;
+    end
+    function [tffound,f] = seekSmallLpos(lpos,f0,df)
+      % lpos: [npts x nfrm]
+      % f0: starting frame
+      % df: frame increment
+      % 
+      % tffound: logical
+      % f: first frame encountered with (non-nan) label, applicable if
+      %   tffound==true
+      
+      [npts,nfrm] = size(lpos);
+      
+      f = f0+df;
+      while 0<f && f<=nfrm
+        for ipt=1:npts
+          if ~isnan(lpos(ipt,f))
+            tffound = true;
+            return;
+          end
+        end
+        f = f+df;
+      end
+      tffound = false;
+      f = nan;
+    end
+  end
+  methods
     function tfSetOccurred = frameDown(obj,tfBigstep)
       if tfBigstep
         df = obj.movieFrameStepBig;
@@ -6204,48 +6259,33 @@ classdef Labeler < handle
       % call obj.setFrame() on next labeled frame. 
       % 
       % tfback: optional. if true, seek backwards.
-      
-      lpos = myparse(varargin,...
-        'lpos','__UNSET__'); % optional, explicit specification of labeledpos array to use/search
-      
+            
       if ~obj.hasMovie || obj.currMovie==0
         return;
       end
       
-      if exist('tfback','var')==0
-        tfback = false;
-      end
+      lpos = myparse(varargin,...
+        'lpos','__UNSET__'); % optional, provide "big" lpos array to use instead of .labeledposCurrMovie
+      
       if tfback
         df = -1;
       else
         df = 1;
-      end      
-
-      f = obj.currFrame;
-      nf = obj.nframes;
-      npt = obj.nLabelPoints;
-      itgt = obj.currTarget;
-
+      end
+      
       if strcmp(lpos,'__UNSET__')
         lpos = obj.labeledposCurrMovie;
-      elseif isequal(lpos,[])
-        % edge case, equivalent to all-nan lpos
+      elseif isempty(lpos)
+        % edge case
         return;
       else
-        szassert(lpos,[npt 2 nf obj.nTargets]);
-      end      
-      
-      f = f+df;
-      while 0<f && f<=nf
-        for ipt = 1:npt
-        for j = 1:2
-          if ~isnan(lpos(ipt,j,f,itgt))
-            obj.setFrameProtected(f);
-            return;
-          end
-        end
-        end        
-        f = f+df;
+        szassert(lpos,[obj.nLabelPoints 2 obj.nframes obj.nTargets]);
+      end
+        
+      [tffound,f] = Labeler.seekBigLpos(lpos,obj.currFrame,df,...
+        obj.currTarget);
+      if tffound
+        obj.setFrameProtected(f);
       end
     end
     

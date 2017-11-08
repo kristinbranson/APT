@@ -22,6 +22,7 @@ classdef InfoTimeline < handle
     hPts % [npts] line handles
     npts % number of label points in current movie/timeline
     nfrm % number of frames "
+    tldata % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
     
     listeners % [nlistener] col cell array of labeler prop listeners
     listenersTracker % col cell array of tracker listeners
@@ -261,11 +262,13 @@ classdef InfoTimeline < handle
       
       if isnan(obj.npts), return; end
       
-      lpos = obj.getDataCurrMovTgt(); % [nptsxnfrm]
-      lpos(isinf(lpos)) = nan;
-      lposnoninfnan = lpos(~isnan(lpos));
+      dat = obj.getDataCurrMovTgt(); % [nptsxnfrm]
+      dat(isinf(dat)) = nan;
+      datnonnan = dat(~isnan(dat));
+
+      obj.tldata = dat;
       
-      if isempty(lposnoninfnan)
+      if isempty(datnonnan)
         for i=1:obj.npts
           set(obj.hPts(i),'XData',nan,'YData',nan);
         end
@@ -273,10 +276,10 @@ classdef InfoTimeline < handle
         return;
       end
 
-      y1 = min(lposnoninfnan(:));
-      y2 = max(lposnoninfnan(:));
+      y1 = min(datnonnan(:));
+      y2 = max(datnonnan(:));
       dy = max(y2-y1,eps);
-      lposNorm = (lpos-y1)/dy; % Either nan, or in [0,1]
+      lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
       x = 1:size(lposNorm,2);
       for i=1:obj.npts
         set(obj.hPts(i),'XData',x,'YData',lposNorm(i,:));
