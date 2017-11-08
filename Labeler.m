@@ -1134,7 +1134,7 @@ classdef Labeler < handle
         obj.tracker = feval(trkPrefs.Type,obj);
         obj.tracker.init();
 
-        obj.gdata.labelTLInfo.setTracker(obj.tracker);
+        %obj.gdata.labelTLInfo.setTracker(obj.tracker);
       end
 
       props = obj.gdata.propsNeedInit;

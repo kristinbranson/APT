@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 16-Jun-2017 15:12:09
+% Last Modified by GUIDE v2.5 08-Nov-2017 11:28:24
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -1108,7 +1108,8 @@ end
 
 function cbkTrackerChanged(src,evt)
 lObj = evt.AffectedObject;
-tf = ~isempty(lObj.tracker);
+tObj = lObj.tracker;
+tf = ~isempty(tObj);
 onOff = onIff(tf);
 handles = lObj.gdata;
 handles.menu_track.Enable = onOff;
@@ -1116,11 +1117,12 @@ handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
 handles.menu_view_hide_predictions.Enable = onOff;
 if tf
-  lObj.tracker.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions));
-  lObj.tracker.addlistener('trnDataDownSamp','PostSet',@(src1,evt1) cbkTrackerTrnDataDownSampChanged(src1,evt1,handles));
-  lObj.tracker.addlistener('showVizReplicates','PostSet',@(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles));
-  lObj.tracker.addlistener('storeFullTracking','PostSet',@(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
+  tObj.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions));
+  tObj.addlistener('trnDataDownSamp','PostSet',@(src1,evt1) cbkTrackerTrnDataDownSampChanged(src1,evt1,handles));
+  tObj.addlistener('showVizReplicates','PostSet',@(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles));
+  tObj.addlistener('storeFullTracking','PostSet',@(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
 end
+handles.labelTLInfo.setTracker(tObj);
 
 function cbkTrackModeIdxChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1456,9 +1458,9 @@ tb.Value = lblTLObj.selectOn;
 
 function cbklabelTLInfoPropsUpdated(src,evt)
 % Update the props dropdown menu and timeline.
-handles = guidata(src);
-props = handles.labelTLInfo.getPropsDisp();
-set(handles.pumInfo,'String',props);
+labelTLInfo = evt.AffectedObject;
+props = labelTLInfo.getPropsDisp();
+set(labelTLInfo.lObj.gdata.pumInfo,'String',props);
 
 function cbkFreezePrevAxesToMainWindow(src,evt)
 handles = guidata(src);
@@ -2430,9 +2432,9 @@ if hlpSave(handles.labelerObj)
 end
 
 function pumInfo_Callback(hObject, eventdata, handles)
-contents = cellstr(get(hObject,'String'));
-cprop = contents{get(hObject,'Value')};
+cprop = get(hObject,'Value');
 handles.labelTLInfo.setCurProp(cprop);
+hlpRemoveFocus(hObject,handles);
 
 function pumInfo_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))

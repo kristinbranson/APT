@@ -102,7 +102,12 @@ classdef CPRLabelTracker < LabelTracker
   end
   properties (SetObservable)
     storeFullTracking = false; % scalar logical.
-  end  
+  end
+  
+  events
+    % Thrown when trkP/trkPMD are mutated (basically)
+    newTrackingResults 
+  end
   
   %% Async
   properties
@@ -657,6 +662,7 @@ classdef CPRLabelTracker < LabelTracker
       
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
+      notify(obj,'newTrackingResults');
     end
     
     function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj) % obj const
@@ -1606,6 +1612,7 @@ classdef CPRLabelTracker < LabelTracker
       if ~isempty(obj.lObj)
         obj.vizLoadXYPrdCurrMovieTarget();
         obj.newLabelerFrame();
+        notify(obj,'newTrackingResults');
       end
     end
       
@@ -1798,6 +1805,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
       % Don't asyncReset() here
+      notify(obj,'newTrackingResults');
     end
     
     %#%MTGT
@@ -2174,6 +2182,30 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
+    function props = propList(obj)
+      % Return a list of properties that could be shown in the
+      % infotimeline
+      props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
+    end
+    
+    function data = getPropValues(obj,pcode)
+      % Return the values of a particular property for
+      % infotimeline
+      
+      labeler = obj.lObj;
+      npts = labeler.nLabelPoints;
+      nfrms = labeler.nframes;
+      ntgts = labeler.nTargets;
+      iTgt = labeler.currTarget;
+      tpos = obj.xyPrdCurrMovie; % "trked pos" ala lpos
+      if isempty(tpos)
+        % edge case uninitted (not sure why)
+        tpos = nan(npts,2,nfrms,ntgts);
+      end
+      tpostag = cell(npts,nfrms,ntgts);
+      data = InfoTimeline.getDataFromLpos(tpos,tpostag,pcode,iTgt);
+    end
+       
   end
     
   %% Save, Load, Init etc
@@ -2418,6 +2450,7 @@ classdef CPRLabelTracker < LabelTracker
             obj.updateTrackRes(res.trkPMDnew,res.pTstTRed,res.pTstT);
             obj.vizLoadXYPrdCurrMovieTarget();
             obj.newLabelerFrame();
+            notify(obj,'newTrackingResults');
           case BGWorker.STATACTION
             computeTimes = res;
             CPRLabelTracker.asyncComputeStatsStc(computeTimes);

@@ -1,5 +1,9 @@
 classdef InfoTimeline < handle
 
+  properties (Constant)
+    TLPROPS = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|' 'occluded'};
+  end
+  
 %   % AL: Not using transparency for now due to perf issues on Linux
 %   properties (Constant)
 %     SELECTALPHA = 0.5;
@@ -20,12 +24,13 @@ classdef InfoTimeline < handle
     nfrm % number of frames "
     
     listeners % [nlistener] col cell array of labeler prop listeners
+    listenersTracker % col cell array of tracker listeners
 
     tracker % scalar LabelTracker obj
   end
   properties (SetObservable)
     props % [npropx3]. Col 1: pretty/display name. Col 2: Type, eg 'Labels', 'Labels2' or 'Tracks'. Col3: non-pretty name/id
-    curprop % str
+    curprop % row index into props
   end
   properties
     jumpThreshold
@@ -108,19 +113,20 @@ classdef InfoTimeline < handle
         'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated);      
 %       listeners{end+1,1} = addlistener(labeler,...
 %         'labelMode','PostSet',@obj.cbkLabelMode);      
-      obj.listeners = listeners;
+      obj.listeners = listeners;      
+      obj.listenersTracker = cell(0,1);
       
       obj.tracker = [];
-      
-      obj.props = {};
-      props1(:,1) = {'x','y','dx','dy','|dx|','|dy|','occluded'};
-      props1(:,2) = {'Labels'};
-      props1(:,3) = {'x','y','dx','dy','|dx|','|dy|','occluded'};
-      props2(:,1) = {'x (pred)','y (pred)','dx (pred)','dy (pred)','|dx| (pred)','|dy| (pred)'};
+    
+      props = InfoTimeline.TLPROPS(:);
+      props(:,2) = {'Labels'};
+      props(:,3) = props(:,1);
+      props2 = props;      
+      props2(:,1) = cellfun(@(x)sprintf('%s (imported)',x),props2(:,1),'uni',0);
       props2(:,2) = {'Labels2'};
-      props2(:,3) = {'x','y','dx','dy','|dx|','|dy|'};
-      obj.props = [props1;props2];
-      obj.curprop = obj.props{1,1};
+      props = [props;props2];
+      obj.props = props;    
+      obj.curprop = 1;
       
       obj.jumpThreshold = nan;
       obj.jumpCondition = nan;
@@ -164,6 +170,8 @@ classdef InfoTimeline < handle
       obj.hPts = [];
       cellfun(@delete,obj.listeners);
       obj.listeners = [];
+      cellfun(@delete,obj.listenersTracker);
+      obj.listenersTracker = [];
       deleteValidHandles(obj.hSelIm);
       obj.hSelIm = [];
       deleteValidHandles(obj.hSegLineGT);
@@ -176,7 +184,7 @@ classdef InfoTimeline < handle
   
   methods
     
-    function initNewProject(obj)      
+    function initNewProject(obj)
       obj.npts = obj.lObj.nLabelPoints;
 
       deleteValidHandles(obj.hPts);
@@ -217,14 +225,34 @@ classdef InfoTimeline < handle
       
       cbkGTSuggUpdated(obj,[],[]);
     end
-    
+        
     function setTracker(obj,tracker)
       obj.tracker = tracker;
-      newprops = tracker.propList();
-      for ndx = 1:numel(newprops)
-        obj.props(end+1,1) = newprops{count};
-        obj.props(end,2) = 'Tracks';
-        obj.props(end,3) = newprops{count};
+      
+      % Break down existing props; eliminate existing tracker-props. We
+      % also prefer tracker-props to come before labels2 props.
+      pmat = obj.props;
+      src = pmat(:,2);
+      tfLabels = strcmp(src,'Labels');
+      tfTracks = strcmp(src,'Tracks'); % will be deleted
+      tfLabels2 = strcmp(src,'Labels2');
+      assert(all(tfLabels+tfTracks+tfLabels2==1));
+
+      cellfun(@delete,obj.listenersTracker);
+      obj.listenersTracker = cell(0,1);      
+      if isempty(tracker)
+        obj.props = [pmat(tfLabels,:); pmat(tfLabels2,:)];
+      else
+        propList = tracker.propList();
+        pmatnew = arrayfun(...
+          @(x){sprintf('%s (tracked)',propList{x}) 'Tracks' propList{x}},...
+          (1:numel(propList))','uni',0);
+        pmatnew = cat(1,pmatnew{:});
+        obj.props = [pmat(tfLabels,:); pmatnew; pmat(tfLabels2,:)];
+        
+        cellfun(@delete,obj.listenersTracker);
+        obj.listenersTracker{end+1,1} = addlistener(tracker,...
+          'newTrackingResults',@obj.cbkLabelUpdated);
       end
     end
     
@@ -388,16 +416,12 @@ classdef InfoTimeline < handle
     function props = getPropsDisp(obj)
       props = obj.props(:,1);
     end
-    function props = getCurProp(obj)
-      props = obj.curprop;
-    end
-    function setCurProp(obj,newprop)
-      obj.curprop = newprop;
+    function setCurProp(obj,iprop)
+      obj.curprop = iprop;
       obj.setLabelsFull();
     end    
   end
-  
-  
+    
   %% Private methods
   methods (Access=private) % callbacks
     function cbkBDF(obj,src,evt) %#ok<INUSL>
@@ -522,6 +546,46 @@ classdef InfoTimeline < handle
     end
   end
 
+  methods (Static) % util
+    function dmat = getDataFromLpos(lpos,lpostag,pcode,iTgt)
+      % lpos: [npts x 2 x nfrm x ntgt] label array as in
+      %   lObj.labeledpos{iMov}
+      % lpostag: [npts x nfrm x ntgt] cell as in lObj.labeledpostag{iMov}
+      % pcode: name/id of data to extract
+      % iTgt: current target
+      %
+      % dmat: [npts x nfrm] data matrix for pcode, extracted from lpos
+      
+      switch pcode
+        case 'x'
+          dmat = squeeze(lpos(:,1,:,iTgt));
+        case 'y'
+          dmat = squeeze(lpos(:,2,:,iTgt));
+        case 'dx'
+          dmat = squeeze(lpos(:,1,:,iTgt));
+          dmat = diff(dmat,1,2);
+          dmat(:,end+1) = nan;
+        case 'dy'
+          dmat = squeeze(lpos(:,2,:,iTgt));
+          dmat = diff(dmat,1,2);
+          dmat(:,end+1) = nan;
+        case '|dx|'
+          dmat = squeeze(lpos(:,1,:,iTgt));
+          dmat = abs(diff(dmat,1,2));
+          dmat(:,end+1) = nan;
+        case '|dy|'
+          dmat = squeeze(lpos(:,2,:,iTgt));
+          dmat = abs(diff(dmat,1,2));
+          dmat(:,end+1) = nan;
+        case 'occluded'
+          dmat = double(strcmp(lpostag(:,:,iTgt),'occ'));
+        otherwise
+          warningNoTrace('Unknown property to display in timeline.');
+          dmat = nan(size(lpos,1),size(lpos,3));
+      end
+    end
+  end
+  
   methods (Access=private)
     function setLabelerSelectedFrames(obj)
       % For the moment Labeler owns the property-of-record on what frames
@@ -530,63 +594,38 @@ classdef InfoTimeline < handle
       obj.lObj.setSelectedFrames(selFrames);
     end
 
-    function lpos = getDataCurrMovTgt(obj)
+    function data = getDataCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
       
-      pndx = find(strcmp(obj.props(:,1),obj.curprop));
+      pndx = obj.curprop;
       ptype = obj.props{pndx,2};
       pcode = obj.props{pndx,3};
-      switch ptype
-        case {'Labels' 'Labels2'}
-          labeler = obj.lObj;
-          iMov = labeler.currMovie;
-          iTgt = labeler.currTarget;
-          if iMov>0
-            if strcmp(ptype,'Labels')
-              lObjlpos = labeler.labeledposGTaware{iMov};
+      labeler = obj.lObj;
+      iMov = labeler.currMovie;
+      iTgt = labeler.currTarget;
+      
+      if iMov==0
+        data = nan(obj.npts,1);
+      else
+        switch ptype
+          case 'Labels'
+            lpos = labeler.labeledposGTaware{iMov};
+            lpostag = labeler.labeledpostagGTaware{iMov};            
+            data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
+          case 'Labels2'            
+            if labeler.gtIsGTMode
+              warningNoTrace('InfoTimeline:gt',...
+                '''Labels2'' unavailable in GT mode.');
+              data = nan(obj.npts,labeler.nframes);
             else
-              if labeler.gtIsGTMode
-                warningNoTrace('InfoTimeline:gt',...
-                  '''Labels2'' unavailable in GT mode.');
-                lObjlpos = nan(obj.npts,2,labeler.nframes,labeler.ntargets);
-              else
-                lObjlpos = labeler.labeledpos2{iMov};
-              end
+              lpos = labeler.labeledpos2{iMov};
+              lpostag = cell(obj.npts,labeler.nframes,labeler.nTargets);
+              data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
             end
-            switch pcode
-              case 'x'
-                lpos = squeeze(lObjlpos(:,1,:,iTgt));
-              case 'y'
-                lpos = squeeze(lObjlpos(:,2,:,iTgt));
-              case 'dx'
-                lpos = squeeze(lObjlpos(:,1,:,iTgt));
-                lpos = diff(lpos,1,2);
-                lpos(:,end+1) = nan;
-              case 'dy'
-                lpos = squeeze(lObjlpos(:,2,:,iTgt));
-                lpos = diff(lpos,1,2);
-                lpos(:,end+1) = nan;
-              case '|dx|'
-                lpos = squeeze(lObjlpos(:,1,:,iTgt));
-                lpos = abs(diff(lpos,1,2));
-                lpos(:,end+1) = nan;
-              case '|dy|'
-                lpos = squeeze(lObjlpos(:,2,:,iTgt));
-                lpos = abs(diff(lpos,1,2));
-                lpos(:,end+1) = nan;
-              case 'occluded'
-                curd = labeler.labeledpostagGTaware{iMov}(:,:,iTgt);
-                lpos =  double(strcmp(curd,'occ'));
-              otherwise
-                warndlg('Unknown property to display');
-                lpos = nan(obj.npts,1);
-            end
-          else
-            lpos = nan(obj.npts,1);
-          end   
-        case 'Tracks'
-          lpos = obj.tracker.getPropValues(pcode);
-          szassert(lpos,[obj.npts 1]);
+          case 'Tracks'
+            data = obj.tracker.getPropValues(pcode);
+        end
+        szassert(data,[obj.npts obj.nfrm]);
       end
     end
     
