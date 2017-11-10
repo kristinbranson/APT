@@ -160,7 +160,8 @@ classdef LabelCoreHT < LabelCore
       % marker as-is; if last frame was tag-occluded, leave
       % tag-occluded marker
       lpostag = obj.labeler.labeledpostagCurrMovie;
-      tfOccTag = lpostag(:,iFrm1,iTgt);
+      lpostag = lpostag(:,iFrm1,iTgt);      
+      tfOccTag = strcmp(lpostag,LabelCore.LPOSTAG_OCC);
       % tfLbledOrOcc defined above
       
       mrkr = obj.ptsPlotInfo.Marker;
@@ -208,12 +209,12 @@ classdef LabelCoreHT < LabelCore
             set(obj.hPts(iPt),...
               'Color',obj.ptsPlotInfo.Colors(iPt,:),...
               'Marker',obj.ptsPlotInfo.Marker);
-            obj.labeler.labelPosTagClearI(iPt);
+            obj.labeler.labelPosTagClearI(iPt); % currently only tag is 'occ'
           elseif evt.Button==3
             set(obj.hPts(iPt),...
               'Color',obj.ptsPlotInfo.Colors(iPt,:),...
               'Marker',obj.ptsPlotInfo.OccludedMarker);
-            obj.labeler.labelPosTagSetI(iPt);
+            obj.labeler.labelPosTagSetI(LabelCore.LPOSTAG_OCC,iPt);
           end
 
           obj.labeler.labelPosSetI(pos,iPt);
@@ -254,6 +255,7 @@ classdef LabelCoreHT < LabelCore
       tfOcc = obj.labeler.labelPosIsOccluded();
       assert(isequal(tfOcc,obj.tfOcc));
       
+      % at the moment the only tag is the Occ tag
       obj.labeler.labelPosTagClearI(iPt); 
             
       obj.clickedIncrementFrame();
@@ -312,7 +314,7 @@ classdef LabelCoreHT < LabelCore
         case obj.ptsPlotInfo.Marker
           lObj.labelPosTagClearI(iPt);
         case obj.ptsPlotInfo.OccludedMarker
-          lObj.labelPosTagSetI(iPt);
+          lObj.labelPosTagSetI(LabelCore.LPOSTAG_OCC,iPt);
         otherwise
           assert(false);          
       end
@@ -353,7 +355,7 @@ classdef LabelCoreHT < LabelCore
         case obj.ptsPlotInfo.Marker
           lObj.labelPosTagClearFramesI(iPt,frms);
         case obj.ptsPlotInfo.OccludedMarker
-          lObj.labelPosTagSetFramesI(iPt,frms);
+          lObj.labelPosTagSetFramesI(LabelCore.LPOSTAG_OCC,iPt,frms);
         otherwise
           assert(false);
       end

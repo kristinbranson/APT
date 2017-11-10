@@ -7,7 +7,7 @@ classdef TrkFile < handle
   properties
     pTrk = TrkFile.unsetVal;     % [npttrked x 2 x nfrm x ntgt], like labeledpos
     pTrkTS = TrkFile.unsetVal;   % [npttrked x nfrm x ntgt], liked labeledposTS
-    pTrkTag = TrkFile.unsetVal;  % [npttrked x nfrm x ntgt] logical, like labeledposTag
+    pTrkTag = TrkFile.unsetVal;  % [npttrked x nfrm x ntgt] cell, like labeledposTag
     pTrkiPt = TrkFile.unsetVal;  % [npttrked]. point indices labeling rows of .pTrk*. If 
                                  %  npttrked=labeled.nLabelPoints, then .pTrkiPt=1:npttrked.
     pTrkFrm = TrkFile.unsetVal;  % [nfrm]. frames tracked
@@ -50,10 +50,9 @@ classdef TrkFile < handle
       validateattributes(obj.pTrkTS,{'numeric'},{'size' [npttrk nfrm ntgt]},'','pTrkTS');
       
       if isequal(obj.pTrkTag,TrkFile.unsetVal)
-        obj.pTrkTag = false(npttrk,nfrm,ntgt);
+        obj.pTrkTag = cell(npttrk,nfrm,ntgt);
       end
-      validateattributes(obj.pTrkTag,{'logical'},...
-        {'size' [npttrk nfrm ntgt]},'','pTrkTag');
+      validateattributes(obj.pTrkTag,{'cell'},{'size' [npttrk nfrm ntgt]},'','pTrkTag');
       
       if isequal(obj.pTrkiPt,TrkFile.unsetVal)
         obj.pTrkiPt = 1:npttrk;
@@ -96,18 +95,7 @@ classdef TrkFile < handle
       s = struct(obj);
       warning(warnst);
       s = rmfield(s,'unsetVal'); %#ok<NASGU>      
-      save(filename,'-mat','-struct','s');
-    end
-            
-  end
-  
-  methods (Static)
-    
-    function s = modernizeStruct(s)
-      % s: struct loaded from trkfile saved to matfile
-      if iscell(s.pTrkTag)
-        s.pTrkTag = strcmp(s.pTrkTag,'occ');
-      end
+      save(filename,'-mat','-struct','s');      
     end
     
   end
