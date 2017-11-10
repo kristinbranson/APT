@@ -23,6 +23,16 @@ classdef Labeler < handle
       'trackModeIdx' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
       'xvResults' 'xvResultsTS'};
+    SAVEPROPS_LPOS = {...
+      'labeledpos' 'nan'
+      'labeledpos2' 'nan'
+      'labeledposGT' 'nan'
+      'labeledposTS' 'ts'
+      'labeledposTSGT' 'ts'
+      'labeledpostag' 'log'
+      'labeledposMarked' 'log'
+      'labeledpostagGT' 'log'};
+    
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};
     
@@ -1193,12 +1203,34 @@ classdef Labeler < handle
       end
     end
     
-    function s = projGetSaveStruct(obj)
+    function s = projGetSaveStruct(obj,varargin)
+      sparsify = myparse(varargin,...
+        'sparsify',true);
+      
       s = struct();
       s.cfg = obj.getCurrentConfig();
       
-      for f = obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
-        s.(f) = obj.(f);
+      if sparsify
+        lposProps = obj.SAVEPROPS_LPOS(:,1);
+        lposPropsType = obj.SAVEPROPS_LPOS(:,2);
+        
+        for f=obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
+          iLpos = find(strcmp(f,lposProps));
+          if isempty(iLpos)
+            s.(f) = obj.(f);
+          else
+            lpostype = lposPropsType{iLpos};
+            xarrFull = obj.(f);
+            assert(iscell(xarrFull));
+            xarrSprs = cellfun(@(x)SparseLabelArray.create(x,lpostype),...
+              xarrFull,'uni',0);
+            s.(f) = xarrSprs;
+          end
+        end
+      else
+        for f=obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
+          s.(f) = obj.(f);
+        end
       end
       
       switch obj.labelMode
@@ -1277,9 +1309,23 @@ classdef Labeler < handle
 
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
                                               Labeler.SAVEBUTNOTLOADPROPS));
-      for f = LOADPROPS(:)',f=f{1}; %#ok<FXSET>
-        if isfield(s,f)
-          obj.(f) = s.(f);          
+      lposProps = obj.SAVEPROPS_LPOS(:,1);
+      for f=LOADPROPS(:)',f=f{1}; %#ok<FXSET>
+        if isfield(s,f)          
+          if ~any(strcmp(f,lposProps));
+            obj.(f) = s.(f);
+          else
+            val = s.(f);
+            assert(iscell(val));
+            for iMov=1:numel(val)
+              x = val{iMov};
+              if isstruct(x)
+                xfull = SparseLabelArray.full(x);
+                val{iMov} = xfull;
+              end
+            end
+            obj.(f) = val;
+          end
         else
           warningNoTrace('Labeler:load','Missing load field ''%s''.',f);
           %obj.(f) = [];
@@ -1806,6 +1852,17 @@ classdef Labeler < handle
       if ~isfield(s,'xvResults')
         s.xvResults = [];
         s.xvResultsTS = [];
+      end
+      
+      % 20171110
+      for f={'labeledpostag' 'labeledpostagGT'},f=f{1}; %#ok<FXSET>
+        val = s.(f);
+        for i=1:numel(val)
+          if iscell(val{i})
+            val{i} = strcmp(val{i},'occ');
+          end
+        end
+        s.(f) = val;
       end
     end  
     
