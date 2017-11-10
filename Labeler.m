@@ -267,7 +267,7 @@ classdef Labeler < handle
     % ordered as {pt1vw1,pt2vw1,...ptNvw1,pt1vw2,...ptNvwK}
     labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched. init: PN
     labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random. init: PN
-    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) cell array. init: PN
+    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) logical indicating *occludedness*. ("tag" for legacy reasons) init: PN
     
     labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc). init: PN
     labels2Hide;      % scalar logical
@@ -1917,7 +1917,7 @@ classdef Labeler < handle
         obj.(PROPS.TFA){end+1,1} = tFile;
         obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
-        obj.(PROPS.LPOSTAG){end+1,1} = cell(nlblpts,nfrms,nTgt);
+        obj.(PROPS.LPOSTAG){end+1,1} = false(nlblpts,nfrms,nTgt);
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
           obj.(PROPS.VCD){end+1,1} = [];
         end
@@ -2068,7 +2068,7 @@ classdef Labeler < handle
       obj.(PROPS.TFA)(end+1,:) = repmat({''},1,obj.nview);
       obj.(PROPS.LPOS){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
       obj.(PROPS.LPOSTS){end+1,1} = -inf(nLblPts,nFrms,nTgt);
-      obj.(PROPS.LPOSTAG){end+1,1} = cell(nLblPts,nFrms,nTgt);
+      obj.(PROPS.LPOSTAG){end+1,1} = false(nLblPts,nFrms,nTgt);
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
         obj.(PROPS.VCD){end+1,1} = [];
       end
@@ -3213,9 +3213,9 @@ classdef Labeler < handle
       end
       
       obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = now();
-      obj.(PROPS.LPOSTAG){iMov}(:,iFrm,iTgt) = {[]};
+      obj.(PROPS.LPOSTAG){iMov}(:,iFrm,iTgt) = false;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
       end
     end
     
@@ -3236,9 +3236,9 @@ classdef Labeler < handle
       end
       
       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
-      obj.(PROPS.LPOSTAG){iMov}{iPt,iFrm,iTgt} = [];
+      obj.(PROPS.LPOSTAG){iMov}(iPt,iFrm,iTgt) = false;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
       end
     end
     
@@ -3247,7 +3247,7 @@ classdef Labeler < handle
       %
       % tf: scalar logical
       % lpos: [nptsx2] xy coords for iFrm/iTrx
-      % lpostag: [npts] cell array of tags 
+      % lpostag: [npts] logical array 
       
       iMov = obj.currMovie;
       PROPS = obj.gtGetSharedProps();
@@ -3479,10 +3479,9 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
         
-    function labelPosTagSetI(obj,tag,iPt)
+    function labelPosTagSetI(obj,iPt)
       % Set a single tag onto points
       %
-      % tag: char. 
       % iPt: can be vector
       %
       % The same tag value will be set to all elements of iPt.      
@@ -3492,7 +3491,7 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
-      [obj.(PROPS.LPOSTAG){iMov}{iPt,iFrm,iTgt}] = deal(tag); 
+      obj.(PROPS.LPOSTAG){iMov}(iPt,iFrm,iTgt) = true;
     end
     
     function labelPosTagClearI(obj,iPt)
@@ -3501,19 +3500,23 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
-      PROPS = obj.gtGetSharedProps();
-      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
-      [obj.(PROPS.LPOSTAG){iMov}{iPt,iFrm,iTgt}] = deal([]);
+      if obj.gtIsGTMode
+        obj.labeledposTSGT{iMov}(iPt,iFrm,iTgt) = now();
+        obj.labeledpostagGT{iMov}(iPt,iFrm,iTgt) = false;
+      else
+        obj.labeledposTS{iMov}(iPt,iFrm,iTgt) = now();
+        obj.labeledpostag{iMov}(iPt,iFrm,iTgt) = false;
+      end
     end
     
-    function labelPosTagSetFramesI(obj,tag,iPt,frms)
-      % Set tags for current movie/target, given pt/frames
+    function labelPosTagSetFramesI(obj,iPt,frms)
+      % Set tag for current movie/target, given pt/frames
 
       obj.trxCheckFramesLiveErr(frms);
       iMov = obj.currMovie;
       iTgt = obj.currTarget;
       PROPS = obj.gtGetSharedProps();
-      obj.(PROPS.LPOSTAG){iMov}(iPt,frms,iTgt) = {tag};
+      obj.(PROPS.LPOSTAG){iMov}(iPt,frms,iTgt) = true;
     end
     
     function labelPosTagClearFramesI(obj,iPt,frms)
@@ -3522,7 +3525,7 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       iTgt = obj.currTarget;
       PROPS = obj.gtGetSharedProps();
-      obj.(PROPS.LPOSTAG){iMov}(iPt,frms,iTgt) = {[]};
+      obj.(PROPS.LPOSTAG){iMov}(iPt,frms,iTgt) = false;
     end
     
     function [tfneighbor,iFrm0,lpos0] = ...
@@ -3871,7 +3874,7 @@ classdef Labeler < handle
         iMov = iMovSets(i);
         lpos = nan(size(obj.labeledpos{iMov}));
         lposTS = -inf(size(obj.labeledposTS{iMov}));
-        lpostag = cell(size(obj.labeledpostag{iMov}));
+        lpostag = false(size(obj.labeledpostag{iMov}));
         assert(size(lpos,1)==nPhysPts*nView);
         
         if tfMV
@@ -3880,6 +3883,7 @@ classdef Labeler < handle
         for iVw = 1:nView
           tfile = trkfiles{i,iVw};
           s = load(tfile,'-mat');
+          s = TrkFile.modernizeStruct(s);
           
           if isfield(s,'pTrkiPt')
             iPt = s.pTrkiPt;
@@ -4183,7 +4187,7 @@ classdef Labeler < handle
       mov = iMov;
       p = Shape.xy2vec(lposFrmTgt); % absolute position
       pTS = lposTSFrmTgt';
-      tfocc = strcmp(lpostagFrmTgt','occ');
+      tfocc = lpostagFrmTgt';
       if obj.hasTrx
         assert(~obj.isMultiView,'Unsupported for multiview.');
         assert(obj.frm2trx(frm,iTgt));
@@ -4389,7 +4393,7 @@ classdef Labeler < handle
         lposTSIFrmTgt = lposTSI(:,frm,iTgt);
         s(end+1,1).p = Shape.xy2vec(lposIFrmTgt); %#ok<AGROW>
         s(end).pTS = lposTSIFrmTgt';
-        s(end).tfocc = strcmp(lpostagIFrmTgt','occ');
+        s(end).tfocc = lpostagIFrmTgt';
 
         if tfTrx
           xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
@@ -6572,7 +6576,7 @@ classdef Labeler < handle
       txtOffset = obj.labelPointsPlotInfo.LblOffset;
       LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
         obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts),txtOffset);
-      if ~all(cellfun(@isempty,lpostag(ipts)))
+      if any(lpostag(ipts))
         if isempty(tfWarningThrownAlready)
           warningNoTrace('Labeler:labelsPrev',...
             'Label tags in previous frame not visualized.');

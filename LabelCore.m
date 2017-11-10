@@ -19,8 +19,6 @@ classdef LabelCore < handle
     DT2P = 5;
     DXFAC = 500;
     DXFACBIG = 50;
-    
-    LPOSTAG_OCC = 'occ';
   end
   
   properties (Abstract)
@@ -315,8 +313,7 @@ classdef LabelCore < handle
       %   Defaults to obj.hPts.
       % - hPtsTxt: vector of handles for text labels, etc. Defaults to
       % obj.hPtsTxt.
-      % - lblTags: [nptsx1] cell array of tags. Currently, only tag is 
-      % LabelCore.LPOSTAG_OCC. If supplied, obj.tfEstOcc and 
+      % - lblTags: [nptsx1] logical array. If supplied, obj.tfEstOcc and 
       % obj.hPts.Marker are updated.
 
       [tfClip,hPoints,hPointsTxt,lblTags] = myparse(varargin,...
@@ -328,7 +325,7 @@ classdef LabelCore < handle
       assert(isequal(obj.nPts,numel(hPoints),numel(hPointsTxt),size(xy,1)));
       tfLblTags = ~isempty(lblTags);
       if tfLblTags
-        validateattributes(lblTags,{'cell'},{'vector' 'numel' obj.nPts});
+        validateattributes(lblTags,{'logical'},{'vector' 'numel' obj.nPts});
       end        
       
       if tfClip        
@@ -365,7 +362,7 @@ classdef LabelCore < handle
       
       % Tags
       if tfLblTags
-        tfEO = strcmp(lblTags,LabelCore.LPOSTAG_OCC);
+        tfEO = lblTags;
         if any(tfOccld & tfEO)
           warning('LabelCore:occ',...
             'Points labeled as both fully and estimated-occluded.');
@@ -469,8 +466,7 @@ classdef LabelCore < handle
 
       iPtEO = find(tfEO);
       iPtNO = find(~tfEO);
-      tag = obj.LPOSTAG_OCC;
-      lObj.labelPosTagSetI(tag,iPtEO); %#ok<FNDSB>
+      lObj.labelPosTagSetI(iPtEO); %#ok<FNDSB>
       lObj.labelPosTagClearI(iPtNO); %#ok<FNDSB>
     end
     
