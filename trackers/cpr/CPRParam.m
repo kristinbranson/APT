@@ -30,7 +30,8 @@ classdef CPRParam
   
   methods (Static)
     
-    function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = new2old(sNew,nphyspts,nviews)
+    function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
+        new2old(sNew,nphyspts,nviews)
       % Convert new-style parameters to old-style parameters. Defaults are
       % used for old fields when appropriate. Some old-style fields that 
       % are currently unnecessary are omitted.
@@ -48,13 +49,13 @@ classdef CPRParam
       sOld.Model.nviews = nviews;
       
       he = sNew.ROOT.Track.HistEq;
-      tc = sNew.ROOT.Track.TargetCrop;
       trkNFrmsSm = sNew.ROOT.Track.NFramesSmall;
       trkNFrmsLg = sNew.ROOT.Track.NFramesLarge;
       trkNFrmsNear = sNew.ROOT.Track.NFramesNeighborhood;
       sOld.PreProc.histeq = he.Use;
       sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
-      sOld.PreProc.TargetCrop = tc;
+      sOld.PreProc.TargetCrop = sNew.ROOT.Track.MultiTarget.TargetCrop;
+      sOld.PreProc.NeighborMask = sNew.ROOT.Track.MultiTarget.NeighborMask;
       sOld.PreProc.channelsFcn = [];
       
       cpr = sNew.ROOT.CPR;
@@ -132,7 +133,8 @@ classdef CPRParam
       sNew.ROOT.Track.Type = 'cpr';
       sNew.ROOT.Track.HistEq.Use = sOld.PreProc.histeq;
       sNew.ROOT.Track.HistEq.NSampleH0 = sOld.PreProc.histeqH0NumFrames;
-      sNew.ROOT.Track.TargetCrop = sOld.PreProc.TargetCrop;
+      sNew.ROOT.Track.MultiTarget.TargetCrop = sOld.PreProc.TargetCrop;
+      sNew.ROOT.Track.MultiTarget.NeighborMask = sOld.PreProc.NeighborMask;
       sNew.ROOT.Track.ChunkSize = sOld.TestInit.movChunkSize;
       sNew.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
       sNew.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;

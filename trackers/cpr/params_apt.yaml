@@ -16,10 +16,18 @@ ROOT:
       - ['Histogram Equalization','',false,Histogram Equalization,'']
       - Use: ['Enable',boolean,true,Enable histogram equalization as preprocessing step,false]
       - NSampleH0: ['Num frames sample',unsigned,true,Number of frames to sample to estimate type image histogram,500]
-    - TargetCrop:
-      - ['Multiple Targets','',false,"When multple targets are present, image patches are cropped from movies based on trajectory data.",'']
-      - Radius: ['Target crop radius',unsigned,true,Crop a square with this radius (in pixels) about each target for training/tracking,30]
-      - PadBkgd: ['Pad background',unsigned,true,Pad ROIs with this background value (grayscale) if necessary,0]
+    - MultiTarget:
+      - ['Multiple Targets','',false,"When multiple targets are present, image patches are cropped from movies based on trajectory data.",'']
+      - TargetCrop:
+        - ['Target ROI','',false,'Training/tracking is done with ROIs centered at each target','']
+        - Radius: ['Radius',unsigned,true,Crop a square with this radius (in pixels) about each target for training/tracking,30]
+        - PadBkgd: ['Pad background',unsigned,true,Pad ROIs with this background value (grayscale) if necessary,0]
+      - NeighborMask:
+        - ['Mask Neighbors','',false,"When targets come in close proximity to each other, non-touching neighbors can be masked.",'']
+        - Use: ['Enable',boolean,true,"Mask other, non-touching targets",false]
+        - BGType: ['Background Type',['light on dark','dark on light','other'],true,Background type,'dark on light']
+        - BGReadFcn: ['Background Read Function',string,true,"Function that reads background XXX FOO",'']
+        - FGThresh: ['Foreground Threshold',float,true,'Background-subtracted pixels above this threshold are considered foreground subject to masking',4]
     - NFramesSmall: ['Decimation Small',unsigned,true,Small frame increment when tracking every Nth frame,5]
     - NFramesLarge: ['Decimation Large',unsigned,true,Large frame increment when tracking every Nth frame,10]
     - NFramesNeighborhood: ['Neighborhood Radius',unsigned,true,Radius of neighborhood when tracking near current frame,50]

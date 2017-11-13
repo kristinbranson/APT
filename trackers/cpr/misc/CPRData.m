@@ -311,7 +311,7 @@ classdef CPRData < handle
           'roiPadVal',0,... % used when tblMF has .roi
           'maskNeighbors',0,...
           ...   % BEGIN USED when maskNeighbors==true;
-          'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile) 
+          'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile,movInfo) 
                          ... % reads/generates bg image for given movie
           'bgType','other',... % one of {'light on dark','dark on light','other'}
           'fgThresh',nan,...
@@ -340,7 +340,7 @@ classdef CPRData < handle
         mr.open(mov);
         s = struct('movieReader',mr);
         if maskNeighbors
-          [s.bg,s.bgdev] = bgReadFcn(mov);
+          [s.bg,s.bgdev] = bgReadFcn(mov,mr.info);
         end
         movMap(mov) = s;
       end
@@ -379,6 +379,8 @@ classdef CPRData < handle
           % (imroi,roiXlo,roiXhi,roiYlo,roiYhi,roinr) set
             
           if maskNeighbors
+            imroi = double(imroi);
+            
             %%% Get bg, bgdev
             bgim = movInfo.bg;
             bgdev = movInfo.bgdev;
@@ -418,8 +420,8 @@ classdef CPRData < handle
                 yI = trxI.y(idxI);
                 if roiXlo<=xI && xI<=roiXhi && roiYlo<=yI && yI<=roiYhi
                   tfTgtOverlap(iTgt) = true;
-                  xIroi = xI-roiXlo+1;
-                  yIroi = yI-roiYlo+1;
+                  xIroi = round(xI)-roiXlo+1;
+                  yIroi = round(yI)-roiYlo+1;
                   tgtOverlapRoiIdx(iTgt) = yIroi + (xIroi-1)*roinr;
                 end
               end
@@ -444,10 +446,10 @@ classdef CPRData < handle
               cc = bwconncomp(bwfgroi);
               trxThis = trx(trow.iTgt);
               idxThis = f+trxThis.off;
-              xThis = trxThis.x(idxThis);
-              yThis = trxThis.y(idxThis);
-              xThisRoi = xThis-roiXlo+1;
-              yThisRoi = yThis-roiYlo+1;
+              xThisRnd = round(trxThis.x(idxThis));
+              yThisRnd = round(trxThis.y(idxThis));
+              xThisRoi = xThisRnd-roiXlo+1;
+              yThisRoi = yThisRnd-roiYlo+1;
               idxRoiThis = yThisRoi + (xThisRoi-1)*roinr;
               
               for iCC=1:cc.NumObjects

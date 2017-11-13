@@ -6818,17 +6818,23 @@ classdef Labeler < handle
       
       assert(isa(tbl,'table'));
 
-      nNew = height(tbl);
+      n = height(tbl);
       tblConcrete = tbl;
       mIdx = tblConcrete.mov;
       assert(isa(mIdx,'MovieIndex'));
       [iMovAbs,tfGTRow] = mIdx.get();
       tfRegRow = ~tfGTRow;
       assert(~any(iMovAbs==0));
-      movStr = cell(nNew,obj.nview);
+      movStr = cell(n,obj.nview);
       movStr(tfRegRow,:) = obj.movieFilesAllFull(iMovAbs(tfRegRow),:); % [NxnView] 
       movStr(tfGTRow,:) = obj.movieFilesAllGTFull(iMovAbs(tfGTRow),:);
       tblConcrete.mov = movStr;
+
+      if obj.hasTrx && obj.nview==1
+        trxFile = repmat({''},n,1);
+        trxFile(tfRegRow) = obj.trxFilesAllFull(iMovAbs(tfRegRow),:);
+        tblConcrete = [tblConcrete table(trxFile)];
+      end
     end
     
     function genericInitLabelPointViz(obj,hProp,hTxtProp,ax,plotIfo)

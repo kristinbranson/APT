@@ -13,6 +13,11 @@ PreProc:
   TargetCrop:
     Radius: 50
     PadBkgd: 0
+  NeighborMask:
+    Use: 0
+    BGType: 'dark on light'
+    BGReadFcn: ''
+    FGThresh: 4
   channelsFcn:  # optional preprocessing function with signature: fcn(cprDataObj,p1,v1,...)
 
 Reg:
