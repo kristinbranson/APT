@@ -2135,6 +2135,12 @@ classdef CPRLabelTracker < LabelTracker
         s.trkPMD.mov = MovieIndex(s.trkPMD.mov);
       end
 
+      % 20171114
+      if ~isempty(s.trkPMD) && ~tblfldscontains(s.trkPMD,'nNborMask')
+        nNborMask = nan(height(s.trkPMD),1);
+        s.trkPMD = [s.trkPMD table(nNborMask)];
+      end
+
       % set parameter struct s.sPrm on obj
       if ~isequaln(obj.sPrm,s.sPrm)
         warningNoTrace('CPRLabelTracker:param',...
