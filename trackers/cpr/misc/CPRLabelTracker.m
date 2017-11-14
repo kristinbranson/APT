@@ -382,7 +382,7 @@ classdef CPRLabelTracker < LabelTracker
       tfWB = ~isempty(wbObj);
       
       FLDSREQUIRED = MFTable.FLDSCORE;
-      FLDSALLOWED = [MFTable.FLDSCORE {'roi'}];
+      FLDSALLOWED = [MFTable.FLDSCORE {'roi' 'nNborMask'}];
       tblfldscontainsassert(tblPnew,FLDSREQUIRED);
       tblfldscontainsassert(tblPupdate,FLDSREQUIRED);
       
@@ -415,13 +415,13 @@ classdef CPRLabelTracker < LabelTracker
         fprintf(1,'Adding %d new rows to data...\n',nNew);
         
         trxCache = obj.lObj.trxCache;
-        [I,nmask] = CPRData.getFrames(tblPNewConcrete,...
+        [I,nNborMask] = CPRData.getFrames(tblPNewConcrete,...
           'wbObj',wbObj,...
           'trxCache',trxCache,...
           'maskNeighbors',prmpp.NeighborMask.Use,...
           'bgType',prmpp.NeighborMask.BGType,...
           'bgReadFcn',prmpp.NeighborMask.BGReadFcn,...
-          'fgThresh',prmpp.NeighorMask.FGThresh);
+          'fgThresh',prmpp.NeighborMask.FGThresh);
         if tfWB && wbObj.isCancel
           % obj unchanged
           return;
@@ -431,7 +431,9 @@ classdef CPRLabelTracker < LabelTracker
         
         tfColsAllowed = ismember(tblPnew.Properties.VariableNames,...
           FLDSALLOWED);
-        dataNew = CPRData(I,tblPnew(:,tfColsAllowed));
+        tblPnewMD = tblPnew(:,tfColsAllowed);
+        tblPnewMD = [tblPnewMD table(nNborMask)];
+        dataNew = CPRData(I,tblPnewMD);
         if prmpp.histeq
           H0 = obj.trnResH0;
           assert(~isempty(H0),'H0 unavailable for histeq/preprocessing.');
@@ -1611,6 +1613,9 @@ classdef CPRLabelTracker < LabelTracker
         fldsTmp = MFTable.FLDSID;
         if tblfldscontains(d.MDTst,'roi')
           fldsTmp{1,end+1} = 'roi'; %#ok<AGROW>
+        end
+        if tblfldscontains(d.MDTst,'nNborMask')
+          fldsTmp{1,end+1} = 'nNborMask'; %#ok<AGROW>
         end
         trkPMDnew = d.MDTst(:,fldsTmp);
         obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);

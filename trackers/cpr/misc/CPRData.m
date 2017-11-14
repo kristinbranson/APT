@@ -340,7 +340,7 @@ classdef CPRData < handle
         mr.open(mov);
         s = struct('movieReader',mr);
         if maskNeighbors
-          [s.bg,s.bgdev] = bgReadFcn(mov,mr.info);
+          [s.bg,s.bgdev] = feval(bgReadFcn,mov,mr.info);
         end
         movMap(mov) = s;
       end

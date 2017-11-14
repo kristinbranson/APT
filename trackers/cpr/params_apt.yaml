@@ -26,7 +26,7 @@ ROOT:
         - ['Mask Neighbors','',false,"When targets come in close proximity to each other, non-touching neighbors can be masked.",'']
         - Use: ['Enable',boolean,true,"Mask other, non-touching targets",false]
         - BGType: ['Background Type',['light on dark','dark on light','other'],true,Background type,'dark on light']
-        - BGReadFcn: ['Background Read Function',string,true,"Function that reads background XXX FOO",'']
+        - BGReadFcn: ['Background Read Function',string,true,"Function that reads background for a project movie. Signature: [bg,bgdev] = fcn(movfile,movifo)",'']
         - FGThresh: ['Foreground Threshold',float,true,'Background-subtracted pixels above this threshold are considered foreground subject to masking',4]
     - NFramesSmall: ['Decimation Small',unsigned,true,Small frame increment when tracking every Nth frame,5]
     - NFramesLarge: ['Decimation Large',unsigned,true,Large frame increment when tracking every Nth frame,10]
