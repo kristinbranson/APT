@@ -997,10 +997,16 @@ lc = lObj.lblCore;
 tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
 handles.menu_view_show_3D_axes.Enable = onIff(tfShow3DAxes);
 
-% function cbkTargetZoomFacChanged(src,evt)
-% lObj = evt.AffectedObject;
-% zf = lObj.targetZoomFac;
-% set(lObj.gdata.sldZoom,'Value',zf);
+function hlpUpdateTxProjectName(lObj)
+projname = lObj.projname;
+info = lObj.projFSInfo;
+if isempty(info)
+  str = projname;
+else
+  [~,projfileS] = myfileparts(info.filename);  
+  str = sprintf('%s / %s',projfileS,projname);
+end
+lObj.gdata.txProjectName.String = str;
 
 function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1008,7 +1014,7 @@ handles = lObj.gdata;
 pname = lObj.projname;
 str = sprintf('Project %s created (unsaved) at %s',pname,datestr(now,16));
 set(handles.txStatus,'String',str);
-set(handles.txProjectName,'String',pname);
+hlpUpdateTxProjectName(lObj);
 
 function cbkProjFSInfoChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1017,6 +1023,7 @@ if ~isempty(info)
   str = sprintf('Project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
   set(lObj.gdata.txStatus,'String',str);
 end
+hlpUpdateTxProjectName(lObj);
 
 function cbkMovieForceGrayscaleChanged(src,evt)
 lObj = evt.AffectedObject;
