@@ -93,11 +93,10 @@ classdef MFTable
       %
       % tblP0, tblP: MF tables
       %
-      % tblPNew: new frames (rows of tblP whose movie-frame-tgt ID are not 
-      %   in tblP0)
+      % tblPNew: new frames (rows of tblP whose (mov,frm,iTgt) are not in 
+      %   tblP0)
       % tblPupdate: existing frames with new positions/tags (rows of tblP
-      %   whos movie-frame-tgt ID are in tblP0, but whose eg p field is 
-      %   different).
+      %   whose (mov,frm,iTgt) are in tblP0, but whose p or tfocc differ
       % idx0update: indices into rows of tblP0 corresponding to tblPupdate;
       %   ie tblP0(idx0update,:) ~ tblPupdate
       
@@ -108,9 +107,11 @@ classdef MFTable
       
       tfNew = ~tblismember(tblP,tblP0,FLDSID);
       [tfSame,locSame] = tblismember(tblP,tblP0,FLDSCORE);
-      % all fields and contents must be identical for 'same' rows
       if nnz(tfSame)>0
-        assert(isequaln(tblP(tfSame,:),tblP0(locSame(tfSame),:)));
+        % side check, all shared fields must be identical for 'same' rows
+        fldsshared = intersect(tblflds(tblP),tblflds(tblP0));
+        assert(isequaln(tblP(tfSame,fldsshared),...
+                        tblP0(locSame(tfSame),fldsshared)));
       end
       tfDiff = ~tfSame;
       tfUpdate = tfDiff & ~tfNew; 
