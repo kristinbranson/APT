@@ -379,7 +379,11 @@ classdef CPRData < handle
           % (imroi,roiXlo,roiXhi,roiYlo,roiYhi,roinr) set
             
           if maskNeighbors
-            imroi = double(imroi);
+            assert(isa(imroi,'uint8'),...
+              'Masking currently supported only for uint8 images');
+            imroi = double(imroi); % we will rescale to [0,1] after bgsub. 
+              % Note, bgReadFcn should be returning bg images with same
+              % scaling as imroi.
             
             %%% Get bg, bgdev
             bgim = movInfo.bg;
@@ -463,6 +467,8 @@ classdef CPRData < handle
                 end
               end
             end
+            
+            imroi = imroi/255; % scale to [0,1], matches shapeGt/hlpFtr/compDup2
           end
           I{iTrl,iVw} = imroi;
         end
