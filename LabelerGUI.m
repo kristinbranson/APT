@@ -42,6 +42,17 @@ end
 hObject.Name = 'APT';
 hObject.HandleVisibility = 'on';
 
+% delete unused stuff from toolbar
+h = findall(hObject,'type','uitoolbar');
+KEEP = {'Exploration.Rotate' 'Exploration.Pan' 'Exploration.ZoomOut' ...
+  'Exploration.ZoomIn'};
+hh = findall(h,'-not','type','uitoolbar','-property','Tag');
+for h=hh(:)'
+  if ~any(strcmp(h.Tag,KEEP))
+    delete(h);
+  end
+end
+
 % reinit uicontrol strings etc from GUIDE for cosmetic purposes
 set(handles.txPrevIm,'String','');
 set(handles.edit_frame,'String','');
