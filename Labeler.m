@@ -5370,7 +5370,7 @@ classdef Labeler < handle
       end
       for i=1:nMov
         iMov = iMovsUn(i);
-        fprintf('Tracking %s %d (%d/%d)\n',moviestr,iMov,i,nMov);
+        fprintf('Tracking %s %d (%d/%d)\n',moviestr,double(iMov),i,nMov);
         
         tfMov = tblMFT.mov==iMov;
         tblMFTmov = tblMFT(tfMov,:);
