@@ -295,7 +295,6 @@ handles.menu_track.Position = 5;
 handles.menu_evaluate.Position = 6;
 handles.menu_help.Position = 7;
 
-
 hCMenu = uicontextmenu('parent',handles.figure);
 uimenu('Parent',hCMenu,'Label','Freeze to current main window',...
   'Callback',@(src,evt)cbkFreezePrevAxesToMainWindow(src,evt));
@@ -405,8 +404,22 @@ set(handles.output,'Toolbar','figure');
 
 colnames = handles.labelerObj.TBLTRX_STATIC_COLSTRX;
 set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
-colnames = handles.labelerObj.TBLFRAMES_COLS; % AL: dumb b/c table update code uses hardcoded cols 
-set(handles.tblFrames,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
+tblOrig = handles.tblFrames;
+colnames = handles.labelerObj.TBLFRAMES_COLS;  % AL: dumb b/c table update code uses hardcoded cols 
+jt = uiextras.jTable.Table(...
+  'parent',tblOrig.Parent,...
+  'Position',tblOrig.Position,...
+  'SelectionMode','single',...
+  'Editable','off',...
+  'ColumnPreferredWidth',[100 50],...
+  'ColumnName',colnames,...
+  'ColumnFormat',{'integer' 'integer' 'integer'},...
+  'ColumnEditable',[false false false],...
+  'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
+set(jt,'Data',cell(0,numel(colnames)));
+delete(tblOrig);
+handles.tblFrames = jt;
+%tblFrames_CellSelectionCallback(hObject, eventdata, handles)
 
 figSetPosAPTDefault(hObject);
 set(hObject,'Units','normalized');
@@ -1360,20 +1373,17 @@ function hlpRemoveFocus(h,handles)
 % - Don't use uitables, or use them in a separate figure window.
 uicontrol(handles.txStatus);
 
-function tblFrames_CellSelectionCallback(hObject, eventdata, handles)
-% hObject    handle to tblFrames (see GCBO)
-% eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
-%	Indices: row and column indices of the cell(s) currently selecteds
-% handles    structure with handles and user data (see GUIDATA)
+function cbkTblFramesCellSelection(src,evt)
+handles = guidata(src.Parent);
 lObj = handles.labelerObj;
-row = eventdata.Indices;
+row = evt.Indices;
 if ~isempty(row)
   row = row(1);
-  dat = get(hObject,'Data');
+  dat = get(src,'Data');
   lObj.setFrame(dat{row,1});
 end
 
-hlpRemoveFocus(hObject,handles);
+hlpRemoveFocus(src,handles);
 
 % 20170428
 % Notes -- Zooms Views Angles et al
@@ -2265,7 +2275,7 @@ for imov=1:height(tblErrMov)
   %   [path,movS] = myfileparts(trow.mov{1});
   %   [~,path] = myfileparts(path);
   %   mov = fullfile(path,movS);
-  str{end+1,1} = sprintf(' ... movie %d (%d rows): %.2f',trow.mov,...
+  str{end+1,1} = sprintf(' ... movie %d (%d rows): %.2f',double(trow.mov),...
     trow.count,trow.err); %#ok<AGROW>
 end
 

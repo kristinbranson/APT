@@ -5797,8 +5797,8 @@ classdef Labeler < handle
       else
         mov = (1:obj.nmovies)';
         iTgt = ones(size(mov));
-        nframes = cellfun(@(x)x.nframes,obj.movieInfoAll(:,1));
-        trajlen = nframes;
+        nfrms = cellfun(@(x)x.nframes,obj.movieInfoAll(:,1));
+        trajlen = nfrms;
         frm1 = iTgt;
         tblSummBase = table(mov,iTgt,trajlen,frm1);
       end
@@ -6433,20 +6433,27 @@ classdef Labeler < handle
       if nTgtsCurFrm>0
         if any(tfRow)
           assert(nnz(tfRow)==1);
-          dat(tfRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
-        else
+          iRow = find(tfRow);
+          dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
+        else          
           dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm};
-          [~,idx] = sort(cell2mat(dat(:,1)));
+          n = size(dat,1);
+          tblFrms(end+1,1) = cfrm;
+          [~,idx] = sort(tblFrms);
           dat = dat(idx,:);
+          iRow = find(idx==n);
         end
         set(tbl,'Data',dat);
       else
+        iRow = [];
         if any(tfRow)
           assert(nnz(tfRow)==1);
           dat(tfRow,:) = [];
           set(tbl,'Data',dat);
         end
       end
+      
+      tbl.SelectedRows = iRow;
             
       % dat should equal get(tbl,'Data')
       if obj.hasMovie
