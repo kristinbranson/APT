@@ -43,7 +43,7 @@ classdef MMTableSingle < MovieManagerTable
       jt = obj.jtable;
       tblnrows = size(jt.Data,1);
       if imov>0 && imov<=tblnrows
-        jt.SelectedRows = imov;
+        jt.SelectedRows = int32(imov);
       else
         jt.SelectedRows = [];
       end
