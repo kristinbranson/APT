@@ -173,6 +173,12 @@ handles.menu_track_training_data_montage = uimenu(...
 moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
 
 moveMenuItemAfter(handles.menu_track_track_and_export,handles.menu_track_retrain);
+
+handles.menu_track_trainincremental = handles.menu_track_retrain;
+handles = rmfield(handles,'menu_track_retrain');
+handles.menu_track_trainincremental.Callback = @(h,edata)LabelerGUI('menu_track_trainincremental_Callback',h,edata,guidata(h));
+handles.menu_track_trainincremental.Label = 'Incremental Train';
+handles.menu_track_trainincremental.Tag = 'menu_track_trainincremental';
 %handles.menu_track_track_and_export.Separator = 'off';
 
 handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
@@ -1301,7 +1307,7 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
 end
 
 function pbTrain_Callback(hObject, eventdata, handles)
-handles.labelerObj.trackTrain();
+handles.labelerObj.trackRetrain();
 function pbTrack_Callback(hObject, eventdata, handles)
 tm = getTrackMode(handles);
 wbObj = WaitBarWithCancel('Tracking');
@@ -2194,8 +2200,8 @@ function menu_track_training_data_montage_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 lObj.tracker.trainingDataMontage();
 
-function menu_track_retrain_Callback(hObject, eventdata, handles)
-handles.labelerObj.trackRetrain();
+function menu_track_trainincremental_Callback(hObject, eventdata, handles)
+handles.labelerObj.trackTrain();
 
 function menu_go_targets_summary_Callback(hObject, eventdata, handles)
 handles.labelerObj.targetsTableUI();
