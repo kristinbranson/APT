@@ -118,6 +118,8 @@ xlim(axs(1),[0 30]);
 
 % For FlyBub leg (tips), looks like scale of d2 is ~2
 
+% Britton, scale of d2 is ~50-100
+
 %% Prune: kde
 SIGMAS = [sqrt(0.1) sqrt(0.33) 1 sqrt(2) sqrt(5)];
 nSig = numel(SIGMAS);
@@ -134,6 +136,8 @@ end
 
 % sqrt(0.33) is the best, use 1 though about the same and looks more
 % reasonable
+
+% Britton mouse: best is sqrt(50)
 
 iSigBest = 3;
 pTrk_kde = pTrk_kde_sig{iSigBest};
@@ -156,6 +160,8 @@ xlim([0 70]);
 
 % looks like scale of d2 is ~5
 
+% Britton: scale is ~100
+
 %% Prune: global min
 SIGMAS = [sqrt(1) sqrt(2) sqrt(5) sqrt(20)];
 nSig = numel(SIGMAS);
@@ -171,7 +177,10 @@ for iSig=1:nSig
 end
 
 % sigma=1 is lowest but use sqrt(2)
-iSigBest = 2;
+
+% Britton: sigma=sqrt(100) is the best
+
+iSigBest = 4;
 pTrk_glbl = pTrk_glbl_sig{iSigBest};
 score_glbl = score_glbl_sig{iSigBest};
 eTrk_glbl = eTrk_glbl_sig{iSigBest};
@@ -187,8 +196,19 @@ meanerrpts = [mean(eTrk_med)' mean(eTrk_kde)' mean(eTrk_glbl)']
 mean(meanerrpts)
 
 figure
-IPT = 17;
-x = [eTrk_med(:,IPT) eTrk_kde(:,IPT) eTrk_glbl(:,IPT)];
-boxplot(x)
+axs = createsubplots(1,2);
+for ipt=1:2
+  axes(axs(ipt));
+  x = [eTrk_med(:,ipt) eTrk_kde(:,ipt) eTrk_glbl(:,ipt)];
+  boxplot(x);
+  grid on
+end
 
-% MEDIAN WON
+ranksum(eTrk_med(:,1),eTrk_glbl(:,1))
+ranksum(eTrk_med(:,2),eTrk_glbl(:,2))
+
+
+% Bubble: MEDIAN WON (unknown significance)
+
+% Britton: glbl-min won (no significance compared to kde), but both better than median primarily on pt 1
+
