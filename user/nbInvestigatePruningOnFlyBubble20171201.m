@@ -208,7 +208,7 @@ ranksum(eTrk_med(:,1),eTrk_glbl(:,1))
 ranksum(eTrk_med(:,2),eTrk_glbl(:,2))
 
 
-% Bubble: MEDIAN WON (unknown significance)
+% Bubble: Median won but nothing reaches significance, all 3 methods similar
 
 % Britton: glbl-min won (no significance compared to kde), but both better than median primarily on pt 1
 
