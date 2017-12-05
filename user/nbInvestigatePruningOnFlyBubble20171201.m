@@ -71,6 +71,7 @@ save pTrkFull p_t;
 
 %% Prune prep
 load rc_trnbase.mat;
+load p0trkinfo
 load pTrkFull;
 sPrm = lObj.tracker.sPrm;
 nTst = height(tblTst);
@@ -211,4 +212,167 @@ ranksum(eTrk_med(:,2),eTrk_glbl(:,2))
 % Bubble: Median won but nothing reaches significance, all 3 methods similar
 
 % Britton: glbl-min won (no significance compared to kde), but both better than median primarily on pt 1
+
+%% Traj Smoothing
+PROJFILE = 'reach_all_mice_including_BPN_perturb_TRAINING_AL_trained.lbl';
+IMOV = 7;
+TRKFILE = 'mov7full.trk';
+lbl = load(PROJFILE,'-mat');
+trk = load(TRKFILE,'-mat');
+%%
+lpos = SparseLabelArray.full(lbl.labeledpos{IMOV});
+pTrkFull = trk.pTrkFull;
+N = size(lpos,3);
+K = size(pTrkFull,3);
+pLbl = reshape(lpos,[4 N])'; % [Nx4]
+pTrkFull = reshape(pTrkFull,[4 K N]);
+pTrkFull = permute(pTrkFull,[3 2 1]);
+
+tfLbled = all(~isnan(pLbl),2);
+nLbled = nnz(tfLbled);
+fprintf('%d labeled frames in mov %d.\n',nLbled,IMOV);
+pLbled = pLbl(tfLbled,:); 
+clear pLbl;
+%%
+SIGMAS = [sqrt(0.33) sqrt(1) sqrt(5) sqrt(20) sqrt(100)];
+nSig = numel(SIGMAS);
+pTrk_traj_sig = ...
+  arrayfun(@(sig)Prune.besttraj(pTrkFull,'sigma',sig),SIGMAS,'uni',0);
+pTrk_kde_sig = ...
+  arrayfun(@(sig)Prune.maxdensity(pTrkFull,'sigma',sig),SIGMAS,'uni',0);
+pTrk_med_sig = ...
+  arrayfun(@(sig)Prune.median(pTrkFull),SIGMAS,'uni',0);
+
+eTrk_traj_sig = cell(nSig,1);
+eTrk_kde_sig = cell(nSig,1);
+eTrk_med_sig = cell(nSig,1);
+for iSig=1:nSig
+  dTrkLbled = pTrk_traj_sig{iSig}(tfLbled,:)-pLbled;
+  dTrkLbled = reshape(dTrkLbled,[nLbled 2 2]);
+  eTrk_traj_sig{iSig} = sqrt(sum(dTrkLbled.^2,3));
+  
+  dTrkLbled = pTrk_kde_sig{iSig}(tfLbled,:)-pLbled;
+  dTrkLbled = reshape(dTrkLbled,[nLbled 2 2]);
+  eTrk_kde_sig{iSig} = sqrt(sum(dTrkLbled.^2,3));
+  
+  dTrkLbled = pTrk_med_sig{iSig}(tfLbled,:)-pLbled;
+  dTrkLbled = reshape(dTrkLbled,[nLbled 2 2]);
+  eTrk_med_sig{iSig} = sqrt(sum(dTrkLbled.^2,3));  
+  
+  fprintf('iSig %d, sig=%.3f. Mean err traj/kde/med: %.3f %.3f %.3f\n',...
+    iSig,SIGMAS(iSig),...
+    mean(eTrk_traj_sig{iSig}(:)),...
+    mean(eTrk_kde_sig{iSig}(:)),...
+    mean(eTrk_med_sig{iSig}(:)) );
+end
+
+%% check significance
+ISIGBEST = 4;
+pTrk_traj_best = pTrk_traj_sig{ISIGBEST};
+eTrk_traj_best = eTrk_traj_sig{ISIGBEST};
+eTrk_kde_best = eTrk_kde_sig{ISIGBEST};
+eTrk_med_best = eTrk_med_sig{ISIGBEST};
+mean(eTrk_traj_best)
+mean(eTrk_kde_best)
+mean(eTrk_med_best)
+arrayfun(@(ipt)ranksum(eTrk_traj_best(:,ipt),eTrk_kde_best(:,ipt)),1:2)
+% traj/kde diff not significant
+for ipt=1:2
+  kruskalwallis([eTrk_traj_best(:,ipt) eTrk_kde_best(:,ipt)],[]);
+end
+
+%% make a trkfile for best pTrk_kde for import
+pTrk_kde_best = pTrk_kde_sig{ISIGBEST}'; % [4xnfrm]
+pTrk_kde_best = reshape(pTrk_kde_best,[2 2 2997]);
+tfile = TrkFile(pTrk_kde_best);
+tfile.save('mov7kdebestsig.trk');
+
+%% Precisely set tracker trackres: original full replicates, plus best traj
+% pruning
+
+mov = repmat(7,nLbled,1);
+frmLbl = find(tfLbled);
+iTgt = ones(nLbled,1);
+pTrk = pTrk_traj_best(frmLbl,:);
+tblTrkRes = table(mov,frmLbl,iTgt,pTrk,...
+  'VariableNames',{'mov' 'frm' 'iTgt' 'pTrk'});
+
+tObj = lObj.tracker;
+tObj.setAllTrackResTable(tblTrkRes,1:2);
+tObj.trkPFull = pTrkFull(tfLbled,:,:);
+tObj.vizLoadXYPrdCurrMovieTarget();
+tObj.newLabelerFrame();
+notify(tObj,'newTrackingResults');
+
+%% Find pts where kde does poorly but traj does well
+difftrk = eTrk_kde_best-eTrk_traj_best;
+difftrk = sum(difftrk,2);
+[~,idx] = sort(difftrk,'descend');
+t = table(7*ones(nLbled,1),frmLbl,ones(nLbled,1),difftrk,...
+  'VariableNames',{'mov' 'frm' 'iTgt' 'susp'});
+t = t(idx,:);
+
+%%
+outlrFcn = tmpOutlierFcn(t);
+lObj.suspSetComputeFcn(outlrFcn);
+lObj.suspComputeUI();
+
+%% lambdas
+LAMBDAS0 = [.013 .0047 .002 .0012 .00052]; % originally generated
+%SIGMAS = [sqrt(0.33) sqrt(1) sqrt(5) sqrt(20) sqrt(100)];
+nSig = numel(SIGMAS);
+
+lambdas = LAMBDAS0*4;
+assert(numel(lambdas)==nSig);
+
+pTrk_traj_sig_lam2 = ...
+  arrayfun(@(sig,lam)Prune.besttraj(pTrkFull,'sigma',sig,'poslambda',lam),...
+  SIGMAS,lambdas,'uni',0);
+% pTrk_kde_sig = ...
+%   arrayfun(@(sig)Prune.maxdensity(pTrkFull,'sigma',sig),SIGMAS,'uni',0);
+% pTrk_med_sig = ...
+%   arrayfun(@(sig)Prune.median(pTrkFull),SIGMAS,'uni',0);
+
+eTrk_traj_sig_lam2 = cell(nSig,1);
+% eTrk_kde_sig = cell(nSig,1);
+% eTrk_med_sig = cell(nSig,1);
+for iSig=1:nSig
+  dTrkLbled = pTrk_traj_sig_lam2{iSig}(tfLbled,:)-pLbled;
+  dTrkLbled = reshape(dTrkLbled,[nLbled 2 2]);
+  eTrk_traj_sig_lam2{iSig} = sqrt(sum(dTrkLbled.^2,3));
+    
+  fprintf('iSig %d, sig=%.3f. Mean err origlam/newlam: %.3f %.3f\n',...
+    iSig,SIGMAS(iSig),...
+    mean(eTrk_traj_sig{iSig}(:)),...
+    mean(eTrk_traj_sig_lam2{iSig}(:)));
+end
+
+% 4x lambdas
+% iSig 1, sig=0.574. Mean err origlam/newlam: 8.769 8.452
+% iSig 2, sig=1.000. Mean err origlam/newlam: 8.796 8.405
+% iSig 3, sig=2.236. Mean err origlam/newlam: 8.563 8.186
+% iSig 4, sig=4.472. Mean err origlam/newlam: 8.374 8.096
+% iSig 5, sig=10.000. Mean err origlam/newlam: 8.578 8.689
+
+% % 3x lambdas
+% iSig 1, sig=0.574. Mean err origlam/newlam: 8.769 8.492
+% iSig 2, sig=1.000. Mean err origlam/newlam: 8.796 8.420
+% iSig 3, sig=2.236. Mean err origlam/newlam: 8.563 8.161
+% iSig 4, sig=4.472. Mean err origlam/newlam: 8.374 8.077
+% iSig 5, sig=10.000. Mean err origlam/newlam: 8.578 8.670
+
+% double lambdas
+% iSig 1, sig=0.574. Mean err origlam/newlam: 8.769 8.508
+% iSig 2, sig=1.000. Mean err origlam/newlam: 8.796 8.484
+% iSig 3, sig=2.236. Mean err origlam/newlam: 8.563 8.550
+% iSig 4, sig=4.472. Mean err origlam/newlam: 8.374 8.386
+% iSig 5, sig=10.000. Mean err origlam/newlam: 8.578 8.588
+
+% half lambdas
+% iSig 1, sig=0.574. Mean err origlam/newlam: 8.769 8.508
+% iSig 2, sig=1.000. Mean err origlam/newlam: 8.796 8.484
+% iSig 3, sig=2.236. Mean err origlam/newlam: 8.563 8.550
+% iSig 4, sig=4.472. Mean err origlam/newlam: 8.374 8.386
+% iSig 5, sig=10.000. Mean err origlam/newlam: 8.578 8.588
+
 

@@ -53,7 +53,7 @@ classdef Prune
           %
           % sum(...,1) forms a sum-of-weights for the ith replicate. Larger
           % values mean more likely replicate.
-          w = sum(squareform( exp(-d2/sigma^2/2) ),1);
+          w = sum(squareform(exp( -d2/sigma^2/2 )),1);
           
           % Normalizing gives a 'probability' per replicate (for this
           % landmark/part). (In fact looks like the normalization does not
@@ -68,8 +68,7 @@ classdef Prune
         [score(i),iRep] = max(probAcc); % most-likely replicate for this trial
         pTrk(i,:) = pTrkFull(i,iRep,:);
       end
-    end
-    
+    end    
     
     function [pTrk,score,info] = globalmin(pTrkFull,varargin)
       sigma = myparse(varargin,...
@@ -94,5 +93,50 @@ classdef Prune
       end
     end
     
+    function [pTrk,score,info] = besttraj(pTrkFull,varargin)
+      % It is assumed that pTrkFull are from consecutive frames.
+      
+      [sigma,poslambda] = myparse(varargin,...
+        'sigma',[],... % sigma in R^2 space
+        'poslambda',[]);
+      
+      assert(ndims(pTrkFull)==3);
+      [N,K,D] = size(pTrkFull); % K==nRep
+      d = 2;
+      npts = D/d;
+      
+      % Compute appearancecost (AC). See Prune.maxdensity
+      % Note, I think the AC needs to be within-iter comparable, but not
+      % necessarily between-iter comparable. Some some datasets have seen 
+      % that the AC based on the maxdensity maxPr is not anticorrelated 
+      % with GT tracking error. Why? One theory is, when tracking is good, 
+      % many reps are similar/close together, with the result that 
+      % probability gets widely shared among similar reps (for a given pt), 
+      % leading to smaller maxPr scores for the best replicate. With
+      % less-than-pristine tracking, the reps are spread out, and it is 
+      % more likely that one rep stands out and captures a greater share of 
+      % pr.
+
+      appcost = nan(N,K);
+      pTrkFullPts = reshape(pTrkFull,[N K npts d]);
+      for i=1:N
+        probAcc = zeros(1,K); % probability accumulator
+        for ipt=1:npts          
+          ptmp = squeeze(pTrkFullPts(i,:,ipt,:)); % [K x d]
+          d2 = pdist(ptmp,'squaredeuclidean'); % [KxK]
+          w = sum(squareform(exp( -d2/sigma^2/2 )),1);
+          w = w / sum(w);
+          probAcc = probAcc + log(w); % accumulate by summing over pts/parts. maximizing sum-of-logs is like max-ing prod-of-probs
+        end
+        appcost(i,:) = -probAcc; % higher probAcc => lower appearance cost
+      end
+
+      X = permute(pTrkFull,[3 1 2]);
+      [Xbest,idx,totalcost,poslambda] = ChooseBestTrajectory(X,appcost,...
+        'poslambda',poslambda);
+      pTrk = Xbest';
+      score = nan(N,1);
+      info = idx(:);
+    end
   end
 end
