@@ -22,6 +22,16 @@ classdef Prune
       info = [];
     end
     
+    % 1. maxdensity. Weights given for each landmark by gaussian KDE (nbor 
+    %  count). this gives a prob for each replicate, per point. The best overall 
+    %  replicate is the one that maximizes the product of per-point probs.
+    % 2. Per-point gaussian KDE. (not impl) the final shape doesn't have to be an 
+    %  actual shape. For each point, just take the replicate point that maximizes 
+    %  the nbor count. So the final shape need not be a real shape.
+    % 3. Globalmin. Minimize distance to all other replicates in full replicate 
+    % space. Like 1. but we do not go pt-by-pt, the shape is considered as a whole.
+
+    
     function [pTrk,score,info] = maxdensity(pTrkFull,varargin)
       sigma = myparse(varargin,...
         'sigma',5); % sigma in R^2 space
@@ -96,9 +106,12 @@ classdef Prune
     function [pTrk,score,info] = besttraj(pTrkFull,varargin)
       % It is assumed that pTrkFull are from consecutive frames.
       
-      [sigma,poslambda] = myparse(varargin,...
-        'sigma',[],... % sigma in R^2 space
-        'poslambda',[]);
+      [sigma,poslambda,poslambdafac,dampen] = myparse(varargin,...
+        'sigma',nan,... % sigma in R^2 space
+        'poslambda',[],... % see ChooseBestTrajectory
+        'poslambdafac',[],... % see ChooseBestTrajectory
+        'dampen',0.5... % etc
+        );
       
       assert(ndims(pTrkFull)==3);
       [N,K,D] = size(pTrkFull); % K==nRep
@@ -132,11 +145,88 @@ classdef Prune
       end
 
       X = permute(pTrkFull,[3 1 2]);
-      [Xbest,idx,totalcost,poslambda] = ChooseBestTrajectory(X,appcost,...
-        'poslambda',poslambda);
+      [Xbest,idx,totalcost,poslambdaused] = ChooseBestTrajectory(X,appcost,...
+        'poslambda',poslambda,'poslambdafac',poslambdafac,'dampen',dampen);
       pTrk = Xbest';
       score = nan(N,1);
-      info = idx(:);
+      info = struct('idx',idx(:),'totalcost',totalcost,...
+        'poslambdafac',poslambdafac,'poslambdaused',poslambdaused);
     end
-  end
+    
+    function [pTrk,tblSegments] = applybesttraj2segs(pTrkFull,pTrkMD,varargin)
+      % Apply Prune.besttraj to segments of consecutive frames in 
+      % pTrkFull. pTrkFull need not represent consecutive frames.
+      %
+      % pTrkFull: [NxKxD]. First dim doesn't have to be consecutive frames.
+      % pTrkMD: [N] MFTable labeling rows of pTrkFull.
+      %
+      % pTrkRed: [NxD], reduced tracking for each row of pTrkFull.
+      % tblSegments: [nSeg] table detailing segments of consecutive frames 
+      %   where smoothing was applied
+      
+      [N,~,D] = size(pTrkFull);
+      assert(istable(pTrkMD) && height(pTrkMD)==N);
+      
+      tblSegments = Prune.analyzeConsecSegments(pTrkMD);
+      nSeg = height(tblSegments);
+      fprintf('%d segments found.\n',nSeg);
+      
+      pTrk = nan(N,D);
+      infoSeg = cell(nSeg,1);
+      for iSeg=1:nSeg
+        rowSeg = tblSegments(iSeg,:);
+        tfSeg = pTrkMD.mov==rowSeg.mov & pTrkMD.iTgt==rowSeg.iTgt & ...
+          rowSeg.frm0<=pTrkMD.frm & pTrkMD.frm<=rowSeg.frm1;
+        pTrkMDthis = pTrkMD(tfSeg,:);
+        assert(isequal(pTrkMDthis.frm,(rowSeg.frm0:rowSeg.frm1)'));
+        [pTrk(tfSeg,:),~,infoSeg{iSeg}] = ...
+          Prune.besttraj(pTrkFull(tfSeg,:,:),varargin{:});
+      end
+      
+      tblSegments.pruneInfo = infoSeg(:);
+    end
+    
+    function tblSegments = analyzeConsecSegments(pTrkMD)      
+      s = struct('mov',cell(0,1),'iTgt',[],'frm0',[],'frm1',[]);
+      nMov = max(pTrkMD.mov);
+      nTgt = max(pTrkMD.iTgt);
+      for iMov=1:nMov
+      for iTgt=1:nTgt
+        tfThisMovTgt = pTrkMD.mov==iMov & pTrkMD.iTgt==iTgt;
+        if nnz(tfThisMovTgt)==0
+          continue;
+        end
+        
+        mdThis = pTrkMD(tfThisMovTgt,:);
+        assert(issorted(mdThis.frm));
+        
+        iSegStart = 1; % row of mdThis at start of next seg
+        while iSegStart<=height(mdThis)
+          row0 = mdThis(iSegStart,:);
+          for iSegEnd=iSegStart:height(mdThis)
+            row1 = mdThis(iSegEnd,:);
+            if row1.frm-row0.frm==iSegEnd-iSegStart
+              % OK, segment continues
+            else
+              % segment is over. On last segment, will not hit this branch but that's OK
+              iSegEnd = iSegEnd-1;
+              break;
+            end
+          end
+          
+          s(end+1,1).mov = iMov; %#ok<AGROW>
+          s(end).iTgt = iTgt;
+          s(end).frm0 = mdThis.frm(iSegStart);
+          s(end).frm1 = mdThis.frm(iSegEnd);
+          
+          iSegStart = iSegEnd+1;
+        end
+      end
+      end
+      
+      tblSegments = struct2table(s);      
+    end
+
+  end  
+  
 end

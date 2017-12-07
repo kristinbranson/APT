@@ -1,109 +1,132 @@
+% CONCLUSIONS 20171206
+%
+% Objective was to investigate "static" cpr pruning methods (median vs kde 
+% vs "global kde"), and ChooseBest... traj smoothing.
+%
+% Data used was i) FlyBubble (multitarget_bubble_n2195.lbl), this is prior 
+% to expanded grooming/behaviors, so mainly just isolated flies walking etc.
+% Currently tracking is quite strong for this (<1px typical XV err). ii)
+% mousereach data, N~8000
+%
+% For bub, pull out test set of size Ntst~300, train on remainder. For
+% mouse, existing tracker trained on all data, Use test set of ~200 so this
+% overlaps with training set. Test pruning methods on test set vs GT lbls.
+%
+% For kde/glbl pruning, did titration of sigma parameter. For
+% trajsmoothing, did titration of sigma parameter along with some others.
+% 
+% FlyBub: Bubble with Traj: Median won, not sure it reaches significance. 
+%
+% Britton: kde/glbl/traj tie, these three beat median but seem same-ish
+
+
+%%%% BUB DATA PREP %%%%%
 %% 
+% lObj = ... flybubble proj ...
 
-% load proj
+t = lObj.labelGetMFTableLabeled;
+%%
+g = categorical(t.mov).*categorical(t.iTgt);
+summary(g)
+iMov2 = find(t.mov==2);
+NTEST = 300;
+iTst = randsample(iMov2,NTEST);
+iTrn = setdiff(1:height(t),iTst);
+%% Train on a subset
+tObj = lObj.tracker;
+sPrm = tObj.sPrm;
+roiRadius = sPrm.PreProc.TargetCrop.Radius;
+tTrn = t(iTrn,:);
+tTrn = lObj.labelMFTableAddROI(tTrn,roiRadius);
+tTrn.pAbs = tTrn.p;
+tTrn.p = tTrn.pRoi;
+%%
+tObj.retrain('tblPTrn',tTrn);
 
-tLbl = lObj.labelGetMFTableLabeled();
+%% Traj smoothing: need consecutive frames tracked. For each row of tTst, 
+% track from -75 frames previous to +50 frames after
+tTst = t(iTst,:);
+
+PREFRMS = 75;
+POSTFRMS = 50;
+
+tblTrkTraj = [];
+for i=1:height(tTst)
+  row = tTst(i,:);
+  frmschunk = row.frm-PREFRMS:row.frm+POSTFRMS;
+  nchunk = numel(frmschunk);
+  tblchunk = table(repmat(row.mov,nchunk,1),frmschunk(:),...
+    repmat(row.iTgt,nchunk,1),'VariableNames',{'mov' 'frm' 'iTgt'});
+  tblTrkTraj = [tblTrkTraj;tblchunk];
+end
+
+tblTrkTraj = unique(tblTrkTraj);
+fprintf('%d rows to be tracked.\n',height(tblTrkTraj));
+%%
+lObj.trackTbl(tblTrkTraj);
+
+% exported to movie_trk9272fullForTrajSmoothing.trk
+
+%%% END DATA PREP %%%
 
 %%
-sPrm = lObj.tracker.sPrm;
-roiRadius = sPrm.PreProc.TargetCrop.Radius;
-tLbl = lObj.labelMFTableAddROI(tLbl,roiRadius);
-%% get ims
-trxCache = containers.Map();
-tblLblConc = tLbl(:,[MFTable.FLDSID {'roi'}]);
-tblLblConc = lObj.mftTableConcretizeMov(tblLblConc);
-wbObj = WaitBarWithCancel('data read');
-[Ilbl,nmasklbl] = CPRData.getFrames(tblLblConc,'wbObj',wbObj,...
-  'trxCache',trxCache);
+%%%% BRITTON DATA PREP %%%%%
 
-%% generate a trn/testset
-movC = categorical(tLbl.mov);
-tgtC = categorical(tLbl.iTgt);
-grpC = movC.*tgtC;
-cvPart = cvpartition(grpC,'kfold',7);
-tfTrn = cvPart.training(1);
-tfTst = cvPart.test(1);
-unique(tfTrn+tfTst)
-iTrn = find(tfTrn);
-iTst = find(tfTst);
-fprintf('%d groups. %d trn %d tst.\n',numel(unique(grpC)),numel(iTrn),numel(iTst));
+% lObj = <load reach_all_mice_including_BPN_perturb_TRAINING_AL_trained.lbl>
+% This is a project trained on ~8K rows
+%
+% full track and export movie 7
 
-tblTrn = tLbl(tfTrn,:);
-tblTst = tLbl(tfTst,:);
-nTrn = numel(iTrn);
-nTst = numel(iTst);
+t = lObj.labelGetMFTableLabeled;
+tfMov7 = t.mov==7;
+tTst = t(tfMov7,:);
+nTst = height(tTst);
 
-%% Train
-rng(0);
-rc = RegressorCascade(sPrm);
-Itrn = Ilbl(tfTrn,:);
-bbtrn = CPRData.getBboxes2D(Itrn);
-pTrn = tblTrn.pRoi;
-othetasTrn = tblTrn.thetaTrx;
-[~,~,p0trn,p0trninfo] = rc.trainWithRandInit(Itrn,bbtrn,pTrn,...
-  'orientationThetas',othetasTrn);
-save rc_trnbase.mat rc p0trn p0trninfo tblTrn pTrn;
+%% Load tracked data: Bub
+trk = load('f:\pathMacros20170731\localdata\cx_GMR_SS00030_CsChr_RigC_20150826T144616\movie_trk9272fullForTrajSmoothing.trk','-mat');
+%% Load tracked data: Britton
+trk = load('F:\aptSmoothingAndSereInitOnTopOfTrx20171128\M195_20160504_v202\movie_comb_reach_all_mice_TRAINING.trk','-mat');
+%%
+[npts,d,nRep,nTrkFull]  = size(trk.pTrkFull);
+D = d*npts;
+pTrkFull = reshape(trk.pTrkFull,[D,nRep,nTrkFull]);
 
-%% Track Base discarded just to get p0trk p0trkinfo
-rng(0);
-Itrk = Ilbl(tfTst,:);
-bbtrk = CPRData.getBboxes2D(Itrk);
-wbObj = WaitBarWithCancel('tracking');
-othetasTrk = tblTst.thetaTrx;
-[p_t,pIidx,p0trk,p0trkinfo] = rc.propagateRandInit(Itrk,bbtrk,...
-  sPrm.TestInit,'wbObj',wbObj,'orientationThetas',othetasTrk);
-delete(wbObj);
+pTrkFull = permute(pTrkFull,[3 2 1]); % [nTrkFull x nRep x D]
+pTrkMD = trk.pTrkFullFT;
+pTrkMD = [table(mov) pTrkMD];
 
-save p0trkinfo pIidx p0trk p0trkinfo tblTst;
+%% 
+[tf,loc] = tblismember(tTst,pTrkMD,MFTable.FLDSID);
+assert(all(tf));
+pTrkFullStatic = pTrkFull(loc,:,:);
+pGT = tTst.p;
+errGT = @(pTrk,pGT) sqrt(sum(reshape(pTrk-pGT,[nTst npts d]).^2,3));
 
-%% Track, keeping reps
-rng(0);
-Itrk = Ilbl(tfTst,:);
-bbtrk = CPRData.getBboxes2D(Itrk);
-wbObj = WaitBarWithCancel('tracking');
-
-szassert(p0trk,[nTst*sPrm.TestInit.Nrep rc.prmModel.D]);
-assert(isequal(pIidx,repmat(1:nTst,[1 sPrm.TestInit.Nrep])'));
-p_t = rc.propagate(Itrk,bbtrk,p0trk,pIidx,'wbObj',wbObj);
-delete(wbObj);
-
-save pTrkFull p_t;
-
-%% Prune prep
-load rc_trnbase.mat;
-load p0trkinfo
-load pTrkFull;
-sPrm = lObj.tracker.sPrm;
-nTst = height(tblTst);
-
-trkMdl = rc.prmModel;
-trkD = trkMdl.D;
-Tp1 = rc.nMajor+1;
-pTrk = reshape(p_t,[nTst sPrm.TestInit.Nrep trkD Tp1]);
-pTrkEnd = pTrk(:,:,:,end); % [nTst x nRep x trkD]
-
-%% Prune: median
-[pTrk_med,score_med,info_med] = Prune.median(pTrkEnd);
-
-dTrk = pTrk_med-tblTst.pRoi;
-dTrk = reshape(dTrk,[nTst trkMdl.nfids trkMdl.d]);
-eTrk_med = sqrt(sum(dTrk.^2,3));
-meanerrpt = mean(eTrk_med)
-mean(meanerrpt)
+%% Static prune: median
+[pTrk_med,score_med,info_med] = Prune.median(pTrkFullStatic);
+eTrk_med = errGT(pTrk_med,pGT);
+mednerrpt = median(eTrk_med)
+mean(mednerrpt)
 
 figure;
 scatter(score_med,mean(eTrk_med,2));
 grid on;
-title('prune.median, trkerr vs -(repl mad)','fontweight','bold','interpreter','none');
+title('prune.median, mean trkerr vs -(repl mad)','fontweight','bold','interpreter','none');
 
-%% Prune: kde calib
-[~,~,info] = Prune.maxdensity(pTrkEnd,'sigma',5);
+% Bub: trkerr dereases with increasing score as expected
+
+% Britton: trkerr dereases with increasing score as expected
+
+%% Static prune: kde calibration
+[~,~,info] = Prune.maxdensity(pTrkFullStatic,'sigma',0);
 
 kde_d2 = cat(1,info{:}); % [nrep*(nrep-1)/2*nTst x npt] pairwise dist^2 for each replicate/pt
 h = figure;
-axs = createsubplots(3,6);
-bctrs = 0:1:25;
-for i=1:17
+axs = createsubplots(1,2);
+%axs = createsubplots(3,6);
+%bctrs = 0:1:25;
+bctrs = 0:4:400;
+for i=1:npts
   ax = axs(i);
   axes(ax);
   hist(kde_d2(:,i),bctrs);
@@ -115,31 +138,32 @@ for i=1:17
   end
 end
 linkaxes(axs,'x');
-xlim(axs(1),[0 30]);
+%xlim(axs(1),[0 30]);
+xlim(axs(1),[0 450]);
 
 % For FlyBub leg (tips), looks like scale of d2 is ~2
 
 % Britton, scale of d2 is ~50-100
 
-%% Prune: kde
-SIGMAS = [sqrt(0.1) sqrt(0.33) 1 sqrt(2) sqrt(5)];
+%% Static prune: kde
+%SIGMAS = [sqrt(0.1) sqrt(0.33) 1 sqrt(2) sqrt(5)];
+SIGMAS = [sqrt(5) sqrt(20) sqrt(50) sqrt(100) sqrt(250)];
 nSig = numel(SIGMAS);
 [pTrk_kde_sig,score_kde_sig] = ...
-  arrayfun(@(sig)Prune.maxdensity(pTrkEnd,'sigma',sig),SIGMAS,'uni',0);
+  arrayfun(@(sig)Prune.maxdensity(pTrkFullStatic,'sigma',sig),SIGMAS,'uni',0);
 
 eTrk_kde_sig = cell(nSig,1);
 for iSig=1:nSig
-  dTrk = pTrk_kde_sig{iSig}-tblTst.pRoi;
-  dTrk = reshape(dTrk,[nTst trkMdl.nfids trkMdl.d]);
-  eTrk_kde_sig{iSig} = sqrt(sum(dTrk.^2,3));
-  fprintf('iSig %d, sig=%.3f. Mean err: %.3f\n',iSig,SIGMAS(iSig),mean(eTrk_kde_sig{iSig}(:)));
+  eTrk_kde_sig{iSig} = errGT(pTrk_kde_sig{iSig},pGT);
+  fprintf('iSig %d, sig=%.3f. MeanMdn err: %.4f\n',iSig,SIGMAS(iSig),...
+    mean(median(eTrk_kde_sig{iSig})));
 end
 
 % sqrt(0.33) is the best, use 1 though about the same and looks more
 % reasonable
 
-% Britton mouse: best is sqrt(50)
-
+% Britton mouse: best is sqrt(20), sqrt(50)
+%%
 iSigBest = 3;
 pTrk_kde = pTrk_kde_sig{iSigBest};
 score_kde = score_kde_sig{iSigBest};
@@ -150,37 +174,49 @@ scatter(score_kde,mean(eTrk_kde,2));
 grid on;
 title('prune.kde, trkerr vs score','fontweight','bold','interpreter','none');
 
-%% Prune: global min calib
-[~,~,info] = Prune.globalmin(pTrkEnd,'sigma',inf); % sigma should not matter
+% Bub: score/trkerr POSITIVELY correlated
+%  - Notes on kde appearancecost. It needs to be within-iter comparable but i 
+%    think it looks like it doesn't have to be between-iter comparable. Which
+%    is good b/c as we saw, with KDE, the maxPr score is not anticorrelated 
+%    with error. One theory, when tracking is good, many reps are 
+%    similar/close together, with the result that probability gets widely 
+%    shared, leading to smaller maxPr scores even for the best one. With bad 
+%    tracking, the reps are spread out, and it is more likely that one rep 
+%    stands out and wins a greater share of pr.
+
+% Britton: score/trkerr +vely correlated again
+
+%% Static prune: global min calib
+[~,~,info] = Prune.globalmin(pTrkFullStatic,'sigma',inf); % sigma should not matter
 
 glbl_d2 = cat(1,info{:}); % [nrep*(nrep-1)/2*nTst x 1] pairwise dist^2 for each replicate
 figure;
-hist(glbl_d2,0:1:65);
+hist(glbl_d2,0:4:400);
 grid on;
-xlim([0 70]);
+xlim([0 450]);
 
-% looks like scale of d2 is ~5
+% Bub: looks like scale of d2 is ~5-8
 
 % Britton: scale is ~100
 
-%% Prune: global min
-SIGMAS = [sqrt(1) sqrt(2) sqrt(5) sqrt(20)];
+%% Static prune: global min
+%SIGMAS = [sqrt(1) sqrt(2) sqrt(5) sqrt(20)];
+SIGMAS = [sqrt(5) sqrt(20) sqrt(50) sqrt(100) sqrt(250)];
 nSig = numel(SIGMAS);
 [pTrk_glbl_sig,score_glbl_sig] = ...
-  arrayfun(@(sig)Prune.globalmin(pTrkEnd,'sigma',sig),SIGMAS,'uni',0);
+  arrayfun(@(sig)Prune.globalmin(pTrkFullStatic,'sigma',sig),SIGMAS,'uni',0);
 
 eTrk_glbl_sig = cell(nSig,1);
 for iSig=1:nSig
-  dTrk = pTrk_glbl_sig{iSig}-tblTst.pRoi;
-  dTrk = reshape(dTrk,[nTst trkMdl.nfids trkMdl.d]);
-  eTrk_glbl_sig{iSig} = sqrt(sum(dTrk.^2,3));
-  fprintf('iSig %d, sig=%.3f. Mean err: %.3f\n',iSig,SIGMAS(iSig),mean(eTrk_glbl_sig{iSig}(:)));
+  eTrk_glbl_sig{iSig} = errGT(pTrk_glbl_sig{iSig},pGT);
+  fprintf('iSig %d, sig=%.3f. MeanMdn err: %.3f\n',iSig,SIGMAS(iSig),...
+    mean(median(eTrk_glbl_sig{iSig})));
 end
 
-% sigma=1 is lowest but use sqrt(2)
+% Bubble: sigma=1 is lowest, use sqrt(2) seems more reasonable
 
 % Britton: sigma=sqrt(100) is the best
-
+%%
 iSigBest = 4;
 pTrk_glbl = pTrk_glbl_sig{iSigBest};
 score_glbl = score_glbl_sig{iSigBest};
@@ -191,95 +227,101 @@ scatter(score_glbl,mean(eTrk_glbl,2));
 grid on;
 title('prune.glbl, trkerr vs score','fontweight','bold','interpreter','none');
 
+% Bubble: err and score negatively correlated
+
+% Britton: err and score negatively correlated
+
+%% Trajsmooth with sigma titration
+%SIGMAS = [sqrt(0.1) sqrt(0.33) 1 sqrt(2) sqrt(5)];
+SIGMAS = [sqrt(5) sqrt(20) sqrt(50) sqrt(100) sqrt(250)];
+nSig = numel(SIGMAS);
+[pTrk_traj_sig,tblSegments_traj_sig] = ...
+  arrayfun(@(sig)Prune.applybesttraj2segs(pTrkFull,pTrkMD,'sigma',sig),SIGMAS,'uni',0);
+
+[tf,loc] = tblismember(tTst,pTrkMD,MFTable.FLDSID);
+assert(all(tf));
+eTrk_traj_sig = cell(nSig,1);
+for iSig=1:nSig
+  pTrk = pTrk_traj_sig{iSig};
+  pTrk = pTrk(loc,:);
+  eTrk_traj_sig{iSig} = errGT(pTrk,pGT);
+  fprintf('iSig %d, sig=%.3f. MeanMdn err: %.3f\n',iSig,SIGMAS(iSig),...
+    mean(median(eTrk_traj_sig{iSig})));
+end
+
+% Bubble: sqrt(0.1) is the best, use 1 though just like with KDE b/c it 
+% seems more reasonable and doesn't differ much
+
+% Britton: sqrt(20) is the best
+
+iSigBest = 2;
+pTrk_traj = pTrk_traj_sig{iSigBest};
+eTrk_traj = eTrk_traj_sig{iSigBest};
+
 %% Alg comparison: End of the day
 
-meanerrpts = [mean(eTrk_med)' mean(eTrk_kde)' mean(eTrk_glbl)']
-mean(meanerrpts)
+mednerrpts = [median(eTrk_med)' median(eTrk_kde)' median(eTrk_glbl)' median(eTrk_traj)']
+mean(mednerrpts)
 
-figure
-axs = createsubplots(1,2);
-for ipt=1:2
-  axes(axs(ipt));
-  x = [eTrk_med(:,ipt) eTrk_kde(:,ipt) eTrk_glbl(:,ipt)];
-  boxplot(x);
-  grid on
+arrayfun(@(x)ranksum(eTrk_med(:,x),eTrk_traj(:,x)),1:npts)
+friedman([eTrk_med(:) eTrk_traj(:)])
+arrayfun(@(x)ranksum(eTrk_glbl(:,x),eTrk_traj(:,x)),1:npts)
+friedman([eTrk_glbl(:) eTrk_traj(:)])
+
+% Bubble: Median won but not by a lot, not sure it is significant
+
+% Britton: kde, glbl-min, trajsmooth in a 3-way tie. all better than med
+
+%% Trajsmooth, poslambda titration for best sigma 
+%
+% Note, it might be better to set a global poslambda rather than just using
+% a factor applied to every separate window.
+POSLAMBDA_FACS = [0.5 2 4];
+nFac = numel(POSLAMBDA_FACS);
+
+[pTrk_traj_lamfac,tblSegments_traj_lamfac] = ...
+  arrayfun(@(lamfac)Prune.applybesttraj2segs( ...
+    pTrkFull,pTrkMD,'sigma',SIGMAS(iSigBest),'poslambdafac',lamfac),POSLAMBDA_FACS,'uni',0);
+
+eTrk_traj_lamfac = cell(nFac,1);
+for iFac=1:nFac
+  pTrk = pTrk_traj_lamfac{iFac};
+  pTrk = pTrk(loc,:);
+  eTrk_traj_lamfac{iFac} = errGT(pTrk,pGT);
+  fprintf('iLamFac %d, lamfac=%.3f. MeanMdn err: %.3f\n',iFac,...
+    POSLAMBDA_FACS(iFac),mean(median(eTrk_traj_lamfac{iFac})));
 end
 
-ranksum(eTrk_med(:,1),eTrk_glbl(:,1))
-ranksum(eTrk_med(:,2),eTrk_glbl(:,2))
+% Bub: lamfac=0.5 was best, slightly better than lamfac=1 (no lamfac).
 
+% Britton: lamfac=4 was best => poslambda = .005
 
-% Bubble: Median won but nothing reaches significance, all 3 methods similar
+posLambdaBest = .005;
 
-% Britton: glbl-min won (no significance compared to kde), but both better than median primarily on pt 1
+%% Trajsmooth, dampen titration for best sigma, poslambda
 
-%% Traj Smoothing
-PROJFILE = 'reach_all_mice_including_BPN_perturb_TRAINING_AL_trained.lbl';
-IMOV = 7;
-TRKFILE = 'mov7full.trk';
-lbl = load(PROJFILE,'-mat');
-trk = load(TRKFILE,'-mat');
+DAMPENS = [0.25 0.75]; % default is 0.5
+nFac = numel(DAMPENS); 
+[pTrk_traj_damp,tblSegments_traj_damp] = ...
+  arrayfun(@(dmp)Prune.applybesttraj2segs(pTrkFull,pTrkMD,...
+    'sigma',SIGMAS(iSigBest),'poslambda',posLambdaBest,...
+    'dampen',dmp),DAMPENS,'uni',0);
+
+eTrk_traj_damp = cell(nFac,1);
+for iFac=1:nFac
+  pTrk = pTrk_traj_damp{iFac};
+  pTrk = pTrk(loc,:);
+  eTrk_traj_damp{iFac} = errGT(pTrk,pGT);
+  fprintf('idamp %d, dampen=%.3f. MeanMdn err: %.3f\n',iFac,...
+    DAMPENS(iFac),mean(median(eTrk_traj_damp{iFac})));
+end
+
+% Bub: no real effect
+
+% Britton: no real effect
+
 %%
-lpos = SparseLabelArray.full(lbl.labeledpos{IMOV});
-pTrkFull = trk.pTrkFull;
-N = size(lpos,3);
-K = size(pTrkFull,3);
-pLbl = reshape(lpos,[4 N])'; % [Nx4]
-pTrkFull = reshape(pTrkFull,[4 K N]);
-pTrkFull = permute(pTrkFull,[3 2 1]);
-
-tfLbled = all(~isnan(pLbl),2);
-nLbled = nnz(tfLbled);
-fprintf('%d labeled frames in mov %d.\n',nLbled,IMOV);
-pLbled = pLbl(tfLbled,:); 
-clear pLbl;
-%%
-SIGMAS = [sqrt(0.33) sqrt(1) sqrt(5) sqrt(20) sqrt(100)];
-nSig = numel(SIGMAS);
-pTrk_traj_sig = ...
-  arrayfun(@(sig)Prune.besttraj(pTrkFull,'sigma',sig),SIGMAS,'uni',0);
-pTrk_kde_sig = ...
-  arrayfun(@(sig)Prune.maxdensity(pTrkFull,'sigma',sig),SIGMAS,'uni',0);
-pTrk_med_sig = ...
-  arrayfun(@(sig)Prune.median(pTrkFull),SIGMAS,'uni',0);
-
-eTrk_traj_sig = cell(nSig,1);
-eTrk_kde_sig = cell(nSig,1);
-eTrk_med_sig = cell(nSig,1);
-for iSig=1:nSig
-  dTrkLbled = pTrk_traj_sig{iSig}(tfLbled,:)-pLbled;
-  dTrkLbled = reshape(dTrkLbled,[nLbled 2 2]);
-  eTrk_traj_sig{iSig} = sqrt(sum(dTrkLbled.^2,3));
-  
-  dTrkLbled = pTrk_kde_sig{iSig}(tfLbled,:)-pLbled;
-  dTrkLbled = reshape(dTrkLbled,[nLbled 2 2]);
-  eTrk_kde_sig{iSig} = sqrt(sum(dTrkLbled.^2,3));
-  
-  dTrkLbled = pTrk_med_sig{iSig}(tfLbled,:)-pLbled;
-  dTrkLbled = reshape(dTrkLbled,[nLbled 2 2]);
-  eTrk_med_sig{iSig} = sqrt(sum(dTrkLbled.^2,3));  
-  
-  fprintf('iSig %d, sig=%.3f. Mean err traj/kde/med: %.3f %.3f %.3f\n',...
-    iSig,SIGMAS(iSig),...
-    mean(eTrk_traj_sig{iSig}(:)),...
-    mean(eTrk_kde_sig{iSig}(:)),...
-    mean(eTrk_med_sig{iSig}(:)) );
-end
-
-%% check significance
-ISIGBEST = 4;
-pTrk_traj_best = pTrk_traj_sig{ISIGBEST};
-eTrk_traj_best = eTrk_traj_sig{ISIGBEST};
-eTrk_kde_best = eTrk_kde_sig{ISIGBEST};
-eTrk_med_best = eTrk_med_sig{ISIGBEST};
-mean(eTrk_traj_best)
-mean(eTrk_kde_best)
-mean(eTrk_med_best)
-arrayfun(@(ipt)ranksum(eTrk_traj_best(:,ipt),eTrk_kde_best(:,ipt)),1:2)
-% traj/kde diff not significant
-for ipt=1:2
-  kruskalwallis([eTrk_traj_best(:,ipt) eTrk_kde_best(:,ipt)],[]);
-end
+%%% Random %%%
 
 %% make a trkfile for best pTrk_kde for import
 pTrk_kde_best = pTrk_kde_sig{ISIGBEST}'; % [4xnfrm]
@@ -316,63 +358,3 @@ t = t(idx,:);
 outlrFcn = tmpOutlierFcn(t);
 lObj.suspSetComputeFcn(outlrFcn);
 lObj.suspComputeUI();
-
-%% lambdas
-LAMBDAS0 = [.013 .0047 .002 .0012 .00052]; % originally generated
-%SIGMAS = [sqrt(0.33) sqrt(1) sqrt(5) sqrt(20) sqrt(100)];
-nSig = numel(SIGMAS);
-
-lambdas = LAMBDAS0*4;
-assert(numel(lambdas)==nSig);
-
-pTrk_traj_sig_lam2 = ...
-  arrayfun(@(sig,lam)Prune.besttraj(pTrkFull,'sigma',sig,'poslambda',lam),...
-  SIGMAS,lambdas,'uni',0);
-% pTrk_kde_sig = ...
-%   arrayfun(@(sig)Prune.maxdensity(pTrkFull,'sigma',sig),SIGMAS,'uni',0);
-% pTrk_med_sig = ...
-%   arrayfun(@(sig)Prune.median(pTrkFull),SIGMAS,'uni',0);
-
-eTrk_traj_sig_lam2 = cell(nSig,1);
-% eTrk_kde_sig = cell(nSig,1);
-% eTrk_med_sig = cell(nSig,1);
-for iSig=1:nSig
-  dTrkLbled = pTrk_traj_sig_lam2{iSig}(tfLbled,:)-pLbled;
-  dTrkLbled = reshape(dTrkLbled,[nLbled 2 2]);
-  eTrk_traj_sig_lam2{iSig} = sqrt(sum(dTrkLbled.^2,3));
-    
-  fprintf('iSig %d, sig=%.3f. Mean err origlam/newlam: %.3f %.3f\n',...
-    iSig,SIGMAS(iSig),...
-    mean(eTrk_traj_sig{iSig}(:)),...
-    mean(eTrk_traj_sig_lam2{iSig}(:)));
-end
-
-% 4x lambdas
-% iSig 1, sig=0.574. Mean err origlam/newlam: 8.769 8.452
-% iSig 2, sig=1.000. Mean err origlam/newlam: 8.796 8.405
-% iSig 3, sig=2.236. Mean err origlam/newlam: 8.563 8.186
-% iSig 4, sig=4.472. Mean err origlam/newlam: 8.374 8.096
-% iSig 5, sig=10.000. Mean err origlam/newlam: 8.578 8.689
-
-% % 3x lambdas
-% iSig 1, sig=0.574. Mean err origlam/newlam: 8.769 8.492
-% iSig 2, sig=1.000. Mean err origlam/newlam: 8.796 8.420
-% iSig 3, sig=2.236. Mean err origlam/newlam: 8.563 8.161
-% iSig 4, sig=4.472. Mean err origlam/newlam: 8.374 8.077
-% iSig 5, sig=10.000. Mean err origlam/newlam: 8.578 8.670
-
-% double lambdas
-% iSig 1, sig=0.574. Mean err origlam/newlam: 8.769 8.508
-% iSig 2, sig=1.000. Mean err origlam/newlam: 8.796 8.484
-% iSig 3, sig=2.236. Mean err origlam/newlam: 8.563 8.550
-% iSig 4, sig=4.472. Mean err origlam/newlam: 8.374 8.386
-% iSig 5, sig=10.000. Mean err origlam/newlam: 8.578 8.588
-
-% half lambdas
-% iSig 1, sig=0.574. Mean err origlam/newlam: 8.769 8.508
-% iSig 2, sig=1.000. Mean err origlam/newlam: 8.796 8.484
-% iSig 3, sig=2.236. Mean err origlam/newlam: 8.563 8.550
-% iSig 4, sig=4.472. Mean err origlam/newlam: 8.374 8.386
-% iSig 5, sig=10.000. Mean err origlam/newlam: 8.578 8.588
-
-

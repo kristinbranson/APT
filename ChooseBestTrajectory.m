@@ -9,9 +9,10 @@ function [Xbest,idx,totalcost,poslambda] = ...
 % idx: [T] replicate indices (indices into 3rd dim of X). Xbest(:,t) is
 % equal to X(:,t,idx(t))
 
-[priordistfun,poslambda,dampen,fix] = myparse(varargin,...
+[priordistfun,poslambda,poslambdafac,dampen,fix] = myparse(varargin,...
   'priordist',@(x) zeros(size(x,1),1),...  % [K] = priordist([KxD]) returns assumed/prior position cost for t=1
-  'poslambda',[],... % position costs are multiplied by this scale factor when added to appearance costs
+  'poslambda',[],... % (optional) position costs are multiplied by this scale factor when added to appearance costs. If not supplied, empirically generated via random sampling
+  'poslambdafac',[],... % (optional), fudge/scale factor for empirical generation of poslambda. Used only if poslambda==[]
   'dampen',.5,... % velocity damping factor. pos(t) is predicted as pos(t-1)+dampen*(pos(t-1)-pos(t-2)). 1=>full extrapolation, 0=>velocity irrelevant
   'fix',[]);
 
@@ -117,7 +118,14 @@ if isempty(poslambda)
   %mad_app = median( abs( appearancecost(~isinf(appearancecost)) - median(appearancecost(~isinf(appearancecost)))) );
   mad_app = median( abs( appearancecost(:) - median(appearancecost(:)) ) );
   poslambda = mad_app/mad_pos;
-  fprintf('Chose poslambda = %f\n',poslambda);
+  
+  if isempty(poslambdafac)
+    fprintf('Chose poslambda = %f\n',poslambda);
+  else
+    poslambda = poslambda*poslambdafac;
+    fprintf('Chose poslambda = %f, after scaling by poslambdafac = %f\n',...
+      poslambda,poslambdafac);
+  end
   %assert(~isnan(poslambda) && ~isinf(poslambda));
 end
 
