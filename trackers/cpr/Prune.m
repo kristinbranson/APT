@@ -153,16 +153,24 @@ classdef Prune
         'poslambdafac',poslambdafac,'poslambdaused',poslambdaused);
     end
     
-    function [pTrk,tblSegments] = applybesttraj2segs(pTrkFull,pTrkMD,varargin)
+    function [pTrk,pruneMD,tblSegments] = applybesttraj2segs(pTrkFull,pTrkMD,...
+        besttrajArgs,varargin)
       % Apply Prune.besttraj to segments of consecutive frames in 
       % pTrkFull. pTrkFull need not represent consecutive frames.
       %
       % pTrkFull: [NxKxD]. First dim doesn't have to be consecutive frames.
       % pTrkMD: [N] MFTable labeling rows of pTrkFull.
+      % besttrajArgs: cell vec of optional PV pairs passed to Prune.besttraj
       %
-      % pTrkRed: [NxD], reduced tracking for each row of pTrkFull.
+      % pTrk: [NxD], reduced tracking for each row of pTrkFull.
+      % pruneMD: [N], pruning MD labeling rows of pTrk.
       % tblSegments: [nSeg] table detailing segments of consecutive frames 
       %   where smoothing was applied
+      
+      smallSegmentWarnThresh = myparse(varargin,...
+        'smallSegmentWarnThresh',15 ... % throw warning for segments with 
+        ... % fewer than this many frames. Use inf to never throw warning
+      );
       
       [N,~,D] = size(pTrkFull);
       assert(istable(pTrkMD) && height(pTrkMD)==N);
@@ -173,20 +181,31 @@ classdef Prune
       
       pTrk = nan(N,D);
       infoSeg = cell(nSeg,1);
+      segFrm0 = nan(N,1); % for each row of pTrk, the "segment ID" or first-frame-of-segment analyzed for that row
+      poslambdaUsed = nan(N,1); % for each row of pTrk, the poslambdaused
       for iSeg=1:nSeg
         rowSeg = tblSegments(iSeg,:);
         tfSeg = pTrkMD.mov==rowSeg.mov & pTrkMD.iTgt==rowSeg.iTgt & ...
           rowSeg.frm0<=pTrkMD.frm & pTrkMD.frm<=rowSeg.frm1;
         pTrkMDthis = pTrkMD(tfSeg,:);
         assert(isequal(pTrkMDthis.frm,(rowSeg.frm0:rowSeg.frm1)'));
+        
+        nfrmsSeg = height(pTrkMDthis);
+        if nfrmsSeg<smallSegmentWarnThresh
+          warningNoTrace('Segment of %d frames encountered. Trajectory-smoothing may perform better on longer stretches of consecutively tracked frames.',nfrmsSeg);
+        end
         [pTrk(tfSeg,:),~,infoSeg{iSeg}] = ...
-          Prune.besttraj(pTrkFull(tfSeg,:,:),varargin{:});
+          Prune.besttraj(pTrkFull(tfSeg,:,:),besttrajArgs{:});
+        
+        segFrm0(tfSeg) = rowSeg.frm0;
+        poslambdaUsed(tfSeg) = infoSeg{iSeg}.poslambdaused;
       end
       
       tblSegments.pruneInfo = infoSeg(:);
+      pruneMD = table(segFrm0,poslambdaUsed);      
     end
     
-    function tblSegments = analyzeConsecSegments(pTrkMD)      
+    function tblSegments = analyzeConsecSegments(pTrkMD)
       s = struct('mov',cell(0,1),'iTgt',[],'frm0',[],'frm1',[]);
       nMov = max(pTrkMD.mov);
       nTgt = max(pTrkMD.iTgt);
@@ -226,7 +245,7 @@ classdef Prune
       
       tblSegments = struct2table(s);      
     end
-
+    
   end  
   
 end

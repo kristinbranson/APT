@@ -1397,6 +1397,7 @@ classdef CPRLabelTracker < LabelTracker
       Dfull = nfids*nview*prm.Model.d;
       pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
       pTstTRed = nan(NTst,Dfull);
+      pTstTPruneMD = array2table(nan(NTst,0));
       for iView=1:nview % obj CONST over this loop
         rc = obj.trnResRC(iView);
         IsVw = Is(:,iView);
@@ -1415,14 +1416,14 @@ classdef CPRLabelTracker < LabelTracker
         Tp1 = rc.nMajor+1;
         pTstTVw = reshape(p_t,[NTst RT trkD Tp1]);
         
-        %% Select best preds for each time
-        pTstTRedVw = nan(NTst,trkD);
-        prm.Prune.prune = 1;
-        for t=Tp1
-          %fprintf('Pruning t=%d\n',t);
-          pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
-          pTstTRedVw(:,:) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
+        %% Prune
+        [pTstTRedVw,pruneMD] = CPRLabelTracker.applyPruning(...
+          pTstTVw(:,:,:,end),d.MDTst(:,MFTable.FLDSID),prm.Prune);
+        szassert(pTstTRedVw,[NTst trkD]);
+        if nview>1
+          pruneMD = tblfldsmodify(pruneMD,@(x)[x '_vw' num2str(iView)]);
         end
+        pTstTPruneMD = [pTstTPruneMD pruneMD]; %#ok<AGROW>        
         
         assert(trkD==Dfull/nview);
         assert(mod(trkD,2)==0);
@@ -1437,6 +1438,7 @@ classdef CPRLabelTracker < LabelTracker
         fldsTmp{1,end+1} = 'roi';
       end
       trkPMDnew = d.MDTst(:,fldsTmp);
+      trkPMDnew = [trkPMDnew pTstTPruneMD];
       obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
     end
     
@@ -1546,8 +1548,10 @@ classdef CPRLabelTracker < LabelTracker
         assert(nview==size(Is,2));
         assert(prm.Model.d==2);
         Dfull = nfids*nview*prm.Model.d;
+        
         pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
         pTstTRed = nan(NTst,Dfull);
+        pTstTPruneMD = array2table(nan(NTst,0));
         for iView=1:nview % obj CONST over this loop
           rc = obj.trnResRC(iView);
           IsVw = Is(:,iView);          
@@ -1570,9 +1574,9 @@ classdef CPRLabelTracker < LabelTracker
             % decrease chunk size as tracking results are saved at those
             % increments.
             % 
-            % Single-chunk: data updated 
+            % Single-chunk: .data updated 
             %
-            % Multi-chunk: data updated. If 2nd chunk or later, tracking
+            % Multi-chunk: .data updated. If 2nd chunk or later, tracking
             % results updated to some extent.
             
             if iChunk>1 % implies nChunk>1
@@ -1593,21 +1597,21 @@ classdef CPRLabelTracker < LabelTracker
           Tp1 = rc.nMajor+1;
           pTstTVw = reshape(p_t,[NTst RT trkD Tp1]);
           
-          %% Select best preds for each time
-          pTstTRedVw = nan(NTst,trkD);
-          prm.Prune.prune = 1;
-          for t=Tp1
-            %fprintf('Pruning t=%d\n',t);
-            pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
-            pTstTRedVw(:,:) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
+          %% Prune
+          [pTstTRedVw,pruneMD] = CPRLabelTracker.applyPruning(...
+            pTstTVw(:,:,:,end),d.MDTst(:,MFTable.FLDSID),prm.Prune);
+          szassert(pTstTRedVw,[NTst trkD]);
+          if nview>1
+            pruneMD = tblfldsmodify(pruneMD,@(x)[x '_vw' num2str(iView)]);
           end
-          
+          pTstTPruneMD = [pTstTPruneMD pruneMD]; %#ok<AGROW>
+                    
           assert(trkD==Dfull/nview);
           assert(mod(trkD,2)==0);
           iFull = (1:nfids)+(iView-1)*nfids;
           iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
           pTstT(:,:,iFull,:) = pTstTVw;
-          pTstTRed(:,iFull) = pTstTRedVw;
+          pTstTRed(:,iFull) = pTstTRedVw;       
         end % end obj CONST
         
         fldsTmp = MFTable.FLDSID;
@@ -1618,6 +1622,7 @@ classdef CPRLabelTracker < LabelTracker
           fldsTmp{1,end+1} = 'nNborMask'; %#ok<AGROW>
         end
         trkPMDnew = d.MDTst(:,fldsTmp);
+        trkPMDnew = [trkPMDnew pTstTPruneMD]; %#ok<AGROW>
         obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
       end
     end
@@ -2686,7 +2691,10 @@ classdef CPRLabelTracker < LabelTracker
         sPrm.Reg = rmfield(sPrm.Reg,'USE_AL_CORRECTION');
       end
       
-      [sPrm,s0used] = structoverlay(s0,sPrm);
+      % Over time we may remove unused fields from base struture s0; no 
+      % need to warn user that we will be dropping these extra fields from 
+      % sPrm
+      [sPrm,s0used] = structoverlay(s0,sPrm,'dontWarnUnrecog',true); 
       if ~isempty(s0used)
         fprintf('Using default parameters for: %s.\n',...
           String.cellstr2CommaSepList(s0used));
@@ -2733,6 +2741,13 @@ classdef CPRLabelTracker < LabelTracker
         sPrm.TrainInit.usetrxorientation = false;
         sPrm.TestInit.usetrxorientation = false;
       end
+      
+      % 20171208 pruning
+      % No action required, default params are as follows
+      % Prune:
+      % method: 'maxdensity'
+      % maxdensity_sigma: 5
+      % poslambdafac: 1
     end
         
     function [xy,isinterp] = interpolateXY(xy)
@@ -2806,6 +2821,39 @@ classdef CPRLabelTracker < LabelTracker
       bpp = load(bppFile);
       bpp = bpp.bpp(2);
       td.computeIpp([],[],[],'iTrl',1:td.N,'romain',bpp,varargin{:});
+    end
+    
+    function [pTrk,pruneMD] = applyPruning(pTrkFull,pTrkMD,prmPrune)
+      % pTrkFull/pTrkMD: See Prune.m
+      % prmPrune: prune parameter struct
+      %
+      % pTrk: [NxD], see Prune.m
+      % pruneMD: [N] table of prune-relating metadata
+      
+      N = size(pTrkFull,1);
+      assert(istable(pTrkMD) && height(pTrkMD)==N);
+      tblfldscontainsassert(pTrkMD,MFTable.FLDSID);
+      
+      switch prmPrune.method
+        case 'median'
+          [pTrk,pruneScore] = Prune.median(pTrkFull);
+          pruneMD = table(pruneScore);
+        case 'maxdensity'
+          [pTrk,pruneScore] = Prune.maxdensity(pTrkFull,...
+            'sigma',prmPrune.maxdensity_sigma);
+          pruneMD = table(pruneScore);
+        case 'maxdensity global'
+          [pTrk,pruneScore] = Prune.globalmin(pTrkFull,...
+            'sigma',prmPrune.maxdensity_sigma);
+          pruneMD = table(pruneScore);
+        case 'smoothed trajectory'
+          besttrajArgs = {'sigma' prmPrune.maxdensity_sigma ...
+            'poslambdafac' prmPrune.poslambdafac};
+          [pTrk,pruneMD] = Prune.applybesttraj2segs(pTrkFull,pTrkMD,...
+            besttrajArgs);
+        otherwise
+          assert(false,'Unrecognized pruning method.');
+      end
     end
     
   end

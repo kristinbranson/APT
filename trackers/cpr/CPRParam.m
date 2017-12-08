@@ -114,9 +114,9 @@ classdef CPRParam
       sOld.TestInit.augUseFF = cpr.Replicates.AugUseFF;
       sOld.TestInit.movChunkSize = sNew.ROOT.Track.ChunkSize;
       
-      sOld.Prune.prune = 1;
-      sOld.Prune.usemaxdensity = 1;
-      sOld.Prune.maxdensity_sigma = cpr.Prune.MaxDensitySigma; 
+      sOld.Prune.method = cpr.Prune.Method;
+      sOld.Prune.maxdensity_sigma = cpr.Prune.DensitySigma;
+      sOld.Prune.poslambdafac = cpr.Prune.PositionLambdaFactor;
     end
     
     function [sNew,npts,nviews] = old2new(sOld,lObj)
@@ -206,9 +206,9 @@ classdef CPRParam
       sNew.ROOT.CPR.Replicates.AugUseFF = sOld.TrainInit.augUseFF;
       assert(isempty(sOld.TrainInit.iPt));
       
-      assert(sOld.Prune.prune==1);
-      assert(sOld.Prune.usemaxdensity==1);
-      sNew.ROOT.CPR.Prune.MaxDensitySigma = sOld.Prune.maxdensity_sigma; 
+      sNew.ROOT.CPR.Prune.Method = sOld.Prune.method;
+      sNew.ROOT.CPR.Prune.DensitySigma = sOld.Prune.maxdensity_sigma;
+      sNew.ROOT.CPR.Prune.PositionLambdaFactor = sOld.Prune.poslambdafac;
     end
     
   end
