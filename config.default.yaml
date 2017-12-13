@@ -113,7 +113,7 @@ Track:
     LineWidth: 1
 
 CPRLabelTracker:
-  StoreFullTracking: 0 # If true, store tracking results with replicates/iterations
+  # StoreFullTracking: NONE One of StoreFullTrackingType
   PredictReplicatesPlot: # Plot cosmetics for tracking replicates
     Marker: '.'
     MarkerSize: 15

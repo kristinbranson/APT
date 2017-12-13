@@ -5378,7 +5378,6 @@ classdef Labeler < handle
         trkFile = tObj.getTrackingResults(iMov);
         szassert(trkFile,[1 nVw]);
         for iVw=1:nVw
-          trkFile(iVw).pTrkFull = single(trkFile(iVw).pTrkFull);
           trkFile(iVw).save(trkfiles{i,iVw});
           fprintf('...saved: %s\n',trkfiles{i,iVw});
         end

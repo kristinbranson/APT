@@ -92,8 +92,12 @@ classdef CPRLabelTracker < LabelTracker
     % omitted from tracking
     trkP % [NTst trkD] reduced/pruned tracked shapes. In ABSOLUTE coords
     
-    % Either [], or [NTst RT trkD T+1] Tracked shapes full data. Stored 
-    % only if .storeFullTracking=true.
+    % Contents depends on .storeFullTracking:
+    % - If .storeFullTracking=StoreFullTrackingType.NONE, then [].
+    % - If .storeFullTracking= .FINALITER, then [NTst RT trkD] double. Full
+    % replicate info at final CPR iter.
+    % - If .storeFullTracking= .ALLITERS, then [NTst RT trkD T+1] single. 
+    % Full replicate info at all CPR iters.
     trkPFull 
     trkPTS % [NTstx1] timestamp for trkP*
     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt, (opt) .roi
@@ -101,7 +105,7 @@ classdef CPRLabelTracker < LabelTracker
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. trkD=npttrk*d.
   end
   properties (SetObservable)
-    storeFullTracking = false; % scalar logical.
+    storeFullTracking = StoreFullTrackingType.NONE; % scalar StoreFullTrackingType 
   end
   
   events
@@ -159,27 +163,56 @@ classdef CPRLabelTracker < LabelTracker
   end
   methods
     function set.storeFullTracking(obj,v)
-      assert(isscalar(v));
-      v = logical(v);
-      if v
-        if isempty(obj.trkP) %#ok<MCSUP>
-          assert(isempty(obj.trkPFull)); %#ok<MCSUP>
-        else
-          [ntrkfrm,D] = size(obj.trkP); %#ok<MCSUP>
-          nrep = obj.sPrm.TestInit.Nrep; %#ok<MCSUP>
-          Tp1 = obj.sPrm.Reg.T+1; %#ok<MCSUP>
-          if isempty(obj.trkPFull) %#ok<MCSUP>
+      assert(isscalar(v) && isa(v,'StoreFullTrackingType'));
+      vorig = obj.storeFullTracking;
+      switch v
+        case StoreFullTrackingType.NONE
+          if vorig>StoreFullTrackingType.NONE && ~isempty(obj.trkPFull) %#ok<MCSUP>
             warningNoTrace('CPRLabelTracker:trkPFull',...
-              'Tracking results already exist; existing tracked frames will not have full tracking results.');
-            obj.trkPFull = single(nan(ntrkfrm,nrep,D,Tp1)); %#ok<MCSUP>
-          else
-            szassert(obj.trkPFull,[ntrkfrm nrep D Tp1]); %#ok<MCSUP>
+              'Clearing stored tracking replicates.');
           end
-        end
-      else
-        obj.trkPFull = []; %#ok<MCSUP>
-        obj.xyPrdCurrMovieFull = []; %#ok<MCSUP>
-        obj.vizClearReplicates();
+          obj.trkPFull = []; %#ok<MCSUP>
+          obj.xyPrdCurrMovieFull = []; %#ok<MCSUP>
+          obj.vizClearReplicates();
+        case {StoreFullTrackingType.FINALITER StoreFullTrackingType.ALLITERS}
+          if isempty(obj.trkP) %#ok<MCSUP>
+            assert(isempty(obj.trkPFull)); %#ok<MCSUP>
+            % AL: this prob doesn't need to be its own branch
+          else
+            [ntrkfrm,D] = size(obj.trkP); %#ok<MCSUP>
+            nrep = obj.sPrm.TestInit.Nrep; %#ok<MCSUP>
+            Tp1 = obj.sPrm.Reg.T+1; %#ok<MCSUP>
+            
+            if vorig==StoreFullTrackingType.NONE
+              warningNoTrace('CPRLabelTracker:trkPFull',...
+                'Tracking results already exist; existing tracked frames will not have replicates stored.');
+              if v==StoreFullTrackingType.FINALITER
+                obj.trkPFull = double(nan(ntrkfrm,nrep,D)); %#ok<MCSUP>
+              elseif v==StoreFullTrackingType.ALLITERS
+                obj.trkPFull = single(nan(ntrkfrm,nrep,D,Tp1)); %#ok<MCSUP>
+              end
+            elseif vorig==StoreFullTrackingType.FINALITER
+              szassert(obj.trkPFull,[ntrkfrm nrep D]); %#ok<MCSUP>
+              if v==StoreFullTrackingType.ALLITERS
+                warningNoTrace('CPRLabelTracker:trkPFull',...
+                  'Tracking results already exist; existing tracked frames will not have replicates stored for all iterations.');
+                trkPFullorig = obj.trkPFull; %#ok<MCSUP>
+                obj.trkPFull = single(nan(ntrkfrm,nrep,D,Tp1)); %#ok<MCSUP>
+                obj.trkPFull(:,:,:,end) = trkPFullorig; %#ok<MCSUP>
+              end
+            elseif vorig==StoreFullTrackingType.ALLITERS
+              szassert(obj.trkPFull,[ntrkfrm nrep D Tp1]); %#ok<MCSUP>
+              if v==StoreFullTrackingType.FINALITER
+                warningNoTrace('CPRLabelTracker:trkPFull',...
+                  'Tracking results already exist; truncating replicate storage for existing tracked frames.');
+                obj.trkPFull = double(obj.trkPFull(:,:,:,end)); %#ok<MCSUP>
+              end
+            else
+              assert(vorig==v);
+            end
+          end
+        otherwise
+          assert(false);
       end
       obj.storeFullTracking = v;
     end
@@ -665,10 +698,23 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkP = tblTrkRes.pTrk;
       obj.trkPTS = repmat(now,nTrk,1);
       obj.trkPiPt = pTrkiPt;
-      if obj.storeFullTracking
-        warningNoTrace('CPRLabelTracker:trk','Full tracking results not set.');
-      end
-      obj.trkPFull = [];
+      switch obj.storeFullTracking
+        case StoreFullTrackingType.NONE
+          obj.trkPFull = [];
+        case StoreFullTrackingType.FINALITER
+          warningNoTrace('CPRLabelTracker:trk','Full tracking results not set.');
+          [ntrkfrm,D] = size(obj.trkP);
+          nrep = obj.sPrm.TestInit.Nrep;
+          obj.trkPFull = nan(ntrkfrm,nrep,D);
+        case StoreFullTrackingType.ALLITERS
+          warningNoTrace('CPRLabelTracker:trk','Full tracking results not set.');
+          [ntrkfrm,D] = size(obj.trkP);
+          nrep = obj.sPrm.TestInit.Nrep;
+          Tp1 = obj.sPrm.Reg.T+1;
+          obj.trkPFull = single(nan(ntrkfrm,nrep,D,Tp1));
+        otherwise
+          assert(false);
+      end          
       
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
@@ -704,7 +750,9 @@ classdef CPRLabelTracker < LabelTracker
       %  will equal the minimum number of frames across the movieset.
       % trkposTS: [nptstrk x nfrm(iMov) x ntgt(iMov)]. Timestamps for trkpos.
       % trkposFull: [nptstrk x d x nRep x nTrkRows]. 
-      %   Currently this is all nans if .storeFullTracking is false.
+      %   Currently this is all nans if .storeFullTracking is
+      %   StoreFullTrackingType.NONE. Note also this may be of type single 
+      %   or double.
       % trkposFullMFT: MFTable (height nTrkRows) labeling 4th dim of
       %   trkposFull
       % tfHasRes: if true, nontrivial tracking results returned
@@ -728,9 +776,16 @@ classdef CPRLabelTracker < LabelTracker
           
       nRep = obj.sPrm.TestInit.Nrep;
       if isempty(obj.trkPFull)
-        pTrkFull = single(nan(NTrk,nRep,DTrk));
+        pTrkFull = nan(NTrk,nRep,DTrk);
       else
-        pTrkFull = obj.trkPFull(:,:,:,end);
+        switch obj.storeFullTracking
+          case StoreFullTrackingType.FINALITER
+            pTrkFull = obj.trkPFull;
+          case StoreFullTrackingType.ALLITERS
+            pTrkFull = obj.trkPFull(:,:,:,end);
+          otherwise
+            assert(false);
+        end
       end
       szassert(pTrkFull,[NTrk nRep DTrk]);
       
@@ -742,7 +797,7 @@ classdef CPRLabelTracker < LabelTracker
       tfCurrMov = trkMD.mov==mIdx;
       trkMDCurrMov = trkMD(tfCurrMov,:);
       nRowCurrMov = height(trkMDCurrMov);
-      trkposFull = nan(nPtTrk,d,nRep,nRowCurrMov);
+      trkposFull = nan(nPtTrk,d,nRep,nRowCurrMov,class(pTrkFull));
       trkposFullMFT = trkMDCurrMov(:,MFTable.FLDSID);
       
       % First cond is proxy for no tracking results 
@@ -774,6 +829,8 @@ classdef CPRLabelTracker < LabelTracker
     %#%MTGT
     function trkposFull = getTrackResFullCurrTgt(obj,mIdx,frm)
       % Get full tracking results for movie iMov, frame frm, curr tgt.
+      % Note, only the final CPR iter may be available depending on
+      % .storeFullTracking.
       %
       % iMov: scalar movie index (negative for GT movies)
       % 
@@ -781,7 +838,12 @@ classdef CPRLabelTracker < LabelTracker
       % found in .trkPFull'
       
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
-      assert(obj.storeFullTracking);
+      switch obj.storeFullTracking
+        case {StoreFullTrackingType.ALLITERS StoreFullTrackingType.FINALITER}
+          % none; ok         
+        otherwise
+          error('No replicate data is currently stored.');
+      end
       
       trkMD = obj.trkPMD;
       iPtTrk = obj.trkPiPt;
@@ -795,10 +857,18 @@ classdef CPRLabelTracker < LabelTracker
       tfMovFrm = trkMD.mov==mIdx & trkMD.frm==frm & trkMD.iTgt==iTgt;
       nMovFrm = nnz(tfMovFrm);
       assert(nMovFrm==0 || nMovFrm==1);
+            
       if nMovFrm==0
         trkposFull = [];
       else
-        trkposFull = squeeze(obj.trkPFull(tfMovFrm,:,:,:)); % [nRep Dtrk Tp1]
+        switch obj.storeFullTracking
+          case StoreFullTrackingType.ALLITERS
+            trkposFull = squeeze(obj.trkPFull(tfMovFrm,:,:,:)); % [nRep Dtrk Tp1]
+          case StoreFullTrackingType.FINALITER
+            Tp1 = obj.sPrm.Reg.T+1;
+            trkposFull = nan(nRep,nPtTrk*d,Tp1);
+            trkposFull(:,:,end) = squeeze(obj.trkPFull(tfMovFrm,:,:));
+        end
         Tp1 = size(trkposFull,3);
         trkposFull = reshape(trkposFull,[nRep nPtTrk d Tp1]);
         trkposFull = permute(trkposFull,[2 3 1 4]);
@@ -859,20 +929,32 @@ classdef CPRLabelTracker < LabelTracker
       % existing rows
       idxCur = loc(tf);
       obj.trkP(idxCur,:) = pTstTRed(tf,:);
-      if obj.storeFullTracking
-        if ~isequal(obj.trkPFull,[])
-          szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull Tp1]);
-        end
-        obj.trkPFull(idxCur,:,:,:) = single(pTstT(tf,:,:,:));
-      else
-        assert(isempty(obj.trkPFull));
-      end
+      switch obj.storeFullTracking
+        case StoreFullTrackingType.NONE
+          assert(isempty(obj.trkPFull));
+        case StoreFullTrackingType.FINALITER
+          if ~isequal(obj.trkPFull,[])
+            szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull]);
+          end
+          obj.trkPFull(idxCur,:,:) = pTstT(tf,:,:,end);
+        case StoreFullTrackingType.ALLITERS
+          if ~isequal(obj.trkPFull,[])
+            szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull Tp1]);
+          end
+          obj.trkPFull(idxCur,:,:,:) = single(pTstT(tf,:,:,:));    
+        otherwise
+          assert(false);
+      end      
+      
       nowts = now;
       obj.trkPTS(idxCur) = nowts;
       % new rows
       obj.trkP = [obj.trkP; pTstTRed(~tf,:)];
-      if obj.storeFullTracking
-        obj.trkPFull = [obj.trkPFull; single(pTstT(~tf,:,:,:))];
+      switch obj.storeFullTracking
+        case StoreFullTrackingType.FINALITER
+          obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,end)];
+        case StoreFullTrackingType.ALLITERS
+          obj.trkPFull = [obj.trkPFull; single(pTstT(~tf,:,:,:))];
       end
       nNew = nnz(~tf);
       obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
@@ -901,7 +983,7 @@ classdef CPRLabelTracker < LabelTracker
     %#%MV
     function initHook(obj)
       % "config init"
-      obj.storeFullTracking = obj.lObj.projPrefs.CPRLabelTracker.StoreFullTracking;      
+      %obj.storeFullTracking = obj.lObj.projPrefs.CPRLabelTracker.StoreFullTracking;      
       
       obj.initData();
       obj.trnDataInit();
@@ -1854,20 +1936,23 @@ classdef CPRLabelTracker < LabelTracker
         set(hXY(iPt),'XData',xy(iPt,1,itgt),'YData',xy(iPt,2,itgt),plotargs{:});
       end
       
-      if obj.showVizReplicates && obj.storeFullTracking && ~isequal(xyfull,[])
+      if obj.showVizReplicates && ...
+         obj.storeFullTracking~=StoreFullTrackingType.NONE && ...
+         ~isequal(xyfull,[])
+        
         hXY = obj.hXYPrdFull;
         plotargs = obj.xyVizFullPlotArgs;
         for iPt = 1:npts
           set(hXY(iPt),'XData',xyfull(iPt,1,:),'YData',xyfull(iPt,2,:),plotargs{:});
-        end
-      end
+        end       
+      end 
     end
     
     function newLabelerTarget(obj)
       if obj.lObj.isinit
         return;
       end
-      if obj.storeFullTracking
+      if obj.storeFullTracking~=StoreFullTrackingType.NONE
         obj.vizLoadXYPrdCurrMovieTarget(); % needed to reload full tracking results
       end
       obj.newLabelerFrame();
@@ -1936,7 +2021,7 @@ classdef CPRLabelTracker < LabelTracker
         mIdxOrig2New);
       obj.trkP(tfRm,:) = [];
       if ~isequal(obj.trkPFull,[])
-        obj.trkPFull(tfRm,:,:,:) = [];
+        obj.trkPFull(tfRm,:,:,:) = []; % Should work fine even when .storeFullTracking is .FINALITER and .trkPFull has 3 dims
       end
       obj.trkPTS(tfRm,:) = [];
       
@@ -2145,6 +2230,16 @@ classdef CPRLabelTracker < LabelTracker
         nNborMask = nan(height(s.trkPMD),1);
         s.trkPMD = [s.trkPMD table(nNborMask)];
       end
+      
+      % 20171212: storeFullTracking
+      if islogical(s.storeFullTracking)
+        if s.storeFullTracking
+          s.storeFullTracking = StoreFullTrackingType.ALLITERS;
+        else
+          s.storeFullTracking = StoreFullTrackingType.NONE;
+        end
+      end
+      assert(isa(s.storeFullTracking,'StoreFullTrackingType'));
 
       % set parameter struct s.sPrm on obj
       if ~isequaln(obj.sPrm,s.sPrm)
@@ -2177,7 +2272,7 @@ classdef CPRLabelTracker < LabelTracker
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
       % isinterp: scalar logical, only relevant if nTgt==1
       % xyfull: [nPtsx2xnRep]. full tracking only for current target. Only 
-      %   available if .storeFullTracking is true 
+      %   available if .storeFullTracking is not .NONE
       
       frm = obj.lObj.currFrame;
       xyPCM = obj.xyPrdCurrMovie;
@@ -2196,7 +2291,8 @@ classdef CPRLabelTracker < LabelTracker
         xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
         isinterp = obj.xyPrdCurrMovieIsInterp(frm);
       end
-      if obj.storeFullTracking && ~isequal(obj.xyPrdCurrMovieFull,[])
+      if obj.storeFullTracking>StoreFullTrackingType.NONE && ...
+          ~isequal(obj.xyPrdCurrMovieFull,[])
         % frm should have gone through 'else' branch above and should be
         % in-range for .xyPrdMovieFull
         
@@ -2617,10 +2713,13 @@ classdef CPRLabelTracker < LabelTracker
       end
 
       obj.xyPrdCurrMovie = xy;
-      if obj.storeFullTracking
-        obj.xyPrdCurrMovieFull = xyfull;
-      else
-        obj.xyPrdCurrMovieFull = [];
+      switch obj.storeFullTracking
+        case StoreFullTrackingType.NONE
+          obj.xyPrdCurrMovieFull = [];
+        case {StoreFullTrackingType.FINALITER StoreFullTrackingType.ALLITERS}
+          obj.xyPrdCurrMovieFull = xyfull;
+        otherwise
+          assert(false);
       end
       obj.xyPrdCurrMovieIsInterp = isinterp;
     end
@@ -2636,9 +2735,9 @@ classdef CPRLabelTracker < LabelTracker
       assert(isscalar(v));
       v = logical(v);
       if v
-        if ~obj.storeFullTracking && ~obj.isInit %#ok<MCSUP>
+        if obj.storeFullTracking==StoreFullTrackingType.NONE && ~obj.isInit %#ok<MCSUP>
           warning('CPRLabelTracker:viz',...
-            'Currently not storing full tracking; replicate visualization will be unavailable.');
+            'Currently not storing tracking replicates. Replicate visualization will be unavailable.');
         end
         [obj.hXYPrdFull.Visible] = deal('on'); %#ok<MCSUP>
       else

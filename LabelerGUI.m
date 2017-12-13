@@ -200,13 +200,33 @@ handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,.
   'Tag','menu_track_clear_tracking_results');  
 moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_export_base);
 
+handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
+  'Label','Export current tracking results',...
+  'Tag','menu_track_export_base');  
+
 handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Store tracking replicates/iterations',...
-  'Tag','menu_track_store_full_tracking',...
-  'Separator','off',...
-  'Checked','off');
-moveMenuItemAfter(handles.menu_track_store_full_tracking,handles.menu_track_clear_tracking_results);
+  'Tag','menu_track_store_full_tracking');
+moveMenuItemAfter(handles.menu_track_store_full_tracking,...
+  handles.menu_track_clear_tracking_results);
+handles.menu_track_store_full_tracking_dont_store = uimenu(...
+  'Parent',handles.menu_track_store_full_tracking,...
+  'Label','Don''t store replicates',...
+  'Tag','menu_track_store_full_tracking_dont_store',...
+  'Checked','on',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_dont_store_Callback',hObject,eventdata,guidata(hObject)));
+handles.menu_track_store_full_tracking_store_final_iteration = uimenu(...
+  'Parent',handles.menu_track_store_full_tracking,...
+  'Label','Store replicates, final iteration only',...
+  'Tag','menu_track_store_full_tracking_store_final_iteration',...
+  'Checked','off',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_store_final_iteration_Callback',hObject,eventdata,guidata(hObject)));
+handles.menu_track_store_full_tracking_store_all_iterations = uimenu(...
+  'Parent',handles.menu_track_store_full_tracking,...
+  'Label','Store replicates, all iterations',...
+  'Tag','menu_track_store_full_tracking_store_all_iterations',...
+  'Checked','off',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_store_all_iterations_Callback',hObject,eventdata,guidata(hObject)));
 
 handles.menu_track_view_tracking_diagnostics = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_view_tracking_diagnostics_Callback',hObject,eventdata,guidata(hObject)),...
@@ -1972,16 +1992,9 @@ tObj = handles.labelerObj.tracker;
 vsr = tObj.showVizReplicates;
 vsrnew = ~vsr;
 sft = tObj.storeFullTracking;
-if vsrnew && ~sft
-  qstr = 'Replicates will be stored with tracking results. This can significantly increase program memory usage.';
-  resp = questdlg(qstr,'Warning: Memory Usage','OK, continue','Cancel','OK, continue');
-  if isempty(resp)
-    resp = 'Cancel';
-  end
-  if strcmp(resp,'Cancel')
-    return;
-  end
-  tObj.storeFullTracking = true;
+if vsrnew && sft==StoreFullTrackingType.NONE
+  warningNoTrace('Tracker will store replicates for final CPR iterations.');
+  tObj.storeFullTracking = StoreFullTrackingType.FINALITER;
 end
 tObj.showVizReplicates = vsrnew;
 
@@ -2304,21 +2317,36 @@ lObj.trackCrossValidateVizPrctiles(tblXVres,'prctiles',PTILES);
 CrossValidResults(lObj,str,tblXVres);
 
 function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
-onoff = onIff(handles.labelerObj.tracker.storeFullTracking);
-handles.menu_track_store_full_tracking.Checked = onoff;
-handles.menu_track_view_tracking_diagnostics.Enable = onoff;
+sft = handles.labelerObj.tracker.storeFullTracking;
+switch sft
+  case StoreFullTrackingType.NONE
+    handles.menu_track_store_full_tracking_dont_store.Checked = 'on';
+    handles.menu_track_store_full_tracking_store_final_iteration.Checked = 'off';
+    handles.menu_track_store_full_tracking_store_all_iterations.Checked = 'off';
+    handles.menu_track_view_tracking_diagnostics.Enable = 'off';
+  case StoreFullTrackingType.FINALITER
+    handles.menu_track_store_full_tracking_dont_store.Checked = 'off';
+    handles.menu_track_store_full_tracking_store_final_iteration.Checked = 'on';
+    handles.menu_track_store_full_tracking_store_all_iterations.Checked = 'off';
+    handles.menu_track_view_tracking_diagnostics.Enable = 'on';
+  case StoreFullTrackingType.ALLITERS
+    handles.menu_track_store_full_tracking_dont_store.Checked = 'off';
+    handles.menu_track_store_full_tracking_store_final_iteration.Checked = 'off';
+    handles.menu_track_store_full_tracking_store_all_iterations.Checked = 'on';
+    handles.menu_track_view_tracking_diagnostics.Enable = 'on';
+  otherwise
+    assert(false);
+end
 
 function menu_track_clear_tracking_results_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 tObj.clearTrackingResults();
 msgbox('Tracking results cleared.','Done');
 
-function menu_track_store_full_tracking_Callback(hObject, eventdata, handles)
+function menu_track_store_full_tracking_dont_store_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 svr = tObj.showVizReplicates;
-sft = tObj.storeFullTracking;
-sftnew = ~sft;
-if ~sftnew && svr
+if svr
   qstr = 'Replicates will no longer by shown. OK?';
   resp = questdlg(qstr,'Tracking Storage','OK, continue','No, cancel','OK, continue');
   if isempty(resp)
@@ -2329,7 +2357,15 @@ if ~sftnew && svr
   end
   tObj.showVizReplicates = false;
 end
-tObj.storeFullTracking = sftnew;
+tObj.storeFullTracking = StoreFullTrackingType.NONE;
+
+function menu_track_store_full_tracking_store_final_iteration_Callback(hObject, eventdata, handles)
+tObj = handles.labelerObj.tracker;
+tObj.storeFullTracking = StoreFullTrackingType.FINALITER;
+
+function menu_track_store_full_tracking_store_all_iterations_Callback(hObject, eventdata, handles)
+tObj = handles.labelerObj.tracker;
+tObj.storeFullTracking = StoreFullTrackingType.ALLITERS;
 
 function menu_track_view_tracking_diagnostics_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
