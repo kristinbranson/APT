@@ -52,7 +52,7 @@ classdef Prune
         probAcc = zeros(1,nRep); % probability accumulator
         for ipt=1:npts
           ptmp = squeeze(pTrkFullPts(i,:,ipt,:)); % [nRep x d]
-          d2 = pdist(ptmp,'squaredeuclidean');
+          d2 = pdist(ptmp,'euclidean').^2;
 
           % The sum-of-guassians here is ~ a "neighbor-counter" where each
           % neighbor within sigma adds a 1 and all others have no effect.
@@ -92,7 +92,7 @@ classdef Prune
       info = cell(N,1);
       for i=1:N
         pTrkI = squeeze(pTrkFull(i,:,:)); % [nRepxD]
-        d2 = pdist(pTrkI,'squaredeuclidean');
+        d2 = pdist(pTrkI,'euclidean').^2;
         d2mat = squareform(d2); % [nRepxnRep] dist^2 from rep i to rep j in full pose space
         wmat = exp(-d2mat/2/sigma^2); % [nRepxnRep] Boltzmann weight matrix
         wsum = sum(wmat,1); % [1xnRep], sum of weights (nbor count) for each rep
@@ -136,7 +136,7 @@ classdef Prune
         probAcc = zeros(1,K); % probability accumulator
         for ipt=1:npts          
           ptmp = squeeze(pTrkFullPts(i,:,ipt,:)); % [K x d]
-          d2 = pdist(ptmp,'squaredeuclidean'); % [KxK]
+          d2 = pdist(ptmp,'euclidean').^2; % [KxK]
           w = sum(squareform(exp( -d2/sigma^2/2 )),1);
           w = w / sum(w);
           probAcc = probAcc + log(w); % accumulate by summing over pts/parts. maximizing sum-of-logs is like max-ing prod-of-probs

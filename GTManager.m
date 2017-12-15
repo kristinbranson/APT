@@ -35,6 +35,18 @@ function GTManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL
 % 3c. Labeler prop listeners update GTTable selection, expand/collapse
 %   (frame, target etc)
 
+if isdeployed
+  % AL 20171215. Compiled APTCluster on 15b, GTManager throws "Java tables
+  % require Java Swing" from
+  % cbkGTSuggUpdated->NavTreeTable/setData->treeTable.
+  % 
+  % This is foolishness, just avoid it for now. Should probably make a 
+  % stripped-down track-only APTCluster that skips all the UI stuff anyway.
+  handles.output = hObject;
+  guidata(hObject,handles);
+  return;
+end
+
 lObj = varargin{1};
 handles.labeler = lObj;
 handles.output = hObject;
