@@ -183,6 +183,10 @@ classdef APT
     function build()
       % build()
       
+      if ~isequal(pwd,APT.Root)
+        error('Run APT.build in the APT root directory (%s), because mcc is finicky about includes/adds, the ctf archive, etcetera.\n',APT.Root);
+      end
+      
       proj = 'APTCluster';
             
       % take snapshot + save it to snapshot file
