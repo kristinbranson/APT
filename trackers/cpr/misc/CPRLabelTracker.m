@@ -963,7 +963,7 @@ classdef CPRLabelTracker < LabelTracker
         % case
         obj.trkPMD = tblMFtrk(~tf,:); 
       else
-        obj.trkPMD = [obj.trkPMD; tblMFtrk(~tf,:)];
+        obj.trkPMD = tblvertcatsafe(obj.trkPMD,tblMFtrk(~tf,:));
       end
 
       % See above check/error re .trkPiPt. Either there were originally no

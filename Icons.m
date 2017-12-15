@@ -8,6 +8,7 @@ end
 function d = lclInitGfxDir()
 if isdeployed
   d = fullfile(ctfroot,'gfx');
+  fprintf('Deployed: initted gfxdir to: %s\n',d);
 else
   d = fullfile(APT.Root,'gfx');
 end
