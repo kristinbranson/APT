@@ -41,6 +41,13 @@ classdef NavigationTable < handle
       obj.fcnRowSelected = cbkSelectRow;
       obj.navOnSingleClick = false;
     end
+    function delete(obj)
+      delete(obj.jtable);
+      obj.jtable = [];
+      obj.fcnRowSelected = [];
+      obj.navOnSingleClick = [];
+      obj.data = [];
+    end
   end
   methods
     

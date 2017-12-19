@@ -69,6 +69,18 @@ classdef MovieManagerController < handle
       centerfig(obj.hFig,obj.labeler.gdata.figure);
     end
     
+    function delete(obj)
+      delete(obj.hFig);
+      for i=1:numel(obj.listeners)
+        delete(obj.listeners{i});
+      end
+      obj.listeners = [];
+      
+      delete(obj.mmTbls);
+      obj.mmTbls = [];
+    end
+
+    
     function tabSetup(obj)
       obj.hTG = uitabgroup(obj.hFig,...
         'Position',[0 0 1 1],'Units','normalized',...
@@ -123,15 +135,7 @@ classdef MovieManagerController < handle
       
       obj.selectTab(1);
     end
-    
-    function delete(obj)
-      delete(obj.hFig);
-      for i=1:numel(obj.listeners)
-        delete(obj.listeners{i});
-      end
-      obj.listeners = [];
-    end
-    
+        
   end
   
   methods

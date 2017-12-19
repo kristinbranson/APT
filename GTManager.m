@@ -95,6 +95,9 @@ for i=1:numel(listenObjs)
     delete(o);
   end
 end
+if isfield(handles,'navTreeTbl') && ~isempty(handles.navTreeTbl)
+  delete(handles.navTreeTbl);
+end
 
 function cbkGTisGTModeChanged(hObject,src,evt)
 % none atm
