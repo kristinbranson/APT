@@ -26,7 +26,7 @@ Reg:
     thrr: [-.2,.2]      # fern thresholds
     reg: .01            # fern regularization
   rotCorrection: 
-    use: 0     # 1=use rotational correction
+    use: 0     # 1=use rotationally-invariant diffs when performing regression.
     iPtHead: 1
     iPtTail: 2
   occlPrm:
@@ -42,6 +42,7 @@ Ftr:
   F: 400              # num features to generate
   nChn: 1             # num image 'channels'
   radius: 1           # feature generation radius
+  abratio: 2          # ratio of ellipse major/minor axes (when applicable, depending on 'type')
   nsample_std: 1000   # num samples used in computing std for feature-selection
   nsample_cor: 5000   # num samples used in computing correlations for feature-selection
   neighbors:
@@ -49,15 +50,23 @@ Ftr:
 TrainInit:
   Naug: 50            # number of replicates for training
   augpad: 10
-  augrotate:         # unused as of 20170609
+  augrotate:          # unused as of 20170609
+  usetrxorientation: 0  # 1=initialize using orientation from trx (currently hardcoded to trx.theta) 
+  doptjitter: 1       # 1=jitter pts, 0=don't
+  ptjitterfac: 16     # eg jitter individual pts by 1/16 in normalized coords  
+  doboxjitter: 1      # 1=jitter bboxes, 0=don't
   augjitterfac: 16
   augUseFF: 0         # If true, init using most different replicates using furthestfirst
   iPt:
 
 TestInit:
   Nrep: 50            # number of replicates for tracking/testing
-  augrotate:         # unused as of 20170609
-  augjitterfac: 16
+  augrotate:          # unused as of 20170609
+  usetrxorientation: 0  # 1=initialize using orientation from trx (currently hardcoded to trx.theta) 
+  doptjitter: 1       # 1=jitter pts, 0=don't
+  ptjitterfac: 16     # eg jitter individual pts by 1/16 in normalized coords  
+  doboxjitter: 1      # 1=jitter bboxes, 0=don't
+  augjitterfac: 16    # eg jitter bbox location by 1/16 in normalized coords
   augUseFF: 0         # If true, init using most different replicates using furthestfirst
   movChunkSize: 3000  # track (big) movies in chunks of this size
 

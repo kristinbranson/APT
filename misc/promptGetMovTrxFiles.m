@@ -8,7 +8,8 @@ function [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(tfMultiSelect)
 multiSelOnOff = onIff(tfMultiSelect);
 
 lastmov = RC.getprop('lbl_lastmovie');
-[movfile,movpath] = uigetfile('*.*','Select video',lastmov,'multiselect',multiSelOnOff);
+[movfile,movpath] = uigetfile('*.*','Select video',lastmov,...
+  'multiselect',multiSelOnOff);
 if isequal(movfile,0)
   tfsucc = false;
   movfile = [];
@@ -18,7 +19,9 @@ end
 movfile = fullfile(movpath,movfile);
 movfile = cellstr(movfile);
 
-[trxfile,trxpath] = uigetfile('*.mat','Select trx file (click Cancel if there is no trx file)',movpath,'multiselect',multiSelOnOff);
+[trxfile,trxpath] = uigetfile('*.mat',...
+  'Select trx file (click Cancel if there is no trx file)',movpath,...
+  'multiselect',multiSelOnOff);
 if isequal(trxfile,0)
   % user canceled; interpret this as "there is no trx file"
   trxfile = repmat({''},size(movfile));

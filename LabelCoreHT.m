@@ -1,59 +1,59 @@
 classdef LabelCoreHT < LabelCore
-  % High-throughput Labeling
-  %
-  % User goes through the movie, labeling first point (1 out of Npts) in 
-  % every Nframeskip'th frame. There is a single white point on the image 
-  % for the last-clicked point. At each frame, clicking on the image moves 
-  % the white point to the selected location and colorizes it, indicating 
-  % that a location has been specified (for the current point). The movie
-  % auto-advances by Nframeskip frames.
-  %
-  % When the end of the movie is reached, a dialog is given and labeling 
-  % starts over at the beginning of the movie (for the current target), for
-  % the next point. Labeling is fully complete when all points are labeled 
-  % for all frames (for a given target).
-  % 
-  % STATE
-  % The state of labeling at any time is given by:
-  % 1. current frame
-  % 3. current point index (iPoint = 1..Npts)
-  % 4. Whether current point is unclicked (white) or clicked (color)
-  % 5. current labels (.labeledpos array)
-  %
-  % Actions:
-  %
-  % - The current frame is shown with all previously labeled ptindices
-  % besides iPoint in gray. The current point iPoint is either white
-  % (unclicked) or colored (clicked).
-  %
-  % - clicking the image:
-  % -- moves the pt to the clicked location (regardless of whether it was 
-  %    previously clicked) 
-  % -- converts white pt to colored 
-  % -- writes to labels
-  % -- increments frame by Nframeskip
-  % --- if the movie end is hit, a dialog is shown to continue to increment
-  %     iPoint.
-  % 
-  % - Manually navigating forward in frames does what you'd expect; if the
-  % frame is labeled, the pt is shown in white; otherwise, colored.
-  %
-  % - Manually navigating backward is the same. Note regardless of fwd or
-  % backward, other iPoints are not adjustable.
-  %
-  % - pbClear is always enabled:
-  % -- converts colored pt to white
-  % -- clears labels
-  %
-  % - pbOccluded: 
-  % -- moves pt to upper-left and colorizes, otherwise same as clicking
-  %
-  % TODO
-  % - For now there is no notion of targets in this node; you are labeling 
-  %   one target at a time for an entire movie. If you want to label 
-  %   NTarget targets, just run repeat the entire procedure NTarget times.
-  % - Review Mode? -- Could just feed results through template mode?
-  % - Automatic capability to "resume where you left off"?
+% High-throughput labeling
+%
+% User goes through the movie, labeling first point (1 out of Npts) in
+% every Nframeskip'th frame. There is a single white point on the image
+% for the last-clicked point. At each frame, clicking on the image moves
+% the white point to the selected location and colorizes it, indicating
+% that a location has been specified (for the current point). The movie
+% auto-advances by Nframeskip frames.
+%
+% When the end of the movie is reached, a dialog is given and labeling
+% starts over at the beginning of the movie (for the current target), for
+% the next point. Labeling is fully complete when all points are labeled
+% for all frames (for a given target).
+%
+% STATE
+% The state of labeling at any time is given by:
+% 1. current frame
+% 3. current point index (iPoint = 1..Npts)
+% 4. Whether current point is unclicked (white) or clicked (color)
+% 5. current labels (.labeledpos array)
+%
+% Actions:
+%
+% - The current frame is shown with all previously labeled ptindices
+% besides iPoint in gray. The current point iPoint is either white
+% (unclicked) or colored (clicked).
+%
+% - clicking the image:
+% -- moves the pt to the clicked location (regardless of whether it was
+%    previously clicked)
+% -- converts white pt to colored
+% -- writes to labels
+% -- increments frame by Nframeskip
+% --- if the movie end is hit, a dialog is shown to continue to increment
+%     iPoint.
+%
+% - Manually navigating forward in frames does what you'd expect; if the
+% frame is labeled, the pt is shown in white; otherwise, colored.
+%
+% - Manually navigating backward is the same. Note regardless of fwd or
+% backward, other iPoints are not adjustable.
+%
+% - pbClear is always enabled:
+% -- converts colored pt to white
+% -- clears labels
+%
+% - pbOccluded:
+% -- moves pt to upper-left and colorizes, otherwise same as clicking
+%
+% TODO
+% - For now there is no notion of targets in this node; you are labeling
+%   one target at a time for an entire movie. If you want to label
+%   NTarget targets, just run repeat the entire procedure NTarget times.
+% - Review Mode? -- Could just feed results through template mode?
+% - Automatic capability to "resume where you left off"?
 
   properties
     supportsMultiView = false;
@@ -234,9 +234,7 @@ classdef LabelCoreHT < LabelCore
       modifier = evt.Modifier;
       tfCtrl = any(strcmp('control',modifier));
 
-      tfKPused = true;     
-%       if strcmp(key,'h') && tfCtrl
-%         obj.labelsHideToggle();
+      tfKPused = true;
       if strcmp(key,'space')
         obj.acceptCurrentPt();
       elseif any(strcmp(key,{'equal' 'rightarrow' 'd'})) && ~tfCtrl
@@ -368,17 +366,6 @@ classdef LabelCoreHT < LabelCore
         warningNoTrace('LabelCoreHT:EOM','End of movie reached.');
       end
     end
-
-%     function acceptCurrentPtN(obj,nrpt)
-%       for i = 1:nrpt
-%         tfEOM = obj.acceptCurrentPt();
-%         drawnow();
-%         if tfEOM
-%           warningNoTrace('LabelCoreHT:EOM','End of movie reached.');
-%           break;
-%         end
-%       end        
-%     end
     
     function acceptCurrentPtNPrompt(obj)
       resp = inputdlg('Number of times to accept point:','Label current point repeatedly',1,{'1'});

@@ -5,14 +5,17 @@ classdef TrkFile < handle
   end
   
   properties
-    pTrk = TrkFile.unsetVal; % [npttrked x 2 x nfrm x ntgt], like labeledpos
-    pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nfrm x ntgt], with replicates
-    pTrkTS = TrkFile.unsetVal; % [npttrked x nfrm x ntgt], liked labeledposTS
-    pTrkTag = TrkFile.unsetVal; % [npttrked x nfrm x ntgt] cell, like labeledposTag
-    pTrkiPt = TrkFile.unsetVal; % [npttrked]. point indices labeling rows of .pTrk*. If 
-                           % npttrked=labeled.nLabelPoints, then .pTrkiPt=1:npttrked.
-    pTrkFrm = TrkFile.unsetVal; % [nfrm]. frames tracked
+    pTrk = TrkFile.unsetVal;     % [npttrked x 2 x nfrm x ntgt], like labeledpos
+    pTrkTS = TrkFile.unsetVal;   % [npttrked x nfrm x ntgt], liked labeledposTS
+    pTrkTag = TrkFile.unsetVal;  % [npttrked x nfrm x ntgt] cell, like labeledposTag
+    pTrkiPt = TrkFile.unsetVal;  % [npttrked]. point indices labeling rows of .pTrk*. If 
+                                 %  npttrked=labeled.nLabelPoints, then .pTrkiPt=1:npttrked.
+    pTrkFrm = TrkFile.unsetVal;  % [nfrm]. frames tracked
     pTrkiTgt = TrkFile.unsetVal; % [ntgt]. targets (1-based Indices) tracked
+
+    pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nTrkFull], full tracking with replicates
+    pTrkFullFT = TrkFile.unsetVal; % [nTrkFull x ncol] Frame-Target table labeling 4th dim of pTrkFull
+    
     trkInfo % "user data" for tracker
   end
   
@@ -39,13 +42,7 @@ classdef TrkFile < handle
       if d~=2
         error('TrkFile:TrkFile','Expected d==2.');
       end
-      obj.pTrk = ptrk;     
-
-      if isequal(obj.pTrkFull,TrkFile.unsetVal)
-        obj.pTrkFull = zeros(npttrk,2,0,nfrm,ntgt);
-      end
-      nRep = size(obj.pTrkFull,3);
-      validateattributes(obj.pTrkFull,{'numeric'},{'size' [npttrk 2 nRep nfrm ntgt]},'','pTrkFull');
+      obj.pTrk = ptrk;
 
       if isequal(obj.pTrkTS,TrkFile.unsetVal)
         obj.pTrkTS = zeros(npttrk,nfrm,ntgt);
@@ -76,7 +73,19 @@ classdef TrkFile < handle
       assert(issorted(obj.pTrkiTgt));
       validateattributes(obj.pTrkiTgt,{'numeric'},...
         {'vector' 'numel' ntgt 'positive' 'integer'},'','pTrkiTgt');
-
+      
+      tfUnsetTrkFull = isequal(obj.pTrkFull,TrkFile.unsetVal);
+      tfUnsetTrkFullFT = isequal(obj.pTrkFullFT,TrkFile.unsetVal);
+      assert(tfUnsetTrkFull==tfUnsetTrkFullFT);
+      if tfUnsetTrkFull
+        obj.pTrkFull = zeros(npttrk,2,0,0);
+        obj.pTrkFullFT = table(nan(0,1),nan(0,1),'VariableNames',{'frm' 'iTgt'});
+      end
+      nRep = size(obj.pTrkFull,3);
+      nFull = size(obj.pTrkFull,4);
+      validateattributes(obj.pTrkFull,{'numeric'},...
+        {'size' [npttrk 2 nRep nFull]},'','pTrkFull');
+      assert(istable(obj.pTrkFullFT) && height(obj.pTrkFullFT)==nFull);
     end
     
     function save(obj,filename)

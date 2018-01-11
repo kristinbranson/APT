@@ -171,14 +171,16 @@ classdef Session < handle
         dRP = reshape(dRP,[nPts nCalIm]);
       end
       function [calRes,calResFile] = hlpLoadSingleOrthoCamCalRes(camidx)
+        orthopath = getpref('orthocam','lastpath',pwd);
         str = sprintf('Select saved single-Orthocam calibration for Camera%d.',camidx);
-        [fname,pth] = uigetfile('*.mat',str);
+        [fname,pth] = uigetfile('*.mat',str,orthopath);
         if isequal(fname,0)
           calRes = [];
           calResFile = '';
         else
           calResFile = fullfile(pth,fname);
           calRes = load(calResFile,'-mat');
+          setpref('orthocam','lastpath',pth);
         end
       end
       function calResFile = hlpSaveSingleOrthoCamCalRes(calres,camsessmatfile,camidx) %#ok<INUSL>
@@ -196,16 +198,24 @@ classdef Session < handle
     end
     methods
       function [sess,sessMatfile] = hlpLoadAndCheckSingleCamSession(this,camidx)
+        orthopath = getpref('orthocam','lastpath',pwd);
         str = sprintf('Select Camera%d Session/MAT-file saved from MATLAB Camera Calibrator App',camidx);
-        [fname,pth] = uigetfile('*.mat',str);
+        [fname,pth] = uigetfile('*.mat',str,orthopath);
         if isequal(fname,0)
           sess = [];
           sessMatfile = '';
         else
           sessMatfile = fullfile(pth,fname);
           sess = load(sessMatfile,'-mat');
+          setpref('orthocam','lastpath',pth);
           sess = sess.calibrationSession;
-          tf = ismember(this.BoardSet.FullPathNames(camidx,:)',sess.BoardSet.FullPathNames');
+          fpn1 = this.BoardSet.FullPathNames(camidx,:)';
+          fpn2 = sess.BoardSet.FullPathNames';
+          if ispc
+            fpn1 = lower(fpn1);
+            fpn2 = lower(fpn2);
+          end
+          tf = ismember(fpn1,fpn2);
           if ~all(tf)
             error('Session:cal','One or more %s calibration images are not present in single-camera session: %s\n',...
               ['cam' num2str(camidx)],sessMatfile);
@@ -220,6 +230,10 @@ classdef Session < handle
         fpnsMono = res.boardSetFPNs(:);
         szassert(fpnsMono,[nCalIm 1]);
         fpnsStro = bset.FullPathNames(iCam,:)';
+        if ispc
+          fpnsStro = lower(fpnsStro);
+          fpnsMono = lower(fpnsMono);
+        end
         [tf,loc] = ismember(fpnsStro,fpnsMono);
         assert(all(tf));
         fprintf(1,'Selecting %d (rvec,tvec) extrinsic pairs out of %d from cam%d extrinsics:\n',...
@@ -238,8 +252,10 @@ classdef Session < handle
           return;
         end
         
-        if verLessThan('matlab','R2016b')
-          error('Session:cal','MATLAB R2016b or later required for Orthocam calibration.');
+        mlVer = ver('matlab');
+        if ~strcmp(mlVer.Release,'(R2016b)')
+          error('Session:cal',...
+            'MATLAB version R2016b is required for Orthocam calibration.');
         end
         
         info = struct();                
@@ -377,11 +393,11 @@ classdef Session < handle
         
         bset = boardSetUse;
         nPat = bset.NumBoards;
-        
+        npts = size(bset.BoardPoints,1);
+
         pOpt = p0;
-        dsums = nan(0,2);
         while 1
-          [pOpt,oFcn,dsums(end+1,1),dsums(end+1,2)] = OrthoCam.calibrateStro(nPat,bset.WorldPoints,...
+          [pOpt,oFcn] = OrthoCam.calibrateStro(nPat,bset.WorldPoints,...
             bset.BoardPoints(:,:,:,1),bset.BoardPoints(:,:,:,2),pOpt);
           STOP = 'Stop optimization, looks good';
           RESTART = 'Restart optimization';
@@ -401,23 +417,22 @@ classdef Session < handle
           end
         end
               
-        % RP err
-        dRP = oFcn(pOpt);
-        npts = size(bset.BoardPoints,1);
-        dRP = reshape(dRP,[npts nPat 2]);
-        hFig = figure('Name','OrthoCam: Reprojection Error');
-        dRP1 = dRP(:,:,1);
-        dRP2 = dRP(:,:,2);
-        mu1 = mean(dRP1(:));
-        mu2 = mean(dRP2(:));
-        ax = subplot(1,2,1);
-        OrthoCam.vizRPerr(ax,dRP1);
-        title(sprintf('Stereo calib, cam1. %dpats, %dpts. mean RPerr=%.3f px',nPat,npts,mu1),...
-          'fontweight','bold');
-        ylabel('count','fontweight','bold');
-        ax = subplot(1,2,2);
-        OrthoCam.vizRPerr(ax,dRP2);
-        title(sprintf('Stereo calib, cam2. meanRP err=%.3f px',mu2),'fontweight','bold');
+%         % RP err
+%         dRP = oFcn(pOpt);
+%         dRP = reshape(dRP,[npts nPat 2]);
+%         hFig = figure('Name','OrthoCam: Reprojection Error');
+%         dRP1 = dRP(:,:,1);
+%         dRP2 = dRP(:,:,2);
+%         mu1 = mean(dRP1(:));
+%         mu2 = mean(dRP2(:));
+%         ax = subplot(1,2,1);
+%         OrthoCam.vizRPerr(ax,dRP1);
+%         title(sprintf('Stereo calib, cam1. %dpats, %dpts. mean RPerr=%.3f px',nPat,npts,mu1),...
+%           'fontweight','bold');
+%         ylabel('count','fontweight','bold');
+%         ax = subplot(1,2,2);
+%         OrthoCam.vizRPerr(ax,dRP2);
+%         title(sprintf('Stereo calib, cam2. meanRP err=%.3f px',mu2),'fontweight','bold');
 
         % Summarize
         tblIntsStro = OrthoCam.summarizeIntrinsicsStro(pOpt,nPat);
@@ -429,15 +444,14 @@ classdef Session < handle
 
         patPtsXYZ = bset.WorldPoints';
         patPtsXYZ = [patPtsXYZ; zeros(1,npts)];
-%         [~,~,~,~,~,~,~,~,~,~,~,~,r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = ...
-%           OrthoCam.unpackParamsStro(pOpt,nPat);      
-% %         hFig = OrthoCam.viewExtrinsics(patPtsXYZ,rvecs,tvecs,...
-%           r2vec1,t2vec1,r2vec2,t2vec2);
 
         calObj = OrthoCamCalPair(pOpt,nPat,npts,patPtsXYZ,...
           permute(bset.BoardPoints,[2 1 3 4]),bset.FullPathNames');
         calObj.xformWorldSys(calObj.ijkCamWorld1');
-        hFig = calObj.viewExtrinsics();
+        
+        calObj.viewExtrinsics();
+        
+        calObj.viewRPerr();
         
         if ~isempty(this.Filename)
           [stropath,strofile] = fileparts(this.Filename);

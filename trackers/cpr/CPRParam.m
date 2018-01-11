@@ -66,10 +66,17 @@ classdef CPRParam
       sOld.Reg.loss = 'L2';
       sOld.Reg.prm.thrr = [cpr.Ferns.Threshold.Lo cpr.Ferns.Threshold.Hi];
       sOld.Reg.prm.reg = cpr.Ferns.RegFactor;
-      sOld.Reg.rotCorrection.use = cpr.RotCorrection.Use;
+      switch cpr.RotCorrection.OrientationType
+        case 'fixed'
+          sOld.Reg.rotCorrection.use = false;
+        case {'arbitrary' 'arbitrary trx-specified'}
+          sOld.Reg.rotCorrection.use = true;
+        otherwise
+          assert(false);
+      end
       sOld.Reg.rotCorrection.iPtHead = cpr.RotCorrection.HeadPoint;
       sOld.Reg.rotCorrection.iPtTail = cpr.RotCorrection.TailPoint;
-%       sOld.Reg.occlPrm.Stot = 1; 
+      sOld.Reg.occlPrm.Stot = 1; 
 %       sOld.Reg.occlPrm.nrows = 3;
 %       sOld.Reg.occlPrm.ncols = 3;
 %       sOld.Reg.occlPrm.nzones = 1;
@@ -80,18 +87,28 @@ classdef CPRParam
       sOld.Ftr.F = cpr.Feature.NGenerate;
       sOld.Ftr.nChn = 1;
       sOld.Ftr.radius = cpr.Feature.Radius;
+      sOld.Ftr.abratio = cpr.Feature.ABRatio;
       sOld.Ftr.nsample_std = cpr.Feature.Nsample_std;
       sOld.Ftr.nsample_cor = cpr.Feature.Nsample_cor;
       sOld.Ftr.neighbors = [];
       
       sOld.TrainInit.Naug = cpr.Replicates.NrepTrain;
       sOld.TrainInit.augrotate = []; % obsolete
+      sOld.TrainInit.usetrxorientation = ...
+        strcmp(cpr.RotCorrection.OrientationType,'arbitrary trx-specified');
+      sOld.TrainInit.doptjitter = cpr.Replicates.DoPtJitter;
+      sOld.TrainInit.ptjitterfac = cpr.Replicates.PtJitterFac;
+      sOld.TrainInit.doboxjitter = cpr.Replicates.DoBBoxJitter;
       sOld.TrainInit.augjitterfac = cpr.Replicates.AugJitterFac;
       sOld.TrainInit.augUseFF = cpr.Replicates.AugUseFF;
       sOld.TrainInit.iPt = [];
       
       sOld.TestInit.Nrep = cpr.Replicates.NrepTrack;
       sOld.TestInit.augrotate = []; % obsolete
+      sOld.TestInit.usetrxorientation = sOld.TrainInit.usetrxorientation;
+      sOld.TestInit.doptjitter = cpr.Replicates.DoPtJitter;
+      sOld.TestInit.ptjitterfac = cpr.Replicates.PtJitterFac;
+      sOld.TestInit.doboxjitter = cpr.Replicates.DoBBoxJitter;
       sOld.TestInit.augjitterfac = cpr.Replicates.AugJitterFac;
       sOld.TestInit.augUseFF = cpr.Replicates.AugUseFF;
       sOld.TestInit.movChunkSize = sNew.ROOT.Track.ChunkSize;
@@ -131,10 +148,22 @@ classdef CPRParam
       sNew.ROOT.CPR.Ferns.Threshold.Lo = sOld.Reg.prm.thrr(1);
       sNew.ROOT.CPR.Ferns.Threshold.Hi = sOld.Reg.prm.thrr(2);
       sNew.ROOT.CPR.Ferns.RegFactor = sOld.Reg.prm.reg;
-      sNew.ROOT.CPR.RotCorrection.Use = sOld.Reg.rotCorrection.use;
+
+      % dups assert below for doc purposes
+      assert(sOld.TrainInit.usetrxorientation==sOld.TestInit.usetrxorientation);
+      if sOld.Reg.rotCorrection.use
+        if sOld.TrainInit.usetrxorientation
+          sNew.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary trx-specified'; 
+        else
+          sNew.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';        
+        end
+      else
+        sNew.ROOT.CPR.RotCorrection.OrientationType = 'fixed';
+      end
       sNew.ROOT.CPR.RotCorrection.HeadPoint = sOld.Reg.rotCorrection.iPtHead;
       sNew.ROOT.CPR.RotCorrection.TailPoint = sOld.Reg.rotCorrection.iPtTail;
-%       sOld.Reg.occlPrm.Stot = 1; 
+      
+      assert(sOld.Reg.occlPrm.Stot==1); 
 %       sOld.Reg.occlPrm.nrows = 3;
 %       sOld.Reg.occlPrm.ncols = 3;
 %       sOld.Reg.occlPrm.nzones = 1;
@@ -145,6 +174,7 @@ classdef CPRParam
       sNew.ROOT.CPR.Feature.NGenerate = sOld.Ftr.F;
       assert(sOld.Ftr.nChn==1);
       sNew.ROOT.CPR.Feature.Radius = sOld.Ftr.radius;
+      sNew.ROOT.CPR.Feature.ABRatio = sOld.Ftr.abratio;
       sNew.ROOT.CPR.Feature.Nsample_std = sOld.Ftr.nsample_std;
       sNew.ROOT.CPR.Feature.Nsample_cor = sOld.Ftr.nsample_cor;
       assert(isempty(sOld.Ftr.neighbors));
@@ -159,9 +189,17 @@ classdef CPRParam
             sOld.TrainInit.augrotate,sOld.Reg.rotCorrection.use);
         end
       end
+      assert(sOld.TrainInit.usetrxorientation==sOld.TestInit.usetrxorientation);
+      assert(sOld.TrainInit.doptjitter==sOld.TestInit.doptjitter);
+      assert(sOld.TrainInit.ptjitterfac==sOld.TestInit.ptjitterfac);
+      assert(sOld.TrainInit.doboxjitter==sOld.TestInit.doboxjitter);
       assert(sOld.TrainInit.augjitterfac==sOld.TestInit.augjitterfac);
       assert(sOld.TrainInit.augUseFF==sOld.TestInit.augUseFF);
       %sNew.ROOT.CPR.Replicates.AugRotate = sOld.TrainInit.augrotate;
+      
+      sNew.ROOT.CPR.Replicates.DoPtJitter = sOld.TrainInit.doptjitter;
+      sNew.ROOT.CPR.Replicates.PtJitterFac = sOld.TrainInit.ptjitterfac;
+      sNew.ROOT.CPR.Replicates.DoBBoxJitter = sOld.TrainInit.doboxjitter;
       sNew.ROOT.CPR.Replicates.AugJitterFac = sOld.TrainInit.augjitterfac;
       sNew.ROOT.CPR.Replicates.AugUseFF = sOld.TrainInit.augUseFF;
       assert(isempty(sOld.TrainInit.iPt));

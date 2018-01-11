@@ -153,9 +153,6 @@ classdef CPRData < handle
             md(:,'p') = [];
           else
             assert(false,'Unsupported');
-%             lblFiles = varargin{1};
-%             tfAllFrames = varargin{2};
-%             [Is,p,md] = Labeler.lblRead(lblFiles,'tfAllFrames',tfAllFrames);
           end          
           if size(Is,2)==1
             sz = cellfun(@(x)size(x'),Is,'uni',0);
@@ -170,25 +167,8 @@ classdef CPRData < handle
           p = tblP.p;
           md = tblP;
           md(:,'p') = [];
-        otherwise % 4+          
-          [movFiles,lposes,lpostags] = deal(varargin{1:3});
-          if ischar(varargin{4}) && any(strcmp(varargin{4},{'all' 'lbl'}))
-            type = varargin{4};
-            varargin = varargin(5:end);
-            [Is,tbl] = Labeler.lblCompileContents(movFiles,lposes,lpostags,type,varargin{:});
-          else
-            iMovs = varargin{4};
-            frms = varargin{5};
-            varargin = varargin(6:end);
-            [Is,tbl] = Labeler.lblCompileContentsRaw(movFiles,lposes,lpostags,iMovs,frms,varargin{:});
-          end
-          p = tbl.p;
-          tbl(:,'p') = [];
-          md = tbl;
-          
-          assert(size(Is,2)==1,'Multiview unsupported.');
-          sz = cellfun(@(x)size(x'),Is,'uni',0);
-          bb = cellfun(@(x)[[1 1] x],sz,'uni',0);          
+        otherwise % 4+         
+          assert(false,'Unsupported');
       end
       
       assert(iscell(Is));
@@ -233,14 +213,34 @@ classdef CPRData < handle
           tmpI = obj.I;
         end
         obj.I = cat(1,tmpI,dd.I);
-        obj.pGT = cat(1,obj.pGT,dd.pGT);
+        if isempty(obj.pGT)
+          obj.pGT = dd.pGT;
+        else
+          obj.pGT = cat(1,obj.pGT,dd.pGT);
+        end
         obj.bboxes = cat(1,obj.bboxes,dd.bboxes);
         obj.Ipp = cat(1,obj.Ipp,dd.Ipp);
         
         obj.iTrn = cat(2,obj.iTrn,dd.iTrn(:)'+Nbefore);
         obj.iTst = cat(2,obj.iTst,dd.iTst(:)'+Nbefore);
       end
-    end    
+    end
+    
+    function tfRm = movieRemap(obj,mIdxOrig2New)
+      % mIdxOrig2New: containers.Map, int32 keys and values. 
+      %   mIdxOrig2New(oldIdx)==newIdx where oldIdx and/or newIdx can be 
+      %   negative.
+      
+      [obj.MD,tfRm] = MFTable.remapIntegerKey(obj.MD,'mov',mIdxOrig2New);
+      obj.I(tfRm,:) = [];
+      obj.pGT(tfRm,:) = [];
+      obj.bboxes(tfRm,:) = [];
+      if ~isempty(obj.Ipp)
+        obj.Ipp(tfRm,:) = [];
+      end
+      obj.iTrn = [];
+      obj.iTst = [];
+    end
     
   end
   
@@ -293,21 +293,31 @@ classdef CPRData < handle
       md = struct2table(sMD);
     end
     
-    function I = getFrames(tblMF,varargin)
+    function [I,nmask] = getFrames(tblMF,varargin)
       % Read frames from movies given MF table
       % 
       % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
-      % multiview data.
+      % multiview data. Fields: .mov, .frm, (optional, but used) .roi
       % 
       % I: [NxnView] cell vector of images for each row of tbl
+      % nmask: [NxnView] number of other CCs masked for each im
       %
       % Options: wbObj: WaitBarWithCancel. If canceled, I will be
       % 'incomplete', ie partially filled.
       
-      [wbObj,padval] = myparse(varargin,...
-        'wbObj',[],...
-        'padval',0 ... % when tblMF has .roi
-        );
+      [wbObj,roiPadVal,maskNeighbors,bgReadFcn,bgType,fgThresh,trxCache] = ...
+        myparse(varargin,...
+          'wbObj',[],...
+          'roiPadVal',0,... % used when tblMF has .roi
+          'maskNeighbors',0,...
+          ...   % BEGIN USED when maskNeighbors==true;
+          'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile) 
+                         ... % reads/generates bg image for given movie
+          'bgType','other',... % one of {'light on dark','dark on light','other'}
+          'fgThresh',nan,...
+          'trxCache',[]...
+          ...   % END USED for maskNeighbors
+          );
       tfWB = ~isempty(wbObj);
       
       if tfWB
@@ -315,24 +325,28 @@ classdef CPRData < handle
         oc = onCleanup(@()wbObj.endPeriod);
       end
   
-      N = size(tblMF,1);
+      N = height(tblMF);
       nView = size(tblMF.mov,2);
-      movsUn = unique(tblMF.mov(:));
-      frms = tblMF.frm;
-      tfROI = any(strcmp('roi',tblMF.Properties.VariableNames));
+      tfROI = tblfldscontains(tblMF,'roi');
       if tfROI
         roi = tblMF.roi;
       end
-      
-      % open movies in MovieReaders
-      nMovUn = numel(movsUn);
-      for iMovUn = nMovUn:-1:1
-        mrs(iMovUn,1) = MovieReader();
-        mrs(iMovUn).forceGrayscale = true;
-        mrs(iMovUn).open(movsUn{iMovUn});
+            
+      movsUn = unique(tblMF.mov(:));
+      movMap = containers.Map(); % movieName->struct with movieReader, etc
+      for mov=movsUn(:)',mov=mov{1}; %#ok<FXSET>
+        mr = MovieReader();
+        mr.forceGrayscale = true;
+        mr.open(mov);
+        s = struct('movieReader',mr);
+        if maskNeighbors
+          [s.bg,s.bgdev] = bgReadFcn(mov);
+        end
+        movMap(mov) = s;
       end
       
       I = cell(N,nView);
+      nmask = zeros(N,nView);
       for iTrl=1:N
         if tfWB
           tfCancel = wbObj.updateFrac(iTrl/N);
@@ -340,19 +354,117 @@ classdef CPRData < handle
             return;
           end
         end
-        f = frms(iTrl);
-        [~,movUnIdx] = ismember(tblMF.mov(iTrl,:),movsUn);
-        for iVw=1:nView
-          iMov = movUnIdx(iVw);        
-          mr = mrs(iMov);
+        trow = tblMF(iTrl,:);
+        f = trow.frm;
+        for iVw=1:nView          
+          mov = trow.mov{iVw};
+          movInfo = movMap(mov);
+          mr = movInfo.movieReader;
           im = mr.readframe(f); % currently forceGrayscale
           if tfROI
             roiVw = roi(iTrl,(1:4)+4*(iVw-1)); % [xlo xhi ylo yhi]
-            im = padgrab(im,padval,roiVw(3),roiVw(4),roiVw(1),roiVw(2));
+            roiXlo = roiVw(1);
+            roiXhi = roiVw(2);
+            roiYlo = roiVw(3);
+            roiYhi = roiVw(4);
+            imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+          else
+            roiXlo = 1;
+            roiXhi = size(im,2);
+            roiYlo = 1;
+            roiYhi = size(im,1);
+            imroi = im;
           end
-          I{iTrl,iVw} = im;
+          roinr = size(imroi,1);
+          % (imroi,roiXlo,roiXhi,roiYlo,roiYhi,roinr) set
+            
+          if maskNeighbors
+            %%% Get bg, bgdev
+            bgim = movInfo.bg;
+            bgdev = movInfo.bgdev;
+            szassert(bgim,size(im));
+            szassert(bgdev,size(im));
+            if tfROI
+              % reusing roiPadval will mean that fg==0 in any extrapolated
+              % points/pixels
+              bgimroi = padgrab(bgim,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+              % use padval==1 for bgdev (no normalization/scaling at
+              % padded points/pixels)
+              bgdevroi = padgrab(bgdev,1,roiYlo,roiYhi,roiXlo,roiXhi);
+            else
+              bgimroi = bgim;
+              bgdevroi = bgdev;
+            end
+            
+            % Any target (besides the one in question) whose center falls 
+            % in the roi will be masked.
+            % Note, targets whose center is outside the roi may have some 
+            % pixels in the roi but hopefully those will be far enough away
+            tfile = trow.trxFile{iVw};
+            [trx,frm2trx] = Labeler.getTrxCacheStc(trxCache,tfile,...
+              mr.nframes);
+            nTgt = size(frm2trx,2);
+            tfTgtOverlap = false(nTgt,1); % true if iTgt is in the roi
+            tgtOverlapRoiIdx = nan(nTgt,1); % linear index of tgt center in roi
+            for iTgt=1:nTgt
+              if iTgt==trow.iTgt
+                continue;
+              end
+              tfLive = frm2trx(f,iTgt);
+              if tfLive
+                trxI = trx(iTgt);
+                idxI = f+trxI.off;
+                xI = trxI.x(idxI);
+                yI = trxI.y(idxI);
+                if roiXlo<=xI && xI<=roiXhi && roiYlo<=yI && yI<=roiYhi
+                  tfTgtOverlap(iTgt) = true;
+                  xIroi = xI-roiXlo+1;
+                  yIroi = yI-roiYlo+1;
+                  tgtOverlapRoiIdx(iTgt) = yIroi + (xIroi-1)*roinr;
+                end
+              end
+            end
+            
+            iTgtOverlap = find(tfTgtOverlap); %#ok<EFIND>
+            iTgtOverlapRoiIdx = tgtOverlapRoiIdx(tfTgtOverlap);
+            if ~isempty(iTgtOverlap)
+              % bgsub
+              switch bgType
+                case 'light on dark'
+                  imfgroi = max(imroi-bgimroi,0)./bgdevroi;
+                case 'dark on light'
+                  imfgroi = max(bgimroi-imroi,0)./bgdevroi;
+                case 'other'
+                  imfgroi = abs(bgimroi-imroi)./bgdevroi;
+                otherwise
+                  assert(false,'Unrecognized bgType.');
+              end
+              bwfgroi = imfgroi>fgThresh;
+              
+              cc = bwconncomp(bwfgroi);
+              trxThis = trx(trow.iTgt);
+              idxThis = f+trxThis.off;
+              xThis = trxThis.x(idxThis);
+              yThis = trxThis.y(idxThis);
+              xThisRoi = xThis-roiXlo+1;
+              yThisRoi = yThis-roiYlo+1;
+              idxRoiThis = yThisRoi + (xThisRoi-1)*roinr;
+              
+              for iCC=1:cc.NumObjects
+                pxlistI = cc.PixelIdxList{iCC};
+                if any(idxRoiThis==pxlistI)
+                  % none
+                  % don't mask CC that contains current/this target obv
+                elseif any(ismember(iTgtOverlapRoiIdx,pxlistI))
+                  imroi(pxlistI) = bgimroi(pxlistI);
+                  nmask(iTrl,iVw) = nmask(iTrl,iVw)+1;
+                end
+              end
+            end
+          end
+          I{iTrl,iVw} = imroi;
         end
-      end      
+      end    
     end
 
     function bboxes = getBboxes2D(I)
@@ -841,7 +953,7 @@ classdef CPRData < handle
   %% partitions
   methods (Static)
     
-    %#MV
+    %#%MV
     function [grps,ffd,ffdiTrl] = ffTrnSet(tblP,gvar)
       % Furthest-first training set analysis
       %
@@ -887,7 +999,7 @@ classdef CPRData < handle
       end
     end
     
-    %#MV
+    %#%MV
     function hFig1 = ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,varargin)
       % Display furthestfirst distances for groups in subplots; enable
       % clicking on subplots to visualize training shape

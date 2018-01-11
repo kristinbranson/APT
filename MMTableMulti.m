@@ -4,20 +4,29 @@ classdef MMTableMulti < MovieManagerTable
     nmovsPerSet
     tbl % treeTable
   end
+  properties (Dependent)
+    hasData
+  end
+  methods 
+    function v = get.hasData(obj)
+      v = ~isempty(obj.tbl);
+    end
+  end
   properties (Constant)
     HEADERS = {'Set' 'Movie' 'Has Labels'};
     COLTYPES = {'' 'char' 'logical'};
-    COLEDIT = {false false false};      
+    COLEDIT = {false false false};
+    COLWIDTHS = containers.Map({'Movie','Has Labels'},{600,250});
   end
   
   methods
     
-    function obj = MMTableMulti(nMovsPerSet,hMM,hParent,position,cbkSelectMovie)
-      obj@MovieManagerTable(hMM,hParent,position,cbkSelectMovie);
+    function obj = MMTableMulti(nMovsPerSet,hParent,position,cbkSelectMovie)
+      obj@MovieManagerTable(hParent,position,cbkSelectMovie);
       obj.nmovsPerSet = nMovsPerSet;      
     end
     
-    function updateMovieData(obj,movNames,movsHaveLbls)
+    function updateMovieData(obj,movNames,trxNames,movsHaveLbls)
       nSets = size(movNames,1);
       assert(size(movNames,2)==obj.nmovsPerSet);
       assert(nSets==numel(movsHaveLbls));
@@ -34,6 +43,12 @@ classdef MMTableMulti < MovieManagerTable
         'Groupable',true,...
         'IconFilenames',...
             {'' fullfile(matlabroot,'/toolbox/matlab/icons/file_open.png') fullfile(matlabroot,'/toolbox/matlab/icons/foldericon.gif')});
+      cwMap = obj.COLWIDTHS;
+      keys = cwMap.keys;
+      for k=keys(:)',k=k{1}; %#ok<FXSET>
+        tblCol = tt.getColumn(k);
+        tblCol.setPreferredWidth(cwMap(k));
+      end
       
       tt.MouseClickedCallback = @(s,e)obj.cbkClickedDefault(s,e);
       tt.setDoubleClickEnabled(false);
@@ -44,6 +59,11 @@ classdef MMTableMulti < MovieManagerTable
       % imov is the movie SET (1-based)
       %
       % Collapse all rows, expand the selected set
+      
+      if ~obj.hasData
+        % occurs during init
+        return;
+      end
       
       tt = obj.tbl;
       m = tt.getModel;

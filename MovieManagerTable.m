@@ -1,18 +1,26 @@
 classdef MovieManagerTable < handle
   
+  properties (Constant)
+    JTABLEPROPS_NOTRX = {'ColumnName',{'Movie' 'Has Labels'},...
+                         'ColumnPreferredWidth',[600 250]};
+    JTABLEPROPS_TRX = {'ColumnName',{'Movie' 'Trx' 'Has Labels'},...
+                         'ColumnPreferredWidth',[550 200 100]};
+  end
   properties
-    hMM
     hParent
     cbkSelectMovie
+    
+    trxShown % scalar logical. If true, table displays trxfiles
   end
 
   methods (Abstract)
         
     % Update movienames/flags
     %
-    % movNames: [nMovxnView] cellstr. Movies, macros allowed
+    % movNames: [nMovxnView] cellstr. Movie files
+    % trxNames: [nMovxnView] cellstr. trx files
     % movsHaveLbls: [nMov x 1] logical.
-    updateMovieData(obj,movNames,movsHaveLbls)
+    updateMovieData(obj,movNames,trxNames,movsHaveLbls)
   
     % Update currently selected row
     %
@@ -26,33 +34,30 @@ classdef MovieManagerTable < handle
   end
   
   methods (Static)
-    function obj = create(nMovsPerSet,hMM,hParent,position,cbkSelectMovie)
+    function obj = create(nMovsPerSet,hParent,position,cbkSelectMovie)
       switch nMovsPerSet
         case 1
-          obj = MMTableSingle(hMM,hParent,position,cbkSelectMovie);
+          obj = MMTableSingle(hParent,position,cbkSelectMovie);
         otherwise
-          obj = MMTableMulti(nMovsPerSet,hMM,hParent,position,cbkSelectMovie);
+          obj = MMTableMulti(nMovsPerSet,hParent,position,cbkSelectMovie);
       end
     end
   end
   
   methods
     
-    function obj = MovieManagerTable(hMM,hParent,position,cbkSelectMovie)
+    function obj = MovieManagerTable(hParent,position,cbkSelectMovie)
       % Create/initialize table.
       %
-      % hMM: MovieManager handle
       % hParent: handle to parent of new table
       % position: [4] position vec (pixels)
       % cbkSelectMovie: function handle with sig 
       %   cbkSelectMovie(iMovSet). This is the only message that can be 
       %   sent from MMTable to MM.
       
-      assert(ishandle(hMM));
       assert(ishandle(hParent));
       assert(isa(cbkSelectMovie,'function_handle'));
       
-      obj.hMM = hMM;
       obj.hParent = hParent;
       obj.cbkSelectMovie = cbkSelectMovie;
     end
@@ -78,11 +83,11 @@ classdef MovieManagerTable < handle
             'Multiple movies selected. Switching to first selection.');
           imovs = imovs(1);
         end
-        try
-          obj.cbkSelectMovie(imovs);
-        catch ME
-          disp(ME.message);
-        end
+%         try
+        obj.cbkSelectMovie(imovs);
+%         catch ME
+%           disp(ME.message);
+%         end
       end
       
     end    

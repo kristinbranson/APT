@@ -137,15 +137,21 @@ classdef CPRVizTrackDiags < handle
       % xsUse: [MxnUse] cell array, feature definitions (row of ftrSpec.xs)
       % xsLbl: [1xncol] labels for row vecs in xsUse
       
+      assert(~obj.lObj.gtIsGTMode,'Unsupported for GT mode.');
+      
       rc = obj.rcObj;
       fUse = squeeze(rc.ftrsUse(obj.t,obj.u,:,:)); % [MxnUse]
       fspec = rc.ftrSpecs{obj.t};
       xsLbl = Features.TYPE2XSCOLLBLS(fspec.type);
+      if istable(fspec.xs)
+        assert(isempty(xsLbl));
+        xsLbl = fspec.xs.Properties.VariableNames;
+      end
       xsUse = arrayfun(@(iF)fspec.xs(iF,:),fUse,'uni',0);
       
-      iMov = obj.lObj.currMovie;
-      frm = obj.lObj.currFrame;
-      trkPFull = obj.tObj.getTrackResFullCurrTgt(iMov,frm);
+      mIdx = obj.lObj.currMovIdx;
+      frm = obj.lObj.currFrame; 
+      trkPFull = obj.tObj.getTrackResFullCurrTgt(mIdx,frm);
       
       if isequal(trkPFull,[])
         % no tracking avail for this iMov/frm
@@ -181,6 +187,10 @@ classdef CPRVizTrackDiags < handle
                 [xF,yF,~,iview,info] = Features.compute2LM(fspec.xs(iFuse,:),xLM,yLM);
                 hPlot = Features.visualize2LM(ax,xF,yF,iview,info,1,1,...
                   clrs(iFern,:),'hPlot',obj.hViz{iFern,iUse});
+              case 'two landmark elliptical'
+                [xF,yF,~,iview,info] = Features.compute2LMelliptical(fspec.xs(iFuse,:),xLM,yLM);
+                hPlot = Features.visualize2LMelliptical(ax,xF,yF,iview,info,1,1,...
+                  clrs(iFern,:),'hPlot',obj.hViz{iFern,iUse});                
               case '2lmdiff'
                 assert(false,'Currently unsupported');
               otherwise
@@ -215,7 +225,8 @@ classdef CPRVizTrackDiags < handle
     function vizLMUpdate(obj,xyLM)
       npts = obj.nPts;
       szassert(xyLM,[npts 2]);
-      LabelCore.setPtsCoords(xyLM,obj.hLM,obj.hLMTxt);
+      LabelCore.setPtsCoordsStc(xyLM,obj.hLM,obj.hLMTxt,...
+        obj.lObj.labelPointsPlotInfo.LblOffset);
     end
   end
   methods % Feature Detail Visibility

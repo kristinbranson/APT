@@ -1,5 +1,6 @@
 classdef ProjectFSInfo
-  % Project filesystem interaction info
+% Project/filesystem interaction metadata
+
   properties
     timestamp
     action

@@ -6,27 +6,36 @@ classdef MMTableSingle < MovieManagerTable
   
   methods
     
-    function obj = MMTableSingle(hMM,hParent,position,cbkSelectMovie)
-      obj@MovieManagerTable(hMM,hParent,position,cbkSelectMovie);
+    function obj = MMTableSingle(hParent,position,cbkSelectMovie)
+      obj@MovieManagerTable(hParent,position,cbkSelectMovie);
       
       jt = uiextras.jTable.Table(...
         'parent',hParent,...
         'Position',position,...
         'SelectionMode','discontiguous',...
-        'ColumnName',{'Movie' 'Has Labels'},...
-        'ColumnPreferredWidth',[600 250],...
-        'Editable','off');
+        'Editable','off',...
+        obj.JTABLEPROPS_NOTRX{:});
       jt.MouseClickedCallback = @(src,evt)obj.cbkClickedDefault(src,evt);      
       obj.jtable = jt;
     end
     
-    function updateMovieData(obj,movNames,movsHaveLbls)
+    function updateMovieData(obj,movNames,trxNames,movsHaveLbls)
+      szassert(trxNames,size(movNames));
       assert(size(movNames,1)==numel(movsHaveLbls));
-      dat = [movNames num2cell(movsHaveLbls)];
+      
+      tfTrx = any(cellfun(@(x)~isempty(x),trxNames));
+      if tfTrx
+        assert(size(trxNames,2)==1,'Expect single column.');
+        dat = [movNames trxNames num2cell(movsHaveLbls)];
+        jtArgs = MovieManagerTable.JTABLEPROPS_TRX;
+      else
+        dat = [movNames num2cell(movsHaveLbls)];
+        jtArgs = MovieManagerTable.JTABLEPROPS_NOTRX;
+      end
       
       jt = obj.jtable;
       if ~isequal(dat,jt.Data)
-        jt.Data = dat;
+        set(jt,jtArgs{:},'Data',dat);
       end
     end
   

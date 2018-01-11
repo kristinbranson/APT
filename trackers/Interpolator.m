@@ -30,7 +30,7 @@ classdef Interpolator < LabelTracker
         fs = frms{i};
         fprintf(1,'Interpolating movie %d\n',iM);
         
-        lpos = labeler.labeledpos{iM}; % [npts x 2 x nfrm]
+        lpos = labeler.labeledposGTaware{iM}; % [npts x 2 x nfrm]
         for iPt = 1:npts
         for j = 1:2
           lpos(iPt,j,:) = smooth(squeeze(lpos(iPt,j,:)),smoothspan);

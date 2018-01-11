@@ -1,5 +1,5 @@
 classdef LabelCoreMVMixin < handle
-  % LabelCoreMVMixin  Mixin class for multiview labelCores
+% Multiview labeling mixin class
   
   properties (Abstract) 
     hAx

@@ -75,15 +75,15 @@ classdef TrackMode < handle
               iMov = labelerObj.moviesSelected;
               df = labelerObj.(obj.labelerProp);
             case TrackMode.AllMovEveryFrame
-              iMov = 1:labelerObj.nmovies;
+              iMov = 1:labelerObj.nmoviesGTaware;
               df = 1;
             case {TrackMode.AllMovEveryNFramesSmall TrackMode.AllMovEveryNFramesLarge}
-              iMov = 1:labelerObj.nmovies;
+              iMov = 1:labelerObj.nmoviesGTaware;
               df = labelerObj.(obj.labelerProp);
             otherwise
               assert(false);
           end
-          movIfoAll = labelerObj.movieInfoAll;
+          movIfoAll = labelerObj.movieInfoAllGTaware;
           frms = arrayfun(@(x)1:df:movIfoAll{x}.nframes,iMov,'uni',0);
         end                 
       end
@@ -107,5 +107,4 @@ classdef TrackMode < handle
     AllMovEveryNFramesLarge ('All movies, every %d frames','trackNFramesLarge')
   end
 end
-    
     

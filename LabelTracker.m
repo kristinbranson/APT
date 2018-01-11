@@ -1,9 +1,24 @@
 classdef LabelTracker < handle
+% Tracker base class
+
   % LabelTracker knows how to take a bunch of images+labels and learn a
   % classifier to predict/track labels on new images.
   %
   % LabelTracker is a base class intended to be concretized with a 
   % particular tracking algo.
+  
+  % Note re "iMovSgned". Specification of movies in this API is done via
+  % variables named "iMovSgned" which represent vectors of indices into
+  % .lObj.movieFilesAll (when iMovSgned is positive) and 
+  % .lObj.movieFilesAllGT (when iMovSgned is negative).
+  %
+  % In this way a single scalar (integer) value continues to serve as a
+  % unique key/ID for a movie in the project; these values are used in APIs
+  % as well as Metadata tables (eg in .mov field).
+  %
+  % Moving forward, if another "list of movie(set)s" crops up then this
+  % signed index vector will need to be replaced with some other ID
+  % mechanism (eg uuid or two-column ID {'movieList' 'idx'}.
   
   properties (Constant)
     % Known concrete LabelTrackers
@@ -25,6 +40,8 @@ classdef LabelTracker < handle
     hLCurrMovie; % listener to lObj.currMovie
     hLCurrFrame; % listener to lObj.currFrame
     hLCurrTarget; % listener to lObj.currTarget
+    hLMovieRemoved % " lObj/movieRemoved
+    hLMoviesReordered % "
   end  
   
   properties (SetObservable,SetAccess=protected)
@@ -52,9 +69,11 @@ classdef LabelTracker < handle
       end
       obj.trkVizInterpolate = val;
       
-      obj.hLCurrMovie = addlistener(labelerObj,'currMovie','PostSet',@(s,e)obj.newLabelerMovie());
+      obj.hLCurrMovie = addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
       obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
       obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
+      obj.hLMovieRemoved = addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
+      obj.hLMoviesReordered = addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
     end
     
     function init(obj)
@@ -63,12 +82,12 @@ classdef LabelTracker < handle
       obj.initHook();
     end
     
-    function setParamFile(obj,prmFile)
-      % See also setParams.
-      
-      obj.paramFile = prmFile;
-      obj.setParamHook();
-    end
+%     function setParamFile(obj,prmFile)
+%       % See also setParams.
+%       
+%       obj.paramFile = prmFile;
+%       obj.setParamHook();
+%     end
     
     function delete(obj)
       if ~isempty(obj.hLCurrMovie)
@@ -79,6 +98,12 @@ classdef LabelTracker < handle
       end
       if ~isempty(obj.hLCurrTarget)
         delete(obj.hLCurrTarget);
+      end
+      if ~isempty(obj.hLMovieRemoved)
+        delete(obj.hLMovieRemoved);
+      end
+      if ~isempty(obj.hLMoviesReordered)
+        delete(obj.hLMoviesReordered);
       end      
     end
     
@@ -115,46 +140,52 @@ classdef LabelTracker < handle
       % Full Train from scratch; existing/previous results cleared 
     end
     
-    function track(obj,iMovs,frms,varargin)
+    function track(obj,tblMFT,varargin)
       % Apply trained tracker to the specified frames.
+      % 
+      % tblMFT: MFTable with cols MFTable.FLDSID
       %
-      % Legacy/Single-target API:
+      %
+      % DEPRECATED Legacy/Single-target API:
       %   track(obj,iMovs,frms,...)
       %
-      % iMovs: [M] indices into .lObj.movieFilesAll to track
+      % iMovsSgned: [M] indices into .lObj.movieFilesAll to track; negative
+      %   indices are into .lObj.movieFilesAllGT.
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
-      %
-      % Newer/multi-target API:
-      %     track(obj,[],[],'tblP',tblMF)
-      %
-      % tblMF: MFTable with rows specifying movie/frame/target
-      %
-      % Optional PVs.
     end
     
-    function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovs)
+    function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
       % Get tracking results for movie(set) iMovs.
       % Default implemation returns all NaNs and tfHasRes=false.
       %
-      % iMovs: [nMov] vector of movie(set) indices
+      % iMovsSgned: [nMov] vector of movie(set) indices, negative for GT
       %
       % trkfiles: [nMovxnView] vector of TrkFile objects
       % tfHasRes: [nMov] logical. If true, corresponding movie(set) has 
       % tracking nontrivial (nonempty) tracking results
       
-      validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
+      validateattributes(iMovsSgned,{'numeric'},{'vector' 'integer'});
       
       assert(~obj.lObj.isMultiView,'Multiview unsupported.');
       
-      nMov = numel(iMovs);
+      nMov = numel(iMovsSgned);
       for i = nMov:-1:1
-        trkpos = nan(size(obj.lObj.labeledpos{iMovs(i)}));
+        iMovS = iMovsSgned(i);
+        iMov = abs(iMovS);
+        tfGT = iMovS<0;
+        lpos = obj.lObj.getlabeledposGTawareArg(tfGT);
+        trkpos = nan(size(lpos{iMov}));
         trkfiles(i) = TrkFile(trkpos);
         tfHasRes(i) = false;
       end
     end
-            
-    function importTrackingResults(obj,iMovs,trkfiles)
+    
+    function xy = getPredictionCurrentFrame(obj)
+      % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
+      xy = [];
+    end
+
+    function importTrackingResults(obj,iMovSgned,trkfiles)
       % Import tracking results for movies iMovs.
       % Default implemation ERRORS
       %
@@ -187,6 +218,13 @@ classdef LabelTracker < handle
       % Called when Labeler is navigated to a new movie
     end
     
+    function labelerMovieRemoved(obj,eventdata)
+      % Called on Labeler/movieRemoved
+    end
+
+    function labelerMoviesReordered(obj,eventdata)      
+    end
+    
     function s = getSaveToken(obj)
       % Get a struct to serialize
       s = struct();
@@ -196,27 +234,14 @@ classdef LabelTracker < handle
       
     end
     
-    function vizHide(obj)
-      obj.hideViz = true;
-    end
-    
-    function vizShow(obj)
-      obj.hideViz = false;
+    function setHideViz(obj,tf)
+      obj.hideViz = tf;
     end
     
     function hideVizToggle(obj)
-      if obj.hideViz
-        obj.vizShow();
-      else
-        obj.vizHide();
-      end
+      obj.setHideViz(~obj.hideViz);
     end
-    
-    function xy = getPredictionCurrentFrame(obj)
-      % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
-      xy = [];
-    end
-    
+        
   end
   
   methods % For infotimeline display
@@ -245,23 +270,7 @@ classdef LabelTracker < handle
       end
       prm = ReadYaml(prmFile);
     end
-        
-    %#MV
-    % TODO: DEPRECATE
-    function tblP = getTblP(obj,iMovs,frms) % obj CONST
-      % From .lObj, read tblP for given movies/frames.
             
-      labelerObj = obj.lObj;
-      assert(~labelerObj.hasTrx,...
-        'Legacy codepath not intended for multitarget projects.');
-      movID = labelerObj.movieFilesAll;
-      movID = FSPath.standardPath(movID);
-      [~,tblP] = Labeler.lblCompileContentsRaw(labelerObj.movieFilesAllFull,...
-        labelerObj.labeledpos,labelerObj.labeledpostag,iMovs,frms,...
-        'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
-      tblP.iTgt = ones(height(tblP),1);
-    end
-    
   end
   
   methods (Static)

@@ -31,7 +31,11 @@ classdef Features
       97    93    83    60];
     
     TYPE2XSCOLLBLS = containers.Map(...
-      {'1lm' '2lm' '2lmdiff'},{{'lm' 'radius' 'theta' 'view'},{'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'},[]});
+      {'1lm' '2lm' '2lmdiff' 'two landmark elliptical'},...
+      { {'lm' 'radius' 'theta' 'view'},...
+        {'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'},...
+        [],...
+        []});
       % TODO: 2lmdiff. TODO: hardcoded here -- see generate/compute/visualize1LM, 2LM etc
   end
   %% preprocessing/channels
@@ -401,30 +405,6 @@ classdef Features
       end
     end
     
-    function t = compileFeatureInfo(regs)
-      s = struct('iReg',cell(0,1),'iRegInfo',[],'fidpos',[],'fid',[],'chan',[]);
-      nReg = numel(regs);
-      for iReg = 1:nReg
-        fprintf(1,'Working on iReg=%d\n',iReg);
-        chans = regs(iReg).ftrPos.xs(:,end);
-        
-        ri = regs(iReg).regInfo;
-        nRI = numel(ri);
-        for iRI = 1:nRI
-          fids = ri{iRI}.fids(:);
-          for iFID = 1:numel(fids)
-            s(end+1,1).iReg = iReg;
-            s(end).iRegInfo = iRI;
-            s(end).fidpos = iFID;
-            s(end).fid = fids(iFID);
-            s(end).chan = chans(fids(iFID));
-          end
-        end
-      end
-      
-      t = struct2table(s);
-    end
-    
   end
   
   %#3DOK
@@ -436,7 +416,7 @@ classdef Features
       % xs: F x 7 double array. xs(i,:) specifies the ith feature
       %   col 1: landmark index 1
       %   col 2: landmark index 2
-      %   col 3: radius FACTOR
+      %   col 3: radius FACTOR. In [0,prms.radiusFac].
       %   col 4: theta in (-pi,pi). NOTE: this is not the actual angle on
       %   the ellipse; it is an angle-like parameterization of pts on the
       %   surface of an ellipse!
@@ -538,6 +518,115 @@ classdef Features
       xslbls = {'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'};
     end
     
+    function [tbl,prms] = generate2LMelliptical(model,varargin)
+      % Generate new-style elliptical 2-landmark features
+      %
+      % At feature computation/instantiation time, there will be a shape
+      % represented by a set of landmarks. A feature (row of table) is
+      % defined as follows. Two landmarks are specified: .lm1 and .lm2. A
+      % line segment of length 2d connects these two lms. Consider an
+      % ellipse centered at the midpoint of this line segment, and oriented
+      % with major axis along the line segment. This ellipse has major axis
+      % a=d*prm.radiusFac and minor axis b=a/prm.abratio. (If radiusFac=1,
+      % then the ellipse is "squeezed" tangentially between the two
+      % landmarks.)
+      %
+      % A random point (uniformly drawn) is specified within this ellipse 
+      % via two parameters, .reff (r_effective, dimensionless) and .theta
+      % (radians). These two parameters serve to specify the feature point
+      % location in a scale/orientation-independent manner relative to the
+      % two landmarks (and more generally, the shape).
+      %
+      % tbl: [FxnTblFld] feature defn table. Note, in future this table can
+      %         be expanded by adding further fields.
+      %     .lm1 -- landmark 1 (point index) 
+      %     .lm2 -- landmark 2 etc
+      %     .reff -- see mathematical notes below
+      %     .xeff -- etc
+      %     .yeff -- etc
+      %     .chan -- channel index, shared by landmarks 1 and 2. Identically 
+      %              equal to 1 unless optional param 'nchan' specified.
+      %     .view -- view index, shared by landmarks 1 and 2. Identically equal
+      %              to 1 unless model.nviews>1.
+      %
+      % prms: [1] struct, parameters used to generate tbl
+      
+      %%% Optional input P-V params
+      %
+      % 
+      % number of ftrs to generate
+      defaultPrms.F = 20;
+      % dimensionless scaling factor applied to ellipse size, see above.
+      defaultPrms.radiusFac = 1.5;
+      % ratio a/b of major/minor axis lengths for ellipse.
+      defaultPrms.abratio = 2;
+      % number of channels. 
+      defaultPrms.nchan = 1;
+                                  
+      prms = getPrmDfltStruct(varargin,defaultPrms);
+      
+      prms.fids = 1:model.nfids; % for moment draw from all landmarks
+      F = prms.F;      
+      d = model.d;
+      nviews = model.nviews;
+      assert(d==2 && nviews==1 || d==3 && nviews>1);
+
+      nfidsFtr = numel(prms.fids); % in concept can differ from model.nfids
+      assert(nfidsFtr>1,'Must sample from 2 or more features.');
+      
+      % choose two random, distinct landmarks
+      xs(:,1) = randint2(F,1,[1,nfidsFtr]);
+      xs(:,2) = randint2(F,1,[1,nfidsFtr-1]);
+      tf = xs(:,2)>=xs(:,1);
+      xs(tf,2) = xs(tf,2)+1;
+      xs(:,1:2) = prms.fids(xs(:,1:2));
+      lm1 = xs(:,1);
+      lm2 = xs(:,2);
+
+      % We use this mathematical fact. Given the major/minor axes a and b
+      % for an ellipse centered at the origin with major axis oriented 
+      % in the x-dir, the following computation of (x,y) draws a random 
+      % point uniformly within that ellipse.
+      %
+      % r = rand;
+      % theta = rand*2*pi-pi;
+      % x = a*sqrt(r)*cos(theta);
+      % y = b*sqrt(r)*sin(theta);
+      %
+      % Once an (r,theta) pair is generated, (x,y) are linear in the axes
+      % lengths (a,b). A given (r,theta) pair specifies a scale-invariant
+      % point relative to the ellipse.
+      %
+      % In our case, at feature computation/instantiation time we have 
+      %   a_final = d*prm.radiusFac and
+      %   b_final = d*prm.radiusFac/prm.abRatio => 
+      % 
+      %   x = d*prm.radiusFac*sqrt(r)*cos(theta)
+      %   y = d*prm.radiusFac/prm.abRatio*sqrt(r)*sin(theta)
+      %
+      % We define 
+      %   reff = prm.radiusFac*sqrt(r) 
+      %   xeff = reff*cos(theta) 
+      %   yeff = reff/abratio*sin(theta)
+      % So that
+      %   x = d*reff*cos(theta) = d*xeff
+      %   y = d*reff/abRatio*sin(theta) = d*yeff
+      %
+      % Note, we save reff, xeff, yeff to the table which enables backing
+      % out theta and abratio.
+
+      r = rand(F,1);
+      reff = prms.radiusFac*sqrt(r);
+      theta = (2*pi*rand(F,1))-pi;
+      abratio = prms.abratio;
+      xeff = reff.*cos(theta);
+      yeff = reff.*sin(theta)/abratio;
+      chan = randint2(F,1,[1,prms.nchan]);
+      view = randint2(F,1,[1,nviews]);
+      
+      tbl = table(lm1,lm2,reff,theta,xeff,yeff,chan,view);
+    end
+    
     function [xF,yF,chan,iview,info] = compute2LM(xs,xLM,yLM)
       % xs: [Fx7], from generate2LM(). Legacy [Fx6] okay, assume nView==1.
       % xLM: [NxnPtsxnView]. xLM(i,:,:) gives x-coords (column pixel
@@ -546,7 +635,7 @@ classdef Features
       %
       % xF: N x F. xF(i,j) gives x-coords (in pixels) for ith instance, jth 
       %   feature. Values are rounded. Could lie "outside" image. xF(i,j)
-      %   should be read in channel chan(i,j), view iview(i,j).
+      %   should be read in channel chan(i,j), view iview(j).
       % yF: N x F.
       % chan: N x F. Channels in which to read features.
       % iview: [Fx1]. View indices in which to read features. Labels
@@ -628,6 +717,82 @@ classdef Features
       end
     end
     
+    function [xF,yF,chan,iview,info] = compute2LMelliptical(tbl,xLM,yLM)
+      % Compute/"instantiate" feature point positions for given landmark 
+      % positions
+      % 
+      % tbl: [FxnTblFlds], from generate2LMelliptical(). 
+      % xLM: [NxnPtsxnView]. xLM(i,:,:) gives x-coords (column pixel
+      %  indices) of ith shape, across all pts/views
+      % yLM: [NxnPtxnView]. y-coords
+      %
+      % xF: [NxF]. xF(i,j) gives x-coords (in pixels) for ith instance, jth 
+      %   feature. Values are rounded. Could lie "outside" image. xF(i,j)
+      %   should be read in channel chan(i,j), view iview(j).
+      % yF: [NxF]. etc
+      % chan: [NxF]. Channels in which to read features.
+      % iview: [Fx1]. View indices in which to read features. Labels
+      %   columns of xF, yF.
+      % info: struct with miscellaneous/intermediate vars
+      %
+      % Note: xF and yF are in whatever units xLM and yLM are in (pixels)
+            
+      %F = height(tbl);
+      l1 = tbl.lm1;
+      l2 = tbl.lm2;
+      %reff = tbl.reff;
+      xeff = tbl.xeff;
+      yeff = tbl.yeff;
+      chan = tbl.chan;
+      iview = tbl.view;
+      
+      [N,nPt,nView] = size(xLM);
+      nFlat = nPt*nView;
+      xLMFlat = reshape(xLM,N,nFlat); 
+      yLMFlat = reshape(yLM,N,nFlat);
+      iFlat1 = sub2ind([nPt nView],l1,iview); % [Fx1] "flat" indices into nPt*nView for feature lm 1's
+      iFlat2 = sub2ind([nPt nView],l2,iview); % [Fx1] "flat" indices into nPt*nView for feature lm 2's
+      x1 = xLMFlat(:,iFlat1); % [NxF]. x, landmark 1 x-coords for each instance/feature
+      y1 = yLMFlat(:,iFlat1); % etc
+      x2 = xLMFlat(:,iFlat2);
+      y2 = yLMFlat(:,iFlat2);
+
+      % See mathematical notes in generate2LMelliptical
+      %   x = d*reff*cos(theta) = d*xeff
+      %   y = d*reff/abRatio*sin(theta) = d*yeff
+      d = sqrt((x2-x1).^2+(y2-y1).^2)/2; % [NxF]. 2d=dist between lms
+      xEll = bsxfun(@times,d,xeff'); % [NxF]
+      yEll = bsxfun(@times,d,yeff'); % [NxF]
+      % xEll and yEll are x- and y-coords of feature point, relative to
+      % ellipse centered at origin and oriented along x-axis.
+            
+      xc = (x1+x2)/2; % [NxF]
+      yc = (y1+y2)/2; % [NxF]
+      alpha = atan2(y2-y1,x2-x1); % [NxF] % OPTIM skip the trig just use dx, dy, d
+      cosa = cos(alpha); % [NxF]
+      sina = sin(alpha); % [NxF]
+      xF = xc + xEll.*cosa - yEll.*sina;
+      yF = yc + xEll.*sina + yEll.*cosa;
+      xF = round(xF);
+      yF = round(yF);
+                
+      chan = repmat(chan',N,1);
+      
+      if nargout>=5
+        info = struct();
+        info.tbl = tbl;
+        info.xLM1 = x1;
+        info.yLM1 = y1;
+        info.xLM2 = x2;
+        info.yLM2 = y2;
+        info.d = d;
+        info.alpha = alpha;
+        info.xc = xc;
+        info.yc = yc;
+        info.abratio = tbl.reff./tbl.yeff.*sin(tbl.theta);
+      end
+    end
+    
     function [hPlot,str] = visualize2LM(ax,xF,yF,iView,info,iN,iF,clr,varargin)
       % Visualize feature pts from compute2LM
       % 
@@ -675,6 +840,58 @@ classdef Features
       end
       str = sprintf('n=%d,f=%d(%d,%d). randctr=%.3f,rfac=%.3f,r=%.3f,theta=%.3f',iN,iF,...
         info.l1(iF),info.l2(iF),info.ctrFac(iF),info.rfac(iF),info.r(iN,iF),info.theta(iN,iF)/pi*180);
+      title(axplot,str,'interpreter','none','fontweight','bold'); 
+    end
+    
+    function [hPlot,str] = visualize2LMelliptical(ax,xF,yF,iView,info,iN,iF,clr,varargin)
+      % Visualize feature pts from compute2LM
+      % 
+      % xf/yf/info: from compute2LM
+      % iN: trial index
+      % iF: feature index
+      
+      hPlot = myparse(varargin,...
+        'hPlot',[]);
+      
+      assert(isequal(...
+        size(xF),size(yF),...
+        size(info.xLM1),size(info.yLM1),...
+        size(info.xLM2),size(info.yLM2)));
+      
+      xf = xF(iN,iF);
+      yf = yF(iN,iF);
+      x1 = info.xLM1(iN,iF);
+      x2 = info.xLM2(iN,iF);
+      y1 = info.yLM1(iN,iF);
+      y2 = info.yLM2(iN,iF);
+      xc = info.xc(iN,iF);
+      yc = info.yc(iN,iF);
+      ivw = iView(iF);
+      
+      axplot = ax(ivw);
+      
+      if isequal(hPlot,[])
+        hPlot = gobjects(6,1);
+        hPlot(1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
+        hPlot(2) = plot(axplot,xc,yc,'o','Color',clr,'markerfacecolor',clr);
+        hPlot(3) = plot(axplot,nan,nan,'o','Color',[1 1 1],'markerfacecolor',[1 1 1]);        
+        hPlot(4) = plot(axplot,xf,yf,'s','Color','w','MarkerSize',8,'markerfacecolor',[1 1 1]);
+        hPlot(5) = ellipsedraw(info.d(iN,iF),info.d(iN,iF)/info.abratio(iF),...
+          xc,yc,info.alpha(iN,iF),'-','parent',axplot,'Color',clr);
+        hPlot(6) = plot(axplot,[xc;xf],[yc;yf],'-','Color',clr);
+        [hPlot.LineWidth] = deal(1);
+      else
+        assert(numel(hPlot)==6);
+        set(hPlot(1),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
+        set(hPlot(2),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
+        %set(hPlot(3),'XData',x1,'YData',y1);
+        set(hPlot(4),'XData',xf,'YData',yf);
+        ellipsedraw(info.d(iN,iF),info.d(iN,iF)/info.abratio(iF),xc,yc,...
+          info.alpha(iN,iF),'-','hEllipse',hPlot(5),'parent',axplot);
+        set(hPlot(6),'XData',[xc;xf],'YData',[yc;yf]);
+      end
+      str = sprintf('n=%d,f=%d(%d,%d). reff=%.3f,theta=%.3f',iN,iF,...
+        info.tbl.lm1(iF),info.tbl.lm2(iF),info.tbl.reff(iF),info.tbl.theta(iF)/pi*180);
       title(axplot,str,'interpreter','none','fontweight','bold'); 
     end
     

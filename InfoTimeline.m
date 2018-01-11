@@ -1,13 +1,18 @@
 classdef InfoTimeline < handle
 
   properties (Constant)
-    SELECTALPHA = 0.5;
+    TLPROPS = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|' 'occluded'};
   end
+  
+%   % AL: Not using transparency for now due to perf issues on Linux
+%   properties (Constant)
+%     SELECTALPHA = 0.5;
+%   end
   properties
     lObj % scalar Labeler handle
     hAx % scalar handle to timeline axis
     hCurrFrame % scalar line handle current frame
-    hMarked % scalar line handle, indicates marked frames
+%     hMarked % scalar line handle, indicates marked frames
     hCMenuClearAll % scalar context menu
     hCMenuClearBout % scalar context menu
 
@@ -17,19 +22,23 @@ classdef InfoTimeline < handle
     hPts % [npts] line handles
     npts % number of label points in current movie/timeline
     nfrm % number of frames "
+    tldata % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
     
     listeners % [nlistener] col cell array of labeler prop listeners
+    listenersTracker % col cell array of tracker listeners
 
     tracker % scalar LabelTracker obj
   end
   properties (SetObservable)
     props % [npropx3]. Col 1: pretty/display name. Col 2: Type, eg 'Labels', 'Labels2' or 'Tracks'. Col3: non-pretty name/id
-    curprop % str
+    curprop % row index into props
   end
   properties
     jumpThreshold
     jumpCondition
   end
+  
+  %% Select
   properties (SetAccess=private)
     hSelIm % scalar image handle for selection
     selectOnStartFrm 
@@ -38,6 +47,14 @@ classdef InfoTimeline < handle
   properties (SetObservable)
     selectOn % scalar logical, if true, select "Pen" is down
   end
+  
+  %% GT/highlighting
+  properties 
+    hSegLineGT % scalar SegmentedLine
+    hSegLineGTLbled % scalar SegmentedLine
+  end
+  
+  %%
   properties (Dependent)
     prefs % projPrefs.InfoTimelines preferences substruct
   end
@@ -70,7 +87,7 @@ classdef InfoTimeline < handle
       hold(ax,'on');
       obj.hAx = ax;
       obj.hCurrFrame = plot(ax,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off');
-      obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0],'hittest','off');
+%       obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0],'hittest','off');
       
       fig = ax.Parent;
       hZ = zoom(fig);
@@ -86,23 +103,31 @@ classdef InfoTimeline < handle
             
       listeners = cell(0,1);
       listeners{end+1,1} = addlistener(labeler,...
-        {'labeledpos','labeledposMarked','labeledpostag'},...
+        {'labeledpos','labeledposMarked','labeledpostag','labeledposGT',...
+         'labeledpostagGT'},... 
         'PostSet',@obj.cbkLabelUpdated);
       listeners{end+1,1} = addlistener(labeler,...
-        'labelMode','PostSet',@obj.cbkLabelMode);      
-      obj.listeners = listeners;
+        'gtIsGTModeChanged',@obj.cbkGTIsGTModeUpdated);
+      listeners{end+1,1} = addlistener(labeler,...
+        'gtSuggUpdated',@obj.cbkGTSuggUpdated);
+      listeners{end+1,1} = addlistener(labeler,...
+        'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated);      
+%       listeners{end+1,1} = addlistener(labeler,...
+%         'labelMode','PostSet',@obj.cbkLabelMode);      
+      obj.listeners = listeners;      
+      obj.listenersTracker = cell(0,1);
       
       obj.tracker = [];
-      
-      obj.props = {};
-      props1(:,1) = {'x','y','dx','dy','|dx|','|dy|','occluded'};
-      props1(:,2) = {'Labels'};
-      props1(:,3) = {'x','y','dx','dy','|dx|','|dy|','occluded'};
-      props2(:,1) = {'x (pred)','y (pred)','dx (pred)','dy (pred)','|dx| (pred)','|dy| (pred)'};
+    
+      props = InfoTimeline.TLPROPS(:);
+      props(:,2) = {'Labels'};
+      props(:,3) = props(:,1);
+      props2 = props;      
+      props2(:,1) = cellfun(@(x)sprintf('%s (imported)',x),props2(:,1),'uni',0);
       props2(:,2) = {'Labels2'};
-      props2(:,3) = {'x','y','dx','dy','|dx|','|dy|'};
-      obj.props = [props1;props2];
-      obj.curprop = obj.props{1,1};
+      props = [props;props2];
+      obj.props = props;    
+      obj.curprop = 1;
       
       obj.jumpThreshold = nan;
       obj.jumpCondition = nan;
@@ -111,6 +136,8 @@ classdef InfoTimeline < handle
       obj.hSelIm = [];
       obj.selectOn = false;
       obj.selectOnStartFrm = [];
+      obj.hSegLineGT = SegmentedLine(ax);
+      obj.hSegLineGTLbled = SegmentedLine(ax);
       obj.isinit = false;
       
       hCMenu = uicontextmenu('parent',ax.Parent,...
@@ -132,8 +159,8 @@ classdef InfoTimeline < handle
     function delete(obj)
       deleteValidHandles(obj.hCurrFrame);
       obj.hCurrFrame = [];
-      deleteValidHandles(obj.hMarked);
-      obj.hMarked = [];
+%       deleteValidHandles(obj.hMarked);
+%       obj.hMarked = [];
       if ~isempty(obj.hZoom)
         delete(obj.hZoom);
       end
@@ -144,19 +171,22 @@ classdef InfoTimeline < handle
       obj.hPts = [];
       cellfun(@delete,obj.listeners);
       obj.listeners = [];
+      cellfun(@delete,obj.listenersTracker);
+      obj.listenersTracker = [];
       deleteValidHandles(obj.hSelIm);
       obj.hSelIm = [];
+      deleteValidHandles(obj.hSegLineGT);
+      obj.hSegLineGT = [];
+      deleteValidHandles(obj.hSegLineGTLbled);
+      obj.hSegLineGTLbled = [];
     end
     
   end  
   
   methods
     
-    function initNewMovie(obj)
-      % react to new current movie in Labeler
-
+    function initNewProject(obj)
       obj.npts = obj.lObj.nLabelPoints;
-      obj.nfrm = obj.lObj.nframes;
 
       deleteValidHandles(obj.hPts);
       obj.hPts = gobjects(obj.npts,1);
@@ -169,21 +199,61 @@ classdef InfoTimeline < handle
       
       prefsTL = obj.prefs;
       ax.XColor = prefsTL.XColor;
-      ax.XTick = 0:prefsTL.dXTick:obj.nfrm;
-      ax.YLim = [0 1];
+      dy = .01;
+      ax.YLim = [0-dy 1+dy];
       
       set(obj.hCurrFrame,'XData',[nan nan],'ZData',[1 1]);
-      
-      obj.selectInit();
     end
     
+    function initNewMovie(obj)
+      if obj.lObj.hasMovie
+        obj.nfrm = obj.lObj.nframes;
+      else
+        obj.nfrm = 1;
+      end
+      ax = obj.hAx;
+      prefsTL = obj.prefs;
+      ax.XTick = 0:prefsTL.dXTick:obj.nfrm;
+
+      obj.selectInit();
+      
+      xlims = [1 obj.nfrm];
+      SEGLINEYLOC = 1;
+      sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
+      sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
+      obj.hSegLineGT.init(xlims,SEGLINEYLOC,sPV);
+      obj.hSegLineGTLbled.init(xlims,SEGLINEYLOC,sPVLbled);
+      
+      cbkGTSuggUpdated(obj,[],[]);
+    end
+        
     function setTracker(obj,tracker)
       obj.tracker = tracker;
-      newprops = tracker.propList();
-      for ndx = 1:numel(newprops)
-        obj.props(end+1,1) = newprops{count};
-        obj.props(end,2) = 'Tracks';
-        obj.props(end,3) = newprops{count};
+      
+      % Break down existing props; eliminate existing tracker-props. We
+      % also prefer tracker-props to come before labels2 props.
+      pmat = obj.props;
+      src = pmat(:,2);
+      tfLabels = strcmp(src,'Labels');
+      tfTracks = strcmp(src,'Tracks'); % will be deleted
+      tfLabels2 = strcmp(src,'Labels2');
+      assert(all(tfLabels+tfTracks+tfLabels2==1));
+
+      cellfun(@delete,obj.listenersTracker);
+      obj.listenersTracker = cell(0,1);      
+      if isempty(tracker)
+        obj.props = [pmat(tfLabels,:); pmat(tfLabels2,:)];
+      else
+        propList = tracker.propList();
+        pmatnew = arrayfun(...
+          @(x){sprintf('%s (tracked)',propList{x}) 'Tracks' propList{x}},...
+          (1:numel(propList))','uni',0);
+        pmatnew = cat(1,pmatnew{:});
+        obj.props = [pmat(tfLabels,:); pmatnew; pmat(tfLabels2,:)];
+        
+        cellfun(@delete,obj.listenersTracker);
+        obj.listenersTracker{end+1,1} = addlistener(tracker,...
+          'newTrackingResults',@obj.cbkLabelUpdated);
       end
     end
     
@@ -192,23 +262,36 @@ classdef InfoTimeline < handle
       
       if isnan(obj.npts), return; end
       
-      lpos = obj.getDataCurrMovTgt(); % [nptsxnfrm]
-      y1 = min(lpos(:));
-      y2 = max(lpos(:));
+      dat = obj.getDataCurrMovTgt(); % [nptsxnfrm]
+      dat(isinf(dat)) = nan;
+      datnonnan = dat(~isnan(dat));
+
+      obj.tldata = dat;
+      
+      if isempty(datnonnan)
+        for i=1:obj.npts
+          set(obj.hPts(i),'XData',nan,'YData',nan);
+        end
+%         set(obj.hMarked,'XData',nan,'YData',nan);
+        return;
+      end
+
+      y1 = min(datnonnan(:));
+      y2 = max(datnonnan(:));
       dy = max(y2-y1,eps);
-      lposNorm = (lpos-y1)/dy; % in [0,1]
+      lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
       x = 1:size(lposNorm,2);
       for i=1:obj.npts
         set(obj.hPts(i),'XData',x,'YData',lposNorm(i,:));
       end
       
-      markedFrms = find(any(obj.getMarkedDataCurrMovTgt(),1));
-      xxm = repmat(markedFrms,[3 1]);
-      xxm = xxm(:)+0.05; 
+%       markedFrms = find(any(obj.getMarkedDataCurrMovTgt(),1));
+%       xxm = repmat(markedFrms,[3 1]);
+%       xxm = xxm(:)+0.05; 
       % slightly off so that both current frame and labeled frame are both
       % visible.
-      yym = repmat([0 1 nan],[1 size(markedFrms,2)]);
-      set(obj.hMarked,'XData',xxm(:),'YData',yym(:));
+%       yym = repmat([0 1 nan],[1 size(markedFrms,2)]);
+%       set(obj.hMarked,'XData',xxm(:),'YData',yym(:));
     end
     
     function setLabelsFrame(obj,frm)
@@ -262,7 +345,7 @@ classdef InfoTimeline < handle
 
       deleteValidHandles(obj.hSelIm);
       obj.hSelIm = image(1:obj.nfrm,0.5,uint8(zeros(1,obj.nfrm)),...
-        'parent',obj.hAx,'alphadata',obj.SELECTALPHA,'HitTest','off',...
+        'parent',obj.hAx,'HitTest','off',...
         'CDataMapping','direct');
 
       obj.selectOn = false;
@@ -336,16 +419,12 @@ classdef InfoTimeline < handle
     function props = getPropsDisp(obj)
       props = obj.props(:,1);
     end
-    function props = getCurProp(obj)
-      props = obj.curprop;
-    end
-    function setCurProp(obj,newprop)
-      obj.curprop = newprop;
+    function setCurProp(obj,iprop)
+      obj.curprop = iprop;
       obj.setLabelsFull();
     end    
   end
-  
-  
+    
   %% Private methods
   methods (Access=private) % callbacks
     function cbkBDF(obj,src,evt) %#ok<INUSL>
@@ -358,10 +437,11 @@ classdef InfoTimeline < handle
         obj.lObj.setFrame(frm);
       end
     end
-    function cbkLabelMode(obj,src,evt) %#ok<INUSD>
-      onoff = onIff(obj.lObj.labelMode==LabelMode.ERRORCORRECT);
-      set(obj.hMarked,'Visible',onoff);
-    end
+%     function cbkLabelMode(obj,src,evt) %#ok<INUSD>
+% %       onoff = onIff(obj.lObj.labelMode==LabelMode.ERRORCORRECT);
+%       onoff = 'off';
+%       set(obj.hMarked,'Visible',onoff);
+%     end
     function cbkLabelUpdated(obj,src,~) %#ok<INUSD>
       if ~obj.lObj.isinit
         obj.setLabelsFull;
@@ -408,9 +488,107 @@ classdef InfoTimeline < handle
       bout = boutsAll(iBout,:);
       obj.hSelIm.CData(:,bout(1):bout(2)-1) = 0;
       obj.setLabelerSelectedFrames();
+    end    
+    function cbkGTIsGTModeUpdated(obj,src,evt)
+      lblObj = obj.lObj;
+      gt = lblObj.gtIsGTMode;
+      if gt
+        obj.cbkGTSuggUpdated([],[]);
+      end
+      onOff = onIff(gt);
+      obj.hSegLineGT.setVisible(onOff);
+      obj.hSegLineGTLbled.setVisible(onOff);
+    end
+    function cbkGTSuggUpdated(obj,src,evt)
+      % full update to any change to labeler.gtSuggMFTable*
+      
+      lblObj = obj.lObj;
+      if lblObj.isinit || ~lblObj.hasMovie || ~lblObj.gtIsGTMode
+        % segLines are not visible; more importantly, cannot set segLine
+        % highlighting based on suggestions in current movie
+        return;
+      end
+      
+      % find rows for current movie
+      tblLbled = table(lblObj.gtSuggMFTableLbled,'variableNames',{'hasLbl'});
+      tbl = [lblObj.gtSuggMFTable tblLbled];
+      mIdx = lblObj.currMovIdx;
+      tf = mIdx==tbl.mov;
+      tblCurrMov = tbl(tf,:); % current mov, various frm/tgts
+      
+      % for hSegLineGT, we highlight any/all frames (regardless of, or across all, targets)
+      frmsOn = tblCurrMov.frm; % could contain repeat frames (across diff targets)
+      obj.hSegLineGT.setOnAtOnly(frmsOn);
+      
+      % For hSegLineGTLbled, we turn on a given frame only if all
+      % targets/rows for that frame are labeled.
+      tblRes = rowfun(@(zzHasLbl)all(zzHasLbl),tblCurrMov,...
+        'groupingVariables',{'frm'},'inputVariables','hasLbl',...
+        'outputVariableNames',{'allTgtsLbled'});
+      frmsAllTgtsLbled = tblRes.frm(tblRes.allTgtsLbled);
+      obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
+    end
+    function cbkGTSuggMFTableLbledUpdated(obj,src,evt)
+      % React to incremental update to labeler.gtSuggMFTableLbled
+      
+      lblObj = obj.lObj;
+      if ~lblObj.gtIsGTMode
+        % segLines are not visible,; more importantly, cannot set segLine
+        % highlighting based on suggestions in current movie
+        return;
+      end
+      
+      % find rows for current movie/frm
+      tbl = lblObj.gtSuggMFTable;
+      currFrm = lblObj.currFrame;
+      tfCurrMovFrm = tbl.mov==lblObj.currMovIdx & tbl.frm==currFrm;
+      tfLbled = lblObj.gtSuggMFTableLbled;
+      tfLbledCurrMovFrm = tfLbled(tfCurrMovFrm,:);
+      tfHiliteOn = numel(tfLbledCurrMovFrm)>0 && all(tfLbledCurrMovFrm);
+      obj.hSegLineGTLbled.setOnOffAt(currFrm,tfHiliteOn);
     end
   end
 
+  methods (Static) % util
+    function dmat = getDataFromLpos(lpos,lpostag,pcode,iTgt)
+      % lpos: [npts x 2 x nfrm x ntgt] label array as in
+      %   lObj.labeledpos{iMov}
+      % lpostag: [npts x nfrm x ntgt] cell as in lObj.labeledpostag{iMov}
+      % pcode: name/id of data to extract
+      % iTgt: current target
+      %
+      % dmat: [npts x nfrm] data matrix for pcode, extracted from lpos
+      
+      switch pcode
+        case 'x'
+          dmat = squeeze(lpos(:,1,:,iTgt));
+        case 'y'
+          dmat = squeeze(lpos(:,2,:,iTgt));
+        case 'dx'
+          dmat = squeeze(lpos(:,1,:,iTgt));
+          dmat = diff(dmat,1,2);
+          dmat(:,end+1) = nan;
+        case 'dy'
+          dmat = squeeze(lpos(:,2,:,iTgt));
+          dmat = diff(dmat,1,2);
+          dmat(:,end+1) = nan;
+        case '|dx|'
+          dmat = squeeze(lpos(:,1,:,iTgt));
+          dmat = abs(diff(dmat,1,2));
+          dmat(:,end+1) = nan;
+        case '|dy|'
+          dmat = squeeze(lpos(:,2,:,iTgt));
+          dmat = abs(diff(dmat,1,2));
+          dmat(:,end+1) = nan;
+        case 'occluded'
+          dmat = double(strcmp(lpostag(:,:,iTgt),'occ'));
+        otherwise
+          warningNoTrace('Unknown property to display in timeline.');
+          dmat = nan(size(lpos,1),size(lpos,3));
+      end
+    end
+  end
+  
   methods (Access=private)
     function setLabelerSelectedFrames(obj)
       % For the moment Labeler owns the property-of-record on what frames
@@ -419,69 +597,55 @@ classdef InfoTimeline < handle
       obj.lObj.setSelectedFrames(selFrames);
     end
 
-    function lpos = getDataCurrMovTgt(obj)
+    function data = getDataCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
       
-      pndx = find(strcmp(obj.props(:,1),obj.curprop));
+      pndx = obj.curprop;
       ptype = obj.props{pndx,2};
       pcode = obj.props{pndx,3};
+      labeler = obj.lObj;
+      iMov = labeler.currMovie;
+      iTgt = labeler.currTarget;
       
-      switch ptype
-        case {'Labels' 'Labels2'}
-          iMov = obj.lObj.currMovie;
-          iTgt = obj.lObj.currTarget;
-          if iMov>0
-            if strcmp(ptype,'Labels')
-              lObjlpos = obj.lObj.labeledpos{iMov};
+      if iMov==0
+        data = nan(obj.npts,1);
+      else
+        switch ptype
+          case 'Labels'
+            lpos = labeler.labeledposGTaware{iMov};
+            lpostag = labeler.labeledpostagGTaware{iMov};            
+            data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
+          case 'Labels2'            
+            if labeler.gtIsGTMode
+              warningNoTrace('InfoTimeline:gt',...
+                '''Labels2'' unavailable in GT mode.');
+              data = nan(obj.npts,labeler.nframes);
             else
-              lObjlpos = obj.lObj.labeledpos2{iMov};
+              lpos = labeler.labeledpos2{iMov};
+              lpostag = cell(obj.npts,labeler.nframes,labeler.nTargets);
+              data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
             end
-            switch pcode
-              case 'x'
-                lpos = squeeze(lObjlpos(:,1,:,iTgt));
-              case 'y'
-                lpos = squeeze(lObjlpos(:,2,:,iTgt));
-              case 'dx'
-                lpos = squeeze(lObjlpos(:,1,:,iTgt));
-                lpos = diff(lpos,1,2);
-                lpos(:,end+1) = nan;
-              case 'dy'
-                lpos = squeeze(lObjlpos(:,2,:,iTgt));
-                lpos = diff(lpos,1,2);
-                lpos(:,end+1) = nan;
-              case '|dx|'
-                lpos = squeeze(lObjlpos(:,1,:,iTgt));
-                lpos = abs(diff(lpos,1,2));
-                lpos(:,end+1) = nan;
-              case '|dy|'
-                lpos = squeeze(lObjlpos(:,2,:,iTgt));
-                lpos = abs(diff(lpos,1,2));
-                lpos(:,end+1) = nan;
-              case 'occluded'
-                curd = obj.lObj.labeledpostag{iMov}(:,:,iTgt);
-                lpos =  double(strcmp(curd,'occ'));
-              otherwise
-                warndlg('Unknown property to display');
-                lpos = nan(obj.npts,1);
-            end
-          else
-            lpos = nan(obj.npts,1);
-          end   
-        case 'Tracks'
-          lpos = obj.tracker.getPropValues(pcode);
-          szassert(lpos,[obj.npts 1]);
+          case 'Tracks'
+            data = obj.tracker.getPropValues(pcode);
+        end
+        szassert(data,[obj.npts obj.nfrm]);
       end
     end
     
     function lpos = getMarkedDataCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
       
-      iMov = obj.lObj.currMovie;
+      labeler = obj.lObj;
+      iMov = labeler.currMovie;
       if iMov>0
-        iTgt = obj.lObj.currTarget;
-        lpos = squeeze(obj.lObj.labeledposMarked{iMov}(:,:,iTgt));
+        if ~labeler.gtIsGTMode
+          iTgt = labeler.currTarget;
+          lpos = squeeze(labeler.labeledposMarked{iMov}(:,:,iTgt)); % AL: squeeze seems unnec
+        else
+          lpos = false(labeler.nLabelPoints,labeler.nframes);
+        end
       else
-        lpos = false(obj.lObj.nLabelPoints,1);
+        lpos = false(labeler.nLabelPoints,1);
       end
     end
     

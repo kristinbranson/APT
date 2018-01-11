@@ -1,0 +1,3 @@
+function tblfldsassert(t,flds)
+assert(isequal(sort(t.Properties.VariableNames(:)),sort(flds(:))),...
+  'Table fields do not match specification.');

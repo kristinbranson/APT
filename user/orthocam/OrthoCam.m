@@ -847,7 +847,7 @@ classdef OrthoCam
     end
   end
   methods (Static) % misc 
-    function vizRPerr(ax,dRP)
+    function hBar = vizRPerr(ax,dRP)
       [npts,npat] = size(dRP); %#ok<ASGLU>
       [~,edges] = histcounts(dRP(:));
       ctrs = (edges(1:end-1)+edges(2:end))/2;
@@ -859,7 +859,7 @@ classdef OrthoCam
       end
 
       axes(ax);
-      bar(ctrs,counts,'stacked');
+      hBar = bar(ctrs,counts,'stacked');
       grid on;
       xlabel('RP err (px)','fontweight','bold');
     end

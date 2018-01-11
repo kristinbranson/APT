@@ -1,21 +1,95 @@
 classdef MFTable
-  % MFTable -- Movie/Frame tables
-  %
-  % An MFTable is a table with cols 'mov' and 'frm' indicating movies and
-  % frame numbers. 
-  %
-  % 'mov' is usually filled with "movieIDs": FSPath/"standardized" 
-  % moviepaths, which can include macros. For multiview data, 'mov' can 
-  % contain multiuple movieIDs delimited by #.
+% Movie/Frame/(Target) tables
+%
+% An MFTable is a table with cols 'mov' and 'frm' indicating movies and
+% frame numbers.
   
   properties (Constant)
+    % Uniquely IDs a frame/target
     FLDSID = {'mov' 'frm' 'iTgt'};
+    
+    % Core training/test data.
+    FLDSCORE = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
+    % In ROI case, .p is relative to .ROI
+    FLDSCOREROI = {'mov' 'frm' 'iTgt' 'tfocc' 'p' 'roi'};
+
+    FLDSFULL = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc'};
+    
+    %  mov    single string unique ID for movieSetID combo
+    %  frm    1-based frame index
+    %  iTgt   1-based trx index
+    %  p      Absolute label positions (px). Raster order: physpt,view,{x,y}
+    %  pTS    [npts=nphyspt*nview] timestamps
+    %  tfocc  [npts=nphyspt*nview] logical occluded flag
+    %  pTrx   [nview*2], trx .x and .y. Raster order: view,{x,y}
+    %  thetaTrx [nview], trx .theta
+    FLDSFULLTRX = {'mov' 'frm' 'iTgt' 'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx'};    
+
+    FLDSSUSP = {'mov' 'frm' 'iTgt' 'susp'};
   end
   
-  methods (Static)
+  methods (Static) % MFTables
+    
+    function [tblNew,tfRm] = remapIntegerKey(tbl,keyfld,keymap)
+      % tbl: any table with a "key" field which takes nonzero integer
+      %   values; MovieIndex values also accepted
+      % keyfld: fieldname of tbl
+      % map: containers.Map where map(oldKeyVal)==newKeyVal. if
+      %   map(oldKeyVal)==0, then that row is to be removed.
+      %
+      % tblNew: tbl with keys remapped and rows removed as appropriate
+      % tfRm: [height(tbl)x1] logical. True for rows of tbl that were 
+      %   removed.
+      
+      assert(istable(tbl));
+      assert(isa(keymap,'containers.Map'));
+      
+      keys = tbl{:,keyfld};
+      tfMovIdx = isa(keys,'MovieIndex');
+      if tfMovIdx
+        keys = int32(keys);
+      end
+      keysnew = arrayfun(@(x)keymap(x),keys);
+      tfRm = keysnew==0;
+      if tfMovIdx
+        keysnew = MovieIndex(keysnew);
+      end
+      
+      tblNew = tbl;
+      tblNew.(keyfld) = keysnew;
+      %tblNew(tfRm,:) = []; AL 20171002 ML subsasgn bug with movieIndex col
+      tblNew = tblNew(~tfRm,:);
+    end
+
+    function tbl = emptyTable(varNames)
+      % Create an empty MFTable with MovieIndex .movs
+
+      assert(strcmp(varNames{1},'mov'));
+      n = numel(varNames);
+      x = nan(0,1);
+      args = repmat({x},1,n);
+      tbl = table(args{:},'VariableNames',varNames);
+      tbl.mov = MovieIndex(tbl.mov);
+    end
+    
+    function tbl = emptySusp()
+      x = nan(0,1);
+      tbl = table(x,x,x,x,'VariableNames',MFTable.FLDSSUSP);
+    end
+    
+    function tbl = sortCanonical(tbl)
+      assert(isa(tbl.mov,'MovieIndex'));
+      tfgt = tbl.mov<0;
+      tblGT = tbl(tfgt,:);
+      tblReg = tbl(~tfgt,:);
+      sortvars = {'mov' 'iTgt' 'frm'};
+      tblReg = sortrows(tblReg,sortvars,{'ascend' 'ascend' 'ascend'});
+      tblGT = sortrows(tblGT,sortvars,{'descend' 'ascend' 'ascend'});
+      tbl = [tblReg; tblGT];
+    end
     
     function [tblPnew,tblPupdate,idx0update] = tblPDiff(tblP0,tblP)
-      % Compare tblP to tblP0 wrt fields FLDSFULL (see below)
+      % Compare tblP to tblP0 wrt fields FLDSCORE (see below)
       %
       % tblP0, tblP: MF tables
       %
@@ -26,12 +100,12 @@ classdef MFTable
       %   ie tblP0(idx0update,:) ~ tblPupdate
       
       FLDSID = MFTable.FLDSID;
-      FLDSFULL = {'mov' 'frm' 'iTgt' 'tfocc' 'p'};
-      assert(all(ismember(FLDSFULL,tblP0.Properties.VariableNames)));
-      assert(all(ismember(FLDSFULL,tblP.Properties.VariableNames)));
+      FLDSCORE = MFTable.FLDSCORE;
+      tblfldscontainsassert(tblP0,FLDSCORE);
+      tblfldscontainsassert(tblP,FLDSCORE);
       
       tfNew = ~ismember(tblP(:,FLDSID),tblP0(:,FLDSID));
-      tfDiff = ~ismember(tblP(:,FLDSFULL),tblP0(:,FLDSFULL));
+      tfDiff = ~ismember(tblP(:,FLDSCORE),tblP0(:,FLDSCORE));
       tfUpdate = tfDiff & ~tfNew; 
             
       tblPnew = tblP(tfNew,:);
@@ -52,6 +126,15 @@ classdef MFTable
       assert(iscellstr(movs) && isrow(movs));
       movID = sprintf('%s#',movs{:});
       movID = movID(1:end-1);
+    end
+    
+    function movIDs = formMultiMovieIDArray(movs)
+      % movs: [nxnview] cellstr
+      %
+      % movIDs: [nx1] cellstr
+      assert(iscellstr(movs) && ismatrix(movs));
+      movIDs = arrayfun(@(x)MFTable.formMultiMovieID(movs(x,:)),...
+        (1:size(movs,1))','uni',0);
     end
     
     function movs = unpackMultiMovieID(movID)
@@ -128,20 +211,52 @@ classdef MFTable
       end
     end
     
-    function tblMF = replaceMovieFullWithMovieID(tblMF,movIDs,movFull,tblDesc)
-      % Replace "platformized"/full movies with movieIDs/keys
+    function tblMF = replaceMovieStrWithMovieIdx(tblMF,movIDs,movFull,tblDesc)
+      % Replace localized movies or movieIDs with movie idxs
+      %
+      % movIDs: [nx1] cellstr movie IDs
+      % movFull: [nx1] cellstr localized movies
+      % tblDesc: string description of table (for warning messages)
+      %
+      % tblMF: .mov field updated to indices into movIDs/movFull. Warnings
+      % thrown for unrecognized elements of .mov; these indices will be 0.
       
       szassert(movIDs,size(movFull));
-      [tf,loc] = ismember(tblMF.mov,movFull);
-      tblMF.mov(tf) = movIDs(loc(tf));
-      replacestrs = strcat(movFull(loc(tf)),{'->'},movIDs(loc(tf)));
-      replacestrs = unique(replacestrs);
-      cellfun(@(x)warningNoTrace('MFTable:mov',...
-        '%s table: replaced %s to match project.',tblDesc,x),replacestrs);
+      nrow = height(tblMF);
+      assert(iscellstr(tblMF.mov) && size(tblMF.mov,2)==1);
+      tblMFiMov = zeros(nrow,1); % indices into movIDs/movFull for each el of mov
+      mapUnrecognizedMovies = containers.Map();
+      for irow=1:nrow
+        mov = tblMF.mov{irow};
+        
+        iMov = find(strcmp(mov,movIDs));
+        if isscalar(iMov)
+          tblMFiMov(irow) = iMov;
+          continue;
+        else
+          assert(isempty(iMov),'Duplicate movieIDs found.');
+        end
+        
+        iMov = find(strcmp(mov,movFull));
+        if isscalar(iMov)
+          tblMFiMov(irow) = iMov;
+          continue;
+        else
+          assert(isempty(iMov),'Duplicate movie found.');
+        end
+        
+        % If made it to here, mov is not recognized.
+        assert(tblMFiMov(irow)==0);
+        if ~mapUnrecognizedMovies.isKey(mov)
+          warningNoTrace('MFTable:mov',...
+            'Unrecognized movie in table ''%s'': %s',tblDesc,mov);
+          mapUnrecognizedMovies(mov) = 1;
+        end
+      end
+      
+      tblMF.mov = tblMFiMov;
     end
           
   end
   
-end
-  
-  
+end  

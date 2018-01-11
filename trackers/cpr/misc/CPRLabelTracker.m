@@ -9,11 +9,7 @@ classdef CPRLabelTracker < LabelTracker
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
     
     DEFAULT_PARAMETER_FILE = lclInitDefaultParameterFile();
-    
-    DATA_INIT_COLS = {'mov' 'frm' 'iTgt' 'p' 'tfocc'};
-    TRNDATA_INIT_COLS = {'mov' 'frm' 'iTgt' 'p' 'tfocc' 'pTS'};
-    TRKRES_INIT_COLS = {'mov' 'frm' 'iTgt'};
-end
+  end
   
   properties
     isInit = false; % true during load; invariants can be broken
@@ -29,15 +25,8 @@ end
   % There are three MD tables in CPRLabelTracker: in .data.MD (data),
   % .trnDataTblP (train), and .trkPMD (track).
   %
-  % These are all MFTables (Movie-frame tables) where .mov is computed as
-  % FSPath.standardPath(lObj.movieFilesAll(...)). That is, .mov has
-  % unreplaced macros, and is not localized/platformized. Stored in this
-  % way, .mov is well-suited to serve as a unique movie ID in the tables,
-  % and can be serialized/loaded and concretized to the runtime platform as
-  % appropriate.
-  %
-  % Multiview data: movie IDs computed as above are delimiter-concatenated
-  % to form a single unique ID for each movieset.
+  % These are all MFTables (Movie-frame tables) where .mov are MovieIndex
+  % arrays.
   %
   % All tables must have the key fields .mov, .frm, .iTgt. Together, these 
   % three fields act as a unique row key. The track table has only the 
@@ -45,7 +34,8 @@ end
   % other additional fields such as .tfocc.
   %
   % Some defs:
-  % .mov. unique ID for movie; standardized path, NOT localized/platformized
+  % .mov. unique ID for movie. Currently, if positive this is an index into 
+  %  lObj.movieFilesAll, if negative an index into lObj.movieFilesAllGT.
   % .frm. frame number
   % .iTgt. 1-based target index (always 1 for single target proj)
   % .p. [1 x npt*nvw*d=2] labeled shape
@@ -83,10 +73,11 @@ end
     
     % Currently selected training data (includes updates/additions)
     % MD fields: .mov, .frm, .iTgt, .p, .tfocc, .pTS, (opt) .pTrx, (opt) .roi
+    % .mov has type MovieIndex
     trnDataTblP
-    % [size(trnDataTblP,1)x1] timestamps for when rows of trnDataTblP were 
+    % [size(trnDataTblP,1)x1] timestamps for when rows of trnDataTblP were
     % added to CPRLabelTracker
-    trnDataTblPTS 
+    trnDataTblPTS
   end
     
   %% Train/Track
@@ -99,22 +90,40 @@ end
     % Tracking state -- set during .track()
     % Note: trkD here can be less than the full/model D if some pts are
     % omitted from tracking
-    trkP % [NTst trkD] reduced/pruned tracked shapes
+    trkP % [NTst trkD] reduced/pruned tracked shapes. In ABSOLUTE coords
     
     % Either [], or [NTst RT trkD T+1] Tracked shapes full data. Stored 
     % only if .storeFullTracking=true.
     trkPFull 
     trkPTS % [NTstx1] timestamp for trkP*
     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt, (opt) .roi
+           % .mov has class movieIndex 
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. trkD=npttrk*d.
   end
-      
   properties (SetObservable)
-    showVizReplicates = false; % scalar logical.
     storeFullTracking = false; % scalar logical.
   end
+  
+  events
+    % Thrown when trkP/trkPMD are mutated (basically)
+    newTrackingResults 
+  end
+  
+  %% Async
+  properties
+    asyncPredictOn = false; % if true, background worker is running. newLabelerFrame will fire a parfeval to predict. Could try relying on asyncBGClient.isRunning
+    asyncPredictCPRLTObj; % scalar "detached" CPRLabelTracker object that is deep-copied onto workers. Contains current trained tracker used in background pred.
+    asyncBGClient; % scalar BGClient object, manages comms with background worker.
+  end
+  properties (Dependent)
+    asyncIsPrepared % If true, asyncPrepare() has been called and asyncStartBGWorker() can be called
+  end
+     
+  %% Visualization
+  properties (SetObservable)
+    showVizReplicates = false; % scalar logical.
+  end
   properties 
-    % View/presentation
     xyPrdCurrMovie; % [npts d nfrm ntgt] predicted labels for current Labeler movie
     xyPrdCurrMovieIsInterp; % [nfrm] logical vec indicating whether xyPrdCurrMovie(:,:,i) is interpolated. Applies only when nTgts==1.
     xyPrdCurrMovieFull % [npts d nrep nfrm] predicted replicates for current Labeler movie, current target.
@@ -132,7 +141,7 @@ end
     
     hasTrained
   end
-  
+    
   %% Dep prop getters
   methods
     function v = get.nPts(obj)
@@ -143,6 +152,9 @@ end
     end
     function v = get.hasTrained(obj)
       v = ~isempty(obj.trnResRC) && any([obj.trnResRC.hasTrained]);
+    end
+    function v = get.asyncIsPrepared(obj)
+      v = ~isempty(obj.asyncBGClient);
     end
   end
   methods
@@ -176,8 +188,26 @@ end
   %% Ctor/Dtor
   methods
     
-    function obj = CPRLabelTracker(lObj)
+    function obj = CPRLabelTracker(lObj,varargin)
+      detached = myparse(varargin,...
+        'detached',false);
+      
       obj@LabelTracker(lObj);
+      if detached
+        s = struct(...
+          'projMacros',lObj.projMacros,...
+          'isMultiView',lObj.isMultiView,...
+          'hasTrx',lObj.hasTrx,...
+          'nview',lObj.nview);
+        obj.lObj = s;
+        obj.ax = [];
+        delete(obj.hLCurrMovie);
+        delete(obj.hLCurrFrame);
+        delete(obj.hLCurrTarget);
+        obj.hLCurrMovie = [];
+        obj.hLCurrFrame = [];
+        obj.hLCurrTarget = [];
+      end
     end
     
     function delete(obj)
@@ -186,12 +216,39 @@ end
       deleteValidHandles(obj.hXYPrdRedOther);
       obj.hXYPrdRedOther = [];
       deleteValidHandles(obj.hXYPrdFull);
-      obj.hXYPrdFull = [];      
+      obj.hXYPrdFull = [];
+      obj.asyncReset();
     end
     
   end
   
   %% Data
+  methods
+    function tblP = hlpAddRoiIfNec(obj,tblP)
+      % If hasTrx, modify tblP as follows:
+      % - add .roi
+      % - set .p to be .pRoi, ie relative to ROI
+      % - set .pAbs to be absolute .p
+      % If not hasTrx,
+      % - .p will be pAbs
+      % - no .roi
+      
+      labelerObj = obj.lObj;
+      if labelerObj.hasTrx
+        tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
+        assert(all(tf) || ~any(tf));
+        if ~any(tf)
+          roiRadius = obj.sPrm.PreProc.TargetCrop.Radius;
+          tblP = labelerObj.labelMFTableAddROI(tblP,roiRadius);
+          tblP.pAbs = tblP.p;
+          tblP.p = tblP.pRoi;
+        end
+      else
+        % none; tblP.p is .pAbs. No .roi field.
+      end
+    end
+  end
+  
   methods
     
     % AL 20160531 Data and timestamps
@@ -212,33 +269,21 @@ end
     % - The RegressorCascade in .trnResRC has its own timestamps for
     % training time and so on.
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function tblP = getTblPLbled(obj)
       % From .lObj, read tblP for all movies/labeledframes. Currently,
       % exclude partially-labeled frames.
       %
-      % tblP: MFTable of labeled frames. Precise cols depends on whether
-      % labeler.hasTrx is true
+      % tblP: MFTable of labeled frames. Precise cols may vary. However:
+      % - MFTable.FLDSFULL are guaranteed where .p is:
+      %   * The absolute position for single-target trackers
+      %   * The position relative to .roi for multi-target trackers
+      % - .roi is guaranteed when lObj.hasTrx.
       
-      labelerObj = obj.lObj;
-      
-      if labelerObj.hasTrx
-        prmRC = obj.sPrm.PreProc.TargetCrop;
-        tblP = labelerObj.labelGetMFTableLabeled(prmRC.Radius);
-        tblP.p = tblP.pRoi;
-      else
-        % TODO: deprecate lblCompileContents 
-        movID = labelerObj.movieFilesAll;
-        movID = FSPath.standardPath(movID);
-        [~,tblP] = Labeler.lblCompileContents(labelerObj.movieFilesAllFull,...
-          labelerObj.labeledpos,labelerObj.labeledpostag,'lbl',...
-          'noImg',true,'lposTS',labelerObj.labeledposTS,'movieNamesID',movID);
-        tblP.iTgt = ones(height(tblP),1);
-      end
-      
-      p = tblP.p;
-      tfnan = any(isnan(p),2);
+      tblP = obj.lObj.labelGetMFTableLabeled();
+      tblP = obj.hlpAddRoiIfNec(tblP);
+      tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
       if nnan>0
         warningNoTrace('CPRLabelTracker:nanData',...
@@ -247,8 +292,8 @@ end
       tblP = tblP(~tfnan,:);
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function tblP = getTblPLbledRecent(obj)
       % tblP: labeled data from Labeler that is more recent than anything 
       % in .trnDataTblPTS
@@ -259,36 +304,46 @@ end
       tf = maxTS > maxTDTS;
       tblP = tblP(tf,:);
     end
-    
-    %#MTGT
-    %#MV
-    function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP)
+        
+    %#%MTGT
+    %#%MV
+    %#%MIDXOK
+    function [tblPnew,tblPupdate] = tblPDiffData(obj,tblP) % obj const
+      % Compare tblP to current .data MD wrt MFTable.FLDSCORE
+
       td = obj.data;
       tbl0 = td.MD;
       tbl0.p = td.pGT;
       [tblPnew,tblPupdate] = MFTable.tblPDiff(tbl0,tblP);
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function [tblPnew,tblPupdate,idxTrnDataTblP] = tblPDiffTrnData(obj,tblP)
       [tblPnew,tblPupdate,idxTrnDataTblP] = MFTable.tblPDiff(obj.trnDataTblP,tblP);
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function initData(obj)
       % Initialize .data*
       
       I = cell(0,1);
-      tblP = lclInitTable(CPRLabelTracker.DATA_INIT_COLS);
+      tblP = MFTable.emptyTable(MFTable.FLDSCORE);
       obj.data = CPRData(I,tblP);
       obj.dataTS = now;
     end
     
-    %#MTGT
+    %#%MTGT
     function updateData(obj,tblP,varargin)
       % Update .data to include tblP
+      %
+      % tblP: 
+      %   - MFTable.FLDSCORE: required.  
+      %   - .roi: optional, USED WHEN PRESENT. (prob needs to be either 
+      %   consistently there or not-there for a given obj or initData() 
+      %   "session"
+      %   - .pTS: optional (if present, deleted)      
       
       wbObj = myparse(varargin,...
         'wbObj',[]); % WaitBarWithCancel. If cancel, obj unchanged.
@@ -301,8 +356,8 @@ end
       obj.updateDataRaw(tblPnew,tblPupdate,'wbObj',wbObj);      
     end
     
-    %#MTGT
-    function updateDataRaw(obj,tblPNew,tblPupdate,varargin)
+    %#%MTGT
+    function updateDataRaw(obj,tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
       % * Rows appended and pGT/tfocc updated; but other information
@@ -313,14 +368,23 @@ end
       %
       % QUESTION: why is pTS not updated?
       %
-      % tblPNew: new rows
-      % tblPupdate: updated rows (rows with updated pGT/tfocc)
+      % tblPNew: new rows. MFTable.FLDSCORE are required fields. .roi may 
+      %   be present and if so WILL BE USED to grab images and included in 
+      %   data/MD. Other fields are ignored.
+      % tblPupdate: updated rows (rows with updated pGT/tfocc).
+      %   MFTable.FLDSCORE fields are required. Only .pGT and .tfocc are 
+      %   otherwise used. Other fields ignored.
       %
-      % sets .data, .dataTS      
+      % sets .data, .dataTS 
       
       wbObj = myparse(varargin,...
         'wbObj',[]); % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
       tfWB = ~isempty(wbObj);
+      
+      FLDSREQUIRED = MFTable.FLDSCORE;
+      FLDSALLOWED = [MFTable.FLDSCORE {'roi'}];
+      tblfldscontainsassert(tblPnew,FLDSREQUIRED);
+      tblfldscontainsassert(tblPupdate,FLDSREQUIRED);
       
       if isempty(obj.sPrm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
@@ -343,17 +407,10 @@ end
       
       %%% NEW ROWS read images + PP. Append to dataCurr. %%%
       FLDSID = MFTable.FLDSID;
-      assert(~any(ismember(tblPNew(:,FLDSID),dataCurr.MD(:,FLDSID))));
-
-      tblPNewConcrete = tblPNew; % will concretize movie/movieIDs
-      if obj.lObj.isMultiView && ~isempty(tblPNewConcrete.mov)
-        tmp = cellfun(@MFTable.unpackMultiMovieID,tblPNewConcrete.mov,'uni',0);
-        tblPNewConcrete.mov = cat(1,tmp{:});
-      end
-      tblPNewConcrete.mov = FSPath.fullyLocalizeStandardize(...
-        tblPNewConcrete.mov,obj.lObj.projMacros);
-      % tblMFnewConcerete.mov is now [NxnView] 
-      nNew = size(tblPNew,1);
+      assert(~any(tblismember(tblPnew,dataCurr.MD,FLDSID)));
+      
+      tblPNewConcrete = obj.lObj.mftTableConcretizeMov(tblPnew);
+      nNew = height(tblPnew);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
         I = CPRData.getFrames(tblPNewConcrete,'wbObj',wbObj);
@@ -361,7 +418,12 @@ end
           % obj unchanged
           return;
         end
-        dataNew = CPRData(I,tblPNew);
+        % Include only FLDSALLOWED in metadata to keep CPRData md
+        % consistent (so can be appended)
+        
+        tfColsAllowed = ismember(tblPnew.Properties.VariableNames,...
+          FLDSALLOWED);
+        dataNew = CPRData(I,tblPnew(:,tfColsAllowed));
         if prmpp.histeq
           H0 = obj.trnResH0;
           assert(~isempty(H0),'H0 unavailable for histeq/preprocessing.');
@@ -393,7 +455,8 @@ end
       %%% EXISTING ROWS -- just update pGT and tfocc. Existing images are
       %%% OK and already histeq'ed correctly
       nUpdate = size(tblPupdate,1);
-      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB table indexing API may not be polished
+      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB 
+                   % table indexing API may not be polished
         fprintf(1,'Updating labels for %d rows...\n',nUpdate);
         tblMFupdate = tblPupdate(:,FLDSID);
         tblMFcurr = dataCurr.MD(:,FLDSID);
@@ -454,16 +517,16 @@ end
   %% Training Data Selection
   methods
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function trnDataInit(obj)
       obj.trnDataDownSamp = false;
       obj.trnDataFFDThresh = nan;
-      obj.trnDataTblP = lclInitTable(CPRLabelTracker.TRNDATA_INIT_COLS);
+      obj.trnDataTblP = MFTable.emptyTable(MFTable.FLDSFULL);
       obj.trnDataTblPTS = -inf(0,1);
     end
     
-    %#MTGT
+    %#%MTGT
     function trnDataUseAll(obj)
       if obj.trnDataDownSamp
         if obj.hasTrained
@@ -473,11 +536,12 @@ end
         obj.trnResInit();
         obj.trackResInit();
         obj.vizInit();
+        obj.asyncReset(true);
       end
     end
     
-    %#MTGT PROB OK not 100% sure
-    %#MV
+    %#%MTGT PROB OK not 100% sure
+    %#%MV
     function trnDataSelect(obj)
       % Furthest-first selection of training data.
       %
@@ -487,15 +551,17 @@ end
       obj.trnResInit();
       obj.trackResInit();
       obj.vizInit();
+      obj.asyncReset(true);
         
       tblP = obj.getTblPLbled(); % start with all labeled data
       [grps,ffd,ffdiTrl] = CPRData.ffTrnSet(tblP,[]);
       
+      assert(all(tblP.mov>0),'Training on GT data.');
       mov = categorical(tblP.mov); % multiview data: mov and related are multimov IDs
       movUn = categories(mov);
       nMovUn = numel(movUn);
       movUnCnt = countcats(mov);
-      n = size(tblP,1);
+      n = height(tblP);
       
       hFig = CPRData.ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,...
         'cbkFcn',@(xSel,ySel)nst(xSel,ySel));
@@ -542,7 +608,7 @@ end
   
   %% TrainRes
   methods
-    %#MTGT
+    %#%MTGT
     function trnResInit(obj)
       if isempty(obj.sPrm)
         obj.trnResRC = [];
@@ -558,18 +624,68 @@ end
       end
       obj.trnResIPt = [];
       obj.trnResH0 = [];
+      
+      obj.asyncReset();
     end
   end
   
   %% TrackRes
   methods
 
-    %#MTGT
-    %#MV
-    function [trkpos,trkposTS,trkposFull,tfHasRes] = getTrackResRaw(obj,iMov)
+    function setAllTrackResTable(obj,tblTrkRes,pTrkiPt)
+      % Set all current tracking results in a table. 
+      % USE WITH CAUTION
+      %
+      % tblTrkRes: [NTrk x ncol] table of tracking results. Flds 
+      %   'mov','frm','iTgt',(opt) 'roi','pTrk'. pTrk like obj.trkP; 
+      %    ABSOLUTE coords
+      % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
+      %          size(tblTrkRes.pTrk,2)==npttrk*d
+
+      tblfldscontainsassert(tblTrkRes,[MFTable.FLDSID 'pTrk']);
+      fldsMD = MFTable.FLDSID;
+      if tblfldscontains(tblTrkRes,'roi')
+        fldsMD{end+1} = 'roi';
+      end
+      
+      nTrk = height(tblTrkRes);
+      assert(size(tblTrkRes.pTrk,2)==numel(pTrkiPt)*2);
+      
+      obj.trkPMD = tblTrkRes(:,fldsMD);
+      obj.trkP = tblTrkRes.pTrk;
+      obj.trkPTS = repmat(now,nTrk,1);
+      obj.trkPiPt = pTrkiPt;
+      if obj.storeFullTracking
+        warningNoTrace('CPRLabelTracker:trk','Full tracking results not set.');
+      end
+      obj.trkPFull = [];
+      
+      obj.vizLoadXYPrdCurrMovieTarget();
+      obj.newLabelerFrame();
+      notify(obj,'newTrackingResults');
+    end
+    
+    function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj) % obj const
+      % Get all current tracking results in a table
+      %
+      % tblTrkRes: [NTrk x ncol] table of tracking results
+      %            .pTrk, like obj.trkP; ABSOLUTE coords
+      % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
+      %          size(tblTrkRes.pTrk,2)==npttrk*d
+
+      tblTrkRes = obj.trkPMD;
+      tblTrkRes.pTrk = obj.trkP;
+      tblTrkRes.pTrkTS = obj.trkPTS;
+      pTrkiPt = obj.trkPiPt;
+    end
+    
+    %#%MTGT
+    %#%MV
+    function [trkpos,trkposTS,trkposFull,trkposFullMFT,tfHasRes] = ...
+        getTrackResRaw(obj,mIdx)
       % Get tracking results for movie(set) iMov.
       %
-      % iMov: scalar movie(set) index
+      % mIdx: scalar MovieIndex
       % 
       % trkpos: [nptstrk x d x nfrm(iMov) x ntgt(iMov)]. Tracking results 
       % for iMov. 
@@ -577,15 +693,17 @@ end
       %  movies in a movieset have differing numbers of frames, then nfrm
       %  will equal the minimum number of frames across the movieset.
       % trkposTS: [nptstrk x nfrm(iMov) x ntgt(iMov)]. Timestamps for trkpos.
-      % trkposFull: [nptstrk x d x nRep x nfrm(iMov) x ntgt(iMov)]. 5d results. 
+      % trkposFull: [nptstrk x d x nRep x nTrkRows]. 
       %   Currently this is all nans if .storeFullTracking is false.
+      % trkposFullMFT: MFTable (height nTrkRows) labeling 4th dim of
+      %   trkposFull
       % tfHasRes: if true, nontrivial tracking results returned
-      
+            
       lObj = obj.lObj;
-      movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
-      movNameID = MFTable.formMultiMovieID(movNameID);
-      nfrms = lObj.movieInfoAll{iMov}.nframes; % For moviesets with movies with differing # of frames, this should be the common minimum
-      lpos = lObj.labeledpos{iMov};
+
+      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
+      nfrms = lObj.getNFramesMovIdx(mIdx);
+      lpos = lObj.getLabeledPosMovIdx(mIdx);
       assert(size(lpos,3)==nfrms);
       ntgts = size(lpos,4);
 
@@ -595,7 +713,7 @@ end
       iPtTrk = obj.trkPiPt;
       nPtTrk = numel(iPtTrk);
       d = 2;
-      assert(size(trkMD,1)==NTrk);
+      assert(height(trkMD)==NTrk);
       assert(nPtTrk*d==DTrk);
           
       nRep = obj.sPrm.TestInit.Nrep;
@@ -610,38 +728,49 @@ end
 
       trkpos = nan(nPtTrk,d,nfrms,ntgts);
       trkposTS = -inf(nPtTrk,nfrms,ntgts);
-      trkposFull = nan(nPtTrk,d,nRep,nfrms,ntgts);
-
-      if isempty(obj.trkPTS) % proxy for no tracking results etc
-        tfHasRes = false;
-      else
-        tfCurrMov = strcmp(trkMD.mov,movNameID); % these rows of trkMD are for the movie(set) iMov
-        trkMDCurrMov = trkMD(tfCurrMov,:);
-        nCurrMov = nnz(tfCurrMov);
-        xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nCurrMov);
+      
+      tfCurrMov = trkMD.mov==mIdx;
+      trkMDCurrMov = trkMD(tfCurrMov,:);
+      nRowCurrMov = height(trkMDCurrMov);
+      trkposFull = nan(nPtTrk,d,nRep,nRowCurrMov);
+      trkposFullMFT = trkMDCurrMov(:,MFTable.FLDSID);
+      
+      % First cond is proxy for no tracking results 
+      tfHasRes = ~isempty(obj.trkPTS) && (nRowCurrMov>0);
+      if tfHasRes
+        xyTrkCurrMov = reshape(pTrk(tfCurrMov,:)',nPtTrk,d,nRowCurrMov);
         trkPTSCurrMov = obj.trkPTS(tfCurrMov);
-        pTrkFullCurrMov = pTrkFull(tfCurrMov,:,:); % [nCurrMov nRep D]
-        pTrkFullCurrMov = permute(pTrkFullCurrMov,[3 2 1]); % [D nRep nCurrMov]
-        xyTrkFullCurrMov = reshape(pTrkFullCurrMov,[nPtTrk d nRep nCurrMov]);
-        for i=1:nCurrMov
+        pTrkFullCurrMov = pTrkFull(tfCurrMov,:,:); % [nRowCurrMov nRep D]
+        pTrkFullCurrMov = permute(pTrkFullCurrMov,[3 2 1]); % [D nRep nRowCurrMov]
+        trkposFull = reshape(pTrkFullCurrMov,[nPtTrk d nRep nRowCurrMov]);
+        tfEmptyRow = arrayfun(@(x)nnz(~isnan(trkposFull(:,:,:,x)))==0,...
+          (1:nRowCurrMov)');
+        trkposFull(:,:,:,tfEmptyRow) = [];
+        % AL20170926: ML2015b table subsasgn but where first col is of type
+        % MovieIndex. Row-deletion using subasgn appears impossible on any 
+        % table containing MovieIndex objects in a column.
+        % 
+        % trkposFullMFT(tfEmptyRow,:) = [];
+        trkposFullMFT = trkposFullMFT(~tfEmptyRow,:);
+        for i=1:nRowCurrMov
           frm = trkMDCurrMov.frm(i);
           iTgt = trkMDCurrMov.iTgt(i);
           trkpos(:,:,frm,iTgt) = xyTrkCurrMov(:,:,i);
           trkposTS(:,frm,iTgt) = trkPTSCurrMov(i);
-          trkposFull(:,:,:,frm,iTgt) = xyTrkFullCurrMov(:,:,:,i);
-        end        
-        tfHasRes = (nCurrMov>0);
+        end
       end
-      
     end
     
-    %#MTGT
-    function trkposFull = getTrackResFullCurrTgt(obj,iMov,frm)
+    %#%MTGT
+    function trkposFull = getTrackResFullCurrTgt(obj,mIdx,frm)
       % Get full tracking results for movie iMov, frame frm, curr tgt.
       %
+      % iMov: scalar movie index (negative for GT movies)
+      % 
       % trkposFull: [nptstrk x d x nRep x (T+1)], or [] if iMov/frm not
       % found in .trkPFull'
       
+      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       assert(obj.storeFullTracking);
       
       trkMD = obj.trkPMD;
@@ -651,11 +780,9 @@ end
       nRep = obj.sPrm.TestInit.Nrep;
       
       lObj = obj.lObj;
-      movNameID = FSPath.standardPath(lObj.movieFilesAll(iMov,:));
-      movNameID = MFTable.formMultiMovieID(movNameID);
       iTgt = lObj.currTarget;
 
-      tfMovFrm = strcmp(trkMD.mov,movNameID) & trkMD.frm==frm & trkMD.iTgt==iTgt;
+      tfMovFrm = trkMD.mov==mIdx & trkMD.frm==frm & trkMD.iTgt==iTgt;
       nMovFrm = nnz(tfMovFrm);
       assert(nMovFrm==0 || nMovFrm==1);
       if nMovFrm==0
@@ -668,7 +795,7 @@ end
       end
     end
     
-    %#MTGT
+    %#%MTGT
     function updateTrackRes(obj,tblMFtrk,pTstTRed,pTstT)
       % Augment .trkP* state with new tracking results
       %
@@ -678,8 +805,8 @@ end
       % 
       % - new rows are just added
       % - existing rows are overwritten
-      
-      nTst = size(tblMFtrk,1);
+            
+      nTst = height(tblMFtrk);
       RT = obj.sPrm.TestInit.Nrep;
       mdlPrms = obj.sPrm.Model;
       Dfull = mdlPrms.nfids*mdlPrms.nviews*mdlPrms.d;
@@ -687,7 +814,7 @@ end
       szassert(pTstTRed,[nTst Dfull]);
       szassert(pTstT,[nTst RT Dfull Tp1]);
       
-      tfROI = any(strcmp('roi',tblMFtrk.Properties.VariableNames));
+      tfROI = tblfldscontains(tblMFtrk,'roi');
       if tfROI
         % Convert pTstT and pTstTRed from relative/ROI coords to absolute
         % coords
@@ -717,8 +844,8 @@ end
         end
       end
       
-      [tf,loc] = ismember(tblMFtrk(:,MFTable.FLDSID),...
-                          obj.trkPMD(:,MFTable.FLDSID));
+      [tf,loc] = tblismember(tblMFtrk,obj.trkPMD,MFTable.FLDSID);
+      
       % existing rows
       idxCur = loc(tf);
       obj.trkP(idxCur,:) = pTstTRed(tf,:);
@@ -754,13 +881,14 @@ end
       % TODO: again should not assume where results are coming from
       obj.trkPiPt = obj.trnResIPt;
     end
+    
   end
   
   %% LabelTracker overloads
   methods
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function initHook(obj)
       % "config init"
       obj.storeFullTracking = obj.lObj.projPrefs.CPRLabelTracker.StoreFullTracking;      
@@ -770,19 +898,18 @@ end
       obj.trnResInit();
       obj.trackResInit();
       obj.vizInit();
+      obj.asyncReset();
     end
     
-    %#MTGT
-    %#MV
-    function setParamHook(obj)
-      sNew = obj.readParamFileYaml();
-      sNew = CPRLabelTracker.modernizeParams(sNew);
-      obj.setParamContentsSmart(sNew);
-    end
+%     function setParamHook(obj)
+%       sNew = obj.readParamFileYaml();
+%       sNew = CPRLabelTracker.modernizeParams(sNew);
+%       obj.setParamContentsSmart(sNew);
+%     end
     
-    %#MTGT
+    %#%MTGT
     function setParams(obj,sPrm)
-      sPrm = CPRLabelTracker.modernizeParams(sPrm);
+      % sPrm must be FULLY MODERNIZED
       obj.setParamContentsSmart(sPrm);
       obj.paramFile = '';
     end
@@ -791,7 +918,7 @@ end
       sPrm = obj.sPrm;
     end
     
-    %#MV
+    %#%MV
     function setParamContentsSmart(obj,sNew)
       % Set parameter contents (.sPrm), looking at what top-level fields 
       % have changed and clearing obj state appropriately.
@@ -805,6 +932,7 @@ end
         obj.trnResInit();
         obj.trackResInit();
         obj.vizInit();
+        obj.asyncReset();
       else % Both sOld, sNew nonempty
         if sNew.Model.nviews~=obj.lObj.nview
           error('CPRLabelTracker:nviews',...
@@ -834,6 +962,7 @@ end
         if ~modelPPUC
           fprintf(2,'Parameter change: CPRLabelTracker data cleared.\n');
           obj.initData();
+          obj.asyncReset();
         end
         
         % trainingdata
@@ -855,11 +984,12 @@ end
           fprintf(2,'Parameter change: CPRLabelTracker tracking results cleared.\n');
           obj.trackResInit();
           obj.vizInit();
+          obj.asyncReset();
         end
       end      
     end
      
-    %#MTGT
+    %#%MTGT
     function trainingDataMontage(obj)
       if obj.lObj.isMultiView
         error('CPRLabelTracker:multiview',...
@@ -874,10 +1004,8 @@ end
       obj.updateData(tblTrn);
       d = obj.data;
       
-      tblMF = d.MD(:,MFTable.FLDSID);
-      tblTrnMF = tblTrn(:,MFTable.FLDSID);
-      tf = ismember(tblMF,tblTrnMF);
-      assert(nnz(tf)==size(tblTrnMF,1));
+      tf = tblismember(d.MD,tblTrn,MFTable.FLDSID);
+      assert(nnz(tf)==height(tblTrn));
       iTrn = find(tf);
       nTrn = numel(iTrn);
       fprintf(1,'%d training rows in total.\n',nTrn);
@@ -892,22 +1020,25 @@ end
       Shape.montage(d.I(iTrn,:),d.pGT(iTrn,:),'nr',nrMtg,'nc',ncMtg)  
     end
     
-    %#MTGT
+    %#%MTGT
     function retrain(obj,varargin)
       % Full train 
       % 
       % Sets .trnRes*
       
-      updateTrnData = myparse(varargin,...
-        'updateTrnData',true ... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true.
+      [tblPTrn,updateTrnData] = myparse(varargin,...
+        'tblPTrn',[],... % optional MFTp table of training data. if supplied, set .trnData* state based on this table
+        'updateTrnData',true ... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
         );
       
       prm = obj.sPrm;
       if isempty(prm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
+      
+      obj.asyncReset(true);
        
-      if obj.trnDataDownSamp
+      if isempty(tblPTrn) && obj.trnDataDownSamp
         assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
         if updateTrnData
           % first, update the TrnData with any new labels
@@ -925,23 +1056,29 @@ end
             size(tblPUpdateTD,1),nNewRows);
         end
         tblPTrn = obj.trnDataTblP;
-      else
-        % use all labeled data
-        tblPTrn = obj.getTblPLbled();
-        
+      else % Either use supplied tblPTrn, or use all labeled data
+        if isempty(tblPTrn)
+          % use all labeled data
+          tblPTrn = obj.getTblPLbled();
+        end
+        if obj.lObj.hasTrx
+          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+        else
+          tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+        end
+
         obj.trnDataFFDThresh = nan;
         % still set .trnDataTblP, .trnDataTblPTS to enable incremental
-        % training        
+        % training
         obj.trnDataTblP = tblPTrn;
         nowtime = now();
-        obj.trnDataTblPTS = nowtime*ones(size(tblPTrn,1),1);
+        obj.trnDataTblPTS = nowtime*ones(height(tblPTrn),1);
       end
-      
+                
       if isempty(tblPTrn)
         error('CPRLabelTracker:noTrnData','No training data set.');
-      else
-        fprintf(1,'Training with %d rows.\n',size(tblPTrn,1));
       end
+      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
       
       % update .trnResH0; clear .data if necessary (if .trnResH0 is
       % out-of-date)
@@ -962,7 +1099,7 @@ end
         if ~isequal(H0,obj.data.H0)
           obj.initData();
         end
-        if ~isequal(H0,obj.trnResH0)
+        if ~isequal(H0,obj.trnResH0)          
           obj.trnResH0 = H0;
         end
       else
@@ -973,11 +1110,10 @@ end
       obj.updateData(tblPTrn);
       
       d = obj.data;
-      tblMF = d.MD(:,MFTable.FLDSID);
-      tblTrnMF = tblPTrn(:,MFTable.FLDSID);
-      tf = ismember(tblMF,tblTrnMF);
-      assert(nnz(tf)==size(tblTrnMF,1));
+      [tf,locDataInTblP] = tblismember(d.MD,tblPTrn,MFTable.FLDSID);
+      assert(nnz(tf)==height(tblPTrn));
       d.iTrn = find(tf);
+      locDataInTblP = locDataInTblP(tf);
       
       fprintf(1,'Training data summary:\n');
       d.summarize('mov',d.iTrn);
@@ -1003,7 +1139,17 @@ end
       
       nView = obj.lObj.nview;
       if nView==1 % doesn't need its own branch, just leaving old path
-        obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn);
+        % expect a permutation
+        assert(isequal(sort(locDataInTblP(:)'),1:height(tblPTrn))); %#ok<TRSRT>
+        tblPTrnPerm = tblPTrn(locDataInTblP,:);
+        assert(isequal(d.MDTrn(:,MFTable.FLDSID),tblPTrnPerm(:,MFTable.FLDSID)));
+        if tblfldscontains(tblPTrnPerm,'thetaTrx')
+          oThetas = tblPTrnPerm.thetaTrx;
+        else
+          oThetas = [];
+        end
+        obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn,...
+          'orientationThetas',oThetas);
       else
         assert(~obj.lObj.hasTrx,'Currently unsupported for projects with trx.');
         assert(size(Is,2)==nView);
@@ -1019,13 +1165,15 @@ end
           assert(isequal(iPtVw(:),find(obj.lObj.labeledposIPt2View==iView)));
           pTrnVw = pTrn(:,[iPtVw iPtVw+nfidsInTD]);
           
+          % Future todo: orientationThetas
+          % Should break internally if 'orientationThetas' is req'd
           obj.trnResRC(iView).trainWithRandInit(IsVw,bbVw,pTrnVw);
         end
       end
       obj.trnResIPt = iPt;
     end
     
-    %#MTGT
+    %#%MTGT
     function train(obj,varargin)
       % Incremental trainupdate using labels newer than .trnDataTblPTS
 
@@ -1040,6 +1188,8 @@ end
         obj.retrain(varargin{:});
         return;
       end
+      
+      obj.asyncReset(true);
             
       assert(obj.lObj.nview==1,...
         'Incremental training currently unsupported for multiview projects.');
@@ -1075,10 +1225,8 @@ end
       
       % set iTrn and summarize
       d = obj.data;
-      tblMF = d.MD(:,{'mov' 'frm'});
-      tblNewMF = tblPNew(:,{'mov','frm'});
-      tf = ismember(tblMF,tblNewMF);
-      assert(nnz(tf)==size(tblNewMF,1));
+      tf = tblismember(d.MD,tblPNew,{'mov' 'frm'});
+      assert(nnz(tf)==height(tblPNew));
       d.iTrn = find(tf);
       
       fprintf(1,'Training data summary:\n');
@@ -1101,6 +1249,8 @@ end
       
       pTrn = d.pGTTrn(:,iPGT);
 
+      % future todo: orientationThetas
+      % Should break internally if 'orientationThetas' is req'd
       rc = obj.trnResRC;
       rc.trainWithRandInit(Is,d.bboxesTrn,pTrn,'update',true,'initpGTNTrn',true);
 
@@ -1109,8 +1259,8 @@ end
       assert(isequal(obj.trnResIPt,iPt));
     end
     
-    %#MTGT
-    %#MV
+    %#%MTGT
+    %#%MV
     function trainPrintDiagnostics(obj,iTL)
       % iTL: Index into .trnLog at which to start
       
@@ -1203,12 +1353,89 @@ end
 %       nfLoad = size(tr.trkP,1);
 %       fprintf(1,'Loaded tracking results for %d frames.\n',nfLoad);
     end
+
+    % BGKD -- PROB JUST USE TRACK
+    function [trkPMDnew,pTstTRed,pTstT] = trackCore(obj,tblP)
+      prm = obj.sPrm;
+      if isempty(prm)
+        error('CPRLabelTracker:param','Please specify tracking parameters.');
+      end
+      if ~all([obj.trnResRC.hasTrained])
+        error('CPRLabelTracker:track','No tracker has been trained.');
+      end
+                            
+      %%% Set up .data
+      obj.updateData(tblP);
+      d = obj.data;
+      [tf,loc] = tblismember(tblP,d.MD,MFTable.FLDSID);
+      assert(all(tf));
+      d.iTst = loc;
+      fprintf(1,'Track data summary:\n');
+      d.summarize('mov',d.iTst);
+                
+      [Is,nChan] = d.getCombinedIs(d.iTst);
+      prm.Ftr.nChn = nChan;
+        
+      %% Test on test set; fill/generate pTstT/pTstTRed for this chunk
+      NTst = d.NTst;
+      RT = prm.TestInit.Nrep;
+      nview = obj.sPrm.Model.nviews;
+      nfids = prm.Model.nfids;
+      assert(nview==numel(obj.trnResRC));
+      assert(nview==size(Is,2));
+      assert(prm.Model.d==2);
+      Dfull = nfids*nview*prm.Model.d;
+      pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
+      pTstTRed = nan(NTst,Dfull);
+      for iView=1:nview % obj CONST over this loop
+        rc = obj.trnResRC(iView);
+        IsVw = Is(:,iView);
+        bboxesVw = CPRData.getBboxes2D(IsVw);
+        if nview==1
+          assert(isequal(bboxesVw,d.bboxesTst));
+        end
+          
+        % Future todo, orientationThetas
+        % Should break internally if 'orientationThetas' is req'd
+        [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,...
+          prm.TestInit);
+
+        trkMdl = rc.prmModel;
+        trkD = trkMdl.D;
+        Tp1 = rc.nMajor+1;
+        pTstTVw = reshape(p_t,[NTst RT trkD Tp1]);
+        
+        %% Select best preds for each time
+        pTstTRedVw = nan(NTst,trkD);
+        prm.Prune.prune = 1;
+        for t=Tp1
+          %fprintf('Pruning t=%d\n',t);
+          pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
+          pTstTRedVw(:,:) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
+        end
+        
+        assert(trkD==Dfull/nview);
+        assert(mod(trkD,2)==0);
+        iFull = (1:nfids)+(iView-1)*nfids;
+        iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
+        pTstT(:,:,iFull,:) = pTstTVw;
+        pTstTRed(:,iFull) = pTstTRedVw;
+      end % end obj CONST
+        
+      fldsTmp = MFTable.FLDSID;
+      if any(strcmp(d.MDTst.Properties.VariableNames,'roi'))
+        fldsTmp{1,end+1} = 'roi';
+      end
+      trkPMDnew = d.MDTst(:,fldsTmp);
+      obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
+    end
     
-    %#MTGT
-    %#MV
-    function track(obj,iMovs,frms,varargin)
-      [tblP,movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
-        'tblP',[],... % MFtable. Req'd flds: .mov, .frm, .p. If multitarget, also: .iTgt, .roi
+    %#%MTGT
+    %#%MV
+    function track(obj,tblMFT,varargin)
+      % tblMFT: MFtable. Req'd flds: MFTable.ID.
+      
+      [movChunkSize,p0DiagImg,wbObj] = myparse(varargin,...
         'movChunkSize',5000, ... % track large movies in chunks of this size
         'p0DiagImg',[], ... % full filename; if supplied, create/save a diagnostic image of initial shapes for first tracked frame
         'wbObj',[] ... % WaitBarWithCancel. If cancel:
@@ -1229,46 +1456,53 @@ end
         movChunkSize = prm.TestInit.movChunkSize;
       end
                         
-      if isempty(tblP)
-        if obj.lObj.hasTrx
-          prmRC = prm.PreProc.TargetCrop;
-          tblP = obj.lObj.labelGetMFTableAll(iMovs,frms,prmRC.Radius);
-          tblP.p = tblP.pRoi;
-        else
-          tblP = obj.getTblP(iMovs,frms);
-        end
-        if isempty(tblP)
-          msgbox('No frames specified for tracking.');
-          return;
-        end
-      end      
+      if isempty(tblMFT)
+        msgbox('No frames specified for tracking.');
+        return;
+      end
+      tblfldscontainsassert(tblMFT,MFTable.FLDSID);
+      assert(isa(tblMFT.mov,'MovieIndex'));
+      if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE))
+        tblMFT = obj.lObj.labelAddLabelsMFTable(tblMFT);
+        tblMFT = obj.hlpAddRoiIfNec(tblMFT);
+      end
+      if obj.lObj.hasTrx
+        tblfldscontainsassert(tblMFT,MFTable.FLDSCOREROI);
+      else
+        tblfldscontainsassert(tblMFT,MFTable.FLDSCORE);
+      end
      
       % if tfWB, then canceling can early-return. In all return cases we
       % want to run hlpTrackWrapupViz.
       oc = onCleanup(@()hlpTrackWrapupViz(obj));
       
-      nFrmTrk = size(tblP,1);
+      nFrmTrk = size(tblMFT,1);
       iChunkStarts = 1:movChunkSize:nFrmTrk;
       nChunk = numel(iChunkStarts);
+      if tfWB && nChunk>1
+        wbObj.startPeriod('Tracking chunks','shownumden',true,'denominator',nChunk);
+        oc = onCleanup(@()wbObj.endPeriod());
+      end
       for iChunk=1:nChunk
+        
+        if tfWB && nChunk>1
+          wbObj.updateFracWithNumDen(iChunk);
+        end
         
         idxP0 = (iChunk-1)*movChunkSize+1;
         idxP1 = min(idxP0+movChunkSize-1,nFrmTrk);
-        tblPChunk = tblP(idxP0:idxP1,:);
+        tblMFTChunk = tblMFT(idxP0:idxP1,:);
         fprintf('Tracking frames %d through %d...\n',idxP0,idxP1);
         
         %%% Set up .data
         
         if nChunk>1
           % In this case we assume we are dealing with a 'big movie' and
-          % don't preserve/cache data          
+          % don't preserve/cache data
           obj.initData();
         end
-        if tfWB && nChunk>1
-          wbObj.msgPat = sprintf('Chunk %d/%d: %%s',iChunk,nChunk);
-        end
         
-        obj.updateData(tblPChunk,'wbObj',wbObj);
+        obj.updateData(tblMFTChunk,'wbObj',wbObj);
         if tfWB && wbObj.isCancel
           % Single-chunk: data unchanged, tracking results unchanged => 
           % obj unchanged.
@@ -1283,9 +1517,7 @@ end
         end
         
         d = obj.data;
-        tblMFAll = d.MD(:,MFTable.FLDSID);
-        tblMFTrk = tblPChunk(:,MFTable.FLDSID);
-        [tf,loc] = ismember(tblMFTrk,tblMFAll);
+        [tf,loc] = tblismember(tblMFTChunk,d.MD,MFTable.FLDSID);
         assert(all(tf));
         d.iTst = loc;             
         
@@ -1314,8 +1546,14 @@ end
             assert(isequal(bboxesVw,d.bboxesTst));
           end
           
+          assert(isequal(d.MDTst(:,MFTable.FLDSID),tblMFTChunk(:,MFTable.FLDSID)));
+          if tblfldscontains(tblMFTChunk,'thetaTrx')
+            oThetas = tblMFTChunk.thetaTrx;
+          else
+            oThetas = [];
+          end
           [p_t,pIidx,p0,p0Info] = rc.propagateRandInit(IsVw,bboxesVw,...
-            prm.TestInit,'wbObj',wbObj);
+            prm.TestInit,'wbObj',wbObj,'orientationThetas',oThetas);
           if tfWB && wbObj.isCancel
             % obj has CHANGED. If we were really smart, we could use/store
             % partial tracking results in p_t. Or, in practice client can 
@@ -1363,7 +1601,7 @@ end
         end % end obj CONST
         
         fldsTmp = MFTable.FLDSID;
-        if any(strcmp(d.MDTst.Properties.VariableNames,'roi'))
+        if tblfldscontains(d.MDTst,'roi')
           fldsTmp{1,end+1} = 'roi'; %#ok<AGROW>
         end
         trkPMDnew = d.MDTst(:,fldsTmp);
@@ -1374,27 +1612,28 @@ end
       if ~isempty(obj.lObj)
         obj.vizLoadXYPrdCurrMovieTarget();
         obj.newLabelerFrame();
+        notify(obj,'newTrackingResults');
       end
     end
       
     %MTGT
-    %#MV
-    function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovs)
+    %#%MV
+    function [trkfiles,tfHasRes] = getTrackingResults(obj,mIdx)
       % Get tracking results for movie(set) iMov.
       %
-      % iMovs: [nMov] vector of movie(set) indices
+      % mIdx: [nMov] MovieIndex vector
       %
       % trkfiles: [nMovxnView] TrkFile objects
       % tfHasRes: [nMov] logical. If true, corresponding movie has tracking
       %   nontrivial (nonempty) tracking results
       
-      validateattributes(iMovs,{'numeric'},{'vector' 'positive' 'integer'});
+      assert(isvector(mIdx) && isa(mIdx,'MovieIndex'));
 
       if isempty(obj.trkPTS)
         error('CPRLabelTracker:noRes','No current tracking results.');
       end
       
-      nMov = numel(iMovs);
+      nMov = numel(mIdx);
       trkpipt = obj.trkPiPt;
       trkinfobase = struct('paramFile',obj.paramFile,'param',obj.sPrm);
       
@@ -1408,10 +1647,8 @@ end
       end
         
       for i = nMov:-1:1
-        [trkpos,trkposTS,trkposFull,tfHasRes(i)] = obj.getTrackResRaw(iMovs(i));
-        if ~obj.storeFullTracking
-          trkposFull = trkposFull(:,:,[],:,:);
-        end        
+        [trkpos,trkposTS,trkposFull,trkposFullMFT,tfHasRes(i)] = ...
+                                        obj.getTrackResRaw(mIdx(i));
         if tfMultiView
           assert(size(trkpos,1)==nPhysPts*nview);
           for ivw=nview:-1:1
@@ -1419,14 +1656,19 @@ end
             trkinfo = trkinfobase;
             trkinfo.view = ivw;
             trkfiles(i,ivw) = TrkFile(trkpos(iptCurrVw,:,:,:),...
-              'pTrkFull',trkposFull(iptCurrVw,:,:,:,:),...
               'pTrkTS',trkposTS(iptCurrVw,:,:),...
               'pTrkiPt',1:nPhysPts,...
+              'pTrkFull',trkposFull(iptCurrVw,:,:,:),...
+              'pTrkFullFT',trkposFullMFT(:,{'frm' 'iTgt'}),...
               'trkInfo',trkinfo);
           end
         else
-          trkfiles(i,1) = TrkFile(trkpos,'pTrkFull',trkposFull,...
-            'pTrkTS',trkposTS,'pTrkiPt',trkpipt,'trkInfo',trkinfobase);
+          trkfiles(i,1) = TrkFile(trkpos,...            
+            'pTrkTS',trkposTS,...
+            'pTrkiPt',trkpipt,...
+            'pTrkFull',trkposFull,...
+            'pTrkFullFT',trkposFullMFT(:,{'frm' 'iTgt'}),...
+            'trkInfo',trkinfobase);
         end
       end
     end
@@ -1562,18 +1804,24 @@ end
       obj.trackResInit();
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
+      % Don't asyncReset() here
+      notify(obj,'newTrackingResults');
     end
     
-    %#MTGT
+    %#%MTGT
     function newLabelerFrame(obj)
       % Update .hXYPrdRed based on current Labeler frame and .xyPrdCurrMovie
 
-      if obj.lObj.isinit
+      if obj.lObj.isinit || ~obj.lObj.hasMovie
         return;
       end
       
       [xy,isinterp,xyfull] = obj.getPredictionCurrentFrame();
     
+      if obj.asyncPredictOn && all(isnan(xy(:)))
+        obj.asyncTrackCurrFrameBG();
+      end
+      
       if isinterp
         plotargs = obj.xyVizPlotArgsInterp;
       else
@@ -1598,6 +1846,9 @@ end
     end
     
     function newLabelerTarget(obj)
+      if obj.lObj.isinit
+        return;
+      end
       if obj.storeFullTracking
         obj.vizLoadXYPrdCurrMovieTarget(); % needed to reload full tracking results
       end
@@ -1605,11 +1856,85 @@ end
     end
     
     function newLabelerMovie(obj)
-      if obj.lObj.hasTrx
-        obj.vizInit(); % The number of trx might change
+      obj.vizInit();
+      if obj.lObj.hasMovie
+        obj.vizLoadXYPrdCurrMovieTarget();
+        obj.newLabelerFrame();
       end
-      obj.vizLoadXYPrdCurrMovieTarget();
-      obj.newLabelerFrame();
+    end
+    
+    function labelerMovieRemoved(obj,eventdata)
+      mIdxOrig2New = eventdata.mIdxOrig2New;
+      keys = cell2mat(mIdxOrig2New.keys);
+      vals = cell2mat(mIdxOrig2New.values);
+      szassert(keys,size(vals));
+      mIdx = keys(vals==0);
+      mIdx = MovieIndex(mIdx);
+      assert(isscalar(mIdx)); % for now
+      
+      % .data*. Remove any removed movies from .data cache, relabel MD.mov
+      obj.data.movieRemap(mIdxOrig2New);
+      
+      % trnData*. If a movie is being removed that is in trnDataTblP, to be 
+      % safe we invalidate any trained tracker and tracking results.
+      tfRm = obj.trnDataTblP.mov==mIdx;
+      if any(tfRm)
+        if isdeployed
+          error('CPRLabelTracker:movieRemoved',...
+            'Unexpected codepath for deployed APT.');
+        else
+          resp = questdlg('A movie present in the training data has been removed. Any trained tracker and tracking results will be cleared.',...
+            'Training row removed',...
+            'OK','(Dangerous) Do not clear tracker/tracking results','OK');
+          if isempty(resp)
+            resp = 'OK';
+          end
+          switch resp
+            case 'OK'
+              obj.trnDataInit();
+              obj.trnResInit();
+              obj.trackResInit();
+              obj.vizInit();
+              obj.asyncReset();
+            case '(Dangerous) Do not clear tracker/tracking results'
+              obj.trnDataInit();
+              % trnRes not cleared
+              % trackRes not cleared
+            otherwise
+              assert(false);
+          end
+        end
+      else
+        % .trnDataTblP does not contain a movie-being-removed, but we still
+        % need to relabel movie indices.
+        obj.trnDataTblP = MFTable.remapIntegerKey(obj.trnDataTblP,'mov',...
+          mIdxOrig2New);
+        assert(~any(obj.trnDataTblP.mov==0));
+      end
+      
+      % trkP*. Relabel .mov in tables; remove any removed movies from 
+      % tracking results. 
+      [obj.trkPMD,tfRm] = MFTable.remapIntegerKey(obj.trkPMD,'mov',...
+        mIdxOrig2New);
+      obj.trkP(tfRm,:) = [];
+      if ~isequal(obj.trkPFull,[])
+        obj.trkPFull(tfRm,:,:,:) = [];
+      end
+      obj.trkPTS(tfRm,:) = [];
+      
+%       obj.vizLoadXYPrdCurrMovieTarget();
+%       obj.newLabelerFrame();
+    end
+    
+    function labelerMoviesReordered(obj,eventdata)
+      mIdxOrig2New = eventdata.mIdxOrig2New;
+      vals = cell2mat(mIdxOrig2New.values);
+      assert(~any(vals==0),'Unexpected movie removal.');
+      
+      obj.data.movieRemap(mIdxOrig2New);
+      obj.trnDataTblP = MFTable.remapIntegerKey(obj.trnDataTblP,'mov',...
+        mIdxOrig2New);
+      obj.trkPMD = MFTable.remapIntegerKey(obj.trkPMD,'mov',mIdxOrig2New);
     end
     
     function s = getSaveToken(obj)
@@ -1621,11 +1946,14 @@ end
       assert(isequal(s1.paramFile,s2.paramFile));
       s2 = rmfield(s2,'paramFile');
       s = structmerge(s1,s2);
+      s.hideViz = obj.hideViz;
     end
     
     function loadSaveToken(obj,s)
       % Currently we only call this on new/initted trackers.
 
+      obj.asyncReset();
+      
       if isfield(s,'labelTrackerClass')
         s = rmfield(s,'labelTrackerClass'); % legacy
       end            
@@ -1696,20 +2024,28 @@ end
       % remove .movS field
       if isempty(s.trnDataTblP)
         % just re-init table
-        s.trnDataTblP  = lclInitTable(CPRLabelTracker.TRNDATA_INIT_COLS);
+        s.trnDataTblP  = MFTable.emptyTable(MFTable.FLDSFULL);
       else
         s.trnDataTblP = MFTable.rmMovS(s.trnDataTblP);
-        if ~any(strcmp(s.trnDataTblP.Properties.VariableNames,'iTgt'))
+        if ~tblfldscontains(s.trnDataTblP,'iTgt')
           s.trnDataTblP.iTgt = ones(height(s.trnDataTblP),1);
         end
       end
       if isempty(s.trkPMD)
-        s.trkPMD = lclInitTable(CPRLabelTracker.TRKRES_INIT_COLS);
+        s.trkPMD = MFTable.emptyTable(MFTable.FLDSID);
       else
         s.trkPMD = MFTable.rmMovS(s.trkPMD);
-        if ~any(strcmp(s.trkPMD.Properties.VariableNames,'iTgt'))
+        if ~tblfldscontains(s.trkPMD,'iTgt')
           s.trkPMD.iTgt = ones(height(s.trkPMD),1);
         end
+      end
+      
+      % 20170831. Any project with non-trivial GT mode should have already 
+      % converted (if necessary) all char movieIDs in MD tables to 
+      % movieIdxs.
+      if obj.lObj.nmoviesGT>0
+        assert(~iscellstr(s.trnDataTblP.mov));
+        assert(~iscellstr(s.trkPMD.mov));
       end
       
       allProjMovIDs = FSPath.standardPath(obj.lObj.movieFilesAll);
@@ -1730,16 +2066,27 @@ end
       % business in the following should be no-ops for multiview projects.
       if ~isempty(s.trnDataTblP)
         tblDesc = 'Training data';
-        s.trnDataTblP = MFTable.replaceMovieFullWithMovieID(s.trnDataTblP,...
-          allProjMovIDs,allProjMovsFull,tblDesc);
-        CPRLabelTracker.warnMoviesMissingFromProj(s.trnDataTblP.mov,allProjMovIDs,tblDesc);
+        if iscellstr(s.trnDataTblP.mov)
+          s.trnDataTblP = MFTable.replaceMovieStrWithMovieIdx(s.trnDataTblP,...
+            allProjMovIDs,allProjMovsFull,tblDesc);
+          if any(s.trnDataTblP.mov==0)
+            warndlg('One or more training rows in this project contain an unrecognized movie. This can occur when movies are moved or removed. Retraining your project is recommended.',...
+              'Unrecognized movie');
+          end
+        end
         MFTable.warnDupMovFrmKey(s.trnDataTblP,tblDesc);
       end
       if ~isempty(s.trkPMD)
         tblDesc = 'Tracking results';
-        s.trkPMD = MFTable.replaceMovieFullWithMovieID(s.trkPMD,...
-          allProjMovIDs,allProjMovsFull,tblDesc);
-        CPRLabelTracker.warnMoviesMissingFromProj(s.trkPMD.mov,allProjMovIDs,tblDesc);
+        if iscellstr(s.trkPMD.mov)
+          s.trkPMD = MFTable.replaceMovieStrWithMovieIdx(s.trkPMD,...
+            allProjMovIDs,allProjMovsFull,tblDesc);
+          if any(s.trkPMD.mov==0)
+            warningNoTrace('CPRLabelTracker:mov',...
+              'One or more tracking result rows in this project contain an unrecognized movie. This can occur when movies in a project are moved or removed. These tracking results will be ignored.',...
+              'Unrecognized tracking results');
+          end
+        end
         MFTable.warnDupMovFrmKey(s.trkPMD,tblDesc);
       end
       
@@ -1761,6 +2108,19 @@ end
       if ~isfield(s,'showVizReplicates')
         s.showVizReplicates = false;
       end
+      
+      % 20170823
+      if ~isfield(s,'hideViz')
+        s.hideViz = false;
+      end
+      
+      % 20170926
+      if ~isa(s.trnDataTblP.mov,'MovieIndex')
+        s.trnDataTblP.mov = MovieIndex(s.trnDataTblP.mov);
+      end
+      if ~isa(s.trkPMD.mov,'MovieIndex')
+        s.trkPMD.mov = MovieIndex(s.trkPMD.mov);
+      end
 
       % set parameter struct s.sPrm on obj
       if ~isequaln(obj.sPrm,s.sPrm)
@@ -1771,7 +2131,7 @@ end
      
       % set everything else
       flds = fieldnames(s);
-      flds = setdiff(flds,'sPrm');
+      flds = setdiff(flds,{'sPrm' 'hideViz'});
       obj.isInit = true;
       try
         for f=flds(:)',f=f{1}; %#ok<FXSET>
@@ -1783,11 +2143,12 @@ end
       end
       obj.isInit = false;
       
+      obj.setHideViz(s.hideViz);
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
     end
     
-    %#MTGT
+    %#%MTGT
     function [xy,isinterp,xyfull] = getPredictionCurrentFrame(obj)
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
       % isinterp: scalar logical, only relevant if nTgt==1
@@ -1821,6 +2182,30 @@ end
       end
     end
     
+    function props = propList(obj)
+      % Return a list of properties that could be shown in the
+      % infotimeline
+      props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
+    end
+    
+    function data = getPropValues(obj,pcode)
+      % Return the values of a particular property for
+      % infotimeline
+      
+      labeler = obj.lObj;
+      npts = labeler.nLabelPoints;
+      nfrms = labeler.nframes;
+      ntgts = labeler.nTargets;
+      iTgt = labeler.currTarget;
+      tpos = obj.xyPrdCurrMovie; % "trked pos" ala lpos
+      if isempty(tpos)
+        % edge case uninitted (not sure why)
+        tpos = nan(npts,2,nfrms,ntgts);
+      end
+      tpostag = cell(npts,nfrms,ntgts);
+      data = InfoTimeline.getDataFromLpos(tpos,tpostag,pcode,iTgt);
+    end
+       
   end
     
   %% Save, Load, Init etc
@@ -1913,16 +2298,186 @@ end
       obj.trkPFull = [];
       obj.trkPTS = zeros(0,1);
       % wrong fields but will get overwritten. 20170531 why not use right fields?
-      obj.trkPMD = lclInitTable(CPRLabelTracker.TRKRES_INIT_COLS);
+      obj.trkPMD = MFTable.emptyTable(MFTable.FLDSID);
       obj.trkPiPt = [];
     end
     
   end
   
+  %% Async -- Background tracking
+  
+  methods
+    
+    function asyncReset(obj,tfwarn)
+      % Clear all async* state
+      %
+      % See asyncDetachedCopy for the state copied onto the BG worker. The
+      % BG worker depends on: .sPrm, preprocessing parameters/H0/etc for
+      % .data*, .trnRes*.
+      %
+      % - In some cases where .initData() is called, preprocessing
+      % parameters, H0, or channels etc are being mutated. This invalidates
+      % the preprocessing procedure on the BG worker and so an asyncReset()
+      % often piggybacks initData() calls.
+      % - .trnRes* state is set during train/retrain operations. At the
+      % start of these operations we do an asyncReset();
+      % - trackResInit() is sometimes called when a change in prune 
+      % parameters etc is made. In these cases an asyncReset() will follow
+
+      if exist('tfwarn','var')==0
+        tfwarn = false;
+      end
+      
+      obj.asyncPredictOn = false;
+      if ~isempty(obj.asyncBGClient)
+        delete(obj.asyncBGClient);
+      else
+        tfwarn = false;
+      end
+      obj.asyncBGClient = [];
+      if ~isempty(obj.asyncPredictCPRLTObj)
+        delete(obj.asyncPredictCPRLTObj)
+      end
+      obj.asyncPredictCPRLTObj = [];
+      
+      if tfwarn
+        warningNoTrace('CPRLabelTracker:bg','Cleared background tracker.');
+      end
+    end
+    
+    function asyncPrepare(obj)
+      % Take current trained tracker and detach; prepare to start worker
+      
+      obj.asyncReset();
+      
+      if ~obj.hasTrained
+        error('CPRLabelTracker:async','A tracker has not been trained.');
+      end
+      
+      cbkResult = @(sRes)obj.asyncResultReceived(sRes);
+      fprintf(1,'Detaching trained tracker...\n');
+      objDetached = obj.asyncDetachCopy();
+      bgc = BGClient;
+      fprintf(1,'Configuring background worker...\n');
+      bgc.configure(cbkResult,objDetached,'asyncCompute');
+      obj.asyncBGClient = bgc;
+      obj.asyncPredictCPRLTObj = objDetached;
+    end
+    
+    function asyncStartBGWorker(obj)
+      % Start worker(s) in background thread
+      
+      bgc = obj.asyncBGClient;
+      fprintf(1,'Starting background worker...\n');
+      bgc.startWorker();
+      obj.asyncPredictOn = true;
+      fprintf(1,'Background tracking enabled.\n');
+    end
+    
+    function asyncStopBGWorker(obj)
+      % Stop worker(s) on background thread
+      
+      bgc = obj.asyncBGClient;
+      bgc.stopWorker();
+      obj.asyncPredictOn = false;
+      fprintf(1,'Background tracking disabled.\n');
+    end
+    
+    function asyncTrackCurrFrameBG(obj)
+      % Track current frame (send cmd to background)
+      
+      assert(obj.asyncPredictOn);
+      tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt();
+      tblP = obj.hlpAddRoiIfNec(tblP);
+      sCmd = struct('action','track','data',tblP);
+      obj.asyncBGClient.sendCommand(sCmd);
+    end
+    
+    function asyncComputeStats(obj)
+      if ~obj.asyncIsPrepared
+        error('CPRLabelTracker:async','No background tracking information available.');
+      end
+      bgc = obj.asyncBGClient;
+      tocs = bgc.idTocs;
+      if isnan(tocs(end))
+        tocs = tocs(1:end-1);
+      end
+      CPRLabelTracker.asyncComputeStatsStc(tocs);
+    end
+        
+    function sRes = asyncCompute(obj,sCmd)
+      % This method intended to run on BGWorker with a "detached" obj
+      
+      assert(isstruct(obj.lObj),'Expected ''detached'' object.');
+      
+      switch sCmd.action
+        case 'track'
+          tblP = sCmd.data;
+          assert(istable(tblP));
+          [sRes.trkPMDnew,sRes.pTstTRed,sRes.pTstT] = obj.trackCore(tblP);
+      end
+    end
+    
+  end
+  
+  methods (Access=private)
+    
+    function obj2 = asyncDetachCopy(obj)
+      % Create a "detached" copy of obj containing the current trained
+      % tracker. This copy contains only that subset of properties
+      % necessary for tracking and will be deep-copied onto any/all
+      % background workers.
+      
+      obj2 = CPRLabelTracker(obj.lObj,'detached',true);
+      
+      CPFLDS = {'sPrm' 'data' 'dataTS' 'trnResH0' 'trnResIPt' 'trnResRC' ...
+                'storeFullTracking'};
+      for f=CPFLDS,f=f{1}; %#ok<FXSET>
+        obj2.(f) = obj.(f);
+      end
+      obj2.trackResInit();
+    end
+    
+    function asyncResultReceived(obj,sRes)
+      % Callback executed when new computation result received from
+      % bg worker(s)
+      
+      if obj.asyncPredictOn % Should always be true, except possibly in 
+                            % edge cases when user turns asyncPredict off
+        res = sRes.result;
+        switch sRes.action
+          case 'track'
+            obj.updateTrackRes(res.trkPMDnew,res.pTstTRed,res.pTstT);
+            obj.vizLoadXYPrdCurrMovieTarget();
+            obj.newLabelerFrame();
+            notify(obj,'newTrackingResults');
+          case BGWorker.STATACTION
+            computeTimes = res;
+            CPRLabelTracker.asyncComputeStatsStc(computeTimes);
+          otherwise
+            assert(false,'Unrecognized async result received.');
+        end
+      end
+    end    
+  end
+  methods (Static)
+    function asyncComputeStatsStc(computeTimes)
+      computeTimes = computeTimes(:);
+      nTrk = numel(computeTimes);
+      tMu = mean(computeTimes);
+      tMax = max(computeTimes);
+      tMin = min(computeTimes);
+      fprintf(1,'Background compute statistics:\n');
+      fprintf(1,' Number of frames tracked in background: %d\n',nTrk);
+      fprintf(1,' [min mean max] compute time (s) per frame: %s\n',...
+        mat2str([tMin tMu tMax],2));
+    end
+  end
+  
   %% Viz
   methods
     
-    %#MTGT
+    %#%MTGT
     function vizInit(obj)
       obj.xyPrdCurrMovie = [];
       obj.xyPrdCurrMovieFull = [];
@@ -1973,9 +2528,10 @@ end
       obj.hXYPrdRed = hTmp;
       obj.hXYPrdRedOther = hTmpOther;
       obj.hXYPrdFull = hTmp2;
+      obj.setHideViz(obj.hideViz);
     end
     
-    %#MTGT
+    %#%MTGT
     function vizClearReplicates(obj)
       hXY = obj.hXYPrdFull;
       if ~isempty(hXY) % can be empty during initHook
@@ -1985,35 +2541,43 @@ end
       end
     end
     
-    %#MTGT
+    %#%MTGT
     function vizLoadXYPrdCurrMovieTarget(obj)
-      % sets .xyPrdCurrMovie* for current Labeler movie from .trkP, .trkPMD
+      % sets .xyPrdCurrMovie* for current Labeler movie and target from 
+      % .trkP, .trkPMD
 
       lObj = obj.lObj;
       
       trkTS = obj.trkPTS;
-      if isempty(trkTS) || lObj.currMovie==0
+      if isempty(trkTS) || ~lObj.hasMovie || lObj.currMovie==0
         obj.xyPrdCurrMovie = [];
         obj.xyPrdCurrMovieIsInterp = [];
         obj.xyPrdCurrMovieFull = [];
         return;
       end
       
-      [trkpos,~,trkposfull] = obj.getTrackResRaw(lObj.currMovie);
       nfrms = lObj.nframes;
       ntgts = lObj.nTargets;
       nfids = obj.nPts;
       d = 2;
+      mIdx = lObj.currMovIdx;
+      iTgt = lObj.currTarget;
       nrep = obj.sPrm.TestInit.Nrep;
+      
+      [trkpos,~,trkposfull,trkposfullMFT] = obj.getTrackResRaw(mIdx);
       iPtTrk = obj.trkPiPt;
       nptsTrk = numel(iPtTrk);
       szassert(trkpos,[nptsTrk d nfrms ntgts]);
-      szassert(trkposfull,[nptsTrk d nrep nfrms ntgts]);
+      ntrkfull = height(trkposfullMFT);
+      szassert(trkposfull,[nptsTrk d nrep ntrkfull]);
       
       xy = nan(nfids,d,nfrms,ntgts);
-      xyfull = nan(nfids,d,nrep,nfrms);
       xy(iPtTrk,:,:,:) = trkpos;
-      xyfull(iPtTrk,:,:,:) = trkposfull(:,:,:,:,lObj.currTarget);
+      xyfull = nan(nfids,d,nrep,nfrms);
+      tfTgt = trkposfullMFT.iTgt==iTgt;
+      trkposfullMFT = trkposfullMFT(tfTgt,:);
+      trkposfull = trkposfull(:,:,:,tfTgt);
+      xyfull(iPtTrk,:,:,trkposfullMFT.frm) = trkposfull;
             
       if obj.trkVizInterpolate && lObj.hasTrx
         warningNoTrace('CPRLabelTracker:interp',...
@@ -2037,18 +2601,13 @@ end
       obj.xyPrdCurrMovieIsInterp = isinterp;
     end
 
-    function vizHide(obj)
-      [obj.hXYPrdRed.Visible] = deal('off');
-      [obj.hXYPrdRedOther.Visible] = deal('off');
-      obj.hideViz = true;
+    function setHideViz(obj,tf)
+      onoff = onIff(~tf);
+      [obj.hXYPrdRed.Visible] = deal(onoff);
+      [obj.hXYPrdRedOther.Visible] = deal(onoff);
+      obj.hideViz = tf;
     end
-    
-    function vizShow(obj)
-      [obj.hXYPrdRed.Visible] = deal('on'); 
-      [obj.hXYPrdRedOther.Visible] = deal('on'); 
-      obj.hideViz = false;
-    end
-    
+            
     function set.showVizReplicates(obj,v)
       assert(isscalar(v));
       v = logical(v);
@@ -2079,7 +2638,7 @@ end
       sPrm0 = ReadYaml(CPRLabelTracker.DEFAULT_PARAMETER_FILE);
     end
     
-    function sPrm = modernizeParams(sPrm)      
+    function sPrm = modernizeParams(sPrm)
       % IMPORTANT philisophical note. This CPR parameter-updating-function
       % currently does not ever alter sPrm in such a way as to invalidate
       % any previous trained trackers or tracking results based on sPrm.
@@ -2129,16 +2688,34 @@ end
         sPrm.TrainInit.augrotate = [];
         sPrm.TestInit.augrotate = [];
       end
+      
+      % 20171003 new jitter fields
+      JITTERFLDS = {'doptjitter' 'ptjitterfac' 'doboxjitter'};
+      tfTrnInit = isfield(sPrm.TrainInit,JITTERFLDS);
+      tfTstInit = isfield(sPrm.TestInit,JITTERFLDS);
+      tf = [tfTrnInit(:); tfTstInit(:)];
+      assert(all(tf) || ~any(tf));
+      if ~any(tf) % needs updating
+        assert(~sPrm.TrainInit.augUseFF && ~sPrm.TestInit.augUseFF,...
+            'Cannot update tracking parameters with augUseFF=true.');
+        sPrm.TrainInit.doptjitter = false;
+        sPrm.TestInit.doptjitter = false;
+        sPrm.TrainInit.ptjitterfac = 16; % only placeholder/default, no effect since doptjitter is off
+        sPrm.TestInit.ptjitterfac = 16; % etc
+        sPrm.TrainInit.doboxjitter = true; % on by default prior to 20171003
+        sPrm.TestInit.doboxjitter = true; % on by default prior to 20171003
+      end
+      
+      % 20171004 rotcorrection from trx
+      tf = [isfield(sPrm.TrainInit,'usetrxorientation'); ...
+            isfield(sPrm.TestInit,'usetrxorientation')];
+      assert(all(tf) || ~any(tf));
+      if ~any(tf) % needs updating
+        sPrm.TrainInit.usetrxorientation = false;
+        sPrm.TestInit.usetrxorientation = false;
+      end
     end
-    
-    function warnMoviesMissingFromProj(movs,movsProj,movTypeStr)
-      tfMissing = ~ismember(movs,movsProj);
-      movMiss = movs(tfMissing);
-      movMiss = unique(movMiss);
-      cellfun(@(x)warningNoTrace('CPRLabelTracker:mov',...
-        '%s movie not in project: ''%s''',movTypeStr,x),movMiss);
-    end
-    
+        
     function [xy,isinterp] = interpolateXY(xy)
       % xy (in): [npts d nfrm]
       %
@@ -2227,8 +2804,4 @@ else
   cprroot = fileparts(fileparts(mfilename('fullpath')));
   dpf = fullfile(cprroot,'param.example.yaml');
 end
-end
-
-function t = lclInitTable(cols)
-t = cell2table(cell(0,numel(cols)),'VariableNames',cols);
 end

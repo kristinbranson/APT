@@ -197,7 +197,7 @@ classdef RegressorCascade < handle
           assert(~tfused,'Unsupported.');
           ftrs = shapeGt('ftrsCompKBOrig',obj.prmModel,p,I,fspec,...
             pIidx,[],bboxes,obj.prmReg.occlPrm);
-        case {'1lm' '2lm' '2lmdiff'}
+        case {'1lm' '2lm' '2lmdiff' 'two landmark elliptical'}
           fspec = rmfield(fspec,'pids');
           fspec.F = numel(iFtrs);
           fspec.xs = fspec.xs(iFtrs,:);
@@ -232,9 +232,15 @@ classdef RegressorCascade < handle
       % the most/more common shapes. However, we also jitter, so that may
       % be okay.
       
-      [initpGTNTrn,loArgs] = myparse_nocheck(varargin,...
-        'initpGTNTrn',false... % if true, init with .pGTNTrn rather than pGT
+      [initpGTNTrn,orientationThetas,loArgs] = myparse_nocheck(varargin,...
+        'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
+        'orientationThetas',[]... % [N] vector of "externally" known orientations for animals. Required if prmRotCurr.use and prmTrainInit.usetrxorientation
         );
+      
+      N = size(I,1);      
+      if ~isempty(orientationThetas)
+        assert(isvector(orientationThetas) && numel(orientationThetas)==N);
+      end
       
       model = obj.prmModel;
       prmTI = obj.prmTrainInit;
@@ -260,16 +266,42 @@ classdef RegressorCascade < handle
       % pNInitSet in normalized coords
       
       prmRotCorr = obj.prmReg.rotCorrection;
+      orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
+        prmTI.usetrxorientation,orientationThetas);      
+      if orientation==ShapeAugOrientation.SPECIFIED
+        % Check externally-supplied orientations against pGT
+        
+        thetaCnn = Shape.canonicalRot(pGT,prmRotCorr.iPtHead,prmRotCorr.iPtTail);
+        thetasPGT = -thetaCnn;
+        assert(isequal(N,numel(thetasPGT),numel(orientationThetas)));
+        dtheta = modrange(thetasPGT(:)-orientationThetas(:),-pi,pi);
+        % angle diff between i) orientation per trx and ii) orientation per
+        % labeled shape
+        DTHETA_THRESHOLD_WARN_DEGREES = 10;
+        dthetaThresh = DTHETA_THRESHOLD_WARN_DEGREES/180*pi;
+        nExceed = nnz(abs(dtheta)>dthetaThresh);
+        if nExceed>0
+          warningNoTrace('RegressorCascade:orientation',...
+            '%d/%d training shapes have externally-specified orientations that differ significantly from orientation implied by labels.',...
+            nExceed,N);
+        end
+        
+        % Use the externally-specified orientations in any case
+      end
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
-        'randomlyOriented',prmRotCorr.use,...
+        'pNRandomlyOriented',prmRotCorr.use,...
+        'pAugOrientation',orientation,...
+        'pAugOrientationTheta',orientationThetas,...
         'iHead',prmRotCorr.iPtHead,...
         'iTail',prmRotCorr.iPtTail,...
+        'ptJitter',prmTI.doptjitter,...
+        'ptJitterFac',prmTI.ptjitterfac,...
+        'bboxJitter',prmTI.doboxjitter,...
         'bboxJitterfac',prmTI.augjitterfac,...
         'selfSample',selfSample,...
         'furthestfirst',initUseFF);
       obj.tmp.p0info = p0info;
       
-      N = size(I,1);
       szassert(p0,[N Naug model.D]);
       
       p0 = reshape(p0,[N*Naug model.D]);
@@ -363,7 +395,7 @@ classdef RegressorCascade < handle
           switch paramFtr.type
             case {'kborig_hack'}
               fspec = shapeGt('ftrsGenKBOrig',model,paramFtr);
-            case {'1lm' '2lm' '2lmdiff'}
+            case {'1lm' '2lm' 'two landmark elliptical' '2lmdiff'}
               fspec = shapeGt('ftrsGenDup2',model,paramFtr);
           end
           obj.ftrSpecs{t} = fspec;
@@ -377,6 +409,7 @@ classdef RegressorCascade < handle
         paramReg.prm.useFern3 = true;
         fernOutput0 = squeeze(obj.fernOutput(t,:,:,:));
         if ~update
+          paramReg.checkPath = (t==t0);
           [regInfo,pDel] = regTrain(X,pTar,paramReg);
           assert(iscell(regInfo) && numel(regInfo)==obj.nMinor);
           for u=1:obj.nMinor
@@ -544,7 +577,8 @@ classdef RegressorCascade < handle
     end
     
     %#3DOK
-    function [p_t,pIidx,p0,p0info] = propagateRandInit(obj,I,bboxes,prmTestInit,varargin) % obj CONST
+    function [p_t,pIidx,p0,p0info] = propagateRandInit(...
+                        obj,I,bboxes,prmTestInit,varargin) % obj CONST
       % Wrapper for propagate(), randomly init replicate cloud from
       % obj.pGTNTrn
       %
@@ -554,13 +588,18 @@ classdef RegressorCascade < handle
       % p0: initial shapes (absolute coords)
       % p0info: struct containing initial shape info
             
-      wbObj = myparse(varargin,...
-        'wbObj',[]); %#ok<NASGU> % WaitBarWithCancel. If cancel, obj is unchanged, p_t partially filled, pIidx,p0,p0info appear 'correct'
-      
+      [wbObj,orientationThetas,loArgs] = myparse_nocheck(varargin,...
+        'wbObj',[],... %#ok<NASGU> % WaitBarWithCancel. If cancel, obj is unchanged, p_t partially filled, pIidx,p0,p0info appear 'correct'
+        'orientationThetas',[]...  % [N] vector of known orientations for animals, required if xxx
+        ); 
+            
       model = obj.prmModel;
       [N,nview] = size(I);
       assert(nview==model.nviews);
       szassert(bboxes,[N 2*model.d]);
+      if ~isempty(orientationThetas)
+        assert(isvector(orientationThetas) && numel(orientationThetas)==N);
+      end
       
       if isfield(prmTestInit,'augUseFF')
         useFF = prmTestInit.augUseFF;
@@ -573,10 +612,17 @@ classdef RegressorCascade < handle
       Naug = prmTestInit.Nrep;
       pNInitSet = obj.pGTNTrn;
       prmRotCorr = obj.prmReg.rotCorrection;
+      orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
+        prmTestInit.usetrxorientation,orientationThetas);
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
-        'randomlyOriented',prmRotCorr.use,...
+        'pNRandomlyOriented',prmRotCorr.use,...
+        'pAugOrientation',orientation,...
+        'pAugOrientationTheta',orientationThetas,...
         'iHead',prmRotCorr.iPtHead,...
         'iTail',prmRotCorr.iPtTail,...
+        'ptJitter',prmTestInit.doptjitter,...
+        'ptJitterFac',prmTestInit.ptjitterfac,...
+        'bboxJitter',prmTestInit.doboxjitter,...
         'bboxJitterfac',prmTestInit.augjitterfac,...
         'selfSample',false,...
         'furthestfirst',useFF);
@@ -585,7 +631,7 @@ classdef RegressorCascade < handle
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
-      p_t = obj.propagate(I,bboxes,p0,pIidx,varargin{:});      
+      p_t = obj.propagate(I,bboxes,p0,pIidx,'wbObj',wbObj,loArgs{:});      
     end
     
     %#3DOK
@@ -735,6 +781,8 @@ classdef RegressorCascade < handle
         case '2lm'
           assert(size(xs,2)==7);
           fAll = xs(:,[1 2]);
+        case 'two landmark elliptical'
+          fAll = [xs.lm1 xs.lm2];
         case '2lmdiff'
           assert(size(xs,2)==13);
           fAll = xs(:,[1 2 8 9]);          

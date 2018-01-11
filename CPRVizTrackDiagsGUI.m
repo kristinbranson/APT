@@ -1,6 +1,5 @@
 function varargout = CPRVizTrackDiagsGUI(varargin)
-
-% Last Modified by GUIDE v2.5 18-Apr-2017 16:27:46
+% CPR diagnostics visualization
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -27,6 +26,9 @@ function CPRVizTrackDiagsGUI_OpeningFcn(hObject, eventdata, handles, varargin)
 lObj = varargin{1};
 if isempty(lObj.tracker)
   error('CPRVizTrackDiagsGUI:track','No tracker found');
+end
+if ~lObj.tracker.hasTrained
+  error('CPRVizTrackDiagsGUI:train','Tracker has not been trained.');
 end
 
 vizObj = CPRVizTrackDiags(lObj,hObject);
@@ -91,8 +93,8 @@ vizObj.fireSetObs();
 
 handles.txNumFerns.String = num2str(vizObj.M);
 handles.txNumUsed.String = num2str(vizObj.metaNUse);
-handles.txFtrType = vizObj.rcObj.prmFtr.type;
-handles.txMetaType = vizObj.rcObj.prmFtr.metatype;
+handles.txFtrType.String = vizObj.rcObj.prmFtr.type;
+handles.txMetaType.String = vizObj.rcObj.prmFtr.metatype;
 handles.txNumFeatures.String = num2str(vizObj.rcObj.prmFtr.F);
 
 guidata(hObject, handles);
@@ -177,16 +179,25 @@ function updateVizFeaturesAndTable(vizObj)
 [fUse,xsUse,xsLbl] = vizObj.vizUpdate();
 [M,nUse] = size(fUse);
 szassert(xsUse,[M nUse]);
-ncol = numel(xsLbl);
+xsUse1 = xsUse{1};
+ncol = size(xsUse1,2);
+cellfun(@(x)assert(size(x,2)==ncol),xsUse);
+assert(numel(xsLbl)==ncol);
+
 tbldat = cell(M,nUse*(ncol+1));
 for iFern=1:M
   row = cell(nUse,ncol+1);
   for iUse=1:nUse
     row{iUse,1} = fUse(iFern,iUse);
-    row(iUse,2:end) = num2cell(xsUse{iFern,iUse});
+    if istable(xsUse{iFern,iUse})
+      row(iUse,2:end) = table2cell(xsUse{iFern,iUse});
+    else
+      row(iUse,2:end) = num2cell(xsUse{iFern,iUse});
+    end
   end
   tbldat(iFern,:) = row(:)'; % when iUse=2, interleave iUse1 and iUse2
 end
+
 rowlbl = repmat([{'iF'} xsLbl],nUse,1);
 if nUse==2
   for iUse=1:nUse

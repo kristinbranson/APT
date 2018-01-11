@@ -1,6 +1,5 @@
 classdef MovieReader < handle
-  % MovieReader
-  % Like VideoReader; wraps get_readframe_fcn 
+% Like VideoReader, but wraps get_readframe_fcn
   
   properties (SetAccess=private)
     filename = '';
@@ -75,7 +74,7 @@ classdef MovieReader < handle
     end
     
     function varargout = readframe(obj,i)
-      assert(obj.isOpen(),'Movie is not open.');
+      assert(obj.isOpen,'Movie is not open.');
       [varargout{1:nargout}] = obj.readFrameFcn(i);
 
       if obj.flipVert

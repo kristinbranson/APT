@@ -38,22 +38,26 @@ ROOT:
       - RegFactor: ['Regularization Factor',float,true,Regularization factor (used when a fern bin has very low counts),.01]
     - Feature:
       - ['','',false,Feature generation,'']
-      - Type: ['',['1lm','2lm','2lmdiff'],true,Method/type of feature generation,'2lm']
+      - Type: ['',['1lm','two landmark elliptical','2lm','2lmdiff'],true,Method/type of feature generation,'2lm']
       - Metatype: ['Meta feature',['single','diff'],true,Feature combination strategy to form ''true'' features,'diff']
       - NGenerate: ['Pool size',unsigned,true,Number of features to generate/consider at each major iteration,400]
       - Radius: ['',float,true,Distance or distance scalefactor for feature generation,1.5]
+      - ABRatio: ['Major/minor ratio',float,true,Ratio of ellipse major/minor axes (for Type='two landmark elliptical'),2]
       - Nsample_std: ['Num samples std',unsigned,true,Number of samples used to approximate SD during feature selection,1000]
       - Nsample_cor: ['Num samples correlation',unsigned,true,Number of samples used to compute correlation during feature selection,5000]
     - RotCorrection:
       - ['Rotational Invariance','',false,Rotational invariance for randomly-oriented animals,'']
-      - Use: ['Enable',boolean,true,Check if animals have arbitrary heading in space,false]
-      - HeadPoint: ['Head landmark',unsigned,true,Landmark/point representing animal ''Head'',0]
-      - TailPoint: ['Tail landmark',unsigned,true,Landmark/point representing animal ''Tail'',0]
+      - OrientationType: ['Orientation',['fixed','arbitrary','arbitrary trx-specified'],true,Specification of animal orientation,'fixed']
+      - HeadPoint: ['Head landmark',unsigned,true,Landmark/point representing animal ''Head''; used when orientation is not fixed,0]
+      - TailPoint: ['Tail landmark',unsigned,true,Landmark/point representing animal ''Tail''; used when orientation is not fixed,0]
     - Replicates:
       - ['','',false,'','']
       - NrepTrain: ['Num training replicates',unsigned,true,Training set augmentation factor. Each training shape is utilized/replicated this many times,50]
       - NrepTrack: ['Num tracking replicates',unsigned,true,Number of replicates to use when tracking. The final tracking result is estimated from a central measure of the replicate cloud.,50]
-      - AugJitterFac: ['Spatial randomization factor',float,true,'Initial conditions are jittered by the reciprocal of this factor. For instance, for a single-target project, a value of 12 indicates that initial conditions will be randomized by 1/12th of the image size.',12] # CONFIRM TIED TOGETHER
+      - DoPtJitter: ['Jitter initial shapes',boolean,true,'Jitter/randomize individual landmarks in initial shapes.',true]
+      - PtJitterFac: ['Initial shape jitter/randomization factor',float,true,'Points in initial shape are randomized/jittered by the reciprocal of this factor. For instance, a value of 12 indicates jittering by 1/12th of the image/ROI size.',12]
+      - DoBBoxJitter: ['Jitter initial shape locations',boolean,true,'Jitter initial shape centroids/locations.',true]
+      - AugJitterFac: ['Initial shape location jitter/randomization factor',float,true,'Jitter initial shape centroid by the reciprocal of this factor. For instance, a value of 12 indicates that initial shapes will be shifted by 1/12th of the image/ROI size.',16]
       - AugUseFF: ['Maximize spread of initial conditions',boolean,true,Maximize distance between training/tracking initial conditions,false] # CONFIRM TIED TOGETHER
     - Prune:
       - ['','',false,Estimation of final tracking result from replicate cloud,'']

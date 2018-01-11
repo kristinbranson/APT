@@ -33,7 +33,7 @@ classdef SimpleInterpolator < LabelTracker
         
         fprintf(1,'Interpolating movie %d\n',iM);
         
-        lpos = labeler.labeledpos{iM}; % [npts x 2 x nfrm]
+        lpos = labeler.labeledposGTaware{iM}; % [npts x 2 x nfrm]
         marked = labeler.labeledposMarked{iM};
         newPts = lpos(:,:,fs);
         for iPt = 1:npts

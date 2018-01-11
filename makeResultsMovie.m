@@ -1,5 +1,5 @@
 function makeResultsMovie(movfile,movout,varargin)
-% Make a tracking/label results movie
+% Create tracking/label results movie
 %
 % movfile: full path, input movie
 %

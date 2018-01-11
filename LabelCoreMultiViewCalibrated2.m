@@ -1,4 +1,5 @@
 classdef LabelCoreMultiViewCalibrated2 < LabelCore
+% Multiview labeling for calibrated cameras  
 
   % Hitting a number key gets you "working on" a certain ptset. All pts
   % in this set bolded; all other pts dimmed. Hitting the same number key
@@ -118,8 +119,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     numHotKeyPtSet; % scalar positive integer. This is the pointset that 
                     % the '1' hotkey currently maps to
-
-    tfPtSel;     % nPts x 1 logical vec. If true, pt is currently selected
     
     hAxXLabels; % [nview] xlabels for axes
     hAxXLabelsFontSize = 11;
@@ -246,7 +245,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.setRandomTemplate();
            
       obj.tfAdjusted = false(obj.nPts,1);
-      obj.tfPtSel = false(obj.nPts,1);       
 
       obj.hAxXLabels = gobjects(obj.nView,1);
       for iView=1:obj.nView
@@ -279,7 +277,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
-      %#CALOK
+      %#%CALOK
       [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
       if tflabeled
         obj.assignLabelCoords(lpos,'lblTags',lpostag);
@@ -292,13 +290,13 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       % working set: unchanged
       
-      obj.selClearSelected();
+      obj.clearSelected();
       
       obj.projectionClear();
     end
     
     function clearLabels(obj)
-      %#CALOK
+      %#%CALOK
       obj.enterAdjust(true,true);
       obj.projectionWorkingSetClear();
       obj.projectionClear();
@@ -323,9 +321,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         obj.assignLabelCoordsIRaw(pos,iPt);
         obj.setPointAdjusted(iPt);
         
-        if ~obj.tfPtSel(iPt)
-          obj.selClearSelected();
-          obj.selToggleSelectPoint(iPt);
+        if ~obj.tfSel(iPt)
+          obj.clearSelected();
+          obj.toggleSelectPoint(iPt);
         end
         
         obj.projectAddToAnchorSet(iPt)
@@ -360,12 +358,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     function setPtFullOcc(obj,iPt)
       obj.setPointAdjusted(iPt);
-      obj.selClearSelected();
+      obj.clearSelected();
       
       obj.tfOcc(iPt) = true;
       obj.tfEstOcc(iPt) = false;
       obj.refreshOccludedPts();
-      obj.refreshEstOccPts('iPts',iPt);
+      obj.refreshPtMarkers('iPts',iPt);
       
       if obj.streamlined && all(obj.tfAdjusted)
         obj.enterAccepted(true);
@@ -381,7 +379,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function ptBDF(obj,src,evt)
-      %#CALOK
+      %#%CALOK
       iPt = src.UserData;
       switch evt.Button
         case 1
@@ -393,7 +391,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function wbmf(obj,src,evt) %#ok<INUSD>
-      %#CALOK
+      %#%CALOK
       
       iPt = obj.iPtMove;
       if ~isnan(iPt)
@@ -414,7 +412,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function wbuf(obj,src,evt) %#ok<INUSD>
-      %#CALOK
+      %#%CALOK
       
       iPt = obj.iPtMove;
       if ~isnan(iPt)
@@ -430,22 +428,32 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function tfKPused = kpf(obj,src,evt) 
-      %#CALOK
+      %#%CALOK
       key = evt.Key;
       modifier = evt.Modifier;      
       tfCtrl = any(strcmp('control',modifier));
       tfShft = any(strcmp('shift',modifier));
       
+      lObj = obj.labeler;
+      scPrefs = lObj.projPrefs.Shortcuts;     
       tfKPused = true;
-      if strcmp(key,'h') && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
-        % AL HACK multiview. MATLAB menu accelerators only work when
+      if strcmp(key,scPrefs.menu_view_hide_labels) && tfCtrl ...
+          && isfield(src.UserData,'view') && src.UserData.view>1
+        % HACK multiview. MATLAB menu accelerators only work when
         % figure-containing-the-menu (main fig) has focus
         obj.labelsHideToggle();
-      elseif strcmp(key,'p') && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
-        % AL HACK etc
-        obj.labeler.labels2VizToggle();        
+      elseif strcmp(key,scPrefs.menu_view_hide_predictions) && tfCtrl ...
+          && isfield(src.UserData,'view') && src.UserData.view>1
+        % Hack etc
+        tracker = lObj.tracker;
+        if ~isempty(tracker)
+          tracker.hideVizToggle();
+        end
+      elseif strcmp(key,scPrefs.menu_view_hide_imported_predictions) ...
+          && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
+        lObj.labels2VizToggle();
       elseif strcmp(key,'space')
-        [tfSel,iSel] = obj.selAnyPointSelected();
+        [tfSel,iSel] = obj.anyPointSelected();
         if tfSel && ~obj.tfOcc(iSel) % Second cond should be unnec
           obj.projectToggleState(iSel);
         elseif ~isnan(obj.iSetWorking)
@@ -460,11 +468,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           obj.acceptLabels();
         end
       elseif any(strcmp(key,{'d' 'equal'}))
-        obj.labeler.frameUp(tfCtrl);
+        lObj.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
-        obj.labeler.frameDown(tfCtrl);
+        lObj.frameDown(tfCtrl);
       elseif strcmp(key,'o') && ~tfCtrl
-        [tfSel,iSel] = obj.selAnyPointSelected();
+        [tfSel,iSel] = obj.anyPointSelected();
         if tfSel
           obj.toggleEstOccPoint(iSel);
         end
@@ -476,7 +484,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           obj.setPtFullOcc(iPt);
         end
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
-        [tfSel,iSel] = obj.selAnyPointSelected();
+        [tfSel,iSel] = obj.anyPointSelected();
         if tfSel && ~obj.tfOcc(iSel)
           tfShift = any(strcmp('shift',modifier));
           xy = obj.getLabelCoordsI(iSel);
@@ -500,7 +508,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               else
                 xy(1) = xy(1) + dx/obj.DXFAC;
               end
-              ncs = obj.labeler.movienc;
+              ncs = lObj.movienc;
               xy(1) = min(xy(1),ncs(iAx));
             case 'uparrow'
               yl = ylim(ax);
@@ -519,7 +527,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               else
                 xy(2) = xy(2) + dy/obj.DXFAC;
               end
-              nrs = obj.labeler.movienr;
+              nrs = lObj.movienr;
               xy(2) = min(xy(2),nrs(iAx));
           end
           obj.assignLabelCoordsIRaw(xy,iSel);
@@ -530,18 +538,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               obj.enterAdjust(false,false);
           end
           obj.projectionRefresh();
-        elseif strcmp(key,'leftarrow')
-          if tfShft
-            obj.labeler.frameUpNextLbled(true);
-          else
-            obj.labeler.frameDown(tfCtrl);
-          end
-        elseif strcmp(key,'rightarrow')
-          if tfShft
-            obj.labeler.frameUpNextLbled(false);
-          else
-            obj.labeler.frameUp(tfCtrl);
-          end
         else
           tfKPused = false;
         end
@@ -563,7 +559,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           tfClearOnly = iSet==obj.iSetWorking;
           obj.projectionWorkingSetClear();
           obj.projectionClear();
-          obj.selClearSelected();
+          obj.clearSelected();
           if ~tfClearOnly
             obj.projectionWorkingSetSet(iSet);
           end
@@ -586,18 +582,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         '* ` (backquote) increments the mapping of the 0-9 hotkeys.'};
     end
     
-    function refreshEstOccPts(obj,varargin)
-      % React to an updated .tfEstOcc.
-      %
-      % optional PVs
-      % iPts. Defaults to 1:obj.nPts.
-      
-      %#MVOK
-      
-      iPts = myparse(varargin,'iPts',1:obj.nPts);
-      obj.refreshPtMarkers(iPts);
-    end
-    
     function refreshOccludedPts(obj)
       % Based on .tfOcc: 'Hide' occluded points in main image; arrange
       % occluded points in occluded box.
@@ -606,7 +590,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       assert(isvector(tf) && numel(tf)==obj.nPts);
       nOcc = nnz(tf);
       iOcc = find(tf);
-      LabelCore.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
+      obj.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
       for iPt=iOcc(:)'
         iSet = obj.iPt2iSet(iPt);
         LabelCore.setPtsCoordsOcc([iSet 1],obj.hPtsOcc(iPt),obj.hPtsTxtOcc(iPt));
@@ -620,7 +604,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   methods % template
         
     function setRandomTemplate(obj)
-      %# CALOK
+      %#%CALOK
       
       lbler = obj.labeler;
       mrs = lbler.movieReader;
@@ -823,7 +807,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function projectionSet2nd(obj,iPt2)
-      %# CALOK
+      %#%CALOK
     
       assert(~isnan(obj.pjtIPts(1)));
       assert(isnan(obj.pjtIPts(2)));
@@ -907,41 +891,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   
   methods
     
-    function [tf,iSelected] = selAnyPointSelected(obj)
-      tf = any(obj.tfPtSel);
-      iSelected = find(obj.tfPtSel,1);
-    end
-     
-    function selClearSelected(obj,iExclude)
-      tf = obj.tfPtSel;
-      if exist('iExclude','var')>0
-        tf(iExclude) = false;
-      end
-      iSel = find(tf);
-      for i = iSel(:)'
-        obj.selToggleSelectPoint(i);
-      end
-    end
-    
-    function selToggleSelectPoint(obj,iPt)
-      tfSel = ~obj.tfPtSel(iPt);
-      obj.tfPtSel(:) = false;
-      obj.tfPtSel(iPt) = tfSel;
-      
-      obj.refreshPtMarkers(iPt);
-      % Also update hPtsOcc markers
-      if tfSel
-        mrkr = obj.ptsPlotInfo.TemplateMode.SelectedPointMarker;
-      else
-        mrkr = obj.ptsPlotInfo.Marker;
-      end
-      set(obj.hPtsOcc(iPt),'Marker',mrkr);
-    end
-
-  end
-  
-  methods
-    
     % ADJUST/ACCEPTED-NESS
     % What is the "Adjust" state?
     % - The button says "Accept" => Either
@@ -964,7 +913,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % if tfReset, reset all points to pre-adjustment (white).
       % if tfClearLabeledPos, clear labeled pos.
 
-      %#CALOK
+      %#%CALOKedit LabelCoreMul
       
       if tfResetPts
         if obj.streamlined
@@ -993,7 +942,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % Enter accepted state for current frame/tgt. All points colored. If
       % tfSetLabelPos, all points/tags written to labelpos/labelpostag.
       
-      %#CALOK
+      %#%CALOK
             
       nPts = obj.nPts;
       ptsH = obj.hPts;
@@ -1004,10 +953,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
       obj.tfAdjusted(:) = true;
-%       if obj.streamlined
-%         [obj.hPts.Visible] = deal('on');
-%         [obj.hPtsTxt.Visible] = deal('on');
-%       end
       
       if tfSetLabelPos
         xy = obj.getLabelCoords();
@@ -1030,28 +975,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function toggleEstOccPoint(obj,iPt)
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
-      obj.refreshEstOccPts('iPts',iPt);
+      obj.refreshPtMarkers('iPts',iPt);
       if obj.state==LabelState.ACCEPTED
         obj.enterAdjust(false,false);
       end
     end
-    
-    function refreshPtMarkers(obj,iPts)
-      % Update obj.hPts Markers based on .tfEstOcc and .tfPtSel.
-      
-      ppi = obj.ptsPlotInfo;
-      ppitm = ppi.TemplateMode;
-
-      hPoints = obj.hPts(iPts);
-      tfSel = obj.tfPtSel(iPts);
-      tfEO = obj.tfEstOcc(iPts);
-      
-      set(hPoints(tfSel & tfEO),'Marker',ppitm.SelectedOccludedMarker); % historical quirk, use props instead of ppi; fix this at some pt
-      set(hPoints(tfSel & ~tfEO),'Marker',ppitm.SelectedPointMarker);
-      set(hPoints(~tfSel & tfEO),'Marker',ppi.OccludedMarker);
-      set(hPoints(~tfSel & ~tfEO),'Marker',ppi.Marker);
-    end
-    
+        
     function refreshHotkeyDesc(obj)
       iSet0 = obj.numHotKeyPtSet;
       iSet1 = iSet0+9;

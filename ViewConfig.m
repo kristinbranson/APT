@@ -53,6 +53,8 @@ classdef ViewConfig
       ylmode = {axs.YLimMode}';
       xdir = {axs.XDir}';
       ydir = {axs.YDir}';
+      xdirmode = {axs.XDirMode}';
+      ydirmode = {axs.YDirMode}';
       clim = {axs.CLim}';
       clim = cat(1,clim{:});
       clmode = {axs.CLimMode}';
@@ -67,7 +69,8 @@ classdef ViewConfig
       dar = cat(1,axs.DataAspectRatio);
       darm = {axs.DataAspectRatioMode}';
       pbarm = {axs.PlotBoxAspectRatioMode}';
-      t = table(xls,yls,dxdyls,xlmode,ylmode,xdir,ydir,clim,clmode,...
+      t = table(xls,yls,dxdyls,xlmode,ylmode,xdir,ydir,xdirmode,ydirmode,...
+        clim,clmode,...
         cva,cvamode,cuv,cuvmode,xtmode,ytmode,xtlmode,ytlmode,...
         dar,darm,pbarm);
     end
@@ -78,8 +81,7 @@ classdef ViewConfig
       % tfAxLimSpecifiedInCfg: [nviewx1] logical
       %
       % This not only sets the stuff in viewCfg, but also resets some stuff
-      % to "default"/auto if viewCfg doesn't say anything (has empty props)
-      
+      % to "default"/auto if viewCfg doesn't say anything (has empty props)      
       
       nview = numel(hFig);
       assert(isequal(nview,numel(hAx),numel(viewCfg)));
@@ -98,6 +100,9 @@ classdef ViewConfig
             'Ignoring invalid configuration setting: position for figure %d.',iView);
         else
           % all fpos elements are empty; no-op
+        end
+        if figIsOffScreen(hFig(iView))
+          figSetPosAPTDefault(hFig(iView));
         end
         
         axlim = vCfg.AxisLim;
