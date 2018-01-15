@@ -289,7 +289,9 @@ classdef LabelCoreHT < LabelCore
       
       lObj = obj.labeler;
       lObj.currImHud.updateLblPoint(iPt,obj.labeler.nLabelPoints);
-      obj.newFrame([],lObj.currFrame,lObj.currTarget);      
+      if lObj.currMovie>0
+        obj.newFrame([],lObj.currFrame,lObj.currTarget);
+      end
     end    
     
   end
