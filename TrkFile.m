@@ -98,11 +98,51 @@ classdef TrkFile < handle
       s = rmfield(s,'unsetVal'); %#ok<NASGU>      
       save(filename,'-mat','-struct','s');
     end
-            
+    
+    function tbl = tableform(obj)
+      p = obj.pTrk;
+      [npts,d,nF,nTgt] = size(p);
+      assert(d==2);
+      p = reshape(p,[npts*d nF nTgt]);
+      ptag = obj.pTrkTag;  
+      pTS = obj.pTrkTS;
+      pfrm = obj.pTrkFrm;
+      ptgt = obj.pTrkiTgt;
+      
+      s = struct('frm',cell(0,1),'iTgt',[],'pTrk',[],'tfOcc',[],'pTrkTS',[]);
+      for i=1:nF
+      for j=1:nTgt
+        pcol = p(:,i,j);
+        tfOcccol = ptag(:,i,j);
+        pTScol = pTS(:,i,j);
+        if any(~isnan(pcol)) || any(tfOcccol)
+          s(end+1,1).frm = pfrm(i); %#ok<AGROW>
+          s(end).iTgt = ptgt(j);
+          s(end).pTrk = pcol(:)';
+          s(end).tfOcc = tfOcccol(:)';
+          s(end).pTrkTS = pTScol(:)';
+        end
+      end
+      end
+      
+      tbl = struct2table(s);
+    end
   end
   
   methods (Static)
-    
+
+    function trkfileObj = load(filename)
+      s = load(filename,'-mat');
+      s = TrkFile.modernizeStruct(s);
+      if ~isfield(s,'pTrk')
+        error('TrkFile:load',...
+          'File ''%s'' is not a valid saved trkfile structure.',filename);
+      end
+      pTrk = s.pTrk;
+      pvs = struct2pvs(rmfield(s,'pTrk'));
+      trkfileObj = TrkFile(pTrk,pvs{:});
+    end
+
     function s = modernizeStruct(s)
       % s: struct loaded from trkfile saved to matfile
       if iscell(s.pTrkTag)
