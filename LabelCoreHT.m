@@ -99,7 +99,7 @@ classdef LabelCoreHT < LabelCore
       obj.otherLabeledPointColor = htm.OtherLabeledPointColor;
       
       set(obj.hPts,'HitTest','off');
-      set(obj.hPtsTxt,'HitTest','off');
+      set(obj.hPtsTxt,'PickableParts','none');
       set(obj.labeler.gdata.tbAccept,'Enable','off');
       obj.labeler.currImHud.updateReadoutFields('hasLblPt',true);
 

@@ -2613,7 +2613,7 @@ classdef CPRLabelTracker < LabelTracker
       trackPrefs = obj.lObj.projPrefs.Track;
       cprPrefs = obj.lObj.projPrefs.CPRLabelTracker.PredictReplicatesPlot;
       plotPrefs = trackPrefs.PredictPointsPlot;
-      plotPrefs.HitTest = 'off';
+      plotPrefs.PickableParts = 'none';
       obj.xyVizPlotArgs = struct2paramscell(plotPrefs);
       if isfield(trackPrefs,'PredictInterpolatePointsPlot')
         obj.xyVizPlotArgsInterp = struct2paramscell(trackPrefs.PredictInterpolatePointsPlot);
@@ -2642,7 +2642,8 @@ classdef CPRLabelTracker < LabelTracker
         hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
         hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);        
         hTmp2(iPt) = scatter(ax(iVw),nan,nan);
-        setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,'MarkerEdgeColor',clr,...
+        setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,...
+          'MarkerEdgeColor',clr,'PickableParts','none',...
           obj.xyVizFullPlotArgs{:});
       end
       obj.hXYPrdRed = hTmp;

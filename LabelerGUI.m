@@ -349,11 +349,11 @@ axis(handles.axes_occ,'ij');
 set(handles.axes_occ,'XTick',[],'YTick',[]);
 
 handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
-set(handles.image_curr,'hittest','off');
+set(handles.image_curr,'PickableParts','none');
 hold(handles.axes_curr,'on');
 set(handles.axes_curr,'Color',[0 0 0]);
 handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
-set(handles.image_prev,'hittest','off');
+set(handles.image_prev,'PickableParts','none');
 hold(handles.axes_prev,'on');
 set(handles.axes_prev,'Color',[0 0 0]);
 
@@ -742,7 +742,7 @@ for iView=2:nview
   handles = addDepHandle(handles,figs(iView));
   
   ims(iView) = imagesc(0,'Parent',axs(iView));
-  set(ims(iView),'hittest','off');
+  set(ims(iView),'PickableParts','none');
   %axisoff(axs(iView));
   hold(axs(iView),'on');
   set(axs(iView),'Color',[0 0 0]);

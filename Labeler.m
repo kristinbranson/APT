@@ -3055,7 +3055,7 @@ classdef Labeler < handle
           'Color',pref.TrajColor,...
           'Fontsize',pref.TrxIDLblFontSize,...
           'Fontweight',pref.TrxIDLblFontWeight,...
-          'HitTest','off');
+          'PickableParts','none');
       end
     end
     
@@ -6746,7 +6746,7 @@ classdef Labeler < handle
       else
         ptsPlotInfo = obj.labelPointsPlotInfo;
       end
-      ptsPlotInfo.HitTest = 'off';
+      ptsPlotInfo.PickableParts = 'none';
       
       obj.genericInitLabelPointViz('labeledpos2_ptsH','labeledpos2_ptsTxtH',...
         obj.gdata.axes_curr,ptsPlotInfo);
@@ -6847,14 +6847,14 @@ classdef Labeler < handle
       deleteValidHandles(obj.(hProp));
       obj.(hProp) = gobjects(obj.nLabelPoints,1);
       if ~isempty(hTxtProp)
-      deleteValidHandles(obj.(hTxtProp));
-      obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
+        deleteValidHandles(obj.(hTxtProp));
+        obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
       end
       
       % any extra plotting parameters
-      allowedPlotParams = {'HitTest'};
+      allowedPlotParams = {'HitTest' 'PickableParts'};
       ism = ismember(cellfun(@lower,allowedPlotParams,'Uni',0),...
-        cellfun(@lower,fieldnames(plotIfo),'Uni',0));
+                     cellfun(@lower,fieldnames(plotIfo),'Uni',0));
       extraParams = {};
       for i = find(ism)
         extraParams = [extraParams,{allowedPlotParams{i},plotIfo.(allowedPlotParams{i})}]; %#ok<AGROW>
@@ -6869,7 +6869,7 @@ classdef Labeler < handle
           extraParams{:});
         if ~isempty(hTxtProp)
         obj.(hTxtProp)(i) = text(nan,nan,num2str(i),'Parent',ax,...
-          'Color',plotIfo.Colors(i,:),'Hittest','off');
+          'Color',plotIfo.Colors(i,:),'PickableParts','none');
         end
       end      
     end
