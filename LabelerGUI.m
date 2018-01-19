@@ -1282,8 +1282,20 @@ mnu.Checked = onIff(tf);
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+
 handles = guidata(hObject);
 lObj = handles.labelerObj;
+
+if ~lObj.hasProject
+  set(hObject,'Value',0);  
+  return;
+end
+if ~lObj.hasMovie
+  set(hObject,'Value',0);  
+  msgbox('There is no movie open.');
+  return;
+end
+
 v = get(hObject,'Value');
 f = round(1 + v * (lObj.nframes - 1));
 
@@ -1313,7 +1325,12 @@ if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColo
 end
 
 function edit_frame_Callback(hObject,~,handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
+
 lObj = handles.labelerObj;
+
 f = str2double(get(hObject,'String'));
 if isnan(f)
   set(hObject,'String',num2str(lObj.currFrame));
@@ -1338,8 +1355,14 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
 end
 
 function pbTrain_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 handles.labelerObj.trackRetrain();
 function pbTrack_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 tm = getTrackMode(handles);
 wbObj = WaitBarWithCancel('Tracking');
 oc = onCleanup(@()delete(wbObj));
@@ -1350,9 +1373,15 @@ if wbObj.isCancel
 end
 
 function pbClear_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 handles.labelerObj.lblCore.clearLabels();
 
 function tbAccept_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 lc = handles.labelerObj.lblCore;
 switch lc.state
   case LabelState.ADJUST
@@ -1478,6 +1507,11 @@ end
 function sldZoom_Callback(hObject, eventdata, ~)
 % log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
 handles = guidata(hObject);
+
+if ~checkProjAndMovieExist(handles)
+  return;
+end
+
 lObj = handles.labelerObj;
 v = hObject.Value;
 userdata = hObject.UserData;
@@ -1528,10 +1562,16 @@ else
 end
 
 function tbTLSelectMode_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 tl = handles.labelTLInfo;
 tl.selectOn = hObject.Value;
 
 function pbClearSelection_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 tl = handles.labelTLInfo;
 tl.selectClearSelection();
 
@@ -2561,6 +2601,25 @@ handles.isPlaying = false;
 guidata(hObject,handles);
 
 function pbPlaySeg_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 play(hObject,handles,'playsegment','videoPlaySegment');
+
 function pbPlay_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 play(hObject,handles,'play','videoPlay');
+
+function tfok = checkProjAndMovieExist(handles)
+tfok = false;
+lObj = handles.labelerObj;
+if ~lObj.hasProject
+  return;
+end
+if ~lObj.hasMovie
+  msgbox('There is no movie open.');
+  return;
+end
+tfok = true;

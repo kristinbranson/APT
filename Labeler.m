@@ -540,7 +540,7 @@ classdef Labeler < handle
 %       v = MFTable.formMultiMovieIDArray(obj.movieIDsAll);
 %     end
     function v = get.hasMovie(obj)
-      v = obj.movieReader(1).isOpen;
+      v = obj.hasProject && obj.movieReader(1).isOpen;
     end    
     function v = get.moviefile(obj)
       mr = obj.movieReader(1);
