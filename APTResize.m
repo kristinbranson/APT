@@ -4,6 +4,8 @@ classdef APTResize < handle
 %     pxTxGTModeWidth
     pxPnlPrevRightEdgeMinusTxUnsavedChangesLeftEdge
 %     pxPnlPrevRightEdgeMinusTxGTModeLeftEdge
+    pumTrackInitFontSize;
+    pumTrackInitHeight;
   end
   
   methods 
@@ -28,12 +30,17 @@ classdef APTResize < handle
       
 %       hTxGTModeUnits0 = hTxGTMode.Units;
 %       hTxGTMode.Units = 'pixels';
-      
+
+      pumTrack = handles.pumTrack;
+
       % Iss #116. Appears nec to get proper resize behavior
-      handles.pumTrack.Max = 2;
+      pumTrack.Max = 2;
+      
+      obj.pumTrackInitFontSize = pumTrack.FontSize;
+      obj.pumTrackInitHeight = pumTrack.Position(4);
     end
     
-    function resize(obj,src,evt)
+    function resize(obj,src,~)
       handles = guidata(src);
       
       hTx = handles.txUnsavedChanges;
@@ -51,12 +58,20 @@ classdef APTResize < handle
       
       tfDoPUMTrack = ~ispc && ~ismac;
       if tfDoPUMTrack
-        % Resize pumTrack width otherwise text clipped on Linux
+        drawnow; % Laggy drawing will result in poor pumTrack resize
+
+%         % Resize pumTrack width otherwise text clipped on Linux
+%         newHeight = pum.Position(4);
+%         origFS0 = obj.pumTrackInitFontSize;
+%         % We resize the pum font manually to cap the maximum fontsize;
+%         % otherwise the pum gets too wide on Linux.
+%         newFS = max(newHeight/obj.pumTrackInitHeight*origFS0,origFS0);
+%         pum.FontSize = newFS;
         pum = handles.pumTrack;
         pb = handles.pbTrack;
         pbPos = pb.Position;
         rightEdge = pbPos(1)+pbPos(3);
-        width = 1.1*pum.Extent(3);
+        width = 1.05*pum.Extent(3);
         pum.Position(1) = rightEdge-width;
         pum.Position(3) = width;
       end

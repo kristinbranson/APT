@@ -71,7 +71,11 @@ classdef FrameSetVariable < FrameSet
 end
 
 function str = lclWithinCurrFrmPrettyStr(lObj)
-str = sprintf('Within %d frames of current frame',lObj.trackNFramesNear);
+if isunix && ~ismac
+  str = sprintf('Nearest %d frames',2*lObj.trackNFramesNear);
+else
+  str = sprintf('Within %d frames of current frame',lObj.trackNFramesNear);
+end
 end
 function frms = lclAllFrmGetFrms(lObj,mIdx,nfrm,iTgt)
 frms = 1:nfrm;

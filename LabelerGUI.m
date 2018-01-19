@@ -361,9 +361,13 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 
-handles.pumTrack.Value = 1;
+pumTrack = handles.pumTrack;
+pumTrack.Value = 1;
+pumTrack.String = {'All frames'};
+set(pumTrack,'FontUnits','points','FontSize',6.5);
+pumTrack.FontUnits = 'normalized';
 aptResize = APTResize(handles);
-handles.figure.ResizeFcn = @(src,evt)aptResize.resize(src,evt);
+handles.figure.SizeChangedFcn = @(src,evt)aptResize.resize(src,evt);
 aptResize.resize(handles.figure,[]);
 handles.pumTrack.Callback = ...
   @(hObj,edata)LabelerGUI('pumTrack_Callback',hObj,edata,guidata(hObj));
@@ -1226,13 +1230,20 @@ if lObj.hasTrx
 else
   mfts = MFTSetEnum.TrackingMenuNoTrx;
 end
-menustrs = arrayfun(@(x)x.getPrettyStr(lObj),mfts,'uni',0);
+if ispc || ismac
+  menustrs = arrayfun(@(x)x.getPrettyStr(lObj),mfts,'uni',0);
+else
+  % iss #161
+  menustrs = arrayfun(@(x)x.getPrettyStrCompact(lObj),mfts,'uni',0);
+end
 hPUM = lObj.gdata.pumTrack;
 hPUM.String = menustrs;
 if lObj.trackModeIdx>numel(menustrs)
   lObj.trackModeIdx = 1;
 end
-%hPUM.UserData = tms;
+
+hFig = lObj.gdata.figure;
+hFig.SizeChangedFcn(hFig,[]);
 
 function pumTrack_Callback(hObj,edata,handles)
 lObj = handles.labelerObj;
