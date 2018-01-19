@@ -200,10 +200,6 @@ handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,.
   'Tag','menu_track_clear_tracking_results');  
 moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_export_base);
 
-handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
-  'Label','Export current tracking results',...
-  'Tag','menu_track_export_base');  
-
 handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
   'Label','Store tracking replicates/iterations',...
   'Tag','menu_track_store_full_tracking');
@@ -1537,6 +1533,7 @@ lObj.targetZoomRadiusDefault = diff(handles.axes_curr.XLim)/2;
 
 function pbRecallZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
+lObj.videoCenterOnCurrTarget();
 lObj.videoZoom(lObj.targetZoomRadiusDefault);
 
 function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
@@ -1715,17 +1712,9 @@ end
 iMov = lObj.currMovie;
 lObj.labels2ImportTrkPrompt(iMov);
 
-function [tfok,rawtrkname] = hlpRawtrkname(lObj)
-rawtrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movdir, $movfile, $projdir, $projfile, $projname.',...
-  'Export Trk File',1,{lObj.defaultTrkRawname()});
-tfok = ~isempty(rawtrkname);
-if tfok
-  rawtrkname = rawtrkname{1};
-end
-
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-[tfok,rawtrkname] = hlpRawtrkname(lObj);
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI('labels',true);
 if ~tfok
   return;
 end
@@ -2442,7 +2431,7 @@ guidata(handles.figure,handles);
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 tm = getTrackMode(handles);
-[tfok,rawtrkname] = hlpRawtrkname(lObj);
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 if ~tfok
   return;
 end
@@ -2454,7 +2443,7 @@ iMov = lObj.currMovie;
 if iMov==0
   error('LabelerGUI:noMov','No movie currently set.');
 end
-[tfok,rawtrkname] = hlpRawtrkname(lObj);
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 if ~tfok
   return;
 end
@@ -2468,7 +2457,7 @@ if nMov==0
   error('LabelerGUI:noMov','No movies in project.');
 end
 iMov=1:nMov;
-[tfok,rawtrkname] = hlpRawtrkname(lObj);
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 if ~tfok
   return;
 end

@@ -5,8 +5,6 @@ classdef Labeler < handle
     VERSION = '3.1';
     DEFAULT_LBLFILENAME = '%s.lbl';
     DEFAULT_CFG_FILENAME = 'config.default.yaml';
-    DEFAULT_TRKFILE = '$movfile_$projname';
-    DEFAULT_TRKFILE_NOPROJ = '$movfile';
     
     % non-config props
     SAVEPROPS = { ...
@@ -1167,20 +1165,29 @@ classdef Labeler < handle
     function [success,lblfname] = projSaveAs(obj)
       % Saves a .lbl file, prompting user for filename.
 
-      % Guess a path/location for save
-      lastLblFile = RC.getprop('lastLblFile');
-      if isempty(lastLblFile)
-        if obj.hasMovie
-          savepath = fileparts(obj.moviefile);
-        else
-          savepath = pwd;          
-        end
+      if ~isempty(obj.projectfile)
+        filterspec = obj.projectfile;
       else
-        savepath = fileparts(lastLblFile);
+        % Guess a path/location for save
+        lastLblFile = RC.getprop('lastLblFile');
+        if isempty(lastLblFile)
+          if obj.hasMovie
+            savepath = fileparts(obj.moviefile);
+          else
+            savepath = pwd;          
+          end
+        else
+          savepath = fileparts(lastLblFile);
+        end
+
+        if ~isempty(obj.projname)
+          projfile = sprintf(obj.DEFAULT_LBLFILENAME,obj.projname);
+        else
+          projfile = sprintf(obj.DEFAULT_LBLFILENAME,'APTProject');
+        end
+        filterspec = fullfile(savepath,projfile);
       end
       
-      projfile = sprintf(obj.DEFAULT_LBLFILENAME,obj.projname);
-      filterspec = fullfile(savepath,projfile);
       [lblfname,pth] = uiputfile(filterspec,'Save label file');
       if isequal(lblfname,0)
         lblfname = [];
@@ -3700,7 +3707,7 @@ classdef Labeler < handle
         trkfile = [trkfile '.trk'];
       end
     end
-    function [tfok,trkfiles] = checkTrkFileNamesExport(trkfiles)
+    function [tfok,trkfiles] = checkTrkFileNamesExportUI(trkfiles)
       % Check/confirm trkfile names for export. If any trkfiles exist, ask 
       % whether overwriting is ok; alternatively trkfiles may be 
       % modified/uniqueified using datetimestamps.
@@ -3750,38 +3757,85 @@ classdef Labeler < handle
       % Set of built-in macros appropriate to exporting files/data
       sMacro = struct();
       sMacro.projname = obj.projname;
-      [sMacro.projdir,sMacro.projfile] = fileparts(obj.projectfile);
+      if ~isempty(obj.projectfile)
+        [sMacro.projdir,sMacro.projfile] = fileparts(obj.projectfile);
+      else
+        sMacro.projdir = '';
+        sMacro.projfile = '';
+      end
     end
     
     function trkfile = defaultTrkFileName(obj,movfile)
-      trkfile = Labeler.genTrkFileName(obj.defaultTrkRawname(),...
+      % Only client is GMMTracker
+      trkfile = Labeler.genTrkFileName(obj.defaultExportTrkRawname(),...
         obj.baseTrkFileMacros(),movfile);
     end
     
-    function rawname = defaultTrkRawname(obj)
-      prjname = obj.projname;
-      if isempty(prjname)
-        basename = Labeler.DEFAULT_TRKFILE_NOPROJ;
+    function rawname = defaultExportTrkRawname(obj,varargin)
+      % Default raw/base trkfilename for export (WITH macros, NO extension).
+      
+      labels = myparse(varargin,...
+        'labels',false... % true for eg manual labels (as opposed to automated tracking)
+        );
+      
+      if ~isempty(obj.projectfile)
+        basename = '$movfile_$projfile';
+      elseif ~isempty(obj.projname)
+        basename = '$movfile_$projname';
       else
-        basename = Labeler.DEFAULT_TRKFILE;        
+        basename = '$movfile';
       end
+      
+      if labels
+        basename = [basename '_labels'];
+      end
+      
       rawname = fullfile('$movdir',basename);
     end
+    
+    function [tfok,rawtrkname] = getExportTrkRawnameUI(obj,varargin)
+      % Prompt the user to get a raw/base trkfilename.
+      %
+      % varargin: see defaultExportTrkRawname
+      % 
+      % tfok: user canceled or similar
+      % rawtrkname: use only if tfok==true
+      
+      rawtrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movdir, $movfile, $projdir, $projfile, $projname.',...
+        'Export Trk File',1,{obj.defaultExportTrkRawname(varargin{:})});
+      tfok = ~isempty(rawtrkname);
+      if tfok
+        rawtrkname = rawtrkname{1};
+      end
+    end
         
-    function [tfok,trkfiles] = getTrkFileNamesForExport(obj,movfiles,rawname)
+    function [tfok,trkfiles] = getTrkFileNamesForExportUI(obj,movfiles,rawname)
+      % Concretize a raw trkfilename, then check for conflicts etc.
+      
       sMacro = obj.baseTrkFileMacros();
       trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),...
         movfiles,'uni',0);
-      [tfok,trkfiles] = Labeler.checkTrkFileNamesExport(trkfiles);
+      [tfok,trkfiles] = Labeler.checkTrkFileNamesExportUI(trkfiles);
     end
     
-    function [tfok,trkfiles] = resolveTrkfilesVsRawname(obj,iMovs,...
-        trkfiles,rawname)
-      % Input arg helper -- use basename if trkfiles not supplied; check
-      % sizes. 
+    function [tfok,trkfiles] = resolveTrkfilesVsTrkRawname(obj,iMovs,...
+        trkfiles,rawname,defaultRawNameArgs)
+      % Ugly, input arg helper. Methods that export a trkfile must have
+      % either i) the trkfilenames directly supplied, ii) a raw/base 
+      % trkname supplied, or iii) nothing supplied.
       %
+      % If i), check the sizes.
+      % If ii), generate the trkfilenames from the rawname.
+      % If iii), first generate the rawname, then generate the
+      % trkfilenames.
+      %
+      % Cases ii) and iii), are also UI/prompt if there are
+      % existing/conflicting filenames already on disk.
+      %
+      % defaultRawNameArgs: cell of PVs to pass to defaultExportTrkRawname.
+      % 
       % tfok: scalar, if true then trkfiles is usable; if false then user
-      %   canceled
+      %   canceled or similar.
       % trkfiles: [iMovs] cellstr, trkfiles (full paths) to export to
       % 
       % This call can also throw.
@@ -3791,9 +3845,9 @@ classdef Labeler < handle
       movfiles = obj.(PROPS.MFAF)(iMovs,:);
       if isempty(trkfiles)
         if isempty(rawname)
-          rawname = obj.defaultTrkRawname;
+          rawname = obj.defaultExportTrkRawname(defaultRawNameArgs{:});
         end
-        [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,rawname);
+        [tfok,trkfiles] = obj.getTrkFileNamesForExportUI(movfiles,rawname);
         if ~tfok
           return;
         end
@@ -3880,7 +3934,8 @@ classdef Labeler < handle
         iMovs = 1:obj.nmoviesGTaware;
       end
       
-      [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovs,trkfiles,rawtrkname);
+      [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname(iMovs,trkfiles,...
+        rawtrkname,{'labels' true});
       if ~tfok
         return;
       end
@@ -3909,7 +3964,7 @@ classdef Labeler < handle
           fprintf('Saved trkfile: %s\n',trkfiles{i,iView});
         end
       end
-      msgbox(sprintf('Results for %d moviesets exported.',nMov),'Export complete.');
+      msgbox(sprintf('Results for %d moviesets exported.',nMov),'Export complete');
     end
     
     function labelImportTrkGeneric(obj,iMovSets,trkfiles,lposFld,...
@@ -5355,7 +5410,8 @@ classdef Labeler < handle
       tblMFT = mftset.getMFTable(obj);
       
       iMovsUn = unique(tblMFT.mov);      
-      [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovsUn,[],rawtrkname);
+      [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname(iMovsUn,[],...
+        rawtrkname,{});
       if ~tfok
         return;
       end
@@ -5406,7 +5462,8 @@ classdef Labeler < handle
         error('Labeler:track','No tracker set.');
       end 
       
-      [tfok,trkfiles] = obj.resolveTrkfilesVsRawname(iMovs,trkfiles,rawtrkname);
+      [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname(iMovs,trkfiles,...
+        rawtrkname,{});
       if ~tfok
         return;
       end
@@ -6723,8 +6780,8 @@ classdef Labeler < handle
       assert(~obj.gtIsGTMode);
       
       movfiles = obj.movieFilesAllFull(iMovs,1);
-      rawname = obj.defaultTrkRawname();
-      [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,rawname);
+      rawname = obj.defaultExportTrkRawname();
+      [tfok,trkfiles] = obj.getTrkFileNamesForExportUI(movfiles,rawname);
       if tfok
         nMov = numel(iMovs);
         assert(numel(trkfiles)==nMov);
