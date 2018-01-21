@@ -46,6 +46,8 @@ end
 function NavPrefs_OpeningFcn(hObject, eventdata, handles, varargin)
 % NavPrefs(lObj)
 
+hObject.Visible = 'off';
+
 lObj = varargin{1};
 handles.lObj = lObj;
 handles.etFrameSkip.String = num2str(lObj.movieFrameStepBig);
@@ -55,6 +57,10 @@ pum.String = arrayfun(@(x)x.prettyStr,shiftArrowModes,'uni',0);
 pum.Value = find(lObj.movieShiftArrowNavMode==shiftArrowModes);
 pum.UserData = shiftArrowModes;
 guidata(hObject, handles);
+
+centerOnParentFigure(hObject,lObj.gdata.figure);
+hObject.Visible = 'on';
+
 uiwait(handles.figure1);
 
 function varargout = NavPrefs_OutputFcn(hObject, eventdata, handles) 
