@@ -200,10 +200,6 @@ handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,.
   'Tag','menu_track_clear_tracking_results');  
 moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_export_base);
 
-handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...
-  'Label','Export current tracking results',...
-  'Tag','menu_track_export_base');  
-
 handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
   'Label','Store tracking replicates/iterations',...
   'Tag','menu_track_store_full_tracking');
@@ -1315,8 +1311,20 @@ mnu.Checked = onIff(tf);
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+
 handles = guidata(hObject);
 lObj = handles.labelerObj;
+
+if ~lObj.hasProject
+  set(hObject,'Value',0);  
+  return;
+end
+if ~lObj.hasMovie
+  set(hObject,'Value',0);  
+  msgbox('There is no movie open.');
+  return;
+end
+
 v = get(hObject,'Value');
 f = round(1 + v * (lObj.nframes - 1));
 
@@ -1346,7 +1354,12 @@ if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColo
 end
 
 function edit_frame_Callback(hObject,~,handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
+
 lObj = handles.labelerObj;
+
 f = str2double(get(hObject,'String'));
 if isnan(f)
   set(hObject,'String',num2str(lObj.currFrame));
@@ -1371,8 +1384,14 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
 end
 
 function pbTrain_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 handles.labelerObj.trackRetrain();
 function pbTrack_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 tm = getTrackMode(handles);
 wbObj = WaitBarWithCancel('Tracking');
 oc = onCleanup(@()delete(wbObj));
@@ -1383,9 +1402,15 @@ if wbObj.isCancel
 end
 
 function pbClear_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 handles.labelerObj.lblCore.clearLabels();
 
 function tbAccept_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 lc = handles.labelerObj.lblCore;
 switch lc.state
   case LabelState.ADJUST
@@ -1507,6 +1532,11 @@ end
 function sldZoom_Callback(hObject, eventdata, ~)
 % log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
 handles = guidata(hObject);
+
+if ~checkProjAndMovieExist(handles)
+  return;
+end
+
 lObj = handles.labelerObj;
 v = hObject.Value;
 userdata = hObject.UserData;
@@ -1532,6 +1562,7 @@ lObj.targetZoomRadiusDefault = diff(handles.axes_curr.XLim)/2;
 
 function pbRecallZoom_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
+lObj.videoCenterOnCurrTarget();
 lObj.videoZoom(lObj.targetZoomRadiusDefault);
 
 function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
@@ -1557,10 +1588,16 @@ else
 end
 
 function tbTLSelectMode_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 tl = handles.labelTLInfo;
 tl.selectOn = hObject.Value;
 
 function pbClearSelection_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 tl = handles.labelTLInfo;
 tl.selectClearSelection();
 
@@ -1704,17 +1741,9 @@ end
 iMov = lObj.currMovie;
 lObj.labels2ImportTrkPrompt(iMov);
 
-function [tfok,rawtrkname] = hlpRawtrkname(lObj)
-rawtrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movdir, $movfile, $projdir, $projfile, $projname.',...
-  'Export Trk File',1,{lObj.defaultTrkRawname()});
-tfok = ~isempty(rawtrkname);
-if tfok
-  rawtrkname = rawtrkname{1};
-end
-
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-[tfok,rawtrkname] = hlpRawtrkname(lObj);
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI('labels',true);
 if ~tfok
   return;
 end
@@ -2431,7 +2460,7 @@ guidata(handles.figure,handles);
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 tm = getTrackMode(handles);
-[tfok,rawtrkname] = hlpRawtrkname(lObj);
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 if ~tfok
   return;
 end
@@ -2443,7 +2472,7 @@ iMov = lObj.currMovie;
 if iMov==0
   error('LabelerGUI:noMov','No movie currently set.');
 end
-[tfok,rawtrkname] = hlpRawtrkname(lObj);
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 if ~tfok
   return;
 end
@@ -2457,7 +2486,7 @@ if nMov==0
   error('LabelerGUI:noMov','No movies in project.');
 end
 iMov=1:nMov;
-[tfok,rawtrkname] = hlpRawtrkname(lObj);
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 if ~tfok
   return;
 end
@@ -2590,6 +2619,25 @@ handles.isPlaying = false;
 guidata(hObject,handles);
 
 function pbPlaySeg_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 play(hObject,handles,'playsegment','videoPlaySegment');
+
 function pbPlay_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
 play(hObject,handles,'play','videoPlay');
+
+function tfok = checkProjAndMovieExist(handles)
+tfok = false;
+lObj = handles.labelerObj;
+if ~lObj.hasProject
+  return;
+end
+if ~lObj.hasMovie
+  msgbox('There is no movie open.');
+  return;
+end
+tfok = true;

@@ -428,6 +428,10 @@ classdef InfoTimeline < handle
   %% Private methods
   methods (Access=private) % callbacks
     function cbkBDF(obj,src,evt) %#ok<INUSL>
+      if ~(obj.lObj.hasProject && obj.lObj.hasMovie)
+        return;
+      end
+
       if evt.Button==1
         % Navigate to clicked frame
         
