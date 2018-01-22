@@ -30,7 +30,7 @@ t.Data = {
     20      false	20      20      20      1       'abc'	'abc'     'bananas'  'fork'
     1.5     true    1.5     1.5     1.5     1       ''      LongStr   'apples'   {'fork','knife','spatula'}
     22/7	false   10000   22/7	3.256	1       'defgh' LongStr   'oranges'  {}
-    true	true	1e9     0.525	1000.2	1       LongStr 'efghi'   'apples'   {'spoon'}
+    true	true	1e9     0.525	-1000.2	1       LongStr 'efghi'   'apples'   {'spoon'}
     'abc'   true	50      1e9     -3      1       'lmnp'  ''        'apples'   {'knife','spoon'}
     };
 

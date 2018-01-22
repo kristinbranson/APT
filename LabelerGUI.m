@@ -432,24 +432,8 @@ handles.propsNeedInit = {
 
 set(handles.output,'Toolbar','figure');
 
-colnames = handles.labelerObj.TBLTRX_STATIC_COLSTRX;
-set(handles.tblTrx,'ColumnName',colnames,'Data',cell(0,numel(colnames)));
-tblOrig = handles.tblFrames;
-colnames = handles.labelerObj.TBLFRAMES_COLS;  % AL: dumb b/c table update code uses hardcoded cols 
-jt = uiextras.jTable.Table(...
-  'parent',tblOrig.Parent,...
-  'Position',tblOrig.Position,...
-  'SelectionMode','single',...
-  'Editable','off',...
-  'ColumnPreferredWidth',[100 50],...
-  'ColumnName',colnames,...
-  'ColumnFormat',{'integer' 'integer' 'integer'},...
-  'ColumnEditable',[false false false],...
-  'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
-set(jt,'Data',cell(0,numel(colnames)));
-delete(tblOrig);
-handles.tblFrames = jt;
-%tblFrames_CellSelectionCallback(hObject, eventdata, handles)
+handles = initTblTrx(handles);
+handles = initTblFrames(handles);
 
 figSetPosAPTDefault(hObject);
 set(hObject,'Units','normalized');
@@ -472,6 +456,56 @@ guidata(hObject, handles);
 
 % UIWAIT makes LabelerGUI wait for user response (see UIRESUME)
 % uiwait(handles.figure);
+
+function handles = initTblTrx(handles)
+tbl0 = handles.tblTrx;
+COLNAMES = {'Index' 'Labeled'};
+jt = uiextras.jTable.Table(...
+  'parent',tbl0.Parent,...
+  'Position',tbl0.Position,...
+  'SelectionMode','discontiguous',...
+  'Editable','off',...
+  'ColumnPreferredWidth',[100 100],...
+  'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+  'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt));
+set(jt,'Data',cell(0,numel(COLNAMES)));
+cr = aptjava.StripedIntegerTableCellRenderer;
+crCB = aptjava.StripedCheckBoxTableCellRenderer;
+jt.JColumnModel.getColumn(0).setCellRenderer(cr);
+jt.JColumnModel.getColumn(1).setCellRenderer(crCB);
+jt.JTable.Foreground = java.awt.Color.WHITE;
+jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+h = jt.JTable.getTableHeader;
+h.setPreferredSize(java.awt.Dimension(225,22));
+jt.JTable.repaint;
+
+delete(tbl0);
+handles.tblTrx = jt;
+
+function handles = initTblFrames(handles)
+tbl0 = handles.tblFrames;
+COLNAMES = {'Frame' 'Tgts' 'Pts'};
+jt = uiextras.jTable.Table(...
+  'parent',tbl0.Parent,...
+  'Position',tbl0.Position,...
+  'SelectionMode','single',...
+  'Editable','off',...
+  'ColumnPreferredWidth',[100 50],...
+  'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
+  'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt));
+set(jt,'Data',cell(0,numel(COLNAMES)));
+cr = aptjava.StripedIntegerTableCellRenderer;
+for i=0:2
+  jt.JColumnModel.getColumn(i).setCellRenderer(cr);
+end
+jt.JTable.Foreground = java.awt.Color.WHITE;
+jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
+h = jt.JTable.getTableHeader;
+h.setPreferredSize(java.awt.Dimension(225,22));
+jt.JTable.repaint;
+
+delete(tbl0);
+handles.tblFrames = jt;
 
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
@@ -909,11 +943,10 @@ TRX_MENUS = {...
   'menu_view_trajectories_centervideoontarget'
   'menu_view_rotate_video_target_up'
   'menu_view_hide_trajectories'
-  'menu_view_plot_trajectories_current_target_only'
-  'tblTrx'};
+  'menu_view_plot_trajectories_current_target_only'};
 onOff = onIff(lObj.hasTrx);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
-
+set(handles.tblTrx,'Enabled',onOff);
 guidata(handles.figure,handles);
 
 setPUMTrackStrs(lObj);
@@ -1363,23 +1396,19 @@ switch lc.state
     assert(false);
 end
 
-function tblTrx_CellSelectionCallback(hObject, eventdata, handles) %#ok<*DEFNU>
-% hObject    handle to tblTrx (see GCBO)
-% eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
-%	Indices: row and column indices of the cell(s) currently selecteds
-% handles    structure with handles and user data (see GUIDATA)
-
+function cbkTblTrxCellSelection(src,evt) %#ok<*DEFNU>
 % Current/last row selection is maintained in hObject.UserData
 
+handles = guidata(src.Parent);
 lObj = handles.labelerObj;
 if ~lObj.hasTrx
   return;
 end
 
-rows = eventdata.Indices(:,1);
-rowsprev = hObject.UserData;
-hObject.UserData = rows;
-dat = hObject.Data;
+rows = evt.Indices;
+rowsprev = src.UserData;
+src.UserData = rows;
+dat = get(src,'Data');
 
 if isscalar(rows)
   idx = dat{rows(1),1};
@@ -1392,7 +1421,7 @@ else
   lObj.labelsOtherTargetShowIdxs(idxsnew);
 end
 
-hlpRemoveFocus(hObject,handles);
+hlpRemoveFocus(src,handles);
 
 function hlpRemoveFocus(h,handles)
 % Hack to manage focus. As usual the uitable is causing problems. The

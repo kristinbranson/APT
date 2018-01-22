@@ -36,10 +36,6 @@ classdef Labeler < handle
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};
     
-    TBLTRX_STATIC_COLSTRX = {'idx' 'labeled'};
-    
-    TBLFRAMES_COLS = {'frame' 'tgts' 'pts'};
-    
     NEIGHBORING_FRAME_MAXRADIUS = 10;
   end
   properties
@@ -6402,7 +6398,7 @@ classdef Labeler < handle
       
       tbl = obj.gdata.tblTrx;
       if ~obj.hasTrx || ~obj.hasMovie || obj.currMovie==0 % Can occur during movieSet(), when invariants momentarily broken
-        set(tbl,'Data',[]);
+        set(tbl,'Data',cell(0,2));
         return;
       end
       
