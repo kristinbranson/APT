@@ -620,9 +620,13 @@ classdef Labeler < handle
       [iMov,gt] = mIdx.get();
       PROPS = obj.gtGetSharedPropsStc(gt);
       tfaf = obj.(PROPS.TFAF){iMov,1};
-      nfrm = obj.(PROPS.MIA){iMov,1}.nframes;
-      trxI = obj.getTrx(tfaf,nfrm);
-      v = numel(trxI);
+      if isempty(tfaf)
+        v = 1;
+      else
+        nfrm = obj.(PROPS.MIA){iMov,1}.nframes;
+        trxI = obj.getTrx(tfaf,nfrm);
+        v = numel(trxI);
+      end
     end
     function v = get.nTargets(obj)
       if obj.hasTrx
@@ -3804,6 +3808,18 @@ classdef Labeler < handle
         rawtrkname = rawtrkname{1};
       end
     end
+    
+    function fname = getDefaultFilenameExportLabelTable(obj)
+      if ~isempty(obj.projectfile)
+        rawname = '$projdir/$projfile_labels.mat';
+      elseif ~isempty(obj.projname)
+        rawname = '$projdir/$projname_labels.mat';
+      else
+        rawname = '$projdir/labels.mat';
+      end
+      sMacro = obj.baseTrkFileMacros();
+      fname = FSPath.macroReplace(rawname,sMacro);
+    end
         
     function [tfok,trkfiles] = getTrkFileNamesForExportUI(obj,movfiles,rawname)
       % Concretize a raw trkfilename, then check for conflicts etc.
@@ -4444,7 +4460,7 @@ classdef Labeler < handle
       %   fields as in labelGetMFTableLabeledStc
       
       [trxFilesAllFull,trxCache] = myparse(varargin,...
-        'trxFilesAllFull',[],... % if supplied, tblMF will contain .pTrx field
+        'trxFilesAllFull',[],... % cellstr, indexed by tblMV.mov. if supplied, tblMF will contain .pTrx field
         'trxCache',[]); % must be supplied if trxFilesAllFull is supplied
       
       assert(istable(tblMF));
@@ -4458,6 +4474,12 @@ classdef Labeler < handle
       if tfTrx
         nView = size(trxFilesAllFull,2);
         szassert(trxFilesAllFull,[nMov nView]);
+        tfTfafEmpty = cellfun(@isempty,trxFilesAllFull);
+        % Currently, projects allowed to have some movs with trxfiles and
+        % some without.
+        assert(all( all(tfTfafEmpty,2) | all(~tfTfafEmpty,2) ),...
+          'Unexpected trxFilesAllFull specification.');
+        tfMovHasTrx = all(~tfTfafEmpty,2); % tfTfafMovEmpty(i) indicates whether movie i has trxfiles
       end
   
       % Maybe Optimize: group movies together
@@ -4484,7 +4506,7 @@ classdef Labeler < handle
           continue;
         end
         
-        if tfTrx
+        if tfTrx && tfMovHasTrx(iMov)
           [trxI,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
             trxCache,trxFilesAllFull(iMov,:),nfrms);          
           tgtLiveInFrm = frm2trxTotAnd(frm,iTgt);
@@ -4503,7 +4525,7 @@ classdef Labeler < handle
         s(end).pTS = lposTSIFrmTgt';
         s(end).tfocc = lpostagIFrmTgt';
 
-        if tfTrx
+        if tfTrx && tfMovHasTrx(iMov)
           xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
           ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
           s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
