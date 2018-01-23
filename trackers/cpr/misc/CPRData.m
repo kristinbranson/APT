@@ -320,12 +320,13 @@ classdef CPRData < handle
           );
       tfWB = ~isempty(wbObj);
       
+      N = height(tblMF);
+ 
       if tfWB
-        wbObj.startPeriod('Reading movie frames');
+        wbObj.startPeriod('Reading movie images','shownumden',true,'denominator',N);
         oc = onCleanup(@()wbObj.endPeriod);
       end
   
-      N = height(tblMF);
       nView = size(tblMF.mov,2);
       tfROI = tblfldscontains(tblMF,'roi');
       if tfROI
@@ -349,7 +350,7 @@ classdef CPRData < handle
       nmask = zeros(N,nView);
       for iTrl=1:N
         if tfWB
-          tfCancel = wbObj.updateFrac(iTrl/N);
+          tfCancel = wbObj.updateFracWithNumDen(iTrl);
           if tfCancel
             return;
           end

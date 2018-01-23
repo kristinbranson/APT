@@ -304,7 +304,7 @@ classdef CPRLabelTracker < LabelTracker
     
     %#%MTGT
     %#%MV
-    function tblP = getTblPLbled(obj)
+    function tblP = getTblPLbled(obj,varargin)
       % From .lObj, read tblP for all movies/labeledframes. Currently,
       % exclude partially-labeled frames.
       %
@@ -313,8 +313,20 @@ classdef CPRLabelTracker < LabelTracker
       %   * The absolute position for single-target trackers
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when lObj.hasTrx.
+
+      wbObj = myparse(varargin,...
+        'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
+                   ... % 1. obj const 
+                   ... % 2. tblP indeterminate
+        ); 
+      tfWB = ~isempty(wbObj);
       
-      tblP = obj.lObj.labelGetMFTableLabeled();
+      tblP = obj.lObj.labelGetMFTableLabeled('wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        % tblP indeterminate, return it anyway
+        return;
+      end
+      
       tblP = obj.hlpAddRoiIfNec(tblP);
       tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
@@ -1118,10 +1130,14 @@ classdef CPRLabelTracker < LabelTracker
       % 
       % Sets .trnRes*
       
-      [tblPTrn,updateTrnData] = myparse(varargin,...
+      [tblPTrn,updateTrnData,wbObj] = myparse(varargin,...
         'tblPTrn',[],... % optional MFTp table of training data. if supplied, set .trnData* state based on this table
-        'updateTrnData',true ... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
+        'updateTrnData',true,... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
+        'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
+                   ... % 1. .trnDataInit() and .trnResInit() are called
+                   ... % 2. .data may be updated but that should be OK
         );
+      tfWB = ~isempty(wbObj);
       
       prm = obj.sPrm;
       if isempty(prm)
@@ -1151,7 +1167,16 @@ classdef CPRLabelTracker < LabelTracker
       else % Either use supplied tblPTrn, or use all labeled data
         if isempty(tblPTrn)
           % use all labeled data
-          tblPTrn = obj.getTblPLbled();
+          tblPTrn = obj.getTblPLbled('wbObj',wbObj);
+          if tfWB && wbObj.isCancel
+            % Theoretically we are safe to return here as of 201801. We 
+            % have only called obj.asyncReset() so far. 
+            % However to be conservative/nonfragile/consistent let's reset 
+            % as in other cancel/early-exits
+            obj.trnDataInit();
+            obj.trnResInit();
+            return;
+          end
         end
         if obj.lObj.hasTrx
           tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
@@ -1199,8 +1224,13 @@ classdef CPRLabelTracker < LabelTracker
         assert(isempty(obj.trnResH0));
       end
       
-      obj.updateData(tblPTrn);
-      
+      obj.updateData(tblPTrn,'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        obj.trnDataInit();
+        obj.trnResInit();
+        return;
+      end
+        
       d = obj.data;
       [tf,locDataInTblP] = tblismember(d.MD,tblPTrn,MFTable.FLDSID);
       assert(nnz(tf)==height(tblPTrn));
@@ -1241,7 +1271,13 @@ classdef CPRLabelTracker < LabelTracker
           oThetas = [];
         end
         obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn,...
-          'orientationThetas',oThetas);
+          'orientationThetas',oThetas,'wbObj',wbObj);
+        if tfWB && wbObj.isCancel
+          % .trnResRC in indeterminate state
+          obj.trnDataInit();
+          obj.trnResInit();         
+          return;
+        end        
       else
         assert(~obj.lObj.hasTrx,'Currently unsupported for projects with trx.');
         assert(size(Is,2)==nView);
@@ -1259,7 +1295,13 @@ classdef CPRLabelTracker < LabelTracker
           
           % Future todo: orientationThetas
           % Should break internally if 'orientationThetas' is req'd
-          obj.trnResRC(iView).trainWithRandInit(IsVw,bbVw,pTrnVw);
+          obj.trnResRC(iView).trainWithRandInit(IsVw,bbVw,pTrnVw,'wbObj',wbObj);
+          if tfWB && wbObj.isCancel
+            % .trnResRC in indeterminate state
+            obj.trnDataInit();
+            obj.trnResInit();
+            return;
+          end
         end
       end
       obj.trnResIPt = iPt;

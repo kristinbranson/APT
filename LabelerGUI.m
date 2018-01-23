@@ -1397,13 +1397,22 @@ function pbTrain_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
-handles.labelerObj.trackRetrain();
+wbObj = WaitBarWithCancel('Training');
+oc = onCleanup(@()delete(wbObj));
+centerOnParentFigure(wbObj.hWB,handles.figure);
+handles.labelerObj.trackRetrain('wbObj',wbObj);
+if wbObj.isCancel
+  msg = wbObj.cancelMessage('Training canceled');
+  msgbox(msg,'Train');
+end
+  
 function pbTrack_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
 tm = getTrackMode(handles);
 wbObj = WaitBarWithCancel('Tracking');
+centerOnParentFigure(wbObj.hWB,handles.figure);
 oc = onCleanup(@()delete(wbObj));
 handles.labelerObj.track(tm,'wbObj',wbObj);
 if wbObj.isCancel

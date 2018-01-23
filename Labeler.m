@@ -4266,12 +4266,19 @@ classdef Labeler < handle
     end   
     
     %#%GTOK
-    function tblMF = labelGetMFTableLabeled(obj)
+    function tblMF = labelGetMFTableLabeled(obj,varargin)
       % Compile mov/frm/tgt MFTable; include all labeled frames/tgts. 
       %
       % Does not include GT frames.
       %
       % tblMF: See MFTable.FLDSFULLTRX.
+      
+      wbObj = myparse(varargin,...
+        'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
+                   ... % 1. obj logically const (eg except for obj.trxCache)
+                   ... % 2. tblMF (output) indeterminate
+        ); 
+      tfWB = ~isempty(wbObj);
 
       if obj.gtIsGTMode
         error('Labeler:gt','Not supported in GT mode.');
@@ -4285,7 +4292,11 @@ classdef Labeler < handle
         args = {};
       end
       tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,obj.labeledpos,...
-        obj.labeledpostag,obj.labeledposTS,args{:});
+        obj.labeledpostag,obj.labeledposTS,args{:},'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        % tblMF indeterminate
+        return;
+      end
       
       tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
     end
@@ -4459,9 +4470,12 @@ classdef Labeler < handle
       % tblMF (output): Same rows as tblMF, but with addnl label-related
       %   fields as in labelGetMFTableLabeledStc
       
-      [trxFilesAllFull,trxCache] = myparse(varargin,...
+      [trxFilesAllFull,trxCache,wbObj] = myparse(varargin,...
         'trxFilesAllFull',[],... % cellstr, indexed by tblMV.mov. if supplied, tblMF will contain .pTrx field
-        'trxCache',[]); % must be supplied if trxFilesAllFull is supplied
+        'trxCache',[],... % must be supplied if trxFilesAllFull is supplied
+        'wbObj',[]... % optional WaitBarWithCancel. If cancel, tblMF (output) indeterminate
+        );      
+      tfWB = ~isempty(wbObj);
       
       assert(istable(tblMF));
       tblfldscontainsassert(tblMF,MFTable.FLDSID);
@@ -4482,12 +4496,26 @@ classdef Labeler < handle
         tfMovHasTrx = all(~tfTfafEmpty,2); % tfTfafMovEmpty(i) indicates whether movie i has trxfiles
       end
   
+      nrow = height(tblMF);
+      
+      if tfWB
+        wbObj.startPeriod('Compiling labels','shownumden',true,...
+          'denominator',nrow);
+        oc = onCleanup(@()wbObj.endPeriod);
+      end
+      
       % Maybe Optimize: group movies together
 
-      nrow = height(tblMF);
       s = struct('p',cell(0,1),'pTS',[],'tfocc',[],'pTrx',[],'thetaTrx',[]);
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
       for irow=1:nrow
+        if tfWB
+          tfCancel = wbObj.updateFracWithNumDen(irow);
+          if tfCancel
+            return;
+          end
+        end
+        
         tblrow = tblMF(irow,:);
         iMov = tblrow.mov.get;
         frm = tblrow.frm;
@@ -5373,7 +5401,7 @@ classdef Labeler < handle
       tObj.train();
     end
     
-    function trackRetrain(obj)
+    function trackRetrain(obj,varargin)
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
@@ -5381,7 +5409,7 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
-      tObj.retrain();
+      tObj.retrain(varargin{:});
     end
     
     function track(obj,mftset,varargin)
