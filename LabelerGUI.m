@@ -71,6 +71,15 @@ handles.output = hObject;
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
 
+handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_importexport,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_labels_table_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Export Labels as Single Table',...
+  'Tag','menu_file_export_labels_table',...
+  'Checked','off',...
+  'Visible','on');
+moveMenuItemAfter(handles.menu_file_export_labels_table,...
+  handles.menu_file_export_labels_trks);
+
 handles.menu_setup_set_nframe_skip = uimenu('Parent',handles.menu_labeling_setup,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_set_nframe_skip_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set Frame Increment',...
@@ -1748,6 +1757,20 @@ if ~tfok
   return;
 end
 lObj.labelExportTrk(1:lObj.nmoviesGTaware,'rawtrkname',rawtrkname);
+
+function menu_file_export_labels_table_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+fname = lObj.getDefaultFilenameExportLabelTable();
+[f,p] = uiputfile(fname,'Export File');
+if isequal(f,0)
+  return;
+end
+fname = fullfile(p,f);  
+VARNAME = 'tblLbls';
+s = struct();
+s.(VARNAME) = lObj.labelGetMFTableLabeled(); %#ok<STRNU>
+save(fname,'-mat','-struct','s');
+fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
 
 function menu_help_Callback(hObject, eventdata, handles)
 
