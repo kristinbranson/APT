@@ -466,6 +466,7 @@ jt = uiextras.jTable.Table(...
   'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt));
 set(jt,'Data',cell(0,numel(COLNAMES)));
 cr = aptjava.StripedIntegerTableCellRenderer;
+cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
 crCB = aptjava.StripedCheckBoxTableCellRenderer;
 jt.JColumnModel.getColumn(0).setCellRenderer(cr);
 jt.JColumnModel.getColumn(1).setCellRenderer(crCB);
