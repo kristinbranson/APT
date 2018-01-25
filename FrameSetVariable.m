@@ -73,7 +73,8 @@ classdef FrameSetVariable < FrameSet
     AllFrm = FrameSetVariable(@(lo)'All frames',@lclAllFrmGetFrms);
     SelFrm = FrameSetVariable(@(lo)'Selected frames',@lclSelFrmGetFrms);
     WithinCurrFrm = FrameSetVariable(@lclWithinCurrFrmPrettyStr,@lclWithinCurrFrmGetFrms);
-    LabeledFrm = FrameSetVariable(@(lo)'Labeled frames',@lclLabeledFrmGetFrms);
+    LabeledFrm = FrameSetVariable(@(lo)'Labeled frames',@lclLabeledFrmGetFrms); % AL 20180125: using parameterized anon fcnhandle that directly calls lclLabeledFrmGetFrmsCore fails in 17a, suspect class init issue
+    Labeled2Frm = FrameSetVariable(@(lo)'Labeled frames',@lclLabeledFrmGetFrms2);
   end  
 end
 
@@ -101,8 +102,22 @@ frm1 = min(currFrm+df,nfrm);
 frms = frm0:frm1;
 end
 function frms = lclLabeledFrmGetFrms(lObj,mIdx,nfrm,iTgt)
+frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,false);
+end
+function frms = lclLabeledFrmGetFrms2(lObj,mIdx,nfrm,iTgt)
+frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,true);
+end
+function frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,tfLbls2)
 npts = lObj.nLabelPoints;
-lpos = lObj.getLabeledPosMovIdx(mIdx); % [nptsx2xnfrmxntgt]
+if tfLbls2
+  [iMov,gt] = mIdx.get();
+  if gt
+    error('Invalid MovieIndex for labels2 specification.');
+  end
+  lpos = lObj.labeledpos2{iMov};
+else
+  lpos = lObj.getLabeledPosMovIdx(mIdx); % [nptsx2xnfrmxntgt]
+end
 lposTgt = reshape(lpos(:,:,:,iTgt),[2*npts nfrm]);
 tfLbledFrm = any(~isnan(lposTgt),1); % considered labeled if any x- or y-coord is non-nan
 frms = find(tfLbledFrm);

@@ -1111,6 +1111,7 @@ classdef Labeler < handle
       obj.viewCalProjWide = [];
       obj.viewCalibrationData = [];
       obj.viewCalibrationDataGT = [];
+      obj.labelTemplate = []; % order important here
       obj.movieSetNoMovie(); % order important here
       obj.labeledpos = cell(0,1);
       obj.labeledposGT = cell(0,1);
@@ -1120,7 +1121,6 @@ classdef Labeler < handle
       obj.labeledpostag = cell(0,1);
       obj.labeledpostagGT = cell(0,1);
       obj.labeledpos2 = cell(0,1);
-      obj.labelTemplate = [];
       obj.gtIsGTMode = false;
       obj.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
       obj.gtSuggMFTableLbled = false(0,1);
@@ -2944,7 +2944,7 @@ classdef Labeler < handle
       tblSumm = obj.trackGetSummaryTable(tblBig);
       hF = figure('Name','Target Summary (click row to navigate)',...
         'MenuBar','none','Visible','off');
-      hF.Position(3:4) = [1000 500];
+      hF.Position(3:4) = [1280 500];
       centerfig(hF,obj.hFig);
       hPnl = uipanel('Parent',hF,'Position',[0 .08 1 .92]);
       BTNWIDTH = 100;
@@ -2954,17 +2954,37 @@ classdef Labeler < handle
       hBtn = uicontrol('Style','pushbutton','Parent',hF,...
         'Position',btnPos,'String','Update',...
         'fontsize',12);
-      FLDS = {'mov' 'iTgt' 'trajlen' 'frm1' 'nFrmLbl' 'nFrmTrk' 'nFrmLblTrk' 'lblTrkMeanErr' 'nFrmXV' 'xvMeanErr'};
-      FLDSNICE = {'Movie' 'Target' 'Traj. Length' 'Start Frame' '# Frames Labeled' '# Frames Tracked' '# Frames Lbled&Trked' 'Track Err' '# Frames XV' 'XV Err'};
-      tblfldsassert(tblSumm,FLDS);
+      FLDINFO = {
+        'mov' 'Movie' 'integer' 30
+        'iTgt' 'Target' 'integer' 30
+        'trajlen' 'Traj. Length' 'integer' 45
+        'frm1' 'Start Frm' 'integer' 30
+        'nFrmLbl' '# Frms Lbled' 'integer' 60
+        'nFrmTrk' '# Frms Trked' 'integer' 60
+        'nFrmImported' '# Frms Imported' 'integer' 90
+        'nFrmLblTrk' '# Frms Lbled&Trked' 'integer' 120
+        'lblTrkMeanErr' 'Track Err' 'float' 60
+        'nFrmLblImported' '# Frms Lbled&Imported' 'integer'  120
+        'lblImportedMeanErr' 'Imported Err' 'float' 60
+        'nFrmXV' '# Frms XV' 'integer' 40
+        'xvMeanErr' 'XV Err' 'float' 40};
+      tblfldsassert(tblSumm,FLDINFO(:,1));
       nt = NavigationTable(hPnl,[0 0 1 1],...
         @(row,rowdata)obj.setMFT(rowdata.mov,rowdata.frm1,rowdata.iTgt),...
-        'ColumnName',FLDSNICE,...
-        'ColumnFormat',{'integer' 'integer' 'integer' 'integer' 'integer' 'integer' 'integer' '' 'integer' 'float'},...
-        'ColumnPreferredWidth',[30 30 45 30 60 60 90 40 40 40]);
+        'ColumnName',FLDINFO(:,2)',...
+        'ColumnFormat',FLDINFO(:,3)',...
+        'ColumnPreferredWidth',cell2mat(FLDINFO(:,4)'));
+%      jt = nt.jtable;
       nt.setData(tblSumm);
+%      cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
+%      h = jt.JTable.getTableHeader;
+%      h.setPreferredSize(java.awt.Dimension(225,22));
+%      jt.JTable.repaint;
+      
       hF.UserData = nt;
       hBtn.Callback = @(s,e)nt.setData(obj.trackGetSummaryTable(obj.trackGetBigLabeledTrackedTable()));
+      hF.Units = 'normalized';
+      hBtn.Units = 'normalized';
       hF.Visible = 'on';
 
       % See LabelerGUI/addDepHandle
@@ -3662,6 +3682,7 @@ classdef Labeler < handle
       nPts = zeros(nf,1);
       if tfWaitBar
         hWB = waitbar(0,'Updating frame table');
+        centerOnParentFigure(hWB,obj.gdata.figure);
         ocp = onCleanup(@()delete(hWB));
       end
       for i = 1:nf
@@ -4273,10 +4294,11 @@ classdef Labeler < handle
       %
       % tblMF: See MFTable.FLDSFULLTRX.
       
-      wbObj = myparse(varargin,...
-        'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
+      [wbObj,useLabels2] = myparse(varargin,...
+        'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                    ... % 1. obj logically const (eg except for obj.trxCache)
                    ... % 2. tblMF (output) indeterminate
+        'useLabels2',false... % if true, use labels2 instead of labels
         ); 
       tfWB = ~isempty(wbObj);
 
@@ -4284,17 +4306,31 @@ classdef Labeler < handle
         error('Labeler:gt','Not supported in GT mode.');
       end
       
-      mfts = MFTSetEnum.AllMovAllLabeled;
+      if useLabels2
+        mfts = MFTSetEnum.AllMovAllLabeled2;
+      else
+        mfts = MFTSetEnum.AllMovAllLabeled;
+      end
       tblMF = mfts.getMFTable(obj);
       if obj.hasTrx
-        args = {'trxFilesAllFull',obj.trxFilesAllFull,'trxCache',obj.trxCache};
+        argsTrx = {'trxFilesAllFull',obj.trxFilesAllFull,'trxCache',obj.trxCache};
       else
-        args = {};
+        argsTrx = {};
       end
-      tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,obj.labeledpos,...
-        obj.labeledpostag,obj.labeledposTS,args{:},'wbObj',wbObj);
+      if useLabels2
+        lpos = obj.labeledpos2;
+        lpostag = cellfun(@(x)false(size(x)),obj.labeledpostag,'uni',0);
+        lposTS = cellfun(@(x)-inf(size(x)),obj.labeledposTS,'uni',0);
+      else
+        lpos = obj.labeledpos;
+        lpostag = obj.labeledpostag;
+        lposTS = obj.labeledposTS;
+      end
+      
+      tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,lpos,lpostag,lposTS,...
+          argsTrx{:},'wbObj',wbObj);
       if tfWB && wbObj.isCancel
-        % tblMF indeterminate
+        % tblMF (return) indeterminate
         return;
       end
       
@@ -4494,6 +4530,8 @@ classdef Labeler < handle
         assert(all( all(tfTfafEmpty,2) | all(~tfTfafEmpty,2) ),...
           'Unexpected trxFilesAllFull specification.');
         tfMovHasTrx = all(~tfTfafEmpty,2); % tfTfafMovEmpty(i) indicates whether movie i has trxfiles
+      else
+        nView = 1;
       end
   
       nrow = height(tblMF);
@@ -4506,7 +4544,13 @@ classdef Labeler < handle
       
       % Maybe Optimize: group movies together
 
-      s = struct('p',cell(0,1),'pTS',[],'tfocc',[],'pTrx',[],'thetaTrx',[]);
+      npts = size(lpos{1},1);
+      
+      pAcc = nan(0,npts*2);
+      pTSAcc = -inf(0,npts);
+      tfoccAcc = false(0,npts);
+      pTrxAcc = nan(0,nView*2); % xv1 xv2 ... xvk yv1 yv2 ... yvk
+      thetaTrxAcc = nan(0,nView);
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
       for irow=1:nrow
         if tfWB
@@ -4549,19 +4593,19 @@ classdef Labeler < handle
         lposIFrmTgt = lposI(:,:,frm,iTgt);
         lpostagIFrmTgt = lpostagI(:,frm,iTgt);
         lposTSIFrmTgt = lposTSI(:,frm,iTgt);
-        s(end+1,1).p = Shape.xy2vec(lposIFrmTgt); %#ok<AGROW>
-        s(end).pTS = lposTSIFrmTgt';
-        s(end).tfocc = lpostagIFrmTgt';
+        pAcc(end+1,:) = Shape.xy2vec(lposIFrmTgt); %#ok<AGROW>
+        pTSAcc(end+1,:) = lposTSIFrmTgt'; %#ok<AGROW>
+        tfoccAcc(end+1,:) = lpostagIFrmTgt'; %#ok<AGROW>
 
         if tfTrx && tfMovHasTrx(iMov)
           xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
           ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
-          s(end).pTrx = [xtrxs(:)' ytrxs(:)'];
+          pTrxAcc(end+1,:) = [xtrxs(:)' ytrxs(:)']; %#ok<AGROW>
           thetas = cellfun(@(xx)xx(iTgt).theta(frm+xx(iTgt).off),trxI);
-          s(end).thetaTrx = thetas(:)';
+          thetaTrxAcc(end+1,:) = thetas(:)'; %#ok<AGROW>
         else
-          s(end).pTrx = [nan nan]; % Wrong when nview>1, but this is currently undesigned/unsupported
-          s(end).thetaTrx = nan; % Wrong when nview>1 etc
+          pTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
+          thetaTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
         end
       end
       
@@ -4569,7 +4613,8 @@ classdef Labeler < handle
         warningNoTrace('Removed %d invalid rows of MFTable.',nnz(tfInvalid));
       end
       tblMF = tblMF(~tfInvalid,:);
-      tLbl = struct2table(s);
+      tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,...
+        'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx'});
       tblMF = [tblMF tLbl];
     end
     
@@ -5784,15 +5829,38 @@ classdef Labeler < handle
         end
       end
     end
-    
-    function tblBig = trackGetBigLabeledTrackedTable(obj)
-      % tbl: 
-      
-      tblLbled = obj.labelGetMFTableLabeled();
+  end
+  methods (Static)
+    function tblLbled = hlpTblLbled(tblLbled)
       tblLbled.mov = int32(tblLbled.mov);
       tblLbled = tblLbled(:,[MFTable.FLDSID {'p'}]);
       isLbled = true(height(tblLbled),1);
       tblLbled = [tblLbled table(isLbled)];
+    end
+    function trkErr = hlpTblErr(tblBig,fldLbled,fldTrked,fldpLbl,fldpTrk,npts)
+      tf = tblBig.(fldLbled) & tblBig.(fldTrked);
+      pLbl = tblBig.(fldpLbl)(tf,:);
+      pTrk = tblBig.(fldpTrk)(tf,:);
+      szassert(pLbl,size(pTrk));
+      nTrkLbl = size(pLbl,1);
+      dErr = pLbl-pTrk;
+      dErr = reshape(dErr,nTrkLbl,npts,2);
+      dErr = sqrt(sum(dErr.^2,3)); % [nTrkLbl x npts] L2 err
+      dErr = mean(dErr,2); % [nTrkLblx1] L2 err, mean across pts      
+      trkErr = nan(height(tblBig),1);
+      trkErr(tf) = dErr;
+    end
+  end
+  methods    
+    function tblBig = trackGetBigLabeledTrackedTable(obj)
+      % tbl: MFT table indcating isLbled, isTrked, trkErr, etc.
+      
+      tblLbled = obj.labelGetMFTableLabeled();
+      tblLbled = Labeler.hlpTblLbled(tblLbled);
+      tblLbled2 = obj.labelGetMFTableLabeled('useLabels2',true);
+      tblLbled2 = Labeler.hlpTblLbled(tblLbled2);
+      tblfldsassert(tblLbled2,[MFTable.FLDSID {'p' 'isLbled'}]);
+      tblLbled2.Properties.VariableNames(end-1:end) = {'pImport' 'isImported'};
       
       npts = obj.nLabelPoints;
       
@@ -5822,22 +5890,13 @@ classdef Labeler < handle
         tblBig = outerjoin(tblLbled,tblTrked,'Keys',MFTable.FLDSID,...
           'MergeKeys',true);
       end
+      tblBig = outerjoin(tblBig,tblLbled2,'Keys',MFTable.FLDSID,'MergeKeys',true);
         
       % Compute tracking err (for rows both labeled and tracked)
-      tf = tblBig.isLbled & tblBig.isTrked;
-      pLbl = tblBig.p(tf,:);
-      pTrk = tblBig.pTrk(tf,:);
-      szassert(pLbl,size(pTrk));
-      nTrkLbl = size(pLbl,1);
-      dErr = pLbl-pTrk;
       npts = obj.nLabelPoints;
-      dErr = reshape(dErr,nTrkLbl,npts,2);
-      dErr = sqrt(sum(dErr.^2,3)); % [nTrkLbl x npts] L2 err
-      dErr = mean(dErr,2); % [nTrkLblx1] L2 err, mean across pts
-      
-      trkErr = nan(height(tblBig),1);
-      trkErr(tf) = dErr;
-      tblBig = [tblBig table(trkErr)];
+      trkErr = Labeler.hlpTblErr(tblBig,'isLbled','isTrked','p','pTrk',npts);
+      importedErr = Labeler.hlpTblErr(tblBig,'isLbled','isImported','p','pImport',npts); % treating as imported tracking
+      tblBig = [tblBig table(trkErr) table(importedErr)];
       
       xvres = obj.xvResults;
       tfhasXV = ~isempty(xvres);
@@ -5853,7 +5912,7 @@ classdef Labeler < handle
       
       % 20171106 ML bug 2015b outerjoin empty input table
       tblBig = outerjoin(tblBig,tblXV,'Keys',MFTable.FLDSID,'MergeKeys',true);
-      tblBig = tblBig(:,[MFTable.FLDSID {'trkErr' 'xvErr' 'isLbled' 'isTrked' 'hasXV'}]);
+      tblBig = tblBig(:,[MFTable.FLDSID {'trkErr' 'importedErr' 'xvErr' 'isLbled' 'isTrked' 'isImported' 'hasXV'}]);
       if tfhasXV && ~isequal(tblBig.isLbled,tblXV.hasXV)
         warningNoTrace('Cross-validation results appear out-of-date with respect to current set of labeled frames.');
       end
@@ -5906,27 +5965,36 @@ classdef Labeler < handle
       end
       
       tblStats = rowfun(@Labeler.hlpTrackTgtStats,tblBig,...
-        'InputVariables',{'isLbled' 'isTrked' 'hasXV' 'trkErr' 'xvErr'},...
+        'InputVariables',{'isLbled' 'isTrked' 'isImported' 'hasXV' 'trkErr' 'importedErr' 'xvErr'},...
         'GroupingVariables',{'mov' 'iTgt'},...
-        'OutputVariableNames',{'nFrmLbl' 'nFrmTrk' 'nFrmLblTrk' 'lblTrkMeanErr' 'nFrmXV' 'xvMeanErr'},...
-        'NumOutputs',6);
+        'OutputVariableNames',{'nFrmLbl' 'nFrmTrk' 'nFrmImported' ...
+          'nFrmLblTrk' 'lblTrkMeanErr' ...
+          'nFrmLblImported' 'lblImportedMeanErr' ...
+          'nFrmXV' 'xvMeanErr'},...
+        'NumOutputs',9);
 
-      [tblSumm,iTblSumm,iTblStats] = outerjoin(tblSummBase,tblStats,...
+      [tblSumm,iTblSummB,iTblStats] = outerjoin(tblSummBase,tblStats,...
         'Keys',{'mov' 'iTgt'},'MergeKeys',true);
-      assert(~any(iTblSumm==0)); % tblSumm should contain every (mov,tgt)
+      assert(~any(iTblSummB==0)); % tblSummBase should contain every (mov,tgt)
       tblSumm(:,{'GroupCount'}) = [];
       tfNoStats = iTblStats==0;
       % These next 4 sets replace NaNs from the join (due to "no
       % corresponding row in tblStats") with zeros
       tblSumm.nFrmLbl(tfNoStats) = 0;
       tblSumm.nFrmTrk(tfNoStats) = 0;
+      tblSumm.nFrmImported(tfNoStats) = 0;
       tblSumm.nFrmLblTrk(tfNoStats) = 0;
+      tblSumm.nFrmLblImported(tfNoStats) = 0;
       tblSumm.nFrmXV(tfNoStats) = 0;
     end    
   end
   methods (Static)
-      function [nFrmLbl,nFrmTrk,nFrmLblTrk,lblTrkMeanErr,nFrmXV,xvMeanErr] = ...
-          hlpTrackTgtStats(isLbled,isTrked,hasXV,trkErr,xvErr)
+      function [nFrmLbl,nFrmTrk,nFrmImported,...
+          nFrmLblTrk,lblTrkMeanErr,...
+          nFrmLblImported,lblImportedMeanErr,...
+          nFrmXV,xvMeanErr] = ...
+          hlpTrackTgtStats(isLbled,isTrked,isImported,hasXV,...
+          trkErr,importedErr,xvErr)
         % nFrmLbl: number of labeled frames
         % nFrmTrk: number of tracked frames
         % nFrmLblTrk: " labeled&tracked frames
@@ -5937,9 +6005,16 @@ classdef Labeler < handle
         
         nFrmLbl = nnz(isLbled);
         nFrmTrk = nnz(isTrked);
+        nFrmImported = nnz(isImported);
+        
         tfLbledTrked = isLbled & isTrked;
         nFrmLblTrk = nnz(tfLbledTrked);
         lblTrkMeanErr = nanmean(trkErr(tfLbledTrked));
+        
+        tfLbledImported = isLbled & isImported;
+        nFrmLblImported = nnz(tfLbledImported);
+        lblImportedMeanErr = nanmean(importedErr(tfLbledImported));        
+        
         nFrmXV = nnz(hasXV);
         xvMeanErr = mean(xvErr(hasXV));
       end

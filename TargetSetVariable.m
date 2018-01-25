@@ -34,25 +34,17 @@ function iTgts = lclAllTargetsFcn(lObj,mIdx)
 % are supposed to match across views
 
 assert(isscalar(mIdx));
-if lObj.hasTrx
-  nTrx = lObj.getnTrxMovIdx(mIdx);
-  iTgts = 1:nTrx;
-  % iTgts represents all targest present in mIdx, without regard to frame. 
-  % Not all targets are necessarily live for all frames.
-else
-  iTgts = 1;
-end
+nTrx = lObj.getnTrxMovIdx(mIdx);
+iTgts = 1:nTrx;
+% iTgts represents all targest present for mIdx, without regard to frame. 
+% Not all targets are necessarily live for all frames.
 end
 
 function iTgts = lclCurrTargetFcn(lObj,mIdx)
 assert(isscalar(mIdx));
-if lObj.hasTrx
-  ntrx = lObj.getnTrxMovIdx(mIdx);
-  iTgts = lObj.currTarget;
-  if iTgts>ntrx || iTgts==0
-    iTgts = zeros(1,0);
-  end
-else
-  iTgts = 1;
+ntrx = lObj.getnTrxMovIdx(mIdx);
+iTgts = lObj.currTarget;
+if iTgts>ntrx || iTgts==0
+  iTgts = zeros(1,0);
 end
 end
