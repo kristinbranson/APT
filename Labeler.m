@@ -2939,8 +2939,26 @@ classdef Labeler < handle
       obj.trxFilesAllGT = obj.trxFilesAllGTFull;
     end
     
-    function targetsTableUI(obj)      
-      tblBig = obj.trackGetBigLabeledTrackedTable();
+    function [tfok,tblBig] = hlpTargetsTableUIgetBigTable(obj)
+      wbObj = WaitBarWithCancel('Target Summary Table');
+      centerOnParentFigure(wbObj.hWB,obj.hFig);
+      oc = onCleanup(@()delete(wbObj));      
+      tblBig = obj.trackGetBigLabeledTrackedTable('wbObj',wbObj);
+      tfok = ~wbObj.isCancel;
+      % if ~tfok, tblBig indeterminate
+    end
+    function hlpTargetsTableUIupdate(obj,navTbl)
+      [tfok,tblBig] = obj.hlpTargetsTableUIgetBigTable();
+      if tfok
+        navTbl.setData(obj.trackGetSummaryTable(tblBig));
+      end
+    end
+    function targetsTableUI(obj)
+      [tfok,tblBig] = obj.hlpTargetsTableUIgetBigTable();
+      if ~tfok
+        return;
+      end
+      
       tblSumm = obj.trackGetSummaryTable(tblBig);
       hF = figure('Name','Target Summary (click row to navigate)',...
         'MenuBar','none','Visible','off');
@@ -2982,7 +3000,7 @@ classdef Labeler < handle
 %      jt.JTable.repaint;
       
       hF.UserData = nt;
-      hBtn.Callback = @(s,e)nt.setData(obj.trackGetSummaryTable(obj.trackGetBigLabeledTrackedTable()));
+      hBtn.Callback = @(s,e)obj.hlpTargetsTableUIupdate(nt);
       hF.Units = 'normalized';
       hBtn.Units = 'normalized';
       hF.Visible = 'on';
@@ -5852,12 +5870,28 @@ classdef Labeler < handle
     end
   end
   methods    
-    function tblBig = trackGetBigLabeledTrackedTable(obj)
+    function tblBig = trackGetBigLabeledTrackedTable(obj,varargin)
       % tbl: MFT table indcating isLbled, isTrked, trkErr, etc.
       
-      tblLbled = obj.labelGetMFTableLabeled();
+      wbObj = myparse(varargin,...
+        'wbObj',[]); % optional WaitBarWithContext. If .isCancel:
+                     % 1. tblBig is indeterminate
+                     % 2. obj should be logically const
+      tfWB = ~isempty(wbObj);
+      
+      tblLbled = obj.labelGetMFTableLabeled('wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        tblBig = [];
+        return;
+      end      
       tblLbled = Labeler.hlpTblLbled(tblLbled);
-      tblLbled2 = obj.labelGetMFTableLabeled('useLabels2',true);
+      
+      tblLbled2 = obj.labelGetMFTableLabeled('wbObj',wbObj,'useLabels2',true);
+      if tfWB && wbObj.isCancel
+        tblBig = [];
+        return;
+      end
+
       tblLbled2 = Labeler.hlpTblLbled(tblLbled2);
       tblfldsassert(tblLbled2,[MFTable.FLDSID {'p' 'isLbled'}]);
       tblLbled2.Properties.VariableNames(end-1:end) = {'pImport' 'isImported'};

@@ -13,7 +13,7 @@ public class StripedIntegerTableCellRenderer extends DefaultTableCellRenderer {
   private static final java.awt.Color LITESTRIPE = new java.awt.Color(0.502f,0.502f,0.502f);
   private static final java.awt.Color SELECTED = new java.awt.Color(0.0f,0.482f,0.655f);
   
-  public void StripedRowTableCellRenderer() {
+  public StripedIntegerTableCellRenderer() {
     setOpaque(true);
   }
   
