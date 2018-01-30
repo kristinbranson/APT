@@ -1500,6 +1500,13 @@ classdef Labeler < handle
       end
     end
     
+    function projAssignProjNameFromProjFileIfAppropriate(obj)
+      if isempty(obj.projname) && ~isempty(obj.projectfile)
+        [~,fnameS] = fileparts(obj.projectfile);
+        obj.projname = fnameS;
+      end
+    end
+    
   end
   
   methods % projMacros

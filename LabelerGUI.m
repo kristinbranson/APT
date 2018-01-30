@@ -1682,8 +1682,10 @@ if hlpSave(lObj)
 end
 function menu_file_save_Callback(hObject, eventdata, handles)
 handles.labelerObj.projSaveSmart();
+handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
 function menu_file_saveas_Callback(hObject, eventdata, handles)
 handles.labelerObj.projSaveAs();
+handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
 function menu_file_load_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 if hlpSave(lObj)
@@ -1708,6 +1710,7 @@ if labelerObj.labeledposNeedsSave
   switch res
     case OPTION_SAVE
       labelerObj.projSaveSmart();
+      labelerObj.projAssignProjNameFromProjFileIfAppropriate();
     case OPTION_CANC
       tfcontinue = false;
     case OPTION_PROC
