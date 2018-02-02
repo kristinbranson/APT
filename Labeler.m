@@ -5740,7 +5740,8 @@ classdef Labeler < handle
       npts = obj.nLabelPoints;
       assert(size(err,2)==npts);
       nptiles = numel(ptiles);
-      ptl = prctile(err,ptiles)'; % [nLabelPoints x nptiles]
+      ptl = prctile(err,ptiles,1)';
+      szassert(ptl,[npts nptiles]);
       
       % for now always viz with first row
       iVizRow = 1;
