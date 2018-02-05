@@ -360,7 +360,12 @@ end
 if ishghandle(InputFig)
   % Go into uiwait if the figure handle is still valid.
   % This is mostly the case during regular use.
-  c = matlab.ui.internal.dialog.DialogUtils.disableAllWindowsSafely();
+  try
+    c = matlab.ui.internal.dialog.DialogUtils.disableAllWindowsSafely();
+  catch ME
+    % AL20180205 errs in R2015b
+    c = [];
+  end
   uiwait(InputFig);
   delete(c);
 end

@@ -156,12 +156,12 @@ handles.menu_view_show_grid = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_show_grid',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_grid,handles.menu_view_show_tick_labels);
-handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_3D_axes_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Show/Refresh 3D world axes',...
-  'Tag','menu_view_show_3D_axes',...
-  'Checked','off');
-moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
+% handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
+%   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_3D_axes_Callback',hObject,eventdata,guidata(hObject)),...
+%   'Label','Show/Refresh 3D world axes',...
+%   'Tag','menu_view_show_3D_axes',...
+%   'Checked','off');
+% moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
 
 handles.menu_track_setparametersfile.Label = 'Configure tracking parameters';
 handles.menu_track_setparametersfile.Callback = @(hObject,eventdata)LabelerGUI('menu_track_setparametersfile_Callback',hObject,eventdata,guidata(hObject));
@@ -1103,7 +1103,7 @@ end
 
 lc = lObj.lblCore;
 tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
-handles.menu_view_show_3D_axes.Enable = onIff(tfShow3DAxes);
+% handles.menu_view_show_3D_axes.Enable = onIff(tfShow3DAxes);
 
 function hlpUpdateTxProjectName(lObj)
 projname = lObj.projname;
@@ -2138,90 +2138,93 @@ else
   arrayfun(@(x)grid(x,'off'),handles.axes_all);
 end
 
-function menu_view_show_3D_axes_Callback(hObject,eventdata,handles)
-if isfield(handles,'hShow3D')
-  deleteValidHandles(handles.hShow3D);
-end
-handles.hShow3D = gobjects(0,1);
-
-tfHide = strcmp(hObject.Checked,'on');
-
-if tfHide
-  hObject.Checked = 'off';
-else
-  lObj = handles.labelerObj;
-  lc = lObj.lblCore;
-  if ~( ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration )
-    error('LabelerGUI:multiView',...
-      'Labeling mode must support multiple, calibrated views.');
-  end
-  vcd = lObj.viewCalibrationDataCurrent;
-  if isempty(vcd)
-    error('LabelerGUI:vcd','No view calibration data set.');
-  end
-  % Hmm, is this weird, getting the vcd off Labeler not LabelCore. They
-  % should match however
-  assert(isa(vcd,'CalRig'));
-  crig = vcd;
-
-  nview = lObj.nview;
-  for iview=1:nview
-    ax = handles.axes_all(iview);
-
-    VIEWDISTFRAC = 5;
-
-    % Start from where we want the 3D axes to be located in the view
-    xl = ax.XLim;
-    yl = ax.YLim;
-    x0 = diff(xl)/VIEWDISTFRAC+xl(1);
-    y0 = diff(yl)/VIEWDISTFRAC+yl(1);
-
-    % Project out into 3D; pick a pt
-    [u_p,v_p,w_p] = crig.reconstruct2d(x0,y0,iview);
-    RECON_T = 5; % don't know units here
-    u0 = u_p(1)+RECON_T*u_p(2);
-    v0 = v_p(1)+RECON_T*v_p(2);
-    w0 = w_p(1)+RECON_T*w_p(2);
-
-    % Loop and find the scale where the the maximum projected length is ~
-    % 1/8th the current view
-    SCALEMIN = 0;
-    SCALEMAX = 20;
-    SCALEN = 300;
-    avViewSz = (diff(xl)+diff(yl))/2;
-    tgtDX = avViewSz/VIEWDISTFRAC*.8;  
-    scales = linspace(SCALEMIN,SCALEMAX,SCALEN);
-    for iScale = 1:SCALEN
-      % origin is (u0,v0,w0) in 3D; (x0,y0) in 2D
-
-      s = scales(iScale);    
-      [x1,y1] = crig.project3d(u0+s,v0,w0,iview);
-      [x2,y2] = crig.project3d(u0,v0+s,w0,iview);
-      [x3,y3] = crig.project3d(u0,v0,w0+s,iview);
-      d1 = sqrt( (x1-x0).^2 + (y1-y0).^2 );
-      d2 = sqrt( (x2-x0).^2 + (y2-y0).^2 );
-      d3 = sqrt( (x3-x0).^2 + (y3-y0).^2 );
-      if d1>tgtDX || d2>tgtDX || d3>tgtDX
-        fprintf(1,'Found scale for t=%.2f: %.2f\n',RECON_T,s);
-        break;
-      end
-    end
-
-    LINEWIDTH = 2;
-    FONTSIZE = 12;
-    handles.hShow3D(end+1,1) = plot(ax,[x0 x1],[y0 y1],'r-','LineWidth',LINEWIDTH);
-    handles.hShow3D(end+1,1) = text(x1,y1,'x','Color',[1 0 0],...
-      'fontweight','bold','fontsize',FONTSIZE,'parent',ax);
-    handles.hShow3D(end+1,1) = plot(ax,[x0 x2],[y0 y2],'g-','LineWidth',LINEWIDTH);
-    handles.hShow3D(end+1,1) = text(x2,y2,'y','Color',[0 1 0],...
-      'fontweight','bold','fontsize',FONTSIZE,'parent',ax);
-    handles.hShow3D(end+1,1) = plot(ax,[x0 x3],[y0 y3],'y-','LineWidth',LINEWIDTH);
-    handles.hShow3D(end+1,1) = text(x3,y3,'z','Color',[1 1 0],...
-      'fontweight','bold','fontsize',FONTSIZE,'parent',ax);
-  end
-  hObject.Checked = 'on';
-end
-guidata(hObject,handles);
+% AL20180205 LEAVE ME good functionality just currently dormant. CalRigs
+% need to be updated, /reconstruct2d()
+%
+% function menu_view_show_3D_axes_Callback(hObject,eventdata,handles)
+% if isfield(handles,'hShow3D')
+%   deleteValidHandles(handles.hShow3D);
+% end
+% handles.hShow3D = gobjects(0,1);
+% 
+% tfHide = strcmp(hObject.Checked,'on');
+% 
+% if tfHide
+%   hObject.Checked = 'off';
+% else
+%   lObj = handles.labelerObj;
+%   lc = lObj.lblCore;
+%   if ~( ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration )
+%     error('LabelerGUI:multiView',...
+%       'Labeling mode must support multiple, calibrated views.');
+%   end
+%   vcd = lObj.viewCalibrationDataCurrent;
+%   if isempty(vcd)
+%     error('LabelerGUI:vcd','No view calibration data set.');
+%   end
+%   % Hmm, is this weird, getting the vcd off Labeler not LabelCore. They
+%   % should match however
+%   assert(isa(vcd,'CalRig'));
+%   crig = vcd;
+% 
+%   nview = lObj.nview;
+%   for iview=1:nview
+%     ax = handles.axes_all(iview);
+% 
+%     VIEWDISTFRAC = 5;
+% 
+%     % Start from where we want the 3D axes to be located in the view
+%     xl = ax.XLim;
+%     yl = ax.YLim;
+%     x0 = diff(xl)/VIEWDISTFRAC+xl(1);
+%     y0 = diff(yl)/VIEWDISTFRAC+yl(1);
+% 
+%     % Project out into 3D; pick a pt
+%     [u_p,v_p,w_p] = crig.reconstruct2d(x0,y0,iview);
+%     RECON_T = 5; % don't know units here
+%     u0 = u_p(1)+RECON_T*u_p(2);
+%     v0 = v_p(1)+RECON_T*v_p(2);
+%     w0 = w_p(1)+RECON_T*w_p(2);
+% 
+%     % Loop and find the scale where the the maximum projected length is ~
+%     % 1/8th the current view
+%     SCALEMIN = 0;
+%     SCALEMAX = 20;
+%     SCALEN = 300;
+%     avViewSz = (diff(xl)+diff(yl))/2;
+%     tgtDX = avViewSz/VIEWDISTFRAC*.8;  
+%     scales = linspace(SCALEMIN,SCALEMAX,SCALEN);
+%     for iScale = 1:SCALEN
+%       % origin is (u0,v0,w0) in 3D; (x0,y0) in 2D
+% 
+%       s = scales(iScale);    
+%       [x1,y1] = crig.project3d(u0+s,v0,w0,iview);
+%       [x2,y2] = crig.project3d(u0,v0+s,w0,iview);
+%       [x3,y3] = crig.project3d(u0,v0,w0+s,iview);
+%       d1 = sqrt( (x1-x0).^2 + (y1-y0).^2 );
+%       d2 = sqrt( (x2-x0).^2 + (y2-y0).^2 );
+%       d3 = sqrt( (x3-x0).^2 + (y3-y0).^2 );
+%       if d1>tgtDX || d2>tgtDX || d3>tgtDX
+%         fprintf(1,'Found scale for t=%.2f: %.2f\n',RECON_T,s);
+%         break;
+%       end
+%     end
+% 
+%     LINEWIDTH = 2;
+%     FONTSIZE = 12;
+%     handles.hShow3D(end+1,1) = plot(ax,[x0 x1],[y0 y1],'r-','LineWidth',LINEWIDTH);
+%     handles.hShow3D(end+1,1) = text(x1,y1,'x','Color',[1 0 0],...
+%       'fontweight','bold','fontsize',FONTSIZE,'parent',ax);
+%     handles.hShow3D(end+1,1) = plot(ax,[x0 x2],[y0 y2],'g-','LineWidth',LINEWIDTH);
+%     handles.hShow3D(end+1,1) = text(x2,y2,'y','Color',[0 1 0],...
+%       'fontweight','bold','fontsize',FONTSIZE,'parent',ax);
+%     handles.hShow3D(end+1,1) = plot(ax,[x0 x3],[y0 y3],'y-','LineWidth',LINEWIDTH);
+%     handles.hShow3D(end+1,1) = text(x3,y3,'z','Color',[1 1 0],...
+%       'fontweight','bold','fontsize',FONTSIZE,'parent',ax);
+%   end
+%   hObject.Checked = 'on';
+% end
+% guidata(hObject,handles);
 
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 % Really, "configure parameters"
