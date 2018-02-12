@@ -1114,7 +1114,8 @@ else
   [~,projfileS] = myfileparts(info.filename);  
   str = sprintf('%s / %s',projfileS,projname);
 end
-lObj.gdata.txProjectName.String = str;
+hTX = lObj.gdata.txProjectName;
+hTX.String = str;
 
 function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
