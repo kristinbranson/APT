@@ -2025,7 +2025,7 @@ classdef Labeler < handle
       nMovSetImport = size(movs,1);
       if obj.nview==1
         fprintf('Importing %d movies from file ''%s''.\n',nMovSetImport,bfile);
-        obj.movieAdd(movs,'offerMacroization',false);
+        obj.movieAdd(movs,[],'offerMacroization',false);
       else
         fprintf('Importing %d movie sets from file ''%s''.\n',nMovSetImport,bfile);
         for i=1:nMovSetImport
