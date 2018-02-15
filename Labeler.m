@@ -319,7 +319,7 @@ classdef Labeler < handle
   properties (SetObservable,SetAccess=private)
     gtIsGTMode % scalar logical
   end
-  properties (SetAccess=private)
+  properties
     gtSuggMFTable % [nGTSugg x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
     gtSuggMFTableLbled % [nGTSuggx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
 
