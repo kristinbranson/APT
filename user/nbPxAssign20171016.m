@@ -150,46 +150,81 @@ end
 % ii) optionally, scale x/y per trxa/b
 % iii) add up a big hist
 
+FGTHRESH = 6;
+
 xroictr = -ROIRAD:ROIRAD;
 yroictr = -ROIRAD:ROIRAD;
 [xg,yg] = meshgrid(xroictr,yroictr);
 imforeAlgn = zeros(size(xg));
+imforeBWAlgn = zeros(size(xg));
 imforeAlgnNorm = zeros(size(xg));
+imforeBWAlgnNorm = zeros(size(xg));
 for ishape=1:n  
   if mod(ishape,500)==0
     disp(ishape);
   end
   imfore = t.imfore{ishape};
+  imfore = max(imfore,0);
+  imforebw = double(imfore>=FGTHRESH);
   th = t.thetaTrx(ishape);
   imforecanon = readpdf(imfore,xg,yg,xg,yg,0,0,-th);
+  imforebwcanon = readpdf(imforebw,xg,yg,xg,yg,0,0,-th);
   a = t.aTrx(ishape);
   b = t.bTrx(ishape);
   xfac = a/amu;
   yfac = b/bmu;
   imforecanonscale = interp2(xg,yg,imforecanon,xg*xfac,yg*yfac,'linear',0);
+  imforebwcanonscale = interp2(xg,yg,imforebwcanon,xg*xfac,yg*yfac,'linear',0);
   
-  imforeAlgn = imforeAlgn + imforecanon;
-  imforeAlgnNorm = imforeAlgnNorm + imforecanonscale;  
+  imforeAlgn = imforeAlgn + imforecanon/sum(imforecanon(:));
+  imforeAlgnNorm = imforeAlgnNorm + imforecanonscale/sum(imforecanonscale(:));
+  imforeBWAlgn = imforeBWAlgn + imforebwcanon/sum(imforebwcanon(:));
+  imforeBWAlgnNorm = imforeBWAlgnNorm + imforebwcanonscale/sum(imforebwcanonscale(:));
 end
 
 imforeAlgn = imforeAlgn/sum(imforeAlgn(:));
 imforeAlgnNorm = imforeAlgnNorm/sum(imforeAlgnNorm(:));
+imforeBWAlgn = imforeBWAlgn/sum(imforeBWAlgn(:));
+imforeBWAlgnNorm = imforeBWAlgnNorm/sum(imforeBWAlgnNorm(:));
 
 figure;
-axs = createsubplots(1,2);
-axes(axs(1));
+axs = createsubplots(2,2);
+axs = reshape(axs,2,2);
+axes(axs(1,1));
 imagesc(imforeAlgn);
 hold on
 hEll = ellipsedraw(2*amu,2*bmu,ROIRAD+1,ROIRAD+1,0,'r-');
 title('Superposed flies',TITLEARGS{:});
-axes(axs(2));
+axis image
+axes(axs(1,2));
 imagesc(imforeAlgnNorm);
 hold on;
 hEll = ellipsedraw(2*amu,2*bmu,ROIRAD+1,ROIRAD+1,0,'r-');
 title('Superposed flies, normalized',TITLEARGS{:});
+axis image
+axes(axs(2,1));
+imagesc(imforeBWAlgn);
+hold on;
+hEll = ellipsedraw(2*amu,2*bmu,ROIRAD+1,ROIRAD+1,0,'r-');
+title('Superposed bw flies',TITLEARGS{:});
+axis image
+axes(axs(2,2));
+imagesc(imforeBWAlgnNorm);
+hold on;
+hEll = ellipsedraw(2*amu,2*bmu,ROIRAD+1,ROIRAD+1,0,'r-');
+title('Superposed bw flies, normalized',TITLEARGS{:});
+axis image
 
 linkaxes(axs);
 linkprop(axs,'CLim');
+
+colorbar
+
+assert(isequal(unique(diff(xroictr)),unique(diff(yroictr)),1));
+xroiedge = [xroictr-0.5 xroictr(end)+0.5];
+yroiedge = [yroictr-0.5 yroictr(end)+0.5];
+save pdfImAlgn20180218.mat FGTHRESH xg yg xroictr yroictr xroiedge yroiedge...
+  imforeAlgn imforeBWAlgn imforeAlgnNorm imforeBWAlgnNorm amu bmu n;
 
 
 %% aligned landmark dist histogram
@@ -659,7 +694,7 @@ for i=1:height(tEx)
   forebw = imd>FORETHRESH;  
   forebwl = bwlabel(forebw);
     
-  [bwlnew,bwlnewpre,splitCC,splitCCnew,pdfTgts] = assignids(im2,...
+  [cc,ccpre,splitCC,splitCCnew,pdfTgts] = assignids(im2,...
     trow.frm,trx,...
     pdfLeg.plegnormS,pdfLeg.xe,pdfLeg.ye,...
     'scalePdfLeg',true,...

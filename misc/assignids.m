@@ -27,6 +27,7 @@ function [bwl,bwlpre,splitCC,splitCCnew,pdfTgts] = ...
   'scalePdfLegMeanB',nan,... % etc
   'verbose',false);
 
+assert(all(imfore(:)>=0));
 imforeabs = abs(imfore);
 bw = imforeabs>bwthresh;
 [bwl,bwln] = bwlabel(bw);
@@ -42,7 +43,8 @@ pdflegYctr = (pdflegYE(1:end-1)+pdflegYE(2:end))/2;
 [pdflegXg,pdflegYg] = meshgrid(pdflegXctr,pdflegYctr);
 % x/y gridpoints for pdfleg
 
-[trxtflive,trxxs,trxys,trxths,trxas,trxbs] = lclGetTrxAtFrm(trx,frm);
+[trxtflive,trxxs,trxys,trxths,trxas,trxbs] = ...
+  PxAssign.getTrxStuffAtFrm(trx,frm);
 
 ccTrxCtrs = cell(bwln,1); % trx centers in each cc
 ntgt = numel(trx);
@@ -220,27 +222,3 @@ for iCC=1:nCCMultiTrx
 end
 splitCC = ccMultiTrx;
 
-function [tflive,xs,ys,ths,as,bs] = lclGetTrxAtFrm(trx,frm)
-
-ntgt = numel(trx);
-
-tflive = true(ntgt,1);
-xs = nan(ntgt,1);
-ys = xs;
-ths = xs;
-as = xs;
-bs = xs;
-
-for itgt=1:ntgt
-  trxI = trx(itgt);
-  idx = trxI.off+frm;
-  if idx<1 || idx>trxI.nframes
-    tflive(itgt) = false;
-  else
-    xs(itgt) = trxI.x(idx);
-    ys(itgt) = trxI.y(idx);
-    ths(itgt) = trxI.theta(idx);
-    as(itgt) = trxI.a(idx);
-    bs(itgt) = trxI.b(idx);
-  end
-end
