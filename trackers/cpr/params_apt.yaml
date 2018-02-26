@@ -25,7 +25,7 @@ ROOT:
       - NeighborMask:
         - ['Mask Neighbors','',false,"When targets come in close proximity to each other, non-touching neighbors can be masked.",'']
         - Use: ['Enable',boolean,true,"Mask other, non-touching targets.",false]
-        - Method: ['Method',['Conn. Comp','GMM-EM','Emp. PDF'],true,Masking algorithm/approach.,'GMM-EM']
+        - SegmentMethod: ['Segmentation Method',['Conn. Comp','GMM-EM','Emp. PDF'],true,Masking algorithm/approach.,'GMM-EM']
         - BGType: ['Background Type',['light on dark','dark on light','other'],true,Background type.,'dark on light']
         - BGReadFcn: ['Background Read Function',string,true,"Function that reads background for a project movie. Signature: [bg,bgdev] = fcn(movfile,movifo)",'']
         - FGThresh: ['Foreground Threshold',float,true,'Background-subtracted pixels above this threshold are considered foreground subject to masking.',4]
