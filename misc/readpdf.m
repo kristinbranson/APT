@@ -1,6 +1,9 @@
 function P2 = readpdf(P0,xg0,yg0,xg1,yg1,x0,y0,th0)
 % Translate/rotate an existing PDF to a new location/orientation and return
-% the resulting PDF.
+% the resulting PDF. 
+%
+% THE RESULT IS NOT (RE)NORMALIZED AND MAY NOT SUM TO 1 OR TO THE ORIGINAL 
+% NORMALIZATION WHATEVER THAT MAY BE.
 %
 % P0: [ny x nx] array
 % xg0: [ny x nx] xgrid (original), coords where pdf vals are given

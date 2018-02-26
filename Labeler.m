@@ -20,7 +20,8 @@ classdef Labeler < handle
       'labelTemplate' ...
       'trackModeIdx' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
-      'xvResults' 'xvResultsTS'};
+      'xvResults' 'xvResultsTS' ...
+      'fgEmpiricalPDF'};
     SAVEPROPS_LPOS = {...
       'labeledpos' 'nan'
       'labeledpos2' 'nan'
@@ -313,6 +314,10 @@ classdef Labeler < handle
     labeledpos2_ptsH;     % [npts]
     labeledpos2_ptsTxtH;  % [npts]    
     lblOtherTgts_ptsH;    % [npts]
+  end
+  
+  properties
+    fgEmpiricalPDF % struct containing empirical FG pdf and metadata
   end
   
   %% GT mode
@@ -4358,8 +4363,6 @@ classdef Labeler < handle
         % tblMF (return) indeterminate
         return;
       end
-      
-      tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
     end
     
     %#%GTOK
@@ -4408,7 +4411,7 @@ classdef Labeler < handle
       %   first row/col of ROI)
       % tblMF.roi: [nrow x 2*2*nview]. Raster order {lo,hi},{x,y},view
       
-      tblfldsassert(tblMF,MFTable.FLDSFULLTRX);
+      tblfldscontainsassert(tblMF,MFTable.FLDSFULLTRX);
       tblfldsdonotcontainassert(tblMF,{'pRoi' 'roi'});
       
       nphyspts = obj.nPhysPoints;
@@ -4576,6 +4579,8 @@ classdef Labeler < handle
       tfoccAcc = false(0,npts);
       pTrxAcc = nan(0,nView*2); % xv1 xv2 ... xvk yv1 yv2 ... yvk
       thetaTrxAcc = nan(0,nView);
+      aTrxAcc = nan(0,nView);
+      bTrxAcc = nan(0,nView);
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
       for irow=1:nrow
         if tfWB
@@ -4628,9 +4633,16 @@ classdef Labeler < handle
           pTrxAcc(end+1,:) = [xtrxs(:)' ytrxs(:)']; %#ok<AGROW>
           thetas = cellfun(@(xx)xx(iTgt).theta(frm+xx(iTgt).off),trxI);
           thetaTrxAcc(end+1,:) = thetas(:)'; %#ok<AGROW>
+
+          as = cellfun(@(xx)xx(iTgt).a(frm+xx(iTgt).off),trxI);
+          bs = cellfun(@(xx)xx(iTgt).b(frm+xx(iTgt).off),trxI);
+          aTrxAcc(end+1,:) = as(:)'; %#ok<AGROW>
+          bTrxAcc(end+1,:) = bs(:)'; %#ok<AGROW>
         else
           pTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
           thetaTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
+          aTrxAcc(end+1,:) = nan; %#ok<AGROW>
+          bTrxAcc(end+1,:) = nan; %#ok<AGROW>
         end
       end
       
@@ -4638,8 +4650,8 @@ classdef Labeler < handle
         warningNoTrace('Removed %d invalid rows of MFTable.',nnz(tfInvalid));
       end
       tblMF = tblMF(~tfInvalid,:);
-      tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,...
-        'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx'});
+      tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,aTrxAcc,bTrxAcc,...
+        'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx' 'aTrx' 'bTrx'});
       tblMF = [tblMF tLbl];
     end
     
@@ -7033,6 +7045,151 @@ classdef Labeler < handle
     end
     
   end
+  
+  %% Emp PDF
+  methods
+    function updateFGEmpiricalPDF(obj,varargin)
+      
+      if ~obj.hasTrx
+        error('Method only supported for projects with trx.');
+      end
+      if obj.gtIsGTMode
+        error('Method is not supported in GT mode.');
+      end
+      if obj.nview>1
+        error('Method is not supported for multiple views.');
+      end
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('Method only supported for projects with trackers.');
+      end
+      
+      prmNborMask = tObj.sPrm.PreProc.NeighborMask;
+      if ~prmNborMask.Use
+        warningNoTrace('Neighbor masking is currently not turned on in your tracking parameters.');
+      end
+      if isempty(prmNborMask.BGReadFcn)
+        error('Method requires background read function to be defined in Neighbor Masking tracking parameters.');
+      end
+      
+      % Start with all labeled rows. Prefer these b/c user apparently cares
+      % more about these frames
+      wbObj = WaitBarWithCancel('Empirical foreground PDF');
+      oc = onCleanup(@()delete(wbObj));
+      tblMFTlbled = obj.labelGetMFTableLabeled('wbObj',wbObj,'incTrxAB',true);
+      if wbObj.isCancel
+        return;
+      end
+      
+      roiRadius = tObj.sPrm.PreProc.TargetCrop.Radius;
+      tblMFTlbled = obj.labelMFTableAddROI(tblMFTlbled,roiRadius);
+
+      amu = mean(tblMFTlbled.aTrx);
+      bmu = mean(tblMFTlbled.bTrx);
+      fprintf('amu/bmu: %.4f/%.4f\n',amu,bmu);
+      
+      % get stuff we will need for movies: movieReaders, bgimages, etc
+      movieStuff = cell(obj.nmovies,1);
+      iMovsLbled = unique(tblMFTlbled.mov);
+      for iMov=iMovsLbled(:)'
+        
+        s = struct();
+        movfile = obj.movieFilesAllFull{iMov,1};
+        mr = MovieReader();
+        mr.open(movfile);
+        s.movRdr = mr;
+        
+        trxfname = obj.trxFilesAllFull{iMov,1};
+        movIfo = obj.movieInfoAll{iMov};        
+        [s.trx,s.frm2trx] = obj.getTrx(trxfname,movIfo.nframes);
+        
+        [s.bg,s.bgdev] = feval(prmNborMask.BGReadFcn,movfile,movIfo.info);
+        
+        movieStuff{iMov} = s;
+      end    
+      
+      hFigViz = figure;
+      ax = axes;
+      oc = onCleanup(@()delete(hFigViz));
+    
+      xroictr = -roiRadius:roiRadius;
+      yroictr = -roiRadius:roiRadius;
+      [xgrid,ygrid] = meshgrid(xroictr,yroictr); % xgrid, ygrid give coords for each pixel where (0,0) is the central pixel (at target)
+      pdfRoiAcc = zeros(2*roiRadius+1,2*roiRadius+1);
+      nAcc = 0;
+      n = height(tblMFTlbled);
+      for i=1:n
+        trow = tblMFTlbled(i,:);
+        iMov = trow.mov;
+        frm = trow.frm;
+        iTgt = trow.iTgt;
+        
+        sMovStuff = movieStuff{iMov};
+        
+        [tflive,trxxs,trxys,trxths,trxas,trxbs] = ...
+          PxAssign.getTrxStuffAtFrm(sMovStuff.trx,frm);
+        assert(isequal(tflive(:),sMovStuff.frm2trx(frm,:)'));
+
+        % Skip roi if it contains more than 1 trxcenter.
+        roi = trow.roi; % [xlo xhi ylo yhi]
+        roixlo = roi(1);
+        roixhi = roi(2);
+        roiylo = roi(3);
+        roiyhi = roi(4);
+        tfCtrInRoi = roixlo<=trxxs & trxxs<=roixhi & roiylo<=trxys & trxys<=roiyhi;
+        if nnz(tfCtrInRoi)>1
+          continue;
+        end
+      
+        % In addition run CC pxAssign and keep only the central CC to get
+        % rid of any objects at the periphery
+        im = sMovStuff.movRdr.readframe(frm);
+        im = double(im);
+        imbwl = PxAssign.asgnCC(im,sMovStuff.bg,sMovStuff.bgdev,...
+          sMovStuff.trx,frm,...
+          'bgtype',prmNborMask.BGType,...
+          'fgthresh',prmNborMask.FGThresh);
+        xTgtCtrRound = round(trxxs(iTgt));
+        yTgtCtrRound = round(trxys(iTgt));
+        ccKeep = imbwl(yTgtCtrRound,xTgtCtrRound);
+        if ccKeep==0
+          warningNoTrace('Unexpected non-foreground pixel for (mov,frm,tgt)=(%d,%d,%d) at (r,c)=(%d,%d).',...
+            iMov,frm,iTgt,yTgtCtrRound,xTgtCtrRound);
+        else
+          imfgUse = zeros(size(imbwl));
+          imfgUse(imbwl==ccKeep) = 1;                    
+          imfgUseRoi = padgrab(imfgUse,0,roiylo,roiyhi,roixlo,roixhi);
+          
+          th = trxths(iTgt);
+          a = trxas(iTgt);
+          b = trxbs(iTgt);
+          imforebwcanon = readpdf(imfgUseRoi,xgrid,ygrid,xgrid,ygrid,0,0,-th);
+          xfac = a/amu;
+          yfac = b/bmu;
+          imforebwcanonscale = interp2(xgrid,ygrid,imforebwcanon,...
+            xgrid*xfac,ygrid*yfac,'linear',0);
+          
+          imshow(imforebwcanonscale,'Parent',ax);
+          tstr = sprintf('row %d/%d',i,n);
+          title(tstr,'fontweight','bold','interpreter','none');
+          drawnow;
+          
+          pdfRoi = imforebwcanonscale/sum(imforebwcanonscale(:)); % each row equally weighted
+          pdfRoiAcc = pdfRoiAcc + pdfRoi;
+          nAcc = nAcc + 1;
+        end
+      end
+      
+      obj.fgEmpiricalPDF = struct(...
+        'amu',amu,'bmu',bmu,...
+        'xpdfctr',xroictr,'ypdfctr',yroictr,...        
+        'fgpdf',pdfRoiAcc/nAcc,...
+        'n',nAcc,...
+        'roiRadius',roiRadius,...
+        'prmNborMask',prmNborMask);
+    end
+  end
+  
   
   %% Util
   methods

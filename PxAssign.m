@@ -3,6 +3,9 @@ classdef PxAssign
   methods (Static)
     
     function imfg = simplebgsub(bgType,im,imbg,imbgdev)
+      assert(isfloat(im));
+      assert(isfloat(imbg));
+      assert(isfloat(imbgdev));      
       switch bgType
         case 'light on dark'
           imfg = max(im-imbg,0)./imbgdev;
@@ -15,11 +18,12 @@ classdef PxAssign
       end
     end
     
+    % Move me into TrxUtil
     function [tflive,xs,ys,ths,as,bs] = getTrxStuffAtFrm(trx,frm) 
       % trx: array of trx
       % 
       % tflive: [ntrx x 1] logical array
-      % xs/ys/ths/as/bs: [ntrx x 1] double array
+      % xs/ys/ths/as/bs: [ntrx x 1] double array. nan if/where tflive==false
       
       ntgt = numel(trx);
       
@@ -83,16 +87,17 @@ classdef PxAssign
       idx = yCtrRoi + (xCtrRoi-1)*roinr;
     end
       
-    function bwl = asgnCC(im,imbg,imbgdev,trx,f,varargin)
+    function imL = asgnCC(im,imbg,imbgdev,trx,f,varargin)
       % im, imbg, imbgdev: [nr x nc]
       % 
-      % imasgn: label image, same size as im. 0 for no assgn, 1 for target
-      % fly, 2 for everything else
+      % imL: label image, same size as im. All ccs contain at least one trx
+      % center
       
-      fgthresh = myparse(varargin,...
+      [bgtype,fgthresh] = myparse(varargin,...
+        'bgtype','dark on light',...
         'fgthresh',4.0);
 
-      imdiff = PxAssign.simplebgsub('dark on light',im,imbg,imbgdev);
+      imdiff = PxAssign.simplebgsub(bgtype,im,imbg,imbgdev);
       bwfg = imdiff>fgthresh;
       cc = bwconncomp(bwfg);
       [nr,nc] = size(im);
@@ -114,63 +119,208 @@ classdef PxAssign
       cc.PixelIdxList(tfDiscard) = [];
       cc.NumObjects = numel(cc.PixelIdxList);
       
-      bwl = labelmatrix(cc);
+      imL = labelmatrix(cc);
     end
     
-    function [bwl,bwlpre,nfliescurr] = asgnGMMglobal(im,imbg,imbgdev,trx,f,varargin)
-      [fgthresh] = myparse(varargin,...
+    function [imL,imLpre,nfliescurr] = asgnGMMglobal(im,imbg,imbgdev,trx,f,varargin)
+      [bgtype,fgthresh] = myparse(varargin,...
+        'bgtype','dark on light',...
         'fgthresh',115); % in BackSub.m, n_bg_std_thresh_low
 
-      imdiff = PxAssign.simplebgsub('dark on light',im,imbg,imbgdev);
+      imdiff = PxAssign.simplebgsub(bgtype,im,imbg,imbgdev);
       isfore = imdiff>=fgthresh; % in BackSub.m, n_bg_std_thresh_low
   
-      [bwlpre,nfliescurr] = AssignPixels(isfore,imdiff,trx,f);
-      bwl = PxAssign.cleanupPass(bwlpre,trx,f);
+      [imLpre,nfliescurr] = AssignPixels(isfore,imdiff,trx,f);
+      imL = PxAssign.cleanupPass(imLpre,trx,f);
     end
     
-    function [bwl,bwlpre,pdfTgts] = asgnPDF(im,imbg,imbgdev,trx,f,...
-        pdf,pdfXe,pdfYe,pdfamu,pdfbmu,varargin)
+    function [imL,imLpre,pdfTgts] = asgnPDF(im,imbg,imbgdev,trx,f,...
+        pdf,pdfXctr,pdfYctr,pdfamu,pdfbmu,varargin)
       
-      fgthresh = myparse(varargin,...
+      [bgtype,fgthresh] = myparse(varargin,...
+        'bgtype','dark on light',...
         'fgthresh',4);
 
-      imdiff = PxAssign.simplebgsub('dark on light',im,imbg,imbgdev);
-%       isfore = imdiff>=fgthresh;
-
-%       im2 = bg-double(im);
-%       imd = abs(im2);
-%       forebw = imd>FORETHRESH;
-%       forebwl = bwlabel(forebw);
+      imdiff = PxAssign.simplebgsub(bgtype,im,imbg,imbgdev);
+      imforebw = imdiff>=fgthresh;
       
-      [bwl,bwlpre,splitCC,splitCCnew,pdfTgts] = assignids(imdiff,...
-        f,trx,pdf,pdfXe,pdfYe,...
-        'scalePdfLeg',true,...
-        'scalePdfLegMeanA',pdfamu,...
-        'scalePdfLegMeanB',pdfbmu,...
-        'bwthresh',fgthresh,...
+      [imLpre,~,pdfTgts] = PxAssign.asgnPDFCore(imforebw,f,trx,pdf,pdfXctr,pdfYctr,...
+        'scalePdf',true,...
+        'scalePdfAmu',pdfamu,...
+        'scalePdfBmu',pdfbmu,...
         'verbose',true);      
+      imL = PxAssign.cleanupPass(imLpre,trx,f);
     end
     
-    function [imtgt,imnottgt] = performMask(im,imbg,imcc,trx,itgt,f)
+    function [imforeL,splitCCnew,pdfTgts] = asgnPDFCore(...
+        imforebw,frm,trx,pdf,pdfXctr,pdfYctr,varargin)
+      % Assign pixels based on empirical pdf
+      %
+      % imforebw: b/w foreground image
+      % frm: frame number
+      % trx: [nTgt] trx array
+      % pdf: [pdfnrxpdfnc] single-target empirical FG pdf. Canonically rotated. Also
+      %   input images are scaled based on target size relative to mean.
+      % pdfXctr: [pdfnc] center x-coords labeling columns of pdf
+      % pdfYctr: [pdfnr] center y-coords labeling rows of pdf
+      %
+      % imforeL: [same as imfore] label matrix for imforebw. Each fg pixel
+      %   assigned to a target
+      
+      % splitCCnew: [nsplit] cell, splitCCnew{i} gives the new CCs that
+      %   were formed by splitting a single original CC
+      % pdfTgts: [nsplit] cell, pdfTgts{i} gives PDFs corresponding to each
+      %   target comprising the ith original CC
+      
+      [scalePdf,scalePdfAmu,scalePdfBmu,verbose] = myparse(varargin,...
+        'scalePdf',false,... % If true, scale/adjust pdf based on ellipse size (major/minor axes lengths)
+        'scalePdfAmu',nan,... % mean ellipse 'a' value (majoraxis/2), used when scalePdf is true
+        'scalePdfBmu',nan,... % etc
+        'verbose',false);
+      
+      assert(all(imforebw(:)>=0));
+      
+      [pdfnr,pdfnc] = size(pdf);
+      assert(numel(pdfXctr)==pdfnc);
+      assert(numel(pdfYctr)==pdfnr);
+      dx = pdfXctr(2)-pdfXctr(1);
+      dy = pdfYctr(2)-pdfYctr(1);
+      assert(isequal(pdfXctr,pdfXctr(1):dx:-pdfXctr(1)),'Unexpected pdf coordinates.');
+      assert(isequal(pdfYctr,pdfYctr(1):dy:-pdfYctr(1)),'Unexpected pdf coordinates.');
+      [pdfXg,pdfYg] = meshgrid(pdfXctr,pdfYctr);
+      
+      [imnr,imnc] = size(imforebw);
+      imsz = imnr*imnc;
+      [imgx,imgy] = meshgrid(1:imnc,1:imnr);
+      
+      [imforeL,nCC] = bwlabel(imforebw);
+      
+      [trxtflive,trxxs,trxys,trxths,trxas,trxbs] = ...
+        PxAssign.getTrxStuffAtFrm(trx,frm);
+      
+      ccTrxCtrs = cell(nCC,1); % trx centers in each cc
+      ntgt = numel(trx);
+      for itgt=1:ntgt
+        if trxtflive(itgt)
+          x = round(trxxs(itgt));
+          y = round(trxys(itgt));
+          ccL = imforeL(y,x);
+          if ccL>0
+            ccTrxCtrs{ccL}(1,end+1) = itgt;
+          end
+        end
+      end
+      
+      % All trx have been assigned to a CC. Some CCs are not assigned to a trx
+      % (especially eg small noise pixels)
+      
+      % Find and deal with any CCs that have multiple trx assigned, indicating
+      % two or more flies nearby+touching
+      nTrxPerCC = cellfun(@numel,ccTrxCtrs);
+      ccMultiTrx = find(nTrxPerCC>1);
+      nCCMultiTrx = numel(ccMultiTrx);
+      
+      if nCCMultiTrx==0
+        %   imforeLpre = imforeL;
+        splitCCnew = cell(0,1);
+        pdfTgts = cell(0,1);
+        return;
+      end
+      
+      splitCCnew = cell(nCCMultiTrx,1);
+      pdfTgts = cell(nCCMultiTrx,1);
+      maxcc = nCC;
+      for iCC=1:nCCMultiTrx
+        cc = ccMultiTrx(iCC);
+        iTgtsCC = ccTrxCtrs{cc};
+        nTgtsCC = numel(iTgtsCC);
+        
+        if verbose
+          fprintf('CC %d has %d trx: %s\n',cc,nTgtsCC,mat2str(iTgtsCC));
+        end
+        
+        % pdfTgtsI(:,:,j) is the likelihood of a pixel being in target iTgtsCC(j)
+        % based on emp.PDF
+        pdfTgtsI = nan(imnr,imnc,nTgtsCC);
+        for j=1:nTgtsCC % loop over all targets assigned to this CC
+          
+          % Get trx info
+          iTgt = iTgtsCC(j);
+          assert(trxtflive(iTgt));
+          trxx = trxxs(iTgt);
+          trxy = trxys(iTgt);
+          trxth = trxths(iTgt);
+          trxa = trxas(iTgt);
+          trxb = trxbs(iTgt);
+          
+          % Optionally rescale pdf based on ellipse size
+          if scalePdf
+            % trxa>MeanA => pdf is expanded in x-dir.
+            % Note we re-normalize the pdf below as this changes the measure
+            pdfXguse = pdfXg*trxa/scalePdfAmu;
+            pdfYguse = pdfYg*trxb/scalePdfBmu;
+          else
+            pdfXguse = pdfXg;
+            pdfYguse = pdfYg;
+          end
+          
+          % rotate the pdf onto the x/y/th.
+          pdfItgt = readpdf(pdf,pdfXguse,pdfYguse,imgx,imgy,trxx,trxy,trxth);
+          szassert(pdfItgt,[imnr imnc]);
+          pdfTgtsI(:,:,j) = pdfItgt/sum(pdfItgt(:));
+        end
+        pdfTgts{iCC} = pdfTgtsI;
+        
+        % For each pixel in the CC, take the maximum
+        tfcc = imforeL==cc;
+        pdfTgtsI = reshape(pdfTgtsI,[imsz nTgtsCC]);
+        pdfTgtsFore = pdfTgtsI(tfcc(:),:);
+        [~,loc] = max(pdfTgtsFore,[],2);
+        % loc is an assignment into 1..nTgtsCC for each pixel in the CC
+        
+        ccidx = find(tfcc); % linear indices into im for current composite cc
+        szassert(loc,[numel(ccidx) 1]);
+        
+        % all loc==1 pixels keep their existing cc. We create new ccs for higher
+        % locs
+        newCCs = nan(1,nTgtsCC); % We are splitting cc up into nTgtsCC, one for each trx
+        newCCs(1) = cc; % j=1 => first target => keeps cc
+        for j=2:nTgtsCC % remaining targets, iTgtsCC(j)<->newCCs(j)
+          newcc = maxcc+1;
+          imforeL(ccidx(loc==j)) = newcc;
+          if verbose
+            fprintf('Created new cc=%d with %d px\n',newcc,nnz(loc==j));
+          end
+          maxcc = newcc;
+          newCCs(j) = newcc;
+        end
+        splitCCnew{iCC} = newCCs;
+      end
+    end    
+    
+    function [imtgt,imnottgt] = performMask(im,imbg,imL,trx,itgt,f)
       % imtgt: im, with only tgt kept
       % imnottgt: reverse
       
       [xtgtctr,ytgtctr] = PxAssign.trxCtrRound(trx(itgt),f);
-      cctgt = imcc(ytgtctr,xtgtctr);
-      assert(cctgt>0);
-      tftgt = imcc==cctgt;
+      lTgt = imL(ytgtctr,xtgtctr);
+      assert(lTgt>0);
+      tftgt = imL==lTgt;
       imtgt = im;
       imtgt(~tftgt) = imbg(~tftgt);
-      imnottgt = im;
-      imnottgt(tftgt) = imbg(tftgt);
+      if nargout>1
+        imnottgt = im;
+        imnottgt(tftgt) = imbg(tftgt);
+      end
     end
     
     function bwl = cleanupPass(bwl,trx,f,varargin)
       % 2nd/Final pass. The breaking up of ccs into a new bwl will be 
       % imperfect. The most obvious class of imperfections is when pixels 
       % assigned to the new CCs are disjoint. We loop over all of the new 
-      % CCs, and reassign any disconnected "fragments" per pass2alg.
-      %
+      % CCs, and reassign any disconnected "fragments" per pass2alg. Note
+      % that this procedure operates in trx-order and is order-dependent so
+      % this is only a heuristic and is biased etc.
       
       pass2alg = myparse(varargin,...
         'pass2alg','touch'); % either 'dist' or 'touch'
@@ -181,8 +331,7 @@ classdef PxAssign
       roi = [1 imnc 1 imnr];
       
       ntrx = numel(trx);      
-      [trxtflive,trxxs,trxys,trxths,trxas,trxbs] = ...
-        PxAssign.getTrxStuffAtFrm(trx,f);
+      [trxtflive,trxxs,trxys] = PxAssign.getTrxStuffAtFrm(trx,f);
       trxCtrLinearIdxs = nan(ntrx,1);
       for fly=1:ntrx
         if ~trxtflive(fly)
