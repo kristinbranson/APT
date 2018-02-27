@@ -5,7 +5,7 @@ classdef PxAssign
     function imfg = simplebgsub(bgType,im,imbg,imbgdev)
       assert(isfloat(im));
       assert(isfloat(imbg));
-      assert(isfloat(imbgdev));      
+      assert(isfloat(imbgdev));
       switch bgType
         case 'light on dark'
           imfg = max(im-imbg,0)./imbgdev;
@@ -148,7 +148,7 @@ classdef PxAssign
         'scalePdf',true,...
         'scalePdfAmu',pdfamu,...
         'scalePdfBmu',pdfbmu,...
-        'verbose',true);      
+        'verbose',false); 
       imL = PxAssign.cleanupPass(imLpre,trx,f);
     end
     
@@ -165,7 +165,7 @@ classdef PxAssign
       % pdfYctr: [pdfnr] center y-coords labeling rows of pdf
       %
       % imforeL: [same as imfore] label matrix for imforebw. Each fg pixel
-      %   assigned to a target
+      %   assigned to a target/cc. All nonfg pixels are 0
       
       % splitCCnew: [nsplit] cell, splitCCnew{i} gives the new CCs that
       %   were formed by splitting a single original CC
@@ -265,6 +265,8 @@ classdef PxAssign
           end
           
           % rotate the pdf onto the x/y/th.
+          % AL PERF ENHANCEMENT: don't need the whole PDF, just find it at
+          % the foreground pts
           pdfItgt = readpdf(pdf,pdfXguse,pdfYguse,imgx,imgy,trxx,trxy,trxth);
           szassert(pdfItgt,[imnr imnc]);
           pdfTgtsI(:,:,j) = pdfItgt/sum(pdfItgt(:));
@@ -286,31 +288,52 @@ classdef PxAssign
         newCCs = nan(1,nTgtsCC); % We are splitting cc up into nTgtsCC, one for each trx
         newCCs(1) = cc; % j=1 => first target => keeps cc
         for j=2:nTgtsCC % remaining targets, iTgtsCC(j)<->newCCs(j)
-          newcc = maxcc+1;
-          imforeL(ccidx(loc==j)) = newcc;
+          maxcc = maxcc+1;
+          imforeL(ccidx(loc==j)) = maxcc;
           if verbose
-            fprintf('Created new cc=%d with %d px\n',newcc,nnz(loc==j));
+            fprintf('Created new cc=%d with %d px\n',maxcc,nnz(loc==j));
           end
-          maxcc = newcc;
-          newCCs(j) = newcc;
+          newCCs(j) = maxcc;
         end
         splitCCnew{iCC} = newCCs;
       end
     end    
     
-    function [imtgt,imnottgt] = performMask(im,imbg,imL,trx,itgt,f)
+    function [nmask,imtgt,imnottgt] = performMask(im,imbg,imL,trx,itgt,f,...
+        varargin)
+      % mask all fg pixels not assigned to itgt to imbg
+      %
+      % imL: label matrix. nonnegative ints, zero for nonfg pixels
+      %
+      % nmask: number of pixels masked (number of pixels where im differs
+      % from imtgt)
       % imtgt: im, with only tgt kept
       % imnottgt: reverse
       
-      [xtgtctr,ytgtctr] = PxAssign.trxCtrRound(trx(itgt),f);
-      lTgt = imL(ytgtctr,xtgtctr);
+      imroi = myparse(varargin,...
+        'imroi',[]); % Optional, [xlo xhi ylo yhi] roi specification for im, imbg, imL.
+        % If im, imbg, imL are a cropped roi, then trx(itgt) in general is
+        % not.
+      
+      if isempty(imroi)
+        [xtgtctr,ytgtctr] = PxAssign.trxCtrRound(trx(itgt),f);
+        lTgt = imL(ytgtctr,xtgtctr);
+      else
+        szassert(imroi,[1 4]);
+        idx = PxAssign.trxCtrLinearIdx(imroi,trx(itgt),f);
+        lTgt = imL(idx);
+      end
       assert(lTgt>0);
-      tftgt = imL==lTgt;
+      
+      tfFGtgt = imL==lTgt;
+      tfFGnottgt = imL>0 & ~tfFGtgt;
+      nmask = nnz(tfFGnottgt);
+      
       imtgt = im;
-      imtgt(~tftgt) = imbg(~tftgt);
-      if nargout>1
+      imtgt(tfFGnottgt) = imbg(tfFGnottgt);
+      if nargout>2
         imnottgt = im;
-        imnottgt(tftgt) = imbg(tftgt);
+        imnottgt(tfFGtgt) = imbg(tfFGtgt);
       end
     end
     

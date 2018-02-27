@@ -367,6 +367,15 @@ classdef CPRData < handle
           mr = movInfo.movieReader;
           im = mr.readframe(f); % currently forceGrayscale          
           
+          if tfROI
+            % Will be handy below
+            roiVw = roi(iTrl,(1:4)+4*(iVw-1)); % [xlo xhi ylo yhi]
+            roiXlo = roiVw(1);
+            roiXhi = roiVw(2);
+            roiYlo = roiVw(3);
+            roiYhi = roiVw(4);
+          end
+
           if maskNeighbors
             assert(isa(im,'uint8'),...
               'Masking currently supported only for uint8 images'); % AL: for no good reason afaict
@@ -392,6 +401,17 @@ classdef CPRData < handle
                 imL = PxAssign.asgnGMMglobal(im,imbg,imbgdev,trx,f,...
                   'bgtype',bgType,'fgthresh',fgThresh);
               case 'Emp. PDF'
+                if isempty(empPDF)
+                  error('No empirical PDF has been generated/stored for this project. Call the ''updateFGEmpiricalPDF'' Labeler method first.');
+                end
+                if ~isequal(empPDF.prmNborMask.BGType,bgType)
+                  warningNoTrace('Stored empirical PDF has background type (%s) that differs from current background type (%s).',...
+                    empPDF.prmNborMask.BGType,bgType);
+                end
+                if ~isequal(empPDF.prmNborMask.FGThresh,fgThresh)
+                  warningNoTrace('Stored empirical PDF has foreground threshold (%.2f) that differs from current foreground threshold (%.2f).',...
+                    empPDF.prmNborMask.FGThresh,fgThresh);
+                end
                 imL = PxAssign.asgnPDF(im,imbg,imbgdev,trx,f,...
                   empPDF.fgpdf,empPDF.xpdfctr,empPDF.ypdfctr,...
                   empPDF.amu,empPDF.bmu,...
@@ -400,26 +420,31 @@ classdef CPRData < handle
                 assert(false,'Unrecognized neighbor-masking method.');
             end
             
-            im = PxAssign.performMask(im,imbg,imL,trx,iTgt,f);
+            if tfROI
+              IMBGPADVAL = nan; % irrelevant, no effect as masking should not occur outside image
+              imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+              imbgroi = padgrab(imbg,IMBGPADVAL,roiYlo,roiYhi,roiXlo,roiXhi);
+              imLroi = padgrab(imL,0,roiYlo,roiYhi,roiXlo,roiXhi);
+              [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
+                imroi,imbgroi,imLroi,trx,iTgt,f,'imroi',roiVw);
+            else
+              [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
+                im,imbg,imL,trx,iTgt,f);
+            end
 
             % We asserted that we started with a uint8. Now we scale to 
             % [0,1], so we are changing type/scaling on the way out. Which
             % is weird. This matches shapeGt/hlpFtr/compDup2 though so
             % should work for now.
-            im = im/255;
+            imroi = imroi/255;
+          else
+            if tfROI
+              imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+            else
+              imroi = im;
+            end
           end
           
-          if tfROI
-            roiVw = roi(iTrl,(1:4)+4*(iVw-1)); % [xlo xhi ylo yhi]
-            roiXlo = roiVw(1);
-            roiXhi = roiVw(2);
-            roiYlo = roiVw(3);
-            roiYhi = roiVw(4);
-            imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-          else
-            imroi = im;
-          end
-            
           I{iTrl,iVw} = imroi;
         end
       end

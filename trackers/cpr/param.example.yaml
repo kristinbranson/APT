@@ -13,6 +13,7 @@ PreProc:
     PadBkgd: 0
   NeighborMask:
     Use: 0
+    SegmentMethod: 'GMM-EM'
     BGType: 'dark on light'
     BGReadFcn: ''
     FGThresh: 4

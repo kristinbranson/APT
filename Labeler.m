@@ -7086,7 +7086,7 @@ classdef Labeler < handle
 
       amu = mean(tblMFTlbled.aTrx);
       bmu = mean(tblMFTlbled.bTrx);
-      fprintf('amu/bmu: %.4f/%.4f\n',amu,bmu);
+      %fprintf('amu/bmu: %.4f/%.4f\n',amu,bmu);
       
       % get stuff we will need for movies: movieReaders, bgimages, etc
       movieStuff = cell(obj.nmovies,1);
@@ -7110,7 +7110,6 @@ classdef Labeler < handle
       
       hFigViz = figure;
       ax = axes;
-      oc = onCleanup(@()delete(hFigViz));
     
       xroictr = -roiRadius:roiRadius;
       yroictr = -roiRadius:roiRadius;
@@ -7180,10 +7179,18 @@ classdef Labeler < handle
         end
       end
       
+      fgpdf = pdfRoiAcc/nAcc;
+      
+      imshow(fgpdf,[],'xdata',xroictr,'ydata',yroictr);
+      colorbar;
+      tstr = sprintf('N=%d, amu=%.3f, bmu=%.3f. FGThresh=%.2f',...
+        nAcc,amu,bmu,prmNborMask.FGThresh);
+      title(tstr,'fontweight','bold','interpreter','none');
+      
       obj.fgEmpiricalPDF = struct(...
         'amu',amu,'bmu',bmu,...
         'xpdfctr',xroictr,'ypdfctr',yroictr,...        
-        'fgpdf',pdfRoiAcc/nAcc,...
+        'fgpdf',fgpdf,...
         'n',nAcc,...
         'roiRadius',roiRadius,...
         'prmNborMask',prmNborMask);

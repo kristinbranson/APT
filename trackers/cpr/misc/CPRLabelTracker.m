@@ -2894,7 +2894,7 @@ classdef CPRLabelTracker < LabelTracker
       % poslambdafac: 1
       
       % 20180223 nborMask
-      if ~isfield(sPrm.PreProc.NeighborMask,'Method')
+      if ~isfield(sPrm.PreProc.NeighborMask,'SegmentMethod')
         sPrm.PreProc.NeighborMask.SegmentMethod = 'Conn. Comp';
       end
     end
