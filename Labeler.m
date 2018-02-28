@@ -1899,7 +1899,7 @@ classdef Labeler < handle
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
       
       [offerMacroization,gt] = myparse(varargin,...
-        'offerMacroization',true, ... % If true, look for matches with existing macros
+        'offerMacroization',~isdeployed, ... % If true, look for matches with existing macros
         'gt',obj.gtIsGTMode ... % If true, add moviefile/trxfile to GT lists. Could be a separate method, but there is a lot of shared code/logic.
         );
       
