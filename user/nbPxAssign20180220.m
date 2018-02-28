@@ -254,3 +254,41 @@ for iproc=1:nproc
   
   linkaxes(axs);
 end
+
+%% 20170227 Compare production masking in APT on flybub ~3700 rows
+
+% Procedure: take a proj, turn masking on, do a train just to see
+% masked/preproced data in tracker.data.
+
+% CONC: 
+% - conncomp doesn't split touching flies (duh) so the number of fg pxs
+% masked for conncomp tracks that for gmmem except when it is sometimes way
+% lower for conncomp.
+% - gmmem and emppdf track pretty closely. very rarely, there are 
+% deviations. Looked at largest deviation: (mov 4, frm 20718, tgt 12). 
+% gmmem does an odd grouping (eg two flies headbutting, one huge ellipse 
+% containing both and one much smaller on one fly).
+
+nm0 = load('nmaskMDnborMaskConnCompFG5.mat');
+nm1 = load('nmaskMDnborMaskGMMEMFG5.mat');
+nm2 = load('nmaskMDnborMaskEmpPDFFG5.mat');
+nm0 = nm0.nmask;
+nm1 = nm1.nmask;
+nm2 = nm2.nmask;
+nm = [nm0 nm1 nm2];
+
+figure
+scatter(nm0,nm1);
+xlabel('conncomp','fontweight','bold');
+ylabel('gmmem','fontweight','bold');
+tstr = sprintf('Num fg px masked in %d flybub lbled rows',size(nm0,1));
+title(tstr,'fontweight','bold');
+grid on;
+
+figure
+scatter(nm1,nm2);
+xlabel('gmmem','fontweight','bold');
+ylabel('emppdf','fontweight','bold');
+tstr = sprintf('Num fg px masked in %d flybub lbled rows',size(nm1,1));
+title(tstr,'fontweight','bold');
+grid on;
