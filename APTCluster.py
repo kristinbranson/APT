@@ -9,13 +9,15 @@ import subprocess
 import datetime
 import re
 import glob
+import csv
 import warnings
 
 USEQSUB = False
 
 def main():
 
-    epilogstr = 'Examples:\n.../APTCluster_qsub.py /path/to/proj.lbl -n 10 retrain\n.../APTCluster_qsub.py /path/to/proj.lbl track -n 8 --mov /path/to/movie.avi\n.../APTCluster_qsub.py /path/to/proj.lbl trackbatch -n 10 --movbatchfile /path/to/movielist.txt\n'
+    epilogstr = 'Examples:\n.../APTCluster.py /path/to/proj.lbl -n 6 retrain\n.../APTCluster.py /path/to/proj.lbl track -n 4 --mov /path/to/movie.avi\n.../APTCluster.py /path/to/proj.lbl track -n 4 --mov /path/to/movie.avi --trx /path/to/trx.mat\n.../APTCluster.py /path/to/proj.lbl trackbatch -n 2 --movbatchfile /path/to/movielist.txt\n'
+
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
 
     parser.add_argument("projfile",help="APT project file")
@@ -23,7 +25,8 @@ def main():
 
     parser.add_argument("-n","--nslots","--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
-    parser.add_argument("--movbatchfile",help="file containing list of movies; used when action==trackbatch*",metavar="BATCHFILE")
+    parser.add_argument("--trx",help="trxfile; used for action==track",metavar="TRX")
+    parser.add_argument("--movbatchfile",help="file containing list of movies and (optionally) trxfiles; used when action==trackbatch*",metavar="BATCHFILE")
     parser.add_argument("--singlethreaded",help="if true, force run singlethreaded binary",action="store_true",default=False)
     parser.add_argument("--account",default="",help="account to bill for cluster time",metavar="ACCOUNT")
     parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
@@ -49,6 +52,8 @@ def main():
             sys.exit("--mov must be specified for action==track")
         elif not os.path.exists(args.mov):
             sys.exit("Cannot find movie: {0:s}".format(args.mov))
+        if args.trx and not os.path.exists(args.trx):
+            sys.exit("Cannot find trx: {0:s}".format(args.trx))
     if args.action in ["trackbatch","trackbatchserial"]:
         if not args.movbatchfile:
             sys.exit("--movbatchfile must be specified for action==trackbatch or trackbatchserial")
@@ -64,18 +69,16 @@ def main():
             args.movbatchfilelineend = sys.maxint
     if args.action!="track" and args.mov:
         print("Action is " + args.action + ", ignoring --mov specification")
+    if args.action!="track" and args.trx:
+        print("Action is " + args.action + ", ignoring --trx specification")
     if args.action not in ["track","trackbatch"] and args.p0DiagImg:
         print("Action is " + args.action + ", ignoring --p0DiagImg specification")    
     if args.action not in ["track","trackbatch"] and args.trackargs:
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
-#    if not args.action.startswith("prune") and args.pruneargs:
-#        print("Action is " + args.action + ", ignoring --pruneargs specification")
-#    if not args.action.startswith("prune") and args.trkfile:
-#        print("Action is " + args.action + ", ignoring --trkfile specification")
         
-    args.APTBUILDROOTDIR = "/groups/branson/home/leea30/aptbuild"
+    args.APTBUILDROOTDIR = "/groups/branson/home/leea30/aptbuild" # root location of binaries
     if not args.bindate:
         args.bindate = "current"
     args.binroot = os.path.join(args.APTBUILDROOTDIR,args.bindate)
@@ -133,18 +136,34 @@ def main():
         os.makedirs(args.outdir)
 
     if args.action=="trackbatch":
-        movs = [line.rstrip('\n') for line in open(args.movbatchfile,'r')]
+        with open(args.movbatchfile,'r') as csvfile:
+            csvr = csv.reader(csvfile,delimiter=',')
+            movlist = list(csvr) # list of lists
+
         imov0 = args.movbatchfilelinestart-1
         imov1 = args.movbatchfilelineend # one past end
-        movs = movs[imov0:imov1]
+        movlist = movlist[imov0:imov1]
 
-        nmovtot = len(movs)
+        nmovtot = len(movlist)
         nmovsub = 0
-        for mov in movs:
-            mov = mov.rstrip()
+        for lst in movlist:
+            if len(lst)==1:
+                mov = lst[0]
+                trx = "''"
+            elif len(lst)==2:
+                mov = lst[0]
+                trx = lst[1]
+            else:
+                print("Skipping invalid line encountered in movielist...")
+                continue
 
+            mov = mov.rstrip() # prob unnec
+            trx = trx.rstrip() # etc
             if not os.path.exists(mov):
                 print("Cannot find movie: " + mov + ". Skipping...")
+                continue
+            if trx!="''" and not os.path.exists(trx):
+                print("Cannot find trx: " + trx + ". Skipping...")
                 continue
             
             # jobid
@@ -161,7 +180,7 @@ def main():
             shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
             logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
 
-            cmd = args.projfile + " track  " + mov
+            cmd = args.projfile + " track  " + mov + " " + trx
             if args.trackargs:
                 cmd = cmd + " " + args.trackargs
             if args.p0DiagImg:
@@ -179,28 +198,6 @@ def main():
             print(qsubcmd)
             subprocess.call(qsubcmd,shell=True)
             nmovsub = nmovsub+1
-#    elif args.action=="pruneja" and args.prunesig:
-#        sys.exit("Codepath not updated for LSF")
-#        outdiruse = os.path.dirname(args.trkfile)
-#
-#        for leg in ['4','5','6','7']:
-#            nowstr = datetime.datetime.now().strftime("%Y%m%dT%H%M%S%f")
-#            nowstr = nowstr[:-3] # keep only milliseconds
-#            jobid = args.KEYWORD + "-" + nowstr + "-leg" + leg 
-#            print(jobid)
-#        
-#            shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
-#            logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
-#            cmd = "0 prunejan " + args.trkfile + " " + args.prunesig + " " + leg
-#
-#            gencode(shfile,jobid,args,cmd)
-#
-#            # submit 
-#            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.BSUBARGS,shfile)
-#            qsubcmd = "qsub " + qargs
-#            print(qsubcmd)
-#            subprocess.call(qsubcmd,shell=True)
-        
 
     else:
         # jobid
@@ -215,9 +212,6 @@ def main():
         else:
             if args.action=="track":
                 outdiruse = os.path.dirname(args.mov)
-#            elif args.action.startswith("p#rune"):
-#                sys.exit("Obsolete")
-                #outdiruse = os.path.dirname(args.trkfile)
             else: # trackbatchserial, retrain
                 outdiruse = os.path.dirname(args.projfile)                
         shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
@@ -225,7 +219,10 @@ def main():
         if args.action=="retrain":
             cmd = args.projfile + " " + args.action
         elif args.action=="track":
-            cmd = args.projfile + "  " + args.action + " " + args.mov         
+            if args.trx:
+                cmd = args.projfile + "  " + args.action + " " + args.mov + " " + args.trx
+            else:
+                cmd = args.projfile + "  " + args.action + " " + args.mov + " " + "''"
             if args.trackargs:
                  cmd = cmd + " " + args.trackargs
             if args.p0DiagImg:
@@ -233,27 +230,6 @@ def main():
                 cmd = cmd + " p0DiagImg " + p0DiagImgFull
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
-#        elif args.action.startswith("prunerf"):
-#            sys.exit("not updated for LSF")
-#            if "%" in args.pruneargs:
-#                legs = range(1,19)
-#                for leg in legs:
-#                    pruneargsuse = args.pruneargs.replace("%",str(leg))
-#                    cmd = "0 " + args.action + " " + args.trkfile + " " +  pruneargsuse
-#                    print(cmd)
-#                    jobiduse = jobid + "-leg{0:02d}".format(leg)
-#                    shfileuse = os.path.join(outdiruse,"{0:s}.sh".format(jobiduse))
-#                    logfileuse = os.path.join(outdiruse,"{0:s}.log".format(jobiduse))
-#                    gencode(shfileuse,jobiduse,args,cmd)
-#                    qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfileuse,jobiduse,args.BSUBARGS,shfileuse)
-#                    qsubcmd = "qsub " + qargs
-#                    print(qsubcmd)
-#                    subprocess.call(qsubcmd,shell=True)
-#                sys.exit()                    
-#            else:
-#                cmd = "0 " + args.action + " " + args.trkfile + " " +  args.pruneargs
-#        elif args.action=="pruneja": 
-#            cmd = "0 prunejan " + args.trkfile + " " +  args.pruneargs
 
         gencode(shfile,jobid,args,cmd)
 
