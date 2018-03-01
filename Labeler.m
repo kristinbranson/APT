@@ -7076,7 +7076,7 @@ classdef Labeler < handle
       % more about these frames
       wbObj = WaitBarWithCancel('Empirical foreground PDF');
       oc = onCleanup(@()delete(wbObj));
-      tblMFTlbled = obj.labelGetMFTableLabeled('wbObj',wbObj,'incTrxAB',true);
+      tblMFTlbled = obj.labelGetMFTableLabeled('wbObj',wbObj);
       if wbObj.isCancel
         return;
       end

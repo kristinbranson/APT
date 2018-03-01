@@ -49,6 +49,15 @@ uiwait(hFig);
 sPrm = hObj.data;
 
 function cbkApply(~,~,hFig)
+% AL20180301 iss #105, a cell may be "mid-edit". Force stop editing before
+% proceeding
+hgrid = getappdata(hFig,'hgrid');
+ce = hgrid.getCellEditor();
+if ~isempty(ce)
+  ce.stopCellEditing();
+  drawnow; % otherwise this method can finish, deleting hFig, before propupdated callback fires
+end
+
 t = getappdata(hFig,'mirror');
 rootnode = getappdata(hFig,'rootnode');
 rootnode.Children = t;
