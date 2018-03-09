@@ -81,14 +81,7 @@ classdef LabelTracker < handle
       obj.ax = obj.lObj.gdata.axes_all;
       obj.initHook();
     end
-    
-%     function setParamFile(obj,prmFile)
-%       % See also setParams.
-%       
-%       obj.paramFile = prmFile;
-%       obj.setParamHook();
-%     end
-    
+        
     function delete(obj)
       if ~isempty(obj.hLCurrMovie)
         delete(obj.hLCurrMovie);
@@ -115,16 +108,16 @@ classdef LabelTracker < handle
       % Called when a new project is created/loaded, etc
     end
     
-    function setParamHook(obj)
-      % Called when a new parameter file is specified
-      
-      % See setParams.
-    end
-    
-    function setParams(obj,sPrm)
-      % Directly set params. Note, methods .setParamFile and .setParams
-      % "overlap". Subclasses should do something intelligent.
-    end
+%     function setParamHook(obj)
+%       % Called when a new parameter file is specified
+%       
+%       % See setParams.
+%     end
+%     
+%     function setParams(obj,sPrm)
+%       % Directly set params. Note, methods .setParamFile and .setParams
+%       % "overlap". Subclasses should do something intelligent.
+%     end
     
     function sPrm = getParams(obj)
       sPrm = struct();

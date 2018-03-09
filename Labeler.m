@@ -20,6 +20,7 @@ classdef Labeler < handle
       'labelTemplate' ...
       'trackModeIdx' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
+      'preProcParams' 'preProcH0' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'};
     SAVEPROPS_LPOS = {...
@@ -200,14 +201,17 @@ classdef Labeler < handle
     
     movieIsPlaying = false;
   end
+  properties (SetAccess=private) 
+    movieCache = []; % containers.Map. Transient. Keys: standardized
+      % fullpath, el of .movieFilesAllFull or .movieFilesAllGTFull. 
+      % vals: MovieReader objects with that movie open
+  end  
   properties (Dependent)
     isMultiView;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
     movieFilesAllGTFull; % etc
     movieFilesAllFullGTaware;
     movieFilesAllHaveLblsGTaware;
-%     movieIDsAll; % like movieFilesAll, but standardized
-%     movieSetIDsAll; % [nmovsetx1] ids, single char for each movieset
     hasMovie;
     moviefile;
     nframes;
@@ -226,14 +230,8 @@ classdef Labeler < handle
   end
   properties (SetAccess=private)
     trxCache = [];            % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
-    %trxfile = '';             % full path current trxfile
     trx = [];                 % trx object
-    %zoomRadiusDefault = 100; % default zoom box size in pixels
-    %zoomRadiusTight = 10;    % zoom size on maximum zoom (smallest pixel val)
     frm2trx = [];             % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm (for current movie)
-%     trxIdPlusPlus2Idx = [];   % (max(trx ids)+1) x 1 vector of indices into obj.trx. 
-%                               % Since IDs start at 0, THIS VECTOR IS INDEXED BY ID+1.
-%                               % ie: .trx(trxIdPlusPlus2Idx(ID+1)).id = ID. Nonexistent IDs map to NaN.
   end
   properties (Dependent,SetObservable)
     targetZoomRadiusDefault;
@@ -244,7 +242,6 @@ classdef Labeler < handle
     trxFilesAllFullGTaware
     hasTrx
     currTrx
-%     currTrxID
     nTrx
     nTargets % nTrx, or 1 if no Trx
   end
@@ -365,8 +362,16 @@ classdef Labeler < handle
     %     suspNotes; % column cell vec same size as labeledpos. suspNotes{iMov} is a nFrm x nTrx column cellstr
   end
   
+  %% PreProc
+  properties
+    preProcParams % struct
+    preProcH0 % image hist used in current preProcData. Conceptually, this is a preProcParam that APT updates from movies
+    preProcData % for CPR, a CPRData; for DL trackers, likely a tracker-specific object pointing to data on disk
+    preProcDataTS % scalar timestamp  
+  end
+  
   %% Tracking
-  properties (SetObservable)
+  properties (SetObservable)    
     tracker % LabelTracker object. init: PLPN
     trackModeIdx % index into MFTSetEnum.TrackingMenu* for current trackmode. 
      %Note MFTSetEnum.TrackingMenuNoTrx==MFTSetEnum.TrackingMenuTrx(1:K).
@@ -532,12 +537,6 @@ classdef Labeler < handle
         v = obj.trxFilesAllFull(iMov,:);
       end
     end
-%     function v = get.movieIDsAll(obj)
-%       v = FSPath.standardPath(obj.movieFilesAll);
-%     end
-%     function v = get.movieSetIDsAll(obj)
-%       v = MFTable.formMultiMovieIDArray(obj.movieIDsAll);
-%     end
     function v = get.hasMovie(obj)
       v = obj.hasProject && obj.movieReader(1).isOpen;
     end    
@@ -881,24 +880,14 @@ classdef Labeler < handle
       end
       assert(numel(cfg.LabelPointNames)==cfg.NumLabelPoints);
          
-%       if isempty(cfg.LabelPointMap) && obj.nview==1
-%         % create default map
-%         tmpFields = arrayfun(@(x)sprintf('pt%d',x),(1:npts)','uni',0);
-%         tmpVals = num2cell((1:npts)');
-%         lblPtMap = cell2struct(tmpVals,tmpFields,1);
-%       else
-%         lblPtMap = cfg.LabelPointMap;
-%       end
-       
       % pts, sets, views
-      setnames = cfg.LabelPointNames;%fieldnames(lblPtMap);
+      setnames = cfg.LabelPointNames;
       nSet = size(setnames,1);
       ipt2view = nan(npts,1);
       ipt2set = nan(npts,1);
       setmap = nan(nSet,obj.nview);
       for iSet = 1:nSet
         set = setnames{iSet};
-        %iPts = lblPtMap.(set);
         iPts = iSet:npts3d:npts;
         if numel(iPts)~=obj.nview
           error('Labeler:prefs',...
@@ -979,6 +968,11 @@ classdef Labeler < handle
       obj.movieCenterOnTarget = cfg.View(1).CenterOnTarget;
       obj.movieRotateTargetUp = cfg.View(1).RotateTargetUp;
  
+      % maybe useful to clear/reinit and shouldn't hurt
+      obj.movieCache = containers.Map(); 
+      
+      obj.preProcInit();
+      
       % For unclear reasons, creation of new tracker occurs downstream in
       % projLoad() or projNew()
       if ~isempty(obj.tracker)
@@ -996,6 +990,7 @@ classdef Labeler < handle
       % yet. projLoad() will further set any loaded info
       obj.setPrevAxesMode(PrevAxesMode.LASTSEEN,[]);
       
+      % maybe useful to clear/reinit and shouldn't hurt
       obj.trxCache = containers.Map();
       
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
@@ -1146,8 +1141,6 @@ classdef Labeler < handle
       if trkPrefs.Enable
         obj.tracker = feval(trkPrefs.Type,obj);
         obj.tracker.init();
-
-        %obj.gdata.labelTLInfo.setTracker(obj.tracker);
       end
 
       props = obj.gdata.propsNeedInit;
@@ -1324,7 +1317,7 @@ classdef Labeler < handle
       lposProps = obj.SAVEPROPS_LPOS(:,1);
       for f=LOADPROPS(:)',f=f{1}; %#ok<FXSET>
         if isfield(s,f)          
-          if ~any(strcmp(f,lposProps));
+          if ~any(strcmp(f,lposProps))
             obj.(f) = s.(f);
           else
             val = s.(f);
@@ -1498,6 +1491,8 @@ classdef Labeler < handle
 
       obj.labeledposNeedsSave = true;
       obj.projFSInfo = ProjectFSInfo('imported',fname);
+      
+      % XXX prob would need .preProcInit() here
       
       if ~isempty(obj.tracker)
         warning('Labeler:projImport','Re-initting tracker.');
@@ -1883,6 +1878,46 @@ classdef Labeler < handle
         end
         s.(f) = val;
       end
+      
+      % 20180309 Preproc params
+      % If preproc params are present in trackerData, move them to s and 
+      % remove from trackerData
+      tfTrackerDataHasPPParams = ~isempty(s.trackerData) && ...
+        ~isempty(s.trackerData.sPrm) && ...
+        isfield(s.trackerData.sPrm,'PreProc');
+      if isfield(s,'preProcParams')
+        assert(isfield(s,'preProcH0'));
+        assert(~tfTrackerDataHasPPParams);
+      else
+        if tfTrackerDataHasPPParams      
+          ppPrm = s.trackerData.sPrm.PreProc;
+          s.trackerData.sPrm = rmfield(s.trackerData.sPrm,'PreProc');
+        else
+          ppPrm = struct();
+        end
+        
+        % 201803 NborMask. This default comes before the structoverlay
+        % below b/c it is a "nonstandard default". Before adding GMM-EM
+        % nborMask defaulted to Conn. Comp, so there theoretically could be
+        % legacy projects with trained trackers based on conn.comp.
+        if isfield(ppPrm,'NeighborMask') && ...
+           ~isfield(ppPrm.NeighborMask,'SegmentMethod')
+          ppPrm.NeighborMask.SegmentMethod = 'Conn. Comp';
+        end
+                
+        s.preProcParams = ppPrm;
+        s.preProcH0 = [];
+      end
+      
+      ppPrm0 = CPRLabelTracker.readDefaultParams();
+      ppPrm0 = ppPrm0.PreProc;
+      [s.preProcParams,ppPrm0used] = structoverlay(ppPrm0,s.preProcParams,...
+        'dontWarnUnrecog',true);
+      if ~isempty(ppPrm0used)
+        fprintf('Using default preprocessing parameters for: %s.\n',...
+          String.cellstr2CommaSepList(ppPrm0used));
+      end
+      
     end  
     
   end 
@@ -2240,13 +2275,14 @@ classdef Labeler < handle
         end
         edata = MoviesRemappedEventData.movieRemovedEventData(...
           movIdx,nMovOrigReg,nMovOrigGT);
+        obj.preProcData.movieRemap(edata.mIdxOrig2New);
         if gt
           [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
-            obj.gtSuggMFTable,'mov',edata.iMovOrig2New);
+            obj.gtSuggMFTable,'mov',edata.mIdxOrig2New);
           obj.gtSuggMFTableLbled(tfRm,:) = [];
           if ~isempty(obj.gtTblRes)
             obj.gtTblRes = MFTable.remapIntegerKey(obj.gtTblRes,'mov',...
-              edata.iMovOrig2New);
+              edata.mIdxOrig2New);
           end
           obj.notify('gtSuggUpdated');
           obj.notify('gtResUpdated');
@@ -2306,7 +2342,8 @@ classdef Labeler < handle
       obj.isinit = tfOrig;
       
       edata = MoviesRemappedEventData.moviesReorderedEventData(...
-        p,nmov,obj.nmoviesGT);      
+        p,nmov,obj.nmoviesGT);
+      obj.preProcData.movieRemap(edata.mIdxOrig2New);
       notify(obj,'moviesReordered',edata);
 
       if ~obj.gtIsGTMode
@@ -2775,6 +2812,37 @@ classdef Labeler < handle
       wbObj.endPeriod();      
       
       H0 = typicalImHist(I,'wbObj',wbObj);
+    end
+        
+    function movRdr = getMovieReader(obj,movname)
+      movRdr = Labeler.getMovieReaderCacheStc(obj.movieCache,movname);
+    end
+  end
+  methods (Static)
+    function movRdr = getMovieReaderCacheStc(movCache,movfullpath)
+      % Get movieReader for movname from .movieCache; load from filesys if
+      % nec
+      %
+      % movCache: containers.Map
+      % filename: fullpath to movie
+      %
+      % movRdr: scalar MovieReader
+      
+      if movCache.isKey(movfullpath)
+        movRdr = movCache(movfullpath);
+      else
+        if exist(movfullpath,'file')==0
+          error('Labeler:file','Cannot find movie ''%s''.',movfullpath);
+        end
+        movRdr = MovieReader;
+        try
+          movRdr.open(movfullpath);
+        catch ME
+          error('Could not open movie ''%s'': %s',movfullpath,ME.message);
+        end
+        movCache(movfullpath) = movRdr; %#ok<NASGU>
+        RC.saveprop('lbl_lastmovie',movfullpath);        
+      end
     end
     
   end
@@ -5469,9 +5537,419 @@ classdef Labeler < handle
 %       end
 %     end
   
-  %% Tracker
+%% PreProc
+%  
+% "Preprocessing" represents transformations taken on raw movie/image data
+% in preparation for tracking: eg histeq, cropping, nbormasking, bgsubbing.
+% The hope is that these transformations can normalize/clean up data to
+% increase overall tracking performance. One imagines that many preproc
+% steps apply equally well to any particular tracking algorithm; then there
+% may be algorithm-specific preproc steps as well.
+% 
+% Preproc computations are governed by a set of parameters. Within the UI
+% these are available under the Track->Configure Tracking Parameters menu.
+% The user is also able to turn on/off preprocessing steps as they desire.
+% 
+% Conceptually Preproc is a linear pipeline accepting raw movie data as
+% the input and producing images ready for consumption by the tracker. 
+% Ideally the PreProc pipeline is the SOLE SOURCE of input data (besides
+% parameters) for trackers.
+% 
+% APT caches preprocessed data for two reasons. It can be convenient from a
+% performance standpoint, eg if one is iteratively retraining and gauging
+% performance on a test set of frames. Another reason is that by caching
+% data, users can conveniently browse training data, diagnostic metadata,
+% etc.
+%
+% For CPR, the PP cache is in-memory. For DL trackers, the PP cache is on
+% disk as the PP data/images ultimately need to be written to disk anyway
+% for tracking.
+% 
+% When a preprocessing parameter is mutated, the pp cache must be cleared.
+% We define an invariant so that any live data in the PP cache must have
+% been generated with the current PP parameters. However, there is a
+% question about whether a trained tracker should also be cleared, if a PP
+% parameter is altered.
+% 
+% The conservative route is to always clear any trained tracker if any PP
+% parameter is mutated. However, there may be cases where this is
+% undesirable. Viewed as a black box, the tracker accepts images and
+% produces annotations; the fact that it was trained on images produced in
+% a certain way doesn't guarantee that a user might not want to apply it to
+% images produced in a (possibly slightly) different way. For instance,
+% after a tracker has already been trained, a background image for a movie
+% might be incrementally improved. Using the old/trained tracker with data 
+% PPed using the new background image with bgsub might be perfectly
+% reasonable. There may be other interesting cases as well, eg train with
+% no nbor mask, track with nbor mask, where "more noise" during training is
+% desireable to improve generalization.
+% 
+% With preprocessing clearly separated from tracking, it should be fairly
+% easy to enable these more complex scenarios in the future if desired.
+% 
+% Parameter mutation Summary
+% - PreProc parameter mutated -> PP cache cleared; trained tracker cleared (maybe in future, something fancier)
+% - Tracking parameter mutated -> PP cache untouched; trained tracker cleared
+% 
+% NOTE: During a retrain(), a snapshot of preprocParams should be taken and
+% saved with the trained tracker. That way it is recorded/known precisely 
+% how that tracker was generated.
+
   methods
+    
+    function preProcInit(obj)
+      obj.preProcParams = [];
+      obj.preProcH0 = [];
+      obj.preProcInitData();
+    end
+    
+    function preProcInitData(obj)
+      % Initialize .preProcData*
+      
+      I = cell(0,1);
+      tblP = MFTable.emptyTable(MFTable.FLDSCORE);
+      obj.preProcData = CPRData(I,tblP);
+      obj.preProcDataTS = now;
+    end
+    
+    function tfPPprmsChanged = preProcSetParams(obj,ppPrms)
+      assert(isstruct(ppPrms));      
+      ppPrms0 = obj.preProcParams;
+      tfPPprmsChanged = ~isequaln(ppPrms0,ppPrms);
+      if tfPPprmsChanged
+        warningNoTrace('Preprocessing parameters altered; data cache cleared.');
+        obj.preProcInitData();
+      end
+      obj.preProcParams = ppPrms;
+    end
+    
+    function tblP = preProcCropLabelsToRoiIfNec(obj,tblP)
+      % Add .roi column to table if appropriate/nec
+      %
+      % If hasTrx, modify tblP as follows:
+      % - add .roi
+      % - set .p to be .pRoi, ie relative to ROI
+      % - set .pAbs to be absolute .p
+      % If not hasTrx,
+      % - .p will be pAbs
+      % - no .roi
+      
+      if obj.hasTrx
+        tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
+        assert(all(tf) || ~any(tf));
+        if ~any(tf)
+          roiRadius = obj.preProcParams.TargetCrop.Radius;
+          tblP = obj.labelMFTableAddROI(tblP,roiRadius);
+          tblP.pAbs = tblP.p;
+          tblP.p = tblP.pRoi;
+        end
+      else
+        % none; tblP.p is .pAbs. No .roi field.
+      end
+    end
+    
+    function tblP = preProcGetMFTableLbled(obj,varargin)
+      % labelGetMFTableLabeled + preProcCropLabelsToRoiIfNec
+      %
+      % Get MFTable for all movies/labeledframes. Exclude partially-labeled 
+      % frames.
+      %
+      % tblP: MFTable of labeled frames. Precise cols may vary. However:
+      % - MFTable.FLDSFULL are guaranteed where .p is:
+      %   * The absolute position for single-target trackers
+      %   * The position relative to .roi for multi-target trackers
+      % - .roi is guaranteed when .hasTrx.
+
+      wbObj = myparse(varargin,...
+        'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
+                   ... % 1. obj const 
+                   ... % 2. tblP indeterminate
+        ); 
+      tfWB = ~isempty(wbObj);
+      
+      tblP = obj.labelGetMFTableLabeled('wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        % tblP indeterminate, return it anyway
+        return;
+      end
+      
+      tblP = obj.preProcCropLabelsToRoiIfNec(tblP);
+      tfnan = any(isnan(tblP.p),2);
+      nnan = nnz(tfnan);
+      if nnan>0
+        warningNoTrace('Labeler:nanData',...
+          'Not including %d partially-labeled rows.',nnan);
+      end
+      tblP = tblP(~tfnan,:);
+    end
+    
+    % Hist Eq Notes
+    %
+    % The Labeler has the ability/responsibility to compute a "typical" 
+    % image histogram H0 representative of all movies in the current 
+    % project. At the moment it does this by sampling frames at intervals 
+    % (weighting all frames equally regardless of movie), but this is an 
+    % impl detail.
+    %
+    % .preProcH0 is the image histogram used to generate the current
+    % .preProcData. Conceptually, .preProcH0 is like .preProcParams in that
+    % it is a parameter (vector) governing how data is preprocessed.
+    % Instead of being user-set like other parameters, .preProcH0 is
+    % updated/learned from the project movies.
+    %
+    % .preProcH0 is set at retrain- (fulltraining-) time. It is not updated
+    % during tracking, or during incremental trains. If users are adding
+    % movies/labels, they should periodically retrain fully, to refresh 
+    % .preProcH0 relative to the movies.
+    %
+    % Note that .preProcData has its own .H0 for historical reasons. This
+    % should always coincide with .preProcH0, except possibly in edge cases
+    % where one or the other is empty.
+    % 
+    % SUMMARY MAIN OPERATIONS
+    % retrain: this updates .preProcH0 and also forces .preProcData.H0
+    % to match; .preProcData is initially cleared if necessary.
+    % inctrain: .preProcH0 is untouched. .preProcData.H0 continues to match 
+    % .preProcH0.
+    % track: same as inctrain.
+    
+    function preProcUpdateH0IfNec(obj)
+      ppPrms = obj.preProcParams;
+      if ppPrms.histeq
+        assert(obj.nview==1,...
+          'Histogram Equalization currently unsupported for multiview projects.');
+        assert(~obj.hasTrx,...
+          'Histogram Equalization currently unsupported for multitarget projects.');
         
+        nFrmSampH0 = ppPrms.histeqH0NumFrames;
+        H0 = obj.movieEstimateImHist(nFrmSampH0);
+        
+        data = obj.preProcData;
+        if ~isequal(data.H0,obj.preProcH0)
+          assert(data.N==0 || ... % empty .data
+                 isempty(obj.preProcH0),... 
+                 '.preProcData.H0 differs from .preProcH0');
+        end
+        if ~isequal(H0,data.H0)
+          obj.preProcInitData();
+        end
+        obj.preProcH0 = H0;
+      else
+        assert(isempty(obj.preProcData.H0));
+        assert(isempty(obj.preProcH0));
+      end      
+    end
+    
+    function [data,dataIdx] = preProcDataFetch(obj,tblP,varargin)
+      % dataUpdate, then retrieve
+      %
+      % Input args: See PreProcDataUpdate
+      %
+      % data: CPRData handle, equal to obj.preProcData
+      % dataIdx. data.I(dataIdx,:) gives the rows corresponding to tblP
+      %   (order preserved)
+      
+      wbObj = myparse(varargin,...
+        'wbObj',[]); % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
+      tfWB = ~isempty(wbObj);
+      
+      obj.preProcDataUpdate(tblP,'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        data = [];
+        dataIdx = [];
+        return;
+      end
+      
+      data = obj.preProcData;
+      [tf,dataIdx] = tblismember(tblP,data.MD,MFTable.FLDSID);
+      assert(all(tf));
+    end
+    
+    function preProcDataUpdate(obj,tblP,varargin)
+      % Update .preProcData to include tblP
+      %
+      % tblP:
+      %   - MFTable.FLDSCORE: required.
+      %   - .roi: optional, USED WHEN PRESENT. (prob needs to be either
+      %   consistently there or not-there for a given obj or initData()
+      %   "session"
+      %   - .pTS: optional (if present, deleted)
+      
+      wbObj = myparse(varargin,...
+        'wbObj',[]); % WaitBarWithCancel. If cancel, obj unchanged.
+      
+      if any(strcmp('pTS',tblP.Properties.VariableNames))
+        % AL20170530: Not sure why we do this
+        tblP(:,'pTS') = [];
+      end
+      [tblPnew,tblPupdate] = obj.preProcData.tblPDiff(tblP);
+      obj.preProcDataUpdateRaw(tblPnew,tblPupdate,'wbObj',wbObj);
+    end
+    
+    function preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
+      % Incremental data update
+      %
+      % * Rows appended and pGT/tfocc updated; but other information
+      % untouched
+      % * histeq (if enabled) uses .preProcH0. See "Hist Eq Notes" below.
+      % .preProcH0 is NOT updated here.
+      %
+      % QUESTION: why is pTS not updated?
+      %
+      % tblPNew: new rows. MFTable.FLDSCORE are required fields. .roi may 
+      %   be present and if so WILL BE USED to grab images and included in 
+      %   data/MD. Other fields are ignored.
+      % tblPupdate: updated rows (rows with updated pGT/tfocc).
+      %   MFTable.FLDSCORE fields are required. Only .pGT and .tfocc are 
+      %   otherwise used. Other fields ignored.
+      %
+      % Updates .preProcData, .preProcDataTS
+      
+      wbObj = myparse(varargin,...
+        'wbObj',[]); % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
+      tfWB = ~isempty(wbObj);
+      
+      FLDSREQUIRED = MFTable.FLDSCORE;
+      FLDSALLOWED = [MFTable.FLDSCORE {'roi' 'nNborMask'}];
+      tblfldscontainsassert(tblPnew,FLDSREQUIRED);
+      tblfldscontainsassert(tblPupdate,FLDSREQUIRED);
+      
+      prmpp = obj.preProcParams;
+      if isempty(prmpp)
+        error('Please specify tracking parameters.');
+      end
+      
+      dataCurr = obj.preProcData;
+      
+      if prmpp.histeq
+        assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.preProcH0));
+        assert(obj.nview==1,...
+          'Histogram Equalization currently unsupported for multiview tracking.');
+        assert(~obj.hasTrx,...
+          'Histogram Equalization currently unsupported for multitarget tracking.');
+      end
+      if ~isempty(prmpp.channelsFcn)
+        assert(obj.nview==1,...
+          'Channels preprocessing currently unsupported for multiview tracking.');
+      end
+      
+      %%% NEW ROWS read images + PP. Append to dataCurr. %%%
+      FLDSID = MFTable.FLDSID;
+      assert(~any(tblismember(tblPnew,dataCurr.MD,FLDSID)));
+      
+      tblPNewConcrete = obj.mftTableConcretizeMov(tblPnew);
+      nNew = height(tblPnew);
+      if nNew>0
+        fprintf(1,'Adding %d new rows to data...\n',nNew);
+        
+        [I,nNborMask] = CPRData.getFrames(tblPNewConcrete,...
+          'wbObj',wbObj,...
+          'trxCache',obj.trxCache,...
+          'maskNeighbors',prmpp.NeighborMask.Use,...
+          'maskNeighborsMeth',prmpp.NeighborMask.SegmentMethod,...
+          'maskNeighborsEmpPDF',obj.fgEmpiricalPDF,...
+          'bgType',prmpp.NeighborMask.BGType,...
+          'bgReadFcn',prmpp.NeighborMask.BGReadFcn,...
+          'fgThresh',prmpp.NeighborMask.FGThresh);
+        if tfWB && wbObj.isCancel
+          % obj unchanged
+          return;
+        end
+        % Include only FLDSALLOWED in metadata to keep CPRData md
+        % consistent (so can be appended)
+        
+        tfColsAllowed = ismember(tblPnew.Properties.VariableNames,...
+          FLDSALLOWED);
+        tblPnewMD = tblPnew(:,tfColsAllowed);
+        tblPnewMD = [tblPnewMD table(nNborMask)];
+        dataNew = CPRData(I,tblPnewMD);
+        if prmpp.histeq
+          H0 = obj.preProcH0;
+          assert(~isempty(H0),'H0 unavailable for histeq/preprocessing.');
+          gHE = categorical(dataNew.MD.mov);
+          dataNew.histEq('g',gHE,'H0',H0,'wbObj',wbObj);
+          if tfWB && wbObj.isCancel
+            % obj unchanged
+            return;
+          end
+          assert(isequal(dataNew.H0,H0));
+          if dataCurr.N==0
+            dataCurr.H0 = H0;
+            % dataCurr.H0, dataNew.H0 need to match for append()
+          end
+        end
+        if ~isempty(prmpp.channelsFcn)
+          feval(prmpp.channelsFcn,dataNew);
+          assert(~isempty(dataNew.IppInfo),...
+            'Preprocessing channelsFcn did not set .IppInfo.');
+          if isempty(dataCurr.IppInfo)
+            assert(dataCurr.N==0,'Ippinfo can be empty only for empty/new data.');
+            dataCurr.IppInfo = dataNew.IppInfo;
+          end
+        end
+        
+        dataCurr.append(dataNew);
+      end
+      
+      %%% EXISTING ROWS -- just update pGT and tfocc. Existing images are
+      %%% OK and already histeq'ed correctly
+      nUpdate = size(tblPupdate,1);
+      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB 
+                   % table indexing API may not be polished
+        fprintf(1,'Updating labels for %d rows...\n',nUpdate);
+        [tf,loc] = tblismember(tblPupdate,dataCurr.MD,FLDSID);
+        assert(all(tf));
+        dataCurr.MD{loc,'tfocc'} = tblPupdate.tfocc; % AL 20160413 throws if nUpdate==0
+        dataCurr.pGT(loc,:) = tblPupdate.p;
+      end
+      
+      if nUpdate>0 || nNew>0
+        assert(obj.preProcData==dataCurr); % handles
+        obj.preProcDataTS = now;
+      else
+        warningNoTrace('Nothing to update in data.');
+      end
+    end
+   
+  end
+  
+
+  %% Tracker
+  methods    
+
+    function trackSetParams(obj,sPrm)
+      % sPrm: scalar struct containing both preproc + tracking params
+
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('No tracker is set.');
+      end
+       
+      ppPrms = sPrm.PreProc;
+      sPrm = rmfield(sPrm,'PreProc');
+      
+      tfPPprmsChanged = obj.preProcSetParams(ppPrms);
+      tObj.setParamContentsSmart(sPrm,tfPPprmsChanged);
+    end
+    
+    function sPrm = trackGetParams(obj)
+      % sPrm: scalar struct containing both preproc + tracking params
+      
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('No tracker is set.');
+      end
+      
+      sPrm = tObj.sPrm;
+      if isempty(sPrm)
+        % new tracker
+        sPrm = struct();
+      end
+      
+      assert(~isfield(sPrm,'PreProc'));
+      sPrm.PreProc = obj.preProcParams;
+    end
+    
     function trackTrain(obj)
       tObj = obj.tracker;
       if isempty(tObj)
@@ -5491,6 +5969,7 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
+      obj.preProcUpdateH0IfNec();
       tObj.retrain(varargin{:});
     end
     
@@ -5566,6 +6045,7 @@ classdef Labeler < handle
           fprintf('...saved: %s\n',trkfiles{i,iVw});
         end
         tObj.clearTrackingResults();
+        obj.preProcInitData();
       end
     end
     
@@ -5640,8 +6120,7 @@ classdef Labeler < handle
       
       % Get labeled/gt data
       if isempty(tblMFgt)
-        tblMFgt = obj.labelGetMFTableLabeled();
-        tblMFgt = tObj.hlpAddRoiIfNec(tblMFgt);
+        tblMFgt = obj.preProcGetMFTableLbled();
       end
       
       % Partition MFT table
@@ -5650,9 +6129,11 @@ classdef Labeler < handle
       grpC = movC.*tgtC;
       cvPart = cvpartition(grpC,'kfold',kFold);
 
+      obj.preProcUpdateH0IfNec();
+      
       % Basically an initHook() here
       if initData
-        tObj.initData();
+        obj.preProcInitData();
       end
       tObj.trnDataInit(); % not strictly necessary as .retrain() should do it 
       tObj.trnResInit(); % not strictly necessary as .retrain() should do it 
@@ -5682,7 +6163,7 @@ classdef Labeler < handle
         tObj.track(tblMFgtTrack,'wbObj',wbObj);        
         [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
         if initData
-          tObj.initData();
+          obj.preProcInitData();
         end
         tObj.trnDataInit();
         tObj.trnResInit();

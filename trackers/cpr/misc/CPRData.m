@@ -127,7 +127,7 @@ classdef CPRData < handle
     end
   end
   
-  %% Ctor
+  %% 
   methods
     
     function obj = CPRData(varargin)
@@ -242,6 +242,14 @@ classdef CPRData < handle
       obj.iTst = [];
     end
     
+    function [tblPnew,tblPupdate] = tblPDiff(obj,tblP) % obj const
+      % Compare tblP to .p and .MD wrt MFTable.FLDSCORE
+
+      tbl0 = obj.MD;
+      tbl0.p = obj.pGT;
+      [tblPnew,tblPupdate] = MFTable.tblPDiff(tbl0,tblP);
+    end
+  
   end
   
   %% misc data

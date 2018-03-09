@@ -173,6 +173,7 @@ handles.menu_track_use_all_labels_to_train = uimenu(...
   'Callback',@(h,evtdata)LabelerGUI('menu_track_use_all_labels_to_train_Callback',h,evtdata,guidata(h)));
 moveMenuItemAfter(handles.menu_track_use_all_labels_to_train,handles.menu_track_setparametersfile);
 handles.menu_track_select_training_data.Label = 'Downsample training data';
+handles.menu_track_select_training_data.Visible = 'off';
 moveMenuItemAfter(handles.menu_track_select_training_data,handles.menu_track_use_all_labels_to_train);
 handles.menu_track_training_data_montage = uimenu(...
   'Parent',handles.menu_track,...
@@ -394,10 +395,7 @@ listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChang
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
-%listeners{end+1,1} = addlistener(lObj,'targetZoomRadius','PostSet',@cbkTargetZoomFacChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
-%listeners{end+1,1} = addlistener(lObj,'moviename','PostSet',@cbkMovienameChanged);
-%listeners{end+1,1} = addlistener(lObj,'suspScore','PostSet',@cbkSuspScoreChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
@@ -412,7 +410,6 @@ listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertCha
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
-%listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
@@ -658,22 +655,6 @@ end
 if tfKPused
   return;
 end
-
-% % Dependent figs with KeyPressHandlers
-% depH = handles.depHandles;
-% for i=1:numel(depH)
-%   h = depH(i);
-%   if ~isvalid(h)
-%     continue;
-%   end    
-%   kph = getappdata(h,'keyPressHandler');
-%   if ~isempty(kph)
-%     tfKPused = kph.handleKeyPress(evt);
-%     if tfKPused
-%       return;
-%     end
-%   end
-% end
 
 lcore = lObj.lblCore;
 if ~isempty(lcore)
@@ -2233,7 +2214,7 @@ function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
 assert(~isempty(tObj));
-assert(isa(tObj,'CPRLabelTracker'));
+%assert(isa(tObj,'CPRLabelTracker'));
 
 % Start with "new" parameter tree/specification which provides "new"
 % parameters structure, types etc
@@ -2241,8 +2222,8 @@ prmBaseYaml = fullfile(APT.Root,'trackers','cpr','params_apt.yaml');
 tPrm = parseConfigYaml(prmBaseYaml);
 
 % Now overlay either the current parameters or some other starting pt
-sPrmOld = tObj.getParams();
-if isempty(sPrmOld) % eg new tracker
+sPrmOld = lObj.trackGetParams();
+if isempty(sPrmOld) || ~isfield(sPrmOld,'Model') % eg new tracker
   sPrmNewOverlay = RC.getprop('lastCPRAPTParams');
   % sPrmNewOverlay could be [] if prop hasn't been set
 else
@@ -2267,7 +2248,7 @@ else
   RC.saveprop('lastCPRAPTParams',sPrm);
   [sPrm,lObj.trackNFramesSmall,lObj.trackNFramesLarge,...
     lObj.trackNFramesNear] = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
-  tObj.setParams(sPrm);
+  lObj.trackSetParams(sPrm);
 end
 
 function cbkTrackerTrnDataDownSampChanged(src,evt,handles)
@@ -2301,22 +2282,22 @@ if tObj.hasTrained && tObj.trnDataDownSamp
 end
 tObj.trnDataUseAll();
 
-function menu_track_select_training_data_Callback(hObject, eventdata, handles)
-tObj = handles.labelerObj.tracker;
-if tObj.hasTrained
-  resp = questdlg('A tracker has already been trained. Downsampling training data will clear all previous trained/tracked results. Proceed?',...
-    'Clear Existing Tracker','Yes, clear previous tracker','Cancel','Cancel');
-  if isempty(resp)
-    resp = 'Cancel';
-  end
-  switch resp
-    case 'Yes, clear previous tracker'
-      % none
-    case 'Cancel'
-      return;
-  end
-end
-tObj.trnDataSelect();
+% function menu_track_select_training_data_Callback(hObject, eventdata, handles)
+% tObj = handles.labelerObj.tracker;
+% if tObj.hasTrained
+%   resp = questdlg('A tracker has already been trained. Downsampling training data will clear all previous trained/tracked results. Proceed?',...
+%     'Clear Existing Tracker','Yes, clear previous tracker','Cancel','Cancel');
+%   if isempty(resp)
+%     resp = 'Cancel';
+%   end
+%   switch resp
+%     case 'Yes, clear previous tracker'
+%       % none
+%     case 'Cancel'
+%       return;
+%   end
+% end
+% tObj.trnDataSelect();
 
 function menu_track_training_data_montage_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -2351,8 +2332,7 @@ if lObj.tracker.hasTrained
   end
 end
 
-tblMFgt = lObj.labelGetMFTableLabeled();
-tblMFgt = lObj.tracker.hlpAddRoiIfNec(tblMFgt);
+tblMFgt = lObj.preProcGetMFTableLbled();
 inputstr = sprintf('This project has %d labeled frames.\nNumber of folds for k-fold cross validation:',...
   height(tblMFgt));
 resp = inputdlg(inputstr,'Cross Validation',1,{'7'});
@@ -2448,7 +2428,9 @@ switch sft
 end
 
 function menu_track_clear_tracking_results_Callback(hObject, eventdata, handles)
-tObj = handles.labelerObj.tracker;
+lObj = handles.labelerObj;
+lObj.preProcInitData(); % legacy behavior not sure why; maybe b/c the user is prob wanting to increase avail mem
+tObj = lObj.tracker;
 tObj.clearTrackingResults();
 msgbox('Tracking results cleared.','Done');
 
