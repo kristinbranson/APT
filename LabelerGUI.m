@@ -189,6 +189,7 @@ handles = rmfield(handles,'menu_track_retrain');
 handles.menu_track_trainincremental.Callback = @(h,edata)LabelerGUI('menu_track_trainincremental_Callback',h,edata,guidata(h));
 handles.menu_track_trainincremental.Label = 'Incremental Train';
 handles.menu_track_trainincremental.Tag = 'menu_track_trainincremental';
+handles.menu_track_trainincremental.Visible = 'off';
 %handles.menu_track_track_and_export.Separator = 'off';
 
 handles.menu_track_export_base = uimenu('Parent',handles.menu_track,...

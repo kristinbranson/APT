@@ -887,7 +887,7 @@ classdef CPRLabelTracker < LabelTracker
       else % Either use supplied tblPTrn, or use all labeled data
         if isempty(tblPTrn)
           % use all labeled data
-          tblPTrn = obj.preProcGetMFTableLbled('wbObj',wbObj);
+          tblPTrn = obj.lObj.preProcGetMFTableLbled('wbObj',wbObj);
           if tfWB && wbObj.isCancel
             % Theoretically we are safe to return here as of 201801. We 
             % have only called obj.asyncReset() so far. 
@@ -1965,6 +1965,14 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
       assert(isa(s.storeFullTracking,'StoreFullTrackingType'));
+      
+      % 20180310
+      if isfield(s,'trnResH0')
+        if ~isempty(s.trnResH0)
+          warningNoTrace('Clearing legacy histogram equalization information found in tracker.');
+        end
+        s = rmfield(s,'trnResH0');
+      end
 
       %%% END MODERNIZE S
 

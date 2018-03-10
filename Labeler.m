@@ -2308,7 +2308,9 @@ classdef Labeler < handle
         error('Input argument ''p'' must be a permutation of 1..%d.',nmov);
       end
       
-      if ~isempty(obj.suspScore) || ~isempty(obj.suspSelectedMFT)
+      tfSuspStuffEmpty = (isempty(obj.suspScore) || all(cellfun(@isempty,obj.suspScore))) ...
+        && isempty(obj.suspSelectedMFT);
+      if ~tfSuspStuffEmpty
         error('Reordering is currently unsupported for projects with suspiciousness.');
       end
       
