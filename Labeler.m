@@ -1892,17 +1892,17 @@ classdef Labeler < handle
         if tfTrackerDataHasPPParams      
           ppPrm = s.trackerData.sPrm.PreProc;
           s.trackerData.sPrm = rmfield(s.trackerData.sPrm,'PreProc');
+        
+          % 20180314 BackSub. Move backsub-related fields from NborMask to
+          % BackSub subprop.
+          if isfield(ppPrm,'NeighborMask')
+            assert(~isfield(ppPrm,'BackSub'));
+            ppPrm.BackSub.BGType = ppPrm.NeighborMask.BGType;
+            ppPrm.BackSub.BGReadFcn = ppPrm.NeighborMask.BGReadFcn;
+            ppPrm.NeighborMask = rmfield(ppPrm.NeighborMask,{'BGType' 'BGReadFcn'});
+          end
         else
           ppPrm = struct();
-        end
-        
-        % 201803 NborMask. This default comes before the structoverlay
-        % below b/c it is a "nonstandard default". Before adding GMM-EM
-        % nborMask defaulted to Conn. Comp, so there theoretically could be
-        % legacy projects with trained trackers based on conn.comp.
-        if isfield(ppPrm,'NeighborMask') && ...
-           ~isfield(ppPrm.NeighborMask,'SegmentMethod')
-          ppPrm.NeighborMask.SegmentMethod = 'Conn. Comp';
         end
                 
         s.preProcParams = ppPrm;

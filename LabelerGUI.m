@@ -2217,29 +2217,30 @@ tObj = lObj.tracker;
 assert(~isempty(tObj));
 %assert(isa(tObj,'CPRLabelTracker'));
 
-% Start with "new" parameter tree/specification which provides "new"
-% parameters structure, types etc
-prmBaseYaml = fullfile(APT.Root,'trackers','cpr','params_apt.yaml');
-tPrm = parseConfigYaml(prmBaseYaml);
-
-% Now overlay either the current parameters or some other starting pt
+% Find either the current parameters or some other starting pt
 sPrmOld = lObj.trackGetParams();
 if isempty(sPrmOld) || ~isfield(sPrmOld,'Model') % eg new tracker
   sPrmNewOverlay = RC.getprop('lastCPRAPTParams');
-  % sPrmNewOverlay could be [] if prop hasn't been set
+  if isempty(sPrmNewOverlay)
+    % sPrmNewOverlay could be [] if prop hasn't been set
+    sPrmNewOverlay = struct();
+    sPrmNewOverlay.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
+    sPrmNewOverlay.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
+    sPrmNewOverlay.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
+  end
+  
+  % 20180310: sPrmNewOverlay could be in an older format, eg with Backsub
+  % stuff under NeighborMasking. However due to how structapply() works
+  % (see below), and the fact that we are just creating the starting point
+  % for user review, this should be fairly innocuous
 else
   sPrmNewOverlay = CPRParam.old2new(sPrmOld,lObj);
 end
 
-% Set new-style params that map to Labeler props instead of old-style 
-% params.
-%
-% Note. sPrmNewOverlay could be [] (see above). In this case, the following 
-% lines will create the sPrmNewOverlay struct.
-sPrmNewOverlay.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
-sPrmNewOverlay.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
-sPrmNewOverlay.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
-
+% Start with default "new" parameter tree/specification
+prmBaseYaml = CPRLabelTracker.DEFAULT_PARAMETER_FILE;
+tPrm = parseConfigYaml(prmBaseYaml);
+% Overlay our starting pt
 tPrm.structapply(sPrmNewOverlay);
 sPrm = ParameterSetup(handles.figure,tPrm); % modal
 

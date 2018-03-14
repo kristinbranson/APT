@@ -2497,7 +2497,12 @@ classdef CPRLabelTracker < LabelTracker
   methods (Static)
     
     function sPrm0 = readDefaultParams
-      sPrm0 = ReadYaml(CPRLabelTracker.DEFAULT_PARAMETER_FILE);
+      tPrm0 = parseConfigYaml(CPRLabelTracker.DEFAULT_PARAMETER_FILE);
+      sPrm0 = tPrm0.structize();
+      
+      % Use nan for npts, nviews; default parameters do not know about any
+      % model
+      sPrm0 = CPRParam.new2old(sPrm0,nan,nan); 
     end
     
     function sPrm = modernizeParams(sPrm)
@@ -2693,16 +2698,12 @@ classdef CPRLabelTracker < LabelTracker
   end
   
 end
-% AL20160912: this is giving the CPR.Root error, maybe it's too complicated
-% for current MATLAB class init
-% AL20161017: CPR.Root error persists even if not using this fcn; meanwhile
-% build is broken without it
-function dpf = lclInitDefaultParameterFile()
 
+function dpf = lclInitDefaultParameterFile()
 if isdeployed
-  dpf = fullfile(ctfroot,'param.example.yaml');
+  dpf = fullfile(ctfroot,'params_apt.yaml');
 else
   cprroot = fileparts(fileparts(mfilename('fullpath')));
-  dpf = fullfile(cprroot,'param.example.yaml');
+  dpf = fullfile(cprroot,'params_apt.yaml');
 end
 end

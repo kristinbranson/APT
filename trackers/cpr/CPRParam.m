@@ -52,6 +52,7 @@ classdef CPRParam
       trkNFrmsSm = sNew.ROOT.Track.NFramesSmall;
       trkNFrmsLg = sNew.ROOT.Track.NFramesLarge;
       trkNFrmsNear = sNew.ROOT.Track.NFramesNeighborhood;
+      sOld.PreProc.BackSub = sNew.ROOT.Track.BackSub;
       sOld.PreProc.histeq = he.Use;
       sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
       sOld.PreProc.TargetCrop = sNew.ROOT.Track.MultiTarget.TargetCrop;
@@ -131,6 +132,7 @@ classdef CPRParam
       
       sNew = struct();
       sNew.ROOT.Track.Type = 'cpr';
+      sNew.ROOT.Track.BackSub = sOld.PreProc.BackSub;
       sNew.ROOT.Track.HistEq.Use = sOld.PreProc.histeq;
       sNew.ROOT.Track.HistEq.NSampleH0 = sOld.PreProc.histeqH0NumFrames;
       sNew.ROOT.Track.MultiTarget.TargetCrop = sOld.PreProc.TargetCrop;

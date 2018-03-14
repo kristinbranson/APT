@@ -12,6 +12,11 @@ ROOT:
   - Track:
     - ['','',false,General tracking settings.,'']
     - Type: ['',['cpr'],false,Type of tracker.,cpr]
+    - BackSub:
+      - ['Background Subtraction','',false,Background Subtraction,'']
+      - Use: ['Enable',boolean,true,Use background-subtracted images during tracking/training.,false]
+      - BGType: ['Background Type',['light on dark','dark on light','other'],true,Background type.,'dark on light']
+      - BGReadFcn: ['Background Read Function',string,true,"Function that reads background for a project movie. Signature: [bg,bgdev] = fcn(movfile,movifo)",'']
     - HistEq:
       - ['Histogram Equalization','',false,Histogram Equalization,'']
       - Use: ['Enable',boolean,true,Enable histogram equalization as preprocessing step.,false]
@@ -20,14 +25,12 @@ ROOT:
       - ['Multiple Targets','',false,"When multiple targets are present, image patches are cropped from movies based on trajectory data.",'']
       - TargetCrop:
         - ['Target ROI','',false,'Training/tracking is done with ROIs centered at each target.','']
-        - Radius: ['Radius',unsigned,true,Crop a square with this radius (in pixels) about each target for training/tracking.,30]
+        - Radius: ['Radius',unsigned,true,Crop a square with this radius (in pixels) about each target for training/tracking.,50]
         - PadBkgd: ['Pad background',unsigned,true,Pad ROIs with this background value (grayscale) if necessary.,0]
       - NeighborMask:
         - ['Mask Neighbors','',false,"When targets come in close proximity to each other, non-touching neighbors can be masked.",'']
         - Use: ['Enable',boolean,true,"Mask other, non-touching targets.",false]
-        - SegmentMethod: ['Segmentation Method',['Conn. Comp','GMM-EM','Emp. PDF'],true,Masking algorithm/approach.,'GMM-EM']
-        - BGType: ['Background Type',['light on dark','dark on light','other'],true,Background type.,'dark on light']
-        - BGReadFcn: ['Background Read Function',string,true,"Function that reads background for a project movie. Signature: [bg,bgdev] = fcn(movfile,movifo)",'']
+        - SegmentMethod: ['Segmentation Method',['Conn. Comp','GMM-EM','Emp. PDF'],true,Masking algorithm/approach.,'Conn. Comp']
         - FGThresh: ['Foreground Threshold',float,true,'Background-subtracted pixels above this threshold are considered foreground subject to masking.',4]
     - NFramesSmall: ['Decimation Small',unsigned,true,Small frame increment when tracking every Nth frame.,5]
     - NFramesLarge: ['Decimation Large',unsigned,true,Large frame increment when tracking every Nth frame.,10]
@@ -57,8 +60,8 @@ ROOT:
     - RotCorrection:
       - ['Rotational Invariance','',false,Rotational invariance for randomly-oriented animals.,'']
       - OrientationType: ['Orientation',['fixed','arbitrary','arbitrary trx-specified'],true,Specification of animal orientation.,'fixed']
-      - HeadPoint: ['Head landmark',unsigned,true,Landmark/point representing animal ''Head''. Used when orientation is not fixed.,0]
-      - TailPoint: ['Tail landmark',unsigned,true,Landmark/point representing animal ''Tail''. Used when orientation is not fixed.,0]
+      - HeadPoint: ['Head landmark',unsigned,true,Landmark/point representing animal ''Head''. Used when orientation is not fixed.,1]
+      - TailPoint: ['Tail landmark',unsigned,true,Landmark/point representing animal ''Tail''. Used when orientation is not fixed.,2]
     - Replicates:
       - ['','',false,'','']
       - NrepTrain: ['Num training replicates',unsigned,true,Training set augmentation factor. Each training shape is utilized/replicated this many times.,50]
