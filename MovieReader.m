@@ -133,12 +133,14 @@ classdef MovieReader < handle
         % Note, bgReadFcn should be returning bg images with same
         % scaling as im.
 
+        % Note: we do NOT apply .flipVert to bgIm, bgDevIm here...
+        
         im = PxAssign.simplebgsub(obj.bgType,double(im),obj.bgIm,obj.bgDevIm);
         
-        % For now we attempt to rescale im based on imOrigType. This
-        % behavior is consistent with shapeGt, but only works for certain
-        % uint* types.
-        im = PxAssign.imRescalePerType(im,imOrigType);
+%         % For now we attempt to rescale im based on imOrigType. This
+%         % behavior is consistent with shapeGt, but only works for certain
+%         % uint* types.
+%         im = PxAssign.imRescalePerType(im,imOrigType);
       end
     end
     

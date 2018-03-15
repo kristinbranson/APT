@@ -394,7 +394,9 @@ classdef CPRData < handle
 
           if maskNeighbors
             [imraw,imOrigTy] = mr.readframe(f,'doBGsub',false);
-            imdiff = mr.readframe(f,'doBGsub',true); % see notes on type in MovieReader/readframe
+            imdiff = PxAssign.simplebgsub(mr.bgType,double(imraw), ...
+              mr.bgIm,mr.bgDevIm); % Note: mr.flipVert is NOT applied to .bgIm, .bgDevIm
+            % imdiff has scale per ~imOrigTy
 
             tfile = trow.trxFile{iVw};
             trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
@@ -427,8 +429,8 @@ classdef CPRData < handle
 
             if doBGsub
               % bgsub ON, nbor masking ON. 
-              % We will be masking imdiff with zeros. imdiff will be a
-              % double, usually in the range [0,1].
+              % We will be masking imdiff with zeros. imdiff is a double
+              % with original scale/range 
               imToMask = imdiff;
               imBGToApply = zeros(size(imdiff));
               % roiPadVal should be 0 here since doBGsub is on
@@ -453,11 +455,8 @@ classdef CPRData < handle
                 imToMask,imBGToApply,imL,trx,iTgt,f);
             end
             
-            if ~doBGsub
-              % we masked double(imraw) with mr.bgIm. Rescale to [0,1] if
-              % possible
-              imroi = PxAssign.imRescalePerType(imroi,imOrigTy);
-            end
+            % Rescale to [0,1] for 'usual' types
+            imroi = PxAssign.imRescalePerType(imroi,imOrigTy);
             
             % As in other branch, imroi could have varying type here.
           else

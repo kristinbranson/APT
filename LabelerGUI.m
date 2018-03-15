@@ -99,6 +99,14 @@ handles.menu_setup_streamlined = uimenu('Parent',handles.menu_labeling_setup,...
 moveMenuItemAfter(handles.menu_setup_streamlined,...
   handles.menu_setup_set_labeling_point);
 
+handles.menu_view_show_bgsubbed_frames = uimenu('Parent',handles.menu_view,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_bgsubbed_frames_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Show background subtracted frames',...
+  'Tag','menu_view_show_bgsubbed_frames',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_view_show_bgsubbed_frames,...
+  handles.menu_view_gammacorrect);
+
 handles.menu_view_rotate_video_target_up = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_rotate_video_target_up_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Rotate video so target always points up',...
@@ -408,6 +416,7 @@ listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieC
 listeners{end+1,1} = addlistener(lObj,'movieRotateTargetUp','PostSet',@cbkMovieRotateTargetUpChanged);
 listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
+listeners{end+1,1} = addlistener(lObj,'movieViewBGsubbed','PostSet',@cbkMovieViewBGsubbedChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
@@ -1139,6 +1148,12 @@ for i=1:lObj.nview
   end
   figs(i).Name = name;
 end
+
+function cbkMovieViewBGsubbedChanged(src,evt)
+lObj = evt.AffectedObject;
+tf = lObj.movieViewBGsubbed;
+mnu = lObj.gdata.menu_view_show_bgsubbed_frames;
+mnu.Checked = onIff(tf);
 
 % function cbkSuspScoreChanged(src,evt)
 % lObj = evt.AffectedObject;
@@ -1930,6 +1945,11 @@ else
     iAxApply = nan;
   end
 end
+
+function menu_view_show_bgsubbed_frames_Callback(hObject,evtdata,handles)
+tf = ~strcmp(hObject.Checked,'on');
+lObj = handles.labelerObj;
+lObj.movieViewBGsubbed = tf;
 
 function menu_view_adjustbrightness_Callback(hObject, eventdata, handles)
 [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(handles);

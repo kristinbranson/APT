@@ -199,6 +199,8 @@ classdef Labeler < handle
     moviePlayFPS; 
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
     
+    movieViewBGsubbed = false; % transient
+    
     movieIsPlaying = false;
   end
 %   properties (SetAccess=private) 
@@ -780,6 +782,19 @@ classdef Labeler < handle
         mrs(i).flipVert = v(i);
       end
       obj.movieInvert = v;
+    end
+    function set.movieViewBGsubbed(obj,v)
+      assert(isscalar(v) && islogical(v));
+      if v
+        ppPrms = obj.preProcParams; %#ok<MCSUP>
+        if isempty(ppPrms) || ...
+           isempty(ppPrms.BackSub.BGType) || isempty(ppPrms.BackSub.BGReadFcn)
+            error('Background type and/or background read function are not set in tracking parameters.');
+        end
+      end
+      obj.movieViewBGsubbed = v;
+      obj.hlpSetCurrPrevFrame(obj.currFrame,true); %#ok<MCSUP>
+      caxis(obj.gdata.axes_curr,'auto'); %#ok<MCSUP>
     end
     function set.movieCenterOnTarget(obj,v)
       obj.movieCenterOnTarget = v;
@@ -7252,7 +7267,8 @@ classdef Labeler < handle
       if obj.currFrame~=frm || tfforce
         imsall = gd.images_all;
         for iView=1:obj.nview
-          obj.currIm{iView} = obj.movieReader(iView).readframe(frm);
+          obj.currIm{iView} = obj.movieReader(iView).readframe(frm,...
+            'doBGsub',obj.movieViewBGsubbed);
           set(imsall(iView),'CData',obj.currIm{iView});
         end
         obj.currFrame = frm;
@@ -7596,7 +7612,7 @@ classdef Labeler < handle
       
       % Start with all labeled rows. Prefer these b/c user apparently cares
       % more about these frames
-      wbObj = WaitBarWithCancel('Empirical foreground PDF');
+      wbObj = WaitBarWithCancel('Empirical Foreground PDF');
       oc = onCleanup(@()delete(wbObj));
       tblMFTlbled = obj.labelGetMFTableLabeled('wbObj',wbObj);
       if wbObj.isCancel
@@ -7662,7 +7678,7 @@ classdef Labeler < handle
         % In addition run CC pxAssign and keep only the central CC to get
         % rid of any objects at the periphery
         imdiff = sMovStuff.movRdr.readframe(frm,'doBGsub',true);
-        assert(isdouble(imdiff));
+        assert(isa(imdiff,'double'));
         imbwl = PxAssign.asgnCCcore(imdiff,sMovStuff.trx,frm,prmNborMask.FGThresh);
         xTgtCtrRound = round(trxxs(iTgt));
         yTgtCtrRound = round(trxys(iTgt));
