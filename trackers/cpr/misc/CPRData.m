@@ -313,22 +313,32 @@ classdef CPRData < handle
       % Options: wbObj: WaitBarWithCancel. If canceled, I will be
       % 'incomplete', ie partially filled.
       
-      [wbObj,roiPadVal,maskNeighbors,maskNeighborsMeth,empPDF,bgReadFcn,...
-        bgType,fgThresh,trxCache] = ...
+      nView = size(tblMF.mov,2);
+      
+      [wbObj,forceGrayscale,movieInvert,roiPadVal,doBGsub,bgReadFcn,bgType,...
+        maskNeighbors,maskNeighborsMeth,empPDF,fgThresh,trxCache] = ...
         myparse(varargin,...
           'wbObj',[],...
+          'forceGrayscale',true,... 
+          'movieInvert',false(1,nView),...
           'roiPadVal',0,... % used when tblMF has .roi
-          'maskNeighbors',0,...
-          ...   % BEGIN USED when maskNeighbors==true;
-          'maskNeighborsMeth','GMM-EM',...
-          'maskNeighborsEmpPDF',[],... %used if maskNeighborsMeth=='Emp. PDF'
-          'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile,movInfo) 
+          'doBGsub',false,... % if true, I will contain bg-subbed images
+          'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile,movInfo)
                          ... % reads/generates bg image for given movie
           'bgType','other',... % one of {'light on dark','dark on light','other'}
+          'maskNeighbors',0,... % if true, neighbor-masking is performed
+          ...   % BEGIN USED when maskNeighbors==true;
+          'maskNeighborsMeth','Conn. Comp',...
+          'maskNeighborsEmpPDF',[],... %used if maskNeighborsMeth=='Emp. PDF'
           'fgThresh',nan,...
           'trxCache',[]...
           ...   % END USED for maskNeighbors
           );
+      assert(numel(movieInvert)==nView);      
+      if doBGsub && roiPadVal~=0
+        warningNoTrace('Background subtraction enabled. Setting roi pad value to 0.');
+        roiPadVal = 0;
+      end
       tfWB = ~isempty(wbObj);
       
       N = height(tblMF);
@@ -338,24 +348,24 @@ classdef CPRData < handle
         oc = onCleanup(@()wbObj.endPeriod);
       end
   
-      nView = size(tblMF.mov,2);
       tfROI = tblfldscontains(tblMF,'roi');
       if tfROI
         roi = tblMF.roi;
       end
             
-      movsUn = unique(tblMF.mov(:));
-      movMap = containers.Map(); % movieName->struct with movieReader, etc
-      for mov=movsUn(:)',mov=mov{1}; %#ok<FXSET>
-        mr = MovieReader();
-        mr.forceGrayscale = true;
-        mr.open(mov);
-        s = struct('movieReader',mr);
-        if maskNeighbors
-          [s.bg,s.bgdev] = feval(bgReadFcn,mov,mr.info);
+      movMaps = cell(1,nView); % movMaps{i} contains containers.Map for view i
+      for iVw=1:nView
+        movsUn = unique(tblMF.mov(:,iVw));
+        movMapVw = containers.Map(); % movieName->struct with movieReader, etc
+        for mov=movsUn(:)',mov=mov{1}; %#ok<FXSET>
+          mr = MovieReader();
+          mr.forceGrayscale = forceGrayscale;
+          mr.flipVert = movieInvert(iVw);
+          mr.open(mov,'bgType',bgType,'bgReadFcn',bgReadFcn);
+          movMapVw(mov) = mr;
         end
-        movMap(mov) = s;
-      end    
+        movMaps{iVw} = movMapVw;
+      end
       
       I = cell(N,nView);
       nmask = zeros(N,nView);
@@ -370,10 +380,8 @@ classdef CPRData < handle
         f = trow.frm;
         iTgt = trow.iTgt;
         for iVw=1:nView          
-          mov = trow.mov{iVw};
-          movInfo = movMap(mov);
-          mr = movInfo.movieReader;
-          im = mr.readframe(f); % currently forceGrayscale          
+          mov = trow.mov{iVw};          
+          mr = movMaps{iVw}(mov);
           
           if tfROI
             % Will be handy below
@@ -385,16 +393,8 @@ classdef CPRData < handle
           end
 
           if maskNeighbors
-            assert(isa(im,'uint8'),...
-              'Masking currently supported only for uint8 images'); % AL: for no good reason afaict
-            im = double(im); % we will rescale to [0,1] after bgsub. 
-
-            % Note, bgReadFcn should be returning bg images with same
-            % scaling as im.
-            imbg = movInfo.bg;
-            imbgdev = movInfo.bgdev;
-            szassert(imbg,size(im));
-            szassert(imbgdev,size(im));
+            [imraw,imOrigTy] = mr.readframe(f,'doBGsub',false);
+            imdiff = mr.readframe(f,'doBGsub',true); % see notes on type in MovieReader/readframe
 
             tfile = trow.trxFile{iVw};
             trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
@@ -403,11 +403,9 @@ classdef CPRData < handle
             % a zoomed-in roi
             switch maskNeighborsMeth
               case 'Conn. Comp'
-                imL = PxAssign.asgnCC(im,imbg,imbgdev,trx,f,...
-                  'bgtype',bgType,'fgthresh',fgThresh);
+                imL = PxAssign.asgnCCcore(imdiff,trx,f,fgThresh);
               case 'GMM-EM'
-                imL = PxAssign.asgnGMMglobal(im,imbg,imbgdev,trx,f,...
-                  'bgtype',bgType,'fgthresh',fgThresh);
+                imL = PxAssign.asgnGMMglobalcore(imdiff,trx,f,fgThresh);
               case 'Emp. PDF'
                 if isempty(empPDF)
                   error('No empirical PDF has been generated/stored for this project. Call the ''updateFGEmpiricalPDF'' Labeler method first.');
@@ -420,37 +418,59 @@ classdef CPRData < handle
                   warningNoTrace('Stored empirical PDF has foreground threshold (%.2f) that differs from current foreground threshold (%.2f).',...
                     empPDF.prmNborMask.FGThresh,fgThresh);
                 end
-                imL = PxAssign.asgnPDF(im,imbg,imbgdev,trx,f,...
+                imL = PxAssign.asgnPDF(imdiff,trx,f,...
                   empPDF.fgpdf,empPDF.xpdfctr,empPDF.ypdfctr,...
-                  empPDF.amu,empPDF.bmu,...
-                  'bgtype',bgType,'fgthresh',fgThresh);                
+                  empPDF.amu,empPDF.bmu,'fgthresh',fgThresh);
               otherwise
                 assert(false,'Unrecognized neighbor-masking method.');
+            end
+
+            if doBGsub
+              % bgsub ON, nbor masking ON. 
+              % We will be masking imdiff with zeros. imdiff will be a
+              % double, usually in the range [0,1].
+              imToMask = imdiff;
+              imBGToApply = zeros(size(imdiff));
+              % roiPadVal should be 0 here since doBGsub is on
+            else
+              % bgsub OFF, nbor masking ON. 
+              % We will be masking imraw with movieReader.bgIm. imraw could
+              % have arbitrary type here, but .bgIm is expected to have the
+              % same scale.
+              imToMask = double(imraw);
+              imBGToApply = mr.bgIm;
             end
             
             if tfROI
               IMBGPADVAL = nan; % irrelevant, no effect as masking should not occur outside image
-              imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-              imbgroi = padgrab(imbg,IMBGPADVAL,roiYlo,roiYhi,roiXlo,roiXhi);
+              imToMaskRoi = padgrab(imToMask,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+              imBGToApplyRoi = padgrab(imBGToApply,IMBGPADVAL,roiYlo,roiYhi,roiXlo,roiXhi);
               imLroi = padgrab(imL,0,roiYlo,roiYhi,roiXlo,roiXhi);
               [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
-                imroi,imbgroi,imLroi,trx,iTgt,f,'imroi',roiVw);
+                imToMaskRoi,imBGToApplyRoi,imLroi,trx,iTgt,f,'imroi',roiVw);
             else
               [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
-                im,imbg,imL,trx,iTgt,f);
+                imToMask,imBGToApply,imL,trx,iTgt,f);
             end
-
-            % We asserted that we started with a uint8. Now we scale to 
-            % [0,1], so we are changing type/scaling on the way out. Which
-            % is weird. This matches shapeGt/hlpFtr/compDup2 though so
-            % should work for now.
-            imroi = imroi/255;
+            
+            if ~doBGsub
+              % we masked double(imraw) with mr.bgIm. Rescale to [0,1] if
+              % possible
+              imroi = PxAssign.imRescalePerType(imroi,imOrigTy);
+            end
+            
+            % As in other branch, imroi could have varying type here.
           else
+            im = mr.readframe(f,'doBGsub',doBGsub);                          
+            
             if tfROI
               imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
             else
               imroi = im;
             end
+            
+            % At this point, im could have varying type depending on movie
+            % format, doBGsub, etc. See MovieReader/readframe.
           end
           
           I{iTrl,iVw} = imroi;

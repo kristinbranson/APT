@@ -201,11 +201,11 @@ classdef Labeler < handle
     
     movieIsPlaying = false;
   end
-  properties (SetAccess=private) 
-    movieCache = []; % containers.Map. Transient. Keys: standardized
-      % fullpath, el of .movieFilesAllFull or .movieFilesAllGTFull. 
-      % vals: MovieReader objects with that movie open
-  end  
+%   properties (SetAccess=private) 
+%     movieCache = []; % containers.Map. Transient. Keys: standardized
+%       % fullpath, el of .movieFilesAllFull or .movieFilesAllGTFull. 
+%       % vals: MovieReader objects with that movie open
+%   end  
   properties (Dependent)
     isMultiView;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
@@ -968,8 +968,8 @@ classdef Labeler < handle
       obj.movieCenterOnTarget = cfg.View(1).CenterOnTarget;
       obj.movieRotateTargetUp = cfg.View(1).RotateTargetUp;
  
-      % maybe useful to clear/reinit and shouldn't hurt
-      obj.movieCache = containers.Map(); 
+%       % maybe useful to clear/reinit and shouldn't hurt
+%       obj.movieCache = containers.Map(); 
       
       obj.preProcInit();
       
@@ -2007,7 +2007,7 @@ classdef Labeler < handle
           FSPath.throwErrFileNotFoundMacroAware(tFile,tFileFull,'trxfile');
         end
 
-        mr.open(movfilefull);
+        mr.open(movfilefull); % Could use movieMovieReaderOpen but we are just using MovieReader to get/save the movieinfo.
         ifo = struct();
         ifo.nframes = mr.nframes;
         ifo.info = mr.info;
@@ -2147,7 +2147,7 @@ classdef Labeler < handle
       ifos = cell(1,obj.nview);
       mr = MovieReader();
       for iView = 1:obj.nview
-        mr.open(moviefilesfull{iView});
+        mr.open(moviefilesfull{iView}); % Could use movieMovieReaderOpen but we are just using MovieReader to get/save the movieinfo.
         ifo = struct();
         ifo.nframes = mr.nframes;
         ifo.info = mr.info;
@@ -2642,9 +2642,11 @@ classdef Labeler < handle
       end
       
       movsAllFull = obj.movieFilesAllFullGTaware;
+      bgPrms = obj.preProcParams.BackSub;
       for iView=1:obj.nview
         mov = movsAllFull{iMov,iView};
-        obj.movieReader(iView).open(mov);
+        obj.movieReader(iView).open(mov,'bgType',bgPrms.BGType,...
+          'bgReadFcn',bgPrms.BGReadFcn); % should already be faithful to .forceGrayscale, .movieInvert
         RC.saveprop('lbl_lastmovie',mov);
         if iView==1
           obj.moviename = FSPath.twoLevelFilename(obj.moviefile);
@@ -2787,7 +2789,7 @@ classdef Labeler < handle
       
       % Always operates on regular (non-GT) movies
       
-      assert(obj.nview==1,'Not supported for multiview.');
+      assert(obj.nview==1,'Not supported for multiview projects.');      
             
       nfrmsAll = cellfun(@(x)x.nframes,obj.movieInfoAll);
       nfrmsTotInProj = sum(nfrmsAll);
@@ -2798,12 +2800,12 @@ classdef Labeler < handle
 
       I = cell(0,1);
       mr = MovieReader;
-      mr.forceGrayscale = true;
+      %mr.forceGrayscale = true;
       iSamp = 0;
       wbObj.startPeriod('Reading data','shownumden',true,'denominator',nFrmSamp);
       for iMov = 1:obj.nmovies
         mov = obj.movieFilesAllFull{iMov};
-        mr.open(mov);
+        obj.movieMovieReaderOpen(mr,mov,1);
         for f = 1:dfSamp:mr.nframes
           wbObj.updateFracWithNumDen(iSamp);
           iSamp = iSamp+1;
@@ -2815,39 +2817,56 @@ classdef Labeler < handle
       
       H0 = typicalImHist(I,'wbObj',wbObj);
     end
-        
-    function movRdr = getMovieReader(obj,movname)
-      movRdr = Labeler.getMovieReaderCacheStc(obj.movieCache,movname);
-    end
-  end
-  methods (Static)
-    function movRdr = getMovieReaderCacheStc(movCache,movfullpath)
-      % Get movieReader for movname from .movieCache; load from filesys if
-      % nec
-      %
-      % movCache: containers.Map
-      % filename: fullpath to movie
-      %
-      % movRdr: scalar MovieReader
-      
-      if movCache.isKey(movfullpath)
-        movRdr = movCache(movfullpath);
-      else
-        if exist(movfullpath,'file')==0
-          error('Labeler:file','Cannot find movie ''%s''.',movfullpath);
-        end
-        movRdr = MovieReader;
-        try
-          movRdr.open(movfullpath);
-        catch ME
-          error('Could not open movie ''%s'': %s',movfullpath,ME.message);
-        end
-        movCache(movfullpath) = movRdr; %#ok<NASGU>
-        RC.saveprop('lbl_lastmovie',movfullpath);        
-      end
-    end
     
+    function movieMovieReaderOpen(obj,movRdr,movfname,iView)
+      % Take a movieReader object and open the movie fname, being faithful
+      % to obj as per:
+      %   - .movieForceGrayScale 
+      %   - .movieInvert(iView)
+      %   - .preProcParams.BackSub
+      %
+      % movRdr: scalar MovieReader object
+      % movfname: full path to movie
+      % iView: view index; used for .movieInvert
+
+      bgPrms = obj.preProcParams.BackSub;
+      movRdr.open(movfname,'bgType',bgPrms.BGType,'bgReadFcn',bgPrms.BGReadFcn);
+      movRdr.forceGrayscale = obj.movieForceGrayscale;
+      movRdr.flipVert = obj.movieInvert(iView);
+    end
+        
+%     function movRdr = getMovieReader(obj,movname)
+%       movRdr = Labeler.getMovieReaderCacheStc(obj.movieCache,movname);
+%     end
   end
+%   methods (Static)
+%     function movRdr = getMovieReaderCacheStc(movCache,movfullpath)
+%       % Get movieReader for movname from .movieCache; load from filesys if
+%       % nec
+%       %
+%       % movCache: containers.Map
+%       % filename: fullpath to movie
+%       %
+%       % movRdr: scalar MovieReader
+%       
+%       if movCache.isKey(movfullpath)
+%         movRdr = movCache(movfullpath);
+%       else
+%         if exist(movfullpath,'file')==0
+%           error('Labeler:file','Cannot find movie ''%s''.',movfullpath);
+%         end
+%         movRdr = MovieReader;
+%         try
+%           movRdr.open(movfullpath);
+%         catch ME
+%           error('Could not open movie ''%s'': %s',movfullpath,ME.message);
+%         end
+%         movCache(movfullpath) = movRdr; %#ok<NASGU>
+%         RC.saveprop('lbl_lastmovie',movfullpath);        
+%       end
+%     end
+%     
+%   end
   
   %% Trx
   methods
@@ -5614,13 +5633,26 @@ classdef Labeler < handle
       obj.preProcDataTS = now;
     end
     
-    function tfPPprmsChanged = preProcSetParams(obj,ppPrms)
-      assert(isstruct(ppPrms));      
+    function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
+      assert(isstruct(ppPrms));
+
+      % Checks
+      if ppPrms.histeq && ppPrms.BackSub.Use
+        error('Histogram equalization currently not supported with background subtraction.');
+      end
+      
       ppPrms0 = obj.preProcParams;
       tfPPprmsChanged = ~isequaln(ppPrms0,ppPrms);
       if tfPPprmsChanged
         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
         obj.preProcInitData();
+        
+        bgPrms = ppPrms.BackSub;
+        mrs = obj.movieReader;
+        for i=1:numel(mrs)
+          mrs(i).open(mrs(i).filename,'bgType',bgPrms.BGType,...
+            'bgReadFcn',bgPrms.BGReadFcn); % should already be faithful to .forceGrayscale, .movieInvert
+        end
       end
       obj.preProcParams = ppPrms;
     end
@@ -5846,13 +5878,17 @@ classdef Labeler < handle
         
         [I,nNborMask] = CPRData.getFrames(tblPNewConcrete,...
           'wbObj',wbObj,...
-          'trxCache',obj.trxCache,...
+          'forceGrayscale',obj.movieForceGrayscale,...
+          'movieInvert',obj.movieInvert,...
+          'roiPadVal',prmpp.TargetCrop.PadBkgd,...
+          'doBGsub',prmpp.BackSub.Use,...
+          'bgReadFcn',prmpp.BackSub.BGReadFcn,...
+          'bgType',prmpp.BackSub.BGType,...
           'maskNeighbors',prmpp.NeighborMask.Use,...
           'maskNeighborsMeth',prmpp.NeighborMask.SegmentMethod,...
           'maskNeighborsEmpPDF',obj.fgEmpiricalPDF,...
-          'bgType',prmpp.NeighborMask.BGType,...
-          'bgReadFcn',prmpp.NeighborMask.BGReadFcn,...
-          'fgThresh',prmpp.NeighborMask.FGThresh);
+          'fgThresh',prmpp.NeighborMask.FGThresh,...
+          'trxCache',obj.trxCache);
         if tfWB && wbObj.isCancel
           % obj unchanged
           return;
@@ -5930,7 +5966,7 @@ classdef Labeler < handle
       ppPrms = sPrm.PreProc;
       sPrm = rmfield(sPrm,'PreProc');
       
-      tfPPprmsChanged = obj.preProcSetParams(ppPrms);
+      tfPPprmsChanged = obj.preProcSetParams(ppPrms); % THROWS
       tObj.setParamContentsSmart(sPrm,tfPPprmsChanged);
     end
     
@@ -6242,8 +6278,7 @@ classdef Labeler < handle
       iVizRow = 1;
       vizrow = tblXVres(iVizRow,:);
       mr = MovieReader;
-      mr.open(obj.movieFilesAllFull{vizrow.mov,1});
-      mr.forceGrayscale = obj.movieForceGrayscale;
+      obj.movieMovieReaderOpen(mr,obj.movieFilesAllFull{vizrow.mov,1},1);
       im = mr.readframe(vizrow.frm);
       pLbl = vizrow.p;
       if tblfldscontains(vizrow,'roi')
@@ -6310,7 +6345,9 @@ classdef Labeler < handle
       tbl = sortrows(tbl,{errfld},{'descend'});
       % Could look first in .tracker.data, and/or use .tracker.updateData()
       tConcrete = obj.mftTableConcretizeMov(tbl);
-      I = CPRData.getFrames(tConcrete);
+      I = CPRData.getFrames(tConcrete,...
+        'forceGrayscale',obj.movieForceGrayscale,...
+        'movieInvert',obj.movieInvert);
       pTrk = tbl.pTrk;
       pLbl = tbl.pLbl;
       if isnan(npts)
@@ -7547,12 +7584,14 @@ classdef Labeler < handle
         error('Method only supported for projects with trackers.');
       end
       
-      prmNborMask = tObj.sPrm.PreProc.NeighborMask;
+      prmPP = obj.preProcParams;
+      prmBackSub = prmPP.BackSub;
+      prmNborMask = prmPP.NeighborMask;
+      if isempty(prmBackSub.BGType) || isempty(prmBackSub.BGReadFcn)
+        error('Computing the empirical foreground PDF requires a background type and background read function to be defined in the tracking parameters.');
+      end
       if ~prmNborMask.Use
         warningNoTrace('Neighbor masking is currently not turned on in your tracking parameters.');
-      end
-      if isempty(prmNborMask.BGReadFcn)
-        error('Method requires background read function to be defined in Neighbor Masking tracking parameters.');
       end
       
       % Start with all labeled rows. Prefer these b/c user apparently cares
@@ -7563,8 +7602,7 @@ classdef Labeler < handle
       if wbObj.isCancel
         return;
       end
-      
-      roiRadius = tObj.sPrm.PreProc.TargetCrop.Radius;
+      roiRadius = prmPP.TargetCrop.Radius;
       tblMFTlbled = obj.labelMFTableAddROI(tblMFTlbled,roiRadius);
 
       amu = mean(tblMFTlbled.aTrx);
@@ -7574,24 +7612,22 @@ classdef Labeler < handle
       % get stuff we will need for movies: movieReaders, bgimages, etc
       movieStuff = cell(obj.nmovies,1);
       iMovsLbled = unique(tblMFTlbled.mov);
-      for iMov=iMovsLbled(:)'
-        
+      for iMov=iMovsLbled(:)'        
         s = struct();
+        
         movfile = obj.movieFilesAllFull{iMov,1};
         mr = MovieReader();
-        mr.open(movfile);
+        obj.movieMovieReaderOpen(mr,movfile,1);
         s.movRdr = mr;
         
         trxfname = obj.trxFilesAllFull{iMov,1};
         movIfo = obj.movieInfoAll{iMov};        
         [s.trx,s.frm2trx] = obj.getTrx(trxfname,movIfo.nframes);
-        
-        [s.bg,s.bgdev] = feval(prmNborMask.BGReadFcn,movfile,movIfo.info);
-        
+                
         movieStuff{iMov} = s;
       end    
       
-      hFigViz = figure;
+      hFigViz = figure; %#ok<NASGU>
       ax = axes;
     
       xroictr = -roiRadius:roiRadius;
@@ -7625,12 +7661,9 @@ classdef Labeler < handle
       
         % In addition run CC pxAssign and keep only the central CC to get
         % rid of any objects at the periphery
-        im = sMovStuff.movRdr.readframe(frm);
-        im = double(im);
-        imbwl = PxAssign.asgnCC(im,sMovStuff.bg,sMovStuff.bgdev,...
-          sMovStuff.trx,frm,...
-          'bgtype',prmNborMask.BGType,...
-          'fgthresh',prmNborMask.FGThresh);
+        imdiff = sMovStuff.movRdr.readframe(frm,'doBGsub',true);
+        assert(isdouble(imdiff));
+        imbwl = PxAssign.asgnCCcore(imdiff,sMovStuff.trx,frm,prmNborMask.FGThresh);
         xTgtCtrRound = round(trxxs(iTgt));
         yTgtCtrRound = round(trxys(iTgt));
         ccKeep = imbwl(yTgtCtrRound,xTgtCtrRound);
@@ -7676,6 +7709,7 @@ classdef Labeler < handle
         'fgpdf',fgpdf,...
         'n',nAcc,...
         'roiRadius',roiRadius,...
+        'prmBackSub',prmBackSub,...
         'prmNborMask',prmNborMask);
     end
   end

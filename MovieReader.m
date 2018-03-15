@@ -10,7 +10,12 @@ classdef MovieReader < handle
     nr = nan;
     nc = nan;
     
-    fid = nan;
+    fid = nan; % file handle/resource to movie
+    
+    % bgsub
+    bgType % see PxAssign.simplebgsub 
+    bgIm % [nr x nc] background im
+    bgDevIm % [nr x nc] background dev im
   end
   
   properties (SetObservable)
@@ -53,7 +58,12 @@ classdef MovieReader < handle
       % none
     end
         
-    function open(obj,fname)
+    function open(obj,fname,varargin)
+      
+      [bgTy,bgReadFcn] = myparse(varargin,...
+        'bgType',[],... % optional, string enum
+        'bgReadFcn',[]); % optional, fcn handle to compute [bg,bgdev] = bgReadFcn(movfile,movifo)
+      
       assert(exist(fname,'file')>0,'Movie ''%s'' not found.',fname);
       
       if obj.isOpen
@@ -71,19 +81,64 @@ classdef MovieReader < handle
         im = obj.readFrameFcn(1);
         [obj.nr,obj.nc] = size(im);
       end
+      
+      tfHasBG = ~isempty(bgTy) && ~isempty(bgReadFcn);
+      if tfHasBG
+        obj.bgType = bgTy;
+        [obj.bgIm,obj.bgDevIm] = feval(bgReadFcn,fname,ifo);
+      else
+        obj.bgType = [];
+        obj.bgIm = [];
+        obj.bgDevIm = [];        
+      end
     end
     
-    function varargout = readframe(obj,i)
+    function [im,imOrigType] = readframe(obj,i,varargin)
+      % im: image
+      % imOrigType: type of original/raw image; this may differ from the
+      % type of im when doBGsub is on.
+      %
+      % Currently, when doBGsub is on, im is forced to a double and an
+      % attempt is made to rescale im to [0,1] based on imOrigType. If
+      % imOrigType is "unusual" then no rescaling is performed. So, the
+      % output type depends on:
+      % 0. Movie format
+      % 1. If 'doBGsub' is on or off
+      % 2. If on, then if imOrigType is an expected uint* type
+      %
+      % Note: im==varargout{1} may be of different type if doBGsub is on 
+      % (double) vs off.
+      
+      doBGsub = myparse(varargin,...
+        'doBGsub',false);
+      
       assert(obj.isOpen,'Movie is not open.');
-      [varargout{1:nargout}] = obj.readFrameFcn(i);
+      im = obj.readFrameFcn(i);
+      imOrigType = class(im);
 
       if obj.flipVert
-        varargout{1} = flipud(varargout{1});
+        im = flipud(im);
       end
       if obj.forceGrayscale
-        if size(varargout{1},3)==3 % doesn't have to be RGB but convert anyway
-          varargout{1} = rgb2gray(varargout{1});
+        if size(im,3)==3 % doesn't have to be RGB but convert anyway
+          im = rgb2gray(im);
         end
+      end
+      
+      if doBGsub
+        assert(size(im,3)==1,'Background subtraction supported only on grayscale images.');
+        assert(~isempty(obj.bgType),...
+          'Cannot perform background subtraction. Background type and/or read function unspecified.');
+        
+        % Note, bgReadFcn should be returning bg images with same
+        % scaling as im.
+
+        im = PxAssign.simplebgsub(obj.bgType,double(im),obj.bgIm,obj.bgDevIm);
+        
+        % For now we attempt to rescale im based on imOrigType. This
+        % behavior is consistent with shapeGt, but only works for certain
+        % uint* types.
+        im = PxAssign.imRescalePerType(im,imOrigType);
       end
     end
     
@@ -100,6 +155,10 @@ classdef MovieReader < handle
       
       obj.fid = nan;
       obj.filename = '';
+      
+      obj.bgType = [];
+      obj.bgIm = [];
+      obj.bgDevIm = [];
     end    
   
     function delete(obj)

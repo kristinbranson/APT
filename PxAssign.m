@@ -16,6 +16,20 @@ classdef PxAssign
         otherwise
           assert(false,'Unrecognized bgType.');
       end
+    end 
+    
+    % Naturally this belongs in 'PxAssign'
+    function im = imRescalePerType(im,ty)
+      switch ty
+        case 'uint8'
+          im = double(im)/255;
+        case 'uint16'
+          im = double(im)/(2^16-1);
+        case 'double'
+          % none
+        otherwise
+          % Consider warning
+      end
     end
     
     % Move me into TrxUtil
@@ -96,11 +110,13 @@ classdef PxAssign
       [bgtype,fgthresh] = myparse(varargin,...
         'bgtype','dark on light',...
         'fgthresh',4.0);
-
       imdiff = PxAssign.simplebgsub(bgtype,im,imbg,imbgdev);
+      imL = PxAssign.asgnCCcore(imdiff,trx,f,fgthresh);      
+    end
+    function imL = asgnCCcore(imdiff,trx,f,fgthresh)
       bwfg = imdiff>fgthresh;
       cc = bwconncomp(bwfg);
-      [nr,nc] = size(im);
+      [nr,nc] = size(imdiff);
       
       idxTrxCtrs = zeros(0,1);
       for fly = 1:numel(trx)
@@ -126,22 +142,22 @@ classdef PxAssign
       [bgtype,fgthresh] = myparse(varargin,...
         'bgtype','dark on light',...
         'fgthresh',115); % in BackSub.m, n_bg_std_thresh_low
-
       imdiff = PxAssign.simplebgsub(bgtype,im,imbg,imbgdev);
-      isfore = imdiff>=fgthresh; % in BackSub.m, n_bg_std_thresh_low
-  
+      [imL,imLpre,nfliescurr] = PxAssign.asgnGMMglobalcore(imdiff,trx,f,fgthresh);
+    end
+    function [imL,imLpre,nfliescurr] = asgnGMMglobalcore(imdiff,trx,f,fgthresh)
+      isfore = imdiff>=fgthresh; % in BackSub.m, n_bg_std_thresh_low  
       [imLpre,nfliescurr] = AssignPixels(isfore,imdiff,trx,f);
       imL = PxAssign.cleanupPass(imLpre,trx,f);
     end
     
-    function [imL,imLpre,pdfTgts] = asgnPDF(im,imbg,imbgdev,trx,f,...
+    function [imL,imLpre,pdfTgts] = asgnPDF(imdiff,trx,f,...
         pdf,pdfXctr,pdfYctr,pdfamu,pdfbmu,varargin)
       
-      [bgtype,fgthresh] = myparse(varargin,...
-        'bgtype','dark on light',...
+      fgthresh = myparse(varargin,...
         'fgthresh',4);
 
-      imdiff = PxAssign.simplebgsub(bgtype,im,imbg,imbgdev);
+      %imdiff = PxAssign.simplebgsub(bgtype,im,imbg,imbgdev);
       imforebw = imdiff>=fgthresh;
       
       [imLpre,~,pdfTgts] = PxAssign.asgnPDFCore(imforebw,f,trx,pdf,pdfXctr,pdfYctr,...
