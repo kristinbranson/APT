@@ -225,7 +225,8 @@ classdef FSPath
       end
       
       if tfMatch
-        [~,tfileS] = myfileparts(tfile);
+        tfileS = tfile(nmovdir+2:end);
+        %[~,tfileS] = myfileparts(tfile);
         trxFileMacroized = FSPath.platformizePath(['$movdir/' tfileS]);
       else
         trxFileMacroized = [];
