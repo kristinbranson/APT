@@ -841,7 +841,8 @@ classdef CPRLabelTracker < LabelTracker
         nrMtg = floor(sqrt(nTrn));      
         ncMtg = floor(nTrn/nrMtg);
       end
-      Shape.montage(d.I(iTrn,:),d.pGT(iTrn,:),'nr',nrMtg,'nc',ncMtg)  
+      Shape.montage(d.I(iTrn,:),d.pGT(iTrn,:),'nr',nrMtg,'nc',ncMtg,...
+        'titlestr','Training Data Montage')  
     end
     
     %#%MTGT

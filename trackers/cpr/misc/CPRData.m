@@ -303,7 +303,7 @@ classdef CPRData < handle
     
     function [I,nmask] = getFrames(tblMF,varargin)
       % Read frames from movies given MF table
-      % 
+      
       % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
       % multiview data. 
       % 
@@ -412,7 +412,7 @@ classdef CPRData < handle
                 if isempty(empPDF)
                   error('No empirical PDF has been generated/stored for this project. Call the ''updateFGEmpiricalPDF'' Labeler method first.');
                 end
-                if ~isequal(empPDF.prmNborMask.BGType,bgType)
+                if ~isequal(empPDF.prmBackSub.BGType,bgType)
                   warningNoTrace('Stored empirical PDF has background type (%s) that differs from current background type (%s).',...
                     empPDF.prmNborMask.BGType,bgType);
                 end
