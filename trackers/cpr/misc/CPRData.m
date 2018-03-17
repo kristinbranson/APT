@@ -460,7 +460,12 @@ classdef CPRData < handle
             
             % As in other branch, imroi could have varying type here.
           else
-            im = mr.readframe(f,'doBGsub',doBGsub);                          
+            [im,imOrigTy] = mr.readframe(f,'doBGsub',doBGsub);
+            
+            if doBGsub
+              % BGsub leaves im as a double but scaled as in original
+              im = PxAssign.imRescalePerType(im,imOrigTy);
+            end
             
             if tfROI
               imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
