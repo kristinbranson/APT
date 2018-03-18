@@ -920,13 +920,13 @@ classdef Shape
           xytmp = reshape(p(iIm,:),npts,2);
           xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
           xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
-          bigP(:,:,iIm) = xytmp;
+          bigP(:,:,iPlt) = xytmp;
           
           if tfP2
             xytmp = reshape(opts.p2(iIm,:),npts,2);
             xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
             xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
-            bigP2(:,:,iIm) = xytmp;            
+            bigP2(:,:,iPlt) = xytmp;            
           end
         end
       end

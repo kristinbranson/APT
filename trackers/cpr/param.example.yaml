@@ -1,6 +1,6 @@
 ---
 Model:
-  name: 'FlyOnBall'
+  name: ''
   nfids: 7    # Number of physical points to be tracked
   d: 2        # Physical dimension of label-space (only 2 works at the moment)
   nviews: 1
@@ -13,9 +13,7 @@ PreProc:
     PadBkgd: 0
   NeighborMask:
     Use: 0
-    SegmentMethod: 'GMM-EM'
-    BGType: 'dark on light'
-    BGReadFcn: ''
+    SegmentMethod: 'GMM-EM' #  BGType: 'dark on light'  BGReadFcn: ''
     FGThresh: 4
   channelsFcn:  # optional preprocessing function with signature: fcn(cprDataObj,p1,v1,...)
 
