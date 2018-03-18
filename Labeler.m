@@ -4459,6 +4459,103 @@ classdef Labeler < handle
         obj.(PROPS.LPOS),obj.(PROPS.LPOSTAG),obj.(PROPS.LPOSTS),...
         'trxFilesAllFull',tfaf,'trxCache',obj.trxCache);
     end
+    
+    function labelOverlayMontage(obj,varargin)
+      
+      trxCentered = myparse(varargin,...
+        'trxCentered',false);
+      
+      if trxCentered && ~obj.hasTrx
+        error('Project does not have trx. Cannot perform trx-centered montage.');
+      end        
+      
+      nvw = obj.nview;
+      npts = obj.nLabelPoints/nvw;
+      vwNames = obj.viewNames;
+      mfts = MFTSetEnum.AllMovAllLabeled;
+      tMFT = mfts.getMFTable(obj);
+      tMFT = obj.labelAddLabelsMFTable(tMFT);
+      
+      
+      if trxCentered
+        roiRadius = 1;
+        tMFT = obj.labelMFTableAddROI(tMFT,roiRadius);
+      else
+        p = tMFT.p'; % [npts*nvw*d x nfrm]
+        nfrm = size(p,2);
+        p = reshape(p,[npts nvw 2 nfrm]);
+        ims = obj.gdata.images_all;
+        ims = arrayfun(@(x)x.CData,ims,'uni',0);
+      end
+      
+      clrs = obj.labelPointsPlotInfo.ColorsSets;
+      ec = OlyDat.ExperimentCoordinator;      
+
+      tbases = cell(nvw,1);
+      hFgs = gobjects(nvw,1);
+      hAxs = gobjects(nvw,1);
+      hIms = gobjects(nvw,1);
+      clckHandlers = OlyDat.XYPlotClickHandler.empty(0,1);
+      for ivw=1:nvw
+        if ivw==1
+          hFgs(ivw) = figure;
+        else
+          hFgs(ivw) = figurecascaded(hFgs(1));
+        end        
+        hAxs(ivw) = axes;
+        hIms(ivw) = imshow(ims{ivw});
+        hIms(ivw).PickableParts = 'none';
+        hold on;
+        set(hAxs(ivw),'XTick',[],'YTick',[],'Visible','on');
+        if nvw>1
+          tstr = sprintf('View: %s. %d labeled frames.',vwNames{ivw},height(tMFT));
+        else
+          tstr = sprintf('%d labeled frames.',height(tMFT));
+        end
+        title(tstr,'fontweight','bold');
+        tbases{ivw} = tstr;
+        
+        xall = squeeze(p(:,ivw,1,:)); % [npts x nfrm]
+        yall = squeeze(p(:,ivw,2,:)); % [npts x nfrm]
+        eids = repmat(1:height(tMFT),npts,1);
+        clckHandlers(ivw,1) = OlyDat.XYPlotClickHandler(hAxs(ivw),xall(:),yall(:),eids(:),ec,false);
+        
+        for ipts=1:npts
+          x = squeeze(p(ipts,ivw,1,:));
+          y = squeeze(p(ipts,ivw,2,:));
+          hP = plot(hAxs(ivw),x,y,'.','markersize',10,'color',clrs(ipts,:));
+          hP.PickableParts = 'none';
+        end
+        
+        hCM = uicontextmenu('parent',hFgs(ivw));
+        uimenu('Parent',hCM,'Label','Clear selection',...
+          'Callback',@(src,evt)ec.sendSignal([],zeros(0,1)));
+        uimenu('Parent',hCM,'Label','Navigate APT to selected frame',...
+          'Callback',@(s,e)hlpOverlayMontage(obj,clckHandlers(1),tMFT,s,e)); 
+        % Need only one clickhandler; the first is set up here
+        set(hAxs(ivw),'UIContextMenu',hCM);
+      end
+      
+      tor = TrainingOverlayReceiver(hAxs,tbases,tMFT);
+      ec.registerObject(tor,'respond');    
+      
+%       hPB = uicontrol(hFgs(1),'style','pushbutton',...
+%         'position',[20 20 120 35],...
+%         'string','Go to Frame',...
+%         'fontweight','bold',...
+%         'fontsize',12,...
+%         'Callback',@(s,e)hlpOverlayMontage(obj,clckHandlers,tMFT,s,e));
+    end
+    function hlpOverlayMontage(obj,clickHandler,tMFT,src,evt)
+      eid = clickHandler.fSelectedEids;
+      if ~isempty(eid)
+        trow = tMFT(eid,:);
+        obj.setMFT(trow.mov,trow.frm,trow.iTgt);
+      else
+        warningNoTrace('No shape selected.');
+      end
+    end
+
   end
   
   methods (Static)

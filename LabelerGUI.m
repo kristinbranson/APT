@@ -80,24 +80,60 @@ handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import
 moveMenuItemAfter(handles.menu_file_export_labels_table,...
   handles.menu_file_export_labels_trks);
 
+% Label/Setup menu
+handles.menu_labeling_setup.Position = 3;
+handles.menu_labeling_setup.Text = 'Label';
+
+handles.menu_setup_multiview_calibrated_mode_2 = uimenu(...
+  'Parent',handles.menu_labeling_setup,...
+  'Label','Multiview Calibrated',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_multiview_calibrated_mode_2_Callback',hObject,eventdata,guidata(hObject)),...
+  'Tag','menu_setup_multiview_calibrated_mode_2');  
+delete(handles.menu_setup_multiview_calibrated_mode);
+handles.menu_setup_multiview_calibrated_mode = [];
+delete(handles.menu_setup_tracking_correction_mode);
+handles.menu_setup_tracking_correction_mode = [];
+delete(handles.menu_setup_createtemplate);
+handles.menu_setup_label_overlay_montage = uimenu('Parent',handles.menu_labeling_setup,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_label_overlay_montage_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Label Overlay Montage',...
+  'Tag','menu_setup_label_overlay_montage',...
+  'Visible','on');
+handles.menu_setup_label_overlay_montage_trx_centered = uimenu('Parent',handles.menu_labeling_setup,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_label_overlay_montage_trx_centered_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Label Overlay Montage (trx centered)',...
+  'Tag','menu_setup_label_overlay_montage_trx_centered',...
+  'Visible','on');
 handles.menu_setup_set_nframe_skip = uimenu('Parent',handles.menu_labeling_setup,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_set_nframe_skip_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set Frame Increment',...
   'Tag','menu_setup_set_nframe_skip',...
-  'Checked','off',...
-  'Visible','off');
-moveMenuItemAfter(handles.menu_setup_set_nframe_skip,...
-  handles.menu_setup_set_labeling_point);
-
+  'Visible','on');
 handles.menu_setup_streamlined = uimenu('Parent',handles.menu_labeling_setup,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_streamlined_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Streamlined',...
   'Tag','menu_setup_streamlined',...
   'Checked','off',...
-  'Separator','on',...
-  'Visible','off');
-moveMenuItemAfter(handles.menu_setup_streamlined,...
-  handles.menu_setup_set_labeling_point);
+  'Visible','on');
+
+LABEL_MENU_ORDER = {
+   'menu_setup_sequential_mode'
+   'menu_setup_template_mode'
+   'menu_setup_highthroughput_mode'
+   'menu_setup_multiview_calibrated_mode_2'   
+   'menu_setup_label_overlay_montage'
+   'menu_setup_label_overlay_montage_trx_centered'
+   'menu_setup_set_labeling_point'
+   'menu_setup_set_nframe_skip'
+   'menu_setup_streamlined'
+   'menu_setup_load_calibration_file'
+   'menu_setup_lock_all_frames'
+   'menu_setup_unlock_all_frames'};
+menuReorder(handles.menu_labeling_setup,LABEL_MENU_ORDER);
+handles.menu_setup_label_overlay_montage.Separator = 'on';
+handles.menu_setup_set_labeling_point.Separator = 'on';
+handles.menu_setup_streamlined.Separator = 'on';
+handles.menu_setup_load_calibration_file.Separator = 'off';
 
 handles.menu_view_rotate_video_target_up = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_rotate_video_target_up_Callback',hObject,eventdata,guidata(hObject)),...
@@ -269,20 +305,6 @@ handles.menu_track_background_predict_stats = uimenu(...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_background_predict_stats_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Background prediction stats',...
   'Tag','menu_track_background_predict_stats');
-
-% MultiViewCalibrated2 labelmode
-handles.menu_setup_multiview_calibrated_mode_2 = uimenu(...
-  'Parent',handles.menu_labeling_setup,...
-  'Label','Multiview Calibrated mode 2',...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_multiview_calibrated_mode_2_Callback',hObject,eventdata,guidata(hObject)),...
-  'Tag','menu_setup_multiview_calibrated_mode_2');  
-moveMenuItemAfter(handles.menu_setup_multiview_calibrated_mode_2,...
-  handles.menu_setup_multiview_calibrated_mode);
-
-delete(handles.menu_setup_multiview_calibrated_mode);
-handles.menu_setup_multiview_calibrated_mode = [];
-delete(handles.menu_setup_tracking_correction_mode);
-handles.menu_setup_tracking_correction_mode = [];
 
 handles.menu_help_about = uimenu(...
   'Parent',handles.menu_help,...
@@ -949,7 +971,8 @@ TRX_MENUS = {...
   'menu_view_trajectories_centervideoontarget'
   'menu_view_rotate_video_target_up'
   'menu_view_hide_trajectories'
-  'menu_view_plot_trajectories_current_target_only'};
+  'menu_view_plot_trajectories_current_target_only'
+  'menu_setup_label_overlay_montage_trx_centered'};
 onOff = onIff(lObj.hasTrx);
 cellfun(@(x)set(handles.(x),'Enable',onOff),TRX_MENUS);
 set(handles.tblTrx,'Enabled',onOff);
@@ -1060,7 +1083,7 @@ lblMode = lObj.labelMode;
 menuSetupLabelModeHelp(handles,lblMode);
 switch lblMode
   case LabelMode.SEQUENTIAL
-    handles.menu_setup_createtemplate.Visible = 'off';
+%     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_streamlined.Visible = 'off';
@@ -1068,7 +1091,7 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.TEMPLATE
-    handles.menu_setup_createtemplate.Visible = 'on';
+%     handles.menu_setup_createtemplate.Visible = 'on';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_streamlined.Visible = 'off';
@@ -1076,7 +1099,7 @@ switch lblMode
     handles.menu_setup_lock_all_frames.Visible = 'off';
     handles.menu_setup_load_calibration_file.Visible = 'off';
   case LabelMode.HIGHTHROUGHPUT
-    handles.menu_setup_createtemplate.Visible = 'off';
+%     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'on';
     handles.menu_setup_set_nframe_skip.Visible = 'on';
     handles.menu_setup_streamlined.Visible = 'off';
@@ -1092,7 +1115,7 @@ switch lblMode
 %     handles.menu_setup_lock_all_frames.Visible = 'on';
 %     handles.menu_setup_load_calibration_file.Visible = 'off';
   case {LabelMode.MULTIVIEWCALIBRATED2}
-    handles.menu_setup_createtemplate.Visible = 'off';
+%     handles.menu_setup_createtemplate.Visible = 'off';
     handles.menu_setup_set_labeling_point.Visible = 'off';
     handles.menu_setup_set_nframe_skip.Visible = 'off';
     handles.menu_setup_streamlined.Visible = 'on';
@@ -1812,6 +1835,11 @@ menuSetupLabelModeCbkGeneric(hObject,handles);
 function menuSetupLabelModeCbkGeneric(hObject,handles)
 lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
 handles.labelerObj.labelingInit('labelMode',lblMode);
+
+function menu_setup_label_overlay_montage_Callback(hObject,evtdata,handles)
+handles.labelerObj.labelOverlayMontage(); 
+function menu_setup_label_overlay_montage_trx_centered_Callback(hObject,evtdata,handles)
+handles.labelerObj.labelOverlayMontage('trxCentered',true); 
 
 function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
