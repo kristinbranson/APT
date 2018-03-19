@@ -19,7 +19,7 @@ classdef TrainingOverlayReceiver < handle
       else
         trow = obj.tblMFT(eid,:);
         for i=1:numel(obj.axs)
-          tstr = sprintf('%s \\color{red}Selection: (mov %d,frm %d,tgt %d)',...
+          tstr = sprintf('%s \\color{darkgreen}Selection: (mov %d,frm %d,tgt %d)',...
             obj.tstrBases{i},trow.mov,trow.frm,trow.iTgt);
           title(obj.axs(i),tstr,'fontweight','bold');
         end
