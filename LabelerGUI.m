@@ -1834,9 +1834,20 @@ lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
 handles.labelerObj.labelingInit('labelMode',lblMode);
 
 function menu_setup_label_overlay_montage_Callback(hObject,evtdata,handles)
-handles.labelerObj.labelOverlayMontage(); 
+handles.labelerObj.labelOverlayMontage('trxCtred',false); 
 function menu_setup_label_overlay_montage_trx_centered_Callback(hObject,evtdata,handles)
-handles.labelerObj.labelOverlayMontage('trxCentered',true); 
+lObj = handles.labelerObj;
+hFig(1) = lObj.labelOverlayMontage('trxCtred',true,...
+  'trxCtredRotAlignMeth','none'); 
+try
+  hFig(2) = lObj.labelOverlayMontage('trxCtred',true,...
+    'trxCtredRotAlignMeth','headtail','hFig0',hFig(1)); 
+catch ME
+  warningNoTrace('Could not create head-tail aligned montage: %s',ME.message);
+  hFig(2) = figurecascaded(hFig(1));
+end
+hFig(3) = lObj.labelOverlayMontage('trxCtred',true,...
+  'trxCtredRotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
 
 function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

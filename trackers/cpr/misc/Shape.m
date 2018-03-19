@@ -12,7 +12,7 @@ classdef Shape
     function xy = vec2xy(p)
       % p: [D] shape vec
       % 
-      % xy: [dx2] x/y coords
+      % xy: [nptsx2] x/y coords
       assert(isvector(p));
       n = numel(p);
       p = p(:);

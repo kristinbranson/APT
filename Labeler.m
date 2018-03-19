@@ -4564,33 +4564,35 @@ classdef Labeler < handle
         'trxFilesAllFull',tfaf,'trxCache',obj.trxCache);
     end
     
-    function labelOverlayMontage(obj,varargin)
-      
-      trxCentered = myparse(varargin,...
-        'trxCentered',false);
-      
-      if trxCentered && ~obj.hasTrx
+    function hFgs = labelOverlayMontage(obj,varargin)
+      [trxCtred,trxCtredRotAlignMeth,roiRadius,roiPadVal,hFig0] = myparse(varargin,...
+        'trxCtred',false,... % If true, center shapes relative to trx.x, trx.y
+        'trxCtredRotAlignMeth','none',... % Rotational alignment method when trxCentered=true. One of {'none','headtail','trxtheta'}. 
+        ... % 'trxCtredSizeNorm',false,... True to normalize shapes by trx.a, trx.b. SKIP THIS for now. Have found that doing this normalization tightens shape distributions a bit (when tracking/trx is good)
+        'roiRadius',nan,... % A little unusual, used if .preProcParams.TargetCrop.Radius is not avail
+        'roiPadVal',0,...% A little unsuual, used if .preProcParams.TargetCrop.PadBkgd is not avail
+        'hFig0',[]... % Optional, previous figure to use with figurecascaded
+        ); 
+
+      if ~obj.hasMovie
+        error('Please open a movie first.');
+      end
+      if trxCtred && ~obj.hasTrx
         error('Project does not have trx. Cannot perform trx-centered montage.');
       end        
       
       nvw = obj.nview;
-      npts = obj.nLabelPoints/nvw;
+      nphyspts = obj.nPhysPoints;
       vwNames = obj.viewNames;
       mfts = MFTSetEnum.AllMovAllLabeled;
-      tMFT = mfts.getMFTable(obj);
+      tMFT = mfts.getMFTable(obj); % if GT, should get all GT labeled rows
       tMFT = obj.labelAddLabelsMFTable(tMFT);
-      
-      
-      if trxCentered
-        roiRadius = 1;
-        tMFT = obj.labelMFTableAddROI(tMFT,roiRadius);
-      else
-        p = tMFT.p'; % [npts*nvw*d x nfrm]
-        nfrm = size(p,2);
-        p = reshape(p,[npts nvw 2 nfrm]);
-        ims = obj.gdata.images_all;
-        ims = arrayfun(@(x)x.CData,ims,'uni',0);
-      end
+            
+      [ims,p] = obj.hlpOverlayMontageGenerateImP(tMFT,nphyspts,...
+        trxCtred,trxCtredRotAlignMeth,roiRadius,roiPadVal);
+      n = size(p,1);
+      % p is [n x nphyspts*nvw*2]
+      p = reshape(p',[nphyspts nvw 2 n]);
       
       clrs = obj.labelPointsPlotInfo.ColorsSets;
       ec = OlyDat.ExperimentCoordinator;      
@@ -4600,55 +4602,84 @@ classdef Labeler < handle
       hAxs = gobjects(nvw,1);
       hIms = gobjects(nvw,1);
       clckHandlers = OlyDat.XYPlotClickHandler.empty(0,1);
+      hLns = gobjects(nvw,nphyspts); % line/plot handles
       for ivw=1:nvw
         if ivw==1
-          hFgs(ivw) = figure;
+          if ~isempty(hFig0)
+            hFgs(ivw) = figurecascaded(hFig0);
+          else
+            hFgs(ivw) = figure;
+          end
         else
           hFgs(ivw) = figurecascaded(hFgs(1));
         end        
         hAxs(ivw) = axes;
         hIms(ivw) = imshow(ims{ivw});
         hIms(ivw).PickableParts = 'none';
+        caxis auto
         hold on;
+%         axis xy;
         set(hAxs(ivw),'XTick',[],'YTick',[],'Visible','on');
+        if trxCtred
+          switch trxCtredRotAlignMeth
+            case 'none'
+              rotStr = 'Unaligned';
+            case 'headtail'
+              rotStr = 'Head/tail aligned';
+            case 'trxtheta'
+              rotStr = 'Trx/theta aligned';
+          end
+        else
+          rotStr = '';
+        end
+          
         if nvw>1
-          tstr = sprintf('View: %s. %d labeled frames.',vwNames{ivw},height(tMFT));
+          tstr = sprintf('View: %s. %d labeled frames.',...
+            vwNames{ivw},height(tMFT));
         else
           tstr = sprintf('%d labeled frames.',height(tMFT));
+        end
+        if ~isempty(rotStr)
+          tstr = sprintf('%s %s.',tstr,rotStr);
         end
         title(tstr,'fontweight','bold');
         tbases{ivw} = tstr;
         
         xall = squeeze(p(:,ivw,1,:)); % [npts x nfrm]
         yall = squeeze(p(:,ivw,2,:)); % [npts x nfrm]
-        eids = repmat(1:height(tMFT),npts,1);
+        eids = repmat(1:height(tMFT),nphyspts,1);
         clckHandlers(ivw,1) = OlyDat.XYPlotClickHandler(hAxs(ivw),xall(:),yall(:),eids(:),ec,false);
         
-        for ipts=1:npts
+        for ipts=1:nphyspts
           x = squeeze(p(ipts,ivw,1,:));
           y = squeeze(p(ipts,ivw,2,:));
-          hP = plot(hAxs(ivw),x,y,'.','markersize',10,'color',clrs(ipts,:));
+          hP = plot(hAxs(ivw),x,y,'.','markersize',4,'color',clrs(ipts,:));
           hP.PickableParts = 'none';
+          hLns(ivw,ipts) = hP;
         end
         
         hCM = uicontextmenu('parent',hFgs(ivw));
         uimenu('Parent',hCM,'Label','Clear selection',...
+          'Separator','on',...
           'Callback',@(src,evt)ec.sendSignal([],zeros(0,1)));
         uimenu('Parent',hCM,'Label','Navigate APT to selected frame',...
           'Callback',@(s,e)hlpOverlayMontage(obj,clckHandlers(1),tMFT,s,e)); 
         % Need only one clickhandler; the first is set up here
         set(hAxs(ivw),'UIContextMenu',hCM);
       end
+
+      for ivw=1:nvw
+        hCM = hAxs(ivw).UIContextMenu;
+        hM1 = uimenu('Parent',hCM,'Label','Increase marker size',...
+          'Callback',@(src,evt)obj.hlpOverlayMontageMarkerInc(hLns,2));
+        hM2 = uimenu('Parent',hCM,'Label','Decrease marker size',...
+          'Callback',@(src,evt)obj.hlpOverlayMontageMarkerInc(hLns,-2)); 
+        uistack(hM2,'bottom');
+        uistack(hM1,'bottom');
+      end
       
       tor = TrainingOverlayReceiver(hAxs,tbases,tMFT);
       ec.registerObject(tor,'respond');    
-      
-%       hPB = uicontrol(hFgs(1),'style','pushbutton',...
-%         'position',[20 20 120 35],...
-%         'string','Go to Frame',...
-%         'fontweight','bold',...
-%         'fontsize',12,...
-%         'Callback',@(s,e)hlpOverlayMontage(obj,clckHandlers,tMFT,s,e));
     end
     function hlpOverlayMontage(obj,clickHandler,tMFT,src,evt)
       eid = clickHandler.fSelectedEids;
@@ -4659,7 +4690,150 @@ classdef Labeler < handle
         warningNoTrace('No shape selected.');
       end
     end
+    function [ims,p] = hlpOverlayMontageGenerateImP(obj,tMFT,nphyspts,...
+        trxCtred,trxCtredRotAlignMeth,roiRadius,roiPadVal)
+      % Generate images and shapes to plot
+      %
+      % tMFT: table with labeled frames
+      % trxCtred: If true, labels will be shifted to be relative to their
+      %  trx centers. If false, labels may/will wander over the image if/as
+      %  targets wander
+      % trxCtredRotAlignMeth: One of {'none','headtail','trxtheta'}:
+      %  * 'none'. labels/shapes are not rotated. 
+      %  * 'headtail'. shapes are aligned based on their iHead/iTail
+      %  pts (taken from tracking parameters)
+      %  * 'trxtheta'. shapes are aligned based on their trx.theta. If the
+      %  trx.theta is incorrect then the alignment will be as well.
+      % roiRadius:
+      % roiPadVal:
+      % 
+      % ims: [nview] cell array of images to plot
+      % p: all labels [nlbledfrm x D==(nphyspts*nvw*d)]      
+      
+      nvw = obj.nview;
+      
+      ims = obj.gdata.images_all;
+      ims = arrayfun(@(x)x.CData,ims,'uni',0);
+      if trxCtred
+        ppParams = obj.preProcParams;
+        if isempty(ppParams)
+          warningNoTrace('Preprocessing parameters unset. Using supplied/default ROI radius and background pad value.');
+          if ~isnan(roiRadius)
+            % OK; user-supplied
+          else
+            [nr1,nc1] = size(ims{1});
+            roiRadius = min(floor(nr1/2),floor(nc1/2)); % b/c ... why not
+          end
+          % roiPadVal has been supplied
+        else
+          % Override roiRadius, roiPadVal with .preProcParams stuff
+          roiRadius = ppParams.TargetCrop.Radius;
+          roiPadVal = ppParams.TargetCrop.PadBkgd;
+        end
 
+        % Image: use image for current mov/frm/tgt
+        assert(nvw==1,'Expect single view for projects with trx.');
+        [xTrxCurrTgt,yTrxCurrTgt,thTrxCurrTgt] = ...
+          readtrx(obj.trx,obj.currFrame,obj.currTarget);
+        xTrxCurrTgt = double(xTrxCurrTgt);
+        yTrxCurrTgt = double(yTrxCurrTgt);
+        thTrxCurrTgt = double(thTrxCurrTgt);
+        switch trxCtredRotAlignMeth
+          case 'none'
+            % im: crop around current target, no rotation
+            [roiXloCurrTgt,roiXhiCurrTgt,roiYloCurrTgt,roiYhiCurrTgt] = ...
+              xyRad2roi(xTrxCurrTgt,yTrxCurrTgt,roiRadius);
+            ims{1} = padgrab(ims{1},roiPadVal,...
+              roiYloCurrTgt,roiYhiCurrTgt,roiXloCurrTgt,roiXhiCurrTgt); % asserted nvw==1
+          case {'headtail' 'trxtheta'}
+            % im: cropped + canonically rotated
+            im = ims{1};
+            [imnr,imnc] = size(im);
+            xim = 1:imnc;
+            yim = 1:imnr;
+            [xgim,ygim] = meshgrid(xim,yim);
+            xroictr = -roiRadius:roiRadius;
+            yroictr = -roiRadius:roiRadius;
+            [xgroi,ygroi] = meshgrid(xroictr,yroictr);
+            im = readpdf2(double(im),xgim,ygim,xgroi,ygroi,...
+              xTrxCurrTgt,yTrxCurrTgt,thTrxCurrTgt);
+            ims{1} = im;
+          otherwise
+            assert(false);
+        end
+                
+        % p (Shapes)
+        p = tMFT.p; % [nLbld x nphyspts*(nvw==1)*2]
+        pTrx = tMFT.pTrx; % [nLbld x 2]        
+        n = size(p,1);
+        switch trxCtredRotAlignMeth
+          case 'none'
+            for i=1:n
+              xyRow = Shape.vec2xy(p(i,:));
+              xyTrxRow = Shape.vec2xy(pTrx(i,:));
+              [~,tfOOB,xyRoi] = Shape.xyAndTrx2ROI(xyRow,xyTrxRow,...
+                nphyspts,roiRadius);
+              if tfOOB
+                trow = tMFT(i,:);
+                warningNoTrace('Shape (mov %d,frm %d,tgt %d) falls outside ROI.',...
+                  trow.mov,trow.frm,trow.iTgt);
+              end
+              p(i,:) = Shape.xy2vec(xyRoi);
+            end
+          case {'headtail' 'trxtheta'}
+            % Add pTrx as (nphyspts+1)th point, we will use it to center
+            % our aligned shapes
+            pWithTrx = [p(:,1:nphyspts)     pTrx(:,1) ...
+                        p(:,nphyspts+1:end) pTrx(:,2)]; 
+            if strcmp(trxCtredRotAlignMeth,'headtail')
+              tObj = obj.tracker;
+              if ~isempty(tObj)
+                iptHead = tObj.sPrm.Reg.rotCorrection.iPtHead;
+                iptTail = tObj.sPrm.Reg.rotCorrection.iPtTail;
+              else
+                error('Cannot use head-tail alignment method; no tracking rotational correction settings available.');              
+              end
+              pWithTrxAligned = Shape.alignOrientationsOrigin(pWithTrx,iptHead,iptTail); 
+              % aligned based on iHead/iTailpts, now with arbitrary offset
+              % b/c was rotated about origin. Note the presence of pTrx as
+              % the "last" point should not affect iptHead/iptTail defns
+              
+            else % 'trxtheta'
+              thTrx = tMFT.thetaTrx;
+              pWithTrxAligned = Shape.rotate(pWithTrx,-thTrx,[0 0]); % could rotate about pTrx but shouldn't matter
+              % aligned based on trx.theta, now with arbitrary offset
+            end
+
+            twoRadP1 = 2*roiRadius+1;
+            for i=1:n
+              xyRowWithTrx = Shape.vec2xy(pWithTrxAligned(i,:));
+              xyRowWithTrx = bsxfun(@minus,xyRowWithTrx,xyRowWithTrx(end,:)); 
+              % subtract off pTrx. All pts/coords now relative to origin at
+              % pTrx, with shape aligned.
+              xyRow = xyRowWithTrx(1:end-1,:);
+              xyRow(:,1) = xyRow(:,1)+roiRadius+1;
+              xyRow(:,2) = xyRow(:,2)+roiRadius+1;
+              tfOOB = xyRow<1 | xyRow>twoRadP1; % [nphyspts x 2]
+              if any(tfOOB(:))
+                trow = tMFT(i,:);
+                warningNoTrace('Shape (mov %d,frm %d,tgt %d) falls outside ROI.',...
+                  trow.mov,trow.frm,trow.iTgt);
+              end
+              p(i,:) = Shape.xy2vec(xyRow); % in-place modification of p
+            end                        
+          otherwise
+            assert(false,'Unrecognized ''trxCtredRotAlignMeth''.');
+        end
+      else
+        % ims: no change
+        p = tMFT.p;
+      end
+    end
+    function hlpOverlayMontageMarkerInc(obj,hLns,dSz) %#ok<INUSL>
+      sz = hLns(1).MarkerSize;
+      sz = max(sz+dSz,1);
+      [hLns.MarkerSize] = deal(sz);
+    end
   end
   
   methods (Static)

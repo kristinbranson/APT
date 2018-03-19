@@ -13,10 +13,10 @@ classdef OrthoCam
   % manifold. It may be impossible to reasonably estimate either the 
   % z-depth of a target or the intrinsic focal length.
   %
-  % Stereo calibration may be even further complicated, as this requires 
-  % reconciliation of the inferred 3D positions of calibration patterns as 
-  % viewed from two cameras. Since these 3D positions as given by the 
-  % single-cam calibrations are highly uncertain along the optical axes, 
+  % Stereo calibration is further complicated, as this requires
+  % reconciliation of the inferred 3D positions of calibration patterns as
+  % viewed from two cameras. Since these 3D positions as given by the
+  % single-cam calibrations are highly uncertain along the optical axes,
   % reasonable optimization/reconciliation may become very difficult.
   %
   % OrthoCam addresses these problems by reducing the DOF of the camera
