@@ -81,8 +81,13 @@ moveMenuItemAfter(handles.menu_file_export_labels_table,...
   handles.menu_file_export_labels_trks);
 
 % Label/Setup menu
-handles.menu_labeling_setup.Position = 3;
-handles.menu_labeling_setup.Text = 'Label';
+mnuLblSetup = handles.menu_labeling_setup;
+mnuLblSetup.Position = 3;
+if isprop(mnuLblSetup,'Text')
+  mnuLblSetup.Text = 'Label';
+else
+  mnuLblSetup.Label = 'Label';
+end
 
 handles.menu_setup_multiview_calibrated_mode_2 = uimenu(...
   'Parent',handles.menu_labeling_setup,...
