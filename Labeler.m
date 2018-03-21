@@ -2657,11 +2657,17 @@ classdef Labeler < handle
       end
       
       movsAllFull = obj.movieFilesAllFullGTaware;
-      bgPrms = obj.preProcParams.BackSub;
+
+      ppPrms = obj.preProcParams;
+      if ~isempty(ppPrms)
+        bgsubPrms = ppPrms.BackSub;
+        bgArgs = {'bgType',bgsubPrms.BGType,'bgReadFcn',bgsubPrms.BGReadFcn};
+      else
+        bgArgs = {};
+      end        
       for iView=1:obj.nview
         mov = movsAllFull{iMov,iView};
-        obj.movieReader(iView).open(mov,'bgType',bgPrms.BGType,...
-          'bgReadFcn',bgPrms.BGReadFcn); % should already be faithful to .forceGrayscale, .movieInvert
+        obj.movieReader(iView).open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale, .movieInvert
         RC.saveprop('lbl_lastmovie',mov);
         if iView==1
           obj.moviename = FSPath.twoLevelFilename(obj.moviefile);
@@ -2844,8 +2850,15 @@ classdef Labeler < handle
       % movfname: full path to movie
       % iView: view index; used for .movieInvert
 
-      bgPrms = obj.preProcParams.BackSub;
-      movRdr.open(movfname,'bgType',bgPrms.BGType,'bgReadFcn',bgPrms.BGReadFcn);
+      ppPrms = obj.preProcParams;
+      if ~isempty(ppPrms)
+        bgsubPrms = ppPrms.BackSub;
+        bgArgs = {'bgType',bgsubPrms.BGType,'bgReadFcn',bgsubPrms.BGReadFcn};
+      else
+        bgArgs = {};
+      end
+      
+      movRdr.open(movfname,bgArgs{:});
       movRdr.forceGrayscale = obj.movieForceGrayscale;
       movRdr.flipVert = obj.movieInvert(iView);
     end
