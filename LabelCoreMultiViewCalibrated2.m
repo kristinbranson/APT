@@ -18,8 +18,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   % To un-anchor a WSpoint, right-click it, or hit <space> when the 
   % appropriate view has the focus.
   %
-  % Any WSpt can be dragged, but this is lower priority since dragging is 
-  % spotty.
+  % Any WSpt can be dragged.
   %
   % When done, hit another number key to change the working point.
   %

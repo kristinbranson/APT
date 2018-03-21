@@ -5,7 +5,7 @@ classdef LabelCoreSeq < LabelCore
   %
   % There are three labeling states: 'label', 'adjust', 'accepted'.
   %
-  % During the labeling state, points are be ing clicked in order. This
+  % During the labeling state, points are being clicked in order. This
   % includes the state where there are zero points clicked (fresh image).
   %
   % Once all points have been clicked, the adjustment state is entered.

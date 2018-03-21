@@ -5,8 +5,9 @@ classdef PropertiesGUIProp < handle
     Type % {cellstr 'unsigned' 'signed' 'string' 'color' 'font' 'date' 'float' 'boolean' 'folder 'file' 'password' 'IPAddress'}
     isEditable % scalar logical
     Description % freeform text
+    ParamViz % optional, char concrete classname for ParameterVisualization subclass
     DefaultValue 
-    Value
+    Value    
   end
   properties (Dependent)
     DispNameUse
@@ -37,7 +38,8 @@ classdef PropertiesGUIProp < handle
     end
   end
   methods 
-    function obj = PropertiesGUIProp(fld,dispname,type,editable,desc,dfltval,val)
+    function obj = PropertiesGUIProp(fld,dispname,type,editable,desc,...
+        dfltval,val,prmViz)
       obj.Field = fld;
       obj.DispName = dispname;
       obj.Type = type;
@@ -45,6 +47,7 @@ classdef PropertiesGUIProp < handle
       obj.Description = desc;
       obj.DefaultValue = dfltval;      
       obj.Value = val;
+      obj.ParamViz = prmViz;
     end
   end
 end

@@ -1,4 +1,4 @@
-function [hPropsPane,parameters] = propertiesGUI2(hParent, parameters)
+function [hPropsPane,parameters] = propertiesGUI2(hParent,parameters,varargin)
 % propertiesGUI displays formatted editable list of properties
 %
 % Syntax:
@@ -129,20 +129,23 @@ function [hPropsPane,parameters] = propertiesGUI2(hParent, parameters)
 
 com.mathworks.mwswing.MJUtilities.initJIDE;
 
+parameterVizHandler = myparse(varargin,...
+  'parameterVizHandler',[]);
+
 % Prepare the list of properties
 oldWarn = warning('off','MATLAB:hg:JavaSetHGProperty');
 warning off MATLAB:hg:PossibleDeprecatedJavaSetHGProperty
 assert(isa(parameters,'TreeNode'));
-propsList = preparePropsList(parameters);
+propsList = preparePropsList(parameters,'',parameterVizHandler);
 
-% Create a mapping propName => prop
-propsHash = java.util.Hashtable;
-propsArray = propsList.toArray();
-for propsIdx = 1 : length(propsArray)
-  thisProp = propsArray(propsIdx);
-  propName = getPropName(thisProp);
-  propsHash.put(propName, thisProp);
-end
+% % Create a mapping propName => prop
+% propsHash = java.util.Hashtable;
+% propsArray = propsList.toArray();
+% for propsIdx = 1 : length(propsArray)
+%   thisProp = propsArray(propsIdx);
+%   propName = getPropName(thisProp);
+%   propsHash.put(propName, thisProp);
+% end
 warning(oldWarn);
 
 % Prepare a properties table that contains the list of properties
@@ -226,13 +229,14 @@ customizePropertyPane(pane);
 
 % A callback for touching the mouse
 hgrid = handle(grid, 'CallbackProperties');
-set(hgrid, 'MousePressedCallback', {@MousePressedCallback, hFig});
+set(hgrid, 'MousePressedCallback', {@MousePressedCallback, hFig, parameterVizHandler});
 
 setappdata(hFig, 'jPropsPane',jPropsPane);
 setappdata(hFig, 'propsList',propsList);
-setappdata(hFig, 'propsHash',propsHash);
+%setappdata(hFig, 'propsHash',propsHash);
 setappdata(hFig, 'mirror',parameters);
 setappdata(hFig, 'hgrid',hgrid);
+setappdata(hFig, 'parameterVizHandler',parameterVizHandler);
 set(hPropsPane_,'tag','hpropertiesGUI');
 
 set(hPropsPane_, 'Units','norm');
@@ -253,8 +257,7 @@ end
 if nargout, hPropsPane = hPropsPane_; end  % prevent unintentional printouts to the command window
 end  % propertiesGUI
 
-% Mouse-click callback function
-function MousePressedCallback(grid, eventdata, hFig)
+function MousePressedCallback(grid, eventdata, hFig, paramVizHandler)
 % Get the clicked location
 %grid = eventdata.getSource;
 %columnModel = grid.getColumnModel;
@@ -279,6 +282,13 @@ else
   %data = getappdata(hFig, 'mirror');
   selectedProp = grid.getSelectedProperty; % which property (java object) was selected
   if ~isempty(selectedProp)
+    if ~isempty(paramVizHandler)
+      [tf,pvObj] = paramVizHandler.isprop(selectedProp);
+      if tf
+        fprintf('Selected prop %s, conc PV in PVH: %s\n',...
+          char(selectedProp.toString),class(pvObj));
+      end
+    end
     if ismember('arrayData',fieldnames(get(selectedProp)))
       % Get the current data and update it
       actualData = get(selectedProp,'ArrayData');
@@ -394,202 +404,203 @@ parameters.font_property = java.awt.Font('Arial', java.awt.Font.BOLD, 12);
 try parameters.class_object_property = matlab.desktop.editor.getActive; catch, end
 end  % demoParameters
 
-function propsList = preparePropsList(parameters)
+% function propsList = preparePropsListLegacy(parameters)
+% propsList = java.util.ArrayList();
+% 
+% if isobject(parameters)
+%   parameters = struct(parameters);
+% end
+% 
+% % Prepare a dynamic list of properties, based on the struct fields
+% if isstruct(parameters) && ~isempty(parameters)
+%   %allParameters = parameters(:);  % convert ND array => 3D array
+%   allParameters = reshape(parameters, size(parameters,1),size(parameters,2),[]);
+%   numParameters = numel(allParameters);
+%   if numParameters > 1
+%     for zIdx = 1 : size(allParameters,3)
+%       for colIdx = 1 : size(allParameters,2)
+%         for rowIdx = 1 : size(allParameters,1)
+%           parameters = allParameters(rowIdx,colIdx,zIdx);
+%           field_name = '';
+%           field_label = sprintf('(%d,%d,%d)',rowIdx,colIdx,zIdx);
+%           field_label = regexprep(field_label,',1\)',')');  % remove 3D if unnecesary
+%           newProp = newProperty(parameters, field_name, field_label, isEditable, '', '', @propUpdatedCallback);
+%           propsList.add(newProp);
+%         end
+%       end
+%     end
+%   else
+%     % Dynamically (generically) inspect all the fields and assign corresponding props
+%     field_names = fieldnames(parameters);
+%     for field_idx = 1 : length(field_names)
+%       arrayData = [];
+%       field_name = field_names{field_idx};
+%       value = parameters.(field_name);
+%       field_label = getFieldLabel(field_name);
+%       %if numParameters > 1,  field_label = [field_label '(' num2str(parametersIdx) ')'];  end
+%       field_description = '';  % TODO
+%       type = 'string';
+%       if isempty(value)
+%         type = 'string';  % not really needed, but for consistency
+%       elseif isa(value,'java.awt.Color')
+%         type = 'color';
+%       elseif isa(value,'java.awt.Font')
+%         type = 'font';
+%       elseif isnumeric(value)
+%         try %if length(value)==3
+%           colorComponents = num2cell(value);
+%           if numel(colorComponents) ~= 3
+%             error(' ');  % bail out if definitely not a color
+%           end
+%           try
+%             value = java.awt.Color(colorComponents{:});  % value between 0-1
+%           catch
+%             colorComponents = num2cell(value/255);
+%             value = java.awt.Color(colorComponents{:});  % value between 0-255
+%           end
+%           type = 'color';
+%         catch %else
+%           if numel(value)==1
+%             %value = value(1);
+%             if value > now-3650 && value < now+3650
+%               type = 'date';
+%               value = java.util.Date(datestr(value));
+%             elseif isa(value,'uint') || isa(value,'uint8') || isa(value,'uint16') || isa(value,'uint32') || isa(value,'uint64')
+%               type = 'unsigned';
+%             elseif isinteger(value)
+%               type = 'signed';
+%             else
+%               type = 'float';
+%             end
+%           else % a vector or a matrix
+%             arrayData = value;
+%             value = regexprep(sprintf('%dx',size(value)),{'^(.)','x$'},{'<$1','> numeric array'});
+%             %{
+%                           value = num2str(value);
+%                           if size(value,1) > size(value,2)
+%                               value = value';
+%                           end
+%                           if size(squeeze(value),2) > 1
+%                               % Convert multi-row string into a single-row string
+%                               value = [value'; repmat(' ',1,size(value,1))];
+%                               value = value(:)';
+%                           end
+%                           value = strtrim(regexprep(value,' +',' '));
+%                           if length(value) > 50
+%                               value(51:end) = '';
+%                               value = [value '...']; %#ok<AGROW>
+%                           end
+%                           value = ['[ ' value ' ]']; %#ok<AGROW>
+%             %}
+%           end
+%         end
+%       elseif islogical(value)
+%         if numel(value)==1
+%           % a single value
+%           type = 'boolean';
+%         else % an array of boolean values
+%           arrayData = value;
+%           value = regexprep(sprintf('%dx',size(value)),{'^(.)','x$'},{'<$1','> logical array'});
+%         end
+%       elseif ischar(value)
+%         if exist(value,'dir')
+%           type = 'folder';
+%           value = java.io.File(value);
+%         elseif exist(value,'file')
+%           type = 'file';
+%           value = java.io.File(value);
+%         elseif value(1)=='*'
+%           type = 'password';
+%         elseif sum(value=='.')==3
+%           type = 'IPAddress';
+%         else
+%           type = 'string';
+%           if length(value) > 50
+%             value(51:end) = '';
+%             value = [value '...']; %#ok<AGROW>
+%           end
+%         end
+%       elseif iscell(value)
+%         type = value;  % editable if the last cell element is ''
+%         if size(value,1)==1 || size(value,2)==1
+%           % vector - treat as a drop-down (combo-box/popup) of values
+%           if ~iscellstr(value)
+%             type = value;
+%             for ii=1:length(value)
+%               if isnumeric(value{ii})  % if item is numeric -> change to string for display.
+%                 type{ii} = num2str(value{ii});
+%               else
+%                 type{ii} = value{ii};
+%               end
+%             end
+%           end
+%         else  % Matrix - use table popup
+%           %value = ['{ ' strtrim(regexprep(evalc('disp(value)'),' +',' ')) ' }'];
+%           arrayData = value;
+%           value = regexprep(sprintf('%dx',size(value)),{'^(.)','x$'},{'<$1','> cell array'});
+%         end
+%       elseif isa(value,'java.util.Date')
+%         type = 'date';
+%       elseif isa(value,'java.io.File')
+%         if value.isFile
+%           type = 'file';
+%         else  % value.isDirectory
+%           type = 'folder';
+%         end
+%       elseif isobject(value)
+%         oldWarn = warning('off','MATLAB:structOnObject');
+%         value = struct(value);
+%         warning(oldWarn);
+%       elseif ~isstruct(value)
+%         value = strtrim(regexprep(evalc('disp(value)'),' +',' '));
+%       end
+%       parameters.(field_name) = value;  % possibly updated above
+%       newProp = newProperty(parameters, field_name, field_label, isEditable, type, field_description, @propUpdatedCallback);
+%       propsList.add(newProp);
+%       
+%       % Save the array as a new property of the object
+%       if ~isempty(arrayData)
+%         try
+%           set(newProp,'arrayData',arrayData)
+%         catch
+%           %setappdata(hProp,'UserData',propName)
+%           hp = schema.prop(handle(newProp),'arrayData','mxArray'); %#ok<NASGU>
+%           set(handle(newProp),'arrayData',arrayData)
+%         end
+%         newProp.setEditable(false);
+%       end
+%     end
+%   end
+% else
+%   % You can also use direct assignments, instead of the generic code above. For example:
+%   % (Possible property types: signed, unsigned, float, file, folder, text or string, color, IPAddress, password, date, boolean, cell-array of strings)
+%   propsList.add(newProperty(parameters, 'flag_prop_name',   'Flag value:',     isEditable, 'boolean',            'Turn this on if you want to make extra plots', @propUpdatedCallback));
+%   propsList.add(newProperty(parameters, 'float_prop_name',  'Boolean prop',    isEditable, 'float',              'description 123...',   @propUpdatedCallback));
+%   propsList.add(newProperty(parameters, 'string_prop_name', 'My text msg:',    isEditable, 'string',             'Yaba daba doo',        @propUpdatedCallback));
+%   propsList.add(newProperty(parameters, 'int_prop_name',    'Now an integer',  isEditable, 'unsigned',           '123 456...',           @propUpdatedCallback));
+%   propsList.add(newProperty(parameters, 'choice_prop_name', 'And a drop-down', isEditable, {'Yes','No','Maybe'}, 'no description here!', @propUpdatedCallback));
+% end
+% end
+
+function propsList = preparePropsList(parameters,fqnBase,paramVizHandler)
 % parameters: Tree from parseConfigYaml
+% fqnBase: FQN base for recursion
 
 propsList = java.util.ArrayList();
 for i=1:numel(parameters)
-  newProp = newProperty(parameters(i),@propUpdatedCallback);
+  newProp = newProperty(parameters(i),@propUpdatedCallback,fqnBase,paramVizHandler);
   propsList.add(newProp);
 end
 end
 
-function propsList = preparePropsListLegacy(parameters)
-propsList = java.util.ArrayList();
+% % Get a normalized field label (see also checkFieldName() below)
+% function field_label = getFieldLabel(field_name)
+% field_label = regexprep(field_name, '__(.*)', ' ($1)');
+% field_label = strrep(field_label,'_',' ');
+% field_label(1) = upper(field_label(1));
+% end
 
-if isobject(parameters)
-  parameters = struct(parameters);
-end
-
-% Prepare a dynamic list of properties, based on the struct fields
-if isstruct(parameters) && ~isempty(parameters)
-  %allParameters = parameters(:);  % convert ND array => 3D array
-  allParameters = reshape(parameters, size(parameters,1),size(parameters,2),[]);
-  numParameters = numel(allParameters);
-  if numParameters > 1
-    for zIdx = 1 : size(allParameters,3)
-      for colIdx = 1 : size(allParameters,2)
-        for rowIdx = 1 : size(allParameters,1)
-          parameters = allParameters(rowIdx,colIdx,zIdx);
-          field_name = '';
-          field_label = sprintf('(%d,%d,%d)',rowIdx,colIdx,zIdx);
-          field_label = regexprep(field_label,',1\)',')');  % remove 3D if unnecesary
-          newProp = newProperty(parameters, field_name, field_label, isEditable, '', '', @propUpdatedCallback);
-          propsList.add(newProp);
-        end
-      end
-    end
-  else
-    % Dynamically (generically) inspect all the fields and assign corresponding props
-    field_names = fieldnames(parameters);
-    for field_idx = 1 : length(field_names)
-      arrayData = [];
-      field_name = field_names{field_idx};
-      value = parameters.(field_name);
-      field_label = getFieldLabel(field_name);
-      %if numParameters > 1,  field_label = [field_label '(' num2str(parametersIdx) ')'];  end
-      field_description = '';  % TODO
-      type = 'string';
-      if isempty(value)
-        type = 'string';  % not really needed, but for consistency
-      elseif isa(value,'java.awt.Color')
-        type = 'color';
-      elseif isa(value,'java.awt.Font')
-        type = 'font';
-      elseif isnumeric(value)
-        try %if length(value)==3
-          colorComponents = num2cell(value);
-          if numel(colorComponents) ~= 3
-            error(' ');  % bail out if definitely not a color
-          end
-          try
-            value = java.awt.Color(colorComponents{:});  % value between 0-1
-          catch
-            colorComponents = num2cell(value/255);
-            value = java.awt.Color(colorComponents{:});  % value between 0-255
-          end
-          type = 'color';
-        catch %else
-          if numel(value)==1
-            %value = value(1);
-            if value > now-3650 && value < now+3650
-              type = 'date';
-              value = java.util.Date(datestr(value));
-            elseif isa(value,'uint') || isa(value,'uint8') || isa(value,'uint16') || isa(value,'uint32') || isa(value,'uint64')
-              type = 'unsigned';
-            elseif isinteger(value)
-              type = 'signed';
-            else
-              type = 'float';
-            end
-          else % a vector or a matrix
-            arrayData = value;
-            value = regexprep(sprintf('%dx',size(value)),{'^(.)','x$'},{'<$1','> numeric array'});
-            %{
-                          value = num2str(value);
-                          if size(value,1) > size(value,2)
-                              value = value';
-                          end
-                          if size(squeeze(value),2) > 1
-                              % Convert multi-row string into a single-row string
-                              value = [value'; repmat(' ',1,size(value,1))];
-                              value = value(:)';
-                          end
-                          value = strtrim(regexprep(value,' +',' '));
-                          if length(value) > 50
-                              value(51:end) = '';
-                              value = [value '...']; %#ok<AGROW>
-                          end
-                          value = ['[ ' value ' ]']; %#ok<AGROW>
-            %}
-          end
-        end
-      elseif islogical(value)
-        if numel(value)==1
-          % a single value
-          type = 'boolean';
-        else % an array of boolean values
-          arrayData = value;
-          value = regexprep(sprintf('%dx',size(value)),{'^(.)','x$'},{'<$1','> logical array'});
-        end
-      elseif ischar(value)
-        if exist(value,'dir')
-          type = 'folder';
-          value = java.io.File(value);
-        elseif exist(value,'file')
-          type = 'file';
-          value = java.io.File(value);
-        elseif value(1)=='*'
-          type = 'password';
-        elseif sum(value=='.')==3
-          type = 'IPAddress';
-        else
-          type = 'string';
-          if length(value) > 50
-            value(51:end) = '';
-            value = [value '...']; %#ok<AGROW>
-          end
-        end
-      elseif iscell(value)
-        type = value;  % editable if the last cell element is ''
-        if size(value,1)==1 || size(value,2)==1
-          % vector - treat as a drop-down (combo-box/popup) of values
-          if ~iscellstr(value)
-            type = value;
-            for ii=1:length(value)
-              if isnumeric(value{ii})  % if item is numeric -> change to string for display.
-                type{ii} = num2str(value{ii});
-              else
-                type{ii} = value{ii};
-              end
-            end
-          end
-        else  % Matrix - use table popup
-          %value = ['{ ' strtrim(regexprep(evalc('disp(value)'),' +',' ')) ' }'];
-          arrayData = value;
-          value = regexprep(sprintf('%dx',size(value)),{'^(.)','x$'},{'<$1','> cell array'});
-        end
-      elseif isa(value,'java.util.Date')
-        type = 'date';
-      elseif isa(value,'java.io.File')
-        if value.isFile
-          type = 'file';
-        else  % value.isDirectory
-          type = 'folder';
-        end
-      elseif isobject(value)
-        oldWarn = warning('off','MATLAB:structOnObject');
-        value = struct(value);
-        warning(oldWarn);
-      elseif ~isstruct(value)
-        value = strtrim(regexprep(evalc('disp(value)'),' +',' '));
-      end
-      parameters.(field_name) = value;  % possibly updated above
-      newProp = newProperty(parameters, field_name, field_label, isEditable, type, field_description, @propUpdatedCallback);
-      propsList.add(newProp);
-      
-      % Save the array as a new property of the object
-      if ~isempty(arrayData)
-        try
-          set(newProp,'arrayData',arrayData)
-        catch
-          %setappdata(hProp,'UserData',propName)
-          hp = schema.prop(handle(newProp),'arrayData','mxArray'); %#ok<NASGU>
-          set(handle(newProp),'arrayData',arrayData)
-        end
-        newProp.setEditable(false);
-      end
-    end
-  end
-else
-  % You can also use direct assignments, instead of the generic code above. For example:
-  % (Possible property types: signed, unsigned, float, file, folder, text or string, color, IPAddress, password, date, boolean, cell-array of strings)
-  propsList.add(newProperty(parameters, 'flag_prop_name',   'Flag value:',     isEditable, 'boolean',            'Turn this on if you want to make extra plots', @propUpdatedCallback));
-  propsList.add(newProperty(parameters, 'float_prop_name',  'Boolean prop',    isEditable, 'float',              'description 123...',   @propUpdatedCallback));
-  propsList.add(newProperty(parameters, 'string_prop_name', 'My text msg:',    isEditable, 'string',             'Yaba daba doo',        @propUpdatedCallback));
-  propsList.add(newProperty(parameters, 'int_prop_name',    'Now an integer',  isEditable, 'unsigned',           '123 456...',           @propUpdatedCallback));
-  propsList.add(newProperty(parameters, 'choice_prop_name', 'And a drop-down', isEditable, {'Yes','No','Maybe'}, 'no description here!', @propUpdatedCallback));
-end
-end
-
-% Get a normalized field label (see also checkFieldName() below)
-function field_label = getFieldLabel(field_name)
-field_label = regexprep(field_name, '__(.*)', ' ($1)');
-field_label = strrep(field_label,'_',' ');
-field_label(1) = upper(field_label(1));
-end
-
-function prop = newProperty(t,propUpdatedCallback)
+function prop = newProperty(t,propUpdatedCallback,fqnBase,paramVizHandler)
 pgp = t.Data;
 propName = pgp.Field;
 label = pgp.DispNameUse;
@@ -597,13 +608,33 @@ dataType = pgp.Type;
 description = pgp.Description;
 
 prop = javaObjectEDT(com.jidesoft.grid.DefaultProperty); % UNDOCUMENTED internal MATLAB component
+prop = handle(prop,'CallbackProperties');
 prop.setName(label);
 prop.setExpanded(true);
 prop.setValue(pgp.Value);
 prop.setEditable(pgp.isEditable);
+if isempty(fqnBase)
+  fqn = propName;
+else
+  fqn = [fqnBase '.' propName];
+end
+
+if ~isempty(paramVizHandler) && ~isempty(pgp.ParamViz)
+  try
+    pvObj = feval(pgp.ParamViz);
+    assert(isa(pvObj,'ParameterVisualization'),'''%s'' is not a ParameterVisualization.');
+  catch ME
+    warningNoTrace('Failed to instantiate ParameterVisualization ''%s'': %s',...
+      pgp.ParamViz,ME.message);
+    pvObj = [];
+  end
+  if ~isempty(pvObj)
+    paramVizHandler.addProp(prop,pvObj)
+  end
+end
 
 for i=1:numel(t.Children)
-  children = toArray(preparePropsList(t.Children(i)));
+  children = toArray(preparePropsList(t.Children(i),fqn,paramVizHandler));
   for j = 1:numel(children)
     prop.addChild(children(j));
   end
@@ -661,11 +692,21 @@ else
     case 'signed'    %alignProp(prop, com.jidesoft.grid.IntegerCellEditor,    'int32');
       model = javax.swing.SpinnerNumberModel(prop.getValue, -intmax, intmax, 1);
       editor = com.jidesoft.grid.SpinnerCellEditor(model);
+      s = get(editor,'Spinner');
+      s.addChangeListener(@(s,e)disp('spinner change!'));
+%       editor.setAutoStopCellEditing(true);
+      editor.setPassEnterKeyToTable(true);
       alignProp(prop, editor, 'int32');
     case 'unsigned'  %alignProp(prop, com.jidesoft.grid.IntegerCellEditor,    'uint32');
       val = max(0, min(prop.getValue, intmax));
       model = javax.swing.SpinnerNumberModel(val, 0, intmax, 1);
       editor = com.jidesoft.grid.SpinnerCellEditor(model);
+      editor.setPassEnterKeyToTable(true);
+      assignin('base','model',model);
+      assignin('base','ed',editor);
+      assignin('base','spinner',get(editor,'spinner'));
+%       s.addChangeListener(@(s,e)disp('spinner change!'));
+%       editor.setAutoStopCellEditing(true);
       alignProp(prop, editor, 'uint32');
     case 'float'     %alignProp(prop, com.jidesoft.grid.CalculatorCellEditor, 'double');  % DoubleCellEditor
       alignProp(prop, com.jidesoft.grid.DoubleCellEditor, 'double');
@@ -829,6 +870,8 @@ end  % alignProp
 
 function propUpdatedCallback(prop, eventData, propName, fileData)
 try if strcmpi(char(eventData.getPropertyName),'parent'),  return;  end;  catch, end
+
+disp(propName);
 
 % Retrieve the containing figure handle
 %hFig = findall(0, '-depth',1, 'Tag','fpropertiesGUI');
@@ -1164,69 +1207,70 @@ if ischar(filename)
 end
 end  % fileIO_Callback
 
-function filename = loadBranchCallback(grid, selectedProp, lastdir, mirrorData, filename)
-if isempty(filename)
-  [filename, pathname] = uigetfile({'*.branch','Branch files (*.branch)'}, 'Load a file', lastdir);
-  if filename == 0
-    return
-  end
-  filename = fullfile(pathname, filename);
-else
-  selectedProp = findUserProvidedProp(grid, selectedProp);
-end
-propName = char(selectedProp.getName);
-propName = checkFieldName(propName);
-data = load(filename, '-mat');
-fnames = fieldnames(data);
-index = strcmpi(fnames,propName);
+% function filename = loadBranchCallback(grid, selectedProp, lastdir, mirrorData, filename)
+% if isempty(filename)
+%   [filename, pathname] = uigetfile({'*.branch','Branch files (*.branch)'}, 'Load a file', lastdir);
+%   if filename == 0
+%     return
+%   end
+%   filename = fullfile(pathname, filename);
+% else
+%   selectedProp = findUserProvidedProp(grid, selectedProp);
+% end
+% propName = char(selectedProp.getName);
+% propName = checkFieldName(propName);
+% data = load(filename, '-mat');
+% fnames = fieldnames(data);
+% index = strcmpi(fnames,propName);
+% 
+% % If a match was found then it's okay to proceed
+% if any(index)
+%   % Remove any children
+%   selectedProp.removeAllChildren();
+%   
+%   % Make a new list
+%   newList = preparePropsListLegacy(data, true);
+%   
+%   % Conver the list to an array
+%   newArray = newList.toArray();
+%   updatedProp = newArray(1);
+%   
+%   isStruct = false;
+%   propValue = selectedProp.getValue;
+%   if ~isempty(propValue) && strcmp(propValue(1),'[') && ~isempty(strfind(propValue,' struct array]'))
+%     isStruct = true;
+%   end
+%   
+%   % If individual value update it.  TODO: Bug when it is a cell array....
+%   
+%   if isStruct == false && ~isempty(propValue)
+%     selectedProp.setValue (updatedProp.getValue)
+%     propName = checkFieldName(char(updatedProp.getName));
+%     if iscell(data.(fnames{index})) && ischar(data.(fnames{index}){end}) && ismember(data.(fnames{index})(end),data.(fnames{index})(1:end-1))
+%       data.(fnames{index})(end) = [];
+%     end
+%     propUpdatedCallback(selectedProp, [], propName, data.(fnames{index}));
+%   else
+%     % Add children to the original property.
+%     for ii=1:updatedProp.getChildrenCount
+%       childProp = updatedProp.getChildAt(ii-1);
+%       propName = checkFieldName(char(childProp.getName));
+%       [flag, sIndex] = CheckStringForBrackets(propName);
+%       if flag
+%         %                     propUpdatedCallback(childProp, [], propName, data.(fnames{index}).(propName));
+%       else
+%         propUpdatedCallback(childProp, [], propName, data.(fnames{index}).(propName));
+%       end
+%       selectedProp.addChild(childProp);
+%     end
+%   end
+% else
+%   errMsg = 'The selected branch does not match the data in the data file';
+%   %error('propertieGUI:load:branchName', errMsg);
+%   errordlg(errMsg, 'Load error');
+% end
+% end
 
-% If a match was found then it's okay to proceed
-if any(index)
-  % Remove any children
-  selectedProp.removeAllChildren();
-  
-  % Make a new list
-  newList = preparePropsListLegacy(data, true);
-  
-  % Conver the list to an array
-  newArray = newList.toArray();
-  updatedProp = newArray(1);
-  
-  isStruct = false;
-  propValue = selectedProp.getValue;
-  if ~isempty(propValue) && strcmp(propValue(1),'[') && ~isempty(strfind(propValue,' struct array]'))
-    isStruct = true;
-  end
-  
-  % If individual value update it.  TODO: Bug when it is a cell array....
-  
-  if isStruct == false && ~isempty(propValue)
-    selectedProp.setValue (updatedProp.getValue)
-    propName = checkFieldName(char(updatedProp.getName));
-    if iscell(data.(fnames{index})) && ischar(data.(fnames{index}){end}) && ismember(data.(fnames{index})(end),data.(fnames{index})(1:end-1))
-      data.(fnames{index})(end) = [];
-    end
-    propUpdatedCallback(selectedProp, [], propName, data.(fnames{index}));
-  else
-    % Add children to the original property.
-    for ii=1:updatedProp.getChildrenCount
-      childProp = updatedProp.getChildAt(ii-1);
-      propName = checkFieldName(char(childProp.getName));
-      [flag, sIndex] = CheckStringForBrackets(propName);
-      if flag
-        %                     propUpdatedCallback(childProp, [], propName, data.(fnames{index}).(propName));
-      else
-        propUpdatedCallback(childProp, [], propName, data.(fnames{index}).(propName));
-      end
-      selectedProp.addChild(childProp);
-    end
-  end
-else
-  errMsg = 'The selected branch does not match the data in the data file';
-  %error('propertieGUI:load:branchName', errMsg);
-  errordlg(errMsg, 'Load error');
-end
-end
 % runtime update item in branch (undocumented - for easier testing)
 function runtimeUpdateBranch(grid, selectedProp, mirrorData, newData)
 userStr = strread(selectedProp,'%s','delimiter','.');
