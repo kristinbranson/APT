@@ -109,6 +109,9 @@ classdef APT
     end
     
     function setpath()
+      
+      javaaddpathstatic(fullfile(APT.Root,'java','APTJava.jar'));
+
       [p,jp] = APT.getpath();
       addpath(p{:},'-begin');
       
@@ -150,14 +153,14 @@ classdef APT
         script = APT.SnapshotScript;
         cmd = sprintf('%s -nocolor -brief %s',script,APT.Root);
         [~,s] = system(cmd);
-        s = regexp(s,sprintf('\n'),'split');
+        s = regexp(s,newline,'split');
         modules = fieldnames(manifest);        
         modules = setdiff(modules,'build');
         for i = 1:numel(modules)        
           mod = modules{i};
           cmd = sprintf('%s -nocolor -brief %s',script,manifest.(mod));
           [~,stmp] = system(cmd);
-          stmp = regexp(stmp,sprintf('\n'),'split');
+          stmp = regexp(stmp,newline,'split');
           s = [s(:);{''};sprintf('### %s',upper(mod));stmp(:)];
         end
       elseif ispc
@@ -188,6 +191,8 @@ classdef APT
       if ~isequal(pwd,APT.Root)
         error('Run APT.build in the APT root directory (%s), because mcc is finicky about includes/adds, the ctf archive, etcetera.\n',APT.Root);
       end
+      
+      fprintf(2,'Possible issue with java static classpath.\n');
       
       proj = 'APTCluster';
             
