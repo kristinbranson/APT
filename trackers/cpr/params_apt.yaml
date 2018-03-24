@@ -25,7 +25,7 @@ ROOT:
       - ['Multiple Targets','',false,"When multiple targets are present, image patches are cropped from movies based on trajectory data.",'','']
       - TargetCrop:
         - ['Target ROI','',false,'Training/tracking is done with ROIs centered at each target.','','']
-        - Radius: ['Radius',unsigned,true,Crop a square with this radius (in pixels) about each target for training/tracking.,50,'ParameterVisualizationConc']
+        - Radius: ['Radius',unsigned,true,Crop a square with this radius (in pixels) about each target for training/tracking.,50,'ParameterVisualizationTgtCropRadius']
         - PadBkgd: ['Pad background',unsigned,true,Pad ROIs with this background value (grayscale) if necessary.,0,'']
       - NeighborMask:
         - ['Mask Neighbors','',false,"When targets come in close proximity to each other, non-touching neighbors can be masked.",'','']

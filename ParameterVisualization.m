@@ -14,15 +14,36 @@ classdef ParameterVisualization < handle
     % pLbl: [nphysptsx2]. labeled points for view 1, same frame as imLbl.
     % movLbl,frmLbl,tgtLbl. movie/frame/target for imLbl/pLbl.
     % lObj
-    % sPrm0: starting/current params in UI
-    init(hAx,imL,pL,movL,frmL,iTgtL,lObj,sPrm0)
+    % sPrm: starting/current params in UI
+    init(obj,hAx,lObj,sPrm0,val0)
     
     % Called when a user sets/selects a new property value
     %
     % All args are as in init(...), except sPrm contains the latest/updated
     % parameters.
-    update(hAx,imL,pL,movL,frmL,iTgtL,lObj,sPrm)
+    update(obj,hAx,lObj,sPrm0,val)
     
+  end
+  
+  methods (Static) % Utilities for subclasses
+    
+    function grayOutAxes(ax,str)
+      if nargin<2
+        str = '';
+      end
+      hFig = ancestor(ax,'figure');
+      cla(ax);
+      ax.Color = hFig.Color;
+      title(ax,'');
+      
+      if ~isempty(str)
+        lims = axis(ax);
+        xc = (lims(1)+lims(2))/2;
+        yc = (lims(3)+lims(4))/2;
+        text(ax,xc,yc,str,'horizontalalignment','center');
+      end
+    end
+        
   end
   
 end

@@ -132,11 +132,13 @@ com.mathworks.mwswing.MJUtilities.initJIDE;
 parameterVizHandler = myparse(varargin,...
   'parameterVizHandler',[]);
 
+hFig = ancestor(hParent,'figure');
+
 % Prepare the list of properties
 oldWarn = warning('off','MATLAB:hg:JavaSetHGProperty');
 warning off MATLAB:hg:PossibleDeprecatedJavaSetHGProperty
 assert(isa(parameters,'TreeNode'));
-propsList = preparePropsList(parameters,'',parameterVizHandler);
+propsList = preparePropsList(parameters,'',hFig,parameterVizHandler);
 
 % % Create a mapping propName => prop
 % propsHash = java.util.Hashtable;
@@ -165,6 +167,8 @@ grid.putClientProperty('terminateEditOnFocusLost',true);
 
 % If no parent (or the root) was specified
 if nargin < 1 || isempty(hParent) || isequal(hParent,0)
+  assert(false,'hParent must be supplied.');
+  
   % Create a new figure window
   delete(findall(0, '-depth',1, 'Tag','fpropertiesGUI'));
   hFig = figure('NumberTitle','off', 'Name','Application properties', 'Units','pixel', 'Pos',[300,200,500,500], 'Menu','none', 'Toolbar','none', 'Tag','fpropertiesGUI', 'Visible','off');
@@ -211,7 +215,7 @@ else
   pos = getpixelposition(hParent);
   pos(1:2) = 5;
   pos = pos - [0,0,10,10];
-  hFig = ancestor(hParent,'figure');
+%   hFig = ancestor(hParent,'figure');
   wasFigCreated = false;
   
   % Clear the parent container
@@ -283,11 +287,7 @@ else
   selectedProp = grid.getSelectedProperty; % which property (java object) was selected
   if ~isempty(selectedProp)
     if ~isempty(paramVizHandler)
-      [tf,pvObj] = paramVizHandler.isprop(selectedProp);
-      if tf
-        fprintf('Selected prop %s, conc PV in PVH: %s\n',...
-          char(selectedProp.toString),class(pvObj));
-      end
+      paramVizHandler.propSelected(selectedProp);
     end
     if ismember('arrayData',fieldnames(get(selectedProp)))
       % Get the current data and update it
@@ -582,13 +582,13 @@ end  % demoParameters
 % end
 % end
 
-function propsList = preparePropsList(parameters,fqnBase,paramVizHandler)
+function propsList = preparePropsList(parameters,fqnBase,hFig,paramVizHandler)
 % parameters: Tree from parseConfigYaml
 % fqnBase: FQN base for recursion
 
 propsList = java.util.ArrayList();
 for i=1:numel(parameters)
-  newProp = newProperty(parameters(i),@propUpdatedCallback,fqnBase,paramVizHandler);
+  newProp = newProperty(parameters(i),@propUpdatedCallback,fqnBase,hFig,paramVizHandler);
   propsList.add(newProp);
 end
 end
@@ -600,7 +600,9 @@ end
 % field_label(1) = upper(field_label(1));
 % end
 
-function prop = newProperty(t,propUpdatedCallback,fqnBase,paramVizHandler)
+function prop = newProperty(t,propUpdatedCallback,fqnBase,hFig,...
+  paramVizHandler)
+
 pgp = t.Data;
 propName = pgp.Field;
 label = pgp.DispNameUse;
@@ -634,7 +636,7 @@ if ~isempty(paramVizHandler) && ~isempty(pgp.ParamViz)
 end
 
 for i=1:numel(t.Children)
-  children = toArray(preparePropsList(t.Children(i),fqn,paramVizHandler));
+  children = toArray(preparePropsList(t.Children(i),fqn,hFig,paramVizHandler));
   for j = 1:numel(children)
     prop.addChild(children(j));
   end
@@ -692,22 +694,40 @@ else
     case 'signed'    %alignProp(prop, com.jidesoft.grid.IntegerCellEditor,    'int32');
       model = javax.swing.SpinnerNumberModel(prop.getValue, -intmax, intmax, 1);
       editor = com.jidesoft.grid.SpinnerCellEditor(model);
-      s = get(editor,'Spinner');
-      s.addChangeListener(@(s,e)disp('spinner change!'));
-%       editor.setAutoStopCellEditing(true);
+      editor = handle(editor);
       editor.setPassEnterKeyToTable(true);
-      alignProp(prop, editor, 'int32');
+      alignProp(prop,editor,'int32');
+      
+      if ~isempty(paramVizHandler) 
+        [tf,pvObj] = paramVizHandler.isprop(prop);
+        if tf
+          spinner = get(editor,'Spinner');
+          sl = javaObjectEDT('aptjava.SpinnerChangeListener');
+          sl = handle(sl,'CallbackProperties');
+          spinner.addChangeListener(sl);
+          set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdated(pvObj,e));
+        end
+      end
+
     case 'unsigned'  %alignProp(prop, com.jidesoft.grid.IntegerCellEditor,    'uint32');
       val = max(0, min(prop.getValue, intmax));
       model = javax.swing.SpinnerNumberModel(val, 0, intmax, 1);
       editor = com.jidesoft.grid.SpinnerCellEditor(model);
+      editor = handle(editor);
       editor.setPassEnterKeyToTable(true);
-      assignin('base','model',model);
-      assignin('base','ed',editor);
-      assignin('base','spinner',get(editor,'spinner'));
-%       s.addChangeListener(@(s,e)disp('spinner change!'));
-%       editor.setAutoStopCellEditing(true);
       alignProp(prop, editor, 'uint32');
+      
+      if ~isempty(paramVizHandler) 
+        [tf,pvObj] = paramVizHandler.isprop(prop);
+        if tf
+          spinner = get(editor,'Spinner');
+          sl = javaObjectEDT('aptjava.SpinnerChangeListener');
+          sl = handle(sl,'CallbackProperties');
+          spinner.addChangeListener(sl);
+          set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdated(pvObj,e));
+        end
+      end      
+      
     case 'float'     %alignProp(prop, com.jidesoft.grid.CalculatorCellEditor, 'double');  % DoubleCellEditor
       alignProp(prop, com.jidesoft.grid.DoubleCellEditor, 'double');
     case 'boolean',   alignProp(prop, com.jidesoft.grid.BooleanCheckBoxCellEditor, 'logical');
@@ -741,21 +761,17 @@ if ~isempty(description)
   renderer.setToolTipText(description);
 end
 
-% Set the property's editability state
 if prop.isEditable
-  % Set the property's label to be black
   prop.setDisplayName(['<html><font color="black">' label]);
-  
   % Add callbacks for property-change events
   hprop = handle(prop, 'CallbackProperties');
-  set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName});
+  set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig});
 else
-  % Set the property's label to be gray
   prop.setDisplayName(['<html><font color="gray">' label]);
 end
 
 setPropName(prop,propName);
-end  % newProperty
+end
 
 % Set property name in the Java property reference
 function setPropName(hProp,propName)
@@ -868,22 +884,25 @@ end
 com.jidesoft.grid.CellEditorManager.registerEditor(propType, editor, context);
 end  % alignProp
 
-function propUpdatedCallback(prop, eventData, propName, fileData)
-try if strcmpi(char(eventData.getPropertyName),'parent'),  return;  end;  catch, end
+function propUpdatedCallback(prop,eventData,propName,hFig)
+try 
+  if strcmpi(char(eventData.getPropertyName),'parent')
+    return;  
+  end
+catch
+end
 
-disp(propName);
+fprintf('Prop updated: %s\n',propName);
 
 % Retrieve the containing figure handle
-%hFig = findall(0, '-depth',1, 'Tag','fpropertiesGUI');
-hFig = get(0,'CurrentFigure'); %gcf;
-if isempty(hFig)
-  hPropsPane = findall(0,'Tag','hpropertiesGUI');
-  if isempty(hPropsPane),  return;  end
-  hFig = ancestor(hPropsPane,'figure'); %=get(hPropsPane,'Parent');
-end
-if isempty(hFig),  return;  end
+% hFig = get(0,'CurrentFigure'); %gcf; 
+% if isempty(hFig)
+%   hPropsPane = findall(0,'Tag','hpropertiesGUI');
+%   if isempty(hPropsPane),  return;  end
+%   hFig = ancestor(hPropsPane,'figure'); %=get(hPropsPane,'Parent');
+% end
+% if isempty(hFig),  return;  end
 
-% Get the props data from the figure's ApplicationData
 propsList = getappdata(hFig, 'propsList');
 propsPane = getappdata(hFig, 'jPropsPane');
 data = getappdata(hFig, 'mirror');
@@ -903,15 +922,14 @@ propValue = get(prop,'Value');
 if isjava(propValue)
   if isa(propValue,'java.util.Date')
     sdf = java.text.SimpleDateFormat('MM-dd-yyyy');
-    propValue = datenum(sdf.format(propValue).char);  %#ok<NASGU>
+    propValue = datenum(sdf.format(propValue).char);  
   elseif isa(propValue,'java.awt.Color')
-    propValue = propValue.getColorComponents([])';  %#ok<NASGU>
+    propValue = propValue.getColorComponents([])';  
   else
-    propValue = char(propValue);  %#ok<NASGU>
+    propValue = char(propValue);  
   end
 end
 
-% Get the actual recursive propName
 propName = getRecursivePropName(prop, propName);
 
 % Find if the original item was a cell array and the mirror accordingly
@@ -974,8 +992,11 @@ setappdata(hFig, 'mirror',data);
 
 % Update the display
 checkProps(propsList, hFig);
-try propsPane.repaint; catch; end
-end  % propUpdatedCallback
+try 
+  propsPane.repaint; 
+catch
+end
+end
 
 function selectedValue = UpdateCellArray(originalData,selectedValue)
 if length(originalData)==length(selectedValue) || ~iscell(selectedValue)
@@ -1271,29 +1292,29 @@ end  % fileIO_Callback
 % end
 % end
 
-% runtime update item in branch (undocumented - for easier testing)
-function runtimeUpdateBranch(grid, selectedProp, mirrorData, newData)
-userStr = strread(selectedProp,'%s','delimiter','.');
-if length(userStr)~= 1
-  mirrorData = findMirrorDataLevel(mirrorData, userStr);
-end
-selectedProp = findUserProvidedProp(grid, selectedProp);
-if ~isempty(selectedProp.getValue)
-  propName = checkFieldName(char(selectedProp.getName));
-  if iscell(newData) && length(newData)==1 && isnumeric(newData{1}) % user specifying index to select.
-    propData = mirrorData.(propName);
-    if iscell(mirrorData.(propName))
-      userSelection = propData{newData{1}};
-    else
-      userSelection = newData;
-    end
-    if any(ismember(propData,userSelection))
-      selectedProp.setValue (userSelection);
-      propUpdatedCallback(selectedProp, [], propName, propData);
-    end
-  end
-end
-end  % runtimeUpdateBranch
+% % runtime update item in branch (undocumented - for easier testing)
+% function runtimeUpdateBranch(grid, selectedProp, mirrorData, newData)
+% userStr = strread(selectedProp,'%s','delimiter','.');
+% if length(userStr)~= 1
+%   mirrorData = findMirrorDataLevel(mirrorData, userStr);
+% end
+% selectedProp = findUserProvidedProp(grid, selectedProp);
+% if ~isempty(selectedProp.getValue)
+%   propName = checkFieldName(char(selectedProp.getName));
+%   if iscell(newData) && length(newData)==1 && isnumeric(newData{1}) % user specifying index to select.
+%     propData = mirrorData.(propName);
+%     if iscell(mirrorData.(propName))
+%       userSelection = propData{newData{1}};
+%     else
+%       userSelection = newData;
+%     end
+%     if any(ismember(propData,userSelection))
+%       selectedProp.setValue (userSelection);
+%       propUpdatedCallback(selectedProp, [], propName, propData);
+%     end
+%   end
+% end
+% end 
 
 % Save callback and subfunctions
 function filename = saveBranch_Callback(grid, selectedProp, lastdir, mirrorData, hFig, filename)

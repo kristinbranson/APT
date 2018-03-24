@@ -22,7 +22,7 @@ function varargout = ParameterSetup(varargin)
 
 % Edit the above text to modify the response to help ParameterSetup
 
-% Last Modified by GUIDE v2.5 21-Mar-2018 12:00:34
+% Last Modified by GUIDE v2.5 24-Mar-2018 10:57:23
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -65,7 +65,7 @@ labelerObj = myparse(pvargs,...
   'labelerObj',[]);
 tfLabelerSupplied = ~isempty(labelerObj);
 
-hFig = handles.figure1;
+hFig = handles.figParameterSetup;
 centerOnParentFigure(hFig,hParent);
 
 assert(isa(tree,'TreeNode') && isscalar(tree));
@@ -76,6 +76,7 @@ children = tree.Children;
 rootnode.Children = [];
 if tfLabelerSupplied
   pvh = ParameterVizHandler(labelerObj,handles.axViz);
+  pvh.init();
   propertiesGUI2(handles.pnlParams,children,'parameterVizHandler',pvh);
 else
   propertiesGUI2(handles.pnlParams,children);
@@ -98,7 +99,7 @@ handles.output = hObject;
 guidata(hObject, handles);
 
 % UIWAIT makes ParameterSetup wait for user response (see UIRESUME)
-% uiwait(handles.figure1);
+% uiwait(handles.figParameterSetup);
 
 function varargout = ParameterSetup_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
@@ -106,7 +107,7 @@ varargout{1} = handles.output;
 function pbApply_Callback(hObject, eventdata, handles)
 % AL20180301 iss #105, a cell may be "mid-edit". Force stop editing before
 % proceeding
-hFig = handles.figure1;
+hFig = handles.figParameterSetup;
 hgrid = getappdata(hFig,'hgrid');
 ce = hgrid.getCellEditor();
 if ~isempty(ce)
@@ -123,4 +124,5 @@ hObj.data = s;
 delete(hFig);
 
 function pbCancel_Callback(hObject, eventdata, handles)
-delete(handles.figure1);
+disp('foo');
+%delete(handles.figParameterSetup);
