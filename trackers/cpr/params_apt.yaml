@@ -53,7 +53,7 @@ ROOT:
       - Type: ['',['1lm','two landmark elliptical','2lm','2lmdiff'],true,Method/type of feature generation.,'2lm','']
       - Metatype: ['Meta feature',['single','diff'],true,Feature combination strategy to form ''true'' features.,'diff','']
       - NGenerate: ['Pool size',unsigned,true,Number of features to generate/consider at each major iteration.,400,'']
-      - Radius: ['',float,true,Distance or distance scalefactor for feature generation.,1.5,'']
+      - Radius: ['',float,true,Distance or distance scalefactor for feature generation.,1.5,'ParameterVisualizationFeatureRadius']
       - ABRatio: ['Major/minor ratio',float,true,Ratio of ellipse major/minor axes (for Type='two landmark elliptical').,2,'']
       - Nsample_std: ['Num samples std',unsigned,true,Number of samples used to approximate SD during feature selection.,1000,'']
       - Nsample_cor: ['Num samples correlation',unsigned,true,Number of samples used to compute correlation during feature selection.,5000,'']

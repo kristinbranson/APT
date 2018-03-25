@@ -3764,7 +3764,7 @@ classdef Labeler < handle
       % tfneighbor: if true, a labeled neighboring frame was found
       % iFrm0: index of labeled neighboring frame, relevant only if
       %   tfneighbor is true
-      % lpos0: labels at iFrm0, relevant only if tfneighbor is true
+      % lpos0: [nptsx2] labels at iFrm0, relevant only if tfneighbor is true
       %
       % This method looks for a frame "near" iFrm for target iTrx that is
       % labeled. This could be iFrm itself if it is labeled. If a
@@ -3790,6 +3790,53 @@ classdef Labeler < handle
       tfneighbor = false;
       iFrm0 = nan;
       lpos0 = [];      
+    end
+    
+    function [tffound,mIdx,frm,iTgt,xyLbl] = labelFindOneLabeledFrame(obj)
+      % Find one labeled frame, any labeled frame.
+      %
+      % tffound: true if one was found.
+      % mIdx: scalar MovieIndex
+      % frm: scalar frame number
+      % iTgt: etc
+      % xyLbl: [npts x 2] labeled positions
+      
+      iMov = find(obj.movieFilesAllHaveLbls,1);
+      if ~isempty(iMov)
+        mIdx = MovieIndex(iMov,false);        
+      else
+        iMov = find(obj.movieFilesAllGTHaveLbls,1);
+        if isempty(iMov)
+          tffound = false;
+          mIdx = [];
+          frm = [];
+          iTgt = [];
+          xyLbl = [];
+          return;
+        end
+        mIdx = MovieIndex(iMov,true);
+      end
+      
+      lpos = obj.getLabeledPosMovIdx(mIdx);      
+      nFrm = size(lpos,3);
+      nTgt = size(lpos,4);
+      for frm = 1:nFrm
+        for iTgt=1:nTgt
+          xyLbl = lpos(:,:,frm,iTgt);
+          if any(~isnan(xyLbl(:)))
+            tffound = true;
+            return;
+          end
+        end
+      end
+      
+      % Should never reach here
+      tffound = false;
+      mIdx = [];
+      frm = [];
+      iTgt = [];
+      xyLbl = [];
+      return;
     end
     
     function [nTgts,nPts] = labelPosLabeledFramesStats(obj,frms) % obj const

@@ -1003,6 +1003,13 @@ classdef Features
       xs(:,4) = ceil(rand(F,1)*nviews);
     end
     
+    function [xs,prms] = generate1LMforSetParamViz(model,radius)
+      % Generate a single 1LM feature with maximum radius
+      [xs,prms] = Features.generate1LM(model,'F',1,'radius',radius);
+      xs(:,2) = radius;
+      xs(:,4) = 1;
+    end
+    
     function [xF,yF,iView,info] = compute1LM(xs,xLM,yLM)
       % xs: [Fx4] from generate1LM. Allow [Fx3] for legacy/historical with
       %     nView==1
@@ -1073,13 +1080,14 @@ classdef Features
         hPlot = gobjects(4,1);
         hPlot(1) = plot(axplot,nan,nan,'o','color',clr,'markerfacecolor',clr);
         hPlot(2) = plot(axplot,xf,yf,'s','color','w','markerfacecolor',[1 1 1]);
-        hPlot(3) = ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-','parent',axplot,'Color',clr);
+        hPlot(3) = ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-',...
+          'plotArgs',{'parent',axplot,'Color',clr});
         hPlot(4) = plot(axplot,[x1;xf],[y1;yf],'-','Color',clr);
       else
         assert(numel(hPlot)==4);
         set(hPlot(1),'XData',x1,'YData',y1);
         set(hPlot(2),'XData',xf,'YData',yf);
-        ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-','parent',axplot,'hEllipse',hPlot(3));
+        ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-','hEllipse',hPlot(3));
         set(hPlot(4),'XData',[x1;xf],'YData',[y1;yf]);        
       end
       str = sprintf('n=%d,f=%d(%d). r=%.3f, theta=%.3f',iN,iF,info.l1(iF),...

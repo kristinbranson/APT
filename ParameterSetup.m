@@ -22,7 +22,7 @@ function varargout = ParameterSetup(varargin)
 
 % Edit the above text to modify the response to help ParameterSetup
 
-% Last Modified by GUIDE v2.5 24-Mar-2018 10:57:23
+% Last Modified by GUIDE v2.5 24-Mar-2018 12:11:31
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -75,9 +75,10 @@ rootnode = tree;
 children = tree.Children;
 rootnode.Children = [];
 if tfLabelerSupplied
-  pvh = ParameterVizHandler(labelerObj,handles.axViz);
+  pvh = ParameterVizHandler(labelerObj,handles.figParameterSetup,handles.axViz);
   pvh.init();
   propertiesGUI2(handles.pnlParams,children,'parameterVizHandler',pvh);
+  setappdata(hFig,'parameterVizHandler',pvh);
 else
   propertiesGUI2(handles.pnlParams,children);
 end
@@ -87,22 +88,17 @@ ax = handles.axViz;
 ax.XTick = [];
 ax.YTick = [];
 
-hObj = HandleObj;
-setappdata(hFig,'outputObj',hObj);
-%uiwait(hFig);
-sPrm = hObj.data;
+handles.output = [];
+guidata(handles.figParameterSetup,handles);
 
-% Choose default command line output for ParameterSetup
-handles.output = hObject;
-
-% Update handles structure
-guidata(hObject, handles);
+% uiwait(hFig);
 
 % UIWAIT makes ParameterSetup wait for user response (see UIRESUME)
 % uiwait(handles.figParameterSetup);
 
 function varargout = ParameterSetup_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
+% delete(handles.figParameterSetup);
 
 function pbApply_Callback(hObject, eventdata, handles)
 % AL20180301 iss #105, a cell may be "mid-edit". Force stop editing before
@@ -119,10 +115,29 @@ t = getappdata(hFig,'mirror');
 rootnode = getappdata(hFig,'rootnode');
 rootnode.Children = t;
 s = rootnode.structize();
-hObj = getappdata(hFig,'outputObj');
-hObj.data = s;
-delete(hFig);
+%hObj = getappdata(hFig,'outputObj');
+%hObj.data = s;
+handles.output = s;
+guidata(handles.figParameterSetup,handles);
+close(handles.figParameterSetup);
 
 function pbCancel_Callback(hObject, eventdata, handles)
-disp('foo');
-%delete(handles.figParameterSetup);
+handles.output = [];
+guidata(handles.figParameterSetup,handles);
+close(handles.figParameterSetup);
+
+function figParameterSetup_CloseRequestFcn(hObject, eventdata, handles)
+pvh = getappdata(hObject,'parameterVizHandler');
+if ~isempty(pvh)
+  % AL 20180324. Explicitly delete the ParameterVizHandler. If this is not
+  % done, instances seem to hang around when eg 'clear classes' or the like
+  % is done. (This may or may not be that bad but explicit deletion keeps
+  % it clean.)
+  delete(pvh);
+end
+if isequal(get(hObject,'waitstatus'),'waiting')
+% The GUI is still in UIWAIT, us UIRESUME
+  uiresume(hObject);
+else 
+  delete(hObject);
+end

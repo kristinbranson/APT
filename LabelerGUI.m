@@ -2306,7 +2306,7 @@ prmBaseYaml = CPRLabelTracker.DEFAULT_PARAMETER_FILE;
 tPrm = parseConfigYaml(prmBaseYaml);
 % Overlay our starting pt
 tPrm.structapply(sPrmNewOverlay);
-sPrm = ParameterSetup(handles.figure,tPrm); % modal
+sPrm = ParameterSetup(handles.figure,tPrm,'labelerObj',lObj); % modal
 
 if isempty(sPrm)
   % user canceled; none

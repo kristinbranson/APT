@@ -8,20 +8,26 @@ classdef ParameterVisualization < handle
     % clicks a row in the parameter tree
     %
     % hAx: scalar axes. Concrete ParameterVisualizations draw here as
-    % desired.
-    % imLbl: [nrxnc]. full frame/image for view 1, for some
-    % reasonably-selected labeled frame (eg the current frame if possible).
-    % pLbl: [nphysptsx2]. labeled points for view 1, same frame as imLbl.
-    % movLbl,frmLbl,tgtLbl. movie/frame/target for imLbl/pLbl.
-    % lObj
-    % sPrm: starting/current params in UI
-    init(obj,hAx,lObj,sPrm0,val0)
-    
-    % Called when a user sets/selects a new property value
-    %
-    % All args are as in init(...), except sPrm contains the latest/updated
+    %   desired.
+    % lObj: Labeler obj
+    % sPrm: current *NEW-STYLE* params in UI/PropertyTable. All
+    %   ParameterSetup/ParameterVisualization code works with parameters in
+    %   "new-style" parameter space, as this is how params are presented to
+    %   the user.
+    %   NOTE: Besides being new-style vs old-style, sPrm in general will
+    %   differ from lObj.trackGetParams(), as the PropertyTable may be in 
+    %   a modified/edited state and these changes are not written to the 
+    %   Labeler until the user clicks Apply.
+    init(obj,hAx,lObj,propFullName,sPrm)
+
+    % All args are as in init(...); sPrm contains the latest/updated
     % parameters.
-    update(obj,hAx,lObj,sPrm0,val)
+    update(obj,hAx,lObj,propFullName,sPrm)
+    
+    % Called "on the fly" when a user sets/selects a new property value.
+    % The difference between this and update() is that here, the value val
+    % may be newer than sPrm.
+    updateNewVal(obj,hAx,lObj,propFullName,sPrm,val)
     
   end
   

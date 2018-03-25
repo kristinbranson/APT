@@ -240,7 +240,7 @@ setappdata(hFig, 'propsList',propsList);
 %setappdata(hFig, 'propsHash',propsHash);
 setappdata(hFig, 'mirror',parameters);
 setappdata(hFig, 'hgrid',hgrid);
-setappdata(hFig, 'parameterVizHandler',parameterVizHandler);
+% setappdata(hFig, 'parameterVizHandler',parameterVizHandler);
 set(hPropsPane_,'tag','hpropertiesGUI');
 
 set(hPropsPane_, 'Units','norm');
@@ -286,6 +286,8 @@ else
   %data = getappdata(hFig, 'mirror');
   selectedProp = grid.getSelectedProperty; % which property (java object) was selected
   if ~isempty(selectedProp)
+%     disp('selectedProp');
+%     drawnow;
     if ~isempty(paramVizHandler)
       paramVizHandler.propSelected(selectedProp);
     end
@@ -705,7 +707,7 @@ else
           sl = javaObjectEDT('aptjava.SpinnerChangeListener');
           sl = handle(sl,'CallbackProperties');
           spinner.addChangeListener(sl);
-          set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdated(pvObj,e));
+          set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
         end
       end
 
@@ -724,12 +726,15 @@ else
           sl = javaObjectEDT('aptjava.SpinnerChangeListener');
           sl = handle(sl,'CallbackProperties');
           spinner.addChangeListener(sl);
-          set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdated(pvObj,e));
+          set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
         end
       end      
       
     case 'float'     %alignProp(prop, com.jidesoft.grid.CalculatorCellEditor, 'double');  % DoubleCellEditor
-      alignProp(prop, com.jidesoft.grid.DoubleCellEditor, 'double');
+      editor = com.jidesoft.grid.DoubleCellEditor;
+      editor = handle(editor);
+%       editor.setPassEnterKeyToTable(true);
+      alignProp(prop, editor, 'double');
     case 'boolean',   alignProp(prop, com.jidesoft.grid.BooleanCheckBoxCellEditor, 'logical');
     case 'folder',    alignProp(prop, com.jidesoft.grid.FolderCellEditor);
     case 'file',      alignProp(prop, com.jidesoft.grid.FileCellEditor);
@@ -751,7 +756,8 @@ else
         % ignore
       end
       
-    otherwise,        alignProp(prop);  % treat as a simple text field
+    otherwise
+      alignProp(prop);  % treat as a simple text field
   end
 end  % for all possible data types
 
@@ -765,7 +771,12 @@ if prop.isEditable
   prop.setDisplayName(['<html><font color="black">' label]);
   % Add callbacks for property-change events
   hprop = handle(prop, 'CallbackProperties');
-  set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig});
+  
+  if ~isempty(paramVizHandler) && paramVizHandler.isprop(prop)
+    set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig,paramVizHandler});
+  else
+    set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig,[]});
+  end
 else
   prop.setDisplayName(['<html><font color="gray">' label]);
 end
@@ -884,7 +895,10 @@ end
 com.jidesoft.grid.CellEditorManager.registerEditor(propType, editor, context);
 end  % alignProp
 
-function propUpdatedCallback(prop,eventData,propName,hFig)
+function propUpdatedCallback(prop,eventData,propName,hFig,paramVizHandler)
+% paramVizHandler: optional, if present then paramVizHandler.isprop(prop)
+% should be true
+
 try 
   if strcmpi(char(eventData.getPropertyName),'parent')
     return;  
@@ -892,7 +906,7 @@ try
 catch
 end
 
-fprintf('Prop updated: %s\n',propName);
+%fprintf('Prop updated: %s\n',propName);
 
 % Retrieve the containing figure handle
 % hFig = get(0,'CurrentFigure'); %gcf; 
@@ -988,14 +1002,20 @@ for i=1:numel(items)
 end
 node.Data.Value = propValue;
 
-setappdata(hFig, 'mirror',data);
-
+setappdata(hFig, 'mirror',data); % AL: shouldn't be nec it seems, handles
+ 
 % Update the display
 checkProps(propsList, hFig);
 try 
   propsPane.repaint; 
 catch
 end
+
+% Wait until after mirror is updated
+if ~isempty(paramVizHandler)
+  paramVizHandler.propUpdatedGeneral(prop);
+end
+
 end
 
 function selectedValue = UpdateCellArray(originalData,selectedValue)
