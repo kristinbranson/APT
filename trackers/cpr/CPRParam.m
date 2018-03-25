@@ -14,19 +14,18 @@ classdef CPRParam
   % parameters, sometimes called "new" parameters. The defaults for these
   % are given in .../cpr/params_apt.yaml.
   %
-  % There is a conversion routine (below) for going from new-style
-  % parameters to old-style parameters.
+  % This file contains conversion routines (below) for going from new-style
+  % parameters to old-style parameters and vice-versa.
   %
-  % Forward/maintenance plan:
-  % * If user loads an existing project, CPRLT modernizes .sPrm on load.
-  % This is done by reading param.example.yaml (which is checked-in and 
-  % updated with every pull) and "overlaying" the project contents on top.
-  % In this way, defaults provided in param.example.yaml are used for any
-  % new parameters. The old-style .sPrm is then converted to new-style 
+  % Forward/maintenance plan.
+  % * If user loads an existing project, CPRLT modernizes .sPrm on load. 
+  % This is done by reading CPRLabelTracker.readDefaultParams and 
+  % overlaying the project contents on top. (This is in "Old-style" 
+  % parameter space.). Old-style params are then converted to new-style 
   % params if/when modification in the UI is desired.
-  % * If user creates a new project, default tracking params are taken from 
-  % the last new-style params used if avail; otherwise the default
-  % old-style params (converted to new).
+  % * Over time, "backend" code (trackers etc) that use old-style
+  % parameters should migrade over to using the new-style parameters. In
+  % this way the old-style parameters will be gradually phased out.
   
   methods (Static)
     

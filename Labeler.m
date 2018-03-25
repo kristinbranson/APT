@@ -6255,7 +6255,8 @@ classdef Labeler < handle
   methods    
 
     function trackSetParams(obj,sPrm)
-      % sPrm: scalar struct containing both preproc + tracking params
+      % sPrm: scalar struct containing *OLD-STYLE* (see CPRParam.m) preproc 
+      %   + tracking params
 
       tObj = obj.tracker;
       if isempty(tObj)
@@ -6270,7 +6271,8 @@ classdef Labeler < handle
     end
     
     function sPrm = trackGetParams(obj)
-      % sPrm: scalar struct containing both preproc + tracking params
+      % sPrm: scalar struct containing *OLD_STYLE* (see CPRParam.m) preproc 
+      % + tracking params
       
       tObj = obj.tracker;
       if isempty(tObj)
