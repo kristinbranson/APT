@@ -22,7 +22,7 @@ Add the calibration image pairs you would like to use and verify that the corner
   
 First, you will be prompted to load your saved single-camera calibration sessions from the MATLAB App, first for camera 1, then camera 2.
 
-Single-camera OrthoCam calibrations will be done on each camera, using the MATLAB results as a guideline/starting point. Currently, the MATLAB optimizer *lsqnonlin* is used to run these optimizations. In the progress display, the third column of numbers indicates the current optimizer residual. A "good" value for this residual is say 1000 or less. This residual may decreases slowly at times but will often make large "quantum leaps".  
+Single-camera OrthoCam calibrations will be done on each camera, using the MATLAB results as a guideline/starting point. Currently, the MATLAB optimizer *lsqnonlin* is used to run these optimizations. In the progress display, the third column of numbers indicates the current optimizer residual. A "good" value for this residual is say 1000 or less. This residual may decrease slowly at times but will often make large quantum leaps.  
 
 Verify that the reproduction error is good with these single-camera calibrations.
 
