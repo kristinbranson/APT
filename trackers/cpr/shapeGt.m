@@ -271,7 +271,7 @@ dfs = {...
   getPrmDflt(varargin,dfs,0);
 
 switch type
-  case '1lm'
+  case 'single landmark'
     % features generated relative to a single landmark
     xs = Features.generate1LM(model,'F',F,'radius',radius);
   case '2lm'
@@ -691,7 +691,7 @@ else
 end
 %GET ALL POINTS
 switch ftrData.type
-  case '1lm'
+  case 'single landmark'
     [cs1,rs1,vw] = Features.compute1LM(ftrData.xs,poscs,posrs);
     chn = ones(size(cs1));
   case '2lm'
@@ -752,7 +752,7 @@ for iview = 1:nviews
     inds1 = rs1(n,tfvw) + (cs1(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
     ftrs1 = hlpFtr(img,inds1);
     switch ftrData.type
-      case {'1lm' '2lm' 'two landmark elliptical'}
+      case {'single landmark' '2lm' 'two landmark elliptical'}
         ftrs(n,tfvw) = ftrs1;
       case '2lmdiff'
         inds2 = rs2(n,tfvw) + (cs2(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;

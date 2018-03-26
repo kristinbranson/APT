@@ -64,7 +64,7 @@ classdef ParameterVisualization < handle
         lims = axis(ax);
         xc = (lims(1)+lims(2))/2;
         yc = (lims(3)+lims(4))/2;
-        text(ax,xc,yc,str,'horizontalalignment','center');
+        text(xc,yc,str,'horizontalalignment','center','parent',ax);
       end
     end
         

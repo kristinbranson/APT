@@ -103,14 +103,12 @@ handles.output = [];
 
 guidata(handles.figParameterSetup,handles);
 
-% uiwait(hFig);
-
+uiwait(hFig);
 % UIWAIT makes ParameterSetup wait for user response (see UIRESUME)
-% uiwait(handles.figParameterSetup);
 
 function varargout = ParameterSetup_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
-% delete(handles.figParameterSetup);
+delete(handles.figParameterSetup);
 
 function pbApply_Callback(hObject, eventdata, handles)
 % AL20180301 iss #105, a cell may be "mid-edit". Force stop editing before

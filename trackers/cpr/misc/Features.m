@@ -31,7 +31,7 @@ classdef Features
       97    93    83    60];
     
     TYPE2XSCOLLBLS = containers.Map(...
-      {'1lm' '2lm' '2lmdiff' 'two landmark elliptical'},...
+      {'single landmark' '2lm' '2lmdiff' 'two landmark elliptical'},...
       { {'lm' 'radius' 'theta' 'view'},...
         {'lm1' 'lm2' 'rfac' 'theta' 'ctrfac' 'chan' 'view'},...
         [],...
@@ -394,7 +394,7 @@ classdef Features
         for iF = 1:F
           delete(h(ishandle(h)));          
           switch type
-            case '1lm'
+            case 'single landmark'
               [h,str] = Features.visualize1LM(ax,xF(iN,iF),yF(iN,iF),info,iN,iF);
             case '2lm'
               [h,str] = Features.visualize2LM(ax,xF(iN,iF),yF(iN,iF),info,iN,iF);
@@ -838,7 +838,8 @@ classdef Features
         hPlot(2) = plot(axplot,xc,yc,'o','Color',clr,'markerfacecolor',clr);
         hPlot(3) = plot(axplot,nan,nan,'o','Color',[1 1 1],'markerfacecolor',[1 1 1]);        
         hPlot(4) = plot(axplot,xf,yf,'s','Color','w','MarkerSize',8,'markerfacecolor',[1 1 1]);
-        hPlot(5) = ellipsedraw(info.a(iN,iF),info.b(iN,iF),xc,yc,info.alpha(iN,iF),'-','parent',axplot,'Color',clr);
+        hPlot(5) = ellipsedraw(info.a(iN,iF),info.b(iN,iF),xc,yc,...
+          info.alpha(iN,iF),'-','plotArgs',{'parent',axplot,'Color',clr});
         hPlot(6) = plot(axplot,[xc;xf],[yc;yf],'-','Color',clr);
         [hPlot.LineWidth] = deal(1);
       else
@@ -847,7 +848,8 @@ classdef Features
         set(hPlot(2),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
         %set(hPlot(3),'XData',x1,'YData',y1);
         set(hPlot(4),'XData',xf,'YData',yf);
-        ellipsedraw(info.a(iN,iF),info.b(iN,iF),xc,yc,info.alpha(iN,iF),'-','hEllipse',hPlot(5),'parent',axplot);
+        ellipsedraw(info.a(iN,iF),info.b(iN,iF),xc,yc,info.alpha(iN,iF),...
+          '-','hEllipse',hPlot(5),'plotArgs',{'parent',axplot});
         set(hPlot(6),'XData',[xc;xf],'YData',[yc;yf]);
       end
       str = sprintf('n=%d,f=%d(%d,%d). randctr=%.3f,rfac=%.3f,r=%.3f,theta=%.3f',iN,iF,...

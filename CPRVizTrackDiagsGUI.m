@@ -169,7 +169,7 @@ histogram(ax,ipts,0.5:1:vizObj.lObj.nLabelPoints+0.5);
 xlabel(ax,'landmark','fontweight','bold');
 grid(ax,'on');
 ax.XTick = 1:vizObj.lObj.nLabelPoints;
-tstr = sprintf('Landmarks Used, majorIter %d (N=%d).',vizObj.t,numel(ipts));
+tstr = sprintf('Landmarks used, majorIter %d (N=%d).',vizObj.t,numel(ipts));
 title(ax,tstr,'fontweight','bold','interpreter','none');
 
 function updateVizFeaturesAndTable(vizObj)

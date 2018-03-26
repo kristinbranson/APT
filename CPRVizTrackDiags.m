@@ -179,7 +179,7 @@ classdef CPRVizTrackDiags < handle
           for iUse=1:obj.metaNUse
             iFuse = fUse(iFern,iUse);
             switch fspec.type
-              case '1lm'                
+              case 'single landmark'                
                 [xF,yF,iview,info] = Features.compute1LM(fspec.xs(iFuse,:),xLM,yLM);
                 hPlot = Features.visualize1LM(ax,xF,yF,iview,info,1,1,...
                   clrs(iFern,:),'hPlot',obj.hViz{iFern,iUse});

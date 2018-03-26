@@ -1926,7 +1926,12 @@ classdef Labeler < handle
       
       ppPrm0 = CPRLabelTracker.readDefaultParams();
       ppPrm0 = ppPrm0.PreProc;
-      [s.preProcParams,ppPrm0used] = structoverlay(ppPrm0,s.preProcParams,...
+      if ~isempty(s.preProcParams)
+        ppPrm1 = s.preProcParams;
+      else
+        ppPrm1 = struct();
+      end
+      [s.preProcParams,ppPrm0used] = structoverlay(ppPrm0,ppPrm1,...
         'dontWarnUnrecog',true);
       if ~isempty(ppPrm0used)
         fprintf('Using default preprocessing parameters for: %s.\n',...

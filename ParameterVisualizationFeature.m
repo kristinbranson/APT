@@ -4,7 +4,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
     % If true, a prop for this pvObj is currently selected, and we are
     % successfully initted/displaying something.
     initSuccessful = false;
-    initFeatureType; % either {'1lm' or '2lm'}    
+    initFeatureType;   
     initFtrVizInfo % scalar struct    
     hPlot % vector of plot handles output from Features.visualize*. 
           % Set/created during init
@@ -98,14 +98,18 @@ classdef ParameterVisualizationFeature < ParameterVisualization
         im = mr.readframe(frm);
       end            
       
-      % We now have im and xyLbl for (mIdx,frm,iTgt)
-            
+      % We now have im and xyLbl for (mIdx,frm,iTgt). View1 only.
+
+      nphyspts = lObj.nPhysPoints;
+      nviews = lObj.nview;            
       cla(hAx);
       imshow(im,'Parent',hAx);
       caxis(hAx,'auto');      
       hold(hAx,'on');
-      plot(hAx,xyLbl(:,1),xyLbl(:,2),'r.','markersize',12);
+      % plot view1 only
+      plot(hAx,xyLbl(1:nphyspts,1),xyLbl(1:nphyspts,2),'r.','markersize',12);
       if lObj.hasTrx
+        assert(nviews==1,'Unsupported for multiview projects with trx.');
         [xTrx,yTrx] = readtrx(lObj.trx,frm,iTgt);
         cropRadius = sPrm.ROOT.Track.MultiTarget.TargetCrop.Radius;
         [roixlo,roixhi,roiylo,roiyhi] = xyRad2roi(xTrx,yTrx,cropRadius);
@@ -113,8 +117,6 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       end
       
       % Viz feature; set .hPlot
-      nphyspts = lObj.nPhysPoints;
-      nviews = lObj.nview;
       prmFtr = sPrm.ROOT.CPR.Feature;
       % generate 'fake' model parameters
       prmModel = struct('nfids',nphyspts,'d',2,'nviews',1);
@@ -123,7 +125,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       fvIfo.yLM = reshape(xyLbl(:,2),1,nphyspts,nviews);
       GREEN = [0 1 0];
       switch prmFtr.Type
-        case '1lm'
+        case 'single landmark'
           fvIfo.xs = Features.generate1LMforSetParamViz(prmModel,...
             prmFtr.Radius);
           [xF,yF,iView,tmpInfo] = Features.compute1LM(fvIfo.xs,fvIfo.xLM,fvIfo.yLM);
@@ -145,6 +147,8 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       
       title(hAx,tstr,'interpreter','none','fontweight','normal');      
       
+      ParameterVisualizationFeature.throwWarningFtrType(prmFtr.Type);
+      
       obj.initSuccessful = true;
       obj.initFeatureType = prmFtr.Type;
       obj.initFtrVizInfo = fvIfo;
@@ -154,14 +158,15 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       % Update visualization for unchanged featuretype (eg radius, abratio
       % changed)
       
+      prmFtr = sPrm.ROOT.CPR.Feature;
+      
       if obj.initSuccessful
-        prmFtr = sPrm.ROOT.CPR.Feature;
         assert(strcmp(prmFtr.Type,obj.initFeatureType));
         
         GREEN = [0 1 0];
         fvIfo = obj.initFtrVizInfo;
         switch prmFtr.Type
-          case '1lm'
+          case 'single landmark'
             fvIfo.xs(:,2) = prmFtr.Radius;
             [xF,yF,iView,tmpInfo] = Features.compute1LM(fvIfo.xs,fvIfo.xLM,fvIfo.yLM);
             Features.visualize1LM(hAx,xF,yF,iView,tmpInfo,1,1,[0 1 0],...
@@ -181,8 +186,21 @@ classdef ParameterVisualizationFeature < ParameterVisualization
             assert(false,'Unrecognized feature type.');
         end
       end
+      
+      ParameterVisualizationFeature.throwWarningFtrType(prmFtr.Type);
     end
     
+  end
+  
+  methods (Static)
+    function throwWarningFtrType(ftrType)
+      switch ftrType
+        case '2lm'
+          warningNoTrace('Feature type ''2lm'' is obsolete. Use ''two landmark elliptical'' instead.');
+        case '2lmdiff'
+          warningNoTrace('Feature type ''2lmdiff'' performs undocumented functionality. Use at your own risk.');          
+      end
+    end
   end
   
 end

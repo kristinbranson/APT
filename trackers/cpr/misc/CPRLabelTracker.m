@@ -1843,6 +1843,17 @@ classdef CPRLabelTracker < LabelTracker
           
           % 20170609 iss84
           rc(i).prmTrainInit.augrotate = [];
+          
+          % 20180326 Feature type: '1lm'->'single landmark'
+          % (s.sPrm updated above, this is a double-update)
+          if strcmp(rc(i).prmFtr.type,'1lm')
+            rc(i).prmFtr.type = 'single landmark';            
+          end
+          for iSpec=1:numel(rc(i).ftrSpecs)
+            if strcmp(rc(i).ftrSpecs{iSpec}.type,'1lm')
+              rc(i).ftrSpecs{iSpec}.type = 'single landmark';
+            end
+          end
         end
       else
         assert(isempty(s.trnResRC));
@@ -2587,9 +2598,17 @@ classdef CPRLabelTracker < LabelTracker
 %       if ~any(tf) % needs updating
 %         sPrm.TrainInit.usetrxorientation = false;
 %         sPrm.TestInit.usetrxorientation = false;
-%       end      
-   end
-        
+%       end
+
+      % 20180326
+      ParameterVisualizationFeature.throwWarningFtrType(sPrm.Ftr.type);
+      if strcmp(sPrm.Ftr.type,'1lm')
+        warningNoTrace('Feature type ''1lm'' has been renamed to ''single landmark''.');
+        sPrm.Ftr.type = 'single landmark';
+      end
+      
+    end
+          
     function [xy,isinterp] = interpolateXY(xy)
       % xy (in): [npts d nfrm]
       %

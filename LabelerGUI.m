@@ -2284,19 +2284,28 @@ assert(~isempty(tObj));
 % Find either the current parameters or some other starting pt
 sPrmOld = lObj.trackGetParams();
 if isempty(sPrmOld) || ~isfield(sPrmOld,'Model') % eg new tracker
-  sPrmNewOverlay = RC.getprop('lastCPRAPTParams');
+  sPrmNewOverlay = RC.getprop('lastCPRAPTParams'); % new-style params
   if isempty(sPrmNewOverlay)
     % sPrmNewOverlay could be [] if prop hasn't been set
     sPrmNewOverlay = struct();
     sPrmNewOverlay.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
     sPrmNewOverlay.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
     sPrmNewOverlay.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
+  else
+    % 20180310: sPrmNewOverlay could be in an older format, and it came up
+    % in testing. Perform contortions    
+    sPrmNewOverlay = ...
+      CPRParam.new2old(sPrmNewOverlay,lObj.nPhysPoints,lObj.nview); % don't worry about trackNFramesSmall, etc
+    preProcTmp = sPrmNewOverlay.PreProc; % save this, b/c next line
+    sPrmNewOverlay = CPRLabelTracker.modernizeParams(sPrmNewOverlay); % removes .PreProc
+    sPrmNewOverlay.PreProc = preProcTmp; % yes, .PreProc should get modernized too, but this is not currently factored in Labeler.m
+    sPrmNewOverlay = CPRParam.old2new(sPrmNewOverlay,lObj);
+    
+    % 20180310: Note, these contortions are not totally critical, b/c we 
+    % are just creating the starting point for user review. They still need 
+    % to actively "Accept" for anything to be set.
   end
   
-  % 20180310: sPrmNewOverlay could be in an older format, eg with Backsub
-  % stuff under NeighborMasking. However due to how structapply() works
-  % (see below), and the fact that we are just creating the starting point
-  % for user review, this should be fairly innocuous
 else
   sPrmNewOverlay = CPRParam.old2new(sPrmOld,lObj);
 end
