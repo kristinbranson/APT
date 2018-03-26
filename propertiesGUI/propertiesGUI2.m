@@ -623,18 +623,9 @@ else
   fqn = [fqnBase '.' propName];
 end
 
-if ~isempty(paramVizHandler) && ~isempty(pgp.ParamViz)
-  try
-    pvObj = feval(pgp.ParamViz);
-    assert(isa(pvObj,'ParameterVisualization'),'''%s'' is not a ParameterVisualization.');
-  catch ME
-    warningNoTrace('Failed to instantiate ParameterVisualization ''%s'': %s',...
-      pgp.ParamViz,ME.message);
-    pvObj = [];
-  end
-  if ~isempty(pvObj)
-    paramVizHandler.addProp(prop,pvObj)
-  end
+pvSpec = pgp.ParamViz;
+if ~isempty(paramVizHandler) && ~isempty(pvSpec)
+  paramVizHandler.addProp(prop,pvSpec);
 end
 
 for i=1:numel(t.Children)

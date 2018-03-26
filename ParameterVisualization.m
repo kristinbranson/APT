@@ -18,20 +18,38 @@ classdef ParameterVisualization < handle
     %   differ from lObj.trackGetParams(), as the PropertyTable may be in 
     %   a modified/edited state and these changes are not written to the 
     %   Labeler until the user clicks Apply.
-    init(obj,hAx,lObj,propFullName,sPrm)
+    propSelected(obj,hAx,lObj,propFullName,sPrm)
+    
+    % Called when a property is no longer selected. For cleanup purposes
+    propUnselected(obj)
 
     % All args are as in init(...); sPrm contains the latest/updated
     % parameters.
-    update(obj,hAx,lObj,propFullName,sPrm)
+    propUpdated(obj,hAx,lObj,propFullName,sPrm)
     
     % Called "on the fly" when a user sets/selects a new property value.
     % The difference between this and update() is that here, the value val
     % may be newer than sPrm.
-    updateNewVal(obj,hAx,lObj,propFullName,sPrm,val)
+    propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val)
     
   end
   
   methods (Static) % Utilities for subclasses
+    
+    function [paramVizClsname,paramVizID] = parseParamVizSpec(pvSpec)
+      toks = regexp(pvSpec,'#','split');
+      ntok = numel(toks);
+      switch ntok
+        case 1
+          paramVizClsname = toks{1};
+          paramVizID = '';
+        case 2
+          paramVizClsname = toks{1};
+          paramVizID = toks{2};
+        otherwise
+          error('Invalid ParameterVisualization specification: %s',pgp.ParamViz);
+      end
+    end
     
     function grayOutAxes(ax,str)
       if nargin<2

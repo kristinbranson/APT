@@ -1,19 +1,62 @@
 classdef ParameterVisualizationFeature < ParameterVisualization
   
   properties
+    % If true, a prop for this pvObj is currently selected, and we are
+    % successfully initted/displaying something.
     initSuccessful = false;
-    
-    ftrVizInfo % scalar struct
+    initFeatureType; % either {'1lm' or '2lm'}    
+    initFtrVizInfo % scalar struct    
     hPlot % vector of plot handles output from Features.visualize*. 
           % Set/created during init
   end
   
   methods
     
-    function initBase(obj,hAx,lObj,sPrm,propFN)
+    function propSelected(obj,hAx,lObj,propFullName,sPrm)
+      if obj.initSuccessful
+        prmFtr = sPrm.ROOT.CPR.Feature;
+        assert(strcmp(prmFtr.Type,obj.initFeatureType));
+      else
+        obj.init(hAx,lObj,sPrm);
+      end
+    end
+    
+    function propUnselected(obj)
+      deleteValidHandles(obj.hPlot);
+      obj.hPlot = [];
+      obj.initSuccessful = false;
+      obj.initFtrVizInfo = [];
+    end
+
+    function propUpdated(obj,hAx,lObj,propFullName,sPrm)
+      prmFtr = sPrm.ROOT.CPR.Feature;
+      if obj.initSuccessful && strcmp(prmFtr.Type,obj.initFeatureType)
+        obj.update(hAx,lObj,sPrm);
+      else
+        % New init, or feature type changed
+        obj.init(hAx,lObj,sPrm);
+      end
+    end
+
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,rad)
+      assert(false);
+%       sPrm.ROOT.CPR.Feature.Radius = rad;
+%       obj.updateBase(hAx,lObj,sPrm,propFullName);
+    end
+    
+    
+    
+    
+    function init(obj,hAx,lObj,sPrm)
+      % plot a labeled frame + viz feature for current Feature.Type.
+      % Set .initSuccessful, .initFeatureType, initFtrVizInfo, .hPlot.
+      % Subsequent changes to Feature.Radius or Feature.ABRatio can be 
+      % handled via update(); if Feature.Type changes, init() needs to be
+      % called again.
 
       obj.initSuccessful = false;
-      obj.ftrVizInfo = [];
+      obj.initFeatureType = [];
+      obj.initFtrVizInfo = [];
       deleteValidHandles(obj.hPlot);
       obj.hPlot = [];
             
@@ -61,7 +104,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       imshow(im,'Parent',hAx);
       caxis(hAx,'auto');      
       hold(hAx,'on');
-      plot(hAx,xyLbl(:,1),xyLbl(:,2),'ro');
+      plot(hAx,xyLbl(:,1),xyLbl(:,2),'r.','markersize',12);
       if lObj.hasTrx
         [xTrx,yTrx] = readtrx(lObj.trx,frm,iTgt);
         cropRadius = sPrm.ROOT.Track.MultiTarget.TargetCrop.Radius;
@@ -72,39 +115,70 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       % Viz feature; set .hPlot
       nphyspts = lObj.nPhysPoints;
       nviews = lObj.nview;
-      ifo = struct();
       prmFtr = sPrm.ROOT.CPR.Feature;
+      % generate 'fake' model parameters
+      prmModel = struct('nfids',nphyspts,'d',2,'nviews',1);
+      fvIfo = struct();
+      fvIfo.xLM = reshape(xyLbl(:,1),1,nphyspts,nviews);
+      fvIfo.yLM = reshape(xyLbl(:,2),1,nphyspts,nviews);
+      GREEN = [0 1 0];
       switch prmFtr.Type
         case '1lm'
-          % generate 'fake' model parameters
-          prmModel = struct('nfids',nphyspts,'d',2,'nviews',1);
-          ifo.xs = Features.generate1LMforSetParamViz(prmModel,...
+          fvIfo.xs = Features.generate1LMforSetParamViz(prmModel,...
             prmFtr.Radius);
-          ifo.xLM = reshape(xyLbl(:,1),1,nphyspts,nviews);
-          ifo.yLM = reshape(xyLbl(:,2),1,nphyspts,nviews);
-          obj.ftrVizInfo = ifo;
-          [xF,yF,iView,tmpInfo] = Features.compute1LM(ifo.xs,ifo.xLM,ifo.yLM);
+          [xF,yF,iView,tmpInfo] = Features.compute1LM(fvIfo.xs,fvIfo.xLM,fvIfo.yLM);
           obj.hPlot = Features.visualize1LM(hAx,xF,yF,iView,tmpInfo,...
-            1,1,[0 1 0]);
+            1,1,GREEN,'doTitleStr',false,'ellipseOnly',true);
+          tstr = 'Features drawn from within green circle';
+        case {'2lm' 'two landmark elliptical' '2lmdiff'}
+          fvIfo.tbl = Features.generate2LMellipticalForSetParamViz(prmModel,...
+            prmFtr.Radius,prmFtr.ABRatio);
+          [xF,yF,chan,iView,tmpInfo] = ...
+            Features.compute2LMelliptical(fvIfo.tbl,fvIfo.xLM,fvIfo.yLM);
+          obj.hPlot = Features.visualize2LMelliptical(hAx,xF,yF,iView,...
+            tmpInfo,1,1,GREEN,'plotEllAtReff',true,'doTitleStr',false,...
+            'ellipseOnly',true);
+          tstr = 'Features drawn from within green ellipse';
         otherwise
-          disp('XXX TODO 2lm');
+          assert(false,'Unrecognized feature type.');
       end
       
+      title(hAx,tstr,'interpreter','none','fontweight','normal');      
+      
       obj.initSuccessful = true;
+      obj.initFeatureType = prmFtr.Type;
+      obj.initFtrVizInfo = fvIfo;
     end
 
-    function updateBase(obj,hAx,lObj,sPrm,propFN)
+    function update(obj,hAx,lObj,sPrm)
+      % Update visualization for unchanged featuretype (eg radius, abratio
+      % changed)
+      
       if obj.initSuccessful
-        ifo = obj.ftrVizInfo;
         prmFtr = sPrm.ROOT.CPR.Feature;
+        assert(strcmp(prmFtr.Type,obj.initFeatureType));
+        
+        GREEN = [0 1 0];
+        fvIfo = obj.initFtrVizInfo;
         switch prmFtr.Type
           case '1lm'
-            ifo.xs(:,2) = prmFtr.Radius;
-            [xF,yF,iView,tmpInfo] = Features.compute1LM(ifo.xs,ifo.xLM,ifo.yLM);
+            fvIfo.xs(:,2) = prmFtr.Radius;
+            [xF,yF,iView,tmpInfo] = Features.compute1LM(fvIfo.xs,fvIfo.xLM,fvIfo.yLM);
             Features.visualize1LM(hAx,xF,yF,iView,tmpInfo,1,1,[0 1 0],...
-              'hPlot',obj.hPlot);
+              'hPlot',obj.hPlot,'doTitleStr',false,'ellipseOnly',true);
+          case {'2lm' 'two landmark elliptical' '2lmdiff'}
+            tbl = fvIfo.tbl;
+            tbl.reff = prmFtr.Radius;
+            tbl.xeff = tbl.reff.*cos(tbl.theta);
+            tbl.yeff = tbl.reff.*sin(tbl.theta)/prmFtr.ABRatio;
+            
+            [xF,yF,chan,iView,tmpInfo] = ...
+              Features.compute2LMelliptical(tbl,fvIfo.xLM,fvIfo.yLM);
+            Features.visualize2LMelliptical(hAx,xF,yF,iView,...
+              tmpInfo,1,1,GREEN,'hPlot',obj.hPlot,'plotEllAtReff',true,...
+              'doTitleStr',false,'ellipseOnly',true);
           otherwise
-            disp('XXX TODO 2lm');
+            assert(false,'Unrecognized feature type.');
         end
       end
     end

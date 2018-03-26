@@ -627,6 +627,18 @@ classdef Features
       tbl = table(lm1,lm2,reff,theta,xeff,yeff,chan,view);
     end
     
+    function [tbl,prms] = ...
+        generate2LMellipticalForSetParamViz(model,radiusFac,abratio)
+      % Like generate2LMelliptical with maximum radius for set-parameter 
+      % visualization
+      [tbl,prms] = Features.generate2LMelliptical(model,'F',1,...
+        'radiusFac',radiusFac,'abratio',abratio,'nchan',1);
+      tbl.reff = radiusFac; 
+      tbl.xeff = tbl.reff.*cos(tbl.theta);
+      tbl.yeff = tbl.reff.*sin(tbl.theta)/abratio;
+      tbl.view = 1;
+    end
+    
     function [xF,yF,chan,iview,info] = compute2LM(xs,xLM,yLM)
       % xs: [Fx7], from generate2LM(). Legacy [Fx6] okay, assume nView==1.
       % xLM: [NxnPtsxnView]. xLM(i,:,:) gives x-coords (column pixel
@@ -850,8 +862,12 @@ classdef Features
       % iN: trial index
       % iF: feature index
       
-      hPlot = myparse(varargin,...
-        'hPlot',[]);
+      [hPlot,plotEllAtReff,doTitleStr,ellipseOnly] = myparse(varargin,...
+        'hPlot',[],...
+        'plotEllAtReff',false,... % If false (default), plot ellipse with (a,b)=(info.d,info.d/abratio). If true, plot ellipse at ultimate ftr loc.
+        'doTitleStr',true,...
+        'ellipseOnly',false...
+        );
       
       assert(isequal(...
         size(xF),size(yF),...
@@ -872,27 +888,43 @@ classdef Features
       
       if isequal(hPlot,[])
         hPlot = gobjects(6,1);
-        hPlot(1) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
-        hPlot(2) = plot(axplot,xc,yc,'o','Color',clr,'markerfacecolor',clr);
-        hPlot(3) = plot(axplot,nan,nan,'o','Color',[1 1 1],'markerfacecolor',[1 1 1]);        
-        hPlot(4) = plot(axplot,xf,yf,'s','Color','w','MarkerSize',8,'markerfacecolor',[1 1 1]);
-        hPlot(5) = ellipsedraw(info.d(iN,iF),info.d(iN,iF)/info.abratio(iF),...
-          xc,yc,info.alpha(iN,iF),'-','plotArgs',{'parent' axplot 'Color' clr});
-        hPlot(6) = plot(axplot,[xc;xf],[yc;yf],'-','Color',clr);
-        [hPlot.LineWidth] = deal(1);
+        aplot = info.d(iN,iF);          
+        if plotEllAtReff
+          aplot = aplot*info.tbl.reff(iF);
+        end
+        bplot = aplot/info.abratio(iF);
+        hPlot(1) = ellipsedraw(aplot,bplot,xc,yc,info.alpha(iN,iF),'-',...
+          'plotArgs',{'parent' axplot 'Color' clr});
+        hPlot(2) = plot(axplot,[x1 x2],[y1 y2],'s','Color',clr,'linewidth',2);
+        if ~ellipseOnly
+          hPlot(3) = plot(axplot,[x1;xc;x2],[y1;yc;y2],'-','Color',clr,'markerfacecolor',clr); %#ok<*AGROW>
+          hPlot(4) = plot(axplot,xc,yc,'o','Color',clr,'markerfacecolor',clr);
+          hPlot(5) = plot(axplot,xf,yf,'s','Color','w','MarkerSize',8,'markerfacecolor',[1 1 1]);
+          hPlot(6) = plot(axplot,[xc;xf],[yc;yf],'-','Color',clr);
+          [hPlot.LineWidth] = deal(1);
+        end
       else
         assert(numel(hPlot)==6);
-        set(hPlot(1),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
-        set(hPlot(2),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
-        %set(hPlot(3),'XData',x1,'YData',y1);
-        set(hPlot(4),'XData',xf,'YData',yf);
-        ellipsedraw(info.d(iN,iF),info.d(iN,iF)/info.abratio(iF),xc,yc,...
-          info.alpha(iN,iF),'-','hEllipse',hPlot(5),'plotArgs',{'parent' axplot});
-        set(hPlot(6),'XData',[xc;xf],'YData',[yc;yf]);
+        aplot = info.d(iN,iF);          
+        if plotEllAtReff
+          aplot = aplot*info.tbl.reff(iF);
+        end
+        bplot = aplot/info.abratio(iF);
+        ellipsedraw(aplot,bplot,xc,yc,info.alpha(iN,iF),'-',...
+          'hEllipse',hPlot(1),'plotArgs',{'parent' axplot});
+        set(hPlot(2),'XData',[x1 x2],'YData',[y1 y2]);
+        if ~ellipseOnly
+          set(hPlot(3),'XData',[x1;xc;x2],'YData',[y1;yc;y2]);
+          set(hPlot(4),'XData',xc,'YData',yc);
+          set(hPlot(5),'XData',xf,'YData',yf);
+          set(hPlot(6),'XData',[xc;xf],'YData',[yc;yf]);
+        end
       end
-      str = sprintf('n=%d,f=%d(%d,%d). reff=%.3f,theta=%.3f',iN,iF,...
-        info.tbl.lm1(iF),info.tbl.lm2(iF),info.tbl.reff(iF),info.tbl.theta(iF)/pi*180);
-      title(axplot,str,'interpreter','none','fontweight','bold'); 
+      if doTitleStr
+        str = sprintf('n=%d,f=%d(%d,%d). reff=%.3f,theta=%.3f',iN,iF,...
+          info.tbl.lm1(iF),info.tbl.lm2(iF),info.tbl.reff(iF),info.tbl.theta(iF)/pi*180);
+        title(axplot,str,'interpreter','none','fontweight','bold'); 
+      end
     end
     
     function [xs,prms] = generate2LMDiff(model,varargin)
@@ -1063,8 +1095,10 @@ classdef Features
       % iN: trial index (row index of xF/yF)
       % iF: feature index (col index of xF/yF)
 
-      hPlot = myparse(varargin,...
-        'hPlot',[]);
+      [hPlot,doTitleStr,ellipseOnly] = myparse(varargin,...
+        'hPlot',[],...
+        'doTitleStr',true,...
+        'ellipseOnly',false);
 
       assert(isequal(size(xF),size(yF),size(info.xLM),size(info.yLM)));
       
@@ -1078,21 +1112,27 @@ classdef Features
       
       if isequal(hPlot,[])
         hPlot = gobjects(4,1);
-        hPlot(1) = plot(axplot,nan,nan,'o','color',clr,'markerfacecolor',clr);
-        hPlot(2) = plot(axplot,xf,yf,'s','color','w','markerfacecolor',[1 1 1]);
-        hPlot(3) = ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-',...
+        hPlot(1) = ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-',...
           'plotArgs',{'parent',axplot,'Color',clr});
-        hPlot(4) = plot(axplot,[x1;xf],[y1;yf],'-','Color',clr);
+        if ~ellipseOnly
+          hPlot(2) = plot(axplot,nan,nan,'o','color',clr,'markerfacecolor',clr);
+          hPlot(3) = plot(axplot,xf,yf,'s','color','w','markerfacecolor',[1 1 1]);
+          hPlot(4) = plot(axplot,[x1;xf],[y1;yf],'-','Color',clr);
+        end
       else
         assert(numel(hPlot)==4);
-        set(hPlot(1),'XData',x1,'YData',y1);
-        set(hPlot(2),'XData',xf,'YData',yf);
-        ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-','hEllipse',hPlot(3));
-        set(hPlot(4),'XData',[x1;xf],'YData',[y1;yf]);        
+        ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-','hEllipse',hPlot(1));
+        if ~ellipseOnly
+          set(hPlot(2),'XData',x1,'YData',y1);
+          set(hPlot(3),'XData',xf,'YData',yf);
+          set(hPlot(4),'XData',[x1;xf],'YData',[y1;yf]);
+        end
       end
-      str = sprintf('n=%d,f=%d(%d). r=%.3f, theta=%.3f',iN,iF,info.l1(iF),...
-        info.r(iF),info.theta(iF)/pi*180);
-      title(axplot,str,'interpreter','none','fontweight','bold');
+      if doTitleStr
+        str = sprintf('n=%d,f=%d(%d). r=%.3f, theta=%.3f',iN,iF,info.l1(iF),...
+          info.r(iF),info.theta(iF)/pi*180);
+        title(axplot,str,'interpreter','none','fontweight','bold');
+      end
     end
     
   end

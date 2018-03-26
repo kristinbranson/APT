@@ -1,7 +1,9 @@
 classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
   
   properties
-    initSuccessful = false;
+    % If true, a prop for this pvObj is currently selected, and we are 
+    % successfully initted/displaying something.
+    initSuccessful = false; 
     
     hRect % scalar handle to rectangle. set/created during init
     xTrx % xTrx/yTrx: (x,y) for trx center. set/created during init 
@@ -11,7 +13,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
   
   methods
     
-    function init(obj,hAx,lObj,propFullName,sPrm)
+    function propSelected(obj,hAx,lObj,propFullName,sPrm)
       
       obj.initSuccessful = false;
       if ~lObj.hasMovie
@@ -39,15 +41,23 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       cla(hAx);
       imshow(im,'Parent',hAx);
       caxis(hAx,'auto');
-      tstr = sprintf('movie %d, frame %d, target %d',iMov,frm,iTgt);
-      title(hAx,tstr,'interpreter','none','fontweight','normal');
+      axis(hAx,'auto');
+      tstr = 'Movie images will be cropped as shown for tracking';
+      title(hAx,tstr,'interpreter','none','fontweight','normal',...
+        'fontsize',12);
       deleteValidHandles(obj.hRect);
       obj.hRect = rectangle('Position',rectPos,obj.hRectArgs{:});
       
       obj.initSuccessful = true;
     end
+    
+    function propUnselected(obj)
+      deleteValidHandles(obj.hRect);
+      obj.hRect = [];
+      obj.initSuccessful = false;
+    end
 
-    function update(obj,hAx,lObj,propFullName,sPrm)      
+    function propUpdated(obj,hAx,lObj,propFullName,sPrm)
       if obj.initSuccessful
         rad = sPrm.ROOT.Track.MultiTarget.TargetCrop.Radius;
         rectPos = obj.getRectPos(rad);
@@ -55,7 +65,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       end
     end
     
-    function updateNewVal(obj,hAx,lObj,propFullName,sPrm,rad)
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,rad)
       if obj.initSuccessful
         rectPos = obj.getRectPos(rad);
         obj.hRect.Position = rectPos;
