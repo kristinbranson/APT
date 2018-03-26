@@ -22,7 +22,7 @@ function varargout = ParameterSetup(varargin)
 
 % Edit the above text to modify the response to help ParameterSetup
 
-% Last Modified by GUIDE v2.5 25-Mar-2018 18:02:20
+% Last Modified by GUIDE v2.5 26-Mar-2018 11:50:17
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -68,6 +68,14 @@ tfLabelerSupplied = ~isempty(labelerObj);
 hFig = handles.figParameterSetup;
 centerOnParentFigure(hFig,hParent);
 
+% cbk for toggling parameter viz pane
+assert(strcmp(handles.pnlViz.Units,'pixels'));
+assert(strcmp(handles.figParameterSetup.Units,'pixels'));
+pnlVizPos0 = handles.pnlViz.Position;
+figParameterSetupPos0 = handles.figParameterSetup.Position;
+cbkToggleParamVizPane = @(tfParamViz)toggleParamVizPane(hFig,...
+  pnlVizPos0,figParameterSetupPos0,tfParamViz);
+
 assert(isa(tree,'TreeNode') && isscalar(tree));
 % for cosmetic purposes, don't include Dummy/Root node in propertiesGUI
 assert(strcmp(tree.Data.Field,'ROOT'));
@@ -75,7 +83,8 @@ rootnode = tree;
 children = tree.Children;
 rootnode.Children = [];
 if tfLabelerSupplied
-  pvh = ParameterVizHandler(labelerObj,handles.figParameterSetup,handles.axViz);
+  pvh = ParameterVizHandler(labelerObj,handles.figParameterSetup,...
+    handles.axViz,cbkToggleParamVizPane);
   pvh.init();
   propertiesGUI2(handles.pnlParams,children,'parameterVizHandler',pvh);
   setappdata(hFig,'parameterVizHandler',pvh);
@@ -83,12 +92,15 @@ else
   propertiesGUI2(handles.pnlParams,children);
 end
 setappdata(hFig,'rootnode',rootnode); % save to glue rootnode back on at output
-  
+
+cbkToggleParamVizPane(false);
+
 ax = handles.axViz;
 ax.XTick = [];
 ax.YTick = [];
 
 handles.output = [];
+
 guidata(handles.figParameterSetup,handles);
 
 % uiwait(hFig);
@@ -140,4 +152,12 @@ if isequal(get(hObject,'waitstatus'),'waiting')
   uiresume(hObject);
 else 
   delete(hObject);
+end
+
+function toggleParamVizPane(hFig,pnlVizPos0,figParameterSetupPos0,tfParamViz)
+assert(strcmp(hFig.Units,'pixels'));
+if tfParamViz
+  hFig.Position(3) = figParameterSetupPos0(3);
+else
+  hFig.Position(3) = pnlVizPos0(1)-1;
 end

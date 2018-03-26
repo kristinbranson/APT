@@ -129,7 +129,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
           [xF,yF,iView,tmpInfo] = Features.compute1LM(fvIfo.xs,fvIfo.xLM,fvIfo.yLM);
           obj.hPlot = Features.visualize1LM(hAx,xF,yF,iView,tmpInfo,...
             1,1,GREEN,'doTitleStr',false,'ellipseOnly',true);
-          tstr = 'Features drawn from within green circle';
+          tstr = 'For given landmark, features drawn from within circle';
         case {'2lm' 'two landmark elliptical' '2lmdiff'}
           fvIfo.tbl = Features.generate2LMellipticalForSetParamViz(prmModel,...
             prmFtr.Radius,prmFtr.ABRatio);
@@ -138,7 +138,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
           obj.hPlot = Features.visualize2LMelliptical(hAx,xF,yF,iView,...
             tmpInfo,1,1,GREEN,'plotEllAtReff',true,'doTitleStr',false,...
             'ellipseOnly',true);
-          tstr = 'Features drawn from within green ellipse';
+          tstr = 'For given landmark, features drawn from within ellipse';
         otherwise
           assert(false,'Unrecognized feature type.');
       end

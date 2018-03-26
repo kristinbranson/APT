@@ -12,19 +12,23 @@ classdef ParameterVizHandler < handle
     lObj 
     hFig % scalar fig handle, SetParameter fig. For accessing appdata
     hAx % scalar visualization axis
+    cbkToggleParamViz % if true, expand Tracking Params pane to expose param viz panel
     
     prop2ParamViz % containers.Map. key: prop object. val: ParameterVisualization obj
     id2ParamViz % containers.Map. key: ID. val: ParameterVisualization obj. Note, not all ParameterVisualizations will have an ID.
     
     paramVizSelected % Either [], or scalar ParameterVisualization associated with currently selected property
+    
+    
   end
   
   methods
     
-    function obj = ParameterVizHandler(labelerObj,hFig,ax)
+    function obj = ParameterVizHandler(labelerObj,hFig,ax,cbkTogglePV)
       obj.lObj = labelerObj;
       obj.hFig = hFig;
       obj.hAx = ax;
+      obj.cbkToggleParamViz = cbkTogglePV;
       
       obj.prop2ParamViz = containers.Map();
       obj.id2ParamViz = containers.Map();
@@ -36,6 +40,7 @@ classdef ParameterVizHandler < handle
       obj.lObj = [];
       obj.hFig = [];
       obj.hAx = [];
+      obj.cbkToggleParamViz = [];
       delete(obj.prop2ParamViz);
       obj.prop2ParamViz = [];
       delete(obj.id2ParamViz);
@@ -137,19 +142,20 @@ classdef ParameterVizHandler < handle
       if tfIsProp
         lblObj = obj.lObj;
         sPrm = obj.getCurrentParamsInTree();
-        fprintf(1,'PVH calling propSelected\n');
+%         fprintf(1,'PVH calling propSelected\n');
         pvObjNew.propSelected(obj.hAx,lblObj,char(prop.getFullName()),sPrm);
-        obj.paramVizSelected = pvObjNew;
+        obj.paramVizSelected = pvObjNew;        
       else
         ParameterVisualization.grayOutAxes(obj.hAx,...
           'No visualization available.');
       end
+      obj.cbkToggleParamViz(tfIsProp);
     end
     
     function propUpdatedGeneral(obj,prop)
       [tf,pvObj] = obj.isprop(prop);
       if tf
-        fprintf(1,'PVH calling propUpdated\n');
+%         fprintf(1,'PVH calling propUpdated\n');
         sPrm = obj.getCurrentParamsInTree();        
         pvObj.propUpdated(obj.hAx,obj.lObj,char(prop.getFullName()),sPrm);
       end
@@ -161,7 +167,7 @@ classdef ParameterVizHandler < handle
       % 
       % pvObj: prop->pvObj
       
-      fprintf(1,'PVH calling propUpdatedDynamic\n');
+%       fprintf(1,'PVH calling propUpdatedDynamic\n');
       sPrm = obj.getCurrentParamsInTree(); % sPrm outdated relative to spinnerEvt.spinnerValue;
       pvObj.propUpdatedDynamic(obj.hAx,obj.lObj,char(prop.getFullName()),...
         sPrm,spinnerEvt.spinnerValue);

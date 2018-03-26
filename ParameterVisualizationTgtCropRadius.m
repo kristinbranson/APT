@@ -40,11 +40,12 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       
       cla(hAx);
       imshow(im,'Parent',hAx);
+      colormap(hAx,'gray');
       caxis(hAx,'auto');
-      axis(hAx,'auto');
+%       axis(hAx,'auto');
       tstr = 'Movie images will be cropped as shown for tracking';
       title(hAx,tstr,'interpreter','none','fontweight','normal',...
-        'fontsize',12);
+        'fontsize',10);
       deleteValidHandles(obj.hRect);
       obj.hRect = rectangle('Position',rectPos,obj.hRectArgs{:});
       

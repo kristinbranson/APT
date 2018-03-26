@@ -1114,16 +1114,16 @@ classdef Features
         hPlot = gobjects(4,1);
         hPlot(1) = ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-',...
           'plotArgs',{'parent',axplot,'Color',clr});
+        hPlot(2) = plot(axplot,x1,y1,'s','color',clr);
         if ~ellipseOnly
-          hPlot(2) = plot(axplot,nan,nan,'o','color',clr,'markerfacecolor',clr);
           hPlot(3) = plot(axplot,xf,yf,'s','color','w','markerfacecolor',[1 1 1]);
           hPlot(4) = plot(axplot,[x1;xf],[y1;yf],'-','Color',clr);
         end
       else
         assert(numel(hPlot)==4);
         ellipsedraw(info.r(iF),info.r(iF),x1,y1,0,'-','hEllipse',hPlot(1));
+        set(hPlot(2),'XData',x1,'YData',y1);
         if ~ellipseOnly
-          set(hPlot(2),'XData',x1,'YData',y1);
           set(hPlot(3),'XData',xf,'YData',yf);
           set(hPlot(4),'XData',[x1;xf],'YData',[y1;yf]);
         end
