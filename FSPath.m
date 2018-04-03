@@ -321,7 +321,23 @@ classdef FSPath
       [~,parent] = fileparts(path0);
       fname2 = fullfile(parent,base);
     end
-    
+
+    function fname3 = threeLevelFilename(fname)
+      % eg folder/file.txt
+      [path0,base] = myfileparts(fname);
+      if ~isempty(path0)
+        [path0,parent] = fileparts(path0);
+      else
+        parent = '';
+      end
+      if ~isempty(path0)
+        [~,parentparent] = fileparts(path0);
+      else
+        parenrparent = '';
+      end
+      fname3 = fullfile(parentparent,parent,base);
+    end
+
     function pbase = maxExistingBasePath(p)
       % Find maximum existing basepath of p
       %
