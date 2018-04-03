@@ -4493,11 +4493,12 @@ classdef Labeler < handle
       %
       % tblMF: See MFTable.FLDSFULLTRX.
       
-      [wbObj,useLabels2] = myparse(varargin,...
+      [wbObj,useLabels2,useMovNames] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                    ... % 1. obj logically const (eg except for obj.trxCache)
                    ... % 2. tblMF (output) indeterminate
-        'useLabels2',false... % if true, use labels2 instead of labels
+        'useLabels2',false,... % if true, use labels2 instead of labels
+        'useMovNames',false... % if true, use movieNames instead of movieIndices
         ); 
       tfWB = ~isempty(wbObj);
 
@@ -4531,6 +4532,11 @@ classdef Labeler < handle
       if tfWB && wbObj.isCancel
         % tblMF (return) indeterminate
         return;
+      end
+      
+      if useMovNames
+        assert(isa(tblMF.mov,'MovieIndex'));
+        tblMF.mov = obj.getMovieFilesAllFullMovIdx(tblMF.mov);
       end
     end
     

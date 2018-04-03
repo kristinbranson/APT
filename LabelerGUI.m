@@ -1807,7 +1807,7 @@ end
 fname = fullfile(p,f);  
 VARNAME = 'tblLbls';
 s = struct();
-s.(VARNAME) = lObj.labelGetMFTableLabeled(); %#ok<STRNU>
+s.(VARNAME) = lObj.labelGetMFTableLabeled('useMovNames',true); %#ok<STRNU>
 save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
 
