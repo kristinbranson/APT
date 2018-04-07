@@ -321,21 +321,27 @@ classdef FSPath
       [~,parent] = fileparts(path0);
       fname2 = fullfile(parent,base);
     end
-
-    function fname3 = threeLevelFilename(fname)
-      % eg folder/file.txt
-      [path0,base] = myfileparts(fname);
-      if ~isempty(path0)
-        [path0,parent] = fileparts(path0);
-      else
-        parent = '';
+        
+    function fname = nLevelFname(fname,n)
+      % fname = '/path/to/a/file.ext'
+      % 
+      % nLevelFname(fname,1) is 'file.ext'
+      % nLevelFname(fname,2) is 'a/file.ext'
+      % ...
+      fname = cellfun(@(x)FSPath.nLevelFnameChar(x,n),fname,'uni',0);
+    end
+    function fnameN = nLevelFnameChar(fname,n)
+      fnameN = '';
+      while n>0
+        [fname,base] = myfileparts(fname);
+        if isempty(base)
+          fnameN = fullfile(fname,fnameN);
+          fname = '';
+        else
+          fnameN = fullfile(base,fnameN);
+        end
+        n = n-1;
       end
-      if ~isempty(path0)
-        [~,parentparent] = fileparts(path0);
-      else
-        parenrparent = '';
-      end
-      fname3 = fullfile(parentparent,parent,base);
     end
 
     function pbase = maxExistingBasePath(p)
