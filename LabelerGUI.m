@@ -2279,51 +2279,24 @@ function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
 assert(~isempty(tObj));
-%assert(isa(tObj,'CPRLabelTracker'));
 
-% Find either the current parameters or some other starting pt
-sPrmOld = lObj.trackGetParams();
-if isempty(sPrmOld) || ~isfield(sPrmOld,'Model') % eg new tracker
-  sPrmNewOverlay = RC.getprop('lastCPRAPTParams'); % new-style params
-  if isempty(sPrmNewOverlay)
-    % sPrmNewOverlay could be [] if prop hasn't been set
-    sPrmNewOverlay = struct();
-    sPrmNewOverlay.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
-    sPrmNewOverlay.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
-    sPrmNewOverlay.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
-  else
-    % 20180310: sPrmNewOverlay could be in an older format, and it came up
-    % in testing. Perform contortions    
-    sPrmNewOverlay = ...
-      CPRParam.new2old(sPrmNewOverlay,lObj.nPhysPoints,lObj.nview); % don't worry about trackNFramesSmall, etc
-    preProcTmp = sPrmNewOverlay.PreProc; % save this, b/c next line
-    sPrmNewOverlay = CPRLabelTracker.modernizeParams(sPrmNewOverlay); % removes .PreProc
-    sPrmNewOverlay.PreProc = preProcTmp; % yes, .PreProc should get modernized too, but this is not currently factored in Labeler.m
-    sPrmNewOverlay = CPRParam.old2new(sPrmNewOverlay,lObj);
-    
-    % 20180310: Note, these contortions are not totally critical, b/c we 
-    % are just creating the starting point for user review. They still need 
-    % to actively "Accept" for anything to be set.
-  end
-  
-else
-  sPrmNewOverlay = CPRParam.old2new(sPrmOld,lObj);
-end
+sPrmCurrent = lObj.trackGetParams();
+
+% Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
+% eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
+% over.
 
 % Start with default "new" parameter tree/specification
-prmBaseYaml = CPRLabelTracker.DEFAULT_PARAMETER_FILE;
-tPrm = parseConfigYaml(prmBaseYaml);
+tPrm = APTParameters.defaultParamsTree;
 % Overlay our starting pt
-tPrm.structapply(sPrmNewOverlay);
-sPrm = ParameterSetup(handles.figure,tPrm,'labelerObj',lObj); % modal
+tPrm.structapply(sPrmCurrent);
+sPrmNew = ParameterSetup(handles.figure,tPrm,'labelerObj',lObj); % modal
 
-if isempty(sPrm)
+if isempty(sPrmNew)
   % user canceled; none
 else
-  RC.saveprop('lastCPRAPTParams',sPrm);
-  [sPrm,lObj.trackNFramesSmall,lObj.trackNFramesLarge,...
-    lObj.trackNFramesNear] = CPRParam.new2old(sPrm,lObj.nPhysPoints,lObj.nview);
-  lObj.trackSetParams(sPrm);
+  lObj.trackSetParams(sPrmNew);
+  RC.saveprop('lastCPRAPTParams',sPrmNew);
 end
 
 function cbkTrackerTrnDataDownSampChanged(src,evt,handles)

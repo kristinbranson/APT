@@ -29,7 +29,7 @@ classdef CPRParam
   
   methods (Static)
     
-    function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
+    function [sOld,trkType,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
         new2old(sNew,nphyspts,nviews)
       % Convert new-style parameters to old-style parameters. Defaults are
       % used for old fields when appropriate. Some old-style fields that 
@@ -38,19 +38,19 @@ classdef CPRParam
       % The additional return args trkNFrms* are b/c the new-style
       % parameters now store some general tracking-related parameters that
       % are stored on lObj rather than in the legacy CPR params.
-      
-      assert(strcmp(sNew.ROOT.Track.Type,'cpr'));
-      
+            
       sOld = struct();
       sOld.Model.name = '';
       sOld.Model.nfids = nphyspts;
       sOld.Model.d = 2;
       sOld.Model.nviews = nviews;
-      
-      he = sNew.ROOT.Track.HistEq;
+
+      trkType = TrackerType.(sNew.ROOT.Track.Type);
       trkNFrmsSm = sNew.ROOT.Track.NFramesSmall;
       trkNFrmsLg = sNew.ROOT.Track.NFramesLarge;
       trkNFrmsNear = sNew.ROOT.Track.NFramesNeighborhood;
+
+      he = sNew.ROOT.Track.HistEq;
       sOld.PreProc.BackSub = sNew.ROOT.Track.BackSub;
       sOld.PreProc.histeq = he.Use;
       sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
@@ -130,7 +130,7 @@ classdef CPRParam
       nviews = sOld.Model.nviews;
       
       sNew = struct();
-      sNew.ROOT.Track.Type = 'cpr';
+      sNew.ROOT.Track.Type = char(lObj.trackerType);
       sNew.ROOT.Track.BackSub = sOld.PreProc.BackSub;
       sNew.ROOT.Track.HistEq.Use = sOld.PreProc.histeq;
       sNew.ROOT.Track.HistEq.NSampleH0 = sOld.PreProc.histeqH0NumFrames;

@@ -1,0 +1,21 @@
+# * Each node has a list of metadata:
+# - pretty name (displayed). Note, the node name/identifier itself is also meaningful as the fieldname in the data struct.
+# - type (see PropertiesGUIProp.m for options)
+# - isEditable
+# - description
+# - default value
+# - optional char, M-filename of ParameterVisualization concrete subclass 
+# * After the metadata comes a list of child nodes.
+# * As a shortcut, leaf nodes can contain the metadata directly as their value.
+
+ROOT:
+  - ['','',false,DUMMY,'','']
+  - DeepTrack:
+    - ['','',false,Deep track settings.,'','']
+    - RadiusX: ['Radius x',unsigned,true,'radius/span in x-direction',50,'']
+    - RadiusY: ['Radius y',unsigned,true,'radius/span in y-direction',50,'']
+    - HiddenLayers:
+      - ['','',false,Hidden layer parameters.,'','']
+      - FloatThreshold: ['Threshold',float,true,"Float threshold.",1.5,'']
+      - EnumLossType: ['Loss Type',['L2','MLE'],true,Loss/output type.,'MLE','']
+    - BoolEnable: ['Enable foo algorithm',boolean,true,'Utilize foo modification.',true,'']

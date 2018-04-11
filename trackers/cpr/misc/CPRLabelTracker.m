@@ -6,9 +6,7 @@ classdef CPRLabelTracker < LabelTracker
       'storeFullTracking' 'showVizReplicates' ...
       'trnDataDownSamp' 'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnResIPt' 'trnResRC'};
-    TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
-    
-    DEFAULT_PARAMETER_FILE = lclInitDefaultParameterFile();
+    TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};    
   end
   
   properties
@@ -1850,7 +1848,7 @@ classdef CPRLabelTracker < LabelTracker
             rc(i).prmFtr.type = 'single landmark';            
           end
           for iSpec=1:numel(rc(i).ftrSpecs)
-            if strcmp(rc(i).ftrSpecs{iSpec}.type,'1lm')
+            if ~isempty(rc(i).ftrSpecs{iSpec}) && strcmp(rc(i).ftrSpecs{iSpec}.type,'1lm')
               rc(i).ftrSpecs{iSpec}.type = 'single landmark';
             end
           end
@@ -2506,16 +2504,7 @@ classdef CPRLabelTracker < LabelTracker
   end
 
   %%
-  methods (Static)
-    
-    function sPrm0 = readDefaultParams
-      tPrm0 = parseConfigYaml(CPRLabelTracker.DEFAULT_PARAMETER_FILE);
-      sPrm0 = tPrm0.structize();
-      
-      % Use nan for npts, nviews; default parameters do not know about any
-      % model
-      sPrm0 = CPRParam.new2old(sPrm0,nan,nan); 
-    end
+  methods (Static)    
     
     function sPrm = modernizeParams(sPrm)
       % IMPORTANT philisophical note. This CPR parameter-updating-function
@@ -2535,8 +2524,7 @@ classdef CPRLabelTracker < LabelTracker
       % need to return a flag indicating whether a material change has
       % occurred so that loadSaveToken can react.
 
-      s0 = CPRLabelTracker.readDefaultParams();
-      s0 = rmfield(s0,'PreProc'); % 20180309 PreProc params handled in Labeler
+      s0 = APTParameters.defaultCPRParamsOldStyle(); % 20180309 PreProc params handled in Labeler
       
       if isfield(sPrm.Reg,'USE_AL_CORRECTION')
         if sPrm.Reg.USE_AL_CORRECTION
@@ -2717,13 +2705,4 @@ classdef CPRLabelTracker < LabelTracker
     
   end
   
-end
-
-function dpf = lclInitDefaultParameterFile()
-if isdeployed
-  dpf = fullfile(ctfroot,'params_apt.yaml');
-else
-  cprroot = fileparts(fileparts(mfilename('fullpath')));
-  dpf = fullfile(cprroot,'params_apt.yaml');
-end
 end

@@ -50,8 +50,9 @@ classdef TreeNode < handle
           node = t(tf);
           val = s.(f);
           if isstruct(val)
+            % val is a struct; node must be a non-leafnode
             structapply(node.Children,val);
-          else
+          else            
             assert(isempty(node.Children));
             node.Data.Value = val;
           end
