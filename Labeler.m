@@ -6648,7 +6648,7 @@ classdef Labeler < handle
         szassert(pLbl,[1 2*npts]);
         pLbl(1:npts) = pLbl(1:npts)-xlo+1;
         pLbl(npts+1:end) = pLbl(npts+1:end)-ylo+1;
-        im = im(ylo:yhi,xlo:xhi);
+        im = padgrab2(im,0,ylo,yhi,xlo,xhi);
       end
       xyLbl = Shape.vec2xy(pLbl);
       szassert(xyLbl,[npts 2]);
