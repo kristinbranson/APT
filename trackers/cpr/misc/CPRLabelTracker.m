@@ -92,8 +92,12 @@ classdef CPRLabelTracker < LabelTracker
     % omitted from tracking
     trkP % [NTst trkD] reduced/pruned tracked shapes. In ABSOLUTE coords
     
-    % Either [], or [NTst RT trkD T+1] Tracked shapes full data. Stored 
-    % only if .storeFullTracking=true.
+    % Contents depends on .storeFullTracking:
+    % - If .storeFullTracking=StoreFullTrackingType.NONE, then [].
+    % - If .storeFullTracking= .FINALITER, then [NTst RT trkD] double. Full
+    % replicate info at final CPR iter.
+    % - If .storeFullTracking= .ALLITERS, then [NTst RT trkD T+1] single. 
+    % Full replicate info at all CPR iters.
     trkPFull 
     trkPTS % [NTstx1] timestamp for trkP*
     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt, (opt) .roi
@@ -101,7 +105,7 @@ classdef CPRLabelTracker < LabelTracker
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. trkD=npttrk*d.
   end
   properties (SetObservable)
-    storeFullTracking = false; % scalar logical.
+    storeFullTracking = StoreFullTrackingType.NONE; % scalar StoreFullTrackingType 
   end
   
   events
@@ -159,27 +163,56 @@ classdef CPRLabelTracker < LabelTracker
   end
   methods
     function set.storeFullTracking(obj,v)
-      assert(isscalar(v));
-      v = logical(v);
-      if v
-        if isempty(obj.trkP) %#ok<MCSUP>
-          assert(isempty(obj.trkPFull)); %#ok<MCSUP>
-        else
-          [ntrkfrm,D] = size(obj.trkP); %#ok<MCSUP>
-          nrep = obj.sPrm.TestInit.Nrep; %#ok<MCSUP>
-          Tp1 = obj.sPrm.Reg.T+1; %#ok<MCSUP>
-          if isempty(obj.trkPFull) %#ok<MCSUP>
+      assert(isscalar(v) && isa(v,'StoreFullTrackingType'));
+      vorig = obj.storeFullTracking;
+      switch v
+        case StoreFullTrackingType.NONE
+          if vorig>StoreFullTrackingType.NONE && ~isempty(obj.trkPFull) %#ok<MCSUP>
             warningNoTrace('CPRLabelTracker:trkPFull',...
-              'Tracking results already exist; existing tracked frames will not have full tracking results.');
-            obj.trkPFull = single(nan(ntrkfrm,nrep,D,Tp1)); %#ok<MCSUP>
-          else
-            szassert(obj.trkPFull,[ntrkfrm nrep D Tp1]); %#ok<MCSUP>
+              'Clearing stored tracking replicates.');
           end
-        end
-      else
-        obj.trkPFull = []; %#ok<MCSUP>
-        obj.xyPrdCurrMovieFull = []; %#ok<MCSUP>
-        obj.vizClearReplicates();
+          obj.trkPFull = []; %#ok<MCSUP>
+          obj.xyPrdCurrMovieFull = []; %#ok<MCSUP>
+          obj.vizClearReplicates();
+        case {StoreFullTrackingType.FINALITER StoreFullTrackingType.ALLITERS}
+          if isempty(obj.trkP) %#ok<MCSUP>
+            assert(isempty(obj.trkPFull)); %#ok<MCSUP>
+            % AL: this prob doesn't need to be its own branch
+          else
+            [ntrkfrm,D] = size(obj.trkP); %#ok<MCSUP>
+            nrep = obj.sPrm.TestInit.Nrep; %#ok<MCSUP>
+            Tp1 = obj.sPrm.Reg.T+1; %#ok<MCSUP>
+            
+            if vorig==StoreFullTrackingType.NONE
+              warningNoTrace('CPRLabelTracker:trkPFull',...
+                'Tracking results already exist; existing tracked frames will not have replicates stored.');
+              if v==StoreFullTrackingType.FINALITER
+                obj.trkPFull = double(nan(ntrkfrm,nrep,D)); %#ok<MCSUP>
+              elseif v==StoreFullTrackingType.ALLITERS
+                obj.trkPFull = single(nan(ntrkfrm,nrep,D,Tp1)); %#ok<MCSUP>
+              end
+            elseif vorig==StoreFullTrackingType.FINALITER
+              szassert(obj.trkPFull,[ntrkfrm nrep D]); %#ok<MCSUP>
+              if v==StoreFullTrackingType.ALLITERS
+                warningNoTrace('CPRLabelTracker:trkPFull',...
+                  'Tracking results already exist; existing tracked frames will not have replicates stored for all iterations.');
+                trkPFullorig = obj.trkPFull; %#ok<MCSUP>
+                obj.trkPFull = single(nan(ntrkfrm,nrep,D,Tp1)); %#ok<MCSUP>
+                obj.trkPFull(:,:,:,end) = trkPFullorig; %#ok<MCSUP>
+              end
+            elseif vorig==StoreFullTrackingType.ALLITERS
+              szassert(obj.trkPFull,[ntrkfrm nrep D Tp1]); %#ok<MCSUP>
+              if v==StoreFullTrackingType.FINALITER
+                warningNoTrace('CPRLabelTracker:trkPFull',...
+                  'Tracking results already exist; truncating replicate storage for existing tracked frames.');
+                obj.trkPFull = double(obj.trkPFull(:,:,:,end)); %#ok<MCSUP>
+              end
+            else
+              assert(vorig==v);
+            end
+          end
+        otherwise
+          assert(false);
       end
       obj.storeFullTracking = v;
     end
@@ -271,7 +304,7 @@ classdef CPRLabelTracker < LabelTracker
     
     %#%MTGT
     %#%MV
-    function tblP = getTblPLbled(obj)
+    function tblP = getTblPLbled(obj,varargin)
       % From .lObj, read tblP for all movies/labeledframes. Currently,
       % exclude partially-labeled frames.
       %
@@ -280,8 +313,20 @@ classdef CPRLabelTracker < LabelTracker
       %   * The absolute position for single-target trackers
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when lObj.hasTrx.
+
+      wbObj = myparse(varargin,...
+        'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
+                   ... % 1. obj const 
+                   ... % 2. tblP indeterminate
+        ); 
+      tfWB = ~isempty(wbObj);
       
-      tblP = obj.lObj.labelGetMFTableLabeled();
+      tblP = obj.lObj.labelGetMFTableLabeled('wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        % tblP indeterminate, return it anyway
+        return;
+      end
+      
       tblP = obj.hlpAddRoiIfNec(tblP);
       tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
@@ -382,7 +427,7 @@ classdef CPRLabelTracker < LabelTracker
       tfWB = ~isempty(wbObj);
       
       FLDSREQUIRED = MFTable.FLDSCORE;
-      FLDSALLOWED = [MFTable.FLDSCORE {'roi'}];
+      FLDSALLOWED = [MFTable.FLDSCORE {'roi' 'nNborMask'}];
       tblfldscontainsassert(tblPnew,FLDSREQUIRED);
       tblfldscontainsassert(tblPupdate,FLDSREQUIRED);
       
@@ -413,7 +458,15 @@ classdef CPRLabelTracker < LabelTracker
       nNew = height(tblPnew);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
-        I = CPRData.getFrames(tblPNewConcrete,'wbObj',wbObj);
+        
+        trxCache = obj.lObj.trxCache;
+        [I,nNborMask] = CPRData.getFrames(tblPNewConcrete,...
+          'wbObj',wbObj,...
+          'trxCache',trxCache,...
+          'maskNeighbors',prmpp.NeighborMask.Use,...
+          'bgType',prmpp.NeighborMask.BGType,...
+          'bgReadFcn',prmpp.NeighborMask.BGReadFcn,...
+          'fgThresh',prmpp.NeighborMask.FGThresh);
         if tfWB && wbObj.isCancel
           % obj unchanged
           return;
@@ -423,7 +476,9 @@ classdef CPRLabelTracker < LabelTracker
         
         tfColsAllowed = ismember(tblPnew.Properties.VariableNames,...
           FLDSALLOWED);
-        dataNew = CPRData(I,tblPnew(:,tfColsAllowed));
+        tblPnewMD = tblPnew(:,tfColsAllowed);
+        tblPnewMD = [tblPnewMD table(nNborMask)];
+        dataNew = CPRData(I,tblPnewMD);
         if prmpp.histeq
           H0 = obj.trnResH0;
           assert(~isempty(H0),'H0 unavailable for histeq/preprocessing.');
@@ -655,10 +710,23 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkP = tblTrkRes.pTrk;
       obj.trkPTS = repmat(now,nTrk,1);
       obj.trkPiPt = pTrkiPt;
-      if obj.storeFullTracking
-        warningNoTrace('CPRLabelTracker:trk','Full tracking results not set.');
-      end
-      obj.trkPFull = [];
+      switch obj.storeFullTracking
+        case StoreFullTrackingType.NONE
+          obj.trkPFull = [];
+        case StoreFullTrackingType.FINALITER
+          warningNoTrace('CPRLabelTracker:trk','Full tracking results not set.');
+          [ntrkfrm,D] = size(obj.trkP);
+          nrep = obj.sPrm.TestInit.Nrep;
+          obj.trkPFull = nan(ntrkfrm,nrep,D);
+        case StoreFullTrackingType.ALLITERS
+          warningNoTrace('CPRLabelTracker:trk','Full tracking results not set.');
+          [ntrkfrm,D] = size(obj.trkP);
+          nrep = obj.sPrm.TestInit.Nrep;
+          Tp1 = obj.sPrm.Reg.T+1;
+          obj.trkPFull = single(nan(ntrkfrm,nrep,D,Tp1));
+        otherwise
+          assert(false);
+      end          
       
       obj.vizLoadXYPrdCurrMovieTarget();
       obj.newLabelerFrame();
@@ -694,7 +762,9 @@ classdef CPRLabelTracker < LabelTracker
       %  will equal the minimum number of frames across the movieset.
       % trkposTS: [nptstrk x nfrm(iMov) x ntgt(iMov)]. Timestamps for trkpos.
       % trkposFull: [nptstrk x d x nRep x nTrkRows]. 
-      %   Currently this is all nans if .storeFullTracking is false.
+      %   Currently this is all nans if .storeFullTracking is
+      %   StoreFullTrackingType.NONE. Note also this may be of type single 
+      %   or double.
       % trkposFullMFT: MFTable (height nTrkRows) labeling 4th dim of
       %   trkposFull
       % tfHasRes: if true, nontrivial tracking results returned
@@ -718,9 +788,16 @@ classdef CPRLabelTracker < LabelTracker
           
       nRep = obj.sPrm.TestInit.Nrep;
       if isempty(obj.trkPFull)
-        pTrkFull = single(nan(NTrk,nRep,DTrk));
+        pTrkFull = nan(NTrk,nRep,DTrk);
       else
-        pTrkFull = obj.trkPFull(:,:,:,end);
+        switch obj.storeFullTracking
+          case StoreFullTrackingType.FINALITER
+            pTrkFull = obj.trkPFull;
+          case StoreFullTrackingType.ALLITERS
+            pTrkFull = obj.trkPFull(:,:,:,end);
+          otherwise
+            assert(false);
+        end
       end
       szassert(pTrkFull,[NTrk nRep DTrk]);
       
@@ -732,7 +809,7 @@ classdef CPRLabelTracker < LabelTracker
       tfCurrMov = trkMD.mov==mIdx;
       trkMDCurrMov = trkMD(tfCurrMov,:);
       nRowCurrMov = height(trkMDCurrMov);
-      trkposFull = nan(nPtTrk,d,nRep,nRowCurrMov);
+      trkposFull = nan(nPtTrk,d,nRep,nRowCurrMov,class(pTrkFull));
       trkposFullMFT = trkMDCurrMov(:,MFTable.FLDSID);
       
       % First cond is proxy for no tracking results 
@@ -764,6 +841,8 @@ classdef CPRLabelTracker < LabelTracker
     %#%MTGT
     function trkposFull = getTrackResFullCurrTgt(obj,mIdx,frm)
       % Get full tracking results for movie iMov, frame frm, curr tgt.
+      % Note, only the final CPR iter may be available depending on
+      % .storeFullTracking.
       %
       % iMov: scalar movie index (negative for GT movies)
       % 
@@ -771,7 +850,12 @@ classdef CPRLabelTracker < LabelTracker
       % found in .trkPFull'
       
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
-      assert(obj.storeFullTracking);
+      switch obj.storeFullTracking
+        case {StoreFullTrackingType.ALLITERS StoreFullTrackingType.FINALITER}
+          % none; ok         
+        otherwise
+          error('No replicate data is currently stored.');
+      end
       
       trkMD = obj.trkPMD;
       iPtTrk = obj.trkPiPt;
@@ -785,10 +869,18 @@ classdef CPRLabelTracker < LabelTracker
       tfMovFrm = trkMD.mov==mIdx & trkMD.frm==frm & trkMD.iTgt==iTgt;
       nMovFrm = nnz(tfMovFrm);
       assert(nMovFrm==0 || nMovFrm==1);
+            
       if nMovFrm==0
         trkposFull = [];
       else
-        trkposFull = squeeze(obj.trkPFull(tfMovFrm,:,:,:)); % [nRep Dtrk Tp1]
+        switch obj.storeFullTracking
+          case StoreFullTrackingType.ALLITERS
+            trkposFull = squeeze(obj.trkPFull(tfMovFrm,:,:,:)); % [nRep Dtrk Tp1]
+          case StoreFullTrackingType.FINALITER
+            Tp1 = obj.sPrm.Reg.T+1;
+            trkposFull = nan(nRep,nPtTrk*d,Tp1);
+            trkposFull(:,:,end) = squeeze(obj.trkPFull(tfMovFrm,:,:));
+        end
         Tp1 = size(trkposFull,3);
         trkposFull = reshape(trkposFull,[nRep nPtTrk d Tp1]);
         trkposFull = permute(trkposFull,[2 3 1 4]);
@@ -849,20 +941,32 @@ classdef CPRLabelTracker < LabelTracker
       % existing rows
       idxCur = loc(tf);
       obj.trkP(idxCur,:) = pTstTRed(tf,:);
-      if obj.storeFullTracking
-        if ~isequal(obj.trkPFull,[])
-          szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull Tp1]);
-        end
-        obj.trkPFull(idxCur,:,:,:) = single(pTstT(tf,:,:,:));
-      else
-        assert(isempty(obj.trkPFull));
-      end
+      switch obj.storeFullTracking
+        case StoreFullTrackingType.NONE
+          assert(isempty(obj.trkPFull));
+        case StoreFullTrackingType.FINALITER
+          if ~isequal(obj.trkPFull,[])
+            szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull]);
+          end
+          obj.trkPFull(idxCur,:,:) = pTstT(tf,:,:,end);
+        case StoreFullTrackingType.ALLITERS
+          if ~isequal(obj.trkPFull,[])
+            szassert(obj.trkPFull,[size(obj.trkP,1) RT Dfull Tp1]);
+          end
+          obj.trkPFull(idxCur,:,:,:) = single(pTstT(tf,:,:,:));    
+        otherwise
+          assert(false);
+      end      
+      
       nowts = now;
       obj.trkPTS(idxCur) = nowts;
       % new rows
       obj.trkP = [obj.trkP; pTstTRed(~tf,:)];
-      if obj.storeFullTracking
-        obj.trkPFull = [obj.trkPFull; single(pTstT(~tf,:,:,:))];
+      switch obj.storeFullTracking
+        case StoreFullTrackingType.FINALITER
+          obj.trkPFull = [obj.trkPFull; pTstT(~tf,:,:,end)];
+        case StoreFullTrackingType.ALLITERS
+          obj.trkPFull = [obj.trkPFull; single(pTstT(~tf,:,:,:))];
       end
       nNew = nnz(~tf);
       obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
@@ -871,7 +975,7 @@ classdef CPRLabelTracker < LabelTracker
         % case
         obj.trkPMD = tblMFtrk(~tf,:); 
       else
-        obj.trkPMD = [obj.trkPMD; tblMFtrk(~tf,:)];
+        obj.trkPMD = tblvertcatsafe(obj.trkPMD,tblMFtrk(~tf,:));
       end
 
       % See above check/error re .trkPiPt. Either there were originally no
@@ -891,7 +995,7 @@ classdef CPRLabelTracker < LabelTracker
     %#%MV
     function initHook(obj)
       % "config init"
-      obj.storeFullTracking = obj.lObj.projPrefs.CPRLabelTracker.StoreFullTracking;      
+      %obj.storeFullTracking = obj.lObj.projPrefs.CPRLabelTracker.StoreFullTracking;      
       
       obj.initData();
       obj.trnDataInit();
@@ -1026,10 +1130,14 @@ classdef CPRLabelTracker < LabelTracker
       % 
       % Sets .trnRes*
       
-      [tblPTrn,updateTrnData] = myparse(varargin,...
+      [tblPTrn,updateTrnData,wbObj] = myparse(varargin,...
         'tblPTrn',[],... % optional MFTp table of training data. if supplied, set .trnData* state based on this table
-        'updateTrnData',true ... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
+        'updateTrnData',true,... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
+        'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
+                   ... % 1. .trnDataInit() and .trnResInit() are called
+                   ... % 2. .data may be updated but that should be OK
         );
+      tfWB = ~isempty(wbObj);
       
       prm = obj.sPrm;
       if isempty(prm)
@@ -1059,7 +1167,16 @@ classdef CPRLabelTracker < LabelTracker
       else % Either use supplied tblPTrn, or use all labeled data
         if isempty(tblPTrn)
           % use all labeled data
-          tblPTrn = obj.getTblPLbled();
+          tblPTrn = obj.getTblPLbled('wbObj',wbObj);
+          if tfWB && wbObj.isCancel
+            % Theoretically we are safe to return here as of 201801. We 
+            % have only called obj.asyncReset() so far. 
+            % However to be conservative/nonfragile/consistent let's reset 
+            % as in other cancel/early-exits
+            obj.trnDataInit();
+            obj.trnResInit();
+            return;
+          end
         end
         if obj.lObj.hasTrx
           tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
@@ -1107,8 +1224,13 @@ classdef CPRLabelTracker < LabelTracker
         assert(isempty(obj.trnResH0));
       end
       
-      obj.updateData(tblPTrn);
-      
+      obj.updateData(tblPTrn,'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        obj.trnDataInit();
+        obj.trnResInit();
+        return;
+      end
+        
       d = obj.data;
       [tf,locDataInTblP] = tblismember(d.MD,tblPTrn,MFTable.FLDSID);
       assert(nnz(tf)==height(tblPTrn));
@@ -1149,7 +1271,13 @@ classdef CPRLabelTracker < LabelTracker
           oThetas = [];
         end
         obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn,...
-          'orientationThetas',oThetas);
+          'orientationThetas',oThetas,'wbObj',wbObj);
+        if tfWB && wbObj.isCancel
+          % .trnResRC in indeterminate state
+          obj.trnDataInit();
+          obj.trnResInit();         
+          return;
+        end        
       else
         assert(~obj.lObj.hasTrx,'Currently unsupported for projects with trx.');
         assert(size(Is,2)==nView);
@@ -1167,7 +1295,13 @@ classdef CPRLabelTracker < LabelTracker
           
           % Future todo: orientationThetas
           % Should break internally if 'orientationThetas' is req'd
-          obj.trnResRC(iView).trainWithRandInit(IsVw,bbVw,pTrnVw);
+          obj.trnResRC(iView).trainWithRandInit(IsVw,bbVw,pTrnVw,'wbObj',wbObj);
+          if tfWB && wbObj.isCancel
+            % .trnResRC in indeterminate state
+            obj.trnDataInit();
+            obj.trnResInit();
+            return;
+          end
         end
       end
       obj.trnResIPt = iPt;
@@ -1387,6 +1521,7 @@ classdef CPRLabelTracker < LabelTracker
       Dfull = nfids*nview*prm.Model.d;
       pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
       pTstTRed = nan(NTst,Dfull);
+      pTstTPruneMD = array2table(nan(NTst,0));
       for iView=1:nview % obj CONST over this loop
         rc = obj.trnResRC(iView);
         IsVw = Is(:,iView);
@@ -1405,14 +1540,14 @@ classdef CPRLabelTracker < LabelTracker
         Tp1 = rc.nMajor+1;
         pTstTVw = reshape(p_t,[NTst RT trkD Tp1]);
         
-        %% Select best preds for each time
-        pTstTRedVw = nan(NTst,trkD);
-        prm.Prune.prune = 1;
-        for t=Tp1
-          %fprintf('Pruning t=%d\n',t);
-          pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
-          pTstTRedVw(:,:) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
+        %% Prune
+        [pTstTRedVw,pruneMD] = CPRLabelTracker.applyPruning(...
+          pTstTVw(:,:,:,end),d.MDTst(:,MFTable.FLDSID),prm.Prune);
+        szassert(pTstTRedVw,[NTst trkD]);
+        if nview>1
+          pruneMD = tblfldsmodify(pruneMD,@(x)[x '_vw' num2str(iView)]);
         end
+        pTstTPruneMD = [pTstTPruneMD pruneMD]; %#ok<AGROW>        
         
         assert(trkD==Dfull/nview);
         assert(mod(trkD,2)==0);
@@ -1427,6 +1562,7 @@ classdef CPRLabelTracker < LabelTracker
         fldsTmp{1,end+1} = 'roi';
       end
       trkPMDnew = d.MDTst(:,fldsTmp);
+      trkPMDnew = [trkPMDnew pTstTPruneMD];
       obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
     end
     
@@ -1536,8 +1672,10 @@ classdef CPRLabelTracker < LabelTracker
         assert(nview==size(Is,2));
         assert(prm.Model.d==2);
         Dfull = nfids*nview*prm.Model.d;
+        
         pTstT = nan(NTst,RT,Dfull,prm.Reg.T+1);
         pTstTRed = nan(NTst,Dfull);
+        pTstTPruneMD = array2table(nan(NTst,0));
         for iView=1:nview % obj CONST over this loop
           rc = obj.trnResRC(iView);
           IsVw = Is(:,iView);          
@@ -1560,9 +1698,9 @@ classdef CPRLabelTracker < LabelTracker
             % decrease chunk size as tracking results are saved at those
             % increments.
             % 
-            % Single-chunk: data updated 
+            % Single-chunk: .data updated 
             %
-            % Multi-chunk: data updated. If 2nd chunk or later, tracking
+            % Multi-chunk: .data updated. If 2nd chunk or later, tracking
             % results updated to some extent.
             
             if iChunk>1 % implies nChunk>1
@@ -1583,28 +1721,32 @@ classdef CPRLabelTracker < LabelTracker
           Tp1 = rc.nMajor+1;
           pTstTVw = reshape(p_t,[NTst RT trkD Tp1]);
           
-          %% Select best preds for each time
-          pTstTRedVw = nan(NTst,trkD);
-          prm.Prune.prune = 1;
-          for t=Tp1
-            %fprintf('Pruning t=%d\n',t);
-            pTmp = permute(pTstTVw(:,:,:,t),[1 3 2]); % [NxDxR]
-            pTstTRedVw(:,:) = rcprTestSelectOutput(pTmp,trkMdl,prm.Prune);
+          %% Prune
+          [pTstTRedVw,pruneMD] = CPRLabelTracker.applyPruning(...
+            pTstTVw(:,:,:,end),d.MDTst(:,MFTable.FLDSID),prm.Prune);
+          szassert(pTstTRedVw,[NTst trkD]);
+          if nview>1
+            pruneMD = tblfldsmodify(pruneMD,@(x)[x '_vw' num2str(iView)]);
           end
-          
+          pTstTPruneMD = [pTstTPruneMD pruneMD]; %#ok<AGROW>
+                    
           assert(trkD==Dfull/nview);
           assert(mod(trkD,2)==0);
           iFull = (1:nfids)+(iView-1)*nfids;
           iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
           pTstT(:,:,iFull,:) = pTstTVw;
-          pTstTRed(:,iFull) = pTstTRedVw;
+          pTstTRed(:,iFull) = pTstTRedVw;       
         end % end obj CONST
         
         fldsTmp = MFTable.FLDSID;
         if tblfldscontains(d.MDTst,'roi')
           fldsTmp{1,end+1} = 'roi'; %#ok<AGROW>
         end
+        if tblfldscontains(d.MDTst,'nNborMask')
+          fldsTmp{1,end+1} = 'nNborMask'; %#ok<AGROW>
+        end
         trkPMDnew = d.MDTst(:,fldsTmp);
+        trkPMDnew = [trkPMDnew pTstTPruneMD]; %#ok<AGROW>
         obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
       end
     end
@@ -1836,20 +1978,23 @@ classdef CPRLabelTracker < LabelTracker
         set(hXY(iPt),'XData',xy(iPt,1,itgt),'YData',xy(iPt,2,itgt),plotargs{:});
       end
       
-      if obj.showVizReplicates && obj.storeFullTracking && ~isequal(xyfull,[])
+      if obj.showVizReplicates && ...
+         obj.storeFullTracking~=StoreFullTrackingType.NONE && ...
+         ~isequal(xyfull,[])
+        
         hXY = obj.hXYPrdFull;
         plotargs = obj.xyVizFullPlotArgs;
         for iPt = 1:npts
           set(hXY(iPt),'XData',xyfull(iPt,1,:),'YData',xyfull(iPt,2,:),plotargs{:});
-        end
-      end
+        end       
+      end 
     end
     
     function newLabelerTarget(obj)
       if obj.lObj.isinit
         return;
       end
-      if obj.storeFullTracking
+      if obj.storeFullTracking~=StoreFullTrackingType.NONE
         obj.vizLoadXYPrdCurrMovieTarget(); % needed to reload full tracking results
       end
       obj.newLabelerFrame();
@@ -1918,7 +2063,7 @@ classdef CPRLabelTracker < LabelTracker
         mIdxOrig2New);
       obj.trkP(tfRm,:) = [];
       if ~isequal(obj.trkPFull,[])
-        obj.trkPFull(tfRm,:,:,:) = [];
+        obj.trkPFull(tfRm,:,:,:) = []; % Should work fine even when .storeFullTracking is .FINALITER and .trkPFull has 3 dims
       end
       obj.trkPTS(tfRm,:) = [];
       
@@ -2122,6 +2267,22 @@ classdef CPRLabelTracker < LabelTracker
         s.trkPMD.mov = MovieIndex(s.trkPMD.mov);
       end
 
+      % 20171114
+      if ~isempty(s.trkPMD) && ~tblfldscontains(s.trkPMD,'nNborMask')
+        nNborMask = nan(height(s.trkPMD),1);
+        s.trkPMD = [s.trkPMD table(nNborMask)];
+      end
+      
+      % 20171212: storeFullTracking
+      if islogical(s.storeFullTracking)
+        if s.storeFullTracking
+          s.storeFullTracking = StoreFullTrackingType.ALLITERS;
+        else
+          s.storeFullTracking = StoreFullTrackingType.NONE;
+        end
+      end
+      assert(isa(s.storeFullTracking,'StoreFullTrackingType'));
+
       % set parameter struct s.sPrm on obj
       if ~isequaln(obj.sPrm,s.sPrm)
         warningNoTrace('CPRLabelTracker:param',...
@@ -2153,7 +2314,7 @@ classdef CPRLabelTracker < LabelTracker
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
       % isinterp: scalar logical, only relevant if nTgt==1
       % xyfull: [nPtsx2xnRep]. full tracking only for current target. Only 
-      %   available if .storeFullTracking is true 
+      %   available if .storeFullTracking is not .NONE
       
       frm = obj.lObj.currFrame;
       xyPCM = obj.xyPrdCurrMovie;
@@ -2172,7 +2333,8 @@ classdef CPRLabelTracker < LabelTracker
         xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
         isinterp = obj.xyPrdCurrMovieIsInterp(frm);
       end
-      if obj.storeFullTracking && ~isequal(obj.xyPrdCurrMovieFull,[])
+      if obj.storeFullTracking>StoreFullTrackingType.NONE && ...
+          ~isequal(obj.xyPrdCurrMovieFull,[])
         % frm should have gone through 'else' branch above and should be
         % in-range for .xyPrdMovieFull
         
@@ -2493,7 +2655,7 @@ classdef CPRLabelTracker < LabelTracker
       trackPrefs = obj.lObj.projPrefs.Track;
       cprPrefs = obj.lObj.projPrefs.CPRLabelTracker.PredictReplicatesPlot;
       plotPrefs = trackPrefs.PredictPointsPlot;
-      plotPrefs.HitTest = 'off';
+      plotPrefs.PickableParts = 'none';
       obj.xyVizPlotArgs = struct2paramscell(plotPrefs);
       if isfield(trackPrefs,'PredictInterpolatePointsPlot')
         obj.xyVizPlotArgsInterp = struct2paramscell(trackPrefs.PredictInterpolatePointsPlot);
@@ -2522,7 +2684,8 @@ classdef CPRLabelTracker < LabelTracker
         hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
         hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);        
         hTmp2(iPt) = scatter(ax(iVw),nan,nan);
-        setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,'MarkerEdgeColor',clr,...
+        setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,...
+          'MarkerEdgeColor',clr,'PickableParts','none',...
           obj.xyVizFullPlotArgs{:});
       end
       obj.hXYPrdRed = hTmp;
@@ -2593,10 +2756,13 @@ classdef CPRLabelTracker < LabelTracker
       end
 
       obj.xyPrdCurrMovie = xy;
-      if obj.storeFullTracking
-        obj.xyPrdCurrMovieFull = xyfull;
-      else
-        obj.xyPrdCurrMovieFull = [];
+      switch obj.storeFullTracking
+        case StoreFullTrackingType.NONE
+          obj.xyPrdCurrMovieFull = [];
+        case {StoreFullTrackingType.FINALITER StoreFullTrackingType.ALLITERS}
+          obj.xyPrdCurrMovieFull = xyfull;
+        otherwise
+          assert(false);
       end
       obj.xyPrdCurrMovieIsInterp = isinterp;
     end
@@ -2612,9 +2778,9 @@ classdef CPRLabelTracker < LabelTracker
       assert(isscalar(v));
       v = logical(v);
       if v
-        if ~obj.storeFullTracking && ~obj.isInit %#ok<MCSUP>
+        if obj.storeFullTracking==StoreFullTrackingType.NONE && ~obj.isInit %#ok<MCSUP>
           warning('CPRLabelTracker:viz',...
-            'Currently not storing full tracking; replicate visualization will be unavailable.');
+            'Currently not storing tracking replicates. Replicate visualization will be unavailable.');
         end
         [obj.hXYPrdFull.Visible] = deal('on'); %#ok<MCSUP>
       else
@@ -2667,7 +2833,10 @@ classdef CPRLabelTracker < LabelTracker
         sPrm.Reg = rmfield(sPrm.Reg,'USE_AL_CORRECTION');
       end
       
-      [sPrm,s0used] = structoverlay(s0,sPrm);
+      % Over time we may remove unused fields from base struture s0; no 
+      % need to warn user that we will be dropping these extra fields from 
+      % sPrm
+      [sPrm,s0used] = structoverlay(s0,sPrm,'dontWarnUnrecog',true); 
       if ~isempty(s0used)
         fprintf('Using default parameters for: %s.\n',...
           String.cellstr2CommaSepList(s0used));
@@ -2714,6 +2883,13 @@ classdef CPRLabelTracker < LabelTracker
         sPrm.TrainInit.usetrxorientation = false;
         sPrm.TestInit.usetrxorientation = false;
       end
+      
+      % 20171208 pruning
+      % No action required, default params are as follows
+      % Prune:
+      % method: 'maxdensity'
+      % maxdensity_sigma: 5
+      % poslambdafac: 1
     end
         
     function [xy,isinterp] = interpolateXY(xy)
@@ -2787,6 +2963,39 @@ classdef CPRLabelTracker < LabelTracker
       bpp = load(bppFile);
       bpp = bpp.bpp(2);
       td.computeIpp([],[],[],'iTrl',1:td.N,'romain',bpp,varargin{:});
+    end
+    
+    function [pTrk,pruneMD] = applyPruning(pTrkFull,pTrkMD,prmPrune)
+      % pTrkFull/pTrkMD: See Prune.m
+      % prmPrune: prune parameter struct
+      %
+      % pTrk: [NxD], see Prune.m
+      % pruneMD: [N] table of prune-relating metadata
+      
+      N = size(pTrkFull,1);
+      assert(istable(pTrkMD) && height(pTrkMD)==N);
+      tblfldscontainsassert(pTrkMD,MFTable.FLDSID);
+      
+      switch prmPrune.method
+        case 'median'
+          [pTrk,pruneScore] = Prune.median(pTrkFull);
+          pruneMD = table(pruneScore);
+        case 'maxdensity'
+          [pTrk,pruneScore] = Prune.maxdensity(pTrkFull,...
+            'sigma',prmPrune.maxdensity_sigma);
+          pruneMD = table(pruneScore);
+        case 'maxdensity global'
+          [pTrk,pruneScore] = Prune.globalmin(pTrkFull,...
+            'sigma',prmPrune.maxdensity_sigma);
+          pruneMD = table(pruneScore);
+        case 'smoothed trajectory'
+          besttrajArgs = {'sigma' prmPrune.maxdensity_sigma ...
+            'poslambdafac' prmPrune.poslambdafac};
+          [pTrk,pruneMD] = Prune.applybesttraj2segs(pTrkFull,pTrkMD,...
+            besttrajArgs);
+        otherwise
+          assert(false,'Unrecognized pruning method.');
+      end
     end
     
   end

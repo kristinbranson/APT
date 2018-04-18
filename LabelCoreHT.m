@@ -99,7 +99,7 @@ classdef LabelCoreHT < LabelCore
       obj.otherLabeledPointColor = htm.OtherLabeledPointColor;
       
       set(obj.hPts,'HitTest','off');
-      set(obj.hPtsTxt,'HitTest','off');
+      set(obj.hPtsTxt,'PickableParts','none');
       set(obj.labeler.gdata.tbAccept,'Enable','off');
       obj.labeler.currImHud.updateReadoutFields('hasLblPt',true);
 
@@ -291,7 +291,9 @@ classdef LabelCoreHT < LabelCore
       
       lObj = obj.labeler;
       lObj.currImHud.updateLblPoint(iPt,obj.labeler.nLabelPoints);
-      obj.newFrame([],lObj.currFrame,lObj.currTarget);      
+      if lObj.currMovie>0
+        obj.newFrame([],lObj.currFrame,lObj.currTarget);
+      end
     end    
     
   end

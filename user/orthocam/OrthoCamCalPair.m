@@ -32,7 +32,9 @@ classdef OrthoCamCalPair < CalRig
   properties % CalRig
     nviews = 2;
     viewNames = {'side' 'front'};
-    viewSizes = [1024 1024;1024 1024];;    
+    viewSizes = [1024 1024;1024 1024];
+    
+    estimatedEpipolarZCoords; % [nviewx1] cell. estimatedEpipolarZCoords{iView} gives estimated [zmin zmax] to use when plotting EPlines originating in iView
   end
 
   methods
@@ -324,6 +326,17 @@ classdef OrthoCamCalPair < CalRig
       end
     end
     
+    function [optCtr,ijkCam] = getOptCtrCamWorldView(obj,iView)
+      switch iView
+        case 1
+          optCtr = obj.optCtr1;
+          ijkCam = obj.ijkCamWorld1;
+        case 2
+          optCtr = obj.optCtr2;
+          ijkCam = obj.ijkCamWorld2;
+      end
+    end
+    
   end
   
   methods (Static)
@@ -459,6 +472,63 @@ classdef OrthoCamCalPair < CalRig
   end
   
   methods %CalRig
+
+    function [zmin,zmax] = estimateEpiPolarZCoords(obj,iView,varargin)
+      % Estimate z-range (along optical axis for iView's cam, relative to
+      % optical ctr for iView) to sample when plotting epipolar lines in
+      % *iView's complement view*.
+      %
+      % 20180202. up to this point, we have been hardcoding a z-range to
+      % sample in computeEpiPolarLine. This z-range should depend on the 
+      % Rig extrinsics (configuration, dimensions etc), as well the choice
+      % of World CoordSys. Usually these don't change that much, so a 
+      % single hardcoded range mostly works for a given rig.
+      %
+      % However, occassionally the range will be off enough that
+      % nonlinearities cause two or more epipolar lines to appear on the
+      % complement view. These extra EP lines arise from
+      % far-out-of-realistic z-values compounded with nonlinear
+      % distortions.
+      %
+      % To solve this problem in general, we compute a z-range of interest
+      % based on all calibration patterns contained/observed in obj. Ie we 
+      % assume that the union of all calpats reasonably spans the full FOV 
+      % for both cameras, at least up to a modest scale factor.
+      
+      rangescalefac = myparse(varargin,...
+        'rangescalefac',3.0); % fudge factor; expand z-span by this factor
+      
+      
+      nPat = obj.calNumPatterns;
+      nPts = obj.calNumPoints;
+      rvcs = obj.rvecs;
+      tvcs = obj.tvecs;
+      patPtsXYZ = obj.calWorldPoints;
+            
+      if verLessThan('matlab','9.1')
+        error('This method requires MATLAB version R2016b or later.');
+      end
+           
+      [optCtr,ijkCam] = obj.getOptCtrCamWorldView(iView);
+      
+      zmin = inf;
+      zmax = -inf;
+      for iPat=1:nPat
+        RPatIToWorld = vision.internal.calibration.rodriguesVectorToMatrix(rvcs(iPat,:)');
+        tPatIToWorld = tvcs(iPat,:)';
+        patPtsWorld = RPatIToWorld*patPtsXYZ + tPatIToWorld;
+        szassert(patPtsWorld,[3 nPts]);
+        
+        patPtsOC = patPtsWorld-optCtr; % singleton expans
+        patPtsZOC = sum(patPtsOC.*ijkCam(:,3),1);
+        zmin = min(zmin,min(patPtsZOC(:)));
+        zmax = max(zmax,max(patPtsZOC(:)));
+      end      
+      
+      zmean = (zmin+zmax)/2;
+      zmin = zmean - (zmean-zmin)*rangescalefac;
+      zmax = zmean + (zmax-zmean)*rangescalefac;     
+    end
     
     function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,uv1,iViewEpi)
       % [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
@@ -468,27 +538,33 @@ classdef OrthoCamCalPair < CalRig
       % iViewEpi: either 1 (L) or 2 (R)
       %
       % xEPL, yEPL: [nx1] each; points in epipolar line
-
+        
+      if verLessThan('matlab','9.1')
+        error('This method requires MATLAB version R2016b or later.');
+      end
+      
       assert(iView1==1 || iView1==2);
       assert(numel(uv1)==2);
       assert(iViewEpi==1 || iViewEpi==2);
       
-      pq1 = obj.projected2normalized(uv1(:),iView1);
-      
-      switch iView1
-        case 1
-          optCtr = obj.optCtr1;
-          ijkCam = obj.ijkCamWorld1;
-        case 2
-          optCtr = obj.optCtr2;
-          ijkCam = obj.ijkCamWorld2;
-      end
+      pq1 = obj.projected2normalized(uv1(:),iView1);      
+      [optCtr,ijkCam] = obj.getOptCtrCamWorldView(iView1);
       
       O1 = optCtr + pq1(1)*ijkCam(:,1) + pq1(2)*ijkCam(:,2);
-      szassert(O1,[3 1]);
-      MAXS = 7; % mm
-      DS = .05; % mm
-      s = -MAXS:DS:MAXS;
+      szassert(O1,[3 1]);      
+      
+      if isempty(obj.estimatedEpipolarZCoords)
+        obj.estimatedEpipolarZCoords = cell(obj.nviews,1);
+      end
+      if isempty(obj.estimatedEpipolarZCoords{iView1})
+        [estzmin,estzmax] = obj.estimateEpiPolarZCoords(iView1);
+        obj.estimatedEpipolarZCoords{iView1} = [estzmin estzmax];
+      end
+      
+      zEst = obj.estimatedEpipolarZCoords{iView1};
+      assert(numel(zEst)==2);
+      NUMZPTS = 250;
+      s = linspace(zEst(1),zEst(2),NUMZPTS);
       XEPL = O1 + s.*ijkCam(:,3);
       
       uvEPL = obj.project(XEPL,iViewEpi);

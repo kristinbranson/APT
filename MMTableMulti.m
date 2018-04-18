@@ -26,6 +26,13 @@ classdef MMTableMulti < MovieManagerTable
       obj.nmovsPerSet = nMovsPerSet;      
     end
     
+    function delete(obj)
+      if ~isempty(obj.tbl)
+        delete(obj.tbl);
+        obj.tbl = [];
+      end
+    end
+    
     function updateMovieData(obj,movNames,trxNames,movsHaveLbls)
       nSets = size(movNames,1);
       assert(size(movNames,2)==obj.nmovsPerSet);

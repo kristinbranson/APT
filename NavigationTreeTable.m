@@ -86,8 +86,22 @@ classdef NavigationTreeTable < handle
     end
     
     function delete(obj)
+      if ~isempty(obj.treeTblData)
+        obj.treeTblData = [];
+      end
       delete(obj.treeTbl);
-    end    
+      if ~isempty(obj.treeTblRowObjs)
+        delete(obj.treeTblRowObjs);
+        obj.treeTblRowObjs = [];
+      end
+      if ~isempty(obj.fld2ttCol0B)
+        delete(obj.fld2ttCol0B)
+        obj.fld2ttCol0B = [];
+      end
+      if ~isempty(obj.fcnDataRowNaved)
+        obj.fcnDataRowNaved = [];
+      end
+    end
     
   end
   

@@ -877,7 +877,7 @@ classdef Features
         hPlot(3) = plot(axplot,nan,nan,'o','Color',[1 1 1],'markerfacecolor',[1 1 1]);        
         hPlot(4) = plot(axplot,xf,yf,'s','Color','w','MarkerSize',8,'markerfacecolor',[1 1 1]);
         hPlot(5) = ellipsedraw(info.d(iN,iF),info.d(iN,iF)/info.abratio(iF),...
-          xc,yc,info.alpha(iN,iF),'-','parent',axplot,'Color',clr);
+          xc,yc,info.alpha(iN,iF),'-','plotArgs',{'parent' axplot 'Color' clr});
         hPlot(6) = plot(axplot,[xc;xf],[yc;yf],'-','Color',clr);
         [hPlot.LineWidth] = deal(1);
       else
@@ -887,7 +887,7 @@ classdef Features
         %set(hPlot(3),'XData',x1,'YData',y1);
         set(hPlot(4),'XData',xf,'YData',yf);
         ellipsedraw(info.d(iN,iF),info.d(iN,iF)/info.abratio(iF),xc,yc,...
-          info.alpha(iN,iF),'-','hEllipse',hPlot(5),'parent',axplot);
+          info.alpha(iN,iF),'-','hEllipse',hPlot(5),'plotArgs',{'parent' axplot});
         set(hPlot(6),'XData',[xc;xf],'YData',[yc;yf]);
       end
       str = sprintf('n=%d,f=%d(%d,%d). reff=%.3f,theta=%.3f',iN,iF,...

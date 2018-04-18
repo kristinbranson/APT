@@ -217,7 +217,7 @@ classdef Table < hgsetget
     
     %% Internal properties
     
-    properties(GetAccess = protected, SetAccess = protected)
+    properties(GetAccess = public, SetAccess = protected)
         hPanel % Main panel
         JTable % Java table
         JTableModel % Java table model

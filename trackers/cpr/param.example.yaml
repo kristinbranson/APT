@@ -4,8 +4,6 @@ Model:
   nfids: 7    # Number of physical points to be tracked
   d: 2        # Physical dimension of label-space (only 2 works at the moment)
   nviews: 1
-  isFace: 1   # currently unused  
-  Prm3D:      # currently unused
 
 PreProc:
   histeq: 0     # 1=do histogram equalization
@@ -13,6 +11,11 @@ PreProc:
   TargetCrop:
     Radius: 50
     PadBkgd: 0
+  NeighborMask:
+    Use: 0
+    BGType: 'dark on light'
+    BGReadFcn: ''
+    FGThresh: 4
   channelsFcn:  # optional preprocessing function with signature: fcn(cprDataObj,p1,v1,...)
 
 Reg:
@@ -31,10 +34,6 @@ Reg:
     iPtTail: 2
   occlPrm:
     Stot: 1     # 1=noocclusion
-    nrows: 3    # rest in this subsection unused
-    ncols: 3
-    nzones: 1
-    th: 0.5
     
 Ftr:
   type: '2lm'         # how feature points are generated
@@ -49,7 +48,6 @@ Ftr:
 
 TrainInit:
   Naug: 50            # number of replicates for training
-  augpad: 10
   augrotate:          # unused as of 20170609
   usetrxorientation: 0  # 1=initialize using orientation from trx (currently hardcoded to trx.theta) 
   doptjitter: 1       # 1=jitter pts, 0=don't
@@ -71,12 +69,7 @@ TestInit:
   movChunkSize: 3000  # track (big) movies in chunks of this size
 
 Prune:
-  prune: 1
-  numInit: 50
-  usemaxdensity: 1
-  maxIter: 2
-  th: .5
-  tIni: 10
+  method: 'maxdensity'
   maxdensity_sigma: 5
+  poslambdafac: 1
   
-

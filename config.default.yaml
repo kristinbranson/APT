@@ -113,7 +113,7 @@ Track:
     LineWidth: 1
 
 CPRLabelTracker:
-  StoreFullTracking: 0 # If true, store tracking results with replicates/iterations
+  # StoreFullTracking: NONE One of StoreFullTrackingType
   PredictReplicatesPlot: # Plot cosmetics for tracking replicates
     Marker: '.'
     MarkerSize: 15
@@ -130,7 +130,6 @@ Shortcuts: # shortcuts. case insensitive!
   menu_view_hide_predictions: p # view -> hide predictions
   menu_view_hide_imported_predictions: i # view -> hide imported predictions
   menu_view_hide_trajectories: j # view -> hide trajectories
-  menu_track_retrain: r # track -> retrain
   menu_track_set_labels: l # track -> set manual labels to predicted pose
   tbAccept: x # accept toggle button
   pbTrain: t # train pushbutton

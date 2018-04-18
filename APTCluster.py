@@ -1,4 +1,4 @@
-#!/usr/local/anaconda/bin/python
+#!/usr/bin/env python2
 
 from __future__ import print_function
 import sys
@@ -19,7 +19,7 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
 
     parser.add_argument("projfile",help="APT project file")
-    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","prunerf","prunerf2","pruneja"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
+    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
 
     parser.add_argument("-n","--nslots","--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
@@ -30,18 +30,18 @@ def main():
     parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'") 
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
-    parser.add_argument("--trackargs",help="use with action==track or trackbatch. enclose in quotes, additional/optional prop-val pairs (eg rawtrkname, stripTrkPFull)")
+    parser.add_argument("--trackargs",help="use with action==track or trackbatch. enclose in quotes, additional/optional prop-val pairs")
     parser.add_argument("-p0di","--p0DiagImg",help="use with action==track or trackbatch. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
-    parser.add_argument("--trkfile",help="use with action==prune*. full path to trkfile to prune")
-    parser.add_argument("--pruneargs",help="use with action=prune*. enclose in quotes; '<sigd> <ipt> <frmstart> <frmend>'")
-    parser.add_argument("--prunesig")
+#    parser.add_argument("--trkfile",help="use with action==prune*. full path to trkfile to prune")
+#    parser.add_argument("--pruneargs",help="use with action=prune*. enclose in quotes; '<sigd> <ipt> <frmstart> <frmend>'")
+#    parser.add_argument("--prunesig")
     parser.add_argument("-f","--force",help="if true, don't ask for confirmation",action="store_true",default=False)
 
 
     args = parser.parse_args()
     
-    if not args.action.startswith("prune") and not os.path.exists(args.projfile):
+    if not os.path.exists(args.projfile):
         sys.exit("Cannot find project file: {0:s}".format(args.projfile))
 
     if args.action=="track":
@@ -70,10 +70,10 @@ def main():
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
-    if not args.action.startswith("prune") and args.pruneargs:
-        print("Action is " + args.action + ", ignoring --pruneargs specification")
-    if not args.action.startswith("prune") and args.trkfile:
-        print("Action is " + args.action + ", ignoring --trkfile specification")
+#    if not args.action.startswith("prune") and args.pruneargs:
+#        print("Action is " + args.action + ", ignoring --pruneargs specification")
+#    if not args.action.startswith("prune") and args.trkfile:
+#        print("Action is " + args.action + ", ignoring --trkfile specification")
         
     args.APTBUILDROOTDIR = "/groups/branson/home/leea30/aptbuild"
     if not args.bindate:
@@ -179,27 +179,27 @@ def main():
             print(qsubcmd)
             subprocess.call(qsubcmd,shell=True)
             nmovsub = nmovsub+1
-    elif args.action=="pruneja" and args.prunesig:
-        sys.exit("Codepath not updated for LSF")
-        outdiruse = os.path.dirname(args.trkfile)
-
-        for leg in ['4','5','6','7']:
-            nowstr = datetime.datetime.now().strftime("%Y%m%dT%H%M%S%f")
-            nowstr = nowstr[:-3] # keep only milliseconds
-            jobid = args.KEYWORD + "-" + nowstr + "-leg" + leg 
-            print(jobid)
-        
-            shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
-            logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
-            cmd = "0 prunejan " + args.trkfile + " " + args.prunesig + " " + leg
-
-            gencode(shfile,jobid,args,cmd)
-
-            # submit 
-            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.BSUBARGS,shfile)
-            qsubcmd = "qsub " + qargs
-            print(qsubcmd)
-            subprocess.call(qsubcmd,shell=True)
+#    elif args.action=="pruneja" and args.prunesig:
+#        sys.exit("Codepath not updated for LSF")
+#        outdiruse = os.path.dirname(args.trkfile)
+#
+#        for leg in ['4','5','6','7']:
+#            nowstr = datetime.datetime.now().strftime("%Y%m%dT%H%M%S%f")
+#            nowstr = nowstr[:-3] # keep only milliseconds
+#            jobid = args.KEYWORD + "-" + nowstr + "-leg" + leg 
+#            print(jobid)
+#        
+#            shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
+#            logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
+#            cmd = "0 prunejan " + args.trkfile + " " + args.prunesig + " " + leg
+#
+#            gencode(shfile,jobid,args,cmd)
+#
+#            # submit 
+#            qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.BSUBARGS,shfile)
+#            qsubcmd = "qsub " + qargs
+#            print(qsubcmd)
+#            subprocess.call(qsubcmd,shell=True)
         
 
     else:
@@ -215,8 +215,9 @@ def main():
         else:
             if args.action=="track":
                 outdiruse = os.path.dirname(args.mov)
-            elif args.action.startswith("prune"):
-                outdiruse = os.path.dirname(args.trkfile)
+#            elif args.action.startswith("p#rune"):
+#                sys.exit("Obsolete")
+                #outdiruse = os.path.dirname(args.trkfile)
             else: # trackbatchserial, retrain
                 outdiruse = os.path.dirname(args.projfile)                
         shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
@@ -232,27 +233,27 @@ def main():
                 cmd = cmd + " p0DiagImg " + p0DiagImgFull
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
-        elif args.action.startswith("prunerf"):
-            sys.exit("not updated for LSF")
-            if "%" in args.pruneargs:
-                legs = range(1,19)
-                for leg in legs:
-                    pruneargsuse = args.pruneargs.replace("%",str(leg))
-                    cmd = "0 " + args.action + " " + args.trkfile + " " +  pruneargsuse
-                    print(cmd)
-                    jobiduse = jobid + "-leg{0:02d}".format(leg)
-                    shfileuse = os.path.join(outdiruse,"{0:s}.sh".format(jobiduse))
-                    logfileuse = os.path.join(outdiruse,"{0:s}.log".format(jobiduse))
-                    gencode(shfileuse,jobiduse,args,cmd)
-                    qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfileuse,jobiduse,args.BSUBARGS,shfileuse)
-                    qsubcmd = "qsub " + qargs
-                    print(qsubcmd)
-                    subprocess.call(qsubcmd,shell=True)
-                sys.exit()                    
-            else:
-                cmd = "0 " + args.action + " " + args.trkfile + " " +  args.pruneargs
-        elif args.action=="pruneja": 
-            cmd = "0 prunejan " + args.trkfile + " " +  args.pruneargs
+#        elif args.action.startswith("prunerf"):
+#            sys.exit("not updated for LSF")
+#            if "%" in args.pruneargs:
+#                legs = range(1,19)
+#                for leg in legs:
+#                    pruneargsuse = args.pruneargs.replace("%",str(leg))
+#                    cmd = "0 " + args.action + " " + args.trkfile + " " +  pruneargsuse
+#                    print(cmd)
+#                    jobiduse = jobid + "-leg{0:02d}".format(leg)
+#                    shfileuse = os.path.join(outdiruse,"{0:s}.sh".format(jobiduse))
+#                    logfileuse = os.path.join(outdiruse,"{0:s}.log".format(jobiduse))
+#                    gencode(shfileuse,jobiduse,args,cmd)
+#                    qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfileuse,jobiduse,args.BSUBARGS,shfileuse)
+#                    qsubcmd = "qsub " + qargs
+#                    print(qsubcmd)
+#                    subprocess.call(qsubcmd,shell=True)
+#                sys.exit()                    
+#            else:
+#                cmd = "0 " + args.action + " " + args.trkfile + " " +  args.pruneargs
+#        elif args.action=="pruneja": 
+#            cmd = "0 prunejan " + args.trkfile + " " +  args.pruneargs
 
         gencode(shfile,jobid,args,cmd)
 

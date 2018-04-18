@@ -1,13 +1,16 @@
-function p = rcprTestSelectOutput(pRT,model,prunePrm)
+function [p,maxpr,diag] = rcprTestSelectOutput(pRT,model,prunePrm)
 % pRT: [NxDxRT1]. Final shapes over multiple replicates
 % p: [NxD]. Final shapes, replicates collapsed
 
+warning('This function is deprecated. See Prune.maxdensity.');
+
 assert(ndims(pRT)==3);
 [N,D,RT1] = size(pRT); 
+diag = cell(N,1);
 
 if prunePrm.usemaxdensity
   p = nan(N,D);
-  maxpr = nan(1,N);
+  maxpr = nan(N,1);
   pRT1 = reshape(pRT,[N,model.nfids,model.d,RT1]);
   for n = 1:N
     pr = 0;
@@ -33,10 +36,13 @@ if prunePrm.usemaxdensity
       w = w / sum(w);
             
       pr = pr + log(w); %accumulate by summing over pts/parts
+      
+      diag{n}(:,part) = d; % squared dists
     end
     [maxpr(n),i] = max(pr); % 'best' or most-likely replicate for this trial
     p(n,:) = pRT(n,:,i);
   end      
-else  
+else
   p = median(pRT,3);
+  maxpr = mean(std(pRT,1,3),2);
 end
