@@ -7,7 +7,7 @@ function rc = simpletrain(tblVar,imgVar,viewIdx,trnSetVar,trnSetCol,...
 % trnSetVar: varName of training set array to use. mat.(trnSetVar) is a 
 %   logical of size [NxNsplit]
 % trnSetCol: col index into mat.(trnSetVar) to use
-% prmVar: varName of parcameter struct/variable ("old style")
+% prmVar: varName of parameter struct/variable ("old style")
 % resFile: results filename
 % varargin: list of matfiles that will be loaded into mat.*
 %
