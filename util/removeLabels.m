@@ -33,6 +33,10 @@ for proj = 1:length(p)%for each project
         adnew.labeledposMarked{expi,1} = false(size(adnew.labeledposMarked{expi,1}));
         adnew.labeledpos{expi,1} = nan(size(adnew.labeledpos{expi,1}));
         adnew.labeledpostag{expi,1} = cell(size(adnew.labeledpostag{expi,1}));%initializing manual label tags as empty because no manual labels currently exist
+        % AL 20171110: .labeledpostag{expi,1} is now a logical array rather
+        % than a cell array. The legacy format (cell array) will be
+        % converted upon project load however so using a cell here should
+        % still work.
         adnew.labeledposTS{expi,1} = inf(size(adnew.labeledposTS{expi,1}));%initializing manual label timestamps as -Inf because no manual labels currently exist
     end
     

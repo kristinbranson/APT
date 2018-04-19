@@ -4,6 +4,8 @@ function moviesReorder(lObj,p)
 % lObj: Labeler object
 % p: permutation of 1:lObj.nmovies
 
+warningNoTrace('This function is deprecated, please use the Labeler/movieReorder method.');
+
 p = p(:);
 if ~isequal(sort(p),(1:lObj.nmovies)')
   error('Input argument ''p'' must be a permutation of 1..%d.',lObj.nmovies);

@@ -557,7 +557,7 @@ classdef InfoTimeline < handle
     function dmat = getDataFromLpos(lpos,lpostag,pcode,iTgt)
       % lpos: [npts x 2 x nfrm x ntgt] label array as in
       %   lObj.labeledpos{iMov}
-      % lpostag: [npts x nfrm x ntgt] cell as in lObj.labeledpostag{iMov}
+      % lpostag: [npts x nfrm x ntgt] logical as in lObj.labeledpostag{iMov}
       % pcode: name/id of data to extract
       % iTgt: current target
       %
@@ -588,7 +588,7 @@ classdef InfoTimeline < handle
           dmat = abs(diff(dmat,1,2));
           dmat(:,end+1) = nan;
         case 'occluded'
-          dmat = double(strcmp(lpostag(:,:,iTgt),'occ'));
+          dmat = double(lpostag(:,:,iTgt));
         otherwise
           warningNoTrace('Unknown property to display in timeline.');
           dmat = nan(size(lpos,1),size(lpos,3));

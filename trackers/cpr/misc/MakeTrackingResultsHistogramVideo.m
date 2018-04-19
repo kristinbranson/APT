@@ -30,19 +30,18 @@ end
 vars = whos('-file',trxfile);
 if ismember('phisPrAll',{vars.name}),
   if plotdensity,
-    load(trxfile,'phisPrAll','phisPr','-mat');
+    load(trxfile,'phisPrAll','phisPr');
   else
-    load(trxfile,'phisPr','-mat');
+    load(trxfile,'phisPr');
   end
-  [nflies,nviews] = size(phisPrAll);
 else
   assert(ismember('R',{vars.name}));
-  load(trxfile,'R','-mat');
-  [nflies,nviews] = size(R);
+  load(trxfile,'R');
+  nviews = numel(R);
   if plotdensity,
-    phisPrAll = cell(nflies,nviews);
+    phisPrAll = cell(1,nviews);
   end
-  phisPr = cell(nflies,nviews);
+  phisPr = cell(1,nviews);
   isexpdir = ~isempty(expdirs);
   if ~isexpdir,
     expdirs = cell(1,nviews);
@@ -151,15 +150,7 @@ for v = 1:nviews,
   him(v) = image(xlim,ylim,im,'Parent',hax(v)); axis(hax(v),'image','off'); hold(hax(v),'on');
   
   for fidcurr = 1:nfids,
-    if isnumeric(trxcolor) && isscalar(trxcolor),
-      if trxcolor > 0,
-        htrx(fidcurr,v) = plot(hax(v),nan,nan,'.-','Color',lkcolors(fidcurr,:)*trxcolor+(1-trxcolor),'LineWidth',1);
-      else
-        htrx(fidcurr,v) = plot(hax(v),nan,nan,'.-','Color',lkcolors(fidcurr,:)*trxcolor,'LineWidth',1);
-      end
-    else
-      htrx(fidcurr,v) = plot(hax(v),nan,nan,'.-','Color',trxcolor,'LineWidth',1);
-    end
+    htrx(fidcurr,v) = plot(hax(v),nan,nan,'.-','Color',trxcolor,'LineWidth',1);
   end
   if plotdensity,
     if islkcolors,
