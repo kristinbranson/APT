@@ -92,12 +92,17 @@ if tfTbl
   dp = reshape(dp,[nTrk,5,2]); % i,ipt,x/y
   errTrk = sqrt(sum(dp.^2,3));
   szassert(errTrk,[nTrk 5]);
+
+  fprintf(1,'Mean err: %s\n',mat2str(nanmean(errTrk,1)));
+  fprintf(1,'Err ptiles: \n');
+  PTILES = [10 50 90];
+  disp(prctile(errTrk,PTILES));
 else
   errTrk = [];
 end
 
 % results
-if tfTrkCol
+if tfTrkSet
   resFile = sprintf('%s_vw%d_col%d.mat',resID,viewIdx,trkSetCol);
 else
   resFile = sprintf('%s_vw%d_all.mat',resID,viewIdx);
