@@ -711,58 +711,111 @@ ftrs = nan(M,FTot);
 assert(isequal(size(cs1),size(rs1),size(ftrs)));
 assert(isequal(size(vw),[FTot 1]));
 assert(all(ismember(vw,1:nviews)));
+
+% KB 20180419: vectorized version of commented code below
+
+chs = cellfun(@(x) size(x,3), Is);
+assert(all(chs(:)==nChn));
+
+cs1 = max(cs1,1);
+rs1 = max(rs1,1);
+if strcmp(ftrData.type,'2lmdiff')
+  cs2 = max(1,cs2);
+  rs2 = max(1,rs2);
+end
+
 for iview = 1:nviews
+  
   tfvw = vw==iview; % [F] logical. 1 where cols of cs1,rs1,ftrs are for current view  
-  for n = 1:M
+  
+  hs = cellfun(@(x) size(x,1), Is(:,iview));
+  ws = cellfun(@(x) size(x,2), Is(:,iview));
+  hs = hs(imgIds);
+  ws = ws(imgIds);
+  cs1(:,tfvw) = min(ws,cs1(:,tfvw));
+  rs1(:,tfvw) = min(hs,rs1(:,tfvw));
     
-    % Crop feature positions cs1,rs1 to image. This is weird, hope this 
-    % doesn't happen too often.
-    img = Is{imgIds(n),iview};
-    [h,w,ch] = size(img);
-    assert(nChn==ch);
-    
-    cs1(n,tfvw) = max(1,min(w,cs1(n,tfvw)));
-    rs1(n,tfvw) = max(1,min(h,rs1(n,tfvw)));
-    if strcmp(ftrData.type,'2lmdiff')
-      cs2(n,tfvw) = max(1,min(w,cs2(n,tfvw)));
-      rs2(n,tfvw) = max(1,min(h,rs2(n,tfvw)));
-    end
-    
-    %where are the features relative to bbox?
-    if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
-      assert(false,'AL');
-      %         %to which group (zone) does each feature belong?
-      %         occlD.group(n,:)=codifyPos((cs1(n,:)-bboxes(n,1))./bboxes(n,3),...
-      %             (rs1(n,:)-bboxes(n,2))./bboxes(n,4),...
-      %             occlPrm.nrows,occlPrm.ncols);
-      %         %to which group (zone) does each landmark belong?
-      %         groupF=codifyPos((poscs(n,:)-bboxes(n,1))./bboxes(n,3),...
-      %             (posrs(n,:)-bboxes(n,2))./bboxes(n,4),...
-      %             occlPrm.nrows,occlPrm.ncols);
-      %         %NEW
-      %         %therefore, what is the occlusion in each group (zone)
-      %         occlAm=zeros(1,nGroups);
-      %         for g=1:nGroups
-      %             occlAm(g)=sum(occl(n,groupF==g));
-      %         end
-      %         %feature occlusion = sum of occlusion on that area
-      %         occlD.featOccl(n,:)=occlAm(occlD.group(n,:));
-    end
-    
-    inds1 = rs1(n,tfvw) + (cs1(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
-    ftrs1 = hlpFtr(img,inds1);
-    switch ftrData.type
-      case {'single landmark' '2lm' 'two landmark elliptical'}
-        ftrs(n,tfvw) = ftrs1;
-      case '2lmdiff'
-        inds2 = rs2(n,tfvw) + (cs2(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
-        ftrs2 = hlpFtr(img,inds2);
+  if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
+    assert(false,'AL');
+  end
+
+  inds1s = rs1(:,tfvw) + (cs1(:,tfvw)-1).*hs + (chn(:,tfvw)-1).*hs.*ws;
+  
+  if strcmp(ftrData.type,'2lmdiff')
+    cs2(:,tfvw) = min(ws,cs2(:,tfvw));
+    rs2(:,tfvw) = min(hs,rs2(:,tfvw));
+    inds2s = rs2(:,tfvw) + (cs2(:,tfvw)-1).*h + (chn(:,tfvw)-1).*h.*w;
+  end
+  
+  switch ftrData.type
+    case {'single landmark' '2lm' 'two landmark elliptical'}
+      for n = 1:M,
+        ftrs(n,tfvw) = hlpFtr(Is{imgIds(n),iview},inds1s(n,:));
+      end
+    case '2lmdiff'
+      for n = 1:M,
+        ftrs1 = hlpFtr(Is{imgIds(n),iview},inds1s(n,:));
+        ftrs2 = hlpFtr(Is{imgIds(n),iview},inds2s(n,:));
         ftrs(n,tfvw) = ftrs1-ftrs2;
-      otherwise
-        assert(false);
-    end
+      end
+    
   end
 end
+
+% for iview = 1:nviews
+%   
+%   tfvw = vw==iview; % [F] logical. 1 where cols of cs1,rs1,ftrs are for current view  
+%   for n = 1:M
+%     
+%     % Crop feature positions cs1,rs1 to image. This is weird, hope this 
+%     % doesn't happen too often.
+%     img = Is{imgIds(n),iview};
+%     [h,w,ch] = size(img);
+%     assert(nChn==ch);
+%     
+%     cs1(n,tfvw) = max(1,min(w,cs1(n,tfvw)));
+%     rs1(n,tfvw) = max(1,min(h,rs1(n,tfvw)));
+%     if strcmp(ftrData.type,'2lmdiff')
+%       cs2(n,tfvw) = max(1,min(w,cs2(n,tfvw)));
+%       rs2(n,tfvw) = max(1,min(h,rs2(n,tfvw)));
+%     end
+%     
+%     %where are the features relative to bbox?
+%     if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
+%       assert(false,'AL');
+%       %         %to which group (zone) does each feature belong?
+%       %         occlD.group(n,:)=codifyPos((cs1(n,:)-bboxes(n,1))./bboxes(n,3),...
+%       %             (rs1(n,:)-bboxes(n,2))./bboxes(n,4),...
+%       %             occlPrm.nrows,occlPrm.ncols);
+%       %         %to which group (zone) does each landmark belong?
+%       %         groupF=codifyPos((poscs(n,:)-bboxes(n,1))./bboxes(n,3),...
+%       %             (posrs(n,:)-bboxes(n,2))./bboxes(n,4),...
+%       %             occlPrm.nrows,occlPrm.ncols);
+%       %         %NEW
+%       %         %therefore, what is the occlusion in each group (zone)
+%       %         occlAm=zeros(1,nGroups);
+%       %         for g=1:nGroups
+%       %             occlAm(g)=sum(occl(n,groupF==g));
+%       %         end
+%       %         %feature occlusion = sum of occlusion on that area
+%       %         occlD.featOccl(n,:)=occlAm(occlD.group(n,:));
+%     end
+%     
+%     inds1 = rs1(n,tfvw) + (cs1(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
+%     ftrs1 = hlpFtr(img,inds1);
+%     switch ftrData.type
+%       case {'single landmark' '2lm' 'two landmark elliptical'}
+%         ftrs(n,tfvw) = ftrs1;
+%       case '2lmdiff'
+%         inds2 = rs2(n,tfvw) + (cs2(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
+%         ftrs2 = hlpFtr(img,inds2);
+%         ftrs(n,tfvw) = ftrs1-ftrs2;
+%       otherwise
+%         assert(false);
+%     end
+%   end
+% end
+
 end
 
 function ftrs1 = hlpFtr(img,inds1)
