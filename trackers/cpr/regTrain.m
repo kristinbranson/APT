@@ -63,6 +63,15 @@ end
 
 assert(any(strcmp(loss,{'L1','L2'})));
 
+% KB 20180420: reorder data randomly so that we can sample by selecting
+% from the top
+N = size(data,1);
+dataorder = randperm(N);
+[~,datareorder] = sort(dataorder);
+data = data(dataorder,:);
+ys = ys(dataorder,:);
+dataisshuffled = true;
+
 % precompute feature stats to be used by selectCorrFeat
 if R==0
   if checkPath
@@ -119,7 +128,7 @@ for k=1:K
           stdFtrs2=stdFtrs(keep,keep);
           ftrPrm1=ftrPrm;ftrPrm1.F=length(keep);
           [use,ftrs] = selectCorrFeat(M,ysTar,data2,...
-            ftrPrm1,stdFtrs2,dfFtrs2);
+            ftrPrm1,stdFtrs2,dfFtrs2,dataisshuffled);
           use=keep(use);
         else
           [use,ftrs] = selectCorrFeat(M,ysTar,data,...
@@ -127,7 +136,7 @@ for k=1:K
         end
         %ow use all features
       else
-        [use,ftrs] = selectCorrFeat(M,ysTar,data,ftrPrm,stdFtrs,dfFtrs);
+        [use,ftrs] = selectCorrFeat(M,ysTar,data,ftrPrm,stdFtrs,dfFtrs,dataisshuffled);
       end
       %Train regressor using selected features
       [reg1,ys1] = regFun(ysTar,ftrs,M,regPrm);
@@ -200,7 +209,7 @@ for k=1:K
 end
 % create output struct
 clear data ys; 
-ysPr = ysSum;
+ysPr = ysSum(datareorder,:);
 if R==0 
   clear stdFtrs dfFtrs; 
 end

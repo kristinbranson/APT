@@ -470,7 +470,12 @@ classdef Shape
       % vectorized version of this
       % c = cov(xy);
       mu = sum(xys,1) / npt;
-      diffs = xys - mu;
+      % old matlab requires explicit bsxfun
+      if verLessThan('matlab','9.2.0'),
+        diffs = bsxfun(@minus,xys,mu);
+      else
+        diffs = xys - mu;
+      end
       cs = zeros([2,2,nshapes]);
       cs(1,1,:) = sum(diffs(:,1,:).^2,1);
       cs(1,2,:) = sum(diffs(:,1,:).*diffs(:,2,:),1);

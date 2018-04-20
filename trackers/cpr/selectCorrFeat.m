@@ -1,4 +1,4 @@
-function [use,ftrsSel] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs)
+function [use,ftrsSel] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs,dataisshuffled)
 % Selection of features based on their correlation, as proposed
 % in "Face Alignment by Explicit Shape Regression", Cao et al, CVPR12.
 %
@@ -34,6 +34,10 @@ function [use,ftrsSel] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs)
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
+if nargin < 7,
+  dataisshuffled = false;
+end
+
 [N,D] = size(pTar);
 F = size(ftrs,2);
 
@@ -46,7 +50,11 @@ assert(isfield(ftrPrm,'nsample_cor'));
 nsample = ftrPrm.nsample_cor;
 
 if nsample < N
-  dosample = rand(N,1) <= nsample/N;
+  if dataisshuffled,
+    dosample = 1:nsample;
+  else
+    dosample = rand(N,1) <= nsample/N;
+  end
 else
   dosample = true(N,1);
 end

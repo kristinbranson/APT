@@ -732,19 +732,37 @@ for iview = 1:nviews
   ws = cellfun(@(x) size(x,2), Is(:,iview));
   hs = hs(imgIds);
   ws = ws(imgIds);
-  cs1(:,tfvw) = min(ws,cs1(:,tfvw));
-  rs1(:,tfvw) = min(hs,rs1(:,tfvw));
+  % old matlab requires explicit bsxfun
+  if verLessThan('matlab','9.2.0'),
+    cs1(:,tfvw) = bsxfun(@min,ws,cs1(:,tfvw));
+    rs1(:,tfvw) = bsxfun(@min,hs,rs1(:,tfvw));
+  else    
+    cs1(:,tfvw) = min(ws,cs1(:,tfvw));
+    rs1(:,tfvw) = min(hs,rs1(:,tfvw));
+  end
     
   if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
     assert(false,'AL');
   end
 
-  inds1s = rs1(:,tfvw) + (cs1(:,tfvw)-1).*hs + (chn(:,tfvw)-1).*hs.*ws;
+  % old matlab requires explicit bsxfun
+  if verLessThan('matlab','9.2.0'),
+    inds1s = rs1(:,tfvw) + bsxfun(@times,cs1(:,tfvw)-1,hs) + bsxfun(@times,chn(:,tfvw)-1,hs.*ws);
+  else
+    inds1s = rs1(:,tfvw) + (cs1(:,tfvw)-1).*hs + (chn(:,tfvw)-1).*(hs.*ws);
+  end
   
   if strcmp(ftrData.type,'2lmdiff')
-    cs2(:,tfvw) = min(ws,cs2(:,tfvw));
-    rs2(:,tfvw) = min(hs,rs2(:,tfvw));
-    inds2s = rs2(:,tfvw) + (cs2(:,tfvw)-1).*h + (chn(:,tfvw)-1).*h.*w;
+    % old matlab requires explicit bsxfun
+    if verLessThan('matlab','9.2.0'),
+      cs2(:,tfvw) = bsxfun(@min,ws,cs2(:,tfvw));
+      rs2(:,tfvw) = bsxfun(@min,hs,rs2(:,tfvw));
+      inds2s = rs2(:,tfvw) + bsxfun(@times,cs2(:,tfvw)-1,h) + bsxfun(@times,chn(:,tfvw)-1,h.*w);
+    else
+      cs2(:,tfvw) = min(ws,cs2(:,tfvw));
+      rs2(:,tfvw) = min(hs,rs2(:,tfvw));
+      inds2s = rs2(:,tfvw) + (cs2(:,tfvw)-1).*h + (chn(:,tfvw)-1).*h.*w;
+    end
   end
   
   switch ftrData.type

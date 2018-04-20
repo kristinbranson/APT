@@ -71,7 +71,12 @@ classdef Ferns
 %       end
 %       inds = inds+1;
       
-      inds = sum( (X(:,fids) < thrs) .* 2.^(S-1:-1:0), 2 )+1;
+      % old matlab requires explicit bsxfun
+      if verLessThan('matlab','9.2.0'), 
+        inds = sum( bsxfun(@times,bsxfun(@lt,X(:,fids),thrs),2.^(S-1:-1:0)), 2 )+1;
+      else
+        inds = sum( (X(:,fids) < thrs) .* 2.^(S-1:-1:0), 2 )+1;
+      end
 
       % KB 20180418: again, this seems to be like 10X slower than the new
       % version below
