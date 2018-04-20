@@ -1,6 +1,7 @@
 %%
-load tblFinalReconciled_20180415T212437;
+load trnDataSH_Apr18.mat;
 %%
+t = tFinalReconciled;
 id = strcat(t.lblCat,'#',numarr2trimcellstr(t.flyID),'#',t.movID);
 idC = categorical(id);
 tCats = sortedsummary(idC)
@@ -9,9 +10,9 @@ idC = reordercats(idC,tCats.cats);
 hFig = figure;
 cla;
 ax = createsubplots(2,1);
-plot(ax(1),tCats.idCcnts,'.');
+plot(ax(1),tCats.cnts,'.');
 grid(ax(1),'on');
-plot(ax(2),tCats.idCcnts,'o');
+plot(ax(2),tCats.cnts,'o');
 grid(ax(2),'on');
 set(ax(2),'Xscale','log','YScale','log');
 %%

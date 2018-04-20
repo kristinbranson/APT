@@ -63,9 +63,7 @@ fprintf(1,'... nTrk=%d.\n',nTrk);
 
 % I, bbs
 I = I(tfTrk,viewIdx);
-sz = cellfun(@(x)[size(x,2) size(x,1)],I,'uni',0);
-bboxes = cellfun(@(x)[[1 1] x],sz,'uni',0);
-bboxes = cat(1,bboxes{:});
+bboxes = makeBBoxes(I);
 
 % Track
 rc = mat.rc;

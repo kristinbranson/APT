@@ -1,6 +1,6 @@
 function hFig = easymontage(I,p,nr,nc,varargin)
 
-[mrkr,mrkrsz,clr,idstr,hFig,doroi,roixrad,roiyrad] = myparse(varargin,...
+[mrkr,mrkrsz,clr,idstr,hFig,doroi,roixrad,roiyrad,axisimage] = myparse(varargin,...
   'marker','.',...
   'markerSize',10,...
   'color',[1 1 0],... % either [1x3], or [nptx3]
@@ -8,7 +8,8 @@ function hFig = easymontage(I,p,nr,nc,varargin)
   'hFig',[],...
   'doroi',false,... % if true, zoom in on label centroid
   'roixrad',75,...
-  'roiyrad',75);
+  'roiyrad',75,...
+  'axisimage',false);
 
 [N,D] = size(p);
 assert(numel(I)==N);
@@ -62,6 +63,8 @@ for ipage=1:npage
       ycent = nanmean(py);
       roi = [xcent-roixrad xcent+roixrad ycent-roiyrad ycent+roiyrad];
       axis(ax,roi);
+    elseif axisimage
+      axis(ax,'image');
     end
     
     lims = axis(ax);

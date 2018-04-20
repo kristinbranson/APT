@@ -50,11 +50,7 @@ fprintf(1,'... view %d.\n',viewIdx);
 szassert(tbl.pLbl,[n 20]);
 p = tbl.pLbl(tfTrn,[1:5 11:15] + 5*(viewIdx-1));
 I = I(tfTrn,viewIdx);
-
-% BBs
-sz = cellfun(@(x)[size(x,2) size(x,1)],I,'uni',0);
-bboxes = cellfun(@(x)[[1 1] x],sz,'uni',0);
-bboxes = cat(1,bboxes{:});
+bboxes = makeBBoxes(I);
 
 % Do it
 rc = RegressorCascade(sPrm);
