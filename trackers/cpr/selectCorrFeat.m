@@ -1,4 +1,4 @@
-function [use,ftrsSel] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs,dataisshuffled)
+function [use,ftrsSel] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs)
 % Selection of features based on their correlation, as proposed
 % in "Face Alignment by Explicit Shape Regression", Cao et al, CVPR12.
 %
@@ -34,10 +34,6 @@ function [use,ftrsSel] = selectCorrFeat(S,pTar,ftrs,ftrPrm,stdFtrs,dfFtrs,datais
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
-if nargin < 7,
-  dataisshuffled = false;
-end
-
 [N,D] = size(pTar);
 F = size(ftrs,2);
 
@@ -46,12 +42,16 @@ b = rand(D,S)*2-1;
 b = bsxfun(@rdivide,b,sqrt(sum(b.^2,1))); % [DxS], each col is a D-dim unit vec
 
 
-assert(isfield(ftrPrm,'nsample_cor'));
-nsample = ftrPrm.nsample_cor;
+if isfield(ftrPrm,'corsamples') && ~isempty(ftrPrm.corsamples),
+  nsample = ftrPrm.corsamples(2)-ftrPrm.corsamples(1)+1;
+else
+  assert(isfield(ftrPrm,'nsample_cor'));
+  nsample = ftrPrm.nsample_cor;
+end
 
 if nsample < N
-  if dataisshuffled,
-    dosample = 1:nsample;
+  if isfield(ftrPrm,'corsamples') && ~isempty(ftrPrm.corsamples),
+    dosample = ftrPrm.corsamples(1):ftrPrm.corsamples(2);
   else
     dosample = rand(N,1) <= nsample/N;
   end

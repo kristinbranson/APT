@@ -376,6 +376,9 @@ classdef RegressorCascade < handle
       ftrRadiusOrig = paramFtr.radius; % for t-dependent ftr radius
       paramReg = obj.prmReg;
 
+      % KB 20180421: which indices to sample
+      paramFtr.stdsamples = [1,paramFtr.nsample_std];
+      
       if tfWB
         wbObj.startPeriod('Training propagation',...
           'shownumden',true,'denominator',T);
@@ -425,6 +428,7 @@ classdef RegressorCascade < handle
         % Regress
         paramReg.ftrPrm = paramFtr;
         paramReg.prm.useFern3 = true;
+        paramReg.doshuffle = false;
         fernOutput0 = squeeze(obj.fernOutput(t,:,:,:));
         if ~update
           paramReg.checkPath = (t==t0);

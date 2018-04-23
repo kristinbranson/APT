@@ -765,8 +765,14 @@ for iview = 1:nviews
     end
   end
   
+%   tic;
+%   inds1smat = inds1s + hs(1)*ws(1)*(imgIds-1);
+%   ftrs(:,tfvw) = Ismat(inds1smat);
+%   toc;
+  
   switch ftrData.type
     case {'single landmark' '2lm' 'two landmark elliptical'}
+      
       for n = 1:M,
         ftrs(n,tfvw) = hlpFtr(Is{imgIds(n),iview},inds1s(n,:));
       end

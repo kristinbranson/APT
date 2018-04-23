@@ -795,6 +795,66 @@ classdef CPRData < handle
       nChan = nChanPP+1;
     end
     
+    function [Iinfo,nChan] = getCombinedIsMat(obj,iTrl) % obj CONST
+      % Get .I combined with .Ipp for specified trials.
+      %
+      % iTrl: [nTrl] vector of trials
+      %
+      % Is: vector of all nTrl x nView images strung out in order of rows, pixels, channels, image, view
+      % imszs: [2 x nView x nTrl] size of each image
+      % imoffs: [nView x nTrl] offset for indexing image (view,i) (image will
+      % be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
+      % nChan: number of TOTAL channels used/found
+      
+      if obj.nView==1
+        nChanPP = numel(obj.IppInfo);
+      else
+        if isempty(obj.IppInfo)
+          nChanPP = 0;
+        else
+          nChanPP = cellfun(@numel,obj.IppInfo);
+          nChanPP = unique(nChanPP);
+        end
+        assert(isscalar(nChanPP));
+      end
+      fprintf(1,'Using %d additional channels.\n',nChanPP);
+      
+      Iinfo = struct;
+      nTrl = numel(iTrl);
+      nVw = obj.nView;
+      Iinfo.Is = [];
+      Iinfo.imszs = nan([2,nVw,nTrl]);
+      Iinfo.imoffs = nan([nVw,nTrl]);
+      Iinfo.imoffs(1) = 0;
+      for i=1:nTrl
+        iT = iTrl(i);
+        for iVw=1:nVw        
+          im = obj.I{iT,iVw};
+          if isa(im,'uint8')
+            im = double(im)/255;
+          elseif isa(im,'uint16')
+            im = double(im)/(2^16-1);
+          end
+          if nChanPP==0
+            impp = nan(size(im,1),size(im,2),0);
+          else
+            impp = obj.Ipp{iT,iVw};
+          end
+          assert(size(impp,3)==nChanPP);
+          im = cat(3,im,impp);
+          szcurr = numel(im);
+          offnext = Iinfo.imoffs(i,iVw)+szcurr;
+          Iinfo.Is(imoffs(i)+1:imoffs(i)+offnext) = im;
+          if iVw < nVw || i < nTrl,
+            Iinfo.imoffs((i-1)*nVw+iVw+1) = offnext;
+          end
+        end
+      end
+      
+      nChan = nChanPP+1;
+    end
+    
+    
     function [sgscnts,slscnts,sgsedge,slsedge] = calibIppJan(obj,nsamp)
       % Sample SGS/SLS intensity histograms
       %
