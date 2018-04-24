@@ -552,7 +552,11 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 % INPUTS
 %  model    - shape model
 %  phis     - [MxD] shape for each image, absolute coords. 
-%  Is       - cell [NxnView] input images [w x h x nChn] variable w, h
+% Is: struct with the following fields:
+%   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
+%   imszs: [2 x N x nView] size of each image
+%   imoffs: [N x nView] offset for indexing image (view,i) (image will
+%     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
 %  ftrData  - scalar struct, feature definitions. output of ftrsGen
 %  imgIds   - [Mx1] image id for each phi, indices into rows of Is.
 %  pStar   -  [1xD] UNUSED ATM. average shape (see initTr)
@@ -576,7 +580,13 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 
 [M,D] = size(phis);
 assert(D==model.D);
-[N,nviews] = size(Is);
+
+iscellIs = iscell(Is);
+if iscellIs,
+  [N,nviews] = size(Is);
+else
+  [N,nviews] = size(Is.imoffs);
+end
 assert(nviews==model.nviews);
 if nargin<5 || isempty(imgIds)
   imgIds = 1:N; 
@@ -714,8 +724,12 @@ assert(all(ismember(vw,1:nviews)));
 
 % KB 20180419: vectorized version of commented code below
 
-chs = cellfun(@(x) size(x,3), Is);
-assert(all(chs(:)==nChn));
+if iscellIs,
+  chs = cellfun(@(x) size(x,3), Is);
+  assert(all(chs(:)==nChn));
+else
+  % chs should all be nChn now, not saved
+end
 
 cs1 = max(cs1,1);
 rs1 = max(rs1,1);
@@ -728,8 +742,13 @@ for iview = 1:nviews
   
   tfvw = vw==iview; % [F] logical. 1 where cols of cs1,rs1,ftrs are for current view  
   
-  hs = cellfun(@(x) size(x,1), Is(:,iview));
-  ws = cellfun(@(x) size(x,2), Is(:,iview));
+  if iscellIs,
+    hs = cellfun(@(x) size(x,1), Is(:,iview));
+    ws = cellfun(@(x) size(x,2), Is(:,iview));
+  else
+    hs = Is.imszs(1,:,iview)';
+    ws = Is.imszs(2,:,iview)';
+  end
   hs = hs(imgIds);
   ws = ws(imgIds);
   % old matlab requires explicit bsxfun
@@ -764,25 +783,42 @@ for iview = 1:nviews
       inds2s = rs2(:,tfvw) + (cs2(:,tfvw)-1).*h + (chn(:,tfvw)-1).*h.*w;
     end
   end
-  
-%   tic;
-%   inds1smat = inds1s + hs(1)*ws(1)*(imgIds-1);
-%   ftrs(:,tfvw) = Ismat(inds1smat);
-%   toc;
-  
+    
   switch ftrData.type
     case {'single landmark' '2lm' 'two landmark elliptical'}
       
-      for n = 1:M,
-        ftrs(n,tfvw) = hlpFtr(Is{imgIds(n),iview},inds1s(n,:));
+      if iscellIs,
+        for n = 1:M,
+          ftrs(n,tfvw) = hlpFtr(Is{imgIds(n),iview},inds1s(n,:));
+        end
+      else
+        if verLessThan('matlab','9.2.0'),
+          ftrs(:,tfvw) = Is.Is(bsxfun(@plus,inds1s,Is.imoffs(imgIds,iview)));
+        else
+          ftrs(:,tfvw) = Is.Is(inds1s+Is.imoffs(imgIds,iview));
+        end
       end
+              
     case '2lmdiff'
-      for n = 1:M,
-        ftrs1 = hlpFtr(Is{imgIds(n),iview},inds1s(n,:));
-        ftrs2 = hlpFtr(Is{imgIds(n),iview},inds2s(n,:));
-        ftrs(n,tfvw) = ftrs1-ftrs2;
+
+      if iscellIs,
+        for n = 1:M,
+          ftrs1 = hlpFtr(Is{imgIds(n),iview},inds1s(n,:));
+          ftrs2 = hlpFtr(Is{imgIds(n),iview},inds2s(n,:));
+          ftrs(n,tfvw) = ftrs1-ftrs2;
+        end
+      else
+      
+        if verLessThan('matlab','9.2.0'),
+          ftrs1 = Is.Is(bsxfun(@plus,inds1s,Is.imoffs(imgIds,iview)));
+          ftrs2 = Is.Is(bsxfun(@plus,inds2s,Is.imoffs(imgIds,iview)));
+        else
+          ftrs1 = Is.Is(inds1s+Is.imoffs(imgIds,iview));
+          ftrs2 = Is.Is(inds2s+Is.imoffs(imgIds,iview));
+        end
+        ftrs(:,tfvw) = ftrs1-ftrs2;
       end
-    
+         
   end
 end
 

@@ -84,9 +84,6 @@ end
 
 % KB 20180421: use intervals of samples for speed
 [corsamplestarts,corsampleends] = SelectWrappingSampleSubsets(K,N,ftrPrm.nsample_cor);
-if ftrPrm.nsample_std < N,
-  ftrPrm.stdsamples = [1,ftrPrm.nsample_std];
-end
 
 % precompute feature stats to be used by selectCorrFeat
 if R==0
@@ -134,6 +131,11 @@ for k=1:K
   %Train Stot different regressors
   ysPred = zeros(N,D,Stot);
   for s=1:Stot
+    
+    ftrPrm1 = ftrPrm;
+    % KB: choose a different interval of samples each fern
+    ftrPrm1.corsamples = [corsamplestarts(k),corsampleends(k)];
+    
     %Select features from correlation score directly
     if R==0
       %If occlusion-centered approach, enforce feature variety
@@ -142,26 +144,23 @@ for k=1:K
         if(~isempty(keep))
           data2=data(:,keep);dfFtrs2=dfFtrs(:,keep);
           stdFtrs2=stdFtrs(keep,keep);
-          ftrPrm1=ftrPrm;ftrPrm1.F=length(keep);
-          % KB: choose a different interval of samples each fern
-          ftrPrm1.corsamples = [corsamplestarts(k),corsampleends(k)];
+          ftrPrm1.F=length(keep);
           [use,ftrs] = selectCorrFeat(M,ysTar,data2,...
             ftrPrm1,stdFtrs2,dfFtrs2);
           use=keep(use);
         else
-          ftrPrm = ftrPrm1;
-          % KB: choose a different interval of samples each fern
-          ftrPrm1.corsamples = [corsamplestarts(k),corsampleends(k)];
           [use,ftrs] = selectCorrFeat(M,ysTar,data,...
             ftrPrm1,stdFtrs,dfFtrs);
         end
         %ow use all features
       else
-        [use,ftrs] = selectCorrFeat(M,ysTar,data,ftrPrm,stdFtrs,dfFtrs);
+        [use,ftrs] = selectCorrFeat(M,ysTar,data,ftrPrm1,stdFtrs,dfFtrs);
       end
+            
       %Train regressor using selected features
       [reg1,ys1] = regFun(ysTar,ftrs,M,regPrm);
       reg1.fids = use;
+      
       %fprintf(1,'Saving fern features in reg\n');
       %reg1.X = ftrs;
       
@@ -298,6 +297,7 @@ regSt = struct(...
   'ysFern',ysFern,... % [2^MxD], fern predictions for each fern index
   'thrs',thrs,... % [1xM], fern thresholds
   'yMu',mu); % [1xD], (nan)mean of output vectors
+
 end
 
 function [regSt,Y_pred]=trainLin(Y,X,~,~)

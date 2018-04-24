@@ -933,7 +933,8 @@ classdef CPRLabelTracker < LabelTracker
       fprintf(1,'Training data summary:\n');
       d.summarize('mov',d.iTrn);
       
-      [Is,nChan] = d.getCombinedIs(d.iTrn);
+      %[Is,nChan] = d.getCombinedIs(d.iTrn);
+      [Is,nChan] = d.getCombinedIsMat(d.iTrn);
       prm.Ftr.nChn = nChan;
       
       iPt = prm.TrainInit.iPt;

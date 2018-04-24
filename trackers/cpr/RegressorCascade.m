@@ -171,7 +171,11 @@ classdef RegressorCascade < handle
     %#3DOK
     function [ftrs,iFtrs] = computeFeatures(obj,t,I,bboxes,p,pIidx,tfused,calrig) % obj CONST
       % t: major iteration
-      % I: [NxnView] Cell array of images (nView==1) or imageSets (nView>1)
+      % I: struct with the following fields:
+      %   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
+      %   imszs: [2 x N x nView] size of each image
+      %   imoffs: [N x nView] offset for indexing image (view,i) (image will
+      %     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
       % bboxes: [Nx2*d]. Currently unused (used only for occlusion)
       % p: [QxD] shapes, absolute coords. p(i,:) is p-vector for image(s) I(pIidx(i),:)
       % pIidx: [Q] indices into rows of I (imageSets) labeling 1st dim of p
@@ -210,7 +214,11 @@ classdef RegressorCascade < handle
     
     %#3DOK
     function [pAll,pIidx,p0,p0info] = trainWithRandInit(obj,I,bboxes,pGT,varargin)
-      % I: [NxnView] cell array of images
+      % I: struct with the following fields:
+      %   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
+      %   imszs: [2 x N x nView] size of each image
+      %   imoffs: [N x nView] offset for indexing image (view,i) (image will
+      %     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
       %
@@ -237,7 +245,13 @@ classdef RegressorCascade < handle
         'orientationThetas',[]... % [N] vector of "externally" known orientations for animals. Required if prmRotCurr.use and prmTrainInit.usetrxorientation
         );
       
-      N = size(I,1);      
+      % KB 20180423: changing Is to no longer be a cell for faster indexing
+      if iscell(I),
+        N = size(I,1);
+      else
+        N = size(I.imoffs,1);
+      end
+
       if ~isempty(orientationThetas)
         assert(isvector(orientationThetas) && numel(orientationThetas)==N);
       end
@@ -312,7 +326,11 @@ classdef RegressorCascade < handle
     %#3DOK
     function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
       %
-      % I: [NxnView] cell array of images
+      % I: struct with the following fields:
+      %   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
+      %   imszs: [2 x N x nView] size of each image
+      %   imoffs: [N x nView] offset for indexing image (view,i) (image will
+      %     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
       % p0: [QxD] initial shapes (absolute coords).
@@ -334,7 +352,12 @@ classdef RegressorCascade < handle
       
       model = obj.prmModel;
       
-      [NI,nview] = size(I);
+      % KB 20180423: Changed from cells for faster indexing
+      if iscell(I),
+        [NI,nview] = size(I);
+      else
+        [NI,nview] = size(I.imoffs);
+      end
       assert(nview==model.nviews);
       assert(isequal(size(bboxes),[NI 2*obj.mdld]));
       assert(isequal(size(pGT),[NI obj.mdlD]));      
@@ -375,15 +398,15 @@ classdef RegressorCascade < handle
       paramFtr = obj.prmFtr;
       ftrRadiusOrig = paramFtr.radius; % for t-dependent ftr radius
       paramReg = obj.prmReg;
-
-      % KB 20180421: which indices to sample
-      paramFtr.stdsamples = [1,paramFtr.nsample_std];
       
       if tfWB
         wbObj.startPeriod('Training propagation',...
           'shownumden',true,'denominator',T);
         oc = onCleanup(@()wbObj.endPeriod);
       end
+      
+      [stdsamplestarts,stdsampleends] = SelectWrappingSampleSubsets(T,Q,paramFtr.nsample_std);
+      %[trainsamplestarts,trainsampleends] = SelectWrappingSampleSubsets(T,Q,obj.prmTrainInit.NTrainPerMajor);
       
       maxFernAbsDeltaPct = nan(1,T);
       for t=t0:T
@@ -392,6 +415,10 @@ classdef RegressorCascade < handle
           if tfCancel
             return;
           end
+        end
+        
+        if paramFtr.nsample_std < Q,
+          paramFtr.stdsamples = [stdsamplestarts(t),stdsampleends(t)];
         end
         
         if paramReg.rotCorrection.use
@@ -445,6 +472,7 @@ classdef RegressorCascade < handle
             obj.fernOutput(t,u,:,:) = ri.ysFern;
             obj.fernTS(t,u) = now();
           end
+          
         else
           % update: fernN, fernCounts, fernSums, fernOutput, fernTS
           % calc: pDel
@@ -454,7 +482,20 @@ classdef RegressorCascade < handle
         end
         fernOutput1 = squeeze(obj.fernOutput(t,:,:,:));
         maxFernAbsDeltaPct(t) = obj.computeMaxFernAbsDelta(fernOutput0,fernOutput1);
-                  
+
+%         % compute pDel for other samples
+%         istraincur = false(Q,1);
+%         istraincur(trainsamplestarts(t):trainsampleends(t)) = true;
+%         
+%         for u=1:obj.nMinor
+%           x = obj.computeMetaFeature(X(~istraincur,:),iFtrsComp,t,u,obj.prmFtr.metatype);
+%           thrs = squeeze(obj.fernThresh(t,u,:));
+%           inds = fernsInds(x,uint32(1:obj.M),thrs(:)');
+%           yFern = squeeze(obj.fernOutput(t,u,inds,:));
+%           assert(ndims(yFern)==2); %#ok<ISMAT>
+%           pDel(~istraincur,:) = pDel(~istraincur,:) + yFern; % normalized units
+%         end
+
         % Apply pDel
         if paramReg.rotCorrection.use
           assert(obj.mdld==2,'Unchecked for 3D.');

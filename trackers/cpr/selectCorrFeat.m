@@ -113,9 +113,8 @@ switch ftrPrm.metatype
     % - ftrs is [nsampxF]
     % - dfFtrs is [nsampxF]
     % - Bsamp is [nsampxS]    
-    args = {pTarSamp,ftrs(dosample,:),SELECTCORRFEATTYPE,stdFtrs,...
-      dfFtrs(dosample,:),Bsamp,BsampSD,BsampMu}; 
-    use = selectCorrFeatAL(args{:});
+    use = selectCorrFeatAL(pTarSamp,ftrs(dosample,:),SELECTCORRFEATTYPE,stdFtrs,...
+      dfFtrs(dosample,:),Bsamp,BsampSD,BsampMu);
     
     assert(isequal(size(use),[2 S]));
     iF1 = use(1,:);

@@ -800,12 +800,13 @@ classdef CPRData < handle
       %
       % iTrl: [nTrl] vector of trials
       %
-      % Is: vector of all nTrl x nView images strung out in order of rows, pixels, channels, image, view
-      % imszs: [2 x nView x nTrl] size of each image
-      % imoffs: [nView x nTrl] offset for indexing image (view,i) (image will
-      % be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
+      % Iinfo is a struct with the following fields:
+      %   Is: vector of all nTrl x nView images strung out in order of rows, pixels, channels, image, view
+      %   imszs: [2 x nTrl x nView] size of each image
+      %   imoffs: [nTrl x nView] offset for indexing image (i,view) (image will
+      %     be from off(i,view)+1:off(i,view)+imszs(1,i,view)*imszs(2,i,view)
       % nChan: number of TOTAL channels used/found
-      
+            
       if obj.nView==1
         nChanPP = numel(obj.IppInfo);
       else
@@ -823,8 +824,8 @@ classdef CPRData < handle
       nTrl = numel(iTrl);
       nVw = obj.nView;
       Iinfo.Is = [];
-      Iinfo.imszs = nan([2,nVw,nTrl]);
-      Iinfo.imoffs = nan([nVw,nTrl]);
+      Iinfo.imszs = nan([2,nTrl,nVw]);
+      Iinfo.imoffs = nan([nTrl,nVw]);
       Iinfo.imoffs(1) = 0;
       for i=1:nTrl
         iT = iTrl(i);
@@ -844,16 +845,16 @@ classdef CPRData < handle
           im = cat(3,im,impp);
           szcurr = numel(im);
           offnext = Iinfo.imoffs(i,iVw)+szcurr;
-          Iinfo.Is(imoffs(i)+1:imoffs(i)+offnext) = im;
+          Iinfo.Is(Iinfo.imoffs(i)+1:offnext) = im;
+          Iinfo.imszs(:,i,iVw) = [size(im,1),size(im,2)];
           if iVw < nVw || i < nTrl,
-            Iinfo.imoffs((i-1)*nVw+iVw+1) = offnext;
+            Iinfo.imoffs(nTrl*(iVw-1)+i+1) = offnext;
           end
         end
       end
       
       nChan = nChanPP+1;
     end
-    
     
     function [sgscnts,slscnts,sgsedge,slsedge] = calibIppJan(obj,nsamp)
       % Sample SGS/SLS intensity histograms
