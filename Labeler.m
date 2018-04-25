@@ -5014,6 +5014,8 @@ classdef Labeler < handle
         wbObj.startPeriod('Compiling labels','shownumden',true,...
           'denominator',nrow);
         oc = onCleanup(@()wbObj.endPeriod);
+        wbtime = tic;
+        maxwbtime = 1; % update waitbar every second
       end
       
       % Maybe Optimize: group movies together
@@ -5029,7 +5031,8 @@ classdef Labeler < handle
       bTrxAcc = nan(0,nView);
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
       for irow=1:nrow
-        if tfWB
+        if tfWB && toc(wbtime) >= maxwbtime,
+          wbtime = tic;
           tfCancel = wbObj.updateFracWithNumDen(irow);
           if tfCancel
             return;
