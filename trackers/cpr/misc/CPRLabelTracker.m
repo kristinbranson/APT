@@ -2107,7 +2107,7 @@ classdef CPRLabelTracker < LabelTracker
             rc(i).prmFtr.type = 'single landmark';            
           end
           for iSpec=1:numel(rc(i).ftrSpecs)
-            if strcmp(rc(i).ftrSpecs{iSpec}.type,'1lm')
+            if ~isempty(rc(i).ftrSpecs{iSpec}) && strcmp(rc(i).ftrSpecs{iSpec}.type,'1lm')
               rc(i).ftrSpecs{iSpec}.type = 'single landmark';
             end
           end
