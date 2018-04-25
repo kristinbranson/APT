@@ -1688,7 +1688,14 @@ classdef CPRLabelTracker < LabelTracker
       
     end
       
-    
+    function hlpTrackWrapupViz(obj)
+      if ~isempty(obj.lObj)
+        obj.vizLoadXYPrdCurrMovieTarget();
+        obj.newLabelerFrame();
+        notify(obj,'newTrackingResults');
+      end
+    end
+
     %MTGT
     %#%MV
     function [trkfiles,tfHasRes] = getTrackingResults(obj,mIdx)
