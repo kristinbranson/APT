@@ -579,7 +579,12 @@ classdef RegressorCascade < handle
 
       model = obj.prmModel;
 
-      [NI,nview] = size(I);
+      isCellI = iscell(I);
+      if isCellI,
+        [NI,nview] = size(I);
+      else
+        [NI,nview] = size(I.imoffs);
+      end
       assert(nview==model.nviews);
       assert(isequal(size(bboxes),[NI 2*obj.mdld]));
       [Q,D] = size(p0);
@@ -608,7 +613,7 @@ classdef RegressorCascade < handle
             return;
           end
         else
-          fprintf(1,'Applying cascaded regressor: %d/%d\n',t,T);
+          %fprintf(1,'Applying cascaded regressor: %d/%d\n',t,T);
         end
               
         [X,iFtrsComp] = obj.computeFeatures(t,I,bboxes,p,pIidx,true,calrig);
@@ -655,9 +660,15 @@ classdef RegressorCascade < handle
         'wbObj',[],... %#ok<NASGU> % WaitBarWithCancel. If cancel, obj is unchanged, p_t partially filled, pIidx,p0,p0info appear 'correct'
         'orientationThetas',[]...  % [N] vector of known orientations for animals, required if xxx
         ); 
-            
+      
+      isCellI = iscell(I);
       model = obj.prmModel;
-      [N,nview] = size(I);
+      if isCellI,
+        [N,nview] = size(I);
+      else
+        [N,nview] = size(I.imoffs);
+      end
+        
       assert(nview==model.nviews);
       szassert(bboxes,[N 2*model.d]);
       if ~isempty(orientationThetas)
@@ -876,7 +887,16 @@ classdef RegressorCascade < handle
       
       hFig = figure;
       ax = axes;
-      im = I{1}(:,:,1);
+      isCellI = iscell(I);
+      
+      if isCellI,
+        im = I{1}(:,:,1);
+      else
+        off = I.imoffs(1);
+        npx = prod(I.imszs(:,1));
+        % assumes grayscale
+        im = reshape(I.Is(off+1:off+npx),I.imszs(:,1));
+      end
       imagesc([-1 1],[-1 1],im,'parent',ax);
       truesize(hFig);
       colormap(ax,'gray');

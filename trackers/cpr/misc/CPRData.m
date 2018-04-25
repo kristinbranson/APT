@@ -489,10 +489,15 @@ classdef CPRData < handle
       % 
       % bboxes: [Nx4] 2d bboxes
       
-      assert(iscell(I) && iscolumn(I));
-      sz = cellfun(@(x)[size(x,2) size(x,1)],I,'uni',0);
-      bboxes = cellfun(@(x)[[1 1] x],sz,'uni',0);
-      bboxes = cat(1,bboxes{:});      
+      if iscell(I),
+        assert(iscolumn(I));
+        sz = cellfun(@(x)[size(x,2) size(x,1)],I,'uni',0);
+        bboxes = cellfun(@(x)[[1 1] x],sz,'uni',0);
+        bboxes = cat(1,bboxes{:});
+      else
+        N = size(I.imoffs,1);
+        bboxes = [ones(N,2),I.imszs'];
+      end
     end
 
   end
@@ -854,6 +859,7 @@ classdef CPRData < handle
       end
       
       nChan = nChanPP+1;
+      Iinfo.nChan = nChan;
     end
     
     function [sgscnts,slscnts,sgsedge,slsedge] = calibIppJan(obj,nsamp)
