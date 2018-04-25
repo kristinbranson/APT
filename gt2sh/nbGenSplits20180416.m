@@ -23,6 +23,32 @@ parts = cat(2,parts{:});
 szassert(parts,[height(t) npart]); % col i is indicator vec for part i
 partsum = sum(parts,2);
 unique(partsum)
+
+%% INTERRUPT 20180423, generate 3-fold, 5-fold xv sets
+npart = 5;
+c = cvpartition(idC,'kfold',npart);
+parts = arrayfun(@(z)test(c,z),1:npart,'uni',0);
+parts = cat(2,parts{:});
+szassert(parts,[height(t) npart]); % col i is indicator vec for part i
+unique(sum(parts,2))
+sum(parts,1)
+
+xvFRsplit5 = parts;
+save trnSplits_20180418T173507.mat -append xvFRsplit5;
+
+%% INTERRUPT 20180420, generate a ntrn=50 training set, not a part of current 100-200-... subset chain
+npart = 100;
+c = cvpartition(idC,'kfold',npart);
+parts = arrayfun(@(z)test(c,z),1:npart,'uni',0);
+parts = cat(2,parts{:});
+szassert(parts,[height(t) npart]); % col i is indicator vec for part i
+partsum = sum(parts,2);
+unique(partsum)
+
+parts50 = parts(:,[2:end 1]);
+trnSet50 = parts50(:,1);
+save trnSplits_20180418T173507.mat -append parts50 trnSet50
+
 %% EMP: reorder cols of parts so the first N cols all have 100 (vs 99)
 parts = parts(:,[2:end 1]);
 sum(parts,1)
@@ -57,4 +83,5 @@ set(ax(2),'Xscale','log','YScale','log');
 nowstr = datestr(now,'yyyymmddTHHMMSS');
 fname = sprintf('trnSplits_%s.mat',nowstr);
 save(fname,'idC','npart','parts','NP','trnSets');
+
 

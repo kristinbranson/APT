@@ -110,7 +110,7 @@ gall = [tFinalReconciled.lblCat;strcat('gt',tGT.lblCat)];
 gall = strcat(bigImStr,gall);
 
 hFig = figure('position',[2561 401 1920 1124]);
-axs = createsubplots(2,2);
+axs = createsubplots(2,2,.1);
 axs = reshape(axs,2,2);
 for iVw=1:2
   ax = axs(1,iVw);
@@ -118,12 +118,20 @@ for iVw=1:2
   gscatter([lblCents(:,1,iVw);gtLblCents(:,1,iVw)],...
            [lblCents(:,2,iVw);gtLblCents(:,2,iVw)],gall);
   hold(ax,'on');
-  plot(ax,[0 1024],[512 512],'k-');
-  plot(ax,[768 768],[0 1024],'k-');
+  h = plot(ax,[0 1024],[512 512],'k-');
+  h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+  h = plot(ax,[768 768],[0 1024],'k-');
+  h.Annotation.LegendInformation.IconDisplayStyle = 'off';
   axis(gca,[0 1024 0 1024]);
   grid(gca,'on');
   axis(gca,'ij');
-  title(sprintf('vw%d',iVw),'fontweight','bold');
+  tstr = sprintf('view%d',iVw); 
+  if iVw==1
+    tstr = ['Label centroids: ' tstr];
+  else
+    legend('off');    
+  end
+  title(tstr,'fontweight','bold','fontsize',16);
 
   axes(axs(2,iVw));
   gscatter([lblNCents(:,1,iVw);gtLblNCents(:,1,iVw)],...
@@ -131,8 +139,32 @@ for iVw=1:2
   axis(gca,[-1 1 -1 1]);
   grid(gca,'on');
   axis(gca,'ij');
-  title(sprintf('lblN. vw%d',iVw),'fontweight','bold');
+  legend('off');
+  title(sprintf('Normalized lbls. view%d',iVw),'fontweight','bold','fontsize',16);
 end
+
+% set(axs(3:4),'XTickLabel',[],'YTickLabel',[]);
+hFig.Color = [1 1 1];
+hFig.PaperOrientation = 'landscape';
+hFig.PaperType = 'arch-c';
+
+%% Extreme examples
+y = lblNCents(:,2,2);
+[~,i] = sort(y);
+xtremeRows = i([1 end]);
+hFig = figure;
+axs = createsubplots(1,2);
+for i=1:2
+  ax = axs(i);
+  axes(ax);
+  imagesc(IFinalReconciled{xtremeRows(i),2});
+  colormap gray
+  axis image
+  set(ax,'XTick',[],'YTick',[]);
+end
+  
+hFig.Color = [1 1 1];
+
 
 %% Scales
 % Plot, grouped by cat and framesz.
@@ -355,7 +387,7 @@ gtLblNCents_c = squeeze(nanmean(xygtLblN_c,2));
 gall = [tFinalReconciled.lblCat;strcat('gt',tGT.lblCat)];
 
 hFig = figure('position',[2561 401 1920 1124]);
-axs = createsubplots(2,2);
+axs = createsubplots(2,2,.1);
 axs = reshape(axs,2,2);
 lims = [0 230 0 280;0 256 0 256];
 for iVw=1:2
@@ -369,7 +401,7 @@ for iVw=1:2
   axis(gca,lims(iVw,:));
   grid(gca,'on');
   axis(gca,'ij');
-  title(sprintf('vw%d',iVw),'fontweight','bold');
+  title(sprintf('vw%d',iVw),'fontweight','bold','fontsize',16);
 
   axes(axs(2,iVw));
   gscatter([lblNCents_c(:,1,iVw);gtLblNCents_c(:,1,iVw)],...
@@ -377,8 +409,13 @@ for iVw=1:2
   axis(gca,[-1 1 -1 1]);
   grid(gca,'on');
   axis(gca,'ij');
-  title(sprintf('lblN. vw%d',iVw),'fontweight','bold');
+  title(sprintf('Normalized lbls. vw%d',iVw),'fontweight','bold','fontsize',16);
 end
+
+hFig.Color = [1 1 1];
+hFig.PaperOrientation = 'landscape';
+hFig.PaperType = 'arch-c';
+
 
 %% Centroid hists, POST CROP
 
