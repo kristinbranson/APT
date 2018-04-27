@@ -1,4 +1,4 @@
-function info = CombineSplitTracking(lblFile,infoFile)
+function info = CombineSplitTracking(lblFile,infoFile,outTrkFile)
 
 fid = fopen(infoFile,'r');
 
@@ -63,7 +63,7 @@ for i = 1:numel(info),
 end
 
 if ~all(isdone),
-  fprintf('\n\nNot all jobs are completed. Cannot combine. Tails of log files for incomplete jobs:\n');
+  fprintf('\n\nNot all jobs are completed. Cannot combine. Tails of log files for incomplete jobs.\n');
   for i = find(~isdone),
     if info(i).islogfile,
       fprintf('\n%s, job %d = %s, frames %d to %d:\nLog file %s:\n',...
@@ -75,6 +75,34 @@ if ~all(isdone),
   end
   return;
 end
+
+fprintf('All jobs are complete! Combining!\n');
+for i = 1:numel(info),
+  tdcurr = load(info(i).trkFile,'-mat');
+  nFramesCurr = info(i).endFrame-info(i).startFrame+1;
+  fractrked = nnz(sum(sum(sum(~isnan(tdcurr.pTrk(:,:,info(i).startFrame:info(i).endFrame,:)),1),2),4)>0) / nFramesCurr;
+  if fractrked < 1,
+    warning('Job %d: %d / %d frames have no tracking data',i,(1-fractrked)*nFramesCurr,nFramesCurr);
+  end
+  if i == 1,
+    td = tdcurr;
+  else
+    fracprevtrked = nnz(sum(sum(sum(~isnan(td.pTrk(:,:,info(i).startFrame:info(i).endFrame,:)),1),2),4)>0) / nFramesCurr;
+    if fracprevtrked > 0,
+      warning('Job %d: %d / %d frames had been tracked in a previous job, overwriting.',i,fracprevtrked*nFramesCurr,nFramesCurr);
+    end
+    td.pTrk(:,:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrk(:,:,info(i).startFrame:info(i).endFrame,:);
+    td.pTrkTS(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTS(:,info(i).startFrame:info(i).endFrame,:);
+    td.pTrkTag(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTag(:,info(i).startFrame:info(i).endFrame,:);
+    if size(tdcurr.pTrkFull,4) > 0,
+      td.pTrkFull(:,:,:,info(i).startFrame:info(i).endFrame) = tdcurr.pTrkFull(:,:,:,info(i).startFrame:info(i).endFrame);
+    end
+  end
+end
+isTracked = sum(sum(sum(~isnan(td.pTrk),1),2),4)>0;
+fprintf('Saving tracking for %d frames between %d and %d to %s...\n',nnz(isTracked),...
+  find(isTracked,1,'first'),find(isTracked,1,'last'),outTrkFile);
+save(outTrkFile,'-struct','td');
 
 function [res,trkfile] = CheckJobStatus(infocurr,projMacros)
 

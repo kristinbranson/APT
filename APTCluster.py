@@ -264,6 +264,8 @@ def main():
                 moviestr,ext = os.path.splitext(os.path.basename(args.mov))
                 projstr,ext=os.path.splitext(os.path.basename(args.projfile))
 
+                nsubmitted = 0
+
                 for jobi in range(njobs):
                     jobidcurr = "%s-%03d"%(jobid,jobi)
                     if args.outdir:
@@ -279,7 +281,7 @@ def main():
                     else:
                         trxFile = ''
 
-                    infoline = "%d,%s,%s,%d,%d,%s,%s,%s,%s"%(jobi,args.mov,trxFile,jobstarts[jobi],jobends[jobi],jobidcurr,rawtrkname,shfilecurr,logfilecurr)
+                    infoline = "%d,%s,%s,%d,%d,%s,%s,%s,%s\n"%(jobi,args.mov,trxFile,jobstarts[jobi],jobends[jobi],jobidcurr,rawtrkname,shfilecurr,logfilecurr)
                     f.write(infoline)
                     gencode(shfilecurr,jobidcurr,args,cmdcurr)
 
@@ -293,11 +295,13 @@ def main():
 
 
                     print(qsubcmd)
-                    #subprocess.call(qsubcmd,shell=True)
+                    subprocess.call(qsubcmd,shell=True)
+                    nsubmitted += 1
+
 
                 f.close()
 
-                print("%d jobs submitted, information about them in file %s."%(njobs,jobinfofile))
+                print("%d jobs submitted, information about them in file %s."%(nsubmitted,jobinfofile))
 
                 sys.exit()
 
