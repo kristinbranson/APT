@@ -5561,12 +5561,28 @@ classdef Labeler < handle
       PROPS = Labeler.gtGetSharedPropsStc(obj.gtIsGTMode);
     end
     function gtInitSuggestions(obj,gtSuggType,nSamp)
+      % Init/set GT suggestions using gtGenerateSuggestions
       tblMFT = obj.gtGenerateSuggestions(gtSuggType,nSamp);
+      obj.gtSetUserSuggestions(tblMFT);
+    end
+    function gtSetUserSuggestions(obj,tblMFT)
+      % Set user-specified/defined GT suggestions
+      % tblMFT: .mov (MovieIndices), .frm, .iTgt
+      
+      if ~istable(tblMFT) && ~all(tblfldscontains(tblMFT,MFTable.FLDSID))
+        error('Specified table is not a valid Movie-Frame-Target table.');
+      end
+      
+      if ~isa(tblMFT,'MovieIndex')
+        warningNoTrace('Table .mov is numeric. Assuming positive indices into GT movie list (.movieFilesAllGT).');
+        tblMFT.mov = MovieIndex(tblMFT.mov,true);
+      end
+      
       obj.gtSuggMFTable = tblMFT;
       obj.gtUpdateSuggMFTableLbledComplete();
       obj.gtTblRes = [];
       obj.notify('gtSuggUpdated');
-      obj.notify('gtResUpdated');
+      obj.notify('gtResUpdated');      
     end
     function gtUpdateSuggMFTableLbledComplete(obj,varargin)
       % update .gtUpdateSuggMFTableLbled from .gtSuggMFTable/.labeledposGT
