@@ -14,8 +14,11 @@ import warnings
 import numpy as np
 
 USEQSUB = False
+DEFAULTAPTBUILDROOTDIR="/groups/branson/home/leea30/aptbuild"  # root location of binaries
 
 def main():
+
+
 
     epilogstr = 'Examples:\n.../APTCluster.py /path/to/proj.lbl -n 6 retrain\n.../APTCluster.py /path/to/proj.lbl track -n 4 --mov /path/to/movie.avi\n.../APTCluster.py /path/to/proj.lbl track -n 4 --mov /path/to/movie.avi --trx /path/to/trx.mat\n.../APTCluster.py /path/to/proj.lbl trackbatch -n 2 --movbatchfile /path/to/movielist.txt\n'
 
@@ -31,7 +34,8 @@ def main():
     parser.add_argument("--singlethreaded",help="if true, force run singlethreaded binary",action="store_true",default=False)
     parser.add_argument("--account",default="",help="account to bill for cluster time",metavar="ACCOUNT")
     parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
-    parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'") 
+    parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'")
+    parser.add_argument("--binrootdir",help="Root build directory containing saved builds. Defaults to %s"%DEFAULTAPTBUILDROOTDIR,default=DEFAULTAPTBUILDROOTDIR)
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
     parser.add_argument("--trackargs",help="use with action==track or trackbatch. enclose in quotes, additional/optional prop-val pairs")
@@ -81,12 +85,9 @@ def main():
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
         
-    args.APTBUILDROOTDIR = "/groups/branson/home/leea30/aptbuild" # root location of binaries
-    args.TMPKBBUILDROOTDIR = "/groups/branson/home/bransonk/tracking/code/APT"
-    args.TMPKBMCR = "/groups/branson/bransonlab/projects/olympiad/MCR/v92"
     if not args.bindate:
         args.bindate = "current"
-    args.binroot = os.path.join(args.APTBUILDROOTDIR,args.bindate)
+    args.binroot = os.path.join(args.binrootdir,args.bindate)
 
     args.multithreaded = not args.singlethreaded and int(args.nslots)>1
     if args.multithreaded:
@@ -96,9 +97,8 @@ def main():
     if not os.path.exists(args.bin):
         sys.exit("Cannot find binary: {0:s}".format(args.bin))
 
-    # KB: binary for getting info about movies
-    # todo - get Allen to put this in his in his build directory
-    args.infobin = os.path.join(args.TMPKBBUILDROOTDIR,"GetMovieNFrames","for_redistribution_files_only","run_GetMovieNFrames.sh")
+    # binary for getting info about movies
+    args.infobin = os.path.join(args.binroot,"APTCluster","run_GetMovieNFrames_singlethreaded.sh")
 
     args.KEYWORD = "apt" # used for log/sh filenames, sge job name
     args.MCRROOT = "/groups/branson/home/leea30/mlrt/"
@@ -248,7 +248,7 @@ def main():
                 cmd=cmd+" p0DiagImg "+p0DiagImgFull
 
             if args.splitframes > 0:
-                infocmd = [args.infobin,args.TMPKBMCR,args.mov]
+                infocmd = [args.infobin,args.mcr,args.mov]
                 s = subprocess.check_output(infocmd)
                 p=re.compile('\n\d+$') # last number
                 m = p.search(s)
@@ -260,13 +260,16 @@ def main():
 
                 jobinfofile=os.path.join(outdiruse,"splittrackinfo_{0:s}.txt".format(jobid))
                 f=open(jobinfofile,'w')
+                moviedir = os.path.dirname(args.mov)
+                moviestr,ext = os.path.splitext(os.path.basename(args.mov))
+                projstr,ext=os.path.splitext(os.path.basename(args.projfile))
 
                 for jobi in range(njobs):
                     jobidcurr = "%s-%03d"%(jobid,jobi)
                     if args.outdir:
-                        rawtrkname='%s/$movfile_$projfile_%s'%(outdiruse,jobidcurr)
+                        rawtrkname='%s/%s_%s_%s'%(outdiruse,moviestr,projstr,jobidcurr)
                     else:
-                        rawtrkname = '$movdir/$movfile_$projfile_%s'%(jobidcurr)
+                        rawtrkname = '%s/%s_%s_%s'%(moviedir,moviestr,projstr,jobidcurr)
                     cmdcurr = "%s startFrame %d endFrame %d rawtrkname %s"%(cmd,jobstarts[jobi],jobends[jobi],rawtrkname)
                     shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
                     logfilecurr = os.path.join(outdiruse,"{0:s}.log".format(jobidcurr))
