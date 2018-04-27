@@ -311,12 +311,12 @@ def main():
 
     sys.exit()
 
-def gencode(fname,jobid,args,cmd,bin=None,MCR=None):
+def gencode(fname,jobid,args,cmd,bin=None,mcr=None):
 
     if bin is None:
         bin = args.bin
-    if MCR is None:
-        MCR = args.MCR
+    if mcr is None:
+        mcr = args.mcr
 
     f = open(fname,'w')
     print("#!/bin/bash",file=f)
@@ -330,7 +330,7 @@ def gencode(fname,jobid,args,cmd,bin=None,MCR=None):
     print("echo $MCR_CACHE_ROOT",file=f)
 
     print("",file=f)
-    print(bin + " " + MCR + " " + cmd,file=f)
+    print(bin + " " + mcr + " " + cmd,file=f)
     print("",file=f)
 
     print("rm -rf",args.MCR_CACHE_ROOT+"."+jobid,file=f)

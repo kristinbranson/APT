@@ -1469,6 +1469,14 @@ classdef CPRLabelTracker < LabelTracker
       end
       if isfield(prm.TestInit,'useParFor')
         useParFor = prm.TestInit.useParFor;
+        if ~license('test','distrib_computing_toolbox') || maxNumCompThreads == 1,
+          useParFor = false;
+        end
+      end
+      
+      fprintf('useParFor = %d\n',useParFor);
+      if useParFor,
+        fprintf('maxNumCompThreads = %d\n',maxNumCompThreads);
       end
       
       if isempty(tblMFT)

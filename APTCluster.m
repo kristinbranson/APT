@@ -23,6 +23,7 @@ if exist(lblFile,'file')==0
 end
 
 lObj = Labeler();
+set(lObj.hFig,'Visible','off');
 fprintf('APTCluster: ''%s'' on project ''%s''.\n',action,lblFile);
 
 switch action
