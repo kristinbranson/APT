@@ -110,9 +110,8 @@ classdef APT
     
     function setpath()
       
-      javaaddpathstatic(fullfile(APT.Root,'java','APTJava.jar'));
-
       [p,jp] = APT.getpath();
+      cellfun(@javaaddpathstatic,jp);
       addpath(p{:},'-begin');
       
       % AL 20150824, testing of sha 1f65 on R2015a+Linux is reproducably
@@ -135,7 +134,8 @@ classdef APT
 %         randomyamlfile = fullfile(APT.Root,'YAMLMatlab_0.4.3','Tests','Data','test_import','file1.yaml');
 %         ReadYaml(randomyamlfile);
 %       end
-      javaaddpath(jp);
+
+%       javaaddpath(jp);
     end
     
     function s = codesnapshot
