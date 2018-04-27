@@ -1,5 +1,5 @@
 function simpletrack(imgVar,trkSetVar,trkSetCol,viewIdx,prmVar,...
-  tblVar,resID,varargin)
+  xyLblVar,resID,rcFile,varargin)
 %
 % imgVar: varName of image cell array I to use. mat.(imgVar) has size [NxNvw]
 % trkSetVar: (optional) varName of set array to use. mat.(trkSetVar) is a logical of size [NxNsplit]
@@ -10,7 +10,8 @@ function simpletrack(imgVar,trkSetVar,trkSetCol,viewIdx,prmVar,...
 % tblVar: (optional) varName of table to use. mat.(tblVar) has size
 %   [Nxncols]. Used if GT tracking err is desired
 % resID: results ID, base for output/results file
-% varargin: list of matfiles that will be loaded into mat.*
+% varargin: list of matfiles that will be loaded into mat.*. THE FIRST ONE
+% SHOULD BE THE RC
 
 if ischar(trkSetCol)
   trkSetCol = str2double(trkSetCol);
@@ -19,7 +20,7 @@ if ischar(viewIdx)
   viewIdx = str2double(viewIdx);
 end
   
-matfiles = varargin;
+matfiles = [{rcFile} varargin];
 
 % Load all matfiles
 mat = struct();
@@ -30,15 +31,15 @@ for i=1:numel(matfiles)
 end
 
 tfTrkSet = ~isempty(trkSetVar);
-tfTbl = ~isempty(tblVar);
+tfLblVar = ~isempty(xyLblVar);
 
 I = mat.(imgVar);
 if tfTrkSet
   trkSet = mat.(trkSetVar);
 end
 sPrm = mat.(prmVar);
-if tfTbl
-  tbl = mat.(tblVar);
+if tfLblVar
+  xyLbl = mat.(xyLblVar);
 end
 
 [n,nvw] = size(I);
@@ -47,12 +48,12 @@ if tfTrkSet
   assert(size(trkSet,1)==n && islogical(trkSet));
 end
 assert(isstruct(sPrm));
-if tfTbl
-  assert(height(tbl)==n);
+if tfLblVar
+  szassert(xyLbl,[n 5 2 2]);
 end
-fprintf(1,'Vars (I trkSet trkSetCol viewIdx prm tbl resID): %s %s %d %d %s %s %s\n',...
-  imgVar,trkSetVar,trkSetCol,viewIdx,prmVar,tblVar,resID);
-
+fprintf(1,'Vars (I trkSet trkSetCol viewIdx prm xyLblVar resID): %s %s %d %d %s %s %s\n',...
+  imgVar,trkSetVar,trkSetCol,viewIdx,prmVar,xyLblVar,resID);
+ 
 if tfTrkSet
   tfTrk = trkSet(:,trkSetCol);
 else
@@ -84,9 +85,10 @@ szassert(pTstTRed,[nTrk trkD]);
 fprintf(1,'Done pruning.\n');
 
 % (optional) Compare
-if tfTbl
-  szassert(tbl.pLbl,[n 20]);
-  pGT = tbl.pLbl(tfTrk,[1:5 11:15] + 5*(viewIdx-1));
+if tfLblVar
+  %szassert(tbl.pLbl,[n 20]);
+  %pGT = tbl.pLbl(tfTrk,[1:5 11:15] + 5*(viewIdx-1));
+  pGT = reshape(xyLbl(tfTrk,:,:,viewIdx),nTrk,10);
   
   dp = pGT-pTstTRed;
   dp = reshape(dp,[nTrk,5,2]); % i,ipt,x/y
@@ -102,16 +104,19 @@ else
 end
 
 % results
+[~,rcFileS,~] = myfileparts(rcFile);
 if tfTrkSet
-  resFile = sprintf('%s_vw%d_col%d.mat',resID,viewIdx,trkSetCol);
+  resFile = sprintf('%s__%s__%s__%scol%d.mat',resID,rcFileS,imgVar,trkSetVar,trkSetCol);
 else
-  resFile = sprintf('%s_vw%d_all.mat',resID,viewIdx);
+  resFile = sprintf('%s__%s__%s__all.mat',resID,rcFileS,imgVar);
 end
+rcPath = fileparts(rcFile);
+resFile = fullfile(rcPath,resFile);
 if exist(resFile,'file')>0
   [resFileP,resFileF,resFileE] = myfileparts(resFile);
   resFile = sprintf('%s_%s%s',resFileF,nowstr,resFileE);
   resFile = fullfile(resFileP,resFile);
 end
 save(resFile,'-mat','imgVar','trkSetVar','trkSetCol','viewIdx',...
-  'prmVar','tblVar','resID','varargin',...
-  'nowstr','p0','p0info','pTstTRed','pruneMD','errTrk');
+  'prmVar','xyLblVar','resID','varargin',...
+  'nowstr','p0','p0info','pTstTRed','pruneMD','errTrk','rcFile');

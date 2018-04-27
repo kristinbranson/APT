@@ -110,9 +110,8 @@ classdef APT
     
     function setpath()
       
-      javaaddpathstatic(fullfile(APT.Root,'java','APTJava.jar'));
-
       [p,jp] = APT.getpath();
+      cellfun(@javaaddpathstatic,jp);
       addpath(p{:},'-begin');
       
       % AL 20150824, testing of sha 1f65 on R2015a+Linux is reproducably
@@ -135,7 +134,8 @@ classdef APT
 %         randomyamlfile = fullfile(APT.Root,'YAMLMatlab_0.4.3','Tests','Data','test_import','file1.yaml');
 %         ReadYaml(randomyamlfile);
 %       end
-      javaaddpath(jp);
+
+%       javaaddpath(jp);
     end
     
     function s = codesnapshot
@@ -153,14 +153,14 @@ classdef APT
         script = APT.SnapshotScript;
         cmd = sprintf('%s -nocolor -brief %s',script,APT.Root);
         [~,s] = system(cmd);
-        s = regexp(s,newline,'split');
+        s = regexp(s,sprintf('\n'),'split');
         modules = fieldnames(manifest);        
         modules = setdiff(modules,'build');
         for i = 1:numel(modules)        
           mod = modules{i};
           cmd = sprintf('%s -nocolor -brief %s',script,manifest.(mod));
           [~,stmp] = system(cmd);
-          stmp = regexp(stmp,newline,'split');
+          stmp = regexp(stmp,sprintf('\n'),'split');
           s = [s(:);{''};sprintf('### %s',upper(mod));stmp(:)];
         end
       elseif ispc
