@@ -271,7 +271,12 @@ def main():
                     shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
                     logfilecurr = os.path.join(outdiruse,"{0:s}.log".format(jobidcurr))
 
-                    infoline = "%d,%d,%d,%s,%s,%s,%s"%(jobi,jobstarts[jobi],jobends[jobi],jobidcurr,rawtrkname,shfilecurr,logfilecurr)
+                    if args.trx:
+                        trxFile = args.trx
+                    else:
+                        trxFile = ''
+
+                    infoline = "%d,%s,%s,%d,%d,%s,%s,%s,%s"%(jobi,args.mov,trxFile,jobstarts[jobi],jobends[jobi],jobidcurr,rawtrkname,shfilecurr,logfilecurr)
                     f.write(infoline)
                     gencode(shfilecurr,jobidcurr,args,cmdcurr)
 
