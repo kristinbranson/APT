@@ -11,6 +11,7 @@ import re
 import glob
 import csv
 import warnings
+import numpy as np
 
 USEQSUB = False
 
@@ -40,7 +41,9 @@ def main():
 #    parser.add_argument("--pruneargs",help="use with action=prune*. enclose in quotes; '<sigd> <ipt> <frmstart> <frmend>'")
 #    parser.add_argument("--prunesig")
     parser.add_argument("-f","--force",help="if true, don't ask for confirmation",action="store_true",default=False)
-
+    parser.add_argument("--splitframes",
+                        help="Number of frames to track in each job. If 0, track all frames in one job.",
+                        default=0,metavar="SPLITFRAMES",type=int)
 
     args = parser.parse_args()
     
@@ -79,6 +82,8 @@ def main():
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
         
     args.APTBUILDROOTDIR = "/groups/branson/home/leea30/aptbuild" # root location of binaries
+    args.TMPKBBUILDROOTDIR = "/groups/branson/home/bransonk/tracking/code/APT"
+    args.TMPKBMCR = "/groups/branson/bransonlab/projects/olympiad/MCR/v92"
     if not args.bindate:
         args.bindate = "current"
     args.binroot = os.path.join(args.APTBUILDROOTDIR,args.bindate)
@@ -90,6 +95,10 @@ def main():
         args.bin = os.path.join(args.binroot,"APTCluster","run_APTCluster_singlethreaded.sh")
     if not os.path.exists(args.bin):
         sys.exit("Cannot find binary: {0:s}".format(args.bin))
+
+    # KB: binary for getting info about movies
+    # todo - get Allen to put this in his in his build directory
+    args.infobin = os.path.join(args.TMPKBBUILDROOTDIR,"GetMovieNFrames","for_redistribution_files_only","run_GetMovieNFrames.sh")
 
     # check for mlrt tokens to specify/override mcr
     bindir = os.path.dirname(args.bin)
@@ -219,15 +228,63 @@ def main():
         if args.action=="retrain":
             cmd = args.projfile + " " + args.action
         elif args.action=="track":
+
             if args.trx:
-                cmd = args.projfile + "  " + args.action + " " + args.mov + " " + args.trx
+                cmd=args.projfile+"  "+args.action+" "+args.mov+" "+args.trx
             else:
-                cmd = args.projfile + "  " + args.action + " " + args.mov + " " + "''"
+                cmd=args.projfile+"  "+args.action+" "+args.mov+" "+"''"
             if args.trackargs:
-                 cmd = cmd + " " + args.trackargs
+                cmd=cmd+" "+args.trackargs
             if args.p0DiagImg:
-                p0DiagImgFull = os.path.join(outdiruse,args.p0DiagImg)
-                cmd = cmd + " p0DiagImg " + p0DiagImgFull
+                p0DiagImgFull=os.path.join(outdiruse,args.p0DiagImg)
+                cmd=cmd+" p0DiagImg "+p0DiagImgFull
+
+            if args.splitframes > 0:
+                infocmd = [args.infobin,args.TMPKBMCR,args.mov]
+                s = subprocess.check_output(infocmd)
+                p=re.compile('\n\d+$') # last number
+                m = p.search(s)
+                s = s[m.start()+1:-1]
+                nframes = int(s)
+                njobs = np.maximum(1,np.round(nframes/args.splitframes))
+                jobstarts = np.round(np.linspace(1,nframes+1,njobs+1)).astype(int)
+                jobends = jobstarts[1:]-1
+
+                jobinfofile=os.path.join(outdiruse,"splittrackinfo_{0:s}.txt".format(jobid))
+                f=open(jobinfofile,'w')
+
+                for jobi in range(njobs):
+                    jobidcurr = "%s-%03d"%(jobid,jobi)
+                    if args.outdir:
+                        rawtrkname='%s/$movfile_$projfile_%s'%(outdiruse,jobidcurr)
+                    else:
+                        rawtrkname = '$movdir/$movfile_$projfile_%s'%(jobidcurr)
+                    cmdcurr = "%s startFrame %d endFrame %d rawtrkname %s"%(cmd,jobstarts[jobi],jobends[jobi],rawtrkname)
+                    shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
+                    logfilecurr = os.path.join(outdiruse,"{0:s}.log".format(jobidcurr))
+
+                    infoline = "%d,%d,%d,%s,%s,%s,%s"%(jobi,jobstarts[jobi],jobends[jobi],jobidcurr,rawtrkname,shfilecurr,logfilecurr)
+                    f.write(infoline)
+                    gencode(shfilecurr,jobidcurr,args,cmdcurr)
+
+                    # submit
+                    if USEQSUB:
+                        qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfilecurr,jobidcurr,args.BSUBARGS,shfilecurr)
+                        qsubcmd = "qsub " + qargs
+                    else:
+                        qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfilecurr,jobidcurr,shfilecurr)
+                        qsubcmd = "bsub " + qargs
+
+
+                    print(qsubcmd)
+                    #subprocess.call(qsubcmd,shell=True)
+
+                f.close()
+
+                print("%d jobs submitted, information about them in file %s."%(njobs,jobinfofile))
+
+                sys.exit()
+
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
 
@@ -246,18 +303,26 @@ def main():
 
     sys.exit()
 
-def gencode(fname,jobid,args,cmd):
+def gencode(fname,jobid,args,cmd,bin=None,MCR=None):
+
+    if bin is None:
+        bin = args.bin
+    if MCR is None:
+        MCR = args.MCR
+
     f = open(fname,'w')
     print("#!/bin/bash",file=f)
     print("",file=f)
     print("source ~/.bashrc",file=f)
     print("umask 002",file=f)
     print("unset DISPLAY",file=f)
-    print("export MCR_CACHE_ROOT="+args.MCR_CACHE_ROOT + "." + jobid,file=f)
+    print("if [ -d "+args.MCR_CACHE_ROOT+" ]; then",file=f)
+    print("  export MCR_CACHE_ROOT="+args.MCR_CACHE_ROOT + "." + jobid,file=f)
+    print("fi",file=f)
     print("echo $MCR_CACHE_ROOT",file=f)
 
     print("",file=f)
-    print(args.bin + " " + args.MCR + " " + cmd,file=f)
+    print(bin + " " + MCR + " " + cmd,file=f)
     print("",file=f)
 
     print("rm -rf",args.MCR_CACHE_ROOT+"."+jobid,file=f)
@@ -273,5 +338,6 @@ def pprintdict(d, indent=0):
          print('\t' * (indent+1) + str(value))
 
 if __name__=="__main__":
+    print("main")
     main()
 
