@@ -153,14 +153,14 @@ classdef APT
         script = APT.SnapshotScript;
         cmd = sprintf('%s -nocolor -brief %s',script,APT.Root);
         [~,s] = system(cmd);
-        s = regexp(s,newline,'split');
+        s = regexp(s,sprintf('\n'),'split');
         modules = fieldnames(manifest);        
         modules = setdiff(modules,'build');
         for i = 1:numel(modules)        
           mod = modules{i};
           cmd = sprintf('%s -nocolor -brief %s',script,manifest.(mod));
           [~,stmp] = system(cmd);
-          stmp = regexp(stmp,newline,'split');
+          stmp = regexp(stmp,sprintf('\n'),'split');
           s = [s(:);{''};sprintf('### %s',upper(mod));stmp(:)];
         end
       elseif ispc

@@ -91,22 +91,30 @@ def main():
     if not os.path.exists(args.bin):
         sys.exit("Cannot find binary: {0:s}".format(args.bin))
 
+    args.KEYWORD = "apt" # used for log/sh filenames, sge job name
+    args.MCRROOT = "/groups/branson/home/leea30/mlrt/"
+    args.MLROOT = "/misc/local/"
+
     # check for mlrt tokens to specify/override mcr
     bindir = os.path.dirname(args.bin)
     mlrtTok = glob.glob(os.path.join(bindir,"MLRT_*"))
+    mlTok = glob.glob(os.path.join(bindir,"20*"))
     if len(mlrtTok)>1:
         warnings.warn("More than one MLRT_ token found in bindir: {0:s}".format(bindir))
     if mlrtTok:
         mlrtTok = os.path.basename(mlrtTok[-1])
         mlrtMcr = mlrtTok[5:]
         print("Found token in bindir: {0:s}. Using --mcr: {1:s}".format(mlrtTok,mlrtMcr))
-        args.mcr = mlrtMcr
+        args.mcr = os.path.join(args.MCRROOT,mlrtMcr)
+    elif mlTok:
+        mlTok = os.path.basename(mlTok[-1])
+        mlrt = "matlab-{0:s}".format(mlTok)
+        print("Found token in bindir: {0:s}. Running with {1:s}.".format(mlTok,mlrt))
+        args.mcr = os.path.join(args.MLROOT,mlrt)
+                      
 
-    args.KEYWORD = "apt" # used for log/sh filenames, sge job name
-    args.MCRROOT = "/groups/branson/home/leea30/mlrt/"
-    args.MCR = os.path.join(args.MCRROOT,args.mcr)
-    if not os.path.exists(args.MCR):
-        sys.exit("Cannot find mcr: {0:s}".format(args.MCR))
+    if not os.path.exists(args.mcr):
+        sys.exit("Cannot find mcr: {0:s}".format(args.mcr))
     #args.USERNAME = subprocess.check_output("whoami").strip()
     args.TMP_ROOT_DIR = "/scratch/`whoami`"
     args.MCR_CACHE_ROOT = args.TMP_ROOT_DIR + "/mcr_cache_root"
@@ -122,7 +130,7 @@ def main():
         
     # summarize for user, proceed y/n?
     argsdisp = vars(args).copy()
-    argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','MCR','KEYWORD','bindate','binroot','nslots','account','multithreaded']
+    argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','mcr','KEYWORD','bindate','binroot','nslots','account','multithreaded']
     for fld in argsdispRmFlds:
         del argsdisp[fld]    
     if not args.force:
@@ -257,7 +265,7 @@ def gencode(fname,jobid,args,cmd):
     print("echo $MCR_CACHE_ROOT",file=f)
 
     print("",file=f)
-    print(args.bin + " " + args.MCR + " " + cmd,file=f)
+    print(args.bin + " " + args.mcr + " " + cmd,file=f)
     print("",file=f)
 
     print("rm -rf",args.MCR_CACHE_ROOT+"."+jobid,file=f)
