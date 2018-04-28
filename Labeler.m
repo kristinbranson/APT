@@ -6421,6 +6421,9 @@ classdef Labeler < handle
       %
       % mftset: scalar MFTSet
             
+      
+      startTime = tic;
+      
       [trackArgs,rawtrkname] = myparse(varargin,...
         'trackArgs',{},...
         'rawtrkname',[]...
@@ -6447,6 +6450,7 @@ classdef Labeler < handle
       else
         moviestr = 'movie';
       end
+      fprintf('Preprocessing time in trackAndExport: %f\n',toc(startTime)); startTime = tic;
       for i=1:nMov
         iMov = iMovsUn(i);
         fprintf('Tracking %s %d (%d/%d) -> %s\n',moviestr,double(iMov),i,nMov,trkfiles{i});
@@ -6454,14 +6458,18 @@ classdef Labeler < handle
         tfMov = tblMFT.mov==iMov;
         tblMFTmov = tblMFT(tfMov,:);
         tObj.track(tblMFTmov,trackArgs{:});
+        fprintf('Tracking time: %f\n',toc(startTime)); startTime = tic;
         trkFile = tObj.getTrackingResults(iMov);
         szassert(trkFile,[1 nVw]);
         for iVw=1:nVw
           trkFile(iVw).save(trkfiles{i,iVw});
           fprintf('...saved: %s\n',trkfiles{i,iVw});
+          fprintf('Save time: %f\n',toc(startTime)); startTime = tic;
         end
         tObj.clearTrackingResults();
+        fprintf('Time to clear tracking results: %f\n',toc(startTime)); startTime = tic;
         obj.preProcInitData();
+        fprintf('Time to reinitialize data: %f\n',toc(startTime)); startTime = tic;
       end
     end
     

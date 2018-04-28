@@ -48,6 +48,10 @@ def main():
     parser.add_argument("--splitframes",
                         help="Number of frames to track in each job. If 0, track all frames in one job.",
                         default=0,metavar="SPLITFRAMES",type=int)
+    parser.add_argument("--startjob",help="Which job of split tracking to start on. Default = 0. This parameter is only relevant if tracking with splitframes parameter specified.",default=0)
+    parser.add_argument("--endjob",
+                        help="Which job of split tracking to end on. Specify -1 to run all jobs. Default = -1. This parameter is only relevant if tracking with splitframes parameter specified.",
+                        default=-1)
 
     args = parser.parse_args()
     
@@ -84,7 +88,7 @@ def main():
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
-        
+
     if not args.bindate:
         args.bindate = "current"
     args.binroot = os.path.join(args.binrootdir,args.bindate)
@@ -136,7 +140,7 @@ def main():
         args.BSUBARGS = "-n " + args.nslots 
         if args.account:
             args.BSUBARGS = "-P {0:s} ".format(args.account) + args.BSUBARGS
-        
+
     # summarize for user, proceed y/n?
     argsdisp = vars(args).copy()
     argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','mcr','KEYWORD','bindate','binroot','nslots','account','multithreaded']
@@ -266,7 +270,18 @@ def main():
 
                 nsubmitted = 0
 
-                for jobi in range(njobs):
+                if not isinstance(args.startjob,int):
+                    args.startjob = int(args.startjob)
+                if not isinstance(args.endjob,int):
+                    args.endjob = int(args.endjob)
+
+                startjob = args.startjob
+                if (args.endjob == -1) or (args.endjob >= njobs):
+                    endjob = njobs - 1
+                else:
+                    endjob = args.endjob
+
+                for jobi in range(startjob,endjob+1):
                     jobidcurr = "%s-%03d"%(jobid,jobi)
                     if args.outdir:
                         rawtrkname='%s/%s_%s_%s'%(outdiruse,moviestr,projstr,jobidcurr)
@@ -336,16 +351,22 @@ def gencode(fname,jobid,args,cmd,bin=None,mcr=None):
     print("source ~/.bashrc",file=f)
     print("umask 002",file=f)
     print("unset DISPLAY",file=f)
-    print("if [ -d "+args.MCR_CACHE_ROOT+" ]; then",file=f)
+    print("if [ -d "+args.TMP_ROOT_DIR+" ]; then",file=f)
     print("  export MCR_CACHE_ROOT="+args.MCR_CACHE_ROOT + "." + jobid,file=f)
     print("fi",file=f)
-    print("echo $MCR_CACHE_ROOT",file=f)
+    print("echo MCR_CACHE_ROOT = $MCR_CACHE_ROOT",file=f)
 
     print("",file=f)
     print(bin + " " + mcr + " " + cmd,file=f)
     print("",file=f)
 
-    print("rm -rf",args.MCR_CACHE_ROOT+"."+jobid,file=f)
+    print("if [ -e "+args.MCR_CACHE_ROOT+"."+jobid+" ]; then",file=f)
+    print("  echo deleting "+args.MCR_CACHE_ROOT+"."+jobid,file=f)
+    print("  date",file=f)
+    print("  rm -rf "+args.MCR_CACHE_ROOT+"."+jobid,file=f)
+    print("  date",file=f)
+    print("fi",file=f)
+
     f.close()
     os.chmod(fname,stat.S_IRUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH);
 
