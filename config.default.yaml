@@ -58,7 +58,7 @@ Movie:
   PlaySegmentRadius: 50
 
 LabelPointsPlot:
-  ColorMapName: 'spring'
+  ColorMapName: 'darkjet'
   Marker: '+'
   MarkerSize: 6
   LineWidth: 2
