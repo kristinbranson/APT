@@ -1504,7 +1504,7 @@ classdef CPRLabelTracker < LabelTracker
       nChunk = numel(iChunkStarts);
       if tfWB && nChunk>1
         wbObj.startPeriod('Tracking chunks','shownumden',true,'denominator',nChunk);
-        oc = onCleanup(@()wbObj.endPeriod());
+        oc2 = onCleanup(@()wbObj.endPeriod());
       end
       for iChunk=1:nChunk
         
