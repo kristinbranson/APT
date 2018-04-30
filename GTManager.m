@@ -273,13 +273,31 @@ lObj.gtInitSuggestions(GTSuggestionType.RANDOM,nGT);
 
 function pbNextUnlabeled_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
-i = find(~lObj.gtSuggMFTableLbled,1);
-if isempty(i)
-  msgbox('All frames have been labeled!');
+ntt = handles.navTreeTbl;
+iDataSel = ntt.getSelectedDataRow();
+if isempty(iDataSel)
+  iDataSel = 0;
 else
-  mftRow = lObj.gtSuggMFTable(i,:);
+  iDataSel = iDataSel(end); 
+end
+
+% Assumed invariant: rows of ntt.treeTblData, lObj.gtSuggMFTable,
+% lObj.gtSuggMFTableLbled all correspond
+
+nttData = ntt.treeTblData;
+tfUnlbled = ~lObj.gtSuggMFTableLbled;
+nGT = height(nttData);
+szassert(tfUnlbled,[nGT 1]);
+rowsLook = iDataSel+1:nGT; % could be empty
+iRow = find(tfUnlbled(rowsLook),1); % offset not applied yet
+if isempty(iRow)
+  msgbox('No more unlabeled frames.');
+else
+  iRow = iRow+iDataSel;
+  mftRow = lObj.gtSuggMFTable(iRow,:);
   lclNavToMFT(lObj,mftRow)
 end
+
 
 function pbComputeGT_Callback(hObject, eventdata, handles)
 lObj = handles.labeler;
