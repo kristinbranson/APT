@@ -2654,11 +2654,12 @@ classdef CPRLabelTracker < LabelTracker
       for iPt = 1:npts
         clr = ptsClrs(iPt,:);
         iVw = ipt2View(iPt);
-        hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
-        hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);        
+        hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr,'Tag',sprintf('CPRLabelTracker_XYPrdRed_%d',iPt));
+        hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr,'Tag',sprintf('CPRLabelTracker_XYPrdRedOther_%d',iPt));
         hTmp2(iPt) = scatter(ax(iVw),nan,nan);
         setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,...
           'MarkerEdgeColor',clr,'PickableParts','none',...
+          'Tag',sprintf('CPRLabelTracker_XYPrdFull_%d',iPt),...
           obj.xyVizFullPlotArgs{:});
       end
       obj.hXYPrdRed = hTmp;
