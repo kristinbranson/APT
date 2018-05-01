@@ -25,7 +25,7 @@ for i = 1:numel(info),
     td.pTrk(:,:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrk(:,:,info(i).startFrame:info(i).endFrame,:);
     td.pTrkTS(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTS(:,info(i).startFrame:info(i).endFrame,:);
     td.pTrkTag(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTag(:,info(i).startFrame:info(i).endFrame,:);
-    if ~sempty(tdcurr.pTrkFullFt),
+    if ~isempty(tdcurr.pTrkFullFT),
       [td.pTrkFullFT,idxcombine] = unique([tdcurr.pTrkFullFt;td.pTrkFullFT]);
       isnew = idxcombine<= size(tdcurr.pTrkFullFt,1);
       sz = size(tdcurr.pTrkFull);
