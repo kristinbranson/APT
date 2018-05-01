@@ -241,7 +241,7 @@ for viewi = 1:nviews
       for l = 1:nlandmarks
         rad = normerr_prctiles(p,l,viewi,k);
         h(p) = drawellipse(xyLbl(l,1),xyLbl(l,2),0,rad,rad,...
-          'Color',colors(p,:),'Parent',ax);
+          'Color',colors(p,:),'Parent',ax,'linewidth',2);
       end
     end
   end
