@@ -150,6 +150,25 @@ trackArgs(i:i+1,:) = [];
 if numel(endArgs)==2 && ischar(endArgs{2})
   endArgs{2} = str2double(endArgs{2});
 end
+i = find(strcmp(trackArgs,'storeFullTracking'));
+assert(isempty(i) || isscalar(i));
+storeFullTrackingArgs = trackArgs(i:i+1);
+trackArgs(i:i+1,:) = [];
+if ~isempty(storeFullTrackingArgs),
+  switch lower(storeFullTrackingArgs{2}),
+    case 'none',
+      lObj.tracker.storeFullTracking = StoreFullTrackingType.NONE;
+    case 'finaliter',
+      lObj.tracker.storeFullTracking = StoreFullTrackingType.FINALITER;
+    case 'alliters',
+      lObj.tracker.storeFullTracking = StoreFullTrackingType.ALLITERS;
+    otherwise
+      warning('Unknown storeFullTracking type %s, using default %s',storeFullTrackingArgs{2},lObj.tracker.storeFullTracking);
+  end
+else
+  fprintf('Using default storeFullTracking type %s.\n',lObj.tracker.storeFullTracking);
+end
+
 
 tfStartEnd = numel(startArgs)==2 && numel(endArgs)==2;
 if tfStartEnd

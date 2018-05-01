@@ -25,9 +25,17 @@ for i = 1:numel(info),
     td.pTrk(:,:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrk(:,:,info(i).startFrame:info(i).endFrame,:);
     td.pTrkTS(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTS(:,info(i).startFrame:info(i).endFrame,:);
     td.pTrkTag(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTag(:,info(i).startFrame:info(i).endFrame,:);
-    if size(tdcurr.pTrkFull,4) > 0,
-      td.pTrkFull(:,:,:,info(i).startFrame:info(i).endFrame) = tdcurr.pTrkFull(:,:,:,info(i).startFrame:info(i).endFrame);
+    if ~sempty(tdcurr.pTrkFullFt),
+      [td.pTrkFullFT,idxcombine] = unique([tdcurr.pTrkFullFt;td.pTrkFullFT]);
+      isnew = idxcombine<= size(tdcurr.pTrkFullFt,1);
+      sz = size(tdcurr.pTrkFull);
+      
+      td.pTrkFull = nan([sz(1:3),size(td.pTrkFullFt,1),sz(5:end)]);
+      td.pTrkFull(:,:,:,isnew,:) = tdcurr.pTrkFull(:,:,:,idxcombine(isnew),:);
+      td.pTrkFull(:,:,:,~isnew,:) = td.pTrkFull(:,:,:,idxcombine(~isnew)-size(tdcurr.pTrkFullFT,1),:);
     end
+    
+  
   end
 end
 isTracked = sum(sum(sum(~isnan(td.pTrk),1),2),4)>0;

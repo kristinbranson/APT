@@ -155,7 +155,7 @@ classdef CPRData < handle
             assert(false,'Unsupported');
           end          
           if size(Is,2)==1
-            sz = cellfun(@(x)size(x'),Is,'uni',0);
+            sz = cellfun(@(x) [size(x,2),size(x,1)],Is,'uni',0);
             bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
           else
             warningNoTrace('CPRData:bb',...
