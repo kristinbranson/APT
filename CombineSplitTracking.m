@@ -26,13 +26,14 @@ for i = 1:numel(info),
     td.pTrkTS(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTS(:,info(i).startFrame:info(i).endFrame,:);
     td.pTrkTag(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTag(:,info(i).startFrame:info(i).endFrame,:);
     if ~isempty(tdcurr.pTrkFullFT),
-      [td.pTrkFullFT,idxcombine] = unique([tdcurr.pTrkFullFt;td.pTrkFullFT]);
-      isnew = idxcombine<= size(tdcurr.pTrkFullFt,1);
+      [td.pTrkFullFT,idxcombine] = unique([tdcurr.pTrkFullFT;td.pTrkFullFT]);
+      isnew = idxcombine<= size(tdcurr.pTrkFullFT,1);
       sz = size(tdcurr.pTrkFull);
       
-      td.pTrkFull = nan([sz(1:3),size(td.pTrkFullFt,1),sz(5:end)]);
-      td.pTrkFull(:,:,:,isnew,:) = tdcurr.pTrkFull(:,:,:,idxcombine(isnew),:);
-      td.pTrkFull(:,:,:,~isnew,:) = td.pTrkFull(:,:,:,idxcombine(~isnew)-size(tdcurr.pTrkFullFT,1),:);
+      pTrkFull = nan([sz(1:3),size(td.pTrkFullFT,1),sz(5:end)]);
+      pTrkFull(:,:,:,isnew,:) = tdcurr.pTrkFull(:,:,:,idxcombine(isnew),:);
+      pTrkFull(:,:,:,~isnew,:) = td.pTrkFull(:,:,:,idxcombine(~isnew)-size(tdcurr.pTrkFullFT,1),:);
+      td.pTrkFull = pTrkFull;
     end
     
   
