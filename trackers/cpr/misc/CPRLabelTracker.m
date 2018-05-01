@@ -2643,7 +2643,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.xyVizFullPlotArgs = struct2paramscell(cprPrefs);
       
       npts = obj.nPts;
-      ptsClrs = obj.lObj.labelPointsPlotInfo.Colors;
+      ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;
       ax = obj.ax;
       %arrayfun(@cla,ax);
       arrayfun(@(x)hold(x,'on'),ax);
