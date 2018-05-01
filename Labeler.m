@@ -6387,6 +6387,7 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
+      tObj.clearTrackingResults();
       obj.preProcUpdateH0IfNec();
       tObj.retrain(varargin{:});
     end
