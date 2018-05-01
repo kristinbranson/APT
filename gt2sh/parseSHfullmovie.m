@@ -1,4 +1,6 @@
-function [flyid,trial,movpath] = parseSHfullmovie(m)
+function [flyid,trial,movpath] = parseSHfullmovie(m,varargin)
+noID = myparse(varargin,'noID',false);
+
 [flyid,idx] = regexp(m,'[\\/]fly?(\d+)[\\/]','tokens','start');
 if isempty(flyid)
   [flyid,idx] = regexp(m,'[\\/]fly?(\d+)[\\/_]','tokens','start');
@@ -12,11 +14,15 @@ end
 if isempty(flyid)
   [flyid,idx] = regexp(m,'[\\/]Fly?(\d+)[\\/]','tokens','start');
 end
-assert(isscalar(flyid));
-flyid = flyid{1};
-assert(isscalar(flyid));
-flyid = flyid{1};
-flyid = str2double(flyid);
+if ~noID
+  assert(isscalar(flyid));
+  flyid = flyid{1};
+  assert(isscalar(flyid));
+  flyid = flyid{1};
+  flyid = str2double(flyid);
+else
+  flyid = nan;
+end
 
 trl1 = regexp(m,'trial_?([0-9]+)','tokens');
 if ~isempty(trl1)
