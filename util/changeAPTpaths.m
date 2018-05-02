@@ -12,6 +12,9 @@ function changeAPTpaths(oldpathSegment2replace, newpathSegment, dataroot)
 % part of path that will be replaced with a path macro e.g. dataroot = 'Z:'
 % if your paths all start with Z: and you would like this to be replaced 
 % with the $dataroot macro.  Set to empty (dataroot=[]) otherwise.
+% Currently this input can only be used if the project doesn't have a path macro
+% already.
+
 
 [fname,path]=uigetfile(['*.lbl'],'Select APT project to replace path for');
 
@@ -21,6 +24,12 @@ loadFname = [path,fname];
 saveFname =loadFname;
 
 lbl = load(loadFname,'-mat');
+
+% Catching situation where user requests a path macro and another one already exists in project. 
+% to do: alter this code to be able to deal with this.
+if isfield(lbl.projMacros,'dataroot') && ~isempty(dataroot) 
+   error('Project already has path macro.  This code can''t currently deal with replacing an old macro with a new one.  Use Gui to replace path macro then re-run with dataroot input = []')
+end
 
 oldPaths = lbl.movieFilesAll;
 
@@ -36,6 +45,8 @@ newPaths = regexprep(pathsMinusDataRoot,oldpathSegment2replace,newpathSegment);
 
 lbl.movieFilesAll = newPaths;
 
-lbl.projMacros.dataroot = dataroot;
+if ~isempty(dataroot)
+    lbl.projMacros.dataroot = dataroot;
+end
 
 save(saveFname,'-mat','-struct','lbl');
