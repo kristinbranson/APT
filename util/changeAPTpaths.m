@@ -41,7 +41,7 @@ else
 end
 
 %replacing text segment
-newPaths = regexprep(pathsMinusDataRoot,oldpathSegment2replace,newpathSegment);
+newPaths = strrep(pathsMinusDataRoot,oldpathSegment2replace,newpathSegment);
 
 lbl.movieFilesAll = newPaths;
 
