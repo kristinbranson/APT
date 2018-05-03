@@ -314,4 +314,372 @@ for i=iRows(:)'
   
   input('hk');
 end
- 
+
+%% Montage: labels vs images
+I2viz = IFR_crop2;
+xy2viz = xyLbl_FR_crop2;
+
+tfTrn1 = trnSets(:,1);
+nTrn = nnz(tfTrn1)
+idstrs = strcat(tFinalReconciled.lblCat(tfTrn1),'|',numarr2trimcellstr(find(tfTrn1)));
+hFigVw1 = figure('position',[1 41 2560 1484]);
+hFigVw2 = figure('position',[2561 401 1920 1124]);
+
+YELLOW = [1 1 0];
+HOTPINK = [255 105 180]/255;
+RED = [1 0 0];
+COLORS = [HOTPINK;HOTPINK;YELLOW;YELLOW;RED];
+MARKERSIZE = 20;
+
+easymontage(I2viz(tfTrn1,1),reshape(xy2viz(tfTrn1,:,:,1),nTrn,10),4,5,...
+  'markersize',MARKERSIZE,'color',COLORS,'idstr',idstrs,'hFig',hFigVw1,...
+  'doroi',false,'axisimage',true);
+easymontage(I2viz(tfTrn1,2),reshape(xy2viz(tfTrn1,:,:,2),nTrn,10),4,5,...
+  'markersize',MARKERSIZE,'color',COLORS,'idstr',idstrs,'hFig',hFigVw2,...
+  'doroi',false,'axisimage',true);
+
+%% Label overlay, POST_CROP
+
+I2viz = IFR_crop3;
+xy2viz = xyLbl_FR_crop3;
+I2viz2 = IFR_crop2;
+xy2viz2 = xyLbl_FR_crop2;
+
+YELLOW = [1 1 0];
+HOTPINK = [255 105 180]/255;
+RED = [1 0 0];
+COLORS = [HOTPINK;HOTPINK;YELLOW;YELLOW;RED];
+MARKERSIZE = 20;
+LIMS = [0 230 0 280;0 256 0 256];
+LIMS2 = [0 230 0 350;0 350 0 350];
+
+hFig = figure(35);
+hFig = figure('position',[2561 401 1920 1124]); 
+axs = createsubplots(2,2);
+axs = reshape(axs,2,2);
+
+for iVw=1:2
+  ax = axs(1,iVw);
+  axes(ax);
+  hold(ax,'on');
+  ax.Color = [0 0 0];
+  for ipt=1:5
+    plot(xy2viz(:,ipt,1,iVw),xy2viz(:,ipt,2,iVw),'.','markerSize',10,...
+      'color',COLORS(ipt,:));
+  end
+  axis('ij');
+  axis(LIMS2(iVw,:));
+  title(sprintf('vw%d',iVw),'fontweight','bold');
+  
+  ax = axs(2,iVw);
+  axes(ax);
+  hold(ax,'on');
+  ax.Color = [0 0 0];
+  for ipt=1:5
+    plot(xy2viz2(:,ipt,1,iVw),xy2viz2(:,ipt,2,iVw),'.','markerSize',10,...
+      'color',COLORS(ipt,:));
+  end
+  axis(ax,LIMS2(iVw,:),'ij');
+  title(sprintf('vw%d, 2',iVw),'fontweight','bold');
+  
+%   linkaxes(axs);
+end
+
+
+%% xv res
+ncrop = 3;
+nvw = 2;
+xvmats = cell(ncrop,nvw);
+for icrop=1:ncrop
+for ivw=1:2
+  if icrop==1
+    cropstr = '';
+  else
+    cropstr = num2str(icrop);
+  end
+  matname = sprintf('crop2exp_crop%d__xv__IFR_crop%s__vw%d__xvFRsplit3.mat',...
+    icrop,cropstr,ivw);
+  xvmats{icrop,ivw} = load(matname,'-mat');
+end
+end
+xvmats0 = cell(1,2);
+xvmats0{1} = load('crop2exp__xv__IFinalReconciled__vw1__xvFRsplit3.mat');
+xvmats0{2} = load('crop2exp__xv__IFinalReconciled__vw2__xvFRsplit3.mat');
+xvmats = [xvmats0;xvmats];
+xvmats = cell2mat(xvmats);
+
+n = 4961;
+xverr = nan(n,5,2,4);
+for icrop=1:4
+  for ivw=1:2
+    xverr(:,:,ivw,icrop) = cat(1,xvmats(icrop,ivw).errs{:});
+  end
+end
+
+%% KB percentiles
+
+DOSAVE = true;
+PLOTFULL = true;
+SAVEDIR = fullfile(pwd,'figsMe');
+PTILES = [50 75 90 95 97.5 99 99.5];
+XVNTRN = 3307;
+npts = 5;
+
+ncrops = 4;
+nlandmarks = npts;
+nviews = 2;
+nptiles = numel(PTILES);
+normerr_prctiles = nan(nptiles,nlandmarks,nviews,ncrops);
+for l = 1:nlandmarks
+  for v = 1:nviews
+    for k = 1:ncrops
+      normerr_prctiles(:,l,v,k) = prctile(xverr(:,l,v,k),PTILES);
+    end
+  end
+end
+
+hfig = 11;
+figure(hfig);
+clf
+set(hfig,'Color',[1 1 1],'Position',[2561 401 1920 1124]);
+
+colors = jet(nptiles);
+hax = createsubplots(nviews,ncrops,[.01 .01;.05 .01]);
+hax = reshape(hax,[nviews,ncrops]);
+
+h = nan(1,nptiles);
+for viewi = 1:nviews
+  if PLOTFULL
+    im = Igt{1,viewi};
+    xyLbl = pLbl2xyvSH(tGT.pLbl);
+    xyLbl = squeeze(xyLbl(1,:,:,viewi)); % nptx2
+  else
+    im = Igt_crop{1,viewi};
+    xyLbl = squeeze(xyLbl_GT_crop(1,:,:,viewi)); % [5x2]
+  end
+  
+  for k = 1:ncrops
+    ax = hax(viewi,k);
+    imagesc(im,'Parent',ax);
+    colormap gray
+    axis(ax,'image','off');
+    hold(ax,'on');
+    plot(ax,xyLbl(:,1),xyLbl(:,2),'m+');
+    if viewi==1
+      switch k
+        case 1
+          tstr = sprintf('No crop (NTrn=%d)',XVNTRN);
+        case 2
+          tstr = sprintf('Cheat crop');
+        otherwise
+          tstr = sprintf('Fair crop%d',k-1);
+      end
+      title(ax,tstr,'fontweight','bold','fontsize',22);
+    end
+
+    for p = 1:nptiles
+      for l = 1:nlandmarks
+        rad = normerr_prctiles(p,l,viewi,k);
+        h(p) = drawellipse(xyLbl(l,1),xyLbl(l,2),0,rad,rad,...
+          'Color',colors(p,:),'Parent',ax,'linewidth',1);
+      end
+    end
+  end
+end
+
+set(hfig,'Position',[2561 401 1920 1124]);
+
+legends = cell(1,nptiles);
+for p = 1:nptiles
+  legends{p} = sprintf('%sth %%ile',num2str(PTILES(p)));
+end
+hl = legend(h,legends);
+set(hl,'Color','k','TextColor','w','EdgeColor','w');
+truesize(hfig);
+
+if DOSAVE
+  FNAME = 'Crop2exp_Ptiles_bullseye';
+  hgsave(hfig,fullfile(SAVEDIR,[FNAME '.fig']));
+  set(hfig,'PaperOrientation','landscape','PaperType','arch-d');
+  print(hfig,'-dpdf',fullfile(SAVEDIR,[FNAME '.pdf']));  
+  print(hfig,'-dpng','-r300',fullfile(SAVEDIR,[FNAME '.png']));    
+end
+
+%% KB: per-landmark frac leq curves
+
+DOSAVE = 1;
+minerr = inf;
+
+predcolors = lines(numel(ncrops));
+
+% trkerr: [nx5x2xnntrns]
+fracleqerr = cell(nlandmarks,nviews,ncrops);
+for l = 1:nlandmarks
+  for v = 1:nviews
+    for p = 1:ncrops
+      sortederr = sort(xverr(:,l,v,p));
+      [sortederr,nleqerr] = unique(sortederr);
+      fracleqerr{l,v,p} = cat(2,nleqerr./size(xverr,1),sortederr);
+      %minerr = min(minerr,fracleqerr{l,v,p}(find(fracleqerr{l,v,p}(:,1)>=minfracplot,1),2));
+    end
+  end
+end
+
+hfig = 14;
+figure(hfig);
+set(hfig,'Color',[1 1 1],'Position',[2561 401 1920 1124]);
+clf;
+
+hax = createsubplots(nviews,nlandmarks,[.05 0;.1 .1]);
+hax = reshape(hax,[nviews,nlandmarks]);
+
+% minmaxerr = inf;
+% for p = 1:npredfns,
+%   minmaxerr = min(minmaxerr,prctile(vectorize(normerr(:,:,p,:)),99.9));
+% end
+
+clrs = [0 0 0;1 0 0;0 0 1;0 1 0];
+clear h;
+for l = 1:nlandmarks
+  for v = 1:nviews
+    ax = hax(v,l);
+    hold(ax,'on');
+    grid(ax,'on');
+
+    tfPlot1 = v==1 && l==1;    
+
+    for p=1:ncrops
+      if p==1
+        lw = 1;
+      else
+        lw = 1.5;
+      end
+      h(p) = plot(ax,fracleqerr{l,v,p}(:,2),fracleqerr{l,v,p}(:,1),'-',...
+        'linewidth',lw,'color',clrs(p,:));
+      tstr = sprintf('vw%d pt%d',v,l);
+      if tfPlot1
+        tstr = ['ErrCDF vs CropType: ' tstr];       
+      end
+      title(ax,tstr,'fontweight','bold','fontsize',16);
+    end
+%     if l == 1 && v == 1,
+%       legend(h,prednames,'Location','southeast');
+%     end
+%     title(hax(v,l),sprintf('%s, %s',lbld.cfg.LabelPointNames{l},lbld.cfg.ViewNames{v}));
+
+    set(ax,'XTick',[1 2 4 8 16 32],'XScale','log');
+    if tfPlot1
+      title(ax,tstr,'fontweight','bold');
+      xlabel(ax,'Error (raw,  px)','fontsize',14);
+      ylabel(ax,'Frac. smaller','fontsize',14);
+      
+      legstr = {'no crop' 'cheat' 'fair2' 'fair3'};
+      legend(h,legstr,'location','southeast');
+    else
+      set(ax,'XTickLabel',[],'YTickLabel',[]);
+    end
+  end
+end
+
+linkaxes(hax(:),'x');
+xlim(hax(1),[1 32]);
+% set(hax,'XLim',[minerr,minmaxerr],'YLim',[minfracplot,1],'XScale','log');%,'YScale','log');%
+
+% if nlandmarks > 1,
+%   xticks = [.01,.025,.05,.10:.10:minmaxerr];
+%   xticks(xticks<minerr | xticks > minmaxerr) = [];
+%   set(hax,'XTick',xticks);
+% end
+% yticks = [.01:.01:.05,.1:.1:1];
+% yticks(yticks<minfracplot) = [];
+% set(hax,'YTick',yticks);
+set(hfig,'Units','pixels','Position',[2561 401 1920 1124]);
+
+if DOSAVE
+  FNAME = 'Crop2exp_FracLT';
+  hgsave(hfig,fullfile('figsMe',[FNAME '.fig']));
+  set(hfig,'PaperOrientation','landscape','PaperType','arch-c');
+  print(hfig,'-dpdf',fullfile('figsMe',[FNAME '.pdf']));  
+  print(hfig,'-dpng','-r300',fullfile('figsMe',[FNAME '.png']));  
+end
+
+%% Pctiles
+
+DOSAVE = true;
+SAVEDIR = fullfile(pwd,'figsMe');
+PTILES = [50 75 90 95 97.5 99 99.5];
+XVNTRN = 3307;
+
+hFig = figure(18);
+clf
+set(hFig,'Color',[1 1 1],'Position',[2561 401 1920 1124]);
+
+axs = createsubplots(nvw,npts+1,[.05 0;.12 .12]);
+axs = reshape(axs,nvw,npts+1);
+vws = 1:2;
+pts = 1:5;
+for ivw=vws
+  for ipt=[pts inf]
+    if ~isinf(ipt)
+      % normal branch
+      errs = squeeze(xverr(:,ipt,ivw,:)); % nxncrops
+      y = prctile(errs,PTILES); % [nptlsxncrops]
+      ax = axs(ivw,ipt);
+      tstr = sprintf('vw%d pt%d',ivw,ipt);   
+    else      
+      errs = squeeze(sum(xverr(:,:,ivw,:),2)/npts); % [nxncrops]
+      y = prctile(errs,PTILES); % [nptlsxncrops]      
+      ax = axs(ivw,npts+1);
+      tstr = sprintf('vw%d, mean allpts',ivw);
+    end
+    axes(ax);
+    tfPlot1 = ivw==1 && ipt==1;
+    if tfPlot1
+      tstr = ['XV err vs CropType: ' tstr];
+    end    
+    
+    args = {'YGrid' 'on' 'XGrid' 'on' 'XLim' [0 5] 'XTick' 1:ncrops ...
+      'XTicklabelRotation',45,'XTickLabel',{'none' 'cheat' 'fair2' 'fair3'} ...
+      'FontSize' 16};  
+    x = 1:4; % croptypes
+    h = plot(x,y','.-','markersize',20);
+    set(ax,args{:});
+    hold(ax,'on');
+    ax.ColorOrderIndex = 1;
+    
+    title(tstr,'fontweight','bold','fontsize',16);
+    if tfPlot1
+      legstrs = [...
+        strcat(numarr2trimcellstr(PTILES'),'%');];
+      hLeg = legend(h,legstrs);
+      hLeg.FontSize = 10;
+      %xlabel('Crop type','fontweight','normal','fontsize',14);
+
+      ystr = sprintf('raw err (px)');
+      ylabel(ystr,'fontweight','normal','fontsize',14);
+    else
+      set(ax,'XTickLabel',[]);
+    end
+    if ipt==1
+    else
+      set(ax,'YTickLabel',[]);
+    end
+  end
+end
+linkaxes(axs(1,:),'y');
+linkaxes(axs(2,:),'y');
+ylim(axs(1,1),[0 50]);
+ylim(axs(2,1),[0 80]);
+%linkaxes(axs(2,:),'y');
+% ylim(axs(2,1),[0 20]);
+
+if DOSAVE
+%  set(hFig,'InvertHardCopy','off');
+  FNAME = 'Crop2exp_Ptiles';
+  hgsave(hFig,fullfile('figsMe',[FNAME '.fig']));
+  set(hFig,'PaperOrientation','landscape','PaperType','arch-c');
+  print(hFig,'-dpdf',fullfile('figsMe',[FNAME '.fig']));
+  print(hFig,'-dpng','-r300',fullfile('figsMe',[FNAME '.png']));
+  %SaveFigLotsOfWays(hFig,'GTErrVsNTrain',{'fig' 'pdf'});
+end
+

@@ -113,16 +113,18 @@ rowIDs = strcat(t.movID,'#',strtrim(cellstr(num2str(t.flyID))),'#',strtrim(cells
 
 %% lbl dup check
 [dupcatsLbl,idupcatsLbl] = finddups(t.pLbl,'verbose',true);
+% [dupcatsLbl,idupcatsLbl] = finddups(tGood.pLbl,'verbose',true);
 
 %% SH says pLbl dups are ok. browse them
 for i=1:numel(dupcatsLbl)
   idx = dupcatsLbl{i};
-  tdups = t(idx,{'lblCat' 'movFile' 'movID' 'frm'});    
+  tdups = t(idx,{'lblCat' 'movID' 'frm'});    
   if isscalar(unique(tdups.movID)) && isequal(tdups.frm,(tdups.frm(1):tdups.frm(end))')
-    % none; expected case
+    fprintf('Standard\n');
   else
-    disp(tdups)
+    fprintf('!!WEIRD!!\n');
   end
+  disp(tdups)  
 end
 
 fprintf(1,'%d/%d rows are a dup label\n',nnz(~isnan(idupcatsLbl)),height(t));
@@ -130,6 +132,124 @@ fprintf(1,'%d/%d rows are a dup label\n',nnz(~isnan(idupcatsLbl)),height(t));
 % EMP: almost all dups are purely expected type (consec frames in a movie). 
 % Two exception dupcats, are basically expected type but missing one frame 
 % in sequence
+
+%% 20180503 Browse dups in APT 
+[~,iDCsort] = sort(cellfun(@numel,dupcatsLbl),'descend');
+
+iDC = iDCsort(6);
+rows = dupcatsLbl{iDC};
+trow1 = t(rows(1),:);
+movs = trow1.movFile_read;
+movs = regexprep(movs,'/groups/branson/bransonlab','Y:\');
+movs = regexprep(movs,'/groups/huston/hustonlab','Z:\');
+if ~isequal(movs,lObj.movieFilesAll(lObj.currMovie,:))
+  lObj.movieSetAdd(movs);
+  lObj.movieSet(lObj.nmovies);
+end
+lObj.setFrame(trow1.frm-1);
+
+nrows = numel(rows);
+p = t(rows,:).pLbl;
+p = reshape(p',10,2,nrows);
+frms = t(rows,:).frm;
+lObj.labeledpos{lObj.currMovie}(:) = nan;
+lObj.labeledpos{lObj.currMovie}(:,:,frms) = p;
+
+fprintf(1,'\n');
+fprintf(1,'Dupcat %d, %d els.\n',iDC,nrows);
+disp(movs);
+fprintf(1,'Frames:\n');
+disp(frms(:)');
+
+% EMP: Browse the first ~6 cats. Usually the fly is not moving much. Taking
+% the first frame out of ach dupcat seems fine. If anything the first frame
+% seems typically the 'best'
+
+%% 20180503 For each dupcat, remove all but first frame
+tfRmDupCatLbl = false(height(t),1);
+for i=1:numel(dupcatsLbl)
+  rows = dupcatsLbl{i};
+  assert(issorted(rows));
+  assert(issorted(t(rows,:).frm));
+  rowsRm = rows(2:end);
+  tfRmDupCatLbl(rowsRm) = true;
+  fprintf(1,'dupcat %d, removing %d rows\n',i,numel(rowsRm));
+end
+
+%% 20180503 Mislabel browse. Use Labeler/trainingMontage
+% make some fake movs
+movnames = {'vw1fake.avi' 'vw2fake.avi'};
+NFRM = 5e3;
+for i=1:2
+  vw = VideoWriter(movnames{i});
+  vw.open();
+  for f=1:NFRM
+    vw.writeVideo(zeros(1024,1024));
+    if mod(f,100)==0
+      disp(f);
+    end
+  end
+  vw.close();
+  fprintf(1,'Wrote vid %s\n',movnames{i});
+end
+
+
+%% 20180503 Mislabel browse. Use Labeler/trainingMontage
+lObj.movieSetAdd(fullfile(pwd,movnames));
+lObj.movieSet(lObj.nmovies);
+iMov = lObj.currMovie;
+nGood = height(tGood);
+p = tGood.pLbl;
+p = reshape(p',10,2,nGood);
+lObj.labeledpos{iMov}(:) = nan;
+lObj.labeledpos{iMov}(:,:,1:nGood) = p;
+lObj.setFrame(1);
+
+%% 20180503
+xy = pLbl2xyvSH(tGood.pLbl);
+xyc = mean(xy,2);
+xyctrd = xy-xyc;
+
+hFig = figure(11);
+hFig.Position = [2561 401 1920 1124];
+axs = createsubplots(1,2);
+clrs = lines(5);
+for ivw=1:2
+  ax = axs(ivw);
+  axes(ax);
+  hold(ax,'on');
+  axis(ax,'ij');
+  h = gobjects(5,1);
+  for ipt=1:5
+    h(ipt) = plot(xyctrd(:,ipt,1,ivw),xyctrd(:,ipt,2,ivw),'.','markersize',8,'color',clrs(ipt,:));
+  end
+  if ivw==1
+    legend(h,numarr2trimcellstr((1:5)'));
+  end
+end
+    
+%% 20180503 find L/R view2 switches
+iLowerVw2Swap = find(xyctrd(:,2,1,2)>xyctrd(:,1,1,2));
+iUpperVw2Swap = find(xyctrd(:,4,1,2)>xyctrd(:,3,1,2));
+% EMP, these are the only real L/R Vw2 mislabel swaps
+iUpperVw2Swap = [2027 3832];
+
+%% 20180503 find L/R view2 switches
+tfRm = tfRmDupCatLbl;
+tfRm(iUpperVw2Swap) = true;
+
+tMain20180503 = tFinalReconciled;
+IMain20180503 = IFinalReconciled;
+tMain20180503(tfRm,:) = [];
+IMain20180503(tfRm,:) = [];
+
+fprintf(1,'%d rows removed\n',nnz(tfRm));
+
+save -v7.3 trnData20180503.mat tMain20180503 IMain20180503 tfRmDupCatLbl iUpperVw2Swap
+
+
+  
+
 
 %% SH data summary!
 catC = categorical(t.lblCat);

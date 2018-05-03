@@ -50,8 +50,11 @@ for ivw=1:2
 end
 
 %% Montage: labels vs images
+I2viz = IFR_crop2;
+xy2viz = xyLbl_FR_crop2;
+
 tfTrn1 = trnSets(:,1);
-nnz(tfTrn1)
+nTrn = nnz(tfTrn1)
 idstrs = strcat(tFinalReconciled.lblCat(tfTrn1),'|',numarr2trimcellstr(find(tfTrn1)));
 hFigVw1 = figure('position',[1 41 2560 1484]);
 hFigVw2 = figure('position',[2561 401 1920 1124]);
@@ -62,10 +65,10 @@ RED = [1 0 0];
 COLORS = [HOTPINK;HOTPINK;YELLOW;YELLOW;RED];
 MARKERSIZE = 20;
 
-easymontage(IFinalReconciled(tfTrn1,1),tFinalReconciled.pLbl(tfTrn1,[1:5 11:15]),4,5,...
+easymontage(I2viz(tfTrn1,1),reshape(xy2viz(tfTrn1,:,:,1),nTrn,10),4,5,...
   'markersize',MARKERSIZE,'color',COLORS,'idstr',idstrs,'hFig',hFigVw1,...
   'doroi',true);
-easymontage(IFinalReconciled(tfTrn1,2),tFinalReconciled.pLbl(tfTrn1,[6:10 16:20]),4,5,...
+easymontage(I2viz(tfTrn1,2),reshape(xy2viz(tfTrn1,:,:,2),nTrn,10),4,5,...
   'markersize',MARKERSIZE,'color',COLORS,'idstr',idstrs,'hFig',hFigVw2,...
   'doroi',true);
 
