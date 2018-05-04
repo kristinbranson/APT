@@ -219,6 +219,7 @@ classdef RegressorCascade < handle
       %   imszs: [2 x N x nView] size of each image
       %   imoffs: [N x nView] offset for indexing image (view,i) (image will
       %     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
+      %   NOTE: Currently nView must equal 1.
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
       %
@@ -331,6 +332,7 @@ classdef RegressorCascade < handle
       %   imszs: [2 x N x nView] size of each image
       %   imoffs: [N x nView] offset for indexing image (view,i) (image will
       %     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
+      %   NOTE: Currently nView must equal 1.
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
       % p0: [QxD] initial shapes (absolute coords).
@@ -564,6 +566,7 @@ classdef RegressorCascade < handle
       % Propagate shapes through regressor cascade.
       %
       % I: [NxnView] Cell array of images
+      %   NOTE: Currently nView must be 1.
       % bboxes: [Nx2*d]
       % p0: [QxD] initial shapes, absolute coords, eg Q=N*augFactor
       % pIidx: [Q] indices into (rows of) I for rows of p0

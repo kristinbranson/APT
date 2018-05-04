@@ -496,7 +496,7 @@ classdef CPRData < handle
         bboxes = cat(1,bboxes{:});
       else
         N = size(I.imoffs,1);
-        bboxes = [ones(N,2),I.imszs'];
+        bboxes = [ones(N,2),I.imszs([2 1],:)'];
       end
     end
 
@@ -850,11 +850,16 @@ classdef CPRData < handle
           im = cat(3,im,impp);
           szcurr = numel(im);
           offnext = Iinfo.imoffs(i,iVw)+szcurr;
-          Iinfo.Is(Iinfo.imoffs(i)+1:offnext) = im;
+          Iinfo.Is(Iinfo.imoffs(i,iVw)+1:offnext) = im;
           Iinfo.imszs(:,i,iVw) = [size(im,1),size(im,2)];
-          if iVw < nVw || i < nTrl,
-            Iinfo.imoffs(nTrl*(iVw-1)+i+1) = offnext;
+          if iVw < nVw
+            Iinfo.imoffs(i,iVw+1) = offnext;
+          elseif i<nTrl
+            Iinfo.imoffs(i+1,1) = offnext;
+          else
+            % last entry; none
           end
+          %Iinfo.imoffs(nTrl*(iVw-1)+i+1) = offnext;
         end
       end
       

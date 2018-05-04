@@ -974,14 +974,16 @@ classdef CPRLabelTracker < LabelTracker
         end        
       else
         assert(~obj.lObj.hasTrx,'Currently unsupported for projects with trx.');
-        assert(size(Is,2)==nView);
+        assert(size(Is.imoffs,2)==nView);
         assert(size(pTrn,2)==obj.lObj.nPhysPoints*nView*prm.Model.d); 
         assert(nfidsInTD==obj.lObj.nPhysPoints*nView);
         % col order of pTrn should be:
         % [p1v1_x p2v1_x .. pkv1_x p1v2_x .. pkv2_x .. pkvW_x
         nPhysPoints = obj.lObj.nPhysPoints;
         for iView=1:nView
-          IsVw = Is(:,iView);
+          IsVw = Is;
+          IsVw.imszs = IsVw.imszs(:,:,iView);
+          IsVw.imoffs = IsVw.imoffs(:,iView);
           bbVw = CPRData.getBboxes2D(IsVw);
           iPtVw = (1:nPhysPoints)+(iView-1)*nPhysPoints;
           assert(isequal(iPtVw(:),find(obj.lObj.labeledposIPt2View==iView)));
