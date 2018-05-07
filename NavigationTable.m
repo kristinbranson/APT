@@ -41,6 +41,36 @@ classdef NavigationTable < handle
       obj.fcnRowSelected = cbkSelectRow;
       obj.navOnSingleClick = false;
     end
+    function initColFormatAPTJava(obj,colfmt)
+      % Initialize column cellrenderers based on colfmt. Optionally call 
+      % this immediately after construction and before setting data.
+      
+      jt = obj.jtable.JTable;
+      jcm = obj.jtable.JColumnModel;
+      ncol = jt.ColumnCount;
+      assert(iscellstr(colfmt) && numel(colfmt)==ncol,...
+        'Invalid column format specification.');
+      for icol=0:ncol-1
+        switch colfmt{icol+1}
+          case 'integer'
+            cr = aptjava.StripedIntegerTableCellRenderer;
+          case 'float'
+            cr = aptjava.StripedFloatTableCellRenderer('%.3f');
+          otherwise
+            cr = javax.swing.table.DefaultTableCellRenderer;
+        end
+        jcm.getColumn(icol).setCellRenderer(cr);
+      end
+      jt.Foreground = java.awt.Color.WHITE;
+      jt.repaint;
+    end
+    function delete(obj)
+      delete(obj.jtable);
+      obj.jtable = [];
+      obj.fcnRowSelected = [];
+      obj.navOnSingleClick = [];
+      obj.data = [];
+    end
   end
   methods
     

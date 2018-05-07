@@ -311,7 +311,7 @@ classdef CPRData < handle
           'roiPadVal',0,... % used when tblMF has .roi
           'maskNeighbors',0,...
           ...   % BEGIN USED when maskNeighbors==true;
-          'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile) 
+          'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile,movInfo) 
                          ... % reads/generates bg image for given movie
           'bgType','other',... % one of {'light on dark','dark on light','other'}
           'fgThresh',nan,...
@@ -320,12 +320,13 @@ classdef CPRData < handle
           );
       tfWB = ~isempty(wbObj);
       
+      N = height(tblMF);
+ 
       if tfWB
-        wbObj.startPeriod('Reading movie frames');
+        wbObj.startPeriod('Reading movie images','shownumden',true,'denominator',N);
         oc = onCleanup(@()wbObj.endPeriod);
       end
   
-      N = height(tblMF);
       nView = size(tblMF.mov,2);
       tfROI = tblfldscontains(tblMF,'roi');
       if tfROI
@@ -340,7 +341,7 @@ classdef CPRData < handle
         mr.open(mov);
         s = struct('movieReader',mr);
         if maskNeighbors
-          [s.bg,s.bgdev] = bgReadFcn(mov);
+          [s.bg,s.bgdev] = feval(bgReadFcn,mov,mr.info);
         end
         movMap(mov) = s;
       end
@@ -349,7 +350,7 @@ classdef CPRData < handle
       nmask = zeros(N,nView);
       for iTrl=1:N
         if tfWB
-          tfCancel = wbObj.updateFrac(iTrl/N);
+          tfCancel = wbObj.updateFracWithNumDen(iTrl);
           if tfCancel
             return;
           end
@@ -379,6 +380,12 @@ classdef CPRData < handle
           % (imroi,roiXlo,roiXhi,roiYlo,roiYhi,roinr) set
             
           if maskNeighbors
+            assert(isa(imroi,'uint8'),...
+              'Masking currently supported only for uint8 images');
+            imroi = double(imroi); % we will rescale to [0,1] after bgsub. 
+              % Note, bgReadFcn should be returning bg images with same
+              % scaling as imroi.
+            
             %%% Get bg, bgdev
             bgim = movInfo.bg;
             bgdev = movInfo.bgdev;
@@ -418,8 +425,8 @@ classdef CPRData < handle
                 yI = trxI.y(idxI);
                 if roiXlo<=xI && xI<=roiXhi && roiYlo<=yI && yI<=roiYhi
                   tfTgtOverlap(iTgt) = true;
-                  xIroi = xI-roiXlo+1;
-                  yIroi = yI-roiYlo+1;
+                  xIroi = round(xI)-roiXlo+1;
+                  yIroi = round(yI)-roiYlo+1;
                   tgtOverlapRoiIdx(iTgt) = yIroi + (xIroi-1)*roinr;
                 end
               end
@@ -444,10 +451,10 @@ classdef CPRData < handle
               cc = bwconncomp(bwfgroi);
               trxThis = trx(trow.iTgt);
               idxThis = f+trxThis.off;
-              xThis = trxThis.x(idxThis);
-              yThis = trxThis.y(idxThis);
-              xThisRoi = xThis-roiXlo+1;
-              yThisRoi = yThis-roiYlo+1;
+              xThisRnd = round(trxThis.x(idxThis));
+              yThisRnd = round(trxThis.y(idxThis));
+              xThisRoi = xThisRnd-roiXlo+1;
+              yThisRoi = yThisRnd-roiYlo+1;
               idxRoiThis = yThisRoi + (xThisRoi-1)*roinr;
               
               for iCC=1:cc.NumObjects
@@ -461,6 +468,8 @@ classdef CPRData < handle
                 end
               end
             end
+            
+            imroi = imroi/255; % scale to [0,1], matches shapeGt/hlpFtr/compDup2
           end
           I{iTrl,iVw} = imroi;
         end

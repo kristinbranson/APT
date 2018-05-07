@@ -93,9 +93,10 @@ classdef MFTable
       %
       % tblP0, tblP: MF tables
       %
-      % tblPNew: new frames (rows of tblP whose movie-frame-tgt ID are not in tblP0)
+      % tblPNew: new frames (rows of tblP whose (mov,frm,iTgt) are not in 
+      %   tblP0)
       % tblPupdate: existing frames with new positions/tags (rows of tblP
-      %   whos movie-frame-tgt ID are in tblP0, but whose eg p field is different).
+      %   whose (mov,frm,iTgt) are in tblP0, but whose p or tfocc differ
       % idx0update: indices into rows of tblP0 corresponding to tblPupdate;
       %   ie tblP0(idx0update,:) ~ tblPupdate
       
@@ -104,14 +105,21 @@ classdef MFTable
       tblfldscontainsassert(tblP0,FLDSCORE);
       tblfldscontainsassert(tblP,FLDSCORE);
       
-      tfNew = ~ismember(tblP(:,FLDSID),tblP0(:,FLDSID));
-      tfDiff = ~ismember(tblP(:,FLDSCORE),tblP0(:,FLDSCORE));
+      tfNew = ~tblismember(tblP,tblP0,FLDSID);
+      [tfSame,locSame] = tblismember(tblP,tblP0,FLDSCORE);
+      if nnz(tfSame)>0
+        % side check, all shared fields must be identical for 'same' rows
+        fldsshared = intersect(tblflds(tblP),tblflds(tblP0));
+        assert(isequaln(tblP(tfSame,fldsshared),...
+                        tblP0(locSame(tfSame),fldsshared)));
+      end
+      tfDiff = ~tfSame;
       tfUpdate = tfDiff & ~tfNew; 
             
       tblPnew = tblP(tfNew,:);
       tblPupdate = tblP(tfUpdate,:);            
      
-      [tf,loc] = ismember(tblPupdate(:,FLDSID),tblP0(:,FLDSID));
+      [tf,loc] = tblismember(tblPupdate,tblP0,FLDSID);
       assert(all(tf));
       idx0update = loc;
     end

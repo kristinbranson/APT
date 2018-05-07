@@ -320,12 +320,17 @@ classdef RegressorCascade < handle
       %
       % pAll: [QxDxT+1] propagated training shapes (absolute coords)
       
-      [verbose,hWB,update,calrig] = myparse(varargin,...
+      [verbose,wbObj,update,calrig] = myparse(varargin,...
         'verbose',1,...
-        'hWaitBar',[],...
+        'wbObj',[],... % optional waitbarWithCancel. Only used if update==false. 
+                   ... % on Cancel, ** Obj is in an indeterminate/invalid state!! **
         'update',false,... % if true, incremental update
         'calrig',[]... % [N] vector of calrig objs for ecah row of I. Optional, for 3d training only.
         );
+      % we prohibit cancelation for incremental updates, b/c a reasonable
+      % expectation in that case is that the previous/trained tracker would
+      % be intact. However currently we do not support this.
+      tfWB = ~isempty(wbObj) && ~update; 
       
       model = obj.prmModel;
       
@@ -370,9 +375,22 @@ classdef RegressorCascade < handle
       paramFtr = obj.prmFtr;
       ftrRadiusOrig = paramFtr.radius; % for t-dependent ftr radius
       paramReg = obj.prmReg;
+
+      if tfWB
+        wbObj.startPeriod('Training propagation',...
+          'shownumden',true,'denominator',T);
+        oc = onCleanup(@()wbObj.endPeriod);
+      end
       
       maxFernAbsDeltaPct = nan(1,T);
       for t=t0:T
+        if tfWB
+          tfCancel = wbObj.updateFracWithNumDen(t);
+          if tfCancel
+            return;
+          end
+        end
+        
         if paramReg.rotCorrection.use
           assert(model.d==2,'Currently supported only for d==2.');
           pCurN_al = shapeGt('projectPose',model,pCur,bboxesFull);

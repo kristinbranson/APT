@@ -101,6 +101,7 @@ classdef APT
       p = [aptpath(:);jaabapath(:);cprpath(:);pdolpath(:);campath(:)];
       
       jp = {...
+        fullfile(root,'java','APTJava.jar'); ...
         fullfile(root,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
         fullfile(root,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
         fullfile(root,'treeTable')};
@@ -182,6 +183,10 @@ classdef APT
     
     function build()
       % build()
+      
+      if ~isequal(pwd,APT.Root)
+        error('Run APT.build in the APT root directory (%s), because mcc is finicky about includes/adds, the ctf archive, etcetera.\n',APT.Root);
+      end
       
       proj = 'APTCluster';
             

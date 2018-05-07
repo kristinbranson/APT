@@ -30,7 +30,8 @@ classdef CPRParam
   
   methods (Static)
     
-    function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = new2old(sNew,nphyspts,nviews)
+    function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
+        new2old(sNew,nphyspts,nviews)
       % Convert new-style parameters to old-style parameters. Defaults are
       % used for old fields when appropriate. Some old-style fields that 
       % are currently unnecessary are omitted.
@@ -48,13 +49,13 @@ classdef CPRParam
       sOld.Model.nviews = nviews;
       
       he = sNew.ROOT.Track.HistEq;
-      tc = sNew.ROOT.Track.TargetCrop;
       trkNFrmsSm = sNew.ROOT.Track.NFramesSmall;
       trkNFrmsLg = sNew.ROOT.Track.NFramesLarge;
       trkNFrmsNear = sNew.ROOT.Track.NFramesNeighborhood;
       sOld.PreProc.histeq = he.Use;
       sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
-      sOld.PreProc.TargetCrop = tc;
+      sOld.PreProc.TargetCrop = sNew.ROOT.Track.MultiTarget.TargetCrop;
+      sOld.PreProc.NeighborMask = sNew.ROOT.Track.MultiTarget.NeighborMask;
       sOld.PreProc.channelsFcn = [];
       
       cpr = sNew.ROOT.CPR;
@@ -113,9 +114,9 @@ classdef CPRParam
       sOld.TestInit.augUseFF = cpr.Replicates.AugUseFF;
       sOld.TestInit.movChunkSize = sNew.ROOT.Track.ChunkSize;
       
-      sOld.Prune.prune = 1;
-      sOld.Prune.usemaxdensity = 1;
-      sOld.Prune.maxdensity_sigma = cpr.Prune.MaxDensitySigma; 
+      sOld.Prune.method = cpr.Prune.Method;
+      sOld.Prune.maxdensity_sigma = cpr.Prune.DensitySigma;
+      sOld.Prune.poslambdafac = cpr.Prune.PositionLambdaFactor;
     end
     
     function [sNew,npts,nviews] = old2new(sOld,lObj)
@@ -132,7 +133,8 @@ classdef CPRParam
       sNew.ROOT.Track.Type = 'cpr';
       sNew.ROOT.Track.HistEq.Use = sOld.PreProc.histeq;
       sNew.ROOT.Track.HistEq.NSampleH0 = sOld.PreProc.histeqH0NumFrames;
-      sNew.ROOT.Track.TargetCrop = sOld.PreProc.TargetCrop;
+      sNew.ROOT.Track.MultiTarget.TargetCrop = sOld.PreProc.TargetCrop;
+      sNew.ROOT.Track.MultiTarget.NeighborMask = sOld.PreProc.NeighborMask;
       sNew.ROOT.Track.ChunkSize = sOld.TestInit.movChunkSize;
       sNew.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
       sNew.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
@@ -204,9 +206,9 @@ classdef CPRParam
       sNew.ROOT.CPR.Replicates.AugUseFF = sOld.TrainInit.augUseFF;
       assert(isempty(sOld.TrainInit.iPt));
       
-      assert(sOld.Prune.prune==1);
-      assert(sOld.Prune.usemaxdensity==1);
-      sNew.ROOT.CPR.Prune.MaxDensitySigma = sOld.Prune.maxdensity_sigma; 
+      sNew.ROOT.CPR.Prune.Method = sOld.Prune.method;
+      sNew.ROOT.CPR.Prune.DensitySigma = sOld.Prune.maxdensity_sigma;
+      sNew.ROOT.CPR.Prune.PositionLambdaFactor = sOld.Prune.poslambdafac;
     end
     
   end

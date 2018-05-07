@@ -61,6 +61,11 @@ classdef MovieManagerTable < handle
       obj.hParent = hParent;
       obj.cbkSelectMovie = cbkSelectMovie;
     end
+    
+    function delete(obj)
+      obj.hParent = [];
+      obj.cbkSelectMovie = [];
+    end
 
   end
   

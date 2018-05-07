@@ -428,6 +428,10 @@ classdef InfoTimeline < handle
   %% Private methods
   methods (Access=private) % callbacks
     function cbkBDF(obj,src,evt) %#ok<INUSL>
+      if ~(obj.lObj.hasProject && obj.lObj.hasMovie)
+        return;
+      end
+
       if evt.Button==1
         % Navigate to clicked frame
         
@@ -553,35 +557,38 @@ classdef InfoTimeline < handle
     function dmat = getDataFromLpos(lpos,lpostag,pcode,iTgt)
       % lpos: [npts x 2 x nfrm x ntgt] label array as in
       %   lObj.labeledpos{iMov}
-      % lpostag: [npts x nfrm x ntgt] cell as in lObj.labeledpostag{iMov}
+      % lpostag: [npts x nfrm x ntgt] logical as in lObj.labeledpostag{iMov}
       % pcode: name/id of data to extract
       % iTgt: current target
       %
       % dmat: [npts x nfrm] data matrix for pcode, extracted from lpos
       
+      npts = size(lpos,1); % should equal obj.npts
+      nfrm = size(lpos,3); % should equal obj.nfrm
+      
       switch pcode
         case 'x'
-          dmat = squeeze(lpos(:,1,:,iTgt));
+          dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
         case 'y'
-          dmat = squeeze(lpos(:,2,:,iTgt));
+          dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
         case 'dx'
-          dmat = squeeze(lpos(:,1,:,iTgt));
+          dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
           dmat = diff(dmat,1,2);
           dmat(:,end+1) = nan;
         case 'dy'
-          dmat = squeeze(lpos(:,2,:,iTgt));
+          dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
           dmat = diff(dmat,1,2);
           dmat(:,end+1) = nan;
         case '|dx|'
-          dmat = squeeze(lpos(:,1,:,iTgt));
+          dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
           dmat = abs(diff(dmat,1,2));
           dmat(:,end+1) = nan;
         case '|dy|'
-          dmat = squeeze(lpos(:,2,:,iTgt));
+          dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
           dmat = abs(diff(dmat,1,2));
           dmat(:,end+1) = nan;
         case 'occluded'
-          dmat = double(strcmp(lpostag(:,:,iTgt),'occ'));
+          dmat = double(lpostag(:,:,iTgt));
         otherwise
           warningNoTrace('Unknown property to display in timeline.');
           dmat = nan(size(lpos,1),size(lpos,3));
