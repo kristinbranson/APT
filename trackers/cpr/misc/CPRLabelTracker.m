@@ -6,7 +6,7 @@ classdef CPRLabelTracker < LabelTracker
       'storeFullTracking' 'showVizReplicates' ...
       'trnDataDownSamp' 'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnResIPt' 'trnResRC'};
-    TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPMD' 'trkPiPt'};
+    TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPTrnTS' 'trkPMD' 'trkPiPt'};
     
     DEFAULT_PARAMETER_FILE = lclInitDefaultParameterFile();
   end
@@ -100,6 +100,7 @@ classdef CPRLabelTracker < LabelTracker
     % Full replicate info at all CPR iters.
     trkPFull 
     trkPTS % [NTstx1] timestamp for trkP*
+    trkPTrnTS % [1xnView] trained RC timestamp for ALL results in .trkP*
     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt, (opt) .roi
            % .mov has class movieIndex 
     trkPiPt % [npttrk] indices into 1:obj.npts, tracked points. trkD=npttrk*d.
@@ -415,7 +416,7 @@ classdef CPRLabelTracker < LabelTracker
 
     function setAllTrackResTable(obj,tblTrkRes,pTrkiPt)
       % Set all current tracking results in a table. 
-      % USE WITH CAUTION
+      % USE WITH EXTREME CAUTION
       %
       % tblTrkRes: [NTrk x ncol] table of tracking results. Flds 
       %   'mov','frm','iTgt',(opt) 'roi','pTrk'. pTrk like obj.trkP; 
@@ -435,6 +436,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkPMD = tblTrkRes(:,fldsMD);
       obj.trkP = tblTrkRes.pTrk;
       obj.trkPTS = repmat(now,nTrk,1);
+      obj.trkPTrnTS = nan(1,obj.lObj.nView);
       obj.trkPiPt = pTrkiPt;
       switch obj.storeFullTracking
         case StoreFullTrackingType.NONE
@@ -470,12 +472,13 @@ classdef CPRLabelTracker < LabelTracker
       tblTrkRes = obj.trkPMD;
       tblTrkRes.pTrk = obj.trkP;
       tblTrkRes.pTrkTS = obj.trkPTS;
+      tblTrkRes.pTrkTrnTS = repmat(obj.trkPTrnTS,height(tblTrkRes),1);
       pTrkiPt = obj.trkPiPt;
     end
     
     %#%MTGT
     %#%MV
-    function [trkpos,trkposTS,trkposFull,trkposFullMFT,tfHasRes] = ...
+    function [trkpos,trkposTS,trkposFull,trkposFullMFT,trkposTrnTS,tfHasRes] = ...
         getTrackResRaw(obj,mIdx)
       % Get tracking results for movie(set) iMov.
       %
@@ -537,6 +540,7 @@ classdef CPRLabelTracker < LabelTracker
       nRowCurrMov = height(trkMDCurrMov);
       trkposFull = nan(nPtTrk,d,nRep,nRowCurrMov,class(pTrkFull));
       trkposFullMFT = trkMDCurrMov(:,MFTable.FLDSID);
+      trkposTrnTS = nan(1,lObj.nview);
       
       % First cond is proxy for no tracking results 
       tfHasRes = ~isempty(obj.trkPTS) && (nRowCurrMov>0);
@@ -561,6 +565,9 @@ classdef CPRLabelTracker < LabelTracker
           trkpos(:,:,frm,iTgt) = xyTrkCurrMov(:,:,i);
           trkposTS(:,frm,iTgt) = trkPTSCurrMov(i);
         end
+        
+        szassert(obj.trkPTrnTS,size(trkposTrnTS));
+        trkposTrnTS = obj.trkPTrnTS;
       end
     end
     
@@ -614,12 +621,13 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     %#%MTGT
-    function updateTrackRes(obj,tblMFtrk,pTstTRed,pTstT)
+    function updateTrackRes(obj,tblMFtrk,pTstTRed,pTstT,pTstTTrnTS)
       % Augment .trkP* state with new tracking results
       %
       % tblMF: [nTst x nCol] MF table for pTstTRed/pTstT
       % pTstTRed: [nTst x Dfull]
       % pTstT: [nTst x RT x Dfull x Tp1]
+      % pTstTTrnTS: [1xnView] training timestamps
       % 
       % - new rows are just added
       % - existing rows are overwritten
@@ -696,6 +704,13 @@ classdef CPRLabelTracker < LabelTracker
       end
       nNew = nnz(~tf);
       obj.trkPTS = [obj.trkPTS; repmat(nowts,nNew,1)];
+      if all(isnan(obj.trkPTrnTS))
+        obj.trkPTrnTS = pTstTTrnTS;        
+      else
+        % Currently, all tracking results must come from the same
+        % tracker(s)
+        assert(isequal(obj.trkPTrnTS,pTstTTrnTS));
+      end
       if isempty(obj.trkPMD)
         % .trkPMD might not be initted with the .roi col in the multitarget
         % case
@@ -1123,62 +1138,6 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
-    % MOVE THIS METHOD BELOW
-    function loadTrackResMerge(obj,fname)
-      % Load tracking results from fname, merging into existing results
-      
-      assert(false,'Check me, updated metadata tables 20161027.');
-      
-%       tr = load(fname);
-%       if ~isempty(obj.paramFile) && ~strcmp(tr.paramFile,obj.paramFile)
-%         warningNoTrace('CPRLabelTracker:paramFile',...
-%           'Tracking results generated using parameter file ''%s'', which differs from current file ''%s''.',...
-%           tr.paramFile,obj.paramFile);
-%       end
-%       
-%       if ~isempty(obj.trkP) % training results exist
-%         
-%         if ~isequal(obj.trkPiPt,tr.trkPiPt)
-%           error('CPRLabelTracker:trkPiPt','''trkPiPt'' differs in tracked results to be loaded.');
-%         end
-%         
-%         tblMF = obj.trkPMD(:,{'mov' 'frm'});
-%         tblLoad = tr.trkPMD(:,{'mov' 'frm'});
-%         [tfOverlp,locMF] = ismember(tblLoad,tblMF);
-%         
-%         tsOverlp0 = obj.trkPTS(locMF(tfOverlp));
-%         tsOverlpNew = tr.trkPTS(tfOverlp);
-%         nOverlapOlder = nnz(tsOverlpNew<tsOverlp0);
-%         if nOverlapOlder>0
-%           warningNoTrace('CPRLabelTracker:trkPTS',...
-%             'Loading tracking results that are older than current results for %d frames.',nOverlapOlder);
-%         end
-%         
-%         % load existing/overlap results
-%         iOverlp = locMF(tfOverlp);
-%         obj.trkP(iOverlp,:,:) = tr.trkP(tfOverlp,:,:);
-%         obj.trkPFull(iOverlp,:,:,:) = tr.trkPFull(tfOverlp,:,:,:); % TODO: if trkPFull is [] (stripped)
-%         obj.trkPMD(iOverlp,:) = tr.trkPMD(tfOverlp,:);
-%         obj.trkPTS(iOverlp,:) = tr.trkPTS(tfOverlp,:);
-%         
-%         % load new results
-%         obj.trkP = cat(1,obj.trkP,tr.trkP(~tfOverlp,:,:));
-%         obj.trkPFull = cat(1,obj.trkPFull,tr.trkPFull(~tfOverlp,:,:,:)); % TODO: if trkPFull is [] 
-%         obj.trkPMD = cat(1,obj.trkPMD,tr.trkPMD(~tfOverlp,:));
-%         obj.trkPTS = cat(1,obj.trkPTS,tr.trkPTS(~tfOverlp,:));
-%       else
-%         % code in the other branch would basically work, but we also want
-%         % to set trkPiPt
-%         props = obj.TRACKRES_SAVEPROPS;
-%         for p=props(:)',p=p{1}; %#ok<FXSET>
-%           obj.(p) = tr.(p);
-%         end
-%       end
-%       
-%       nfLoad = size(tr.trkP,1);
-%       fprintf(1,'Loaded tracking results for %d frames.\n',nfLoad);
-    end
-
     % BGKD -- PROB JUST USE TRACK
     function [trkPMDnew,pTstTRed,pTstT] = trackCore(obj,tblP)
       prm = obj.sPrm;
@@ -1251,7 +1210,7 @@ classdef CPRLabelTracker < LabelTracker
       end
       trkPMDnew = d.MDTst(:,fldsTmp);
       trkPMDnew = [trkPMDnew pTstTPruneMD];
-      obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
+      obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT); % XXX out of date api
     end
     
     %#%MTGT
@@ -1434,7 +1393,7 @@ classdef CPRLabelTracker < LabelTracker
         end
         trkPMDnew = d.MDTst(:,fldsTmp);
         trkPMDnew = [trkPMDnew pTstTPruneMD]; %#ok<AGROW>
-        obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
+        obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT); % XXX out of date api
       end
     end
     
@@ -1568,6 +1527,7 @@ classdef CPRLabelTracker < LabelTracker
         pTstTRed = nan(NTst,Dfull);
         pTstTPruneMD = array2table(nan(NTst,0));
         TestInit = prm.TestInit;
+        pTstTTrnTS = nan(1,nview);
         for iView=1:nview % obj CONST over this loop
           rc = obj.trnResRC(iView);
           %IsVw = Is(:,iView);          
@@ -1681,7 +1641,9 @@ classdef CPRLabelTracker < LabelTracker
           iFull = (1:nfids)+(iView-1)*nfids;
           iFull = [iFull,iFull+nfids*nview]; %#ok<AGROW>
           pTstT(:,:,iFull,:) = pTstTVw;
-          pTstTRed(:,iFull) = pTstTRedVw;       
+          pTstTRed(:,iFull) = pTstTRedVw; 
+          
+          pTstTTrnTS(iView) = rc.trnLog(end).ts;
         end % end obj CONST
         
         fldsTmp = MFTable.FLDSID;
@@ -1693,7 +1655,7 @@ classdef CPRLabelTracker < LabelTracker
         end
         trkPMDnew = d.MDTst(:,fldsTmp);
         trkPMDnew = [trkPMDnew pTstTPruneMD]; %#ok<AGROW>
-        obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT);
+        obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT,pTstTTrnTS);
       end
       
     end
@@ -1725,7 +1687,7 @@ classdef CPRLabelTracker < LabelTracker
       
       nMov = numel(mIdx);
       trkpipt = obj.trkPiPt;
-      trkinfobase = struct('paramFile',obj.paramFile,'param',obj.sPrm);
+      trkinfobase = struct('param',obj.sPrm);
       
       tfMultiView = obj.lObj.isMultiView;
       if tfMultiView
@@ -1737,14 +1699,16 @@ classdef CPRLabelTracker < LabelTracker
       end
         
       for i = nMov:-1:1
-        [trkpos,trkposTS,trkposFull,trkposFullMFT,tfHasRes(i)] = ...
+        [trkpos,trkposTS,trkposFull,trkposFullMFT,trkposTrnTS,tfHasRes(i)] = ...
                                         obj.getTrackResRaw(mIdx(i));
         if tfMultiView
           assert(size(trkpos,1)==nPhysPts*nview);
+          assert(numel(trkposTrnTS)==nview);
           for ivw=nview:-1:1
             iptCurrVw = (1:nPhysPts) + (ivw-1)*nPhysPts;
             trkinfo = trkinfobase;
             trkinfo.view = ivw;
+            trkinfo.trnTS = trkposTrnTS(ivw);
             trkfiles(i,ivw) = TrkFile(trkpos(iptCurrVw,:,:,:),...
               'pTrkTS',trkposTS(iptCurrVw,:,:),...
               'pTrkiPt',1:nPhysPts,...
@@ -1753,12 +1717,14 @@ classdef CPRLabelTracker < LabelTracker
               'trkInfo',trkinfo);
           end
         else
-          trkfiles(i,1) = TrkFile(trkpos,...            
+          trkinfo = trkinfobase;
+          trkinfo.trnTS = trkposTrnTS;
+          trkfiles(i,1) = TrkFile(trkpos,...
             'pTrkTS',trkposTS,...
             'pTrkiPt',trkpipt,...
             'pTrkFull',trkposFull,...
             'pTrkFullFT',trkposFullMFT(:,{'frm' 'iTgt'}),...
-            'trkInfo',trkinfobase);
+            'trkInfo',trkinfo);
         end
       end
     end
@@ -2251,6 +2217,11 @@ classdef CPRLabelTracker < LabelTracker
           warningNoTrace('Clearing legacy histogram equalization information found in tracker.');
         end
         s = rmfield(s,'trnResH0');
+      end      
+      
+      % 20180502
+      if ~isfield(s,'trkPTrnTS')
+        s.trkPTrnTS = nan(1,obj.lObj.nview);
       end
 
       %%% END MODERNIZE S
@@ -2433,6 +2404,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkP = [];
       obj.trkPFull = [];
       obj.trkPTS = zeros(0,1);
+      obj.trkPTrnTS = nan(1,obj.lObj.nview);
       % wrong fields but will get overwritten. 20170531 why not use right fields?
       obj.trkPMD = MFTable.emptyTable(MFTable.FLDSID);
       obj.trkPiPt = [];
@@ -2584,7 +2556,7 @@ classdef CPRLabelTracker < LabelTracker
         res = sRes.result;
         switch sRes.action
           case 'track'
-            obj.updateTrackRes(res.trkPMDnew,res.pTstTRed,res.pTstT);
+            obj.updateTrackRes(res.trkPMDnew,res.pTstTRed,res.pTstT); % XXX out of date api
             obj.vizLoadXYPrdCurrMovieTarget();
             obj.newLabelerFrame();
             notify(obj,'newTrackingResults');
