@@ -1,10 +1,11 @@
 function runBaselines(varargin)
-% Prob convert to official test framework when there are more tests
+% Prob use a test framework when there are more tests
 
-[dotest,resultsfile,dosave,nrptMV] = myparse(varargin,...
+[dotest,dosave,testdir,testmat,nrptMV] = myparse(varargin,...
   'dotest',true,...
-  'resultsfile','/groups/branson/bransonlab/apt/test/baselines_master_20180507',...
   'dosave',false,...
+  'testdir','/groups/branson/bransonlab/apt/test',...
+  'testmat','20180507.develop',...
   'nrptMV',1);
 
 p = fileparts(mfilename('fullpath'));
@@ -23,7 +24,7 @@ mfts = MFTSet(...
   FrameDecimationFixed.EveryFrame,...
   TargetSetVariable.AllTgts);
 
-lblm = [lblname '_mv.lbl'];
+lblm = fullfile(testdir,[lblname '_mv.lbl']);
 lObj.projLoad(lblm);
 
 resMV = cell(nrptMV,1);
@@ -37,7 +38,7 @@ end
 
 resSingVw = cell(1,2);
 for ivw=1:2
-  lblvw = sprintf('%s_%d.lbl',lblname,ivw);
+  lblvw = fullfile(testdir,sprintf('%s_%d.lbl',lblname,ivw));
   lObj.projLoad(lblvw);
   lObj.tracker.init();
   lObj.trackRetrain();
@@ -48,11 +49,12 @@ end
 
 if dosave
   fname = sprintf('baselines_%s',datestr(now,'yyyymmddTHHMMSS'));
+  fname = fullfile(testdir,fname);
   save(fname,'resMV','resSingVw');
 end
 
 if dotest
-  resBL = load(resultsfile,'-mat');
+  resBL = load(fullfile(testdir,testmat),'-mat');
   
   PTILES = [50 90];
   for ivw=1:2
@@ -89,6 +91,8 @@ if dotest
     disp(prctile(errSVnorm,PTILES));
   end
 end
+
+delete(lObj);
 
 function err = lclErr(pTrk1,pTrk2)
 d = pTrk1-pTrk2;
