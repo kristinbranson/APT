@@ -67,7 +67,11 @@ classdef GTPlot
           hold(ax,'on');
           plot(ax,xyL(:,1),xyL(:,2),xyLblPlotArgs{:});
           if viewi==1
-            title(ax,setTitles{k},'fontweight','bold','fontsize',22);
+            tstr = setTitles{k};
+            if k==1
+              tstr = sprintf('N=%d. %s',n,tstr);
+            end
+            title(ax,tstr,'fontweight','bold','fontsize',22);
           end
           
           for p = 1:nptiles
@@ -147,9 +151,14 @@ classdef GTPlot
           for p=1:nsets
             h(p) = plot(ax,fracleqerr{l,v,p}(:,2),fracleqerr{l,v,p}(:,1),...
               lineArgs{:},'color',clrs(p,:));
-            tstr = sprintf('vw%d pt%d',v,l);           
-            title(ax,tstr,'fontweight','bold','fontsize',16);
           end
+          tstr = sprintf('vw%d pt%d',v,l);
+          if l==1 && v==1
+            tstr = sprintf('N=%d. %s',n,tstr);
+          end
+          title(ax,tstr,'fontweight','bold','fontsize',16);
+
+          
           %     if l == 1 && v == 1,
           %       legend(h,prednames,'Location','southeast');
           %     end
@@ -236,8 +245,8 @@ classdef GTPlot
           hold(ax,'on');
           ax.ColorOrderIndex = 1;
           
-          title(tstr,'fontweight','bold','fontsize',16);
           if tfPlot1
+            tstr = sprintf('N=%d. %s',n,tstr);
             legstrs = strcat(numarr2trimcellstr(ptiles'),'%');
             hLeg = legend(h,legstrs);
             hLeg.FontSize = 10;
@@ -248,6 +257,7 @@ classdef GTPlot
           else
             set(ax,'XTickLabel',[]);
           end
+          title(tstr,'fontweight','bold','fontsize',16);
           if ipt==1
           else
             set(ax,'YTickLabel',[]);
