@@ -36,3 +36,5 @@ for p = 1:nLoops %for each APT project
     end
     
 end
+
+close all
