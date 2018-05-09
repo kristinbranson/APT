@@ -1,7 +1,9 @@
 %%
-load trnDataSH_Apr18.mat;
+%load trnDataSH_Apr18.mat;
+load trnData20180503.mat
+
 %%
-t = tFinalReconciled;
+t = tMain20180503;
 id = strcat(t.lblCat,'#',numarr2trimcellstr(t.flyID),'#',t.movID);
 idC = categorical(id);
 tCats = sortedsummary(idC)
@@ -23,6 +25,56 @@ parts = cat(2,parts{:});
 szassert(parts,[height(t) npart]); % col i is indicator vec for part i
 partsum = sum(parts,2);
 unique(partsum)
+
+%% 20180508. New 3-fold splits
+% 1. Easy split, as before
+% 2. Harder split. Balance lblCat, but don't have intersecting flies
+
+NFOLD = 3;
+t = tMain20180503;
+%%
+[s,tBalCats,tPrtCats,prtCat2Split] = stratifiedGroupSplit(NFOLD,t.lblCat,t.flyID);
+%%
+gBalC = categorical(t.lblCat);
+gBalC = reordercats(gBalC,tBalCats.cats);
+gBalFoldCounts = nan(height(tBalCats),NFOLD);
+for i=1:NFOLD
+  tf = s==i;
+  lblCatSplit = gBalC(tf);
+  gBalFoldCounts(:,i) = countcats(lblCatSplit);
+  fprintf('fold %d, n=%d\n',i,nnz(tf));
+end
+gBalFoldCounts./sum(gBalFoldCounts)
+%%
+flyUn = unique(t.flyID);
+for i=1:numel(flyUn)
+  tf = flyUn(i)==t.flyID;
+  split = unique(s(tf));
+  assert(isscalar(split));
+  fprintf(1,'fly %d, split %d\n',flyUn(i),split);  
+end
+
+%%
+xvMain3Hard = false(height(t),NFOLD);
+for ifold=1:NFOLD
+  xvMain3Hard(:,ifold) = s==ifold;
+end
+sum(xvMain3Hard,1)
+unique(sum(xvMain3Hard,2))
+save trnSplit20180509.mat xvMain3Hard
+
+%% easy 
+c = cvpartition(idC,'kfold',NFOLD);
+parts = arrayfun(@(z)test(c,z),1:NFOLD,'uni',0);
+parts = cat(2,parts{:});
+szassert(parts,[height(t) NFOLD]); % col i is indicator vec for part i
+unique(sum(parts,2))
+sum(parts,1)
+
+xvMain3Easy = parts;
+save trnSplit20180509.mat -append xvMain3Easy;
+
+
 
 %% INTERRUPT 20180423, generate 3-fold, 5-fold xv sets
 npart = 5;
