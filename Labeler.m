@@ -5577,9 +5577,12 @@ classdef Labeler < handle
       tblMFT = obj.gtGenerateSuggestions(gtSuggType,nSamp);
       obj.gtSetUserSuggestions(tblMFT);
     end
-    function gtSetUserSuggestions(obj,tblMFT)
+    function gtSetUserSuggestions(obj,tblMFT,varargin)
       % Set user-specified/defined GT suggestions
       % tblMFT: .mov (MovieIndices), .frm, .iTgt
+      
+      sortcanonical = myparse(varargin,...
+        'sortcanonical',false);
       
       if ~istable(tblMFT) && ~all(tblfldscontains(tblMFT,MFTable.FLDSID))
         error('Specified table is not a valid Movie-Frame-Target table.');
@@ -5590,10 +5593,30 @@ classdef Labeler < handle
         tblMFT.mov = MovieIndex(tblMFT.mov,true);
       end
       
-      tblMFT2 = MFTable.sortCanonical(tblMFT);
-      if ~isequal(tblMFT2,tblMFT)
-        warningNoTrace('Sorting table into canonical row ordering.');
-        tblMFT = tblMFT2;
+      [tf,tfGT] = tblMFT.mov.isConsistentSet();
+      if ~(tf && tfGT)
+        error('All MovieIndices in input table must reference GT movies.');
+      end
+      
+      if sortcanonical
+        tblMFT2 = MFTable.sortCanonical(tblMFT);
+        if ~isequal(tblMFT2,tblMFT)
+          warningNoTrace('Sorting table into canonical row ordering.');
+          tblMFT = tblMFT2;
+        end        
+      else
+        % UI requires sorting by movies; hopefully the movie sort leaves 
+        % row ordering otherwise undisturbed. This appears to be the case
+        % in 2017a.
+        %
+        % See issue #201. User has a gtSuggestions table that is not fully 
+        % sorted by movie, but with a desired random row order within each 
+        % movie. A full/canonical sorting would be undesireable.
+        tblMFT2 = sortrows(tblMFT,{'mov'},{'descend'}); % descend as gt movieindices are negative
+        if ~isequal(tblMFT2,tblMFT)
+          warningNoTrace('Sorting table by movie.');
+          tblMFT = tblMFT2;
+        end        
       end
       
       obj.gtSuggMFTable = tblMFT;
