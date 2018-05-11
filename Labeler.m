@@ -5590,6 +5590,12 @@ classdef Labeler < handle
         tblMFT.mov = MovieIndex(tblMFT.mov,true);
       end
       
+      tblMFT2 = MFTable.sortCanonical(tblMFT);
+      if ~isequal(tblMFT2,tblMFT)
+        warningNoTrace('Sorting table into canonical row ordering.');
+        tblMFT = tblMFT2;
+      end
+      
       obj.gtSuggMFTable = tblMFT;
       obj.gtUpdateSuggMFTableLbledComplete();
       obj.gtTblRes = [];
