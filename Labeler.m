@@ -1263,7 +1263,7 @@ classdef Labeler < handle
       
       switch obj.labelMode
         case LabelMode.TEMPLATE
-          s.labelTemplate = obj.lblCore.getTemplate();
+          %s.labelTemplate = obj.lblCore.getTemplate();
       end
       
       s.trackerType = obj.trackerType;
@@ -6451,7 +6451,7 @@ classdef Labeler < handle
       fprintf('Tracking complete at %s.\n',datestr(now));
     end
     
-    function trackTbl(obj,tblMFT,varargin)      
+    function trackTbl(obj,tblMFT,varargin)
       assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
 
       tObj = obj.tracker;
@@ -6460,6 +6460,12 @@ classdef Labeler < handle
       obj.labelsUpdateNewFrame(true);
       
       fprintf('Tracking complete at %s.\n',datestr(now));
+    end
+    
+    function s = trackCreateStrippedLbl(obj)
+      s = obj.projGetSaveStruct();      
+      s.movieFilesAll = obj.movieFilesAllFull;
+      s.trxFilesAll = obj.trxFilesAllFull;
     end
     
     function trackAndExport(obj,mftset,varargin)
