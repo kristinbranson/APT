@@ -1,3 +1,4 @@
 jaaba,/path/to/jaaba
 piotr,/path/to/pdollar/toolbox
+posetf,/path/to/poseTF
 cameracalib,/path/to/camera/calibration/toolbox

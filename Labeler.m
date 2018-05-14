@@ -6383,15 +6383,20 @@ classdef Labeler < handle
 
       prmCpr = tObj.sPrm;
       prmPP = obj.preProcParams;
-      assert(~xor(isempty(prmCpr),isempty(prmPP)));
+%      assert(~xor(isempty(prmCpr),isempty(prmPP)));
       if ~isempty(prmCpr)        
+        assert(~isempty(prmPP))
         assert(~isfield(prmCpr,'PreProc'));
         prmCpr.PreProc = prmPP;
         sPrm = CPRParam.old2new(prmCpr,obj);        
       else
         sPrm = struct();
         % Even if prmCpr/prmPP are empty, these params come from obj.
-        % Clearly, something went astray
+        % Something in went astray in the design here, clearly
+        
+        if ~isempty(prmPP)
+          warningNoTrace('Cannot convert preproc params.');
+        end
         
         sPrm.ROOT.Track.Type = char(obj.trackerType);
         sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
