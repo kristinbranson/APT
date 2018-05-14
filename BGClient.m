@@ -6,8 +6,9 @@ classdef BGClient < handle
     computeObjMeth % compute method name for computeObj
 
     qWorker2Me % matlab.pool.DataQueue for receiving data from worker (interrupts)
-    qMe2Worker % matlab.pool.PollableDataQueue for sending data to Client (polled)    
+    qMe2Worker % matlab.pool.PollableDataQueue for sending data to Worker (polled)    
     fevalFuture % FevalFuture output from parfeval
+    isContinuous = false % scalar. if true, worker is a continuous worker
     idPool % scalar uint for cmd ids
     idTics % [numIDsSent] uint64 col vec of start times for each command id sent 
     idTocs % [numIDsReceived] col vec of compute elapsed times, set when response to each command id is received
@@ -51,7 +52,7 @@ classdef BGClient < handle
     end
   end
   
-  methods    
+  methods
     
     function configure(obj,resultCallback,computeObj,computeObjMeth)
       % Configure compute object and results callback
@@ -63,8 +64,12 @@ classdef BGClient < handle
       obj.computeObjMeth = computeObjMeth;
     end
     
-    function startWorker(obj)
+    function startWorker(obj,varargin)
       % Start BGWorker on new thread
+      
+      [workerContinuous,continuousCallInterval] = myparse(varargin,...
+        'workerContinuous',false,...
+        'continuousCallInterval',nan);
       
       if ~obj.isConfigured
         error('BGClient:config',...
@@ -75,10 +80,19 @@ classdef BGClient < handle
       queue.afterEach(@(dat)obj.afterEach(dat));
       obj.qWorker2Me = queue;
       
-      workerObj = BGWorker;
-      % computeObj deep-copied onto worker
-      obj.fevalFuture = parfeval('start',1,workerObj,queue,obj.computeObj,obj.computeObjMeth); 
+      if workerContinuous
+        workerObj = BGWorkerContinuous;
+        % computeObj deep-copied onto worker
+        obj.fevalFuture = parfeval('start',1,workerObj,queue,...
+          obj.computeObj,obj.computeObjMeth,continuousCallInterval);
+      else      
+        workerObj = BGWorker;
+        % computeObj deep-copied onto worker
+        obj.fevalFuture = parfeval('start',1,workerObj,queue,...
+          obj.computeObj,obj.computeObjMeth); 
+      end
       
+      obj.isContinous = workerContinuous;
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;
@@ -91,6 +105,9 @@ classdef BGClient < handle
             
       if ~obj.isRunning
         error('BGClient:run','Worker is not running.');
+      end      
+      if obj.isContinuous
+        error('Continuous workers only accept the stopWorker() command.');
       end
       
       assert(isstruct(sCmd) && all(isfield(sCmd,{'action' 'data'})));

@@ -142,6 +142,15 @@ classdef APT
       javaaddpath(jp);
     end
     
+    function [pposetf] = getpathdl()
+      m = APT.readManifest;
+      if isfield(m,'posetf')
+        pposetf = m.posetf;
+      else
+        error('APT:noPath','Cannot find ''posetf'' Manifest specification.');
+      end
+    end
+    
     function s = codesnapshot
       % This method assumes that the user has set their path using
       % APT.setpath (so that the Manifest correclty reflects
