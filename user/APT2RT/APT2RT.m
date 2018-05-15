@@ -1,0 +1,446 @@
+function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,quaternion]=APT2RT(APTfilename,flynum2bodyLUT,flynum2calibLUT,predictions1orLabels0)
+%Takes APT project containing output of Maynak's tracker and estimates
+%rotation of fly's head.
+%
+% Inputs:
+%           APTfilename = APT .lbl project containing the 5 points outputed
+%           by Maynak's tracker in .labeledpos2 field.
+%
+%           flynum2bodyLUT = string containing filename of .csv file with 5
+%           columns.  1st col = fly number, 2nd col = filename of APT .lbl
+%           project containing 10 body axis points, 3rd col = video number in APT
+%           project that contains body axis labels, 4th col = frame number
+%           in the video that contains body axis labels, 5th column = 'A'
+%           if body axis file is APT file, 'K' if a kine file.
+%
+%           flynum2calibLUT = filename of .csv file with 2 columns.  1st
+%           col = fly number, 2nd column = location of calibration file to
+%           use for this fly.
+%
+%           predictions1orLabels0 = set to 1 if want to analyze predictions
+%           (.labeledpos2) set to 0 if want to analyze labels (.labeledpos)
+%
+% Outputs:
+%       
+%           axisAngleDegXYZ = Rotations relative to lab/body reference
+%           frame for each frame of each video.
+%           axisAngleDegXYZ(frame#,1,video#)=magnitude of rotation in
+%           Degrees. axisAngleDegXYZ(frame#,2:4,video#)=XYZ representation
+%           of axis of rotation.
+%
+%           translations = Translation of head for each frame of each
+%           video.  In mm.
+%
+%           residualErrors,scaleErrors = errors in rotation/translation
+%           estimations
+%
+%           quaternion = alternate quaternion represention of rotations
+%
+%
+% Dependencies:
+%               kine2RotationAxis.m
+%               getflynum.m
+%  http://www.mathworks.com/matlabcentral/fileexchange/22422-absolute-orientation
+%  http://www.mathworks.com/matlabcentral/fileexchange/35475-quaternions
+%  http://www.mathworks.com/matlabcentral/fileexchange/24484-geom3d
+%  sjh_rad2deg (mine - easy to replicate if you don't have - just .*180/pi)
+%  quat2eulzyx.m (Kine/kine_math)
+
+
+
+%% getting info from files
+
+
+%fly Number
+flyNum = getflynum(APTfilename);
+disp(['Fly ',num2str(flyNum)])
+
+%getting calibration info
+fid = fopen(flynum2calibLUT);
+calibTable = textscan(fid, '%d %s', 'Delimiter',',');
+i = find(calibTable{1}==flyNum);
+calibFname = cell2mat(calibTable{2}(i));%filename of calibration file to use for this fly
+
+%extracting body axis info from flynum2bodyLUT .csv file
+fid = fopen(flynum2bodyLUT);
+bodyTable = textscan(fid, '%d %s %d %d %s', 'Delimiter',',');
+i = find(bodyTable{1}==flyNum);
+bodyFname = cell2mat(bodyTable{2}(i)); %filename of body axis project
+bodyVidNum = bodyTable{3}(i); %video number within APT project that contains body axis
+bodyFrame = bodyTable{4}(i); %frame number within APT project that contains body axis
+bodyAPTorKine = cell2mat(bodyTable{5}(i)); % 'A' if body data is in APT project,'K' if kine project
+
+%stimulus timing
+stimulusOnOff = flyNum2stimFrames_SJH(flyNum);
+
+%%   old stuff here for reference fix and delete
+
+%set to 1 if want positions relative to global reference point: fake head
+%aligned with body/lab frame.  Set to 3 (preferred!!!!) if want relative to global starting point
+% that is aligned to body but pitched down 40 deg (recommended).  Set to 0 if want positions relative to each
+%trial's start position. set to 4 if want relative to user provided head
+%position - first digitized frame of first video in this case
+% 
+%rel2StartOrLab = Determines whether calculate head position relative to
+% position in first frame or relative to a global starting position - fake
+% head aligned to body axis/lab frame.  0 if want data relative to 1st
+% frame, 1 if want it relative to fake head aligned to body/lab frame such
+% that head is level with body (unnatural and will get weird euler angles 
+% due to haveing to pitch head so far down).  3 if want data relative to
+% standard fake head aligned with body but pitched down 25 degrees to
+% roughly normal head posture so don't have to rotate it too far - better
+% euler angles than option 2 but still have standard comparison point.  3
+% gets rid of roll and yaw from starting head position so can then
+% calculate rotation relative to a straight head but still in original
+% pitch position.  Using rel2StartOrLab=3 with zero2startPos=1 will generate
+% idenal results to using rel2StartOrLab = 0 as computing rotations from
+% the 1st frame is the same as computing rotations from a global reference
+% point and then subtracting the results of the first frame from (not true 
+% if you have to rotate a long distance as in rel2StartOrLab =1 as get
+% Euler angle weirdness). 4 = use user provided reference head (unaligned, straight from data)
+% as reference point for all data - must provide referenceHead input in this case
+% 5 = if want to use median head position during non-stimulus frames as
+% reference head
+rel2StartOrLab =5;%3;
+
+%set to 1 if want to zero all data to initial position of
+% head in frame 1, 0 if not.
+zero2startPos = 0; 
+
+%video frame rate - usually 125
+frameRate_FPS = 125;
+
+
+%frame and video to use as reference for head position
+refFrame = 1;;
+refVid = 1;
+
+%Number of frames before and after stimulus turns on and off to analyze
+framesBeforeStimOn = 25;
+framesAfterStimOff = 120;
+
+%kine and APT indices of different points
+i_LantTip =  1;
+i_RantTip =  2;
+i_LantBase =  3;
+i_RantBase =  4;
+i_ProboscisRoof =  5;
+i_headPivot = 6;
+i_neckCentre = 7;
+i_thoracicAbdomenJoint = 8;
+i_LwingBase = 9;
+i_RwingBase = 10;
+
+%% Loading and re-formatting data
+
+
+%loading tracking project file for all trials for this fly
+trackedData = load(APTfilename,'-mat');
+
+%position data is either stored in normal struct or sparse struct
+%depending on which version of APT used to generate APT project.
+%Checking for sparse format and expanding if exists.
+for iMov = 1:size(trackedData.labeledpos2,1)
+    lpos = trackedData.labeledpos2{iMov};
+    if isstruct(lpos)
+        % new format
+        trackedData.labeledpos2{iMov} = SparseLabelArray.full(lpos);
+    else
+        % old format; no action required
+    end
+end
+
+
+%getting 2D->3D DLT or orthocam variables
+load(calibFname)%
+try
+    dlt_side = DLT_1;
+    dlt_front =DLT_2;
+    DLTorOrtho = 1;%remembering that using DLT not orthocam
+catch %if no variable called DLT, must be using orthocam
+    orthocamObj = trackedData.viewCalibrationData{1}; 
+    DLTorOrtho = 0;%remembering that using orthocam calibration
+end
+
+%loading body data
+if bodyAPTorKine=='K' %if using kine for body
+    warning off
+    load(bodyFname)
+    warning on
+    bodyData = data;
+elseif bodyAPTorKine=='A'
+
+    bodyDataAPT = load(bodyFname,'-mat');
+
+    %position data is either stored in normal struct or sparse struct
+    %depending on which version of APT used to generate APT project.
+    %Checking for sparse format and expanding if exists.
+    for iMov = 1:size(bodyDataAPT.labeledpos,1)
+        lpos = bodyDataAPT.labeledpos{iMov};
+        if isstruct(lpos)
+            % new format
+            bodyDataAPT.labeledpos{iMov} = SparseLabelArray.full(lpos);
+        else
+            % old format; no action required
+        end
+    end
+
+end
+
+
+%re-formatting body data into old Kine format for convinience of using old
+%functions
+if bodyAPTorKine=='A' %if using APT data for body axis, reformatting it into old Kine format so don't have to alter downstream functions
+
+    %reformatting bodyData from 2D APT format into old Kine 3D format just
+    %for ease of use so don't have to alter downstream function - lazy
+    totalNumPts=size(bodyDataAPT.labeledpos{bodyVidNum},1)/2;
+
+    %extracting from .labeledPos field that contains user clicked points -
+    %assuming body points are generated by user not by tracking (which is .labeledPos2)!
+    headPivot_view1 = bodyDataAPT.labeledpos{bodyVidNum}(i_headPivot,:,bodyFrame);
+    headPivot_view2 = bodyDataAPT.labeledpos{bodyVidNum}(totalNumPts+i_headPivot,:,bodyFrame);
+
+    neckCentre_view1 = bodyDataAPT.labeledpos{bodyVidNum}(i_neckCentre,:,bodyFrame);
+    neckCentre_view2 = bodyDataAPT.labeledpos{bodyVidNum}(totalNumPts+i_neckCentre,:,bodyFrame);
+
+    thoracicAbdomenJoint_view1 = bodyDataAPT.labeledpos{bodyVidNum}(i_thoracicAbdomenJoint,:,bodyFrame);
+    thoracicAbdomenJoint_view2 = bodyDataAPT.labeledpos{bodyVidNum}(totalNumPts+i_thoracicAbdomenJoint,:,bodyFrame);
+
+    LwingBase_view1 = bodyDataAPT.labeledpos{bodyVidNum}(i_LwingBase,:,bodyFrame);
+    LwingBase_view2 = bodyDataAPT.labeledpos{bodyVidNum}(totalNumPts+i_LwingBase,:,bodyFrame);
+
+    RwingBase_view1 = bodyDataAPT.labeledpos{bodyVidNum}(i_RwingBase,:,bodyFrame);
+    RwingBase_view2 = bodyDataAPT.labeledpos{bodyVidNum}(totalNumPts+i_RwingBase,:,bodyFrame);
+
+
+
+    if DLTorOrtho==1 %if using DLT for 2D->3D
+
+        tempReconfu = reconfu([DLT_1,DLT_2], [headPivot_view1(1),headPivot_view1(2),headPivot_view2(1),headPivot_view2(2)]);
+        bodyData.kine.flyhead.data.coords(i_headPivot,:,bodyFrame) = tempReconfu(1:3);
+
+        tempReconfu = reconfu([DLT_1,DLT_2], [neckCentre_view1(1),neckCentre_view1(2),neckCentre_view2(1),neckCentre_view2(2)]);
+        bodyData.kine.flyhead.data.coords(i_neckCentre,:,bodyFrame) =  tempReconfu(1:3);
+
+        tempReconfu = reconfu([DLT_1,DLT_2], [thoracicAbdomenJoint_view1(1),thoracicAbdomenJoint_view1(2),thoracicAbdomenJoint_view2(1),thoracicAbdomenJoint_view2(2)]);
+        bodyData.kine.flyhead.data.coords(i_thoracicAbdomenJoint,:,bodyFrame)=  tempReconfu(1:3);
+
+        tempReconfu = reconfu([DLT_1,DLT_2], [LwingBase_view1(1),LwingBase_view1(2),LwingBase_view2(1),LwingBase_view2(2)]); 
+        bodyData.kine.flyhead.data.coords(i_LwingBase,:,bodyFrame)= tempReconfu(1:3);
+
+        tempReconfu = reconfu([DLT_1,DLT_2], [RwingBase_view1(1),RwingBase_view1(2),RwingBase_view2(1),RwingBase_view2(2)]);    
+        bodyData.kine.flyhead.data.coords(i_RwingBase,:,bodyFrame)= tempReconfu(1:3);
+
+    else %if using orthocam calibration for 2D->3D
+
+        bodyData.kine.flyhead.data.coords(i_headPivot,:,bodyFrame) = stereoTriangulate(orthocamObj,headPivot_view1',headPivot_view2');
+
+        bodyData.kine.flyhead.data.coords(i_neckCentre,:,bodyFrame) =  stereoTriangulate(orthocamObj,neckCentre_view1',neckCentre_view2');
+
+        bodyData.kine.flyhead.data.coords(i_thoracicAbdomenJoint,:,bodyFrame)=  stereoTriangulate(orthocamObj,thoracicAbdomenJoint_view1',thoracicAbdomenJoint_view2');
+
+        bodyData.kine.flyhead.data.coords(i_LwingBase,:,bodyFrame)= stereoTriangulate(orthocamObj,LwingBase_view1',LwingBase_view2');
+
+        bodyData.kine.flyhead.data.coords(i_RwingBase,:,bodyFrame)= stereoTriangulate(orthocamObj,RwingBase_view1',RwingBase_view2');
+
+    end
+
+elseif bodyAPTorKine=='K' 
+    %do nothing
+else
+    error('Non recognized bodyAPTorKine varaible - should be A for APT or K for kine!')
+end
+
+
+%% turning 2D tracked data into 3D positions
+
+
+
+if size(trackedData.labeledpos2,1)==0
+    error('no tracking data in project')
+end
+
+clear threeD_pos
+tic
+disp('Converting from 2d->3D.  Very slow...')
+for vidIdx=1:1:size(trackedData.labeledpos2,1) %for each video
+
+
+    totalNumPts=size(trackedData.labeledpos2{vidIdx},1)/2;
+
+
+    %loading two views of same trial - ASSUMING THEY ARE SEQUENTIAL ENTRIES
+    %IN TRACKING PROJECT!!
+    if predictions1orLabels0 ==1
+        view1_2D_data = trackedData.labeledpos2{vidIdx}(1:5,:,:);
+        view2_2D_data = trackedData.labeledpos2{vidIdx}(1+totalNumPts:5+totalNumPts,:,:);
+    elseif predictions1orLabels0 ==0
+        view1_2D_data = trackedData.labeledpos{vidIdx}(1:5,:,:);
+        view2_2D_data = trackedData.labeledpos{vidIdx}(1+totalNumPts:5+totalNumPts,:,:);
+    else
+        error('I can''t tell if you want to analyze predictions or labels, check inputs')
+    end
+
+    %doing 2D->3D for each point over all time points
+    % threeD_pos = 3d positions where p in threeD_pos{t}{p} gives data for
+    % body part/point p in trial t,  rows are video frames and columns are xyz.
+        if DLTorOrtho==1 %if using DLT for 2D->3D
+            for p=1:size(view1_2D_data,1)%for each of head points
+                for fr =1:size(view1_2D_data,3) %for each frame
+
+                tempxyzblah = reconfu([DLT_1,DLT_2],[squeeze(view1_2D_data(p,1,fr)),squeeze(view1_2D_data(p,2,fr)),squeeze(view2_2D_data(p,1,fr)),squeeze(view2_2D_data(p,2,fr))]);
+                P(:,p,fr) = tempxyzblah(1:3);
+                threeD_pos{vidIdx}{p}(fr,1:3) = P(:,p,fr);
+
+                end
+            end
+        else % if using orthocam calibration 
+            for p=1:size(view1_2D_data,1)%for each of head points
+                threeD_pos{vidIdx}{p}(:,1:3) = permute( stereoTriangulate(orthocamObj,squeeze(view1_2D_data(p,1:2,:)),squeeze(view2_2D_data(p,1:2,:))), [2,1]);            
+            end
+        end
+
+
+end
+disp('..done')
+toc
+
+
+%% using all data to estimate best pivot point to describe all head positions -slow!
+
+%just getting all data for all videos and frames in same array
+allHeadCoords=[];
+
+% points = n x 3 x t 3D array.  Each row is a diffrent 3D point, each
+%       of 3 columns are the xyz coords of the point, each 3rd dimension is
+%       a different time point where the 3D points are rotated relative to
+%       other time points about a pivot.  origin of xyz points determines
+%       the starting point in the optimization to find the pivot.
+
+
+counter = 0;
+for trial = 1:size(threeD_pos,2)
+    for point = 1:size(threeD_pos{1},2)
+        for t = 1:size(threeD_pos{1}{1},1)
+
+            counter = counter+1;
+            allHeadCoords(point,1:3,counter) = threeD_pos{trial}{point}(t,1:3);
+
+        end
+    end
+end
+
+
+allHeadCoords(:,:, 1) = [];
+
+%removing empty frames - shouldn't be any for predictions but will exist
+%for labels (untested)
+i=isnan(allHeadCoords(1,1,:));
+allHeadCoords(:,:,i)=[];
+
+%just gettting pivot point user clicked on
+%i_headPivot =  find(ismember(bodyData.kine.flyhead.config.points,'headPivot'));
+userPivotPoint = bodyData.kine.flyhead.data.coords(i_headPivot,:,bodyFrame);
+
+
+%estimating actual pivot point that best describes all head rotations
+%downsampling if have too many points
+clear dsmpld_allHeadCoords
+maxt= 100;
+if size(allHeadCoords,3)>maxt
+    downfac = round(size(allHeadCoords,3)/maxt);
+    for p = 1:size(allHeadCoords,1)
+        for xyz=1:3
+            dsmpld_allHeadCoords(p,xyz,:) = downsample(allHeadCoords(p,xyz,:),downfac);
+        end
+    end
+else
+    dsmpld_allHeadCoords = allHeadCoords;
+end
+
+disp('Estimating head pivot point. Slow...')
+[pivot]= estimatePivot(dsmpld_allHeadCoords,userPivotPoint);
+disp('...done.')
+
+
+%% Using all non-stimulus data to estimate best reference point for head rotations
+
+
+%just getting all data for all files and frames in same array
+allHeadCoords=[];
+%putting all head data from all expierments, all frames into one array
+%that can use to estimate pivot point from
+%
+% points = n x 3 x t 3D array.  Each row is a diffrent 3D point, each
+%       of 3 columns are the xyz coords of the point, each 3rd dimension is
+%       a different time point where the 3D points are rotated relative to
+%       other time points about a pivot.  origin of xyz points determines
+%       the starting point in the optimization to find the pivot.
+
+counter = 0;
+for trial = 1:size(threeD_pos,2)
+    for sp = 1:length(stimulusOnOff)-1%for each stimulus period except last one (usually 6 stimuli per videos)
+        % for non-stimulus period use roughly 1000 ms after stimulus started (700ms after stimulus ended) -
+        % stimulus will restart at 1300 ms after stimulus orginially started.  So
+        % 1000 ms 1s shift i.e.
+        fakeStimShiftFrames = round(1*frameRate_FPS);
+        st = stimulusOnOff(sp,1) - framesBeforeStimOn;%real start and end used
+        en = stimulusOnOff(sp,2) + framesAfterStimOff;
+        st_c = st + fakeStimShiftFrames;
+        en_c = en + fakeStimShiftFrames;
+        for t = st_c:en_c
+            counter = counter+1;
+            for point = 1:size(threeD_pos{1},2)
+                allHeadCoords(point,1:3,counter) = threeD_pos{trial}{point}(t,1:3) ;
+            end
+        end
+    end
+
+end
+
+
+
+for point = 1:size(threeD_pos{1},2)
+    refHead(point,:) = [median(allHeadCoords(point,1,:)),median(allHeadCoords(point,2,:)),median(allHeadCoords(point,3,:))];
+end
+
+%aligning median refHead so body axis and y axis are hte same
+%and pivot =[0,0,0] as this will also be done to head data in
+%APTtracking2RotationSequence.m later
+bodyCoords = ...
+[   bodyData.kine.flyhead.data.coords(i_neckCentre,:,bodyFrame);...  
+    bodyData.kine.flyhead.data.coords(i_thoracicAbdomenJoint,:,bodyFrame);... 
+    bodyData.kine.flyhead.data.coords(i_LwingBase,:,bodyFrame);... 
+    bodyData.kine.flyhead.data.coords(i_RwingBase,:,bodyFrame)];
+
+[ refHead, alignedBodyCoords, alignedPivotPoint] = alignBodyAxis2Yaxis( refHead,bodyCoords,pivot);
+
+
+
+%% running APTtracking2RotationSequence over all data
+
+
+
+counter = 0;
+cntrlCounter=0;
+for vid = 1:size(threeD_pos,2)%for each video in experiment
+
+    counter = counter +1;
+
+    clear headData
+    headData.kine.flyhead.data.coords(i_LantTip,1:3,:) = threeD_pos{vid}{i_LantTip}(:,1:3)';
+    headData.kine.flyhead.data.coords(i_RantTip,1:3,:) = threeD_pos{vid}{i_RantTip}(:,1:3)';
+    headData.kine.flyhead.data.coords(i_LantBase,1:3,:) = threeD_pos{vid}{i_LantBase}(:,1:3)';
+    headData.kine.flyhead.data.coords(i_RantBase,1:3,:) = threeD_pos{vid}{i_RantBase}(:,1:3)';
+    headData.kine.flyhead.data.coords(i_ProboscisRoof,1:3,:) = threeD_pos{vid}{i_ProboscisRoof}(:,1:3)';
+
+    [translations(:,:,counter), axisAngleDegXYZ(:,:,counter), quaternion(:,:,counter), frameStore(:,:,counter),...
+    residualErrors(:,:,counter), scaleErrors(:,:,counter), refHeadReturned, rawXYZcoordsStore(:,:,counter), ...
+    alignedXYZcoordsStore(:,:,counter),alignedExampleHeadCoords,labFrameReferenceHeadCoords]...
+    = threeD2RT(headData,bodyData,pivot,bodyFrame,frameRate_FPS, 0, refHead);
+
+end
+
+
+
