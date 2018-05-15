@@ -223,7 +223,7 @@ end
 
 
 if size(trackedData.labeledpos2,1)==0
-    error('no tracking data in project')
+    warning('no tracking data in project')
 end
 
 clear threeD_pos
