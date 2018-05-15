@@ -77,22 +77,26 @@ classdef BGClient < handle
       end
       
       queue = parallel.pool.DataQueue;
-      queue.afterEach(@(dat)obj.afterEach(dat));
+      if workerContinuous
+      	queue.afterEach(@(dat)obj.afterEachContinuous(dat));
+      else
+        queue.afterEach(@(dat)obj.afterEach(dat));
+      end		
       obj.qWorker2Me = queue;
       
       if workerContinuous
         workerObj = BGWorkerContinuous;
         % computeObj deep-copied onto worker
-        obj.fevalFuture = parfeval('start',1,workerObj,queue,...
+        obj.fevalFuture = parfeval(@start,1,workerObj,queue,...
           obj.computeObj,obj.computeObjMeth,continuousCallInterval);
       else      
         workerObj = BGWorker;
         % computeObj deep-copied onto worker
-        obj.fevalFuture = parfeval('start',1,workerObj,queue,...
+        obj.fevalFuture = parfeval(@start,1,workerObj,queue,...
           obj.computeObj,obj.computeObjMeth); 
       end
       
-      obj.isContinous = workerContinuous;
+      obj.isContinuous = workerContinuous;
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;
@@ -106,9 +110,6 @@ classdef BGClient < handle
       if ~obj.isRunning
         error('BGClient:run','Worker is not running.');
       end      
-      if obj.isContinuous
-        error('Continuous workers only accept the stopWorker() command.');
-      end
       
       assert(isstruct(sCmd) && all(isfield(sCmd,{'action' 'data'})));
       sCmd.id = obj.idPool;
@@ -153,6 +154,15 @@ classdef BGClient < handle
       else
         obj.log('Received results id %d',dat.id);
         obj.idTocs(dat.id) = toc(obj.idTics(dat.id));
+        obj.cbkResult(dat);
+      end
+    end    
+
+    function afterEachContinuous(obj,dat)
+      if isa(dat,'parallel.pool.PollableDataQueue')
+        obj.qMe2Worker = dat;
+        obj.log('Received pollableDataQueue from worker.');
+      else
         obj.cbkResult(dat);
       end
     end    

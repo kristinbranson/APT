@@ -41,7 +41,7 @@ classdef BGWorkerContinuous < handle
         tic;
         result = cObj.(cObjMeth)();
         obj.computeTimes(end+1,1) = toc;
-        dataQueue.send(struct('id',0,'action','','result',result));
+        dataQueue.send(struct('id',0,'action','','result',{result}));
 %         dataQueue.send(struct('id',data.id,'action',action,'result',result));
         
         [data,ok] = pdQueue.poll();

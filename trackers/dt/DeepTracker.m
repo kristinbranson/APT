@@ -61,12 +61,18 @@ classdef DeepTracker < LabelTracker
     function train(obj)
       % Caller: make sure project is saved. make sure proj has a name, eg
       % from projAssign...
-      
-%       projname = obj.lObj.projname;
-%       assert(~isempty(projname));      
-%       jobID = sprintf('%s_%s',projname,datestr(now,'yyyymmddTHHMMSS'));
+
+      lblObj = obj.lObj;     
+      projname = lblObj.projname;
+      assert(~isempty(projname));      
+      jobID = sprintf('%s_%s',projname,datestr(now,'yyyymmddTHHMMSS'));
       
       % Write stripped lblfile to cacheDir
+      s = lblObj.trackCreateStrippedLbl();
+      cacheDir = obj.sPrm.CacheDir;
+      dlLblFile = fullfile(cacheDir,[jobID '.lbl']);
+      save(dlLblFile,'-mat','-struct','s');
+      fprintf('Saved stripped lbl file: %s\n',dlLblFile);
 
       % start training
       aptintrf = fullfile(obj.posetfroot,'APT_interface.py');
@@ -74,7 +80,8 @@ classdef DeepTracker < LabelTracker
       fprintf(1,'Running %s\n',cmd);
             
       % call BG Train Monitor
-      
+      obj.bgPrepareTrainMonitor(dlLblFile,jobID);
+      obj. bgStartTrainMonitor();
     end
     
   end
@@ -134,17 +141,25 @@ classdef DeepTracker < LabelTracker
       obj.bgClientTrnMonitor.startWorker('workerContinuous',true,...
         'continuousCallInterval',10);
     end
+
+    function bgStopTrainMonitor(obj)
+      obj.bgClientTrnMonitor.stopWorker();
+    end
      
     function bgTrainMonitorResultReceived(obj,sRes)
       % Callback executed when new result received from training monitor BG
       % worker
       
       res = sRes.result;
-      assert(iscell(res));
       for ivw=1:numel(res)
-        if ~isempty(res)
-          fprintf(1,'View %d: new training log update.\n',ivw);
-        end
+        fprintf(1,'View%d: jsonPresent: %d. ',ivw,res(ivw).jsonPresent);
+      	if res(ivw).tfUpdate
+          fprintf(1,'New training iter: %d.\n',res(ivw).lastTrnIter);
+        elseif res(ivw).jsonPresent
+          fprintf(1,'No update, still on iter %d.\n',res(ivw).lastTrnIter);
+        else
+	  fprintf(1,'\n');
+	end	
       end
         
 %       switch sRes.action
