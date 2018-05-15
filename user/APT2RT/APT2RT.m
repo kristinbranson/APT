@@ -75,45 +75,10 @@ stimulusOnOff = flyNum2stimFrames_SJH(flyNum);
 
 %%   old stuff here for reference fix and delete
 
-%set to 1 if want positions relative to global reference point: fake head
-%aligned with body/lab frame.  Set to 3 (preferred!!!!) if want relative to global starting point
-% that is aligned to body but pitched down 40 deg (recommended).  Set to 0 if want positions relative to each
-%trial's start position. set to 4 if want relative to user provided head
-%position - first digitized frame of first video in this case
-% 
-%rel2StartOrLab = Determines whether calculate head position relative to
-% position in first frame or relative to a global starting position - fake
-% head aligned to body axis/lab frame.  0 if want data relative to 1st
-% frame, 1 if want it relative to fake head aligned to body/lab frame such
-% that head is level with body (unnatural and will get weird euler angles 
-% due to haveing to pitch head so far down).  3 if want data relative to
-% standard fake head aligned with body but pitched down 25 degrees to
-% roughly normal head posture so don't have to rotate it too far - better
-% euler angles than option 2 but still have standard comparison point.  3
-% gets rid of roll and yaw from starting head position so can then
-% calculate rotation relative to a straight head but still in original
-% pitch position.  Using rel2StartOrLab=3 with zero2startPos=1 will generate
-% idenal results to using rel2StartOrLab = 0 as computing rotations from
-% the 1st frame is the same as computing rotations from a global reference
-% point and then subtracting the results of the first frame from (not true 
-% if you have to rotate a long distance as in rel2StartOrLab =1 as get
-% Euler angle weirdness). 4 = use user provided reference head (unaligned, straight from data)
-% as reference point for all data - must provide referenceHead input in this case
-% 5 = if want to use median head position during non-stimulus frames as
-% reference head
-rel2StartOrLab =5;%3;
-
-%set to 1 if want to zero all data to initial position of
-% head in frame 1, 0 if not.
-zero2startPos = 0; 
 
 %video frame rate - usually 125
 frameRate_FPS = 125;
 
-
-%frame and video to use as reference for head position
-refFrame = 1;;
-refVid = 1;
 
 %Number of frames before and after stimulus turns on and off to analyze
 framesBeforeStimOn = 25;
