@@ -1,4 +1,4 @@
-function stimulusOnOff = flyNum2stimFrames_SJH(flynum)
+function [stimulusOnOff,stimulusCase] = flyNum2stimFrames_SJH(flynum)
 % Takes Stephen's fly number and outputs the frames the stimulus turned on and off
 %
 % input:
