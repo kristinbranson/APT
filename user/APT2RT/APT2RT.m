@@ -1,4 +1,5 @@
-function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,quaternion]=APT2RT(APTfilename,flynum2bodyLUT,flynum2calibLUT,predictions1orLabels0)
+function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,quaternion] = ...
+  APT2RT(APTfilename,flynum2bodyLUT,flynum2calibLUT,predictions1orLabels0)
 %Takes APT project containing output of Maynak's tracker and estimates
 %rotation of fly's head.
 %
@@ -56,10 +57,13 @@ flyNum = getflynum(APTfilename);
 disp(['Fly ',num2str(flyNum)])
 
 %getting calibration info
-fid = fopen(flynum2calibLUT);
-calibTable = textscan(fid, '%d %s', 'Delimiter',',');
-i = find(calibTable{1}==flyNum);
-calibFname = cell2mat(calibTable{2}(i));%filename of calibration file to use for this fly
+tblCalib = readtable(flynum2calibLUT);
+% fid = fopen(flynum2calibLUT);
+% calibTable = textscan(fid, '%d %s', 'Delimiter',',');
+% i = find(calibTable{1}==flyNum);
+i = find(tblCalib.fly==flyNum);
+% calibFname = cell2mat(calibTable{2}(i));%filename of calibration file to use for this fly
+calibFname = tblCalib.calibfile{i};
 
 %extracting body axis info from flynum2bodyLUT .csv file
 fid = fopen(flynum2bodyLUT);
