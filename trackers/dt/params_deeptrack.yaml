@@ -27,9 +27,11 @@ ROOT:
     - normalize: ['Normalize Image',boolean,true,'Normalize by subtracting image mean',1,'']
     - unet_steps: ['Training iterations',unsigned,true,'Number of iterations to run the training for',20000,'']
     - batch_size: ['Batch Size',unsigned,true,'Number of examples to use for each training iteration. The training iterations (above) are for batch size of 8. The actual number training iterations will adjusted based on this batch size',8,'']
+    - flipud: ['Flip Movie',float,true,'Flip movie upside down',0,'']
     - save_td_step: ['Training data save steps',unsigned,true,'The training data will be saved every these many steps',100,'']
     - rrange: ['Rotate range',unsigned,true,'Training images and labels will be rotated will be randomly rotated by this many degree to augment training data',1,'']
     - trange: ['Translation range',unsigned,true,'Training images and labels will be translated in both x and y direction by these many pixels to augment training data',1,'']
     - crange: ['Contrast range',float,true,'Training image contrast will be modified by this much amount to augment training data. 0 for no contrast adjustment, 1 for max. This is different from Adjust Contrast above',0.3,'']
     - brange: ['Brightness range',float,true,'Training image brightness will be modified by this much amount to augment training data. 0 for no contrast adjustment, 1 for max',0.2,'']
+  
 
