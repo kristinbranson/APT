@@ -3,10 +3,12 @@ classdef DeepTracker < LabelTracker
   properties
     sPrm % new-style DT params
     
-    % bg
-    bgClientTrnMonitor % BGClient obj
-    bgWorkerObjTrnMonitor; % scalar "detached" object that is deep-copied onto 
+    % bg trn monitor
+    bgTrnMonitorClient % BGClient obj
+    bgTrnMonitorWorkerObj; % scalar "detached" object that is deep-copied onto 
       % workers. Note, this is not the BGWorker obj itself
+    bgTrnMonitorResultsMonitor % object with resultsreceived() method 
+    
   end
   properties (Dependent)
     bgReady % If true, asyncPrepare() has been called and asyncStartBGWorker() can be called
@@ -41,7 +43,7 @@ classdef DeepTracker < LabelTracker
       v = obj.lObj.nLabelPoints;
     end
     function v = get.bgReady(obj)
-      v = ~isempty(obj.bgClientTrnMonitor);
+      v = ~isempty(obj.bgTrnMonitorClient);
     end
   end
   
@@ -108,16 +110,22 @@ classdef DeepTracker < LabelTracker
 %       end
       
 %       obj.asyncPredictOn = false;
-      if ~isempty(obj.bgClientTrnMonitor)
-        delete(obj.bgClientTrnMonitor);
+      if ~isempty(obj.bgTrnMonitorClient)
+        delete(obj.bgTrnMonitorClient);
 %       else
 %         tfwarn = false;
       end
-      obj.bgClientTrnMonitor = [];
-      if ~isempty(obj.bgWorkerObjTrnMonitor)
-        delete(obj.bgWorkerObjTrnMonitor)
+      obj.bgTrnMonitorClient = [];
+      
+      if ~isempty(obj.bgTrnMonitorWorkerObj)
+        delete(obj.bgTrnMonitorWorkerObj)
       end
-      obj.bgWorkerObjTrnMonitor = [];
+      obj.bgTrnMonitorWorkerObj = [];
+      
+      if ~isempty(obj.bgTrnMonitorResultsMonitor)
+        delete(obj.bgTrnMonitorResultsMonitor);
+      end
+      obj.bgTrnMonitorResultsMonitor = [];
       
 %       if tfwarn
 %         warningNoTrace('CPRLabelTracker:bg','Cleared background tracker.');
@@ -127,40 +135,26 @@ classdef DeepTracker < LabelTracker
     function bgPrepareTrainMonitor(obj,dlLblFile,jobID)
       obj.bgReset();
 
-      cbkResult = @(sRes)obj.bgTrainMonitorResultReceived(sRes);      
+      objMon = DeepTrackerTrainingMonitor(obj.lObj.nview);
+      cbkResult = @objMon.resultsReceived;
       workerObj = DeepTrackerTrainingWorkerObj(dlLblFile,jobID);
       bgc = BGClient;
       fprintf(1,'Configuring background worker...\n');
       bgc.configure(cbkResult,workerObj,'compute');
-      obj.bgClientTrnMonitor = bgc;
-      obj.bgWorkerObjTrnMonitor = workerObj;
+      obj.bgTrnMonitorClient = bgc;
+      obj.bgTrnMonitorWorkerObj = workerObj;
+      obj.bgTrnMonitorResultsMonitor = objMon;
     end
     
     function bgStartTrainMonitor(obj)
       assert(obj.bgReady);
-      obj.bgClientTrnMonitor.startWorker('workerContinuous',true,...
+      obj.bgTrnMonitorClient.startWorker('workerContinuous',true,...
         'continuousCallInterval',10);
     end
 
     function bgStopTrainMonitor(obj)
-      obj.bgClientTrnMonitor.stopWorker();
+      obj.bgTrnMonitorClient.stopWorker();
     end
-     
-    function bgTrainMonitorResultReceived(obj,sRes)
-      % Callback executed when new result received from training monitor BG
-      % worker
-      
-      res = sRes.result;
-      for ivw=1:numel(res)
-        fprintf(1,'View%d: jsonPresent: %d. ',ivw,res(ivw).jsonPresent);
-      	if res(ivw).tfUpdate
-          fprintf(1,'New training iter: %d.\n',res(ivw).lastTrnIter);
-        elseif res(ivw).jsonPresent
-          fprintf(1,'No update, still on iter %d.\n',res(ivw).lastTrnIter);
-        else
-	  fprintf(1,'\n');
-	end	
-      end
         
 %       switch sRes.action
 %         case 'track'
@@ -171,7 +165,6 @@ classdef DeepTracker < LabelTracker
 %         case BGWorker.STATACTION
 %           computeTimes = res;
 %           CPRLabelTracker.asyncComputeStatsStc(computeTimes);
-    end
     
   end
   
