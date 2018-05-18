@@ -264,9 +264,24 @@ if DOSAVE
 end
 
 %% stim
-[~,stimcase] = arrayfun(@flyNum2stimFrames_SJH,t.flyID,'uni',0);
+[stimOnOff,stimcase] = arrayfun(@flyNum2stimFrames_SJH,t.flyID,'uni',0);
+tfLblInStim = false(height(t),1);
+for i=1:height(t)
+  stimwins = stimOnOff{i};
+  tfwin = stimwins(:,1)<=t.frm(i) & t.frm(i)<=stimwins(:,2);
+  tfLblInStim(i) = any(tfwin);
+end
 t.stimcase = cell2mat(stimcase);
-[~,stimcaseMDC] = arrayfun(@flyNum2stimFrames_SJH,tMDC.flyID,'uni',0);
+t.lblInStim = tfLblInStim;
+%%
+[stimOnOffMDC,stimcaseMDC] = arrayfun(@flyNum2stimFrames_SJH,tMDC.flyID,'uni',0);
+nFrmsInStim = zeros(height(tMDC),1);
+for i=1:height(tMDC)
+  stimwins = stimOnOffMDC{i};
+  tfFrmsInWin = arrayfun(@(x) any(stimwins(:,1)<=x & x<=stimwins(:,2)), tMDC.frms{i});
+  nFrmsInStim(i) = sum(tfFrmsInWin);
+end
+nFrmsNotInStim = cellfun(@numel,tMDC.frms)-nFrmsInStim;
 tMDC.stimcase = cell2mat(stimcaseMDC);
 
 %%
@@ -423,4 +438,29 @@ if DOSAVE
   print(hfig,'-dpng','-r300',fullfile(SAVEDIR,[SAVENAME '.png']));    
 end
 
+%%
+tDLT = readtable('y:\apt\experiments\data\fly2DLT_lookupTableAL.csv');
+tSHflies = readtable('y:\apt\experiments\data\shflies.csv');
 
+%%
+t = outerjoin(tDLT,tSHflies,'Keys','fly','mergekeys',true);
+tf = isnan(t.isTrn);
+isequal(tf,isnan(t.nTrn),isnan(t.isBadCalib),isnan(t.isBodyAxis),isnan(t.isEnriched),isnan(t.stimCase))
+fprintf('%d nan rows isTrn\n',nnz(tf))
+t.isTrn(tf) = false;
+t.nTrn(tf) = 0;
+t.isBodyAxis(tf) = false;
+t.isEnriched(tf) = false;
+t.isBodyAxis(tf) = false;
+[~,stimcase] = arrayfun(@flyNum2stimFrames_SJH,t.fly,'uni',0);
+stimcase = cell2mat(stimcase);
+isequal(stimcase(~tf),t.stimCase(~tf))
+t.stimCase = stimcase;
+isbadcalib = ismember(t.calibfile,badcalibs);
+isbadcalibaug = ismember(t.calibfile,badcalibswithcoupleextra);
+isequal(t.isBadCalib(~tf),isbadcalib(~tf))
+isequal(t.isBadCalib(~tf),isbadcalibaug(~tf))
+t.isBadCalib = isbadcalibaug;
+
+%%
+writetable(t,'y:\apt\experiments\data\shflies20180518.csv');
