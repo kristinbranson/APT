@@ -436,7 +436,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trkPMD = tblTrkRes(:,fldsMD);
       obj.trkP = tblTrkRes.pTrk;
       obj.trkPTS = repmat(now,nTrk,1);
-      obj.trkPTrnTS = nan(1,obj.lObj.nView);
+      obj.trkPTrnTS = nan(1,obj.lObj.nview);
       obj.trkPiPt = pTrkiPt;
       switch obj.storeFullTracking
         case StoreFullTrackingType.NONE
