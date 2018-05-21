@@ -1,4 +1,4 @@
-function stimulusOnOff = flyNum2stimFrames_SJH(flynum)
+function [stimulusOnOff,stimulusCase] = flyNum2stimFrames_SJH(flynum)
 % Takes Stephen's fly number and outputs the frames the stimulus turned on and off
 %
 % input:
@@ -63,6 +63,7 @@ end
 
 %stimulusOnOff = frames in which the stimulus turned on and off
 if stimulusCase == 0 %0 = most common stimulus times between fly # 119-132 & 158-628:
+    % 234 frames stimmed
     
     stimulusOnOff(1,:) = [124 162];
     stimulusOnOff(2,:) = [324 362];
@@ -72,7 +73,7 @@ if stimulusCase == 0 %0 = most common stimulus times between fly # 119-132 & 158
     stimulusOnOff(6,:) = [1124 1162];
 
 elseif stimulusCase ==1 % each pulse consists of a burst.  Filenames: LEDbursts_10sTrial_0.001sPulse_150pulsesInBursts_1sIBI
-
+    % 266 frames stimmed
     % %stimulus times for old fly 157 142 etc:
     stimulusOnOff(1,:) = [124 161];
     stimulusOnOff(2,:) = [286 323];
@@ -83,7 +84,7 @@ elseif stimulusCase ==1 % each pulse consists of a burst.  Filenames: LEDbursts_
     stimulusOnOff(7,:) = [1099 1136];
 
 elseif  stimulusCase ==2 %fly 89-90: photron_LEDbursts(1,0.1,1,0.5) - old version
-
+    %418 frms stimmed
     %stimulus times for fly 90:
     stimulusOnOff(1,:) = [37 74];
     stimulusOnOff(2,:) = [150 187];
@@ -98,7 +99,7 @@ elseif  stimulusCase ==2 %fly 89-90: photron_LEDbursts(1,0.1,1,0.5) - old versio
     stimulusOnOff(11,:) = [1162 1199];
 
 elseif  stimulusCase ==3 %fly numbers 629 and up using photron_LEDbursts(12,0.3,0.3,1,1.2)
-    
+    % 234 frms stimmed
     stimulusOnOff(1,:) = [150 188];
     stimulusOnOff(2,:) = [376 414];
     stimulusOnOff(3,:) = [601 639];
@@ -107,18 +108,18 @@ elseif  stimulusCase ==3 %fly numbers 629 and up using photron_LEDbursts(12,0.3,
     stimulusOnOff(6,:) = [1278 1316];
     
 elseif stimulusCase ==4 %LEDbursts_8sTrial_0.5sPulse_1pulsesInBursts_0.7sIBI_
-    
+    % 252 frms stimmed
     stimulusOnOff(1,:) = [86,148];
     stimulusOnOff(2,:) = [299,361];
     stimulusOnOff(3,:) = [511,573];
     stimulusOnOff(4,:) = [724,786];
     
 elseif stimulusCase == 5 %LEDbursts_2.4sTrial_1sPulse_1pulsesInBursts_0.3sIBI
-    
+    % 125 frms stimmed
     stimulusOnOff=[37,161];
     
 elseif stimulusCase == 6%LEDbursts_1sTrial_0.3sPulse_1pulsesInBursts_0.3sIBI
-    
+    % 38 frms stimmed
     stimulusOnOff=[36,73];
     
 else

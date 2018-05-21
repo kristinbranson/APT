@@ -1,8 +1,11 @@
-function [lblDate,lblCat,frms] = findMovDateCat(movID,lblDate,lblCat,frms)
+function [lblDate,lblCat,frms,fly] = findMovDateCat(movID,lblDate,lblCat,frms,fly)
 
 movID = unique(movID);
 assert(isscalar(movID));
 movID = movID{1};
+
+fly = unique(fly);
+assert(isscalar(fly));
 
 lblDate = cellstr(lblDate);
 lblDate = unique(lblDate);

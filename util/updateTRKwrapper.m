@@ -8,7 +8,9 @@ function updateTRKwrapper(path,fnames)
 % will prompt you to make them using gui.
 
 
-[fnames,path]=uigetfile(['*.lbl'],'Select all APT projects to update tracking for','multiselect','on');
+if isempty(fnames)
+    [fnames,path]=uigetfile(['*.lbl'],'Select all APT projects to update tracking for','multiselect','on');
+end
 
 %intitialising labeler
 lObj = Labeler;
