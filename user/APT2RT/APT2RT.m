@@ -1,5 +1,5 @@
-function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,quaternion] = ...
-  APT2RT(APTfilename,flynum2bodyLUT,flynum2calibLUT,predictions1orLabels0)
+function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,quaternion, pivot, refHead] = ...
+  APT2RT(APTfilename,flynum2bodyLUT,flynum2calibLUT,predictions1orLabels0,pivot,refHead)
 %Takes APT project containing output of Maynak's tracker and estimates
 %rotation of fly's head.
 %
@@ -19,7 +19,23 @@ function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,quaternion] = 
 %           use for this fly.
 %
 %           predictions1orLabels0 = set to 1 if want to analyze predictions
-%           (.labeledpos2) set to 0 if want to analyze labels (.labeledpos)
+%           (.labeledpos2) set to 0 if want to analyze labels
+%           (.labeledpos).  If 0 (labels) should always provide non-empty pivot and
+%           refHead inputs also (get these by running on predictions
+%           first).  If 1 can set pivot and refHead to empty and use the
+%           outputs for future runs
+%
+%           pivot = 3D Point to assume the fly's head pivots around.  If
+%           you don't have this then set to empty [] and code will estimate
+%           this.  If you run this code on the same fly twice e.g. once for
+%           predictions once for labels.  Run for predictions first then
+%           use the pivot outputed by that run as input for labels run.
+%
+%           refHead = 'Standard head' to compute rotations relative to.  If
+%           you don't have this then set to empty [] and code will estimate
+%           this.  If you run this code on the same fly twice e.g. once for
+%           predictions once for labels.  Run for predictions first then
+%           use the refHead outputed by that run as input for labels run.
 %
 % Outputs:
 %       
@@ -37,6 +53,15 @@ function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,quaternion] = 
 %
 %           quaternion = alternate quaternion represention of rotations
 %
+%           pivot = 3D Point code assumed the fly's head pivots around. If
+%           running this code again on same fly use this as pivot input to ensure
+%           you can compare two data sets
+%
+%           refHead = 'Standard head' that rotations were computed relative to.  
+%           If you run this code again on data from same fly use this as
+%           'refHead' input to ensure two data sets are in same reference
+%           frame
+%
 %
 % Dependencies:
 %               kine2RotationAxis.m
@@ -48,6 +73,15 @@ function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,quaternion] = 
 %  quat2eulzyx.m (Kine/kine_math)
 
 
+%% if using labels, data is too sparse to estimate pivot and reference head
+% Need to run on predictions from same fly first to get these
+
+if (predictions1orLabels0 ==0) 
+    if isempty(pivot)||isempty(refHead)
+        error('Need to provide non-empty pivot and refHead inputs when analyzing labels.  Get these by running on predictions from the same fly first!')
+    end
+end
+
 
 %% getting info from files
 
@@ -57,13 +91,21 @@ flyNum = getflynum(APTfilename);
 disp(['Fly ',num2str(flyNum)])
 
 %getting calibration info
-tblCalib = readtable(flynum2calibLUT);
-% fid = fopen(flynum2calibLUT);
-% calibTable = textscan(fid, '%d %s', 'Delimiter',',');
-% i = find(calibTable{1}==flyNum);
-i = find(tblCalib.fly==flyNum);
-% calibFname = cell2mat(calibTable{2}(i));%filename of calibration file to use for this fly
-calibFname = tblCalib.calibfile{i};
+
+%stephen's version delete when done
+fid = fopen(flynum2calibLUT);
+calibTable = textscan(fid, '%d %s', 'Delimiter',',');
+i = find(calibTable{1}==flyNum);
+calibFname = cell2mat(calibTable{2}(i));%filename of calibration file to use for this fly
+
+%Allen's version - put it back like this when done
+% tblCalib = readtable(flynum2calibLUT);
+% % fid = fopen(flynum2calibLUT);
+% % calibTable = textscan(fid, '%d %s', 'Delimiter',',');
+% % i = find(calibTable{1}==flyNum);
+% i = find(tblCalib.fly==flyNum);
+% % calibFname = cell2mat(calibTable{2}(i));%filename of calibration file to use for this fly
+% calibFname = tblCalib.calibfile{i};
 
 %extracting body axis info from flynum2bodyLUT .csv file
 fid = fopen(flynum2bodyLUT);
@@ -121,7 +163,7 @@ end
 
 
 %getting 2D->3D DLT or orthocam variables
-load(calibFname)%
+load(calibFname, '-regexp', '^(?!vidObj$).')
 try
     dlt_side = DLT_1;
     dlt_front =DLT_2;
@@ -232,7 +274,7 @@ end
 
 clear threeD_pos
 tic
-disp('Converting from 2d->3D.  Very slow...')
+disp('Converting from 2D->3D.  Very slow...')
 for vidIdx=1:1:size(trackedData.labeledpos2,1) %for each video
 
 
@@ -251,6 +293,9 @@ for vidIdx=1:1:size(trackedData.labeledpos2,1) %for each video
         error('I can''t tell if you want to analyze predictions or labels, check inputs')
     end
 
+
+    
+    
     %doing 2D->3D for each point over all time points
     % threeD_pos = 3d positions where p in threeD_pos{t}{p} gives data for
     % body part/point p in trial t,  rows are video frames and columns are xyz.
@@ -258,15 +303,26 @@ for vidIdx=1:1:size(trackedData.labeledpos2,1) %for each video
             for p=1:size(view1_2D_data,1)%for each of head points
                 for fr =1:size(view1_2D_data,3) %for each frame
 
-                tempxyzblah = reconfu([DLT_1,DLT_2],[squeeze(view1_2D_data(p,1,fr)),squeeze(view1_2D_data(p,2,fr)),squeeze(view2_2D_data(p,1,fr)),squeeze(view2_2D_data(p,2,fr))]);
-                P(:,p,fr) = tempxyzblah(1:3);
-                threeD_pos{vidIdx}{p}(fr,1:3) = P(:,p,fr);
+                    if ~isnan(squeeze(view1_2D_data(p,1,fr)))
+                        tempxyzblah = reconfu([DLT_1,DLT_2],[squeeze(view1_2D_data(p,1,fr)),squeeze(view1_2D_data(p,2,fr)),squeeze(view2_2D_data(p,1,fr)),squeeze(view2_2D_data(p,2,fr))]);
+                        P(:,p,fr) = tempxyzblah(1:3);
+                        threeD_pos{vidIdx}{p}(fr,1:3) = P(:,p,fr);
+                    else
+                        threeD_pos{vidIdx}{p}(fr,1:3) = nan(1,3);
+                    end
 
                 end
             end
         else % if using orthocam calibration 
             for p=1:size(view1_2D_data,1)%for each of head points
-                threeD_pos{vidIdx}{p}(:,1:3) = permute( stereoTriangulate(orthocamObj,squeeze(view1_2D_data(p,1:2,:)),squeeze(view2_2D_data(p,1:2,:))), [2,1]);            
+                threeD_pos{vidIdx}{p}(:,1:3) = permute( stereoTriangulate(orthocamObj,squeeze(view1_2D_data(p,1:2,:)),squeeze(view2_2D_data(p,1:2,:))), [2,1]); 
+%                     for fr =1:size(view1_2D_data,3) %for each frame
+%                         if ~isnan(squeeze(view1_2D_data(p,1,fr)))
+%                             threeD_pos{vidIdx}{p}(fr,1:3) = permute( stereoTriangulate(orthocamObj,squeeze(view1_2D_data(p,1:2,fr))',squeeze(view2_2D_data(p,1:2,fr))'), [2,1]);            
+%                         else
+%                             threeD_pos{vidIdx}{p}(fr,1:3) = nan(1,3);
+%                         end
+%                     end                
             end
         end
 
@@ -276,115 +332,130 @@ disp('..done')
 toc
 
 
-%% using all data to estimate best pivot point to describe all head positions -slow!
+%% If no pivot point provided using all data to estimate best pivot point to describe all head positions -slow!
 
-%just getting all data for all videos and frames in same array
-allHeadCoords=[];
+if isempty(pivot)
+    
+    pivotProvided = 0;%1 for pivot was provided as an input, 0 when not
+    
+    %just getting all data for all videos and frames in same array
+    allHeadCoords=[];
 
-% points = n x 3 x t 3D array.  Each row is a diffrent 3D point, each
-%       of 3 columns are the xyz coords of the point, each 3rd dimension is
-%       a different time point where the 3D points are rotated relative to
-%       other time points about a pivot.  origin of xyz points determines
-%       the starting point in the optimization to find the pivot.
-
-
-counter = 0;
-for trial = 1:size(threeD_pos,2)
-    for point = 1:size(threeD_pos{1},2)
-        for t = 1:size(threeD_pos{1}{1},1)
-
-            counter = counter+1;
-            allHeadCoords(point,1:3,counter) = threeD_pos{trial}{point}(t,1:3);
-
-        end
-    end
-end
+    % points = n x 3 x t 3D array.  Each row is a diffrent 3D point, each
+    %       of 3 columns are the xyz coords of the point, each 3rd dimension is
+    %       a different time point where the 3D points are rotated relative to
+    %       other time points about a pivot.  origin of xyz points determines
+    %       the starting point in the optimization to find the pivot.
 
 
-allHeadCoords(:,:, 1) = [];
-
-%removing empty frames - shouldn't be any for predictions but will exist
-%for labels (untested)
-i=isnan(allHeadCoords(1,1,:));
-allHeadCoords(:,:,i)=[];
-
-%just gettting pivot point user clicked on
-%i_headPivot =  find(ismember(bodyData.kine.flyhead.config.points,'headPivot'));
-userPivotPoint = bodyData.kine.flyhead.data.coords(i_headPivot,:,bodyFrame);
-
-
-%estimating actual pivot point that best describes all head rotations
-%downsampling if have too many points
-clear dsmpld_allHeadCoords
-maxt= 100;
-if size(allHeadCoords,3)>maxt
-    downfac = round(size(allHeadCoords,3)/maxt);
-    for p = 1:size(allHeadCoords,1)
-        for xyz=1:3
-            dsmpld_allHeadCoords(p,xyz,:) = downsample(allHeadCoords(p,xyz,:),downfac);
-        end
-    end
-else
-    dsmpld_allHeadCoords = allHeadCoords;
-end
-
-disp('Estimating head pivot point. Slow...')
-[pivot]= estimatePivot(dsmpld_allHeadCoords,userPivotPoint);
-disp('...done.')
-
-
-%% Using all non-stimulus data to estimate best reference point for head rotations
-
-
-%just getting all data for all files and frames in same array
-allHeadCoords=[];
-%putting all head data from all expierments, all frames into one array
-%that can use to estimate pivot point from
-%
-% points = n x 3 x t 3D array.  Each row is a diffrent 3D point, each
-%       of 3 columns are the xyz coords of the point, each 3rd dimension is
-%       a different time point where the 3D points are rotated relative to
-%       other time points about a pivot.  origin of xyz points determines
-%       the starting point in the optimization to find the pivot.
-
-counter = 0;
-for trial = 1:size(threeD_pos,2)
-    for sp = 1:length(stimulusOnOff)-1%for each stimulus period except last one (usually 6 stimuli per videos)
-        % for non-stimulus period use roughly 1000 ms after stimulus started (700ms after stimulus ended) -
-        % stimulus will restart at 1300 ms after stimulus orginially started.  So
-        % 1000 ms 1s shift i.e.
-        fakeStimShiftFrames = round(1*frameRate_FPS);
-        st = stimulusOnOff(sp,1) - framesBeforeStimOn;%real start and end used
-        en = stimulusOnOff(sp,2) + framesAfterStimOff;
-        st_c = st + fakeStimShiftFrames;
-        en_c = en + fakeStimShiftFrames;
-        for t = st_c:en_c
-            counter = counter+1;
-            for point = 1:size(threeD_pos{1},2)
-                allHeadCoords(point,1:3,counter) = threeD_pos{trial}{point}(t,1:3) ;
+    counter = 0;
+    for trial = 1:size(threeD_pos,2)
+        for point = 1:size(threeD_pos{1},2)
+            for t = 1:size(threeD_pos{1}{1},1)
+                if ~isnan(threeD_pos{trial}{point}(t,1))
+                    counter = counter+1;
+                    allHeadCoords(point,1:3,counter) = threeD_pos{trial}{point}(t,1:3);
+                end
             end
         end
     end
 
+
+    allHeadCoords(:,:, 1) = [];
+
+    %removing empty frames - shouldn't be any for predictions but will exist
+    %for labels (untested)
+    i=isnan(allHeadCoords(1,1,:));
+    allHeadCoords(:,:,i)=[];
+
+    %just gettting pivot point user clicked on
+    %i_headPivot =  find(ismember(bodyData.kine.flyhead.config.points,'headPivot'));
+    userPivotPoint = bodyData.kine.flyhead.data.coords(i_headPivot,:,bodyFrame);
+
+
+    %estimating actual pivot point that best describes all head rotations
+    %downsampling if have too many points
+    clear dsmpld_allHeadCoords
+    maxt= 100;
+    if size(allHeadCoords,3)>maxt
+        downfac = round(size(allHeadCoords,3)/maxt);
+        for p = 1:size(allHeadCoords,1)
+            for xyz=1:3
+                dsmpld_allHeadCoords(p,xyz,:) = downsample(allHeadCoords(p,xyz,:),downfac);
+            end
+        end
+    else
+        dsmpld_allHeadCoords = allHeadCoords;
+    end
+
+    disp('Estimating head pivot point. Slow...')
+    [pivot]= estimatePivot(dsmpld_allHeadCoords,userPivotPoint);
+    disp('...done.')
+    
+else
+    
+    
+    pivotProvided = 1;%1 for pivot was provided as an input, 0 when not
+
 end
 
+%% if no reference head provided using all non-stimulus data to estimate best reference point for head rotations
 
 
-for point = 1:size(threeD_pos{1},2)
-    refHead(point,:) = [median(allHeadCoords(point,1,:)),median(allHeadCoords(point,2,:)),median(allHeadCoords(point,3,:))];
+if isempty(refHead)
+
+    refHeadProvided = 0;%1 for refHead was provided as an input, 0 when not
+    
+    %just getting all data for all files and frames in same array
+    allHeadCoords=[];
+    %putting all head data from all expierments, all frames into one array
+    %that can use to estimate pivot point from
+    %
+    % points = n x 3 x t 3D array.  Each row is a diffrent 3D point, each
+    %       of 3 columns are the xyz coords of the point, each 3rd dimension is
+    %       a different time point where the 3D points are rotated relative to
+    %       other time points about a pivot.  origin of xyz points determines
+    %       the starting point in the optimization to find the pivot.
+
+    counter = 0;
+    for trial = 1:size(threeD_pos,2)
+        for sp = 1:length(stimulusOnOff)-1%for each stimulus period except last one (usually 6 stimuli per videos)
+            % for non-stimulus period use roughly 1000 ms after stimulus started (700ms after stimulus ended) -
+            % stimulus will restart at 1300 ms after stimulus orginially started.  So
+            % 1000 ms 1s shift i.e.
+            fakeStimShiftFrames = round(1*frameRate_FPS);
+            st = stimulusOnOff(sp,1) - framesBeforeStimOn;%real start and end used
+            en = stimulusOnOff(sp,2) + framesAfterStimOff;
+            st_c = st + fakeStimShiftFrames;
+            en_c = en + fakeStimShiftFrames;
+            for t = st_c:en_c
+
+                if ~isnan(threeD_pos{trial}{point}(t,1))
+                    counter = counter+1;
+                    for point = 1:size(threeD_pos{trial},2)
+                        allHeadCoords(point,1:3,counter) = threeD_pos{trial}{point}(t,1:3) ;
+                    end
+                else
+                    warning('NaNs in data!  Are you using labels?  If so, run on predictions first to get pivot and refHead inputs.')
+                end
+
+            end
+        end
+
+    end
+
+
+
+    for point = 1:size(threeD_pos{1},2)
+        refHead(point,:) = [median(allHeadCoords(point,1,:)),median(allHeadCoords(point,2,:)),median(allHeadCoords(point,3,:))];
+    end
+
+
+
+else
+        refHeadProvided = 1;%1 for refHead was provided as an input, 0 when not
+
 end
-
-%aligning median refHead so body axis and y axis are hte same
-%and pivot =[0,0,0] as this will also be done to head data in
-%APTtracking2RotationSequence.m later
-bodyCoords = ...
-[   bodyData.kine.flyhead.data.coords(i_neckCentre,:,bodyFrame);...  
-    bodyData.kine.flyhead.data.coords(i_thoracicAbdomenJoint,:,bodyFrame);... 
-    bodyData.kine.flyhead.data.coords(i_LwingBase,:,bodyFrame);... 
-    bodyData.kine.flyhead.data.coords(i_RwingBase,:,bodyFrame)];
-
-[ refHead, alignedBodyCoords, alignedPivotPoint] = alignBodyAxis2Yaxis( refHead,bodyCoords,pivot);
-
 
 
 %% running APTtracking2RotationSequence over all data
@@ -406,7 +477,7 @@ for vid = 1:size(threeD_pos,2)%for each video in experiment
 
     [translations(:,:,counter), axisAngleDegXYZ(:,:,counter), quaternion(:,:,counter), frameStore(:,:,counter),...
     residualErrors(:,:,counter), scaleErrors(:,:,counter), refHeadReturned, rawXYZcoordsStore(:,:,counter), ...
-    alignedXYZcoordsStore(:,:,counter),alignedExampleHeadCoords,labFrameReferenceHeadCoords]...
+    alignedXYZcoordsStore(:,:,counter)]...
     = threeD2RT(headData,bodyData,pivot,bodyFrame,frameRate_FPS, 0, refHead);
 
 end

@@ -1,5 +1,5 @@
 function [translations, axisAngleDegXYZ, quaternions, frameStore,...
-    residualErrors, scaleErrors, refHeadOutput, rawXYZcoordsStore, alignedXYZcoordsStore,alignedExampleHeadCoords,labFrameReferenceHeadCoords]...
+    residualErrors, scaleErrors, refHeadOutput, rawXYZcoordsStore, alignedXYZcoordsStore]...
     = threeD2RT(headData,bodyData,pivotPoint,bodyAngleFrame,frameRate, plotYN, referenceHead)
   
 
@@ -16,6 +16,7 @@ function [translations, axisAngleDegXYZ, quaternions, frameStore,...
 %     bodyData.kine.flyhead.data.coords(i_thoracicAbdomenJoint,:,bodyAngleFrame);... 
 %     bodyData.kine.flyhead.data.coords(i_LwingBase,:,bodyAngleFrame);... 
 %     bodyData.kine.flyhead.data.coords(i_RwingBase,:,bodyAngleFrame)];
+%       Unaligned.  Alignement will be done here
 % 
 % bodyangleframe = frame number within headDataFname file that contains
 % digitized data giving body axis. 
@@ -23,7 +24,7 @@ function [translations, axisAngleDegXYZ, quaternions, frameStore,...
 %
 % pivotPoint = 3 element vector giving best estimate of head pivot point in
 % same coords as headDataFname.  Use estimatePivot.m to generate this
-% number.
+% number.  Unaligned.  alignment will be done here.
 %
 % frameRate = frame rate that video was taken at in frames/sec.
 %
@@ -31,7 +32,8 @@ function [translations, axisAngleDegXYZ, quaternions, frameStore,...
 %
 % referenceHead =  User provided reference head
 % data that all positions will be calculated relative to. In standard format: columns = x;y;z, rows =
-% LantTip,RantTip,LantBase,RantBase,ProboscisRoof. 
+% LantTip,RantTip,LantBase,RantBase,ProboscisRoof. Unaligned - alignement
+% will be done inside this function
 %
 % Outputs:  
 %
@@ -180,7 +182,7 @@ end
 
 
 
-%% extracting body axis, example and head pivot data from kine format
+%% extracting body axis kine format
 
 
 
@@ -190,23 +192,13 @@ bodyCoords = ...
     bodyData.kine.flyhead.data.coords(i_LwingBase,:,bodyAngleFrame);... 
     bodyData.kine.flyhead.data.coords(i_RwingBase,:,bodyAngleFrame)];
 
-n=1;
-exampleHeadCoords = ...
-[   headData.kine.flyhead.data.coords(i_LantTip,:,n);...
-    headData.kine.flyhead.data.coords(i_RantTip,:,n);...
-    headData.kine.flyhead.data.coords(i_LantBase,:,n);...
-    headData.kine.flyhead.data.coords(i_RantBase,:,n);...
-    headData.kine.flyhead.data.coords(i_ProboscisRoof,:,n) ];
- 
+
 
 
 
 % Rotating example head data so body axis is aligned with Y axis and wing bases lie along x axis and pivot point is at origin
- [alignedExampleHeadCoords, alignedBodyCoords, alignedPivotPoint] = alignBodyAxis2Yaxis(exampleHeadCoords,bodyCoords,pivotPoint);
-[ referenceHead, alignedBodyCoords, alignedPivotPoint] = alignBodyAxis2Yaxis( referenceHead,bodyCoords,pivotPoint);
+[ alignedRefHead, ~, ~] = alignBodyAxis2Yaxis( referenceHead,bodyCoords,pivotPoint);
 
-%inhereted from stuff that has been deleted.  Left here for lazinesses sake
-labFrameReferenceHeadCoords = referenceHead;
 
 
 
@@ -237,25 +229,42 @@ for n=1:1:size(headData.kine.flyhead.data.coords(i_LantTip,1,:), 3) %for each fr
     % Rotating all data so body axis is aligned with Y axis and wing bases lie along x axis and pivot point is at origin
     [alignedheadCoords, alignedBodyCoords, alignedPivotPoint] = alignBodyAxis2Yaxis(headCoords_inModelHeadFormat,bodyCoords,pivotPoint);
 
-                             
-    %getting rotation matri and translation between 'fake' head aligned with body/lab coordinates current frame and
-    %
-    [D2M_scale, D2M_R, D2M_T, D2M_residuals]=absoluteOrientationQuaternion(labFrameReferenceHeadCoords',alignedheadCoords');
+    
+    if ~any(any(isnan(alignedheadCoords)))
+        %getting rotation matri and translation between 'fake' head aligned with body/lab coordinates current frame and
+        %
+        [D2M_scale, D2M_R, D2M_T, D2M_residuals]=absoluteOrientationQuaternion(alignedRefHead',alignedheadCoords');
+    else
+        D2M_scale=NaN; 
+        D2M_R=nan(3,3);
+        D2M_T=nan(3,1);
+        D2M_residuals=NaN;
+    end
 
     
     %generating the 3D axis and rotation angle that
     %describes rotation between example frame and head rotated to align with
     %body
-    R_temp = [D2M_R,zeros(3,1); 0, 0, 0, 1];
-    [estRotAxis, estRotAngRad] = rotation3dAxisAndAngle(R_temp);
-    estRotAng = sjh_rad2deg(estRotAngRad);
+    if ~any(any(isnan(D2M_R)))
+        R_temp = [D2M_R,zeros(3,1); 0, 0, 0, 1];
+        [estRotAxis, estRotAngRad] = rotation3dAxisAndAngle(R_temp);
+        estRotAng = sjh_rad2deg(estRotAngRad);
+            
+        q = qGetRotQuaternion( estRotAngRad, estRotAxis(4:end) );  % uses [w x y z] format
+    
+        %ensuring quaternion is normalized
+        q = qNormalize(q)';
+        
+    else
+        estRotAxis=nan(1,6);
+        estRotAngRad=NaN;
+        estRotAng=NaN;
+        q=nan(1,4);
+    end
     
     
 
-    q = qGetRotQuaternion( estRotAngRad, estRotAxis(4:end) );  % uses [w x y z] format
-    
-    %ensuring quaternion is normalized
-    q = qNormalize(q)';
+
 
     
     %storing data as sequence of quaternions and translation vectors and aligned 3D coords with
@@ -286,7 +295,7 @@ residualErrors = residualStore;
 scaleErrors = scaleStore;
 axisAngleDegXYZ = axisAngleStore_DEGXYZ;
 quaternions = quaternionStore;
-refHeadOutput = labFrameReferenceHeadCoords;
+refHeadOutput = referenceHead;
 
 %% useful plots for debugging
 
