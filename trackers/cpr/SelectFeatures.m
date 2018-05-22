@@ -15,8 +15,12 @@ classdef SelectFeatures
 
       N = size(X,1);
       
-      assert(isfield(ftrPrm,'nsample_std'));
-      nsample = ftrPrm.nsample_std;
+      if isfield(ftrPrm,'stdsamples') && ~isempty(ftrPrm.stdsamples),
+        nsample = ftrPrm.stdsamples(2)-ftrPrm.stdsamples(1)+1;
+      else
+        assert(isfield(ftrPrm,'nsample_std'));
+        nsample = ftrPrm.nsample_std;
+      end
       
       muFtrs = mean(X);
       dfFtrs = bsxfun(@minus,X,muFtrs);
@@ -24,9 +28,13 @@ classdef SelectFeatures
       switch ftrPrm.metatype
         case 'single'
           stdFtrs = std(X); 
-        case 'diff'
+        case 'diff'          
           if nsample < N
-            dosample = rand(N,1) <= nsample/N;
+            if isfield(ftrPrm,'stdsamples') && ~isempty(ftrPrm.stdsamples),
+              dosample = ftrPrm.stdsamples(1):ftrPrm.stdsamples(2);
+            else
+              dosample = rand(N,1) <= nsample/N;
+            end
           else
             dosample = true(N,1);
           end

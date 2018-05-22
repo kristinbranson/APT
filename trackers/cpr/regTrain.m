@@ -49,10 +49,17 @@ function [regInfo,ysPr] = regTrain(data,ys,varargin)
 %  X.P. Burgos-Artizzu, P. Perona, P. Dollar (c)
 %  ICCV'13, Sydney, Australia
 
+% KB: added doshuffle = true, whether to shuffle the data for subsampling
+% purposes. If data is already in an order such that we want to subsample
+% contiguous chunks, then set doshuffle = false
+% KB: added dosubsample = false, whether to train each fern on a subset of
+% the data or not. This should probably be dependent on the number of
+% training examples
 dfs = {'type',1,'ftrPrm','REQ','K',1,...
   'loss','L2','R',0,'M',5,'model',[],'prm',{},...
-  'occlD',[],'occlPrm',struct('Stot',1),'checkPath',false};
-[regType,ftrPrm,K,loss,R,M,model,regPrm,occlD,occlPrm,checkPath] = ...
+  'occlD',[],'occlPrm',struct('Stot',1),'checkPath',false,...
+  'doshuffle',true};
+[regType,ftrPrm,K,loss,R,M,model,regPrm,occlD,occlPrm,checkPath,doshuffle] = ...
   getPrmDflt(varargin,dfs,0);
 
 switch regType
@@ -62,6 +69,21 @@ switch regType
 end
 
 assert(any(strcmp(loss,{'L1','L2'})));
+
+% KB 20180420: reorder data randomly so that we can sample by selecting
+% from the top
+N = size(data,1);
+if doshuffle,
+  dataorder = randperm(N);
+  [~,datareorder] = sort(dataorder);
+  data = data(dataorder,:);
+  ys = ys(dataorder,:);
+else
+  datareorder = 1:N;
+end
+
+% KB 20180421: use intervals of samples for speed
+[corsamplestarts,corsampleends] = SelectWrappingSampleSubsets(K,N,ftrPrm.nsample_cor);
 
 % precompute feature stats to be used by selectCorrFeat
 if R==0
@@ -109,6 +131,11 @@ for k=1:K
   %Train Stot different regressors
   ysPred = zeros(N,D,Stot);
   for s=1:Stot
+    
+    ftrPrm1 = ftrPrm;
+    % KB: choose a different interval of samples each fern
+    ftrPrm1.corsamples = [corsamplestarts(k),corsampleends(k)];
+    
     %Select features from correlation score directly
     if R==0
       %If occlusion-centered approach, enforce feature variety
@@ -117,21 +144,23 @@ for k=1:K
         if(~isempty(keep))
           data2=data(:,keep);dfFtrs2=dfFtrs(:,keep);
           stdFtrs2=stdFtrs(keep,keep);
-          ftrPrm1=ftrPrm;ftrPrm1.F=length(keep);
+          ftrPrm1.F=length(keep);
           [use,ftrs] = selectCorrFeat(M,ysTar,data2,...
             ftrPrm1,stdFtrs2,dfFtrs2);
           use=keep(use);
         else
           [use,ftrs] = selectCorrFeat(M,ysTar,data,...
-            ftrPrm,stdFtrs,dfFtrs);
+            ftrPrm1,stdFtrs,dfFtrs);
         end
         %ow use all features
       else
-        [use,ftrs] = selectCorrFeat(M,ysTar,data,ftrPrm,stdFtrs,dfFtrs);
+        [use,ftrs] = selectCorrFeat(M,ysTar,data,ftrPrm1,stdFtrs,dfFtrs);
       end
+            
       %Train regressor using selected features
       [reg1,ys1] = regFun(ysTar,ftrs,M,regPrm);
       reg1.fids = use;
+      
       %fprintf(1,'Saving fern features in reg\n');
       %reg1.X = ftrs;
       
@@ -200,7 +229,7 @@ for k=1:K
 end
 % create output struct
 clear data ys; 
-ysPr = ysSum;
+ysPr = ysSum(datareorder,:);
 if R==0 
   clear stdFtrs dfFtrs; 
 end
@@ -268,6 +297,7 @@ regSt = struct(...
   'ysFern',ysFern,... % [2^MxD], fern predictions for each fern index
   'thrs',thrs,... % [1xM], fern thresholds
   'yMu',mu); % [1xD], (nan)mean of output vectors
+
 end
 
 function [regSt,Y_pred]=trainLin(Y,X,~,~)

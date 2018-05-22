@@ -552,7 +552,11 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 % INPUTS
 %  model    - shape model
 %  phis     - [MxD] shape for each image, absolute coords. 
-%  Is       - cell [NxnView] input images [w x h x nChn] variable w, h
+% Is: struct with the following fields:
+%   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
+%   imszs: [2 x N x nView] size of each image
+%   imoffs: [N x nView] offset for indexing image (view,i) (image will
+%     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
 %  ftrData  - scalar struct, feature definitions. output of ftrsGen
 %  imgIds   - [Mx1] image id for each phi, indices into rows of Is.
 %  pStar   -  [1xD] UNUSED ATM. average shape (see initTr)
@@ -576,7 +580,13 @@ function [ftrs,occlD] = ftrsCompDup2( model, phis, Is, ftrData,...
 
 [M,D] = size(phis);
 assert(D==model.D);
-[N,nviews] = size(Is);
+
+iscellIs = iscell(Is);
+if iscellIs,
+  [N,nviews] = size(Is);
+else
+  [N,nviews] = size(Is.imoffs);
+end
 assert(nviews==model.nviews);
 if nargin<5 || isempty(imgIds)
   imgIds = 1:N; 
@@ -711,58 +721,161 @@ ftrs = nan(M,FTot);
 assert(isequal(size(cs1),size(rs1),size(ftrs)));
 assert(isequal(size(vw),[FTot 1]));
 assert(all(ismember(vw,1:nviews)));
+
+% KB 20180419: vectorized version of commented code below
+
+if iscellIs,
+  chs = cellfun(@(x) size(x,3), Is);
+  assert(all(chs(:)==nChn));
+else
+  % chs should all be nChn now, not saved
+end
+
+cs1 = max(cs1,1);
+rs1 = max(rs1,1);
+if strcmp(ftrData.type,'2lmdiff')
+  cs2 = max(1,cs2);
+  rs2 = max(1,rs2);
+end
+
 for iview = 1:nviews
+  
   tfvw = vw==iview; % [F] logical. 1 where cols of cs1,rs1,ftrs are for current view  
-  for n = 1:M
+  
+  if iscellIs,
+    hs = cellfun(@(x) size(x,1), Is(:,iview));
+    ws = cellfun(@(x) size(x,2), Is(:,iview));
+  else
+    hs = Is.imszs(1,:,iview)';
+    ws = Is.imszs(2,:,iview)';
+  end
+  hs = hs(imgIds);
+  ws = ws(imgIds);
+  % old matlab requires explicit bsxfun
+  if verLessThan('matlab','9.2.0'),
+    cs1(:,tfvw) = bsxfun(@min,ws,cs1(:,tfvw));
+    rs1(:,tfvw) = bsxfun(@min,hs,rs1(:,tfvw));
+  else    
+    cs1(:,tfvw) = min(ws,cs1(:,tfvw));
+    rs1(:,tfvw) = min(hs,rs1(:,tfvw));
+  end
     
-    % Crop feature positions cs1,rs1 to image. This is weird, hope this 
-    % doesn't happen too often.
-    img = Is{imgIds(n),iview};
-    [h,w,ch] = size(img);
-    assert(nChn==ch);
-    
-    cs1(n,tfvw) = max(1,min(w,cs1(n,tfvw)));
-    rs1(n,tfvw) = max(1,min(h,rs1(n,tfvw)));
-    if strcmp(ftrData.type,'2lmdiff')
-      cs2(n,tfvw) = max(1,min(w,cs2(n,tfvw)));
-      rs2(n,tfvw) = max(1,min(h,rs2(n,tfvw)));
-    end
-    
-    %where are the features relative to bbox?
-    if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
-      assert(false,'AL');
-      %         %to which group (zone) does each feature belong?
-      %         occlD.group(n,:)=codifyPos((cs1(n,:)-bboxes(n,1))./bboxes(n,3),...
-      %             (rs1(n,:)-bboxes(n,2))./bboxes(n,4),...
-      %             occlPrm.nrows,occlPrm.ncols);
-      %         %to which group (zone) does each landmark belong?
-      %         groupF=codifyPos((poscs(n,:)-bboxes(n,1))./bboxes(n,3),...
-      %             (posrs(n,:)-bboxes(n,2))./bboxes(n,4),...
-      %             occlPrm.nrows,occlPrm.ncols);
-      %         %NEW
-      %         %therefore, what is the occlusion in each group (zone)
-      %         occlAm=zeros(1,nGroups);
-      %         for g=1:nGroups
-      %             occlAm(g)=sum(occl(n,groupF==g));
-      %         end
-      %         %feature occlusion = sum of occlusion on that area
-      %         occlD.featOccl(n,:)=occlAm(occlD.group(n,:));
-    end
-    
-    inds1 = rs1(n,tfvw) + (cs1(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
-    ftrs1 = hlpFtr(img,inds1);
-    switch ftrData.type
-      case {'single landmark' '2lm' 'two landmark elliptical'}
-        ftrs(n,tfvw) = ftrs1;
-      case '2lmdiff'
-        inds2 = rs2(n,tfvw) + (cs2(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
-        ftrs2 = hlpFtr(img,inds2);
-        ftrs(n,tfvw) = ftrs1-ftrs2;
-      otherwise
-        assert(false);
+  if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
+    assert(false,'AL');
+  end
+
+  % old matlab requires explicit bsxfun
+  if verLessThan('matlab','9.2.0'),
+    inds1s = rs1(:,tfvw) + bsxfun(@times,cs1(:,tfvw)-1,hs) + bsxfun(@times,chn(:,tfvw)-1,hs.*ws);
+  else
+    inds1s = rs1(:,tfvw) + (cs1(:,tfvw)-1).*hs + (chn(:,tfvw)-1).*(hs.*ws);
+  end
+  
+  if strcmp(ftrData.type,'2lmdiff')
+    % old matlab requires explicit bsxfun
+    if verLessThan('matlab','9.2.0'),
+      cs2(:,tfvw) = bsxfun(@min,ws,cs2(:,tfvw));
+      rs2(:,tfvw) = bsxfun(@min,hs,rs2(:,tfvw));
+      inds2s = rs2(:,tfvw) + bsxfun(@times,cs2(:,tfvw)-1,h) + bsxfun(@times,chn(:,tfvw)-1,h.*w);
+    else
+      cs2(:,tfvw) = min(ws,cs2(:,tfvw));
+      rs2(:,tfvw) = min(hs,rs2(:,tfvw));
+      inds2s = rs2(:,tfvw) + (cs2(:,tfvw)-1).*h + (chn(:,tfvw)-1).*h.*w;
     end
   end
+    
+  switch ftrData.type
+    case {'single landmark' '2lm' 'two landmark elliptical'}
+      
+      if iscellIs,
+        for n = 1:M,
+          ftrs(n,tfvw) = hlpFtr(Is{imgIds(n),iview},inds1s(n,:));
+        end
+      else
+        if verLessThan('matlab','9.2.0'),
+          ftrs(:,tfvw) = Is.Is(bsxfun(@plus,inds1s,Is.imoffs(imgIds,iview)));
+        else
+          ftrs(:,tfvw) = Is.Is(inds1s+Is.imoffs(imgIds,iview));
+        end
+      end
+              
+    case '2lmdiff'
+
+      if iscellIs,
+        for n = 1:M,
+          ftrs1 = hlpFtr(Is{imgIds(n),iview},inds1s(n,:));
+          ftrs2 = hlpFtr(Is{imgIds(n),iview},inds2s(n,:));
+          ftrs(n,tfvw) = ftrs1-ftrs2;
+        end
+      else
+      
+        if verLessThan('matlab','9.2.0'),
+          ftrs1 = Is.Is(bsxfun(@plus,inds1s,Is.imoffs(imgIds,iview)));
+          ftrs2 = Is.Is(bsxfun(@plus,inds2s,Is.imoffs(imgIds,iview)));
+        else
+          ftrs1 = Is.Is(inds1s+Is.imoffs(imgIds,iview));
+          ftrs2 = Is.Is(inds2s+Is.imoffs(imgIds,iview));
+        end
+        ftrs(:,tfvw) = ftrs1-ftrs2;
+      end
+         
+  end
 end
+
+% for iview = 1:nviews
+%   
+%   tfvw = vw==iview; % [F] logical. 1 where cols of cs1,rs1,ftrs are for current view  
+%   for n = 1:M
+%     
+%     % Crop feature positions cs1,rs1 to image. This is weird, hope this 
+%     % doesn't happen too often.
+%     img = Is{imgIds(n),iview};
+%     [h,w,ch] = size(img);
+%     assert(nChn==ch);
+%     
+%     cs1(n,tfvw) = max(1,min(w,cs1(n,tfvw)));
+%     rs1(n,tfvw) = max(1,min(h,rs1(n,tfvw)));
+%     if strcmp(ftrData.type,'2lmdiff')
+%       cs2(n,tfvw) = max(1,min(w,cs2(n,tfvw)));
+%       rs2(n,tfvw) = max(1,min(h,rs2(n,tfvw)));
+%     end
+%     
+%     %where are the features relative to bbox?
+%     if (useOccl && (strcmp(model.name,'cofw') || strcmp(model.name,'fly_RF2')))
+%       assert(false,'AL');
+%       %         %to which group (zone) does each feature belong?
+%       %         occlD.group(n,:)=codifyPos((cs1(n,:)-bboxes(n,1))./bboxes(n,3),...
+%       %             (rs1(n,:)-bboxes(n,2))./bboxes(n,4),...
+%       %             occlPrm.nrows,occlPrm.ncols);
+%       %         %to which group (zone) does each landmark belong?
+%       %         groupF=codifyPos((poscs(n,:)-bboxes(n,1))./bboxes(n,3),...
+%       %             (posrs(n,:)-bboxes(n,2))./bboxes(n,4),...
+%       %             occlPrm.nrows,occlPrm.ncols);
+%       %         %NEW
+%       %         %therefore, what is the occlusion in each group (zone)
+%       %         occlAm=zeros(1,nGroups);
+%       %         for g=1:nGroups
+%       %             occlAm(g)=sum(occl(n,groupF==g));
+%       %         end
+%       %         %feature occlusion = sum of occlusion on that area
+%       %         occlD.featOccl(n,:)=occlAm(occlD.group(n,:));
+%     end
+%     
+%     inds1 = rs1(n,tfvw) + (cs1(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
+%     ftrs1 = hlpFtr(img,inds1);
+%     switch ftrData.type
+%       case {'single landmark' '2lm' 'two landmark elliptical'}
+%         ftrs(n,tfvw) = ftrs1;
+%       case '2lmdiff'
+%         inds2 = rs2(n,tfvw) + (cs2(n,tfvw)-1)*h + (chn(n,tfvw)-1)*h*w;
+%         ftrs2 = hlpFtr(img,inds2);
+%         ftrs(n,tfvw) = ftrs1-ftrs2;
+%       otherwise
+%         assert(false);
+%     end
+%   end
+% end
+
 end
 
 function ftrs1 = hlpFtr(img,inds1)

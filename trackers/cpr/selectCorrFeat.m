@@ -42,11 +42,19 @@ b = rand(D,S)*2-1;
 b = bsxfun(@rdivide,b,sqrt(sum(b.^2,1))); % [DxS], each col is a D-dim unit vec
 
 
-assert(isfield(ftrPrm,'nsample_cor'));
-nsample = ftrPrm.nsample_cor;
+if isfield(ftrPrm,'corsamples') && ~isempty(ftrPrm.corsamples),
+  nsample = ftrPrm.corsamples(2)-ftrPrm.corsamples(1)+1;
+else
+  assert(isfield(ftrPrm,'nsample_cor'));
+  nsample = ftrPrm.nsample_cor;
+end
 
 if nsample < N
-  dosample = rand(N,1) <= nsample/N;
+  if isfield(ftrPrm,'corsamples') && ~isempty(ftrPrm.corsamples),
+    dosample = ftrPrm.corsamples(1):ftrPrm.corsamples(2);
+  else
+    dosample = rand(N,1) <= nsample/N;
+  end
 else
   dosample = true(N,1);
 end
@@ -105,9 +113,8 @@ switch ftrPrm.metatype
     % - ftrs is [nsampxF]
     % - dfFtrs is [nsampxF]
     % - Bsamp is [nsampxS]    
-    args = {pTarSamp,ftrs(dosample,:),SELECTCORRFEATTYPE,stdFtrs,...
-      dfFtrs(dosample,:),Bsamp,BsampSD,BsampMu}; 
-    use = selectCorrFeatAL(args{:});
+    use = selectCorrFeatAL(pTarSamp,ftrs(dosample,:),SELECTCORRFEATTYPE,stdFtrs,...
+      dfFtrs(dosample,:),Bsamp,BsampSD,BsampMu);
     
     assert(isequal(size(use),[2 S]));
     iF1 = use(1,:);

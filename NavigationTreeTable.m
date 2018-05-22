@@ -91,7 +91,8 @@ classdef NavigationTreeTable < handle
       end
       delete(obj.treeTbl);
       if ~isempty(obj.treeTblRowObjs)
-        delete(obj.treeTblRowObjs);
+        % Throwing "Arguments must contain a char vec" on 17b. treeTable should own/cleanup these objs 
+        %cellfun(@delete,obj.treeTblRowObjs);
         obj.treeTblRowObjs = [];
       end
       if ~isempty(obj.fld2ttCol0B)

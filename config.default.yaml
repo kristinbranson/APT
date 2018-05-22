@@ -58,7 +58,7 @@ Movie:
   PlaySegmentRadius: 50
 
 LabelPointsPlot:
-  ColorMapName: 'spring'
+  ColorMapName: 'darkjet'
   Marker: '+'
   MarkerSize: 6
   LineWidth: 2
@@ -106,6 +106,8 @@ Track:
     Marker: '+'
     MarkerSize: 10
     LineWidth: 2
+  PredictPointsPlotColorMapName: 'lightjet'
+
   PredictInterpolate: 0         # If true, tracked results are interpolated/extrapolated to all frames when visualizing
   PredictInterpolatePointsPlot: # Plot cosmetics for interpolated tracking results
     Marker: '.'

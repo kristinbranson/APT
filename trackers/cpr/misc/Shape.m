@@ -19,6 +19,15 @@ classdef Shape
       xy = [p(1:n/2) p(n/2+1:end)];
     end
     
+    function xys = vecs2xys(ps)
+      % ps: [D x nshapes] shape vec
+      % 
+      % xys: [npts x 2 x nshapes] x/y coords
+      [n,nshapes] = size(ps);
+      n2 = n/2;
+      xys = cat(2,reshape(ps(1:n2,:),[n2,1,nshapes]),reshape(ps(n2+1:end,:),[n2,1,nshapes]));
+    end
+    
     function [p0,thetas] = randrot(p0,d,varargin)
       % Randomly rotate shapes about centroids. Optionally takes 
       % 'iptsCentroid', see rotateCentroid
@@ -435,6 +444,69 @@ classdef Shape
       end
     end
     
+    function xyhats = findOrientations2d(xys,iHead,iTail)
+      % Compute orientation of many shapes.
+      % Same as findOrientation2d, but works on many shapes simultaneously
+      % so that we can vectorize operations.
+      %
+      % Only points iHead..iTail are considered.
+      %
+      % xy: [npt x 2 x nshapes] landmark coordinates
+      % iHead: scalar integer, 1..npt. Index for 'head' landmark.
+      % iTail: etc. Index for 'tail' landmark.
+      %
+      % xyhat: [1 x 2 x nshapes] unit vector in "forwards"/head direction.
+      %
+      % This method computes xyhat by finding the long axis of the
+      % covariance ellipse and picking a sign using iHead/iTail.
+      
+      [~,d,nshapes] = size(xys);
+      assert(d==2);
+
+      assert(iHead<iTail);
+      xys = xys(iHead:iTail,:,:); % use only "body" points iHead..iTail
+      npt = size(xys,1);
+      
+      % vectorized version of this
+      % c = cov(xy);
+      mu = sum(xys,1) / npt;
+      % old matlab requires explicit bsxfun
+      if verLessThan('matlab','9.2.0'),
+        diffs = bsxfun(@minus,xys,mu);
+      else
+        diffs = xys - mu;
+      end
+      cs = zeros([2,2,nshapes]);
+      cs(1,1,:) = sum(diffs(:,1,:).^2,1);
+      cs(1,2,:) = sum(diffs(:,1,:).*diffs(:,2,:),1);
+      cs(2,1,:) = cs(1,2,:);
+      cs(2,2,:) = sum(diffs(:,2,:).^2,1);
+      cs = cs / (npt-1);      
+
+      % vectorized version of this
+      % [v,d] = eig(c);
+      % d = diag(d);
+      % [~,imax] = max(d);
+      % vlong1 = v(:,imax);
+      % vlong2 = -vlong1;
+      [~,vs] = eigs_2x2(cs);
+      imax = 1;
+      xyhats = reshape(vs(:,imax,:),[d,nshapes]);
+
+      % pick sign
+      %xyHs = xys(1,:,:);
+      %xyTs = xys(end,:,:);
+      xyHTs = reshape(xys(1,:,:)-xys(end,:,:),[d,nshapes]);
+      d1s = sum(xyHTs.*xyhats,1);
+      xyhats(:,d1s<0) = -xyhats(:,d1s<0);
+
+%       if dot(xyHT,vlong1) > dot(xyHT,vlong2)
+%         xyhat = vlong1;
+%       else
+%         xyhat = vlong2;
+%       end
+    end
+      
     function p1 = rotate(p0,theta,ctr)
       % Rotate shapes 
       % 
@@ -552,15 +624,21 @@ classdef Shape
       % 
       % th: [Nx1] thetas which, when applied to p, result in p's all being
       % oriented towards (x,y)=(1,0).
+
+      % KB 20180419: vectorized version of the loop below
+      xyPs = Shape.vecs2xys(p');
+      vhats = Shape.findOrientations2d(xyPs,iHead,iTail);
+      th = -atan2(vhats(2,:),vhats(1,:))';
+
+%       N = size(p,1);
+%       th = nan(N,1);
+%       for i = 1:N
+%         xyP = Shape.vec2xy(p(i,:));
+%         vhat = Shape.findOrientation2d(xyP,iHead,iTail);
+%         vhatTheta = atan2(vhat(2),vhat(1));
+%         th(i) = -vhatTheta; % rotate by this to bring p(i,:) into canonical orientation
+%       end
       
-      N = size(p,1);
-      th = nan(N,1);
-      for i = 1:N
-        xyP = Shape.vec2xy(p(i,:));
-        vhat = Shape.findOrientation2d(xyP,iHead,iTail);
-        vhatTheta = atan2(vhat(2),vhat(1));
-        th(i) = -vhatTheta; % rotate by this to bring p(i,:) into canonical orientation
-      end
     end    
     
     function pRIDel = rotInvariantDiff(p,pTgt,iHead,iTail)

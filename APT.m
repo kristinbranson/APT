@@ -70,6 +70,7 @@ classdef APT
         fullfile(root,'propertiesGUI'); ...
         fullfile(root,'treeTable'); ...
         fullfile(root,'jsonlab-1.2','jsonlab'); ...
+        fullfile(root,'test'); ...
         };
       
       cprpath = { ...
@@ -112,11 +113,19 @@ classdef APT
         fullfile(root,'treeTable')};
     end
     
+    function jaabapath = getjaabapath()
+      m = APT.readManifest;
+      jaabaroot = m.jaaba;
+      jaabapath = { ...
+        fullfile(jaabaroot,'filehandling'); ...
+        fullfile(jaabaroot,'misc'); ...
+        };
+    end
+    
     function setpath()
       
-      javaaddpathstatic(fullfile(APT.Root,'java','APTJava.jar'));
-
       [p,jp] = APT.getpath();
+      cellfun(@javaaddpathstatic,jp);
       addpath(p{:},'-begin');
       
       % AL 20150824, testing of sha 1f65 on R2015a+Linux is reproducably
@@ -139,7 +148,8 @@ classdef APT
 %         randomyamlfile = fullfile(APT.Root,'YAMLMatlab_0.4.3','Tests','Data','test_import','file1.yaml');
 %         ReadYaml(randomyamlfile);
 %       end
-      javaaddpath(jp);
+
+%       javaaddpath(jp);
     end
     
     function [pposetf] = getpathdl()
@@ -166,14 +176,14 @@ classdef APT
         script = APT.SnapshotScript;
         cmd = sprintf('%s -nocolor -brief %s',script,APT.Root);
         [~,s] = system(cmd);
-        s = regexp(s,newline,'split');
+        s = regexp(s,sprintf('\n'),'split');
         modules = fieldnames(manifest);        
         modules = setdiff(modules,'build');
         for i = 1:numel(modules)        
           mod = modules{i};
           cmd = sprintf('%s -nocolor -brief %s',script,manifest.(mod));
           [~,stmp] = system(cmd);
-          stmp = regexp(stmp,newline,'split');
+          stmp = regexp(stmp,sprintf('\n'),'split');
           s = [s(:);{''};sprintf('### %s',upper(mod));stmp(:)];
         end
       elseif ispc
@@ -198,17 +208,12 @@ classdef APT
       end      
     end
     
-    function build()
-      % build()
+    function buildAPTCluster()
       
       if ~isequal(pwd,APT.Root)
         error('Run APT.build in the APT root directory (%s), because mcc is finicky about includes/adds, the ctf archive, etcetera.\n',APT.Root);
       end
-      
-      fprintf(2,'Possible issue with java static classpath.\n');
-      
-      proj = 'APTCluster';
-            
+                        
       % take snapshot + save it to snapshot file
       codeSSfname = APT.BUILDSNAPSHOTFULLFILE;
       fprintf('Taking code snapshot and writing to file: %s...\n',codeSSfname);
@@ -228,8 +233,13 @@ classdef APT
       Ipth = Ipth';      
       aptroot = APT.Root;
       cprroot = fullfile(aptroot,'trackers','cpr');
-      
-      outdir = fullfile(aptroot,proj);
+      jaabapath = APT.getjaabapath();
+      Ipthjaaba = [repmat({'-I'},numel(jaabapath),1) jaabapath];
+      Ipthjaaba = Ipthjaaba';      
+
+      BUILDOUTDIR = 'APTCluster';
+
+      outdir = fullfile(aptroot,BUILDOUTDIR);
       if exist(outdir,'dir')==0
         fprintf('Creating output dir: %s\n',outdir);
         [outdirparent,outdirbase] = fileparts(outdir);
@@ -238,13 +248,14 @@ classdef APT
           error('APT:dir','Could not make output dir: %s',msg);
         end
       end
-      mccargbase = {...
-        '-W' 'main',...
+      
+      mccProjargs = struct();
+      mccProjargs.APTCluster = { ...
+        '-W','main',...
         '-w','enable',...
         '-T','link:exe',...
-        '-d',fullfile(aptroot,proj),...
-        '-v',...
-        fullfile(aptroot,[proj '.m']),...
+        '-d',fullfile(aptroot,BUILDOUTDIR),... %        '-v',...
+        fullfile(aptroot,'APTCluster.m'),...
         Ipth{:},...
         '-a',fullfile(aptroot,'gfx'),...
         '-a',fullfile(aptroot,'config.default.yaml'),...
@@ -256,57 +267,67 @@ classdef APT
         '-a',fullfile(aptroot,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'),...
         '-a',fullfile(aptroot,'java','APTJava.jar')...       
         }; %#ok<CCAT>
+      mccProjargs.GetMovieNFrames = {...
+        '-W','main',...
+        '-w','enable',...
+        '-T','link:exe',...
+        '-d',fullfile(aptroot,BUILDOUTDIR),... %        '-v',...
+        fullfile(aptroot,'misc','GetMovieNFrames.m'),...
+        Ipthjaaba{:}};
         
       bldnames = fieldnames(buildIfo);
+      projs = fieldnames(mccProjargs);
+      projs = projs(end:-1:1); % build GetMovieNFrames first
       for bld=bldnames(:)',bld=bld{1}; %#ok<FXSET>
-        fprintf('Building: %s...\n',bld);
-        pause(2);
+        for prj=projs(:)',prj=prj{1};
+          projfull = [prj '_' bld];
+          fprintf('Building: %s...\n',projfull);
+          pause(2);
+
+          extraMccArgs = buildIfo.(bld);  
+          extraMccArgs(end+1:end+2) = {'-o' projfull};
+          mccArgs = mccProjargs.(prj);
+          mccArgs = [mccArgs(:)' extraMccArgs(:)'];
+          fprintf('Writing mcc args to file: %s...\n',APT.BUILDMCCFULLFILE);
+          cellstrexport(mccArgs,APT.BUILDMCCFULLFILE);
         
-        extraMccArgs = buildIfo.(bld);
-        projfull = [proj '_' bld];
-        extraMccArgs(end+1:end+2) = {'-o' projfull};
-        mccargs = [mccargbase(:)' extraMccArgs(:)'];
-        
-        fprintf('Writing mcc args to file: %s...\n',APT.BUILDMCCFULLFILE);
-        cellstrexport(mccargs,APT.BUILDMCCFULLFILE);
-        
-        today = datestr(now,'yyyymmdd');
-        fprintf('BEGIN BUILD on %s\n',today);
-        pause(2.0);
-        mcc(mccargs{:});
-        
-        % postbuild
-        mnfst = APT.readManifest;
-        bindir = fullfile(mnfst.build,today);
-        if exist(bindir,'dir')==0
-          fprintf('Creating bin dir %s...\n',bindir);
-          [succ,msg] = mkdir(bindir);
-          if ~succ
-            error('APT:build','Failed to create bin dir: %s\n',msg);
+          today = datestr(now,'yyyymmdd');
+          fprintf('BEGIN BUILD on %s\n',today);
+          pause(2.0);
+          mcc(mccArgs{:});
+
+          % postbuild
+          mnfst = APT.readManifest;
+          bindir = fullfile(mnfst.build,today);
+          if exist(bindir,'dir')==0
+            fprintf('Creating bin dir %s...\n',bindir);
+            [succ,msg] = mkdir(bindir);
+            if ~succ
+              error('APT:build','Failed to create bin dir: %s\n',msg);
+            end
           end
-        end
-        fprintf('Moving binaries + build artifacts into: %s\n',bindir);
-        % move buildmcc file, buildsnapshot file into bindir with name change
-        % move binaries
-        binsrc = fullfile(aptroot,proj,projfull);
-        bindst = fullfile(bindir,proj,projfull);
-        runsrc = fullfile(aptroot,proj,['run_' projfull '.sh']);
-        rundst = fullfile(bindir,proj,['run_' projfull '.sh']);
-        mccsrc = APT.BUILDMCCFULLFILE;
-        mccdst = fullfile(bindir,proj,[projfull '.' APT.BUILDMCCFILE]);
+          fprintf('Moving binaries + build artifacts into: %s\n',bindir);
+          % move buildmcc file, buildsnapshot file into bindir with name change
+          % move binaries
+          binsrc = fullfile(aptroot,BUILDOUTDIR,projfull);
+          bindst = fullfile(bindir,BUILDOUTDIR,projfull);
+          runsrc = fullfile(aptroot,BUILDOUTDIR,['run_' projfull '.sh']);
+          rundst = fullfile(bindir,BUILDOUTDIR,['run_' projfull '.sh']);
+          mccsrc = APT.BUILDMCCFULLFILE;
+          mccdst = fullfile(bindir,BUILDOUTDIR,[projfull '.' APT.BUILDMCCFILE]);
         
-        if exist(fullfile(bindir,proj),'dir')==0
-          fprintf('Creating build dir %s...\n',fullfile(bindir,proj));
-          [succ,msg] = mkdir(bindir,proj);
-          if ~succ
-            error('APT:build','Failed to create build dir: %s\n',msg);
-          end
-        end      
-        APT.buildmv(binsrc,bindst);
-        APT.buildmv(runsrc,rundst);
-        APT.buildmv(mccsrc,mccdst);
-        fileattrib(bindst,'+x');
-        fileattrib(rundst,'+x');
+          if exist(fullfile(bindir,BUILDOUTDIR),'dir')==0
+            fprintf('Creating build dir %s...\n',fullfile(bindir,BUILDOUTDIR));
+            [succ,msg] = mkdir(bindir,BUILDOUTDIR);
+            if ~succ
+              error('APT:build','Failed to create build dir: %s\n',msg);
+            end
+          end      
+          APT.buildmv(binsrc,bindst);
+          APT.buildmv(runsrc,rundst);
+          APT.buildmv(mccsrc,mccdst);
+          fileattrib(bindst,'+x');
+          fileattrib(rundst,'+x');
 %         
 %         mccExc = fullfile(aptroot,'mccExcludedFiles.log');
 %         readme = fullfile(aptroot,'readme.txt');
@@ -316,16 +337,17 @@ classdef APT
 %         if exist(readme,'file')>0
 %           delete(readme);
 %         end
+        end
       end
       
       sssrc = APT.BUILDSNAPSHOTFULLFILE;
-      ssdst = fullfile(bindir,proj,APT.BUILDSNAPSHOTFILE);
+      ssdst = fullfile(bindir,BUILDOUTDIR,APT.BUILDSNAPSHOTFILE);
       APT.buildmv(sssrc,ssdst);
       
       % drop a token for matlab version
       if isunix
         mlver = version('-release');
-        cmd = sprintf('touch %s',fullfile(bindir,proj,mlver));
+        cmd = sprintf('touch %s',fullfile(bindir,BUILDOUTDIR,mlver));
         system(cmd);
       end
     end

@@ -977,6 +977,15 @@ classdef Labeler < handle
       obj.projPrefs = rmfield(cfg,fldsRm);
       % A few minor subprops of projPrefs have explicit props
 
+      % KB: colormap for predictions
+      if isfield(obj.projPrefs,'Track') && isstruct(obj.projPrefs.Track),
+        if (~isfield(obj.projPrefs.Track,'PredictPointsPlotColors') || ...
+            size(obj.projPrefs.Track.PredictPointsPlotColors,1)~=npts) && ...
+            isfield(obj.projPrefs.Track,'PredictPointsPlotColorMapName')
+          obj.projPrefs.Track.PredictPointsPlotColors = feval(obj.projPrefs.Track.PredictPointsPlotColorMapName,npts);
+        end
+      end
+      
       obj.notify('newProject');
 
       % order important: this needs to occur after 'newProject' event so
@@ -3236,14 +3245,16 @@ classdef Labeler < handle
           'color',pref.TrajColor,...
           'linestyle',pref.TrajLineStyle, ...
           'linewidth',pref.TrajLineWidth, ...
-          'HitTest','off');
+          'HitTest','off',...
+          'Tag',sprintf('Labeler_Traj_%d',i));
 
         obj.hTrx(i,1) = plot(ax,...
           nan,nan,pref.TrxMarker);
         set(obj.hTrx(i,1),'HitTest','off',...
           'Color',pref.TrajColor,...
           'MarkerSize',pref.TrxMarkerSize,...
-          'LineWidth',pref.TrxLineWidth);
+          'LineWidth',pref.TrxLineWidth,...
+          'Tag',sprintf('Labeler_Trx_%d',i));
         
 %         obj.hTrxEll(i,1) = plot(ax,nan,nan,'-');
 %         set(obj.hTrxEll(i,1),'HitTest','off',...
@@ -3254,7 +3265,8 @@ classdef Labeler < handle
           'Color',pref.TrajColor,...
           'Fontsize',pref.TrxIDLblFontSize,...
           'Fontweight',pref.TrxIDLblFontWeight,...
-          'PickableParts','none');
+          'PickableParts','none',...
+          'Tag',sprintf('Labeler_TrxTxt_%d',i));
       end
     end
     
@@ -5034,6 +5046,8 @@ classdef Labeler < handle
         wbObj.startPeriod('Compiling labels','shownumden',true,...
           'denominator',nrow);
         oc = onCleanup(@()wbObj.endPeriod);
+        wbtime = tic;
+        maxwbtime = 1; % update waitbar every second
       end
       
       % Maybe Optimize: group movies together
@@ -5049,7 +5063,8 @@ classdef Labeler < handle
       bTrxAcc = nan(0,nView);
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
       for irow=1:nrow
-        if tfWB
+        if tfWB && toc(wbtime) >= maxwbtime,
+          wbtime = tic;
           tfCancel = wbObj.updateFracWithNumDen(irow);
           if tfCancel
             return;
@@ -5578,12 +5593,57 @@ classdef Labeler < handle
       PROPS = Labeler.gtGetSharedPropsStc(obj.gtIsGTMode);
     end
     function gtInitSuggestions(obj,gtSuggType,nSamp)
+      % Init/set GT suggestions using gtGenerateSuggestions
       tblMFT = obj.gtGenerateSuggestions(gtSuggType,nSamp);
+      obj.gtSetUserSuggestions(tblMFT);
+    end
+    function gtSetUserSuggestions(obj,tblMFT,varargin)
+      % Set user-specified/defined GT suggestions
+      % tblMFT: .mov (MovieIndices), .frm, .iTgt
+      
+      sortcanonical = myparse(varargin,...
+        'sortcanonical',false);
+      
+      if ~istable(tblMFT) && ~all(tblfldscontains(tblMFT,MFTable.FLDSID))
+        error('Specified table is not a valid Movie-Frame-Target table.');
+      end
+      
+      if ~isa(tblMFT,'MovieIndex')
+        warningNoTrace('Table .mov is numeric. Assuming positive indices into GT movie list (.movieFilesAllGT).');
+        tblMFT.mov = MovieIndex(tblMFT.mov,true);
+      end
+      
+      [tf,tfGT] = tblMFT.mov.isConsistentSet();
+      if ~(tf && tfGT)
+        error('All MovieIndices in input table must reference GT movies.');
+      end
+      
+      if sortcanonical
+        tblMFT2 = MFTable.sortCanonical(tblMFT);
+        if ~isequal(tblMFT2,tblMFT)
+          warningNoTrace('Sorting table into canonical row ordering.');
+          tblMFT = tblMFT2;
+        end        
+      else
+        % UI requires sorting by movies; hopefully the movie sort leaves 
+        % row ordering otherwise undisturbed. This appears to be the case
+        % in 2017a.
+        %
+        % See issue #201. User has a gtSuggestions table that is not fully 
+        % sorted by movie, but with a desired random row order within each 
+        % movie. A full/canonical sorting would be undesireable.
+        tblMFT2 = sortrows(tblMFT,{'mov'},{'descend'}); % descend as gt movieindices are negative
+        if ~isequal(tblMFT2,tblMFT)
+          warningNoTrace('Sorting table by movie.');
+          tblMFT = tblMFT2;
+        end        
+      end
+      
       obj.gtSuggMFTable = tblMFT;
       obj.gtUpdateSuggMFTableLbledComplete();
       obj.gtTblRes = [];
       obj.notify('gtSuggUpdated');
-      obj.notify('gtResUpdated');
+      obj.notify('gtResUpdated');      
     end
     function gtUpdateSuggMFTableLbledComplete(obj,varargin)
       % update .gtUpdateSuggMFTableLbled from .gtSuggMFTable/.labeledposGT
@@ -6432,7 +6492,7 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
-      assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
+      tObj.clearTrackingResults();
       obj.preProcUpdateH0IfNec();
       tObj.retrain(varargin{:});
     end
@@ -6479,6 +6539,9 @@ classdef Labeler < handle
       %
       % mftset: scalar MFTSet
             
+      
+      startTime = tic;
+      
       [trackArgs,rawtrkname] = myparse(varargin,...
         'trackArgs',{},...
         'rawtrkname',[]...
@@ -6506,21 +6569,26 @@ classdef Labeler < handle
       else
         moviestr = 'movie';
       end
+      fprintf('Preprocessing time in trackAndExport: %f\n',toc(startTime)); startTime = tic;
       for i=1:nMov
         iMov = iMovsUn(i);
-        fprintf('Tracking %s %d (%d/%d)\n',moviestr,double(iMov),i,nMov);
+        fprintf('Tracking %s %d (%d/%d) -> %s\n',moviestr,double(iMov),i,nMov,trkfiles{i});
         
         tfMov = tblMFT.mov==iMov;
         tblMFTmov = tblMFT(tfMov,:);
         tObj.track(tblMFTmov,trackArgs{:});
+        fprintf('Tracking time: %f\n',toc(startTime)); startTime = tic;
         trkFile = tObj.getTrackingResults(iMov);
         szassert(trkFile,[1 nVw]);
         for iVw=1:nVw
           trkFile(iVw).save(trkfiles{i,iVw});
           fprintf('...saved: %s\n',trkfiles{i,iVw});
+          fprintf('Save time: %f\n',toc(startTime)); startTime = tic;
         end
         tObj.clearTrackingResults();
+        fprintf('Time to clear tracking results: %f\n',toc(startTime)); startTime = tic;
         obj.preProcInitData();
+        fprintf('Time to reinitialize data: %f\n',toc(startTime)); startTime = tic;
       end
     end
     
@@ -6728,7 +6796,7 @@ classdef Labeler < handle
         szassert(pLbl,[1 2*npts]);
         pLbl(1:npts) = pLbl(1:npts)-xlo+1;
         pLbl(npts+1:end) = pLbl(npts+1:end)-ylo+1;
-        im = im(ylo:yhi,xlo:xhi);
+        im = padgrab2(im,0,ylo,yhi,xlo,xhi);
       end
       xyLbl = Shape.vec2xy(pLbl);
       szassert(xyLbl,[npts 2]);
@@ -8209,10 +8277,12 @@ classdef Labeler < handle
           'LineWidth',plotIfo.LineWidth,...
           'Color',plotIfo.Colors(i,:),...
           'UserData',i,...
-          extraParams{:});
+          extraParams{:},...
+          'Tag',sprintf('Labeler_%s_%d',hProp,i));
         if ~isempty(hTxtProp)
         obj.(hTxtProp)(i) = text(nan,nan,num2str(i),'Parent',ax,...
-          'Color',plotIfo.Colors(i,:),'PickableParts','none');
+          'Color',plotIfo.Colors(i,:),'PickableParts','none',...
+          'Tag',sprintf('Labeler_%s_%d',hTxtProp,i));
         end
       end      
     end

@@ -11,10 +11,14 @@ import re
 import glob
 import csv
 import warnings
+import numpy as np
 
 USEQSUB = False
+DEFAULTAPTBUILDROOTDIR="/groups/branson/home/leea30/aptbuild"  # root location of binaries
 
 def main():
+
+
 
     epilogstr = 'Examples:\n.../APTCluster.py /path/to/proj.lbl -n 6 retrain\n.../APTCluster.py /path/to/proj.lbl track -n 4 --mov /path/to/movie.avi\n.../APTCluster.py /path/to/proj.lbl track -n 4 --mov /path/to/movie.avi --trx /path/to/trx.mat\n.../APTCluster.py /path/to/proj.lbl trackbatch -n 2 --movbatchfile /path/to/movielist.txt\n'
 
@@ -30,7 +34,8 @@ def main():
     parser.add_argument("--singlethreaded",help="if true, force run singlethreaded binary",action="store_true",default=False)
     parser.add_argument("--account",default="",help="account to bill for cluster time",metavar="ACCOUNT")
     parser.add_argument("--outdir",help="location to output qsub script and output log. If not supplied, output is written alongside project or movies, depending on action",metavar="PATH")
-    parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'") 
+    parser.add_argument("--bindate",help="APTCluster build date/folder. Defaults to 'current'")
+    parser.add_argument("--binrootdir",help="Root build directory containing saved builds. Defaults to %s"%DEFAULTAPTBUILDROOTDIR,default=DEFAULTAPTBUILDROOTDIR)
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
     parser.add_argument("--trackargs",help="use with action==track or trackbatch. enclose in quotes, additional/optional prop-val pairs")
@@ -40,7 +45,13 @@ def main():
 #    parser.add_argument("--pruneargs",help="use with action=prune*. enclose in quotes; '<sigd> <ipt> <frmstart> <frmend>'")
 #    parser.add_argument("--prunesig")
     parser.add_argument("-f","--force",help="if true, don't ask for confirmation",action="store_true",default=False)
-
+    parser.add_argument("--splitframes",
+                        help="Number of frames to track in each job. If 0, track all frames in one job.",
+                        default=0,metavar="SPLITFRAMES",type=int)
+    parser.add_argument("--startjob",help="Which job of split tracking to start on. Default = 0. This parameter is only relevant if tracking with splitframes parameter specified.",default=0)
+    parser.add_argument("--endjob",
+                        help="Which job of split tracking to end on. Specify -1 to run all jobs. Default = -1. This parameter is only relevant if tracking with splitframes parameter specified.",
+                        default=-1)
 
     args = parser.parse_args()
     
@@ -77,11 +88,10 @@ def main():
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
-        
-    args.APTBUILDROOTDIR = "/groups/branson/home/leea30/aptbuild" # root location of binaries
+
     if not args.bindate:
         args.bindate = "current"
-    args.binroot = os.path.join(args.APTBUILDROOTDIR,args.bindate)
+    args.binroot = os.path.join(args.binrootdir,args.bindate)
 
     args.multithreaded = not args.singlethreaded and int(args.nslots)>1
     if args.multithreaded:
@@ -91,22 +101,33 @@ def main():
     if not os.path.exists(args.bin):
         sys.exit("Cannot find binary: {0:s}".format(args.bin))
 
+    # binary for getting info about movies
+    args.infobin = os.path.join(args.binroot,"APTCluster","run_GetMovieNFrames_singlethreaded.sh")
+
+    args.KEYWORD = "apt" # used for log/sh filenames, sge job name
+    args.MCRROOT = "/groups/branson/home/leea30/mlrt/"
+    args.MLROOT = "/misc/local/"
+
     # check for mlrt tokens to specify/override mcr
     bindir = os.path.dirname(args.bin)
     mlrtTok = glob.glob(os.path.join(bindir,"MLRT_*"))
+    mlTok = glob.glob(os.path.join(bindir,"20*"))
     if len(mlrtTok)>1:
         warnings.warn("More than one MLRT_ token found in bindir: {0:s}".format(bindir))
     if mlrtTok:
         mlrtTok = os.path.basename(mlrtTok[-1])
         mlrtMcr = mlrtTok[5:]
         print("Found token in bindir: {0:s}. Using --mcr: {1:s}".format(mlrtTok,mlrtMcr))
-        args.mcr = mlrtMcr
+        args.mcr = os.path.join(args.MCRROOT,mlrtMcr)
+    elif mlTok:
+        mlTok = os.path.basename(mlTok[-1])
+        mlrt = "matlab-{0:s}".format(mlTok)
+        print("Found token in bindir: {0:s}. Running with {1:s}.".format(mlTok,mlrt))
+        args.mcr = os.path.join(args.MLROOT,mlrt)
+                      
 
-    args.KEYWORD = "apt" # used for log/sh filenames, sge job name
-    args.MCRROOT = "/groups/branson/home/leea30/mlrt/"
-    args.MCR = os.path.join(args.MCRROOT,args.mcr)
-    if not os.path.exists(args.MCR):
-        sys.exit("Cannot find mcr: {0:s}".format(args.MCR))
+    if not os.path.exists(args.mcr):
+        sys.exit("Cannot find mcr: {0:s}".format(args.mcr))
     #args.USERNAME = subprocess.check_output("whoami").strip()
     args.TMP_ROOT_DIR = "/scratch/`whoami`"
     args.MCR_CACHE_ROOT = args.TMP_ROOT_DIR + "/mcr_cache_root"
@@ -119,10 +140,10 @@ def main():
         args.BSUBARGS = "-n " + args.nslots 
         if args.account:
             args.BSUBARGS = "-P {0:s} ".format(args.account) + args.BSUBARGS
-        
+
     # summarize for user, proceed y/n?
     argsdisp = vars(args).copy()
-    argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','MCR','KEYWORD','bindate','binroot','nslots','account','multithreaded']
+    argsdispRmFlds = ['MCR_CACHE_ROOT','TMP_ROOT_DIR','mcr','KEYWORD','bindate','binroot','nslots','account','multithreaded']
     for fld in argsdispRmFlds:
         del argsdisp[fld]    
     if not args.force:
@@ -219,15 +240,86 @@ def main():
         if args.action=="retrain":
             cmd = args.projfile + " " + args.action
         elif args.action=="track":
+
             if args.trx:
-                cmd = args.projfile + "  " + args.action + " " + args.mov + " " + args.trx
+                cmd=args.projfile+"  "+args.action+" "+args.mov+" "+args.trx
             else:
-                cmd = args.projfile + "  " + args.action + " " + args.mov + " " + "''"
+                cmd=args.projfile+"  "+args.action+" "+args.mov+" "+"''"
             if args.trackargs:
-                 cmd = cmd + " " + args.trackargs
+                cmd=cmd+" "+args.trackargs
             if args.p0DiagImg:
-                p0DiagImgFull = os.path.join(outdiruse,args.p0DiagImg)
-                cmd = cmd + " p0DiagImg " + p0DiagImgFull
+                p0DiagImgFull=os.path.join(outdiruse,args.p0DiagImg)
+                cmd=cmd+" p0DiagImg "+p0DiagImgFull
+
+            if args.splitframes > 0:
+                infocmd = [args.infobin,args.mcr,args.mov]
+                s = subprocess.check_output(infocmd)
+                p=re.compile('\n\d+$') # last number
+                m = p.search(s)
+                s = s[m.start()+1:-1]
+                nframes = int(s)
+                njobs = np.maximum(1,np.round(nframes/args.splitframes))
+                jobstarts = np.round(np.linspace(1,nframes+1,njobs+1)).astype(int)
+                jobends = jobstarts[1:]-1
+
+                jobinfofile=os.path.join(outdiruse,"splittrackinfo_{0:s}.txt".format(jobid))
+                f=open(jobinfofile,'w')
+                moviedir = os.path.dirname(args.mov)
+                moviestr,ext = os.path.splitext(os.path.basename(args.mov))
+                projstr,ext=os.path.splitext(os.path.basename(args.projfile))
+
+                nsubmitted = 0
+
+                if not isinstance(args.startjob,int):
+                    args.startjob = int(args.startjob)
+                if not isinstance(args.endjob,int):
+                    args.endjob = int(args.endjob)
+
+                startjob = args.startjob
+                if (args.endjob == -1) or (args.endjob >= njobs):
+                    endjob = njobs - 1
+                else:
+                    endjob = args.endjob
+
+                for jobi in range(startjob,endjob+1):
+                    jobidcurr = "%s-%03d"%(jobid,jobi)
+                    if args.outdir:
+                        rawtrkname='%s/%s_%s_%s'%(outdiruse,moviestr,projstr,jobidcurr)
+                    else:
+                        rawtrkname = '%s/%s_%s_%s'%(moviedir,moviestr,projstr,jobidcurr)
+                    cmdcurr = "%s startFrame %d endFrame %d rawtrkname %s"%(cmd,jobstarts[jobi],jobends[jobi],rawtrkname)
+                    shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
+                    logfilecurr = os.path.join(outdiruse,"{0:s}.log".format(jobidcurr))
+
+                    if args.trx:
+                        trxFile = args.trx
+                    else:
+                        trxFile = ''
+
+                    infoline = "%d,%s,%s,%d,%d,%s,%s,%s,%s\n"%(jobi,args.mov,trxFile,jobstarts[jobi],jobends[jobi],jobidcurr,rawtrkname,shfilecurr,logfilecurr)
+                    f.write(infoline)
+                    gencode(shfilecurr,jobidcurr,args,cmdcurr)
+
+                    # submit
+                    if USEQSUB:
+                        qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfilecurr,jobidcurr,args.BSUBARGS,shfilecurr)
+                        qsubcmd = "qsub " + qargs
+                    else:
+                        qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfilecurr,jobidcurr,shfilecurr)
+                        qsubcmd = "bsub " + qargs
+
+
+                    print(qsubcmd)
+                    subprocess.call(qsubcmd,shell=True)
+                    nsubmitted += 1
+
+
+                f.close()
+
+                print("%d jobs submitted, information about them in file %s."%(nsubmitted,jobinfofile))
+
+                sys.exit()
+
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
 
@@ -246,21 +338,35 @@ def main():
 
     sys.exit()
 
-def gencode(fname,jobid,args,cmd):
+def gencode(fname,jobid,args,cmd,bin=None,mcr=None):
+
+    if bin is None:
+        bin = args.bin
+    if mcr is None:
+        mcr = args.mcr
+
     f = open(fname,'w')
     print("#!/bin/bash",file=f)
     print("",file=f)
     print("source ~/.bashrc",file=f)
     print("umask 002",file=f)
     print("unset DISPLAY",file=f)
-    print("export MCR_CACHE_ROOT="+args.MCR_CACHE_ROOT + "." + jobid,file=f)
-    print("echo $MCR_CACHE_ROOT",file=f)
+    print("if [ -d "+args.TMP_ROOT_DIR+" ]; then",file=f)
+    print("  export MCR_CACHE_ROOT="+args.MCR_CACHE_ROOT + "." + jobid,file=f)
+    print("fi",file=f)
+    print("echo MCR_CACHE_ROOT = $MCR_CACHE_ROOT",file=f)
 
     print("",file=f)
-    print(args.bin + " " + args.MCR + " " + cmd,file=f)
+    print(bin + " " + mcr + " " + cmd,file=f)
     print("",file=f)
 
-    print("rm -rf",args.MCR_CACHE_ROOT+"."+jobid,file=f)
+    print("if [ -e "+args.MCR_CACHE_ROOT+"."+jobid+" ]; then",file=f)
+    print("  echo deleting "+args.MCR_CACHE_ROOT+"."+jobid,file=f)
+    print("  date",file=f)
+    print("  rm -rf "+args.MCR_CACHE_ROOT+"."+jobid,file=f)
+    print("  date",file=f)
+    print("fi",file=f)
+
     f.close()
     os.chmod(fname,stat.S_IRUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH);
 
@@ -273,5 +379,6 @@ def pprintdict(d, indent=0):
          print('\t' * (indent+1) + str(value))
 
 if __name__=="__main__":
+    print("main")
     main()
 

@@ -15,6 +15,8 @@ function APTCluster(varargin)
 % % Track a set of movies
 % APTCluster(lblFile,'trackbatch',moviesetfile,varargin)
 
+startTime = tic;
+
 lblFile = varargin{1};
 action = varargin{2};
   
@@ -23,8 +25,10 @@ if exist(lblFile,'file')==0
 end
 
 lObj = Labeler();
+set(lObj.hFig,'Visible','off');
 fprintf('APTCluster: ''%s'' on project ''%s''.\n',action,lblFile);
-
+fprintf('Time to start labeler: %f\n',toc(startTime));
+startTime = tic;
 switch action
   case 'retrain'
     lObj.projLoad(lblFile);
@@ -46,6 +50,7 @@ switch action
     lclTrackAndExportSingleMov(lObj,mov,trxfile,trackArgs);    
   case 'trackbatch'
     lObj.projLoad(lblFile,'nomovie',true);
+    fprintf('Time to load project: %f\n',toc(startTime)); startTime = tic;
     movfile = varargin{3};
     if exist(movfile,'file')==0
       error('APTCluster:file','Cannot find batch movie file ''%s''.',movfile);
@@ -55,6 +60,7 @@ switch action
       error('APTCluster:movfile','Error reading batch movie file ''%s''.',movfile);
     end
     nmov = numel(movs);
+    fprintf('Time to read movie info: %f\n',toc(startTime)); startTime = tic;
     for iMov = 1:nmov
       lclTrackAndExportSingleMov(lObj,movs{iMov},'',{});
     end
@@ -62,12 +68,20 @@ switch action
     error('APTCluster:action','Unrecognized action ''%s''.',action);
 end
 
-delete(lObj);
-close all force;
+fprintf('Real processing done, total time: %f\n',toc(startTime)); startTime = tic;
 
+delete(lObj);
+
+fprintf('Time to close APT: %f\n',toc(startTime)); startTime = tic;
+
+close all force;
+fprintf('Time to close everything else: %f\n',toc(startTime)); startTime = tic;
+fprintf('APTCluster finished.\n');
 
 function lclTrackAndExportSingleMov(lObj,mov,trx,trackArgs)
 % Trx: optional, specify '' for no-trx
+
+startTime = tic;
 
 if lObj.gtIsGTMode
   error('APTCluster:gt','Unsupported for GT mode.');
@@ -136,6 +150,25 @@ trackArgs(i:i+1,:) = [];
 if numel(endArgs)==2 && ischar(endArgs{2})
   endArgs{2} = str2double(endArgs{2});
 end
+i = find(strcmp(trackArgs,'storeFullTracking'));
+assert(isempty(i) || isscalar(i));
+storeFullTrackingArgs = trackArgs(i:i+1);
+trackArgs(i:i+1,:) = [];
+if ~isempty(storeFullTrackingArgs),
+  switch lower(storeFullTrackingArgs{2}),
+    case 'none',
+      lObj.tracker.storeFullTracking = StoreFullTrackingType.NONE;
+    case 'finaliter',
+      lObj.tracker.storeFullTracking = StoreFullTrackingType.FINALITER;
+    case 'alliters',
+      lObj.tracker.storeFullTracking = StoreFullTrackingType.ALLITERS;
+    otherwise
+      warning('Unknown storeFullTracking type %s, using default %s',storeFullTrackingArgs{2},lObj.tracker.storeFullTracking);
+  end
+else
+  fprintf('Using default storeFullTracking type %s.\n',lObj.tracker.storeFullTracking);
+end
+
 
 tfStartEnd = numel(startArgs)==2 && numel(endArgs)==2;
 if tfStartEnd
@@ -145,4 +178,6 @@ if tfStartEnd
 else
   tm = MFTSetEnum.CurrMovAllTgtsEveryFrame;
 end
+fprintf('Tracking preprocessing time: %f\n',toc(startTime)); startTime = tic;
 lObj.trackAndExport(tm,'trackArgs',trackArgs,trkFilenameArgs{:});
+fprintf('Time to track, total: %f\n',toc(startTime)); startTime = tic;

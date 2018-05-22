@@ -58,29 +58,56 @@ classdef Ferns
       assert(nnz(isnan(X))==0);      
       S2 = 2^S;
       
-      inds = zeros(N,1);
-      for s=1:S
-        f = fids(s);
-        for i=1:N
-          inds(i) = inds(i)*2;
-          if X(i,f)<thrs(s)
-            inds(i) = inds(i)+1;
-          end
-        end
-      end
-      inds = inds+1;
+      % KB 20180418: this is like 10X slower than new version below, I think
+%       inds = zeros(N,1);
+%       for s=1:S
+%         f = fids(s);
+%         for i=1:N
+%           inds(i) = inds(i)*2;
+%           if X(i,f)<thrs(s)
+%             inds(i) = inds(i)+1;
+%           end
+%         end
+%       end
+%       inds = inds+1;
       
-      count = zeros(S2,1);
+      % old matlab requires explicit bsxfun
+      if verLessThan('matlab','9.2.0'), 
+        inds = sum( bsxfun(@times,bsxfun(@lt,X(:,fids),thrs),2.^(S-1:-1:0)), 2 )+1;
+      else
+        inds = sum( (X(:,fids) < thrs) .* 2.^(S-1:-1:0), 2 )+1;
+      end
+
+      % KB 20180418: again, this seems to be like 10X slower than the new
+      % version below
+%       count = zeros(S2,1);
+%       dyFernSum = zeros(S2,D);
+%       dyFernCnt = zeros(S2,D);
+%       for i = 1:N
+%         s = inds(i);
+%         count(s) = count(s)+1;
+%         
+%         tfgood = ~isnan(dY(i,:));
+%         dyFernSum(s,tfgood) = dyFernSum(s,tfgood) + dY(i,tfgood);
+%         dyFernCnt(s,tfgood) = dyFernCnt(s,tfgood) + 1;
+%       end
+
+      tfgood = ~isnan(dY);
+      tfallgood = all(tfgood,1);
+      count = accumarray(inds,ones(N,1),[S2,1]);
+      dY0 = dY;
+      dY0(~tfgood) = 0;
       dyFernSum = zeros(S2,D);
       dyFernCnt = zeros(S2,D);
-      for i = 1:N
-        s = inds(i);
-        count(s) = count(s)+1;
-        
-        tfgood = ~isnan(dY(i,:));
-        dyFernSum(s,tfgood) = dyFernSum(s,tfgood) + dY(i,tfgood);
-        dyFernCnt(s,tfgood) = dyFernCnt(s,tfgood) + 1;
-      end      
+      for d = 1:D,
+        dyFernSum(:,d) = accumarray(inds,dY0(:,d),[S2,1]);
+        if tfallgood(d),
+          dyFernCnt(:,d) = count;
+        else
+          dyFernCnt(:,d) = accumarray(inds,tfgood(:,d),[S2,1]);
+        end
+      end
+      
     end
     
     function idxs = indsSimple(bitvecs)

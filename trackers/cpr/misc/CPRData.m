@@ -155,7 +155,7 @@ classdef CPRData < handle
             assert(false,'Unsupported');
           end          
           if size(Is,2)==1
-            sz = cellfun(@(x)size(x'),Is,'uni',0);
+            sz = cellfun(@(x) [size(x,2),size(x,1)],Is,'uni',0);
             bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
           else
             warningNoTrace('CPRData:bb',...
@@ -489,10 +489,15 @@ classdef CPRData < handle
       % 
       % bboxes: [Nx4] 2d bboxes
       
-      assert(iscell(I) && iscolumn(I));
-      sz = cellfun(@(x)[size(x,2) size(x,1)],I,'uni',0);
-      bboxes = cellfun(@(x)[[1 1] x],sz,'uni',0);
-      bboxes = cat(1,bboxes{:});      
+      if iscell(I),
+        assert(iscolumn(I));
+        sz = cellfun(@(x)[size(x,2) size(x,1)],I,'uni',0);
+        bboxes = cellfun(@(x)[[1 1] x],sz,'uni',0);
+        bboxes = cat(1,bboxes{:});
+      else
+        N = size(I.imoffs,1);
+        bboxes = [ones(N,2),I.imszs([2 1],:)'];
+      end
     end
 
   end
@@ -793,6 +798,73 @@ classdef CPRData < handle
       end
       
       nChan = nChanPP+1;
+    end
+    
+    function [Iinfo,nChan] = getCombinedIsMat(obj,iTrl) % obj CONST
+      % Get .I combined with .Ipp for specified trials.
+      %
+      % iTrl: [nTrl] vector of trials
+      %
+      % Iinfo is a struct with the following fields:
+      %   Is: vector of all nTrl x nView images strung out in order of rows, pixels, channels, image, view
+      %   imszs: [2 x nTrl x nView] size of each image
+      %   imoffs: [nTrl x nView] offset for indexing image (i,view) (image will
+      %     be from off(i,view)+1:off(i,view)+imszs(1,i,view)*imszs(2,i,view)
+      % nChan: number of TOTAL channels used/found
+            
+      if obj.nView==1
+        nChanPP = numel(obj.IppInfo);
+      else
+        if isempty(obj.IppInfo)
+          nChanPP = 0;
+        else
+          nChanPP = cellfun(@numel,obj.IppInfo);
+          nChanPP = unique(nChanPP);
+        end
+        assert(isscalar(nChanPP));
+      end
+      fprintf(1,'Using %d additional channels.\n',nChanPP);
+      
+      Iinfo = struct;
+      nTrl = numel(iTrl);
+      nVw = obj.nView;
+      Iinfo.Is = [];
+      Iinfo.imszs = nan([2,nTrl,nVw]);
+      Iinfo.imoffs = nan([nTrl,nVw]);
+      Iinfo.imoffs(1) = 0;
+      for i=1:nTrl
+        iT = iTrl(i);
+        for iVw=1:nVw        
+          im = obj.I{iT,iVw};
+          if isa(im,'uint8')
+            im = double(im)/255;
+          elseif isa(im,'uint16')
+            im = double(im)/(2^16-1);
+          end
+          if nChanPP==0
+            impp = nan(size(im,1),size(im,2),0);
+          else
+            impp = obj.Ipp{iT,iVw};
+          end
+          assert(size(impp,3)==nChanPP);
+          im = cat(3,im,impp);
+          szcurr = numel(im);
+          offnext = Iinfo.imoffs(i,iVw)+szcurr;
+          Iinfo.Is(Iinfo.imoffs(i,iVw)+1:offnext) = im;
+          Iinfo.imszs(:,i,iVw) = [size(im,1),size(im,2)];
+          if iVw < nVw
+            Iinfo.imoffs(i,iVw+1) = offnext;
+          elseif i<nTrl
+            Iinfo.imoffs(i+1,1) = offnext;
+          else
+            % last entry; none
+          end
+          %Iinfo.imoffs(nTrl*(iVw-1)+i+1) = offnext;
+        end
+      end
+      
+      nChan = nChanPP+1;
+      Iinfo.nChan = nChan;
     end
     
     function [sgscnts,slscnts,sgsedge,slsedge] = calibIppJan(obj,nsamp)
