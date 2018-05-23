@@ -15,7 +15,7 @@ classdef Labeler < handle
       'viewCalibrationDataGT' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
       'labeledposGT' 'labeledpostagGT' 'labeledposTSGT'...
-      'currMovie' 'currFrame' 'currTarget' ...
+      'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
       'trackModeIdx' ...
@@ -373,11 +373,15 @@ classdef Labeler < handle
   end
   
   %% Tracking
-  properties (SetObservable)    
-    trackerType % scalar TrackerType
-    tracker % LabelTracker object. init: PLPN
-    trackerDeep % DeepTracker obj
-    
+  properties (SetObservable)
+    trackersAll % cell vec of concrete LabelTracker objects. init: PNPL
+    currTracker % scalar int, either 0 for "no tracker" or index into trackersAll
+  end
+  properties (Dependent)
+    tracker % The current tracker, or []
+    trackerAlgo % The current tracker algorithm, or ''
+  end
+  properties (SetObservable)
     trackModeIdx % index into MFTSetEnum.TrackingMenu* for current trackmode. 
      %Note MFTSetEnum.TrackingMenuNoTrx==MFTSetEnum.TrackingMenuTrx(1:K).
      %Values of trackModeIdx 1..K apply to either the NoTrx or Trx cases; 
@@ -754,6 +758,21 @@ classdef Labeler < handle
     function v = get.gtNumSugg(obj)
       v = height(obj.gtSuggMFTable);
     end
+    function v = get.tracker(obj)
+      if obj.currTracker==0
+        v = [];
+      else
+        v = obj.trackersAll{obj.currTracker};
+      end
+    end
+    function v = get.trackerAlgo(obj)
+      v = obj.tracker;
+      if isempty(v)
+        v = '';
+      else
+        v = v.algorithmName;
+      end
+    end
   end
   
   methods % prop access
@@ -878,6 +897,9 @@ classdef Labeler < handle
     function initFromConfig(obj,cfg)
       % Note: Config must be modernized
     
+      isinit0 = obj.isinit;
+      obj.isinit = true;
+      
       % Views
       obj.nview = cfg.NumViews;
       if isempty(cfg.ViewNames)
@@ -929,7 +951,11 @@ classdef Labeler < handle
       obj.labeledposIPtSetMap = setmap;
       obj.labeledposSetNames = setnames;
       
-      obj.labelMode = LabelMode.(cfg.LabelMode);
+      if cfg.NumViews==1
+        obj.labelMode = LabelMode.TEMPLATE;
+      else
+        obj.labelMode = LabelMode.MULTIVIEWCALIBRATED2;
+      end
       
       lpp = cfg.LabelPointsPlot;
       % Some convenience mods to .LabelPointsPlot
@@ -1000,17 +1026,16 @@ classdef Labeler < handle
       
       obj.preProcInit();
       
-      % For unclear reasons, creation of new tracker occurs downstream in
-      % projLoad() or projNew()
-      if ~isempty(obj.tracker)
-        delete(obj.tracker);
-        obj.tracker = [];
+      % Reset .trackersAll
+      for i=1:numel(obj.trackersAll)
+        % explicitly delete, conservative cleanup
+        delete(obj.trackersAll{i}); % delete([]) does not err
       end
-      if ~isempty(obj.trackerDeep)
-        delete(obj.trackerDeep);
-        obj.trackerDeep = [];
-      end
-      
+      obj.trackersAll = cell(1,0);
+      % Trackers created/initted in projLoad and projNew; eg when loading,
+      % the loaded .lbl knows what trackers to create.
+      obj.currTracker = 0;
+                
       obj.showTrx = cfg.Trx.ShowTrx;
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
       obj.showTrxIDLbl = cfg.Trx.ShowTrxIDLbl;
@@ -1025,6 +1050,8 @@ classdef Labeler < handle
       obj.trxCache = containers.Map();
       
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
+      
+      obj.isinit = isinit0;
     end
     
     function cfg = getCurrentConfig(obj)
@@ -1161,18 +1188,19 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
-      
-      assert(isempty(obj.tracker));
-      assert(isempty(obj.trackerDeep));
 
       trkPrefs = obj.projPrefs.Track;
       if trkPrefs.Enable
-        obj.trackerType = TrackerType.cpr;
-        obj.tracker = feval(trkPrefs.Type,obj);
-        obj.tracker.init();        
-        obj.trackerDeep = DeepTracker(obj);
+        % Create trackers. Currently this is hardcoded but could read from a 
+        % manifest
+        assert(isempty(obj.trackersAll));
+        tAll = {CPRLabelTracker(obj) DeepTracker(obj)};
+        tAll{1}.init();
+        tAll{2}.init();
+        obj.trackersAll = tAll;
+        obj.currTracker = 1;
       else
-        obj.trackerType = TrackerType.NONE;
+        obj.currTracker = 0;
       end
 
       props = obj.gdata.propsNeedInit;
@@ -1274,22 +1302,9 @@ classdef Labeler < handle
         case LabelMode.TEMPLATE
           %s.labelTemplate = obj.lblCore.getTemplate();
       end
-      
-      s.trackerType = obj.trackerType;
-      tObj = obj.tracker;
-      if isempty(tObj)
-        s.trackerClass = '';
-        s.trackerData = [];
-      else
-        s.trackerClass = class(tObj);
-        s.trackerData = tObj.getSaveToken();
-      end
-      dtObj = obj.trackerDeep;
-      if isempty(dtObj)
-        s.trackerDeepData = [];
-      else
-        s.trackerDeepData = dtObj.getSaveToken();
-      end
+
+      s.trackerClass = cellfun(@class,obj.trackersAll,'uni',0);
+      s.trackerData = cellfun(@getSaveToken,obj.trackersAll,'uni',0);        
     end
     
     function currMovInfo = projLoad(obj,fname,varargin)
@@ -1386,27 +1401,23 @@ classdef Labeler < handle
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
 
       % Tracker.
-      obj.trackerType = s.trackerType;
-      assert(isempty(obj.tracker)); % cleared in initFromCfg above
-      if ~isempty(s.trackerClass)
-        tCls = s.trackerClass;
+      nTracker = numel(s.trackerData);
+      assert(nTracker==numel(s.trackerClass));
+      assert(isempty(obj.trackersAll));
+      tAll = cell(1,nTracker);
+      for i=1:nTracker        
+        tCls = s.trackerClass{i};
+        tData = s.trackerData{i};
         if exist(tCls,'class')==0
           error('Labeler:projLoad',...
             'Project tracker class ''%s'' cannot be found.',tCls);
-        end          
+        end
         tObj = feval(tCls,obj);
         tObj.init();
-        tObj.loadSaveToken(s.trackerData);
-        obj.tracker = tObj;
+        tObj.loadSaveToken(tData);
+        tAll{i} = tObj;
       end
-      assert(isempty(obj.trackerDeep));
-      if ~isempty(s.trackerDeepData)
-        tObj = DeepTracker(obj);
-        tObj.loadSaveToken(s.trackerDeepData);
-        obj.trackerDeep = tObj;
-      elseif ~isempty(obj.tracker)
-        obj.trackerDeep = DeepTracker(obj);
-      end        
+      obj.trackersAll = tAll;
 
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
         obj.movieSetNoMovie();
@@ -4890,7 +4901,7 @@ classdef Labeler < handle
                         p(:,nphyspts+1:end) pTrx(:,2)]; 
             if strcmp(trxCtredRotAlignMeth,'headtail')
               tObj = obj.tracker;
-              if ~isempty(tObj)
+              if ~isempty(tObj) && strcmp(tObj.algorithmName,'cpr')
                 iptHead = tObj.sPrm.Reg.rotCorrection.iPtHead;
                 iptTail = tObj.sPrm.Reg.rotCorrection.iPtTail;
               else
@@ -5536,8 +5547,8 @@ classdef Labeler < handle
       end
       obj.prevAxesLabelsUpdate();
       if ~obj.gtIsGTMode
-      obj.labels2VizUpdate();
-    end
+        obj.labels2VizUpdate();
+      end
     end
     
     function labelsUpdateNewTarget(obj,prevTarget)
@@ -6392,20 +6403,48 @@ classdef Labeler < handle
   %% Tracker
   methods    
 
+    function [tObj,iTrk] = trackGetTracker(obj,algoName)
+      % Find a particular tracker
+      %
+      % algoName: char, to match LabelTracker.algorithmName
+      %
+      % tObj: either [], or scalar tracking object 
+      % iTrk: either 0, or index into .trackersAll
+      for iTrk=1:numel(obj.trackersAll)
+        if strcmp(obj.trackersAll{iTrk}.algorithmName,algoName)
+          tObj = obj.trackersAll{iTrk};
+          return;
+        end
+      end
+      tObj = [];
+      iTrk = 0;
+    end
+  
+    function trackSetCurrentTracker(obj,iTracker)
+      validateattributes(iTracker,{'numeric'},...
+        {'nonnegative' 'integer' '<=' numel(obj.trackersAll)});
+      obj.currTracker = iTracker;
+    end
+        
     function trackSetParams(obj,sPrm)
+      % Set ALL tracking parameters; preproc, and all trackers
+      % 
       % sPrm: scalar struct containing *new*-style params:
       % sPrm.ROOT.Track
       %          .CPR
       %          .DeepTrack
 
-      tObj = obj.tracker;
-      if isempty(tObj)
-        error('No tracker is set.');
+      tObj = obj.trackGetTracker('cpr');      
+      dtObj = obj.trackGetTracker('poseTF');
+      if isempty(tObj) || isempty(dtObj)
+        error('Cannot find one or more trackers.');
       end
+        
+      % Future TODO: right now this is hardcoded, eg "DeepTrack" doesn't
+      % match 'poseTF', and lots of special-case code.
+      % Ideally/theoretically the params/trackerObjs would just line up and
+      % setting would just be a simple loop or similar
       
-      dtObj = obj.trackerDeep;
-      assert(~isempty(dtObj),'DeepTracker object not found.');
-
       sPrmDT = sPrm.ROOT.DeepTrack;
       sPrmPPandCPR = sPrm;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
@@ -6429,6 +6468,8 @@ classdef Labeler < handle
     end
     
     function sPrm = trackGetParams(obj)
+      % Get full set of parameters from all trackers
+      %
       % sPrm: scalar struct containing NEW-style params:
       % sPrm.ROOT.Track
       %          .CPR
@@ -6436,8 +6477,11 @@ classdef Labeler < handle
       % Top-level fields .Track, .CPR, .DeepTrack may be missing if they
       % don't exist yet.
       
-      tObj = obj.tracker;
-      dtObj = obj.trackerDeep;
+      % Future TODO: As in trackSetParams, currently this is hardcoded when
+      % it ideally would just be a generic loop
+       
+      tObj = obj.trackGetTracker('cpr');      
+      dtObj = obj.trackGetTracker('poseTF');
       assert(~isempty(tObj),'CPR tracker object not found.');
       assert(~isempty(dtObj),'DeepTracker object not found.');
 
@@ -6458,7 +6502,7 @@ classdef Labeler < handle
           warningNoTrace('Cannot convert preproc params.');
         end
         
-        sPrm.ROOT.Track.Type = char(obj.trackerType);
+        %sPrm.ROOT.Track.Type = char(obj.trackerType);
         sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
         sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
         sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
@@ -6480,7 +6524,6 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
-      assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
       tObj.train();
     end
     
@@ -6504,7 +6547,6 @@ classdef Labeler < handle
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
-      assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
 
       assert(isa(mftset,'MFTSet'));
       tblMFT = mftset.getMFTable(obj);
@@ -6517,9 +6559,10 @@ classdef Labeler < handle
     end
     
     function trackTbl(obj,tblMFT,varargin)
-      assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
-
       tObj = obj.tracker;
+      if isempty(tObj)
+        error('Labeler:track','No tracker set.');
+      end
       tObj.track(tblMFT,varargin{:});
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
@@ -6538,8 +6581,7 @@ classdef Labeler < handle
       % clearing data in between
       %
       % mftset: scalar MFTSet
-            
-      
+
       startTime = tic;
       
       [trackArgs,rawtrkname] = myparse(varargin,...
@@ -6547,11 +6589,15 @@ classdef Labeler < handle
         'rawtrkname',[]...
         );
       
-      assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
       end
+      if ~strcmp(tObj.algorithmName,'cpr')
+        % DeepTrackers track in bg and already export to trk
+        error('Only CPR tracking supported.');
+      end
+
       tblMFT = mftset.getMFTable(obj);
       
       iMovsUn = unique(tblMFT.mov);      
@@ -6572,7 +6618,8 @@ classdef Labeler < handle
       fprintf('Preprocessing time in trackAndExport: %f\n',toc(startTime)); startTime = tic;
       for i=1:nMov
         iMov = iMovsUn(i);
-        fprintf('Tracking %s %d (%d/%d) -> %s\n',moviestr,double(iMov),i,nMov,trkfiles{i});
+        fprintf('Tracking %s %d (%d/%d) -> %s\n',moviestr,double(iMov),i,...
+          nMov,trkfiles{i});
         
         tfMov = tblMFT.mov==iMov;
         tblMFTmov = tblMFT(tfMov,:);
@@ -6611,8 +6658,7 @@ classdef Labeler < handle
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
-      end       
-      assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
+      end
 
       [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname(iMovs,trkfiles,...
         rawtrkname,{});
@@ -6661,7 +6707,10 @@ classdef Labeler < handle
       if isempty(tObj)
         error('Labeler:tracker','No tracker is available for this project.');
       end
-      assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
+      if ~strcmp(tObj.algorithmName,'cpr')
+        % DeepTrackers do non-blocking/bg tracking
+        error('Only CPR tracking supported.');
+      end
 
       % Get labeled/gt data
       if isempty(tblMFgt)
@@ -6829,7 +6878,6 @@ classdef Labeler < handle
       % lposTrk: [nptsx2] if tf is true, xy coords from tracker; otherwise
       %   indeterminate
       
-      assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
       tObj = obj.tracker;
       if isempty(tObj)
         tf = false;
@@ -6947,6 +6995,7 @@ classdef Labeler < handle
       npts = obj.nLabelPoints;
 
       assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
+      % XXX TODO
       tObj = obj.tracker;
       if ~isempty(tObj)
         tblTrked = tObj.trkPMD(:,MFTable.FLDSID);

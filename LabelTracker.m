@@ -1,8 +1,11 @@
 classdef LabelTracker < handle
 % Tracker base class
 
-  % LabelTracker knows how to take a bunch of images+labels and learn a
-  % classifier to predict/track labels on new images.
+  % LabelTracker has two responsibilities:
+  % 1. Take a bunch of images+labels and learn a classifier to predict/track 
+  %   labels on new images.
+  % 2. Store and visualize the predictions generated in 1, as well as any
+  %   related tracking diagnostics
   %
   % LabelTracker is a base class intended to be concretized with a 
   % particular tracking algo.
@@ -14,23 +17,29 @@ classdef LabelTracker < handle
   %
   % In this way a single scalar (integer) value continues to serve as a
   % unique key/ID for a movie in the project; these values are used in APIs
-  % as well as Metadata tables (eg in .mov field).
+  % as well as Metadata tables (eg in .mov field). This implicitly assumes
+  % that a LabelTracker handles only a single view in a multiview project.
   %
-  % Moving forward, if another "list of movie(set)s" crops up then this
-  % signed index vector will need to be replaced with some other ID
-  % mechanism (eg uuid or two-column ID {'movieList' 'idx'}.
+  % Moving forward, if another "list of movie(set)s" is required, or if 
+  % LabelTrackers must handle multiple views, then this signed index vector 
+  % will need to be replaced with some other ID mechanism (eg a uuid or 
+  % 2-ple ID etc.
   
-  properties (Constant)
-    % Known concrete LabelTrackers
-    subclasses = {...
-      'Interpolator'
-      'SimpleInterpolator'
-      'GMMTracker'
-      'CPRLabelTracker'
-      };
-  end
+%   properties (Constant)
+%     % Known concrete LabelTrackers
+%     subclasses = {...
+%       'Interpolator'
+%       'SimpleInterpolator'
+%       'GMMTracker'
+%       'CPRLabelTracker'
+%       };
+%   end
   
-  properties
+  properties (Abstract)
+    algorithmName % char
+  end  
+  
+  properties    
     lObj % (back)handle to Labeler object
     paramFile; % char, current parameter file
     ax % axis for viewing tracking results
@@ -173,6 +182,14 @@ classdef LabelTracker < handle
       end
     end
     
+    function tblTrk = getAllTrackingResultsTable(obj)
+      % Get all tracking results known to tracker in a single table.
+      %
+      % tblTrk: fields .mov, .frm, .iTgt, .pTrk
+      
+      tblTrk = [];
+    end
+    
     function xy = getPredictionCurrentFrame(obj)
       % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
       xy = [];
@@ -215,7 +232,7 @@ classdef LabelTracker < handle
       % Called on Labeler/movieRemoved
     end
 
-    function labelerMoviesReordered(obj,eventdata)      
+    function labelerMoviesReordered(obj,eventdata)
     end
     
     function s = getSaveToken(obj)
@@ -266,22 +283,22 @@ classdef LabelTracker < handle
             
   end
   
-  methods (Static)
-    
-    function sc = findAllSubclasses
-      % sc: cellstr of LabelTracker subclasses in APT.Root
-      
-      scnames = LabelTracker.subclasses; % candidates
-      nSC = numel(scnames);
-      tf = false(nSC,1);
-      for iSC=1:nSC
-        name = scnames{iSC};
-        mc = meta.class.fromName(name);
-        tf(iSC) = ~isempty(mc) && any(strcmp('LabelTracker',{mc.SuperclassList.Name}));
-      end
-      sc = scnames(tf);
-    end
-    
-  end
+%   methods (Static)
+%     
+%     function sc = findAllSubclasses
+%       % sc: cellstr of LabelTracker subclasses in APT.Root
+%       
+%       scnames = LabelTracker.subclasses; % candidates
+%       nSC = numel(scnames);
+%       tf = false(nSC,1);
+%       for iSC=1:nSC
+%         name = scnames{iSC};
+%         mc = meta.class.fromName(name);
+%         tf(iSC) = ~isempty(mc) && any(strcmp('LabelTracker',{mc.SuperclassList.Name}));
+%       end
+%       sc = scnames(tf);
+%     end
+%     
+%   end
   
 end

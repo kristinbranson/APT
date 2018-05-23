@@ -1,6 +1,9 @@
 classdef DeepTracker < LabelTracker
   
   properties
+    algorithmName = 'poseTF';
+  end
+  properties
     sPrm % new-style DT params
     
     %% train
@@ -70,7 +73,8 @@ classdef DeepTracker < LabelTracker
       obj@LabelTracker(lObj);
     end    
     function initHook(obj)
-      obj.bgReset();
+      obj.bgTrnReset();
+      obj.bgTrkReset();
       obj.trackResInit();
       obj.vizInit();
     end
@@ -499,16 +503,16 @@ classdef DeepTracker < LabelTracker
       ipt2View = obj.lObj.labeledposIPt2View;
       hTmp = gobjects(npts,1);
       hTmpOther = gobjects(npts,1);
-      hTmp2 = gobjects(npts,1);
+%       hTmp2 = gobjects(npts,1);
       for iPt = 1:npts
         clr = ptsClrs(iPt,:);
         iVw = ipt2View(iPt);
         hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
         hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);        
-        hTmp2(iPt) = scatter(ax(iVw),nan,nan);
-        setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,...
-          'MarkerEdgeColor',clr,'PickableParts','none',...
-          obj.xyVizFullPlotArgs{:});
+%         hTmp2(iPt) = scatter(ax(iVw),nan,nan);
+%         setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,...
+%           'MarkerEdgeColor',clr,'PickableParts','none',...
+%           obj.xyVizFullPlotArgs{:});
       end
       obj.hXYPrdRed = hTmp;
       obj.hXYPrdRedOther = hTmpOther;

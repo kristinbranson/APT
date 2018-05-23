@@ -90,15 +90,15 @@ end
 handles.output = [];
 
 % init PUMs that depend only on codebase
-lms = enumeration('LabelMode');
-tfnone = lms==LabelMode.NONE;
-lms(tfnone,:) = [];
-lmStrs = arrayfun(@(x)x.prettyString,lms,'uni',0);
-handles.pumLabelingMode.String = lmStrs;
-handles.pumLabelingMode.UserData = lms;
-trackers = LabelTracker.findAllSubclasses;
-trackers = [{'None'};trackers];
-handles.pumTracking.String = trackers;
+% lms = enumeration('LabelMode');
+% tfnone = lms==LabelMode.NONE;
+% lms(tfnone,:) = [];
+% lmStrs = arrayfun(@(x)x.prettyString,lms,'uni',0);
+% handles.pumLabelingMode.String = lmStrs;
+% handles.pumLabelingMode.UserData = lms;
+% trackers = LabelTracker.findAllSubclasses;
+% trackers = [{'None'};trackers];
+% handles.pumTracking.String = trackers;
 
 handles.propsPane = [];
 
@@ -129,13 +129,14 @@ cfg.NumViews = handles.nViews;
 cfg.NumLabelPoints = handles.nPoints;
 cfg.ViewNames = struct2cell(cfg.ViewNames);
 cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
-pumLM = handles.pumLabelingMode;
-lmVal = pumLM.Value;
-cfg.LabelMode = char(pumLM.UserData(lmVal));
-pumTrk = handles.pumTracking;
-tracker = pumTrk.String{pumTrk.Value};
-cfg.Track.Enable = ~strcmpi(tracker,'none');
-cfg.Track.Type = tracker;
+% pumLM = handles.pumLabelingMode;
+% lmVal = pumLM.Value;
+% cfg.LabelMode = char(pumLM.UserData(lmVal));
+% pumTrk = handles.pumTracking;
+% tracker = pumTrk.String{pumTrk.Value};
+% cfg.Track.Enable = ~strcmpi(tracker,'none');
+cfg.Track.Enable = true;
+% cfg.Track.Type = tracker;
 % propertiesGUI treats props with empty vals as strings even if they are
 % subsequently filled with numbers
 FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie' 'AxFontSize' 'ShowAxTicks' 'ShowGrid'};
@@ -153,25 +154,25 @@ handles.nPoints = cfg.NumLabelPoints;
 set(handles.etNumberOfViews,'string',num2str(handles.nViews));
 set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
 
-pumLM = handles.pumLabelingMode;
-[tf,val] = ismember(cfg.LabelMode,arrayfun(@char,pumLM.UserData,'uni',0));
-if ~tf
-  % should never happen 
-  val = 1; % NONE
-end
-pumLM.Value = val;
+% pumLM = handles.pumLabelingMode;
+% [tf,val] = ismember(cfg.LabelMode,arrayfun(@char,pumLM.UserData,'uni',0));
+% if ~tf
+%   % should never happen 
+%   val = 1; % NONE
+% end
+% pumLM.Value = val;
 
-pumTrk = handles.pumTracking;
-if cfg.Track.Enable 
-  [tf,val] = ismember(cfg.Track.Type,pumTrk.String);
-  if ~tf
-    % unexpected but maybe not impossible due to path
-    val = 1; % None
-  end
-else
-  val = 1;
-end
-pumTrk.Value = val;
+% pumTrk = handles.pumTracking;
+% if cfg.Track.Enable 
+%   [tf,val] = ismember(cfg.Track.Type,pumTrk.String);
+%   if ~tf
+%     % unexpected but maybe not impossible due to path
+%     val = 1; % None
+%   end
+% else
+%   val = 1;
+% end
+% pumTrk.Value = val;
 
 sMirror = cfg2mirror(cfg);
 handles = advTableRefresh(handles,sMirror);
@@ -184,7 +185,7 @@ nViews = cfg.NumViews;
 nPoints = cfg.NumLabelPoints;
 
 cfg = Labeler.cfgDefaultOrder(cfg);
-sMirror = rmfield(cfg,{'NumViews' 'NumLabelPoints' 'LabelMode'});
+sMirror = rmfield(cfg,{'NumViews' 'NumLabelPoints'}); % 'LabelMode'});
 sMirror.Track = rmfield(sMirror.Track,{'Enable' 'Type'});
 
 assert(isempty(sMirror.ViewNames) || numel(sMirror.ViewNames)==nViews);
@@ -291,8 +292,8 @@ else
 end
 handles = advTableRefresh(handles);
 guidata(hObject,handles);
-function pumLabelingMode_Callback(hObject, eventdata, handles)
-function pumTracking_Callback(hObject, eventdata, handles)
+% function pumLabelingMode_Callback(hObject, eventdata, handles)
+% function pumTracking_Callback(hObject, eventdata, handles)
 function pbCreateProject_Callback(hObject, eventdata, handles)
 %fprintf('pbCreate start');
 cfg = genCurrentConfig(handles);

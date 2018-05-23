@@ -169,18 +169,12 @@ handles.menu_view_hide_imported_predictions = uimenu('Parent',handles.menu_view,
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_imported_predictions,handles.menu_view_hide_predictions);
 
-handles.menu_view_show_replicates = uimenu('Parent',handles.menu_view,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_replicates_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Show predicted replicates',...
-  'Tag','menu_view_show_replicates',...
-  'Checked','off');
-moveMenuItemAfter(handles.menu_view_show_replicates,handles.menu_view_hide_imported_predictions);
 handles.menu_view_hide_trajectories = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_trajectories_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Hide trajectories',...
   'Tag','menu_view_hide_trajectories',...
   'Checked','off');
-moveMenuItemAfter(handles.menu_view_hide_trajectories,handles.menu_view_show_replicates);
+%moveMenuItemAfter(handles.menu_view_hide_trajectories,handles.menu_track_cpr_show_replicates);
 handles.menu_view_plot_trajectories_current_target_only = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_plot_trajectories_current_target_only_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Plot trajectories only for current target',...
@@ -212,18 +206,21 @@ moveMenuItemAfter(handles.menu_view_show_grid,handles.menu_view_show_tick_labels
 %   'Checked','off');
 % moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
 
-handles.menu_track_setparametersfile.Label = 'Configure tracking parameters';
-handles.menu_track_setparametersfile.Callback = @(hObject,eventdata)LabelerGUI('menu_track_setparametersfile_Callback',hObject,eventdata,guidata(hObject));
-handles.menu_track_use_all_labels_to_train = uimenu(...
-  'Parent',handles.menu_track,...
-  'Label','Include all labels in training data',...
-  'Tag','menu_track_use_all_labels_to_train',...
-  'Separator','on',...
-  'Callback',@(h,evtdata)LabelerGUI('menu_track_use_all_labels_to_train_Callback',h,evtdata,guidata(h)));
-moveMenuItemAfter(handles.menu_track_use_all_labels_to_train,handles.menu_track_setparametersfile);
-handles.menu_track_select_training_data.Label = 'Downsample training data';
-handles.menu_track_select_training_data.Visible = 'off';
-moveMenuItemAfter(handles.menu_track_select_training_data,handles.menu_track_use_all_labels_to_train);
+set(handles.menu_track_setparametersfile,...
+  'Label','Configure tracking parameters',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_setparametersfile_Callback',hObject,eventdata,guidata(hObject)),...
+  'Separator','on'); % separator b/c trackers are listed above
+
+% handles.menu_track_use_all_labels_to_train = uimenu(...
+%   'Parent',handles.menu_track,...
+%   'Label','Include all labels in training data',...
+%   'Tag','menu_track_use_all_labels_to_train',...
+%   'Separator','on',...
+%   'Callback',@(h,evtdata)LabelerGUI('menu_track_use_all_labels_to_train_Callback',h,evtdata,guidata(h)));
+% moveMenuItemAfter(handles.menu_track_use_all_labels_to_train,handles.menu_track_setparametersfile);
+% handles.menu_track_select_training_data.Label = 'Downsample training data';
+% handles.menu_track_select_training_data.Visible = 'off';
+% moveMenuItemAfter(handles.menu_track_select_training_data,handles.menu_track_use_all_labels_to_train);
 handles.menu_track_training_data_montage = uimenu(...
   'Parent',handles.menu_track,...
   'Label','Training Data Montage',...
@@ -260,66 +257,78 @@ handles.menu_track_clear_tracking_results = uimenu('Parent',handles.menu_track,.
   'Tag','menu_track_clear_tracking_results');  
 moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_export_base);
 
-handles.menu_track_store_full_tracking = uimenu('Parent',handles.menu_track,...
-  'Label','Store tracking replicates/iterations',...
-  'Tag','menu_track_store_full_tracking');
-moveMenuItemAfter(handles.menu_track_store_full_tracking,...
-  handles.menu_track_clear_tracking_results);
-handles.menu_track_store_full_tracking_dont_store = uimenu(...
-  'Parent',handles.menu_track_store_full_tracking,...
-  'Label','Don''t store replicates',...
-  'Tag','menu_track_store_full_tracking_dont_store',...
-  'Checked','on',...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_dont_store_Callback',hObject,eventdata,guidata(hObject)));
-handles.menu_track_store_full_tracking_store_final_iteration = uimenu(...
-  'Parent',handles.menu_track_store_full_tracking,...
-  'Label','Store replicates, final iteration only',...
-  'Tag','menu_track_store_full_tracking_store_final_iteration',...
-  'Checked','off',...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_store_final_iteration_Callback',hObject,eventdata,guidata(hObject)));
-handles.menu_track_store_full_tracking_store_all_iterations = uimenu(...
-  'Parent',handles.menu_track_store_full_tracking,...
-  'Label','Store replicates, all iterations',...
-  'Tag','menu_track_store_full_tracking_store_all_iterations',...
-  'Checked','off',...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_store_full_tracking_store_all_iterations_Callback',hObject,eventdata,guidata(hObject)));
-
-handles.menu_track_view_tracking_diagnostics = uimenu('Parent',handles.menu_track,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_view_tracking_diagnostics_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','View tracking diagnostics',...
-  'Tag','menu_track_view_tracking_diagnostics',...
-  'Separator','off',...
-  'Checked','off');
-moveMenuItemAfter(handles.menu_track_view_tracking_diagnostics,handles.menu_track_store_full_tracking);
-
 handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_set_labels_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set manual labels to predicted pose',...
   'Tag','menu_track_set_labels');  
 
-tfBGok = ~isempty(ver('distcomp')) && ~verLessThan('distcomp','6.10');
-onoff = onIff(tfBGok);
-handles.menu_track_background_predict = uimenu('Parent',handles.menu_track,...
-  'Label','Background prediction','Tag','menu_track_background_predict',...
-  'Separator','on','Enable',onoff);
-moveMenuItemAfter(handles.menu_track_background_predict,...
-  handles.menu_track_set_labels);
+% tfBGok = ~isempty(ver('distcomp')) && ~verLessThan('distcomp','6.10');
+% onoff = onIff(tfBGok);
+% handles.menu_track_background_predict = uimenu('Parent',handles.menu_track,...
+%   'Label','Background prediction','Tag','menu_track_background_predict',...
+%   'Separator','on','Enable',onoff);
+% moveMenuItemAfter(handles.menu_track_background_predict,...
+%   handles.menu_track_set_labels);
 
-handles.menu_track_background_predict_start = uimenu(...
-  'Parent',handles.menu_track_background_predict,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_background_predict_start_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Start/enable background prediction',...
-  'Tag','menu_track_background_predict_start');
-handles.menu_track_background_predict_end = uimenu(...
-  'Parent',handles.menu_track_background_predict,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_background_predict_end_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Stop background prediction',...
-  'Tag','menu_track_background_predict_end');
-handles.menu_track_background_predict_stats = uimenu(...
-  'Parent',handles.menu_track_background_predict,...
-  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_background_predict_stats_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Background prediction stats',...
-  'Tag','menu_track_background_predict_stats');
+% handles.menu_track_background_predict_start = uimenu(...
+%   'Parent',handles.menu_track_background_predict,...
+%   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_background_predict_start_Callback',hObject,eventdata,guidata(hObject)),...
+%   'Label','Start/enable background prediction',...
+%   'Tag','menu_track_background_predict_start');
+% handles.menu_track_background_predict_end = uimenu(...
+%   'Parent',handles.menu_track_background_predict,...
+%   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_background_predict_end_Callback',hObject,eventdata,guidata(hObject)),...
+%   'Label','Stop background prediction',...
+%   'Tag','menu_track_background_predict_end');
+% handles.menu_track_background_predict_stats = uimenu(...
+%   'Parent',handles.menu_track_background_predict,...
+%   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_background_predict_stats_Callback',hObject,eventdata,guidata(hObject)),...
+%   'Label','Background prediction stats',...
+%   'Tag','menu_track_background_predict_stats');
+% 
+
+handles.menu_track_cpr_storefull = uimenu('Parent',handles.menu_track,...
+  'Label','(CPR) Store tracking replicates/iterations',...
+  'Tag','menu_track_cpr_storefull',...
+  'Separator','on');
+% moveMenuItemAfter(handles.menu_track_cpr_storefull,...
+%   handles.menu_track_cpr_show_replicates);
+handles.menu_track_cpr_storefull_dont_store = uimenu(...
+  'Parent',handles.menu_track_cpr_storefull,...
+  'Label','Don''t store replicates',...
+  'Tag','menu_track_cpr_storefull_dont_store',...
+  'Checked','on',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_cpr_storefull_dont_store_Callback',hObject,eventdata,guidata(hObject)));
+handles.menu_track_cpr_storefull_store_final_iteration = uimenu(...
+  'Parent',handles.menu_track_cpr_storefull,...
+  'Label','Store replicates, final iteration only',...
+  'Tag','menu_track_cpr_storefull_store_final_iteration',...
+  'Checked','off',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_cpr_storefull_store_final_iteration_Callback',hObject,eventdata,guidata(hObject)));
+handles.menu_track_cpr_storefull_store_all_iterations = uimenu(...
+  'Parent',handles.menu_track_cpr_storefull,...
+  'Label','Store replicates, all iterations',...
+  'Tag','menu_track_cpr_storefull_store_all_iterations',...
+  'Checked','off',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_cpr_storefull_store_all_iterations_Callback',hObject,eventdata,guidata(hObject)));
+
+handles.menu_track_cpr_show_replicates = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_cpr_show_replicates_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','(CPR) Show predicted replicates',...
+  'Tag','menu_track_cpr_show_replicates',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_track_cpr_show_replicates,...
+  handles.menu_track_cpr_storefull);
+
+handles.menu_track_cpr_view_diagnostics = uimenu('Parent',handles.menu_track,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_track_cpr_view_diagnostics_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','(CPR) View tracking diagnostics',...
+  'Tag','menu_track_cpr_view_diagnostics',...
+  'Separator','off',...
+  'Checked','off');
+moveMenuItemAfter(handles.menu_track_cpr_view_diagnostics,...
+  handles.menu_track_cpr_show_replicates);
+
 
 handles.menu_help_about = uimenu(...
   'Parent',handles.menu_help,...
@@ -434,7 +443,8 @@ listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideCha
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
-listeners{end+1,1} = addlistener(lObj,'tracker','PostSet',@cbkTrackerChanged);
+listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
+listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
@@ -451,6 +461,8 @@ listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 handles.listeners = listeners;
+handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
+handles.menu_track_trackers = cell(0,1); % menus added in cbkTrackersAllChanged
 
 hZ = zoom(hObject);
 hZ.ActionPostCallback = @cbkPostZoom;
@@ -462,7 +474,7 @@ handles.propsNeedInit = {
   'suspScore' 
   'showTrx' 
   'showTrxCurrTargetOnly'
-  'tracker' 
+  'currTracker'  
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'trackModeIdx'
   'movieCenterOnTarget'
@@ -1251,23 +1263,112 @@ mnu.Checked = onIff(tf);
 %   lObj.currImHud.updateSusp(ss);
 % end
 
-function cbkTrackerChanged(src,evt)
-lObj = evt.AffectedObject;
-tObj = lObj.tracker;
-tf = ~isempty(tObj);
-onOff = onIff(tf);
-handles = lObj.gdata;
+function handles = setupAvailTrackersMenu(handles,tObjs)
+% set up menus and put in handles.menu_track_trackers (cell arr)
+
+cellfun(@delete,handles.menu_track_trackers);
+
+nTrker = numel(tObjs);
+menuTrks = cell(nTrker,1);
+for i=1:nTrker  
+  algName = tObjs{i}.algorithmName;
+  mnu = uimenu( ...
+    'Parent',handles.menu_track,...
+    'Label',algName,...
+    'Callback',@cbkTrackerMenu,...
+    'Tag',sprintf('menu_track_%s',algName),...
+    'UserData',i,...
+    'Position',i);
+  menuTrks{i} = mnu;
+end
+handles.menu_track_trackers = menuTrks;
+
+function handles = setupTrackerMenusListeners(handles,tObj,iTrker)
+% Configure listerers-on-current-tracker obj; tracker-specific menus
+
+% delete all existing listeners-to-trackers
+cellfun(@delete,handles.listenersTracker);
+handles.listenersTracker = cell(0,1);
+
+% UI, is a tracker available
+tfTracker = ~isempty(tObj);
+onOff = onIff(tfTracker);
 handles.menu_track.Enable = onOff;
 handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
 handles.menu_view_hide_predictions.Enable = onOff;
-if tf
-  tObj.addlistener('hideViz','PostSet',@(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions));
-  tObj.addlistener('trnDataDownSamp','PostSet',@(src1,evt1) cbkTrackerTrnDataDownSampChanged(src1,evt1,handles));
-  tObj.addlistener('showVizReplicates','PostSet',@(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles));
-  tObj.addlistener('storeFullTracking','PostSet',@(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
+
+menuTrkers = handles.menu_track_trackers;
+for i=1:numel(menuTrkers)
+  mnu = menuTrkers{i};
+  if i==iTrker
+    mnu.Checked = 'on';
+  else
+    mnu.Checked = 'off';
+  end
 end
+
+listenersNew = cell(0,1);
+
+if tfTracker
+  % UI, tracker-specific
+  iscpr = strcmp('cpr',tObj.algorithmName);
+  onOffCpr = onIff(iscpr);
+  handles.menu_track_cpr_show_replicates.Visible = onOffCpr;
+  handles.menu_track_cpr_storefull.Visible = onOffCpr;
+  handles.menu_track_cpr_view_diagnostics.Visible = onOffCpr;
+  
+  % Listeners, general tracker
+  listenersNew{end+1,1} = tObj.addlistener('hideViz','PostSet',...
+    @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); %#ok<NASGU>
+
+  % Listeners, algo-specific
+  switch tObj.algorithmName
+    case 'cpr'
+      %  tObj.addlistener('trnDataDownSamp','PostSet',@(src1,evt1) cbkTrackerTrnDataDownSampChanged(src1,evt1,handles));
+      
+      % NOTE: handles here can get out-of-date but that is ok for now
+      listenersNew{end+1,1} = tObj.addlistener('showVizReplicates','PostSet',...
+        @(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles.labelerObj));
+      listenersNew{end+1,1} = tObj.addlistener('storeFullTracking','PostSet',...
+        @(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
+    case 'poseTF'
+      % none
+  end
+end
+
+handles.listenersTracker = listenersNew;
+
+function cbkTrackerMenu(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+iTracker = src.UserData;
+lObj.trackSetCurrentTracker(iTracker);
+
+function cbkTrackersAllChanged(src,evt)
+lObj = evt.AffectedObject;
+if lObj.isinit
+  return;
+end
+
+handles = lObj.gdata;
+handles = setupAvailTrackersMenu(handles,lObj.trackersAll);
+guidata(handles.figure,handles);
+cbkCurrTrackerChanged([],evt); % current tracker object depends on lObj.trackersAll
+
+function cbkCurrTrackerChanged(src,evt)
+lObj = evt.AffectedObject;
+if lObj.isinit
+  return;
+end 
+handles = lObj.gdata;
+
+tObj = lObj.tracker;
+iTrker = lObj.currTracker;
+handles = setupTrackerMenusListeners(handles,tObj,iTrker);
 handles.labelTLInfo.setTracker(tObj);
+
+guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -2136,10 +2237,10 @@ lObj = handles.labelerObj;
 lObj.labels2VizToggle();
 
 function cbkTrackerShowVizReplicatesChanged(hObject, eventdata, handles)
-handles.menu_view_show_replicates.Checked = ...
+handles.menu_track_cpr_show_replicates.Checked = ...
   onIff(handles.labelerObj.tracker.showVizReplicates);
 
-function menu_view_show_replicates_Callback(hObject, eventdata, handles)
+function menu_track_cpr_show_replicates_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 vsr = tObj.showVizReplicates;
 vsrnew = ~vsr;
@@ -2299,15 +2400,15 @@ else
   RC.saveprop('lastCPRAPTParams',sPrmNew);
 end
 
-function cbkTrackerTrnDataDownSampChanged(src,evt,handles)
-tracker = evt.AffectedObject;
-if tracker.trnDataDownSamp
-  handles.menu_track_use_all_labels_to_train.Checked = 'off';
-  handles.menu_track_select_training_data.Checked = 'on';
-else
-  handles.menu_track_use_all_labels_to_train.Checked = 'on';
-  handles.menu_track_select_training_data.Checked = 'off';
-end
+% function cbkTrackerTrnDataDownSampChanged(src,evt,handles)
+% tracker = evt.AffectedObject;
+% if tracker.trnDataDownSamp
+%   handles.menu_track_use_all_labels_to_train.Checked = 'off';
+%   handles.menu_track_select_training_data.Checked = 'on';
+% else
+%   handles.menu_track_use_all_labels_to_train.Checked = 'on';
+%   handles.menu_track_select_training_data.Checked = 'off';
+% end
 
 function menu_track_use_all_labels_to_train_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -2457,20 +2558,20 @@ function cbkTrackerStoreFullTrackingChanged(hObject, eventdata, handles)
 sft = handles.labelerObj.tracker.storeFullTracking;
 switch sft
   case StoreFullTrackingType.NONE
-    handles.menu_track_store_full_tracking_dont_store.Checked = 'on';
-    handles.menu_track_store_full_tracking_store_final_iteration.Checked = 'off';
-    handles.menu_track_store_full_tracking_store_all_iterations.Checked = 'off';
-    handles.menu_track_view_tracking_diagnostics.Enable = 'off';
+    handles.menu_track_cpr_storefull_dont_store.Checked = 'on';
+    handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'off';
+    handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'off';
+    handles.menu_track_cpr_view_diagnostics.Enable = 'off';
   case StoreFullTrackingType.FINALITER
-    handles.menu_track_store_full_tracking_dont_store.Checked = 'off';
-    handles.menu_track_store_full_tracking_store_final_iteration.Checked = 'on';
-    handles.menu_track_store_full_tracking_store_all_iterations.Checked = 'off';
-    handles.menu_track_view_tracking_diagnostics.Enable = 'on';
+    handles.menu_track_cpr_storefull_dont_store.Checked = 'off';
+    handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'on';
+    handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'off';
+    handles.menu_track_cpr_view_diagnostics.Enable = 'on';
   case StoreFullTrackingType.ALLITERS
-    handles.menu_track_store_full_tracking_dont_store.Checked = 'off';
-    handles.menu_track_store_full_tracking_store_final_iteration.Checked = 'off';
-    handles.menu_track_store_full_tracking_store_all_iterations.Checked = 'on';
-    handles.menu_track_view_tracking_diagnostics.Enable = 'on';
+    handles.menu_track_cpr_storefull_dont_store.Checked = 'off';
+    handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'off';
+    handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'on';
+    handles.menu_track_cpr_view_diagnostics.Enable = 'on';
   otherwise
     assert(false);
 end
@@ -2482,7 +2583,7 @@ tObj = lObj.tracker;
 tObj.clearTrackingResults();
 msgbox('Tracking results cleared.','Done');
 
-function menu_track_store_full_tracking_dont_store_Callback(hObject, eventdata, handles)
+function menu_track_cpr_storefull_dont_store_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 svr = tObj.showVizReplicates;
 if svr
@@ -2498,15 +2599,18 @@ if svr
 end
 tObj.storeFullTracking = StoreFullTrackingType.NONE;
 
-function menu_track_store_full_tracking_store_final_iteration_Callback(hObject, eventdata, handles)
+function menu_track_cpr_storefull_store_final_iteration_Callback(...
+  hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 tObj.storeFullTracking = StoreFullTrackingType.FINALITER;
 
-function menu_track_store_full_tracking_store_all_iterations_Callback(hObject, eventdata, handles)
+function menu_track_cpr_storefull_store_all_iterations_Callback(...
+  hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 tObj.storeFullTracking = StoreFullTrackingType.ALLITERS;
 
-function menu_track_view_tracking_diagnostics_Callback(hObject, eventdata, handles)
+function menu_track_cpr_view_diagnostics_Callback(...
+  hObject, eventdata, handles)
 lObj = handles.labelerObj;
 
 % Look for existing/open CPRVizTrackDiagsGUI

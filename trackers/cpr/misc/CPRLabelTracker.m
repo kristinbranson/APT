@@ -7,10 +7,11 @@ classdef CPRLabelTracker < LabelTracker
       'trnDataDownSamp' 'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnResIPt' 'trnResRC'};
     TRACKRES_SAVEPROPS = {'trkP' 'trkPFull' 'trkPTS' 'trkPTrnTS' 'trkPMD' 'trkPiPt'};
-    
-    DEFAULT_PARAMETER_FILE = lclInitDefaultParameterFile();
   end
-  
+
+  properties
+    algorithmName = 'cpr';
+  end
   properties
     isInit = false; % true during load; invariants can be broken
   end

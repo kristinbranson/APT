@@ -27,6 +27,9 @@ lObj = varargin{1};
 if isempty(lObj.tracker)
   error('CPRVizTrackDiagsGUI:track','No tracker found');
 end
+if ~strcmp(lObj.trackerAlgo,'cpr')
+  error('Supported only for CPR tracking.');
+end
 if ~lObj.tracker.hasTrained
   error('CPRVizTrackDiagsGUI:train','Tracker has not been trained.');
 end

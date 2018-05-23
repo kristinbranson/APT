@@ -11,7 +11,6 @@ ROOT:
   - ['','',false,DUMMY,'','']
   - Track:
     - ['','',false,General tracking settings.,'','']
-    - Type: ['Tracker type',['cpr','deeptrack'],true,Type of tracker.,'cpr','']
     - BackSub:
       - ['Background Subtraction','',false,Background Subtraction,'','']
       - Use: ['Enable',boolean,true,Use background-subtracted images during tracking/training.,false,'']
