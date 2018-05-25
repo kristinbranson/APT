@@ -56,6 +56,10 @@ classdef LabelTracker < handle
   properties (SetObservable,SetAccess=protected)
     hideViz = false; % scalar logical. If true, hide visualizations
   end
+  
+  properties (Constant)
+    APT_DEFAULT_TRACKERS = {'CPRLabelTracker' 'DeepTracker'};
+  end
     
   methods
     
@@ -156,6 +160,16 @@ classdef LabelTracker < handle
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
     end
     
+    function tpos = getTrackingResultsCurrMovie(obj)
+      % This is a convenience method as it is a special case of 
+      % getTrackingResults. Concrete LabelTrackers will also typically have 
+      % the current movie's tracking results cached.
+      % 
+      % tpos: [npts d nfrm ntgt], or empty/[] will be accepted if no
+      % results are available. 
+      tpos = [];
+    end
+      
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
       % Get tracking results for movie(set) iMovs.
       % Default implemation returns all NaNs and tfHasRes=false.
@@ -182,7 +196,7 @@ classdef LabelTracker < handle
       end
     end
     
-    function tblTrk = getAllTrackingResultsTable(obj)
+    function tblTrk = getAllTrackResTable(obj)
       % Get all tracking results known to tracker in a single table.
       %
       % tblTrk: fields .mov, .frm, .iTgt, .pTrk
@@ -210,9 +224,13 @@ classdef LabelTracker < handle
     
     function clearTrackingResults(obj)
       % Clear all current/cached tracking results. Trained tracker should
-      % remain untouched. Used when tracking many movies to avoid memory
-      % overflow.
-
+      % remain untouched. Used in two situations:
+      %  
+      % - It is desired to explicitly clear the current tracking DB b/c eg
+      % it will be out of date after a retrain.
+      % - For trackers with in-memory tracking DBs, to control memory 
+      % usage.
+      %
       % Default impl: none
     end    
         
@@ -257,15 +275,25 @@ classdef LabelTracker < handle
   methods % For infotimeline display
     
     function props = propList(obj)
-      % Return a list of properties that could be shown in the
-      % infotimeline
-      props = {};
+      props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
     end
     
-    function data = getPropValues(obj,prop)
+    function data = getPropValues(obj,pcode)
       % Return the values of a particular property for
       % infotimeline
-      data = [];
+      
+      labeler = obj.lObj;
+      npts = labeler.nLabelPoints;
+      nfrms = labeler.nframes;
+      ntgts = labeler.nTargets;
+      iTgt = labeler.currTarget;
+      tpos = obj.getTrackingResultsCurrMovie();
+      if isempty(tpos)
+        % edge case uninitted (not sure why)
+        tpos = nan(npts,2,nfrms,ntgts);
+      end
+      tpostag = false(npts,nfrms,ntgts);
+      data = InfoTimeline.getDataFromLpos(tpos,tpostag,pcode,iTgt);
     end
     
   end

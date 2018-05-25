@@ -1191,12 +1191,15 @@ classdef Labeler < handle
 
       trkPrefs = obj.projPrefs.Track;
       if trkPrefs.Enable
-        % Create trackers. Currently this is hardcoded but could read from a 
-        % manifest
+        % Create default trackers
         assert(isempty(obj.trackersAll));
-        tAll = {CPRLabelTracker(obj) DeepTracker(obj)};
-        tAll{1}.init();
-        tAll{2}.init();
+        dfltTrkers = LabelTracker.APT_DEFAULT_TRACKERS;
+        nTrkers = numel(dfltTrkers);
+        tAll = cell(1,nTrkers);
+        for i=1:nTrkers
+          tAll{i} = feval(dfltTrkers{i},obj);
+          tAll{i}.init();
+        end
         obj.trackersAll = tAll;
         obj.currTracker = 1;
       else
@@ -1414,7 +1417,9 @@ classdef Labeler < handle
         end
         tObj = feval(tCls,obj);
         tObj.init();
-        tObj.loadSaveToken(tData);
+        if ~isempty(tData)
+          tObj.loadSaveToken(tData);
+        end
         tAll{i} = tObj;
       end
       obj.trackersAll = tAll;
@@ -1966,19 +1971,38 @@ classdef Labeler < handle
           String.cellstr2CommaSepList(ppPrm0used));
       end
       
-      % 20180411 trackerType, trackerDeep
-      if ~isfield(s,'trackerType')
-        if ~isempty(s.trackerData)
-          s.trackerType = 'cpr';
-        else
-          s.trackerType = 'none';
-        end
-      end
-      if ~isfield(s,'trackerDeepData')
-        s.trackerDeepData = [];
-      end
+%       % 20180411 trackerType, trackerDeep
+%       if ~isfield(s,'trackerType')
+%         if ~isempty(s.trackerData)
+%           s.trackerType = 'cpr';
+%         else
+%           s.trackerType = 'none';
+%         end
+%       end
+%       if ~isfield(s,'trackerDeepData')
+%         s.trackerDeepData = [];
+%       end
       
-    end  
+      % 20180525 DeepTrack integration. .trackerClass, .trackerData, .currTracker
+      dfltTrkers = LabelTracker.APT_DEFAULT_TRACKERS;
+      nDfltTrkers = numel(dfltTrkers);
+      if isempty(s.trackerClass)
+        % Add current default trackers to all projs; doesn't hurt to have
+        % them there
+        s.trackerClass = dfltTrkers;
+        s.trackerData = repmat({[]},1,nDfltTrkers);
+        s.currTracker = 0;
+      elseif ischar(s.trackerClass)
+        assert(strcmp(s.trackerClass,dfltTrkers{1}));
+        s.trackerClass = dfltTrkers;
+        tData = repmat({[]},1,nDfltTrkers);
+        tData{1} = s.trackerData;
+        s.trackerData = tData;
+        s.currTracker = 1;
+      else
+        assert(false);
+      end
+    end
     
   end 
   
@@ -2330,11 +2354,13 @@ classdef Labeler < handle
         
         if gt
           movIdx = MovieIndex(-iMov);
+          movIdxHasLbls = obj.movieFilesAllGTHaveLbls(iMov);
         else
           movIdx = MovieIndex(iMov);
+          movIdxHasLbls = obj.movieFilesAllHaveLbls(iMov);
         end
         edata = MoviesRemappedEventData.movieRemovedEventData(...
-          movIdx,nMovOrigReg,nMovOrigGT);
+          movIdx,nMovOrigReg,nMovOrigGT,movIdxHasLbls);
         obj.preProcData.movieRemap(edata.mIdxOrig2New);
         if gt
           [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
@@ -6451,7 +6477,7 @@ classdef Labeler < handle
       
       % NOTE: this line already sets some props, despite possible throws
       % later
-      [sPrmPPandCPRold,obj.trackerType,obj.trackNFramesSmall,obj.trackNFramesLarge,...
+      [sPrmPPandCPRold,obj.trackNFramesSmall,obj.trackNFramesLarge,...
         obj.trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
       
       ppPrms = sPrmPPandCPRold.PreProc;
@@ -6570,10 +6596,23 @@ classdef Labeler < handle
       fprintf('Tracking complete at %s.\n',datestr(now));
     end
     
-    function s = trackCreateStrippedLbl(obj)
-      s = obj.projGetSaveStruct();      
+    function s = trackCreateDeepTrackerStrippedLbl(obj)
+      % For use with DeepTrackers
+      s = obj.projGetSaveStruct();
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
+      tf = strcmp(s.trackerClass,'DeepTracker');
+      i = find(tf);
+      switch numel(i)
+        case 0
+          assert(false);
+        case 1
+          % none
+        otherwise
+          warningNoTrace('Multiple DeepTrackers found; the first will be used.');
+          i = i(1);
+      end
+      s.trackerDeepData = s.trackerData{i};
     end
     
     function trackAndExport(obj,mftset,varargin)
@@ -6994,7 +7033,7 @@ classdef Labeler < handle
       
       npts = obj.nLabelPoints;
 
-      assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
+%       assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
       % XXX TODO
       tObj = obj.tracker;
       if ~isempty(tObj)

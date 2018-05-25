@@ -1669,6 +1669,10 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
 
+    function tpos = getTrackingResultsCurrMovie(obj)
+      tpos = obj.xyPrdCurrMovie;
+    end
+    
     %MTGT
     %#%MV
     function [trkfiles,tfHasRes] = getTrackingResults(obj,mIdx)
@@ -2291,30 +2295,6 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
-    function props = propList(obj)
-      % Return a list of properties that could be shown in the
-      % infotimeline
-      props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
-    end
-    
-    function data = getPropValues(obj,pcode)
-      % Return the values of a particular property for
-      % infotimeline
-      
-      labeler = obj.lObj;
-      npts = labeler.nLabelPoints;
-      nfrms = labeler.nframes;
-      ntgts = labeler.nTargets;
-      iTgt = labeler.currTarget;
-      tpos = obj.xyPrdCurrMovie; % "trked pos" ala lpos
-      if isempty(tpos)
-        % edge case uninitted (not sure why)
-        tpos = nan(npts,2,nfrms,ntgts);
-      end
-      tpostag = cell(npts,nfrms,ntgts);
-      data = InfoTimeline.getDataFromLpos(tpos,tpostag,pcode,iTgt);
-    end
-       
   end
     
   %% Save, Load, Init etc

@@ -29,7 +29,7 @@ classdef CPRParam
   
   methods (Static)
     
-    function [sOld,trkType,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
+    function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
         new2old(sNew,nphyspts,nviews)
       % Convert new-style parameters to old-style parameters. Defaults are
       % used for old fields when appropriate. Some old-style fields that 
@@ -45,7 +45,7 @@ classdef CPRParam
       sOld.Model.d = 2;
       sOld.Model.nviews = nviews;
 
-      trkType = TrackerType.(sNew.ROOT.Track.Type);
+%       trkType = TrackerType.(sNew.ROOT.Track.Type);
       trkNFrmsSm = sNew.ROOT.Track.NFramesSmall;
       trkNFrmsLg = sNew.ROOT.Track.NFramesLarge;
       trkNFrmsNear = sNew.ROOT.Track.NFramesNeighborhood;
@@ -130,7 +130,7 @@ classdef CPRParam
       nviews = sOld.Model.nviews;
       
       sNew = struct();
-      sNew.ROOT.Track.Type = char(lObj.trackerType);
+%       sNew.ROOT.Track.Type = char(lObj.trackerType);
       sNew.ROOT.Track.BackSub = sOld.PreProc.BackSub;
       sNew.ROOT.Track.HistEq.Use = sOld.PreProc.histeq;
       sNew.ROOT.Track.HistEq.NSampleH0 = sOld.PreProc.histeqH0NumFrames;

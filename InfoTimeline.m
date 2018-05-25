@@ -629,7 +629,7 @@ classdef InfoTimeline < handle
               data = nan(obj.npts,labeler.nframes);
             else
               lpos = labeler.labeledpos2{iMov};
-              lpostag = cell(obj.npts,labeler.nframes,labeler.nTargets);
+              lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
               data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
             end
           case 'Tracks'
