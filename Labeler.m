@@ -4309,6 +4309,10 @@ classdef Labeler < handle
           
           fprintf(1,'... Loaded %d frames for %d points, %d targets from trk file: %s.\n',...
             numel(frmsTrkIB),numel(iPt),numel(iTgtsIB),tfile);
+        
+          %displaying when .trk file was last updated
+          tfileDir = dir(tfile);
+          disp(['.trk file last modified: ',tfileDir.date])
 
           iPt = iPt + (iVw-1)*nPhysPts;
           lpos(iPt,:,frmsTrkIB,iTgtsIB) = s.pTrk(:,:,tfInBounds,tfiTgtIB);
