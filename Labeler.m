@@ -1932,6 +1932,7 @@ classdef Labeler < handle
       % If preproc params are present in trackerData, move them to s and 
       % remove from trackerData
       tfTrackerDataHasPPParams = ~isempty(s.trackerData) && ...
+        isstruct(s.trackerData) && ... 
         ~isempty(s.trackerData.sPrm) && ...
         isfield(s.trackerData.sPrm,'PreProc');
       if isfield(s,'preProcParams')
@@ -1999,9 +2000,8 @@ classdef Labeler < handle
         tData{1} = s.trackerData;
         s.trackerData = tData;
         s.currTracker = 1;
-      else
-        assert(false);
       end
+      assert(iscell(s.trackerClass));
     end
     
   end 
@@ -6581,7 +6581,7 @@ classdef Labeler < handle
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
       
-      fprintf('Tracking complete at %s.\n',datestr(now));
+      %fprintf('Tracking complete at %s.\n',datestr(now));
     end
     
     function trackTbl(obj,tblMFT,varargin)

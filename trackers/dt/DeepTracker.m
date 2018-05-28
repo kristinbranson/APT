@@ -162,6 +162,10 @@ classdef DeepTracker < LabelTracker
       if isempty(obj.sPrm)
         error('No tracking parameters have been set.');
       end
+      cacheDir = obj.sPrm.CacheDir;
+      if isempty(cacheDir)
+        error('No cache directory has been set.');
+      end
       
       lblObj = obj.lObj;
       projname = lblObj.projname;
@@ -169,7 +173,7 @@ classdef DeepTracker < LabelTracker
         error('Please give your project a name. The project name will be used to identify your trained models on disk.');
       end
       trnID = datestr(now,'yyyymmddTHHMMSS');
-      cacheDir = obj.sPrm.CacheDir;
+      
 
       if ~isempty(obj.trnName)
         trnNameOld = fullfile(cacheDir,'...',obj.trnName);
@@ -367,6 +371,7 @@ classdef DeepTracker < LabelTracker
           if res.mIdx==obj.lObj.currMovIdx
             obj.trackCurrResUpdate();
             obj.newLabelerFrame();
+            fprintf('Tracking complete at %s.\n',datestr(now));
           end          
         else
           warningNoTrace('Tracking complete, but movieset %d, view%d, mov %s does not match current project.',...
@@ -482,8 +487,9 @@ classdef DeepTracker < LabelTracker
       m = obj.movIdx2trkfile;
       nView = obj.nview;
       for i = nMov:-1:1
-        if m.isKey(mIdx(i))
-          v = m(mIdx(i));
+        id = mIdx(i).id32;
+        if m.isKey(id)
+          v = m(id);
         else
           v = cell(1,nView);
         end
@@ -491,7 +497,7 @@ classdef DeepTracker < LabelTracker
           tfilefull = v{ivw};
           if ~isempty(tfilefull)
             try
-              trkfiles(i,ivw) = TrkFile.load(tfilefull);
+              trkfiles(i,ivw) = load(tfilefull,'-mat'); % TrkFile.load erroring, poseTF trkfiles contain extra stuff
               tfHasRes(i,ivw) = true;
             catch ME
               warningNoTrace('Failed to load trkfile: ''%s''. Error: %s',...
@@ -555,6 +561,10 @@ classdef DeepTracker < LabelTracker
     function trackCurrResUpdate(obj)
       % update trackCurrRes (.trkP*) from trackRes (tracking DB)
       mIdx = obj.lObj.currMovIdx;
+      if isempty(mIdx)
+        % proj load etc
+        return;
+      end
       [trks,tfHasRes] = obj.getTrackingResults(mIdx);
       if tfHasRes
         obj.trackCurrResLoadFromTrks(trks);

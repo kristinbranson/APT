@@ -76,5 +76,5 @@ function lclAutoAxisWithYLim0(ax)
 axis(ax,'auto');
 yl = ylim(ax);
 yl(1) = 0;
-ylim(ax,'yl');
+ylim(ax,yl);
 end

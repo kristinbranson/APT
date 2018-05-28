@@ -42,7 +42,7 @@ classdef MovieIndex < int32
     end
     
     function i = id32(objArr)
-      i = int32(objarr);
+      i = int32(objArr);
     end
     
   end

@@ -1659,6 +1659,7 @@ classdef CPRLabelTracker < LabelTracker
         obj.updateTrackRes(trkPMDnew,pTstTRed,pTstT,pTstTTrnTS);
       end
       
+      fprintf('Tracking complete at %s.\n',datestr(now));      
     end
       
     function hlpTrackWrapupViz(obj)

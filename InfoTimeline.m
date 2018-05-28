@@ -21,7 +21,7 @@ classdef InfoTimeline < handle
 
     hPts % [npts] line handles
     npts % number of label points in current movie/timeline
-    nfrm % number of frames "
+    %nfrm % number of frames "
     tldata % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
     
     listeners % [nlistener] col cell array of labeler prop listeners
@@ -57,6 +57,7 @@ classdef InfoTimeline < handle
   %%
   properties (Dependent)
     prefs % projPrefs.InfoTimelines preferences substruct
+    nfrm
   end
     
   methods
@@ -75,6 +76,14 @@ classdef InfoTimeline < handle
     end
     function v = get.prefs(obj)
       v = obj.lObj.projPrefs.InfoTimelines;
+    end
+    function v = get.nfrm(obj)
+      lblObj = obj.lObj;
+      if lblObj.hasMovie
+        v = lblObj.nframes;
+      else
+        v = 1;
+      end
     end
   end
   
@@ -99,7 +108,7 @@ classdef InfoTimeline < handle
       
       obj.hPts = [];
       obj.npts = nan;
-      obj.nfrm = nan;
+      %Rxobj.nfrm = nan;
             
       listeners = cell(0,1);
       listeners{end+1,1} = addlistener(labeler,...
@@ -206,11 +215,11 @@ classdef InfoTimeline < handle
     end
     
     function initNewMovie(obj)
-      if obj.lObj.hasMovie
-        obj.nfrm = obj.lObj.nframes;
-      else
-        obj.nfrm = 1;
-      end
+%       if obj.lObj.hasMovie
+%         obj.nfrm = obj.lObj.nframes;
+%       else
+%         obj.nfrm = 1;
+%       end
       ax = obj.hAx;
       prefsTL = obj.prefs;
       ax.XTick = 0:prefsTL.dXTick:obj.nfrm;
