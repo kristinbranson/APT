@@ -3939,7 +3939,7 @@ classdef Labeler < handle
         trkfile = [trkfile '.trk'];
       end
     end
-    function [tfok,trkfiles] = checkTrkFileNamesExportUI(trkfiles)
+    function [tfok,trkfiles] = checkTrkFileNamesExportUI(trkfiles,varargin)
       % Check/confirm trkfile names for export. If any trkfiles exist, ask 
       % whether overwriting is ok; alternatively trkfiles may be 
       % modified/uniqueified using datetimestamps.
@@ -3952,14 +3952,17 @@ classdef Labeler < handle
       % trkfiles (output): cellstr, same size as trkfiles. .trk filenames
       % that are okay to write/overwrite to. Will match input if possible.
       
+      noUI = myparse(varargin,...
+        'noUI',false);
+      
       tfexist = cellfun(@(x)exist(x,'file')>0,trkfiles(:));
       tfok = true;
       if any(tfexist)
         iExist = find(tfexist,1);
         queststr = sprintf('One or more .trk files already exist, eg: %s.',trkfiles{iExist});
-        if isdeployed
+        if noUI
           btn = 'Add datetime to filenames';
-          warning('Labeler:trkFileNamesForExport',...
+          warningNoTrace('Labeler:trkFileNamesForExport',...
             'One or more .trk files already exist. Adding datetime to trk filenames.');
         else
           btn = questdlg(queststr,'Files exist','Overwrite','Add datetime to filenames',...
@@ -4053,17 +4056,21 @@ classdef Labeler < handle
       fname = FSPath.macroReplace(rawname,sMacro);
     end
         
-    function [tfok,trkfiles] = getTrkFileNamesForExportUI(obj,movfiles,rawname)
+    function [tfok,trkfiles] = getTrkFileNamesForExportUI(obj,movfiles,...
+        rawname,varargin)
       % Concretize a raw trkfilename, then check for conflicts etc.
+      
+      noUI = myparse(varargin,...
+        'noUI',false);
       
       sMacro = obj.baseTrkFileMacros();
       trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),...
         movfiles,'uni',0);
-      [tfok,trkfiles] = Labeler.checkTrkFileNamesExportUI(trkfiles);
+      [tfok,trkfiles] = Labeler.checkTrkFileNamesExportUI(trkfiles,'noUI',noUI);
     end
     
     function [tfok,trkfiles] = resolveTrkfilesVsTrkRawname(obj,iMovs,...
-        trkfiles,rawname,defaultRawNameArgs)
+        trkfiles,rawname,defaultRawNameArgs,varargin)
       % Ugly, input arg helper. Methods that export a trkfile must have
       % either i) the trkfilenames directly supplied, ii) a raw/base 
       % trkname supplied, or iii) nothing supplied.
@@ -4084,6 +4091,9 @@ classdef Labeler < handle
       % 
       % This call can also throw.
       
+      noUI = myparse(varargin,...
+        'noUI',false);
+      
       PROPS = obj.gtGetSharedProps();
       
       movfiles = obj.(PROPS.MFAF)(iMovs,:);
@@ -4091,7 +4101,8 @@ classdef Labeler < handle
         if isempty(rawname)
           rawname = obj.defaultExportTrkRawname(defaultRawNameArgs{:});
         end
-        [tfok,trkfiles] = obj.getTrkFileNamesForExportUI(movfiles,rawname);
+        [tfok,trkfiles] = obj.getTrkFileNamesForExportUI(movfiles,...
+          rawname,'noUI',noUI);
         if ~tfok
           return;
         end
@@ -6483,7 +6494,7 @@ classdef Labeler < handle
       
       iMovsUn = unique(tblMFT.mov);      
       [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname(iMovsUn,[],...
-        rawtrkname,{});
+        rawtrkname,{},'noUI',true);
       if ~tfok
         return;
       end
