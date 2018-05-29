@@ -22,10 +22,10 @@ ntotfrm = size(lposMega,3);
 szassert(lposMega,[npts 2 ntotfrm]);
 szassert(dlposMega,[npts 2 ntotfrm-nmov]);
 % All these are [nptsx2]
-lposMu = nanmean(lposMega,3); 
-dlposMu = nanmean(dlposMega,3);
-lposSd = nanstd(lposMega,0,3);
-dlposSd = nanstd(dlposMega,0,3);
+lposMu = mean(lposMega,3,'omitnan'); 
+dlposMu = mean(dlposMega,3,'omitnan');
+lposSd = std(lposMega,0,3,'omitnan');
+dlposSd = std(dlposMega,0,3,'omitnan');
 
 % Compute z-scores
 suspscore = cell(nmov,1);
