@@ -8319,7 +8319,8 @@ classdef Labeler < handle
     function tblConcrete = mftTableConcretizeMov(obj,tbl)
       % tbl: MFTable where .mov is MovieIndex array
       %
-      % tblConcrete: Same table where .mov is [NxNview] cellstr
+      % tblConcrete: Same table where .mov is [NxNview] cellstr; column 
+      %   .trxFile is also added when appropriate
       
       assert(isa(tbl,'table'));
 
@@ -8338,6 +8339,7 @@ classdef Labeler < handle
       if obj.hasTrx && obj.nview==1
         trxFile = repmat({''},n,1);
         trxFile(tfRegRow) = obj.trxFilesAllFull(iMovAbs(tfRegRow),:);
+        trxFile(tfGTRow) = obj.trxFilesAllGTFull(iMovAbs(tfGTRow),:);
         tblConcrete = [tblConcrete table(trxFile)];
       end
     end

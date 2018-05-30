@@ -9,6 +9,9 @@ classdef DeepTracker < LabelTracker
   properties
     sPrm % new-style DT params
     
+    dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
+      % are generated for DL, but actual DL train/track are not spawned
+    
     %% train
     
     % - The trained model lives in the fileSys in <cacheDir>/<proj>view%d/trnName.
@@ -122,6 +125,9 @@ classdef DeepTracker < LabelTracker
 %         ME.rethrow();
 %       end
       %obj.isInit = false;      
+      
+      obj.dryRunOnly = false;
+      
       obj.setHideViz(s.hideViz);
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
@@ -189,16 +195,21 @@ classdef DeepTracker < LabelTracker
       trnLogFile = fullfile(cacheDir,[trnID '.log']);
       save(dlLblFile,'-mat','-struct','s');
       fprintf('Saved stripped lbl file: %s\n',dlLblFile);
-                  
-      % call train monitor
-      obj.bgTrnPrepareMonitor(dlLblFile,trnID);
-      obj.bgTrnStart();
 
-      % spawn training
       cmd = DeepTracker.trainCodeGenBsubSing(trnID,dlLblFile,{},...
         'outfile',trnLogFile);
-      fprintf(1,'Running %s\n',cmd);
-      system(cmd);
+      
+      if obj.dryRunOnly
+        fprintf(1,'Dry run, not training: %s\n',cmd);
+      else
+        % call train monitor
+        obj.bgTrnPrepareMonitor(dlLblFile,trnID);
+        obj.bgTrnStart();
+
+        % spawn training
+        fprintf(1,'%s\n',cmd);
+        system(cmd);
+      end
     end
     
     function bgTrnReset(obj)
@@ -283,13 +294,26 @@ classdef DeepTracker < LabelTracker
       % figure out what to track
       tblMFT = MFTable.sortCanonical(tblMFT);
       mIdx = unique(tblMFT.mov);
-      assert(isscalar(mIdx),'Tracking only single movies is currently supported.');
+      if ~isscalar(mIdx)
+        error('DeepTracker: tracking only single movies is currently supported.');
+      end
       tMFTConc = obj.lObj.mftTableConcretizeMov(tblMFT);
       
-      f0 = tblMFT.frm(1);
-      f1 = tblMFT.frm(end);
-      if ~isequal((f0:f1)',tblMFT.frm)
-        warningNoTrace('Tracking additional frames to form continuous sequence.');
+      tftrx = obj.lObj.hasTrx;
+      if tftrx
+        trxids = unique(tblMFT.iTgt);
+        f0 = min(tblMFT.frm);
+        f1 = max(tblMFT.frm);
+        trxfile = unique(tMFTConc.trxFile);
+        assert(isscalar(trxfile));
+        trxfile = trxfile{1};
+        % More complex version of warning below would apply
+      else
+        f0 = tblMFT.frm(1);
+        f1 = tblMFT.frm(end);
+        if ~isequal((f0:f1)',tblMFT.frm)
+          warningNoTrace('Tracking additional frames to form continuous sequence.');
+        end
       end
       
       % check trained tracker
@@ -305,7 +329,6 @@ classdef DeepTracker < LabelTracker
       
       nView = obj.lObj.nview;
       assert(nView==1,'TODO: Currently only single-view projects are supported.');
-      assert(obj.lObj.hasTrx==false,'TODO: Currently projects with trx are not supported.');
       movs = tMFTConc.mov;
       assert(size(movs,2)==nView);
       movs = movs(1,:);
@@ -315,17 +338,26 @@ classdef DeepTracker < LabelTracker
         [movP,movF] = fileparts(mov);
         trkfile = fullfile(movP,[movF '_' nowstr '.trk']);
         outfile = fullfile(movP,[movF '_' nowstr '.log']);
-        fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);
+        fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);        
         
-        obj.bgTrkPrepareMonitor(mIdx,ivw,mov,trkfile);
-        obj.bgTrkStart();
-        
+        if tftrx
+          baseargs = {'trxtrk' trxfile 'trxids' trxids};           
+        else
+          baseargs = {};
+        end
+        bsubargs = {'outfile',outfile};
         codestr = DeepTracker.trackCodeGenBsubSing(trnID,dlLblFile,mov,...
-          trkfile,f0,f1,{},'outfile',outfile);
-        fprintf('Tracking movie: %s (view%d), frames %d->%d\n',mov,ivw,f0,f1);
-        fprintf('%s\n',codestr);
+          trkfile,f0,f1,'baseargs',baseargs,'bsubargs',bsubargs);
         
-        system(codestr);
+        if obj.dryRunOnly
+          fprintf('Dry run, not tracking: %s\n',codestr);
+        else
+          obj.bgTrkPrepareMonitor(mIdx,ivw,mov,trkfile);
+          obj.bgTrkStart();
+
+          fprintf('%s\n',codestr);
+          system(codestr);
+        end
         
         % what happens on err?  
       end      
@@ -404,7 +436,6 @@ classdef DeepTracker < LabelTracker
         Bflagsstr,singimg,basecmd);
     end
     function codestr = codeGenBsubGeneral(basecmd,varargin)
-      % TODO: views, trx
       [nslots,gpuqueue,outfile] = myparse(varargin,...
         'nslots',1,...
         'gpuqueue','gpu_any',...
@@ -424,22 +455,45 @@ classdef DeepTracker < LabelTracker
       basecmd = DeepTracker.trainCodeGenSing(trnID,dllbl,singargs{:});
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,varargin{:});
     end    
-    function codestr = trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1)
-      aptintrf = fullfile(APT.getpathdl,'APT_interface.py');     
-      codestr = sprintf('python %s -name %s %s track -mov %s -out %s -start_frame %d -end_frame %d',...
-        aptintrf,trnID,dllbl,movtrk,outtrk,frm0,frm1);
+    function codestr = trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
+      [trxtrk,trxids] = myparse(varargin,...
+        'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
+        'trxids',[]); % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
+      
+      tftrx = ~isempty(trxtrk);
+      tftrxids = ~isempty(trxids);
+      
+      aptintrf = fullfile(APT.getpathdl,'APT_interface.py');
+      
+      if tftrx
+        if tftrxids
+          trxids = num2cell(trxids-1); % convert to 0-based for py
+          trxidstr = sprintf('%d ',trxids{:});
+          trxidstr = trxidstr(1:end-1);
+          codestr = sprintf('python %s -name %s %s track -mov %s -trx %s -out %s -start_frame %d -end_frame %d -trx_ids %s',...
+            aptintrf,trnID,dllbl,movtrk,trxtrk,outtrk,frm0,frm1,trxidstr);          
+        else
+          codestr = sprintf('python %s -name %s %s track -mov %s -trx %s -out %s -start_frame %d -end_frame %d',...
+            aptintrf,trnID,dllbl,movtrk,trxtrk,outtrk,frm0,frm1);
+        end
+      else
+        codestr = sprintf('python %s -name %s %s track -mov %s -out %s -start_frame %d -end_frame %d',...
+          aptintrf,trnID,dllbl,movtrk,outtrk,frm0,frm1);
+      end
     end
     function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
       % TODO: views
       
-      [venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
+      [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
+        'baseargs',{},... % p-v cell for trackCodeGenBase
         'venvHost','10.103.20.155',... % host to run DL verman-ws1
         'venv','/groups/branson/bransonlab/mayank/venv',... 
         'cudaVisDevice',[],... % if supplied, export CUDA_VISIBLE_DEVICES to this
         'logFile','/dev/null'...
       ); 
       
-      basecode = DeepTracker.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1);
+      basecode = DeepTracker.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,...
+        frm0,frm1,baseargs{:});
       if ~isempty(cudaVisDevice)
         cudaDeviceStr = ...
           sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; ',...
@@ -453,15 +507,24 @@ classdef DeepTracker < LabelTracker
       codestr = sprintf('ssh %s "%s" </dev/null  >%s 2>&1 &"',...
         venvHost,codestrremote,logFile);      
     end
-    function codestr = trackCodeGenSing(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
-      basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1);
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,varargin{:});
+    function codestr = trackCodeGenSing(trnID,dllbl,movtrk,outtrk,frm0,...
+        frm1,varargin)
+      [baseargs,singargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{});
+      basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,...
+        frm0,frm1,baseargs{:});
+      codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
     function codestr = trackCodeGenBsubSing(trnID,dllbl,movtrk,outtrk,...
-        frm0,frm1,singargs,varargin)
+        frm0,frm1,varargin)
+      [baseargs,singargs,bsubargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{},...
+        'bsubargs',{});
       basecmd = DeepTracker.trackCodeGenSing(trnID,dllbl,movtrk,outtrk,...
-        frm0,frm1,singargs{:});
-      codestr = DeepTracker.codeGenBsubGeneral(basecmd,varargin{:});
+        frm0,frm1,'baseargs',baseargs,'singargs',singargs);
+      codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
     end
   end
   
@@ -683,7 +746,7 @@ classdef DeepTracker < LabelTracker
   end
   
   %% Labeler nav
-  methods 
+  methods
     function newLabelerFrame(obj)
       lObj = obj.lObj;
       if lObj.isinit || ~lObj.hasMovie
