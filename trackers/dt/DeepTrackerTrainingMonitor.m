@@ -26,6 +26,8 @@ classdef DeepTrackerTrainingMonitor < handle
           h(ivw,j) = plot(obj.haxs(j),nan,nan,'.-','color',clrs(ivw,:));
         end
       end
+      viewstrs = arrayfun(@(x)sprintf('view%d',x),(1:nview)','uni',0);
+      legend(obj.haxs(1),h(:,1),viewstrs);
       obj.hline = h;
       obj.resLast = [];
     end

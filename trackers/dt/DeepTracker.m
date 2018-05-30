@@ -12,6 +12,10 @@ classdef DeepTracker < LabelTracker
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
     
+    singBindPath % transient, cellstr of BIND_PATHs for singularity. This 
+      % will be used if it is non-empty; otherwise an attempt will be made
+      % to generate the required bind_paths
+      
     %% train
     
     % - The trained model lives in the fileSys in <cacheDir>/<proj>view%d/trnName.
@@ -195,20 +199,40 @@ classdef DeepTracker < LabelTracker
       trnLogFile = fullfile(cacheDir,[trnID '.log']);
       save(dlLblFile,'-mat','-struct','s');
       fprintf('Saved stripped lbl file: %s\n',dlLblFile);
-
-      cmd = DeepTracker.trainCodeGenBsubSing(trnID,dlLblFile,{},...
-        'outfile',trnLogFile);
       
+      if ~isempty(obj.singBindPath)
+        assert(iscellstr(obj.singBindPath),'singBindPath must be a cellstr.');
+        fprintf('Using user-specified singularity BIND_PATH.\n');        
+        singBind = obj.singBindPath;
+      else
+        macroCell = struct2cell(obj.lObj.projMacros);
+        if isempty(macroCell)
+          warningNoTrace('No project macros found; singularity BIND_PATH likely to be incorrect.');
+        end
+        singBind = [{cacheDir};macroCell(:)];
+        singBindStr = String.cellstr2CommaSepList(singBind);
+        fprintf('Auto-generated singularity BIND_PATH: %s\n',singBindStr);
+      end
+
+      singArgs = {'bindpath',singBind};
+      bsubArgs = {'outfile',trnLogFile};
+      
+      nview = obj.lObj.nview;
+      cmds = arrayfun(@(x) DeepTracker.trainCodeGenBsubSing(trnID,dlLblFile,...
+          'baseargs',{'view' x},'singargs',singArgs,'bsubArgs',bsubArgs),...
+          (1:nview)','uni',0);
       if obj.dryRunOnly
-        fprintf(1,'Dry run, not training: %s\n',cmd);
+        cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),cmds);
       else
         % call train monitor
         obj.bgTrnPrepareMonitor(dlLblFile,trnID);
         obj.bgTrnStart();
-
+        
         % spawn training
-        fprintf(1,'%s\n',cmd);
-        system(cmd);
+        for iview=1:nview
+          fprintf(1,'%s\n',cmds{iview});
+          system(cmds{iview});
+        end
       end
     end
     
@@ -443,17 +467,34 @@ classdef DeepTracker < LabelTracker
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o %s %s',...
         nslots,gpuqueue,outfile,basecmd);      
     end
-    function codestr = trainCodeGen(trnID,dllbl)
+    function codestr = trainCodeGen(trnID,dllbl,varargin)
+      view = myparse(varargin,...
+        'view',[]); % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
+      tfview = ~isempty(view);
+      
       aptintrf = fullfile(APT.getpathdl,'APT_interface.py');
-      codestr = sprintf('python %s -name %s %s train',aptintrf,trnID,dllbl);
+      if tfview
+        codestr = sprintf('python %s -name %s -view %d %s train',...
+          aptintrf,trnID,view-1,dllbl); % view 0-based for py
+      else
+        codestr = sprintf('python %s -name %s %s train',aptintrf,trnID,dllbl);
+      end
     end
     function codestr = trainCodeGenSing(trnID,dllbl,varargin)
-      basecmd = DeepTracker.trainCodeGen(trnID,dllbl);
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,varargin{:});
+      [baseargs,singargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{});
+      basecmd = DeepTracker.trainCodeGen(trnID,dllbl,baseargs{:});
+      codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
-    function codestr = trainCodeGenBsubSing(trnID,dllbl,singargs,varargin)
-      basecmd = DeepTracker.trainCodeGenSing(trnID,dllbl,singargs{:});
-      codestr = DeepTracker.codeGenBsubGeneral(basecmd,varargin{:});
+    function codestr = trainCodeGenBsubSing(trnID,dllbl,varargin)
+      [baseargs,singargs,bsubargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{},...
+        'bsubargs',{});
+      basecmd = DeepTracker.trainCodeGenSing(trnID,dllbl,...
+        'baseargs',baseargs,'singargs',singargs);
+      codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
     end    
     function codestr = trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
       [trxtrk,trxids] = myparse(varargin,...
