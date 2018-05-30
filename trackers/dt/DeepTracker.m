@@ -431,10 +431,27 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
       % TODO: views
-      venv = myparse(varargin,...
-        'venv','/groups/branson/bransonlab/mayank/venv');
-      codestr = sprintf('cd %s; source bin/activate; %s',...
-        venv,DeepTracker.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1));
+      
+      [venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
+        'venvHost','10.103.20.155',... % host to run DL verman-ws1
+        'venv','/groups/branson/bransonlab/mayank/venv',... 
+        'cudaVisDevice',[],... % if supplied, export CUDA_VISIBLE_DEVICES to this
+        'logFile','/dev/null'...
+      ); 
+      
+      basecode = DeepTracker.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1);
+      if ~isempty(cudaVisDevice)
+        cudaDeviceStr = ...
+          sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; ',...
+          cudaVisDevice);
+      else
+        cudaDeviceStr = '';
+      end
+        
+      codestrremote = sprintf('cd %s; source bin/activate; %s%s',venv,...
+        cudaDeviceStr,basecode);
+      codestr = sprintf('ssh %s "%s" </dev/null  >%s 2>&1 &"',...
+        venvHost,codestrremote,logFile);      
     end
     function codestr = trackCodeGenSing(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
       basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1);
