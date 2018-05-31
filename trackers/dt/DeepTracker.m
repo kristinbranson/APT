@@ -352,7 +352,6 @@ classdef DeepTracker < LabelTracker
       end
       
       nView = obj.lObj.nview;
-      assert(nView==1,'TODO: Currently only single-view projects are supported.');
       movs = tMFTConc.mov;
       assert(size(movs,2)==nView);
       movs = movs(1,:);
@@ -364,10 +363,9 @@ classdef DeepTracker < LabelTracker
         outfile = fullfile(movP,[movF '_' nowstr '.log']);
         fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);        
         
+        baseargs = {'view' ivw}; % 1-based OK
         if tftrx
-          baseargs = {'trxtrk' trxfile 'trxids' trxids};           
-        else
-          baseargs = {};
+          baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
         end
         bsubargs = {'outfile',outfile};
         codestr = DeepTracker.trackCodeGenBsubSing(trnID,dlLblFile,mov,...
@@ -497,34 +495,35 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
     end    
     function codestr = trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
-      [trxtrk,trxids] = myparse(varargin,...
+      [trxtrk,trxids,view] = myparse(varargin,...
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
-        'trxids',[]); % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
+        'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
+        'view',[]); % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
       
       tftrx = ~isempty(trxtrk);
       tftrxids = ~isempty(trxids);
+      tfview = ~isempty(view);
       
       aptintrf = fullfile(APT.getpathdl,'APT_interface.py');
-      
-      if tftrx
-        if tftrxids
-          trxids = num2cell(trxids-1); % convert to 0-based for py
-          trxidstr = sprintf('%d ',trxids{:});
-          trxidstr = trxidstr(1:end-1);
-          codestr = sprintf('python %s -name %s %s track -mov %s -trx %s -out %s -start_frame %d -end_frame %d -trx_ids %s',...
-            aptintrf,trnID,dllbl,movtrk,trxtrk,outtrk,frm0,frm1,trxidstr);          
-        else
-          codestr = sprintf('python %s -name %s %s track -mov %s -trx %s -out %s -start_frame %d -end_frame %d',...
-            aptintrf,trnID,dllbl,movtrk,trxtrk,outtrk,frm0,frm1);
-        end
+
+      if tfview
+        codestr = sprintf('python %s -name %s -view %d %s track -mov %s -out %s -start_frame %d -end_frame %d',...
+          aptintrf,trnID,view-1,dllbl,movtrk,outtrk,frm0,frm1); % view: 0-based  
       else
         codestr = sprintf('python %s -name %s %s track -mov %s -out %s -start_frame %d -end_frame %d',...
           aptintrf,trnID,dllbl,movtrk,outtrk,frm0,frm1);
       end
+      if tftrx
+        codestr = sprintf('%s -trx %s',codestr,trxtrk);
+        if tftrxids
+          trxids = num2cell(trxids-1); % convert to 0-based for py
+          trxidstr = sprintf('%d ',trxids{:});
+          trxidstr = trxidstr(1:end-1);
+          codestr = sprintf('%s -trx_ids %s',codestr,trxidstr);
+        end
+      end
     end
-    function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
-      % TODO: views
-      
+    function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)      
       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
         'baseargs',{},... % p-v cell for trackCodeGenBase
         'venvHost','10.103.20.155',... % host to run DL verman-ws1
