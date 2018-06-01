@@ -16,7 +16,7 @@ This is a step-by-step guide to running an OrthoCam stereo camera calibration. O
 #### Step 1: Run single-cam calibrations of each camera in the MATLAB Camera Calibrator App.
 The MATLAB Camera Calibrator App should do single-camera calibrations pretty well, except the (z-depth, focal length) parameter pair will not be well-resolved.  Often it helps to initialize this optimization by clicking the 'Optimization Options' button and entering something in the 'initial intrinsics' box that is close to what you expect e.g. in the case of Stephen's rig: [100000 0 0;0 100000 0;384 255 1] Check that the calibration looks good (low reprojection error). Then do a "Save Session". This will save the calibration images you used with their detected corners, along with the calibration results.
 
-Run/save single-camera calibrations for both cameras. These will be used by OrthoCam.  You may need to intialize the optimization for this to work (e.g.for Stephen's rig go to 'optimization options' and enter " [100000 0 0;0 100000 0;384 255 1]")
+Run/save single-camera calibrations for both cameras. These will be used by OrthoCam.
 
 #### Step 2: Open the MATLAB Stereo Camera Calibrator App (stereoCameraCalibrator) and Create a new Stereo Project.
 Add the calibration image pairs you would like to use and verify that the corners are detected appropriately etc.
