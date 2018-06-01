@@ -79,7 +79,7 @@ classdef DeepTracker < LabelTracker
     end
     function v = get.nview(obj)
       v = obj.lObj.nview;
-    end
+    end    
     function v = get.bgTrnReady(obj)
       v = ~isempty(obj.bgTrnMonitorClient);
     end
@@ -196,7 +196,6 @@ classdef DeepTracker < LabelTracker
       % Write stripped lblfile to cacheDir
       s = lblObj.trackCreateDeepTrackerStrippedLbl(); %#ok<NASGU>
       dlLblFile = fullfile(cacheDir,[trnID '.lbl']);      
-      trnLogFile = fullfile(cacheDir,[trnID '.log']);
       save(dlLblFile,'-mat','-struct','s');
       fprintf('Saved stripped lbl file: %s\n',dlLblFile);
       
@@ -214,12 +213,12 @@ classdef DeepTracker < LabelTracker
         fprintf('Auto-generated singularity BIND_PATH: %s\n',singBindStr);
       end
 
-      singArgs = {'bindpath',singBind};
-      bsubArgs = {'outfile',trnLogFile};
-      
+      singArgs = {'bindpath',singBind};      
       nview = obj.lObj.nview;
       cmds = arrayfun(@(x) DeepTracker.trainCodeGenBsubSing(trnID,dlLblFile,...
-          'baseargs',{'view' x},'singargs',singArgs,'bsubArgs',bsubArgs),...
+          'baseargs',{'view' x},...
+          'singargs',singArgs,...
+          'bsubArgs',{'outfile' obj.trnBsubLog(x)}),...
           (1:nview)','uni',0);
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),cmds);
@@ -234,6 +233,10 @@ classdef DeepTracker < LabelTracker
           system(cmds{iview});
         end
       end
+    end
+    function s = trnBsubLog(obj,iview)
+      % fullpath to training bsub logfile
+      s = fullfile(obj.sPrm.CacheDir,sprintf('%s_view%d.log',obj.trnName,iview));
     end
     
     function bgTrnReset(obj)
@@ -281,7 +284,12 @@ classdef DeepTracker < LabelTracker
     function bgTrnResultsReceived(obj,sRes)
       obj.bgTrnMonitorResultsMonitor.resultsReceived(sRes);
       
-      % XXX TODO call bgTrnStop when done. 
+      trnComplete = all([sRes.result.trainComplete]);
+      if trnComplete
+        obj.bgTrnStop();
+        % % monitor plot stays up; bgTrnReset not called etc
+        fprintf('Training complete at %s.\n',datestr(now));
+      end
     end
     
     function bgTrnStop(obj)
@@ -356,6 +364,8 @@ classdef DeepTracker < LabelTracker
       assert(size(movs,2)==nView);
       movs = movs(1,:);
       nowstr = datestr(now,'yyyymmddTHHMMSS');
+      trkfiles = cell(1,nView);
+      codestrs = cell(1,nView);
       for ivw=1:nView
         mov = movs{ivw};
         [movP,movF] = fileparts(mov);
@@ -368,21 +378,25 @@ classdef DeepTracker < LabelTracker
           baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
         end
         bsubargs = {'outfile',outfile};
-        codestr = DeepTracker.trackCodeGenBsubSing(trnID,dlLblFile,mov,...
-          trkfile,f0,f1,'baseargs',baseargs,'bsubargs',bsubargs);
-        
-        if obj.dryRunOnly
-          fprintf('Dry run, not tracking: %s\n',codestr);
-        else
-          obj.bgTrkPrepareMonitor(mIdx,ivw,mov,trkfile);
-          obj.bgTrkStart();
 
-          fprintf('%s\n',codestr);
-          system(codestr);
-        end
+        trkfiles{ivw} = trkfile;
+        codestrs{ivw} = DeepTracker.trackCodeGenBsubSing(trnID,dlLblFile,mov,...
+          trkfile,f0,f1,'baseargs',baseargs,'bsubargs',bsubargs);
+      end
         
-        % what happens on err?  
-      end      
+      if obj.dryRunOnly
+        fprintf('Dry run, not tracking.\n',codestr);
+        cellfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x),codestrs);
+      else
+        obj.bgTrkPrepareMonitor(mIdx,nView,movs,trkfiles);
+        obj.bgTrkStart();
+        
+        for ivw=1:nView
+          fprintf(1,'%s\n',codestrs{ivw});
+          system(codestrs{ivw});
+        end
+        % what happens on err?
+      end
     end
     
     function bgTrkReset(obj)
@@ -396,11 +410,11 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitorWorkerObj = [];      
     end
     
-    function bgTrkPrepareMonitor(obj,mIdx,iview,movfile,outfile)
+    function bgTrkPrepareMonitor(obj,mIdx,nview,movfiles,outfiles)
       obj.bgTrkReset();
 
       cbkResult = @obj.bgTrkResultsReceived;
-      workerObj = DeepTrackerTrackingWorkerObj(mIdx,iview,movfile,outfile);
+      workerObj = DeepTrackerTrackingWorkerObj(mIdx,nview,movfiles,outfiles);
       bgc = BGClient;
       fprintf(1,'Configuring tracking background worker...\n');
       bgc.configure(cbkResult,workerObj,'compute');
@@ -415,21 +429,33 @@ classdef DeepTracker < LabelTracker
     
     function bgTrkResultsReceived(obj,sRes)
       res = sRes.result;
-      if res.tfcomplete
-        fprintf(1,'Tracking output file %s detected.\n',res.trkfile);
+      tfdone = all([res.tfcomplete]);
+      if tfdone
+        fprintf(1,'Tracking output files detected:\n');
+        arrayfun(@(x)fprintf(1,'  %s\n',x.trkfile),res);
+        
         obj.bgTrkStop();
-        movsFull = obj.lObj.getMovieFilesAllFullMovIdx(res.mIdx);
-        mov = movsFull{res.iview};
-        if strcmp(mov,res.movfile)
-          obj.trackResNewTrkfile(res.mIdx,res.iview,res.trkfile);
-          if res.mIdx==obj.lObj.currMovIdx
+
+        mIdx = [res.mIdx];
+        assert(all(mIdx==mIdx(1)));
+        mIdx = res(1).mIdx;
+        movsFull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
+        if all(strcmp(movsFull(:),{res.movfile}'))
+          % we perform this check b/c while tracking has been running in
+          % the bg, the project could have been updated, movies
+          % renamed/reordered etc.
+          obj.trackResNewTrkfile(mIdx,{res.trkfile}');
+          if mIdx==obj.lObj.currMovIdx
             obj.trackCurrResUpdate();
             obj.newLabelerFrame();
-            fprintf('Tracking complete at %s.\n',datestr(now));
-          end          
+            fprintf('Tracking complete for current movie at %s.\n',datestr(now));
+          else
+            iMov = mIdx.get();
+            fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
+          end
         else
-          warningNoTrace('Tracking complete, but movieset %d, view%d, mov %s does not match current project.',...
-            int32(res.mIdx),res.iview,res.movfile);
+          warningNoTrace('Tracking complete, but movieset %d has changed in current project.',...
+            int32(mIdx));
           % conservative, take no action for now
         end
       end
@@ -523,7 +549,7 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
-    function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)      
+    function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
         'baseargs',{},... % p-v cell for trackCodeGenBase
         'venvHost','10.103.20.155',... % host to run DL verman-ws1
@@ -574,18 +600,25 @@ classdef DeepTracker < LabelTracker
       m = containers.Map('keytype','int32','valuetype','any');
       obj.movIdx2trkfile = m;
     end
-    function trackResNewTrkfile(obj,mIdx,iview,trkfile)
+    function trackResNewTrkfile(obj,mIdx,trkfiles)
+      % Remember/set a set of [nview] trkfiles associated with mIdx
+      
       m = obj.movIdx2trkfile;
       assert(isscalar(mIdx));
-      assert(ischar(trkfile));
+      assert(iscellstr(trkfiles));
+      
       id = mIdx.id32();
-      if m.isKey(id)
-        v = m(id);
-      else
-        v = cell(1,obj.lObj.nview);
-      end
-      v{iview} = trkfile;
-      m(id) = v; %#ok<NASGU>
+      m(id) = trkfiles(:)';
+      
+      % TODO: merging multiple trkfiles
+      
+%       if m.isKey(id)
+%         v = m(id);
+%       else
+%         v = cell(1,obj.lObj.nview);
+%       end
+%       v{iview} = trkfile;
+%       m(id) = v; %#ok<NASGU>
     end
     function tpos = getTrackingResultsCurrMovie(obj)
       tpos = obj.trkP;

@@ -8,7 +8,7 @@ classdef DeepTrackerTrainingMonitor < handle
   end
   
   methods
-    function obj = DeepTrackerTrainingMonitor(nview)
+    function obj = DeepTrackerTrainingMonitor(nview,niter)
       obj.hfig = figure('Visible','on');
       obj.haxs = reshape(createsubplots(2,1,.1),2,1);
       arrayfun(@(x)grid(x,'on'),obj.haxs);
@@ -39,6 +39,8 @@ classdef DeepTrackerTrainingMonitor < handle
     function resultsReceived(obj,sRes)
       % Callback executed when new result received from training monitor BG
       % worker
+      %
+      % trnComplete: scalar logical, true when all views done
       
       res = sRes.result;
       tfAnyUpdate = false;
@@ -58,7 +60,7 @@ classdef DeepTrackerTrainingMonitor < handle
       if isempty(obj.resLast) || tfAnyUpdate
         obj.resLast = res;
       end
-
+      
 %           
 %           
 %         fprintf(1,'View%d: jsonPresent: %d. ',ivw,res(ivw).jsonPresent);

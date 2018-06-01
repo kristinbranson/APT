@@ -3,10 +3,7 @@ classdef DeepTrackerTrackingWorkerObj < handle
   % BGWorkerContinuous
   %
   % Responsibilities:
-  % - Poll filesystem for tracking output file
-  
-  %
-  % TODO: multiview
+  % - Poll filesystem for tracking output files
   
   properties
     % We could keep track of mIdx/movfile purely on the client side.
@@ -17,25 +14,28 @@ classdef DeepTrackerTrackingWorkerObj < handle
     % the client has, the client can decide what to do.
     
     mIdx % Movie index
-    iview
-    movfile % full path movie being tracked    
-    trkfile % full path trkfile to be generated/output
+    nview % number of views
+    movfiles % full paths movie being tracked    
+    trkfiles % full paths trkfile to be generated/output
   end
   
   methods
-    function obj = DeepTrackerTrackingWorkerObj(mIdx,iview,movfile,outfile)
+    function obj = DeepTrackerTrackingWorkerObj(mIdx,nvw,movfiles,outfiles)
+      assert(isequal(nvw,numel(movfiles),numel(outfiles)));
       obj.mIdx = mIdx;
-      obj.iview = iview;
-      obj.movfile = movfile;
-      obj.trkfile = outfile;
+      obj.nview = nvw;
+      obj.movfiles = movfiles(:);
+      obj.trkfiles = outfiles(:);
     end    
     function sRes = compute(obj)
+      % sRes: [nview] struct array
+      
       sRes = struct(...
-        'tfcomplete',exist(obj.trkfile,'file')>0,...
+        'tfcomplete',cellfun(@(x)exist(x,'file')>0,obj.trkfiles,'uni',0),...
         'mIdx',obj.mIdx,...
-        'iview',obj.iview,...
-        'movfile',obj.movfile,...
-        'trkfile',obj.trkfile);
+        'iview',num2cell((1:obj.nview)'),...
+        'movfile',obj.movfiles,...
+        'trkfile',obj.trkfiles);
     end
   end
   
