@@ -284,7 +284,7 @@ classdef DeepTracker < LabelTracker
     function bgTrnStart(obj)
       assert(obj.bgTrnReady);
       obj.bgTrnMonitorClient.startWorker('workerContinuous',true,...
-        'continuousCallInterval',10);
+        'continuousCallInterval',30);
     end
     
     function bgTrnResultsReceived(obj,sRes)
@@ -436,7 +436,7 @@ classdef DeepTracker < LabelTracker
     
     function bgTrkStart(obj)
       obj.bgTrkMonitorClient.startWorker('workerContinuous',true,...
-        'continuousCallInterval',10);
+        'continuousCallInterval',20);
     end
     
     function bgTrkResultsReceived(obj,sRes)
