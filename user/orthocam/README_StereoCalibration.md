@@ -2,6 +2,14 @@
 
 This is a step-by-step guide to running an OrthoCam stereo camera calibration. OrthoCam is intended to provide a more usable/stable calibration for cameras/rigs which operate in the weak perspective (delta-z << z) regime.
 
+#### Requirements
+
+Matlab 2016b (as of 6/18 doesn't work with R2018a)
+
+Matlab Computer Vision Toolbox
+
+Matlab Image Processing Toolbox (required by Computer Vision Toolbox)
+
 #### Setup
 
 * Add the APT repo to your MATLAB path, or navigate to the <APT> repo root directory. Then run `APT.setpath` to fully configure your MATLAB path.
