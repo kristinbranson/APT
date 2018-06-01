@@ -4,10 +4,10 @@ This is a step-by-step guide to running an OrthoCam stereo camera calibration. O
 
 #### Requirements
 
-*Matlab 2016b (as of 6/18 doesn't work with R2018a)
-*Matlab Computer Vision Toolbox
-*Matlab Image Processing Toolbox (required by Computer Vision Toolbox)
-*Matlab Optimization Toolbox
+* Matlab 2016b (as of 6/18 doesn't work with R2018a)
+* Matlab Computer Vision Toolbox
+* Matlab Image Processing Toolbox (required by Computer Vision Toolbox)
+* Matlab Optimization Toolbox
 
 #### Setup
 
