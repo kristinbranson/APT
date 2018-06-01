@@ -837,6 +837,10 @@ classdef Labeler < handle
     function obj = Labeler(varargin)
       % lObj = Labeler();
       
+      if APT.pathNotConfigured
+        fprintf('Configuring your path ...\n');
+        APT.setpath;
+      end
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
