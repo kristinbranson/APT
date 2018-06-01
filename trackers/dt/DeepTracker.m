@@ -198,28 +198,17 @@ classdef DeepTracker < LabelTracker
       dlLblFile = fullfile(cacheDir,[trnID '.lbl']);      
       save(dlLblFile,'-mat','-struct','s');
       fprintf('Saved stripped lbl file: %s\n',dlLblFile);
-      
-      if ~isempty(obj.singBindPath)
-        assert(iscellstr(obj.singBindPath),'singBindPath must be a cellstr.');
-        fprintf('Using user-specified singularity BIND_PATH.\n');        
-        singBind = obj.singBindPath;
-      else
-        macroCell = struct2cell(obj.lObj.projMacros);
-        if isempty(macroCell)
-          warningNoTrace('No project macros found; singularity BIND_PATH likely to be incorrect.');
-        end
-        singBind = [{cacheDir};macroCell(:)];
-        singBindStr = String.cellstr2CommaSepList(singBind);
-        fprintf('Auto-generated singularity BIND_PATH: %s\n',singBindStr);
-      end
-
-      singArgs = {'bindpath',singBind};      
+            
+      singBind = obj.genSingBindPath();
+      singArgs = {'bindpath',singBind};
       nview = obj.lObj.nview;
-      cmds = arrayfun(@(x) DeepTracker.trainCodeGenBsubSing(trnID,dlLblFile,...
+      cmds = arrayfun(@(x) DeepTracker.trainCodeGenSSHBsubSing(trnID,dlLblFile,...
           'baseargs',{'view' x},...
           'singargs',singArgs,...
-          'bsubArgs',{'outfile' obj.trnBsubLog(x)}),...
+          'bsubArgs',{'outfile' obj.trnBsubLog(x)},...
+          'sshargs',{'logfile' [obj.trnBsubLog(x) '2']}),...
           (1:nview)','uni',0);
+        
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),cmds);
       else
@@ -237,6 +226,23 @@ classdef DeepTracker < LabelTracker
     function s = trnBsubLog(obj,iview)
       % fullpath to training bsub logfile
       s = fullfile(obj.sPrm.CacheDir,sprintf('%s_view%d.log',obj.trnName,iview));
+    end
+    function singBind = genSingBindPath(obj)
+      if ~isempty(obj.singBindPath)
+        assert(iscellstr(obj.singBindPath),'singBindPath must be a cellstr.');
+        fprintf('Using user-specified singularity BIND_PATH.\n');
+        singBind = obj.singBindPath;
+      else
+        macroCell = struct2cell(obj.lObj.projMacros);
+        if isempty(macroCell)
+          warningNoTrace('No project macros found; singularity BIND_PATH likely to be incorrect.');
+        end
+        cacheDir = obj.sPrm.CacheDir;
+        assert(~isempty(cacheDir));
+        singBind = [{cacheDir};macroCell(:)];
+        singBindStr = String.cellstr2CommaSepList(singBind);
+        fprintf('Auto-generated singularity BIND_PATH: %s\n',singBindStr);
+      end
     end
     
     function bgTrnReset(obj)
@@ -359,6 +365,9 @@ classdef DeepTracker < LabelTracker
         error('Cannot find training file: %s\n',dlLblFile);
       end
       
+      singBind = obj.genSingBindPath();
+      singargs = {'bindpath',singBind};
+      
       nView = obj.lObj.nview;
       movs = tMFTConc.mov;
       assert(size(movs,2)==nView);
@@ -371,21 +380,24 @@ classdef DeepTracker < LabelTracker
         [movP,movF] = fileparts(mov);
         trkfile = fullfile(movP,[movF '_' nowstr '.trk']);
         outfile = fullfile(movP,[movF '_' nowstr '.log']);
+        outfile2 = fullfile(movP,[movF '_' nowstr '.log2']);
         fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);        
         
         baseargs = {'view' ivw}; % 1-based OK
         if tftrx
           baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
         end
-        bsubargs = {'outfile',outfile};
-
+        bsubargs = {'outfile' outfile};
+        sshargs = {'logfile' outfile2};        
+        
         trkfiles{ivw} = trkfile;
-        codestrs{ivw} = DeepTracker.trackCodeGenBsubSing(trnID,dlLblFile,mov,...
-          trkfile,f0,f1,'baseargs',baseargs,'bsubargs',bsubargs);
+        codestrs{ivw} = DeepTracker.trackCodeGenSSHBsubSing(...
+          trnID,dlLblFile,mov,trkfile,f0,f1,...
+          'baseargs',baseargs,'singArgs',singargs,'bsubargs',bsubargs,...
+          'sshargs',sshargs);
       end
         
       if obj.dryRunOnly
-        fprintf('Dry run, not tracking.\n',codestr);
         cellfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x),codestrs);
       else
         obj.bgTrkPrepareMonitor(mIdx,nView,movs,trkfiles);
@@ -467,6 +479,13 @@ classdef DeepTracker < LabelTracker
     
   end
   methods (Static) % codegen
+    function codestr = codeGenSSHGeneral(remotecmd,varargin)
+      [host,logfile] = myparse(varargin,...
+        'host','login1.int.janelia.org',...
+        'logfile','/dev/null');
+      codestr = sprintf('ssh %s ''%s </dev/null >%s 2>&1 &''',...
+        host,remotecmd,logfile);    
+    end
     function codestr = codeGenSingGeneral(basecmd,varargin)
       % Take a base command and run it in a sing img
       DFLTBINDPATH = {
@@ -520,6 +539,17 @@ classdef DeepTracker < LabelTracker
         'baseargs',baseargs,'singargs',singargs);
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
     end    
+    function codestr = trainCodeGenSSHBsubSing(trnID,dllbl,varargin)
+      [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{},...
+        'bsubargs',{},...
+        'sshargs',{});
+      remotecmd = DeepTracker.trainCodeGenBsubSing(trnID,dllbl,...
+        'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
+      codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
+    end    
+
     function codestr = trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
       [trxtrk,trxids,view] = myparse(varargin,...
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
@@ -570,8 +600,8 @@ classdef DeepTracker < LabelTracker
         
       codestrremote = sprintf('cd %s; source bin/activate; %s%s',venv,...
         cudaDeviceStr,basecode);
-      codestr = sprintf('ssh %s "%s" </dev/null  >%s 2>&1 &"',...
-        venvHost,codestrremote,logFile);      
+      codestr = DeepTracker.codeGenSSHGeneral(codestrremote,...
+        'host',venvHost,'logfile',logFile);
     end
     function codestr = trackCodeGenSing(trnID,dllbl,movtrk,outtrk,frm0,...
         frm1,varargin)
@@ -591,6 +621,18 @@ classdef DeepTracker < LabelTracker
       basecmd = DeepTracker.trackCodeGenSing(trnID,dllbl,movtrk,outtrk,...
         frm0,frm1,'baseargs',baseargs,'singargs',singargs);
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
+    end
+    function codestr = trackCodeGenSSHBsubSing(trnID,dllbl,movtrk,outtrk,...
+        frm0,frm1,varargin)
+      [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{},...
+        'bsubargs',{},...
+        'sshargs',{}...
+        );
+      remotecmd = DeepTracker.trackCodeGenBsubSing(trnID,dllbl,movtrk,outtrk,...
+        frm0,frm1,'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
+      codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
   end
   
