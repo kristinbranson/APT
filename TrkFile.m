@@ -127,6 +127,65 @@ classdef TrkFile < handle
       
       tbl = struct2table(s);
     end
+    
+    function trkfile = mergePartial(obj,obj2)
+      % Merge trkfile into current trkfile. Doesn't merge .pTrkFull* fields 
+      % (for now).
+      %
+      % obj2 TAKES PRECEDENCE when tracked frames/data overlap
+      %
+      % obj/obj2: trkfile objs. obj.pTrk and obj2.pTrk must have the same
+      % size.
+      
+      assert(isscalar(obj) && isscalar(obj2));
+      %assert(isequal(size(obj.pTrk),size(obj2.pTrk)),'Size mismatch.');
+      assert(isequal(obj.pTrkiPt,obj2.pTrkiPt),'.pTrkiPt mismatch.');
+      assert(isequal(obj.pTrkiTgt,obj2.pTrkiTgt),'.pTrkiTgt mismatch.');
+      
+      if ~isempty(obj.pTrkFull) || ~isempty(obj2.pTrkFull)
+        warningNoTrace('.pTrkFull contents discarded.');
+      end
+      
+      frmComon = intersect(obj.pTrkFrm,obj2.pTrkFrm);
+      frmUnion = union(obj.pTrkFrm,obj2.pTrkFrm);
+      nComon = numel(frmComon);
+      if nComon>0
+        warningNoTrace('TrkFiles share common tracked frames. Overwriting.');
+      end
+      
+      [~,loc] = ismember(obj.pTrkFrm,frmUnion);
+      [~,loc2] = ismember(obj2.pTrkFrm,frmUnion);     
+      
+      npttrk = numel(obj.pTrkiPt);
+      nfrm = numel(frmUnion);
+      ntgt = numel(obj.pTrkiTgt);
+      
+      pTrk = nan(npttrk,2,nfrm,ntgt);
+      pTrk(:,:,loc,:) = obj.pTrk;
+      pTrk(:,:,loc2,:) = obj2.pTrk;
+      obj.pTrk = pTrk;
+      pTrkTS = nan(npttrk,nfrm,ntgt);
+      pTrkTS(:,loc,:) = obj.pTrkTS;
+      pTrkTS(:,loc2,:) = obj2.pTrkTS;
+      obj.pTrkTS = pTrkTS;
+      pTrkTag = nan(npttrk,nfrm,ntgt);
+      pTrkTag(:,loc,:) = obj.pTrkTag;
+      pTrkTag(:,loc2,:) = obj2.pTrkTag;
+      obj.pTrkTag = pTrkTag;
+      
+      %obj.pTrkiPt = obj.pTrkiPt; unchanged
+      obj.pTrkFrm = frmUnion;
+      %obj.pTrkiTgt = obj.pTrkiTgt; unchanged
+      %obj.pTrkFull unchanged
+      %obj.pTrjFullFT unchanged
+      
+      if iscell(obj.trkInfo)
+        obj.trkInfo{end+1} = obj2.trkInfo;
+      else
+        obj.trkInfo = {obj.trkInfo obj2.trkInfo};
+      end
+    end
+    
   end
   
   methods (Static)
@@ -140,6 +199,23 @@ classdef TrkFile < handle
       end
       pTrk = s.pTrk;
       pvs = struct2pvs(rmfield(s,'pTrk'));
+      trkfileObj = TrkFile(pTrk,pvs{:});
+    end
+    
+    function trkfileObj = loadsilent(filename)
+      % ignore fields of struct that aren't TrkFile props. For 3rd-party
+      % generated Trkfiles
+      s = load(filename,'-mat');
+      s = TrkFile.modernizeStruct(s);
+      pTrk = s.pTrk;      
+      
+      mc = meta.class.fromName('TrkFile');
+      propnames = {mc.PropertyList.Name}';
+      fns = fieldnames(s);
+      tfunrecog = ~ismember(fns,propnames);
+      s = rmfield(s,fns(tfunrecog)); 
+      pvs = struct2pvs(rmfield(s,'pTrk'));
+      
       trkfileObj = TrkFile(pTrk,pvs{:});
     end
 

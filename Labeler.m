@@ -6667,7 +6667,7 @@ classdef Labeler < handle
         trkFile = tObj.getTrackingResults(iMov);
         szassert(trkFile,[1 nVw]);
         for iVw=1:nVw
-          trkFile(iVw).save(trkfiles{i,iVw});
+          trkFile{iVw}.save(trkfiles{i,iVw});
           fprintf('...saved: %s\n',trkfiles{i,iVw});
           fprintf('Save time: %f\n',toc(startTime)); startTime = tic;
         end
@@ -6715,7 +6715,7 @@ classdef Labeler < handle
       for iMv=1:nMov
         if tfHasRes(iMv)
           for iVw=1:nVw
-            trkFileObjs(iMv,iVw).save(trkfiles{iMv,iVw});
+            trkFileObjs{iMv,iVw}.save(trkfiles{iMv,iVw});
             fprintf('Saved %s.\n',trkfiles{iMv,iVw});
           end
         else

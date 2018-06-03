@@ -67,7 +67,7 @@ if dotest
     pTrkRptMeanMuErr = nanmean(cat(3,pTrkRptMuErr{:}),3); % [npt x ntrkfrm];
 
     % check resMV, 1st repeat only 
-    errMV = lclErr(resMV{1}(ivw).pTrk,pTrkMu); % [npt x ntrkfrm]
+    errMV = lclErr(resMV{1}{ivw}.pTrk,pTrkMu); % [npt x ntrkfrm]
     errMVnorm = errMV./pTrkRptMeanMuErr;
     errMV = errMV';
     errMVnorm = errMVnorm';

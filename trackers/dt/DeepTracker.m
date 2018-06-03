@@ -43,10 +43,12 @@ classdef DeepTracker < LabelTracker
     %bgTrkMonitorResultsMonitor 
     
     % trackres: tracking results DB is in filesys
-    movIdx2trkfile % map from MovieIndex.id to [1xnview] cellstrs of trkfile fullpaths
+    movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
   end
   properties (Dependent)
     bgTrnReady % If true, asyncPrepare() has been called and asyncStartBGWorker() can be called
+    bgTrnIsRunning
+    bgTrkIsRunning 
   end
 
   properties
@@ -82,6 +84,14 @@ classdef DeepTracker < LabelTracker
     end    
     function v = get.bgTrnReady(obj)
       v = ~isempty(obj.bgTrnMonitorClient);
+    end
+    function v = get.bgTrnIsRunning(obj)
+      clnt = obj.bgTrnMonitorClient;
+      v = ~isempty(clnt) && clnt.isRunning;
+    end
+    function v = get.bgTrkIsRunning(obj)
+      clnt = obj.bgTrkMonitorClient;
+      v = ~isempty(clnt) && clnt.isRunning;
     end
   end
   
@@ -169,6 +179,9 @@ classdef DeepTracker < LabelTracker
     
     function retrain(obj,varargin)
 
+      if obj.bgTrnIsRunning
+        error('Training is already in progress.');
+      end
       if isempty(obj.sPrm)
         error('No tracking parameters have been set.');
       end
@@ -324,6 +337,10 @@ classdef DeepTracker < LabelTracker
       % 
       % tblMFT: MFTable with cols MFTable.FLDSID
       
+      if obj.bgTrkIsRunning
+        error('Tracking is already in progress.');
+      end
+        
       if isempty(tblMFT)
         warningNoTrace('Nothing to track.');
         return;
@@ -333,7 +350,7 @@ classdef DeepTracker < LabelTracker
       tblMFT = MFTable.sortCanonical(tblMFT);
       mIdx = unique(tblMFT.mov);
       if ~isscalar(mIdx)
-        error('DeepTracker: tracking only single movies is currently supported.');
+        error('Tracking only single movies is currently supported.');
       end
       tMFTConc = obj.lObj.mftTableConcretizeMov(tblMFT);
       
@@ -373,14 +390,15 @@ classdef DeepTracker < LabelTracker
       assert(size(movs,2)==nView);
       movs = movs(1,:);
       nowstr = datestr(now,'yyyymmddTHHMMSS');
+      trnstr = sprintf('trn%s',trnID);
       trkfiles = cell(1,nView);
       codestrs = cell(1,nView);
       for ivw=1:nView
         mov = movs{ivw};
         [movP,movF] = fileparts(mov);
-        trkfile = fullfile(movP,[movF '_' nowstr '.trk']);
-        outfile = fullfile(movP,[movF '_' nowstr '.log']);
-        outfile2 = fullfile(movP,[movF '_' nowstr '.log2']);
+        trkfile = fullfile(movP,[movF '_' trnstr '_' nowstr '.trk']);
+        outfile = fullfile(movP,[movF '_' trnstr '_' nowstr '.log']);
+        outfile2 = fullfile(movP,[movF '_' trnstr '_' nowstr '.log2']);
         fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);        
         
         baseargs = {'view' ivw}; % 1-based OK
@@ -456,7 +474,7 @@ classdef DeepTracker < LabelTracker
           % we perform this check b/c while tracking has been running in
           % the bg, the project could have been updated, movies
           % renamed/reordered etc.
-          obj.trackResNewTrkfile(mIdx,{res.trkfile}');
+          obj.trackResAddTrkfile(mIdx,{res.trkfile}');
           if mIdx==obj.lObj.currMovIdx
             obj.trackCurrResUpdate();
             obj.newLabelerFrame();
@@ -642,25 +660,26 @@ classdef DeepTracker < LabelTracker
       m = containers.Map('keytype','int32','valuetype','any');
       obj.movIdx2trkfile = m;
     end
-    function trackResNewTrkfile(obj,mIdx,trkfiles)
-      % Remember/set a set of [nview] trkfiles associated with mIdx
+    function trackResAddTrkfile(obj,mIdx,trkfiles)
+      % Remember/add a set of [nview] trkfiles associated with mIdx
       
-      m = obj.movIdx2trkfile;
       assert(isscalar(mIdx));
       assert(iscellstr(trkfiles));
-      
+            
+      [v,id] = obj.trackResGetTrkfiles(mIdx);      
+      v(end+1,:) = trkfiles(:)';
+      obj.movIdx2trkfile(id) = v;
+    end
+    function [trkfiles,id] = trackResGetTrkfiles(obj,mIdx)
+      % trkfiles: [ntrkfilesxnview] fullpath trkfiles for given scalar
+      % MovieIndex
+      m = obj.movIdx2trkfile;
       id = mIdx.id32();
-      m(id) = trkfiles(:)';
-      
-      % TODO: merging multiple trkfiles
-      
-%       if m.isKey(id)
-%         v = m(id);
-%       else
-%         v = cell(1,obj.lObj.nview);
-%       end
-%       v{iview} = trkfile;
-%       m(id) = v; %#ok<NASGU>
+      if m.isKey(id)
+        trkfiles = m(id);
+      else
+        trkfiles = cell(0,obj.lObj.nview);
+      end      
     end
     function tpos = getTrackingResultsCurrMovie(obj)
       tpos = obj.trkP;
@@ -670,43 +689,63 @@ classdef DeepTracker < LabelTracker
       %
       % mIdx: [nMov] vector of MovieIndices
       %
-      % trkfiles: [nMovxnView] vector of TrkFile objects
+      % trkfiles: [nMovxnView] cell of TrkFile objects, or [] if tfHasRes(...) is false
       % tfHasRes: [nMov] logical. If true, corresponding movie(set) has 
       % tracking nontrivial (nonempty) tracking results
       %
       % DeepTracker uses the filesys as the tracking result DB. This loads 
       % from known/expected trkfiles.
-      
+            
       assert(isa(mIdx,'MovieIndex'));
       nMov = numel(mIdx);
-      m = obj.movIdx2trkfile;
       nView = obj.nview;
-      for i = nMov:-1:1
-        id = mIdx(i).id32;
-        if m.isKey(id)
-          v = m(id);
-        else
-          v = cell(1,nView);
-        end
-        for ivw=nView:-1:1
-          tfilefull = v{ivw};
-          if ~isempty(tfilefull)
-            try
-              trkfiles(i,ivw) = load(tfilefull,'-mat'); % TrkFile.load erroring, poseTF trkfiles contain extra stuff
-              tfHasRes(i,ivw) = true;
-            catch ME
-              warningNoTrace('Failed to load trkfile: ''%s''. Error: %s',...
-                tfilefull,ME.message);
-              trkfiles(i,ivw) = TrkFile;
-              tfHasRes(i,ivw) = false;
+      trkfiles = cell(nMov,nView);
+      tfHasRes = false(nMov,1);
+      for i=1:nMov
+        trkfilesI = obj.trackResGetTrkfiles(mIdx(i));
+        ntrk = size(trkfilesI,1);
+        
+        if ntrk==0
+          % trkfiles, tfHasRes initted appropriately
+          continue;
+        end          
+        if ntrk>1
+          warningNoTrace('Merging tracking results from %d poseTF trkfiles.\n',ntrk);
+        end        
+        for ivw=1:nView
+          [trkfilesIobj,tfsuccload] = cellfun(@DeepTracker.hlpLoadTrk,...
+            trkfilesI(:,ivw),'uni',0);
+          tfsuccload = cell2mat(tfsuccload);
+          trkfilesIobj = trkfilesIobj(tfsuccload);
+          if isempty(trkfilesIobj)
+            % if all loads failed
+            % none; trkfiles, tfHasRes OK
+          else
+            tObj = trkfilesIobj{1};
+            for iTmp=2:numel(trkfilesIobj)
+              tObj.mergePartial(trkfilesIobj{iTmp});
             end
-          else          
-            trkfiles(i,ivw) = TrkFile;
-            tfHasRes(i,ivw) = false;
+            trkfiles{i,ivw} = tObj;
+            tfHasRes(i) = true;
           end
         end
       end
     end
+  end
+  methods (Static)
+    function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile)
+      try
+        trkfileObj = TrkFile.loadsilent(tfile);
+        tfsuccload = true;
+      catch ME
+        warningNoTrace('Failed to load trkfile: ''%s''. Error: %s',...
+          tfile,ME.message);
+        trkfileObj = [];
+        tfsuccload  = false;
+      end
+    end
+  end
+  methods
     function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj) % obj const
       % Get all current tracking results in a table
       %
@@ -729,12 +768,12 @@ classdef DeepTracker < LabelTracker
       for i=1:numel(mIdxs)
         if tfhasres(i)
           if isequal(pTrkiPt,-1)
-            pTrkiPt = trk(i).pTrkiPt;
+            pTrkiPt = trk{i}.pTrkiPt;
           end
-          if ~isequal(pTrkiPt,trk(i).pTrkiPt)
+          if ~isequal(pTrkiPt,trk{i}.pTrkiPt)
             error('Trkfiles differ in tracked points .pTrkiPt.');
           end
-          tbl = trk(i).tableform;
+          tbl = trk{i}.tableform;
           tblTrkRes = [tblTrkRes;tbl]; %#ok<AGROW>
         end         
       end
@@ -769,7 +808,7 @@ classdef DeepTracker < LabelTracker
       notify(obj,'newTrackingResults');
     end
     function trackCurrResLoadFromTrks(obj,trks)
-      % trks: [nview] struct, TrkFile contents
+      % trks: [nview] cell of TrkFile objs
       
       assert(numel(trks)==obj.nview);
       
@@ -778,14 +817,8 @@ classdef DeepTracker < LabelTracker
       pTrk = nan(obj.nPts,2,lObj.nframes,lObj.nTargets);
       pTrkTS = nan(obj.nPts,lObj.nframes,lObj.nTargets);      
       for iview=1:obj.nview
-        t = trks(iview);
-        if isfield(t,'pTrkFrm')
-          frms = t.pTrkFrm;
-        else
-          frms = 1:size(t.pTrk,3);
-          warningNoTrace('.pTrkFrm not present in trkfile, assuming leading frames.');
-        end
-        
+        t = trks{iview};
+        frms = t.pTrkFrm;        
         ipts = ipt2view==iview;
         pTrk(ipts,:,frms,:) = t.pTrk;
         pTrkTS(ipts,frms,:) = t.pTrkTS;

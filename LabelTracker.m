@@ -176,24 +176,12 @@ classdef LabelTracker < handle
       %
       % iMovsSgned: [nMov] vector of movie(set) indices, negative for GT
       %
-      % trkfiles: [nMovxnView] vector of TrkFile objects
+      % trkfiles: [nMovxnView] cell of TrkFile objects
       % tfHasRes: [nMov] logical. If true, corresponding movie(set) has 
       % tracking nontrivial (nonempty) tracking results
       
-      validateattributes(iMovsSgned,{'numeric'},{'vector' 'integer'});
-      
-      assert(~obj.lObj.isMultiView,'Multiview unsupported.');
-      
-      nMov = numel(iMovsSgned);
-      for i = nMov:-1:1
-        iMovS = iMovsSgned(i);
-        iMov = abs(iMovS);
-        tfGT = iMovS<0;
-        lpos = obj.lObj.getlabeledposGTawareArg(tfGT);
-        trkpos = nan(size(lpos{iMov}));
-        trkfiles(i) = TrkFile(trkpos);
-        tfHasRes(i) = false;
-      end
+      trkfiles = [];
+      tfHasRes = [];
     end
     
     function tblTrk = getAllTrackResTable(obj)
