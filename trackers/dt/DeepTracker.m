@@ -182,6 +182,9 @@ classdef DeepTracker < LabelTracker
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
       end
+      if obj.bgTrkIsRunning
+        error('Tracking is in progress.');
+      end
       if isempty(obj.sPrm)
         error('No tracking parameters have been set.');
       end

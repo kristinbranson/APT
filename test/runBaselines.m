@@ -79,7 +79,8 @@ if dotest
     disp(prctile(errMVnorm,PTILES));    
     
     % check resSingVw
-    errSV = lclErr(resSingVw{ivw}.pTrk,pTrkMu); % [npt x ntrkfrm]
+    assert(isscalar(resSingVw{ivw}));
+    errSV = lclErr(resSingVw{ivw}{1}.pTrk,pTrkMu); % [npt x ntrkfrm]
     errSVnorm = errSV./pTrkRptMeanMuErr;
     errSV = errSV';
     errSVnorm = errSVnorm';
