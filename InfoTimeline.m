@@ -623,15 +623,9 @@ classdef InfoTimeline < handle
             lpostag = labeler.labeledpostagGTaware{iMov};            
             data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
           case 'Labels2'            
-            if labeler.gtIsGTMode
-              warningNoTrace('InfoTimeline:gt',...
-                '''Labels2'' unavailable in GT mode.');
-              data = nan(obj.npts,labeler.nframes);
-            else
-              lpos = labeler.labeledpos2{iMov};
-              lpostag = cell(obj.npts,labeler.nframes,labeler.nTargets);
-              data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
-            end
+            lpos = labeler.labeledpos2GTaware{iMov};
+            lpostag = cell(obj.npts,labeler.nframes,labeler.nTargets);
+            data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);            
           case 'Tracks'
             data = obj.tracker.getPropValues(pcode);
         end

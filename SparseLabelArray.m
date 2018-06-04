@@ -25,6 +25,19 @@ classdef SparseLabelArray
       s.idx = i;
       s.val = v;
     end
+    function s = createEmpty(sz,ty)
+      switch ty
+        case {'nan' 'ts' 'log'}
+          % none
+        otherwise
+          assert(false,'Unrecognized type.');
+      end      
+      s = struct();
+      s.size = sz;
+      s.type = ty;
+      s.idx = zeros(0,1);
+      s.val = zeros(0,1);
+    end
     function x = full(s)
       assert(isstruct(s));
       switch s.type
