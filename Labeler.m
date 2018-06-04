@@ -1969,8 +1969,17 @@ classdef Labeler < handle
       
       % 20180604
       if ~isfield(s,'labeledpos2GT')
-        s.labeledpos2GT = cellfun(@(x)SparseLabelArray.createEmpty(...
-          x.size,x.type),s.labeledposGT,'uni',0);
+        s.labeledpos2GT = cell(size(s.labeledposGT));
+        for i=1:numel(s.labeledposGT)
+          lposGTval = s.labeledposGT{i};
+          if isstruct(lposGTval)
+            s.labeledpos2GT{i} = SparseLabelArray.createEmpty(...
+              lposGTval.size,lposGTval.type);
+          else
+            s.labeledpos2GT{i} = SparseLabelArray.createEmpty(...
+              size(lposGTval),'nan');
+          end
+        end
       end
     end
     
