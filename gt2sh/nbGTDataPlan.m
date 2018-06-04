@@ -637,3 +637,71 @@ tf2018Trk = strncmp(trkdate,'2018',4);
 %%
 tMain20180503.movFile_20180529_windows = mov;
 save trnData20180503.mat -append tMain20180503
+
+%% for each fly with 2018 tracking data, select a single lbl file to 
+% run thru APT2RT to generate median/neutral head posn.
+% SH: If you are just trying to get a good 'median head reference point' 
+% use the lowest intensity available.  If it is a choice between _wind and 
+% _NOwind use "NOwind"
+
+t = tMain20180503;
+fliesTrk2018 = unique(t.flyID(tf2018Trk));
+nfliesTrk2018 = numel(fliesTrk2018);
+
+APTPROJFILESDIR = 'Z:\flp-chrimson_experiments\APT_projectFiles\';
+dd = dir(fullfile(APTPROJFILESDIR,'*.lbl'));
+aptlbls = {dd.name}';
+
+fliesTrk2018Lbls = cell(nfliesTrk2018,1);
+for ifly=1:nfliesTrk2018
+  f = fliesTrk2018(ifly);
+  flystr = sprintf('fly%d',f);
+  flypat = sprintf('%s*.lbl',flystr);
+  dd = dir(fullfile(APTPROJFILESDIR,flypat));
+  
+  lblnames = {dd.name}';
+  tfNW = contains(lblnames,'NOwind');
+  if any(tfNW)
+    iLblChoose = find(tfNW);
+    assert(isscalar(iLblChoose));
+  else
+    iLblChoose = 1;
+  end
+  fliesTrk2018Lbls{ifly} = fullfile(APTPROJFILESDIR,lblnames{iLblChoose});
+  
+  fprintf('Fly %d:\n',f);
+  for iLbl=1:numel(dd)    
+    if iLbl==iLblChoose      
+      fprintf(' ... (*) %s (updated %s)\n',dd(iLbl).name,datestr(dd(iLbl).datenum,'yyyymmdd'));
+    else
+      fprintf(' ... %s (updated %s)\n',dd(iLbl).name,datestr(dd(iLbl).datenum,'yyyymmdd'));
+    end
+  end
+end
+
+%%
+tFliesTrk2018 = table(fliesTrk2018,fliesTrk2018Lbls,'VariableNames',...
+  {'fly' 'lbl'});
+save cprXVerrVsHeadPosn20180529.mat tFliesTrk2018;
+
+%%
+FLY2DLT = 'Y:\apt\experiments\data\fly2DLT_lookupTableAL.csv';
+tFly2DLT = readtable(FLY2DLT);
+tFly2DLT.calibfile = regexprep(tFly2DLT.calibfile,'//groups/huston','/groups/huston');
+
+tFly2DLT2 = tFly2DLT;
+tFly2DLT2.calibfile = regexprep(tFly2DLT.calibfile,'/groups/huston/hustonlab/','Z:/');
+exst = cellfun(@(x)exist(x,'file'),tFly2DLT2.calibfile);
+all(exst==2)
+
+FLY2DLTNEW = 'Y:\apt\experiments\data\fly2DLT_lookupTableAL_win.csv';
+writetable(tFly2DLT2,FLY2DLTNEW);
+%%
+for i=1:nfliesTrk2018
+  [axAngDegXYZ,trans,residErr,scaleErr,quat,pivot,refHead] = APT2RT(...
+    tFliesTrk2018.lbl{i},... 
+    'f:\repo\apt4\user\flynum2bodyAxis.csv',...
+    'Y:\apt\experiments\data\fly2DLT_lookupTableAL_win.csv',1)
+
+
+  
