@@ -110,11 +110,7 @@ end
 function frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,tfLbls2)
 npts = lObj.nLabelPoints;
 if tfLbls2
-  [iMov,gt] = mIdx.get();
-  if gt
-    error('Invalid MovieIndex for labels2 specification.');
-  end
-  lpos = lObj.labeledpos2{iMov};
+  lpos = lObj.getLabeledPos2MovIdx(mIdx);
 else
   lpos = lObj.getLabeledPosMovIdx(mIdx); % [nptsx2xnfrmxntgt]
 end

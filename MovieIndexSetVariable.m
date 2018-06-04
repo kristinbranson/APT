@@ -22,7 +22,7 @@ classdef MovieIndexSetVariable < MovieIndexSet
   end
   
   properties (Constant) % canned/enumerated vals
-    AllMov = MovieIndexSetVariable('All movies',@lclAllMoviesGetMovieIndexHook); % "All regular movies"
+    AllMov = MovieIndexSetVariable('All movies',@lclAllMoviesGetMovieIndexHook); % "movies per current GT mode"
     CurrMov = MovieIndexSetVariable('Current movie',@lclCurrMovieGetMovieIndexHook);
     SelMov = MovieIndexSetVariable('Selected movies',@lclSelMovieGetMovieIndexHook);
     AllGTMov = MovieIndexSetVariable('All GT movies',@lclAllGTMoviesGetMovieIndexHook);
@@ -34,11 +34,12 @@ nmov = lObj.nmoviesGTaware;
 mIdx = MovieIndex(1:nmov,lObj.gtIsGTMode);
 end
 function mIdx = lclCurrMovieGetMovieIndexHook(lObj)
-assert(~lObj.gtIsGTMode);
-mIdx = MovieIndex(lObj.currMovie);
+mIdx = lObj.currMovIdx;
 end
 function mIdx = lclSelMovieGetMovieIndexHook(lObj)
-assert(~lObj.gtIsGTMode);
+if lObj.gtIsGTMode
+  error('Unsupported in GT mode.');
+end
 mIdx = MovieIndex(lObj.moviesSelected);
 end
 function mIdx = lclAllGTMoviesGetMovieIndexHook(lObj)

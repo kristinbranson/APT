@@ -147,6 +147,11 @@ classdef APT
 
 %       javaaddpath(jp);
     end
+  
+    function tf = pathNotConfigured()
+      tf = exist('moveMenuItemAfter','file')==0 || ...
+        exist('ReadYaml','file')==0;
+    end
     
     function s = codesnapshot
       % This method assumes that the user has set their path using
