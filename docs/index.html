@@ -41,6 +41,11 @@ This program is free software: you can redistribute it and/or modify it under th
 <li><a href="#Install">Install</a></li>
 <li><a href="#Startup">Start-up</a></li>
 <li><a href="#Setting up a new project">Setting up a new project</a></li>
+<li><a href="#Opening an existing project">Opening an existing project</a></li>
+<li><a href="#Navigating in APT">Navigating in APT</a></li>
+
+<li><a href="#Labeling points">Labeling points</a></li>
+
 
 </ul>
 
@@ -99,7 +104,7 @@ File -> New Project, enter a project name. Track -> Configure tracking parameter
 
 <hr class="h2-divider">
 
-<h2><a id="Opening an old project"> Opening an old project </a></h2>
+<h2><a id="Opening an existing project"> Opening an existing project </a></h2>
 
 File -> Load Project, select the .lbl file to load. If the locations of the movies in the project has changed since you last opened the project it will prompt for their new locations.  
 
@@ -151,6 +156,21 @@ Once you have a reasonable number of frames labeled you are ready to train a cla
 To remove frames (useful for making a subset, or if you change your mind about how something will be labeled), you can just click the “Clear” button on that frame (next to the Accepted button), and those points will go back to unassigned.
 
 <p>To just look at labeled frames, holding the shift button while using the right and left arrow keys will move through only the labeled frames, skipping the unlabeled ones. </p>
+
+
+
+<hr class="h2-divider">
+
+<h2><a id="Training"> Training </a></h2>
+
+<ol>
+<li>Set the tracking parameters:
+Track->Configure tracking parameters</li>
+</ol>
+
+
+What displays will depend on what type of tracking you are using.  Clicking on each option will produce a description of that option at the bottom of the page. Note that many of the default options are selections from dropdown menus, click the current option to see the other options. <a href="tracking_parameters.html"> Detailed tracking parameters. </a>
+<p>Once you have set the parameters to what you would like, hit the Apply button.</p>
 
 
 
