@@ -22,14 +22,84 @@ strong.regular-font {
 </head>
 
 <body>
-<h1>APT User Guide</h1>
+<h1><a href="index.html">APT</a> User Guide</h1>
 
 APT:  Predicts the location of body parts based on part labels from a set of video frames. 
  
 <p> APT takes video files as inputs (with optional tracking files), and the user interactively trains a body part classifier by labeling a user-specified number of body part locations. </p>
 
-
-
 APT is being developed by Kristin Branson, Mayank Kabra, Allen Lee, Alice Robie, and Felipe Rodriguez.  All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus. 
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License (version 3 pasted at the end) for more details.
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License (version 3 pasted at the end) for more details.
+
+<hr class="h2-divider">
+
+<h2>Contents</h2>
+
+<ul>
+<li><a href="#Download">Download</a></li>
+<li><a href="#Install">Install</a></li>
+<li><a href="#Startup">Start-up</a></li>
+</ul>
+
+<hr class="h2-divider">
+
+<h2><a id="Download">Download</a></h2>
+
+<p>
+The git repository for APT is hosted on <a href="https://github.com/kristinbranson/APT">github</a>. 
+</p>
+<p>
+Compiled binaries and source code releases are available <a href="https://github.com/kristinbranson/APT/releases">here</a>.
+</p>
+
+APT also requires the following:
+JAABA, available <a href="https://github.com/kristinbranson/JAABA"> here </a>, and Piotr Dollar's toolbox, available <a href="https://github.com/pdollar/toolbox"> here </a>
+<br>
+If you are working with multi-camera data, you may need calibration software for your rig, e.g <a href="https://www.vision.caltech.edu/bouguetj/calib_doc/"> Caltech camera calibration toolbox </a>
+<br>
+
+<hr class="h2-divider">
+
+<h2><a id="Install">Install</a></h2>
+
+In the APT directory, copy Manifest.sample.txt  to Manifest.txt and edit to point to your copy of JAABA and Piotr's toolbox (specify the root directory, which contains the subfolders filehandling/ and misc/, 
+e.g. jaaba, c:\pgms\jaaba
+	piotr, c:\pgms\pdollar_toolbox).
+ 
+NOTE: In Manifest.sample.txt there is also a path to camera/calibration/toolbox, if you are not using multi-camera it is OK to not include this line.
+
+
+
+<hr class="h2-divider">
+
+<h2><a id="Startup">Start-up</a></h2>
+
+APT is a MATLAB-based program. To run it:
+<ol>
+<li> Start MATLAB. </li>
+<li> Within MATLAB, change into the directory containing the APT code:
+<pre>>> cd APT;</pre>
+</li>
+<li> Run <b>StartAPT</b> on the command line to start APT:
+<pre>>> StartAPT;</pre>
+</li>
+</ol>
+
+
+
+<hr class="h2-divider">
+
+<hr class="h2-divider">
+
+
+
+
+<footer>
+<hr class="h1-divider">
+<center>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated June 5, 2018</i>
+</center>
+</footer>
+
+</body>
