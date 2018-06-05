@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APT User Guide</title>
+<link rel="stylesheet" type="text/css" charset="utf-8" media="all" 
+href="styles/common.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="screen" 
+href="styles/screen.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="print" 
+href="styles/print.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" 
+media="projection" href="styles/projection.css">
+
+<style type="text/css">
+strong.regular-font {
+  font-family: Arial, Lucida Grande, sans-serif;
+  font-style: italic;
+  font-size: 0.9em;
+}
+</style>
+
+</head>
+
+<body>
+<h1><a href="index.html">APT</a> User Guide - Tracking Parameters</h1>
+
+<h2>Tracking parameters input menu:</h2>
+
+<ul>
+<li>Type:         cpr</li>
+
+<li>Histogram Equalization</li>
+<ul>
+    <li>Enable [ ]        default=unchecked </li>
+    <li>Num frames sample    default=1000</li></ul>
+<li>Multiple Targets</li>
+<ul>
+    <li>Target ROI</li>
+        <li>Radius (pixels)        default=300 
+            Crop a square with this radius (in pixels) around each target for training/tracking</li>
+    <li>Pad background        default=0
+            Pad ROIs with this background value (grayscale) if necessary.</li></ul>
+
+<li>Mask Neighbors</li>
+<ul>
+<li>Enable        [ ]         default= unchecked</li>   
+<li>Background Type            default = dark on light (light on dark, other)</li>
+<li>Background Read Function        default = empty</li>
+<li>Foreground Threshold        default = 4</li>
+
+<li>Decimation Small            default = 5</li>
+<li>Decimation Large            default = 10</li>
+<li>Neighborhood Radius        default = 100</li>
+<li>Chunk Size                default = 3,000</li></ul>
+
+<li>CPR</li>
+<ul>
+<li>Num iterations        default = 50</li>
+    Number of major iterations in regressor cascade.
+<li>Num boosted regressors    default = 50
+    Number of minor iterations per major iteration</li></ul>
+
+<li>Ferns</li>
+<ul>
+    <li>Depth            default = 5</li>
+<li>Threshold</li>
+    <li>Lo            default = -0.2</li>
+    <li>Hi            default = 0.2</li></ul>
+
+<li>Regularization Factor    default = 0.01</li>
+
+<li>Feature</li>
+<ul>
+    <li>Type                default = 2lm, (1lm, two landmark elliptical, 2lmdiff)</li>
+    <li>Meta feature            default = diff, (single)</li>
+    <li>Pool size            default = 800</li>
+    <li>Radius                default = 2</li>
+    <li>Major/minor ratio        default = 2</li>
+    <li>Num samples std        default = 1.000</li>
+    <li>Num samples correlation    default = 10.000</li></ul>
+
+<li>Rotational Invariance</li>
+<ul>
+    <li>Orientation            default = arbitrary, (fixed, arbitrary, arbitray trx - specified)</li>
+        fixed: 
+        arbitrary: animal orientation can be anything
+        arbitrary trx-specified: animal orientation can be anything and is specified in trx.theta </li>
+    <li>Head landmark                    default = 1</li>
+    <li>Tail landmark                    default = 2</li></ul>
+
+<li>Replicates</li>
+<ul>
+    <li>Num training replicates                default = 60 </li>
+    <li>Num tracking replicates                default = 60 </li>
+    <li>Jitter initial shapes     [ ]             default = checked</li>
+    <li>Initial shape jitter/randomization factor        default = 16</li>
+    <li>Jitter initial shape locations  [ ]            default = checked</li>
+    <li>Initial shape location                default = 16</li>
+    <li>Maximize spread of initial conditions    [ ]    default = unchecked</li></ul>
+
+<li>Prune</li>
+<ul>
+    <li>Method            default = maxdensity (median, maxdensity global, smoothed trajectory)
+Method of reducing CPR replicates to final tracking result</li>
+    <li>Density length scale    default = 5
+Length scale (in pixels) for Gaussian kernel used during pruning.  Used for ‘maxdensity’, ‘maxdensity global’, and ‘smoothed trajectory’ methods.  Larger values include more distant shapes when computing a given shape’s likelihood.</li>  
+    <li>Trajectory smoothing weight factor    default = 1
+Scale factor applied to empirically-estimated ratio balancing trajectory smoothness against replicate density.  Larger values upweight smoother trajectories.  Used only for ‘smoothed trajectory’ method.</li></ul>
+    
+
+
+<footer>
+<hr class="h1-divider">
+<center>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated June 5, 2018</i>
+</center>
+</footer>
+
+</body>
