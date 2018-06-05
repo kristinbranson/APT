@@ -40,6 +40,8 @@ This program is free software: you can redistribute it and/or modify it under th
 <li><a href="#Download">Download</a></li>
 <li><a href="#Install">Install</a></li>
 <li><a href="#Startup">Start-up</a></li>
+<li><a href="#Setting up a new project">Setting up a new project</a></li>
+
 </ul>
 
 <hr class="h2-divider">
@@ -81,17 +83,74 @@ APT is a MATLAB-based program. To run it:
 <li> Within MATLAB, change into the directory containing the APT code:
 <pre>>> cd APT;</pre>
 </li>
+
+<li> Run APT.setpath: </li>
+<pre>>> APT.setpath; </pre>
+
 <li> Run <b>StartAPT</b> on the command line to start APT:
 <pre>>> StartAPT;</pre>
 </li>
 </ol>
 
+<hr class="h2-divider">
+
+<h2><a id="Setting up a new project"> Setting up a new project </a></h2>
+File -> New Project, enter a project name. Track -> Configure tracking parameters.  This pops up a window with parameters to set. If you click on a parameter, a description of the parameter shows up at the bottom of the window. Click Apply. Go to File -> Manage movies and select the movie that you would like to work with. You will be prompted for a trx file. Select a trx file, or, if none, press “cancel”. Close or minimize the Movie window. Go to File -> Save as and save your project. This will save a .lbl file with your project in it.
+
+<hr class="h2-divider">
+
+<h2><a id="Opening an old project"> Opening an old project </a></h2>
+
+File -> Load Project, select the .lbl file to load. If the locations of the movies in the project has changed since you last opened the project it will prompt for their new locations.  
+
+<hr class="h2-divider">
+
+<h2><a id="Navigating in APT"> Navigating in APT </a></h2>
+
+a/d, -/=, or the left and right arrow keys all move one frame left/right respectively. Using these keys while holding down the ctrl button uses 10 frames steps. You can also navigate using the mouse and the navigation bar under the image.  Clicking on the bar to the left or right of the slider jumps by 100 frames.  Single clicks on the arrows at the ends of the navigation bar moves by a single frame.  Holding the end arrows down steps through the movie a frame at a time. To look at only labeled frames, hold the shift button while using the right and left arrow keys.
+<br>
+<br>
+Useful view options for multi-target projects with tracking and orientation:<br>
+View -> Center on target  - keeps current target in the center<br>
+View -> Rotate video so target is always pointing up<br>
+View -> Zoom out/full images or unzoom button - view full image
+Use slider bar above ‘unzoom’ to adjust zoom not the magnifier +/- <br>
+Zoom slider bar - adjust zoom then ‘set’, ‘recall’ will change back to ‘set’ value after changing movies. 
 
 
 <hr class="h2-divider">
 
-<hr class="h2-divider">
+<h2><a id="Labeling points"> Labeling points </a></h2>
 
+Labeling modes:
+There are different labeling modes, which you can switch between under Setup->. 
+
+<ol>
+<li>Sequential mode:
+Allows you to just click your points in order, and then accept when you’re done. 
+You can edit placement after you finish clicking sequence by:
+<ul>
+<li>Clicking and dragging a point</li>
+<li>Activating a point with a number key that corresponds to the label number and then clicking the correct location for the label. Activated points change from ‘+’ to ‘x’ (Numbers above 10 are accessed by `(back quote) + number key).</li>
+<li>Activating a point with the number keys and moving with arrow keys. </li> 
+Currently the only way to ‘un-activate’ label is to move the label to new location or accept labels.
+</ul>
+</li>
+
+<li>Template mode:
+Each frame will have unassigned label points in random locations on the image (white pluses with colored numbers next to them).  To label the frame, move the pluses to where they should belong on the target (mouse/fly).  You can drag and drop a point with the mouse or you can select (or unselect) a point with its associated number key (1-9).  When a point is selected it changes from a plus to an x.  A selected point can be moved using the arrow keys (helpful for fine-tuning positions).  Shift plus the arrow keys moves the selected point in larger jumps.  When a point is selected, a mouse click anywhere on the image will move the selected point to that location.
+</li>
+</ol>
+
+Once you are happy with the positions of the points, click the accept button, or press the “s” key or the space bar to save the labels for the current frame.  
+<br> <br>
+<b>Make sure to press the accept button at each frame once you are done or your changes will not be recorded.</b>
+<p>
+Once you have a reasonable number of frames labeled you are ready to train a classifier.</p>
+
+To remove frames (useful for making a subset, or if you change your mind about how something will be labeled), you can just click the “Clear” button on that frame (next to the Accepted button), and those points will go back to unassigned.
+
+<p>To just look at labeled frames, holding the shift button while using the right and left arrow keys will move through only the labeled frames, skipping the unlabeled ones. </p>
 
 
 
