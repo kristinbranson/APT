@@ -5670,7 +5670,7 @@ classdef Labeler < handle
         error('Specified table is not a valid Movie-Frame-Target table.');
       end
       
-      if ~isa(tblMFT,'MovieIndex')
+      if ~isa(tblMFT.mov,'MovieIndex')
         warningNoTrace('Table .mov is numeric. Assuming positive indices into GT movie list (.movieFilesAllGT).');
         tblMFT.mov = MovieIndex(tblMFT.mov,true);
       end
