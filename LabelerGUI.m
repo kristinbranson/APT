@@ -727,6 +727,11 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
   return;
 end
 
+if lObj.gtIsGTMode && strcmp(evt.Key,{'r'})
+  lObj.gtNextUnlabeledUI();
+  return;
+end
+
 % timeline?
       
 function cbkWBMF(src,evt,lObj)
