@@ -5783,7 +5783,11 @@ classdef Labeler < handle
       assert(isempty(idx) || isscalar(idx));
       tf = ~isempty(idx);
     end
-    function tblGTres = gtComputeGTPerformance(obj)
+    function tblGTres = gtComputeGTPerformance(obj,varargin)
+      useLabels2 = myparse(varargin,...
+        'useLabels2',false ... % if true, use labels2 "imported preds" instead of tracking
+        );
+      
       tblMFTSugg = obj.gtSuggMFTable;
       mfts = MFTSet(MovieIndexSetVariable.AllGTMov,...
         FrameSetVariable.LabeledFrm,FrameDecimationFixed(1),...
@@ -5804,16 +5808,38 @@ classdef Labeler < handle
         warningNoTrace('Labeler:gt',...
           '%d labeled GT frames were not in list of suggestions. These labels will NOT be used in assessing GT performance.',...
           nTotGTLbled-nSuggLbled);
-      end 
+      end
       
       % Labeled GT table, in order of tblMFTSugg
       tblMFT_SuggAndLbled = tblMFTLbld(loc(tf),:);
         
-      tObj = obj.tracker;
-      tObj.track(tblMFT_SuggAndLbled);
-            
-      % get results and compute GT perf
-      tblTrkRes = tObj.getAllTrackResTable();
+      if useLabels2
+        if ~obj.gtIsGTMode
+          error('Project is not in Ground-Truthing mode.');
+          % Only b/c in the next .labelGet* call we want GT mode. 
+          % Questionable
+        end
+        
+        wbObj = WaitBarWithCancel('Compiling Imported Predictions');
+        oc = onCleanup(@()delete(wbObj));
+        tblTrkRes = obj.labelGetMFTableLabeled('wbObj',wbObj,...
+          'useLabels2',true); % in GT mode, so this compiles labels2GT
+        tblTrkRes.pTrk = tblTrkRes.p; % .p is imported positions => imported tracking
+        tblTrkRes(:,'p') = [];
+      else
+        tObj = obj.tracker;
+        tObj.track(tblMFT_SuggAndLbled);
+        tblTrkRes = tObj.getAllTrackResTable();
+      end
+
+      tblGTres = obj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,tblTrkRes);
+    end
+    function tblGTres = gtComputeGTPerformanceTable(obj,tblMFT_SuggAndLbled,...
+        tblTrkRes)
+      % tblMFT_SuggAndLbled: MFTable, no .p or .pLbl field. will be added
+      %   with .labelAddLabelsMFTable.
+      % tblTrkRes: MFTable with field .pTrk
+      
       [tf,loc] = tblismember(tblMFT_SuggAndLbled,tblTrkRes,MFTable.FLDSID);
       assert(all(tf));
       tblTrkRes = tblTrkRes(loc,:);
