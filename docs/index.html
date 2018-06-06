@@ -48,6 +48,15 @@ APT:  Predicts the location of body parts based on part labels from a set of vid
 <li><a href="#Setting the tracking parameters">Setting the tracking parameters</a></li>
 <li><a href="#Training">Training</a></li>
 <li><a href="#Tracking">Tracking</a></li>
+<li><a href="#Exporting tracking results">Exporting tracking results</a></li>
+<li><a href="#Exporting manual labels">Exporting manual labels</a></li>
+<li><a href="#Cross validation">Cross validation</a></li>
+<li><a href="#Ground-Truthing mode">Ground-Truthing mode</a></li>
+
+
+
+<li><a href="appendices.html">Appendices</a></li>
+
 
 
 
@@ -295,14 +304,82 @@ Click Track. You can change what frames you want it to track with the drop down 
 <li>Current movie, all targets, selected frames, every 10 frames</li>
 <li>Current movie, all targets, within 100 frames of current frame</li>
 <li>Current movie, all targets, within 100 frames of current frame, every 10 frames</li>
-
-
-
 </ul>
 
+<hr class="h2-divider">
+
+<h2><a id="Exporting tracking results"> Exporting tracking results  </a></h2>
+
+Track->Export current tracking results->Current movie only 
+will export the predicted tracks for the current movie to a trk file.
+
+Track->Export current tracking results-> All movies
+will export the predicted tracks for all the movies to trk files
+
+<p><a href="appendices.html#Trk file contents">Contents of a trk file</a></p>
+
+<hr class="h2-divider">
+
+<h2><a id="Exporting manual labels"> Exporting manual labels  </a></h2>
+
+<p>Exporting manual labels to a .trk file:</p>
+Select File -> Import/Export -> Export Labels to Trk Files
+The first time you do this it will save to the same directory as your movie files, with a filename of [movie file name]_[labeler project name]_labels.trk.  If you go to export again, it will prompt for overwriting, adding datetime or canceling the export.  Note that the _labels part of the filename distinguishes between a trk file of manual labels and a trk file of automatically generated labels.
+
+<hr class="h2-divider">
+
+<h2><a id="Evaluating performance"> Evaluating performance  </a></h2>
+
+There are two ways to evaluate performance in APT: Cross Validation and Ground-Truthing Mode. Both of these options are found under the “Evaluate” tab in the main menu bar.
+
+<h3><a id="Cross validation"> Cross validation  </a></h3>
+
+APT uses k-fold cross validation, in which you train on (k-1)/k of the labels, and test on the held out 1/k labels for a partitioning of the labels into k sets. 
+
+To start Evaluate > Cross validation
+
+THis will pop up a window that prompts for number of k-folds.
+
+When cross validation is done running it will pop up a window with two buttons, "Export Results to Workspace" and "View Results in APT"
+<br>
+
+Pressing “Export Results to Workspace” will pop up a window that says “Wrote variable aptXVresults in base workspace”, you can then manually save that variable.  Note that to load that variable in later to evaluate it you need to run APT.setpath to set the MovieIndex class.
 
 
+<p>Structure of the aptXVresults variable:
+it is a [number of labeled targets] x 9 cell array, with the following columns:</p>
+<ol>
+<li> fold is the cross-validation set/fold index.</li>
+<li> mov is the movie index (into .movieFilesAll). </li>
+<li> frm is the frame. </li>
+<li> iTgt is the target index (index into .trx). </li>
+<li> tfocc is a [1xnpt] logical, true if pt is occluded. </li>
+<li> p is the GT/labeled position vector -- all x coords, then all y coords, so should be [1x2*npts]. </li>
+<li> roi is a [1x4] [xlo xhi ylo yhi] for the cropping region when there are trx. xhi-xlo and yhi-ylo are set by Track->Configure tracking parameters->Multiple Targets -> Target crop radius </li>
+<li> pTrk is like p, but it is the CPR-tracked position vector. </li>
+<li> dGTTrk I think is [1xnpts], euclidean distance from p to pTrk for each pt.</li>
+</ol>
+[This is saved into the .lbl file now, and there is also a command to delete it]
 
+<h3><a id="Ground-Truthing mode"> Ground-Truthing mode </a></h3>
+
+Ground-Truthing mode enables you to assess the performance of your tracker on an unbiased set of APT-generated test frames.
+
+<p>Create a project, add movies, label frames, and train a tracker iteratively as you normally would in APT.</p>
+
+<p>Select Evaluate>Ground-Truthing Mode. An orange "GT Mode" indicator should appear in the main UI, and the Manage Movies window should appear.</p>
+
+<p>Manage Movies is now tabbed, with the "GT Movie List" tab selected. The project now contains two sets of movies: i) "regular" movies used for training and parameter refinement, and ii) "GT" movies for testing tracker performance.
+Add test movies to the GT movie list. If possible, it is best to use movies that are not also in the regular movie list, ie that the project has never seen before.
+When the movie list is complete, press the "GT Frames" button to bring up the Ground-Truthing window. The project can be saved at any time during this process. (If you close GT window it can be re-opened from movie manager GUI). </p>
+
+<p>In the Ground-Truthing window, press the Suggest button to generate a new/fresh list of frames to label. At the moment, frames are sampled randomly from the available GT movies, with all frames equally weighted. Other options are available at the command-line (see below).
+Click on a row in the table to navigate to a frame, or use the "Next Unlabeled" button. The APT main axes should become highlighted, indicating that the current frame/target is a GT frame. Label this frame. These labels will be used as GT labels against which the tracker will be compared.</p>
+
+<p>When all GT frames are labeled, press "Compute GT Performance". APT will track the GT frames using the trained tracker, and compare the results to the manual GT labels.
+Along with various plots, the Labeler property .gtTblRes provides a results table for each GT row: manual labels, tracked positions, and L2 error.</p>
+
+<p>Save the project to preserve your GT movie list, the list of GT frames with their labels, and the GT results.</p>
 
 
 
