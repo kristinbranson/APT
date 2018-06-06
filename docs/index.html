@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+A<!DOCTYPE html>
 <html>
 <head>
 <title>APT User Guide</title>
@@ -28,7 +28,7 @@ APT:  Predicts the location of body parts based on part labels from a set of vid
  
 <p> APT takes video files as inputs (with optional tracking files), and the user interactively trains a body part classifier by labeling a user-specified number of body part locations. </p>
 
-<p>APT is being developed by Kristin Branson, Mayank Kabra, Allen Lee, Alice Robie, and Felipe Rodriguez.  All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus. </p>
+<p>APT is being developed by Allen Lee, Mayank Kabra, Kristin Branson, Felipe Rodriguez, Alice Robie, and Roian Egnor.  All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus. </p>
 
 <p>This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the <a href="GNU_GPL_v3.html">GNU General Public License (version 3)</a> for more details.</p>
 
@@ -118,7 +118,7 @@ APT is a MATLAB-based program. To run it:
 <hr class="h2-divider">
 
 <h2><a id="Setting up a new project"> Setting up a new project </a></h2>
-File -> New Project, enter a project name. Track -> Configure tracking parameters.  This pops up a window with parameters to set. If you click on a parameter, a description of the parameter shows up at the bottom of the window. Click Apply. Go to File -> Manage movies and select the movie that you would like to work with. You will be prompted for a trx file. Select a trx file, or, if none, press “cancel”. Close or minimize the Movie window. Go to File -> Save as and save your project. This will save a .lbl file with your project in it.
+File -> New Project, enter a project name. Track -> Configure tracking parameters.  This pops up a window with parameters to set. If you click on a parameter, a description of the parameter shows up at the bottom of the window. Click Apply. Go to File -> Manage movies and select the movie that you would like to work with. You will be prompted for a trx file. Select a trx file, or, if none, press "cancel". Close or minimize the Movie window. Go to File -> Save as and save your project. This will save a .lbl file with your project in it.
 
 <hr class="h2-divider">
 
@@ -165,13 +165,13 @@ Each frame will have unassigned label points in random locations on the image (w
 </li>
 </ol>
 
-Once you are happy with the positions of the points, click the accept button, or press the “s” key or the space bar to save the labels for the current frame.  
+Once you are happy with the positions of the points, click the accept button, or press the "s" key or the space bar to save the labels for the current frame.  
 <br> <br>
 <b>Make sure to press the accept button at each frame once you are done or your changes will not be recorded.</b>
 <p>
 Once you have a reasonable number of frames labeled you are ready to train a classifier.</p>
 
-To remove frames (useful for making a subset, or if you change your mind about how something will be labeled), you can just click the “Clear” button on that frame (next to the Accepted button), and those points will go back to unassigned.
+To remove frames (useful for making a subset, or if you change your mind about how something will be labeled), you can just click the "Clear" button on that frame (next to the Accepted button), and those points will go back to unassigned.
 
 <p>To just look at labeled frames, holding the shift button while using the right and left arrow keys will move through only the labeled frames, skipping the unlabeled ones. </p>
 
@@ -286,7 +286,7 @@ Click the Train button.
 <h2><a id="Tracking"> Tracking </a></h2>
 
 Track button
-Click Track. You can change what frames you want it to track with the drop down menu below the blue “Track” button. After you choose what frames you want to track, press “Track”. Watch progress in MATLAB command line. 
+Click Track. You can change what frames you want it to track with the drop down menu below the blue "Track" button. After you choose what frames you want to track, press "Track". Watch progress in MATLAB command line. 
  
  <p>Tracking options in the Track dropdown menu:</p>
 <ul>
@@ -330,7 +330,7 @@ The first time you do this it will save to the same directory as your movie file
 
 <h2><a id="Evaluating performance"> Evaluating performance  </a></h2>
 
-There are two ways to evaluate performance in APT: Cross Validation and Ground-Truthing Mode. Both of these options are found under the “Evaluate” tab in the main menu bar.
+There are two ways to evaluate performance in APT: Cross Validation and Ground-Truthing Mode. Both of these options are found under the "Evaluate" tab in the main menu bar.
 
 <h3><a id="Cross validation"> Cross validation  </a></h3>
 
@@ -343,7 +343,7 @@ THis will pop up a window that prompts for number of k-folds.
 When cross validation is done running it will pop up a window with two buttons, "Export Results to Workspace" and "View Results in APT"
 <br>
 
-Pressing “Export Results to Workspace” will pop up a window that says “Wrote variable aptXVresults in base workspace”, you can then manually save that variable.  Note that to load that variable in later to evaluate it you need to run APT.setpath to set the MovieIndex class.
+Pressing "Export Results to Workspace" will pop up a window that says "Wrote variable aptXVresults in base workspace", you can then manually save that variable.  Note that to load that variable in later to evaluate it you need to run APT.setpath to set the MovieIndex class.
 
 
 <p>Structure of the aptXVresults variable:
