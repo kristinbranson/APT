@@ -5902,6 +5902,18 @@ classdef Labeler < handle
       
       % Montage
       obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h);
+    end    
+    function gtNextUnlabeledUI(obj)
+      % Like pressing "Next Unlabeled" in GTManager.
+      if obj.gtIsGTMode
+        gtMgr = obj.gdata.GTMgr;
+        gd = guidata(gtMgr);
+        pb = gd.pbNextUnlabeled;
+        cbk = pb.Callback;
+        cbk(pb,[]);
+      else
+        warningNoTrace('Not in GT mode.');
+      end
     end
   end
   methods (Static)
