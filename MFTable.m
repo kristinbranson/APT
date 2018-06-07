@@ -77,6 +77,20 @@ classdef MFTable
       tbl = table(x,x,x,x,'VariableNames',MFTable.FLDSSUSP);
     end
     
+    function tbl = intersectID(tbl,tblRestrict)
+      % Restrict the rows of tbl to those also in tblRestrict, with respect
+      % to MFTable.FLDSID.
+      %
+      % tbl, tblRestrict: tables with FLDSID
+      %
+      % tbl (out): that subset of tbl that is also in tblRestrict. Rows of 
+      % table should be as originally ordered.
+      
+      [~,ia] = intersect(tbl(:,MFTable.FLDSID),...
+        tblRestrict(:,MFTable.FLDSID),'stable');
+      tbl = tbl(ia,:);
+    end
+    
     function tbl = sortCanonical(tbl)
       assert(isa(tbl.mov,'MovieIndex'));
       tfgt = tbl.mov<0;

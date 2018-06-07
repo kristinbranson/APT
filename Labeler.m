@@ -39,7 +39,7 @@ classdef Labeler < handle
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
   end
-  properties
+  properties (Hidden)
     % Don't compute as a Constant prop, requires APT path initialization
     % before loading class
     NEIGHBORING_FRAME_OFFSETS;
@@ -4596,14 +4596,16 @@ classdef Labeler < handle
       %
       % tblMF: See MFTable.FLDSFULLTRX.
       
-      [wbObj,useLabels2,useMovNames] = myparse(varargin,...
+      [wbObj,useLabels2,useMovNames,tblMFTrestrict] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                    ... % 1. obj logically const (eg except for obj.trxCache)
                    ... % 2. tblMF (output) indeterminate
         'useLabels2',false,... % if true, use labels2 instead of labels
-        'useMovNames',false... % if true, use movieNames instead of movieIndices
+        'useMovNames',false,... % if true, use movieNames instead of movieIndices
+        'tblMFTrestrict',[]... % if supplied, tblMF is the labeled subset of tblMFTrestrict (within fields .mov, .frm, .tgt). .mov must be a MovieIndex
         ); 
       tfWB = ~isempty(wbObj);
+      tfRestrict = ~isempty(tblMFTrestrict);
       
       if useLabels2
         mfts = MFTSetEnum.AllMovAllLabeled2;
@@ -4611,6 +4613,11 @@ classdef Labeler < handle
         mfts = MFTSetEnum.AllMovAllLabeled;
       end
       tblMF = mfts.getMFTable(obj);
+      
+      if tfRestrict
+        tblMF = MFTable.intersectID(tblMF,tblMFTrestrict);
+      end
+      
       if obj.hasTrx
         argsTrx = {'trxFilesAllFull',obj.trxFilesAllFullGTaware,...
           'trxCache',obj.trxCache};
@@ -5130,6 +5137,7 @@ classdef Labeler < handle
       aTrxAcc = nan(0,nView);
       bTrxAcc = nan(0,nView);
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
+      iMovsAll = tblMF.mov.get;
       for irow=1:nrow
         if tfWB && toc(wbtime) >= maxwbtime,
           wbtime = tic;
@@ -5139,10 +5147,10 @@ classdef Labeler < handle
           end
         end
         
-        tblrow = tblMF(irow,:);
-        iMov = tblrow.mov.get;
-        frm = tblrow.frm;
-        iTgt = tblrow.iTgt;
+        %tblrow = tblMF(irow,:);
+        iMov = iMovsAll(irow);
+        frm = tblMF.frm(irow);
+        iTgt = tblMF.iTgt(irow);
 
         lposI = lpos{iMov};
         lpostagI = lpostag{iMov};
@@ -5812,18 +5820,28 @@ classdef Labeler < handle
       
       % Labeled GT table, in order of tblMFTSugg
       tblMFT_SuggAndLbled = tblMFTLbld(loc(tf),:);
+      
+      fprintf(1,'Computing GT performance with %d GT rows.\n',...
+        height(tblMFT_SuggAndLbled));
         
       if useLabels2
         if ~obj.gtIsGTMode
           error('Project is not in Ground-Truthing mode.');
           % Only b/c in the next .labelGet* call we want GT mode. 
-          % Questionable
+          % Pretty questionable. .labelGet* could accept GT flag
         end
         
         wbObj = WaitBarWithCancel('Compiling Imported Predictions');
         oc = onCleanup(@()delete(wbObj));
-        tblTrkRes = obj.labelGetMFTableLabeled('wbObj',wbObj,...
-          'useLabels2',true); % in GT mode, so this compiles labels2GT
+        tblTrkRes = obj.labelGetMFTableLabeled('wbObj',wbObj,...          
+          'useLabels2',true,... % in GT mode, so this compiles labels2GT
+          'tblMFTrestrict',tblMFT_SuggAndLbled);        
+        if wbObj.isCancel
+          tblGTres = [];
+          warningNoTrace('Labeler property .gtTblRes not set.');
+          return;
+        end
+        
         tblTrkRes.pTrk = tblTrkRes.p; % .p is imported positions => imported tracking
         tblTrkRes(:,'p') = [];
       else
@@ -5836,12 +5854,25 @@ classdef Labeler < handle
     end
     function tblGTres = gtComputeGTPerformanceTable(obj,tblMFT_SuggAndLbled,...
         tblTrkRes)
-      % tblMFT_SuggAndLbled: MFTable, no .p or .pLbl field. will be added
-      %   with .labelAddLabelsMFTable.
-      % tblTrkRes: MFTable with field .pTrk
+      % Compute GT performance 
+      % 
+      % tblMFT_SuggAndLbled: MFTable, no shape/label field (eg .p or
+      % .pLbl). This will be added with .labelAddLabelsMFTable.
+      % tblTrkRes: MFTable, predictions/tracking in field .pTrk.
+      %
+      % At the moment, all rows of tblMFT_SuggAndLbled must be in tblTrkRes
+      % (wrt MFTable.FLDSID). ie, there must be tracking results for all
+      % suggested/labeled rows.
+      % 
+      % Assigns .gtTblRes.
+
       
       [tf,loc] = tblismember(tblMFT_SuggAndLbled,tblTrkRes,MFTable.FLDSID);
-      assert(all(tf));
+      if ~all(tf)
+        error('Tracking/prediction results not present for %d GT rows.',...
+          nnz(~tf));
+      end
+      
       tblTrkRes = tblTrkRes(loc,:);
       tblMFT_SuggAndLbled = obj.labelAddLabelsMFTable(tblMFT_SuggAndLbled);
       pTrk = tblTrkRes.pTrk;
@@ -5859,6 +5890,10 @@ classdef Labeler < handle
       
       tblTmp = tblMFT_SuggAndLbled(:,{'p' 'pTS' 'tfocc' 'pTrx'});
       tblTmp.Properties.VariableNames = {'pLbl' 'pLblTS' 'tfoccLbl' 'pTrx'};
+      if tblfldscontains(tblTrkRes,'pTrx')
+        assert(isequal(tblTrkRes.pTrx,tblTmp.pTrx),'Mismatch in .pTrx fields.');
+        tblTrkRes(:,'pTrx') = [];
+      end
       tblGTres = [tblTrkRes tblTmp table(err,muerr,'VariableNames',{'L2err' 'meanL2err'})];
       
       obj.gtTblRes = tblGTres;
