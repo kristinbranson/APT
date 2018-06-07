@@ -1521,7 +1521,7 @@ row = evt.Indices;
 if ~isempty(row)
   row = row(1);
   dat = get(src,'Data');
-  lObj.setFrame(dat{row,1});
+  lObj.setFrame(dat{row,1},'changeTgtsIfNec',true);
 end
 
 hlpRemoveFocus(src,handles);

@@ -7494,18 +7494,37 @@ classdef Labeler < handle
       % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
       [tfforcereadmovie,tfforcelabelupdate,updateLabels,updateTables,...
-        updateTrajs] = myparse(varargin,...
+        updateTrajs,changeTgtsIfNec] = myparse(varargin,...
         'tfforcereadmovie',false,...
         'tfforcelabelupdate',false,...
         'updateLabels',true,...
         'updateTables',true,...
-        'updateTrajs',true);
+        'updateTrajs',true,...
+        'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
+        );
             
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
-        if ~obj.frm2trx(frm,obj.currTarget)
-          error('Labeler:target','Target idx %d not live in frame %d.',...
-            obj.currTarget,frm);
+        frm2trxThisFrm = obj.frm2trx(frm,:);
+        iTgt = obj.currTarget;
+        if ~frm2trxThisFrm(1,iTgt)
+          if changeTgtsIfNec
+            iTgtsLive = find(frm2trxThisFrm);
+            if isempty(iTgtsLive)
+              error('Labeler:target','No targets live in frame %d.',frm);              
+            else
+              iTgtsLiveDist = abs(iTgtsLive-iTgt);
+              itmp = argmin(iTgtsLiveDist);
+              iTgtNew = iTgtsLive(itmp);
+              warningNoTrace('Target %d is not live in frame %d. Changing to target %d.\n',...
+                iTgt,frm,iTgtNew);
+              obj.setFrameAndTarget(frm,iTgtNew);
+              return;
+            end
+          else
+            error('Labeler:target','Target %d not live in frame %d.',...
+              iTgt,frm);
+          end
         end
       end
       
