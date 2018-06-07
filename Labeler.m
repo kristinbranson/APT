@@ -2688,10 +2688,9 @@ classdef Labeler < handle
     end
     
     function tfsuccess = movieSet(obj,iMov,varargin)
-      % iMov: If multivew, movieSet index (row index into .movieFilesAll)      
-      
-      %#%MVOK
-      
+      % iMov: If multivew, movieSet index (row index into .movieFilesAll)  
+            
+      assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx
       assert(any(iMov==1:obj.nmoviesGTaware),...
                     'Invalid movie index ''%d''.',iMov);
       
@@ -2781,6 +2780,15 @@ classdef Labeler < handle
       else
         obj.setFrameAndTarget(1,1);
       end
+    end
+    
+    function tfsuccess = movieSetMIdx(obj,mIdx,varargin)
+      assert(isa(mIdx,'MovieIndex'));
+      [iMov,gt] = mIdx.get();
+      if gt~=obj.gtIsGTMode
+        obj.gtSetGTMode(gt,'warnChange',true);
+      end
+      tfsuccess = obj.movieSet(iMov,varargin{:});
     end
     
     function movieSetNoMovie(obj,varargin)
@@ -5636,12 +5644,23 @@ classdef Labeler < handle
    
   %% GT mode
   methods
-    function gtSetGTMode(obj,tf)
+    function gtSetGTMode(obj,tf,varargin)
       validateattributes(tf,{'numeric' 'logical'},{'scalar'});
+      
+      warnChange = myparse(varargin,...
+        'warnChange',false); % if true, throw a warning that GT mode is changing
+      
       tf = logical(tf);
       if tf==obj.gtIsGTMode
         % none, value unchanged
       else
+        if warnChange
+          if tf
+            warningNoTrace('Entering Ground-Truthing mode.');
+          else
+            warningNoTrace('Leaving Ground-Truthing mode.');
+          end
+        end
         obj.gtIsGTMode = tf;
         nMov = obj.nmoviesGTaware;
         if nMov==0
@@ -7439,8 +7458,14 @@ classdef Labeler < handle
     end
     
     function setMFT(obj,iMov,frm,iTgt)
-      if obj.currMovie~=iMov
-        obj.movieSet(iMov);
+      if isa(iMov,'MovieIndex')
+        if obj.currMovIdx~=iMov
+          obj.movieSetMIdx(iMov);
+        end
+      else
+        if obj.currMovie~=iMov
+          obj.movieSet(iMov);
+        end
       end
       obj.setFrameAndTarget(frm,iTgt);
     end
