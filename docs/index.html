@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APT User Guide</title>
+<link rel="stylesheet" type="text/css" charset="utf-8" media="all" 
+href="styles/common.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="screen" 
+href="styles/screen.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" media="print" 
+href="styles/print.css">
+<link rel="stylesheet" type="text/css" charset="utf-8" 
+media="projection" href="styles/projection.css">
+
+<style type="text/css">
+strong.regular-font {
+  font-family: Arial, Lucida Grande, sans-serif;
+  font-style: italic;
+  font-size: 0.9em;
+}
+</style>
+
+</head>
+
+<body>
+<h1><a href="index.html">APT</a> User Guide</h1>
+
+APT:  Predicts the location of body parts based on part labels from a set of video frames. 
+ 
+<p> APT takes video files as inputs (with optional tracking files), and the user interactively trains a body part classifier by labeling a user-specified number of body part locations. </p>
+
+<p>APT is being developed by Allen Lee, Mayank Kabra, Kristin Branson, Felipe Rodriguez, Alice Robie, and Roian Egnor.  All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus. APT is currently under heavy development. Please contact Kristin Branson if you are interested in using it.</p>
+
+<p>This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the <a href="GNU_GPL_v3.html">GNU General Public License (version 3)</a> for more details.</p>
+
+<hr class="h2-divider">
+
+<h2>Contents</h2>
+
+<ul>
+<li><a href="#Download">Download</a></li>
+<li><a href="#Install">Install</a></li>
+<li><a href="#Startup">Start-up</a></li>
+<li><a href="#Setting up a new project">Setting up a new project</a></li>
+<li><a href="#Opening an existing project">Opening an existing project</a></li>
+<li><a href="#Navigating in APT">Navigating in APT</a></li>
+
+<li><a href="#Labeling points">Labeling points</a></li>
+<li><a href="#Setting the tracking parameters">Setting the tracking parameters</a></li>
+<li><a href="#Training">Training</a></li>
+<li><a href="#Tracking">Tracking</a></li>
+<li><a href="#Exporting tracking results">Exporting tracking results</a></li>
+<li><a href="#Exporting manual labels">Exporting manual labels</a></li>
+<li><a href="#Cross validation">Cross validation</a></li>
+<li><a href="#Ground-Truthing mode">Ground-Truthing mode</a></li>
+
+
+
+<li><a href="appendices.html">Appendices</a></li>
+
+
+
+
+</ul>
+
+<hr class="h2-divider">
+
+<h2><a id="Download">Download</a></h2>
+
+<p>
+The git repository for APT is hosted on <a href="https://github.com/kristinbranson/APT">github</a>. 
+</p>
+<p>
+Compiled binaries and source code releases are available <a href="https://github.com/kristinbranson/APT/releases">here</a>.
+</p>
+
+APT also requires the following:
+JAABA, available <a href="https://github.com/kristinbranson/JAABA"> here </a>, and Piotr Dollar's toolbox, available <a href="https://github.com/pdollar/toolbox"> here </a>
+<br>
+If you are working with multi-camera data, you may need calibration software for your rig, e.g <a href="https://www.vision.caltech.edu/bouguetj/calib_doc/"> Caltech camera calibration toolbox </a>
+<br>
+
+<hr class="h2-divider">
+
+<h2><a id="Install">Install</a></h2>
+
+In the APT directory, copy Manifest.sample.txt  to Manifest.txt and edit to point to your copy of JAABA and Piotr's toolbox (specify the root directory, which contains the subfolders filehandling/ and misc/, 
+e.g. jaaba, c:\pgms\jaaba
+	piotr, c:\pgms\pdollar_toolbox).
+ 
+NOTE: In Manifest.sample.txt there is also a path to camera/calibration/toolbox, if you are not using multi-camera it is OK to not include this line.
+
+
+
+<hr class="h2-divider">
+
+<h2><a id="Startup">Start-up</a></h2>
+
+APT is a MATLAB-based program. To run it:
+<ol>
+<li> Start MATLAB. </li>
+<li> Within MATLAB, change into the directory containing the APT code:
+<pre>>> cd APT;</pre>
+</li>
+
+<li> Run APT.setpath: </li>
+<pre>>> APT.setpath; </pre>
+
+<li> Run <b>StartAPT</b> on the command line to start APT:
+<pre>>> StartAPT;</pre>
+</li>
+
+<center>
+<a href="images/apt_open_screen.png"><img src="images/apt_open_screen.png" width="500px"></a>
+</center>
+
+</ol>
+
+<hr class="h2-divider">
+
+<h2><a id="Setting up a new project"> Setting up a new project </a></h2>
+File -> New Project, enter a project name. Track -> Configure tracking parameters.  This pops up a window with parameters to set. If you click on a parameter, a description of the parameter shows up at the bottom of the window. Click Apply. Go to File -> Manage movies and select the movie that you would like to work with. You will be prompted for a trx file. Select a trx file, or, if none, press "cancel". Close or minimize the Movie window. Go to File -> Save as and save your project. This will save a .lbl file with your project in it.
+
+<hr class="h2-divider">
+
+<h2><a id="Opening an existing project"> Opening an existing project </a></h2>
+
+File -> Load Project, select the .lbl file to load. If the locations of the movies in the project has changed since you last opened the project it will prompt for their new locations.  
+
+<hr class="h2-divider">
+
+<h2><a id="Navigating in APT"> Navigating in APT </a></h2>
+
+a/d, -/=, or the left and right arrow keys all move one frame left/right respectively. Using these keys while holding down the ctrl button uses 10 frames steps. You can also navigate using the mouse and the navigation bar under the image.  Clicking on the bar to the left or right of the slider jumps by 100 frames.  Single clicks on the arrows at the ends of the navigation bar moves by a single frame.  Holding the end arrows down steps through the movie a frame at a time. To look at only labeled frames, hold the shift button while using the right and left arrow keys.
+<br>
+<br>
+Useful view options for multi-target projects with tracking and orientation:<br>
+View -> Center on target  - keeps current target in the center<br>
+View -> Rotate video so target is always pointing up<br>
+View -> Zoom out/full images or unzoom button - view full image
+Use slider bar above ‘unzoom’ to adjust zoom not the magnifier +/- <br>
+Zoom slider bar - adjust zoom then ‘set’, ‘recall’ will change back to ‘set’ value after changing movies. 
+
+
+<hr class="h2-divider">
+
+<h2><a id="Labeling points"> Labeling points </a></h2>
+
+Labeling modes:
+There are different labeling modes, which you can switch between under Setup->. 
+
+<ol>
+<li>Sequential mode:
+Allows you to just click your points in order, and then accept when you’re done. 
+You can edit placement after you finish clicking sequence by:
+<ul>
+<li>Clicking and dragging a point</li>
+<li>Activating a point with a number key that corresponds to the label number and then clicking the correct location for the label. Activated points change from ‘+’ to ‘x’ (Numbers above 10 are accessed by `(back quote) + number key).</li>
+<li>Activating a point with the number keys and moving with arrow keys. </li> 
+Currently the only way to ‘un-activate’ label is to move the label to new location or accept labels.
+</ul>
+</li>
+
+<li>Template mode:
+Each frame will have unassigned label points in random locations on the image (white pluses with colored numbers next to them).  To label the frame, move the pluses to where they should belong on the target (mouse/fly).  You can drag and drop a point with the mouse or you can select (or unselect) a point with its associated number key (1-9).  When a point is selected it changes from a plus to an x.  A selected point can be moved using the arrow keys (helpful for fine-tuning positions).  Shift plus the arrow keys moves the selected point in larger jumps.  When a point is selected, a mouse click anywhere on the image will move the selected point to that location.
+</li>
+</ol>
+
+Once you are happy with the positions of the points, click the accept button, or press the "s" key or the space bar to save the labels for the current frame.  
+<br> <br>
+<b>Make sure to press the accept button at each frame once you are done or your changes will not be recorded.</b>
+<p>
+Once you have a reasonable number of frames labeled you are ready to train a classifier.</p>
+
+To remove frames (useful for making a subset, or if you change your mind about how something will be labeled), you can just click the "Clear" button on that frame (next to the Accepted button), and those points will go back to unassigned.
+
+<p>To just look at labeled frames, holding the shift button while using the right and left arrow keys will move through only the labeled frames, skipping the unlabeled ones. </p>
+
+
+<hr class="h2-divider">
+
+<h2><a id="Setting the tracking parameters"> Setting the tracking parameters </a></h2>
+
+How well APT works depends critically on getting the tracking parameters set well for the particular application.  Each tracker has different parameters.  
+
+<p>Tracking parameters input menu:</p>
+
+<p>Track->Configure tracking parameters</p>
+
+What displays will depend on what type of tracking you are using.  Clicking on each option will produce a description of that option at the bottom of the page. Note that many of the default options are selections from dropdown menus, click the current option to see the other options. 
+
+<p>Once you have set the parameters to what you would like, hit the Apply button.</p>
+
+
+
+<ul>
+<li>Type:         cpr</li>
+
+<li>Histogram Equalization</li>
+<ul>
+    <li>Enable [ ]        default=unchecked </li>
+    <li>Num frames sample    default=1000</li></ul>
+<li>Multiple Targets</li>
+<ul>
+    <li>Target ROI</li>
+        <li>Radius (pixels)        default=300 
+            Crop a square with this radius (in pixels) around each target for training/tracking</li>
+    <li>Pad background        default=0
+            Pad ROIs with this background value (grayscale) if necessary.</li></ul>
+
+<li>Mask Neighbors</li>
+<ul>
+<li>Enable        [ ]         default= unchecked</li>   
+<li>Background Type            default = dark on light (light on dark, other)</li>
+<li>Background Read Function        default = empty</li>
+<li>Foreground Threshold        default = 4</li>
+
+<li>Decimation Small            default = 5</li>
+<li>Decimation Large            default = 10</li>
+<li>Neighborhood Radius        default = 100</li>
+<li>Chunk Size                default = 3,000</li></ul>
+
+<li>CPR</li>
+<ul>
+<li>Num iterations        default = 50</li>
+    Number of major iterations in regressor cascade.
+<li>Num boosted regressors    default = 50
+    Number of minor iterations per major iteration</li></ul>
+
+<li>Ferns</li>
+<ul>
+    <li>Depth            default = 5</li>
+<li>Threshold</li>
+    <li>Lo            default = -0.2</li>
+    <li>Hi            default = 0.2</li></ul>
+
+<li>Regularization Factor    default = 0.01</li>
+
+<li>Feature</li>
+<ul>
+    <li>Type                default = 2lm, (1lm, two landmark elliptical, 2lmdiff)</li>
+    <li>Meta feature            default = diff, (single)</li>
+    <li>Pool size            default = 800</li>
+    <li>Radius                default = 2</li>
+    <li>Major/minor ratio        default = 2</li>
+    <li>Num samples std        default = 1.000</li>
+    <li>Num samples correlation    default = 10.000</li></ul>
+
+<li>Rotational Invariance</li>
+<ul>
+    <li>Orientation            default = arbitrary, (fixed, arbitrary, arbitray trx - specified)</li>
+        fixed: 
+        arbitrary: animal orientation can be anything
+        arbitrary trx-specified: animal orientation can be anything and is specified in trx.theta </li>
+    <li>Head landmark                    default = 1</li>
+    <li>Tail landmark                    default = 2</li></ul>
+
+<li>Replicates</li>
+<ul>
+    <li>Num training replicates                default = 60 </li>
+    <li>Num tracking replicates                default = 60 </li>
+    <li>Jitter initial shapes     [ ]             default = checked</li>
+    <li>Initial shape jitter/randomization factor        default = 16</li>
+    <li>Jitter initial shape locations  [ ]            default = checked</li>
+    <li>Initial shape location                default = 16</li>
+    <li>Maximize spread of initial conditions    [ ]    default = unchecked</li></ul>
+
+<li>Prune</li>
+<ul>
+    <li>Method            default = maxdensity (median, maxdensity global, smoothed trajectory)
+Method of reducing CPR replicates to final tracking result</li>
+    <li>Density length scale    default = 5
+Length scale (in pixels) for Gaussian kernel used during pruning.  Used for ‘maxdensity’, ‘maxdensity global’, and ‘smoothed trajectory’ methods.  Larger values include more distant shapes when computing a given shape’s likelihood.</li>  
+    <li>Trajectory smoothing weight factor    default = 1
+Scale factor applied to empirically-estimated ratio balancing trajectory smoothness against replicate density.  Larger values upweight smoother trajectories.  Used only for ‘smoothed trajectory’ method.</li></ul>
+    
+
+<hr class="h2-divider">
+
+<h2><a id="Training"> Training </a></h2>
+
+Click the Train button.
+
+
+<hr class="h2-divider">
+
+<h2><a id="Tracking"> Tracking </a></h2>
+
+Track button
+Click Track. You can change what frames you want it to track with the drop down menu below the blue "Track" button. After you choose what frames you want to track, press "Track". Watch progress in MATLAB command line. 
+ 
+ <p>Tracking options in the Track dropdown menu:</p>
+<ul>
+<li>Current movie/target, labeled frames</li>
+<li>Current movie/target, all frames</li>
+<li>Current movie/target, all frames, every 10 frames</li>
+<li>Current movie/target, selected frames</li>
+<li>Current movie/target, selected frames, every 10 frames</li>
+<li>Current movie/target, within 100 frames of current frame</li>
+<li>Current movie/target, within 100 frames of current frame, every 10 frames</li>
+<li>Current movie, all targets, labeled frames</li>
+<li>Current movie, all targets, all frames</li>
+<li>Current movie, all targets, every 10 frames</li>
+<li>Current movie, all targets, selected frames</li>
+<li>Current movie, all targets, selected frames, every 10 frames</li>
+<li>Current movie, all targets, within 100 frames of current frame</li>
+<li>Current movie, all targets, within 100 frames of current frame, every 10 frames</li>
+</ul>
+
+<hr class="h2-divider">
+
+<h2><a id="Exporting tracking results"> Exporting tracking results  </a></h2>
+
+Track->Export current tracking results->Current movie only 
+will export the predicted tracks for the current movie to a trk file.
+
+Track->Export current tracking results-> All movies
+will export the predicted tracks for all the movies to trk files
+
+<p><a href="appendices.html#Trk file contents">Contents of a trk file</a></p>
+
+<hr class="h2-divider">
+
+<h2><a id="Exporting manual labels"> Exporting manual labels  </a></h2>
+
+<p>Exporting manual labels to a .trk file:</p>
+Select File -> Import/Export -> Export Labels to Trk Files
+The first time you do this it will save to the same directory as your movie files, with a filename of [movie file name]_[labeler project name]_labels.trk.  If you go to export again, it will prompt for overwriting, adding datetime or canceling the export.  Note that the _labels part of the filename distinguishes between a trk file of manual labels and a trk file of automatically generated labels.
+
+<hr class="h2-divider">
+
+<h2><a id="Evaluating performance"> Evaluating performance  </a></h2>
+
+There are two ways to evaluate performance in APT: Cross Validation and Ground-Truthing Mode. Both of these options are found under the "Evaluate" tab in the main menu bar.
+
+<h3><a id="Cross validation"> Cross validation  </a></h3>
+
+APT uses k-fold cross validation, in which you train on (k-1)/k of the labels, and test on the held out 1/k labels for a partitioning of the labels into k sets. 
+
+To start Evaluate > Cross validation
+
+THis will pop up a window that prompts for number of k-folds.
+
+When cross validation is done running it will pop up a window with two buttons, "Export Results to Workspace" and "View Results in APT"
+<br>
+
+Pressing "Export Results to Workspace" will pop up a window that says "Wrote variable aptXVresults in base workspace", you can then manually save that variable.  Note that to load that variable in later to evaluate it you need to run APT.setpath to set the MovieIndex class.
+
+
+<p>Structure of the aptXVresults variable:
+it is a [number of labeled targets] x 9 cell array, with the following columns:</p>
+<ol>
+<li> fold is the cross-validation set/fold index.</li>
+<li> mov is the movie index (into .movieFilesAll). </li>
+<li> frm is the frame. </li>
+<li> iTgt is the target index (index into .trx). </li>
+<li> tfocc is a [1xnpt] logical, true if pt is occluded. </li>
+<li> p is the GT/labeled position vector -- all x coords, then all y coords, so should be [1x2*npts]. </li>
+<li> roi is a [1x4] [xlo xhi ylo yhi] for the cropping region when there are trx. xhi-xlo and yhi-ylo are set by Track->Configure tracking parameters->Multiple Targets -> Target crop radius </li>
+<li> pTrk is like p, but it is the CPR-tracked position vector. </li>
+<li> dGTTrk I think is [1xnpts], euclidean distance from p to pTrk for each pt.</li>
+</ol>
+[This is saved into the .lbl file now, and there is also a command to delete it]
+
+<h3><a id="Ground-Truthing mode"> Ground-Truthing mode </a></h3>
+
+Ground-Truthing mode enables you to assess the performance of your tracker on an unbiased set of APT-generated test frames.
+
+<p>Create a project, add movies, label frames, and train a tracker iteratively as you normally would in APT.</p>
+
+<p>Select Evaluate>Ground-Truthing Mode. An orange "GT Mode" indicator should appear in the main UI, and the Manage Movies window should appear.</p>
+
+<p>Manage Movies is now tabbed, with the "GT Movie List" tab selected. The project now contains two sets of movies: i) "regular" movies used for training and parameter refinement, and ii) "GT" movies for testing tracker performance.
+Add test movies to the GT movie list. If possible, it is best to use movies that are not also in the regular movie list, ie that the project has never seen before.
+When the movie list is complete, press the "GT Frames" button to bring up the Ground-Truthing window. The project can be saved at any time during this process. (If you close GT window it can be re-opened from movie manager GUI). </p>
+
+<p>In the Ground-Truthing window, press the Suggest button to generate a new/fresh list of frames to label. At the moment, frames are sampled randomly from the available GT movies, with all frames equally weighted. Other options are available at the command-line (see below).
+Click on a row in the table to navigate to a frame, or use the "Next Unlabeled" button. The APT main axes should become highlighted, indicating that the current frame/target is a GT frame. Label this frame. These labels will be used as GT labels against which the tracker will be compared.</p>
+
+<p>When all GT frames are labeled, press "Compute GT Performance". APT will track the GT frames using the trained tracker, and compare the results to the manual GT labels.
+Along with various plots, the Labeler property .gtTblRes provides a results table for each GT row: manual labels, tracked positions, and L2 error.</p>
+
+<p>Save the project to preserve your GT movie list, the list of GT frames with their labels, and the GT results.</p>
+
+
+
+
+<footer>
+<hr class="h1-divider">
+<center>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated June 5, 2018</i>
+</center>
+</footer>
+
+
+</body>
