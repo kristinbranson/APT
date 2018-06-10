@@ -1728,6 +1728,12 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
     end
+    
+    function s = getTrainedTrackerMetadata(obj)      
+      s = getTrainedTrackerMetadata@LabelTracker(obj);
+      s.param = obj.sPrm;
+      s.trkPTrnTS = obj.trkPTrnTS;
+    end
 
     % TODO AL20170406.
     % This is in approximate shape, started fixing with issue #77 but
