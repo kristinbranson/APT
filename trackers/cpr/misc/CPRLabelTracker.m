@@ -2134,6 +2134,8 @@ classdef CPRLabelTracker < LabelTracker
         tmpIDs = cell(nrow,1);
         tmpFull = cell(nrow,1);
         for i=1:nrow
+          % 20180611 allProjMovIDs/Full only used for very old legacy 
+          % projects. Don't worry about ID separator issue.
           tmpIDs{i} = MFTable.formMultiMovieID(allProjMovIDs(i,:));
           tmpFull{i} = MFTable.formMultiMovieID(allProjMovsFull(i,:));
         end

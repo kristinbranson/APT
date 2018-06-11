@@ -141,11 +141,17 @@ classdef MFTable
     function movID = formMultiMovieID(movs)
       % Form multimovie char ID
       %
+      % WARNING: This only warns if one of movs contains the ID separator.
+      % Use at your own risk.
+      % 
       % movs: row cellstr vec
       %
       % movID: char
       
       assert(iscellstr(movs) && isrow(movs));
+      if any(contains(movs,'#'))
+        warningNoTrace('Movies contain ID separator ''#''.');
+      end
       movID = sprintf('%s#',movs{:});
       movID = movID(1:end-1);
     end
@@ -154,9 +160,18 @@ classdef MFTable
       % movs: [nxnview] cellstr
       %
       % movIDs: [nx1] cellstr
+      
       assert(iscellstr(movs) && ismatrix(movs));
-      movIDs = arrayfun(@(x)MFTable.formMultiMovieID(movs(x,:)),...
-        (1:size(movs,1))','uni',0);
+      
+      if any(contains(movs(:),'#'))
+        error('Movies contain ID separator ''#''.');
+      end
+      
+      nvw = size(movs,2);
+      movIDs = movs(:,1);
+      for ivw=2:nvw
+        movIDs = strcat(movIDs,'#',movs(:,ivw));
+      end
     end
     
     function movs = unpackMultiMovieID(movID)
@@ -165,17 +180,15 @@ classdef MFTable
     
     function I = fetchImages(tMF)
       %
-      % tMF: MFTable, n rows.
+      % tMF: [nxncol] MFTable. tMF.mov: [nxnview] cellstr
       %
       % I: [nxnview]
       
-      movsets = tMF.movSet;
-      movIDs = cellfun(@MFTable.formMultiMovieID,movsets,'uni',0);
+      movIDs = MFTable.formMultiMovieIDArray(tMF.mov); % errs if any ID separator issues
       [movIDsUn,idx] = unique(movIDs);
       
       % open moviereaders
-      movsetsUn = movsets(idx);
-      movsetsUn = cat(1,movsetsUn{:});
+      movsetsUn = tMF.mov(idx,:);
       [nMovsetsUn,nView] = size(movsetsUn);
       mrcell = cell(size(movsetsUn));
       for iMovSet=1:nMovsetsUn
@@ -185,7 +198,10 @@ classdef MFTable
           mr.forceGrayscale = true;
           mrcell{iMovSet,iView} = mr;
         end
+        fprintf(1,'MovieSet %d moviereader.\n',iMovSet);
       end
+      
+      fprintf('%d unique moviesets.\n',nMovsetsUn);
       
       nRows = size(tMF,1);
       I = cell(nRows,nView);
