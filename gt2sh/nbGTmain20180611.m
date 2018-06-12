@@ -200,9 +200,10 @@ size(unique(tMainTmp,'rows'))
 % already had clicks.
 % 4. Use the clicks to generate the crops, check nbCrop2.
 % 5. Save the new clicks and crops to the apt folder.
-% 6. (if we did opt thing) Tell Mayank in case he wants to retrain based on
+% 6. (if we did opt thing -- DIDNT) Tell Mayank in case he wants to retrain based on
 % the very slightly changed crops.
 % 7. Create the GT cropped dataset.
+% 7.5. Check MFTable read issue for training set.
 % 8. Full train on training set
 % 9. Track on GT set
 
@@ -268,7 +269,7 @@ save('cropInfoGT20180611.mat','-struct','ci');
 movCrop(ci.tGTNotClicked,ci.IgtNotClicked,ci.cpts);
 
 %% 3.5 Giant Montage showing clicked pts
-ci0 = load('f:\aptStephenCPRInvestigate20180327\cropInfo20180426.mat');
+ci0 = load('cropInfo20180426.mat');
 ciGT = load('cropInfoGT20180611.mat');
 %%
 % two montages, vw1 and vw2
@@ -301,6 +302,7 @@ axs{2} = createsubplots(NR,NC,0);
 axs{2} = reshape(axs{2},NR,NC);
 tGT = ciGT.tGT;
 nGT = height(tGT);
+cptsGT = nan(nGT,2,2);
 for i=1:nGT
   fly = tGT.fly(i);
   tf0 = ci0.t.fly==fly;
@@ -314,7 +316,7 @@ for i=1:nGT
     tfTrnClick = true;
   else
     nrow = nnz(tf1);
-    cpts = ciGT.cpts(tf1,:,:);
+    cpts = ciGT.cptsNotClicked(tf1,:,:);
     irow1 = find(tf1,1);
     ims = ciGT.IgtNotClicked(irow1,:);
     tfTrnClick = false;
@@ -322,6 +324,7 @@ for i=1:nGT
   cpts = reshape(cpts,nrow,4);
   cpts = unique(cpts,'rows');
   cpts = reshape(cpts,2,2); % {x/y},view
+  cptsGT(i,:,:) = reshape(cpts,1,2,2);
   for ivw=1:2
     ax = axs{ivw}(i);
     axes(ax);
@@ -354,6 +357,8 @@ if DOSAVE
   end
 end
 
+%%
+save cropInfoGT20180611.mat -append cptsGT;
 %% 4. Use the clicks to generate the crops, check nbCrop2.
 %% 4a. Compile inputs:
 % - IgtMain. [nGTmainx2] cell array of raw images for GT rows.
@@ -365,16 +370,97 @@ end
 % - use labelAddLabelsMFTableStc, then pLbl2xyblah to get xyLblGTMain.
 % - compile cptsGT
 
-gtStuff = load('SelectedGTFrames_SJH_20180603.mat');
+%% 
+% load gtsh_main_1150_v1_20180605_SJHcopy_080618_1111
+
+gtStuff = load('/groups/branson/bransonlab/apt/experiments/data/SelectedGTFrames_SJH_20180603.mat');
 tGTMain = gtStuff.frames2label;
-tGTMain.mov = regexprep(tGTMain.movFile,'/groups/huston/hustonlab/','Z:/');
-IgtMain = MFTable.fetchImages(tGTMain);
+tfIntra = strcmp(tGTMain.type,'intra');
+tGTMain.movFileWIntra = tGTMain.movFile;
+tGTMain.movFileWIntra(tfIntra,:) = cellfun(@intraizeMovie,...
+  tGTMain.movFile(tfIntra,:),'uni',0);
+tGTMain.movFileWIntraID = MFTable.formMultiMovieIDArray(tGTMain.movFileWIntra);
+
+tGTsugg = lObj.gtSuggMFTable;
+tGTsugg.mIdx = tGTsugg.mov;
+tGTsugg(:,{'mov'}) = [];
+tGTsugg.movFile = lObj.getMovieFilesAllFullMovIdx(tGTsugg.mIdx);
+tGTsugg.movFileWIntraID = MFTable.formMultiMovieIDArray(tGTsugg.movFile);
+
+[tf,loc] = tblismember(tGTMain,tGTsugg,{'movFileWIntraID' 'frm'});
+all(tf)
+isequal(tGTMain.movFileWIntra,tGTsugg(loc,:).movFile)
+isequal(tGTMain.frm,tGTsugg(loc,:).frm)
+tGT = [tGTMain tGTsugg(loc,{'mIdx' 'iTgt'})];
+tGT2 = join(tGTMain,tGTsugg,'Keys',{'movFileWIntraID' 'frm'},'KeepOneCopy',{'movFile'});
+isequal(tGT,tGT2(:,tblflds(tGT)))
+
+% tGTMain, tGTsugg now joined in tGT
+%% 
+assert(lObj.gtIsGTMode);
+mfts = MFTSetEnum.AllMovAllLabeled;
+tGTLbled = mfts.getMFTable(lObj);
+wbObj = WaitBarWithCancel('compiling');
+tGTLbled = Labeler.labelAddLabelsMFTableStc(tGTLbled,lObj.labeledposGT,...
+  lObj.labeledpostagGT,lObj.labeledposTSGT,'wbObj',wbObj);
+%%
+% get rid of last two rows, movie 100. not sure SH labeled them seriously.
+% This leaves nGTmain=830, 72 movies.
+tGTLbled(end-1:end,:) = [];
+size(tGTLbled)
+%%
+tGTLbled(:,{'pTrx' 'thetaTrx' 'aTrx' 'bTrx'}) = [];
+tGTLbled.movID = MFTable.formMultiMovieIDArray(tGTLbled.mov);
+[tGTBig,iGT,iGTL] = outerjoin(tGT,tGTLbled,...
+  'MergeKeys',true,...
+  'LeftKeys',{'mIdx' 'frm' 'iTgt'},...
+  'RightKeys',{'mov' 'frm' 'iTgt'});
+% One labeled GT frame that was not in the suggs. (mIdx==-45, frm 1125)
+%%
+[tGTBig,iGT,iGTL] = outerjoin(tGT,tGTLbled,...
+  'MergeKeys',true,'Type','left',...
+  'LeftKeys',{'mIdx' 'frm' 'iTgt'},...
+  'RightKeys',{'mov' 'frm' 'iTgt'});
+isequal(sort(iGT),(1:1150)')
+tfNotLbled = iGTL==0;
+tfAnyNanP = any(isnan(tGTBig.p),2);
+tfAllNanP = all(isnan(tGTBig.p),2);
+isequal(tfNotLbled,tfAnyNanP,tfAllNanP)
+
+tGTBig.isLbled20180612 = ~tfNotLbled;
+tGTBig = tGTBig(:,...
+  {'flyID' 'type' 'movFile' 'movFileWIntra' 'movFileWIntraID' 'mIdx_mov' 'frm' 'iTgt' 'isLbled20180612' 'p' 'pTS' 'tfocc'});
+col = find(strcmp(tblflds(tGTBig),'mIdx_mov'));
+tGTBig.Properties.VariableNames{col} = 'mIdx';
+
+%%
+tGTMain20180612 = tGTBig;
+tGTMain20180612.Properties.VariableNames{1} = 'fly';
+save gtDataSH_main_20180612.mat tGTMain20180612
+
+%% IGTMAIN -- cluster codec issue confirmed occurs on 2018a in addition to 2017a/b
+tTmp = tGTMain20180612(:,{'movFileWIntra' 'frm'});
+tTmp.Properties.VariableNames{1} = 'mov';
+
+tic;
+IGTMain20180612 = MFTable.fetchImagesSafeVideoRdr(tTmp);
+toc
+tic;
+IGTMain20180612_2 = MFTable.fetchImages(tTmp);
+toc
+%
+save gtDataSH_main_20180612.mat -append IGTMain20180612
 
 %%
 
-IToCrop = IFinalReconciled;
-xyLblToCrop = xyLbl;
-tToCrop = tFinalReconciled;
+%%/groups/huston/hustonlab/flp-chrimson_experiments/fly_413_to_425_norpAmales_SS02323_withandwithout_kir48A07lexA/norpAflpSS002323_kirLexA48A07/fly420/C001H001S0007/C001H001S0007_c.avi
+ciGT = load('cropInfoGT20180611.mat');
+
+%% Crop 2/3. This is a near cut+paste from nbCrop2
+
+IToCrop = IGTMain20180612;
+xyLblToCrop = pLbl2xyvSH(tGTMain20180612.p);
+tToCrop = tGTMain20180612;
 n = height(tToCrop);
 szassert(IToCrop,[n 2]);
 szassert(xyLblToCrop,[n 5 2 2]);
@@ -382,9 +468,34 @@ szassert(xyLblToCrop,[n 5 2 2]);
 JITTER_RC = [28 8.5; 29.5 20]; % ivw, {nr,nc}.  based on SDs of 1D distros of delCCPcents
 %JITTER_RC = [0 0;0 0]; 
 ROI_NRNC = [350 230; 350 350]; % ivw, {nr,nc}
-xyCCP = reshape(tToCrop.cropClickPts,n,2,2); % row,{x,y},iVw
+%xyCCP = reshape(tToCrop.cropClickPts,n,2,2); % row,{x,y},iVw
 
 IFR_crop3 = cell(size(IToCrop));
-xyLbl_FR_crop3 = nan(size(xyLblToCrop));
+xyLbl_GT_crop3 = nan(size(xyLblToCrop));
 roi_crop3 = nan(n,4,2); % irow,{xlo,xhi,ylo,yhi},ivw
 crop3_xyjitterappld = nan(n,2,2); % irow,{x,y},ivw
+
+for ivw=1:2
+  roinr = ROI_NRNC(ivw,1);
+  roinc = ROI_NRNC(ivw,2);
+  rowjitter = JITTER_RC(ivw,1);
+  coljitter = JITTER_RC(ivw,2);
+  for i=1:n
+    [imnr,imnc] = size(IToCrop{i,ivw});
+    fly = tToCrop.fly;
+    cirow = find(fly==ciGT.tGT.fly);
+    assert(isscalar(cirow));    
+    xyCCP = ciGT.cptsGT(cirow,:,:); % 1, {x/y}, vw
+    
+    roiCtrCol = xyCCP(1,1,ivw);
+    roiCtrRow = xyCCP(1,2,ivw);
+    [roi_crop3(i,:,ivw),crop3_xyjitterappld(i,1,ivw),crop3_xyjitterappld(i,2,ivw)] = ...
+      cropsmart(imnc,imnr,roinc,roinr,roiCtrCol,roiCtrRow,...
+      'rowjitter',rowjitter,'coljitter',coljitter);
+  end
+  
+  [IFR_crop3(:,ivw),xyLbl_GT_crop3(:,:,:,ivw)] = ...
+    croproi(IToCrop(:,ivw),xyLblToCrop(:,:,:,ivw),roi_crop3(:,:,ivw));  
+end
+
+%% CHECK ITRNDATA
