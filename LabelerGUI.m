@@ -63,6 +63,8 @@ set(handles.pnlSusp,'Visible','off');
 
 handles.pnlSusp.Visible = 'off';
 
+handles=LabelerTooltips(handles); % would be cool to have a toggle to NOT do this for advanced users -- the tooltips are annoying as shit once you know what you're doing.
+
 PURP = [80 31 124]/256;
 handles.tbTLSelectMode.BackgroundColor = PURP;
 
@@ -1463,6 +1465,7 @@ if wbObj.isCancel
 end
 
 function pbClear_Callback(hObject, eventdata, handles)
+
 if ~checkProjAndMovieExist(handles)
   return;
 end
