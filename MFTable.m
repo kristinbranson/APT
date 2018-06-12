@@ -219,6 +219,40 @@ classdef MFTable
       end
     end
     
+    function I = fetchImagesSafeVideoRdr(tMF,varargin)
+      [movFld] = myparse(varargin,...
+        'movFld','mov');
+      
+      n = height(tMF);
+      movs = tMF.(movFld);
+      nview = size(movs,2);      
+      I = cell(size(movs));
+      
+      movsUn = unique(movs(:));
+      nMovsUn = numel(movsUn);
+      
+      fprintf('n=%d, nview=%d, nMovsUn=%d\n',n,nview,nMovsUn);
+      
+      for iMov=1:nMovsUn
+        m = movsUn{iMov};
+        
+        tf = strcmp(movs,m);
+        [rows,vws] = find(tf);
+        nIm = numel(rows);
+        maxfrm = max(tMF.frm(rows));
+        fprintf(1,'movUn %d (%s). %d images to read. maxfrm is %d.\n',...
+          iMov,m,nIm,maxfrm);
+        
+        imstack = readAllFrames(m,maxfrm);
+        
+        for iIm=1:nIm
+          trow = tMF(rows(iIm),:);
+          %im = mr.readframe(trow.frm);
+          im = imstack{trow.frm};
+          I{rows(iIm),vws(iIm)} = im;
+        end
+      end
+    end
     function tblMF = rmMovS(tblMF)
       % remove legacy 'movS' field from MFTable
       
