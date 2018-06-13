@@ -163,7 +163,7 @@ end
 
 
 %getting 2D->3D DLT or orthocam variables
-load(calibFname, '-regexp', '^(?!vidObj$).')
+load(strtrim(calibFname), '-regexp', '^(?!vidObj$).')
 try
     dlt_side = DLT_1;
     dlt_front =DLT_2;
@@ -260,7 +260,7 @@ if bodyAPTorKine=='A' %if using APT data for body axis, reformatting it into old
 elseif bodyAPTorKine=='K' 
     %do nothing
 else
-    error('Non recognized bodyAPTorKine varaible - should be A for APT or K for kine!')
+    error('ERR:missingBody','Non recognized bodyAPTorKine varaible - should be A for APT or K for kine!')
 end
 
 
@@ -315,7 +315,13 @@ for vidIdx=1:1:size(trackedData.labeledpos2,1) %for each video
             end
         else % if using orthocam calibration 
             for p=1:size(view1_2D_data,1)%for each of head points
-                threeD_pos{vidIdx}{p}(:,1:3) = permute( stereoTriangulate(orthocamObj,squeeze(view1_2D_data(p,1:2,:)),squeeze(view2_2D_data(p,1:2,:))), [2,1]); 
+                 valid_pts = ~isnan(view1_2D_data(1,1,:));
+                 temp3D = permute( stereoTriangulate(orthocamObj,...
+                   permute(view1_2D_data(p,1:2,valid_pts),[2,3,1]),...
+                   permute(view2_2D_data(p,1:2,valid_pts),[2,3,1])), [2,1]);
+                 init_pts = nan(size(view1_2D_data,3),3);
+                 init_pts(valid_pts,:) = temp3D;
+                 threeD_pos{vidIdx}{p}(:,1:3) = init_pts;
 %                     for fr =1:size(view1_2D_data,3) %for each frame
 %                         if ~isnan(squeeze(view1_2D_data(p,1,fr)))
 %                             threeD_pos{vidIdx}{p}(fr,1:3) = permute( stereoTriangulate(orthocamObj,squeeze(view1_2D_data(p,1:2,fr))',squeeze(view2_2D_data(p,1:2,fr))'), [2,1]);            
@@ -464,6 +470,18 @@ end
 
 counter = 0;
 cntrlCounter=0;
+
+max_vid_size = max(cellfun(@(x) size(x{1},1), threeD_pos));
+nvids = size(threeD_pos,2);
+translations = nan(max_vid_size, 3, nvids);
+axisAngleDegXYZ = nan(max_vid_size, 4, nvids);
+quaternion = nan(max_vid_size, 4, nvids);
+frameStore = nan(max_vid_size, 1, nvids);
+residualErrors = nan(max_vid_size, 1, nvids);
+scaleErrors = nan(max_vid_size, 1, nvids);
+rawXYZcoordsStore = cell(1, max_vid_size, nvids);
+alignedXYZcoordsStore = cell(1,max_vid_size, nvids);
+
 for vid = 1:size(threeD_pos,2)%for each video in experiment
 
     counter = counter +1;
@@ -475,9 +493,10 @@ for vid = 1:size(threeD_pos,2)%for each video in experiment
     headData.kine.flyhead.data.coords(i_RantBase,1:3,:) = threeD_pos{vid}{i_RantBase}(:,1:3)';
     headData.kine.flyhead.data.coords(i_ProboscisRoof,1:3,:) = threeD_pos{vid}{i_ProboscisRoof}(:,1:3)';
 
-    [translations(:,:,counter), axisAngleDegXYZ(:,:,counter), quaternion(:,:,counter), frameStore(:,:,counter),...
-    residualErrors(:,:,counter), scaleErrors(:,:,counter), refHeadReturned, rawXYZcoordsStore(:,:,counter), ...
-    alignedXYZcoordsStore(:,:,counter)]...
+    vid_size = size(threeD_pos{vid}{1},1);
+    [translations(1:vid_size,:,counter), axisAngleDegXYZ(1:vid_size,:,counter), quaternion(1:vid_size,:,counter), frameStore(1:vid_size,:,counter),...
+    residualErrors(1:vid_size,:,counter), scaleErrors(1:vid_size,:,counter), refHeadReturned, rawXYZcoordsStore(:,1:vid_size,counter), ...
+    alignedXYZcoordsStore(:,1:vid_size,counter)]...
     = threeD2RT(headData,bodyData,pivot,bodyFrame,frameRate_FPS, 0, refHead);
 
 end
