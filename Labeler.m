@@ -10,7 +10,10 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' 'projname' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros'...
-      'movieFilesAllGT' 'movieInfoAllGT' 'trxFilesAllGT' ...
+      'movieFilesAllGT' 'movieInfoAllGT' ...
+      'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
+      'trxFilesAllGT' ...
+      'cropIsCropMode' ...
       'viewCalibrationData' 'viewCalProjWide' ...
       'viewCalibrationDataGT' ...
       'labeledpos' 'labeledpostag' 'labeledposTS' 'labeledposMarked' 'labeledpos2' ...
@@ -49,6 +52,7 @@ classdef Labeler < handle
       struct('MFA','movieFilesAll',...
              'MFAF','movieFilesAllFull',...
              'MFAHL','movieFilesAllHaveLbls',...
+             'MFACI','movieFilesAllCropInfo',...
              'MIA','movieInfoAll',...
              'TFA','trxFilesAll',...
              'TFAF','trxFilesAllFull',...
@@ -60,6 +64,7 @@ classdef Labeler < handle
       struct('MFA','movieFilesAllGT',...
              'MFAF','movieFilesAllGTFull',...
              'MFAHL','movieFilesAllGTHaveLbls',...
+             'MFACI','movieFilesAllGTCropInfo',...
              'MIA','movieInfoAllGT',...
              'TFA','trxFilesAllGT',...
              'TFAF','trxFilesAllGTFull',...
@@ -206,11 +211,6 @@ classdef Labeler < handle
     
     movieIsPlaying = false;
   end
-%   properties (SetAccess=private) 
-%     movieCache = []; % containers.Map. Transient. Keys: standardized
-%       % fullpath, el of .movieFilesAllFull or .movieFilesAllGTFull. 
-%       % vals: MovieReader objects with that movie open
-%   end  
   properties (Dependent)
     isMultiView;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
@@ -226,6 +226,21 @@ classdef Labeler < handle
     nmoviesGT;
     nmoviesGTaware;
     moviesSelected; % [nSel] vector of movie indices currently selected in MovieManager
+  end
+  
+  %% Crop
+  properties
+    movieFilesAllCropInfo % [nmovset x 1] cell. Each el is a [nview] array of cropInfos, or [] if no crop info 
+    movieFilesAllGTCropInfo % [nmovsetGT x 1] "
+    cropIsCropMode % scalar logical
+  end
+  properties (Dependent)
+    movieFilesAllCropInfoGTaware
+    cropProjHasCrops % scalar logical. If true, all elements of movieFilesAll*CropInfo are populated. If false, all elements of " are []
+  end
+  events
+    cropIsCropModeChanged % cropIsCropMode mutated
+    cropCropsChanged % something in .movieFilesAll*CropInfo mutated
   end
   
   %% Trx
@@ -521,6 +536,19 @@ classdef Labeler < handle
       else
         v = obj.movieFilesAllHaveLbls;
       end      
+    end
+    function v = get.movieFilesAllCropInfoGTaware(obj)
+      if obj.gtIsGTMode
+        v = obj.movieFilesAllGTCropInfo;
+      else
+        v = obj.movieFilesAllCropInfo;
+      end
+    end
+    function v = get.cropProjHasCrops(obj)
+      ci = [obj.movieFilesAllCropInfo; obj.movieFilesAllGTCropInfo];
+      tf = ~cellfun(@isempty,ci);
+      v = all(tf);
+      assert(v || ~any(tf));
     end
     function v = get.trxFilesAllFull(obj)
       v = Labeler.trxFilesLocalize(obj.trxFilesAll,obj.movieFilesAllFull);
@@ -1148,6 +1176,9 @@ classdef Labeler < handle
       obj.movieFilesAllGTHaveLbls = false(0,1);
       obj.movieInfoAll = cell(0,obj.nview);
       obj.movieInfoAllGT = cell(0,obj.nview);
+      obj.movieFilesAllCropInfo = cell(0,1);
+      obj.movieFilesAllGTCropInfo = cell(0,1);
+      obj.cropIsCropMode = false;
       obj.trxFilesAll = cell(0,obj.nview);
       obj.trxFilesAllGT = cell(0,obj.nview);
       obj.projMacros = struct();
@@ -1191,6 +1222,7 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
     end
       
@@ -1458,6 +1490,7 @@ classdef Labeler < handle
       end
       
       obj.notify('projLoaded');
+      obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
@@ -2088,6 +2121,7 @@ classdef Labeler < handle
         obj.(PROPS.MFA){end+1,1} = movFile;
         obj.(PROPS.MFAHL)(end+1,1) = false;
         obj.(PROPS.MIA){end+1,1} = ifo;
+        obj.(PROPS.MFACI){end+1,1} = CropInfo.empty(0,0);
         obj.(PROPS.TFA){end+1,1} = tFile;
         obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
@@ -2239,6 +2273,7 @@ classdef Labeler < handle
       obj.(PROPS.MFA)(end+1,:) = moviefiles(:)';
       obj.(PROPS.MFAHL)(end+1,1) = false;
       obj.(PROPS.MIA)(end+1,:) = ifos;
+      obj.(PROPS.MFACI){end+1,1} = CropInfo.empty(0,0);
       obj.(PROPS.TFA)(end+1,:) = repmat({''},1,obj.nview);
       obj.(PROPS.LPOS){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
       obj.(PROPS.LPOSTS){end+1,1} = -inf(nLblPts,nFrms,nTgt);
@@ -2314,7 +2349,8 @@ classdef Labeler < handle
         obj.(PROPS.MFA)(iMov,:) = [];
         obj.(PROPS.MFAHL)(iMov,:) = [];
         obj.(PROPS.MIA)(iMov,:) = [];
-        obj.(PROPS.TFA)(iMov,:) = [];
+        obj.(PROPS.MFACI)(iMov,:) = [];
+        obj.(PROPS.TFA)(iMov,:) = [];        
         
         tfOrig = obj.isinit;
         obj.isinit = true; % AL20160808. we do not want set.labeledpos side effects, listeners etc.
@@ -2383,7 +2419,7 @@ classdef Labeler < handle
       % Future: clean up .isinit, listener policy etc it is getting too 
       % complex
       FLDS1 = {'movieInfoAll' 'movieFilesAll' 'movieFilesAllHaveLbls'...
-        'trxFilesAll'};
+        'movieFilesAllCropInfo' 'trxFilesAll'};
       for f=FLDS1,f=f{1}; %#ok<FXSET>
         obj.(f) = obj.(f)(p,:);
       end
@@ -7447,6 +7483,181 @@ classdef Labeler < handle
       % - icon managed by caller      
     end
     
+  end
+  
+  %% Crop
+  methods
+    
+    function cropSetCropMode(obj,tf)
+      obj.cropIsCropMode = tf;
+      obj.notify('cropIsCropModeChanged');
+    end
+    
+    function [whDefault,whMaxAllowed] = cropComputeDfltWidthHeight(obj)
+      % whDefault: [nview x 2]. cols: width, height
+      %   See defns at top of CropInfo.m.
+      % whMaxAllowed: [nview x 2]. maximum widthHeight that will fit in all
+      %   images, per view
+      
+      movInfos = [obj.movieInfoAll; obj.movieInfoAllGT];
+      nrall = cellfun(@(x)x.info.nr,movInfos); % [(nmov+nmovGT) x nview]
+      ncall = cellfun(@(x)x.info.nc,movInfos); % etc
+      nrmin = min(nrall,[],1); % [1xnview]
+      ncmin = min(ncall,[],1); % [1xnview]
+      widthMax = ncmin(:)-1; % col1..col<ncmin>
+      heightMax = nrmin(:)-1;
+      whMaxAllowed = [widthMax heightMax];
+      whDefault = whMaxAllowed/2;
+    end
+    
+    function wh = cropInitCropsAllMovies(obj)
+      % Create/initialize default crops for all movies (including GT) in
+      % all views
+      %
+      % wh: [nviewx2] widthHeight of default crop size used. See defns at 
+      % top of CropInfo.m.      
+      wh = obj.cropComputeDfltWidthHeight;
+      obj.cropInitCropsHlp(wh,'movieInfoAll','movieFilesAllCropInfo');
+      obj.cropInitCropsHlp(wh,'movieInfoAllGT','movieFilesAllGTCropInfo');
+      obj.notify('cropCropsChanged');
+    end
+    function cropInitCropsHlp(obj,widthHeight,fldMIA,fldMFACI)
+      movInfoAll = obj.(fldMIA);
+      [nmov,nvw] = size(movInfoAll);
+      szassert(widthHeight,[nvw 2]);
+      for ivw=1:nvw
+        whview = widthHeight(ivw,:);
+        for i=1:nmov
+          ifo = movInfoAll{i,ivw}.info;
+          xyCtr = (1+[ifo.nc ifo.nr])/2;
+          posnCtrd = [xyCtr whview];
+          obj.(fldMFACI){i}(ivw) = CropInfo.CropInfoCentered(posnCtrd);
+        end
+      end
+    end
+      
+    function [tfhascrop,roi] = cropGetCropCurrMovie(obj)
+      % Current crop per GT mode
+      %
+      %
+      % tfhascrop: scalar logical.
+      % roi: [nview x 4]. Applies only when tfhascrop==true; otherwise
+      %   indeterminate. roi(ivw,:) is [xlo xhi ylo yhi]. 
+      
+      iMov = obj.currMovie;
+      if iMov==0
+        tfhascrop = false;
+        roi = [];
+      else
+        PROPS = obj.gtGetSharedProps();
+        cropInfo = obj.(PROPS.MFACI){iMov};
+        if isempty(cropInfo)
+          tfhascrop = false;
+          roi = [];
+        else
+          tfhascrop = true;
+          roi = cat(1,cropInfo.roi);
+          szassert(roi,[obj.nview 4]);
+        end
+      end      
+    end
+    
+    function cropSetNewRoiCurrMov(obj,iview,roi)
+      % Set new crop/roi for current movie (GT-aware).
+      %
+      % If the crop size has changed, update crops sizes for all movies.
+      % 
+      % roi: [1x4]. [xlo xhi ylo yhi]. See defns at top of CropInfo.m
+      
+      iMov = obj.currMovie;
+      if iMov==0
+        error('No movie selected.');
+      end
+      
+      movIfo = obj.movieInfoAllGTaware{iMov,iview}.info;
+      imnc = movIfo.nc;
+      imnr = movIfo.nr;
+      tfproper = CropInfo.roiIsProper(roi,imnc,imnr);
+      if ~tfproper
+        error('ROI extends outside of video. Video image is %d x %d.\n',...
+          imnc,imnr);
+      end
+      
+      if ~obj.cropProjHasCrops
+        obj.cropInitCropsAllMovies();
+        fprintf(1,'Default crop initialized for all movies.\n');
+      end
+      
+      PROPS = obj.gtGetSharedProps();
+      roi0 = obj.(PROPS.MFACI){iMov}(iview).roi;
+      posn0 = CropInfo.roi2RectPos(roi0);
+      posn = CropInfo.roi2RectPos(roi);
+      widthHeight0 = posn0(3:4);
+      widthHeight = posn(3:4);
+      tfSzChanged = ~isequal(widthHeight,widthHeight0);
+      tfProceedSet = true;
+      if tfSzChanged
+        tfOKSz = obj.cropCheckValidCropSize(iview,widthHeight);
+        if tfOKSz 
+          obj.cropSetSizeAllCrops(iview,widthHeight);
+          %warningNoTrace('Crop sizes in all movies altered.');
+        else
+          warningNoTrace('New roi/crop size is too big for one or more movies in project. ROI not set.');
+          tfProceedSet = false;
+        end
+      end
+      if tfProceedSet
+        obj.(PROPS.MFACI){iMov}(iview).roi = roi;
+      end
+      
+      % actually in some codepaths nothing changed, but shouldn't hurt
+      obj.notify('cropCropsChanged'); 
+    end
+    
+    function tfOKSz = cropCheckValidCropSize(obj,iview,widthHeight)
+      [~,whMaxAllowed] = obj.cropComputeDfltWidthHeight();
+      wh = whMaxAllowed(iview,:);
+      tfOKSz = all(widthHeight<=wh);
+    end
+    
+    function cropSetSizeAllCrops(obj,iview,widthHeight)
+      % Sets crop size for all movies (GT included) for iview. Keeps crops
+      % centered as possible
+      
+      obj.cropSetSizeAllCropsHlp(iview,widthHeight,'movieInfoAll',...
+        'movieFilesAllCropInfo');
+      obj.cropSetSizeAllCropsHlp(iview,widthHeight,'movieInfoAllGT',...
+        'movieFilesAllGTCropInfo');
+      obj.notify('cropCropsChanged'); 
+    end
+    function cropSetSizeAllCropsHlp(obj,iview,widthHeight,fldMIA,fldMFACI)
+      movInfoAll = obj.(fldMIA);
+      cropInfos = obj.(fldMFACI);
+      for i=1:numel(cropInfos)
+        posn = CropInfo.roi2RectPos(cropInfos{i}(iview).roi);
+        posn = CropInfo.rectPosResize(posn,widthHeight);
+        roi = CropInfo.rectPos2roi(posn);
+        
+        ifo = movInfoAll{i,iview}.info;
+        [roi,tfchanged] = CropInfo.roiSmartFit(roi,ifo.nc,ifo.nr);
+        if tfchanged
+          warningNoTrace('ROI center moved to stay within movie frame.');
+        end
+        obj.(fldMFACI){i}(iview).roi = roi;
+      end
+    end
+    
+    function cropClearAllCrops(obj)
+      % Clear crops for all movies/views, including GT.
+      %
+      % Note, this is different than cropInitCropsAllMovies. That method
+      % creates/sets default crops. This method obliterates all crop infos
+      % so that .cropProjHasCrops returns false;
+      
+      obj.movieFilesAllCropInfo(:) = {CropInfo.empty(0,0)};
+      obj.movieFilesAllGTCropInfo(:) = {CropInfo.empty(0,0)};
+      obj.notify('cropCropsChanged'); 
+    end
   end
  
   

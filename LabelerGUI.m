@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 08-Nov-2017 11:28:24
+% Last Modified by GUIDE v2.5 14-Jun-2018 12:35:42
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -59,9 +59,9 @@ set(handles.edit_frame,'String','');
 set(handles.txStatus,'String','');
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
-set(handles.pnlSusp,'Visible','off');
+%set(handles.pnlSusp,'Visible','off');
 
-handles.pnlSusp.Visible = 'off';
+%handles.pnlSusp.Visible = 'off';
 
 handles=LabelerTooltips(handles); % would be cool to have a toggle to NOT do this for advanced users -- the tooltips are annoying as shit once you know what you're doing.
 
@@ -81,6 +81,17 @@ handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import
   'Visible','on');
 moveMenuItemAfter(handles.menu_file_export_labels_table,...
   handles.menu_file_export_labels_trks);
+
+handles.menu_file_crop_mode = uimenu('Parent',handles.menu_file,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_crop_mode_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Crop Mode',...
+  'Tag','menu_file_crop_mode',...
+  'Checked','off',...
+  'Separator','on',...
+  'Visible','on');
+moveMenuItemAfter(handles.menu_file_crop_mode,...
+  handles.menu_file_importexport);
+
 
 % Label/Setup menu
 mnuLblSetup = handles.menu_labeling_setup;
@@ -415,6 +426,11 @@ set(handles.axes_prev,'Color',[0 0 0]);
 handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
+handles.cropHRect = [];
+handles.tbAdjustCropSizeString0 = handles.tbAdjustCropSize.String;
+handles.tbAdjustCropSizeString1 = 'Done Adjusting';
+handles.tbAdjustCropSizeBGColor0 = handles.tbAdjustCropSize.BackgroundColor;
+handles.tbAdjustCropSizeBGColor1 = [1 0 0];
 
 pumTrack = handles.pumTrack;
 pumTrack.Value = 1;
@@ -459,6 +475,8 @@ listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertCha
 listeners{end+1,1} = addlistener(lObj,'movieViewBGsubbed','PostSet',@cbkMovieViewBGsubbedChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged);
+listeners{end+1,1} = addlistener(lObj,'cropIsCropModeChanged',@cbkCropIsCropModeChanged);
+listeners{end+1,1} = addlistener(lObj,'cropCropsChanged',@cbkCropCropsChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
@@ -480,7 +498,8 @@ handles.propsNeedInit = {
   'trackModeIdx'
   'movieCenterOnTarget'
   'movieForceGrayscale' 
-  'movieInvert'};
+  'movieInvert'
+  };
 
 set(handles.output,'Toolbar','figure');
 
@@ -842,6 +861,8 @@ handles.axes_all = axs;
 handles.images_all = ims;
 handles.axes_occ = axsOcc;
 
+handles = cropInitImRects(handles);
+
 if isfield(handles,'allAxHiliteMgr') && ~isempty(handles.allAxHiliteMgr)
   % Explicit deletion not supposed to be nec
   delete(handles.allAxHiliteMgr);
@@ -999,6 +1020,10 @@ handles.allAxHiliteMgr.setHilitePnl(lObj.hasTrx);
 
 hlpGTUpdateAxHilite(lObj);
 
+if lObj.cropIsCropMode
+  cropUpdateCropHRects(handles);
+end
+
 % update HUD, statusbar
 mname = lObj.moviename;
 if lObj.nview>1
@@ -1020,6 +1045,7 @@ if ~isempty(mname)
   % persist and not movie status update. This depends on detailed ordering in 
   % Labeler.projLoad
 end
+
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
@@ -1826,6 +1852,10 @@ s = struct();
 s.(VARNAME) = lObj.labelGetMFTableLabeled('useMovNames',true); %#ok<STRNU>
 save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
+
+function menu_file_crop_mode_Callback(hObject,evtdata,handles)
+lObj = handles.labelerObj;
+lObj.cropSetCropMode(~lObj.cropIsCropMode);
 
 function menu_help_Callback(hObject, eventdata, handles)
 
@@ -2773,3 +2803,140 @@ if ~lObj.hasMovie
   return;
 end
 tfok = true;
+
+%% Cropping
+function handles = cropInitImRects(handles)
+deleteValidHandles(handles.cropHRect);
+handles.cropHRect = ...
+  arrayfun(@(x)imrect(x,[nan nan nan nan]),handles.axes_all);
+arrayfun(@(x)set(x,'Visible','off','PickableParts','none','UserData',true),...
+  handles.cropHRect); % userdata: see cropImRectSetPosnNoPosnCallback
+for ivw=1:numel(handles.axes_all)
+  posnCallback = @(zpos)cbkCropPosn(zpos,ivw,handles.figure);
+  handles.cropHRect(ivw).addNewPositionCallback(posnCallback);
+end
+
+function cbkCropIsCropModeChanged(src,evt)
+lObj = src;
+cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
+
+function cbkCropCropsChanged(src,evt)
+lObj = src;
+cropUpdateCropHRects(lObj.gdata);
+
+function cropReactNewCropMode(handles,tf)
+
+CROPCONTROLS = {
+  'tbAdjustCropSize'
+  'pbClearAllCrops'
+  'txCropMode'
+  };
+REGCONTROLS = {
+  'pbClear'
+  'tbAccept'
+  'pbTrain'
+  'pbTrack'
+  'pumTrack'};
+
+onIfTrue = onIff(tf);
+offIfTrue = onIff(~tf);
+cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
+cellfun(@(x)set(handles.(x),'Visible',offIfTrue),REGCONTROLS);
+handles.menu_file_crop_mode.Checked = onIfTrue;
+
+cropUpdateCropHRects(handles);
+cropUpdateCropAdjustingCropSize(handles,false);
+
+function cropUpdateCropHRects(handles)
+% Update handles.cropHRect from lObj.cropIsCropMode, lObj.currMovie and
+% lObj.movieFilesAll*cropInfo
+%
+% rect props set:
+% - position
+% - visibility, pickableparts
+%
+% rect props NOT set:
+% - resizeability. 
+
+lObj = handles.labelerObj;
+tfCropMode = lObj.cropIsCropMode;
+[tfHasCrop,roi] = lObj.cropGetCropCurrMovie();
+if tfCropMode && tfHasCrop
+  nview = lObj.nview;
+  imnc = lObj.movienc;
+  imnr = lObj.movienr;
+  szassert(roi,[nview 4]);
+  szassert(imnc,[nview 1]);
+  szassert(imnr,[nview 1]);
+  for ivw=1:nview
+    h = handles.cropHRect(ivw);
+    cropImRectSetPosnNoPosnCallback(h,CropInfo.roi2RectPos(roi(ivw,:)));
+    set(h,'Visible','on','PickableParts','all');
+    fcn = makeConstrainToRectFcn('imrect',[1 imnc(ivw)],[1 imnr(ivw)]);
+    h.setPositionConstraintFcn(fcn);
+  end
+else
+  arrayfun(@(x)cropImRectSetPosnNoPosnCallback(x,[nan nan nan nan]),...
+    handles.cropHRect);
+  arrayfun(@(x)set(x,'Visible','off','PickableParts','none'),handles.cropHRect);
+end
+
+function cropImRectSetPosnNoPosnCallback(hRect,pos)
+% Set the hRect's graphics position without triggering its
+% PositionCallback. Works in concert with cbkCropPosn
+tfSetPosnLabeler0 = get(hRect,'UserData');
+set(hRect,'UserData',false);
+hRect.setPosition(pos);
+set(hRect,'UserData',tfSetPosnLabeler0);
+
+function cropUpdateCropAdjustingCropSize(handles,tfAdjust)
+% cropUpdateCropAdjustingCropSize(handles) --
+%   update .cropHRects.resizeable based on tbAdjustCropSize
+% cropUpdateCropAdjustingCropSize(handles,tfCropMode) --
+%   update .cropHRects.resizeable and tbAdjustCropSize based on tfAdjust
+
+tb = handles.tbAdjustCropSize;
+if nargin<2
+  tfAdjust = tb.Value==tb.Max; % tb depressed
+end
+
+if tfAdjust
+  tb.Value = tb.Max;
+  tb.String = handles.tbAdjustCropSizeString1;
+  tb.BackgroundColor = handles.tbAdjustCropSizeBGColor1;
+else
+  tb.Value = tb.Min;
+  tb.String = handles.tbAdjustCropSizeString0;
+  tb.BackgroundColor = handles.tbAdjustCropSizeBGColor0;
+end
+arrayfun(@(x)x.setResizable(tfAdjust),handles.cropHRect);
+
+function cbkCropPosn(posn,iview,hFig)
+handles = guidata(hFig);
+tfSetPosnLabeler = get(handles.cropHRect(iview),'UserData');
+if tfSetPosnLabeler
+  [roi,roiw,roih] = CropInfo.rectPos2roi(posn);
+  tb = handles.tbAdjustCropSize;
+  if tb.Value==tb.Max % tbAdjustCropSizes depressed; using as proxy for, imrect is resizable
+    fprintf(1,'roi (width,height): (%d,%d)\n',roiw,roih);
+  end
+  handles.labelerObj.cropSetNewRoiCurrMov(iview,roi);
+end
+
+function tbAdjustCropSize_Callback(hObject, eventdata, handles)
+cropUpdateCropAdjustingCropSize(handles);
+tb = handles.tbAdjustCropSize;
+if tb.Value==tb.Min
+  % user clicked "Done Adjusting"
+  warningNoTrace('All movies in a given view must share the same crop size. The sizes of all crops have been updated as necessary.'); 
+elseif tb.Value==tb.Max
+  % user clicked "Adjust Crop Size"
+  lObj = handles.labelerObj;
+  if ~lObj.cropProjHasCrops
+    lObj.cropInitCropsAllMovies;
+    fprintf(1,'Default crop initialized for all movies.\n');
+    cropUpdateCropHRects(handles);
+  end
+end
+function pbClearAllCrops_Callback(hObject, eventdata, handles)
+handles.labelerObj.cropClearAllCrops();
