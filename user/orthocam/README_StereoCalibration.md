@@ -87,7 +87,11 @@ When this step is complete, you will have 4 single-camera Orthocam calibrations!
 **_With the new step 3b_**, I bet that this step is mostly unnecessary now. The optimizer will have a much easier time converging. When the listbox pops up, you can just pick the first/default pattern. For reference, here is the old blurb:
 
 ```
-This is a technical quirk with the current implementation. One calibration-pattern-pair is currently selected to serve as a common coordinate system for the optimization. Pattern-pairs that are "unusual" (eg upside-down, far from image center(s) etc) should not be chosen as they can lead to convergence problems. Select a very "normal" pattern-pair for this step  (X to right; Y down).
+This is a technical quirk with the current implementation. One calibration-pattern-pair is
+currently selected to serve as a common coordinate system for the optimization. Pattern-pairs
+that are "unusual" (eg upside-down, far from image center(s) etc) should not be chosen as they
+can lead to convergence problems. Select a very "normal" pattern-pair for this step  (X to
+right; Y down).
 ```
 
 **Step 3e. Run the stereo optimization.**
@@ -107,7 +111,7 @@ You will be prompted to save your Orthocam calibration.
 
 At this point you are done! the final results are not integrated with the MATLAB Stereo Camera Calibration App, so you may not see the usual MATLAB App display after completion. 
  
-#### Step 4. Re-verify your saved calibration now, or at any later date.**
+#### Step 4. Re-verify your saved calibration now, or at any later date.
 To check your saved calibration, load the MAT-file containing your saved calibrations and run these methods:
 
 ```
