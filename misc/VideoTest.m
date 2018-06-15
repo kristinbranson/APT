@@ -1,7 +1,7 @@
 classdef VideoTest
   methods (Static)
     
-    function test1(mov,varargin)
+    function test1gen(mov,varargin)
       % Test1 is:
       % - Read frames 1..nmax sequentially.
       % - In a new read session (get_readframe_fcn), read nsamp randomly 
@@ -51,7 +51,9 @@ classdef VideoTest
           nfrms,nsamp,npass);
       else
         frms = frms(:);
-        assert(all(frms<=nmax),'Random-access frames exceed nmax.');
+        if ~all(frms<=nmax)
+          warningNoTrace('Random-access frames exceed nmax.');
+        end
         nfrms = numel(frms);
         fprintf('%d random frames specified.\n',nfrms);
       end
@@ -95,32 +97,37 @@ classdef VideoTest
       IRAR = cell(nfrms,1);
       for i=1:nfrms
         f = frms(i);
-        IRAR{i} = rf2(f);
+        try
+          IRAR{i} = rf2(f);
+        catch ME
+          fprintf(2,'... Failed to read RAR frame %d: %s\n',i,ME.message);
+          IRAR{i} = [];
+        end
         if mod(i,dispmod)==0
-          fprintf('... read RAR frame %d\n',i);
+          fprintf('... done RAR frame %d\n',i);
         end
       end      
       if fid2  
         fclose(fid2);
       end
 
-      % Test A: internal consistency
-      VideoTest.test1core(ISR,IRAR,frms);
-      if ~isempty(ISR3p)
-        % Test B: (skip) check ISR against ISR3p if supplied. 
-        % Test C: check IRAR against ISR3p if supplied. 
-        % If Test A and Test C pass, then Test B would have passed.
-        % If Test A fails, we expect Test C to fail. The results of Test B
-        % might be interesting.
-        % If Test A passes, but Test C fails, that is interesting.
-        fprintf(1,'Performing checks against external results: %s\n',...
-          ISR3pname);
-        if numel(ISR3p)~=numel(ISR)
-          fprintf(2,'External SR has different number of frames (%d vs %d)\n',...
-            numel(ISR3p),numel(ISR));
-        end
-        VideoTest.test1core(ISR3p,IRAR,frms);
-      end
+%       % Test A: internal consistency
+%       VideoTest.test1core(ISR,IRAR,frms);
+%       if ~isempty(ISR3p)
+%         % Test B: (skip) check ISR against ISR3p if supplied. 
+%         % Test C: check IRAR against ISR3p if supplied. 
+%         % If Test A and Test C pass, then Test B would have passed.
+%         % If Test A fails, we expect Test C to fail. The results of Test B
+%         % might be interesting.
+%         % If Test A passes, but Test C fails, that is interesting.
+%         fprintf(1,'Performing checks against external results: %s\n',...
+%           ISR3pname);
+%         if numel(ISR3p)~=numel(ISR)
+%           fprintf(2,'External SR has different number of frames (%d vs %d)\n',...
+%             numel(ISR3p),numel(ISR));
+%         end
+%         VideoTest.test1core(ISR3p,IRAR,frms);
+%       end
       
       if exist(outdir,'dir')==0
         fprintf(1,'Directory ''%s'' does not exist. Creating...\n',outdir);
@@ -133,7 +140,11 @@ classdef VideoTest
       for i=1:numel(ISR)
         fname = sprintf('sr_%06d.png',i);
         fname = fullfile(outdir,fname);
-        imwrite(ISR{i},fname);
+        if ~isempty(ISR{i})
+          imwrite(ISR{i},fname);
+        else
+          imwrite(0,fname);
+        end
         if mod(i,dispmod)==0
           fprintf(' ... wrote SR frame %d\n',i);
         end
@@ -142,7 +153,11 @@ classdef VideoTest
       for i=1:numel(IRAR)
         fname = sprintf('rar_%06d_%06d.png',i,frms(i));
         fname = fullfile(outdir,fname);
-        imwrite(IRAR{i},fname);
+        if ~isempty(IRAR{i})
+          imwrite(IRAR{i},fname);
+        else
+          imwrite(0,fname);
+        end
         if mod(i,dispmod)==0
           fprintf(' ... wrote RAR frame %d\n',i);
         end
@@ -159,14 +174,12 @@ classdef VideoTest
       fprintf(1,'Wrote jsoninfo ''%s''\n',fname);
     end
     
-    function test1compare(testdir,varargin)
+    function test1gencompare(testdir,varargin)
       mov = myparse(varargin,...
         'mov',''); % read from testdir, but can also be supplied if eg on diff platform or movie has moved
       
       res = load(fullfile(testdir,'matlabres.mat'));
-      fh = fopen(fullfile(testdir,'info.json'));
-      json = jsondecode(fgetl(fh));
-      fclose(fh);
+      json = VideoTest.getjson(testdir);
       
       if isempty(mov)
         mov = json.mov;
@@ -177,23 +190,31 @@ classdef VideoTest
       else
         nmax = [];
       end
-      VideoTest.test1(mov,...
+      VideoTest.test1gen(mov,...
         'nmax',nmax,...
-        'frms',json.frms,...
-        'ISR3p',res.ISR,...
-        'ISR3pname',testdir);
+        'frms',json.frms);
     end
     
-    function test1core(ISR,IRAR,frms,varargin)
-      % ISR: seq-read frames, 1..n.
-      % IRAR: random-read frames. Labeled by frms.
+    function test1internal(testdir,varargin)
+      % Test for internal consistency
       
       plusminus = myparse(varargin,...
         'plusminus',3);
       
+      resfile = fullfile(testdir,'matlabres.mat');
+      load(resfile,'-mat');
+      json = VideoTest.getjson(testdir);
+      
       ICOMB = [ISR;IRAR];
       
-      cls = cellfun(@class,ICOMB,'uni',0);
+      tfempty = cellfun(@isempty,ICOMB);
+      if any(tfempty)
+        fprintf(2,'Failed reads: %d frames\n',nnz(tfempty));
+      end
+      
+      ICOMBNE = ICOMB(~tfempty);
+      
+      cls = cellfun(@class,ICOMBNE,'uni',0);
       cls = unique(cls);
       if isscalar(cls)
         fprintf(1,'img class: %s\n',cls{1});
@@ -202,7 +223,7 @@ classdef VideoTest
           String.cellstr2CommaSepList(cls));
       end
       
-      chan = cellfun(@(x)size(x,3),ICOMB);
+      chan = cellfun(@(x)size(x,3),ICOMBNE);
       chanUn = unique(chan);
       if isscalar(chanUn)
         fprintf(1,'num chans: %d\n',chanUn);
@@ -211,7 +232,7 @@ classdef VideoTest
       end
       
       if isequal(chanUn,3)
-        tfgray = cellfun(@(x)isequal(x(:,:,1),x(:,:,2),x(:,:,3)),ICOMB);
+        tfgray = cellfun(@(x)isequal(x(:,:,1),x(:,:,2),x(:,:,3)),ICOMBNE);
         if all(tfgray)
           fprintf(1,'All ims grayscale.\n');
         elseif ~any(tfgray)
@@ -221,6 +242,7 @@ classdef VideoTest
         end
       end
       
+      frms = json.frms;
       nfrms = numel(frms);
       assert(nfrms==numel(IRAR));
       frmsUn = unique(frms);
@@ -232,6 +254,8 @@ classdef VideoTest
         imrar = IRAR(irar);
         if ~isequal(imrar{:})
           fprintf(2,'Frame %d, inconsistent within-RAR.\n',f);
+        elseif f>numel(ISR)
+          fprintf(2,'Frame %d, beyond end of maxframe (SR)\n',f);
         elseif ~isequal(ISR{f},imrar{1})
           fprintf(2,'Frame %d, inconsistent RAR vs SR.\n',f);
           frmsplusminus = max(1,f-plusminus):min(numel(ISR),f+plusminus);
@@ -245,6 +269,57 @@ classdef VideoTest
           fprintf(1,'Frame %d, OK %d samps.\n',f,numel(imrar));
         end
       end
+    end
+    
+    function test1compare(testdir1,testdir2,varargin)
+      % Test comparing test dirs.
+      % 
+      % test1internal has compared ISR to IRAR for each of testdir1/2.
+      % Here we just compare IRAR1 to IRAR2, and IRAR2 to ISR1 when IRAR2
+      % doesn't match IRAR1.
+      
+      plusminus = myparse(varargin,...
+        'plusminus',3);
+      
+      resfile1 = fullfile(testdir1,'matlabres.mat');
+      res1 = load(resfile1,'-mat');
+      json1 = VideoTest.getjson(testdir1);
+      
+      resfile2 = fullfile(testdir2,'matlabres.mat');
+      res2 = load(resfile2,'-mat');
+      json2 = VideoTest.getjson(testdir2);
+      
+      if ~isequal(json1.frms,json2.frms)
+        error('Test dirs %s and %s were run on different random-access frames.\n',...
+          testdir1,testdir2);
+      end
+
+      frms = json1.frms;
+      nfrms = numel(frms);
+      assert(isequal(nfrms,numel(res1.IRAR),numel(res2.IRAR)));
+      for i=1:nfrms
+        f = frms(i);
+        if ~isequal(res1.IRAR{i},res2.IRAR{i})
+          fprintf(2,'read idx %d, frame %d: differs!!!!!!!!!!!!!!!!!!!!\n',i,f);
+          frmsplusminus = max(1,f-plusminus):min(numel(res1.ISR),f+plusminus);
+          for ff=frmsplusminus
+            if isequal(res1.ISR{ff},res2.IRAR{i})
+              fprintf(2,'... found IRAR2 in ISR1 at delta=%d.\n',ff-f);
+              break;
+            end
+          end
+        else
+          fprintf(1,'read idx %d, frame %d: OK.\n',i,f);
+        end
+      end
+      fprintf(1,'Compared %d RAR frames.\n',nfrms);
+    end
+    
+    function json = getjson(testdir)
+      json = fullfile(testdir,'info.json');
+      fh = fopen(json,'r');
+      json = jsondecode(fgetl(fh));
+      fclose(fh);
     end
     
     function matvspng(testdir)
