@@ -206,6 +206,9 @@ classdef Labeler < handle
     moviePlaySegRadius; % scalar int
     moviePlayFPS; 
     movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
+      % Not much care is taken wrt interactions with cropInfo. If you 
+      % change your .movieInvert, then your crops will likely be wrong.
+      % A warning is thrown but nothing else
     
     movieViewBGsubbed = false; % transient
     
@@ -220,8 +223,12 @@ classdef Labeler < handle
     hasMovie;
     moviefile;
     nframes;
-    movienr; % [nview]
-    movienc; % [nview]
+    movierawnr; % [nview]. numRows in original/raw movies
+    movierawnc; % [nview]. numCols in original/raw movies
+    movienr; % [nview]. always equal to numRows in .movieroi
+    movienc; % [nview]. always equal to numCols in .movieroi
+    movieroi; % [nview x 4]. Each row is [xlo xhi ylo yhi]. If no crop present, then this is just [1 nc 1 nr].
+    movieroictr; % [nview x 2]. Each row is [xc yc] center of current roi in that view.
     nmovies;
     nmoviesGT;
     nmoviesGTaware;
@@ -550,6 +557,19 @@ classdef Labeler < handle
       v = all(tf);
       assert(v || ~any(tf));
     end
+    function v = getMovieFilesAllCropInfoMovIdx(obj,mIdx)
+      % mIdx: scalar MovieIndex 
+      % v: empty, or [nview] CropInfo array 
+      
+      assert(isa(mIdx,'MovieIndex'));
+      assert(isscalar(mIdx));
+      [iMov,gt] = mIdx.get();
+      if gt
+        v = obj.movieFilesAllGTCropInfo{iMov};
+      else
+        v = obj.movieFilesAllCropInfo{iMov};
+      end
+    end
     function v = get.trxFilesAllFull(obj)
       v = Labeler.trxFilesLocalize(obj.trxFilesAll,obj.movieFilesAllFull);
     end    
@@ -583,7 +603,7 @@ classdef Labeler < handle
         v = mr.filename;
       end
     end
-    function v = get.movienr(obj)
+    function v = get.movierawnr(obj)
       mr = obj.movieReader;
       if mr(1).isOpen
         v = [mr.nr]';
@@ -591,13 +611,33 @@ classdef Labeler < handle
         v = nan(obj.nview,1);
       end
     end
-    function v = get.movienc(obj)
+    function v = get.movierawnc(obj)
       mr = obj.movieReader;
       if mr(1).isOpen
         v = [mr.nc]';          
       else
         v = nan(obj.nview,1);
       end
+    end    
+    function v = get.movienr(obj)
+      v = obj.movieroi;
+      v = v(:,4)-v(:,3)+1;
+    end
+    function v = get.movienc(obj)
+      v = obj.movieroi;
+      v = v(:,2)-v(:,1)+1;
+    end    
+    function v = get.movieroi(obj)
+      mr = obj.movieReader;
+      if mr(1).isOpen
+        v = cat(1,mr.roiread);
+      else
+        v = nan(obj.nview,4);
+      end
+    end
+    function v = get.movieroictr(obj)
+      rois = obj.movieroi;
+      v = [rois(:,1)+rois(:,2),rois(:,3)+rois(:,4)]/2;
     end    
     function v = get.nframes(obj)
       if isempty(obj.currMovie) || obj.currMovie==0
@@ -826,11 +866,20 @@ classdef Labeler < handle
     end
     function set.movieInvert(obj,v)
       assert(islogical(v) && numel(v)==obj.nview); %#ok<MCSUP>
-      mrs = obj.movieReader; %#ok<MCSUP>
-      for i=1:obj.nview %#ok<MCSUP>
-        mrs(i).flipVert = v(i);
+      movieInvert0 = obj.movieInvert;
+      if ~isequal(movieInvert0,v)
+        mrs = obj.movieReader; %#ok<MCSUP>
+        for i=1:obj.nview %#ok<MCSUP>
+          mrs(i).flipVert = v(i);
+        end
+        if ~obj.isinit %#ok<MCSUP>
+          obj.preProcNonstandardParamChanged();
+          if obj.cropProjHasCrops %#ok<MCSUP>
+            warningNoTrace('Project cropping will NOT be inverted/updated. Please check your crops.')
+          end
+        end
+        obj.movieInvert = v;
       end
-      obj.movieInvert = v;
     end
     function set.movieViewBGsubbed(obj,v)
       assert(isscalar(v) && islogical(v));
@@ -2740,6 +2789,8 @@ classdef Labeler < handle
       end
       
       movsAllFull = obj.movieFilesAllFullGTaware;
+      cInfo = obj.movieFilesAllCropInfoGTaware{iMov};
+      tfHasCrop = ~isempty(cInfo);
 
       ppPrms = obj.preProcParams;
       if ~isempty(ppPrms)
@@ -2750,7 +2801,13 @@ classdef Labeler < handle
       end        
       for iView=1:obj.nview
         mov = movsAllFull{iMov,iView};
-        obj.movieReader(iView).open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale, .movieInvert
+        mr = obj.movieReader(iView);
+        mr.open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale, .movieInvert
+        if tfHasCrop
+          mr.setCropInfo(cInfo(iView)); % cInfo(iView) is a handle/pointer!
+        else
+          mr.setCropInfo([]);
+        end
         RC.saveprop('lbl_lastmovie',mov);
         if iView==1
           obj.moviename = FSPath.twoLevelFilename(obj.moviefile);
@@ -2917,12 +2974,12 @@ classdef Labeler < handle
       iSamp = 0;
       wbObj.startPeriod('Reading data','shownumden',true,'denominator',nFrmSamp);
       for iMov = 1:obj.nmovies
-        mov = obj.movieFilesAllFull{iMov};
-        obj.movieMovieReaderOpen(mr,mov,1);
+        mIdx = MovieIndex(iMov);
+        obj.movieMovieReaderOpen(mr,mIdx,1);
         for f = 1:dfSamp:mr.nframes
           wbObj.updateFracWithNumDen(iSamp);
           iSamp = iSamp+1;
-          I{end+1,1} = mr.readframe(f); %#ok<AGROW>
+          I{end+1,1} = mr.readframe(f,'docrop',true); %#ok<AGROW>
           %fprintf('Read movie %d, frame %d\n',iMov,f);
         end
       end
@@ -2931,15 +2988,16 @@ classdef Labeler < handle
       H0 = typicalImHist(I,'wbObj',wbObj);
     end
     
-    function movieMovieReaderOpen(obj,movRdr,movfname,iView)
-      % Take a movieReader object and open the movie fname, being faithful
-      % to obj as per:
+    function movieMovieReaderOpen(obj,movRdr,mIdx,iView)
+      % Take a movieReader object and open the movie (mIdx,iView), being 
+      % faithful to obj as per:
       %   - .movieForceGrayScale 
       %   - .movieInvert(iView)
       %   - .preProcParams.BackSub
+      %   - .cropInfo for (mIdx,iView) as appropriate
       %
       % movRdr: scalar MovieReader object
-      % movfname: full path to movie
+      % mIdx: scalar MovieIndex
       % iView: view index; used for .movieInvert
 
       ppPrms = obj.preProcParams;
@@ -2950,9 +3008,16 @@ classdef Labeler < handle
         bgArgs = {};
       end
       
-      movRdr.open(movfname,bgArgs{:});
+      movfname = obj.getMovieFilesAllFullMovIdx(mIdx);
+      movRdr.open(movfname{iView},bgArgs{:});
       movRdr.forceGrayscale = obj.movieForceGrayscale;
       movRdr.flipVert = obj.movieInvert(iView);
+      cInfo = obj.getMovieFilesAllCropInfoMovIdx(mIdx);
+      if ~isempty(cInfo)
+        movRdr.setCropInfo(cInfo(iView));
+      else
+        movRdr.setCropInfo([]);
+      end      
     end
         
 %     function movRdr = getMovieReader(obj,movname)
@@ -4730,12 +4795,12 @@ classdef Labeler < handle
     end
     
     %#%GTOK
-    function tblMF = labelMFTableAddROI(obj,tblMF,roiRadius)
-      % Add .pRoi and .roi to tblMF
+    function tblMF = labelMFTableAddROITrx(obj,tblMF,roiRadius)
+      % Add .pRoi and .roi to tblMF using trx info
       %
       % tblMF.pRoi: Just like tblMF.p, but relative to tblMF.roi (p==1 => 
       %   first row/col of ROI)
-      % tblMF.roi: [nrow x 2*2*nview]. Raster order {lo,hi},{x,y},view
+      % tblMF.roi: [nrow x (2*2*nview)]. Raster order {lo,hi},{x,y},view
       
       tblfldscontainsassert(tblMF,MFTable.FLDSFULLTRX);
       tblfldsdonotcontainassert(tblMF,{'pRoi' 'roi'});
@@ -4760,6 +4825,53 @@ classdef Labeler < handle
           tfRmRow(i) = true;
         else
           pRoi(i,:) = Shape.xy2vec(xyROIcurr);
+          roi(i,:) = roiCurr;
+        end
+      end
+      
+      tblMF = [tblMF table(pRoi,roi)];
+      tblMF(tfRmRow,:) = [];
+    end
+    
+    function tblMF = labelMFTableAddROICrop(obj,tblMF)
+      % Add .pRoi and .roi to tblMF using crop info
+      %
+      % tblMF.pRoi: Just like tblMF.p, but relative to tblMF.roi (p==1 => 
+      %   first row/col of ROI)
+      % tblMF.roi: [nrow x (2*2*nview)]. Raster order {lo,hi},{x,y},view
+      %
+      % tblMF(out): rows removed if xy are OOB of roi.
+      
+      tblfldscontainsassert(tblMF,MFTable.FLDSFULL);
+      tblfldsdonotcontainassert(tblMF,{'pRoi' 'roi'});
+      assert(isa(tblMF.mov,'MovieIndex'));
+      
+      if ~obj.cropProjHasCrops
+        error('Project does not contain cropping information.');
+      end
+      
+      nphyspts = obj.nPhysPoints;
+      nvw = obj.nview;
+      n = height(tblMF);
+      p = tblMF.p;      
+      tfRmRow = false(n,1); % true to rm row due to OOB
+      pRoi = nan(size(p));
+      roi = nan(n,4*obj.nview);
+      for i=1:n
+        mIdx = tblMF.mov(i);
+        cInfo = obj.getMovieFilesAllCropInfoMovIdx(mIdx);
+        roiCurr = cat(1,cInfo.roi);
+        szassert(roiCurr,[nvw 4]);
+        
+        xy = Shape.vec2xy(p(i,:));
+        [xyROI,tfOOBview] = Shape.xy2xyROI(xy,roiCurr,nphyspts);
+        if any(tfOOBview)
+          warningNoTrace('CPRLabelTracker:oob',...
+            'Movie(set) %d, frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
+            mIdx,tblMF.frm(i),tblMF.iTgt(i));
+          tfRmRow(i) = true;
+        else
+          pRoi(i,:) = Shape.xy2vec(xyROI);
           roi(i,:) = roiCurr;
         end
       end
@@ -5459,6 +5571,8 @@ classdef Labeler < handle
     function [tfAllSame,movWidths,movHeights] = viewCalCheckMovSizes(obj)
       % Check for consistency of movie sizes in current proj. Throw
       % warndlgs for each view where sizes differ.
+      %
+      % This considers the raw movie sizes and ignores any cropping.
       % 
       % tfAllSame: [1 nView] logical. If true, all movies in that view
       % have the same size. This includes both .movieInfoAll AND 
@@ -5466,8 +5580,8 @@ classdef Labeler < handle
       % movWidths, movHeights: [nMovSetxnView] arrays
             
       ifo = cat(1,obj.movieInfoAll,obj.movieInfoAllGT);
-      movWidths = cellfun(@(x)x.info.Width,ifo);
-      movHeights = cellfun(@(x)x.info.Height,ifo);
+      movWidths = cellfun(@(x)x.info.Width,ifo); % raw movie width
+      movHeights = cellfun(@(x)x.info.Height,ifo); % raw movie height
       nrow = obj.nmovies + obj.nmoviesGT;
       nView = obj.nview;
       szassert(movWidths,[nrow nView]);
@@ -5490,6 +5604,8 @@ classdef Labeler < handle
     function viewCalSetCheckViewSizes(obj,iMov,crObj,tfSet)
       % Check/set movie image size for movie iMov on calrig object 
       %
+      % The raw movie sizes are used here, ignoring any cropping.
+      % 
       % iMov: movie index, applied in GT-aware fashion (eg .currMovie)
       % crObj: scalar calrig object
       % tfSet: if true, set the movie size on the calrig (with diagnostic
@@ -5497,8 +5613,8 @@ classdef Labeler < handle
             
       assert(iMov>0);
       movInfo = obj.movieInfoAllGTaware(iMov,:);
-      movWidths = cellfun(@(x)x.info.Width,movInfo);
-      movHeights = cellfun(@(x)x.info.Height,movInfo);
+      movWidths = cellfun(@(x)x.info.Width,movInfo); % raw movie width/height
+      movHeights = cellfun(@(x)x.info.Height,movInfo); % etc
       vwSizes = [movWidths(:) movHeights(:)];
       if tfSet
         % If movie sizes differ in this project, setting of viewsizes may
@@ -6278,31 +6394,61 @@ classdef Labeler < handle
         mrs = obj.movieReader;
         for i=1:numel(mrs)
           mrs(i).open(mrs(i).filename,'bgType',bgPrms.BGType,...
-            'bgReadFcn',bgPrms.BGReadFcn); % should already be faithful to .forceGrayscale, .movieInvert
+            'bgReadFcn',bgPrms.BGReadFcn); 
+          % mrs(i) should already be faithful to .forceGrayscale, 
+          % .movieInvert, cropInfo
         end
       end
       obj.preProcParams = ppPrms;
+    end
+    
+    function preProcNonstandardParamChanged(obj)
+      % Normally, preProcSetParams() handles changes to preproc-related
+      % parameters. If a preproc parameter changes, then the output
+      % variable tfPPprmsChanged is set to true, and the caller 
+      % clears/updates the tracker as necessary.
+      %
+      % There are two nonstandard pre-preocessing "parameters" that are set
+      % outside of preProcSetParams: .movieInvert, and
+      % .movieFilesAll*CropInfo. If these properties are mutated, any
+      % preprocessing data, trained tracker, and tracking results must also
+      % be cleared.
+      
+      obj.preProcInitData();
+      if obj.tracker.hasTrained
+        warningNoTrace('Trained tracker and tracking results cleared.');
+      end
+      obj.tracker.initHook(); % XXX TODO deeptrack merge      
     end
     
     function tblP = preProcCropLabelsToRoiIfNec(obj,tblP)
       % Add .roi column to table if appropriate/nec
       %
       % If hasTrx, modify tblP as follows:
-      % - add .roi
-      % - set .p to be .pRoi, ie relative to ROI
-      % - set .pAbs to be absolute .p
-      % If not hasTrx,
-      % - .p will be pAbs
-      % - no .roi
+      %   - add .roi
+      %   - set .p to be .pRoi, ie relative to ROI
+      %   - set .pAbs to be absolute .p
+      % If cropProjHasCrops, same as hasTrx.
+      % Otherwise:
+      %   - .p will be pAbs
+      %   - no .roi
       
       if obj.hasTrx
         tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
         assert(all(tf) || ~any(tf));
         if ~any(tf)
           roiRadius = obj.preProcParams.TargetCrop.Radius;
-          tblP = obj.labelMFTableAddROI(tblP,roiRadius);
+          tblP = obj.labelMFTableAddROITrx(tblP,roiRadius);
           tblP.pAbs = tblP.p;
           tblP.p = tblP.pRoi;
+        end
+      elseif obj.cropProjHasCrops
+        tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
+        assert(all(tf) || ~any(tf));
+        if ~any(tf)
+          tblP = obj.labelMFTableAddROICrop(tblP);
+          tblP.pAbs = tblP.p;
+          tblP.p = tblP.pRoi;        
         end
       else
         % none; tblP.p is .pAbs. No .roi field.
@@ -6319,7 +6465,7 @@ classdef Labeler < handle
       % - MFTable.FLDSFULL are guaranteed where .p is:
       %   * The absolute position for single-target trackers
       %   * The position relative to .roi for multi-target trackers
-      % - .roi is guaranteed when .hasTrx.
+      % - .roi is guaranteed when .hasTrx or .cropProjHasCropInfo
 
       wbObj = myparse(varargin,...
         'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
@@ -6393,6 +6539,9 @@ classdef Labeler < handle
         end
         if ~isequal(H0,data.H0)
           obj.preProcInitData();
+          % Note, currently we do not clear trained tracker/tracking
+          % results, see above. This is caller's responsibility. Atm all
+          % callers do a retrain or equivalent
         end
         obj.preProcH0 = H0;
       else
@@ -6915,8 +7064,10 @@ classdef Labeler < handle
       iVizRow = 1;
       vizrow = tblXVres(iVizRow,:);
       mr = MovieReader;
-      obj.movieMovieReaderOpen(mr,obj.movieFilesAllFull{vizrow.mov,1},1);
-      im = mr.readframe(vizrow.frm);
+      obj.movieMovieReaderOpen(mr,MovieIndex(vizrow.mov),1);
+      im = mr.readframe(vizrow.frm,'docrop',false); 
+      % want to crop via vizrow.roi (if applicable); this comes from trx
+      % most of the time
       pLbl = vizrow.p;
       if tblfldscontains(vizrow,'roi')
         xlo = vizrow.roi(1);
@@ -7377,8 +7528,7 @@ classdef Labeler < handle
       %
       % xy (out): [nx2] xy-coords, clipped so that x in [1,nc] and y in [1,nr]
       
-      xy(:,1) = min(max(xy(:,1),1),obj.movienc);
-      xy(:,2) = min(max(xy(:,2),1),obj.movienr);      
+      xy = CropInfo.roiClipXY(obj.movieroi,xy);
     end
     function dxdy = videoCurrentUpVec(obj)
       % The main axis can be rotated, flipped, etc; Get the current unit 
@@ -7519,6 +7669,7 @@ classdef Labeler < handle
       wh = obj.cropComputeDfltWidthHeight;
       obj.cropInitCropsHlp(wh,'movieInfoAll','movieFilesAllCropInfo');
       obj.cropInitCropsHlp(wh,'movieInfoAllGT','movieFilesAllGTCropInfo');
+      obj.preProcNonstandardParamChanged();
       obj.notify('cropCropsChanged');
     end
     function cropInitCropsHlp(obj,widthHeight,fldMIA,fldMFACI)
@@ -7611,6 +7762,7 @@ classdef Labeler < handle
       end
       
       % actually in some codepaths nothing changed, but shouldn't hurt
+      obj.preProcNonstandardParamChanged();
       obj.notify('cropCropsChanged'); 
     end
     
@@ -7628,6 +7780,7 @@ classdef Labeler < handle
         'movieFilesAllCropInfo');
       obj.cropSetSizeAllCropsHlp(iview,widthHeight,'movieInfoAllGT',...
         'movieFilesAllGTCropInfo');
+      obj.preProcNonstandardParamChanged();
       obj.notify('cropCropsChanged'); 
     end
     function cropSetSizeAllCropsHlp(obj,iview,widthHeight,fldMIA,fldMFACI)
@@ -7654,6 +7807,9 @@ classdef Labeler < handle
       % creates/sets default crops. This method obliterates all crop infos
       % so that .cropProjHasCrops returns false;
       
+      if obj.cropProjHasCrops
+        obj.preProcNonstandardParamChanged();
+      end
       obj.movieFilesAllCropInfo(:) = {CropInfo.empty(0,0)};
       obj.movieFilesAllGTCropInfo(:) = {CropInfo.empty(0,0)};
       obj.notify('cropCropsChanged'); 
@@ -7958,8 +8114,9 @@ classdef Labeler < handle
             warningNoTrace('Labeler:target',...
               'No track for current target at frame %d.',cfrm);
           end
-          x = round(obj.movienc/2);
-          y = round(obj.movienr/2);
+          movroictr = obj.movieroictr; % [1x2]
+          x = round(movroictr(1));
+          y = round(movroictr(2));
           th = 0;
         else
           i = cfrm - ctrx.firstframe + 1;
@@ -7968,8 +8125,9 @@ classdef Labeler < handle
           th = ctrx.theta(i);
         end
       else
-        x = round(obj.movienc/2);
-        y = round(obj.movienr/2);
+        movroictr = obj.movieroictr; % [1x2]
+        x = round(movroictr(1));
+        y = round(movroictr(2));
         th = 0;
       end
     end
@@ -8088,10 +8246,21 @@ classdef Labeler < handle
       gd = obj.gdata;
       if obj.currFrame~=frm || tfforce
         imsall = gd.images_all;
+        tfCropMode = obj.cropIsCropMode;        
         for iView=1:obj.nview
-          obj.currIm{iView} = obj.movieReader(iView).readframe(frm,...
-            'doBGsub',obj.movieViewBGsubbed);
-          set(imsall(iView),'CData',obj.currIm{iView});
+          if tfCropMode
+            [obj.currIm{iView},~,currImRoi] = ...
+              obj.movieReader(iView).readframe(frm,...
+              'doBGsub',obj.movieViewBGsubbed,'docrop',false);                   
+          else
+            [obj.currIm{iView},~,currImRoi] = ...
+              obj.movieReader(iView).readframe(frm,...
+              'doBGsub',obj.movieViewBGsubbed,'docrop',true);                  
+          end          
+          set(imsall(iView),...
+            'CData',obj.currIm{iView},...
+            'XData',currImRoi(1:2),...
+            'YData',currImRoi(3:4));
         end
         obj.currFrame = frm;
       end
@@ -8411,6 +8580,10 @@ classdef Labeler < handle
       if obj.gtIsGTMode
         error('Method is not supported in GT mode.');
       end
+      if obj.cropProjHasCrops
+        % in general projs with trx would never use crop info 
+        error('Method unsupported for projects with cropping info.');
+      end
       if obj.nview>1
         error('Method is not supported for multiple views.');
       end
@@ -8438,7 +8611,7 @@ classdef Labeler < handle
         return;
       end
       roiRadius = prmPP.TargetCrop.Radius;
-      tblMFTlbled = obj.labelMFTableAddROI(tblMFTlbled,roiRadius);
+      tblMFTlbled = obj.labelMFTableAddROITrx(tblMFTlbled,roiRadius);
 
       amu = mean(tblMFTlbled.aTrx);
       bmu = mean(tblMFTlbled.bTrx);
@@ -8450,13 +8623,12 @@ classdef Labeler < handle
       for iMov=iMovsLbled(:)'        
         s = struct();
         
-        movfile = obj.movieFilesAllFull{iMov,1};
         mr = MovieReader();
-        obj.movieMovieReaderOpen(mr,movfile,1);
+        obj.movieMovieReaderOpen(mr,MovieIndex(iMov),1);
         s.movRdr = mr;
         
         trxfname = obj.trxFilesAllFull{iMov,1};
-        movIfo = obj.movieInfoAll{iMov};        
+        movIfo = obj.movieInfoAll{iMov};
         [s.trx,s.frm2trx] = obj.getTrx(trxfname,movIfo.nframes);
                 
         movieStuff{iMov} = s;

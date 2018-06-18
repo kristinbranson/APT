@@ -996,9 +996,8 @@ set(handles.slider_frame,'Value',0,'SliderStep',sliderstep);
 
 tfHasMovie = lObj.currMovie>0;
 if tfHasMovie
-  ifo = lObj.movieInfoAllGTaware{lObj.currMovie,1}.info;
   minzoomrad = 10;
-  maxzoomrad = (ifo.nc+ifo.nr)/4;
+  maxzoomrad = (lObj.movienc(1)+lObj.movienr(1))/4;
   handles.sldZoom.UserData = log([minzoomrad maxzoomrad]);
 end
 
@@ -1046,14 +1045,15 @@ if ~isempty(mname)
   % Labeler.projLoad
 end
 
-
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
   axis(hAx,'auto');
 else
+  xdata = hIm.XData;
+  ydata = hIm.YData;
   set(hAx,...
-    'XLim',[.5,size(hIm.CData,2)+.5],...
-    'YLim',[.5,size(hIm.CData,1)+.5]);
+    'XLim',[xdata(1)-0.5 xdata(2)+0.5],...
+    'YLim',[ydata(1)-0.5 ydata(2)+0.5]);
 end
 axis(hAx,'image');
 zoom(hAx,'reset');
@@ -2152,8 +2152,8 @@ lObj.movieRotateTargetUp = viewCfg(1).RotateTargetUp;
 
 function tfAxLimsSpecifiedInCfg = hlpSetConfigOnViews(viewCfg,handles,centerOnTarget)
 axs = handles.axes_all;
-tfAxLimsSpecifiedInCfg = ViewConfig.setCfgOnViews(viewCfg,handles.figs_all,axs,...
-  handles.images_all,handles.axes_prev);
+tfAxLimsSpecifiedInCfg = ViewConfig.setCfgOnViews(viewCfg,...
+  handles.figs_all,axs,handles.images_all,handles.axes_prev);
 if ~centerOnTarget
   [axs.CameraUpVectorMode] = deal('auto');
   [axs.CameraViewAngleMode] = deal('auto');
@@ -2863,8 +2863,8 @@ tfCropMode = lObj.cropIsCropMode;
 [tfHasCrop,roi] = lObj.cropGetCropCurrMovie();
 if tfCropMode && tfHasCrop
   nview = lObj.nview;
-  imnc = lObj.movienc;
-  imnr = lObj.movienr;
+  imnc = lObj.movierawnc;
+  imnr = lObj.movierawnr;
   szassert(roi,[nview 4]);
   szassert(imnc,[nview 1]);
   szassert(imnr,[nview 1]);

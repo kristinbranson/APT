@@ -183,6 +183,9 @@ classdef MFTable
       % tMF: [nxncol] MFTable. tMF.mov: [nxnview] cellstr
       %
       % I: [nxnview]
+      %
+      % PROB REMOVE ME, dup of CPRData.getFrames. No callsites in APT
+      % application
       
       movIDs = MFTable.formMultiMovieIDArray(tMF.mov); % errs if any ID separator issues
       [movIDsUn,idx] = unique(movIDs);
@@ -220,6 +223,8 @@ classdef MFTable
     end
     
     function I = fetchImagesSafeVideoRdr(tMF,varargin)
+      % No callsites in APT app
+      
       [movFld] = myparse(varargin,...
         'movFld','mov');
       

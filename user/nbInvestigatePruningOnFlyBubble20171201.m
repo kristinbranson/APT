@@ -37,7 +37,7 @@ tObj = lObj.tracker;
 sPrm = tObj.sPrm;
 roiRadius = sPrm.PreProc.TargetCrop.Radius;
 tTrn = t(iTrn,:);
-tTrn = lObj.labelMFTableAddROI(tTrn,roiRadius);
+tTrn = lObj.labelMFTableAddROITrx(tTrn,roiRadius);
 tTrn.pAbs = tTrn.p;
 tTrn.p = tTrn.pRoi;
 %%

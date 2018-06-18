@@ -335,15 +335,13 @@ classdef LabelCore < handle
         
         assert(~lbler.isMultiView,'Multi-view labeling unsupported.');
         
-        nr = lbler.movienr;
-        nc = lbler.movienc;
-        xyOrig = xy;
-        
+        roi = lbler.movieroi;
+        xyOrig = xy;        
         tfRealCoord = ~isnan(xy) & ~isinf(xy);
-        xy(tfRealCoord(:,1),1) = max(xy(tfRealCoord(:,1),1),1);
-        xy(tfRealCoord(:,1),1) = min(xy(tfRealCoord(:,1),1),nc); 
-        xy(tfRealCoord(:,2),2) = max(xy(tfRealCoord(:,2),2),1);
-        xy(tfRealCoord(:,2),2) = min(xy(tfRealCoord(:,2),2),nr);
+        xy(tfRealCoord(:,1),1) = max(xy(tfRealCoord(:,1),1),roi(1));
+        xy(tfRealCoord(:,1),1) = min(xy(tfRealCoord(:,1),1),roi(2)); 
+        xy(tfRealCoord(:,2),2) = max(xy(tfRealCoord(:,2),2),roi(3));
+        xy(tfRealCoord(:,2),2) = min(xy(tfRealCoord(:,2),2),roi(4));
         if ~isequaln(xy,xyOrig)
           warningNoTrace('LabelCore:clipping',...
             'Clipping points that extend beyond movie size.');

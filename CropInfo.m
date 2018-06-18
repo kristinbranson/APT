@@ -171,5 +171,17 @@ classdef CropInfo < handle
       posnCtrd(:,[3 4]) = repmat(widthHeight,size(posnCtrd,1),1);
       posn = CropInfo.rectPosCtrd2Pos(posnCtrd);      
     end
+    
+    function xy = roiClipXY(roi,xy)
+      % Clip xy coords to a given roi.
+      % 
+      % roi: [xlo xhi ylo yhi]
+      % xy: [nx2]
+      
+      assert(size(xy,2)==2);
+      xy(:,1) = min(max(xy(:,1),roi(1)),roi(2));
+      xy(:,2) = min(max(xy(:,2),roi(3)),roi(4));
+    end
+    
   end
 end
