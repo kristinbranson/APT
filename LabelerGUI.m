@@ -2809,7 +2809,8 @@ tfok = true;
 function handles = cropInitImRects(handles)
 deleteValidHandles(handles.cropHRect);
 handles.cropHRect = ...
-  arrayfun(@(x)imrect(x,[nan nan nan nan]),handles.axes_all);
+  arrayfun(@(x)imrect(x,[nan nan nan nan]),handles.axes_all,'uni',0);
+handles.cropHRect = cat(1,handles.cropHRect{:}); % ML 2016a ish can't concat imrects in arrayfun output
 arrayfun(@(x)set(x,'Visible','off','PickableParts','none','UserData',true),...
   handles.cropHRect); % userdata: see cropImRectSetPosnNoPosnCallback
 for ivw=1:numel(handles.axes_all)

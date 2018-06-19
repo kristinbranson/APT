@@ -149,9 +149,11 @@ classdef MFTable
       % movID: char
       
       assert(iscellstr(movs) && isrow(movs));
-      if any(contains(movs,'#'))
+      if exist('contains','builtin')>0 && any(contains(movs,'#')) || ...
+         any(~cellfun(@isempty,regexp(movs,'#','once')))
         warningNoTrace('Movies contain ID separator ''#''.');
       end
+        
       movID = sprintf('%s#',movs{:});
       movID = movID(1:end-1);
     end
