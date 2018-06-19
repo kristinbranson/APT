@@ -1942,7 +1942,7 @@ if isequal(fname,0)
 end
 fname = fullfile(pth,fname);
 
-[crObj,tfSetViewSizes] = CalRig.loadCreateCalRigObjFromFile(fname);
+crObj = CalRig.loadCreateCalRigObjFromFile(fname);
 
 lObj = handles.labelerObj;
 vcdPW = lObj.viewCalProjWide;
@@ -1971,9 +1971,9 @@ end
 % Currently there is no UI for altering lObj.viewCalProjWide once it is set
 
 if tfProjWide
-  lObj.viewCalSetProjWide(crObj,'tfSetViewSizes',tfSetViewSizes);
+  lObj.viewCalSetProjWide(crObj);%,'tfSetViewSizes',tfSetViewSizes);
 else
-  lObj.viewCalSetCurrMovie(crObj,'tfSetViewSizes',tfSetViewSizes);
+  lObj.viewCalSetCurrMovie(crObj);%,'tfSetViewSizes',tfSetViewSizes);
 end
 
 RC.saveprop('lastCalibrationFile',fname);
@@ -2819,6 +2819,7 @@ end
 function cbkCropIsCropModeChanged(src,evt)
 lObj = src;
 cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
+lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 
 function cbkCropCropsChanged(src,evt)
 lObj = src;

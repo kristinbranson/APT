@@ -797,7 +797,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       iAxOther = setdiff(1:obj.nView,iAx1);
       crig = obj.pjtCalRig;
       for iAx = iAxOther
-        [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx);
+        hIm = obj.hIms(iAx);
+        imroi = [hIm.XData hIm.YData];
+        [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
         hEpi = obj.pjtHLinesEpi(iAx);
         set(hEpi,'XData',x,'YData',y,'Visible','on','Color',hPt1.Color);
         %fprintf('Epipolar line for axes %d should be visible, x = %s, y = %s\n',iAx,mat2str(x),mat2str(y));
@@ -866,22 +868,20 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         crig.epLineNPts = 2;
       end 
       
-      crigViewSzs = crig.viewSizes; % [nView x 2]; each row is [nc nr]
-      lObj = obj.labeler;
-      imsAll = lObj.gdata.images_all;
-      for iView = 1:obj.nView
-        cdata = imsAll(iView).CData;
-        imnr = size(cdata,1);
-        imnc = size(cdata,2);
-        crignc = crigViewSzs(iView,1);
-        crignr = crigViewSzs(iView,2);
-        if imnr~=crignr || imnc~=crignc
-          warningNoTrace('LabelCoreMultiViewCalibrated:projectionSetCalRig',...
-            'View %d (%s): image size is [nr nc]=[%d %d]; calibration based on [%d %d]',...
-            iView,crig.viewNames{iView},...
-            imnr,imnc,crignr,crignc);
-        end
-      end
+%       crigRois = crig.viewRois; % [nView x 4]; each row is [xlo xhi ylo yhi]
+%       lObj = obj.labeler;
+%       imsAll = lObj.gdata.images_all;
+%       for iView = 1:obj.nView
+%         xdata = imsAll(iView).XData;
+%         ydata = imsAll(iView).YData;
+%         imroi = [xdata ydata];
+%         crigroi = crigRois(iView,:);
+%         if ~isequal(imroi,crigroi)
+%           warningNoTrace('LabelCoreMultiViewCalibrated:projectionSetCalRig',...
+%             'View %d (%s): image roi is %s; calibration roi is %s',...
+%             iView,crig.viewNames{iView},mat2str(imroi,6),mat2str(crigroi,6));
+%         end
+%       end
       
       obj.pjtCalRig = crig;
     end

@@ -4860,8 +4860,8 @@ classdef Labeler < handle
       for i=1:n
         mIdx = tblMF.mov(i);
         cInfo = obj.getMovieFilesAllCropInfoMovIdx(mIdx);
-        roiCurr = cat(1,cInfo.roi);
-        szassert(roiCurr,[nvw 4]);
+        roiCurr = cat(2,cInfo.roi);
+        szassert(roiCurr,[1 4*nvw]);
         
         xy = Shape.vec2xy(p(i,:));
         [xyROI,tfOOBview] = Shape.xy2xyROI(xy,roiCurr,nphyspts);
@@ -4913,7 +4913,11 @@ classdef Labeler < handle
       end
       if trxCtred && ~obj.hasTrx
         error('Project does not have trx. Cannot perform trx-centered montage.');
-      end        
+      end
+      if obj.cropProjHasCrops
+        error('Currently unsupported for projects with cropping.');
+      end
+      
       
       nvw = obj.nview;
       nphyspts = obj.nPhysPoints;
@@ -5601,38 +5605,38 @@ classdef Labeler < handle
       end
     end
     
-    function viewCalSetCheckViewSizes(obj,iMov,crObj,tfSet)
-      % Check/set movie image size for movie iMov on calrig object 
-      %
-      % The raw movie sizes are used here, ignoring any cropping.
-      % 
-      % iMov: movie index, applied in GT-aware fashion (eg .currMovie)
-      % crObj: scalar calrig object
-      % tfSet: if true, set the movie size on the calrig (with diagnostic
-      % printf); if false, throw warndlg if the sizes don't match
-            
-      assert(iMov>0);
-      movInfo = obj.movieInfoAllGTaware(iMov,:);
-      movWidths = cellfun(@(x)x.info.Width,movInfo); % raw movie width/height
-      movHeights = cellfun(@(x)x.info.Height,movInfo); % etc
-      vwSizes = [movWidths(:) movHeights(:)];
-      if tfSet
-        % If movie sizes differ in this project, setting of viewsizes may
-        % be hazardous. Assume warning has been thrown if necessary
-        crObj.viewSizes = vwSizes;
-        for iVw=1:obj.nview
-          fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
-            vwSizes(iVw,1),vwSizes(iVw,2),iVw,crObj.viewNames{iVw});
-        end
-      else
-        % Check view sizes
-        if ~isequal(crObj.viewSizes,vwSizes)
-          warnstr = sprintf('View sizes in calibration object (%s) do not match movie %d (%s).',...
-            mat2str(crObj.viewSizes),iMov,mat2str(vwSizes));
-          warndlg(warnstr,'View size mismatch','non-modal');
-        end
-      end
-    end
+%     function viewCalSetCheckViewSizes(obj,iMov,crObj,tfSet)
+%       % Check/set movie image size for movie iMov on calrig object 
+%       %
+%       % The raw movie sizes are used here, ignoring any cropping.
+%       % 
+%       % iMov: movie index, applied in GT-aware fashion (eg .currMovie)
+%       % crObj: scalar calrig object
+%       % tfSet: if true, set the movie size on the calrig (with diagnostic
+%       % printf); if false, throw warndlg if the sizes don't match
+%             
+%       assert(iMov>0);
+%       movInfo = obj.movieInfoAllGTaware(iMov,:);
+%       movWidths = cellfun(@(x)x.info.Width,movInfo); % raw movie width/height
+%       movHeights = cellfun(@(x)x.info.Height,movInfo); % etc
+%       vwSizes = [movWidths(:) movHeights(:)];
+%       if tfSet
+%         % If movie sizes differ in this project, setting of viewsizes may
+%         % be hazardous. Assume warning has been thrown if necessary
+%         crObj.viewSizes = vwSizes;
+%         for iVw=1:obj.nview
+%           fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
+%             vwSizes(iVw,1),vwSizes(iVw,2),iVw,crObj.viewNames{iVw});
+%         end
+%       else
+%         % Check view sizes
+%         if ~isequal(crObj.viewSizes,vwSizes)
+%           warnstr = sprintf('View sizes in calibration object (%s) do not match movie %d (%s).',...
+%             mat2str(crObj.viewSizes),iMov,mat2str(vwSizes));
+%           warndlg(warnstr,'View size mismatch','non-modal');
+%         end
+%       end
+%     end
     
   end
   methods
@@ -5656,8 +5660,8 @@ classdef Labeler < handle
       % .viewCalibrationData or .viewCalibrationDataGT set depending on
       % .gtIsGTMode.
       
-      tfSetViewSizes = myparse(varargin,...
-        'tfSetViewSizes',false); % If true, set viewSizes on crObj per current movieInfo
+%       tfSetViewSizes = myparse(varargin,...
+%         'tfSetViewSizes',false); % If true, set viewSizes on crObj per current movieInfo
       
       if obj.nmovies==0 || obj.currMovie==0
         error('Labeler:calib',...
@@ -5676,7 +5680,7 @@ classdef Labeler < handle
       end
       
       obj.viewCalCheckMovSizes();
-      obj.viewCalSetCheckViewSizes(obj.currMovie,crObj,tfSetViewSizes);
+%       obj.viewCalSetCheckViewSizes(obj.currMovie,crObj,tfSetViewSizes);
       
       obj.viewCalProjWide = true;
       obj.viewCalibrationData = crObj;
@@ -5693,8 +5697,8 @@ classdef Labeler < handle
     function viewCalSetCurrMovie(obj,crObj,varargin)
       % Set calibration object for current movie
 
-      tfSetViewSizes = myparse(varargin,...
-        'tfSetViewSizes',false); % If true, set viewSizes on crObj per current movieInfo
+%       tfSetViewSizes = myparse(varargin,...
+%         'tfSetViewSizes',false); % If true, set viewSizes on crObj per current movieInfo
       
       nMov = obj.nmoviesGTaware;
       if nMov==0 || obj.currMovie==0
@@ -5722,7 +5726,7 @@ classdef Labeler < handle
         szassert(obj.viewCalibrationDataGT,[obj.nmoviesGT 1]);
       end
       
-      obj.viewCalSetCheckViewSizes(obj.currMovie,crObj,tfSetViewSizes);
+%       obj.viewCalSetCheckViewSizes(obj.currMovie,crObj,tfSetViewSizes);
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.VCD){obj.currMovie} = crObj;
       

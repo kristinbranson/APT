@@ -34,6 +34,7 @@ classdef LabelCore < handle
     labeler;              % scalar Labeler obj
     hFig;                 % [nview] figure handles (first is main fig)
     hAx;                  % [nview] axis handles (first is main axis)
+    hIms;                 % [nview] image handles
     hAxOcc;               % [nview] scalar handle, occluded-axis
     tbAccept;             % scalar handle, togglebutton
     pbClear;              % scalar handle, clearbutton
@@ -117,6 +118,7 @@ classdef LabelCore < handle
       gd = labelerObj.gdata;
       obj.hFig = gd.figs_all;
       obj.hAx = gd.axes_all;
+      obj.hIms = gd.images_all;
       obj.hAxOcc = gd.axes_occ;
       obj.tbAccept = gd.tbAccept;
       obj.pbClear = gd.pbClear;
