@@ -86,16 +86,19 @@ classdef ParameterVisualizationFeature < ParameterVisualization
         gdata = lObj.gdata;
         im = gdata.image_curr;
         im = im.CData;
+        imxdata = im.XData;
+        imydata = im.YData;
       else
         IVIEW = 1;
         if lObj.currMovIdx==mIdx
           mr = lObj.movieReader(IVIEW);
         else
-          mfaf = lObj.getMovieFilesAllFullMovIdx(mIdx);
           mr = MovieReader;
-          lObj.movieMovieReaderOpen(mr,mfaf,IVIEW);
+          lObj.movieMovieReaderOpen(mr,mIdx,IVIEW);
         end
-        im = mr.readframe(frm);
+        [im,~,imroi] = mr.readframe(frm,'docrop',true);
+        imxdata = imroi([1 2]);
+        imydata = imroi([3 4]);
       end            
       
       % We now have im and xyLbl for (mIdx,frm,iTgt). View1 only.
@@ -103,12 +106,13 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       nphyspts = lObj.nPhysPoints;
       nviews = lObj.nview;            
       cla(hAx);
-      imshow(im,'Parent',hAx);
+      imshow(im,'Parent',hAx,'XData',imxdata,'YData',imydata);
       caxis(hAx,'auto');      
       hold(hAx,'on');
       % plot view1 only
       plot(hAx,xyLbl(1:nphyspts,1),xyLbl(1:nphyspts,2),'r.','markersize',12);
       if lObj.hasTrx
+        assert(~lObj.cropProjHasCrops);
         assert(nviews==1,'Unsupported for multiview projects with trx.');
         [xTrx,yTrx] = readtrx(lObj.trx,frm,iTgt);
         cropRadius = sPrm.ROOT.Track.MultiTarget.TargetCrop.Radius;

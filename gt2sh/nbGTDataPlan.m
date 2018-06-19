@@ -464,3 +464,244 @@ t.isBadCalib = isbadcalibaug;
 
 %%
 writetable(t,'y:\apt\experiments\data\shflies20180518.csv');
+
+
+
+%% CPR XV err (easy split) vs head position/rotation
+
+% Subtask: need SH's tracking results for each training row=>need SH's
+% movie dir for each training row. Recall tblMD.movFile is the moviepath 
+% from original training .lbl file, which can be out-of-date. 
+% tblMD.movFile_read is a mix between paths into Mayank's copy of data and
+% Stephen's data.
+%
+% To find 
+
+%t = td.tMain20180503
+
+% SH says 20180529:
+% -to summerize anything <90 with Sally or LPTC in the fileaname you can 
+% use \flp-chrimson_experiments\fly_1_to_88_Chrimson LPTC FLPouts\
+% -anything <90 with the tempVideos and 47D05AD_81B12DBD in the path you 
+% can use ChrimsonVideos
+
+load trnData20180503.mat
+t = tMain20180503;
+%%
+
+n = height(t);
+mov = t.movFile;
+
+mov = regexprep(mov,'\\','/');
+mov = regexprep(mov,'\$dataroot','Z:/');
+mov = regexprep(mov,'W:/home/hustons/','Z:/');
+
+% Sally
+mov = regexprep(mov,'/Dm11/hustonlab/sally/videos/',... 
+  'Z:/sally/videos/');
+mov = regexprep(mov,'Z:/videos','Z:/sally/videos');
+mov = regexprep(mov,'Z:sallyideos','Z:/sally/videos');
+mov = regexprep(mov,'Z:/sally/videos/flies 1-5/',...
+  'Z:/flp-chrimson_experiments/fly_1_to_88_Chrimson LPTC FLPouts/flies 1-9_14072014_GMRss00762 CsChrimson FLP1 intensity 4/10 min heat shock at 36 c/');
+mov = regexprep(mov,'Z:/sally/videos/flies 24-27_20072014_GMRss00762 CsChrimson FLP1 intensity 5 1s stimulus/fly 26/',...
+  'Z:/flp-chrimson_experiments/fly_1_to_88_Chrimson LPTC FLPouts/flies 24-27_20072014_GMRss00762 CsChrimson FLP1 intensity 5 1s stimulus/fly 26/');
+
+% tempVideos
+mov = regexprep(mov,...
+  'C:/tempVideos/7_7_13_47D05AD_81B12DBD_x_Chrimsonattp18/data',...
+  'Z:/ChrimsonVideos_SUBDIR_TBD_20180529'); 
+% 20180529 AL: currently cannot access full dir tree under ChrimsonVideos.
+% These are all for flies<90 though so there are no trk results anyway. We
+% can always get the correct paths for these guys later if nec
+
+mov = regexprep(mov,'fly_453_to_457_27_9_16/',...
+  'fly_453_to_457_27_9_16_norpAkirPONMNchr/');
+% mov = regexprep(mov,'fly_453_to_457_27_9_16\',...
+%   'fly_453_to_457_27_9_16_norpAkirPONMNchr\');
+mov = regexprep(mov,'egFlpTrials4analysis/fly178',...
+  'fly_178_to_186_21_1_15_NMN_SS02323_chrimsonFLPouts/fly178');
+mov = regexprep(mov,'egFlpTrials4analysis/fly212',...
+  'fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly212');
+mov = regexprep(mov,'egFlpTrials4analysis/fly216',...
+  'fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly216');
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly212/fly212_trial1/C001H001S0001/C001H001S0001.avi',...
+  'Z:/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly212/fly212_trial1/C001H001S0001/C001H001S0001_c.avi');
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly212/fly212_trial1/C002H001S0001/C002H001S0001.avi',...
+  'Z:/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly212/fly212_trial1/C002H001S0001/C002H001S0001_c.avi');
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly216/fly216_trial1/C001H001S0001/C001H001S0001.avi',...
+  'Z:/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly216/fly216_trial1/C001H001S0001/C001H001S0001_c.avi');
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly216/fly216_trial1/C002H001S0001/C002H001S0001.avi',...
+  'Z:/flp-chrimson_experiments/fly_210_to_218_28_10_15_SS02323_x_norpACsChrimsonFlp11/fly216/fly216_trial1/C002H001S0001/C002H001S0001_c.avi');
+
+mov = regexprep(mov,'egFlpTrials4analysis/fly219',...
+  'fly_219_to_228_28_10_15_SS00325_x_norpAcsChrimsonFlp11/fly219');
+mov = regexprep(mov,'egFlpTrials4analysis/fly229',...
+  'fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly229');
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly229/fly229_300ms_stim/',...
+  'Z:/flp-chrimson_experiments/fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly229_300ms_stim/');
+
+mov = regexprep(mov,'egFlpTrials4analysis/fly230',...
+  'fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly230');
+% mov = regexprep(mov,'egFlpTrials4analysis/fly230',...
+%   'fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly230');
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly230/fly230_300msStimuli/',...
+  'Z:/flp-chrimson_experiments/fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly230_300msStimuli/');
+
+mov = regexprep(mov,'egFlpTrials4analysis/fly234',...
+  'fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly234');
+mov = regexprep(mov,'egFlpTrials4analysis/fly235',...
+  'fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly235');
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly235/fly235_300ms_stimuli',...
+  'Z:/flp-chrimson_experiments/fly_229_to_238_1st_to_2nd_12_15_norpAchrimsonFLP_SS002323/fly235_300ms_stimuli');
+mov = regexprep(mov,'egFlpTrials4analysis/fly241',...
+  'fly_239_to_246_1st_to_2nd_12_15_norpAchrimsonFLP_SS000325/fly241');
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_239_to_246_1st_to_2nd_12_15_norpAchrimsonFLP_SS000325/fly241/fly241_300ms_stimuli/',...
+  'Z:/flp-chrimson_experiments/fly_239_to_246_1st_to_2nd_12_15_norpAchrimsonFLP_SS000325/fly241_300ms_stimuli/');
+
+mov = regexprep(mov,'egFlpTrials4analysis/fly244',...
+  'fly_239_to_246_1st_to_2nd_12_15_norpAchrimsonFLP_SS000325/fly244');
+mov = regexprep(mov,'egFlpTrials4analysis/fly245',...
+  'fly_239_to_246_1st_to_2nd_12_15_norpAchrimsonFLP_SS000325/fly245');
+mov = regexprep(mov,'egFlpTrials4analysis/fly251',...
+  'fly_247_to_255_2ndDec15_norpAChrimsonFLP_81B12AD47D05DBD/fly251');
+mov = regexprep(mov,'egFlpTrials4analysis/fly254',...
+  'fly_247_to_255_2ndDec15_norpAChrimsonFLP_81B12AD47D05DBD/fly254');
+
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_247_to_255_2ndDec15_norpAChrimsonFLP_81B12AD47D05DBD/fly254/fly253_300ms_stimuli/',...
+  'Z:/flp-chrimson_experiments/fly_247_to_255_2ndDec15_norpAChrimsonFLP_81B12AD47D05DBD/fly254/fly254_300ms_stimuli/');
+
+mov = regexprep(mov,...
+  'Z:/flp-chrimson_experiments/fly_450_to_452_26_9_16/fly450/',...
+  'Z:/flp-chrimson_experiments/fly_450_to_452_26_9_16norpAkirPONMNchr/fly450/');
+
+%%
+exst = nan(n,2);
+for i=1:n
+  if mod(i,20)==0
+    disp(i);
+  end
+  for j=1:2
+    exst(i,j) = exist(mov{i,j},'file');
+  end  
+end
+%%
+tfok = exst(:,1)==2;
+tfok2 = exst(:,2)==2;
+isequal(tfok,tfok2)
+
+idx = find(~tfok);
+mov(idx,1)
+%%
+tftrk = false(n,2);
+trkdate = cell(n,2);
+for i=1:n
+  for j=1:2
+    m = mov{i,j};
+    [mP,mF,mE] = fileparts(m);
+    %dd = dir(fullfile(mP,'*.trk'));
+    dd = dir(fullfile(mP,[mF '.trk']));
+    assert(numel(dd)<=1);
+    tftrk(i,j) = isscalar(dd);
+    if tftrk(i,j)
+      trkdate{i,j} = datestr(dd.datenum,'yyyymmdd');
+    else
+      trkdate{i,j} = '';
+    end
+%     trkstr = arrayfun(@(x)sprintf('%s (%s)',x.name,datestr(x.datenum,'yyyymmdd')),dd,'uni',0);  
+%     fprintf(1,'mov %d, %d trks: %s.\n',i,numel(dd),String.cellstr2CommaSepList(trkstr));
+  end
+end
+%%
+isequal(tftrk(:,1),tftrk(:,2))
+tftrk = tftrk(:,1);
+isequal(trkdate(:,1),trkdate(:,2))
+trkdate = trkdate(:,1);
+%%
+fprintf('%d rows no trk, %d rows trk\n',nnz(~tftrk),nnz(tftrk))
+fliesNoTrk = unique(t.flyID(~tftrk))
+fliesTrk = unique(t.flyID(tftrk))
+%%
+tfNoTrk = strcmp(trkdate,'');
+tf2017Trk = strncmp(trkdate,'2017',4);
+tf2018Trk = strncmp(trkdate,'2018',4);
+
+%%
+tMain20180503.movFile_20180529_windows = mov;
+save trnData20180503.mat -append tMain20180503
+
+%% for each fly with 2018 tracking data, select a single lbl file to 
+% run thru APT2RT to generate median/neutral head posn.
+% SH: If you are just trying to get a good 'median head reference point' 
+% use the lowest intensity available.  If it is a choice between _wind and 
+% _NOwind use "NOwind"
+
+t = tMain20180503;
+fliesTrk2018 = unique(t.flyID(tf2018Trk));
+nfliesTrk2018 = numel(fliesTrk2018);
+
+APTPROJFILESDIR = 'Z:\flp-chrimson_experiments\APT_projectFiles\';
+dd = dir(fullfile(APTPROJFILESDIR,'*.lbl'));
+aptlbls = {dd.name}';
+
+fliesTrk2018Lbls = cell(nfliesTrk2018,1);
+for ifly=1:nfliesTrk2018
+  f = fliesTrk2018(ifly);
+  flystr = sprintf('fly%d',f);
+  flypat = sprintf('%s*.lbl',flystr);
+  dd = dir(fullfile(APTPROJFILESDIR,flypat));
+  
+  lblnames = {dd.name}';
+  tfNW = contains(lblnames,'NOwind');
+  if any(tfNW)
+    iLblChoose = find(tfNW);
+    assert(isscalar(iLblChoose));
+  else
+    iLblChoose = 1;
+  end
+  fliesTrk2018Lbls{ifly} = fullfile(APTPROJFILESDIR,lblnames{iLblChoose});
+  
+  fprintf('Fly %d:\n',f);
+  for iLbl=1:numel(dd)    
+    if iLbl==iLblChoose      
+      fprintf(' ... (*) %s (updated %s)\n',dd(iLbl).name,datestr(dd(iLbl).datenum,'yyyymmdd'));
+    else
+      fprintf(' ... %s (updated %s)\n',dd(iLbl).name,datestr(dd(iLbl).datenum,'yyyymmdd'));
+    end
+  end
+end
+
+%%
+tFliesTrk2018 = table(fliesTrk2018,fliesTrk2018Lbls,'VariableNames',...
+  {'fly' 'lbl'});
+save cprXVerrVsHeadPosn20180529.mat tFliesTrk2018;
+
+%%
+FLY2DLT = 'Y:\apt\experiments\data\fly2DLT_lookupTableAL.csv';
+tFly2DLT = readtable(FLY2DLT);
+tFly2DLT.calibfile = regexprep(tFly2DLT.calibfile,'//groups/huston','/groups/huston');
+
+tFly2DLT2 = tFly2DLT;
+tFly2DLT2.calibfile = regexprep(tFly2DLT.calibfile,'/groups/huston/hustonlab/','Z:/');
+exst = cellfun(@(x)exist(x,'file'),tFly2DLT2.calibfile);
+all(exst==2)
+
+FLY2DLTNEW = 'Y:\apt\experiments\data\fly2DLT_lookupTableAL_win.csv';
+writetable(tFly2DLT2,FLY2DLTNEW);
+%%
+for i=1:nfliesTrk2018
+  [axAngDegXYZ,trans,residErr,scaleErr,quat,pivot,refHead] = APT2RT(...
+    tFliesTrk2018.lbl{i},... 
+    'f:\repo\apt4\user\flynum2bodyAxis.csv',...
+    'Y:\apt\experiments\data\fly2DLT_lookupTableAL_win.csv',1)
+
+
+  

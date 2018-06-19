@@ -192,6 +192,13 @@ classdef LabelTracker < handle
       tblTrk = [];
     end
     
+    function s = getTrainedTrackerMetadata(obj)
+      % Get standardized form of metadata for this tracker. Metadata should
+      % include parameters, uniquely identify a trained model, etc.
+      
+      s = struct('class',classname(obj));
+    end
+    
     function xy = getPredictionCurrentFrame(obj)
       % xy: [nPtsx2xnTgt] tracked results for current Labeler frame
       xy = [];

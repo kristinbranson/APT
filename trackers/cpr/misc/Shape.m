@@ -709,6 +709,8 @@ classdef Shape
       dav = squeeze(nanmean(d,2)); % [NxRT]      
     end
     
+    % ROI utils: see also CropInfo.m
+    
     function [roi,tfOOBview,xyRoi] = xyAndTrx2ROI(xy,xyTrx,nphysPts,radius)
       % Generate ROI/bounding boxes from shape and trx
       %
@@ -748,6 +750,7 @@ classdef Shape
         ylo = y0-radius;
         yhi = y0+radius;
         
+        % Could factor this + call xy2xyROI
         ipts = (1:nphysPts)+nphysPts*(iview-1);
         xs = xy(ipts,1);
         ys = xy(ipts,2);
@@ -758,6 +761,41 @@ classdef Shape
         tfOOBview(iview) = any(tfOOBx) || any(tfOOBy);
         xyRoi(ipts,1) = xs-xlo+1;
         xyRoi(ipts,2) = ys-ylo+1;
+      end
+    end
+    
+    function [xyRoi,tfOOBview] = xy2xyROI(xy,roi,nphyspts)
+      % Compute xyROI from xy (xy relative to roi); check for OOB.
+      % 
+      % xy: [nptx2] xy coords. npt=nphysPts*nview, raster order is
+      %   ipt,iview. Can be nans
+      % roi: [1x4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
+      % nphysPts: scalar
+      %
+      % xyRoi: [nptx2] xy coords relative to ROIs; x==1 => first col of
+      %   ROI in that view etc.
+      % tfOOBview: [1xnview] logical. If true, shape is out-of-bounds of
+      %   ROI in that view. A shape with nan coords is not considered OOB.
+      
+      [npt,d] = size(xy);
+      assert(d==2);
+      nview = npt/nphyspts;
+      szassert(roi,[1 4*nview]);
+      tfOOBview = false(1,nview);
+      xyRoi = nan(npt,2);
+      
+      for iview=1:nview
+        ipts = (1:nphyspts)+nphyspts*(iview-1);
+        roivw = roi(1,(1:4)+4*(iview-1));
+        
+        xs = xy(ipts,1);
+        ys = xy(ipts,2);
+        tfOOBx = xs<roivw(1) | xs>roivw(2);
+        tfOOBy = ys<roivw(3) | ys>roivw(4);
+        
+        tfOOBview(iview) = any(tfOOBx) || any(tfOOBy);
+        xyRoi(ipts,1) = xs-roivw(1)+1;
+        xyRoi(ipts,2) = ys-roivw(3)+1;
       end
     end
     

@@ -151,6 +151,11 @@ classdef APT
 
 %       javaaddpath(jp);
     end
+  
+    function tf = pathNotConfigured()
+      tf = exist('moveMenuItemAfter','file')==0 || ...
+        exist('ReadYaml','file')==0;
+    end
     
     function [pposetf] = getpathdl()
       m = APT.readManifest;

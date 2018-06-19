@@ -1,0 +1,150 @@
+/*  common.css - MoinMoin Default Styles
+
+Copyright (c) 2001, 2002, 2003 by Juergen Hermann
+*/
+
+/* content styles */
+html {
+	font-family: Verdana, Helvetica, Arial, sans-serif;
+	line-height: 1.25em;
+	color: #333;
+}
+
+body {
+    padding: 3em;
+}
+
+
+/* links */
+a:link {
+    color: #700;
+	text-decoration: none;
+}
+a:visited {
+    color: #700;
+}
+a:hover {
+	color: #900;
+	background: #E8F0FF;
+}
+
+/* Headings */
+
+h1 {
+	/* h1 is out of the content div! */
+	text-align: center;
+	margin: 0;
+	padding: 0;
+	font-size: 2em;
+	line-height: 1.2em;
+}
+
+h2, h3, h4, h5, h6
+{
+	line-height: 1.2em;
+}	
+
+h2 {
+	text-align: center;
+}
+h3, h4, h5, h6 {
+	margin-top: 2.5em;
+	margin-bottom: 0.75em;
+}
+
+.caption {
+    font-size: 0.9em;
+    font-style: italic;
+}
+
+ol.secondary {
+	list-style-type: upper-alpha;
+}
+
+li p {
+	margin: .25em 0;
+}
+
+li.gap {
+	margin-top: 0.5em;
+}
+
+a, img, img.drawing {
+	border: 0;
+}
+
+dt {
+	font-weight: bold;
+}
+
+pre {
+	padding: 0.5em;
+	font-family: courier, monospace;
+	border: 1pt solid #c0c0c0;
+	background: #F0ECE6;
+	white-space: pre;
+	/* begin css 3 or browser specific rules - do not remove!
+	see: http://forums.techguy.org/archive/index.php/t-249849.html */
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    white-space: -moz-pre-wrap;
+    white-space: -pre-wrap;
+    white-space: -o-pre-wrap;
+    /* end css 3 or browser specific rules */
+}
+
+code {
+	font-family: courier, monospace;
+}
+
+table
+{
+	margin: 5em;
+	border-collapse: collapse;
+}
+
+footer 
+{
+    margin-top: 2em;
+}
+
+td
+{
+	padding: 0.25em;
+}
+
+td p {
+	margin: 0;
+	padding: 0;
+}
+
+
+table.stats
+{
+	margin: 0em;
+	margin-bottom: 1em;
+}
+
+td.stats
+{
+	padding: 0em;
+	padding-bottom: 0.25em;
+	padding-right: 1em;
+}
+
+
+/* standard rule ---- */
+hr {
+}
+
+/* custom rules ----- to ---------- */
+.hr1 {height: 2px;}
+.hr2 {height: 3px;}
+.hr3 {height: 4px;}
+.hr4 {height: 5px;}
+.hr5 {height: 6px;}
+.hr6 {height: 7px;}
+
+/* Replacement for html 3 u tag */
+.u {text-decoration: underline;}
+

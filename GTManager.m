@@ -135,7 +135,8 @@ movstrs = movstrs(:,1);
 movstrs = cellfun(@FSPath.twoLevelFilename,movstrs,'uni',0);
 numDigits = floor(log10(lObj.nmoviesGT)+1);
 fmt = sprintf('(%%0%dd) ',numDigits);
-movstrs = strcat(arrayfun(@(x)sprintf(fmt,x),iMovAbs,'uni',0),movstrs);
+%movstrs = strcat(arrayfun(@(x)sprintf(fmt,x),iMovAbs,'uni',0),movstrs);
+movstrs = arrayfun(@(x)sprintf(fmt,x),iMovAbs,'uni',0);
 tbl.mov = movstrs;
 
 COLS = [MFTable.FLDSID {'hasLbl' 'err'}];

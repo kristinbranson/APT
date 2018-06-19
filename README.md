@@ -1,8 +1,15 @@
 ## APT
 Animal Part Tracker
 
+A basic, preliminary user guide can be found at [http://kristinbranson.github.io/APT](http://kristinbranson.github.io/APT/). 
+
+APT is being developed by Allen Lee, Mayank Kabra, Kristin Branson, Felipe Rodriguez, Alice Robie, and Roian Egnor.  All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus. APT is currently under heavy development. Please contact Kristin Branson if you are interested in using it.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [GNU General Public License (version 3)](http://GNU_GPL_v3.html) for more details.
+
+
 ## Requirements
-* MATLAB R2014b or later.
+* MATLAB R2016a or later. MATLAB R2017a or later recommended.
 * Windows, Linux, and Mac are all supported, but Windows and Linux get priority.
 * A recent checkout of [JAABA](https://github.com/kristinbranson/JAABA).
 * To enable tracking with Cascaded Pose Regression (CPR):

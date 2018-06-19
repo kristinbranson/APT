@@ -32,20 +32,51 @@ classdef OrthoCamCalPair < CalRig
   properties % CalRig
     nviews = 2;
     viewNames = {'side' 'front'};
-    viewSizes = [1024 1024;1024 1024];
+%     viewSizes = [1024 1024;1024 1024];
     
     estimatedEpipolarZCoords; % [nviewx1] cell. estimatedEpipolarZCoords{iView} gives estimated [zmin zmax] to use when plotting EPlines originating in iView
   end
 
   methods
     
-    function obj = OrthoCamCalPair(p,nPat,nPts,worldPts,imPts,calPatFPNs)
-      obj.tblInt = OrthoCam.summarizeIntrinsicsStro(p,nPat);
-      [~,~,~,~,~,~,~,~,~,~,~,~,...
-       obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,rvecs2thrun,tvecs2thrun] = ...
-         OrthoCam.unpackParamsStro(p,nPat);
-      obj.rvecs = [0 0 0;rvecs2thrun];
-      obj.tvecs = [0 0 0;tvecs2thrun];
+    function obj = OrthoCamCalPair(varargin)
+      % obj = OrthoCamCalPair(p,nPat,nPts,worldPts,imPts,calPatFPNs)
+      % Default constructor
+      % p has been packed with (nPat-1) rvecs/tvecs; the remaining/first
+      % rvec/tvec is assumed to be all zeros b/c the first calpat is used
+      % as the WorldSys.
+      %
+      % obj = OrthoCamCalPair('alt',p,nPat,nPts,worldPts,imPts,calPatFPNs)
+      % Alternative constructor
+      % p has been packed with nPat rvecs/tvecs, one for every pattern. 
+      % Meanwhile the r2vec1/t2vec1/r2vec2/t2vec2 are relative to some
+      % arbitrary WorldSys.
+      
+      tfAlt = strcmp(varargin{1},'alt');
+      if tfAlt
+        varargin = varargin(2:end);
+      end
+      p = varargin{1};
+      nPat = varargin{2};
+      nPts = varargin{3};
+      worldPts = varargin{4};
+      imPts = varargin{5};
+      calPatFPNs = varargin{6};
+      
+      if ~tfAlt
+        obj.tblInt = OrthoCam.summarizeIntrinsicsStro(p,nPat);
+        [~,~,~,~,~,~,~,~,~,~,~,~,...
+         obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,rvecs2thrun,tvecs2thrun] = ...
+           OrthoCam.unpackParamsStro(p,nPat);
+        obj.rvecs = [0 0 0;rvecs2thrun];
+        obj.tvecs = [0 0 0;tvecs2thrun];
+      else
+        assert(false,'TODO unsupported.');
+%         obj.tblInt = OrthoCam.summarizeIntrinsicsStro(p,nPat+1);
+%         [~,~,~,~,~,~,~,~,~,~,~,~,...
+%           obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,obj.rvecs,obj.tvecs] = ...
+%           OrthoCam.unpackParamsStro(p,nPat+1);
+      end
       
       obj.calNumPatterns = nPat;
       obj.calNumPoints = nPts;
@@ -261,7 +292,7 @@ classdef OrthoCamCalPair < CalRig
       d = reshape(d,[nPtsPat nPat 2]);
     end
     
-    function [dmu,d,uvre1,uvre2] = computeRPerrStroTriGeneral(obj,uv1,uv2)      
+    function [dmu,d,uvre1,uvre2] = computeRPerrStroTriGeneral(obj,uv1,uv2)
       n = size(uv1,2);
       szassert(uv1,[2 n]);
       szassert(uv2,[2 n]);
@@ -315,7 +346,7 @@ classdef OrthoCamCalPair < CalRig
       
       function nstUpdateEP(xy,iViewPt,iViewEP)
         for icalnst=1:ncal
-          [xEPL,yEPL] = objs(icalnst).computeEpiPolarLine(iViewPt,xy,iViewEP);
+          [xEPL,yEPL] = objs(icalnst).computeEpiPolarLine(iViewPt,xy,iViewEP); % xxx out of date api
 
           tfIB = viewLimX(1)<=xEPL & xEPL<=viewLimX(2) & ...
                  viewLimY(1)<=yEPL & yEPL<=viewLimY(2);
@@ -342,6 +373,8 @@ classdef OrthoCamCalPair < CalRig
   methods (Static)
     
     function [d,dsum] = oFcnStro(p,nPat,patPtsXYZ,patImPts)
+      % TODO: near-dup of OrthoCam.oFcnStro. Watch out for nPat+1!!
+
       nPts = size(patPtsXYZ,2);
       szassert(patPtsXYZ,[3 nPts]);
       szassert(patImPts,[2 nPts nPat 2]);
@@ -433,13 +466,17 @@ classdef OrthoCamCalPair < CalRig
       % ijkCamWorld1 unchanged % [3x3] columns are "CamWorldCoords" i/j/k unit vecs in WorldSys for cam1; k is negatice optical axis
       ijkCW2 = [-1 0 0;0 1 0;0 0 -1]*obj.ijkCamWorld2; % x,z flipped
       [~,~,~,~,obj.ijkCamWorld2] = OrthoCam.opticalCenter(R2,obj.t2vec2);
-      fprintf(1,'Manully adjusted ijkCamWorld2: \n');
+      fprintf(1,'Manually adjusted ijkCamWorld2: \n');
       disp(ijkCW2);
       fprintf(1,'Recomputed ijkCamWorld2: \n');
       disp(obj.ijkCamWorld2);      
     end
      
-    function pOpt = recalibrate(obj)
+    function objNew = recalibrate(obj)
+      % Create new OrthoCamCalPair object
+      
+      assert(false,'Not working yet 20180615.');
+      
       nPat = obj.calNumPatterns;
       nPts = obj.calNumPoints;
       patPtsXYZ = obj.calWorldPoints;
@@ -460,13 +497,33 @@ classdef OrthoCamCalPair < CalRig
       
       while 1
         pOpt = lsqnonlin(oFcn,pOpt,[],[],opts);
-        [~,dsum0] = oFcn(pOpt);
-        if dsum0>1000
-          % none
-        else
-          break;
+%         [~,dsum0] = oFcn(pOpt);
+%         if dsum0>1000
+%           % none
+%         else
+%           break;
+%         end
+%         
+        STOP = 'Stop optimization, looks good';
+        RESTART = 'Restart optimization';
+        CANCEL = 'Cancel';
+        resp = questdlg('Restart optimization?','Optimization waypoint',...
+          STOP,RESTART,CANCEL,RESTART);
+        if isempty(resp)
+          resp = CANCEL;
+        end
+        switch resp
+          case STOP
+            break;
+          case RESTART
+            % none; while loop will proceed
+          case CANCEL
+            error('Calibration canceled.');
         end
       end
+
+      objNew = OrthoCamCalPair(pOpt,nPat,nPts,patPtsXYZ,patImPts,...
+        obj.calPatternFPNs);      
     end
     
   end
@@ -530,7 +587,7 @@ classdef OrthoCamCalPair < CalRig
       zmax = zmean + (zmax-zmean)*rangescalefac;     
     end
     
-    function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,uv1,iViewEpi)
+    function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,uv1,iViewEpi,roi)
       % [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
       % 
       % iView1: either 1 (L) or 2 (R)
@@ -569,7 +626,7 @@ classdef OrthoCamCalPair < CalRig
       
       uvEPL = obj.project(XEPL,iViewEpi);
       rc = uvEPL([2 1],:)';
-      rcCrop = obj.cropLines(rc,iViewEpi);
+      rcCrop = obj.cropLines(rc,roi);
       xEPL = rcCrop(:,2);
       yEPL = rcCrop(:,1);
     end

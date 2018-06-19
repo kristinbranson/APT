@@ -34,6 +34,7 @@ classdef LabelCore < handle
     labeler;              % scalar Labeler obj
     hFig;                 % [nview] figure handles (first is main fig)
     hAx;                  % [nview] axis handles (first is main axis)
+    hIms;                 % [nview] image handles
     hAxOcc;               % [nview] scalar handle, occluded-axis
     tbAccept;             % scalar handle, togglebutton
     pbClear;              % scalar handle, clearbutton
@@ -117,6 +118,7 @@ classdef LabelCore < handle
       gd = labelerObj.gdata;
       obj.hFig = gd.figs_all;
       obj.hAx = gd.axes_all;
+      obj.hIms = gd.images_all;
       obj.hAxOcc = gd.axes_occ;
       obj.tbAccept = gd.tbAccept;
       obj.pbClear = gd.pbClear;
@@ -335,15 +337,13 @@ classdef LabelCore < handle
         
         assert(~lbler.isMultiView,'Multi-view labeling unsupported.');
         
-        nr = lbler.movienr;
-        nc = lbler.movienc;
-        xyOrig = xy;
-        
+        roi = lbler.movieroi;
+        xyOrig = xy;        
         tfRealCoord = ~isnan(xy) & ~isinf(xy);
-        xy(tfRealCoord(:,1),1) = max(xy(tfRealCoord(:,1),1),1);
-        xy(tfRealCoord(:,1),1) = min(xy(tfRealCoord(:,1),1),nc); 
-        xy(tfRealCoord(:,2),2) = max(xy(tfRealCoord(:,2),2),1);
-        xy(tfRealCoord(:,2),2) = min(xy(tfRealCoord(:,2),2),nr);
+        xy(tfRealCoord(:,1),1) = max(xy(tfRealCoord(:,1),1),roi(1));
+        xy(tfRealCoord(:,1),1) = min(xy(tfRealCoord(:,1),1),roi(2)); 
+        xy(tfRealCoord(:,2),2) = max(xy(tfRealCoord(:,2),2),roi(3));
+        xy(tfRealCoord(:,2),2) = min(xy(tfRealCoord(:,2),2),roi(4));
         if ~isequaln(xy,xyOrig)
           warningNoTrace('LabelCore:clipping',...
             'Clipping points that extend beyond movie size.');

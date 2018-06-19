@@ -136,12 +136,32 @@ classdef Session < handle
           permute(camParams.RotationMatrices,[2 1 3]),...
           camParams.TranslationVectors);
         
-        fprintf(1,'Calibrating camera %d... ',camidx);
-        pause(1);
-        pOpt = OrthoCam.calibrate1cam(nCalIm,worldPts,imPtsUV,p0);
-        fprintf(1,'done.\n');
-        pause(1);
-
+        fprintf(1,'NEW ADDITION June 2018. Never needed iterations on single-cam calib before.\n');
+        fprintf(1,'Calibrating camera %d...]n',camidx);
+        pause(1);        
+        pOpt = p0;
+        while 1
+          pOpt = OrthoCam.calibrate1cam(nCalIm,worldPts,imPtsUV,pOpt);          
+          STOP = 'Stop optimization, looks good';
+          RESTART = 'Restart optimization';
+          CANCEL = 'Cancel';
+          resp = questdlg('Restart optimization?','Optimization waypoint',...
+            STOP,RESTART,CANCEL,RESTART);
+          if isempty(resp)
+            resp = CANCEL;
+          end
+          switch resp
+            case STOP
+              break;
+            case RESTART
+              % none; while loop will proceed
+            case CANCEL
+              error('Session:cal','Calibration canceled.');
+          end
+        end
+        fprintf(1,'OK, done.\n');
+        pause(1);        
+        
         res = struct();
         res.p0 = p0;
         res.pOpt = pOpt;

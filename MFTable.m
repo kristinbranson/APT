@@ -77,6 +77,20 @@ classdef MFTable
       tbl = table(x,x,x,x,'VariableNames',MFTable.FLDSSUSP);
     end
     
+    function tbl = intersectID(tbl,tblRestrict)
+      % Restrict the rows of tbl to those also in tblRestrict, with respect
+      % to MFTable.FLDSID.
+      %
+      % tbl, tblRestrict: tables with FLDSID
+      %
+      % tbl (out): that subset of tbl that is also in tblRestrict. Rows of 
+      % table should be as originally ordered.
+      
+      [~,ia] = intersect(tbl(:,MFTable.FLDSID),...
+        tblRestrict(:,MFTable.FLDSID),'stable');
+      tbl = tbl(ia,:);
+    end
+    
     function tbl = sortCanonical(tbl)
       assert(isa(tbl.mov,'MovieIndex'));
       tfgt = tbl.mov<0;
@@ -127,11 +141,19 @@ classdef MFTable
     function movID = formMultiMovieID(movs)
       % Form multimovie char ID
       %
+      % WARNING: This only warns if one of movs contains the ID separator.
+      % Use at your own risk.
+      % 
       % movs: row cellstr vec
       %
       % movID: char
       
       assert(iscellstr(movs) && isrow(movs));
+      if exist('contains','builtin')>0 && any(contains(movs,'#')) || ...
+         any(~cellfun(@isempty,regexp(movs,'#','once')))
+        warningNoTrace('Movies contain ID separator ''#''.');
+      end
+        
       movID = sprintf('%s#',movs{:});
       movID = movID(1:end-1);
     end
@@ -140,9 +162,18 @@ classdef MFTable
       % movs: [nxnview] cellstr
       %
       % movIDs: [nx1] cellstr
+      
       assert(iscellstr(movs) && ismatrix(movs));
-      movIDs = arrayfun(@(x)MFTable.formMultiMovieID(movs(x,:)),...
-        (1:size(movs,1))','uni',0);
+      
+      if any(contains(movs(:),'#'))
+        error('Movies contain ID separator ''#''.');
+      end
+      
+      nvw = size(movs,2);
+      movIDs = movs(:,1);
+      for ivw=2:nvw
+        movIDs = strcat(movIDs,'#',movs(:,ivw));
+      end
     end
     
     function movs = unpackMultiMovieID(movID)
@@ -151,17 +182,18 @@ classdef MFTable
     
     function I = fetchImages(tMF)
       %
-      % tMF: MFTable, n rows.
+      % tMF: [nxncol] MFTable. tMF.mov: [nxnview] cellstr
       %
       % I: [nxnview]
+      %
+      % PROB REMOVE ME, dup of CPRData.getFrames. No callsites in APT
+      % application
       
-      movsets = tMF.movSet;
-      movIDs = cellfun(@MFTable.formMultiMovieID,movsets,'uni',0);
+      movIDs = MFTable.formMultiMovieIDArray(tMF.mov); % errs if any ID separator issues
       [movIDsUn,idx] = unique(movIDs);
       
       % open moviereaders
-      movsetsUn = movsets(idx);
-      movsetsUn = cat(1,movsetsUn{:});
+      movsetsUn = tMF.mov(idx,:);
       [nMovsetsUn,nView] = size(movsetsUn);
       mrcell = cell(size(movsetsUn));
       for iMovSet=1:nMovsetsUn
@@ -171,7 +203,10 @@ classdef MFTable
           mr.forceGrayscale = true;
           mrcell{iMovSet,iView} = mr;
         end
+        fprintf(1,'MovieSet %d moviereader.\n',iMovSet);
       end
+      
+      fprintf('%d unique moviesets.\n',nMovsetsUn);
       
       nRows = size(tMF,1);
       I = cell(nRows,nView);
@@ -189,6 +224,42 @@ classdef MFTable
       end
     end
     
+    function I = fetchImagesSafeVideoRdr(tMF,varargin)
+      % No callsites in APT app
+      
+      [movFld] = myparse(varargin,...
+        'movFld','mov');
+      
+      n = height(tMF);
+      movs = tMF.(movFld);
+      nview = size(movs,2);      
+      I = cell(size(movs));
+      
+      movsUn = unique(movs(:));
+      nMovsUn = numel(movsUn);
+      
+      fprintf('n=%d, nview=%d, nMovsUn=%d\n',n,nview,nMovsUn);
+      
+      for iMov=1:nMovsUn
+        m = movsUn{iMov};
+        
+        tf = strcmp(movs,m);
+        [rows,vws] = find(tf);
+        nIm = numel(rows);
+        maxfrm = max(tMF.frm(rows));
+        fprintf(1,'movUn %d (%s). %d images to read. maxfrm is %d.\n',...
+          iMov,m,nIm,maxfrm);
+        
+        imstack = readAllFrames(m,maxfrm);
+        
+        for iIm=1:nIm
+          trow = tMF(rows(iIm),:);
+          %im = mr.readframe(trow.frm);
+          im = imstack{trow.frm};
+          I{rows(iIm),vws(iIm)} = im;
+        end
+      end
+    end
     function tblMF = rmMovS(tblMF)
       % remove legacy 'movS' field from MFTable
       

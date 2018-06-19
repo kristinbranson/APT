@@ -264,7 +264,11 @@ classdef CPRData < handle
       % md: [Nxm] metadata table
       %
       % Single-view only.
+      %
+      % No callsites in APT app
 
+      assert(false,'Unsupported');
+      
       assert(iscellstr(movFiles));
       nMov = numel(movFiles);
 
@@ -337,7 +341,7 @@ classdef CPRData < handle
       assert(numel(movieInvert)==nView);      
       if doBGsub && roiPadVal~=0
         warningNoTrace('Background subtraction enabled. Setting roi pad value to 0.');
-        roiPadVal = 0;
+%         roiPadVal = 0;
       end
       tfWB = ~isempty(wbObj);
       
@@ -362,6 +366,8 @@ classdef CPRData < handle
           mr.forceGrayscale = forceGrayscale;
           mr.flipVert = movieInvert(iVw);
           mr.open(mov,'bgType',bgType,'bgReadFcn',bgReadFcn);
+          % Note: we don't setCropInfo here; cropping handled explicitly
+          % b/c most of the time if comes from the trx
           movMapVw(mov) = mr;
         end
         movMaps{iVw} = movMapVw;

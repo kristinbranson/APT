@@ -834,12 +834,8 @@ classdef CPRLabelTracker < LabelTracker
      
     %#%MTGT
     function trainingDataMontage(obj)
-      labelerObj = obj.lObj;
-      
-      if labelerObj.isMultiView
-        error('CPRLabelTracker:multiview',...
-          'Currently unsupported for multiview projects.');
-      end
+      labelerObj = obj.lObj;      
+     
       tblTrn = obj.trnDataTblP;
       if isempty(tblTrn) || ~obj.hasTrained
         msgbox('Please train a tracker first.');
@@ -857,8 +853,26 @@ classdef CPRLabelTracker < LabelTracker
         nrMtg = floor(sqrt(nTrn));      
         ncMtg = floor(nTrn/nrMtg);
       end
-      Shape.montage(d.I(iTrn,:),d.pGT(iTrn,:),'nr',nrMtg,'nc',ncMtg,...
-        'titlestr','Training Data Montage')  
+      
+      h = gobjects(0,1);
+      pGTTrn = d.pGT(iTrn,:);
+      npts = obj.nPts;
+      nphyspts = obj.lObj.nPhysPoints;
+      nview = obj.lObj.nview;
+      szassert(pGTTrn,[nTrn npts*2]);
+      for ivw=1:nview
+        figname = 'Training data';
+        if nview>1
+          figname = sprintf('%s (view %d)',figname,ivw);
+        end
+        h(end+1,1) = figure('Name',figname,'windowstyle','docked'); %#ok<AGROW>
+        
+        ipts = (1:nphyspts)+(ivw-1)*nphyspts;
+        ipts = [ipts ipts+npts]; %#ok<AGROW>
+        Shape.montage(d.I(iTrn,ivw),d.pGT(iTrn,ipts),...
+          'fig',h(end),'nr',nrMtg,'nc',ncMtg,...
+          'titlestr','Training Data Montage');
+      end
     end
     
     %#%MTGT
@@ -868,7 +882,8 @@ classdef CPRLabelTracker < LabelTracker
       % Sets .trnRes*
       
       [tblPTrn,updateTrnData,wbObj] = myparse(varargin,...
-        'tblPTrn',[],... % optional MFTp table of training data. if supplied, set .trnData* state based on this table
+        'tblPTrn',[],... % optional MFTp table of training data. if supplied, set .trnData* state based on this table. 
+                     ... % WARNING: if supplied this, caller is responsible for adding the right fields (roi, trx, etc)
         'updateTrnData',true,... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
         'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
                    ... % 1. .trnDataInit() and .trnResInit() are called
@@ -884,6 +899,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.asyncReset(true);
        
       if isempty(tblPTrn) && obj.trnDataDownSamp
+        assert(false,'Unsupported');
         assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
         if updateTrnData
           % first, update the TrnData with any new labels
@@ -917,6 +933,8 @@ classdef CPRLabelTracker < LabelTracker
         end
         if obj.lObj.hasTrx
           tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+        elseif obj.lObj.cropProjHasCrops
+          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
         else
           tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
         end
@@ -1042,6 +1060,8 @@ classdef CPRLabelTracker < LabelTracker
         'Incremental training currently unsupported for multiview projects.');
       assert(~obj.lObj.hasTrx,...
         'Incremental training currently unsupported for multitarget projects.');      
+      assert(~obj.lObj.cropProjHasCrops,...
+        'Incremental training currently unsupported for projects with cropping.');      
       
       tblPNew = obj.getTblPLbledRecent();
       
@@ -1447,11 +1467,11 @@ classdef CPRLabelTracker < LabelTracker
       end
       tblfldscontainsassert(tblMFT,MFTable.FLDSID);
       assert(isa(tblMFT.mov,'MovieIndex'));
-      if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE))
+      if any(~tblfldscontains(tblMFT,MFTable.FLDSCORE)) % odd condition, prob not really what we want to check
         tblMFT = obj.lObj.labelAddLabelsMFTable(tblMFT);
         tblMFT = obj.lObj.preProcCropLabelsToRoiIfNec(tblMFT);
       end
-      if obj.lObj.hasTrx
+      if obj.lObj.hasTrx || obj.lObj.cropProjHasCrops
         tblfldscontainsassert(tblMFT,MFTable.FLDSCOREROI);
       else
         tblfldscontainsassert(tblMFT,MFTable.FLDSCORE);
@@ -1733,6 +1753,12 @@ classdef CPRLabelTracker < LabelTracker
             'trkInfo',trkinfo);
         end
       end
+    end
+    
+    function s = getTrainedTrackerMetadata(obj)      
+      s = getTrainedTrackerMetadata@LabelTracker(obj);
+      s.param = obj.sPrm;
+      s.trkPTrnTS = obj.trkPTrnTS;
     end
 
     % TODO AL20170406.
@@ -2134,6 +2160,8 @@ classdef CPRLabelTracker < LabelTracker
         tmpIDs = cell(nrow,1);
         tmpFull = cell(nrow,1);
         for i=1:nrow
+          % 20180611 allProjMovIDs/Full only used for very old legacy 
+          % projects. Don't worry about ID separator issue.
           tmpIDs{i} = MFTable.formMultiMovieID(allProjMovIDs(i,:));
           tmpFull{i} = MFTable.formMultiMovieID(allProjMovsFull(i,:));
         end

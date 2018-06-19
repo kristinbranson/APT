@@ -498,7 +498,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               else
                 xy(1) = xy(1) - dx/obj.DXFAC;
               end
-              xy(1) = max(xy(1),1);
+              %xy(1) = max(xy(1),1);
             case 'rightarrow'
               xl = xlim(ax);
               dx = diff(xl);
@@ -507,8 +507,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               else
                 xy(1) = xy(1) + dx/obj.DXFAC;
               end
-              ncs = lObj.movienc;
-              xy(1) = min(xy(1),ncs(iAx));
+              %ncs = lObj.movienc;
+              %xy(1) = min(xy(1),ncs(iAx));
             case 'uparrow'
               yl = ylim(ax);
               dy = diff(yl);
@@ -517,7 +517,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               else
                 xy(2) = xy(2) - dy/obj.DXFAC;
               end
-              xy(2) = max(xy(2),1);
+              %xy(2) = max(xy(2),1);
             case 'downarrow'
               yl = ylim(ax);
               dy = diff(yl);
@@ -526,8 +526,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
               else
                 xy(2) = xy(2) + dy/obj.DXFAC;
               end
-              nrs = lObj.movienr;
-              xy(2) = min(xy(2),nrs(iAx));
+              %nrs = lObj.movienr;
+              %xy(2) = min(xy(2),nrs(iAx));
           end
           obj.assignLabelCoordsIRaw(xy,iSel);
           switch obj.state
@@ -606,16 +606,16 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       %#%CALOK
       
       lbler = obj.labeler;
-      mrs = lbler.movieReader;
-      movszs = [[mrs.nr]' [mrs.nc]']; % [nview x 2]. col1: nr. col2: nc
-      
+      movctrs = lbler.movieroictr;
+      movnrs = lbler.movienr;
+      movncs = lbler.movienc;
       xy = nan(obj.nPts,2);
       for iPt=1:obj.nPts
         iAx = obj.iPt2iAx(iPt);
-        nr = movszs(iAx,1);
-        nc = movszs(iAx,2);
-        xy(iPt,1) = nc/2 + nc/3*2*(rand-0.5);
-        xy(iPt,2) = nr/2 + nr/3*2*(rand-0.5);
+        nr = movnrs(iAx);
+        nc = movncs(iAx);
+        xy(iPt,1) = movctrs(iAx,1) + nc/3*2*(rand-0.5);
+        xy(iPt,2) = movctrs(iAx,2) + nr/3*2*(rand-0.5);
       end
       obj.assignLabelCoords(xy,'tfClip',false);        
     end
@@ -797,7 +797,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       iAxOther = setdiff(1:obj.nView,iAx1);
       crig = obj.pjtCalRig;
       for iAx = iAxOther
-        [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx);
+        hIm = obj.hIms(iAx);
+        imroi = [hIm.XData hIm.YData];
+        [x,y] = crig.computeEpiPolarLine(iAx1,xy1,iAx,imroi);
         hEpi = obj.pjtHLinesEpi(iAx);
         set(hEpi,'XData',x,'YData',y,'Visible','on','Color',hPt1.Color);
         %fprintf('Epipolar line for axes %d should be visible, x = %s, y = %s\n',iAx,mat2str(x),mat2str(y));
@@ -866,22 +868,20 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         crig.epLineNPts = 2;
       end 
       
-      crigViewSzs = crig.viewSizes; % [nView x 2]; each row is [nc nr]
-      lObj = obj.labeler;
-      imsAll = lObj.gdata.images_all;
-      for iView = 1:obj.nView
-        cdata = imsAll(iView).CData;
-        imnr = size(cdata,1);
-        imnc = size(cdata,2);
-        crignc = crigViewSzs(iView,1);
-        crignr = crigViewSzs(iView,2);
-        if imnr~=crignr || imnc~=crignc
-          warningNoTrace('LabelCoreMultiViewCalibrated:projectionSetCalRig',...
-            'View %d (%s): image size is [nr nc]=[%d %d]; calibration based on [%d %d]',...
-            iView,crig.viewNames{iView},...
-            imnr,imnc,crignr,crignc);
-        end
-      end
+%       crigRois = crig.viewRois; % [nView x 4]; each row is [xlo xhi ylo yhi]
+%       lObj = obj.labeler;
+%       imsAll = lObj.gdata.images_all;
+%       for iView = 1:obj.nView
+%         xdata = imsAll(iView).XData;
+%         ydata = imsAll(iView).YData;
+%         imroi = [xdata ydata];
+%         crigroi = crigRois(iView,:);
+%         if ~isequal(imroi,crigroi)
+%           warningNoTrace('LabelCoreMultiViewCalibrated:projectionSetCalRig',...
+%             'View %d (%s): image roi is %s; calibration roi is %s',...
+%             iView,crig.viewNames{iView},mat2str(imroi,6),mat2str(crigroi,6));
+%         end
+%       end
       
       obj.pjtCalRig = crig;
     end
