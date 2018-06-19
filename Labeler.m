@@ -422,7 +422,7 @@ classdef Labeler < handle
   
   %% Prev
   properties
-    prevIm = []; % single array of image data ('primary' view only)
+    prevIm = struct('CData',0,'XData',0,'YData',0); % struct, like a stripped image handle (.CData, .XData, .YData). 'primary' view only
     prevAxesMode; % scalar PrevAxesMode
     prevAxesModeInfo; % "userdata" for .prevAxesMode
     lblPrev_ptsH; % [npts] gobjects. init: L
@@ -2938,7 +2938,7 @@ classdef Labeler < handle
         obj.currIm{iView} = 0;
         set(imsall(iView),'CData',0);
       end
-      obj.prevIm = 0;
+      obj.prevIm = struct('CData',0,'XData',0,'YData',0);
       imprev = gd.image_prev;
       set(imprev,'CData',0);              
       obj.currTarget = 1;
@@ -7003,7 +7003,7 @@ classdef Labeler < handle
         assert(isequal(pTrkiPt(:)',1:npts));
         assert(isequal(tblTrkRes(:,MFTable.FLDSID),...
                        tblMFgtTrack(:,MFTable.FLDSID)));
-        if obj.hasTrx
+        if obj.hasTrx || obj.cropProjHasCrops
           pGT = tblMFgtTrack.pAbs;
         else
           tblfldsdonotcontainassert(tblMFgtTrack,'pAbs');
@@ -7054,11 +7054,11 @@ classdef Labeler < handle
       ptiles = myparse(varargin,...
         'prctiles',[50 75 90 95]);
       
-      assert(~obj.isMultiView,'Not supported for multiview.');
       assert(~obj.gtIsGTMode,'Not supported in GT mode.');
       
       err = tblXVres.dGTTrk;
       npts = obj.nLabelPoints;
+      nphyspts = obj.nPhysPoints;
       assert(size(err,2)==npts);
       nptiles = numel(ptiles);
       ptl = prctile(err,ptiles,1)';
@@ -7067,45 +7067,56 @@ classdef Labeler < handle
       % for now always viz with first row
       iVizRow = 1;
       vizrow = tblXVres(iVizRow,:);
-      mr = MovieReader;
-      obj.movieMovieReaderOpen(mr,MovieIndex(vizrow.mov),1);
-      im = mr.readframe(vizrow.frm,'docrop',false); 
-      % want to crop via vizrow.roi (if applicable); this comes from trx
-      % most of the time
-      pLbl = vizrow.p;
-      if tblfldscontains(vizrow,'roi')
-        xlo = vizrow.roi(1);
-        xhi = vizrow.roi(2);
-        ylo = vizrow.roi(3);
-        yhi = vizrow.roi(4);
-        szassert(pLbl,[1 2*npts]);
-        pLbl(1:npts) = pLbl(1:npts)-xlo+1;
-        pLbl(npts+1:end) = pLbl(npts+1:end)-ylo+1;
-        im = padgrab2(im,0,ylo,yhi,xlo,xhi);
-      end
-      xyLbl = Shape.vec2xy(pLbl);
+      xyLbl = Shape.vec2xy(vizrow.p);
       szassert(xyLbl,[npts 2]);
-      
-      figure('Name','Tracker performance');
-      imagesc(im);
-      colormap gray;
-      hold on;
-      clrs = hsv(nptiles)*.75;
-      for ipt=1:npts
-        for iptile=1:nptiles        
-          r = ptl(ipt,iptile);
-          pos = [xyLbl(ipt,:)-r 2*r 2*r];
-           rectangle('position',pos,'curvature',1,'edgecolor',clrs(iptile,:));
+      tfRoi = tblfldscontains(vizrow,'roi');
+      if tfRoi 
+        [xyLbl,tfOOBview] = Shape.xy2xyROI(xyLbl,vizrow.roi,nphyspts);
+        if any(tfOOBview)
+          warningNoTrace('One or more landmarks lies outside ROI.');
         end
       end
-      axis square xy
-      grid on;
-      tstr = sprintf('Cross-validation ptiles: %s. n=%d, mean err=%.3fpx.',...
-        mat2str(ptiles),height(tblXVres),mean(err(:)));
-      title(tstr,'fontweight','bold','interpreter','none');
-      hLeg = arrayfun(@(x)plot(nan,nan,'-','Color',clrs(x,:)),1:nptiles,...
-        'uni',0);      
-      legend([hLeg{:}],arrayfun(@num2str,ptiles,'uni',0));
+      for ivw=1:obj.nview
+        mr = MovieReader;
+        obj.movieMovieReaderOpen(mr,MovieIndex(vizrow.mov),ivw);
+        im = mr.readframe(vizrow.frm,'docrop',false); 
+        % want to crop via vizrow.roi (if applicable); this comes from trx
+        % most of the time
+        iptsvw = (1:nphyspts)' + nphyspts*(ivw-1);
+        xyLblVw = xyLbl(iptsvw,:); 
+        ptlVw = ptl(iptsvw,:);
+        if tfRoi
+          roiVw = vizrow.roi((1:4)+(ivw-1)*4);
+          im = padgrab2(im,0,roiVw(3),roiVw(4),roiVw(1),roiVw(2));
+        end
+      
+        if obj.nview==1
+          figure('Name','Tracker performance');
+        else
+          figure('Name',sprintf('Tracker performance (view %d)',ivw));
+        end          
+        imagesc(im);
+        colormap gray;
+        hold on;
+        clrs = hsv(nptiles)*.75;
+        for ipt=1:nphyspts
+          for iptile=1:nptiles        
+            r = ptlVw(ipt,iptile);
+            pos = [xyLblVw(ipt,:)-r 2*r 2*r];
+             rectangle('position',pos,'curvature',1,'edgecolor',clrs(iptile,:));
+          end
+        end
+        axis image ij
+        grid on;
+        if ivw==1
+          tstr = sprintf('Cross-validation ptiles: %s. n=%d, mean err=%.3fpx.',...
+            mat2str(ptiles),height(tblXVres),mean(err(:)));
+          title(tstr,'fontweight','bold','interpreter','none');
+          hLeg = arrayfun(@(x)plot(nan,nan,'-','Color',clrs(x,:)),1:nptiles,...
+            'uni',0);      
+          legend([hLeg{:}],arrayfun(@num2str,ptiles,'uni',0));
+        end
+      end
     end
     
     function [tf,lposTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
@@ -8243,11 +8254,13 @@ classdef Labeler < handle
 
     function hlpSetCurrPrevFrame(obj,frm,tfforce)
       % helper for setFrame, setFrameAndTarget
-      
-      currFrmOrig = obj.currFrame;
-      currIm1Orig = obj.currIm{1};
-      
+
       gd = obj.gdata;
+
+      currFrmOrig = obj.currFrame;      
+      imcurr = gd.image_curr;
+      currImOrig = struct('CData',imcurr.CData,...
+          'XData',imcurr.XData,'YData',imcurr.YData);
       if obj.currFrame~=frm || tfforce
         imsall = gd.images_all;
         tfCropMode = obj.cropIsCropMode;        
@@ -8268,9 +8281,14 @@ classdef Labeler < handle
         end
         obj.currFrame = frm;
       end
+      
+      % AL20180619 .currIm is probably an unnec prop
      
       obj.prevFrame = currFrmOrig;
-      if ~isequal(size(currIm1Orig),size(obj.currIm{1}))
+      currIm1Nr = size(obj.currIm{1},1);
+      currIm1Nc = size(obj.currIm{1},2);
+      if ~isequal([size(currImOrig.CData,1) size(currImOrig.CData,2)],...
+          [currIm1Nr currIm1Nc])
         % In this scenario we do not use currIm1Orig b/c axes_prev and 
         % axes_curr are linked and that can force the axes into 'manual'
         % XLimMode and so on. Generally it is disruptive to view-handling.
@@ -8282,9 +8300,10 @@ classdef Labeler < handle
         % in edge cases eg when a project is loaded or changed. In this 
         % case currIm1Orig is not going to represent anything meaningful 
         % anyway.
-        obj.prevIm = zeros(size(obj.currIm{1}));
+        obj.prevIm = struct('CData',zeros(currIm1Nr,currIm1Nc),...
+          'XData',1:currIm1Nc,'YData',1:currIm1Nr);
       else
-        obj.prevIm = currIm1Orig;
+        obj.prevIm = currImOrig;
       end
       obj.prevAxesImFrmUpdate();
     end
@@ -8370,7 +8389,7 @@ classdef Labeler < handle
       switch obj.prevAxesMode
         case PrevAxesMode.LASTSEEN
           gd = obj.gdata;
-          gd.image_prev.CData = obj.prevIm;
+          set(gd.image_prev,obj.prevIm);
           gd.txPrevIm.String = num2str(obj.prevFrame);
       end
     end

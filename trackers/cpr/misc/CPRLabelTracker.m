@@ -833,12 +833,8 @@ classdef CPRLabelTracker < LabelTracker
      
     %#%MTGT
     function trainingDataMontage(obj)
-      labelerObj = obj.lObj;
-      
-      if labelerObj.isMultiView
-        error('CPRLabelTracker:multiview',...
-          'Currently unsupported for multiview projects.');
-      end
+      labelerObj = obj.lObj;      
+     
       tblTrn = obj.trnDataTblP;
       if isempty(tblTrn) || ~obj.hasTrained
         msgbox('Please train a tracker first.');
@@ -856,8 +852,26 @@ classdef CPRLabelTracker < LabelTracker
         nrMtg = floor(sqrt(nTrn));      
         ncMtg = floor(nTrn/nrMtg);
       end
-      Shape.montage(d.I(iTrn,:),d.pGT(iTrn,:),'nr',nrMtg,'nc',ncMtg,...
-        'titlestr','Training Data Montage')  
+      
+      h = gobjects(0,1);
+      pGTTrn = d.pGT(iTrn,:);
+      npts = obj.nPts;
+      nphyspts = obj.lObj.nPhysPoints;
+      nview = obj.lObj.nview;
+      szassert(pGTTrn,[nTrn npts*2]);
+      for ivw=1:nview
+        figname = 'Training data';
+        if nview>1
+          figname = sprintf('%s (view %d)',figname,ivw);
+        end
+        h(end+1,1) = figure('Name',figname,'windowstyle','docked'); %#ok<AGROW>
+        
+        ipts = (1:nphyspts)+(ivw-1)*nphyspts;
+        ipts = [ipts ipts+npts]; %#ok<AGROW>
+        Shape.montage(d.I(iTrn,ivw),d.pGT(iTrn,ipts),...
+          'fig',h(end),'nr',nrMtg,'nc',ncMtg,...
+          'titlestr','Training Data Montage');
+      end
     end
     
     %#%MTGT
