@@ -27,6 +27,7 @@ classdef MovieReader < handle
     ncread % numcols in "
     roiread % [xlo xhi ylo yhi] of image-as-read. If there is no cropping, 
       % this is just [1 nc 1 nr]. 
+    hascrop % logical scalar, true if cropInfo is set
   end
   
   properties (SetObservable)
@@ -84,6 +85,9 @@ classdef MovieReader < handle
       else
         v = [1 obj.nc 1 obj.nr];
       end
+    end
+    function v = get.hascrop(obj)
+      v = ~isempty(obj.cropInfo);
     end
   end
   
@@ -153,8 +157,8 @@ classdef MovieReader < handle
       
       [doBGsub,docrop] = myparse(varargin,...
         'doBGsub',false,...
-        'docrop',false ... % if true, .cropInfo is used. Note, cropping 
-                       ... % occurs AFTER flipvert, if that is on
+        'docrop',false ... % if true, .cropInfo is used if avail. Note, 
+                       ... % cropping occurs AFTER flipvert, if that is on
         );
       
       assert(obj.isOpen,'Movie is not open.');
@@ -188,7 +192,7 @@ classdef MovieReader < handle
 %         im = PxAssign.imRescalePerType(im,imOrigType);
       end
       
-      if docrop
+      if docrop && obj.hascrop
         imroi = obj.cropInfo.roi; % .cropInfo must be set
         im = im(imroi(3):imroi(4),imroi(1):imroi(2));        
       else

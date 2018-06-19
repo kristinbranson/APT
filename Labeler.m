@@ -2063,6 +2063,16 @@ classdef Labeler < handle
           end
         end
       end
+      
+      % 20180619 Crop
+      CROPFLDS = {'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' 'cropIsCropMode'};
+      tfCropFlds = isfield(s,CROPFLDS);
+      assert(all(tfCropFlds) || ~any(tfCropFlds));
+      if ~any(tfCropFlds)
+        s.cropIsCropMode = false;
+        s.movieFilesAllCropInfo = cell(size(s.movieFilesAll,1),1);
+        s.movieFilesAllGTCropInfo = cell(size(s.movieFilesAllGT,1),1);
+      end
     end
     
   end 
@@ -7654,6 +7664,9 @@ classdef Labeler < handle
   methods
     
     function cropSetCropMode(obj,tf)
+      if obj.hasTrx && tf
+        error('User-specied cropping is unsupported for projects with trx.');
+      end
       obj.cropIsCropMode = tf;
       obj.notify('cropIsCropModeChanged');
     end

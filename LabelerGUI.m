@@ -1022,6 +1022,7 @@ hlpGTUpdateAxHilite(lObj);
 if lObj.cropIsCropMode
   cropUpdateCropHRects(handles);
 end
+handles.menu_file_crop_mode.Enable = onIff(~lObj.hasTrx);
 
 % update HUD, statusbar
 mname = lObj.moviename;
@@ -1052,8 +1053,8 @@ else
   xdata = hIm.XData;
   ydata = hIm.YData;
   set(hAx,...
-    'XLim',[xdata(1)-0.5 xdata(2)+0.5],...
-    'YLim',[ydata(1)-0.5 ydata(2)+0.5]);
+    'XLim',[xdata(1)-0.5 xdata(end)+0.5],...
+    'YLim',[ydata(1)-0.5 ydata(end)+0.5]);
 end
 axis(hAx,'image');
 zoom(hAx,'reset');
@@ -2819,7 +2820,9 @@ end
 function cbkCropIsCropModeChanged(src,evt)
 lObj = src;
 cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
-lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
+if lObj.hasMovie
+  lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
+end
 
 function cbkCropCropsChanged(src,evt)
 lObj = src;
