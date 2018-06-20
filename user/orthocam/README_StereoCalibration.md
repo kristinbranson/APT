@@ -6,6 +6,9 @@ This is a step-by-step guide to running an OrthoCam stereo camera calibration. O
 
 * Orthocam calibration requires MATLAB R2016b specifically. The calibration is integrated into the MATLAB Stereo Calibration App.
 * Add the APT repo to your MATLAB path, or navigate to the <APT> repo root directory. Then run `APT.setpath` to fully configure your MATLAB path.
+* Matlab Computer Vision Toolbox
+* Matlab Image Processing Toolbox (required by Computer Vision Toolbox)
+* Matlab Optimization Toolbox
 
 #### Step 1: Run single-cam calibrations of each camera in the MATLAB Camera Calibrator App.
 The MATLAB Camera Calibrator App should do single-camera calibrations pretty well, except the (z-depth, focal length) parameter pair will not be well-resolved. Check that the calibration looks good (low reprojection error). Then do a "Save Session". This will save the calibration images you used with their detected corners, along with the calibration results.
