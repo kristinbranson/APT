@@ -7429,6 +7429,10 @@ classdef Labeler < handle
       tObj = obj.tracker;
       if ~isempty(tObj)
         tblTrked = tObj.getAllTrackResTable();
+      else
+        tblTrked = [];
+      end
+      if ~isempty(tblTrked)
 %         tblTrked = tObj.trkPMD(:,MFTable.FLDSID);
         tblTrked.mov = int32(tblTrked.mov); % from MovieIndex
 %         pTrk = tblTrked.pTrk;
@@ -7438,10 +7442,7 @@ classdef Labeler < handle
 %           pTrk = nan(0,npts*2);
 %         end
         isTrked = true(height(tblTrked),1);
-        tblTrked = [tblTrked table(isTrked)];
-      else
-        tblTrked = table(nan(0,1),nan(0,1),nan(0,1),nan(0,npts*2),false(0,1),...
-          'VariableNames',{'mov' 'frm' 'iTgt' 'pTrk' 'isTrked'});
+        tblTrked = [tblTrked table(isTrked)];     
       end
 
       if isempty(tblTrked)

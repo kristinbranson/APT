@@ -766,6 +766,13 @@ classdef DeepTracker < LabelTracker
       end
       
       m = obj.movIdx2trkfile;
+      
+      if m.isempty
+        tblTrkRes = [];
+        pTrkiPt = [];
+        return;
+      end
+      
       mIdxs = m.keys;
       mIdxs = cell2mat(mIdxs(:));
       [trk,tfhasres] = obj.getTrackingResults(mIdxs);
