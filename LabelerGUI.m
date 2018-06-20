@@ -2425,8 +2425,8 @@ function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 % Really, "configure parameters"
 
 lObj = handles.labelerObj;
-tObj = lObj.tracker;
-assert(~isempty(tObj));
+% tObj = lObj.tracker;
+% assert(~isempty(tObj));
 
 sPrmCurrent = lObj.trackGetParams();
 

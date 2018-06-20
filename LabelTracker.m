@@ -146,6 +146,10 @@ classdef LabelTracker < handle
       % Full Train from scratch; existing/previous results cleared 
     end
     
+    function tf = getHasTrained(obj)
+      %
+    end
+    
     function track(obj,tblMFT,varargin)
       % Apply trained tracker to the specified frames.
       % 

@@ -6487,10 +6487,13 @@ classdef Labeler < handle
       % be cleared.
       
       obj.preProcInitData();
-      if obj.tracker.hasTrained
-        warningNoTrace('Trained tracker and tracking results cleared.');
+      for i=1:numel(obj.trackersAll)
+        if obj.trackersAll{i}.getHasTrained()
+          warningNoTrace('Trained tracker(s) and tracking results cleared.');
+          break;
+        end
       end
-      obj.tracker.initHook(); % XXX TODO deeptrack merge      
+      obj.trackInitAllTrackers();
     end
     
     function tblP = preProcCropLabelsToRoiIfNec(obj,tblP)
@@ -6802,7 +6805,7 @@ classdef Labeler < handle
 
   %% Tracker
   methods    
-
+    
     function [tObj,iTrk] = trackGetTracker(obj,algoName)
       % Find a particular tracker
       %
@@ -6968,6 +6971,10 @@ classdef Labeler < handle
       obj.labelsUpdateNewFrame(true);
       
       fprintf('Tracking complete at %s.\n',datestr(now));
+    end
+    
+    function trackInitAllTrackers(obj)
+      cellfun(@(x)x.init(),obj.trackersAll);
     end
     
     function s = trackCreateDeepTrackerStrippedLbl(obj)
@@ -7419,19 +7426,19 @@ classdef Labeler < handle
       
       npts = obj.nLabelPoints;
 
-%       assert(obj.trackerType==TrackerType.cpr,'Only CPR tracking supported.');
-      % XXX TODO
       tObj = obj.tracker;
       if ~isempty(tObj)
-        tblTrked = tObj.trkPMD(:,MFTable.FLDSID);
+        tblTrked = tObj.getAllTrackResTable();
+%         tblTrked = tObj.trkPMD(:,MFTable.FLDSID);
         tblTrked.mov = int32(tblTrked.mov); % from MovieIndex
-        pTrk = tObj.trkP;
-        if isempty(pTrk)
-          % edge case, tracker not initting properly
-          pTrk = nan(0,npts*2);
-        end
+%         pTrk = tblTrked.pTrk;
+%         if isempty(pTrk)
+%           % AL 20180620 Shouldn't be nec. 
+%           % edge case, tracker not initting properly
+%           pTrk = nan(0,npts*2);
+%         end
         isTrked = true(height(tblTrked),1);
-        tblTrked = [tblTrked table(pTrk,isTrked)];
+        tblTrked = [tblTrked table(isTrked)];
       else
         tblTrked = table(nan(0,1),nan(0,1),nan(0,1),nan(0,npts*2),false(0,1),...
           'VariableNames',{'mov' 'frm' 'iTgt' 'pTrk' 'isTrked'});

@@ -177,6 +177,10 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnReset();
     end
     
+    function tf = getHasTrained(obj)
+      tf = ~isempty(obj.trnName);
+    end
+    
     function retrain(obj,varargin)
 
       if obj.bgTrnIsRunning

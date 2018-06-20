@@ -1120,6 +1120,10 @@ classdef CPRLabelTracker < LabelTracker
       assert(isequal(obj.trnResIPt,iPt));
     end
     
+    function tf = getHasTrained(obj)
+      tf = obj.hasTrained;
+    end
+    
     %#%MTGT
     %#%MV
     function trainPrintDiagnostics(obj,iTL)
