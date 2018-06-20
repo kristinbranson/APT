@@ -2104,7 +2104,6 @@ classdef Labeler < handle
         s.currTracker = 1;
       end
       assert(iscell(s.trackerClass));
-    end
     
       % 20180604
       if ~isfield(s,'labeledpos2GT')

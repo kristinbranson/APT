@@ -12,6 +12,9 @@ classdef CPRLabelTracker < LabelTracker
   properties
     algorithmName = 'cpr';
   end
+  properties (Constant)
+    serializeversion = 10; % serialization format
+  end
   properties
     isInit = false; % true during load; invariants can be broken
   end
@@ -396,18 +399,15 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(obj.sPrm)
         obj.trnResRC = [];
       else
-        nview = obj.lObj.nview;
         sPrmUse = obj.sPrm;
-        %sPrmUse.Model.nfids = sPrmUse.Model.nfids/nview;
         sPrmUse.Model.nviews = 1;
+        nview = obj.lObj.nview;
         for i=1:nview
           rc(1,i) = RegressorCascade(sPrmUse); %#ok<AGROW>
         end
         obj.trnResRC = rc;
       end
       obj.trnResIPt = [];
-%       obj.trnResH0 = [];
-      
       obj.asyncReset();
     end
   end
@@ -2039,6 +2039,7 @@ classdef CPRLabelTracker < LabelTracker
       s2 = rmfield(s2,'paramFile');
       s = structmerge(s1,s2);
       s.hideViz = obj.hideViz;
+      s.serializeversion = obj.serializeversion;
     end
     
     function loadSaveToken(obj,s)
@@ -2082,43 +2083,18 @@ classdef CPRLabelTracker < LabelTracker
         % the param.example.yaml and a separate structure would require a
         % double-update (unless using dynamicprops which is 10x slower than
         % a struct).
+        %
+        % 20180620
+        % This is still a problem, and a best soln is still not evident.
+        % What we currently do isn't that bad despite duplicating state, 
+        % see RegressorCascade immutable parameters notes. Handles seem 
+        % reasonable too.
                 
-        % Hack, double-update legacy RegressorCascades (.trnResRC).
+        sPrmUse = s.sPrm;
+        sPrmUse.Model.nviews = 1; % see .trnResInit();
         rc = s.trnResRC;
-        if ~isempty(rc) && isscalar(rc) 
-          % 20161128: multiview projs (nonscalar rc) should not require
-          % these updates.
-          
-          assert(isa(rc,'RegressorCascade')); % handle obj
-          if isempty(rc.prmModel.nviews)
-            assert(s.sPrm.Model.nviews==1); 
-            rc.prmModel.nviews = 1;
-          end
-          if ~isfield(rc.prmTrainInit,'augjitterfac')
-            assert(s.sPrm.TrainInit.augjitterfac==16);
-            rc.prmTrainInit.augjitterfac = 16;
-          end
-        end
-
         for i=1:numel(rc)
-          % 20170531 legacy projs prm.Reg.USE_AL_CORRECTION
-          if isfield(rc(i).prmReg,'USE_AL_CORRECTION')
-            rc(i).prmReg = s.sPrm.Reg;
-          end
-          
-          % 20170609 iss84
-          rc(i).prmTrainInit.augrotate = [];
-          
-          % 20180326 Feature type: '1lm'->'single landmark'
-          % (s.sPrm updated above, this is a double-update)
-          if strcmp(rc(i).prmFtr.type,'1lm')
-            rc(i).prmFtr.type = 'single landmark';            
-          end
-          for iSpec=1:numel(rc(i).ftrSpecs)
-            if ~isempty(rc(i).ftrSpecs{iSpec}) && strcmp(rc(i).ftrSpecs{iSpec}.type,'1lm')
-              rc(i).ftrSpecs{iSpec}.type = 'single landmark';
-            end
-          end
+          rc(i).setPrmModernize(sPrmUse);
         end
       else
         assert(isempty(s.trnResRC));
@@ -2272,7 +2248,7 @@ classdef CPRLabelTracker < LabelTracker
       % set everything else. Note this should set all core CPRLT state (not
       % viz, volatile, etc)
       flds = fieldnames(s);
-      flds = setdiff(flds,{'sPrm' 'hideViz'});
+      flds = setdiff(flds,{'sPrm' 'hideViz' 'version'});
       obj.isInit = true;
       try
         for f=flds(:)',f=f{1}; %#ok<FXSET>
@@ -2847,6 +2823,12 @@ classdef CPRLabelTracker < LabelTracker
         sPrm.Ftr.type = 'single landmark';
       end
       
+      % 20180620 moved this from RegressorCascade ctor
+      if isfield(sPrm.Model,'D')
+        assert(sPrm.Model.D==sPrm.Model.d*sPrm.Model.nfids);
+      else        
+        sPrm.Model.D = sPrm.Model.d*sPrm.Model.nfids;
+      end      
     end
           
     function [xy,isinterp] = interpolateXY(xy)

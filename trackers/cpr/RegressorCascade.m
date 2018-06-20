@@ -1,7 +1,15 @@
 classdef RegressorCascade < handle
   
-  properties
+  properties (SetAccess=private)
     % model/params
+    %
+    % These are set at construction time and are immutable. You can't set
+    % them, that would require a full reinit of the obj anyway. So you can
+    % create a RegressorCascade, train it, and propagate through it, but if 
+    % you want to change a parameter you just make a new one. This is good
+    % I think.
+    %
+    % Except for setPrmModernize.
     prmModel 
     prmTrainInit
     prmReg 
@@ -76,11 +84,10 @@ classdef RegressorCascade < handle
     function obj = RegressorCascade(sPrm)
       % sPrm: parameter struct
       
-      if isfield(sPrm.Model,'D')
-        assert(sPrm.Model.D==sPrm.Model.d*sPrm.Model.nfids);
-      else
-        sPrm.Model.D = sPrm.Model.d*sPrm.Model.nfids;
-      end
+      assert(sPrm.Model.D==sPrm.Model.d*sPrm.Model.nfids); % legacy check
+      assert(sPrm.Model.nviews==1); % for now we only single-view track 20180620
+      sPrm.Model.nviews = 1;
+      
       obj.prmModel = sPrm.Model;
       obj.prmTrainInit = sPrm.TrainInit;
       obj.prmReg = sPrm.Reg;
@@ -113,6 +120,52 @@ classdef RegressorCascade < handle
       
       if initTrnLog
         obj.trnLogInit();
+      end
+    end
+    
+    function setPrmModernize(obj,sPrmModernized)
+      % DANGEROUS call only if you know what you are doing
+      %
+      % Need to deal with usual parameter-modernization issue.
+      % 1. RC created with prms0
+      % 2. Code changes, available parameters are updated. Params can be
+      %   i) removed, ii) added, iii) mutated. In the case of i), updated 
+      %   code no longer references those fields. In the case of ii), the
+      %   new value is added with its default value that was implicitly
+      %   used before (so that clearing a trained tracker is not
+      %   necessary). iii) is hopefully very uncommon but can occur when
+      %   eg an enumerated parameter changes names. ('1lm'->'one landmark
+      %   elliptical').
+      % 3. obj needs to update its parameters to reflect updates.
+      %
+      % Parameter modernization is handled by CPRLabelTracker, so we don't
+      % want to replicate that code here, it is too dangerous from a 
+      % maintenance standpoint. Instead, we accept the modernized sPrm from 
+      % CPRLT and set it just like we did during construction. We do some 
+      % checks along the way for safety.
+      
+      assert(sPrmModernized.Model.nviews==1); % for now we only single-view track 20180620
+
+      structcheckfldspresent(sPrmModernized.Model,obj.prmModel);
+      structcheckfldspresent(sPrmModernized.TrainInit,obj.prmTrainInit);
+      structcheckfldspresent(sPrmModernized.Reg,obj.prmReg);
+      structcheckfldspresent(sPrmModernized.Ftr,obj.prmFtr,...
+        'pathexceptions',{'.type'}); % 1lm->single landmark, see below
+      
+      obj.prmModel = sPrmModernized.Model;
+      obj.prmTrainInit = sPrmModernized.TrainInit;
+      obj.prmReg = sPrmModernized.Reg;
+      obj.prmFtr = sPrmModernized.Ftr;
+      
+      % 20180620: Ugh. Taken from CPRLT. Legacy note:
+      %   20180326: Feature type: '1lm'->'single landmark'
+      for iSpec=1:numel(obj.ftrSpecs)
+        if ~isempty(obj.ftrSpecs{iSpec})           
+          if strcmp(obj.ftrSpecs{iSpec}.type,'1lm')
+            obj.ftrSpecs{iSpec}.type = 'single landmark';
+          end
+          assert(strcmp(obj.ftrSpecs{iSpec}.type,obj.prmFtr.type));
+        end
       end
     end
     
@@ -831,16 +884,7 @@ classdef RegressorCascade < handle
       end
       
       maxFernAbsDeltaPct = max(maxFernAbsDeltaPct);      
-    end
-    
-    function setPrm(obj,sPrm)
-      % stupidity
-
-      obj.prmModel = sPrm.Model;
-      obj.prmTrainInit = sPrm.TrainInit;
-      obj.prmReg = sPrm.Reg;
-      obj.prmFtr = sPrm.Ftr;      
-    end
+    end    
     
     function [ipts,ftrType] = getLandmarksUsed(obj,t)
       % t: major iter
