@@ -107,7 +107,7 @@ classdef DeepTrackerTrainingWorkerObj < handle
       json = sprintf('%s_pose_unet_traindata.json',projvw);
       json = fullfile(subdir,json);
       
-      finaliter = obj.sPrm.unet_steps;
+      finaliter = obj.sPrm.dl_steps;
       finalindex = sprintf('%s_pose_unet-%d.index',projvw,finaliter);
       finalindex = fullfile(subdir,finalindex);
       

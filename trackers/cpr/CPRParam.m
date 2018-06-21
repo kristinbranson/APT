@@ -44,7 +44,8 @@ classdef CPRParam
       sOld.Model.nfids = nphyspts;
       sOld.Model.d = 2;
       sOld.Model.nviews = nviews;
-
+      sOld.Model.D = sOld.Model.d*sOld.Model.nfids;
+      
 %       trkType = TrackerType.(sNew.ROOT.Track.Type);
       trkNFrmsSm = sNew.ROOT.Track.NFramesSmall;
       trkNFrmsLg = sNew.ROOT.Track.NFramesLarge;
@@ -127,7 +128,8 @@ classdef CPRParam
       
       npts = sOld.Model.nfids;
       assert(sOld.Model.d==2);
-      nviews = sOld.Model.nviews;
+      assert(sOld.Model.D==sOld.Model.d*sOld.Model.nfids);
+      nviews = sOld.Model.nviews;      
       
       sNew = struct();
 %       sNew.ROOT.Track.Type = char(lObj.trackerType);

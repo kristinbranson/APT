@@ -2828,7 +2828,7 @@ classdef CPRLabelTracker < LabelTracker
       end
       
       % 20180620 moved this from RegressorCascade ctor
-      if isfield(sPrm.Model,'D')
+      if isfield(sPrm.Model,'D') && ~isnan(sPrm.Model.D) % second clause, from overlaying on default (which has .D==nan)
         assert(sPrm.Model.D==sPrm.Model.d*sPrm.Model.nfids);
       else        
         sPrm.Model.D = sPrm.Model.d*sPrm.Model.nfids;
