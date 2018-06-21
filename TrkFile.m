@@ -145,7 +145,7 @@ classdef TrkFile < handle
       if ~isempty(obj1.pTrkFull) || ~isempty(obj2.pTrkFull)
         warningNoTrace('.pTrkFull contents discarded.');
       end
-      .pTrkiTgt; unchanged
+      
       %frmComon = intersect(obj1.pTrkFrm,obj2.pTrkFrm);
       frmUnion = union(obj1.pTrkFrm,obj2.pTrkFrm);
       %iTgtComon = intersect(obj1.pTrkiTgt,obj2.pTrkiTgt);
@@ -190,7 +190,7 @@ classdef TrkFile < handle
       obj1.pTrkFrm = frmUnion;
       obj1.pTrkiTgt = iTgtUnion;
       obj1.pTrkFull = [];
-      obj1.pTrjFullFT = [];
+      obj1.pTrkFullFT = [];
       
       if iscell(obj1.trkInfo)
         obj1.trkInfo{end+1} = obj2.trkInfo;
@@ -219,7 +219,7 @@ classdef TrkFile < handle
       % ignore fields of struct that aren't TrkFile props. For 3rd-party
       % generated Trkfiles
       s = load(filename,'-mat');
-      s = TrkFile.modernizeStruct(s);
+      s = TrkFile.modernizeStruct(s);      
       pTrk = s.pTrk;      
       
       mc = meta.class.fromName('TrkFile');
@@ -237,6 +237,9 @@ classdef TrkFile < handle
       if iscell(s.pTrkTag)
         s.pTrkTag = strcmp(s.pTrkTag,'occ');
       end
+%       if iscell(s.pTrkiTgt) % TEMP HACK DL format
+%         s.pTrkiTgt = cell2mat(s.pTrkiTgt);
+%       end
     end
     
   end

@@ -101,7 +101,7 @@ classdef DeepTrackerTrainingWorkerObj < handle
     
     function [json,finalindex,errfile] = trainMonitorArtifacts(obj,ivw)
       cacheDir = obj.sPrm.CacheDir;
-      projvw = sprintf('%s_view%d',obj.projname,ivw-1);
+      projvw = sprintf('%s_view%d',obj.projname,ivw-1); % !! cacheDirs are 0-BASED
       subdir = fullfile(cacheDir,projvw,obj.jobID);
       
       json = sprintf('%s_pose_unet_traindata.json',projvw);

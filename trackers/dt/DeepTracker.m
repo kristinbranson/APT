@@ -616,7 +616,7 @@ classdef DeepTracker < LabelTracker
       aptintrf = fullfile(APT.getpathdl,'APT_interface.py');
       if tfview
         codestr = sprintf('python %s -name %s -view %d %s train',...
-          aptintrf,trnID,view-1,dllbl); % view 0-based for py
+          aptintrf,trnID,view,dllbl); % APT_interface accepts 1-based view
       else
         codestr = sprintf('python %s -name %s %s train',aptintrf,trnID,dllbl);
       end
@@ -662,7 +662,7 @@ classdef DeepTracker < LabelTracker
 
       if tfview
         codestr = sprintf('python %s -name %s -view %d %s track -mov %s -out %s -start_frame %d -end_frame %d',...
-          aptintrf,trnID,view-1,dllbl,movtrk,outtrk,frm0,frm1); % view: 0-based  
+          aptintrf,trnID,view,dllbl,movtrk,outtrk,frm0,frm1); % view: 1-based for APT_interface
       else
         codestr = sprintf('python %s -name %s %s track -mov %s -out %s -start_frame %d -end_frame %d',...
           aptintrf,trnID,dllbl,movtrk,outtrk,frm0,frm1);
@@ -670,7 +670,7 @@ classdef DeepTracker < LabelTracker
       if tftrx
         codestr = sprintf('%s -trx %s',codestr,trxtrk);
         if tftrxids
-          trxids = num2cell(trxids-1); % convert to 0-based for py
+          trxids = num2cell(trxids); % 1-based for APT_interface
           trxidstr = sprintf('%d ',trxids{:});
           trxidstr = trxidstr(1:end-1);
           codestr = sprintf('%s -trx_ids %s',codestr,trxidstr);
@@ -916,10 +916,11 @@ classdef DeepTracker < LabelTracker
       pTrkTS = nan(obj.nPts,lObj.nframes,lObj.nTargets);      
       for iview=1:obj.nview
         t = trks{iview};
-        frms = t.pTrkFrm;        
+        frms = t.pTrkFrm;
+        itgts = t.pTrkiTgt;
         ipts = ipt2view==iview;
-        pTrk(ipts,:,frms,:) = t.pTrk;
-        pTrkTS(ipts,frms,:) = t.pTrkTS;
+        pTrk(ipts,:,frms,itgts) = t.pTrk;
+        pTrkTS(ipts,frms,itgts) = t.pTrkTS;
       end
       
       obj.trkP = pTrk;
