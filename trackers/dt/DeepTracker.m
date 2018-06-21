@@ -38,6 +38,10 @@ classdef DeepTracker < LabelTracker
 
     % - Right now you can only have one track running at a time.
     
+    trkSysInfo % [nview] struct array of info used for current or most 
+    % recent tracking codegen/system call. currently only used for 
+    % debugging, printing logfiles etc.
+    
     bgTrkMonitorClient
     bgTrkMonitorWorkerObj
     %bgTrkMonitorResultsMonitor 
@@ -232,8 +236,9 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),cmds);
       else
-        % call train monitor
-        obj.bgTrnPrepareMonitor(dlLblFile,trnID);
+        % start train monitor
+        bsubLogs = arrayfun(@obj.trnBsubLog,(1:nview)','uni',0);
+        obj.bgTrnPrepareMonitor(dlLblFile,trnID,bsubLogs);
         obj.bgTrnStart();
         
         % spawn training
@@ -265,6 +270,19 @@ classdef DeepTracker < LabelTracker
       end
     end
     
+    function trnPrintLogs(obj)
+      % Print training logs for all views for current/last retrain
+      
+      if isempty(obj.trnName)
+        error('Training is neither in progress nor complete.');
+      end
+      for ivw=1:obj.nview
+        logfile = obj.trnBsubLog(ivw);
+        fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
+        type(logfile);
+      end
+    end
+    
     function bgTrnReset(obj)
       % Reset BG Train Monitor state
       %
@@ -287,12 +305,14 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonitorResultsMonitor = [];
     end
     
-    function bgTrnPrepareMonitor(obj,dlLblFile,jobID)
+    function bgTrnPrepareMonitor(obj,dlLblFile,jobID,bsubLogs)
       obj.bgTrnReset();
 
+      errFile = DeepTracker.dlerrGetErrFile(jobID);
+      assert(exist(errFile,'file')==0,'Error file ''%s'' exists.',errFile);
       objMon = DeepTrackerTrainingMonitor(obj.lObj.nview);
       cbkResult = @obj.bgTrnResultsReceived;
-      workerObj = DeepTrackerTrainingWorkerObj(dlLblFile,jobID);
+      workerObj = DeepTrackerTrainingWorkerObj(dlLblFile,jobID,bsubLogs);
       bgc = BGClient;
       fprintf(1,'Configuring background worker...\n');
       bgc.configure(cbkResult,workerObj,'compute');
@@ -310,6 +330,33 @@ classdef DeepTracker < LabelTracker
     function bgTrnResultsReceived(obj,sRes)
       obj.bgTrnMonitorResultsMonitor.resultsReceived(sRes);
       
+      errOccurred = any([sRes.result.errFileExists]);
+      if errOccurred
+        obj.bgTrnStop();
+
+        fprintf(1,'Error occurred during training:\n');      
+        errFile = sRes.result(1).errFile; % currently, errFiles same for all views
+        fprintf(1,'\n### %s\n\n',errFile);
+        type(errFile);
+        fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
+
+        % monitor plot stays up; bgTrnReset not called etc
+      end
+
+      for i=1:numel(sRes.result)
+        if sRes.result(i).bsubLogFileErrLikely
+          obj.bgTrnStop();
+
+          fprintf(1,'Error occurred during training:\n');      
+          errFile = sRes.result(i).bsubLogFile;
+          fprintf(1,'\n### %s\n\n',sRes.result(i).bsubLogFile);
+          type(errFile);
+          fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
+
+          % monitor plot stays up; bgTrnReset not called etc
+        end
+      end
+
       trnComplete = all([sRes.result.trainComplete]);
       if trnComplete
         obj.bgTrnStop();
@@ -324,8 +371,7 @@ classdef DeepTracker < LabelTracker
     
   end
   
-  %% Track
-  
+  %% Track  
   methods
     
     % Tracking timeline
@@ -398,8 +444,15 @@ classdef DeepTracker < LabelTracker
       movs = movs(1,:);
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       trnstr = sprintf('trn%s',trnID);
-      trkfiles = cell(1,nView);
-      codestrs = cell(1,nView);
+      
+      % info for code-generation. for now we just record a struct so we can
+      % more conveniently read logfiles etc. in future this could be an obj
+      % that has a codegen method etc.
+      trksysinfo = struct(...
+        'trkfile',cell(nView,1),...
+        'logfilebsub',[],...
+        'logfilessh',[],...
+        'codestr',[]);
       for ivw=1:nView
         mov = movs{ivw};
         [movP,movF] = fileparts(mov);
@@ -415,28 +468,47 @@ classdef DeepTracker < LabelTracker
         bsubargs = {'outfile' outfile};
         sshargs = {'logfile' outfile2};        
         
-        trkfiles{ivw} = trkfile;
-        codestrs{ivw} = DeepTracker.trackCodeGenSSHBsubSing(...
+        trksysinfo(ivw).trkfile = trkfile;
+        trksysinfo(ivw).logfilebsub = outfile;
+        trksysinfo(ivw).logfilessh = outfile2;
+        trksysinfo(ivw).codestr = DeepTracker.trackCodeGenSSHBsubSing(...
           trnID,dlLblFile,mov,trkfile,f0,f1,...
           'baseargs',baseargs,'singArgs',singargs,'bsubargs',bsubargs,...
           'sshargs',sshargs);
       end
         
       if obj.dryRunOnly
-        cellfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x),codestrs);
+        arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
+          trksysinfo);
       else
-        obj.bgTrkPrepareMonitor(mIdx,nView,movs,trkfiles);
+        obj.bgTrkPrepareMonitor(mIdx,nView,movs,{trksysinfo.trkfile}');
         obj.bgTrkStart();
         
         for ivw=1:nView
-          fprintf(1,'%s\n',codestrs{ivw});
-          system(codestrs{ivw});
+          fprintf(1,'%s\n',trksysinfo(ivw).codestr);
+          system(trksysinfo(ivw).codestr);
         end
+        
+        obj.trkSysInfo = trksysinfo;        
+        
         % what happens on err?
       end
     end
     
+    function trkPrintLogs(obj)
+      tsInfo = obj.trkSysInfo;
+      if isempty(tsInfo)
+        error('Tracking is neither in progress nor complete.');
+      end
+      for ivw=1:obj.nview
+        logfile = tsInfo(ivw).logfilebsub;
+        fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
+        type(logfile);
+      end
+    end
+    
     function bgTrkReset(obj)
+      obj.trkSysInfo = [];
       if ~isempty(obj.bgTrkMonitorClient)
         delete(obj.bgTrkMonitorClient);
       end
@@ -500,10 +572,11 @@ classdef DeepTracker < LabelTracker
     
     function bgTrkStop(obj)
       obj.bgTrkMonitorClient.stopWorker();
+      % don't clear trkSysInfo for now     
     end       
     
   end
-  methods (Static) % codegen
+  methods (Static) % train/track codegen
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
       [host,logfile] = myparse(varargin,...
         'host','login1.int.janelia.org',...
@@ -658,6 +731,17 @@ classdef DeepTracker < LabelTracker
       remotecmd = DeepTracker.trackCodeGenBsubSing(trnID,dllbl,movtrk,outtrk,...
         frm0,frm1,'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
+    end
+  end
+  methods (Static) % train/track broker util
+    function hdir = dlerrGetHomeDir
+      m = getenvall;
+      hdir = m('HOME');
+    end
+    function errfile = dlerrGetErrFile(trnID)
+      hdir = DeepTracker.dlerrGetHomeDir;
+      errfileS = [trnID '.err'];
+      errfile = fullfile(hdir,errfileS);
     end
   end
   

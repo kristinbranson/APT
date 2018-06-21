@@ -14,14 +14,16 @@ classdef DeepTrackerTrainingWorkerObj < handle
     projname
     jobID % char
     
+    artfctBsubLogs % [nview] cellstr of fullpaths to bsub logs
     artfctTrainDataJson % [nview] cellstr of fullpaths to training data jsons
     artfctFinalIndex % [nview] cellstr of fullpaths to final training .index file
+    artfctErrFile % [nview] cellstr of fullpaths to DL errfile
     
     trnLogLastStep; % [nview] int. most recent last step from training json logs
   end
   
   methods
-    function obj = DeepTrackerTrainingWorkerObj(dlLblFile,jobID)
+    function obj = DeepTrackerTrainingWorkerObj(dlLblFile,jobID,bsubLogs)
       obj.posetfroot = APT.getpathdl;
       
       lbl = load(dlLblFile,'-mat');
@@ -31,7 +33,9 @@ classdef DeepTrackerTrainingWorkerObj < handle
       obj.projname = lbl.projname;
       obj.jobID = jobID;
       
-      [obj.artfctTrainDataJson,obj.artfctFinalIndex] = ...
+      assert(iscellstr(bsubLogs) && numel(bsubLogs)==obj.nviews);
+      obj.artfctBsubLogs = bsubLogs;
+      [obj.artfctTrainDataJson,obj.artfctFinalIndex,obj.artfctErrFile] = ...
         arrayfun(@obj.trainMonitorArtifacts,1:obj.nviews,'uni',0);
       
       obj.trnLogLastStep = repmat(-1,1,obj.nviews);
@@ -49,16 +53,33 @@ classdef DeepTrackerTrainingWorkerObj < handle
         'tfUpdate',[],... % (only if jsonPresent==true) true if the current read represents an updated training iter.
         'contents',[],... % (only if jsonPresent==true) if tfupdate is true, this can contain all json contents.
         'trainCompletePath',[],... % char, full path to artifact indicating train complete
-        'trainComplete',[]... % true if trainCompletePath exists
+        'trainComplete',[],... % true if trainCompletePath exists
+        'errFile',[],... % char, full path to DL err file
+        'errFileExists',[],... % true of errFile exists and has size>0
+        'bsubLogFile',[],... % char, full path to Bsub logfile
+        'bsubLogFileErrLikely',[]... % true if Bsub logfile suggests error
         ); % 
       for ivw=1:obj.nviews
         json = obj.artfctTrainDataJson{ivw};
         finalindex = obj.artfctFinalIndex{ivw};
+        errFile = obj.artfctErrFile{ivw};
+        bsubLogFile = obj.artfctBsubLogs{ivw};
         
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = exist(json,'file')>0;
         sRes(ivw).trainCompletePath = finalindex;
         sRes(ivw).trainComplete = exist(finalindex,'file')>0;
+        sRes(ivw).errFile = errFile;
+        errFileExist = exist(errFile,'file')>0;
+        if errFileExist
+          direrrfile = dir(errFile);
+          sRes(ivw).errFileExists = direrrfile.bytes>0;
+        else
+          sRes(ivw).errFileExists = false;
+        end
+        sRes(ivw).bsubLogFile = bsubLogFile;
+        sRes(ivw).bsubLogFileErrLikely = exist(bsubLogFile,'file')>0 && ...        
+          DeepTrackerTrainingWorkerObj.parseBsubLogFile(bsubLogFile);
         
         if sRes(ivw).jsonPresent
           json = fileread(json);
@@ -78,7 +99,7 @@ classdef DeepTrackerTrainingWorkerObj < handle
       end
     end
     
-    function [json,finalindex] = trainMonitorArtifacts(obj,ivw)
+    function [json,finalindex,errfile] = trainMonitorArtifacts(obj,ivw)
       cacheDir = obj.sPrm.CacheDir;
       projvw = sprintf('%s_view%d',obj.projname,ivw-1);
       subdir = fullfile(cacheDir,projvw,obj.jobID);
@@ -89,8 +110,18 @@ classdef DeepTrackerTrainingWorkerObj < handle
       finaliter = obj.sPrm.unet_steps;
       finalindex = sprintf('%s_pose_unet-%d.index',projvw,finaliter);
       finalindex = fullfile(subdir,finalindex);
+      
+      errfile = DeepTracker.dlerrGetErrFile(obj.jobID);
     end
         
+  end
+  
+  methods (Static)
+    function errLikely = parseBsubLogFile(bsubLogFile)
+      cmd = sprintf('grep -i exception %s',bsubLogFile);
+      [st,res] = system(cmd);
+      errLikely = st==0 && ~isempty(res);
+    end
   end
   
 end
