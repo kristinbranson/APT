@@ -153,9 +153,9 @@ costprev = bsxfun(@plus, poscost0(:)'+appearancecost(1,:), ...
 prev = nan(K,K,T);
 
 for t = 3:T
-  if mod(t,100)==0
-    fprintf('Frame %d / %d\n',t,T);
-  end
+%   if mod(t,100)==0
+%     fprintf('Frame %d / %d\n',t,T);
+%   end
   
   % vel and predpos are K x K x D
   % vel(v,u,:) is the velocity assuming t-2 = u and t-1 = v
