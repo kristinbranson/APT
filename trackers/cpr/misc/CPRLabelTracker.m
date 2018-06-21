@@ -2252,7 +2252,7 @@ classdef CPRLabelTracker < LabelTracker
       % set everything else. Note this should set all core CPRLT state (not
       % viz, volatile, etc)
       flds = fieldnames(s);
-      flds = setdiff(flds,{'sPrm' 'hideViz' 'version'});
+      flds = setdiff(flds,{'sPrm' 'hideViz' 'serializeversion'});
       obj.isInit = true;
       try
         for f=flds(:)',f=f{1}; %#ok<FXSET>
@@ -2260,7 +2260,7 @@ classdef CPRLabelTracker < LabelTracker
         end
       catch ME
         obj.isInit = false;
-        ME.rethrow();
+       ME.rethrow();
       end
       obj.isInit = false;
       
