@@ -9,7 +9,7 @@ This program is free software: you can redistribute it and/or modify it under th
 
 
 ## Requirements
-* MATLAB R2014b or later.
+* MATLAB R2016a or later. MATLAB R2017a or later recommended.
 * Windows, Linux, and Mac are all supported, but Windows and Linux get priority.
 * A recent checkout of [JAABA](https://github.com/kristinbranson/JAABA).
 * To enable tracking with Cascaded Pose Regression (CPR):

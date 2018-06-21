@@ -45,13 +45,13 @@ end
 
 function movCrop_OpeningFcn(hObject, eventdata, handles, varargin)
 % movCrop(tblFlyMov,Is,cpts)
-% tblFlyMov: table with 'fly' (int). 'mov' (2 col cellstr)
+% tblFlyMov: table with 'fly' (int), 'mov1', 'mov2' (cellstrs)
 
 tbl = varargin{1};
 I1 = varargin{2};
 n = height(tbl);
 szassert(I1,[n 2]);
-if nargin>=3
+if numel(varargin)>=3
   cpts = varargin{3};
 else
   cpts = nan(n,2,2); % row,{x,y},vw

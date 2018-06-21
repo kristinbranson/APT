@@ -1728,6 +1728,12 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
     end
+    
+    function s = getTrainedTrackerMetadata(obj)      
+      s = getTrainedTrackerMetadata@LabelTracker(obj);
+      s.param = obj.sPrm;
+      s.trkPTrnTS = obj.trkPTrnTS;
+    end
 
     % TODO AL20170406.
     % This is in approximate shape, started fixing with issue #77 but
@@ -2128,6 +2134,8 @@ classdef CPRLabelTracker < LabelTracker
         tmpIDs = cell(nrow,1);
         tmpFull = cell(nrow,1);
         for i=1:nrow
+          % 20180611 allProjMovIDs/Full only used for very old legacy 
+          % projects. Don't worry about ID separator issue.
           tmpIDs{i} = MFTable.formMultiMovieID(allProjMovIDs(i,:));
           tmpFull{i} = MFTable.formMultiMovieID(allProjMovsFull(i,:));
         end

@@ -63,6 +63,8 @@ set(handles.pnlSusp,'Visible','off');
 
 handles.pnlSusp.Visible = 'off';
 
+handles=LabelerTooltips(handles); % would be cool to have a toggle to NOT do this for advanced users -- the tooltips are annoying as shit once you know what you're doing.
+
 PURP = [80 31 124]/256;
 handles.tbTLSelectMode.BackgroundColor = PURP;
 
@@ -357,6 +359,17 @@ handles.menu_evaluate_gtmode = uimenu('Parent',handles.menu_evaluate,...
   'Tag','menu_evaluate_gtmode',...
   'Separator','off',...
   'Checked','off');
+
+handles.menu_evaluate_gtcomputeperf = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperf_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Compute GT performance',...
+  'Tag','menu_evaluate_gtcomputeperf',...
+  'Separator','on');
+handles.menu_evaluate_gtcomputeperfimported = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperfimported_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Compute GT performance (imported predictions)',...
+  'Tag','menu_evaluate_gtcomputeperfimported',...
+  'Separator','off');
 
 handles.menu_go.Position = 4;
 handles.menu_track.Position = 5;
@@ -1452,6 +1465,7 @@ if wbObj.isCancel
 end
 
 function pbClear_Callback(hObject, eventdata, handles)
+
 if ~checkProjAndMovieExist(handles)
   return;
 end
@@ -2667,6 +2681,24 @@ if gtNew
   hMovMgr.setVisible(true);
   figure(hMovMgr.hFig);
 end
+
+function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+assert(lObj.gtIsGTMode);
+% next three lines identical to GTManager:pbComputeGT_Callback
+tblGTres = lObj.gtComputeGTPerformance();
+msgbox('Assigned results in Labeler property ''gtTblRes''.');
+lObj.gtReport();
+
+function menu_evaluate_gtcomputeperfimported_Callback(hObject,eventdata,handles)
+lObj = handles.labelerObj;
+assert(lObj.gtIsGTMode);
+% next three lines identical to GTManager:pbComputeGT_Callback
+tblGTres = lObj.gtComputeGTPerformance('useLabels2',true);
+msgbox('Assigned results in Labeler property ''gtTblRes''.');
+lObj.gtReport();
+
+
   
 function cbkGtIsGTModeChanged(src,evt)
 lObj = src;
@@ -2674,6 +2706,8 @@ handles = lObj.gdata;
 gt = lObj.gtIsGTMode;
 onIffGT = onIff(gt);
 handles.menu_evaluate_gtmode.Checked = onIffGT;
+handles.menu_evaluate_gtcomputeperf.Visible = onIffGT;
+handles.menu_evaluate_gtcomputeperfimported.Visible = onIffGT;
 handles.txGTMode.Visible = onIffGT;
 handles.GTMgr.Visible = onIffGT;
 hlpGTUpdateAxHilite(lObj);

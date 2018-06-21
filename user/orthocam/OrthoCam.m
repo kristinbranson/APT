@@ -584,6 +584,9 @@ classdef OrthoCam
     function [d,dsum,uvcam1,uvcam2] = oFcnStro(p,nPat,patPtsXYZ,patImPts1,patImPts2)
       % Objective Fcn, stereo OrthoCam calib
       %
+      % TODO: near-dup of OrthoCamCalPair.oFcnStro,
+      % OrthoCamCalPair.computeRPerrStc
+      %
       % patPtsXYZ: [3 x nPts] calibration world pts (x, y, z in calib pattern world frame)
       % patImPts1: [2 x nPts x nPat] x, y image pts for each cal pattern/pt in cam 1
       % patImPts2: [2 x nPts x nPat] " cam 2
