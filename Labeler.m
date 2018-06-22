@@ -3856,6 +3856,62 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
+    function labelPosBulkImportTbl(obj,tblFT)
+      % Set labels for current movie/target from a table.
+      %
+      % tblFT: table with fields .frm, .iTgt, .p, .tfocc. CANNOT have field
+      % .mov, to avoid possible misunderstandings/bugs. This meth sets
+      % labels on the *current movie only*.
+      %   * tblFT.p should have size [n x nLabelPoints*2].
+      %       The raster order is (fastest first): 
+      %          {physical pt,view,coordinate (x vs y)}
+      %   * tblFT.tfocc should be logical of size [n x nLabelPoints]
+      %
+      % No checking is done against image or crop size.
+      
+      assert(~obj.gtIsGTMode);
+      
+      tblfldscontainsassert(tblFT,{'frm' 'iTgt' 'p' 'tfocc'});
+      tblfldsdonotcontainassert(tblFT,{'mov'});
+      
+      n = height(tblFT);
+      npts = obj.nLabelPoints;
+      szassert(tblFT.p,[n 2*npts]);
+      szassert(tblFT.tfocc,[n npts]);
+      assert(islogical(tblFT.tfocc));
+
+      iMov = obj.currMovie;
+      assert(iMov>0);
+      lpos = obj.labeledpos{iMov};
+      lpostag = obj.labeledpostag{iMov};
+      lposTS = obj.labeledposTS{iMov};
+      lposMarked = obj.labeledposMarked{iMov};
+      tsnow = now;
+      for i=1:n % KB will vectorize this appropriately
+        frm = tblFT.frm(i);
+        itgt = tblFT.iTgt(i);        
+        xy = Shape.vec2xy(tblFT.p(i,:));
+        tfocc = tblFT.tfocc(i,:);
+        assert(frm<=size(lpos,3));
+        assert(itgt<=size(lpos,4));
+        
+        lpos(:,:,frm,itgt) = xy;
+        lpostag(:,frm,itgt) = tfocc;
+        lposTS(:,frm,itgt) = tsnow; % could allow specification in tblFT
+        lposMarked(:,frm,itgt) = true;
+      end
+      obj.labeledpos{iMov} = lpos;
+      obj.labeledpostag{iMov} = lpostag;
+      obj.labeledposTS{iMov} = lposTS;
+      obj.labeledposMarked{iMov} = lposMarked;
+              
+      obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      end
+      obj.labeledposNeedsSave = true;
+    end
+    
     function labelPosSetUnmarkedFramesMovieFramesUnmarked(obj,xy,iMov,frms)
       % Set all unmarked labels for given movie, frames. Newly-labeled 
       % points are NOT marked in .labeledposmark
