@@ -206,8 +206,9 @@ classdef DeepTracker < LabelTracker
       if isempty(projname)
         error('Please give your project a name. The project name will be used to identify your trained models on disk.');
       end
-      trnID = datestr(now,'yyyymmddTHHMMSS');
-      
+      trnID = datestr(now,'yyyymmddTHHMMSS');      
+
+      fprintf(1,'\n');
 
       if ~isempty(obj.trnName)
         trnNameOld = fullfile(cacheDir,'...',obj.trnName);
@@ -349,7 +350,7 @@ classdef DeepTracker < LabelTracker
 
           fprintf(1,'Error occurred during training:\n');      
           errFile = sRes.result(i).bsubLogFile;
-          fprintf(1,'\n### %s\n\n',sRes.result(i).bsubLogFile);
+          fprintf(1,'\n### %s\n\n',errFile);
           type(errFile);
           fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
 
@@ -407,6 +408,8 @@ classdef DeepTracker < LabelTracker
       end
       tMFTConc = obj.lObj.mftTableConcretizeMov(tblMFT);
       
+      fprintf(1,'\n');
+
       tftrx = obj.lObj.hasTrx;
       if tftrx
         trxids = unique(tblMFT.iTgt);
@@ -481,7 +484,8 @@ classdef DeepTracker < LabelTracker
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
       else
-        obj.bgTrkPrepareMonitor(mIdx,nView,movs,{trksysinfo.trkfile}');
+        obj.bgTrkPrepareMonitor(mIdx,nView,movs,{trksysinfo.trkfile}',...
+          {trksysinfo.logfilebsub}');
         obj.bgTrkStart();
         
         for ivw=1:nView
@@ -489,9 +493,7 @@ classdef DeepTracker < LabelTracker
           system(trksysinfo(ivw).codestr);
         end
         
-        obj.trkSysInfo = trksysinfo;        
-        
-        % what happens on err?
+        obj.trkSysInfo = trksysinfo;
       end
     end
     
@@ -503,7 +505,11 @@ classdef DeepTracker < LabelTracker
       for ivw=1:obj.nview
         logfile = tsInfo(ivw).logfilebsub;
         fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
-        type(logfile);
+        if exist(logfile,'file')>0
+          type(logfile);
+        else
+          fprintf(1,' ... logfile does not exist yet\n');
+        end
       end
     end
     
@@ -519,11 +525,20 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitorWorkerObj = [];      
     end
     
-    function bgTrkPrepareMonitor(obj,mIdx,nview,movfiles,outfiles)
+    function bgTrkPrepareMonitor(obj,mIdx,nview,movfiles,outfiles,...
+        bsublogfiles)
+      
+      errFile = DeepTracker.dlerrGetErrFile(obj.trnName);
+      tfErrFileErr = DeepTrackerTrainingWorkerObj.errFileExistsNonZeroSize(errFile);
+      if tfErrFileErr
+        error('There is an error in the DeepLearning error file ''%s''. If you are certain you would like to proceed, first delete this file.',...
+          errFile);
+      end
+      
       obj.bgTrkReset();
-
       cbkResult = @obj.bgTrkResultsReceived;
-      workerObj = DeepTrackerTrackingWorkerObj(mIdx,nview,movfiles,outfiles);
+      workerObj = DeepTrackerTrackingWorkerObj(mIdx,nview,movfiles,...
+        outfiles,bsublogfiles,errFile);
       bgc = BGClient;
       fprintf(1,'Configuring tracking background worker...\n');
       bgc.configure(cbkResult,workerObj,'compute');
@@ -537,7 +552,35 @@ classdef DeepTracker < LabelTracker
     end
     
     function bgTrkResultsReceived(obj,sRes)
-      res = sRes.result;
+      res = sRes.result;      
+      
+      errOccurred = any([res.errFileExists]);
+      if errOccurred
+        obj.bgTrkStop();
+
+        fprintf(1,'Error occurred during tracking:\n');      
+        errFile = res(1).errFile; % currently, errFiles same for all views
+        fprintf(1,'\n### %s\n\n',errFile);
+        type(errFile);
+        fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
+
+        % bgTrkReset not called
+      end
+
+      for i=1:numel(res)
+        if res(i).bsubLogFileErrLikely
+          obj.bgTrkStop();
+
+          fprintf(1,'Error occurred during tracking:\n');      
+          errFile = res(i).bsubLogFile;
+          fprintf(1,'\n### %s\n\n',errFile);
+          type(errFile);
+          fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
+
+          % bgTrkReset not called 
+        end
+      end
+      
       tfdone = all([res.tfcomplete]);
       if tfdone
         fprintf(1,'Tracking output files detected:\n');

@@ -70,13 +70,7 @@ classdef DeepTrackerTrainingWorkerObj < handle
         sRes(ivw).trainCompletePath = finalindex;
         sRes(ivw).trainComplete = exist(finalindex,'file')>0;
         sRes(ivw).errFile = errFile;
-        errFileExist = exist(errFile,'file')>0;
-        if errFileExist
-          direrrfile = dir(errFile);
-          sRes(ivw).errFileExists = direrrfile.bytes>0;
-        else
-          sRes(ivw).errFileExists = false;
-        end
+        sRes(ivw).errFileExists = DeepTrackerTrainingWorkerObj.errFileExistsNonZeroSize(errFile);
         sRes(ivw).bsubLogFile = bsubLogFile;
         sRes(ivw).bsubLogFileErrLikely = exist(bsubLogFile,'file')>0 && ...        
           DeepTrackerTrainingWorkerObj.parseBsubLogFile(bsubLogFile);
@@ -121,6 +115,15 @@ classdef DeepTrackerTrainingWorkerObj < handle
       cmd = sprintf('grep -i exception %s',bsubLogFile);
       [st,res] = system(cmd);
       errLikely = st==0 && ~isempty(res);
+    end
+    function tfErrFileErr = errFileExistsNonZeroSize(errFile)
+      errFileExist = exist(errFile,'file')>0;
+      if errFileExist
+        direrrfile = dir(errFile);
+        tfErrFileErr = direrrfile.bytes>0;
+      else
+        tfErrFileErr = false;
+      end
     end
   end
   
