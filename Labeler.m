@@ -7035,9 +7035,19 @@ classdef Labeler < handle
     
     function s = trackCreateDeepTrackerStrippedLbl(obj)
       % For use with DeepTrackers
+      
       s = obj.projGetSaveStruct();
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
+      
+      cellOfObjArrs2CellOfStructArrs = ...
+        @(x)cellfun(@(y)arrayfun(@struct,y),x,'uni',0); % note, y can be []
+      warnst = warning('off','MATLAB:structOnObject');
+      s.movieFilesAllCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllCropInfo);
+      s.movieFilesAllGTCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllGTCropInfo);
+      warning(warnst);
+      s.cropProjHasCrops = obj.cropProjHasCrops;
+      
       tf = strcmp(s.trackerClass,'DeepTracker');
       i = find(tf);
       switch numel(i)
