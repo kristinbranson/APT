@@ -62,6 +62,7 @@ for imov=1:nmov
     lObj.movieSetAdd(movFiles(imov,:));
   end
   lObj.movieSet(lObj.nmovies);
+  pause(0.5); % prob unnec, give UI a little time
   assert(imov==lObj.currMovie);
 
   nfrm = lObj.nframes;

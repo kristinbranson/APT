@@ -2542,7 +2542,8 @@ end
       
 wbObj = WaitBarWithCancel('Cross Validation');
 oc = onCleanup(@()delete(wbObj));
-lObj.trackCrossValidate('kfold',nfold,'wbObj',wbObj,'tblMFgt',tblMFgt);
+lObj.trackCrossValidate('kfold',nfold,'wbObj',wbObj,'tblMFgt',tblMFgt,...
+  'tblMFgtIsFinal',true);
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Cross validation canceled');
   msgbox(msg,'Cross Validation');
