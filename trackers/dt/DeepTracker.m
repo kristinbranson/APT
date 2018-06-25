@@ -38,6 +38,9 @@ classdef DeepTracker < LabelTracker
 
     % - Right now you can only have one track running at a time.
     
+    trkGenHeatMaps % transient, scalar logical. If true, include --hmaps opt
+      % to generate heatmaps on disk
+   
     trkSysInfo % [nview] struct array of info used for current or most 
     % recent tracking codegen/system call. currently only used for 
     % debugging, printing logfiles etc.
@@ -448,6 +451,7 @@ classdef DeepTracker < LabelTracker
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       trnstr = sprintf('trn%s',trnID);
       
+      tfHeatMap = ~isempty(obj.trkGenHeatMaps) && obj.trkGenHeatMaps;
       % info for code-generation. for now we just record a struct so we can
       % more conveniently read logfiles etc. in future this could be an obj
       % that has a codegen method etc.
@@ -467,6 +471,9 @@ classdef DeepTracker < LabelTracker
         baseargs = {'view' ivw}; % 1-based OK
         if tftrx
           baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
+        end
+        if tfHeatMap
+          baseargs = [baseargs {'-hmaps'}];
         end
         bsubargs = {'outfile' outfile};
         sshargs = {'logfile' outfile2};        
