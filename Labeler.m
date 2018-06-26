@@ -4974,6 +4974,8 @@ classdef Labeler < handle
         error('Project does not contain cropping information.');
       end
       
+      obj.cropCheckCropSizeConsistency();
+      
       nphyspts = obj.nPhysPoints;
       nvw = obj.nview;
       n = height(tblMF);
@@ -7901,6 +7903,8 @@ classdef Labeler < handle
       if obj.hasTrx && tf
         error('User-specied cropping is unsupported for projects with trx.');
       end
+      
+      obj.cropCheckCropSizeConsistency();
       obj.cropIsCropMode = tf;
       obj.notify('cropIsCropModeChanged');
     end
@@ -8075,6 +8079,22 @@ classdef Labeler < handle
       obj.movieFilesAllCropInfo(:) = {CropInfo.empty(0,0)};
       obj.movieFilesAllGTCropInfo(:) = {CropInfo.empty(0,0)};
       obj.notify('cropCropsChanged'); 
+    end
+    
+    function cropCheckCropSizeConsistency(obj)
+      % Crop size integrity check. Like a big assert.
+      
+      if obj.cropProjHasCrops
+        cInfoAll = [obj.movieFilesAllCropInfo; obj.movieFilesAllGTCropInfo];
+        roisAll = cellfun(@(x)cat(1,x.roi),cInfoAll,'uni',0);
+        posnAll = cellfun(@CropInfo.roi2RectPos,roisAll,'uni',0); % posnAll{i} is [nview x 4]
+        whAll = cellfun(@(x)x(:,3:4),posnAll,'uni',0);
+        whAll = cat(3,whAll{:});
+        nCIAll = numel(cInfoAll);
+        szassert(whAll,[obj.nview 2 nCIAll]); % ivw, w/h, cropInfo
+        assert(isequal(repmat(whAll(:,:,1),1,1,nCIAll),whAll),...
+          'Unexpected inconsistency crop sizes.')
+      end      
     end
   end
  
