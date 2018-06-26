@@ -473,7 +473,7 @@ classdef DeepTracker < LabelTracker
           baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
         end
         if tfHeatMap
-          baseargs = [baseargs {'-hmaps'}];
+          baseargs = [baseargs {'hmaps' true}];
         end
         bsubargs = {'outfile' outfile};
         sshargs = {'logfile' outfile2};        
@@ -643,7 +643,7 @@ classdef DeepTracker < LabelTracker
         '/scratch'};      
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg','/misc/local/singularity/branson_v2.simg');
+        'singimg','/misc/local/singularity/branson_v3.simg');
       
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});
@@ -699,10 +699,12 @@ classdef DeepTracker < LabelTracker
     end    
 
     function codestr = trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
-      [trxtrk,trxids,view] = myparse(varargin,...
+      [trxtrk,trxids,view,hmaps] = myparse(varargin,...
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
-        'view',[]); % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
+        'view',[],... % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
+        'hmaps',false... % (opt) if true, generate heatmaps
+        ); 
       
       tftrx = ~isempty(trxtrk);
       tftrxids = ~isempty(trxids);
@@ -725,6 +727,9 @@ classdef DeepTracker < LabelTracker
           trxidstr = trxidstr(1:end-1);
           codestr = sprintf('%s -trx_ids %s',codestr,trxidstr);
         end
+      end
+      if hmaps
+        codestr = sprintf('%s -hmaps',codestr);
       end
     end
     function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)

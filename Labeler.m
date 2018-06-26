@@ -728,11 +728,11 @@ classdef Labeler < handle
       for i=1:numel(v)
         trxfile = tfaf{i};
         if isempty(trxfile)
-          % none; v{i} is 1
+          % none; v(i) is 1
         else
           nfrm = mia{i}.nframes;
           trxI = obj.getTrx(trxfile,nfrm);
-          v{i} = numel(trxI);
+          v(i) = numel(trxI);
         end
       end
     end
