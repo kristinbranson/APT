@@ -578,12 +578,18 @@ classdef Labeler < handle
       end
     end
     function v = get.trxFilesAllFull(obj)
+      % Warning: Expensive to call. Call me once and then index rather than
+      % using a compound indexing-expr.
       v = Labeler.trxFilesLocalize(obj.trxFilesAll,obj.movieFilesAllFull);
     end    
     function v = get.trxFilesAllGTFull(obj)
+      % Warning: Expensive to call. Call me once and then index rather than
+      % using a compound indexing-expr.
       v = Labeler.trxFilesLocalize(obj.trxFilesAllGT,obj.movieFilesAllGTFull);
     end
     function v = get.trxFilesAllFullGTaware(obj)
+      % Warning: Expensive to call. Call me once and then index rather than
+      % using a compound indexing-expr.
       if obj.gtIsGTMode
         v = obj.trxFilesAllGTFull;
       else
@@ -591,6 +597,8 @@ classdef Labeler < handle
       end
     end
     function v = getTrxFilesAllFullMovIdx(obj,mIdx)
+      % Warning: Expensive to call. Call me once and then index rather than
+      % using a compound indexing-expr.
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
       if gt
@@ -702,16 +710,30 @@ classdef Labeler < handle
       v = numel(obj.trx);
     end
     function v = getnTrxMovIdx(obj,mIdx)
-      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
+      % Warning: Slow/expensive, call in bulk and index rather than calling
+      % piecemeal 
+      %
+      % mIdx: [n] MovieIndex vector
+      % v: [n] array; v(i) == num targets in ith mov
+      
+      assert(isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
+      assert(all(gt) || ~any(gt));
+      gt = all(gt);
+      
       PROPS = obj.gtGetSharedPropsStc(gt);
-      tfaf = obj.(PROPS.TFAF){iMov,1};
-      if isempty(tfaf)
-        v = 1;
-      else
-        nfrm = obj.(PROPS.MIA){iMov,1}.nframes;
-        trxI = obj.getTrx(tfaf,nfrm);
-        v = numel(trxI);
+      tfaf = obj.(PROPS.TFAF)(iMov,1);
+      mia = obj.(PROPS.MIA)(iMov,1);
+      v = ones(size(iMov));
+      for i=1:numel(v)
+        trxfile = tfaf{i};
+        if isempty(trxfile)
+          % none; v(i) is 1
+        else
+          nfrm = mia{i}.nframes;
+          trxI = obj.getTrx(trxfile,nfrm);
+          v(i) = numel(trxI);
+        end
       end
     end
     function v = get.nTargets(obj)
@@ -728,7 +750,7 @@ classdef Labeler < handle
       % AL 20160710: debateable utility/correctness, but if you try to do
       % some things (eg open MovieManager) right on bootup from an empty
       % Labeler you get weird errors.
-      v = size(obj.movieFilesAll,2)>0;
+      v = size(obj.movieFilesAll,2)>0; % AL 201806: want first dim instead?
     end
     function v = get.projectfile(obj)
       info = obj.projFSInfo;
@@ -5006,7 +5028,7 @@ classdef Labeler < handle
       tblMF(tfRmRow,:) = [];
     end
     
-    function tblMF = labelAddLabelsMFTable(obj,tblMF)
+    function tblMF = labelAddLabelsMFTable(obj,tblMF,varargin)
       mIdx = tblMF.mov;
       assert(isa(mIdx,'MovieIndex'));
       [~,gt] = mIdx.get();
@@ -5021,7 +5043,7 @@ classdef Labeler < handle
       end
       tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,...
         obj.(PROPS.LPOS),obj.(PROPS.LPOSTAG),obj.(PROPS.LPOSTS),...
-        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache);
+        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:});
     end
     
     function hFgs = labelOverlayMontage(obj,varargin)
@@ -5408,7 +5430,7 @@ classdef Labeler < handle
           'denominator',nrow);
         oc = onCleanup(@()wbObj.endPeriod);
         wbtime = tic;
-        maxwbtime = 1; % update waitbar every second
+        maxwbtime = .1; % update waitbar every second
       end
       
       % Maybe Optimize: group movies together
@@ -7037,9 +7059,19 @@ classdef Labeler < handle
     
     function s = trackCreateDeepTrackerStrippedLbl(obj)
       % For use with DeepTrackers
+      
       s = obj.projGetSaveStruct();
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
+      
+      cellOfObjArrs2CellOfStructArrs = ...
+        @(x)cellfun(@(y)arrayfun(@struct,y),x,'uni',0); % note, y can be []
+      warnst = warning('off','MATLAB:structOnObject');
+      s.movieFilesAllCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllCropInfo);
+      s.movieFilesAllGTCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllGTCropInfo);
+      warning(warnst);
+      s.cropProjHasCrops = obj.cropProjHasCrops;
+      
       tf = strcmp(s.trackerClass,'DeepTracker');
       i = find(tf);
       switch numel(i)
@@ -7171,14 +7203,64 @@ classdef Labeler < handle
     function trackCrossValidate(obj,varargin)
       % Run k-fold crossvalidation. Results stored in .xvResults
       
-      [kFold,initData,wbObj,tblMFgt] = myparse(varargin,...
+      [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTrn,partTst] = ...
+        myparse(varargin,...
         'kfold',7,... % number of folds
         'initData',true,... % if true, call .initData() between folds to minimize mem usage
-        'wbObj',[],... % WaitBarWithCancel
-        'tblMFgt',[]... % optional, labeled/gt data to use
-        );
+        'wbObj',[],... % (opt) WaitBarWithCancel
+        'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
+        'tblMFgtIsFinal',false,... % a bit silly, for APT developers only. Set to true if your tblMFgt is in final form.
+        'partTrn',[],... % (opt) pre-defined training splits. If supplied, partTrn must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied.
+        'partTst',[]... % (opt) etc see partTrn
+      );        
       
-      tfWB = ~isempty(wbObj);      
+      tfWB = ~isempty(wbObj);
+      tfTblMFgt = ~isempty(tblMFgt);      
+      tfPart = ~isempty(partTrn);
+      assert(tfPart==~isempty(partTst));
+      
+      if obj.gtIsGTMode
+        error('Unsupported in GT mode.');
+      end
+      
+      if ~tfTblMFgt
+        tblMFgt = obj.preProcGetMFTableLbled();
+      elseif ~tblMFgtIsFinal
+        FLDSID = MFTable.FLDSID;
+        tblfldsassert(tblMFgt,FLDSID);
+        assert(isa(tblMFgt.mov,'MovieIndex'));
+        [~,gt] = tblMFgt.mov.get();
+        assert(~any(gt));
+        tblMFgt.mov = int32(tblMFgt.mov); % innerjoin below doesn't like MovieIndices
+        tblMFgt0 = tblMFgt; % remember original row ordering
+        tblLbled = obj.preProcGetMFTableLbled();
+        tblLbled.mov = int32(tblLbled.mov); % innerjoin below doesn't like MovieIndices
+        assert(height(tblMFgt)==height(tblLbled));
+        tblMFgt = innerjoin(tblMFgt,tblLbled,'keys',FLDSID); % using join would prob preserve row order of tblMFgt
+        [~,loc] = ismember(tblMFgt0,tblMFgt(:,FLDSID));
+        tblMFgt = tblMFgt(loc,:);
+        assert(isequal(tblMFgt(:,FLDSID),tblMFgt0));
+        tblMFgt.mov = MovieIndex(tblMFgt.mov);
+      else
+        % tblMFgt supplied, and should have labels etc.
+      end
+      assert(isa(tblMFgt.mov,'MovieIndex'));
+      
+      if ~tfPart
+        movC = categorical(tblMFgt.mov);
+        tgtC = categorical(tblMFgt.iTgt);
+        grpC = movC.*tgtC;
+        cvPart = cvpartition(grpC,'kfold',kFold);
+        partTrn = arrayfun(@(x)cvPart.training(x),1:kFold,'uni',0);
+        partTst = arrayfun(@(x)cvPart.test(x),1:kFold,'uni',0);
+        partTrn = cat(2,partTrn{:});
+        partTst = cat(2,partTst{:});
+      end
+      n = height(tblMFgt);
+      szassert(partTrn,[n kFold]);
+      szassert(partTst,[n kFold]);
+      tmp = partTrn+partTst;
+      assert(all(tmp(:)==1),'Invalid cv splits specified.');
       
       tObj = obj.tracker;
       if isempty(tObj)
@@ -7186,19 +7268,8 @@ classdef Labeler < handle
       end
       if ~strcmp(tObj.algorithmName,'cpr')
         % DeepTrackers do non-blocking/bg tracking
-        error('Only CPR tracking supported.');
-      end
-
-      % Get labeled/gt data
-      if isempty(tblMFgt)
-        tblMFgt = obj.preProcGetMFTableLbled();
-      end
-      
-      % Partition MFT table
-      movC = categorical(tblMFgt.mov);
-      tgtC = categorical(tblMFgt.iTgt);
-      grpC = movC.*tgtC;
-      cvPart = cvpartition(grpC,'kfold',kFold);
+        error('Only CPR tracking currently supported.');
+      end      
 
       obj.preProcUpdateH0IfNec();
       
@@ -7222,8 +7293,10 @@ classdef Labeler < handle
         if tfWB
           wbObj.updateFracWithNumDen(iFold);
         end
-        tblMFgtTrain = tblMFgt(cvPart.training(iFold),:);
-        tblMFgtTrack = tblMFgt(cvPart.test(iFold),:);
+        tblMFgtTrain = tblMFgt(partTrn(:,iFold),:);
+        tblMFgtTrack = tblMFgt(partTst(:,iFold),:);
+        fprintf(1,'Fold %d: nTrain=%d, nTest=%d.\n',iFold,...
+          height(tblMFgtTrain),height(tblMFgtTrack));
         if tfWB
           wbObj.startPeriod('Training','nobar',true);
         end

@@ -1,4 +1,4 @@
-function createProject(baseProj,movFiles,varargin)
+function lObj = createProject(baseProj,movFiles,varargin)
 % create APT project from base project and list of movies
 %
 % Note, if your project will be run on multiple platforms, it is worth
@@ -26,7 +26,7 @@ function createProject(baseProj,movFiles,varargin)
   );
 
 lObj = Labeler();
-lObj.projLoadRaw(baseProj);
+lObj.projLoad(baseProj);
 lObj.projname = projname;
 
 assert(iscellstr(movFiles));
@@ -48,8 +48,8 @@ if tfCalibFiles
   end
 end
 if tfDiaryFile
-  diary(diaryFile);
-  fprintf('Diary started at ''%s''.\n',diaryFile);
+  diary(diaryfile);
+  fprintf('Diary started at ''%s''.\n',diaryfile);
 end
 
 % nphyspts = lObj.nPhysPoints;
@@ -62,6 +62,7 @@ for imov=1:nmov
     lObj.movieSetAdd(movFiles(imov,:));
   end
   lObj.movieSet(lObj.nmovies);
+  pause(0.5); % prob unnec, give UI a little time
   assert(imov==lObj.currMovie);
 
   nfrm = lObj.nframes;
@@ -90,6 +91,8 @@ else
   lObj.projSaveAs();
 end
 
-
+if tfDiaryFile
+  diary off
+end
 
 

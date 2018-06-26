@@ -38,6 +38,9 @@ classdef DeepTracker < LabelTracker
 
     % - Right now you can only have one track running at a time.
     
+    trkGenHeatMaps % transient, scalar logical. If true, include --hmaps opt
+      % to generate heatmaps on disk
+   
     trkSysInfo % [nview] struct array of info used for current or most 
     % recent tracking codegen/system call. currently only used for 
     % debugging, printing logfiles etc.
@@ -448,6 +451,7 @@ classdef DeepTracker < LabelTracker
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       trnstr = sprintf('trn%s',trnID);
       
+      tfHeatMap = ~isempty(obj.trkGenHeatMaps) && obj.trkGenHeatMaps;
       % info for code-generation. for now we just record a struct so we can
       % more conveniently read logfiles etc. in future this could be an obj
       % that has a codegen method etc.
@@ -467,6 +471,9 @@ classdef DeepTracker < LabelTracker
         baseargs = {'view' ivw}; % 1-based OK
         if tftrx
           baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
+        end
+        if tfHeatMap
+          baseargs = [baseargs {'hmaps' true}];
         end
         bsubargs = {'outfile' outfile};
         sshargs = {'logfile' outfile2};        
@@ -636,7 +643,7 @@ classdef DeepTracker < LabelTracker
         '/scratch'};      
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg','/misc/local/singularity/branson_v2.simg');
+        'singimg','/misc/local/singularity/branson_v3.simg');
       
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});
@@ -692,10 +699,12 @@ classdef DeepTracker < LabelTracker
     end    
 
     function codestr = trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
-      [trxtrk,trxids,view] = myparse(varargin,...
+      [trxtrk,trxids,view,hmaps] = myparse(varargin,...
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
-        'view',[]); % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
+        'view',[],... % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
+        'hmaps',false... % (opt) if true, generate heatmaps
+        ); 
       
       tftrx = ~isempty(trxtrk);
       tftrxids = ~isempty(trxids);
@@ -718,6 +727,9 @@ classdef DeepTracker < LabelTracker
           trxidstr = trxidstr(1:end-1);
           codestr = sprintf('%s -trx_ids %s',codestr,trxidstr);
         end
+      end
+      if hmaps
+        codestr = sprintf('%s -hmaps',codestr);
       end
     end
     function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
