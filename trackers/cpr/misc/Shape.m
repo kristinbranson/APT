@@ -981,6 +981,10 @@ classdef Shape
       opts.p2 = [];
       opts.p2marker = '+';
       opts.titlestr = 'Montage';
+      opts.imsHeterogeneousSz = false; % if true, pad elements of I to make them the same size. all p's must be nan
+      opts.imsHeterogeneousPadColor = 0; % grayscale pad color 
+      opts.rois = []; % (opt), [Nx4] roi rectangles will be plotted. Each row is [xlo xhi ylo yhi].
+      opts.roisRectangleArgs = {'EdgeColor' [0 1 0] 'LineWidth',2}; % P-Vs used for plotting roi rects
       opts = getPrmDfltStruct(varargin,opts);
       if isempty(opts.fig)
         opts.fig = figure('windowstyle','docked');
@@ -989,8 +993,26 @@ classdef Shape
         clf;
       end
       tfMD = ~isempty(opts.md);
+      tfROI = ~isempty(opts.rois);
       
       N = numel(I);
+      if opts.imsHeterogeneousSz
+        szs = cellfun(@size,I,'uni',0);
+        szs = cat(1,szs{:});
+        assert(size(szs,2)==2,'Expect grayscale ims.');
+        maxnrnc = max(szs,[],1);
+        fprintf(1,'Heterogeneous image sizes. Max nr, nc: %d by %d.\n',...
+          maxnrnc(1),maxnrnc(2));
+        im0 = opts.imsHeterogeneousPadColor*ones(maxnrnc);
+        for i=1:N
+          im = im0;
+          im(1:size(I{i},1),1:size(I{i},2)) = I{i};
+          I{i} = im;
+        end
+
+        assert(all(isnan(p(:))),...
+          'Input arg ''p'' must be all NaNs when imsHeterogeneousSz is on.');
+      end      
       assert(size(p,1)==N);
       npts = size(p,2)/2;
       if tfMD
@@ -1018,10 +1040,15 @@ classdef Shape
         szassert(opts.p2,size(p));        
       end
       
+      if tfROI 
+        szassert(opts.rois,[N 4]);
+      end
+      
       [imnr,imnc] = size(I{1});
       bigIm = nan(imnr*opts.nr,imnc*opts.nc);
       bigP = nan(npts,2,nplot);
       bigP2 = nan(npts,2,nplot);
+      bigROI = nan(nplot,4);
       for iRow=1:opts.nr
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
@@ -1044,8 +1071,16 @@ classdef Shape
             xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
             bigP2(:,:,iPlt) = xytmp;            
           end
+          
+          if tfROI
+            roi = opts.rois(iIm,:);
+            roi(1:2) = roi(1:2) + imnc*(iCol-1);
+            roi(3:4) = roi(3:4) + imnr*(iRow-1);
+            bigROI(iPlt,:) = roi;
+          end
         end
       end
+      bigROIRectPosn = CropInfo.roi2RectPos(bigROI);
       
       imagesc(bigIm);
       axis image off
@@ -1071,6 +1106,10 @@ classdef Shape
           if tfFrameLbls
             h = text( imnc/15+imnc*(iCol-1),imnr/15+imnr*(iRow-1), opts.framelbls{iPlt} );
             h.Color = opts.framelblscolor;
+          end
+          if tfROI
+            posn = bigROIRectPosn(iPlt,:);
+            rectangle('Position',posn,opts.roisRectangleArgs{:});
           end
         end
       end
