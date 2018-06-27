@@ -8215,6 +8215,123 @@ classdef Labeler < handle
           'Unexpected inconsistency crop sizes.')
       end      
     end
+    
+    function rois = cropGetAllRois(obj)
+      % Get all rois per current GT mode
+      %
+      % rois: [nmovGTaware x 4 x nview]
+      
+      if ~obj.cropProjHasCrops
+        error('Project does not have crops defined.');
+      end
+      
+      cInfoAll = obj.movieFilesAllCropInfoGTaware;
+      rois = cellfun(@(x)cat(1,x.roi),cInfoAll,'uni',0);
+      rois = cat(3,rois{:}); % nview, {xlo/xhi/ylo/yhi}, nmov
+      rois = permute(rois,[3 2 1]);    
+    end 
+    
+    function hFig = cropMontage(obj,varargin)
+      % Create crop montages for all views. Per current GT state.
+      %
+      % hFig: [nfig] figure handles
+      
+      [type,nr,nc,plotlabelcolor,figargs] = myparse(varargin,...
+        'type','wide',... either 'wide' or 'cropped'. wide shows rois in context of full im. 
+        'nr',9,... % number of rows in montage
+        'nc',10,... % etc
+        'plotlabelcolor',[1 1 0],...
+        'figargs',{'WindowStyle','docked'});
+      
+      if obj.hasTrx
+        error('Unsupported for projects with trx.');
+      end
+      if ~obj.cropProjHasCrops
+        error('Project does not have crops defined.');
+      end
+      
+      switch lower(type)
+        case 'wide', tfWide = true;
+        case 'cropped', tfWide = false;
+        otherwise, assert(false);
+      end
+      
+      % get MFTable to pull first frame of each mov
+      mov = obj.movieFilesAllFullGTaware;
+      nmov = size(mov,1);
+      if nmov==0
+        error('No movies.');
+      end
+      frm = ones(nmov,1);
+      iTgt = ones(nmov,1);
+      tblMFT = table(mov,frm,iTgt);
+      wbObj = WaitBarWithCancel('Montage');
+      oc = onCleanup(@()delete(wbObj));      
+      I1 = CPRData.getFrames(tblMFT,...
+        'movieInvert',obj.movieInvert,...
+        'wbObj',wbObj);
+
+      roisAll = obj.cropGetAllRois;      
+      
+      nvw = obj.nview;
+      if ~tfWide
+        for imov=1:nmov
+          for ivw=1:nvw
+            roi = roisAll(imov,:,ivw);
+            I1{imov,ivw} = I1{imov,ivw}(roi(3):roi(4),roi(1):roi(2));
+          end
+        end
+      end
+
+      nplotperbatch = nr*nc;
+      nbatch = ceil(nmov/nplotperbatch);
+      szassert(I1,[nmov nvw]);
+      szassert(roisAll,[nmov 4 nvw]);
+      hFig = gobjects(0,1);
+      for ivw=1:nvw
+        roi1 = roisAll(1,:,ivw);
+        pos1 = CropInfo.roi2RectPos(roi1);
+        wh = pos1(3:4)+1;
+        
+        if tfWide
+          imsz = cellfun(@size,I1(:,ivw),'uni',0);
+          imsz = cat(1,imsz{:}); % will err if some ims are color etc
+          imszUn = unique(imsz,'rows');
+          tfImsHeterogeneousSz = size(imszUn,1)>1;
+        end
+        
+        for ibatch=1:nbatch
+          imovs = (1:nplotperbatch) + (ibatch-1)*nplotperbatch;
+          imovs(imovs>nmov)= [];
+          figstr = sprintf('movs %d->%d. view %d.',...
+            imovs(1),imovs(end),ivw);
+          titlestr = sprintf('movs %d->%d. view %d. [w h]: %s',...
+            imovs(1),imovs(end),ivw,mat2str(wh));
+          
+          hFig(end+1,1) = figure(figargs{:}); %#ok<AGROW>
+          hFig(end).Name = figstr;
+          
+          if tfWide
+            Shape.montage(I1(:,ivw),nan(nmov,2),...
+              'fig',hFig(end),...
+              'nr',nr,'nc',nc,'idxs',imovs,...
+              'rois',roisAll(:,:,ivw),...
+              'imsHeterogeneousSz',tfImsHeterogeneousSz,...
+              'framelbls',arrayfun(@num2str,imovs,'uni',0),...
+              'framelblscolor',plotlabelcolor,...
+              'titlestr',titlestr);
+          else
+            Shape.montage(I1(:,ivw),nan(nmov,2),...
+              'fig',hFig(end),...
+              'nr',nr,'nc',nc,'idxs',imovs,...
+              'framelbls',arrayfun(@num2str,imovs,'uni',0),...
+              'framelblscolor',plotlabelcolor,...
+              'titlestr',titlestr);
+          end
+        end
+      end        
+    end
+            
   end
  
   
