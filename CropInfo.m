@@ -25,7 +25,9 @@ classdef CropInfo < handle
   % [xctr yctr width height]. 
   %
   % widthHeight
-  % This refers to the imrect-style width/height as in a posn or posnCtrd. 
+  % This refers to the imrect-style width/height as in a posn or posnCtrd.
+  % IMPORTANT: the width/height for a corresponding roi IS ONE LARGER in
+  % each dim.
   %
   % When MATLAB crops using eg imcrop, the resulting rectangle does not 
   % need to have width cols and height rows, because any pixel even 

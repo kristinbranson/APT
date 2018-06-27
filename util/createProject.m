@@ -1,17 +1,17 @@
 function lObj = createProject(baseProj,movFiles,varargin)
-% create APT project from base project and list of movies
+% Create/Augment APT project from base project and list of movies
 %
-% Note, if your project will be run on multiple platforms, it is worth
+% Note, if your project will be run on multiple platforms, it may be worth
 % running VideoTest on movFiles.
 %
-% baseProj: an empty "base" project with the correct number of views,
-%   points, etc
-% movFiles: [nmov x nview] cellstr of movies
-% nPhysPts: scalar, number of physical points/landmarks. For a single-view
-%   project, this is the same as the number of labeling points. For multi-
-%   view projects, nLabelPoints=nPhysPts*nViews
+% baseProj: a "base" project with the correct number of views, points, etc.
+%   This could be an empty project with no movies, or a project with existing
+%   movies/labels.
+% movFiles: [nmov x nview] cellstr of movies to add to baseProj.
+%
+% 
 
-[tblLbls,calibFiles,projname,outfile,diaryfile] = myparse(varargin,...
+[tblLbls,calibFiles,cropRois,projname,outfile,diaryfile] = myparse(varargin,...
   'tblLbls',[],... (opt) MFTable with fields MFTable.FLDSCORE, ie .mov, .frm, .iTgt, .tfocc, .p. 
                ...   % * .mov are positive ints, row indices into movFiles
                ...   % * Currently .iTgt must always be 1
@@ -20,6 +20,7 @@ function lObj = createProject(baseProj,movFiles,varargin)
                ...   %   The raster order is (fastest first): 
                ...   %     {physical pt,view,coordinate (x vs y)} 
   'calibFiles',[],... % (opt) [nx1] cellstr of calibration files for each movie
+  'cropRois',[],... (opt) [nx4xnview] crop rois for movies
   'projname','',... % (opt) char, projectname
   'outfile','',...   % (opt) output file where new proj will be saved
   'diaryfile',''... % (opt) diary file
@@ -38,6 +39,7 @@ end
 
 tfTblLbls = ~isempty(tblLbls);
 tfCalibFiles = ~isempty(calibFiles);
+tfCropRois = ~isempty(cropRois);
 tfDiaryFile = ~isempty(diaryfile);
 if tfTblLbls
   tblfldsassert(tblLbls,MFTable.FLDSCORE);
@@ -47,9 +49,13 @@ if tfCalibFiles
     error('''calibFiles'' must be a cellstr with one element for each movieset.');
   end
 end
+if tfCropRois
+  szassert(cropRois,[nmov 4 nview]);  
+end
 if tfDiaryFile
   diary(diaryfile);
   fprintf('Diary started at ''%s''.\n',diaryfile);
+  oc = onCleanup(@()diary('off'));
 end
 
 % nphyspts = lObj.nPhysPoints;
@@ -62,7 +68,7 @@ for imov=1:nmov
     lObj.movieSetAdd(movFiles(imov,:));
   end
   lObj.movieSet(lObj.nmovies);
-  pause(0.5); % prob unnec, give UI a little time
+  pause(1); % prob unnec, give UI a little time
   assert(imov==lObj.currMovie);
 
   nfrm = lObj.nframes;
@@ -77,10 +83,26 @@ for imov=1:nmov
   end  
   if tfCalibFiles
     crFile = calibFiles{imov};
-    crObj = CalRig.loadCreateCalRigObjFromFile(crFile);
-    lObj.viewCalSetCurrMovie(crObj);
-    fprintf(1,' ... set crobj class ''%s'' from calfile %s.\n',...
-      class(crObj),crFile);
+    crFile = strtrim(crFile);
+    
+    if isempty(crFile)
+      fprintf(1,' ... no calibfile.\n');
+    elseif exist(crFile,'file')==0
+      fprintf(1,' ... calibfile DNE: %s.\n',crFile);
+    else
+      warnst = warning('off','MATLAB:load:variableNotFound'); % sh specific
+      crObj = CalRig.loadCreateCalRigObjFromFile(crFile);
+      warning(warnst);
+      lObj.viewCalSetCurrMovie(crObj);
+      fprintf(1,' ... set crObj class ''%s'' from calibfile %s.\n',...
+        class(crObj),crFile);
+    end
+  end
+  if tfCropRois
+    for ivw=1:nview
+      lObj.cropSetNewRoiCurrMov(ivw,cropRois(imov,:,ivw));
+    end
+    fprintf(1,' ... set crops for %d views.\n',nview);
   end
 end
 
@@ -90,9 +112,3 @@ if ~isempty(outfile)
 else
   lObj.projSaveAs();
 end
-
-if tfDiaryFile
-  diary off
-end
-
-

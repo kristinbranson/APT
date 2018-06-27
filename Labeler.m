@@ -559,10 +559,13 @@ classdef Labeler < handle
       end
     end
     function v = get.cropProjHasCrops(obj)
-      ci = [obj.movieFilesAllCropInfo; obj.movieFilesAllGTCropInfo];
-      tf = ~cellfun(@isempty,ci);
-      v = all(tf);
-      assert(v || ~any(tf));
+      % Returns true if proj has at least one movie and has crops
+      v = obj.nmovies>0 && ~isempty(obj.movieFilesAllCropInfo{1});
+      
+%       ci = [obj.movieFilesAllCropInfo; obj.movieFilesAllGTCropInfo];
+%       tf = ~cellfun(@isempty,ci);
+%       v = all(tf);
+%       assert(v || ~any(tf));
     end
     function v = getMovieFilesAllCropInfoMovIdx(obj,mIdx)
       % mIdx: scalar MovieIndex 
@@ -2259,6 +2262,11 @@ classdef Labeler < handle
         obj.(PROPS.MFAHL)(end+1,1) = false;
         obj.(PROPS.MIA){end+1,1} = ifo;
         obj.(PROPS.MFACI){end+1,1} = CropInfo.empty(0,0);
+        if obj.cropProjHasCrops
+          wh = obj.cropGetCurrentCropWidthHeightOrDefault();
+          obj.cropInitCropsGen(wh,PROPS.MIA,PROPS.MFACI,...
+            'iMov',numel(obj.(PROPS.MFACI)));
+        end
         obj.(PROPS.TFA){end+1,1} = tFile;
         obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
@@ -2411,6 +2419,11 @@ classdef Labeler < handle
       obj.(PROPS.MFAHL)(end+1,1) = false;
       obj.(PROPS.MIA)(end+1,:) = ifos;
       obj.(PROPS.MFACI){end+1,1} = CropInfo.empty(0,0);
+      if obj.cropProjHasCrops
+        wh = obj.cropGetCurrentCropWidthHeightOrDefault();
+        obj.cropInitCropsGen(wh,PROPS.MIA,PROPS.MFACI,...
+          'iMov',numel(obj.(PROPS.MFACI)));
+      end
       obj.(PROPS.TFA)(end+1,:) = repmat({''},1,obj.nview);
       obj.(PROPS.LPOS){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
       obj.(PROPS.LPOSTS){end+1,1} = -inf(nLblPts,nFrms,nTgt);
@@ -7993,8 +8006,8 @@ classdef Labeler < handle
       ncall = cellfun(@(x)x.info.nc,movInfos); % etc
       nrmin = min(nrall,[],1); % [1xnview]
       ncmin = min(ncall,[],1); % [1xnview]
-      widthMax = ncmin(:)-1; % col1..col<ncmin>
-      heightMax = nrmin(:)-1;
+      widthMax = ncmin(:)-1; % col1..col<ncmin>. Minus 1 for posn vs roi 
+      heightMax = nrmin(:)-1; % etc
       whMaxAllowed = [widthMax heightMax];
       whDefault = whMaxAllowed/2;
     end
@@ -8006,18 +8019,32 @@ classdef Labeler < handle
       % wh: [nviewx2] widthHeight of default crop size used. See defns at 
       % top of CropInfo.m.      
       wh = obj.cropComputeDfltWidthHeight;
-      obj.cropInitCropsHlp(wh,'movieInfoAll','movieFilesAllCropInfo');
-      obj.cropInitCropsHlp(wh,'movieInfoAllGT','movieFilesAllGTCropInfo');
+      obj.cropInitCropsGen(wh,'movieInfoAll','movieFilesAllCropInfo');
+      obj.cropInitCropsGen(wh,'movieInfoAllGT','movieFilesAllGTCropInfo');
       obj.preProcNonstandardParamChanged();
       obj.notify('cropCropsChanged');
     end
-    function cropInitCropsHlp(obj,widthHeight,fldMIA,fldMFACI)
+    function cropInitCropsGen(obj,widthHeight,fldMIA,fldMFACI,varargin)
+      % Init crops for certain movies
+      % 
+      % widthHeight: [nviewx2]
+      
+      iMov = myparse(varargin,...
+        'iMov','__undef__'); % if supplied, indices into .(fldMIA), .(fldMFACI). latter will be initialized
+
       movInfoAll = obj.(fldMIA);
       [nmov,nvw] = size(movInfoAll);
       szassert(widthHeight,[nvw 2]);
+
+      if strcmp(iMov,'__undef__')
+        iMov = 1:nmov;
+      else
+        iMov = iMov(:)';
+      end
+      
       for ivw=1:nvw
         whview = widthHeight(ivw,:);
-        for i=1:nmov
+        for i=iMov
           ifo = movInfoAll{i,ivw}.info;
           xyCtr = (1+[ifo.nc ifo.nr])/2;
           posnCtrd = [xyCtr whview];
@@ -8152,6 +8179,25 @@ classdef Labeler < handle
       obj.movieFilesAllCropInfo(:) = {CropInfo.empty(0,0)};
       obj.movieFilesAllGTCropInfo(:) = {CropInfo.empty(0,0)};
       obj.notify('cropCropsChanged'); 
+    end
+    
+    function wh = cropGetCurrentCropWidthHeightOrDefault(obj)
+      % If obj.cropProjHasCropInfo is true, get current crop width/height.
+      % Otherwise, get default widthHeight.
+      %
+      % Assumes that the proj has at least one regular movie.
+      %
+      % wh: [nview x 2]
+      
+      ci = obj.movieFilesAllCropInfo{1}; 
+      if ~isempty(ci)
+        roi = cat(1,ci.roi);
+        posn = CropInfo.roi2RectPos(roi);
+        wh = posn(:,3:4);
+      else
+        wh = obj.cropComputeDfltWidthHeight();
+      end
+      szassert(wh,[obj.nview 2]);
     end
     
     function cropCheckCropSizeConsistency(obj)
