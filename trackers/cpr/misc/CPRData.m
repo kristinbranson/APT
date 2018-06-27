@@ -345,36 +345,58 @@ classdef CPRData < handle
       end
       tfWB = ~isempty(wbObj);
       
-      N = height(tblMF);
- 
-      if tfWB
-        wbObj.startPeriod('Reading movie images','shownumden',true,'denominator',N);
-        oc = onCleanup(@()wbObj.endPeriod);
-      end
+      N = height(tblMF);      
   
       tfROI = tblfldscontains(tblMF,'roi');
       if tfROI
         roi = tblMF.roi;
       end
+      
+      % Initialize outputs early, we may early return if user cancels wb.
+      I = cell(N,nView);
+      nmask = zeros(N,nView);
             
       movMaps = cell(1,nView); % movMaps{i} contains containers.Map for view i
       for iVw=1:nView
         movsUn = unique(tblMF.mov(:,iVw));
         movMapVw = containers.Map(); % movieName->struct with movieReader, etc
-        for mov=movsUn(:)',mov=mov{1}; %#ok<FXSET>
+        
+        if tfWB
+          wbObj.startPeriod(sprintf('Opening movies: view %d',iVw),...
+            'shownumden',true,'denominator',numel(movsUn));          
+        end
+        
+        for iMov=1:numel(movsUn)
+          if tfWB
+            tfCancel = wbObj.updateFracWithNumDen(iMov);
+            if tfCancel
+              wbObj.endPeriod();
+              return;
+            end
+          end
+          
+          mov = movsUn{iMov};
           mr = MovieReader();
           mr.forceGrayscale = forceGrayscale;
           mr.flipVert = movieInvert(iVw);
           mr.open(mov,'bgType',bgType,'bgReadFcn',bgReadFcn);
           % Note: we don't setCropInfo here; cropping handled explicitly
           % b/c most of the time if comes from the trx
-          movMapVw(mov) = mr;
+          movMapVw(mov) = mr;          
         end
+        
+        if tfWB
+          wbObj.endPeriod();
+        end
+        
         movMaps{iVw} = movMapVw;
       end
       
-      I = cell(N,nView);
-      nmask = zeros(N,nView);
+      if tfWB
+        wbObj.startPeriod('Reading movie images','shownumden',true,'denominator',N);
+        oc = onCleanup(@()wbObj.endPeriod());
+      end
+      
       for iTrl=1:N
         if tfWB
           tfCancel = wbObj.updateFracWithNumDen(iTrl);

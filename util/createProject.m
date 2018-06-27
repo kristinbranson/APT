@@ -11,7 +11,9 @@ function lObj = createProject(baseProj,movFiles,varargin)
 %
 % 
 
-[tblLbls,calibFiles,cropRois,projname,outfile,diaryfile] = myparse(varargin,...
+[gt,tblLbls,calibFiles,calibObjs,cropRois,projname,outfile,diaryfile] = ...
+  myparse(varargin,...
+  'gt',false,... % if true, augment GT movies with movFiles (and remainder of opt args)
   'tblLbls',[],... (opt) MFTable with fields MFTable.FLDSCORE, ie .mov, .frm, .iTgt, .tfocc, .p. 
                ...   % * .mov are positive ints, row indices into movFiles
                ...   % * Currently .iTgt must always be 1
@@ -20,6 +22,7 @@ function lObj = createProject(baseProj,movFiles,varargin)
                ...   %   The raster order is (fastest first): 
                ...   %     {physical pt,view,coordinate (x vs y)} 
   'calibFiles',[],... % (opt) [nx1] cellstr of calibration files for each movie
+  'calibObjs',[],... % (opt) [nx1] cell array of CalRig objects. Specify at most one of 'calibFiles' or 'calibObjs'
   'cropRois',[],... (opt) [nx4xnview] crop rois for movies
   'projname','',... % (opt) char, projectname
   'outfile','',...   % (opt) output file where new proj will be saved
@@ -28,10 +31,10 @@ function lObj = createProject(baseProj,movFiles,varargin)
 
 lObj = Labeler();
 lObj.projLoad(baseProj);
-lObj.projname = projname;
+lObj.projname = projname;  
 
 assert(iscellstr(movFiles));
-[nmov,nview] = size(movFiles);
+[nmovadd,nview] = size(movFiles);
 if lObj.nview~=nview
   error('Number of views in base project (%d) does not match specified ''movFiles''.',...
     lObj.nview);
@@ -39,18 +42,25 @@ end
 
 tfTblLbls = ~isempty(tblLbls);
 tfCalibFiles = ~isempty(calibFiles);
+tfCalibObjs = ~isempty(calibObjs);
 tfCropRois = ~isempty(cropRois);
 tfDiaryFile = ~isempty(diaryfile);
 if tfTblLbls
   tblfldsassert(tblLbls,MFTable.FLDSCORE);
 end
+assert(~(tfCalibFiles && tfCalibObjs));
 if tfCalibFiles
-  if ~(iscellstr(calibFiles) && numel(calibFiles)==nmov)
+  if ~(iscellstr(calibFiles) && numel(calibFiles)==nmovadd)
     error('''calibFiles'' must be a cellstr with one element for each movieset.');
   end
 end
+if tfCalibObjs
+  if ~(iscell(calibObjs) && numel(calibObjs)==nmovadd)
+    error('''calibObjs'' must be a cell array of CalRig objects with one element for each movieset.');
+  end
+end
 if tfCropRois
-  szassert(cropRois,[nmov 4 nview]);  
+  szassert(cropRois,[nmovadd 4 nview]);  
 end
 if tfDiaryFile
   diary(diaryfile);
@@ -58,49 +68,60 @@ if tfDiaryFile
   oc = onCleanup(@()diary('off'));
 end
 
+if gt~=lObj.gtIsGTMode
+  fprintf(1,'Entering gtmode=%d.\n',gt);
+  lObj.gtSetGTMode(gt);
+end
+
 % nphyspts = lObj.nPhysPoints;
 % npts = lObj.nLabelPoints;
 
-for imov=1:nmov  
+for imovadd=1:nmovadd
   if nview==1
-    lObj.movieAdd(movFiles{imov},[]);
+    lObj.movieAdd(movFiles{imovadd},[]);
   else
-    lObj.movieSetAdd(movFiles(imov,:));
+    lObj.movieSetAdd(movFiles(imovadd,:));
   end
-  lObj.movieSet(lObj.nmovies);
+  lObj.movieSet(lObj.nmoviesGTaware);
   pause(1); % prob unnec, give UI a little time
-  assert(imov==lObj.currMovie);
+  %assert(imov==lObj.currMovie);
 
   nfrm = lObj.nframes;
-  fprintf(1,'mov %d. %d frms.\n',imov,nfrm);
+  fprintf(1,'movadd %d. %d frms.\n',imovadd,nfrm);
   
   if tfTblLbls
-    tfMov = tblLbls.mov==imov;
+    tfMov = tblLbls.mov==imovadd;
     tblLblsThis = tblLbls(tfMov,:);
     tblLblsThis(:,{'mov'}) = [];
     lObj.labelPosBulkImportTbl(tblLblsThis);
     fprintf(1,' ... imported %d lbled rows.\n',height(tblLblsThis));
   end  
   if tfCalibFiles
-    crFile = calibFiles{imov};
+    crFile = calibFiles{imovadd};
     crFile = strtrim(crFile);
     
     if isempty(crFile)
       fprintf(1,' ... no calibfile.\n');
     elseif exist(crFile,'file')==0
-      fprintf(1,' ... calibfile DNE: %s.\n',crFile);
+      fprintf(1,' ... calibfile not found: %s.\n',crFile);
     else
-      warnst = warning('off','MATLAB:load:variableNotFound'); % sh specific
+      %warnst = warning('off','MATLAB:load:variableNotFound'); % sh specific
       crObj = CalRig.loadCreateCalRigObjFromFile(crFile);
-      warning(warnst);
+      %warning(warnst);
       lObj.viewCalSetCurrMovie(crObj);
-      fprintf(1,' ... set crObj class ''%s'' from calibfile %s.\n',...
+      fprintf(1,' ... set calibration object class ''%s'' from calibfile %s.\n',...
         class(crObj),crFile);
     end
   end
+  if tfCalibObjs
+    crObj = calibObjs{imovadd};
+    assert(isa(crObj,'CalRig'),'''calibObjs'' must contain CalRig objects.');
+    lObj.viewCalSetCurrMovie(crObj);
+    fprintf(1,' ... set calibration object class ''%s''.\n',class(crObj));
+  end
   if tfCropRois
     for ivw=1:nview
-      lObj.cropSetNewRoiCurrMov(ivw,cropRois(imov,:,ivw));
+      lObj.cropSetNewRoiCurrMov(ivw,cropRois(imovadd,:,ivw));
     end
     fprintf(1,' ... set crops for %d views.\n',nview);
   end

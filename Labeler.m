@@ -3892,7 +3892,7 @@ classdef Labeler < handle
     end
     
     function labelPosBulkImportTbl(obj,tblFT)
-      % Set labels for current movie/target from a table.
+      % Set labels for current movie/target from a table. GTmode supported.
       %
       % tblFT: table with fields .frm, .iTgt, .p, .tfocc. CANNOT have field
       % .mov, to avoid possible misunderstandings/bugs. This meth sets
@@ -3904,8 +3904,6 @@ classdef Labeler < handle
       %
       % No checking is done against image or crop size.
       
-      assert(~obj.gtIsGTMode);
-      
       tblfldscontainsassert(tblFT,{'frm' 'iTgt' 'p' 'tfocc'});
       tblfldsdonotcontainassert(tblFT,{'mov'});
       
@@ -3915,12 +3913,14 @@ classdef Labeler < handle
       szassert(tblFT.tfocc,[n npts]);
       assert(islogical(tblFT.tfocc));
 
+      PROPS = obj.gtGetSharedProps();
+      
       iMov = obj.currMovie;
       assert(iMov>0);
-      lpos = obj.labeledpos{iMov};
-      lpostag = obj.labeledpostag{iMov};
-      lposTS = obj.labeledposTS{iMov};
-      lposMarked = obj.labeledposMarked{iMov};
+      lpos = obj.(PROPS.LPOS){iMov};
+      lpostag = obj.(PROPS.LPOSTAG){iMov};
+      lposTS = obj.(PROPS.LPOSTS){iMov};
+      %lposMarked = obj.(PROPS.LlabeledposMarked{iMov};
       tsnow = now;
       for i=1:n % KB will vectorize this appropriately
         frm = tblFT.frm(i);
@@ -3933,12 +3933,12 @@ classdef Labeler < handle
         lpos(:,:,frm,itgt) = xy;
         lpostag(:,frm,itgt) = tfocc;
         lposTS(:,frm,itgt) = tsnow; % could allow specification in tblFT
-        lposMarked(:,frm,itgt) = true;
+        %lposMarked(:,frm,itgt) = true;
       end
-      obj.labeledpos{iMov} = lpos;
-      obj.labeledpostag{iMov} = lpostag;
-      obj.labeledposTS{iMov} = lposTS;
-      obj.labeledposMarked{iMov} = lposMarked;
+      obj.(PROPS.LPOS){iMov} = lpos;
+      obj.(PROPS.LPOSTAG){iMov} = lpostag;
+      obj.(PROPS.LPOSTS){iMov} = lposTS;
+      %obj.labeledposMarked{iMov} = lposMarked;
               
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
