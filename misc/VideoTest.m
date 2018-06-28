@@ -1,7 +1,7 @@
 classdef VideoTest
   methods (Static)
     
-    function test1gen(mov,varargin)
+    function outdir = test1gen(mov,varargin)
       % Test1 is:
       % - Read frames 1..nmax sequentially.
       % - In a new read session (get_readframe_fcn), read nsamp randomly 
@@ -195,7 +195,7 @@ classdef VideoTest
         'frms',json.frms);
     end
     
-    function test1internal(testdir,varargin)
+    function isconsistent = test1internal(testdir,varargin)
       % Test for internal consistency
       
       plusminus = myparse(varargin,...
@@ -248,6 +248,7 @@ classdef VideoTest
       frmsUn = unique(frms);
       nfrmsUn = numel(frmsUn);
       fprintf(1,'%d frames sampled.\n',nfrmsUn);
+      isconsistent = false(1,nfrmsUn);
       for i=1:nfrmsUn
         f = frmsUn(i);
         irar = frms==f;
@@ -267,6 +268,7 @@ classdef VideoTest
           end
         else
           fprintf(1,'Frame %d, OK %d samps.\n',f,numel(imrar));
+          isconsistent(i) = true;
         end
       end
     end
