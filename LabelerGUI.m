@@ -535,6 +535,13 @@ handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
 handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated';
 
+% color of status bar when GUI is busy vs idle
+handles.idlestatuscolor = [0,1,0];
+handles.busystatuscolor = [1,0,1];
+setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
+setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
+syncStatusBarTextWhenClear(handles);
+
 guidata(hObject, handles);
 
 % UIWAIT makes LabelerGUI wait for user response (see UIRESUME)
@@ -1051,7 +1058,8 @@ end
 set(handles.txMoviename,'String',str);
 if ~isempty(mname)
   str = sprintf('new %s %s at %s',lower(movstr),mname,datestr(now,16));
-  set(handles.txStatus,'String',str);
+  SetStatus(handles,str,false);
+  %set(handles.txStatus,'String',str);
   
   % Fragile behavior when loading projects; want project status update to
   % persist and not movie status update. This depends on detailed ordering in 
@@ -1198,7 +1206,8 @@ lObj = evt.AffectedObject;
 handles = lObj.gdata;
 pname = lObj.projname;
 str = sprintf('Project %s created (unsaved) at %s',pname,datestr(now,16));
-set(handles.txStatus,'String',str);
+SetStatus(handles,str,false);
+% set(handles.txStatus,'String',str);
 hlpUpdateTxProjectName(lObj);
 
 function cbkProjFSInfoChanged(src,evt)
@@ -1206,7 +1215,8 @@ lObj = evt.AffectedObject;
 info = lObj.projFSInfo;
 if ~isempty(info)  
   str = sprintf('Project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
-  set(lObj.gdata.txStatus,'String',str);
+  %set(lObj.gdata.txStatus,'String',str);
+  SetStatus(lObj.gdata,str,false);
 end
 hlpUpdateTxProjectName(lObj);
 
@@ -1582,6 +1592,7 @@ function pbTrack_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
+SetStatus(handles,'Tracking...');
 tm = getTrackMode(handles);
 wbObj = WaitBarWithCancel('Tracking');
 centerOnParentFigure(wbObj.hWB,handles.figure);
@@ -1591,6 +1602,7 @@ if wbObj.isCancel
   msg = wbObj.cancelMessage('Tracking canceled');
   msgbox(msg,'Track');
 end
+ClearStatus(handles);
 
 function pbClear_Callback(hObject, eventdata, handles)
 
@@ -3024,3 +3036,45 @@ elseif tb.Value==tb.Max
 end
 function pbClearAllCrops_Callback(hObject, eventdata, handles)
 handles.labelerObj.cropClearAllCrops();
+
+% -------------------------------------------------------------------------
+function SetStatus(handles,s,isbusy)
+
+if nargin < 3,
+  isbusy = true;
+end
+if isbusy,
+  color = handles.busystatuscolor;
+  set(handles.figure,'Pointer','watch');
+else
+  color = handles.idlestatuscolor;
+  set(handles.figure,'Pointer','arrow');
+end
+set(handles.txStatus,'ForegroundColor',color,'String',s);
+drawnow('limitrate');
+if ~isbusy,
+  syncStatusBarTextWhenClear(handles);
+end
+
+% -------------------------------------------------------------------------
+function ClearStatus(handles)
+
+cleartext = getStatusBarTextWhenClear(handles);
+set(handles.txStatus, ...
+    'ForegroundColor',handles.idlestatuscolor, ...
+    'String',cleartext);
+set(handles.figure,'Pointer','arrow');
+drawnow('limitrate');
+
+function syncStatusBarTextWhenClear(handles)
+
+setappdata(handles.txStatus,'text_when_clear',get(handles.txStatus,'string'));
+
+function s = getStatusBarTextWhenClear(handles)
+
+try
+  s = getappdata(handles.txStatus,'text_when_clear');
+catch
+  warning('Could not get text_when_clear appdata for status bar');
+  s = '';
+end
