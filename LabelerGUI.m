@@ -1923,7 +1923,8 @@ if haslbls1
       assert(false); 
   end
 end
-handles.labelerObj.labelImportTrkPrompt(iMov);
+handles.labelerObj.labelImportTrkPromptGenericSimple(iMov,...
+  'labelImportTrk','gtok',false);
 
 function menu_file_import_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -1931,7 +1932,7 @@ if ~lObj.hasMovie
   error('LabelerGUI:noMovie','No movie is loaded.');
 end
 iMov = lObj.currMovie; % gt-aware
-lObj.labels2ImportTrkPrompt(iMov);
+lObj.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
 
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

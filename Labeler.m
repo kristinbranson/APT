@@ -4653,12 +4653,12 @@ classdef Labeler < handle
           end
           iTgtsIB = iTgt(tfiTgtIB);
           
-          fprintf(1,'... Loaded %d frames for %d points, %d targets from trk file: %s.\n',...
+          fprintf(1,'Loaded %d frames for %d points, %d targets from trk file:\n  %s.\n',...
             numel(frmsTrkIB),numel(iPt),numel(iTgtsIB),tfile);
         
           %displaying when .trk file was last updated
           tfileDir = dir(tfile);
-          disp(['.trk file last modified: ',tfileDir.date])
+          disp(['  trk file last modified: ',tfileDir.date])
 
           iPt = iPt + (iVw-1)*nPhysPts;
           lpos(iPt,:,frmsTrkIB,iTgtsIB) = s.pTrk(:,:,tfInBounds,tfiTgtIB);
@@ -4753,7 +4753,27 @@ classdef Labeler < handle
       tfsucc = true;
     end
     
-    function labelImportTrkPromptGeneric(obj,iMovs,importFcn)
+    % 20180628 iss 202.
+    % The following chain of "smart" methods
+    % labelImportTrkPromptGenericAuto
+    %  labelImportTrkPromptAuto
+    %  labels2ImprotTrkPromptAuto
+    %
+    % were trying too hard for more vanilla use cases, in particular
+    % single-view single-movie import situs.
+    %
+    % However, they may still still be useful for bulk use cases:
+    % multiview, or large-numbers-of-movies. So leave them around for now.
+    % 
+    % Currently these this chain has only a SINGLE CALLER: importTrkResave,
+    % which operates in a bulk fashion.
+    %
+    % The new simplified call is just 
+    % labelImportTrkPromptGenericSimple
+    % which is called by LabelerGUI for single-movieset situs (including
+    % multiview)
+    
+    function labelImportTrkPromptGenericAuto(obj,iMovs,importFcn)
       % Come up with trkfiles based on iMovs and then call importFcn.
       % 
       % iMovs: index into .movieFilesAllGTAware
@@ -4783,7 +4803,45 @@ classdef Labeler < handle
       end      
     end
 	
-    function labelImportTrkPrompt(obj,iMovs)
+    function labelImportTrkPromptGenericSimple(obj,iMov,importFcn,varargin)
+      % Prompt user for trkfiles to import and import them with given 
+      % importFcn. User can cancel to abort
+      %
+      % iMov: scalar positive index into .movieFilesAll. GT mode not
+      %   allowed.
+      
+      gtok = myparse(varargin,...
+        'gtok',false ... % if true, obj.gtIsGTMode can be true, and iMov 
+                  ...% refers per GT state. importFcn needs to support GT
+                  ...% state
+                  );
+      
+      assert(isscalar(iMov));      
+      if ~gtok
+        assert(~obj.gtIsGTMode);
+      end
+      
+      movs = obj.movieFilesAllFullGTaware(iMov,:);
+      movdirs = cellfun(@fileparts,movs,'uni',0);
+      nvw = obj.nview;
+      trkfiles = cell(1,nvw);
+      for ivw=1:nvw
+        if nvw>1
+          promptstr = sprintf('Import trkfile for view %d',ivw);
+        else
+          promptstr = 'Import trkfile';
+        end
+        [fname,pth] = uigetfile('*.trk',promptstr,movdirs{ivw});
+        if isequal(fname,0)
+          return;
+        end
+        trkfiles{ivw} = fullfile(pth,fname);
+      end
+      
+      feval(importFcn,obj,iMov,trkfiles);
+    end
+    
+    function labelImportTrkPromptAuto(obj,iMovs)
       % Import label data from trk files, prompting if necessary to specify
       % which trk files to import.
       %
@@ -4799,7 +4857,7 @@ classdef Labeler < handle
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
       end
-      obj.labelImportTrkPromptGeneric(iMovs,'labelImportTrk');
+      obj.labelImportTrkPromptGenericAuto(iMovs,'labelImportTrk');
     end
     
     function labelMakeLabelMovie(obj,fname,varargin)
@@ -8964,14 +9022,14 @@ classdef Labeler < handle
       obj.labels2VizUpdate();
     end
     
-    function labels2ImportTrkPrompt(obj,iMovs)
-      % See labelImportTrkPrompt().
+    function labels2ImportTrkPromptAuto(obj,iMovs)
+      % See labelImportTrkPromptAuto().
       % iMovs: works per current GT mode
       
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmoviesGTaware;
       end      
-      obj.labelImportTrkPromptGeneric(iMovs,'labels2ImportTrk');
+      obj.labelImportTrkPromptGenericAuto(iMovs,'labels2ImportTrk');
     end
    
     function labels2ImportTrk(obj,iMovs,trkfiles)
@@ -8988,7 +9046,7 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:nomov','No movie is loaded.');
       end
-      obj.labels2ImportTrkPrompt(obj.currMovie);
+      obj.labels2ImportTrkPromptAuto(obj.currMovie);
     end
     
     function labels2ExportTrk(obj,iMovs,varargin)
