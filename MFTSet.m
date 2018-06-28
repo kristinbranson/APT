@@ -85,7 +85,7 @@ classdef MFTSet < handle
       str(1) = upper(str(1));
     end
     
-    function tblMFT = getMFTable(obj,labelerObj)
+    function tblMFT = getMFTable(obj,labelerObj,varargin)
       % tblMFT: MFTable with MFTable.ID
       %
       % tblMFT is computed via the following procedure.
@@ -95,6 +95,10 @@ classdef MFTSet < handle
       % 3. The decimation is found by querying .decimation.
       % 4. For each movie/target/decimation, the list of frames is found by
       % querying .frameSet.
+      
+      wbObj = myparse(varargin,...
+        'wbObj',[]); % (opt) WaitBarWithCancel. If cancel, tblMFT indeterminate.
+      tfWB = ~isempty(wbObj);      
       
       if ~labelerObj.hasMovie
         mov = MovieIndex(zeros(0,1));
@@ -109,9 +113,23 @@ classdef MFTSet < handle
         
         nMovs = numel(mis);
         tblMFT = cell(0,1);
+        iTgtsArr = tgtSet.getTargetIndices(labelerObj,mis);
+        
+        if tfWB
+          wbObj.startPeriod('Fetching table','shownumden',true,'denominator',nMovs);
+          oc = onCleanup(@()wbObj.endPeriod());
+        end
         for i=1:nMovs
+          if tfWB
+            if wbObj.isCancel
+              % tblMFT is raw/cell, return it anyway
+              return;              
+            end
+            wbObj.updateFracWithNumDen(i);
+          end
+          
           mIdx = mis(i);
-          iTgts = tgtSet.getTargetIndices(labelerObj,mIdx);
+          iTgts = iTgtsArr{i};
           for j=1:numel(iTgts)
             iTgt = iTgts(j);
             frms = frmSet.getFrames(labelerObj,mIdx,iTgt,decFac);

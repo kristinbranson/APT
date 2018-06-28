@@ -151,8 +151,20 @@ classdef APT
 
 %       javaaddpath(jp);
     end
+    
+    function setpathsmart()
+      % Don't set MATLAB path if it appears it is already set
+      % "smart" in quotes, of course
+      
+      [p,jp] = APT.getpath();
+      if APT.matlabPathNotConfigured
+        fprintf('Configuring your MATLAB path ...\n');
+        addpath(p{:},'-begin');
+      end
+      cellfun(@javaaddpathstatic,jp);
+    end
   
-    function tf = pathNotConfigured()
+    function tf = matlabPathNotConfigured()
       tf = exist('moveMenuItemAfter','file')==0 || ...
         exist('ReadYaml','file')==0;
     end

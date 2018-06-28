@@ -14,21 +14,28 @@ classdef CropInfo < handle
   % posn
   % This is a MATLAB/imcrop- or imrect-style rectangle position. This is
   % [xlo ylo width height] with floating pt values. 
+  % (xlo,ylo,xlo+width,ylo+width are the coordinate positions of the 
+  % infinitely thin edges of a rectangle. 
+  %
+  % IMPORTANT: Note that a posn with width w will convert to an roi with 
+  % width w+1. Converting back to a posn will return to the width w.
   %
   % posnCtrd
   % This is an imrect-style rectangle specification like posn; 
   % [xctr yctr width height]. 
   %
   % widthHeight
-  % This refers to the imrect-style width/height as in a posn or posnCtrd. 
+  % This refers to the imrect-style width/height as in a posn or posnCtrd.
+  % IMPORTANT: the width/height for a corresponding roi IS ONE LARGER in
+  % each dim.
   %
   % When MATLAB crops using eg imcrop, the resulting rectangle does not 
   % need to have width cols and height rows, because any pixel even 
   % slightly enclosed by the rectangle is included in the crop.
   %
   % APT crops differently. When a posn [xlo ylo width height] is used to
-  % crop, the resulting ROI is guaranteed to have round(width) cols and 
-  % round(height) rows.
+  % crop, the resulting ROI is guaranteed to have round(width)+1 cols and 
+  % round(height)+1 rows.
   
   properties
     roi % [1x4] 
@@ -139,10 +146,11 @@ classdef CropInfo < handle
       % be slightly unexpected at the outer edge of the roi depending on
       % the exact positioning/width/height of posn.
       
-      roiwidth = round(posn(:,3));
-      roiheight = round(posn(:,4));      
-      roi = [ceil(posn(:,1)) ceil(posn(:,1))+roiwidth-1 ...
-             ceil(posn(:,2)) ceil(posn(:,2))+roiheight-1];
+      roiwidth = round(posn(:,3))+1;
+      roiheight = round(posn(:,4))+1;
+      xlo = ceil(posn(:,1));
+      ylo = ceil(posn(:,2));
+      roi = [xlo xlo+roiwidth-1 ylo ylo+roiheight-1];
       if any(roi(:)<=0)
         warningNoTrace('Non-positive ROI coordinates.');
       end      
@@ -170,6 +178,29 @@ classdef CropInfo < handle
       posnCtrd = CropInfo.rectPos2Ctrd(posn);
       posnCtrd(:,[3 4]) = repmat(widthHeight,size(posnCtrd,1),1);
       posn = CropInfo.rectPosCtrd2Pos(posnCtrd);      
+    end
+    
+    function roiPosnCheck
+      % invariants
+      pos(1,:) = 100*rand(1,4);
+      for i=1:2      
+        roi(i,:) = CropInfo.rectPos2roi(pos(i,:));
+        pos(i+1,:) = CropInfo.roi2RectPos(roi(i,:));
+      end
+      fprintf('pos:\n');      
+      disp(pos);
+      fprintf('roi:\n');
+      disp(roi);
+      
+      pos = pos(1,:);
+      for i=1:2
+        posC(i,:) = CropInfo.rectPos2Ctrd(pos(i,:));
+        pos(i+1,:) = CropInfo.rectPosCtrd2Pos(posC(i,:));
+      end
+      fprintf('pos:\n');
+      disp(pos);
+      fprintf('posCtred:\n');
+      disp(posC);
     end
     
     function xy = roiClipXY(roi,xy)

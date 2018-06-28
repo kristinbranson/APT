@@ -85,9 +85,9 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       if lObj.currMovIdx==mIdx && lObj.currFrame==frm
         gdata = lObj.gdata;
         im = gdata.image_curr;
-        im = im.CData;
         imxdata = im.XData;
         imydata = im.YData;
+        im = im.CData;
       else
         IVIEW = 1;
         if lObj.currMovIdx==mIdx

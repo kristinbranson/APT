@@ -559,10 +559,13 @@ classdef Labeler < handle
       end
     end
     function v = get.cropProjHasCrops(obj)
-      ci = [obj.movieFilesAllCropInfo; obj.movieFilesAllGTCropInfo];
-      tf = ~cellfun(@isempty,ci);
-      v = all(tf);
-      assert(v || ~any(tf));
+      % Returns true if proj has at least one movie and has crops
+      v = obj.nmovies>0 && ~isempty(obj.movieFilesAllCropInfo{1});
+      
+%       ci = [obj.movieFilesAllCropInfo; obj.movieFilesAllGTCropInfo];
+%       tf = ~cellfun(@isempty,ci);
+%       v = all(tf);
+%       assert(v || ~any(tf));
     end
     function v = getMovieFilesAllCropInfoMovIdx(obj,mIdx)
       % mIdx: scalar MovieIndex 
@@ -578,12 +581,18 @@ classdef Labeler < handle
       end
     end
     function v = get.trxFilesAllFull(obj)
+      % Warning: Expensive to call. Call me once and then index rather than
+      % using a compound indexing-expr.
       v = Labeler.trxFilesLocalize(obj.trxFilesAll,obj.movieFilesAllFull);
     end    
     function v = get.trxFilesAllGTFull(obj)
+      % Warning: Expensive to call. Call me once and then index rather than
+      % using a compound indexing-expr.
       v = Labeler.trxFilesLocalize(obj.trxFilesAllGT,obj.movieFilesAllGTFull);
     end
     function v = get.trxFilesAllFullGTaware(obj)
+      % Warning: Expensive to call. Call me once and then index rather than
+      % using a compound indexing-expr.
       if obj.gtIsGTMode
         v = obj.trxFilesAllGTFull;
       else
@@ -591,6 +600,8 @@ classdef Labeler < handle
       end
     end
     function v = getTrxFilesAllFullMovIdx(obj,mIdx)
+      % Warning: Expensive to call. Call me once and then index rather than
+      % using a compound indexing-expr.
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
       if gt
@@ -702,16 +713,30 @@ classdef Labeler < handle
       v = numel(obj.trx);
     end
     function v = getnTrxMovIdx(obj,mIdx)
-      assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
+      % Warning: Slow/expensive, call in bulk and index rather than calling
+      % piecemeal 
+      %
+      % mIdx: [n] MovieIndex vector
+      % v: [n] array; v(i) == num targets in ith mov
+      
+      assert(isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
+      assert(all(gt) || ~any(gt));
+      gt = all(gt);
+      
       PROPS = obj.gtGetSharedPropsStc(gt);
-      tfaf = obj.(PROPS.TFAF){iMov,1};
-      if isempty(tfaf)
-        v = 1;
-      else
-        nfrm = obj.(PROPS.MIA){iMov,1}.nframes;
-        trxI = obj.getTrx(tfaf,nfrm);
-        v = numel(trxI);
+      tfaf = obj.(PROPS.TFAF)(iMov,1);
+      mia = obj.(PROPS.MIA)(iMov,1);
+      v = ones(size(iMov));
+      for i=1:numel(v)
+        trxfile = tfaf{i};
+        if isempty(trxfile)
+          % none; v(i) is 1
+        else
+          nfrm = mia{i}.nframes;
+          trxI = obj.getTrx(trxfile,nfrm);
+          v(i) = numel(trxI);
+        end
       end
     end
     function v = get.nTargets(obj)
@@ -728,7 +753,7 @@ classdef Labeler < handle
       % AL 20160710: debateable utility/correctness, but if you try to do
       % some things (eg open MovieManager) right on bootup from an empty
       % Labeler you get weird errors.
-      v = size(obj.movieFilesAll,2)>0;
+      v = size(obj.movieFilesAll,2)>0; % AL 201806: want first dim instead?
     end
     function v = get.projectfile(obj)
       info = obj.projFSInfo;
@@ -957,10 +982,7 @@ classdef Labeler < handle
     function obj = Labeler(varargin)
       % lObj = Labeler();
       
-      if APT.pathNotConfigured
-        fprintf('Configuring your path ...\n');
-        APT.setpath;
-      end
+      APT.setpathsmart;
       obj.NEIGHBORING_FRAME_OFFSETS = ...
                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       obj.hFig = LabelerGUI(obj);
@@ -2237,6 +2259,11 @@ classdef Labeler < handle
         obj.(PROPS.MFAHL)(end+1,1) = false;
         obj.(PROPS.MIA){end+1,1} = ifo;
         obj.(PROPS.MFACI){end+1,1} = CropInfo.empty(0,0);
+        if obj.cropProjHasCrops
+          wh = obj.cropGetCurrentCropWidthHeightOrDefault();
+          obj.cropInitCropsGen(wh,PROPS.MIA,PROPS.MFACI,...
+            'iMov',numel(obj.(PROPS.MFACI)));
+        end
         obj.(PROPS.TFA){end+1,1} = tFile;
         obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
@@ -2389,6 +2416,11 @@ classdef Labeler < handle
       obj.(PROPS.MFAHL)(end+1,1) = false;
       obj.(PROPS.MIA)(end+1,:) = ifos;
       obj.(PROPS.MFACI){end+1,1} = CropInfo.empty(0,0);
+      if obj.cropProjHasCrops
+        wh = obj.cropGetCurrentCropWidthHeightOrDefault();
+        obj.cropInitCropsGen(wh,PROPS.MIA,PROPS.MFACI,...
+          'iMov',numel(obj.(PROPS.MFACI)));
+      end
       obj.(PROPS.TFA)(end+1,:) = repmat({''},1,obj.nview);
       obj.(PROPS.LPOS){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
       obj.(PROPS.LPOSTS){end+1,1} = -inf(nLblPts,nFrms,nTgt);
@@ -3856,6 +3888,62 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
+    function labelPosBulkImportTbl(obj,tblFT)
+      % Set labels for current movie/target from a table. GTmode supported.
+      %
+      % tblFT: table with fields .frm, .iTgt, .p, .tfocc. CANNOT have field
+      % .mov, to avoid possible misunderstandings/bugs. This meth sets
+      % labels on the *current movie only*.
+      %   * tblFT.p should have size [n x nLabelPoints*2].
+      %       The raster order is (fastest first): 
+      %          {physical pt,view,coordinate (x vs y)}
+      %   * tblFT.tfocc should be logical of size [n x nLabelPoints]
+      %
+      % No checking is done against image or crop size.
+      
+      tblfldscontainsassert(tblFT,{'frm' 'iTgt' 'p' 'tfocc'});
+      tblfldsdonotcontainassert(tblFT,{'mov'});
+      
+      n = height(tblFT);
+      npts = obj.nLabelPoints;
+      szassert(tblFT.p,[n 2*npts]);
+      szassert(tblFT.tfocc,[n npts]);
+      assert(islogical(tblFT.tfocc));
+
+      PROPS = obj.gtGetSharedProps();
+      
+      iMov = obj.currMovie;
+      assert(iMov>0);
+      lpos = obj.(PROPS.LPOS){iMov};
+      lpostag = obj.(PROPS.LPOSTAG){iMov};
+      lposTS = obj.(PROPS.LPOSTS){iMov};
+      %lposMarked = obj.(PROPS.LlabeledposMarked{iMov};
+      tsnow = now;
+      for i=1:n % KB will vectorize this appropriately
+        frm = tblFT.frm(i);
+        itgt = tblFT.iTgt(i);        
+        xy = Shape.vec2xy(tblFT.p(i,:));
+        tfocc = tblFT.tfocc(i,:);
+        assert(frm<=size(lpos,3));
+        assert(itgt<=size(lpos,4));
+        
+        lpos(:,:,frm,itgt) = xy;
+        lpostag(:,frm,itgt) = tfocc;
+        lposTS(:,frm,itgt) = tsnow; % could allow specification in tblFT
+        %lposMarked(:,frm,itgt) = true;
+      end
+      obj.(PROPS.LPOS){iMov} = lpos;
+      obj.(PROPS.LPOSTAG){iMov} = lpostag;
+      obj.(PROPS.LPOSTS){iMov} = lposTS;
+      %obj.labeledposMarked{iMov} = lposMarked;
+              
+      obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      end
+      obj.labeledposNeedsSave = true;
+    end
+    
     function labelPosSetUnmarkedFramesMovieFramesUnmarked(obj,xy,iMov,frms)
       % Set all unmarked labels for given movie, frames. Newly-labeled 
       % points are NOT marked in .labeledposmark
@@ -4232,8 +4320,13 @@ classdef Labeler < handle
         basename = '$movfile';
       end
       
+      gt = obj.gtIsGTMode;
       if labels
-        basename = [basename '_labels'];
+        if gt
+          basename = [basename '_gtlabels'];
+        else
+          basename = [basename '_labels'];
+        end
       end
       
       rawname = fullfile('$movdir',basename);
@@ -4256,12 +4349,17 @@ classdef Labeler < handle
     end
     
     function fname = getDefaultFilenameExportLabelTable(obj)
-      if ~isempty(obj.projectfile)
-        rawname = '$projdir/$projfile_labels.mat';
-      elseif ~isempty(obj.projname)
-        rawname = '$projdir/$projname_labels.mat';
+      if obj.gtIsGTMode
+        lblstr = 'gtlabels';
       else
-        rawname = '$projdir/labels.mat';
+        lblstr = 'labels';
+      end
+      if ~isempty(obj.projectfile)
+        rawname = ['$projdir/$projfile_' lblstr '.mat'];
+      elseif ~isempty(obj.projname)
+        rawname = ['$projdir/$projname_' lblstr '.mat'];
+      else
+        rawname = ['$projdir/' lblstr '.mat'];
       end
       sMacro = obj.baseTrkFileMacros();
       fname = FSPath.macroReplace(rawname,sMacro);
@@ -4565,12 +4663,12 @@ classdef Labeler < handle
           end
           iTgtsIB = iTgt(tfiTgtIB);
           
-          fprintf(1,'... Loaded %d frames for %d points, %d targets from trk file: %s.\n',...
+          fprintf(1,'Loaded %d frames for %d points, %d targets from trk file:\n  %s.\n',...
             numel(frmsTrkIB),numel(iPt),numel(iTgtsIB),tfile);
         
           %displaying when .trk file was last updated
           tfileDir = dir(tfile);
-          disp(['.trk file last modified: ',tfileDir.date])
+          disp(['  trk file last modified: ',tfileDir.date])
 
           iPt = iPt + (iVw-1)*nPhysPts;
           lpos(iPt,:,frmsTrkIB,iTgtsIB) = s.pTrk(:,:,tfInBounds,tfiTgtIB);
@@ -4665,7 +4763,27 @@ classdef Labeler < handle
       tfsucc = true;
     end
     
-    function labelImportTrkPromptGeneric(obj,iMovs,importFcn)
+    % 20180628 iss 202.
+    % The following chain of "smart" methods
+    % labelImportTrkPromptGenericAuto
+    %  labelImportTrkPromptAuto
+    %  labels2ImprotTrkPromptAuto
+    %
+    % were trying too hard for more vanilla use cases, in particular
+    % single-view single-movie import situs.
+    %
+    % However, they may still still be useful for bulk use cases:
+    % multiview, or large-numbers-of-movies. So leave them around for now.
+    % 
+    % Currently these this chain has only a SINGLE CALLER: importTrkResave,
+    % which operates in a bulk fashion.
+    %
+    % The new simplified call is just 
+    % labelImportTrkPromptGenericSimple
+    % which is called by LabelerGUI for single-movieset situs (including
+    % multiview)
+    
+    function labelImportTrkPromptGenericAuto(obj,iMovs,importFcn)
       % Come up with trkfiles based on iMovs and then call importFcn.
       % 
       % iMovs: index into .movieFilesAllGTAware
@@ -4695,7 +4813,45 @@ classdef Labeler < handle
       end      
     end
 	
-    function labelImportTrkPrompt(obj,iMovs)
+    function labelImportTrkPromptGenericSimple(obj,iMov,importFcn,varargin)
+      % Prompt user for trkfiles to import and import them with given 
+      % importFcn. User can cancel to abort
+      %
+      % iMov: scalar positive index into .movieFilesAll. GT mode not
+      %   allowed.
+      
+      gtok = myparse(varargin,...
+        'gtok',false ... % if true, obj.gtIsGTMode can be true, and iMov 
+                  ...% refers per GT state. importFcn needs to support GT
+                  ...% state
+                  );
+      
+      assert(isscalar(iMov));      
+      if ~gtok
+        assert(~obj.gtIsGTMode);
+      end
+      
+      movs = obj.movieFilesAllFullGTaware(iMov,:);
+      movdirs = cellfun(@fileparts,movs,'uni',0);
+      nvw = obj.nview;
+      trkfiles = cell(1,nvw);
+      for ivw=1:nvw
+        if nvw>1
+          promptstr = sprintf('Import trkfile for view %d',ivw);
+        else
+          promptstr = 'Import trkfile';
+        end
+        [fname,pth] = uigetfile('*.trk',promptstr,movdirs{ivw});
+        if isequal(fname,0)
+          return;
+        end
+        trkfiles{ivw} = fullfile(pth,fname);
+      end
+      
+      feval(importFcn,obj,iMov,trkfiles);
+    end
+    
+    function labelImportTrkPromptAuto(obj,iMovs)
       % Import label data from trk files, prompting if necessary to specify
       % which trk files to import.
       %
@@ -4711,7 +4867,7 @@ classdef Labeler < handle
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmovies;
       end
-      obj.labelImportTrkPromptGeneric(iMovs,'labelImportTrk');
+      obj.labelImportTrkPromptGenericAuto(iMovs,'labelImportTrk');
     end
     
     function labelMakeLabelMovie(obj,fname,varargin)
@@ -4918,6 +5074,8 @@ classdef Labeler < handle
         error('Project does not contain cropping information.');
       end
       
+      obj.cropCheckCropSizeConsistency();
+      
       nphyspts = obj.nPhysPoints;
       nvw = obj.nview;
       n = height(tblMF);
@@ -4948,7 +5106,7 @@ classdef Labeler < handle
       tblMF(tfRmRow,:) = [];
     end
     
-    function tblMF = labelAddLabelsMFTable(obj,tblMF)
+    function tblMF = labelAddLabelsMFTable(obj,tblMF,varargin)
       mIdx = tblMF.mov;
       assert(isa(mIdx,'MovieIndex'));
       [~,gt] = mIdx.get();
@@ -4963,7 +5121,7 @@ classdef Labeler < handle
       end
       tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,...
         obj.(PROPS.LPOS),obj.(PROPS.LPOSTAG),obj.(PROPS.LPOSTS),...
-        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache);
+        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:});
     end
     
     function hFgs = labelOverlayMontage(obj,varargin)
@@ -5350,7 +5508,7 @@ classdef Labeler < handle
           'denominator',nrow);
         oc = onCleanup(@()wbObj.endPeriod);
         wbtime = tic;
-        maxwbtime = 1; % update waitbar every second
+        maxwbtime = .1; % update waitbar every second
       end
       
       % Maybe Optimize: group movies together
@@ -6979,9 +7137,19 @@ classdef Labeler < handle
     
     function s = trackCreateDeepTrackerStrippedLbl(obj)
       % For use with DeepTrackers
+      
       s = obj.projGetSaveStruct();
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
+      
+      cellOfObjArrs2CellOfStructArrs = ...
+        @(x)cellfun(@(y)arrayfun(@struct,y),x,'uni',0); % note, y can be []
+      warnst = warning('off','MATLAB:structOnObject');
+      s.movieFilesAllCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllCropInfo);
+      s.movieFilesAllGTCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllGTCropInfo);
+      warning(warnst);
+      s.cropProjHasCrops = obj.cropProjHasCrops;
+      
       tf = strcmp(s.trackerClass,'DeepTracker');
       i = find(tf);
       switch numel(i)
@@ -7113,14 +7281,64 @@ classdef Labeler < handle
     function trackCrossValidate(obj,varargin)
       % Run k-fold crossvalidation. Results stored in .xvResults
       
-      [kFold,initData,wbObj,tblMFgt] = myparse(varargin,...
+      [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTrn,partTst] = ...
+        myparse(varargin,...
         'kfold',7,... % number of folds
         'initData',true,... % if true, call .initData() between folds to minimize mem usage
-        'wbObj',[],... % WaitBarWithCancel
-        'tblMFgt',[]... % optional, labeled/gt data to use
-        );
+        'wbObj',[],... % (opt) WaitBarWithCancel
+        'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
+        'tblMFgtIsFinal',false,... % a bit silly, for APT developers only. Set to true if your tblMFgt is in final form.
+        'partTrn',[],... % (opt) pre-defined training splits. If supplied, partTrn must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied.
+        'partTst',[]... % (opt) etc see partTrn
+      );        
       
-      tfWB = ~isempty(wbObj);      
+      tfWB = ~isempty(wbObj);
+      tfTblMFgt = ~isempty(tblMFgt);      
+      tfPart = ~isempty(partTrn);
+      assert(tfPart==~isempty(partTst));
+      
+      if obj.gtIsGTMode
+        error('Unsupported in GT mode.');
+      end
+      
+      if ~tfTblMFgt
+        tblMFgt = obj.preProcGetMFTableLbled();
+      elseif ~tblMFgtIsFinal
+        FLDSID = MFTable.FLDSID;
+        tblfldsassert(tblMFgt,FLDSID);
+        assert(isa(tblMFgt.mov,'MovieIndex'));
+        [~,gt] = tblMFgt.mov.get();
+        assert(~any(gt));
+        tblMFgt.mov = int32(tblMFgt.mov); % innerjoin below doesn't like MovieIndices
+        tblMFgt0 = tblMFgt; % remember original row ordering
+        tblLbled = obj.preProcGetMFTableLbled();
+        tblLbled.mov = int32(tblLbled.mov); % innerjoin below doesn't like MovieIndices
+        assert(height(tblMFgt)==height(tblLbled));
+        tblMFgt = innerjoin(tblMFgt,tblLbled,'keys',FLDSID); % using join would prob preserve row order of tblMFgt
+        [~,loc] = ismember(tblMFgt0,tblMFgt(:,FLDSID));
+        tblMFgt = tblMFgt(loc,:);
+        assert(isequal(tblMFgt(:,FLDSID),tblMFgt0));
+        tblMFgt.mov = MovieIndex(tblMFgt.mov);
+      else
+        % tblMFgt supplied, and should have labels etc.
+      end
+      assert(isa(tblMFgt.mov,'MovieIndex'));
+      
+      if ~tfPart
+        movC = categorical(tblMFgt.mov);
+        tgtC = categorical(tblMFgt.iTgt);
+        grpC = movC.*tgtC;
+        cvPart = cvpartition(grpC,'kfold',kFold);
+        partTrn = arrayfun(@(x)cvPart.training(x),1:kFold,'uni',0);
+        partTst = arrayfun(@(x)cvPart.test(x),1:kFold,'uni',0);
+        partTrn = cat(2,partTrn{:});
+        partTst = cat(2,partTst{:});
+      end
+      n = height(tblMFgt);
+      szassert(partTrn,[n kFold]);
+      szassert(partTst,[n kFold]);
+      tmp = partTrn+partTst;
+      assert(all(tmp(:)==1),'Invalid cv splits specified.');
       
       tObj = obj.tracker;
       if isempty(tObj)
@@ -7128,19 +7346,8 @@ classdef Labeler < handle
       end
       if ~strcmp(tObj.algorithmName,'cpr')
         % DeepTrackers do non-blocking/bg tracking
-        error('Only CPR tracking supported.');
-      end
-
-      % Get labeled/gt data
-      if isempty(tblMFgt)
-        tblMFgt = obj.preProcGetMFTableLbled();
-      end
-      
-      % Partition MFT table
-      movC = categorical(tblMFgt.mov);
-      tgtC = categorical(tblMFgt.iTgt);
-      grpC = movC.*tgtC;
-      cvPart = cvpartition(grpC,'kfold',kFold);
+        error('Only CPR tracking currently supported.');
+      end      
 
       obj.preProcUpdateH0IfNec();
       
@@ -7164,8 +7371,10 @@ classdef Labeler < handle
         if tfWB
           wbObj.updateFracWithNumDen(iFold);
         end
-        tblMFgtTrain = tblMFgt(cvPart.training(iFold),:);
-        tblMFgtTrack = tblMFgt(cvPart.test(iFold),:);
+        tblMFgtTrain = tblMFgt(partTrn(:,iFold),:);
+        tblMFgtTrack = tblMFgt(partTst(:,iFold),:);
+        fprintf(1,'Fold %d: nTrain=%d, nTest=%d.\n',iFold,...
+          height(tblMFgtTrain),height(tblMFgtTrack));
         if tfWB
           wbObj.startPeriod('Training','nobar',true);
         end
@@ -7845,6 +8054,8 @@ classdef Labeler < handle
       if obj.hasTrx && tf
         error('User-specied cropping is unsupported for projects with trx.');
       end
+      
+      obj.cropCheckCropSizeConsistency();
       obj.cropIsCropMode = tf;
       obj.notify('cropIsCropModeChanged');
     end
@@ -7860,8 +8071,8 @@ classdef Labeler < handle
       ncall = cellfun(@(x)x.info.nc,movInfos); % etc
       nrmin = min(nrall,[],1); % [1xnview]
       ncmin = min(ncall,[],1); % [1xnview]
-      widthMax = ncmin(:)-1; % col1..col<ncmin>
-      heightMax = nrmin(:)-1;
+      widthMax = ncmin(:)-1; % col1..col<ncmin>. Minus 1 for posn vs roi 
+      heightMax = nrmin(:)-1; % etc
       whMaxAllowed = [widthMax heightMax];
       whDefault = whMaxAllowed/2;
     end
@@ -7873,18 +8084,32 @@ classdef Labeler < handle
       % wh: [nviewx2] widthHeight of default crop size used. See defns at 
       % top of CropInfo.m.      
       wh = obj.cropComputeDfltWidthHeight;
-      obj.cropInitCropsHlp(wh,'movieInfoAll','movieFilesAllCropInfo');
-      obj.cropInitCropsHlp(wh,'movieInfoAllGT','movieFilesAllGTCropInfo');
+      obj.cropInitCropsGen(wh,'movieInfoAll','movieFilesAllCropInfo');
+      obj.cropInitCropsGen(wh,'movieInfoAllGT','movieFilesAllGTCropInfo');
       obj.preProcNonstandardParamChanged();
       obj.notify('cropCropsChanged');
     end
-    function cropInitCropsHlp(obj,widthHeight,fldMIA,fldMFACI)
+    function cropInitCropsGen(obj,widthHeight,fldMIA,fldMFACI,varargin)
+      % Init crops for certain movies
+      % 
+      % widthHeight: [nviewx2]
+      
+      iMov = myparse(varargin,...
+        'iMov','__undef__'); % if supplied, indices into .(fldMIA), .(fldMFACI). latter will be initialized
+
       movInfoAll = obj.(fldMIA);
       [nmov,nvw] = size(movInfoAll);
       szassert(widthHeight,[nvw 2]);
+
+      if strcmp(iMov,'__undef__')
+        iMov = 1:nmov;
+      else
+        iMov = iMov(:)';
+      end
+      
       for ivw=1:nvw
         whview = widthHeight(ivw,:);
-        for i=1:nmov
+        for i=iMov
           ifo = movInfoAll{i,ivw}.info;
           xyCtr = (1+[ifo.nc ifo.nr])/2;
           posnCtrd = [xyCtr whview];
@@ -8020,6 +8245,158 @@ classdef Labeler < handle
       obj.movieFilesAllGTCropInfo(:) = {CropInfo.empty(0,0)};
       obj.notify('cropCropsChanged'); 
     end
+    
+    function wh = cropGetCurrentCropWidthHeightOrDefault(obj)
+      % If obj.cropProjHasCropInfo is true, get current crop width/height.
+      % Otherwise, get default widthHeight.
+      %
+      % Assumes that the proj has at least one regular movie.
+      %
+      % wh: [nview x 2]
+      
+      ci = obj.movieFilesAllCropInfo{1}; 
+      if ~isempty(ci)
+        roi = cat(1,ci.roi);
+        posn = CropInfo.roi2RectPos(roi);
+        wh = posn(:,3:4);
+      else
+        wh = obj.cropComputeDfltWidthHeight();
+      end
+      szassert(wh,[obj.nview 2]);
+    end
+    
+    function cropCheckCropSizeConsistency(obj)
+      % Crop size integrity check. Like a big assert.
+      
+      if obj.cropProjHasCrops
+        cInfoAll = [obj.movieFilesAllCropInfo; obj.movieFilesAllGTCropInfo];
+        roisAll = cellfun(@(x)cat(1,x.roi),cInfoAll,'uni',0);
+        posnAll = cellfun(@CropInfo.roi2RectPos,roisAll,'uni',0); % posnAll{i} is [nview x 4]
+        whAll = cellfun(@(x)x(:,3:4),posnAll,'uni',0);
+        whAll = cat(3,whAll{:});
+        nCIAll = numel(cInfoAll);
+        szassert(whAll,[obj.nview 2 nCIAll]); % ivw, w/h, cropInfo
+        assert(isequal(repmat(whAll(:,:,1),1,1,nCIAll),whAll),...
+          'Unexpected inconsistency crop sizes.')
+      end      
+    end
+    
+    function rois = cropGetAllRois(obj)
+      % Get all rois per current GT mode
+      %
+      % rois: [nmovGTaware x 4 x nview]
+      
+      if ~obj.cropProjHasCrops
+        error('Project does not have crops defined.');
+      end
+      
+      cInfoAll = obj.movieFilesAllCropInfoGTaware;
+      rois = cellfun(@(x)cat(1,x.roi),cInfoAll,'uni',0);
+      rois = cat(3,rois{:}); % nview, {xlo/xhi/ylo/yhi}, nmov
+      rois = permute(rois,[3 2 1]);    
+    end 
+    
+    function hFig = cropMontage(obj,varargin)
+      % Create crop montages for all views. Per current GT state.
+      %
+      % hFig: [nfig] figure handles
+      
+      [type,nr,nc,plotlabelcolor,figargs] = myparse(varargin,...
+        'type','wide',... either 'wide' or 'cropped'. wide shows rois in context of full im. 
+        'nr',9,... % number of rows in montage
+        'nc',10,... % etc
+        'plotlabelcolor',[1 1 0],...
+        'figargs',{'WindowStyle','docked'});
+      
+      if obj.hasTrx
+        error('Unsupported for projects with trx.');
+      end
+      if ~obj.cropProjHasCrops
+        error('Project does not have crops defined.');
+      end
+      
+      switch lower(type)
+        case 'wide', tfWide = true;
+        case 'cropped', tfWide = false;
+        otherwise, assert(false);
+      end
+      
+      % get MFTable to pull first frame of each mov
+      mov = obj.movieFilesAllFullGTaware;
+      nmov = size(mov,1);
+      if nmov==0
+        error('No movies.');
+      end
+      frm = ones(nmov,1);
+      iTgt = ones(nmov,1);
+      tblMFT = table(mov,frm,iTgt);
+      wbObj = WaitBarWithCancel('Montage');
+      oc = onCleanup(@()delete(wbObj));      
+      I1 = CPRData.getFrames(tblMFT,...
+        'movieInvert',obj.movieInvert,...
+        'wbObj',wbObj);
+
+      roisAll = obj.cropGetAllRois;      
+      
+      nvw = obj.nview;
+      if ~tfWide
+        for imov=1:nmov
+          for ivw=1:nvw
+            roi = roisAll(imov,:,ivw);
+            I1{imov,ivw} = I1{imov,ivw}(roi(3):roi(4),roi(1):roi(2));
+          end
+        end
+      end
+
+      nplotperbatch = nr*nc;
+      nbatch = ceil(nmov/nplotperbatch);
+      szassert(I1,[nmov nvw]);
+      szassert(roisAll,[nmov 4 nvw]);
+      hFig = gobjects(0,1);
+      for ivw=1:nvw
+        roi1 = roisAll(1,:,ivw);
+        pos1 = CropInfo.roi2RectPos(roi1);
+        wh = pos1(3:4)+1;
+        
+        if tfWide
+          imsz = cellfun(@size,I1(:,ivw),'uni',0);
+          imsz = cat(1,imsz{:}); % will err if some ims are color etc
+          imszUn = unique(imsz,'rows');
+          tfImsHeterogeneousSz = size(imszUn,1)>1;
+        end
+        
+        for ibatch=1:nbatch
+          imovs = (1:nplotperbatch) + (ibatch-1)*nplotperbatch;
+          imovs(imovs>nmov)= [];
+          figstr = sprintf('movs %d->%d. view %d.',...
+            imovs(1),imovs(end),ivw);
+          titlestr = sprintf('movs %d->%d. view %d. [w h]: %s',...
+            imovs(1),imovs(end),ivw,mat2str(wh));
+          
+          hFig(end+1,1) = figure(figargs{:}); %#ok<AGROW>
+          hFig(end).Name = figstr;
+          
+          if tfWide
+            Shape.montage(I1(:,ivw),nan(nmov,2),...
+              'fig',hFig(end),...
+              'nr',nr,'nc',nc,'idxs',imovs,...
+              'rois',roisAll(:,:,ivw),...
+              'imsHeterogeneousSz',tfImsHeterogeneousSz,...
+              'framelbls',arrayfun(@num2str,imovs,'uni',0),...
+              'framelblscolor',plotlabelcolor,...
+              'titlestr',titlestr);
+          else
+            Shape.montage(I1(:,ivw),nan(nmov,2),...
+              'fig',hFig(end),...
+              'nr',nr,'nc',nc,'idxs',imovs,...
+              'framelbls',arrayfun(@num2str,imovs,'uni',0),...
+              'framelblscolor',plotlabelcolor,...
+              'titlestr',titlestr);
+          end
+        end
+      end        
+    end
+            
   end
  
   
@@ -8655,14 +9032,14 @@ classdef Labeler < handle
       obj.labels2VizUpdate();
     end
     
-    function labels2ImportTrkPrompt(obj,iMovs)
-      % See labelImportTrkPrompt().
+    function labels2ImportTrkPromptAuto(obj,iMovs)
+      % See labelImportTrkPromptAuto().
       % iMovs: works per current GT mode
       
       if exist('iMovs','var')==0
         iMovs = 1:obj.nmoviesGTaware;
       end      
-      obj.labelImportTrkPromptGeneric(iMovs,'labels2ImportTrk');
+      obj.labelImportTrkPromptGenericAuto(iMovs,'labels2ImportTrk');
     end
    
     function labels2ImportTrk(obj,iMovs,trkfiles)
@@ -8679,7 +9056,7 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:nomov','No movie is loaded.');
       end
-      obj.labels2ImportTrkPrompt(obj.currMovie);
+      obj.labels2ImportTrkPromptAuto(obj.currMovie);
     end
     
     function labels2ExportTrk(obj,iMovs,varargin)

@@ -15,27 +15,45 @@ classdef DeepTrackerTrackingWorkerObj < handle
     
     mIdx % Movie index
     nview % number of views
-    movfiles % full paths movie being tracked    
-    trkfiles % full paths trkfile to be generated/output
+    movfiles % full paths movie being tracked
+    artfctTrkfiles % [nview] full paths trkfile to be generated/output
+    artfctBsubLogs % [nview] cellstr of fullpaths to bsub logs
+    artfctErrFile % char fullpath to DL errfile    
   end
   
   methods
-    function obj = DeepTrackerTrackingWorkerObj(mIdx,nvw,movfiles,outfiles)
-      assert(isequal(nvw,numel(movfiles),numel(outfiles)));
+    function obj = DeepTrackerTrackingWorkerObj(mIdx,nvw,movfiles,...
+        outfiles,bsublogfiles,dlerrfile)
+      
+      assert(isequal(nvw,numel(movfiles),numel(outfiles),...
+        numel(bsublogfiles))); 
+      
       obj.mIdx = mIdx;
       obj.nview = nvw;
       obj.movfiles = movfiles(:);
-      obj.trkfiles = outfiles(:);
+      obj.artfctTrkfiles = outfiles(:);
+      obj.artfctBsubLogs = bsublogfiles(:);
+      obj.artfctErrFile = dlerrfile;
     end    
     function sRes = compute(obj)
-      % sRes: [nview] struct array
+      % sRes: [nview] struct array      
+      
+      tfErrFileErr = ...
+        DeepTrackerTrainingWorkerObj.errFileExistsNonZeroSize(obj.artfctErrFile);
+      
+      bsuberrlikely = cellfun(@(x)exist(x,'file')>0 && ...
+        DeepTrackerTrainingWorkerObj.parseBsubLogFile(x),obj.artfctBsubLogs,'uni',0);
       
       sRes = struct(...
-        'tfcomplete',cellfun(@(x)exist(x,'file')>0,obj.trkfiles,'uni',0),...
+        'tfcomplete',cellfun(@(x)exist(x,'file')>0,obj.artfctTrkfiles,'uni',0),...
+        'errFile',obj.artfctErrFile,... % char, full path to DL err file
+        'errFileExists',tfErrFileErr,... % true of errFile exists and has size>0
+        'bsubLogFile',obj.artfctBsubLogs,... % char, full path to Bsub logfile
+        'bsubLogFileErrLikely',bsuberrlikely,... % true if bsub logfile looks like err
         'mIdx',obj.mIdx,...
         'iview',num2cell((1:obj.nview)'),...
         'movfile',obj.movfiles,...
-        'trkfile',obj.trkfiles);
+        'trkfile',obj.artfctTrkfiles);
     end
   end
   

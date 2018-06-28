@@ -38,6 +38,9 @@ classdef DeepTracker < LabelTracker
 
     % - Right now you can only have one track running at a time.
     
+    trkGenHeatMaps % transient, scalar logical. If true, include --hmaps opt
+      % to generate heatmaps on disk
+   
     trkSysInfo % [nview] struct array of info used for current or most 
     % recent tracking codegen/system call. currently only used for 
     % debugging, printing logfiles etc.
@@ -206,8 +209,9 @@ classdef DeepTracker < LabelTracker
       if isempty(projname)
         error('Please give your project a name. The project name will be used to identify your trained models on disk.');
       end
-      trnID = datestr(now,'yyyymmddTHHMMSS');
-      
+      trnID = datestr(now,'yyyymmddTHHMMSS');      
+
+      fprintf(1,'\n');
 
       if ~isempty(obj.trnName)
         trnNameOld = fullfile(cacheDir,'...',obj.trnName);
@@ -349,7 +353,7 @@ classdef DeepTracker < LabelTracker
 
           fprintf(1,'Error occurred during training:\n');      
           errFile = sRes.result(i).bsubLogFile;
-          fprintf(1,'\n### %s\n\n',sRes.result(i).bsubLogFile);
+          fprintf(1,'\n### %s\n\n',errFile);
           type(errFile);
           fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
 
@@ -407,6 +411,8 @@ classdef DeepTracker < LabelTracker
       end
       tMFTConc = obj.lObj.mftTableConcretizeMov(tblMFT);
       
+      fprintf(1,'\n');
+
       tftrx = obj.lObj.hasTrx;
       if tftrx
         trxids = unique(tblMFT.iTgt);
@@ -445,6 +451,7 @@ classdef DeepTracker < LabelTracker
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       trnstr = sprintf('trn%s',trnID);
       
+      tfHeatMap = ~isempty(obj.trkGenHeatMaps) && obj.trkGenHeatMaps;
       % info for code-generation. for now we just record a struct so we can
       % more conveniently read logfiles etc. in future this could be an obj
       % that has a codegen method etc.
@@ -465,6 +472,9 @@ classdef DeepTracker < LabelTracker
         if tftrx
           baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
         end
+        if tfHeatMap
+          baseargs = [baseargs {'hmaps' true}];
+        end
         bsubargs = {'outfile' outfile};
         sshargs = {'logfile' outfile2};        
         
@@ -481,7 +491,8 @@ classdef DeepTracker < LabelTracker
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
       else
-        obj.bgTrkPrepareMonitor(mIdx,nView,movs,{trksysinfo.trkfile}');
+        obj.bgTrkPrepareMonitor(mIdx,nView,movs,{trksysinfo.trkfile}',...
+          {trksysinfo.logfilebsub}');
         obj.bgTrkStart();
         
         for ivw=1:nView
@@ -489,9 +500,7 @@ classdef DeepTracker < LabelTracker
           system(trksysinfo(ivw).codestr);
         end
         
-        obj.trkSysInfo = trksysinfo;        
-        
-        % what happens on err?
+        obj.trkSysInfo = trksysinfo;
       end
     end
     
@@ -503,7 +512,11 @@ classdef DeepTracker < LabelTracker
       for ivw=1:obj.nview
         logfile = tsInfo(ivw).logfilebsub;
         fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
-        type(logfile);
+        if exist(logfile,'file')>0
+          type(logfile);
+        else
+          fprintf(1,' ... logfile does not exist yet\n');
+        end
       end
     end
     
@@ -519,11 +532,20 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitorWorkerObj = [];      
     end
     
-    function bgTrkPrepareMonitor(obj,mIdx,nview,movfiles,outfiles)
+    function bgTrkPrepareMonitor(obj,mIdx,nview,movfiles,outfiles,...
+        bsublogfiles)
+      
+      errFile = DeepTracker.dlerrGetErrFile(obj.trnName);
+      tfErrFileErr = DeepTrackerTrainingWorkerObj.errFileExistsNonZeroSize(errFile);
+      if tfErrFileErr
+        error('There is an error in the DeepLearning error file ''%s''. If you are certain you would like to proceed, first delete this file.',...
+          errFile);
+      end
+      
       obj.bgTrkReset();
-
       cbkResult = @obj.bgTrkResultsReceived;
-      workerObj = DeepTrackerTrackingWorkerObj(mIdx,nview,movfiles,outfiles);
+      workerObj = DeepTrackerTrackingWorkerObj(mIdx,nview,movfiles,...
+        outfiles,bsublogfiles,errFile);
       bgc = BGClient;
       fprintf(1,'Configuring tracking background worker...\n');
       bgc.configure(cbkResult,workerObj,'compute');
@@ -537,7 +559,35 @@ classdef DeepTracker < LabelTracker
     end
     
     function bgTrkResultsReceived(obj,sRes)
-      res = sRes.result;
+      res = sRes.result;      
+      
+      errOccurred = any([res.errFileExists]);
+      if errOccurred
+        obj.bgTrkStop();
+
+        fprintf(1,'Error occurred during tracking:\n');      
+        errFile = res(1).errFile; % currently, errFiles same for all views
+        fprintf(1,'\n### %s\n\n',errFile);
+        type(errFile);
+        fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
+
+        % bgTrkReset not called
+      end
+
+      for i=1:numel(res)
+        if res(i).bsubLogFileErrLikely
+          obj.bgTrkStop();
+
+          fprintf(1,'Error occurred during tracking:\n');      
+          errFile = res(i).bsubLogFile;
+          fprintf(1,'\n### %s\n\n',errFile);
+          type(errFile);
+          fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
+
+          % bgTrkReset not called 
+        end
+      end
+      
       tfdone = all([res.tfcomplete]);
       if tfdone
         fprintf(1,'Tracking output files detected:\n');
@@ -593,7 +643,7 @@ classdef DeepTracker < LabelTracker
         '/scratch'};      
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg','/misc/local/singularity/branson_v2.simg');
+        'singimg','/misc/local/singularity/branson_v3.simg');
       
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});
@@ -649,10 +699,12 @@ classdef DeepTracker < LabelTracker
     end    
 
     function codestr = trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
-      [trxtrk,trxids,view] = myparse(varargin,...
+      [trxtrk,trxids,view,hmaps] = myparse(varargin,...
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
-        'view',[]); % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
+        'view',[],... % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
+        'hmaps',false... % (opt) if true, generate heatmaps
+        ); 
       
       tftrx = ~isempty(trxtrk);
       tftrxids = ~isempty(trxids);
@@ -675,6 +727,9 @@ classdef DeepTracker < LabelTracker
           trxidstr = trxidstr(1:end-1);
           codestr = sprintf('%s -trx_ids %s',codestr,trxidstr);
         end
+      end
+      if hmaps
+        codestr = sprintf('%s -hmaps',codestr);
       end
     end
     function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
