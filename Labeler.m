@@ -4320,8 +4320,13 @@ classdef Labeler < handle
         basename = '$movfile';
       end
       
+      gt = obj.gtIsGTMode;
       if labels
-        basename = [basename '_labels'];
+        if gt
+          basename = [basename '_gtlabels'];
+        else
+          basename = [basename '_labels'];
+        end
       end
       
       rawname = fullfile('$movdir',basename);
@@ -4344,12 +4349,17 @@ classdef Labeler < handle
     end
     
     function fname = getDefaultFilenameExportLabelTable(obj)
-      if ~isempty(obj.projectfile)
-        rawname = '$projdir/$projfile_labels.mat';
-      elseif ~isempty(obj.projname)
-        rawname = '$projdir/$projname_labels.mat';
+      if obj.gtIsGTMode
+        lblstr = 'gtlabels';
       else
-        rawname = '$projdir/labels.mat';
+        lblstr = 'labels';
+      end
+      if ~isempty(obj.projectfile)
+        rawname = ['$projdir/$projfile_' lblstr '.mat'];
+      elseif ~isempty(obj.projname)
+        rawname = ['$projdir/$projname_' lblstr '.mat'];
+      else
+        rawname = ['$projdir/' lblstr '.mat'];
       end
       sMacro = obj.baseTrkFileMacros();
       fname = FSPath.macroReplace(rawname,sMacro);
