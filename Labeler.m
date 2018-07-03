@@ -232,7 +232,7 @@ classdef Labeler < handle
     nmovies;
     nmoviesGT;
     nmoviesGTaware;
-    moviesSelected; % [nSel] vector of movie indices currently selected in MovieManager
+    moviesSelected; % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
   end
   
   %% Crop
@@ -679,6 +679,7 @@ classdef Labeler < handle
     end
     function v = get.moviesSelected(obj) %#%GUIREQ
       % Find MovieManager in LabelerGUI
+      
       handles = obj.gdata;
       if isfield(handles,'movieMgr')
         mmc = handles.movieMgr;
@@ -6063,11 +6064,11 @@ classdef Labeler < handle
     function PROPS = gtGetSharedProps(obj)
       PROPS = Labeler.gtGetSharedPropsStc(obj.gtIsGTMode);
     end
-    function gtInitSuggestions(obj,gtSuggType,nSamp)
-      % Init/set GT suggestions using gtGenerateSuggestions
-      tblMFT = obj.gtGenerateSuggestions(gtSuggType,nSamp);
-      obj.gtSetUserSuggestions(tblMFT);
-    end
+%     function gtInitSuggestions(obj,gtSuggType,nSamp)
+%       % Init/set GT suggestions using gtGenerateSuggestions
+%       tblMFT = obj.gtGenerateSuggestions(gtSuggType,nSamp);
+%       obj.gtSetUserSuggestions(tblMFT);
+%     end
     function gtSetUserSuggestions(obj,tblMFT,varargin)
       % Set user-specified/defined GT suggestions
       % tblMFT: .mov (MovieIndices), .frm, .iTgt
@@ -6167,14 +6168,14 @@ classdef Labeler < handle
         obj.notify('gtSuggMFTableLbledUpdated');
       end
     end
-    function tblMFT = gtGenerateSuggestions(obj,gtSuggType,nSamp)
-      assert(isa(gtSuggType,'GTSuggestionType'));
-      
-      % Start with full table (every frame), then sample
-      mfts = MFTSetEnum.AllMovAllTgtAllFrm;
-      tblMFT = mfts.getMFTable(obj);
-      tblMFT = gtSuggType.sampleMFTTable(tblMFT,nSamp);
-    end
+%     function tblMFT = gtGenerateSuggestions(obj,gtSuggType,nSamp)
+%       assert(isa(gtSuggType,'GTSuggestionType'));
+%       
+%       % Start with full table (every frame), then sample
+%       mfts = MFTSetEnum.AllMovAllTgtAllFrm;
+%       tblMFT = mfts.getMFTable(obj);
+%       tblMFT = gtSuggType.sampleMFTTable(tblMFT,nSamp);
+%     end
     function [tf,idx] = gtCurrMovFrmTgtIsInGTSuggestions(obj)
       % Determine if current movie/frm/target is in gt suggestions.
       % 
@@ -6376,6 +6377,39 @@ classdef Labeler < handle
       else
         warningNoTrace('Not in GT mode.');
       end
+    end
+    function [iMov,iMovGT] = gtCommonMoviesRegGT(obj)
+      % Find movies common to both regular and GT lists
+      %
+      % For multiview projs, movienames must match across all views
+      % 
+      % iMov: vector of positive ints, reg movie(set) indices
+      % iMovGT: " gt movie(set) indices
+      
+      nvw = obj.nview;
+      mfaf = obj.movieFilesAllFull;
+      mfafGT = obj.movieFilesAllGTFull;
+      for ivw=nvw:-1:1
+        [tf(:,ivw),loc(:,ivw)] = ismember(mfafGT(:,ivw),mfaf(:,ivw));
+      end
+      
+      tf = all(tf,2);
+      iMovGT = find(tf);
+      nMovGTinReg = numel(iMovGT);
+      iMov = zeros(nMovGTinReg,1);
+      for i=1:nMovGTinReg
+        locUn = unique(loc(iMovGT(i),:));
+        if isscalar(locUn)
+          iMov(i) = locUn;
+        else
+          warningNoTrace('Inconsistency in movielists detected across views.');
+          % iMov(i) initted to 0
+        end
+      end
+      
+      tfRm = iMov==0;
+      iMovGT(tfRm,:) = [];
+      iMov(tfRm,:) = [];      
     end
   end
   methods (Static)

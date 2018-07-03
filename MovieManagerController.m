@@ -17,6 +17,10 @@ classdef MovieManagerController < handle
     mmTblCurr % element of .mmTbls for given .gtSelected
   end
   
+  events
+    tableClicked % fires when any movietable is clicked
+  end
+  
   methods
     function v = get.gtTabSelected(obj)
       v = obj.hTG.SelectedTab==obj.hTabs(2);
@@ -79,7 +83,6 @@ classdef MovieManagerController < handle
       delete(obj.mmTbls);
       obj.mmTbls = [];
     end
-
     
     function tabSetup(obj)
       obj.hTG = uitabgroup(obj.hFig,...
@@ -109,6 +112,8 @@ classdef MovieManagerController < handle
       tblOrig.Visible = 'off';
       tblReg = MovieManagerTable.create(obj.labeler.nview,tblOrig.Parent,...
         tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
+      obj.listeners{end+1,1} = addlistener(tblReg,'tableClicked',...
+        @(s,e)obj.notify('tableClicked'));
       
       % Copy stuff onto GT tab
       HANDLES = {'uipanel1' 'pbSwitch' 'pbAdd' 'pbRm'};
@@ -128,6 +133,8 @@ classdef MovieManagerController < handle
       gdata(2).pbSwitch = [];
       tblGT = MovieManagerTable.create(obj.labeler.nview,gdata(2).uipanel1,...
         tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
+      obj.listeners{end+1,1} = addlistener(tblGT,'tableClicked',...
+        @(s,e)obj.notify('tableClicked'));
       
       obj.mmTbls = [tblReg tblGT];
       obj.tabHandles = gdata;
@@ -148,11 +155,9 @@ classdef MovieManagerController < handle
       end
     end
         
-    function iMovSgned = getSelectedMovies(obj)
-      iMovSgned = obj.mmTblCurr.getSelectedMovies();
-      if obj.gtTabSelected
-        iMovSgned = -iMovSgned;
-      end
+    function mIdx = getSelectedMovies(obj)
+      iMovs = obj.mmTblCurr.getSelectedMovies();
+      mIdx = MovieIndex(iMovs,obj.gtTabSelected);
     end
     
     function cbkTabGrpSelChanged(obj,src,evt)
@@ -222,8 +227,8 @@ classdef MovieManagerController < handle
         otherwise
           assert(false);
       end
-    end
-    
+    end   
+  
     function lblerLstnCbkUpdateTable(obj,src,evt)
       obj.hlpLblerLstnCbkUpdateTable(false);
     end
