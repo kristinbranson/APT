@@ -63,7 +63,7 @@ set(handles.txLblCoreAux,'Visible','off');
 
 %handles.pnlSusp.Visible = 'off';
 
-handles=LabelerTooltips(handles); % would be cool to have a toggle to NOT do this for advanced users -- the tooltips are annoying as shit once you know what you're doing.
+handles=LabelerTooltips(handles); 
 
 PURP = [80 31 124]/256;
 handles.tbTLSelectMode.BackgroundColor = PURP;
@@ -533,7 +533,7 @@ handles.pbPlay.BackgroundColor = handles.edit_frame.BackgroundColor;
 handles.pbPlaySeg.CData = Icons.ims.playsegment;
 handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
-handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated';
+%handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated';
 
 % color of status bar when GUI is busy vs idle
 handles.idlestatuscolor = [0,1,0];
@@ -823,6 +823,8 @@ handles = lObj.gdata;
 
 handles = clearDepHandles(handles);
 
+SetStatus(handles,'Creating New Project',true);
+
 % figs, axes, images
 deleteValidHandles(handles.figs_all(2:end));
 handles.figs_all = handles.figs_all(1);
@@ -951,10 +953,12 @@ handles.GTMgr.Visible = 'off';
 handles = addDepHandle(handles,handles.GTMgr);
 
 guidata(handles.figure,handles);
+ClearStatus(handles);
   
 function cbkNewMovie(src,evt)
 lObj = src;
 handles = lObj.gdata;
+
 %movRdrs = lObj.movieReader;
 %ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
 hAxs = handles.axes_all;
@@ -970,6 +974,7 @@ if isfield(handles,'newProjAxLimsSetInConfig')
   handles = rmfield(handles,'newProjAxLimsSetInConfig');
 end
 tfResetCLims = evt.isFirstMovieOfProject;
+
 
 % Deal with Axis and Color limits.
 for iView = 1:lObj.nview	  
@@ -1579,6 +1584,7 @@ function pbTrain_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
+SetStatus(handles,'Training...');
 wbObj = WaitBarWithCancel('Training');
 oc = onCleanup(@()delete(wbObj));
 centerOnParentFigure(wbObj.hWB,handles.figure);
@@ -1587,6 +1593,7 @@ if wbObj.isCancel
   msg = wbObj.cancelMessage('Training canceled');
   msgbox(msg,'Train');
 end
+ClearStatus(handles);
   
 function pbTrack_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
@@ -2794,6 +2801,9 @@ end
 
 function menu_evaluate_gtmode_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
+
+SetStatus(handles,'Switching between Labeling and Ground Truth Mode...');
+
 gt = lObj.gtIsGTMode;
 gtNew = ~gt;
 lObj.gtSetGTMode(gtNew);
@@ -2803,6 +2813,8 @@ if gtNew
   hMovMgr.setVisible(true);
   figure(hMovMgr.hFig);
 end
+ClearStatus(handles);
+
 
 function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -3040,10 +3052,10 @@ handles.labelerObj.cropClearAllCrops();
 % -------------------------------------------------------------------------
 function SetStatus(handles,s,isbusy)
 
-if nargin < 3,
+if nargin < 3
   isbusy = true;
 end
-if isbusy,
+if isbusy
   color = handles.busystatuscolor;
   set(handles.figure,'Pointer','watch');
 else
@@ -3052,7 +3064,7 @@ else
 end
 set(handles.txStatus,'ForegroundColor',color,'String',s);
 drawnow('limitrate');
-if ~isbusy,
+if ~isbusy
   syncStatusBarTextWhenClear(handles);
 end
 
