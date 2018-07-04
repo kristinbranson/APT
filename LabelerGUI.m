@@ -239,7 +239,9 @@ handles.menu_track_training_data_montage = uimenu(...
   'Label','Training Data Montage',...
   'Tag','menu_track_training_data_montage',...
   'Callback',@(h,evtdata)LabelerGUI('menu_track_training_data_montage_Callback',h,evtdata,guidata(h)));
-moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
+%moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
+moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_setparametersfile);
+delete(handles.menu_track_select_training_data);
 
 moveMenuItemAfter(handles.menu_track_track_and_export,handles.menu_track_retrain);
 
@@ -544,7 +546,7 @@ handles.pbPlay.BackgroundColor = handles.edit_frame.BackgroundColor;
 handles.pbPlaySeg.CData = Icons.ims.playsegment;
 handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
-%handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated';
+%handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated'; % this is set in LabelerTooltips now
 
 % color of status bar when GUI is busy vs idle
 handles.idlestatuscolor = [0,1,0];
