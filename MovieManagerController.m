@@ -221,9 +221,7 @@ classdef MovieManagerController < handle
             lObj.movieSet(iMov);
           end
         case 'pbGTFrames'
-          hGTMgr = lObj.gdata.GTMgr;
-          hGTMgr.Visible = 'on';
-          figure(hGTMgr);
+          lObj.gtShowGTManager();
         otherwise
           assert(false);
       end

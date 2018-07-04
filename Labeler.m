@@ -541,6 +541,30 @@ classdef Labeler < handle
         end
       end
     end
+    function [tffound,mIdx] = getMovIdxMovieFilesAllGTFull(obj,movsets)
+      % Get the MovieIndex vector corresponding to a set of movies by
+      % comparing against .movieFilesAllGTFull. 
+      %
+      % movsets: [n x nview] movie fullpaths. Can have repeated
+      % rows/moviesets.
+      %
+      % tffound: [n x 1] logical
+      % mIdx: [n x 1] MovieIndex vector. mIdx(i)==0<=>tffound(i)==false.
+      
+      [nmovset,nvw] = size(movsets);
+      assert(nvw==obj.nview);
+      
+      movsets = FSPath.standardPath(movsets);
+      movsets = cellfun(@FSPath.platformizePath,movsets,'uni',0);
+      [iMov1,iMovGT] = Labeler.identifyCommonMovSets(...
+        movsets,obj.movieFilesAllGTFull);
+      
+      tffound = false(nmovset,1);
+      tffound(iMov1,:) = true;
+      mIdx = zeros(nmovset,1);
+      mIdx(iMov1) = -iMovGT;
+      mIdx = MovieIndex(mIdx);
+    end
     function v = get.movieFilesAllHaveLblsGTaware(obj)
       v = obj.getMovieFilesAllHaveLblsArg(obj.gtIsGTMode);
     end
@@ -6378,6 +6402,11 @@ classdef Labeler < handle
         warningNoTrace('Not in GT mode.');
       end
     end
+    function gtShowGTManager(obj)
+      hGTMgr = obj.gdata.GTMgr;
+      hGTMgr.Visible = 'on';
+      figure(hGTMgr);
+    end
     function [iMov,iMovGT] = gtCommonMoviesRegGT(obj)
       % Find movies common to both regular and GT lists
       %
@@ -6385,31 +6414,9 @@ classdef Labeler < handle
       % 
       % iMov: vector of positive ints, reg movie(set) indices
       % iMovGT: " gt movie(set) indices
-      
-      nvw = obj.nview;
-      mfaf = obj.movieFilesAllFull;
-      mfafGT = obj.movieFilesAllGTFull;
-      for ivw=nvw:-1:1
-        [tf(:,ivw),loc(:,ivw)] = ismember(mfafGT(:,ivw),mfaf(:,ivw));
-      end
-      
-      tf = all(tf,2);
-      iMovGT = find(tf);
-      nMovGTinReg = numel(iMovGT);
-      iMov = zeros(nMovGTinReg,1);
-      for i=1:nMovGTinReg
-        locUn = unique(loc(iMovGT(i),:));
-        if isscalar(locUn)
-          iMov(i) = locUn;
-        else
-          warningNoTrace('Inconsistency in movielists detected across views.');
-          % iMov(i) initted to 0
-        end
-      end
-      
-      tfRm = iMov==0;
-      iMovGT(tfRm,:) = [];
-      iMov(tfRm,:) = [];      
+
+      [iMov,iMovGT] = Labeler.identifyCommonMovSets(...
+        obj.movieFilesAllFull,obj.movieFilesAllGTFull);
     end
   end
   methods (Static)
@@ -9409,6 +9416,51 @@ classdef Labeler < handle
           'Tag',sprintf('Labeler_%s_%d',hTxtProp,i));
         end
       end      
+    end
+    
+  end
+  
+  methods (Static)
+    
+     function [iMov1,iMov2] = identifyCommonMovSets(movset1,movset2)
+      % Find common rows (moviesets) in two sets of moviesets
+      %
+      % movset1: [n1 x nview] cellstr of fullpaths. Call 
+      %   FSPath.standardPath and FSPath.platformizePath on these first
+      % movset2: [n2 x nview] "
+      %
+      % IMPORTANT: movset1 is allowed to have duplicate rows/moviesets,
+      % but dupkicate rows/movsets in movset2 will be "lost".
+      % 
+      % iMov1: [ncommon x 1] index vector into movset1. Could be empty
+      % iMov2: [ncommon x 1] " movset2 "
+      %
+      % If ncommon>0, then movset1(iMov1,:) is equal to movset2(iMov2,:)
+      
+      assert(size(movset1,2)==size(movset2,2));
+      nvw = size(movset1,2);
+      
+      for ivw=nvw:-1:1
+        [tf(:,ivw),loc(:,ivw)] = ismember(movset1(:,ivw),movset2(:,ivw));
+      end
+      
+      tf = all(tf,2);
+      iMov1 = find(tf);      
+      nCommon = numel(iMov1);
+      iMov2 = zeros(nCommon,1);
+      for i=1:nCommon
+        locUn = unique(loc(iMov1(i),:));
+        if isscalar(locUn)
+          iMov2(i) = locUn;
+        else
+          % warningNoTrace('Inconsistency in movielists detected across views.');
+          % iMov2(i) initted to 0
+        end
+      end
+      
+      tfRm = iMov2==0;
+      iMov1(tfRm,:) = [];
+      iMov2(tfRm,:) = [];
     end
     
   end

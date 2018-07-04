@@ -364,6 +364,12 @@ handles.menu_go_nav_prefs = uimenu('Parent',handles.menu_go,...
   'Tag','menu_go_nav_prefs',...
   'Separator','off',...
   'Checked','off');
+handles.menu_go_gt_frames = uimenu('Parent',handles.menu_go,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_go_gt_frames_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','GT frames',...
+  'Tag','menu_go_gt_frames',...
+  'Separator','on',...
+  'Checked','off');
 
 % Evaluate menu
 handles.menu_evaluate = uimenu('Parent',handles.figure,'Position',6,'Label','Evaluate');
@@ -380,11 +386,16 @@ handles.menu_evaluate_gtmode = uimenu('Parent',handles.menu_evaluate,...
   'Separator','off',...
   'Checked','off');
 
+handles.menu_evaluate_gtloadsuggestions = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtloadsuggestions_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Load GT suggestions',...
+  'Tag','menu_evaluate_gtloadsuggestions',...
+  'Separator','on');
 handles.menu_evaluate_gtcomputeperf = uimenu('Parent',handles.menu_evaluate,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperf_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Compute GT performance',...
   'Tag','menu_evaluate_gtcomputeperf',...
-  'Separator','on');
+  'Separator','off');
 handles.menu_evaluate_gtcomputeperfimported = uimenu('Parent',handles.menu_evaluate,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperfimported_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Compute GT performance (imported predictions)',...
@@ -2528,6 +2539,9 @@ handles.labelerObj.targetsTableUI();
 function menu_go_nav_prefs_Callback(hObject, eventdata, handles)
 handles.labelerObj.navPrefsUI();
 
+function menu_go_gt_frames_Callback(hObject, eventdata, handles)
+handles.labelerObj.gtShowGTManager();
+
 function menu_evaluate_crossvalidate_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
@@ -2815,6 +2829,42 @@ if gtNew
 end
 ClearStatus(handles);
 
+function menu_evaluate_gtloadsuggestions_Callback(hObject,eventdata,handles)
+gtsuggmat = RC.getprop('gtsuggestionsmat');
+if isempty(gtsuggmat)
+  gtsuggmat = pwd;
+end
+[fname,pth] = uigetfile('*.mat','Load GT Table',gtsuggmat);
+if isequal(fname,0)
+  return;
+end
+fname = fullfile(pth,fname);
+
+lObj = handles.labelerObj;
+assert(lObj.gtIsGTMode);
+tbl = MFTable.loadTableFromMatfile(fname);
+if ~isnumeric(tbl.mov)
+  [tffound,mIdx] = lObj.getMovIdxMovieFilesAllGTFull(tbl.mov);
+  if any(~tffound)
+    errstrs = {'Moviesets in table not found in project:'};
+    movstrsnotfound = MFTable.formMultiMovieIDArray(tbl.mov(~tffound,:),...
+      'separator',',','checkseparator',false);
+    errstrs = [errstrs; movstrsnotfound];
+    errordlg(errstrs,'Moviesets not found');
+    return;
+  end
+  
+  szassert(mIdx,[height(tbl) 1]);
+  assert(isa(mIdx,'MovieIndex'));
+  [~,gt] = mIdx.get();
+  assert(all(gt));
+  tbl.mov = mIdx;
+end
+
+lObj.gtSetUserSuggestions(tbl);
+msgstr = sprintf('Loaded GT table with %d rows spanning %d GT movies.',...
+  height(tbl),numel(unique(tbl.mov)));
+msgbox(msgstr,'GT Table Loaded');
 
 function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -2831,15 +2881,15 @@ assert(lObj.gtIsGTMode);
 tblGTres = lObj.gtComputeGTPerformance('useLabels2',true);
 msgbox('Assigned results in Labeler property ''gtTblRes''.');
 lObj.gtReport();
-
-
   
 function cbkGtIsGTModeChanged(src,evt)
 lObj = src;
 handles = lObj.gdata;
 gt = lObj.gtIsGTMode;
 onIffGT = onIff(gt);
+handles.menu_go_gt_frames.Visible = onIffGT;
 handles.menu_evaluate_gtmode.Checked = onIffGT;
+handles.menu_evaluate_gtloadsuggestions.Visible = onIffGT;
 handles.menu_evaluate_gtcomputeperf.Visible = onIffGT;
 handles.menu_evaluate_gtcomputeperfimported.Visible = onIffGT;
 handles.txGTMode.Visible = onIffGT;
