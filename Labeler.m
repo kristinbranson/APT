@@ -167,6 +167,9 @@ classdef Labeler < handle
     viewCalibrationData % Opaque calibration 'useradata' for multiview. init: PN
     viewCalibrationDataGT % etc. 
     
+    % Added by KB, temporary, this should likely go somewhere else
+    preLoadMovies = false;
+    
     movieReader = []; % [1xnview] MovieReader objects. init: C
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieInfoAllGT = {}; % same as .movieInfoAll but for GT mode
@@ -2902,6 +2905,7 @@ classdef Labeler < handle
       for iView=1:obj.nview
         mov = movsAllFull{iMov,iView};
         mr = obj.movieReader(iView);
+        mr.preload = obj.preLoadMovies;
         mr.open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale, .movieInvert
         if tfHasCrop
           mr.setCropInfo(cInfo(iView)); % cInfo(iView) is a handle/pointer!
@@ -3069,6 +3073,9 @@ classdef Labeler < handle
       oc = onCleanup(@()delete(wbObj));
 
       I = cell(0,1);
+      % note we are intentionally not setting preload to true here, since
+      % we are just sampling frames and it shouldn't matter if we get the
+      % exact right ones. 
       mr = MovieReader;
       %mr.forceGrayscale = true;
       iSamp = 0;
@@ -3112,6 +3119,7 @@ classdef Labeler < handle
       movRdr.open(movfname{iView},bgArgs{:});
       movRdr.forceGrayscale = obj.movieForceGrayscale;
       movRdr.flipVert = obj.movieInvert(iView);
+      movRdr.preload = obj.preLoadMovies;
       cInfo = obj.getMovieFilesAllCropInfoMovIdx(mIdx);
       if ~isempty(cInfo)
         movRdr.setCropInfo(cInfo(iView));
@@ -6783,7 +6791,7 @@ classdef Labeler < handle
       end      
     end
     
-    function [data,dataIdx] = preProcDataFetch(obj,tblP,varargin)
+    function [data,dataIdx,tblP,tblPReadFailed,tfReadFailed] = preProcDataFetch(obj,tblP,varargin)
       % dataUpdate, then retrieve
       %
       % Input args: See PreProcDataUpdate
@@ -6796,7 +6804,7 @@ classdef Labeler < handle
         'wbObj',[]); % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
       tfWB = ~isempty(wbObj);
       
-      obj.preProcDataUpdate(tblP,'wbObj',wbObj);
+      tblPReadFailed = obj.preProcDataUpdate(tblP,'wbObj',wbObj);
       if tfWB && wbObj.isCancel
         data = [];
         dataIdx = [];
@@ -6804,11 +6812,13 @@ classdef Labeler < handle
       end
       
       data = obj.preProcData;
+      [tfReadFailed] = tblismember(tblP,tblPReadFailed,MFTable.FLDSID);
+      tblP(tfReadFailed,:) = [];
       [tf,dataIdx] = tblismember(tblP,data.MD,MFTable.FLDSID);
       assert(all(tf));
     end
     
-    function preProcDataUpdate(obj,tblP,varargin)
+    function tblPReadFailed = preProcDataUpdate(obj,tblP,varargin)
       % Update .preProcData to include tblP
       %
       % tblP:
@@ -6826,10 +6836,10 @@ classdef Labeler < handle
         tblP(:,'pTS') = [];
       end
       [tblPnew,tblPupdate] = obj.preProcData.tblPDiff(tblP);
-      obj.preProcDataUpdateRaw(tblPnew,tblPupdate,'wbObj',wbObj);
+      tblPReadFailed = obj.preProcDataUpdateRaw(tblPnew,tblPupdate,'wbObj',wbObj);
     end
     
-    function preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
+    function tblPReadFailed = preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
       % * Rows appended and pGT/tfocc updated; but other information
@@ -6884,10 +6894,19 @@ classdef Labeler < handle
       nNew = height(tblPnew);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
-        
-        [I,nNborMask] = CPRData.getFrames(tblPNewConcrete,...
+
+%         global READFRAMEDATA;
+%         if nNew == size(READFRAMEDATA.I,1),
+%           I = READFRAMEDATA.I;
+%           didread = READFRAMEDATA.didread;
+%           nNborMask = READFRAMEDATA.nNborMask;
+%           tblPReadFailed = READFRAMEDATA.tblPReadFailed;
+%           tblPnew = READFRAMEDATA.tblPnew;
+%         else
+        [I,nNborMask,didread] = CPRData.getFrames(tblPNewConcrete,...
           'wbObj',wbObj,...
           'forceGrayscale',obj.movieForceGrayscale,...
+          'preload',obj.preLoadMovies,...
           'movieInvert',obj.movieInvert,...
           'roiPadVal',prmpp.TargetCrop.PadBkgd,...
           'doBGsub',prmpp.BackSub.Use,...
@@ -6904,6 +6923,13 @@ classdef Labeler < handle
         end
         % Include only FLDSALLOWED in metadata to keep CPRData md
         % consistent (so can be appended)
+        
+        didreadallviews = all(didread,2);
+        tblPReadFailed = tblPnew(~didreadallviews,:);
+        tblPnew(~didreadallviews,:) = [];
+        I(~didreadallviews,:) = [];
+
+        nNborMask(~didreadallviews,:) = [];
         
         tfColsAllowed = ismember(tblPnew.Properties.VariableNames,...
           FLDSALLOWED);

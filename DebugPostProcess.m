@@ -1,5 +1,10 @@
 
 load ppdata.mat;
+if ndims(X) >= 5,
+  X = permute(X,[1,2,3,5,4]);
+end
+
+projfile = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4523_gt080618_made20180627.lbl';
 
 %% 
 ppobj = PostProcess();
@@ -60,7 +65,7 @@ postdata.viterbi_joint_miss = ppobj.postdata.viterbi_joint;
 
 figure(2);
 clf;
-[N,K,npts,nviews,d] = size(ppobj.sampledata.x);
+[N,K,npts,d] = size(ppobj.sampledata.x);
 
 hax = createsubplots(npts,d,[.02,.02;.03,.01]);
 hax = reshape(hax,[npts,d]);
@@ -71,7 +76,7 @@ h = nan(1,numel(fns));
 for ipt = 1:npts,
   for id = 1:d,
     for i = 1:numel(fns),
-      h(i) = plot(hax(ipt,id),1:N,postdata.(fns{i}).x(:,ipt,1,id),'LineWidth',2);
+      h(i) = plot(hax(ipt,id),1:N,postdata.(fns{i}).x(:,ipt,id),'LineWidth',2);
       hold(hax(ipt,id),'on');
     end
     %h(numel(fns)+1) = plot(hax(ipt,id),1:N,tmp2.pTrk(:,sub2ind([npts,d],ipt,id)),':','LineWidth',2);

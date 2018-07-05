@@ -952,7 +952,7 @@ classdef CPRLabelTracker < LabelTracker
       end
       fprintf(1,'Training with %d rows.\n',height(tblPTrn));
       
-      [d,dIdx] = obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj);
+      [d,dIdx,tblPTrn,tblPTrnReadFailed] = obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj);
       if tfWB && wbObj.isCancel
         obj.trnDataInit();
         obj.trnResInit();
@@ -1492,6 +1492,9 @@ classdef CPRLabelTracker < LabelTracker
         wbObj.startPeriod('Tracking chunks','shownumden',true,'denominator',nChunk);
         oc2 = onCleanup(@()wbObj.endPeriod());
       end
+      
+      tfDidRead = false(1,nFrmTrk);
+      
       for iChunk=1:nChunk
         
         if tfWB && nChunk>1
@@ -1501,11 +1504,6 @@ classdef CPRLabelTracker < LabelTracker
         idxP0 = (iChunk-1)*movChunkSize+1;
         idxP1 = min(idxP0+movChunkSize-1,nFrmTrk);
 
-        % split this into chunks of size parChunkSize
-        nFramesCurr = idxP1-idxP0+1;
-        nParChunks = max(1,round(nFramesCurr/parChunkSize));
-        chunkStarts = round(linspace(1,nFramesCurr+1,nParChunks+1));
-        chunkEnds = chunkStarts(2:end)-1;
         tblMFTChunk = tblMFT(idxP0:idxP1,:);
         fprintf('Tracking frames %d through %d...\n',idxP0,idxP1);
         
@@ -1517,7 +1515,8 @@ classdef CPRLabelTracker < LabelTracker
           obj.lObj.preProcInitData();
         end
         
-        [d,dIdx] = obj.lObj.preProcDataFetch(tblMFTChunk,'wbObj',wbObj);
+        [d,dIdx,tblMFTChunk,tblMFTChunkReadFailed,tfReadFailed] = obj.lObj.preProcDataFetch(tblMFTChunk,'wbObj',wbObj);
+        tfDidRead(idxP0:idxP1) = ~tfReadFailed;
         if tfWB && wbObj.isCancel
           % Single-chunk: data unchanged, tracking results unchanged => 
           % obj unchanged.
@@ -1530,6 +1529,13 @@ classdef CPRLabelTracker < LabelTracker
           end
           return;
         end
+        
+        idxRead = find(~tfReadFailed);
+        % split this into chunks of size parChunkSize
+        nFramesCurr = numel(idxRead);
+        nParChunks = max(1,round(nFramesCurr/parChunkSize));
+        chunkStarts = round(linspace(1,nFramesCurr+1,nParChunks+1));
+        chunkEnds = chunkStarts(2:end)-1;
         
         d.iTst = dIdx;        
         fprintf(1,'Track data summary:\n');

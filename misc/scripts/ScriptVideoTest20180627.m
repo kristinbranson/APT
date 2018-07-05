@@ -80,7 +80,7 @@ for movi = i:numel(allinmovfiles),
   inmovfile = allinmovfiles{movi};
   [p,n,ext] = fileparts(inmovfile);
   %try
-    readframe = get_readframe_fcn(inmovfile);
+    readframe = get_readframe_fcn(inmovfile,'preload',true);
   %catch ME,
   %  disp(getReport(ME));
   %  continue;

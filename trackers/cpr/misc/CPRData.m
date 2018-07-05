@@ -305,7 +305,7 @@ classdef CPRData < handle
       md = struct2table(sMD);
     end
     
-    function [I,nmask] = getFrames(tblMF,varargin)
+    function [I,nmask,didread] = getFrames(tblMF,varargin)
       % Read frames from movies given MF table
       
       % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
@@ -319,11 +319,12 @@ classdef CPRData < handle
       
       nView = size(tblMF.mov,2);
       
-      [wbObj,forceGrayscale,movieInvert,roiPadVal,doBGsub,bgReadFcn,bgType,...
+      [wbObj,forceGrayscale,preload,movieInvert,roiPadVal,doBGsub,bgReadFcn,bgType,...
         maskNeighbors,maskNeighborsMeth,empPDF,fgThresh,trxCache] = ...
         myparse(varargin,...
           'wbObj',[],...
           'forceGrayscale',true,... 
+          'preload',false,...
           'movieInvert',false(1,nView),...
           'roiPadVal',0,... % used when tblMF has .roi
           'doBGsub',false,... % if true, I will contain bg-subbed images
@@ -354,21 +355,26 @@ classdef CPRData < handle
       
       % Initialize outputs early, we may early return if user cancels wb.
       I = cell(N,nView);
+      didread = false(N,nView);
       nmask = zeros(N,nView);
             
-      movMaps = cell(1,nView); % movMaps{i} contains containers.Map for view i
+      %movMaps = cell(1,nView); % movMaps{i} contains containers.Map for view i
+      
       for iVw=1:nView
-        movsUn = unique(tblMF.mov(:,iVw));
-        movMapVw = containers.Map(); % movieName->struct with movieReader, etc
+        [movsUn,~,movidx] = unique(tblMF.mov(:,iVw));
+        
+        %movMapVw = containers.Map(); % movieName->struct with movieReader, etc
         
         if tfWB
-          wbObj.startPeriod(sprintf('Opening movies: view %d',iVw),...
-            'shownumden',true,'denominator',numel(movsUn));          
+          wbObj.startPeriod(sprintf('Reading images: view %d',iVw),...
+            'shownumden',true,'denominator',N);          
         end
         
+        nframesread = 0;
         for iMov=1:numel(movsUn)
+
           if tfWB
-            tfCancel = wbObj.updateFracWithNumDen(iMov);
+            tfCancel = wbObj.updateFracWithNumDen(nframesread);
             if tfCancel
               wbObj.endPeriod();
               return;
@@ -376,137 +382,160 @@ classdef CPRData < handle
           end
           
           mov = movsUn{iMov};
+
           mr = MovieReader();
           mr.forceGrayscale = forceGrayscale;
           mr.flipVert = movieInvert(iVw);
+          mr.preload = preload;
+          %mr.neednframes = false;
           mr.open(mov,'bgType',bgType,'bgReadFcn',bgReadFcn);
+
           % Note: we don't setCropInfo here; cropping handled explicitly
           % b/c most of the time if comes from the trx
-          movMapVw(mov) = mr;          
+          %movMapVw(mov) = mr;
+          
+          %if tfWB
+          %  wbObj.endPeriod();
+          %end
+          
+          %movMaps{iVw} = movMapVw;
+          %end
+          
+          %if tfWB
+          %  wbObj.startPeriod('Reading movie images','shownumden',true,'denominator',N);
+          %  oc = onCleanup(@()wbObj.endPeriod());
+          %end
+          
+          idxcurr = find(movidx == iMov);
+          nframesread = nframesread + numel(idxcurr);
+          for iiTrl = 1:numel(idxcurr),
+          
+            iTrl = idxcurr(iiTrl);
+            
+            %for iTrl=1:N
+            %if tfWB
+            %tfCancel = wbObj.updateFracWithNumDen(iTrl);
+            %if tfCancel
+            %  return;
+            %end
+            %end
+            
+            trow = tblMF(iTrl,:);
+            f = trow.frm;
+            iTgt = trow.iTgt;
+            %for iVw=1:nView
+            %mov = trow.mov{iVw};
+            assert(strcmp(mov,trow.mov{iVw}));
+            %mr = movMaps{iVw}(mov);
+            
+            if tfROI
+              % Will be handy below
+              roiVw = roi(iTrl,(1:4)+4*(iVw-1)); % [xlo xhi ylo yhi]
+              roiXlo = roiVw(1);
+              roiXhi = roiVw(2);
+              roiYlo = roiVw(3);
+              roiYhi = roiVw(4);
+            end
+            
+            try
+            
+            if maskNeighbors
+              [imraw,imOrigTy] = mr.readframe(f,'doBGsub',false);
+              imdiff = PxAssign.simplebgsub(mr.bgType,double(imraw), ...
+                mr.bgIm,mr.bgDevIm); % Note: mr.flipVert is NOT applied to .bgIm, .bgDevIm
+              % imdiff has scale per ~imOrigTy
+              
+              tfile = trow.trxFile{iVw};
+              trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
+              
+              % Currently we mask the entire image even if we only care about
+              % a zoomed-in roi
+              switch maskNeighborsMeth
+                case 'Conn. Comp'
+                  imL = PxAssign.asgnCCcore(imdiff,trx,f,fgThresh);
+                case 'GMM-EM'
+                  imL = PxAssign.asgnGMMglobalcore(imdiff,trx,f,fgThresh);
+                case 'Emp. PDF'
+                  if isempty(empPDF)
+                    error('No empirical PDF has been generated/stored for this project. Call the ''updateFGEmpiricalPDF'' Labeler method first.');
+                  end
+                  if ~isequal(empPDF.prmBackSub.BGType,bgType)
+                    warningNoTrace('Stored empirical PDF has background type (%s) that differs from current background type (%s).',...
+                      empPDF.prmNborMask.BGType,bgType);
+                  end
+                  if ~isequal(empPDF.prmNborMask.FGThresh,fgThresh)
+                    warningNoTrace('Stored empirical PDF has foreground threshold (%.2f) that differs from current foreground threshold (%.2f).',...
+                      empPDF.prmNborMask.FGThresh,fgThresh);
+                  end
+                  imL = PxAssign.asgnPDF(imdiff,trx,f,...
+                    empPDF.fgpdf,empPDF.xpdfctr,empPDF.ypdfctr,...
+                    empPDF.amu,empPDF.bmu,'fgthresh',fgThresh);
+                otherwise
+                  assert(false,'Unrecognized neighbor-masking method.');
+              end
+              
+              if doBGsub
+                % bgsub ON, nbor masking ON.
+                % We will be masking imdiff with zeros. imdiff is a double
+                % with original scale/range
+                imToMask = imdiff;
+                imBGToApply = zeros(size(imdiff));
+                % roiPadVal should be 0 here since doBGsub is on
+              else
+                % bgsub OFF, nbor masking ON.
+                % We will be masking imraw with movieReader.bgIm. imraw could
+                % have arbitrary type here, but .bgIm is expected to have the
+                % same scale.
+                imToMask = double(imraw);
+                imBGToApply = mr.bgIm;
+              end
+              
+              if tfROI
+                IMBGPADVAL = nan; % irrelevant, no effect as masking should not occur outside image
+                imToMaskRoi = padgrab(imToMask,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+                imBGToApplyRoi = padgrab(imBGToApply,IMBGPADVAL,roiYlo,roiYhi,roiXlo,roiXhi);
+                imLroi = padgrab(imL,0,roiYlo,roiYhi,roiXlo,roiXhi);
+                [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
+                  imToMaskRoi,imBGToApplyRoi,imLroi,trx,iTgt,f,'imroi',roiVw);
+              else
+                [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
+                  imToMask,imBGToApply,imL,trx,iTgt,f);
+              end
+              
+              % Rescale to [0,1] for 'usual' types
+              imroi = PxAssign.imRescalePerType(imroi,imOrigTy);
+              
+              % As in other branch, imroi could have varying type here.
+            else
+              [im,imOrigTy] = mr.readframe(f,'doBGsub',doBGsub);
+              
+              if doBGsub
+                % BGsub leaves im as a double but scaled as in original
+                im = PxAssign.imRescalePerType(im,imOrigTy);
+              end
+              
+              if tfROI
+                imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+              else
+                imroi = im;
+              end
+              
+              % At this point, im could have varying type depending on movie
+              % format, doBGsub, etc. See MovieReader/readframe.
+            end
+            
+            I{iTrl,iVw} = imroi;
+            didread(iTrl,iVw) = true;
+            
+            catch ME,
+              warning('Could not read frame %d from %s:\n%s\n',f,mov,getReport(ME));
+            end
+            
+          end
         end
-        
         if tfWB
           wbObj.endPeriod();
-        end
-        
-        movMaps{iVw} = movMapVw;
-      end
-      
-      if tfWB
-        wbObj.startPeriod('Reading movie images','shownumden',true,'denominator',N);
-        oc = onCleanup(@()wbObj.endPeriod());
-      end
-      
-      for iTrl=1:N
-        if tfWB
-          tfCancel = wbObj.updateFracWithNumDen(iTrl);
-          if tfCancel
-            return;
-          end
-        end
-        trow = tblMF(iTrl,:);
-        f = trow.frm;
-        iTgt = trow.iTgt;
-        for iVw=1:nView          
-          mov = trow.mov{iVw};          
-          mr = movMaps{iVw}(mov);
-          
-          if tfROI
-            % Will be handy below
-            roiVw = roi(iTrl,(1:4)+4*(iVw-1)); % [xlo xhi ylo yhi]
-            roiXlo = roiVw(1);
-            roiXhi = roiVw(2);
-            roiYlo = roiVw(3);
-            roiYhi = roiVw(4);
-          end
-
-          if maskNeighbors
-            [imraw,imOrigTy] = mr.readframe(f,'doBGsub',false);
-            imdiff = PxAssign.simplebgsub(mr.bgType,double(imraw), ...
-              mr.bgIm,mr.bgDevIm); % Note: mr.flipVert is NOT applied to .bgIm, .bgDevIm
-            % imdiff has scale per ~imOrigTy
-
-            tfile = trow.trxFile{iVw};
-            trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
-
-            % Currently we mask the entire image even if we only care about
-            % a zoomed-in roi
-            switch maskNeighborsMeth
-              case 'Conn. Comp'
-                imL = PxAssign.asgnCCcore(imdiff,trx,f,fgThresh);
-              case 'GMM-EM'
-                imL = PxAssign.asgnGMMglobalcore(imdiff,trx,f,fgThresh);
-              case 'Emp. PDF'
-                if isempty(empPDF)
-                  error('No empirical PDF has been generated/stored for this project. Call the ''updateFGEmpiricalPDF'' Labeler method first.');
-                end
-                if ~isequal(empPDF.prmBackSub.BGType,bgType)
-                  warningNoTrace('Stored empirical PDF has background type (%s) that differs from current background type (%s).',...
-                    empPDF.prmNborMask.BGType,bgType);
-                end
-                if ~isequal(empPDF.prmNborMask.FGThresh,fgThresh)
-                  warningNoTrace('Stored empirical PDF has foreground threshold (%.2f) that differs from current foreground threshold (%.2f).',...
-                    empPDF.prmNborMask.FGThresh,fgThresh);
-                end
-                imL = PxAssign.asgnPDF(imdiff,trx,f,...
-                  empPDF.fgpdf,empPDF.xpdfctr,empPDF.ypdfctr,...
-                  empPDF.amu,empPDF.bmu,'fgthresh',fgThresh);
-              otherwise
-                assert(false,'Unrecognized neighbor-masking method.');
-            end
-
-            if doBGsub
-              % bgsub ON, nbor masking ON. 
-              % We will be masking imdiff with zeros. imdiff is a double
-              % with original scale/range 
-              imToMask = imdiff;
-              imBGToApply = zeros(size(imdiff));
-              % roiPadVal should be 0 here since doBGsub is on
-            else
-              % bgsub OFF, nbor masking ON. 
-              % We will be masking imraw with movieReader.bgIm. imraw could
-              % have arbitrary type here, but .bgIm is expected to have the
-              % same scale.
-              imToMask = double(imraw);
-              imBGToApply = mr.bgIm;
-            end
-            
-            if tfROI
-              IMBGPADVAL = nan; % irrelevant, no effect as masking should not occur outside image
-              imToMaskRoi = padgrab(imToMask,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-              imBGToApplyRoi = padgrab(imBGToApply,IMBGPADVAL,roiYlo,roiYhi,roiXlo,roiXhi);
-              imLroi = padgrab(imL,0,roiYlo,roiYhi,roiXlo,roiXhi);
-              [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
-                imToMaskRoi,imBGToApplyRoi,imLroi,trx,iTgt,f,'imroi',roiVw);
-            else
-              [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
-                imToMask,imBGToApply,imL,trx,iTgt,f);
-            end
-            
-            % Rescale to [0,1] for 'usual' types
-            imroi = PxAssign.imRescalePerType(imroi,imOrigTy);
-            
-            % As in other branch, imroi could have varying type here.
-          else
-            [im,imOrigTy] = mr.readframe(f,'doBGsub',doBGsub);
-            
-            if doBGsub
-              % BGsub leaves im as a double but scaled as in original
-              im = PxAssign.imRescalePerType(im,imOrigTy);
-            end
-            
-            if tfROI
-              imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-            else
-              imroi = im;
-            end
-            
-            % At this point, im could have varying type depending on movie
-            % format, doBGsub, etc. See MovieReader/readframe.
-          end
-          
-          I{iTrl,iVw} = imroi;
-        end
+        end        
       end
     end
 

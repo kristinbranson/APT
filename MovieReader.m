@@ -8,8 +8,7 @@ classdef MovieReader < handle
     nframes = nan;
     info = [];
     nr = nan; % numrows in raw/orig movie
-    nc = nan; % numcols in raw/orig movie
-    
+    nc = nan; % numcols in raw/orig movie    
     fid = nan; % file handle/resource to movie
     
     % bgsub
@@ -22,6 +21,14 @@ classdef MovieReader < handle
       % so this is subject to external mutations. Used only when 'docrop' 
       % flag is true in read()
   end
+  
+  properties (SetAccess=public)
+    
+    neednframes = true; % whether nframes needs to be exact
+    preload = false;
+
+  end
+  
   properties (Dependent)
     nrread % numrows in image-as-read, post-crop (if any)
     ncread % numcols in "
@@ -110,7 +117,7 @@ classdef MovieReader < handle
       end
       
       obj.filename = fname;      
-      [obj.readFrameFcn,obj.nframes,obj.fid,obj.info] = get_readframe_fcn(obj.filename);
+      [obj.readFrameFcn,obj.nframes,obj.fid,obj.info] = get_readframe_fcn(obj.filename,'preload',obj.preload);%,'neednframes',obj.neednframes);
       
       ifo = obj.info;
       if isfield(ifo,'nr') && isfield(ifo,'nc')

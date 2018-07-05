@@ -3038,12 +3038,17 @@ function pbClearAllCrops_Callback(hObject, eventdata, handles)
 handles.labelerObj.cropClearAllCrops();
 
 % -------------------------------------------------------------------------
-function SetStatus(handles,s,isbusy)
+function SetStatus(handles,s,isbusy,istemp)
 
 if nargin < 3,
   isbusy = true;
 end
-if isbusy,
+if nargin < 4,
+  istemp = false;
+end
+if isempty(isbusy),
+  color = get(handles.txStatus,'ForegroundColor');
+elseif isbusy,
   color = handles.busystatuscolor;
   set(handles.figure,'Pointer','watch');
 else
@@ -3052,7 +3057,7 @@ else
 end
 set(handles.txStatus,'ForegroundColor',color,'String',s);
 drawnow('limitrate');
-if ~isbusy,
+if ~isbusy && ~istemp,
   syncStatusBarTextWhenClear(handles);
 end
 
@@ -3068,7 +3073,10 @@ drawnow('limitrate');
 
 function syncStatusBarTextWhenClear(handles)
 
-setappdata(handles.txStatus,'text_when_clear',get(handles.txStatus,'string'));
+try
+  setappdata(handles.txStatus,'text_when_clear',get(handles.txStatus,'string'));
+catch
+end
 
 function s = getStatusBarTextWhenClear(handles)
 
