@@ -1,5 +1,7 @@
 classdef GTSuggestionType
-  
+  % Currently unused, see GTSetNumFramesType.m for current (very similar)
+  % treatment
+ 
   enumeration
     RANDOM % each MFT row drawn equally likely
     BALANCEDMOVIE % number of rows per movie approx equal

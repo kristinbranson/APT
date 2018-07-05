@@ -37,10 +37,7 @@ function mIdx = lclCurrMovieGetMovieIndexHook(lObj)
 mIdx = lObj.currMovIdx;
 end
 function mIdx = lclSelMovieGetMovieIndexHook(lObj)
-if lObj.gtIsGTMode
-  error('Unsupported in GT mode.');
-end
-mIdx = MovieIndex(lObj.moviesSelected);
+mIdx = lObj.moviesSelected;
 end
 function mIdx = lclAllGTMoviesGetMovieIndexHook(lObj)
 iMovs = 1:lObj.nmoviesGT;

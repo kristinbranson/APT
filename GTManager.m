@@ -241,18 +241,26 @@ end
 % Note, any existing labels are not deleted. On gtCompute these other
 % labels are not currently used however.
 
-DEFAULT_NSAMP = 40;
-PROMPT = 'Enter desired number of frames to label';
-NAME = 'GT Suggest';
-resp = inputdlg(PROMPT,NAME,1,{num2str(DEFAULT_NSAMP)});
-if isempty(resp)
-  return;
+gtsg = GTSuggest(lObj);
+if ~isempty(gtsg)
+  tblGT = gtsg.generate(lObj);
+  lObj.gtSetUserSuggestions(tblGT,'sortcanonical',true);
+else
+  % user canceled or similar
 end
-nGT = str2double(resp{1});
-if isnan(nGT) || nGT<=0 || round(nGT)~=nGT
-  error('Invalid number of frames.');
-end
-lObj.gtInitSuggestions(GTSuggestionType.RANDOM,nGT);
+
+% DEFAULT_NSAMP = 40;
+% PROMPT = 'Enter desired number of frames to label';
+% NAME = 'GT Suggest';
+% resp = inputdlg(PROMPT,NAME,1,{num2str(DEFAULT_NSAMP)});
+% if isempty(resp)
+%   return;
+% end
+% nGT = str2double(resp{1});
+% if isnan(nGT) || nGT<=0 || round(nGT)~=nGT
+%   error('Invalid number of frames.');
+% end
+
 
 % function pbSwitch_Callback(~,~,handles)
 % % Switch to selected row (mov/frm/tgt)

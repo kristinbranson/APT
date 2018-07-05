@@ -63,7 +63,7 @@ set(handles.txLblCoreAux,'Visible','off');
 
 %handles.pnlSusp.Visible = 'off';
 
-handles=LabelerTooltips(handles); % would be cool to have a toggle to NOT do this for advanced users -- the tooltips are annoying as shit once you know what you're doing.
+handles=LabelerTooltips(handles); 
 
 PURP = [80 31 124]/256;
 handles.tbTLSelectMode.BackgroundColor = PURP;
@@ -239,7 +239,9 @@ handles.menu_track_training_data_montage = uimenu(...
   'Label','Training Data Montage',...
   'Tag','menu_track_training_data_montage',...
   'Callback',@(h,evtdata)LabelerGUI('menu_track_training_data_montage_Callback',h,evtdata,guidata(h)));
-moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
+%moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_select_training_data);
+moveMenuItemAfter(handles.menu_track_training_data_montage,handles.menu_track_setparametersfile);
+delete(handles.menu_track_select_training_data);
 
 moveMenuItemAfter(handles.menu_track_track_and_export,handles.menu_track_retrain);
 
@@ -364,6 +366,12 @@ handles.menu_go_nav_prefs = uimenu('Parent',handles.menu_go,...
   'Tag','menu_go_nav_prefs',...
   'Separator','off',...
   'Checked','off');
+handles.menu_go_gt_frames = uimenu('Parent',handles.menu_go,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_go_gt_frames_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','GT frames',...
+  'Tag','menu_go_gt_frames',...
+  'Separator','on',...
+  'Checked','off');
 
 % Evaluate menu
 handles.menu_evaluate = uimenu('Parent',handles.figure,'Position',6,'Label','Evaluate');
@@ -380,11 +388,16 @@ handles.menu_evaluate_gtmode = uimenu('Parent',handles.menu_evaluate,...
   'Separator','off',...
   'Checked','off');
 
+handles.menu_evaluate_gtloadsuggestions = uimenu('Parent',handles.menu_evaluate,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtloadsuggestions_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Load GT suggestions',...
+  'Tag','menu_evaluate_gtloadsuggestions',...
+  'Separator','on');
 handles.menu_evaluate_gtcomputeperf = uimenu('Parent',handles.menu_evaluate,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperf_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Compute GT performance',...
   'Tag','menu_evaluate_gtcomputeperf',...
-  'Separator','on');
+  'Separator','off');
 handles.menu_evaluate_gtcomputeperfimported = uimenu('Parent',handles.menu_evaluate,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_evaluate_gtcomputeperfimported_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Compute GT performance (imported predictions)',...
@@ -533,7 +546,7 @@ handles.pbPlay.BackgroundColor = handles.edit_frame.BackgroundColor;
 handles.pbPlaySeg.CData = Icons.ims.playsegment;
 handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
-handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated';
+%handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated'; % this is set in LabelerTooltips now
 
 % color of status bar when GUI is busy vs idle
 handles.idlestatuscolor = [0,1,0];
@@ -823,6 +836,8 @@ handles = lObj.gdata;
 
 handles = clearDepHandles(handles);
 
+SetStatus(handles,'Creating New Project',true);
+
 % figs, axes, images
 deleteValidHandles(handles.figs_all(2:end));
 handles.figs_all = handles.figs_all(1);
@@ -951,10 +966,12 @@ handles.GTMgr.Visible = 'off';
 handles = addDepHandle(handles,handles.GTMgr);
 
 guidata(handles.figure,handles);
+ClearStatus(handles);
   
 function cbkNewMovie(src,evt)
 lObj = src;
 handles = lObj.gdata;
+
 %movRdrs = lObj.movieReader;
 %ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
 hAxs = handles.axes_all;
@@ -970,6 +987,7 @@ if isfield(handles,'newProjAxLimsSetInConfig')
   handles = rmfield(handles,'newProjAxLimsSetInConfig');
 end
 tfResetCLims = evt.isFirstMovieOfProject;
+
 
 % Deal with Axis and Color limits.
 for iView = 1:lObj.nview	  
@@ -1579,6 +1597,7 @@ function pbTrain_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
+SetStatus(handles,'Training...');
 wbObj = WaitBarWithCancel('Training');
 oc = onCleanup(@()delete(wbObj));
 centerOnParentFigure(wbObj.hWB,handles.figure);
@@ -1587,6 +1606,7 @@ if wbObj.isCancel
   msg = wbObj.cancelMessage('Training canceled');
   msgbox(msg,'Train');
 end
+ClearStatus(handles);
   
 function pbTrack_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
@@ -2521,6 +2541,9 @@ handles.labelerObj.targetsTableUI();
 function menu_go_nav_prefs_Callback(hObject, eventdata, handles)
 handles.labelerObj.navPrefsUI();
 
+function menu_go_gt_frames_Callback(hObject, eventdata, handles)
+handles.labelerObj.gtShowGTManager();
+
 function menu_evaluate_crossvalidate_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
@@ -2794,6 +2817,9 @@ end
 
 function menu_evaluate_gtmode_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
+
+SetStatus(handles,'Switching between Labeling and Ground Truth Mode...');
+
 gt = lObj.gtIsGTMode;
 gtNew = ~gt;
 lObj.gtSetGTMode(gtNew);
@@ -2803,6 +2829,44 @@ if gtNew
   hMovMgr.setVisible(true);
   figure(hMovMgr.hFig);
 end
+ClearStatus(handles);
+
+function menu_evaluate_gtloadsuggestions_Callback(hObject,eventdata,handles)
+gtsuggmat = RC.getprop('gtsuggestionsmat');
+if isempty(gtsuggmat)
+  gtsuggmat = pwd;
+end
+[fname,pth] = uigetfile('*.mat','Load GT Table',gtsuggmat);
+if isequal(fname,0)
+  return;
+end
+fname = fullfile(pth,fname);
+
+lObj = handles.labelerObj;
+assert(lObj.gtIsGTMode);
+tbl = MFTable.loadTableFromMatfile(fname);
+if ~isnumeric(tbl.mov)
+  [tffound,mIdx] = lObj.getMovIdxMovieFilesAllGTFull(tbl.mov);
+  if any(~tffound)
+    errstrs = {'Moviesets in table not found in project:'};
+    movstrsnotfound = MFTable.formMultiMovieIDArray(tbl.mov(~tffound,:),...
+      'separator',',','checkseparator',false);
+    errstrs = [errstrs; movstrsnotfound];
+    errordlg(errstrs,'Moviesets not found');
+    return;
+  end
+  
+  szassert(mIdx,[height(tbl) 1]);
+  assert(isa(mIdx,'MovieIndex'));
+  [~,gt] = mIdx.get();
+  assert(all(gt));
+  tbl.mov = mIdx;
+end
+
+lObj.gtSetUserSuggestions(tbl);
+msgstr = sprintf('Loaded GT table with %d rows spanning %d GT movies.',...
+  height(tbl),numel(unique(tbl.mov)));
+msgbox(msgstr,'GT Table Loaded');
 
 function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -2819,15 +2883,15 @@ assert(lObj.gtIsGTMode);
 tblGTres = lObj.gtComputeGTPerformance('useLabels2',true);
 msgbox('Assigned results in Labeler property ''gtTblRes''.');
 lObj.gtReport();
-
-
   
 function cbkGtIsGTModeChanged(src,evt)
 lObj = src;
 handles = lObj.gdata;
 gt = lObj.gtIsGTMode;
 onIffGT = onIff(gt);
+handles.menu_go_gt_frames.Visible = onIffGT;
 handles.menu_evaluate_gtmode.Checked = onIffGT;
+handles.menu_evaluate_gtloadsuggestions.Visible = onIffGT;
 handles.menu_evaluate_gtcomputeperf.Visible = onIffGT;
 handles.menu_evaluate_gtcomputeperfimported.Visible = onIffGT;
 handles.txGTMode.Visible = onIffGT;
@@ -3040,7 +3104,7 @@ handles.labelerObj.cropClearAllCrops();
 % -------------------------------------------------------------------------
 function SetStatus(handles,s,isbusy,istemp)
 
-if nargin < 3,
+if nargin < 3
   isbusy = true;
 end
 if nargin < 4,
