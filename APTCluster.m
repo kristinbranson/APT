@@ -14,6 +14,10 @@ function APTCluster(varargin)
 % 
 % % Track a set of movies
 % APTCluster(lblFile,'trackbatch',moviesetfile,varargin)
+%
+% % CrossValidation
+% APTCluster(lblFile,'xv','tableFile',tableFile,...
+%     'tableSplitFile',tableSplitFile,'paramFile',paramFile);
 
 startTime = tic;
 
@@ -33,8 +37,8 @@ switch action
   case 'retrain'
     lObj.projLoad(lblFile);
     lObj.trackRetrain();
-    [p,f,e] = fileparts(lblFile);
-    outfile = fullfile(p,[f '_retrain' datestr(now,'yyyymmddTHHMMSS') e]);
+    [lblP,lblF,lblE] = fileparts(lblFile);
+    outfile = fullfile(lblP,[lblF '_retrain' datestr(now,'yyyymmddTHHMMSS') lblE]);
     fprintf('APTCluster: saving retrained project: %s\n',outfile);
     lObj.projSaveRaw(outfile);
   case 'track'
@@ -64,6 +68,62 @@ switch action
     for iMov = 1:nmov
       lclTrackAndExportSingleMov(lObj,movs{iMov},'',{});
     end
+  case 'xv'
+    varargin = varargin(3:end);
+    [tableFile,tableSplitFile,paramFile] = ...
+      myparse(varargin,...
+      'tableFile','',... % (opt) mat-filename containing an MFTtable for rows to consider in XV
+      'tableSplitFile','',... % (opt) mat-filename containing split variables. If specified, tableFile must be specced %      'tableSplitFileVar','',... % (opt) variable name in tableSplitFile. <tableSplitFile>.(tableSplitFielVar) should be a [height(<tableFile>) x nfold] logical where true indicates train and false indicates test
+      'paramFile',''... % (opt) mat-filename containing a single param struct that will be fed to lObj.trackSetParams
+      );
+    
+    lObj.projLoad(lblFile);
+
+    tfTable = ~isempty(tableFile);
+    tfSplit = ~isempty(tableSplitFile);
+    tfParam = ~isempty(paramFile);
+    xvArgs = cell(1,0);
+    [lblP,lblF,lblE] = fileparts(lblFile);
+    outfileBase = 'xv';
+    if tfTable
+      [~,tableFileS,~] = fileparts(tableFile);
+      tblMFT = MFTable.loadTableFromMatfile(tableFile);
+      fprintf(1,'Loaded table (%d rows) from %s.\n',height(tblMFT),tableFile);
+      xvArgs = [xvArgs {'tblMFgt' tblMFT}];
+      outfileBase = [outfileBase '_' tableFileS];
+    end
+    if tfSplit
+      assert(tfTable);
+      [~,tableSplitFileS,~] = fileparts(tableSplitFile);
+      split = loadSingleVariableMatfile(tableSplitFile);      
+      if ~(islogical(split) && ismatrix(split) && size(split,1)==height(tblMFT))
+        error('Expected split definition to be a logical matrix with %d rows.\n',...
+          height(tblMFT));
+      end
+      kfold = size(split,2);
+      fprintf(1,'Loaded split (%d fold) from %s.\n',kfold,tableSplitFile);
+      xvArgs = [xvArgs {'kfold' kfold 'partTrn' split}];
+      outfileBase = [outfileBase '_' tableSplitFileS];
+    end
+    if tfParam
+      [~,paramFileS,~] = fileparts(paramFile);
+      sPrm = loadSingleVariableMatfile(paramFile);
+      fprintf(1,'Loaded parameters from %s.\n',paramFile);
+      lObj.trackSetParams(sPrm);
+      outfileBase = [outfileBase '_' paramFileS];
+    end
+    outfileBase = [outfileBase '_' datestr(now,'yyyymmddTHHMMSS')];
+    
+    lObj.trackCrossValidate(xvArgs{:});
+    
+    savestuff = struct();
+    savestuff.sPrm = lObj.trackGetParams();
+    savestuff.xvArgs = xvArgs;
+    savestuff.xvRes = lObj.xvResults;
+    savestuff.xvResTS = lObj.xvResultsTS; %#ok<STRNU>
+    outfile = fullfile(lblP,[outfileBase '.mat']);    
+    fprintf('APTCluster: saving xv results: %s\n',outfile);
+    save(outfile,'-mat','-struct','savestuff');
   otherwise
     error('APTCluster:action','Unrecognized action ''%s''.',action);
 end
@@ -181,3 +241,4 @@ end
 fprintf('Tracking preprocessing time: %f\n',toc(startTime)); startTime = tic;
 lObj.trackAndExport(tm,'trackArgs',trackArgs,trkFilenameArgs{:});
 fprintf('Time to track, total: %f\n',toc(startTime)); startTime = tic;
+

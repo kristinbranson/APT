@@ -7370,21 +7370,19 @@ classdef Labeler < handle
     function trackCrossValidate(obj,varargin)
       % Run k-fold crossvalidation. Results stored in .xvResults
       
-      [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTrn,partTst] = ...
+      [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTrn] = ...
         myparse(varargin,...
         'kfold',7,... % number of folds
         'initData',true,... % if true, call .initData() between folds to minimize mem usage
         'wbObj',[],... % (opt) WaitBarWithCancel
         'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
         'tblMFgtIsFinal',false,... % a bit silly, for APT developers only. Set to true if your tblMFgt is in final form.
-        'partTrn',[],... % (opt) pre-defined training splits. If supplied, partTrn must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied.
-        'partTst',[]... % (opt) etc see partTrn
+        'partTrn',[]... % (opt) pre-defined training splits. If supplied, partTrn must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied. true values indicate training rows, false values indicate test rows.
       );        
       
       tfWB = ~isempty(wbObj);
       tfTblMFgt = ~isempty(tblMFgt);      
       tfPart = ~isempty(partTrn);
-      assert(tfPart==~isempty(partTst));
       
       if obj.gtIsGTMode
         error('Unsupported in GT mode.');
@@ -7422,12 +7420,17 @@ classdef Labeler < handle
         partTst = arrayfun(@(x)cvPart.test(x),1:kFold,'uni',0);
         partTrn = cat(2,partTrn{:});
         partTst = cat(2,partTst{:});
+      else
+        partTst = ~partTrn;
       end
+      assert(islogical(partTrn) && islogical(partTst));
       n = height(tblMFgt);
       szassert(partTrn,[n kFold]);
       szassert(partTst,[n kFold]);
       tmp = partTrn+partTst;
-      assert(all(tmp(:)==1),'Invalid cv splits specified.');
+      assert(all(tmp(:)==1),'Invalid cv splits specified.'); % partTrn==~partTst
+      assert(all(sum(partTst,2)==1),...
+        'Invalid cv splits specified; each row must be tested precisely once.');
       
       tObj = obj.tracker;
       if isempty(tObj)
