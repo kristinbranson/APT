@@ -9,6 +9,7 @@ classdef Labeler < handle
     % non-config props
     SAVEPROPS = { ...
       'VERSION' 'projname' ...
+      'movieReadPreLoadMovies' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros'...
       'movieFilesAllGT' 'movieInfoAllGT' ...
       'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
@@ -153,7 +154,7 @@ classdef Labeler < handle
   % things added, removed, managed by the MovieManager etc; while "Video"
   % referred to visual details, display, playback, etc. But I sort of
   % forgot and mixed them up so that Movie sometimes applies to the latter.
-  properties
+  properties (SetAccess=private)
     nview; % number of views. init: C
     viewNames % [nview] cellstr. init: C
     
@@ -167,9 +168,7 @@ classdef Labeler < handle
     viewCalibrationData % Opaque calibration 'useradata' for multiview. init: PN
     viewCalibrationDataGT % etc. 
     
-    % Added by KB, temporary, this should likely go somewhere else
-    preLoadMovies = false;
-    
+    movieReadPreLoadMovies = false; % scalar logical. Set .preload property on any MovieReaders per this prop
     movieReader = []; % [1xnview] MovieReader objects. init: C
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieInfoAllGT = {}; % same as .movieInfoAll but for GT mode
@@ -2179,6 +2178,11 @@ classdef Labeler < handle
         s.movieFilesAllCropInfo = cell(size(s.movieFilesAll,1),1);
         s.movieFilesAllGTCropInfo = cell(size(s.movieFilesAllGT,1),1);
       end
+      
+      % 20180706 movieReadPreLoadMovies
+      if ~isfield(s,'movieReadPreLoadMovies')
+        s.movieReadPreLoadMovies = false;
+      end
     end
 
   end 
@@ -2217,7 +2221,7 @@ classdef Labeler < handle
       nMov = numel(moviefile);
       
       mr = MovieReader();
-      mr.preload = obj.preLoadMovies;
+      mr.preload = obj.movieReadPreLoadMovies;
       for iMov = 1:nMov
         movFile = moviefile{iMov};
         tFile = trxfile{iMov};
@@ -2416,7 +2420,7 @@ classdef Labeler < handle
             
       ifos = cell(1,obj.nview);
       mr = MovieReader();
-      mr.preload = obj.preLoadMovies;
+      mr.preload = obj.movieReadPreLoadMovies;
       for iView = 1:obj.nview
         % Could use movieMovieReaderOpen but we are just using MovieReader 
         % to get/save the movieinfo.
@@ -2936,7 +2940,7 @@ classdef Labeler < handle
       for iView=1:obj.nview
         mov = movsAllFull{iMov,iView};
         mr = obj.movieReader(iView);
-        mr.preload = obj.preLoadMovies;
+        mr.preload = obj.movieReadPreLoadMovies;
         mr.open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale, .movieInvert
         if tfHasCrop
           mr.setCropInfo(cInfo(iView)); % cInfo(iView) is a handle/pointer!
@@ -3148,7 +3152,7 @@ classdef Labeler < handle
       end
       
       movfname = obj.getMovieFilesAllFullMovIdx(mIdx);
-      movRdr.preload = obj.preLoadMovies; % must occur before .open()
+      movRdr.preload = obj.movieReadPreLoadMovies; % must occur before .open()
       movRdr.open(movfname{iView},bgArgs{:});
       movRdr.forceGrayscale = obj.movieForceGrayscale;
       movRdr.flipVert = obj.movieInvert(iView);      
@@ -3158,6 +3162,35 @@ classdef Labeler < handle
       else
         movRdr.setCropInfo([]);
       end      
+    end
+    
+    function movieSetMovieReadPreLoadMovies(obj,tf)
+      tf0 = obj.movieReadPreLoadMovies;
+      if tf0~=tf && (obj.nmovies>0 || obj.nmoviesGT>0)        
+        warningNoTrace('Project already has movies. Checking movie lengths under preloading.');
+        obj.hlpCheckWarnMovieNFrames('movieFilesAll','movieInfoAll',true,'');
+        obj.hlpCheckWarnMovieNFrames('movieFilesAllGT','movieInfoAllGT',true,' (gt)');
+      end
+      obj.movieReadPreLoadMovies = tf;
+    end
+    function hlpCheckWarnMovieNFrames(obj,movFileFld,movIfoFld,preload,gtstr)
+      mr = MovieReader;
+      mr.preload = preload;
+      movfiles = obj.(movFileFld);
+      movifo = obj.(movIfoFld);
+      [nmov,nvw] = size(movfiles);
+      for imov=1:nmov
+        fprintf('Movie %d%s\n',imov,gtstr);
+        for ivw=1:nvw
+          mr.open(movfiles{imov,ivw});
+          nf = mr.nframes;
+          nf0 = movifo{imov,ivw}.nframes;
+          if nf~=nf0
+            warningNoTrace('Movie %d%s view %d, old nframes=%d, new nframes=%d.',...
+              imov,gtstr,ivw,nf0,nf);
+          end
+        end
+      end
     end
     
   end
@@ -6935,7 +6968,7 @@ classdef Labeler < handle
         [I,nNborMask,didread] = CPRData.getFrames(tblPNewConcrete,...
           'wbObj',wbObj,...
           'forceGrayscale',obj.movieForceGrayscale,...
-          'preload',obj.preLoadMovies,...
+          'preload',obj.movieReadPreLoadMovies,...
           'movieInvert',obj.movieInvert,...
           'roiPadVal',prmpp.TargetCrop.PadBkgd,...
           'doBGsub',prmpp.BackSub.Use,...

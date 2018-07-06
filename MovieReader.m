@@ -25,7 +25,7 @@ classdef MovieReader < handle
   properties (SetAccess=public)
     
 %     neednframes = true; % whether nframes needs to be exact
-    preload = false;
+    preload = false; % only used at open() time, could be passed as option at that time
 
   end
   
