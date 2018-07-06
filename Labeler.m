@@ -2217,6 +2217,7 @@ classdef Labeler < handle
       nMov = numel(moviefile);
       
       mr = MovieReader();
+      mr.preload = obj.preLoadMovies;
       for iMov = 1:nMov
         movFile = moviefile{iMov};
         tFile = trxfile{iMov};
@@ -2268,7 +2269,9 @@ classdef Labeler < handle
           FSPath.throwErrFileNotFoundMacroAware(tFile,tFileFull,'trxfile');
         end
 
-        mr.open(movfilefull); % Could use movieMovieReaderOpen but we are just using MovieReader to get/save the movieinfo.
+        % Could use movieMovieReaderOpen but we are just using MovieReader 
+        % to get/save the movieinfo.
+        mr.open(movfilefull); 
         ifo = struct();
         ifo.nframes = mr.nframes;
         ifo.info = mr.info;
@@ -2413,8 +2416,11 @@ classdef Labeler < handle
             
       ifos = cell(1,obj.nview);
       mr = MovieReader();
+      mr.preload = obj.preLoadMovies;
       for iView = 1:obj.nview
-        mr.open(moviefilesfull{iView}); % Could use movieMovieReaderOpen but we are just using MovieReader to get/save the movieinfo.
+        % Could use movieMovieReaderOpen but we are just using MovieReader 
+        % to get/save the movieinfo.
+        mr.open(moviefilesfull{iView});
         ifo = struct();
         ifo.nframes = mr.nframes;
         ifo.info = mr.info;
@@ -3101,6 +3107,7 @@ classdef Labeler < handle
       % note we are intentionally not setting preload to true here, since
       % we are just sampling frames and it shouldn't matter if we get the
       % exact right ones. 
+      % al: our use of movieMovieReaderOpen below will set preload
       mr = MovieReader;
       %mr.forceGrayscale = true;
       iSamp = 0;
@@ -3141,10 +3148,10 @@ classdef Labeler < handle
       end
       
       movfname = obj.getMovieFilesAllFullMovIdx(mIdx);
+      movRdr.preload = obj.preLoadMovies; % must occur before .open()
       movRdr.open(movfname{iView},bgArgs{:});
       movRdr.forceGrayscale = obj.movieForceGrayscale;
-      movRdr.flipVert = obj.movieInvert(iView);
-      movRdr.preload = obj.preLoadMovies;
+      movRdr.flipVert = obj.movieInvert(iView);      
       cInfo = obj.getMovieFilesAllCropInfoMovIdx(mIdx);
       if ~isempty(cInfo)
         movRdr.setCropInfo(cInfo(iView));
@@ -3152,39 +3159,8 @@ classdef Labeler < handle
         movRdr.setCropInfo([]);
       end      
     end
-        
-%     function movRdr = getMovieReader(obj,movname)
-%       movRdr = Labeler.getMovieReaderCacheStc(obj.movieCache,movname);
-%     end
+    
   end
-%   methods (Static)
-%     function movRdr = getMovieReaderCacheStc(movCache,movfullpath)
-%       % Get movieReader for movname from .movieCache; load from filesys if
-%       % nec
-%       %
-%       % movCache: containers.Map
-%       % filename: fullpath to movie
-%       %
-%       % movRdr: scalar MovieReader
-%       
-%       if movCache.isKey(movfullpath)
-%         movRdr = movCache(movfullpath);
-%       else
-%         if exist(movfullpath,'file')==0
-%           error('Labeler:file','Cannot find movie ''%s''.',movfullpath);
-%         end
-%         movRdr = MovieReader;
-%         try
-%           movRdr.open(movfullpath);
-%         catch ME
-%           error('Could not open movie ''%s'': %s',movfullpath,ME.message);
-%         end
-%         movCache(movfullpath) = movRdr; %#ok<NASGU>
-%         RC.saveprop('lbl_lastmovie',movfullpath);        
-%       end
-%     end
-%     
-%   end
   
   %% Trx
   methods
@@ -6832,7 +6808,8 @@ classdef Labeler < handle
       end      
     end
     
-    function [data,dataIdx,tblP,tblPReadFailed,tfReadFailed] = preProcDataFetch(obj,tblP,varargin)
+    function [data,dataIdx,tblP,tblPReadFailed,tfReadFailed] = ...
+        preProcDataFetch(obj,tblP,varargin)
       % dataUpdate, then retrieve
       %
       % Input args: See PreProcDataUpdate
@@ -6840,6 +6817,9 @@ classdef Labeler < handle
       % data: CPRData handle, equal to obj.preProcData
       % dataIdx. data.I(dataIdx,:) gives the rows corresponding to tblP
       %   (order preserved)
+      % tblP (out): subset of tblP (input), rows for failed reads removed
+      % tblPReadFailed: subset of tblP (input) where reads failed
+      % tfReadFailed: indicator vec into tblP (input) for failed reads
       
       wbObj = myparse(varargin,...
         'wbObj',[]); % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
@@ -6849,11 +6829,14 @@ classdef Labeler < handle
       if tfWB && wbObj.isCancel
         data = [];
         dataIdx = [];
+        tblP = [];
+        tblPReadFailed = [];
+        tfReadFailed = [];
         return;
       end
       
       data = obj.preProcData;
-      [tfReadFailed] = tblismember(tblP,tblPReadFailed,MFTable.FLDSID);
+      tfReadFailed = tblismember(tblP,tblPReadFailed,MFTable.FLDSID);
       tblP(tfReadFailed,:) = [];
       [tf,dataIdx] = tblismember(tblP,data.MD,MFTable.FLDSID);
       assert(all(tf));
@@ -6896,6 +6879,9 @@ classdef Labeler < handle
       % tblPupdate: updated rows (rows with updated pGT/tfocc).
       %   MFTable.FLDSCORE fields are required. Only .pGT and .tfocc are 
       %   otherwise used. Other fields ignored.
+      % tblPReadFailed: table of failed-to-read rows. Currently subset of
+      %   tblPnew. If non-empty, then .preProcData was not updated with 
+      %   these rows as requested.
       %
       % Updates .preProcData, .preProcDataTS
       
@@ -6914,6 +6900,8 @@ classdef Labeler < handle
       end
       
       dataCurr = obj.preProcData;
+      
+      tblPReadFailed = MFTable.emptyTable(tblflds(tblPnew));
       
       if prmpp.histeq
         assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.preProcH0));
@@ -6969,8 +6957,9 @@ classdef Labeler < handle
         tblPReadFailed = tblPnew(~didreadallviews,:);
         tblPnew(~didreadallviews,:) = [];
         I(~didreadallviews,:) = [];
-
         nNborMask(~didreadallviews,:) = [];
+        
+        % AL: a little worried if all reads fail -- might get a harderr
         
         tfColsAllowed = ismember(tblPnew.Properties.VariableNames,...
           FLDSALLOWED);
@@ -7017,8 +7006,8 @@ classdef Labeler < handle
         dataCurr.pGT(loc,:) = tblPupdate.p;
       end
       
-      if nUpdate>0 || nNew>0
-        assert(obj.preProcData==dataCurr); % handles
+      if nUpdate>0 || nNew>0 % AL: if all reads fail, nNew>0 but no new rows were actually read
+        assert(obj.preProcData==dataCurr); % handles; not sure why this is asserted in this branch specifically
         obj.preProcDataTS = now;
       else
         warningNoTrace('Nothing to update in data.');

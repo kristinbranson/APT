@@ -307,22 +307,20 @@ classdef CPRData < handle
     
     function [I,nmask,didread] = getFrames(tblMF,varargin)
       % Read frames from movies given MF table
-      
+      %
       % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
       % multiview data. 
       % 
       % I: [NxnView] cell vector of images for each row of tbl
       % nmask: [NxnView] number of other CCs masked for each im
-      %
-      % Options: wbObj: WaitBarWithCancel. If canceled, I will be
-      % 'incomplete', ie partially filled.
+      % didread: [NxnView] logical
       
       nView = size(tblMF.mov,2);
       
       [wbObj,forceGrayscale,preload,movieInvert,roiPadVal,doBGsub,bgReadFcn,bgType,...
         maskNeighbors,maskNeighborsMeth,empPDF,fgThresh,trxCache] = ...
         myparse(varargin,...
-          'wbObj',[],...
+          'wbObj',[],... wbObj: WaitBarWithCancel. If canceled, I will be 'incomplete', ie partially filled.
           'forceGrayscale',true,... 
           'preload',false,...
           'movieInvert',false(1,nView),...
@@ -358,23 +356,18 @@ classdef CPRData < handle
       didread = false(N,nView);
       nmask = zeros(N,nView);
             
-      %movMaps = cell(1,nView); % movMaps{i} contains containers.Map for view i
-      
       for iVw=1:nView
         [movsUn,~,movidx] = unique(tblMF.mov(:,iVw));
-        
-        %movMapVw = containers.Map(); % movieName->struct with movieReader, etc
         
         if tfWB
           wbObj.startPeriod(sprintf('Reading images: view %d',iVw),...
             'shownumden',true,'denominator',N);          
         end
         
-        nframesread = 0;
+        nframesAttemptRead = 0;
         for iMov=1:numel(movsUn)
-
           if tfWB
-            tfCancel = wbObj.updateFracWithNumDen(nframesread);
+            tfCancel = wbObj.updateFracWithNumDen(nframesAttemptRead);
             if tfCancel
               wbObj.endPeriod();
               return;
@@ -391,42 +384,17 @@ classdef CPRData < handle
           mr.open(mov,'bgType',bgType,'bgReadFcn',bgReadFcn);
 
           % Note: we don't setCropInfo here; cropping handled explicitly
-          % b/c most of the time if comes from the trx
-          %movMapVw(mov) = mr;
-          
-          %if tfWB
-          %  wbObj.endPeriod();
-          %end
-          
-          %movMaps{iVw} = movMapVw;
-          %end
-          
-          %if tfWB
-          %  wbObj.startPeriod('Reading movie images','shownumden',true,'denominator',N);
-          %  oc = onCleanup(@()wbObj.endPeriod());
-          %end
+          % b/c most of the time it comes from the trx
           
           idxcurr = find(movidx == iMov);
-          nframesread = nframesread + numel(idxcurr);
-          for iiTrl = 1:numel(idxcurr),
-          
+          nframesAttemptRead = nframesAttemptRead + numel(idxcurr);
+          for iiTrl = 1:numel(idxcurr)
             iTrl = idxcurr(iiTrl);
-            
-            %for iTrl=1:N
-            %if tfWB
-            %tfCancel = wbObj.updateFracWithNumDen(iTrl);
-            %if tfCancel
-            %  return;
-            %end
-            %end
             
             trow = tblMF(iTrl,:);
             f = trow.frm;
             iTgt = trow.iTgt;
-            %for iVw=1:nView
-            %mov = trow.mov{iVw};
             assert(strcmp(mov,trow.mov{iVw}));
-            %mr = movMaps{iVw}(mov);
             
             if tfROI
               % Will be handy below
@@ -535,7 +503,7 @@ classdef CPRData < handle
         end
         if tfWB
           wbObj.endPeriod();
-        end        
+        end    
       end
     end
 

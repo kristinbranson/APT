@@ -24,7 +24,7 @@ classdef MovieReader < handle
   
   properties (SetAccess=public)
     
-    neednframes = true; % whether nframes needs to be exact
+%     neednframes = true; % whether nframes needs to be exact
     preload = false;
 
   end
@@ -108,7 +108,9 @@ classdef MovieReader < handle
       
       [bgTy,bgReadFcn] = myparse(varargin,...
         'bgType',[],... % optional, string enum
-        'bgReadFcn',[]); % optional, fcn handle to compute [bg,bgdev] = bgReadFcn(movfile,movifo)
+        'bgReadFcn',[]... % optional, fcn handle to compute [bg,bgdev] = bgReadFcn(movfile,movifo)
+         ... % 'preload',false... % if true, frames pre-read upfront. passed thru to get_readframe_fcn
+        ); 
       
       assert(exist(fname,'file')>0,'Movie ''%s'' not found.',fname);
       
@@ -117,7 +119,8 @@ classdef MovieReader < handle
       end
       
       obj.filename = fname;      
-      [obj.readFrameFcn,obj.nframes,obj.fid,obj.info] = get_readframe_fcn(obj.filename,'preload',obj.preload);%,'neednframes',obj.neednframes);
+      [obj.readFrameFcn,obj.nframes,obj.fid,obj.info] = ...
+        get_readframe_fcn(obj.filename,'preload',obj.preload);%,'neednframes',obj.neednframes);
       
       ifo = obj.info;
       if isfield(ifo,'nr') && isfield(ifo,'nc')
