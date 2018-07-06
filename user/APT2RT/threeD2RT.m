@@ -138,7 +138,7 @@ function [translations, axisAngleDegXYZ, quaternions, frameStore,...
 % 
 % alignedExampleHeadCoords = first frame reference head
 % 
-% comes from first output of alignBodyAxis2Yaxis() applied to first frame of data
+% comes from first output of alignBodyAxis2Xaxis() applied to first frame of data
 % 
 % 
 
@@ -197,7 +197,7 @@ bodyCoords = ...
 
 
 % Rotating example head data so body axis is aligned with Y axis and wing bases lie along x axis and pivot point is at origin
-[ alignedRefHead, ~, ~] = alignBodyAxis2Yaxis( referenceHead,bodyCoords,pivotPoint);
+[ alignedRefHead, ~, ~] = alignBodyAxis2Xaxis( referenceHead,bodyCoords,pivotPoint);
 
 
 
@@ -227,7 +227,7 @@ for n=1:1:size(headData.kine.flyhead.data.coords(i_LantTip,1,:), 3) %for each fr
 
 
     % Rotating all data so body axis is aligned with Y axis and wing bases lie along x axis and pivot point is at origin
-    [alignedheadCoords, alignedBodyCoords, alignedPivotPoint] = alignBodyAxis2Yaxis(headCoords_inModelHeadFormat,bodyCoords,pivotPoint);
+    [alignedheadCoords, alignedBodyCoords, alignedPivotPoint] = alignBodyAxis2Xaxis(headCoords_inModelHeadFormat,bodyCoords,pivotPoint);
 
     
     if ~any(any(isnan(alignedheadCoords)))
