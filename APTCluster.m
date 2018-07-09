@@ -102,7 +102,7 @@ switch action
       end
       kfold = size(split,2);
       fprintf(1,'Loaded split (%d fold) from %s.\n',kfold,tableSplitFile);
-      xvArgs = [xvArgs {'kfold' kfold 'partTrn' split}];
+      xvArgs = [xvArgs {'kfold' kfold 'partTst' split}];
       outfileBase = [outfileBase '_' tableSplitFileS];
     end
     if tfParam

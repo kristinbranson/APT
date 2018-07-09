@@ -25,8 +25,7 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
 
     parser.add_argument("projfile",help="APT project file")
-    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial"],help="action to perform on/with project; one of {retrain, track, trackbatch, trackbatchserial}",metavar="action")
-
+    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","xv"],help="action to perform on/with project",metavar="action")
     parser.add_argument("-n","--nslots","--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
     parser.add_argument("--trx",help="trxfile; used for action==track",metavar="TRX")
@@ -38,7 +37,7 @@ def main():
     parser.add_argument("--binrootdir",help="Root build directory containing saved builds. Defaults to %s"%DEFAULTAPTBUILDROOTDIR,default=DEFAULTAPTBUILDROOTDIR)
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
-    parser.add_argument("--trackargs",help="use with action==track or trackbatch. enclose in quotes, additional/optional prop-val pairs")
+    parser.add_argument("--trackargs",help="use with action==track, trackbatch, xv. enclose in quotes, additional/optional prop-val pairs")
     parser.add_argument("-p0di","--p0DiagImg",help="use with action==track or trackbatch. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
 #    parser.add_argument("--trkfile",help="use with action==prune*. full path to trkfile to prune")
@@ -84,7 +83,7 @@ def main():
         print("Action is " + args.action + ", ignoring --trx specification")
     if args.action not in ["track","trackbatch"] and args.p0DiagImg:
         print("Action is " + args.action + ", ignoring --p0DiagImg specification")    
-    if args.action not in ["track","trackbatch"] and args.trackargs:
+    if args.action not in ["track","trackbatch","xv"] and args.trackargs:
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
@@ -322,6 +321,11 @@ def main():
 
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
+
+        elif args.action=="xv":
+            cmd = args.projfile + " " + args.action
+            if args.trackargs:
+                cmd=cmd+" "+args.trackargs
 
         gencode(shfile,jobid,args,cmd)
 

@@ -2846,7 +2846,7 @@ lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
 tbl = MFTable.loadTableFromMatfile(fname);
 if ~isnumeric(tbl.mov)
-  [tffound,mIdx] = lObj.getMovIdxMovieFilesAllGTFull(tbl.mov);
+  [tffound,mIdx] = lObj.getMovIdxMovieFilesAllFull(tbl.mov,'gt',true);
   if any(~tffound)
     errstrs = {'Moviesets in table not found in project:'};
     movstrsnotfound = MFTable.formMultiMovieIDArray(tbl.mov(~tffound,:),...
