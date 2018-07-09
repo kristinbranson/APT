@@ -1,13 +1,21 @@
 
-load ppdata.mat;
-if ndims(X) >= 5,
-  X = permute(X,[1,2,3,5,4]);
-end
+% load ppdata.mat;
+% if ndims(X) >= 5,
+%   X = permute(X,[1,2,3,5,4]);
+% end
+
+load ppdata_sh.mat;
+mov = unique(tblMFT.mov);
+assert(numel(mov)==1);
+caldata = viewCalibrationData{mov};
+assert(~isempty(caldata));
 
 projfile = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4523_gt080618_made20180627.lbl';
 
 %% 
 ppobj = PostProcess();
+ppobj.SetUseGeometricError(false);
+ppobj.SetCalibrationData(caldata);
 ppobj.SetSampleData(X);
 starttime = tic;
 ppobj.algorithm = 'median';

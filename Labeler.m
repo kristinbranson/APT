@@ -6908,6 +6908,8 @@ classdef Labeler < handle
       tblfldscontainsassert(tblPnew,FLDSREQUIRED);
       tblfldscontainsassert(tblPupdate,FLDSREQUIRED);
       
+      tblPReadFailed = tblPnew([],:);
+      
       prmpp = obj.preProcParams;
       if isempty(prmpp)
         error('Please specify tracking parameters.');
