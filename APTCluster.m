@@ -78,6 +78,12 @@ switch action
       );
     
     lObj.projLoad(lblFile);
+    if lObj.movieReadPreLoadMovies
+      fprintf(' ... preload is on.\n');
+    end
+    if lObj.gtIsGTMode
+      lObj.gtSetGTMode(false,'warnChange',true);
+    end
 
     tfTable = ~isempty(tableFile);
     tfSplit = ~isempty(tableSplitFile);
@@ -102,7 +108,7 @@ switch action
       end
       kfold = size(split,2);
       fprintf(1,'Loaded split (%d fold) from %s.\n',kfold,tableSplitFile);
-      xvArgs = [xvArgs {'kfold' kfold 'partTrn' split}];
+      xvArgs = [xvArgs {'kfold' kfold 'partTst' split}];
       outfileBase = [outfileBase '_' tableSplitFileS];
     end
     if tfParam

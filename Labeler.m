@@ -543,9 +543,11 @@ classdef Labeler < handle
         end
       end
     end
-    function [tffound,mIdx] = getMovIdxMovieFilesAllGTFull(obj,movsets)
+    function [tffound,mIdx] = getMovIdxMovieFilesAllFull(obj,movsets,varargin)
       % Get the MovieIndex vector corresponding to a set of movies by
-      % comparing against .movieFilesAllGTFull. 
+      % comparing against .movieFilesAll*Full.
+      %
+      % Defaults to using .movieFilesAll*Full per .gtIsGTMode.
       %
       % movsets: [n x nview] movie fullpaths. Can have repeated
       % rows/moviesets.
@@ -553,19 +555,27 @@ classdef Labeler < handle
       % tffound: [n x 1] logical
       % mIdx: [n x 1] MovieIndex vector. mIdx(i)==0<=>tffound(i)==false.
       
+      gt = myparse(varargin,...
+        'gt',obj.gtIsGTMode);
+      
+      if gt
+        mfaf = obj.movieFilesAllGTFull;
+      else        
+        mfaf = obj.movieFilesAllFull;
+      end
+      
       [nmovset,nvw] = size(movsets);
       assert(nvw==obj.nview);
       
       movsets = FSPath.standardPath(movsets);
       movsets = cellfun(@FSPath.platformizePath,movsets,'uni',0);
-      [iMov1,iMovGT] = Labeler.identifyCommonMovSets(...
-        movsets,obj.movieFilesAllGTFull);
+      [iMov1,iMov2] = Labeler.identifyCommonMovSets(movsets,mfaf);
       
       tffound = false(nmovset,1);
       tffound(iMov1,:) = true;
       mIdx = zeros(nmovset,1);
-      mIdx(iMov1) = -iMovGT;
-      mIdx = MovieIndex(mIdx);
+      mIdx(iMov1) = iMov2; % mIdx is all 0s, or positive movie indices
+      mIdx = MovieIndex(mIdx,gt);
     end
     function v = get.movieFilesAllHaveLblsGTaware(obj)
       v = obj.getMovieFilesAllHaveLblsArg(obj.gtIsGTMode);
@@ -6927,6 +6937,8 @@ classdef Labeler < handle
       tblfldscontainsassert(tblPnew,FLDSREQUIRED);
       tblfldscontainsassert(tblPupdate,FLDSREQUIRED);
       
+      tblPReadFailed = tblPnew([],:);
+      
       prmpp = obj.preProcParams;
       if isempty(prmpp)
         error('Please specify tracking parameters.');
@@ -7370,19 +7382,19 @@ classdef Labeler < handle
     function trackCrossValidate(obj,varargin)
       % Run k-fold crossvalidation. Results stored in .xvResults
       
-      [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTrn] = ...
+      [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTst] = ...
         myparse(varargin,...
         'kfold',7,... % number of folds
         'initData',true,... % if true, call .initData() between folds to minimize mem usage
         'wbObj',[],... % (opt) WaitBarWithCancel
         'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
         'tblMFgtIsFinal',false,... % a bit silly, for APT developers only. Set to true if your tblMFgt is in final form.
-        'partTrn',[]... % (opt) pre-defined training splits. If supplied, partTrn must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied. true values indicate training rows, false values indicate test rows.
+        'partTst',[]... % (opt) pre-defined training splits. If supplied, partTst must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied. true values indicate test rows, false values indicate training rows.
       );        
       
       tfWB = ~isempty(wbObj);
       tfTblMFgt = ~isempty(tblMFgt);      
-      tfPart = ~isempty(partTrn);
+      tfPart = ~isempty(partTst);
       
       if obj.gtIsGTMode
         error('Unsupported in GT mode.');
@@ -7421,7 +7433,7 @@ classdef Labeler < handle
         partTrn = cat(2,partTrn{:});
         partTst = cat(2,partTst{:});
       else
-        partTst = ~partTrn;
+        partTrn = ~partTst;
       end
       assert(islogical(partTrn) && islogical(partTst));
       n = height(tblMFgt);

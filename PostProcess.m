@@ -38,7 +38,11 @@ classdef PostProcess < handle
     gmmdata = [];
     postdata = struct;
     
+    caldata = [];
     reconstructfun = [];
+    reconstructfun_from_caldata = false;
+    usegeometricerror = true;
+    
     sample_viewsindependent = true;
     heatmap_viewsindependent = true;
     
@@ -67,6 +71,15 @@ classdef PostProcess < handle
       if ismember(stepname,{'reconstruct','sampledata',...
           'heatmapdata'}),
         obj.ClearComputedResults();
+      elseif ismember(stepname,{'viterbi'}),
+        
+        if isfield(obj.postdata,'viterbi_joint'),
+          obj.postdata.viterbi_joint = [];
+        end
+        if isfield(obj.postdata,'viterbi_indep'),
+          obj.postdata.viterbi_indep = [];
+        end
+        
       end
       
       if ismember(stepname,{'sampledata'}),
@@ -81,17 +94,6 @@ classdef PostProcess < handle
         obj.gmmdata = [];
       end
       
-      if ismember(stepname,{'viterbi'}),
-        
-        if isfield(obj.postdata,'viterbi_joint'),
-          obj.postdata.viterbi_joint = [];
-        end
-        if isfield(obj.postdata,'viterbi_indep'),
-          obj.postdata.viterbi_indep = [];
-        end
-        
-      end
-      
     end
     
     function [X,x_re] = ReconstructSampleMultiView(obj)
@@ -102,12 +104,45 @@ classdef PostProcess < handle
       [N,nRep,npts,nviews,d] = size(obj.sampledata.x_perview);
       
       % X is d x N*nRep*npts
-      [X,x_re] = obj.reconstructfun(permute(reshape(x,[N*nRep*npts,nviews,d]),[2,3,1]));
+      [X,x_re] = obj.reconstructfun(permute(reshape(obj.sampledata.x_perview,[N*nRep*npts,nviews,d]),[2,3,1]));
       d = size(X,1);
       X = reshape(permute(X,[2,1]),[N,nRep,npts,d]);
       obj.sampledata.x = X;
       obj.sampledata.x_re_perview = x_re;
       
+      obj.PropagateDataReset('reconstruct');
+      
+    end
+    
+    function SetCalibrationData(obj,caldata)
+      
+      obj.caldata = caldata;
+      obj.SetReconstructFunFromCalData();
+      
+    end
+    
+    function SetReconstructFunFromCalData(obj)
+      
+      obj.SetReconstructFun(get_reconstruct_fcn(obj.caldata,obj.usegeometricerror),true);
+      
+    end
+    
+    function SetUseGeometricError(obj,value)
+      obj.usegeometricerror = value;
+      if obj.reconstructfun_from_caldata && ~isempty(obj.caldata),
+        obj.SetReconstructFunFromCalData();
+      end
+    end
+    
+    function SetReconstructFun(obj,reconstructfun,reconstructfun_from_caldata)
+      
+      if nargin < 3,
+        obj.reconstructfun_from_caldata = false;
+      else
+        obj.reconstructfun_from_caldata = reconstructfun_from_caldata;
+      end
+
+      obj.reconstructfun = reconstructfun;
       obj.PropagateDataReset('reconstruct');
       
     end
@@ -150,8 +185,10 @@ classdef PostProcess < handle
           grididx = cell(1,nviews);
           [grididx{:}] = deal(1:nRep);
           [grididx{:}] = ndgrid(grididx{:});
-          idx = sub2ind(repmat(nRep,[1,nviews]),grididx{:});
-          obj.sampledata.x_perview = x(:,idx(:),:,:,:);
+          obj.sampledata.x_perview = repmat(x(:,1,:,:,:),[1,nRep^nviews,1,1,1]);
+          for viewi = 1:nviews,
+            obj.sampledata.x_perview(:,:,:,viewi,:) = x(:,grididx{viewi},:,viewi,:);
+          end
           nRep = nRep^nviews;
           
         else
