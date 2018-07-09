@@ -9,6 +9,7 @@ classdef Labeler < handle
     % non-config props
     SAVEPROPS = { ...
       'VERSION' 'projname' ...
+      'movieReadPreLoadMovies' ...
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros'...
       'movieFilesAllGT' 'movieInfoAllGT' ...
       'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
@@ -153,7 +154,7 @@ classdef Labeler < handle
   % things added, removed, managed by the MovieManager etc; while "Video"
   % referred to visual details, display, playback, etc. But I sort of
   % forgot and mixed them up so that Movie sometimes applies to the latter.
-  properties
+  properties (SetAccess=private)
     nview; % number of views. init: C
     viewNames % [nview] cellstr. init: C
     
@@ -167,9 +168,7 @@ classdef Labeler < handle
     viewCalibrationData % Opaque calibration 'useradata' for multiview. init: PN
     viewCalibrationDataGT % etc. 
     
-    % Added by KB, temporary, this should likely go somewhere else
-    preLoadMovies = false;
-    
+    movieReadPreLoadMovies = false; % scalar logical. Set .preload property on any MovieReaders per this prop
     movieReader = []; % [1xnview] MovieReader objects. init: C
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieInfoAllGT = {}; % same as .movieInfoAll but for GT mode
@@ -2179,6 +2178,11 @@ classdef Labeler < handle
         s.movieFilesAllCropInfo = cell(size(s.movieFilesAll,1),1);
         s.movieFilesAllGTCropInfo = cell(size(s.movieFilesAllGT,1),1);
       end
+      
+      % 20180706 movieReadPreLoadMovies
+      if ~isfield(s,'movieReadPreLoadMovies')
+        s.movieReadPreLoadMovies = false;
+      end
     end
 
   end 
@@ -2217,6 +2221,7 @@ classdef Labeler < handle
       nMov = numel(moviefile);
       
       mr = MovieReader();
+      mr.preload = obj.movieReadPreLoadMovies;
       for iMov = 1:nMov
         movFile = moviefile{iMov};
         tFile = trxfile{iMov};
@@ -2268,7 +2273,9 @@ classdef Labeler < handle
           FSPath.throwErrFileNotFoundMacroAware(tFile,tFileFull,'trxfile');
         end
 
-        mr.open(movfilefull); % Could use movieMovieReaderOpen but we are just using MovieReader to get/save the movieinfo.
+        % Could use movieMovieReaderOpen but we are just using MovieReader 
+        % to get/save the movieinfo.
+        mr.open(movfilefull); 
         ifo = struct();
         ifo.nframes = mr.nframes;
         ifo.info = mr.info;
@@ -2413,8 +2420,11 @@ classdef Labeler < handle
             
       ifos = cell(1,obj.nview);
       mr = MovieReader();
+      mr.preload = obj.movieReadPreLoadMovies;
       for iView = 1:obj.nview
-        mr.open(moviefilesfull{iView}); % Could use movieMovieReaderOpen but we are just using MovieReader to get/save the movieinfo.
+        % Could use movieMovieReaderOpen but we are just using MovieReader 
+        % to get/save the movieinfo.
+        mr.open(moviefilesfull{iView});
         ifo = struct();
         ifo.nframes = mr.nframes;
         ifo.info = mr.info;
@@ -2930,7 +2940,7 @@ classdef Labeler < handle
       for iView=1:obj.nview
         mov = movsAllFull{iMov,iView};
         mr = obj.movieReader(iView);
-        mr.preload = obj.preLoadMovies;
+        mr.preload = obj.movieReadPreLoadMovies;
         mr.open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale, .movieInvert
         if tfHasCrop
           mr.setCropInfo(cInfo(iView)); % cInfo(iView) is a handle/pointer!
@@ -3101,6 +3111,7 @@ classdef Labeler < handle
       % note we are intentionally not setting preload to true here, since
       % we are just sampling frames and it shouldn't matter if we get the
       % exact right ones. 
+      % al: our use of movieMovieReaderOpen below will set preload
       mr = MovieReader;
       %mr.forceGrayscale = true;
       iSamp = 0;
@@ -3141,10 +3152,10 @@ classdef Labeler < handle
       end
       
       movfname = obj.getMovieFilesAllFullMovIdx(mIdx);
+      movRdr.preload = obj.movieReadPreLoadMovies; % must occur before .open()
       movRdr.open(movfname{iView},bgArgs{:});
       movRdr.forceGrayscale = obj.movieForceGrayscale;
-      movRdr.flipVert = obj.movieInvert(iView);
-      movRdr.preload = obj.preLoadMovies;
+      movRdr.flipVert = obj.movieInvert(iView);      
       cInfo = obj.getMovieFilesAllCropInfoMovIdx(mIdx);
       if ~isempty(cInfo)
         movRdr.setCropInfo(cInfo(iView));
@@ -3152,39 +3163,37 @@ classdef Labeler < handle
         movRdr.setCropInfo([]);
       end      
     end
-        
-%     function movRdr = getMovieReader(obj,movname)
-%       movRdr = Labeler.getMovieReaderCacheStc(obj.movieCache,movname);
-%     end
+    
+    function movieSetMovieReadPreLoadMovies(obj,tf)
+      tf0 = obj.movieReadPreLoadMovies;
+      if tf0~=tf && (obj.nmovies>0 || obj.nmoviesGT>0)        
+        warningNoTrace('Project already has movies. Checking movie lengths under preloading.');
+        obj.hlpCheckWarnMovieNFrames('movieFilesAll','movieInfoAll',true,'');
+        obj.hlpCheckWarnMovieNFrames('movieFilesAllGT','movieInfoAllGT',true,' (gt)');
+      end
+      obj.movieReadPreLoadMovies = tf;
+    end
+    function hlpCheckWarnMovieNFrames(obj,movFileFld,movIfoFld,preload,gtstr)
+      mr = MovieReader;
+      mr.preload = preload;
+      movfiles = obj.(movFileFld);
+      movifo = obj.(movIfoFld);
+      [nmov,nvw] = size(movfiles);
+      for imov=1:nmov
+        fprintf('Movie %d%s\n',imov,gtstr);
+        for ivw=1:nvw
+          mr.open(movfiles{imov,ivw});
+          nf = mr.nframes;
+          nf0 = movifo{imov,ivw}.nframes;
+          if nf~=nf0
+            warningNoTrace('Movie %d%s view %d, old nframes=%d, new nframes=%d.',...
+              imov,gtstr,ivw,nf0,nf);
+          end
+        end
+      end
+    end
+    
   end
-%   methods (Static)
-%     function movRdr = getMovieReaderCacheStc(movCache,movfullpath)
-%       % Get movieReader for movname from .movieCache; load from filesys if
-%       % nec
-%       %
-%       % movCache: containers.Map
-%       % filename: fullpath to movie
-%       %
-%       % movRdr: scalar MovieReader
-%       
-%       if movCache.isKey(movfullpath)
-%         movRdr = movCache(movfullpath);
-%       else
-%         if exist(movfullpath,'file')==0
-%           error('Labeler:file','Cannot find movie ''%s''.',movfullpath);
-%         end
-%         movRdr = MovieReader;
-%         try
-%           movRdr.open(movfullpath);
-%         catch ME
-%           error('Could not open movie ''%s'': %s',movfullpath,ME.message);
-%         end
-%         movCache(movfullpath) = movRdr; %#ok<NASGU>
-%         RC.saveprop('lbl_lastmovie',movfullpath);        
-%       end
-%     end
-%     
-%   end
   
   %% Trx
   methods
@@ -6832,7 +6841,8 @@ classdef Labeler < handle
       end      
     end
     
-    function [data,dataIdx,tblP,tblPReadFailed,tfReadFailed] = preProcDataFetch(obj,tblP,varargin)
+    function [data,dataIdx,tblP,tblPReadFailed,tfReadFailed] = ...
+        preProcDataFetch(obj,tblP,varargin)
       % dataUpdate, then retrieve
       %
       % Input args: See PreProcDataUpdate
@@ -6840,6 +6850,9 @@ classdef Labeler < handle
       % data: CPRData handle, equal to obj.preProcData
       % dataIdx. data.I(dataIdx,:) gives the rows corresponding to tblP
       %   (order preserved)
+      % tblP (out): subset of tblP (input), rows for failed reads removed
+      % tblPReadFailed: subset of tblP (input) where reads failed
+      % tfReadFailed: indicator vec into tblP (input) for failed reads
       
       wbObj = myparse(varargin,...
         'wbObj',[]); % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
@@ -6849,11 +6862,14 @@ classdef Labeler < handle
       if tfWB && wbObj.isCancel
         data = [];
         dataIdx = [];
+        tblP = [];
+        tblPReadFailed = [];
+        tfReadFailed = [];
         return;
       end
       
       data = obj.preProcData;
-      [tfReadFailed] = tblismember(tblP,tblPReadFailed,MFTable.FLDSID);
+      tfReadFailed = tblismember(tblP,tblPReadFailed,MFTable.FLDSID);
       tblP(tfReadFailed,:) = [];
       [tf,dataIdx] = tblismember(tblP,data.MD,MFTable.FLDSID);
       assert(all(tf));
@@ -6896,6 +6912,9 @@ classdef Labeler < handle
       % tblPupdate: updated rows (rows with updated pGT/tfocc).
       %   MFTable.FLDSCORE fields are required. Only .pGT and .tfocc are 
       %   otherwise used. Other fields ignored.
+      % tblPReadFailed: table of failed-to-read rows. Currently subset of
+      %   tblPnew. If non-empty, then .preProcData was not updated with 
+      %   these rows as requested.
       %
       % Updates .preProcData, .preProcDataTS
       
@@ -6916,6 +6935,8 @@ classdef Labeler < handle
       end
       
       dataCurr = obj.preProcData;
+      
+      tblPReadFailed = MFTable.emptyTable(tblflds(tblPnew));
       
       if prmpp.histeq
         assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.preProcH0));
@@ -6949,7 +6970,7 @@ classdef Labeler < handle
         [I,nNborMask,didread] = CPRData.getFrames(tblPNewConcrete,...
           'wbObj',wbObj,...
           'forceGrayscale',obj.movieForceGrayscale,...
-          'preload',obj.preLoadMovies,...
+          'preload',obj.movieReadPreLoadMovies,...
           'movieInvert',obj.movieInvert,...
           'roiPadVal',prmpp.TargetCrop.PadBkgd,...
           'doBGsub',prmpp.BackSub.Use,...
@@ -6971,8 +6992,9 @@ classdef Labeler < handle
         tblPReadFailed = tblPnew(~didreadallviews,:);
         tblPnew(~didreadallviews,:) = [];
         I(~didreadallviews,:) = [];
-
         nNborMask(~didreadallviews,:) = [];
+        
+        % AL: a little worried if all reads fail -- might get a harderr
         
         tfColsAllowed = ismember(tblPnew.Properties.VariableNames,...
           FLDSALLOWED);
@@ -7019,8 +7041,8 @@ classdef Labeler < handle
         dataCurr.pGT(loc,:) = tblPupdate.p;
       end
       
-      if nUpdate>0 || nNew>0
-        assert(obj.preProcData==dataCurr); % handles
+      if nUpdate>0 || nNew>0 % AL: if all reads fail, nNew>0 but no new rows were actually read
+        assert(obj.preProcData==dataCurr); % handles; not sure why this is asserted in this branch specifically
         obj.preProcDataTS = now;
       else
         warningNoTrace('Nothing to update in data.');
@@ -7350,21 +7372,19 @@ classdef Labeler < handle
     function trackCrossValidate(obj,varargin)
       % Run k-fold crossvalidation. Results stored in .xvResults
       
-      [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTrn,partTst] = ...
+      [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTrn] = ...
         myparse(varargin,...
         'kfold',7,... % number of folds
         'initData',true,... % if true, call .initData() between folds to minimize mem usage
         'wbObj',[],... % (opt) WaitBarWithCancel
         'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
         'tblMFgtIsFinal',false,... % a bit silly, for APT developers only. Set to true if your tblMFgt is in final form.
-        'partTrn',[],... % (opt) pre-defined training splits. If supplied, partTrn must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied.
-        'partTst',[]... % (opt) etc see partTrn
+        'partTrn',[]... % (opt) pre-defined training splits. If supplied, partTrn must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied. true values indicate training rows, false values indicate test rows.
       );        
       
       tfWB = ~isempty(wbObj);
       tfTblMFgt = ~isempty(tblMFgt);      
       tfPart = ~isempty(partTrn);
-      assert(tfPart==~isempty(partTst));
       
       if obj.gtIsGTMode
         error('Unsupported in GT mode.');
@@ -7402,12 +7422,17 @@ classdef Labeler < handle
         partTst = arrayfun(@(x)cvPart.test(x),1:kFold,'uni',0);
         partTrn = cat(2,partTrn{:});
         partTst = cat(2,partTst{:});
+      else
+        partTst = ~partTrn;
       end
+      assert(islogical(partTrn) && islogical(partTst));
       n = height(tblMFgt);
       szassert(partTrn,[n kFold]);
       szassert(partTst,[n kFold]);
       tmp = partTrn+partTst;
-      assert(all(tmp(:)==1),'Invalid cv splits specified.');
+      assert(all(tmp(:)==1),'Invalid cv splits specified.'); % partTrn==~partTst
+      assert(all(sum(partTst,2)==1),...
+        'Invalid cv splits specified; each row must be tested precisely once.');
       
       tObj = obj.tracker;
       if isempty(tObj)

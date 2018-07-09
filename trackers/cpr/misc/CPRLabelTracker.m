@@ -842,7 +842,12 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      [d,iTrn] = labelerObj.preProcDataFetch(tblTrn);
+      [d,iTrn,~,tblTrnReadFail] = labelerObj.preProcDataFetch(tblTrn);
+      nMissedReads = height(tblTrnReadFail);
+      if nMissedReads>0
+        warningNoTrace('Failed to read images for %d training rows.\n',...
+          nMissedReads);
+      end
       nTrn = numel(iTrn);
       fprintf(1,'%d training rows in total.\n',nTrn);
       
@@ -950,15 +955,21 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(tblPTrn)
         error('CPRLabelTracker:noTrnData','No training data set.');
       end
-      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
       
-      [d,dIdx,tblPTrn,tblPTrnReadFailed] = obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj);
+      [d,dIdx,tblPTrn,tblPTrnReadFail] = ...
+        obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj);
       if tfWB && wbObj.isCancel
         obj.trnDataInit();
         obj.trnResInit();
         return;
       end
-        
+      nMissedReads = height(tblPTrnReadFail);
+      if nMissedReads>0
+        warningNoTrace('Removing %d training rows, failed to read images.\n',...
+          nMissedReads);
+      end
+      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
+
 %       [tf,locDataInTblP] = tblismember(d.MD,tblPTrn,MFTable.FLDSID);
 %       assert(nnz(tf)==height(tblPTrn));
       d.iTrn = dIdx;
@@ -1041,6 +1052,8 @@ classdef CPRLabelTracker < LabelTracker
     function train(obj,varargin)
       % Incremental trainupdate using labels newer than .trnDataTblPTS
 
+      assert(false,'Unsupported.');
+      
       prm = obj.sPrm;
       if isempty(prm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
@@ -1165,6 +1178,8 @@ classdef CPRLabelTracker < LabelTracker
     
     % BGKD -- PROB JUST USE TRACK
     function [trkPMDnew,pTstTRed,pTstT] = trackCore(obj,tblP)
+      assert(false,'unused.');
+      
       prm = obj.sPrm;
       if isempty(prm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
@@ -1515,8 +1530,8 @@ classdef CPRLabelTracker < LabelTracker
           obj.lObj.preProcInitData();
         end
         
-        [d,dIdx,tblMFTChunk,tblMFTChunkReadFailed,tfReadFailed] = obj.lObj.preProcDataFetch(tblMFTChunk,'wbObj',wbObj);
-        tfDidRead(idxP0:idxP1) = ~tfReadFailed;
+        [d,dIdx,tblMFTChunk,~,tfReadFailed] = ...
+          obj.lObj.preProcDataFetch(tblMFTChunk,'wbObj',wbObj);
         if tfWB && wbObj.isCancel
           % Single-chunk: data unchanged, tracking results unchanged => 
           % obj unchanged.
@@ -1528,6 +1543,11 @@ classdef CPRLabelTracker < LabelTracker
             wbObj.cancelData = struct('msg','Partial tracking results available.');
           end
           return;
+        end
+        tfDidRead(idxP0:idxP1) = ~tfReadFailed;
+        if any(tfReadFailed)
+          warningNoTrace('Not tracking %d rows, failed to read movies.',...
+            nnz(tfReadFailed));
         end
         
         idxRead = find(~tfReadFailed);
