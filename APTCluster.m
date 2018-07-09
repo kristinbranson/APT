@@ -78,6 +78,12 @@ switch action
       );
     
     lObj.projLoad(lblFile);
+    if lObj.movieReadPreLoadMovies
+      fprintf(' ... preload is on.\n');
+    end
+    if lObj.gtIsGTMode
+      lObj.gtSetGTMode(false,'warnChange',true);
+    end
 
     tfTable = ~isempty(tableFile);
     tfSplit = ~isempty(tableSplitFile);

@@ -156,6 +156,10 @@ classdef APT
       % Don't set MATLAB path if it appears it is already set
       % "smart" in quotes, of course
       
+      if isdeployed
+        return;
+      end
+        
       [p,jp] = APT.getpath();
       if APT.matlabPathNotConfigured
         fprintf('Configuring your MATLAB path ...\n');
@@ -225,7 +229,15 @@ classdef APT
       end      
     end
     
-    function buildAPTCluster()
+    function buildAPTCluster(varargin)
+      [incsinglethreaded,bindirname] = myparse(varargin,...
+        'incsinglethreaded',true,...
+        'bindirname',[]... % custom binary output dir, eg '20180709.feature.deeptrack'. Still located underneath Manifest:build dir
+        );
+      today = datestr(now,'yyyymmdd');
+      if isempty(bindirname)
+        bindirname = today;
+      end
       
       if ~isequal(pwd,APT.Root)
         error('Run APT.build in the APT root directory (%s), because mcc is finicky about includes/adds, the ctf archive, etcetera.\n',APT.Root);
@@ -242,7 +254,9 @@ classdef APT
       % Generate mcc args
       buildIfo = struct();
       buildIfo.multithreaded = {};
-      buildIfo.singlethreaded = {'-R' '-singleCompThread'};      
+      if incsinglethreaded
+        buildIfo.singlethreaded = {'-R' '-singleCompThread'};
+      end
 
       pth = APT.getpath();
       pth = pth(:);
@@ -250,6 +264,7 @@ classdef APT
       Ipth = Ipth';      
       aptroot = APT.Root;
       cprroot = fullfile(aptroot,'trackers','cpr');
+      dtroot = fullfile(aptroot,'trackers','dt');
       jaabapath = APT.getjaabapath();
       Ipthjaaba = [repmat({'-I'},numel(jaabapath),1) jaabapath];
       Ipthjaaba = Ipthjaaba';      
@@ -273,13 +288,16 @@ classdef APT
         '-T','link:exe',...
         '-d',fullfile(aptroot,BUILDOUTDIR),... %        '-v',...
         fullfile(aptroot,'APTCluster.m'),...
-        '-N',...
         Ipth{:},...
         '-a',fullfile(aptroot,'gfx'),...
         '-a',fullfile(aptroot,'config.default.yaml'),...
+        '-a',fullfile(aptroot,'misc','darkjet.m'),...
+        '-a',fullfile(aptroot,'misc','lightjet.m'),...
         '-a',fullfile(cprroot,'params_apt.yaml'),... %        '-a',fullfile(cprroot,'param.example.yaml'),...
         '-a',fullfile(cprroot,'misc','CPRLabelTracker.m'),...
         '-a',fullfile(cprroot,'misc','CPRBlurPreProc.m'),...
+        '-a',fullfile(dtroot,'params_deeptrack.yaml'),...
+        '-a',fullfile(dtroot,'DeepTracker.m'),...        
         '-a',fullfile(aptroot,'LabelerGUI_lnx.fig'),... 
         '-a',fullfile(aptroot,'YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'),...
         '-a',fullfile(aptroot,'JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'),...
@@ -296,6 +314,15 @@ classdef APT
       bldnames = fieldnames(buildIfo);
       projs = fieldnames(mccProjargs);
       projs = projs(end:-1:1); % build GetMovieNFrames first
+      mnfst = APT.readManifest;
+      bindir = fullfile(mnfst.build,bindirname);
+      if exist(bindir,'dir')==0
+        fprintf('Creating bin dir %s...\n',bindir);
+        [succ,msg] = mkdir(bindir);
+        if ~succ
+          error('APT:build','Failed to create bin dir: %s\n',msg);
+        end
+      end
       for bld=bldnames(:)',bld=bld{1}; %#ok<FXSET>
         for prj=projs(:)',prj=prj{1};
           projfull = [prj '_' bld];
@@ -309,21 +336,11 @@ classdef APT
           fprintf('Writing mcc args to file: %s...\n',APT.BUILDMCCFULLFILE);
           cellstrexport(mccArgs,APT.BUILDMCCFULLFILE);
         
-          today = datestr(now,'yyyymmdd');
           fprintf('BEGIN BUILD on %s\n',today);
           pause(2.0);
           mcc(mccArgs{:});
 
-          % postbuild
-          mnfst = APT.readManifest;
-          bindir = fullfile(mnfst.build,today);
-          if exist(bindir,'dir')==0
-            fprintf('Creating bin dir %s...\n',bindir);
-            [succ,msg] = mkdir(bindir);
-            if ~succ
-              error('APT:build','Failed to create bin dir: %s\n',msg);
-            end
-          end
+          % postbuild          
           fprintf('Moving binaries + build artifacts into: %s\n',bindir);
           % move buildmcc file, buildsnapshot file into bindir with name change
           % move binaries
