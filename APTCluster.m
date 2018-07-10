@@ -70,11 +70,12 @@ switch action
     end
   case 'xv'
     varargin = varargin(3:end);
-    [tableFile,tableSplitFile,paramFile] = ...
+    [tableFile,tableSplitFile,paramFile,paramPatchFile] = ...
       myparse(varargin,...
       'tableFile','',... % (opt) mat-filename containing an MFTtable for rows to consider in XV
       'tableSplitFile','',... % (opt) mat-filename containing split variables. If specified, tableFile must be specced %      'tableSplitFileVar','',... % (opt) variable name in tableSplitFile. <tableSplitFile>.(tableSplitFielVar) should be a [height(<tableFile>) x nfold] logical where true indicates train and false indicates test
-      'paramFile',''... % (opt) mat-filename containing a single param struct that will be fed to lObj.trackSetParams
+      'paramFile','',... % (opt) mat-filename containing a single param struct that will be fed to lObj.trackSetParams
+      'paramPatchFile',''... % (opt) textfile containing parameter 'patch'
       );
     
     lObj.projLoad(lblFile);
@@ -88,6 +89,7 @@ switch action
     tfTable = ~isempty(tableFile);
     tfSplit = ~isempty(tableSplitFile);
     tfParam = ~isempty(paramFile);
+    tfPPatch = ~isempty(paramPatchFile);
     xvArgs = cell(1,0);
     [lblP,lblF,lblE] = fileparts(lblFile);
     outfileBase = 'xv';
@@ -117,6 +119,26 @@ switch action
       fprintf(1,'Loaded parameters from %s.\n',paramFile);
       lObj.trackSetParams(sPrm);
       outfileBase = [outfileBase '_' paramFileS];
+    end
+    if tfPPatch
+      [~,paramPatchFileS,~] = fileparts(paramPatchFile);
+      patches = readtxtfile(paramPatchFile);
+      npatch = numel(patches);
+      fprintf(1,'Read parameter patch file %s. %d patches.\n',paramFile,...
+        npatch);
+      sPrm = lObj.trackGetParams();
+      for ipch=1:npatch
+        pch = patches{ipch};
+        pch = ['sPrm' pch ';']; %#ok<AGROW>
+        tmp = strsplit(pch,'=');
+        pchlhs = strtrim(tmp{1});
+        fprintf(1,'  patch %d: %s\n',ipch,pch);
+        fprintf(1,'  orig (%s): %s\n',pchlhs,evalc(pchlhs));
+        eval(pch);
+        fprintf(1,'  new (%s): %s\n',pchlhs,evalc(pchlhs));
+      end
+      lObj.trackSetParams(sPrm);
+      outfileBase = [outfileBase '_' paramPatchFileS];
     end
     outfileBase = [outfileBase '_' datestr(now,'yyyymmddTHHMMSS')];
     
