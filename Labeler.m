@@ -24,7 +24,7 @@ classdef Labeler < handle
       'labelTemplate' ...
       'trackModeIdx' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
-      'preProcParams' 'preProcH0' ...
+      'preProcParams' 'preProcH0' 'preProcSaveData' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'};
     SAVEPROPS_LPOS = {...
@@ -399,6 +399,7 @@ classdef Labeler < handle
     preProcH0 % image hist used in current preProcData. Conceptually, this is a preProcParam that APT updates from movies
     preProcData % for CPR, a CPRData; for DL trackers, likely a tracker-specific object pointing to data on disk
     preProcDataTS % scalar timestamp  
+    preProcSaveData % scalar logical. If true, preProcData* is saved/loaded with project file
   end
   
   %% Tracking
@@ -1432,8 +1433,13 @@ classdef Labeler < handle
     end
     
     function s = projGetSaveStruct(obj,varargin)
-      sparsify = myparse(varargin,...
-        'sparsify',true);
+      % Warning: if .preProcSaveData is true, pthen s.preProcData is a
+      % handle (shallow copy) to obj.preProcData
+      
+      [sparsify,incDataCache] = myparse(varargin,...
+        'sparsify',true,...
+        'incDataCache',true... % include .preProcData* if .preProcSaveData is true
+        );
       
       s = struct();
       s.cfg = obj.getCurrentConfig();
@@ -1467,7 +1473,12 @@ classdef Labeler < handle
       end
 
       s.trackerClass = cellfun(@class,obj.trackersAll,'uni',0);
-      s.trackerData = cellfun(@getSaveToken,obj.trackersAll,'uni',0);        
+      s.trackerData = cellfun(@getSaveToken,obj.trackersAll,'uni',0);
+      
+      if obj.preProcSaveData && incDataCache
+        s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
+        s.preProcDataTS = obj.preProcDataTS;
+      end
     end
     
     function currMovInfo = projLoad(obj,fname,varargin)
@@ -1583,6 +1594,14 @@ classdef Labeler < handle
         tAll{i} = tObj;
       end
       obj.trackersAll = tAll;
+      
+      % preproc data cache
+      % s.preProcData* will be present iff s.preProcSaveData==true
+      if s.preProcSaveData && ~isempty(s.preProcData)
+        fprintf('Loading data cache: %d rows.\n',s.preProcData.N);
+        obj.preProcData = s.preProcData;
+        obj.preProcDataTS = s.preProcDataTS;
+      end
 
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
         obj.movieSetNoMovie();
@@ -2192,6 +2211,11 @@ classdef Labeler < handle
       % 20180706 movieReadPreLoadMovies
       if ~isfield(s,'movieReadPreLoadMovies')
         s.movieReadPreLoadMovies = false;
+      end
+      
+      % 20180710 data cache
+      if ~isfield(s,'preProcSaveData')
+        s.preProcSaveData = false;
       end
     end
 
@@ -6663,6 +6687,7 @@ classdef Labeler < handle
       obj.preProcParams = [];
       obj.preProcH0 = [];
       obj.preProcInitData();
+      obj.preProcSaveData = false;
     end
     
     function preProcInitData(obj)
@@ -6945,9 +6970,7 @@ classdef Labeler < handle
       end
       
       dataCurr = obj.preProcData;
-      
-      tblPReadFailed = MFTable.emptyTable(tblflds(tblPnew));
-      
+            
       if prmpp.histeq
         assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.preProcH0));
         assert(obj.nview==1,...
@@ -7239,7 +7262,7 @@ classdef Labeler < handle
     function s = trackCreateDeepTrackerStrippedLbl(obj)
       % For use with DeepTrackers
       
-      s = obj.projGetSaveStruct();
+      s = obj.projGetSaveStruct('incDataCache',false);
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
       
