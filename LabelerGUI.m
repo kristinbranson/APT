@@ -2662,7 +2662,8 @@ end
 
 function menu_track_clear_tracking_results_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-lObj.preProcInitData(); % legacy behavior not sure why; maybe b/c the user is prob wanting to increase avail mem
+% legacy behavior not sure why; maybe b/c the user is prob wanting to increase avail mem
+%lObj.preProcInitData(); 
 tObj = lObj.tracker;
 tObj.clearTrackingResults();
 msgbox('Tracking results cleared.','Done');

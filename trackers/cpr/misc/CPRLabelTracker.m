@@ -1439,8 +1439,6 @@ classdef CPRLabelTracker < LabelTracker
     
     function track(obj,tblMFT,varargin)
       % tblMFT: MFtable. Req'd flds: MFTable.ID.
-
-            % tblMFT: MFtable. Req'd flds: MFTable.ID.
       
       [movChunkSize,parChunkSize,minChunksPar,useParFor,p0DiagImg,wbObj] = myparse(varargin,...
         'movChunkSize',5000, ... % track large movies in chunks of this size

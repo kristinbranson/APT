@@ -7408,7 +7408,7 @@ classdef Labeler < handle
       [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTst] = ...
         myparse(varargin,...
         'kfold',7,... % number of folds
-        'initData',true,... % if true, call .initData() between folds to minimize mem usage
+        'initData',false,... % OBSOLETE, you would never want this. if true, call .initData() between folds to minimize mem usage
         'wbObj',[],... % (opt) WaitBarWithCancel
         'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
         'tblMFgtIsFinal',false,... % a bit silly, for APT developers only. Set to true if your tblMFgt is in final form.
