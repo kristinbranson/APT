@@ -124,7 +124,7 @@ switch action
       [~,paramPatchFileS,~] = fileparts(paramPatchFile);
       patches = readtxtfile(paramPatchFile);
       npatch = numel(patches);
-      fprintf(1,'Read parameter patch file %s. %d patches.\n',paramFile,...
+      fprintf(1,'Read parameter patch file %s. %d patches.\n',paramPatchFile,...
         npatch);
       sPrm = lObj.trackGetParams();
       for ipch=1:npatch

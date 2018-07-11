@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--endjob",
                         help="Which job of split tracking to end on. Specify -1 to run all jobs. Default = -1. This parameter is only relevant if tracking with splitframes parameter specified.",
                         default=-1)
+    parser.add_argument("--prmpatchdir",help="Dir containing patch *.m files for use with xv")
 
     args = parser.parse_args()
     
@@ -87,6 +88,9 @@ def main():
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
+    if args.action!="xv" and args.prmpatchdir:
+        print("Action is " + args.action + ", ignoring --prmpatchdir specification")
+
 
     if not args.bindate:
         args.bindate = "current"
@@ -232,7 +236,7 @@ def main():
         else:
             if args.action=="track":
                 outdiruse = os.path.dirname(args.mov)
-            else: # trackbatchserial, retrain
+            else: # trackbatchserial, retrain, xv
                 outdiruse = os.path.dirname(args.projfile)                
         shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
         logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
@@ -253,7 +257,7 @@ def main():
             if args.splitframes > 0:
                 infocmd = [args.infobin,args.mcr,args.mov]
                 s = subprocess.check_output(infocmd)
-                p=re.compile('\n\d+$') # last number
+                p = re.compile('\n\d+$') # last number
                 m = p.search(s)
                 s = s[m.start()+1:-1]
                 nframes = int(s)
@@ -261,8 +265,8 @@ def main():
                 jobstarts = np.round(np.linspace(1,nframes+1,njobs+1)).astype(int)
                 jobends = jobstarts[1:]-1
 
-                jobinfofile=os.path.join(outdiruse,"splittrackinfo_{0:s}.txt".format(jobid))
-                f=open(jobinfofile,'w')
+                jobinfofile = os.path.join(outdiruse,"splittrackinfo_{0:s}.txt".format(jobid))
+                f = open(jobinfofile,'w')
                 moviedir = os.path.dirname(args.mov)
                 moviestr,ext = os.path.splitext(os.path.basename(args.mov))
                 projstr,ext=os.path.splitext(os.path.basename(args.projfile))
@@ -323,9 +327,46 @@ def main():
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
 
         elif args.action=="xv":
-            cmd = args.projfile + " " + args.action
-            if args.trackargs:
-                cmd=cmd+" "+args.trackargs
+            if args.prmpatchdir:
+
+                pches = glob.glob(os.path.join(args.prmpatchdir,"*.m"))
+                npch = len(pches)
+                print ("patch dir %s: %d patches found."%(args.prmpatchdir,npch))
+
+                nsubmitted = 0
+                cmdbase = [args.projfile,args.action]
+                if args.trackargs:                        
+                    cmdbase.append(args.trackargs)
+
+                for pch in pches:
+                    pchS = os.path.basename(pch)
+                    pchS = os.path.splitext(pchS)[0]
+                    jobidcurr = "%s-%s"%(jobid,pchS)
+                    shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
+                    logfilecurr = os.path.join(outdiruse,"{0:s}.log".format(jobidcurr))
+
+                    cmdcurr = cmdbase
+                    cmdcurr.append("paramPatchFile")
+                    cmdcurr.append(pch)
+                    cmdcurr = " ".join(cmdcurr)
+                    gencode(shfilecurr,jobidcurr,args,cmdcurr)
+
+                    # submit
+                    assert not USEQSUB
+                    qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfilecurr,jobidcurr,shfilecurr)
+                    qsubcmd = "bsub " + qargs
+
+                    print(qsubcmd)
+                    subprocess.call(qsubcmd,shell=True)
+                    nsubmitted += 1
+
+                print("%d jobs submitted."%(nsubmitted))
+
+                sys.exit()
+            else:
+                cmd = args.projfile + " " + args.action
+                if args.trackargs:
+                    cmd = cmd+" "+args.trackargs
 
         gencode(shfile,jobid,args,cmd)
 
