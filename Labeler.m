@@ -6346,11 +6346,13 @@ classdef Labeler < handle
       
       [tf,loc] = tblismember(tblMFT_SuggAndLbled,tblTrkRes,MFTable.FLDSID);
       if ~all(tf)
-        error('Tracking/prediction results not present for %d GT rows.',...
+        warningNoTrace('Tracking/prediction results not present for %d GT rows. Results will be computed with those rows removed.',...
           nnz(~tf));
-      end
-      
+        tblMFT_SuggAndLbled = tblMFT_SuggAndLbled(tf,:);
+        loc = loc(tf);
+      end      
       tblTrkRes = tblTrkRes(loc,:);
+      
       tblMFT_SuggAndLbled = obj.labelAddLabelsMFTable(tblMFT_SuggAndLbled);
       pTrk = tblTrkRes.pTrk;
       pLbl = tblMFT_SuggAndLbled.p;
