@@ -191,12 +191,14 @@ classdef GTPlot
       % hFig: figure handle
       % hAxs: [nviews x nsets] axes handles
       
-      [ptiles,hFig,lineArgs,setNames] = ...
+      [ptiles,hFig,lineArgs,setNames,axisArgs] = ...
         myparse(varargin,...
         'ptiles',[50 75 90 95 97.5 99 99.5],...
         'hFig',[],...
         'lineArgs',{'m+'},...
-        'setNames',[]);
+        'setNames',[],...
+        'axisArgs',{'XTicklabelRotation',45,'FontSize' 16}...
+        );
       
       [n,npts,nviews,nsets] = size(err);     
      
@@ -237,8 +239,9 @@ classdef GTPlot
           
           args = {...
             'YGrid' 'on' 'XGrid' 'on' 'XLim' [0 nsets+1] 'XTick' 1:nsets ...
-            'XTicklabelRotation',45,'XTickLabel',setNames ...
-            'FontSize' 16};
+            'XTickLabel',setNames};
+          args = [args axisArgs];
+            
           x = 1:nsets; % croptypes
           h = plot(x,y','.-','markersize',20);
           set(ax,args{:});
@@ -264,8 +267,8 @@ classdef GTPlot
           end
         end
       end
-      linkaxes(hAxs(1,:),'y');
-      linkaxes(hAxs(2,:),'y');
+      linkaxes(hAxs(1,:));
+      linkaxes(hAxs(2,:));
 %       ylim(axs(1,1),[0 50]);
 %       ylim(axs(2,1),[0 80]);
       %linkaxes(axs(2,:),'y');
@@ -273,5 +276,107 @@ classdef GTPlot
       
     end
     
+    function [hFig,hAxs] = ptileCurvesZoomed(err,varargin)
+      % Constant-percentile curves over a titration set; each ptile curve
+      % gets its own axis
+      %
+      % err: [n x npts x nsets] Error array. 
+      %  - n is the number of rows/frames
+      %  - npts is the number of landmarks
+      %  - nsets eg a parameter is titrated it is desired to compare multiple runs.
+      %      
+      % hFig: figure handle
+      % hAxs: [nptiles x npts] axes handles
+      
+      [ptiles,hFig,lineArgs,ptNames,setNames,axisArgs,ylimcapbase] = ...
+        myparse(varargin,...
+        'ptiles',[50 75 90 95 97.5 99 99.5],...
+        'hFig',[],...
+        'lineArgs',{'m+'},...
+        'ptNames',[],...
+        'setNames',[],...
+        'axisArgs',{'XTicklabelRotation',45,'FontSize' 16},...
+        'ylimcapbase',false... 
+        );
+      
+      [n,npts,nsets] = size(err);
+     
+      if isempty(hFig)
+        hFig = figure();
+        set(hFig,'Color',[1 1 1]);
+      else
+        figure(hFig);
+        clf;
+      end
+      
+      if isempty(setNames)
+        setNames = arrayfun(@(x)sprintf('Set %d',x),1:nsets,'uni',0);
+      end
+      assert(iscellstr(setNames) && numel(setNames)==nsets);
+
+      if isempty(ptNames)
+        ptNames = arrayfun(@(x)sprintf('pt%d',x),1:npts,'uni',0);
+      end
+      assert(numel(ptNames)==npts);
+
+      nptiles = numel(ptiles);
+      hAxs = subplots(nptiles,npts,[.12 0;.12 0]);
+      for ipt=1:npts
+%         if ~isinf(ipt)
+          % normal branch
+          errs = squeeze(err(:,ipt,:)); % nxnsets
+          y = prctile(errs,ptiles); % [nptlsxnsets]
+%         else
+%           errs = squeeze(sum(err(:,:,ivw,:),2)/npts); % [nxnsets]
+%           y = prctile(errs,ptiles); % [nptlsxnsets]
+%           ax = hAxs(ivw,npts+1);
+%           tstr = sprintf('vw%d, mean allpts',ivw);
+%         end
+        tfPlot1 = ipt==1;
+        %           if tfPlot1
+        %             tstr = ['XV err vs CropType: ' tstr];
+        %           end
+        
+        args = {...
+          'YGrid' 'on' 'XGrid' 'on' 'XLim' [0 nsets+1] 'XTick' 1:nsets ...
+          'XTickLabel',setNames,'TickLabelInterpreter','none'};
+        args = [args axisArgs];        
+        x = 1:nsets;
+        for iptile=1:nptiles
+          ax = hAxs(iptile,ipt);
+          axes(ax);
+          h = plot(x,y(iptile,:)','.-','markersize',20);
+          hold(ax,'on');
+%           ax.ColorOrderIndex = 1;
+
+          if iptile==1
+            titleargs = {'fontweight','bold','fontsize',16};
+            if ipt==1
+              title(sprintf('N=%d. %s',n,ptNames{ipt}),titleargs{:});
+            else
+              title(ptNames{ipt},titleargs{:});
+            end            
+          end
+          
+          if ipt==1
+            ptilestr = strcat(num2str(ptiles(iptile)),'%');
+            ylabel(ax,ptilestr,'fontweight','bold','fontsize',16);
+          else
+            set(ax,'YTickLabel',[]);
+          end
+          set(ax,args{:});
+          if ylimcapbase
+            yl = ylim(ax);
+            yl(2) = 2*y(iptile,1); 
+            ylim(ax,yl);
+          end
+          set(ax,'YTick',ax.YTick(1:end-1),'YTickLabel',ax.YTickLabel(1:end-1));
+        end
+      end
+      
+      for iptile=1:nptiles
+        linkaxes(hAxs(iptile,:));
+      end
+    end
   end
 end
