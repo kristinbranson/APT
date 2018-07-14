@@ -345,7 +345,7 @@ def main():
                     shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
                     logfilecurr = os.path.join(outdiruse,"{0:s}.log".format(jobidcurr))
 
-                    cmdcurr = cmdbase
+                    cmdcurr = cmdbase.copy()
                     cmdcurr.append("paramPatchFile")
                     cmdcurr.append(pch)
                     cmdcurr = " ".join(cmdcurr)

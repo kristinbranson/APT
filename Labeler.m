@@ -7437,8 +7437,10 @@ classdef Labeler < handle
         tblMFgt0 = tblMFgt; % remember original row ordering
         tblLbled = obj.preProcGetMFTableLbled();
         tblLbled.mov = int32(tblLbled.mov); % innerjoin below doesn't like MovieIndices
-        assert(height(tblMFgt)==height(tblLbled));
+        %assert(height(tblMFgt)==height(tblLbled));        
         tblMFgt = innerjoin(tblMFgt,tblLbled,'keys',FLDSID); % using join would prob preserve row order of tblMFgt
+        assert(height(tblMFgt0)==height(tblMFgt),...
+          'Specified ''tblMFgt'' contains unlabeled row(s).');
         [~,loc] = ismember(tblMFgt0,tblMFgt(:,FLDSID));
         tblMFgt = tblMFgt(loc,:);
         assert(isequal(tblMFgt(:,FLDSID),tblMFgt0));
