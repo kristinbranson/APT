@@ -1,4 +1,7 @@
-function lines = readtxtfile(fname)
+function lines = readtxtfile(fname,varargin)
+discardemptylines = myparse(varargin,...
+  'discardemptylines',false);
+
 fh = fopen(fname,'r');
 lines = cell(0,1);
 while 1
@@ -6,7 +9,11 @@ while 1
   if ~ischar(tline)
     break
   end
-  lines{end+1,1} = tline; %#ok<AGROW>
+  if isempty(tline) && discardemptylines
+    % none
+  else
+    lines{end+1,1} = tline; %#ok<AGROW>
+  end
 end
 fclose(fh);
 
