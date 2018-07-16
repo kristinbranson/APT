@@ -168,8 +168,161 @@ classdef HPOptim
         fprintf(1,'\n');
       end
     end
-  end
     
+    function [xverr,pchNames,xvres] = loadXVres(pchDir,xvDir,xvPat,varargin)
+      % xvPat: sprintf-pat given a pchname to form xv-results-filename
+      % 
+      % xverr: [nXVxnptsxnpch] (npts==nPhysPtsxnView)
+      % pchNames: [npch] cellstr
+      
+      xvbase = myparse(varargin,...
+        'xvbase',''); % if supplied, load 'base' xv results with this name
+      tfBase = ~isempty(xvbase);
+      
+      % Get patches
+      dd = dir(fullfile(pchDir,'*.m'));
+      pchs = {dd.name}';
+      if tfBase
+        pchs = [xvbase; pchs];
+      end
+      npch = numel(pchs);      
+
+      %% Load res
+      xvres = cell(npch,1);
+      pchNames = cell(npch,1);
+      for i=1:npch
+        if tfBase && i==1
+          xvresfnameS = xvbase;
+          pchS = 'NOPATCH';
+        else
+          [~,pchS,~] = fileparts(pchs{i});
+          pat = sprintf(xvPat,pchS);
+          dd = dir(fullfile(xvDir,pat));
+          assert(isscalar(dd));
+          xvresfnameS = dd.name;
+        end
+        xvresfname = fullfile(xvDir,xvresfnameS);
+        assert(exist(xvresfname,'file')>0);        
+        xvres{i,1} = load(xvresfname);
+        pchNames{i} = pchS;
+        fprintf(1,'%d\n',i);
+      end
+%       xvres0 = {...
+%         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_easy_prmMain0_20180710T103811.mat')) ...
+%         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_hard_prmMain0_20180710T104734.mat'))};
+%       xvres = [xvres0; xvres];
+%       pchNames = [{'base'}; pchNames];
+      
+      %%
+%       assert(npch+1==size(xvres,1));
+      nXV = height(xvres{1}.xvRes);
+      npts = size(xvres{1}.xvRes.dGTTrk,2);
+      fprintf(1,'nXV=%d, npts=%d, %d patches.\n',nXV,npts,npch);
+      xverr = nan(nXV,npts,npch);
+      for i=1:npch
+        xverr(:,:,i) = xvres{i}.xvRes.dGTTrk;
+      end
+    end
+    
+    function tblres = pchScores(xverr,pchNames,varargin)
+      [ipchBase,ptilesImprove,nptsImproveThresh] = myparse(varargin,...
+        'ipchBase',1, ... % reference/base patch
+        'ptilesImprove',[60 90], ...
+        'nptsImproveThresh',8 ...
+        );
+      
+      [nXV,npts,npch] = size(xverr);
+      
+      %% normalized err; for each pt, scale by the median 'base' err
+      xverrbasemedn = median(xverr(:,:,ipchBase),1);
+      xverrnorm = xverr./xverrbasemedn;
+      
+      assert(all(xverrnorm(:)>0));
+      nptiles = numel(ptilesImprove);
+      errptl = prctile(xverrnorm,ptilesImprove,1); % [nptiles x npts x npch]
+      
+      % compute fractional change in ptile values from base, per pt
+      % 0=>no change in ptile
+      % pos=>reduced err
+      % neg=>increased err
+      scorepts = (errptl(:,:,ipchBase)-errptl)./errptl(:,:,ipchBase);
+      szassert(scorepts,[nptiles npts npch]);      
+      
+      % pt is improved if it is improved for all ptiles
+%      ptimproved = scorepts>0;
+%      nptimprove = squeeze(sum(sum(ptimproved,1),2)); %[npch]
+      ptimproved = all(scorepts>0,1); % every ptile
+      ptimproved = squeeze(ptimproved)'; 
+      szassert(ptimproved,[npch npts]);
+      ptimprovedfull = scorepts>0;
+      
+      % net score: score averaged over all pts, ptiles, per patch
+      % ptiles that have larger relative fluctuations get more weight
+      score = sum(sum(scorepts,1),2)/npts/nptiles*100;
+      score = squeeze(score); % [npch x 1]. %age relative change in ptile for each pt
+            
+      nptimprove = sum(ptimproved,2);
+      nptimprovedfull = squeeze(sum(sum(ptimprovedfull,1),2));
+      pch = pchNames;
+      tblres = table(score,nptimprove,nptimprovedfull,pch);
+      [~,idx] = sort(score,'descend');
+      tblres = tblres(idx,:);
+    end
+    
+    function sPrm = readApplyPatch(sPrm,pchfile,varargin)
+      verbose = myparse(varargin,...
+        'verbose',true);
+      
+      pchs = readtxtfile(pchfile,'discardemptylines',true);
+      npch = numel(pchs);
+%       fprintf(1,'Read parameter patch file %s. %d patches.\n',paramPatchFile,...
+%         npatch);  
+      for ipch=1:npch
+        pch = pchs{ipch};
+        pch = ['sPrm' pch ';']; %#ok<AGROW>
+        tmp = strsplit(pch,'=');
+        pchlhs = strtrim(tmp{1});
+        if verbose
+          fprintf(1,'  patch %d: %s\n',ipch,pch);
+          fprintf(1,'  orig (%s): %s\n',pchlhs,evalc(pchlhs));
+        end
+        eval(pch);
+        if verbose
+          fprintf(1,'  new (%s): %s\n',pchlhs,evalc(pchlhs));
+        end
+      end
+    end
+    
+    function genNewPrmFile(basePrmFile,newPrmFile,pchDir,pchSel)
+      % Create/save a new parameter file
+      %
+      % basePrmFile: char, base/starting parameter struct
+      % newPrmFile: char, save new params to this file
+      % pchDir: patch dir
+      % pchSel: cellstr, patches in pchDir to apply
+      
+      sPrm = loadSingleVariableMatfile(basePrmFile);
+      fprintf(1,'Loaded base parameters from %s.\n',basePrmFile);
+      sPrm0 = sPrm;
+      
+      npchsel = numel(pchSel);
+      for ipchsel=1:npchsel
+        pchfile = fullfile(pchDir,pchSel{ipchsel});
+        if ~strcmp(pchfile(end-1:end),'.m')
+          pchfile = [pchfile '.m']; %#ok<AGROW>
+        end
+        sPrm = HPOptim.readApplyPatch(sPrm,pchfile);        
+      end
+      
+      leap.structdiff(sPrm0,sPrm);
+      
+      if exist(newPrmFile,'file')>0
+        error('File ''%s'' exists.',newPrmFile);
+      end
+      save(newPrmFile,'-mat','sPrm');
+      fprintf(1,'Wrote new parameter file to %s.\n',newPrmFile);
+    end
+  end
     
     %     function hpoptimxv(lObj,xvTbl,xvSplt)
     %       assert(islogical(xvSplt) && ismatrix(xvSplt) && size(xvSplt,1)==height(xvTbl));
