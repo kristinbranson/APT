@@ -7452,7 +7452,7 @@ classdef Labeler < handle
         % Legacy checks/assert can remove at some pt
         assert(height(tblMFgt0)==height(tblMFgt),...
           'Specified ''tblMFgt'' contains unlabeled row(s).');
-        assert(isequal(tblMFgt(:,FLDSID),tblMFgt0));
+        assert(isequal(tblMFgt(:,MFTable.FLDSID),tblMFgt0));
         assert(isa(tblMFgt.mov,'MovieIndex'));
       else
         % tblMFgt supplied, and should have labels etc.
