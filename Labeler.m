@@ -5011,7 +5011,10 @@ classdef Labeler < handle
                    ... % 2. tblMF (output) indeterminate
         'useLabels2',false,... % if true, use labels2 instead of labels
         'useMovNames',false,... % if true, use movieNames instead of movieIndices
-        'tblMFTrestrict',[]... % if supplied, tblMF is the labeled subset of tblMFTrestrict (within fields .mov, .frm, .tgt). .mov must be a MovieIndex
+        'tblMFTrestrict',[]... % if supplied, tblMF is the labeled subset 
+                           ... % of tblMFTrestrict (within fields .mov, 
+                           ... % .frm, .tgt). .mov must be a MovieIndex.
+                           ... % tblMF ordering should be as in tblMFTrestrict
         ); 
       tfWB = ~isempty(wbObj);
       tfRestrict = ~isempty(tblMFTrestrict);
@@ -6795,14 +6798,19 @@ classdef Labeler < handle
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when .hasTrx or .cropProjHasCropInfo
 
-      wbObj = myparse(varargin,...
-        'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
-                   ... % 1. obj const 
-                   ... % 2. tblP indeterminate
+      [wbObj,tblMFTrestrict] = myparse(varargin,...
+        'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
+                    ... % 1. obj const 
+                    ... % 2. tblP indeterminate
+        'tblMFTrestrict',[]... % see labelGetMFTableLabeld
         ); 
       tfWB = ~isempty(wbObj);
+      if ~isempty(tblMFTrestrict)
+        tblfldsassert(tblMFTrestrict,MFTable.FLDSID);
+      end      
       
-      tblP = obj.labelGetMFTableLabeled('wbObj',wbObj);
+      tblP = obj.labelGetMFTableLabeled('wbObj',wbObj,...
+        'tblMFTrestrict',tblMFTrestrict);
       if tfWB && wbObj.isCancel
         % tblP indeterminate, return it anyway
         return;
@@ -7215,6 +7223,11 @@ classdef Labeler < handle
     end
     
     function trackRetrain(obj,varargin)
+      [tblMFTtrn,retrainArgs] = myparse(varargin,...
+        'tblMFTtrn',[],... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
+        'retrainArgs',{}... % (opt) args to pass to tracker.retrain()
+        );
+      
       tObj = obj.tracker;
       if isempty(tObj)
         error('Labeler:track','No tracker set.');
@@ -7222,9 +7235,15 @@ classdef Labeler < handle
       if ~obj.hasMovie
         error('Labeler:track','No movie.');
       end
+      
+      if ~isempty(tblMFTtrn)
+        tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
+        retrainArgs = [retrainArgs(:)' {'tblPTrn' tblMFTp}];
+      end           
+        
       tObj.clearTrackingResults();
       obj.preProcUpdateH0IfNec();
-      tObj.retrain(varargin{:});
+      tObj.retrain(retrainArgs{:});
     end
     
     function track(obj,mftset,varargin)
@@ -7427,28 +7446,20 @@ classdef Labeler < handle
       
       if ~tfTblMFgt
         tblMFgt = obj.preProcGetMFTableLbled();
-      elseif ~tblMFgtIsFinal
-        FLDSID = MFTable.FLDSID;
-        tblfldsassert(tblMFgt,FLDSID);
-        assert(isa(tblMFgt.mov,'MovieIndex'));
-        [~,gt] = tblMFgt.mov.get();
-        assert(~any(gt));
-        tblMFgt.mov = int32(tblMFgt.mov); % innerjoin below doesn't like MovieIndices
-        tblMFgt0 = tblMFgt; % remember original row ordering
-        tblLbled = obj.preProcGetMFTableLbled();
-        tblLbled.mov = int32(tblLbled.mov); % innerjoin below doesn't like MovieIndices
-        %assert(height(tblMFgt)==height(tblLbled));        
-        tblMFgt = innerjoin(tblMFgt,tblLbled,'keys',FLDSID); % using join would prob preserve row order of tblMFgt
+      elseif ~tblMFgtIsFinal        
+        tblMFgt0 = tblMFgt; % legacy checks below
+        tblMFgt = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFgt);
+        % Legacy checks/assert can remove at some pt
         assert(height(tblMFgt0)==height(tblMFgt),...
           'Specified ''tblMFgt'' contains unlabeled row(s).');
-        [~,loc] = ismember(tblMFgt0,tblMFgt(:,FLDSID));
-        tblMFgt = tblMFgt(loc,:);
         assert(isequal(tblMFgt(:,FLDSID),tblMFgt0));
-        tblMFgt.mov = MovieIndex(tblMFgt.mov);
+        assert(isa(tblMFgt.mov,'MovieIndex'));
       else
         % tblMFgt supplied, and should have labels etc.
       end
       assert(isa(tblMFgt.mov,'MovieIndex'));
+      [~,gt] = tblMFgt.mov.get();
+      assert(~any(gt));
       
       if ~tfPart
         movC = categorical(tblMFgt.mov);
@@ -7573,6 +7584,99 @@ classdef Labeler < handle
       
       obj.xvResults = tblXVres;
       obj.xvResultsTS = now;
+    end
+    
+    function tblRes = trackTrainTrackEval(obj,tblMFTtrn,tblMFTtrk,varargin)
+      % Like single train/track crossvalidation "fragment"
+      %
+      % tblMFTtrn: MFTable, MFTable.FLDSID only
+      % tblMFTtrk: etc
+      %
+      % tblRes: table of tracking err/results      
+      
+      wbObj = myparse(varargin,...
+        'wbObj',[]... % (opt) WaitBarWithCancel
+      );        
+      
+      tfWB = ~isempty(wbObj);
+      
+      tblfldsassert(tblMFTtrn,MFTable.FLDSID);
+      tblfldsassert(tblMFTtrk,MFTable.FLDSID);
+                  
+      tObj = obj.tracker;
+      if isempty(tObj)
+        error('Labeler:tracker','No tracker is available for this project.');
+      end
+      if ~strcmp(tObj.algorithmName,'cpr')
+        % DeepTrackers do non-blocking/bg tracking
+        error('Only CPR tracking currently supported.');
+      end      
+
+      obj.preProcUpdateH0IfNec();
+
+      tblMFTPtrn = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
+      tblMFTtrk = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrk);
+      
+      tObj.trackResInit();
+      tObj.vizInit();
+      tObj.asyncReset();
+      tObj.retrain('tblPTrn',tblMFTPtrn,'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        % tracker obj responsible for these things
+        % tObj.trnDataInit();
+        % tObj.trnResInit();
+        tblRes = [];        
+        return;
+      end
+      
+      tObj.track(tblMFTtrk(:,MFTable.FLDSID),'wbObj',wbObj);      
+      if tfWB && wbObj.isCancel
+        tObj.trnDataInit();
+        tObj.trnResInit();
+        tObj.trackResInit();
+        tObj.vizInit();
+        tblRes = [];        
+        return;
+      end      
+      
+      [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable();
+      tObj.trnDataInit();
+      tObj.trnResInit();
+      tObj.trackResInit();
+      tObj.vizInit();
+        
+      npts = obj.nLabelPoints;      
+      assert(isequal(pTrkiPt(:)',1:npts));
+      assert(isequal(tblTrkRes(:,MFTable.FLDSID),...
+        tblMFTtrk(:,MFTable.FLDSID)));
+      if obj.hasTrx || obj.cropProjHasCrops
+        pGT = tblMFTtrk.pAbs;
+      else
+        tblfldsdonotcontainassert(tblMFTtrk,'pAbs');
+        pGT = tblMFTtrk.p;
+      end
+      d = tblTrkRes.pTrk - pGT;
+      [ntst,Dtrk] = size(d);
+      assert(Dtrk==npts*2); % npts=nPhysPts*nview
+      d = reshape(d,ntst,npts,2);
+      d = sqrt(sum(d.^2,3)); % [ntst x npts]
+      
+      tblRes = tblTrkRes;
+      tblRes.pLbl = pGT;
+      tblRes.dLblTrk = d;
+      
+%       if tblfldscontains(tblMFgt,'roi')
+%         flds = MFTable.FLDSCOREROI;
+%       else
+%         flds = MFTable.FLDSCORE;
+%       end
+%       tblXVres = tblMFgt(:,flds);
+%       if tblfldscontains(tblMFgt,'pAbs')
+%         tblXVres.p = tblMFgt.pAbs;
+%       end
+%       tblXVres.pTrk = pTrkAll.pTrk;
+%       tblXVres.dGTTrk = dGTTrkAll;
+%       tblXVres = [pTrkAll(:,'fold') tblXVres];      
     end
     
     function trackCrossValidateVizPrctiles(obj,tblXVres,varargin)

@@ -1601,7 +1601,7 @@ SetStatus(handles,'Training...');
 wbObj = WaitBarWithCancel('Training');
 oc = onCleanup(@()delete(wbObj));
 centerOnParentFigure(wbObj.hWB,handles.figure);
-handles.labelerObj.trackRetrain('wbObj',wbObj);
+handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Training canceled');
   msgbox(msg,'Train');

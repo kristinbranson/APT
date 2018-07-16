@@ -27,9 +27,13 @@ for eh={'easy' 'hard'},eh=eh{1}; %#ok<FXSET>
     unique(sum(splitsumm,2))
     
     tMainOuterTrn = tMain(tfoutertrn,:);
+    tMainOuterTst = tMain(tfoutertst,:);
     outertrnTableName = sprintf('hpo_outer3_%s_fold%02d_tblTrn.mat',eh,iOuter);
-    save(outertrnTableName,'tMainOuterTrn');
-    fprintf(1,'Saved outer train table (nTrn=%d): %s\n',height(tMainOuterTrn),outertrnTableName);
+    outertstTableName = sprintf('hpo_outer3_%s_fold%02d_tblTst.mat',eh,iOuter);
+%     save(outertrnTableName,'tMainOuterTrn');
+%     fprintf(1,'Saved outer train table (nTrn=%d): %s\n',height(tMainOuterTrn),outertrnTableName);
+    save(outertstTableName,'tMainOuterTst');
+    fprintf(1,'Saved outer test table (nTst=%d): %s\n',height(tMainOuterTst),outertstTableName);
   end
 end
 

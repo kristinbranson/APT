@@ -275,8 +275,9 @@ classdef HPOptim
       
       pchs = readtxtfile(pchfile,'discardemptylines',true);
       npch = numel(pchs);
-%       fprintf(1,'Read parameter patch file %s. %d patches.\n',paramPatchFile,...
-%         npatch);  
+      if verbose
+        fprintf(1,'Read patch file %s. %d patches.\n',pchfile,npch);
+      end
       for ipch=1:npch
         pch = pchs{ipch};
         pch = ['sPrm' pch ';']; %#ok<AGROW>

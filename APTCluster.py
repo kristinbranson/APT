@@ -338,6 +338,7 @@ def main():
                 if args.trackargs:                        
                     cmdbase.append(args.trackargs)
 
+                pches.append('NOPATCH')
                 for pch in pches:
                     pchS = os.path.basename(pch)
                     pchS = os.path.splitext(pchS)[0]
@@ -345,9 +346,10 @@ def main():
                     shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
                     logfilecurr = os.path.join(outdiruse,"{0:s}.log".format(jobidcurr))
 
-                    cmdcurr = cmdbase.copy()
-                    cmdcurr.append("paramPatchFile")
-                    cmdcurr.append(pch)
+                    cmdcurr = list(cmdbase)
+                    if pch!='NOPATCH':
+                        cmdcurr.append("paramPatchFile")
+                        cmdcurr.append(pch)
                     cmdcurr = " ".join(cmdcurr)
                     gencode(shfilecurr,jobidcurr,args,cmdcurr)
 
