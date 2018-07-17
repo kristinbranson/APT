@@ -192,12 +192,20 @@ classdef HPOptim
           [~,pchS,~] = fileparts(pchs{i});
           pat = sprintf(xvPat,pchS);
           dd = dir(fullfile(xvDir,pat));
-          assert(isscalar(dd));
-          xvresfnameS = dd.name;
+          if isempty(dd)
+            warningNoTrace('No xv results found for pat: %s\n',pat);
+            xvresfnameS = '';
+          elseif isscalar(dd)
+            xvresfnameS = dd.name;
+          else
+            assert(false);
+          end
         end
-        xvresfname = fullfile(xvDir,xvresfnameS);
-        assert(exist(xvresfname,'file')>0);        
-        xvres{i,1} = load(xvresfname);
+        if ~isempty(xvresfnameS)
+          xvresfname = fullfile(xvDir,xvresfnameS);
+          assert(exist(xvresfname,'file')>0);        
+          xvres{i,1} = load(xvresfname);
+        end
         pchNames{i} = pchS;
         fprintf(1,'%d\n',i);
       end
@@ -209,12 +217,14 @@ classdef HPOptim
       
       %%
 %       assert(npch+1==size(xvres,1));
-      nXV = height(xvres{1}.xvRes);
+      nXV = height(xvres{1}.xvRes); % hopefully xvres{1} existed/got loaded
       npts = size(xvres{1}.xvRes.dGTTrk,2);
       fprintf(1,'nXV=%d, npts=%d, %d patches.\n',nXV,npts,npch);
       xverr = nan(nXV,npts,npch);
       for i=1:npch
-        xverr(:,:,i) = xvres{i}.xvRes.dGTTrk;
+        if ~isempty(xvres{i})
+          xverr(:,:,i) = xvres{i}.xvRes.dGTTrk;
+        end
       end
     end
     
@@ -231,7 +241,7 @@ classdef HPOptim
       xverrbasemedn = median(xverr(:,:,ipchBase),1);
       xverrnorm = xverr./xverrbasemedn;
       
-      assert(all(xverrnorm(:)>0));
+      assert(all(xverrnorm(:)>0 | isnan(xverrnorm(:))));
       nptiles = numel(ptilesImprove);
       errptl = prctile(xverrnorm,ptilesImprove,1); % [nptiles x npts x npch]
       

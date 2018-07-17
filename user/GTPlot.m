@@ -16,21 +16,22 @@ classdef GTPlot
       % hFig: figure handle
       % hAxs: [nviews x nsets] axes handles
       
-      [ptiles,hFig,xyLblPlotArgs,setTitles,ptileCmap] = ...
+      [ptiles,hFig,xyLblPlotArgs,setNames,ptileCmap,lineWidth] = ...
         myparse(varargin,...
         'ptiles',[50 75 90 95 97.5 99 99.5],...
         'hFig',[],...
         'xyLblPlotArgs',{'m+'},...
-        'setTitles',[],...
-        'ptileCmap','jet');
+        'setNames',[],...
+        'ptileCmap','jet',...
+        'lineWidth',1);
       
       [n,npts,nviews,nsets] = size(err);
       assert(isvector(I) && iscell(I) && numel(I)==nviews);
       szassert(xyLbl,[npts,2,nviews]);
-      if isempty(setTitles)
-        setTitles = arrayfun(@(x)sprintf('Set %d',x),1:nsets,'uni',0);
+      if isempty(setNames)
+        setNames = arrayfun(@(x)sprintf('Set %d',x),1:nsets,'uni',0);
       end
-      assert(iscellstr(setTitles) && numel(setTitles)==nsets);
+      assert(iscellstr(setNames) && numel(setNames)==nsets);
            
       if isempty(hFig)
         hFig = figure();
@@ -67,7 +68,7 @@ classdef GTPlot
           hold(ax,'on');
           plot(ax,xyL(:,1),xyL(:,2),xyLblPlotArgs{:});
           if viewi==1
-            tstr = setTitles{k};
+            tstr = setNames{k};
             if k==1
               tstr = sprintf('N=%d. %s',n,tstr);
             end
@@ -78,7 +79,7 @@ classdef GTPlot
             for l = 1:npts
               rad = err_prctiles(p,l,viewi,k);
               h(p) = drawellipse(xyL(l,1),xyL(l,2),0,rad,rad,...
-                'Color',colors(p,:),'Parent',ax,'linewidth',1);
+                'Color',colors(p,:),'Parent',ax,'lineWidth',lineWidth);
             end
           end
         end
@@ -256,11 +257,11 @@ classdef GTPlot
             %xlabel('Crop type','fontweight','normal','fontsize',14);
             
             ystr = sprintf('raw err (px)');
-            ylabel(ystr,'fontweight','normal','fontsize',14);
+            ylabel(ystr,'fontweight','normal');
           else
             set(ax,'XTickLabel',[]);
           end
-          title(tstr,'fontweight','bold','fontsize',16);
+          title(tstr,'fontweight','bold');
           if ipt==1
           else
             set(ax,'YTickLabel',[]);
@@ -320,7 +321,7 @@ classdef GTPlot
       assert(numel(ptNames)==npts);
 
       nptiles = numel(ptiles);
-      hAxs = subplots(nptiles,npts,[.12 0;.12 0]);
+      hAxs = subplots(nptiles,npts,[.06 0;.12 0]);
       for ipt=1:npts
 %         if ~isinf(ipt)
           % normal branch
@@ -367,7 +368,7 @@ classdef GTPlot
           set(ax,args{:});
           if ylimcapbase
             yl = ylim(ax);
-            yl(2) = 2*y(iptile,1); 
+            yl(2) = min(yl(2),2*y(iptile,1)); 
             ylim(ax,yl);
           end
           set(ax,'YTick',ax.YTick(1:end-1),'YTickLabel',ax.YTickLabel(1:end-1));
@@ -378,5 +379,6 @@ classdef GTPlot
         linkaxes(hAxs(iptile,:));
       end
     end
+    
   end
 end
