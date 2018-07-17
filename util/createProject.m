@@ -78,9 +78,9 @@ end
 
 for imovadd=1:nmovadd
   if nview==1
-    lObj.movieAdd(movFiles{imovadd},[]);
+    lObj.movieAdd(movFiles{imovadd},[],'offerMacroization',false);
   else
-    lObj.movieSetAdd(movFiles(imovadd,:));
+    lObj.movieSetAdd(movFiles(imovadd,:),'offerMacroization',false);
   end
   lObj.movieSet(lObj.nmoviesGTaware);
   pause(1); % prob unnec, give UI a little time
