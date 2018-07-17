@@ -83,12 +83,12 @@ classdef MFTable
       %
       % tbl, tblRestrict: tables with FLDSID
       %
-      % tbl (out): that subset of tbl that is also in tblRestrict. Rows of 
-      % table should be as originally ordered.
+      % tbl (out): that subset of tbl that is also in tblRestrict, ordered
+      % as in tblRestrict.
       
-      [~,ia] = intersect(tbl(:,MFTable.FLDSID),...
-        tblRestrict(:,MFTable.FLDSID),'stable');
-      tbl = tbl(ia,:);
+      [~,~,ib] = intersect(...
+        tblRestrict(:,MFTable.FLDSID),tbl(:,MFTable.FLDSID),'stable');
+      tbl = tbl(ib,:);
     end
     
     function tbl = sortCanonical(tbl)

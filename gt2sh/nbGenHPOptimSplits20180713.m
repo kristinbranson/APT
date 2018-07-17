@@ -1,12 +1,13 @@
 %% Lots of C+P from nbGenSplits20180416
 
 %% Test
+tMain = loadSingleVariableMatfile('tMain4523.mat');
 for eh={'easy' 'hard'},eh=eh{1}; %#ok<FXSET>
   outerfname = sprintf('hpo_outer3_%s.mat',eh);
   outer = loadSingleVariableMatfile(outerfname);
   szassert(outer,[4523 3]);
   for iOuter=1:3
-    innerfname = sprintf('hpo_outer3_fold%02d_inner3_%s.mat',iOuter,eh);
+    innerfname = sprintf('hpo_outer3_%s_fold%02d_inner3.mat',eh,iOuter);
     inner = loadSingleVariableMatfile(innerfname);
     
     tfoutertst = outer(:,iOuter);
@@ -24,6 +25,15 @@ for eh={'easy' 'hard'},eh=eh{1}; %#ok<FXSET>
     fprintf(1,'%s, outer split %d\n',eh,iOuter);
     sum(splitsumm,1)
     unique(sum(splitsumm,2))
+    
+    tMainOuterTrn = tMain(tfoutertrn,:);
+    tMainOuterTst = tMain(tfoutertst,:);
+    outertrnTableName = sprintf('hpo_outer3_%s_fold%02d_tblTrn.mat',eh,iOuter);
+    outertstTableName = sprintf('hpo_outer3_%s_fold%02d_tblTst.mat',eh,iOuter);
+%     save(outertrnTableName,'tMainOuterTrn');
+%     fprintf(1,'Saved outer train table (nTrn=%d): %s\n',height(tMainOuterTrn),outertrnTableName);
+    save(outertstTableName,'tMainOuterTst');
+    fprintf(1,'Saved outer test table (nTst=%d): %s\n',height(tMainOuterTst),outertstTableName);
   end
 end
 

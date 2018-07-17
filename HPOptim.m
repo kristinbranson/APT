@@ -12,8 +12,14 @@ classdef HPOptim
   
   methods (Static)
     
-    function aptClusterCmd
-      cmd = sprintf('.../APTCluster.py -n 6 --outdir /groups/branson/bransonlab/apt/tmp/<bsubout> --bindate 20180710.feature.deeptrack --trackargs "tableFile /groups/branson/bransonlab/apt/tmp/<tableFile> tableSplitFile /groups/branson/bransonlab/apt/tmp/<tableSplitFile> paramFile /groups/branson/bransonlab/apt/tmp/<prmBase>" --prmpatchdir %s /groups/branson/bransonlab/apt/experiments/data/sh_trn4523_gt080618_made20180627_cacheddata.lbl xv',pchDir);
+    function aptClusterCmd(roundid,tblfile,spltfile,prmfile,pchdir,varargin)
+      bindate = myparse(varargin,...
+        'bindate','20180713.feature.deeptrack');
+      
+      blapt = '/groups/branson/bransonlab/apt';
+      hpo = fullfile(blapt,'tmp','hpo');
+      cmd = sprintf('/groups/branson/home/leea30/git/aptdl/APTCluster.py -n 6 --outdir %s/%s --bindate %s --trackargs "tableFile %s/%s tableSplitFile %s/%s paramFile %s/%s" --prmpatchdir %s/%s /groups/branson/bransonlab/apt/experiments/data/sh_trn4523_gt080618_made20180627_cacheddata.lbl xv',...
+        hpo,roundid,bindate,hpo,tblfile,hpo,spltfile,hpo,prmfile,hpo,pchdir);
       fprintf(1,'Run:\n%s\n',cmd);
     end
     
@@ -279,8 +285,9 @@ classdef HPOptim
       
       pchs = readtxtfile(pchfile,'discardemptylines',true);
       npch = numel(pchs);
-%       fprintf(1,'Read parameter patch file %s. %d patches.\n',paramPatchFile,...
-%         npatch);  
+      if verbose
+        fprintf(1,'Read patch file %s. %d patches.\n',pchfile,npch);
+      end
       for ipch=1:npch
         pch = pchs{ipch};
         pch = ['sPrm' pch ';']; %#ok<AGROW>
