@@ -1433,12 +1433,12 @@ classdef Labeler < handle
     end
     
     function s = projGetSaveStruct(obj,varargin)
-      % Warning: if .preProcSaveData is true, pthen s.preProcData is a
+      % Warning: if .preProcSaveData is true, then s.preProcData is a
       % handle (shallow copy) to obj.preProcData
       
-      [sparsify,incDataCache] = myparse(varargin,...
+      [sparsify,forceIncDataCache] = myparse(varargin,...
         'sparsify',true,...
-        'incDataCache',true... % include .preProcData* if .preProcSaveData is true
+        'forceIncDataCache',false... % include .preProcData* even if .preProcSaveData is false
         );
       
       s = struct();
@@ -1475,7 +1475,7 @@ classdef Labeler < handle
       s.trackerClass = cellfun(@class,obj.trackersAll,'uni',0);
       s.trackerData = cellfun(@getSaveToken,obj.trackersAll,'uni',0);
       
-      if obj.preProcSaveData && incDataCache
+      if obj.preProcSaveData || forceIncDataCache
         s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
         s.preProcDataTS = obj.preProcDataTS;
       end
@@ -7283,7 +7283,7 @@ classdef Labeler < handle
     function s = trackCreateDeepTrackerStrippedLbl(obj)
       % For use with DeepTrackers
       
-      s = obj.projGetSaveStruct('incDataCache',false);
+      s = obj.projGetSaveStruct('forceIncDataCache',true);
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
       
@@ -7294,6 +7294,21 @@ classdef Labeler < handle
       s.movieFilesAllGTCropInfo = cellOfObjArrs2CellOfStructArrs(obj.movieFilesAllGTCropInfo);
       warning(warnst);
       s.cropProjHasCrops = obj.cropProjHasCrops;
+      
+      if isfield(s,'preProcData') && ~isempty(s.preProcData)
+        % De-objectize .preProcData (CPRData)
+        
+        ppdata = s.preProcData;
+        ppdataMD = ppdata.MD;
+        ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
+        ppMDflds = tblflds(ppdataMD);
+        s.preProcData_I = ppdata.I;
+        for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
+          sfld = ['preProcData_MD_' f];
+          s.(sfld) = ppdataMD.(f);
+        end
+        s = rmfield(s,'preProcData');
+      end
       
       tf = strcmp(s.trackerClass,'DeepTracker');
       i = find(tf);
