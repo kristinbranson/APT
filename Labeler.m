@@ -2525,7 +2525,8 @@ classdef Labeler < handle
     function tfSucc = movieRm(obj,iMov,varargin)
       % tfSucc: true if movie removed, false otherwise
       
-      [gt] = myparse(varargin,...
+      [force,gt] = myparse(varargin,...
+        'force',false,... % if true, don't prompt even if mov has labels
         'gt',obj.gtIsGTMode ...
         );
       
@@ -2541,7 +2542,7 @@ classdef Labeler < handle
       haslbls2 = obj.getMovieFilesAllHaveLblsArg(gt);
       haslbls2 = haslbls2(iMov);
       assert(haslbls1==haslbls2);
-      if haslbls1 && ~obj.movieDontAskRmMovieWithLabels
+      if haslbls1 && ~obj.movieDontAskRmMovieWithLabels && ~force
         str = sprintf('Movie index %d has labels. Are you sure you want to remove?',iMov);
         BTN_NO = 'No, cancel';
         BTN_YES = 'Yes';
@@ -2564,12 +2565,20 @@ classdef Labeler < handle
         PROPS = Labeler.gtGetSharedPropsStc(gt);
         nMovOrigReg = obj.nmovies;
         nMovOrigGT = obj.nmoviesGT;
-        
+
+        if gt
+          movIdx = MovieIndex(-iMov);
+          movIdxHasLbls = obj.movieFilesAllGTHaveLbls(iMov);
+        else
+          movIdx = MovieIndex(iMov);
+          movIdxHasLbls = obj.movieFilesAllHaveLbls(iMov);
+        end
+
         obj.(PROPS.MFA)(iMov,:) = [];
         obj.(PROPS.MFAHL)(iMov,:) = [];
         obj.(PROPS.MIA)(iMov,:) = [];
         obj.(PROPS.MFACI)(iMov,:) = [];
-        obj.(PROPS.TFA)(iMov,:) = [];        
+        obj.(PROPS.TFA)(iMov,:) = [];
         
         tfOrig = obj.isinit;
         obj.isinit = true; % AL20160808. we do not want set.labeledpos side effects, listeners etc.
@@ -2586,13 +2595,6 @@ classdef Labeler < handle
         end
         obj.isinit = tfOrig;
         
-        if gt
-          movIdx = MovieIndex(-iMov);
-          movIdxHasLbls = obj.movieFilesAllGTHaveLbls(iMov);
-        else
-          movIdx = MovieIndex(iMov);
-          movIdxHasLbls = obj.movieFilesAllHaveLbls(iMov);
-        end
         edata = MoviesRemappedEventData.movieRemovedEventData(...
           movIdx,nMovOrigReg,nMovOrigGT,movIdxHasLbls);
         obj.preProcData.movieRemap(edata.mIdxOrig2New);
@@ -2615,6 +2617,14 @@ classdef Labeler < handle
       end
       
       tfSucc = tfProceedRm;
+    end
+    
+    function movieRmAll(obj)
+      nmov = obj.nmoviesGTaware;
+      obj.movieSetNoMovie();
+      for imov=1:nmov
+        obj.movieRm(1,'force',true);
+      end
     end
     
     function movieReorder(obj,p)
