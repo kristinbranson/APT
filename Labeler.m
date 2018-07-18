@@ -7293,10 +7293,22 @@ classdef Labeler < handle
     function s = trackCreateDeepTrackerStrippedLbl(obj)
       % For use with DeepTrackers
       
+      if ~obj.hasMovie
+        % for NumChans see below
+        error('Please select/open a movie.');
+      end
+      
       s = obj.projGetSaveStruct('forceIncDataCache',true);
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
       
+      nchan = arrayfun(@(x)x.getreadnchan,obj.movieReader);
+      nchan = unique(nchan);
+      if ~isscalar(nchan)
+        error('Number of channels differs across views.');
+      end
+      s.cfg.NumChans = nchan;
+            
       cellOfObjArrs2CellOfStructArrs = ...
         @(x)cellfun(@(y)arrayfun(@struct,y),x,'uni',0); % note, y can be []
       warnst = warning('off','MATLAB:structOnObject');
