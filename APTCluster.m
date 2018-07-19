@@ -51,6 +51,9 @@ switch action
     if lObj.movieReadPreLoadMovies
       fprintf(' ... preload is on.\n');
     end
+    if lObj.gtIsGTMode
+      lObj.gtSetGTMode(false,'warnChange',true);
+    end
         
     retrainArgs = cell(1,0);
     [lblP,lblF,lblE] = fileparts(lblFile);

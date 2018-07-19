@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--binrootdir",help="Root build directory containing saved builds. Defaults to %s"%DEFAULTAPTBUILDROOTDIR,default=DEFAULTAPTBUILDROOTDIR)
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
-    parser.add_argument("--trackargs",help="use with action==track, trackbatch, xv, trntrk. enclose in quotes, additional/optional prop-val pairs")
+    parser.add_argument("--trackargs",help="use with action==track, trackbatch, xv, retrain, trntrk. enclose in quotes, additional/optional prop-val pairs")
     parser.add_argument("-p0di","--p0DiagImg",help="use with action==track or trackbatch. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
 #    parser.add_argument("--trkfile",help="use with action==prune*. full path to trkfile to prune")
@@ -83,7 +83,7 @@ def main():
         print("Action is " + args.action + ", ignoring --trx specification")
     if args.action not in ["track","trackbatch"] and args.p0DiagImg:
         print("Action is " + args.action + ", ignoring --p0DiagImg specification")    
-    if args.action not in ["track","trackbatch","xv","trntrk"] and args.trackargs:
+    if args.action not in ["track","trackbatch","xv","trntrk","retrain"] and args.trackargs:
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
@@ -241,6 +241,8 @@ def main():
         logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
         if args.action=="retrain":
             cmd = args.projfile + " " + args.action
+            if args.trackargs:
+                cmd = cmd+" "+args.trackargs
         elif args.action=="track":
 
             if args.trx:

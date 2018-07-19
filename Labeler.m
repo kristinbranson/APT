@@ -6808,16 +6808,21 @@ classdef Labeler < handle
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when .hasTrx or .cropProjHasCropInfo
 
-      [wbObj,tblMFTrestrict] = myparse(varargin,...
+      [wbObj,tblMFTrestrict,gtModeOK] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                     ... % 1. obj const 
                     ... % 2. tblP indeterminate
-        'tblMFTrestrict',[]... % see labelGetMFTableLabeld
+        'tblMFTrestrict',[],... % see labelGetMFTableLabeld
+        'gtModeOK',false... % by default, this meth should not be called in GT mode
         ); 
       tfWB = ~isempty(wbObj);
       if ~isempty(tblMFTrestrict)
         tblfldsassert(tblMFTrestrict,MFTable.FLDSID);
-      end      
+      end
+      
+      if obj.gtIsGTMode && ~gtModeOK
+        error('Unsupported in GT mode.');
+      end
       
       tblP = obj.labelGetMFTableLabeled('wbObj',wbObj,...
         'tblMFTrestrict',tblMFTrestrict);
