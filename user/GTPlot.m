@@ -9,23 +9,38 @@ classdef GTPlot
       % err: [n x npts x nviews x nsets] Error array. 
       %  - n is the number of rows/frames
       %  - npts is the number of landmarks
-      %  - nviews can be 1 for single-view data
+      %  - nviews can be 1 for single-view data. "views" and "sets" are 
+      % really just arbitrary dimensions for tiling bullseye plots 
       %  - nsets can be 1 for eg a single XV run, or greater than 1 when 
       %  eg a parameter is titrated it is desired to compare multiple runs.
       %
       % hFig: figure handle
       % hAxs: [nviews x nsets] axes handles
       
-      [ptiles,hFig,xyLblPlotArgs,setNames,ptileCmap,lineWidth] = ...
+      [ptiles,hFig,xyLblPlotArgs,setNames,ptileCmap,lineWidth,contourtype] = ...
         myparse(varargin,...
         'ptiles',[50 75 90 95 97.5 99 99.5],...
         'hFig',[],...
-        'xyLblPlotArgs',{'m+'},...
+        'xyLblPlotArgs',{'m.' 'markersize' 20},...
         'setNames',[],...
         'ptileCmap','jet',...
-        'lineWidth',1);
+        'lineWidth',1,...
+        'contourtype','circle'... % either 'circle','ellipse','arb'. 
+          ... % If ellipse or arb, then err should have size 
+          ... % [n x npts x 2 x nviews x nsets] (3rd dim = x/y)
+        );
       
-      [n,npts,nviews,nsets] = size(err);
+      switch contourtype
+        case 'circle'
+          [n,npts,nviews,nsets] = size(err);
+          %tfIsotropic = true;
+        case {'ellipse' 'arb'}
+          %tfIsotropic = false;
+          [n,npts,d,nviews,nsets] = size(err);
+          assert(d==2);
+        otherwise 
+          assert(false);
+      end
       assert(isvector(I) && iscell(I) && numel(I)==nviews);
       szassert(xyLbl,[npts,2,nviews]);
       if isempty(setNames)
@@ -43,10 +58,19 @@ classdef GTPlot
       
       nptiles = numel(ptiles);
       err_prctiles = nan(nptiles,npts,nviews,nsets);
+      gaussfitIfos = cell(npts,nviews,nsets);
       for l=1:npts
         for v=1:nviews
           for k=1:nsets
-            err_prctiles(:,l,v,k) = prctile(err(:,l,v,k),ptiles);
+            switch contourtype
+              case 'circle'
+                err_prctiles(:,l,v,k) = prctile(err(:,l,v,k),ptiles);
+              case 'ellipse'
+                xyerr = squeeze(err(:,l,:,v,k)); % [nx2]
+                gaussfitIfos{l,v,k} = GTPlot.gaussianFit(xyerr);
+              case 'arb'
+                assert(false,'Unimplemented.');
+            end
           end
         end
       end
@@ -66,7 +90,7 @@ classdef GTPlot
           colormap gray
           axis(ax,'image','off');
           hold(ax,'on');
-          plot(ax,xyL(:,1),xyL(:,2),xyLblPlotArgs{:});
+
           if viewi==1
             tstr = setNames{k};
             if k==1
@@ -77,11 +101,30 @@ classdef GTPlot
           
           for p = 1:nptiles
             for l = 1:npts
-              rad = err_prctiles(p,l,viewi,k);
-              h(p) = drawellipse(xyL(l,1),xyL(l,2),0,rad,rad,...
-                'Color',colors(p,:),'Parent',ax,'lineWidth',lineWidth);
+              switch contourtype
+                case 'circle'
+                  rad = err_prctiles(p,l,viewi,k);
+                  h(p) = drawellipse(xyL(l,1),xyL(l,2),0,rad,rad,...
+                    'Color',colors(p,:),'Parent',ax,'lineWidth',lineWidth);
+                case 'ellipse'
+                  gIfo = gaussfitIfos{l,viewi,k};
+                  scatterpts = (l==2) & p==1;
+                  h(p) = GTPlot.gaussianFitDrawContours(gIfo,...
+                    xyL(l,1),xyL(l,2),ptiles(p),'scatterpts',scatterpts,...
+                    'Color',colors(p,:),'Parent',ax,'lineWidth',lineWidth);
+                  if p==1
+                    fprintf(1,'Vw%d set%d pt%d. gIfo.mean: %s\n',...
+                      viewi,k,l,mat2str(gIfo.mean));
+                  end
+                case 'arb'
+                  assert(false,'Unimplemented.');
+              end
             end
           end
+          
+          % do this last so it is most on top
+          plot(ax,xyL(:,1),xyL(:,2),xyLblPlotArgs{:});
+
         end
       end
             
@@ -379,6 +422,110 @@ classdef GTPlot
         linkaxes(hAxs(iptile,:));
       end
     end
+
+    % anisotropic bullseye utils
+
+    function h = gaussianFitDrawContours(ifo,xc,yc,ptiles,varargin)
+      % ifo: Output of .gaussianFit(xyTrkErr)
+      
+      [ax,meshrad,meshptsperpx,color,lineWidth,scatterpts,useextrameth] = ...
+        myparse(varargin,...
+        'Parent',gca,...
+        'meshrad',50,...
+        'meshptsperpx',1,...
+        'Color',[0 0 1],...
+        'lineWidth',1, ...
+        'scatterpts',false,...
+        'useextrameth',false ... % if true, compute/plot 2 ways (originally for debugging)
+        );       
+
+      if scatterpts
+        %ifo.xy is xyTrkErr
+        plot(ax,ifo.xy(:,1)+xc,ifo.xy(:,2)+yc,'.w');
+      end
+
+      if useextrameth
+        % method 1: compute ptiles of actual pdf and call contour()
+        xabs = linspace(xc-meshrad,xc+meshrad,2*meshrad*meshptsperpx);
+        yabs = linspace(yc-meshrad,yc+meshrad,2*meshrad*meshptsperpx);
+        [xabs,yabs] = meshgrid(xabs,yabs);
+        ff = ifo.f([xabs(:)-xc yabs(:)-yc]);
+        ff = reshape(ff,size(xabs));
+        ff = -ff; % will be taking "positive" ptiles
+
+
+        % These -PDF/ifo.f() values are at the various ptile contours of
+        % -PDF for the dataset
+        zptiles = prctile(-ifo.fxy,ptiles);
+        if isscalar(zptiles)
+          zptiles = [zptiles zptiles];
+        end
+        [~,h] = contour(ax,xabs,yabs,ff,zptiles,...
+          'color',color,'linewidth',lineWidth+1,'LineStyle',':');
+      end
+            
+      % method 2: compute ptiles of maha dist
+      mhd = sqrt(ifo.mhd2xy);
+      mhdPtiles = prctile(mhd,ptiles);
+      nptiles = numel(ptiles);
+      [atmp,btmp,theta] = cov2ell(ifo.cov); % a, b are 2sigma
+      siga = atmp/2;
+      sigb = btmp/2;
+      
+      axes(ax);
+      
+      h = gobjects(nptiles,1);
+      for iptl=1:nptiles
+        mhdI = mhdPtiles(iptl);
+        adraw = mhdI*siga;
+        bdraw = mhdI*sigb;
+        h(iptl) = drawellipse(xc+ifo.mean(1),yc+ifo.mean(2),...
+          theta,adraw,bdraw,'color',color,'linewidth',lineWidth);
+  
+%         foo = invcov*xy';
+%         foo = sum(xy'.*foo,1);
+%         ninside = nnz(foo<=mhdthis^2);
+%         nout = nnz(foo>mhdthis^2);
+%         fprintf(1,'%d/%d in/out, %.3f\n',ninside,nout,ninside/(ninside+nout));
+      end
+    end
+    function ifo = gaussianFit(xy)
+      % xy: [nx2] points
+      %
+      % compute mean, cov, invert cov, sqrt(det(cov))
+      
+      assert(size(xy,2)==2);
+      ifo.mean = mean(xy,1);
+      ifo.cov = cov(xy);
+      %fprintf(1,'xy mean (expect cntred): %s\n',mat2str(ifo.mean));
+      ifo.f = GTPlot.make2DGaussian(ifo.mean,ifo.cov);
+      
+      ifo.xy = xy;
+      [ifo.fxy,ifo.mhd2xy] = ifo.f(xy);
+      
+      assert(iscolumn(ifo.fxy));
+    end
+    function f = make2DGaussian(mu,cov)
+      invcov = inv(cov);
+      sqrtdet = sqrt(det(cov));
+      f = @nst;
+      function [p,mhd2] = nst(x)
+        % x: [nx2]
+        %
+        % p: [nx1]
+        % mhd2: [nx1] maha dist^2
+        
+        %validateattributes(x,{'numeric'},{'vector' 'numel' 2});
+        assert(size(x,2)==2);
+        xbar = x-mu; % bsx
+        xbar = xbar'; % [2xn]   
+        exparg = sum(xbar.*(invcov*xbar),1);
+        exparg = exparg';
+        mhd2 = exparg;
+        p = 1/(2*pi*sqrtdet) * exp(-0.5*exparg);
+      end
+    end
     
   end
+  
 end

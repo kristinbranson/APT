@@ -1,3 +1,6 @@
+%%
+td = load('f:\aptStephenCPRInvestigate20180327\trnData20180503.mat');
+%%
 TTFILES = { ...
 'trntrk_sh_trn4523_gt080618_made20180627_cacheddata_hpo_outer3_easy_fold01_tblTrn_hpo_outer3_easy_fold01_tblTst_prm0_20180713_20180716T150605.mat'
 'trntrk_sh_trn4523_gt080618_made20180627_cacheddata_hpo_outer3_easy_fold01_tblTrn_hpo_outer3_easy_fold01_tblTst_prm1_20180714_20180716T151001.mat'
@@ -15,9 +18,24 @@ errE = cat(3,tt{1}.tblRes.dLblTrk,tt{2}.tblRes.dLblTrk,...
              tt{3}.tblRes.dLblTrk,tt{4}.tblRes.dLblTrk);
 errH = cat(3,tt{5}.tblRes.dLblTrk,tt{6}.tblRes.dLblTrk,...
              tt{7}.tblRes.dLblTrk,tt{8}.tblRes.dLblTrk);
+dxyE = cellfun(@(x)x.tblRes.pTrk-x.tblRes.pLbl,tt(1:4),'uni',0);
+dxyE = cat(3,dxyE{:});
+dxyH = cellfun(@(x)x.tblRes.pTrk-x.tblRes.pLbl,tt(5:8),'uni',0);
+dxyH = cat(3,dxyH{:});
 
-errE = reshape(errE,size(errE,1),5,2,4);
+errE = reshape(errE,size(errE,1),5,2,4); % n, pt, view, set
 errH = reshape(errH,size(errH,1),5,2,4);
+dxyE = reshape(dxyE,size(dxyE,1),5,2,2,4); % n, pt, view, x/y, set
+dxyH = reshape(dxyH,size(dxyH,1),5,2,2,4); % etc
+dxyE = permute(dxyE,[1 2 4 3 5]); % n, pt, x/y, view, set
+dxyH = permute(dxyH,[1 2 4 3 5]);
+
+% check one
+dCheckE = sqrt(squeeze(sum(dxyE.^2,3))) - errE;
+dCheckH = sqrt(squeeze(sum(dxyH.^2,3))) - errH;
+fprintf(1,'Sanity checks dxy: max(abs(resid)))=%.3g, %.3g\n',...
+  max(abs(dCheckE(:))),max(abs(dCheckH(:))));
+
 
 %% TrnTrk Eval
 DOSAVE = true;
@@ -65,6 +83,17 @@ set(hfig,'Name','easybullseye','Position',[2561 401 1920 1124]);
   'lineWidth',2,...
   'axisArgs',{'XTicklabelRotation',90,'FontSize',16});
 
+hFig(end+1) = figure(27);
+hfig = hFig(end);
+set(hfig,'Name','easybullseyeell','Position',[2561 401 1920 1124]);
+[~,ax] = GTPlot.bullseyePtiles(dxyE,...
+  td.IMain20180503_crop2(1,:),squeeze(td.xyLblMain20180503_crop2(1,:,:,:)),...
+  'hFig',hfig,...   
+  'setNames',SETNAMES,...
+  'ptiles',PTILES,...
+  'lineWidth',1,... %  'axisArgs',{'XTicklabelRotation',90,'FontSize',16},...
+  'contourtype','ellipse');
+
 hFig(end+1) = figure(30);
 hfig = hFig(end);
 set(hfig,'Name','hardbullseye','Position',[2561 401 1920 1124]);
@@ -75,6 +104,18 @@ set(hfig,'Name','hardbullseye','Position',[2561 401 1920 1124]);
   'ptiles',PTILES,...
   'lineWidth',2,...
   'axisArgs',{'XTicklabelRotation',90,'FontSize',16});
+
+hFig(end+1) = figure(32);
+hfig = hFig(end);
+set(hfig,'Name','hardbullseyeell','Position',[2561 401 1920 1124]);
+[~,ax] = GTPlot.bullseyePtiles(dxyH,...
+  td.IMain20180503_crop2(1,:),squeeze(td.xyLblMain20180503_crop2(1,:,:,:)),...
+  'hFig',hfig,...   
+  'setNames',SETNAMES,...
+  'ptiles',PTILES,...
+  'lineWidth',1,... %  'axisArgs',{'XTicklabelRotation',90,'FontSize',16},...
+  'contourtype','ellipse');
+
 
 if DOSAVE
   for i=1:numel(hFig)
