@@ -15,11 +15,12 @@ if isempty(flyid)
   [flyid,idx] = regexp(m,'[\\/]Fly?(\d+)[\\/]','tokens','start');
 end
 if ~noID
-  assert(isscalar(flyid));
-  flyid = flyid{1};
+  flyid = cat(1,flyid{:});
+  flyid = unique(flyid);
   assert(isscalar(flyid));
   flyid = flyid{1};
   flyid = str2double(flyid);
+  idx = max(idx);
 else
   flyid = nan;
 end
