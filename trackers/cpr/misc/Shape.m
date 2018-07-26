@@ -25,7 +25,8 @@ classdef Shape
       % xys: [npts x 2 x nshapes] x/y coords
       [n,nshapes] = size(ps);
       n2 = n/2;
-      xys = cat(2,reshape(ps(1:n2,:),[n2,1,nshapes]),reshape(ps(n2+1:end,:),[n2,1,nshapes]));
+      xys = cat(2,reshape(ps(1:n2,:),[n2,1,nshapes]),...
+                  reshape(ps(n2+1:end,:),[n2,1,nshapes]));
     end
     
     function [p0,thetas] = randrot(p0,d,varargin)
@@ -767,36 +768,56 @@ classdef Shape
     function [xyRoi,tfOOBview] = xy2xyROI(xy,roi,nphyspts)
       % Compute xyROI from xy (xy relative to roi); check for OOB.
       % 
-      % xy: [nptx2] xy coords. npt=nphysPts*nview, raster order is
+      % xy: [nptx2xn] xy coords. npt=nphysPts*nview, raster order is
       %   ipt,iview. Can be nans
-      % roi: [1x4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
+      % roi: [nx4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
       % nphysPts: scalar
       %
-      % xyRoi: [nptx2] xy coords relative to ROIs; x==1 => first col of
+      % xyRoi: [nptx2xn] xy coords relative to ROIs; x==1 => first col of
       %   ROI in that view etc.
-      % tfOOBview: [1xnview] logical. If true, shape is out-of-bounds of
+      % tfOOBview: [nxnview] logical. If true, shape is out-of-bounds of
       %   ROI in that view. A shape with nan coords is not considered OOB.
       
-      [npt,d] = size(xy);
+      [npt,d,n] = size(xy);
       assert(d==2);
       nview = npt/nphyspts;
-      szassert(roi,[1 4*nview]);
-      tfOOBview = false(1,nview);
-      xyRoi = nan(npt,2);
+      szassert(roi,[n 4*nview]);
+      tfOOBview = false(n,nview);
+      xyRoi = nan(npt,2,n);
       
       for iview=1:nview
         ipts = (1:nphyspts)+nphyspts*(iview-1);
-        roivw = roi(1,(1:4)+4*(iview-1));
+        roivw = roi(:,(1:4)+4*(iview-1)); % [nx4]
+        xlo = repmat(reshape(roivw(:,1),1,1,n),nphyspts,1,1);
+        xhi = repmat(reshape(roivw(:,2),1,1,n),nphyspts,1,1);
+        ylo = repmat(reshape(roivw(:,3),1,1,n),nphyspts,1,1);
+        yhi = repmat(reshape(roivw(:,4),1,1,n),nphyspts,1,1);
         
-        xs = xy(ipts,1);
-        ys = xy(ipts,2);
-        tfOOBx = xs<roivw(1) | xs>roivw(2);
-        tfOOBy = ys<roivw(3) | ys>roivw(4);
+        xs = xy(ipts,1,:); % [nphyspts x 1 x n]
+        ys = xy(ipts,2,:); % etc
+        tfOOBx = xs<xlo | xs>xhi;
+        tfOOBy = ys<ylo | ys>yhi;
+        tfOOBx = squeeze(tfOOBx)'; % [nxnphyspts]
+        tfOOBy = squeeze(tfOOBy)'; % etc
         
-        tfOOBview(iview) = any(tfOOBx) || any(tfOOBy);
-        xyRoi(ipts,1) = xs-roivw(1)+1;
-        xyRoi(ipts,2) = ys-roivw(3)+1;
+        tfOOBview(:,iview) = any(tfOOBx,2) | any(tfOOBy,2);
+        xyRoi(ipts,1,:) = xs-xlo+1;
+        xyRoi(ipts,2,:) = ys-ylo+1;
       end
+    end
+    
+    function [pRoi,tfOOBview] = p2pROI(p,roi,nphyspts)
+      % Like xy2xyROI.
+      %
+      % p: [nxD]
+      %
+      % pRoi: [nxD]
+      % tfOOBview: [nxnview] 
+            
+      xy = Shape.vecs2xys(p'); % xy: [nptx2xn] 
+      [xyRoi,tfOOBview] = Shape.xy2xyROI(xy,roi,nphyspts); % xyRoi: [nptx2xn]
+      [npt,d,n] = size(xyRoi);
+      pRoi = reshape(xyRoi,[npt*d n])';
     end
     
     function xy = xyRoi2xy(xyRoi,roi)
@@ -1082,20 +1103,34 @@ classdef Shape
       end
       bigROIRectPosn = CropInfo.roi2RectPos(bigROI);
       
-      imagesc(bigIm);
+      hIm = imagesc(bigIm);
+      hIm.PickableParts = 'none';
       axis image off
       hold on
       colormap gray
       colors = jet(npts);
+      hP1 = gobjects(npts,1);
+      hP2 = gobjects(npts,1);
       for ipt=1:npts
-        plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...
+        hP1(ipt) = plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...
             'wo','MarkerFaceColor',colors(ipt,:));
         if tfP2
-          plot(squeeze(bigP2(ipt,1,:)),squeeze(bigP2(ipt,2,:)),...          
+          hP2(ipt) = plot(squeeze(bigP2(ipt,1,:)),squeeze(bigP2(ipt,2,:)),...          
             opts.p2marker,'MarkerFaceColor',colors(ipt,:),...
             'MarkerEdgeColor',colors(ipt,:),'linewidth',2);
         end
       end
+      hPall = hP1;
+      if tfP2
+        hPall = [hPall;hP2];
+      end
+      ax = gca;
+      hCM = uicontextmenu(opts.fig);
+      ax.UIContextMenu = hCM;
+      uimenu(hCM,'Label','Increase marker size','Callback',Shape.makeCbkMarkerSize(hPall,'increase'));
+      uimenu(hCM,'Label','Decrease marker size','Callback',Shape.makeCbkMarkerSize(hPall,'decrease'));
+      set(ax,'Visible','on','XTickLabel',[],'YTickLabel',[]);
+      
       for iRow=1:opts.nr
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
@@ -1125,6 +1160,27 @@ classdef Shape
 %         end
 %         text(1,1,str,'parent',hax(iPlt),'color',[1 1 .2],...
 %           'verticalalignment','top','interpreter','none');
+    end
+    
+    function cbk = makeCbkMarkerSize(hPlot,action)
+      
+      INCDECFAC = 1.2;
+      cbk = @nst;
+      function nst(src,evt)
+        if isempty(hPlot)
+          return;
+        end
+        sz = hPlot(1).MarkerSize;            
+        switch action
+          case 'increase'
+            sz = round(sz*INCDECFAC);
+          case 'decrease'
+            sz = round(sz/INCDECFAC);            
+          otherwise
+            assert(false);
+        end
+        [hPlot.MarkerSize] = deal(sz);
+      end
     end
 
     function muFtrDist = vizRepsOverTime(I,pT,iTrl,mdl,varargin)

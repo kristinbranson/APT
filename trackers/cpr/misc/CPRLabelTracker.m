@@ -889,6 +889,7 @@ classdef CPRLabelTracker < LabelTracker
       [tblPTrn,updateTrnData,wbObj] = myparse(varargin,...
         'tblPTrn',[],... % optional MFTp table of training data. if supplied, set .trnData* state based on this table. 
                      ... % WARNING: if supplied this, caller is responsible for adding the right fields (roi, trx, etc)
+                     ... % if .roi is present, .p must be relative.
         'updateTrnData',true,... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
         'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
                    ... % 1. .trnDataInit() and .trnResInit() are called

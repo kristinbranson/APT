@@ -169,6 +169,55 @@ lObj2 = createProject(BASEPROJ,movFilesGT,...
 % Also, gtSugg table not set.
 
 
+%% 20180724 backfill new SH labels
+
+% <open proj with latest SH GT labels>
+tGT1 = lObj.labelGetMFTableLabeled();
+tGT1.mIdx = tGT1.mov;
+tGT1 = lObj.mftTableConcretizeMov(tGT1);
+
+% <open current mega-proj>
+tGT0 = lObj.labelGetMFTableLabeled();
+tGT0.mIdx = tGT0.mov;
+tGT0 = lObj.mftTableConcretizeMov(tGT0);
+%%
+[tf,loc] = tblismember(tGT0,tGT1,{'mIdx' 'frm'});
+all(tf)
+FLDS = {'mov' 'frm' 'iTgt' 'p' 'tfocc'};
+isequaln(tGT0(:,FLDS),tGT1(loc,FLDS))
+%%
+tfadd = ~tblismember(tGT1,tGT0,{'mIdx' 'frm'});
+tGT1add = tGT1(tfadd,:);
+mIdxAdd = unique(tGT1add.mIdx)
+
+%%
+assert(all(mIdxAdd<0));
+assert(lObj.gtIsGTMode);
+for mIdx=mIdxAdd(:)'
+  lObj.movieSet(abs(mIdx));
+  pause(1); % prob unnec, give UI a little time
+  fprintf(1,'working on mIdx=%d\n',int32(mIdx));
+  
+  tf = tGT1add.mIdx==mIdx;
+  tGT1addMidx = tGT1add(tf,{'frm' 'iTgt' 'p' 'tfocc'});
+  lObj.labelPosBulkImportTbl(tGT1addMidx);
+  fprintf(1,' ... imported %d lbled rows.\n',height(tGT1addMidx));
+end
+%%
+tGT2 = lObj.labelGetMFTableLabeled();
+tGT2.mIdx = tGT2.mov;
+tGT2 = lObj.mftTableConcretizeMov(tGT2);
+FLDS = {'mov' 'mIdx' 'frm' 'iTgt' 'p' 'tfocc'};
+isequal(tGT1(:,FLDS),tGT2(:,FLDS))
+%%
+tGT2tmp = tGT2(:,{'mIdx' 'frm' 'iTgt'});
+tGT2tmp.Properties.VariableNames{1} = 'mov';
+lObj.gtSetUserSuggestions(tGT2tmp);
+
+size(lObj.gtSuggMFTable)
+all(lObj.gtSuggMFTableLbled)
+
+
 %% check GT stuff by comparing .lbls
 LBLGT = '/groups/branson/bransonlab/apt/experiments/data/gtsh_main_1150_v1_20180605_SJHcopy_080618_1111.lbl';
 LBL = '/groups/branson/bransonlab/apt/tmp/sh_trn4523_gt080618_macro.lbl';

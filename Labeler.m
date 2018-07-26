@@ -5178,6 +5178,7 @@ classdef Labeler < handle
         roiCurr = cat(2,cInfo.roi);
         szassert(roiCurr,[1 4*nvw]);
         
+        % See Shape.p2pROI etc
         xy = Shape.vec2xy(p(i,:));
         [xyROI,tfOOBview] = Shape.xy2xyROI(xy,roiCurr,nphyspts);
         if any(tfOOBview)
@@ -6348,7 +6349,8 @@ classdef Labeler < handle
       % 
       % tblMFT_SuggAndLbled: MFTable, no shape/label field (eg .p or
       % .pLbl). This will be added with .labelAddLabelsMFTable.
-      % tblTrkRes: MFTable, predictions/tracking in field .pTrk.
+      % tblTrkRes: MFTable, predictions/tracking in field .pTrk. .pTrk is
+      % in absolute coords if rois are used.
       %
       % At the moment, all rows of tblMFT_SuggAndLbled must be in tblTrkRes
       % (wrt MFTable.FLDSID). ie, there must be tracking results for all
@@ -6367,8 +6369,8 @@ classdef Labeler < handle
       tblTrkRes = tblTrkRes(loc,:);
       
       tblMFT_SuggAndLbled = obj.labelAddLabelsMFTable(tblMFT_SuggAndLbled);
-      pTrk = tblTrkRes.pTrk;
-      pLbl = tblMFT_SuggAndLbled.p;
+      pTrk = tblTrkRes.pTrk; % absolute coords
+      pLbl = tblMFT_SuggAndLbled.p; % absolute coords
       nrow = size(pTrk,1);
       npts = obj.nLabelPoints;
       szassert(pTrk,[nrow 2*npts]);
@@ -6391,8 +6393,12 @@ classdef Labeler < handle
       obj.gtTblRes = tblGTres;
       obj.notify('gtResUpdated');
     end
-    function h = gtReport(obj)
+    function h = gtReport(obj,varargin)
       t = obj.gtTblRes;
+
+      nmontage = myparse(varargin,...
+        'nmontage',height(t));      
+      
       t.meanOverPtsL2err = mean(t.L2err,2);
       clrs =  obj.labelPointsPlotInfo.Colors;
       nclrs = size(clrs,1);
@@ -6454,7 +6460,7 @@ classdef Labeler < handle
       title(ax,'Mean GT err (px) by movie, landmark',args{:});
       
       % Montage
-      obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h);
+      obj.trackLabelMontage(t,'meanOverPtsL2err','hPlot',h,'nplot',nmontage);
     end    
     function gtNextUnlabeledUI(obj)
       % Like pressing "Next Unlabeled" in GTManager.
@@ -6914,11 +6920,14 @@ classdef Labeler < handle
       % tblPReadFailed: subset of tblP (input) where reads failed
       % tfReadFailed: indicator vec into tblP (input) for failed reads
       
-      wbObj = myparse(varargin,...
-        'wbObj',[]); % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
+      [wbObj,updateRowsMustMatch] = myparse(varargin,...
+        'wbObj',[],... % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
+        'updateRowsMustMatch',false ... % See preProcDataUpdateRaw
+        );
       tfWB = ~isempty(wbObj);
       
-      tblPReadFailed = obj.preProcDataUpdate(tblP,'wbObj',wbObj);
+      tblPReadFailed = obj.preProcDataUpdate(tblP,'wbObj',wbObj,...
+        'updateRowsMustMatch',updateRowsMustMatch);
       if tfWB && wbObj.isCancel
         data = [];
         dataIdx = [];
@@ -6943,17 +6952,22 @@ classdef Labeler < handle
       %   - .roi: optional, USED WHEN PRESENT. (prob needs to be either
       %   consistently there or not-there for a given obj or initData()
       %   "session"
+      %   IMPORTANT: if .roi is present, .p (labels) are expected to be 
+      %   relative to the roi.
       %   - .pTS: optional (if present, deleted)
       
-      wbObj = myparse(varargin,...
-        'wbObj',[]); % WaitBarWithCancel. If cancel, obj unchanged.
+      [wbObj,updateRowsMustMatch] = myparse(varargin,...
+        'wbObj',[],... % WaitBarWithCancel. If cancel, obj unchanged.
+        'updateRowsMustMatch',false ... % See preProcDataUpdateRaw
+        );
       
       if any(strcmp('pTS',tblP.Properties.VariableNames))
         % AL20170530: Not sure why we do this
         tblP(:,'pTS') = [];
       end
       [tblPnew,tblPupdate] = obj.preProcData.tblPDiff(tblP);
-      tblPReadFailed = obj.preProcDataUpdateRaw(tblPnew,tblPupdate,'wbObj',wbObj);
+      tblPReadFailed = obj.preProcDataUpdateRaw(tblPnew,tblPupdate,...
+        'wbObj',wbObj,'updateRowsMustMatch',updateRowsMustMatch);
     end
     
     function tblPReadFailed = preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
@@ -6969,17 +6983,26 @@ classdef Labeler < handle
       % tblPNew: new rows. MFTable.FLDSCORE are required fields. .roi may 
       %   be present and if so WILL BE USED to grab images and included in 
       %   data/MD. Other fields are ignored.
+      %   IMPORTANT: if .roi is present, .p (labels) are expected to be 
+      %   relative to the roi.
+      %
       % tblPupdate: updated rows (rows with updated pGT/tfocc).
       %   MFTable.FLDSCORE fields are required. Only .pGT and .tfocc are 
-      %   otherwise used. Other fields ignored.
+      %   otherwise used. Other fields ignored, INCLUDING eg .roi and 
+      %   .nNborMask. Ie, you cannot currently update the roi of a row in 
+      %   the cache (whose image has already been fetched)
+      %
+      %   
       % tblPReadFailed: table of failed-to-read rows. Currently subset of
       %   tblPnew. If non-empty, then .preProcData was not updated with 
       %   these rows as requested.
       %
       % Updates .preProcData, .preProcDataTS
       
-      wbObj = myparse(varargin,...
-        'wbObj',[]); % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
+      [wbObj,updateRowsMustMatch] = myparse(varargin,...
+        'wbObj',[], ... % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
+        'updateRowsMustMatch',false ... % if true, assert/check that tblPupdate matches current cache
+        );
       tfWB = ~isempty(wbObj);
       
       FLDSREQUIRED = MFTable.FLDSCORE;
@@ -7092,11 +7115,27 @@ classdef Labeler < handle
       nUpdate = size(tblPupdate,1);
       if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB 
                    % table indexing API may not be polished
-        fprintf(1,'Updating labels for %d rows...\n',nUpdate);
         [tf,loc] = tblismember(tblPupdate,dataCurr.MD,FLDSID);
         assert(all(tf));
-        dataCurr.MD{loc,'tfocc'} = tblPupdate.tfocc; % AL 20160413 throws if nUpdate==0
-        dataCurr.pGT(loc,:) = tblPupdate.p;
+        if updateRowsMustMatch
+          assert(isequal(dataCurr.MD{loc,'tfocc'},tblPupdate.tfocc),...
+            'Unexpected discrepancy in preproc data cache: .tfocc field');
+          if tblfldscontains(tblPupdate,'roi')
+            assert(isequal(dataCurr.MD{loc,'roi'},tblPupdate.roi),...
+              'Unexpected discrepancy in preproc data cache: .roi field');
+          end
+          if tblfldscontains(tblPupdate,'nNborMask')
+            assert(isequal(dataCurr.MD{loc,'nNborMask'},tblPupdate.nNborMask),...
+              'Unexpected discrepancy in preproc data cache: .nNborMask field');
+          end
+          assert(isequaln(dataCurr.pGT(loc,:),tblPupdate.p),...
+            'Unexpected discrepancy in preproc data cache: .p field');
+        else
+          fprintf(1,'Updating labels for %d rows...\n',nUpdate);
+          dataCurr.MD{loc,'tfocc'} = tblPupdate.tfocc; % AL 20160413 throws if nUpdate==0
+          dataCurr.pGT(loc,:) = tblPupdate.p;
+          % Check .roi, .nNborMask?
+        end
       end
       
       if nUpdate>0 || nNew>0 % AL: if all reads fail, nNew>0 but no new rows were actually read
@@ -7810,45 +7849,76 @@ classdef Labeler < handle
     end
     
     function trackLabelMontage(obj,tbl,errfld,varargin)
-      [nr,nc,h,npts,nphyspts] = myparse(varargin,...
+      [nr,nc,h,npts,nphyspts,nplot] = myparse(varargin,...
         'nr',3,...
         'nc',4,...
         'hPlot',[],...
-        'npts',nan,... % hack
-        'nphyspts',nan); % hack
+        'npts',obj.nLabelPoints,... % hack
+        'nphyspts',obj.nPhysPoints,... % hack
+        'nplot',height(tbl)... % show/include nplot worst rows
+        );
+      
+      if nplot>height(tbl)
+        warningNoTrace('''nplot'' argument too large. Only %d GT rows are available.',height(tbl));
+        nplot = height(tbl);
+      end
+      
       tbl = sortrows(tbl,{errfld},{'descend'});
-      % Could look first in .tracker.data, and/or use .tracker.updateData()
-      tConcrete = obj.mftTableConcretizeMov(tbl);
-      I = CPRData.getFrames(tConcrete,...
-        'forceGrayscale',obj.movieForceGrayscale,...
-        'movieInvert',obj.movieInvert);
-      pTrk = tbl.pTrk;
-      pLbl = tbl.pLbl;
-      if isnan(npts)
-        npts = obj.nLabelPoints;
+      tbl = tbl(1:nplot,:);      
+      
+      % Get pLbl/pTrk, in relative coords if appropriate
+      pLbl = tbl.pLbl; % abs coords
+      pTrk = tbl.pTrk; % etc
+      tfROI = tblfldscontains(tbl,'roi');
+      if tfROI
+        [pLbl,tfOOBview] = Shape.p2pROI(pLbl,tbl.roi,obj.nPhysPoints);
+        nOOB = sum(any(tfOOBview,2));
+        if nOOB>0
+          warningNoTrace('Labels fall outside ROI in %d rows/frames.',nOOB);
+        end
+        
+        [pTrk,tfOOBview] = Shape.p2pROI(pTrk,tbl.roi,obj.nPhysPoints);
+        nOOB = sum(any(tfOOBview,2));
+        if nOOB>0
+          warningNoTrace('Tracked points fall outside ROI in %d rows/frames.',nOOB);
+        end
       end
-      if tblfldscontains(tbl,{'roi'})
-        roi = tbl.roi;
-        assert(size(pTrk,2)==2*npts);
-        assert(size(pLbl,2)==2*npts);
-        xlo = roi(:,1);
-        ylo = roi(:,3);
-        pTrk(:,1:npts) = bsxfun(@minus,pTrk(:,1:npts),xlo)+1;
-        pLbl(:,1:npts) = bsxfun(@minus,pLbl(:,1:npts),xlo)+1;
-        pTrk(:,npts+1:end) = bsxfun(@minus,pTrk(:,npts+1:end),ylo)+1;
-        pLbl(:,npts+1:end) = bsxfun(@minus,pLbl(:,npts+1:end),ylo)+1; 
+
+      % Create a table to call preProcDataFetch so we can use images in
+      % preProc cache.      
+      FLDSTMP = {'mov' 'frm' 'iTgt' 'tfoccLbl' 'pLbl'}; % MFTable.FLDSCORE
+      if tfROI
+        FLDSTMP = [FLDSTMP 'roi'];
+      end
+%       if tblisfield(tbl,'nNborMask')
+%         % Why this is in the cache?
+%         FLDSTMP = [FLDSTMP 'nNborMask'];
+%       end
+      tblCacheUpdate = tbl(:,FLDSTMP);
+      tblCacheUpdate.Properties.VariableNames(4:5) = {'tfocc' 'p'};
+      tblCacheUpdate.p = pLbl; % corrected for ROI if nec
+      [ppdata,ppdataIdx,~,~,tfReadFailed] = ...
+        obj.preProcDataFetch(tblCacheUpdate,'updateRowsMustMatch',true);
+      nReadFailed = nnz(tfReadFailed);
+      if nReadFailed>0
+        warningNoTrace('Failed to read %d frames/images; these will not be included in montage.',...
+          nReadFailed);
+        % Would be better to include with "blank" image
       end
       
+      I = ppdata.I(ppdataIdx,:);
+      pLbl(tfReadFailed,:) = [];
+      pTrk(tfReadFailed,:) = [];
+      tblPostRead = tbl(:,{'frm' errfld});
+      tblPostRead(tfReadFailed,:) = [];
+    
       frmLblsAll = arrayfun(@(x1,x2)sprintf('frm=%d,err=%.2f',x1,x2),...
-        tbl.frm,tbl.(errfld),'uni',0);
-      if isnan(nphyspts)
-        nphyspts = obj.nPhysPoints;
-      end
+        tblPostRead.frm,tblPostRead.(errfld),'uni',0);
       
-      nrows = height(tbl);
-      startIdxs = 1:nr*nc:nrows;
+      nrowsPlot = height(tblPostRead);
+      startIdxs = 1:nr*nc:nrowsPlot;
       for i=1:numel(startIdxs)
-        plotIdxs = startIdxs(i):min(startIdxs(i)+nr*nc-1,nrows);
+        plotIdxs = startIdxs(i):min(startIdxs(i)+nr*nc-1,nrowsPlot);
         frmLblsThis = frmLblsAll(plotIdxs);
         for iView=1:obj.nview
           h(end+1,1) = figure('Name','Tracking Error Montage','windowstyle','docked'); %#ok<AGROW>
