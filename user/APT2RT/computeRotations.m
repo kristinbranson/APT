@@ -158,9 +158,9 @@ end
 %axis-angle using matgeom library
 R_temp = [rotMat,zeros(3,1); 0, 0, 0, 1];
 [estRotAxis, estRotAngRad] = rotation3dAxisAndAngle(R_temp);
-estRotAng = sjh_rad2deg(estRotAngRad);
 
-axisAngleRad = [estRotAxis,estRotAng];
+
+axisAngleRad = [estRotAxis,estRotAngRad];
 
 %% Euler angles
 % Euler angles in radians representing a rotation around
