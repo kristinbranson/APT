@@ -24,6 +24,19 @@ function [q,trans,scaleFac,residuals,rotMat,axisAngleRad,EulerRPY]=computeRotati
 % for Euler angles i.e. bank/roll->elevation/pitch->heading/yaw order.
 % Radians
 %
+% You can transform ref point to try and match data point using:
+%  transformedRefPoints = (scaleFac*rotMat*refPoint' + trans)';
+% 
+% Stephen's note: These parameters are calculated by subtracting the
+% centroid from points in Ai, then rotating them using R around their
+% central point/local origin, then translating them using T to the
+% correct location.  This means you can't use R on its own without T to move points
+% unless you either (1) first subtract the centroid of points to generate a local origin
+% or (2) Your origin happens to correspond to the actual pivot point the
+% points were rotated about in which case the axis and angle used to
+% rotate points about their centroid-subtracted local coord system and
+% the true pivot point are equivalent (I think).
+%
 % Uses Horn's method to estimate quaternion then converts to other rotation conventions:
 %http://people.csail.mit.edu/bkph/papers/Absolute_Orientation.pdf
 % @ARTICLE{Horn87closed-formsolution,
@@ -43,7 +56,7 @@ function [q,trans,scaleFac,residuals,rotMat,axisAngleRad,EulerRPY]=computeRotati
 
 
 %only set to 1 if debugging, 0 otherwise
-debugPlots=0;
+debugPlots=1;
 
 %% checking inputs
 
@@ -70,8 +83,8 @@ if debugPlots ==1
     hold on
     plot3(centData(1),centData(2),centData(3),'bo')
     plot3(dataZeroed(:,1),dataZeroed(:,2),dataZeroed(:,3),'rx')
-    tempM = mean(dataZeroed,1)
-    plot3(tempM(1),tempM(2),tempM(3),'ro')
+    shouldBeZero = mean(dataZeroed,1)
+    plot3(shouldBeZero(1),shouldBeZero(2),shouldBeZero(3),'ro')
     plot3(0,0,0,'kx')
     axis equal
 end
@@ -118,14 +131,12 @@ q = real( eV(:,eigmax) );
 [~,maxQi]=max(abs(q)); 
 q=q*sign(q(maxQi(1)));
 
-%normalize
-q = q(:);
-q = q/norm(q);
+%normalize using external function
+q = qNormalize(q);
 
 
 %% turning quaternion into rotation matrix using external function
 rotMat = qGetR(q);
-
 
 %% getting scale factor from ratio of sums of rotated data and ref point
 
@@ -143,6 +154,24 @@ scaleFac = dataSquaredSum/rotatedRefSum;
 trans = centData' - scaleFac*rotMat*centRef';
 
 
+%% debug plot to compare rotated, translated and scaled points reference points vs. data
+
+if debugPlots ==1
+    
+    figure
+    set(gcf,'visible','on')
+    transformedRefPoints = (scaleFac*rotMat*refPoint' + trans)';
+    
+    plot3(refPoint(:,1),refPoint(:,2),refPoint(:,3),'color',[0.5,0.5,0.5])
+    hold on
+    plot3(transformedRefPoints(:,1),transformedRefPoints(:,2),transformedRefPoints(:,3),'r')
+    plot3(dataPoint(:,1),dataPoint(:,2),dataPoint(:,3),'b')
+    
+    axis equal
+    title('Rotation+translation+scale.  grey=ref point, red = transformed ref point, blue = data point')
+    
+end
+
 
 %% residuals are anything left over
  
@@ -155,12 +184,15 @@ end
 
 %% getting axis-angle representation of same roation
 
-%axis-angle using matgeom library
-R_temp = [rotMat,zeros(3,1); 0, 0, 0, 1];
-[estRotAxis, estRotAngRad] = rotation3dAxisAndAngle(R_temp);
+if debugPlots ==1
+    %for debugging only - getting same info using external library
+    %axis-angle using matgeom library
+    R_temp = [rotMat,zeros(3,1); 0, 0, 0, 1];
+    [estRotAxis, estRotAngRad] = rotation3dAxisAndAngle(R_temp);
+end
 
-
-axisAngleRad = [estRotAxis,estRotAngRad];
+%getting axis and angle directly from quaternion
+axisAngleRad = [0,0,0, q(2:4)./norm(q(2:4)),2*acos(q(1))];
 
 %% Euler angles
 % Euler angles in radians representing a rotation around
