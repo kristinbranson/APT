@@ -28,7 +28,7 @@ tFrms2Lbl.movID = MFTable.formMultiMovieIDArray(tFrms2Lbl.movFile);
 [tf,loc] = tblismember(tGT,tFrms2Lbl,{'movID' 'frm'});
 fprintf(1,'%d rows in tGT not in tFrms2Lbl.\n',nnz(~tf));
 
-%% 
+%% NOTE: rows of tGT reordered by innerjoin
 tGT0 = tGT;
 tGT = innerjoin(tGT,tFrms2Lbl,'keys',{'movID' 'frm'});
 tGT.movFile = tGT.movFile_tGT;
@@ -400,7 +400,9 @@ save tblRT_full.mat tblRT;
 
 
 %% Step5. Join/merge tblRT into tGT.
+% NOTE: rows of tGT re-ordered by innerjoin
 % tblRT = loadSingleVariableMatfile('tblRT_72movs.mat');
+
 assert(strcmp(tblRT.Properties.VariableNames{1},'fly'));
 tblRT.Properties.VariableNames{1} = 'flyID';
 tblRT.mIdx = int32(tblRT.mIdx);
@@ -420,8 +422,246 @@ assert(all(tf));
 flds = tblflds(tblRT);
 isequal(tGT(:,flds),tblRT(loc,:))
 
-%% Step6. SH angle-computer
+%% Step6. run SH computeRotations to find rotation diff between tracking 
+% and labels for each row of tGT
+
+REMOVE_PT2 = true;
+
+fly2calib = readtable(FLYNUM2CALIB,...
+  'Delimiter',',',...
+  'ReadVariableNames',false,...
+  'HeaderLines',0);
+fly2calib.Properties.VariableNames = {'fly' 'calibfile'};
+fly2calibMap = containers.Map(fly2calib.fly,fly2calib.calibfile);
+
+nGT = height(tGT);
+axisAngRadMag_dLblTrk = nan(nGT,1);
+stroErr3dLbl = nan(nGT,5); % stereoReproj err for orthocam/lbls
+stroErr3dTrk = nan(nGT,5); % " orthocam/trks
+for iGT=1:nGT
+  if mod(iGT,10)==0
+    fprintf('\n%d\n',iGT);
+  end
+  
+  mIdx = tGT.mIdx(iGT);
+  frm = tGT.frm(iGT);
+  iMov = abs(mIdx);
+  pLbl = tGT.pLbl(iGT,:);
+  pTrk = tGT.pTrk(iGT,:);
+  movFile1 = tGT.movFile_tGT{iGT,1};
+  flyID = tGT.flyID(iGT);
+  
+  % get/check the calib
+  fly = parseSHfullmovie(movFile1);
+  assert(fly==flyID);
+  calibFile = fly2calibMap(fly);
+  crObj0 = CalRig.loadCreateCalRigObjFromFile(calibFile);
+  crObj = lbl.viewCalibrationDataGT{iMov};
+  tfDLT = isa(crObj0,'CalRigSH');
+  dltstuff = [];
+  if tfDLT
+    assert(isequal(crObj0.kineData,crObj.kineData));
+    dltstuff = load(strtrim(calibFile), '-regexp', '^(?!vidObj$).');
+    assert(all(isfield(dltstuff,{'DLT_1';'DLT_2'})));
+%     dlt_side = DLT_1;
+%     dlt_front = DLT_2;
+  else
+    if ~isequal(crObj0.rvecs,crObj.rvecs)
+      warningNoTrace('Fly %d mIdx %d: Orthocam objs don''t match.',fly,int32(mIdx));
+    end
+  end
+  
+  % check pLbl
+  lpos = lbl.labeledposGT{iMov};
+  lpos = SparseLabelArray.full(lpos);
+  xyLbl = lpos(:,:,frm); % [10 x 2]
+  assert(~any(isnan(xyLbl(:))));
+  assert(isequal(xyLbl(:),pLbl(:)));
+  uvLbl = cat(3,xyLbl(1:5,:),xyLbl(6:10,:)); % [5x2x2]. pt,(x/y),vw
+  xyTrk = reshape(pTrk,10,2);
+  uvTrk = cat(3,xyTrk(1:5,:),xyTrk(6:10,:)); % [5x2x2] etc  
+  szassert(uvLbl,[5 2 2]);
+  szassert(uvTrk,[5 2 2]);
+  
+  % 3dize
+  X3Dlbl = nan(5,3); % pt,(x/y/z)
+  X3Dtrk = nan(5,3);
+  X3DlblStroErr = nan(1,5);
+  X3DtrkStroErr = nan(1,5);
+  for ipt=1:5
+    if tfDLT
+      A = [dltstuff.DLT_1,dltstuff.DLT_2];
+      tempxyzblah = reconfu(A,[uvLbl(ipt,:,1) uvLbl(ipt,:,2)]);
+      X3Dlbl(ipt,:) = tempxyzblah(1:3);      
+      tempxyzblah = reconfu(A,[uvTrk(ipt,:,1) uvTrk(ipt,:,2)]);
+      X3Dtrk(ipt,:) = tempxyzblah(1:3);      
+    else % orthocam
+      [X3Dlbl(ipt,:),X3DlblStroErr(ipt)] = ...
+        crObj.stereoTriangulate(uvLbl(ipt,:,1)',uvLbl(ipt,:,2)'); % [1x3]
+      [X3Dtrk(ipt,:),X3DtrkStroErr(ipt)] = ...
+        crObj.stereoTriangulate(uvTrk(ipt,:,1)',uvTrk(ipt,:,2)'); % [1x3]
+    end
+  end
+
+  if REMOVE_PT2
+    fprintf(1,'removing pt2.');
+    X3Dlbl(2,:) = [];
+    X3Dtrk(2,:) = [];
+  end
+  [~,~,~,~,~,axisAngRad] = computeRotations(X3Dlbl,X3Dtrk);
+  assert(numel(axisAngRad)==7);
+  
+  axisAngRadMag_dLblTrk(iGT) = axisAngRad(end);
+  stroErr3dLbl(iGT,:) = X3DlblStroErr;
+  stroErr3dTrk(iGT,:) = X3DtrkStroErr;
+end
+
+if REMOVE_PT2
+  tGT.axisAngRadMag_dLblTrk_nopt2 = axisAngRadMag_dLblTrk;
+  tGT.stroErr3dLbl_nopt2 = stroErr3dLbl;
+  tGT.stroErr3dTrk_nopt2 = stroErr3dTrk;  
+else
+  tGT.axisAngRadMag_dLblTrk = axisAngRadMag_dLblTrk;
+  tGT.stroErr3dLbl = stroErr3dLbl;
+  tGT.stroErr3dTrk = stroErr3dTrk;
+end
+
+%%
 save cpr_gtres_v00_withanls.mat tGT
+
+%% C+P FROM ABOVE. Re-figure out intra rows. tGT row-ordering has changed.
+%% Intra rows: find matching row-pairs
+clear ijIntra
+tfI = strcmp(tGT.type,'intra');
+ijIntra(:,2) = find(tfI);
+nIntra = size(ijIntra,1);
+for iIntra=1:nIntra
+  j = ijIntra(iIntra,2);
+  movs = tGT.movFile(j,:);
+  [tf,movsNonIntra] = cellfun(@isIntraMovie,movs,'uni',0);
+  assert(all(cell2mat(tf)));
+  movsNonIntra = FSPath.standardPath(movsNonIntra);
+  movID = MFTable.formMultiMovieID(movsNonIntra);
+  i = find(strcmp(tGT.movID,movID) & tGT.frm==tGT.frm(j));
+  switch numel(i)
+    case 0
+      fprintf(1,' ... no match found for fly %d, frm %d\n',tGT.flyID(j),tGT.frm(j));
+    case 1
+      ijIntra(iIntra,1) = i;
+    otherwise
+      assert(false);
+  end  
+end
+%%
+tfrm = any(ijIntra==0,2);
+ijIntra(tfrm,:) = [];
+nIntra = size(ijIntra,1);
+fprintf(1,'Removing %d intra rows that had no match. Left with %d intra row-pairs.\n',...
+  nnz(tfrm),nIntra);
+
+
+%%
+
+DOSAVE = false;
+SAVEDIR = 'figsFull';
+
+tiLblArgs = {'fontweight','bold','interpreter','none','fontsize',20};
+axLblArgs = {'fontweight','bold','interpreter','none','fontsize',16};
+
+hFig = [];
+
+hFig(end+1) = figure(15);
+hfig = hFig(end);
+tstr = 'axisAngRadMag inc. pt2 vs not';
+set(hfig,'Name',tstr,'Position',[2561 401 1920 1124]);
+clf;
+scatter(tGT.axisAngRadMag_dLblTrk/pi*180,tGT.axisAngRadMag_dLblTrk_nopt2/pi*180);
+grid on;
+title(tstr,tiLblArgs{:});
+xlabel('angle (deg) inc pt2',axLblArgs{:});
+ylabel('angle (deg) no pt2',axLblArgs{:});
+
+tfNotIntra = ~strcmp(tGT.type,'intra');
+nNotIntra = nnz(tfNotIntra);
+fprintf(1,'%d not-intra rows.\n',nNotIntra);
+
+hFig(end+1) = figure(20);
+hfig = hFig(end);
+tstr = sprintf('n (not intra)=%d. headAngErr vs headAng, inc. pt2',nNotIntra);
+set(hfig,'Name',tstr,'Position',[2561 401 1920 1124]);
+clf;
+scatter(tGT.axAngDegXYZ(tfNotIntra,1),tGT.axisAngRadMag_dLblTrk(tfNotIntra)/pi*180);
+grid on;
+title(tstr,tiLblArgs{:});
+xlabel('head ang mag',axLblArgs{:});
+ylabel('head ang err (deg) inc pt2',axLblArgs{:});
+
+hFig(end+1) = figure(25);
+hfig = hFig(end);
+tstr = sprintf('n (not intra)=%d. headAngErr vs headAng, NO. pt2',nNotIntra);
+set(hfig,'Name',tstr,'Position',[2561 401 1920 1124]);
+clf;
+scatter(tGT.axAngDegXYZ(tfNotIntra,1),tGT.axisAngRadMag_dLblTrk_nopt2(tfNotIntra)/pi*180);
+grid on;
+title(tstr,tiLblArgs{:});
+xlabel('head ang mag',axLblArgs{:});
+ylabel('head ang err (deg) NO pt2',axLblArgs{:});
+
+
+%%
+maxStroErr = nanmax([tGT.stroErr3dLbl tGT.stroErr3dTrk],[],2);
+mnStroErr = nanmean([tGT.stroErr3dLbl tGT.stroErr3dTrk],2);
+
+fprintf(1,'%d nnan maxStroErr Els.\n',nnz(~isnan(maxStroErr)));
+fprintf(1,'%d nnan mnStroErr Els.\n',nnz(~isnan(mnStroErr)));
+
+hFig(end+1) = figure(20);
+hfig = hFig(end);
+tstr = 'axisAngRadMag vs maxStroErr';
+set(hfig,'Name',tstr,'Position',[2561 401 1920 1124]);
+clf;
+scatter(maxStroErr,tGT.axisAngRadMag_dLblTrk/pi*180);
+grid on;
+title(tstr,tiLblArgs{:});
+% xlabel('angle (deg) inc pt2',axLblArgs{:});
+% ylabel('angle (deg) no pt2',axLblArgs{:});
+%%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+figure(15);
+axs = mycreatesubplots(1,2);
+for ivw=1:2
+  ax = axs(ivw);
+  axes(ax);
+  plot(uvLbl(:,1,ivw),uvLbl(:,2,ivw),'.','markersize',20);  
+  text(uvLbl(2,1,ivw),uvLbl(2,2,ivw),'pt2');
+  hold on;
+  plot(uvTrk(:,1,ivw),uvTrk(:,2,ivw),'x','markersize',20);
+  text(uvTrk(2,1,ivw),uvTrk(2,2,ivw),'pt2');
+
+  roi = tGT(i,:).roi( (1:4) + (ivw-1)*4 );
+  axis(roi);
+  grid on;
+  axis ij
+end
+  
+figure(16);
+ax = axes;
+plot3(X3Dlbl(:,1),X3Dlbl(:,2),X3Dlbl(:,3));
+hold(ax,'on');
+plot3(X3Dtrk(:,1),X3Dtrk(:,2),X3Dtrk(:,3));
 
 
 %%
