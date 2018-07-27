@@ -1,5 +1,5 @@
 function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,...
-  quaternion,pivot,refHead] = ...
+  quaternion,EulerAnglesDeg_XYZ,pivot,refHead] = ...
     APT2RT(APTfilename,flynum2bodyLUT,flynum2calibLUT,...
     predictions1orLabels0,pivot,refHead,varargin)
   
@@ -64,6 +64,16 @@ function [axisAngleDegXYZ,translations,residualErrors,scaleErrors,...
 %           If you run this code again on data from same fly use this as
 %           'refHead' input to ensure two data sets are in same reference
 %           frame
+%
+%            EulerAnglesDeg_XYZ = Euler Angles describing rotation from 1st
+%            frame in trial to current frame.  Axis of rotation are
+%            lab-fixed and are aligned with the tethered fly body.  Y-axis
+%            is long body axis, X is left to right for fly and Z is up
+%            down.  Euler angles are in degrees and saved in XYZ (pitch, roll, yaw) order.
+%            Euler angles were calcualted using the 'ZYX' convention i.e.
+%            you apply Z rotation first, then Y, then X to get correct
+%            attitude/position.
+%
 %
 %
 % Dependencies:
@@ -532,6 +542,7 @@ residualErrors = nan(max_vid_size, 1, nvids);
 scaleErrors = nan(max_vid_size, 1, nvids);
 rawXYZcoordsStore = cell(1, max_vid_size, nvids);
 alignedXYZcoordsStore = cell(1,max_vid_size, nvids);
+EulerAnglesDeg_XYZ = nan(max_vid_size, 3, nvids);
 
 for vid = iMov0:iMov1 %1:size(threeD_pos,2)%for each video in experiment
 
@@ -545,10 +556,22 @@ for vid = iMov0:iMov1 %1:size(threeD_pos,2)%for each video in experiment
     headData.kine.flyhead.data.coords(i_ProboscisRoof,1:3,:) = threeD_pos{vid}{i_ProboscisRoof}(:,1:3)';
 
     vid_size = size(threeD_pos{vid}{1},1);
-    [translations(1:vid_size,:,counter), axisAngleDegXYZ(1:vid_size,:,counter), quaternion(1:vid_size,:,counter), frameStore(1:vid_size,:,counter),...
-    residualErrors(1:vid_size,:,counter), scaleErrors(1:vid_size,:,counter), refHeadReturned, rawXYZcoordsStore(:,1:vid_size,counter), ...
-    alignedXYZcoordsStore(:,1:vid_size,counter)]...
-    = threeD2RT(headData,bodyData,pivot,bodyFrame,frameRate_FPS, 0, refHead);
+    
+    [t, aa, q, fs,...
+    re, se, refHeadRet, rawXYZ, ...
+    alignedXYZ,Eul]=threeD2RT(headData,bodyData,pivot,bodyFrame,frameRate_FPS, 0, refHead);
+
+    translations(1:vid_size,:,counter)=t;
+    axisAngleDegXYZ(1:vid_size,:,counter)=aa(:,4:7);
+    quaternion(1:vid_size,:,counter)=q;
+    frameStore(1:vid_size,:,counter)=fs;
+    residualErrors(1:vid_size,:,counter)=re;
+    scaleErrors(1:vid_size,:,counter)=se;
+    refHeadReturned = refHeadRet;
+    rawXYZcoordsStore(:,1:vid_size,counter)=rawXYZ;
+    alignedXYZcoordsStore(:,1:vid_size,counter)=alignedXYZ;
+    EulerAnglesDeg_XYZ(1:vid_size,:,counter)=Eul;
+
 
 end
 
