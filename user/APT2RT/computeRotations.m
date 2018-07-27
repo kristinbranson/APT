@@ -193,7 +193,7 @@ if debugPlots ==1
 end
 
 %getting axis and angle directly from quaternion
-axisAngleRad = [0,0,0, q(2:4)./norm(q(2:4)),2*acos(q(1))];
+axisAngleRad = [0,0,0, (q(2:4)./norm(q(2:4)))',2*acos(q(1))];
 
 %% Euler angles
 % Euler angles in radians representing a rotation around
