@@ -56,7 +56,7 @@ function [q,trans,scaleFac,residuals,rotMat,axisAngleRad,EulerRPY]=computeRotati
 
 
 %only set to 1 if debugging, 0 otherwise
-debugPlots=1;
+debugPlots=0;
 
 %% checking inputs
 
@@ -186,7 +186,8 @@ end
 
 if debugPlots ==1
     %for debugging only - getting same info using external library
-    %axis-angle using matgeom library
+    %axis-angle using matgeom library. Getting axis-anglef from rotmat to
+    %check rotMat is good and matches quaternion info
     R_temp = [rotMat,zeros(3,1); 0, 0, 0, 1];
     [estRotAxis, estRotAngRad] = rotation3dAxisAndAngle(R_temp);
 end
