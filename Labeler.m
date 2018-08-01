@@ -13,6 +13,7 @@ classdef Labeler < handle
       'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'projMacros'...
       'movieFilesAllGT' 'movieInfoAllGT' ...
       'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
+      'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT' ...
       'trxFilesAllGT' ...
       'cropIsCropMode' ...
       'viewCalibrationData' 'viewCalProjWide' ...
@@ -54,6 +55,7 @@ classdef Labeler < handle
              'MFAF','movieFilesAllFull',...
              'MFAHL','movieFilesAllHaveLbls',...
              'MFACI','movieFilesAllCropInfo',...
+             'MFALUT','movieFilesAllHistEqLUT',...
              'MIA','movieInfoAll',...
              'TFA','trxFilesAll',...
              'TFAF','trxFilesAllFull',...
@@ -66,6 +68,7 @@ classdef Labeler < handle
              'MFAF','movieFilesAllGTFull',...
              'MFAHL','movieFilesAllGTHaveLbls',...
              'MFACI','movieFilesAllGTCropInfo',...
+             'MFALUT','movieFilesAllGTHistEqLUT',...
              'MIA','movieInfoAllGT',...
              'TFA','trxFilesAllGT',...
              'TFAF','trxFilesAllGTFull',...
@@ -182,6 +185,12 @@ classdef Labeler < handle
   properties (SetObservable)
     movieFilesAll = {}; % [nmovset x nview] column cellstr, full paths to movies; can include macros 
     movieFilesAllGT = {}; % same as .movieFilesAll but for GT mode
+  end
+  properties
+    % Using cells here so movies do not have to all have the same bitDepth
+    % See HistEq.genHistEqLUT for notes on how to apply LUTss
+    movieFilesAllHistEqLUT % [nmovset x nview] cell. Each el is a image lut vector, or [] 
+    movieFilesAllGTHistEqLUT % [nmovsetGT x nview] "
   end
   properties (SetObservable,AbortSet)
     movieFilesAllHaveLbls = false(0,1); % [nmovsetx1] logical. 
@@ -1321,6 +1330,8 @@ classdef Labeler < handle
       obj.movieInfoAllGT = cell(0,obj.nview);
       obj.movieFilesAllCropInfo = cell(0,1);
       obj.movieFilesAllGTCropInfo = cell(0,1);
+      obj.movieFilesAllHistEqLUT = cell(0,obj.nview);
+      obj.movieFilesAllGTHistEqLUT = cell(0,obj.nview);
       obj.cropIsCropMode = false;
       obj.trxFilesAll = cell(0,obj.nview);
       obj.trxFilesAllGT = cell(0,obj.nview);
@@ -2217,6 +2228,15 @@ classdef Labeler < handle
       if ~isfield(s,'preProcSaveData')
         s.preProcSaveData = false;
       end
+      
+      % 20180801 HistEqLUT
+      LUTFLDS = {'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT'};
+      tfLutFlds = isfield(s,LUTFLDS);
+      assert(all(tfLutFlds) || ~any(tfLutFlds));
+      if ~any(tfLutFlds)
+        s.movieFilesAllHistEqLUT = cell(size(s.movieFilesAll));
+        s.movieFilesAllGTHistEqLUT = cell(size(s.movieFilesAllGT));
+      end
     end
 
   end 
@@ -2333,6 +2353,7 @@ classdef Labeler < handle
           obj.cropInitCropsGen(wh,PROPS.MIA,PROPS.MFACI,...
             'iMov',numel(obj.(PROPS.MFACI)));
         end
+        obj.(PROPS.MFALUT){end+1,1} = [];
         obj.(PROPS.TFA){end+1,1} = tFile;
         obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         obj.(PROPS.LPOSTS){end+1,1} = -inf(nlblpts,nfrms,nTgt);
@@ -2493,6 +2514,7 @@ classdef Labeler < handle
         obj.cropInitCropsGen(wh,PROPS.MIA,PROPS.MFACI,...
           'iMov',numel(obj.(PROPS.MFACI)));
       end
+      obj.(PROPS.MFALUT)(end+1,:) = {[]};
       obj.(PROPS.TFA)(end+1,:) = repmat({''},1,obj.nview);
       obj.(PROPS.LPOS){end+1,1} = nan(nLblPts,2,nFrms,nTgt);
       obj.(PROPS.LPOSTS){end+1,1} = -inf(nLblPts,nFrms,nTgt);
@@ -2578,6 +2600,7 @@ classdef Labeler < handle
         obj.(PROPS.MFAHL)(iMov,:) = [];
         obj.(PROPS.MIA)(iMov,:) = [];
         obj.(PROPS.MFACI)(iMov,:) = [];
+        obj.(PROPS.MFALUT)(iMov,:) = [];        
         obj.(PROPS.TFA)(iMov,:) = [];
         
         tfOrig = obj.isinit;
@@ -2650,7 +2673,7 @@ classdef Labeler < handle
       % Future: clean up .isinit, listener policy etc it is getting too 
       % complex
       FLDS1 = {'movieInfoAll' 'movieFilesAll' 'movieFilesAllHaveLbls'...
-        'movieFilesAllCropInfo' 'trxFilesAll'};
+        'movieFilesAllCropInfo' 'movieFileAllHistEqLUT' 'trxFilesAll'};
       for f=FLDS1,f=f{1}; %#ok<FXSET>
         obj.(f) = obj.(f)(p,:);
       end
@@ -3131,51 +3154,194 @@ classdef Labeler < handle
 %       obj.currSusp = [];
     end
     
-    function H0 = movieEstimateImHist(obj,nFrmSamp)
+    function [hgram,hgraminfo] = movieEstimateImHist(obj,varargin) % obj CONST
       % Estimate the typical image histogram H0 of movies in the project.
       %
-      % nFrmSamp: number of frames to sample. Currently the typical image
-      % histogram is computed with all frames weighted equally, even if
-      % some movies have far more frames than others. An alternative would
-      % be eg equal-weighting by movie. nFrmSamp is only an
-      % estimate/target, the actual number of frames sampled may differ.
+      % Operates on regular (non-GT) movies. Movies are sampled with all 
+      % movies getting equal weight.
+      %
+      % If movies have crops, cropping occurs before histogram
+      % counting/selection. Otoh Trx have no bearing on this method.
+      %
+      % hgram: [nbin] histogram count vector. See HistEq.selMovCentralImHist
+      % hgraminfo: See HistEq.selMovCentralImHist
       
-      % Always operates on regular (non-GT) movies
-      
-      assert(obj.nview==1,'Not supported for multiview projects.');      
+      [nFrmPerMov,nBinHist,debugViz] = myparse(varargin,...
+        'nFrmPerMov',20,... % num frames to sample per mov
+        'nBinHist',256, ... % num bins for imhist()
+        'debugViz',false ...
+      );
+
+      ppPrms = obj.preProcParams;
+      if ~isempty(ppPrms) && ppPrms.BackSub.Use
+        error('Unsupported when background subtraction is enabled.');
+      end
+    
+      wbObj = WaitBarWithCancel('Histogram Equalization','cancelDisabled',true);
+      oc = onCleanup(@()delete(wbObj));
             
-      nfrmsAll = cellfun(@(x)x.nframes,obj.movieInfoAll);
-      nfrmsTotInProj = sum(nfrmsAll);
-      dfSamp = ceil(nfrmsTotInProj/nFrmSamp);
+      movsets = obj.movieFilesAll;
+      nmovsets = size(movsets,1);
+      nvw = obj.nview;
+      fread = nan(nFrmPerMov,nmovsets,nvw);
+      cntmat = nan(nBinHist,nmovsets,nvw);
+      bins0 = [];
+      for ivw=1:nvw
+        wbstr = sprintf('Sampling movies, view %d',ivw);
+        wbObj.startPeriod(wbstr,'shownumden',true,'denominator',nmovsets);
+        mr = MovieReader;
+        for imov=1:nmovsets
+          tic;
+          wbObj.updateFracWithNumDen(imov);
+          
+          mIdx = MovieIndex(imov);
+          obj.movieMovieReaderOpen(mr,mIdx,ivw);
+          nfrmMov = mr.nframes;
+          if nfrmMov<nFrmPerMov
+            warningNoTrace('View %d, movie %d: sampling %d frames from a total of %d frames in movie.',...
+              ivw,imov,nFrmPerMov,nfrmMov);
+          end
+          fsamp = linspace(1,nfrmMov,nFrmPerMov);
+          fsamp = round(fsamp);
+          fsamp = max(fsamp,1);
+          fsamp = min(fsamp,nfrmMov);
+          
+          for iF=1:nFrmPerMov
+            f = fsamp(iF);
+            im = mr.readframe(f,'docrop',true);
+            nchan = size(im,3);
+            if nchan>1
+              error('Images must be grayscale.');
+            end
+
+            [cntmat(:,imov,ivw),bins] = imhist(im,nBinHist);
+            if isempty(bins0)
+              bins0 = bins;
+            elseif ~isequal(bins,bins0)
+              error('View %d, movie %d, frame %d: unexpected imhist bin vector.',...
+                ivw,imov,f);
+            end
+            fread(iF,imov,ivw) = f;
+          end
+          
+          t = toc;
+          fprintf(1,'Elapsed time: %d sec\n',round(t));
+        end
+        wbObj.endPeriod();
+      end
+
+      [hgram,hgraminfo] = HistEq.selMovCentralImHist(cntmat,...
+        'debugviz',debugViz);
+    end
+    
+    function movieEstimateHistEqLUTs(obj,varargin)
+      % Update .movieFilesAllHistEqLUT, .movieFilesAllGTHistEqLUT based on
+      % .preProcH0. Applying .movieFilesAllHistEqLUT{iMov} to frames of
+      % iMov should have a hgram approximating .preProcH0
+      
+      nFrmPerMov = myparse(varargin,...
+        'nFrmPerMov',20 ... % num frames to sample per mov
+        );
+      
+      if isempty(obj.preProcH0)
+        error('No target image histogram set in property ''%s''.');
+      end
       
       wbObj = WaitBarWithCancel('Histogram Equalization','cancelDisabled',true);
       oc = onCleanup(@()delete(wbObj));
+      
+      obj.movieEstimateHistEqLUTsHlp(obj.movieFilesAll,...
+        'movieFilesAllHistEqLUT',nFrmPerMov,wbObj,'debugViz',true);
+      obj.movieEstimateHistEqLUTsHlp(obj.movieFilesAllGT,...
+        'movieFilesAllGTHistEqLUT',nFrmPerMov,wbObj,'debugViz',true);
+    end
+    function movieEstimateHistEqLUTsHlp(obj,movsets,mfaLUTfld,...
+        nFrmPerMov,wbObj,varargin)
+      
+      debugViz = myparse(varargin,...
+        'debugViz',true);      
+      
+      nmovsets = size(movsets,1);
+      nvw = obj.nview;
+      for ivw=1:nvw
+        wbstr = sprintf('Sampling movies, view %d',ivw);
+        wbObj.startPeriod(wbstr,'shownumden',true,'denominator',nmovsets);
+        mr = MovieReader;
+        Isampcat = []; % used if debugViz
+        Jsampcat = []; % etc
+        Isampcatyoffs = 0;
+        for imov=1:nmovsets
+%           tic;
+          wbObj.updateFracWithNumDen(imov);
+          
+          mIdx = MovieIndex(imov);
+          obj.movieMovieReaderOpen(mr,mIdx,ivw);
+          nfrmMov = mr.nframes;
+          if nfrmMov<nFrmPerMov
+            warningNoTrace('View %d, movie %d: sampling %d frames from a total of %d frames in movie.',...
+              ivw,imov,nFrmPerMov,nfrmMov);
+          end
+          fsamp = linspace(1,nfrmMov,nFrmPerMov);
+          fsamp = round(fsamp);
+          fsamp = max(fsamp,1);
+          fsamp = min(fsamp,nfrmMov);
 
-      I = cell(0,1);
-      % note we are intentionally not setting preload to true here, since
-      % we are just sampling frames and it shouldn't matter if we get the
-      % exact right ones. 
-      % al: our use of movieMovieReaderOpen below will set preload
-      mr = MovieReader;
-      %mr.forceGrayscale = true;
-      iSamp = 0;
-      wbObj.startPeriod('Reading data','shownumden',true,'denominator',nFrmSamp);
-      for iMov = 1:obj.nmovies
-        mIdx = MovieIndex(iMov);
-        obj.movieMovieReaderOpen(mr,mIdx,1);
-        for f = 1:dfSamp:mr.nframes
-          wbObj.updateFracWithNumDen(iSamp);
-          iSamp = iSamp+1;
-          I{end+1,1} = mr.readframe(f,'docrop',true); %#ok<AGROW>
-          %fprintf('Read movie %d, frame %d\n',iMov,f);
+          Isamp = cell(nFrmPerMov,1);
+          for iF=1:nFrmPerMov
+            f = fsamp(iF);
+            im = mr.readframe(f,'docrop',true);
+            nchan = size(im,3);
+            if nchan>1
+              error('Images must be grayscale.');
+            end
+            Isamp{iF} = im;
+          end
+          
+          try
+            Isamp = cat(2,Isamp{:});
+          catch ME
+            error('Cannot concatenate sampled movie frames: %s',ME.message);
+          end
+        
+          [lut,Jsamp] = HistEq.genHistEqLUT(Isamp,obj.preProcH0,'docheck',true);
+          obj.(mfaLUTfld){imov,ivw} = lut;
+        
+          if debugViz
+            Isampcat = [Isampcat; Isamp];
+            Jsampcat = [Jsampcat; Jsamp];
+            Isampcatyoffs(end+1,1) = size(Isampcat,1);
+          end
+            
+%           t = toc;
+%           fprintf(1,'Elapsed time: %d sec\n',round(t));
+        end
+        wbObj.endPeriod();
+        
+        if debugViz
+          figure;
+          ax = axes;
+          imagesc(Isampcat);
+          colormap gray
+          colorbar
+          yticklocs = (Isampcatyoffs(1:end-1)+Isampcatyoffs(2:end))/2;
+          yticklbls = arrayfun(@(x)sprintf('mov%d',x),1:nmovsets,'uni',0);
+          set(ax,'YTick',yticklocs,'YTickLabels',yticklbls);
+          title('Raw images','fontweight','bold');
+          clim0 = ax.CLim;
+          
+          figure
+          ax = axes;
+          imagesc(Jsampcat);
+          colormap gray
+          colorbar
+          set(ax,'YTick',yticklocs,'YTickLabels',yticklbls);
+          title('Corrected images','fontweight','bold');
+          ax.CLim = clim0;
         end
       end
-      wbObj.endPeriod();      
-      
-      H0 = typicalImHist(I,'wbObj',wbObj);
     end
     
-    function movieMovieReaderOpen(obj,movRdr,mIdx,iView)
+    function movieMovieReaderOpen(obj,movRdr,mIdx,iView) % obj CONST
       % Take a movieReader object and open the movie (mIdx,iView), being 
       % faithful to obj as per:
       %   - .movieForceGrayScale 
@@ -6880,13 +7046,10 @@ classdef Labeler < handle
     function preProcUpdateH0IfNec(obj)
       ppPrms = obj.preProcParams;
       if ppPrms.histeq
-        assert(obj.nview==1,...
-          'Histogram Equalization currently unsupported for multiview projects.');
-        assert(~obj.hasTrx,...
-          'Histogram Equalization currently unsupported for multitarget projects.');
-        
+
         nFrmSampH0 = ppPrms.histeqH0NumFrames;
-        H0 = obj.movieEstimateImHist(nFrmSampH0);
+        [hgram,hgraminfo] = obj.movieEstimateImHist(...
+          'nFrmPerMov',nFrmSampH0,'debugViz',true);
         
         data = obj.preProcData;
         if ~isequal(data.H0,obj.preProcH0)
