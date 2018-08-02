@@ -31,7 +31,7 @@ classdef HistEq
       
       cntmatnormcummdn = median(cntmatnormcum,2); % [nbin x 1 x nvw]
       % metric is sum(abs(d_cumulativeimhist))
-      cntmatdst = sum(abs(cntmatnormcum-repmat(cntmatnormcummdn,1,nmov,nvw)),1); % [1 x nmov x nvw]
+      cntmatdst = sum(abs(cntmatnormcum-repmat(cntmatnormcummdn,1,nmov,1)),1); % [1 x nmov x nvw]
       cntmatdst = reshape(cntmatdst,nmov,nvw)/nbin; % [nmov x nvw]. average value of d_normalizedCDF over bins
       [cntmatdstsorted,imovssorted] = sort(cntmatdst,1);
       
@@ -125,7 +125,9 @@ classdef HistEq
       idx = (0:N-1)/(N-1)*(nT-1); % [N] vector equally spaced taking vals 0 .. nT-1
       idx = round(idx);
       lut = T(idx+1);
-      lut = round(lut(:)*(N-1));      
+      lut = round(lut(:)*(N-1));
+      imCls = HistEq.bitDepth2ImCls(bitDepth);
+      lut = feval(imCls,lut);      
     end
     
     function bitDepth = imCls2BitDepth(I)
@@ -139,19 +141,23 @@ classdef HistEq
           error('Unsupported for images of type ''%s''.',clsI);
       end
     end
+    
+    function imCls = bitDepth2ImCls(bitDepth)
+      switch bitDepth
+        case 8
+          imCls = 'uint8';
+        case 16
+          imCls = 'uint16';
+        otherwise
+          error('Unsupported for bitDepth %d.',bitDepth);
+      end
+    end
         
     function [im,hgram,j,t,lut,tlut] = testRevEng(bitDepth)
       % Reverse-engineer how we are supposed to use matlab's grayscale
       % transformation T, cause I mean how else would we know. Geesh.
       
-      switch bitDepth
-        case 8
-          imcls = 'uint8';
-        case 16
-          imcls = 'uint16';
-        otherwise
-          assert(false);
-      end
+      imcls = HistEq.bitDepth2ImCls(bitDepth);
       
       N = 2^bitDepth;
       im = feval(imcls,(0:N-1))';
