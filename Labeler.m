@@ -80,6 +80,10 @@ classdef Labeler < handle
     newProject
     projLoaded
     newMovie
+    %db re
+    startAddMovie
+    finishAddMovie
+    startSetMovie
       
     % This event is thrown immediately before .currMovie is updated (if 
     % necessary). Listeners should not rely on the value of .currMovie at
@@ -1027,10 +1031,15 @@ classdef Labeler < handle
     end
      
     function delete(obj)
-      if isvalid(obj.hFig)
-        close(obj.hFig);
-        obj.hFig = [];
-      end
+% re: 180730        
+%       if isvalid(obj.hFig)  % isvalid will fail if obj.hFig is empty
+%         close(obj.hFig);
+%         obj.hFig = [];
+%       end        
+        if ~isempty(obj.hFig)
+          deleteValidHandles(obj.hFig);
+          obj.hFig=[];
+        end
     end
     
   end
@@ -1169,6 +1178,7 @@ classdef Labeler < handle
       end
       
       obj.notify('newProject');
+      
 
       % order important: this needs to occur after 'newProject' event so
       % that figs are set up. (names get changed)
@@ -1208,6 +1218,9 @@ classdef Labeler < handle
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
       
       obj.isinit = isinit0;
+      
+      disp('end of initFromConfig')
+      %db re
     end
     
     function cfg = getCurrentConfig(obj)
@@ -1494,6 +1507,8 @@ classdef Labeler < handle
       % If the movie is able to set the project correctly, currProjInfo
       % will be [].
             
+            disp('projLoad') %db re
+
       nomovie = myparse(varargin,...
         'nomovie',false ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
         );
@@ -1540,6 +1555,8 @@ classdef Labeler < handle
       % From here to the end of this method is a parallel initialization to
       % projNew()
 
+            
+      
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
                                               Labeler.SAVEBUTNOTLOADPROPS));
       lposProps = obj.SAVEPROPS_LPOS(:,1);
@@ -1603,6 +1620,18 @@ classdef Labeler < handle
         obj.preProcDataTS = s.preProcDataTS;
       end
 
+      
+      
+      
+      
+      %db re
+      %obj.gdata.txStatus.String
+      %tic      
+      % this chunk between the tic and the toc is the majority of the
+      % delay, roughly 15s
+            
+      
+      
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
         obj.movieSetNoMovie();
       else
@@ -1622,6 +1651,13 @@ classdef Labeler < handle
 %       % <-> Hide Predictions)
 %       obj.labelingInit();
 
+      %db re
+      %obj.gdata.txStatus.String
+      %toc
+      %tic      
+
+
+
       obj.labeledposNeedsSave = false;
 %       obj.suspScore = obj.suspScore;
             
@@ -1640,12 +1676,31 @@ classdef Labeler < handle
         obj.(p) = obj.(p);
       end
       
+      %db re
+      %obj.gdata.txStatus.String
+      %toc
+      %tic            
+      
       obj.notify('projLoaded');
       obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
+    
+      
+      %db re
+      %obj.gdata.txStatus.String
+      %toc
+      %tic      
+                 
+            disp('end projLoad') %db re
+            
+      
     end
+    
+    
+    
+    
     
     function projImport(obj,fname)
       % 'Import' the project fname, MERGING movies/labels into the current project.
@@ -2230,6 +2285,10 @@ classdef Labeler < handle
       % moviefile: string or cellstr (can have macros)
       % trxfile: (optional) string or cellstr 
       
+      
+      %db re
+      notify(obj,'startAddMovie');      
+      
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
       
       [offerMacroization,gt] = myparse(varargin,...
@@ -2253,7 +2312,7 @@ classdef Labeler < handle
       trxfile = cellstr(trxfile);
       szassert(moviefile,size(trxfile));
       nMov = numel(moviefile);
-      
+        
       mr = MovieReader();
       mr.preload = obj.movieReadPreLoadMovies;
       for iMov = 1:nMov
@@ -2309,6 +2368,7 @@ classdef Labeler < handle
 
         % Could use movieMovieReaderOpen but we are just using MovieReader 
         % to get/save the movieinfo.
+      
         mr.open(movfilefull); 
         ifo = struct();
         ifo.nframes = mr.nframes;
@@ -2345,6 +2405,9 @@ classdef Labeler < handle
           obj.labeledposMarked{end+1,1} = false(nlblpts,nfrms,nTgt);
         end
       end
+      
+      notify(obj,'finishAddMovie');            
+      
     end
     
     function movieAddBatchFile(obj,bfile)
@@ -2806,6 +2869,7 @@ classdef Labeler < handle
       % This function is NOT obj const -- users can browse to 
       % movies/trxfiles, macro-related state can be mutated etc.
       
+      
       tfsuccess = false;
       
       PROPS = obj.gtGetSharedProps();
@@ -2955,7 +3019,11 @@ classdef Labeler < handle
     end
     
     function tfsuccess = movieSet(obj,iMov,varargin)
-      % iMov: If multivew, movieSet index (row index into .movieFilesAll)  
+        
+        %db re
+        notify(obj,'startSetMovie')
+        
+        % iMov: If multivew, movieSet index (row index into .movieFilesAll)  
             
       assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx
       assert(any(iMov==1:obj.nmoviesGTaware),...
@@ -3056,6 +3124,9 @@ classdef Labeler < handle
       else
         obj.setFrameAndTarget(1,1);
       end
+      
+    disp('end of movieSet')
+    %db re
     end
     
     function tfsuccess = movieSetMIdx(obj,mIdx,varargin)

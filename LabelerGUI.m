@@ -22,7 +22,7 @@ gui_State = struct('gui_Name',       gui_Name, ...
                    'gui_OutputFcn',  @LabelerGUI_OutputFcn, ...
                    'gui_LayoutFcn',  [] , ...
                    'gui_Callback',   []);
-if nargin && ischar(varargin{1}) && exist(varargin{1}), %#ok<EXIST>
+if nargin && ischar(varargin{1}) && exist(varargin{1}) %#ok<EXIST>
     gui_State.gui_Callback = str2func(varargin{1});
 end
 
@@ -504,6 +504,11 @@ listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
+%db re
+listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
+listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
+listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
+
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
 handles.menu_track_trackers = cell(0,1); % menus added in cbkTrackersAllChanged
@@ -831,12 +836,18 @@ end
 
 function cbkNewProject(src,evt)
 
+disp('into cbkNewProject')
+%db re
+
 lObj = src;
 handles = lObj.gdata;
 
 handles = clearDepHandles(handles);
 
-SetStatus(handles,'Creating New Project',true);
+%db re
+syncStatusBarTextWhenClear(handles)  % i think this is putting txStatusString into 'text_when_clear'
+curr_status_string=handles.txStatus.String;
+SetStatus(handles,curr_status_string,true);
 
 % figs, axes, images
 deleteValidHandles(handles.figs_all(2:end));
@@ -966,8 +977,11 @@ handles.GTMgr.Visible = 'off';
 handles = addDepHandle(handles,handles.GTMgr);
 
 guidata(handles.figure,handles);
+
+%db re
+disp('done with cbkNewProject')
 ClearStatus(handles);
-  
+
 function cbkNewMovie(src,evt)
 lObj = src;
 handles = lObj.gdata;
@@ -1076,13 +1090,37 @@ end
 set(handles.txMoviename,'String',str);
 if ~isempty(mname)
   str = sprintf('new %s %s at %s',lower(movstr),mname,datestr(now,16));
-  SetStatus(handles,str,false);
+  SetStatus(handles,str,false); %in cbkNewMovie
+  %SetStatus(handles,str,true);
   %set(handles.txStatus,'String',str);
   
   % Fragile behavior when loading projects; want project status update to
   % persist and not movie status update. This depends on detailed ordering in 
   % Labeler.projLoad
 end
+
+function cbkAddMovie(src,evt)
+lObj=src;
+handles = lObj.gdata;
+
+if strcmp(evt.EventName,'startAddMovie')
+    SetStatus(handles,'Adding movie',true); 
+elseif strcmp(evt.EventName,'finishAddMovie')
+    ClearStatus(handles);        
+end
+
+function cbkSetMovie(src,evt)
+lObj=src;
+handles = lObj.gdata;
+
+if strcmp(evt.EventName,'startSetMovie')
+    SetStatus(handles,'Setting first movie',true); 
+elseif strcmp(evt.EventName,'finishSetMovie')
+    ClearStatus(handles);        
+end
+
+
+
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
@@ -1875,23 +1913,40 @@ if hlpSave(lObj)
   lObj.movieSet(1,'isFirstMovie',true);      
 end
 function menu_file_new_Callback(hObject, eventdata, handles)
+SetStatus(handles,'Starting New Project',true);
+disp('into menu_file_new_Callback')
+%db
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   cfg = ProjectSetup(handles.figure);
   if ~isempty(cfg)    
+      %db
+      SetStatus(handles,'Configuring New Project',true)
     lObj.initFromConfig(cfg);
     lObj.projNew(cfg.ProjectName);
+        %db 
+        SetStatus(handles,'Adding Movies',true);
     handles = lObj.gdata; % initFromConfig, projNew have updated handles
-    menu_file_managemovies_Callback([],[],handles);
+    menu_file_managemovies_Callback([],[],handles);  %all this does is make the movie manager visible
+        
+        %db
+        %SetStatus(handles,[],false);
+    
   end  
 end
+ClearStatus(handles);
+
 function menu_file_save_Callback(hObject, eventdata, handles)
 handles.labelerObj.projSaveSmart();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
+
 function menu_file_saveas_Callback(hObject, eventdata, handles)
 handles.labelerObj.projSaveAs();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
+
 function menu_file_load_Callback(hObject, eventdata, handles)
+
+SetStatus(handles,'Loading Project',true);
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   currMovInfo = lObj.projLoad();
@@ -1903,6 +1958,8 @@ if hlpSave(lObj)
     warndlg(wstr,'Movie not found','modal');
   end
 end
+ClearStatus(handles)
+disp('back from load callback')
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
@@ -3122,8 +3179,7 @@ else
 end
 set(handles.txStatus,'ForegroundColor',color,'String',s);
 drawnow('limitrate');
-if ~isbusy && ~istemp,
-  syncStatusBarTextWhenClear(handles);
+if ~isbusy && ~istemp,  syncStatusBarTextWhenClear(handles);
 end
 
 % -------------------------------------------------------------------------
