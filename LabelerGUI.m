@@ -504,7 +504,6 @@ listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
-%db re
 listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
@@ -835,17 +834,11 @@ else
 end
 
 function cbkNewProject(src,evt)
-
-disp('into cbkNewProject')
-%db re
-
 lObj = src;
 handles = lObj.gdata;
 
 handles = clearDepHandles(handles);
 
-%db re
-syncStatusBarTextWhenClear(handles)  % i think this is putting txStatusString into 'text_when_clear'
 curr_status_string=handles.txStatus.String;
 SetStatus(handles,curr_status_string,true);
 
@@ -978,8 +971,6 @@ handles = addDepHandle(handles,handles.GTMgr);
 
 guidata(handles.figure,handles);
 
-%db re
-disp('done with cbkNewProject')
 ClearStatus(handles);
 
 function cbkNewMovie(src,evt)
@@ -1914,24 +1905,17 @@ if hlpSave(lObj)
 end
 function menu_file_new_Callback(hObject, eventdata, handles)
 SetStatus(handles,'Starting New Project',true);
-disp('into menu_file_new_Callback')
-%db
+
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   cfg = ProjectSetup(handles.figure);
   if ~isempty(cfg)    
-      %db
-      SetStatus(handles,'Configuring New Project',true)
+    SetStatus(handles,'Configuring New Project',true)
     lObj.initFromConfig(cfg);
     lObj.projNew(cfg.ProjectName);
-        %db 
-        SetStatus(handles,'Adding Movies',true);
+    SetStatus(handles,'Adding Movies',true);
     handles = lObj.gdata; % initFromConfig, projNew have updated handles
     menu_file_managemovies_Callback([],[],handles);  %all this does is make the movie manager visible
-        
-        %db
-        %SetStatus(handles,[],false);
-    
   end  
 end
 ClearStatus(handles);
@@ -1959,7 +1943,6 @@ if hlpSave(lObj)
   end
 end
 ClearStatus(handles)
-disp('back from load callback')
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
@@ -3165,12 +3148,12 @@ function SetStatus(handles,s,isbusy,istemp)
 if nargin < 3
   isbusy = true;
 end
-if nargin < 4,
+if nargin < 4
   istemp = false;
 end
-if isempty(isbusy),
+if isempty(isbusy)
   color = get(handles.txStatus,'ForegroundColor');
-elseif isbusy,
+elseif isbusy
   color = handles.busystatuscolor;
   set(handles.figure,'Pointer','watch');
 else

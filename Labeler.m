@@ -83,7 +83,6 @@ classdef Labeler < handle
     newProject
     projLoaded
     newMovie
-    %db re
     startAddMovie
     finishAddMovie
     startSetMovie
@@ -1194,7 +1193,6 @@ classdef Labeler < handle
       end
       
       obj.notify('newProject');
-      
 
       % order important: this needs to occur after 'newProject' event so
       % that figs are set up. (names get changed)
@@ -1235,8 +1233,6 @@ classdef Labeler < handle
       
       obj.isinit = isinit0;
       
-      disp('end of initFromConfig')
-      %db re
     end
     
     function cfg = getCurrentConfig(obj)
@@ -1525,8 +1521,6 @@ classdef Labeler < handle
       % If the movie is able to set the project correctly, currProjInfo
       % will be [].
             
-            disp('projLoad') %db re
-
       nomovie = myparse(varargin,...
         'nomovie',false ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
         );
@@ -1572,8 +1566,6 @@ classdef Labeler < handle
       
       % From here to the end of this method is a parallel initialization to
       % projNew()
-
-            
       
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
                                               Labeler.SAVEBUTNOTLOADPROPS));
@@ -1638,18 +1630,6 @@ classdef Labeler < handle
         obj.preProcDataTS = s.preProcDataTS;
       end
 
-      
-      
-      
-      
-      %db re
-      %obj.gdata.txStatus.String
-      %tic      
-      % this chunk between the tic and the toc is the majority of the
-      % delay, roughly 15s
-            
-      
-      
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
         obj.movieSetNoMovie();
       else
@@ -1668,12 +1648,6 @@ classdef Labeler < handle
 %       % communicate with tracker if necessary (in particular, Template Mode 
 %       % <-> Hide Predictions)
 %       obj.labelingInit();
-
-      %db re
-      %obj.gdata.txStatus.String
-      %toc
-      %tic      
-
 
 
       obj.labeledposNeedsSave = false;
@@ -1694,31 +1668,13 @@ classdef Labeler < handle
         obj.(p) = obj.(p);
       end
       
-      %db re
-      %obj.gdata.txStatus.String
-      %toc
-      %tic            
-      
       obj.notify('projLoaded');
       obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
     
-      
-      %db re
-      %obj.gdata.txStatus.String
-      %toc
-      %tic      
-                 
-            disp('end projLoad') %db re
-            
-      
     end
-    
-    
-    
-    
     
     function projImport(obj,fname)
       % 'Import' the project fname, MERGING movies/labels into the current project.
@@ -2312,8 +2268,6 @@ classdef Labeler < handle
       % moviefile: string or cellstr (can have macros)
       % trxfile: (optional) string or cellstr 
       
-      
-      %db re
       notify(obj,'startAddMovie');      
       
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
@@ -3050,7 +3004,6 @@ classdef Labeler < handle
     
     function tfsuccess = movieSet(obj,iMov,varargin)
         
-        %db re
         notify(obj,'startSetMovie')
         
         % iMov: If multivew, movieSet index (row index into .movieFilesAll)  
@@ -3154,9 +3107,6 @@ classdef Labeler < handle
       else
         obj.setFrameAndTarget(1,1);
       end
-      
-    disp('end of movieSet')
-    %db re
     end
     
     function tfsuccess = movieSetMIdx(obj,mIdx,varargin)
