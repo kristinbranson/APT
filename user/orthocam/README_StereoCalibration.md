@@ -1,6 +1,6 @@
 ## Orthocam Stereo Calibration
 
-This is a step-by-step guide to running an OrthoCam stereo camera calibration. OrthoCam is intended to provide a more usable/stable calibration for cameras/rigs which operate in the weak perspective regime.  This weak perspective regins is when Δz << z, usually occurring when the camera's angle of view is <10° according to doi:10.1088/0957-0233/26/9/095203.
+This is a step-by-step guide to running an OrthoCam stereo camera calibration. OrthoCam is intended to provide a more usable/stable calibration for cameras/rigs which operate in the weak perspective regime.  This weak perspective regime is when Δz << z, usually occurring when the camera's angle of view is <10° according to doi:10.1088/0957-0233/26/9/095203.
 
 #### Requirements
 
