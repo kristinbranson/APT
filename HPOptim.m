@@ -1,4 +1,4 @@
-classdef HPOptim
+classdef HPOptim < handle
   
   % 1. Start with a split defn
   %    - outertrain vs outertest
@@ -9,8 +9,279 @@ classdef HPOptim
   %   Update sPrm0. Goto 2. If sPrm0 is unchanged, stop. Take note of
   %   "downside" params that can be reduced without harm.
   % 5. Final train on full outertrain; apply to outertest.
+
+  properties
+    basedir % fullpath 
+    splitdirs % [nsplits] cellstr relative paths (relative to basedir)
+    prmpat
+    pchpat
+    rndpat
+    
+    pchnames % [npch] cellstr 
+    xverrsplits % [nsplitsx1] cell array  
+    xvressplits % [nsplitsx1] cell array
+    
+    prms % [nRound x 1]    
+    tblres % [nRound x nSplits]
+    tblrescomb % [nRound x 1]
+  end
+  properties (Dependent)
+    nsplit
+    nround
+    npch
+  end
+
+  methods
+    function v = get.nsplit(obj)
+      v  = numel(obj.splitdirs);
+    end
+    function v = get.nround(obj)
+      v = numel(obj.tblrescomb);
+    end
+    function v = get.npch(obj)
+      v = numel(obj.pchnames);
+    end
+  end
+  
+  methods
+    
+    function obj = HPOptim(baseDir,splitDirs,varargin)
+      % HPO workflow
+      %
+      % baseDir: dir containing all artifacts
+      % splitDirs: [nsplit] cellstrs, relative paths (relative to baseDir)
+      %   for results for various splits
+      [prmPat,pchPat,rndPat] = myparse(varargin,...
+        'prmPat','prm%d.mat',...
+        'pchPat','pch%02d',...
+        'rndPat','rnd%d');
+      
+      nSplits = numel(splitDirs);
+      
+      % figure out nRounds
+      iRound = 0;
+      while 1
+        prmFile = fullfile(baseDir,sprintf(prmPat,iRound));
+        pchDir = fullfile(baseDir,sprintf(pchPat,iRound));
+        if exist(prmFile,'file')==0
+          fprintf(2,'Can''t find: %s\n',prmFile);
+          break;
+        end
+        if exist(pchDir,'dir')==0
+          fprintf(2,'Can''t find: %s\n',pchDir);
+          break;
+        end
+        
+        tfFoundAllRounds = true;
+        for iSplit=1:nSplits
+          rndDir = fullfile(baseDir,splitDirs{iSplit},sprintf(rndPat,iRound));
+          if exist(rndDir,'dir')==0
+            tfFoundAllRounds = false;
+            break;
+          end
+          dd = dir(fullfile(rndDir,'*.mat'));
+          fprintf(1,'... found %d mat-files in %s.\n',numel(dd),rndDir);
+        end
+        if ~tfFoundAllRounds
+          fprintf(2,'Can''t find all split results for iRound %d.\n',iRound);
+          break;
+        end
+        
+        iRound = iRound+1;
+      end
+      
+      nRound = iRound;
+      if nRound==0
+        error('No rounds/data found.');
+      end      
+      fprintf(1,'Found %d rounds of HPO data.\n',nRound);
+      
+      prms = cell(nRound,1);
+      xverrSplits = cell(nSplits,1);
+      pchSplits = cell(nSplits,1);
+      xvresSplits = cell(nSplits,1);
+      yearstr = datestr(now,'yyyy');
+      for iRound=0:nRound-1
+        pchDir = fullfile(baseDir,sprintf(pchPat,iRound));
+        prmDirS = sprintf(prmPat,iRound);
+        prmFileFull = fullfile(baseDir,prmDirS);
+        [~,prmDirS,~] = fileparts(prmDirS);
+        prms{iRound+1} = loadSingleVariableMatfile(prmFileFull);
+        for iSplit=1:nSplits
+          rndDir = fullfile(baseDir,splitDirs{iSplit},sprintf(rndPat,iRound));
+          xvresPat = sprintf('xv_*_%s_%%s_%s*.mat',prmDirS,yearstr);
+          xvresBaseFile = sprintf('xv_*_%s_%s*.mat',prmDirS,yearstr);
+          ddresBaseFile = dir(fullfile(rndDir,xvresBaseFile));
+          assert(isscalar(ddresBaseFile),'Could not find base xv results: %s',xvresBaseFile);
+          
+          fprintf(1,'Loading xv results from roundDir %s\n',rndDir);
+          [xverrtmp,pchstmp,xvrestmp] = ...
+            HPOptim.loadXVres(pchDir,rndDir,xvresPat,'xvbase',ddresBaseFile.name);
+          if iRound==0
+            xverrSplits{iSplit} = xverrtmp;
+            pchSplits{iSplit} = pchstmp;
+            xvresSplits{iSplit} = xvrestmp;
+          else
+            xverrSplits{iSplit}(:,:,:,end+1) = xverrtmp;
+            pchSplits{iSplit}(:,end+1) = pchstmp;
+            xvresSplits{iSplit}(:,end+1) = xvrestmp;
+          end
+        end
+      end
+      
+      for iSplit=1:nSplits
+        [n,npts,npch,nroundtmp] = size(xverrSplits{iSplit});
+        assert(nroundtmp==nRound);
+        fprintf(1,'Split type %d. (n,npts,npch) = (%d,%d,%d).\n',iSplit,n,npts,npch);
+      end
+      assert(isequal(pchSplits{:},repmat(pchSplits{1}(:,1),1,nRound)));
+      pchs = pchSplits{1}(:,1);
+      
+      
+      %% scores by round
+      tblRes = cell(nRound,nSplits);
+      tblResComb = cell(nRound,1);
+      %scores = nan(nPch,nRounds,2); % pch, round, easy/hard
+      for iRnd=1:nRound
+        for iSplit=1:nSplits
+          t = HPOptim.pchScores(xverrSplits{iSplit}(:,:,:,iRnd),pchs);
+          [~,t.scrrank] = sort(t.score,'descend');
+        
+          tblRes{iRnd,iSplit} = t;
+          tblfldsassert(t,{'score' 'nptimprove' 'nptimprovedfull' 'pch' 'scrrank'});
+          t = t(:,[1 5 3 4]);
+          t.Properties.VariableNames([1 3]) = {'scr' 'nptimp'};
+          t.Properties.VariableNames([1 2 3]) = ...
+            cellfun(@(x)sprintf('%s_splt%d',x,iSplit),t.Properties.VariableNames([1 2 3]),'uni',0);
+          if iSplit==1
+            tblResComb{iRnd} = t;
+          else
+            tblResComb{iRnd} = innerjoin(tblResComb{iRnd},t,'Keys',{'pch'});
+          end
+        end
+        
+        colnames = tblResComb{iRnd}.Properties.VariableNames;
+        scrcols = startsWith(colnames,'scr_');        
+        scrrankcols = startsWith(colnames,'scrrank');
+        nptimpcols = startsWith(colnames,'nptimp_');
+        assert(isequal(nSplits,nnz(scrcols),nnz(scrrankcols),nnz(nptimpcols)));
+        tblResComb{iRnd}.scrtot = sum(tblResComb{iRnd}{:,scrcols},2);
+        tblResComb{iRnd}.scrranktot = sum(tblResComb{iRnd}{:,scrrankcols},2);
+        tblResComb{iRnd}.nptimptot = sum(tblResComb{iRnd}{:,nptimpcols},2);
+        [~,idx] = sort(tblResComb{iRnd}.scrranktot,'ascend');
+        tblResComb{iRnd} = tblResComb{iRnd}(idx,:);
+        
+        [~,cols] = ismember({'pch' 'scrtot' 'scrranktot' 'nptimptot'},...
+          tblflds(tblResComb{iRnd}));
+        ncols = size(tblResComb{iRnd},2);
+        cols = [cols setdiff(1:ncols,cols)]; %#ok<AGROW>
+        tblResComb{iRnd} = tblResComb{iRnd}(:,cols);
+      end
+      
+      obj.basedir = baseDir;
+      obj.splitdirs = splitDirs;
+      obj.prmpat = prmPat;
+      obj.pchpat = pchPat;
+      obj.rndpat = rndPat;
+      
+      obj.pchnames = pchs;
+      obj.xverrsplits = xverrSplits;
+      obj.xvressplits = xvresSplits;
+      
+      obj.prms = prms;
+      obj.tblres = tblRes;
+      obj.tblrescomb = tblResComb;
+    end
+    
+    function acceptPchs(obj,ipchs)
+      % ipchs: vector of rows of .tblrescomb to accept (1-based row indices)
+      
+      iroundbase = obj.nround-1;
+      iroundnew = obj.nround;
+      basePrmFile = fullfile(obj.basedir,sprintf(obj.prmpat,iroundbase));
+      newPrmFile = fullfile(obj.basedir,sprintf(obj.prmpat,iroundnew));
+      basePchDir = fullfile(obj.basedir,sprintf(obj.pchpat,iroundbase));
+      newPchDir = fullfile(obj.basedir,sprintf(obj.pchpat,iroundnew));
+      assert(exist(basePrmFile,'file')>0);
+      assert(exist(newPrmFile,'file')==0);
+      assert(exist(basePchDir,'dir')>0);
+      assert(exist(newPchDir,'dir')==0);
+      
+      pchSel = obj.tblrescomb{obj.nround}.pch(ipchs);
+      obj.genNewPrmFile(basePrmFile,newPrmFile,basePchDir,pchSel);
+      
+      obj.genAndWritePchs(newPrmFile,newPchDir,{});
+    end
+    
+  end
   
   methods (Static)
+    
+    function [xverr,pchNames,xvres] = loadXVres(pchDir,xvDir,xvPat,varargin)
+      % xvPat: sprintf-pat given a pchname to form xv-results-filename
+      % 
+      % xverr: [nXVxnptsxnpch] (npts==nPhysPtsxnView)
+      % pchNames: [npch] cellstr
+      
+      xvbase = myparse(varargin,...
+        'xvbase',''); % if supplied, load 'base' xv results with this name
+      tfBase = ~isempty(xvbase);
+      
+      % Get patches
+      dd = dir(fullfile(pchDir,'*.m'));
+      pchs = {dd.name}';
+      if tfBase
+        pchs = [{'DUMMY_UNUSED'}; pchs];
+      end
+      npch = numel(pchs);      
+
+      %% Load res
+      xvres = cell(npch,1);
+      pchNames = cell(npch,1);
+      for i=1:npch
+        if tfBase && i==1
+          xvresfnameS = xvbase;
+          pchS = 'NOPATCH';
+        else
+          [~,pchS,~] = fileparts(pchs{i});
+          pat = sprintf(xvPat,pchS);
+          dd = dir(fullfile(xvDir,pat));
+          if isempty(dd)
+            warningNoTrace('No xv results found for pat: %s\n',pat);
+            xvresfnameS = '';
+          elseif isscalar(dd)
+            xvresfnameS = dd.name;
+          else
+            assert(false);
+          end
+        end
+        if ~isempty(xvresfnameS)
+          xvresfname = fullfile(xvDir,xvresfnameS);
+          assert(exist(xvresfname,'file')>0);        
+          xvres{i,1} = load(xvresfname);
+        end
+        pchNames{i} = pchS;
+        fprintf(1,'%d ',i);
+      end
+      fprintf('\n');
+%       xvres0 = {...
+%         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_easy_prmMain0_20180710T103811.mat')) ...
+%         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_hard_prmMain0_20180710T104734.mat'))};
+%       xvres = [xvres0; xvres];
+%       pchNames = [{'base'}; pchNames];
+      
+      %%
+%       assert(npch+1==size(xvres,1));
+      nXV = height(xvres{1}.xvRes); % hopefully xvres{1} existed/got loaded
+      npts = size(xvres{1}.xvRes.dGTTrk,2);
+      fprintf(1,'nXV=%d, npts=%d, %d patches.\n',nXV,npts,npch);
+      xverr = nan(nXV,npts,npch);
+      for i=1:npch
+        if ~isempty(xvres{i})
+          xverr(:,:,i) = xvres{i}.xvRes.dGTTrk;
+        end
+      end
+    end
     
     function aptClusterCmd(roundid,tblfile,spltfile,prmfile,pchdir,varargin)
       bindate = myparse(varargin,...
@@ -169,71 +440,6 @@ classdef HPOptim
       end
     end
     
-    function [xverr,pchNames,xvres] = loadXVres(pchDir,xvDir,xvPat,varargin)
-      % xvPat: sprintf-pat given a pchname to form xv-results-filename
-      % 
-      % xverr: [nXVxnptsxnpch] (npts==nPhysPtsxnView)
-      % pchNames: [npch] cellstr
-      
-      xvbase = myparse(varargin,...
-        'xvbase',''); % if supplied, load 'base' xv results with this name
-      tfBase = ~isempty(xvbase);
-      
-      % Get patches
-      dd = dir(fullfile(pchDir,'*.m'));
-      pchs = {dd.name}';
-      if tfBase
-        pchs = [xvbase; pchs];
-      end
-      npch = numel(pchs);      
-
-      %% Load res
-      xvres = cell(npch,1);
-      pchNames = cell(npch,1);
-      for i=1:npch
-        if tfBase && i==1
-          xvresfnameS = xvbase;
-          pchS = 'NOPATCH';
-        else
-          [~,pchS,~] = fileparts(pchs{i});
-          pat = sprintf(xvPat,pchS);
-          dd = dir(fullfile(xvDir,pat));
-          if isempty(dd)
-            warningNoTrace('No xv results found for pat: %s\n',pat);
-            xvresfnameS = '';
-          elseif isscalar(dd)
-            xvresfnameS = dd.name;
-          else
-            assert(false);
-          end
-        end
-        if ~isempty(xvresfnameS)
-          xvresfname = fullfile(xvDir,xvresfnameS);
-          assert(exist(xvresfname,'file')>0);        
-          xvres{i,1} = load(xvresfname);
-        end
-        pchNames{i} = pchS;
-        fprintf(1,'%d\n',i);
-      end
-%       xvres0 = {...
-%         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_easy_prmMain0_20180710T103811.mat')) ...
-%         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_hard_prmMain0_20180710T104734.mat'))};
-%       xvres = [xvres0; xvres];
-%       pchNames = [{'base'}; pchNames];
-      
-      %%
-%       assert(npch+1==size(xvres,1));
-      nXV = height(xvres{1}.xvRes); % hopefully xvres{1} existed/got loaded
-      npts = size(xvres{1}.xvRes.dGTTrk,2);
-      fprintf(1,'nXV=%d, npts=%d, %d patches.\n',nXV,npts,npch);
-      xverr = nan(nXV,npts,npch);
-      for i=1:npch
-        if ~isempty(xvres{i})
-          xverr(:,:,i) = xvres{i}.xvRes.dGTTrk;
-        end
-      end
-    end
-    
     function tblres = pchScores(xverr,pchNames,varargin)
       [ipchBase,ptilesImprove,nptsImproveThresh] = myparse(varargin,...
         'ipchBase',1, ... % reference/base patch
@@ -333,6 +539,7 @@ classdef HPOptim
       save(newPrmFile,'-mat','sPrm');
       fprintf(1,'Wrote new parameter file to %s.\n',newPrmFile);
     end
+    
   end
     
     %     function hpoptimxv(lObj,xvTbl,xvSplt)
