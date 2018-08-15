@@ -11,6 +11,8 @@ classdef HPOptim < handle
   % 5. Final train on full outertrain; apply to outertest.
 
   properties
+    nview 
+    
     basedir % fullpath 
     splitdirs % [nsplits] cellstr relative paths (relative to basedir)
     prmpat
@@ -18,8 +20,9 @@ classdef HPOptim < handle
     rndpat
     
     pchnames % [npch] cellstr 
-    xverrsplits % [nsplitsx1] cell array  
+    xverrsplits % [nsplitsx1] cell array. Each el is [nXVxnptsxnpchxnround]
     xvressplits % [nsplitsx1] cell array
+    trntrkdxysplits % [nsplitsx1] cell array. Each el is [ntrk x nphyspt x (x/y) x nview x nround]
     
     prms % [nRound x 1]    
     tblres % [nRound x nSplits]
@@ -41,11 +44,21 @@ classdef HPOptim < handle
     function v = get.npch(obj)
       v = numel(obj.pchnames);
     end
+    function scores = getScores(obj)
+      scores = nan(obj.npch,obj.nround,obj.nsplit);
+      for iRnd=1:obj.nround
+        for iSplt=1:obj.nsplit
+          xverr = obj.xverrsplits{iSplt};
+          tblRes = HPOptim.pchScores(xverr(:,:,:,iRnd),obj.pchnames);
+          scores(:,iRnd,iSplt) = tblRes.score;
+        end
+      end
+    end
   end
   
   methods
     
-    function obj = HPOptim(baseDir,splitDirs,varargin)
+    function obj = HPOptim(baseDir,splitDirs,nview,varargin)
       % HPO workflow
       %
       % baseDir: dir containing all artifacts
@@ -93,13 +106,15 @@ classdef HPOptim < handle
       nRound = iRound;
       if nRound==0
         error('No rounds/data found.');
-      end      
+      end
       fprintf(1,'Found %d rounds of HPO data.\n',nRound);
       
       prms = cell(nRound,1);
       xverrSplits = cell(nSplits,1);
       pchSplits = cell(nSplits,1);
       xvresSplits = cell(nSplits,1);
+      %trntrkErrSplits = cell(nSplits,1); % [nxnptxnRound]
+      trntrkDXYSplits = cell(nSplits,1); % [nxDxnRound]
       yearstr = datestr(now,'yyyy');
       for iRound=0:nRound-1
         pchDir = fullfile(baseDir,sprintf(pchPat,iRound));
@@ -108,13 +123,14 @@ classdef HPOptim < handle
         [~,prmDirS,~] = fileparts(prmDirS);
         prms{iRound+1} = loadSingleVariableMatfile(prmFileFull);
         for iSplit=1:nSplits
-          rndDir = fullfile(baseDir,splitDirs{iSplit},sprintf(rndPat,iRound));
+          spltDir = fullfile(baseDir,splitDirs{iSplit});
+          rndDir = fullfile(spltDir,sprintf(rndPat,iRound));
           xvresPat = sprintf('xv_*_%s_%%s_%s*.mat',prmDirS,yearstr);
           xvresBaseFile = sprintf('xv_*_%s_%s*.mat',prmDirS,yearstr);
           ddresBaseFile = dir(fullfile(rndDir,xvresBaseFile));
           assert(isscalar(ddresBaseFile),'Could not find base xv results: %s',xvresBaseFile);
           
-          fprintf(1,'Loading xv results from roundDir %s\n',rndDir);
+          fprintf(1,'  Loading xv results from roundDir %s\n',rndDir);
           [xverrtmp,pchstmp,xvrestmp] = ...
             HPOptim.loadXVres(pchDir,rndDir,xvresPat,'xvbase',ddresBaseFile.name);
           if iRound==0
@@ -126,6 +142,33 @@ classdef HPOptim < handle
             pchSplits{iSplit}(:,end+1) = pchstmp;
             xvresSplits{iSplit}(:,end+1) = xvrestmp;
           end
+          
+          trntrkPat = sprintf('trntrk_*_%s_%s*.mat',prmDirS,yearstr);
+          trntrkFile = dir(fullfile(spltDir,trntrkPat));
+          switch numel(trntrkFile)
+            case 0
+              fprintf(2,'  Did not find trntrk file for (split,iround)=(%d,%d).\n',iSplit,iRound);
+              %errLblTrk = nan; % will lead to harderr if iRound==0; otherwise will sing expand
+              dLblTrk = nan; % etc
+            case 1
+              fprintf(1,'  Found trntrk data for (split,iround)=(%d,%d).\n',iSplit,iRound);
+              tt = load(fullfile(spltDir,trntrkFile.name),'-mat');
+              errLblTrk = tt.tblRes.dLblTrk;
+              dLblTrk = tt.tblRes.pTrk-tt.tblRes.pLbl;
+              dLblTrktmp = reshape(dLblTrk,size(dLblTrk,1),size(dLblTrk,2)/2,[]);
+              dCheckE = sqrt(squeeze(sum(dLblTrktmp.^2,3))) - errLblTrk;
+              fprintf(1,'  ..Sanity checks dxy: max(abs(resid)))=%.3g\n',...
+                max(abs(dCheckE(:))));
+            otherwise
+              assert(false);
+          end
+          if iRound==0
+            %trntrkErrSplits{iSplit} = errLblTrk; % [nxnpt]
+            trntrkDXYSplits{iSplit} = dLblTrk; % [nxD]
+          else
+            %trntrkErrSplits{iSplit}(:,:,end+1) = errLblTrk;
+            trntrkDXYSplits{iSplit}(:,:,end+1) = dLblTrk;
+          end
         end
       end
       
@@ -133,10 +176,17 @@ classdef HPOptim < handle
         [n,npts,npch,nroundtmp] = size(xverrSplits{iSplit});
         assert(nroundtmp==nRound);
         fprintf(1,'Split type %d. (n,npts,npch) = (%d,%d,%d).\n',iSplit,n,npts,npch);
+        
+        dxy = trntrkDXYSplits{iSplit};
+        [ntrk,D,nRound2] = size(dxy);
+        assert(nRound2==nRound);
+        nPhysPts = D/nview/2;
+        dxy = reshape(dxy,ntrk,nPhysPts,nview,2,nRound); % n, pt, view, x/y, set
+        dxy = permute(dxy,[1 2 4 3 5]); % n, pt, x/y, view, set
+        trntrkDXYSplits{iSplit} = dxy;
       end
       assert(isequal(pchSplits{:},repmat(pchSplits{1}(:,1),1,nRound)));
       pchs = pchSplits{1}(:,1);
-      
       
       %% scores by round
       tblRes = cell(nRound,nSplits);
@@ -146,7 +196,7 @@ classdef HPOptim < handle
         for iSplit=1:nSplits
           t = HPOptim.pchScores(xverrSplits{iSplit}(:,:,:,iRnd),pchs);
           [~,t.scrrank] = sort(t.score,'descend');
-        
+          
           tblRes{iRnd,iSplit} = t;
           tblfldsassert(t,{'score' 'nptimprove' 'nptimprovedfull' 'pch' 'scrrank'});
           t = t(:,[1 5 3 4]);
@@ -161,7 +211,7 @@ classdef HPOptim < handle
         end
         
         colnames = tblResComb{iRnd}.Properties.VariableNames;
-        scrcols = startsWith(colnames,'scr_');        
+        scrcols = startsWith(colnames,'scr_');
         scrrankcols = startsWith(colnames,'scrrank');
         nptimpcols = startsWith(colnames,'nptimp_');
         assert(isequal(nSplits,nnz(scrcols),nnz(scrrankcols),nnz(nptimpcols)));
@@ -178,6 +228,8 @@ classdef HPOptim < handle
         tblResComb{iRnd} = tblResComb{iRnd}(:,cols);
       end
       
+      obj.nview = nview;
+      
       obj.basedir = baseDir;
       obj.splitdirs = splitDirs;
       obj.prmpat = prmPat;
@@ -187,6 +239,7 @@ classdef HPOptim < handle
       obj.pchnames = pchs;
       obj.xverrsplits = xverrSplits;
       obj.xvressplits = xvresSplits;
+      obj.trntrkdxysplits = trntrkDXYSplits;
       
       obj.prms = prms;
       obj.tblres = tblRes;
@@ -213,13 +266,204 @@ classdef HPOptim < handle
       obj.genAndWritePchs(newPrmFile,newPchDir,{});
     end
     
+    function hFig = plotConvergence(obj,varargin)
+      [dosave,savedir] = myparse(varargin,...
+        'dosave',false,...
+        'savedir','figs'...
+        );
+      
+      hFig = [];
+      
+      JITDX = 0.2;
+      CLRS = {[0 0 1] [0 0.75 0]}; % easy/hard
+      MRKRSZ = 30;
+      
+      hFig(end+1) = figure(31);
+      hfig = hFig(end);
+      clf(hfig);
+      set(hfig,'Name','Convergence','Position',[1 41 1920 963]);
+      ax = axes;
+      hold(ax,'on');
+      grid(ax,'on');
+      nRounds = obj.nround;
+      nSplits = obj.nsplit;
+      nPch = obj.npch;
+      scores = obj.getScores();
+      for iRnd=1:nRounds
+        for iSplit=1:nSplits
+          x = (nRounds+1)*(iSplit-1) + repmat(iRnd,nPch,1);
+          x = x + 2*JITDX*(rand(nPch,1)-0.5);
+          y = scores(:,iRnd,iSplit);
+          plot(ax,x,y,'.','markersize',MRKRSZ,'color',CLRS{iSplit});
+        end
+      end
+      xlim(ax,[-0.5 nSplits*nRounds+2]);
+      %ylim(ax,[-20 10]);
+      %       set(ax,'XTick',[1:4 6:9],'XTickLabel',...
+      %         {'Rnd1/easy' 'Rnd2/easy' 'Rnd3/easy' 'Rnd4/easy' 'Rnd1/hard' 'Rnd2/hard' 'Rnd3/hard' 'Rnd4/hard'},...
+      %         'XTickLabelRotation',0,'fontsize',18);
+      ylabel(ax,'XV prctile improvement score');
+      set(ax,'fontweight','bold');
+      title(ax,'HPO Convergence (?)');
+      
+      if dosave
+        for i=1:numel(hFig)
+          h = figure(hFig(i));
+          fname = h.Name;
+          hgsave(h,fullfile(SAVEDIR,[fname '.fig']));
+          set(h,'PaperOrientation','landscape','PaperType','arch-d');
+          print(h,'-dpdf',fullfile(SAVEDIR,[fname '.pdf']));
+          print(h,'-dpng','-r300',fullfile(SAVEDIR,[fname '.png']));
+          fprintf(1,'Saved %s.\n',fname);
+        end
+      end
+      
+    end
+    
+    function hFig = plotNoPatchXVerr(obj,varargin)
+      [iNoPatch,ptiles,ptilesbig,iptsplot,ignorerows] = myparse(varargin,...
+        'iNoPatch',1,...
+        'ptiles',70:3:99,...
+        'ptilesbig',98:.5:99.5,...
+        'iptsplot',[],...% PHYSICAL pts to plot 9 11 12:17]... % bub
+        'ignorerows',[]... % (opt) [nsplit] cell, ignorerows{isplit} contains vector of row indices into xverrsplits{isplit} to REMOVE
+      );
+      
+      assert(strcmp(obj.pchnames{iNoPatch},'NOPATCH'));
+      
+      if strcmp(iptsplot,'bub')
+        iptsplot = [9 11 12:17];
+      end
+      
+      hFig = [];
+      
+      for isplit=1:obj.nsplit
+        xverr = obj.xverrsplits{isplit};
+        if ~isempty(ignorerows) && ~isempty(ignorerows{isplit})
+          xverr(ignorerows{isplit},:,:,:) = [];
+        end          
+        
+        [nxv,nptstot,npch,nround] = size(xverr);
+        nphyspts = nptstot/obj.nview;
+        if isempty(iptsplot)
+          iptsplot = 1:nphyspts;
+        end
+        nptsPlot = numel(iptsplot);
+        xverr = reshape(xverr,nxv,nphyspts,obj.nview,npch,nround);
+        xverrNP = xverr(:,iptsplot,:,iNoPatch,:); % nxv,nptsplot,nvw,1,nround
+        xverrNP = reshape(xverrNP,nxv,nptsPlot,1,obj.nview,obj.nround);
+        
+        fignum = isplit*10 + 1;
+        hFig(end+1,1) = figure(fignum);
+        hfig = hFig(end);
+        title = sprintf('NoPatch Split%d',isplit);
+        set(hfig,'Position',[1 41 1920 963],'name',title);
+        GTPlot.ptileCurves(xverrNP,...
+          'ptiles',ptiles,......
+          'hFig',hfig,...
+          'axisArgs',{'XTicklabelRotation',45,'FontSize' 16}...
+          );
+        
+        fignum = isplit*10 + 2;
+        hFig(end+1,1) = figure(fignum);
+        hfig = hFig(end);
+        title = sprintf('NoPatch Big Ptile Split%d',isplit);
+        set(hfig,'Position',[1 41 1920 963],'name',title);
+        GTPlot.ptileCurves(xverrNP,...
+          'ptiles',ptilesbig,......
+          'hFig',hfig,...
+          'axisArgs',{'XTicklabelRotation',45,'FontSize' 16}...
+          );
+      end
+    end
+    
+    function hFig = plotTrnTrkErr(obj,varargin)
+      [dosave,savedir,ptiles,figpos,iptsplot,IBE,pLblBE] = myparse(varargin,...
+        'dosave',false,...
+        'savedir','figs',...
+        'ptiles',[50 75 90 95 98],...
+        'figpos',[1 1 1920 960],...
+        'iptsplot',[],... [9 11 12:17],... % bub
+        'IBE',[],... % (opt) if supplied, [nview] (cropped) ims for use with bullseye plots
+        'pLblBE',[]... % (opt) [nphyspt x 2 x nview]
+        );
+      
+      tfBE = ~isempty(IBE);
+              
+      setNames = arrayfun(@(x)sprintf('Round%d',x),0:obj.nround-1,'uni',0);
+      
+      hFig = [];
+      
+      for isplit=1:obj.nsplit
+        dxySplit = obj.trntrkdxysplits{isplit}; % [ntrk x nphyspt x (x/y) x nview x nround]
+        if isempty(iptsplot)
+          iptsplot = 1:size(dxySplit,2);
+        elseif strcmp(iptsplot,'bub')
+          iptsplot = [9 11 12:17];
+        end
+        dxySplit = dxySplit(:,iptsplot,:,:,:);
+        
+        tstr = sprintf('split%d',isplit);
+        fignum = 10*isplit+1;
+        hFig(end+1) = figure(fignum);
+        hfig = hFig(end);
+        set(hfig,'Name',tstr,'Position',figpos);
+        [~,ax] = GTPlot.ptileCurves(...
+          dxySplit,'hFig',hfig,...
+          'setNames',setNames,...
+          'ptiles',ptiles,...
+          'axisArgs',{'XTicklabelRotation',90,'FontSize',16});
+
+        if tfBE
+          tstr = sprintf('split%d BE',isplit);
+          fignum = 10*isplit+2;
+          hFig(end+1) = figure(fignum);
+          hfig = hFig(end);
+          set(hfig,'Name',tstr,'Position',figpos);
+          [~,ax] = GTPlot.bullseyePtiles(dxySplit,...
+            IBE,pLblBE(iptsplot,:,:),...
+            'hFig',hfig,...
+            'setNames',setNames,...
+            'ptiles',ptiles,...
+            'lineWidth',2,...
+            'axisArgs',{'XTicklabelRotation',90,'FontSize',16});
+          
+          tstr = sprintf('split%d BEell',isplit);
+          fignum = 10*isplit+3;
+          hFig(end+1) = figure(fignum);
+          hfig = hFig(end);
+          set(hfig,'Name',tstr,'Position',figpos);
+          [~,ax] = GTPlot.bullseyePtiles(dxySplit,...
+            IBE,pLblBE(iptsplot,:,:),...
+            'hFig',hfig,...
+            'setNames',setNames,...
+            'ptiles',ptiles,...
+            'lineWidth',1,... %  'axisArgs',{'XTicklabelRotation',90,'FontSize',16},...
+            'contourtype','ellipse');
+        end
+      end
+
+      if dosave
+        for i=1:numel(hFig)
+          h = figure(hFig(i));
+          fname = h.Name;
+          hgsave(h,fullfile(savedir,[fname '.fig']));
+          set(h,'PaperOrientation','landscape','PaperType','arch-d');
+          print(h,'-dpdf',fullfile(savedir,[fname '.pdf']));
+          print(h,'-dpng','-r300',fullfile(savedir,[fname '.png']));
+          fprintf(1,'Saved %s.\n',fname);
+        end
+      end
+      
+    end
+    
   end
   
   methods (Static)
     
     function [xverr,pchNames,xvres] = loadXVres(pchDir,xvDir,xvPat,varargin)
       % xvPat: sprintf-pat given a pchname to form xv-results-filename
-      % 
+      %
       % xverr: [nXVxnptsxnpch] (npts==nPhysPtsxnView)
       % pchNames: [npch] cellstr
       
@@ -233,8 +477,8 @@ classdef HPOptim < handle
       if tfBase
         pchs = [{'DUMMY_UNUSED'}; pchs];
       end
-      npch = numel(pchs);      
-
+      npch = numel(pchs);
+      
       %% Load res
       xvres = cell(npch,1);
       pchNames = cell(npch,1);
@@ -257,21 +501,21 @@ classdef HPOptim < handle
         end
         if ~isempty(xvresfnameS)
           xvresfname = fullfile(xvDir,xvresfnameS);
-          assert(exist(xvresfname,'file')>0);        
+          assert(exist(xvresfname,'file')>0);
           xvres{i,1} = load(xvresfname);
         end
         pchNames{i} = pchS;
         fprintf(1,'%d ',i);
       end
       fprintf('\n');
-%       xvres0 = {...
-%         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_easy_prmMain0_20180710T103811.mat')) ...
-%         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_hard_prmMain0_20180710T104734.mat'))};
-%       xvres = [xvres0; xvres];
-%       pchNames = [{'base'}; pchNames];
+      %       xvres0 = {...
+      %         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_easy_prmMain0_20180710T103811.mat')) ...
+      %         load(fullfile(XVRESDIR,'xv_tMain4523_tMain4523_split3_hard_prmMain0_20180710T104734.mat'))};
+      %       xvres = [xvres0; xvres];
+      %       pchNames = [{'base'}; pchNames];
       
       %%
-%       assert(npch+1==size(xvres,1));
+      %       assert(npch+1==size(xvres,1));
       nXV = height(xvres{1}.xvRes); % hopefully xvres{1} existed/got loaded
       npts = size(xvres{1}.xvRes.dGTTrk,2);
       fprintf(1,'nXV=%d, npts=%d, %d patches.\n',nXV,npts,npch);

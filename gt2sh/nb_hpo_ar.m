@@ -1,3 +1,5 @@
+%% OBSOLETE SEE HPOptim.m
+
 %% Compile xv results over rounds
 nE = 3135;
 nH = 3252;
@@ -12,7 +14,7 @@ xvresH = cell(nPch,0);
 
 [xverrE(:,:,:,end+1),pchsE(end+1,:),xvresE(:,end+1)] = HPOptim.loadXVres(...
   'pch00','easy_outerfold01/rnd0',...
-  'xv_multitarget_bubble_expandedbehavior_20180425_cached_trainedToy_arhpo_outer3_easy_fold01_tblTrn_arhpo_outer3_easy_fold01_inner3_prm0_%s_20180808*.mat',...
+  'xv_prm0_%s_2018*.mat',...
   'xvbase','xv_multitarget_bubble_expandedbehavior_20180425_cached_trainedToy_arhpo_outer3_easy_fold01_tblTrn_arhpo_outer3_easy_fold01_inner3_prm0_20180808T184152.mat');
 [xverrH(:,:,:,end+1),pchsH(end+1,:),xvresH(:,end+1)] = HPOptim.loadXVres( ...
   'pch00','hard_outerfold01/rnd0',...
@@ -82,14 +84,6 @@ size(xverrE)
 size(xverrH)
 
 %% scores by round
-tblres = cell(nRounds,2); % round, easy/hard
-scores = nan(nPch,nRounds,2); % pch, round, easy/hard
-for iRnd=1:nRounds
-  tblres{iRnd,1} = HPOptim.pchScores(xverrE(:,:,:,iRnd),pchs);
-  tblres{iRnd,2} = HPOptim.pchScores(xverrH(:,:,:,iRnd),pchs);
-  scores(:,iRnd,1) = tblres{iRnd,1}.score;
-  scores(:,iRnd,2) = tblres{iRnd,2}.score;
-end
 
 %% compare best pchs
 clc
@@ -105,51 +99,6 @@ tH.Properties.VariableNames{2} = 'nptimp';
 tE
 tH
 
-%% Convergence
-DOSAVE = false;
-SAVEDIR = 'figs';
-
-hFig = [];
-
-JITDX = 0.2;
-CLRS = {[0 0 1] [0 0.75 0]}; % easy/hard
-MRKRSZ = 30;
-
-hFig(end+1) = figure(31);
-hfig = hFig(end);
-clf(hfig);
-set(hfig,'Name','Convergence','Position',[1 41 1920 963]);
-ax = axes;
-hold(ax,'on');
-grid(ax,'on');
-for iRnd=1:nRounds
-  for iEH=1:2
-    x = (nRounds+1)*(iEH-1) + repmat(iRnd,nPch,1);
-    x = x + 2*JITDX*(rand(nPch,1)-0.5);
-    y = scores(:,iRnd,iEH);
-    plot(ax,x,y,'.','markersize',MRKRSZ,'color',CLRS{iEH});
-  end
-end
-xlim(ax,[-0.5 2*nRounds+2]);
-ylim(ax,[-20 10]);
-set(ax,'XTick',[1:4 6:9],'XTickLabel',...
-  {'Rnd1/easy' 'Rnd2/easy' 'Rnd3/easy' 'Rnd4/easy' 'Rnd1/hard' 'Rnd2/hard' 'Rnd3/hard' 'Rnd4/hard'},...
-  'XTickLabelRotation',0,'fontsize',18);
-ylabel(ax,'XV prctile improvement score');
-set(ax,'fontweight','bold');
-title(ax,'Hyperparameter Optimization: "Convergence"?');
-
-if DOSAVE
-  for i=1:numel(hFig)
-    h = figure(hFig(i));
-    fname = h.Name;
-    hgsave(h,fullfile(SAVEDIR,[fname '.fig']));
-    set(h,'PaperOrientation','landscape','PaperType','arch-d');
-    print(h,'-dpdf',fullfile(SAVEDIR,[fname '.pdf']));  
-    print(h,'-dpng','-r300',fullfile(SAVEDIR,[fname '.png']));   
-    fprintf(1,'Saved %s.\n',fname);
-  end
-end
 
 %%
 %HPOptim.genNewPrmFile('prm0_20180713.mat','prm1_20180714.mat','pch01',...
@@ -165,52 +114,6 @@ HPOptim.genNewPrmFile('prm2_20180715.mat','prm3_20180716.mat',...
 HPOptim.genAndWritePchs('prm3_20180716.mat','pch3_20180716',{});
 
 %% No-patch xv err
-iNOPATCH = 1;
-PTILES = [70:3:99];
-PTILESBIG = 98:.5:99.5;
-IPTSPLOT = [9 11 12:17];
-nptsPlot = numel(IPTSPLOT);
-assert(all(strcmp(pchsE(:,iNOPATCH),'NOPATCH')));
-assert(all(strcmp(pchsH(:,iNOPATCH),'NOPATCH')));
-xverrE_NP = reshape(xverrE(:,IPTSPLOT,iNOPATCH,:),nE,nptsPlot,1,1,nRounds);
-xverrH_NP = reshape(xverrH(:,IPTSPLOT,iNOPATCH,:),nH,nptsPlot,1,1,nRounds);
-
-hFig = [];
-
-hFig(end+1,1) = figure(11);
-hfig = hFig(end);
-set(hfig,'Position',[1 41 1920 963],'name','EasyNoPatch');
-GTPlot.ptileCurves(xverrE_NP,...
-  'ptiles',PTILES,......
-  'hFig',hfig,...
-  'axisArgs',{'XTicklabelRotation',45,'FontSize' 16}...
-  );
-hFig(end+1,1) = figure(13);
-hfig = hFig(end);
-set(hfig,'Position',[1 41 1920 963],'name','EasyNoPatchBigPtl');
-GTPlot.ptileCurves(xverrE_NP,...
-  'ptiles',PTILESBIG,......
-  'hFig',hfig,...
-  'axisArgs',{'XTicklabelRotation',45,'FontSize' 16}...
-  );
-
-hFig(end+1,1) = figure(21);
-hfig = hFig(end);
-set(hfig,'Position',[1 41 1920 963],'name','HardNoPatch');
-GTPlot.ptileCurves(xverrH_NP,...
-  'ptiles',PTILES,......
-  'hFig',hfig,...
-  'axisArgs',{'XTicklabelRotation',45,'FontSize' 16}...
-  );
-hFig(end+1,1) = figure(23);
-hfig = hFig(end);
-set(hfig,'Position',[1 41 1920 963],'name','HardNoPatchBigPtl');
-GTPlot.ptileCurves(xverrH_NP,...
-  'ptiles',PTILESBIG,......
-  'hFig',hfig,...
-  'axisArgs',{'XTicklabelRotation',45,'FontSize' 16}...
-  );
-
 %% No-patch xv, round 3. Label Date?
 
 EASYTBLTRN = 'arhpo_outer3_easy_fold01_tblTrn.mat';
