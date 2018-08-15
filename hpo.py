@@ -50,7 +50,7 @@ def findPrmPch(jdat,roundIdx):
 
     basedir = jdat['hpo_base_dir']
     prm1 = os.path.join(basedir,'prm{0:d}.mat'.format(roundIdx))
-    prm2 = os.path.join(basedir,'prm{0:02d}.mat',format(roundIdx))
+    prm2 = os.path.join(basedir,'prm{0:02d}.mat'.format(roundIdx))
     pch1 = os.path.join(basedir,'pch{0:d}'.format(roundIdx))
     pch2 = os.path.join(basedir,'pch{0:02d}'.format(roundIdx))
 
