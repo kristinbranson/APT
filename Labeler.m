@@ -83,6 +83,9 @@ classdef Labeler < handle
     newProject
     projLoaded
     newMovie
+    startAddMovie
+    finishAddMovie
+    startSetMovie
       
     % This event is thrown immediately before .currMovie is updated (if 
     % necessary). Listeners should not rely on the value of .currMovie at
@@ -405,7 +408,7 @@ classdef Labeler < handle
   %% PreProc
   properties
     preProcParams % struct
-    preProcH0 % image hist used in current preProcData. Conceptually, this is a preProcParam that APT updates from movies
+    preProcH0 % [nbin x nview] image hists used in current preProcData. Conceptually, this is a preProcParam that APT updates from movies
     preProcData % for CPR, a CPRData; for DL trackers, likely a tracker-specific object pointing to data on disk
     preProcDataTS % scalar timestamp  
     preProcSaveData % scalar logical. If true, preProcData* is saved/loaded with project file
@@ -602,6 +605,13 @@ classdef Labeler < handle
         v = obj.movieFilesAllGTCropInfo;
       else
         v = obj.movieFilesAllCropInfo;
+      end
+    end
+    function v = getMovieFilesAllHistEqLUTGTawareStc(obj,gt)
+      if gt
+        v = obj.movieFilesAllGTHistEqLUT;
+      else
+        v = obj.movieFilesAllHistEqLUT;
       end
     end
     function v = get.cropProjHasCrops(obj)
@@ -1036,10 +1046,15 @@ classdef Labeler < handle
     end
      
     function delete(obj)
-      if isvalid(obj.hFig)
-        close(obj.hFig);
-        obj.hFig = [];
-      end
+% re: 180730        
+%       if isvalid(obj.hFig)  % isvalid will fail if obj.hFig is empty
+%         close(obj.hFig);
+%         obj.hFig = [];
+%       end        
+        if ~isempty(obj.hFig)
+          deleteValidHandles(obj.hFig);
+          obj.hFig=[];
+        end
     end
     
   end
@@ -1217,6 +1232,7 @@ classdef Labeler < handle
       RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
       
       obj.isinit = isinit0;
+      
     end
     
     function cfg = getCurrentConfig(obj)
@@ -1550,7 +1566,7 @@ classdef Labeler < handle
       
       % From here to the end of this method is a parallel initialization to
       % projNew()
-
+      
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
                                               Labeler.SAVEBUTNOTLOADPROPS));
       lposProps = obj.SAVEPROPS_LPOS(:,1);
@@ -1633,6 +1649,7 @@ classdef Labeler < handle
 %       % <-> Hide Predictions)
 %       obj.labelingInit();
 
+
       obj.labeledposNeedsSave = false;
 %       obj.suspScore = obj.suspScore;
             
@@ -1656,6 +1673,7 @@ classdef Labeler < handle
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
+    
     end
     
     function projImport(obj,fname)
@@ -2250,6 +2268,8 @@ classdef Labeler < handle
       % moviefile: string or cellstr (can have macros)
       % trxfile: (optional) string or cellstr 
       
+      notify(obj,'startAddMovie');      
+      
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
       
       [offerMacroization,gt] = myparse(varargin,...
@@ -2273,7 +2293,7 @@ classdef Labeler < handle
       trxfile = cellstr(trxfile);
       szassert(moviefile,size(trxfile));
       nMov = numel(moviefile);
-      
+        
       mr = MovieReader();
       mr.preload = obj.movieReadPreLoadMovies;
       for iMov = 1:nMov
@@ -2329,6 +2349,7 @@ classdef Labeler < handle
 
         % Could use movieMovieReaderOpen but we are just using MovieReader 
         % to get/save the movieinfo.
+      
         mr.open(movfilefull); 
         ifo = struct();
         ifo.nframes = mr.nframes;
@@ -2366,6 +2387,9 @@ classdef Labeler < handle
           obj.labeledposMarked{end+1,1} = false(nlblpts,nfrms,nTgt);
         end
       end
+      
+      notify(obj,'finishAddMovie');            
+      
     end
     
     function movieAddBatchFile(obj,bfile)
@@ -2829,6 +2853,7 @@ classdef Labeler < handle
       % This function is NOT obj const -- users can browse to 
       % movies/trxfiles, macro-related state can be mutated etc.
       
+      
       tfsuccess = false;
       
       PROPS = obj.gtGetSharedProps();
@@ -2978,7 +3003,10 @@ classdef Labeler < handle
     end
     
     function tfsuccess = movieSet(obj,iMov,varargin)
-      % iMov: If multivew, movieSet index (row index into .movieFilesAll)  
+        
+        notify(obj,'startSetMovie')
+        
+        % iMov: If multivew, movieSet index (row index into .movieFilesAll)  
             
       assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx
       assert(any(iMov==1:obj.nmoviesGTaware),...
@@ -3239,42 +3267,49 @@ classdef Labeler < handle
       % .preProcH0. Applying .movieFilesAllHistEqLUT{iMov} to frames of
       % iMov should have a hgram approximating .preProcH0
       
-      nFrmPerMov = myparse(varargin,...
-        'nFrmPerMov',20 ... % num frames to sample per mov
+      [nFrmPerMov,wbObj] = myparse(varargin,...
+        'nFrmPerMov',20, ... % num frames to sample per mov
+        'wbObj',[] ...
         );
       
       if isempty(obj.preProcH0)
         error('No target image histogram set in property ''%s''.');
       end
-      
-      wbObj = WaitBarWithCancel('Histogram Equalization','cancelDisabled',true);
-      oc = onCleanup(@()delete(wbObj));
-      
-      obj.movieEstimateHistEqLUTsHlp(obj.movieFilesAll,...
-        'movieFilesAllHistEqLUT',nFrmPerMov,wbObj,'debugViz',true);
-      obj.movieEstimateHistEqLUTsHlp(obj.movieFilesAllGT,...
-        'movieFilesAllGTHistEqLUT',nFrmPerMov,wbObj,'debugViz',true);
+            
+      obj.movieEstimateHistEqLUTsHlp(false,nFrmPerMov,'debugViz',true,'wbObj',wbObj);
+      obj.movieEstimateHistEqLUTsHlp(true,nFrmPerMov,'debugViz',true,'wbObj',wbObj);
     end
-    function movieEstimateHistEqLUTsHlp(obj,movsets,mfaLUTfld,...
-        nFrmPerMov,wbObj,varargin)
+    function movieEstimateHistEqLUTsHlp(obj,isGT,nFrmPerMov,varargin)
       
-      debugViz = myparse(varargin,...
-        'debugViz',true);      
+      [wbObj,debugViz] = myparse(varargin,...
+        'wbObj',[],...
+        'debugViz',true);
       
-      nmovsets = size(movsets,1);
+      tfWB = ~isempty(wbObj);
+      
+      PROPS = obj.gtGetSharedPropsStc(isGT);
+      nmovsets = obj.getnmoviesGTawareArg(isGT);
       nvw = obj.nview;
+
+      obj.(PROPS.MFALUT) = cell(nmovsets,nvw);
+      
       for ivw=1:nvw
-        wbstr = sprintf('Sampling movies, view %d',ivw);
-        wbObj.startPeriod(wbstr,'shownumden',true,'denominator',nmovsets);
+        if tfWB
+          wbstr = sprintf('Sampling movies, view %d',ivw);
+          wbObj.startPeriod(wbstr,'shownumden',true,'denominator',nmovsets);
+        end
+        
         mr = MovieReader;
         Isampcat = []; % used if debugViz
         Jsampcat = []; % etc
         Isampcatyoffs = 0;
         for imov=1:nmovsets
 %           tic;
-          wbObj.updateFracWithNumDen(imov);
+          if tfWB
+            wbObj.updateFracWithNumDen(imov);
+          end
           
-          mIdx = MovieIndex(imov);
+          mIdx = MovieIndex(imov,isGT);
           obj.movieMovieReaderOpen(mr,mIdx,ivw);
           nfrmMov = mr.nframes;
           if nfrmMov<nFrmPerMov
@@ -3303,43 +3338,146 @@ classdef Labeler < handle
             error('Cannot concatenate sampled movie frames: %s',ME.message);
           end
         
-          [lut,Jsamp] = HistEq.genHistEqLUT(Isamp,obj.preProcH0,'docheck',true);
-          obj.(mfaLUTfld){imov,ivw} = lut;
+          [lut,Jsamp] = HistEq.genHistEqLUT(Isamp,obj.preProcH0(:,ivw),'docheck',true);
+          obj.(PROPS.MFALUT){imov,ivw} = lut;
         
           if debugViz
-            Isampcat = [Isampcat; Isamp];
-            Jsampcat = [Jsampcat; Jsamp];
-            Isampcatyoffs(end+1,1) = size(Isampcat,1);
+            Isampcat = [Isampcat; Isamp]; %#ok<AGROW>
+            Jsampcat = [Jsampcat; Jsamp]; %#ok<AGROW>
+            Isampcatyoffs(end+1,1) = size(Isampcat,1); %#ok<AGROW>
           end
             
 %           t = toc;
 %           fprintf(1,'Elapsed time: %d sec\n',round(t));
         end
-        wbObj.endPeriod();
+        
+        if tfWB
+          wbObj.endPeriod();
+        end
         
         if debugViz
           figure;
-          ax = axes;
+          ax(1) = axes;
           imagesc(Isampcat);
           colormap gray
           colorbar
           yticklocs = (Isampcatyoffs(1:end-1)+Isampcatyoffs(2:end))/2;
           yticklbls = arrayfun(@(x)sprintf('mov%d',x),1:nmovsets,'uni',0);
-          set(ax,'YTick',yticklocs,'YTickLabels',yticklbls);
-          title('Raw images','fontweight','bold');
-          clim0 = ax.CLim;
+          set(ax(1),'YTick',yticklocs,'YTickLabels',yticklbls);
+          tstr = sprintf('Raw images, view %d',ivw);
+          if isGT
+            tstr = [tstr ' (gt)']; %#ok<AGROW>
+          end
+          title(tstr,'fontweight','bold');
+          clim0 = ax(1).CLim;
           
           figure
-          ax = axes;
+          ax(2) = axes;
           imagesc(Jsampcat);
           colormap gray
           colorbar
-          set(ax,'YTick',yticklocs,'YTickLabels',yticklbls);
-          title('Corrected images','fontweight','bold');
-          ax.CLim = clim0;
+          set(ax(2),'YTick',yticklocs,'YTickLabels',yticklbls);
+          tstr = sprintf('Corrected images, view %d',ivw);
+          if isGT
+            tstr = [tstr ' (gt)']; %#ok<AGROW>
+          end
+          title(tstr,'fontweight','bold');
+          ax(2).CLim = clim0;
+          
+          linkaxes(ax);
+          
+          luts = cat(2,obj.(PROPS.MFALUT){:,ivw});
+          figure;
+          plot(luts);
+          tstr = sprintf('Computed LUTs, view %d. %d movs\n',ivw,nmovsets);
+          title(tstr,'fontweight','bold');
         end
       end
     end
+    
+    function movieHistEqLUTViz(obj,mIdx,frm,ivw)
+      [imov,gt] = mIdx.get();
+      luts = obj.getMovieFilesAllHistEqLUTGTawareStc(gt);
+      lut = luts{imov,ivw};
+      
+      mr = MovieReader;
+      obj.movieMovieReaderOpen(mr,mIdx,ivw);
+      I = mr.readframe(frm,'docrop',true);
+      if size(I,3)>1
+        error('Expected grayscale image.');
+      end
+      
+      [Icnt,Ibin] = imhist(I);
+      J = lut(uint32(I)+1);
+      [Jcnt,Jbin] = imhist(J);
+      assert(isequal(Ibin,Jbin));
+      x = Ibin;
+      hgram0 = obj.preProcH0(:,ivw);
+      
+      figure;
+      plot(x,cumsum(Icnt/sum(Icnt)),x,cumsum(Jcnt/sum(Jcnt)),...
+        x,cumsum(hgram0/sum(hgram0)),...
+        x,double(lut)/256,... % only applies to uint8
+        'linewidth',2);
+      legend('raw','corr','target','lut');   
+    end
+      
+    function movieHistEqLUTEffectMontageHlp(obj,isGT,frm,wbObj)
+      PROPS = obj.gtGetSharedPropsStc(isGT);
+      luts = obj.(PROPS.MFALUT);
+      assert(~isempty(luts));
+      nmovsets = obj.getnmoviesGTawareArg(isGT);
+      nvw = obj.nview;
+      for ivw=1:nvw
+        wbstr = sprintf('Sampling movies, view %d',ivw);
+        wbObj.startPeriod(wbstr,'shownumden',true,'denominator',nmovsets);
+        mr = MovieReader;
+        Isamp = cell(nmovsets,1);
+        Jsamp = cell(nmovsets,1);
+        for imov=1:nmovsets
+          wbObj.updateFracWithNumDen(imov);          
+          mIdx = MovieIndex(imov,isGT);
+          obj.movieMovieReaderOpen(mr,mIdx,ivw);
+          Isamp{imov} = mr.readframe(frm,'docrop',true);
+          if size(Isamp{imov},3)>1
+            error('Image must be grayscale.');
+          end
+          lut = luts{imov,ivw};
+          Jsamp{imov} = lut(uint32(Isamp{imov})+1);
+        end
+        wbObj.endPeriod();
+        
+        figure;
+        ax = axes;
+        montage(cat(4,Isamp{:}),'Parent',ax);
+%         colormap gray
+%         colorbar
+%         yticklocs = (Isampcatyoffs(1:end-1)+Isampcatyoffs(2:end))/2;
+%         yticklbls = arrayfun(@(x)sprintf('mov%d',x),1:nmovsets,'uni',0);
+%         set(ax,'YTick',yticklocs,'YTickLabels',yticklbls);
+        tstr = sprintf('Raw images, view %d',ivw);
+        if isGT
+          tstr = [tstr ' (gt)']; %#ok<AGROW>
+        end
+        title(tstr,'fontweight','bold');
+        clim0 = ax.CLim;
+        
+        figure;
+        ax = axes;
+        montage(cat(4,Jsamp{:}),'Parent',ax);
+%         colormap gray
+%         colorbar
+%         set(ax,'YTick',yticklocs,'YTickLabels',yticklbls);
+        tstr = sprintf('Corrected images, view %d',ivw);
+        if isGT
+          tstr = [tstr ' (gt)']; %#ok<AGROW>
+        end
+        title(tstr,'fontweight','bold');
+        ax.CLim = clim0;
+      end
+    end
+    
+    
     
     function movieMovieReaderOpen(obj,movRdr,mIdx,iView) % obj CONST
       % Take a movieReader object and open the movie (mIdx,iView), being 
@@ -7672,7 +7810,7 @@ classdef Labeler < handle
       
       [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTst] = ...
         myparse(varargin,...
-        'kfold',7,... % number of folds
+        'kfold',3,... % number of folds
         'initData',false,... % OBSOLETE, you would never want this. if true, call .initData() between folds to minimize mem usage
         'wbObj',[],... % (opt) WaitBarWithCancel
         'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj

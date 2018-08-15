@@ -18,10 +18,10 @@ function APTCluster(varargin)
 % % CrossValidation
 % APTCluster(lblFile,'xv','tableFile',tableFile,...
 %     'tableSplitFile',tableSplitFile,'paramFile',paramFile,...
-%     'paramPatchFile',paramPatchFile);
+%     'paramPatchFile',paramPatchFile,'outdir',outdir);
 % APTCluster(lblFile,'trntrk','tableFileTrn',tblFileTrn,...
 %     'tableFileTrk',tblFileTrk,'paramFile',paramFile,...
-%     'paramPatchFile',paramPatchFile);
+%     'paramPatchFile',paramPatchFile,'outdir',outdir);
 
 startTime = tic;
 
@@ -103,12 +103,13 @@ switch action
     end
   case 'xv'
     varargin = varargin(3:end);
-    [tableFile,tableSplitFile,paramFile,paramPatchFile] = ...
+    [tableFile,tableSplitFile,paramFile,paramPatchFile,outDir] = ...
       myparse(varargin,...
       'tableFile','',... % (opt) mat-filename containing an MFTtable for rows to consider in XV
       'tableSplitFile','',... % (opt) mat-filename containing split variables. If specified, tableFile must be specced %      'tableSplitFileVar','',... % (opt) variable name in tableSplitFile. <tableSplitFile>.(tableSplitFielVar) should be a [height(<tableFile>) x nfold] logical where true indicates train and false indicates test
       'paramFile','',... % (opt) mat-filename containing a single param struct that will be fed to lObj.trackSetParams
-      'paramPatchFile',''... % (opt) textfile containing parameter 'patch'
+      'paramPatchFile','',... % (opt) textfile containing parameter 'patch'
+      'outDir',''... (opt) location to place xv output. Defaults to lblfile path
       );
     
     lObj.projLoad(lblFile);
@@ -156,18 +157,22 @@ switch action
     savestuff.xvArgs = xvArgs;
     savestuff.xvRes = lObj.xvResults;
     savestuff.xvResTS = lObj.xvResultsTS; %#ok<STRNU>
-    outfile = fullfile(lblP,[outfileBase '.mat']);    
+    if isempty(outDir)
+      outDir = lblP;
+    end
+    outfile = fullfile(outDir,[outfileBase '.mat']);    
     fprintf('APTCluster: saving xv results: %s\n',outfile);
     save(outfile,'-mat','-struct','savestuff');
     
   case 'trntrk'
     varargin = varargin(3:end);
-    [tblFileTrn,tblFileTrk,paramFile,paramPatchFile] = ...
+    [tblFileTrn,tblFileTrk,paramFile,paramPatchFile,outDir] = ...
       myparse(varargin,...
       'tblFileTrn','',... % (opt) mat-filename containing an MFTtable with training rows
       'tblFileTrk','',... % (opt) mat-filename containing an MFTtable with tracking rows
       'paramFile','',... % (opt) mat-filename containing a single param struct that will be fed to lObj.trackSetParams
-      'paramPatchFile',''... % (opt) textfile containing parameter 'patch'
+      'paramPatchFile','',... % (opt) textfile containing parameter 'patch'
+      'outDir',''... (opt) location to place output. Defaults to lblfile path
       );
     
     lObj.projLoad(lblFile);
@@ -203,7 +208,10 @@ switch action
     savestuff.sPrm = lObj.trackGetParams();
     savestuff.tblRes = tblRes;
     savestuff.tblResTS = now;
-    outfile = fullfile(lblP,[outfileBase '.mat']);    
+    if isempty(outDir)
+      outDir = lblP;
+    end
+    outfile = fullfile(outDir,[outfileBase '.mat']);    
     fprintf('APTCluster: saving results: %s\n',outfile);
     save(outfile,'-mat','-struct','savestuff');
   otherwise

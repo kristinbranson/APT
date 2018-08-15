@@ -1,3 +1,5 @@
+%% OBSOLETE SEE HPOptim.m
+
 %%
 td = load('f:\aptStephenCPRInvestigate20180327\trnData20180503.mat');
 %%

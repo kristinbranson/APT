@@ -28,7 +28,7 @@ classdef GTPlot
         % d=d(1)
         nvw = nvw(1);
       elseif isnumeric(err)
-        [n,npts,nvw,nsets] = size(err);
+        [n,npts,d,nvw,nsets] = size(err);
       else
         assert(false);
       end
@@ -72,7 +72,7 @@ classdef GTPlot
         'hFig',[],...
         'xyLblPlotArgs',{'m.' 'markersize' 20},...
         'setNames',[],...
-        'ptileCmap','jet',...
+        'ptileCmap','lines',...
         'lineWidth',1,...
         'contourtype','circle',... % either 'circle','ellipse','arb'. 
           ... % If ellipse or arb, then err should have size 
@@ -368,9 +368,9 @@ classdef GTPlot
             set(ax,'YTickLabel',[]);
           end
         end
+        
+        linkaxes(hAxs(ivw,:));
       end
-      linkaxes(hAxs(1,:));
-      linkaxes(hAxs(2,:));
     end
     
     function [hFig,hAxs] = ptileCurvesZoomed(err,varargin)

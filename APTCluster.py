@@ -336,7 +336,7 @@ def main():
                 print ("patch dir %s: %d patches found."%(args.prmpatchdir,npch))
 
                 nsubmitted = 0
-                cmdbase = [args.projfile,args.action]
+                cmdbase = [args.projfile,args.action,"outdir",outdiruse]
                 if args.trackargs:                        
                     cmdbase.append(args.trackargs)
 
@@ -369,9 +369,10 @@ def main():
 
                 sys.exit()
             else:
-                cmd = args.projfile + " " + args.action
+                cmd = [args.projfile,args.action,"outdir",outdiruse]
                 if args.trackargs:
-                    cmd = cmd+" "+args.trackargs
+                    cmd.append(args.trackargs)
+                cmd = " ".join(cmd)
 
         gencode(shfile,jobid,args,cmd)
 
