@@ -286,16 +286,22 @@ classdef GTPlot
       % hFig: figure handle
       % hAxs: [nviews x nsets] axes handles
       
-      [ptiles,hFig,lineArgs,setNames,axisArgs] = ...
+      [ptiles,hFig,lineArgs,setNames,axisArgs,ptnames] = ...
         myparse(varargin,...
         'ptiles',[50 75 90 95 97.5 99 99.5],...
         'hFig',[],...
         'lineArgs',{'m+'},...
         'setNames',[],...
-        'axisArgs',{'XTicklabelRotation',45,'FontSize' 16}...
+        'axisArgs',{'XTicklabelRotation',45,'FontSize' 16},...
+        'ptnames',[]...
         );
       
       [ns,npts,nviews,nsets,l2errptls,l2mnerrptls] = GTPlot.errhandler(err,ptiles);
+      
+      if isempty(ptnames)
+        ptnames = arrayfun(@(x)sprintf('pt%d',x),1:npts,'uni',0);
+      end
+      assert(iscellstr(ptnames) && numel(ptnames)==npts);
       
       if isempty(hFig)
         hFig = figure();
@@ -328,14 +334,14 @@ classdef GTPlot
           if ~isinf(ipt)
             y = squeeze(l2errptls(:,ipt,ivw,:)); % [nptl x nsets]
             ax = hAxs(ivw,ipt);
-            tstr = sprintf('vw%d pt%d',ivw,ipt);
+            tstr = sprintf('vw%d %s',ivw,ptnames{ipt});
             if isscalar(ns) && tfPlot1
               tstr = sprintf('N=%d. %s',ns,tstr);
             end
           else
             y = squeeze(l2mnerrptls(:,ivw,:)); % [nptl x nsets]
             ax = hAxs(ivw,npts+1);
-            tstr = sprintf('vw%d, mean allpts',ivw);
+            tstr = sprintf('vw%d, mean allpts shown',ivw);
           end
           
           axes(ax);
