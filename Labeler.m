@@ -3194,9 +3194,10 @@ classdef Labeler < handle
       % hgram: [nbin] histogram count vector. See HistEq.selMovCentralImHist
       % hgraminfo: See HistEq.selMovCentralImHist
       
-      [nFrmPerMov,nBinHist,debugViz] = myparse(varargin,...
+      [nFrmPerMov,nBinHist,iMovsSamp,debugViz] = myparse(varargin,...
         'nFrmPerMov',20,... % num frames to sample per mov
         'nBinHist',256, ... % num bins for imhist()
+        'iMovsSamp',[],... % indices into .movieFilesAll to sample. defaults to 1:nmovies
         'debugViz',false ...
       );
 
@@ -3207,21 +3208,25 @@ classdef Labeler < handle
     
       wbObj = WaitBarWithCancel('Histogram Equalization','cancelDisabled',true);
       oc = onCleanup(@()delete(wbObj));
-            
-      movsets = obj.movieFilesAll;
-      nmovsets = size(movsets,1);
+
+      if isempty(iMovsSamp)
+        iMovsSamp = 1:size(obj.movieFilesAll,1);
+      end      
+      nmovsetsSamp = numel(iMovsSamp);
+      
       nvw = obj.nview;
-      fread = nan(nFrmPerMov,nmovsets,nvw);
-      cntmat = nan(nBinHist,nmovsets,nvw);
+      fread = nan(nFrmPerMov,nmovsetsSamp,nvw);
+      cntmat = zeros(nBinHist,nmovsetsSamp,nvw);
       bins0 = [];
       for ivw=1:nvw
         wbstr = sprintf('Sampling movies, view %d',ivw);
-        wbObj.startPeriod(wbstr,'shownumden',true,'denominator',nmovsets);
+        wbObj.startPeriod(wbstr,'shownumden',true,'denominator',nmovsetsSamp);
         mr = MovieReader;
-        for imov=1:nmovsets
+        for i=1:nmovsetsSamp
           tic;
-          wbObj.updateFracWithNumDen(imov);
+          wbObj.updateFracWithNumDen(i);
           
+          imov = iMovsSamp(i);
           mIdx = MovieIndex(imov);
           obj.movieMovieReaderOpen(mr,mIdx,ivw);
           nfrmMov = mr.nframes;
@@ -3242,14 +3247,15 @@ classdef Labeler < handle
               error('Images must be grayscale.');
             end
 
-            [cntmat(:,imov,ivw),bins] = imhist(im,nBinHist);
+            [cnt,bins] = imhist(im,nBinHist);
+            cntmat(:,i,ivw) = cntmat(:,i,ivw)+cnt;
             if isempty(bins0)
               bins0 = bins;
             elseif ~isequal(bins,bins0)
               error('View %d, movie %d, frame %d: unexpected imhist bin vector.',...
                 ivw,imov,f);
             end
-            fread(iF,imov,ivw) = f;
+            fread(iF,i,ivw) = f;
           end
           
           t = toc;
