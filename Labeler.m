@@ -7153,17 +7153,15 @@ classdef Labeler < handle
     
     % Hist Eq Notes
     %
-    % The Labeler has the ability/responsibility to compute a "typical" 
-    % image histogram H0 representative of all movies in the current 
-    % project. At the moment it does this by sampling frames at intervals 
-    % (weighting all frames equally regardless of movie), but this is an 
-    % impl detail.
+    % The Labeler has the ability/responsibility to compute typical image
+    % histograms representative of all movies in the current project, for
+    % each view. See movieEstimateImHist. 
     %
-    % .preProcH0 is the image histogram used to generate the current
-    % .preProcData. Conceptually, .preProcH0 is like .preProcParams in that
-    % it is a parameter (vector) governing how data is preprocessed.
-    % Instead of being user-set like other parameters, .preProcH0 is
-    % updated/learned from the project movies.
+    % .preProcH0 stores this typical hgram for use in preprocessing. 
+    % Conceptually, .preProcH0 is like .preProcParams in that it is a 
+    % parameter (vector) governing how data is preprocessed. Instead of 
+    % being user-set like other parameters, .preProcH0 is updated/learned 
+    % from the project movies.
     %
     % .preProcH0 is set at retrain- (fulltraining-) time. It is not updated
     % during tracking, or during incremental trains. If users are adding
