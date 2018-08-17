@@ -4,7 +4,9 @@ function [q,trans,scaleFac,residuals,rotMat,axisAngleRad,EulerRPY]=computeRotati
 %
 % refPoint/dataPoint format = nPts x 3.  columns = xyz, rows = points.
 %
-% q = quaternion describing rotation.
+% q = quaternion describing rotation.  Stored in format such that the axis
+% of rotation is given by xyz = (q(2:4)./norm(q(2:4)))' and the angle rotated
+% around that axis is given by 2*acos(q(1))  
 % 
 % trans = translation left over when rotation is done.
 %
@@ -194,6 +196,15 @@ end
 
 %getting axis and angle directly from quaternion
 axisAngleRad = [0,0,0, (q(2:4)./norm(q(2:4)))',2*acos(q(1))];
+
+%axis-angle can get to same place in two ways CW theta around positive axis or
+%CW 360-theta around negative axis.  Constraining axis to only be
+%pointing in front of fly (positive X)
+if axisAngleRad(4)<0
+   axisAngleRad(4:6) = axisAngleRad(4:6).*-1;
+   axisAngleRad(7) = 360-axisAngleRad(7);
+end
+
 
 %% Euler angles
 % Euler angles in radians representing a rotation around
