@@ -27,12 +27,20 @@ classdef HistEq
       
       cntmatsum = sum(cntmat,1);
       cntmatnorm = cntmat./repmat(cntmatsum,[nbin 1 1]); % don't assume autobsx 16b
-      cntmatnormcum = cumsum(cntmatnorm,1); % [nbin x nmov x nvw]. columns are imhist CDFs with final el==1
+      % each hist/col now sums to 1
+      cntmatnormmean = mean(cntmatnorm,2); % [nbin x 1 x nvw]
+      % Taking the mean is like counting/aggregating imhists over a giant
+      % concatenated movie
+      disp(sum(cntmatnormmean,1));
+      cntmatnormmeancum = cumsum(cntmatnormmean,1);
       
-      cntmatnormcummdn = median(cntmatnormcum,2); % [nbin x 1 x nvw]
+%       % cumulative-median
+      cntmatnormcum = cumsum(cntmatnorm,1); % [nbin x nmov x nvw]. columns are imhist CDFs with final el==1      
+%       cntmatnormcummdn = median(cntmatnormcum,2); % [nbin x 1 x nvw]
+
       % metric is sum(abs(d_cumulativeimhist))
-      cntmatdst = sum(abs(cntmatnormcum-repmat(cntmatnormcummdn,1,nmov,1)),1); % [1 x nmov x nvw]
-      cntmatdst = reshape(cntmatdst,nmov,nvw)/nbin; % [nmov x nvw]. average value of d_normalizedCDF over bins
+      cntmatdst = sum(abs(cntmatnorm-repmat(cntmatnormmean,1,nmov,1)),1)/nbin; % [1 x nmov x nvw]
+      cntmatdst = reshape(cntmatdst,nmov,nvw); % [nmov x nvw]. average value of dabs_cntmatfromcentral over bins
       [cntmatdstsorted,imovssorted] = sort(cntmatdst,1);
       
       imovsel = imovssorted(1,:);
@@ -52,11 +60,11 @@ classdef HistEq
           bins = 1:nbin;
           plot(bins,cntmatnormcum(:,:,ivw));
           hold on
-          hplot(1) = plot(bins,cntmatnormcummdn(:,:,ivw),'r-','linewidth',2);
+          hplot(1) = plot(bins,cntmatnormmeancum(:,1,ivw),'r-','linewidth',2);
           hplot(2) = plot(bins,cntmatnormcum(:,imovsel(ivw),ivw),'b-','linewidth',2);
           grid on;
           if ivw==1
-            legend(hplot,'median','selected');
+            legend(hplot,'mean','selected');
           end
           
           fprintf('best imhist distances:\n');
@@ -68,7 +76,8 @@ classdef HistEq
           axes(ax);
           plot(bins,log10(cntmatnorm(:,:,ivw)));
           hold on;
-          plot(bins,log10(cntmatnorm(:,imovsel(ivw),ivw)),'b-','linewidth',2);
+          hplot(1) = plot(bins,log10(cntmatnormmean(:,1,ivw)),'r-','linewidth',2);
+          hplot(2) = plot(bins,log10(cntmatnorm(:,imovsel(ivw),ivw)),'b-','linewidth',2);
           tstr = sprintf('imhist, %d movs, view%d',nmov,ivw);
           title(tstr,'fontweight','bold');
           grid on;
@@ -76,42 +85,251 @@ classdef HistEq
       end
     end
     
-    function [lut,J] = genHistEqLUT(I,hgram,varargin)
-      % Generate LUT that performs histeq for imageset based on samples
+    function [...
+        lut,lutAL,...
+        Ibin,binC,binE,intens2bin,...
+        J,Jal,...
+        Jbin,JbinAL,...
+        hI,hJ,hJal,cI,cJ,cJal,...
+        Tbin,TbinAL,Tbininv,TbininvAL] = ...
+          histMatch(I,hgram,varargin)
+      % Histogram Matching
       %
-      % I: (big) image
+      % I: (ideally, big) image
       % hgram: [nbin] desired/target imhist counts for equally-spaced bins.
       %   hgram need not be normalized ie sum(hgram) can be anything. The 
       %   bin edges/locs implied by hgram depend on the class/type of
       %   images in I. See doc for builtin histeq.
-      %
-      % lut: [2^bitDepth] vector. The lut which, when applied to I, gives
-      %   an output image J with approximately the desired hgram, ie 
-      %   J = lut(uint32(I)+1)
-      % J: I, transformed by lut
+      % 
+      % lut: [2^bitDepth] vector. The lut which, when applied to I+1, gives
+      %   an output image J (with the same bitDepth) with approximately the 
+      %   desired hgram, ie 
+      %     J = lut(uint32(I)+1)   % uint32 so I doesn't saturate; 
+      %                            % +1 for 1-based matlab idxing;
+      %                            % J is 0-based intensities in [1..2^bitDepth-1]
+      % lutAL: same, computed by AL-alg
+      % Ibin: "bin image", ie I where each pixel is replaced by a bin index
+      %       k in [1..nbin]. Typically nbin==256
+      % binC: [nbin] 0-based intensity vals correponding to each bin
+      % binE: [nbin+1] bin edges in 0-based intensity space. bin i covers
+      %       the semi-open intensity interval [binE(i),binE(i+1) )
+      % intens2bin: [2^bitDepth] mapping from 0-based intensity vals to
+      %   bin, ie Ibin = intens2bin(uint32(I)+1)
+      % J: Same size/class as I; transformed image I.
+      % Jbin: Jbin is to J as Ibin is to I
+      % hI: [nbin] imhist of I
+      % hJ, hJal: etc
+      % cI: [nbin] cumulative hist of I, ie cumsum(hI);
+      % cJ,cJal: etc
+      % Tbin: [nbin] bin xformation vector or bin LUT.
+      %     kp = Tbin(k) where k in 1..nbin and kp in 1..nbin.
+      %   Jbin = Tbin(Ibin)    % Ibin is 1-based bin indices in [1..nbin]
+      %                        % Jbin is "
+      % Tbininv: [nbin] bin xformation pseudo-inverse
+      %   kspec = Tbininv(kp) where kp in 1..nbin and kspec in 0..nbin. 
+      %   If kspec is in 1..nbin, then this is a regular k-value (bin).
+      %   Otherwise, when kspec==0 then the interpretation is "no k-value"
       
-%       sz = cellfun(@size,Is,'uni',0);
-%       sz = cat(1,sz{:});
-%       sz = unique(sz,'rows');
-%       assert(size(sz,1)==1,'Images do not all have the same size.');
-%       assert(numel(sz)==2,'Images must be single-channel intensity images.');
-      
-%       Ibig = cat(1,Is{:});
-
       docheck = myparse(varargin,...
         'docheck',false);
 
       bitDepth = HistEq.imCls2BitDepth(I);
-      [J,T] = histeq(I,hgram);
-      lut = HistEq.histeqT2LUT(T,bitDepth);
+      [J,The] = histeq(I,hgram);
+      lut = HistEq.histeqT2LUT(The,bitDepth);
+      
+      n = 2^bitDepth;
+      imCls = HistEq.bitDepth2ImCls(bitDepth);
+      nbin = numel(hgram);
+      [hI,binCdoub] = imhist(I,nbin);
+      binC = feval(imCls,binCdoub);
+      assert(isequal(double(binC),binCdoub));
+      cI = cumsum(hI);
+      [hJ,binC2] = imhist(J,nbin);
+      cJ = cumsum(hJ);
+      assert(isequal(binCdoub,binC2));
+      binWidthNaive = n/nbin;
+      binE = [binCdoub-binWidthNaive/2; n];
+      binE(1) = 0; % otherwise it is neg
+      intens2bin = nan(n,1);
+      assert(isa(binE,'double'));
+      Tbin = nan(nbin,1);
+      for k=1:nbin
+        % want integer intensities in semi-open intrvl [ binE(ibin),binE(ibin+1) )
+        intensvallo = ceil(binE(k));
+        intensvalhi = ceil(binE(k+1))-1; 
+        intensvals = intensvallo:intensvalhi; % intensvals in 0..n-1        
+        intens2bin(intensvals+1) = k;
+        
+        lutval = lut(intensvals+1);
+        assert(all(lutval==lutval(1)));
+        lutval = lutval(1);
+        kp = find(lutval==binC);
+        assert(isscalar(kp));
+        Tbin(k) = kp;
+      end
+      
+      Ibin = intens2bin(uint32(I)+1);
+      Jbin = Tbin(Ibin);
+      Jbin2 = intens2bin(uint32(J)+1);
+      assert(isequal(Jbin,Jbin2));
+      
+      Tbininv = HistEq.cgramPInv(Tbin);
+      
+      cgram = cumsum(hgram);
+      TbininvAL = HistEq.histMatchAL(cI,cgram);
+      TbinAL = HistEq.cgramPInvInv(TbininvAL);
+      JbinAL = TbinAL(Ibin);
+      Jal = binC(JbinAL);
+      
+      lutAL = nan(n,1);
+      for k=1:nbin
+        lutAL(intens2bin==k) = binC(TbinAL(k));
+      end
+      
+      [hJal,binC3] = imhist(Jal,nbin);
+      cJal = cumsum(hJ);
+      assert(isequal(binC2,binC3));
       
       if docheck
-        fprintf(1,'Performing LUT check.\n'); % remove me at some pt
-        Iidx = uint32(I)+1; % otherwise adding 1 may saturate
-        assert(isequal(J,lut(Iidx)));
+        fprintf(1,'Performing LUT check.\n');
+        assert(isequal(J,lut(uint32(I)+1)));
+        
+        fprintf(1,'Checking bins/imhist\n');
+        hI2 = histcounts(I(:),binE);
+        hI2 = hI2(:);
+        assert(isequal(hI,hI2));
+
+        fprintf(1,'Checking Tbininv.\n');
+        cJ2 = HistEq.Tbininv2cJ(cI,Tbininv);
+        assert(isequal(cJ2,cJ));
+        
+        fprintf(1,'Checking lutAL.\n');
+        Jal2 = lutAL(uint32(I)+1);
+        assert(isequal(Jal2,Jal));
+        
+        fprintf(1,'Checking hJ,hJal.\n');
+        assert(isequal(hJ,arrayfun(@(x)nnz(Jbin(:)==x),(1:nbin)')));
+        assert(isequal(hJal,arrayfun(@(x)nnz(JbinAL(:)==x),(1:nbin)')));          
       end
     end
     
+    function Tbininv = cgramPInv(Tbin)
+      % Cumulative-imhist-induced psuedo inverse
+      %
+      % Given two cumulative imhists c0 and cstar, histogram matching 
+      % attempts to match the two histograms via a via an 
+      % intensity/bin-transform vector Tbin. This transform Tbin is
+      % typically not strictly monotonic, so it is not technically
+      % invertible. However, because Tbin is intended as a transform based
+      % on cumulative imhists, a psuedoinverse appropriate for this
+      % application can be defined.
+      %
+      % The original image I can be binned into intensity bins 1..kmax,
+      % with a resulting binned imhist cI(k). Transforming I (really, an
+      % "intensity-bin-image" I^kmax) under Tbin results in a new binned
+      % imhist cJ(k'):
+      %
+      %  cJ(k') = cI(k), where k is the largest k-value that satisfies
+      %                   Tbin(k)<=k', OR
+      %          = 0, if no k values satisfy the first cond.
+      %
+      % In line with this we define
+      %
+      % Tbininv(k') = the largest k-value that satisfies Tbin(k)<=k', OR
+      %             = 0, if no k values satisfy the first cond.
+      %
+      % Then
+      %  cJ(k') = cI(Tbininv(k')) where cI(0) is defined to be 0.
+      
+      Tbininv = nan(size(Tbin));
+      nbin = numel(Tbininv);
+      for i=1:nbin
+        tmp = find(Tbin<=i,1,'last');
+        if isempty(tmp)
+          Tbininv(i) = 0;
+        else
+          Tbininv(i) = tmp;
+        end
+      end
+    end
+    
+    function Tbin = cgramPInvInv(Tbininv)
+      % Inverse of cgramPInv
+      % Tbininv(k') = the largest k-value that satisfies Tbin(k)<=k', OR
+      %             = 0, if no k values satisfy the first cond.      
+
+      Tbin = nan(size(Tbininv));
+      nbin = numel(Tbin);
+      klastused = 0;
+      for kp=1:nbin
+        klargest = Tbininv(kp);
+        if klargest==0
+          % No k=values map to kp or less; no-op
+        else
+          % all k-values in [klastused+1..Tbininv(kp)] map to kp
+          Tbin(klastused+1:klargest) = kp;
+          klastused = klargest;
+        end
+      end
+      assert(klastused==nbin);
+    end
+    
+    function cJ = Tbininv2cJ(cI,Tbininv)
+      % Given a cumulative imhist cI and Tbininv, compute the implied
+      % cumulative imhist cJ of the transformed image J.
+      
+      tfTbininvNZ = Tbininv~=0;
+      cJ = nan(size(cI));
+      cJ(tfTbininvNZ) = cI(Tbininv(tfTbininvNZ));
+      cJ(~tfTbininvNZ) = 0;
+    end
+    
+    function Tinv = histMatchAL(c0,cstar)
+      % Allen's better histogram-matching.
+      %
+      % Matlab's histeq and other refs talk about histogram matching by
+      % optimizing a grayscale transform T to minimize the functional
+      %     abs[ cstar(T(k)) - c0(k) ]
+      %
+      % where c0 is some a given image hist, cstar is the target/desired
+      % image hist, and k spans 1..nbin image intensity or bin values.
+      %
+      % To my eye the better goal is to optimize the (inverse) transform 
+      % Tinv that minimizes the functional
+      %     abs[ c0(Tinv(k)) - cstar(k) ] 
+      %
+      % This looks the same, but isn't in practice, either because of
+      % oddities related to taking the "inverse" of a
+      % non-strictly-monotonic transform T, or because of heuristics
+      % incorporated into Matlab's impl (don't overshoot by xxxyyy, etc
+      % etc).
+      
+      assert(numel(c0)==numel(cstar));
+      Tinv = nan(size(c0));
+      for k=1:numel(Tinv)
+        dabs = abs(c0-cstar(k));
+        [dabsmin,idx] = min(dabs(:)); 
+        % If there is a tie, this will return the FIRST matching index and
+        % that is what we want. 
+        % 1. If c0 is at a constant value over some interval, that means
+        % that there are a bunch of pixels at the first intensity k1 in
+        % that interval, and then no new pixels throughout. So the best
+        % choice for Tinv is that first intensity k1.
+        % 2. If c0 happens to be first less than, then greater than
+        % cstar(k) in just such a way that the "negative" and "positive"
+        % distances tie, then it is just as well to take the first/negative
+        % piece.
+        
+        % Consider altrnative that we will set Tinv(k)=0
+        if cstar(k)<dabsmin
+          % cstar(k) is closer to zero than c0(1)
+          Tinv(k) = 0;
+        else
+          Tinv(k) = idx;
+        end
+      end      
+    end
+      
     function lut = histeqT2LUT(T,bitDepth)
       % Convert the T output arg from histeq() into a lookup table
       % T: double vec, each el in [0,1]
