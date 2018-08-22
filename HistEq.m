@@ -181,7 +181,7 @@ classdef HistEq
       JbinAL = TbinAL(Ibin);
       Jal = binC(JbinAL);
       
-      lutAL = nan(n,1);
+      lutAL = feval(imCls,zeros(n,1));
       for k=1:nbin
         lutAL(intens2bin==k) = binC(TbinAL(k));
       end
@@ -287,6 +287,9 @@ classdef HistEq
     function Tinv = histMatchAL(c0,cstar)
       % Allen's better histogram-matching.
       %
+      % NOTE: This won't return Tinv=(1:nbin)' when c0 and cstar
+      % identically match.
+      %
       % Matlab's histeq and other refs talk about histogram matching by
       % optimizing a grayscale transform T to minimize the functional
       %     abs[ cstar(T(k)) - c0(k) ]
@@ -368,6 +371,17 @@ classdef HistEq
           imCls = 'uint16';
         otherwise
           error('Unsupported for bitDepth %d.',bitDepth);
+      end
+    end
+    
+    function Idoub = normalizeGrayscaleIm(I)
+      % Normalize a grayscale im into doubles in [0,1]
+      if isfloat(I)
+        assert(all(0<=I(:) & I(:)<=1));
+        Idoub = I;
+      else
+        bd = HistEq.imCls2BitDepth(I);
+        Idoub = double(I)/(2^bd-1);
       end
     end
         

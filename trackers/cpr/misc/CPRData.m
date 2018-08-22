@@ -11,7 +11,7 @@ classdef CPRData < handle
     Ipp     % [NxnView] cell vec of preprocessed 'channel' images. .iPP{i,iView} is [nrxncxnchan]
     IppInfo % [nchan] cellstr describing each channel (3rd dim) of .Ipp
     
-    H0      % [256x1] for histeq
+    H0      % [nbin x nView] for histeq. Currently this is "dumb state" 
     
     iTrn    % [1xNtrn] row indices into I for training set
     iTst    % [1xNtst] row indices into I for test set
@@ -590,41 +590,43 @@ classdef CPRData < handle
       % the same value of g are histogram-equalized together. For example,
       % g might indicate which movie the image is taken from.
       
-      [H0,nbin,g,wbObj] = myparse(varargin,...
-        'H0',[],...
-        'nbin',256,...
-        'g',ones(obj.N,1),...
-        'wbObj',[]); % WaitBarWithCancel. If canceled, obj UNCHANGED and H0 indeterminate
-      tfH0Given = ~isempty(H0);
+      assert(false,'Deprecated codepath.');
       
-      assert(obj.nView==1,'Single-view only.');
-      assert(numel(g)==obj.N);
-      
-      imSz = cellfun(@size,obj.I,'uni',0);
-      cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
-      imSz = imSz{1};
-      
-      if ~tfH0Given
-        H0 = typicalImHist(obj.I,'nbin',nbin,'hWB',wbObj);
-        if wbObj.isCancel
-          return;
-        end
-      end
-      obj.H0 = H0;
-      
-      % normalize one group at a time
-      gUn = unique(g);
-      nGrp = numel(gUn);
-      fprintf(1,'%d groups to equalize.\n',nGrp);
-      for iGrp = 1:nGrp
-        gCur = gUn(iGrp);
-        tf = g==gCur;
-        
-        bigim = cat(1,obj.I{tf});
-        bigimnorm = histeq(bigim,H0);
-        obj.I(tf) = mat2cell(bigimnorm,...
-          repmat(imSz(1),[nnz(tf) 1]),imSz(2));
-      end
+%       [H0,nbin,g,wbObj] = myparse(varargin,...
+%         'H0',[],...
+%         'nbin',256,...
+%         'g',ones(obj.N,1),...
+%         'wbObj',[]); % WaitBarWithCancel. If canceled, obj UNCHANGED and H0 indeterminate
+%       tfH0Given = ~isempty(H0);
+%       
+%       assert(obj.nView==1,'Single-view only.');
+%       assert(numel(g)==obj.N);
+%       
+%       imSz = cellfun(@size,obj.I,'uni',0);
+%       cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
+%       imSz = imSz{1};
+%       
+%       if ~tfH0Given
+%         H0 = typicalImHist(obj.I,'nbin',nbin,'hWB',wbObj);
+%         if wbObj.isCancel
+%           return;
+%         end
+%       end
+%       obj.H0 = H0;
+%       
+%       % normalize one group at a time
+%       gUn = unique(g);
+%       nGrp = numel(gUn);
+%       fprintf(1,'%d groups to equalize.\n',nGrp);
+%       for iGrp = 1:nGrp
+%         gCur = gUn(iGrp);
+%         tf = g==gCur;
+%         
+%         bigim = cat(1,obj.I{tf});
+%         bigimnorm = histeq(bigim,H0);
+%         obj.I(tf) = mat2cell(bigimnorm,...
+%           repmat(imSz(1),[nnz(tf) 1]),imSz(2));
+%       end
     end
 
     function computeIpp(obj,sig1,sig2,iChan,varargin)
