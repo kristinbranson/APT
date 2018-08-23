@@ -1,0 +1,14 @@
+* tensorflow
+* Keras
+* enum
+* pickle
+* json
+* scipy
+* h5py
+* opencv
+* imageio
+* EasyDict
+* future
+* matplotlib
+* python-tk
+* scikit-image
