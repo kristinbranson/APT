@@ -131,11 +131,14 @@ class PoseUMDN(PoseCommon.PoseCommon):
         for ndx in range(n_layers_u):
 
             if ndx < len(dep_net.up_layers):
-                cur_ul = dep_net.up_layers[n_layers_u - extra_layers - ndx - 1]
-                cur_dl = dep_net.down_layers[ndx]
-                cur_l = tf.concat([cur_ul,cur_dl],axis=3)
+# cur_ul = dep_net.up_layers[n_layers_u - extra_layers - ndx - 1]
+#                cur_dl = dep_net.down_layers[ndx]
+#                cur_l = tf.concat([cur_ul,cur_dl],axis=3)
+#                n_filt = cur_l.get_shape().as_list()[3]/2
 
-                n_filt = cur_l.get_shape().as_list()[3]/2
+                cur_ul = dep_net.up_layers[n_layers_u - extra_layers - ndx - 1]
+                cur_l = cur_ul
+                n_filt = cur_l.get_shape().as_list()[3]
 
                 if mdn_prev is None:
                     X = cur_l
@@ -143,14 +146,10 @@ class PoseUMDN(PoseCommon.PoseCommon):
                     X = tf.concat([mdn_prev, cur_l], axis=3)
                     # X = mdn_prev + cur_l # residual
 
-#            if ndx == 0:
-#                n_conv = 1
-#            elif ndx == 1:
-#                n_conv = 2
-#            elif ndx == 2:
-#                n_conv = 4
-#            else:
-#                n_conv = 6
+            if ndx <3:
+                n_conv = 2
+            else:
+                n_conv = 4
 
             for c_ndx in range(n_conv):
                 sc_name = 'mdn_{}_{}'.format(ndx,c_ndx)
@@ -859,7 +858,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             #             base_locs[ndx, g] = mm
             #
             # base_locs = base_locs * conf.unet_rescale
-
+            mdn_pred_out = 2*(mdn_pred_out-0.5)
             return base_locs, mdn_pred_out
 
         def close_fn():

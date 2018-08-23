@@ -18,7 +18,6 @@ from scipy import io as sio
 import re
 import json
 from tensorflow.contrib.layers import batch_norm
-import FusionNet
 
 # for tf_unet
 #from tf_unet_layers import (weight_variable, weight_variable_devonc, bias_variable,
@@ -70,10 +69,8 @@ class PoseUNet(PoseCommon):
         info.set_shape([conf.batch_size,3])
 
         with tf.variable_scope(self.net_name):
-            # return self.create_network1()
+            return self.create_network1()
             # return self.create_network_residual()
-            fn = FusionNet.FusionNet(conf.n_classes)
-            return fn.inference(self.inputs[0])
 
     def create_network1(self):
 
@@ -107,11 +104,7 @@ class PoseUNet(PoseCommon):
         for ndx in range(n_layers):
             n_filt = min(max_filt, n_filt_base * (2** ndx))
 
-            if ndx == 0:
-                n_conv = 2
-            elif ndx == 1:
-                n_conv = 2
-            elif ndx == 2:
+            if ndx < 3:
                 n_conv = 2
             else:
                 n_conv = 4
@@ -160,11 +153,7 @@ class PoseUNet(PoseCommon):
             X = tf.concat([X,layers[ndx]], axis=3)
             n_filt = min(2 * max_filt, 2 * n_filt_base* (2** ndx))
 
-            if ndx == 0:
-                n_conv = 2
-            elif ndx == 1:
-                n_conv = 2
-            elif ndx == 2:
+            if ndx <3:
                 n_conv = 2
             else:
                 n_conv = 4
