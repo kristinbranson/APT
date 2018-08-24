@@ -1,4 +1,4 @@
-classdef DeepTrackerTrainingMonitorCmdline < handle
+classdef TrainMonitorVizCmdline < handle
   methods
     function resultsReceived(obj,sRes)
       % Callback executed when new result received from training monitor BG
@@ -9,7 +9,7 @@ classdef DeepTrackerTrainingMonitorCmdline < handle
       res = sRes.result;
 %       tfAnyUpdate = false;
       
-      disp('foo');
+%       disp('foo');
       for ivw=1:numel(res)
         fprintf(1,'View%d: jsonPresent: %d. ',ivw,res(ivw).jsonPresent);
         if res(ivw).tfUpdate

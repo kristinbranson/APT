@@ -30,15 +30,20 @@ classdef AWSec2 < handle
     end
     
     function [tfsucc,json] = inspectInstance(obj)
-      % sets .instanceIP
+      % sets .instanceIP and even .instanceID in some cases
       
-      cmd = AWSec2.describeInstancesCmd(obj.instanceID);
+      cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true);
       if ~tfsucc
         return;
       end
       json = jsondecode(json);
       obj.instanceIP = json.Reservations.Instances.PublicIpAddress;
+      if isempty(obj.instanceID)
+        obj.instanceID = json.Reservations.Instances.InstanceId;
+      else
+        assert(strcmp(obj.instanceID,json.Reservations.Instances.InstanceId));
+      end
     end
     
     function tfsucc = scpUpload(obj,file)

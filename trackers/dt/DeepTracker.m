@@ -29,11 +29,8 @@ classdef DeepTracker < LabelTracker
     % FUTURE TODO: what happens when user alters cacheDir?
     trnName 
     
-    bgTrnMonitorClient % BGClient obj
-    bgTrnMonitorWorkerObj; % scalar "detached" object that is deep-copied onto 
-      % workers. Note, this is not the BGWorker obj itself
-    bgTrnMonitorResultsMonitor % object with resultsreceived() method 
-    
+    bgTrnMonitor % BgTrainMonitor obj
+        
     %% track
 
     % - Right now you can only have one track running at a time.
@@ -53,7 +50,6 @@ classdef DeepTracker < LabelTracker
     movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
   end
   properties (Dependent)
-    bgTrnReady % If true, asyncPrepare() has been called and asyncStartBGWorker() can be called
     bgTrnIsRunning
     bgTrkIsRunning 
   end
@@ -89,12 +85,8 @@ classdef DeepTracker < LabelTracker
     function v = get.nview(obj)
       v = obj.lObj.nview;
     end
-    function v = get.bgTrnReady(obj)
-      v = ~isempty(obj.bgTrnMonitorClient);
-    end
     function v = get.bgTrnIsRunning(obj)
-      clnt = obj.bgTrnMonitorClient;
-      v = ~isempty(clnt) && clnt.isRunning;
+      v = obj.bgTrnMonitor.isRunning;
     end
     function v = get.bgTrkIsRunning(obj)
       clnt = obj.bgTrkMonitorClient;
@@ -105,10 +97,11 @@ classdef DeepTracker < LabelTracker
   methods
     function obj = DeepTracker(lObj)
       obj@LabelTracker(lObj);
+      obj.bgTrnMonitor = BGTrainMonitor;
     end    
     function initHook(obj)
       obj.trnResInit();
-      obj.bgTrnReset();
+      obj.bgTrnMonitor.reset();
       obj.bgTrkReset();
       obj.trackResInit();
       obj.trackCurrResInit();
@@ -181,7 +174,7 @@ classdef DeepTracker < LabelTracker
     
     function trnResInit(obj)
       obj.trnName = '';
-      obj.bgTrnReset();
+      obj.bgTrnMonitor.reset();
     end
     
     function tf = getHasTrained(obj)
@@ -286,93 +279,14 @@ classdef DeepTracker < LabelTracker
         type(logfile);
       end
     end
+  
+%       errFile = DeepTracker.dlerrGetErrFile(jobID);
+%       assert(exist(errFile,'file')==0,'Error file ''%s'' exists.',errFile);
+%       objMon = DeepTrackerTrainingMonitor(obj.lObj.nview);
+%       workerObj = DeepTrackerTrainingWorkerObj(dlLblFile,jobID,bsubLogs);
+
     
-    function bgTrnReset(obj)
-      % Reset BG Train Monitor state
-      %
-      % - TODO Note, when you change eg params, u need to call this. etc etc.
-      % Any mutation that alters PP, train/track on the BG worker...
-
-      if ~isempty(obj.bgTrnMonitorClient)
-        delete(obj.bgTrnMonitorClient);
-      end
-      obj.bgTrnMonitorClient = [];
-      
-      if ~isempty(obj.bgTrnMonitorWorkerObj)
-        delete(obj.bgTrnMonitorWorkerObj)
-      end
-      obj.bgTrnMonitorWorkerObj = [];
-      
-      if ~isempty(obj.bgTrnMonitorResultsMonitor)
-        delete(obj.bgTrnMonitorResultsMonitor);
-      end
-      obj.bgTrnMonitorResultsMonitor = [];
-    end
-    
-    function bgTrnPrepareMonitor(obj,dlLblFile,jobID,bsubLogs)
-      obj.bgTrnReset();
-
-      errFile = DeepTracker.dlerrGetErrFile(jobID);
-      assert(exist(errFile,'file')==0,'Error file ''%s'' exists.',errFile);
-      objMon = DeepTrackerTrainingMonitor(obj.lObj.nview);
-      cbkResult = @obj.bgTrnResultsReceived;
-      workerObj = DeepTrackerTrainingWorkerObj(dlLblFile,jobID,bsubLogs);
-      bgc = BGClient;
-      fprintf(1,'Configuring background worker...\n');
-      bgc.configure(cbkResult,workerObj,'compute');
-      obj.bgTrnMonitorClient = bgc;
-      obj.bgTrnMonitorWorkerObj = workerObj;
-      obj.bgTrnMonitorResultsMonitor = objMon;
-    end
-    
-    function bgTrnStart(obj)
-      assert(obj.bgTrnReady);
-      obj.bgTrnMonitorClient.startWorker('workerContinuous',true,...
-        'continuousCallInterval',30);
-    end
-    
-    function bgTrnResultsReceived(obj,sRes)
-      obj.bgTrnMonitorResultsMonitor.resultsReceived(sRes);
-      
-      errOccurred = any([sRes.result.errFileExists]);
-      if errOccurred
-        obj.bgTrnStop();
-
-        fprintf(1,'Error occurred during training:\n');      
-        errFile = sRes.result(1).errFile; % currently, errFiles same for all views
-        fprintf(1,'\n### %s\n\n',errFile);
-        type(errFile);
-        fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
-
-        % monitor plot stays up; bgTrnReset not called etc
-      end
-
-      for i=1:numel(sRes.result)
-        if sRes.result(i).bsubLogFileErrLikely
-          obj.bgTrnStop();
-
-          fprintf(1,'Error occurred during training:\n');      
-          errFile = sRes.result(i).bsubLogFile;
-          fprintf(1,'\n### %s\n\n',errFile);
-          type(errFile);
-          fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
-
-          % monitor plot stays up; bgTrnReset not called etc
-        end
-      end
-
-      trnComplete = all([sRes.result.trainComplete]);
-      if trnComplete
-        obj.bgTrnStop();
-        % % monitor plot stays up; bgTrnReset not called etc
-        fprintf('Training complete at %s.\n',datestr(now));
-      end
-    end
-    
-    function bgTrnStop(obj)
-      obj.bgTrnMonitorClient.stopWorker();
-    end       
-    
+        
   end
   
   %% Track  
@@ -536,7 +450,7 @@ classdef DeepTracker < LabelTracker
         bsublogfiles)
       
       errFile = DeepTracker.dlerrGetErrFile(obj.trnName);
-      tfErrFileErr = DeepTrackerTrainingWorkerObj.errFileExistsNonZeroSize(errFile);
+      tfErrFileErr = BgTrainWorkerObjBsub.errFileExistsNonZeroSize(errFile);
       if tfErrFileErr
         error('There is an error in the DeepLearning error file ''%s''. If you are certain you would like to proceed, first delete this file.',...
           errFile);

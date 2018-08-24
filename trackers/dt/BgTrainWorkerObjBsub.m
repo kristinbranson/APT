@@ -1,4 +1,4 @@
-classdef DeepTrackerTrainingWorkerObj < handle
+classdef BgTrainWorkerObjBsub < handle
   % Object deep copied onto BG Training worker. To be used with
   % BGWorkerContinuous
   %
@@ -20,7 +20,7 @@ classdef DeepTrackerTrainingWorkerObj < handle
   end
   
   methods
-    function obj = DeepTrackerTrainingWorkerObj(dlLblFile,jobID,bsubLogs)
+    function obj = BgTrainWorkerObjBsub(dlLblFile,jobID,bsubLogs)
       lbl = load(dlLblFile,'-mat');
       obj.nviews = lbl.cfg.NumViews;
       obj.sPrm = lbl.trackerDeepData.sPrm; % .sPrm guaranteed to match dlLblFile
@@ -64,10 +64,10 @@ classdef DeepTrackerTrainingWorkerObj < handle
         sRes(ivw).trainCompletePath = finalindex;
         sRes(ivw).trainComplete = exist(finalindex,'file')>0;
         sRes(ivw).errFile = errFile;
-        sRes(ivw).errFileExists = DeepTrackerTrainingWorkerObj.errFileExistsNonZeroSize(errFile);
+        sRes(ivw).errFileExists = BgTrainWorkerObjBsub.errFileExistsNonZeroSize(errFile);
         sRes(ivw).bsubLogFile = bsubLogFile;
         sRes(ivw).bsubLogFileErrLikely = exist(bsubLogFile,'file')>0 && ...        
-          DeepTrackerTrainingWorkerObj.parseBsubLogFile(bsubLogFile);
+          BgTrainWorkerObjBsub.parseBsubLogFile(bsubLogFile);
         
         if sRes(ivw).jsonPresent
           json = fileread(json);
