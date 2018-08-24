@@ -1,8 +1,8 @@
-classdef BgTrainWorkerObjAws < handle
+classdef BgTrainWorkerObjAWS < handle
   % Object deep copied onto BG Training worker. To be used with
   % BGWorkerContinuous.
   %
-  % BGTrainWorkerObjAws runs in the bg of the client machine, but 
+  % BgTrainWorkerObjAWS runs in the bg of the client machine, but 
   % i) accesses local filesys for .lbl files, pem keys, etc;
   % ii) has an AWSec2 object for communicating with remote EC2 instance
   %
@@ -26,7 +26,7 @@ classdef BgTrainWorkerObjAws < handle
   
   methods
 
-    function obj = BgTrainWorkerObjAws(dlLblFile,jobID,awsec2)
+    function obj = BgTrainWorkerObjAWS(dlLblFile,jobID,awsec2)
       lbl = load(dlLblFile,'-mat');
       obj.nviews = lbl.cfg.NumViews;
       obj.sPrm = lbl.trackerDeepData.sPrm; % .sPrm guaranteed to match dlLblFile
