@@ -17,6 +17,7 @@ from matplotlib import cm
 import movies
 import multiResData
 from scipy import io as sio
+from scipy import stats
 import tensorflow.contrib.framework as tfr
 
 
@@ -309,6 +310,17 @@ class PoseUMDN(PoseCommon.PoseCommon):
                                           initializer=tf.constant_initializer(0))
             logits = tf.nn.conv2d(mdn_l, weights_logits,
                                   [1, 1, 1, 1], padding='SAME') + biases_logits
+
+            # blur the weights during training.
+            blur_rad = 0.7
+            filt_sz = np.ceil(blur_rad * 3).astype('int')
+            xx, yy = np.meshgrid(np.arange(-filt_sz, filt_sz + 1), np.arange(-filt_sz, filt_sz + 1))
+            gg = stats.norm.pdf(np.sqrt(xx ** 2 + yy ** 2)/blur_rad)
+            gg = gg/gg.sum()
+            blur_kernel = np.tile(gg[:,:,np.newaxis,np.newaxis],[1,1,k*n_groups, k*n_groups])
+            logits_blur = tf.nn.conv2d(logits, blur_kernel,[1,1,1,1], padding='SAME')
+            logits = tf.cond(self.ph['phase_train'], lambda: tf.identity(logits_blur), lambda: tf.identity(logits))
+
             logits = tf.reshape(logits, [-1, n_x * n_y, k *n_groups])
             logits = tf.reshape(logits, [-1, n_x * n_y * k, n_groups],name='logits_final')
 
@@ -603,7 +615,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
         n_preds = mdn_locs.get_shape().as_list()[1]
         # All gaussians in the mixture have some weight so that all the mixtures try to predict correctly.
         logit_eps = self.conf.mdn_logit_eps_training
-        ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
+        # ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
         ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
         for cls in range(self.conf.n_classes):
             cur_scales = mdn_scales[:, :, cls]

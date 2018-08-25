@@ -54,6 +54,45 @@ tf.reset_default_graph()
 V = self.classify_val()
 np.percentile(V[0],[90,95,98,99],axis=0)
 
+##
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+import apt_expts
+db_file = '/home/mayank/work/poseTF/cache/alice_moreeval/val_TF.tfrecords'
+model_file = '/home/mayank/work/poseTF/cache/alice_moreeval/deepcut/snapshot-100000'
+import multiResData
+tf_iterator = multiResData.tf_reader(conf, db_file, False)
+tf_iterator.batch_size = 1
+read_fn = tf_iterator.next
+curm = 'deeplabcut'
+m =model_file
+import APT_interface as apt
+conf.dlc_rescale = 1
+pred_fn, close_fn, _ = apt.get_pred_fn(curm, conf, m)
+pred, label, gt_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+dd = np.sqrt(np.sum((pred-label)**2,axis=-1))
+np.percentile(dd,[90,95,98,99],axis=0)
+
+res = np.array([[ 1.45593502,  1.56175613,  1.86534404,  1.68371394,  2.04030646,
+         2.26430405,  2.29727553,  1.5884356 ,  2.20272166,  1.69477133,
+         2.54932645,  3.16365042,  2.52108448,  4.7560357 ,  5.13696831,
+         2.87668273,  3.80720136],
+       [ 1.727567  ,  1.79561019,  2.07279565,  1.89176997,  2.27816542,
+         2.50483035,  2.62167926,  1.87928389,  2.64971945,  1.97338777,
+         2.97771693,  4.18735141,  3.59557106,  6.83043737,  7.97818092,
+         3.52630564,  5.16467199],
+       [ 2.11941871,  2.10220702,  2.37149483,  2.14059765,  2.55230252,
+         2.81829645,  3.03948429,  2.27664115,  3.49234151,  2.41315372,
+         3.55594812,  5.67703449,  5.87166131, 10.17130605, 10.63304046,
+         5.74182495,  7.08593603],
+       [ 2.40299973,  2.32213969,  2.5625888 ,  2.32836243,  2.72042676,
+         3.0132749 ,  3.34428889,  2.66180828,  4.15285742,  2.69790925,
+         4.04134259,  7.06591366,  8.08465109, 12.56451454, 13.47454254,
+         8.02540829,  8.37623894]])
+
 
 ##
 
