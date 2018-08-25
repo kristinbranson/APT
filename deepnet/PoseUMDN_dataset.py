@@ -50,18 +50,6 @@ def val_preproc_func(ims, locs, info, conf):
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 
-def conv_residual(x_in, n_filt, train_phase):
-    in_dim = x_in.get_shape().as_list()[3]
-    kernel_shape = [3, 3, in_dim, n_filt]
-    weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tf.contrib.layers.xavier_initializer())
-    biases = tf.get_variable("biases", kernel_shape[-1],
-                             initializer=tf.constant_initializer(0.))
-    conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
-    conv = batch_norm(conv, decay=0.99, is_training=train_phase)
-    return conv
-
-
 class PoseUMDN(PoseCommon.PoseCommon):
 
     def __init__(self, conf, name='pose_umdn',net_type='conv',
@@ -146,15 +134,20 @@ class PoseUMDN(PoseCommon.PoseCommon):
                     X = tf.concat([mdn_prev, cur_l], axis=3)
                     # X = mdn_prev + cur_l # residual
 
-            if ndx <3:
-                n_conv = 2
-            else:
-                n_conv = 4
+#            if ndx <3:
+#                n_conv = 2
+#            else:
+#                n_conv = 4
 
             for c_ndx in range(n_conv):
                 sc_name = 'mdn_{}_{}'.format(ndx,c_ndx)
                 with tf.variable_scope(sc_name):
                     X = conv(X, n_filt, self.ph['phase_train'])
+#            if ndx > 2:
+#                with tf.variable_scope('mdn_{}_residual_0'.format(ndx)):
+#                    X = PoseUNet.conv_residual(X,self.ph['phase_train']) 
+#                with tf.variable_scope('mdn_{}_residual_1'.format(ndx)):
+#                    X = PoseUNet.conv_residual(X,self.ph['phase_train']) 
             self.mdn_layers1.append(X)
 
             # downsample using strides instead of max-pooling

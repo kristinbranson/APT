@@ -382,41 +382,41 @@ class PoseCommon(object):
     def train_step(self, step, sess, learning_rate, training_iters):
         cur_step = float(step)
 
-        # n_steps = self.conf.n_steps
-        # cur_lr = learning_rate * (self.conf.gamma ** (cur_step*n_steps/ training_iters))
-        # self.fd[self.ph['learning_rate']] = cur_lr
+        n_steps = self.conf.n_steps
+        cur_lr = learning_rate * (self.conf.gamma ** (cur_step*n_steps/ training_iters))
+        self.fd[self.ph['learning_rate']] = cur_lr
 
         # cosine decay restarts
-        t_mul = 2.0
-        m_mul = 1.0
-        alpha = 0.0
-        n_steps = (t_mul)**self.conf.cos_steps - 1
-        first_decay_steps = int(math.ceil(float(training_iters)/n_steps))+1
-        completed_fraction = step / first_decay_steps
-
-        def compute_step(completed_fraction, geometric=False):
-            if geometric:
-                i_restart = math.floor(
-                    math.log(1.0 - completed_fraction * (1.0 - t_mul)) /
-                    math.log(t_mul))
-
-                sum_r = (1.0 - t_mul ** i_restart) / (1.0 - t_mul)
-                completed_fraction = (completed_fraction - sum_r) / t_mul ** i_restart
-            else:
-                i_restart = math.floor(completed_fraction)
-                completed_fraction = completed_fraction - i_restart
-            return i_restart, completed_fraction
-
-        if t_mul == 1.0:
-            i_restart, completed_fraction = compute_step(completed_fraction, geometric=False)
-        else:
-            i_restart, completed_fraction = compute_step(completed_fraction, geometric=True)
-
-        m_fac = m_mul ** i_restart
-        cosine_decayed = 0.5 * m_fac * (
-                1.0 + math.cos(math.pi * completed_fraction))
-        decayed = (1 - alpha) * cosine_decayed + alpha
-        self.fd[self.ph['learning_rate']] = learning_rate* decayed
+#        t_mul = 2.0
+#        m_mul = 1.0
+#        alpha = 0.0
+#        n_steps = (t_mul)**self.conf.cos_steps - 1
+#        first_decay_steps = int(math.ceil(float(training_iters)/n_steps))+1
+#        completed_fraction = step / first_decay_steps
+#
+#        def compute_step(completed_fraction, geometric=False):
+#            if geometric:
+#                i_restart = math.floor(
+#                    math.log(1.0 - completed_fraction * (1.0 - t_mul)) /
+#                    math.log(t_mul))
+#
+#                sum_r = (1.0 - t_mul ** i_restart) / (1.0 - t_mul)
+#                completed_fraction = (completed_fraction - sum_r) / t_mul ** i_restart
+#            else:
+#                i_restart = math.floor(completed_fraction)
+#                completed_fraction = completed_fraction - i_restart
+#            return i_restart, completed_fraction
+#
+#        if t_mul == 1.0:
+#            i_restart, completed_fraction = compute_step(completed_fraction, geometric=False)
+#        else:
+#            i_restart, completed_fraction = compute_step(completed_fraction, geometric=True)
+#
+#        m_fac = m_mul ** i_restart
+#        cosine_decayed = 0.5 * m_fac * (
+#                1.0 + math.cos(math.pi * completed_fraction))
+#        decayed = (1 - alpha) * cosine_decayed + alpha
+#        self.fd[self.ph['learning_rate']] = learning_rate* decayed
 
         self.fd_train()
         run_options = tf.RunOptions(report_tensor_allocations_upon_oom=True)
