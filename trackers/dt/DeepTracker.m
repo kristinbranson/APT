@@ -88,7 +88,7 @@ classdef DeepTracker < LabelTracker
     end
     function v = get.nview(obj)
       v = obj.lObj.nview;
-    end    
+    end
     function v = get.bgTrnReady(obj)
       v = ~isempty(obj.bgTrnMonitorClient);
     end
@@ -793,8 +793,10 @@ classdef DeepTracker < LabelTracker
       m = getenvall;
       hdir = m('HOME');
     end
-    function errfile = dlerrGetErrFile(trnID)
-      hdir = DeepTracker.dlerrGetHomeDir;
+    function errfile = dlerrGetErrFile(trnID,hdir)
+      if exist('hdir','var')==0
+        hdir = DeepTracker.dlerrGetHomeDir;
+      end
       errfileS = [trnID '.err'];
       errfile = fullfile(hdir,errfileS);
     end
