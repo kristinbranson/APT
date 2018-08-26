@@ -98,6 +98,38 @@ classdef AWSec2 < handle
       cmd = AWSec2.sshCmdGeneralLoggedStc(obj.sshCmd,obj.pem,obj.instanceIP,...
         cmdremote,logfileremote);
     end
+    
+    function tf = remoteFileExists(obj,f,varargin)
+      [reqnonempty,dispcmd] = myparse(varargin,...
+        'reqnonempty',false,...
+        'dispcmd',false...
+        );
+
+      if reqnonempty
+        script = '~/APT/misc/fileexistsnonempty.sh';
+      else
+        script = '~/APT/misc/fileexists.sh';
+      end
+      cmdremote = sprintf('%s %s',script,f);
+      [~,res] = obj.cmdInstance(cmdremote,...
+        'dispcmd',dispcmd,'harderronfail',true); 
+      tf = res(1)=='y';      
+    end
+    
+    function s = remoteFileContents(obj,f,varargin)
+      [dispcmd,harderronfail] = myparse(varargin,...
+        'dispcmd',false,...
+        'harderronfail',false);
+      
+      cmdremote = sprintf('cat %s',f);
+      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,'harderronfail',harderronfail); 
+      if tfsucc  
+        s = res;
+      else
+        % harderronfail==false, warning thrown
+        s = '';
+      end
+    end
 
   end
   

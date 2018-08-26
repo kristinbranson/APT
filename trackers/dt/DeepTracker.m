@@ -420,8 +420,8 @@ classdef DeepTracker < LabelTracker
 %         logfilesremote = arrayfun(@(x)DeepTracker.trnLogfileLnxStc(...
 %           cacheRemoteFull,trnID,x),(1:nvw)','uni',0);
         logfilesremote = {logfileremote};
-        bgTrnWorkerObj = BgTrainWorkerObjAWS(dlLblFile,cacheRemoteRel,...
-          trnID,aws,logfilesremote);
+        bgTrnWorkerObj = BgTrainWorkerObjAWS(dlLblFile,trnID,cacheRemoteRel,...
+          logfilesremote,aws);
                 
         bgTrnMonitorObj.prepare(trnMonVizObj,bgTrnWorkerObj);
         bgTrnMonitorObj.start();

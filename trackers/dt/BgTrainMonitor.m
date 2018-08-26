@@ -91,7 +91,7 @@ classdef BgTrainMonitor < handle
       
       obj.reset();
       
-      [tfEFE,errFile] = bgWorkerObj.errfileExists;
+      [tfEFE,errFile] = bgWorkerObj.errFileExists;
       if tfEFE
         error('Error file ''%s'' exists.',errFile);
       end
