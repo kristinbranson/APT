@@ -17,6 +17,7 @@ from matplotlib import cm
 import movies
 import multiResData
 from scipy import io as sio
+from scipy import stats
 import tensorflow.contrib.framework as tfr
 
 
@@ -48,18 +49,6 @@ def val_preproc_func(ims, locs, info, conf):
     ims, locs = PoseTools.preprocess_ims(ims, locs, conf, False, conf.rescale)
     hmaps = PoseTools.create_label_images(locs, conf.imsz, conf.rescale, conf.label_blur_rad)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
-
-
-def conv_residual(x_in, n_filt, train_phase):
-    in_dim = x_in.get_shape().as_list()[3]
-    kernel_shape = [3, 3, in_dim, n_filt]
-    weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tf.contrib.layers.xavier_initializer())
-    biases = tf.get_variable("biases", kernel_shape[-1],
-                             initializer=tf.constant_initializer(0.))
-    conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
-    conv = batch_norm(conv, decay=0.99, is_training=train_phase)
-    return conv
 
 
 class PoseUMDN(PoseCommon.PoseCommon):
@@ -146,15 +135,20 @@ class PoseUMDN(PoseCommon.PoseCommon):
                     X = tf.concat([mdn_prev, cur_l], axis=3)
                     # X = mdn_prev + cur_l # residual
 
-            if ndx <3:
-                n_conv = 2
-            else:
-                n_conv = 4
+#            if ndx <3:
+#                n_conv = 2
+#            else:
+#                n_conv = 4
 
             for c_ndx in range(n_conv):
                 sc_name = 'mdn_{}_{}'.format(ndx,c_ndx)
                 with tf.variable_scope(sc_name):
                     X = conv(X, n_filt, self.ph['phase_train'])
+#            if ndx > 2:
+#                with tf.variable_scope('mdn_{}_residual_0'.format(ndx)):
+#                    X = PoseUNet.conv_residual(X,self.ph['phase_train']) 
+#                with tf.variable_scope('mdn_{}_residual_1'.format(ndx)):
+#                    X = PoseUNet.conv_residual(X,self.ph['phase_train']) 
             self.mdn_layers1.append(X)
 
             # downsample using strides instead of max-pooling
@@ -316,6 +310,17 @@ class PoseUMDN(PoseCommon.PoseCommon):
                                           initializer=tf.constant_initializer(0))
             logits = tf.nn.conv2d(mdn_l, weights_logits,
                                   [1, 1, 1, 1], padding='SAME') + biases_logits
+
+            # blur the weights during training.
+            blur_rad = 0.7
+            filt_sz = np.ceil(blur_rad * 3).astype('int')
+            xx, yy = np.meshgrid(np.arange(-filt_sz, filt_sz + 1), np.arange(-filt_sz, filt_sz + 1))
+            gg = stats.norm.pdf(np.sqrt(xx ** 2 + yy ** 2)/blur_rad)
+            gg = gg/gg.sum()
+            blur_kernel = np.tile(gg[:,:,np.newaxis,np.newaxis],[1,1,k*n_groups, k*n_groups])
+            logits_blur = tf.nn.conv2d(logits, blur_kernel,[1,1,1,1], padding='SAME')
+            logits = tf.cond(self.ph['phase_train'], lambda: tf.identity(logits_blur), lambda: tf.identity(logits))
+
             logits = tf.reshape(logits, [-1, n_x * n_y, k *n_groups])
             logits = tf.reshape(logits, [-1, n_x * n_y * k, n_groups],name='logits_final')
 
@@ -610,7 +615,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
         n_preds = mdn_locs.get_shape().as_list()[1]
         # All gaussians in the mixture have some weight so that all the mixtures try to predict correctly.
         logit_eps = self.conf.mdn_logit_eps_training
-        ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
+        # ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
         ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
         for cls in range(self.conf.n_classes):
             cur_scales = mdn_scales[:, :, cls]

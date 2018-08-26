@@ -1,6 +1,6 @@
 classdef RegressorCascade < handle
   
-  properties (SetAccess=private)
+  properties %(SetAccess=private)
     % model/params
     %
     % These are set at construction time and are immutable. You can't set

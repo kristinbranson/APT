@@ -38,6 +38,40 @@ def val_preproc_func(ims, locs, info, conf):
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 
+def conv_residual(x_in, train_phase):
+    in_dim = x_in.get_shape().as_list()[3]
+
+    kernel_shape = [3, 3, in_dim, in_dim/4]
+    weights = tf.get_variable("weights1", kernel_shape,
+                              initializer=tf.contrib.layers.xavier_initializer())
+    biases = tf.get_variable("biases1", kernel_shape[-1],
+                             initializer=tf.constant_initializer(0.))
+    conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
+    conv = batch_norm(conv, decay=0.99, is_training=train_phase)
+    conv = tf.nn.relu(conv)
+
+    kernel_shape = [3, 3, in_dim/4, in_dim/4]
+    weights = tf.get_variable("weights2", kernel_shape,
+                              initializer=tf.contrib.layers.xavier_initializer())
+    biases = tf.get_variable("biases2", kernel_shape[-1],
+                             initializer=tf.constant_initializer(0.))
+    conv = tf.nn.conv2d(conv, weights, strides=[1, 1, 1, 1], padding='SAME')
+    conv = batch_norm(conv, decay=0.99, is_training=train_phase)
+    conv = tf.nn.relu(conv)
+
+    kernel_shape = [3, 3, in_dim/4, in_dim]
+    weights = tf.get_variable("weights3", kernel_shape,
+                              initializer=tf.contrib.layers.xavier_initializer())
+    biases = tf.get_variable("biases3", kernel_shape[-1],
+                             initializer=tf.constant_initializer(0.))
+    conv = tf.nn.conv2d(conv, weights, strides=[1, 1, 1, 1], padding='SAME')
+    conv = batch_norm(conv, decay=0.99, is_training=train_phase)
+    conv = tf.nn.relu(conv)
+
+    return conv + x_in
+
+
+
 class PoseUNet(PoseCommon):
 
     def __init__(self, conf, name='pose_unet'):
@@ -104,16 +138,27 @@ class PoseUNet(PoseCommon):
         for ndx in range(n_layers):
             n_filt = min(max_filt, n_filt_base * (2** ndx))
 
-            if ndx < 3:
-                n_conv = 2
-            else:
-                n_conv = 4
+#            if ndx < 3:
+#                n_conv = 2
+#            else:
+#                n_conv = 4
 
             for cndx in range(n_conv):
                 sc_name = 'layerdown_{}_{}'.format(ndx,cndx)
                 with tf.variable_scope(sc_name):
                     X = conv(X, n_filt)
                 all_layers.append(X)
+
+            if ndx > 2:
+                with tf.variable_scope('layerdown_{}_residual_0'.format(ndx)):
+                    X = conv_residual(X,self.ph['phase_train']) 
+                with tf.variable_scope('layerdown_{}_residual_1'.format(ndx)):
+                    X = conv_residual(X,self.ph['phase_train']) 
+                with tf.variable_scope('layerdown_{}_residual_2'.format(ndx)):
+                    X = conv_residual(X,self.ph['phase_train']) 
+                with tf.variable_scope('layerdown_{}_residual_3'.format(ndx)):
+                    X = conv_residual(X,self.ph['phase_train']) 
+
             layers.append(X)
             layers_sz.append(X.get_shape().as_list()[1:3])
             # X = tf.nn.max_pool(X,ksize=[1,3,3,1],strides=[1,2,2,1],
@@ -153,15 +198,26 @@ class PoseUNet(PoseCommon):
             X = tf.concat([X,layers[ndx]], axis=3)
             n_filt = min(2 * max_filt, 2 * n_filt_base* (2** ndx))
 
-            if ndx <3:
-                n_conv = 2
-            else:
-                n_conv = 4
+#            if ndx <3:
+#                n_conv = 2
+#            else:
+#                n_conv = 4
 
             for cndx in range(n_conv):
                 sc_name = 'layerup_{}_{}'.format(ndx, cndx)
                 with tf.variable_scope(sc_name):
                     X = conv(X, n_filt)
+
+            if ndx > 2:
+                with tf.variable_scope('layerup_{}_residual_0'.format(ndx)):
+                    X = conv_residual(X,self.ph['phase_train']) 
+                with tf.variable_scope('layerup_{}_residual_1'.format(ndx)):
+                    X = conv_residual(X,self.ph['phase_train']) 
+                with tf.variable_scope('layerup_{}_residual_2'.format(ndx)):
+                    X = conv_residual(X,self.ph['phase_train']) 
+                with tf.variable_scope('layerup_{}_residual_3'.format(ndx)):
+                    X = conv_residual(X,self.ph['phase_train']) 
+
                 all_layers.append(X)
             up_layers.append(X)
         self.all_layers = all_layers
@@ -174,6 +230,7 @@ class PoseUNet(PoseCommon):
                                  initializer=tf.constant_initializer(0.))
         conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
         X = tf.add(conv, biases, name = 'unet_pred')
+        X = 2*tf.sigmoid(X)-1
         # X = conv+biases
         return X
 
