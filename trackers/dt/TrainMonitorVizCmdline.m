@@ -1,5 +1,10 @@
 classdef TrainMonitorVizCmdline < handle
+  
   methods
+    
+    function obj = TrainMonitorVizCmdline(varargin)
+    end
+    
     function resultsReceived(obj,sRes)
       % Callback executed when new result received from training monitor BG
       % worker
@@ -25,6 +30,7 @@ classdef TrainMonitorVizCmdline < handle
 %         obj.resLast = res;
 %       end
     end
+    
   end
   
 end

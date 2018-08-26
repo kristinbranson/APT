@@ -4,14 +4,14 @@ classdef BgTrainWorkerObjBsub < handle
   %
   % Responsibilities:
   % - Poll filesystem for training updates
-  
+
   properties
     nviews
     sPrm % parameter struct
     projname
     jobID % char
     
-    artfctBsubLogs % [nview] cellstr of fullpaths to bsub logs
+    artfctLogs % [nview] cellstr of fullpaths to bsub logs
     artfctTrainDataJson % [nview] cellstr of fullpaths to training data jsons
     artfctFinalIndex % [nview] cellstr of fullpaths to final training .index file
     artfctErrFile % [nview] cellstr of fullpaths to DL errfile
@@ -28,7 +28,7 @@ classdef BgTrainWorkerObjBsub < handle
       obj.jobID = jobID;
       
       assert(iscellstr(bsubLogs) && numel(bsubLogs)==obj.nviews);
-      obj.artfctBsubLogs = bsubLogs;
+      obj.artfctLogs = bsubLogs;
       [obj.artfctTrainDataJson,obj.artfctFinalIndex,obj.artfctErrFile] = ...
         arrayfun(@obj.trainMonitorArtifacts,1:obj.nviews,'uni',0);
       
@@ -50,14 +50,14 @@ classdef BgTrainWorkerObjBsub < handle
         'trainComplete',[],... % true if trainCompletePath exists
         'errFile',[],... % char, full path to DL err file
         'errFileExists',[],... % true of errFile exists and has size>0
-        'bsubLogFile',[],... % char, full path to Bsub logfile
-        'bsubLogFileErrLikely',[]... % true if Bsub logfile suggests error
+        'logFile',[],... % char, full path to Bsub logfile
+        'logFileErrLikely',[]... % true if Bsub logfile suggests error
         ); % 
       for ivw=1:obj.nviews
         json = obj.artfctTrainDataJson{ivw};
         finalindex = obj.artfctFinalIndex{ivw};
         errFile = obj.artfctErrFile{ivw};
-        bsubLogFile = obj.artfctBsubLogs{ivw};
+        logFile = obj.artfctLogs{ivw};
         
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = exist(json,'file')>0;
@@ -65,9 +65,9 @@ classdef BgTrainWorkerObjBsub < handle
         sRes(ivw).trainComplete = exist(finalindex,'file')>0;
         sRes(ivw).errFile = errFile;
         sRes(ivw).errFileExists = BgTrainWorkerObjBsub.errFileExistsNonZeroSize(errFile);
-        sRes(ivw).bsubLogFile = bsubLogFile;
-        sRes(ivw).bsubLogFileErrLikely = exist(bsubLogFile,'file')>0 && ...        
-          BgTrainWorkerObjBsub.parseBsubLogFile(bsubLogFile);
+        sRes(ivw).logFile = logFile;
+        sRes(ivw).logFileErrLikely = exist(logFile,'file')>0 && ...        
+          BgTrainWorkerObjBsub.parselogFile(logFile);
         
         if sRes(ivw).jsonPresent
           json = fileread(json);
@@ -102,11 +102,27 @@ classdef BgTrainWorkerObjBsub < handle
       errfile = DeepTracker.dlerrGetErrFile(obj.jobID);
     end
         
+    function printLogfiles(obj)
+      BgTrainWorkerObjBsub.printLogfilesStc(obj.artfctLogs)
+    end
   end
   
   methods (Static)
-    function errLikely = parseBsubLogFile(bsubLogFile)
-      cmd = sprintf('grep -i exception %s',bsubLogFile);
+    function printLogfilesStc(logFiles,logFileContents)
+      % Print training logs for all views for current/last retrain 
+      
+      for ivw=1:numel(logFiles)
+        logfile = logFiles{ivw};
+        fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
+        if exist('logFileContents','var')
+          disp(logFileContents{ivw});
+        else
+          type(logfile);
+        end
+      end
+    end
+    function errLikely = parseLogFile(logFile)
+      cmd = sprintf('grep -i exception %s',logFile);
       [st,res] = system(cmd);
       errLikely = st==0 && ~isempty(res);
     end

@@ -6,6 +6,10 @@ classdef BgTrainMonitorBsub < BgTrainMonitor
       obj@BgTrainMonitor();
     end
     
+    function prepareHook(obj,trnMonVizObj,bgWorkerObj)
+      % none
+    end
+    
     function bgTrnResultsReceivedHook(obj,sRes)
       errOccurred = any([sRes.result.errFileExists]);
       if errOccurred
@@ -21,11 +25,11 @@ classdef BgTrainMonitorBsub < BgTrainMonitor
       end
       
       for i=1:numel(sRes.result)
-        if sRes.result(i).bsubLogFileErrLikely
+        if sRes.result(i).logFileErrLikely
           obj.stop();
           
           fprintf(1,'Error occurred during training:\n');
-          errFile = sRes.result(i).bsubLogFile;
+          errFile = sRes.result(i).logFile;
           fprintf(1,'\n### %s\n\n',errFile);
           type(errFile);
           fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
@@ -41,6 +45,7 @@ classdef BgTrainMonitorBsub < BgTrainMonitor
         fprintf('Training complete at %s.\n',datestr(now));
       end
     end
+    
   end
   
 end

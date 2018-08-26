@@ -5,6 +5,9 @@ classdef AWSec2 < handle
     instanceIP
     keyName
     pem
+    
+    scpCmd = '"c:\Program Files\Git\usr\bin\scp.exe"';
+    sshCmd = '"c:\Program Files\Git\usr\bin\ssh.exe"';
   end
   
   methods
@@ -16,6 +19,13 @@ classdef AWSec2 < handle
       obj.pem = pem;
     end
     
+    function delete(obj)
+      % TODO 
+    end
+  end
+  
+  methods
+    
     function [tfsucc,json] = launchInstance(obj)
       % sets .instanceID
       
@@ -26,13 +36,13 @@ classdef AWSec2 < handle
         return;
       end
       json = jsondecode(json);
-      obj.instanceID = json.InstanceId;
+      obj.instanceID = json.Instances.InstanceId;
     end
     
     function [tfsucc,json] = inspectInstance(obj)
-      % sets .instanceIP and even .instanceID in some cases
+       % sets .instanceIP and even .instanceID if it is empty and there is only one instance running
       
-      cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID
+      cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true);
       if ~tfsucc
         return;
@@ -46,16 +56,49 @@ classdef AWSec2 < handle
       end
     end
     
-    function tfsucc = scpUpload(obj,file)
-      cmd = AWSec2.scpFileCmd(file,obj.pem,obj.instanceIP);
-      tfsucc = AWSec2.syscmd(cmd,'dispcmd',true);
+    function [tfsucc,json] = stopInstance(obj)
+      cmd = AWSec2.stopInstanceCmd(obj.instanceID);
+      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true);
+      if ~tfsucc
+        return;
+      end
+      json = jsondecode(json);
+    end
+    
+    function checkInstanceRunning(obj)
+      % - If runs silently, obj appears to be a running EC2 instance with no
+      %   issues
+      % - If harderror thrown, something appears wrong
+      
+      [tf,js] = obj.inspectInstance;
+      if ~tf
+        error('Problem with EC2 instance id: %s',obj.instanceID);
+      end
+      state = js.Reservations.Instances.State;
+      if ~strcmp(state.Name,'running')
+        error('EC2 instance id %s is not in the ''running'' state.',...
+          obj.instanceID)
+      end
+    end
+    
+    function tfsucc = scpUpload(obj,file,dstRel,varargin)
+      [sysCmdArgs] = myparse(varargin,...
+        'sysCmdArgs',{});
+      cmd = AWSec2.scpFileCmd(file,obj.pem,obj.instanceIP,dstRel,...
+        'scpcmd',obj.scpCmd);
+      tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
     end
     
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
-      cmdfull = AWSec2.sshCmdGeneral(obj.pem,obj.instanceIP,cmdremote);
+      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote);
       [tfsucc,res] = AWSec2.syscmd(cmdfull,varargin{:});
     end
         
+    function cmd = sshCmdGeneralLogged(obj,cmdremote,logfileremote)
+      cmd = AWSec2.sshCmdGeneralLoggedStc(obj.sshCmd,obj.pem,obj.instanceIP,...
+        cmdremote,logfileremote);
+    end
+
   end
   
   methods (Static)
@@ -66,7 +109,7 @@ classdef AWSec2 < handle
         'harderronfail',false...
         );
       
-      cmd = [cmd sprintf('\n\r')];
+%       cmd = [cmd sprintf('\n\r')];
       if dispcmd
         disp(cmd); 
       end
@@ -83,7 +126,7 @@ classdef AWSec2 < handle
     
     function cmd = launchInstanceCmd(keyName,varargin)
       [ami,instType,secGrp] = myparse(varargin,...
-        'ami','ami-0a5758d56c4c40ae6',...
+        'ami','ami-0168f57fb900185e1',...
         'instType','p2.xlarge',...
         'secGrp','apt_dl');
       cmd = sprintf('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s --key-name %s',ami,instType,secGrp,keyName);
@@ -93,24 +136,23 @@ classdef AWSec2 < handle
       cmd = sprintf('aws ec2 describe-instances --instance-ids %s',ec2id);      
     end
     
-    function cmd = scpFileCmd(file,pem,ip)
-      cmd = sprintf('scp -i %s %s ubuntu@%s:~',pem,file,ip);
+    function cmd = stopInstanceCmd(ec2id)
+      cmd = sprintf('aws ec2 stop-instances --instance-ids %s',ec2id);
     end
     
-    function cmd = sshCmdGeneral(pem,ip,cmdremote)
-      cmd = sprintf('ssh -i %s ubuntu@%s "%s"',pem,ip,cmdremote);
+    function cmd = scpFileCmd(file,pem,ip,dstrel,varargin)
+      scpcmd = myparse(varargin,...
+        'scpcmd','scp');
+      cmd = sprintf('%s -i %s %s ubuntu@%s:~/%s',scpcmd,pem,file,ip,dstrel);
     end
     
-    function cmdremote = sshCmdTrain(pem,ip,lblS,cacheS,trnID,view0based)      
-      cmdremote = {
-        'cd /home/ubuntu/APT/deepnet;'; 
-        'git pull;'; 
-        'git checkout feature/deeptrack;';
-        'LD_LIBRARY_PATH=/home/ubuntu/src/cntk/bindings/python/cntk/libs:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib;';
-        sprintf('python APT_interface.py -cache /home/ubuntu/%s -name %s -view %d /home/ubuntu/%s train -use_cache;',...
-          cacheS,trnID,view0based,lblS);
-        };
-      cmdremote = cat(2,cmdremote{:});
+    function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote)
+      cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s ''%s''',sshcmd,pem,ip,cmdremote);
+    end
+
+    function cmd = sshCmdGeneralLoggedStc(sshcmd,pem,ip,cmdremote,logfileremote)
+      cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
+        sshcmd,pem,ip,cmdremote,logfileremote);
     end
 
   end

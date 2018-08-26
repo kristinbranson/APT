@@ -17,6 +17,7 @@ classdef BgTrainWorkerObjAWS < handle
     
     awsEc2 % Instace of AWSec2
     
+    artfctLogs % [nview] cellstr of fullpaths to remote logfiles
     artfctTrainDataJson % [nview] cellstr of fullpaths to training data jsons
     artfctFinalIndex % [nview] cellstr of fullpaths to final training .index file
     artfctErrFile % [nview] cellstr of fullpaths to DL errfile
@@ -26,7 +27,8 @@ classdef BgTrainWorkerObjAWS < handle
   
   methods
 
-    function obj = BgTrainWorkerObjAWS(dlLblFile,jobID,awsec2)
+    function obj = BgTrainWorkerObjAWS(dlLblFile,cacheRemoteRel,jobID,...
+        awsec2,logfilesremote)
       lbl = load(dlLblFile,'-mat');
       obj.nviews = lbl.cfg.NumViews;
       obj.sPrm = lbl.trackerDeepData.sPrm; % .sPrm guaranteed to match dlLblFile
@@ -35,8 +37,10 @@ classdef BgTrainWorkerObjAWS < handle
       
       obj.awsEc2 = awsec2;
       
+      obj.artfctLogs = logfilesremote;
       [obj.artfctTrainDataJson,obj.artfctFinalIndex,obj.artfctErrFile] = ...
-        arrayfun(@obj.trainMonitorArtifacts,1:obj.nviews,'uni',0);
+        arrayfun(@(ivw)obj.trainMonitorArtifacts(cacheRemoteRel,ivw),...
+        1:obj.nviews,'uni',0);
       
       obj.trnLogLastStep = repmat(-1,1,obj.nviews);
     end
@@ -58,12 +62,15 @@ classdef BgTrainWorkerObjAWS < handle
         'trainCompletePath',[],... % char, full path to artifact indicating train complete
         'trainComplete',[],... % true if trainCompletePath exists
         'errFile',[],... % char, full path to DL err file
-        'errFileExists',[]... % true of errFile exists and has size>0
+        'errFileExists',[],... % true of errFile exists and has size>0
+        'logFile',[],... % char, full path to remote logfile
+        'logFileErrLikely',[]... % true if logfile suggests error
         );
       for ivw=1:obj.nviews
         json = obj.artfctTrainDataJson{ivw};
         finalindex = obj.artfctFinalIndex{ivw};
         errFile = obj.artfctErrFile{ivw};
+        logFile = obj.artfctLogs{ivw};
         
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = obj.remoteFileExists(json,'dispcmd',verbose);
@@ -71,6 +78,9 @@ classdef BgTrainWorkerObjAWS < handle
         sRes(ivw).trainComplete = obj.remoteFileExists(finalindex,'dispcmd',verbose);
         sRes(ivw).errFile = errFile;
         sRes(ivw).errFileExists = obj.remoteFileExists(errFile,'reqnonempty',true,'dispcmd',verbose);
+        sRes(ivw).logFile = logFile;
+        sRes(ivw).logFileErrLikely = exist(logFile,'file')>0 && ...        
+          BgTrainWorkerObjBsub.parseLogFile(logFile);
         
         if sRes(ivw).jsonPresent
           json = obj.remoteFileContents(json,'dispcmd',verbose);
@@ -90,14 +100,17 @@ classdef BgTrainWorkerObjAWS < handle
       end
     end
     
-    function [json,finalindex,errfile] = trainMonitorArtifacts(obj,ivw)
-      cacheDir = obj.sPrm.CacheDir;
-      [~,cacheDirS] = fileparts(cacheDir);
+    function [json,finalindex,errfile] = trainMonitorArtifacts(obj,...
+        cacheRemoteRel,ivw)
+%       cacheDir = obj.sPrm.CacheDir;
+%       [~,cacheDirS] = fileparts(cacheDir);
       
       projvw = sprintf('%s_view%d',obj.projname,ivw-1); % !! cacheDirs are 0-BASED
-      subdir = fullfile('/home/ubuntu',cacheDirS,projvw,obj.jobID);
+%       subdir = fullfile('/home/ubuntu',cacheRemoteRel,projvw,obj.jobID);  
+      subdir = fullfile('/home/ubuntu',cacheRemoteRel);
       
-      json = sprintf('%s_pose_unet_traindata.json',projvw);
+%       json = sprintf('%s_pose_unet_traindata.json',projvw);
+      json = 'traindata.json'; % AL AWS testing 20180826: what happens with multiview?
       json = fullfile(subdir,json);
       json = FSPath.standardPathChar(json);
       
@@ -111,7 +124,11 @@ classdef BgTrainWorkerObjAWS < handle
     end
 
     function [tfEFE,errFile] = errfileExists(obj)
-      assert(false,'TODO');
+      errFile = obj.artfctErrFile;
+      errFile = unique(errFile);
+      assert(isscalar(errFile)); % Currently, all views common errFile
+      errFile = errFile{1};
+      tfEFE = obj.remoteFileExists(errFile,'reqnonempty',true,'dispcmd',true);
     end
 
     function tf = remoteFileExists(obj,f,varargin)
@@ -140,6 +157,11 @@ classdef BgTrainWorkerObjAWS < handle
         'dispcmd',dispcmd,'harderronfail',true); 
         
       s = res;
+    end
+    
+    function printLogfiles(obj)
+      logfileContents = cellfun(@obj.remoteFileContents,obj.artfctLogs,'uni',0);        
+      BgTrainWorkerObjBsub.printLogfilesStc(obj.artfctLogs,logfileContents);
     end
     
   end

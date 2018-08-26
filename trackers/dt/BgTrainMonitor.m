@@ -48,6 +48,10 @@ classdef BgTrainMonitor < handle
       obj.reset();
     end
     
+    function delete(obj)
+      obj.reset();
+    end
+    
     function reset(obj)
       % Reset BG Train Monitor state
       %
@@ -101,6 +105,8 @@ classdef BgTrainMonitor < handle
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;
       obj.trnMonitorObj = trnMonVizObj;
+      
+      obj.prepareHook(trnMonVizObj,bgWorkerObj);
     end
     
     function start(obj)
@@ -122,7 +128,7 @@ classdef BgTrainMonitor < handle
   end
   
   methods (Abstract)
+    prepareHook(obj,trnMonVizObj,bgWorkerObj)
     bgTrnResultsReceivedHook(obj,sRes)
   end
-
 end
