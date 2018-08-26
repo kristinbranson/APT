@@ -30,7 +30,7 @@ classdef BgTrainWorkerObjBsub < BgTrainWorkerObj
     end
     
     function tf = fileExists(~,file)
-      tf = exists(file,'file')>0;
+      tf = exist(file,'file')>0;
     end
     
     function tf = errFileExistsNonZeroSize(~,errFile)
