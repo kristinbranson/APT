@@ -173,13 +173,15 @@ classdef APT
         exist('ReadYaml','file')==0;
     end
     
-    function [pposetf] = getpathdl()
-      m = APT.readManifest;
-      if isfield(m,'posetf')
-        pposetf = m.posetf;
-      else
-        error('APT:noPath','Cannot find ''posetf'' Manifest specification.');
-      end
+    function pposetf = getpathdl()
+      r = APT.Root;
+      pposetf = fullfile(r,'deepnet');
+%       m = APT.readManifest;
+%       if isfield(m,'posetf')
+%         pposetf = m.posetf;
+%       else
+%         error('APT:noPath','Cannot find ''posetf'' Manifest specification.');
+%       end
     end
     
     function s = codesnapshot

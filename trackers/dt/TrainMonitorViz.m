@@ -1,4 +1,4 @@
-classdef DeepTrackerTrainingMonitor < handle
+classdef TrainMonitorViz < handle
   properties
     hfig % scalar fig
     haxs % [2] axis handle, viz training loss, dist
@@ -8,7 +8,7 @@ classdef DeepTrackerTrainingMonitor < handle
   end
   
   methods
-    function obj = DeepTrackerTrainingMonitor(nview,niter)
+    function obj = TrainMonitorViz(nview)
       obj.hfig = figure('Visible','on');
       obj.haxs = reshape(createsubplots(2,1,.1),2,1);
       arrayfun(@(x)grid(x,'on'),obj.haxs);
