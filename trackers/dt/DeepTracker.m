@@ -716,7 +716,7 @@ classdef DeepTracker < LabelTracker
         '/scratch'};      
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg','/misc/local/singularity/branson_v3.simg');
+        'singimg','/misc/local/singularity/branson_v2.simg');
       
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});

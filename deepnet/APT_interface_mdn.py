@@ -271,7 +271,7 @@ def create_conf(lbl_file, view, name, net_type='unet', cache_dir=None):
     ex_mov = multiResData.find_local_dirs(conf)[0][0]
 
     if 'NumChans' in lbl['cfg'].keys():
-        conf.imgDim = read_entry(lbl['cfg']['NumChans'])
+        conf.imgDim = int(read_entry(lbl['cfg']['NumChans']))
     else:
         cap = movies.Movie(ex_mov, interactive=False)
         ex_frame = cap.get_frame(0)
