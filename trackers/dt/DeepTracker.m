@@ -46,13 +46,11 @@ classdef DeepTracker < LabelTracker
     trkGenHeatMaps % transient, scalar logical. If true, include --hmaps opt
       % to generate heatmaps on disk
    
-    trkSysInfo % [nview] struct array of info used for current or most 
-    % recent tracking codegen/system call. currently only used for 
-    % debugging, printing logfiles etc.
+    trkSysInfo % [nview] transient, unmanageed. struct array of info used 
+    % for current or most recent tracking codegen/system call. currently 
+    % only used for debugging, printing logfiles etc.
     
-    bgTrkMonitorClient
-    bgTrkMonitorWorkerObj
-    %bgTrkMonitorResultsMonitor 
+    bgTrkMonitor
     
     % trackres: tracking results DB is in filesys
     movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
@@ -98,8 +96,8 @@ classdef DeepTracker < LabelTracker
       v = ~isempty(btm) && btm.isRunning;
     end
     function v = get.bgTrkIsRunning(obj)
-      clnt = obj.bgTrkMonitorClient;
-      v = ~isempty(clnt) && clnt.isRunning;
+      btm = obj.bgTrkMonitor;
+      v = ~isempty(btm) && btm.isRunning;
     end
   end
   
@@ -110,6 +108,8 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnType = BgTrainBackEnd.Bsub;
       obj.bgTrnMonitor = [];
       obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
+
+      obj.bgTrkMonitor = [];
     end    
     function initHook(obj)
       obj.trnResInit();
@@ -513,7 +513,28 @@ classdef DeepTracker < LabelTracker
       if exist(dlLblFile,'file')==0
         error('Cannot find training file: %s\n',dlLblFile);
       end
-      
+
+      baseargs = {};
+      if tftrx
+        baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
+      end
+      tfHeatMap = ~isempty(obj.trkGenHeatMaps) && obj.trkGenHeatMaps;
+      if tfHeatMap
+        baseargs = [baseargs {'hmaps' true}];
+      end
+
+      trkBackEnd = obj.bgTrnType; % Currently trn/trk backends are the same
+      switch trkBackEnd
+        case BgTrainBackEnd.Bsub
+          obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFile,baseargs,f0,f1);
+        case BgTrainBackEnd.AWS
+          obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFile,baseargs,f0,f1);
+        otherwise
+          assert(false);
+      end
+    end
+    
+    function trkSpawnBsub(obj,mIdx,tMFTConc,dlLblFile,baseargs,frm0,frm1)
       singBind = obj.genSingBindPath();
       singargs = {'bindpath',singBind};
       
@@ -522,9 +543,9 @@ classdef DeepTracker < LabelTracker
       assert(size(movs,2)==nView);
       movs = movs(1,:);
       nowstr = datestr(now,'yyyymmddTHHMMSS');
+      trnID = obj.trnName;
       trnstr = sprintf('trn%s',trnID);
       
-      tfHeatMap = ~isempty(obj.trkGenHeatMaps) && obj.trkGenHeatMaps;
       % info for code-generation. for now we just record a struct so we can
       % more conveniently read logfiles etc. in future this could be an obj
       % that has a codegen method etc.
@@ -541,13 +562,7 @@ classdef DeepTracker < LabelTracker
         outfile2 = fullfile(movP,[movF '_' trnstr '_' nowstr '.log2']);
         fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);        
         
-        baseargs = {'view' ivw}; % 1-based OK
-        if tftrx
-          baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
-        end
-        if tfHeatMap
-          baseargs = [baseargs {'hmaps' true}];
-        end
+        baseargs = [baseargs {'view' ivw}]; %#ok<AGROW> % 1-based OK
         bsubargs = {'outfile' outfile};
         sshargs = {'logfile' outfile2};        
         
@@ -555,7 +570,7 @@ classdef DeepTracker < LabelTracker
         trksysinfo(ivw).logfilebsub = outfile;
         trksysinfo(ivw).logfilessh = outfile2;
         trksysinfo(ivw).codestr = DeepTracker.trackCodeGenSSHBsubSing(...
-          trnID,dlLblFile,mov,trkfile,f0,f1,...
+          trnID,dlLblFile,mov,trkfile,frm0,frm1,...
           'baseargs',baseargs,'singArgs',singargs,'bsubargs',bsubargs,...
           'sshargs',sshargs);
       end
@@ -564,139 +579,79 @@ classdef DeepTracker < LabelTracker
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
       else
-        obj.bgTrkPrepareMonitor(mIdx,nView,movs,{trksysinfo.trkfile}',...
-          {trksysinfo.logfilebsub}');
-        obj.bgTrkStart();
+         % start track monitor
+        assert(isempty(obj.bgTrkMonitor));
         
+        outfiles = {trksysinfo.trkfile}';
+        bsublogfiles = {trksysinfo.logfilebsub}';
+        dlerrfile = DeepTracker.dlerrGetErrFile(trnID);
+        bgTrkWorkerObj = BgTrackWorkerObj(mIdx,nView,movs,outfiles,bsublogfiles,dlerrfile);
+        
+        tfErrFileErr = bgTrkWorkerObj.errFileExistsNonZeroSize(dlerrfile);
+        if tfErrFileErr
+          error('There is an error in the DeepLearning error file ''%s''. If you would like to proceed, first delete this file.',...
+            dlerrfile);
+        end
+
+        bgTrkMonitorObj = BgTrackMonitor;
+        bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
+        bgTrkMonitorObj.start();
+        obj.bgTrkMonitor = bgTrkMonitorObj;
+        
+        % spawn jobs
         for ivw=1:nView
           fprintf(1,'%s\n',trksysinfo(ivw).codestr);
           system(trksysinfo(ivw).codestr);
         end
         
         obj.trkSysInfo = trksysinfo;
-      end
+      end      
     end
     
     function trkPrintLogs(obj)
-      tsInfo = obj.trkSysInfo;
-      if isempty(tsInfo)
+      btm = obj.bgTrkMonitor;
+      if isempty(btm)
         error('Tracking is neither in progress nor complete.');
       end
-      for ivw=1:obj.nview
-        logfile = tsInfo(ivw).logfilebsub;
-        fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
-        if exist(logfile,'file')>0
-          type(logfile);
-        else
-          fprintf(1,' ... logfile does not exist yet\n');
-        end
-      end
+      btm.bgWorkerObj.printLogfiles();
     end
     
     function bgTrkReset(obj)
       obj.trkSysInfo = [];
-      if ~isempty(obj.bgTrkMonitorClient)
-        delete(obj.bgTrkMonitorClient);
-      end
-      obj.bgTrkMonitorClient = [];
-      if ~isempty(obj.bgTrkMonitorWorkerObj)
-        delete(obj.bgTrkMonitorWorkerObj)
-      end
-      obj.bgTrkMonitorWorkerObj = [];      
+      obj.trkMonitorClear();
     end
     
-    function bgTrkPrepareMonitor(obj,mIdx,nview,movfiles,outfiles,...
-        bsublogfiles)
-      
-      errFile = DeepTracker.dlerrGetErrFile(obj.trnName);
-      tfErrFileErr = BgTrainWorkerObjBsub.errFileExistsNonZeroSize(errFile);
-      if tfErrFileErr
-        error('There is an error in the DeepLearning error file ''%s''. If you are certain you would like to proceed, first delete this file.',...
-          errFile);
+    function trkMonitorClear(obj)
+      if ~isempty(obj.bgTrkMonitor)
+        delete(obj.bgTrkMonitor);
       end
-      
-      obj.bgTrkReset();
-      cbkResult = @obj.bgTrkResultsReceived;
-      workerObj = DeepTrackerTrackingWorkerObj(mIdx,nview,movfiles,...
-        outfiles,bsublogfiles,errFile);
-      bgc = BGClient;
-      fprintf(1,'Configuring tracking background worker...\n');
-      bgc.configure(cbkResult,workerObj,'compute');
-      obj.bgTrkMonitorClient = bgc;
-      obj.bgTrkMonitorWorkerObj = workerObj;
+      obj.bgTrkMonitor = [];
     end
     
-    function bgTrkStart(obj)
-      obj.bgTrkMonitorClient.startWorker('workerContinuous',true,...
-        'continuousCallInterval',20);
-    end
-    
-    function bgTrkResultsReceived(obj,sRes)
-      res = sRes.result;      
-      
-      errOccurred = any([res.errFileExists]);
-      if errOccurred
-        obj.bgTrkStop();
-
-        fprintf(1,'Error occurred during tracking:\n');      
-        errFile = res(1).errFile; % currently, errFiles same for all views
-        fprintf(1,'\n### %s\n\n',errFile);
-        type(errFile);
-        fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
-
-        % bgTrkReset not called
-      end
-
-      for i=1:numel(res)
-        if res(i).bsubLogFileErrLikely
-          obj.bgTrkStop();
-
-          fprintf(1,'Error occurred during tracking:\n');      
-          errFile = res(i).bsubLogFile;
-          fprintf(1,'\n### %s\n\n',errFile);
-          type(errFile);
-          fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
-
-          % bgTrkReset not called 
-        end
-      end
-      
-      tfdone = all([res.tfcomplete]);
-      if tfdone
-        fprintf(1,'Tracking output files detected:\n');
-        arrayfun(@(x)fprintf(1,'  %s\n',x.trkfile),res);
-        
-        obj.bgTrkStop();
-
-        mIdx = [res.mIdx];
-        assert(all(mIdx==mIdx(1)));
-        mIdx = res(1).mIdx;
-        movsFull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
-        if all(strcmp(movsFull(:),{res.movfile}'))
-          % we perform this check b/c while tracking has been running in
-          % the bg, the project could have been updated, movies
-          % renamed/reordered etc.
-          obj.trackResAddTrkfile(mIdx,{res.trkfile}');
-          if mIdx==obj.lObj.currMovIdx
-            obj.trackCurrResUpdate();
-            obj.newLabelerFrame();
-            fprintf('Tracking complete for current movie at %s.\n',datestr(now));
-          else
-            iMov = mIdx.get();
-            fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
-          end
+    function trkCompleteCbk(obj,res)
+      mIdx = [res.mIdx];
+      assert(all(mIdx==mIdx(1)));
+      mIdx = res(1).mIdx;
+      movsFull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
+      if all(strcmp(movsFull(:),{res.movfile}'))
+        % we perform this check b/c while tracking has been running in
+        % the bg, the project could have been updated, movies
+        % renamed/reordered etc.
+        obj.trackResAddTrkfile(mIdx,{res.trkfile}');
+        if mIdx==obj.lObj.currMovIdx
+          obj.trackCurrResUpdate();
+          obj.newLabelerFrame();
+          fprintf('Tracking complete for current movie at %s.\n',datestr(now));
         else
-          warningNoTrace('Tracking complete, but movieset %d has changed in current project.',...
-            int32(mIdx));
-          % conservative, take no action for now
+          iMov = mIdx.get();
+          fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
         end
+      else
+        warningNoTrace('Tracking complete, but movieset %d has changed in current project.',...
+          int32(mIdx));
+        % conservative, take no action for now
       end
     end
-    
-    function bgTrkStop(obj)
-      obj.bgTrkMonitorClient.stopWorker();
-      % don't clear trkSysInfo for now     
-    end       
     
   end
   methods (Static) % train/track codegen

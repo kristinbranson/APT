@@ -13,10 +13,9 @@ classdef BgTrainMonitor < handle
   %
   % BGTrainMonitor is intended to be subclassed.
   %
-  % BGTrainMonitor does NOT know how to spawn or kill training jobs. It
-  % only knows how to monitor them, and do something when they are done.
-  % For debugging, you can manually spawn jobs and monitor them with
-  % BgTrainMonitor.
+  % BGTrainMonitor does NOT know how to spawn training jobs but will know
+  % how to (attempt to) kill them. For debugging, you can manually spawn 
+  % jobs and monitor them with BgTrainMonitor.
   %
   % See also prepare() method comments for related info.
   
@@ -117,8 +116,48 @@ classdef BgTrainMonitor < handle
     end
     
     function bgTrnResultsReceived(obj,sRes)
-      obj.trnMonitorObj.resultsReceived(sRes);      
+      obj.trnMonitorObj.resultsReceived(sRes);
       obj.bgTrnResultsReceivedHook(sRes);
+    end
+    
+    function bgTrnResultsReceivedHook(obj,sRes)
+      errOccurred = any([sRes.result.errFileExists]);
+      if errOccurred
+        obj.stop();
+        
+        fprintf(1,'Error occurred during training:\n');
+        errFile = sRes.result(1).errFile; % currently, errFiles same for all views
+        fprintf(1,'\n### %s\n\n',errFile);
+        errContents = obj.bgWorkerObj.fileContents(errFile);
+        disp(errContents);
+        fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
+        
+        % monitor plot stays up; reset not called etc
+      end
+      
+      for i=1:numel(sRes.result)
+        if sRes.result(i).logFileErrLikely
+          obj.stop();
+          
+          fprintf(1,'Error occurred during training:\n');
+          errFile = sRes.result(i).logFile;
+          fprintf(1,'\n### %s\n\n',errFile);
+          errContents = obj.bgWorkerObj.fileContents(errFile);
+          disp(errContents);
+          fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
+          
+          % monitor plot stays up; bgTrnReset not called etc
+        end
+      end
+      
+      trnComplete = all([sRes.result.trainComplete]);
+      if trnComplete
+        obj.stop();
+        % % monitor plot stays up; reset not called etc
+        fprintf('Training complete at %s.\n',datestr(now));
+        
+        % May need a custom hook here
+      end
     end
     
     function stop(obj)
@@ -129,6 +168,5 @@ classdef BgTrainMonitor < handle
   
   methods (Abstract)
     prepareHook(obj,trnMonVizObj,bgWorkerObj)
-    bgTrnResultsReceivedHook(obj,sRes)
   end
 end
