@@ -770,7 +770,7 @@ def get_trx_ids(trx_ids_in, n_trx, has_trx_file):
         else:
             trx_ids = np.array(trx_ids_in)
     else:
-        trx_ids = [0]
+        trx_ids = np.array([0])
     return trx_ids
 
 
