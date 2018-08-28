@@ -101,6 +101,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
         k = 2
         extra_layers = self.conf.mdn_extra_layers
         # extra_layers = 1
+#extra_layers = 0 #no_extra_layer
 
         dep_net = self.dep_nets[0]
         n_layers_u = len(dep_net.up_layers) + extra_layers
@@ -310,7 +311,9 @@ class PoseUMDN(PoseCommon.PoseCommon):
                                           initializer=tf.constant_initializer(0))
             logits = tf.nn.conv2d(mdn_l, weights_logits,
                                   [1, 1, 1, 1], padding='SAME') + biases_logits
-
+            
+            # blur_weights
+            self.logits_pre_blur = logits
             # blur the weights during training.
             blur_rad = 0.7
             filt_sz = np.ceil(blur_rad * 3).astype('int')
@@ -319,8 +322,11 @@ class PoseUMDN(PoseCommon.PoseCommon):
             gg = gg/gg.sum()
             blur_kernel = np.tile(gg[:,:,np.newaxis,np.newaxis],[1,1,k*n_groups, k*n_groups])
             logits_blur = tf.nn.conv2d(logits, blur_kernel,[1,1,1,1], padding='SAME')
-            logits = tf.cond(self.ph['phase_train'], lambda: tf.identity(logits_blur), lambda: tf.identity(logits))
+            # blur_weights_extra
+            #logits = tf.cond(self.ph['phase_train'], lambda: tf.identity(logits_blur), lambda: tf.identity(logits))
+            logits = logits_blur
 
+            self.logits_post_blur = logits
             logits = tf.reshape(logits, [-1, n_x * n_y, k *n_groups])
             logits = tf.reshape(logits, [-1, n_x * n_y * k, n_groups],name='logits_final')
 
@@ -936,47 +942,46 @@ class PoseUMDN(PoseCommon.PoseCommon):
             locs = cur_input[1]
             cur_dist = np.zeros([conf.batch_size,conf.n_classes])
             cur_predlocs = np.zeros(pred_means.shape[0:1] + pred_means.shape[2:])
-            for ndx in range(pred_means.shape[0]):
-                for gdx, gr in enumerate(self.conf.mdn_groups):
-                    for g in gr:
-                        sel_ex = np.argmax(pred_weights[ndx,:,gdx])
-                        mm = pred_means[ndx, sel_ex, g, :]
-                        ll = locs[ndx,g,:]
-                        jj =  mm-ll
-                        # jj has distance between all labels and
-                        # all predictions with wts > 0.
-                        dd1 = np.sqrt(np.sum(jj ** 2, axis=-1))
-                        cur_dist[ndx, g] = dd1 * self.conf.rescale
-                        cur_predlocs[ndx,g,...] = mm
+#            for ndx in range(pred_means.shape[0]):
+#                for gdx, gr in enumerate(self.conf.mdn_groups):
+#                    for g in gr:
+#                        sel_ex = np.argmax(pred_weights[ndx,:,gdx])
+#                        mm = pred_means[ndx, sel_ex, g, :]
+#                        ll = locs[ndx,g,:]
+#                        jj =  mm-ll
+#                        # jj has distance between all labels and
+#                        # all predictions with wts > 0.
+#                        dd1 = np.sqrt(np.sum(jj ** 2, axis=-1))
+#                        cur_dist[ndx, g] = dd1 * self.conf.rescale
+#                        cur_predlocs[ndx,g,...] = mm
+            for sel in range(conf.batch_size):
+                for cls in range(conf.n_classes):
+                    for ndx in range(pred_means.shape[1]):
+                        cur_gr = [l.count(cls) for l in self.conf.mdn_groups].index(1)
+                        if pred_weights[sel, ndx, cur_gr] < (0.02/self.conf.max_n_animals):
+                            continue
+                        cur_locs = np.round(pred_means[sel:sel + 1, ndx:ndx + 1, cls, :]).astype('int')
+                        cur_scale = pred_std[sel, ndx, cls].astype('int')
+                        curl = (PoseTools.create_label_images(cur_locs, osz, 1, cur_scale) + 1) / 2
+                        mdn_pred_out[sel, :, :, cls] += pred_weights[sel, ndx, cur_gr] * curl[0, ..., 0]
 
+ 
             val_u_preds.append(u_pred)
             u_predlocs = PoseTools.get_pred_locs(u_pred)
             val_u_predlocs.append(u_predlocs)
 
-            # for sel in range(conf.batch_size):
-            #     for cls in range(conf.n_classes):
-                    # for ndx in range(pred_means.shape[1]):
-                    #     cur_gr = [l.count(cls) for l in self.conf.mdn_groups].index(1)
-                    #     if pred_weights[sel, ndx, cur_gr] < (0.02/self.conf.max_n_animals):
-                    #         continue
-                    #     cur_locs = np.round(pred_means[sel:sel + 1, ndx:ndx + 1, cls, :]).astype('int')
-                    #     # cur_scale = pred_std[sel, ndx, cls, :].mean().astype('int')
-                    #     cur_scale = pred_std[sel, ndx, cls].astype('int')
-                    #     curl = (PoseTools.create_label_images(cur_locs, osz, 1, cur_scale) + 1) / 2
-                    #     mdn_pred_out[sel, :, :, cls] += pred_weights[sel, ndx, cur_gr] * curl[0, ..., 0]
-
-            # locs = cur_input[1]
-            # if locs.ndim == 3:
-            #     cur_predlocs = PoseTools.get_pred_locs(mdn_pred_out)
-            #     cur_dist = np.sqrt(np.sum(
-            #         (cur_predlocs - locs/self.conf.unet_rescale) ** 2, 2))
-            # else:
-            #     cur_predlocs = PoseTools.get_pred_locs_multi(
-            #         mdn_pred_out,self.conf.max_n_animals,
-            #         self.conf.label_blur_rad * 7)
-            #     curl = locs.copy()/self.conf.unet_rescale
-            #     jj = cur_predlocs[:,:,np.newaxis,:,:] - curl[:,np.newaxis,...]
-            #     cur_dist = np.sqrt(np.sum(jj**2,axis=-1)).min(axis=1)
+            locs = cur_input[1]
+            if locs.ndim == 3:
+                cur_predlocs = PoseTools.get_pred_locs(mdn_pred_out)
+                cur_dist = np.sqrt(np.sum(
+                    (cur_predlocs - locs/self.conf.unet_rescale) ** 2, 2))
+            else:
+                cur_predlocs = PoseTools.get_pred_locs_multi(
+                    mdn_pred_out,self.conf.max_n_animals,
+                    self.conf.label_blur_rad * 7)
+                curl = locs.copy()/self.conf.unet_rescale
+                jj = cur_predlocs[:,:,np.newaxis,:,:] - curl[:,np.newaxis,...]
+                cur_dist = np.sqrt(np.sum(jj**2,axis=-1)).min(axis=1)
             val_dist.append(cur_dist)
             val_ims.append(cur_input[0])
             val_locs.append(cur_input[1])

@@ -149,7 +149,7 @@ class PoseUNet(PoseCommon):
                     X = conv(X, n_filt)
                 all_layers.append(X)
 
-            if ndx > 2:
+            if ndx > 1:
                 with tf.variable_scope('layerdown_{}_residual_0'.format(ndx)):
                     X = conv_residual(X,self.ph['phase_train']) 
                 with tf.variable_scope('layerdown_{}_residual_1'.format(ndx)):
@@ -157,6 +157,8 @@ class PoseUNet(PoseCommon):
                 with tf.variable_scope('layerdown_{}_residual_2'.format(ndx)):
                     X = conv_residual(X,self.ph['phase_train']) 
                 with tf.variable_scope('layerdown_{}_residual_3'.format(ndx)):
+                    X = conv_residual(X,self.ph['phase_train']) 
+                with tf.variable_scope('layerdown_{}_residual_4'.format(ndx)):
                     X = conv_residual(X,self.ph['phase_train']) 
 
             layers.append(X)
@@ -208,7 +210,7 @@ class PoseUNet(PoseCommon):
                 with tf.variable_scope(sc_name):
                     X = conv(X, n_filt)
 
-            if ndx > 2:
+            if ndx > 1:
                 with tf.variable_scope('layerup_{}_residual_0'.format(ndx)):
                     X = conv_residual(X,self.ph['phase_train']) 
                 with tf.variable_scope('layerup_{}_residual_1'.format(ndx)):

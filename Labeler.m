@@ -7867,7 +7867,11 @@ classdef Labeler < handle
         error('Number of channels differs across views.');
       end
       s.cfg.NumChans = nchan;
-            
+      
+%       if nchan>1
+%         warningNoTrace('Images have %d channels. Typically grayscale images are preferred; select View>Convert to grayscale.',nchan);
+%       end
+      
       cellOfObjArrs2CellOfStructArrs = ...
         @(x)cellfun(@(y)arrayfun(@struct,y),x,'uni',0); % note, y can be []
       warnst = warning('off','MATLAB:structOnObject');
