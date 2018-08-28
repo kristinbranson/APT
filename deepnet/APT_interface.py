@@ -31,28 +31,31 @@ def loadmat(filename):
     data = sio.loadmat(filename, struct_as_record=False, squeeze_me=True, appendmat=False)
     return _check_keys(data)
 
-def _check_keys(dict):
+
+def _check_keys(dict_in):
     '''
     checks if entries in dictionary are mat-objects. If yes
     todict is called to change them to nested dictionaries
     '''
-    for key in dict:
-        if isinstance(dict[key], sio.matlab.mio5_params.mat_struct):
-            dict[key] = _todict(dict[key])
-    return dict
+    for key in dict_in:
+        if isinstance(dict_in[key], sio.matlab.mio5_params.mat_struct):
+            dict_in[key] = _todict(dict_in[key])
+    return dict_in
+
 
 def _todict(matobj):
     '''
     A recursive function which constructs from matobjects nested dictionaries
     '''
-    dict = {}
+    cur_dict = {}
     for strg in matobj._fieldnames:
         elem = matobj.__dict__[strg]
         if isinstance(elem, sio.matlab.mio5_params.mat_struct):
-            dict[strg] = _todict(elem)
+            cur_dict[strg] = _todict(elem)
         else:
-            dict[strg] = elem
-    return dict
+            cur_dict[strg] = elem
+    return cur_dict
+
 
 def read_entry(x):
     if type(x) is h5py._hl.dataset.Dataset:
@@ -60,11 +63,13 @@ def read_entry(x):
     else:
         return x
 
+
 def read_string(x):
     if type(x) is h5py._hl.dataset.Dataset:
         return ''.join(chr(c) for c in x)
     else:
         return x
+
 
 def has_trx_file(x):
     if type(x) is h5py._hl.dataset.Dataset:
@@ -79,11 +84,13 @@ def has_trx_file(x):
             has_trx = True
     return has_trx
 
+
 def datetime2matlabdn(dt=datetime.datetime.now()):
     mdn = dt + datetime.timedelta(days=366)
     frac_seconds = (dt - datetime.datetime(dt.year, dt.month, dt.day, 0, 0, 0)).seconds / (24.0 * 60.0 * 60.0)
     frac_microseconds = dt.microsecond / (24.0 * 60.0 * 60.0 * 1000000.0)
     return mdn.toordinal() + frac_seconds + frac_microseconds
+
 
 def tf_serialize(data):
     # serialize data for writing to tf records file.
@@ -104,6 +111,7 @@ def tf_serialize(data):
 
     return example.SerializeToString()
 
+
 def create_tfrecord(conf, split=True, split_file=None, use_cache=False, on_gt=False, db_files=()):
     # function that creates tfrecords using db_from_lbl
     if not os.path.exists(conf.cachedir):
@@ -114,7 +122,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=False, on_gt=Fa
         env = tf.python_io.TFRecordWriter(train_filename)
         val_env = None
         envs = [env, val_env]
-    elif len(db_files)>1:
+    elif len(db_files) > 1:
         train_filename = db_files[0]
         env = tf.python_io.TFRecordWriter(train_filename)
         val_filename = db_files[1]
@@ -127,11 +135,10 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=False, on_gt=Fa
             logging.exception('DB_WRITE: Could not write to tfrecord database')
             exit(1)
 
-    out_fns = []
-    out_fns.append(lambda data: envs[0].write(tf_serialize(data)))
-    out_fns.append(lambda data: envs[1].write(tf_serialize(data)))
+    out_fns = [lambda data: envs[0].write(tf_serialize(data)),
+               lambda data: envs[1].write(tf_serialize(data))]
     if use_cache:
-        splits = db_from_cached_lbl(conf,out_fns, split, split_file, on_gt)
+        splits = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt)
     else:
         splits = db_from_lbl(conf, out_fns, split, split_file, on_gt)
 
@@ -142,7 +149,6 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=False, on_gt=Fa
             json.dump(splits, f)
     except IOError:
         logging.warning('SPLIT_WRITE: Could not output the split data information')
-
 
 
 def convert_to_orig(base_locs, conf, cur_trx, trx_fnum_start, all_f, sz, nvalid, crop_loc):
@@ -188,7 +194,7 @@ def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num):
     for bpart in range(hmaps.shape[-1]):
         cur_out = os.path.join(hmaps_dir, 'hmap_trx_{}_t_{}_part_{}.jpg'.format(trx_ndx + 1, frame_num + 1, bpart + 1))
         cur_im = hmaps[:, :, bpart]
-        cur_im = ((np.clip(cur_im, -1, 1) * 128) + 128).astype('uint8')
+        cur_im = ((np.clip(cur_im, -1, 1) * 128) + 127).astype('uint8')
         imageio.imwrite(cur_out, cur_im, 'jpg', quality=75)
         # cur_out_png = os.path.join(hmaps_dir,'hmap_trx_{}_t_{}_part_{}.png'.format(trx_ndx+1,frame_num+1,bpart+1))
         # imageio.imwrite(cur_out_png,cur_im)
@@ -672,7 +678,7 @@ def create_cv_split_files(conf, n_splits=3):
             frames = multiResData.get_labeled_frames(lbl, ndx, trx_ndx)
             mm = [ndx] * frames.size
             tt = [trx_ndx] * frames.size
-            cur_trx_info = list(zip(mm, tt, frames.tolist()))
+            cur_trx_info = list(zip(mm, frames.tolist(), tt))
             trx_info.append(cur_trx_info)
             cur_mov_info.extend(cur_trx_info)
             n_labeled_frames += frames.size
@@ -686,21 +692,21 @@ def create_cv_split_files(conf, n_splits=3):
         per_fold = np.zeros([n_splits])
         splits = [[] for i in range(n_splits)]
 
-        if conf.splitType is 'movie':
+        if conf.splitType == 'movie':
             for ndx in range(len(local_dirs)):
                 valid_folds = np.where(per_fold < lbls_per_fold)[0]
                 cur_fold = np.random.choice(valid_folds)
                 splits[cur_fold].extend(mov_info[ndx])
                 per_fold[cur_fold] += len(mov_info[ndx])
 
-        elif conf.splitType is 'trx':
+        elif conf.splitType == 'trx':
             for tndx in range(len(trx_info)):
                 valid_folds = np.where(per_fold < lbls_per_fold)[0]
                 cur_fold = np.random.choice(valid_folds)
                 splits[cur_fold].extend(trx_info[tndx])
                 per_fold[cur_fold] += len(trx_info[tndx])
 
-        elif conf.splitType is 'frames':
+        elif conf.splitType == 'frames':
             for ndx in range(len(local_dirs)):
                 for mndx in range(len(mov_info[ndx])):
                     valid_folds = np.where(per_fold < lbls_per_fold)[0]
@@ -863,13 +869,15 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file):
     return pred_locs
 
 
-def classify_db(conf, read_fn, pred_fn, n):
+def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
     bsize = conf.batch_size
     all_f = np.zeros((bsize,) + conf.imsz + (conf.imgDim,))
     pred_locs = np.zeros([n, conf.n_classes, 2])
     n_batches = int(math.ceil(float(n) / bsize))
     labeled_locs = np.zeros([n, conf.n_classes, 2])
     info = []
+    if return_ims:
+        all_ims = np.zeros([n,conf.imsz[0],conf.imsz[1],conf.imgDim])
     for cur_b in range(n_batches):
         cur_start = cur_b * bsize
         ppe = min(n - cur_start, bsize)
@@ -881,8 +889,13 @@ def classify_db(conf, read_fn, pred_fn, n):
         base_locs, hmaps = pred_fn(all_f)
         for ndx in range(ppe):
             pred_locs[cur_start + ndx, ...] = base_locs[ndx,...]
+            if return_ims:
+                all_ims[cur_start + ndx,...] = all_f[ndx,...]
 
-    return pred_locs, labeled_locs, info
+    if return_ims:
+        return pred_locs, labeled_locs, info, all_ims
+    else:
+        return pred_locs, labeled_locs, info
 
 
 
@@ -1383,7 +1396,7 @@ def run(args):
             if args.cache is not None:
                 conf.cachedir = args.cache
             if args.crop_loc is not None:
-                crop_loc = np.array(args.crop_loc).reshape([len(views), 4])[view_ndx,:]
+                crop_loc = np.array(args.crop_loc).reshape([len(views), 4])[view_ndx,:] - 1
             else:
                 crop_loc = None
 

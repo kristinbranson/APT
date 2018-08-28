@@ -889,13 +889,15 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file):
     return pred_locs
 
 
-def classify_db(conf, read_fn, pred_fn, n):
+def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
     bsize = conf.batch_size
     all_f = np.zeros((bsize,) + conf.imsz + (conf.imgDim,))
     pred_locs = np.zeros([n, conf.n_classes, 2])
     n_batches = int(math.ceil(float(n) / bsize))
     labeled_locs = np.zeros([n, conf.n_classes, 2])
     info = []
+    if return_ims:
+        all_ims = np.zeros([n,conf.imsz[0],conf.imsz[1],conf.imgDim])
     for cur_b in range(n_batches):
         cur_start = cur_b * bsize
         ppe = min(n - cur_start, bsize)
@@ -907,8 +909,13 @@ def classify_db(conf, read_fn, pred_fn, n):
         base_locs, hmaps = pred_fn(all_f)
         for ndx in range(ppe):
             pred_locs[cur_start + ndx, ...] = base_locs[ndx, ...]
+            if return_ims:
+                all_ims[cur_start + ndx,...] = all_f[ndx,...]
 
-    return pred_locs, labeled_locs, info
+    if return_ims:
+        return pred_locs, labeled_locs, info, all_ims
+    else:
+        return pred_locs, labeled_locs, info
 
 
 def classify_db_all(model_type, conf, db_file, model_file=None):
@@ -1383,7 +1390,7 @@ def run(args):
             if args.cache is not None:
                 conf.cachedir = args.cache
             if args.crop_loc is not None:
-                crop_loc = np.array(args.crop_loc).reshape([len(views), 4])[view_ndx, :]
+                crop_loc = np.array(args.crop_loc).reshape([len(views), 4])[view_ndx, :] - 1
             else:
                 crop_loc = None
 

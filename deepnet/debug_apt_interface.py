@@ -57,7 +57,7 @@ np.percentile(V[0],[90,95,98,99],axis=0)
 ##
 
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
 import apt_expts
@@ -72,11 +72,12 @@ m =model_file
 import APT_interface as apt
 conf.dlc_rescale = 1
 pred_fn, close_fn, _ = apt.get_pred_fn(curm, conf, m)
-pred, label, gt_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+pred, label, gt_list, ims = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N, return_ims=True)
 dd = np.sqrt(np.sum((pred-label)**2,axis=-1))
 np.percentile(dd,[90,95,98,99],axis=0)
 
-res = np.array([[ 1.45593502,  1.56175613,  1.86534404,  1.68371394,  2.04030646,
+res = np.array([[
+         1.45593502,  1.56175613,  1.86534404,  1.68371394,  2.04030646,
          2.26430405,  2.29727553,  1.5884356 ,  2.20272166,  1.69477133,
          2.54932645,  3.16365042,  2.52108448,  4.7560357 ,  5.13696831,
          2.87668273,  3.80720136],
@@ -95,7 +96,28 @@ res = np.array([[ 1.45593502,  1.56175613,  1.86534404,  1.68371394,  2.04030646
 
 
 ##
+sel = range(13,14)
+aa = ddmdn[:,sel].flatten()
+bb = dd[:3288,sel].flatten()
+plt.figure()
+plt.hist(aa-bb,range(-15,15))
+ss = aa-bb
 
+##
+selndx = 13
+ss = ddmdn[:,selndx] - dd[:3288,selndx]
+zz = np.where( (np.abs(ss)>3) & (np.abs(ss)<np.inf))[0]
+nr = 3; nc = 5
+f,ax = plt.subplots(nr,nc,sharex=True,sharey=True)
+ax = ax.flatten()
+for ndx in range(nc*nr):
+    r = np.random.choice(zz)
+    ax[ndx].imshow(ims[r,:,:,0],'gray')
+    ax[ndx].scatter(label[r,selndx,0],label[r,selndx,1],c='r')
+    ax[ndx].scatter(pred[r, selndx, 0], pred[r, selndx, 1], c='b')
+    ax[ndx].scatter(mdn[0][r, selndx, 0], mdn[0][r, selndx, 1], c='g')
+ax[0].set_title('Red: Label, Blue: DLC, Green: MDN')
+##
 
 import APT_interface_mdn as apat
 conf = apat.create_conf('/home/mayank/Dropbox (HHMI)/temp/20180807T130922_v73.lbl',0,'alice',cache_dir='/home/mayank/temp')

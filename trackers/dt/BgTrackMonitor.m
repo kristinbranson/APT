@@ -72,8 +72,8 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
       cbkResult = @obj.bgTrkResultsReceived;
       bgc.configure(cbkResult,bgWorkerObj,'compute');
  
-      obj.bgTrkMonitorClient = bgc;
-      obj.bgTrkMonitorWorkerObj = bgWorkerObj;
+      obj.bgClientObj = bgc;
+      obj.bgWorkerObj = bgWorkerObj;
       obj.cbkTrkComplete = cbkComplete;
     end
     

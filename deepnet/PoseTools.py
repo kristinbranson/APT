@@ -1365,6 +1365,7 @@ def get_crop_loc(lbl,ndx,view, on_gt=False):
             crop_loc = lbl[lbl[fname][0, ndx]]['roi'].value[:, 0].astype('int')
         else:
             crop_loc = lbl[lbl[lbl[fname][0, ndx]]['roi'][view][0]].value[:, 0].astype('int')
+        crop_loc = crop_loc - 1
     else:
         crop_loc = None
 
