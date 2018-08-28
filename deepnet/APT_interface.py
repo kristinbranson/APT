@@ -1396,7 +1396,8 @@ def run(args):
             if args.cache is not None:
                 conf.cachedir = args.cache
             if args.crop_loc is not None:
-                crop_loc = np.array(args.crop_loc).reshape([len(views), 4])[view_ndx,:] - 1
+                crop_loc = [int(x) for x in args.crop_loc]
+                crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx,:] - 1
             else:
                 crop_loc = None
 
