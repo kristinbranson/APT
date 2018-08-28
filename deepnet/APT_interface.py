@@ -1022,7 +1022,7 @@ def classify_movie(conf, pred_fn,
         pred_locs = pred_locs[:, trx_ids, ...]
         pred_locs = pred_locs.transpose([2, 3, 0, 1])
         pred_locs = pred_locs[:, :, n_done, :]
-        tgt = trx_ids + 1  # target animals that have been tracked.
+        tgt = np.array(trx_ids) + 1  # target animals that have been tracked.
         # For projects without trx file this is always 1.
         if not conf.has_trx_file:
             pred_locs = pred_locs[..., 0]
@@ -1152,6 +1152,7 @@ def get_unet_pred_fn(conf, model_file=None):
 def classify_movie_all(model_type, **kwargs):
     conf = kwargs['conf']
     model_file = kwargs['model_file']
+    del kwargs['model_file'], kwargs['conf']
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
     try:
         classify_movie(conf, pred_fn, model_file=model_file, **kwargs)

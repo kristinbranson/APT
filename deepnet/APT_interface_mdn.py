@@ -1047,7 +1047,7 @@ def classify_movie(conf, pred_fn,
         cur_pred_locs = cur_pred_locs[:, trx_ids, ...]
         cur_pred_locs = cur_pred_locs.transpose([2, 3, 0, 1])
         cur_pred_locs = cur_pred_locs[:, :, n_done, :]
-        tgt = trx_ids + 1  # target animals that have been tracked.
+        tgt = np.array(trx_ids) + 1  # target animals that have been tracked.
         # For projects without trx file this is always 1.
         if not conf.has_trx_file:
             cur_pred_locs = cur_pred_locs[..., 0]
