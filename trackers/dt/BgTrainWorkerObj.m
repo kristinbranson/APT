@@ -69,12 +69,7 @@ classdef BgTrainWorkerObj < handle
         sRes(ivw).errFile = errFile;
         sRes(ivw).errFileExists = obj.errFileExistsNonZeroSize(errFile);
         sRes(ivw).logFile = logFile;
-        tfLogErrLikely = obj.fileExists(logFile);
-        if tfLogErrLikely
-          logContents = obj.fileContents(logFile);
-          tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
-        end
-        sRes(ivw).logFileErrLikely = tfLogErrLikely;
+        sRes(ivw).logFileErrLikely = obj.logFileErrLikely(logFile);
         
         if sRes(ivw).jsonPresent
           json = obj.fileContents(json);
@@ -105,6 +100,14 @@ classdef BgTrainWorkerObj < handle
       assert(isscalar(errFile));
       errFile = errFile{1};
       tfEFE = obj.errFileExistsNonZeroSize(errFile);
+    end
+    
+    function tfLogErrLikely = logFileErrLikely(obj,file)
+      tfLogErrLikely = obj.fileExists(file);
+      if tfLogErrLikely
+        logContents = obj.fileContents(file);
+        tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
+      end
     end
 
   end
