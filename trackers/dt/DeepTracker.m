@@ -470,6 +470,8 @@ classdef DeepTracker < LabelTracker
       if obj.bgTrkIsRunning
         error('Tracking is already in progress.');
       end
+      
+      obj.bgTrkReset();
         
       if isempty(tblMFT)
         warningNoTrace('Nothing to track.');
@@ -486,7 +488,7 @@ classdef DeepTracker < LabelTracker
       
       fprintf(1,'\n');
 
-      tftrx = obj.lObj.hasTrx;
+      tftrx = obj.lObj.hasTrx;      
       if tftrx
         trxids = unique(tblMFT.iTgt);
         f0 = min(tblMFT.frm);
@@ -517,6 +519,13 @@ classdef DeepTracker < LabelTracker
       baseargs = {};
       if tftrx
         baseargs = [baseargs {'trxtrk' trxfile 'trxids' trxids}];
+      end
+      tfcrop = obj.lObj.cropProjHasCrops;
+      if tfcrop
+        assert(~tftrx);
+        cropInfo = obj.lObj.getMovieFilesAllCropInfoMovIdx(mIdx);
+        roi = cropInfo.roi;
+        baseargs = [baseargs {'croproi' roi}];
       end
       tfHeatMap = ~isempty(obj.trkGenHeatMaps) && obj.trkGenHeatMaps;
       if tfHeatMap
@@ -585,7 +594,7 @@ classdef DeepTracker < LabelTracker
         outfiles = {trksysinfo.trkfile}';
         bsublogfiles = {trksysinfo.logfilebsub}';
         dlerrfile = DeepTracker.dlerrGetErrFile(trnID);
-        bgTrkWorkerObj = BgTrackWorkerObj(mIdx,nView,movs,outfiles,bsublogfiles,dlerrfile);
+        bgTrkWorkerObj = BgTrackWorkerObjBsub(mIdx,nView,movs,outfiles,bsublogfiles,dlerrfile);
         
         tfErrFileErr = bgTrkWorkerObj.errFileExistsNonZeroSize(dlerrfile);
         if tfErrFileErr
@@ -747,16 +756,28 @@ classdef DeepTracker < LabelTracker
       codestr = cat(2,codestr{:});
     end
     function codestr = trackCodeGenBase(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
-      [trxtrk,trxids,view,hmaps] = myparse(varargin,...
+      [trxtrk,trxids,view,croproi,hmaps] = myparse(varargin,...
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
         'view',[],... % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
+        'croproi',[],... % (opt) 1-based [xlo xhi ylo yhi] roi (inclusive)
         'hmaps',false... % (opt) if true, generate heatmaps
         ); 
       
       tftrx = ~isempty(trxtrk);
       tftrxids = ~isempty(trxids);
       tfview = ~isempty(view);
+      tfcrop = ~isempty(croproi);
+      
+      assert(~(tftrx && tfcrop));
+      if tfcrop 
+        % APT_interface.py supports multiple views/crops but for now
+        % restrict here
+        assert(numel(croproi)==4);
+        if tfview
+          assert(numel(view)==1);
+        end
+      end
       
       aptintrf = fullfile(APT.getpathdl,'APT_interface.py');
 
@@ -775,6 +796,11 @@ classdef DeepTracker < LabelTracker
           trxidstr = trxidstr(1:end-1);
           codestr = sprintf('%s -trx_ids %s',codestr,trxidstr);
         end
+      end
+      if tfcrop
+        roistr = mat2str(croproi);
+        roistr = roistr(2:end-1);
+        codestr = sprintf('%s -crop_loc %s',codestr,roistr);
       end
       if hmaps
         codestr = sprintf('%s -hmaps',codestr);
