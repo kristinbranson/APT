@@ -57,12 +57,14 @@ np.percentile(V[0],[90,95,98,99],axis=0)
 ##
 
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
 import apt_expts
-db_file = '/home/mayank/work/poseTF/cache/alice_moreeval/val_TF.tfrecords'
-model_file = '/home/mayank/work/poseTF/cache/alice_moreeval/deepcut/snapshot-100000'
+# db_file = '/home/mayank/work/poseTF/cache/alice_moreeval/val_TF.tfrecords'
+# model_file = '/home/mayank/work/poseTF/cache/alice_moreeval/deepcut/snapshot-100000'
+db_file = '/home/mayank/work/poseTF/cache/alice_dataset/val_TF.tfrecords'
+model_file = '/home/mayank/work/poseTF/cache/alice/deeplabcut/nopretrained/snapshot-1030000'
 import multiResData
 tf_iterator = multiResData.tf_reader(conf, db_file, False)
 tf_iterator.batch_size = 1
@@ -76,6 +78,7 @@ pred, label, gt_list, ims = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.
 dd = np.sqrt(np.sum((pred-label)**2,axis=-1))
 np.percentile(dd,[90,95,98,99],axis=0)
 
+##
 res = np.array([[
          1.45593502,  1.56175613,  1.86534404,  1.68371394,  2.04030646,
          2.26430405,  2.29727553,  1.5884356 ,  2.20272166,  1.69477133,
