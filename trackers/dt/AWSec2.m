@@ -82,11 +82,39 @@ classdef AWSec2 < handle
     end
     
     function tfsucc = scpUpload(obj,file,dstRel,varargin)
-      [sysCmdArgs] = myparse(varargin,...
+      sysCmdArgs = myparse(varargin,...
         'sysCmdArgs',{});
       cmd = AWSec2.scpFileCmd(file,obj.pem,obj.instanceIP,dstRel,...
         'scpcmd',obj.scpCmd);
       tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
+    end
+    
+    function scpUploadOrVerify(obj,src,dstRel,fileDescStr) % throws
+      % Either i) confirm a remote file exists, or ii) upload it.
+      % In the case of i), NO CHECK IS MADE that the existing file matches
+      % the local file.
+      %
+      % Could use rsync here instead but rsync is less likely to be 
+      % installed on a Win machine
+      %
+      % This method either succeeds or fails and harderrors.
+      %
+      % src: full path to local file
+      % dstRel: relative (to home) path to destination
+      % fileDescStr: eg 'training file' or 'movie'
+            
+      tfsucc = obj.remoteFileExists(dstRel,'dispcmd',true);
+      if tfsucc
+        fprintf('%s file exists: %s.\n\n',...
+          String.niceUpperCase(fileDescStr),dstRel);
+      else
+        tfsucc = obj.scpUpload(src,dstRel,'sysCmdArgs',{'dispcmd',true});
+        if tfsucc
+          fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dstRel);
+        else
+          error('Failed to upload %s %s.',fileDescStr,src);
+        end
+      end
     end
     
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
