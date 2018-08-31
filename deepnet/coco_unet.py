@@ -39,12 +39,13 @@ def rle_to_segment(mask):
     return segmentation
 
 
-class coco_unet(PoseUNet):
+class coco_unet(PoseUNet.PoseUNetMulti):
 
 
     def __init__(self):
 
         conf.n_classes = 17
+        conf.max_n_animals = 20
         proj_name = 'coco_segmentation_unet'
         conf.set_exp_name(proj_name)
         conf.cachedir = os.path.join(localSetup.bdir,'cache','coco','segmentation')
@@ -93,27 +94,33 @@ class coco_unet(PoseUNet):
                 pts.extend(kp)
 
             img = img[np.newaxis,...]
-            pts = np.array(pts).reshape([1,conf.n_clases*n_ppl,3])
+            locs = np.ones([1, conf.max_n_animals, n_cls, 2]) * np.nan
+            pts = np.array(pts).reshape([n_ppl,conf.n_clases,3])
+            for p in n_ppl:
+                locs[0, p,:,:] = pts[p,:,:2]
+                not_valid = pts[p,:,3]<0.5
+                locs[0, p, not_valid,:] = np.nan
 
             if db_type == 'train':
-                img, pts_p = PoseTools.preprocess_ims(img, pts[:,:,:2], conf, distort=True, scale = 1)
+                img, locs = PoseTools.preprocess_ims(img, locs, conf, distort=True, scale = 1)
             else:
-                img, pts_p = PoseTools.preprocess_ims(img, pts[:,:,:,2], conf, distort=False, scale = 1)
+                img, locs = PoseTools.preprocess_ims(img, locs, conf, distort=False, scale = 1)
 
             img = img[0,...]
-            label_im = np.zeros(img.shape[:2] + (conf.n_classes,))
+            label_im = np.ones(img.shape[:2] + (conf.n_classes,)) * -1
             for ndx in range(n_ppl):
-                cur_pts = pts_p[0, (ndx) * n_cls:(ndx + 1) * n_cls, :]
-                valid = pts[0, (ndx) * 17:(ndx + 1) * 17, 2] > 0
+                cur_pts = locs[0, (ndx) * n_cls:(ndx + 1) * n_cls, :]
                 cur_l = PoseTools.create_label_images(cur_pts[np.newaxis, ...], img.shape[:2], 1, conf.label_blur_rad)
-                cur_l[..., np.invert(valid)] = -1.
                 label_im = np.maximum(cur_l[0, ...], label_im)
 
             img_shape = img.shape[:2]
             img = zoom(img,[256./img_shape[0],256./img_shape[1],1])
             label_im = zoom(label_im,[256./img_shape[0],256./img_shape[1],1])
 
-            return img, np.zeros([conf.batch_size, conf.n_classes,2]), np.ones([conf.batch_size,3])*id, label_im
+            info = np.zeros([4])
+            info[0] = id
+            info[3] = n_ppl
+            return img, locs[0,...], info, label_im
 
         def train_map(id):
             return coco_map(id, 'train')

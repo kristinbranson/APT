@@ -113,7 +113,6 @@ def l2_dist(x,y):
     return np.sqrt(np.sum((x-y)**2,axis=-1))
 
 
-
 class PoseCommon(object):
 
     class DBType(Enum):
@@ -634,17 +633,16 @@ class PoseCommon(object):
 
 class PoseCommonMulti(PoseCommon):
 
-    def create_cursors(self, sess):
-        train_ims, train_locs, train_info = \
-            multiResData.read_and_decode_multi(self.train_queue, self.conf)
-        val_ims, val_locs, val_info = \
-            multiResData.read_and_decode_multi(self.val_queue, self.conf)
-        self.train_data = [train_ims, train_locs, train_info]
-        self.val_data = [val_ims, val_locs, val_info]
-        self.coord = tf.train.Coordinator()
-        self.threads = tf.train.start_queue_runners(sess=sess, coord=self.coord)
+    def compute_train_data(self, sess, db_type):
+        self.fd_train() if db_type is self.DBType.Train \
+            else self.fd_val()
+        cur_loss, cur_pred, self.cur_inputs = \
+            sess.run( [self.cost, self.pred, self.inputs], self.fd)
+        cur_dist = self.compute_dist(cur_pred, self.cur_inputs[1], self.cur_inputs[2])
+        return cur_loss, cur_dist
 
-    def compute_dist_m(self,preds,locs):
+
+    def compute_dist(self, preds,locs, info):
         pred_locs = PoseTools.get_pred_locs_multi(
             preds, self.conf.max_n_animals,
             self.conf.label_blur_rad * 2)
@@ -654,7 +652,7 @@ class PoseCommonMulti(PoseCommon):
 
         for ndx in range(self.conf.batch_size):
             for cls in range(self.conf.n_classes):
-                for i_ndx in range(self.info[ndx][2][0]):
+                for i_ndx in range(info[ndx][3][0]):
                     cur_locs = locs[ndx, i_ndx, cls, ...]
                     if np.isnan(cur_locs[0]):
                         continue
@@ -662,7 +660,8 @@ class PoseCommonMulti(PoseCommon):
                     closest = np.argmin(cur_dist)
                     dist[ndx,i_ndx,cls] += cur_dist.min()
 
-    def classify_val_m(self):
+
+    def classify_val(self):
         val_file = os.path.join(self.conf.cachedir, self.conf.valfilename + '.tfrecords')
         num_val = 0
         for record in tf.python_io.tf_record_iterator(val_file):
