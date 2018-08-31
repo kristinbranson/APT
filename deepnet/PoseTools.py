@@ -317,6 +317,8 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
                     and np.all(lr[valid, 0] <= cols) \
                     and np.all(lr[valid, 1] <= rows):
                 sane = True
+            elif not conf.check_bounds_distort:
+                sane = True
             elif do_rotate:
                 continue
 
