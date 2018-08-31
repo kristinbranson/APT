@@ -10,23 +10,41 @@ import imageio
 import localSetup
 from scipy.ndimage.interpolation import zoom
 import numpy as np
+import cv2
 
 coco_dir='/groups/branson/home/kabram/bransonlab/coco'
 val_name = 'val2017'
 train_name = 'train2017'
-train_ann='{}/annotations/instances_{}.json'.format(coco_dir,train_name)
-val_ann='{}/annotations/instances_{}.json'.format(coco_dir,train_name)
+train_ann='{}/annotations/person_keypoints_{}.json'.format(coco_dir,train_name)
+val_ann='{}/annotations/person_keypoints_{}.json'.format(coco_dir,train_name)
 train_dir = os.path.join(coco_dir,train_name)
 val_dir = os.path.join(coco_dir,val_name)
 
 from poseConfig import config as conf
+
+
+def rle_to_segment(mask):
+    # opencv 3.2
+    mask_new, contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    # before opencv 3.2
+    # contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,
+    #                                                    cv2.CHAIN_APPROX_SIMPLE)
+    segmentation = []
+
+    for contour in contours:
+        contour = contour.flatten().tolist()
+        segmentation.append(contour)
+        if len(contour) > 4:
+            segmentation.append(contour)
+    return segmentation
+
 
 class coco_unet(PoseUNet):
 
 
     def __init__(self):
 
-        conf.n_classes = 80
+        conf.n_classes = 17
         proj_name = 'coco_segmentation_unet'
         conf.set_exp_name(proj_name)
         conf.cachedir = os.path.join(localSetup.bdir,'cache','coco','segmentation')
@@ -37,6 +55,7 @@ class coco_unet(PoseUNet):
         conf.normalize_img_mean = True
         conf.imgDim = 3
         conf.dl_steps = 100000
+        conf.check_bounds_distort = False
 
         PoseUNet.__init__(self, conf, name=proj_name)
 
@@ -45,6 +64,7 @@ class coco_unet(PoseUNet):
 
         conf = self.conf
 
+        n_cls = conf.n_classes
         train_coco = COCO(train_ann)
         val_coco = COCO(val_ann)
         val_ids = val_coco.getImgIds()
@@ -66,43 +86,34 @@ class coco_unet(PoseUNet):
             # Preprocessing
             annIds = coco.getAnnIds(imgIds=img['id'], iscrowd=None)
             anns = coco.loadAnns(annIds)
-            seg_sz = []
-            seg_label = []
-            for ann in anns:
-                cur_seg_sz = []
-                for seg in ann['segmentation']:
-                    cur_seg_sz.append(len(seg))
-                    seg_label.extend(seg)
-                seg_sz.append(cur_seg_sz)
+            pts = []
+            n_ppl = len(anns)
+            for ndx, ann in enumerate(anns):
+                kp = ann['keypoints']
+                pts.extend(kp)
 
-            seg_label = np.array(seg_label).reshape([1,int(len(seg_label/2)),2])
             img = img[np.newaxis,...]
+            pts = np.array(pts).reshape([1,conf.n_clases*n_ppl,3])
 
             if db_type == 'train':
-                img, seg_label = PoseTools.preprocess_ims(img, seg_label, conf, distort=True, scale = 1)
+                img, pts_p = PoseTools.preprocess_ims(img, pts[:,:,:2], conf, distort=True, scale = 1)
             else:
-                img, seg_label = PoseTools.preprocess_ims(img, seg_label, conf, distort=False, scale = 1)
+                img, pts_p = PoseTools.preprocess_ims(img, pts[:,:,:,2], conf, distort=False, scale = 1)
 
             img = img[0,...]
-            seg_label = seg_label.flatten().tolist()
-            seg_start = 0
-            for ndx, ann in enumerate(anns):
-                for seg_ndx, seg in enumerate(ann['segmentation']):
-                    seg_end = seg_start + seg_sz[ndx][seg_ndx]
-                    cur_seg = seg_label[seg_start:seg_end]
-                    ann['segmentation'][seg_ndx] = cur_seg
-                    seg_start = seg_end
+            label_im = np.zeros(img.shape[:2] + (conf.n_classes,))
+            for ndx in range(n_ppl):
+                cur_pts = pts_p[0, (ndx) * n_cls:(ndx + 1) * n_cls, :]
+                valid = pts[0, (ndx) * 17:(ndx + 1) * 17, 2] > 0
+                cur_l = PoseTools.create_label_images(cur_pts[np.newaxis, ...], img.shape[:2], 1, conf.label_blur_rad)
+                cur_l[..., np.invert(valid)] = -1.
+                label_im = np.maximum(cur_l[0, ...], label_im)
 
-            #Resizing to common size
-            mask = np.zeros(img.shape[:2] + (conf.n_classes,))
-            img = zoom(img,[256./img.shape[0],256./img.shape[1],1])
+            img_shape = img.shape[:2]
+            img = zoom(img,[256./img_shape[0],256./img_shape[1],1])
+            label_im = zoom(label_im,[256./img_shape[0],256./img_shape[1],1])
 
-            for ann in anns:
-                cur_cat = ann['category_id']
-                mask[:,:,cur_cat] = coco.annToMask(ann)
-            mask = zoom(mask,[256./img.shape[0],256./img.shape[1],1])
-
-            return img, np.zeros([conf.batch_size, conf.n_classes,2]), np.ones([conf.batch_size,3])*id, mask
+            return img, np.zeros([conf.batch_size, conf.n_classes,2]), np.ones([conf.batch_size,3])*id, label_im
 
         def train_map(id):
             return coco_map(id, 'train')
