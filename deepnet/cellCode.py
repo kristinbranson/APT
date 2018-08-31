@@ -1,4 +1,12 @@
+##
+%matplotlib ipympl
+import matplotlib.pyplot as plt
+import imageio
+ii = imageio.imread('/groups/branson/bransonlab/mayank/coco/train2017/000000000064.jpg')
+plt.imshow(ii)
 
+
+##
 # coding: utf-8
 
 # In[5]:

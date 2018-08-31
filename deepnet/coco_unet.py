@@ -15,17 +15,18 @@ coco_dir='/groups/branson/home/kabram/bransonlab/coco'
 val_name = 'val2017'
 train_name = 'train2017'
 train_ann='{}/annotations/instances_{}.json'.format(coco_dir,train_name)
-val_ann='{}/annotations/instances_{}.json'.format(coco_dir,train_name)
+val_ann='{}/annotations/instances_{}.json'.format(coco_dir,val_name)
 train_dir = os.path.join(coco_dir,train_name)
 val_dir = os.path.join(coco_dir,val_name)
 
-from poseConfig import config as conf
+from poseConfig import config
 
 class coco_unet(PoseUNet):
 
 
     def __init__(self):
 
+        conf = config()
         conf.n_classes = 80
         proj_name = 'coco_segmentation_unet'
         conf.set_exp_name(proj_name)
@@ -60,11 +61,12 @@ class coco_unet(PoseUNet):
                 coco = val_coco
                 im_dir = val_dir
 
-            img = coco.loadImgs(int(id))[0]
-            img = imageio.imread(os.path.join(im_dir, img['file_name']))
+            img_info = coco.loadImgs(int(id))[0]
+            img = imageio.imread(os.path.join(im_dir, img_info['file_name']))
+            print img.shape
 
             # Preprocessing
-            annIds = coco.getAnnIds(imgIds=img['id'], iscrowd=None)
+            annIds = coco.getAnnIds(imgIds=img_info['id'], iscrowd=None)
             anns = coco.loadAnns(annIds)
             seg_sz = []
             seg_label = []
@@ -74,14 +76,18 @@ class coco_unet(PoseUNet):
                     cur_seg_sz.append(len(seg))
                     seg_label.extend(seg)
                 seg_sz.append(cur_seg_sz)
+            print('Read the sizes')
 
-            seg_label = np.array(seg_label).reshape([1,int(len(seg_label/2)),2])
+            seg_label = np.array(seg_label).reshape([1,int(len(seg_label)/2),2])
+            print(seg_label)
             img = img[np.newaxis,...]
 
             if db_type == 'train':
                 img, seg_label = PoseTools.preprocess_ims(img, seg_label, conf, distort=True, scale = 1)
             else:
                 img, seg_label = PoseTools.preprocess_ims(img, seg_label, conf, distort=False, scale = 1)
+
+            print('preprocessed the images')
 
             img = img[0,...]
             seg_label = seg_label.flatten().tolist()
@@ -95,12 +101,14 @@ class coco_unet(PoseUNet):
 
             #Resizing to common size
             mask = np.zeros(img.shape[:2] + (conf.n_classes,))
-            img = zoom(img,[256./img.shape[0],256./img.shape[1],1])
+            print('New size {}'.format([256./img.shape[0],256./img.shape[1],1]	)) 
 
             for ann in anns:
                 cur_cat = ann['category_id']
                 mask[:,:,cur_cat] = coco.annToMask(ann)
             mask = zoom(mask,[256./img.shape[0],256./img.shape[1],1])
+            img = zoom(img,[256./img.shape[0],256./img.shape[1],1])
+            print('resized the images')
 
             return img, np.zeros([conf.batch_size, conf.n_classes,2]), np.ones([conf.batch_size,3])*id, mask
 
@@ -113,16 +121,18 @@ class coco_unet(PoseUNet):
         py_map_train = lambda im_id: tuple(tf.py_func(train_map, [im_id], [tf.float32, tf.float32, tf.float32, tf.float32]))
         py_map_val = lambda im_id: tuple(tf.py_func(val_map, [im_id], [tf.float32, tf.float32, tf.float32, tf.float32]))
 
-        train_dataset = train_dataset.map(map_func=py_map_train, num_parallel_calls=5)
+#        train_dataset = train_dataset.map(map_func=py_map_train, num_parallel_calls=5)
+        train_dataset = train_dataset.map(map_func=py_map_train)
         train_dataset = train_dataset.repeat()
-        train_dataset = train_dataset.shuffle(buffer_size=100)
+#        train_dataset = train_dataset.shuffle(buffer_size=100)
         train_dataset = train_dataset.batch(self.conf.batch_size)
-        train_dataset = train_dataset.prefetch(buffer_size=100)
+#        train_dataset = train_dataset.prefetch(buffer_size=100)
 
-        val_dataset = val_dataset.map(map_func=py_map_val, num_parallel_calls=2)
+#        val_dataset = val_dataset.map(map_func=py_map_val, num_parallel_calls=2)
+        val_dataset = val_dataset.map(map_func=py_map_val)
         val_dataset = val_dataset.repeat()
         val_dataset = val_dataset.batch(self.conf.batch_size)
-        val_dataset = val_dataset.prefetch(buffer_size=100)
+#        val_dataset = val_dataset.prefetch(buffer_size=100)
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -135,6 +145,8 @@ class coco_unet(PoseUNet):
 
         self.inputs = []
         for ndx in range(len(train_next)):
-            self.inputs.append(
-                tf.cond(self.ph['is_train'], lambda: tf.identity(train_next[ndx]), lambda: tf.identity(val_next[ndx])))
+            self.inputs.append(train_next[ndx])
+#for ndx in range(len(train_next)):
+#            self.inputs.append(
+#                tf.cond(self.ph['is_train'], lambda: tf.identity(train_next[ndx]), lambda: tf.identity(val_next[ndx])))
 

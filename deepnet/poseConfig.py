@@ -96,6 +96,7 @@ class config(object):
         self.trange = 10
         self.scale_range = 0.1
         self.imax = 255.
+        self.check_bounds_distort = True
         self.adjustContrast = False
         self.clahegridsize = 20
         self.normalize_img_mean = True
