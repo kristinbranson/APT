@@ -211,8 +211,6 @@ classdef DeepTracker < LabelTracker
       wbObj = myparse(varargin,...
         'wbObj',[]);
       
-      tfWB = ~isempty(wbObj);         
-
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
       end
@@ -236,49 +234,32 @@ classdef DeepTracker < LabelTracker
       
       trnBackEnd = obj.bgTrnType;
       fprintf('Your training backend is: %s\n',char(trnBackEnd));
-      
-      switch trnBackEnd
-        case BgTrainBackEnd.AWS
-          % Remote-train requires preProcData to be updated for all
-          % training rows/images
-          [tfsucc,obj.trnTblP] = obj.preretrain([],wbObj);
-          if ~tfsucc
-            obj.trnTblP = [];
-            return;
-          end
-      end
-      
-      trnID = datestr(now,'yyyymmddTHHMMSS');
-      
-      fprintf(1,'\n');
-      
-      if ~isempty(obj.trnName)
-        trnNameOld = fullfile(cacheDir,'...',obj.trnName);
-        trnNameNew = fullfile(cacheDir,'...',trnID);
-        warningNoTrace('New trained model will be created at %s. Previous trained model at %s will not be deleted.',...
-          trnNameNew,trnNameOld);
-      end
-      obj.trnName = trnID;
-      
-      % Write stripped lblfile to cacheDir
-      s = lblObj.trackCreateDeepTrackerStrippedLbl(); 
-      if trnBackEnd==BgTrainBackEnd.AWS
-        s.cfg.NumChans = size(s.preProcData_I{1},3); % check with Mayank, thought we wanted number of "underlying" chans but DL is erring when pp data is grayscale but NumChans is 3
-      end
-      dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
-      save(dlLblFile,'-mat','-v7.3','-struct','s');
-      fprintf('Saved stripped lbl file: %s\n',dlLblFile);
-      
       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
+      fprintf(1,'\n');
+            
+      trnID = datestr(now,'yyyymmddTHHMMSS');            
       
       switch trnBackEnd
         case BgTrainBackEnd.Bsub
-          obj.trnSpawnBsub(dlLblFile);
+          if ~isempty(obj.trnName)
+            trnNameOld = fullfile(cacheDir,'...',obj.trnName);
+            trnNameNew = fullfile(cacheDir,'...',trnID);
+            warningNoTrace('New trained model will be created at %s. Previous trained model at %s will not be deleted.',...
+              trnNameNew,trnNameOld);
+          end
+          obj.trnName = trnID;
+          obj.trnSpawnBsub();
+
         case BgTrainBackEnd.AWS
-          obj.trnSpawnAWS(dlLblFile);
+          obj.trnName = trnID;
+          obj.trnSpawnAWS(wbObj);
+          
         otherwise
           assert(false);
       end
+      
+      % Nothing should occur here as failed trnSpawn* will early return
+      
     end
     
     function trnPrintLogs(obj)
@@ -304,11 +285,22 @@ classdef DeepTracker < LabelTracker
   methods
     %% BSub Trainer
     
-    function trnSpawnBsub(obj,dlLblFile)
+    function trnSpawnBsub(obj)
+      trnID = obj.trnName;
+      cacheDir = obj.sPrm.CacheDir;
+      
+      % Write stripped lblfile to cacheDir
+      s = obj.lObj.trackCreateDeepTrackerStrippedLbl(); 
+%       if trnBackEnd==BgTrainBackEnd.AWS
+%         s.cfg.NumChans = size(s.preProcData_I{1},3); % check with Mayank, thought we wanted number of "underlying" chans but DL is erring when pp data is grayscale but NumChans is 3
+%       end
+      dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
+      save(dlLblFile,'-mat','-v7.3','-struct','s');
+      fprintf('Saved stripped lbl file: %s\n',dlLblFile);
+      
       singBind = obj.genSingBindPath();
       singArgs = {'bindpath',singBind};
       nvw = obj.lObj.nview;
-      trnID = obj.trnName;
       cmds = arrayfun(@(x) DeepTracker.trainCodeGenSSHBsubSing(trnID,dlLblFile,...
         'baseargs',{'view' x},...
         'singargs',singArgs,...
@@ -400,19 +392,78 @@ classdef DeepTracker < LabelTracker
   end
   methods
       
-    function trnSpawnAWS(obj,dlLblFile)
-      
+    function trnSpawnAWS(obj,wbObj)
       nvw = obj.lObj.nview;
-      
-      assert(nvw==1,'Multiview AWS train currently unsupported.');
+      trnID = obj.trnName;
+      cacheDir = obj.sPrm.CacheDir;
       
       aws = obj.awsEc2;
 %       if numel(aws)~=nvw
 %         error('You must have one AWSec2 object for each view.');
 %       end
-%               
+      assert(nvw==1,'Multiview AWS train currently unsupported.');
+      if isempty(aws)
+        error('AWSec2 object not set.');
+      end
       aws.checkInstanceRunning(); % harderrs if instance isn't running
       fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
+      
+      % Remote-train requires preProcData to be updated for all
+      % training rows/images
+      [tfsucc,obj.trnTblP] = obj.preretrain([],wbObj);
+      if ~tfsucc
+        obj.trnTblP = [];
+        return;
+      end
+
+      % for images, deepnet will use preProcData; trx files however need 
+      % to be uploaded
+
+      s = obj.lObj.trackCreateDeepTrackerStrippedLbl(); 
+      % check with Mayank, thought we wanted number of "underlying" chans 
+      % but DL is erring when pp data is grayscale but NumChans is 3
+      s.cfg.NumChans = size(s.preProcData_I{1},3); 
+      
+      tftrx = obj.lObj.hasTrx;
+      if tftrx
+        % 1. The moviefiles in s should be not be used; deepnet should be
+        % reading images directly from .preProcData_I. Fill s.movieFilesAll
+        % with jibber as an assert.
+        % 2. The trxfiles in s refer to local files; for AWS training we
+        % will need them to refer to remote locs.
+        %   a. For each trxfile that appears in the training data, we 
+        %      upload it and replace all appropriate rows of s.trxFilesAll.
+        %   b. For all other rows of s.trxFilesAll, we replace with jibber
+        %      as an assert.
+        
+        datadirRemoteFull = DeepTracker.hlpPutCheckRemoteDir(aws,'data','data');
+
+        iMovTrn = unique(obj.trnTblP.mov); % must be regular mov, not GT
+        
+        assert(nvw==1,'Single-view only');
+        IVIEW = 1;
+        nmov = size(s.trxFilesAll,1);
+        for iMov=1:nmov
+          s.movieFilesAll{iMov,IVIEW} = '__UNUSED__';
+          
+          if any(iMov==iMovTrn)
+            trxLclAbs = s.trxFilesAll{iMov,IVIEW};
+            trxsha = DeepTracker.getSHA(trxLclAbs);
+            trxRemoteRel = ['data/' trxsha];
+            trxRemoteAbs = ['/home/ubuntu/' trxRemoteRel];
+            aws.scpUploadOrVerify(trxLclAbs,trxRemoteRel,'trxfile'); % throws
+            
+            s.trxFilesAll{iMov,IVIEW} = trxRemoteAbs;
+          else
+            s.trxFilesAll{iMov,IVIEW} = '__UNUSED__';
+          end
+        end
+      end
+      
+      % Write stripped lblfile to cacheDir
+      dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
+      save(dlLblFile,'-mat','-v7.3','-struct','s');
+      fprintf('Saved stripped lbl file: %s\n',dlLblFile);
       
       % update our remote repo
       cmdremote = DeepTracker.trainCodeGenAWSUpdateAPTRepo();
@@ -423,7 +474,6 @@ classdef DeepTracker < LabelTracker
         error('Failed to update remote APT repo.');
       end
       
-      trnID = obj.trnName;
       cacheRemoteRel = ['cache' trnID];      
       [cacheRemoteFull,dlLblRemoteRel] = ...
         DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,cacheRemoteRel,dlLblFile);
@@ -705,8 +755,9 @@ classdef DeepTracker < LabelTracker
       for ivw=1:nvw
         % upload mov/trx as nec
         mov = movsfull{ivw};
+        [~,~,movE] = fileparts(mov);
         movsha = DeepTracker.getSHA(mov);
-        movRemoteRel = ['data/' movsha];
+        movRemoteRel = ['data/' movsha movE];
         movRemoteAbs = ['~/' movRemoteRel];
         aws.scpUploadOrVerify(mov,movRemoteRel,'movie'); % throws            
         if tftrx
@@ -714,7 +765,7 @@ classdef DeepTracker < LabelTracker
           trxsha = DeepTracker.getSHA(trx);
           trxRemoteRel = ['data/' trxsha];
           trxRemoteAbs = ['~/' trxRemoteRel];
-          aws.scpUploadOrVerify(trx,trxsha,'trxfile'); % throws            
+          aws.scpUploadOrVerify(trx,trxRemoteRel,'trxfile'); % throws            
         end
               
         baseargsaug = cropHmapArgs;
