@@ -4,7 +4,7 @@ classdef DeepTracker < LabelTracker
     algorithmName = 'poseTF';
   end
   properties (Constant,Hidden)
-    SAVEPROPS = {'sPrm' 'trnName' 'movIdx2trkfile' 'hideViz'};    
+    SAVEPROPS = {'sPrm' 'awsEc2' 'backendType' 'trnName' 'movIdx2trkfile' 'hideViz'};    
   end
   properties
     sPrm % new-style DT params
@@ -12,6 +12,8 @@ classdef DeepTracker < LabelTracker
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
     
+    backendType % scalar DLBackEnd
+
     singBindPath % transient, cellstr of BIND_PATHs for singularity. 
       % Used only when training with Bsub backend. Will be used if it is 
       % non-empty; otherwise an attempt will be made to generate the 
@@ -20,7 +22,7 @@ classdef DeepTracker < LabelTracker
     awsEc2 % AWSec2 obj, used only for AWS backend actions. 
            % TODO: can hide backend-specific state (this, singBindPath,
            % etc) in backend obj
-      
+
     %% train
     
     % - The trained model lives in the fileSys in <cacheDir>/<proj>view%d/trnName.
@@ -35,7 +37,6 @@ classdef DeepTracker < LabelTracker
     trnName
     trnTblP % transient, unmanaged. Training rows for last retrain
     
-    bgTrnType % scalar BgTrainBackEnd
     bgTrnMonitor % BgTrainMonitor obj
     bgTrnMonitorVizClass % class of trainMonitorViz object to use to monitor training
         
@@ -105,7 +106,7 @@ classdef DeepTracker < LabelTracker
     function obj = DeepTracker(lObj)
       obj@LabelTracker(lObj);
       
-      obj.bgTrnType = BgTrainBackEnd.Bsub;
+      obj.backendType = DLBackEnd.Bsub;
       obj.bgTrnMonitor = [];
       obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
 
@@ -137,6 +138,8 @@ classdef DeepTracker < LabelTracker
       end      
     end
     function loadSaveToken(obj,s)
+      s = DeepTracker.modernizeSaveToken(s);
+      
       obj.initHook(); % maybe handled upstream
       flds = fieldnames(s);
       flds = setdiff(flds,'hideViz');
@@ -158,7 +161,51 @@ classdef DeepTracker < LabelTracker
       obj.newLabelerFrame();
     end
   end
+  methods (Static)
+    function s = modernizeSaveToken(s)
+      % 20180901
+      if ~isfield(s,'awsEc2')
+        s.awsEc2 = [];
+      end
+      if ~isfield(s,'backendType')
+        s.backendType = DLBackEnd.Bsub;
+      end
+    end
+  end
   
+  %% Backends
+  methods
+    
+    function setBackend(obj,backEndType)
+      if isa(backEndType,'DLBackEnd')
+        % none
+      else
+        [btbe,btbestrs] = enumeration('DLBackEnd');
+        if ischar(backEndType)          
+          idx = find(strcmpi(backEndType,btbestrs));
+        else 
+          idx = [];
+        end
+        if isempty(idx)
+          error('Unrecognized back end type. Allowed values are: %s',...
+            String.cellstr2CommaSepList(btbestrs));
+        end
+        backEndType = btbe(idx);
+      end
+      obj.backendType = backEndType;
+    end
+    
+    function setAWSEC2(obj,aws)
+%       aws = AWSec2(keyName,pem);
+%       aws.instanceID = instanceID;
+      tfsucc = aws.inspectInstance();
+      if ~tfsucc
+        error('Failed to inspect EC2 instanceID %s.',instanceID);
+      end
+      obj.awsEc2 = aws;
+    end
+    
+  end
   
   %% Train
   methods
@@ -188,14 +235,14 @@ classdef DeepTracker < LabelTracker
     % cannot be managed/killed from this class. If there is an issue the
     % actual compute needs to be manually killed.
     % 2. Background monitoring of the train. This can be reset with
-    % trnMonitorClear().
+    % bgTrnReset().
     
     function trnResInit(obj)
       obj.trnName = '';
-      obj.trnMonitorClear();
+      obj.bgTrnReset();
     end
     
-    function trnMonitorClear(obj)
+    function bgTrnReset(obj)
       if ~isempty(obj.bgTrnMonitor)
         delete(obj.bgTrnMonitor);
       end
@@ -214,7 +261,7 @@ classdef DeepTracker < LabelTracker
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
       end
-      obj.trnMonitorClear();
+      obj.bgTrnReset();
       if obj.bgTrkIsRunning
         error('Tracking is in progress.');
       end
@@ -232,7 +279,7 @@ classdef DeepTracker < LabelTracker
         error('Please give your project a name. The project name will be used to identify your trained models on disk.');
       end      
       
-      trnBackEnd = obj.bgTrnType;
+      trnBackEnd = obj.backendType;
       fprintf('Your training backend is: %s\n',char(trnBackEnd));
       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
       fprintf(1,'\n');
@@ -240,7 +287,7 @@ classdef DeepTracker < LabelTracker
       trnID = datestr(now,'yyyymmddTHHMMSS');            
       
       switch trnBackEnd
-        case BgTrainBackEnd.Bsub
+        case DLBackEnd.Bsub
           if ~isempty(obj.trnName)
             trnNameOld = fullfile(cacheDir,'...',obj.trnName);
             trnNameNew = fullfile(cacheDir,'...',trnID);
@@ -250,7 +297,7 @@ classdef DeepTracker < LabelTracker
           obj.trnName = trnID;
           obj.trnSpawnBsub();
 
-        case BgTrainBackEnd.AWS
+        case DLBackEnd.AWS
           obj.trnName = trnID;
           obj.trnSpawnAWS(wbObj);
           
@@ -264,8 +311,11 @@ classdef DeepTracker < LabelTracker
     
     function trnPrintLogs(obj)
       trnID = obj.trnName;
-      if isempty(trnID) || ~obj.bgTrnIsRunning
-        error('Training is not in progress.');
+      if isempty(trnID) 
+        error('Training is not complete or in progress.');
+      end
+      if ~obj.bgTrnIsRunning
+        fprintf('Training is not in progress; log is for most recent training session.\n');
       end
       
       trnBgWorkerObj = obj.bgTrnMonitor.bgWorkerObj;
@@ -291,7 +341,7 @@ classdef DeepTracker < LabelTracker
       
       % Write stripped lblfile to cacheDir
       s = obj.lObj.trackCreateDeepTrackerStrippedLbl(); 
-%       if trnBackEnd==BgTrainBackEnd.AWS
+%       if trnBackEnd==DLBackEnd.AWS
 %         s.cfg.NumChans = size(s.preProcData_I{1},3); % check with Mayank, thought we wanted number of "underlying" chans but DL is erring when pp data is grayscale but NumChans is 3
 %       end
       dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
@@ -406,7 +456,16 @@ classdef DeepTracker < LabelTracker
         error('AWSec2 object not set.');
       end
       aws.checkInstanceRunning(); % harderrs if instance isn't running
-      fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
+%       fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
+
+      % update our remote repo
+      cmdremote = DeepTracker.trainCodeGenAWSUpdateAPTRepo();
+      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
+      if tfsucc
+        fprintf('Updated remote APT repo.\n\n');
+      else
+        error('Failed to update remote APT repo.');
+      end
       
       % Remote-train requires preProcData to be updated for all
       % training rows/images
@@ -464,16 +523,7 @@ classdef DeepTracker < LabelTracker
       dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
       save(dlLblFile,'-mat','-v7.3','-struct','s');
       fprintf('Saved stripped lbl file: %s\n',dlLblFile);
-      
-      % update our remote repo
-      cmdremote = DeepTracker.trainCodeGenAWSUpdateAPTRepo();
-      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
-      if tfsucc
-        fprintf('Updated remote APT repo.\n\n');
-      else
-        error('Failed to update remote APT repo.');
-      end
-      
+            
       cacheRemoteRel = ['cache' trnID];      
       [cacheRemoteFull,dlLblRemoteRel] = ...
         DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,cacheRemoteRel,dlLblFile);
@@ -604,11 +654,11 @@ classdef DeepTracker < LabelTracker
         cropHmapArgs = [cropHmapArgs {'hmaps' true}];
       end
 
-      trkBackEnd = obj.bgTrnType; % Currently trn/trk backends are the same
+      trkBackEnd = obj.backendType; % Currently trn/trk backends are the same
       switch trkBackEnd
-        case BgTrainBackEnd.Bsub
+        case DLBackEnd.Bsub
           obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFile,cropHmapArgs,f0,f1);
-        case BgTrainBackEnd.AWS
+        case DLBackEnd.AWS
           obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFile,cropHmapArgs,f0,f1);
         otherwise
           assert(false);
@@ -705,10 +755,11 @@ classdef DeepTracker < LabelTracker
       if isunix
         assert(false,'TODO');
       else
-        shacmd = sprintf('certUtil -hashFile %s sha256',file);
-        [~,res] = AWSec2.syscmd(shacmd,'harderronfail',true);
+        shacmd = sprintf('certUtil -hashFile %s MD5',file);
+        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'harderronfail',true);
         toks = regexp(res,'\n','split');
         sha = toks{2};
+        sha = regexprep(sha,' ','');
       end
     end
   end

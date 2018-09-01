@@ -26,6 +26,7 @@ classdef AWSec2 < handle
     function delete(obj)
       % TODO 
     end
+    
   end
   
   methods
@@ -58,6 +59,9 @@ classdef AWSec2 < handle
       else
         assert(strcmp(obj.instanceID,json.Reservations.Instances.InstanceId));
       end
+      
+      fprintf('EC2 instanceID %s is running with IP %s.\n',obj.instanceID,...
+        obj.instanceIP);
     end
     
     function [tfsucc,json] = stopInstance(obj)

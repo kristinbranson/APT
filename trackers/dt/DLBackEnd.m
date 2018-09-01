@@ -1,4 +1,4 @@
-classdef BgTrainBackEnd 
+classdef DLBackEnd 
   enumeration 
     Bsub
     AWS
