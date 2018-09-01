@@ -837,25 +837,16 @@ class PoseUNetMulti(PoseUNet, PoseCommonMulti):
         PoseUNet.__init__(self, conf, name)
 
 
-    def update_fd(self, db_type, sess, distort):
-        self.read_images(db_type, distort, sess, distort)
-        self.fd[self.ph['x']] = self.xs
-        n_classes = self.locs.shape[2]
-        sz0 = self.conf.imsz[0]
-        sz1 = self.conf.imsz[1]
-        label_ims = np.zeros([self.conf.batch_size, sz0, sz1, n_classes])
-        for ndx in range(self.conf.batch_size):
-            for i_ndx in range(self.info[ndx][2][0]):
-                cur_l = PoseTools.create_label_images(
-                    self.locs[ndx:ndx+1,i_ndx,...], self.conf.imsz, 1, self.conf.label_blur_rad)
-                label_ims[ndx,...] = np.maximum(label_ims[ndx,...], cur_l)
+    def create_network(self ):
+        im, locs, info, hmap = self.inputs
+        conf = self.conf
+        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.imgDim])
+        hmap.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale, conf.imsz[1]/conf.rescale,conf.n_classes])
+        locs.set_shape([conf.batch_size, conf.max_n_animals, conf.n_classes,2])
+        info.set_shape([conf.batch_size,4])
 
-        self.fd[self.ph['y']] = label_ims
-
-
-    def create_cursors(self, sess):
-        PoseCommonMulti.create_cursors(self,sess)
-
+        with tf.variable_scope(self.net_name):
+            return self.create_network1()
 
 class PoseUNetTime(PoseUNet, PoseCommonTime):
 
