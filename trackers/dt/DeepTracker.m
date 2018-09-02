@@ -331,7 +331,6 @@ classdef DeepTracker < LabelTracker
       s = [cacheDir '/' sprintf('%s_view%d.log',trnID,iview)];
     end  
   end
-
   methods
     %% BSub Trainer
     
@@ -404,8 +403,8 @@ classdef DeepTracker < LabelTracker
       end
     end    
     
-    %% AWS Trainer
   end
+  %% AWS Trainer
   methods (Static)
     function [cacheRemoteFull,dlLblRemoteRel] = ...
           hlpPutCheckRemoteCacheAndLblFile(aws,cacheRemoteRel,dlLblFile)
@@ -770,7 +769,7 @@ classdef DeepTracker < LabelTracker
 
       aws = obj.awsEc2;
       aws.checkInstanceRunning(); % harderrs if instance isn't running
-      fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
+%       fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
       
       % update our remote repo
       cmdremote = DeepTracker.trainCodeGenAWSUpdateAPTRepo();

@@ -126,6 +126,7 @@ classdef AWSec2 < handle
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstRel);
       else
+        fprintf('About to upload. This could take a while depending ...\n');
         tfsucc = obj.scpUpload(src,dstRel,'sysCmdArgs',{'dispcmd',true});
         if tfsucc
           fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dstRel);
