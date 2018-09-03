@@ -29,7 +29,9 @@ classdef BgTrainWorkerObj < handle
     function obj = BgTrainWorkerObj(dlLblFile,jobID)
       lbl = load(dlLblFile,'-mat');
       obj.nviews = lbl.cfg.NumViews;
-      obj.sPrm = lbl.trackerDeepData.sPrm; % .sPrm guaranteed to match dlLblFile
+      % Looks like we don't need sPrm at all here
+      assert(strcmp(lbl.trackerClass{2},'DeepTracker'));
+      obj.sPrm = lbl.trackerData{2}.sPrm; % .sPrm guaranteed to match dlLblFile. 
       obj.projname = lbl.projname;
       obj.jobID = jobID;
 
