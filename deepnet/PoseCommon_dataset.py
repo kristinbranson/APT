@@ -377,6 +377,8 @@ class PoseCommon(object):
         for dep_net in self.dep_nets:
             dep_net.initialize_net(sess)
         initialize_remaining_vars(sess)
+        if self.conf.use_pretrained_weights:
+            self.restore_pretrained()
 
 
     def train_step(self, step, sess, learning_rate, training_iters):
