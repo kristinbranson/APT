@@ -1,4 +1,4 @@
-from PoseUNet_dataset import PoseUNet
+import PoseUNet_dataset as PoseUNet
 from PoseCommon_dataset import PoseCommon
 import PoseTools
 import sys
@@ -11,32 +11,17 @@ import localSetup
 from scipy.ndimage.interpolation import zoom
 import numpy as np
 import cv2
+import traceback
 
 coco_dir='/groups/branson/home/kabram/bransonlab/coco'
 val_name = 'val2017'
 train_name = 'train2017'
 train_ann='{}/annotations/person_keypoints_{}.json'.format(coco_dir,train_name)
-val_ann='{}/annotations/person_keypoints_{}.json'.format(coco_dir,train_name)
+val_ann='{}/annotations/person_keypoints_{}.json'.format(coco_dir,val_name)
 train_dir = os.path.join(coco_dir,train_name)
 val_dir = os.path.join(coco_dir,val_name)
 
 from poseConfig import config
-
-
-def rle_to_segment(mask):
-    # opencv 3.2
-    mask_new, contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-    # before opencv 3.2
-    # contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,
-    #                                                    cv2.CHAIN_APPROX_SIMPLE)
-    segmentation = []
-
-    for contour in contours:
-        contour = contour.flatten().tolist()
-        segmentation.append(contour)
-        if len(contour) > 4:
-            segmentation.append(contour)
-    return segmentation
 
 
 class coco_unet(PoseUNet.PoseUNetMulti):
@@ -50,7 +35,7 @@ class coco_unet(PoseUNet.PoseUNetMulti):
         proj_name = 'coco_segmentation_unet'
         conf.set_exp_name(proj_name)
         conf.cachedir = os.path.join(localSetup.bdir,'cache','coco','segmentation')
-        conf.imsz = [256,256]
+        conf.imsz = [240,320]
         conf.sel_sz = 256
         conf.unet_rescale = 1
         conf.adjustContrast = False
@@ -58,8 +43,9 @@ class coco_unet(PoseUNet.PoseUNetMulti):
         conf.imgDim = 3
         conf.dl_steps = 100000
         conf.check_bounds_distort = False
+        conf.label_blur_rad = 5
 
-        PoseUNet.__init__(self, conf, name=proj_name)
+        PoseUNet.PoseUNet.__init__(self, conf, name=proj_name)
 
 
     def create_datasets(self):
@@ -84,7 +70,10 @@ class coco_unet(PoseUNet.PoseUNetMulti):
 
             img_info = coco.loadImgs(int(id))[0]
             img = imageio.imread(os.path.join(im_dir, img_info['file_name']))
-            print img.shape
+            if img.ndim == 2:
+                img = np.tile(img[:,:,np.newaxis],[1,1,3])
+            elif img.shape[2] == 1:
+                img = np.tile(img,[1,1,3])
 
             # Preprocessing
             annIds = coco.getAnnIds(imgIds=img_info['id'], iscrowd=None)
@@ -97,10 +86,10 @@ class coco_unet(PoseUNet.PoseUNetMulti):
 
             img = img[np.newaxis,...]
             locs = np.ones([1, conf.max_n_animals, n_cls, 2]) * np.nan
-            pts = np.array(pts).reshape([n_ppl,conf.n_clases,3])
-            for p in n_ppl:
+            pts = np.array(pts).reshape([n_ppl,conf.n_classes,3])
+            for p in range(n_ppl):
                 locs[0, p,:,:] = pts[p,:,:2]
-                not_valid = pts[p,:,3]<0.5
+                not_valid = pts[p,:,2]<0.5
                 locs[0, p, not_valid,:] = np.nan
 
             if db_type == 'train':
@@ -108,45 +97,51 @@ class coco_unet(PoseUNet.PoseUNetMulti):
             else:
                 img, locs = PoseTools.preprocess_ims(img, locs, conf, distort=False, scale = 1)
 
-            print('preprocessed the images')
 
             img = img[0,...]
             label_im = np.ones(img.shape[:2] + (conf.n_classes,)) * -1
             for ndx in range(n_ppl):
-                cur_pts = locs[0, (ndx) * n_cls:(ndx + 1) * n_cls, :]
+                cur_pts = locs[0, ndx, :, :]
                 cur_l = PoseTools.create_label_images(cur_pts[np.newaxis, ...], img.shape[:2], 1, conf.label_blur_rad)
                 label_im = np.maximum(cur_l[0, ...], label_im)
 
             img_shape = img.shape[:2]
-            img = zoom(img,[256./img_shape[0],256./img_shape[1],1])
-            label_im = zoom(label_im,[256./img_shape[0],256./img_shape[1],1])
+            imsz = conf.imsz
+            img = zoom(img,[float(imsz[0])/img_shape[0],float(imsz[1])/img_shape[1],1])
+            label_im = zoom(label_im,[float(imsz[0])/img_shape[0],float(imsz[1])/img_shape[1],1])
+            locs[...,0] = locs[...,0]*float(imsz[1])/img_shape[1]
+            locs[...,1] = locs[...,1]*float(imsz[0])/img_shape[0]
 
             info = np.zeros([4])
             info[0] = id
             info[3] = n_ppl
-            return img, locs[0,...], info, label_im
+            return img.astype('float32'), locs[0,...].astype('float32'), info.astype('float32'), label_im.astype('float32')
 
         def train_map(id):
-            return coco_map(id, 'train')
+            try:
+                return coco_map(id,'train')
+            except:
+                traceback.print_exc()
 
         def val_map(id):
-            return coco_map(id, 'val')
+            try:
+                return coco_map(id, 'val')
+            except:
+                traceback.print_exc()
 
         py_map_train = lambda im_id: tuple(tf.py_func(train_map, [im_id], [tf.float32, tf.float32, tf.float32, tf.float32]))
         py_map_val = lambda im_id: tuple(tf.py_func(val_map, [im_id], [tf.float32, tf.float32, tf.float32, tf.float32]))
 
-#        train_dataset = train_dataset.map(map_func=py_map_train, num_parallel_calls=5)
-        train_dataset = train_dataset.map(map_func=py_map_train)
+        train_dataset = train_dataset.map(map_func=py_map_train, num_parallel_calls=20)
         train_dataset = train_dataset.repeat()
-#        train_dataset = train_dataset.shuffle(buffer_size=100)
+        train_dataset = train_dataset.shuffle(buffer_size=100)
         train_dataset = train_dataset.batch(self.conf.batch_size)
-#        train_dataset = train_dataset.prefetch(buffer_size=100)
+        train_dataset = train_dataset.prefetch(buffer_size=100)
 
-#        val_dataset = val_dataset.map(map_func=py_map_val, num_parallel_calls=2)
-        val_dataset = val_dataset.map(map_func=py_map_val)
+        val_dataset = val_dataset.map(map_func=py_map_val, num_parallel_calls=4)
         val_dataset = val_dataset.repeat()
         val_dataset = val_dataset.batch(self.conf.batch_size)
-#        val_dataset = val_dataset.prefetch(buffer_size=100)
+        val_dataset = val_dataset.prefetch(buffer_size=100)
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -159,8 +154,6 @@ class coco_unet(PoseUNet.PoseUNetMulti):
 
         self.inputs = []
         for ndx in range(len(train_next)):
-            self.inputs.append(train_next[ndx])
-#for ndx in range(len(train_next)):
-#            self.inputs.append(
-#                tf.cond(self.ph['is_train'], lambda: tf.identity(train_next[ndx]), lambda: tf.identity(val_next[ndx])))
+            self.inputs.append(
+                tf.cond(self.ph['is_train'], lambda: tf.identity(train_next[ndx]), lambda: tf.identity(val_next[ndx])))
 

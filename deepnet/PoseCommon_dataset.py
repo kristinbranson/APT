@@ -26,6 +26,7 @@ import json
 import math
 import threading
 import logging
+import time
 from six import reraise as raise_
 
 
@@ -471,9 +472,12 @@ class PoseCommon(object):
             #initialize_remaining_vars(sess)
             #self.init_td()
 
+            start = time.time()
             for step in range(0, training_iters + 1):
                 self.train_step(step, sess, learning_rate, training_iters)
                 if step % self.conf.display_step == 0:
+                    end = time.time()
+                    print('Time required to train: {}'.format(end-start))
                     train_loss, train_dist = self.compute_train_data(sess, self.DBType.Train)
                     val_loss = 0.
                     val_dist = 0.
@@ -487,6 +491,7 @@ class PoseCommon(object):
                                'train_loss': train_loss, 'val_loss': val_loss,
                                'train_dist': train_dist, 'val_dist': val_dist}
                     self.update_td(cur_dict)
+                    start = end
                 if step % self.conf.save_step == 0:
                     self.save(sess, step)
                 if step % self.conf.save_td_step == 0:
@@ -643,6 +648,7 @@ class PoseCommonMulti(PoseCommon):
 
 
     def compute_dist(self, preds,locs, info):
+        start = time.time()
         pred_locs = PoseTools.get_pred_locs_multi(
             preds, self.conf.max_n_animals,
             self.conf.label_blur_rad * 2)
@@ -652,13 +658,16 @@ class PoseCommonMulti(PoseCommon):
 
         for ndx in range(self.conf.batch_size):
             for cls in range(self.conf.n_classes):
-                for i_ndx in range(info[ndx][3][0]):
+                for i_ndx in range(info[ndx][3]):
                     cur_locs = locs[ndx, i_ndx, cls, ...]
                     if np.isnan(cur_locs[0]):
                         continue
                     cur_dist = l2_dist(pred_locs[ndx, :, cls, :], cur_locs)
                     closest = np.argmin(cur_dist)
-                    dist[ndx,i_ndx,cls] += cur_dist.min()
+                    dist[ndx,i_ndx,cls] = cur_dist.min()
+        end = time.time()
+        print('Time required to compute dist: {}'.format(end-start))
+        return np.nanmean(dist)
 
 
     def classify_val(self):
