@@ -581,7 +581,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
         rem_locs += tf.global_variables(self.dep_nets[0].net_name + '/out')
 
         var_list = self.get_var_list()
-        pre_list = tfr.list_variables(model_file)
+        pre_list = tf.train.list_variables(model_file)
         pre_list_names = [p[0] for p in pre_list]
         pre_list_shapes = [p[1] for p in pre_list]
         common_vars = []
