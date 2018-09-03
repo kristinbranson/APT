@@ -20,7 +20,7 @@ val_ann='{}/annotations/person_keypoints_{}.json'.format(coco_dir,train_name)
 train_dir = os.path.join(coco_dir,train_name)
 val_dir = os.path.join(coco_dir,val_name)
 
-from poseConfig import config as conf
+from poseConfig import config
 
 
 def rle_to_segment(mask):
@@ -44,6 +44,7 @@ class coco_unet(PoseUNet.PoseUNetMulti):
 
     def __init__(self):
 
+        conf = config()
         conf.n_classes = 17
         conf.max_n_animals = 20
         proj_name = 'coco_segmentation_unet'
@@ -81,11 +82,12 @@ class coco_unet(PoseUNet.PoseUNetMulti):
                 coco = val_coco
                 im_dir = val_dir
 
-            img = coco.loadImgs(int(id))[0]
-            img = imageio.imread(os.path.join(im_dir, img['file_name']))
+            img_info = coco.loadImgs(int(id))[0]
+            img = imageio.imread(os.path.join(im_dir, img_info['file_name']))
+            print img.shape
 
             # Preprocessing
-            annIds = coco.getAnnIds(imgIds=img['id'], iscrowd=None)
+            annIds = coco.getAnnIds(imgIds=img_info['id'], iscrowd=None)
             anns = coco.loadAnns(annIds)
             pts = []
             n_ppl = len(anns)
@@ -105,6 +107,8 @@ class coco_unet(PoseUNet.PoseUNetMulti):
                 img, locs = PoseTools.preprocess_ims(img, locs, conf, distort=True, scale = 1)
             else:
                 img, locs = PoseTools.preprocess_ims(img, locs, conf, distort=False, scale = 1)
+
+            print('preprocessed the images')
 
             img = img[0,...]
             label_im = np.ones(img.shape[:2] + (conf.n_classes,)) * -1
@@ -131,16 +135,18 @@ class coco_unet(PoseUNet.PoseUNetMulti):
         py_map_train = lambda im_id: tuple(tf.py_func(train_map, [im_id], [tf.float32, tf.float32, tf.float32, tf.float32]))
         py_map_val = lambda im_id: tuple(tf.py_func(val_map, [im_id], [tf.float32, tf.float32, tf.float32, tf.float32]))
 
-        train_dataset = train_dataset.map(map_func=py_map_train, num_parallel_calls=5)
+#        train_dataset = train_dataset.map(map_func=py_map_train, num_parallel_calls=5)
+        train_dataset = train_dataset.map(map_func=py_map_train)
         train_dataset = train_dataset.repeat()
-        train_dataset = train_dataset.shuffle(buffer_size=100)
+#        train_dataset = train_dataset.shuffle(buffer_size=100)
         train_dataset = train_dataset.batch(self.conf.batch_size)
-        train_dataset = train_dataset.prefetch(buffer_size=100)
+#        train_dataset = train_dataset.prefetch(buffer_size=100)
 
-        val_dataset = val_dataset.map(map_func=py_map_val, num_parallel_calls=2)
+#        val_dataset = val_dataset.map(map_func=py_map_val, num_parallel_calls=2)
+        val_dataset = val_dataset.map(map_func=py_map_val)
         val_dataset = val_dataset.repeat()
         val_dataset = val_dataset.batch(self.conf.batch_size)
-        val_dataset = val_dataset.prefetch(buffer_size=100)
+#        val_dataset = val_dataset.prefetch(buffer_size=100)
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -153,6 +159,8 @@ class coco_unet(PoseUNet.PoseUNetMulti):
 
         self.inputs = []
         for ndx in range(len(train_next)):
-            self.inputs.append(
-                tf.cond(self.ph['is_train'], lambda: tf.identity(train_next[ndx]), lambda: tf.identity(val_next[ndx])))
+            self.inputs.append(train_next[ndx])
+#for ndx in range(len(train_next)):
+#            self.inputs.append(
+#                tf.cond(self.ph['is_train'], lambda: tf.identity(train_next[ndx]), lambda: tf.identity(val_next[ndx])))
 

@@ -43,15 +43,15 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
     end
     
     function tf = fileExists(obj,f)
-      tf = obj.awsEc2.remoteFileExists(f);
+      tf = obj.awsEc2.remoteFileExists(f,'dispcmd',true);
     end
     
     function tf = errFileExistsNonZeroSize(obj,errFile)
-      tf = obj.awsEc2.remoteFileExists(errFile,'reqnonempty',true);
+      tf = obj.awsEc2.remoteFileExists(errFile,'reqnonempty',true,'dispcmd',true);
     end    
     
     function s = fileContents(obj,f)
-      s = obj.awsEc2.remoteFileContents(f);
+      s = obj.awsEc2.remoteFileContents(f,'dispcmd',true);
     end
         
   end

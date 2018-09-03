@@ -8,6 +8,8 @@ classdef AWSec2 < handle
     
     scpCmd = '"c:\Program Files\Git\usr\bin\scp.exe"';
     sshCmd = '"c:\Program Files\Git\usr\bin\ssh.exe"';
+    
+    remotePID
   end
   
   methods
@@ -17,11 +19,14 @@ classdef AWSec2 < handle
       obj.instanceIP = [];
       obj.keyName = keyName;
       obj.pem = pem;
+      
+      obj.remotePID = [];
     end
     
     function delete(obj)
       % TODO 
     end
+    
   end
   
   methods
@@ -54,6 +59,9 @@ classdef AWSec2 < handle
       else
         assert(strcmp(obj.instanceID,json.Reservations.Instances.InstanceId));
       end
+      
+      fprintf('EC2 instanceID %s is running with IP %s.\n',obj.instanceID,...
+        obj.instanceIP);
     end
     
     function [tfsucc,json] = stopInstance(obj)
@@ -80,11 +88,21 @@ classdef AWSec2 < handle
           obj.instanceID)
       end
     end
-    
+ 
+    function tfsucc = scpDownload(obj,srcAbs,dstAbs,varargin)
+      % overwrites with no regard for anything
+      
+      sysCmdArgs = myparse(varargin,...
+        'sysCmdArgs',{});
+      cmd = AWSec2.scpDownloadCmd(obj.pem,obj.instanceIP,srcAbs,dstAbs,...
+        'scpcmd',obj.scpCmd);
+      tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
+    end
+ 
     function tfsucc = scpUpload(obj,file,dstRel,varargin)
       sysCmdArgs = myparse(varargin,...
         'sysCmdArgs',{});
-      cmd = AWSec2.scpFileCmd(file,obj.pem,obj.instanceIP,dstRel,...
+      cmd = AWSec2.scpUploadCmd(file,obj.pem,obj.instanceIP,dstRel,...
         'scpcmd',obj.scpCmd);
       tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
     end
@@ -108,6 +126,7 @@ classdef AWSec2 < handle
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstRel);
       else
+        fprintf('About to upload. This could take a while depending ...\n');
         tfsucc = obj.scpUpload(src,dstRel,'sysCmdArgs',{'dispcmd',true});
         if tfsucc
           fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dstRel);
@@ -158,6 +177,20 @@ classdef AWSec2 < handle
         s = '';
       end
     end
+    
+    function killRemoteProcess(obj)
+      if isempty(obj.remotePID)
+        error('Unknown PID for remote process.');
+      end
+      
+      cmdremote = sprintf('kill %d',obj.remotePID);
+      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
+      if tfsucc
+        fprintf('Kill command sent.\n\n');
+      else
+        error('Kill command failed.');
+      end
+    end
 
   end
   
@@ -200,12 +233,18 @@ classdef AWSec2 < handle
       cmd = sprintf('aws ec2 stop-instances --instance-ids %s',ec2id);
     end
     
-    function cmd = scpFileCmd(file,pem,ip,dstrel,varargin)
+    function cmd = scpUploadCmd(file,pem,ip,dstrel,varargin)
       scpcmd = myparse(varargin,...
         'scpcmd','scp');
       cmd = sprintf('%s -i %s %s ubuntu@%s:~/%s',scpcmd,pem,file,ip,dstrel);
     end
-    
+
+    function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)
+      scpcmd = myparse(varargin,...
+        'scpcmd','scp');
+      cmd = sprintf('%s -i %s ubuntu@%s:%s %s',scpcmd,pem,ip,srcAbs,dstAbs);
+    end
+
     function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote)
       cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s ''%s''',sshcmd,pem,ip,cmdremote);
     end

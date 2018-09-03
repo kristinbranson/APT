@@ -15,21 +15,6 @@ classdef BgTrainMonitorAWS < BgTrainMonitor
       obj.awsEc2 = bgWorkerObj.awsEc2;
     end    
        
-    function killRemoteProcess(obj)
-      if isempty(obj.remotePID)
-        error('Unknown PID for remote process.');
-      end
-      
-      cmdremote = sprintf('kill %d',obj.remotePID);
-      [tfsucc,res] = obj.awsEc2.cmdInstance(cmdremote,'dispcmd',true);
-      if tfsucc
-        fprintf('Kill command sent.\n\n');
-      else
-        error('Kill command failed.');
-      end
-
-    end
-    
   end
   
 end
