@@ -107,8 +107,18 @@ class coco_unet(PoseUNet.PoseUNetMulti):
 
             img_shape = img.shape[:2]
             imsz = conf.imsz
-            img = zoom(img,[float(imsz[0])/img_shape[0],float(imsz[1])/img_shape[1],1])
-            label_im = zoom(label_im,[float(imsz[0])/img_shape[0],float(imsz[1])/img_shape[1],1])
+            rr = max([float(imsz[0])/img_shape[0],float(imsz[1])/img_shape[1]])
+            img = zoom(img,[rr,rr,1])
+            label_im = zoom(label_im,[rr,rr,1])
+            if img.shape[0] > conf.imsz[0]:
+                dd = np.random.randint(img.shape[0] - conf.imsz[0])
+                img = img[dd:(dd+conf.imsz[0]),:,:]
+                label_im = label_im[dd:(dd+conf.imsz[0]),:,:]
+            if img.shape[1] > conf.imsz[1]:
+                dd = np.random.randint(img.shape[1] - conf.imsz[1])
+                img = img[:, dd:(dd+conf.imsz[1]),:]
+                label_im = label_im[:, dd:(dd+conf.imsz[1]),:]
+
             locs[...,0] = locs[...,0]*float(imsz[1])/img_shape[1]
             locs[...,1] = locs[...,1]*float(imsz[0])/img_shape[0]
 
