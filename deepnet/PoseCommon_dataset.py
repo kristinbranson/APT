@@ -105,7 +105,7 @@ def initialize_remaining_vars(sess):
 
 
 def moving_average(a, n=3) :
-    ret = np.cumsum(a, dtype=float)
+    ret = np.nancumsum(a, dtype=float)
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
 
@@ -378,7 +378,7 @@ class PoseCommon(object):
             dep_net.initialize_net(sess)
         initialize_remaining_vars(sess)
         if self.conf.use_pretrained_weights:
-            self.restore_pretrained()
+            self.restore_pretrained(sess)
 
 
     def train_step(self, step, sess, learning_rate, training_iters):

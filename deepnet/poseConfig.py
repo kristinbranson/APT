@@ -121,6 +121,7 @@ class config(object):
         #self.unet_steps = 20000
         self.unet_keep_prob = 1.0 # essentially don't use it.
         self.unet_use_leaky = False #will change it to True after testing.
+        self.use_pretrained_weights = False
 
         # ----- MDN params
         self.mdn_min_sigma = 3. # this should just be maybe twice the cell size??

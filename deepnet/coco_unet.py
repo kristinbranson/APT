@@ -12,6 +12,7 @@ from scipy.ndimage.interpolation import zoom
 import numpy as np
 import cv2
 import traceback
+import time
 
 coco_dir='/groups/branson/home/kabram/bransonlab/coco'
 val_name = 'val2017'
@@ -27,13 +28,12 @@ from poseConfig import config
 class coco_unet(PoseUNet.PoseUNetMulti):
 
 
-    def __init__(self):
+    def __init__(self,name='coco_segmentation_unet'):
 
         conf = config()
         conf.n_classes = 17
         conf.max_n_animals = 20
-        proj_name = 'coco_segmentation_unet'
-        conf.set_exp_name(proj_name)
+        conf.set_exp_name(name)
         conf.cachedir = os.path.join(localSetup.bdir,'cache','coco','segmentation')
         conf.imsz = [240,320]
         conf.sel_sz = 256
@@ -45,7 +45,7 @@ class coco_unet(PoseUNet.PoseUNetMulti):
         conf.check_bounds_distort = False
         conf.label_blur_rad = 5
 
-        PoseUNet.PoseUNet.__init__(self, conf, name=proj_name)
+        PoseUNet.PoseUNet.__init__(self, conf, name=name)
 
 
     def create_datasets(self):
@@ -57,10 +57,26 @@ class coco_unet(PoseUNet.PoseUNetMulti):
         val_coco = COCO(val_ann)
         val_ids = val_coco.getImgIds()
         train_ids = train_coco.getImgIds()
-        val_dataset = tf.data.Dataset.from_tensor_slices(val_ids)
-        train_dataset = tf.data.Dataset.from_tensor_slices(train_ids)
+        valid_train_ids = []
+        for id1 in train_ids:
+            img = train_coco.loadImgs(int(id1))[0]
+            annIds = train_coco.getAnnIds(imgIds=img['id'], iscrowd=None)
+            anns = train_coco.loadAnns(annIds)
+            if len(anns)>0:
+                valid_train_ids.append(id1)
+        valid_val_ids = []
+        for id1 in val_ids:
+            img = val_coco.loadImgs(int(id1))[0]
+            annIds = val_coco.getAnnIds(imgIds=img['id'], iscrowd=None)
+            anns = val_coco.loadAnns(annIds)
+            if len(anns)>0:
+                valid_val_ids.append(id1)
+
+        val_dataset = tf.data.Dataset.from_tensor_slices(valid_val_ids)
+        train_dataset = tf.data.Dataset.from_tensor_slices(valid_train_ids)
 
         def coco_map(id, db_type):
+            e1 = time.time()
             if db_type == 'train':
                 coco = train_coco
                 im_dir = train_dir
@@ -91,12 +107,15 @@ class coco_unet(PoseUNet.PoseUNetMulti):
                 locs[0, p,:,:] = pts[p,:,:2]
                 not_valid = pts[p,:,2]<0.5
                 locs[0, p, not_valid,:] = np.nan
+            e2 = time.time()
+#            print('Time to load {}'.format(e2-e1))
 
             if db_type == 'train':
                 img, locs = PoseTools.preprocess_ims(img, locs, conf, distort=True, scale = 1)
             else:
                 img, locs = PoseTools.preprocess_ims(img, locs, conf, distort=False, scale = 1)
-
+            e3 = time.time()
+#            print('Time to preprocess {}'.format(e3-e2))
 
             img = img[0,...]
             label_im = np.ones(img.shape[:2] + (conf.n_classes,)) * -1
@@ -111,6 +130,9 @@ class coco_unet(PoseUNet.PoseUNetMulti):
             label_im = zoom(label_im,[float(imsz[0])/img_shape[0],float(imsz[1])/img_shape[1],1])
             locs[...,0] = locs[...,0]*float(imsz[1])/img_shape[1]
             locs[...,1] = locs[...,1]*float(imsz[0])/img_shape[0]
+            e4 = time.time()
+#            print('Time to create label ims {}'.format(e4-e3))
+#            print('Time total {}'.format(e4-e1))
 
             info = np.zeros([4])
             info[0] = id
@@ -132,14 +154,15 @@ class coco_unet(PoseUNet.PoseUNetMulti):
         py_map_train = lambda im_id: tuple(tf.py_func(train_map, [im_id], [tf.float32, tf.float32, tf.float32, tf.float32]))
         py_map_val = lambda im_id: tuple(tf.py_func(val_map, [im_id], [tf.float32, tf.float32, tf.float32, tf.float32]))
 
-        train_dataset = train_dataset.map(map_func=py_map_train, num_parallel_calls=20)
         train_dataset = train_dataset.repeat()
         train_dataset = train_dataset.shuffle(buffer_size=100)
-        train_dataset = train_dataset.batch(self.conf.batch_size)
+#train_dataset = train_dataset.map(map_func=py_map_train, num_parallel_calls=20)
+#       train_dataset = train_dataset.batch(self.conf.batch_size)
+        train_dataset = train_dataset.apply(tf.contrib.data.map_and_batch(map_func=py_map_train, batch_size=self.conf.batch_size,num_parallel_batches=15))
         train_dataset = train_dataset.prefetch(buffer_size=100)
 
-        val_dataset = val_dataset.map(map_func=py_map_val, num_parallel_calls=4)
         val_dataset = val_dataset.repeat()
+        val_dataset = val_dataset.map(map_func=py_map_val, num_parallel_calls=4)
         val_dataset = val_dataset.batch(self.conf.batch_size)
         val_dataset = val_dataset.prefetch(buffer_size=100)
 
