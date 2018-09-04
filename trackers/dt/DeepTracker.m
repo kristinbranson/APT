@@ -494,6 +494,20 @@ classdef DeepTracker < LabelTracker
         %   b. For all other rows of s.trxFilesAll, we replace with jibber
         %      as an assert.
         
+        assert(strcmp(s.trackerClass{2},'DeepTracker'));
+        dlszx = s.trackerData{2}.sPrm.sizex;
+        dlszy = s.trackerData{2}.sPrm.sizey;
+        roirad = s.preProcParams.TargetCrop.Radius;
+        szroi = 2*roirad+1;
+        if dlszx~=szroi 
+          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
+          s.trackerData{2}.sPrm.sizex = szroi;
+        end
+        if dlszy~=szroi 
+          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
+          s.trackerData{2}.sPrm.sizey = szroi;
+        end
+        
         datadirRemoteFull = DeepTracker.hlpPutCheckRemoteDir(aws,'data','data');
 
         iMovTrn = unique(obj.trnTblP.mov); % must be regular mov, not GT

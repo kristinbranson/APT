@@ -34,6 +34,7 @@ import json
 from skimage import transform
 import datetime
 from scipy.ndimage.interpolation import zoom
+from scipy import stats
 
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
@@ -398,6 +399,24 @@ def blur_label(im_sz, loc, scale, blur_rad):
     else:
         b_label = label
     return b_label
+
+
+def create_label_images_slow(locs, im_sz, scale, blur_rad):
+    n_out = locs.shape[1]
+    n_ex = locs.shape[0]
+    sz0 = int(float(im_sz[0])/ scale)
+    sz1 = int(float(im_sz[1])/ scale)
+    out = np.zeros([n_ex,sz0,sz1,n_out])
+    a, b = np.meshgrid(range(sz1), range(sz0))
+    for cur in range(n_ex):
+        for ndx in range(n_out):
+            x = a - locs[cur,ndx,0]
+            y = b - locs[cur,ndx,1]
+            dd = np.sqrt(x**2+y**2)/blur_rad
+            out[cur,:,:,ndx] = stats.norm.pdf(dd)/stats.norm.pdf(0)
+    out[out<0.05] = 0.
+    out = 2*out-1
+    return  out
 
 
 def create_label_images(locs, im_sz, scale, blur_rad):

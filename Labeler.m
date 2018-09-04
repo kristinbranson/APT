@@ -7895,18 +7895,18 @@ classdef Labeler < handle
         s = rmfield(s,'preProcData');
       end
       
-      tf = strcmp(s.trackerClass,'DeepTracker');
-      i = find(tf);
-      switch numel(i)
-        case 0
-          assert(false);
-        case 1
-          % none
-        otherwise
-          warningNoTrace('Multiple DeepTrackers found; the first will be used.');
-          i = i(1);
-      end
-      s.trackerDeepData = s.trackerData{i};
+%       tf = strcmp(s.trackerClass,'DeepTracker');
+%       i = find(tf);
+%       switch numel(i)
+%         case 0
+%           assert(false);
+%         case 1
+%           % none
+%         otherwise
+%           warningNoTrace('Multiple DeepTrackers found; the first will be used.');
+%           i = i(1);
+%       end
+      %s.trackerDeepData = s.trackerData{i};
     end
     
     function trackAndExport(obj,mftset,varargin)
