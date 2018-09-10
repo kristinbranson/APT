@@ -537,7 +537,7 @@ classdef DeepTracker < LabelTracker
       save(dlLblFile,'-mat','-v7.3','-struct','s');
       fprintf('Saved stripped lbl file: %s\n',dlLblFile);
             
-      cacheRemoteRel = ['cache' trnID];      
+      cacheRemoteRel = trnID; 
       [cacheRemoteFull,dlLblRemoteRel] = ...
         DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,cacheRemoteRel,dlLblFile);
       
@@ -588,6 +588,45 @@ classdef DeepTracker < LabelTracker
       end
     end
         
+    function trnAWSDownloadModel(obj)
+      projname = obj.lObj.projname;
+      nvw = obj.lObj.nview;
+      trnID = obj.trnName;
+      cacheDirLocal = obj.sPrm.CacheDir;      
+      aws = obj.awsEc2;
+      
+      if isempty(projname)
+        error('Please give your project a name by setting the .projname property.');
+      end
+      
+      %       if numel(aws)~=nvw
+      %         error('You must have one AWSec2 object for each view.');
+      %       end
+      assert(nvw==1,'Multiview AWS train currently unsupported.');
+      
+      if isempty(trnID)
+        error('Model has not been trained.');
+      end
+      
+      assert(~isempty(cacheDirLocal),'CacheDir is unset/empty.');
+      
+      if isempty(aws)
+        error('AWSec2 object not set.');
+      end
+      aws.checkInstanceRunning(); % harderrs if instance isn't running
+        
+      %cacheRemoteRel = trnID;
+      cacheRemoteAbs = ['/home/ubuntu/' trnID];
+      IVIEW = 1;
+      % see BgTrainWorkerObj
+      projvw = sprintf('%s_view%d',projname,IVIEW-1); % !! cacheDirs are 0-BASED. See
+      cacheLocalAbsWProj = fullfile(cacheDirLocal,projvw);
+      
+      sysCmdArgs = {'dispcmd' true 'harderronfail' true};
+      aws.scpDownload(cacheRemoteAbs,cacheLocalAbsWProj,...
+        'sysCmdArgs',sysCmdArgs); % throws
+    end
+    
   end
   
   %% Track  
@@ -766,7 +805,11 @@ classdef DeepTracker < LabelTracker
   methods (Static)
     function sha = getSHA(file)
       if isunix
-        assert(false,'TODO');
+        shacmd = sprintf('md5sum %s',file);
+        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'harderronfail',true);
+        toks = regexp(res,' ','split');
+        sha = toks{1};        
+        sha = regexprep(sha,' ','');
       else
         shacmd = sprintf('certUtil -hashFile %s MD5',file);
         [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'harderronfail',true);
@@ -796,7 +839,7 @@ classdef DeepTracker < LabelTracker
       
       % check remote cacheDir and stripped lbl
       trnID = obj.trnName;
-      cacheRemoteRel = ['cache' trnID];      
+      cacheRemoteRel = trnID; 
       [cacheRemoteFull,dlLblRemoteRel] = ...
         DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,cacheRemoteRel,dlLblFile);
       
