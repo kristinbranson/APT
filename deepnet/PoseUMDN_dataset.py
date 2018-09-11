@@ -210,7 +210,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             # with multiplying grid_size/2, o_locs will have variance grid_size/2
             # with adding grid_size/2, o_locs initially will be centered
             # in the center of the grid.
-            o_locs =  ((tf.sigmoid(o_locs)*2) - 0.5) * locs_offset
+            #o_locs =  ((tf.sigmoid(o_locs)*2) - 0.5) * locs_offset
             self.i_locs = o_locs
             # o_locs *= float(locs_offset)/2
             # o_locs += float(locs_offset)/2
@@ -574,33 +574,33 @@ class PoseUMDN(PoseCommon.PoseCommon):
         return [locs,scales,logits]
 
 
-    def restore_pretrained(self, sess, model_file):
-        rem_locs = tf.global_variables(self.net_name + '/locs')
-        rem_locs += tf.global_variables(self.net_name + '/scales')
-        rem_locs += tf.global_variables(self.net_name + '/logits')
-        rem_locs += tf.global_variables(self.dep_nets[0].net_name + '/out')
-
-        var_list = self.get_var_list()
-        pre_list = tf.train.list_variables(model_file)
-        pre_list_names = [p[0] for p in pre_list]
-        pre_list_shapes = [p[1] for p in pre_list]
-        common_vars = []
-        for i in var_list:
-            if not i.name[:-2] in pre_list_names:
-                continue
-            ndx = pre_list_names.index(i.name[:-2])
-            if pre_list_shapes[ndx] == i.shape.as_list():
-                common_vars.append(i)
-
-        c_names = [c.name for c in common_vars]
-        r_names = [v.name for v in var_list if v not in common_vars]
-        print("-- Loading from pretrained --")
-        print('\n'.join(c_names))
-        print("-- Not Loading from pretrained --")
-        print('\n'.join(r_names))
-        # common_vars = [i for i in common_vars if i not in rem_locs]
-        pretrained_saver = tf.train.Saver(var_list=common_vars)
-        pretrained_saver.restore(sess, model_file)
+    # def restore_pretrained(self, sess, model_file):
+    #     rem_locs = tf.global_variables(self.net_name + '/locs')
+    #     rem_locs += tf.global_variables(self.net_name + '/scales')
+    #     rem_locs += tf.global_variables(self.net_name + '/logits')
+    #     rem_locs += tf.global_variables(self.dep_nets[0].net_name + '/out')
+    #
+    #     var_list = self.get_var_list()
+    #     pre_list = tf.train.list_variables(model_file)
+    #     pre_list_names = [p[0] for p in pre_list]
+    #     pre_list_shapes = [p[1] for p in pre_list]
+    #     common_vars = []
+    #     for i in var_list:
+    #         if not i.name[:-2] in pre_list_names:
+    #             continue
+    #         ndx = pre_list_names.index(i.name[:-2])
+    #         if pre_list_shapes[ndx] == i.shape.as_list():
+    #             common_vars.append(i)
+    #
+    #     c_names = [c.name for c in common_vars]
+    #     r_names = [v.name for v in var_list if v not in common_vars]
+    #     print("-- Loading from pretrained --")
+    #     print('\n'.join(c_names))
+    #     print("-- Not Loading from pretrained --")
+    #     print('\n'.join(r_names))
+    #     # common_vars = [i for i in common_vars if i not in rem_locs]
+    #     pretrained_saver = tf.train.Saver(var_list=common_vars)
+    #     pretrained_saver.restore(sess, model_file)
 
     def my_loss(self, X, y):
 

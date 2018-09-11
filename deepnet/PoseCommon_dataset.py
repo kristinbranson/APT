@@ -380,6 +380,31 @@ class PoseCommon(object):
         if self.conf.use_pretrained_weights:
             self.restore_pretrained(sess)
 
+    def restore_pretrained(self, sess):
+        model_file = self.conf.pretrained_weights
+
+        var_list = self.get_var_list()
+        pre_list = tf.train.list_variables(model_file)
+        pre_list_names = [p[0] for p in pre_list]
+        pre_list_shapes = [p[1] for p in pre_list]
+        common_vars = []
+        for i in var_list:
+            if not i.name[:-2] in pre_list_names:
+                continue
+            ndx = pre_list_names.index(i.name[:-2])
+            if pre_list_shapes[ndx] == i.shape.as_list():
+                common_vars.append(i)
+
+        c_names = [c.name for c in common_vars]
+        r_names = [v.name for v in var_list if v not in common_vars]
+        print("-- Loading from pretrained --")
+        print('\n'.join(c_names))
+        print("-- Not Loading from pretrained --")
+        print('\n'.join(r_names))
+        # common_vars = [i for i in common_vars if i not in rem_locs]
+        pretrained_saver = tf.train.Saver(var_list=common_vars)
+        pretrained_saver.restore(sess, model_file)
+
 
     def train_step(self, step, sess, learning_rate, training_iters):
         cur_step = float(step)
@@ -501,6 +526,7 @@ class PoseCommon(object):
             print("Optimization Finished!")
             self.save(sess, training_iters)
             self.save_td()
+        tf.reset_default_graph()
 
 
 
