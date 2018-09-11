@@ -7225,9 +7225,13 @@ classdef Labeler < handle
     function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
       assert(isstruct(ppPrms));
 
-      % Checks
-      if ppPrms.histeq && ppPrms.BackSub.Use
-        error('Histogram equalization currently not supported with background subtraction.');
+      if ppPrms.histeq 
+        if ppPrms.BackSub.Use
+          error('Histogram Equalization and Background Subtraction cannot both be enabled.');
+        end
+        if ppPrms.NeighborMask.Use
+          error('Histogram Equalization and Neighbor Masking cannot both be enabled.');
+        end
       end
       
       ppPrms0 = obj.preProcParams;
@@ -7254,8 +7258,8 @@ classdef Labeler < handle
       % variable tfPPprmsChanged is set to true, and the caller 
       % clears/updates the tracker as necessary.
       %
-      % There are two nonstandard pre-preocessing "parameters" that are set
-      % outside of preProcSetParams: .movieInvert, and
+      % There are two nonstandard pre-preprocessing "parameters" that are 
+      % set outside of preProcSetParams: .movieInvert, and
       % .movieFilesAll*CropInfo. If these properties are mutated, any
       % preprocessing data, trained tracker, and tracking results must also
       % be cleared.
@@ -7381,6 +7385,14 @@ classdef Labeler < handle
       % Update obj.preProcH0
       % Update .movieFilesAllHistEqLUT, .movieFilesAllGTHistEqLUT 
 
+      % AL20180910: currently using frame-by-frame CLAHE
+      USECLAHE = true;
+      if USECLAHE
+        obj.preProcH0 = [];
+        return;
+      end
+      
+      
       ppPrms = obj.preProcParams;
       if ppPrms.histeq
         nFrmSampH0 = ppPrms.histeqH0NumFrames;
@@ -7533,8 +7545,12 @@ classdef Labeler < handle
       
       dataCurr = obj.preProcData;
             
+      USECLAHE = true;
+
       if prmpp.histeq
-        assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.preProcH0.hgram));
+        if ~USECLAHE
+          assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.preProcH0.hgram));
+        end
         assert(~prmpp.BackSub.Use,...
           'Histogram Equalization and Background Subtraction cannot both be enabled.');
         assert(~prmpp.NeighborMask.Use,...
@@ -7597,15 +7613,32 @@ classdef Labeler < handle
         tblPnewMD = [tblPnewMD table(nNborMask)];
         
         if prmpp.histeq
-          J = obj.movieHistEqApplyLUTs(I,tblPnewMD.mov,'wbObj',wbObj); 
-          dataNew = CPRData(J,tblPnewMD);
-          dataNew.H0 = obj.preProcH0.hgram;
-          
-          if dataCurr.N==0
-            dataCurr.H0 = dataNew.H0;
-            % these need to match for append()
+          if USECLAHE
+            if tfWB
+              wbObj.startPeriod('Performing CLAHE','shownumden',true,...
+                'denominator',numel(I));
+            end
+            for i=1:numel(I)
+              if tfWB
+                wbObj.updateFracWithNumDen(i);
+              end
+              I{i} = adapthisteq(I{i});
+            end
+            if tfWB
+              wbObj.endPeriod();
+            end
+            dataNew = CPRData(I,tblPnewMD);            
+          else
+            J = obj.movieHistEqApplyLUTs(I,tblPnewMD.mov,'wbObj',wbObj); 
+            dataNew = CPRData(J,tblPnewMD);
+            dataNew.H0 = obj.preProcH0.hgram;
+
+            if dataCurr.N==0
+              dataCurr.H0 = dataNew.H0;
+              % these need to match for append()
+            end
           end
-        else        
+        else
           dataNew = CPRData(I,tblPnewMD);
         end
                 
@@ -8123,7 +8156,7 @@ classdef Labeler < handle
         if tfWB
           wbObj.startPeriod('Training','nobar',true);
         end
-        tObj.retrain('tblPTrn',tblMFgtTrain);
+        tObj.retrain('tblPTrn',tblMFgtTrain,'wbObj',wbObj);
         if tfWB
           wbObj.endPeriod();
         end

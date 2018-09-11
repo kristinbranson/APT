@@ -122,7 +122,8 @@ switch action
 
     tfTable = ~isempty(tableFile);
     tfSplit = ~isempty(tableSplitFile);
-    xvArgs = cell(1,0);
+%     xvArgs = cell(1,0);
+    xvArgs = {'wbObj',WaitBarWithCancelCmdline('APTCluster xv')};
     [lblP,lblF,lblE] = fileparts(lblFile);
     outfileBase = ['xv_' lblF];
     if tfTable
@@ -202,7 +203,8 @@ switch action
     
     outfileBase = [outfileBase '_' datestr(now,'yyyymmddTHHMMSS')];
     
-    tblRes = lObj.trackTrainTrackEval(tblTrn,tblTrk);
+    args = {'wbObj',WaitBarWithCancelCmdline('APTCluster trntrk')};
+    tblRes = lObj.trackTrainTrackEval(tblTrn,tblTrk,args{:});
     
     savestuff = struct();
     savestuff.sPrm = lObj.trackGetParams();
