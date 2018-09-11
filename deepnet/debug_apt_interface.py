@@ -1,17 +1,12 @@
 
 
-
-
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
-conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
-import PoseUMDN_dataset_uber
-self = PoseUMDN_dataset_uber.PoseUMDN(conf)
+import PoseUNet_resnet
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,'test')
+import os; os.environ['CUDA_VISIBLE_DEVICES'] = ''
 self.train_umdn()
-import tensorflow as tf
-tf.reset_default_graph()
-V = self.classify_val()
-np.percentile(V[0],[90,95,98,99],axis=0)
+
 ##
 from poseConfig import aliceConfig as conf
 import PoseUNet_resnet

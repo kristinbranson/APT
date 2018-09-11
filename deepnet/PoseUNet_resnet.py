@@ -318,7 +318,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         self.joint = True
         def loss(inputs, pred):
-            mdn_loss = self.my_loss(pred, inputs[0])
+            mdn_loss = self.my_loss(pred, inputs[1])
             unet_loss = tf.losses.mean_squared_error(inputs[-1],pred[-1])
             return mdn_loss + unet_loss/10.
 
