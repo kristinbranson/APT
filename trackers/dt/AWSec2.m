@@ -6,8 +6,8 @@ classdef AWSec2 < handle
     keyName
     pem
     
-    scpCmd = '"c:\Program Files\Git\usr\bin\scp.exe"';
-    sshCmd = '"c:\Program Files\Git\usr\bin\ssh.exe"';
+    scpCmd
+    sshCmd
     
     remotePID
   end
@@ -19,6 +19,14 @@ classdef AWSec2 < handle
       obj.instanceIP = [];
       obj.keyName = keyName;
       obj.pem = pem;
+      
+      if ispc
+        obj.scpCmd = '"c:\Program Files\Git\usr\bin\scp.exe"';
+        obj.sshCmd = '"c:\Program Files\Git\usr\bin\ssh.exe"';
+      else
+        obj.scpCmd = 'scp';
+        obj.sshCmd = 'ssh';
+      end
       
       obj.remotePID = [];
     end
@@ -242,7 +250,7 @@ classdef AWSec2 < handle
     function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)
       scpcmd = myparse(varargin,...
         'scpcmd','scp');
-      cmd = sprintf('%s -i %s ubuntu@%s:%s %s',scpcmd,pem,ip,srcAbs,dstAbs);
+      cmd = sprintf('%s -i %s -r ubuntu@%s:%s %s',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
     function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote)
