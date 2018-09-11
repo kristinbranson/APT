@@ -133,7 +133,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             use_leaky=self.conf.unet_use_leaky)
 
         with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-            net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=self.ph['phase_train'],output_stride=8)
+            net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=self.ph['phase_train'])
 
         X = net
         k = 2
