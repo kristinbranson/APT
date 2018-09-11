@@ -1,3 +1,24 @@
+
+
+
+
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
+import PoseUMDN_dataset_uber
+self = PoseUMDN_dataset_uber.PoseUMDN(conf)
+self.train_umdn()
+import tensorflow as tf
+tf.reset_default_graph()
+V = self.classify_val()
+np.percentile(V[0],[90,95,98,99],axis=0)
+##
+from poseConfig import aliceConfig as conf
+import PoseUNet_resnet
+self = PoseUNet_resnet.PoseUNet_resnet(conf)
+self.train_unet()
+##
+
 from poseConfig import aliceConfig as conf
 import tensorflow as tf
 tf.reset_default_graph()
@@ -57,14 +78,14 @@ np.percentile(V[0],[90,95,98,99],axis=0)
 ##
 
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
 import apt_expts
-# db_file = '/home/mayank/work/poseTF/cache/alice_moreeval/val_TF.tfrecords'
-# model_file = '/home/mayank/work/poseTF/cache/alice_moreeval/deepcut/snapshot-100000'
-db_file = '/home/mayank/work/poseTF/cache/alice_dataset/val_TF.tfrecords'
-model_file = '/home/mayank/work/poseTF/cache/alice/deeplabcut/nopretrained/snapshot-1030000'
+db_file = '/home/mayank/work/poseTF/cache/alice_moreeval/val_TF.tfrecords'
+model_file = '/home/mayank/work/poseTF/cache/alice_moreeval/deepcut/snapshot-100000'
+# db_file = '/home/mayank/work/poseTF/cache/alice_dataset/val_TF.tfrecords'
+# model_file = '/home/mayank/work/poseTF/cache/alice/deeplabcut/nopretrained/snapshot-1030000'
 import multiResData
 tf_iterator = multiResData.tf_reader(conf, db_file, False)
 tf_iterator.batch_size = 1
@@ -78,7 +99,7 @@ pred, label, gt_list, ims = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.
 dd = np.sqrt(np.sum((pred-label)**2,axis=-1))
 np.percentile(dd,[90,95,98,99],axis=0)
 
-##
+## DLC results
 res = np.array([[
          1.45593502,  1.56175613,  1.86534404,  1.68371394,  2.04030646,
          2.26430405,  2.29727553,  1.5884356 ,  2.20272166,  1.69477133,
@@ -97,6 +118,80 @@ res = np.array([[
          4.04134259,  7.06591366,  8.08465109, 12.56451454, 13.47454254,
          8.02540829,  8.37623894]])
 
+
+## resnet with mdn results
+
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+import PoseUNet_resnet
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,'unet_resnet')
+V = self.classify_val()
+np.percentile(V[0],[90,95,98,99],axis=0)
+res_mdn = np.array([[
+         1.33690231,  1.35031777,  1.38527519,  1.34496556,  1.31486287,
+         1.58903501,  1.87642883,  1.61015561,  1.94074945,  1.48852744,
+         1.78586116,  3.33855858,  2.4820255 ,  4.80972121,  5.4787146 ,
+         2.25345069,  2.90739776],
+       [ 1.53327055,  1.56563911,  1.56710412,  1.52024155,  1.46967479,
+         1.81838348,  2.13381842,  1.86714673,  2.33396092,  1.69528391,
+         2.11866614,  4.52732786,  3.53221155,  7.00090467,  7.37604247,
+         3.18900169,  3.97689362],
+       [ 1.77418746,  1.76923494,  1.81077659,  1.71669611,  1.68055663,
+         2.15293702,  2.42186984,  2.17551583,  3.00306713,  2.03097663,
+         2.67549011,  6.27879295,  6.01026813,  9.79595686, 10.46869541,
+         5.64375703,  5.71019346],
+       [ 2.02395307,  1.91149037,  1.9630773 ,  1.8888618 ,  1.793556  ,
+         2.35801906,  2.6085125 ,  2.42272951,  3.7535454 ,  2.41056106,
+         3.01898574,  7.4362199 ,  8.52999432, 12.43343784, 13.06282083,
+         7.79023149,  7.50091934]])
+
+## unet with resnet
+
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+import PoseUNet_resnet
+self = PoseUNet_resnet.PoseUNet_resnet(conf,'unet_resnet_upscale')
+V = self.classify_val()
+np.percentile(V[0],[90,95,98,99],axis=0)
+res_unet = np.array([[
+         1.05970343,  1.03275964,  1.14809753,  1.16515143,  1.10287924,
+         1.34909245,  1.18188198,  1.38814807,  1.46167556,  1.29960524,
+         1.45588311,  1.92257185,  1.69550887,  3.4096381 ,  3.35702312,
+         1.36195582,  1.74526068],
+       [ 1.23078245,  1.1635586 ,  1.3024699 ,  1.31770588,  1.25754343,
+         1.56928645,  1.35805825,  1.61358304,  1.77501288,  1.54141422,
+         1.78610566,  2.75925073,  2.26894522,  5.9453192 ,  6.59516979,
+         1.81940353,  2.52784586],
+       [ 1.4384352 ,  1.33311943,  1.53371675,  1.50998481,  1.42867661,
+         1.83537083,  1.58475882,  1.97676753,  2.3773975 ,  1.81195674,
+         2.29952184,  4.99346799,  4.80974426, 11.71061234, 10.77242019,
+         4.49559673,  4.45160127],
+       [ 1.57097699,  1.4417383 ,  1.62986411,  1.6535304 ,  1.59082202,
+         2.05810817,  1.75044511,  2.26493677,  2.88732075,  2.07825604,
+         2.76847443,  7.3101286 , 10.13806711, 15.02330656, 13.36510544,
+         8.45899003,  6.9778458 ]])
+
+##
+import tensorflow as tf
+tf.reset_default_graph()
+
+kk = tf.placeholder(tf.float32,[8,32,32,8])
+w_mat = np.zeros([2,2,8,8])
+for ndx in range(8):
+    w_mat[:,:,ndx,ndx] = 1.
+w = tf.get_variable('w', [2, 2, 8,8] ,initializer=tf.constant_initializer(w_mat))
+out_shape = [8,64,64,8]
+ll = tf.nn.conv2d_transpose(kk, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+# ii = np.zeros([8,32,32,8])
+# ii[0,10:12,3:5,0] = 1.
+ii = np.random.randn(8,32,32,8)
+sess = tf.Session()
+sess.run(tf.initialize_all_variables())
+rr = sess.run(ll,feed_dict={kk:ii})
+plt.figure()
+plt.imshow(ii[0,:,:,0])
+plt.figure()
+plt.imshow(rr[0,:,:,0])
 
 ##
 sel = range(13,14)
