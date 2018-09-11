@@ -141,35 +141,62 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         n_groups = len(self.conf.mdn_groups)
         n_out = self.conf.n_classes
 
-        with tf.variable_scope(self.net_name):
+        with tf.variable_scope(self.net_name + '_unet'):
 
-            # concat high res layers.
-            # l_names = ['conv1', 'block1/unit_2/bottleneck_v1','block2/unit_3/bottleneck_v1', 'block3/unit_5/bottleneck_v1', 'block4']
-            # down_layers = [end_points['resnet_v1_50/'+x] for x in l_names]
-            # n_filts = [32, 64, 64, 128, 256, 512]
-            #
-            # ex_down_layers =  conv(self.inputs[0], 32)
-            # down_layers.insert(0,ex_down_layers)
-            #
-            # prev = None
-            # for ndx, l in enumerate(down_layers):
-            #     if prev is None:
-            #         X = l
-            #     else:
-            #         X = tf.concat([X,l],-1)
-            #
-            #     with tf.variable_scope('mdn_{}_{}'.format(ndx, 0)):
-            #         X = conv(X,n_filts[ndx])
-            #     with tf.variable_scope('mdn_{}_{}'.format(ndx, 1)):
-            #         X = conv(X,n_filts[ndx])
-            #
-            #     with tf.variable_scope('mdn_{}_{}'.format(ndx, 2)):
-            #         kernel_shape = [3, 3, n_filts[ndx], n_filts[ndx]]
-            #         weights = tf.get_variable("weights_{}".format(ndx), kernel_shape,initializer=tf.contrib.layers.xavier_initializer())
-            #         biases = tf.get_variable("biases", kernel_shape[-1],initializer=tf.constant_initializer(0.))
-            #         cur_conv = tf.nn.conv2d( X, weights, strides=[1, 2, 2, 1], padding='SAME')
-            #         cur_conv = batch_norm(cur_conv, decay=0.99, is_training=self.ph['phase_train'])
-            #         X = tf.nn.relu(cur_conv + biases)
+            l_names = ['conv1', 'block1/unit_2/bottleneck_v1','block2/unit_3/bottleneck_v1', 'block3/unit_5/bottleneck_v1', 'block4']
+            down_layers = [end_points['resnet_v1_50/'+x] for x in l_names]
+            n_filts = [32, 64, 64, 128, 256, 512]
+
+            ex_down_layers =  conv(self.inputs[0], 64)
+            down_layers.insert(0,ex_down_layers)
+
+            prev_in = None
+            for ndx in reversed(range(len(down_layers))):
+
+                if prev_in is None:
+                    X = down_layers[ndx]
+                else:
+                    X = tf.concat([prev_in, down_layers[ndx]],axis=-1)
+
+                sc_name = 'layerup_{}_0'.format(ndx)
+                with tf.variable_scope(sc_name):
+                    X = conv(X, n_filts[ndx])
+
+                if ndx is not 0:
+                    sc_name = 'layerup_{}_1'.format(ndx)
+                    with tf.variable_scope(sc_name):
+                        X = conv(X, n_filts[ndx])
+
+                    layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
+                    with tf.variable_scope('u_{}'.format(ndx)):
+                        # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+                        X_sh = X.get_shape().as_list()
+                        w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
+                        for wndx in range(X_sh[-1]):
+                            w_mat[:,:,wndx,wndx] = 1.
+                        w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
+                        out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
+                        X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+                        biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
+                        conv_b = X + biases
+
+                        bn = batch_norm(conv_b)
+                        X = tf.nn.relu(bn)
+
+                prev_in = X
+
+            n_filt = X.get_shape().as_list()[-1]
+            n_out = self.conf.n_classes
+            weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
+                                      initializer=tf.contrib.layers.xavier_initializer())
+            biases = tf.get_variable("out_biases", n_out,
+                                     initializer=tf.constant_initializer(0.))
+            conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
+            X = tf.add(conv, biases, name = 'unet_pred')
+            X_unet = 2*tf.sigmoid(X)-1
+
+        X = net
+        with tf.variable_scope(self.net_name):
 
             n_filt_in = X.get_shape().as_list()[3]
             n_filt = 256
@@ -278,13 +305,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 logits = tf.reshape(logits, [-1, n_x * n_y, k * n_groups])
                 logits = tf.reshape(logits, [-1, n_x * n_y * k, n_groups], name='logits_final')
 
-            return [locs, scales, logits]
+            return [locs, scales, logits, X_unet]
 
 
     def get_var_list(self):
         var_list = tf.global_variables(self.net_name)
-        for dep_net in self.dep_nets:
-            var_list += dep_net.get_var_list()
         var_list += tf.global_variables('resnet_v1_50')
         return var_list
 
@@ -293,8 +318,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         self.joint = True
         def loss(inputs, pred):
-            mdn_loss = self.my_loss(pred, inputs[1])
-            return mdn_loss
+            mdn_loss = self.my_loss(pred, inputs[0])
+            unet_loss = tf.losses.mean_squared_error(inputs[-1],pred[-1])
+            return mdn_loss + unet_loss/10.
 
         super(self.__class__, self).train(
             create_network=self.create_network,
@@ -305,7 +331,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         locs_offset = float(2**5)
 
-        mdn_locs, mdn_scales, mdn_logits = X
+        mdn_locs, mdn_scales, mdn_logits, unet_out = X
         cur_comp = []
         ll = tf.nn.softmax(mdn_logits, axis=1)
 
@@ -403,7 +429,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             print("Couldn't load train data because the conf has changed!")
             self.init_td()
 
-        p_m, p_s, p_w = self.pred
+        p_m, p_s, p_w, x_unet = self.pred
         conf = self.conf
         osz = self.conf.imsz
         #       self.joint = True
