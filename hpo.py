@@ -79,7 +79,7 @@ def main():
 
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
     parser.add_argument("hpojson",help="HPO manifest json")
-    parser.add_argument("action",choices=["xv","trntrk"],help="",metavar="action")
+    parser.add_argument("action",choices=["xv","xvpch","trntrk"],help="",metavar="action")
     parser.add_argument("--roundidx",help="round idx (usually 0-based) for which trntrk will be run")
     parser.add_argument("--dryrun",help="Show but do not execute cluster (bsub) commands. Code generation still occurs.",action="store_true",default=False)
     args = parser.parse_args()
@@ -97,13 +97,17 @@ def main():
         roundIdx = int(args.roundidx)
         prmfull, prmS, pchfull, pchS = findPrmPch(jdat,roundIdx)
         print("Found prm/pch for roundIdx {0:d}: {1:s}, {2:s}".format(
-            roundIdx,prmfull,pchfull)                                                                )
+            roundIdx,prmfull,pchfull))
         
-    if args.action=="xv": 
+    if args.action=="xv" or args.action=="xvpch": 
         # create outputdirs
         for split in jdat['splits']:
             splitifo = jdat['splits'][split]
             splitdir = os.path.join(jdat['hpo_base_dir'],splitifo['dir'])
+            if not os.path.exists(splitdir):
+                os.mkdir(splitdir)
+                print("Split {0:s}: created output dir: {1:s}".format(split,splitdir))
+            
             rnddirS = os.path.splitext(prmS)[0]
             rnddir = os.path.join(splitdir,rnddirS)
             if os.path.exists(rnddir):
@@ -126,6 +130,9 @@ def main():
                 "--outdir", rnddir,
                 "--bindate", jdat['bindate'],
                 "--trackargs", trackargs]
+            if args.action=="xvpch":
+                aptClusCmdL.append("--prmpatchdir")
+                aptClusCmdL.append(pchfull);
             if args.dryrun:
                 aptClusCmdL.append("--dryrun");
             aptClusCmdL.extend([jdat['lblfile'],"xv"])
