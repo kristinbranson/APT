@@ -21,7 +21,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
     def __init__(self, conf, name='unet_resnet'):
         conf.use_pretrained_weights = True
-        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
+#        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
         PoseUNet.PoseUNet.__init__(self, conf, name=name)
 
@@ -112,7 +112,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
     def __init__(self, conf, name='umdn_resnet'):
         conf.use_pretrained_weights = True
-        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
+#        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
         PoseUMDN.PoseUMDN.__init__(self, conf, name=name)
         self.dep_nets = []
