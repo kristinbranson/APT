@@ -12,6 +12,7 @@ from scipy.ndimage.interpolation import zoom
 import numpy as np
 import cv2
 import traceback
+from scipy import stats
 from tensorflow.contrib.slim.nets import resnet_v1
 import tensorflow.contrib.slim as slim
 from PoseCommon_dataset import conv_relu3
@@ -178,53 +179,56 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         n_groups = len(self.conf.mdn_groups)
         n_out = self.conf.n_classes
 
-        with tf.variable_scope(self.net_name + '_unet'):
+        if self.conf.use_unet_loss:
+            with tf.variable_scope(self.net_name + '_unet'):
 
-            prev_in = None
-            for ndx in reversed(range(len(down_layers))):
+                prev_in = None
+                for ndx in reversed(range(len(down_layers))):
 
-                if prev_in is None:
-                    X = down_layers[ndx]
-                else:
-                    X = tf.concat([prev_in, down_layers[ndx]],axis=-1)
+                    if prev_in is None:
+                        X = down_layers[ndx]
+                    else:
+                        X = tf.concat([prev_in, down_layers[ndx]],axis=-1)
 
-                sc_name = 'layerup_{}_0'.format(ndx)
-                with tf.variable_scope(sc_name):
-                    X = conv(X, n_filts[ndx])
-
-                if ndx is not 0:
-                    sc_name = 'layerup_{}_1'.format(ndx)
+                    sc_name = 'layerup_{}_0'.format(ndx)
                     with tf.variable_scope(sc_name):
                         X = conv(X, n_filts[ndx])
 
-                    layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
-                    with tf.variable_scope('u_{}'.format(ndx)):
-                        # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
-                        X_sh = X.get_shape().as_list()
-                        w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
-                        for wndx in range(X_sh[-1]):
-                            w_mat[:,:,wndx,wndx] = 1.
-                        w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
-                        out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
-                        X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
-                        biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
-                        conv_b = X + biases
+                    if ndx is not 0:
+                        sc_name = 'layerup_{}_1'.format(ndx)
+                        with tf.variable_scope(sc_name):
+                            X = conv(X, n_filts[ndx])
 
-                        bn = batch_norm(conv_b)
-                        X = tf.nn.relu(bn)
+                        layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
+                        with tf.variable_scope('u_{}'.format(ndx)):
+                             X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+    #                        X_sh = X.get_shape().as_list()
+    #                        w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
+    #                        for wndx in range(X_sh[-1]):
+    #                            w_mat[:,:,wndx,wndx] = 1.
+    #                        w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
+    #                        out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
+    #                        X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+    #                        biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
+    #                        conv_b = X + biases
+    #
+    #                        bn = batch_norm(conv_b)
+    #                        X = tf.nn.relu(bn)
 
-                prev_in = X
+                    prev_in = X
 
-            n_filt = X.get_shape().as_list()[-1]
-            n_out = self.conf.n_classes
-            weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                      initializer=tf.contrib.layers.xavier_initializer())
-            biases = tf.get_variable("out_biases", n_out,
-                                     initializer=tf.constant_initializer(0.))
-            conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
-            X = tf.add(conv, biases, name = 'unet_pred')
-            X_unet = 2*tf.sigmoid(X)-1
+                n_filt = X.get_shape().as_list()[-1]
+                n_out = self.conf.n_classes
+                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
+                                          initializer=tf.contrib.layers.xavier_initializer())
+                biases = tf.get_variable("out_biases", n_out,
+                                         initializer=tf.constant_initializer(0.))
+                conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
+                X = tf.add(conv, biases, name = 'unet_pred')
+                X_unet = 2*tf.sigmoid(X)-1
+            self.unet_pred = X_unet
 
+        X = net
         with tf.variable_scope(self.net_name):
 
             n_filt_in = X.get_shape().as_list()[3]
@@ -331,10 +335,23 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                                       [1, 1, 1, 1], padding='SAME') + biases_logits
 
                 # blur_weights
+                self.logits_pre_blur = logits
+                # blur the weights during training.
+                blur_rad = 2.5 #0.7
+                filt_sz = np.ceil(blur_rad * 3).astype('int')
+                xx, yy = np.meshgrid(np.arange(-filt_sz, filt_sz + 1), np.arange(-filt_sz, filt_sz + 1))
+                gg = stats.norm.pdf(np.sqrt(xx ** 2 + yy ** 2)/blur_rad)
+                gg = gg/gg.sum()
+                blur_kernel = np.tile(gg[:,:,np.newaxis,np.newaxis],[1,1,k*n_groups, k*n_groups])
+                logits_blur = tf.nn.conv2d(logits, blur_kernel,[1,1,1,1], padding='SAME')
+                # blur_weights_extra
+                #logits = tf.cond(self.ph['phase_train'], lambda: tf.identity(logits_blur), lambda: tf.identity(logits))
+                logits = logits_blur
+
                 logits = tf.reshape(logits, [-1, n_x * n_y, k * n_groups])
                 logits = tf.reshape(logits, [-1, n_x * n_y * k, n_groups], name='logits_final')
 
-            return [locs, scales, logits, X_unet]
+            return [locs, scales, logits]
 
 
     def get_var_list(self):
@@ -348,8 +365,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         self.joint = True
         def loss(inputs, pred):
             mdn_loss = self.my_loss(pred, inputs[1])
-            unet_loss = tf.losses.mean_squared_error(inputs[-1],pred[-1])
-            return mdn_loss + unet_loss/10.
+            if self.conf.use_unet_loss:
+                unet_loss = tf.sqrt(tf.nn.l2_loss(inputs[-1]-self.unet_pred))/self.conf.label_blur_rad/self.conf.n_classes
+                return mdn_loss + unet_loss
+            else:
+                return mdn_loss
 
         super(self.__class__, self).train(
             create_network=self.create_network,
@@ -360,7 +380,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         locs_offset = float(2**5)
 
-        mdn_locs, mdn_scales, mdn_logits, unet_out = X
+        mdn_locs, mdn_scales, mdn_logits = X
         cur_comp = []
         ll = tf.nn.softmax(mdn_logits, axis=1)
 
@@ -458,7 +478,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             print("Couldn't load train data because the conf has changed!")
             self.init_td()
 
-        p_m, p_s, p_w, x_unet = self.pred
+        p_m, p_s, p_w = self.pred
         conf = self.conf
         osz = self.conf.imsz
         #       self.joint = True
@@ -481,8 +501,13 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 self.fd_train()
             else:
                 self.fd_val()
-            pred_means, pred_std, pred_weights, cur_input = sess.run(
-                [p_m, p_s, p_w, self.inputs], self.fd)
+            if self.conf.use_unet_loss:
+                pred_means, pred_std, pred_weights, cur_input, unet_pred = sess.run(
+                    [p_m, p_s, p_w, self.inputs, self.unet_pred], self.fd)
+            else:
+                pred_means, pred_std, pred_weights, cur_input = sess.run(
+                    [p_m, p_s, p_w, self.inputs], self.fd)
+
             val_means.append(pred_means)
             val_std.append(pred_std)
             val_wts.append(pred_weights)
@@ -532,6 +557,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             val_locs.append(cur_input[1])
             val_preds.append(mdn_pred_out)
             val_predlocs.append(cur_predlocs)
+            if self.conf.use_unet_loss:
+                val_u_preds.append(unet_pred)
+                val_u_predlocs.append(PoseTools.get_pred_locs(unet_pred))
 
         sess.close()
 
@@ -548,6 +576,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_std = val_reshape(val_std)
         val_wts = val_reshape(val_wts)
         tf.reset_default_graph()
-
-        return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
+        if self.conf.use_unet_loss:
+            val_u_preds = val_reshape(val_u_preds)
+            val_u_predlocs = val_reshape(val_u_predlocs)
+            return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
+               [val_means, val_std, val_wts],[val_u_preds, val_u_predlocs]
+        else:
+            return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
                [val_means, val_std, val_wts]

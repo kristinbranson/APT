@@ -218,3 +218,104 @@ for iOuterTstSplit=1:3
   save(fnameTblOuterTrn,'tblOuterTrn');
   save(fnameInner,'innerSplit');
 end
+
+%%%%%%%%%%%%%%%
+%% CAROLINE %%%
+%%%%%%%%%%%%%%%
+%% OUTER: EASY
+%% INNER: EASY
+tblTrnAll = loadSingleVariableMatfile('tblTrn295.mat');
+tblTrnAll = tblTrnAll(:,MFTable.FLDSID);
+movC = categorical(tblTrnAll.mov);
+summary(movC)
+
+n = height(tblTrnAll);
+BIGKFOLD = 9;
+c = cvpartition(movC,'kfold',BIGKFOLD);
+bigparts = arrayfun(@(z)test(c,z),1:BIGKFOLD,'uni',0);
+bigparts = cat(2,bigparts{:});
+szassert(bigparts,[n BIGKFOLD]); % col i is indicator vec for part i
+unique(sum(bigparts,2))
+sum(bigparts,1)
+for k=1:BIGKFOLD
+  tfk = bigparts(:,k);
+  fprintf(1,'Fold %d\n',k);
+  sortedsummary(movC(tfk))
+end
+%%
+for iOuterTstSplit=1:3
+  kOuterTst = (1:3) + (iOuterTstSplit-1)*3;
+  kOuterTrn = setdiff(1:9,kOuterTst);
+  tfOuterTst = any(bigparts(:,kOuterTst),2);
+  bigPartsOuterTrn = bigparts(:,kOuterTrn);
+  tfOuterTrn = any(bigPartsOuterTrn,2);
+  assert(all(tfOuterTst+tfOuterTrn==1));
+  
+  tblOuterTst = tblTrnAll(tfOuterTst,:);
+  tblOuterTrn = tblTrnAll(tfOuterTrn,:);
+  innerparts = bigPartsOuterTrn(tfOuterTrn,:);
+  assert(size(innerparts,2)==6);
+  
+  innerSplit = innerparts(:,[1 3 5]) + innerparts(:,[2 4 6]);
+  innerSplit = logical(innerSplit);
+  
+  nOuterTst = height(tblOuterTst);
+  nOuterTrn = height(tblOuterTrn);
+  assert(isempty(intersect(tblOuterTst,tblOuterTrn)));
+  szassert(innerSplit,[nOuterTrn 3]);
+  assert(all(sum(innerSplit,2)==1));
+  
+  fprintf('Outer Tst Fold %d. nOuterTst/Trn: %d/%d. inner splits: %s\n',...
+    iOuterTstSplit,nOuterTst,nOuterTrn,mat2str(sum(innerSplit,1)));  
+  movsOuterTrnC = movC(tfOuterTrn);
+  for kinner=1:3
+    fprintf(1,'Inner split %d:\n',kinner);
+    summary(movsOuterTrnC(innerSplit(:,kinner)))
+  end
+  
+  fnameTblOuterTst = sprintf('larvahpo_outer3_easy_fold%02d_tblTst.mat',iOuterTstSplit);
+  fnameTblOuterTrn = sprintf('larvahpo_outer3_easy_fold%02d_tblTrn.mat',iOuterTstSplit);
+  fnameInner = sprintf('larvahpo_outer3_easy_fold%02d_inner3.mat',iOuterTstSplit);
+  save(fnameTblOuterTst,'tblOuterTst');
+  save(fnameTblOuterTrn,'tblOuterTrn');
+  save(fnameInner,'innerSplit');
+end
+
+%% OUTER: HARD
+%% INNER: HARD
+% For "hard" we hold one movie out, then the other 3 are the inner split.
+movI = false(n,4);
+for iOuterTstSplit=1:4
+  movI(:,iOuterTstSplit) = tblTrnAll.mov==iOuterTstSplit;
+end
+for iOuterTstSplit=1:4
+  tfOuterTst = movI(:,iOuterTstSplit);
+  tfOuterTrn = ~tfOuterTst;
+  tfInner = movI;
+  tfInner(:,iOuterTstSplit) = [];  
+  assert(isequal(any(tfInner,2),tfOuterTrn));  
+  
+  assert(all(tfOuterTst+tfOuterTrn==1));
+  tblOuterTst = tblTrnAll(tfOuterTst,:);
+  tblOuterTrn = tblTrnAll(tfOuterTrn,:);
+  innerSplit = tfInner(tfOuterTrn,:);
+  nOuterTst = height(tblOuterTst);
+  nOuterTrn = height(tblOuterTrn);
+  
+  fprintf('Outer Tst Fold %d. nOuterTst/Trn: %d/%d. inner splits: %s\n',...
+    iOuterTstSplit,nOuterTst,nOuterTrn,mat2str(sum(innerSplit,1)));
+  fprintf('Outer Tst Movs: %s. Outer Trn movs: %s\n',...
+    mat2str(unique(tblOuterTst.mov)),...
+    mat2str(unique(tblOuterTrn.mov)));
+  for kinner=1:3
+    fprintf(1,'  Inner split %d movs: %s\n',kinner,...
+      mat2str(unique(tblOuterTrn.mov(innerSplit(:,kinner)))));
+  end
+
+  fnameTblOuterTst = sprintf('larvahpo_outer4_hard_fold%02d_tblTst.mat',iOuterTstSplit);
+  fnameTblOuterTrn = sprintf('larvahpo_outer4_hard_fold%02d_tblTrn.mat',iOuterTstSplit);
+  fnameInner = sprintf('larvahpo_outer4_hard_fold%02d_inner3.mat',iOuterTstSplit);
+  save(fnameTblOuterTst,'tblOuterTst');
+  save(fnameTblOuterTrn,'tblOuterTrn');
+  save(fnameInner,'innerSplit');
+end
