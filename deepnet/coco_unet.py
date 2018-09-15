@@ -129,17 +129,19 @@ class coco_unet(PoseUNet.PoseUNetMulti):
             rr = max([float(imsz[0])/img_shape[0],float(imsz[1])/img_shape[1]])
             img = zoom(img,[rr,rr,1])
             label_im = zoom(label_im,[rr,rr,1])
+            locs = locs*rr
             if img.shape[0] > conf.imsz[0]:
                 dd = np.random.randint(img.shape[0] - conf.imsz[0])
                 img = img[dd:(dd+conf.imsz[0]),:,:]
                 label_im = label_im[dd:(dd+conf.imsz[0]),:,:]
+                locs[...,1] -= dd
+
             if img.shape[1] > conf.imsz[1]:
                 dd = np.random.randint(img.shape[1] - conf.imsz[1])
                 img = img[:, dd:(dd+conf.imsz[1]),:]
                 label_im = label_im[:, dd:(dd+conf.imsz[1]),:]
+                locs[...,0] -= dd
 
-            locs[...,0] = locs[...,0]*float(imsz[1])/img_shape[1]
-            locs[...,1] = locs[...,1]*float(imsz[0])/img_shape[0]
             e4 = time.time()
 #            print('Time to create label ims {}'.format(e4-e3))
 #            print('Time total {}'.format(e4-e1))

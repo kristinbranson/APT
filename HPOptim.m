@@ -569,6 +569,9 @@ classdef HPOptim < handle
       
       s = struct();
       
+      he = sPrm0.ROOT.Track.HistEq.Use;      
+      s.HistEq_flip = {sprintf('.ROOT.Track.HistEq.Use=%d',~he)};
+      
       T0 = sPrm0.ROOT.CPR.NumMajorIter;
       s.NumMajorIter_up = {sprintf('.ROOT.CPR.NumMajorIter=%d',round(iterFac*T0))};
       s.NumMajorIter_dn = {sprintf('.ROOT.CPR.NumMajorIter=%d',round(1/iterFac*T0))};
