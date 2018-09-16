@@ -58,16 +58,32 @@ classdef HPOptim < handle
   
   methods
     
-    function obj = HPOptim(baseDir,splitDirs,nview,varargin)
+    function obj = HPOptim(nview,varargin)
       % HPO workflow
       %
       % baseDir: dir containing all artifacts
       % splitDirs: [nsplit] cellstrs, relative paths (relative to baseDir)
       %   for results for various splits
-      [prmPat,pchPat,rndPat] = myparse(varargin,...
+      [baseDir,prmPat,pchPat,rndPat] = myparse(varargin,...
+        'baseDir',pwd,...
         'prmPat','prm%d.mat',...
-        'pchPat','pch%02d',...
-        'rndPat','rnd%d');
+        'pchPat','pch%d',...
+        'rndPat','prm%d');
+      
+      json = dir(fullfile(baseDir,'*.json'));
+      if ~isscalar(json)
+        error('Cannot find single json file to read.');
+      end
+      
+      jsonS = json.name;
+      json = fullfile(baseDir,jsonS);
+      fprintf(1,'Found json %s in basedir %s.\n',jsonS,baseDir);
+      
+      json = readtxtfile(json);
+      json = cat(2,json{:});
+      json = jsondecode(json);
+      splitinfo = struct2cell(json.splits);
+      splitDirs = cellfun(@(x)x.dir,splitinfo,'uni',0);      
       
       nSplits = numel(splitDirs);
       
@@ -116,6 +132,7 @@ classdef HPOptim < handle
       %trntrkErrSplits = cell(nSplits,1); % [nxnptxnRound]
       trntrkDXYSplits = cell(nSplits,1); % [nxDxnRound]
       yearstr = datestr(now,'yyyy');
+      tftrntrkfound = true;
       for iRound=0:nRound-1
         pchDir = fullfile(baseDir,sprintf(pchPat,iRound));
         prmDirS = sprintf(prmPat,iRound);
@@ -150,6 +167,9 @@ classdef HPOptim < handle
               fprintf(2,'  Did not find trntrk file for (split,iround)=(%d,%d).\n',iSplit,iRound);
               %errLblTrk = nan; % will lead to harderr if iRound==0; otherwise will sing expand
               dLblTrk = nan; % etc
+              if iRound==0
+                tftrntrkfound = false;
+              end
             case 1
               fprintf(1,'  Found trntrk data for (split,iround)=(%d,%d).\n',iSplit,iRound);
               tt = load(fullfile(spltDir,trntrkFile.name),'-mat');
@@ -177,13 +197,15 @@ classdef HPOptim < handle
         assert(nroundtmp==nRound);
         fprintf(1,'Split type %d. (n,npts,npch) = (%d,%d,%d).\n',iSplit,n,npts,npch);
         
-        dxy = trntrkDXYSplits{iSplit};
-        [ntrk,D,nRound2] = size(dxy);
-        assert(nRound2==nRound);
-        nPhysPts = D/nview/2;
-        dxy = reshape(dxy,ntrk,nPhysPts,nview,2,nRound); % n, pt, view, x/y, set
-        dxy = permute(dxy,[1 2 4 3 5]); % n, pt, x/y, view, set
-        trntrkDXYSplits{iSplit} = dxy;
+        if tftrntrkfound
+          dxy = trntrkDXYSplits{iSplit};
+          [ntrk,D,nRound2] = size(dxy);
+          assert(nRound2==nRound);
+          nPhysPts = D/nview/2;
+          dxy = reshape(dxy,ntrk,nPhysPts,nview,2,nRound); % n, pt, view, x/y, set
+          dxy = permute(dxy,[1 2 4 3 5]); % n, pt, x/y, view, set
+          trntrkDXYSplits{iSplit} = dxy;
+        end
       end
       assert(isequal(pchSplits{:},repmat(pchSplits{1}(:,1),1,nRound)));
       pchs = pchSplits{1}(:,1);
@@ -470,6 +492,21 @@ classdef HPOptim < handle
         end
       end
       
+    end
+    
+    function showPrmDiff(obj)
+      pcell = obj.prms;
+      
+      nrnd = numel(pcell);
+      for irnd=2:nrnd
+        fprintf(1,'\n### Round %d->%d\n',irnd-1,irnd);
+        structdiff(pcell{irnd-1},pcell{irnd});
+      end
+      
+      if nrnd>1
+        fprintf(1,'\n### NET Round %d->%d\n',1,nrnd);
+        structdiff(pcell{1},pcell{nrnd});
+      end
     end
     
   end
