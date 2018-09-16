@@ -521,7 +521,7 @@ classdef Labeler < handle
     function v = get.movieFilesAllFull(obj)
       % See also .projLocalizePath()
       sMacro = obj.projMacros;
-      if ~isfield(sMacro,'projdir')
+      if ~isfield(sMacro,'projdir') && ~isempty(obj.projectroot)
         % This conditional allows user to explictly specify project root
         % Useful use case here: testproject 'modules' (lbl + data in portable folder)
         sMacro.projdir = obj.projectroot;
