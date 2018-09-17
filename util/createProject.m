@@ -8,11 +8,10 @@ function lObj = createProject(baseProj,movFiles,varargin)
 %   This could be an empty project with no movies, or a project with existing
 %   movies/labels.
 % movFiles: [nmov x nview] cellstr of movies to add to baseProj.
-%
-% 
 
-[gt,tblLbls,calibFiles,calibObjs,cropRois,projname,outfile,diaryfile] = ...
+[clearBaseProj,gt,tblLbls,calibFiles,calibObjs,cropRois,projname,outfile,diaryfile] = ...
   myparse(varargin,...
+  'clearBaseProj',true,... % if true, delete all existing movies in base proj
   'gt',false,... % if true, augment GT movies with movFiles (and remainder of opt args)
   'tblLbls',[],... (opt) MFTable with fields MFTable.FLDSCORE, ie .mov, .frm, .iTgt, .tfocc, .p. 
                ...   % * .mov are positive ints, row indices into movFiles
@@ -21,9 +20,9 @@ function lObj = createProject(baseProj,movFiles,varargin)
                ...   % * tblLbls.p should have size [nmovxnLabelPoints*2].
                ...   %   The raster order is (fastest first): 
                ...   %     {physical pt,view,coordinate (x vs y)} 
-  'calibFiles',[],... % (opt) [nx1] cellstr of calibration files for each movie
-  'calibObjs',[],... % (opt) [nx1] cell array of CalRig objects. Specify at most one of 'calibFiles' or 'calibObjs'
-  'cropRois',[],... (opt) [nx4xnview] crop rois for movies
+  'calibFiles',[],... % (opt) [nmovx1] cellstr of calibration files for each movie
+  'calibObjs',[],... % (opt) [nmovx1] cell array of CalRig objects. Specify at most one of 'calibFiles' or 'calibObjs'
+  'cropRois',[],... (opt) [nmovx4xnview] crop rois for movies
   'projname','',... % (opt) char, projectname
   'outfile','',...   % (opt) output file where new proj will be saved
   'diaryfile',''... % (opt) diary file
@@ -31,7 +30,11 @@ function lObj = createProject(baseProj,movFiles,varargin)
 
 lObj = Labeler();
 lObj.projLoad(baseProj);
-lObj.projname = projname;  
+if clearBaseProj
+  lObj.movieRmAll();
+end
+
+lObj.projname = projname;
 
 assert(iscellstr(movFiles));
 [nmovadd,nview] = size(movFiles);
@@ -78,9 +81,9 @@ end
 
 for imovadd=1:nmovadd
   if nview==1
-    lObj.movieAdd(movFiles{imovadd},[]);
+    lObj.movieAdd(movFiles{imovadd},[],'offerMacroization',false);
   else
-    lObj.movieSetAdd(movFiles(imovadd,:));
+    lObj.movieSetAdd(movFiles(imovadd,:),'offerMacroization',false);
   end
   lObj.movieSet(lObj.nmoviesGTaware);
   pause(1); % prob unnec, give UI a little time

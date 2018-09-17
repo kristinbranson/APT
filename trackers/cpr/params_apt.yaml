@@ -19,7 +19,7 @@ ROOT:
     - HistEq:
       - ['Histogram Equalization','',false,Histogram Equalization,'','']
       - Use: ['Enable',boolean,true,Enable histogram equalization as preprocessing step.,false,'']
-      - NSampleH0: ['Num frames sample',unsigned,true,Number of frames to sample to estimate type image histogram.,500,'']
+      - NSampleH0: ['Num frames sample',unsigned,true,Number of frames per movie to sample to estimate type image histogram.,20,'']
     - MultiTarget:
       - ['Multiple Targets','',false,"When multiple targets are present, image patches are cropped from movies based on trajectory data.",'','']
       - TargetCrop:

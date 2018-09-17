@@ -1,6 +1,55 @@
 classdef GTPlot
   methods (Static)
     
+    function [n,npts,nvw,nsets,l2errptls,l2mnerrptls] = errhandler(err,ptiles)
+      % err: Either:
+      %  1. numeric array [n x npts x (x/y) x nviews x nsets]
+      %  2. cell array [nsets] where err{iset} is [n_iset x npts x (x/y) x nviews]
+      % ptiles: [nptl] vector of ptiles 
+      % 
+      % The 3rd dim (x/y) could be just (x) or (x/y/z) etc.
+      %
+      % "views" and "sets" are really just arbitrary dimensions for tiling 
+      % plots 
+      %
+      % n: If 1, the common number of rows.
+      %    If 2, an [nsets] array.
+      % l2errptls: [nptl x npts x nvw x nsets] l2 err ptile matrix
+      % l2mnerrptls: [nptl x nvw x nsets] ptiles of mean-err-over-pts 
+      
+      if iscell(err)
+        err = err(:);
+        nsets = numel(err);
+        [n,npts,d,nvw] = cellfun(@size,err);
+        assert(all(npts==npts(1)));
+        assert(all(d==d(1)));
+        assert(all(nvw==nvw(1)));
+        npts = npts(1);
+        % d=d(1)
+        nvw = nvw(1);
+      elseif isnumeric(err)
+        [n,npts,d,nvw,nsets] = size(err);
+      else
+        assert(false);
+      end
+      
+      nptl = numel(ptiles);      
+      l2errptls = nan(nptl,npts,nvw,nsets);
+      l2mnerrptls = nan(nptl,nvw,nsets);
+      for iset=1:nsets
+        if iscell(err)
+          errSet = err{iset};
+        else
+          errSet = err(:,:,:,:,iset);
+        end
+        % errSet is [n_iset x npts x d x nview]
+        l2errSet = squeeze(sqrt(sum(errSet.^2,3))); % [n_iset x npts x nview]        
+        l2errptls(:,:,:,iset) = prctile(l2errSet,ptiles,1);
+        l2errSetMean = squeeze(sum(l2errSet,2)/npts);
+        l2mnerrptls(:,:,iset) = prctile(l2errSetMean,ptiles,1);
+      end
+    end
+    
     function [hFig,hAxs] = bullseyePtiles(err,I,xyLbl,varargin)
       % Bullseyes overlaid on images
       %
@@ -9,28 +58,37 @@ classdef GTPlot
       % err: [n x npts x nviews x nsets] Error array. 
       %  - n is the number of rows/frames
       %  - npts is the number of landmarks
-      %  - nviews can be 1 for single-view data
+      %  - nviews can be 1 for single-view data. "views" and "sets" are 
+      % really just arbitrary dimensions for tiling bullseye plots 
       %  - nsets can be 1 for eg a single XV run, or greater than 1 when 
       %  eg a parameter is titrated it is desired to compare multiple runs.
       %
       % hFig: figure handle
       % hAxs: [nviews x nsets] axes handles
       
-      [ptiles,hFig,xyLblPlotArgs,setTitles,ptileCmap] = ...
+      [ptiles,hFig,xyLblPlotArgs,setNames,ptileCmap,lineWidth,contourtype,titlefontsize] = ...
         myparse(varargin,...
         'ptiles',[50 75 90 95 97.5 99 99.5],...
         'hFig',[],...
-        'xyLblPlotArgs',{'m+'},...
-        'setTitles',[],...
-        'ptileCmap','jet');
+        'xyLblPlotArgs',{'m.' 'markersize' 20},...
+        'setNames',[],...
+        'ptileCmap','lines',...
+        'lineWidth',1,...
+        'contourtype','circle',... % either 'circle','ellipse','arb'. 
+          ... % If ellipse or arb, then err should have size 
+          ... % [n x npts x 2 x nviews x nsets] (3rd dim = x/y)
+        'titlefontsize',22 ...
+        );
       
-      [n,npts,nviews,nsets] = size(err);
+      [n,npts,nviews,nsets,l2errptls,l2mnerrptls] = ...
+        GTPlot.errhandler(err,ptiles);
+      
       assert(isvector(I) && iscell(I) && numel(I)==nviews);
       szassert(xyLbl,[npts,2,nviews]);
-      if isempty(setTitles)
-        setTitles = arrayfun(@(x)sprintf('Set %d',x),1:nsets,'uni',0);
+      if isempty(setNames)
+        setNames = arrayfun(@(x)sprintf('Set %d',x),1:nsets,'uni',0);
       end
-      assert(iscellstr(setTitles) && numel(setTitles)==nsets);
+      assert(iscellstr(setNames) && numel(setNames)==nsets);
            
       if isempty(hFig)
         hFig = figure();
@@ -41,13 +99,23 @@ classdef GTPlot
       end
       
       nptiles = numel(ptiles);
-      err_prctiles = nan(nptiles,npts,nviews,nsets);
-      for l=1:npts
-        for v=1:nviews
-          for k=1:nsets
-            err_prctiles(:,l,v,k) = prctile(err(:,l,v,k),ptiles);
+      %err_prctiles = nan(nptiles,npts,nviews,nsets);
+      gaussfitIfos = cell(npts,nviews,nsets);
+      switch contourtype
+        case 'ellipse'
+          for ipt=1:npts
+            for ivw=1:nviews
+              for iset=1:nsets
+                if iscell(err)
+                  xyerr = squeeze(err{iset}(:,ipt,:,ivw));
+                else
+                  xyerr = squeeze(err(:,ipt,:,ivw,iset)); 
+                end
+                assert(size(xyerr,2)==2); % 2d only, xyerr should be [n_iset x 2]
+                gaussfitIfos{ipt,ivw,iset} = GTPlot.gaussianFit(xyerr);
+              end
+            end
           end
-        end
       end
       
       colors = feval(ptileCmap,nptiles);
@@ -65,22 +133,49 @@ classdef GTPlot
           colormap gray
           axis(ax,'image','off');
           hold(ax,'on');
-          plot(ax,xyL(:,1),xyL(:,2),xyLblPlotArgs{:});
+
           if viewi==1
-            tstr = setTitles{k};
-            if k==1
+            tstr = setNames{k};
+            if k==1 && isscalar(n)
               tstr = sprintf('N=%d. %s',n,tstr);
             end
-            title(ax,tstr,'fontweight','bold','fontsize',22);
+            title(ax,tstr,'fontweight','bold','fontsize',titlefontsize,...
+              'interpreter','none');
+          end
+          
+          if viewi==nviews && ~isscalar(n)
+            xlblstr = sprintf('n=%d',n(k));
+            xlabel(ax,xlblstr,'fontweight','bold','fontsize',titlefontsize,...
+              'interpreter','none');
+            set(ax,'Visible','on','XTickLabel',[],'YTickLabel',[]);
           end
           
           for p = 1:nptiles
             for l = 1:npts
-              rad = err_prctiles(p,l,viewi,k);
-              h(p) = drawellipse(xyL(l,1),xyL(l,2),0,rad,rad,...
-                'Color',colors(p,:),'Parent',ax,'linewidth',1);
+              switch contourtype
+                case 'circle'
+                  rad = l2errptls(p,l,viewi,k);                  
+                  h(p) = drawellipse(xyL(l,1),xyL(l,2),0,rad,rad,...
+                    'Color',colors(p,:),'Parent',ax,'lineWidth',lineWidth);
+                case 'ellipse'
+                  gIfo = gaussfitIfos{l,viewi,k};
+                  scatterpts = (l==2) & p==1;
+                  h(p) = GTPlot.gaussianFitDrawContours(gIfo,...
+                    xyL(l,1),xyL(l,2),ptiles(p),'scatterpts',scatterpts,...
+                    'Color',colors(p,:),'Parent',ax,'lineWidth',lineWidth);
+                  if p==1
+                    fprintf(1,'Vw%d set%d pt%d. gIfo.mean: %s\n',...
+                      viewi,k,l,mat2str(gIfo.mean));
+                  end
+                case 'arb'
+                  assert(false,'Unimplemented.');
+              end
             end
           end
+          
+          % do this last so it is most on top
+          plot(ax,xyL(:,1),xyL(:,2),xyLblPlotArgs{:});
+
         end
       end
             
@@ -186,19 +281,131 @@ classdef GTPlot
     function [hFig,hAxs] = ptileCurves(err,varargin)
       % Constant-percentile curves over a titration set
       %
-      % err: see bullseyePtiles
+      % err: see errHandler
       %
       % hFig: figure handle
       % hAxs: [nviews x nsets] axes handles
       
-      [ptiles,hFig,lineArgs,setNames] = ...
+      [ptiles,hFig,lineArgs,setNames,axisArgs,ptnames,...
+        createsubplotsborders,titleArgs] = ...
         myparse(varargin,...
         'ptiles',[50 75 90 95 97.5 99 99.5],...
         'hFig',[],...
         'lineArgs',{'m+'},...
-        'setNames',[]);
+        'setNames',[],...
+        'axisArgs',{'XTicklabelRotation',45,'FontSize' 16},...
+        'ptnames',[],...
+        'createsubplotsborders',[.05 0;.12 .12],...
+        'titleArgs',{'fontweight','bold'}...
+        );
       
-      [n,npts,nviews,nsets] = size(err);     
+      [ns,npts,nviews,nsets,l2errptls,l2mnerrptls] = GTPlot.errhandler(err,ptiles);
+      
+      if isempty(ptnames)
+        ptnames = arrayfun(@(x)sprintf('pt%d',x),1:npts,'uni',0);
+      end
+      assert(iscellstr(ptnames) && numel(ptnames)==npts);
+      
+      if isempty(hFig)
+        hFig = figure();
+        set(hFig,'Color',[1 1 1]);
+      else
+        figure(hFig);
+        clf;
+      end
+      
+      if isempty(setNames)
+        setNames = arrayfun(@(x)sprintf('Set %d',x),1:nsets,'uni',0);
+      end
+      assert(iscellstr(setNames) && numel(setNames)==nsets);
+      setNames = setNames(:);
+      if iscell(err)
+        setNames = arrayfun(@(x,y)sprintf('%s (n=%d)',x{1},y),setNames,ns,'uni',0);
+      end
+      
+      hAxs = createsubplots(nviews,npts+1,createsubplotsborders);
+      hAxs = reshape(hAxs,nviews,npts+1);
+      for ivw=1:nviews
+        for ipt=[1:npts inf]
+          tfPlot1 = ivw==1 && ipt==1;
+
+          % Get/Compute: 
+          % y: [nptls x nsets] err percentiles for each set
+          % ax: axis in which to plot
+          % tstr: title str
+
+          if ~isinf(ipt)
+            y = squeeze(l2errptls(:,ipt,ivw,:)); % [nptl x nsets]
+            ax = hAxs(ivw,ipt);
+            tstr = sprintf('vw%d %s',ivw,ptnames{ipt});
+            if isscalar(ns) && tfPlot1
+              tstr = sprintf('N=%d. %s',ns,tstr);
+            end
+          else
+            y = squeeze(l2mnerrptls(:,ivw,:)); % [nptl x nsets]
+            ax = hAxs(ivw,npts+1);
+            tstr = sprintf('vw%d, mean allpts shown',ivw);
+          end
+          
+          axes(ax);
+          
+          args = {...
+            'YGrid' 'on' 'XGrid' 'on' 'XLim' [0 nsets+1] 'XTick' 1:nsets ...
+            'XTickLabel' setNames 'TickLabelInterpreter' 'none'};
+          args = [args axisArgs]; %#ok<AGROW>
+            
+          x = 1:nsets; % croptypes
+          h = plot(x,y','.-','markersize',20);
+          set(ax,args{:});
+          hold(ax,'on');
+          ax.ColorOrderIndex = 1;
+          
+          if tfPlot1
+            legstrs = strcat(numarr2trimcellstr(ptiles'),'%');
+            hLeg = legend(h,legstrs);
+            hLeg.FontSize = 10;
+            %xlabel('Crop type','fontweight','normal','fontsize',14);
+            
+            ystr = sprintf('raw err (px)');
+            ylabel(ystr,'fontweight','normal');
+          else
+            set(ax,'XTickLabel',[]);
+          end
+          title(tstr,titleArgs{:});
+          if ipt==1
+          else
+            set(ax,'YTickLabel',[]);
+          end
+        end
+        
+        linkaxes(hAxs(ivw,:));
+      end
+    end
+    
+    function [hFig,hAxs] = ptileCurvesZoomed(err,varargin)
+      % Constant-percentile curves over a titration set; each ptile curve
+      % gets its own axis
+      %
+      % err: [n x npts x nsets] Error array. 
+      %  - n is the number of rows/frames
+      %  - npts is the number of landmarks
+      %  - nsets eg a parameter is titrated it is desired to compare multiple runs.
+      %      
+      % hFig: figure handle
+      % hAxs: [nptiles x npts] axes handles
+      
+      [ptiles,hFig,lineArgs,ptNames,setNames,axisArgs,ylimcapbase] = ...
+        myparse(varargin,...
+        'ptiles',[50 75 90 95 97.5 99 99.5],...
+        'hFig',[],...
+        'lineArgs',{'m+'},...
+        'ptNames',[],...
+        'setNames',[],...
+        'axisArgs',{'XTicklabelRotation',45,'FontSize' 16},...
+        'ylimcapbase',false... 
+        );
+      
+      [n,npts,nsets] = size(err);
      
       if isempty(hFig)
         hFig = figure();
@@ -212,66 +419,178 @@ classdef GTPlot
         setNames = arrayfun(@(x)sprintf('Set %d',x),1:nsets,'uni',0);
       end
       assert(iscellstr(setNames) && numel(setNames)==nsets);
-      
-      hAxs = createsubplots(nviews,npts+1,[.05 0;.12 .12]);
-      hAxs = reshape(hAxs,nviews,npts+1);
-      for ivw=1:nviews
-        for ipt=[1:npts inf]
-          if ~isinf(ipt)
-            % normal branch
-            errs = squeeze(err(:,ipt,ivw,:)); % nxnsets
-            y = prctile(errs,ptiles); % [nptlsxnsets]
-            ax = hAxs(ivw,ipt);
-            tstr = sprintf('vw%d pt%d',ivw,ipt);
-          else
-            errs = squeeze(sum(err(:,:,ivw,:),2)/npts); % [nxnsets]
-            y = prctile(errs,ptiles); % [nptlsxnsets]
-            ax = hAxs(ivw,npts+1);
-            tstr = sprintf('vw%d, mean allpts',ivw);
-          end
+
+      if isempty(ptNames)
+        ptNames = arrayfun(@(x)sprintf('pt%d',x),1:npts,'uni',0);
+      end
+      assert(numel(ptNames)==npts);
+
+      nptiles = numel(ptiles);
+      hAxs = subplots(nptiles,npts,[.06 0;.12 0]);
+      for ipt=1:npts
+%         if ~isinf(ipt)
+          % normal branch
+          errs = squeeze(err(:,ipt,:)); % nxnsets
+          y = prctile(errs,ptiles); % [nptlsxnsets]
+%         else
+%           errs = squeeze(sum(err(:,:,ivw,:),2)/npts); % [nxnsets]
+%           y = prctile(errs,ptiles); % [nptlsxnsets]
+%           ax = hAxs(ivw,npts+1);
+%           tstr = sprintf('vw%d, mean allpts',ivw);
+%         end
+        tfPlot1 = ipt==1;
+        %           if tfPlot1
+        %             tstr = ['XV err vs CropType: ' tstr];
+        %           end
+        
+        args = {...
+          'YGrid' 'on' 'XGrid' 'on' 'XLim' [0 nsets+1] 'XTick' 1:nsets ...
+          'XTickLabel',setNames,'TickLabelInterpreter','none'};
+        args = [args axisArgs];        
+        x = 1:nsets;
+        for iptile=1:nptiles
+          ax = hAxs(iptile,ipt);
           axes(ax);
-          tfPlot1 = ivw==1 && ipt==1;
-%           if tfPlot1
-%             tstr = ['XV err vs CropType: ' tstr];
-%           end
-          
-          args = {...
-            'YGrid' 'on' 'XGrid' 'on' 'XLim' [0 nsets+1] 'XTick' 1:nsets ...
-            'XTicklabelRotation',45,'XTickLabel',setNames ...
-            'FontSize' 16};
-          x = 1:nsets; % croptypes
-          h = plot(x,y','.-','markersize',20);
-          set(ax,args{:});
+          h = plot(x,y(iptile,:)','.-','markersize',20);
           hold(ax,'on');
-          ax.ColorOrderIndex = 1;
-          
-          if tfPlot1
-            tstr = sprintf('N=%d. %s',n,tstr);
-            legstrs = strcat(numarr2trimcellstr(ptiles'),'%');
-            hLeg = legend(h,legstrs);
-            hLeg.FontSize = 10;
-            %xlabel('Crop type','fontweight','normal','fontsize',14);
-            
-            ystr = sprintf('raw err (px)');
-            ylabel(ystr,'fontweight','normal','fontsize',14);
-          else
-            set(ax,'XTickLabel',[]);
+%           ax.ColorOrderIndex = 1;
+
+          if iptile==1
+            titleargs = {'fontweight','bold','fontsize',16};
+            if ipt==1
+              title(sprintf('N=%d. %s',n,ptNames{ipt}),titleargs{:});
+            else
+              title(ptNames{ipt},titleargs{:});
+            end            
           end
-          title(tstr,'fontweight','bold','fontsize',16);
+          
           if ipt==1
+            ptilestr = strcat(num2str(ptiles(iptile)),'%');
+            ylabel(ax,ptilestr,'fontweight','bold','fontsize',16);
           else
             set(ax,'YTickLabel',[]);
           end
+          set(ax,args{:});
+          if ylimcapbase
+            yl = ylim(ax);
+            yl(2) = min(yl(2),2*y(iptile,1)); 
+            ylim(ax,yl);
+          end
+          set(ax,'YTick',ax.YTick(1:end-1),'YTickLabel',ax.YTickLabel(1:end-1));
         end
       end
-      linkaxes(hAxs(1,:),'y');
-      linkaxes(hAxs(2,:),'y');
-%       ylim(axs(1,1),[0 50]);
-%       ylim(axs(2,1),[0 80]);
-      %linkaxes(axs(2,:),'y');
-      % ylim(axs(2,1),[0 20]);
       
+      for iptile=1:nptiles
+        linkaxes(hAxs(iptile,:));
+      end
+    end
+
+    % anisotropic bullseye utils
+
+    function h = gaussianFitDrawContours(ifo,xc,yc,ptiles,varargin)
+      % ifo: Output of .gaussianFit(xyTrkErr)
+      
+      [ax,meshrad,meshptsperpx,color,lineWidth,scatterpts,scatterptsjit,useextrameth] = ...
+        myparse(varargin,...
+        'Parent',gca,...
+        'meshrad',50,...
+        'meshptsperpx',1,...
+        'Color',[0 0 1],...
+        'lineWidth',1, ...
+        'scatterpts',false,...
+        'scatterptsjit',0.25,...
+        'useextrameth',false ... % if true, compute/plot 2 ways (originally for debugging)
+        );       
+
+      if scatterpts
+        %ifo.xy is xyTrkErr
+        xyjit = ifo.xy;
+        xyjit = xyjit + scatterptsjit*2*(rand(size(xyjit))-0.5);
+        plot(ax,xyjit(:,1)+xc,xyjit(:,2)+yc,'.w');
+      end
+
+      if useextrameth
+        % method 1: compute ptiles of actual pdf and call contour()
+        xabs = linspace(xc-meshrad,xc+meshrad,2*meshrad*meshptsperpx);
+        yabs = linspace(yc-meshrad,yc+meshrad,2*meshrad*meshptsperpx);
+        [xabs,yabs] = meshgrid(xabs,yabs);
+        ff = ifo.f([xabs(:)-xc yabs(:)-yc]);
+        ff = reshape(ff,size(xabs));
+        ff = -ff; % will be taking "positive" ptiles
+
+
+        % These -PDF/ifo.f() values are at the various ptile contours of
+        % -PDF for the dataset
+        zptiles = prctile(-ifo.fxy,ptiles);
+        if isscalar(zptiles)
+          zptiles = [zptiles zptiles];
+        end
+        [~,h] = contour(ax,xabs,yabs,ff,zptiles,...
+          'color',color,'linewidth',lineWidth+1,'LineStyle',':');
+      end
+            
+      % method 2: compute ptiles of maha dist
+      mhd = sqrt(ifo.mhd2xy);
+      mhdPtiles = prctile(mhd,ptiles);
+      nptiles = numel(ptiles);
+      [atmp,btmp,theta] = cov2ell(ifo.cov); % a, b are 2sigma
+      siga = atmp/2;
+      sigb = btmp/2;
+      
+      axes(ax);
+      
+      h = gobjects(nptiles,1);
+      for iptl=1:nptiles
+        mhdI = mhdPtiles(iptl);
+        adraw = mhdI*siga;
+        bdraw = mhdI*sigb;
+        h(iptl) = drawellipse(xc+ifo.mean(1),yc+ifo.mean(2),...
+          theta,adraw,bdraw,'color',color,'linewidth',lineWidth);
+  
+%         foo = invcov*xy';
+%         foo = sum(xy'.*foo,1);
+%         ninside = nnz(foo<=mhdthis^2);
+%         nout = nnz(foo>mhdthis^2);
+%         fprintf(1,'%d/%d in/out, %.3f\n',ninside,nout,ninside/(ninside+nout));
+      end
+    end
+    function ifo = gaussianFit(xy)
+      % xy: [nx2] points
+      %
+      % compute mean, cov, invert cov, sqrt(det(cov))
+      
+      assert(size(xy,2)==2);
+      ifo.mean = mean(xy,1);
+      ifo.cov = cov(xy);
+      %fprintf(1,'xy mean (expect cntred): %s\n',mat2str(ifo.mean));
+      ifo.f = GTPlot.make2DGaussian(ifo.mean,ifo.cov);
+      
+      ifo.xy = xy;
+      [ifo.fxy,ifo.mhd2xy] = ifo.f(xy);
+      
+      assert(iscolumn(ifo.fxy));
+    end
+    function f = make2DGaussian(mu,cov)
+      invcov = inv(cov);
+      sqrtdet = sqrt(det(cov));
+      f = @nst;
+      function [p,mhd2] = nst(x)
+        % x: [nx2]
+        %
+        % p: [nx1]
+        % mhd2: [nx1] maha dist^2
+        
+        %validateattributes(x,{'numeric'},{'vector' 'numel' 2});
+        assert(size(x,2)==2);
+        xbar = x-mu; % bsx
+        xbar = xbar'; % [2xn]   
+        exparg = sum(xbar.*(invcov*xbar),1);
+        exparg = exparg';
+        mhd2 = exparg;
+        p = 1/(2*pi*sqrtdet) * exp(-0.5*exparg);
+      end
     end
     
   end
+  
 end

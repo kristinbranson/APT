@@ -9,4 +9,4 @@ function Q = qInv( Q1 )
 %     
 % VERSION: 03.03.2012
 
-Q = qConj( Q1 ) ./ qLength( Q1 )^2;
+Q = qconj( Q1 ) ./ qLength( Q1 )^2;

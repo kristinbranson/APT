@@ -17,7 +17,11 @@ function APTCluster(varargin)
 %
 % % CrossValidation
 % APTCluster(lblFile,'xv','tableFile',tableFile,...
-%     'tableSplitFile',tableSplitFile,'paramFile',paramFile);
+%     'tableSplitFile',tableSplitFile,'paramFile',paramFile,...
+%     'paramPatchFile',paramPatchFile,'outdir',outdir);
+% APTCluster(lblFile,'trntrk','tableFileTrn',tblFileTrn,...
+%     'tableFileTrk',tblFileTrk,'paramFile',paramFile,...
+%     'paramPatchFile',paramPatchFile,'outdir',outdir);
 
 startTime = tic;
 
@@ -35,10 +39,39 @@ fprintf('Time to start labeler: %f\n',toc(startTime));
 startTime = tic;
 switch action
   case 'retrain'
+    varargin = varargin(3:end);
+    [tableFile,paramFile,paramPatchFile] = ...
+      myparse(varargin,...
+      'tableFile','',... % (opt) mat-filename containing an MFTtable of training rows
+      'paramFile','',... % (opt) mat-filename containing a single param struct that will be fed to lObj.trackSetParams
+      'paramPatchFile',''... % (opt) textfile containing parameter 'patch'
+      );
+    
     lObj.projLoad(lblFile);
-    lObj.trackRetrain();
+    if lObj.movieReadPreLoadMovies
+      fprintf(' ... preload is on.\n');
+    end
+    if lObj.gtIsGTMode
+      lObj.gtSetGTMode(false,'warnChange',true);
+    end
+        
+    retrainArgs = cell(1,0);
     [lblP,lblF,lblE] = fileparts(lblFile);
-    outfile = fullfile(lblP,[lblF '_retrain' datestr(now,'yyyymmddTHHMMSS') lblE]);
+    outfileBase = lblF;
+    tfTable = ~isempty(tableFile);
+    if tfTable
+      tblMFT = MFTable.loadTableFromMatfile(tableFile);
+      fprintf(1,'Loaded training table (%d rows) from %s.\n',height(tblMFT),tableFile);
+      retrainArgs = [retrainArgs {'tblMFTtrn' tblMFT}];
+      [~,tableFileS,~] = fileparts(tableFile);
+      outfileBase = [outfileBase '_' tableFileS];
+    end
+    
+    outfileBase = lclSetParamsApplyPatches(lObj,paramFile,paramPatchFile,outfileBase);
+    
+    outfileBase = [outfileBase '_retrain' datestr(now,'yyyymmddTHHMMSS')];
+    outfile = fullfile(lblP,[outfileBase lblE]);
+    lObj.trackRetrain(retrainArgs{:});
     fprintf('APTCluster: saving retrained project: %s\n',outfile);
     lObj.projSaveRaw(outfile);
   case 'track'
@@ -70,12 +103,13 @@ switch action
     end
   case 'xv'
     varargin = varargin(3:end);
-    [tableFile,tableSplitFile,paramFile,paramPatchFile] = ...
+    [tableFile,tableSplitFile,paramFile,paramPatchFile,outDir] = ...
       myparse(varargin,...
       'tableFile','',... % (opt) mat-filename containing an MFTtable for rows to consider in XV
       'tableSplitFile','',... % (opt) mat-filename containing split variables. If specified, tableFile must be specced %      'tableSplitFileVar','',... % (opt) variable name in tableSplitFile. <tableSplitFile>.(tableSplitFielVar) should be a [height(<tableFile>) x nfold] logical where true indicates train and false indicates test
       'paramFile','',... % (opt) mat-filename containing a single param struct that will be fed to lObj.trackSetParams
-      'paramPatchFile',''... % (opt) textfile containing parameter 'patch'
+      'paramPatchFile','',... % (opt) textfile containing parameter 'patch'
+      'outDir',''... (opt) location to place xv output. Defaults to lblfile path
       );
     
     lObj.projLoad(lblFile);
@@ -88,11 +122,10 @@ switch action
 
     tfTable = ~isempty(tableFile);
     tfSplit = ~isempty(tableSplitFile);
-    tfParam = ~isempty(paramFile);
-    tfPPatch = ~isempty(paramPatchFile);
-    xvArgs = cell(1,0);
+%     xvArgs = cell(1,0);
+    xvArgs = {'wbObj',WaitBarWithCancelCmdline('APTCluster xv')};
     [lblP,lblF,lblE] = fileparts(lblFile);
-    outfileBase = 'xv';
+    outfileBase = ['xv_' lblF];
     if tfTable
       [~,tableFileS,~] = fileparts(tableFile);
       tblMFT = MFTable.loadTableFromMatfile(tableFile);
@@ -113,33 +146,9 @@ switch action
       xvArgs = [xvArgs {'kfold' kfold 'partTst' split}];
       outfileBase = [outfileBase '_' tableSplitFileS];
     end
-    if tfParam
-      [~,paramFileS,~] = fileparts(paramFile);
-      sPrm = loadSingleVariableMatfile(paramFile);
-      fprintf(1,'Loaded parameters from %s.\n',paramFile);
-      lObj.trackSetParams(sPrm);
-      outfileBase = [outfileBase '_' paramFileS];
-    end
-    if tfPPatch
-      [~,paramPatchFileS,~] = fileparts(paramPatchFile);
-      patches = readtxtfile(paramPatchFile);
-      npatch = numel(patches);
-      fprintf(1,'Read parameter patch file %s. %d patches.\n',paramPatchFile,...
-        npatch);
-      sPrm = lObj.trackGetParams();
-      for ipch=1:npatch
-        pch = patches{ipch};
-        pch = ['sPrm' pch ';']; %#ok<AGROW>
-        tmp = strsplit(pch,'=');
-        pchlhs = strtrim(tmp{1});
-        fprintf(1,'  patch %d: %s\n',ipch,pch);
-        fprintf(1,'  orig (%s): %s\n',pchlhs,evalc(pchlhs));
-        eval(pch);
-        fprintf(1,'  new (%s): %s\n',pchlhs,evalc(pchlhs));
-      end
-      lObj.trackSetParams(sPrm);
-      outfileBase = [outfileBase '_' paramPatchFileS];
-    end
+    
+    outfileBase = lclSetParamsApplyPatches(lObj,paramFile,paramPatchFile,outfileBase);
+    
     outfileBase = [outfileBase '_' datestr(now,'yyyymmddTHHMMSS')];
     
     lObj.trackCrossValidate(xvArgs{:});
@@ -149,8 +158,63 @@ switch action
     savestuff.xvArgs = xvArgs;
     savestuff.xvRes = lObj.xvResults;
     savestuff.xvResTS = lObj.xvResultsTS; %#ok<STRNU>
-    outfile = fullfile(lblP,[outfileBase '.mat']);    
+    if isempty(outDir)
+      outDir = lblP;
+    end
+    outfile = fullfile(outDir,[outfileBase '.mat']);    
     fprintf('APTCluster: saving xv results: %s\n',outfile);
+    save(outfile,'-mat','-struct','savestuff');
+    
+  case 'trntrk'
+    varargin = varargin(3:end);
+    [tblFileTrn,tblFileTrk,paramFile,paramPatchFile,outDir] = ...
+      myparse(varargin,...
+      'tblFileTrn','',... % (opt) mat-filename containing an MFTtable with training rows
+      'tblFileTrk','',... % (opt) mat-filename containing an MFTtable with tracking rows
+      'paramFile','',... % (opt) mat-filename containing a single param struct that will be fed to lObj.trackSetParams
+      'paramPatchFile','',... % (opt) textfile containing parameter 'patch'
+      'outDir',''... (opt) location to place output. Defaults to lblfile path
+      );
+    
+    lObj.projLoad(lblFile);
+    if lObj.movieReadPreLoadMovies
+      fprintf(' ... preload is on.\n');
+    end
+    if lObj.gtIsGTMode
+      lObj.gtSetGTMode(false,'warnChange',true);
+    end
+
+    assert(~isempty(tblFileTrn));
+    assert(~isempty(tblFileTrk));
+    [lblP,lblF,lblE] = fileparts(lblFile);
+    outfileBase = ['trntrk_' lblF];
+    
+    tblTrn = MFTable.loadTableFromMatfile(tblFileTrn);
+    fprintf(1,'Loaded train table (%d rows) from %s.\n',height(tblTrn),tblFileTrn);
+    [~,tblFileTrnS,~] = fileparts(tblFileTrn);
+    outfileBase = [outfileBase '_' tblFileTrnS];
+
+    tblTrk = MFTable.loadTableFromMatfile(tblFileTrk);
+    fprintf(1,'Loaded track table (%d rows) from %s.\n',height(tblTrk),tblFileTrk);
+    [~,tblFileTrkS,~] = fileparts(tblFileTrk);
+    outfileBase = [outfileBase '_' tblFileTrkS];
+    
+    outfileBase = lclSetParamsApplyPatches(lObj,paramFile,paramPatchFile,outfileBase);
+    
+    outfileBase = [outfileBase '_' datestr(now,'yyyymmddTHHMMSS')];
+    
+    args = {'wbObj',WaitBarWithCancelCmdline('APTCluster trntrk')};
+    tblRes = lObj.trackTrainTrackEval(tblTrn,tblTrk,args{:});
+    
+    savestuff = struct();
+    savestuff.sPrm = lObj.trackGetParams();
+    savestuff.tblRes = tblRes;
+    savestuff.tblResTS = now;
+    if isempty(outDir)
+      outDir = lblP;
+    end
+    outfile = fullfile(outDir,[outfileBase '.mat']);    
+    fprintf('APTCluster: saving results: %s\n',outfile);
     save(outfile,'-mat','-struct','savestuff');
   otherwise
     error('APTCluster:action','Unrecognized action ''%s''.',action);
@@ -165,6 +229,26 @@ fprintf('Time to close APT: %f\n',toc(startTime)); startTime = tic;
 close all force;
 fprintf('Time to close everything else: %f\n',toc(startTime)); startTime = tic;
 fprintf('APTCluster finished.\n');
+
+function outfileBase = lclSetParamsApplyPatches(lObj,...
+  paramFile,paramPatchFile,outfileBase)
+
+tfParam = ~isempty(paramFile);
+tfPPatch = ~isempty(paramPatchFile);
+if tfParam
+  sPrm = loadSingleVariableMatfile(paramFile);
+  fprintf(1,'Loaded parameters from %s.\n',paramFile);
+  lObj.trackSetParams(sPrm);
+  [~,paramFileS,~] = fileparts(paramFile);
+  outfileBase = [outfileBase '_' paramFileS];
+end
+if tfPPatch
+  sPrm = lObj.trackGetParams();
+  sPrm = HPOptim.readApplyPatch(sPrm,paramPatchFile);
+  lObj.trackSetParams(sPrm);
+  [~,paramPatchFileS,~] = fileparts(paramPatchFile);
+  outfileBase = [outfileBase '_' paramPatchFileS];
+end
 
 function lclTrackAndExportSingleMov(lObj,mov,trx,trackArgs)
 % Trx: optional, specify '' for no-trx

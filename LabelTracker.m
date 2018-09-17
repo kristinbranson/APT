@@ -142,6 +142,72 @@ classdef LabelTracker < handle
       % - If a tracker is trained, it's an incremental train
     end
     
+    function [tfsucc,tblPTrn,dataPreProc] = preretrain(obj,tblPTrn,wbObj)
+      % Right now this figures out which rows comprise the training set.
+      %
+      % PostConditions (tfsucc==true):
+      %   - If initially unknown, training set is determined/returned in
+      %   tblPTrn
+      %   - lObj.preProcData has been updated to include all rows of
+      %   tblPTrn; lObj.preProcData.iTrn has been set to those rows
+      %
+      % PostConditions (tfsucc=false): other outputs indeterminte
+      %
+      % tblPTrn (in): Either [], or a MFTable.
+      % wbObj: Either [], or a WaitBarWithCancel.
+      %
+      % tfsucc: see above
+      % tblPTrn (out): MFTable
+      % dataPreProc: CPRData handle, obj.lObj.preProcData
+      
+      tfsucc = false;
+      dataPreProc = [];
+      tfWB = ~isempty(wbObj);
+      
+      % Either use supplied tblPTrn, or use all labeled data
+      if isempty(tblPTrn)
+        % use all labeled data
+        tblPTrn = obj.lObj.preProcGetMFTableLbled('wbObj',wbObj);
+        if tfWB && wbObj.isCancel
+          % Theoretically we are safe to return here as of 201801. We
+          % have only called obj.asyncReset() so far.
+          % However to be conservative/nonfragile/consistent let's reset
+          % as in other cancel/early-exits          
+          return;
+        end
+      end
+      if obj.lObj.hasTrx
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+      elseif obj.lObj.cropProjHasCrops
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+      else
+        tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+      end
+      
+      if isempty(tblPTrn)
+        error('CPRLabelTracker:noTrnData','No training data set.');
+      end
+      
+      [dataPreProc,dataPreProcIdx,tblPTrn,tblPTrnReadFail] = ...
+        obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        % none
+        return;
+      end
+      nMissedReads = height(tblPTrnReadFail);
+      if nMissedReads>0
+        warningNoTrace('Removing %d training rows, failed to read images.\n',...
+          nMissedReads);
+      end
+      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
+      
+      dataPreProc.iTrn = dataPreProcIdx;
+      fprintf(1,'Training data summary:\n');
+      dataPreProc.summarize('mov',dataPreProc.iTrn);
+      
+      tfsucc = true;      
+    end 
+        
     function retrain(obj)
       % Full Train from scratch; existing/previous results cleared 
     end

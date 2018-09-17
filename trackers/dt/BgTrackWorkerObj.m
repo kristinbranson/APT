@@ -1,4 +1,4 @@
-classdef DeepTrackerTrackingWorkerObj < handle
+classdef BgTrackWorkerObj < handle
   % Object deep copied onto BG Tracking worker. To be used with
   % BGWorkerContinuous
   %
@@ -15,46 +15,65 @@ classdef DeepTrackerTrackingWorkerObj < handle
     
     mIdx % Movie index
     nview % number of views
-    movfiles % full paths movie being tracked
+    movfiles % [nview] full paths movie being tracked
     artfctTrkfiles % [nview] full paths trkfile to be generated/output
-    artfctBsubLogs % [nview] cellstr of fullpaths to bsub logs
+    artfctLogfiles % [nview] cellstr of fullpaths to bsub logs
     artfctErrFile % char fullpath to DL errfile    
   end
   
+  methods (Abstract)
+    % Same as in BgTrainWorkerObj could mixin
+    tf = fileExists(obj,file)
+    tf = errFileExistsNonZeroSize(obj,errFile)
+    s = fileContents(obj,file)
+  end
+  
   methods
-    function obj = DeepTrackerTrackingWorkerObj(mIdx,nvw,movfiles,...
-        outfiles,bsublogfiles,dlerrfile)
-      
+    function obj = BgTrackWorkerObj(mIdx,nvw,movfiles,outfiles,logfiles,dlerrfile)  
       assert(isequal(nvw,numel(movfiles),numel(outfiles),...
-        numel(bsublogfiles))); 
+        numel(logfiles))); 
       
       obj.mIdx = mIdx;
       obj.nview = nvw;
       obj.movfiles = movfiles(:);
       obj.artfctTrkfiles = outfiles(:);
-      obj.artfctBsubLogs = bsublogfiles(:);
+      obj.artfctLogfiles = logfiles(:);
       obj.artfctErrFile = dlerrfile;
     end    
     function sRes = compute(obj)
       % sRes: [nview] struct array      
       
-      tfErrFileErr = ...
-        DeepTrackerTrainingWorkerObj.errFileExistsNonZeroSize(obj.artfctErrFile);
-      
-      bsuberrlikely = cellfun(@(x)exist(x,'file')>0 && ...
-        DeepTrackerTrainingWorkerObj.parseBsubLogFile(x),obj.artfctBsubLogs,'uni',0);
+      tfErrFileErr = obj.errFileExistsNonZeroSize(obj.artfctErrFile);      
+      bsuberrlikely = cellfun(@obj.logFileErrLikely,obj.artfctLogfiles,'uni',0);
       
       sRes = struct(...
-        'tfcomplete',cellfun(@(x)exist(x,'file')>0,obj.artfctTrkfiles,'uni',0),...
+        'tfcomplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
         'errFile',obj.artfctErrFile,... % char, full path to DL err file
         'errFileExists',tfErrFileErr,... % true of errFile exists and has size>0
-        'bsubLogFile',obj.artfctBsubLogs,... % char, full path to Bsub logfile
-        'bsubLogFileErrLikely',bsuberrlikely,... % true if bsub logfile looks like err
+        'logFile',obj.artfctLogfiles,... % char, full path to Bsub logfile
+        'logFileErrLikely',bsuberrlikely,... % true if bsub logfile looks like err
         'mIdx',obj.mIdx,...
         'iview',num2cell((1:obj.nview)'),...
         'movfile',obj.movfiles,...
         'trkfile',obj.artfctTrkfiles);
     end
+  
+    % Same as in BgTrainWorkerObj could mixin
+    function printLogfiles(obj)
+      logFiles = obj.artfctLogfiles;
+      logFileContents = cellfun(@obj.fileContents,logFiles,'uni',0);
+      BgTrainWorkerObj.printLogfilesStc(logFiles,logFileContents)
+    end
+    
+    % Same as in BgTrainWorkerObj could mixin
+    function tfLogErrLikely = logFileErrLikely(obj,file)
+      tfLogErrLikely = obj.fileExists(file);
+      if tfLogErrLikely
+        logContents = obj.fileContents(file);
+        tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
+      end
+    end
+
   end
   
 end

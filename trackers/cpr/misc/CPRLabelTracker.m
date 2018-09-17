@@ -879,8 +879,7 @@ classdef CPRLabelTracker < LabelTracker
           'titlestr','Training Data Montage');
       end
     end
-    
-    %#%MTGT
+        
     function retrain(obj,varargin)
       % Full train 
       % 
@@ -889,6 +888,7 @@ classdef CPRLabelTracker < LabelTracker
       [tblPTrn,updateTrnData,wbObj] = myparse(varargin,...
         'tblPTrn',[],... % optional MFTp table of training data. if supplied, set .trnData* state based on this table. 
                      ... % WARNING: if supplied this, caller is responsible for adding the right fields (roi, trx, etc)
+                     ... % if .roi is present, .p must be relative.
         'updateTrnData',true,... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
         'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
                    ... % 1. .trnDataInit() and .trnResInit() are called
@@ -905,79 +905,39 @@ classdef CPRLabelTracker < LabelTracker
        
       if isempty(tblPTrn) && obj.trnDataDownSamp
         assert(false,'Unsupported');
-        assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
-        if updateTrnData
-          % first, update the TrnData with any new labels
-          tblPNew = obj.getTblPLbledRecent();
-          [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
-          if ~isempty(idxTrnDataTblP) % AL 20160912: conditional should not be necessary, MATLAB API bug
-            obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
-          end
-          obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
-          nowtime = now();
-          nNewRows = size(tblPNewTD,1);
-          obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
-          obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(nNewRows,1)];
-          fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
-            size(tblPUpdateTD,1),nNewRows);
-        end
-        tblPTrn = obj.trnDataTblP;
-      else % Either use supplied tblPTrn, or use all labeled data
-        if isempty(tblPTrn)
-          % use all labeled data
-          tblPTrn = obj.lObj.preProcGetMFTableLbled('wbObj',wbObj);
-          if tfWB && wbObj.isCancel
-            % Theoretically we are safe to return here as of 201801. We 
-            % have only called obj.asyncReset() so far. 
-            % However to be conservative/nonfragile/consistent let's reset 
-            % as in other cancel/early-exits
-            obj.trnDataInit();
-            obj.trnResInit();
-            return;
-          end
-        end
-        if obj.lObj.hasTrx
-          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
-        elseif obj.lObj.cropProjHasCrops
-          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
-        else
-          tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
-        end
-
-        obj.trnDataFFDThresh = nan;
-        % still set .trnDataTblP, .trnDataTblPTS to enable incremental
-        % training
-        obj.trnDataTblP = tblPTrn;
-        nowtime = now();
-        obj.trnDataTblPTS = nowtime*ones(height(tblPTrn),1);
-      end
-                
-      if isempty(tblPTrn)
-        error('CPRLabelTracker:noTrnData','No training data set.');
+%         assert(~obj.lObj.hasTrx,'Downsampling currently unsupported for projects with trx.');
+%         if updateTrnData
+%           % first, update the TrnData with any new labels
+%           tblPNew = obj.getTblPLbledRecent();
+%           [tblPNewTD,tblPUpdateTD,idxTrnDataTblP] = obj.tblPDiffTrnData(tblPNew);
+%           if ~isempty(idxTrnDataTblP) % AL 20160912: conditional should not be necessary, MATLAB API bug
+%             obj.trnDataTblP(idxTrnDataTblP,:) = tblPUpdateTD;
+%           end
+%           obj.trnDataTblP = [obj.trnDataTblP; tblPNewTD];
+%           nowtime = now();
+%           nNewRows = size(tblPNewTD,1);
+%           obj.trnDataTblPTS(idxTrnDataTblP) = nowtime;
+%           obj.trnDataTblPTS = [obj.trnDataTblPTS; nowtime*ones(nNewRows,1)];
+%           fprintf('Updated training data with new labels: %d updated rows, %d new rows.\n',...
+%             size(tblPUpdateTD,1),nNewRows);
+%         end
+%         tblPTrn = obj.trnDataTblP;
       end
       
-      [d,dIdx,tblPTrn,tblPTrnReadFail] = ...
-        obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj);
-      if tfWB && wbObj.isCancel
+      [tfsucc,tblPTrn,d] = obj.preretrain(tblPTrn,wbObj);
+      if ~tfsucc
         obj.trnDataInit();
         obj.trnResInit();
         return;
-      end
-      nMissedReads = height(tblPTrnReadFail);
-      if nMissedReads>0
-        warningNoTrace('Removing %d training rows, failed to read images.\n',...
-          nMissedReads);
-      end
-      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
-
-%       [tf,locDataInTblP] = tblismember(d.MD,tblPTrn,MFTable.FLDSID);
-%       assert(nnz(tf)==height(tblPTrn));
-      d.iTrn = dIdx;
-%       locDataInTblP = locDataInTblP(tf);
+      end        
       
-      fprintf(1,'Training data summary:\n');
-      d.summarize('mov',d.iTrn);
-      
+      obj.trnDataFFDThresh = nan;
+      % still set .trnDataTblP, .trnDataTblPTS to enable incremental
+      % training
+      obj.trnDataTblP = tblPTrn;
+      nowtime = now();
+      obj.trnDataTblPTS = nowtime*ones(height(tblPTrn),1);
+            
       %[Is,nChan] = d.getCombinedIs(d.iTrn);
       [Is,nChan] = d.getCombinedIsMat(d.iTrn);
       prm.Ftr.nChn = nChan;
@@ -1014,7 +974,7 @@ classdef CPRLabelTracker < LabelTracker
         if tfWB && wbObj.isCancel
           % .trnResRC in indeterminate state
           obj.trnDataInit();
-          obj.trnResInit();         
+          obj.trnResInit();
           return;
         end        
       else

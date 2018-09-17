@@ -8,7 +8,8 @@ classdef MovieReader < handle
     nframes = nan;
     info = [];
     nr = nan; % numrows in raw/orig movie
-    nc = nan; % numcols in raw/orig movie    
+    nc = nan; % numcols in raw/orig movie
+    nchan = nan; % numchans "
     fid = nan; % file handle/resource to movie
     
     % bgsub
@@ -126,9 +127,10 @@ classdef MovieReader < handle
       if isfield(ifo,'nr') && isfield(ifo,'nc')
         obj.nr = ifo.nr;
         obj.nc = ifo.nc;
+        obj.nchan = nan;
       else
         im = obj.readFrameFcn(1);
-        [obj.nr,obj.nc] = size(im);
+        [obj.nr,obj.nc,obj.nchan] = size(im);
       end
       
       tfHasBG = ~isempty(bgTy) && ~isempty(bgReadFcn);
@@ -207,6 +209,18 @@ classdef MovieReader < handle
         im = im(imroi(3):imroi(4),imroi(1):imroi(2));        
       else
         imroi = [1 size(im,2) 1 size(im,1)];
+      end
+    end
+    
+    function nchan = getreadnchan(obj)
+      % nchan: number of channels in raw/orig movie
+      
+      if ~isnan(obj.nchan)
+        nchan = obj.nchan;
+      else
+        assert(obj.isOpen,'Movie is not open.');
+        im = obj.readFrameFcn(1);
+        nchan = size(im,3);
       end
     end
     

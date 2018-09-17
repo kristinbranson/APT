@@ -22,7 +22,7 @@ function varargout = NavPrefs(varargin)
 
 % Edit the above text to modify the response to help NavPrefs
 
-% Last Modified by GUIDE v2.5 23-Jan-2018 10:13:06
+% Last Modified by GUIDE v2.5 12-Sep-2018 11:48:57
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -52,6 +52,7 @@ lObj = varargin{1};
 handles.lObj = lObj;
 handles.etFrameSkip.String = num2str(lObj.movieFrameStepBig);
 handles.etPlaybackSpeed.String = num2str(lObj.moviePlayFPS);
+handles.etPlaybackLoopDiameter.String = num2str(lObj.moviePlaySegRadius);
 shiftArrowModes = enumeration('ShiftArrowMovieNavMode');
 pum = handles.pumShiftArrow;
 pum.String = arrayfun(@(x)x.prettyStr,shiftArrowModes,'uni',0);
@@ -79,10 +80,17 @@ if isnan(val) || val<=0
   hObject.String = num2str(handles.lObj.moviePlayFPS);
 end
 
+function etPlaybackLoopDiameter_Callback(hObject, eventdata, handles)
+val = str2double(hObject.String);
+if isnan(val) || val<=0
+  hObject.String = num2str(handles.lObj.moviePlaySegRadius);
+end
+
 function pbApply_Callback(hObject, eventdata, handles)
 lObj = handles.lObj;
 lObj.movieFrameStepBig = str2double(handles.etFrameSkip.String);
 lObj.moviePlayFPS = str2double(handles.etPlaybackSpeed.String);
+lObj.moviePlaySegRadius = str2double(handles.etPlaybackLoopDiameter.String);
 pum = handles.pumShiftArrow;
 sam = pum.UserData(pum.Value);
 lObj.movieShiftArrowNavMode = sam;
@@ -97,4 +105,3 @@ if strcmp(get(hObject,'waitstatus'),'waiting')
 else
   delete(hObject);
 end
-

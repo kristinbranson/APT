@@ -18,14 +18,12 @@ DEFAULTAPTBUILDROOTDIR="/groups/branson/home/leea30/aptbuild"  # root location o
 
 def main():
 
-
-
     epilogstr = 'Examples:\n.../APTCluster.py /path/to/proj.lbl -n 6 retrain\n.../APTCluster.py /path/to/proj.lbl track -n 4 --mov /path/to/movie.avi\n.../APTCluster.py /path/to/proj.lbl track -n 4 --mov /path/to/movie.avi --trx /path/to/trx.mat\n.../APTCluster.py /path/to/proj.lbl trackbatch -n 2 --movbatchfile /path/to/movielist.txt\n'
 
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
 
     parser.add_argument("projfile",help="APT project file")
-    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","xv"],help="action to perform on/with project",metavar="action")
+    parser.add_argument("action",choices=["retrain","track","trackbatch","trackbatchserial","xv","trntrk"],help="action to perform on/with project",metavar="action")
     parser.add_argument("-n","--nslots","--pebatch",help="(required) number of cluster slots",required=True,metavar="NSLOTS")
     parser.add_argument("--mov",help="moviefile; used for action==track",metavar="MOVIE")
     parser.add_argument("--trx",help="trxfile; used for action==track",metavar="TRX")
@@ -37,7 +35,7 @@ def main():
     parser.add_argument("--binrootdir",help="Root build directory containing saved builds. Defaults to %s"%DEFAULTAPTBUILDROOTDIR,default=DEFAULTAPTBUILDROOTDIR)
     parser.add_argument("-l1","--movbatchfilelinestart",help="use with --movbatchfile; start at this line of batchfile (1-based)")
     parser.add_argument("-l2","--movbatchfilelineend",help="use with --movbatchfile; end at this line (inclusive) of batchfile (1-based)")
-    parser.add_argument("--trackargs",help="use with action==track, trackbatch, xv. enclose in quotes, additional/optional prop-val pairs")
+    parser.add_argument("--trackargs",help="use with action==track, trackbatch, xv, retrain, trntrk. enclose in quotes, additional/optional prop-val pairs")
     parser.add_argument("-p0di","--p0DiagImg",help="use with action==track or trackbatch. short filename for shape initialization diagnostics image")
     parser.add_argument("--mcr",help="mcr to use, eg v90, v901",default="v90")
 #    parser.add_argument("--trkfile",help="use with action==prune*. full path to trkfile to prune")
@@ -51,7 +49,8 @@ def main():
     parser.add_argument("--endjob",
                         help="Which job of split tracking to end on. Specify -1 to run all jobs. Default = -1. This parameter is only relevant if tracking with splitframes parameter specified.",
                         default=-1)
-    parser.add_argument("--prmpatchdir",help="Dir containing patch *.m files for use with xv")
+    parser.add_argument("--prmpatchdir",help="Dir containing patch *.m files for use with xv or trntrk")
+    parser.add_argument("--dryrun",help="Show but do not execute cluster (bsub) commands. Code generation still occurs.",action="store_true",default=False)
 
     args = parser.parse_args()
     
@@ -84,13 +83,12 @@ def main():
         print("Action is " + args.action + ", ignoring --trx specification")
     if args.action not in ["track","trackbatch"] and args.p0DiagImg:
         print("Action is " + args.action + ", ignoring --p0DiagImg specification")    
-    if args.action not in ["track","trackbatch","xv"] and args.trackargs:
+    if args.action not in ["track","trackbatch","xv","trntrk","retrain"] and args.trackargs:
         print("Action is " + args.action + ", ignoring --trackargs specification")
     if args.action not in ["trackbatch","trackbatchserial"] and args.movbatchfile:
         print("Action is " + args.action + ", ignoring --movbatchfile specification")
-    if args.action!="xv" and args.prmpatchdir:
+    if args.prmpatchdir and args.action!="xv" and args.action!="trntrk":
         print("Action is " + args.action + ", ignoring --prmpatchdir specification")
-
 
     if not args.bindate:
         args.bindate = "current"
@@ -220,8 +218,9 @@ def main():
                 qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfile,jobid,shfile)
                 qsubcmd = "bsub " + qargs
             print(qsubcmd)
-            subprocess.call(qsubcmd,shell=True)
-            nmovsub = nmovsub+1
+            if not args.dryrun:
+                subprocess.call(qsubcmd,shell=True)
+                nmovsub = nmovsub+1
 
     else:
         # jobid
@@ -236,12 +235,14 @@ def main():
         else:
             if args.action=="track":
                 outdiruse = os.path.dirname(args.mov)
-            else: # trackbatchserial, retrain, xv
+            else: # trackbatchserial, retrain, xv, trntrk
                 outdiruse = os.path.dirname(args.projfile)                
         shfile = os.path.join(outdiruse,"{0:s}.sh".format(jobid))
         logfile = os.path.join(outdiruse,"{0:s}.log".format(jobid))
         if args.action=="retrain":
             cmd = args.projfile + " " + args.action
+            if args.trackargs:
+                cmd = cmd+" "+args.trackargs
         elif args.action=="track":
 
             if args.trx:
@@ -313,8 +314,9 @@ def main():
 
 
                     print(qsubcmd)
-                    subprocess.call(qsubcmd,shell=True)
-                    nsubmitted += 1
+                    if not args.dryrun:
+                        subprocess.call(qsubcmd,shell=True)
+                        nsubmitted += 1
 
 
                 f.close()
@@ -326,7 +328,7 @@ def main():
         elif args.action=="trackbatchserial":
             cmd = args.projfile + "  trackbatch " + args.movbatchfile
 
-        elif args.action=="xv":
+        elif args.action=="xv" or args.action=="trntrk":
             if args.prmpatchdir:
 
                 pches = glob.glob(os.path.join(args.prmpatchdir,"*.m"))
@@ -334,10 +336,11 @@ def main():
                 print ("patch dir %s: %d patches found."%(args.prmpatchdir,npch))
 
                 nsubmitted = 0
-                cmdbase = [args.projfile,args.action]
+                cmdbase = [args.projfile,args.action,"outdir",outdiruse]
                 if args.trackargs:                        
                     cmdbase.append(args.trackargs)
 
+                pches.append('NOPATCH')
                 for pch in pches:
                     pchS = os.path.basename(pch)
                     pchS = os.path.splitext(pchS)[0]
@@ -345,9 +348,10 @@ def main():
                     shfilecurr = os.path.join(outdiruse,"{0:s}.sh".format(jobidcurr))
                     logfilecurr = os.path.join(outdiruse,"{0:s}.log".format(jobidcurr))
 
-                    cmdcurr = cmdbase
-                    cmdcurr.append("paramPatchFile")
-                    cmdcurr.append(pch)
+                    cmdcurr = list(cmdbase)
+                    if pch!='NOPATCH':
+                        cmdcurr.append("paramPatchFile")
+                        cmdcurr.append(pch)
                     cmdcurr = " ".join(cmdcurr)
                     gencode(shfilecurr,jobidcurr,args,cmdcurr)
 
@@ -357,16 +361,18 @@ def main():
                     qsubcmd = "bsub " + qargs
 
                     print(qsubcmd)
-                    subprocess.call(qsubcmd,shell=True)
-                    nsubmitted += 1
+                    if not args.dryrun:
+                        subprocess.call(qsubcmd,shell=True)
+                        nsubmitted += 1
 
                 print("%d jobs submitted."%(nsubmitted))
 
                 sys.exit()
             else:
-                cmd = args.projfile + " " + args.action
+                cmd = [args.projfile,args.action,"outdir",outdiruse]
                 if args.trackargs:
-                    cmd = cmd+" "+args.trackargs
+                    cmd.append(args.trackargs)
+                cmd = " ".join(cmd)
 
         gencode(shfile,jobid,args,cmd)
 
@@ -379,7 +385,8 @@ def main():
             qsubcmd = "bsub " + qargs
 
         print(qsubcmd)
-        subprocess.call(qsubcmd,shell=True)
+        if not args.dryrun:
+            subprocess.call(qsubcmd,shell=True)
 
     sys.exit()
 
