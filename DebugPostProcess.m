@@ -877,6 +877,9 @@ hmtype = 'jpg';
 %hmtype = 'mjpg';
 %hmdir = '/groups/branson/home/kabram/temp/alice/umdn_trks/cx_GMR_SS00030_CsChr_RigC_20150826T144616_hmap';
 
+viterbi_poslambda = 0.0027;
+viterbi_misscost = .02;
+
 
 allpostdata = cell(1,numel(hmdirs));
 allppobj = cell(1,numel(hmdirs));
@@ -935,7 +938,7 @@ for hmdiri = 1:numel(hmdirs),
       
       [allpostdata{moviei}{fly},allppobj{moviei}{fly}] = ...
         RunPostProcessing_HeatmapData(hmdir,'lblfile',lblfile,'targets',fly,'startframe',td.trx(fly).firstframe,'endframe',td.trx(fly).endframe,...
-        'savefile',savefile,'hmtype',hmtype,'frames',frames);
+        'savefile',savefile,'hmtype',hmtype,'frames',frames,'viterbi_poslambda',viterbi_poslambda,'viterbi_misscost',viterbi_misscost);
     end
   end
 end
