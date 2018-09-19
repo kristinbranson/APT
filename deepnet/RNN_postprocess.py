@@ -115,13 +115,15 @@ class RNN_pp(object):
 
                     if count % 50 == 0:
                         sys.stdout.write('.')
+                        with open(os.path.join(conf.cachedir,'rnn_pp.p'),'w') as f:
+                            pickle.dump(data,f)
                     if count % 2000 == 0:
                         sys.stdout.write('\n')
 
-                    with open(os.path.join(conf.cachedir,'rnn_pp.p')) as f:
-                        pickle.dump(data,f)
             cap.close()  # close the movie handles
 
+        with open(os.path.join(conf.cachedir,'rnn_pp.p'),'w') as f:
+            pickle.dump(data,f)
         lbl.close()
 
 
