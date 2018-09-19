@@ -41,23 +41,26 @@ def conv_relu(x_in, kernel_shape, train_phase):
     return tf.nn.relu(conv + biases)
 
 
-def conv_relu3(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False):
-    in_dim = x_in.get_shape().as_list()[3]
+def conv_relu3(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False, data_format='NHWC'):
+    if data_format == 'NHWC':
+        in_dim = x_in.get_shape().as_list()[3]
+    else:
+        in_dim = x_in.get_shape().as_list()[1]
     kernel_shape = [3, 3, in_dim, n_filt]
     weights = tf.get_variable("weights", kernel_shape,
                               initializer=tf.contrib.layers.xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
-    conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
-    conv = batch_norm(conv, decay=0.99, is_training=train_phase, renorm=renorm)
+    conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME',data_format=data_format)
+    conv = batch_norm(conv, decay=0.99, is_training=train_phase, renorm=renorm,data_format=data_format)
 
     if keep_prob is not None:
         conv = tf.nn.dropout(conv, keep_prob)
 
     if use_leaky:
-        return tf.nn.leaky_relu(conv+biases)
+        return tf.nn.leaky_relu(tf.nn.bias_add(conv,biases,data_format=data_format))
     else:
-        return tf.nn.relu(conv + biases)
+        return tf.nn.relu(tf.nn.bias_add(conv,biases,data_format=data_format))
 
 
 def conv_shortcut(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False):
@@ -527,7 +530,6 @@ class PoseCommon(object):
             self.save(sess, training_iters)
             self.save_td()
         tf.reset_default_graph()
-
 
 
     def restore_net_common(self, create_network_fn, model_file=None):

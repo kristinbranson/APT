@@ -290,7 +290,7 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
-        orig_locs = copy.deepcopy(locs[ndx, ...])
+        orig_locs = copy.deepcopy(locs[st:en, ...])
         orig_im = copy.deepcopy(img[st:en, ...])
         sane = False
         do_rotate = True
@@ -299,7 +299,7 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
         lr = orig_locs.copy()
         out_ii = orig_im.copy()
         while not sane:
-            valid = np.invert(np.isnan(orig_locs[:, :, 0]))
+            valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
             rangle = (np.random.rand() * 2 - 1) * conf.rrange
             count += 1
             if count > 5:
@@ -311,8 +311,9 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
             ang = np.deg2rad(rangle)
             rot = [[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]]
             lr = np.zeros(ll.shape)
-            for i_ndx in range(ll.shape[0]):
-                lr[i_ndx,...] = np.dot(ll[i_ndx], rot) + [old_div(cols, 2), old_div(rows, 2)]
+            for e_ndx in range(ll.shape[0]):
+                for i_ndx in range(ll.shape[1]):
+                    lr[e_ndx, i_ndx,...] = np.dot(ll[e_ndx, i_ndx], rot) + [old_div(cols, 2), old_div(rows, 2)]
             if np.all(lr[valid, 0] > 0) \
                     and np.all(lr[valid, 1] >0) \
                     and np.all(lr[valid, 0] <= cols) \
@@ -332,7 +333,8 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
-        locs[ndx, ...] = lr
+
+        locs[st:en, ...] = lr
         img[st:en, ...] = out_ii
 
     locs = locs[:, 0, ...] if reduce_dim else locs
@@ -380,8 +382,8 @@ def randomly_scale(img,locs,conf,group_sz=1):
             cur_img = zoom(jj, sfactor) if srange != 0 else jj
             cur_img, dx, dy = crop_to_size(cur_img, im_sz)
             img[st+g, ...] =cur_img
-            locs[st+g,...,0] = locs[st+g,...,0]*sfactor + dx/2
-            locs[st + g, ..., 1] = locs[st + g, ..., 1]*sfactor + dy / 2
+        locs[st+g,...,0] = locs[st+g,...,0]*sfactor + dx/2
+        locs[st + g, ..., 1] = locs[st + g, ..., 1]*sfactor + dy / 2
     return img, locs
 
 
@@ -1312,7 +1314,7 @@ def crop_to_size(img, sz):
 
 
 
-def preprocess_ims(ims, in_locs, conf, distort, scale):
+def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
 #    assert ims.dtype == 'uint8', 'Preprocessing only work on uint8 images'
     locs = in_locs.copy()
     cur_im = ims.copy()
@@ -1321,13 +1323,13 @@ def preprocess_ims(ims, in_locs, conf, distort, scale):
     xs, locs = scale_images(xs, locs, scale, conf)
     if distort:
         if conf.horzFlip:
-            xs, locs = randomly_flip_lr(xs, locs)
+            xs, locs = randomly_flip_lr(xs, locs, group_sz=group_sz)
         if conf.vertFlip:
-            xs, locs = randomly_flip_ud(xs, locs)
-        xs, locs = randomly_scale(xs, locs, conf)
-        xs, locs = randomly_rotate(xs, locs, conf)
-        xs, locs = randomly_translate(xs, locs, conf)
-        xs = randomly_adjust(xs, conf)
+            xs, locs = randomly_flip_ud(xs, locs, group_sz=group_sz)
+        xs, locs = randomly_scale(xs, locs, conf, group_sz=group_sz)
+        xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)
+        xs, locs = randomly_translate(xs, locs, conf, group_sz=group_sz)
+        xs = randomly_adjust(xs, conf, group_sz=group_sz)
     # xs = adjust_contrast(xs, conf)
     xs = normalize_mean(xs, conf)
     return xs, locs
