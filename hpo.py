@@ -89,17 +89,17 @@ def main():
 
     with open(args.hpojson) as f:
         jdat = json.load(f)
-
-    if not args.roundidx:
-        roundIdx, prmfull, prmS, pchfull, pchS = findRoundIdx(jdat)
-        print("Found latest prm/pchs => roundIdx: {0:d}".format(roundIdx))
-    else:
-        roundIdx = int(args.roundidx)
-        prmfull, prmS, pchfull, pchS = findPrmPch(jdat,roundIdx)
-        print("Found prm/pch for roundIdx {0:d}: {1:s}, {2:s}".format(
-            roundIdx,prmfull,pchfull))
         
     if args.action=="xv" or args.action=="xvpch": 
+        if not args.roundidx:
+            roundIdx, prmfull, prmS, pchfull, pchS = findRoundIdx(jdat)
+            print("Found latest prm/pchs => roundIdx: {0:d}".format(roundIdx))
+        else:
+            roundIdx = int(args.roundidx)
+            prmfull, prmS, pchfull, pchS = findPrmPch(jdat,roundIdx)
+            print("Found prm/pch for roundIdx {0:d}: {1:s}, {2:s}".format(
+                roundIdx,prmfull,pchfull))
+
         # create outputdirs
         for split in jdat['splits']:
             splitifo = jdat['splits'][split]
@@ -144,30 +144,37 @@ def main():
                 sys.exit("Aborted")            
             subprocess.call(aptClusCmd,shell=True)
     elif args.action=="trntrk":
-        for split in jdat['splits']:
-            splitifo = jdat['splits'][split]
-            outdir = os.path.join(jdat['hpo_base_dir'],splitifo['dir'])        
-            tableFileTrn = os.path.join(jdat['hpo_base_dir'],splitifo['tableFile'])
-            tableFileTrk = os.path.join(jdat['hpo_base_dir'],splitifo['testFile'])
-            trackargs = "'tblFileTrn {0:s} tblFileTrk {1:s} paramFile {2:s}'".format(
-                tableFileTrn,tableFileTrk,prmfull)            
-            aptClusCmdL = [
-                "~leea30/git/aptdl/APTCluster.py", 
-                "-n", str(jdat['nslotstrntrk']),
-                "--force",
-                "--outdir", outdir,
-                "--bindate", jdat['bindate'],
-                "--trackargs", trackargs]
-            if args.dryrun:
-                aptClusCmdL.append("--dryrun");
-            aptClusCmdL.extend([jdat['lblfile'],"trntrk"])
+        lastRoundIdx,_,_,_,_ = findRoundIdx(jdat)
+        print("Found latest prm/pchs => roundIdx: {0:d}".format(lastRoundIdx))
 
-            aptClusCmd = " ".join(aptClusCmdL)
-            print(aptClusCmd)
-            resp = raw_input("Proceed? y/[n]")
-            if not resp=="y":
-                sys.exit("Aborted")            
-            subprocess.call(aptClusCmd,shell=True)
+        for roundIdx in range(0,lastRoundIdx+1):
+            prmfull,_,_,_ = findPrmPch(jdat,roundIdx)
+            print("Found prm for roundIdx {0:d}: {1:s}".format(roundIdx,prmfull))
+
+            for split in jdat['splits']:
+                splitifo = jdat['splits'][split]
+                outdir = os.path.join(jdat['hpo_base_dir'],splitifo['dir'])        
+                tableFileTrn = os.path.join(jdat['hpo_base_dir'],splitifo['tableFile'])
+                tableFileTrk = os.path.join(jdat['hpo_base_dir'],splitifo['testFile'])
+                trackargs = "'tblFileTrn {0:s} tblFileTrk {1:s} paramFile {2:s}'".format(
+                    tableFileTrn,tableFileTrk,prmfull)   
+                aptClusCmdL = [
+                    "~leea30/git/aptdl/APTCluster.py", 
+                    "-n", str(jdat['nslotstrntrk']),
+                    "--force",
+                    "--outdir", outdir,
+                    "--bindate", jdat['bindate'],
+                    "--trackargs", trackargs]
+                if args.dryrun:
+                    aptClusCmdL.append("--dryrun");
+                aptClusCmdL.extend([jdat['lblfile'],"trntrk"])
+
+                aptClusCmd = " ".join(aptClusCmdL)
+                print(aptClusCmd)
+                resp = raw_input("Proceed? y/[n]")
+                if not resp=="y":
+                    sys.exit("Aborted")            
+                subprocess.call(aptClusCmd,shell=True)
     else:
         sys.exit("Unrecognized action: {0:s}".format(args.action))
 

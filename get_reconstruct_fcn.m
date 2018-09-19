@@ -62,7 +62,7 @@ if ~isempty(S),
   leftovers = [leftovers,{'Sside',Sside,'Sfront',Sfront}];
 end
 
-if false,%~usegeometricerror,
+if true,%~usegeometricerror,
   [XYZ,err,~,~,uv_re(:,2,:),uv_re(:,1,:)] = dlt_2D_to_3D_point_vectorized(dlt_front,dlt_side,xfront,xside,'geometricerror',usegeometricerror,leftovers{:});
 else
 
