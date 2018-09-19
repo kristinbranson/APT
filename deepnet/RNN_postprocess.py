@@ -32,6 +32,7 @@ class RNN_pp(object):
         on_gt = False
         db_files = ()
         if split_file is not None:
+            self.conf.splitType = 'predefined'
             predefined = PoseTools.json_load(split_file)
             split = True
         else:
