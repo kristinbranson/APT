@@ -532,7 +532,6 @@ class PoseCommon(object):
         tf.reset_default_graph()
 
 
-
     def restore_net_common(self, create_network_fn, model_file=None):
         print('--- Loading the model by reconstructing the graph ---')
         self.setup_pred()

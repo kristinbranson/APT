@@ -130,6 +130,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 #        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
         self.resnet_source = 'official_tf'
+        self.offset = 32.
         PoseUMDN.PoseUMDN.__init__(self, conf, name=name)
         self.dep_nets = []
 
@@ -162,25 +163,19 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         elif self.resnet_source == 'official_tf':
             mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=17, num_filters=64, kernel_size=7,
                                        conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3],
-                                       block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2,
+                                       block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2,
                                        data_format='channels_last', dtype=tf.float32)
-            resnet_out = mm(im, True)
+            resnet_out = mm(im, self.ph['phase_train'])
             down_layers = mm.layers
             net = down_layers[-1]
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
 
-        # add an extra layer at input resolution.
-        ex_down_layers = conv(im, 64)
-        down_layers.insert(0, ex_down_layers)
-
-        X = net
-        k = 2
-        locs_offset = 1.
-        n_groups = len(self.conf.mdn_groups)
-        n_out = self.conf.n_classes
-
         if self.conf.use_unet_loss:
             with tf.variable_scope(self.net_name + '_unet'):
+
+                # add an extra layer at input resolution.
+                ex_down_layers = conv(im, 64)
+                down_layers.insert(0, ex_down_layers)
 
                 prev_in = None
                 for ndx in reversed(range(len(down_layers))):
@@ -229,6 +224,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             self.unet_pred = X_unet
 
         X = net
+        k = 2
+        locs_offset = 1.
+        n_groups = len(self.conf.mdn_groups)
+        n_out = self.conf.n_classes
+
         with tf.variable_scope(self.net_name):
 
             n_filt_in = X.get_shape().as_list()[3]
@@ -365,6 +365,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         self.joint = True
         def loss(inputs, pred):
             mdn_loss = self.my_loss(pred, inputs[1])
+            # mdn_loss = self.l2_loss(pred, inputs[1])
             if self.conf.use_unet_loss:
                 unet_loss = tf.sqrt(tf.nn.l2_loss(inputs[-1]-self.unet_pred))/self.conf.label_blur_rad/self.conf.n_classes
                 return mdn_loss + unet_loss
@@ -378,7 +379,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
     def my_loss(self, X, y):
 
-        locs_offset = float(2**5)
+        locs_offset = self.offset
 
         mdn_locs, mdn_scales, mdn_logits = X
         cur_comp = []
@@ -415,10 +416,40 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         # loss = -tf.log(tf.reduce_sum(pp, axis=1))
         return tf.reduce_sum(cur_loss)
 
+    def l2_loss(self, X, y):
+
+        locs_offset = self.offset
+
+        mdn_locs, mdn_scales, mdn_logits = X
+        cur_comp = []
+        ll = tf.nn.softmax(mdn_logits, axis=1)
+
+        n_preds = mdn_locs.get_shape().as_list()[1]
+        # All gaussians in the mixture have some weight so that all the mixtures try to predict correctly.
+        logit_eps = self.conf.mdn_logit_eps_training
+        ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
+        ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
+        for cls in range(self.conf.n_classes):
+            pp = y[:, cls:cls + 1, :]/locs_offset
+            kk = tf.sqrt(tf.reduce_sum(tf.square(pp - mdn_locs[:, :, cls, :]), axis=2))
+            # tf.div is actual correct implementation of gaussian distance.
+            # but we run into numerical issues. Since the scales are withing
+            # the same range, I'm just ignoring them for now.
+            # dd = tf.div(tf.exp(-kk / (cur_scales ** 2) / 2), 2 * np.pi * (cur_scales ** 2))
+            cur_comp.append(kk)
+
+        cur_loss = 0
+        for ndx,gr in enumerate(self.conf.mdn_groups):
+            sel_comp = [cur_comp[i] for i in gr]
+            sel_comp = tf.stack(sel_comp, 1)
+            pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
+            cur_loss += pp
+
+        return tf.reduce_sum(cur_loss)
 
     def compute_dist(self, preds, locs):
 
-        locs_offset = 32
+        locs_offset = self.offset
 
         locs = locs.copy()
         if locs.ndim == 3:
@@ -483,7 +514,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         osz = self.conf.imsz
         #       self.joint = True
 
-        locs_offset = 32
+        locs_offset = self.offset
         p_m *= locs_offset
 
         val_dist = []

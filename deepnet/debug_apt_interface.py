@@ -1,9 +1,23 @@
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
+conf.use_unet_loss = True
+conf.batch_size = 32
+conf.labelfile = '/home/mayank/work/poseTF/data/alice/multitarget_bubble_expandedbehavior_20180425_local.lbl'
+import RNN_postprocess
+self = RNN_postprocess.RNN_pp(conf,'unet_resnet_official')
+self.create_db('/home/mayank/work/poseTF/cache/alice_moreeval/splitdata.json')
+
+##
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
 import PoseUNet_resnet
 conf.pretrained_weights = '/home/mayank/Downloads/20180601_resnet_v2_imagenet_checkpoint/model.ckpt-258931'
+conf.use_unet_loss = True
 self = PoseUNet_resnet.PoseUMDN_resnet(conf,'unet_resnet_official')
 self.train_umdn()
+V = self.classify_val()
+np.percentile(V[0],[90,95,98,99],axis=0)
+
 
 ##
 from poseConfig import aliceConfig as conf
@@ -183,6 +197,25 @@ res_unet_mdn = np.array([[
          3.85309627,  9.41663734,  8.31698276, 13.29979637, 13.92469187,
          8.00356347,  8.62493168]])
 
+##
+res_mdn_official_resnet = np.array([[
+         1.70731128,  1.60504444,  1.62296522,  1.38443496,  1.45595981,
+         1.81261938,  3.26370495,  1.71120892,  2.49309662,  1.74549226,
+         2.20047282,  2.9684426 ,  2.87415652,  5.34084172,  5.77539606,
+         2.61489395,  3.01462304],
+       [ 1.94046629,  1.8179954 ,  1.87964399,  1.58671815,  1.65008794,
+         2.07528246,  3.64984546,  2.02027175,  3.07770157,  2.01153982,
+         2.72681853,  4.14939361,  3.93323197,  7.31763092,  8.25619089,
+         3.49933188,  3.98774765],
+       [ 2.28026757,  2.08211258,  2.15323578,  1.81240801,  1.8368613 ,
+         2.36052895,  4.04785237,  2.44004457,  3.99621015,  2.34917346,
+         3.64441105,  6.01844327,  6.62986869, 10.2657138 , 11.33856891,
+         5.75752333,  5.9703133 ],
+       [ 2.5982614 ,  2.28115035,  2.49422134,  2.01070053,  1.98563069,
+         2.57358631,  4.39920058,  2.8247397 ,  4.8433574 ,  2.56830525,
+         4.18511833,  7.31832343,  8.7957528 , 12.67337665, 13.12833612,
+         8.46354569,  7.52260076]])
+
 
 ##
 res_deconv_4 = np.array([[
@@ -204,6 +237,9 @@ res_deconv_4 = np.array([[
          8.79198944,  6.23033242]])
 
 ##
+
+
+
 import tensorflow as tf
 tf.reset_default_graph()
 

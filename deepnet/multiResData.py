@@ -410,7 +410,7 @@ def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, fl
     if cur_trx is not None: # when there are trx
         return get_patch_trx(cap, cur_trx, fnum, conf, locs, offset, stationary,flipud)
     else:
-        frame_in, _, _, _ = read_frame(cap,fnum,cur_trx,flipud=flipud)
+        frame_in, _, _, _ = read_frame(cap,fnum,cur_trx,flipud=flipud, offset=offset)
         frame_in = frame_in[:,:,0:conf.imgDim]
         if crop_loc is not None:
             xlo, xhi, ylo, yhi = crop_loc
