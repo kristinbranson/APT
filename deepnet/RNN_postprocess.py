@@ -37,20 +37,6 @@ class RNN_pp(object):
         else:
             predefined = None
 
-        if on_gt:
-            train_filename = db_files[0]
-            env = tf.python_io.TFRecordWriter(train_filename)
-            val_env = None
-            envs = [env, val_env]
-        elif len(db_files) > 1:
-            train_filename = db_files[0]
-            env = tf.python_io.TFRecordWriter(train_filename)
-            val_filename = db_files[1]
-            val_env = tf.python_io.TFRecordWriter(val_filename)
-            envs = [env, val_env]
-        else:
-            envs = multiResData.create_envs(conf, split)
-
         mov_split = None
 
         local_dirs, _ = multiResData.find_local_dirs(conf, on_gt=False)
