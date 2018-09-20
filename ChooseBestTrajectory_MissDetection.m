@@ -120,9 +120,11 @@ if isempty(poslambda)
       off = off + numel(poscost);
     end
   end
-  mad_pos = median( abs( errs(:) - median(errs(:))) );
+  mad_pos = nanmedian( abs( errs(:) - nanmedian(errs(:))) );
   %mad_app = median( abs( appearancecost(~isinf(appearancecost)) - median(appearancecost(~isinf(appearancecost)))) );
-  mad_app = median( abs( appearancecost(:) - median(appearancecost(:)) ) );
+  a = appearancecost;
+  a(isinf(a)) = nan;
+  mad_app = nanmedian( abs( a(:) - nanmedian(a(:)) ) );
   poslambda = mad_app/mad_pos;
   
   if isempty(poslambdafac)
