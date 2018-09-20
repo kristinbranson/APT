@@ -34,8 +34,15 @@ classdef HPOSet
             jsonS = ddjson.name;
             fprintf('Found fold subdir %s with json %s.\n',subdirS,jsonS);
             foldsubdirs{end+1,1} = subdirS; %#ok<AGROW>
-            foldjsons{end+1,1} = jsonS; %#ok<AGROW>            
-            hpoobjs{end+1,1} = HPOptim(nview,'baseDir',fullfile(rootdir,subdirS)); %#ok<AGROW>
+            foldjsons{end+1,1} = jsonS; %#ok<AGROW>    
+            try
+              hpoobjs{end+1,1} = HPOptim(nview,'baseDir',fullfile(rootdir,subdirS)); %#ok<AGROW>
+            catch ME
+              fprintf(2,'Error caught in subdir %s: %s\n\n.Skipping subdir\n',...
+                subdirS,ME.message);
+              hpoobjs{end+1,1} = HPOptim; %#ok<AGROW>
+              continue;
+            end              
           otherwise
             warningNoTrace('Multiple jsons found in subdir %s. Skipping...',subdirS);
         end
@@ -87,6 +94,20 @@ classdef HPOSet
           end
         end
       end      
+    end
+    
+    function [hFigs,scoreSRs] = plotTrnTrkErrWithSelect(obj,varargin)
+      h = obj.hpoObjs;
+      
+      fignum0 = 11;
+      hFigs = [];
+      scoreSRs = cell(numel(h),1);      
+      for i=1:numel(h)
+        [hFig,scoreSR] = h(i).plotTrnTrkErrWithSelect('fignums',fignum0+[1 2]);
+        fignum0 = fignum0+2;
+        hFigs = cat(2,hFigs,hFig(:));
+        scoreSRs{i} = scoreSR';
+      end
     end
     
   end

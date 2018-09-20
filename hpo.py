@@ -38,7 +38,7 @@ def findRoundIdx(jdat):
     prmidx = int(m.group('idx'))
     m = re.search(pchpat,pchS)
     if not m:
-        sys.exit("Cannot find any parameters with pattern: {0:s}".format(pchpat))
+        sys.exit("Cannot find any pchdirs with pattern: {0:s}".format(pchpat))
     pchidx = int(m.group('idx'))
     if prmidx!=pchidx:
         sys.exit("Latest pch and prms do not match.")
@@ -144,10 +144,15 @@ def main():
                 sys.exit("Aborted")            
             subprocess.call(aptClusCmd,shell=True)
     elif args.action=="trntrk":
-        lastRoundIdx,_,_,_,_ = findRoundIdx(jdat)
-        print("Found latest prm/pchs => roundIdx: {0:d}".format(lastRoundIdx))
+        if args.roundidx:
+            roundIdxs = int(args.roundidx)
+            roundIdxs = range(roundIdxs,roundIdxs+1)
+        else:
+            lastRoundIdx,_,_,_,_ = findRoundIdx(jdat)
+            print("Found latest prm/pchs => roundIdx: {0:d}".format(lastRoundIdx))
+            roundIdxs = range(0,lastRoundIdx+1)
 
-        for roundIdx in range(0,lastRoundIdx+1):
+        for roundIdx in roundIdxs:
             prmfull,_,_,_ = findPrmPch(jdat,roundIdx)
             print("Found prm for roundIdx {0:d}: {1:s}".format(roundIdx,prmfull))
 

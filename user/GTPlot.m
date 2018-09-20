@@ -1,34 +1,60 @@
 classdef GTPlot
   methods (Static)
     
-    function [n,npts,nvw,nsets,l2errptls,l2mnerrptls] = errhandler(err,ptiles)
+    function [n,npts,nvw,nsets,l2errptls,l2mnerrptls,ntype] = ...
+        errhandler(err,ptiles,varargin)
       % err: Either:
       %  1. numeric array [n x npts x (x/y) x nviews x nsets]
       %  2. cell array [nsets] where err{iset} is [n_iset x npts x (x/y) x nviews]
-      % ptiles: [nptl] vector of ptiles 
+      %  3. cell array [nviews] where err{ivw} is [n_ivw x npts x (x/y) x nsets]
+      %     (set cellWithViews==true)
+      % ptiles: [nptl] vector of ptiles
       % 
       % The 3rd dim (x/y) could be just (x) or (x/y/z) etc.
       %
       % "views" and "sets" are really just arbitrary dimensions for tiling 
-      % plots 
+      % plots. In ptiles plots, sets are shown along the x-axis of each 
+      % plot, showing eg a progression of improvement in err. These might
+      % be better called "rounds". Meanwhile, views are tiled (via 
+      % subplots) in the y-direction.
       %
       % n: If 1, the common number of rows.
       %    If 2, an [nsets] array.
+      %    If 3, an [nviews] array.
       % l2errptls: [nptl x npts x nvw x nsets] l2 err ptile matrix
       % l2mnerrptls: [nptl x nvw x nsets] ptiles of mean-err-over-pts 
+      % ntype: either 'scalar', 'perset', 'perview'
       
+      cellPerView = myparse(varargin,...
+        'cellPerView',false...
+        );
+            
       if iscell(err)
         err = err(:);
-        nsets = numel(err);
-        [n,npts,d,nvw] = cellfun(@size,err);
-        assert(all(npts==npts(1)));
-        assert(all(d==d(1)));
-        assert(all(nvw==nvw(1)));
-        npts = npts(1);
-        % d=d(1)
-        nvw = nvw(1);
+        if cellPerView
+          nvw = numel(err);
+          [n,npts,d,nsets] = cellfun(@size,err);
+          assert(all(npts==npts(1)));
+          assert(all(d==d(1)));
+          assert(all(nsets==nsets(1)));          
+          npts = npts(1);
+          %d = d(1);
+          nsets = nsets(1);
+          ntype = 'perview';
+        else
+          nsets = numel(err);
+          [n,npts,d,nvw] = cellfun(@size,err);
+          assert(all(npts==npts(1)));
+          assert(all(d==d(1)));
+          assert(all(nvw==nvw(1)));
+          npts = npts(1);
+          % d=d(1)
+          nvw = nvw(1);
+          ntype = 'perset';
+        end
       elseif isnumeric(err)
         [n,npts,d,nvw,nsets] = size(err);
+        ntype = 'scalar';
       else
         assert(false);
       end
@@ -36,17 +62,24 @@ classdef GTPlot
       nptl = numel(ptiles);      
       l2errptls = nan(nptl,npts,nvw,nsets);
       l2mnerrptls = nan(nptl,nvw,nsets);
+      for ivw=1:nvw
       for iset=1:nsets
         if iscell(err)
-          errSet = err{iset};
+          if cellPerView
+            errSetVw = err{ivw}(:,:,:,iset);
+          else
+            errSetVw = err{iset}(:,:,:,ivw);
+          end
         else
-          errSet = err(:,:,:,:,iset);
+          errSetVw = err(:,:,:,ivw,iset);
         end
-        % errSet is [n_iset x npts x d x nview]
-        l2errSet = squeeze(sqrt(sum(errSet.^2,3))); % [n_iset x npts x nview]        
-        l2errptls(:,:,:,iset) = prctile(l2errSet,ptiles,1);
-        l2errSetMean = squeeze(sum(l2errSet,2)/npts);
-        l2mnerrptls(:,:,iset) = prctile(l2errSetMean,ptiles,1);
+        % errSetVw is [n_set_view x npts x d]
+        l2errSV = sqrt(sum(errSetVw.^2,3)); % [n_set_view x npts]
+        l2errptls(:,:,ivw,iset) = prctile(l2errSV,ptiles,1);
+        l2errSetMean = sum(l2errSV,2)/npts;
+        assert(iscolumn(l2errSetMean));
+        l2mnerrptls(:,ivw,iset) = prctile(l2errSetMean,ptiles,1);
+      end
       end
     end
     
@@ -287,7 +320,7 @@ classdef GTPlot
       % hAxs: [nviews x nsets] axes handles
       
       [ptiles,hFig,lineArgs,setNames,axisArgs,ptnames,...
-        createsubplotsborders,titleArgs] = ...
+        createsubplotsborders,titleArgs,errCellPerView,viewNames] = ...
         myparse(varargin,...
         'ptiles',[50 75 90 95 97.5 99 99.5],...
         'hFig',[],...
@@ -296,10 +329,13 @@ classdef GTPlot
         'axisArgs',{'XTicklabelRotation',45,'FontSize' 16},...
         'ptnames',[],...
         'createsubplotsborders',[.05 0;.12 .12],...
-        'titleArgs',{'fontweight','bold'}...
+        'titleArgs',{'fontweight','bold'},...
+        'errCellPerView',false,...
+        'viewNames',[]... % [nview] cellstr
         );
       
-      [ns,npts,nviews,nsets,l2errptls,l2mnerrptls] = GTPlot.errhandler(err,ptiles);
+      [ns,npts,nviews,nsets,l2errptls,l2mnerrptls,nstype] = ...
+        GTPlot.errhandler(err,ptiles,'cellPerView',errCellPerView);
       
       if isempty(ptnames)
         ptnames = arrayfun(@(x)sprintf('pt%d',x),1:npts,'uni',0);
@@ -319,8 +355,16 @@ classdef GTPlot
       end
       assert(iscellstr(setNames) && numel(setNames)==nsets);
       setNames = setNames(:);
-      if iscell(err)
+      if iscell(err) && strcmp(nstype,'perset')
         setNames = arrayfun(@(x,y)sprintf('%s (n=%d)',x{1},y),setNames,ns,'uni',0);
+      end
+      
+      if isempty(viewNames)
+        viewNames = arrayfun(@(x)sprintf('View %d',x),1:nviews,'uni',0);
+      end
+      assert(iscellstr(viewNames) && numel(viewNames)==nviews);
+      if iscell(err) && strcmp(nstype,'perview')
+        viewNames = arrayfun(@(x,y)sprintf('%s (n=%d)',x{1},y),viewNames(:),ns(:),'uni',0);
       end
       
       hAxs = createsubplots(nviews,npts+1,createsubplotsborders);
@@ -337,14 +381,14 @@ classdef GTPlot
           if ~isinf(ipt)
             y = squeeze(l2errptls(:,ipt,ivw,:)); % [nptl x nsets]
             ax = hAxs(ivw,ipt);
-            tstr = sprintf('vw%d %s',ivw,ptnames{ipt});
-            if isscalar(ns) && tfPlot1
+            tstr = ptnames{ipt};
+            if isscalar(ns) && strcmp(nstype,'scalar') && tfPlot1
               tstr = sprintf('N=%d. %s',ns,tstr);
             end
           else
             y = squeeze(l2mnerrptls(:,ivw,:)); % [nptl x nsets]
             ax = hAxs(ivw,npts+1);
-            tstr = sprintf('vw%d, mean allpts shown',ivw);
+            tstr = 'mean allpts shown';
           end
           
           axes(ax);
@@ -365,14 +409,17 @@ classdef GTPlot
             hLeg = legend(h,legstrs);
             hLeg.FontSize = 10;
             %xlabel('Crop type','fontweight','normal','fontsize',14);
-            
-            ystr = sprintf('raw err (px)');
-            ylabel(ystr,'fontweight','normal');
           else
             set(ax,'XTickLabel',[]);
           end
           title(tstr,titleArgs{:});
           if ipt==1
+            if tfPlot1
+              ystr = sprintf('%s (raw err, px)',viewNames{1});              
+            else
+              ystr = viewNames{ivw};
+            end
+            ylabel(ystr,'fontweight','bold','interpreter','none');
           else
             set(ax,'YTickLabel',[]);
           end
