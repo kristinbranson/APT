@@ -1516,6 +1516,7 @@ classdef PostProcess < handle
         S = nan([d_in,d_in,nsamples_perview,Nframes,obj.npts,obj.nviews]);
       end
       prior = nan([nsamples_perview,Nframes,obj.npts,obj.nviews]);
+      totalweight = nan([Nframes,obj.npts,obj.nviews]);
       
       chunksize = 24;
       
@@ -1539,6 +1540,7 @@ classdef PostProcess < handle
                 %xs = cell(1,ncurr);
                 
                 [hms,xs] = obj.ReadHeatmapScores(pti,viewi,nscurr,'issparse',true);
+                totalweight(n0:n1,pti,viewi) = cellfun(@(x) sum(x(:)),hms);
                 for ni = 1:numel(hms),
                   %n = n0 + ni - 1;
                   %hm = obj.ReadHeatmapScore(pti,viewi,n);
@@ -1569,15 +1571,17 @@ classdef PostProcess < handle
                 mucurr = nan([nsamples_perview,d_in,ncurr]);
                 priorcurr = nan([nsamples_perview,ncurr]);
                 Scurr = nan([d_in,d_in,nsamples_perview,ncurr]);
+                totalweightcurr = nan([1,ncurr]);
                 
                 params = {'thresh_prctile',obj.heatmap_sample_thresh_prctile,'r_nonmax',obj.heatmap_sample_r_nonmax,'grid',obj.heatmapdata.grid{viewi}};
                 
                 parfor(ni = 1:ncurr,obj.ncores),
-                  [mucurr(:,:,ni),priorcurr(:,ni),Scurr(:,:,:,ni)] = PostProcess.LocalMaximaSamples(hms{ni},nsamples_perview,params{:}); %#ok<PFBNS>
+                  [mucurr(:,:,ni),priorcurr(:,ni),Scurr(:,:,:,ni),~,totalweightcurr(ni)] = PostProcess.LocalMaximaSamples(hms{ni},nsamples_perview,params{:}); %#ok<PFBNS>
                 end
                 mu(:,:,n0:n1,pti,viewi) = mucurr;
                 prior(:,n0:n1,pti,viewi) = priorcurr;
                 S(:,:,:,n0:n1,pti,viewi) = Scurr;
+                totalweight(n0:n1,pti,viewi) = totalweightcurr;
                 
             end
           end
@@ -1595,13 +1599,18 @@ classdef PostProcess < handle
           obj.sampledata.x_in(obj.dilated_frames,:,:,:,:) = permute(mu,[3,1,4,5,2]);
           obj.sampledata.w_in = nan([obj.N,nsamples_perview,obj.npts,obj.nviews]);
           obj.sampledata.w_in(obj.dilated_frames,:,:,:) = permute(prior,[2,1,3,4]);
+          obj.sampledata.z_in = nan([obj.N,obj.npts,obj.nviews]);
+          obj.sampledata.z_in(obj.dilated_frames,:,:) = totalweight;
+
         else
           obj.sampledata.x_in = permute(mu,[3,1,4,5,2]);
           obj.sampledata.w_in = permute(prior,[2,1,3,4]);
+          obj.sampledata.z_in = totalweight;
         end
         obj.sampledata.x_perview = obj.sampledata.x_in;
         obj.sampledata.x = obj.sampledata.x_in;
         obj.sampledata.w = obj.sampledata.w_in;
+        obj.sampledata.z = obj.sampledata.z_in;
 
         if obj.IsTrx(),
           viewi = 1;
@@ -1714,6 +1723,7 @@ classdef PostProcess < handle
         wreptotal(isrealsample) = wreptotal1;
         
         z = sum(wreptotal,1);
+        totalweight_3d = z;
         z(z==0) = 1;
         wreptotal = wreptotal ./ z;
 %          p_re(:,ni,pti) = p_re(order(:,ni,pti),ni,pti);
@@ -1747,10 +1757,13 @@ classdef PostProcess < handle
           obj.sampledata.x_in(obj.dilated_frames,:,:,:,:) = permute(mu,[4,3,5,2,1]);
           obj.sampledata.w_in = nan([obj.N,nsamples,obj.npts,obj.nviews]);
           obj.sampledata.w_in(obj.dilated_frames,:,:,:) = permute(prior,[3,2,4,1]);
+          obj.sampledata.z_in = nan([obj.npts,obj.nviews]);
+          obj.sampledata.z_in(obj.dilated_frames,:,:) = totalweight;
         else
           % want x_in to be [obj.N,nsamples,obj.npts,obj.nviews,d_in]
           obj.sampledata.x_in = permute(mu,[4,3,5,2,1]);
           obj.sampledata.w_in = permute(prior,[3,2,4,1]);
+          obj.sampledata.z_in = totalweight;
         end
         
         % wan x_perview to be [N,nRep,npts,nviews,d_in]
@@ -1779,15 +1792,21 @@ classdef PostProcess < handle
           
           obj.sampledata.w = nan([obj.N,nsamples_total,obj.npts]);
           obj.sampledata.w(obj.dilated_frames,:,:) = permute(wreptotal,[2,1,3]); % w is N x maxnsamples x npts
+
+          obj.sampledata.z = nan([obj.N,obj.npts]);
+          obj.sampledata.z(obj.dilated_frames,:) = totalweight_3d.*prod(totalweight,3); % w is N x maxnsamples x npts
           
           obj.sampledata.x_re_perview = nan([obj.N,nsamples_total,obj.npts.obj.nviews,d_in]);
           obj.sampledata.x_re_perview(obj.dilated_frames,:,:,:,:) = tmp_x_re_perview;
           
         else
+          
           obj.sampledata.x_perview = tmp_x_perview;
           obj.sampledata.x = tmp_x;
           obj.sampledata.w = permute(wreptotal,[2,1,3]); % w is N x maxnsamples x npts
+          obj.sampledata.z = totalweight_3d.*prod(totalweight,3); % w is N x maxnsamples x npts
           obj.sampledata.x_re_perview = tmp_x_re_perview;
+          
         end
       
       end
@@ -2242,9 +2261,10 @@ classdef PostProcess < handle
         else
           w0 = 1;
         end
+        c = sqrt(2*pi*obj.kde_sigma^(2*D));
         d2 = reshape(sum( (x-reshape(x,[D,nRep,1,Nframes])).^2,1 ),[nRep,nRep,Nframes]);
-        w = sum(exp( -w0.*d2/obj.kde_sigma^2/2 ),1);
-        w = w ./ sum(w,2);
+        w = sum(w0.*exp( -d2/obj.kde_sigma^2/2 ),1)/c;
+        %w = w ./ sum(w,2);
         assert(~any(isnan(w(:))));
 
         if obj.isframes,
@@ -2276,13 +2296,14 @@ classdef PostProcess < handle
         end
         
         fprintf('Computing KDE, indep\n');
+        c = sqrt(2*pi*obj.kde_sigma^(2*d));
         d2 = sum( (reshape(obj.sampledata.x(frameidx,:,:,:),[Nframes,1,nRep,npts,d])-...
           reshape(obj.sampledata.x(frameidx,:,:,:),[Nframes,nRep,1,npts,d])).^2, 5 );
         
         % these have weight 0
         d2(isnan(d2)) = inf;
-        w = sum(w0.*exp( -d2/obj.kde_sigma^2/2 ),2);
-        w = w ./ sum(w,3);
+        w = sum(w0.*exp( -d2/obj.kde_sigma^2/2 ),2)/c;
+        %w = w ./ sum(w,3);
         assert(~any(isnan(w(:))));
         if obj.isframes,
           obj.kdedata.indep = nan([N,nRep,npts]);
@@ -2354,7 +2375,13 @@ classdef PostProcess < handle
           t0 = t0s(i);
           t1 = t1s(i);
           
-          appcost = -log(obj.kdedata.joint(t0:t1));
+          if isfield(obj.sampledata,'z'),
+            z = obj.sampledata.z(t0:t1);
+          else
+            z = 1;
+          end
+          
+          appcost = -log(obj.kdedata.joint(t0:t1).*z);
           X = permute(reshape(obj.sampledata.x(t0:t1,:,:,:),[t1-t0+1,K,D]),[3 1 2]);
           
           [Xbest(t0:t1,:),isvisiblebest(t0:t1),idxcurr(t0:t1),totalcost1,poslambdaused,misscostused] = ...
@@ -2381,8 +2408,15 @@ classdef PostProcess < handle
           Ncurr = t1-t0+1;
           
           for ipt = 1:npts,
+            
+            if isfield(obj.sampledata,'z'),
+              z = obj.sampledata.z(t0:t1,ipt);
+            else
+              z = 1;
+            end
+            
             % N x nRep x npts
-            appcost = -log(obj.kdedata.indep(t0:t1,:,ipt));
+            appcost = -log(obj.kdedata.indep(t0:t1,:,ipt).*z);
             X = permute(reshape(obj.sampledata.x(t0:t1,:,ipt,:),[Ncurr,K,d]),[3 1 2]);
             [Xbest,isvisiblebest,idxcurr,totalcost,poslambdaused,misscostused] = ...
               obj.RunViterbiHelper(appcost,X); %#ok<ASGLU>
@@ -2400,7 +2434,13 @@ classdef PostProcess < handle
     
     function [Xbest,isvisiblebest,idxcurr,totalcost,poslambdaused,misscostused] = RunViterbiHelper(obj,appcost,X)
       
-      N = size(X,1);
+      [d,N,K] = size(X);
+      Kreal = find(any(~isinf(appcost),1),1,'last');
+      if Kreal < K,
+        X = X(:,:,1:Kreal);
+        appcost = appcost(:,1:Kreal);
+      end
+      
       if isinf(obj.viterbi_misscost),
         [Xbest,idxcurr,totalcost,poslambdaused] = ChooseBestTrajectory(X,appcost,...
           'poslambda',obj.viterbi_poslambda,...
@@ -2438,7 +2478,7 @@ classdef PostProcess < handle
   
   methods (Static)
     
-    function [mu,w,S,kreal] = LocalMaximaSamples(hm,k,varargin)
+    function [mu,w,S,kreal,totalweight] = LocalMaximaSamples(hm,k,varargin)
       
       [thresh,thresh_prctile,r_nonmax,grid] = ...
         myparse(varargin,'thresh',[],'thresh_prctile',99.5,'r_nonmax',4,...
@@ -2470,7 +2510,8 @@ classdef PostProcess < handle
       end
       hmnz = hm(idxnz);
       S = nan(2,2,k);
-      
+      totalweight = sum(hmnz);
+
       if k0 > 1,
       
         ctrim = false(size(hm));

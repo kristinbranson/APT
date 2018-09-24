@@ -64,11 +64,17 @@ classdef HPOptim < handle
       % baseDir: dir containing all artifacts
       % splitDirs: [nsplit] cellstrs, relative paths (relative to baseDir)
       %   for results for various splits
+      
+      if nargin==0
+        return;
+      end
+      
       [baseDir,prmPat,pchPat,rndPat] = myparse(varargin,...
         'baseDir',pwd,...
         'prmPat','prm%d.mat',...
         'pchPat','pch%d',...
         'rndPat','prm%d');
+      
       
       json = dir(fullfile(baseDir,'*.json'));
       if ~isscalar(json)
@@ -493,6 +499,139 @@ classdef HPOptim < handle
       end
       
     end
+    
+    function [hFig,scoreSR] = plotTrnTrkErrWithSelect(obj,varargin)
+      [dosave,savedir,ptiles,fignums,figpos,iptsplot] = myparse(varargin,...
+        'dosave',false,...
+        'savedir','figs',...
+        'ptiles',[50 90],... % ptiles to include in i) plot and ii) overall score leading to selection
+        'fignums',[11 12],...
+        'figpos',[1 1 1920 960],...
+        'iptsplot',[]... % point indices to include in i) plots and ii) overall score leading to selection
+          ... %         'IBE',[],... % (opt) if supplied, [nview] (cropped) ims for use with bullseye plots
+          ... %         'pLblBE',[]... % (opt) [nphyspt x 2 x nview]
+        );
+      
+      %tfBE = ~isempty(IBE);
+                          
+      dxyAllSplits = cell(obj.nsplit,1);
+      for isplit=1:obj.nsplit
+        dxySplit = obj.trntrkdxysplits{isplit}; % [ntrk x nphyspt x (x/y) x nview x nround]
+        if isempty(iptsplot)
+          iptsplot = 1:size(dxySplit,2);
+        elseif strcmp(iptsplot,'bub')
+          iptsplot = [9 11 12:17];
+        end
+        dxySplit = dxySplit(:,iptsplot,:,:,:);
+        [ntrk,nptsplot,d,nvw,nrnd] = size(dxySplit);
+        assert(d==2);
+        assert(nrnd==obj.nround);       
+        dxySplit = permute(dxySplit,[1 2 4 3 5]);
+        dxySplit = reshape(dxySplit,[ntrk nptsplot*nvw d 1 nrnd]); % collapse all views. actually i think originally nvw==1 already with all pts collapsed 
+        
+        dxyAllSplits{isplit} = dxySplit; % splits will become "views" in ptileplot
+      end
+            
+    
+      tstr = 'trntrkerrWithSelect';
+      ptnames = arrayfun(@(x)sprintf('pt%d',x),iptsplot,'uni',0);
+      setNames = arrayfun(@(x)sprintf('Rnd%d',x),0:obj.nround-1,'uni',0);
+        
+      hFig = [];
+      fignum = fignums(1);
+      hFig(end+1) = figure(fignum);
+      hfig = hFig(end);
+      set(hfig,'Name',tstr,'Position',figpos);
+      
+      [~,ax] = GTPlot.ptileCurves(dxyAllSplits,...
+        'ptiles',ptiles,...
+        'hFig',hfig,...
+        'setNames',setNames,...
+        'ptnames',ptnames,...
+        'axisArgs',{'XTicklabelRotation',90,'FontSize',16},...
+        'errCellPerView',true,...
+        'viewNames',obj.splitdirs);
+      
+      [ns,npts,nviews,nsets,l2errptls,l2mnerrptls,nstype] = ...
+        GTPlot.errhandler(dxyAllSplits,ptiles,'cellPerView',true);
+      szassert(l2mnerrptls,[numel(ptiles) obj.nsplit obj.nround]);
+      scoreSR = squeeze(mean(l2mnerrptls,1)); 
+      % scoreSR: l2 px tracking err, av over pts plotted/shown, av over 
+      % ptiles plotted/shown, per split, per round
+      
+      fignum = fignums(2);
+      hFig(end+1) = figure(fignum);
+      hfig = hFig(end);
+      set(hfig,'Name','mean err px','Position',figpos);
+      axs = mycreatesubplots(obj.nsplit,1,[.05 0;.12 .12]);
+      x = 1:obj.nround;
+      roundstrs = arrayfun(@(x)sprintf('Round %d',x),1:obj.nround,'uni',0);        
+      for isplit=1:obj.nsplit
+        ax = axs(isplit);
+        hold(ax,'on');
+        plot(ax,x,scoreSR(isplit,:),'.-','markersize',20);
+        if isplit==obj.nsplit
+          set(ax,'XTick',x,'XTickLabel',roundstrs,'XTickLabelRotation',90);
+        else
+          set(ax,'XTick',[]);
+        end
+        splitstr = sprintf('Split %d (n=%d)',isplit,ns(isplit));
+        ylabel(ax,splitstr,'fontweight','bold');
+        
+        idx = argmin(scoreSR(isplit,:));
+        fprintf('Split %d: best round is %s\n',isplit,roundstrs{idx});
+        plot(ax,idx,scoreSR(isplit,idx),'ro','markersize',10,'markerfacecolor',[1 0 0]);
+        
+        grid(ax,'on');
+        yl = ylim(ax);
+        yl(1) = 0;
+        ylim(ax,yl);        
+      end
+      
+      
+      
+%         if tfBE
+%           tstr = sprintf('split%d BE',isplit);
+%           fignum = 10*isplit+2;
+%           hFig(end+1) = figure(fignum);
+%           hfig = hFig(end);
+%           set(hfig,'Name',tstr,'Position',figpos);
+%           [~,ax] = GTPlot.bullseyePtiles(dxySplit,...
+%             IBE,pLblBE(iptsplot,:,:),...
+%             'hFig',hfig,...
+%             'setNames',setNames,...
+%             'ptiles',ptiles,...
+%             'lineWidth',2,...
+%             'axisArgs',{'XTicklabelRotation',90,'FontSize',16});
+%           
+%           tstr = sprintf('split%d BEell',isplit);
+%           fignum = 10*isplit+3;
+%           hFig(end+1) = figure(fignum);
+%           hfig = hFig(end);
+%           set(hfig,'Name',tstr,'Position',figpos);
+%           [~,ax] = GTPlot.bullseyePtiles(dxySplit,...
+%             IBE,pLblBE(iptsplot,:,:),...
+%             'hFig',hfig,...
+%             'setNames',setNames,...
+%             'ptiles',ptiles,...
+%             'lineWidth',1,... %  'axisArgs',{'XTicklabelRotation',90,'FontSize',16},...
+%             'contourtype','ellipse');
+%         end
+
+      if dosave
+        for i=1:numel(hFig)
+          h = figure(hFig(i));
+          fname = h.Name;
+          hgsave(h,fullfile(savedir,[fname '.fig']));
+          set(h,'PaperOrientation','landscape','PaperType','arch-d');
+          print(h,'-dpdf',fullfile(savedir,[fname '.pdf']));
+          print(h,'-dpng','-r300',fullfile(savedir,[fname '.png']));
+          fprintf(1,'Saved %s.\n',fname);
+        end
+      end
+      
+    end
+    
     
     function showPrmDiff(obj)
       pcell = obj.prms;
