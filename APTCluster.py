@@ -11,6 +11,7 @@ import re
 import glob
 import csv
 import warnings
+import time
 import numpy as np
 
 USEQSUB = False
@@ -215,7 +216,7 @@ def main():
                 qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.BSUBARGS,shfile)
                 qsubcmd = "qsub " + qargs
             else:
-                qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfile,jobid,shfile)
+                qargs = '{0:s} -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfile,jobid,shfile)
                 qsubcmd = "bsub " + qargs
             print(qsubcmd)
             if not args.dryrun:
@@ -309,7 +310,7 @@ def main():
                         qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfilecurr,jobidcurr,args.BSUBARGS,shfilecurr)
                         qsubcmd = "qsub " + qargs
                     else:
-                        qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfilecurr,jobidcurr,shfilecurr)
+                        qargs = '{0:s} -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfilecurr,jobidcurr,shfilecurr)
                         qsubcmd = "bsub " + qargs
 
 
@@ -357,7 +358,7 @@ def main():
 
                     # submit
                     assert not USEQSUB
-                    qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfilecurr,jobidcurr,shfilecurr)
+                    qargs = '{0:s} -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfilecurr,jobidcurr,shfilecurr)
                     qsubcmd = "bsub " + qargs
 
                     print(qsubcmd)
@@ -381,7 +382,7 @@ def main():
             qargs = "-o {0:s} -N {1:s} {2:s} {3:s}".format(logfile,jobid,args.BSUBARGS,shfile)
             qsubcmd = "qsub " + qargs
         else:
-            qargs = '{0:s} -R"affinity[core(1)]" -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfile,jobid,shfile)
+            qargs = '{0:s}  -o {1:s} -J {2:s} {3:s}'.format(args.BSUBARGS,logfile,jobid,shfile)
             qsubcmd = "bsub " + qargs
 
         print(qsubcmd)
