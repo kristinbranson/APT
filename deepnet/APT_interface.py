@@ -190,11 +190,12 @@ def convert_unicode(data):
     else:
         return data
 
+
 def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num):
     for bpart in range(hmaps.shape[-1]):
         cur_out = os.path.join(hmaps_dir, 'hmap_trx_{}_t_{}_part_{}.jpg'.format(trx_ndx + 1, frame_num + 1, bpart + 1))
         cur_im = hmaps[:, :, bpart]
-        cur_im = ((np.clip(cur_im, -1, 1) * 128) + 127).astype('uint8')
+        cur_im = ((np.clip(cur_im, -1 + 1./128, 1) * 128) + 127).astype('uint8')
         imageio.imwrite(cur_out, cur_im, 'jpg', quality=75)
         # cur_out_png = os.path.join(hmaps_dir,'hmap_trx_{}_t_{}_part_{}.png'.format(trx_ndx+1,frame_num+1,bpart+1))
         # imageio.imwrite(cur_out_png,cur_im)
@@ -1388,7 +1389,7 @@ def run(args):
             assert len(args.trx) == 1, 'Number of trx files should be one when view is specified'
             assert len(args.out_files) == 1, 'Number of out files should be one when view is specified'
             if args.crop_loc is not None:
-                assert len(args.crop_loc)==4*nviews, 'cropping location should be specified as xlo xhi ylo yhi'
+                assert len(args.crop_loc)==4, 'cropping location should be specified as xlo xhi ylo yhi'
             views = [args.view]
 
         for view_ndx, view in enumerate(views):

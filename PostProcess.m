@@ -62,7 +62,8 @@ classdef PostProcess < handle
     tblMFT = [];
     trx = [];
     radius_trx = nan;
-        
+    
+    % Either 'sample' or 'heatmap'
     nativeformat = 'sample';
     
     sampledata = [];
@@ -1433,7 +1434,7 @@ classdef PostProcess < handle
       
     end
     
-    function hm = ReadHeatmapScore(obj,pti,viewi,n)
+    function hm = ReadHeatmapScore(obj,pti,viewi,n) % obj const
     
       hm = obj.heatmapdata.readscorefuns{pti,viewi}(n);
       hm = min(max( (hm-obj.heatmap_lowthresh)/(obj.heatmap_highthresh-obj.heatmap_lowthresh), 0), 1);
@@ -1573,10 +1574,14 @@ classdef PostProcess < handle
                 Scurr = nan([d_in,d_in,nsamples_perview,ncurr]);
                 totalweightcurr = nan([1,ncurr]);
                 
-                params = {'thresh_prctile',obj.heatmap_sample_thresh_prctile,'r_nonmax',obj.heatmap_sample_r_nonmax,'grid',obj.heatmapdata.grid{viewi}};
+                params = {...
+                  'thresh_prctile',obj.heatmap_sample_thresh_prctile,...
+                  'r_nonmax',obj.heatmap_sample_r_nonmax,...
+                  'grid',obj.heatmapdata.grid{viewi}};
                 
                 parfor(ni = 1:ncurr,obj.ncores),
-                  [mucurr(:,:,ni),priorcurr(:,ni),Scurr(:,:,:,ni),~,totalweightcurr(ni)] = PostProcess.LocalMaximaSamples(hms{ni},nsamples_perview,params{:}); %#ok<PFBNS>
+                  [mucurr(:,:,ni),priorcurr(:,ni),Scurr(:,:,:,ni),~,totalweightcurr(ni)] = ...
+                    PostProcess.LocalMaximaSamples(hms{ni},nsamples_perview,params{:}); %#ok<PFBNS>
                 end
                 mu(:,:,n0:n1,pti,viewi) = mucurr;
                 prior(:,n0:n1,pti,viewi) = priorcurr;
@@ -2136,7 +2141,7 @@ classdef PostProcess < handle
       obj.postdata.maxdensity_indep = struct;
       x = nan([Nframes,obj.npts,d]);
       score = zeros([Nframes,obj.npts]);
-      sampleidx = nan([Nframes,obj.npts,d]);
+      sampleidx = nan([Nframes,obj.npts]);
 
       grid = obj.heatmapdata.grid{viewi};
       npts = obj.npts;
@@ -2174,16 +2179,16 @@ classdef PostProcess < handle
         
         obj.postdata.maxdensity_indep.x = nan([obj.N,npts,d]);
         obj.postdata.maxdensity_indep.x(frameidx,:,:) = x;
-        obj.postdata.maxdensity_indep.sampleidx = nan([obj.N,npts,d]);
-        obj.postdata.maxdensity_indep.sampleidx(frameidx,:,:) = sampleidx;
+        obj.postdata.maxdensity_indep.sampleidx = nan([obj.N,npts]);
+        obj.postdata.maxdensity_indep.sampleidx(frameidx,:) = sampleidx;
         obj.postdata.maxdensity_indep.score = nan([obj.N,npts]);
         obj.postdata.maxdensity_indep.score(frameidx,:) = score;
         
-      else        
+      else
         
-        obj.postdata.maxdensity_indep.x = x;
-        obj.postdata.maxdensity_indep.score = score;
-        obj.postdata.maxdensity_indep.sampleidx = sampleidx;
+        obj.postdata.maxdensity_indep.x = x; % [N x npts x d]
+        obj.postdata.maxdensity_indep.score = score; % [N x npts] heatmap score
+        obj.postdata.maxdensity_indep.sampleidx = sampleidx; % [N x npts] linear index into heatmap/grid for x
         
       end
       if obj.IsTrx(),
@@ -2479,10 +2484,31 @@ classdef PostProcess < handle
   methods (Static)
     
     function [mu,w,S,kreal,totalweight] = LocalMaximaSamples(hm,k,varargin)
+      % Find samples (candidate-points) from local maxima in heatmap
+      %
+      % hm: 2D heatmap
+      % k: number of samples/candidates desired
+      %
+      % mu: [kx2] (x,y) or equivalently (col,row) sample means/locs
+      % w: [kx1] "likelihood" weights. sum(w) guaranteed to equal 1 unless kreal==0.
+      % S: [2x2xk]. cov matrices 
+      % kreal: number of actual candidates found. candidates (kreal+1)..k
+      %   are nans/invalid
+      %
+      % Note that kreal can be less than k, or even 0.
       
       [thresh,thresh_prctile,r_nonmax,grid] = ...
-        myparse(varargin,'thresh',[],'thresh_prctile',99.5,'r_nonmax',4,...
-        'grid',[]);
+        myparse(varargin,...
+        'thresh',[],... % threshold for nonmax supp. raw value, same units as hm.
+        'thresh_prctile',99.5,... % used if thresh is not supplied; thresh set to this prctile of hm 
+        'r_nonmax',4,... % radius for nonmax supp
+        'grid',[]... % [nim x 2] (x,y) coords for hm. grid(i,:) labels hm(i)
+        );
+      
+      if ~isempty(grid)
+        nim = numel(hm);
+        szassert(grid,[nim 2]);
+      end
 
       if isempty(thresh),
         thresh = prctile(hm(:),thresh_prctile);
@@ -2498,28 +2524,37 @@ classdef PostProcess < handle
         r = r(order);
         c = c(order);
         idx = idx(order);
+      end      
+      kreal = min(k0,k);
+      
+      mu = nan(k,2);
+      w = zeros(k,1);
+      S = nan(2,2,k);
+      
+      if isempty(grid),
+        mu(1:kreal,:) = [c(:),r(:)];
+      else
+        mu(1:kreal,:) = grid(idx,:);
       end
-      kout = min(k0,k);
 
       idxnz = hm>0;
       if isempty(grid),
-        [rnz,cnz] = ind2sub(size(hm),idxnz);
+        [rnz,cnz] = ind2sub(size(hm),find(idxnz)); % or just find(idxnz)        
       else
         cnz = grid(idxnz,1);
         rnz = grid(idxnz,2);
       end
       hmnz = hm(idxnz);
-      S = nan(2,2,k);
       totalweight = sum(hmnz);
 
+      % fill els of w, S
       if k0 > 1,
-      
         ctrim = false(size(hm));
         ctrim(idx) = 1;
         [~,l] = bwdist(ctrim);
         
-        w = nan(kout,1);
-        for ki = 1:kout,
+        %w = nan(kreal,1);
+        for ki = 1:kreal,
           idxnzcurr = l(idxnz)==idx(ki);
           w(ki) = sum(hmnz(idxnzcurr));
           [~,S(:,:,ki)] = weighted_mean_cov([cnz(idxnzcurr),rnz(idxnzcurr)],hmnz(idxnzcurr));
@@ -2531,34 +2566,14 @@ classdef PostProcess < handle
 %         w = myhist(l(idxnz),sortedidx,'weights',hm(idxnz));
 %         w = w(unorder);
 %         w = w / sum(w);
-%         w = w(:);
-        
-      else
+%         w = w(:);        
+      elseif k0 == 1
         w = 1;
         [~,S(:,:,1)] = weighted_mean_cov([cnz,rnz],hmnz);
-
-      end
-
-      if isempty(grid),
-        mu = [c(:),r(:)];
       else
-        mu = grid(idx,:);
+        % k0==0; w will be all zeros
       end
-
-      if k0 < k,
-        
-        mu = cat(1,mu,nan(k-k0,2));
-        w = cat(1,w,zeros(k-k0,1));
-        kreal = k0;
-        
-      else
-        
-        kreal = k;
-        
-      end
-      
-    end
-    
+    end   
     
     function [mu,w,S,threshcurr] = GMMFitHeatmapData(scores,varargin)
       
