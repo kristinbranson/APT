@@ -11,6 +11,15 @@ from multiResData import int64_feature, float_feature, bytes_feature
 import pickle
 import sys
 import time
+import json
+
+
+def print_train_data(cur_dict):
+    p_str = ''
+    for k in cur_dict.keys():
+        p_str += '{:s}:{:.2f} '.format(k, cur_dict[k])
+    print(p_str)
+
 
 class RNN_pp(object):
 
@@ -20,10 +29,12 @@ class RNN_pp(object):
         self.conf = conf
         self.mdn_name = mdn_name
         self.rnn_pp_hist = 128
-        self.train_rep = 2
+        self.train_rep = 10
         self.conf.check_bounds_distort = False
         self.ckpt_file = os.path.join( conf.cachedir, conf.expname + '_' + name + '_ckpt')
         self.name = name
+        self.ph = {}
+        self.fd = {}
 
 
     def create_db(self, split_file=None):
@@ -121,14 +132,14 @@ class RNN_pp(object):
 
                     if count % 50 == 0:
                         sys.stdout.write('.')
-                        with open(os.path.join(conf.cachedir,'rnn_pp.p'),'w') as f:
+                        with open(os.path.join(conf.cachedir,self.name + '.p'),'w') as f:
                             pickle.dump(data,f)
                     if count % 2000 == 0:
                         sys.stdout.write('\n')
 
             cap.close()  # close the movie handles
 
-        with open(os.path.join(conf.cachedir,'rnn_pp.p'),'w') as f:
+        with open(os.path.join(conf.cachedir,self.name + '.p'),'w') as f:
             pickle.dump(data,f)
         lbl.close()
 
@@ -155,6 +166,7 @@ class RNN_pp(object):
                                          save_relative_paths=True))
         self.saver = saver
 
+
     def restore(self, sess, model_file=None):
         saver = self.saver
         if model_file is not None:
@@ -180,35 +192,40 @@ class RNN_pp(object):
         lstm_size = 256
         batch_size = self.conf.batch_size*2
 
-        input_ph = tf.placeholder(tf.float32, [self.rnn_pp_hist, batch_size, self.conf.n_classes*2])
-        out_ph = tf.placeholder(tf.float32, [batch_size, self.conf.n_classes*2])
-        lr_ph = tf.placeholder(tf.float32)
-        self.ph = {'input':input_ph, 'output':out_ph, 'learning_rate': lr_ph}
+        # in_w = tf.get_variable('in_weights',[self.conf.n_classes*2, lstm_size],initializer=tf.contrib.layers.xavier_initializer())
+        # in_b = tf.get_variable('softmax_weights',[lstm_size],initializer=tf.constant_initializer(0.))
+        # input = tf.nn.relu(tf.matmul(self.inputs[0], in_w) + in_b)
 
-        in_w = tf.get_variable('in_weights',[self.conf.n_classes*2, lstm_size],initializer=tf.contrib.layers.xavier_initializer())
-        in_b = tf.get_variable('softmax_weights',[lstm_size],initializer=tf.constant_initializer(0.))
-        input = tf.nn.relu(tf.matmul(input_ph, in_w) + in_b)
+        input_layer = tf.layers.Dense(lstm_size, activation=tf.nn.relu,
+            kernel_initializer=tf.orthogonal_initializer())
+        input = input_layer(self.inputs[0])
 
-        lstm = tf.contrib.rnn.BasicLSTMCell(lstm_size)
+        # lstm = tf.contrib.rnn.BasicLSTMCell(lstm_size)
+        lstm = tf.contrib.rnn.GRUCell(lstm_size)
         # Initial state of the LSTM memory.
         state = lstm.zero_state(batch_size, dtype=tf.float32)
-        for cur_input in input:
+        for cur_ndx in range(self.rnn_pp_hist-10, self.rnn_pp_hist):
+            cur_input = input[:, cur_ndx,:]
             output, state = lstm(cur_input, state)
 
-        softmax_w = tf.get_variable('softmax_weights',[lstm_size,self.conf.n_classes*2],initializer=tf.contrib.layers.xavier_initializer())
-        softmax_b = tf.get_variable('softmax_weights',[self.conf.n_classes*2],initializer=tf.constant_initializer(0.))
-        out = tf.matmul(output, softmax_w) + softmax_b
-        loss = tf.nn.l2_loss(out-out_ph)
+        # softmax_w = tf.get_variable('softmax_weights',[lstm_size,self.conf.n_classes*2],initializer=tf.contrib.layers.xavier_initializer())
+        # softmax_b = tf.get_variable('softmax_weights',[self.conf.n_classes*2],initializer=tf.constant_initializer(0.))
+        # out = tf.matmul(output, softmax_w) + softmax_b
 
-        self.out = out
+        output_layer = tf.layers.Dense(self.conf.n_classes*2, activation=None,
+            kernel_initializer=tf.orthogonal_initializer())
+        out = output_layer(output)
+        loss = tf.nn.l2_loss(out-self.inputs[1])
+
+        self.pred = out
         self.cost = loss
 
-        self.fd = {}
         for k in self.ph.keys():
             self.fd[self.ph[k]] = np.zeros(self.ph[k]._shape_as_list())
 
 
     def train_step(self, step, sess, learning_rate, training_iters):
+        self.fd_train()
         cur_step = float(step)
 
         n_steps = self.conf.n_steps
@@ -232,7 +249,7 @@ class RNN_pp(object):
 
     def init_td(self):
         ex_td_fields = ['step']
-        self.td_fields = ['loss','dist']
+        self.td_fields = ['loss','dist', 'prev']
         for t_f in self.td_fields:
             ex_td_fields.append('train_' + t_f)
             ex_td_fields.append('val_' + t_f)
@@ -241,37 +258,116 @@ class RNN_pp(object):
             train_info[t_f] = []
         self.train_info = train_info
 
+    def save_td(self):
+        saver = self.saver
+        train_data_file = saver['train_data_file']
+        with open(train_data_file, 'wb') as td_file:
+            pickle.dump([self.train_info, self.conf], td_file, protocol=2)
+        json_data = {}
+        for x in self.train_info.keys():
+            json_data[x] = np.array(self.train_info[x]).astype(np.float64).tolist()
+        with open(train_data_file+'.json','w') as json_file:
+            json.dump(json_data, json_file)
+
+
+    def update_td(self, cur_dict):
+        for k in cur_dict.keys():
+            self.train_info[k].append(cur_dict[k])
+        print_train_data(cur_dict)
+
     def create_datasets(self):
-        with open(self.conf.cachedir,'rnn_pp.p','r') as f:
+        with open(os.path.join(self.conf.cachedir,'rnn_pp.p'),'r') as f:
             X = pickle.load(f)
+
+        t_labels = np.array([x[1] for x in X[0]]).reshape([-1,self.conf.n_classes*2])
+        t_inputs = np.array([x[0] for x in X[0]]).reshape([-1,self.rnn_pp_hist,self.conf.n_classes*2])
+        v_labels = np.array([x[1] for x in X[1]]).reshape([-1,self.conf.n_classes*2])
+        v_inputs = np.array([x[0] for x in X[1]]).reshape([-1,self.rnn_pp_hist,self.conf.n_classes*2])
+
+        m_sz = max(self.conf.imsz)
+        self.t_labels = t_labels/m_sz
+        self.t_inputs = t_inputs*32/m_sz
+        self.v_labels = v_labels/m_sz
+        self.v_inputs = v_inputs*32/m_sz
+
+        t_inputs_ph = tf.placeholder(tf.float32, t_inputs.shape)
+        t_labels_ph = tf.placeholder(tf.float32, t_labels.shape)
+        v_inputs_ph = tf.placeholder(tf.float32, v_inputs.shape)
+        v_labels_ph = tf.placeholder(tf.float32, v_labels.shape)
+
+        train_dataset = tf.data.Dataset.from_tensor_slices((t_inputs_ph,t_labels_ph))
+        val_dataset = tf.data.Dataset.from_tensor_slices((v_inputs_ph,v_labels_ph))
+        train_dataset = train_dataset.repeat()
+        val_dataset = val_dataset.repeat()
+        train_dataset = train_dataset.shuffle(buffer_size=200)
+        val_dataset = val_dataset.shuffle(buffer_size=200)
+        train_dataset = train_dataset.batch(self.conf.batch_size*2)
+        val_dataset = val_dataset.batch(self.conf.batch_size*2)
+
+
+        self.train_iterator = train_dataset.make_initializable_iterator()
+        self.val_iterator = val_dataset.make_initializable_iterator()
+
+        train_next = self.train_iterator.get_next()
+        val_next = self.val_iterator.get_next()
+
+        self.ph['t_inputs_ph'] = t_inputs_ph
+        self.ph['t_labels_ph'] = t_labels_ph
+        self.ph['v_inputs_ph'] = v_inputs_ph
+        self.ph['v_labels_ph'] = v_labels_ph
+        self.ph['is_train'] = tf.placeholder(tf.bool,name='is_train')
+        self.ph['learning_rate'] = tf.placeholder(tf.float32)
+
+        self.inputs = []
+        self.inputs.append(tf.cond(self.ph['is_train'],
+                                   lambda: tf.identity(train_next[0]),
+                                   lambda: tf.identity(val_next[0])))
+        self.inputs.append(tf.cond(self.ph['is_train'],
+                                   lambda: tf.identity(train_next[1]),
+                                   lambda: tf.identity(val_next[1])))
 
 
     def fd_train(self):
-
+        # self.fd[self.ph['phase_train']] = True
+        self.fd[self.ph['is_train']] = True
 
     def fd_val(self):
-
+        # self.fd[self.ph['phase_train']] = False
+        self.fd[self.ph['is_train']] = False
 
 
     def compute_train_data(self, sess, db_type):
-        self.fd_train() if db_type is self.DBType.Train \
+        self.fd_train() if db_type == 'train' \
             else self.fd_val()
         cur_loss, cur_pred, self.cur_inputs = \
             sess.run( [self.cost, self.pred, self.inputs], self.fd)
         cur_dist = self.compute_dist(cur_pred, self.cur_inputs[1])
-        return cur_loss, cur_dist
+        prev_dist = self.compute_dist(self.cur_inputs[0][:,-1,...], self.cur_inputs[1])
+        return cur_loss, cur_dist, prev_dist
+
+
+    def compute_dist(self, pred, label):
+        m_sz = max(self.conf.imsz)
+        pred = pred.reshape([-1,self.conf.n_classes,2])
+        label = label.reshape([-1,self.conf.n_classes,2])
+        return np.nanmean(np.sqrt(np.sum( (pred-label)**2,axis=-1)))*m_sz
 
 
     def train(self):
+        self.create_datasets()
         self.create_network()
         self.create_optimizer()
         self.create_saver()
-        training_iters = self.conf.dl_steps
+        training_iters = 200000#self.conf.dl_steps
         num_val_rep = self.conf.numTest / self.conf.batch_size + 1
-        learning_rate = 0.0001
+        learning_rate = 0.01
 
         with tf.Session() as sess:
             sess.run(tf.variables_initializer(self.get_var_list()))
+            sess.run(self.train_iterator.initializer,
+                     feed_dict={self.ph['t_inputs_ph']: self.t_inputs, self.ph['t_labels_ph']: self.t_labels})
+            sess.run(self.val_iterator.initializer,
+                     feed_dict={self.ph['v_inputs_ph']: self.v_inputs, self.ph['v_labels_ph']: self.v_labels})
             self.init_td()
 
             start = time.time()
@@ -280,18 +376,24 @@ class RNN_pp(object):
                 if step % self.conf.display_step == 0:
                     end = time.time()
                     print('Time required to train: {}'.format(end-start))
-                    train_loss, train_dist = self.compute_train_data(sess, self.DBType.Train)
+                    train_loss, train_dist, train_prev = self.compute_train_data(sess, 'train')
                     val_loss = 0.
                     val_dist = 0.
+                    val_prev = 0.
                     for _ in range(num_val_rep):
-                       cur_loss, cur_dist = self.compute_train_data(sess, self.DBType.Val)
-                       val_loss += cur_loss
-                       val_dist += cur_dist
+                        cur_loss, cur_dist, cur_prev = self.compute_train_data(sess, 'val')
+                        val_loss += cur_loss
+                        val_dist += cur_dist
+                        val_prev += cur_prev
                     val_loss = val_loss / num_val_rep
                     val_dist = val_dist / num_val_rep
+                    val_prev = val_prev / num_val_rep
                     cur_dict = {'step': step,
                                'train_loss': train_loss, 'val_loss': val_loss,
-                               'train_dist': train_dist, 'val_dist': val_dist}
+                               'train_dist': train_dist, 'val_dist': val_dist,
+                               'train_prev': train_prev, 'val_prev': val_prev,
+
+                                }
                     self.update_td(cur_dict)
                     start = end
                 if step % self.conf.save_step == 0:
@@ -303,3 +405,63 @@ class RNN_pp(object):
             self.save_td()
         tf.reset_default_graph()
 
+
+    def create_feed_ph(self):
+        self.inputs = []
+        bsz = 2*self.conf.batch_size
+        self.inputs.append(tf.placeholder(tf.float32,[bsz, self.rnn_pp_hist, self.conf.n_classes*2]) )
+        self.inputs.append(tf.placeholder(tf.float32,[bsz, self.conf.n_classes*2]) )
+        self.ph['input'] = self.inputs[0]
+        self.ph['labels'] = self.inputs[1]
+
+
+    def classify_val(self, model_file=None):
+        self.create_feed_ph()
+        self.create_network()
+        self.create_saver()
+
+        with open(os.path.join(self.conf.cachedir,self.name + '.p'),'r') as f:
+            X = pickle.load(f)
+
+        t_labels = np.array([x[1] for x in X[0]]).reshape([-1,self.conf.n_classes*2])
+        t_inputs = np.array([x[0] for x in X[0]]).reshape([-1,self.rnn_pp_hist,self.conf.n_classes*2])
+        v_labels = np.array([x[1] for x in X[1]]).reshape([-1,self.conf.n_classes*2])
+        v_inputs = np.array([x[0] for x in X[1]]).reshape([-1,self.rnn_pp_hist,self.conf.n_classes*2])
+
+        m_sz = max(self.conf.imsz)
+        self.t_labels = t_labels/m_sz
+        self.t_inputs = t_inputs*32/m_sz
+        self.v_labels = v_labels/m_sz
+        self.v_inputs = v_inputs*32/m_sz
+
+        n_vals = self.v_inputs.shape[0]
+        n_batches = n_vals/ self.conf.batch_size/2
+        preds = []
+        labels = []
+        prev_preds = []
+        with tf.Session() as sess:
+            sess.run(tf.variables_initializer(self.get_var_list()))
+            self.restore(sess, model_file=model_file)
+            for ndx in range(n_batches):
+                cur_s = ndx*self.conf.batch_size*2
+                cur_e = (ndx+1)*self.conf.batch_size*2
+                cur_in = self.v_inputs[cur_s:cur_e,...]
+                cur_label = self.v_labels[cur_s:cur_e,...]
+                self.fd[self.ph['input']] = cur_in
+                self.fd[self.ph['labels']] = cur_label
+                cur_pred = sess.run(self.pred,self.fd)
+                labels.append(cur_label)
+                preds.append(cur_pred)
+                prev_preds.append(cur_in[:,-1,...])
+
+        preds = np.array(preds)
+        preds = preds.reshape((-1,) + preds.shape[2:])
+        prev_preds = np.array(prev_preds)
+        prev_preds = prev_preds.reshape((-1,) + prev_preds.shape[2:])
+        labels = np.array(labels)
+        labels = labels.reshape((-1,) + labels.shape[2:])
+        dd = np.sqrt(np.sum( (preds-labels)**2,axis=-1))
+
+        tf.reset_default_graph()
+
+        return dd, preds, labels
