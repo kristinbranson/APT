@@ -190,6 +190,7 @@ def convert_unicode(data):
     else:
         return data
 
+
 def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num):
     for bpart in range(hmaps.shape[-1]):
         cur_out = os.path.join(hmaps_dir, 'hmap_trx_{}_t_{}_part_{}.jpg'.format(trx_ndx + 1, frame_num + 1, bpart + 1))
