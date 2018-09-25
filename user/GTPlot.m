@@ -429,6 +429,122 @@ classdef GTPlot
       end
     end
     
+    function [hFig,scores] = ptileCurvesPickBest(err,ptilesScore,varargin)
+      % Like ptileCurves, but the "best" (least err) Set is picked for each
+      % View. 
+      %
+      % ALL PTS AND PTILES ARE WEIGHTED "equally" in the score; see below
+      %
+      % scores: [nviews x nsets], tracking err (px), averaged over
+      % pts/ptiles
+      
+      [viewNames,setNames,errCellPerView,fignums,figpos,ptileCurvesArgs] = ...
+        myparse(varargin,...
+        'viewNames',[],... 
+        'setNames',[],...
+        'errCellPerView',false,...
+        'fignums',[11 12],...
+        'figpos',[1 1 1920 960],...
+        'ptileCurvesArgs',{}...
+        );      
+              
+      
+      [ns,npts,nviews,nsets,l2errptls,l2mnerrptls,nstype] = ...
+        GTPlot.errhandler(err,ptilesScore,'cellPerView',errCellPerView);
+      
+      % Return setNames/viewNames from ptileCurves
+      if isempty(setNames)
+        setNames = arrayfun(@(x)sprintf('Set %d',x),1:nsets,'uni',0);
+      end
+      assert(iscellstr(setNames) && numel(setNames)==nsets);
+      setNames = setNames(:);
+      if iscell(err) && strcmp(nstype,'perset')
+        setNames = arrayfun(@(x,y)sprintf('%s (n=%d)',x{1},y),setNames,ns,'uni',0);
+      end
+      
+      if isempty(viewNames)
+        viewNames = arrayfun(@(x)sprintf('View %d',x),1:nviews,'uni',0);
+      end
+      assert(iscellstr(viewNames) && numel(viewNames)==nviews);
+      if iscell(err) && strcmp(nstype,'perview')
+        viewNames = arrayfun(@(x,y)sprintf('%s (n=%d)',x{1},y),viewNames(:),ns(:),'uni',0);
+      end
+      
+      hFig = figure(fignums(1));
+      hfig = hFig(end); 
+      set(hfig,'position',figpos);
+      [~,ax] = GTPlot.ptileCurves(err,...
+        'hFig',hfig,...
+        'viewNames',viewNames,...
+        'setNames',setNames,...
+        'errCellPerView',errCellPerView,...
+        'ptiles',ptilesScore,...
+        ptileCurvesArgs{:});
+      
+      szassert(l2mnerrptls,[numel(ptilesScore) nviews nsets]);      
+      
+      % Note on the score.
+      % For each (set,view,pt), we have a distribution of errors, for which
+      % we consider/plot percentiles per ptiles. We would like to compute
+      % a single scalar score per (set,view) that can be minimized to yield
+      % a "best" set for each view.
+      %
+      % To collapse info across points, we sum (average) all ptiles across
+      % all points. All points are thus weighted equally. The overall
+      % central tendency of the err (per se) for the points are irrelevant, 
+      % as we will be minimizing the score; however, the scale of 
+      % dispersions/fluctuations is important. Eg if a certain landmark has 
+      % a very widely fluctuating error (ptiles that fluctate wildly over
+      % sets say) then minimizing the sum-of-ptiles over sets will be
+      % dominated by minimizing the error for this single point.
+      %
+      % The overall fluctuations of error probably scale with the central
+      % tendency of the err to a first guess, so strictly speaking summing 
+      % over all pts weights points-with-larger-error higher than pts with 
+      % lower error. This is arguably a good thing, since we probably care 
+      % more about improving the err for the worst points than points that 
+      % are easy.
+      %
+      % To collapse across ptiles, we again sum and take a simple average.
+      % For the typical case ptiles==[50 90], this means we tradeoff
+      % equally eg a degradation of 1px in the median vs an improvement of
+      % 1px in the 90th ptile. This is obviously very subjective and by
+      % some accounts "incorrect" but for our applications this is not 
+      % obviously wrong. We keep it simple and stick to the average for
+      % now.      
+      
+      scores = squeeze(mean(l2mnerrptls,1)); 
+      % scoreSR: l2 px tracking err, av over pts plotted/shown, av over 
+      % ptiles plotted/shown, per view, per set
+      
+      hFig(end+1) = figure(fignums(2));
+      hfig = hFig(end);
+      set(hfig,'position',figpos);
+      %set(hfig,'Name','mean err px','Position',figpos);
+      axs = mycreatesubplots(nviews,1,[.05 0;.12 .12]);
+      x = 1:nsets;
+      for ivw=1:nviews
+        ax = axs(ivw);
+        hold(ax,'on');
+        plot(ax,x,scores(ivw,:),'.-','markersize',20);
+        if ivw==nviews
+          set(ax,'XTick',x,'XTickLabel',setNames,'XTickLabelRotation',90);
+        else
+          set(ax,'XTick',[]);
+        end
+        ylabel(ax,viewNames{ivw},'fontweight','bold');
+        
+        idx = argmin(scores(ivw,:));
+        fprintf('%s: best set is %s\n',viewNames{ivw},setNames{idx});
+        plot(ax,idx,scores(ivw,idx),'ro','markersize',10,'markerfacecolor',[1 0 0]);
+        
+        grid(ax,'on');
+        yl = ylim(ax);
+        yl(1) = 0;
+        ylim(ax,yl);        
+      end
+    end
+    
     function [hFig,hAxs] = ptileCurvesZoomed(err,varargin)
       % Constant-percentile curves over a titration set; each ptile curve
       % gets its own axis

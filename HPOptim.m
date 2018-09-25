@@ -501,12 +501,12 @@ classdef HPOptim < handle
     end
     
     function [hFig,scoreSR] = plotTrnTrkErrWithSelect(obj,varargin)
-      [dosave,savedir,ptiles,fignums,figpos,iptsplot] = myparse(varargin,...
+      [dosave,savedir,ptiles,figpos,fignums,iptsplot] = myparse(varargin,...
         'dosave',false,...
         'savedir','figs',...
         'ptiles',[50 90],... % ptiles to include in i) plot and ii) overall score leading to selection
-        'fignums',[11 12],...
         'figpos',[1 1 1920 960],...
+        'fignums',[11 12],...
         'iptsplot',[]... % point indices to include in i) plots and ii) overall score leading to selection
           ... %         'IBE',[],... % (opt) if supplied, [nview] (cropped) ims for use with bullseye plots
           ... %         'pLblBE',[]... % (opt) [nphyspt x 2 x nview]
@@ -530,65 +530,21 @@ classdef HPOptim < handle
         dxySplit = reshape(dxySplit,[ntrk nptsplot*nvw d 1 nrnd]); % collapse all views. actually i think originally nvw==1 already with all pts collapsed 
         
         dxyAllSplits{isplit} = dxySplit; % splits will become "views" in ptileplot
-      end
-            
+      end            
     
-      tstr = 'trntrkerrWithSelect';
       ptnames = arrayfun(@(x)sprintf('pt%d',x),iptsplot,'uni',0);
+      viewNames = arrayfun(@(x)sprintf('splt%d',x),1:obj.nsplit,'uni',0);
       setNames = arrayfun(@(x)sprintf('Rnd%d',x),0:obj.nround-1,'uni',0);
         
-      hFig = [];
-      fignum = fignums(1);
-      hFig(end+1) = figure(fignum);
-      hfig = hFig(end);
-      set(hfig,'Name',tstr,'Position',figpos);
-      
-      [~,ax] = GTPlot.ptileCurves(dxyAllSplits,...
-        'ptiles',ptiles,...
-        'hFig',hfig,...
+      [hFig,scoreSR] = GTPlot.ptileCurvesPickBest(dxyAllSplits,ptiles,...
+        'viewNames',viewNames,...
         'setNames',setNames,...
-        'ptnames',ptnames,...
-        'axisArgs',{'XTicklabelRotation',90,'FontSize',16},...
         'errCellPerView',true,...
-        'viewNames',obj.splitdirs);
-      
-      [ns,npts,nviews,nsets,l2errptls,l2mnerrptls,nstype] = ...
-        GTPlot.errhandler(dxyAllSplits,ptiles,'cellPerView',true);
-      szassert(l2mnerrptls,[numel(ptiles) obj.nsplit obj.nround]);
-      scoreSR = squeeze(mean(l2mnerrptls,1)); 
-      % scoreSR: l2 px tracking err, av over pts plotted/shown, av over 
-      % ptiles plotted/shown, per split, per round
-      
-      fignum = fignums(2);
-      hFig(end+1) = figure(fignum);
-      hfig = hFig(end);
-      set(hfig,'Name','mean err px','Position',figpos);
-      axs = mycreatesubplots(obj.nsplit,1,[.05 0;.12 .12]);
-      x = 1:obj.nround;
-      roundstrs = arrayfun(@(x)sprintf('Round %d',x),1:obj.nround,'uni',0);        
-      for isplit=1:obj.nsplit
-        ax = axs(isplit);
-        hold(ax,'on');
-        plot(ax,x,scoreSR(isplit,:),'.-','markersize',20);
-        if isplit==obj.nsplit
-          set(ax,'XTick',x,'XTickLabel',roundstrs,'XTickLabelRotation',90);
-        else
-          set(ax,'XTick',[]);
-        end
-        splitstr = sprintf('Split %d (n=%d)',isplit,ns(isplit));
-        ylabel(ax,splitstr,'fontweight','bold');
-        
-        idx = argmin(scoreSR(isplit,:));
-        fprintf('Split %d: best round is %s\n',isplit,roundstrs{idx});
-        plot(ax,idx,scoreSR(isplit,idx),'ro','markersize',10,'markerfacecolor',[1 0 0]);
-        
-        grid(ax,'on');
-        yl = ylim(ax);
-        yl(1) = 0;
-        ylim(ax,yl);        
-      end
-      
-      
+        'fignums',fignums,...
+        'figpos',figpos,...
+        'ptileCurvesArgs',{'ptnames' ptnames});
+            
+      %tstr = 'trntrkerrWithSelect';      
       
 %         if tfBE
 %           tstr = sprintf('split%d BE',isplit);

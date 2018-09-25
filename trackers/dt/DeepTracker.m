@@ -693,31 +693,33 @@ classdef DeepTracker < LabelTracker
         error('Cannot find training file: %s\n',dlLblFile);
       end
 
-      cropHmapArgs = {};
-      tfcrop = obj.lObj.cropProjHasCrops;
-      if tfcrop
+      if obj.lObj.cropProjHasCrops
         assert(~tftrx);
         cropInfo = obj.lObj.getMovieFilesAllCropInfoMovIdx(mIdx);
-        roi = cropInfo.roi;
-        cropHmapArgs = [cropHmapArgs {'croproi' roi}];
+        cropRois = cat(1,cropInfo.roi);
+      else
+        cropRois = [];
       end
+      
       tfHeatMap = ~isempty(obj.trkGenHeatMaps) && obj.trkGenHeatMaps;
       if tfHeatMap
-        cropHmapArgs = [cropHmapArgs {'hmaps' true}];
+        hmapArgs = {'hmaps' true};
+      else
+        hmapArgs = {};
       end
 
       trkBackEnd = obj.backendType; % Currently trn/trk backends are the same
       switch trkBackEnd
         case DLBackEnd.Bsub
-          obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFile,cropHmapArgs,f0,f1);
+          obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,f0,f1);
         case DLBackEnd.AWS
-          obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFile,cropHmapArgs,f0,f1);
+          obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,f0,f1);
         otherwise
           assert(false);
       end
     end
     
-    function trkSpawnBsub(obj,mIdx,tMFTConc,dlLblFile,cropHmapArgs,frm0,frm1)
+    function trkSpawnBsub(obj,mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,frm0,frm1)
       singBind = obj.genSingBindPath();
       singargs = {'bindpath',singBind};
       
@@ -730,6 +732,7 @@ classdef DeepTracker < LabelTracker
       trnstr = sprintf('trn%s',trnID);
  
       tftrx = obj.lObj.hasTrx;
+      tfcrop = ~isempty(cropRois);
  
       % info for code-generation. for now we just record a struct so we can
       % more conveniently read logfiles etc. in future this could be an obj
@@ -747,7 +750,10 @@ classdef DeepTracker < LabelTracker
         outfile2 = fullfile(movP,[movF '_' trnstr '_' nowstr '.log2']);
         fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);        
 
-        baseargsaug = cropHmapArgs;
+        baseargsaug = hmapArgs;
+        if tfcrop
+          baseargsaug = [baseargsaug {'croproi' cropRois(ivw,:)}];
+        end
         if tftrx
           trxids = unique(tMFTConc.iTgt);
           trxfile = unique(tMFTConc.trxFile(:,ivw));
@@ -820,7 +826,7 @@ classdef DeepTracker < LabelTracker
     end
   end
   methods
-    function trkSpawnAWS(obj,mIdx,tMFTConc,dlLblFile,cropHmapArgs,frm0,frm1)
+    function trkSpawnAWS(obj,mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,frm0,frm1)
       nvw = obj.lObj.nview;
       assert(nvw==1,'Tracking with AWS currently supports only single-view projects.');
 
@@ -850,6 +856,7 @@ classdef DeepTracker < LabelTracker
       %movsfull = tMFTConc.mov(1,:);
       trxsfull = obj.lObj.getTrxFilesAllFullMovIdx(mIdx);
       tftrx = obj.lObj.hasTrx;
+      tfcrop = ~isempty(cropRois);
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       trnID = obj.trnName;
       trnstr = sprintf('trn%s',trnID);
@@ -875,7 +882,10 @@ classdef DeepTracker < LabelTracker
           aws.scpUploadOrVerify(trx,trxRemoteRel,'trxfile'); % throws            
         end
               
-        baseargsaug = cropHmapArgs;
+        baseargsaug = hmapArgs;
+        if tfcrop
+          baseargsaug = [baseargsaug {'croproi' cropRois(ivw,:)}];
+        end
         baseargsaug = [baseargsaug {'view' ivw}]; %#ok<AGROW> % 1-based OK
         if tftrx
           trxids = unique(tMFTConc.iTgt);
