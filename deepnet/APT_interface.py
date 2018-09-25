@@ -1388,7 +1388,7 @@ def run(args):
             assert len(args.trx) == 1, 'Number of trx files should be one when view is specified'
             assert len(args.out_files) == 1, 'Number of out files should be one when view is specified'
             if args.crop_loc is not None:
-                assert len(args.crop_loc)==4*nviews, 'cropping location should be specified as xlo xhi ylo yhi'
+                assert len(args.crop_loc)==4, 'cropping location should be specified as xlo xhi ylo yhi'
             views = [args.view]
 
         for view_ndx, view in enumerate(views):
