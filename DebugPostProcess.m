@@ -1285,8 +1285,11 @@ intervals2track = GetIntervalsToTrackForErrorMeasurement(movieidx,flies,ts,trxfi
 % viterbi_dampen
 
 %viterbi_misscosts_try = linspace(3.5,4.5,20);
-viterbi_misscosts_try = [linspace(3.5,10,10),1,2,3];
-viterbi_poslambda = .01;
+
+viterbi_poslambda = 0.0027;
+viterbi_misscosts_try = [.1,.15];
+%viterbi_misscosts_try = [linspace(3.5,10,10),1,2,3];
+%viterbi_poslambda = .01;
 viterbi_dampen = .25;
 script = '/groups/branson/home/bransonk/tracking/code/APT/RunPostProcessing_HeatmapData/for_redistribution_files_only/run_RunPostProcessing_HeatmapData.sh';
 clusterinfo = GetMATLABClusterInfo();
@@ -1294,7 +1297,7 @@ assert(exist(clusterinfo.MCR,'dir')>0);
 
 nparams = numel(viterbi_misscosts_try);
 
-ppdir = '/groups/branson/home/bransonk/tracking/code/APT/ppgrid_20180917';
+ppdir = '/groups/branson/home/bransonk/tracking/code/APT/ppgrid_20180920';
 if ~exist(ppdir,'dir'),
   mkdir(ppdir);
 end
@@ -1549,6 +1552,12 @@ end
 %% load in results
 
 allpostdata_grid = cell(nparams,numel(hmdirs));
+for parami = 1:nparams,
+  for moviei = 1:numel(hmdirs),
+    allpostdata_grid{parami,moviei} = cell(1,numel(firstframes{moviei}));
+  end
+end
+  
 for i = 1:numel(jobinfos),
   jobinfocurr = jobinfos(i);
   if isempty(allpostdata_grid{jobinfocurr.parami,jobinfocurr.moviei}),
@@ -1569,6 +1578,9 @@ for i = 1:numel(jobinfos_maxmed),
   jobinfocurr = jobinfos_maxmed(i);
   if ~exist(jobinfocurr.savefile,'file'),
     fprintf('File %d = %s does not exist, skipping\n',i,jobinfocurr.savefile);
+    continue;
+  end
+  if isempty(allpostdata_grid{parami,jobinfocurr.moviei}{jobinfocurr.fly}),
     continue;
   end
   sd = load(jobinfocurr.savefile,'postdata','timestamp');
@@ -1676,3 +1688,19 @@ legends{nparams+2} = 'median';
 legend([h;hmax;hmed],legends,'Location','NorthWest');
 xlabel('Percentile')
 ylabel('Average part error (px)')
+
+%% nvisible
+
+nmiss = cell(size(allpostdata_grid));
+nprocess = cell(size(allpostdata_grid));
+for i = 1:numel(allpostdata_grid),
+  nmiss{i} = zeros(size(allpostdata_grid{i}));
+  nprocess{i} = zeros(size(allpostdata_grid{i}));
+  for j = 1:numel(allpostdata_grid{i}),
+    if isempty(allpostdata_grid{i}{j}) || ~isfield(allpostdata_grid{i}{j},'viterbi_miss_indep'),
+      continue;
+    end
+    nmiss{i}(j) = nnz(allpostdata_grid{i}{j}.viterbi_miss_indep.isvisible==0);
+    nprocess{i}(j) = nnz(~isnan(allpostdata_grid{i}{j}.viterbi_miss_indep.sampleidx));
+  end
+end

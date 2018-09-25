@@ -2,10 +2,17 @@ function [err_train,err_test,err_train_stats,err_test_stats,delta_train,delta_te
 
 prctiles_compute = myparse(varargin,'prctiles_compute',[25,50:100]);
 
+isdone = false;
 for i = 1:numel(allpostdata),
-  if ~isempty(allpostdata{i}) && ~isempty(allpostdata{i}{1}),
-    algorithms = fieldnames(allpostdata{i}{1});
-    d = size(allpostdata{i}{1}.(algorithms{1}).x,3);
+  for j = 1:numel(allpostdata{i}),
+    if ~isempty(allpostdata{i}{j}),
+      algorithms = fieldnames(allpostdata{i}{j});
+      d = size(allpostdata{i}{j}.(algorithms{1}).x,3);
+      isdone = true;
+      break;
+    end
+  end
+  if isdone,
     break;
   end
 end
