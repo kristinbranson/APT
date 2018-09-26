@@ -2568,11 +2568,12 @@ classdef PostProcess < handle
 %         w = w / sum(w);
 %         w = w(:);        
       elseif k0 == 1
-        w = 1;
+        assert(kreal==1);
+        w(1) = 1;
         [~,S(:,:,1)] = weighted_mean_cov([cnz,rnz],hmnz);
       else
         % k0==0; w will be all zeros
-      end
+      end     
     end   
     
     function [mu,w,S,threshcurr] = GMMFitHeatmapData(scores,varargin)
