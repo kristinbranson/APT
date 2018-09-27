@@ -11,7 +11,12 @@ classdef AWSec2 < handle
     
     remotePID
     
+  end
+  
+  properties (Constant)
+    
     cmdEnv = 'LD_LIBRARY_PATH=: ';
+   
   end
   
   methods
@@ -44,7 +49,7 @@ classdef AWSec2 < handle
     function [tfsucc,json] = launchInstance(obj)
       % sets .instanceID
       
-      cmd = obj.launchInstanceCmd(obj.keyName);
+      cmd = AWSec2.launchInstanceCmd(obj.keyName);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
         obj.instanceID = [];
@@ -57,7 +62,7 @@ classdef AWSec2 < handle
     function [tfsucc,json] = inspectInstance(obj)
        % sets .instanceIP and even .instanceID if it is empty and there is only one instance running
       
-      cmd = obj.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
+      cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
         return;
@@ -75,7 +80,7 @@ classdef AWSec2 < handle
     end
     
     function [tfsucc,json] = stopInstance(obj)
-      cmd = obj.stopInstanceCmd(obj.instanceID);
+      cmd = AWSec2.stopInstanceCmd(obj.instanceID);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
         return;
@@ -201,35 +206,41 @@ classdef AWSec2 < handle
         error('Kill command failed.');
       end
     end
-    
-    function cmd = launchInstanceCmd(obj,keyName,varargin)
-      [ami,instType,secGrp] = myparse(varargin,...
-        'ami','ami-0168f57fb900185e1',...
-        'instType','p2.xlarge',...
-        'secGrp','apt_dl');
-      cmd = sprintf('%s aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s --key-name %s',obj.cmdEnv,ami,instType,secGrp,keyName);
-    end
-    
-    function cmd = describeInstancesCmd(obj,ec2id)
-      cmd = sprintf('%s aws ec2 describe-instances --instance-ids %s',obj.cmdEnv,ec2id);
-    end
-    
-    function cmd = stopInstanceCmd(obj,ec2id)
-      cmd = sprintf('%s aws ec2 stop-instances --instance-ids %s',obj.cmdEnv,ec2id);
-    end
-    
+        
   end
   
   methods (Static)
     
+    function cmd = launchInstanceCmd(keyName,varargin)
+      [ami,instType,secGrp] = myparse(varargin,...
+        'ami','ami-0168f57fb900185e1',...
+        'instType','p2.xlarge',...
+        'secGrp','apt_dl');
+      cmd = sprintf('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s --key-name %s',ami,instType,secGrp,keyName);
+    end
+    
+    function cmd = describeInstancesCmd(ec2id)
+      cmd = sprintf('aws ec2 describe-instances --instance-ids %s',ec2id);
+    end
+    
+    function cmd = stopInstanceCmd(ec2id)
+      cmd = sprintf('aws ec2 stop-instances --instance-ids %s',ec2id);
+    end
+
+    
     function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
-      [dispcmd,harderronfail,isjsonout] = myparse(varargin,...
+      [dispcmd,harderronfail,isjsonout,dosetenv] = myparse(varargin,...
         'dispcmd',false,...
         'harderronfail',false,...
-        'isjsonout',false...
+        'isjsonout',false,...
+        'dosetenv',isunix...
         );
       
 %       cmd = [cmd sprintf('\n\r')];
+      if dosetenv,
+        cmd = [AWSec2.cmdEnv,' ',cmd];
+      end
+        
       if dispcmd
         disp(cmd); 
       end
