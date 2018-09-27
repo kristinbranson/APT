@@ -79,6 +79,20 @@ classdef AWSec2 < handle
         obj.instanceIP);
     end
     
+    function [tfsucc,state,json] = getInstanceState(obj)
+      
+      state = '';
+      
+      cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
+      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      if ~tfsucc
+        return;
+      end
+      json = jsondecode(json);
+      state = json.Reservations.Instances.State.Name;
+      
+    end
+    
     function [tfsucc,json] = stopInstance(obj)
       cmd = AWSec2.stopInstanceCmd(obj.instanceID);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
@@ -87,6 +101,60 @@ classdef AWSec2 < handle
       end
       json = jsondecode(json);
     end
+
+    function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
+      
+      [doblock] = myparse(varargin,'doblock',true);
+      
+      maxwaittime = 100;
+      iterwaittime = 5;
+      warningstr = '';
+      [tfsucc,state,json] = obj.getInstanceState();
+      if ~tfsucc,
+        warningstr = 'Failed to get instance state.';
+        return;
+      end
+      if ismember(lower(state),{'running','pending'}),
+        warningstr = sprintf('Instance is %s, no need to start',state);
+        tfsucc = true;
+        return;
+      end
+      if ismember(lower(state),{'shutting-down','terminated'}),
+        warningstr = sprintf('Instance is %s, cannot start',state);
+        tfsucc = false;
+        return
+      end
+      if ismember(lower(state),{'stopping'}),
+        warningstr = sprintf('Instance is %s, please wait for this to finish before starting.',state);
+        tfsucc = false;
+        return;
+      end
+      cmd = AWSec2.startInstanceCmd(obj.instanceID);
+      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      if ~tfsucc
+        return;
+      end
+      json = jsondecode(json);
+      if ~doblock,
+        return;
+      end
+      
+      starttime = tic;
+      tfsucc = false;
+      while true,
+        [tf,state1] = obj.getInstanceState();
+        if tf && strcmpi(state1,'running'),
+          tfsucc = true;
+          break;
+        end
+        if toc(starttime) > maxwaittime,
+          return;
+        end
+        pause(iterwaittime);
+      end
+      obj.inspectInstance();
+    end
+
     
     function checkInstanceRunning(obj)
       % - If runs silently, obj appears to be a running EC2 instance with no
@@ -227,6 +295,9 @@ classdef AWSec2 < handle
       cmd = sprintf('aws ec2 stop-instances --instance-ids %s',ec2id);
     end
 
+    function cmd = startInstanceCmd(ec2id)
+      cmd = sprintf('aws ec2 start-instances --instance-ids %s',ec2id);
+    end
     
     function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
       [dispcmd,harderronfail,isjsonout,dosetenv] = myparse(varargin,...
