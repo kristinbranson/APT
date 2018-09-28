@@ -185,8 +185,8 @@ costprev = bsxfun(@plus, poscost0(:)'+appearancecost(1,:), ...
                          bsxfun(@plus, appearancecost(2,:)', poscost1));
 
 % for tracking back and finding optimal states
-% prev(v,u,t) gives replicate index (index into 1..K+1) giving best/chosen 
-% replicate w giving minimum w->u->v progression over (t-2)->(t-1)->t
+% prev(w,v,t) gives replicate index (index into 1..K+1) giving best/chosen 
+% replicate u giving minimum/best u->v->w progression over (t-2)->(t-1)->t
 prev = nan(K+1,K+1,T);
 
 predpos = nan(K+1,K+1,D);

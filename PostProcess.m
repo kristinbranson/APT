@@ -2655,7 +2655,9 @@ classdef PostProcess < handle
       
       [N,nRep,npts,nviews,d] = size(X);
       % X is N x nRep x npts x nviews x d
-      [weights,jointpoints] = myparse(varargin,'weights',[],'jointpoints',false);
+      [weights,jointpoints] = myparse(varargin,...
+        'weights',[],... % [N x nRep x npts x nviews], npts==1 for joint
+        'jointpoints',false);
 
       if jointpoints,
         X = permute(X,[1,2,4,5,3]);
