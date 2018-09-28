@@ -1,19 +1,39 @@
+
+args = ['-cache', '/groups/branson/home/kabram/temp', '/groups/branson/home/kabram/temp/multitarget_bubble_expandedbehavior_20180425_modified2.lbl', 'train','-use_cache']
 import APT_interface as apt
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-cmd = ['-name', '20180924T200537', '-view', '2', '/groups/branson/bransonlab/apt/tmp/postproc/cache/20180924T200537.lbl', 'track', '-mov', '/groups/huston/hustonlab/flp-chrimson_experiments/fly_239_to_246_1st_to_2nd_12_15_norpAchrimsonFLP_SS000325/fly241_300ms_stimuli/C002H001S0009/C002H001S0009_c.avi', '-out', '/groups/huston/hustonlab/flp-chrimson_experiments/fly_239_to_246_1st_to_2nd_12_15_norpAchrimsonFLP_SS000325/fly241_300ms_stimuli/C002H001S0009/C002H001S0009_c_trn20180924T200537_20180925T070050.trk', '-start_frame', '1', '-end_frame', '1432', '-crop_loc', '156', '505', '121', '470', '-hmaps']
-apt.main(cmd)
+apt.main(args)
 
 ##
+
+import tensorflow as tf
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+conf.use_unet_loss = True
+conf.batch_size = 32
+conf.labelfile = '/groups/branson/bransonlab/mayank/PoseTF/data/alice/multitarget_bubble_expandedbehavior_20180425_local.lbl'
+import RNN_postprocess
+self = RNN_postprocess.RNN_pp(conf,'unet_resnet_official',
+                              name = 'rnn_pp_transformer',
+                              data_name='test')
+import os
+self.train_rep = 1
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+self.locs_coords = 'example'
+self.create_db('/groups/branson/bransonlab/mayank/PoseTF/cache/alice_moreeval/splitdata.json')
+
+##
+
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
 import RNN_postprocess
-self = RNN_postprocess.RNN_pp(conf,'unet_resnet_official',name = 'rnn_pp_more_train')
+self = RNN_postprocess.RNN_pp(conf,'unet_resnet_official',name = 'rnn_pp')
 import tensorflow as tf
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-# self.train()
-V = self.classify_val(model_file='/groups/branson/bransonlab/mayank/PoseTF/cache/alice_moreeval/aliceFly_rnn_pp-20000')
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# self.net_type = 'conv'
+self.train()
+V = self.classify_val(model_file='/groups/branson/bransonlab/mayank/PoseTF/cache/alice_moreeval/aliceFly_rnn_pp-130000')
 ##
 
 from poseConfig import aliceConfig as conf

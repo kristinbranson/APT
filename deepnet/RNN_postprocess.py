@@ -12,6 +12,8 @@ import pickle
 import sys
 import time
 import json
+import math
+from APT_interface import convert_to_orig
 
 
 def print_train_data(cur_dict):
@@ -24,18 +26,22 @@ def print_train_data(cur_dict):
 class RNN_pp(object):
 
 
-    def __init__(self, conf, mdn_name, name ='rnn_pp'):
+    def __init__(self, conf, mdn_name, name ='rnn_pp', data_name='rnn_pp'):
 
         self.conf = conf
         self.mdn_name = mdn_name
-        self.rnn_pp_hist = 128
+        self.rnn_pp_hist = 64
         self.train_rep = 10
         self.conf.check_bounds_distort = False
         self.ckpt_file = os.path.join( conf.cachedir, conf.expname + '_' + name + '_ckpt')
         self.name = name
+        self.data_name = data_name
         self.ph = {}
         self.fd = {}
-
+        self.net_type = 'rnn'
+        self.locs_coords = 'self'
+        # self implies the predictions from MDN/UNet will be in the cropped patches location.
+        # example implies the predictions will be in the last frame i.e., examples coordinates
 
     def create_db(self, split_file=None):
         assert  self.rnn_pp_hist % self.conf.batch_size == 0, 'make sure the history is a multiple of batch size'
@@ -77,6 +83,8 @@ class RNN_pp(object):
                 trx = sio.loadmat(trx_files[ndx])['trx'][0]
                 n_trx = len(trx)
                 trx_split = np.random.random(n_trx) < conf.valratio
+                first_frames = np.array( [x['firstframe'][0, 0] for x in trx]) - 1  # for converting from 1 indexing to 0 indexing
+                end_frames = np.array( [x['endframe'][0, 0] for x in trx]) - 1  # for converting from 1 indexing to 0 indexing
             else:
                 trx = [None]
                 n_trx = 1
@@ -93,21 +101,26 @@ class RNN_pp(object):
                     num_rep = 1 + cur_out*(self.train_rep-1)
 
                     for rep in range(num_rep):
-                        cur_pred = np.ones([self.rnn_pp_hist,self.conf.n_classes,2])
+                        cur_pred = np.ones([self.rnn_pp_hist*2,self.conf.n_classes,2])
                         cur_ims = []
                         cur_labels = []
-                        for fndx in reversed(range(self.rnn_pp_hist)):
-                            frame_in, cur_loc = multiResData.get_patch( cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts], cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc, offset=-fndx)
+                        raw_preds = []
+                        for fndx in range(-self.rnn_pp_hist,self.rnn_pp_hist):
+                            frame_in, cur_loc = multiResData.get_patch(
+                                cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts],
+                                cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc, offset=fndx)
                             cur_labels.append(cur_loc)
                             cur_ims.append(frame_in)
 
                         cur_ims = np.array(cur_ims)
                         cur_labels = np.array(cur_labels)
 
-                        cur_ims, cur_labels = PoseTools.preprocess_ims(cur_ims, cur_labels, conf, distort=cur_out,scale= self.conf.rescale,group_sz=self.rnn_pp_hist)
+                        cur_ims, cur_labels = PoseTools.preprocess_ims(
+                            cur_ims, cur_labels, conf, distort=cur_out,scale= self.conf.rescale,
+                            group_sz=self.rnn_pp_hist)
 
                         bsize = self.conf.batch_size
-                        nbatches = self.rnn_pp_hist/bsize
+                        nbatches = self.rnn_pp_hist/bsize*2
                         for bndx in range(nbatches):
                             start = bndx*bsize
                             end = (bndx+1)*bsize
@@ -120,9 +133,81 @@ class RNN_pp(object):
 
                             cur_m, cur_s, cur_w = sess.run(net.pred, net.fd)
                             cur_w = cur_w[:,:,0]
+                            cur_m = cur_m * net.offset
                             nx = np.argmax(cur_w, axis=1)
-                            cur_pred[start:end,:,:] = cur_m[np.arange(bsize),nx,:,:]
+                            raw_preds.append(np.array([cur_m[x,nx[x],...] for x in range(cur_m.shape[0])]))
 
+                            hsz = [float(self.conf.imsz[1])/2,float(self.conf.imsz[0])/2]
+                            if self.locs_coords == 'example' and conf.has_trx_file:
+                                for e_ndx in range(bsize):
+                                    trx_fnum = fnum - first_frames[trx_ndx]
+                                    trx_fnum_ex = fnum - first_frames[trx_ndx] \
+                                        + e_ndx + start - self.rnn_pp_hist
+                                    trx_fnum_ex = trx_fnum_ex if trx_fnum_ex >0 else 0
+                                    trx_fnum_ex = trx_fnum_ex if trx_fnum_ex < end_frames[trx_ndx] else end_frames[trx_ndx]
+                                    temp_pred = cur_m[e_ndx,nx[e_ndx],:,:]
+                                    dx = cur_trx['x'][0, trx_fnum] - cur_trx['x'][0, trx_fnum_ex]
+                                    dy = cur_trx['y'][0, trx_fnum] - cur_trx['y'][0, trx_fnum_ex]
+                                    # -1 for 1-indexing in matlab and 0-indexing in python
+                                    tt = cur_trx['theta'][0, trx_fnum] - cur_trx['theta'][0, trx_fnum_ex]
+                                    R = [[np.cos(tt), -np.sin(tt)], [np.sin(tt), np.cos(tt)]]
+                                    rr = (cur_trx['theta'][0, trx_fnum]) + math.pi / 2
+                                    Q = [[np.cos(rr), -np.sin(rr)], [np.sin(rr), np.cos(rr)]]
+                                    curlocs = np.dot(temp_pred - hsz, R) + hsz - np.dot([dx, dy], Q)
+                                    cur_pred[start+e_ndx, ...] = curlocs
+                            else:
+                                cur_pred[start:end,:,:] = cur_m[np.arange(bsize),nx,:,:]
+
+                        # ---------- Code for testing
+                        # raw_pred = np.array(raw_preds).reshape((cur_pred.shape[0],) + raw_preds[0].shape[1:])
+                        # f, ax = plt.subplots(2, 2)
+                        # ax = ax.flatten()
+                        # ex = 32
+                        # xx = multiResData.get_patch(cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts],
+                        #                             cur_trx=cur_trx, crop_loc=None, offset=ex, stationary=False)
+                        # ax[0].imshow(xx[0][:, :, 0], 'gray')
+                        # ax[0].scatter(cur_pred[-self.rnn_pp_hist + ex, :, 0], cur_pred[-self.rnn_pp_hist + ex, :, 1])
+                        # xx = multiResData.get_patch(cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts],
+                        #                             cur_trx=cur_trx, crop_loc=None, offset=0, stationary=False)
+                        # ax[1].imshow(xx[0][:, :, 0], 'gray')
+                        # ax[1].scatter(cur_pred[self.rnn_pp_hist, :, 0], cur_pred[self.rnn_pp_hist, :, 1])
+                        # ax[2].imshow(cur_ims[-self.rnn_pp_hist + ex, :, :, 0], 'gray')
+                        # ax[2].scatter(raw_pred[-self.rnn_pp_hist + ex, :, 0], raw_pred[-self.rnn_pp_hist + ex, :, 1])
+                        # ax[3].imshow(cur_ims[self.rnn_pp_hist, :, :, 0], 'gray')
+                        # ax[3].scatter(raw_pred[self.rnn_pp_hist, :, 0], raw_pred[self.rnn_pp_hist, :, 1])
+
+                        # ---------- Code for testing II
+                        # zz = np.diff(cur_pred, axis=0)
+                        # rx = self.rnn_pp_hist
+                        # dd = np.sqrt(np.sum((cur_pred[rx, ...] - cur_labels[rx, ...]) ** 2, axis=-1))
+                        # print dd.max(), dd.argmax()
+                        # ix = dd.argmax()
+                        # n_ex = 3
+                        # f, ax = plt.subplots(2, 4 + n_ex, figsize=(18, 12))
+                        # ax = ax.T.flatten()
+                        # ax[0].plot(cur_pred[:, ix, 0], cur_pred[:, ix, 1])
+                        # ax[1].plot(zz[:, ix, 0], zz[:, ix, 1])
+                        # ax[2].plot(zz[:, ix, 0])
+                        # ax[3].plot(zz[:, ix, 1])
+                        # ax[4].imshow(cur_ims[..., 0].mean(axis=0), 'gray')
+                        # ax[5].imshow(cur_ims[..., 0].min(axis=0), 'gray')
+                        # ax[6].imshow(cur_ims[self.rnn_pp_hist, ..., 0], 'gray')
+                        # ax[6].scatter(cur_pred[self.rnn_pp_hist, :, 0], cur_pred[self.rnn_pp_hist, :, 1])
+                        # ax[7].imshow(cur_ims[self.rnn_pp_hist, ..., 0], 'gray')
+                        # ax[7].scatter(cur_labels[self.rnn_pp_hist, :, 0], cur_labels[self.rnn_pp_hist, :, 1])
+                        # plt.title('{}'.format(ix))
+                        # for xx in range(2 * n_ex):
+                        #     xxi = multiResData.get_patch(cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts],
+                        #                                  cur_trx=cur_trx, crop_loc=None, offset=-xx, stationary=False)
+                        #     ax[8 + xx].imshow(xxi[0][:, :, 0], 'gray')
+                        #     ax[8 + xx].scatter(cur_pred[self.rnn_pp_hist - xx, ix, 0],
+                        #                        cur_pred[self.rnn_pp_hist - xx, ix, 1])
+                        #     if xx is 0:
+                        #         ax[8 + xx].scatter(cur_pred[self.rnn_pp_hist - n_ex:, ix, 0],
+                        #                            cur_pred[self.rnn_pp_hist - n_ex:, ix, 1])
+                        #
+                        rx = self.rnn_pp_hist
+                        dd = np.sqrt(np.sum((cur_pred[rx, ...] - cur_labels[rx, ...]) ** 2, axis=-1))
                         cur_info = [ndx, fnum, trx_ndx]
                         if cur_out:
                             data[0].append([cur_pred, cur_labels[-1,...], cur_info])
@@ -132,14 +217,14 @@ class RNN_pp(object):
 
                     if count % 50 == 0:
                         sys.stdout.write('.')
-                        with open(os.path.join(conf.cachedir,self.name + '.p'),'w') as f:
+                        with open(os.path.join(conf.cachedir,self.data_name + '.p'),'w') as f:
                             pickle.dump(data,f)
                     if count % 2000 == 0:
                         sys.stdout.write('\n')
 
             cap.close()  # close the movie handles
 
-        with open(os.path.join(conf.cachedir,self.name + '.p'),'w') as f:
+        with open(os.path.join(conf.cachedir,self.data_name + '.p'),'w') as f:
             pickle.dump(data,f)
         lbl.close()
 
@@ -189,6 +274,16 @@ class RNN_pp(object):
 
 
     def create_network(self):
+        if self.net_type == 'rnn':
+            self.create_network_rnn()
+        elif self.net_type == 'conv':
+            self.create_network_conv()
+        elif self.net_type == 'transformer':
+            self.create_network_transformer()
+        else:
+            raise ValueError('incorrect network type')
+
+    def create_network_rnn(self):
         lstm_size = 256
         batch_size = self.conf.batch_size*2
 
@@ -204,7 +299,7 @@ class RNN_pp(object):
         lstm = tf.contrib.rnn.GRUCell(lstm_size)
         # Initial state of the LSTM memory.
         state = lstm.zero_state(batch_size, dtype=tf.float32)
-        for cur_ndx in range(self.rnn_pp_hist-10, self.rnn_pp_hist):
+        for cur_ndx in range(self.rnn_pp_hist):
             cur_input = input[:, cur_ndx,:]
             output, state = lstm(cur_input, state)
 
@@ -222,6 +317,47 @@ class RNN_pp(object):
 
         for k in self.ph.keys():
             self.fd[self.ph[k]] = np.zeros(self.ph[k]._shape_as_list())
+
+
+    def create_network_conv(self):
+        conv_sizes = [256, 256, 256]
+
+        n_in = np.prod(self.inputs[0]._shape_as_list()[1:])
+        X = tf.reshape(self.inputs[0], [-1, n_in])
+        input = X
+
+        for cur_sz in conv_sizes:
+            layer = tf.layers.Dense(cur_sz, activation=tf.nn.relu,
+                kernel_initializer=tf.orthogonal_initializer())
+            X = layer(X)
+
+        out_layer = tf.layers.Dense(self.conf.n_classes*2, activation=None,
+            kernel_initializer=tf.orthogonal_initializer())
+        skip_layer = tf.layers.Dense(self.conf.n_classes*2, activation=None,
+            kernel_initializer=tf.orthogonal_initializer())
+        out = out_layer(X) + skip_layer(input)
+
+        loss = tf.nn.l2_loss(out-self.inputs[1])
+
+        self.pred = out
+        self.cost = loss
+
+        for k in self.ph.keys():
+            self.fd[self.ph[k]] = np.zeros(self.ph[k]._shape_as_list())
+
+
+    def create_network_transformer(self):
+        import transformer
+        from transformer.hbconfig import Config
+        xx = transformer.Graph(tf.estimator.ModeKeys.TRAIN)
+        Config.data.max_seq_length = self.rnn_pp_hist
+        Config.data.n_classes = self.conf.n_classes
+        Config.data.target_vocab_size = 2 * self.conf.n_classes
+        rr = xx.build(self.inputs[0], self.inputs[0])
+        out = rr[0][:,-1,:]
+        loss = tf.nn.l2_loss(out-self.inputs[1])
+        self.pred = out
+        self.cost = loss
 
 
     def train_step(self, step, sess, learning_rate, training_iters):
@@ -286,9 +422,9 @@ class RNN_pp(object):
 
         m_sz = max(self.conf.imsz)
         self.t_labels = t_labels/m_sz
-        self.t_inputs = t_inputs*32/m_sz
+        self.t_inputs = t_inputs/m_sz
         self.v_labels = v_labels/m_sz
-        self.v_inputs = v_inputs*32/m_sz
+        self.v_inputs = v_inputs/m_sz
 
         t_inputs_ph = tf.placeholder(tf.float32, t_inputs.shape)
         t_labels_ph = tf.placeholder(tf.float32, t_labels.shape)
@@ -360,7 +496,12 @@ class RNN_pp(object):
         self.create_saver()
         training_iters = 200000#self.conf.dl_steps
         num_val_rep = self.conf.numTest / self.conf.batch_size + 1
-        learning_rate = 0.01
+        if self.net_type == 'rnn':
+            learning_rate = 0.01
+        elif self.net_type == 'conv':
+            learning_rate = 0.0001
+        else:
+            learning_rate = 0.0001
 
         with tf.Session() as sess:
             sess.run(tf.variables_initializer(self.get_var_list()))
@@ -420,7 +561,7 @@ class RNN_pp(object):
         self.create_network()
         self.create_saver()
 
-        with open(os.path.join(self.conf.cachedir,self.name + '.p'),'r') as f:
+        with open(os.path.join(self.conf.cachedir,self.data_name + '.p'),'r') as f:
             X = pickle.load(f)
 
         t_labels = np.array([x[1] for x in X[0]]).reshape([-1,self.conf.n_classes*2])
@@ -430,9 +571,9 @@ class RNN_pp(object):
 
         m_sz = max(self.conf.imsz)
         self.t_labels = t_labels/m_sz
-        self.t_inputs = t_inputs*32/m_sz
+        self.t_inputs = t_inputs/m_sz
         self.v_labels = v_labels/m_sz
-        self.v_inputs = v_inputs*32/m_sz
+        self.v_inputs = v_inputs/m_sz
 
         n_vals = self.v_inputs.shape[0]
         n_batches = n_vals/ self.conf.batch_size/2

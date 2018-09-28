@@ -382,8 +382,8 @@ def randomly_scale(img,locs,conf,group_sz=1):
             cur_img = zoom(jj, sfactor) if srange != 0 else jj
             cur_img, dx, dy = crop_to_size(cur_img, im_sz)
             img[st+g, ...] =cur_img
-        locs[st+g,...,0] = locs[st+g,...,0]*sfactor + dx/2
-        locs[st + g, ..., 1] = locs[st + g, ..., 1]*sfactor + dy / 2
+            locs[st+g,...,0] = locs[st+g,...,0]*sfactor + dx/2
+            locs[st + g, ..., 1] = locs[st + g, ..., 1]*sfactor + dy / 2
     return img, locs
 
 

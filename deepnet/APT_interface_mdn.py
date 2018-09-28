@@ -511,6 +511,15 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
                 trx_split = np.random.random(n_trx) < conf.valratio
 
             x, y, theta = read_trx(cur_trx, f_ndx[ndx])
+
+            theta = theta + math.pi / 2
+            patch = cur_frame
+            rot_mat = cv2.getRotationMatrix2D((psz / 2, psz / 2), theta * 180 / math.pi, 1)
+            rpatch = cv2.warpAffine(patch, rot_mat, (psz, psz))
+            if rpatch.ndim == 2:
+                rpatch = rpatch[:, :, np.newaxis]
+            cur_frame = rpatch
+
             ll = cur_locs.copy()
             ll = ll - [x, y]
             rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
