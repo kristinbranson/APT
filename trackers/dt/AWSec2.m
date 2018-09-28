@@ -10,6 +10,13 @@ classdef AWSec2 < handle
     sshCmd
     
     remotePID
+    
+  end
+  
+  properties (Constant)
+    
+    cmdEnv = 'LD_LIBRARY_PATH=: ';
+   
   end
   
   methods
@@ -42,8 +49,8 @@ classdef AWSec2 < handle
     function [tfsucc,json] = launchInstance(obj)
       % sets .instanceID
       
-      cmd = obj.launchInstanceCmd(obj.keyName);
-      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true);
+      cmd = AWSec2.launchInstanceCmd(obj.keyName);
+      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
         obj.instanceID = [];
         return;
@@ -56,7 +63,7 @@ classdef AWSec2 < handle
        % sets .instanceIP and even .instanceID if it is empty and there is only one instance running
       
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
-      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true);
+      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
         return;
       end
@@ -72,14 +79,82 @@ classdef AWSec2 < handle
         obj.instanceIP);
     end
     
+    function [tfsucc,state,json] = getInstanceState(obj)
+      
+      state = '';
+      
+      cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
+      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      if ~tfsucc
+        return;
+      end
+      json = jsondecode(json);
+      state = json.Reservations.Instances.State.Name;
+      
+    end
+    
     function [tfsucc,json] = stopInstance(obj)
       cmd = AWSec2.stopInstanceCmd(obj.instanceID);
-      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true);
+      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
         return;
       end
       json = jsondecode(json);
     end
+
+    function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
+      
+      [doblock] = myparse(varargin,'doblock',true);
+      
+      maxwaittime = 100;
+      iterwaittime = 5;
+      warningstr = '';
+      [tfsucc,state,json] = obj.getInstanceState();
+      if ~tfsucc,
+        warningstr = 'Failed to get instance state.';
+        return;
+      end
+      if ismember(lower(state),{'running','pending'}),
+        warningstr = sprintf('Instance is %s, no need to start',state);
+        tfsucc = true;
+        return;
+      end
+      if ismember(lower(state),{'shutting-down','terminated'}),
+        warningstr = sprintf('Instance is %s, cannot start',state);
+        tfsucc = false;
+        return
+      end
+      if ismember(lower(state),{'stopping'}),
+        warningstr = sprintf('Instance is %s, please wait for this to finish before starting.',state);
+        tfsucc = false;
+        return;
+      end
+      cmd = AWSec2.startInstanceCmd(obj.instanceID);
+      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      if ~tfsucc
+        return;
+      end
+      json = jsondecode(json);
+      if ~doblock,
+        return;
+      end
+      
+      starttime = tic;
+      tfsucc = false;
+      while true,
+        [tf,state1] = obj.getInstanceState();
+        if tf && strcmpi(state1,'running'),
+          tfsucc = true;
+          break;
+        end
+        if toc(starttime) > maxwaittime,
+          return;
+        end
+        pause(iterwaittime);
+      end
+      obj.inspectInstance();
+    end
+
     
     function checkInstanceRunning(obj)
       % - If runs silently, obj appears to be a running EC2 instance with no
@@ -199,31 +274,10 @@ classdef AWSec2 < handle
         error('Kill command failed.');
       end
     end
-
+        
   end
   
   methods (Static)
-    
-    function [tfsucc,res] = syscmd(cmd,varargin)
-      [dispcmd,harderronfail] = myparse(varargin,...
-        'dispcmd',false,...
-        'harderronfail',false...
-        );
-      
-%       cmd = [cmd sprintf('\n\r')];
-      if dispcmd
-        disp(cmd); 
-      end
-      [st,res] = system(cmd);
-      tfsucc = st==0;
-      if ~tfsucc 
-        if harderronfail
-          error('Nonzero status code: %s',res);
-        else
-          warningNoTrace('Command failed: %s: %s',cmd,res);
-        end
-      end
-    end
     
     function cmd = launchInstanceCmd(keyName,varargin)
       [ami,instType,secGrp] = myparse(varargin,...
@@ -234,11 +288,56 @@ classdef AWSec2 < handle
     end
     
     function cmd = describeInstancesCmd(ec2id)
-      cmd = sprintf('aws ec2 describe-instances --instance-ids %s',ec2id);      
+      cmd = sprintf('aws ec2 describe-instances --instance-ids %s',ec2id);
     end
     
     function cmd = stopInstanceCmd(ec2id)
       cmd = sprintf('aws ec2 stop-instances --instance-ids %s',ec2id);
+    end
+
+    function cmd = startInstanceCmd(ec2id)
+      cmd = sprintf('aws ec2 start-instances --instance-ids %s',ec2id);
+    end
+    
+    function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
+      [dispcmd,harderronfail,isjsonout,dosetenv] = myparse(varargin,...
+        'dispcmd',false,...
+        'harderronfail',false,...
+        'isjsonout',false,...
+        'dosetenv',isunix...
+        );
+      
+%       cmd = [cmd sprintf('\n\r')];
+      if dosetenv,
+        cmd = [AWSec2.cmdEnv,' ',cmd];
+      end
+        
+      if dispcmd
+        disp(cmd); 
+      end
+      [st,res] = system(cmd);
+      tfsucc = st==0;
+      
+      if isjsonout && tfsucc,
+        jsonstart = find(res == '{',1);
+        if isempty(jsonstart),
+          tfsucc = false;
+          warningstr = 'Could not find json start character {';
+        else
+          warningstr = res(1:jsonstart-1);
+          res = res(jsonstart:end);
+        end
+      else
+        warningstr = '';
+      end
+      
+      if ~tfsucc 
+        if harderronfail
+          error('Nonzero status code: %s',res);
+        else
+          warningNoTrace('Command failed: %s: %s',cmd,res);
+        end
+      end
     end
     
     function cmd = scpUploadCmd(file,pem,ip,dstrel,varargin)
