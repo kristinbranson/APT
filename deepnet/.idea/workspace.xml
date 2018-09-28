@@ -6,10 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="246839a5-f858-49eb-9ddb-099c468dd174" name="Default" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/APT_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/APT_interface.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/APT_interface_mdn.py" beforeDir="false" afterPath="$PROJECT_DIR$/APT_interface_mdn.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/PoseTools.py" beforeDir="false" afterPath="$PROJECT_DIR$/PoseTools.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/RNN_postprocess.py" beforeDir="false" afterPath="$PROJECT_DIR$/RNN_postprocess.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/debug_apt_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug_apt_interface.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -65,11 +61,11 @@
               </provider>
             </entry>
           </file>
-          <file leaf-file-name="APT_interface_mdn.py" pinned="false" current-in-tab="true">
+          <file leaf-file-name="APT_interface_mdn.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/APT_interface_mdn.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="323">
-                  <caret line="503" column="32" selection-start-line="503" selection-start-column="32" selection-end-line="503" selection-end-column="32" />
+                <state relative-caret-position="612">
+                  <caret line="523" column="28" lean-forward="true" selection-start-line="523" selection-start-column="28" selection-end-line="523" selection-end-column="28" />
                   <folding>
                     <element signature="e#0#31#0" expanded="true" />
                   </folding>
@@ -77,11 +73,11 @@
               </provider>
             </entry>
           </file>
-          <file leaf-file-name="APT_interface.py" pinned="false" current-in-tab="false">
+          <file leaf-file-name="APT_interface.py" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/APT_interface.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="99">
-                  <caret line="480" column="43" selection-start-line="480" selection-start-column="43" selection-end-line="480" selection-end-column="43" />
+                <state relative-caret-position="320">
+                  <caret line="496" lean-forward="true" selection-start-line="496" selection-end-line="496" />
                 </state>
               </provider>
             </entry>
@@ -105,8 +101,8 @@
           <file leaf-file-name="debug_apt_interface.py" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="17">
-                  <caret line="1" selection-start-line="1" selection-end-line="1" />
+                <state relative-caret-position="102">
+                  <caret line="6" lean-forward="true" selection-start-line="6" selection-end-line="6" />
                 </state>
               </provider>
             </entry>
@@ -123,8 +119,8 @@
           <file leaf-file-name="multiResData.py" pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/multiResData.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="473">
-                  <caret line="464" selection-start-line="464" selection-end-line="464" />
+                <state relative-caret-position="541">
+                  <caret line="576" selection-start-line="576" selection-end-line="577" />
                   <folding>
                     <element signature="e#0#37#0" expanded="true" />
                   </folding>
@@ -199,7 +195,7 @@
       <replace>felipe</replace>
       <replace>felipeConfigMulti</replace>
       <replace>train_</replace>
-      <replace>in range(group_sz)</replace>
+      <replace />
       <replace>skimage.transform.resize</replace>
       <replace>unet</replace>
       <replace>[</replace>
@@ -277,9 +273,9 @@
         <option value="$PROJECT_DIR$/transformer/hbconfig/posenet.yml" />
         <option value="$PROJECT_DIR$/PoseTools.py" />
         <option value="$PROJECT_DIR$/RNN_postprocess.py" />
+        <option value="$PROJECT_DIR$/APT_interface_mdn.py" />
         <option value="$PROJECT_DIR$/debug_apt_interface.py" />
         <option value="$PROJECT_DIR$/APT_interface.py" />
-        <option value="$PROJECT_DIR$/APT_interface_mdn.py" />
       </list>
     </option>
   </component>
@@ -643,13 +639,6 @@
       <option name="presentableId" value="Default" />
       <updated>1490041518520</updated>
     </task>
-    <task id="LOCAL-00168" summary="updates for cross-validation">
-      <created>1531293668545</created>
-      <option name="number" value="00168" />
-      <option name="presentableId" value="LOCAL-00168" />
-      <option name="project" value="LOCAL" />
-      <updated>1531293668545</updated>
-    </task>
     <task id="LOCAL-00169" summary="bug fixes for gt">
       <created>1531294623329</created>
       <option name="number" value="00169" />
@@ -986,7 +975,14 @@
       <option name="project" value="LOCAL" />
       <updated>1537895958882</updated>
     </task>
-    <option name="localTasksCounter" value="217" />
+    <task id="LOCAL-00217" summary="Bug fix when generating training data with cached images for projects with trx files.">
+      <created>1538161483345</created>
+      <option name="number" value="00217" />
+      <option name="presentableId" value="LOCAL-00217" />
+      <option name="project" value="LOCAL" />
+      <updated>1538161483345</updated>
+    </task>
+    <option name="localTasksCounter" value="218" />
     <servers />
   </component>
   <component name="TestHistory">
@@ -1031,19 +1027,19 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="64" y="-11" width="2497" height="1612" extended-state="6" />
+    <frame x="-2496" y="-11" width="2497" height="1612" extended-state="6" />
     <editor active="true" />
     <layout>
       <window_info auto_hide="true" content_ui="combo" x="815" y="755" width="866" height="503" id="Project" internal_type="SLIDING" order="0" sideWeight="0.27652735" type="SLIDING" weight="0.13187702" />
       <window_info anchor="bottom" id="TODO" order="5" weight="0.32846716" />
       <window_info anchor="bottom" id="Event Log" order="1" sideWeight="0.50519407" side_tool="true" weight="0.3274244" />
       <window_info anchor="bottom" id="Version Control" order="11" sideWeight="0.4948059" weight="0.3253389" />
-      <window_info x="607" y="755" width="1716" height="344" id="Python Console" order="1" sideWeight="0.6996872" weight="0.31917477" />
+      <window_info active="true" x="607" y="755" width="1716" height="344" id="Python Console" order="1" sideWeight="0.6996872" visible="true" weight="0.31917477" />
       <window_info anchor="bottom" auto_hide="true" id="Run" order="2" weight="0.32638165" />
       <window_info auto_hide="true" id="Structure" order="3" sideWeight="0.2832586" side_tool="true" weight="0.15291262" />
       <window_info anchor="bottom" id="Terminal" order="6" weight="0.3000679" />
       <window_info anchor="bottom" id="Favorites" order="7" side_tool="true" weight="0.32968834" />
-      <window_info active="true" id="Debug" order="2" sideWeight="0.71652955" visible="true" weight="0.387945" />
+      <window_info id="Debug" order="2" sideWeight="0.71652955" weight="0.387945" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.24931657" />
       <window_info anchor="bottom" id="Inspection" order="9" weight="0.4" />
       <window_info anchor="right" id="Commander" order="0" weight="0.4" />
@@ -1131,7 +1127,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$" />
     </ignored-roots>
-    <MESSAGE value="minor edit" />
     <MESSAGE value="For GT computation used cached results if they are new." />
     <MESSAGE value="To compute GT results used DB." />
     <MESSAGE value="apt_expts now uses tf record iterator for all models for computing gt performance" />
@@ -1156,7 +1151,8 @@
     <MESSAGE value="Reverting most changes" />
     <MESSAGE value="Fixed bug with label image sizes" />
     <MESSAGE value="Bug fix in hmaps output" />
-    <option name="LAST_COMMIT_MESSAGE" value="Bug fix in hmaps output" />
+    <MESSAGE value="Bug fix when generating training data with cached images for projects with trx files." />
+    <option name="LAST_COMMIT_MESSAGE" value="Bug fix when generating training data with cached images for projects with trx files." />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -1173,7 +1169,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="python-line">
           <url>file://$PROJECT_DIR$/debug_apt_interface.py</url>
-          <line>378</line>
+          <line>380</line>
           <option name="timeStamp" value="572" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="python-line">
@@ -1186,11 +1182,6 @@
           <url>file://$PROJECT_DIR$/RNN_postprocess.py</url>
           <line>210</line>
           <option name="timeStamp" value="690" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="python-line">
-          <url>file://$PROJECT_DIR$/APT_interface.py</url>
-          <line>515</line>
-          <option name="timeStamp" value="693" />
         </line-breakpoint>
       </breakpoints>
       <breakpoints-defaults>
@@ -1211,13 +1202,13 @@
           </properties>
         </breakpoint>
       </default-breakpoints>
-      <option name="time" value="696" />
+      <option name="time" value="699" />
     </breakpoint-manager>
   </component>
   <component name="debuggerHistoryManager">
     <expressions id="breakpointCondition">
       <expression>
-        <expression-string>cur_out and dd.max()&gt;5</expression-string>
+        <expression-string />
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
@@ -1227,32 +1218,32 @@
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>bndx == 3 and cur_out and (e_ndx==0 or e_ndx==31) and fnum &gt;5000</expression-string>
+        <expression-string />
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>bndx &gt; 1 and cur_out and e_ndx==0 and fnum &gt;5000</expression-string>
+        <expression-string />
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>bndx &gt; 1 and cur_out and e_ndx==0</expression-string>
+        <expression-string />
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>bndx &gt; 1 and cur_out</expression-string>
+        <expression-string />
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>bndx==2 and cur_out</expression-string>
+        <expression-string />
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>bndx==2 and</expression-string>
+        <expression-string />
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
@@ -1514,37 +1505,37 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/APT_interface_mdn.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="612">
+          <caret line="523" column="28" lean-forward="true" selection-start-line="523" selection-start-column="28" selection-end-line="523" selection-end-column="28" />
+          <folding>
+            <element signature="e#0#31#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/multiResData.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="473">
-          <caret line="464" selection-start-line="464" selection-end-line="464" />
+        <state relative-caret-position="541">
+          <caret line="576" selection-start-line="576" selection-end-line="577" />
           <folding>
             <element signature="e#0#37#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="17">
-          <caret line="1" selection-start-line="1" selection-end-line="1" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/APT_interface.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="99">
-          <caret line="480" column="43" selection-start-line="480" selection-start-column="43" selection-end-line="480" selection-end-column="43" />
+        <state relative-caret-position="320">
+          <caret line="496" lean-forward="true" selection-start-line="496" selection-end-line="496" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/APT_interface_mdn.py">
+    <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="323">
-          <caret line="503" column="32" selection-start-line="503" selection-start-column="32" selection-end-line="503" selection-end-column="32" />
-          <folding>
-            <element signature="e#0#31#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="102">
+          <caret line="6" lean-forward="true" selection-start-line="6" selection-end-line="6" />
         </state>
       </provider>
     </entry>

@@ -1,6 +1,8 @@
 
 args = ['-cache', '/groups/branson/home/kabram/temp', '/groups/branson/home/kabram/temp/multitarget_bubble_expandedbehavior_20180425_modified2.lbl', 'train','-use_cache']
 import APT_interface as apt
+conf = apt.create_conf('/groups/branson/home/kabram/temp/multitarget_bubble_expandedbehavior_20180425_modified2.lbl',
+                       view=0,name='sas')
 apt.main(args)
 
 ##
