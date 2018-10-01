@@ -1,12 +1,4 @@
 
-args = ['-cache', '/groups/branson/home/kabram/temp', '/groups/branson/home/kabram/temp/multitarget_bubble_expandedbehavior_20180425_modified2.lbl', 'train','-use_cache']
-import APT_interface as apt
-conf = apt.create_conf('/groups/branson/home/kabram/temp/multitarget_bubble_expandedbehavior_20180425_modified2.lbl',
-                       view=0,name='sas')
-apt.main(args)
-
-##
-
 import tensorflow as tf
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
@@ -16,9 +8,9 @@ conf.labelfile = '/groups/branson/bransonlab/mayank/PoseTF/data/alice/multitarge
 import RNN_postprocess
 self = RNN_postprocess.RNN_pp(conf,'unet_resnet_official',
                               name = 'rnn_pp_transformer',
-                              data_name='test')
+                              data_name='rnn_pp_bidir_excoord')
 import os
-self.train_rep = 1
+self.train_rep = 10
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 self.locs_coords = 'example'

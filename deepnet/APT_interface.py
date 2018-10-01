@@ -1184,13 +1184,13 @@ def classify_movie_all(model_type, **kwargs):
         logging.exception('Could not track movie')
 
 
-def train_unet(conf, args):
+def train_unet(conf, args, restore):
     if not args.skip_db:
         create_tfrecord(conf, False, use_cache=args.use_cache)
     tf.reset_default_graph()
     self = PoseUNet.PoseUNet(conf)
     self.train_data_name = 'traindata'
-    self.train_unet(False, 1)
+    self.train_unet(restore=restore, train_type=1)
 
 
 def train_leap(conf, args):
@@ -1214,6 +1214,7 @@ def train_deepcut(conf, args):
 def train(lblfile, nviews, name, args):
     view = args.view
     type = args.type
+    restore = args.restore
     if view is None:
         views = range(nviews)
     else:
@@ -1228,7 +1229,7 @@ def train(lblfile, nviews, name, args):
 
         try:
             if type == 'unet':
-                train_unet(conf, args)
+                train_unet(conf, args, restore)
             elif type == 'openpose':
                 if args.use_defaults:
                     open_pose.set_openpose_defaults(conf)
@@ -1327,6 +1328,7 @@ def parse_args(argv):
     parser_train.add_argument('-skip_db', dest='skip_db', help='Skip creating the data base', action='store_true')
     parser_train.add_argument('-use_defaults',dest='use_defaults',action='store_true', help='Use default settings of openpose, deeplabcut or leap')
     parser_train.add_argument('-use_cache',dest='use_cache',action='store_true', help='Use cached images in the label file to generate the training data.')
+    parser_train.add_argument('-continue',dest='restore',action='store_true', help='Continue from previously unfinished traning. Only for unet')
     # parser_train.add_argument('-cache',dest='cache_dir',
     #                           help='cache dir for training')
 

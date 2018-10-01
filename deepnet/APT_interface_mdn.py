@@ -514,7 +514,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
 
             theta = theta + math.pi / 2
             patch = cur_frame
-            rot_mat = cv2.getRotationMatrix2D((psz / 2, psz / 2), theta * 180 / math.pi, 1)
+            rot_mat = cv2.getRotationMatrix2D((psz/2, psz/2), theta * 180 / math.pi, 1)
             rpatch = cv2.warpAffine(patch, rot_mat, (psz, psz))
             if rpatch.ndim == 2:
                 rpatch = rpatch[:, :, np.newaxis]

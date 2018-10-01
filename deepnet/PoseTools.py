@@ -35,6 +35,7 @@ from skimage import transform
 import datetime
 from scipy.ndimage.interpolation import zoom
 from scipy import stats
+import pickle
 
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
@@ -229,7 +230,7 @@ def randomly_translate(img, locs, conf, group_sz = 1):
     for ndx in range(n_groups):
         st = ndx*group_sz
         en = (ndx+1)*group_sz
-        orig_locs = copy.deepcopy(locs[ndx, ...])
+        orig_locs = copy.deepcopy(locs[st:en, ...])
         orig_im = copy.deepcopy(img[st:en, ...])
         sane = False
         do_move = True
@@ -238,7 +239,7 @@ def randomly_translate(img, locs, conf, group_sz = 1):
         ll = orig_locs.copy()
         out_ii = orig_im.copy()
         while not sane:
-            valid = np.invert(np.isnan(orig_locs[:, :, 0]))
+            valid = np.invert(np.isnan(orig_locs[:,:, :, 0]))
             dx = np.random.randint(-conf.trange, conf.trange)
             dy = np.random.randint(-conf.trange, conf.trange)
             count += 1
@@ -248,12 +249,14 @@ def randomly_translate(img, locs, conf, group_sz = 1):
                 sane = True
                 do_move = False
             ll = copy.deepcopy(orig_locs)
-            ll[:, :, 0] += dx
-            ll[:, :, 1] += dy
+            ll[:,:, :, 0] += dx
+            ll[:,:, :, 1] += dy
             if np.all(ll[valid,0] >= 0) and \
                     np.all(ll[valid, 1] >= 0) and \
                     np.all(ll[valid, 0] < cols) and \
                     np.all(ll[valid, 1] < rows):
+                sane = True
+            elif not conf.check_bounds_distort:
                 sane = True
             elif do_move:
                 continue
@@ -267,7 +270,7 @@ def randomly_translate(img, locs, conf, group_sz = 1):
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
-        locs[ndx, ...] = ll
+        locs[st:en, ...] = ll
         img[st:en, ...] = out_ii
 
     locs = locs[:, 0, ...] if reduce_dim else locs
@@ -1353,6 +1356,12 @@ def runningInDocker():
 def json_load(filename):
     with open(filename,'r') as f:
         K = json.load(f)
+    return K
+
+
+def pickle_load(filename):
+    with open(filename,'r') as f:
+        K = pickle.load(f)
     return K
 
 

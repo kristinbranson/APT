@@ -117,7 +117,7 @@ class RNN_pp(object):
 
                         cur_ims, cur_labels = PoseTools.preprocess_ims(
                             cur_ims, cur_labels, conf, distort=cur_out,scale= self.conf.rescale,
-                            group_sz=self.rnn_pp_hist)
+                            group_sz=2*self.rnn_pp_hist)
 
                         bsize = self.conf.batch_size
                         nbatches = self.rnn_pp_hist/bsize*2
@@ -144,7 +144,8 @@ class RNN_pp(object):
                                     trx_fnum_ex = fnum - first_frames[trx_ndx] \
                                         + e_ndx + start - self.rnn_pp_hist
                                     trx_fnum_ex = trx_fnum_ex if trx_fnum_ex >0 else 0
-                                    trx_fnum_ex = trx_fnum_ex if trx_fnum_ex < end_frames[trx_ndx] else end_frames[trx_ndx]
+                                    end_ndx = end_frames[trx_ndx] - first_frames[trx_ndx] + 1
+                                    trx_fnum_ex = trx_fnum_ex if trx_fnum_ex < end_ndx else end_ndx
                                     temp_pred = cur_m[e_ndx,nx[e_ndx],:,:]
                                     dx = cur_trx['x'][0, trx_fnum] - cur_trx['x'][0, trx_fnum_ex]
                                     dy = cur_trx['y'][0, trx_fnum] - cur_trx['y'][0, trx_fnum_ex]
