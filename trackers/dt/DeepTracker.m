@@ -587,6 +587,34 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
+    
+    function trnKillAWS(obj)
+      if ~(obj.bgTrnIsRunning && obj.backEndType==DLBackEnd.AWS)
+        error('AWS Train is not running.');
+      end
+      
+      aws = obj.awsEc2;
+      if isempty(aws)
+        error('AWSec2 object not set.');
+      end
+      if isempty(aws.remotePID)
+        error('Unknown remote PID for AWS Train.');
+      end
+      
+      
+      aws.checkInstanceRunning(); % harderrs if instance isn't running
+%       fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
+
+      % update our remote repo
+      cmdremote = DeepTracker.trainCodeGenAWSUpdateAPTRepo();
+      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
+      if tfsucc
+        fprintf('Updated remote APT repo.\n\n');
+      else
+        error('Failed to update remote APT repo.');
+      end
+      
+    end
         
     function trnAWSDownloadModel(obj)
       projname = obj.lObj.projname;
@@ -1122,8 +1150,8 @@ classdef DeepTracker < LabelTracker
     function codestr = trainCodeGenAWSUpdateAPTRepo()
        codestr = {
         'cd /home/ubuntu/APT/deepnet;';
-        'git pull;'; 
         'git checkout feature/deeptrack;';
+        'git pull;'; 
         };
       codestr = cat(2,codestr{:});      
     end
