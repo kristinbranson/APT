@@ -707,7 +707,7 @@ classdef DeepTracker < LabelTracker
           if ~tfsucc
             warningNoTrace('Failed to create remote KILLED token: %s',kfile);
           else
-            fprintf('Created remote KILLED token: %s\n',kfile);
+            fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge the kill!\n',kfile);
           end
         end
         
