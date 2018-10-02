@@ -11,7 +11,8 @@ classdef BgTrainWorkerObj < handle
     projname
     jobID % char
     
-    artfctLogs % [nview] cellstr of fullpaths to bsub logs
+    artfctLogs % [nview] cellstr of fullpaths to logfiles
+    artfctKills % [nview] cellstr of fullpaths to KILLED toks
     artfctTrainDataJson % [nview] cellstr of fullpaths to training data jsons
     artfctFinalIndex % [nview] cellstr of fullpaths to final training .index file
     artfctErrFile % [nview] cellstr of fullpaths to DL errfile
@@ -56,13 +57,16 @@ classdef BgTrainWorkerObj < handle
         'errFile',[],... % char, full path to DL err file
         'errFileExists',[],... % true of errFile exists and has size>0
         'logFile',[],... % char, full path to Bsub logfile
-        'logFileErrLikely',[]... % true if Bsub logfile suggests error
+        'logFileErrLikely',[],... % true if Bsub logfile suggests error
+        'killFile',[],... % char, full path to KILL tokfile
+        'killFileExists',[]... % true if KILL tokfile found
         ); % 
       for ivw=1:obj.nviews
         json = obj.artfctTrainDataJson{ivw};
         finalindex = obj.artfctFinalIndex{ivw};
         errFile = obj.artfctErrFile{ivw};
         logFile = obj.artfctLogs{ivw};
+        killFile = obj.artfctKills{ivw};
         
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = obj.fileExists(json);
@@ -72,6 +76,8 @@ classdef BgTrainWorkerObj < handle
         sRes(ivw).errFileExists = obj.errFileExistsNonZeroSize(errFile);
         sRes(ivw).logFile = logFile;
         sRes(ivw).logFileErrLikely = obj.logFileErrLikely(logFile);
+        sRes(ivw).killFile = killFile;
+        sRes(ivw).killFileExists = obj.fileExists(killFile);        
         
         if sRes(ivw).jsonPresent
           json = obj.fileContents(json);
@@ -123,6 +129,14 @@ classdef BgTrainWorkerObj < handle
         logfile = logFiles{ivw};
         fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
         disp(logFileContents{ivw});
+      end
+    end
+    
+    function killedFiles = killedFilesFromLogFiles(logFiles)
+      killedFiles = cell(size(logFiles));
+      for i=1:numel(logFiles)
+        [p,f] = fileparts(logFiles{i});
+        killedFiles{i} = [p '/' f '.KILLED'];
       end
     end
     

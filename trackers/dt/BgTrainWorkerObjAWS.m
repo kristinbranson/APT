@@ -13,6 +13,7 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
       obj@BgTrainWorkerObj(dlLblFile,jobID);
       
       obj.artfctLogs = logfilesremote;
+      obj.artfctKills = BgTrainWorkerObj.killedFilesFromLogFiles(logfilesremote);
       [obj.artfctTrainDataJson,obj.artfctFinalIndex,obj.artfctErrFile] = ...
         arrayfun(@(ivw)obj.trainMonitorArtifacts(cacheRemoteRel,ivw),...
         1:obj.nviews,'uni',0);

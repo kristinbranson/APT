@@ -673,6 +673,49 @@ classdef DeepTracker < LabelTracker
       end      
     end
     
+    function trnKillAWS(obj)
+     
+      if ~obj.bgTrnIsRunning
+        error('Training is not in progress.');
+      end
+      aws = obj.awsEc2;
+      if isempty(aws)
+        error('AWSEC2 backend object is unset.');
+      end
+      
+      bgTrnWorkerObj = obj.bgTrnMonitor.bgWorkerObj;
+      logfilesremote = bgTrnWorkerObj.artfctLogs;
+      killfiles = BgTrainWorkerObj.killedFilesFromLogFiles(logfilesremote);
+
+      aws.killRemoteProcess();
+
+      % expect command to fail; fail -> py proc killed
+      pollCbk = @()~aws.cmdInstance('pgrep python','dispcmd',true,'failbehavior','silent');
+      iterWaitTime = 1;
+      maxWaitTime = 10;
+      tfsucc = waitforPoll(pollCbk,iterWaitTime,maxWaitTime);
+      
+      if ~tfsucc
+        warningNoTrace('Could not confirm that remote process was killed.');
+      else
+        % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
+        % pick up
+        for i=1:numel(killfiles)
+          kfile = killfiles{i};
+          cmd = sprintf('touch %s',kfile);
+          tfsucc = aws.cmdInstance(cmd,'dispcmd',false); 
+          if ~tfsucc
+            warningNoTrace('Failed to create remote KILLED token: %s',kfile);
+          else
+            fprintf('Created remote KILLED token: %s\n',kfile);
+          end
+        end
+        
+        % bgTrkMonitor should pick up KILL tokens and stop bg trk
+        % monitoring
+      end
+    end
+    
     function trnAWSDownloadModel(obj)
       projname = obj.lObj.projname;
       nvw = obj.lObj.nview;
@@ -707,7 +750,7 @@ classdef DeepTracker < LabelTracker
       projvw = sprintf('%s_view%d',projname,IVIEW-1); % !! cacheDirs are 0-BASED. See
       cacheLocalAbsWProj = fullfile(cacheDirLocal,projvw);
       
-      sysCmdArgs = {'dispcmd' true 'harderronfail' true};
+      sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
       aws.scpDownload(cacheRemoteAbs,cacheLocalAbsWProj,...
         'sysCmdArgs',sysCmdArgs); % throws
     end
@@ -897,13 +940,13 @@ classdef DeepTracker < LabelTracker
     function sha = getSHA(file)
       if isunix
         shacmd = sprintf('md5sum %s',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'harderronfail',true);
+        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,' ','split');
         sha = toks{1};        
         sha = regexprep(sha,' ','');
       else
         shacmd = sprintf('certUtil -hashFile %s MD5',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'harderronfail',true);
+        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,'\n','split');
         sha = toks{2};
         sha = regexprep(sha,' ','');
@@ -1109,7 +1152,7 @@ classdef DeepTracker < LabelTracker
         aws = obj.awsEc2;
         
         % download trkfiles 
-        sysCmdArgs = {'dispcmd' true 'harderronfail' true};
+        sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
         for ivw=1:numel(res)
           trkLcl = trkfilesLocal{ivw};
           trkRmt = res(ivw).trkfile;
