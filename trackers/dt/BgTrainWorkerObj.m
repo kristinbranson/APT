@@ -26,8 +26,8 @@ classdef BgTrainWorkerObj < handle
   end
   
   methods
-    function obj = BgTrainWorkerObj(dlLblFile,jobID)
-      lbl = load(dlLblFile,'-mat');
+    function obj = BgTrainWorkerObj(dlLblFileLocal,jobID)
+      lbl = load(dlLblFileLocal,'-mat');
       obj.nviews = lbl.cfg.NumViews;
       % Looks like we don't need sPrm at all here
       assert(strcmp(lbl.trackerClass{2},'DeepTracker'));
