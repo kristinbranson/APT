@@ -66,17 +66,16 @@ classdef DeepTracker < LabelTracker
     trkP   % [npt x 2 x nfrm x ntgt] tracking results for current mov
     trkPTS % [npt x nfrm x ntgt] timestamp for trkP*
 %     trkPMD % [NTst <ncols>] table. cols: .mov, .frm, .iTgt
-%            % .mov has class movieIndex           
-    % viz
-    hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame and target
-    hXYPrdRedOther; % [npts] plot handles for 'reduced' tracking results, current frame, non-current-target
-    xyVizPlotArgs; % cell array of args for regular tracking viz    
-    xyVizPlotArgsNonTarget; % " for non current target viz
+%            % .mov has class movieIndex 
   end
   properties (Dependent)
     nPts % number of label points     
     nview 
     %hasTrained
+  end
+  
+  properties
+    trkVizer % scalar TrackingVisualizer
   end
   
   events
@@ -111,7 +110,15 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
 
       obj.bgTrkMonitor = [];
-    end    
+      
+      obj.trkVizer = TrackingVisualizerHeatMap(lObj);
+    end
+    function delete(obj)
+      obj.trnResInit();
+      obj.bgTrkReset();
+      delete(obj.trkVizer);
+      obj.trkVizer = [];
+    end
     function initHook(obj)
       obj.trnResInit();
       obj.bgTrkReset();
@@ -586,34 +593,6 @@ classdef DeepTracker < LabelTracker
           end          
         end
       end
-    end
-    
-    function trnKillAWS(obj)
-      if ~(obj.bgTrnIsRunning && obj.backEndType==DLBackEnd.AWS)
-        error('AWS Train is not running.');
-      end
-      
-      aws = obj.awsEc2;
-      if isempty(aws)
-        error('AWSec2 object not set.');
-      end
-      if isempty(aws.remotePID)
-        error('Unknown remote PID for AWS Train.');
-      end
-      
-      
-      aws.checkInstanceRunning(); % harderrs if instance isn't running
-%       fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
-
-      % update our remote repo
-      cmdremote = DeepTracker.trainCodeGenAWSUpdateAPTRepo();
-      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
-      if tfsucc
-        fprintf('Updated remote APT repo.\n\n');
-      else
-        error('Failed to update remote APT repo.');
-      end
-      
     end
         
     function trnAWSDownloadModel(obj)
@@ -1150,8 +1129,8 @@ classdef DeepTracker < LabelTracker
     function codestr = trainCodeGenAWSUpdateAPTRepo()
        codestr = {
         'cd /home/ubuntu/APT/deepnet;';
-        'git checkout feature/deeptrack;';
         'git pull;'; 
+        'git checkout feature/deeptrack;';
         };
       codestr = cat(2,codestr{:});      
     end
@@ -1340,14 +1319,14 @@ classdef DeepTracker < LabelTracker
     function tpos = getTrackingResultsCurrMovie(obj)
       tpos = obj.trkP;
     end
-    function [trkfiles,tfHasRes] = getTrackingResults(obj,mIdx)
+    function [trkfileObjs,tfHasRes] = getTrackingResults(obj,mIdx)
       % Get tracking results for MovieIndices mIdx
       %
       % mIdx: [nMov] vector of MovieIndices
       %
       % trkfiles: [nMovxnView] cell of TrkFile objects, or [] if tfHasRes(...) is false
       % tfHasRes: [nMov] logical. If true, corresponding movie(set) has 
-      % tracking nontrivial (nonempty) tracking results
+      %   tracking nontrivial (nonempty) tracking results
       %
       % DeepTracker uses the filesys as the tracking result DB. This loads 
       % from known/expected trkfiles.
@@ -1355,14 +1334,14 @@ classdef DeepTracker < LabelTracker
       assert(isa(mIdx,'MovieIndex'));
       nMov = numel(mIdx);
       nView = obj.nview;
-      trkfiles = cell(nMov,nView);
+      trkfileObjs = cell(nMov,nView);
       tfHasRes = false(nMov,1);
       for i=1:nMov
         trkfilesI = obj.trackResGetTrkfiles(mIdx(i));
         ntrk = size(trkfilesI,1);
         
         if ntrk==0
-          % trkfiles, tfHasRes initted appropriately
+          % trkfileObjs, tfHasRes, trkfiles initted appropriately
           continue;
         end          
         if ntrk>1
@@ -1381,7 +1360,7 @@ classdef DeepTracker < LabelTracker
             for iTmp=2:numel(trkfilesIobj)
               tObj.mergePartial(trkfilesIobj{iTmp});
             end
-            trkfiles{i,ivw} = tObj;
+            trkfileObjs{i,ivw} = tObj;
             tfHasRes(i) = true;
           end
         end
@@ -1465,6 +1444,27 @@ classdef DeepTracker < LabelTracker
       [trks,tfHasRes] = obj.getTrackingResults(mIdx);
       if tfHasRes
         obj.trackCurrResLoadFromTrks(trks);
+        
+        trkfilesCurr = obj.trackResGetTrkfiles(mIdx); % [ntrk x nview]
+        ntrkCurr = size(trkfilesCurr,1);
+        for ivw=1:1 % TODO: multiview
+          for itrk=1:ntrkCurr
+            trkfile = trkfilesCurr{itrk,ivw};
+            [trkfileP,trkfileF] = fileparts(trkfile);
+            hmapDirS = [trkfileF '_hmap'];
+            hmapDir = fullfile(trkfileP,hmapDirS);
+            if exist(hmapDir,'dir')>0
+              obj.trkVizer.heatMapInit(hmapDir);
+              if ntrkCurr==1
+                fprintf('Found heatmap dir: %s\n',hmapDirS);
+              else                
+                fprintf('Found heatmap dir %s for trkfile %d/%d. Other heatmap dirs (if any) will be ignored.\n',...
+                  hmapDirS,itrk,ntrkCurr);
+              end
+              break;
+            end
+          end
+        end
       else
         obj.trackCurrResInit();
       end
@@ -1510,53 +1510,19 @@ classdef DeepTracker < LabelTracker
       end
     end
   end
-  
+    
   %% Viz
   methods
     function vizInit(obj)
-      deleteValidHandles(obj.hXYPrdRed); 
-      obj.hXYPrdRed = []; 
-      deleteValidHandles(obj.hXYPrdRedOther); 
-      obj.hXYPrdRedOther = []; 
-       
-      % init .xyVizPlotArgs* 
-      trackPrefs = obj.lObj.projPrefs.Track; 
-      plotPrefs = trackPrefs.PredictPointsPlot; 
-      plotPrefs.PickableParts = 'none'; 
-      obj.xyVizPlotArgs = struct2paramscell(plotPrefs); 
-      obj.xyVizPlotArgsNonTarget = obj.xyVizPlotArgs; % TODO: customize 
-       
-      npts = obj.nPts; 
-      ptsClrs = obj.lObj.labelPointsPlotInfo.Colors; 
-      ax = obj.ax; 
-      %arrayfun(@cla,ax); 
-      arrayfun(@(x)hold(x,'on'),ax); 
-      ipt2View = obj.lObj.labeledposIPt2View; 
-      hTmp = gobjects(npts,1); 
-      hTmpOther = gobjects(npts,1); 
-%       hTmp2 = gobjects(npts,1); 
-      for iPt = 1:npts 
-        clr = ptsClrs(iPt,:); 
-        iVw = ipt2View(iPt); 
-        hTmp(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr); 
-        hTmpOther(iPt) = plot(ax(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);         
-%         hTmp2(iPt) = scatter(ax(iVw),nan,nan); 
-%         setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,... 
-%           'MarkerEdgeColor',clr,'PickableParts','none',... 
-%           obj.xyVizFullPlotArgs{:}); 
-      end 
-      obj.hXYPrdRed = hTmp; 
-      obj.hXYPrdRedOther = hTmpOther; 
-      obj.setHideViz(obj.hideViz); 
+      obj.trkVizer.vizInit();
+      obj.setHideViz(obj.hideViz);
     end
     function setHideViz(obj,tf)
-      onoff = onIff(~tf);
-      [obj.hXYPrdRed.Visible] = deal(onoff);
-      [obj.hXYPrdRedOther.Visible] = deal(onoff);
+      obj.trkVizer.setHideViz(tf);
       obj.hideViz = tf;
     end
   end
-  
+
   %% Labeler nav
   methods
     function newLabelerFrame(obj)
@@ -1564,18 +1530,10 @@ classdef DeepTracker < LabelTracker
       if lObj.isinit || ~lObj.hasMovie
         return;
       end
-      
-%       if obj.asyncPredictOn && all(isnan(xy(:)))
-%         obj.asyncTrackCurrFrameBG();
-%       end
-      
+            
       xy = obj.getPredictionCurrentFrame();    
-      plotargs = obj.xyVizPlotArgs;
       itgt = lObj.currTarget;
-      hXY = obj.hXYPrdRed;
-      for iPt=1:obj.nPts
-        set(hXY(iPt),'XData',xy(iPt,1,itgt),'YData',xy(iPt,2,itgt),plotargs{:});
-      end
+      obj.trkVizer.updateTrackRes(xy(:,:,itgt),lObj.currFrame,itgt);
     end
     function newLabelerTarget(obj)
       obj.newLabelerFrame();
