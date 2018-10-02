@@ -190,11 +190,12 @@ def convert_unicode(data):
     else:
         return data
 
+
 def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num):
     for bpart in range(hmaps.shape[-1]):
         cur_out = os.path.join(hmaps_dir, 'hmap_trx_{}_t_{}_part_{}.jpg'.format(trx_ndx + 1, frame_num + 1, bpart + 1))
         cur_im = hmaps[:, :, bpart]
-        cur_im = ((np.clip(cur_im, -1, 1) * 128) + 127).astype('uint8')
+        cur_im = ((np.clip(cur_im, -1 + 1./128, 1) * 128) + 127).astype('uint8')
         imageio.imwrite(cur_out, cur_im, 'jpg', quality=75)
         # cur_out_png = os.path.join(hmaps_dir,'hmap_trx_{}_t_{}_part_{}.png'.format(trx_ndx+1,frame_num+1,bpart+1))
         # imageio.imwrite(cur_out_png,cur_im)
@@ -493,6 +494,15 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
                 trx_split = np.random.random(n_trx) < conf.valratio
 
             x, y, theta = read_trx(cur_trx, f_ndx[ndx])
+
+            theta = theta + math.pi / 2
+            patch = cur_frame
+            rot_mat = cv2.getRotationMatrix2D((psz/2, psz/2), theta * 180 / math.pi, 1)
+            rpatch = cv2.warpAffine(patch, rot_mat, (psz, psz))
+            if rpatch.ndim == 2:
+                rpatch = rpatch[:, :, np.newaxis]
+            cur_frame = rpatch
+
             ll = cur_locs.copy()
             ll = ll - [x, y]
             rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
@@ -1174,13 +1184,13 @@ def classify_movie_all(model_type, **kwargs):
         logging.exception('Could not track movie')
 
 
-def train_unet(conf, args):
+def train_unet(conf, args, restore):
     if not args.skip_db:
         create_tfrecord(conf, False, use_cache=args.use_cache)
     tf.reset_default_graph()
     self = PoseUNet.PoseUNet(conf)
     self.train_data_name = 'traindata'
-    self.train_unet(False, 1)
+    self.train_unet(restore=restore, train_type=1)
 
 
 def train_leap(conf, args):
@@ -1204,6 +1214,7 @@ def train_deepcut(conf, args):
 def train(lblfile, nviews, name, args):
     view = args.view
     type = args.type
+    restore = args.restore
     if view is None:
         views = range(nviews)
     else:
@@ -1218,7 +1229,7 @@ def train(lblfile, nviews, name, args):
 
         try:
             if type == 'unet':
-                train_unet(conf, args)
+                train_unet(conf, args, restore)
             elif type == 'openpose':
                 if args.use_defaults:
                     open_pose.set_openpose_defaults(conf)
@@ -1317,6 +1328,7 @@ def parse_args(argv):
     parser_train.add_argument('-skip_db', dest='skip_db', help='Skip creating the data base', action='store_true')
     parser_train.add_argument('-use_defaults',dest='use_defaults',action='store_true', help='Use default settings of openpose, deeplabcut or leap')
     parser_train.add_argument('-use_cache',dest='use_cache',action='store_true', help='Use cached images in the label file to generate the training data.')
+    parser_train.add_argument('-continue',dest='restore',action='store_true', help='Continue from previously unfinished traning. Only for unet')
     # parser_train.add_argument('-cache',dest='cache_dir',
     #                           help='cache dir for training')
 
@@ -1388,7 +1400,7 @@ def run(args):
             assert len(args.trx) == 1, 'Number of trx files should be one when view is specified'
             assert len(args.out_files) == 1, 'Number of out files should be one when view is specified'
             if args.crop_loc is not None:
-                assert len(args.crop_loc)==4*nviews, 'cropping location should be specified as xlo xhi ylo yhi'
+                assert len(args.crop_loc)==4, 'cropping location should be specified as xlo xhi ylo yhi'
             views = [args.view]
 
         for view_ndx, view in enumerate(views):

@@ -199,7 +199,7 @@ def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num):
     for bpart in range(hmaps.shape[-1]):
         cur_out = os.path.join(hmaps_dir, 'hmap_trx_{}_t_{}_part_{}.jpg'.format(trx_ndx + 1, frame_num + 1, bpart + 1))
         cur_im = hmaps[:, :, bpart]
-        cur_im = ((np.clip(cur_im, -1, 1) * 128) + 127).astype('uint8')
+        cur_im = ((np.clip(cur_im, -1 + 1./128, 1) * 128) + 127).astype('uint8')
         imageio.imwrite(cur_out, cur_im, 'jpg', quality=75)
         # cur_out_png = os.path.join(hmaps_dir,'hmap_trx_{}_t_{}_part_{}.png'.format(trx_ndx+1,frame_num+1,bpart+1))
         # imageio.imwrite(cur_out_png,cur_im)
@@ -511,6 +511,15 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
                 trx_split = np.random.random(n_trx) < conf.valratio
 
             x, y, theta = read_trx(cur_trx, f_ndx[ndx])
+
+            theta = theta + math.pi / 2
+            patch = cur_frame
+            rot_mat = cv2.getRotationMatrix2D((psz/2, psz/2), theta * 180 / math.pi, 1)
+            rpatch = cv2.warpAffine(patch, rot_mat, (psz, psz))
+            if rpatch.ndim == 2:
+                rpatch = rpatch[:, :, np.newaxis]
+            cur_frame = rpatch
+
             ll = cur_locs.copy()
             ll = ll - [x, y]
             rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
@@ -1376,14 +1385,14 @@ def run(args):
                     'cropping location should be specified as xlo xhi ylo yhi for all the views'
             views = range(nviews)
         else:
+            views = [args.view]
             if args.trx is None:
                 args.trx = [None]
             assert len(args.mov) == 1, 'Number of movie files should be one when view is specified'
             assert len(args.trx) == 1, 'Number of trx files should be one when view is specified'
             assert len(args.out_files) == 1, 'Number of out files should be one when view is specified'
             if args.crop_loc is not None:
-                assert len(args.crop_loc) == 4 * nviews, 'cropping location should be specified as xlo xhi ylo yhi'
-            views = [args.view]
+                assert len(args.crop_loc) == 4 * len(views), 'cropping location should be specified as xlo xhi ylo yhi'
 
         for view_ndx, view in enumerate(views):
             conf = create_conf(lbl_file, view, name, cache_dir=args.cache)

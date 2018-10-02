@@ -17,6 +17,7 @@ from tensorflow.contrib.slim.nets import resnet_v1
 import tensorflow.contrib.slim as slim
 from PoseCommon_dataset import conv_relu3
 from tensorflow.contrib.layers import batch_norm
+import resnet_official
 
 class PoseUNet_resnet(PoseUNet.PoseUNet):
 
@@ -41,18 +42,31 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
             a,b,self.ph['phase_train'], keep_prob=None,
             use_leaky=self.conf.unet_use_leaky)
 
-        with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-            net, end_points = resnet_v1.resnet_v1_50(im,
-                                      global_pool=False, is_training=self.ph['phase_train'])
+
+        if self.resnet_version == 'slim':
+            with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+                net, end_points = resnet_v1.resnet_v1_50(im,
+                                          global_pool=False, is_training=self.ph[
+                                          'phase_train'])
+                l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
+                           'block3/unit_5/bottleneck_v1', 'block4']
+                down_layers = [end_points['resnet_v1_50/' + x] for x in l_names]
+
+                ex_down_layers = conv(self.inputs[0], 64)
+                down_layers.insert(0, ex_down_layers)
+                n_filts = [32, 64, 64, 128, 256, 512]
+
+        elif self.resnet_version == 'official_tf':
+            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
+            im = tf.placeholder(tf.float32, [8, 512, 512, 3])
+            resnet_out = mm(im, True)
+            down_layers = mm.layers
+            ex_down_layers = conv(self.inputs[0], 64)
+            down_layers.insert(0, ex_down_layers)
+            n_filts = [32, 64, 64, 128, 256, 512, 1024]
+
 
         with tf.variable_scope(self.net_name):
-
-            l_names = ['conv1', 'block1/unit_2/bottleneck_v1','block2/unit_3/bottleneck_v1', 'block3/unit_5/bottleneck_v1', 'block4']
-            down_layers = [end_points['resnet_v1_50/'+x] for x in l_names]
-            n_filts = [32, 64, 64, 128, 256, 512]
-
-            ex_down_layers =  conv(self.inputs[0], 64)
-            down_layers.insert(0,ex_down_layers)
 
             prev_in = None
             for ndx in reversed(range(len(down_layers))):
@@ -73,19 +87,19 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
                     layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
                     with tf.variable_scope('u_{}'.format(ndx)):
-                        # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
-                        X_sh = X.get_shape().as_list()
-                        w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
-                        for wndx in range(X_sh[-1]):
-                            w_mat[:,:,wndx,wndx] = 1.
-                        w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
-                        out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
-                        X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
-                        biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
-                        conv_b = X + biases
-
-                        bn = batch_norm(conv_b)
-                        X = tf.nn.relu(bn)
+                        X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+                        # X_sh = X.get_shape().as_list()
+                        # w_mat = np.zeros([5,5,X_sh[-1],X_sh[-1]])
+                        # for wndx in range(X_sh[-1]):
+                        #     w_mat[:,:,wndx,wndx] = 1.
+                        # w = tf.get_variable('w', [5, 5, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
+                        # out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
+                        # X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+                        # biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
+                        # conv_b = X + biases
+                        #
+                        # bn = batch_norm(conv_b)
+                        # X = tf.nn.relu(bn)
 
                 prev_in = X
 
@@ -105,7 +119,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
         var_list = tf.global_variables(self.net_name)
         for dep_net in self.dep_nets:
             var_list += dep_net.get_var_list()
-        var_list += tf.global_variables('resnet_v1_50')
+        var_list += tf.global_variables('resnet_')
         return var_list
 
 
@@ -115,6 +129,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         conf.use_pretrained_weights = True
 #        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
+        self.resnet_source = 'official_tf'
+        self.offset = 32.
         PoseUMDN.PoseUMDN.__init__(self, conf, name=name)
         self.dep_nets = []
 
@@ -133,60 +149,69 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             a,b,self.ph['phase_train'], keep_prob=None,
             use_leaky=self.conf.unet_use_leaky)
 
-        with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-            net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=self.ph['phase_train'])
+        if self.resnet_source == 'slim':
+            with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+                net, end_points = resnet_v1.resnet_v1_50(im,
+                                                         global_pool=False, is_training=self.ph[
+                        'phase_train'])
+                l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
+                           'block3/unit_5/bottleneck_v1', 'block4']
+                down_layers = [end_points['resnet_v1_50/' + x] for x in l_names]
 
-        X = net
-        k = 2
-        locs_offset = 1.
-        n_groups = len(self.conf.mdn_groups)
-        n_out = self.conf.n_classes
+                n_filts = [32, 64, 64, 128, 256, 512]
+
+        elif self.resnet_source == 'official_tf':
+            mm = resnet_official.Model(resnet_size=50, bottleneck=True, num_classes=17, num_filters=64, kernel_size=7,
+                                       conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3],
+                                       block_strides=[1, 2, 2, 2], final_size=2048, resnet_version=2,
+                                       data_format='channels_last', dtype=tf.float32)
+            resnet_out = mm(im, self.ph['phase_train'])
+            down_layers = mm.layers
+            net = down_layers[-1]
+            n_filts = [32, 64, 64, 128, 256, 512, 1024]
 
         if self.conf.use_unet_loss:
             with tf.variable_scope(self.net_name + '_unet'):
-    
-                l_names = ['conv1', 'block1/unit_2/bottleneck_v1','block2/unit_3/bottleneck_v1', 'block3/unit_5/bottleneck_v1', 'block4']
-                down_layers = [end_points['resnet_v1_50/'+x] for x in l_names]
-                n_filts = [32, 64, 64, 128, 256, 512]
-    
-                ex_down_layers =  conv(self.inputs[0], 64)
-                down_layers.insert(0,ex_down_layers)
-    
+
+                # add an extra layer at input resolution.
+                ex_down_layers = conv(im, 64)
+                down_layers.insert(0, ex_down_layers)
+
                 prev_in = None
                 for ndx in reversed(range(len(down_layers))):
-    
+
                     if prev_in is None:
                         X = down_layers[ndx]
                     else:
                         X = tf.concat([prev_in, down_layers[ndx]],axis=-1)
-    
+
                     sc_name = 'layerup_{}_0'.format(ndx)
                     with tf.variable_scope(sc_name):
                         X = conv(X, n_filts[ndx])
-    
+
                     if ndx is not 0:
                         sc_name = 'layerup_{}_1'.format(ndx)
                         with tf.variable_scope(sc_name):
                             X = conv(X, n_filts[ndx])
-    
+
                         layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
                         with tf.variable_scope('u_{}'.format(ndx)):
-                            X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
-#                            X_sh = X.get_shape().as_list()
-#                            w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
-#                            for wndx in range(X_sh[-1]):
-#                                w_mat[:,:,wndx,wndx] = 1.
-#                            w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
-#                            out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
-#                            X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
-#                            biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
-#                            conv_b = X + biases
-#    
-#                            bn = batch_norm(conv_b)
-#                            X = tf.nn.relu(bn)
-    
+                             X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+    #                        X_sh = X.get_shape().as_list()
+    #                        w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
+    #                        for wndx in range(X_sh[-1]):
+    #                            w_mat[:,:,wndx,wndx] = 1.
+    #                        w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
+    #                        out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
+    #                        X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+    #                        biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
+    #                        conv_b = X + biases
+    #
+    #                        bn = batch_norm(conv_b)
+    #                        X = tf.nn.relu(bn)
+
                     prev_in = X
-    
+
                 n_filt = X.get_shape().as_list()[-1]
                 n_out = self.conf.n_classes
                 weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
@@ -199,6 +224,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             self.unet_pred = X_unet
 
         X = net
+        k = 2
+        locs_offset = 1.
+        n_groups = len(self.conf.mdn_groups)
+        n_out = self.conf.n_classes
+
         with tf.variable_scope(self.net_name):
 
             n_filt_in = X.get_shape().as_list()[3]
@@ -326,7 +356,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
     def get_var_list(self):
         var_list = tf.global_variables(self.net_name)
-        var_list += tf.global_variables('resnet_v1_50')
+        var_list += tf.global_variables('resnet_')
         return var_list
 
 
@@ -335,6 +365,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         self.joint = True
         def loss(inputs, pred):
             mdn_loss = self.my_loss(pred, inputs[1])
+            # mdn_loss = self.l2_loss(pred, inputs[1])
             if self.conf.use_unet_loss:
                 unet_loss = tf.sqrt(tf.nn.l2_loss(inputs[-1]-self.unet_pred))/self.conf.label_blur_rad/self.conf.n_classes
                 return mdn_loss + unet_loss
@@ -348,7 +379,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
     def my_loss(self, X, y):
 
-        locs_offset = float(2**5)
+        locs_offset = self.offset
 
         mdn_locs, mdn_scales, mdn_logits = X
         cur_comp = []
@@ -385,10 +416,40 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         # loss = -tf.log(tf.reduce_sum(pp, axis=1))
         return tf.reduce_sum(cur_loss)
 
+    def l2_loss(self, X, y):
+
+        locs_offset = self.offset
+
+        mdn_locs, mdn_scales, mdn_logits = X
+        cur_comp = []
+        ll = tf.nn.softmax(mdn_logits, axis=1)
+
+        n_preds = mdn_locs.get_shape().as_list()[1]
+        # All gaussians in the mixture have some weight so that all the mixtures try to predict correctly.
+        logit_eps = self.conf.mdn_logit_eps_training
+        ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
+        ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
+        for cls in range(self.conf.n_classes):
+            pp = y[:, cls:cls + 1, :]/locs_offset
+            kk = tf.sqrt(tf.reduce_sum(tf.square(pp - mdn_locs[:, :, cls, :]), axis=2))
+            # tf.div is actual correct implementation of gaussian distance.
+            # but we run into numerical issues. Since the scales are withing
+            # the same range, I'm just ignoring them for now.
+            # dd = tf.div(tf.exp(-kk / (cur_scales ** 2) / 2), 2 * np.pi * (cur_scales ** 2))
+            cur_comp.append(kk)
+
+        cur_loss = 0
+        for ndx,gr in enumerate(self.conf.mdn_groups):
+            sel_comp = [cur_comp[i] for i in gr]
+            sel_comp = tf.stack(sel_comp, 1)
+            pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
+            cur_loss += pp
+
+        return tf.reduce_sum(cur_loss)
 
     def compute_dist(self, preds, locs):
 
-        locs_offset = 32
+        locs_offset = self.offset
 
         locs = locs.copy()
         if locs.ndim == 3:
@@ -453,7 +514,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         osz = self.conf.imsz
         #       self.joint = True
 
-        locs_offset = 32
+        locs_offset = self.offset
         p_m *= locs_offset
 
         val_dist = []

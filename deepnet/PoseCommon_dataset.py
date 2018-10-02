@@ -41,23 +41,26 @@ def conv_relu(x_in, kernel_shape, train_phase):
     return tf.nn.relu(conv + biases)
 
 
-def conv_relu3(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False):
-    in_dim = x_in.get_shape().as_list()[3]
+def conv_relu3(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False, data_format='NHWC'):
+    if data_format == 'NHWC':
+        in_dim = x_in.get_shape().as_list()[3]
+    else:
+        in_dim = x_in.get_shape().as_list()[1]
     kernel_shape = [3, 3, in_dim, n_filt]
     weights = tf.get_variable("weights", kernel_shape,
                               initializer=tf.contrib.layers.xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
-    conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
-    conv = batch_norm(conv, decay=0.99, is_training=train_phase, renorm=renorm)
+    conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME',data_format=data_format)
+    conv = batch_norm(conv, decay=0.99, is_training=train_phase, renorm=renorm,data_format=data_format)
 
     if keep_prob is not None:
         conv = tf.nn.dropout(conv, keep_prob)
 
     if use_leaky:
-        return tf.nn.leaky_relu(conv+biases)
+        return tf.nn.leaky_relu(tf.nn.bias_add(conv,biases,data_format=data_format))
     else:
-        return tf.nn.relu(conv + biases)
+        return tf.nn.relu(tf.nn.bias_add(conv,biases,data_format=data_format))
 
 
 def conv_shortcut(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False):
@@ -368,21 +371,36 @@ class PoseCommon(object):
         self.create_ph_fd()
         self.create_input_ph()
 
-    def initialize_net(self, sess):
+    def init_restore_net(self, sess, do_restore=False):
+        saver = self.saver
         name = self.net_name
-        sess.run(tf.variables_initializer(PoseTools.get_vars(name)),
-                 feed_dict=self.fd)
-        print("Not loading {:s} variables. Initializing them".format(name))
-        self.init_td()
-        for dep_net in self.dep_nets:
-            dep_net.initialize_net(sess)
+        out_file = saver['out_file'].replace('\\', '/')
+        latest_ckpt = tf.train.get_checkpoint_state(
+            self.conf.cachedir, saver['ckpt_file'])
+
+        if not latest_ckpt or not do_restore:
+            start_at = 0
+            sess.run(tf.variables_initializer(PoseTools.get_vars(name)),
+                     feed_dict=self.fd)
+            print("Not loading {:s} variables. Initializing them".format(name))
+            self.init_td()
+            for dep_net in self.dep_nets:
+                dep_net.init_restore_net(sess)
+            if self.conf.use_pretrained_weights:
+                self.restore_pretrained(sess)
+        else:
+            saver['saver'].restore(sess, latest_ckpt.model_checkpoint_path)
+            match_obj = re.match(out_file + '-(\d*)', latest_ckpt.model_checkpoint_path)
+            start_at = int(match_obj.group(1)) + 1
+            self.restore_td()
+
         initialize_remaining_vars(sess)
-        if self.conf.use_pretrained_weights:
-            self.restore_pretrained(sess)
+        return start_at
+
 
     def restore_pretrained(self, sess):
-        model_file = self.conf.pretrained_weights
 
+        model_file = self.conf.pretrained_weights
         var_list = self.get_var_list()
         pre_list = tf.train.list_variables(model_file)
         pre_list_names = [p[0] for p in pre_list]
@@ -483,7 +501,7 @@ class PoseCommon(object):
 
 
     def train(self, create_network,
-              loss, learning_rate):
+              loss, learning_rate, restore=False):
 
         self.setup_train()
         self.pred = create_network()
@@ -494,7 +512,7 @@ class PoseCommon(object):
         num_val_rep = self.conf.numTest / self.conf.batch_size + 1
 
         with tf.Session() as sess:
-            self.initialize_net(sess)
+            start_at = self.init_restore_net(sess, do_restore=restore)
             #self.restore_pretrained(sess,'/home/mayank/work/poseTF/cache/stephen_dataset/head_pose_umdn_joint-20000')
             #initialize_remaining_vars(sess)
             #self.init_td()
@@ -527,7 +545,6 @@ class PoseCommon(object):
             self.save(sess, training_iters)
             self.save_td()
         tf.reset_default_graph()
-
 
 
     def restore_net_common(self, create_network_fn, model_file=None):

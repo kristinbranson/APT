@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 14-Jun-2018 12:35:42
+% Last Modified by GUIDE v2.5 02-Oct-2018 09:47:48
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -12,6 +12,7 @@ gui_Singleton = 0;
 if ispc && ~verLessThan('matlab','8.6') % 8.6==R2015b
   gui_Name = 'LabelerGUI_PC_15b';
 elseif isunix
+  %gui_Name = 'LabelerGUI_lnx';
   gui_Name = 'LabelerGUI_lnx';
 else
   gui_Name = 'LabelerGUI_PC_14b';
@@ -73,9 +74,9 @@ handles.output = hObject;
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
 
-handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_importexport,...
+handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_labels_table_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Export Labels as Single Table',...
+  'Label','Export Labels as Table',...
   'Tag','menu_file_export_labels_table',...
   'Checked','off',...
   'Visible','on');
@@ -3190,3 +3191,28 @@ catch
   warning('Could not get text_when_clear appdata for status bar');
   s = '';
 end
+
+
+% --------------------------------------------------------------------
+function menu_file_export_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_file_export_labels2_trk_curr_mov (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+lObj = handles.labelerObj;
+iMov = lObj.currMovie;
+if iMov==0
+  error('LabelerGUI:noMov','No movie currently set.');
+end
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
+if ~tfok
+  return;
+end
+lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
+
+
+% --------------------------------------------------------------------
+function menu_file_import_export_advanced_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_file_import_export_advanced (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)

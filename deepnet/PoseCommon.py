@@ -476,9 +476,7 @@ class PoseCommon(object):
             print("Not loading {:s} variables. Initializing them".format(name))
         else:
             if at_step < 0:
-                saver['saver'].restore(sess, latest_ckpt.model_checkpoint_path)
-                match_obj = re.match(out_file + '-(\d*)', latest_ckpt.model_checkpoint_path)
-                start_at = int(match_obj.group(1)) + 1
+                model_file = latest_ckpt.model_checkpoint_path
             else:
                 aa = latest_ckpt.all_model_checkpoint_paths
                 model_file = ''
@@ -488,9 +486,10 @@ class PoseCommon(object):
                     if step >= at_step:
                         model_file = a
                         break
-                saver['saver'].restore(sess, model_file)
-                match_obj = re.match(out_file + '-(\d*)', model_file)
-                start_at = int(match_obj.group(1)) + 1
+            saver['saver'].restore(sess, model_file)
+            print('Restoring parameters from {}'.format(model_file))
+            match_obj = re.match(out_file + '-(\d*)', model_file)
+            start_at = int(match_obj.group(1)) + 1
 
         if self.dep_nets:
             self.dep_nets.restore_joint(sess, self.name, self.joint, do_restore)
@@ -548,7 +547,7 @@ class PoseCommon(object):
         self.train_info = train_info
 
 
-    def restore_td(self):
+    def restore_td(self, start_at =-1):
         saver = self.saver
         train_data_file = saver['train_data_file'].replace('\\', '/')
         with open(train_data_file, 'rb') as td_file:
@@ -564,6 +563,12 @@ class PoseCommon(object):
             else:
                 print("No config was stored for base. Not comparing conf")
                 train_info = in_data
+
+        if start_at > 0: # remove entries for step > start_at
+            step = train_info['step'][:] # copy the list
+            for k in train_info.keys():
+                train_info[k] = [train_info[k][ix] for ix in range(len(step)) if step[ix]<= start_at]
+
         self.train_info = train_info
 
 
@@ -626,7 +631,7 @@ class PoseCommon(object):
         initialize_remaining_vars(sess)
 
         try:
-            self.init_td(td_fields) if start_at is 0 else self.restore_td()
+            self.init_td(td_fields) if start_at is 0 else self.restore_td(start_at=start_at)
         except AttributeError: # If the conf file has been modified
             print('----------------')
             print("Couldn't load train data because the conf has changed!")
