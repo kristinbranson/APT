@@ -147,7 +147,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         figure('Name','RP err per showReprojectionErrors()');
         ax = axes;
         showReprojectionErrors(sp,'parent',ax);
-        fprintf('Calibration Session has MeanRPerr = %.3f\n',...
+        fprintf('Calibration Session has meanRPerr = %.3f\n',...
           cs.CameraParameters.MeanReprojectionError);
         
         figure('Name','RP err per ML library functions');
