@@ -4,6 +4,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   
   properties
     calSess % scalar Session from ML Stro calibration
+    
+    eplineComputeMode = 'mostaccurate'; % either 'mostaccurate' or 'fastest'
   end
   properties (Dependent)
     stroParams
@@ -17,8 +19,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     TRL
   end
   %Intrinsics
-  properties (Dependent)
-    int
+  properties
+    int % dups state in calSess, but non-Dependent for perf
   end
 
   methods
@@ -42,7 +44,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     function T = get.TRL(obj)
       T = -obj.RLR'*obj.TLR;
     end
-    function s = get.int(obj)
+    %function s = get.int(obj)
+    function s = getInt(obj)
       sp = obj.stroParams;
       
       s1 = struct();
@@ -60,6 +63,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     function obj = CalRigMLStro(calibSession)
       assert(isa(calibSession,'vision.internal.calibration.tool.Session'));
       obj.calSess = calibSession;
+      obj.int = obj.getInt();
     end
     
     function [rperr1ml,rperr2ml] = checkRPerr(obj,varargin)
@@ -180,10 +184,24 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   methods % CalRig
     
     function [xEPL,yEPL] = ...
-        computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi,z1Range,varargin)
+        computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi)
       
-      projectionmeth = myparse(varargin,...
-        'projectionmeth','worldToImage'... % either 'worldToImage' or 'normalized2projected'
+      switch obj.eplineComputeMode
+        case 'mostaccurate'
+          [xEPL,yEPL] = obj.computeEpiPolarLineBase(iView1,xy1,iViewEpi,roiEpi);
+        case 'fastest'
+          [xEPL,yEPL] = obj.computeEpiPolarLineEPline(iView1,xy1,iViewEpi,roiEpi);
+        otherwise
+          error('''eplineComputeMode'' property must be either ''mostaccurate'' or ''fastest''.');          
+      end
+    end
+      
+    function [xEPL,yEPL] = ...
+        computeEpiPolarLineBase(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
+      
+      [projectionmeth,z1Range] = myparse(varargin,...
+        'projectionmeth','worldToImage',... % either 'worldToImage' or 'normalized2projected'
+        'z1Range',40:.1:60 ...
         );
       
       % See CalRig
@@ -239,7 +257,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     end
     
     function [xEPL,yEPL] = ...
-        computeEpiPolarLineEPline(obj,iView1,xy1,iViewEpi,roiEpi,z1Range)
+        computeEpiPolarLineEPline(obj,iView1,xy1,iViewEpi,roiEpi)
       % Use worldToImage, pointsToWorld
       
       xEPLnstep = 20;
