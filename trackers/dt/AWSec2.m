@@ -139,6 +139,7 @@ classdef AWSec2 < handle
         return;
       end
       
+      % AL: see waitforPoll() util
       starttime = tic;
       tfsucc = false;
       while true,
@@ -230,9 +231,10 @@ classdef AWSec2 < handle
     end
     
     function tf = remoteFileExists(obj,f,varargin)
-      [reqnonempty,dispcmd] = myparse(varargin,...
+      [reqnonempty,dispcmd,usejavaRT] = myparse(varargin,...
         'reqnonempty',false,...
-        'dispcmd',false...
+        'dispcmd',false,...
+        'usejavaRT',false...
         );
 
       if reqnonempty
@@ -242,21 +244,23 @@ classdef AWSec2 < handle
       end
       cmdremote = sprintf('%s %s',script,f);
       [~,res] = obj.cmdInstance(cmdremote,...
-        'dispcmd',dispcmd,'harderronfail',true); 
+        'dispcmd',dispcmd,'failbehavior','err','usejavaRT',usejavaRT); 
       tf = res(1)=='y';      
     end
     
     function s = remoteFileContents(obj,f,varargin)
-      [dispcmd,harderronfail] = myparse(varargin,...
+      [dispcmd,failbehavior] = myparse(varargin,...
         'dispcmd',false,...
-        'harderronfail',false);
+        'failbehavior','warn'...
+        );
       
       cmdremote = sprintf('cat %s',f);
-      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,'harderronfail',harderronfail); 
+      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,...
+        'failbehavior',failbehavior); 
       if tfsucc  
         s = res;
       else
-        % harderronfail==false, warning thrown
+        % warning thrown etc per failbehavior
         s = '';
       end
     end
@@ -300,23 +304,44 @@ classdef AWSec2 < handle
     end
     
     function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
-      [dispcmd,harderronfail,isjsonout,dosetenv] = myparse(varargin,...
+      [dispcmd,failbehavior,isjsonout,dosetenv,usejavaRT] = ...
+        myparse(varargin,...
         'dispcmd',false,...
-        'harderronfail',false,...
+        'failbehavior','warn',... % one of 'err','warn','silent'
         'isjsonout',false,...
-        'dosetenv',isunix...
+        'dosetenv',isunix,...
+        'usejavaRT',false...
         );
       
 %       cmd = [cmd sprintf('\n\r')];
       if dosetenv,
         cmd = [AWSec2.cmdEnv,' ',cmd];
       end
-        
+
+      % XXX HACK
+      drawnow 
+
       if dispcmd
         disp(cmd); 
       end
-      [st,res] = system(cmd);
-      tfsucc = st==0;
+      if usejavaRT
+        fprintf(1,'Using javaRT call\n');
+        runtime = java.lang.Runtime.getRuntime();
+        proc = runtime.exec(cmd);
+        st = proc.waitFor();
+        is = proc.getInputStream;
+        res = [];
+        val = is.read();
+        while val~=-1 && numel(res)<100
+          res(1,end+1) = val;
+          val = is.read();
+        end
+        res = strtrim(char(res));
+        tfsucc = st==0;
+      else
+        [st,res] = system(cmd);
+        tfsucc = st==0;
+      end
       
       if isjsonout && tfsucc,
         jsonstart = find(res == '{',1);
@@ -332,10 +357,15 @@ classdef AWSec2 < handle
       end
       
       if ~tfsucc 
-        if harderronfail
-          error('Nonzero status code: %s',res);
-        else
-          warningNoTrace('Command failed: %s: %s',cmd,res);
+        switch failbehavior
+          case 'err'
+            error('Nonzero status code: %s',res);
+          case 'warn'
+            warningNoTrace('Command failed: %s: %s',cmd,res);
+          case 'silent'
+            % none
+          otherwise
+            assert(false);
         end
       end
     end
