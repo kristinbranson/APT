@@ -421,13 +421,12 @@ function [handles,levels,parentIdx,listing] = findjobj_modern(container,varargin
     %% Display a warning if the requested handle was not found because it's invisible
     function warnInvisible(varargin)
         try
-            if strcmpi(get(hFig,'Visible'),'off')
-                pos = get(hFig,'Position');
-                set(hFig, 'Position',pos-[5000,5000,0,0], 'Visible','on');
-                drawnow; pause(0.01);
-                [handles,levels,parentIdx,listing] = findjobj_modern(origContainer,varargin{:});
-                set(hFig, 'Position',pos, 'Visible','off');
-            end
+          if strcmpi(get(hFig,'Visible'),'off')
+            set(hFig,'Visible','on');
+            drawnow; pause(0.01);
+            [handles,levels,parentIdx,listing] = findjobj_modern(origContainer,varargin{:});
+            set(hFig, 'Visible','off');
+          end
         catch
             % ignore - move on...
         end
@@ -670,11 +669,13 @@ function [handles,levels,parentIdx,listing] = findjobj_modern(container,varargin
                         numMenuComponents = jcontainer.getMenuComponentCount;
                         if (numMenuComponents == 0)
                             jcontainer.doClick;  % needed in order to populate the sub-menu components
+                            drawnow; pause(0.001);
                             numMenuComponents = jcontainer.getMenuComponentCount;
+                            jcontainer.doClick;  % close menu by re-clicking...
+                            drawnow; pause(0.001);
                             if (numMenuComponents == 0)
                                 drawnow; %pause(0.001);
                                 numMenuComponents = jcontainer.getMenuComponentCount;
-                                jcontainer.doClick;  % close menu by re-clicking...
                                 if (numMenuComponents == 0)
                                     drawnow; %pause(0.001);
                                     numMenuComponents = jcontainer.getMenuComponentCount;

@@ -573,11 +573,117 @@ if ishandle(hinitdlg),
   delete(hinitdlg);
 end
 ClearStatus(handles);
+EnableControls(handles,'noproject');
 
 guidata(hObject, handles);
 
 % UIWAIT makes LabelerGUI wait for user response (see UIRESUME)
 % uiwait(handles.figure);
+
+function EnableControls(handles,state)
+
+switch lower(state),
+  case 'init',
+    
+    set(handles.menu_file,'Enable','off');
+    set(handles.menu_view,'Enable','off');
+    set(handles.menu_labeling_setup,'Enable','off');
+    set(handles.menu_track,'Enable','off');
+    set(handles.menu_go,'Enable','off');
+    set(handles.menu_evaluate,'Enable','off');
+    set(handles.menu_help,'Enable','off');
+    
+    set(handles.tbAdjustCropSize,'Enable','off');
+    set(handles.pbClearAllCrops,'Enable','off');
+    set(handles.pbClearSelection,'Enable','off');
+    set(handles.pumInfo,'Enable','off');
+    set(handles.tbTLSelectMode,'Enable','off');
+    set(handles.pumTrack,'Enable','off');
+    set(handles.pbTrack,'Enable','off');
+    set(handles.pbTrain,'Enable','off');
+    set(handles.pbClear,'Enable','off');
+    set(handles.tbAccept,'Enable','off');
+    set(handles.pbRecallZoom,'Enable','off');
+    set(handles.pbSetZoom,'Enable','off');
+    set(handles.pbResetZoom,'Enable','off');
+    set(handles.sldZoom,'Enable','off');
+    set(handles.pbPlaySeg,'Enable','off');
+    set(handles.pbPlay,'Enable','off');
+    set(handles.slider_frame,'Enable','off');
+    set(handles.edit_frame,'Enable','off');
+    
+    
+  case 'noproject',
+    set(handles.menu_file,'Enable','on');
+    set(handles.menu_view,'Enable','off');
+    set(handles.menu_labeling_setup,'Enable','off');
+    set(handles.menu_track,'Enable','off');
+    set(handles.menu_evaluate,'Enable','off');
+    set(handles.menu_go,'Enable','off');
+    set(handles.menu_help,'Enable','off');
+
+    set(handles.menu_file_quit,'Enable','on');
+    set(handles.menu_file_crop_mode,'Enable','off');
+    set(handles.menu_file_importexport,'Enable','off');
+    set(handles.menu_file_managemovies,'Enable','off');
+    set(handles.menu_file_load,'Enable','on');
+    set(handles.menu_file_saveas,'Enable','off');
+    set(handles.menu_file_save,'Enable','off');
+    set(handles.menu_file_new,'Enable','on');
+    set(handles.menu_file_quick_open,'Enable','on');
+    
+    set(handles.tbAdjustCropSize,'Enable','off');
+    set(handles.pbClearAllCrops,'Enable','off');
+    set(handles.pbClearSelection,'Enable','off');
+    set(handles.pumInfo,'Enable','off');
+    set(handles.tbTLSelectMode,'Enable','off');
+    set(handles.pumTrack,'Enable','off');
+    set(handles.pbTrack,'Enable','off');
+    set(handles.pbTrain,'Enable','off');
+    set(handles.pbClear,'Enable','off');
+    set(handles.tbAccept,'Enable','off');
+    set(handles.pbRecallZoom,'Enable','off');
+    set(handles.pbSetZoom,'Enable','off');
+    set(handles.pbResetZoom,'Enable','off');
+    set(handles.sldZoom,'Enable','off');
+    set(handles.pbPlaySeg,'Enable','off');
+    set(handles.pbPlay,'Enable','off');
+    set(handles.slider_frame,'Enable','off');
+    set(handles.edit_frame,'Enable','off');
+
+  case 'projectloaded'
+
+    set(findobj(handles.menu_file,'-property','Enable'),'Enable','on');
+    set(handles.menu_view,'Enable','on');
+    set(handles.menu_labeling_setup,'Enable','on');
+    set(handles.menu_track,'Enable','on');
+    set(handles.menu_evaluate,'Enable','on');
+    set(handles.menu_go,'Enable','on');
+    set(handles.menu_help,'Enable','on');
+    
+        
+    set(handles.tbAdjustCropSize,'Enable','on');
+    set(handles.pbClearAllCrops,'Enable','on');
+    set(handles.pbClearSelection,'Enable','on');
+    set(handles.pumInfo,'Enable','on');
+    set(handles.tbTLSelectMode,'Enable','on');
+    set(handles.pumTrack,'Enable','on');
+    set(handles.pbTrack,'Enable','on');
+    set(handles.pbTrain,'Enable','on');
+    set(handles.pbClear,'Enable','on');
+    set(handles.tbAccept,'Enable','on');
+    set(handles.pbRecallZoom,'Enable','on');
+    set(handles.pbSetZoom,'Enable','on');
+    set(handles.pbResetZoom,'Enable','on');
+    set(handles.sldZoom,'Enable','on');
+    set(handles.pbPlaySeg,'Enable','on');
+    set(handles.pbPlay,'Enable','on');
+    set(handles.slider_frame,'Enable','on');
+    set(handles.edit_frame,'Enable','on');
+
+  otherwise
+    fprintf('Not implemented\n');
+end
 
 function handles = initTblTrx(handles)
 tbl0 = handles.tblTrx;
@@ -1968,6 +2074,7 @@ if hlpSave(lObj)
     warndlg(wstr,'Movie not found','modal');
   end
 end
+EnableControls(handles,'projectloaded');
 ClearStatus(handles)
 
 function tfcontinue = hlpSave(labelerObj)
