@@ -154,7 +154,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=False, on_gt=Fa
 def convert_to_orig(base_locs, conf, cur_trx, trx_fnum_start, all_f, sz, nvalid, crop_loc):
     # converts locs in cropped image back to locations in original image.
     if conf.has_trx_file:
-        hsz_p = conf.imsz[0] / 2  # half size for pred
+        hsz_p = conf.imsz[0] / 2 # half size for pred
         base_locs_orig = np.zeros(base_locs.shape)
         for ii in range(nvalid):
             trx_fnum = trx_fnum_start + ii
@@ -1105,15 +1105,16 @@ def classify_movie(conf, pred_fn,
                                  cap, flipud, T, crop_loc)
 
         base_locs, hmaps = pred_fn(all_f)
-        base_locs = base_locs + 1  # for matlabs 1 - indexing
+        base_locs = base_locs   # for matlabs 1 - indexing
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
             trx_ndx = cur_entry[1]
             cur_trx = T[trx_ndx]
             cur_f = cur_entry[0]
             trx_fnum_start = cur_f - first_frames[trx_ndx]
-            base_locs_orig = convert_to_orig(base_locs[cur_t:cur_t + 1, ...], conf, cur_trx, trx_fnum_start, all_f, sz, 1, crop_loc)
-            pred_locs[cur_f - min_first_frame, trx_ndx, :, :] = base_locs_orig[0, ...]
+            base_locs_orig = convert_to_orig(base_locs[cur_t:cur_t + 1, ...], conf, cur_trx,
+                                             trx_fnum_start, all_f, sz, 1, crop_loc)
+            pred_locs[cur_f - min_first_frame, trx_ndx, :, :] = base_locs_orig[0, ...] + 1
 
             if save_hmaps:
                 write_hmaps(hmaps[cur_t, ...], hmap_out_dir, trx_ndx, cur_f)
@@ -1317,7 +1318,7 @@ def parse_args(argv):
                         help="path to lbl file")
     parser.add_argument('-name', dest='name', help='Name for the run. Default - pose_unet', default='pose_unet')
     parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views', default=None, type=int)
-    parser.add_argument('-model_file', dest='model_file', help='Use this model file for prediction instead of the latest model file', default=None)
+    parser.add_argument('-model_file', dest='model_file', help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization', default=None)
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
     parser.add_argument('-out_dir', dest='out_dir', help='Directory to output log files', default=None)
     parser.add_argument('-type', dest='type', help='Network type, default is unet', default='unet',

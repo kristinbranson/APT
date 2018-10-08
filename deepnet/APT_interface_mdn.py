@@ -1175,7 +1175,7 @@ def train_unet(conf, args):
     tf.reset_default_graph()
     self = PoseUMDN(conf)
     self.train_data_name = 'traindata'
-    self.train_umdn()
+    self.train_umdn(restore=args.restore)
 
 
 def train_leap(conf, args):
@@ -1316,6 +1316,8 @@ def parse_args(argv):
                               help='Use default settings of openpose, deeplabcut or leap')
     parser_train.add_argument('-use_cache', dest='use_cache', action='store_true',
                               help='Use cached images in the label file to generate the training data.')
+    parser_train.add_argument('-continue', dest='restore', action='store_true',
+                              help='Continue training from where it was left off')
     # parser_train.add_argument('-cache',dest='cache_dir',
     #                           help='cache dir for training')
 
