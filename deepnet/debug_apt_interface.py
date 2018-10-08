@@ -1,4 +1,73 @@
 
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+conf.use_unet_loss = True
+conf.pretrained_weights = '/groups/branson/bransonlab/mayank/PoseTF/data/pretrained/resnet_tf_v2/20180601_resnet_v2_imagenet_checkpoint/model.ckpt-258931'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+import PoseUNet_resnet
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,'joint_deconv')
+self.train_umdn(restore=True)
+
+
+## check loc transformations.
+
+import h5py
+import APT_interface as apt
+import multiResData
+from poseConfig import aliceConfig as conf
+import movies
+from scipy import io as sio
+
+on_gt = False
+
+lbl = h5py.File(conf.labelfile, 'r')
+local_dirs, _ = multiResData.find_local_dirs(conf, False)
+ndx = 0
+dir_name = local_dirs[ndx]
+cap = movies.Movie(dir_name)
+trx_files = multiResData.get_trx_files(lbl, local_dirs, on_gt)
+trx = sio.loadmat(trx_files[ndx])['trx'][0]
+n_trx = len(trx)
+trx_ndx = 0
+frames = multiResData.get_labeled_frames(lbl, ndx, trx_ndx, False)
+
+sel_pts = conf.selpts
+cur_trx = trx[trx_ndx]
+fnum = frames[0]
+cur_pts = multiResData.trx_pts(lbl, ndx, on_gt)
+frame_in, cur_loc = multiResData.get_patch(
+    cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts], cur_trx=cur_trx, crop_loc=None)
+
+T, first_frames, end_frames, n_trx = apt.get_trx_info(trx_files[ndx], conf, 100000)
+trx_fnum_start = fnum - first_frames[trx_ndx]
+t_loc = apt.convert_to_orig(cur_loc[np.newaxis,...], conf, cur_trx, trx_fnum_start, None, None,1, None)
+dd = np.sqrt(np.sum((t_loc[0,:,:]-cur_pts[trx_ndx,fnum,:,sel_pts])**2,axis=-1))
+print dd
+##
+
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+import RNN_postprocess
+self = RNN_postprocess.RNN_pp(conf,'joint_deconv',
+                              name = 'rnn_pp_conv_no_skip',
+                              data_name='rnn_pp_bidir')
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# self.net_type = 'conv'
+self.train()
+V = self.classify_val()
+##
+
+
+cmd = '-cache /nrs/branson/mayank/apt_cache/alice_model_20181002 /groups/branson/home/kabram/temp/multitarget_bubble_expandedbehavior_20180425_modified1.lbl track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/movie.ufmf -trx /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/registered_trx.mat -out /nrs/branson/mayank/apt_cache/alice_model_20181002/temp.trk  -start_frame 13230 -end_frame 13300'
+args = cmd.split()
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+import APT_interface as apt
+apt.main(args)
+
+##
 import tensorflow as tf
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
@@ -8,12 +77,13 @@ conf.labelfile = '/groups/branson/bransonlab/mayank/PoseTF/data/alice/multitarge
 import RNN_postprocess
 self = RNN_postprocess.RNN_pp(conf,'unet_resnet_official',
                               name = 'rnn_pp_transformer',
-                              data_name='rnn_pp_bidir_excoord')
+                              data_name='test')
 import os
-self.train_rep = 10
+self.train_rep = 1
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 self.locs_coords = 'example'
+self.debug = True
 self.create_db('/groups/branson/bransonlab/mayank/PoseTF/cache/alice_moreeval/splitdata.json')
 
 ##
@@ -21,14 +91,63 @@ self.create_db('/groups/branson/bransonlab/mayank/PoseTF/cache/alice_moreeval/sp
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
 import RNN_postprocess
-self = RNN_postprocess.RNN_pp(conf,'unet_resnet_official',name = 'rnn_pp')
-import tensorflow as tf
+self = RNN_postprocess.RNN_pp(conf,'unet_resnet_official',
+                              name = 'rnn_pp_conv_skip',
+                              data_name='rnn_pp_bidir')
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # self.net_type = 'conv'
 self.train()
-V = self.classify_val(model_file='/groups/branson/bransonlab/mayank/PoseTF/cache/alice_moreeval/aliceFly_rnn_pp-130000')
+V = self.classify_val()
+
+pp = V[1].reshape([-1,17,2])
+ll = V[2].reshape([-1,17,2])
+dd = np.sqrt(np.sum((pp-ll)**2,axis=-1))
+ppo = V[3][:,:34].reshape([-1,17,2])
+ddo = np.sqrt(np.sum((ppo-ll)**2,axis=-1))
+xxo = np.percentile(ddo,[90,95,98,99],axis=0)*max(conf.imsz)
+xx = np.percentile(dd,[90,95,98,99],axis=0)*max(conf.imsz)
+
+#xx
+res = np.array([[
+         1.80364551,  1.69575246,  1.67426285,  1.76577435,  1.579601  ,
+         1.84871412,  3.13844453,  2.08043529,  2.3782408 ,  1.92955603,
+         2.43570741,  3.79659706,  4.06354492,  5.73352012,  6.00309658,
+         3.2418871 ,  3.26953066],
+       [ 2.11390513,  1.99838733,  1.976268  ,  2.05494483,  1.90984056,
+         2.22680451,  3.53576434,  2.40976311,  2.9644746 ,  2.35198678,
+         2.95095041,  5.07868002,  5.25308616,  7.67363181,  8.4102668 ,
+         4.23697015,  4.30647103],
+       [ 2.61365095,  2.45946475,  2.35853781,  2.4234413 ,  2.30256417,
+         2.66892549,  4.16666702,  2.89393716,  3.92726722,  2.81578129,
+         3.74144504,  7.24095993,  7.34431106, 10.08861209, 11.45328673,
+         6.60340657,  6.22612457],
+       [ 3.09053002,  2.81819323,  2.76718237,  2.70491357,  2.63553676,
+         3.10034395,  4.42760013,  3.23359988,  4.78180579,  3.18823969,
+         4.44198214,  8.97574577, 10.00289767, 12.68000074, 13.18696339,
+         8.79415605,  7.90214257]])
+
+#xxo
+res_old = np.array([[
+         1.49136081,  1.56254737,  1.34695339,  1.39857119,  1.2528565 ,
+         1.65538806,  3.43192526,  1.62278219,  2.28333682,  1.60846648,
+         2.27924607,  3.76117975,  3.85477328,  5.93197075,  5.8990881 ,
+         2.850875  ,  3.31280479],
+       [ 1.78629012,  1.7667829 ,  1.54653622,  1.56400294,  1.42882386,
+         1.88952688,  3.83356381,  1.97244375,  2.98738912,  1.91013101,
+         2.73122715,  5.04301531,  5.31638032,  8.1395703 ,  8.59475827,
+         4.020976  ,  4.46488173],
+       [ 2.17408585,  1.98854999,  1.85151215,  1.79422603,  1.6481121 ,
+         2.25822602,  4.29838114,  2.42178381,  4.03215446,  2.39262505,
+         3.6287133 ,  7.67961704,  7.54905661, 10.77928395, 11.78846035,
+         6.42459216,  6.62846603],
+       [ 2.6234016 ,  2.18333878,  2.13563475,  1.98056923,  1.83855431,
+         2.56913315,  4.67488301,  2.71745852,  4.8243573 ,  2.7104543 ,
+         4.34407322,  9.76701581, 10.34117991, 14.0200528 , 13.67878039,
+         8.9695074 ,  7.77906415]])
+
 ##
+
 
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'

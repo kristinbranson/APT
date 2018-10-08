@@ -747,12 +747,12 @@ class PoseUMDN(PoseCommon.PoseCommon):
         return cur_loss, cur_dist
 
 
-    def train_umdn(self):
+    def train_umdn(self, restore=False):
 
         self.joint = True
         def loss(inputs, pred):
-            # mdn_loss = self.l2_loss(pred, inputs[1])
-            mdn_loss = self.my_loss(pred, inputs[1])
+            mdn_loss = self.l2_loss(pred, inputs[1])
+            # mdn_loss = self.my_loss(pred, inputs[1])
             unet_pred = self.dep_nets[0].pred
             unet_loss = tf.nn.l2_loss(inputs[-1]-unet_pred)
             unet_pred_shape = np.array(unet_pred.get_shape().as_list()[1:3]).astype('float32')
@@ -766,7 +766,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
         super(self.__class__, self).train(
             create_network=self.create_network,
             loss=loss,
-            learning_rate=0.0001)
+            learning_rate=0.0001, restore=restore)
 
 
     def restore_net(self, model_file=None):

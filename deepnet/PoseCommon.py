@@ -462,7 +462,7 @@ class PoseCommon(object):
             self.dep_nets.create_joint_saver(name)
 
 
-    def restore(self, sess, do_restore, at_step=-1):
+    def restore(self, sess, do_restore, at_step=-1, model_file=None):
         saver = self.saver
         name = self.net_name
         out_file = saver['out_file'].replace('\\', '/')
@@ -474,6 +474,9 @@ class PoseCommon(object):
                 PoseTools.get_vars(name)),
                 feed_dict=self.fd)
             print("Not loading {:s} variables. Initializing them".format(name))
+        elif model_file is not None:
+            saver['saver'].restore(sess, model_file)
+            start_at = 0
         else:
             if at_step < 0:
                 model_file = latest_ckpt.model_checkpoint_path
@@ -573,6 +576,10 @@ class PoseCommon(object):
 
 
     def save_td(self):
+        '''
+        Save training data
+        :return:
+        '''
         saver = self.saver
         train_data_file = saver['train_data_file']
         with open(train_data_file, 'wb') as td_file:
@@ -591,6 +598,10 @@ class PoseCommon(object):
 
 
     def create_ph_fd(self):
+        '''
+        Create place holders and feed dict
+        :return:
+        '''
         self.ph = {}
         learning_rate_ph = tf.placeholder(
             tf.float32, shape=[], name='learning_r')
@@ -624,10 +635,22 @@ class PoseCommon(object):
 #        self.create_fd()
 
 
-    def init_and_restore(self, sess, restore, td_fields, distort, shuffle, at_step=-1):
+    def init_and_restore(self, sess, restore, td_fields, distort,
+                         shuffle, at_step=-1, model_file=None):
+        '''
+        Initializes and/or restores network
+        :param sess:
+        :param restore:
+        :param td_fields:
+        :param distort:
+        :param shuffle:
+        :param at_step:
+        :param model_file:
+        :return:
+        '''
         self.create_cursors(sess,distort,shuffle)
         #self.update_fd(db_type=self.DBType.Train, sess=sess, distort=True)
-        start_at = self.restore(sess, restore, at_step)
+        start_at = self.restore(sess, restore, at_step, model_file=model_file)
         initialize_remaining_vars(sess)
 
         try:
@@ -707,6 +730,12 @@ class PoseCommon(object):
 
 
     def compute_train_data(self, sess, db_type):
+        '''
+        Computes the loss and distance for training or validation data
+        :param sess:
+        :param db_type:
+        :return:
+        '''
         self.setup_train(sess) if db_type is self.DBType.Train \
             else self.setup_val(sess)
         cur_loss, cur_pred, self.locs, self.info, self.extra_data, cur_im, cur_label = \
@@ -719,7 +748,20 @@ class PoseCommon(object):
 
     def train(self, restore, train_type, create_network,
               training_iters, loss, pred_in_key, learning_rate,
-              td_fields=('loss', 'dist')):
+              td_fields=('loss', 'dist'), model_file=None):
+        """
+
+        :param restore: whether to continue training from previously incomplete training
+        :param train_type: whether to use whole dataset or use the train/val splits
+        :param create_network: function to create the network
+        :param training_iters: number of training iters
+        :param loss: loss function
+        :param pred_in_key: prediction key
+        :param learning_rate:
+        :param td_fields: fields to save in training data
+        :param model_file: start from these weights
+        :return:
+        """
 
         self.init_train(train_type)
         self.pred = create_network()

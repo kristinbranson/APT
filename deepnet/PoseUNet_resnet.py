@@ -167,6 +167,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                                        data_format='channels_last', dtype=tf.float32)
             resnet_out = mm(im, self.ph['phase_train'])
             down_layers = mm.layers
+            down_layers.pop(2) # remove one of the layers of size imsz/4, imsz/4 at index 2
             net = down_layers[-1]
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
 
@@ -196,19 +197,19 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                         layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
                         with tf.variable_scope('u_{}'.format(ndx)):
-                             X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
-    #                        X_sh = X.get_shape().as_list()
-    #                        w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
-    #                        for wndx in range(X_sh[-1]):
-    #                            w_mat[:,:,wndx,wndx] = 1.
-    #                        w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
-    #                        out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
-    #                        X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
-    #                        biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
-    #                        conv_b = X + biases
-    #
-    #                        bn = batch_norm(conv_b)
-    #                        X = tf.nn.relu(bn)
+                             # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+                           X_sh = X.get_shape().as_list()
+                           w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
+                           for wndx in range(X_sh[-1]):
+                               w_mat[:,:,wndx,wndx] = 1.
+                           w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
+                           out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
+                           X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+                           biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
+                           conv_b = X + biases
+
+                           bn = batch_norm(conv_b)
+                           X = tf.nn.relu(bn)
 
                     prev_in = X
 
@@ -221,6 +222,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
                 X = tf.add(conv, biases, name = 'unet_pred')
                 X_unet = 2*tf.sigmoid(X)-1
+
             self.unet_pred = X_unet
 
         X = net
@@ -337,16 +339,16 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 # blur_weights
                 self.logits_pre_blur = logits
                 # blur the weights during training.
-                blur_rad = 2.5 #0.7
-                filt_sz = np.ceil(blur_rad * 3).astype('int')
-                xx, yy = np.meshgrid(np.arange(-filt_sz, filt_sz + 1), np.arange(-filt_sz, filt_sz + 1))
-                gg = stats.norm.pdf(np.sqrt(xx ** 2 + yy ** 2)/blur_rad)
-                gg = gg/gg.sum()
-                blur_kernel = np.tile(gg[:,:,np.newaxis,np.newaxis],[1,1,k*n_groups, k*n_groups])
-                logits_blur = tf.nn.conv2d(logits, blur_kernel,[1,1,1,1], padding='SAME')
-                # blur_weights_extra
-                #logits = tf.cond(self.ph['phase_train'], lambda: tf.identity(logits_blur), lambda: tf.identity(logits))
-                logits = logits_blur
+                # blur_rad = 2.5 #0.7
+                # filt_sz = np.ceil(blur_rad * 3).astype('int')
+                # xx, yy = np.meshgrid(np.arange(-filt_sz, filt_sz + 1), np.arange(-filt_sz, filt_sz + 1))
+                # gg = stats.norm.pdf(np.sqrt(xx ** 2 + yy ** 2)/blur_rad)
+                # gg = gg/gg.sum()
+                # blur_kernel = np.tile(gg[:,:,np.newaxis,np.newaxis],[1,1,k*n_groups, k*n_groups])
+                # logits_blur = tf.nn.conv2d(logits, blur_kernel,[1,1,1,1], padding='SAME')
+                # # blur_weights_extra
+                # #logits = tf.cond(self.ph['phase_train'], lambda: tf.identity(logits_blur), lambda: tf.identity(logits))
+                # logits = logits_blur
 
                 logits = tf.reshape(logits, [-1, n_x * n_y, k * n_groups])
                 logits = tf.reshape(logits, [-1, n_x * n_y * k, n_groups], name='logits_final')
@@ -360,13 +362,14 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         return var_list
 
 
-    def train_umdn(self):
+    def train_umdn(self, restore=False):
 
         self.joint = True
         def loss(inputs, pred):
-            mdn_loss = self.my_loss(pred, inputs[1])
-            # mdn_loss = self.l2_loss(pred, inputs[1])
+            # mdn_loss = self.my_loss(pred, inputs[1])
+            mdn_loss = self.l2_loss(pred, inputs[1])
             if self.conf.use_unet_loss:
+                # unet_loss = tf.losses.mean_squared_error(inputs[-1], self.unet_pred)
                 unet_loss = tf.sqrt(tf.nn.l2_loss(inputs[-1]-self.unet_pred))/self.conf.label_blur_rad/self.conf.n_classes
                 return mdn_loss + unet_loss
             else:
@@ -375,7 +378,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         super(self.__class__, self).train(
             create_network=self.create_network,
             loss=loss,
-            learning_rate=0.0001)
+            learning_rate=0.0001,restore=restore)
 
     def my_loss(self, X, y):
 
@@ -429,13 +432,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         logit_eps = self.conf.mdn_logit_eps_training
         ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
         ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
+        # ll now has normalized logits.
         for cls in range(self.conf.n_classes):
             pp = y[:, cls:cls + 1, :]/locs_offset
             kk = tf.sqrt(tf.reduce_sum(tf.square(pp - mdn_locs[:, :, cls, :]), axis=2))
-            # tf.div is actual correct implementation of gaussian distance.
-            # but we run into numerical issues. Since the scales are withing
-            # the same range, I'm just ignoring them for now.
-            # dd = tf.div(tf.exp(-kk / (cur_scales ** 2) / 2), 2 * np.pi * (cur_scales ** 2))
+            # kk is the distance between all predictions for point cls from the labels.
             cur_comp.append(kk)
 
         cur_loss = 0
