@@ -311,6 +311,10 @@ classdef LabelTracker < handle
       % Called when Labeler is navigated to a new movie
     end
     
+    function updateLandmarkColors(obj)
+      % Called when colors for landmarks have changed
+    end
+    
     function labelerMovieRemoved(obj,eventdata)
       % Called on Labeler/movieRemoved
     end

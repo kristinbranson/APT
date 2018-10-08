@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 02-Oct-2018 14:34:57
+% Last Modified by GUIDE v2.5 08-Oct-2018 13:30:01
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -58,9 +58,18 @@ end
 set(handles.txPrevIm,'String','');
 set(handles.edit_frame,'String','');
 set(handles.txStatus,'String','');
+syncStatusBarTextWhenClear(handles);
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
 %set(handles.pnlSusp,'Visible','off');
+
+% color of status bar when GUI is busy vs idle
+handles.idlestatuscolor = [0,1,0];
+handles.busystatuscolor = [1,0,1];
+setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
+setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
+SetStatus(handles,'Initializing GUI...');
+
 
 %handles.pnlSusp.Visible = 'off';
 
@@ -551,14 +560,9 @@ handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
 %handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated'; % this is set in LabelerTooltips now
 
-% color of status bar when GUI is busy vs idle
-handles.idlestatuscolor = [0,1,0];
-handles.busystatuscolor = [1,0,1];
-setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
-setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
-syncStatusBarTextWhenClear(handles);
-
+set(handles.figure,'Visible','on');
 LabelerTooltips(handles);
+ClearStatus(handles);
 
 guidata(hObject, handles);
 
@@ -3251,3 +3255,67 @@ function menu_track_tracking_algorithm_Callback(hObject, eventdata, handles)
 % hObject    handle to menu_track_tracking_algorithm (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+
+
+% --------------------------------------------------------------------
+function menu_view_landmark_colors_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_view_landmark_colors (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% --------------------------------------------------------------------
+function menu_view_landmark_label_colors_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_view_landmark_label_colors (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+nlandmarks = handles.labelerObj.nLabelPoints;
+
+if isfield(handles.labelerObj.labelPointsPlotInfo,'Colors'),
+  colors = handles.labelerObj.labelPointsPlotInfo.Colors;
+else
+  colors = [];
+end
+if isfield(handles.labelerObj.labelPointsPlotInfo,'ColorMapName'),
+  colormapname = handles.labelerObj.labelPointsPlotInfo.ColorMapName;
+else
+  colormapname = '';
+end
+
+[ischange,newcolors,newcolormapname] = LandmarkColors(colors,colormapname,nlandmarks,'Label colors');
+if ~ischange,
+  return;
+end
+handles.labelerObj.updateLandmarkLabelColors(newcolors,newcolormapname);
+
+guidata(hObject,handles);
+
+% --------------------------------------------------------------------
+function menu_view_landmark_prediction_colors_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_view_landmark_prediction_colors (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% predictions: handles.labelerObj.projPrefs.Track
+% labels: handles.labelerObj.labelPointsPlotInfo
+
+nlandmarks = handles.labelerObj.nLabelPoints;
+if isfield(handles.labelerObj.projPrefs,'Track') && ...
+    isfield(handles.labelerObj.projPrefs.Track,'PredictPointsPlotColorMapName'),
+  colormapname = handles.labelerObj.projPrefs.Track.PredictPointsPlotColorMapName;
+else
+  colormapname = '';
+end
+if isfield(handles.labelerObj.projPrefs,'Track') && ...
+    isfield(handles.labelerObj.projPrefs.Track,'PredictPointsPlotColors'),
+  colors = handles.labelerObj.projPrefs.Track.PredictPointsPlotColors;
+else
+  colors = [];
+end
+[ischange,newcolors,newcolormapname] = LandmarkColors(colors,colormapname,nlandmarks,'Prediction colors');
+if ~ischange,
+  return;
+end
+handles.labelerObj.updateLandmarkPredictionColors(newcolors,newcolormapname);
+

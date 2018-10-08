@@ -4812,6 +4812,31 @@ classdef Labeler < handle
       end
       tf = any(~isnan(lpos(:)));
     end
+    
+    function updateLandmarkLabelColors(obj,colors,colormapname)
+      
+      obj.labelPointsPlotInfo.ColorMapName = colormapname;
+      obj.labelPointsPlotInfo.Colors = colors;
+      obj.lblCore.updateColors(colors);
+      obj.gdata.labelTLInfo.updateLandmarkColors();
+      
+    end
+    
+    function updateLandmarkPredictionColors(obj,colors,colormapname)
+      
+      obj.projPrefs.Track.PredictPointsPlotColors = colors;
+      obj.projPrefs.Track.PredictPointsPlotColorMapName = colormapname;
+      obj.tracker.updateLandmarkColors();
+      
+      hProp = 'labeledpos2_ptsH';
+      hTxtProp = 'labeledpos2_ptsTxtH';
+      
+      for i = 1:obj.nLabelPoints
+        set(obj.(hProp)(i),'Color',colors(i,:));
+        set(obj.(hTxtProp)(i),'Color',colors(i,:));
+      end      
+      
+    end
 
   end
   
@@ -9992,7 +10017,11 @@ classdef Labeler < handle
       trkPrefs = obj.projPrefs.Track;
       if ~isempty(trkPrefs)
         ptsPlotInfo = trkPrefs.PredictPointsPlot;
-        ptsPlotInfo.Colors = obj.labelPointsPlotInfo.Colors;
+        if isfield(trkPrefs,'PredictPointsPlotColors'),
+          ptsPlotInfo.Colors = trkPrefs.PredictPointsPlotColors;
+        else
+          ptsPlotInfo.Colors = obj.labelPointsPlotInfo.Colors;
+        end
       else
         ptsPlotInfo = obj.labelPointsPlotInfo;
       end

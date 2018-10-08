@@ -27,10 +27,9 @@ set(handles.pbRecallZoom,'TooltipString','Recall stored zoom level');
 oldvisible = get(handles.figure,'Visible');
 if strcmp(oldvisible,'off'),
   set(handles.figure,'Visible','on');
-  pause(.5);
-  jobjs = findjobj_modern(handles.figure,'class','MenuPeer');
-  set(handles.figure,'Visible','off');
+  pause(1);
 end
+jobjs = findjobj_modern(handles.figure,'class','MenuPeer');
 jobjnames = cell(size(jobjs));
 for i = 1:numel(jobjs),
   jobjnames{i} = get(jobjs(i),'Name');
@@ -132,15 +131,6 @@ if isfield(handles,'menu_track_set_labels'),
   SetTooltip(handles.menu_track_set_labels,'Set labels to predictions for current frame',jobjs,jobjnames);
 end
 
-
-
-
-
-
-
-
-
-
-
-
-
+if strcmp(oldvisible,'off'),
+  set(handles.figure,'Visible','off');
+end

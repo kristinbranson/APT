@@ -348,7 +348,15 @@ classdef InfoTimeline < handle
     function newTarget(obj)
       obj.setLabelsFull();
     end
-
+    
+    function updateLandmarkColors(obj)
+    
+      colors = obj.lObj.labelPointsPlotInfo.Colors;
+      for i=1:obj.npts
+        set(obj.hPts(i),'Color',colors(i,:));
+      end
+    end
+    
     function selectInit(obj)
       if obj.lObj.isinit || isnan(obj.nfrm), return; end
 

@@ -1924,6 +1924,20 @@ classdef CPRLabelTracker < LabelTracker
       end 
     end
     
+    function updateLandmarkColors(obj)
+      
+      npts = obj.nPts;
+      ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;      
+      for iPt=1:npts
+        set(obj.hXYPrdRed(iPt),'Color',ptsClrs(iPt,:));
+        set(obj.hXYPrdRedOther(iPt),'Color',ptsClrs(iPt,:));
+        setIgnoreUnknown(obj.hXYPrdFull(iPt),...
+          'MarkerFaceColor',ptsClrs(iPt,:),...
+          'MarkerEdgeColor',ptsClrs(iPt,:));
+      end
+      
+    end
+    
     function newLabelerTarget(obj)
       if obj.lObj.isinit
         return;

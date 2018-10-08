@@ -183,7 +183,7 @@ classdef LabelCore < handle
       
       obj.initHook();
     end
-       
+           
   end
   
   methods
@@ -271,6 +271,26 @@ classdef LabelCore < handle
     end
     
     function getLabelingHelp(obj) %#ok<MANU>
+    end
+    
+    function updateColors(obj,colors)
+      
+      obj.ptsPlotInfo.Colors = colors;
+      
+      for i = 1:obj.nPts
+        if numel(obj.hPts) >= i && ishandle(obj.hPts(i)),
+          set(obj.hPts(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+        end
+        if numel(obj.hPtsOcc) >= i && ishandle(obj.hPtsOcc(i)),
+          set(obj.hPtsOcc(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+        end
+        if numel(obj.hPtsTxt) >= i && ishandle(obj.hPtsTxt(i)),
+          set(obj.hPtsTxt(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+        end
+        if numel(obj.hPtsTxtOcc) >= i && ishandle(obj.hPtsTxtOcc(i)),
+          set(obj.hPtsTxtOcc(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+        end
+      end
     end
           
   end
