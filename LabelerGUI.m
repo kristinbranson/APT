@@ -2063,6 +2063,7 @@ handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
 function menu_file_load_Callback(hObject, eventdata, handles)
 
 SetStatus(handles,'Loading Project',true);
+EnableControls(handles,'projectloaded');
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   currMovInfo = lObj.projLoad();
@@ -2074,7 +2075,6 @@ if hlpSave(lObj)
     warndlg(wstr,'Movie not found','modal');
   end
 end
-EnableControls(handles,'projectloaded');
 ClearStatus(handles)
 
 function tfcontinue = hlpSave(labelerObj)
