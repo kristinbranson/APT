@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 14-Jun-2018 12:35:42
+% Last Modified by GUIDE v2.5 02-Oct-2018 14:34:57
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -12,6 +12,7 @@ gui_Singleton = 0;
 if ispc && ~verLessThan('matlab','8.6') % 8.6==R2015b
   gui_Name = 'LabelerGUI_PC_15b';
 elseif isunix
+  %gui_Name = 'LabelerGUI_lnx';
   gui_Name = 'LabelerGUI_lnx';
 else
   gui_Name = 'LabelerGUI_PC_14b';
@@ -63,8 +64,6 @@ set(handles.txLblCoreAux,'Visible','off');
 
 %handles.pnlSusp.Visible = 'off';
 
-handles=LabelerTooltips(handles); 
-
 PURP = [80 31 124]/256;
 handles.tbTLSelectMode.BackgroundColor = PURP;
 
@@ -73,9 +72,9 @@ handles.output = hObject;
 handles.labelerObj = varargin{1};
 varargin = varargin(2:end); %#ok<NASGU>
 
-handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_importexport,...
+handles.menu_file_export_labels_table = uimenu('Parent',handles.menu_file_import_export_advanced,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_export_labels_table_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Export Labels as Single Table',...
+  'Label','Export Labels as Table',...
   'Tag','menu_file_export_labels_table',...
   'Checked','off',...
   'Visible','on');
@@ -220,7 +219,7 @@ moveMenuItemAfter(handles.menu_view_show_grid,handles.menu_view_show_tick_labels
 % moveMenuItemAfter(handles.menu_view_show_3D_axes,handles.menu_view_show_grid);
 
 set(handles.menu_track_setparametersfile,...
-  'Label','Configure tracking parameters',...
+  'Label','Configure tracking parameters...',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_setparametersfile_Callback',hObject,eventdata,guidata(hObject)),...
   'Separator','on'); % separator b/c trackers are listed above
 
@@ -274,7 +273,7 @@ moveMenuItemAfter(handles.menu_track_clear_tracking_results,handles.menu_track_e
 
 handles.menu_track_set_labels = uimenu('Parent',handles.menu_track,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_track_set_labels_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Set manual labels to predicted pose',...
+  'Label','Set manual labels to automatic prediction',...
   'Tag','menu_track_set_labels');  
 
 % tfBGok = ~isempty(ver('distcomp')) && ~verLessThan('distcomp','6.10');
@@ -356,13 +355,13 @@ moveMenuItemBefore(handles.menu_help_about,handles.menu_help_labeling_actions);
 handles.menu_go = uimenu('Parent',handles.figure,'Position',4,'Label','Go');
 handles.menu_go_targets_summary = uimenu('Parent',handles.menu_go,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_go_targets_summary_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Switch targets',...
+  'Label','Switch targets...',...
   'Tag','menu_go_targets_summary',...
   'Separator','off',...
   'Checked','off');
 handles.menu_go_nav_prefs = uimenu('Parent',handles.menu_go,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_go_nav_prefs_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Navigation preferences',...
+  'Label','Navigation preferences...',...
   'Tag','menu_go_nav_prefs',...
   'Separator','off',...
   'Checked','off');
@@ -558,6 +557,8 @@ handles.busystatuscolor = [1,0,1];
 setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
 setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
 syncStatusBarTextWhenClear(handles);
+
+LabelerTooltips(handles);
 
 guidata(hObject, handles);
 
@@ -1368,15 +1369,26 @@ mnu.Checked = onIff(tf);
 function handles = setupAvailTrackersMenu(handles,tObjs)
 % set up menus and put in handles.menu_track_trackers (cell arr)
 
+trackermenu_dict = {
+  'cpr','Cascaded Pose Regression (CPR)'
+  'poseTF','Deep Convolutional Network - UNet'
+  };
+
 cellfun(@delete,handles.menu_track_trackers);
 
 nTrker = numel(tObjs);
 menuTrks = cell(nTrker,1);
 for i=1:nTrker  
   algName = tObjs{i}.algorithmName;
+  j = find(strcmp(algName,trackermenu_dict(:,1)));
+  if ~isempty(j),
+    algLabel = trackermenu_dict{j,2};
+  else
+    algLabel = algName;
+  end
   mnu = uimenu( ...
-    'Parent',handles.menu_track,...
-    'Label',algName,...
+    'Parent',handles.menu_track_tracking_algorithm,...
+    'Label',algLabel,...
     'Callback',@cbkTrackerMenu,...
     'Tag',sprintf('menu_track_%s',algName),...
     'UserData',i,...
@@ -2060,8 +2072,14 @@ lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
 handles.labelerObj.labelingInit('labelMode',lblMode);
 
 function menu_setup_label_overlay_montage_Callback(hObject,evtdata,handles)
+
+SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
 handles.labelerObj.labelOverlayMontage('trxCtred',false); 
+ClearStatus(handles);
+
 function menu_setup_label_overlay_montage_trx_centered_Callback(hObject,evtdata,handles)
+
+SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
 lObj = handles.labelerObj;
 hFig(1) = lObj.labelOverlayMontage('trxCtred',true,...
   'trxCtredRotAlignMeth','none'); 
@@ -2074,6 +2092,7 @@ catch ME
 end
 hFig(3) = lObj.labelOverlayMontage('trxCtred',true,...
   'trxCtredRotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
+ClearStatus(handles);
 
 function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -2569,8 +2588,10 @@ tObj.trnDataUseAll();
 % tObj.trnDataSelect();
 
 function menu_track_training_data_montage_Callback(hObject,eventdata,handles)
+SetStatus(handles,'Plotting training examples');
 lObj = handles.labelerObj;
 lObj.tracker.trainingDataMontage();
+ClearStatus(handles);
 
 function menu_track_trainincremental_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackTrain();
@@ -2704,9 +2725,15 @@ function menu_track_clear_tracking_results_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 % legacy behavior not sure why; maybe b/c the user is prob wanting to increase avail mem
 %lObj.preProcInitData(); 
+res = questdlg('Are you sure you want to clear tracking results?');
+if ~strcmpi(res,'yes'),
+  return;
+end
+SetStatus(handles,'Clearing tracking results');
 tObj = lObj.tracker;
 tObj.clearTrackingResults();
-msgbox('Tracking results cleared.','Done');
+ClearStatus(handles);
+%msgbox('Tracking results cleared.','Done');
 
 function menu_track_cpr_storefull_dont_store_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
@@ -2763,7 +2790,9 @@ tm = getTrackMode(handles);
 if ~tfok
   return;
 end
+SetStatus(handles,'Tracking');
 handles.labelerObj.trackAndExport(tm,'rawtrkname',rawtrkname);
+ClearStatus(handles);
 
 function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -3190,3 +3219,35 @@ catch
   warning('Could not get text_when_clear appdata for status bar');
   s = '';
 end
+
+
+% --------------------------------------------------------------------
+function menu_file_export_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_file_export_labels2_trk_curr_mov (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+lObj = handles.labelerObj;
+iMov = lObj.currMovie;
+if iMov==0
+  error('LabelerGUI:noMov','No movie currently set.');
+end
+[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
+if ~tfok
+  return;
+end
+lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
+
+
+% --------------------------------------------------------------------
+function menu_file_import_export_advanced_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_file_import_export_advanced (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --------------------------------------------------------------------
+function menu_track_tracking_algorithm_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_track_tracking_algorithm (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)

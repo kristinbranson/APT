@@ -1,16 +1,26 @@
-classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
+classdef CalRig2CamCaltech < CalRigZhang2CamBase & matlab.mixin.Copyable
 
+% XXX 20181005. WIP subclassing from CalRigZhang2CamBase. This class is 
+% probably currently not functional. There are minor differences in 
+% conventions etc that need to be resolved. If we need this, it may be 
+% better to revert this commit.
+  
   % Coord system notes
   %
   % XL, XR. These are physical 3D coords in the various camera frames. 
   % The camera frames are related to each other by the T, om matrices 
   % generating during stereo calibration. We call these as eg "physical 
   % coords in Left Camera frame" or "3D coords in Left camera frame".
+  %
+  % xLn, xRn. Normalized coords in a camera frame are computed by dividing
+  % by the Z-coord in that frame, eg xLn(1:2) = XL(1:2)/XL(3). Points lying
+  % along a 3D ray emanating from the camera all share the same normalized
+  % coords; xLn = (tan(theta_x),tan(theta_y)).
   % 
-  % xL, xR. These are 2D projections of points onto the Camera image 
-  % planes. We refer to these as eg "Left camera image points" or "Left 
-  % camera projection points." The coordinate system here is as in the 
-  % Caltech toolbox:
+  % xLp, xRp. Projected coords. These are 2D projections of points onto the 
+  % Camera image planes. We refer to these as eg "Left camera image points" 
+  % or "Left camera projection points." The coordinate system here is as in
+  % the Caltech toolbox:
   %   * The center of the upper-left pixel is [0;0]
   %   * The center of the upper-right pixel is [nx-1;0]
   %   * The center of the lower-left pixel is [0;ny-1], etc.
@@ -19,34 +29,14 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
   % cropped images. We refer to these as "Left camera cropped points".
   %
   % To transform from the x's to the X's, we use stereo_triangulation.
-  % To transform from the X's to the x's, we use project_points2.
+  % To transform from the X's to the xp's, we use project_points2.
+  % - alternately, it is easy to go from the X's to the xn's, then apply i)
+  %   distortions, ii) magnification&skew, and iii) offset (principal
+  %   point) to reach the xp's. See normalized2projected.
   % To transform from the y's to the x's, we pad (conceptually) to 'uncrop'
   %   and then we flipUD the bottom image.
   % To transform from the x's to the y's, we flipUD the bottom image and
   %   then crop using the ROIs.
-    
-  % Abstract in CalRig
-  properties
-    nviews = 2;
-    viewNames = {'' ''}; % cam0 cam1
-    viewSizes = [nan nan; nan nan];
-  end
-  properties
-    % Min/Max meaningful values of normalized coords xn. For view iView,
-    % viewXNlimits(iView,:) gives
-    % 
-    % [min-xn max-xn min-yn max-yn].
-    %
-    % This is used by normalized2projected(). The point is that, depending
-    % on rig geometry, there are only certain regimes of normalized coords
-    % that remotely make sense. When normalized coords far outside this
-    % meaningful regime are used in normalized2projected(), the result can
-    % be counterintuitive/incorrect/non-meaningful projected coords due to
-    % high nonlinearities. To avoid these spurious artifacts,
-    % normalized2projected() crops normalized points outside the
-    % viewXNlimits.
-    viewXNLimits = [-.35 .35 -.35 .35;-.35 .35 -.35 .35];
-  end
   
   properties
     calibFile; % string
@@ -66,12 +56,8 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
     RRL
     TLR
   end
-  properties (Dependent)
-    R
-    T    
-  end
   
-  methods    
+  methods
     function R = get.RLR(obj)
       R = obj.RRL';
     end
@@ -80,15 +66,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
     end
     function T = get.TLR(obj)
       T = -obj.RRL'*obj.TRL;
-    end
-    function s = get.R(obj)
-      s = struct(...
-        'LR',obj.RLR,'RL',obj.RRL);
-    end
-    function s = get.T(obj)
-      s = struct(...
-        'LR',obj.TLR,'RL',obj.TRL);
-    end
+    end   
   end
     
   methods
@@ -117,39 +95,11 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
   
   methods
     
-    %#OK
-    function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
-      % See CalRig
-      
-      assert(numel(xy1)==2);
-      %fprintf(1,'Cam %d: croppedcoords: %s\n',iAx,mat2str(round(pos(:)')));
-      
-      cam1 = obj.viewNames{iView1};
-      camEpi = obj.viewNames{iViewEpi};
-      
-      y = [xy1(2) xy1(1)];
-      xp = obj.y2x(y,cam1);
-      assert(isequal(size(xp),[2 1]));
-      xn1 = obj.projected2normalized(xp,cam1);
-      
-      % create 3D segment by projecting normalized coords into 3D space
-      % (coord sys of cam1)
-      %Zc1 = 1e2:.25:2e2; % mm
-      Zc1 = 1:.25:5e2;
-      Xc1 = [xn1(1)*Zc1; xn1(2)*Zc1; Zc1];
-      
-      XcEpi = obj.camxform(Xc1,[cam1 camEpi]); % 3D seg, in frame of cam2
-      xnEpi = [XcEpi(1,:)./XcEpi(3,:); XcEpi(2,:)./XcEpi(3,:)]; % normalize
-      xpEpi = obj.normalized2projected(xnEpi,camEpi); % project
-      
-      yEpi = obj.x2y(xpEpi,camEpi);
-      yEpi = obj.cropLines(yEpi,iViewEpi);
-      r2 = yEpi(:,1);
-      c2 = yEpi(:,2);
-      xEPL = c2;
-      yEPL = r2;
+    function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi)
+      assert(false,'TODO: call computeEpiPolarLine@basecls');
+      % wrap call in .y2x and .x2y
     end
-    
+        
     function [xRCT,yRCT] = reconstruct(obj,iView1,xy1,iView2,xy2,iViewRct)
       % See CalRig
       
@@ -196,35 +146,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
   end
   
   methods % coordinate conversions, projections, reconstructions
-    
-    %#OK
-    function xp = y2x(obj,y,cam)
-      % Transform from cropped points to image projection points.
-      %
-      % y: [nx2] (row,col) pixel coords of N pts.
-      % cam: camera specification
-      %
-      % xp: [2xn]. Image projected points. See Coord Sys Notes above.
-      
-      assert(size(y,2)==2);
-      
-%       % first "pad" to uncrop
-%       camroi = obj.roi.(cam);
-      row = y(:,1);
-      col = y(:,2);
-%       row = row + camroi.offsetY;
-%       col = col + camroi.offsetX;
-%       
-%       if strcmpi(cam,'b')
-%         % flipUD; row=1 <-> row=height
-%         row = obj.YIMSIZE - row + 1;
-%       end
-      
-      xp = [col-1,row-1]; 
-      xp = xp';
-    end
-    
-    %#OK
+        
     function y = x2y(obj,xp,cam)
       % Transform projected points to cropped points.
       %
@@ -249,46 +171,31 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
 %       col = col - camroi.offsetX; 
       y = [row(:) col(:)];
     end
-     
-    %#OK
-    function xp = normalized2projected(obj,xn,cam)
-      % 
-      
-      % crop xn
-      iView = find(strcmp(cam,obj.viewNames));
-      assert(isscalar(iView));
-      xnLims = obj.viewXNLimits(iView,:);
-      assert(size(xn,1)==2);
-      tfXInBounds = xnLims(1) <= xn(1,:) & xn(1,:) <= xnLims(2);
-      tfYInBounds = xnLims(3) <= xn(2,:) & xn(2,:) <= xnLims(4);
-      tf = tfXInBounds & tfYInBounds;
-      xnCropped = xn(:,tf);
-      
-      intprm = obj.int.(cam);
-      xpCropped = CalibratedRig.normalized2projectedStc(xnCropped,...
-        intprm.alpha_c,intprm.cc,intprm.fc,intprm.kc);
-      xp = nan(size(xn));
-      xp(:,tf) = xpCropped;
-    end
     
-    %#OK
-    function [xn,fval] = projected2normalized(obj,xp,cam)
-      % Find normalized coords corresponding to projected coords.
-      % This uses search/optimization to invert normalized2projected; note
-      % the toolbox also has normalize().
+    function xp = y2x(obj,y,cam)
+      % Transform from cropped points to image projection points.
       %
-      % xp: [2x1]
-      % cam: 'l', 'r', or 'b'
-      % 
-      % xn: [2x1]
-      % fval: optimization stuff, eg final residual
-
-      assert(isequal(size(xp),[2 1]));
+      % y: [nx2] (row,col) pixel coords of N pts.
+      % cam: camera specification
+      %
+      % xp: [2xn]. Image projected points. See Coord Sys Notes above.
       
-      fcn = @(xnguess) sum( (xp-obj.normalized2projected(xnguess(:),cam)).^2 );
-      xn0 = [0;0];
-      opts = optimset('TolX',1e-6);
-      [xn,fval] = fminsearch(fcn,xn0,opts);
+      assert(size(y,2)==2);
+      
+%       % first "pad" to uncrop
+%       camroi = obj.roi.(cam);
+      row = y(:,1);
+      col = y(:,2);
+%       row = row + camroi.offsetY;
+%       col = col + camroi.offsetX;
+%       
+%       if strcmpi(cam,'b')
+%         % flipUD; row=1 <-> row=height
+%         row = obj.YIMSIZE - row + 1;
+%       end
+      
+      xp = [col-1,row-1]; 
+      xp = xp';
     end
     
     function X2 = viewXform(obj,X1,iView1,iView2)
@@ -364,63 +271,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
         [X1(:,i),X2(:,i),d(i)] = obj.stereoTriangulate(xp1(:,i),xp2(:,i),cam1,cam2);
       end      
     end
-    
-    function [X1,X2,d,P,Q] = stereoTriangulate(obj,xp1,xp2,cam1,cam2)
-      % xp1: [2x1]. projected pixel coords, camera1
-      % xp2: etc
-      % cam1: 'l, 'r', or 'b'
-      % cam2: etc
-      %
-      % X1: [3x1]. 3D coords in frame of camera1
-      % X2: etc
-      % d: error/discrepancy in closest approach
-      % P: 3D point of closest approach on normalized ray of camera 1, in
-      % frame of camera 2
-      % Q: 3D point of closest approach on normalized ray of camera 2, in
-      % frame of camera 2
-      
-      xn1 = obj.projected2normalized(xp1,cam1);
-      xn2 = obj.projected2normalized(xp2,cam2);
-      xn1 = [xn1;1];
-      xn2 = [xn2;1];
-      
-      % get P0,u,Q0,v in frame of cam2
-      rtype = upper([cam2 cam1]);
-      RR = obj.R.(rtype);
-      O1 = obj.camxform([0;0;0],[cam1 cam2]); % camera1 origin in camera2 frame
-      n1 = RR*xn1; % pt1 normalized ray in camera2 frame
-      O2 = [0;0;0]; % camera2 origin in camera2 frame
-      n2 = xn2; % pt2 normalized ray in camera2 frame
-      
-      [P,Q,d] = CalibratedRig.stereoTriangulateRays(O1,n1,O2,n2);
-      
-      X2 = (P+Q)/2;
-      X1 = obj.camxform(X2,[cam2 cam1]);      
-    end
-        
-    %#OK
-    function Xc2 = camxform(obj,Xc,type)
-      % Extrinsic coord transformation: from camera1 coord sys to camera2
-      %
-      % Xc: [3xN], 3D coords in camera1 coord sys
-      % type: 'lr', 'rl'. 'lr' means "transform from left camera frame to 
-      % right camera frame", ie Xc/Xc2 are in the left/right camera frames 
-      % resp.
-      %
-      % Xc2: [3xN], 3D  coords in camera2coord sys
-      
-      [d,N] = size(Xc);
-      assert(d==3);
-      
-      type = upper(type);
-      assert(ismember(type,{'LR' 'RL'}));
-      type = type([2 1]); % convention for specification of T/R
-      
-      RR = obj.R.(type);
-      TT = obj.T.(type);
-      Xc2 = RR*Xc + repmat(TT,1,N);
-    end
-    
+            
   end
       
 end

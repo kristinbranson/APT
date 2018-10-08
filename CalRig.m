@@ -112,6 +112,8 @@ classdef CalRig < handle
       elseif isa(s.(vars{1}),'CalRig') % Could check all vars
         obj = s.(vars{1});
 %         tfSetViewRois = false;
+      elseif isa(s.(vars{1}),'vision.internal.calibration.tool.Session')
+        obj = CalRigMLStro(s.(vars{1}));
       elseif all(ismember({'DLT_1' 'DLT_2'},vars))
         % SH
         obj = CalRigSH;

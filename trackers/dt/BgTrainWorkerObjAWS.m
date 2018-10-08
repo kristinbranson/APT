@@ -8,10 +8,12 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
 
     function obj = BgTrainWorkerObjAWS(dlLblFile,jobID,cacheRemoteRel,...
         logfilesremote,awsec2)
-  
+      % jobID used only for errfile
+      
       obj@BgTrainWorkerObj(dlLblFile,jobID);
       
       obj.artfctLogs = logfilesremote;
+      obj.artfctKills = BgTrainWorkerObj.killedFilesFromLogFiles(logfilesremote);
       [obj.artfctTrainDataJson,obj.artfctFinalIndex,obj.artfctErrFile] = ...
         arrayfun(@(ivw)obj.trainMonitorArtifacts(cacheRemoteRel,ivw),...
         1:obj.nviews,'uni',0);
@@ -21,11 +23,8 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
         
     function [json,finalindex,errfile] = trainMonitorArtifacts(obj,...
         cacheRemoteRel,ivw)
-%       cacheDir = obj.sPrm.CacheDir;
-%       [~,cacheDirS] = fileparts(cacheDir);
       
       projvw = sprintf('%s_view%d',obj.projname,ivw-1); % !! cacheDirs are 0-BASED
-%       subdir = fullfile('/home/ubuntu',cacheRemoteRel,projvw,obj.jobID);  
       subdir = fullfile('/home/ubuntu',cacheRemoteRel);
       
 %       json = sprintf('%s_pose_unet_traindata.json',projvw);

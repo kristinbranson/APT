@@ -3,6 +3,7 @@ classdef TrainMonitorViz < handle
     hfig % scalar fig
     haxs % [2] axis handle, viz training loss, dist
     hline % [nviewx2] line handle, one loss curve per view
+    hlinekill % [nviewx2] line handle, killed marker per view
     
     resLast % last training json contents received
   end
@@ -21,14 +22,17 @@ classdef TrainMonitorViz < handle
       
       clrs = lines(nview);
       h = gobjects(nview,2);
+      hkill = gobjects(nview,2);
       for ivw=1:nview
         for j=1:2
           h(ivw,j) = plot(obj.haxs(j),nan,nan,'.-','color',clrs(ivw,:));
+          hkill(ivw,j) = plot(obj.haxs(j),nan,nan,'rx','linewidth',2);
         end
       end
       viewstrs = arrayfun(@(x)sprintf('view%d',x),(1:nview)','uni',0);
       legend(obj.haxs(1),h(:,1),viewstrs);
       obj.hline = h;
+      obj.hlinekill = hkill;
       obj.resLast = [];
     end
     function delete(obj)
@@ -54,6 +58,16 @@ classdef TrainMonitorViz < handle
           lclAutoAxisWithYLim0(obj.haxs(1));
           lclAutoAxisWithYLim0(obj.haxs(2));
           tfAnyUpdate = true;
+        end
+        
+        
+        if res(ivw).killFileExists && res(ivw).jsonPresent
+          contents = res(ivw).contents;
+          hkill = obj.hlinekill;
+          % hmm really want to mark the last 2k interval when model is
+          % actually saved
+          set(hkill(ivw,1),'XData',contents.step(end),'YData',contents.train_loss(end));
+          set(hkill(ivw,2),'XData',contents.step(end),'YData',contents.train_dist(end));
         end
       end
       

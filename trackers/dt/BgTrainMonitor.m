@@ -121,6 +121,14 @@ classdef BgTrainMonitor < handle
     end
     
     function bgTrnResultsReceivedHook(obj,sRes)
+      
+      killOccurred = any([sRes.result.killFileExists]);
+      if killOccurred
+        obj.stop();        
+        fprintf(1,'Training killed!\n');
+        % monitor plot stays up; reset not called etc
+      end
+      
       errOccurred = any([sRes.result.errFileExists]);
       if errOccurred
         obj.stop();
