@@ -40,6 +40,13 @@ if verLessThan('matlab','8.4')
   error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
 end
 
+hinitdlg = uicontrol('Style','text','Parent',handles.uipanel_curr,'Units','normalized',...
+  'Position',[0,0,1,1],'FontUnits','normalized','FontSize',.1,...
+  'String','Initializing APT...',...
+  'BackgroundColor',get(handles.uipanel_curr,'BackgroundColor'),...
+  'ForegroundColor','w',...
+  'HorizontalAlignment','center');
+
 hObject.Name = 'APT';
 hObject.HandleVisibility = 'on';
 
@@ -69,7 +76,6 @@ handles.busystatuscolor = [1,0,1];
 setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
 setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
 SetStatus(handles,'Initializing GUI...');
-
 
 %handles.pnlSusp.Visible = 'off';
 
@@ -562,6 +568,10 @@ handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
 set(handles.figure,'Visible','on');
 LabelerTooltips(handles);
+
+if ishandle(hinitdlg),
+  delete(hinitdlg);
+end
 ClearStatus(handles);
 
 guidata(hObject, handles);
