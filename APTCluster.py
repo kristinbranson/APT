@@ -15,7 +15,7 @@ import time
 import numpy as np
 
 USEQSUB = False
-DEFAULTAPTBUILDROOTDIR="/groups/branson/home/leea30/aptbuild"  # root location of binaries
+DEFAULTAPTBUILDROOTDIR="/groups/branson/bransonlab/apt/builds"  # root location of binaries
 
 def main():
 
