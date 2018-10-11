@@ -131,6 +131,13 @@ if isfield(handles,'menu_track_set_labels'),
   SetTooltip(handles.menu_track_set_labels,'Set labels to predictions for current frame',jobjs,jobjnames);
 end
 
+% h = findjobj_modern(handles.pbClear);
+% h.doClick();
+i = find(strcmp(jobjnames,'menu_file'),1);
+jobjs(i).doClick();
+drawnow;
+jobjs(i).doClick();
+drawnow;
 if strcmp(oldvisible,'off'),
   set(handles.figure,'Visible','off');
 end

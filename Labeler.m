@@ -1144,10 +1144,21 @@ classdef Labeler < handle
       obj.labeledposIPtSetMap = setmap;
       obj.labeledposSetNames = setnames;
       
-      if cfg.NumViews==1
-        obj.labelMode = LabelMode.TEMPLATE;
-      else
-        obj.labelMode = LabelMode.MULTIVIEWCALIBRATED2;
+      didsetlabelmode = false;
+      if isfield(cfg,'LabelMode'),
+        iscompatible = (cfg.NumViews==1 && cfg.LabelMode ~= LabelMode.MULTIVIEWCALIBRATED2) || ...
+          (cfg.NumViews==2 && cfg.LabelMode == LabelMode.MULTIVIEWCALIBRATED2);
+        if iscompatible,
+          obj.labelMode = cfg.LabelMode;
+          didsetlabelmode = true;
+        end
+      end
+      if ~didsetlabelmode,
+        if cfg.NumViews==1
+          obj.labelMode = LabelMode.TEMPLATE;
+        else
+          obj.labelMode = LabelMode.MULTIVIEWCALIBRATED2;
+        end
       end
       
       lpp = cfg.LabelPointsPlot;
@@ -8798,10 +8809,10 @@ classdef Labeler < handle
       % seems to work ok. Theoretically better (?), at movieSet time, cache
       % a default CameraViewAngle, and at movieRotateTargetUp set time, set
       % the CamViewAngle to either the default or the default/2 etc.
-    
+
       [x0,y0] = obj.videoCurrentCenter;
       [x,y,th] = obj.currentTargetLoc();
-      
+
       dx = x-x0;
       dy = y-y0;
       ax = obj.gdata.axes_curr;
@@ -9619,6 +9630,7 @@ classdef Labeler < handle
         cfrm = obj.currFrame;
         ctrx = obj.currTrx;
 
+
         if cfrm < ctrx.firstframe || cfrm > ctrx.endframe
           if ~nowarn
             warningNoTrace('Labeler:target',...
@@ -9778,7 +9790,6 @@ classdef Labeler < handle
       end
       
       % AL20180619 .currIm is probably an unnec prop
-     
       obj.prevFrame = currFrmOrig;
       currIm1Nr = size(obj.currIm{1},1);
       currIm1Nc = size(obj.currIm{1},2);
@@ -9892,7 +9903,6 @@ classdef Labeler < handle
     function prevAxesLabelsUpdate(obj)
       % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on 
       % .prevFrame etc 
-      
       if obj.isinit || ~obj.hasMovie || obj.prevAxesMode==PrevAxesMode.FROZEN
         return;
       end
