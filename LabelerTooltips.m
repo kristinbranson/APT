@@ -24,6 +24,13 @@ set(handles.pbRecallZoom,'TooltipString','Recall stored zoom level');
 % set(handles.tbAdjustCropSize,'TooltipString','');
 % set(handles.pbClearAllCrops,'TooltipString','');
 
+dotooltips = lcl('jvm') && lcl('awt') && lcl('swing');
+
+if ~dotooltips,
+  return;
+end
+
+try
 oldvisible = get(handles.figure,'Visible');
 if strcmp(oldvisible,'off'),
   set(handles.figure,'Visible','on');
@@ -140,4 +147,17 @@ jobjs(i).doClick();
 drawnow;
 if strcmp(oldvisible,'off'),
   set(handles.figure,'Visible','off');
+end
+catch ME,
+  warning('Error setting menu tooltips: %s',getReport(ME));
+end
+
+function success = lcl(level)
+success = false;
+fprintf('%s\n',level);
+try
+  javachk(level);
+  success = true;
+catch ME
+  fprintf('err caught: %s\n',ME.message);
 end
