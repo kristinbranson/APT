@@ -283,14 +283,29 @@ classdef APT
         end
       end
       
+      % AL20181011, R2016b. Building on the cluster complains that no 
+      % licenses are avail for certain products (eg toolbox/controls) even 
+      % though those products are unnecessary and even if those products 
+      % are explicitly removed from the MATLAB path before building. The 
+      % dependency analysis must be getting confused and adding those paths 
+      % back in etc etc. 
+      %
+      % Building on a branson-ws works better. It could be that the cluster
+      % has more installed toolboxes/products, some of which don't have 
+      % licenses etc. 
+      %
+      % AVOID ADDING the -N compilation option if possible, it does cause
+      % breakage without the auto dependency analysis to configure the path
+      % or add dependencies etc. Building on a branson-WS does not require
+      % the -N flag currently.
+      
       mccProjargs = struct();
       mccProjargs.APTCluster = { ...
         '-W','main',...
         '-w','enable',...
         '-T','link:exe',...
         '-d',fullfile(aptroot,BUILDOUTDIR),... %        '-v',...
-        fullfile(aptroot,'APTCluster.m'),...
-        '-N',... % AL20181011 putting this back b/c mcc errs complaining about missing /misc/local/matlab-2016b/toolbox/control/ctrlobsolete/parallel.m even if i explicitly remove all .../toolbox/control/... dirs from the path
+        fullfile(aptroot,'APTCluster.m'),... %'-N' see note above 20181011
         Ipth{:},...
         '-a',fullfile(aptroot,'gfx'),...
         '-a',fullfile(aptroot,'config.default.yaml'),...
