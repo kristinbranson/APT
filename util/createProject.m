@@ -9,13 +9,14 @@ function lObj = createProject(baseProj,movFiles,varargin)
 %   movies/labels.
 % movFiles: [nmov x nview] cellstr of movies to add to baseProj.
 
-[clearBaseProj,gt,tblLbls,calibFiles,calibObjs,cropRois,projname,outfile,diaryfile] = ...
+[clearBaseProj,trxFiles,gt,tblLbls,calibFiles,calibObjs,cropRois,...
+  projname,outfile,diaryfile] = ...
   myparse(varargin,...
   'clearBaseProj',true,... % if true, delete all existing movies in base proj
+  'trxFiles',[],... % if supplied, [nmov x 1] cellstr of trxfiles corresponding to movFiles
   'gt',false,... % if true, augment GT movies with movFiles (and remainder of opt args)
   'tblLbls',[],... (opt) MFTable with fields MFTable.FLDSCORE, ie .mov, .frm, .iTgt, .tfocc, .p. 
                ...   % * .mov are positive ints, row indices into movFiles
-               ...   % * Currently .iTgt must always be 1
                ...   % * tblLbls.tfocc should be logical of size [nmovxnLabelPoints]
                ...   % * tblLbls.p should have size [nmovxnLabelPoints*2].
                ...   %   The raster order is (fastest first): 
@@ -43,11 +44,18 @@ if lObj.nview~=nview
     lObj.nview);
 end
 
+tfTrx = ~isempty(trxFiles);
 tfTblLbls = ~isempty(tblLbls);
 tfCalibFiles = ~isempty(calibFiles);
 tfCalibObjs = ~isempty(calibObjs);
 tfCropRois = ~isempty(cropRois);
 tfDiaryFile = ~isempty(diaryfile);
+if tfTrx
+  szassert(trxFiles,[nmovadd,1]);
+  assert(iscellstr(trxFiles));
+else
+  trxFiles = cell(nmovadd,1);
+end
 if tfTblLbls
   tblfldsassert(tblLbls,MFTable.FLDSCORE);
 end
@@ -81,8 +89,10 @@ end
 
 for imovadd=1:nmovadd
   if nview==1
-    lObj.movieAdd(movFiles{imovadd},[],'offerMacroization',false);
+    lObj.movieAdd(movFiles{imovadd},trxFiles{imovadd},...
+      'offerMacroization',false);
   else
+    assert(~tfTrx);
     lObj.movieSetAdd(movFiles(imovadd,:),'offerMacroization',false);
   end
   lObj.movieSet(lObj.nmoviesGTaware);
