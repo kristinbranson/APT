@@ -516,6 +516,7 @@ listeners{end+1,1} = addlistener(lObj,'cropIsCropModeChanged',@cbkCropIsCropMode
 listeners{end+1,1} = addlistener(lObj,'cropCropsChanged',@cbkCropCropsChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
+listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
@@ -1231,8 +1232,10 @@ elseif strcmp(evt.EventName,'finishSetMovie')
     ClearStatus(handles);        
 end
 
-
-
+function cbkProjLoaded(src,evt)
+lObj = src;
+handles = lObj.gdata;
+EnableControls(handles,'projectloaded');
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
@@ -2063,7 +2066,7 @@ handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
 function menu_file_load_Callback(hObject, eventdata, handles)
 
 SetStatus(handles,'Loading Project',true);
-EnableControls(handles,'projectloaded');
+%EnableControls(handles,'projectloaded');
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   currMovInfo = lObj.projLoad();
