@@ -51,9 +51,9 @@ classdef PostProcess < handle
     heatmap_viewsindependent = true;
     heatmap_pointsindependent = true;
     heatmap_nsamples = 25;
-    heatmap_sample_algorithm = 'localmaxima';
-    heatmap_sample_thresh_prctile = 99.5;
-    heatmap_sample_r_nonmax = 2;
+    heatmap_sample_algorithm = 'localmaxima'; % either 'localmaxima' or 'gmm'
+    heatmap_sample_thresh_prctile = 99.5; % used for 'localmaxima'
+    heatmap_sample_r_nonmax = 2; % used for 'localmaxima'
     heatmap_lowthresh = 0;
     heatmap_highthresh = 1;
     
@@ -159,6 +159,20 @@ classdef PostProcess < handle
       obj.PropagateDataReset('postheatmap');
       obj.heatmap_highthresh = val;      
       
+    end
+    
+    function SetHeatmapNumSamples(obj,val)      
+      obj.PropagateDataReset('heatmap_nsamples');
+      obj.heatmap_nsamples = val;        
+    end
+    
+    function SetHeatmapSampleAlg(obj,val)
+      if ~any(strcmp(val,{'gmm' 'localmaxima'}))
+        error('Invalid heatmap sample algorithm.');
+      end
+      
+      obj.PropagateDataReset('heatmap_sample_algorithm');
+      obj.heatmap_sample_algorithm = val;        
     end
     
     function SetAlgorithm(obj,val)
@@ -1361,7 +1375,7 @@ classdef PostProcess < handle
 
       obj.heatmapdata.readscorefuns = readscorefuns;
 
-      if nargin >= 4,
+      if nargin >= 5,
         obj.trx = trx;
         %firstframe = trx.firstframe;
       else
@@ -1500,7 +1514,7 @@ classdef PostProcess < handle
       
       d_in = 2;
 
-      isS = ismember(obj.heatmap_sample_algorithm,{'gmm','localmaxima'});
+      isS = ismember(obj.heatmap_sample_algorithm,{'gmm','localmaxima'}); % always true?
       
       if obj.isframes,
         Nframes = nnz(obj.dilated_frames);
@@ -1623,6 +1637,8 @@ classdef PostProcess < handle
           obj.sampledata.x_perview = obj.sampledata.x_in;
           obj.sampledata.x = permute(obj.sampledata.x_in,[1,2,3,5,4]);
         end
+        
+        % TODO .IsCrop()?
         
       else
       
@@ -2123,6 +2139,7 @@ classdef PostProcess < handle
         obj.postdata.median.x = PostProcess.UntransformByTrx(obj.postdata.median.x,obj.trx(viewi),obj.radius_trx(viewi,:));
       end
       
+      % .IsCrop()?
     end
     
     function RunMaxDensity_SingleHeatmapData(obj)
@@ -2196,10 +2213,13 @@ classdef PostProcess < handle
         obj.postdata.maxdensity_indep.x = PostProcess.UntransformByTrx(obj.postdata.maxdensity_indep.x,obj.trx(viewi),obj.radius_trx(viewi,:));  
       end
       
+      % .IsCrop()?
+      
     end
     
     function EstimateKDESigma(obj,p,k)
-
+      % Estimate/Set KDE sigma from .sampledata
+      
       if nargin < 2,
         p = 90;
       end
@@ -2437,7 +2457,8 @@ classdef PostProcess < handle
     end
     
     
-    function [Xbest,isvisiblebest,idxcurr,totalcost,poslambdaused,misscostused] = RunViterbiHelper(obj,appcost,X)
+    function [Xbest,isvisiblebest,idxcurr,totalcost,poslambdaused,misscostused] = ...
+        RunViterbiHelper(obj,appcost,X)
       
       [d,N,K] = size(X);
       Kreal = find(any(~isinf(appcost),1),1,'last');
@@ -2452,6 +2473,7 @@ classdef PostProcess < handle
           'poslambdafac',obj.viterbi_poslambdafac,...
           'dampen',obj.viterbi_dampen); 
         isvisiblebest = true(N,1);
+        misscostused = nan;
       else
         [Xbest,isvisiblebest,idxcurr,totalcost,poslambdaused,misscostused] = ...
           ChooseBestTrajectory_MissDetection(X,appcost,...

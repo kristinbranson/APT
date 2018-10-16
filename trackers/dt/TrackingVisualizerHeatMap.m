@@ -14,6 +14,7 @@ classdef TrackingVisualizerHeatMap < handle
     xyVizPlotArgsNonTarget; % " for non current target viz
     
     heatMapEnable % if true, read heatmaps (alongside trkfiles) when changing movies, do heatmap viz
+    heatMapNoRawIm % default false. if true, don't show the raw/original movie image with heatmaps
     heatMapReader % scalar HeatMapReader
     heatMapIPtsShow % [nptsShowHM] ipt indices into 1..npts. Show these points in heatmaps    
   end
@@ -41,6 +42,7 @@ classdef TrackingVisualizerHeatMap < handle
       szassert(obj.ptClrs,[npts 3]);
 
       obj.heatMapEnable = false;
+      obj.heatMapNoRawIm = false;
       obj.heatMapReader = HeatmapReader();
       obj.heatMapIPtsShow = 1:npts;
     end
@@ -131,7 +133,12 @@ classdef TrackingVisualizerHeatMap < handle
         hm = obj.heatMapReader.read(currFrm,iptsHM,currTgt); % [imnr x imnc x nptsHM]
         
         for ivw=1:numel(ims)
-          imHeatmapped = obj.heatMappifyImage(currIms{ivw},hm,iptsHM);
+          if obj.heatMapNoRawIm
+            imStart = zeros(size(currIms{ivw}));
+          else
+            imStart = currIms{ivw};
+          end
+          imHeatmapped = obj.heatMappifyImage(imStart,hm,iptsHM);
           set(ims(ivw),'CData',imHeatmapped);
           % caxis etc?          
         end

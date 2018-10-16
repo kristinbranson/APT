@@ -74,10 +74,14 @@ classdef HeatmapReader < handle
       obj.hmdat = dat;
     end
     
-    function hm = read(obj,f,ipt,itgt)
+    function hm = read(obj,f,ipt,itgt,varargin)
       % ipt can be vec
       % 
       % hm: [imnr x imnc x numel(ipt)]
+      
+      normalize = myparse(varargin,...
+        'normalize',false... % if true, hm is of class double in [0,1]
+        );
 
       if ~isempty(obj.hmdat)
         hm = squeeze(obj.hmdat(:,:,f,ipt,itgt));
@@ -85,12 +89,21 @@ classdef HeatmapReader < handle
       end
       
       nptcurr = numel(ipt);
-      hm = zeros(obj.imnr,obj.imnc,nptcurr,obj.hmcls);
+      if normalize
+        hm = zeros(obj.imnr,obj.imnc,nptcurr);
+      else
+        hm = zeros(obj.imnr,obj.imnc,nptcurr,obj.hmcls);
+      end
+        
       hmdir = obj.dir;
       for iipt=1:nptcurr
         fname = sprintf(obj.filepat,itgt,f,ipt(iipt));
         fname = fullfile(hmdir,fname);
-        hm(:,:,iipt) = imread(fname);
+        hm0 = imread(fname);
+        if normalize
+          hm0 = HistEq.normalizeGrayscaleIm(hm0);
+        end
+        hm(:,:,iipt) = hm0;
       end
     end
     
