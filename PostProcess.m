@@ -1,6 +1,9 @@
 classdef PostProcess < handle
   
     
+  properties
+    pts2run = []; % row vec into 1..npts, used when pts independent. use at own risk
+  end
   properties (GetAccess=public,SetAccess=protected)
     
     algorithm = 'maxdensity';
@@ -59,8 +62,14 @@ classdef PostProcess < handle
     
     preloadMovies = false;
     movFiles = {};
-    tblMFT = [];
-    trx = [];
+    % currently only has .frm field labeling N frames of native data, ie
+    % tblMFT.frm(n) gives the true movie frame for native-index n
+    tblMFT = []; 
+    % [nview] struct array of "cropped trx". See SetHeatmapData. nview>1 
+    % unsupported. Only 'content' fields .x, .y etc are used; metadata
+    % fields like .nframes, .firstframe etc in general will be incorrect
+    % since this is a cropped trx
+    trx = []; 
     radius_trx = nan;
     
     % Either 'sample' or 'heatmap'
@@ -73,7 +82,10 @@ classdef PostProcess < handle
     postdata = struct;
     
     nviews = [];
-    N = [];
+    % Number of frames of native data available. Currently assumed to be a 
+    % "block" of consecutive frames; the block need not start at
+    % movieframe=1.
+    N = []; 
     d = [];
     npts = [];
     
@@ -84,9 +96,9 @@ classdef PostProcess < handle
     
     readframes = {};
     
-    frames = [];
-    radius_frames = 100;
-    dilated_frames = [];
+    frames = []; % Either [], or [nframes] native samples to consider
+    radius_frames = 100; 
+    dilated_frames = []; % Either [], or [N] logical vector labeling native samples to consider. Generated from .frames via dilation
     
   end
   
@@ -133,6 +145,10 @@ classdef PostProcess < handle
       
     end
     
+    function SetNCores(obj,val)
+      obj.ncores = val;
+    end    
+    
     function SetKDESigma(obj,val)
       
       if val == obj.kde_sigma,
@@ -148,11 +164,7 @@ classdef PostProcess < handle
       obj.PropagateDataReset('postheatmap');
       obj.heatmap_lowthresh = val;      
       
-    end
-    
-    function SetNCores(obj,val)
-      obj.ncores = val;
-    end
+    end    
     
     function SetHeatmapHighThresh(obj,val)
       
@@ -161,7 +173,7 @@ classdef PostProcess < handle
       
     end
     
-    function SetHeatmapNumSamples(obj,val)      
+    function SetHeatmapNumSamples(obj,val)
       obj.PropagateDataReset('heatmap_nsamples');
       obj.heatmap_nsamples = val;        
     end
@@ -519,7 +531,7 @@ classdef PostProcess < handle
         nsamples_total = obj.nsamples_viewsindependent;
       end
       nsamples_perview = max(1,round(nsamples_total^(1/obj.nviews)));
-      obj.Heatmap2SampleData(nsamples_perview);
+      obj.Heatmap2SampleData('nsamples_perview',nsamples_perview);
       
     end
 
@@ -851,7 +863,8 @@ classdef PostProcess < handle
     
     function hfig = PlotReconstructionSamples(obj,n,varargin)
       
-      [hfig,scoresigma,p,plotkde] = myparse(varargin,'hfig',[],'scoresigma',ones(1,obj.nviews),'p',2.5,'plotkde',false);
+      [hfig,scoresigma,p,plotkde] = myparse(varargin,...
+        'hfig',[],'scoresigma',ones(1,obj.nviews),'p',2.5,'plotkde',false);
       
       if plotkde && obj.NeedKDE(),
         obj.ComputeKDE();
@@ -1359,6 +1372,23 @@ classdef PostProcess < handle
     end
     
     function SetHeatmapData(obj,readscorefuns,N,scales,trx,frames)
+      %
+      %
+      % readscorefuns: [npts x nviews] cell array of fcn handles with sig
+      %     hm = fcn(n). 
+      %   n here is the native sample index, ie n==1 in general does not
+      %   correspond to movie frame 1, ie fcn has a frame offset baked-in.\
+      %
+      % N: The number of native samples that are safe to read. Fcns in
+      %   readscorefuns will be called with indices 1..n.
+      %
+      % scales: sets discretization gridsize for heatmaps
+      %
+      % trx: "cropped trx" with data vectors cropped to native samples, ie
+      %   trx.x(n) gives the trx for native sample n.
+      %
+      % frames: [nframes] vector of indices into native samples for frames
+      %   to consider
       
       obj.nativeformat = 'heatmap';
       
@@ -1370,8 +1400,8 @@ classdef PostProcess < handle
       [npts,nviews] = size(readscorefuns); %#ok<ASGLU>
       d = 2;
       
-      obj.tblMFT = struct;
-      obj.tblMFT.frm = (1:N)';
+%       obj.tblMFT = struct;
+%       obj.tblMFT.frm = (1:N)';
 
       obj.heatmapdata.readscorefuns = readscorefuns;
 
@@ -1448,7 +1478,7 @@ classdef PostProcess < handle
       
     end
     
-    function hm = ReadHeatmapScore(obj,pti,viewi,n) % obj const
+    function hm = ReadHeatmapScore(obj,pti,viewi,n) % obj const      
     
       hm = obj.heatmapdata.readscorefuns{pti,viewi}(n);
       hm = min(max( (hm-obj.heatmap_lowthresh)/(obj.heatmap_highthresh-obj.heatmap_lowthresh), 0), 1);
@@ -1506,10 +1536,13 @@ classdef PostProcess < handle
       
     end
     
-    function Heatmap2SampleData(obj,nsamples_perview)
-
-      if nargin < 2,
-        nsamples_perview = obj.heatmap_nsamples;
+    function Heatmap2SampleData(obj,varargin)
+      [nsamples_perview,pts2run] = myparse(varargin,...
+        'nsamples_perview',obj.heatmap_nsamples,...
+        'pts2run',obj.pts2run...
+        );
+      if isempty(obj.pts2run)
+        pts2run = 1:obj.npts;
       end
       
       d_in = 2;
@@ -1538,8 +1571,11 @@ classdef PostProcess < handle
       %tic;
       
       for viewi = 1:obj.nviews,
-        for pti = 1:obj.npts,
+        for pti = pts2run(:)',
+          fprintf(1,'Heatmap2SampData pt %d\n',pti);
           for n0 = 1:chunksize:Nframes,
+            fprintf(1,'Heatmap2SampData n0 %d\n',n0);
+
             n1 = min(Nframes,n0+chunksize-1);
             ncurr = n1-n0+1;
             %hms = cell(1,ncurr);
@@ -2246,7 +2282,14 @@ classdef PostProcess < handle
       
     end
     
-    function ComputeKDE(obj)
+    function ComputeKDE(obj,varargin)
+      pts2run = myparse(varargin,...
+        'pts2run',obj.pts2run...
+        );
+      if isempty(obj.pts2run)
+        obj.pts2run = 1:obj.npts;
+      end
+      npts2run = numel(pts2run);
 
       starttime = tic;
 
@@ -2265,8 +2308,8 @@ classdef PostProcess < handle
       isbadx = any(isnan(obj.sampledata.x(frameidx,:,:,:)),4);
       isbadx2 = all(isnan(obj.sampledata.x(frameidx,:,:,:)),4);
       if isfield(obj.sampledata,'w'),
-        w = obj.sampledata.w(frameidx,:,:);
-        assert(all(w(isbadx)==0));
+        w = obj.sampledata.w(frameidx,:,pts2run);
+        assert(all(w(isbadx(:,:,pts2run))==0));
       end
       assert(all(isbadx(:)==isbadx2(:)));
       
@@ -2313,28 +2356,31 @@ classdef PostProcess < handle
       else
         
         w_npts = size(obj.sampledata.w,3);
+        assert(w_npts==obj.npts); % AL: not sure when this is not true
         if isfield(obj.sampledata,'w') && ~isempty(obj.sampledata.w),
           % w is N x nRep x npts
-          w0 = reshape(obj.sampledata.w(frameidx,:,:),[Nframes,nRep,1,w_npts]);
+          w0 = reshape(obj.sampledata.w(frameidx,:,pts2run),[Nframes,nRep,1,npts2run]);
         else
           w0 = 1;
         end
         
         fprintf('Computing KDE, indep\n');
         c = sqrt(2*pi*obj.kde_sigma^(2*d));
-        d2 = sum( (reshape(obj.sampledata.x(frameidx,:,:,:),[Nframes,1,nRep,npts,d])-...
-          reshape(obj.sampledata.x(frameidx,:,:,:),[Nframes,nRep,1,npts,d])).^2, 5 );
+        d2 = sum( ...
+          (reshape(obj.sampledata.x(frameidx,:,pts2run,:),[Nframes,1,nRep,npts2run,d])-...
+           reshape(obj.sampledata.x(frameidx,:,pts2run,:),[Nframes,nRep,1,npts2run,d])).^2, 5 );
+        % d2 is [Nframes x nRep x nRep x npts2run]
         
         % these have weight 0
         d2(isnan(d2)) = inf;
-        w = sum(w0.*exp( -d2/obj.kde_sigma^2/2 ),2)/c;
+        w = sum(w0.*exp( -d2/obj.kde_sigma^2/2 ),2)/c; % [Nframes x 1 x nRep x npts2run]
         %w = w ./ sum(w,3);
         assert(~any(isnan(w(:))));
+        obj.kdedata.indep = nan([N,nRep,npts]);
         if obj.isframes,
-          obj.kdedata.indep = nan([N,nRep,npts]);
-          obj.kdedata.indep(frameidx,:,:) = reshape(w,[Nframes,nRep,npts]);
+          obj.kdedata.indep(frameidx,:,pts2run) = reshape(w,[Nframes,nRep,npts2run]);
         else
-          obj.kdedata.indep = reshape(w,[N,nRep,npts]);
+          obj.kdedata.indep(:,:,pts2run) = reshape(w,[N,nRep,npts2run]);
         end
         
 %         for i=1:N,
@@ -2354,9 +2400,16 @@ classdef PostProcess < handle
       
     end
     
-    function RunViterbi(obj)
+    function RunViterbi(obj,varargin)
       % It is assumed that pTrkFull are from consecutive frames.
 
+      pts2run = myparse(varargin,...
+        'pts2run',obj.pts2run...
+        );
+      if isempty(pts2run)
+        pts2run = 1:obj.npts;
+      end
+      
       if strcmp(obj.nativeformat,'heatmap') && obj.nviews == 1 && isempty(obj.sampledata),
         obj.Heatmap2SampleData();
       end
@@ -2432,7 +2485,7 @@ classdef PostProcess < handle
           t1 = t1s(i);
           Ncurr = t1-t0+1;
           
-          for ipt = 1:npts,
+          for ipt = pts2run
             
             if isfield(obj.sampledata,'z'),
               z = obj.sampledata.z(t0:t1,ipt);
@@ -2980,6 +3033,8 @@ classdef PostProcess < handle
     % xout1 = UntransformByTrx(xin,trx,r)
     % transforms from cropped and rotated heatmap coordinates to global movie coordinates
     function xout1 = UntransformByTrx(xin,trx,r)
+      % xin: In the typical case, [nfrms x m x 2] with 1st dim representing frames
+      % trx: fields .y, .x need to be [nfrms] aligned/corresponding to 1st dim of xin
       
       sz = size(xin);
       assert(sz(end)==2);

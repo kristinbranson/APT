@@ -101,20 +101,20 @@ classdef TrackingVisualizerHeatMap < handle
       [obj.hXYPrdRedOther.Visible] = deal(onoff);
     end
     
-    function heatMapInit(obj,hmdir)
+    function heatMapInit(obj,hmdir,hmnr,hmnc)
       lblrObj = obj.lObj;
       % TODO: multiview
-      imnr = lblrObj.movienr;
-      imnc = lblrObj.movienc;
       nfrm = lblrObj.nframes;
       ntgt = lblrObj.nTargets;      
-      obj.heatMapReader.init(hmdir,imnr,imnc,nfrm,obj.nPts,ntgt);
+      obj.heatMapReader.init(hmdir,hmnr,hmnc,nfrm,obj.nPts,ntgt);
     end
     
-    function updateTrackRes(obj,xy,currFrm,currTgt)
+    function updateTrackRes(obj,xy,currFrm,currTgt,trxXY,trxTh)
       % Update 'final tracking' markers; if .heatMapEnable, also update
       % images with heatmap data. Avoid using separate axis or transparent
       % layer for heatmap info for perf issues.
+      %
+      % trxXY, trxTh: can be [] if no trx. Used for heatmaps
       %
       % xy: [npts x 2]
             
@@ -138,33 +138,63 @@ classdef TrackingVisualizerHeatMap < handle
           else
             imStart = currIms{ivw};
           end
-          imHeatmapped = obj.heatMappifyImage(imStart,hm,iptsHM);
+          % pi/2 b/c heatmaps oriented so target points towards smaller y
+          % ("up" in "axis ij" mode, "down" in "axis xy" mode)
+          imHeatmapped = obj.heatMappifyImage(imStart,hm,iptsHM,trxXY,trxTh+pi/2);
           set(ims(ivw),'CData',imHeatmapped);
           % caxis etc?          
         end
       end
     end
     
-    function im1 = heatMappifyImage(obj,im0,hm,iptsHM)
+    function im1 = heatMappifyImage(obj,im0,hm,iptsHM,hmCtrXY,hmTheta)
       % im0: [imnr x imnc] raw grayscale image (1 chan only, raw data type)
       % hm: [imnr x imnc x niptsHM] raw heatmaps (normalization/scale unk
-      %     for each pt, raw data type)
+      %     for each pt, raw data type). The size of hm can differ from im0
+      %     (imnr/imnc) if hmCtXYr,hmTheta are supplied.
       % iptsHM: [niptsHM] pt indices labeling 3rd dim of hm
+      % hmCtrXY: [], or [2] (opt) the heatmap is centered at this loc in the original movie coords
+      % hmTheta: [], or [1] (opt) "up" in the heatmap is points in this theta-dir in the original movie
+      %
+      % If hmCtrXY, hmTheta are not supplied, hm will have the same row/col
+      % size as im0. Otherwise hm can have arbitrary size
       %
       % im1: [imnr x imnc x 3] RGB image with heatmap coloring
       
+      xformHM = ~isempty(hmCtrXY); 
+      assert(~xor(xformHM,~isempty(hmTheta)));
+      
+      [hmnr,hmnc,hmnpts] = size(hm);
+      assert(hmnpts==numel(iptsHM));
+      
       assert(size(im0,3)==1);
+      [imnr,imnc] = size(im0);
       im0 = HistEq.normalizeGrayscaleIm(im0);
       im1 = repmat(im0,1,1,3);
       
       hm = double(hm);
+      if xformHM
+        % prep for transform
+        xgvmax = (hmnc-1)/2;
+        xgv = linspace(-xgvmax,xgvmax,hmnc);
+        ygvmax = (hmnr-1)/2;
+        ygv = linspace(-ygvmax,ygvmax,hmnr);
+        [xg0,yg0] = meshgrid(xgv,ygv);
+        
+        [xg1,yg1] = meshgrid(1:imnc,1:imnr);        
+      end
       
       ptclrs = obj.ptClrs;
       for iipt = 1:numel(iptsHM)
         ipt = iptsHM(iipt);
         hmI = hm(:,:,iipt);
+        if xformHM
+          % don't worry about overall normalization since we are
+          % normalizing next
+          hmI = readpdf(hmI,xg0,yg0,xg1,yg1,hmCtrXY(1),hmCtrXY(2),hmTheta);  
+        end
         hmI = hmI/max(hmI(:));
-        im1 = im1 + hmI.*reshape(ptclrs(ipt,:),[1 1 3]);
+        im1 = (1-hmI).*im1 + hmI.*reshape(ptclrs(ipt,:),[1 1 3]);
       end
     end
     
