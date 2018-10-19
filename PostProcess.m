@@ -70,7 +70,11 @@ classdef PostProcess < handle
     % fields like .nframes, .firstframe etc in general will be incorrect
     % since this is a cropped trx
     trx = []; 
-    radius_trx = nan;
+
+    % [nviews x 2]. heatmap_origin(iview,:) is the [x y] or [c r] in the
+    % heatmap coord system that gets mapped to trx.x,trx,y in the
+    % real/movie coord system
+    heatmap_origin = nan;
     
     % Either 'sample' or 'heatmap'
     nativeformat = 'sample';
@@ -1093,7 +1097,9 @@ classdef PostProcess < handle
               idxgood = find(all(~isnan(obj.sampledata.x_perview(n,:,pti,viewi,:)),5));
               
               if obj.IsTrx(),
-                mu = obj.TransformByTrx(obj.sampledata.x_perview(n,idxgood,pti,viewi,:),obj.trx(viewi),obj.radius_trx(viewi,:),n);
+                mu = obj.TransformByTrx(...
+                  obj.sampledata.x_perview(n,idxgood,pti,viewi,:),...
+                  obj.trx(viewi),obj.heatmap_origin(viewi,:),n);
               else
                 mu = obj.sampledata.x_perview(n,idxgood,pti,viewi,:);
               end
@@ -1139,7 +1145,7 @@ classdef PostProcess < handle
               frameim = repmat(frameim,[1,1,3]);
             end
             if obj.IsTrx(),
-              frameim = CropImAroundTrx(frameim,obj.trx(viewi).x(n),obj.trx(viewi).y(n),obj.trx(viewi).theta(n),obj.radius_trx(viewi,1),obj.radius_trx(viewi,2));
+              frameim = CropImAroundTrx(frameim,obj.trx(viewi).x(n),obj.trx(viewi).y(n),obj.trx(viewi).theta(n),obj.heatmap_origin(viewi,1),obj.heatmap_origin(viewi,2));
               frameim = frameim(1:obj.heatmapdata.nys(viewi),1:obj.heatmapdata.nxs(viewi),:);
               xlim = [1,obj.heatmapdata.nxs(viewi)];
               ylim = [1,obj.heatmapdata.nys(viewi)];
@@ -1436,7 +1442,8 @@ classdef PostProcess < handle
       end
       
       if obj.IsTrx(),
-        obj.radius_trx = cat(2,ceil((obj.heatmapdata.nxs(:)-1)/2),ceil((obj.heatmapdata.nys(:)-1)/2));
+        obj.heatmap_origin = cat(2,ceil((obj.heatmapdata.nxs(:)+1)/2),...
+                                   ceil((obj.heatmapdata.nys(:)+1)/2));
       end
       
       % grid
@@ -2303,7 +2310,6 @@ classdef PostProcess < handle
         Nframes = obj.N;
         frameidx = 1:obj.N;
       end
-
       
       isbadx = any(isnan(obj.sampledata.x(frameidx,:,:,:)),4);
       isbadx2 = all(isnan(obj.sampledata.x(frameidx,:,:,:)),4);
@@ -3033,8 +3039,10 @@ classdef PostProcess < handle
     % xout1 = UntransformByTrx(xin,trx,r)
     % transforms from cropped and rotated heatmap coordinates to global movie coordinates
     function xout1 = UntransformByTrx(xin,trx,r)
-      % xin: In the typical case, [nfrms x m x 2] with 1st dim representing frames
+      % xin: Typically, [nfrms x ... x 2] with 1st dim representing frames,
+      %   last dim representing coordinate
       % trx: fields .y, .x need to be [nfrms] aligned/corresponding to 1st dim of xin
+      % r: [2] x/y of origin of xin coord system (that is mapped to trx.x,trx.y)
       
       sz = size(xin);
       assert(sz(end)==2);
@@ -3043,6 +3051,7 @@ classdef PostProcess < handle
         newsz = [sz(1),prod(sz(2:end-1)),sz(end)];
       else
         newsz = [prod(sz(1:end-1)),1,sz(end)];
+        assert(newsz(1)==numel(trx.theta));
       end
       xin = reshape(xin,newsz);
       idxgood = any(any(~isnan(xin),2),3);
@@ -3059,22 +3068,28 @@ classdef PostProcess < handle
       xout = xin - reshape(r,[1,1,2]);
       
       % unrotate
-      xout = cat(3,xout(:,:,1).*ct(:) - xout(:,:,2).*st(:),xout(:,:,1).*st(:) + xout(:,:,2).*ct(:));
+      xout = cat(3,xout(:,:,1).*ct(:) - xout(:,:,2).*st(:),...
+                   xout(:,:,1).*st(:) + xout(:,:,2).*ct(:));
       
       % translate
-      xout = xout + cat(3,reshape(trx.x(idxgood),[ngood,1]),reshape(trx.y(idxgood),[ngood,1]));
+      xout = xout + cat(3,reshape(trx.x(idxgood),[ngood,1]),...
+                          reshape(trx.y(idxgood),[ngood,1]));
       
       xout1 = nan(newsz);
       xout1(idxgood,:,:) = xout;
       
-      xout1 = reshape(xout1,sz);
-      
+      xout1 = reshape(xout1,sz);      
     end
     
     % xout1 = TransformByTrx(xin,trx,r)
     % transforms from global movie coordinates to cropped and rotated heatmap coordinates
     function xout1 = TransformByTrx(xin,trx,r,f)
-      
+      % xin: Typically, [nfrms x ... x 2] with 1st dim representing frames,
+      %   last dim representing coordinate
+      % trx: fields .y, .x need to be [nfrms] aligned/corresponding to 1st dim of xin
+      % r: [2] x/y of origin of xout1 coord system (that is mapped to trx.x,trx.y)
+      % f: (opt) indices into trx fields corresponding to first dim of xin.
+
       sz = size(xin);
       assert(sz(end)==2);
       nd = numel(sz);
@@ -3095,7 +3110,9 @@ classdef PostProcess < handle
       if nargin < 4,
         idxtrx = idxgood;
       else
+        assert(all(idxgood)); % f labels first dim of xin; could also set idxtrx to f(idxgood) maybe
         idxtrx = f;
+        assert(numel(idxtrx)==ngood);
       end
       ntrx = nnz(idxtrx);
       
@@ -3103,10 +3120,12 @@ classdef PostProcess < handle
       st = sin(-pi/2-trx.theta(idxtrx));
       
       % translate
-      xout = xin - cat(3,reshape(trx.x(idxtrx),[ntrx,1]),reshape(trx.y(idxtrx),[ntrx,1]));
+      xout = xin - cat(3,reshape(trx.x(idxtrx),[ntrx,1]),...
+                         reshape(trx.y(idxtrx),[ntrx,1]));
       
       % rotate
-      xout = cat(3,xout(:,:,1).*ct(:) - xout(:,:,2).*st(:),xout(:,:,1).*st(:) + xout(:,:,2).*ct(:));
+      xout = cat(3,xout(:,:,1).*ct(:) - xout(:,:,2).*st(:),...
+                   xout(:,:,1).*st(:) + xout(:,:,2).*ct(:));
 
       % translate so that origin is top corner of image
       xout = xout + reshape(r,[1,1,2]);
@@ -3114,8 +3133,7 @@ classdef PostProcess < handle
       xout1 = nan(newsz);
       xout1(idxgood,:,:) = xout;
       
-      xout1 = reshape(xout1,sz);
-      
+      xout1 = reshape(xout1,sz);      
     end
     
     
