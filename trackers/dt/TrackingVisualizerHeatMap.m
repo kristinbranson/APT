@@ -10,8 +10,8 @@ classdef TrackingVisualizerHeatMap < handle
     
     hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame and target
     hXYPrdRedOther; % [npts] plot handles for 'reduced' tracking results, current frame, non-current-target
-    xyVizPlotArgs; % cell array of args for regular tracking viz
-    xyVizPlotArgsNonTarget; % " for non current target viz
+%     xyVizPlotArgs; % cell array of args for regular tracking viz
+%     xyVizPlotArgsNonTarget; % " for non current target viz
     
     heatMapEnable % if true, read heatmaps (alongside trkfiles) when changing movies, do heatmap viz
     heatMapRawImType % 'none','reg','invert'
@@ -59,7 +59,7 @@ classdef TrackingVisualizerHeatMap < handle
   methods
     
     function vizInit(obj)
-      % Sets .hXYPrdRed, .hXYPrdRedOther, .xyVizPlotArgs, .xyVizPlotArgsNonTarget
+      % Sets .hXYPrdRed, .hXYPrdRedOther
     
       deleteValidHandles(obj.hXYPrdRed);
       obj.hXYPrdRed = [];
@@ -70,8 +70,8 @@ classdef TrackingVisualizerHeatMap < handle
       trackPrefs = obj.lObj.projPrefs.Track; 
       plotPrefs = trackPrefs.PredictPointsPlot; 
       plotPrefs.PickableParts = 'none'; 
-      obj.xyVizPlotArgs = struct2paramscell(plotPrefs); 
-      obj.xyVizPlotArgsNonTarget = obj.xyVizPlotArgs; % TODO: customize 
+      xyVizPlotArgs = struct2paramscell(plotPrefs); 
+%       obj.xyVizPlotArgsNonTarget = obj.xyVizPlotArgs; % TODO: customize 
        
       npts = obj.nPts;
       ptsClrs = obj.ptClrs;
@@ -84,8 +84,8 @@ classdef TrackingVisualizerHeatMap < handle
       for iPt=1:npts 
         clr = ptsClrs(iPt,:); 
         iVw = ipt2View(iPt); 
-        hTmp(iPt) = plot(axs(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr); 
-        hTmpOther(iPt) = plot(axs(iVw),nan,nan,obj.xyVizPlotArgs{:},'Color',clr);
+        hTmp(iPt) = plot(axs(iVw),nan,nan,xyVizPlotArgs{:},'Color',clr); 
+        hTmpOther(iPt) = plot(axs(iVw),nan,nan,xyVizPlotArgs{:},'Color',clr);
 %         hTmp2(iPt) = scatter(ax(iVw),nan,nan); 
 %         setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,... 
 %           'MarkerEdgeColor',clr,'PickableParts','none',... 
@@ -93,6 +93,14 @@ classdef TrackingVisualizerHeatMap < handle
       end 
       obj.hXYPrdRed = hTmp; 
       obj.hXYPrdRedOther = hTmpOther; 
+    end
+    
+    function updateLandmarkColors(obj,ptsClrs)
+      npts = obj.nPts;
+      for iPt=1:npts
+        set(obj.hXYPrdRed(iPt),'Color',ptsClrs(iPt,:));
+        set(obj.hXYPrdRedOther(iPt),'Color',ptsClrs(iPt,:));
+      end
     end
     
     function setHideViz(obj,tf)
@@ -119,9 +127,9 @@ classdef TrackingVisualizerHeatMap < handle
       % xy: [npts x 2]
             
       hXY = obj.hXYPrdRed;
-      args = obj.xyVizPlotArgs;
+      %args = obj.xyVizPlotArgs;
       for iPt=1:obj.nPts
-        set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2),args{:});
+        set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2)); %,args{:});
       end
       
       if obj.heatMapEnable

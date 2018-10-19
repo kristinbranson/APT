@@ -1662,6 +1662,10 @@ classdef DeepTracker < LabelTracker
       obj.trkVizer.setHideViz(tf);
       obj.hideViz = tf;
     end
+    function updateLandmarkColors(obj)
+      ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;      
+      obj.trkVizer.updateLandmarkColors(ptsClrs);      
+    end
   end
 
   %% Labeler nav
