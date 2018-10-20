@@ -123,17 +123,116 @@ postdata_singleheatmap.viterbi_indep_nomiss = pp.postdata.viterbi_indep;
 % postdata_singleheatmap.viterbi_indep_miss = pp.postdata.viterbi_indep;
 % 
 
+%% Bub heatmap data 
+
+lblfile = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_xv7.lbl';
+ld = load(lblfile,'-mat');
+
+hmdirs = mydir('/groups/branson/home/kabram/temp/alice/umdn_trks','name','.*_hmap','isdir',true);
+hmtype = 'jpg';
+
+ihmdirs2run = 5;
+iflies2run = 9;
+startframe = 17000;
+endframe = 18550;
+
+heatmap_lowthresh = 0.025;
+heatmap_hithresh = 1;
+heatmap_nsamples = 150;
+
+viterbi_dampen = 0.25;
+viterbi_poslambda = 0.0027;
+%viterbi_misscost = .02;
+viterbi_misscost = inf;
+
+allpostdata = cell(1,numel(hmdirs));
+allpp = cell(1,numel(hmdirs));
+for hmdiri = ihmdirs2run
+  hmdir = hmdirs{hmdiri};
+
+  [~,fname] = fileparts(hmdir);
+  expname = fname(1:end-5);
+  
+  macrofns = fieldnames(ld.projMacros);
+  moviefile = '';
+  moviei = [];
+  for i = 1:numel(ld.movieFilesAll),
+    j = strfind(ld.movieFilesAll{i},expname);
+    if ~isempty(j),
+      moviefile = ld.movieFilesAll{i};
+      for j = 1:numel(macrofns),
+        moviefile = strrep(moviefile,['$',macrofns{j}],ld.projMacros.(macrofns{j}));
+      end
+      moviei = i;
+      break;
+    end
+  end
+  
+  expdir = fileparts(moviefile);
+  trxfile = ld.trxFilesAll{moviei};
+  trxfile = strrep(trxfile,'$movdir',expdir);
+  
+  td = load(trxfile);
+  nflies = numel(td.trx);
+  allpostdata{moviei} = cell(1,nflies);
+  allpp{moviei} = cell(1,nflies);
+  
+  npts = ld.cfg.NumLabelPoints;
+  
+  for fly = iflies2run
+    savefile = fullfile('ppresults_frames',sprintf('%s_trx_%d.mat',expname,fly));
+    fprintf('Movie %d / %d = %s, fly %d / %d...\n',moviei,numel(hmdirs),expname,fly,nflies);
+    
+    if exist(savefile,'file'),
+      rd = load(savefile);
+      allpostdata{moviei}{fly} = rd.postdata;
+      allpp{moviei}{fly} = rd.pp;
+    else
+%      frames = unique(t_labeled{moviei}(fly_labeled{moviei}==fly&pti_labeled{moviei}==1&di_labeled{moviei}==1));
+%       frames = frms2run;
+%       if isempty(frames),
+%         continue;
+%       end
+
+      scorefilenames = get_score_filenames(hmdir,fly,1,startframe:endframe,...
+        'hmtype',hmtype);
+      if ~(all(cellfun(@exist,scorefilenames(:))>0)),
+        warning('Not all heatmap files exist, skipping hmdiri = %d, fly = %d...\n',hmdiri,fly);
+        continue;
+      end
+      
+      [allpostdata{moviei}{fly},allpp{moviei}{fly}] = ...
+        RunPostProcessing_HeatmapData(hmdir,...
+        'hmtype',hmtype,...
+        'lblfile',lblfile,...
+        'targets',fly,...
+        'startframe',startframe,...
+        'endframe',endframe,... %'frames',frames,...
+        'pts2run',12,...
+        'viterbi_poslambda',viterbi_poslambda,...
+        'viterbi_misscost',viterbi_misscost,...
+        'viterbi_dampen',viterbi_dampen,...
+        'algorithms',{'maxdensity' 'median' 'viterbi'},...
+        'savefile',savefile,...
+        'heatmap_lowthresh',heatmap_lowthresh,...
+        'heatmap_highthresh',heatmap_hithresh,...
+        'heatmap_nsamples',heatmap_nsamples,...
+        'heatmap_sample_algorithm','gmm');      
+    end
+  end
+end
+
 %% Add 5-pt M.A.
 filt = [-3 12 17 12 -3]/35;
 pp.postdata.maxdensity_indep_ma5.x = nan(size(pp.postdata.maxdensity_indep.x));
-for ipt=1:5
+for ipt=1:pp.npts
   for d=1:2
     pp.postdata.maxdensity_indep_ma5.x(:,ipt,d) = ...
       conv(pp.postdata.maxdensity_indep.x(:,ipt,d),filt,'same');
   end
 end
 
-%%
+%% GT: sh
 
 postdata = pp.postdata;
 
@@ -172,7 +271,38 @@ dxyAll = cat(5,dxyAll{:});
   );
 
 
+%% GT: bub
 
+pd = pp.postdata;
+
+lpos = SparseLabelArray.full(ld.labeledpos{3});
+lpos = lpos(:,:,:,iflies2run);
+
+frmsGT = find(all(~isnan(reshape(lpos,34,50667)),1));
+fprintf(1,'%d frmsGT.\n',numel(frmsGT));
+
+[tf,loc] = ismember(frmsGT,pp.tblMFT.frm);
+frmsGT = frmsGT(tf);
+isampGT = loc(tf);
+fprintf(1,'%d frmsGT tracked.\n',numel(frmsGT));
+
+algsAll = fieldnames(pd);
+lposGT = lpos(:,:,frmsGT); % npts x d x nGT
+lposGT = permute(lposGT,[3 1 2]);
+
+dxyAll = cell(0,1);
+for alg=algsAll(:)',alg=alg{1}; %#ok<FXSET>
+  %[n x npts x (x/y) x nviews x nsets]
+  tpos = pd.(alg).x(isampGT,:,:); % nGT x npts x d 
+  
+  dxyAll{end+1,1} = tpos-lposGT;
+end
+dxyAll = cat(5,dxyAll{:});
+
+[hFig,hAxs] = GTPlot.ptileCurves(dxyAll,...
+  'ptiles',[50 75 90],...
+  'setNames',algsAll...
+  );
 % delta_train = struct;
 % delta_test = struct;
 % for i = 1:numel(algorithms),
@@ -249,32 +379,38 @@ dxyAll = cat(5,dxyAll{:});
 
 %% AC cost vs Motion cost
 
+XFLD = 'x_trx';
 pdmi = pp.postdata.maxdensity_indep;
-pdmi.x_a2 = 0.5*(pdmi.x(1:end-1,:,:)+pdmi.x(2:end,:,:)); % 2pt m.a.
-pdmi.v = diff(pdmi.x,1,1); % pd.v(i,ipt,:) gives (dx,dy) that takes you from maxdens_i to maxdens_(i+1)
-pdmi.v(end+1,:,:) = nan;
-pdmi.v_a2 = diff(pdmi.x_a2,1,1); % etc
-pdmi.v_a2(end+1,:,:) = nan;
+
+x = pdmi.(XFLD);
+
+x_a2 = 0.5*(x(1:end-1,:,:)+x(2:end,:,:)); % 2pt m.a.
+v = diff(x,1,1); % pd.v(i,ipt,:) gives (dx,dy) that takes you from maxdens_i to maxdens_(i+1)
+v(end+1,:,:) = nan;
+vmag = sqrt(sum(v.^2,3));
+v_a2 = diff(x_a2,1,1); % etc
+v_a2(end+1,:,:) = nan;
+vmag_a2 = sqrt(sum(v_a2.^2,3));
 
 damp = pp.viterbi_dampen 
 
 % at i; assume motion that took you from i-1->i continues to i+1
-pdmi.x_pred = nan(size(pdmi.x));
-pdmi.x_pred(3:end,:,:) = pdmi.x(2:end-1,:,:) + damp*pdmi.v(1:end-2,:,:);
-pdmi.x_pred_a2 = nan(size(pdmi.x_a2));
-pdmi.x_pred_a2(3:end,:,:) = pdmi.x_a2(2:end-1,:,:) + damp*pdmi.v_a2(1:end-2,:,:);
+x_pred = nan(size(x));
+x_pred(3:end,:,:) = x(2:end-1,:,:) + damp*v(1:end-2,:,:);
+x_pred_a2 = nan(size(x_a2));
+x_pred_a2(3:end,:,:) = x_a2(2:end-1,:,:) + damp*v_a2(1:end-2,:,:);
 
-pdmi.dxmag_pred = sqrt(sum((pdmi.x_pred-pdmi.x).^2,3)); % [n x npt]
-pdmi.dxmag_pred_a2 = sqrt(sum((pdmi.x_pred_a2-pdmi.x_a2).^2,3)); % [n x npt]
+dxmag_pred = sqrt(sum((x_pred-x).^2,3)); % [n x npt]
+dxmag_pred_a2 = sqrt(sum((x_pred_a2-x_a2).^2,3)); % [n x npt]
 
 % figure out typical scale of heatmap/ac
-nfrm = size(pdmi.x,1);
+nfrm = size(x,1);
 pdmi.hm_hwhm = nan(nfrm,5); % half-width-half-max (radius of heatmap dist at half-max)
 pdmi.hm_atmax = nan(nfrm,5);
 hmgrid = pp.heatmapdata.grid{1}; % rows are linear indices, cols are [x y]
 for f=1:nfrm
   if mod(f,10)==0, disp(f); end
-  for ipt=1:npt
+  for ipt=pp.pts2run
     hm = pp.ReadHeatmapScore(ipt,1,f); % double in [0,1]
     [hmmax,hmmaxidx] = max(hm(:));
     hmmax_xy = hmgrid(hmmaxidx,:);
@@ -298,111 +434,147 @@ for f=1:nfrm
   end
 end
 %%
+npts2run = numel(pp.pts2run);
 hFig = figure(12);
 clf;
-axs = mycreatesubplots(7,5,[.1 .05;.1 .05]);
-clrs = lines(5);
+axs = mycreatesubplots(7,npts2run,[.1 .05;.1 .05]);
 
 ylblargs = {'fontweight' 'bold' 'interpreter' 'none'};
-DXFLDS = {'dxmag_pred' 'dxmag_pred_a2'};
+DXFLDS = {dxmag_pred dxmag_pred_a2};
 for iDx=1:numel(DXFLDS)
-  fld = DXFLDS{iDx};
-  dxmag = pdmi.(fld); % n x npt
+  %fld = DXFLDS{iDx};
+  dxmag = DXFLDS{iDx};
+  %DXdxmag = pdmi.(fld); % n x npt
   dxmag2 = dxmag.^2;
-  for ipt=1:5
-    ax = axs(iDx,ipt);
+  for iipt=1:npts2run
+    ipt = pp.pts2run(iipt);
+    ax = axs(iDx,iipt);
     axes(ax);
     histogram(dxmag(:,ipt));    
-    if ipt==1
-      ylabel(fld,ylblargs{:});
-    end
+%     if iipt==1
+%       ylabel(fld,ylblargs{:});
+%     end
     
-    ax = axs(iDx+2,ipt);
+    ax = axs(iDx+2,iipt);
     axes(ax);
     histogram(dxmag2(:,ipt));        
-    if ipt==1
-      ylabel(sprintf('%s^2',fld),ylblargs{:});
-    end
+%     if iipt==1
+%       ylabel(sprintf('%s^2',fld),ylblargs{:});
+%     end
   end
 end
 
-for ipt=1:5
-  ax = axs(5,ipt);
+for iipt=1:npts2run
+  ipt = pp.pts2run(iipt);
+
+  ax = axs(5,iipt);
   axes(ax);
   histogram(pdmi.hm_hwhm(:,ipt));
-  if ipt==1
+  if iipt==1
     ylabel('hmap_hwhm',ylblargs{:});
   end
   
-  ax = axs(6,ipt);
+  ax = axs(6,iipt);
   axes(ax);
   histogram(pdmi.hm_atmax(:,ipt));
   if ipt==1
     ylabel('max hm',ylblargs{:});
   end
   
-  ax = axs(7,ipt);
+  ax = axs(7,iipt);
   axes(ax);
   % diff between AC cost at half-max and at max
   histogram( -log(pdmi.hm_atmax(:,ipt)/2) + log(pdmi.hm_atmax(:,ipt)) ,15 );
-  if ipt==1
+  if iipt==1
     ylabel('dAC from peak to half',ylblargs{:});
   end
-
-
 end
 
-for ipt=1:5
-  linkaxes(axs(1:2,ipt));
-  linkaxes(axs(3:4,ipt));
+for iipt=1:npts2run
+  linkaxes(axs(1:2,iipt));
+  linkaxes(axs(3:4,iipt));
 end
+
+hFig = figure(13);
+axs = mycreatesubplots(npts2run,2,[.1 .05;.1 .05]);
+for iipt=1:npts2run
+  ipt = pp.pts2run(iipt);
+  ax = axs(iipt,1);
+  
+  vmag = vmag(:,ipt);
+  dxmag_pred_tmp = dxmag_pred(:,ipt);
+  binctrs = 0:15;
+  tfcell = arrayfun(@(x)round(vmag)==x,binctrs,'uni',0);
+  dxmag_pred_binmean = cellfun(@(x)median(dxmag_pred_tmp(x)),tfcell);
+  
+  scatter(ax,vmag,dxmag_pred_tmp);
+  hold(ax,'on');
+  plot(ax,binctrs,dxmag_pred_binmean,'r','linewidth',2);
+  ylabel(ax,sprintf('pt%d',ipt));
+  
+  ax = axs(iipt,2);
+  vmag = vmag_a2(:,ipt);  
+  dxmag_pred_tmp = dxmag_pred_a2(:,ipt);  
+  tfcell = arrayfun(@(x)round(vmag)==x,binctrs,'uni',0);
+  dxmag_pred_binmean = cellfun(@(x)median(dxmag_pred_tmp(x)),tfcell);
+  scatter(ax,vmag,dxmag_pred_tmp);
+  hold(ax,'on');
+  plot(binctrs,dxmag_pred_binmean,'r','linewidth',2);
+end
+
 
 %% Motion model
 pd = pp.postdata.maxdensity_indep;
-pd.v = diff(pd.x,1,1); % pd.v(i,ipt,:) gives (dx,dy) that takes you to i+1
-pd.v(end+1,:,:) = nan;
 
-[n,npt,d] = size(pd.x);
+XFLD = 'x_trx';
+
+x = pd.(XFLD);
+v = diff(x,1,1); % v(i,ipt,:) gives (dx,dy) that takes you to i+1
+v(end+1,:,:) = nan;
+
+[n,npt,d] = size(x);
 DAMPS = 0:.05:1;
 nDamp = numel(DAMPS);
-pd.xpred = nan(n,npt,d,nDamp);
-pd.xprederrsq = nan(n,npt,nDamp);
+xpred = nan(n,npt,d,nDamp);
+xprederrsq = nan(n,npt,nDamp);
 for iDamp=1:nDamp
   damp = DAMPS(iDamp);
-  pd.xpred(3:end,:,:,iDamp) = pd.x(2:end-1,:,:) + damp*pd.v(1:end-2,:,:); % at i; assume motion that took you from i-1->i continues to i+1
+  xpred(3:end,:,:,iDamp) = x(2:end-1,:,:) + damp*v(1:end-2,:,:); % at i; assume motion that took you from i-1->i continues to i+1
   
-  pd.xprederrsq(:,:,iDamp) = sum((pd.xpred(:,:,:,iDamp)-pd.x).^2,3);
+  xprederrsq(:,:,iDamp) = sum((xpred(:,:,:,iDamp)-x).^2,3);
 end
 
-NR = 350;
-NC = 230;
+NR = 180;
+NC = 180;
 DOWNSAMP = 3;
 NRDS = ceil(NR/DOWNSAMP);
 NCDS = ceil(NC/DOWNSAMP);
-vsum = zeros(NR,NC,2,5);
-vcnt = zeros(NR,NC,5);
-vsumds = zeros(NRDS,NCDS,2,5);
-vcntds = zeros(NRDS,NCDS,5);
-for ipt=1:5
-for i=1:size(pd.x,1)
-  xy = pd.x(i,ipt,:);
-  r = xy(2);
-  c = xy(1);
-  v = pd.v(i,ipt,:); % dxy that takes us to next frame
-  vsum(r,c,:,ipt) = vsum(r,c,:,ipt)+v;
-  vcnt(r,c,ipt) = vcnt(r,c,ipt)+1;
+vsum = zeros(NR,NC,2,npts2run);
+vcnt = zeros(NR,NC,npts2run);
+vsumds = zeros(NRDS,NCDS,2,npts2run);
+vcntds = zeros(NRDS,NCDS,npts2run);
+for iipt=1:npts2run
+for i=1:size(x,1)
+  ipt = pp.pts2run(iipt);
+  
+  xy = x(i,ipt,:);
+  r = round(xy(2)); % when istrx, untransform can de-integerize
+  c = round(xy(1));
+  vtmp = v(i,ipt,:); % dxy that takes us to next frame
+  vsum(r,c,:,iipt) = vsum(r,c,:,iipt)+vtmp;
+  vcnt(r,c,iipt) = vcnt(r,c,iipt)+1;
   
   rds = ceil(r/DOWNSAMP);
   cds = ceil(c/DOWNSAMP);
-  vsumds(rds,cds,:,ipt) = vsumds(rds,cds,:,ipt)+v;
-  vcntds(rds,cds,ipt) = vcntds(rds,cds,ipt)+1;
+  vsumds(rds,cds,:,iipt) = vsumds(rds,cds,:,iipt)+vtmp;
+  vcntds(rds,cds,iipt) = vcntds(rds,cds,iipt)+1;
 end
 end
 %%
 LENSCALEFAC = 3;
 LINEWIDTHSCALEFAC = 0.25;
-vmean = vsum./reshape(vcnt,NR,NC,1,5);
-vmeands = vsumds./reshape(vcntds,NRDS,NCDS,1,5);
+vmean = vsum./reshape(vcnt,NR,NC,1,npts2run);
+vmeands = vsumds./reshape(vcntds,NRDS,NCDS,1,npts2run);
 
 MINCOUNTTOPLOT = 2;
 vmeanplot = vmeands;
@@ -412,21 +584,23 @@ ncplot = NCDS;
 
 hFig = figure(11);
 clf;
-axs = mycreatesubplots(2,3);
-clrs = lines(5);
-for ipt=1:5
-  ax = axs(ipt);
+axsz = ceil(sqrt(npts2run));
+axs = mycreatesubplots(axsz,axsz,[.1,.05]);
+clrs = lines(npts2run);
+for iipt=1:npts2run
+  ipt = pp.pts2run(iipt);
+  ax = axs(iipt);
   axes(ax);
   hold(ax,'on');
   
   for r=1:nrplot
   for c=1:ncplot
-    if vcntplot(r,c,ipt)>=MINCOUNTTOPLOT
-      v = vmeanplot(r,c,:,ipt);
+    if vcntplot(r,c,iipt)>=MINCOUNTTOPLOT
+      v = vmeanplot(r,c,:,iipt);
       plot(ax,[c c+v(1)*LENSCALEFAC],[r r+v(2)*LENSCALEFAC],'-',...
-        'color',clrs(ipt,:),...
-        'linewidth',vcntplot(r,c,ipt)*LINEWIDTHSCALEFAC);
-      plot(ax,c+v(1)*LENSCALEFAC,r+v(2)*LENSCALEFAC,'.','color',clrs(ipt,:),'markersize',10);
+        'color',clrs(iipt,:),...
+        'linewidth',vcntplot(r,c,iipt)*LINEWIDTHSCALEFAC);
+      plot(ax,c+v(1)*LENSCALEFAC,r+v(2)*LENSCALEFAC,'.','color',clrs(iipt,:),'markersize',10);
     end    
   end
   end
@@ -443,12 +617,12 @@ linkaxes(axs);
 pd = pp.postdata;
 algs = fieldnames(pd);
 nAlgs = numel(algs);
-dzall = []; % [n x 5 x nalg]. magnitude of jump
+dzall = []; % [n x npts2run x nalg]. magnitude of jump
 
 hFig = figure(11);
 clf;
-axs = mycreatesubplots(nAlgs,5);
-clrs = lines(5);
+axs = mycreatesubplots(nAlgs,npts2run,[.1 .05]);
+clrs = lines(npts2run);
 
 ALGMARKS = {'.' 'x' '^'};
 for ialg=1:nAlgs
@@ -457,15 +631,18 @@ for ialg=1:nAlgs
   a = diff(x,2,1);
   amag = sqrt(sum(a.^2,3)); % (n-2) x npt
   
-  for ipt=1:5
-    ax = axs(ialg,ipt);
+  for iipt=1:npts2run
+    ipt = pp.pts2run(iipt);
+    ax = axs(ialg,iipt);
     axes(ax);
     histogram(amag(:,ipt),0:20);
   end
+  
+  ylabel(axs(ialg,1),alg,'fontweight','bold','interpreter','none');
 end
 
-for ipt=1:5
-  linkaxes(axs(:,ipt));
+for iipt=1:npts2run
+  linkaxes(axs(:,iipt));
 end
 
 % for ipt=1:5
@@ -475,20 +652,70 @@ end
 % end
 % 
 
+%% visualize kdesamps with weights (AC)
+frm = lObj.currFrame;
+isamp = find(frm==pp.tblMFT.frm);
+if isempty(isamp)
+  error('frame %d is not in pp.',frm);
+end
+assert(isscalar(isamp));
+
+ipt = pp.pts2run;
+assert(isscalar(ipt),'for now');
+kdeweights = pp.kdedata.indep(isamp,:,ipt);
+kdeweights = kdeweights(:);
+reps = squeeze(pp.sampledata.x(isamp,:,ipt,:));
+
+ax = lObj.gdata.axes_curr;
+hS = scatter(ax,reps(:,1),reps(:,2),kdeweights*1400,'r');
+%%
+hFig = figure(22);
+clf;
+ax = axes;
+hold(ax,'on');
+weightsdisp = round(kdeweights*800);
+maxweight = max(weightsdisp)
+clrs = jet(maxweight);
+for i=1:size(reps,1)
+  plot(ax,reps(i,1),reps(i,2),'.','markersize',10,'Color',clrs(weightsdisp(i,:),:));
+end
+
+
+%% compare kdeweights to hm mag
+assert(tv.heatMapNoRawIm);
+assert(isscalar(tv.heatMapIPtsShow));
+im = lObj.gdata.images_all.CData;
+size(im)
+ptclr = tv.ptClrs(tv.heatMapIPtsShow,:);
+im = im./reshape(ptclr,1,1,3); 
+im = im(:,:,1);
+idximreps = sub2ind(size(im),round(reps(:,2)),round(reps(:,1)));
+kdeweightsHM = im(idximreps);
+
+figure;
+scatter(kdeweightsHM,kdeweights);
+grid on
+
+
 %% Massage pp.kdedata.indep
 
-kdesamps = pp.kdedata.indep;
-assert(isequaln(pp.sampledata.x_in,pp.sampledata.x));
+kdesamps0 = pp.kdedata.indep;
+assert(isequaln(squeeze(pp.sampledata.x_in),pp.sampledata.x));
 
 [nfrm,nsamp,npt] = size(kdesamps);
 for f=1:nfrm
   if mod(f,10)==0, disp(f); end
-  for ipt=1:npt
+  for iipt=1:npts2run
+    ipt = pp.pts2run(iipt);
     hm = pp.ReadHeatmapScore(ipt,1,f);
     for isamp=1:nsamp
-      sampxy = pp.sampledata.x(f,isamp,ipt,1,:);
-      sampr = round(sampxy(2));
-      sampc = round(sampxy(1));
+      sampxy = pp.sampledata.x_in(f,isamp,ipt,1,:);
+      
+      
+      sampxyRel = PostProcess.TransformByTrx(sampxy,pp.trx,pp.radius_trx,f);
+      
+      sampr = round(sampxyRel(2));
+      sampc = round(sampxyRel(1));
       
       if isnan(sampr) || isnan(sampc)
         hmsamp = 0;
@@ -501,7 +728,7 @@ for f=1:nfrm
   end
 end
 
-pp.kdedata.indep = kdesamps;
+%pp.kdedata.indep = kdesamps;
 
 
 %%

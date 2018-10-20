@@ -1574,6 +1574,8 @@ classdef DeepTracker < LabelTracker
       if tfHasRes
         obj.trackCurrResLoadFromTrks(trks);
         
+        tfTrx = obj.lObj.hasTrx;
+        
         trkfilesCurr = obj.trackResGetTrkfiles(mIdx); % [ntrk x nview]
         ntrkCurr = size(trkfilesCurr,1);
         for ivw=1:1 % TODO: multiview
@@ -1583,7 +1585,17 @@ classdef DeepTracker < LabelTracker
             hmapDirS = [trkfileF '_hmap'];
             hmapDir = fullfile(trkfileP,hmapDirS);
             if exist(hmapDir,'dir')>0
-              obj.trkVizer.heatMapInit(hmapDir);
+              if tfTrx
+                % Ideally the heatmaps size is related to 
+                % sPrm....TargetCrop.Radius, but they might not have set
+                % that, etc etc
+                hmnr = [];
+                hmnc = [];
+              else
+                hmnr = obj.lObj.movienr;
+                hmnc = obj.lObj.movienc;
+              end
+              obj.trkVizer.heatMapInit(hmapDir,hmnr,hmnc);
               if ntrkCurr==1
                 fprintf('Found heatmap dir: %s\n',hmapDirS);
               else                
@@ -1650,6 +1662,10 @@ classdef DeepTracker < LabelTracker
       obj.trkVizer.setHideViz(tf);
       obj.hideViz = tf;
     end
+    function updateLandmarkColors(obj)
+      ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;      
+      obj.trkVizer.updateLandmarkColors(ptsClrs);      
+    end
   end
 
   %% Labeler nav
@@ -1661,8 +1677,18 @@ classdef DeepTracker < LabelTracker
       end
             
       xy = obj.getPredictionCurrentFrame();    
+      frm = lObj.currFrame;
       itgt = lObj.currTarget;
-      obj.trkVizer.updateTrackRes(xy(:,:,itgt),lObj.currFrame,itgt);
+      trx = lObj.currTrx;
+      if isempty(trx)
+        trxXY = [];
+        trxTh = [];        
+      else
+        itrx = frm+trx.off;
+        trxXY = [trx.x(itrx) trx.y(itrx)];
+        trxTh = trx.theta(itrx);        
+      end        
+      obj.trkVizer.updateTrackRes(xy(:,:,itgt),frm,itgt,trxXY,trxTh);
     end
     function newLabelerTarget(obj)
       obj.newLabelerFrame();

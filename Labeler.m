@@ -217,6 +217,8 @@ classdef Labeler < handle
     moviename; % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false; % scalar logical.
     movieRotateTargetUp = false;
+    movieCenterOnTargetLandmark = false; % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
+    movieCenterOnTargetIpt = []; % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
     movieForceGrayscale = false; % scalar logical. In future could make [1xnview].
     movieFrameStepBig; % scalar positive int
     movieShiftArrowNavMode; % scalar ShiftArrowMovieNavMode
@@ -346,6 +348,7 @@ classdef Labeler < handle
     labeledpostagGTaware;
     labeledpos2GTaware;
     labeledposCurrMovie;
+    labeledpos2CurrMovie;
     labeledpostagCurrMovie;
     
     nPhysPoints; % number of physical/3D points
@@ -919,6 +922,15 @@ classdef Labeler < handle
         v = obj.labeledposGT{obj.currMovie};
       else
         v = obj.labeledpos{obj.currMovie};
+      end
+    end
+    function v = get.labeledpos2CurrMovie(obj)
+      if obj.currMovie==0
+        v = [];
+      elseif obj.gtIsGTMode
+        v = obj.labeledpos2GT{obj.currMovie};
+      else
+        v = obj.labeledpos2{obj.currMovie};
       end
     end
     function v = get.labeledpostagCurrMovie(obj)
@@ -8853,6 +8865,58 @@ classdef Labeler < handle
       end
     end
     
+    function videoCenterOnCurrTargetPoint(obj)
+      [tfsucc,xy] = obj.videoCenterOnCurrTargetPointHelp();
+      if tfsucc
+        [x0,y0] = obj.videoCurrentCenter;
+        dx = xy(1)-x0;
+        dy = xy(2)-y0;
+        ax = obj.gdata.axes_curr;
+        axisshift(ax,dx,dy);
+        ax.CameraPositionMode = 'auto'; % issue #86, behavior differs between 16b and 15b. Use of manual zoom toggles .CPM into manual mode
+        ax.CameraTargetMode = 'auto'; % issue #86, etc Use of manual zoom toggles .CTM into manual mode
+        %ax.CameraViewAngleMode = 'auto';
+      end
+    end
+    
+    function [tfsucc,xy] = videoCenterOnCurrTargetPointHelp(obj)
+      % get (x,y) for current movieCenterOnTargetIPt
+      
+      tfsucc = true;
+      f = obj.currFrame;
+      itgt = obj.currTarget;
+      ipt = obj.movieCenterOnTargetIpt;
+      
+      lpos = obj.labeledposCurrMovie;
+      if ~isempty(lpos)
+        xy = lpos(ipt,:,f,itgt);
+        if all(~isnan(xy))
+          return;
+        end
+      end
+      
+      tracker = obj.tracker;
+      if ~isempty(tracker)
+        tpos = tracker.getTrackingResultsCurrMovie;
+        if ~isempty(tpos)
+          xy = tpos(ipt,:,f,itgt);
+          if all(~isnan(xy))
+            return;
+          end
+        end
+      end
+      
+      lpos2 = obj.labeledpos2CurrMovie;
+      if ~isempty(lpos2)
+        xy = lpos2(ipt,:,f,itgt);
+        if all(~isnan(xy))
+          return;
+        end
+      end
+      
+      tfsucc = false;
+      xy = [];
+    end    
     function videoZoom(obj,zoomRadius)
       % Zoom to square window over current frame center with given radius.
       
@@ -9419,9 +9483,11 @@ classdef Labeler < handle
       % Remainder nearly identical to setFrameAndTarget()
       obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
       
-      if obj.hasTrx && obj.movieCenterOnTarget
+      if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         assert(~obj.isMultiView);
         obj.videoCenterOnCurrTarget();
+      elseif obj.movieCenterOnTargetLandmark
+        obj.videoCenterOnCurrTargetPoint();
       end
       
       if updateLabels
@@ -9461,8 +9527,10 @@ classdef Labeler < handle
       obj.currTarget = iTgt;
       if obj.hasTrx 
         obj.labelsUpdateNewTarget(prevTarget);
-        if obj.movieCenterOnTarget        
+        if obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
           obj.videoCenterOnCurrTarget();
+        elseif obj.movieCenterOnTargetLandmark
+          obj.videoCenterOnCurrTargetPoint();
         end
       end
 %       obj.updateCurrSusp();
@@ -9487,8 +9555,10 @@ classdef Labeler < handle
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
-      if obj.hasTrx && obj.movieCenterOnTarget
+      if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         obj.videoCenterOnCurrTarget();
+      elseif obj.movieCenterOnTargetLandmark
+        obj.videoCenterOnCurrTargetPoint();
       end
       if ~obj.isinit
         obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
@@ -9833,7 +9903,6 @@ classdef Labeler < handle
       else
         obj.prevIm = currImOrig;
       end
-            
       obj.prevAxesImFrmUpdate(tfforce);
     end
     
@@ -9851,7 +9920,6 @@ classdef Labeler < handle
       if exist('pamodeinfo','var')==0
         pamodeinfo = [];
       end
-      
       contents = cellstr(get(obj.gdata.popupmenu_prevmode,'String'));
       v1 = get(obj.gdata.popupmenu_prevmode,'Value');
       switch pamode
@@ -9901,10 +9969,9 @@ classdef Labeler < handle
       
       set(obj.gdata.popupmenu_prevmode,'Visible','on');
       set(obj.gdata.pushbutton_freezetemplate,'Visible','on');
-      
       gd = obj.gdata;
       if isequal(freezeInfo,[])
-        
+        axc = gd.axes_curr;
         freezeInfo = struct(...
           'iMov',obj.currMovie,...
           'frm',obj.currFrame,...
@@ -9917,7 +9984,6 @@ classdef Labeler < handle
         end
         freezeInfo = obj.SetPrevMovieInfo(freezeInfo);
         freezeInfo = obj.GetDefaultPrevAxes(freezeInfo);
-        
       end
       
       success = true;
@@ -9935,7 +10001,7 @@ classdef Labeler < handle
       else
         gd.image_prev.XData = freezeInfo.xdata;
         gd.image_prev.YData = freezeInfo.ydata;
-        gd.image_prev.CData = freezeInfo.im;
+      gd.image_prev.CData = freezeInfo.im;
         gd.txPrevIm.String = sprintf('Frame %d',freezeInfo.frm);
         if obj.hasTrx,
           gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Target %d',freezeInfo.iTgt)];
@@ -9970,7 +10036,6 @@ classdef Labeler < handle
       end
       
       set(obj.gdata.popupmenu_prevmode,'Visible','on');
-      
       % update prevaxes image and txframe based on .prevIm, .prevFrame
       switch obj.prevAxesMode
         case PrevAxesMode.LASTSEEN
@@ -9979,7 +10044,7 @@ classdef Labeler < handle
           gd.txPrevIm.String = sprintf('Frame: %d',obj.prevFrame);
           if obj.hasTrx,
             gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Target %d',obj.currTarget)];
-          end
+      end
         case PrevAxesMode.FROZEN,          
           if tfforce,
             obj.prevAxesModeInfo = obj.SetPrevMovieInfo(obj.prevAxesModeInfo);
@@ -9995,7 +10060,6 @@ classdef Labeler < handle
       lpos = obj.labeledposGTaware;
       lpos = lpos{obj.currMovie}(:,:,obj.currFrame,obj.currTarget);
       islabeled = all(~isnan(lpos(:)));
-      
     end
     
     function prevAxesLabelsUpdate(obj)
@@ -10291,15 +10355,14 @@ classdef Labeler < handle
         lpos = nan(sz([1,2]));
         lpostag = false([sz(1),1]);
       else
-        lpos = obj.labeledposGTaware;
-        lpostag = obj.labeledpostagGTaware;
-        lpos = lpos{iMov}(:,:,frm,iTgt);
+      lpos = obj.labeledposGTaware;
+      lpostag = obj.labeledpostagGTaware;
+      lpos = lpos{iMov}(:,:,frm,iTgt);
         if isrotated,
           lpos = [lpos,ones(size(lpos,1),1)]*info.A;
           lpos = lpos(:,1:2);
         end
-
-        lpostag = lpostag{iMov}(:,frm,iTgt);
+      lpostag = lpostag{iMov}(:,frm,iTgt);
       end
       ipts = 1:obj.nPhysPoints;
       txtOffset = obj.labelPointsPlotInfo.LblOffset;
