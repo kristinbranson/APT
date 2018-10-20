@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 08-Oct-2018 13:30:01
+% Last Modified by GUIDE v2.5 17-Oct-2018 13:52:31
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -64,6 +64,8 @@ end
 % reinit uicontrol strings etc from GUIDE for cosmetic purposes
 set(handles.txPrevIm,'String','');
 set(handles.edit_frame,'String','');
+set(handles.popupmenu_prevmode,'Visible','off');
+set(handles.pushbutton_freezetemplate,'Visible','off');
 set(handles.txStatus,'String','');
 syncStatusBarTextWhenClear(handles);
 set(handles.txUnsavedChanges,'Visible','off');
@@ -423,12 +425,12 @@ handles.menu_track.Position = 5;
 handles.menu_evaluate.Position = 6;
 handles.menu_help.Position = 7;
 
-hCMenu = uicontextmenu('parent',handles.figure);
-uimenu('Parent',hCMenu,'Label','Freeze to current main window',...
-  'Callback',@(src,evt)cbkFreezePrevAxesToMainWindow(src,evt));
-uimenu('Parent',hCMenu,'Label','Display last frame seen in main window',...
-  'Callback',@(src,evt)cbkUnfreezePrevAxes(src,evt));
-handles.axes_prev.UIContextMenu = hCMenu;
+% hCMenu = uicontextmenu('parent',handles.figure);
+% uimenu('Parent',hCMenu,'Label','Freeze to current main window',...
+%   'Callback',@(src,evt)cbkFreezePrevAxesToMainWindow(src,evt));
+% uimenu('Parent',hCMenu,'Label','Display last frame seen in main window',...
+%   'Callback',@(src,evt)cbkUnfreezePrevAxes(src,evt));
+% handles.axes_prev.UIContextMenu = hCMenu;
 
 % misc labelmode/Setup menu
 LABELMODE_SETUPMENU_MAP = ...
@@ -529,6 +531,8 @@ handles.menu_track_trackers = cell(0,1); % menus added in cbkTrackersAllChanged
 
 hZ = zoom(hObject);
 hZ.ActionPostCallback = @cbkPostZoom;
+hP = pan(hObject);
+hP.ActionPostCallback = @cbkPostPan;
 
 % These Labeler properties need their callbacks fired to properly init UI.
 % Labeler will read .propsNeedInit from the GUIData to comply.
@@ -612,6 +616,8 @@ switch lower(state),
     set(handles.pbPlay,'Enable','off');
     set(handles.slider_frame,'Enable','off');
     set(handles.edit_frame,'Enable','off');
+    set(handles.popupmenu_prevmode,'Enable','off');
+    set(handles.pushbutton_freezetemplate,'Enable','off');
     
     
   case 'noproject',
@@ -651,6 +657,8 @@ switch lower(state),
     set(handles.pbPlay,'Enable','off');
     set(handles.slider_frame,'Enable','off');
     set(handles.edit_frame,'Enable','off');
+    set(handles.popupmenu_prevmode,'Enable','off');
+    set(handles.pushbutton_freezetemplate,'Enable','off');
 
   case 'projectloaded'
 
@@ -681,6 +689,8 @@ switch lower(state),
     set(handles.pbPlay,'Enable','on');
     set(handles.slider_frame,'Enable','on');
     set(handles.edit_frame,'Enable','on');
+    set(handles.popupmenu_prevmode,'Enable','on');
+    set(handles.pushbutton_freezetemplate,'Enable','on');
 
   otherwise
     fprintf('Not implemented\n');
@@ -1681,6 +1691,7 @@ if tf
 end
 mnu = lObj.gdata.menu_view_rotate_video_target_up;
 mnu.Checked = onIff(tf);
+lObj.UpdatePrevAxesDirections();
 
 function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
@@ -1794,6 +1805,7 @@ if ~checkProjAndMovieExist(handles)
   return;
 end
 handles.labelerObj.lblCore.clearLabels();
+handles.labelerObj.CheckPrevAxesTemplate();
 
 function tbAccept_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
@@ -1803,8 +1815,10 @@ lc = handles.labelerObj.lblCore;
 switch lc.state
   case LabelState.ADJUST
     lc.acceptLabels();
+    handles.labelerObj.InitializePrevAxesTemplate();
   case LabelState.ACCEPTED
-    lc.unAcceptLabels();
+    lc.unAcceptLabels();    
+    handles.labelerObj.CheckPrevAxesTemplate();
   otherwise
     assert(false);
 end
@@ -1936,6 +1950,16 @@ hlpRemoveFocus(hObject,handles);
 function cbkPostZoom(src,evt)
 if verLessThan('matlab','R2016a')
   setappdata(src,'manualZoomOccured',true);
+end
+handles = guidata(src);
+if evt.Axes == handles.axes_prev,
+  handles.labelerObj.UpdatePrevAxesLimits();
+end
+
+function cbkPostPan(src,evt)
+handles = guidata(src);
+if evt.Axes == handles.axes_prev,
+  handles.labelerObj.UpdatePrevAxesLimits();
 end
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
@@ -2440,6 +2464,7 @@ if tfproceed
     ax = handles.axes_all(iAx);
     ax.YDir = toggleAxisDir(ax.YDir);
   end
+  handles.labelerObj.UpdatePrevAxesDirections();
 end
 function menu_view_flip_fliplr_Callback(hObject, eventdata, handles)
 [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(handles);
@@ -2451,6 +2476,7 @@ if tfproceed
 %       ax2 = handles.axes_prev;
 %       ax2.XDir = toggleAxisDir(ax2.XDir);
 %     end
+    handles.labelerObj.UpdatePrevAxesDirections();
   end
 end
 function menu_view_fit_entire_image_Callback(hObject, eventdata, handles)
@@ -3439,3 +3465,38 @@ if ~ischange,
 end
 handles.labelerObj.updateLandmarkPredictionColors(newcolors,newcolormapname);
 
+
+% --- Executes on selection change in popupmenu_prevmode.
+function popupmenu_prevmode_Callback(hObject, eventdata, handles)
+% hObject    handle to popupmenu_prevmode (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+contents = cellstr(get(hObject,'String'));
+mode = contents{get(hObject,'Value')};
+if strcmpi(mode,'Template'),
+  handles.labelerObj.setPrevAxesMode(PrevAxesMode.FROZEN,handles.labelerObj.prevAxesModeInfo);
+else
+  handles.labelerObj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
+end
+
+% --- Executes during object creation, after setting all properties.
+function popupmenu_prevmode_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to popupmenu_prevmode (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in pushbutton_freezetemplate.
+function pushbutton_freezetemplate_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton_freezetemplate (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+handles.labelerObj.setPrevAxesMode(PrevAxesMode.FROZEN);

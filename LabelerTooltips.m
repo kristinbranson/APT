@@ -154,7 +154,7 @@ end
 
 function success = lcl(level)
 success = false;
-fprintf('%s\n',level);
+%fprintf('%s\n',level);
 try
   javachk(level);
   success = true;

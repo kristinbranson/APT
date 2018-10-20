@@ -1246,9 +1246,8 @@ classdef Labeler < handle
       
       obj.labels2Hide = false;
 
-      % New projs must start with LASTSEEN as there is nothing to freeze
-      % yet. projLoad() will further set any loaded info
-      obj.setPrevAxesMode(PrevAxesMode.LASTSEEN,[]);
+      % New projs set to frozen, waiting for something to be labeled
+      obj.setPrevAxesMode(PrevAxesMode.FROZEN,[]);
       
       % maybe useful to clear/reinit and shouldn't hurt
       obj.trxCache = containers.Map();
@@ -1685,7 +1684,8 @@ classdef Labeler < handle
       
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
-      obj.setPrevAxesMode(pamode,s.cfg.PrevAxes.ModeInfo);
+      [~,prevModeInfo] = obj.FixPrevModeInfo(pamode,s.cfg.PrevAxes.ModeInfo);      
+      obj.setPrevAxesMode(pamode,prevModeInfo);
       
       props = obj.gdata.propsNeedInit;
       for p = props(:)', p=p{1}; %#ok<FXSET>
@@ -8810,7 +8810,7 @@ classdef Labeler < handle
       % a default CameraViewAngle, and at movieRotateTargetUp set time, set
       % the CamViewAngle to either the default or the default/2 etc.
 
-      [x0,y0] = obj.videoCurrentCenter;
+      [x0,y0] = obj.videoCurrentCenter();
       [x,y,th] = obj.currentTargetLoc();
 
       dx = x-x0;
@@ -9654,6 +9654,28 @@ classdef Labeler < handle
       end
     end
     
+    function [x,y,th] = targetLoc(obj,iMov,iTgt,frm)
+      % Added by KB 20181010
+      % Return current target center and orientation for input movie, target, and frame
+      
+      assert(obj.hasTrx,'This should not be called when videos do not have trajectories');
+      
+      if iMov == obj.currMovie && iTgt == obj.currTarget,
+        ctrx = obj.currTrx;
+      else
+        trxfname = obj.trxFilesAllFull{iMov,1};
+        movIfo = obj.movieInfoAll{iMov};
+        [s.trx,s.frm2trx] = obj.getTrx(trxfname,movIfo.nframes);
+        ctrx = s.trx(iTgt);
+      end
+      cfrm = frm;
+
+      assert(cfrm >= ctrx.firstframe && cfrm <= ctrx.endframe);
+      i = cfrm - ctrx.firstframe + 1;
+      x = ctrx.x(i);
+      y = ctrx.y(i);
+      th = ctrx.theta(i);
+    end
     function setSelectedFrames(obj,frms)
       if isempty(frms)
         obj.selectedFrames = frms;        
@@ -9811,7 +9833,8 @@ classdef Labeler < handle
       else
         obj.prevIm = currImOrig;
       end
-      obj.prevAxesImFrmUpdate();
+            
+      obj.prevAxesImFrmUpdate(tfforce);
     end
     
   end
@@ -9829,10 +9852,25 @@ classdef Labeler < handle
         pamodeinfo = [];
       end
       
+      contents = cellstr(get(obj.gdata.popupmenu_prevmode,'String'));
+      v1 = get(obj.gdata.popupmenu_prevmode,'Value');
+      switch pamode
+        case PrevAxesMode.FROZEN,
+          v2 = find(strcmpi(contents,'Template'));
+        case PrevAxesMode.LASTSEEN,
+          v2 = find(strcmpi(contents,'Previous frame'));
+        otherwise
+          error('Unknown previous axes mode');
+      end
+      if v2 ~= v1,
+        set(obj.gdata.popupmenu_prevmode,'Value',v2);
+      end
+
+      obj.prevAxesMode = pamode;
+      
       switch pamode
         case PrevAxesMode.LASTSEEN
-          obj.prevAxesMode = pamode;
-          obj.prevAxesModeInfo = pamodeinfo;
+          %obj.prevAxesModeInfo = pamodeinfo;
           obj.prevAxesImFrmUpdate();
           obj.prevAxesLabelsUpdate();
           gd = obj.gdata;
@@ -9841,8 +9879,10 @@ classdef Labeler < handle
             'CameraUpVectorMode','auto',...
             'CameraViewAngleMode','auto');
           gd.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
+          gd.pushbutton_freezetemplate.Visible = 'off';
         case PrevAxesMode.FROZEN
           obj.prevAxesFreeze(pamodeinfo);
+          obj.gdata.pushbutton_freezetemplate.Visible = 'on';
         otherwise
           assert(false);
       end
@@ -9855,33 +9895,62 @@ classdef Labeler < handle
       % freezeInfo: Optional freezeInfo to apply. If not supplied,
       % image/labels taken from current movie/frame/etc.
       
+      if ~obj.hasMovie,
+        return;
+      end
+      
+      set(obj.gdata.popupmenu_prevmode,'Visible','on');
+      set(obj.gdata.pushbutton_freezetemplate,'Visible','on');
+      
       gd = obj.gdata;
       if isequal(freezeInfo,[])
-        axc = gd.axes_curr;
+        
         freezeInfo = struct(...
           'iMov',obj.currMovie,...
           'frm',obj.currFrame,...
           'iTgt',obj.currTarget,...
           'im',obj.currIm{1},...
-          'axes_curr',struct('XLim',axc.XLim,'YLim',axc.YLim,...
-                             'XDir',axc.XDir,'YDir',axc.YDir,...
-                             'CameraUpVector',axc.CameraUpVector));
-        if strcmp(axc.CameraViewAngleMode,'auto')
-          freezeInfo.axes_curr.CameraViewAngleMode = 'auto';
-        else
-          freezeInfo.axes_curr.CameraViewAngle = axc.CameraViewAngle;
+          'isrotated',false);
+        if isfield(obj.prevAxesModeInfo,'dxlim'),
+          freezeInfo.dxlim = obj.prevAxesModeInfo.dxlim;
+          freezeInfo.dylim = obj.prevAxesModeInfo.dylim;
         end
+        freezeInfo = obj.SetPrevMovieInfo(freezeInfo);
+        freezeInfo = obj.GetDefaultPrevAxes(freezeInfo);
+        
       end
       
-      gd.image_prev.CData = freezeInfo.im;
-      gd.txPrevIm.String = num2str(freezeInfo.frm);
-      obj.prevAxesSetLabels(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt);
+      success = true;
+      if ~isfield(freezeInfo,'frm') || isempty(freezeInfo.frm),
+        [success,freezeInfo] = obj.FixPrevModeInfo(PrevAxesMode.FROZEN,freezeInfo);
+      end
+      if ~success,
+        freezeInfo.iMov = [];
+        freezeInfo.frm = [];
+        freezeInfo.iTgt = [];
+        freezeInfo.im = [];
+        freezeInfo.isrotated = false;
+        gd.image_prev.CData = 0;
+        gd.txPrevIm.String = '';
+      else
+        gd.image_prev.XData = freezeInfo.xdata;
+        gd.image_prev.YData = freezeInfo.ydata;
+        gd.image_prev.CData = freezeInfo.im;
+        gd.txPrevIm.String = sprintf('Frame %d',freezeInfo.frm);
+        if obj.hasTrx,
+          gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Target %d',freezeInfo.iTgt)];
+        end
+      end
+      obj.prevAxesSetLabels(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
       
       gd.hLinkPrevCurr.Enabled = 'off';
       axp = gd.axes_prev;
       axcProps = freezeInfo.axes_curr;
       for prop=fieldnames(axcProps)',prop=prop{1}; %#ok<FXSET>
         axp.(prop) = axcProps.(prop);
+      end
+      if freezeInfo.isrotated,
+        axp.CameraUpVectorMode = 'auto';
       end
       % Setting XLim/XDir etc unnec coming from PrevAxesMode.LASTSEEN, but 
       % sometimes nec eg for a "refreeze"
@@ -9890,20 +9959,61 @@ classdef Labeler < handle
       obj.prevAxesModeInfo = freezeInfo;
     end
     
-    function prevAxesImFrmUpdate(obj)
+    function prevAxesImFrmUpdate(obj,tfforce)
+
+      if nargin < 2,
+        tfforce = false;
+      end
+      
+      if ~obj.hasMovie || isempty(obj.prevAxesMode),
+        return;
+      end
+      
+      set(obj.gdata.popupmenu_prevmode,'Visible','on');
+      
       % update prevaxes image and txframe based on .prevIm, .prevFrame
       switch obj.prevAxesMode
         case PrevAxesMode.LASTSEEN
           gd = obj.gdata;
           set(gd.image_prev,obj.prevIm);
-          gd.txPrevIm.String = num2str(obj.prevFrame);
+          gd.txPrevIm.String = sprintf('Frame: %d',obj.prevFrame);
+          if obj.hasTrx,
+            gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Target %d',obj.currTarget)];
+          end
+        case PrevAxesMode.FROZEN,          
+          if tfforce,
+            obj.prevAxesModeInfo = obj.SetPrevMovieInfo(obj.prevAxesModeInfo);
+            if ~isempty(obj.prevAxesModeInfo) && isfield(obj.prevAxesModeInfo,'im') && ~isempty(obj.prevAxesModeInfo.im),
+              set(obj.gdata.image_prev,'CData',obj.prevAxesModeInfo.im);
+            end
+          end
       end
+    end
+    
+    function islabeled = currFrameIsLabeled(obj)
+      
+      lpos = obj.labeledposGTaware;
+      lpos = lpos{obj.currMovie}(:,:,obj.currFrame,obj.currTarget);
+      islabeled = all(~isnan(lpos(:)));
+      
     end
     
     function prevAxesLabelsUpdate(obj)
       % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on 
       % .prevFrame etc 
-      if obj.isinit || ~obj.hasMovie || obj.prevAxesMode==PrevAxesMode.FROZEN
+      % KB HERE
+      if obj.isinit || ~obj.hasMovie,
+        return;
+      end
+      
+      islabeled = obj.currFrameIsLabeled();
+      if islabeled,
+        set(obj.gdata.pushbutton_freezetemplate,'Enable','on');
+      else
+        set(obj.gdata.pushbutton_freezetemplate,'Enable','off');
+      end
+      
+      if obj.prevAxesMode==PrevAxesMode.FROZEN,
         return;
       end
       if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
@@ -9913,15 +10023,284 @@ classdef Labeler < handle
       end
     end
     
+    function [success,paModeInfo] = FixPrevModeInfo(obj,paMode,paModeInfo)
+      
+      if nargin < 2,
+        paMode = obj.prevAxesMode;
+        paModeInfo = obj.prevAxesModeInfo;
+      end
+      % KB 20181010 - make sure the frozen frame is labeled
+      if paMode~=PrevAxesMode.FROZEN,
+        success = true;
+        return;
+      end
+        
+      % make sure the previous frame is labeled
+      success = false;
+      lpos = obj.labeledposGTaware;
+      if numel(lpos) >= paModeInfo.iMov,
+        if isfield(paModeInfo,'iTgt'),
+          iTgt = paModeInfo.iTgt;
+        else
+          iTgt = 1;
+        end
+        if size(lpos{paModeInfo.iMov},4) >= iTgt && ...
+            size(lpos{paModeInfo.iMov},3) >= paModeInfo.frm,
+          success = all(all(all(~isnan(lpos{paModeInfo.iMov}(:,:,paModeInfo.frm,iTgt,:)))));
+        end
+      end
+      if success,
+        return;
+      end
+      % find first labeled frame
+      mints = inf;
+      frm = paModeInfo.frm;
+      iMov = paModeInfo.iMov;
+      iTgt = paModeInfo.iTgt;
+      for i = 1:numel(obj.labeledposTS),
+        %islabeled = permute(all(obj.labeledposTSGTaware{i}>0,1),[2,3,1]);
+        islabeled = permute(all(all(lpos{i}>0,1),2),[3,4,1,2]);
+        idxlabeled = find(islabeled);
+        tmp = obj.labeledposTS{i}(1,:,:,1);
+        [mintscurr,j] = min(tmp(islabeled));
+        [frmcurr,iTgtcurr] = ind2sub([size(obj.labeledposTSGTaware{i},2),size(obj.labeledposTSGTaware{i},3)],idxlabeled(j));
+        if mintscurr < mints,
+          frm = frmcurr;
+          iTgt = iTgtcurr;
+          iMov = i;
+          mints = mintscurr;
+          success = true;
+        end
+      end
+      if ~success,
+        paModeInfo.frm = [];
+        paModeInfo.iTgt = [];
+        paModeInfo.iMov = [];
+        if nargin < 2,
+          obj.prevAxesModeInfo = paModeInfo;
+        end
+        return;
+      end
+      paModeInfo.frm = frm;
+      paModeInfo.iTgt = iTgt;
+      paModeInfo.iMov = iMov;
+      
+      paModeInfo = obj.SetPrevMovieInfo(paModeInfo);
+      paModeInfo = obj.GetDefaultPrevAxes(paModeInfo);
+
+      if nargin < 2,
+        obj.prevAxesModeInfo = paModeInfo;
+      end
+    end
+    
+    function ModeInfo = SetPrevMovieInfo(obj,ModeInfo)
+      
+      if ~obj.hasMovie || isempty(ModeInfo) || ~isfield(ModeInfo,'frm') || isempty(ModeInfo.frm),
+        return;
+      end
+      viewi = 1;
+      if ModeInfo.iMov == obj.currMovie,
+        [im] = ...
+          obj.movieReader(viewi).readframe(ModeInfo.frm,...
+          'doBGsub',obj.movieViewBGsubbed,'docrop',~obj.cropIsCropMode);
+      else
+        mr = MovieReader;
+        obj.movieMovieReaderOpen(mr,MovieIndex(ModeInfo.iMov),viewi);
+        [im] = mr.readframe(ModeInfo.frm,...
+          'doBGsub',obj.movieViewBGsubbed,'docrop',~obj.cropIsCropMode);
+      end
+      ModeInfo.im = im;
+      ModeInfo.isrotated = false;
+
+      % to do: figure out [~,~what to do when there are multiple views
+      if ~obj.hasTrx,
+        ModeInfo.xdata = [1,size(ModeInfo.im,2)];
+        ModeInfo.ydata = [1,size(ModeInfo.im,1)];
+      else
+        ydir = get(obj.gdata.axes_prev,'YDir');
+        if strcmpi(ydir,'normal'),
+          pi2sign = -1;
+        else
+          pi2sign = 1;
+        end
+
+        [x,y,th] = obj.targetLoc(ModeInfo.iMov,ModeInfo.iTgt,ModeInfo.frm);
+        ModeInfo.A = [1,0,0;0,1,0;-x,-y,1]*[cos(th+pi2sign*pi/2),-sin(th+pi2sign*pi/2),0;sin(th+pi2sign*pi/2),cos(th+pi2sign*pi/2),0;0,0,1];
+        ModeInfo.tform = maketform('affine',ModeInfo.A);
+        [ModeInfo.im,ModeInfo.xdata,ModeInfo.ydata] = imtransform(ModeInfo.im,ModeInfo.tform,'bicubic');
+        ModeInfo.isrotated = true;
+      end
+      
+    end
+      
+    function [w,h] = GetPrevAxesSizeInPixels(obj)
+      units = get(obj.gdata.axes_prev,'Units');
+      set(obj.gdata.axes_prev,'Units','pixels');
+      pos = get(obj.gdata.axes_prev,'Position');
+      set(obj.gdata.axes_prev,'Units',units);
+      w = pos(3); h = pos(4);
+    end
+    
+    function ModeInfo = GetDefaultPrevAxes(obj,ModeInfo)
+      
+      if nargin < 2,
+        ModeInfo = obj.prevAxesModeInfo;
+      end
+      
+      borderfrac = .5;
+      if ~obj.hasMovie,
+        return;
+      end
+      if isempty(ModeInfo.frm),
+        return;
+      end
+      if ~isfield(ModeInfo,'isrotated'),
+        ModeInfo.isrotated = false;
+      end
+      lpos = obj.labeledposGTaware;
+      viewi = 1;
+      poscurr = lpos{ModeInfo.iMov}(:,:,ModeInfo.frm,ModeInfo.iTgt,viewi);
+      if obj.hasTrx,
+        poscurr = [poscurr,ones(size(poscurr,1),1)]*ModeInfo.A;
+        poscurr = poscurr(:,1:2);
+      end
+            
+      minpos = min(poscurr,[],1);
+      maxpos = max(poscurr,[],1);
+      centerpos = (minpos+maxpos)/2;
+      % border defined by borderfrac
+      r = max(1,(maxpos-minpos)/2*(1+borderfrac));
+      xlim = centerpos(1)+[-1,1]*r(1);
+      ylim = centerpos(2)+[-1,1]*r(2);      
+      
+      [axw,axh] = obj.GetPrevAxesSizeInPixels();
+      axszratio = axw/axh;
+      dx = diff(xlim);
+      dy = diff(ylim);
+      limratio = dx / dy;
+      % need to extend 
+      if axszratio > limratio,
+        extendratio = axszratio/limratio;
+        xlim = centerpos(1)+[-1,1]*r(1)*extendratio;
+      elseif axszratio < limratio,
+        extendratio = limratio/axszratio;
+        ylim = centerpos(2)+[-1,1]*r(2)*extendratio;
+      end
+      if isfield(ModeInfo,'dxlim'),
+        xlim = xlim + ModeInfo.dxlim;
+        ylim = ylim + ModeInfo.dylim;
+      else
+        ModeInfo.dxlim = [0,0];
+        ModeInfo.dylim = [0,0];
+      end
+      
+      xdir = get(obj.gdata.axes_curr,'XDir');
+      ydir = get(obj.gdata.axes_curr,'YDir');
+      ModeInfo.axes_curr = struct('XLim',xlim,'YLim',ylim,...
+        'XDir',xdir','YDir',ydir,...
+        'CameraViewAngleMode','auto');
+      
+      if nargin < 2,
+        obj.prevAxesModeInfo = ModeInfo;
+      end
+      
+    end
+    
+    function UpdatePrevAxesLimits(obj)
+      
+      if obj.prevAxesMode == PrevAxesMode.FROZEN,
+        newxlim = get(obj.gdata.axes_prev,'XLim');
+        newylim = get(obj.gdata.axes_prev,'YLim');
+        dx = newxlim - obj.prevAxesModeInfo.axes_curr.XLim;
+        dy = newylim - obj.prevAxesModeInfo.axes_curr.YLim;
+        
+        obj.prevAxesModeInfo.axes_curr.XLim = newxlim;
+        obj.prevAxesModeInfo.axes_curr.YLim = newylim;
+        obj.prevAxesModeInfo.dxlim = obj.prevAxesModeInfo.dxlim + dx;
+        obj.prevAxesModeInfo.dylim = obj.prevAxesModeInfo.dylim + dy;
+      end
+      
+    end
+    
+    function UpdatePrevAxesDirections(obj)
+      
+      xdir = get(obj.gdata.axes_curr,'XDir');
+      ydir = get(obj.gdata.axes_curr,'YDir');
+
+      obj.prevAxesModeInfo.axes_curr.XDir = xdir;
+      obj.prevAxesModeInfo.axes_curr.YDir = ydir;
+      
+      set(obj.gdata.axes_prev,'XDir',xdir,'YDir',ydir);
+      
+      if obj.hasTrx,
+        obj.prevAxesModeInfo = obj.SetPrevMovieInfo(obj.prevAxesModeInfo);
+        obj.GetDefaultPrevAxes();
+        obj.prevAxesFreeze(obj.prevAxesModeInfo);
+      end
+
+    end
+    
+    function InitializePrevAxesTemplate(obj)
+      
+      islabeled = obj.currFrameIsLabeled();
+      if islabeled,
+        set(obj.gdata.pushbutton_freezetemplate,'Enable','on');
+      else
+        set(obj.gdata.pushbutton_freezetemplate,'Enable','off');
+      end
+      
+      if obj.prevAxesMode == PrevAxesMode.FROZEN && (isempty(obj.prevAxesModeInfo) || ~isfield(obj.prevAxesModeInfo,'frm') || isempty(obj.prevAxesModeInfo.frm)),
+        if islabeled,
+          obj.prevAxesFreeze([]);
+        end
+      end
+      
+    end
+    
+    function CheckPrevAxesTemplate(obj)
+      
+      if obj.prevAxesMode ~= PrevAxesMode.FROZEN || isempty(obj.prevAxesModeInfo) || ~isfield(obj.prevAxesModeInfo,'frm') || isempty(obj.prevAxesModeInfo.frm),
+        return;
+      end
+      if obj.prevAxesModeInfo.frm == obj.currFrame && obj.prevAxesModeInfo.iMov == obj.currMovie && ...
+          obj.prevAxesModeInfo.iTgt == obj.currTarget,
+        obj.FixPrevModeInfo();
+        obj.setPrevAxesMode(obj.prevAxesMode,obj.prevAxesModeInfo);
+      end
+      islabeled = obj.currFrameIsLabeled();
+      if islabeled,
+        set(obj.gdata.pushbutton_freezetemplate,'Enable','on');
+      else
+        set(obj.gdata.pushbutton_freezetemplate,'Enable','off');
+      end
+    end
+    
   end
   methods (Access=private)
-    function prevAxesSetLabels(obj,iMov,frm,iTgt)
+    function prevAxesSetLabels(obj,iMov,frm,iTgt,info)
       persistent tfWarningThrownAlready
       
-      lpos = obj.labeledposGTaware;
-      lpostag = obj.labeledpostagGTaware;
-      lpos = lpos{iMov}(:,:,frm,iTgt);
-      lpostag = lpostag{iMov}(:,frm,iTgt);
+      if nargin < 5,
+        isrotated = false;
+      else
+        isrotated = info.isrotated;
+      end
+      
+      if isempty(frm),
+        sz = size(obj.labeledposGTaware{1});
+        lpos = nan(sz([1,2]));
+        lpostag = false([sz(1),1]);
+      else
+        lpos = obj.labeledposGTaware;
+        lpostag = obj.labeledpostagGTaware;
+        lpos = lpos{iMov}(:,:,frm,iTgt);
+        if isrotated,
+          lpos = [lpos,ones(size(lpos,1),1)]*info.A;
+          lpos = lpos(:,1:2);
+        end
+
+        lpostag = lpostag{iMov}(:,frm,iTgt);
+      end
       ipts = 1:obj.nPhysPoints;
       txtOffset = obj.labelPointsPlotInfo.LblOffset;
       LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
