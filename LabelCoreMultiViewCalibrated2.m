@@ -80,7 +80,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     % .hPts       % [npts] from LabelCore. hLine handles for pts (in
     %               respective axes)
     % .hPtsTxt    % [npts]
-    hPtsColors    % [nptsx3] colors for pts, based on prefs.ColorsSets
+    %hPtsColors    % [nptsx3] colors for pts, based on prefs.ColorsSets
     hPtsTxtStrs   % [npts] cellstr, text labels for each pt
     iSet2iPt      % [nset x nview]. A point 'set' is a nview-tuple of point 
                   % indices that represent a single physical (3d) point.
@@ -183,7 +183,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.labeler.labeledpos2_ptsH = gobjects(obj.nPts,1);
       obj.labeler.labeledpos2_ptsTxtH = gobjects(obj.nPts,1);
       ppi = obj.ptsPlotInfo;
-      obj.hPtsColors = nan(obj.nPointSet,3);
+      %obj.hPtsColors = nan(obj.nPointSet,3);
       obj.hPtsTxtStrs = cell(obj.nPts,1);
       trkPrefs = obj.labeler.projPrefs.Track;
       if ~isempty(trkPrefs)
@@ -196,7 +196,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         iSet = obj.iPt2iSet(iPt);
         setClr = ppi.Colors(iSet,:);
         setClr2 = setClr;
-        obj.hPtsColors(iPt,:) = setClr;
+        %obj.hPtsColors(iPt,:) = setClr;
         ptsArgs = {nan,nan,ppi.Marker,...
           'ZData',1,... % AL 20160628: seems to help with making points clickable but who knows 2018018 probably remove me after Pickable Parts update
           'MarkerSize',ppi.MarkerSize,...

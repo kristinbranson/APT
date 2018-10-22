@@ -1180,14 +1180,14 @@ classdef Labeler < handle
         lpp.Colors = feval(lpp.ColorMapName,nSet);
       end
       % KB 20181022: TODO: remove ColorsSets
-      if ~isfield(lpp,'ColorsSets') || size(lpp.ColorsSets,1)~=nSet
-        if isfield(lpp,'ColorMapName')
-          cmapName = lpp.ColorMapName;
-        else
-          cmapName = 'parula';
-        end
-        lpp.ColorsSets = feval(cmapName,nSet);
-      end      
+%       if ~isfield(lpp,'ColorsSets') || size(lpp.ColorsSets,1)~=nSet
+%         if isfield(lpp,'ColorMapName')
+%           cmapName = lpp.ColorMapName;
+%         else
+%           cmapName = 'parula';
+%         end
+%         lpp.ColorsSets = feval(cmapName,nSet);
+%       end      
       obj.labelPointsPlotInfo = lpp;
             
       obj.trackNFramesSmall = cfg.Track.PredictFrameStep;
@@ -1340,7 +1340,7 @@ classdef Labeler < handle
       cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       
       cfg = structoverlay(cfgBase,cfg,'dontWarnUnrecog',true,...
-        'allowedUnrecogFlds',{'Colors' 'ColorsSets'});
+        'allowedUnrecogFlds',{'Colors'});% 'ColorsSets'});
       view = augmentOrTruncateVector(cfg.View,cfg.NumViews);
       cfg.View = view(:);
     end
