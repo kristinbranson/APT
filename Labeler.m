@@ -4846,7 +4846,9 @@ classdef Labeler < handle
       
       obj.labelPointsPlotInfo.ColorMapName = colormapname;
       obj.labelPointsPlotInfo.Colors = colors;
-      obj.lblCore.updateColors(obj.Set2PointColors(colors));
+      ptcolors = obj.Set2PointColors(colors);
+      obj.lblCore.updateColors(ptcolors);
+      LabelCore.setPtsColor(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH,ptcolors);
       obj.gdata.labelTLInfo.updateLandmarkColors();
       
     end
