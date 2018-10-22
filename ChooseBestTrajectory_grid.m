@@ -1,4 +1,4 @@
-function [hmnrnc,hmidxBestTraj,totalcost] = ...
+function [hmnrnc,hmBestTrajUV,acBestTrajUV,totalcost] = ...
                             ChooseBestTrajectory_grid(hmfcn,n,varargin)
 % Grid Viterbi
 %
@@ -6,7 +6,8 @@ function [hmnrnc,hmidxBestTraj,totalcost] = ...
 % n: run from frames 1..n
 %
 % hmnrnc: [hmnr hmnc] heatmap size
-% hmidxBestTraj: [nx1] linear indices into heatmaps for best trajectory
+% hmBestTraj: [nx2] p,q indices into heatmaps for best traj
+% acBestTraj: [nx2] u,v indices into acwins for best traj
 % totalcost: [1] total cost of best traj
 
 [hm11xyOrig,acrad,dx,maxvx,poslambda,dampen] = myparse(varargin,...
@@ -36,24 +37,6 @@ szassert(hm11xyOrig,[n 2]);
 
 gv = GridViterbi(maxvx,dx,dampen);
 
-% Clean me up, all this just for l2mmcZeroVel and only used for initialization
-% l2Big has size [maxvxsz x maxvxsz] where maxvxsz = 2*maxvx+1.
-[l2mmcBig,l2mmcBigx1,l2mmcBigy1,l2mmcBigx2,l2mmcBigy2] = ...
-  GridViterbi.precompMMC(maxvx,dx,dampen);
-maxvxsz = 2*maxvx+1;
-max2vxsz = 4*maxvx+1;
-assert(isequal(l2mmcBigx1(1,end),l2mmcBigy1(end,1),maxvxsz));
-assert(isequal(l2mmcBigx2(1,end),l2mmcBigy2(end,1),max2vxsz));
-% l2Big(l2Step1Mid,l2Step1Mid,:,:) gives the l2 dist for starting at (0,0), 
-% staying there at t=2, then moving to (u,v) at t=3
-l2Step1Mid = maxvx+1;
-l2Step2Mid = 2*maxvx+1;
-assert(dx==1,'Currently require dx==1.');
-l2mmcZeroVel = squeeze(l2mmcBig(l2Step1Mid,l2Step1Mid,:,:));
-szassert(l2mmcZeroVel,[max2vxsz max2vxsz]); 
-% l2mmcZeroVel is motion cost of starting at (0,0), staying there, then
-% moving to (u,v) on t=3. The origin is at (2*maxvx+1,2*maxvx+1) 
-
 % For each HM we consider a square window of size acsz. We call these "AC
 % windows". The chosen state is assumed to live in this window. We attempt 
 % to judiciously choose the AC window for each frame.
@@ -75,22 +58,26 @@ acCtrPQ(1,:) = [pctr1 qctr1];
 hm2 = hmfcn(2);
 [ac2,pctr2,qctr2] = GridViterbi.hm2ac(hm2,acrad,hm11xyOrig(2,:));
 acCtrPQ(2,:) = [pctr2 qctr2];
-% mc2 assumes zero velocity
-% mc2(u2,v2,u1,v1) is motion cost for transitioning from (u1,v1,t=1)->(u2,v2,t=2)
+
+% mc2(u2,v2,u1,v1) is motion cost for transitioning from 
+% (u0,v0,t=0)->(u1,v1,t=1)->(u2,v2,t=2) where we assume acwins@t0 @t1 are
+% aligned; and u0==u1 and v0==v1
 % Right now we consider motion cost in the heatmap (body-centered) frame.
 mc2 = nan(acsz,acsz,acsz,acsz);
-% Cleanup this init
-dp12 = pctr2-pctr1; % ac2 is offset by this many rows relative to ac1 (when considered rel to their heatmap frames)
-dq12 = qctr2-qctr1; % etc
-for p1=1:acsz
-for q1=1:acsz
-  % xxx do we want L2 or sqrt(L2)?
-  l2Step2R1 = l2Step2Mid-p1+1+dp12;
-  l2Step2C1 = l2Step2Mid-q1+1+dq12;  
-  l2Step2RIdx = l2Step2R1:l2Step2R1+acsz-1;
-  l2Step2CIdx = l2Step2C1:l2Step2C1+acsz-1;
-  l2_2rel1 = l2mmcZeroVel(l2Step2RIdx,l2Step2CIdx); % l2 dist from each AC gridpt at t=2, rel to t=1
-  mc2(:,:,p1,q1) = poslambda*l2_2rel1;
+acCtrPQ012 = acCtrPQ([1 1 2],:);
+for u2=1:acsz
+for v2=1:acsz
+  mctL2 = gv.getMotionCostL2(u2,v2,acCtrPQ012,acrad);
+  
+  % mct: [acsz x acsz x acsz x acsz]. mct(u1,v1,u0,v0) is l2
+  % distance/motion cost for transitioning from
+  %   (u0,v0,0)->(u1,v1,1)->(u2,v2,2)
+  
+  for u1=1:acsz
+  for v1=1:acsz
+    mc2(u2,v2,u1,v1) = poslambda*mctL2(u1,v1,u1,v1);
+  end
+  end
 end
 end
 
@@ -131,9 +118,10 @@ for t = 3:n
     % mct(u2,v2,u1,v1) is motion cost for transitioning from
     % (u1,v1,t-2)->(u2,v2,t-1)->(ut,vt,t);
     
-    totcost = costprev + mctL2 + act(ut,vt); % [acsz x acsz x acsz x acsz]
+    totcost = costprev + poslambda*mctL2 + act(ut,vt); % [acsz x acsz x acsz x acsz]
     totcost = reshape(totcost,[acnumel acnumel]); 
-    % totcost(q,p) gives total cost of transition from p~(u1,v1,t-2)->q~(u2,v2,t-1)
+    % totcost(q,p) gives total cost of transition from
+    % g~(u1,v1,t-2)->h~(u2,v2,t-1)->(ut,vt,t)
     [mintotcost,pidx] = min(totcost,[],2);
     szassert(mintotcost,[acnumel 1]);
     costcurr(ut,vt,:,:) = mintotcost;
@@ -161,18 +149,15 @@ for t = 3:n
 %   costprev = costcurr;
 end
 
-
-
-% find the best last state
+hmBestTrajUV = nan(n,2);
+acBestTrajUV = nan(n,2);
 [totalcost,i] = min(costprev(:));
-idx = nan(1,T);
-[idx(T),idx(T-1)] = ind2sub([K,K],i);
-
-for t = T-2:-1:1
-  idx(t) = prev(idx(t+2),idx(t+1),t+2);
+[acBestTrajUV(n,1),acBestTrajUV(n,2),acBestTrajUV(n-1,1),acBestTrajUV(n-1,2)] ...
+  = ind2sub([acsz acsz acsz acsz],i);
+for t=n-2:-1:1
+  idxBestT = prev(acBestTrajUV(t+2,1),acBestTrajUV(t+2,2),...
+                  acBestTrajUV(t+1,1),acBestTrajUV(t+1,2),t+2);
+  acBestTrajUV(t,:) = ind2sub([acsz acsz],idxBestT);
 end
 
-Xbest = nan(D,T);
-for t = 1:T
-  Xbest(:,t) = X(idx(t),:,t);
-end
+hmBestTrajUV = convertTODO(acBestTrajUV);
