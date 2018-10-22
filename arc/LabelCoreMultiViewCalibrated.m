@@ -109,7 +109,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore & LabelCoreMVMixin
       obj.hPtsTxtStrs = cell(obj.nPts,1);
       for iPt=1:obj.nPts
         iSet = obj.iPt2iSet(iPt);
-        setClr = ppi.ColorsSets(iSet,:);
+        setClr = ppi.Colors(iSet,:);
         obj.hPtsColors(iPt,:) = setClr;
         ptsArgs = {nan,nan,ppi.Marker,...
           'ZData',1,... % AL 20160628: seems to help with making points clickable but who knows

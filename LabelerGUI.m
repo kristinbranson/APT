@@ -3416,7 +3416,8 @@ function menu_view_landmark_label_colors_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 
-nlandmarks = handles.labelerObj.nLabelPoints;
+nlandmarks = max(handles.labelerObj.labeledposIPt2Set);
+%nlandmarks = handles.labelerObj.nLabelPoints;
 
 if isfield(handles.labelerObj.labelPointsPlotInfo,'Colors'),
   colors = handles.labelerObj.labelPointsPlotInfo.Colors;
@@ -3446,7 +3447,8 @@ function menu_view_landmark_prediction_colors_Callback(hObject, eventdata, handl
 % predictions: handles.labelerObj.projPrefs.Track
 % labels: handles.labelerObj.labelPointsPlotInfo
 
-nlandmarks = handles.labelerObj.nLabelPoints;
+nlandmarks = max(handles.labelerObj.labeledposIPt2Set);
+%nlandmarks = handles.labelerObj.nLabelPoints;
 if isfield(handles.labelerObj.projPrefs,'Track') && ...
     isfield(handles.labelerObj.projPrefs.Track,'PredictPointsPlotColorMapName'),
   colormapname = handles.labelerObj.projPrefs.Track.PredictPointsPlotColorMapName;

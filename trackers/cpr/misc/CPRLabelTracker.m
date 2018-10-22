@@ -1927,7 +1927,7 @@ classdef CPRLabelTracker < LabelTracker
     function updateLandmarkColors(obj)
       
       npts = obj.nPts;
-      ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;      
+      ptsClrs = obj.PredictPointColors;
       for iPt=1:npts
         set(obj.hXYPrdRed(iPt),'Color',ptsClrs(iPt,:));
         set(obj.hXYPrdRedOther(iPt),'Color',ptsClrs(iPt,:));
@@ -2605,7 +2605,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.xyVizFullPlotArgs = struct2paramscell(cprPrefs);
       
       npts = obj.nPts;
-      ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;
+      ptsClrs = obj.lObj.PredictPointColors;
       ax = obj.ax;
       %arrayfun(@cla,ax);
       arrayfun(@(x)hold(x,'on'),ax);

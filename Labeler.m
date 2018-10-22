@@ -1175,9 +1175,11 @@ classdef Labeler < handle
       
       lpp = cfg.LabelPointsPlot;
       % Some convenience mods to .LabelPointsPlot
-      if (~isfield(lpp,'Colors') || size(lpp.Colors,1)~=npts) && isfield(lpp,'ColorMapName') 
-        lpp.Colors = feval(lpp.ColorMapName,npts);
+      % KB 20181022: Colors will now be nSet x 3
+      if (~isfield(lpp,'Colors') || size(lpp.Colors,1)~=nSet) && isfield(lpp,'ColorMapName') 
+        lpp.Colors = feval(lpp.ColorMapName,nSet);
       end
+      % KB 20181022: TODO: remove ColorsSets
       if ~isfield(lpp,'ColorsSets') || size(lpp.ColorsSets,1)~=nSet
         if isfield(lpp,'ColorMapName')
           cmapName = lpp.ColorMapName;
@@ -1220,11 +1222,12 @@ classdef Labeler < handle
       % A few minor subprops of projPrefs have explicit props
 
       % KB: colormap for predictions
+      % KB 20181022: Changed npts to nSet
       if isfield(obj.projPrefs,'Track') && isstruct(obj.projPrefs.Track),
         if (~isfield(obj.projPrefs.Track,'PredictPointsPlotColors') || ...
-            size(obj.projPrefs.Track.PredictPointsPlotColors,1)~=npts) && ...
+            size(obj.projPrefs.Track.PredictPointsPlotColors,1)~=nSet) && ...
             isfield(obj.projPrefs.Track,'PredictPointsPlotColorMapName')
-          obj.projPrefs.Track.PredictPointsPlotColors = feval(obj.projPrefs.Track.PredictPointsPlotColorMapName,npts);
+          obj.projPrefs.Track.PredictPointsPlotColors = feval(obj.projPrefs.Track.PredictPointsPlotColorMapName,nSet);
         end
       end
       
@@ -1981,7 +1984,9 @@ classdef Labeler < handle
         lc.setPs(xyGT,xyTstT,xyTstTRed);
         delete(obj.lblCore);
         obj.lblCore = lc;
-        lc.init(obj.nLabelPoints,obj.labelPointsPlotInfo);
+        lpp = obj.labelPointsPlotInfo;
+        lpp.Colors = obj.LabelPointColors();
+        lc.init(obj.nLabelPoints,lpp);
         obj.setFrame(1);
       end
     end
@@ -4228,6 +4233,7 @@ classdef Labeler < handle
      
       nPts = obj.nLabelPoints;
       lblPtsPlotInfo = obj.labelPointsPlotInfo;
+      lblPtsPlotInfo.Colors = obj.LabelPointColors;
       template = obj.labelTemplate;
       
       lc = obj.lblCore;
@@ -4840,7 +4846,7 @@ classdef Labeler < handle
       
       obj.labelPointsPlotInfo.ColorMapName = colormapname;
       obj.labelPointsPlotInfo.Colors = colors;
-      obj.lblCore.updateColors(colors);
+      obj.lblCore.updateColors(obj.Set2PointColors(colors));
       obj.gdata.labelTLInfo.updateLandmarkColors();
       
     end
@@ -4854,9 +4860,10 @@ classdef Labeler < handle
       hProp = 'labeledpos2_ptsH';
       hTxtProp = 'labeledpos2_ptsTxtH';
       
+      ptcolors = obj.Set2PointColors(colors);
       for i = 1:obj.nLabelPoints
-        set(obj.(hProp)(i),'Color',colors(i,:));
-        set(obj.(hTxtProp)(i),'Color',colors(i,:));
+        set(obj.(hProp)(i),'Color',ptcolors(i,:));
+        set(obj.(hTxtProp)(i),'Color',ptcolors(i,:));
       end      
       
     end
@@ -5796,7 +5803,8 @@ classdef Labeler < handle
       % p is [n x nphyspts*nvw*2]
       p = reshape(p',[nphyspts nvw 2 n]);
       
-      clrs = obj.labelPointsPlotInfo.ColorsSets;
+      % KB 20181022 - removing references to ColorsSets
+      clrs = obj.labelPointsPlotInfo.Colors;
       ec = OlyDat.ExperimentCoordinator;      
 
       tbases = cell(nvw,1);
@@ -6948,7 +6956,8 @@ classdef Labeler < handle
         'nmontage',height(t));      
       
       t.meanOverPtsL2err = mean(t.L2err,2);
-      clrs =  obj.labelPointsPlotInfo.Colors;
+      % KB 20181022: Changed colors to match sets instead of points
+      clrs =  obj.LabelPointColors;
       nclrs = size(clrs,1);
       npts = size(t.L2err,2);
       assert(npts==obj.nLabelPoints);
@@ -10467,6 +10476,28 @@ classdef Labeler < handle
       obj.labelExportTrkGeneric(iMovs,trkfiles,PROPS.LPOS2,[],[]);
     end
     
+    function colors = Set2PointColors(obj,colors)
+      
+      colors = colors(obj.labeledposIPt2Set,:);
+      
+    end
+    
+    function colors = LabelPointColors(obj,idx)
+      
+      colors = obj.Set2PointColors(obj.labelPointsPlotInfo.Colors);
+      if nargin > 1,
+        colors = colors(idx,:);
+      end
+      
+    end
+    
+    function colors = PredictPointColors(obj)
+      colors = obj.Set2PointColors(obj.projPrefs.Track.PredictPointsPlotColors);
+      if nargin > 1,
+        colors = colors(idx,:);
+      end
+    end
+    
     function labelsMiscInit(obj)
       % Initialize view stuff for labels2, lblOtherTgts
       
@@ -10474,12 +10505,14 @@ classdef Labeler < handle
       if ~isempty(trkPrefs)
         ptsPlotInfo = trkPrefs.PredictPointsPlot;
         if isfield(trkPrefs,'PredictPointsPlotColors'),
-          ptsPlotInfo.Colors = trkPrefs.PredictPointsPlotColors;
+          % KB 20181022: Changed colors to match number of sets
+          ptsPlotInfo.Colors = obj.PredictPointColors;
         else
-          ptsPlotInfo.Colors = obj.labelPointsPlotInfo.Colors;
+          ptsPlotInfo.Colors = obj.LabelPointColors;
         end
       else
         ptsPlotInfo = obj.labelPointsPlotInfo;
+        ptsPlotInfo.Colors = obj.LabelPointColors();
       end
       ptsPlotInfo.PickableParts = 'none';
       

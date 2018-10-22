@@ -199,7 +199,7 @@ classdef InfoTimeline < handle
 
       deleteValidHandles(obj.hPts);
       obj.hPts = gobjects(obj.npts,1);
-      colors = obj.lObj.labelPointsPlotInfo.Colors;
+      colors = obj.lObj.LabelPointColors;
       ax = obj.hAx;
       for i=1:obj.npts
         obj.hPts(i) = plot(ax,nan,i,'.','linestyle','-','Color',colors(i,:),...
@@ -351,7 +351,7 @@ classdef InfoTimeline < handle
     
     function updateLandmarkColors(obj)
     
-      colors = obj.lObj.labelPointsPlotInfo.Colors;
+      colors = obj.lObj.LabelPointColors;
       for i=1:obj.npts
         set(obj.hPts(i),'Color',colors(i,:));
       end

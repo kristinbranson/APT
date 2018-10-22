@@ -194,7 +194,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       ppi2.FontSize = ppi.FontSize;
       for iPt=1:obj.nPts
         iSet = obj.iPt2iSet(iPt);
-        setClr = ppi.ColorsSets(iSet,:);
+        setClr = ppi.Colors(iSet,:);
         setClr2 = setClr;
         obj.hPtsColors(iPt,:) = setClr;
         ptsArgs = {nan,nan,ppi.Marker,...
@@ -626,7 +626,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function projectionWorkingSetClear(obj)
       h = obj.hPtsTxt;
-      hClrs = obj.hPtsColors;
+      % KB 20181022 not sure why there is hPtsColors and
+      % ptsPlotInfo.Colors, using obj.ptsPlotInfo.Colors
+      hClrs = obj.ptsPlotInfo.Colors;
+      %hClrs = obj.hPtsColors;
       for i=1:obj.nPts
         set(h(i),'Color',hClrs(i,:),'FontWeight','normal','EdgeColor','none');
       end
@@ -640,7 +643,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 
       h = obj.hPts;
       hPT = obj.hPtsTxt;
-      hClrs = obj.hPtsColors;
+      % KB 20181022 not sure why there is hPtsColors and
+      % ptsPlotInfo.Colors, using obj.ptsPlotInfo.Colors
+      hClrs = obj.ptsPlotInfo.Colors;
+      %hClrs = obj.hPtsColors;
       for i=1:obj.nPts
         if any(i==iPtsSet)
           set(hPT(i),'Color',hClrs(i,:),'FontWeight','bold','EdgeColor','w');
@@ -945,7 +951,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
             
       nPts = obj.nPts;
       ptsH = obj.hPts;
-      clrs = obj.hPtsColors;
+      % KB 20181022 not sure why there is hPtsColors and
+      % ptsPlotInfo.Colors, using obj.ptsPlotInfo.Colors
+      clrs = obj.ptsPlotInfo.Colors;
+      %clrs = obj.hPtsColors;
       for i = 1:nPts
         set(ptsH(i),'Color',clrs(i,:));
         set(obj.hPtsOcc(i),'Color',clrs(i,:));
@@ -966,7 +975,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     function setPointAdjusted(obj,iSel)      
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
-        clr = obj.hPtsColors(iSel,:);
+        % KB 20181022 not sure why there is hPtsColors and
+        % ptsPlotInfo.Colors, using obj.ptsPlotInfo.Colors
+        clr = obj.ptsPlotInfo.Colors(iSel,:);
+        %clr = obj.hPtsColors(iSel,:);
         set(obj.hPts(iSel),'Color',clr);
         set(obj.hPtsOcc(iSel),'Color',clr);
       end
