@@ -3049,7 +3049,7 @@ classdef Labeler < handle
                     'Invalid movie index ''%d''.',iMov);
       
       [isFirstMovie,noLabelingInit] = myparse(varargin,...
-        'isFirstMovie',false,... % passing true for the first time a movie is added to a proj helps the UI
+        'isFirstMovie',~obj.hasMovie,... % passing true for the first time a movie is added to a proj helps the UI
         'noLabelingInit',false); % DELETE OPTION
       
       tfsuccess = obj.movieCheckFilesExist(iMov); % throws
@@ -3088,6 +3088,11 @@ classdef Labeler < handle
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
       
+      obj.labelsMiscInit();
+      if isFirstMovie,
+        obj.labelingInit();
+      end
+      
       % for fun debugging
       %       obj.gdata.axes_all.addlistener('XLimMode','PreSet',@(s,e)lclTrace('preset'));
       %       obj.gdata.axes_all.addlistener('XLimMode','PostSet',@(s,e)lclTrace('postset'));
@@ -3125,10 +3130,6 @@ classdef Labeler < handle
 %       assert(~isempty(obj.labeledpos2{iMov}));
       
       % KB 20161213: moved this up here so that we could redo in initHook
-      obj.labelsMiscInit();
-      if ~noLabelingInit
-        obj.labelingInit();
-      end
       
       edata = NewMovieEventData(isFirstMovie);
       notify(obj,'newMovie',edata);
@@ -10001,7 +10002,7 @@ classdef Labeler < handle
       else
         gd.image_prev.XData = freezeInfo.xdata;
         gd.image_prev.YData = freezeInfo.ydata;
-      gd.image_prev.CData = freezeInfo.im;
+        gd.image_prev.CData = freezeInfo.im;
         gd.txPrevIm.String = sprintf('Frame %d',freezeInfo.frm);
         if obj.hasTrx,
           gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Target %d',freezeInfo.iTgt)];
@@ -10044,13 +10045,11 @@ classdef Labeler < handle
           gd.txPrevIm.String = sprintf('Frame: %d',obj.prevFrame);
           if obj.hasTrx,
             gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Target %d',obj.currTarget)];
-      end
+          end
         case PrevAxesMode.FROZEN,          
           if tfforce,
             obj.prevAxesModeInfo = obj.SetPrevMovieInfo(obj.prevAxesModeInfo);
-            if ~isempty(obj.prevAxesModeInfo) && isfield(obj.prevAxesModeInfo,'im') && ~isempty(obj.prevAxesModeInfo.im),
-              set(obj.gdata.image_prev,'CData',obj.prevAxesModeInfo.im);
-            end
+            obj.prevAxesFreeze(obj.prevAxesModeInfo);
           end
       end
     end
@@ -10102,30 +10101,32 @@ classdef Labeler < handle
       % make sure the previous frame is labeled
       success = false;
       lpos = obj.labeledposGTaware;
-      if numel(lpos) >= paModeInfo.iMov,
-        if isfield(paModeInfo,'iTgt'),
-          iTgt = paModeInfo.iTgt;
-        else
-          iTgt = 1;
+      if isfield(paModeInfo,'iMov') && ~isempty(paModeInfo.iMov),
+        if numel(lpos) >= paModeInfo.iMov,
+          if isfield(paModeInfo,'iTgt'),
+            iTgt = paModeInfo.iTgt;
+          else
+            iTgt = 1;
+          end
+          if size(lpos{paModeInfo.iMov},4) >= iTgt && ...
+              size(lpos{paModeInfo.iMov},3) >= paModeInfo.frm,
+            success = all(all(all(~isnan(lpos{paModeInfo.iMov}(:,:,paModeInfo.frm,iTgt,:)))));
+          end
         end
-        if size(lpos{paModeInfo.iMov},4) >= iTgt && ...
-            size(lpos{paModeInfo.iMov},3) >= paModeInfo.frm,
-          success = all(all(all(~isnan(lpos{paModeInfo.iMov}(:,:,paModeInfo.frm,iTgt,:)))));
+        if success,
+          return;
         end
-      end
-      if success,
-        return;
       end
       % find first labeled frame
       mints = inf;
-      frm = paModeInfo.frm;
-      iMov = paModeInfo.iMov;
-      iTgt = paModeInfo.iTgt;
-      for i = 1:numel(obj.labeledposTS),
+      %frm = paModeInfo.frm;
+      %iMov = paModeInfo.iMov;
+      %iTgt = paModeInfo.iTgt;
+      for i = 1:numel(obj.labeledposTSGTaware),
         %islabeled = permute(all(obj.labeledposTSGTaware{i}>0,1),[2,3,1]);
         islabeled = permute(all(all(lpos{i}>0,1),2),[3,4,1,2]);
         idxlabeled = find(islabeled);
-        tmp = obj.labeledposTS{i}(1,:,:,1);
+        tmp = obj.labeledposTSGTaware{i}(1,:,:,1);
         [mintscurr,j] = min(tmp(islabeled));
         [frmcurr,iTgtcurr] = ind2sub([size(obj.labeledposTSGTaware{i},2),size(obj.labeledposTSGTaware{i},3)],idxlabeled(j));
         if mintscurr < mints,
@@ -10162,15 +10163,16 @@ classdef Labeler < handle
       if ~obj.hasMovie || isempty(ModeInfo) || ~isfield(ModeInfo,'frm') || isempty(ModeInfo.frm),
         return;
       end
+          
       viewi = 1;
       if ModeInfo.iMov == obj.currMovie,
-        [im] = ...
+        [im,~,imRoi] = ...
           obj.movieReader(viewi).readframe(ModeInfo.frm,...
           'doBGsub',obj.movieViewBGsubbed,'docrop',~obj.cropIsCropMode);
       else
         mr = MovieReader;
         obj.movieMovieReaderOpen(mr,MovieIndex(ModeInfo.iMov),viewi);
-        [im] = mr.readframe(ModeInfo.frm,...
+        [im,~,imRoi] = mr.readframe(ModeInfo.frm,...
           'doBGsub',obj.movieViewBGsubbed,'docrop',~obj.cropIsCropMode);
       end
       ModeInfo.im = im;
@@ -10178,8 +10180,10 @@ classdef Labeler < handle
 
       % to do: figure out [~,~what to do when there are multiple views
       if ~obj.hasTrx,
-        ModeInfo.xdata = [1,size(ModeInfo.im,2)];
-        ModeInfo.ydata = [1,size(ModeInfo.im,1)];
+        ModeInfo.xdata = imRoi(1:2);
+        ModeInfo.ydata = imRoi(3:4);
+%         ModeInfo.xdata = [1,size(ModeInfo.im,2)];
+%         ModeInfo.ydata = [1,size(ModeInfo.im,1)];
       else
         ydir = get(obj.gdata.axes_prev,'YDir');
         if strcmpi(ydir,'normal'),
@@ -10223,7 +10227,8 @@ classdef Labeler < handle
       end
       lpos = obj.labeledposGTaware;
       viewi = 1;
-      poscurr = lpos{ModeInfo.iMov}(:,:,ModeInfo.frm,ModeInfo.iTgt,viewi);
+      ptidx = obj.labeledposIPt2View == viewi;
+      poscurr = lpos{ModeInfo.iMov}(ptidx,:,ModeInfo.frm,ModeInfo.iTgt,viewi);
       if obj.hasTrx,
         poscurr = [poscurr,ones(size(poscurr,1),1)]*ModeInfo.A;
         poscurr = poscurr(:,1:2);
