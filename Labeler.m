@@ -3088,6 +3088,7 @@ classdef Labeler < handle
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
       
+      % KB 20161213: moved this up here so that we could redo in initHook
       obj.labelsMiscInit();
       if isFirstMovie,
         obj.labelingInit();
@@ -3128,9 +3129,7 @@ classdef Labeler < handle
 %       assert(~isempty(obj.labeledposMarked{iMov}));
 %       assert(~isempty(obj.labeledpostag{iMov}));
 %       assert(~isempty(obj.labeledpos2{iMov}));
-      
-      % KB 20161213: moved this up here so that we could redo in initHook
-      
+           
       edata = NewMovieEventData(isFirstMovie);
       notify(obj,'newMovie',edata);
       
