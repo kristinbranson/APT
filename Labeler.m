@@ -267,6 +267,7 @@ classdef Labeler < handle
   events
     cropIsCropModeChanged % cropIsCropMode mutated
     cropCropsChanged % something in .movieFilesAll*CropInfo mutated
+    cropUpdateCropGUITools
   end
   
   %% Trx
@@ -1708,7 +1709,8 @@ classdef Labeler < handle
       end
       
       obj.notify('projLoaded');
-      obj.notify('cropIsCropModeChanged');
+      obj.notify('cropUpdateCropGUITools');
+      %obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
@@ -9998,7 +10000,7 @@ classdef Labeler < handle
       end
       
       success = true;
-      if ~isfield(freezeInfo,'frm') || isempty(freezeInfo.frm),
+      if ~obj.isPrevAxesModeInfoSet(freezeInfo),
         [success,freezeInfo] = obj.FixPrevModeInfo(PrevAxesMode.FROZEN,freezeInfo);
       end
       if ~success,
@@ -10057,11 +10059,22 @@ classdef Labeler < handle
             gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Target %d',obj.currTarget)];
           end
         case PrevAxesMode.FROZEN,          
-          if tfforce,
+          if tfforce && obj.isPrevAxesModeInfoSet(),
             obj.prevAxesModeInfo = obj.SetPrevMovieInfo(obj.prevAxesModeInfo);
             obj.prevAxesFreeze(obj.prevAxesModeInfo);
           end
       end
+    end
+
+    function isvalid = isPrevAxesModeInfoSet(obj,ModeInfo)
+      
+      if nargin < 2,
+        ModeInfo = obj.prevAxesModeInfo;
+      end
+      isvalid = ~isempty(ModeInfo) && isstruct(ModeInfo) && isfield(ModeInfo,'frm') ...
+        && ~isempty(ModeInfo.frm) && ModeInfo.frm > 0 && ...
+        isfield(ModeInfo,'iMov') && ~isempty(ModeInfo.iMov);
+      
     end
     
     function islabeled = currFrameIsLabeled(obj)
@@ -10111,7 +10124,7 @@ classdef Labeler < handle
       % make sure the previous frame is labeled
       success = false;
       lpos = obj.labeledposGTaware;
-      if isfield(paModeInfo,'iMov') && ~isempty(paModeInfo.iMov),
+      if obj.isPrevAxesModeInfoSet(paModeInfo),
         if numel(lpos) >= paModeInfo.iMov,
           if isfield(paModeInfo,'iTgt'),
             iTgt = paModeInfo.iTgt;
@@ -10170,7 +10183,7 @@ classdef Labeler < handle
     
     function ModeInfo = SetPrevMovieInfo(obj,ModeInfo)
       
-      if ~obj.hasMovie || isempty(ModeInfo) || ~isfield(ModeInfo,'frm') || isempty(ModeInfo.frm),
+      if ~obj.hasMovie || ~obj.isPrevAxesModeInfoSet(ModeInfo),
         return;
       end
           
@@ -10328,7 +10341,7 @@ classdef Labeler < handle
         set(obj.gdata.pushbutton_freezetemplate,'Enable','off');
       end
       
-      if obj.prevAxesMode == PrevAxesMode.FROZEN && (isempty(obj.prevAxesModeInfo) || ~isfield(obj.prevAxesModeInfo,'frm') || isempty(obj.prevAxesModeInfo.frm)),
+      if obj.prevAxesMode == PrevAxesMode.FROZEN && ~obj.isPrevAxesModeInfoSet(),
         if islabeled,
           obj.prevAxesFreeze([]);
         end
@@ -10338,7 +10351,7 @@ classdef Labeler < handle
     
     function CheckPrevAxesTemplate(obj)
       
-      if obj.prevAxesMode ~= PrevAxesMode.FROZEN || isempty(obj.prevAxesModeInfo) || ~isfield(obj.prevAxesModeInfo,'frm') || isempty(obj.prevAxesModeInfo.frm),
+      if obj.prevAxesMode ~= PrevAxesMode.FROZEN || ~obj.isPrevAxesModeInfoSet(),
         return;
       end
       if obj.prevAxesModeInfo.frm == obj.currFrame && obj.prevAxesModeInfo.iMov == obj.currMovie && ...

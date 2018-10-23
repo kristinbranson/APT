@@ -515,6 +515,7 @@ listeners{end+1,1} = addlistener(lObj,'movieViewBGsubbed','PostSet',@cbkMovieVie
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged);
 listeners{end+1,1} = addlistener(lObj,'cropIsCropModeChanged',@cbkCropIsCropModeChanged);
+listeners{end+1,1} = addlistener(lObj,'cropUpdateCropGUITools',@cbkUpdateCropGUITools);
 listeners{end+1,1} = addlistener(lObj,'cropCropsChanged',@cbkCropCropsChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
@@ -2080,12 +2081,16 @@ end
 ClearStatus(handles);
 
 function menu_file_save_Callback(hObject, eventdata, handles)
+SetStatus(handles,'Saving project');
 handles.labelerObj.projSaveSmart();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
+ClearStatus(handles)
 
 function menu_file_saveas_Callback(hObject, eventdata, handles)
+SetStatus(handles,'Saving project');
 handles.labelerObj.projSaveAs();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
+ClearStatus(handles)
 
 function menu_file_load_Callback(hObject, eventdata, handles)
 
@@ -3199,6 +3204,10 @@ cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
 if lObj.hasMovie
   lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 end
+
+function cbkUpdateCropGUITools(src,evt)
+lObj = src;
+cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
 
 function cbkCropCropsChanged(src,evt)
 lObj = src;
