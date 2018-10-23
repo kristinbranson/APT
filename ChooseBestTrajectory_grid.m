@@ -1,4 +1,4 @@
-function [hmnrnc,hmBestTrajUV,acBestTrajUV,totalcost] = ...
+function [hmnrnc,hmBestTrajPQ,acBestTrajUV,acCtrPQ012,totalcost] = ...
                             ChooseBestTrajectory_grid(hmfcn,n,varargin)
 % Grid Viterbi
 %
@@ -61,8 +61,8 @@ acCtrPQ(2,:) = [pctr2 qctr2];
 
 % mc2(u2,v2,u1,v1) is motion cost for transitioning from 
 % (u0,v0,t=0)->(u1,v1,t=1)->(u2,v2,t=2) where we assume acwins@t0 @t1 are
-% aligned; and u0==u1 and v0==v1
-% Right now we consider motion cost in the heatmap (body-centered) frame.
+% aligned, and u0==u1 and v0==v1
+% Right now we consider motion cost in the heatmap (body-centered) frame
 mc2 = nan(acsz,acsz,acsz,acsz);
 acCtrPQ012 = acCtrPQ([1 1 2],:);
 for u2=1:acsz
@@ -73,6 +73,7 @@ for v2=1:acsz
   % distance/motion cost for transitioning from
   %   (u0,v0,0)->(u1,v1,1)->(u2,v2,2)
   
+  % undoubtedly faster way to do this
   for u1=1:acsz
   for v1=1:acsz
     mc2(u2,v2,u1,v1) = poslambda*mctL2(u1,v1,u1,v1);
@@ -86,7 +87,6 @@ szassert(ac2,[acsz acsz]);
 costprev = reshape(ac1,[1 1 acsz acsz]) + reshape(priorc1,[1 1 acsz acsz]) ...
          + ac2 + mc2;
 szassert(costprev,acsz,acsz,acsz,acsz);
-
 % costprev(u2,v2,u1,v1) is the current/running minimum/best total cost that 
 % ends at (u1,v1,t-2) and (u2,v2,t-1).
 % Here we have initialized costprev for t=3.
@@ -97,10 +97,13 @@ assert(acnumel<intmax(clsPrevIdx),'AC window has more than %d elements.',...
   intmax(clsPrevIdx));
 
 prev = zeros(acsz,acsz,acsz,acsz,n,clsPrevIdx);
+% prev(ut,vt,utm1,vtm1,t) contains a linear index into [1..acnumel] 
+% representing the optimal/best (utm2,vtm2) that leads to 
+% (utm1,vtm1,t-1)->(ut,vt,t). prev is only defined for t>=3.
 stmp = whos('prev');
 fprintf(1,'Optimal path array is a %s with %.3g GB.\n',clsPrevIdx,stmp.bytes/1e9);
 
-for t = 3:n
+for t=3:n
   if mod(t,100)==0
     fprintf('Frame %d / %d\n',t,n);
   end
@@ -113,12 +116,14 @@ for t = 3:n
   costcurr = nan(acsz,acsz,acsz,acsz);
   for ut=1:acsz
   for vt=1:acsz
-    mctL2 = gv.getMotionCost(ut,vt,acCtrPQ(t-2:t,:),acrad);
-    % mct is [acszxacszxacszxacsz]; poslambda*l2 for transitioning from
+    mctL2 = poslambda * gv.getMotionCostL2(ut,vt,acCtrPQ(t-2:t,:),acrad);
+    % mct is [acsz x acsz x acsz x acsz]
     % mct(u2,v2,u1,v1) is motion cost for transitioning from
     % (u1,v1,t-2)->(u2,v2,t-1)->(ut,vt,t);
     
-    totcost = costprev + poslambda*mctL2 + act(ut,vt); % [acsz x acsz x acsz x acsz]
+    totcost = costprev + mctL2 + act(ut,vt); % [acsz x acsz x acsz x acsz]
+    % totcost(u2,v2,u1,v1) gives total cost of transitioning from 
+    % (u1,v1,t-2)->(u2,v2,t-1)->(ut,v2,t)
     totcost = reshape(totcost,[acnumel acnumel]); 
     % totcost(q,p) gives total cost of transition from
     % g~(u1,v1,t-2)->h~(u2,v2,t-1)->(ut,vt,t)
@@ -149,7 +154,6 @@ for t = 3:n
 %   costprev = costcurr;
 end
 
-hmBestTrajUV = nan(n,2);
 acBestTrajUV = nan(n,2);
 [totalcost,i] = min(costprev(:));
 [acBestTrajUV(n,1),acBestTrajUV(n,2),acBestTrajUV(n-1,1),acBestTrajUV(n-1,2)] ...
@@ -160,4 +164,4 @@ for t=n-2:-1:1
   acBestTrajUV(t,:) = ind2sub([acsz acsz],idxBestT);
 end
 
-hmBestTrajUV = convertTODO(acBestTrajUV);
+hmBestTrajPQ = acCtrPQ-acrad+acBestTrajUV-1;
