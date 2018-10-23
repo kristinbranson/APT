@@ -6739,6 +6739,12 @@ classdef Labeler < handle
         error('All MovieIndices in input table must reference GT movies.');
       end
       
+      n0 = height(tblMFT);
+      n1 = height(unique(tblMFT(:,MFTable.FLDSID)));
+      if n0~=n1
+        error('Input table appears to contain duplicate rows.');
+      end
+      
       if sortcanonical
         tblMFT2 = MFTable.sortCanonical(tblMFT);
         if ~isequal(tblMFT2,tblMFT)
