@@ -9744,8 +9744,8 @@ classdef Labeler < handle
       if iMov == obj.currMovie && iTgt == obj.currTarget,
         ctrx = obj.currTrx;
       else
-        trxfname = obj.trxFilesAllFull{iMov,1};
-        movIfo = obj.movieInfoAll{iMov};
+        trxfname = obj.trxFilesAllFullGTaware{iMov,1};
+        movIfo = obj.movieInfoAllGTaware{iMov};
         [s.trx,s.frm2trx] = obj.getTrx(trxfname,movIfo.nframes);
         ctrx = s.trx(iTgt);
       end
