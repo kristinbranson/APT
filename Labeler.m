@@ -2304,6 +2304,11 @@ classdef Labeler < handle
         s.movieFilesAllHistEqLUT = cell(size(s.movieFilesAll));
         s.movieFilesAllGTHistEqLUT = cell(size(s.movieFilesAllGT));
       end
+      
+      % 20181022 projectHasTrx
+      if ~isfield(s,'projectHasTrx'),
+        s.projectHasTrx = true;
+      end
     end
 
   end 
