@@ -6745,6 +6745,12 @@ classdef Labeler < handle
         error('All MovieIndices in input table must reference GT movies.');
       end
       
+      n0 = height(tblMFT);
+      n1 = height(unique(tblMFT(:,MFTable.FLDSID)));
+      if n0~=n1
+        error('Input table appears to contain duplicate rows.');
+      end
+      
       if sortcanonical
         tblMFT2 = MFTable.sortCanonical(tblMFT);
         if ~isequal(tblMFT2,tblMFT)
@@ -9752,8 +9758,8 @@ classdef Labeler < handle
       if iMov == obj.currMovie && iTgt == obj.currTarget,
         ctrx = obj.currTrx;
       else
-        trxfname = obj.trxFilesAllFull{iMov,1};
-        movIfo = obj.movieInfoAll{iMov};
+        trxfname = obj.trxFilesAllFullGTaware{iMov,1};
+        movIfo = obj.movieInfoAllGTaware{iMov};
         [s.trx,s.frm2trx] = obj.getTrx(trxfname,movIfo.nframes);
         ctrx = s.trx(iTgt);
       end
