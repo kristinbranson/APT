@@ -10259,7 +10259,7 @@ classdef Labeler < handle
       if ~obj.hasMovie,
         return;
       end
-      if isempty(ModeInfo.frm),
+      if ~obj.isPrevAxesModeInfoSet(ModeInfo),
         return;
       end
       if ~isfield(ModeInfo,'isrotated'),

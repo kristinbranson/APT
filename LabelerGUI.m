@@ -573,7 +573,11 @@ handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 %handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated'; % this is set in LabelerTooltips now
 
 set(handles.figure,'Visible','on');
+%hfigsplash = figure;
 LabelerTooltips(handles);
+% if ishandle(hfigsplash),
+% delete(hfigsplash);
+% end
 
 if ishandle(hinitdlg),
   delete(hinitdlg);
@@ -3511,3 +3515,42 @@ function pushbutton_freezetemplate_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 handles.labelerObj.setPrevAxesMode(PrevAxesMode.FROZEN);
+
+% function hfig = splashScreen(handles)
+% 
+% hparent = handles.figure;
+% hfig = nan;
+% p = fileparts(mfilename('fullpath'));
+% splashimfilename = fullfile(p,'TrackingExample.png');
+% if ~exist(splashimfilename,'file'),
+%   return;
+% end
+% 
+% oldunits = get(hparent,'Units');
+% set(hparent,'Units','pixels');
+% pos0 = get(hparent,'Position');
+% set(hparent,'Units',oldunits);
+% 
+% im = imread(splashimfilename);
+% sz = size(im);
+% sz = sz(1:2);
+% r = 250*[sz(2)/sz(1),1.25];
+% 
+% center = pos0([1,2])+pos0([3,4])/2;
+% pos1 = [center-r,2*r+1];
+% 
+% hfig = figure('Name','','Color','k','Position',pos1,'Units','pixels');
+% hax = axes('Parent',hfig,'Units','normalized','Position',[0,.025,1,.75]);
+% him = image(im,'Parent',hax); axis(hax,'image','off');
+% s = {'APT: The Animal Part Tracker'
+%   'http://kristinbranson.github.io/APT/'
+%   'Developed and tested by Allen Lee, Mayank Kabra,'
+%   'Alice Robie, Felipe Rodriguez, Stephen Huston,'
+%   'Roian Egnor, Austin Edwards, Caroline Maloney,'
+%   'and Kristin Branson'};
+% htext = uicontrol('Style','text','String',s{1},'Units','normalized','Position',[0,.95,1,.025],...
+%   'BackgroundColor','k','HorizontalAlignment','center',...
+%   'Parent',hfig,'ForegroundColor','c','FontSize',12,'FontWeight','b');
+% htext = uicontrol('Style','text','String',s(2:end),'Units','normalized','Position',[0,.8,1,.125],...
+%   'BackgroundColor','k','HorizontalAlignment','center',...
+%   'Parent',hfig,'ForegroundColor','c','FontSize',10);
