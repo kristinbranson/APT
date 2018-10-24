@@ -23,8 +23,10 @@ end
 
 try
   if isempty(jh),
-    fprintf('Calling findjobj - %s\n',s);
-    jh = findjobj_modern(h);
+    % this is slow, just don't have tooltips when the first pass fails
+    return;
+    %fprintf('Calling findjobj - %s\n',s);
+    %jh = findjobj_modern(h);
   end
   fns = fieldnames(get(jh));
   fns = cellfun(@lower,fns,'Uni',0);

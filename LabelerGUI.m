@@ -40,12 +40,7 @@ if verLessThan('matlab','8.4')
   error('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
 end
 
-hinitdlg = uicontrol('Style','text','Parent',handles.uipanel_curr,'Units','normalized',...
-  'Position',[0,0,1,1],'FontUnits','normalized','FontSize',.1,...
-  'String','Initializing APT...',...
-  'BackgroundColor',get(handles.uipanel_curr,'BackgroundColor'),...
-  'ForegroundColor','w',...
-  'HorizontalAlignment','center');
+hfigsplash = splashScreen(handles);
 
 hObject.Name = 'APT';
 hObject.HandleVisibility = 'on';
@@ -573,15 +568,14 @@ handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 %handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated'; % this is set in LabelerTooltips now
 
 set(handles.figure,'Visible','on');
-%hfigsplash = figure;
+RefocusSplashScreen(hfigsplash,handles);
 LabelerTooltips(handles);
-% if ishandle(hfigsplash),
-% delete(hfigsplash);
-% end
-
-if ishandle(hinitdlg),
-  delete(hinitdlg);
+RefocusSplashScreen(hfigsplash,handles);
+if ishandle(hfigsplash),
+  delete(hfigsplash);
 end
+
+
 ClearStatus(handles);
 EnableControls(handles,'noproject');
 
@@ -3516,41 +3510,77 @@ function pushbutton_freezetemplate_Callback(hObject, eventdata, handles)
 
 handles.labelerObj.setPrevAxesMode(PrevAxesMode.FROZEN);
 
-% function hfig = splashScreen(handles)
-% 
-% hparent = handles.figure;
-% hfig = nan;
-% p = fileparts(mfilename('fullpath'));
-% splashimfilename = fullfile(p,'TrackingExample.png');
-% if ~exist(splashimfilename,'file'),
-%   return;
-% end
-% 
+function hfig = splashScreen(handles)
+
+%hparent = handles.figure;
+hfig = nan;
+p = fileparts(mfilename('fullpath'));
+splashimfilename = fullfile(p,'SplashScreen.png');
+if ~exist(splashimfilename,'file'),
+  return;
+end
+
 % oldunits = get(hparent,'Units');
 % set(hparent,'Units','pixels');
 % pos0 = get(hparent,'Position');
 % set(hparent,'Units',oldunits);
-% 
-% im = imread(splashimfilename);
-% sz = size(im);
-% sz = sz(1:2);
-% r = 250*[sz(2)/sz(1),1.25];
-% 
-% center = pos0([1,2])+pos0([3,4])/2;
-% pos1 = [center-r,2*r+1];
-% 
-% hfig = figure('Name','','Color','k','Position',pos1,'Units','pixels');
-% hax = axes('Parent',hfig,'Units','normalized','Position',[0,.025,1,.75]);
-% him = image(im,'Parent',hax); axis(hax,'image','off');
-% s = {'APT: The Animal Part Tracker'
-%   'http://kristinbranson.github.io/APT/'
-%   'Developed and tested by Allen Lee, Mayank Kabra,'
-%   'Alice Robie, Felipe Rodriguez, Stephen Huston,'
-%   'Roian Egnor, Austin Edwards, Caroline Maloney,'
-%   'and Kristin Branson'};
-% htext = uicontrol('Style','text','String',s{1},'Units','normalized','Position',[0,.95,1,.025],...
-%   'BackgroundColor','k','HorizontalAlignment','center',...
-%   'Parent',hfig,'ForegroundColor','c','FontSize',12,'FontWeight','b');
-% htext = uicontrol('Style','text','String',s(2:end),'Units','normalized','Position',[0,.8,1,.125],...
-%   'BackgroundColor','k','HorizontalAlignment','center',...
-%   'Parent',hfig,'ForegroundColor','c','FontSize',10);
+
+im = imread(splashimfilename);
+sz = size(im);
+sz = sz(1:2);
+
+s = {'APT: The Animal Part Tracker'
+  'http://kristinbranson.github.io/APT/'
+  'Developed and tested by Allen Lee, Mayank Kabra,'
+  'Alice Robie, Felipe Rodriguez, Stephen Huston,'
+  'Roian Egnor, Austin Edwards, Caroline Maloney,'
+  'and Kristin Branson'};
+
+border = 20;
+w0 = 400;
+texth1 = 25;
+w = w0+2*border;
+texth2 = (numel(s)-1)*texth1;
+textskip = 5;
+h0 = w0*sz(1)/sz(2);
+h = 2*border+h0+border+texth2+textskip+texth1;
+
+r = [w,h]/2;
+
+center = get(0,'ScreenSize');
+center = center(3:4)/2;
+%center = pos0([1,2])+pos0([3,4])/2;
+pos1 = [center-r,2*r];
+
+hfig = figure('Name','Starting APT...','Color','k','Units','pixels','Position',pos1,'ToolBar','none','NumberTitle','off','MenuBar','none','Pointer','watch');%'Visible','off',
+hax = axes('Parent',hfig,'Units','pixels','Position',[border,border,w0,h0]);
+him = image(im,'Parent',hax); axis(hax,'image','off');
+htext = uicontrol('Style','text','String',s{1},'Units','pixels','Position',[border,h-border-texth1,w0,texth1],...
+  'BackgroundColor','k','HorizontalAlignment','center',...
+  'Parent',hfig,'ForegroundColor','c','FontUnits','pixels','FontSize',texth1*.9,'FontWeight','b');
+htext = uicontrol('Style','text','String',s(2:end),'Units','pixels','Position',[border,border+h0+border,w0,texth2],...
+  'BackgroundColor','k','HorizontalAlignment','center',...
+  'Parent',hfig,'ForegroundColor','c','FontUnits','pixels','FontSize',14);
+set(hfig,'Visible','on');
+drawnow;
+
+function RefocusSplashScreen(hfigsplash,handles)
+
+if ~ishandle(hfigsplash),
+  return;
+end
+
+hparent = handles.figure;
+oldunits = get(hparent,'Units');
+set(hparent,'Units','pixels');
+pos0 = get(hparent,'OuterPosition');
+set(hparent,'Units',oldunits);
+
+%topleft = [pos0(1),pos0(2)+pos0(4)+30];
+center = pos0([1,2])+pos0([3,4])/2;
+pos1 = get(hfigsplash,'Position');
+%pos2 = [topleft(1),topleft(2)-pos1(4),pos1(3),pos1(4)];
+pos2 = [center-pos1(3:4)/2,pos1(3:4)];
+set(hfigsplash,'Position',pos2);
+figure(hfigsplash);
+drawnow;
