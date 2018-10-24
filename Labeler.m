@@ -305,6 +305,7 @@ classdef Labeler < handle
     hTraj;                    % nTrx x 1 vector of line handles
     hTrx;                     % nTrx x 1 vector of line handles
     hTrxTxt;                  % nTrx x 1 vector of text handles
+    hTrxClick;
     showTrxPreNFrm = 15;      % number of preceding frames to show in traj
     showTrxPostNFrm = 5;      % number of following frames to show in traj
   end
@@ -1685,6 +1686,12 @@ classdef Labeler < handle
           obj.movieSetNoMovie();
         else
           obj.movieSet(s.currMovie);
+          [tfok] = obj.checkFrameAndTargetInBounds(s.currFrame,s.currTarget);
+          if ~tfok,
+            warning('Cached frame number %d and target number %d are out of bounds for movie %d, reverting to using first frame of first target.',s.currFrame,s.currTarget,s.currMovie);
+            s.currFrame = 1;
+            s.currTarget = 1;
+          end
           obj.setFrameAndTarget(s.currFrame,s.currTarget);
         end
       end
@@ -2863,6 +2870,26 @@ classdef Labeler < handle
       end
       
       obj.projMacroClear;
+    end
+    
+    function tfok = checkFrameAndTargetInBounds(obj,frm,tgt)
+      
+      tfok = false;
+      if obj.nframes < frm,
+        return;
+      end
+      if obj.hasTrx,
+        if numel(obj.currTrx) < tgt,
+          return;
+        end
+        if numel(obj.currTrx.x) < frm,
+          return;
+        end
+        
+      end
+      
+      tfok = true;
+      
     end
     
     function [tfok,badfile] = movieCheckFilesExistSimple(obj,iMov,gt) % obj const
@@ -9954,7 +9981,7 @@ classdef Labeler < handle
       v1 = get(obj.gdata.popupmenu_prevmode,'Value');
       switch pamode
         case PrevAxesMode.FROZEN,
-          v2 = find(strcmpi(contents,'Template'));
+          v2 = find(strcmpi(contents,'Reference'));
         case PrevAxesMode.LASTSEEN,
           v2 = find(strcmpi(contents,'Previous frame'));
         otherwise

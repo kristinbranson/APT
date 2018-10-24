@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 17-Oct-2018 13:52:31
+% Last Modified by GUIDE v2.5 24-Oct-2018 17:46:01
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -3483,7 +3483,7 @@ function popupmenu_prevmode_Callback(hObject, eventdata, handles)
 
 contents = cellstr(get(hObject,'String'));
 mode = contents{get(hObject,'Value')};
-if strcmpi(mode,'Template'),
+if strcmpi(mode,'Reference'),
   handles.labelerObj.setPrevAxesMode(PrevAxesMode.FROZEN,handles.labelerObj.prevAxesModeInfo);
 else
   handles.labelerObj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
