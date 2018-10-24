@@ -24,6 +24,7 @@ Trx:
   ShowTrx: 1
   ShowTrxCurrentTargetOnly: 0
   ShowTrxIDLbl: 1
+  HasTrx: 0
 
 View: 
   XDir: 'n'

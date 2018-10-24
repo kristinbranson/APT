@@ -370,7 +370,7 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       if lObj.nview==1
-        [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
+        [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true,lObj.projectHasTrx);
         if ~tfsucc
           return;
         end

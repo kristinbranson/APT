@@ -27,7 +27,8 @@ classdef Labeler < handle
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
       'preProcParams' 'preProcH0' 'preProcSaveData' ...
       'xvResults' 'xvResultsTS' ...
-      'fgEmpiricalPDF'};
+      'fgEmpiricalPDF'...
+      'projectHasTrx'};
     SAVEPROPS_LPOS = {...
       'labeledpos' 'nan'
       'labeledposGT' 'nan'
@@ -179,6 +180,7 @@ classdef Labeler < handle
     movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
     movieInfoAllGT = {}; % same as .movieInfoAll but for GT mode
     movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
+    projectHasTrx = false; % whether there are trx files for any movie
   end
   properties (Dependent)
     movieInfoAllGTaware; 
@@ -1255,7 +1257,9 @@ classdef Labeler < handle
       % Trackers created/initted in projLoad and projNew; eg when loading,
       % the loaded .lbl knows what trackers to create.
       obj.currTracker = 0;
-                
+
+      obj.projectHasTrx = cfg.Trx.HasTrx;
+      
       obj.showTrx = cfg.Trx.ShowTrx;
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
       obj.showTrxIDLbl = cfg.Trx.ShowTrxIDLbl;
@@ -1308,6 +1312,8 @@ classdef Labeler < handle
       cfg.Trx.ShowTrx = obj.showTrx;
       cfg.Trx.ShowTrxCurrentTargetOnly = obj.showTrxCurrTargetOnly;
       cfg.Trx.ShowTrxIDLbl = obj.showTrxIDLbl;
+      cfg.Trx.HasTrx = obj.projectHasTrx;
+      
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
