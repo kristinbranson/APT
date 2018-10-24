@@ -303,6 +303,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function acceptLabels(obj)
       obj.enterAccepted(true);
+      obj.labeler.InitializePrevAxesTemplate();
     end
     
     function unAcceptLabels(obj)

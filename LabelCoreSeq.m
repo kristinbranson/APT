@@ -84,6 +84,7 @@ classdef LabelCoreSeq < LabelCore
     
     function acceptLabels(obj)
       obj.beginAccepted(true);
+      obj.labeler.InitializePrevAxesTemplate();
     end
     
     function unAcceptLabels(obj)

@@ -1820,10 +1820,10 @@ lc = handles.labelerObj.lblCore;
 switch lc.state
   case LabelState.ADJUST
     lc.acceptLabels();
-    handles.labelerObj.InitializePrevAxesTemplate();
+    %handles.labelerObj.InitializePrevAxesTemplate();
   case LabelState.ACCEPTED
     lc.unAcceptLabels();    
-    handles.labelerObj.CheckPrevAxesTemplate();
+    %handles.labelerObj.CheckPrevAxesTemplate();
   otherwise
     assert(false);
 end
