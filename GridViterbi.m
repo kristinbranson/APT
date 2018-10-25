@@ -81,11 +81,12 @@ classdef GridViterbi < handle
       jtminus2lohi = qtminus2lohi+obj.l2midij1;
      
       assert(isequal( obj.y2g(itminus1lohi,1),ptminus1lohi(:) ));
-      assert(isequal( obj.y2g(itminus2lohi,1),ptminus2lohi(:) ));
+      assert(isequal( obj.y1g(itminus2lohi,1),ptminus2lohi(:) ));
       assert(isequal( obj.x2g(1,jtminus1lohi),qtminus1lohi ));
-      assert(isequal( obj.x2g(1,jtminus2lohi),qtminus2lohi ));
+      assert(isequal( obj.x1g(1,jtminus2lohi),qtminus2lohi ));
       
-      mctL2 = obj.l2dist( itminus1lohi(1):itminus1lohi(2), ...
+      l2 = obj.l2dist;
+      mctL2 = l2( itminus1lohi(1):itminus1lohi(2), ...
                         jtminus1lohi(1):jtminus1lohi(2), ...
                         itminus2lohi(1):itminus2lohi(2), ...
                         jtminus2lohi(1):jtminus2lohi(2) );

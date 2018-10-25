@@ -1,4 +1,4 @@
-function [hmnrnc,hmBestTrajPQ,acBestTrajUV,acCtrPQ012,totalcost] = ...
+function [hmnrnc,hmBestTrajPQ,acBestTrajUV,acCtrPQ,totalcost] = ...
                             ChooseBestTrajectory_grid(hmfcn,n,varargin)
 % Grid Viterbi
 %
@@ -14,14 +14,18 @@ function [hmnrnc,hmBestTrajPQ,acBestTrajUV,acCtrPQ012,totalcost] = ...
   'hm11xyOrig',[1 1],... % Either [1x2] or [nx2]. The upper-left heatmap 
       ...                % pixel hm(1,1) maps to this (x,y) coordinate in 
       ...                % the original/raw movie. CURRENTLY UNUSED
-  'hmConsiderRadius',30,... % consider window of heatmap of this size (within this many px of heatmap peak)
+  'hmConsiderRadius',12,... % consider window of heatmap of this size (within this many px of heatmap peak)
   'dx',1,... % spatial stepsize when discretizing consider-window 
-  'maxvx',30,... % maximum allowed movement in any single direction
+  'maxvx',[],... % maximum allowed movement in any single direction
   'poslambda',1/50,... % motion model costs are mulitplied by this fac when adding to app costs
   'dampen',0.25... % velocity damping factor
   );
 
-assert(maxvx==round(maxvx));
+if isempty(maxvx)
+  maxvx = 4*acrad;
+else
+  assert(maxvx==round(maxvx));
+end
 
 if size(hm11xyOrig,1)==1
   hm11xyOrig = repmat(hm11xyOrig,n,1);
@@ -64,10 +68,11 @@ acCtrPQ(2,:) = [pctr2 qctr2];
 % aligned, and u0==u1 and v0==v1
 % Right now we consider motion cost in the heatmap (body-centered) frame
 mc2 = nan(acsz,acsz,acsz,acsz);
-acCtrPQ012 = acCtrPQ([1 1 2],:);
+%acCtrPQ012 = acCtrPQ([1 1 2],:);
+assert(isequal(acCtrPQ(1,:),acCtrPQ(2,:)));
 for u2=1:acsz
 for v2=1:acsz
-  mctL2 = gv.getMotionCostL2(u2,v2,acCtrPQ012,acrad);
+  %mctL2 = gv.getMotionCostL2(u2,v2,acCtrPQ012,acrad);
   
   % mct: [acsz x acsz x acsz x acsz]. mct(u1,v1,u0,v0) is l2
   % distance/motion cost for transitioning from
@@ -75,8 +80,8 @@ for v2=1:acsz
   
   % undoubtedly faster way to do this
   for u1=1:acsz
-  for v1=1:acsz
-    mc2(u2,v2,u1,v1) = poslambda*mctL2(u1,v1,u1,v1);
+  for v1=1:acsz    
+    mc2(u2,v2,u1,v1) = poslambda*( (u2-u1)^2 + (v2-v1)^2 );
   end
   end
 end
@@ -86,7 +91,7 @@ szassert(ac1,[acsz acsz]);
 szassert(ac2,[acsz acsz]);
 costprev = reshape(ac1,[1 1 acsz acsz]) + reshape(priorc1,[1 1 acsz acsz]) ...
          + ac2 + mc2;
-szassert(costprev,acsz,acsz,acsz,acsz);
+szassert(costprev,[acsz acsz acsz acsz]);
 % costprev(u2,v2,u1,v1) is the current/running minimum/best total cost that 
 % ends at (u1,v1,t-2) and (u2,v2,t-1).
 % Here we have initialized costprev for t=3.
@@ -104,7 +109,7 @@ stmp = whos('prev');
 fprintf(1,'Optimal path array is a %s with %.3g GB.\n',clsPrevIdx,stmp.bytes/1e9);
 
 for t=3:n
-  if mod(t,100)==0
+  if mod(t,1)==0
     fprintf('Frame %d / %d\n',t,n);
   end
 
@@ -129,8 +134,8 @@ for t=3:n
     % g~(u1,v1,t-2)->h~(u2,v2,t-1)->(ut,vt,t)
     [mintotcost,pidx] = min(totcost,[],2);
     szassert(mintotcost,[acnumel 1]);
-    costcurr(ut,vt,:,:) = mintotcost;
-    prev(ut,vt,:,:,t) = pidx;
+    costcurr(ut,vt,:,:) = reshape(mintotcost,[acsz acsz]);
+    prev(ut,vt,:,:,t) = reshape(pidx,[acsz acsz]);
   end
   end
 
@@ -161,7 +166,8 @@ acBestTrajUV = nan(n,2);
 for t=n-2:-1:1
   idxBestT = prev(acBestTrajUV(t+2,1),acBestTrajUV(t+2,2),...
                   acBestTrajUV(t+1,1),acBestTrajUV(t+1,2),t+2);
-  acBestTrajUV(t,:) = ind2sub([acsz acsz],idxBestT);
+  [utmp,vtmp] = ind2sub([acsz acsz],idxBestT);          
+  acBestTrajUV(t,:) = [utmp vtmp];
 end
 
 hmBestTrajPQ = acCtrPQ-acrad+acBestTrajUV-1;

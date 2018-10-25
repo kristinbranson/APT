@@ -101,7 +101,7 @@ fprintf('Time to run maxdensity_joint: %f\n',toc(starttime));
 
 starttime = tic;
 pp.SetAlgorithm('median');
-pp.run();
+pp.run(); pp.postdata.viterbi_grid.x = xyBestTraj;
 fprintf('Time to run median: %f\n',toc(starttime));
 
 postdata_singleheatmap = pp.postdata;
@@ -142,7 +142,6 @@ heatmap_nsamples = 150;
 
 viterbi_dampen = 0.25;
 viterbi_poslambda = 0.0027;
-%viterbi_misscost = .02;
 viterbi_misscost = inf;
 
 allpostdata = cell(1,numel(hmdirs));
@@ -180,7 +179,7 @@ for hmdiri = ihmdirs2run
   npts = ld.cfg.NumLabelPoints;
   
   for fly = iflies2run
-    savefile = fullfile('ppresults_frames',sprintf('%s_trx_%d.mat',expname,fly));
+    savefile = fullfile('ppres20181019',sprintf('%s_trx_%d.mat',expname,fly));
     fprintf('Movie %d / %d = %s, fly %d / %d...\n',moviei,numel(hmdirs),expname,fly,nflies);
     
     if exist(savefile,'file'),
@@ -222,15 +221,46 @@ for hmdiri = ihmdirs2run
   end
 end
 
-%% Add 5-pt M.A.
-filt = [-3 12 17 12 -3]/35;
-pp.postdata.maxdensity_indep_ma5.x = nan(size(pp.postdata.maxdensity_indep.x));
-for ipt=1:pp.npts
-  for d=1:2
-    pp.postdata.maxdensity_indep_ma5.x(:,ipt,d) = ...
-      conv(pp.postdata.maxdensity_indep.x(:,ipt,d),filt,'same');
-  end
-end
+%%
+
+
+lblfile = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_xv7.lbl';
+ld = load(lblfile,'-mat');
+
+hmdirs = mydir('/groups/branson/home/kabram/temp/alice/umdn_trks','name','.*_hmap','isdir',true);
+hmtype = 'jpg';
+
+ihmdirs2run = 5;
+iflies2run = 9;
+startframe = 17000;
+endframe = 18550;
+
+heatmap_lowthresh = 0.025;
+heatmap_hithresh = 1;
+heatmap_nsamples = 150;
+
+viterbi_dampen = 0.25;
+viterbi_poslambda = 0.0027;
+viterbi_misscost = inf;
+
+
+  'lblfile','',... % used to specify a trxfile 
+  'lblfileImov',[],... % movie index, use this trxfile
+  'npts',[],...
+  'targets',[],...
+  'pts2run',[],...
+  'heatmap_lowthresh',.1,...
+  'heatmap_highthresh',.5,...
+  'heatmap_nsamples',125,...
+  'heatmap_sample_algorithm','gmm',...
+  'usegeometricerror',true,...
+  'kde_sigma_px',5,...
+  'viterbi_poslambda',.01,...
+  'viterbi_misscost',5,...
+  'viterbi_dampen',.25,...
+  'viterbi_grid_acradius',12,...
+  'savefile','',...
+  'ncores',ncores);
 
 %% GT: sh
 
@@ -271,6 +301,12 @@ dxyAll = cat(5,dxyAll{:});
   );
 
 
+%% GT: bub add GV
+hmBestTrajXY = hmBestTrajPQ(:,[2 1]);
+%hmBestTrajXY(1501:1551,:) = nan;
+xyBestTraj = PostProcess.UntransformByTrx(hmBestTrajXY,pp.trx,pp.heatmap_origin);
+pp.postdata.viterbi_grid_lam0.x = nan(1551,17,2);
+pp.postdata.viterbi_grid_lam0.x(:,12,:) = xyBestTraj;
 %% GT: bub
 
 pd = pp.postdata;
@@ -299,9 +335,13 @@ for alg=algsAll(:)',alg=alg{1}; %#ok<FXSET>
 end
 dxyAll = cat(5,dxyAll{:});
 
-[hFig,hAxs] = GTPlot.ptileCurves(dxyAll,...
+dxyAllPtsRun = dxyAll(:,pp.pts2run,:,:,:);
+
+[hFig,hAxs] = GTPlot.ptileCurves(dxyAllPtsRun,...
   'ptiles',[50 75 90],...
-  'setNames',algsAll...
+  'setNames',algsAll,...
+  'ptNames',arrayfun(@(x)sprintf('pt%02d',x),pp.pts2run,'uni',0),...
+  'createsubplotsborders',[.05 0;.15 .15]...
   );
 % delta_train = struct;
 % delta_test = struct;
@@ -377,9 +417,100 @@ dxyAll = cat(5,dxyAll{:});
 %   
 % end
 
+
+%% compare kdeweights to hm mag
+ipt = pp.pts2run;
+assert(isscalar(ipt),'for now');
+kdeweights = pp.kdedata.indep(:,:,ipt);
+xyreps = squeeze(pp.sampledata.x(:,:,ipt,:));
+xyrepsTrx = pp.TransformByTrx(xyreps,pp.trx,pp.heatmap_origin);
+
+[n,nrep] = size(kdeweights);
+hmmags = nan(size(kdeweights));
+for i=1:n
+  disp(i);
+  hm = pp.ReadHeatmapScore(12,1,i);
+  for irep=1:nrep
+    r = xyrepsTrx(i,irep,2);
+    r = round(r);
+    c = xyrepsTrx(i,irep,1);
+    c = round(c);
+    hmmags(i,irep) = hm(r,c);
+  end
+end
+
+figure;
+scatter(kdeweights(:),hmmags(:));
+figure;
+scatter(hmmags(:),kdeweights(:));
+
+%% Massage pp.kdedata.indep
+pp.kdedata.indep(:,:,12) = hmmags;
+
+save cx_JHS_K_85321_CsChr_RigD_20150909T163219_trx_9_kdedataindepReplacedbyHMMags.mat pp
+
+%% rerun viterbi
+pp.postdata.viterbi_indep_orig = pp.postdata.viterbi_indep;
+pp.RunViterbi;
+save cx_JHS_K_85321_CsChr_RigD_20150909T163219_trx_9_kdedataindepReplacedbyHMMags.mat pp
+
+%% export trks
+pd = pp.postdata;
+algs = fieldnames(pd);
+for alg=algs(:)',alg=alg{1};
+  ptrk = pd.(alg).x;
+  ptrk = permute(ptrk,[2 3 1]);
+  trk = TrkFile(ptrk,'pTrkFrm',pp.tblMFT.frm,'pTrkiTgt',9); 
+  trkname = [alg '.trk'];
+  trk.save(trkname);
+  fprintf('Saved %s\n',trkname); 
+end
+  
+%% Set up lObj/import trk
+trkfileMain = 'maxdensity_indep.trk';
+trkfileLpos2 = 'viterbi_indep.trk';
+ptf = lObj.tracker;
+tv = ptf.trkVizer;
+
+mIdx = lObj.currMovIdx;
+ptf.trackResAddTrkfile(mIdx,{trkfileMain});
+ptf.newLabelerMovie;
+% import trkfileLpos2 manually
+
+tv.heatMapEnable = 1;
+hmd = hmdirs{5};
+tv.heatMapInit(hmd,[],[]);
+tv.heatMapIPtsShow = 12;
+tv.heatMapRawImType = 'invert';
+hmr = tv.heatMapReader;
+hmr.hmnormalizeType = 'lohi';
+hmr.hmlothresh = 128;
+hmr.hmhithresh = 255;
+
+lObj.movieCenterOnTargetLandmark = true;
+lObj.movieCenterOnTargetIpt = 12;
+
+%% visualize kdesamps with weights (AC)
+frm = lObj.currFrame;
+isamp = find(frm==pp.tblMFT.frm);
+if isempty(isamp)
+  error('frame %d is not in pp.',frm);
+end
+assert(isscalar(isamp));
+
+ipt = pp.pts2run;
+assert(isscalar(ipt),'for now');
+kdeweights = pp.kdedata.indep(isamp,:,ipt);
+kdeweights = kdeweights(:);
+reps = squeeze(pp.sampledata.x(isamp,:,ipt,:));
+
+ax = lObj.gdata.axes_curr;
+deleteValidHandles(hS);
+hS = scatter(ax,reps(:,1),reps(:,2),kdeweights*1e3,'r');
+
 %% AC cost vs Motion cost
 
-XFLD = 'x_trx';
+XFLD = 'x';
 pdmi = pp.postdata.maxdensity_indep;
 
 x = pdmi.(XFLD);
@@ -439,10 +570,12 @@ hFig = figure(12);
 clf;
 axs = mycreatesubplots(7,npts2run,[.1 .05;.1 .05]);
 
+
 ylblargs = {'fontweight' 'bold' 'interpreter' 'none'};
 DXFLDS = {dxmag_pred dxmag_pred_a2};
+DXFLDNAMES = {'dxmag_pred' 'dxmag_pred_a2'};
 for iDx=1:numel(DXFLDS)
-  %fld = DXFLDS{iDx};
+  fld = DXFLDNAMES{iDx};
   dxmag = DXFLDS{iDx};
   %DXdxmag = pdmi.(fld); % n x npt
   dxmag2 = dxmag.^2;
@@ -451,21 +584,26 @@ for iDx=1:numel(DXFLDS)
     ax = axs(iDx,iipt);
     axes(ax);
     histogram(dxmag(:,ipt));    
-%     if iipt==1
-%       ylabel(fld,ylblargs{:});
-%     end
+    if iipt==1
+      ylabel(fld,ylblargs{:});
+    end
     
     ax = axs(iDx+2,iipt);
     axes(ax);
-    histogram(dxmag2(:,ipt));        
-%     if iipt==1
-%       ylabel(sprintf('%s^2',fld),ylblargs{:});
-%     end
+    histogram(dxmag2(:,ipt),100);        
+    if iipt==1
+      ylabel(sprintf('%s^2',fld),ylblargs{:});
+    end
   end
 end
 
 for iipt=1:npts2run
   ipt = pp.pts2run(iipt);
+  
+  zmean = mean(pp.sampledata.z(:,ipt));
+  zmedn = median(pp.sampledata.z(:,ipt));
+  fprintf(2,'Your mean zfac is: %.3f\n',zmean);
+  fprintf(2,'Your median zfac is: %.3f\n',zmedn);
 
   ax = axs(5,iipt);
   axes(ax);
@@ -484,7 +622,8 @@ for iipt=1:npts2run
   ax = axs(7,iipt);
   axes(ax);
   % diff between AC cost at half-max and at max
-  histogram( -log(pdmi.hm_atmax(:,ipt)/2) + log(pdmi.hm_atmax(:,ipt)) ,15 );
+  histogram( -log(pdmi.hm_atmax(:,ipt)/2*zmean) + log(pdmi.hm_atmax(:,ipt)*zmean) ,15 );
+  % duh this is just log(2)
   if iipt==1
     ylabel('dAC from peak to half',ylblargs{:});
   end
@@ -526,7 +665,7 @@ end
 %% Motion model
 pd = pp.postdata.maxdensity_indep;
 
-XFLD = 'x_trx';
+XFLD = 'x';
 
 x = pd.(XFLD);
 v = diff(x,1,1); % v(i,ipt,:) gives (dx,dy) that takes you to i+1
@@ -612,6 +751,79 @@ end
 
 linkaxes(axs);
   
+hFig = figure(25);
+clf;
+plot(DAMPS(:),nanmean(squeeze(xprederrsq(:,pp.pts2run,:)),1)','r','linewidth',2);
+hold on;
+plot(DAMPS(:),5*nanmedian(squeeze(xprederrsq(:,pp.pts2run,:)),1)','b','linewidth',2);
+title('prederreq vs damping','fontweight','bold');
+grid on;
+yl = ylim;
+yl(1) = 0;
+ylim(yl);
+
+%% motion model 2
+
+pd = pp.postdata.maxdensity_indep;
+XFLD = 'x';
+x = pd.(XFLD);
+v = diff(x,1,1);
+v = squeeze(v(:,12,:));
+
+xtrx = PostProcess.TransformByTrx(x,pp.trx,pp.heatmap_origin);
+vtrx = diff(xtrx,1,1);
+vtrx = squeeze(vtrx(:,12,:));
+
+n = size(v,1);
+cx = xcorr(v(:,1),v(:,1))/n/var(v(:,1));
+cy = xcorr(v(:,2),v(:,2))/n/var(v(:,2));
+
+cxtrx = xcorr(vtrx(:,1),vtrx(:,1))/n/var(vtrx(:,1));
+cytrx = xcorr(vtrx(:,2),vtrx(:,2))/n/var(vtrx(:,2));
+
+vtrxlag1 = [reshape(vtrx(1:end-1,:),[n-1 1 2]) reshape(vtrx(2:end,:),[n-1 1 2])];  
+
+figure(31);
+clf;
+x = 1:numel(cx);
+plot(x,cx,'o-',x,cy,'o-','linewidth',2);
+hold on;
+plot(x,cxtrx,'+:',x,cytrx,'+:','linewidth',2);
+grid on;
+
+xlim([1550 1570]);
+
+figure(32);
+clf
+axs = mycreatesubplots(1,2,[0.12 0.05;0.12 0.05]);
+JITTERSZ = 0.4;
+for xy=1:2
+  ax = axs(xy);
+  axes(ax);
+  xscat = vtrxlag1(:,1,xy);
+  yscat = vtrxlag1(:,2,xy);
+  p1 = polyfit(xscat,yscat,1);
+  p3 = polyfit(xscat,yscat,3);
+  [r p] = corrcoef(xscat,yscat);
+  xbins = -30:30;
+  ybins = arrayfun(@(x)median(yscat(round(xscat)==x)),xbins);
+  xscat = xscat+JITTERSZ*2*(rand(size(xscat))-0.5);
+  yscat = yscat+JITTERSZ*2*(rand(size(yscat))-0.5);
+  plot(xscat,yscat,'.');
+  tstr = sprintf('linear: slope=%.3g r=%.3g p=%.3g',p1(1),r(1,2),p(1,2));
+  hold on;
+  x = -30:1:30;
+  y1 = p1(1)*x+p(2);
+  y3 = p3(1)*x.^3 + p3(2)*x.^2 + p3(3)*x.^1 + p3(4);
+  plot(x,y1,'r-',x,y3,'r-','linewidth',2);
+  plot(xbins,ybins,'rs','markerfacecolor',[1 0 0]);
+  title(tstr);
+  grid on
+  axis([-30 30 -30 30]);
+end
+linkaxes(axs);
+
+
 
 %% Jumpiness
 pd = pp.postdata;
@@ -652,22 +864,7 @@ end
 % end
 % 
 
-%% visualize kdesamps with weights (AC)
-frm = lObj.currFrame;
-isamp = find(frm==pp.tblMFT.frm);
-if isempty(isamp)
-  error('frame %d is not in pp.',frm);
-end
-assert(isscalar(isamp));
 
-ipt = pp.pts2run;
-assert(isscalar(ipt),'for now');
-kdeweights = pp.kdedata.indep(isamp,:,ipt);
-kdeweights = kdeweights(:);
-reps = squeeze(pp.sampledata.x(isamp,:,ipt,:));
-
-ax = lObj.gdata.axes_curr;
-hS = scatter(ax,reps(:,1),reps(:,2),kdeweights*1400,'r');
 %%
 hFig = figure(22);
 clf;
@@ -681,7 +878,10 @@ for i=1:size(reps,1)
 end
 
 
-%% compare kdeweights to hm mag
+
+%%
+
+
 assert(tv.heatMapNoRawIm);
 assert(isscalar(tv.heatMapIPtsShow));
 im = lObj.gdata.images_all.CData;
@@ -698,37 +898,38 @@ grid on
 
 
 %% Massage pp.kdedata.indep
-
-kdesamps0 = pp.kdedata.indep;
-assert(isequaln(squeeze(pp.sampledata.x_in),pp.sampledata.x));
-
-[nfrm,nsamp,npt] = size(kdesamps);
-for f=1:nfrm
-  if mod(f,10)==0, disp(f); end
-  for iipt=1:npts2run
-    ipt = pp.pts2run(iipt);
-    hm = pp.ReadHeatmapScore(ipt,1,f);
-    for isamp=1:nsamp
-      sampxy = pp.sampledata.x_in(f,isamp,ipt,1,:);
-      
-      
-      sampxyRel = PostProcess.TransformByTrx(sampxy,pp.trx,pp.radius_trx,f);
-      
-      sampr = round(sampxyRel(2));
-      sampc = round(sampxyRel(1));
-      
-      if isnan(sampr) || isnan(sampc)
-        hmsamp = 0;
-      else
-        hmsamp = hm(sampr,sampc);
-      end
-      
-      kdesamps(f,isamp,ipt) = hmsamp; % in [0,1], normalized hm val
-    end
-  end
-end
-
-%pp.kdedata.indep = kdesamps;
+% 
+% kdesamps0 = pp.kdedata.indep;
+% assert(isequaln(squeeze(pp.sampledata.x_in),pp.sampledata.x));
+% 
+% [nfrm,nsamp,npt] = size(kdesamps);
+% for f=1:nfrm
+%   if mod(f,10)==0, disp(f); end
+%   for iipt=1:npts2run
+%     ipt = pp.pts2run(iipt);
+%     hm = pp.ReadHeatmapScore(ipt,1,f);
+%     for isamp=1:nsamp
+%       sampxy = pp.sampledata.x_in(f,isamp,ipt,1,:);
+%       
+%       
+%       % xxx react
+%       sampxyRel = PostProcess.TransformByTrx(sampxy,pp.trx,pp.radius_trx,f);
+%       
+%       sampr = round(sampxyRel(2));
+%       sampc = round(sampxyRel(1));
+%       
+%       if isnan(sampr) || isnan(sampc)
+%         hmsamp = 0;
+%       else
+%         hmsamp = hm(sampr,sampc);
+%       end
+%       
+%       kdesamps(f,isamp,ipt) = hmsamp; % in [0,1], normalized hm val
+%     end
+%   end
+% end
+% 
+% %pp.kdedata.indep = kdesamps;
 
 
 %%

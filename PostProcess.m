@@ -4,7 +4,7 @@ classdef PostProcess < handle
   properties
     pts2run = []; % row vec into 1..npts, used when pts independent. use at own risk
   end
-  properties (GetAccess=public,SetAccess=protected)
+  properties (GetAccess=public,SetAccess=public)
     
     algorithm = 'maxdensity';
     jointsamples = true;
@@ -19,7 +19,7 @@ classdef PostProcess < handle
     viterbi_poslambdafac = [];
     viterbi_dampen = 0.5;
     viterbi_misscost = [];
-
+    viterbi_grid_acradius = [];
     
     % obsolete
     % parameters for gmm fitting from heatmap
@@ -140,8 +140,7 @@ classdef PostProcess < handle
       
       val = ~isempty(obj.nviews) && obj.nviews > 1;
       
-    end
-    
+    end    
     
     function val = get.isframes(obj)
       
@@ -792,7 +791,7 @@ classdef PostProcess < handle
       
     end
     
-    function hfig = PlotSampleScores(obj,varargin)
+    function [hfig,wreptotal] = PlotSampleScores(obj,varargin)
 
       [hfig,plotkde] = myparse(varargin,'hfig',[],'plotkde',false);
       
@@ -1485,7 +1484,7 @@ classdef PostProcess < handle
       
     end
     
-    function hm = ReadHeatmapScore(obj,pti,viewi,n) % obj const      
+    function hm = ReadHeatmapScore(obj,pti,viewi,n) % obj const
     
       hm = obj.heatmapdata.readscorefuns{pti,viewi}(n);
       hm = min(max( (hm-obj.heatmap_lowthresh)/(obj.heatmap_highthresh-obj.heatmap_lowthresh), 0), 1);
@@ -1612,6 +1611,8 @@ classdef PostProcess < handle
                 priorcurr = nan([nsamples_perview,ncurr]);
                 
                 parfor(ni = 1:ncurr,obj.ncores),
+                %for ni=1:ncurr
+                  disp(ni);
                   x = reshape(xs{ni},[1,size(xs{ni},1),1,1,2]);
                   [mucurr(:,:,ni),priorcurr(:,ni),Scurr(:,:,:,ni)] = ...
                     PostProcess.GMMFitSamples(x,nsamples_perview,'weights',hms{ni}','jointpoints',false);
@@ -1676,7 +1677,9 @@ classdef PostProcess < handle
 
         if obj.IsTrx(),
           viewi = 1;
-          obj.sampledata.x_in = PostProcess.UntransformByTrx(obj.sampledata.x_in,obj.trx(viewi),obj.radius_trx(viewi,:));
+          obj.sampledata.x_in_trx = obj.sampledata.x_in;
+          obj.sampledata.x_in = PostProcess.UntransformByTrx(...
+            obj.sampledata.x_in,obj.trx(viewi),obj.heatmap_origin(viewi,:));
           obj.sampledata.x_perview = obj.sampledata.x_in;
           obj.sampledata.x = permute(obj.sampledata.x_in,[1,2,3,5,4]);
         end
@@ -1924,6 +1927,8 @@ classdef PostProcess < handle
           obj.RunMedian();
         case 'viterbi',
           obj.RunViterbi();
+        case 'viterbigrid',
+          obj.RunViterbiGrid();
         otherwise
           error('Not implemented %s',obj.algorithm);
       end
@@ -2000,6 +2005,13 @@ classdef PostProcess < handle
                 any(obj.viterbi_misscost(:) ~= misscost(:)),
               ischange = true;
               obj.viterbi_misscost = misscost;
+            end
+          case 'grid_acradius',
+            acrad = varargin{i+1};
+            if numel(obj.viterbi_grid_acradius) ~= numel(acrad) || ...
+                any(obj.viterbi_grid_acradius(:) ~= acrad(:)),
+              ischange = true;
+              obj.viterbi_grid_acradius = acrad;
             end
           otherwise
             error('Unknown Viterbi parameter %s',varargin{i});
@@ -2179,7 +2191,9 @@ classdef PostProcess < handle
         
       if obj.IsTrx(),
         viewi = 1;
-        obj.postdata.median.x = PostProcess.UntransformByTrx(obj.postdata.median.x,obj.trx(viewi),obj.radius_trx(viewi,:));
+        obj.postdata.median.x_trx = obj.postdata.median.x;
+        obj.postdata.median.x = PostProcess.UntransformByTrx(...
+          obj.postdata.median.x,obj.trx(viewi),obj.heatmap_origin(viewi,:));
       end
       
       % .IsCrop()?
@@ -2253,7 +2267,9 @@ classdef PostProcess < handle
       end
       if obj.IsTrx(),
         viewi = 1;
-        obj.postdata.maxdensity_indep.x = PostProcess.UntransformByTrx(obj.postdata.maxdensity_indep.x,obj.trx(viewi),obj.radius_trx(viewi,:));  
+        obj.postdata.maxdensity_indep.x_trx = obj.postdata.maxdensity_indep.x;
+        obj.postdata.maxdensity_indep.x = PostProcess.UntransformByTrx(...
+          obj.postdata.maxdensity_indep.x,obj.trx(viewi),obj.heatmap_origin(viewi,:));  
       end
       
       % .IsCrop()?
@@ -2545,6 +2561,50 @@ classdef PostProcess < handle
       
     end
     
+    function RunViterbiGrid(obj,varargin)
+      % Single-view heatmap viterbi
+      
+      pts2run = myparse(varargin,...
+        'pts2run',obj.pts2run...
+        );
+      if isempty(pts2run)
+        pts2run = 1:obj.npts;
+      end
+      
+      assert( strcmp(obj.nativeformat,'heatmap') );
+      assert( obj.nviews==1 );
+      assert( ~obj.isframes );
+      
+      assert(isrow(pts2run));
+      d = 2;
+      xy = nan(obj.N,obj.npts,d);
+      xyAC = nan(obj.N,obj.npts,d);
+      acCtrXY = nan(obj.N,obj.npts,d);
+      score = nan(obj.npts,1);
+      for ipt=pts2run
+        iview = 1;
+        hmfcn = @(n)obj.ReadHeatmapScore(ipt,iview,n);
+        [hmnrnc,hmBestTrajPQ,acBestTrajUV,acCtrPQ,totalcost] = ...
+          ChooseBestTrajectory_grid(hmfcn,obj.N,...
+          'hmConsiderRadius',obj.viterbi_grid_acradius,...
+          'poslambda',obj.viterbi_poslambda,...
+          'dampen',obj.viterbi_dampen...
+          );
+        
+        xy(:,ipt,:) = hmBestTrajPQ(:,[2 1]);
+        xyAC(:,ipt,:) = acBestTrajUV(:,[2 1]);
+        acCtrXY(:,ipt,:) = acCtrPQ(:,[2 1]);
+        score(ipt) = score;
+      end
+      
+      assert(strcmp(algorithm,'viterbi_grid'));
+      obj.postdata.(algorithm) = struct;
+      obj.postdata.(algorithm).x = xy;
+      obj.postdata.(algorithm).xAC = xyAC;
+      obj.postdata.(algorithm).acCtrXY = acCtrXY;
+      obj.postdata.(algorithm).score = score;
+    end
+  
 %     function ClearComputedResults(obj)
 %       
 %       obj.postdata = struct;
