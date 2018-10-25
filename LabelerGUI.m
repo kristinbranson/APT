@@ -1777,15 +1777,15 @@ if ~checkProjAndMovieExist(handles)
   return;
 end
 SetStatus(handles,'Training...');
+oc1 = onCleanup(@()ClearStatus(handles));
 wbObj = WaitBarWithCancel('Training');
-oc = onCleanup(@()delete(wbObj));
+oc2 = onCleanup(@()delete(wbObj));
 centerOnParentFigure(wbObj.hWB,handles.figure);
 handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
 if wbObj.isCancel
   msg = wbObj.cancelMessage('Training canceled');
   msgbox(msg,'Train');
 end
-ClearStatus(handles);
   
 function pbTrack_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
