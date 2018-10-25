@@ -9588,8 +9588,10 @@ classdef Labeler < handle
     function clickTarget(obj,h,evt,iTgt)
       
       if strcmpi(obj.gdata.figure.SelectionType,'open'),
-        fprintf('Switching to target %d\n',iTgt);
+        obj.SetStatus(sprintf('Switching to target %d\n',iTgt));
+        %fprintf('Switching to target %d\n',iTgt);
         obj.setTarget(iTgt);
+        obj.ClearStatus();
       end
       
     end
@@ -9992,8 +9994,8 @@ classdef Labeler < handle
     
   end
   
-  %% 
-  methods % PrevAxes
+  %% PrevAxes
+  methods 
     
     function setPrevAxesMode(obj,pamode,pamodeinfo)
       % Set .prevAxesMode, .prevAxesModeInfo
@@ -10882,6 +10884,27 @@ classdef Labeler < handle
         end
       end      
     end
+   
+    function SetStatus(obj,s,varargin)
+      
+      if isfield(obj.gdata,'SetStatusFun'),
+        obj.gdata.SetStatusFun(obj.gdata,s,varargin{:});
+      else
+        fprintf(['Status: ',s,'...\n']);
+      end
+      
+    end
+
+    function ClearStatus(obj,varargin)
+      
+      if isfield(obj.gdata,'ClearStatusFun'),
+        obj.gdata.ClearStatusFun(obj.gdata,varargin{:});
+      else
+        fprintf('Done.\n');
+      end
+      
+    end
+
     
   end
   
