@@ -1458,7 +1458,7 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
 
-      RC.saveprop('lastLblFile',fname);
+      RC.saveprop('lastLblFile',fname);      
     end
         
     function [success,lblfname] = projSaveAs(obj)
@@ -1574,7 +1574,7 @@ classdef Labeler < handle
       nomovie = myparse(varargin,...
         'nomovie',false ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
         );
-      
+            
       currMovInfo = [];
       
       if exist('fname','var')==0
@@ -1601,7 +1601,7 @@ classdef Labeler < handle
           % the only possibility is that it is already a fullpath
         end
       end
-            
+      
       s = load(fname,'-mat');
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
         error('Labeler:load','Unexpected contents in Label file.');
@@ -1730,7 +1730,7 @@ classdef Labeler < handle
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
-    
+
     end
     
     function projImport(obj,fname)
@@ -3089,7 +3089,6 @@ classdef Labeler < handle
     function tfsuccess = movieSet(obj,iMov,varargin)
         
       notify(obj,'startSetMovie')
-        
       % iMov: If multivew, movieSet index (row index into .movieFilesAll)
             
       assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx
@@ -3200,6 +3199,7 @@ classdef Labeler < handle
       else
         obj.setFrameAndTarget(1,1);
       end
+            
     end
     
     function tfsuccess = movieSetMIdx(obj,mIdx,varargin)
@@ -4932,10 +4932,12 @@ classdef Labeler < handle
         hWB = waitbar(0,'Updating frame table');
         centerOnParentFigure(hWB,obj.gdata.figure);
         ocp = onCleanup(@()delete(hWB));
+        tic;
       end
       for i = 1:nf
-        if tfWaitBar && mod(i,1000)==0
+        if tfWaitBar && toc >= .25,
           waitbar(i/nf,hWB);
+          tic;
         end
         f = frms(i);
         
@@ -9653,7 +9655,7 @@ classdef Labeler < handle
     function clickTarget(obj,h,evt,iTgt)
       
       if strcmpi(obj.gdata.figure.SelectionType,'open'),
-        obj.SetStatus(sprintf('Switching to target %d\n',iTgt));
+        obj.SetStatus(sprintf('Switching to target %d...',iTgt));
         %fprintf('Switching to target %d\n',iTgt);
         obj.setTarget(iTgt);
         obj.ClearStatus();
@@ -10157,6 +10159,7 @@ classdef Labeler < handle
         if obj.hasTrx,
           gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Target %d',freezeInfo.iTgt)];
         end
+        gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Movie %d',freezeInfo.iMov)];
       end
       obj.prevAxesSetLabels(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
       
@@ -10955,6 +10958,17 @@ classdef Labeler < handle
       end
       
     end
+    
+    function setStatusBarTextWhenClear(obj,s,varargin)
+      
+      if isfield(obj.gdata,'SetStatusBarTextWhenClearFun'),
+        obj.gdata.SetStatusBarTextWhenClearFun(obj.gdata,s,varargin{:});
+      else
+        fprintf(['Ready status: ',s,'...\n']);
+      end
+      
+    end
+
 
     
   end

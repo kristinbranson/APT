@@ -64,7 +64,7 @@ set(handles.txPrevIm,'String','');
 set(handles.edit_frame,'String','');
 set(handles.popupmenu_prevmode,'Visible','off');
 set(handles.pushbutton_freezetemplate,'Visible','off');
-set(handles.txStatus,'String','');
+set(handles.txStatus,'String','Ready.');
 syncStatusBarTextWhenClear(handles);
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
@@ -75,9 +75,10 @@ handles.idlestatuscolor = [0,1,0];
 handles.busystatuscolor = [1,0,1];
 setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
 setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
-SetStatus(handles,'Initializing GUI...');
+SetStatus(handles,'Initializing APT...');
 handles.SetStatusFun = @SetStatus;
 handles.ClearStatusFun = @ClearStatus;
+handles.SetStatusBarTextWhenClearFun = @setStatusBarTextWhenClear;
 
 %handles.pnlSusp.Visible = 'off';
 
@@ -975,8 +976,8 @@ handles = lObj.gdata;
 
 handles = clearDepHandles(handles);
 
-curr_status_string=handles.txStatus.String;
-SetStatus(handles,curr_status_string,true);
+%curr_status_string=handles.txStatus.String;
+%SetStatus(handles,curr_status_string,true);
 
 % figs, axes, images
 deleteValidHandles(handles.figs_all(2:end));
@@ -1107,7 +1108,7 @@ handles = addDepHandle(handles,handles.GTMgr);
 
 guidata(handles.figure,handles);
 
-ClearStatus(handles);
+%ClearStatus(handles);
 
 function cbkNewMovie(src,evt)
 lObj = src;
@@ -1216,8 +1217,9 @@ else
 end
 set(handles.txMoviename,'String',str);
 if ~isempty(mname)
-  str = sprintf('new %s %s at %s',lower(movstr),mname,datestr(now,16));
-  SetStatus(handles,str,false); %in cbkNewMovie
+  %str = sprintf('new %s %s at %s',lower(movstr),mname,datestr(now,16));
+  %setStatusBarTextWhenClear(handles,str);
+  %SetStatus(handles,str,false); %in cbkNewMovie
   %SetStatus(handles,str,true);
   %set(handles.txStatus,'String',str);
   
@@ -1231,9 +1233,9 @@ lObj=src;
 handles = lObj.gdata;
 
 if strcmp(evt.EventName,'startAddMovie')
-    SetStatus(handles,'Adding movie',true); 
+    %SetStatus(handles,'Adding movie',true); 
 elseif strcmp(evt.EventName,'finishAddMovie')
-    ClearStatus(handles);        
+    %ClearStatus(handles);        
 end
 
 function cbkSetMovie(src,evt)
@@ -1241,9 +1243,9 @@ lObj=src;
 handles = lObj.gdata;
 
 if strcmp(evt.EventName,'startSetMovie')
-    SetStatus(handles,'Setting first movie',true); 
+    %SetStatus(handles,'Setting first movie',true); 
 elseif strcmp(evt.EventName,'finishSetMovie')
-    ClearStatus(handles);        
+    %ClearStatus(handles);        
 end
 
 function cbkProjLoaded(src,evt)
@@ -1312,6 +1314,13 @@ if isscalar(val) && val
 else
   set(hTx,'Visible','off');
 end
+
+info = lObj.projFSInfo;
+if ~isempty(info)
+  str = sprintf('Unsaved labels since project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
+  SetStatus(lObj.gdata,str,false);
+end
+
 
 function menuSetupLabelModeHelp(handles,labelMode)
 % Set .Checked for menu_setup_<variousLabelModes> based on labelMode
@@ -1391,7 +1400,8 @@ lObj = evt.AffectedObject;
 handles = lObj.gdata;
 pname = lObj.projname;
 str = sprintf('Project %s created (unsaved) at %s',pname,datestr(now,16));
-SetStatus(handles,str,false);
+setStatusBarTextWhenClear(handles,str);
+%SetStatus(handles,str,false);
 % set(handles.txStatus,'String',str);
 hlpUpdateTxProjectName(lObj);
 
@@ -1401,7 +1411,8 @@ info = lObj.projFSInfo;
 if ~isempty(info)  
   str = sprintf('Project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
   %set(lObj.gdata.txStatus,'String',str);
-  SetStatus(lObj.gdata,str,false);
+  setStatusBarTextWhenClear(lObj.gdata,str);
+  %SetStatus(lObj.gdata,str,false);
 end
 hlpUpdateTxProjectName(lObj);
 
@@ -2084,20 +2095,20 @@ end
 ClearStatus(handles);
 
 function menu_file_save_Callback(hObject, eventdata, handles)
-SetStatus(handles,'Saving project');
+SetStatus(handles,'Saving project...');
 handles.labelerObj.projSaveSmart();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
 ClearStatus(handles)
 
 function menu_file_saveas_Callback(hObject, eventdata, handles)
-SetStatus(handles,'Saving project');
+SetStatus(handles,'Saving project...');
 handles.labelerObj.projSaveAs();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
 ClearStatus(handles)
 
 function menu_file_load_Callback(hObject, eventdata, handles)
 
-SetStatus(handles,'Loading Project',true);
+SetStatus(handles,'Loading Project...',true);
 %EnableControls(handles,'projectloaded');
 lObj = handles.labelerObj;
 if hlpSave(lObj)
@@ -2746,7 +2757,7 @@ tObj.trnDataUseAll();
 % tObj.trnDataSelect();
 
 function menu_track_training_data_montage_Callback(hObject,eventdata,handles)
-SetStatus(handles,'Plotting training examples');
+SetStatus(handles,'Plotting training examples...');
 lObj = handles.labelerObj;
 lObj.tracker.trainingDataMontage();
 ClearStatus(handles);
@@ -2887,7 +2898,7 @@ res = questdlg('Are you sure you want to clear tracking results?');
 if ~strcmpi(res,'yes'),
   return;
 end
-SetStatus(handles,'Clearing tracking results');
+SetStatus(handles,'Clearing tracking results...');
 tObj = lObj.tracker;
 tObj.clearTrackingResults();
 ClearStatus(handles);
@@ -2948,7 +2959,7 @@ tm = getTrackMode(handles);
 if ~tfok
   return;
 end
-SetStatus(handles,'Tracking');
+SetStatus(handles,'Tracking...');
 handles.labelerObj.trackAndExport(tm,'rawtrkname',rawtrkname);
 ClearStatus(handles);
 
@@ -3366,10 +3377,18 @@ set(handles.txStatus, ...
 set(handles.figure,'Pointer','arrow');
 drawnow('limitrate');
 
-function syncStatusBarTextWhenClear(handles)
+function syncStatusBarTextWhenClear(handles,s)
 
 try
-  setappdata(handles.txStatus,'text_when_clear',get(handles.txStatus,'string'));
+  s = get(handles.txStatus,'string');
+  setStatusBarTextWhenClear(handles,s);
+catch
+end
+
+function setStatusBarTextWhenClear(handles,s)
+
+try
+  setappdata(handles.txStatus,'text_when_clear',s);
 catch
 end
 
