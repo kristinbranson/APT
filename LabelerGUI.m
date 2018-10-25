@@ -42,6 +42,9 @@ end
 
 hfigsplash = splashScreen(handles);
 
+handles.SetStatusFun = @(~,s,varargin) fprintf([s,'...\n']);
+handles.ClearStatusFun = @(varargin) fprintf('Done.\n');
+
 hObject.Name = 'APT';
 hObject.HandleVisibility = 'on';
 
@@ -73,6 +76,8 @@ handles.busystatuscolor = [1,0,1];
 setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
 setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
 SetStatus(handles,'Initializing GUI...');
+handles.SetStatusFun = @SetStatus;
+handles.ClearStatusFun = @ClearStatus;
 
 %handles.pnlSusp.Visible = 'off';
 
