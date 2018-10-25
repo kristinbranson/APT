@@ -305,7 +305,6 @@ classdef Labeler < handle
     hTraj;                    % nTrx x 1 vector of line handles
     hTrx;                     % nTrx x 1 vector of line handles
     hTrxTxt;                  % nTrx x 1 vector of text handles
-    hTrxClick;
     showTrxPreNFrm = 15;      % number of preceding frames to show in traj
     showTrxPostNFrm = 5;      % number of following frames to show in traj
   end
@@ -3085,9 +3084,9 @@ classdef Labeler < handle
     
     function tfsuccess = movieSet(obj,iMov,varargin)
         
-        notify(obj,'startSetMovie')
+      notify(obj,'startSetMovie')
         
-        % iMov: If multivew, movieSet index (row index into .movieFilesAll)  
+      % iMov: If multivew, movieSet index (row index into .movieFilesAll)
             
       assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx
       assert(any(iMov==1:obj.nmoviesGTaware),...
@@ -4115,6 +4114,7 @@ classdef Labeler < handle
       ax = obj.gdata.axes_curr;
       pref = obj.projPrefs.Trx;
       for i = 1:obj.nTrx
+        
         obj.hTraj(i,1) = line(...
           'parent',ax,...
           'xdata',nan, ...
@@ -4123,15 +4123,24 @@ classdef Labeler < handle
           'linestyle',pref.TrajLineStyle, ...
           'linewidth',pref.TrajLineWidth, ...
           'HitTest','off',...
-          'Tag',sprintf('Labeler_Traj_%d',i));
+          'Tag',sprintf('Labeler_Traj_%d',i),...
+          'PickableParts','none');
 
         obj.hTrx(i,1) = plot(ax,...
           nan,nan,pref.TrxMarker);
-        set(obj.hTrx(i,1),'HitTest','off',...
+        set(obj.hTrx(i,1),...
           'Color',pref.TrajColor,...
           'MarkerSize',pref.TrxMarkerSize,...
           'LineWidth',pref.TrxLineWidth,...
-          'Tag',sprintf('Labeler_Trx_%d',i));
+          'Tag',sprintf('Labeler_Trx_%d',i),...
+          'ButtonDownFcn',@(h,evt) obj.clickTarget(h,evt,i),...
+          'PickableParts','all',...
+          'HitTest','on');
+        if i == obj.currTarget,
+          set(obj.hTrx(i,1),...
+            'PickableParts','none',...
+            'HitTest','off');
+        end
         
 %         obj.hTrxEll(i,1) = plot(ax,nan,nan,'-');
 %         set(obj.hTrxEll(i,1),'HitTest','off',...
@@ -4193,8 +4202,9 @@ classdef Labeler < handle
 %         && all(isfield(trxAll,{'a' 'b' 'x' 'y' 'theta'}));
    
       % update coords/positions
+      %tic;
       for iTrx = 1:obj.nTrx
-        if tfShow(iTrx)
+        %if tfShow(iTrx)
           trxCurr = trxAll(iTrx);
           t0 = trxCurr.firstframe;
           t1 = trxCurr.endframe;
@@ -4230,8 +4240,16 @@ classdef Labeler < handle
 %               trxCurr.x(idx),trxCurr.y(idx),trxCurr.theta(idx),'-',...
 %               'hEllipse',obj.hTrxEll(iTrx),'noseLine',true);
 %           end
-        end
+        %end
       end
+      %fprintf('Time to update trx: %f\n',toc);
+      set(obj.hTrx([1:obj.currTarget-1,obj.currTarget+1:end],1),...
+        'PickableParts','all',...
+        'HitTest','on');
+      set(obj.hTrx(obj.currTarget,1),...
+        'PickableParts','none',...
+        'HitTest','off');
+
       set(obj.hTraj(tfShow),'Visible','on');
       set(obj.hTraj(~tfShow),'Visible','off');
       set(obj.hTrx(tfShow),'Visible','on');
@@ -9566,6 +9584,15 @@ classdef Labeler < handle
 %       assert(~isnan(iTgt),'Invalid target ID: %d.');
 %       obj.setTarget(iTgt);
 %     end
+
+    function clickTarget(obj,h,evt,iTgt)
+      
+      if strcmpi(obj.gdata.figure.SelectionType,'open'),
+        fprintf('Switching to target %d\n',iTgt);
+        obj.setTarget(iTgt);
+      end
+      
+    end
     
     function setTarget(obj,iTgt)
       % Set target index, maintaining current movie/frameframe.
