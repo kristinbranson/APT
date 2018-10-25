@@ -1686,6 +1686,9 @@ classdef DeepTracker < LabelTracker
         trxTh = [];        
       else
         itrx = frm+trx.off;
+        if itrx <= 0 || itrx > numel(trx.x),
+          return;
+        end
         trxXY = [trx.x(itrx) trx.y(itrx)];
         trxTh = trx.theta(itrx);        
       end        
