@@ -648,11 +648,12 @@ classdef DeepTracker < LabelTracker
           s.trackerData{2}.sPrm.sizey = szroi;
         end
         
+        aws = obj.awsEc2;
         DeepTracker.hlpPutCheckRemoteDir(aws,'data','data');
         
         iMovTrn = unique(obj.trnTblP.mov); % must be regular mov, not GT
         
-        assert(nvw==1,'Single-view only');
+        assert(obj.nview==1,'Single-view only');
         IVIEW = 1;
         nmov = size(s.trxFilesAll,1);
         for iMov=1:nmov
