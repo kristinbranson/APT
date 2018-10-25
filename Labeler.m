@@ -2876,23 +2876,21 @@ classdef Labeler < handle
     end
     
     function tfok = checkFrameAndTargetInBounds(obj,frm,tgt)
-      
       tfok = false;
       if obj.nframes < frm,
         return;
       end
       if obj.hasTrx,
-        if numel(obj.currTrx) < tgt,
+        if numel(obj.trx) < tgt,
           return;
         end
-        if numel(obj.currTrx.x) < frm,
+        trxtgt = obj.trx(tgt);
+        if frm<trxtgt.firstframe || frm>trxtgt.endframe,
           return;
         end
-        
       end
       
       tfok = true;
-      
     end
     
     function [tfok,badfile] = movieCheckFilesExistSimple(obj,iMov,gt) % obj const
