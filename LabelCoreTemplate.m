@@ -129,8 +129,6 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function initHook(obj)
-      obj.setRandomTemplate();
-            
       npts = obj.nPts;
       obj.tfAdjusted = false(npts,1);
       

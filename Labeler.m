@@ -1266,6 +1266,11 @@ classdef Labeler < handle
       
       obj.labels2Hide = false;
 
+      % When starting a new proj after having an existing proj open, old 
+      % state is lingering in .prevAxesModeInfo despite the next 
+      % .setPrevAxesMode call due to various initialization foolishness
+      obj.prevAxesModeInfo = []; 
+      
       % New projs set to frozen, waiting for something to be labeled
       obj.setPrevAxesMode(PrevAxesMode.FROZEN,[]);
       
@@ -1699,7 +1704,6 @@ classdef Labeler < handle
 %       % communicate with tracker if necessary (in particular, Template Mode 
 %       % <-> Hide Predictions)
 %       obj.labelingInit();
-
 
       obj.labeledposNeedsSave = false;
 %       obj.suspScore = obj.suspScore;
@@ -3092,9 +3096,9 @@ classdef Labeler < handle
       assert(any(iMov==1:obj.nmoviesGTaware),...
                     'Invalid movie index ''%d''.',iMov);
       
-      [isFirstMovie,noLabelingInit] = myparse(varargin,...
-        'isFirstMovie',~obj.hasMovie,... % passing true for the first time a movie is added to a proj helps the UI
-        'noLabelingInit',false); % DELETE OPTION
+      [isFirstMovie] = myparse(varargin,...
+        'isFirstMovie',~obj.hasMovie... % passing true for the first time a movie is added to a proj helps the UI
+        ); 
       
       tfsuccess = obj.movieCheckFilesExist(iMov); % throws
       if ~tfsuccess
@@ -3135,7 +3139,9 @@ classdef Labeler < handle
       % KB 20161213: moved this up here so that we could redo in initHook
       obj.labelsMiscInit();
       if isFirstMovie,
-        obj.labelingInit();
+        % we set template below as it requires .trx to be set correctly. 
+        % see below
+        obj.labelingInit('dosettemplate',false); 
       end
       
       % for fun debugging
@@ -3157,6 +3163,13 @@ classdef Labeler < handle
       %obj.trxfile = trxFile; % this must come after .trxSet() call
         
       obj.isinit = isInitOrig; % end Initialization hell      
+
+      if isFirstMovie && obj.labelMode==LabelMode.TEMPLATE
+        % Setting the template requires the .trx to be appropriately set,
+        % so for template mode we redo this (it is part of labelingInit()
+        % here.
+        obj.labelingInitTemplate();
+      end
 
       % AL20160615: omg this is the plague.
       % AL20160605: These three calls semi-obsolete. new projects will not
@@ -3200,10 +3213,7 @@ classdef Labeler < handle
     
     function movieSetNoMovie(obj,varargin)
       % Set .currMov to 0
-      
-      noLabelingInit = myparse(varargin,... 
-        'noLabelingInit',false); % DELETE OPTION
-           
+                 
           % Stripped cut+paste form movieSet() for reference 20170714
           %       obj.movieReader(iView).open(movfileFull);
           %       obj.moviename = fullfile(parent,movname);
@@ -3238,9 +3248,7 @@ classdef Labeler < handle
       obj.isinit = isInitOrig;
       
       obj.labelsMiscInit();
-      if ~noLabelingInit
-        obj.labelingInit();
-      end
+      obj.labelingInit('dosettemplate',false);
       edata = NewMovieEventData(false);
       notify(obj,'newMovie',edata);
       obj.updateFrameTableComplete();
@@ -4279,9 +4287,11 @@ classdef Labeler < handle
       % For calibrated labelCores, can also require .currMovie, 
       % .viewCalibrationData, .vewCalibrationDataProjWide to be properly 
       % initted
-      
-      lblmode = myparse(varargin,...
-        'labelMode',[]); % if true, force a call to labelsUpdateNewFrame(true) at end of call. Poorly named option.
+            
+      [lblmode,dosettemplate] = myparse(varargin,...
+        'labelMode',[],... % if true, force a call to labelsUpdateNewFrame(true) at end of call. Poorly named option.
+        'dosettemplate',true...
+        );
       tfLblModeChange = ~isempty(lblmode);
       if tfLblModeChange
         assert(isa(lblmode,'LabelMode'));
@@ -4292,7 +4302,7 @@ classdef Labeler < handle
       nPts = obj.nLabelPoints;
       lblPtsPlotInfo = obj.labelPointsPlotInfo;
       lblPtsPlotInfo.Colors = obj.LabelPointColors;
-      template = obj.labelTemplate;
+      %template = obj.labelTemplate;
       
       lc = obj.lblCore;
       if ~isempty(lc)
@@ -4332,11 +4342,8 @@ classdef Labeler < handle
       end
       
       % labelmode-specific inits
-      switch lblmode
-        case LabelMode.TEMPLATE
-          if ~isempty(template)
-            obj.lblCore.setTemplate(template);
-          end
+      if dosettemplate && lblmode==LabelMode.TEMPLATE
+        obj.labelingInitTemplate();
       end
       if obj.lblCore.supportsCalibration
         vcd = obj.viewCalibrationDataCurrent;
@@ -4350,11 +4357,33 @@ classdef Labeler < handle
       obj.labelMode = lblmode;
       
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
-          obj.gdata.axes_prev,lblPtsPlotInfo);
-          
+        obj.gdata.axes_prev,lblPtsPlotInfo);
+      
       if tfLblModeChange
         % sometimes labelcore need this kick to get properly set up
         obj.labelsUpdateNewFrame(true);
+      end
+    end
+    
+    function labelingInitTemplate(obj)
+      % Call .lblCore.setTemplate based on a labeled frame in the proj
+      % Uses .trx as appropriate
+      [tffound,iMov,frm,iTgt,xyLbl] = obj.labelFindOneLabeledFrameEarliest();
+      if tffound
+        if obj.hasTrx
+          trxfname = obj.trxFilesAllFullGTaware{iMov};
+          movIfo = obj.movieInfoAllGTaware{iMov};
+          trximov = obj.getTrx(trxfname,movIfo.nframes);
+          trxI = trximov(iTgt);
+          idx = trxI.off + frm;
+          tt = struct('loc',[trxI.x(idx) trxI.y(idx)],...
+            'theta',trxI.theta(idx),'pts',xyLbl);
+        else
+          tt = struct('loc',[nan nan],'theta',nan,'pts',xyLbl);
+        end
+        obj.lblCore.setTemplate(tt);
+      else
+        obj.lblCore.setRandomTemplate();
       end
     end
     
@@ -4826,6 +4855,42 @@ classdef Labeler < handle
       iTgt = [];
       xyLbl = [];
       return;
+    end
+    
+    function [tffound,iMov,frm,iTgt,xyLbl,mints] = labelFindOneLabeledFrameEarliest(obj)
+      % Look only in labeledposGTaware, and look for the earliest labeled 
+      % frame.
+      
+      lpos = obj.labeledposGTaware;
+      lposts = obj.labeledposTSGTaware;
+      tffound = false;
+
+      mints = inf;
+      
+      for i = 1:numel(lpos)
+        %islabeled = permute(all(obj.labeledposTSGTaware{i}>0,1),[2,3,1]);
+        islabeled = permute(all(all(lpos{i}>0,1),2),[3,4,1,2]);
+        idxlabeled = find(islabeled);
+        tmp = lposts{i}(1,:,:,1);
+        [mintscurr,j] = min(tmp(islabeled));
+        [frmcurr,iTgtcurr] = ind2sub([size(lposts{i},2),size(lposts{i},3)],idxlabeled(j));
+        if mintscurr < mints,
+          frm = frmcurr;
+          iTgt = iTgtcurr;
+          iMov = i;
+          mints = mintscurr;
+          tffound = true;
+        end
+      end
+      
+      if tffound
+        xyLbl = lpos{iMov}(:,:,frm,iTgt);
+      else
+        iMov = [];
+        frm = [];
+        iTgt = [];
+        xyLbl = [];
+      end
     end
     
     function [nTgts,nPts] = labelPosLabeledFramesStats(obj,frms) % obj const
@@ -10214,26 +10279,12 @@ classdef Labeler < handle
         end
       end
       % find first labeled frame
-      mints = inf;
       %frm = paModeInfo.frm;
       %iMov = paModeInfo.iMov;
       %iTgt = paModeInfo.iTgt;
-      for i = 1:numel(obj.labeledposTSGTaware),
-        %islabeled = permute(all(obj.labeledposTSGTaware{i}>0,1),[2,3,1]);
-        islabeled = permute(all(all(lpos{i}>0,1),2),[3,4,1,2]);
-        idxlabeled = find(islabeled);
-        tmp = obj.labeledposTSGTaware{i}(1,:,:,1);
-        [mintscurr,j] = min(tmp(islabeled));
-        [frmcurr,iTgtcurr] = ind2sub([size(obj.labeledposTSGTaware{i},2),size(obj.labeledposTSGTaware{i},3)],idxlabeled(j));
-        if mintscurr < mints,
-          frm = frmcurr;
-          iTgt = iTgtcurr;
-          iMov = i;
-          mints = mintscurr;
-          success = true;
-        end
-      end
-      if ~success,
+      
+      [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
+      if ~tffound,
         paModeInfo.frm = [];
         paModeInfo.iTgt = [];
         paModeInfo.iMov = [];
