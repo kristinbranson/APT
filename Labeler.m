@@ -1266,6 +1266,11 @@ classdef Labeler < handle
       
       obj.labels2Hide = false;
 
+      % When starting a new proj after having an existing proj open, old 
+      % state is lingering in .prevAxesModeInfo despite the next 
+      % .setPrevAxesMode call due to various initialization foolishness
+      obj.prevAxesModeInfo = []; 
+      
       % New projs set to frozen, waiting for something to be labeled
       obj.setPrevAxesMode(PrevAxesMode.FROZEN,[]);
       
