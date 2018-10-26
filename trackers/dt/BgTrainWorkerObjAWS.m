@@ -77,10 +77,10 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
             json,finalindex,errFile,logFile,killFile,json);
         cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollargs);
 
-        [tfpollsucc,res] = aws.cmdInstance(cmdremote);
+        [tfpollsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
         if tfpollsucc
           reslines = regexp(res,'\n','split');
-          tfpollsucc = iscell(reslines) && numel(reslines)==6;
+          tfpollsucc = iscell(reslines) && numel(reslines)==6+1; % last cell is {0x0 char}
         end
           
         sRes(ivw).pollsuccess = tfpollsucc;
@@ -89,7 +89,7 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
         sRes(ivw).trainCompletePath = finalindex;
         sRes(ivw).errFile = errFile;
         sRes(ivw).logFile = logFile;
-        sRes(ivw).killFile = killFile;
+        sRes(ivw).killFile = killFile;        
         
         if tfpollsucc          
           sRes(ivw).jsonPresent = strcmp(reslines{1},'y');
