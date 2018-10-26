@@ -3,6 +3,7 @@
 import sys
 import os
 import string
+import re
 
 args = sys.argv
 nargs = len(args)
@@ -19,6 +20,13 @@ for i in range(1,nargs,2):
             val = 'y'
         else:
             val = 'n'
+    elif type=='existsNEerr':
+        val = 'n'
+        if os.path.exists(file) and os.path.getsize(file)>0:
+            with open(file,'r') as readfile:
+                val = readfile.read()
+                if re.search(val,'exception',re.IGNORECASE):
+                    val = 'y'
     elif type=='contents':
         if os.path.exists(file):
             with open(file,'r') as readfile:

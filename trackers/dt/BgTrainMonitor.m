@@ -121,7 +121,8 @@ classdef BgTrainMonitor < handle
     end
     
     function bgTrnResultsReceivedHook(obj,sRes)
-      
+      % current pattern is, this meth only handles things which stop the
+      % training. everything else handled by trnMonitor
       killOccurred = any([sRes.result.killFileExists]);
       if killOccurred
         obj.stop();        
