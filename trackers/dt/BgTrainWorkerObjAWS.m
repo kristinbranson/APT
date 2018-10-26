@@ -117,17 +117,14 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
     end
     
     function tf = fileExists(obj,f)
-      assert(false,'unused for now');
       tf = obj.awsEc2.remoteFileExists(f,'dispcmd',true);
     end
     
     function tf = errFileExistsNonZeroSize(obj,errFile)
-      assert(false,'unused for now');
       tf = obj.awsEc2.remoteFileExists(errFile,'reqnonempty',true,'dispcmd',true);
     end    
     
     function s = fileContents(obj,f)
-      assert(false,'unused for now');
       s = obj.awsEc2.remoteFileContents(f,'dispcmd',true);
     end
         

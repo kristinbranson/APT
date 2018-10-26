@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import sys
 import os
@@ -24,8 +24,8 @@ for i in range(1,nargs,2):
         val = 'n'
         if os.path.exists(file) and os.path.getsize(file)>0:
             with open(file,'r') as readfile:
-                val = readfile.read()
-                if re.search(val,'exception',re.IGNORECASE):
+                contents = readfile.read()
+                if re.search('exception',contents,flags=re.IGNORECASE):
                     val = 'y'
     elif type=='contents':
         if os.path.exists(file):
