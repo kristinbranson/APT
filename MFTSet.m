@@ -85,6 +85,35 @@ classdef MFTSet < handle
       str(1) = upper(str(1));
     end
     
+    function str = getPrettyStrMoreCompact(obj,labelerObj)
+      % Create shorter pretty-string for UI, iss #161
+      
+      movstr = obj.movieIndexSet.getPrettyString;
+      if ~strcmpi(movstr,'current movie')
+        str = obj.getPrettyStr(labelerObj);
+        return;
+      end
+      
+      frmstr = lower(obj.frameSet.getPrettyCompactString(labelerObj));
+      [decstr,decval] = obj.decimation.getPrettyCompactString(labelerObj);
+      decstr = lower(decstr);
+      if labelerObj.nTargets>1
+        tgtstr = lower(obj.targetSet.getPrettyCompactString(labelerObj));
+        if decval==1
+          str = sprintf('%s, %s',tgtstr,frmstr);
+        else
+          str = sprintf('%s, %s, %s',tgtstr,frmstr,decstr);
+        end
+      else
+        if decval==1
+          str = frmstr;
+        else
+          str = sprintf('%s, %s',frmstr,decstr);
+        end
+      end
+      str(1) = upper(str(1));
+    end
+    
     function tblMFT = getMFTable(obj,labelerObj,varargin)
       % tblMFT: MFTable with MFTable.ID
       %

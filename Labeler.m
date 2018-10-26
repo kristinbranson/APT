@@ -9702,12 +9702,13 @@ classdef Labeler < handle
         error('Labeler:target',...
           'Target idx %d is not live at current frame (%d).',iTgt,frm);
       end
-        
+
       % 2nd arg true to match legacy
       obj.hlpSetCurrPrevFrame(frm,true);
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
+      
       if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         obj.videoCenterOnCurrTarget();
       elseif obj.movieCenterOnTargetLandmark

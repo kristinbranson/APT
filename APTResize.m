@@ -56,25 +56,25 @@ classdef APTResize < handle
       hTx.Units = hTxUnits0;
       hPnlPrev.Units = hPnlPrevUnits0;
       
-      tfDoPUMTrack = ~ispc && ~ismac;
-      if tfDoPUMTrack
-        drawnow; % Laggy drawing will result in poor pumTrack resize
-
-%         % Resize pumTrack width otherwise text clipped on Linux
-%         newHeight = pum.Position(4);
-%         origFS0 = obj.pumTrackInitFontSize;
-%         % We resize the pum font manually to cap the maximum fontsize;
-%         % otherwise the pum gets too wide on Linux.
-%         newFS = max(newHeight/obj.pumTrackInitHeight*origFS0,origFS0);
-%         pum.FontSize = newFS;
-        pum = handles.pumTrack;
-        pb = handles.pbTrack;
-        pbPos = pb.Position;
-        rightEdge = pbPos(1)+pbPos(3);
-        width = 1.05*pum.Extent(3);
-        pum.Position(1) = rightEdge-width;
-        pum.Position(3) = width;
-      end
+%       tfDoPUMTrack = ~ispc && ~ismac;
+%       if tfDoPUMTrack
+%         drawnow; % Laggy drawing will result in poor pumTrack resize
+% 
+% %         % Resize pumTrack width otherwise text clipped on Linux
+% %         newHeight = pum.Position(4);
+% %         origFS0 = obj.pumTrackInitFontSize;
+% %         % We resize the pum font manually to cap the maximum fontsize;
+% %         % otherwise the pum gets too wide on Linux.
+% %         newFS = max(newHeight/obj.pumTrackInitHeight*origFS0,origFS0);
+% %         pum.FontSize = newFS;
+%         pum = handles.pumTrack;
+%         pb = handles.pbTrack;
+%         pbPos = pb.Position;
+%         rightEdge = pbPos(1)+pbPos(3);
+%         width = 1.05*pum.Extent(3);
+%         pum.Position(1) = rightEdge-width;
+%         pum.Position(3) = width;
+%       end
     end
   end
   

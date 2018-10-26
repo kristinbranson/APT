@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 24-Oct-2018 17:46:01
+% Last Modified by GUIDE v2.5 25-Oct-2018 15:22:30
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -474,8 +474,8 @@ handles.tbAdjustCropSizeBGColor1 = [1 0 0];
 pumTrack = handles.pumTrack;
 pumTrack.Value = 1;
 pumTrack.String = {'All frames'};
-set(pumTrack,'FontUnits','points','FontSize',6.5);
-pumTrack.FontUnits = 'normalized';
+%set(pumTrack,'FontUnits','points','FontSize',6.5);
+%pumTrack.FontUnits = 'normalized';
 aptResize = APTResize(handles);
 handles.figure.SizeChangedFcn = @(src,evt)aptResize.resize(src,evt);
 aptResize.resize(handles.figure,[]);
@@ -605,6 +605,9 @@ switch lower(state),
     
     set(handles.tbAdjustCropSize,'Enable','off');
     set(handles.pbClearAllCrops,'Enable','off');
+    set(handles.pushbutton_exitcropmode,'Enable','off');
+    set(handles.uipanel_cropcontrols,'Visible','off');
+    
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
     set(handles.tbTLSelectMode,'Enable','off');
@@ -646,6 +649,9 @@ switch lower(state),
     
     set(handles.tbAdjustCropSize,'Enable','off');
     set(handles.pbClearAllCrops,'Enable','off');
+    set(handles.pushbutton_exitcropmode,'Enable','off');
+    set(handles.uipanel_cropcontrols,'Visible','off');    
+    
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
     set(handles.tbTLSelectMode,'Enable','off');
@@ -678,6 +684,9 @@ switch lower(state),
         
     set(handles.tbAdjustCropSize,'Enable','on');
     set(handles.pbClearAllCrops,'Enable','on');
+    set(handles.pushbutton_exitcropmode,'Enable','on');
+    set(handles.uipanel_cropcontrols,'Visible','on');
+
     set(handles.pbClearSelection,'Enable','on');
     set(handles.pumInfo,'Enable','on');
     set(handles.tbTLSelectMode,'Enable','on');
@@ -1639,6 +1648,10 @@ if lObj.isinit
 end
 hPUM = lObj.gdata.pumTrack;
 hPUM.Value = lObj.trackModeIdx;
+try %#ok<TRYNC>
+  fullstrings = getappdata(hPUM,'FullStrings');
+  set(lObj.gdata.text_framestotrackinfo,'String',fullstrings{hPUM.Value});
+end
 % Edge case: conceivably, pumTrack.Strings may not be updated (eg for a
 % noTrx->hasTrx transition before this callback fires). In this case,
 % hPUM.Value (trackModeIdx) will be out of bounds and a warning till be
@@ -1658,14 +1671,16 @@ if lObj.hasTrx
 else
   mfts = MFTSetEnum.TrackingMenuNoTrx;
 end
+menustrs = arrayfun(@(x)x.getPrettyStr(lObj),mfts,'uni',0);
 if ispc || ismac
-  menustrs = arrayfun(@(x)x.getPrettyStr(lObj),mfts,'uni',0);
+  menustrs_compact = arrayfun(@(x)x.getPrettyStrCompact(lObj),mfts,'uni',0);
 else
   % iss #161
-  menustrs = arrayfun(@(x)x.getPrettyStrCompact(lObj),mfts,'uni',0);
+  menustrs_compact = arrayfun(@(x)x.getPrettyStrMoreCompact(lObj),mfts,'uni',0);
 end
 hPUM = lObj.gdata.pumTrack;
-hPUM.String = menustrs;
+hPUM.String = menustrs_compact;
+setappdata(hPUM,'FullStrings',menustrs);
 if lObj.trackModeIdx>numel(menustrs)
   lObj.trackModeIdx = 1;
 end
@@ -1676,6 +1691,8 @@ hFig.SizeChangedFcn(hFig,[]);
 function pumTrack_Callback(hObj,edata,handles)
 lObj = handles.labelerObj;
 lObj.trackModeIdx = hObj.Value;
+%fullstrings = getappdata(hObj,'FullStrings');
+%set(handles.text_framestotrackinfo,'String',fullstrings{hObj.Value});
 
 function mftset = getTrackMode(handles)
 idx = handles.pumTrack.Value;
@@ -3230,6 +3247,7 @@ cropUpdateCropHRects(lObj.gdata);
 function cropReactNewCropMode(handles,tf)
 
 CROPCONTROLS = {
+  'pushbutton_exitcropmode'
   'tbAdjustCropSize'
   'pbClearAllCrops'
   'txCropMode'
@@ -3243,7 +3261,8 @@ REGCONTROLS = {
 
 onIfTrue = onIff(tf);
 offIfTrue = onIff(~tf);
-cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
+%cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
+set(handles.uipanel_cropcontrols,'Visible',onIfTrue);
 cellfun(@(x)set(handles.(x),'Visible',offIfTrue),REGCONTROLS);
 handles.menu_file_crop_mode.Checked = onIfTrue;
 
@@ -3608,3 +3627,8 @@ pos2 = [center-pos1(3:4)/2,pos1(3:4)];
 set(hfigsplash,'Position',pos2);
 figure(hfigsplash);
 drawnow;
+% --- Executes on button press in pushbutton_exitcropmode.
+function pushbutton_exitcropmode_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton_exitcropmode (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
