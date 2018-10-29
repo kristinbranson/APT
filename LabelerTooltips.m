@@ -61,6 +61,12 @@ end
 if isfield(handles,'menu_file_export_labels_trks'),
   SetTooltip(handles.menu_file_export_labels_trks,'Export LABELS to .trk files for all movies',jobjs,jobjnames);
 end
+if isfield(handles,'menu_file_export_labels_trks'),
+  SetTooltip(handles.menu_file_export_labels_trks,'Export LABELS to .trk files for all movies',jobjs,jobjnames);
+end
+if isfield(handles,'menu_file_crop_mode'),
+  SetTooltip(handles.menu_file_crop_mode,'Edit cropped regions of interest',jobjs,jobjnames);
+end
 
 % view menu
 if isfield(handles,'menu_view_converttograyscale'),

@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 29-Oct-2018 15:16:22
+% Last Modified by GUIDE v2.5 29-Oct-2018 17:10:04
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -109,7 +109,7 @@ moveMenuItemAfter(handles.menu_file_export_labels_table,...
 
 handles.menu_file_crop_mode = uimenu('Parent',handles.menu_file,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_crop_mode_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Crop Mode',...
+  'Label','Edit cropping',...
   'Tag','menu_file_crop_mode',...
   'Checked','off',...
   'Separator','on',...
@@ -237,6 +237,8 @@ handles.menu_view_show_grid = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_show_grid',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_grid,handles.menu_view_show_tick_labels);
+moveMenuItemAfter(handles.menu_view_occluded_points_box,handles.menu_view_show_grid);
+
 % handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
 %   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_3D_axes_Callback',hObject,eventdata,guidata(hObject)),...
 %   'Label','Show/Refresh 3D world axes',...
@@ -509,6 +511,7 @@ listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
+listeners{end+1,1} = addlistener(lObj,'showOccludedBox','PostSet',@cbkShowOccludedBoxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
@@ -557,6 +560,7 @@ handles.propsNeedInit = {
   'movieCenterOnTarget'
   'movieForceGrayscale' 
   'movieInvert'
+  'showOccludedBox'
   };
 
 set(handles.output,'Toolbar','figure');
@@ -2474,6 +2478,14 @@ lObj = evt.AffectedObject;
 handles = lObj.gdata;
 onOff = onIff(~lObj.showTrx);
 handles.menu_view_hide_trajectories.Checked = onOff;
+
+function cbkShowOccludedBoxChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(lObj.showOccludedBox);
+handles.menu_view_occluded_points_box.Checked = onOff;
+set([handles.text_occludedpoints,handles.axes_occ],'Visible',onOff);
+
 function cbkShowTrxCurrTargetOnlyChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
@@ -3682,3 +3694,13 @@ function pushbutton_exitcropmode_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
 lObj.cropSetCropMode(false);
+
+
+% --------------------------------------------------------------------
+function menu_view_occluded_points_box_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_view_occluded_points_box (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+lObj = handles.labelerObj;
+lObj.setShowOccludedBox(~lObj.showOccludedBox);

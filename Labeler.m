@@ -300,6 +300,7 @@ classdef Labeler < handle
     showTrx;                  % true to show trajectories
     showTrxCurrTargetOnly;    % if true, plot only current target
     showTrxIDLbl;             % true to show id label 
+    showOccludedBox;          % whether to show the occluded box
   end
   properties
     hTraj;                    % nTrx x 1 vector of line handles
@@ -1259,6 +1260,7 @@ classdef Labeler < handle
       obj.currTracker = 0;
 
       obj.projectHasTrx = cfg.Trx.HasTrx;
+      obj.showOccludedBox = cfg.View.OccludedBox;
       
       obj.showTrx = cfg.Trx.ShowTrx;
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
@@ -4166,6 +4168,11 @@ classdef Labeler < handle
       assert(isscalar(tf) && islogical(tf));
       obj.showTrx = tf;
       obj.updateShowTrx();
+    end
+
+    function setShowOccludedBox(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showOccludedBox = tf;
     end
     
     function setShowTrxCurrTargetOnly(obj,tf)
