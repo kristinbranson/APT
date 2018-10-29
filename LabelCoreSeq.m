@@ -3,26 +3,21 @@ classdef LabelCoreSeq < LabelCore
   
   % Label mode 1 (Sequential)
   %
-  % There are three labeling states: 'label', 'adjust', 'accepted'.
+  % There are two labeling states: 'label' and 'accepted'.
   %
   % During the labeling state, points are being clicked in order. This
   % includes the state where there are zero points clicked (fresh image).
   %
-  % Once all points have been clicked, the adjustment state is entered.
-  % Points may be adjusted by click-dragging or using hotkeys as in
-  % Template Mode.
-  %
-  % When any/all adjustment is complete, tbAccept is clicked and we enter
-  % the accepted stage. This locks the labeled points for this frame and
-  % writes to .labeledpos.
+  % Once all points have been clicked, the accepted state is entered.
+  % This writes to .labeledpos. Points may be adjusted by click-dragging or
+  % using hotkeys as in Template Mode. 
   %
   % pbClear is enabled at all times. Clicking it returns to the 'label'
   % state and clears any labeled points.
   %
-  % tbAccept is disabled during 'label'. During 'adjust', its name is
-  % "Accept" and clicking it moves to the 'accepted' state. During
-  % 'accepted, its name is "Adjust" and clicking it moves to the 'adjust'
-  % state.
+  % tbAccept is disabled at all times. During 'accepted', its name is
+  % green and its name is "Labeled" and during 'label' its name is
+  % "Unlabeled" and it is red. 
   %
   % When multiple targets are present, all actions/transitions are for
   % the current target. Acceptance writes to .labeledpos for the current
