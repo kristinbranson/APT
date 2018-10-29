@@ -420,8 +420,8 @@ class PoseCommon(object):
         name = self.name
         net_name = self.net_name
         saver['out_file'] = os.path.join(
-            self.conf.cachedir,
-            self.conf.expname + '_' + name)
+            self.conf.cachedir,name)
+            # self.conf.expname + '_' + name)
         if self.train_data_name is None:
             saver['train_data_file'] = os.path.join(
                 self.conf.cachedir,
@@ -432,8 +432,8 @@ class PoseCommon(object):
                 self.train_data_name)
 
         saver['ckpt_file'] = os.path.join(
-            self.conf.cachedir,
-            self.conf.expname + '_' + name + '_ckpt')
+            self.conf.cachedir, name + '_ckpt')
+            # self.conf.expname + '_' + name + '_ckpt')
         saver['saver'] = (tf.train.Saver(var_list=PoseTools.get_vars(net_name+ '/'),
                                          max_to_keep=self.conf.maxckpt,
                                          save_relative_paths=True))

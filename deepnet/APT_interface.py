@@ -1134,7 +1134,7 @@ def classify_movie(conf, pred_fn,
 def get_unet_pred_fn(conf, model_file=None):
 
     tf.reset_default_graph()
-    self = PoseUNet.PoseUNet(conf)
+    self = PoseUNet.PoseUNet(conf,name='deepnet')
     try:
         sess, latest_model_file = self.init_net_meta(1, model_file)
     except tf.errors.InternalError:
@@ -1189,7 +1189,7 @@ def train_unet(conf, args, restore):
     if not args.skip_db:
         create_tfrecord(conf, False, use_cache=args.use_cache)
     tf.reset_default_graph()
-    self = PoseUNet.PoseUNet(conf)
+    self = PoseUNet.PoseUNet(conf,name='deepnet')
     self.train_data_name = 'traindata'
     self.train_unet(restore=restore, train_type=1)
 
@@ -1223,8 +1223,6 @@ def train(lblfile, nviews, name, args):
 
     for cur_view in views:
         conf = create_conf(lblfile, cur_view, name, cache_dir=args.cache)
-        if args.cache is not None:
-            conf.cachedir = args.cache
 
         conf.view = cur_view
 

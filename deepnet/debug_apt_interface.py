@@ -1,5 +1,8 @@
 import APT_interface as apt
 cmd_str = '-name stephen_20181029 -cache /groups/branson/home/kabram/bransonlab/stephen_copy/apt_cache/ /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl train -use_cache'
+cmd_str = '-name stephen_20181029 -cache /groups/branson/home/kabram/temp/delete/ /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl train -use_cache'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 apt.main(cmd_str.split())
 
 ##
