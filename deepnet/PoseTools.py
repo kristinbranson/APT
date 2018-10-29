@@ -75,9 +75,11 @@ def scale_images(img, locs, scale, conf):
     simg = np.zeros((sz[0], int(float(sz[1])/ scale), int(float(sz[2])/ scale), sz[3]))
     for ndx in range(sz[0]):
         if sz[3] == 1:
-            simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True)
+            simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3],
+                                                  preserve_range=True,mode='edge')
         else:
-            simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True)
+            simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3],
+                                                  preserve_range= True, mode='edge')
     new_locs = locs.copy()
     new_locs = new_locs/scale
     return simg, new_locs
@@ -266,7 +268,7 @@ def randomly_translate(img, locs, conf, group_sz = 1):
             mat = np.float32([[1, 0, dx], [0, 1, dy]])
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows))
+                ii = cv2.warpAffine(ii, mat, (cols, rows),borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -332,7 +334,7 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
             mat = cv2.getRotationMatrix2D((old_div(cols, 2), old_div(rows, 2)), rangle, 1)
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows))
+                ii = cv2.warpAffine(ii, mat, (cols, rows),borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -383,6 +385,7 @@ def randomly_scale(img,locs,conf,group_sz=1):
         for g in range(group_sz):
             jj = img[st+g, ...].copy()
             cur_img = zoom(jj, sfactor) if srange != 0 else jj
+            # cur_img = zoom(jj, sfactor,mode='reflect') if srange != 0 else jj
             cur_img, dx, dy = crop_to_size(cur_img, im_sz)
             img[st+g, ...] =cur_img
             locs[st+g,...,0] = locs[st+g,...,0]*sfactor + dx/2
@@ -1299,6 +1302,7 @@ def create_imseq(ims, reverse=False,val_func=np.mean,sat_func=np.std):
     out_im = out_im.astype('uint8')
     return cv2.cvtColor(out_im, cv2.COLOR_HSV2RGB)
 
+
 def crop_to_size(img, sz):
     # crops image to sz.
     new_sz = img.shape[:2]
@@ -1312,9 +1316,14 @@ def crop_to_size(img, sz):
     else:
         hdx = int(dx/2)
         hdy = int(dy/2)
-        out_img[hdy:(new_sz[0] + hdy), hdx:(new_sz[1] + hdx), ...] = img
-    return out_img, dx, dy
+        # out_img[hdy:(new_sz[0] + hdy), hdx:(new_sz[1] + hdx), ...] = img
 
+        if len(sz) == 2:
+            out_img = np.pad(img,[[hdy,(dy-hdy)],[hdx,(dx-hdx)]],mode='edge')
+        else:
+            out_img = np.pad(img,[[hdy,(dy-hdy)],[hdx,(dx-hdx)],[0,0]],mode='edge')
+
+    return out_img, dx, dy
 
 
 def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
@@ -1336,6 +1345,26 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
     # xs = adjust_contrast(xs, conf)
     xs = normalize_mean(xs, conf)
     return xs, locs
+
+
+def pad_ims(ims, locs, pady, padx):
+    pady_b = pady//2 # before
+    padx_b = padx//2
+    pady_a = pady-pady_b # after
+    padx_a = padx-padx_b
+    zz = np.pad(ims, [[0, 0], [pady_b, pady_a], [padx_b, padx_a], [0, 0]], mode='edge')
+    wt_im = np.ones(ims[0, :, :, 0].shape)
+    wt_im = np.pad(wt_im, [[pady_b, pady_a], [padx_b, padx_a]], mode='linear_ramp')
+    out_ims = zz.copy()
+    for ex in range(ims.shape[0]):
+        for c in range(ims.shape[3]):
+            aa = cv2.GaussianBlur(zz[ex, :, :, c], (15, 15), 5)
+            aa = aa * (1 - wt_im) + zz[ex, :, :, c] * wt_im
+            out_ims[ex,:,:,c] = aa
+
+    locs[...,0] += padx//2
+    locs[...,1] += pady//2
+    return out_ims, locs
 
 
 def get_datestr():

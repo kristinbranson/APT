@@ -571,13 +571,13 @@ def get_patch_trx(cap, cur_trx, fnum, conf, locs, offset=0, stationary=True,flip
         pad_im = np.pad(im, [psz, psz], 'constant')
         patch = pad_im[y:y + 2 * psz, x:x + 2 * psz]
         rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
-        rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz, 2 * psz))
+        rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz, 2 * psz),flags=cvc.INTER_CUBIC)
         rpatch = rpatch[psz / 2:-psz / 2, psz / 2:-psz / 2]
     else:
         pad_im = np.pad(im, [[psz, psz], [psz, psz], [0, 0]], 'constant')
         patch = pad_im[y:y + 2 * psz, x:x + 2 * psz, :]
         rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
-        rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz, 2 * psz))
+        rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz, 2 * psz),flags=cvc.INTER_CUBIC)
         if rpatch.ndim == 2:
             rpatch = rpatch[:, :, np.newaxis]
         rpatch = rpatch[psz / 2:-psz / 2, psz / 2:-psz / 2, :]

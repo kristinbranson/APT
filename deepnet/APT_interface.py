@@ -227,7 +227,8 @@ def create_conf(lbl_file, view, name, net_type='unet', cache_dir=None):
     if cache_dir is None:
         conf.cachedir = os.path.join(read_string(dt_params['CacheDir']), proj_name, name)
     else:
-        conf.cachedir = cache_dir
+        conf.cachedir = os.path.join(cache_dir, proj_name, name)
+        # conf.cachedir = cache_dir
 
     if not os.path.exists(os.path.split(conf.cachedir)[0]):
         os.mkdir(os.path.split(conf.cachedir)[0])
@@ -1105,7 +1106,6 @@ def classify_movie(conf, pred_fn,
                                  cap, flipud, T, crop_loc)
 
         base_locs, hmaps = pred_fn(all_f)
-        base_locs = base_locs   # for matlabs 1 - indexing
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
             trx_ndx = cur_entry[1]
@@ -1162,7 +1162,7 @@ def get_unet_pred_fn(conf, model_file=None):
         except tf.errors.ResourceExhaustedError:
             logging.exception('Out of GPU Memory. Either reduce the batch size or increase unet_rescale')
             exit(1)
-        base_locs = PoseTools.get_pred_locs(pred)
+        base_locs = PoseTools.get_pred_locs(pred,self.edge_ignore)
         base_locs = base_locs * conf.unet_rescale
         return base_locs, pred
 
