@@ -32,8 +32,9 @@ classdef LabelCoreTemplate < LabelCore
   % -- all pts colored/'touched'
   % -- labeledpos exists underneath and is not overwritten until Acceptance
   % - Accepted
-  % -- all points colored.
-  % -- Can go back into adjustment mode, but all points turn white as if from template.
+  % -- all points colored. 
+  % -- Can still adjust, and adjustments will directly be stored to
+  % labeledpos
   %
   % TRANSITIONS W/OUT TRX
   % Note: Once a template is created/loaded, there is a set of points (either
@@ -251,7 +252,8 @@ classdef LabelCoreTemplate < LabelCore
           case LabelState.ADJUST
             % none
           case LabelState.ACCEPTED
-            obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
+            % KB 20181029: adjustments push directly to labeledpos
+            %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
         end
       end     
     end
@@ -266,7 +268,8 @@ classdef LabelCoreTemplate < LabelCore
             % prepare for click-drag of pt
             
             if obj.state==LabelState.ACCEPTED
-              obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
+              % KB 20181029
+              %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
             end
             iPt = get(src,'UserData');
             obj.iPtMove = iPt;
@@ -279,7 +282,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function wbmf(obj,src,evt) %#ok<INUSD>
-      if obj.state==LabelState.ADJUST
+      if obj.state==LabelState.ADJUST || obj.state==LabelState.ACCEPTED
         iPt = obj.iPtMove;
         if ~isnan(iPt)
           ax = obj.hAx;
@@ -293,7 +296,7 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function wbuf(obj,src,evt) %#ok<INUSD>
-      if obj.state==LabelState.ADJUST
+      if obj.state==LabelState.ADJUST || obj.state==LabelState.ACCEPTED,
         iPt = obj.iPtMove;
         if ~isnan(iPt) && ~obj.tfMoved
           % point was clicked but not moved
@@ -303,6 +306,9 @@ classdef LabelCoreTemplate < LabelCore
         
         obj.iPtMove = nan;
         obj.tfMoved = false;
+      end
+      if obj.state==LabelState.ACCEPTED,
+        obj.storeLabels();
       end
     end
     
@@ -513,13 +519,19 @@ classdef LabelCoreTemplate < LabelCore
       obj.clearSelected();
       
       if tfSetLabelPos
-        xy = obj.getLabelCoords();
-        obj.labeler.labelPosSet(xy);
-        obj.setLabelPosTagFromEstOcc();
+        obj.storeLabels();
       end
-      set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
-        'Value',1,'Enable','on');
+      set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...
+        'Value',1,'Enable','off');
       obj.state = LabelState.ACCEPTED;
+    end
+    
+    function storeLabels(obj)
+      
+      xy = obj.getLabelCoords();
+      obj.labeler.labelPosSet(xy);
+      obj.setLabelPosTagFromEstOcc();
+      
     end
     
     function setPointAdjusted(obj,iSel)
