@@ -388,7 +388,7 @@ classdef LabelCoreTemplate < LabelCore
         if iPt > obj.nPts
           return;
         end
-        obj.clearSelected(iPt);
+        %obj.clearSelected(iPt);
         obj.toggleSelectPoint(iPt);
       else
         tfKPused = false;
@@ -587,7 +587,8 @@ classdef LabelCoreTemplate < LabelCore
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);
       obj.refreshPtMarkers('iPts',iPt);
       if obj.state==LabelState.ACCEPTED
-        obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
+        %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
+        obj.storeLabels();
       end
     end
     
