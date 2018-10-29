@@ -1,4 +1,156 @@
+import APT_interface as apt
+cmd_str = '-name stephen_20181029 -cache /groups/branson/home/kabram/bransonlab/stephen_copy/apt_cache/ /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl train -use_cache'
+apt.main(cmd_str.split())
 
+##
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet
+import PoseUNet_resnet
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,'test_pad')#,no_pad=True)
+self.pred_dist = True
+conf.use_unet_loss = True
+conf.pretrained_weights = '/groups/branson/bransonlab/mayank/PoseTF/data/pretrained/resnet_tf_v2/20180601_resnet_v2_imagenet_checkpoint/model.ckpt-258931'
+self.train_umdn()
+V = self.classify_val()
+
+
+##
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_bigsize'
+conf.imsz = (370,370)
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet
+import PoseUNet_resnet
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,'test_bigsize',no_pad=True)
+self.pred_dist = False
+conf.use_unet_loss = False
+conf.pretrained_weights = '/groups/branson/bransonlab/mayank/PoseTF/data/pretrained/resnet_tf_v2/20180601_resnet_v2_imagenet_checkpoint/model.ckpt-258931'
+self.train_umdn()
+V = self.classify_val()
+
+res = np.array([[ 1.18327626,  1.15724428,  1.20505805,  1.08790263,  1.11557909,
+         1.45859782,  1.62034894,  1.39129368,  1.85965736,  1.43013668,
+         1.79865341,  2.96021304,  2.41855288,  4.71243198,  5.26124405,
+         2.19385436,  2.7959588 ],
+       [ 1.3767262 ,  1.33358876,  1.39085419,  1.25266083,  1.28215576,
+         1.68902865,  1.91232526,  1.65692984,  2.26331428,  1.69121696,
+         2.14496275,  4.10558733,  3.6119709 ,  6.88167053,  7.48156162,
+         3.0936714 ,  3.97832132],
+       [ 1.60399063,  1.53403108,  1.63004902,  1.47647513,  1.4889976 ,
+         1.99646117,  2.25486105,  2.0183618 ,  3.03954479,  2.04269245,
+         2.737381  ,  5.99884427,  5.85614553,  9.93859059, 10.32393578,
+         5.30966831,  5.9665582 ],
+       [ 1.81175005,  1.65701498,  1.84175742,  1.65496362,  1.61401973,
+         2.31068424,  2.49783233,  2.38824771,  3.74834668,  2.38614989,
+         3.33242332,  7.70357524,  7.72372822, 11.74492753, 11.98443179,
+         7.62420938,  8.10080463]])
+
+
+##
+# with image normalization
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+conf.normalize_img_mean = True
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet
+import PoseUNet_resnet
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,'img_mean')
+self.pred_dist = True
+self.no_pad = False
+conf.use_unet_loss = True
+conf.pretrained_weights = '/groups/branson/bransonlab/mayank/PoseTF/data/pretrained/resnet_tf_v2/20180601_resnet_v2_imagenet_checkpoint/model.ckpt-258931'
+self.train_umdn()
+V = self.classify_val()
+
+res = np.array([[
+         1.58521412,  1.48815935,  1.45851919,  1.44834792,  1.37390946,
+         1.8788664 ,  3.73171258,  1.72103746,  2.41810415,  1.80480459,
+         2.28317475,  3.72904744,  3.44024931,  7.74428839,  6.04168117,
+         2.76626114,  3.43857159],
+       [ 1.85102995,  1.70563589,  1.68911544,  1.65062221,  1.57813998,
+         2.20772525,  4.16370384,  2.03675058,  3.02349929,  2.09745323,
+         2.78786808,  4.95289499,  4.56364654, 10.09315267,  8.41309695,
+         3.91772582,  4.66935327],
+       [ 2.2363397 ,  1.9506147 ,  1.96752048,  1.92388896,  1.82183436,
+         2.50450121,  4.77445928,  2.57665294,  4.00480706,  2.51823133,
+         3.62576981,  7.0623059 ,  6.90236872, 13.7972485 , 11.39102586,
+         6.54784416,  6.92665553],
+       [ 2.61349925,  2.21672822,  2.35895399,  2.09854907,  2.02583241,
+         2.71236362,  5.06641738,  3.0526406 ,  4.73309124,  2.90487022,
+         4.25193007,  8.89275189,  9.67358293, 17.10405132, 12.92693627,
+         8.30638507,  9.13116725]])
+##
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+conf.use_unet_loss = True
+conf.pretrained_weights = '/groups/branson/bransonlab/mayank/PoseTF/data/pretrained/resnet_tf_v2/20180601_resnet_v2_imagenet_checkpoint/model.ckpt-258931'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet_resnet
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,'joint_deconv_wt_decay')
+self.pred_dist = True
+self.train_umdn()
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+conf = apt.create_conf('/nrs/branson/mayank/apt_cache/alice_model_20181011/multitarget_bubble_expandedbehavior_20180425_modified3.lbl',0,'temp',cache_dir='/nrs/branson/mayank/apt_cache/alice_model_20181011')
+db_file = '/groups/branson/bransonlab/mayank/apt_expts/alice/withinAssay_mnc_view0.tfrecords'
+V = apt.classify_db_all('unet',conf,db_file)
+dd = np.sqrt(np.sum((V[0]-V[1])**2,axis=-1))
+np.percentile(dd,[90,95,98],axis=0)
+import multiResData
+A = multiResData.read_and_decode_without_session(db_file,conf,())
+ex = 25
+plt.imshow(A[0][ex,:,:,0],'gray')
+plt.scatter(A[1][ex,:,0],A[1][ex,:,1])
+plt.scatter(V[0][ex,:,0],V[0][ex,:,1])
+
+ex = 25
+plt.imshow(A[0][ex][:,:,0],'gray')
+plt.scatter(A[1][ex][:,0],A[1][ex][:,1])
+plt.scatter(V[0][ex,:,0],V[0][ex,:,1])
+
+##
+cmd_str = '-model /groups/branson/bransonlab/apt/tmp/postproc/cache/sh_trn4523_gt080618_made20180627_cacheddata_view0/20180924T171526/sh_trn4523_gt080618_made20180627_cacheddata_view0_pose_unet-2000 -view 1 /groups/branson/bransonlab/apt/tmp/postproc/cache/20180924T200537.lbl track -mov /groups/huston/hustonlab/flp-chrimson_experiments/fly_640_to_645_SS02323_24_5_17/fly641_intensity_4/C001H001S0004/C001H001S0004_.avi -out /tmp/sh_trk.trk -start_frame 200 -hmaps -crop_loc 33 262 35 384'
+args = cmd_str.split()
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+import APT_interface as apt
+apt.main(args)
+##
+cmd_str = '-cache /nrs/branson/mayank/apt_cache/alice_model_20181011 /nrs/branson/mayank/apt_cache/alice_model_20181011/multitarget_bubble_expandedbehavior_20180425_modified3.lbl track -mov {0}/movie.ufmf -trx {0}/registered_trx.mat -out /tmp/movie_unet_20181011.trk -trx_ids 9 -start_frame 7539 -end_frame 7550'
+mov = '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00038_CsChr_RigB_20150729T150617'
+args = cmd_str.format(mov).split()
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+import APT_interface as apt
+apt.main(args)
+
+##
+from poseConfig import aliceConfig as conf
+
+conf.cachedir += '_moreeval'
+import RNN_postprocess
+
+self = RNN_postprocess.RNN_pp(conf, 'joint_deconv',
+                              name='test',
+                              data_name='pp_data_joint_deconv')
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+self.conf.display_step = 500
+self.conf.save_step = 20000
+self.conf.save_td_step = 500
+self.train()
+V = self.classify_val()
+
+##
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
 conf.use_unet_loss = True
@@ -6,9 +158,27 @@ conf.pretrained_weights = '/groups/branson/bransonlab/mayank/PoseTF/data/pretrai
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 import PoseUNet_resnet
-self = PoseUNet_resnet.PoseUMDN_resnet(conf,'joint_deconv')
-self.train_umdn(restore=True)
+self = PoseUNet_resnet.PoseUMDN_resnet(conf,'joint_deconv_dist_pred')
+self.pred_dist = True
+self.train_umdn()
 
+res = np.array([[
+         1.54084525,  1.62379318,  1.3783159 ,  1.49279011,  1.39449199,
+         1.72221675,  1.89682875,  1.62341823,  2.04673058,  1.65487335,
+         1.94486546,  3.04943163,  2.43700348,  4.73240183,  5.35499167,
+         2.35998346,  2.73526744],
+       [ 1.74630131,  1.85429174,  1.54907082,  1.70381653,  1.57535291,
+         1.98919827,  2.13145079,  1.87813749,  2.4231829 ,  1.87284427,
+         2.33709487,  4.14463842,  3.43682919,  6.51247556,  7.50756899,
+         3.06960952,  3.64118686],
+       [ 1.96937294,  2.06981242,  1.81262413,  1.949028  ,  1.7854574 ,
+         2.29420957,  2.42605065,  2.17318074,  3.11284902,  2.22724712,
+         2.8449839 ,  5.57011565,  5.70503642,  9.67688295, 10.0948947 ,
+         4.76154918,  5.33240949],
+       [ 2.20182296,  2.25321972,  1.96811797,  2.11017522,  1.94010261,
+         2.52629141,  2.62292896,  2.44078065,  3.97345295,  2.5294883 ,
+         3.19292776,  7.21698654,  7.89742484, 11.80681899, 12.21654218,
+         7.14757342,  7.12179407]])
 
 ## check loc transformations.
 
@@ -51,7 +221,7 @@ conf.cachedir += '_moreeval'
 import RNN_postprocess
 self = RNN_postprocess.RNN_pp(conf,'joint_deconv',
                               name = 'rnn_pp_conv_no_skip',
-                              data_name='rnn_pp_bidir')
+                              data_name='pp_data_joint_deconv')
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # self.net_type = 'conv'

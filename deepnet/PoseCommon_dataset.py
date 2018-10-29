@@ -164,6 +164,9 @@ class PoseCommon(object):
         self.train_data_name = None
         self.td_fields = ['dist','loss']
         self.input_dtypes = [tf.float32, tf.float32, tf.float32, tf.float32]
+        self.no_pad = False
+        self.pad_y = 0
+        self.pad_x = 0
 
 
     def get_latest_model_file(self):
@@ -503,6 +506,16 @@ class PoseCommon(object):
             sess.run( [self.cost, self.pred, self.inputs], self.fd)
         cur_dist = self.compute_dist(cur_pred, self.cur_inputs[1])
         return cur_loss, cur_dist
+
+
+    def wt_decay_loss(self):
+        """L2 weight decay loss."""
+        costs = 0
+        for var in tf.trainable_variables():
+            if var.op.name.find(r'weights') > 0:
+                costs += tf.nn.l2_loss(var)
+        return 0.0005 * costs
+
 
 
     def train(self, create_network,

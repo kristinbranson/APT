@@ -125,21 +125,27 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
 class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
-    def __init__(self, conf, name='umdn_resnet'):
+    def __init__(self, conf, name='umdn_resnet',no_pad=False):
         conf.use_pretrained_weights = True
 #        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
         self.resnet_source = 'official_tf'
         self.offset = 32.
-        PoseUMDN.PoseUMDN.__init__(self, conf, name=name)
+        PoseUMDN.PoseUMDN.__init__(self, conf, name=name,no_pad=no_pad)
         self.dep_nets = []
+        self.max_dist = 20
+        self.min_dist = 5
+        self.pred_dist = False
 
     def create_network(self):
 
         im, locs, info, hmap = self.inputs
         conf = self.conf
-        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.imgDim])
-        hmap.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale, conf.imsz[1]/conf.rescale,conf.n_classes])
+        im.set_shape([conf.batch_size,
+                      conf.imsz[0]//conf.rescale + self.pad_y,
+                      conf.imsz[1]//conf.rescale + self.pad_x,
+                      conf.imgDim])
+        hmap.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale, conf.imsz[1]//conf.rescale,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
         if conf.imgDim == 1:
@@ -149,13 +155,29 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             a,b,self.ph['phase_train'], keep_prob=None,
             use_leaky=self.conf.unet_use_leaky)
 
+        def conv_nopad(x_in,n_filt):
+            in_dim = x_in.get_shape().as_list()[3]
+            kernel_shape = [3, 3, in_dim, n_filt]
+            weights = tf.get_variable("weights", kernel_shape,
+                                      initializer=tf.contrib.layers.xavier_initializer())
+            biases = tf.get_variable("biases", kernel_shape[-1],
+                                     initializer=tf.constant_initializer(0.))
+            conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='VALID')
+            conv = batch_norm(conv, decay=0.99, is_training=self.ph['phase_train'])
+
+            if self.conf.unet_use_leaky:
+                return tf.nn.leaky_relu(conv + biases)
+            else:
+                return tf.nn.relu(conv + biases)
+
         if self.resnet_source == 'slim':
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
                 net, end_points = resnet_v1.resnet_v1_50(im,
                                                          global_pool=False, is_training=self.ph[
                         'phase_train'])
                 l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
-                           'block3/unit_5/bottleneck_v1', 'block4']
+                           'block3/unit_5/bottleneck_v1']
+                if not self.no_pad: l_names.append('block4')
                 down_layers = [end_points['resnet_v1_50/' + x] for x in l_names]
 
                 n_filts = [32, 64, 64, 128, 256, 512]
@@ -184,16 +206,30 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                     if prev_in is None:
                         X = down_layers[ndx]
                     else:
-                        X = tf.concat([prev_in, down_layers[ndx]],axis=-1)
+                        if self.no_pad:
+                            prev_sh = prev_in.get_shape().as_list()[1:3]
+                            d_sh = down_layers[ndx].get_shape().as_list()[1:3]
+                            d_y = (d_sh[0]- prev_sh[0])//2
+                            d_x = (d_sh[1]- prev_sh[1])//2
+                            d_l = down_layers[ndx][:,d_y:(prev_sh[0]+d_y),d_x:(prev_sh[1]+d_x),:]
+                            X = tf.concat([prev_in, d_l], axis=-1)
+                        else:
+                            X = tf.concat([prev_in, down_layers[ndx]],axis=-1)
 
                     sc_name = 'layerup_{}_0'.format(ndx)
                     with tf.variable_scope(sc_name):
-                        X = conv(X, n_filts[ndx])
+                        if self.no_pad:
+                            X = conv_nopad(X, n_filts[ndx])
+                        else:
+                            X = conv(X, n_filts[ndx])
 
                     if ndx is not 0:
                         sc_name = 'layerup_{}_1'.format(ndx)
                         with tf.variable_scope(sc_name):
-                            X = conv(X, n_filts[ndx])
+                            if self.no_pad:
+                                X = conv_nopad(X, n_filts[ndx])
+                            else:
+                                X = conv(X, n_filts[ndx])
 
                         layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
                         with tf.variable_scope('u_{}'.format(ndx)):
@@ -203,8 +239,14 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                            for wndx in range(X_sh[-1]):
                                w_mat[:,:,wndx,wndx] = 1.
                            w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
-                           out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
-                           X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+                           if self.no_pad:
+                               out_shape = [X_sh[0],X_sh[1]*2+2,X_sh[2]*2+2,X_sh[-1]]
+                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,
+                                                          strides=[1, 2, 2, 1], padding="VALID")
+                           else:
+                               out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
+                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,
+                                                          strides=[1, 2, 2, 1], padding="SAME")
                            biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
                            conv_b = X + biases
 
@@ -222,6 +264,12 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
                 X = tf.add(conv, biases, name = 'unet_pred')
                 X_unet = 2*tf.sigmoid(X)-1
+                if self.no_pad:
+                    unet_sh = X_unet.get_shape().as_list()[1:3]
+                    out_sz = [y//self.conf.rescale for y in self.conf.imsz]
+                    crop_x = (unet_sh[1] - out_sz[1])//2
+                    crop_y = (unet_sh[0] - out_sz[0])//2
+                    X_unet = X_unet[:, crop_y:(crop_y + out_sz[0]), crop_x:(crop_x+out_sz[1]),:]
 
             self.unet_pred = X_unet
 
@@ -353,7 +401,31 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 logits = tf.reshape(logits, [-1, n_x * n_y, k * n_groups])
                 logits = tf.reshape(logits, [-1, n_x * n_y * k, n_groups], name='logits_final')
 
-            return [locs, scales, logits]
+            with tf.variable_scope('dist'):
+                X_dist = tf.stop_gradient(X)
+                with tf.variable_scope('layer_dist'):
+                    kernel_shape = [1, 1, n_filt_in, n_filt]
+                    weights = tf.get_variable("weights", kernel_shape,
+                                              initializer=tf.contrib.layers.xavier_initializer())
+                    biases = tf.get_variable("biases", kernel_shape[-1],
+                                             initializer=tf.constant_initializer(0))
+                    conv = tf.nn.conv2d(X_dist, weights,
+                                        strides=[1, 1, 1, 1], padding='SAME')
+                    conv = batch_norm(conv, decay=0.99,
+                                      is_training=self.ph['phase_train'])
+                mdn_l = tf.nn.relu(conv + biases)
+
+                weights_dist = tf.get_variable("weights_dist", [1, 1, n_filt, k * n_out],
+                                                 initializer=tf.contrib.layers.xavier_initializer())
+                biases_dist = tf.get_variable("biases_dist", k * self.conf.n_classes,
+                                                initializer=tf.constant_initializer(0))
+                o_dist = tf.sigmoid(tf.nn.conv2d(mdn_l, weights_dist,
+                                               [1, 1, 1, 1], padding='SAME') + biases_dist)
+                dist = self.max_dist*o_dist
+                dist = tf.reshape(dist, [-1, n_x * n_y, k, n_out])
+                dist = tf.reshape(dist, [-1, n_x * n_y * k, n_out], name='dist_final')
+
+            return [locs, scales, logits, dist]
 
 
     def get_var_list(self):
@@ -366,14 +438,20 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         self.joint = True
         def loss(inputs, pred):
+            in_locs = inputs[1]
             # mdn_loss = self.my_loss(pred, inputs[1])
-            mdn_loss = self.l2_loss(pred, inputs[1])
+            mdn_loss = self.l2_loss(pred, in_locs)
             if self.conf.use_unet_loss:
                 # unet_loss = tf.losses.mean_squared_error(inputs[-1], self.unet_pred)
                 unet_loss = tf.sqrt(tf.nn.l2_loss(inputs[-1]-self.unet_pred))/self.conf.label_blur_rad/self.conf.n_classes
-                return mdn_loss + unet_loss
             else:
-                return mdn_loss
+                unet_loss = 0
+
+            if self.pred_dist:
+                dist_loss = self.dist_loss()/10
+            else:
+                dist_loss = 0
+            return mdn_loss + unet_loss + dist_loss
 
         super(self.__class__, self).train(
             create_network=self.create_network,
@@ -384,7 +462,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         locs_offset = self.offset
 
-        mdn_locs, mdn_scales, mdn_logits = X
+        mdn_locs, mdn_scales, mdn_logits, mdn_dist = X
         cur_comp = []
         ll = tf.nn.softmax(mdn_logits, axis=1)
 
@@ -422,8 +500,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
     def l2_loss(self, X, y):
 
         locs_offset = self.offset
-
-        mdn_locs, mdn_scales, mdn_logits = X
+        mdn_locs, mdn_scales, mdn_logits, mdn_dist = X
         cur_comp = []
         ll = tf.nn.softmax(mdn_logits, axis=1)
 
@@ -447,6 +524,42 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             cur_loss += pp
 
         return tf.reduce_sum(cur_loss)
+
+
+    def dist_loss(self):
+
+        locs_offset = self.offset
+        mdn_locs, mdn_scales, mdn_logits, mdn_dist = self.pred
+        y = self.inputs[1]
+
+        cur_comp = []
+
+        ll = tf.nn.softmax(mdn_logits, axis=1)
+        logit_eps = self.conf.mdn_logit_eps_training
+        ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
+        ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
+
+        ll = tf.stop_gradient(ll)
+        # ll now has normalized logits.
+        for cls in range(self.conf.n_classes):
+            pp = y[:, cls:cls + 1, :]/locs_offset
+            kk = tf.sqrt(tf.reduce_sum(tf.square(pp - mdn_locs[:, :, cls, :]), axis=2))
+            # kk is the distance between all predictions for point cls from the labels.
+            kk = tf.clip_by_value(kk-self.min_dist,9,self.max_dist)
+            kk = tf.stop_gradient(kk)
+            dd = tf.abs(kk-mdn_dist[:,:,cls])
+            cur_comp.append(dd)
+
+        cur_loss = 0
+        for ndx,gr in enumerate(self.conf.mdn_groups):
+            sel_comp = [cur_comp[i] for i in gr]
+            sel_comp = tf.stack(sel_comp, 1)
+            # pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
+            pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
+            cur_loss += pp
+
+        return tf.reduce_sum(cur_loss)
+
 
     def compute_dist(self, preds, locs):
 
@@ -486,6 +599,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         label_mean = np.nanmean(val_dist)
         return (pred_mean+label_mean)/2
 
+
     def classify_val(self, model_file=None, onTrain=False):
         if not onTrain:
             val_file = os.path.join(self.conf.cachedir, self.conf.valfilename + '.tfrecords')
@@ -510,9 +624,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             print("Couldn't load train data because the conf has changed!")
             self.init_td()
 
-        p_m, p_s, p_w = self.pred
+        p_m, p_s, p_w, p_d = self.pred
         conf = self.conf
-        osz = self.conf.imsz
+        osz = list(self.conf.imsz)
+        osz[0] += self.pad_y
+        osz[1] += self.pad_x
         #       self.joint = True
 
         locs_offset = self.offset
@@ -528,21 +644,23 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_wts = []
         val_u_preds = []
         val_u_predlocs = []
+        val_dist_pred = []
         for step in range(num_val / self.conf.batch_size):
             if onTrain:
                 self.fd_train()
             else:
                 self.fd_val()
             if self.conf.use_unet_loss:
-                pred_means, pred_std, pred_weights, cur_input, unet_pred = sess.run(
-                    [p_m, p_s, p_w, self.inputs, self.unet_pred], self.fd)
+                pred_means, pred_std, pred_weights, pred_dist, cur_input, unet_pred = sess.run(
+                    [p_m, p_s, p_w, p_d, self.inputs, self.unet_pred], self.fd)
             else:
-                pred_means, pred_std, pred_weights, cur_input = sess.run(
-                    [p_m, p_s, p_w, self.inputs], self.fd)
+                pred_means, pred_std, pred_weights, pred_dist, cur_input = sess.run(
+                    [p_m, p_s, p_w, p_d, self.inputs], self.fd)
 
             val_means.append(pred_means)
             val_std.append(pred_std)
             val_wts.append(pred_weights)
+            val_dist_pred.append(pred_dist)
             pred_weights = PoseUMDN.softmax(pred_weights, axis=1)
             mdn_pred_out = np.zeros([self.conf.batch_size, osz[0], osz[1], conf.n_classes])
 
@@ -607,12 +725,13 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_means = val_reshape(val_means)
         val_std = val_reshape(val_std)
         val_wts = val_reshape(val_wts)
+        val_dist_pred = val_reshape(val_dist_pred)
         tf.reset_default_graph()
         if self.conf.use_unet_loss:
             val_u_preds = val_reshape(val_u_preds)
             val_u_predlocs = val_reshape(val_u_predlocs)
             return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
-               [val_means, val_std, val_wts],[val_u_preds, val_u_predlocs]
+               [val_means, val_std, val_wts, val_dist_pred],[val_u_preds, val_u_predlocs]
         else:
             return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
-               [val_means, val_std, val_wts]
+               [val_means, val_std, val_wts, val_dist_pred]

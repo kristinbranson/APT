@@ -346,15 +346,17 @@ class RNN_pp(object):
             cur_in = self.inputs[0][:,rx-2**(res+3):rx+2**(res+3),:]
             curX = cur_in
             for ndx in range(res):
-                conv_layer = tf.layers.Conv1D(64,8,padding='SAME',
-                                    activation=tf.nn.relu)
-                curX = conv_layer(curX)
-                pool_layer = tf.layers.AveragePooling1D(4,2,padding='SAME')
+                curX = tf.layers.Conv1D(64,8,padding='SAME',activation=tf.nn.relu)(curX)
+                # curX  = tf.layers.conv1d(curX,64,8,padding='SAME',
+                #                     activation=tf.nn.relu)
+                pool_layer = tf.layers.MaxPooling1D(4,2,padding='SAME')
                 curX = pool_layer(curX)
 
             layers.append(curX)
 
         X = tf.concat(layers,axis=-1)
+        X = tf.layers.conv1d(X, 64, 8, padding='SAME',
+                                      activation=tf.nn.relu)
         n_in = np.prod(X._shape_as_list()[1:])
         X = tf.reshape(X, [-1, n_in])
         input = X
@@ -364,10 +366,12 @@ class RNN_pp(object):
                 kernel_initializer=tf.orthogonal_initializer())
             X = layer(X)
 
+        n = self.conf.n_classes
         out_layer = tf.layers.Dense(self.conf.n_classes*2, activation=None,
             kernel_initializer=tf.orthogonal_initializer())
         skip_layer = tf.layers.Dense(self.conf.n_classes*2, activation=None,
             kernel_initializer=tf.orthogonal_initializer())
+
         out = out_layer(X) + skip_layer(input)
 
         out = out + tf.reshape(self.inputs[0][:,rx,:self.conf.n_classes*2],
@@ -463,24 +467,20 @@ class RNN_pp(object):
         v_inputs = np.concatenate([v_inputs_1, v_inputs_2],axis=-1)
 
         m_sz = max(self.conf.imsz)
-        self.t_labels = t_labels/m_sz
-        self.t_inputs = t_inputs/m_sz
-        self.v_labels = v_labels/m_sz
-        self.v_inputs = v_inputs/m_sz
+        t_labels = t_labels.astype('float32')/m_sz
+        t_inputs = t_inputs.astype('float32')/m_sz
+        v_labels = v_labels.astype('float32')/m_sz
+        v_inputs = v_inputs.astype('float32')/m_sz
 
-        t_inputs_ph = tf.placeholder(tf.float32, t_inputs.shape)
-        t_labels_ph = tf.placeholder(tf.float32, t_labels.shape)
-        v_inputs_ph = tf.placeholder(tf.float32, v_inputs.shape)
-        v_labels_ph = tf.placeholder(tf.float32, v_labels.shape)
-
-        train_dataset = tf.data.Dataset.from_tensor_slices((t_inputs_ph,t_labels_ph))
-        val_dataset = tf.data.Dataset.from_tensor_slices((v_inputs_ph,v_labels_ph))
+        train_dataset = tf.data.Dataset.from_tensor_slices((t_inputs,t_labels))
+        val_dataset = tf.data.Dataset.from_tensor_slices((v_inputs,v_labels))
         train_dataset = train_dataset.repeat()
         val_dataset = val_dataset.repeat()
-        train_dataset = train_dataset.shuffle(buffer_size=200)
-        val_dataset = val_dataset.shuffle(buffer_size=200)
         train_dataset = train_dataset.batch(self.conf.batch_size*2)
         val_dataset = val_dataset.batch(self.conf.batch_size*2)
+        train_dataset = train_dataset.prefetch(buffer_size=100)
+        val_dataset = val_dataset.prefetch(buffer_size=100)
+        train_dataset = train_dataset.shuffle(buffer_size=100)
 
 
         self.train_iterator = train_dataset.make_initializable_iterator()
@@ -489,19 +489,13 @@ class RNN_pp(object):
         train_next = self.train_iterator.get_next()
         val_next = self.val_iterator.get_next()
 
-        self.ph['t_inputs_ph'] = t_inputs_ph
-        self.ph['t_labels_ph'] = t_labels_ph
-        self.ph['v_inputs_ph'] = v_inputs_ph
-        self.ph['v_labels_ph'] = v_labels_ph
         self.ph['is_train'] = tf.placeholder(tf.bool,name='is_train')
         self.ph['learning_rate'] = tf.placeholder(tf.float32)
 
         self.inputs = []
+        noise_layer = tf.keras.layers.GaussianNoise(self.noise/m_sz)
         self.inputs.append(tf.cond(self.ph['is_train'],
-                                   lambda: tf.identity(
-                                       train_next[0] +  # add noise to training
-                                       tf.random_normal(tf.shape(train_next[0]),
-                                                         stddev=self.noise/m_sz)),
+                                   lambda: tf.identity(train_next[0]),
                                    lambda: tf.identity(val_next[0])))
         self.inputs.append(tf.cond(self.ph['is_train'],
                                    lambda: tf.identity(train_next[1]),
@@ -541,7 +535,7 @@ class RNN_pp(object):
         self.create_optimizer()
         self.create_saver()
         training_iters = 200000#self.conf.dl_steps
-        num_val_rep = self.conf.numTest / self.conf.batch_size + 1
+        num_val_rep = 20
         if self.net_type == 'rnn':
             learning_rate = 0.01
         elif self.net_type == 'conv':
@@ -551,14 +545,13 @@ class RNN_pp(object):
 
         with tf.Session() as sess:
             sess.run(tf.variables_initializer(self.get_var_list()))
-            sess.run(self.train_iterator.initializer,
-                     feed_dict={self.ph['t_inputs_ph']: self.t_inputs, self.ph['t_labels_ph']: self.t_labels})
-            sess.run(self.val_iterator.initializer,
-                     feed_dict={self.ph['v_inputs_ph']: self.v_inputs, self.ph['v_labels_ph']: self.v_labels})
+            sess.run(self.train_iterator.initializer)
+            sess.run(self.val_iterator.initializer)
             self.init_td()
 
             start = time.time()
             for step in range(0, training_iters + 1):
+
                 self.train_step(step, sess, learning_rate, training_iters)
                 if step % self.conf.display_step == 0:
                     end = time.time()
@@ -582,7 +575,7 @@ class RNN_pp(object):
 
                                 }
                     self.update_td(cur_dict)
-                    start = end
+                    start = time.time()
                 if step % self.conf.save_step == 0:
                     self.save(sess, step)
                 if step % self.conf.save_td_step == 0:
@@ -647,11 +640,11 @@ class RNN_pp(object):
                 prev_preds.append(cur_in[:,self.rnn_pp_hist,...])
 
         preds = np.array(preds)
-        preds = preds.reshape((-1,) + preds.shape[2:])
+        preds = preds.reshape((-1,self.conf.n_classes,2))
         prev_preds = np.array(prev_preds)
-        prev_preds = prev_preds.reshape((-1,) + prev_preds.shape[2:])
+        prev_preds = prev_preds.reshape((-1, self.conf.n_classes*2,2) )
         labels = np.array(labels)
-        labels = labels.reshape((-1,) + labels.shape[2:])
+        labels = labels.reshape((-1,self.conf.n_classes,2))
         dd = np.sqrt(np.sum( (preds-labels)**2,axis=-1))
 
         tf.reset_default_graph()
