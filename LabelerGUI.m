@@ -3555,6 +3555,7 @@ sz = sz(1:2);
 
 s = {'APT: The Animal Part Tracker'
   'http://kristinbranson.github.io/APT/'
+  ''
   'Developed and tested by Allen Lee, Mayank Kabra,'
   'Alice Robie, Felipe Rodriguez, Stephen Huston,'
   'Roian Egnor, Austin Edwards, Caroline Maloney,'

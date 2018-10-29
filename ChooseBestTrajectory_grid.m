@@ -22,7 +22,7 @@ function [hmnrnc,hmBestTrajPQ,acBestTrajUV,acCtrPQ,totalcost] = ...
   );
 
 if isempty(maxvx)
-  maxvx = 4*acrad;
+  maxvx = 6*acrad;
 else
   assert(maxvx==round(maxvx));
 end

@@ -1,4 +1,4 @@
-function allppobj = RunPostProcessing_HeatmapData2(hmdir,varargin)
+function allppobj = RunPostProcessing_HeatmapData2(varargin)
 % Run single-view heatmap postproc
 
 ncores = feature('numcores');
@@ -10,35 +10,32 @@ if ncores == 1,
   ncores = 0;
 end
 
-[paramsfile,rest] = myparse_nocheck(varargin,'paramsfile','');
-if ~isempty(paramsfile),
-  load(paramsfile);
-end
-
 if isdeployed,
-  rest = DeployedChar2NumberArgs(rest,...
+  varargin = DeployedChar2NumberArgs(varargin,...
     'lblfileImov',...
     'nviews','npts','targets','startframe','endframe','scales',...
-    'heatmap_lowthresh','heatmap_highthresh','usegeometricerror',...
-    'viterbi_poslambda','viterbi_misscost','viterbi_dampen','ncores');
+    'heatmap_lowthresh','heatmap_highthresh','heatmap_nsamples','usegeometricerror',...
+    'viterbi_poslambda','viterbi_misscost','viterbi_dampen','viterbi_grid_acradius','ncores');
 end
 
 d = 2;
-[trxfile,lblfile,lblfileImov,...
+[rootdir,trxfile,lblfile,iMov,lblfilehmdirs...
   nviews,npts,targets,pts2run,startframe,endframe,scales,...
   heatmap_lowthresh,heatmap_highthresh,heatmap_nsamples,heatmap_sample_algorithm,...
   usegeometricerror,kde_sigma_px,...
   viterbi_poslambda,viterbi_misscost,viterbi_dampen,viterbi_grid_acradius,...
   savefile,algorithms,hmtype,...
-  frames,ncores] = ...
-  myparse(rest,...
+  frames,ncores,paramfiles] = ...
+  myparse(varargin,...
+  'rootdir','',... % (opt) root dir for paramfiles, savefile
   'trxfile','',... 
   'lblfile','',... % used to specify a trxfile 
-  'lblfileImov',[],... % movie index, use this trxfile
+  'iMov',[],... % [1] movie index into lblfile/lblfilehmdirs
+  'lblfilehmdirs',[],... % set hmdir=lblfilehmdirs{imov}
   'nviews',1,...
   'npts',[],...
   'targets',[],...
-  'pts2run',[],...
+  'pts2run',12:17,...
   'startframe',[],... % raw/movie frames marking interval to consider (inclusive). if trx, then these may be modified based on traj availability etc
   'endframe',[],...  % (cont) either start/endframe OR lblfile must be specified
   'scales',1,...
@@ -56,7 +53,58 @@ d = 2;
   'algorithms',{'viterbi_grid','maxdensity','median','viterbi'},...
   'hmtype','jpg',...
   'frames',[],... % raw/movie frames to consider; must be within interval [startframe,endframe]; risky with trx
-  'ncores',ncores);
+  'ncores',ncores,...
+  'paramfiles',[]... % files that can overlay/override these options
+  );
+
+if ~isempty(paramfiles)  
+  if ischar(paramfiles)
+    paramfiles = regexp(paramfiles,'#','split');
+  end
+  assert(iscellstr(paramfiles));
+  nparamfiles = numel(paramfiles);
+  for iparamfile=1:nparamfiles
+    pfile = paramfiles{iparamfile};
+    pfile = fullfile(rootdir,pfile);
+    
+    [~,~,pfileE] = fileparts(pfile);
+    switch pfileE
+      case '.mat'
+        fprintf('Loading paramfile %s...\n',pfile);
+        prmvars = load(pfile);
+        vars = fieldnames(prmvars);
+        for v=vars(:)',v=v{1};
+          if iscell(prmvars.(v))
+            matstr = sprintf('%s cell array',mat2str(size(prmvars.(v))));
+          else
+            matstr = mat2str(prmvars.(v));
+          end
+          fprintf('  %s <- %s\n',v,matstr);
+          if exist(v,'var')==0
+            warningNoTrace('paramfile variable ''%s'' is not in scope.',v);
+          end
+        end
+        
+        load(pfile);
+      case '.m'
+        fprintf('Applying patchfile %s...\n',pfile);
+
+        pchs = readtxtfile(pfile,'discardemptylines',true);
+        npch = numel(pchs);
+        fprintf(1,'... read patch file %s. %d patches.\n',pfile,npch);
+        for ipch=1:npch
+          pch = pchs{ipch};
+          pch = [pch ';']; %#ok<AGROW>
+          tmp = strsplit(pch,'=');
+          pchlhs = strtrim(tmp{1});
+          fprintf(1,'  patch %d: %s\n',ipch,pch);
+          fprintf(1,'  orig (%s): %s\n',pchlhs,evalc(pchlhs));
+          eval(pch);
+          fprintf(1,'  new (%s): %s\n',pchlhs,evalc(pchlhs));
+        end
+    end
+  end
+end
 
 if ~iscell(algorithms),
   algorithms = {algorithms};
@@ -67,19 +115,30 @@ if (viterbi_misscost <= 0),
 end
 
 if ~isempty(lblfile)
-  [nviews,npts,nfrmsmov,trxfile] = readStuffFromLbl(lblfile,lblfileImov);  
-  startframe = 1;
-  endframe = nfrmsmov;
-else
-  assert(~isempty(npts));
-  assert(~isempty(startframe) && ~isempty(endframe));
+  lblfile = fullfile(rootdir,lblfile);
+  [nviews,npts,nfrmsmov,trxfile] = readStuffFromLbl(lblfile,iMov);  
+  if isempty(startframe)
+    startframe = 1;
+  end
+  if isempty(endframe)
+    endframe = nfrmsmov;
+  end
+  
+  fprintf('lblfile %s imov %d\n',lblfile,iMov);
+  fprintf('trxfile %s\n',trxfile);
 end
-
+assert(~isempty(npts));
+assert(~isempty(startframe) && ~isempty(endframe));
 assert(nviews==1);
+
+assert(~isempty(lblfilehmdirs)); % for now
+hmdir = lblfilehmdirs{iMov};
+%hmdir = fullfile(rootdir,hmdir);
+fprintf('hmdir %s\n',hmdir);
 
 istrx = ~isempty(trxfile);
 if istrx
-  td = load(trxfile);
+  td = load(trxfile); % assumed fullpath
   ntargetstot = numel(td.trx);
 else
   ntargetstot = 1;
@@ -176,8 +235,8 @@ for flyi = 1:ntargets
     'dampen',viterbi_dampen,'misscost',viterbi_misscost,...
     'grid_acradius',viterbi_grid_acradius);
   
-  assignin('base','ppobj',ppobj);
-  fprintf(1,'assigned ppobj to base WS\n');
+  %assignin('base','ppobj',ppobj);
+  %fprintf(1,'assigned ppobj to base WS\n');
   
   for algi = 1:numel(algorithms),
     fprintf('Running %s...\n',algorithms{algi});
@@ -205,6 +264,7 @@ for flyi = 1:ntargets
 end
 
 if ~isempty(savefile),
+  savefile = fullfile(rootdir,savefile);
   timestamp = now; %#ok<NASGU>
   save(savefile,'allppobj','hmdir','timestamp','targets');
 end
@@ -220,4 +280,4 @@ nfrms = ld.movieInfoAll{imov,1}.nframes;
 assert(nviews==1); 
 moviefile = ...
   FSPath.fullyLocalizeStandardizeChar(ld.movieFilesAll{imov,1},ld.projMacros);
-trxfile = Labeler.trxFilesLocalize(ld.trxFilesAll{moviei},moviefile);
+trxfile = Labeler.trxFilesLocalize(ld.trxFilesAll{imov},moviefile);
