@@ -155,7 +155,6 @@ classdef AWSec2 < handle
       end
       obj.inspectInstance();
     end
-
     
     function checkInstanceRunning(obj)
       % - If runs silently, obj appears to be a running EC2 instance with no
@@ -170,6 +169,17 @@ classdef AWSec2 < handle
       if ~strcmp(state.Name,'running')
         error('EC2 instance id %s is not in the ''running'' state.',...
           obj.instanceID)
+      end
+    end
+    
+    function tfsucc = getRemotePythonPID(obj)
+      [tfsucc,res] = obj.cmdInstance('pgrep python','dispcmd',true);
+      if tfsucc
+        pid = str2double(strtrim(res));
+        obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
+        fprintf('Remote PID is: %d.\n\n',pid);
+      else
+        warningNoTrace('Failed to ascertain remote PID.');
       end
     end
  
