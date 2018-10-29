@@ -1336,10 +1336,12 @@ else
   set(hTx,'Visible','off');
 end
 
-info = lObj.projFSInfo;
-if ~isempty(info)
-  str = sprintf('Unsaved labels since project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
-  SetStatus(lObj.gdata,str,false);
+if val,
+  info = lObj.projFSInfo;
+  if ~isempty(info)
+    str = sprintf('Unsaved labels since project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
+    SetStatus(lObj.gdata,str,false);
+  end
 end
 
 
