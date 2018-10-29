@@ -121,15 +121,19 @@ classdef BgTrainMonitor < handle
     end
     
     function bgTrnResultsReceivedHook(obj,sRes)
+      % current pattern is, this meth only handles things which stop the
+      % training. everything else handled by trnMonitor
       
-      killOccurred = any([sRes.result.killFileExists]);
+      tfpollsucc = [sRes.result.pollsuccess];
+      
+      killOccurred = any(tfpollsucc & [sRes.result.killFileExists]);
       if killOccurred
         obj.stop();        
         fprintf(1,'Training killed!\n');
         % monitor plot stays up; reset not called etc
       end
       
-      errOccurred = any([sRes.result.errFileExists]);
+      errOccurred = any(tfpollsucc & [sRes.result.errFileExists]);
       if errOccurred
         obj.stop();
         
@@ -144,7 +148,7 @@ classdef BgTrainMonitor < handle
       end
       
       for i=1:numel(sRes.result)
-        if sRes.result(i).logFileErrLikely
+        if tfpollsucc(i) && sRes.result(i).logFileErrLikely
           obj.stop();
           
           fprintf(1,'Error occurred during training:\n');
@@ -158,7 +162,7 @@ classdef BgTrainMonitor < handle
         end
       end
       
-      trnComplete = all([sRes.result.trainComplete]);
+      trnComplete = all(tfpollsucc & [sRes.result.trainComplete]);
       if trnComplete
         obj.stop();
         % % monitor plot stays up; reset not called etc

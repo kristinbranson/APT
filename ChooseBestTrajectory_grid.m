@@ -67,25 +67,22 @@ acCtrPQ(2,:) = [pctr2 qctr2];
 % (u0,v0,t=0)->(u1,v1,t=1)->(u2,v2,t=2) where we assume acwins@t0 @t1 are
 % aligned, and u0==u1 and v0==v1
 % Right now we consider motion cost in the heatmap (body-centered) frame
-mc2 = nan(acsz,acsz,acsz,acsz);
-%acCtrPQ012 = acCtrPQ([1 1 2],:);
-assert(isequal(acCtrPQ(1,:),acCtrPQ(2,:)));
-for u2=1:acsz
-for v2=1:acsz
-  %mctL2 = gv.getMotionCostL2(u2,v2,acCtrPQ012,acrad);
-  
-  % mct: [acsz x acsz x acsz x acsz]. mct(u1,v1,u0,v0) is l2
+hmt1xgv = acCtrPQ(1,2)-acrad:acCtrPQ(1,2)+acrad;
+hmt1ygv = acCtrPQ(1,1)-acrad:acCtrPQ(1,1)+acrad;
+[hmt1x,hmt1y] = meshgrid(hmt1xgv,hmt1ygv);
+
+hmt2xgv = acCtrPQ(2,2)-acrad:acCtrPQ(2,2)+acrad;
+hmt2ygv = acCtrPQ(2,1)-acrad:acCtrPQ(2,1)+acrad;
+[hmt2x,hmt2y] = meshgrid(hmt2xgv,hmt2ygv);
+
+hmt1x = reshape(hmt1x,[1 1 acsz acsz]);
+hmt1y = reshape(hmt1y,[1 1 acsz acsz]);
+l2t1t2 = (hmt1x-hmt2x).^2 + (hmt1y-hmt2y).^2;
+mc2 = poslambda * l2t1t2;
+szassert(mc2,[acsz acsz acsz acsz]);
+  % mct2(u2,v2,u1,v1) is l2
   % distance/motion cost for transitioning from
-  %   (u0,v0,0)->(u1,v1,1)->(u2,v2,2)
-  
-  % undoubtedly faster way to do this
-  for u1=1:acsz
-  for v1=1:acsz    
-    mc2(u2,v2,u1,v1) = poslambda*( (u2-u1)^2 + (v2-v1)^2 );
-  end
-  end
-end
-end
+  %   (u0,v0,0)->(u1,v1,1)->(u2,v2,2) assuming u0=u1 and v0=v1
 
 szassert(ac1,[acsz acsz]);
 szassert(ac2,[acsz acsz]);

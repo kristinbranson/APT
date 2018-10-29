@@ -43,10 +43,10 @@ classdef DeepTracker < LabelTracker
     % FUTURE TODO: what happens when user alters cacheDir?
     trnName
     trnNameLbl
-    
     trnTblP % transient, unmanaged. Training rows for last retrain
     
     bgTrnMonitor % BgTrainMonitor obj
+    bgTrnMonBGWorkerObj % bgTrainWorkerObj for last/current train
     bgTrnMonitorVizClass % class of trainMonitorViz object to use to monitor training
         
     %% track
@@ -258,13 +258,55 @@ classdef DeepTracker < LabelTracker
       obj.trnNameLbl = '';
       obj.bgTrnReset();
     end
+
+    function bgTrnStart(obj,trnMonitorObj,trnWorkerObj)
+      % fresh start new training monitor 
+      
+      if ~isempty(obj.bgTrnMonitor)
+        error('Training monitor exists. Call .bgTrnReset first to stop/remove existing monitor.');
+      end
+      assert(isempty(obj.bgTrnMonBGWorkerObj));
+
+      nvw = obj.lObj.nview;
+      trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw);
+                
+      trnMonitorObj.prepare(trnMonVizObj,trnWorkerObj);
+      trnMonitorObj.start();
+      obj.bgTrnMonitor = trnMonitorObj;
+      obj.bgTrnMonBGWorkerObj = trnWorkerObj;
+    end
     
+    function bgTrnRestart(obj,bgTrnMonitorObj)
+      % Mostly for debugging hanging monitors. "Kills" current bg training
+      % monitor and restarts.
+      
+      if isempty(obj.bgTrnMonitor) || isempty(obj.bgTrnMonBGWorkerObj)
+        error('Training monitor does not exist.');
+      end
+      
+      workerObj = obj.bgTrnMonBGWorkerObj;
+      fprintf(1,'Restarting bg train monitor. Monitor cls: %s. Worker cls: %s\n',...
+        class(bgTrnMonitorObj),class(workerObj));
+
+      workerObj.reset();
+      delete(obj.bgTrnMonitor);
+      obj.bgTrnMonitor = [];
+      obj.bgTrnMonBGWorkerObj = [];
+      
+      obj.bgTrnStart(bgTrnMonitorObj,workerObj);
+    end
+
     function bgTrnReset(obj)
+      % stop the training monitor
       if ~isempty(obj.bgTrnMonitor)
         delete(obj.bgTrnMonitor);
       end
-      obj.bgTrnMonitor = [];
-    end
+      obj.bgTrnMonitor = [];      
+      if ~isempty(obj.bgTrnMonBGWorkerObj)
+        delete(obj.bgTrnMonBGWorkerObj);
+      end
+      obj.bgTrnMonBGWorkerObj = [];
+    end    
     
     function tf = getHasTrained(obj)
       tf = ~isempty(obj.trnName);
@@ -301,8 +343,7 @@ classdef DeepTracker < LabelTracker
       trnBackEnd = obj.backendType;
       fprintf('Your training backend is: %s\n',char(trnBackEnd));
       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
-      fprintf(1,'\n');
-            
+      fprintf(1,'\n');            
       
       switch trnBackEnd
         case DLBackEnd.Bsub
@@ -565,17 +606,12 @@ classdef DeepTracker < LabelTracker
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
         % start train monitor
-        assert(isempty(obj.bgTrnMonitor));
-        bgTrnMonitorObj = BgTrainMonitorAWS;
         
-        trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw);
+        bgTrnMonitorObj = BgTrainMonitorAWS();
         bgTrnWorkerObj = BgTrainWorkerObjAWS(dlLblFileLcl,trnNm,trnNm,...
           logfilesRemote,aws);
-                
-        bgTrnMonitorObj.prepare(trnMonVizObj,bgTrnWorkerObj);
-        bgTrnMonitorObj.start();
-        obj.bgTrnMonitor = bgTrnMonitorObj;
-        
+        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
+
         % spawn training
         for iview=1:nvw
           if iview>1
@@ -1251,8 +1287,8 @@ classdef DeepTracker < LabelTracker
     function codestr = trainCodeGenAWSUpdateAPTRepo()
        codestr = {
         'cd /home/ubuntu/APT/deepnet;';
-        'git pull;'; 
         'git checkout feature/deeptrack;';
+        'git pull;'; 
         };
       codestr = cat(2,codestr{:});      
     end
