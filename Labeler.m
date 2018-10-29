@@ -9200,8 +9200,25 @@ classdef Labeler < handle
       end
       
       obj.cropCheckCropSizeConsistency();
+      if obj.cropIsCropMode,
+        obj.syncCropInfoToCurrMov();
+      end
       obj.cropIsCropMode = tf;
       obj.notify('cropIsCropModeChanged');
+    end
+    
+    function syncCropInfoToCurrMov(obj)
+      
+      iMov = obj.currMovie;
+      if obj.gtIsGTMode,
+        cropInfo = obj.movieFilesAllGTCropInfo{iMov};
+      else
+        cropInfo = obj.movieFilesAllCropInfo{iMov};
+      end
+      for iView=1:obj.nview,
+        obj.movieReader(iView).setCropInfo(cropInfo(iView));
+      end
+      
     end
     
     function [whDefault,whMaxAllowed] = cropComputeDfltWidthHeight(obj)
