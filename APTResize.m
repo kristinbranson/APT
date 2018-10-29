@@ -55,6 +55,9 @@ classdef APTResize < handle
 %      align([hTx hPnlPrev],'Right','None');
       hTx.Units = hTxUnits0;
       hPnlPrev.Units = hPnlPrevUnits0;
+      if isfield(handles,'RefreshStatusFun'),
+        handles.RefreshStatusFun(handles);
+      end
       
 %       tfDoPUMTrack = ~ispc && ~ismac;
 %       if tfDoPUMTrack

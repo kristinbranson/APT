@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 25-Oct-2018 15:22:30
+% Last Modified by GUIDE v2.5 29-Oct-2018 15:16:22
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -44,6 +44,7 @@ hfigsplash = splashScreen(handles);
 
 handles.SetStatusFun = @(~,s,varargin) fprintf([s,'...\n']);
 handles.ClearStatusFun = @(varargin) fprintf('Done.\n');
+handles.RefreshStatusFun = @(varargin) fprintf('\n');
 
 hObject.Name = 'APT';
 hObject.HandleVisibility = 'on';
@@ -65,6 +66,12 @@ set(handles.edit_frame,'String','');
 set(handles.popupmenu_prevmode,'Visible','off');
 set(handles.pushbutton_freezetemplate,'Visible','off');
 set(handles.txStatus,'String','Ready.');
+try
+  handles.jtxStatus = findjobj_modern(handles.txStatus);
+catch
+  handles.jtxStatus = [];
+end
+
 syncStatusBarTextWhenClear(handles);
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
@@ -79,6 +86,7 @@ SetStatus(handles,'Initializing APT...');
 handles.SetStatusFun = @SetStatus;
 handles.ClearStatusFun = @ClearStatus;
 handles.SetStatusBarTextWhenClearFun = @setStatusBarTextWhenClear;
+handles.RefreshStatusFun = @refreshStatus;
 
 %handles.pnlSusp.Visible = 'off';
 
@@ -1326,7 +1334,7 @@ end
 
 info = lObj.projFSInfo;
 if ~isempty(info)
-  str = sprintf('Unsaved labels since project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
+  str = sprintf('Unsaved labels since project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
   SetStatus(lObj.gdata,str,false);
 end
 
@@ -1408,7 +1416,7 @@ function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
 pname = lObj.projname;
-str = sprintf('Project %s created (unsaved) at %s',pname,datestr(now,16));
+str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now,16));
 setStatusBarTextWhenClear(handles,str);
 %SetStatus(handles,str,false);
 % set(handles.txStatus,'String',str);
@@ -1418,7 +1426,7 @@ function cbkProjFSInfoChanged(src,evt)
 lObj = evt.AffectedObject;
 info = lObj.projFSInfo;
 if ~isempty(info)  
-  str = sprintf('Project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
+  str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
   %set(lObj.gdata.txStatus,'String',str);
   setStatusBarTextWhenClear(lObj.gdata,str);
   %SetStatus(lObj.gdata,str,false);
@@ -3381,9 +3389,38 @@ else
   color = handles.idlestatuscolor;
   set(handles.figure,'Pointer','arrow');
 end
-set(handles.txStatus,'ForegroundColor',color,'String',s);
+set(handles.txStatus,'ForegroundColor',color);
+SetStatusText(handles,s);
 drawnow('limitrate');
 if ~isbusy && ~istemp,  syncStatusBarTextWhenClear(handles);
+end
+
+function SetStatusText(handles,s)
+
+setappdata(handles.txStatus,'InputString',s);
+isprojname = contains(s,'$PROJECTNAME');
+if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
+  if ~ischar(handles.labelerObj.projectfile),
+    projfile = '';
+  else
+    projfile = handles.labelerObj.projectfile;
+  end
+  s1 = strrep(s,'$PROJECTNAME',projfile);
+  [~,n,ext] = fileparts(projfile);
+  n = [n,ext];
+  s2 = strrep(s,'$PROJECTNAME',n);
+  if ~isempty(handles.jtxStatus),
+    set(handles.txStatus,'String',s1);
+    pos1 = get(handles.jtxStatus,'PreferredSize');
+    w = get(handles.jtxStatus,'Width');
+    if pos1.width > w,
+      set(handles.txStatus,'String',s2);
+    end
+  else
+    set(handles.txStatus,'String',s2);
+  end
+else
+  set(handles.txStatus,'String',s);
 end
 
 % -------------------------------------------------------------------------
@@ -3391,15 +3428,18 @@ function ClearStatus(handles)
 
 cleartext = getStatusBarTextWhenClear(handles);
 set(handles.txStatus, ...
-    'ForegroundColor',handles.idlestatuscolor, ...
-    'String',cleartext);
+    'ForegroundColor',handles.idlestatuscolor);
+SetStatusText(handles,cleartext);
 set(handles.figure,'Pointer','arrow');
 drawnow('limitrate');
 
 function syncStatusBarTextWhenClear(handles,s)
 
 try
-  s = get(handles.txStatus,'string');
+  s = getappdata(handles.txStatus,'InputString');
+  if isempty(s),
+    s = get(handles.txStatus,'string');
+  end
   setStatusBarTextWhenClear(handles,s);
 catch
 end
@@ -3419,6 +3459,13 @@ catch
   warning('Could not get text_when_clear appdata for status bar');
   s = '';
 end
+
+function refreshStatus(handles)
+s = getappdata(handles.txStatus,'InputString');
+if isempty(s),
+  s = get(handles.txStatus,'string');
+end
+SetStatusText(handles,s);
 
 
 % --------------------------------------------------------------------
