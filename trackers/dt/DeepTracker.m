@@ -623,7 +623,7 @@ classdef DeepTracker < LabelTracker
           system(syscmds{iview});
           fprintf('Training job (view %d) spawned.\n\n',iview);
           
-          obj.aws.getRemotePythonPID();
+          aws.getRemotePythonPID();
         end
         
         obj.trnName = trnNm;
