@@ -229,6 +229,7 @@ classdef LabelCoreSeq < LabelCore
       % KB 20181029: removing adjust state
       if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED,
         obj.iPtMove = nan;
+        obj.storeLabels();
       end
     end
     
@@ -390,6 +391,14 @@ classdef LabelCoreSeq < LabelCore
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...
         'Value',1,'Enable','off');
       obj.state = LabelState.ACCEPTED;
+    end
+    
+    function storeLabels(obj)
+      
+      xy = obj.getLabelCoords();
+      obj.labeler.labelPosSet(xy);
+      obj.setLabelPosTagFromEstOcc();
+      
     end
     
     % C+P
