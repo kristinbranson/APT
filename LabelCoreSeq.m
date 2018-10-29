@@ -58,6 +58,7 @@ classdef LabelCoreSeq < LabelCore
     
     function obj = LabelCoreSeq(varargin)
       obj = obj@LabelCore(varargin{:});
+      set(obj.tbAccept,'Enable','off');
     end
     
     function initHook(obj)
@@ -88,7 +89,8 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function unAcceptLabels(obj)
-      obj.beginAdjust();
+      % this doesn't do anything now
+      %obj.beginAdjust();
     end
     
     function axBDF(obj,src,evt) %#ok<INUSD>
@@ -111,7 +113,8 @@ classdef LabelCoreSeq < LabelCore
             end
             % estOcc status unchanged
             if obj.state==LabelState.ACCEPTED
-              obj.beginAdjust();
+              % KB 20181029: removing adjust state
+              %obj.beginAdjust();
             end
           end
       end
@@ -136,7 +139,8 @@ classdef LabelCoreSeq < LabelCore
             obj.refreshOccludedPts();
             % estOcc status unchanged
             if obj.state==LabelState.ACCEPTED
-              obj.beginAdjust();
+              % KB 20181029: removing adjust state
+              %obj.beginAdjust();
             end
           end
       end
@@ -165,7 +169,9 @@ classdef LabelCoreSeq < LabelCore
       end
       obj.nPtsLabeled = i;
       if i==obj.nPts
-        obj.beginAdjust();
+        % KB 2018029: removing adjust mode
+        %obj.beginAdjust();
+        obj.acceptLabels();
       end
     end
     
@@ -181,11 +187,12 @@ classdef LabelCoreSeq < LabelCore
             obj.refreshPtMarkers('iPts',nlbled,'doPtsOcc',true);
             obj.assignLabelCoordsIRaw([nan nan],nlbled);
             obj.nPtsLabeled = nlbled-1;
-            
-            if obj.state==LabelState.ADJUST
-              assert(nlbled==obj.nPts);
-              obj.adjust2Label();
-            end
+
+            % KB 20181029: removing adjust state
+%             if obj.state==LabelState.ADJUST
+%               assert(nlbled==obj.nPts);
+%               obj.adjust2Label();
+%             end
           end          
       end
     end
@@ -198,16 +205,21 @@ classdef LabelCoreSeq < LabelCore
         switch obj.state
           case {LabelState.ADJUST LabelState.ACCEPTED}          
             iPt = get(src,'UserData');
-            if obj.state==LabelState.ACCEPTED
-              obj.beginAdjust();
-            end
+            % KB 20181029: removing adjust state
+%             if obj.state==LabelState.ACCEPTED
+%               obj.beginAdjust();
+%             end
             obj.iPtMove = iPt;
         end
       end
     end
     
     function wbmf(obj,~,~)
-      if obj.state==LabelState.ADJUST
+      % KB 20181029: removing adjust state
+      if isempty(obj.state),
+        return;
+      end
+      if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED,
         iPt = obj.iPtMove;
         if ~isnan(iPt)
           ax = obj.hAx;
@@ -219,7 +231,8 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function wbuf(obj,~,~)
-      if obj.state==LabelState.ADJUST
+      % KB 20181029: removing adjust state
+      if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED,
         obj.iPtMove = nan;
       end
     end
@@ -239,10 +252,11 @@ classdef LabelCoreSeq < LabelCore
         if tfSel
           obj.toggleEstOccPoint(iSel);
         end
-      elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl % accept
-        if obj.state==LabelState.ADJUST
-          obj.acceptLabels();
-        end
+        % KB 20181029: removing adjust state
+%       elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl % accept
+%         if obj.state==LabelState.ADJUST
+%           obj.acceptLabels();
+%         end
       elseif any(strcmp(key,{'d' 'equal'}))
         lObj.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
@@ -273,7 +287,8 @@ classdef LabelCoreSeq < LabelCore
             case LabelState.ADJUST
               % none
             case LabelState.ACCEPTED              
-              obj.beginAdjust();
+              % KB 20181029: removing adjust state
+              %obj.beginAdjust();
           end
         else
           tfKPused = false;
@@ -334,7 +349,7 @@ classdef LabelCoreSeq < LabelCore
       % frame/target
       
       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-        'String','','Enable','off','Value',0);
+        'String','Unlabeled','Enable','off','Value',0);
       obj.assignLabelCoords(nan(obj.nPts,2));
       obj.nPtsLabeled = 0;
       obj.iPtMove = nan;
@@ -350,7 +365,7 @@ classdef LabelCoreSeq < LabelCore
     function adjust2Label(obj)
       % enter LABEL from ADJUST
       set(obj.tbAccept,'BackgroundColor',[0.4 0.0 0.0],...
-        'String','','Enable','off','Value',0);      
+        'String','Unlabeled','Enable','off','Value',0);      
       obj.iPtMove = nan;
       obj.state = LabelState.LABEL;      
     end      
@@ -361,7 +376,7 @@ classdef LabelCoreSeq < LabelCore
       assert(obj.nPtsLabeled==obj.nPts);
       obj.iPtMove = nan;
       set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
-        'Value',0,'Enable','on');
+        'Value',0,'Enable','off');
       obj.state = LabelState.ADJUST;
     end
     
@@ -373,9 +388,12 @@ classdef LabelCoreSeq < LabelCore
         obj.labeler.labelPosSet(xy);
         obj.setLabelPosTagFromEstOcc();
       end
+      % KB 20181029: moved this here from beginAdjust as I remove adjust
+      % mode
+      obj.iPtMove = nan;
       obj.clearSelected();
-      set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
-        'Value',1,'Enable','on');
+      set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...
+        'Value',1,'Enable','off');
       obj.state = LabelState.ACCEPTED;
     end
     
@@ -392,7 +410,8 @@ classdef LabelCoreSeq < LabelCore
       assert(~(obj.tfEstOcc(iPt) && obj.tfOcc(iPt)));
       obj.refreshPtMarkers('iPts',iPt);
       if obj.state==LabelState.ACCEPTED
-        obj.beginAdjust();
+        % KB 20181029: removing adjust state
+        %obj.beginAdjust();
       end
     end
 
