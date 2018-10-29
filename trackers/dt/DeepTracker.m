@@ -1287,8 +1287,8 @@ classdef DeepTracker < LabelTracker
     function codestr = trainCodeGenAWSUpdateAPTRepo()
        codestr = {
         'cd /home/ubuntu/APT/deepnet;';
-        'git pull;'; 
         'git checkout feature/deeptrack;';
+        'git pull;'; 
         };
       codestr = cat(2,codestr{:});      
     end
