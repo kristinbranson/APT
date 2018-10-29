@@ -248,6 +248,9 @@ classdef LabelCoreSeq < LabelCore
         if tfSel
           obj.toggleEstOccPoint(iSel);
         end
+        if obj.state == LabelState.ACCEPTED,
+          obj.storeLabels();
+        end
         % KB 20181029: removing adjust state
 %       elseif any(strcmp(key,{'s' 'space'})) && ~tfCtrl % accept
 %         if obj.state==LabelState.ADJUST
@@ -305,7 +308,7 @@ classdef LabelCoreSeq < LabelCore
           if iPt>obj.nPts
             return;
           end
-          obj.clearSelected(iPt);
+          %obj.clearSelected(iPt);
           obj.toggleSelectPoint(iPt);
         end
       else
