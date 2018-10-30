@@ -1374,6 +1374,10 @@ else
 end
 lObj.gdata.allAxHiliteMgr.setHighlight(tfHilite);
 
+function hlpUpdateTblTrxHilite(lObj)
+
+lObj.gdata.tblTrx.SelectedRows = lObj.currTarget;  
+
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
 if lObj.hasTrx && ~lObj.isinit
@@ -1381,6 +1385,7 @@ if lObj.hasTrx && ~lObj.isinit
   lObj.currImHud.updateTarget(iTgt);
   lObj.gdata.labelTLInfo.newTarget();
   hlpGTUpdateAxHilite(lObj);
+  hlpUpdateTblTrxHilite(lObj);
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
