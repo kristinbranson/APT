@@ -1330,6 +1330,7 @@ function cbkProjLoaded(src,evt)
 lObj = src;
 handles = lObj.gdata;
 EnableControls(handles,'projectloaded');
+cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
