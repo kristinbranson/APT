@@ -230,7 +230,7 @@ classdef LabelCoreSeq < LabelCore
       if ismember(gco,obj.labeler.hTrx),
         return;
       end
-      if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED,
+      if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED && ~isempty(obj.iPtMove) && ~isnan(obj.iPtMove),
         obj.iPtMove = nan;
         obj.storeLabels();
       end
