@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 24-Oct-2018 17:46:01
+% Last Modified by GUIDE v2.5 29-Oct-2018 17:10:04
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -44,6 +44,7 @@ hfigsplash = splashScreen(handles);
 
 handles.SetStatusFun = @(~,s,varargin) fprintf([s,'...\n']);
 handles.ClearStatusFun = @(varargin) fprintf('Done.\n');
+handles.RefreshStatusFun = @(varargin) fprintf('\n');
 
 hObject.Name = 'APT';
 hObject.HandleVisibility = 'on';
@@ -65,6 +66,12 @@ set(handles.edit_frame,'String','');
 set(handles.popupmenu_prevmode,'Visible','off');
 set(handles.pushbutton_freezetemplate,'Visible','off');
 set(handles.txStatus,'String','Ready.');
+try
+  handles.jtxStatus = findjobj_modern(handles.txStatus);
+catch
+  handles.jtxStatus = [];
+end
+
 syncStatusBarTextWhenClear(handles);
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
@@ -79,6 +86,7 @@ SetStatus(handles,'Initializing APT...');
 handles.SetStatusFun = @SetStatus;
 handles.ClearStatusFun = @ClearStatus;
 handles.SetStatusBarTextWhenClearFun = @setStatusBarTextWhenClear;
+handles.RefreshStatusFun = @refreshStatus;
 
 %handles.pnlSusp.Visible = 'off';
 
@@ -101,7 +109,7 @@ moveMenuItemAfter(handles.menu_file_export_labels_table,...
 
 handles.menu_file_crop_mode = uimenu('Parent',handles.menu_file,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_file_crop_mode_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Crop Mode',...
+  'Label','Edit cropping',...
   'Tag','menu_file_crop_mode',...
   'Checked','off',...
   'Separator','on',...
@@ -229,6 +237,8 @@ handles.menu_view_show_grid = uimenu('Parent',handles.menu_view,...
   'Tag','menu_view_show_grid',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_grid,handles.menu_view_show_tick_labels);
+moveMenuItemAfter(handles.menu_view_occluded_points_box,handles.menu_view_show_grid);
+
 % handles.menu_view_show_3D_axes = uimenu('Parent',handles.menu_view,...
 %   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_show_3D_axes_Callback',hObject,eventdata,guidata(hObject)),...
 %   'Label','Show/Refresh 3D world axes',...
@@ -474,8 +484,8 @@ handles.tbAdjustCropSizeBGColor1 = [1 0 0];
 pumTrack = handles.pumTrack;
 pumTrack.Value = 1;
 pumTrack.String = {'All frames'};
-set(pumTrack,'FontUnits','points','FontSize',6.5);
-pumTrack.FontUnits = 'normalized';
+%set(pumTrack,'FontUnits','points','FontSize',6.5);
+%pumTrack.FontUnits = 'normalized';
 aptResize = APTResize(handles);
 handles.figure.SizeChangedFcn = @(src,evt)aptResize.resize(src,evt);
 aptResize.resize(handles.figure,[]);
@@ -501,6 +511,7 @@ listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
+listeners{end+1,1} = addlistener(lObj,'showOccludedBox','PostSet',@cbkShowOccludedBoxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
@@ -549,6 +560,7 @@ handles.propsNeedInit = {
   'movieCenterOnTarget'
   'movieForceGrayscale' 
   'movieInvert'
+  'showOccludedBox'
   };
 
 set(handles.output,'Toolbar','figure');
@@ -605,6 +617,9 @@ switch lower(state),
     
     set(handles.tbAdjustCropSize,'Enable','off');
     set(handles.pbClearAllCrops,'Enable','off');
+    set(handles.pushbutton_exitcropmode,'Enable','off');
+    set(handles.uipanel_cropcontrols,'Visible','off');
+    
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
     set(handles.tbTLSelectMode,'Enable','off');
@@ -646,6 +661,9 @@ switch lower(state),
     
     set(handles.tbAdjustCropSize,'Enable','off');
     set(handles.pbClearAllCrops,'Enable','off');
+    set(handles.pushbutton_exitcropmode,'Enable','off');
+    set(handles.uipanel_cropcontrols,'Visible','off');    
+    
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
     set(handles.tbTLSelectMode,'Enable','off');
@@ -678,6 +696,9 @@ switch lower(state),
         
     set(handles.tbAdjustCropSize,'Enable','on');
     set(handles.pbClearAllCrops,'Enable','on');
+    set(handles.pushbutton_exitcropmode,'Enable','on');
+    set(handles.uipanel_cropcontrols,'Visible','on');
+
     set(handles.pbClearSelection,'Enable','on');
     set(handles.pumInfo,'Enable','on');
     set(handles.tbTLSelectMode,'Enable','on');
@@ -1315,10 +1336,12 @@ else
   set(hTx,'Visible','off');
 end
 
-info = lObj.projFSInfo;
-if ~isempty(info)
-  str = sprintf('Unsaved labels since project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
-  SetStatus(lObj.gdata,str,false);
+if val,
+  info = lObj.projFSInfo;
+  if ~isempty(info)
+    str = sprintf('Unsaved labels since project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
+    SetStatus(lObj.gdata,str,false);
+  end
 end
 
 
@@ -1399,7 +1422,7 @@ function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
 pname = lObj.projname;
-str = sprintf('Project %s created (unsaved) at %s',pname,datestr(now,16));
+str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now,16));
 setStatusBarTextWhenClear(handles,str);
 %SetStatus(handles,str,false);
 % set(handles.txStatus,'String',str);
@@ -1409,7 +1432,7 @@ function cbkProjFSInfoChanged(src,evt)
 lObj = evt.AffectedObject;
 info = lObj.projFSInfo;
 if ~isempty(info)  
-  str = sprintf('Project %s %s at %s',info.filename,info.action,datestr(info.timestamp,16));
+  str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
   %set(lObj.gdata.txStatus,'String',str);
   setStatusBarTextWhenClear(lObj.gdata,str);
   %SetStatus(lObj.gdata,str,false);
@@ -1639,6 +1662,10 @@ if lObj.isinit
 end
 hPUM = lObj.gdata.pumTrack;
 hPUM.Value = lObj.trackModeIdx;
+try %#ok<TRYNC>
+  fullstrings = getappdata(hPUM,'FullStrings');
+  set(lObj.gdata.text_framestotrackinfo,'String',fullstrings{hPUM.Value});
+end
 % Edge case: conceivably, pumTrack.Strings may not be updated (eg for a
 % noTrx->hasTrx transition before this callback fires). In this case,
 % hPUM.Value (trackModeIdx) will be out of bounds and a warning till be
@@ -1658,14 +1685,16 @@ if lObj.hasTrx
 else
   mfts = MFTSetEnum.TrackingMenuNoTrx;
 end
+menustrs = arrayfun(@(x)x.getPrettyStr(lObj),mfts,'uni',0);
 if ispc || ismac
-  menustrs = arrayfun(@(x)x.getPrettyStr(lObj),mfts,'uni',0);
+  menustrs_compact = arrayfun(@(x)x.getPrettyStrCompact(lObj),mfts,'uni',0);
 else
   % iss #161
-  menustrs = arrayfun(@(x)x.getPrettyStrCompact(lObj),mfts,'uni',0);
+  menustrs_compact = arrayfun(@(x)x.getPrettyStrMoreCompact(lObj),mfts,'uni',0);
 end
 hPUM = lObj.gdata.pumTrack;
-hPUM.String = menustrs;
+hPUM.String = menustrs_compact;
+setappdata(hPUM,'FullStrings',menustrs);
 if lObj.trackModeIdx>numel(menustrs)
   lObj.trackModeIdx = 1;
 end
@@ -1676,6 +1705,8 @@ hFig.SizeChangedFcn(hFig,[]);
 function pumTrack_Callback(hObj,edata,handles)
 lObj = handles.labelerObj;
 lObj.trackModeIdx = hObj.Value;
+%fullstrings = getappdata(hObj,'FullStrings');
+%set(handles.text_framestotrackinfo,'String',fullstrings{hObj.Value});
 
 function mftset = getTrackMode(handles)
 idx = handles.pumTrack.Value;
@@ -2449,6 +2480,14 @@ lObj = evt.AffectedObject;
 handles = lObj.gdata;
 onOff = onIff(~lObj.showTrx);
 handles.menu_view_hide_trajectories.Checked = onOff;
+
+function cbkShowOccludedBoxChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(lObj.showOccludedBox);
+handles.menu_view_occluded_points_box.Checked = onOff;
+set([handles.text_occludedpoints,handles.axes_occ],'Visible',onOff);
+
 function cbkShowTrxCurrTargetOnlyChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
@@ -3230,6 +3269,7 @@ cropUpdateCropHRects(lObj.gdata);
 function cropReactNewCropMode(handles,tf)
 
 CROPCONTROLS = {
+  'pushbutton_exitcropmode'
   'tbAdjustCropSize'
   'pbClearAllCrops'
   'txCropMode'
@@ -3243,7 +3283,8 @@ REGCONTROLS = {
 
 onIfTrue = onIff(tf);
 offIfTrue = onIff(~tf);
-cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
+%cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
+set(handles.uipanel_cropcontrols,'Visible',onIfTrue);
 cellfun(@(x)set(handles.(x),'Visible',offIfTrue),REGCONTROLS);
 handles.menu_file_crop_mode.Checked = onIfTrue;
 
@@ -3362,9 +3403,38 @@ else
   color = handles.idlestatuscolor;
   set(handles.figure,'Pointer','arrow');
 end
-set(handles.txStatus,'ForegroundColor',color,'String',s);
+set(handles.txStatus,'ForegroundColor',color);
+SetStatusText(handles,s);
 drawnow('limitrate');
 if ~isbusy && ~istemp,  syncStatusBarTextWhenClear(handles);
+end
+
+function SetStatusText(handles,s)
+
+setappdata(handles.txStatus,'InputString',s);
+isprojname = contains(s,'$PROJECTNAME');
+if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
+  if ~ischar(handles.labelerObj.projectfile),
+    projfile = '';
+  else
+    projfile = handles.labelerObj.projectfile;
+  end
+  s1 = strrep(s,'$PROJECTNAME',projfile);
+  [~,n,ext] = fileparts(projfile);
+  n = [n,ext];
+  s2 = strrep(s,'$PROJECTNAME',n);
+  if ~isempty(handles.jtxStatus),
+    set(handles.txStatus,'String',s1);
+    pos1 = get(handles.jtxStatus,'PreferredSize');
+    w = get(handles.jtxStatus,'Width');
+    if pos1.width > w,
+      set(handles.txStatus,'String',s2);
+    end
+  else
+    set(handles.txStatus,'String',s2);
+  end
+else
+  set(handles.txStatus,'String',s);
 end
 
 % -------------------------------------------------------------------------
@@ -3372,15 +3442,18 @@ function ClearStatus(handles)
 
 cleartext = getStatusBarTextWhenClear(handles);
 set(handles.txStatus, ...
-    'ForegroundColor',handles.idlestatuscolor, ...
-    'String',cleartext);
+    'ForegroundColor',handles.idlestatuscolor);
+SetStatusText(handles,cleartext);
 set(handles.figure,'Pointer','arrow');
 drawnow('limitrate');
 
 function syncStatusBarTextWhenClear(handles,s)
 
 try
-  s = get(handles.txStatus,'string');
+  s = getappdata(handles.txStatus,'InputString');
+  if isempty(s),
+    s = get(handles.txStatus,'string');
+  end
   setStatusBarTextWhenClear(handles,s);
 catch
 end
@@ -3400,6 +3473,13 @@ catch
   warning('Could not get text_when_clear appdata for status bar');
   s = '';
 end
+
+function refreshStatus(handles)
+s = getappdata(handles.txStatus,'InputString');
+if isempty(s),
+  s = get(handles.txStatus,'string');
+end
+SetStatusText(handles,s);
 
 
 % --------------------------------------------------------------------
@@ -3609,3 +3689,21 @@ pos2 = [center-pos1(3:4)/2,pos1(3:4)];
 set(hfigsplash,'Position',pos2);
 figure(hfigsplash);
 drawnow;
+% --- Executes on button press in pushbutton_exitcropmode.
+function pushbutton_exitcropmode_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton_exitcropmode (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+lObj = handles.labelerObj;
+lObj.cropSetCropMode(false);
+
+
+% --------------------------------------------------------------------
+function menu_view_occluded_points_box_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_view_occluded_points_box (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+lObj = handles.labelerObj;
+lObj.setShowOccludedBox(~lObj.showOccludedBox);

@@ -97,8 +97,8 @@ class PoseUNet(PoseCommon):
     def create_network(self ):
         im, locs, info, hmap = self.inputs
         conf = self.conf
-        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.imgDim])
-        hmap.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale, conf.imsz[1]/conf.rescale,conf.n_classes])
+        im.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale,conf.imsz[1]//conf.rescale, conf.imgDim])
+        hmap.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale, conf.imsz[1]//conf.rescale,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
 
@@ -389,7 +389,7 @@ class PoseUNet(PoseCommon):
 
     def train_unet(self):
         def loss(inputs, pred):
-            return tf.nn.l2_loss(pred-inputs[-1])
+            return tf.nn.l2_loss(pred-inputs[-1]) + self.wt_decay_loss()
 
         PoseCommon.train(self,
             create_network=self.create_network,

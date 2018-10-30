@@ -1,16 +1,21 @@
 classdef TargetSetVariable < TargetSet
   properties
     prettyString
+    prettyCompactString
     % fcn with sig iTgts = fcn(labeler,mIdx). 
     getTargetIndicesHook 
   end
   methods
-    function obj = TargetSetVariable(ps,fcn)
+    function obj = TargetSetVariable(ps,pcs,fcn)
       obj.prettyString = ps;
+      obj.prettyCompactString = pcs;
       obj.getTargetIndicesHook = fcn;
     end
     function str = getPrettyString(obj,lObj)
       str = obj.prettyString;
+    end
+    function str = getPrettyCompactString(obj,lObj)
+      str = obj.prettyCompactString;
     end
     function iTgts = getTargetIndices(obj,lObj,mIdx)
       % mIdx: [n] vector of MovieIndices
@@ -25,8 +30,8 @@ classdef TargetSetVariable < TargetSet
   end
   
   properties (Constant) % canned/enumerated vals
-    AllTgts = TargetSetVariable('All targets',@lclAllTargetsFcn);
-    CurrTgt = TargetSetVariable('Current target',@lclCurrTargetFcn);
+    AllTgts = TargetSetVariable('All targets','All targ',@lclAllTargetsFcn);
+    CurrTgt = TargetSetVariable('Current target','Cur targ',@lclCurrTargetFcn);
   end  
 end
 

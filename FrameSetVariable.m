@@ -1,6 +1,7 @@
 classdef FrameSetVariable < FrameSet
   properties
     prettyStringHook % fcn with sig str = fcn(labeler)
+    prettyCompactStringHook % fcn with sig str = fcn(labeler)
     
     % fcn with sig frms = fcn(labeler,mIdx,nfrm,iTgt). Returns "base"
     % frames. nfrm is number of frames in mIdx (purely convenience).
@@ -10,12 +11,13 @@ classdef FrameSetVariable < FrameSet
     avoidRadius % avoidance radius-- 1=>avoidrow frame itself is avoided, but adjacent frame is not. 0=>no avoidance
   end
   methods
-    function obj = FrameSetVariable(psFcn,frmfcn,varargin)
+    function obj = FrameSetVariable(psFcn,pcsFun,frmfcn,varargin)
       [avdTbl,avdRad] = myparse(varargin,...
         'avoidTbl',[],... % specify both avoid* params or none
         'avoidRadius',[]);
       
       obj.prettyStringHook = psFcn;
+      obj.prettyCompactStringHook = pcsFun;
       obj.getFramesBase = frmfcn;
       
       if ~isempty(avdTbl)
@@ -26,6 +28,9 @@ classdef FrameSetVariable < FrameSet
     end
     function str = getPrettyString(obj,labelerObj)
       str = obj.prettyStringHook(labelerObj);
+    end
+    function str = getPrettyCompactString(obj,labelerObj)
+      str = obj.prettyCompactStringHook(labelerObj);
     end
     function frms = getFrames(obj,labelerObj,mIdx,iTgt,decFac)
       % Get frames to track for given movie/target/decimation
@@ -103,11 +108,11 @@ classdef FrameSetVariable < FrameSet
   end
   
   properties (Constant) % canned/enumerated vals
-    AllFrm = FrameSetVariable(@(lo)'All frames',@FrameSetVariable.allFrmGetFrms);
-    SelFrm = FrameSetVariable(@(lo)'Selected frames',@lclSelFrmGetFrms);
-    WithinCurrFrm = FrameSetVariable(@lclWithinCurrFrmPrettyStr,@lclWithinCurrFrmGetFrms);
-    LabeledFrm = FrameSetVariable(@(lo)'Labeled frames',@FrameSetVariable.labeledFrmGetFrms); % AL 20180125: using parameterized anon fcnhandle that directly calls lclLabeledFrmGetFrmsCore fails in 17a, suspect class init issue
-    Labeled2Frm = FrameSetVariable(@(lo)'Labeled frames',@lclLabeledFrmGetFrms2);
+    AllFrm = FrameSetVariable(@(lo)'All frames',@(lo)'All fr',@FrameSetVariable.allFrmGetFrms);
+    SelFrm = FrameSetVariable(@(lo)'Selected frames',@(lo)'Sel fr',@lclSelFrmGetFrms);
+    WithinCurrFrm = FrameSetVariable(@lclWithinCurrFrmPrettyStr,@lclWithinCurrFrmPrettyCompactStr,@lclWithinCurrFrmGetFrms);
+    LabeledFrm = FrameSetVariable(@(lo)'Labeled frames',@(lo)'Lab fr',@FrameSetVariable.labeledFrmGetFrms); % AL 20180125: using parameterized anon fcnhandle that directly calls lclLabeledFrmGetFrmsCore fails in 17a, suspect class init issue
+    Labeled2Frm = FrameSetVariable(@(lo)'Labeled frames',@(lo)'Lab fr',@lclLabeledFrmGetFrms2);
   end
   
   methods (Static)
@@ -127,6 +132,10 @@ else
   str = sprintf('Within %d frames of current frame',lObj.trackNFramesNear);
 end
 end
+function str = lclWithinCurrFrmPrettyCompactStr(lObj)
+str = sprintf('+/-%d fr',lObj.trackNFramesNear);
+end
+
 function frms = lclSelFrmGetFrms(lObj,mIdx,nfrm,iTgt)
 % .selectedFrames are conceptually wrt current movie, which in general 
 % differs from iMov; action may still make sense however, eg "frames 

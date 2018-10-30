@@ -399,9 +399,10 @@ classdef DeepTracker < LabelTracker
       
       % Write stripped lblfile to cacheDir
       s = obj.lObj.trackCreateDeepTrackerStrippedLbl(); 
-%       if trnBackEnd==DLBackEnd.AWS
-%         s.cfg.NumChans = size(s.preProcData_I{1},3); % check with Mayank, thought we wanted number of "underlying" chans but DL is erring when pp data is grayscale but NumChans is 3
-%       end
+      if trnBackEnd==DLBackEnd.AWS
+        % want number of "underlying" chans here
+        s.cfg.NumChans = size(s.preProcData_I{1},3); 
+      end
       dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
       save(dlLblFile,'-mat','-v7.3','-struct','s');
       fprintf('Saved stripped lbl file: %s\n',dlLblFile);
@@ -622,14 +623,7 @@ classdef DeepTracker < LabelTracker
           system(syscmds{iview});
           fprintf('Training job (view %d) spawned.\n\n',iview);
           
-          [tfsucc,res] = aws.cmdInstance('pgrep python','dispcmd',true);
-          if tfsucc
-            remotePID = str2double(strtrim(res));
-            aws.remotePID = remotePID; % right now each aws instance only has one GPU, so can only do one train/track at a time
-            fprintf('Remote PID is: %d.\n\n',remotePID);
-          else
-            warningNoTrace('Failed to ascertain remote PID.');
-          end          
+          aws.getRemotePythonPID();
         end
         
         obj.trnName = trnNm;
@@ -853,10 +847,6 @@ classdef DeepTracker < LabelTracker
       end
       trnID = obj.trnName;
       cacheDir = obj.sPrm.CacheDir;
-      dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
-      if exist(dlLblFile,'file')==0
-        error('Cannot find training file: %s\n',dlLblFile);
-      end
 
       if obj.lObj.cropProjHasCrops
         assert(~tftrx);
@@ -876,9 +866,18 @@ classdef DeepTracker < LabelTracker
       trkBackEnd = obj.backendType; % Currently trn/trk backends are the same
       switch trkBackEnd
         case DLBackEnd.Bsub
-          obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,f0,f1);
+          dlLblFileLcl = fullfile(cacheDir,[trnID '.lbl']);
+          if exist(dlLblFileLcl,'file')==0
+            error('Cannot find training file: %s\n',dlLblFileLcl);
+          end
+          obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
         case DLBackEnd.AWS
-          obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,f0,f1);
+          dlLblFileLclS = [trnID '_' obj.trnNameLbl '.lbl'];
+          dlLblFileLcl = fullfile(cacheDir,dlLblFileLclS);
+          if exist(dlLblFileLcl,'file')==0
+            error('Cannot find training file: %s\n',dlLblFileLcl);
+          end
+          obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
         otherwise
           assert(false);
       end
@@ -1115,14 +1114,7 @@ classdef DeepTracker < LabelTracker
           system(syscmd);     
           fprintf('Tracking job (view %d) spawned.\n\n',ivw);
           
-          [tfsucc,res] = aws.cmdInstance('pgrep python','dispcmd',true);
-          if tfsucc
-            remotePID = str2double(strtrim(res));
-            aws.remotePID = remotePID;
-            fprintf('Remote PID is: %d.\n\n',remotePID);
-          else
-            warningNoTrace('Failed to ascertain remote PID.');
-          end
+          aws.getRemotePythonPID();
         end
         
         obj.trkSysInfo = trksysinfo;
@@ -1287,8 +1279,8 @@ classdef DeepTracker < LabelTracker
     function codestr = trainCodeGenAWSUpdateAPTRepo()
        codestr = {
         'cd /home/ubuntu/APT/deepnet;';
-        'git pull;'; 
         'git checkout feature/deeptrack;';
+        'git pull;'; 
         };
       codestr = cat(2,codestr{:});      
     end

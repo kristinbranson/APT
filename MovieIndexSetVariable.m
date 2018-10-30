@@ -1,15 +1,20 @@
 classdef MovieIndexSetVariable < MovieIndexSet
   properties
     prettyString
+    prettyCompactString
     getMovieIndicesHook % fcn with sig mIdx = fcn(labeler)
   end
   methods
-    function obj = MovieIndexSetVariable(ps,fcn)
+    function obj = MovieIndexSetVariable(ps,cps,fcn)
       obj.prettyString = ps;
+      obj.prettyCompactString = cps;
       obj.getMovieIndicesHook = fcn;
     end
     function str = getPrettyString(obj)
       str = obj.prettyString;
+    end
+    function str = getPrettyCompactString(obj)
+      str = obj.prettyCompactString;
     end
     function mIdx = getMovieIndices(obj,lObj)
       if ~lObj.hasMovie
@@ -22,10 +27,10 @@ classdef MovieIndexSetVariable < MovieIndexSet
   end
   
   properties (Constant) % canned/enumerated vals
-    AllMov = MovieIndexSetVariable('All movies',@lclAllMoviesGetMovieIndexHook); % "movies per current GT mode"
-    CurrMov = MovieIndexSetVariable('Current movie',@lclCurrMovieGetMovieIndexHook);
-    SelMov = MovieIndexSetVariable('Selected movies',@lclSelMovieGetMovieIndexHook);
-    AllGTMov = MovieIndexSetVariable('All GT movies',@lclAllGTMoviesGetMovieIndexHook);
+    AllMov = MovieIndexSetVariable('All movies','All mov',@lclAllMoviesGetMovieIndexHook); % "movies per current GT mode"
+    CurrMov = MovieIndexSetVariable('Current movie','Cur mov',@lclCurrMovieGetMovieIndexHook);
+    SelMov = MovieIndexSetVariable('Selected movies','Sel mov',@lclSelMovieGetMovieIndexHook);
+    AllGTMov = MovieIndexSetVariable('All GT movies','GT mov',@lclAllGTMoviesGetMovieIndexHook);
   end  
 end
 

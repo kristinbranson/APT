@@ -39,22 +39,57 @@ def show_top_preds(im,pred_locs,pred_weights, n=12):
             ax[ndx].imshow(im)
         ax[ndx].scatter(pred_locs[ord[ndx],:,0],pred_locs[ord[ndx],:,1])
 
-def train_preproc_func(ims, locs, info, conf):
+
+def train_preproc_func(ims, locs, info, conf, no_pad=False, pad_x=0, pad_y=0):
+    if no_pad: # no pad refers not padding while up sampling or down sampling
+        ims, locs = PoseTools.pad_ims(ims, locs, pady=pad_y, padx=pad_x)
     ims, locs = PoseTools.preprocess_ims(ims, locs, conf, True, conf.rescale)
-    hmaps = PoseTools.create_label_images(locs, conf.imsz, conf.rescale, conf.label_blur_rad)
+    tlocs = locs.copy()
+    if no_pad:
+        tlocs[:,:,0] -= pad_x//2
+        tlocs[:,:,1] -= pad_y//2
+
+    hmaps = PoseTools.create_label_images(tlocs, conf.imsz, conf.rescale, conf.label_blur_rad)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 
-def val_preproc_func(ims, locs, info, conf):
+def val_preproc_func(ims, locs, info, conf, no_pad= False, pad_x=0, pad_y=0):
+    if no_pad:  # no pad refers not padding while up sampling or down sampling
+        ims, locs = PoseTools.pad_ims(ims, locs, pady=pad_y, padx=pad_x)
     ims, locs = PoseTools.preprocess_ims(ims, locs, conf, False, conf.rescale)
+    tlocs = locs.copy()
+    if no_pad:
+        tlocs[:,:,0] -= pad_x//2
+        tlocs[:,:,1] -= pad_y//2
+
     hmaps = PoseTools.create_label_images(locs, conf.imsz, conf.rescale, conf.label_blur_rad)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
+
+
+def find_pad_sz(n_layers,in_sz):
+    p_amt = 0
+    while True:
+        sz = in_sz + p_amt
+        all_sz = []
+        cur_sz = sz
+        for l in range(n_layers):
+            cur_sz = int(math.ceil(cur_sz / 2.))
+            all_sz.append(cur_sz)
+        for l in reversed(range(n_layers)):
+            cur_sz = 2 * (cur_sz - 4) + 2
+            all_sz.append(cur_sz)
+
+        cur_sz -= 2
+        if cur_sz > in_sz:
+            break
+        p_amt += 1
+    return p_amt
 
 
 class PoseUMDN(PoseCommon.PoseCommon):
 
     def __init__(self, conf, name='pose_umdn',net_type='conv',
-                 unet_name = 'pose_unet'):
+                 unet_name = 'pose_unet',no_pad=False):
         PoseCommon.PoseCommon.__init__(self, conf, name)
         self.dep_nets = [PoseUNet.PoseUNet(conf, unet_name)]
         self.net_type = net_type
@@ -63,10 +98,17 @@ class PoseUMDN(PoseCommon.PoseCommon):
         self.i_locs = None
         self.input_dtypes = [tf.float32, tf.float32, tf.float32, tf.float32]
 
+        if no_pad:
+            self.no_pad = True
+            self.pad_y = find_pad_sz(n_layers=5,in_sz=conf.imsz[0])
+            self.pad_x = find_pad_sz(n_layers=5,in_sz=conf.imsz[1])
+
         def train_pp(ims,locs,info):
-            return train_preproc_func(ims,locs,info, conf)
+            return train_preproc_func(ims,locs,info, conf, no_pad=self.no_pad,
+                                      pad_x=self.pad_x, pad_y=self.pad_y)
         def val_pp(ims,locs,info):
-            return val_preproc_func(ims,locs,info, conf)
+            return val_preproc_func(ims,locs,info, conf, no_pad = self.no_pad,
+                                    pad_x = self.pad_x, pad_y = self.pad_y)
 
         self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], self.input_dtypes))
         self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], self.input_dtypes))
@@ -739,7 +781,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
     def compute_train_data(self, sess, db_type):
         self.fd_train() if db_type is self.DBType.Train \
             else self.fd_val()
-        cur_loss, cur_inputs , pred_means, pred_std, pred_weights = sess.run(
+        cur_loss, cur_inputs , pred_means, pred_std, pred_weights, pred_dist = sess.run(
             [self.cost,self.inputs] + self.pred, self.fd)
 
         pred_weights = softmax(pred_weights, axis=1)
@@ -761,7 +803,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             # unet_loss / unet_pred_shape[0]/ unet_pred_shape[1] is generally around 0.02 while mdn_loss is around 0.4. unet_loss_factor of 10 gives unet_loss half the weight.
             mdn_loss += unet_loss_normalized
 
-            return mdn_loss
+            return mdn_loss + self.wt_decay_loss()
 
         super(self.__class__, self).train(
             create_network=self.create_network,

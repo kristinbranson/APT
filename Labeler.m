@@ -300,6 +300,7 @@ classdef Labeler < handle
     showTrx;                  % true to show trajectories
     showTrxCurrTargetOnly;    % if true, plot only current target
     showTrxIDLbl;             % true to show id label 
+    showOccludedBox;          % whether to show the occluded box
   end
   properties
     hTraj;                    % nTrx x 1 vector of line handles
@@ -1259,6 +1260,7 @@ classdef Labeler < handle
       obj.currTracker = 0;
 
       obj.projectHasTrx = cfg.Trx.HasTrx;
+      obj.showOccludedBox = cfg.View.OccludedBox;
       
       obj.showTrx = cfg.Trx.ShowTrx;
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
@@ -4166,6 +4168,11 @@ classdef Labeler < handle
       assert(isscalar(tf) && islogical(tf));
       obj.showTrx = tf;
       obj.updateShowTrx();
+    end
+
+    function setShowOccludedBox(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showOccludedBox = tf;
     end
     
     function setShowTrxCurrTargetOnly(obj,tf)
@@ -9243,8 +9250,25 @@ classdef Labeler < handle
       end
       
       obj.cropCheckCropSizeConsistency();
+      if obj.cropIsCropMode,
+        obj.syncCropInfoToCurrMov();
+      end
       obj.cropIsCropMode = tf;
       obj.notify('cropIsCropModeChanged');
+    end
+    
+    function syncCropInfoToCurrMov(obj)
+      
+      iMov = obj.currMovie;
+      if obj.gtIsGTMode,
+        cropInfo = obj.movieFilesAllGTCropInfo{iMov};
+      else
+        cropInfo = obj.movieFilesAllCropInfo{iMov};
+      end
+      for iView=1:obj.nview,
+        obj.movieReader(iView).setCropInfo(cropInfo(iView));
+      end
+      
     end
     
     function [whDefault,whMaxAllowed] = cropComputeDfltWidthHeight(obj)
@@ -9745,12 +9769,13 @@ classdef Labeler < handle
         error('Labeler:target',...
           'Target idx %d is not live at current frame (%d).',iTgt,frm);
       end
-        
+
       % 2nd arg true to match legacy
       obj.hlpSetCurrPrevFrame(frm,true);
       
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
+      
       if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         obj.videoCenterOnCurrTarget();
       elseif obj.movieCenterOnTargetLandmark

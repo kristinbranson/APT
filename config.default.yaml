@@ -50,6 +50,7 @@ View:
   ShowGrid: 0
   CenterOnTarget: 0
   RotateTargetUp: 0
+  OccludedBox: 0
 
 Movie:
   ForceGrayScale: 1
