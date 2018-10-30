@@ -494,7 +494,8 @@ handles.pumTrack.Callback = ...
 
 lObj = handles.labelerObj;
 
-handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
+handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual,handles.axes_timeline_islabeled);
+
 set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp());
 
 % this is currently not used - KB made space here for training status
@@ -3504,7 +3505,7 @@ if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
     set(handles.txStatus,'String',s1);
     pos1 = get(handles.jtxStatus,'PreferredSize');
     w = get(handles.jtxStatus,'Width');
-    if pos1.width > w,
+    if pos1.width > w*.95,
       set(handles.txStatus,'String',s2);
     end
   else

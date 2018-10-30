@@ -11,7 +11,9 @@ classdef InfoTimeline < handle
   properties
     lObj % scalar Labeler handle
     hAx % scalar handle to timeline axis
+    hAxL = []% scalar handle to timeline axis
     hCurrFrame % scalar line handle current frame
+    hCurrFrameL = []% scalar line handle current frame
 %     hMarked % scalar line handle, indicates marked frames
     hCMenuClearAll % scalar context menu
     hCMenuClearBout % scalar context menu
@@ -23,6 +25,7 @@ classdef InfoTimeline < handle
     npts % number of label points in current movie/timeline
     %nfrm % number of frames "
     tldata % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
+    hPtsL % [npts] line handles
     
     listeners % [nlistener] col cell array of labeler prop listeners
     listenersTracker % col cell array of tracker listeners
@@ -67,9 +70,15 @@ classdef InfoTimeline < handle
         if v        
           obj.selectOnStartFrm = obj.lObj.currFrame; %#ok<MCSUP>
           obj.hCurrFrame.LineWidth = 3; %#ok<MCSUP>
+          if obj.isL,
+            obj.hCurrFrameL.LineWidth = 3; %#ok<MCSUP>
+          end
         else
           obj.selectOnStartFrm = []; %#ok<MCSUP>
           obj.hCurrFrame.LineWidth = 0.5; %#ok<MCSUP>
+          if obj.isL,
+            obj.hCurrFrameL.LineWidth = 0.5; %#ok<MCSUP>
+          end
           obj.setLabelerSelectedFrames();
         end
       end
@@ -89,7 +98,12 @@ classdef InfoTimeline < handle
   
   methods
     
-    function obj = InfoTimeline(labeler,ax)
+    function obj = InfoTimeline(labeler,ax,axl)
+      
+      if nargin < 3,
+        axl = [];
+      end
+      
       obj.lObj = labeler;
       ax.Color = [0 0 0];
       ax.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
@@ -97,7 +111,20 @@ classdef InfoTimeline < handle
       obj.hAx = ax;
       obj.hCurrFrame = plot(ax,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off');
 %       obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0],'hittest','off');
+
+      if ~isempty(axl) && ishandle(axl),
+        axl.Color = [0 0 0];
+        axl.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
+        hold(axl,'on');
+      end
+      obj.hAxL = axl;
       
+      if obj.isL,
+        obj.hCurrFrameL = plot(axl,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off');
+      else
+        obj.hCurrFrameL = [];
+      end
+
       fig = ax.Parent;
       hZ = zoom(fig);
       setAxesZoomMotion(hZ,ax,'horizontal');
@@ -105,8 +132,14 @@ classdef InfoTimeline < handle
       hP = pan(fig);
       setAxesPanMotion(hP,ax,'horizontal');
       obj.hPan = hP;
+
+      if obj.isL,
+        setAxesZoomMotion(hZ,axl,'horizontal');
+        setAxesPanMotion(hP,axl,'horizontal');
+      end
       
       obj.hPts = [];
+      obj.hPtsL = [];
       obj.npts = nan;
       %Rxobj.nfrm = nan;
             
@@ -163,11 +196,30 @@ classdef InfoTimeline < handle
         'UserData',struct('LabelPat','Clear bout (frame %d-%d)','iBout',nan),...
         'Callback',@(src,evt)obj.cbkClearBout(src,evt));
       ax.UIContextMenu = hCMenu;
+      
+      if obj.isL,
+%         hCMenuL = uicontextmenu('parent',axl.Parent);
+%         uimenu('Parent',hCMenu,'Label','Set number of frames shown',...
+%           'Callback',@(src,evt)obj.cbkSetNumFramesShown(src,evt));
+%         obj.hCMenuClearAll(end+1) = uimenu('Parent',hCMenuL,...
+%           'Label','Clear selection (N bouts)',...
+%           'UserData',struct('LabelPat','Clear selection (%d bouts)'),...
+%           'Callback',@(src,evt)obj.selectClearSelection());
+%         obj.hCMenuClearBout(end+1) = uimenu('Parent',hCMenuL,...
+%           'Label','Clear bout (frame M--N)',...
+%           'UserData',struct('LabelPat','Clear bout (frame %d-%d)','iBout',nan),...
+%           'Callback',@(src,evt)obj.cbkClearBout(src,evt));
+%         hq = uimenu('Parent',hCMenuL,'Label','What''s this?');
+%         uimenu('Parent',hq,'Label','Timeline showing which frames have been labeled');
+        axl.UIContextMenu = hCMenu;
+      end
+      
     end
     
     function delete(obj)
-      deleteValidHandles(obj.hCurrFrame);
+      deleteValidHandles([obj.hCurrFrame,obj.hCurrFrameL]);
       obj.hCurrFrame = [];
+      obj.hCurrFrameL = [];
 %       deleteValidHandles(obj.hMarked);
 %       obj.hMarked = [];
       if ~isempty(obj.hZoom)
@@ -178,9 +230,15 @@ classdef InfoTimeline < handle
       end
       deleteValidHandles(obj.hPts);
       obj.hPts = [];
-      cellfun(@delete,obj.listeners);
+      deleteValidHandles(obj.hPtsL);
+      obj.hPtsL = [];
+      if ~isempty(obj.listeners),
+        cellfun(@delete,obj.listeners);
+      end
       obj.listeners = [];
-      cellfun(@delete,obj.listenersTracker);
+      if ~isempty(obj.listenersTracker),
+        cellfun(@delete,obj.listenersTracker);
+      end
       obj.listenersTracker = [];
       deleteValidHandles(obj.hSelIm);
       obj.hSelIm = [];
@@ -198,20 +256,30 @@ classdef InfoTimeline < handle
       obj.npts = obj.lObj.nLabelPoints;
 
       deleteValidHandles(obj.hPts);
+      deleteValidHandles(obj.hPtsL);
       obj.hPts = gobjects(obj.npts,1);
+      obj.hPtsL = gobjects(obj.npts,1);
       colors = obj.lObj.LabelPointColors;
       ax = obj.hAx;
+      axl = obj.hAxL;
       for i=1:obj.npts
         obj.hPts(i) = plot(ax,nan,i,'.','linestyle','-','Color',colors(i,:),...
           'hittest','off');
+        if obj.isL,
+          obj.hPtsL(i) = patch(axl,nan(1,5),i-1+[0,1,1,0,0],colors(i,:),'EdgeColor','none','hittest','off');
+        end
       end
       
       prefsTL = obj.prefs;
       ax.XColor = prefsTL.XColor;
       dy = .01;
       ax.YLim = [0-dy 1+dy];
+      if obj.isL,
+        axl.YLim = [0-dy obj.npts+dy];
+      end
       
       set(obj.hCurrFrame,'XData',[nan nan],'ZData',[1 1]);
+      set(obj.hCurrFrameL,'XData',[nan nan],'YData',[0,obj.npts],'ZData',[1 1]);
     end
     
     function initNewMovie(obj)
@@ -282,16 +350,33 @@ classdef InfoTimeline < handle
           set(obj.hPts(i),'XData',nan,'YData',nan);
         end
 %         set(obj.hMarked,'XData',nan,'YData',nan);
-        return;
+      else
+        
+        y1 = min(datnonnan(:));
+        y2 = max(datnonnan(:));
+        dy = max(y2-y1,eps);
+        lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
+        x = 1:size(lposNorm,2);
+        for i=1:obj.npts
+          set(obj.hPts(i),'XData',x,'YData',lposNorm(i,:));
+        end
       end
-
-      y1 = min(datnonnan(:));
-      y2 = max(datnonnan(:));
-      dy = max(y2-y1,eps);
-      lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
-      x = 1:size(lposNorm,2);
-      for i=1:obj.npts
-        set(obj.hPts(i),'XData',x,'YData',lposNorm(i,:));
+      
+      if obj.isL,
+        islabeled = obj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
+        for i = 1:obj.npts,
+          if any(islabeled(i,:)),
+            [t0s,t1s] = get_interval_ends(islabeled(i,:));
+            nbouts = numel(t0s);
+            t0s = t0s(:)'-.5; t1s = t1s(:)'-.5;
+            xd = [t0s;t0s;t1s;t1s;t0s];
+            yd = i-1+repmat([0;1;1;0;0],[1,nbouts]);
+          else
+            xd = nan;
+            yd = nan;
+          end
+          set(obj.hPtsL(i),'XData',xd,'YData',yd);
+        end
       end
       
 %       markedFrms = find(any(obj.getMarkedDataCurrMovTgt(),1));
@@ -303,7 +388,7 @@ classdef InfoTimeline < handle
 %       set(obj.hMarked,'XData',xxm(:),'YData',yym(:));
     end
     
-    function setLabelsFrame(obj,frm)
+    function setLabelsFrame(obj,frm) %#ok<INUSD>
       % frm: [n] frame indices. Optional. If not supplied, defaults to
       % labeler.currFrame
       
@@ -332,6 +417,10 @@ classdef InfoTimeline < handle
       x1 = frm+r; %min(frm+r,obj.nfrm);
       obj.hAx.XLim = [x0 x1];
       set(obj.hCurrFrame,'XData',[frm frm]);
+      if obj.isL,
+        obj.hAxL.XLim = [x0 x1];
+        set(obj.hCurrFrameL,'XData',[frm frm]);
+      end
       
       if obj.selectOn
         f0 = obj.selectOnStartFrm;
@@ -354,6 +443,11 @@ classdef InfoTimeline < handle
       colors = obj.lObj.LabelPointColors;
       for i=1:obj.npts
         set(obj.hPts(i),'Color',colors(i,:));
+      end
+      if obj.isL,
+        for i=1:obj.npts
+          set(obj.hPtsL(i),'FaceColor',colors(i,:));
+        end
       end
     end
     
@@ -430,6 +524,10 @@ classdef InfoTimeline < handle
       end
     end
     
+    function v = isL(obj)
+      v = ~isempty(obj.hAxL) && ishandle(obj.hAxL);
+    end
+    
   end
   
   methods %getters setters
@@ -444,7 +542,7 @@ classdef InfoTimeline < handle
     
   %% Private methods
   methods (Access=private) % callbacks
-    function cbkBDF(obj,src,evt) %#ok<INUSL>
+    function cbkBDF(obj,src,evt) 
       if ~(obj.lObj.hasProject && obj.lObj.hasMovie)
         return;
       end
@@ -452,7 +550,7 @@ classdef InfoTimeline < handle
       if evt.Button==1
         % Navigate to clicked frame
         
-        pos = get(obj.hAx,'CurrentPoint');
+        pos = get(src,'CurrentPoint');
         frm = round(pos(1,1));
         frm = min(max(frm,1),obj.nfrm);
         obj.lObj.setFrame(frm);
@@ -478,14 +576,14 @@ classdef InfoTimeline < handle
         obj.newFrame(obj.lObj.currFrame);
       end
     end
-    function cbkContextMenu(obj,src,evt)
+    function cbkContextMenu(obj,src,evt)  %#ok<INUSD>
       bouts = obj.selectGetSelection;
       nBouts = size(bouts,1);
       src.UserData.bouts = bouts;
 
       % Fill in bout number in "clear all" menu item
       hMnuClearAll = obj.hCMenuClearAll;
-      hMnuClearAll.Label = sprintf(hMnuClearAll.UserData.LabelPat,nBouts);
+      set(hMnuClearAll,'Label',sprintf(hMnuClearAll.UserData.LabelPat,nBouts));
       
       % figure out if user clicked within a bout
       pos = get(obj.hAx,'CurrentPoint');
@@ -494,15 +592,17 @@ classdef InfoTimeline < handle
       iBout = find(tf);
       tfClickedInBout = ~isempty(iBout);
       hMnuClearBout = obj.hCMenuClearBout;
-      hMnuClearBout.Visible = onIff(tfClickedInBout);
+      set(hMnuClearBout,'Visible',onIff(tfClickedInBout));
       if tfClickedInBout
         assert(isscalar(iBout));
-        hMnuClearBout.Label = sprintf(hMnuClearBout.UserData.LabelPat,...
-                                      bouts(iBout,1),bouts(iBout,2)-1);
-        hMnuClearBout.UserData.iBout = iBout;  % store bout that user clicked in                                   
+        set(hMnuClearBout,'Label',sprintf(hMnuClearBout.UserData.LabelPat,...
+          bouts(iBout,1),bouts(iBout,2)-1));
+        for i = 1:numel(hMnuClearBout),
+          hMnuClearBout(i).UserData.iBout = iBout;  % store bout that user clicked in
+        end
       end
     end
-    function cbkClearBout(obj,src,evt)
+    function cbkClearBout(obj,src,evt) %#ok<INUSD>
       % Prob should have a select* method, for now just do everything here
       iBout = src.UserData.iBout;
       boutsAll = src.Parent.UserData.bouts;
@@ -510,7 +610,7 @@ classdef InfoTimeline < handle
       obj.hSelIm.CData(:,bout(1):bout(2)-1) = 0;
       obj.setLabelerSelectedFrames();
     end    
-    function cbkGTIsGTModeUpdated(obj,src,evt)
+    function cbkGTIsGTModeUpdated(obj,src,evt) %#ok<INUSD>
       lblObj = obj.lObj;
       gt = lblObj.gtIsGTMode;
       if gt
@@ -520,7 +620,7 @@ classdef InfoTimeline < handle
       obj.hSegLineGT.setVisible(onOff);
       obj.hSegLineGTLbled.setVisible(onOff);
     end
-    function cbkGTSuggUpdated(obj,src,evt)
+    function cbkGTSuggUpdated(obj,src,evt) %#ok<INUSD>
       % full update to any change to labeler.gtSuggMFTable*
       
       lblObj = obj.lObj;
@@ -549,7 +649,7 @@ classdef InfoTimeline < handle
       frmsAllTgtsLbled = tblRes.frm(tblRes.allTgtsLbled);
       obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
     end
-    function cbkGTSuggMFTableLbledUpdated(obj,src,evt)
+    function cbkGTSuggMFTableLbledUpdated(obj,src,evt) %#ok<INUSD>
       % React to incremental update to labeler.gtSuggMFTableLbled
       
       lblObj = obj.lObj;
@@ -646,6 +746,21 @@ classdef InfoTimeline < handle
           case 'Tracks'
             data = obj.tracker.getPropValues(pcode);
         end
+        szassert(data,[obj.npts obj.nfrm]);
+      end
+    end
+    
+     function data = getIsLabeledCurrMovTgt(obj)
+      % lpos: [nptsxnfrm]
+      
+      labeler = obj.lObj;
+      iMov = labeler.currMovie;
+      iTgt = labeler.currTarget;
+      
+      if iMov==0
+        data = nan(obj.npts,1);
+      else
+        data = reshape(all(~isnan(labeler.labeledposGTaware{iMov}(:,:,:,iTgt)),2),[obj.npts,obj.nfrm]);
         szassert(data,[obj.npts obj.nfrm]);
       end
     end
