@@ -1927,7 +1927,7 @@ classdef PostProcess < handle
           obj.RunMedian();
         case 'viterbi',
           obj.RunViterbi();
-        case 'viterbigrid',
+        case 'viterbi_grid',
           obj.RunViterbiGrid();
         otherwise
           error('Not implemented %s',obj.algorithm);
@@ -2582,6 +2582,7 @@ classdef PostProcess < handle
       acCtrXY = nan(obj.N,obj.npts,d);
       score = nan(obj.npts,1);
       for ipt=pts2run
+        fprintf('RunViterbiGrid pt %d\n',ipt);
         iview = 1;
         hmfcn = @(n)obj.ReadHeatmapScore(ipt,iview,n);
         [hmnrnc,hmBestTrajPQ,acBestTrajUV,acCtrPQ,totalcost] = ...
@@ -2594,15 +2595,15 @@ classdef PostProcess < handle
         xy(:,ipt,:) = hmBestTrajPQ(:,[2 1]);
         xyAC(:,ipt,:) = acBestTrajUV(:,[2 1]);
         acCtrXY(:,ipt,:) = acCtrPQ(:,[2 1]);
-        score(ipt) = score;
+        score(ipt) = totalcost;
       end
       
-      assert(strcmp(algorithm,'viterbi_grid'));
-      obj.postdata.(algorithm) = struct;
-      obj.postdata.(algorithm).x = xy;
-      obj.postdata.(algorithm).xAC = xyAC;
-      obj.postdata.(algorithm).acCtrXY = acCtrXY;
-      obj.postdata.(algorithm).score = score;
+      alg = 'viterbi_grid';
+      obj.postdata.(alg) = struct;
+      obj.postdata.(alg).x = xy;
+      obj.postdata.(alg).xAC = xyAC;
+      obj.postdata.(alg).acCtrXY = acCtrXY;
+      obj.postdata.(alg).score = score;
     end
   
 %     function ClearComputedResults(obj)

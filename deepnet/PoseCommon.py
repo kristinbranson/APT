@@ -837,7 +837,7 @@ class PoseCommon(object):
                 self.dep_nets.restore_meta(name + '_' + self.dep_nets.name, sess)
 
         if model_file is None:
-            ckpt_file = os.path.join( self.conf.cachedir, self.conf.expname + '_' + name + '_ckpt')
+            ckpt_file = os.path.join( self.conf.cachedir, name + '_ckpt')
             latest_ckpt = tf.train.get_checkpoint_state( self.conf.cachedir, ckpt_file)
             saver = tf.train.import_meta_graph(latest_ckpt.model_checkpoint_path+'.meta')
             latest_model_file =latest_ckpt.model_checkpoint_path

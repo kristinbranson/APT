@@ -1404,8 +1404,6 @@ def run(args):
 
         for view_ndx, view in enumerate(views):
             conf = create_conf(lbl_file, view, name, cache_dir=args.cache)
-            if args.cache is not None:
-                conf.cachedir = args.cache
             if args.crop_loc is not None:
                 crop_loc = [int(x) for x in args.crop_loc]
                 crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx,:] - 1

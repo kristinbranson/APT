@@ -6382,6 +6382,51 @@ classdef Labeler < handle
       tblMF = [tblMF tLbl];
     end
     
+    function tblMF = lblFileGetLabels(lblfile)
+      % Get all labeled rows from a lblfile
+      %
+      % lblfile: either char/fullpath, or struct from loaded lblfile
+      
+      if ischar(lblfile)
+        lbl = load(lblfile,'-mat');
+      else
+        lbl = lblfile;
+      end
+      lpos = lbl.labeledpos;
+      lpostag = lbl.labeledpostag;
+      lposts = lbl.labeledposTS;
+      
+      tblMF = [];
+      nmov = numel(lpos);
+      for imov=1:nmov
+        lp = lpos{imov};
+        [ipts,d,frm,iTgt] = ind2sub(lp.size,lp.idx);
+        tblI = table(frm,iTgt);
+        tblI = unique(tblI);
+        tblI.mov = MovieIndex(repmat(imov,height(tblI),1));
+        
+        tblMF = [tblMF; tblI];
+      end
+      
+      tblMF = tblMF(:,MFTable.FLDSID);
+      
+      lposfull = cellfun(@SparseLabelArray.full,lpos,'uni',0);
+      lpostagfull = cellfun(@SparseLabelArray.full,lpostag,'uni',0);
+      lpostsfull = cellfun(@SparseLabelArray.full,lposts,'uni',0);
+      
+      sMacro = lbl.projMacros;
+      mfafull = FSPath.fullyLocalizeStandardize(lbl.movieFilesAll,sMacro);
+      tfafull = Labeler.trxFilesLocalize(lbl.trxFilesAll,mfafull);
+            
+      tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,...
+        lposfull,lpostagfull,lpostsfull,...
+        'trxFilesAllFull',tfafull,...
+        'trxCache',containers.Map(),...
+        'wbObj',WaitBarWithCancelCmdline('Reading labels'));
+      
+      % TODO: gt labels
+    end
+    
 %     % Legacy meth. labelGetMFTableLabeledStc is new method but assumes
 %     % .hasTrx
 %     %#3DOK
