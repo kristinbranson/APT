@@ -5,6 +5,7 @@ classdef Labeler < handle
     VERSION = '3.1';
     DEFAULT_LBLFILENAME = '%s.lbl';
     DEFAULT_CFG_FILENAME = 'config.default.yaml';
+    MAX_MOVIENAME_LENGTH = 80;
     
     % non-config props
     SAVEPROPS = { ...
@@ -3127,7 +3128,12 @@ classdef Labeler < handle
         end
         RC.saveprop('lbl_lastmovie',mov);
         if iView==1
-          obj.moviename = FSPath.twoLevelFilename(obj.moviefile);
+          if numel(obj.moviefile) > obj.MAX_MOVIENAME_LENGTH,
+            obj.moviename = ['..',obj.moviefile(end-obj.MAX_MOVIENAME_LENGTH+3:end)];
+          else
+            obj.moviename = obj.moviefile;
+          end
+          %obj.moviename = FSPath.twoLevelFilename(obj.moviefile);
         end
       end
       

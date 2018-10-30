@@ -227,7 +227,10 @@ classdef LabelCoreSeq < LabelCore
     
     function wbuf(obj,~,~)
       % KB 20181029: removing adjust state
-      if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED,
+      if ismember(gco,obj.labeler.hTrx),
+        return;
+      end
+      if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED && ~isempty(obj.iPtMove) && ~isnan(obj.iPtMove),
         obj.iPtMove = nan;
         obj.storeLabels();
       end

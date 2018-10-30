@@ -497,6 +497,9 @@ lObj = handles.labelerObj;
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual);
 set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp());
 
+% this is currently not used - KB made space here for training status
+set(handles.txProjectName,'String','');
+
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
@@ -1079,15 +1082,8 @@ handles.hLinkPrevCurr = ...
   linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
 
 arrayfun(@(x)colormap(x,gray),figs);
-viewNames = lObj.viewNames;
-for i=1:nview
-  vname = viewNames{i};
-  if isempty(vname)
-    figs(i).Name = ''; 
-  else
-    figs(i).Name = sprintf('View: %s',vname);    
-  end
-end
+setGUIFigureNames(handles,lObj,figs);
+setMainAxesName(handles,lObj);
 
 % % AL: important to get clickable points. Somehow this jiggers plot
 % % lims/scaling/coords so that points are more clickable; otherwise
@@ -1130,6 +1126,67 @@ handles = addDepHandle(handles,handles.GTMgr);
 guidata(handles.figure,handles);
 
 %ClearStatus(handles);
+
+function setGUIMainFigureName(lObj)
+
+maxlength = 80;
+if isempty(lObj.projectfile),
+  projname = [lObj.projname,' (unsaved)'];
+elseif numel(lObj.projectfile) <= maxlength,
+  projname = lObj.projectfile;
+else
+  [~,projname,ext] = fileparts(lObj.projectfile);
+  projname = [projname,ext];
+end
+lObj.gdata.figure.Name = sprintf('APT - Project %s',projname);
+
+function setGUIFigureNames(handles,lObj,figs)
+
+setGUIMainFigureName(lObj);
+
+viewNames = lObj.viewNames;
+for i=2:lObj.nview,
+  vname = viewNames{i};
+  if isempty(vname)
+    str = sprintf('View %d',i);
+  else
+    str = sprintf('View: %s',vname);
+  end
+  if numel(lObj.movieInvert) >= i && lObj.movieInvert(i),
+    str = [str,' (inverted)'];
+  end  
+  figs(i).Name = str;
+  figs(i).NumberTitle = 'off';
+end
+
+function setMainAxesName(handles,lObj)
+
+viewNames = lObj.viewNames;
+if lObj.nview > 1,
+  if isempty(viewNames{1}),
+    str = 'View 1, ';
+  else
+    str = sprintf('View: %s, ',viewNames{1});
+  end
+else
+  str = '';
+end
+mname = lObj.moviename;
+if lObj.nview>1
+  str = [str,sprintf('Movieset %d',lObj.currMovie)];  
+else
+  str = [str,sprintf('Movie %d',lObj.currMovie)];
+end
+if lObj.gtIsGTMode
+  str = [str,' (GT)'];
+end
+str = [str,': ',mname];
+if ~isempty(lObj.movieInvert) && lObj.movieInvert(1),
+  str = [str,' (inverted)'];
+end
+
+set(handles.txMoviename,'String',str);
+
 
 function cbkNewMovie(src,evt)
 lObj = src;
@@ -1317,6 +1374,10 @@ else
 end
 lObj.gdata.allAxHiliteMgr.setHighlight(tfHilite);
 
+function hlpUpdateTblTrxHilite(lObj)
+
+lObj.gdata.tblTrx.SelectedRows = lObj.currTarget;  
+
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
 if lObj.hasTrx && ~lObj.isinit
@@ -1324,6 +1385,7 @@ if lObj.hasTrx && ~lObj.isinit
   lObj.currImHud.updateTarget(iTgt);
   lObj.gdata.labelTLInfo.newTarget();
   hlpGTUpdateAxHilite(lObj);
+  hlpUpdateTblTrxHilite(lObj);
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
@@ -1426,7 +1488,8 @@ str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now,16));
 setStatusBarTextWhenClear(handles,str);
 %SetStatus(handles,str,false);
 % set(handles.txStatus,'String',str);
-hlpUpdateTxProjectName(lObj);
+%hlpUpdateTxProjectName(lObj);
+setGUIMainFigureName(lObj);
 
 function cbkProjFSInfoChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1437,7 +1500,8 @@ if ~isempty(info)
   setStatusBarTextWhenClear(lObj.gdata,str);
   %SetStatus(lObj.gdata,str,false);
 end
-hlpUpdateTxProjectName(lObj);
+%hlpUpdateTxProjectName(lObj);
+setGUIMainFigureName(lObj);
 
 function cbkMovieForceGrayscaleChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1448,20 +1512,23 @@ mnu.Checked = onIff(tf);
 function cbkMovieInvertChanged(src,evt)
 lObj = evt.AffectedObject;
 figs = lObj.gdata.figs_all;
-movInvert = lObj.movieInvert;
-viewNames = lObj.viewNames;
-for i=1:lObj.nview
-  name = viewNames{i};
-  if isempty(name)
-    name = ''; 
-  else
-    name = sprintf('View: %s',name);
-  end
-  if movInvert(i)
-    name = [name ' (movie inverted)']; %#ok<AGROW>
-  end
-  figs(i).Name = name;
-end
+setGUIFigureNames(lObj.gdata,lObj,figs);
+setMainAxesName(lObj.gdata,lObj);
+
+% movInvert = lObj.movieInvert;
+% viewNames = lObj.viewNames;
+% for i=1:lObj.nview
+%   name = viewNames{i};
+%   if isempty(name)
+%     name = ''; 
+%   else
+%     name = sprintf('View: %s',name);
+%   end
+%   if movInvert(i)
+%     name = [name ' (movie inverted)']; %#ok<AGROW>
+%   end
+%   figs(i).Name = name;
+% end
 
 function cbkMovieViewBGsubbedChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -2403,6 +2470,7 @@ if ~lObj.isMultiView
 	iAxApply = 1;
 else
   fignames = {handles.figs_all.Name}';
+  fignames{1} = handles.txMoviename.String;
   for iFig = 1:numel(fignames)
     if isempty(fignames{iFig})
       fignames{iFig} = sprintf('<unnamed view %d>',iFig);
@@ -3398,10 +3466,18 @@ if isempty(isbusy)
   color = get(handles.txStatus,'ForegroundColor');
 elseif isbusy
   color = handles.busystatuscolor;
-  set(handles.figure,'Pointer','watch');
+  if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
+    set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','watch');
+  else
+    set(handles.figure,'Pointer','watch');
+  end
 else
   color = handles.idlestatuscolor;
-  set(handles.figure,'Pointer','arrow');
+  if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
+    set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
+  else
+    set(handles.figure,'Pointer','arrow');
+  end
 end
 set(handles.txStatus,'ForegroundColor',color);
 SetStatusText(handles,s);
