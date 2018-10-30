@@ -230,6 +230,29 @@ classdef AWSec2 < handle
       end
     end
     
+    function remoteDirFull = hlpPutCheckRemoteDir(aws,remoteDir,descstr,varargin)
+      % Puts/verifies remote dir. Either succeeds, or fails and harderrors.
+      
+      relative = myparse(varargin,...
+        'relative',true);
+
+      if relative
+        remoteDirFull = ['~/' remoteDir];
+      else
+        remoteDirFull = remoteDir;
+      end
+      
+      cmdremote = sprintf('mkdir -p %s',remoteDirFull);
+      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
+      if tfsucc
+        fprintf('Created/verified remote %s directory %s: %s\n\n',...
+          descstr,remoteDirFull,res);
+      else
+        error('Failed to create remote %s directory %s: %s',descstr,...
+          remoteDirFull,res);
+      end
+    end
+    
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
       cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote);
       [tfsucc,res] = AWSec2.syscmd(cmdfull,varargin{:});
