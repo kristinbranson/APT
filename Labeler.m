@@ -2723,6 +2723,9 @@ classdef Labeler < handle
           obj.notify('gtSuggUpdated');
           obj.notify('gtResUpdated');
         end
+        
+        obj.prevAxesMovieRemap(edata.mIdxOrig2New);
+        
         notify(obj,'movieRemoved',edata);
         
         if obj.currMovie>iMov && gt==obj.gtIsGTMode
@@ -10292,6 +10295,23 @@ classdef Labeler < handle
       
     end
     
+    function clearPrevAxesModeInfo(obj)
+      
+      obj.prevAxesModeInfo.iMov = [];
+      obj.prevAxesModeInfo.iTgt = [];
+      obj.prevAxesModeInfo.frm = [];
+      
+      obj.prevAxesModeInfo.im = [];
+      obj.prevAxesModeInfo.isrotated = false;
+      if isfield(obj.gdata,'image_prev') && ishandle(obj.gdata.image_prev),
+        obj.gdata.image_prev.CData = 0;
+      end
+      if isfield(obj.gdata,'txPrevIm') && ishandle(obj.gdata.txPrevIm),
+        obj.gdata.txPrevIm.String = '';
+      end
+      
+    end
+    
     function islabeled = currFrameIsLabeled(obj)
       
       lpos = obj.labeledposGTaware;
@@ -10387,40 +10407,47 @@ classdef Labeler < handle
       if ~obj.hasMovie || ~obj.isPrevAxesModeInfoSet(ModeInfo),
         return;
       end
-          
-      viewi = 1;
-      if ModeInfo.iMov == obj.currMovie,
-        [im,~,imRoi] = ...
-          obj.movieReader(viewi).readframe(ModeInfo.frm,...
-          'doBGsub',obj.movieViewBGsubbed,'docrop',~obj.cropIsCropMode);
-      else
-        mr = MovieReader;
-        obj.movieMovieReaderOpen(mr,MovieIndex(ModeInfo.iMov),viewi);
-        [im,~,imRoi] = mr.readframe(ModeInfo.frm,...
-          'doBGsub',obj.movieViewBGsubbed,'docrop',~obj.cropIsCropMode);
-      end
-      ModeInfo.im = im;
-      ModeInfo.isrotated = false;
-
-      % to do: figure out [~,~what to do when there are multiple views
-      if ~obj.hasTrx,
-        ModeInfo.xdata = imRoi(1:2);
-        ModeInfo.ydata = imRoi(3:4);
-%         ModeInfo.xdata = [1,size(ModeInfo.im,2)];
-%         ModeInfo.ydata = [1,size(ModeInfo.im,1)];
-      else
-        ydir = get(obj.gdata.axes_prev,'YDir');
-        if strcmpi(ydir,'normal'),
-          pi2sign = -1;
+      
+      try
+        
+        viewi = 1;
+        if ModeInfo.iMov == obj.currMovie,
+          [im,~,imRoi] = ...
+            obj.movieReader(viewi).readframe(ModeInfo.frm,...
+            'doBGsub',obj.movieViewBGsubbed,'docrop',~obj.cropIsCropMode);
         else
-          pi2sign = 1;
+          mr = MovieReader;
+          obj.movieMovieReaderOpen(mr,MovieIndex(ModeInfo.iMov),viewi);
+          [im,~,imRoi] = mr.readframe(ModeInfo.frm,...
+            'doBGsub',obj.movieViewBGsubbed,'docrop',~obj.cropIsCropMode);
         end
-
-        [x,y,th] = obj.targetLoc(ModeInfo.iMov,ModeInfo.iTgt,ModeInfo.frm);
-        ModeInfo.A = [1,0,0;0,1,0;-x,-y,1]*[cos(th+pi2sign*pi/2),-sin(th+pi2sign*pi/2),0;sin(th+pi2sign*pi/2),cos(th+pi2sign*pi/2),0;0,0,1];
-        ModeInfo.tform = maketform('affine',ModeInfo.A);
-        [ModeInfo.im,ModeInfo.xdata,ModeInfo.ydata] = imtransform(ModeInfo.im,ModeInfo.tform,'bicubic');
-        ModeInfo.isrotated = true;
+        ModeInfo.im = im;
+        ModeInfo.isrotated = false;
+        
+        % to do: figure out [~,~what to do when there are multiple views
+        if ~obj.hasTrx,
+          ModeInfo.xdata = imRoi(1:2);
+          ModeInfo.ydata = imRoi(3:4);
+          %         ModeInfo.xdata = [1,size(ModeInfo.im,2)];
+          %         ModeInfo.ydata = [1,size(ModeInfo.im,1)];
+        else
+          ydir = get(obj.gdata.axes_prev,'YDir');
+          if strcmpi(ydir,'normal'),
+            pi2sign = -1;
+          else
+            pi2sign = 1;
+          end
+          
+          [x,y,th] = obj.targetLoc(ModeInfo.iMov,ModeInfo.iTgt,ModeInfo.frm);
+          ModeInfo.A = [1,0,0;0,1,0;-x,-y,1]*[cos(th+pi2sign*pi/2),-sin(th+pi2sign*pi/2),0;sin(th+pi2sign*pi/2),cos(th+pi2sign*pi/2),0;0,0,1];
+          ModeInfo.tform = maketform('affine',ModeInfo.A);
+          [ModeInfo.im,ModeInfo.xdata,ModeInfo.ydata] = imtransform(ModeInfo.im,ModeInfo.tform,'bicubic');
+          ModeInfo.isrotated = true;
+        end
+        
+      catch ME,
+        warning(['Error setting reference image information, clearing out reference image.\n',getReport(ME)]);
+        obj.clearPrevAxesModeInfo();
       end
       
     end
@@ -10566,6 +10593,22 @@ classdef Labeler < handle
       else
         set(obj.gdata.pushbutton_freezetemplate,'Enable','off');
       end
+    end
+    
+    function prevAxesMovieRemap(obj,mIdxOrig2New)
+      
+      if ~obj.isPrevAxesModeInfoSet(),
+        return;
+      end
+      newIdx = mIdxOrig2New(obj.prevAxesModeInfo.iMov);
+      if newIdx == 0,
+        obj.clearPrevAxesModeInfo();
+        obj.FixPrevModeInfo();
+        obj.setPrevAxesMode(obj.prevAxesMode,obj.prevAxesModeInfo);        
+      else
+        obj.prevAxesModeInfo.iMov = newIdx;
+      end
+      
     end
     
   end
