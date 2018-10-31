@@ -125,7 +125,8 @@ postdata_singleheatmap.viterbi_indep_nomiss = pp.postdata.viterbi_indep;
 
 %% Bub heatmap data 
 
-lblfile = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_xv7.lbl';
+lblfile = fullfile('/groups/branson/home/robiea/Projects_data/Labeler_APT',...
+  'Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_xv7.lbl');
 ld = load(lblfile,'-mat');
 
 hmdirs = mydir('/groups/branson/home/kabram/temp/alice/umdn_trks','name','.*_hmap','isdir',true);
@@ -221,46 +222,124 @@ for hmdiri = ihmdirs2run
   end
 end
 
+%% generate MFT pch dirs
+
+FRMCLOSERAD = 75;
+PCHDIR = '/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep/mftsbub';
+DRY = '/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep/mftsbub.dry';
+
+diary(DRY);
+
+tLbl = lObj.labelGetMFTableLabeled();
+fprintf('%d labeled rows\n',height(tLbl));
+nmov = 5;
+%frms2pp = cell(nmov,1);
+for imov=1:nmov  
+  tf = tLbl.mov==imov;
+  tsub = tLbl(tf,:);
+  tgts = unique(tsub.iTgt);
+  maxtgt = max(tgts);
+  %frms2pp{imov} = cell(maxtgt,1);
+  for itgt=1:maxtgt
+    if ~ismember(itgt,tgts)
+      continue;
+    end
+    
+    tsubsub = tsub(tsub.iTgt==itgt,:);
+    nfrmorig = height(tsubsub);
+    frmtf = false(1,max(tsubsub.frm)+FRMCLOSERAD);
+    frmtf(tsubsub.frm) = true;
+    frmtf = imdilate(frmtf,ones(1,2*FRMCLOSERAD+1));
+    frmnew = find(frmtf);
+    [sp,ep] = get_interval_ends(frmtf);
+    ep = ep-1;
+    fprintf('imov itgt nfrmsold nfrmsnew nints %d %d %d %d %d\n',imov,itgt,...
+      nfrmorig,numel(frmnew),numel(ep));
+    
+    for isp=1:numel(sp)
+      
+      spI = sp(isp);
+      epI = ep(isp);
+      fnameS = sprintf('imov%02d_itgt%02d_sfrm%06d_nfrm%06d.m',imov,itgt,...
+        spI,epI-spI+1);
+      fname = fullfile(PCHDIR,fnameS);
+      
+      fh = fopen(fname,'w');
+      fprintf(fh,'iMov = %d\n',imov);
+      fprintf(fh,'targets = %d\n',itgt);
+      fprintf(fh,'startframe = %d\n',spI);
+      fprintf(fh,'endframe = %d\n',epI);
+      fclose(fh);
+      
+      fprintf('Wrote %s\n',fnameS);
+      
+    end
+    %frms2pp{imov}{itgt} = struct('frm0',tsubsub.frm,'frm1',frmnew,'frm1sp',sp,'frm1ep',ep);
+  end
+end
+
+diary off
 %%
 
-
-lblfile = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_xv7.lbl';
+lblfile = fullfile('/groups/branson/home/robiea/Projects_data/Labeler_APT',...
+  'Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_xv7.lbl');
 ld = load(lblfile,'-mat');
 
 hmdirs = mydir('/groups/branson/home/kabram/temp/alice/umdn_trks','name','.*_hmap','isdir',true);
 hmtype = 'jpg';
 
 ihmdirs2run = 5;
-iflies2run = 9;
-startframe = 17000;
-endframe = 18550;
+hmdir = hmdirs{ihmdirs2run};
 
-heatmap_lowthresh = 0.025;
-heatmap_hithresh = 1;
-heatmap_nsamples = 150;
+nowstr = datestr(now,'yyyymmddTHHMMSS');
+savefile = sprintf('runpp_%s.mat',nowstr);
 
-viterbi_dampen = 0.25;
-viterbi_poslambda = 0.0027;
-viterbi_misscost = inf;
-
-
-  'lblfile','',... % used to specify a trxfile 
-  'lblfileImov',[],... % movie index, use this trxfile
-  'npts',[],...
-  'targets',[],...
-  'pts2run',[],...
-  'heatmap_lowthresh',.1,...
-  'heatmap_highthresh',.5,...
-  'heatmap_nsamples',125,...
+allppobj = RunPostProcessing_HeatmapData2(hmdir,...
+  'lblfile',lblfile,... % used to specify a trxfile
+  'lblfileImov',1,... % movie index, use this trxfile
+  'npts',[],... %  'pts2run',14,...
+  'targets',1,...
+  'startframe',3371,...
+  'endframe',3385,...
+  'heatmap_lowthresh',.025,...
+  'heatmap_highthresh',1,...
+  'heatmap_nsamples',150,...
   'heatmap_sample_algorithm','gmm',...
   'usegeometricerror',true,...
   'kde_sigma_px',5,...
-  'viterbi_poslambda',.01,...
-  'viterbi_misscost',5,...
+  'viterbi_poslambda',.0027,...
+  'viterbi_misscost',inf,...
   'viterbi_dampen',.25,...
   'viterbi_grid_acradius',12,...
-  'savefile','',...
-  'ncores',ncores);
+  'savefile',savefile,...
+  'ncores',4);
+
+%%
+s = struct();
+s.lblfile = 'multitarget_bubble_expandedbehavior_20180425_xv7.lbl';
+s.lblfilehmdirs = hmdirs([2 1 5 3 4])';
+save('ppbase.mat','-struct','s');
+
+s = struct();
+s.savefile = sprintf('runpp_%s.mat',nowstr);
+s.targets = 1;
+s.startframe = 3371;
+s.endframe = 3375;
+s.heatmap_lowthresh = .025;
+s.heatmap_highthresh = 1;
+s.heatmap_nsamples = 150;
+s.viterbi_poslambda = .0027;
+s.viterbi_misscost = inf;
+s.viterbi_dampen = .25;
+s.viterbi_grid_acradius = 12;
+save('ppprms.mat','-struct','s');
+
+
+%%
+allppobj = RunPostProcessing_HeatmapData2(...
+  'rootdir','/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep',...
+  'paramfiles','ppbase.mat#ppprms.mat#mfts001.m');
+
 
 %% GT: sh
 

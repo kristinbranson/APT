@@ -6,6 +6,7 @@ classdef DeepTracker < LabelTracker
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrm' 'awsEc2' 'backendType' ...
       'trnName' 'trnNameLbl' 'movIdx2trkfile' 'hideViz'};    
+    RemoteAWSCacheDir = 'cache';
   end
   properties
     sPrm % new-style DT params
@@ -486,18 +487,7 @@ classdef DeepTracker < LabelTracker
       dlLblRemoteRel = [cacheRemoteRel '/' dlLblFileS];
       aws.scpUploadOrVerify(dlLblFile,dlLblRemoteRel,'training file'); % throws
     end
-    function remoteDirFull = hlpPutCheckRemoteDir(aws,remoteDirRel,descstr)
-      % Puts/verifies remote dir. Either succeeds, or fails and harderrors.
-      
-      remoteDirFull = ['~/' remoteDirRel];
-      cmdremote = sprintf('mkdir -p %s',remoteDirFull);
-      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
-      if tfsucc
-        fprintf('Created/verified remote %s directory %s: %s\n\n',descstr,remoteDirFull,res);
-      else
-        error('Failed to create remote %s directory %s: %s',descstr,remoteDirFull,res);
-      end
-    end
+    
   end
   methods
       
@@ -517,7 +507,6 @@ classdef DeepTracker < LabelTracker
         );
             
       nvw = obj.lObj.nview;
-      cacheDir = obj.sPrm.CacheDir;
 
       trnName0 = obj.trnName;
       switch dlTrnType
@@ -558,25 +547,34 @@ classdef DeepTracker < LabelTracker
         error('Failed to update remote APT repo.');
       end
       
+      cacheProjRmt = DLCacheProj(...
+        'projname',obj.lObj.projname,...
+        'view',nan,... 
+        'modelID',trnNm,...
+        'trainType',dlTrnType,...
+        'trainFinalIdx',obj.sPrm.dl_steps); % still needs: .view, .trainID
+      cacheDirLcl = obj.sPrm.CacheDir;
       tfGenNewStrippedLbl = dlTrnType==DLTrainType.New || dlTrnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl        
         s = obj.trnAWSCreateStrippedLblWithAWSUpload(wbObj); %#ok<NASGU>
         
         trnLbl = datestr(now,'yyyymmddTHHMMSS');
+        cacheProjRmt.trainID = trnLbl;
+        
         % Write stripped lblfile to cacheDir (local, and then upload)
-        dlLblFileLclS = [trnNm '_' trnLbl '.lbl'];
-        dlLblFileLcl = fullfile(cacheDir,dlLblFileLclS);
+        dlLblFileLclS = DLCacheProj.lblstrippednameStc(trnNm,trnLbl);
+        dlLblFileLcl = fullfile(cacheDirLcl,dlLblFileLclS);
         save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
         fprintf('Saved stripped lbl file locally: %s\n',dlLblFileLcl);
         
         [cacheRemoteFull,dlLblRemoteRel] = ...
-          DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,trnNm,dlLblFileLcl);        
+          DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,obj.RemoteAWSCacheDir,dlLblFileLcl);        
       else
         trnLbl = obj.trnNameLbl;
         assert(~isempty(trnLbl));
 
         dlLblFileLclS = [trnNm '_' trnLbl '.lbl'];
-        dlLblFileLcl = fullfile(cacheDir,dlLblFileLclS);
+        dlLblFileLcl = fullfile(cacheDirLcl,dlLblFileLclS);
         if exist(dlLblFileLcl,'file')>0
           fprintf(1,'Found existing local stripped lbl file: %s\n',dlLblFileLcl);
         else
@@ -1009,7 +1007,7 @@ classdef DeepTracker < LabelTracker
       
       % check remote cacheDir and stripped lbl
       trnID = obj.trnName;
-      cacheRemoteRel = trnID; 
+      cacheRemoteRel = obj.RemoteAWSCacheDir; 
       [cacheRemoteFull,dlLblRemoteRel] = ...
         DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,cacheRemoteRel,dlLblFile);
       
