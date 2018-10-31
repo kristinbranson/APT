@@ -24,6 +24,7 @@ Trx:
   ShowTrx: 1
   ShowTrxCurrentTargetOnly: 0
   ShowTrxIDLbl: 1
+  HasTrx: 0
 
 View: 
   XDir: 'n'
@@ -49,6 +50,7 @@ View:
   ShowGrid: 0
   CenterOnTarget: 0
   RotateTargetUp: 0
+  OccludedBox: 0
 
 Movie:
   ForceGrayScale: 1

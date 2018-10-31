@@ -1,7 +1,7 @@
 function varargout = ProjectSetup(varargin)
 % New project creation
 
-% Last Modified by GUIDE v2.5 11-May-2017 09:56:40
+% Last Modified by GUIDE v2.5 24-Oct-2018 09:38:44
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -129,6 +129,7 @@ cfg.NumViews = handles.nViews;
 cfg.NumLabelPoints = handles.nPoints;
 cfg.ViewNames = struct2cell(cfg.ViewNames);
 cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
+cfg.Trx.HasTrx = handles.checkbox_multitarget.Value;
 % pumLM = handles.pumLabelingMode;
 % lmVal = pumLM.Value;
 % cfg.LabelMode = char(pumLM.UserData(lmVal));
@@ -153,6 +154,7 @@ handles.nViews = cfg.NumViews;
 handles.nPoints = cfg.NumLabelPoints;
 set(handles.etNumberOfViews,'string',num2str(handles.nViews));
 set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
+set(handles.checkbox_multitarget,'Value',cfg.Trx.HasTrx);
 
 % pumLM = handles.pumLabelingMode;
 % [tf,val] = ismember(cfg.LabelMode,arrayfun(@char,pumLM.UserData,'uni',0));
@@ -349,3 +351,14 @@ for f=flds(:)',f=f{1}; %#ok<FXSET>
     % none, empty
   end
 end
+
+
+% --- Executes on button press in checkbox_multitarget.
+function checkbox_multitarget_Callback(hObject, eventdata, handles)
+% hObject    handle to checkbox_multitarget (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of checkbox_multitarget
+%handles.hasTrx = hObject.Value;
+%guidata(hObject,handles);

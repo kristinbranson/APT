@@ -14,6 +14,9 @@ classdef HeatmapReader < handle
     
     hmcls = 'uint8';
     hmdat % [imnr x imnc x nfrm x npt x ntgt]; preload only; very mem expensive needless to say 
+    hmnormalizeType % 'none','lohi','bitdepth'
+    hmlothresh
+    hmhithresh
   end
   
   methods
@@ -22,6 +25,8 @@ classdef HeatmapReader < handle
     end
     
     function init(obj,hmdir,imnr,imnc,nfrm,npt,ntgt)
+      % imnr/imnc allowed to be empty for 'unknown'
+      
       obj.dir = hmdir;
       obj.imnr = imnr;
       obj.imnc = imnc;
@@ -31,12 +36,12 @@ classdef HeatmapReader < handle
       
       obj.hmdat = [];
       
-      dd = dir(fullfile(hmdir,'*.jpg')); %#ok<CPROPLC>
-      nhmaps = nfrm*npt*ntgt;
-      if numel(dd)<nhmaps
-        warningNoTrace('Heatmap dir contains %d jpgs; expected %d.',...
-          numel(dd),nhmaps);
-      end
+%       dd = dir(fullfile(hmdir,'*.jpg')); %#ok<CPROPLC>
+%       nhmaps = nfrm*npt*ntgt;
+%       if numel(dd)<nhmaps
+%         warningNoTrace('Heatmap dir contains %d jpgs; expected %d.',...
+%           numel(dd),nhmaps);
+%       end
     end
     
     function preloadfull(obj,varargin)
@@ -56,6 +61,8 @@ classdef HeatmapReader < handle
         wbObj.startPeriod('Preloading heatmaps',...
           'shownumden',true,'denominator',obj.nfrm);
       end
+      
+      assert(~isempty(obj.imnr));
 
       dat = zeros(obj.imnr,obj.imnc,obj.nfrm,obj.npt,obj.ntgt,obj.hmcls);
       for f=1:obj.nfrm
@@ -74,23 +81,51 @@ classdef HeatmapReader < handle
       obj.hmdat = dat;
     end
     
-    function hm = read(obj,f,ipt,itgt)
+    function [hm,fname] = read(obj,f,ipt,itgt,varargin)
       % ipt can be vec
       % 
       % hm: [imnr x imnc x numel(ipt)]
-
+      
+      normalizeType = obj.hmnormalizeType;
+      
       if ~isempty(obj.hmdat)
         hm = squeeze(obj.hmdat(:,:,f,ipt,itgt));
         return;
       end
       
-      nptcurr = numel(ipt);
-      hm = zeros(obj.imnr,obj.imnc,nptcurr,obj.hmcls);
       hmdir = obj.dir;
+      
+      if isempty(obj.imnr)
+        assert(~isempty(ipt));
+        fname = sprintf(obj.filepat,itgt,f,ipt(1));
+        fname = fullfile(hmdir,fname);
+        hm0 = imread(fname);
+        [obj.imnr,obj.imnc] = size(hm0);
+        fprintf(1,'Setting heatmap size: [nr nc]=[%d %d]\n',obj.imnr,obj.imnc);
+      end
+      
+      nptcurr = numel(ipt);
+      switch normalizeType
+        case {'lohi' 'bitdepth'}
+          hm = zeros(obj.imnr,obj.imnc,nptcurr);
+        case 'none'
+          hm = zeros(obj.imnr,obj.imnc,nptcurr,obj.hmcls);
+        otherwise
+          assert(false);
+      end
+        
       for iipt=1:nptcurr
         fname = sprintf(obj.filepat,itgt,f,ipt(iipt));
         fname = fullfile(hmdir,fname);
-        hm(:,:,iipt) = imread(fname);
+        hm0 = imread(fname);
+        switch normalizeType
+          case 'lohi'
+            hm0 = double(hm0);
+            hm0 = min(max( (hm0-obj.hmlothresh)/(obj.hmhithresh-obj.hmlothresh), 0), 1);
+          case 'bitdepth'
+            hm0 = HistEq.normalizeGrayscaleIm(hm0);
+        end
+        hm(:,:,iipt) = hm0;
       end
     end
     

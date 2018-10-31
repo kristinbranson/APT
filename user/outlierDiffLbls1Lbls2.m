@@ -1,4 +1,4 @@
-function [suspscore,tblsusp,diagstr] = outlierSuspCompute(lObj)
+function [suspscore,tblsusp,diagstr] = outlierDiffLbls1Lbls2(lObj)
 
 resp = inputdlg('Specify mean pixel err threshold','',1,{'4.0'});
 if isempty(resp)

@@ -16,6 +16,7 @@ class cvc(object):
         FRAME_POSITION = cv2.cv.CV_CAP_PROP_POS_FRAMES
         FRAME_MSEC = cv2.cv.CV_CAP_PROP_POS_MSEC
         FRAME_FPS = cv2.cv.CV_CAP_PROP_FPS
+        INTER_CUBIC = cv2.cv.CV_INTER_CUBIC
     else:
         FRAME_COUNT = cv2.CAP_PROP_FRAME_COUNT
         FRAME_WIDTH = cv2.CAP_PROP_FRAME_WIDTH
@@ -23,6 +24,7 @@ class cvc(object):
         FRAME_POSITION = cv2.CAP_PROP_POS_FRAMES
         FRAME_MSEC = cv2.CAP_PROP_POS_MSEC
         FRAME_FPS = cv2.CAP_PROP_FPS
+        INTER_CUBIC = cv2.INTER_CUBIC
 
     
 

@@ -17,6 +17,8 @@ d = 2;
 scales = 1;
 heatmap_lowthresh = .1;
 heatmap_highthresh = .5;
+heatmap_nsamples = 25;
+heatmap_sample_algorithm = 'gmm';
 frames = [];
 
 if ncores == 1,
@@ -48,22 +50,26 @@ if isdeployed,
     'viterbi_poslambda','viterbi_misscost','viterbi_dampen','ncores');
 end
 
-[trxfile,N,lblfile,expname,expdir,nviews,npts,targets,startframe,endframe,scales,...
-  heatmap_lowthresh,heatmap_highthresh,usegeometricerror,...
+[trxfile,N,lblfile,expname,expdir,nviews,npts,targets,pts2run,startframe,endframe,scales,...
+  heatmap_lowthresh,heatmap_highthresh,heatmap_nsamples,heatmap_sample_algorithm,...
+  usegeometricerror,...
   viterbi_poslambda,viterbi_misscost,viterbi_dampen,savefile,algorithms,hmtype,...
   frames,ncores] = ...
-  myparse(rest,'trxfile',trxfile,'nframes',nframes,...
+  myparse(rest,'trxfile',trxfile,... 
+  'nframes',nframes,...
   'lblfile',lblfile,'expname',expname,'expdir',expdir,...
   'nviews',nviews,'npts',npts,'targets',targets,...
-  'startframe',startframe,'endframe',endframe,...
+  'pts2run',[],...
+  'startframe',startframe,'endframe',endframe,... % raw/movie frames marking interval to consider (inclusive). if trx, then these may be modified based on traj availability etc
   'scales',scales,...
   'heatmap_lowthresh',heatmap_lowthresh,'heatmap_highthresh',heatmap_highthresh,...
+  'heatmap_nsamples',heatmap_nsamples,'heatmap_sample_algorithm',heatmap_sample_algorithm,...
   'usegeometricerror',usegeometricerror,...
   'viterbi_poslambda',viterbi_poslambda,'viterbi_misscost',viterbi_misscost,...
   'viterbi_dampen',viterbi_dampen,...
   'savefile',savefile,'algorithms',algorithms,...
   'hmtype',hmtype,...
-  'frames',frames,...
+  'frames',frames,... % raw/movie frames to consider; must be within interval [startframe,endframe]; risky with trx
   'ncores',ncores);
 
 if ~iscell(algorithms),
@@ -163,7 +169,6 @@ end
 for flyi = 1:numel(targets),
   fly = targets(flyi);
 
-
   if isempty(startframe0),
     if istrx,
       startframe = td.trx(fly).firstframe;
@@ -183,8 +188,11 @@ for flyi = 1:numel(targets),
     assert(endframe <= td.trx(fly).endframe);
   end
   N = endframe-startframe+1;
+  
+  % startframe, endframe, N now set for this fly. startframe and endframe
+  % are real/raw/movie frame numbers
 
-
+  % Generate trxcurr, cropped trx for this fly
   if istrx,
     trxcurr = td.trx(fly);
     fns = fieldnames(trxcurr);
@@ -194,27 +202,29 @@ for flyi = 1:numel(targets),
       if numel(trxcurr.(fns{i})) == 1 || ischar(trxcurr.(fns{i})),
         continue;
       end
-      l = trxcurr.nframes-numel(trxcurr.(fns{i}));
-      trxcurr.(fns{i}) = trxcurr.(fns{i})(i0:i1-l);
+      l = trxcurr.nframes-numel(trxcurr.(fns{i})); % AL: guess this is just for dt
+      trxcurr.(fns{i}) = trxcurr.(fns{i})(i0:i1-l); 
     end
-    frm = (startframe:endframe)';
-    tblMFT = table(frm);
     
+    % cropped trx, metadata fields no longer correct
+    trxcurr = rmfield(trxcurr,intersect(fns,{'off' 'firstframe' 'nframes' 'endframe'}));
+    frm = (startframe:endframe)';
+    tblMFT = table(frm);    
   else
     trxcurr = [];
   end
-
-
-  if istrx,
-    trxfirstframe = td.trx(fly).firstframe;
-  else
-    trxfirstframe = 1;
-  end
+  
+%   if istrx,
+%     trxfirstframe = td.trx(fly).firstframe;
+%   else
+%     trxfirstframe = 1;
+%   end
   
   readscorefuns = cell(npts,nviews);
   for viewi = 1:nviews,
     for pti = 1:npts,
-      readscorefuns{pti,viewi} = get_readscore_fcn(hmdir,fly,pti,'hmtype',hmtype,'firstframe',trxfirstframe);
+      readscorefuns{pti,viewi} = get_readscore_fcn(hmdir,fly,pti,...
+        'hmtype',hmtype,'firstframe',startframe);
     end
   end
   
@@ -228,19 +238,27 @@ for flyi = 1:numel(targets),
     scales = repmat(scales,[1,d]);
   end
   
-  
   ppobj = PostProcess();
+  if ~isempty(pts2run)
+    ppobj.pts2run = pts2run;
+  end
   ppobj.SetNCores(ncores);
   ppobj.SetUseGeometricError(usegeometricerror);
-  ppobj.SetHeatmapData(readscorefuns,N,scales,trxcurr,frames-trxfirstframe+1);
+  ppobj.SetHeatmapData(readscorefuns,N,scales,trxcurr,frames-startframe+1);
   if istrx,
     ppobj.SetMFTInfo(tblMFT);
   end
   ppobj.SetKDESigma(kde_sigma_px);
   ppobj.SetHeatmapLowThresh(heatmap_lowthresh);
   ppobj.SetHeatmapHighThresh(heatmap_highthresh);
-  ppobj.SetViterbiParams('poslambda',viterbi_poslambda,'dampen',viterbi_dampen,'misscost',viterbi_misscost);
-
+  ppobj.SetHeatmapNumSamples(heatmap_nsamples);
+  ppobj.SetHeatmapSampleAlg(heatmap_sample_algorithm);
+  ppobj.SetViterbiParams('poslambda',viterbi_poslambda,...
+    'dampen',viterbi_dampen,'misscost',viterbi_misscost);
+  
+  assignin('base','ppobj',ppobj);
+  fprintf(1,'assigned ppobj to base WS\n');
+  
   for algi = 1:numel(algorithms),
     fprintf('Running %s...\n',algorithms{algi});
     starttime = tic;

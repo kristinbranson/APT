@@ -27,6 +27,7 @@ classdef BgTrainWorkerObj < handle
   end
   
   methods
+    
     function obj = BgTrainWorkerObj(dlLblFileLocal,jobID)
       lbl = load(dlLblFileLocal,'-mat');
       obj.nviews = lbl.cfg.NumViews;
@@ -36,12 +37,12 @@ classdef BgTrainWorkerObj < handle
       obj.projname = lbl.projname;
       obj.jobID = jobID;
 
-      obj.trnLogLastStep = repmat(-1,1,obj.nviews);
+      obj.reset();
 
       % Concrete subclasses responsible for initting artfct* props      
     end
     
-    function sRes = compute(obj)
+    function sRes = compute(obj) % obj const except for .trnLogLastStep
       % sRes: [nviewx1] struct array.
             
       % - Read the json for every view and see if it has been updated.
@@ -60,7 +61,7 @@ classdef BgTrainWorkerObj < handle
         'logFileErrLikely',[],... % true if Bsub logfile suggests error
         'killFile',[],... % char, full path to KILL tokfile
         'killFileExists',[]... % true if KILL tokfile found
-        ); % 
+        );
       for ivw=1:obj.nviews
         json = obj.artfctTrainDataJson{ivw};
         finalindex = obj.artfctFinalIndex{ivw};
@@ -96,21 +97,26 @@ classdef BgTrainWorkerObj < handle
         end
       end
     end
+    
+    function reset(obj) 
+      % clears/inits .trnLogLastStep, the only mutatable prop
+      obj.trnLogLastStep = repmat(-1,1,obj.nviews);
+    end
    
-    function printLogfiles(obj)
+    function printLogfiles(obj) % obj const
       logFiles = obj.artfctLogs;
       logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
       BgTrainWorkerObj.printLogfilesStc(logFiles,logFileContents)
     end
     
-    function [tfEFE,errFile] = errFileExists(obj)
+    function [tfEFE,errFile] = errFileExists(obj) % obj const
       errFile = unique(obj.artfctErrFile);
       assert(isscalar(errFile));
       errFile = errFile{1};
       tfEFE = obj.errFileExistsNonZeroSize(errFile);
     end
     
-    function tfLogErrLikely = logFileErrLikely(obj,file)
+    function tfLogErrLikely = logFileErrLikely(obj,file) % obj const
       tfLogErrLikely = obj.fileExists(file);
       if tfLogErrLikely
         logContents = obj.fileContents(file);

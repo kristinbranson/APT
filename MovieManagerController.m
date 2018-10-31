@@ -183,6 +183,7 @@ classdef MovieManagerController < handle
       assert(isscalar(iMov) && iMov>0);
       % iMov is gt-aware movie index (unsigned)
       lObj = obj.labeler;
+      lObj.SetStatus(sprintf('Switching to movie %d...\n',iMov));
       if obj.selectedTabMatchesLabelerGTMode
         lObj.movieSet(iMov);
       else
@@ -193,6 +194,7 @@ classdef MovieManagerController < handle
         end
         warningNoTrace('MovieManagerController:nav',warnstr);
       end
+      lObj.ClearStatus();
     end
     
     function cbkPushButton(obj,src,evt)
@@ -203,9 +205,13 @@ classdef MovieManagerController < handle
       
       switch src.Tag
         case 'pbAdd'
+          lObj.SetStatus('Adding new movie...');
           obj.addLabelerMovie();
+          lObj.ClearStatus();
         case 'pbRm'
+          lObj.SetStatus('Removing movie...');
           obj.rmLabelerMovie();
+          lObj.ClearStatus();
         case 'pbSwitch' 
           iMov = obj.mmTblCurr.getSelectedMovies();
           if ~isempty(iMov)
@@ -218,7 +224,9 @@ classdef MovieManagerController < handle
           if isempty(iMov)
             msgbox('All movies are labeled!');
           else
+            lObj.SetStatus(sprintf('Switching to unlabeled movie %d',iMov));
             lObj.movieSet(iMov);
+            lObj.ClearStatus();
           end
         case 'pbGTFrames'
           lObj.gtShowGTManager();
@@ -285,11 +293,14 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       fname = fullfile(pname,fname);
+      lObj.SetStatus(sprintf('Adding movies from file %s...',fname));
       lObj.movieAddBatchFile(fname);
       RC.saveprop('lastMovieBatchFile',fname);
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
+        lObj.SetStatus('Switching to movie 1...');
         lObj.movieSet(1);
       end
+      lObj.ClearStatus();
     end
   end
   
@@ -370,7 +381,7 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       if lObj.nview==1
-        [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
+        [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true,lObj.projectHasTrx);
         if ~tfsucc
           return;
         end

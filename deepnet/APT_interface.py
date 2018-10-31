@@ -213,7 +213,10 @@ def create_conf(lbl_file, view, name, net_type='unet', cache_dir=None):
     from poseConfig import config
     conf = config()
     conf.n_classes = int(read_entry(H['cfg']['NumLabelPoints']))
-    proj_name = read_string(H['projname']) + '_view{}'.format(view)
+    if H['projname'][0] == 0:
+        proj_name = 'default_view{}'.format(view)
+    else:
+        proj_name = read_string(H['projname']) + '_view{}'.format(view)
     conf.view = view
     conf.set_exp_name(proj_name)
     # conf.cacheDir = read_string(H['cachedir'])
@@ -227,7 +230,8 @@ def create_conf(lbl_file, view, name, net_type='unet', cache_dir=None):
     if cache_dir is None:
         conf.cachedir = os.path.join(read_string(dt_params['CacheDir']), proj_name, name)
     else:
-        conf.cachedir = cache_dir
+        conf.cachedir = os.path.join(cache_dir, proj_name, name)
+        # conf.cachedir = cache_dir
 
     if not os.path.exists(os.path.split(conf.cachedir)[0]):
         os.mkdir(os.path.split(conf.cachedir)[0])
@@ -1105,7 +1109,6 @@ def classify_movie(conf, pred_fn,
                                  cap, flipud, T, crop_loc)
 
         base_locs, hmaps = pred_fn(all_f)
-        base_locs = base_locs   # for matlabs 1 - indexing
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
             trx_ndx = cur_entry[1]
@@ -1134,7 +1137,7 @@ def classify_movie(conf, pred_fn,
 def get_unet_pred_fn(conf, model_file=None):
 
     tf.reset_default_graph()
-    self = PoseUNet.PoseUNet(conf)
+    self = PoseUNet.PoseUNet(conf,name='deepnet')
     try:
         sess, latest_model_file = self.init_net_meta(1, model_file)
     except tf.errors.InternalError:
@@ -1162,7 +1165,7 @@ def get_unet_pred_fn(conf, model_file=None):
         except tf.errors.ResourceExhaustedError:
             logging.exception('Out of GPU Memory. Either reduce the batch size or increase unet_rescale')
             exit(1)
-        base_locs = PoseTools.get_pred_locs(pred)
+        base_locs = PoseTools.get_pred_locs(pred,self.edge_ignore)
         base_locs = base_locs * conf.unet_rescale
         return base_locs, pred
 
@@ -1189,7 +1192,7 @@ def train_unet(conf, args, restore):
     if not args.skip_db:
         create_tfrecord(conf, False, use_cache=args.use_cache)
     tf.reset_default_graph()
-    self = PoseUNet.PoseUNet(conf)
+    self = PoseUNet.PoseUNet(conf,name='deepnet')
     self.train_data_name = 'traindata'
     self.train_unet(restore=restore, train_type=1)
 
@@ -1223,8 +1226,6 @@ def train(lblfile, nviews, name, args):
 
     for cur_view in views:
         conf = create_conf(lblfile, cur_view, name, cache_dir=args.cache)
-        if args.cache is not None:
-            conf.cachedir = args.cache
 
         conf.view = cur_view
 
@@ -1406,8 +1407,6 @@ def run(args):
 
         for view_ndx, view in enumerate(views):
             conf = create_conf(lbl_file, view, name, cache_dir=args.cache)
-            if args.cache is not None:
-                conf.cachedir = args.cache
             if args.crop_loc is not None:
                 crop_loc = [int(x) for x in args.crop_loc]
                 crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx,:] - 1

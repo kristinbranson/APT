@@ -155,7 +155,6 @@ classdef AWSec2 < handle
       end
       obj.inspectInstance();
     end
-
     
     function checkInstanceRunning(obj)
       % - If runs silently, obj appears to be a running EC2 instance with no
@@ -170,6 +169,17 @@ classdef AWSec2 < handle
       if ~strcmp(state.Name,'running')
         error('EC2 instance id %s is not in the ''running'' state.',...
           obj.instanceID)
+      end
+    end
+    
+    function tfsucc = getRemotePythonPID(obj)
+      [tfsucc,res] = obj.cmdInstance('pgrep python','dispcmd',true);
+      if tfsucc
+        pid = str2double(strtrim(res));
+        obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
+        fprintf('Remote PID is: %d.\n\n',pid);
+      else
+        warningNoTrace('Failed to ascertain remote PID.');
       end
     end
  
@@ -217,6 +227,29 @@ classdef AWSec2 < handle
         else
           error('Failed to upload %s %s.',fileDescStr,src);
         end
+      end
+    end
+    
+    function remoteDirFull = hlpPutCheckRemoteDir(aws,remoteDir,descstr,varargin)
+      % Puts/verifies remote dir. Either succeeds, or fails and harderrors.
+      
+      relative = myparse(varargin,...
+        'relative',true);
+
+      if relative
+        remoteDirFull = ['~/' remoteDir];
+      else
+        remoteDirFull = remoteDir;
+      end
+      
+      cmdremote = sprintf('mkdir -p %s',remoteDirFull);
+      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
+      if tfsucc
+        fprintf('Created/verified remote %s directory %s: %s\n\n',...
+          descstr,remoteDirFull,res);
+      else
+        error('Failed to create remote %s directory %s: %s',descstr,...
+          remoteDirFull,res);
       end
     end
     
@@ -286,7 +319,7 @@ classdef AWSec2 < handle
     function cmd = launchInstanceCmd(keyName,varargin)
       [ami,instType,secGrp] = myparse(varargin,...
         'ami','ami-0168f57fb900185e1',...
-        'instType','p2.xlarge',...
+        'instType','p3.2xlarge',...
         'secGrp','apt_dl');
       cmd = sprintf('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s --key-name %s',ami,instType,secGrp,keyName);
     end

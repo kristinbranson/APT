@@ -6,6 +6,7 @@ classdef DeepTracker < LabelTracker
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrm' 'awsEc2' 'backendType' ...
       'trnName' 'trnNameLbl' 'movIdx2trkfile' 'hideViz'};    
+    RemoteAWSCacheDir = 'cache';
   end
   properties
     sPrm % new-style DT params
@@ -43,10 +44,10 @@ classdef DeepTracker < LabelTracker
     % FUTURE TODO: what happens when user alters cacheDir?
     trnName
     trnNameLbl
-    
     trnTblP % transient, unmanaged. Training rows for last retrain
     
     bgTrnMonitor % BgTrainMonitor obj
+    bgTrnMonBGWorkerObj % bgTrainWorkerObj for last/current train
     bgTrnMonitorVizClass % class of trainMonitorViz object to use to monitor training
         
     %% track
@@ -258,13 +259,55 @@ classdef DeepTracker < LabelTracker
       obj.trnNameLbl = '';
       obj.bgTrnReset();
     end
+
+    function bgTrnStart(obj,trnMonitorObj,trnWorkerObj)
+      % fresh start new training monitor 
+      
+      if ~isempty(obj.bgTrnMonitor)
+        error('Training monitor exists. Call .bgTrnReset first to stop/remove existing monitor.');
+      end
+      assert(isempty(obj.bgTrnMonBGWorkerObj));
+
+      nvw = obj.lObj.nview;
+      trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw);
+                
+      trnMonitorObj.prepare(trnMonVizObj,trnWorkerObj);
+      trnMonitorObj.start();
+      obj.bgTrnMonitor = trnMonitorObj;
+      obj.bgTrnMonBGWorkerObj = trnWorkerObj;
+    end
     
+    function bgTrnRestart(obj,bgTrnMonitorObj)
+      % Mostly for debugging hanging monitors. "Kills" current bg training
+      % monitor and restarts.
+      
+      if isempty(obj.bgTrnMonitor) || isempty(obj.bgTrnMonBGWorkerObj)
+        error('Training monitor does not exist.');
+      end
+      
+      workerObj = obj.bgTrnMonBGWorkerObj;
+      fprintf(1,'Restarting bg train monitor. Monitor cls: %s. Worker cls: %s\n',...
+        class(bgTrnMonitorObj),class(workerObj));
+
+      workerObj.reset();
+      delete(obj.bgTrnMonitor);
+      obj.bgTrnMonitor = [];
+      obj.bgTrnMonBGWorkerObj = [];
+      
+      obj.bgTrnStart(bgTrnMonitorObj,workerObj);
+    end
+
     function bgTrnReset(obj)
+      % stop the training monitor
       if ~isempty(obj.bgTrnMonitor)
         delete(obj.bgTrnMonitor);
       end
-      obj.bgTrnMonitor = [];
-    end
+      obj.bgTrnMonitor = [];      
+      if ~isempty(obj.bgTrnMonBGWorkerObj)
+        delete(obj.bgTrnMonBGWorkerObj);
+      end
+      obj.bgTrnMonBGWorkerObj = [];
+    end    
     
     function tf = getHasTrained(obj)
       tf = ~isempty(obj.trnName);
@@ -301,8 +344,7 @@ classdef DeepTracker < LabelTracker
       trnBackEnd = obj.backendType;
       fprintf('Your training backend is: %s\n',char(trnBackEnd));
       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
-      fprintf(1,'\n');
-            
+      fprintf(1,'\n');            
       
       switch trnBackEnd
         case DLBackEnd.Bsub
@@ -358,9 +400,10 @@ classdef DeepTracker < LabelTracker
       
       % Write stripped lblfile to cacheDir
       s = obj.lObj.trackCreateDeepTrackerStrippedLbl(); 
-%       if trnBackEnd==DLBackEnd.AWS
-%         s.cfg.NumChans = size(s.preProcData_I{1},3); % check with Mayank, thought we wanted number of "underlying" chans but DL is erring when pp data is grayscale but NumChans is 3
-%       end
+      if trnBackEnd==DLBackEnd.AWS
+        % want number of "underlying" chans here
+        s.cfg.NumChans = size(s.preProcData_I{1},3); 
+      end
       dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
       save(dlLblFile,'-mat','-v7.3','-struct','s');
       fprintf('Saved stripped lbl file: %s\n',dlLblFile);
@@ -444,18 +487,7 @@ classdef DeepTracker < LabelTracker
       dlLblRemoteRel = [cacheRemoteRel '/' dlLblFileS];
       aws.scpUploadOrVerify(dlLblFile,dlLblRemoteRel,'training file'); % throws
     end
-    function remoteDirFull = hlpPutCheckRemoteDir(aws,remoteDirRel,descstr)
-      % Puts/verifies remote dir. Either succeeds, or fails and harderrors.
-      
-      remoteDirFull = ['~/' remoteDirRel];
-      cmdremote = sprintf('mkdir -p %s',remoteDirFull);
-      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
-      if tfsucc
-        fprintf('Created/verified remote %s directory %s: %s\n\n',descstr,remoteDirFull,res);
-      else
-        error('Failed to create remote %s directory %s: %s',descstr,remoteDirFull,res);
-      end
-    end
+    
   end
   methods
       
@@ -475,7 +507,6 @@ classdef DeepTracker < LabelTracker
         );
             
       nvw = obj.lObj.nview;
-      cacheDir = obj.sPrm.CacheDir;
 
       trnName0 = obj.trnName;
       switch dlTrnType
@@ -516,25 +547,34 @@ classdef DeepTracker < LabelTracker
         error('Failed to update remote APT repo.');
       end
       
+      cacheProjRmt = DLCacheProj(...
+        'projname',obj.lObj.projname,...
+        'view',nan,... 
+        'modelID',trnNm,...
+        'trainType',dlTrnType,...
+        'trainFinalIdx',obj.sPrm.dl_steps); % still needs: .view, .trainID
+      cacheDirLcl = obj.sPrm.CacheDir;
       tfGenNewStrippedLbl = dlTrnType==DLTrainType.New || dlTrnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl        
         s = obj.trnAWSCreateStrippedLblWithAWSUpload(wbObj); %#ok<NASGU>
         
         trnLbl = datestr(now,'yyyymmddTHHMMSS');
+        cacheProjRmt.trainID = trnLbl;
+        
         % Write stripped lblfile to cacheDir (local, and then upload)
-        dlLblFileLclS = [trnNm '_' trnLbl '.lbl'];
-        dlLblFileLcl = fullfile(cacheDir,dlLblFileLclS);
+        dlLblFileLclS = DLCacheProj.lblstrippednameStc(trnNm,trnLbl);
+        dlLblFileLcl = fullfile(cacheDirLcl,dlLblFileLclS);
         save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
         fprintf('Saved stripped lbl file locally: %s\n',dlLblFileLcl);
         
         [cacheRemoteFull,dlLblRemoteRel] = ...
-          DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,trnNm,dlLblFileLcl);        
+          DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,obj.RemoteAWSCacheDir,dlLblFileLcl);        
       else
         trnLbl = obj.trnNameLbl;
         assert(~isempty(trnLbl));
 
         dlLblFileLclS = [trnNm '_' trnLbl '.lbl'];
-        dlLblFileLcl = fullfile(cacheDir,dlLblFileLclS);
+        dlLblFileLcl = fullfile(cacheDirLcl,dlLblFileLclS);
         if exist(dlLblFileLcl,'file')>0
           fprintf(1,'Found existing local stripped lbl file: %s\n',dlLblFileLcl);
         else
@@ -565,17 +605,12 @@ classdef DeepTracker < LabelTracker
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
         % start train monitor
-        assert(isempty(obj.bgTrnMonitor));
-        bgTrnMonitorObj = BgTrainMonitorAWS;
         
-        trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw);
+        bgTrnMonitorObj = BgTrainMonitorAWS();
         bgTrnWorkerObj = BgTrainWorkerObjAWS(dlLblFileLcl,trnNm,trnNm,...
           logfilesRemote,aws);
-                
-        bgTrnMonitorObj.prepare(trnMonVizObj,bgTrnWorkerObj);
-        bgTrnMonitorObj.start();
-        obj.bgTrnMonitor = bgTrnMonitorObj;
-        
+        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
+
         % spawn training
         for iview=1:nvw
           if iview>1
@@ -586,14 +621,7 @@ classdef DeepTracker < LabelTracker
           system(syscmds{iview});
           fprintf('Training job (view %d) spawned.\n\n',iview);
           
-          [tfsucc,res] = aws.cmdInstance('pgrep python','dispcmd',true);
-          if tfsucc
-            remotePID = str2double(strtrim(res));
-            aws.remotePID = remotePID; % right now each aws instance only has one GPU, so can only do one train/track at a time
-            fprintf('Remote PID is: %d.\n\n',remotePID);
-          else
-            warningNoTrace('Failed to ascertain remote PID.');
-          end          
+          aws.getRemotePythonPID();
         end
         
         obj.trnName = trnNm;
@@ -648,11 +676,12 @@ classdef DeepTracker < LabelTracker
           s.trackerData{2}.sPrm.sizey = szroi;
         end
         
+        aws = obj.awsEc2;
         DeepTracker.hlpPutCheckRemoteDir(aws,'data','data');
         
         iMovTrn = unique(obj.trnTblP.mov); % must be regular mov, not GT
         
-        assert(nvw==1,'Single-view only');
+        assert(obj.nview==1,'Single-view only');
         IVIEW = 1;
         nmov = size(s.trxFilesAll,1);
         for iMov=1:nmov
@@ -816,10 +845,6 @@ classdef DeepTracker < LabelTracker
       end
       trnID = obj.trnName;
       cacheDir = obj.sPrm.CacheDir;
-      dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
-      if exist(dlLblFile,'file')==0
-        error('Cannot find training file: %s\n',dlLblFile);
-      end
 
       if obj.lObj.cropProjHasCrops
         assert(~tftrx);
@@ -839,9 +864,18 @@ classdef DeepTracker < LabelTracker
       trkBackEnd = obj.backendType; % Currently trn/trk backends are the same
       switch trkBackEnd
         case DLBackEnd.Bsub
-          obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,f0,f1);
+          dlLblFileLcl = fullfile(cacheDir,[trnID '.lbl']);
+          if exist(dlLblFileLcl,'file')==0
+            error('Cannot find training file: %s\n',dlLblFileLcl);
+          end
+          obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
         case DLBackEnd.AWS
-          obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,f0,f1);
+          dlLblFileLclS = [trnID '_' obj.trnNameLbl '.lbl'];
+          dlLblFileLcl = fullfile(cacheDir,dlLblFileLclS);
+          if exist(dlLblFileLcl,'file')==0
+            error('Cannot find training file: %s\n',dlLblFileLcl);
+          end
+          obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
         otherwise
           assert(false);
       end
@@ -973,7 +1007,7 @@ classdef DeepTracker < LabelTracker
       
       % check remote cacheDir and stripped lbl
       trnID = obj.trnName;
-      cacheRemoteRel = trnID; 
+      cacheRemoteRel = obj.RemoteAWSCacheDir; 
       [cacheRemoteFull,dlLblRemoteRel] = ...
         DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,cacheRemoteRel,dlLblFile);
       
@@ -1078,14 +1112,7 @@ classdef DeepTracker < LabelTracker
           system(syscmd);     
           fprintf('Tracking job (view %d) spawned.\n\n',ivw);
           
-          [tfsucc,res] = aws.cmdInstance('pgrep python','dispcmd',true);
-          if tfsucc
-            remotePID = str2double(strtrim(res));
-            aws.remotePID = remotePID;
-            fprintf('Remote PID is: %d.\n\n',remotePID);
-          else
-            warningNoTrace('Failed to ascertain remote PID.');
-          end
+          aws.getRemotePythonPID();
         end
         
         obj.trkSysInfo = trksysinfo;
@@ -1250,8 +1277,8 @@ classdef DeepTracker < LabelTracker
     function codestr = trainCodeGenAWSUpdateAPTRepo()
        codestr = {
         'cd /home/ubuntu/APT/deepnet;';
-        'git pull;'; 
         'git checkout feature/deeptrack;';
+        'git pull;'; 
         };
       codestr = cat(2,codestr{:});      
     end
@@ -1574,6 +1601,8 @@ classdef DeepTracker < LabelTracker
       if tfHasRes
         obj.trackCurrResLoadFromTrks(trks);
         
+        tfTrx = obj.lObj.hasTrx;
+        
         trkfilesCurr = obj.trackResGetTrkfiles(mIdx); % [ntrk x nview]
         ntrkCurr = size(trkfilesCurr,1);
         for ivw=1:1 % TODO: multiview
@@ -1583,7 +1612,17 @@ classdef DeepTracker < LabelTracker
             hmapDirS = [trkfileF '_hmap'];
             hmapDir = fullfile(trkfileP,hmapDirS);
             if exist(hmapDir,'dir')>0
-              obj.trkVizer.heatMapInit(hmapDir);
+              if tfTrx
+                % Ideally the heatmaps size is related to 
+                % sPrm....TargetCrop.Radius, but they might not have set
+                % that, etc etc
+                hmnr = [];
+                hmnc = [];
+              else
+                hmnr = obj.lObj.movienr;
+                hmnc = obj.lObj.movienc;
+              end
+              obj.trkVizer.heatMapInit(hmapDir,hmnr,hmnc);
               if ntrkCurr==1
                 fprintf('Found heatmap dir: %s\n',hmapDirS);
               else                
@@ -1650,6 +1689,10 @@ classdef DeepTracker < LabelTracker
       obj.trkVizer.setHideViz(tf);
       obj.hideViz = tf;
     end
+    function updateLandmarkColors(obj)
+      ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;      
+      obj.trkVizer.updateLandmarkColors(ptsClrs);      
+    end
   end
 
   %% Labeler nav
@@ -1661,8 +1704,21 @@ classdef DeepTracker < LabelTracker
       end
             
       xy = obj.getPredictionCurrentFrame();    
+      frm = lObj.currFrame;
       itgt = lObj.currTarget;
-      obj.trkVizer.updateTrackRes(xy(:,:,itgt),lObj.currFrame,itgt);
+      trx = lObj.currTrx;
+      if isempty(trx)
+        trxXY = [];
+        trxTh = [];        
+      else
+        itrx = frm+trx.off;
+        if itrx <= 0 || itrx > numel(trx.x),
+          return;
+        end
+        trxXY = [trx.x(itrx) trx.y(itrx)];
+        trxTh = trx.theta(itrx);        
+      end        
+      obj.trkVizer.updateTrackRes(xy(:,:,itgt),frm,itgt,trxXY,trxTh);
     end
     function newLabelerTarget(obj)
       obj.newLabelerFrame();

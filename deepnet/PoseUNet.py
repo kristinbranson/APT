@@ -17,6 +17,8 @@ import multiResData
 from scipy import io as sio
 import re
 import json
+from tensorflow.contrib.layers import batch_norm
+
 # for tf_unet
 #from tf_unet_layers import (weight_variable, weight_variable_devonc, bias_variable,
 #                            conv2d, deconv2d, max_pool, crop_and_concat, pixel_wise_softmax_2,
@@ -37,6 +39,7 @@ class PoseUNet(PoseCommon.PoseCommon):
         self.all_layers = None
         self.for_training = 1 # for prediction.
         self.scale = self.conf.unet_rescale
+        self.no_pad = False
 
 
     def create_q_specs(self):
@@ -130,7 +133,10 @@ class PoseUNet(PoseCommon.PoseCommon):
 
     def create_network(self, ):
         with tf.variable_scope(self.net_name):
-            return self.create_network1()
+            if not self.no_pad:
+                return self.create_network1()
+            else:
+                return self.create_network_nopad()
 
     # def compute_dist(self, preds, locs):
     #     tt1 = PoseTools.get_pred_locs(preds,self.edge_ignore) - \
@@ -208,6 +214,105 @@ class PoseUNet(PoseCommon.PoseCommon):
                                  initializer=tf.constant_initializer(0.))
         conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
         X = tf.add(conv, biases, name = 'unet_pred')
+        # X = conv+biases
+        return X
+
+
+    def create_network_nopad(self):
+        m_sz = min(self.conf.imsz)/self.conf.unet_rescale
+        max_layers = int(math.ceil(math.log(m_sz,2)))-1
+        sel_sz = self.conf.sel_sz
+        n_layers = int(math.ceil(math.log(sel_sz,2)))+2
+        n_layers = min(max_layers,n_layers) - 3
+        n_conv = self.n_conv
+
+        def conv(x_in,n_filt):
+            in_dim = x_in.get_shape().as_list()[3]
+            kernel_shape = [3, 3, in_dim, n_filt]
+            weights = tf.get_variable("weights", kernel_shape,
+                                      initializer=tf.contrib.layers.xavier_initializer())
+            biases = tf.get_variable("biases", kernel_shape[-1],
+                                     initializer=tf.constant_initializer(0.))
+            conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='VALID')
+            conv = batch_norm(conv, decay=0.99, is_training=self.ph['phase_train'])
+
+            if self.conf.unet_use_leaky:
+                return tf.nn.leaky_relu(conv + biases)
+            else:
+                return tf.nn.relu(conv + biases)
+
+        layers = []
+        up_layers = []
+        layers_sz = []
+        X = self.ph['x']
+        in_shape = X.get_shape().as_list()
+        n_out = self.conf.n_classes
+        all_layers = []
+
+        # downsample
+        n_filt_base = 32
+        max_filt = 512
+        for ndx in range(n_layers):
+            n_filt = min(max_filt, n_filt_base * (2** ndx))
+            for cndx in range(n_conv):
+                sc_name = 'layerdown_{}_{}'.format(ndx,cndx)
+                with tf.variable_scope(sc_name):
+                    X = conv(X, n_filt)
+                all_layers.append(X)
+            layers.append(X)
+            layers_sz.append(X.get_shape().as_list()[1:3])
+            # X = tf.nn.max_pool(X,ksize=[1,3,3,1],strides=[1,2,2,1],
+            #                    padding='SAME')
+            X = tf.nn.avg_pool(X,ksize=[1,3,3,1],strides=[1,2,2,1],
+                               padding='VALID')
+        self.down_layers = layers
+
+        # few more convolution for the final layers
+        top_layers = []
+        for cndx in range(n_conv):
+            n_filt = min(max_filt, n_filt_base * (2** (n_layers)))
+            sc_name = 'layer_{}_{}'.format(n_layers,cndx)
+            with tf.variable_scope(sc_name):
+                X = conv(X, n_filt)
+                top_layers.append(X)
+        self.top_layers = top_layers
+        all_layers.extend(top_layers)
+
+        # upsample
+        for ndx in reversed(range(n_layers)):
+            x_shape = X.get_shape().as_list()
+            up_shape = [i*2 for i in x_shape[1:3]]
+            X = CNB.upscale('u_'.format(ndx), X, up_shape)
+            d_layer = layers[ndx]
+            d_shape = d_layer.get_shape().as_list()
+            d_y = (d_shape[1] - up_shape[0])//2
+            d_x = (d_shape[2] - up_shape[1])//2
+            d_layer = d_layer[:,d_y:(d_y+up_shape[0]),d_x:(d_x+up_shape[1]),:]
+            X = tf.concat([X,d_layer], axis=3)
+            n_filt = min(2 * max_filt, 2 * n_filt_base* (2** ndx))
+            for cndx in range(n_conv):
+                sc_name = 'layerup_{}_{}'.format(ndx, cndx)
+                with tf.variable_scope(sc_name):
+                    X = conv(X, n_filt)
+                all_layers.append(X)
+            up_layers.append(X)
+        self.all_layers = all_layers
+        self.up_layers = up_layers
+
+        # final conv
+        weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
+                                  initializer=tf.contrib.layers.xavier_initializer())
+        biases = tf.get_variable("out_biases", n_out,
+                                 initializer=tf.constant_initializer(0.))
+        conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
+        X = tf.add(conv, biases, name = 'unet_pred')
+
+        out_shape = X.get_shape().as_list()
+        d_x = in_shape[2]-out_shape[2]
+        d_y = in_shape[1] - out_shape[1]
+        pad_x = d_x//2
+        pad_y = d_y//2
+        X = tf.pad(X,[[0,0],[pad_y,d_y-pad_y],[pad_x,d_x-pad_x],[0,0]], mode='CONSTANT',constant_values=-1)
         # X = conv+biases
         return X
 
@@ -376,18 +481,27 @@ class PoseUNet(PoseCommon.PoseCommon):
 #        self.create_fd()
         return sess, latest_model_file
 
+    def wt_decay_loss(self):
+        """L2 weight decay loss."""
+        costs = 0
+        for var in tf.trainable_variables():
+            if var.op.name.find(r'weights') > 0:
+                costs += tf.nn.l2_loss(var)
+        return 0.0005 * costs
 
     def train_unet(self, restore, train_type=0):
         self.for_training = 0
 
         def loss(pred_in, pred_out):
-            return tf.nn.l2_loss(pred_in-pred_out)
+            l2_loss = tf.nn.l2_loss(pred_in-pred_out)
+            loss = l2_loss + self.wt_decay_loss()
+            return loss
 
         PoseCommon.PoseCommon.train(self,
             restore=restore,
             train_type=train_type,
             create_network=self.create_network,
-            training_iters=self.conf.unet_steps,
+            training_iters=self.conf.dl_steps,
             loss=loss,
             pred_in_key='y',
             learning_rate=0.0001,

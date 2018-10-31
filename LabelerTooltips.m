@@ -7,23 +7,30 @@ function LabelerTooltips(handles)
 
 set(handles.pbClear,'TooltipString','Clear labels in current frame');
 set(handles.pbTrain,'TooltipString','Train the part tracker');
-set(handles.pbTrack,'TooltipString','Track current selection of frames, targets, and videos');
-set(handles.pumTrack,'TooltipString','Tracking options');
+set(handles.pbTrack,'TooltipString','Track current selection of frames and targets');
+set(handles.pumTrack,'TooltipString','Which set of frames and targets to track when "Track" button pressed');
 set(handles.tbAccept,'TooltipString','Accept and store labels for current frame (all parts must be labeled)');
 
 set(handles.pbPlay,'TooltipString','Play movie');
 set(handles.pbPlaySeg,'TooltipString','Play frames around current frame');
 
-set(handles.pbClearSelection,'TooltipString','Clear frame selection');
-set(handles.tbTLSelectMode,'TooltipString','Select Frames');
+set(handles.pbClearSelection,'TooltipString','Clear frames selected in timeline');
+set(handles.tbTLSelectMode,'TooltipString','Select Frames in the timeline');
 
 set(handles.pbResetZoom,'TooltipString','Zoom out to show whole video frame');
 set(handles.pbSetZoom,'TooltipString','Store current zoom for recalling');
 set(handles.pbRecallZoom,'TooltipString','Recall stored zoom level');
 
-% set(handles.tbAdjustCropSize,'TooltipString','');
-% set(handles.pbClearAllCrops,'TooltipString','');
+set(handles.tbAdjustCropSize,'TooltipString','Toggle on/off whether the crop region for this video can be adjusted');
+set(handles.pbClearAllCrops,'TooltipString','Clear cropping information for this video');
 
+dotooltips = lcl('jvm') && lcl('awt') && lcl('swing');
+
+if ~dotooltips,
+  return;
+end
+
+try
 oldvisible = get(handles.figure,'Visible');
 if strcmp(oldvisible,'off'),
   set(handles.figure,'Visible','on');
@@ -53,6 +60,12 @@ if isfield(handles,'menu_file_export_labels2_trk_curr_mov'),
 end
 if isfield(handles,'menu_file_export_labels_trks'),
   SetTooltip(handles.menu_file_export_labels_trks,'Export LABELS to .trk files for all movies',jobjs,jobjnames);
+end
+if isfield(handles,'menu_file_export_labels_trks'),
+  SetTooltip(handles.menu_file_export_labels_trks,'Export LABELS to .trk files for all movies',jobjs,jobjnames);
+end
+if isfield(handles,'menu_file_crop_mode'),
+  SetTooltip(handles.menu_file_crop_mode,'Edit cropped regions of interest',jobjs,jobjnames);
 end
 
 % view menu
@@ -131,6 +144,26 @@ if isfield(handles,'menu_track_set_labels'),
   SetTooltip(handles.menu_track_set_labels,'Set labels to predictions for current frame',jobjs,jobjnames);
 end
 
+% h = findjobj_modern(handles.pbClear);
+% h.doClick();
+i = find(strcmp(jobjnames,'menu_file'),1);
+jobjs(i).doClick();
+drawnow;
+jobjs(i).doClick();
+drawnow;
 if strcmp(oldvisible,'off'),
   set(handles.figure,'Visible','off');
+end
+catch ME,
+  warning('Error setting menu tooltips: %s',getReport(ME));
+end
+
+function success = lcl(level)
+success = false;
+%fprintf('%s\n',level);
+try
+  javachk(level);
+  success = true;
+catch ME
+  fprintf('err caught: %s\n',ME.message);
 end
