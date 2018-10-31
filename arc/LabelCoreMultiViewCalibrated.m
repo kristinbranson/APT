@@ -394,6 +394,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore & LabelCoreMVMixin
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
         '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
+        '* <shift>+A/D, LEFT/RIGHT etc move to next labeled frame.'
         '* S accepts the labels for the current frame/target.'        
         '* (The letter) O toggles occluded-estimated status.'
         '* 0..9 selects/unselects a point. When a point is selected:'
