@@ -3279,7 +3279,8 @@ classdef Labeler < handle
       end
       obj.prevIm = struct('CData',0,'XData',0,'YData',0);
       imprev = gd.image_prev;
-      set(imprev,'CData',0);              
+      set(imprev,'CData',0);     
+      obj.clearPrevAxesModeInfo();
       obj.currTarget = 1;
       obj.currFrame = 1;
       obj.prevFrame = 1;
