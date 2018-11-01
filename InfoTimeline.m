@@ -2,6 +2,7 @@ classdef InfoTimeline < handle
 
   properties (Constant)
     TLPROPS = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|' 'occluded'};
+    TLPROPTYPES = {'Labels','Predictions','Imported'};
   end
   
 %   % AL: Not using transparency for now due to perf issues on Linux
@@ -33,8 +34,11 @@ classdef InfoTimeline < handle
     tracker % scalar LabelTracker obj
   end
   properties (SetObservable)
-    props % [npropx3]. Col 1: pretty/display name. Col 2: Type, eg 'Labels', 'Labels2' or 'Tracks'. Col3: non-pretty name/id
+    props % [npropx2]. Col 1: pretty/display name. Col 2: non-pretty name/id
+    props_tracker % [npropx2]. Col 1: pretty/display name. Col 2: non-pretty name/id
     curprop % row index into props
+    proptypes % property types, eg 'Labels' or 'Predictions'.    
+    curproptype % row index into proptypes
   end
   properties
     jumpThreshold
@@ -161,15 +165,12 @@ classdef InfoTimeline < handle
       
       obj.tracker = [];
     
-      props = InfoTimeline.TLPROPS(:);
-      props(:,2) = {'Labels'};
-      props(:,3) = props(:,1);
-      props2 = props;      
-      props2(:,1) = cellfun(@(x)sprintf('%s (imported)',x),props2(:,1),'uni',0);
-      props2(:,2) = {'Labels2'};
-      props = [props;props2];
-      obj.props = props;    
+      obj.props = repmat(InfoTimeline.TLPROPS(:),[1,2]);
+      obj.props_tracker = cell(0,2);
+      obj.proptypes = InfoTimeline.TLPROPTYPES(:);
+
       obj.curprop = 1;
+      obj.curproptype = 1;
       
       obj.jumpThreshold = nan;
       obj.jumpCondition = nan;
@@ -196,7 +197,7 @@ classdef InfoTimeline < handle
         'UserData',struct('LabelPat','Clear bout (frame %d-%d)','iBout',nan),...
         'Callback',@(src,evt)obj.cbkClearBout(src,evt));
       ax.UIContextMenu = hCMenu;
-      
+            
       if obj.isL,
 %         hCMenuL = uicontextmenu('parent',axl.Parent);
 %         uimenu('Parent',hCMenu,'Label','Set number of frames shown',...
@@ -305,33 +306,49 @@ classdef InfoTimeline < handle
     end
         
     function setTracker(obj,tracker)
-      obj.tracker = tracker;
       
-      % Break down existing props; eliminate existing tracker-props. We
-      % also prefer tracker-props to come before labels2 props.
-      pmat = obj.props;
-      src = pmat(:,2);
-      tfLabels = strcmp(src,'Labels');
-      tfTracks = strcmp(src,'Tracks'); % will be deleted
-      tfLabels2 = strcmp(src,'Labels2');
-      assert(all(tfLabels+tfTracks+tfLabels2==1));
-
-      cellfun(@delete,obj.listenersTracker);
-      obj.listenersTracker = cell(0,1);      
-      if isempty(tracker)
-        obj.props = [pmat(tfLabels,:); pmat(tfLabels2,:)];
-      else
-        propList = tracker.propList();
-        pmatnew = arrayfun(...
-          @(x){sprintf('%s (tracked)',propList{x}) 'Tracks' propList{x}},...
-          (1:numel(propList))','uni',0);
-        pmatnew = cat(1,pmatnew{:});
-        obj.props = [pmat(tfLabels,:); pmatnew; pmat(tfLabels2,:)];
-        
+      obj.tracker = tracker;
+      if ~isempty(obj.listenersTracker),
         cellfun(@delete,obj.listenersTracker);
+      end
+      if isempty(tracker),
+        obj.proptypes(strcmpi(obj.proptypes,'Predictions')) = [];
+        obj.props_tracker = cell(0,2);
+      else
+        if ~ismember('Predictions',obj.proptypes),
+          obj.proptypes{end+1} = 'Predictions';
+        end
+        props = tracker.propList(); %#ok<*PROPLC>
+        obj.props_tracker = repmat(props(:),[1,2]);
         obj.listenersTracker{end+1,1} = addlistener(tracker,...
           'newTrackingResults',@obj.cbkLabelUpdated);
-      end
+      end      
+      
+%       % Break down existing props; eliminate existing tracker-props. We
+%       % also prefer tracker-props to come before labels2 props.
+%       pmat = obj.props;
+%       src = pmat(:,2);
+%       tfLabels = strcmp(src,'Labels');
+%       tfTracks = strcmp(src,'Tracks'); % will be deleted
+%       tfLabels2 = strcmp(src,'Labels2');
+%       assert(all(tfLabels+tfTracks+tfLabels2==1));
+% 
+%       cellfun(@delete,obj.listenersTracker);
+%       obj.listenersTracker = cell(0,1);      
+%       if isempty(tracker)
+%         obj.props = [pmat(tfLabels,:); pmat(tfLabels2,:)];
+%       else
+%         propList = tracker.propList();
+%         pmatnew = arrayfun(...
+%           @(x){sprintf('%s (tracked)',propList{x}) 'Tracks' propList{x}},...
+%           (1:numel(propList))','uni',0);
+%         pmatnew = cat(1,pmatnew{:});
+%         obj.props = [pmat(tfLabels,:); pmatnew; pmat(tfLabels2,:)];
+%         
+%         cellfun(@delete,obj.listenersTracker);
+%         obj.listenersTracker{end+1,1} = addlistener(tracker,...
+%           'newTrackingResults',@obj.cbkLabelUpdated);
+%       end
     end
     
     function setLabelsFull(obj)
@@ -531,13 +548,30 @@ classdef InfoTimeline < handle
   end
   
   methods %getters setters
-    function props = getPropsDisp(obj)
-      props = obj.props(:,1);
+    function props = getPropsDisp(obj,v)
+      if nargin < 2,
+        v = obj.curproptype;
+      end
+      if strcmpi(obj.proptypes{v},'Predictions'),
+        props = obj.props_tracker(:,1);
+      else
+        props = obj.props(:,1);
+      end
+    end
+    function proptypes = getPropTypesDisp(obj)
+      proptypes = obj.proptypes;
     end
     function setCurProp(obj,iprop)
       obj.curprop = iprop;
       obj.setLabelsFull();
-    end    
+    end
+    function setCurPropType(obj,iproptype,iprop)
+      obj.curproptype = iproptype;
+      if nargin >= 3 && iprop ~= obj.curprop,
+        obj.curprop = iprop;
+      end
+      obj.setLabelsFull();
+    end
   end
     
   %% Private methods
@@ -724,9 +758,7 @@ classdef InfoTimeline < handle
     function data = getDataCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
       
-      pndx = obj.curprop;
-      ptype = obj.props{pndx,2};
-      pcode = obj.props{pndx,3};
+      ptype = obj.proptypes{obj.curproptype};
       labeler = obj.lObj;
       iMov = labeler.currMovie;
       iTgt = labeler.currTarget;
@@ -736,15 +768,20 @@ classdef InfoTimeline < handle
       else
         switch ptype
           case 'Labels'
+            pcode = obj.props{obj.curprop,2};
             lpos = labeler.labeledposGTaware{iMov};
             lpostag = labeler.labeledpostagGTaware{iMov};            
             data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
-          case 'Labels2'            
+          case 'Imported'            
+            pcode = obj.props{obj.curprop,2};
             lpos = labeler.labeledpos2GTaware{iMov};
             lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
             data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);            
-          case 'Tracks'
+          case 'Predictions'
+            pcode = obj.props_tracker{obj.curprop,2};
             data = obj.tracker.getPropValues(pcode);
+          otherwise
+            error('Unknown data type %s',ptype);
         end
         szassert(data,[obj.npts obj.nfrm]);
       end
