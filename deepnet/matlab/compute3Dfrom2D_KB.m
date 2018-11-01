@@ -10,8 +10,10 @@ fprintf('Storing front reprojection trajectories to file: %s\n',frontviewtrkfile
 fprintf('Storing side reprojection trajectories to file: %s\n',sideviewtrkfile);
 
 
-scale_front = 2;
-scale_side = 2;
+scale_front = 1;
+scale_side = 1;
+% scale_front = 2;
+% scale_side = 2;
 thresh_perc = 99.95;
 r_nonmax = 4;
 
@@ -20,10 +22,10 @@ r_nonmax = 4;
 % thresh_perc = 99.5;
 % r_nonmax = 2;
 
-offx_front = -1;
-offy_front = -1;
-offx_side = -1;
-offy_side = -1;
+% offx_front = -1;
+% offy_front = -1;
+% offx_side = -1;
+% offy_side = -1;
 
 
 %% load in tracking results
@@ -39,6 +41,11 @@ SIDEOUTPUTTYPE = 1; % output of raw detector
 % rdf.locs = permute(rdf.locs(:,:,FRONTOUTPUTTYPE,:),[1,2,4,3]);
 % rds.locs = permute(rds.locs(:,:,SIDEOUTPUTTYPE,:),[1,2,4,3]);
 
+offx_front = double((rdf.crop_loc{1}-1))/scale_front;
+offy_front = double((rdf.crop_loc{3}-1))/scale_front;
+offx_side = double((rds.crop_loc{1}-1))/scale_side;
+offy_side = double((rds.crop_loc{3}-1))/scale_side;
+
 v0 = rdf.scores(1);
 
 isdata = squeeze(any(any(rdf.scores~=v0,1),4));
@@ -51,9 +58,9 @@ maxx_front = find(tmp,1,'last');
 
 % alternatively by Mayank
 % Front is MRF so the scores go from 0 to 1
-miny_front = 2;
+miny_front = 1;
 maxy_front = size(rdf.scores,2);
-minx_front = 2;
+minx_front = 1;
 maxx_front = size(rdf.scores,3);
 minscore = -1; %0;
 maxscore = 1;
@@ -73,9 +80,9 @@ maxx_side = find(tmp,1,'last');
 
 % alternatively by Mayank
 % Side is raw so the scores go from -1 to 1
-miny_side = 2;
+miny_side = 1;
 maxy_side = size(rds.scores,2);
-minx_side = 2;
+minx_side = 1;
 maxx_side = size(rds.scores,3);
 minscore = -1;
 maxscore = 1;
@@ -152,7 +159,6 @@ xside = cell(Tfront,nlandmarks);
 yside = cell(Tfront,nlandmarks);
 wside = cell(Tfront,nlandmarks);
 Sside = cell(Tfront,nlandmarks);
-
 
 
 fprintf('Performing GMM fitting to detection scores...\n');

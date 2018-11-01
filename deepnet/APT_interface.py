@@ -213,7 +213,10 @@ def create_conf(lbl_file, view, name, net_type='unet', cache_dir=None):
     from poseConfig import config
     conf = config()
     conf.n_classes = int(read_entry(H['cfg']['NumLabelPoints']))
-    proj_name = read_string(H['projname']) + '_view{}'.format(view)
+    if H['projname'][0] == 0:
+        proj_name = 'default_view{}'.format(view)
+    else:
+        proj_name = read_string(H['projname']) + '_view{}'.format(view)
     conf.view = view
     conf.set_exp_name(proj_name)
     # conf.cacheDir = read_string(H['cachedir'])

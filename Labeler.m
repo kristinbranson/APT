@@ -2320,7 +2320,15 @@ classdef Labeler < handle
       
       % 20181022 projectHasTrx
       if ~isfield(s,'projectHasTrx'),
-        s.projectHasTrx = true;
+        s.projectHasTrx = true; % AL: maybe check emptiness of .trxFilesAll?
+      end
+      
+      % 20181101 movieInfo.readerobj (VideoReader) throwing warnings if
+      % movs moved 
+      for i=1:numel(s.movieInfoAll)
+        if isfield(s.movieInfoAll{i}.info,'readerobj') 
+          s.movieInfoAll{i}.info = rmfield(s.movieInfoAll{i}.info,'readerobj');
+        end
       end
     end
 
@@ -6385,10 +6393,19 @@ classdef Labeler < handle
       tblMF = [tblMF tLbl];
     end
     
-    function tblMF = lblFileGetLabels(lblfile)
+    function tblMF = lblFileGetLabels(lblfile,varargin)
       % Get all labeled rows from a lblfile
       %
       % lblfile: either char/fullpath, or struct from loaded lblfile
+      
+      quiet = myparse(varargin,...
+        'quiet',false);
+      
+      if quiet
+        wbObj = [];
+      else
+        wbObj = WaitBarWithCancelCmdline('Reading labels');
+      end
       
       if ischar(lblfile)
         lbl = load(lblfile,'-mat');
@@ -6425,7 +6442,7 @@ classdef Labeler < handle
         lposfull,lpostagfull,lpostsfull,...
         'trxFilesAllFull',tfafull,...
         'trxCache',containers.Map(),...
-        'wbObj',WaitBarWithCancelCmdline('Reading labels'));
+        'wbObj',wbObj);
       
       % TODO: gt labels
     end
