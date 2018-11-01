@@ -123,6 +123,10 @@ classdef MovieReader < handle
       [obj.readFrameFcn,obj.nframes,obj.fid,obj.info] = ...
         get_readframe_fcn(obj.filename,'preload',obj.preload);%,'neednframes',obj.neednframes);
       
+      if isfield(obj.info,'readerobj')
+        obj.info = rmfield(obj.info,'readerobj');
+      end
+      
       ifo = obj.info;
       if isfield(ifo,'nr') && isfield(ifo,'nc')
         obj.nr = ifo.nr;
