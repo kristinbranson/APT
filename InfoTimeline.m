@@ -819,7 +819,7 @@ classdef InfoTimeline < handle
     function trx = initializeTrx(lpos,occluded)
       trx = struct;
       trx.pos = lpos;
-      trx.occluded = occluded;
+      trx.occluded = double(occluded);
       trx.realunits = false;
       trx.pxpermm = [];
       trx.fps = [];      
