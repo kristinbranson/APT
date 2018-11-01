@@ -3496,6 +3496,13 @@ drawnow('limitrate');
 if ~isbusy && ~istemp,  syncStatusBarTextWhenClear(handles);
 end
 
+function RefreshStatus(handles)
+
+s = getappdata(handles.txStatus,'InputString');
+if ischar(s),
+  SetStatusText(handles,s);
+end
+
 function SetStatusText(handles,s)
 
 setappdata(handles.txStatus,'InputString',s);
@@ -3512,8 +3519,10 @@ if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
   s2 = strrep(s,'$PROJECTNAME',n);
   if ~isempty(handles.jtxStatus),
     set(handles.txStatus,'String',s1);
+    drawnow;
     pos1 = get(handles.jtxStatus,'PreferredSize');
     w = get(handles.jtxStatus,'Width');
+    %fprintf('width = %f, preferredwidth = %f\n',w,pos1.width);
     if pos1.width > w*.95,
       set(handles.txStatus,'String',s2);
     end
