@@ -573,6 +573,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
         '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
+        '* <shift>+A/D, LEFT/RIGHT etc move to next labeled frame.'
         '* S accepts the labels for the current frame/target.'        
         '* 0..9 selects/unselects a point (in all views). When a point is selected:'
         '*   Clicking any view jumps the point to the clicked location.'         
