@@ -59,6 +59,7 @@ classdef LabelTracker < handle
   
   properties (Constant)
     APT_DEFAULT_TRACKERS = {'CPRLabelTracker' 'DeepTracker'};
+    INFOTIMELINE_PROPS_TRACKER = cell(0,1);
   end
     
   methods
@@ -344,7 +345,8 @@ classdef LabelTracker < handle
   methods % For infotimeline display
     
     function props = propList(obj)
-      props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
+      %props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
+      props = obj.INFOTIMELINE_PROPS_TRACKER;
     end
     
     function data = getPropValues(obj,pcode)
@@ -355,14 +357,19 @@ classdef LabelTracker < handle
       npts = labeler.nLabelPoints;
       nfrms = labeler.nframes;
       ntgts = labeler.nTargets;
-      iTgt = labeler.currTarget;
+      iTgt = labeler.currTarget;      
       tpos = obj.getTrackingResultsCurrMovie();
       if isempty(tpos)
         % edge case uninitted (not sure why)
         tpos = nan(npts,2,nfrms,ntgts);
       end
-      tpostag = false(npts,nfrms,ntgts);
-      data = InfoTimeline.getDataFromLpos(tpos,tpostag,pcode,iTgt);
+      
+      if ismember(pcode,obj.INFOTIMELINE_PROPS_TRACKER),
+        error('Not implemented');
+      else      
+        tpostag = false(npts,nfrms,ntgts);
+        data = InfoTimeline.getDataFromLpos(tpos,tpostag,pcode,iTgt);
+      end
     end
     
   end
