@@ -321,7 +321,6 @@ s.lblfilehmdirs = hmdirs([2 1 5 3 4])';
 save('ppbase.mat','-struct','s');
 
 s = struct();
-s.savefile = sprintf('runpp_%s.mat',nowstr);
 s.targets = 1;
 s.startframe = 3371;
 s.endframe = 3375;
@@ -388,40 +387,7 @@ pp.postdata.viterbi_grid_lam0.x = nan(1551,17,2);
 pp.postdata.viterbi_grid_lam0.x(:,12,:) = xyBestTraj;
 %% GT: bub
 
-pd = pp.postdata;
 
-lpos = SparseLabelArray.full(ld.labeledpos{3});
-lpos = lpos(:,:,:,iflies2run);
-
-frmsGT = find(all(~isnan(reshape(lpos,34,50667)),1));
-fprintf(1,'%d frmsGT.\n',numel(frmsGT));
-
-[tf,loc] = ismember(frmsGT,pp.tblMFT.frm);
-frmsGT = frmsGT(tf);
-isampGT = loc(tf);
-fprintf(1,'%d frmsGT tracked.\n',numel(frmsGT));
-
-algsAll = fieldnames(pd);
-lposGT = lpos(:,:,frmsGT); % npts x d x nGT
-lposGT = permute(lposGT,[3 1 2]);
-
-dxyAll = cell(0,1);
-for alg=algsAll(:)',alg=alg{1}; %#ok<FXSET>
-  %[n x npts x (x/y) x nviews x nsets]
-  tpos = pd.(alg).x(isampGT,:,:); % nGT x npts x d 
-  
-  dxyAll{end+1,1} = tpos-lposGT;
-end
-dxyAll = cat(5,dxyAll{:});
-
-dxyAllPtsRun = dxyAll(:,pp.pts2run,:,:,:);
-
-[hFig,hAxs] = GTPlot.ptileCurves(dxyAllPtsRun,...
-  'ptiles',[50 75 90],...
-  'setNames',algsAll,...
-  'ptNames',arrayfun(@(x)sprintf('pt%02d',x),pp.pts2run,'uni',0),...
-  'createsubplotsborders',[.05 0;.15 .15]...
-  );
 % delta_train = struct;
 % delta_test = struct;
 % for i = 1:numel(algorithms),
@@ -587,158 +553,7 @@ ax = lObj.gdata.axes_curr;
 deleteValidHandles(hS);
 hS = scatter(ax,reps(:,1),reps(:,2),kdeweights*1e3,'r');
 
-%% AC cost vs Motion cost
 
-XFLD = 'x';
-pdmi = pp.postdata.maxdensity_indep;
-
-x = pdmi.(XFLD);
-
-x_a2 = 0.5*(x(1:end-1,:,:)+x(2:end,:,:)); % 2pt m.a.
-v = diff(x,1,1); % pd.v(i,ipt,:) gives (dx,dy) that takes you from maxdens_i to maxdens_(i+1)
-v(end+1,:,:) = nan;
-vmag = sqrt(sum(v.^2,3));
-v_a2 = diff(x_a2,1,1); % etc
-v_a2(end+1,:,:) = nan;
-vmag_a2 = sqrt(sum(v_a2.^2,3));
-
-damp = pp.viterbi_dampen 
-
-% at i; assume motion that took you from i-1->i continues to i+1
-x_pred = nan(size(x));
-x_pred(3:end,:,:) = x(2:end-1,:,:) + damp*v(1:end-2,:,:);
-x_pred_a2 = nan(size(x_a2));
-x_pred_a2(3:end,:,:) = x_a2(2:end-1,:,:) + damp*v_a2(1:end-2,:,:);
-
-dxmag_pred = sqrt(sum((x_pred-x).^2,3)); % [n x npt]
-dxmag_pred_a2 = sqrt(sum((x_pred_a2-x_a2).^2,3)); % [n x npt]
-
-% figure out typical scale of heatmap/ac
-nfrm = size(x,1);
-pdmi.hm_hwhm = nan(nfrm,5); % half-width-half-max (radius of heatmap dist at half-max)
-pdmi.hm_atmax = nan(nfrm,5);
-hmgrid = pp.heatmapdata.grid{1}; % rows are linear indices, cols are [x y]
-for f=1:nfrm
-  if mod(f,10)==0, disp(f); end
-  for ipt=pp.pts2run
-    hm = pp.ReadHeatmapScore(ipt,1,f); % double in [0,1]
-    [hmmax,hmmaxidx] = max(hm(:));
-    hmmax_xy = hmgrid(hmmaxidx,:);
-    hmnzidx = find(hm(:)>0);
-    hmnz = hm(hmnzidx);
-    hmnz_xy = hmgrid(hmnzidx,:); 
-    hmnz_dxy = hmnz_xy-hmmax_xy;
-    hmnz_r = sqrt(sum(hmnz_dxy.^2,2));
-    hmnz_r = round(hmnz_r);
-    assert(isequal(size(hmnz),size(hmnz_r)));
-    
-    pdmi.hm_atmax(f,ipt) = hmmax;
-    
-    % for each hmnz_r, find the average hmnz
-    hmnz_rgt0 = hmnz(hmnz_r>0);
-    hmnz_r_rgt0 = hmnz_r(hmnz_r>0);
-    hmnz_r_meanmag = accumarray(hmnz_r_rgt0,hmnz_rgt0,[],@mean);
-    
-    rhwhm = find(hmnz_r_meanmag<hmmax/2,1);
-    pdmi.hm_hwhm(f,ipt) = rhwhm;
-  end
-end
-%%
-npts2run = numel(pp.pts2run);
-hFig = figure(12);
-clf;
-axs = mycreatesubplots(7,npts2run,[.1 .05;.1 .05]);
-
-
-ylblargs = {'fontweight' 'bold' 'interpreter' 'none'};
-DXFLDS = {dxmag_pred dxmag_pred_a2};
-DXFLDNAMES = {'dxmag_pred' 'dxmag_pred_a2'};
-for iDx=1:numel(DXFLDS)
-  fld = DXFLDNAMES{iDx};
-  dxmag = DXFLDS{iDx};
-  %DXdxmag = pdmi.(fld); % n x npt
-  dxmag2 = dxmag.^2;
-  for iipt=1:npts2run
-    ipt = pp.pts2run(iipt);
-    ax = axs(iDx,iipt);
-    axes(ax);
-    histogram(dxmag(:,ipt));    
-    if iipt==1
-      ylabel(fld,ylblargs{:});
-    end
-    
-    ax = axs(iDx+2,iipt);
-    axes(ax);
-    histogram(dxmag2(:,ipt),100);        
-    if iipt==1
-      ylabel(sprintf('%s^2',fld),ylblargs{:});
-    end
-  end
-end
-
-for iipt=1:npts2run
-  ipt = pp.pts2run(iipt);
-  
-  zmean = mean(pp.sampledata.z(:,ipt));
-  zmedn = median(pp.sampledata.z(:,ipt));
-  fprintf(2,'Your mean zfac is: %.3f\n',zmean);
-  fprintf(2,'Your median zfac is: %.3f\n',zmedn);
-
-  ax = axs(5,iipt);
-  axes(ax);
-  histogram(pdmi.hm_hwhm(:,ipt));
-  if iipt==1
-    ylabel('hmap_hwhm',ylblargs{:});
-  end
-  
-  ax = axs(6,iipt);
-  axes(ax);
-  histogram(pdmi.hm_atmax(:,ipt));
-  if ipt==1
-    ylabel('max hm',ylblargs{:});
-  end
-  
-  ax = axs(7,iipt);
-  axes(ax);
-  % diff between AC cost at half-max and at max
-  histogram( -log(pdmi.hm_atmax(:,ipt)/2*zmean) + log(pdmi.hm_atmax(:,ipt)*zmean) ,15 );
-  % duh this is just log(2)
-  if iipt==1
-    ylabel('dAC from peak to half',ylblargs{:});
-  end
-end
-
-for iipt=1:npts2run
-  linkaxes(axs(1:2,iipt));
-  linkaxes(axs(3:4,iipt));
-end
-
-hFig = figure(13);
-axs = mycreatesubplots(npts2run,2,[.1 .05;.1 .05]);
-for iipt=1:npts2run
-  ipt = pp.pts2run(iipt);
-  ax = axs(iipt,1);
-  
-  vmag = vmag(:,ipt);
-  dxmag_pred_tmp = dxmag_pred(:,ipt);
-  binctrs = 0:15;
-  tfcell = arrayfun(@(x)round(vmag)==x,binctrs,'uni',0);
-  dxmag_pred_binmean = cellfun(@(x)median(dxmag_pred_tmp(x)),tfcell);
-  
-  scatter(ax,vmag,dxmag_pred_tmp);
-  hold(ax,'on');
-  plot(ax,binctrs,dxmag_pred_binmean,'r','linewidth',2);
-  ylabel(ax,sprintf('pt%d',ipt));
-  
-  ax = axs(iipt,2);
-  vmag = vmag_a2(:,ipt);  
-  dxmag_pred_tmp = dxmag_pred_a2(:,ipt);  
-  tfcell = arrayfun(@(x)round(vmag)==x,binctrs,'uni',0);
-  dxmag_pred_binmean = cellfun(@(x)median(dxmag_pred_tmp(x)),tfcell);
-  scatter(ax,vmag,dxmag_pred_tmp);
-  hold(ax,'on');
-  plot(binctrs,dxmag_pred_binmean,'r','linewidth',2);
-end
 
 
 %% Motion model
@@ -902,46 +717,6 @@ for xy=1:2
 end
 linkaxes(axs);
 
-
-
-%% Jumpiness
-pd = pp.postdata;
-algs = fieldnames(pd);
-nAlgs = numel(algs);
-dzall = []; % [n x npts2run x nalg]. magnitude of jump
-
-hFig = figure(11);
-clf;
-axs = mycreatesubplots(nAlgs,npts2run,[.1 .05]);
-clrs = lines(npts2run);
-
-ALGMARKS = {'.' 'x' '^'};
-for ialg=1:nAlgs
-  alg = algs{ialg};
-  x = pd.(alg).x; % n x npt x d
-  a = diff(x,2,1);
-  amag = sqrt(sum(a.^2,3)); % (n-2) x npt
-  
-  for iipt=1:npts2run
-    ipt = pp.pts2run(iipt);
-    ax = axs(ialg,iipt);
-    axes(ax);
-    histogram(amag(:,ipt),0:20);
-  end
-  
-  ylabel(axs(ialg,1),alg,'fontweight','bold','interpreter','none');
-end
-
-for iipt=1:npts2run
-  linkaxes(axs(:,iipt));
-end
-
-% for ipt=1:5
-%   ax = axs(ipt);
-%   grid(ax,'on');
-%   title(ax,num2str(ipt),'fontweight','bold');
-% end
-% 
 
 
 %%
