@@ -10,7 +10,7 @@ import imageio
 import localSetup
 from scipy.ndimage.interpolation import zoom
 import numpy as np
-import cv2
+import logging
 import traceback
 from scipy import stats
 from tensorflow.contrib.slim.nets import resnet_v1
@@ -18,6 +18,8 @@ import tensorflow.contrib.slim as slim
 from PoseCommon_dataset import conv_relu3
 from tensorflow.contrib.layers import batch_norm
 import resnet_official
+import urllib
+import tarfile
 
 class PoseUNet_resnet(PoseUNet.PoseUNet):
 
@@ -115,6 +117,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
         # X = conv+biases
         return X
 
+
     def get_var_list(self):
         var_list = tf.global_variables(self.net_name)
         for dep_net in self.dep_nets:
@@ -133,9 +136,25 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         self.offset = 32.
         PoseUMDN.PoseUMDN.__init__(self, conf, name=name,no_pad=no_pad)
         self.dep_nets = []
-        self.max_dist = 20
+        self.max_dist = 30
         self.min_dist = 5
-        self.pred_dist = False
+
+        #download pretrained weights if they don't exist
+        if self.resnet_source == 'official_tf':
+            url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            wt_dir = os.path.join(script_dir,'pretrained')
+            wt_file = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables.index')
+            if not os.path.exists(wt_file):
+                print('Downloading pretrained weights..')
+                if not os.path.exists(wt_dir):
+                    os.makedirs(wt_dir)
+                sname, header = urllib.urlretrieve(url)
+                tar = tarfile.open(sname, "r:gz")
+                print('Extracting pretrained weights..')
+                tar.extractall(path=wt_dir)
+            self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
+
 
     def create_network(self):
 
@@ -193,7 +212,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             net = down_layers[-1]
             n_filts = [32, 64, 64, 128, 256, 512, 1024]
 
-        if self.conf.use_unet_loss:
+        if self.conf.mdn_use_unet_loss:
             with tf.variable_scope(self.net_name + '_unet'):
 
                 # add an extra layer at input resolution.
@@ -441,13 +460,13 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             in_locs = inputs[1]
             # mdn_loss = self.my_loss(pred, inputs[1])
             mdn_loss = self.l2_loss(pred, in_locs)
-            if self.conf.use_unet_loss:
+            if self.conf.mdn_use_unet_loss:
                 # unet_loss = tf.losses.mean_squared_error(inputs[-1], self.unet_pred)
                 unet_loss = tf.sqrt(tf.nn.l2_loss(inputs[-1]-self.unet_pred))/self.conf.label_blur_rad/self.conf.n_classes
             else:
                 unet_loss = 0
 
-            if self.pred_dist:
+            if self.conf.mdn_pred_dist:
                 dist_loss = self.dist_loss()/10
             else:
                 dist_loss = 0
@@ -598,6 +617,68 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         pred_mean = np.nanmean(pred_dist)
         label_mean = np.nanmean(val_dist)
         return (pred_mean+label_mean)/2
+
+
+    def get_pred_fn(self, model_file=None):
+        sess, latest_model_file = self.restore_net(model_file)
+
+        conf = self.conf
+
+        def pred_fn(all_f):
+            # this is the function that is used for classification.
+            # this should take in an array B x H x W x C of images, and
+            # output an array of predicted locations.
+            # predicted locations should be B x N x 2
+            # PoseTools.get_pred_locs can be used to convert heatmaps into locations.
+
+            bsize = conf.batch_size
+            xs, _ = PoseTools.preprocess_ims(
+                all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
+                distort=False, scale=self.conf.unet_rescale)
+
+            self.fd[self.inputs[0]] = xs
+            self.fd[self.ph['phase_train']] = False
+            self.fd[self.ph['learning_rate']] = 0
+            # self.fd[self.ph['keep_prob']] = 1.
+            pred, cur_input = sess.run([self.pred, self.inputs], self.fd)
+
+            pred_means, pred_std, pred_weights,pred_dist = pred
+            pred_means = pred_means * self.offset
+            pred_weights = PoseUMDN.softmax(pred_weights,axis=1)
+
+            osz = [int(i/conf.unet_rescale) for i in self.conf.imsz]
+            mdn_pred_out = np.zeros([bsize, osz[0], osz[1], conf.n_classes])
+
+            for sel in range(bsize):
+                for cls in range(conf.n_classes):
+                    for ndx in range(pred_means.shape[1]):
+                        cur_gr = [l.count(cls) for l in self.conf.mdn_groups].index(1)
+                        if pred_weights[sel, ndx, cur_gr] < (0.02 / self.conf.max_n_animals):
+                            continue
+                        cur_locs = np.round(pred_means[sel:sel + 1, ndx:ndx + 1, cls, :]).astype('int')
+                        # cur_scale = pred_std[sel, ndx, cls, :].mean().astype('int')
+                        cur_scale = pred_std[sel, ndx, cls].astype('int')
+                        curl = (PoseTools.create_label_images(cur_locs, osz, 1, cur_scale) + 1) / 2
+                        mdn_pred_out[sel, :, :, cls] += pred_weights[sel, ndx, cur_gr] * curl[0, ..., 0]
+
+            base_locs = PoseTools.get_pred_locs(mdn_pred_out)
+            # base_locs = np.zeros([pred_means.shape[0],self.conf.n_classes,2])
+            # for ndx in range(pred_means.shape[0]):
+            #     for gdx, gr in enumerate(self.conf.mdn_groups):
+            #         for g in gr:
+            #             sel_ex = np.argmax(pred_weights[ndx, :, gdx])
+            #             mm = pred_means[ndx, sel_ex, g, :]
+            #             base_locs[ndx, g] = mm
+            #
+            # base_locs = base_locs * conf.unet_rescale
+            mdn_pred_out = 2*(mdn_pred_out-0.5)
+            return base_locs, mdn_pred_out
+
+        def close_fn():
+            sess.close()
+
+        return pred_fn, close_fn, latest_model_file
+
 
 
     def classify_val(self, model_file=None, onTrain=False):

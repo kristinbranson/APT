@@ -128,6 +128,8 @@ class config(object):
         self.mdn_max_sigma = 4.
         self.mdn_logit_eps_training = 0.001
         self.mdn_extra_layers = 1
+        self.mdn_use_unet_loss = True
+        self.mdn_pred_dist = True
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8

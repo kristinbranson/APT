@@ -17,6 +17,7 @@ import multiResData
 from scipy import io as sio
 import re
 import json
+import logging
 from tensorflow.contrib.layers import batch_norm
 
 # for tf_unet
@@ -361,9 +362,9 @@ class PoseUNet(PoseCommon):
         return  PoseCommon.restore_net_common(self, self.create_network, restore)
 
 
-    def restore_net_meta(self, train_type=0, model_file=None):
+    def restore_net_meta(self, model_file=None):
 
-        sess, latest_model_file = PoseCommon.restore_meta_common(self, train_type, model_file)
+        sess, latest_model_file = PoseCommon.restore_meta_common(self, model_file)
         graph = tf.get_default_graph()
 
         # try:
@@ -387,15 +388,51 @@ class PoseUNet(PoseCommon):
         return sess, latest_model_file
 
 
-    def train_unet(self):
+    def train_unet(self,restore=False):
         def loss(inputs, pred):
             return tf.nn.l2_loss(pred-inputs[-1]) + self.wt_decay_loss()
 
         PoseCommon.train(self,
             create_network=self.create_network,
             loss=loss,
-            learning_rate=0.0001)
+            learning_rate=0.0001,restore=restore)
 
+    def get_pred_fn(self, model_file=None):
+        try:
+            sess, latest_model_file = self.restore_net_common(model_file=model_file)
+        except tf.errors.InternalError:
+            logging.exception(
+                'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly')
+            sys.exit(1)
+
+        conf = self.conf
+        def pred_fn(all_f):
+            # this is the function that is used for classification.
+            # this should take in an array B x H x W x C of images, and
+            # output an array of predicted locations.
+            # predicted locations should be B x N x 2
+            # PoseTools.get_pred_locs can be used to convert heatmaps into locations.
+
+            bsize = conf.batch_size
+            xs, locs_in = PoseTools.preprocess_ims(
+                all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
+                distort=False, scale=self.conf.unet_rescale)
+
+            self.fd[self.inputs[0]] = xs
+            self.fd_val()
+            try:
+                pred = sess.run(self.pred, self.fd)
+            except tf.errors.ResourceExhaustedError:
+                logging.exception('Out of GPU Memory. Either reduce the batch size or increase unet_rescale')
+                exit(1)
+            base_locs = PoseTools.get_pred_locs(pred, self.edge_ignore)
+            base_locs = base_locs * conf.unet_rescale
+            return base_locs, pred
+
+        def close_fn():
+            sess.close()
+
+        return pred_fn, close_fn, latest_model_file
 
     def classify_val(self, model_file=None, onTrain=False):
         if not onTrain:

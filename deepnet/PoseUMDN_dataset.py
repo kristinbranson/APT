@@ -18,6 +18,7 @@ import movies
 import multiResData
 from scipy import io as sio
 from scipy import stats
+import logging
 import tensorflow.contrib.framework as tfr
 
 
@@ -257,40 +258,6 @@ class PoseUMDN(PoseCommon.PoseCommon):
             # o_locs *= float(locs_offset)/2
             # o_locs += float(locs_offset)/2
 
-            self.pre_cross_locs = o_locs
-            if do_cross_pred:
-                cross_pred  = []
-                cross_eps = 0.05
-                cross_wts = []
-                for pt in range(self.conf.n_classes):
-                    kk1 = o_locs[:,:,:,:,:pt,:]
-                    kk2 = o_locs[:,:,:,:,(pt+1):,:]
-                    if pt == 0:
-                        locs_in = kk2
-                    elif pt== (self.conf.n_classes-1):
-                        locs_in = kk1
-                    else:
-                        locs_in = tf.concat([kk1,kk2],axis=-2)
-                    l_f = tf.reshape(locs_in,[-1,n_x,n_y,k,(n_out-1)*2])
-                    l1 = tf.contrib.layers.fully_connected(l_f, 24)
-                    l2 = tf.contrib.layers.fully_connected(l1, 18)
-                    l3 = tf.contrib.layers.fully_connected(l2, 12)
-                    l4 = tf.contrib.layers.fully_connected(l3, 8)
-                    l_out = tf.contrib.layers.fully_connected(l4, 3, activation_fn=None)
-                    wt = tf.sigmoid(l_out[:,:,:,:,0:1])
-                    cross_wts.append(wt)
-                    pp = l_out[:,:,:,:,1:]
-
-                    rand = tf.random_uniform(shape=wt.get_shape().as_list()) < cross_eps
-                    wt = tf.cond(self.ph['phase_train'], lambda: tf.maximum(tf.cast(rand,tf.float32),wt), lambda: tf.identity(wt))
-                    #wt = tf.cond(self.ph['phase_train'], lambda: cross_eps + (1-cross_eps)*wt, lambda: tf.identity(wt))
-
-                    wt_pred = (1-wt)*o_locs[:,:,:,:,pt,:] + wt*pp
-                    cross_pred.append(wt_pred)
-
-                o_locs = tf.stack(cross_pred,axis=-2)
-                self.cross_wts = cross_wts
-
             # adding offset of each grid location.
             x_off, y_off = np.meshgrid(np.arange(loc_shape[2]), np.arange(loc_shape[1]))
             x_off = x_off * locs_offset
@@ -301,8 +268,6 @@ class PoseUMDN(PoseCommon.PoseCommon):
             y_locs = o_locs[:,:,:,:,:,1] + y_off
             o_locs = tf.stack([x_locs, y_locs], axis=5)
             locs = tf.reshape(o_locs,[-1, n_x*n_y*k,n_out,2],name='locs_final')
-
-
 
         with tf.variable_scope('scales'):
             with tf.variable_scope('layer_scales'):
@@ -809,7 +774,6 @@ class PoseUMDN(PoseCommon.PoseCommon):
             create_network=self.create_network,
             loss=loss,
             learning_rate=0.0001, restore=restore)
-
 
     def restore_net(self, model_file=None):
         return self.restore_net_common(self.create_network, model_file)
