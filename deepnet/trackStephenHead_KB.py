@@ -22,6 +22,7 @@ import math
 default_net_name = 'deepnet'
 crop_reg_file = '/groups/branson/bransonlab/mayank/stephen_copy/crop_regression_params.mat'
 lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
+lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
 crop_size = [[230,350],[350,350]]
 name = 'stephen_20181029'
 cache_dir = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache'

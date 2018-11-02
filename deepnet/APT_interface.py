@@ -1363,7 +1363,7 @@ def parse_args(argv):
     parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views', default=None, type=int)
     parser.add_argument('-model_file', dest='model_file', help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization', default=None)
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
-    parser.add_argument('-out_dir', dest='out_dir', help='Directory to output log files', default=None)
+    parser.add_argument('-err_file', dest='err_file', help='Directory to output log files', default=None)
     parser.add_argument('-type', dest='type', help='Network type, default is unet', default='unet',
                         choices=['unet', 'openpose','deeplabcut','leap','mdn'])
     subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
@@ -1484,11 +1484,10 @@ def run(args):
 def main(argv):
     args = parse_args(argv)
 
-    if args.out_dir is not None:
-        assert os.path.exists(args.out_dir), 'Output directory doesnt exist'
-        logfile = os.path.join(args.out_dir, '{}.err'.format(args.name))
-    else:
+    if args.err_file is None:
         logfile = os.path.join(expanduser("~"), '{}.err'.format(args.name))
+    else:
+        logfile = args.err_file
     fileh = logging.FileHandler(logfile, 'w')
     log = logging.getLogger()  # root logger
     for hdlr in log.handlers[:]:  # remove all old handlers

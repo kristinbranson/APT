@@ -71,6 +71,24 @@ def conv_residual(x_in, train_phase):
 
     return conv + x_in
 
+def find_pad_sz(n_layers,in_sz):
+    p_amt = 0
+    while True:
+        sz = in_sz + p_amt
+        all_sz = []
+        cur_sz = sz
+        for l in range(n_layers):
+            cur_sz = int(math.ceil(cur_sz / 2.))
+            all_sz.append(cur_sz)
+        for l in reversed(range(n_layers)):
+            cur_sz = 2 * (cur_sz - 4) + 2
+            all_sz.append(cur_sz)
+
+        cur_sz -= 2
+        if cur_sz > in_sz:
+            break
+        p_amt += 1
+    return p_amt
 
 
 class PoseUNet(PoseCommon):
@@ -109,11 +127,12 @@ class PoseUNet(PoseCommon):
 
     def create_network1(self):
 
-        m_sz = min(self.conf.imsz)/self.conf.unet_rescale
-        max_layers = int(math.ceil(math.log(m_sz,2)))-1
-        sel_sz = self.conf.sel_sz
-        n_layers = int(math.ceil(math.log(sel_sz,2)))+2
-        n_layers = min(max_layers,n_layers) - 2
+        # m_sz = min(self.conf.imsz)/self.conf.unet_rescale
+        # max_layers = int(math.ceil(math.log(m_sz,2)))-1
+        # sel_sz = self.conf.sel_sz
+        # n_layers = int(math.ceil(math.log(sel_sz,2)))+2
+        # n_layers = min(max_layers,n_layers) - 2
+        n_layers = 4
 
         # n_layers = 6
 
