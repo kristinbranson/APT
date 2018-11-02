@@ -21,8 +21,8 @@ set(handles.pbResetZoom,'TooltipString','Zoom out to show whole video frame');
 set(handles.pbSetZoom,'TooltipString','Store current zoom for recalling');
 set(handles.pbRecallZoom,'TooltipString','Recall stored zoom level');
 
-set(handles.tbAdjustCropSize,'TooltipString','Toggle on/off whether the crop region for this video can be adjusted');
-set(handles.pbClearAllCrops,'TooltipString','Clear cropping information for this video');
+set(handles.tbAdjustCropSize,'TooltipString','Toggle on/off whether crop size(s) can be adjusted');
+set(handles.pbClearAllCrops,'TooltipString','Clear cropping information for all videos');
 
 dotooltips = lcl('jvm') && lcl('awt') && lcl('swing');
 

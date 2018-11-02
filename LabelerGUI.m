@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 29-Oct-2018 17:10:04
+% Last Modified by GUIDE v2.5 30-Oct-2018 17:29:24
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -476,7 +476,7 @@ handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
 handles.images_all = handles.image_curr;
 handles.cropHRect = [];
-handles.tbAdjustCropSizeString0 = handles.tbAdjustCropSize.String;
+handles.tbAdjustCropSizeString0 = 'Adjust Size';
 handles.tbAdjustCropSizeString1 = 'Done Adjusting';
 handles.tbAdjustCropSizeBGColor0 = handles.tbAdjustCropSize.BackgroundColor;
 handles.tbAdjustCropSizeBGColor1 = [1 0 0];
@@ -496,7 +496,8 @@ lObj = handles.labelerObj;
 
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual,handles.axes_timeline_islabeled);
 
-set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp());
+set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),'Value',handles.labelTLInfo.curprop);
+set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),'Value',handles.labelTLInfo.curproptype);
 
 % this is currently not used - KB made space here for training status
 set(handles.txProjectName,'String','');
@@ -538,6 +539,8 @@ listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_tracker','PostSet',@cbklabelTLInfoPropsUpdated);
+listeners{end+1,1} = addlistener(handles.labelTLInfo,'proptypes','PostSet',@cbklabelTLInfoPropTypesUpdated);
 listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
@@ -2139,6 +2142,12 @@ labelTLInfo = evt.AffectedObject;
 props = labelTLInfo.getPropsDisp();
 set(labelTLInfo.lObj.gdata.pumInfo,'String',props);
 
+function cbklabelTLInfoPropTypesUpdated(src,evt)
+% Update the props dropdown menu and timeline.
+labelTLInfo = evt.AffectedObject;
+proptypes = labelTLInfo.getPropTypesDisp();
+set(labelTLInfo.lObj.gdata.pumInfo_labels,'String',proptypes);
+
 function cbkFreezePrevAxesToMainWindow(src,evt)
 handles = guidata(src);
 handles.labelerObj.setPrevAxesMode(PrevAxesMode.FROZEN);
@@ -3487,6 +3496,13 @@ drawnow('limitrate');
 if ~isbusy && ~istemp,  syncStatusBarTextWhenClear(handles);
 end
 
+function RefreshStatus(handles)
+
+s = getappdata(handles.txStatus,'InputString');
+if ischar(s),
+  SetStatusText(handles,s);
+end
+
 function SetStatusText(handles,s)
 
 setappdata(handles.txStatus,'InputString',s);
@@ -3503,8 +3519,10 @@ if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
   s2 = strrep(s,'$PROJECTNAME',n);
   if ~isempty(handles.jtxStatus),
     set(handles.txStatus,'String',s1);
+    drawnow;
     pos1 = get(handles.jtxStatus,'PreferredSize');
     w = get(handles.jtxStatus,'Width');
+    %fprintf('width = %f, preferredwidth = %f\n',w,pos1.width);
     if pos1.width > w*.95,
       set(handles.txStatus,'String',s2);
     end
@@ -3785,3 +3803,36 @@ function menu_view_occluded_points_box_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
 lObj.setShowOccludedBox(~lObj.showOccludedBox);
+
+
+% --- Executes on selection change in pumInfo_labels.
+function pumInfo_labels_Callback(hObject, eventdata, handles)
+% hObject    handle to pumInfo_labels (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns pumInfo_labels contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from pumInfo_labels
+
+% s = get(hObject,'String');
+v = get(hObject,'Value');
+v2 = get(handles.pumInfo,'Value');
+s = handles.labelTLInfo.getPropsDisp(v);
+if v2 > numel(s),
+  v2 = 1;
+end
+set(handles.pumInfo,'String',s,'Value',v2);
+handles.labelTLInfo.setCurPropType(v,v2);
+
+
+% --- Executes during object creation, after setting all properties.
+function pumInfo_labels_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to pumInfo_labels (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end

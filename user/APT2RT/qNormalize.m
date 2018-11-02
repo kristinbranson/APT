@@ -7,6 +7,9 @@ function Q = qNormalize( Q1 )
 % OUT:
 %     Q - normalized (unity) quaternion, i.e. Q1 = Q / ||Q||
 %     
+%
+% uses Q = [ w; x; y; z ]; format
+%
 % VERSION: 03.03.2012
 
 Q1 = reshape( Q1, 4, 1 );
