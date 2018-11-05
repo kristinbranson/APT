@@ -629,6 +629,7 @@ switch lower(state),
     
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
+    set(handles.pumInfo_labels,'Enable','off');
     set(handles.tbTLSelectMode,'Enable','off');
     set(handles.pumTrack,'Enable','off');
     set(handles.pbTrack,'Enable','off');
@@ -708,6 +709,7 @@ switch lower(state),
 
     set(handles.pbClearSelection,'Enable','on');
     set(handles.pumInfo,'Enable','on');
+    set(handles.pumInfo_labels,'Enable','on');
     set(handles.tbTLSelectMode,'Enable','on');
     set(handles.pumTrack,'Enable','on');
     set(handles.pbTrack,'Enable','on');

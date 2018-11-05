@@ -1,13 +1,14 @@
 classdef InfoTimeline < handle
 
   properties (Constant)
-    TLPROPFILESTR = 'landmark_features.txt';
+    TLPROPFILESTR = 'landmark_features.yaml';
     TLPROPTYPES = {'Labels','Predictions','Imported'};
   end
   
   
   properties (SetAccess=private)
     TLPROPS; % features we can compute
+    TLPROPS_TRACKER;
   end
   
 %   % AL: Not using transparency for now due to perf issues on Linux
@@ -42,8 +43,8 @@ classdef InfoTimeline < handle
     color = [1,1,1]; % color when there is only one statistic for all landmarks
   end
   properties (SetObservable)
-    props % [npropx2]. Col 1: pretty/display name. Col 2: non-pretty name/id
-    props_tracker % [npropx2]. Col 1: pretty/display name. Col 2: non-pretty name/id
+    props % [npropx4]. Col 1: pretty/display name. Col 2: non-pretty name/id. Col 3: feature name. Col 4: transform name
+    props_tracker % [npropx4]. Col 1: pretty/display name. Col 2: non-pretty name/id. Col 3: feature name. Col 4: transform name
     curprop % row index into props
     proptypes % property types, eg 'Labels' or 'Predictions'.    
     curproptype % row index into proptypes
@@ -139,10 +140,10 @@ classdef InfoTimeline < handle
 
       fig = ax.Parent;
       hZ = zoom(fig);
-      setAxesZoomMotion(hZ,ax,'horizontal');
+      setAxesZoomMotion(hZ,ax,'vertical');
       obj.hZoom = hZ;
       hP = pan(fig);
-      setAxesPanMotion(hP,ax,'horizontal');
+      setAxesPanMotion(hP,ax,'vertical');
       obj.hPan = hP;
 
       if obj.isL,
@@ -174,10 +175,11 @@ classdef InfoTimeline < handle
       
       obj.tracker = [];
     
-      obj.readTimelineProps();
+      obj.TLPROPS_TRACKER =  EmptyLandmarkFeatureArray();
+      obj.readTimelinePropsNew();
             
-      obj.props = repmat(obj.TLPROPS(:),[1,2]);
-      obj.props_tracker = cell(0,2);
+      %obj.props = repmat(obj.TLPROPS(:),[1,2]);
+      obj.updateProps();
       obj.proptypes = InfoTimeline.TLPROPTYPES(:);
 
       obj.curprop = 1;
@@ -285,6 +287,16 @@ classdef InfoTimeline < handle
       
     end
     
+    function readTimelinePropsNew(obj)
+
+      path = fileparts(mfilename('fullpath'));
+      tlpropfile = fullfile(path,obj.TLPROPFILESTR);
+      assert(exist(tlpropfile,'file')>0);
+      
+      obj.TLPROPS = ReadLandmarkFeatureFile(tlpropfile);
+      
+    end
+    
     function initNewProject(obj)
       obj.npts = obj.lObj.nLabelPoints;
 
@@ -316,6 +328,7 @@ classdef InfoTimeline < handle
       
       set(obj.hCurrFrame,'XData',[nan nan],'ZData',[1 1]);
       set(obj.hCurrFrameL,'XData',[nan nan],'YData',[0,obj.npts],'ZData',[1 1]);
+      linkaxes([obj.hAx,obj.hAxL],'x');
     end
     
     function initNewMovie(obj)
@@ -337,7 +350,24 @@ classdef InfoTimeline < handle
       obj.hSegLineGT.init(xlims,SEGLINEYLOC,sPV);
       obj.hSegLineGTLbled.init(xlims,SEGLINEYLOC,sPVLbled);
       
+      obj.updateProps();
+      
       cbkGTSuggUpdated(obj,[],[]);
+    end
+    
+    function updateProps(obj)
+      
+      % remove body features if no body tracking
+      props = obj.TLPROPS;
+      if ~obj.lObj.hasTrx,
+        idxremove = strcmpi({props.coordsystem},'Body');
+        props(idxremove) = [];
+      end
+      obj.props = props;
+      
+      obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);
+      
+      
     end
         
     function setTracker(obj,tracker)
@@ -348,13 +378,14 @@ classdef InfoTimeline < handle
       end
       if isempty(tracker),
         obj.proptypes(strcmpi(obj.proptypes,'Predictions')) = [];
-        obj.props_tracker = cell(0,2);
+        obj.props_tracker = [];
       else
         if ~ismember('Predictions',obj.proptypes),
           obj.proptypes{end+1} = 'Predictions';
         end
-        props = tracker.propList(); %#ok<*PROPLC>
-        obj.props_tracker = cat(1,obj.props,repmat(props(:),[1,2]));
+        obj.TLPROPS_TRACKER = tracker.propList(); %#ok<*PROPLC>
+        obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);
+        %obj.props_tracker = cat(1,obj.props,repmat(props(:),[1,2]));
         obj.listenersTracker{end+1,1} = addlistener(tracker,...
           'newTrackingResults',@obj.cbkLabelUpdated);
       end      
@@ -602,9 +633,9 @@ classdef InfoTimeline < handle
         v = obj.curproptype;
       end
       if strcmpi(obj.proptypes{v},'Predictions'),
-        props = obj.props_tracker(:,1);
+        props = {obj.props_tracker.name};
       else
-        props = obj.props(:,1);
+        props = {obj.props.name};
       end
     end
     function proptypes = getPropTypesDisp(obj)
@@ -754,7 +785,7 @@ classdef InfoTimeline < handle
   end
 
   methods (Static) % util
-    function dmat = getDataFromLpos(lpos,lpostag,pcode,iTgt)
+    function dmat2 = getDataFromLpos(lpos,lpostag,bodytrx,pcode)
       % lpos: [npts x 2 x nfrm x ntgt] label array as in
       %   lObj.labeledpos{iMov}
       % lpostag: [npts x nfrm x ntgt] logical as in lObj.labeledpostag{iMov}
@@ -765,27 +796,46 @@ classdef InfoTimeline < handle
       
       % TODO: this currently computes for all frames, even those that have
       % not been labeled
-      tic;
-      trx = InfoTimeline.initializeTrx(lpos(:,:,:,iTgt),lpostag(:,:,iTgt));
-      if isfield(trx,pcode),
-        dmat = trx.(pcode);
-        if isstruct(dmat),
-          dmat = dmat.data;
-        end
-        fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
-        return;
-      end
       
-      fun = sprintf('compute_landmark_%s',pcode);
-      if ~exist(fun,'file'),
-        warningNoTrace('Unknown property to display in timeline.');
-        dmat = nan(size(lpos,1),size(lpos,3));
-        fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
-        return;
-      end
-      trx = feval(fun,trx);
-      dmat = trx.(pcode).data;
-      fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
+      dmat2 = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,pcode);
+%       
+%       tic;
+%       trx = InfoTimeline.initializeTrx(lpos(:,:,:,iTgt),lpostag(:,:,iTgt),bodytrx);
+%       if isfield(trx,pcode{1}),
+%         dmat2 = trx.(pcode{1});
+%         if isstruct(dmat2),
+%           dmat2 = dmat2.data;
+%         end
+%         fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
+%       else
+%         
+%         if isfield(trx,pcode{2}),
+%           dmat1 = trx.(pcode{2});
+%         else
+%         
+%           fun = sprintf('compute_landmark_%s',pcode{2});
+%           if ~exist(fun,'file'),
+%             warningNoTrace('Unknown property to display in timeline.');
+%             dmat2 = nan(size(lpos,1),size(lpos,3));
+%             fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
+%             return;
+%           end
+%           trx = feval(fun,trx);
+%           dmat1 = trx.(pcode{2});
+%         end
+%       
+%         fun = sprintf('compute_landmark_stat_%s',pcode{3});
+%         if ~exist(fun,'file'),
+%           warningNoTrace('Unknown property to display in timeline.');
+%           dmat2 = nan(size(lpos,1),size(lpos,3));
+%           fprintf('Time to compute info statistic %s = %f\n',pcode{1},toc);
+%           return;
+%         end
+%         
+%         dmat2 = feval(fun,dmat1);
+%         dmat2 = dmat2.data;
+%       end
+%       fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
 
       
 %       switch pcode
@@ -816,14 +866,14 @@ classdef InfoTimeline < handle
 %           dmat = nan(size(lpos,1),size(lpos,3));
 %       end
     end
-    function trx = initializeTrx(lpos,occluded)
-      trx = struct;
-      trx.pos = lpos;
-      trx.occluded = double(occluded);
-      trx.realunits = false;
-      trx.pxpermm = [];
-      trx.fps = [];      
-    end
+%     function trx = initializeTrx(lpos,occluded)
+%       trx = struct;
+%       trx.pos = lpos;
+%       trx.occluded = double(occluded);
+%       trx.realunits = false;
+%       trx.pxpermm = [];
+%       trx.fps = [];      
+%     end
   end
   
   methods (Access=private)
@@ -846,18 +896,28 @@ classdef InfoTimeline < handle
         data = nan(obj.npts,1);
       else
         switch ptype
-          case 'Labels'
-            pcode = obj.props{obj.curprop,2};
-            lpos = labeler.labeledposGTaware{iMov};
-            lpostag = labeler.labeledpostagGTaware{iMov};            
-            data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
-          case 'Imported'            
-            pcode = obj.props{obj.curprop,2};
-            lpos = labeler.labeledpos2GTaware{iMov};
-            lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
-            data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);            
+          case {'Labels','Imported'}
+            %pcode = obj.props{obj.curprop,2};
+            pcode = obj.props(obj.curprop);
+            needtrx = obj.lObj.hasTrx && strcmpi(pcode.coordsystem,'Body');
+            if needtrx,
+              trxFile = obj.lObj.trxFilesAllFullGTaware{iMov,1};
+              bodytrx = obj.lObj.getTrx(trxFile,obj.lObj.movieInfoAllGTaware{iMov,1}.nframes);
+              bodytrx = bodytrx(iTgt);
+            else
+              bodytrx = [];
+            end
+            if strcmp(ptype,'Labels'),
+              lpos = labeler.labeledposGTaware{iMov};
+              lpostag = labeler.labeledpostagGTaware{iMov};
+            else
+              lpos = labeler.labeledpos2GTaware{iMov};
+              lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
+            end
+            data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),lpostag(:,:,iTgt),bodytrx,pcode);
           case 'Predictions'
-            pcode = obj.props_tracker{obj.curprop,2};
+            %pcode = obj.props_tracker{obj.curprop,2};
+            pcode = obj.props_tracker(obj.curprop);
             data = obj.tracker.getPropValues(pcode);
           otherwise
             error('Unknown data type %s',ptype);

@@ -59,7 +59,7 @@ classdef LabelTracker < handle
   
   properties (Constant)
     APT_DEFAULT_TRACKERS = {'CPRLabelTracker' 'DeepTracker'};
-    INFOTIMELINE_PROPS_TRACKER = cell(0,1);
+    INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
   end
     
   methods
@@ -346,10 +346,14 @@ classdef LabelTracker < handle
     
     function props = propList(obj)
       %props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
-      props = obj.INFOTIMELINE_PROPS_TRACKER;
+      if isempty(obj.INFOTIMELINE_PROPS_TRACKER),
+        props = {};
+      else
+        props = {obj.INFOTIMELINE_PROPS_TRACKER.name};
+      end
     end
     
-    function data = getPropValues(obj,pcode)
+    function data = getPropValues(obj,prop)
       % Return the values of a particular property for
       % infotimeline
       
@@ -357,18 +361,29 @@ classdef LabelTracker < handle
       npts = labeler.nLabelPoints;
       nfrms = labeler.nframes;
       ntgts = labeler.nTargets;
-      iTgt = labeler.currTarget;      
+      iTgt = labeler.currTarget;
+      iMov = labeler.currMovie;
       tpos = obj.getTrackingResultsCurrMovie();
+      
+      needtrx = obj.lObj.hasTrx && strcmpi(prop.coordsystem,'Body');
+      if needtrx,
+        trxFile = obj.lObj.trxFilesAllFullGTaware{iMov,1};
+        bodytrx = obj.lObj.getTrx(trxFile,obj.lObj.movieInfoAllGTaware{iMov,1}.nframes);
+        bodytrx = bodytrx(iTgt);
+      else
+        bodytrx = [];
+      end
+      
       if isempty(tpos)
         % edge case uninitted (not sure why)
         tpos = nan(npts,2,nfrms,ntgts);
       end
       
-      if ismember(pcode,obj.INFOTIMELINE_PROPS_TRACKER),
+      if ismember(prop.code,{obj.INFOTIMELINE_PROPS_TRACKER.code}),
         error('Not implemented');
       else      
         tpostag = false(npts,nfrms,ntgts);
-        data = InfoTimeline.getDataFromLpos(tpos,tpostag,pcode,iTgt);
+        data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),tpostag(:,:,iTgt),bodytrx,prop);
       end
     end
     
