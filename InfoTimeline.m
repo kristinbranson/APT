@@ -122,7 +122,7 @@ classdef InfoTimeline < handle
       ax.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
       hold(ax,'on');
       obj.hAx = ax;
-      obj.hCurrFrame = plot(ax,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off');
+      obj.hCurrFrame = plot(ax,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off','Tag','InfoTimeline_CurrFrame');
 %       obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0],'hittest','off');
 
       if ~isempty(axl) && ishandle(axl),
@@ -133,7 +133,7 @@ classdef InfoTimeline < handle
       obj.hAxL = axl;
       
       if obj.isL,
-        obj.hCurrFrameL = plot(axl,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off');
+        obj.hCurrFrameL = plot(axl,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off','Tag','InfoTimeline_CurrFrameLabel');
       else
         obj.hCurrFrameL = [];
       end
@@ -192,23 +192,27 @@ classdef InfoTimeline < handle
       obj.hSelIm = [];
       obj.selectOn = false;
       obj.selectOnStartFrm = [];
-      obj.hSegLineGT = SegmentedLine(ax);
-      obj.hSegLineGTLbled = SegmentedLine(ax);
+      obj.hSegLineGT = SegmentedLine(ax,'InfoTimeline_SegLineGT');
+      obj.hSegLineGTLbled = SegmentedLine(ax,'InfoTimeline_SegLineGTLbled');
       obj.isinit = false;
       
       hCMenu = uicontextmenu('parent',ax.Parent,...
         'callback',@(src,evt)obj.cbkContextMenu(src,evt),...
-        'UserData',struct('bouts',nan(0,2)));
+        'UserData',struct('bouts',nan(0,2)),...
+        'Tag','InfoTimeline_ContextMenu');
       uimenu('Parent',hCMenu,'Label','Set number of frames shown',...
-        'Callback',@(src,evt)obj.cbkSetNumFramesShown(src,evt));
+        'Callback',@(src,evt)obj.cbkSetNumFramesShown(src,evt),...
+        'Tag','menu_InfoTimeline_SetNumFramesShown');
       obj.hCMenuClearAll = uimenu('Parent',hCMenu,...
         'Label','Clear selection (N bouts)',...
         'UserData',struct('LabelPat','Clear selection (%d bouts)'),...
-        'Callback',@(src,evt)obj.selectClearSelection());
+        'Callback',@(src,evt)obj.selectClearSelection(),...
+        'Tag','menu_InfoTimeline_selectClearSelection');
       obj.hCMenuClearBout = uimenu('Parent',hCMenu,...
         'Label','Clear bout (frame M--N)',...
         'UserData',struct('LabelPat','Clear bout (frame %d-%d)','iBout',nan),...
-        'Callback',@(src,evt)obj.cbkClearBout(src,evt));
+        'Callback',@(src,evt)obj.cbkClearBout(src,evt),...
+        'Tag','menu_InfoTimeline_ClearBout');
       ax.UIContextMenu = hCMenu;
             
       if obj.isL,
@@ -311,12 +315,12 @@ classdef InfoTimeline < handle
       axl = obj.hAxL;
       for i=1:obj.npts
         obj.hPts(i) = plot(ax,nan,i,'.','linestyle','-','Color',colors(i,:),...
-          'hittest','off');
+          'hittest','off','Tag',sprintf('InfoTimeline_Pt%d',i));
         if obj.isL,
-          obj.hPtsL(i) = patch(axl,nan(1,5),i-1+[0,1,1,0,0],colors(i,:),'EdgeColor','none','hittest','off');
+          obj.hPtsL(i) = patch(axl,nan(1,5),i-1+[0,1,1,0,0],colors(i,:),'EdgeColor','none','hittest','off','Tag',sprintf('InfoTimeline_Label_%d',i));
         end
       end
-      obj.hPtStat = plot(ax,nan,i,'.-','Color',obj.color,'hittest','off','LineWidth',2);
+      obj.hPtStat = plot(ax,nan,i,'.-','Color',obj.color,'hittest','off','LineWidth',2,'Tag','InfoTimeline_Stat');
       
       prefsTL = obj.prefs;
       ax.XColor = prefsTL.XColor;
