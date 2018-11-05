@@ -9538,8 +9538,9 @@ classdef Labeler < handle
       %
       % hFig: [nfig] figure handles
       
-      [type,nr,nc,plotlabelcolor,figargs] = myparse(varargin,...
+      [type,imov,nr,nc,plotlabelcolor,figargs] = myparse(varargin,...
         'type','wide',... either 'wide' or 'cropped'. wide shows rois in context of full im. 
+        'imov',[],... % show crops for these movs. defaults to 1:nmoviesGTaware
         'nr',9,... % number of rows in montage
         'nc',10,... % etc
         'plotlabelcolor',[1 1 0],...
@@ -9552,6 +9553,10 @@ classdef Labeler < handle
         error('Project does not have crops defined.');
       end
       
+      if isempty(imov)
+        imov = 1:obj.nmoviesGTaware;
+      end
+      
       switch lower(type)
         case 'wide', tfWide = true;
         case 'cropped', tfWide = false;
@@ -9559,7 +9564,7 @@ classdef Labeler < handle
       end
       
       % get MFTable to pull first frame of each mov
-      mov = obj.movieFilesAllFullGTaware;
+      mov = obj.movieFilesAllFullGTaware(imov,:);
       nmov = size(mov,1);
       if nmov==0
         error('No movies.');
@@ -9573,14 +9578,15 @@ classdef Labeler < handle
         'movieInvert',obj.movieInvert,...
         'wbObj',wbObj);
 
-      roisAll = obj.cropGetAllRois;      
+      roisAll = obj.cropGetAllRois; 
+      roisAll = roisAll(imov,:,:);
       
       nvw = obj.nview;
       if ~tfWide
-        for imov=1:nmov
+        for iimov=1:nmov
           for ivw=1:nvw
-            roi = roisAll(imov,:,ivw);
-            I1{imov,ivw} = I1{imov,ivw}(roi(3):roi(4),roi(1):roi(2));
+            roi = roisAll(iimov,:,ivw);
+            I1{iimov,ivw} = I1{iimov,ivw}(roi(3):roi(4),roi(1):roi(2));
           end
         end
       end
@@ -9603,12 +9609,12 @@ classdef Labeler < handle
         end
         
         for ibatch=1:nbatch
-          imovs = (1:nplotperbatch) + (ibatch-1)*nplotperbatch;
-          imovs(imovs>nmov)= [];
+          iimovs = (1:nplotperbatch) + (ibatch-1)*nplotperbatch;
+          iimovs(iimovs>nmov) = [];
           figstr = sprintf('movs %d->%d. view %d.',...
-            imovs(1),imovs(end),ivw);
+            iimovs(1),iimovs(end),ivw);
           titlestr = sprintf('movs %d->%d. view %d. [w h]: %s',...
-            imovs(1),imovs(end),ivw,mat2str(wh));
+            iimovs(1),iimovs(end),ivw,mat2str(wh));
           
           hFig(end+1,1) = figure(figargs{:}); %#ok<AGROW>
           hFig(end).Name = figstr;
@@ -9616,17 +9622,17 @@ classdef Labeler < handle
           if tfWide
             Shape.montage(I1(:,ivw),nan(nmov,2),...
               'fig',hFig(end),...
-              'nr',nr,'nc',nc,'idxs',imovs,...
+              'nr',nr,'nc',nc,'idxs',iimovs,...
               'rois',roisAll(:,:,ivw),...
               'imsHeterogeneousSz',tfImsHeterogeneousSz,...
-              'framelbls',arrayfun(@num2str,imovs,'uni',0),...
+              'framelbls',arrayfun(@num2str,imov(iimovs),'uni',0),...
               'framelblscolor',plotlabelcolor,...
               'titlestr',titlestr);
           else
             Shape.montage(I1(:,ivw),nan(nmov,2),...
               'fig',hFig(end),...
-              'nr',nr,'nc',nc,'idxs',imovs,...
-              'framelbls',arrayfun(@num2str,imovs,'uni',0),...
+              'nr',nr,'nc',nc,'idxs',iimovs,...
+              'framelbls',arrayfun(@num2str,imov(iimovs),'uni',0),...
               'framelblscolor',plotlabelcolor,...
               'titlestr',titlestr);
           end
