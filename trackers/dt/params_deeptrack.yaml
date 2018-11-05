@@ -19,7 +19,7 @@ ROOT:
     - scale: ['Scale',unsigned,true,'Downsample image by scale to reduce the network size',1,'']
     - adjustContrast: ['Adjust Contrast',boolean,true,'Adjust image contrast using CLAHE',0,'']
     - normalize: ['Normalize Image',boolean,true,'Normalize by subtracting image mean',1,'']
-    - dl_steps: ['Training steps',unsigned,true,'Number of iterations to run the training for',20000,'']
+    - dl_steps: ['Training steps',unsigned,true,'Number of iterations to run the training for',60000,'']
     - cos_steps: ['Warm restarts',unsigned,true,'Number of warm restarts',2,'']
     - batch_size: ['Batch Size',unsigned,true,'Number of examples to use for each training iteration.',8,'']
     - flipud: ['Flip Movie',float,true,'Flip movie upside down',0,'']

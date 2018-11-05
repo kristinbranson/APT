@@ -103,6 +103,7 @@ def normalize_mean(in_img, conf):
         xx = zz - zz.mean()
     else:
         xx = zz
+    xx = xx.astype('uint8')
     return xx
 
 
@@ -268,7 +269,7 @@ def randomly_translate(img, locs, conf, group_sz = 1):
             mat = np.float32([[1, 0, dx], [0, 1, dy]])
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows),borderMode=cv2.BORDER_REPLICATE)
+                ii = cv2.warpAffine(ii, mat, (cols, rows))#,borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -334,7 +335,7 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
             mat = cv2.getRotationMatrix2D((old_div(cols, 2), old_div(rows, 2)), rangle, 1)
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows),borderMode=cv2.BORDER_REPLICATE)
+                ii = cv2.warpAffine(ii, mat, (cols, rows))#,borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -1316,12 +1317,12 @@ def crop_to_size(img, sz):
     else:
         hdx = int(dx/2)
         hdy = int(dy/2)
-        # out_img[hdy:(new_sz[0] + hdy), hdx:(new_sz[1] + hdx), ...] = img
+        out_img[hdy:(new_sz[0] + hdy), hdx:(new_sz[1] + hdx), ...] = img
 
-        if len(sz) == 2:
-            out_img = np.pad(img,[[hdy,(dy-hdy)],[hdx,(dx-hdx)]],mode='edge')
-        else:
-            out_img = np.pad(img,[[hdy,(dy-hdy)],[hdx,(dx-hdx)],[0,0]],mode='edge')
+        # if len(sz) == 2:
+        #     out_img = np.pad(img,[[hdy,(dy-hdy)],[hdx,(dx-hdx)]],mode='edge')
+        # else:
+        #     out_img = np.pad(img,[[hdy,(dy-hdy)],[hdx,(dx-hdx)],[0,0]],mode='edge')
 
     return out_img, dx, dy
 
@@ -1342,7 +1343,6 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
         xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)
         xs, locs = randomly_translate(xs, locs, conf, group_sz=group_sz)
         xs = randomly_adjust(xs, conf, group_sz=group_sz)
-    # xs = adjust_contrast(xs, conf)
     xs = normalize_mean(xs, conf)
     return xs, locs
 
@@ -1371,14 +1371,13 @@ def get_datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def runningInDocker():
+def running_in_docker():
     # From https://gist.github.com/anantkamath/623ce7f5432680749e087cf8cfba9b69
     with open('/proc/self/cgroup', 'r') as procfile:
         for line in procfile:
             fields = line.strip().split('/')
             if 'docker' in fields:
                 return True
-
     return False
 
 
@@ -1432,3 +1431,14 @@ def get_crop_loc(lbl,ndx,view, on_gt=False):
 
     return crop_loc
 
+
+def create_cum_plot(dd,d_max=None):
+    d_max = dd.max() if d_max is None else d_max
+    zz = np.linspace(0,d_max,100)
+    cum_stats = []
+    for ndx in range(dd.shape[1]):
+        cum_stats.append([])
+        for z in zz:
+            cum_stats[ndx].append(np.count_nonzero(dd[:,ndx]<z))
+
+    return np.array(cum_stats)

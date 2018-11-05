@@ -1,22 +1,30 @@
-import trackStephenHead_KB as ts
-cmd_str = '-s /groups/branson/home/kabram/temp/slist.txt -f /groups/branson/home/kabram/temp/flist.txt -d /groups/huston/hustonlab/flp-chrimson_experiments/fly2DLT_lookupTableStephen.csv -o /groups/branson/home/kabram/temp/stephenOut -only_track -r'
+import APT_interface as apt
+cmd_str = '-name stephen_20181029 -cache /groups/branson/home/kabram/bransonlab/stephen_copy/apt_cache/ /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl train -use_cache'
+cmd_str = '-view 1 -type mdn -name stephen_20181101 -cache /groups/branson/home/kabram/bransonlab/stephen_copy/apt_cache/ /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl train -use_cache -skip_db'
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-# ts.main(cmd_str.split())
-ts.test_crop()
+apt.main(cmd_str.split())
+
+##
+cmd_str = '-name alice_unet_dataset -cache /nrs/branson/mayank/temp/apt_cache /nrs/branson/mayank/apt_cache/alice_model_20181011/multitarget_bubble_expandedbehavior_20180425_modified3.lbl track -mov {0}/movie.ufmf -trx {0}/registered_trx.mat -out /tmp/movie_unet_20181011.trk -trx_ids 9 -start_frame 7539 -end_frame 7550'
+mov = '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00038_CsChr_RigB_20150729T150617'
+args = cmd_str.format(mov).split()
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import APT_interface as apt
+apt.main(args)
+
+##
+import trackStephenHead_KB as ts
+cmd_str = '-s /groups/branson/bransonlab/mayank/stephen_copy/fly1302/View1Vids.txt -f /groups/branson/bransonlab/mayank/stephen_copy/fly1302/View2Vids.txt -d /groups/huston/hustonlab/flp-chrimson_experiments/fly2DLT_lookupTableStephen.csv -o /nrs/branson/mayank/temp/stephenOut'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+ts.main(cmd_str.split())
 ##
 import APT_interface as apt
 cmd_str = '-name stephen_20181029 -cache /groups/branson/home/kabram/temp/delete -out_dir /groups/branson/home/kabram/temp -view 1 /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl track -mov /groups/huston/hustonlab/flp-chrimson_experiments/fly_219_to_228_28_10_15_SS00325_x_norpAcsChrimsonFlp11/fly219/fly219_trial9/C001H001S0001/C001H001S0001_c.avi -out /groups/branson/home/kabram/temp/sh_test.trk -crop_loc 1 230 1 350       '
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
-apt.main(cmd_str.split())
-
-##
-import APT_interface as apt
-cmd_str = '-name stephen_20181029 -cache /groups/branson/home/kabram/bransonlab/stephen_copy/apt_cache/ /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl train -use_cache'
-cmd_str = '-name stephen_20181029 -cache /groups/branson/home/kabram/temp/delete /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl train -use_cache'
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 apt.main(cmd_str.split())
 
 ##
@@ -142,13 +150,6 @@ os.environ['CUDA_VISIBLE_DEVICES'] = ''
 import APT_interface as apt
 apt.main(args)
 ##
-cmd_str = '-cache /nrs/branson/mayank/apt_cache/alice_model_20181011 /nrs/branson/mayank/apt_cache/alice_model_20181011/multitarget_bubble_expandedbehavior_20180425_modified3.lbl track -mov {0}/movie.ufmf -trx {0}/registered_trx.mat -out /tmp/movie_unet_20181011.trk -trx_ids 9 -start_frame 7539 -end_frame 7550'
-mov = '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00038_CsChr_RigB_20150729T150617'
-args = cmd_str.format(mov).split()
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-import APT_interface as apt
-apt.main(args)
 
 ##
 from poseConfig import aliceConfig as conf

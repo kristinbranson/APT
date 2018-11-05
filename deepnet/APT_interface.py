@@ -9,7 +9,9 @@ import logging
 from os.path import expanduser
 from random import sample
 
-import PoseUNet
+# import PoseUNet
+import PoseUNet_dataset as PoseUNet
+import PoseUNet_resnet as PoseURes
 import hdf5storage
 import imageio
 import multiResData
@@ -200,7 +202,7 @@ def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num):
         # cur_out_png = os.path.join(hmaps_dir,'hmap_trx_{}_t_{}_part_{}.png'.format(trx_ndx+1,frame_num+1,bpart+1))
         # imageio.imwrite(cur_out_png,cur_im)
 
-def create_conf(lbl_file, view, name, net_type='unet', cache_dir=None):
+def create_conf(lbl_file, view, name, cache_dir=None,net_type='unet'):
     try:
         try:
             H = loadmat(lbl_file)
@@ -214,27 +216,26 @@ def create_conf(lbl_file, view, name, net_type='unet', cache_dir=None):
     conf = config()
     conf.n_classes = int(read_entry(H['cfg']['NumLabelPoints']))
     if H['projname'][0] == 0:
-        proj_name = 'default_view{}'.format(view)
+        proj_name = 'default'
     else:
-        proj_name = read_string(H['projname']) + '_view{}'.format(view)
+        proj_name = read_string(H['projname'])
     conf.view = view
     conf.set_exp_name(proj_name)
     # conf.cacheDir = read_string(H['cachedir'])
+
     dt_params_ndx = None
     for ndx in range(H['trackerClass'].shape[0]):
         cur_tracker = ''.join([chr(c) for c in H[H['trackerClass'][ndx][0]]])
         if cur_tracker == 'DeepTracker':
             dt_params_ndx = ndx
-
     dt_params = H[H['trackerData'][dt_params_ndx][0]]['sPrm']
-    if cache_dir is None:
-        conf.cachedir = os.path.join(read_string(dt_params['CacheDir']), proj_name, name)
-    else:
-        conf.cachedir = os.path.join(cache_dir, proj_name, name)
-        # conf.cachedir = cache_dir
 
-    if not os.path.exists(os.path.split(conf.cachedir)[0]):
-        os.mkdir(os.path.split(conf.cachedir)[0])
+    cache_dir = read_string(dt_params['CacheDir']) if cache_dir is None else cache_dir
+    conf.cachedir = os.path.join(cache_dir, proj_name, net_type, 'view_{}'.format(view), name)
+
+    if not os.path.exists(conf.cachedir):
+        os.makedirs(conf.cachedir)
+
     # conf.cachedir = os.path.join(localSetup.bdir, 'cache', proj_name)
     conf.has_trx_file = has_trx_file(H[H['trxFilesAll'][0, 0]])
     conf.selpts = np.arange(conf.n_classes)
@@ -928,6 +929,13 @@ def classify_db_all(model_type, conf, db_file, model_file=None):
         pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file)
         pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
         close_fn()
+    elif model_type == 'mdn':
+        tf_iterator = multiResData.tf_reader(conf, db_file, False)
+        tf_iterator.batch_size = 1
+        read_fn = tf_iterator.next
+        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file)
+        pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        close_fn()
     elif model_type == 'leap':
         leap_gen, n = leap.training.get_read_fn(conf, db_file)
         pred_fn, latest_model_file = leap.training.get_pred_fn(conf, model_file)
@@ -1134,7 +1142,7 @@ def classify_movie(conf, pred_fn,
     return pred_locs
 
 
-def get_unet_pred_fn(conf, model_file=None):
+def get_unet_pred_fn_nodataset(conf, model_file=None):
 
     tf.reset_default_graph()
     self = PoseUNet.PoseUNet(conf,name='deepnet')
@@ -1175,6 +1183,20 @@ def get_unet_pred_fn(conf, model_file=None):
 
     return pred_fn, close_fn, latest_model_file
 
+def get_unet_pred_fn(conf, model_file=None):
+
+    tf.reset_default_graph()
+    self = PoseUNet.PoseUNet(conf,name='deepnet')
+    self.train_data_name = 'traindata'
+    return self.get_pred_fn(model_file)
+
+def get_mdn_pred_fn(conf, model_file=None):
+
+    tf.reset_default_graph()
+    self = PoseURes.PoseUMDN_resnet(conf,name='deepnet')
+    self.train_data_name = 'traindata'
+    return self.get_pred_fn(model_file)
+
 
 def classify_movie_all(model_type, **kwargs):
     conf = kwargs['conf']
@@ -1188,13 +1210,31 @@ def classify_movie_all(model_type, **kwargs):
         logging.exception('Could not track movie')
 
 
-def train_unet(conf, args, restore):
+def train_unet_nodataset(conf, args, restore):
     if not args.skip_db:
         create_tfrecord(conf, False, use_cache=args.use_cache)
     tf.reset_default_graph()
     self = PoseUNet.PoseUNet(conf,name='deepnet')
     self.train_data_name = 'traindata'
     self.train_unet(restore=restore, train_type=1)
+
+
+def train_unet(conf, args, restore):
+    if not args.skip_db:
+        create_tfrecord(conf, False, use_cache=args.use_cache)
+    tf.reset_default_graph()
+    self = PoseUNet.PoseUNet(conf,name='deepnet')
+    self.train_data_name = 'traindata'
+    self.train_unet(restore=restore)
+
+
+def train_mdn(conf, args, restore):
+    if not args.skip_db:
+        create_tfrecord(conf, False, use_cache=args.use_cache)
+    tf.reset_default_graph()
+    self = PoseURes.PoseUMDN_resnet(conf,name='deepnet')
+    self.train_data_name = 'traindata'
+    self.train_umdn(restore=restore)
 
 
 def train_leap(conf, args):
@@ -1217,7 +1257,7 @@ def train_deepcut(conf, args):
 
 def train(lblfile, nviews, name, args):
     view = args.view
-    type = args.type
+    net_type = args.type
     restore = args.restore
     if view is None:
         views = range(nviews)
@@ -1225,22 +1265,24 @@ def train(lblfile, nviews, name, args):
         views = [view]
 
     for cur_view in views:
-        conf = create_conf(lblfile, cur_view, name, cache_dir=args.cache)
+        conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache)
 
         conf.view = cur_view
 
         try:
-            if type == 'unet':
+            if net_type == 'unet':
                 train_unet(conf, args, restore)
-            elif type == 'openpose':
+            elif net_type == 'mdn':
+                 train_mdn(conf, args, restore)
+            elif net_type == 'openpose':
                 if args.use_defaults:
                     open_pose.set_openpose_defaults(conf)
                 train_openpose(conf,args)
-            elif type == 'leap':
+            elif net_type == 'leap':
                 if args.use_defaults:
                     leap.training.set_leap_defaults(conf)
                 train_leap(conf, args)
-            elif type == 'deeplabcut':
+            elif net_type == 'deeplabcut':
                 if args.use_defaults:
                     deepcut.train.set_deepcut_defaults(conf)
                 deepcut_train(conf)
@@ -1321,9 +1363,9 @@ def parse_args(argv):
     parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views', default=None, type=int)
     parser.add_argument('-model_file', dest='model_file', help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization', default=None)
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
-    parser.add_argument('-out_dir', dest='out_dir', help='Directory to output log files', default=None)
+    parser.add_argument('-err_file', dest='err_file', help='Directory to output log files', default=None)
     parser.add_argument('-type', dest='type', help='Network type, default is unet', default='unet',
-                        choices=['unet', 'openpose','deeplabcut','leap'])
+                        choices=['unet', 'openpose','deeplabcut','leap','mdn'])
     subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
 
     parser_train = subparsers.add_parser('train', help='Train the detector')
@@ -1406,7 +1448,7 @@ def run(args):
             views = [args.view]
 
         for view_ndx, view in enumerate(views):
-            conf = create_conf(lbl_file, view, name, cache_dir=args.cache)
+            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache)
             if args.crop_loc is not None:
                 crop_loc = [int(x) for x in args.crop_loc]
                 crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx,:] - 1
@@ -1435,18 +1477,17 @@ def run(args):
             views = [args.view]
 
         for view_ndx, view in enumerate(views):
-            conf = create_conf(lbl_file, view, name, cache_dir=args.cache)
+            conf = create_conf(lbl_file, view, name, net_type=args.type,cache_dir=args.cache)
             out_file = args.out_file + '_{}.mat'.format(view)
             classify_gt_data(args.type, conf, out_file, model_file=args.model_file)
 
 def main(argv):
     args = parse_args(argv)
 
-    if args.out_dir is not None:
-        assert os.path.exists(args.out_dir), 'Output directory doesnt exist'
-        logfile = os.path.join(args.out_dir, '{}.err'.format(args.name))
-    else:
+    if args.err_file is None:
         logfile = os.path.join(expanduser("~"), '{}.err'.format(args.name))
+    else:
+        logfile = args.err_file
     fileh = logging.FileHandler(logfile, 'w')
     log = logging.getLogger()  # root logger
     for hdlr in log.handlers[:]:  # remove all old handlers

@@ -155,7 +155,7 @@ class PoseCommon(object):
         self.read_and_decode = multiResData.read_and_decode
         self.scale = 1
         self.extra_info_sz = 1
-        self.ckpt_file = os.path.join( conf.cachedir, conf.expname + '_' + name + '_ckpt')
+        self.ckpt_file = os.path.join( conf.cachedir, name + '_ckpt')
 
         self.q_placeholder_spec = []
         self.q_placeholders = []
@@ -186,8 +186,7 @@ class PoseCommon(object):
         name = self.name
         net_name = self.net_name
         saver['out_file'] = os.path.join(
-            self.conf.cachedir,
-            self.conf.expname + '_' + name)
+            self.conf.cachedir,name)
         if self.train_data_name is None:
             saver['train_data_file'] = os.path.join(
                 self.conf.cachedir,
@@ -400,15 +399,17 @@ class PoseCommon(object):
             saver['saver'].restore(sess, latest_ckpt.model_checkpoint_path)
             match_obj = re.match(out_file + '-(\d*)', latest_ckpt.model_checkpoint_path)
             start_at = int(match_obj.group(1)) + 1
+            print(' ---- ')
+            print('Continuing training from iter number {}'.format(start_at))
+            print(' ---- ')
             self.restore_td(start_at)
 
         initialize_remaining_vars(sess)
         return start_at
 
-
     def restore_pretrained(self, sess):
 
-        model_file = self.conf.pretrained_weights
+        model_file = self.pretrained_weights
         var_list = self.get_var_list()
         pre_list = tf.train.list_variables(model_file)
         pre_list_names = [p[0] for p in pre_list]
@@ -427,6 +428,7 @@ class PoseCommon(object):
         print('\n'.join(c_names))
         print("-- Not Loading from pretrained --")
         print('\n'.join(r_names))
+        print('Restoring pretrained resnet weights form {}'.format(model_file))
         # common_vars = [i for i in common_vars if i not in rem_locs]
         pretrained_saver = tf.train.Saver(var_list=common_vars)
         pretrained_saver.restore(sess, model_file)
@@ -536,7 +538,7 @@ class PoseCommon(object):
             #self.init_td()
 
             start = time.time()
-            for step in range(0, training_iters + 1):
+            for step in range(start_at, training_iters + 1):
                 self.train_step(step, sess, learning_rate, training_iters)
                 if step % self.conf.display_step == 0:
                     end = time.time()
@@ -565,7 +567,9 @@ class PoseCommon(object):
         tf.reset_default_graph()
 
 
-    def restore_net_common(self, create_network_fn, model_file=None):
+    def restore_net_common(self, create_network_fn=None, model_file=None):
+        if create_network_fn is None:
+            create_network_fn = self.create_network
         print('--- Loading the model by reconstructing the graph ---')
         self.setup_pred()
         self.pred = create_network_fn()
@@ -576,8 +580,8 @@ class PoseCommon(object):
 
         try:
             self.restore_td()
-        except AttributeError:  # If the conf file has been modified
-            print("Couldn't load train data because the conf has changed!")
+        except (AttributeError,IOError):  # If the conf file has been modified
+            print("Couldn't load the training data")
             self.init_td()
 
         for i in self.inputs:
@@ -601,7 +605,7 @@ class PoseCommon(object):
     def restore_meta(self, name, sess, model_file=None):
         if model_file is None:
             ckpt_file = self.ckpt_file
-            latest_ckpt = tf.train.get_checkpoint_state(ckpt_file)
+            latest_ckpt = tf.train.get_checkpoint_state(self.conf.cachedir, ckpt_file)
             saver = tf.train.import_meta_graph(latest_ckpt.model_checkpoint_path+'.meta')
             latest_model_file =latest_ckpt.model_checkpoint_path
         else:
