@@ -1817,6 +1817,7 @@ function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
+starttime = tic;
 handles = guidata(hObject);
 lObj = handles.labelerObj;
 
@@ -1851,6 +1852,8 @@ if ~tfSetOccurred
   end
   set(hObject,'Value',sldval);
 end
+
+fprintf('Setting to frame %d took %f seconds\n',f,toc(starttime));
 
 function slider_frame_CreateFcn(hObject,~,~)
 % Hint: slider controls usually have a light gray background.

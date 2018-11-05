@@ -716,11 +716,11 @@ classdef Table < hgsetget
         
         % CBEnabled
         function set.CBEnabled(obj,value)
-            drawnow;
+            %drawnow;
             if isvalid(obj)
                 obj.CBEnabled = value;
             end
-            drawnow;
+            %drawnow;
         end
         
         

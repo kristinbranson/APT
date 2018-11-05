@@ -3152,9 +3152,9 @@ classdef Labeler < handle
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
       
-      % KB 20161213: moved this up here so that we could redo in initHook
-      obj.labelsMiscInit();
       if isFirstMovie,
+        % KB 20161213: moved this up here so that we could redo in initHook
+        obj.labelsMiscInit();
         % we set template below as it requires .trx to be set correctly. 
         % see below
         obj.labelingInit('dosettemplate',false); 
