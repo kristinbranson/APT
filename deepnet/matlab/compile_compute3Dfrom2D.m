@@ -6,8 +6,8 @@ thisScriptFileName=mfilename('fullpath');
 thisScriptDirName=fileparts(thisScriptFileName);
 
 % just put the executable in the did with the build script
-exeDirName=thisScriptDirName;
-
+% exeDirName=thisScriptDirName;
+exeDirName = ['/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/compiled_' datestr(now,'YYYYmmDD')];
 
 mcc('-o','compute3Dfrom2D_compiled', ...
     '-m', ...

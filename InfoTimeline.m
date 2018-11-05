@@ -1,7 +1,13 @@
 classdef InfoTimeline < handle
 
   properties (Constant)
-    TLPROPS = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|' 'occluded'};
+    TLPROPFILESTR = 'landmark_features.txt';
+    TLPROPTYPES = {'Labels','Predictions','Imported'};
+  end
+  
+  
+  properties (SetAccess=private)
+    TLPROPS; % features we can compute
   end
   
 %   % AL: Not using transparency for now due to perf issues on Linux
@@ -22,6 +28,7 @@ classdef InfoTimeline < handle
     hPan % pan handle "
 
     hPts % [npts] line handles
+    hPtStat % scalar line handle
     npts % number of label points in current movie/timeline
     %nfrm % number of frames "
     tldata % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
@@ -31,10 +38,15 @@ classdef InfoTimeline < handle
     listenersTracker % col cell array of tracker listeners
 
     tracker % scalar LabelTracker obj
+    
+    color = [1,1,1]; % color when there is only one statistic for all landmarks
   end
   properties (SetObservable)
-    props % [npropx3]. Col 1: pretty/display name. Col 2: Type, eg 'Labels', 'Labels2' or 'Tracks'. Col3: non-pretty name/id
+    props % [npropx2]. Col 1: pretty/display name. Col 2: non-pretty name/id
+    props_tracker % [npropx2]. Col 1: pretty/display name. Col 2: non-pretty name/id
     curprop % row index into props
+    proptypes % property types, eg 'Labels' or 'Predictions'.    
+    curproptype % row index into proptypes
   end
   properties
     jumpThreshold
@@ -139,6 +151,7 @@ classdef InfoTimeline < handle
       end
       
       obj.hPts = [];
+      obj.hPtStat = [];
       obj.hPtsL = [];
       obj.npts = nan;
       %Rxobj.nfrm = nan;
@@ -161,15 +174,14 @@ classdef InfoTimeline < handle
       
       obj.tracker = [];
     
-      props = InfoTimeline.TLPROPS(:);
-      props(:,2) = {'Labels'};
-      props(:,3) = props(:,1);
-      props2 = props;      
-      props2(:,1) = cellfun(@(x)sprintf('%s (imported)',x),props2(:,1),'uni',0);
-      props2(:,2) = {'Labels2'};
-      props = [props;props2];
-      obj.props = props;    
+      obj.readTimelineProps();
+            
+      obj.props = repmat(obj.TLPROPS(:),[1,2]);
+      obj.props_tracker = cell(0,2);
+      obj.proptypes = InfoTimeline.TLPROPTYPES(:);
+
       obj.curprop = 1;
+      obj.curproptype = 1;
       
       obj.jumpThreshold = nan;
       obj.jumpCondition = nan;
@@ -196,7 +208,7 @@ classdef InfoTimeline < handle
         'UserData',struct('LabelPat','Clear bout (frame %d-%d)','iBout',nan),...
         'Callback',@(src,evt)obj.cbkClearBout(src,evt));
       ax.UIContextMenu = hCMenu;
-      
+            
       if obj.isL,
 %         hCMenuL = uicontextmenu('parent',axl.Parent);
 %         uimenu('Parent',hCMenu,'Label','Set number of frames shown',...
@@ -229,7 +241,9 @@ classdef InfoTimeline < handle
         delete(obj.hPan);
       end
       deleteValidHandles(obj.hPts);
+      deleteValidHandles(obj.hPtStat);
       obj.hPts = [];
+      obj.hPtStat = [];
       deleteValidHandles(obj.hPtsL);
       obj.hPtsL = [];
       if ~isempty(obj.listeners),
@@ -252,12 +266,33 @@ classdef InfoTimeline < handle
   
   methods
     
+    function readTimelineProps(obj)
+
+      path = fileparts(mfilename('fullpath'));
+      tlpropfile = fullfile(path,obj.TLPROPFILESTR);
+      assert(exist(tlpropfile,'file')>0);
+      
+      fid = fopen(tlpropfile,'r');
+      while true,
+        s = fgetl(fid);
+        if ~ischar(s),
+          break;
+        end
+        s = strtrim(s);
+        obj.TLPROPS{end+1} = s;
+      end
+      fclose(fid);
+      
+    end
+    
     function initNewProject(obj)
       obj.npts = obj.lObj.nLabelPoints;
 
       deleteValidHandles(obj.hPts);
+      deleteValidHandles(obj.hPtStat);
       deleteValidHandles(obj.hPtsL);
       obj.hPts = gobjects(obj.npts,1);
+      obj.hPtStat = gobjects(1);
       obj.hPtsL = gobjects(obj.npts,1);
       colors = obj.lObj.LabelPointColors;
       ax = obj.hAx;
@@ -269,6 +304,7 @@ classdef InfoTimeline < handle
           obj.hPtsL(i) = patch(axl,nan(1,5),i-1+[0,1,1,0,0],colors(i,:),'EdgeColor','none','hittest','off');
         end
       end
+      obj.hPtStat = plot(ax,nan,i,'.-','Color',obj.color,'hittest','off','LineWidth',2);
       
       prefsTL = obj.prefs;
       ax.XColor = prefsTL.XColor;
@@ -305,33 +341,49 @@ classdef InfoTimeline < handle
     end
         
     function setTracker(obj,tracker)
-      obj.tracker = tracker;
       
-      % Break down existing props; eliminate existing tracker-props. We
-      % also prefer tracker-props to come before labels2 props.
-      pmat = obj.props;
-      src = pmat(:,2);
-      tfLabels = strcmp(src,'Labels');
-      tfTracks = strcmp(src,'Tracks'); % will be deleted
-      tfLabels2 = strcmp(src,'Labels2');
-      assert(all(tfLabels+tfTracks+tfLabels2==1));
-
-      cellfun(@delete,obj.listenersTracker);
-      obj.listenersTracker = cell(0,1);      
-      if isempty(tracker)
-        obj.props = [pmat(tfLabels,:); pmat(tfLabels2,:)];
-      else
-        propList = tracker.propList();
-        pmatnew = arrayfun(...
-          @(x){sprintf('%s (tracked)',propList{x}) 'Tracks' propList{x}},...
-          (1:numel(propList))','uni',0);
-        pmatnew = cat(1,pmatnew{:});
-        obj.props = [pmat(tfLabels,:); pmatnew; pmat(tfLabels2,:)];
-        
+      obj.tracker = tracker;
+      if ~isempty(obj.listenersTracker),
         cellfun(@delete,obj.listenersTracker);
+      end
+      if isempty(tracker),
+        obj.proptypes(strcmpi(obj.proptypes,'Predictions')) = [];
+        obj.props_tracker = cell(0,2);
+      else
+        if ~ismember('Predictions',obj.proptypes),
+          obj.proptypes{end+1} = 'Predictions';
+        end
+        props = tracker.propList(); %#ok<*PROPLC>
+        obj.props_tracker = cat(1,obj.props,repmat(props(:),[1,2]));
         obj.listenersTracker{end+1,1} = addlistener(tracker,...
           'newTrackingResults',@obj.cbkLabelUpdated);
-      end
+      end      
+      
+%       % Break down existing props; eliminate existing tracker-props. We
+%       % also prefer tracker-props to come before labels2 props.
+%       pmat = obj.props;
+%       src = pmat(:,2);
+%       tfLabels = strcmp(src,'Labels');
+%       tfTracks = strcmp(src,'Tracks'); % will be deleted
+%       tfLabels2 = strcmp(src,'Labels2');
+%       assert(all(tfLabels+tfTracks+tfLabels2==1));
+% 
+%       cellfun(@delete,obj.listenersTracker);
+%       obj.listenersTracker = cell(0,1);      
+%       if isempty(tracker)
+%         obj.props = [pmat(tfLabels,:); pmat(tfLabels2,:)];
+%       else
+%         propList = tracker.propList();
+%         pmatnew = arrayfun(...
+%           @(x){sprintf('%s (tracked)',propList{x}) 'Tracks' propList{x}},...
+%           (1:numel(propList))','uni',0);
+%         pmatnew = cat(1,pmatnew{:});
+%         obj.props = [pmat(tfLabels,:); pmatnew; pmat(tfLabels2,:)];
+%         
+%         cellfun(@delete,obj.listenersTracker);
+%         obj.listenersTracker{end+1,1} = addlistener(tracker,...
+%           'newTrackingResults',@obj.cbkLabelUpdated);
+%       end
     end
     
     function setLabelsFull(obj)
@@ -344,21 +396,35 @@ classdef InfoTimeline < handle
       datnonnan = dat(~isnan(dat));
 
       obj.tldata = dat;
+
+      for i=1:obj.npts
+        set(obj.hPts(i),'XData',nan,'YData',nan);
+      end
+      set(obj.hPtStat,'XData',nan,'YData',nan);
       
-      if isempty(datnonnan)
-        for i=1:obj.npts
-          set(obj.hPts(i),'XData',nan,'YData',nan);
-        end
+      if ~isempty(datnonnan)
 %         set(obj.hMarked,'XData',nan,'YData',nan);
-      else
         
         y1 = min(datnonnan(:));
         y2 = max(datnonnan(:));
-        dy = max(y2-y1,eps);
-        lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
-        x = 1:size(lposNorm,2);
-        for i=1:obj.npts
-          set(obj.hPts(i),'XData',x,'YData',lposNorm(i,:));
+        if y1 == y2,
+          y1 = y1-eps;
+          y2 = y2+eps;
+        end
+        %dy = max(y2-y1,eps);
+        %lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
+        x = 1:size(dat,2);
+
+        set(obj.hAx,'YLim',[y1,y2]);
+        set(obj.hCurrFrame,'YData',[y1,y2]);
+        if size(dat,1) == obj.npts,
+          for i=1:obj.npts
+            set(obj.hPts(i),'XData',x,'YData',dat(i,:));
+          end
+        elseif size(dat,1) == 1,
+          set(obj.hPtStat,'XData',x,'YData',dat(1,:));
+        else
+          warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(dat,1),obj.npts));
         end
       end
       
@@ -531,13 +597,30 @@ classdef InfoTimeline < handle
   end
   
   methods %getters setters
-    function props = getPropsDisp(obj)
-      props = obj.props(:,1);
+    function props = getPropsDisp(obj,v)
+      if nargin < 2,
+        v = obj.curproptype;
+      end
+      if strcmpi(obj.proptypes{v},'Predictions'),
+        props = obj.props_tracker(:,1);
+      else
+        props = obj.props(:,1);
+      end
+    end
+    function proptypes = getPropTypesDisp(obj)
+      proptypes = obj.proptypes;
     end
     function setCurProp(obj,iprop)
       obj.curprop = iprop;
       obj.setLabelsFull();
-    end    
+    end
+    function setCurPropType(obj,iproptype,iprop)
+      obj.curproptype = iproptype;
+      if nargin >= 3 && iprop ~= obj.curprop,
+        obj.curprop = iprop;
+      end
+      obj.setLabelsFull();
+    end
   end
     
   %% Private methods
@@ -680,36 +763,66 @@ classdef InfoTimeline < handle
       %
       % dmat: [npts x nfrm] data matrix for pcode, extracted from lpos
       
-      npts = size(lpos,1); % should equal obj.npts
-      nfrm = size(lpos,3); % should equal obj.nfrm
-      
-      switch pcode
-        case 'x'
-          dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
-        case 'y'
-          dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
-        case 'dx'
-          dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
-          dmat = diff(dmat,1,2);
-          dmat(:,end+1) = nan;
-        case 'dy'
-          dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
-          dmat = diff(dmat,1,2);
-          dmat(:,end+1) = nan;
-        case '|dx|'
-          dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
-          dmat = abs(diff(dmat,1,2));
-          dmat(:,end+1) = nan;
-        case '|dy|'
-          dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
-          dmat = abs(diff(dmat,1,2));
-          dmat(:,end+1) = nan;
-        case 'occluded'
-          dmat = double(lpostag(:,:,iTgt));
-        otherwise
-          warningNoTrace('Unknown property to display in timeline.');
-          dmat = nan(size(lpos,1),size(lpos,3));
+      % TODO: this currently computes for all frames, even those that have
+      % not been labeled
+      tic;
+      trx = InfoTimeline.initializeTrx(lpos(:,:,:,iTgt),lpostag(:,:,iTgt));
+      if isfield(trx,pcode),
+        dmat = trx.(pcode);
+        if isstruct(dmat),
+          dmat = dmat.data;
+        end
+        fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
+        return;
       end
+      
+      fun = sprintf('compute_landmark_%s',pcode);
+      if ~exist(fun,'file'),
+        warningNoTrace('Unknown property to display in timeline.');
+        dmat = nan(size(lpos,1),size(lpos,3));
+        fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
+        return;
+      end
+      trx = feval(fun,trx);
+      dmat = trx.(pcode).data;
+      fprintf('Time to compute info statistic %s = %f\n',pcode,toc);
+
+      
+%       switch pcode
+%         case 'x'
+%           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
+%         case 'y'
+%           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
+%         case 'dx'
+%           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
+%           dmat = diff(dmat,1,2);
+%           dmat(:,end+1) = nan;
+%         case 'dy'
+%           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
+%           dmat = diff(dmat,1,2);
+%           dmat(:,end+1) = nan;
+%         case '|dx|'
+%           dmat = reshape(lpos(:,1,:,iTgt),npts,nfrm);
+%           dmat = abs(diff(dmat,1,2));
+%           dmat(:,end+1) = nan;
+%         case '|dy|'
+%           dmat = reshape(lpos(:,2,:,iTgt),npts,nfrm);
+%           dmat = abs(diff(dmat,1,2));
+%           dmat(:,end+1) = nan;
+%         case 'occluded'
+%           dmat = double(lpostag(:,:,iTgt));
+%         otherwise
+%           warningNoTrace('Unknown property to display in timeline.');
+%           dmat = nan(size(lpos,1),size(lpos,3));
+%       end
+    end
+    function trx = initializeTrx(lpos,occluded)
+      trx = struct;
+      trx.pos = lpos;
+      trx.occluded = double(occluded);
+      trx.realunits = false;
+      trx.pxpermm = [];
+      trx.fps = [];      
     end
   end
   
@@ -724,9 +837,7 @@ classdef InfoTimeline < handle
     function data = getDataCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
       
-      pndx = obj.curprop;
-      ptype = obj.props{pndx,2};
-      pcode = obj.props{pndx,3};
+      ptype = obj.proptypes{obj.curproptype};
       labeler = obj.lObj;
       iMov = labeler.currMovie;
       iTgt = labeler.currTarget;
@@ -736,17 +847,22 @@ classdef InfoTimeline < handle
       else
         switch ptype
           case 'Labels'
+            pcode = obj.props{obj.curprop,2};
             lpos = labeler.labeledposGTaware{iMov};
             lpostag = labeler.labeledpostagGTaware{iMov};            
             data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);
-          case 'Labels2'            
+          case 'Imported'            
+            pcode = obj.props{obj.curprop,2};
             lpos = labeler.labeledpos2GTaware{iMov};
             lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
             data = InfoTimeline.getDataFromLpos(lpos,lpostag,pcode,iTgt);            
-          case 'Tracks'
+          case 'Predictions'
+            pcode = obj.props_tracker{obj.curprop,2};
             data = obj.tracker.getPropValues(pcode);
+          otherwise
+            error('Unknown data type %s',ptype);
         end
-        szassert(data,[obj.npts obj.nfrm]);
+        %szassert(data,[obj.npts obj.nfrm]);
       end
     end
     

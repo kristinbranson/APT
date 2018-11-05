@@ -17,7 +17,7 @@ elif re.search('int.janelia.org',socket.gethostname()):
     bdir = '/groups/branson/bransonlab/mayank/PoseTF/'
 elif re.search('Keller-W12', socket.gethostname()):
     bdir = 'D:/mayank/data'
-elif PoseTools.runningInDocker():
+elif PoseTools.running_in_docker():
     bdir = '/groups/branson/bransonlab/mayank/PoseTF/'
 else:
     sys.path.append('/home/mayank/work/caffe/python')

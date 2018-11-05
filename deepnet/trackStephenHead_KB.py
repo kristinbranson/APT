@@ -22,6 +22,7 @@ import math
 default_net_name = 'deepnet'
 crop_reg_file = '/groups/branson/bransonlab/mayank/stephen_copy/crop_regression_params.mat'
 lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
+lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
 crop_size = [[230,350],[350,350]]
 name = 'stephen_20181029'
 cache_dir = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache'
@@ -32,7 +33,7 @@ bodylblfile = '/groups/branson/bransonlab/mayank/stephen_copy/fly2BodyAxis_looku
 # defaulttrackerpath = "/groups/branson/bransonlab/mayank/PoseTF/matlab/compiled/run_compute3Dfrom2D_compiled.sh"
 # defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v92"
 
-defaulttrackerpath = "/groups/branson/bransonlab/mayank/APT/deepnet/matlab/compiled/run_compute3Dfrom2D_compiled.sh"
+defaulttrackerpath = "/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/compiled_20181031/run_compute3Dfrom2D_compiled.sh"
 defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v94"
 
 def get_crop_locs(lblfile,view,height,width):
@@ -71,7 +72,7 @@ def get_crop_locs(lblfile,view,height,width):
         x_left = width - crop_size[view][0] +1
         x_right = width
     y_top = int(round(y_reg[0] + y_reg[1] * neck_locs[1]))
-    y_top = 0 if y_top < 0 else y_top
+    y_top = 1 if y_top < 1 else y_top
     y_bottom = y_top + crop_size[view][1] - 1
     if y_bottom > height:
         y_bottom = height
