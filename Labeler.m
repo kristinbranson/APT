@@ -282,6 +282,7 @@ classdef Labeler < handle
     trxCache = [];            % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
     trx = [];                 % trx object
     frm2trx = [];             % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm (for current movie)
+    tblTrxData = [];          % last-used data in tblTrx
   end
   properties (Dependent,SetObservable)
     targetZoomRadiusDefault;
@@ -3152,9 +3153,9 @@ classdef Labeler < handle
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
       
-      % KB 20161213: moved this up here so that we could redo in initHook
-      obj.labelsMiscInit();
       if isFirstMovie,
+        % KB 20161213: moved this up here so that we could redo in initHook
+        obj.labelsMiscInit();
         % we set template below as it requires .trx to be set correctly. 
         % see below
         obj.labelingInit('dosettemplate',false); 
@@ -4029,7 +4030,7 @@ classdef Labeler < handle
         'MenuBar','none','Visible','off');
       hF.Position(3:4) = [1280 500];
       centerfig(hF,obj.hFig);
-      hPnl = uipanel('Parent',hF,'Position',[0 .08 1 .92]);
+      hPnl = uipanel('Parent',hF,'Position',[0 .08 1 .92],'Tag','uipanel_TargetsTable');
       BTNWIDTH = 100;
       DXY = 4;
       btnHeight = hPnl.Position(2)*hF.Position(4)-2*DXY;
@@ -5976,6 +5977,7 @@ classdef Labeler < handle
         hAxs(ivw) = axes;
         hIms(ivw) = imshow(ims{ivw});
         hIms(ivw).PickableParts = 'none';
+        set(hIms(ivw),'Tag',sprintf('image_LabelOverlayMontage_vw%d',ivw));
         caxis auto
         hold on;
 %         axis xy;
@@ -6018,12 +6020,14 @@ classdef Labeler < handle
           hLns(ivw,ipts) = hP;
         end
         
-        hCM = uicontextmenu('parent',hFgs(ivw));
+        hCM = uicontextmenu('parent',hFgs(ivw),'Tag',sprintf('LabelOverlayMontage_vw%d',ivw));
         uimenu('Parent',hCM,'Label','Clear selection',...
           'Separator','on',...
-          'Callback',@(src,evt)ec.sendSignal([],zeros(0,1)));
+          'Callback',@(src,evt)ec.sendSignal([],zeros(0,1)),...
+          'Tag',sprintf('LabelOverlayMontage_vw%d_ClearSelection',ivw));
         uimenu('Parent',hCM,'Label','Navigate APT to selected frame',...
-          'Callback',@(s,e)hlpOverlayMontage(obj,clckHandlers(1),tMFT,s,e)); 
+          'Callback',@(s,e)hlpOverlayMontage(obj,clckHandlers(1),tMFT,s,e),...
+          'Tag',sprintf('LabelOverlayMontage_vw%d_NavigateToSelectedFrame',ivw)); 
         % Need only one clickhandler; the first is set up here
         set(hAxs(ivw),'UIContextMenu',hCM);
       end
@@ -6031,9 +6035,11 @@ classdef Labeler < handle
       for ivw=1:nvw
         hCM = hAxs(ivw).UIContextMenu;
         hM1 = uimenu('Parent',hCM,'Label','Increase marker size',...
-          'Callback',@(src,evt)obj.hlpOverlayMontageMarkerInc(hLns,2));
+          'Callback',@(src,evt)obj.hlpOverlayMontageMarkerInc(hLns,2),...
+          'Tag',sprintf('LabelOverlayMontage_vw%d_IncreaseMarkerSize',ivw));
         hM2 = uimenu('Parent',hCM,'Label','Decrease marker size',...
-          'Callback',@(src,evt)obj.hlpOverlayMontageMarkerInc(hLns,-2)); 
+          'Callback',@(src,evt)obj.hlpOverlayMontageMarkerInc(hLns,-2),...
+          'Tag',sprintf('LabelOverlayMontage_vw%d_DecreaseMarkerSize',ivw));
         uistack(hM2,'bottom');
         uistack(hM1,'bottom');
       end
@@ -9539,8 +9545,9 @@ classdef Labeler < handle
       %
       % hFig: [nfig] figure handles
       
-      [type,nr,nc,plotlabelcolor,figargs] = myparse(varargin,...
+      [type,imov,nr,nc,plotlabelcolor,figargs] = myparse(varargin,...
         'type','wide',... either 'wide' or 'cropped'. wide shows rois in context of full im. 
+        'imov',[],... % show crops for these movs. defaults to 1:nmoviesGTaware
         'nr',9,... % number of rows in montage
         'nc',10,... % etc
         'plotlabelcolor',[1 1 0],...
@@ -9553,6 +9560,10 @@ classdef Labeler < handle
         error('Project does not have crops defined.');
       end
       
+      if isempty(imov)
+        imov = 1:obj.nmoviesGTaware;
+      end
+      
       switch lower(type)
         case 'wide', tfWide = true;
         case 'cropped', tfWide = false;
@@ -9560,7 +9571,7 @@ classdef Labeler < handle
       end
       
       % get MFTable to pull first frame of each mov
-      mov = obj.movieFilesAllFullGTaware;
+      mov = obj.movieFilesAllFullGTaware(imov,:);
       nmov = size(mov,1);
       if nmov==0
         error('No movies.');
@@ -9574,14 +9585,15 @@ classdef Labeler < handle
         'movieInvert',obj.movieInvert,...
         'wbObj',wbObj);
 
-      roisAll = obj.cropGetAllRois;      
+      roisAll = obj.cropGetAllRois; 
+      roisAll = roisAll(imov,:,:);
       
       nvw = obj.nview;
       if ~tfWide
-        for imov=1:nmov
+        for iimov=1:nmov
           for ivw=1:nvw
-            roi = roisAll(imov,:,ivw);
-            I1{imov,ivw} = I1{imov,ivw}(roi(3):roi(4),roi(1):roi(2));
+            roi = roisAll(iimov,:,ivw);
+            I1{iimov,ivw} = I1{iimov,ivw}(roi(3):roi(4),roi(1):roi(2));
           end
         end
       end
@@ -9604,12 +9616,12 @@ classdef Labeler < handle
         end
         
         for ibatch=1:nbatch
-          imovs = (1:nplotperbatch) + (ibatch-1)*nplotperbatch;
-          imovs(imovs>nmov)= [];
+          iimovs = (1:nplotperbatch) + (ibatch-1)*nplotperbatch;
+          iimovs(iimovs>nmov) = [];
           figstr = sprintf('movs %d->%d. view %d.',...
-            imovs(1),imovs(end),ivw);
+            iimovs(1),iimovs(end),ivw);
           titlestr = sprintf('movs %d->%d. view %d. [w h]: %s',...
-            imovs(1),imovs(end),ivw,mat2str(wh));
+            iimovs(1),iimovs(end),ivw,mat2str(wh));
           
           hFig(end+1,1) = figure(figargs{:}); %#ok<AGROW>
           hFig(end).Name = figstr;
@@ -9617,17 +9629,17 @@ classdef Labeler < handle
           if tfWide
             Shape.montage(I1(:,ivw),nan(nmov,2),...
               'fig',hFig(end),...
-              'nr',nr,'nc',nc,'idxs',imovs,...
+              'nr',nr,'nc',nc,'idxs',iimovs,...
               'rois',roisAll(:,:,ivw),...
               'imsHeterogeneousSz',tfImsHeterogeneousSz,...
-              'framelbls',arrayfun(@num2str,imovs,'uni',0),...
+              'framelbls',arrayfun(@num2str,imov(iimovs),'uni',0),...
               'framelblscolor',plotlabelcolor,...
               'titlestr',titlestr);
           else
             Shape.montage(I1(:,ivw),nan(nmov,2),...
               'fig',hFig(end),...
-              'nr',nr,'nc',nc,'idxs',imovs,...
-              'framelbls',arrayfun(@num2str,imovs,'uni',0),...
+              'nr',nr,'nc',nc,'idxs',iimovs,...
+              'framelbls',arrayfun(@num2str,imov(iimovs),'uni',0),...
               'framelblscolor',plotlabelcolor,...
               'titlestr',titlestr);
           end
@@ -9681,6 +9693,9 @@ classdef Labeler < handle
       % (full/completed) setFrame() call should fix things up. We could
       % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
+      setframetic = tic;
+      starttime = setframetic;
+            
       [tfforcereadmovie,tfforcelabelupdate,updateLabels,updateTables,...
         updateTrajs,changeTgtsIfNec] = myparse(varargin,...
         'tfforcereadmovie',false,...
@@ -9691,6 +9706,8 @@ classdef Labeler < handle
         'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
         );
             
+      fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
         frm2trxThisFrm = obj.frm2trx(frm,:);
@@ -9716,8 +9733,12 @@ classdef Labeler < handle
         end
       end
       
+      fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      
       % Remainder nearly identical to setFrameAndTarget()
       obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
+      
+      fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
       if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         assert(~obj.isMultiView);
@@ -9726,16 +9747,32 @@ classdef Labeler < handle
         obj.videoCenterOnCurrTargetPoint();
       end
       
+      fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+
+      
       if updateLabels
         obj.labelsUpdateNewFrame(tfforcelabelupdate);
       end
+      
+      fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      
       if updateTables
         obj.updateTrxTable();
 %         obj.updateCurrSusp();
       end
+      
+      fprintf('setFrame %d, update tables took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+
+      
       if updateTrajs
         obj.updateShowTrx();
       end
+      
+      fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
+
+      
+      fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
+      
     end
     
 %     function setTargetID(obj,tgtID)
@@ -10009,9 +10046,15 @@ classdef Labeler < handle
     function updateTrxTable(obj)
       % based on .frm2trxm, .currFrame, .labeledpos
       
+      %starttime = tic;
       tbl = obj.gdata.tblTrx;
       if ~obj.hasTrx || ~obj.hasMovie || obj.currMovie==0 % Can occur during movieSet(), when invariants momentarily broken
-        set(tbl,'Data',cell(0,2));
+        ischange = ~isempty(obj.tblTrxData);
+        if ischange,
+          obj.tblTrxData = zeros(0,2);
+          set(tbl,'Data',cell(0,2));
+        end
+        %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
         return;
       end
       
@@ -10021,8 +10064,20 @@ classdef Labeler < handle
       idxLive = idxLive(:);
       lpos = obj.labeledposCurrMovie;
       tfLbled = arrayfun(@(x)any(lpos(:,1,f,x)),idxLive); % nans counted as 0
-      tbldat = [num2cell(idxLive) num2cell(tfLbled)];      
-      set(tbl,'Data',tbldat);
+      ischange = true;
+      tblTrxData = [idxLive,tfLbled];
+      if ~isempty(obj.tblTrxData),
+        ischange = ndims(tblTrxData) ~= ndims(obj.tblTrxData) || ...
+          any(size(tblTrxData) ~= size(obj.tblTrxData)) || ...
+          any(tblTrxData(:) ~= obj.tblTrxData(:));
+      end
+      if ischange,
+        obj.tblTrxData = tblTrxData;
+        tbldat = [num2cell(idxLive) num2cell(tfLbled)];
+        set(tbl,'Data',tbldat);
+      end
+
+      %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
     end
     
     % TODO: Move this into UI

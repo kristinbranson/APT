@@ -27,8 +27,9 @@ crop_size = [[230,350],[350,350]]
 # name = 'stephen_20181029'
 name = 'stephen_20181102_newlabels'
 cache_dir = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache'
-bodylblfile = '/groups/branson/bransonlab/mayank/stephen_copy/fly2BodyAxis_lookupTable_Ben.csv'
 model_type = 'mdn'
+#bodylblfile = '/groups/branson/bransonlab/mayank/stephen_copy/fly2BodyAxis_lookupTable_Ben.csv'
+bodylblfile = '/groups/huston/hustonlab/flp-chrimson_experiments/fly2BodyAxis_lookupTable_Ben.csv'
 
 #    defaulttrackerpath = "/groups/branson/home/bransonk/tracking/code/poseTF/matlab/compute3Dfrom2D/for_redistribution_files_only/run_compute3Dfrom2D.sh"
 #    defaultmcrpath = "/groups/branson/bransonlab/projects/olympiad/MCR/v91"

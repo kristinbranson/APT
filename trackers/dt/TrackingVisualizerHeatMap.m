@@ -84,8 +84,8 @@ classdef TrackingVisualizerHeatMap < handle
       for iPt=1:npts 
         clr = ptsClrs(iPt,:); 
         iVw = ipt2View(iPt); 
-        hTmp(iPt) = plot(axs(iVw),nan,nan,xyVizPlotArgs{:},'Color',clr); 
-        hTmpOther(iPt) = plot(axs(iVw),nan,nan,xyVizPlotArgs{:},'Color',clr);
+        hTmp(iPt) = plot(axs(iVw),nan,nan,xyVizPlotArgs{:},'Color',clr,'Tag',sprintf('TrackingVisualizerHeatMap_XYPrdRed_Pt%d',iPt)); 
+        hTmpOther(iPt) = plot(axs(iVw),nan,nan,xyVizPlotArgs{:},'Color',clr,'Tag',sprintf('TrackingVisualizerHeatMap_XYPrdRedOther_Pt%d',iPt));
 %         hTmp2(iPt) = scatter(ax(iVw),nan,nan); 
 %         setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,... 
 %           'MarkerEdgeColor',clr,'PickableParts','none',... 

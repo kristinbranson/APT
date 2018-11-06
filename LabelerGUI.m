@@ -463,14 +463,14 @@ hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
 set(handles.axes_occ,'XTick',[],'YTick',[]);
 
-handles.image_curr = imagesc(0,'Parent',handles.axes_curr);
+handles.image_curr = imagesc(0,'Parent',handles.axes_curr,'Tag','image_curr');
 set(handles.image_curr,'PickableParts','none');
 hold(handles.axes_curr,'on');
-set(handles.axes_curr,'Color',[0 0 0]);
-handles.image_prev = imagesc(0,'Parent',handles.axes_prev);
+set(handles.axes_curr,'Color',[0 0 0],'Tag','axes_curr');
+handles.image_prev = imagesc(0,'Parent',handles.axes_prev,'Tag','image_prev');
 set(handles.image_prev,'PickableParts','none');
 hold(handles.axes_prev,'on');
-set(handles.axes_prev,'Color',[0 0 0]);
+set(handles.axes_prev,'Color',[0 0 0],'Tag','axes_prev');
 
 handles.figs_all = handles.figure;
 handles.axes_all = handles.axes_curr;
@@ -629,6 +629,7 @@ switch lower(state),
     
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
+    set(handles.pumInfo_labels,'Enable','off');
     set(handles.tbTLSelectMode,'Enable','off');
     set(handles.pumTrack,'Enable','off');
     set(handles.pbTrack,'Enable','off');
@@ -708,6 +709,7 @@ switch lower(state),
 
     set(handles.pbClearSelection,'Enable','on');
     set(handles.pumInfo,'Enable','on');
+    set(handles.pumInfo_labels,'Enable','on');
     set(handles.tbTLSelectMode,'Enable','on');
     set(handles.pumTrack,'Enable','on');
     set(handles.pbTrack,'Enable','on');
@@ -1390,6 +1392,7 @@ if lObj.hasTrx && ~lObj.isinit
   lObj.currImHud.updateTarget(iTgt);
   lObj.gdata.labelTLInfo.newTarget();
   hlpGTUpdateAxHilite(lObj);
+  drawnow;
   hlpUpdateTblTrxHilite(lObj);
 end
 
@@ -1815,6 +1818,7 @@ function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
+%starttime = tic;
 handles = guidata(hObject);
 lObj = handles.labelerObj;
 
@@ -1849,6 +1853,8 @@ if ~tfSetOccurred
   end
   set(hObject,'Value',sldval);
 end
+
+%fprintf('Setting to frame %d took %f seconds\n',f,toc(starttime));
 
 function slider_frame_CreateFcn(hObject,~,~)
 % Hint: slider controls usually have a light gray background.
@@ -3755,13 +3761,15 @@ pos1 = [center-r,2*r];
 
 hfig = figure('Name','Starting APT...','Color','k','Units','pixels','Position',pos1,'ToolBar','none','NumberTitle','off','MenuBar','none','Pointer','watch');%'Visible','off',
 hax = axes('Parent',hfig,'Units','pixels','Position',[border,border,w0,h0]);
-him = image(im,'Parent',hax); axis(hax,'image','off');
+him = image(im,'Parent',hax,'Tag','image_SplashScreen'); axis(hax,'image','off');
 htext = uicontrol('Style','text','String',s{1},'Units','pixels','Position',[border,h-border-texth1,w0,texth1],...
   'BackgroundColor','k','HorizontalAlignment','center',...
-  'Parent',hfig,'ForegroundColor','c','FontUnits','pixels','FontSize',texth1*.9,'FontWeight','b');
+  'Parent',hfig,'ForegroundColor','c','FontUnits','pixels','FontSize',texth1*.9,'FontWeight','b',...
+  'Tag','text1_SplashScreen');
 htext = uicontrol('Style','text','String',s(2:end),'Units','pixels','Position',[border,border+h0+border,w0,texth2],...
   'BackgroundColor','k','HorizontalAlignment','center',...
-  'Parent',hfig,'ForegroundColor','c','FontUnits','pixels','FontSize',14);
+  'Parent',hfig,'ForegroundColor','c','FontUnits','pixels','FontSize',14,...
+  'Tag','text2_SplashScreen');
 set(hfig,'Visible','on');
 drawnow;
 
