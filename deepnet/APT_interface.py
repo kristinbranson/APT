@@ -831,6 +831,8 @@ def get_pred_fn(model_type, conf, model_file=None):
         pred_fn, close_fn, model_file = open_pose.get_pred_fn(conf, model_file)
     elif model_type == 'unet':
         pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file)
+    elif model_type == 'mdn':
+        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file)
     elif model_type == 'leap':
         pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file)
     elif model_type == 'deeplabcut':
