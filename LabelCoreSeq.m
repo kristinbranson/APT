@@ -335,15 +335,20 @@ classdef LabelCoreSeq < LabelCore
       % fresh in Label state. Otherwise, start in Accepted state with saved 
       % labels.
       
+      %ticinfo = tic;
       [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm,iTgt);
+      %fprintf('LabelCoreSeq.newFrameTarget 1: %f\n',toc(ticinfo));ticinfo = tic;
       if tflabeled
         obj.nPtsLabeled = obj.nPts;
         obj.assignLabelCoords(lpos,'lblTags',lpostag);
+        %fprintf('LabelCoreSeq.newFrameTarget 2: %f\n',toc(ticinfo));ticinfo = tic;
         obj.iPtMove = nan;
         obj.beginAccepted(false); % Could possibly just call with true arg
+        %fprintf('LabelCoreSeq.newFrameTarget 3: %f\n',toc(ticinfo));ticinfo = tic;
       else
         obj.beginLabel(false);
       end
+      %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo));
     end
     
     function beginLabel(obj,tfClearLabels)

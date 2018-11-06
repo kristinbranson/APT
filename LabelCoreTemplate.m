@@ -574,7 +574,9 @@ classdef LabelCoreTemplate < LabelCore
           for i=1:obj.nPts
             pv.Color = clrs(i,:);
             set(obj.hPts(i),pv);
-            set(obj.hPtsOcc(i),pv);
+            if ~isempty(obj.hPtsOcc),
+              set(obj.hPtsOcc(i),pv);
+            end
             set(obj.hPtsTxt(i),'FontAngle','italic');
           end
         otherwise

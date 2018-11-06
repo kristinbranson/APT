@@ -1122,6 +1122,117 @@ classdef Table < hgsetget
             
         end % set.Data
         
+        function setDataUnsafe(obj, value)
+
+          % Check
+          assert(iscell(value) && ndims(value) == 2, ...
+            'uiextras:Table:InvalidArgument', ...
+            'Property ''Data'' must be a cell array.') %#ok<ISMAT>
+          
+          % Retrieve table model
+          if isvalid(obj)
+            JTableModel = obj.JTableModel;
+            SelRows = obj.SelectedRows;
+          end
+          
+%           % Disable listener
+%           if isvalid(obj)
+%             obj.CBEnabled = false;
+%           end
+          
+          % Increase the number of columns if needed
+          NumCol = size(value, 2);
+          if isvalid(obj)
+            if NumCol > JTableModel.getColumnCount()
+              JTableModel.setColumnCount(NumCol);
+            end
+          end
+          
+          % Add/remove rows if needed
+          NumRow = size(value, 1);
+          if isvalid(obj)
+            if NumRow ~= JTableModel.getRowCount()
+              JTableModel.setRowCount(NumRow)
+            end
+          end
+          
+          % Populate table model
+          if isvalid(obj)
+            for idx = 1:NumRow
+              for jj = 1:NumCol
+                % Cast cells containing a cell array to an Object
+                ThisValue = value{idx,jj};
+                if iscell(ThisValue) && ~isempty(ThisValue)
+                  ThisValue = obj.castToJavaArray(ThisValue);
+                end
+                JTableModel.setValueAt(ThisValue, idx-1, jj-1)
+              end
+            end
+          end
+          
+%           % Enable listener
+%           if isvalid(obj)
+%             obj.CBEnabled = true;
+%           end
+          
+          % Raise events
+          notify(obj,'DataChanged')
+          if isvalid(obj) && ~isequal(SelRows, obj.SelectedRows)
+            notify(obj,'SelectionChanged');
+          end
+            
+        end % setDataUnsafe
+        
+        function setDataFast(obj,is,js,value,NumRow,NumCol)
+          
+          % Check
+          assert(iscell(value), ...
+            'uiextras:Table:InvalidArgument', ...
+            'Property ''Data'' must be a cell array.') 
+          
+          % Retrieve table model
+          if isvalid(obj)
+            JTableModel = obj.JTableModel; %#ok<*PROPLC>
+            SelRows = obj.SelectedRows;
+          end
+                        
+          % Increase the number of columns if needed
+          %NumCol = size(value, 2);
+          if isvalid(obj)
+            if NumCol > JTableModel.getColumnCount()
+              JTableModel.setColumnCount(NumCol);
+            end
+          end
+          
+          % Add/remove rows if needed
+          %NumRow = size(value, 1);
+          if isvalid(obj)
+            if NumRow ~= JTableModel.getRowCount()
+              JTableModel.setRowCount(NumRow)
+            end
+          end
+          
+          % Populate table model
+          if isvalid(obj)
+            for ii = 1:numel(is),
+              idx = is(ii);
+              jj = js(ii);
+              % Cast cells containing a cell array to an Object
+              ThisValue = value{ii};
+              if iscell(ThisValue) && ~isempty(ThisValue)
+                ThisValue = obj.castToJavaArray(ThisValue);
+              end
+              JTableModel.setValueAt(ThisValue, idx-1, jj-1)
+            end
+          end
+          
+          % Raise events
+          notify(obj,'DataChanged')
+          if isvalid(obj) && ~isequal(SelRows, obj.SelectedRows)
+            notify(obj,'SelectionChanged');
+          end
+          
+        end % setDataFast
         
         % Editable
         function value = get.Editable(obj)

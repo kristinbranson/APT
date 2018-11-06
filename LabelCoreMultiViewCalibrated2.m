@@ -172,14 +172,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % alternatively this is acting as multiview lblCore baseclass
       deleteValidHandles(obj.hPts);
       deleteValidHandles(obj.hPtsTxt);
-      deleteValidHandles(obj.hPtsOcc);
-      deleteValidHandles(obj.hPtsTxtOcc);
       deleteValidHandles(obj.labeler.labeledpos2_ptsH);
       deleteValidHandles(obj.labeler.labeledpos2_ptsTxtH);
       obj.hPts = gobjects(obj.nPts,1);
       obj.hPtsTxt = gobjects(obj.nPts,1);
-      obj.hPtsOcc = gobjects(obj.nPts,1);
-      obj.hPtsTxtOcc = gobjects(obj.nPts,1);
       obj.labeler.labeledpos2_ptsH = gobjects(obj.nPts,1);
       obj.labeler.labeledpos2_ptsTxtH = gobjects(obj.nPts,1);
       ppi = obj.ptsPlotInfo;
@@ -205,21 +201,13 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           'UserData',iPt,...
           'HitTest','on',...
           'ButtonDownFcn',@(s,e)obj.ptBDF(s,e)};
-        ptsArgsOcc = {nan,nan,ppi.Marker,...
-          'MarkerSize',ppi.MarkerSize,...
-          'LineWidth',ppi.LineWidth,...
-          'Color',setClr,...
-          'UserData',iPt,...
-          'HitTest','off'};        
         ptsArgs2 = {nan,nan,ppi2.Marker,... % AL 2018018: Cant remember why LCMVC2 is messing with labeler.labeledpos2_ptsH
           'MarkerSize',ppi2.MarkerSize,...
           'LineWidth',ppi2.LineWidth,...
           'Color',setClr2,...
           'PickableParts','none'};
         ax = obj.hAx(obj.iPt2iAx(iPt));
-        axocc = obj.hAxOcc(obj.iPt2iAx(iPt));
         obj.hPts(iPt) = plot(ax,ptsArgs{:},'Tag',sprintf('LabelCoreMV_Pt%d',iPt));
-        obj.hPtsOcc(iPt) = plot(axocc,ptsArgsOcc{:},'Tag',sprintf('LabelCoreMV_PtOcc%d',iPt));
         obj.labeler.labeledpos2_ptsH(iPt) = plot(ax,ptsArgs2{:},'Tag',sprintf('LabelCoreMV_LabeledPos2%d',iPt)); % AL 2018018: Cant remember why LCMVC2 is messing with labeler.labeledpos2_ptsH
         txtStr = num2str(iSet);
         txtargs = {'Color',setClr,...
@@ -228,18 +216,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         obj.hPtsTxt(iPt) = text(nan,nan,txtStr,...
           'Parent',ax,txtargs{:},'Tag',sprintf('LabelCoreMV_PtTxt%d',iPt));
         obj.hPtsTxtStrs{iPt} = txtStr;
-        obj.hPtsTxtOcc(iPt) = text(nan,nan,txtStr,...
-          'Parent',axocc,txtargs{:},'Tag',sprintf('LabelCoreMV_PtTxtOcc%d',iPt));
         obj.labeler.labeledpos2_ptsTxtH(iPt) = text(nan,nan,txtStr,... % AL 2018018: Cant remember why LCMVC2 is messing with labeler.labeledpos2_ptsH
           'Parent',ax,...
           'Color',setClr2,...
           'FontSize',ppi2.FontSize,...
           'PickableParts','none',...
           'Tag',sprintf('LabelCoreMV_LabeledPos2Txt%d',iPt));
-      end
-      
-      for iVw=1:obj.nView
-        axis(obj.hAxOcc(iVw),[0 obj.nPointSet+1 0 2]);
       end
       
       obj.setRandomTemplate();
@@ -259,6 +241,42 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 
       obj.projectionWorkingSetClear();
       obj.projectionInit();      
+    end
+    
+    function showOccHook(obj)
+      
+      deleteValidHandles(obj.hPtsOcc);
+      deleteValidHandles(obj.hPtsTxtOcc);
+      obj.hPtsOcc = gobjects(obj.nPts,1);
+      obj.hPtsTxtOcc = gobjects(obj.nPts,1);
+
+      ppi = obj.ptsPlotInfo;
+      %obj.hPtsColors = nan(obj.nPointSet,3);
+
+      for iPt=1:obj.nPts
+        iSet = obj.iPt2iSet(iPt);
+        setClr = ppi.Colors(iSet,:);
+        %obj.hPtsColors(iPt,:) = setClr;
+        ptsArgsOcc = {nan,nan,ppi.Marker,...
+          'MarkerSize',ppi.MarkerSize,...
+          'LineWidth',ppi.LineWidth,...
+          'Color',setClr,...
+          'UserData',iPt,...
+          'HitTest','off'};        
+        axocc = obj.hAxOcc(obj.iPt2iAx(iPt));
+        obj.hPtsOcc(iPt) = plot(axocc,ptsArgsOcc{:},'Tag',sprintf('LabelCoreMV_PtOcc%d',iPt));
+        txtStr = num2str(iSet);
+        txtargs = {'Color',setClr,...
+          'FontSize',ppi.FontSize,...
+          'PickableParts','none'};
+        obj.hPtsTxtOcc(iPt) = text(nan,nan,txtStr,...
+          'Parent',axocc,txtargs{:},'Tag',sprintf('LabelCoreMV_PtTxtOcc%d',iPt));
+      end
+      
+      for iVw=1:obj.nView
+        axis(obj.hAxOcc(iVw),[0 obj.nPointSet+1 0 2]);
+      end
+      
     end
     
   end
@@ -587,6 +605,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     function refreshOccludedPts(obj)
       % Based on .tfOcc: 'Hide' occluded points in main image; arrange
       % occluded points in occluded box.
+      
+      if isempty(obj.hPtsOcc),
+        return;
+      end
       
       tf = obj.tfOcc;
       assert(isvector(tf) && numel(tf)==obj.nPts);
@@ -962,7 +984,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       %clrs = obj.hPtsColors;
       for i = 1:nPts
         set(ptsH(i),'Color',clrs(i,:));
-        set(obj.hPtsOcc(i),'Color',clrs(i,:));
+        if ~isempty(obj.hPtsOcc),
+          set(obj.hPtsOcc(i),'Color',clrs(i,:));
+        end
       end
       
       obj.tfAdjusted(:) = true;
@@ -985,7 +1009,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         clr = obj.ptsPlotInfo.Colors(iSel,:);
         %clr = obj.hPtsColors(iSel,:);
         set(obj.hPts(iSel),'Color',clr);
-        set(obj.hPtsOcc(iSel),'Color',clr);
+        if ~isempty(obj.hPtsOcc),
+          set(obj.hPtsOcc(iSel),'Color',clr);
+        end
       end
     end
     
