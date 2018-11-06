@@ -21,12 +21,14 @@ import math
 # default_net_name = 'pose_unet_full_20180302'
 default_net_name = 'deepnet'
 crop_reg_file = '/groups/branson/bransonlab/mayank/stephen_copy/crop_regression_params.mat'
-lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
-lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
+# lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4879_gtcomplete_cacheddata_dlstripped.lbl'
 crop_size = [[230,350],[350,350]]
-name = 'stephen_20181029'
+# name = 'stephen_20181029'
+name = 'stephen_20181102_newlabels'
 cache_dir = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache'
 bodylblfile = '/groups/branson/bransonlab/mayank/stephen_copy/fly2BodyAxis_lookupTable_Ben.csv'
+model_type = 'mdn'
 
 #    defaulttrackerpath = "/groups/branson/home/bransonk/tracking/code/poseTF/matlab/compute3Dfrom2D/for_redistribution_files_only/run_compute3Dfrom2D.sh"
 #    defaultmcrpath = "/groups/branson/bransonlab/projects/olympiad/MCR/v91"
@@ -252,7 +254,7 @@ def main(argv):
     for view in range(2): # 0 for front and 1 for side
         if args.detect:
             tf.reset_default_graph()
-        conf = apt.create_conf(lbl_file,view=view,name=name,cache_dir=cache_dir)
+        conf = apt.create_conf(lbl_file,view=view,name=name,cache_dir=cache_dir,net_type=model_type)
         if view ==0:
             # from stephenHeadConfig import sideconf as conf
             extrastr = '_side'
@@ -267,7 +269,8 @@ def main(argv):
             for try_num in range(4):
                 try:
                     tf.reset_default_graph()
-                    pred_fn,close_fn,model_file = apt.get_unet_pred_fn(conf)
+                    # pred_fn,close_fn,model_file = apt.get_unet_pred_fn(conf)
+                    pred_fn, close_fn, model_file = apt.get_pred_fn(model_type=model_type,conf=conf)
                     # self = PoseUNet.PoseUNet(conf, args.net_name)
                     # sess = self.init_net_meta(1)
                     break
