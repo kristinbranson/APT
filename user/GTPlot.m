@@ -722,6 +722,13 @@ classdef GTPlot
       %
       % compute mean, cov, invert cov, sqrt(det(cov))
       
+      tfnan = any(isnan(xy),2);
+      nnan = nnz(tfnan);
+      if nnan>0
+        warningNoTrace('Removing %d rows containing NaNs.\n',nnan);
+        xy = xy(~tfnan,:);
+      end      
+      
       assert(size(xy,2)==2);
       ifo.mean = mean(xy,1);
       ifo.cov = cov(xy);

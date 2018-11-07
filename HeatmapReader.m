@@ -1,10 +1,14 @@
 classdef HeatmapReader < handle
+
+  properties (Constant)
+    % sprintf-style pattern; tgt,frm,part, all 1-based
+    filepat = 'hmap_trx_%d_t_%d_part_%d.jpg';
+    filepatre = 'hmap_trx_(?<iTgt>[0-9]+)_t_(?<t>[0-9]+)_part_(?<ipt>[0-9]+).jpg';
+  end
   
   properties
     dir % fullpath heatmap dir
     
-    % sprintf-style pattern; tgt,frm,part, all 1-based
-    filepat = 'hmap_trx_%d_t_%d_part_%d.jpg'; 
     
     imnr
     imnc
@@ -127,6 +131,25 @@ classdef HeatmapReader < handle
         end
         hm(:,:,iipt) = hm0;
       end
+    end
+    
+  end
+
+  methods (Static)
+    
+    function s = parsehmapjpgname(n)
+      s = regexp(n,HeatmapReader.filepatre,'names');
+      s = structfun(@str2double,s,'uni',0);
+    end
+    
+    function [t0,t1] = findFirstLastFrameHmapDir(hmdir)
+      dd = dir(fullfile(hmdir,'*.jpg'));
+      nm = {dd.name}';
+      nm = fullfile(hmdir,nm);
+      sMD = cellfun(@HeatmapReader.parsehmapjpgname,nm);
+      ts = cat(1,sMD.t);
+      t0 = min(ts);
+      t1 = max(ts);
     end
     
   end

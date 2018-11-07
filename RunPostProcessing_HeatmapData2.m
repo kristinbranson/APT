@@ -1,4 +1,4 @@
-function allppobj = RunPostProcessing_HeatmapData2(varargin)
+function allppobj = RunPostProcessing_HeatmapData2(hmdir,varargin)
 % Run single-view heatmap postproc
 
 ncores = feature('numcores');
@@ -19,8 +19,8 @@ if isdeployed,
 end
 
 d = 2;
-[rootdir,trxfile,lblfile,iMov,lblfilehmdirs...
-  nviews,npts,targets,pts2run,startframe,endframe,scales,...
+[rootdir,lblfile,lblfilehmdirs,lblfileImov,...
+  nviews,npts,nfrmsmov,trxfile,targets,pts2run,startframe,endframe,scales,...
   heatmap_lowthresh,heatmap_highthresh,heatmap_nsamples,heatmap_sample_algorithm,...
   usegeometricerror,kde_sigma_px,...
   viterbi_poslambda,viterbi_misscost,viterbi_dampen,viterbi_grid_acradius,...
@@ -28,14 +28,15 @@ d = 2;
   frames,ncores,paramfiles] = ...
   myparse(varargin,...
   'rootdir','',... % (opt) root dir for paramfiles, savefile
-  'trxfile','',... 
-  'lblfile','',... % used to specify a trxfile 
-  'iMov',[],... % [1] movie index into lblfile/lblfilehmdirs
-  'lblfilehmdirs',[],... % set hmdir=lblfilehmdirs{imov}
+  'lblfile','',... % lblfile can be used to specify {nviews,npts,nfrmsmov,trxfile,hmdir}
+  'lblfilehmdirs',[],... % specify when lblfile specified
+  'lblfileImov',[],... % [1] movie index into lblfile/lblfilehmdirs %'hmdir',[],...
   'nviews',1,...
   'npts',[],...
+  'nfrmsmov',[],...
+  'trxfile','',... 
   'targets',[],...
-  'pts2run',12:17,...
+  'pts2run',[],...
   'startframe',[],... % raw/movie frames marking interval to consider (inclusive). if trx, then these may be modified based on traj availability etc
   'endframe',[],...  % (cont) either start/endframe OR lblfile must be specified
   'scales',1,...
@@ -116,25 +117,30 @@ end
 
 if ~isempty(lblfile)
   lblfile = fullfile(rootdir,lblfile);
-  [nviews,npts,nfrmsmov,trxfile] = readStuffFromLbl(lblfile,iMov);  
-  if isempty(startframe)
-    startframe = 1;
+  [nviews,npts,nfrmsmov,trxfile] = readStuffFromLbl(lblfile,lblfileImov);
+  assert(~isempty(lblfilehmdirs));
+  assert(nviews==1);
+  hmdir = lblfilehmdirs{lblfileImov};
+  fprintf('lblfile %s imov %d\n',lblfile,lblfileImov);
+else
+  assert(~isempty(npts));
+  assert(~isempty(hmdir));
+  if isempty(nfrmsmov)
+    fprintf(1,'Finding first/last frames avail in hmdir: %s\n',hmdir);
+    [startframe,endframe] = HeatmapReader.findFirstLastFrameHmapDir(hmdir);
   end
-  if isempty(endframe)
-    endframe = nfrmsmov;
-  end
-  
-  fprintf('lblfile %s imov %d\n',lblfile,iMov);
-  fprintf('trxfile %s\n',trxfile);
 end
-assert(~isempty(npts));
-assert(~isempty(startframe) && ~isempty(endframe));
-assert(nviews==1);
 
-assert(~isempty(lblfilehmdirs)); % for now
-hmdir = lblfilehmdirs{iMov};
-%hmdir = fullfile(rootdir,hmdir);
+if isempty(startframe)
+  startframe = 1;
+end
+if isempty(endframe)
+  endframe = nfrmsmov;
+end
+
 fprintf('hmdir %s\n',hmdir);
+fprintf('nviews %d npts %d startfr %d endfr %d\n',nviews,npts,startframe,endframe);
+fprintf('trxfile %s\n',trxfile);
 
 istrx = ~isempty(trxfile);
 if istrx
@@ -149,6 +155,10 @@ if isempty(targets),
 end
 assert(all(ismember(targets(:),(1:ntargetstot)')));
 ntargets = numel(targets);
+
+if isempty(pts2run)
+  pts2run = 1:npts;
+end
 
 if size(scales,1) == 1,
   scales = repmat(scales,[nviews,1]);
