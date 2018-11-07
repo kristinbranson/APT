@@ -9942,10 +9942,10 @@ classdef Labeler < handle
       
       if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         obj.videoCenterOnCurrTarget();
+        obj.videoZoom(obj.targetZoomRadiusDefault);
       elseif obj.movieCenterOnTargetLandmark
         obj.videoCenterOnCurrTargetPoint();
       end
-      obj.videoZoom(obj.targetZoomRadiusDefault);
       if ~obj.isinit
         obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
         obj.updateTrxTable();
