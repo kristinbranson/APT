@@ -93,6 +93,15 @@ pp.SetMFTInfo(tblMFT);
 %pp.EstimateKDESigma();
 
 %%
+lblfile = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4879_gtcomplete_cacheddata.lbl';
+lbl = load(lblfile,'-mat');
+t = Labeler.lblFileGetLabels(lblfile);
+%%
+mfa2 = FSPath.fullyLocalizeStandardize(lbl.movieFilesAll(:,2),lbl.projMacros);
+imovUn = unique(t.mov);
+mfa2lbled = mfa2(imovUn);
+
+%%
 starttime = tic;
 pp.SetJointSamples(false);
 pp.SetAlgorithm('maxdensity');
@@ -112,7 +121,7 @@ pp.SetViterbiParams('poslambda',viterbi_poslambda,'dampen',viterbi_dampen,...
   'misscost',inf);  
 pp.run('force',true);
 fprintf('Time to run viterbi_indep_nomiss: %f\n',toc(starttime));
-postdata_singleheatmap.viterbi_indep_nomiss = pp.postdata.viterbi_indep;
+postdata_singleheatmap.viterbvlag1IPTokxi_indep_nomiss = pp.postdata.viterbi_indep;
 
 % starttime = tic;
 % pp.SetAlgorithm('viterbi');
@@ -122,6 +131,82 @@ postdata_singleheatmap.viterbi_indep_nomiss = pp.postdata.viterbi_indep;
 % fprintf('Time to run viterbi_indep_miss: %f\n',toc(starttime));
 % postdata_singleheatmap.viterbi_indep_miss = pp.postdata.viterbi_indep;
 % 
+
+
+
+
+%% SH full run: generate MFT pch dirs
+SWEEPROOTDIR = '/groups/branson/bransonlab/apt/tmp/postproc/sh/ppsweep/';
+HMAPDIR = fullfile(SWEEPROOTDIR,'..','hmap');
+MOVLIST = fullfile(SWEEPROOTDIR,'..','shtrn719_vw2_movs.txt');
+PCHDIR = fullfile(SWEEPROOTDIR,'mfts');
+DRY = fullfile(SWEEPROOTDIR,'mfts.dry');
+
+diary(DRY);
+
+movs = readtxtfile(MOVLIST);
+nmovs = numel(movs);
+fprintf('%d movs\n',nmovs);
+for imov=1:nmovs
+  fnameS = sprintf('imov%04d.m',imov);
+  fname = fullfile(PCHDIR,fnameS);  
+  fh = fopen(fname,'w');
+  fprintf(fh,'iMov = %d\n',imov);
+  fclose(fh);  
+  fprintf('Wrote %s\n',fnameS);
+end
+diary off
+%% SH full run
+% lblfile = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4879_gtcomplete_cacheddata.lbl';
+% ld = load(lblfile,'-mat');
+
+[movP,movF,movE]= fileparts(movs{1});
+hmdir = fullfile(HMAPDIR,movP,[movF '_hmap']);
+
+nowstr = datestr(now,'yyyymmddTHHMMSS');
+savefile = sprintf('runpp_%s.mat',nowstr);
+
+allppobj = RunPostProcessing_HeatmapData2(hmdir,...
+  'nviews',1,...
+  'npts',5,...
+  'heatmap_lowthresh',0,...
+  'heatmap_highthresh',1,...
+  'heatmap_nsamples',150,...
+  'heatmap_sample_algorithm','gmm',...
+  'usegeometricerror',true,...
+  'kde_sigma_px',5,...
+  'viterbi_poslambda',.0027,...
+  'viterbi_misscost',inf,...
+  'viterbi_dampen',.25,...
+  'viterbi_grid_acradius',12,...
+  'savefile',savefile,...
+  'ncores',4);
+
+%% SH full run
+s = struct();
+s.lblfile = 'multitarget_bubble_expandedbehavior_20180425_xv7.lbl';
+s.lblfilehmdirs = hmdirs([2 1 5 3 4])';
+save('ppbase.mat','-struct','s');
+
+s = struct();
+s.targets = 1;
+s.startframe = 3371;
+s.endframe = 3375;
+s.heatmap_lowthresh = .025;
+s.heatmap_highthresh = 1;
+s.heatmap_nsamples = 150;
+s.viterbi_poslambda = .0027;
+s.viterbi_misscost = inf;
+s.viterbi_dampen = .25;
+s.viterbi_grid_acradius = 12;
+save('ppprms.mat','-struct','s');
+%% SH full run
+allppobj = RunPostProcessing_HeatmapData2(...
+  'rootdir','/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep',...
+  'paramfiles','ppbase.mat#ppprms.mat#mftsbub_1/imov01_itgt01_sfrm003346_nfrm000170.m',...
+  'algorithms',{'viterbi_grid'});
+
+
 
 %% Bub heatmap data 
 
@@ -222,7 +307,7 @@ for hmdiri = ihmdirs2run
   end
 end
 
-%% generate MFT pch dirs
+%% Bub: generate MFT pch dirs
 
 FRMCLOSERAD = 75;
 PCHDIR = '/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep/mftsbub';
@@ -279,7 +364,7 @@ for imov=1:nmov
 end
 
 diary off
-%%
+%% Bub
 
 lblfile = fullfile('/groups/branson/home/robiea/Projects_data/Labeler_APT',...
   'Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_xv7.lbl');
@@ -314,7 +399,7 @@ allppobj = RunPostProcessing_HeatmapData2(hmdir,...
   'savefile',savefile,...
   'ncores',4);
 
-%%
+%% Bub
 s = struct();
 s.lblfile = 'multitarget_bubble_expandedbehavior_20180425_xv7.lbl';
 s.lblfilehmdirs = hmdirs([2 1 5 3 4])';
@@ -334,10 +419,11 @@ s.viterbi_grid_acradius = 12;
 save('ppprms.mat','-struct','s');
 
 
-%%
+%% Bub
 allppobj = RunPostProcessing_HeatmapData2(...
   'rootdir','/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep',...
-  'paramfiles','ppbase.mat#ppprms.mat#mfts001.m');
+  'paramfiles','ppbase.mat#ppprms.mat#mftsbub_1/imov01_itgt01_sfrm003346_nfrm000170.m',...
+  'algorithms',{'viterbi_grid'});
 
 
 %% GT: sh
@@ -556,26 +642,8 @@ hS = scatter(ax,reps(:,1),reps(:,2),kdeweights*1e3,'r');
 
 
 
-%% Motion model
-pd = pp.postdata.maxdensity_indep;
+%% Motion model Spatial
 
-XFLD = 'x';
-
-x = pd.(XFLD);
-v = diff(x,1,1); % v(i,ipt,:) gives (dx,dy) that takes you to i+1
-v(end+1,:,:) = nan;
-
-[n,npt,d] = size(x);
-DAMPS = 0:.05:1;
-nDamp = numel(DAMPS);
-xpred = nan(n,npt,d,nDamp);
-xprederrsq = nan(n,npt,nDamp);
-for iDamp=1:nDamp
-  damp = DAMPS(iDamp);
-  xpred(3:end,:,:,iDamp) = x(2:end-1,:,:) + damp*v(1:end-2,:,:); % at i; assume motion that took you from i-1->i continues to i+1
-  
-  xprederrsq(:,:,iDamp) = sum((xpred(:,:,:,iDamp)-x).^2,3);
-end
 
 NR = 180;
 NC = 180;
@@ -645,77 +713,7 @@ end
 
 linkaxes(axs);
   
-hFig = figure(25);
-clf;
-plot(DAMPS(:),nanmean(squeeze(xprederrsq(:,pp.pts2run,:)),1)','r','linewidth',2);
-hold on;
-plot(DAMPS(:),5*nanmedian(squeeze(xprederrsq(:,pp.pts2run,:)),1)','b','linewidth',2);
-title('prederreq vs damping','fontweight','bold');
-grid on;
-yl = ylim;
-yl(1) = 0;
-ylim(yl);
 
-%% motion model 2
-
-pd = pp.postdata.maxdensity_indep;
-XFLD = 'x';
-x = pd.(XFLD);
-v = diff(x,1,1);
-v = squeeze(v(:,12,:));
-
-xtrx = PostProcess.TransformByTrx(x,pp.trx,pp.heatmap_origin);
-vtrx = diff(xtrx,1,1);
-vtrx = squeeze(vtrx(:,12,:));
-
-n = size(v,1);
-cx = xcorr(v(:,1),v(:,1))/n/var(v(:,1));
-cy = xcorr(v(:,2),v(:,2))/n/var(v(:,2));
-
-cxtrx = xcorr(vtrx(:,1),vtrx(:,1))/n/var(vtrx(:,1));
-cytrx = xcorr(vtrx(:,2),vtrx(:,2))/n/var(vtrx(:,2));
-
-vtrxlag1 = [reshape(vtrx(1:end-1,:),[n-1 1 2]) reshape(vtrx(2:end,:),[n-1 1 2])];  
-
-figure(31);
-clf;
-x = 1:numel(cx);
-plot(x,cx,'o-',x,cy,'o-','linewidth',2);
-hold on;
-plot(x,cxtrx,'+:',x,cytrx,'+:','linewidth',2);
-grid on;
-
-xlim([1550 1570]);
-
-figure(32);
-clf
-axs = mycreatesubplots(1,2,[0.12 0.05;0.12 0.05]);
-JITTERSZ = 0.4;
-for xy=1:2
-  ax = axs(xy);
-  axes(ax);
-  xscat = vtrxlag1(:,1,xy);
-  yscat = vtrxlag1(:,2,xy);
-  p1 = polyfit(xscat,yscat,1);
-  p3 = polyfit(xscat,yscat,3);
-  [r p] = corrcoef(xscat,yscat);
-  xbins = -30:30;
-  ybins = arrayfun(@(x)median(yscat(round(xscat)==x)),xbins);
-  xscat = xscat+JITTERSZ*2*(rand(size(xscat))-0.5);
-  yscat = yscat+JITTERSZ*2*(rand(size(yscat))-0.5);
-  plot(xscat,yscat,'.');
-  tstr = sprintf('linear: slope=%.3g r=%.3g p=%.3g',p1(1),r(1,2),p(1,2));
-  hold on;
-  x = -30:1:30;
-  y1 = p1(1)*x+p(2);
-  y3 = p3(1)*x.^3 + p3(2)*x.^2 + p3(3)*x.^1 + p3(4);
-  plot(x,y1,'r-',x,y3,'r-','linewidth',2);
-  plot(xbins,ybins,'rs','markerfacecolor',[1 0 0]);
-  title(tstr);
-  grid on
-  axis([-30 30 -30 30]);
-end
-linkaxes(axs);
 
 
 

@@ -10,6 +10,9 @@ function [hmnrnc,hmBestTrajPQ,acBestTrajUV,acCtrPQ,totalcost] = ...
 % acBestTraj: [nx2] u,v indices into acwins for best traj
 % totalcost: [1] total cost of best traj
 
+% TODO: right now ACs have infs where heatmaps are zero, totally
+% prohibiting locating tracks there.
+ 
 [hm11xyOrig,acrad,dx,maxvx,poslambda,dampen] = myparse(varargin,...
   'hm11xyOrig',[1 1],... % Either [1x2] or [nx2]. The upper-left heatmap 
       ...                % pixel hm(1,1) maps to this (x,y) coordinate in 
@@ -49,7 +52,7 @@ gv = GridViterbi(maxvx,dx,dampen);
 % (x,y)=hm11xyOrig(n,:) in original movie coords.
 
 acsz = 2*acrad+1;
-acCtrPQ = nan(n,2); % (row,col) of center of ac window relative to its heatmap
+acCtrPQ = nan(n,2); % (row,col) of center of ac window in its heatmap
 
 % first frame
 hm1 = hmfcn(1); 
@@ -63,7 +66,7 @@ hm2 = hmfcn(2);
 [ac2,pctr2,qctr2] = GridViterbi.hm2ac(hm2,acrad,hm11xyOrig(2,:));
 acCtrPQ(2,:) = [pctr2 qctr2];
 
-% mc2(u2,v2,u1,v1) is motion cost for transitioning from 
+% mc2(u2,v2,u1,v1) is the motion cost for transitioning from 
 % (u0,v0,t=0)->(u1,v1,t=1)->(u2,v2,t=2) where we assume acwins@t0 @t1 are
 % aligned, and u0==u1 and v0==v1
 % Right now we consider motion cost in the heatmap (body-centered) frame
@@ -77,7 +80,7 @@ hmt2ygv = acCtrPQ(2,1)-acrad:acCtrPQ(2,1)+acrad;
 
 hmt1x = reshape(hmt1x,[1 1 acsz acsz]);
 hmt1y = reshape(hmt1y,[1 1 acsz acsz]);
-l2t1t2 = (hmt1x-hmt2x).^2 + (hmt1y-hmt2y).^2;
+l2t1t2 = (hmt1x-hmt2x).^2 + (hmt1y-hmt2y).^2; % assume vel=0 from t0 to t1, so hmt1x is hmt2x_pred, etc
 mc2 = poslambda * l2t1t2;
 szassert(mc2,[acsz acsz acsz acsz]);
   % mct2(u2,v2,u1,v1) is l2
@@ -127,10 +130,10 @@ for t=3:n
     % totcost(u2,v2,u1,v1) gives total cost of transitioning from 
     % (u1,v1,t-2)->(u2,v2,t-1)->(ut,v2,t)
     totcost = reshape(totcost,[acnumel acnumel]); 
-    % totcost(q,p) gives total cost of transition from
+    % totcost(h,g) gives total cost of transition from
     % g~(u1,v1,t-2)->h~(u2,v2,t-1)->(ut,vt,t)
-    [mintotcost,pidx] = min(totcost,[],2);
-    szassert(mintotcost,[acnumel 1]);
+    [mintotcost,pidx] = min(totcost,[],2); % for each h, best cost and best g leading to said cost
+    szassert(mintotcost,[acnumel 1]); 
     costcurr(ut,vt,:,:) = reshape(mintotcost,[acsz acsz]);
     prev(ut,vt,:,:,t) = reshape(pidx,[acsz acsz]);
   end
