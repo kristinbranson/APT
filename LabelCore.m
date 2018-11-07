@@ -490,7 +490,7 @@ classdef LabelCore < handle
       set(hPoints(~tfSl & tfEO),'Marker',ppi.OccludedMarker);
       set(hPoints(~tfSl & ~tfEO),'Marker',ppi.Marker);
       
-      if doPtsOcc
+      if doPtsOcc && ~isempty(obj.hPtsOcc),
         hPointsOcc = obj.hPtsOcc(iPts);
         set(hPointsOcc(tfSl),'Marker',ppitm.SelectedPointMarker);
         set(hPointsOcc(~tfSl),'Marker',ppi.Marker);

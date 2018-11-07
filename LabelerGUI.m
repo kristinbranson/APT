@@ -387,6 +387,12 @@ handles.menu_go_targets_summary = uimenu('Parent',handles.menu_go,...
   'Tag','menu_go_targets_summary',...
   'Separator','off',...
   'Checked','off');
+handles.menu_go_movies_summary = uimenu('Parent',handles.menu_go,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_file_managemovies_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Switch movies...',...
+  'Tag','menu_go_movies_summary',...
+  'Separator','off',...
+  'Checked','off');
 handles.menu_go_nav_prefs = uimenu('Parent',handles.menu_go,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_go_nav_prefs_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Navigation preferences...',...
@@ -702,7 +708,6 @@ switch lower(state),
     set(handles.menu_go,'Enable','on');
     set(handles.menu_help,'Enable','on');
     
-        
     set(handles.tbAdjustCropSize,'Enable','on');
     set(handles.pbClearAllCrops,'Enable','on');
     set(handles.pushbutton_exitcropmode,'Enable','on');
@@ -1213,6 +1218,15 @@ if isfield(handles,'newProjAxLimsSetInConfig')
   tfResetAxLims = tfResetAxLims | ~handles.newProjAxLimsSetInConfig;
   handles = rmfield(handles,'newProjAxLimsSetInConfig');
 end
+
+if lObj.hasTrx,
+  set(handles.menu_go_targets_summary,'Enable','on');
+else
+  set(handles.menu_go_targets_summary,'Enable','off');
+end
+
+
+
 %tfResetCLims = evt.isFirstMovieOfProject;
 
 

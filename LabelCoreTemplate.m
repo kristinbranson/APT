@@ -541,7 +541,9 @@ classdef LabelCoreTemplate < LabelCore
         pv = obj.hPtsPVRegAdjustedness;
         pv.Color = clr;
         set(obj.hPts(iSel),pv);
-        set(obj.hPtsOcc(iSel),pv);
+        if ~isempty(obj.hPtsOcc),
+          set(obj.hPtsOcc(iSel),pv);
+        end
         set(obj.hPtsTxt(iSel),'FontAngle','normal');
       end
     end
@@ -552,7 +554,9 @@ classdef LabelCoreTemplate < LabelCore
       for i=1:obj.nPts
         pv.Color = clrs(i,:);
         set(obj.hPts(i),pv);
-        set(obj.hPtsOcc(i),pv);
+        if ~isempty(obj.hPtsOcc),
+          set(obj.hPtsOcc(i),pv);
+        end
         set(obj.hPtsTxt(i),'FontAngle','normal');
       end
       obj.tfAdjusted(:) = true;

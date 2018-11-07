@@ -100,6 +100,7 @@ classdef LabelCoreSeq < LabelCore
             pos = get(obj.hAx,'CurrentPoint');
             pos = pos(1,1:2);
             obj.assignLabelCoordsIRaw(pos,iSel);
+            obj.labeler.labelPosSetI(pos,iSel);
             obj.tfEstOcc(iSel) = tfShift; % following toggleSelectPoint call will call refreshPtMarkers
             obj.toggleSelectPoint(iSel);
             if obj.tfOcc(iSel)
