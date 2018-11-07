@@ -11,9 +11,10 @@ function [dmat2,units] = ComputeLandmarkFeatureFromPos(lpos,lpostag,bodytrx,prop
 tic;
 units = parseunits('');
 
-trx = initializeTrx(lpos,lpostag,bodytrx);
-
-
+t0 = find(any(any(~isnan(lpos),1),2),1,'first');
+t1 = find(any(any(~isnan(lpos),1),2),1,'last');
+nfrm = size(lpos,3);
+trx = initializeTrx(lpos,lpostag,bodytrx,t0,t1);
 
 if isfield(trx,prop.code),
   dmat2 = trx.(prop.code);
@@ -48,7 +49,7 @@ else
   
   if strcmpi(prop.transform,'none'),
     units = dmat1.units;
-    dmat2 = dmat1.data;
+    dmat2 = padData(dmat1,t0,t1,nfrm);
     fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
     return;
   end
@@ -63,16 +64,31 @@ else
   
   dmat2 = feval(fun,dmat1);
   units = dmat2.units;
-  dmat2 = dmat2.data;
+  dmat2 = padData(dmat2,t0,t1,nfrm);
 end
 fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
 
-function trx = initializeTrx(lpos,occluded,bodytrx)
+function trx = initializeTrx(lpos,occluded,bodytrx,t0,t1)
+
+if nargin < 4,
+  t0 = 1;
+end
+if nargin < 5,
+  t1 = size(lpos,3);
+end
 
 trx = struct;
-trx.pos = lpos;
+trx.pos = lpos(:,:,t0:t1);
 trx.bodytrx = bodytrx;
-trx.occluded = double(occluded);
+trx.occluded = double(occluded(:,t0:t1));
 trx.realunits = false;
 trx.pxpermm = [];
 trx.fps = [];
+trx.t0 = t0;
+trx.t1 = t1;
+trx.nfrm = size(lpos,3);
+
+function data = padData(dat,t0,t1,nfrm)
+
+sz = size(dat.data);
+data = cat(2,nan(sz(1),t0-1),dat.data,nan(sz(1),nfrm-t1));

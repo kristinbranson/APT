@@ -252,6 +252,7 @@ classdef LabelCoreTemplate < LabelCore
           case LabelState.ADJUST
             % none
           case LabelState.ACCEPTED
+            obj.storeLabels();
             % KB 20181029: adjustments push directly to labeledpos
             %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
         end
@@ -263,6 +264,8 @@ classdef LabelCoreTemplate < LabelCore
         case 1
           tf = obj.anyPointSelected();
           if tf
+            iPt = get(src,'UserData');
+            obj.toggleSelectPoint(iPt);
             % none
           else
             % prepare for click-drag of pt
@@ -306,9 +309,9 @@ classdef LabelCoreTemplate < LabelCore
         
         obj.iPtMove = nan;
         obj.tfMoved = false;
-      end
-      if obj.state==LabelState.ACCEPTED,
-        obj.storeLabels();
+        if obj.state==LabelState.ACCEPTED && ~isnan(iPt) && obj.tfMoved,
+          obj.storeLabels();
+        end
       end
     end
     
