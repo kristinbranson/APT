@@ -9945,6 +9945,7 @@ classdef Labeler < handle
       elseif obj.movieCenterOnTargetLandmark
         obj.videoCenterOnCurrTargetPoint();
       end
+      obj.videoZoom(obj.targetZoomRadiusDefault);
       if ~obj.isinit
         obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
         obj.updateTrxTable();
