@@ -509,7 +509,7 @@ listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescu
 listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescurrXDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
-listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
+%listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
@@ -1212,7 +1212,7 @@ if isfield(handles,'newProjAxLimsSetInConfig')
   tfResetAxLims = tfResetAxLims | ~handles.newProjAxLimsSetInConfig;
   handles = rmfield(handles,'newProjAxLimsSetInConfig');
 end
-tfResetCLims = evt.isFirstMovieOfProject;
+%tfResetCLims = evt.isFirstMovieOfProject;
 
 
 % Deal with Axis and Color limits.
@@ -1245,9 +1245,9 @@ for iView = 1:lObj.nview
   if tfResetAxLims(iView)
     zoomOutFullView(hAxs(iView),hIms(iView),true);
   end
-  if tfResetCLims
-    hAxs(iView).CLimMode = 'auto';
-  end
+%   if tfResetCLims
+%     hAxs(iView).CLimMode = 'auto';
+%   end
 end
 
 handles.labelTLInfo.initNewMovie();
@@ -1357,29 +1357,37 @@ hAx.CameraViewAngleMode = 'auto';
 hAx.CameraPositionMode = 'auto';
 hAx.CameraTargetMode = 'auto';
 
-function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
-lObj = evt.AffectedObject;
-frm = lObj.currFrame;
-nfrm = lObj.nframes;
-handles = lObj.gdata;
-set(handles.edit_frame,'String',num2str(frm));
-sldval = (frm-1)/(nfrm-1);
-if isnan(sldval)
-  sldval = 0;
-end
-set(handles.slider_frame,'Value',sldval);
-if ~lObj.isinit
-  handles.labelTLInfo.newFrame(frm);
-  hlpGTUpdateAxHilite(lObj);
-end
+% function cbkCurrFrameChanged(src,evt) %#ok<*INUSD>
+% ticinfo = tic;
+% starttime = ticinfo;
+% lObj = evt.AffectedObject;
+% frm = lObj.currFrame;
+% nfrm = lObj.nframes;
+% handles = lObj.gdata;
+% fprintf('cbkCurrFrameChanged 1 get stuff: %f\n',toc(ticinfo)); ticinfo = tic;
+% set(handles.edit_frame,'String',num2str(frm));
+% fprintf('cbkCurrFrameChanged 2 set edit_frame: %f\n',toc(ticinfo)); ticinfo = tic;
+% sldval = (frm-1)/(nfrm-1);
+% if isnan(sldval)
+%   sldval = 0;
+% end
+% set(handles.slider_frame,'Value',sldval);
+% fprintf('cbkCurrFrameChanged 3 slider_frame %f\n',toc(ticinfo)); ticinfo = tic;
+% if ~lObj.isinit
+%   %handles.labelTLInfo.newFrame(frm);
+%   fprintf('cbkCurrFrameChanged 4 labelTLInfo.newFrame %f\n',toc(ticinfo)); ticinfo = tic;
+%   hlpGTUpdateAxHilite(lObj);
+%   fprintf('cbkCurrFrameChanged 5 axhilite %f\n',toc(ticinfo));
+% end
+% fprintf('->cbkCurrFrameChanged total time: %f\n',toc(starttime));
 
-function hlpGTUpdateAxHilite(lObj)
-if lObj.gtIsGTMode
-  tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
-else
-  tfHilite = false;
-end
-lObj.gdata.allAxHiliteMgr.setHighlight(tfHilite);
+% function hlpGTUpdateAxHilite(lObj)
+% if lObj.gtIsGTMode
+%   tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
+% else
+%   tfHilite = false;
+% end
+% lObj.gdata.allAxHiliteMgr.setHighlight(tfHilite);
 
 function hlpUpdateTblTrxHilite(lObj)
 
@@ -1391,8 +1399,8 @@ if lObj.hasTrx && ~lObj.isinit
   iTgt = lObj.currTarget;
   lObj.currImHud.updateTarget(iTgt);
   lObj.gdata.labelTLInfo.newTarget();
-  hlpGTUpdateAxHilite(lObj);
-  drawnow;
+  lObj.hlpGTUpdateAxHilite();
+  %drawnow;
   hlpUpdateTblTrxHilite(lObj);
 end
 
@@ -1818,7 +1826,7 @@ function slider_frame_Callback(hObject,~)
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
 
-%starttime = tic;
+starttime = tic;
 handles = guidata(hObject);
 lObj = handles.labelerObj;
 
@@ -1854,7 +1862,7 @@ if ~tfSetOccurred
   set(hObject,'Value',sldval);
 end
 
-%fprintf('Setting to frame %d took %f seconds\n',f,toc(starttime));
+fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
 
 function slider_frame_CreateFcn(hObject,~,~)
 % Hint: slider controls usually have a light gray background.
@@ -2471,7 +2479,8 @@ clim = get(axRead,'CLim');
 if isempty(clim)
 	% none; can occur when Labeler is closed
 else
-	warnst = warning('off','MATLAB:graphicsversion:GraphicsVersionRemoval');
+  lObj.clim_manual = clim;
+  warnst = warning('off','MATLAB:graphicsversion:GraphicsVersionRemoval');
 	set(axApply,'CLim',clim);
 	warning(warnst);
 	if tfApplyAxPrev
@@ -3811,7 +3820,11 @@ function menu_view_occluded_points_box_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
 lObj.setShowOccludedBox(~lObj.showOccludedBox);
-
+if lObj.showOccludedBox,
+  lObj.lblCore.showOcc();
+else
+  lObj.lblCore.hideOcc();
+end
 
 % --- Executes on selection change in pumInfo_labels.
 function pumInfo_labels_Callback(hObject, eventdata, handles)

@@ -200,6 +200,8 @@ classdef Labeler < handle
     % they are preproc-parameter dependent etc
     movieFilesAllHistEqLUT % [nmovset x nview] cell. Each el is a scalar struct containing lut + related info, or [] 
     movieFilesAllGTHistEqLUT % [nmovsetGT x nview] "
+    cmax_auto = nan(0,1);
+    clim_manual = zeros(0,2);
   end
   properties (SetObservable,AbortSet)
     movieFilesAllHaveLbls = false(0,1); % [nmovsetx1] logical. 
@@ -480,10 +482,8 @@ classdef Labeler < handle
   properties (Dependent)
     currMovIdx; % scalar MovieIndex
   end
-  properties (SetObservable)
-    currFrame = 1; % current frame
-  end
   properties 
+    currFrame = 1; % current frame
     currIm = [];            % [nview] cell vec of image data. init: C
     selectedFrames = [];    % vector of frames currently selected frames; typically t0:t1
     hFig; % handle to main LabelerGUI figure
@@ -3149,6 +3149,22 @@ classdef Labeler < handle
         end
       end
       
+      % fix the clim so it doesn't keep flashing
+      cmax_auto = nan(1,obj.nview); %#ok<*PROPLC>
+      for iView = 1:obj.nview,
+        im = obj.movieReader(iView).readframe(1,...
+          'doBGsub',obj.movieViewBGsubbed,'docrop',false);
+        cmax_auto(iView) = GuessImageMaxValue(im);
+        if numel(obj.cmax_auto) >= iView && cmax_auto(iView) == obj.cmax_auto(iView) && ...
+            size(obj.clim_manual,1) >= iView && all(~isnan(obj.clim_manual(iView,:))),
+          set(obj.gdata.axes_all(iView),'CLim',obj.clim_manual(iView,:));
+        else
+          obj.clim_manual(iView,:) = nan;
+          obj.cmax_auto(iView) = cmax_auto(iView);
+          set(obj.gdata.axes_all(iView),'CLim',[0,cmax_auto(iView)]);
+        end
+      end
+      
       isInitOrig = obj.isinit;
       obj.isinit = true; % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
@@ -4207,9 +4223,41 @@ classdef Labeler < handle
     end
     
     function updateShowTrx(obj)
-      % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
       
       if ~obj.hasTrx
+        return;
+      end
+            
+      if obj.showTrx        
+        if obj.showTrxCurrTargetOnly
+          tfShow = false(obj.nTrx,1);
+          tfShow(obj.currTarget) = true;
+        else
+          tfShow = true(obj.nTrx,1);
+        end
+      else
+        tfShow = false(obj.nTrx,1);
+      end
+
+      set(obj.hTraj(tfShow),'Visible','on');
+      set(obj.hTraj(~tfShow),'Visible','off');
+      set(obj.hTrx(tfShow),'Visible','on');
+      set(obj.hTrx(~tfShow),'Visible','off');
+      if obj.showTrxIDLbl
+        set(obj.hTrxTxt(tfShow),'Visible','on');
+        set(obj.hTrxTxt(~tfShow),'Visible','off');
+      else
+        set(obj.hTrxTxt,'Visible','off');
+      end
+
+      obj.updateTrx();
+      
+    end
+    
+    function updateTrx(obj)
+      % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
+      
+      if ~obj.hasTrx,
         return;
       end
       
@@ -4236,10 +4284,21 @@ classdef Labeler < handle
       % update coords/positions
       %tic;
       for iTrx = 1:obj.nTrx
-        %if tfShow(iTrx)
-          trxCurr = trxAll(iTrx);
-          t0 = trxCurr.firstframe;
-          t1 = trxCurr.endframe;
+        trxCurr = trxAll(iTrx);
+        t0 = trxCurr.firstframe;
+        t1 = trxCurr.endframe;
+        
+        if t0<=t && t<=t1
+          idx = t+trxCurr.off;
+          xTrx = trxCurr.x(idx);
+          yTrx = trxCurr.y(idx);
+        else
+          xTrx = nan;
+          yTrx = nan;
+        end
+        set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx);
+        
+        if tfShow(iTrx)
           tTraj = max(t-nPre,t0):min(t+nPst,t1); % could be empty array
           iTraj = tTraj + trxCurr.off;
           xTraj = trxCurr.x(iTraj);
@@ -4250,22 +4309,14 @@ classdef Labeler < handle
             color = pref.TrajColor;
           end
           set(obj.hTraj(iTrx),'XData',xTraj,'YData',yTraj,'Color',color);
+          set(obj.hTrx(iTrx),'Color',color);
 
-          if t0<=t && t<=t1
-            idx = t+trxCurr.off;
-            xTrx = trxCurr.x(idx);
-            yTrx = trxCurr.y(idx);
-          else
-            xTrx = nan;
-            yTrx = nan;
-          end
-          set(obj.hTrx(iTrx),'XData',xTrx,'YData',yTrx,'Color',color);
-          
           if obj.showTrxIDLbl
             dx = pref.TrxIDLblOffset;
             set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1],...
               'Color',color);
           end
+        end
           
 %           if tfShowEll && t0<=t && t<=t1
 %             ellipsedraw(2*trxCurr.a(idx),2*trxCurr.b(idx),...
@@ -4281,17 +4332,6 @@ classdef Labeler < handle
       set(obj.hTrx(obj.currTarget,1),...
         'PickableParts','none',...
         'HitTest','off');
-
-      set(obj.hTraj(tfShow),'Visible','on');
-      set(obj.hTraj(~tfShow),'Visible','off');
-      set(obj.hTrx(tfShow),'Visible','on');
-      set(obj.hTrx(~tfShow),'Visible','off');
-      if obj.showTrxIDLbl
-        set(obj.hTrxTxt(tfShow),'Visible','on');
-        set(obj.hTrxTxt(~tfShow),'Visible','off');
-      else
-        set(obj.hTrxTxt,'Visible','off');
-      end
 %       if tfShowEll
 %         set(obj.hTrxEll(tfShow),'Visible','on');
 %         set(obj.hTrxEll(~tfShow),'Visible','off');
@@ -6847,17 +6887,22 @@ classdef Labeler < handle
   methods (Access=private)
     
     function labelsUpdateNewFrame(obj,force)
+      %ticinfo = tic;
       if obj.isinit
         return;
       end
       if exist('force','var')==0
         force = false;
       end
+      %fprintf('labelsUpdateNewFrame 1: %f\n',toc(ticinfo)); ticinfo = tic;
       if ~isempty(obj.lblCore) && (obj.prevFrame~=obj.currFrame || force)
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
+      %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
       obj.prevAxesLabelsUpdate();
+      %fprintf('labelsUpdateNewFrame 3: %f\n',toc(ticinfo)); ticinfo = tic;
       obj.labels2VizUpdate();
+      %fprintf('labelsUpdateNewFrame 4: %f\n',toc(ticinfo)); 
     end
     
     function labelsUpdateNewTarget(obj,prevTarget)
@@ -9155,9 +9200,9 @@ classdef Labeler < handle
       ysz = v(4)-v(3);
     end
     function [x0,y0] = videoCurrentCenter(obj)
-      v = axis(obj.gdata.axes_curr);
-      x0 = mean(v(1:2));
-      y0 = mean(v(3:4));
+      %v = axis(obj.gdata.axes_curr);
+      x0 = mean(get(obj.gdata.axes_curr,'XLim'));
+      y0 = mean(get(obj.gdata.axes_curr,'YLim'));
     end
     
     function xy = videoClipToVideo(obj,xy)
@@ -9246,7 +9291,7 @@ classdef Labeler < handle
         end
 
         obj.setFrame(f,setFrameArgs{:});
-        drawnow;
+        drawnow('limitrate');
 
 %         dtsec = toc(ticker);
 %         pause_time = (f-fstart)/obj.moviePlayFPS - dtsec;
@@ -9706,7 +9751,7 @@ classdef Labeler < handle
         'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
         );
             
-      fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      %fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
       if obj.hasTrx
         assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
@@ -9733,12 +9778,12 @@ classdef Labeler < handle
         end
       end
       
-      fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      %fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
       % Remainder nearly identical to setFrameAndTarget()
       obj.hlpSetCurrPrevFrame(frm,tfforcereadmovie);
       
-      fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      %fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
       if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
         assert(~obj.isMultiView);
@@ -9747,28 +9792,28 @@ classdef Labeler < handle
         obj.videoCenterOnCurrTargetPoint();
       end
       
-      fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      %fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
 
       
       if updateLabels
         obj.labelsUpdateNewFrame(tfforcelabelupdate);
       end
       
-      fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      %fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       
       if updateTables
         obj.updateTrxTable();
 %         obj.updateCurrSusp();
       end
       
-      fprintf('setFrame %d, update tables took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
+      %fprintf('setFrame %d, update tables took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
 
       
       if updateTrajs
-        obj.updateShowTrx();
+        obj.updateTrx();
       end
       
-      fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
+      %fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
 
       
       fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
@@ -10065,16 +10110,27 @@ classdef Labeler < handle
       lpos = obj.labeledposCurrMovie;
       tfLbled = arrayfun(@(x)any(lpos(:,1,f,x)),idxLive); % nans counted as 0
       ischange = true;
-      tblTrxData = [idxLive,tfLbled];
+      tblTrxData = [idxLive,tfLbled]; %#ok<*PROP>
       if ~isempty(obj.tblTrxData),
         ischange = ndims(tblTrxData) ~= ndims(obj.tblTrxData) || ...
           any(size(tblTrxData) ~= size(obj.tblTrxData)) || ...
           any(tblTrxData(:) ~= obj.tblTrxData(:));
       end
       if ischange,
+        
+%         [nrold,ncold] = size(obj.tblTrxData);
+%         [nrnew,ncnew] = size(tblTrxData);
+%         ischange = true([nrnew,ncnew]);
+%         nr = min(nrold,nrnew);
+%         nc = min(ncold,ncnew);
+%         ischange(1:nr,1:nc) = obj.tblTrxData(1:nr,1:nc) ~= tblTrxData(1:nr,1:nc);
+%         [is,js] = find(ischange);
+        
         obj.tblTrxData = tblTrxData;
         tbldat = [num2cell(idxLive) num2cell(tfLbled)];
-        set(tbl,'Data',tbldat);
+        %tbl.setDataFast(is,js,tbldat(ischange),nrnew,ncnew);
+        tbl.setDataUnsafe(tbldat);
+        %set(tbl,'Data',tbldat);
       end
 
       %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
@@ -10157,12 +10213,15 @@ classdef Labeler < handle
     function hlpSetCurrPrevFrame(obj,frm,tfforce)
       % helper for setFrame, setFrameAndTarget
 
+      %ticinfo = tic;
       gd = obj.gdata;
 
       currFrmOrig = obj.currFrame;      
       imcurr = gd.image_curr;
       currImOrig = struct('CData',imcurr.CData,...
           'XData',imcurr.XData,'YData',imcurr.YData);
+        
+      %fprintf('hlpSetCurrPrevFrame 1: %f\n',toc(ticinfo)); ticinfo = tic;  
       if obj.currFrame~=frm || tfforce
         imsall = gd.images_all;
         tfCropMode = obj.cropIsCropMode;        
@@ -10176,12 +10235,36 @@ classdef Labeler < handle
               obj.movieReader(iView).readframe(frm,...
               'doBGsub',obj.movieViewBGsubbed,'docrop',true);                  
           end          
+          %fprintf('hlpSetCurrPrevFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;  
           set(imsall(iView),...
             'CData',obj.currIm{iView},...
             'XData',currImRoi(1:2),...
             'YData',currImRoi(3:4));
+          %fprintf('hlpSetCurrPrevFrame 3: %f\n',toc(ticinfo)); ticinfo = tic;  
         end
+        obj.gdata.labelTLInfo.newFrame(frm);
+        %fprintf('hlpSetCurrPrevFrame 4: %f\n',toc(ticinfo)); ticinfo = tic;  
         obj.currFrame = frm;
+        %fprintf('hlpSetCurrPrevFrame 4a: %f\n',toc(ticinfo)); ticinfo = tic;
+        set(obj.gdata.edit_frame,'String',num2str(frm));
+        sldval = (frm-1)/(obj.nframes-1);
+        if isnan(sldval)
+          sldval = 0;
+        end
+        set(obj.gdata.slider_frame,'Value',sldval);
+        if ~obj.isinit
+          hlpGTUpdateAxHilite(obj);
+        end
+        
+        if obj.gtIsGTMode
+          GTManager('cbkCurrMovFrmTgtChanged',obj.gdata.GTMgr);
+        end
+        
+        if ~isempty(obj.tracker),
+          obj.tracker.newLabelerFrame();
+        end
+          
+        %fprintf('hlpSetCurrPrevFrame 5: %f\n',toc(ticinfo)); ticinfo = tic;
       end
       
       % AL20180619 .currIm is probably an unnec prop
@@ -10206,9 +10289,21 @@ classdef Labeler < handle
       else
         obj.prevIm = currImOrig;
       end
+      %fprintf('hlpSetCurrPrevFrame 6: %f\n',toc(ticinfo)); ticinfo = tic;  
       obj.prevAxesImFrmUpdate(tfforce);
+      %fprintf('hlpSetCurrPrevFrame 7: %f\n',toc(ticinfo));
+      %fprintf('hlpSetCurrPrevFrame: %f\n',toc(ticinfo));
+      
     end
     
+    function hlpGTUpdateAxHilite(obj)
+      if obj.gtIsGTMode
+        tfHilite = obj.gtCurrMovFrmTgtIsInGTSuggestions();
+      else
+        tfHilite = false;
+      end
+      obj.gdata.allAxHiliteMgr.setHighlight(tfHilite);
+    end
   end
   
   %% PrevAxes

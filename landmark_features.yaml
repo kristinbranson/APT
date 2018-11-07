@@ -36,6 +36,10 @@ Features:
     FeatureClass: NonNegative
     CoordSystem: Body
 
+  y:
+    FeatureClass: NonNegative
+    CoordSystem: Global
+
   y_body:
     FeatureClass: NonNegative
     CoordSystem: Body
