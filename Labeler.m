@@ -10260,7 +10260,9 @@ classdef Labeler < handle
           GTManager('cbkCurrMovFrmTgtChanged',obj.gdata.GTMgr);
         end
         
-        obj.tracker.newLabelerFrame();
+        if ~isempty(obj.tracker),
+          obj.tracker.newLabelerFrame();
+        end
           
         %fprintf('hlpSetCurrPrevFrame 5: %f\n',toc(ticinfo)); ticinfo = tic;
       end
