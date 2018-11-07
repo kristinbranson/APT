@@ -1372,6 +1372,61 @@ classdef Labeler < handle
       cfg = orderfields(cfg,[flds0(:);fldsExtra(:)]);
     end
     
+    
+    % moved this from ProjectSetup
+    function sMirror = cfg2mirror(cfg)
+      % Convert true/full data struct to 'mirror' struct for adv table. (The term
+      % 'mirror' comes from implementation detail of adv table/propertiesGUI.)
+      
+      nViews = cfg.NumViews;
+      nPoints = cfg.NumLabelPoints;
+      
+      cfg = Labeler.cfgDefaultOrder(cfg);
+      sMirror = rmfield(cfg,{'NumViews' 'NumLabelPoints'}); % 'LabelMode'});
+      sMirror.Track = rmfield(sMirror.Track,{'Enable' 'Type'});
+      
+      assert(isempty(sMirror.ViewNames) || numel(sMirror.ViewNames)==nViews);
+      flds = arrayfun(@(i)sprintf('view%d',i),(1:nViews)','uni',0);
+      if isempty(sMirror.ViewNames)
+        vals = repmat({''},nViews,1);
+      else
+        vals = sMirror.ViewNames(:);
+      end
+      sMirror.ViewNames = cell2struct(vals,flds,1);
+      
+      assert(isempty(sMirror.LabelPointNames) || numel(sMirror.LabelPointNames)==nPoints);
+      flds = arrayfun(@(i)sprintf('point%d',i),(1:nPoints)','uni',0);
+      if isempty(sMirror.LabelPointNames)
+        vals = repmat({''},nPoints,1);
+      else
+        vals = sMirror.LabelPointNames;
+      end
+      sMirror.LabelPointNames = cell2struct(vals,flds,1);
+    end
+    
+    % moved this from ProjectSetup
+    function sMirror = hlpAugmentOrTruncNameField(sMirror,fld,subfld,n)
+      v = sMirror.(fld);
+      flds = fieldnames(v);
+      nflds = numel(flds);
+      if nflds>n
+        v = rmfield(v,flds(n+1:end));
+      elseif nflds<n
+        for i=nflds+1:n
+          v.([subfld num2str(i)]) = '';
+        end
+      end
+      sMirror.(fld) = v;
+    end
+    
+    function sMirror = hlpAugmentOrTruncStructField(sMirror,fld,n)
+
+      v = sMirror.(fld);
+      v = augmentOrTruncateVector(v,n);
+      sMirror.(fld) = v(:);
+      
+    end
+    
   end
   
   %% Project/Lbl files

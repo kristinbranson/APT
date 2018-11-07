@@ -1,7 +1,7 @@
 function varargout = LabelerGUI(varargin)
 % Labeler GUI
 
-% Last Modified by GUIDE v2.5 30-Oct-2018 17:29:24
+% Last Modified by GUIDE v2.5 07-Nov-2018 14:52:48
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -664,6 +664,7 @@ switch lower(state),
     set(handles.menu_file_load,'Enable','on');
     set(handles.menu_file_saveas,'Enable','off');
     set(handles.menu_file_save,'Enable','off');
+    set(handles.menu_file_shortcuts,'Enable','off');
     set(handles.menu_file_new,'Enable','on');
     set(handles.menu_file_quick_open,'Enable','on');
     
@@ -3857,3 +3858,31 @@ function pumInfo_labels_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+
+
+% --------------------------------------------------------------------
+function menu_file_shortcuts_Callback(hObject, eventdata, handles)
+% hObject    handle to menu_file_shortcuts (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+lObj = handles.labelerObj;
+while true,
+  [~,newShortcuts] = propertiesGUI([],lObj.projPrefs.Shortcuts);
+  shs = struct2cell(newShortcuts);
+  % everything should just be one character
+  % no repeats
+  uniqueshs = unique(shs);
+  isproblem = any(cellfun(@numel,shs) ~= 1) || numel(uniqueshs) < numel(shs);
+  if ~isproblem,
+    break;
+  end
+  res = questdlg('All shortcuts must be unique, single-character letters','Error setting shortcuts','Try again','Cancel','Try again');
+  if strcmpi(res,'Cancel'),
+    return;
+  end  
+end
+oldShortcuts = lObj.projPrefs.Shortcuts;
+lObj.projPrefs.Shortcuts = newShortcuts;
+handles = setShortcuts(handles);
+guidata(hObject,handles);
