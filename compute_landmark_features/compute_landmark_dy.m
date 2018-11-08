@@ -2,7 +2,8 @@ function [trx] = compute_landmark_dy(trx)
 
 [npts,D,T,ntargets] = size(trx.pos);
 % trx.pos is npts x D x T x ntargets
-trx.dy.data = reshape(trx.pos(:,2,2:end,:)-trx.pos(:,2,1:end-1,:),[npts,T-1,ntargets]);
+trx.dy.data = reshape(trx.pos(:,2,2:end,:)-trx.pos(:,2,1:end-1,:),...
+  [npts,max(0,T-1),ntargets]);
 trx.dy.data(:,end+1,:) = nan;
 if trx.realunits && ~isempty(trx.fps) && ~isempty(trx.pxpermm),
   trx.dy.data = trx.dy.data * trx.pxpermm / trx.fps;
