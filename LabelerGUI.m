@@ -1406,7 +1406,9 @@ hAx.CameraTargetMode = 'auto';
 
 function hlpUpdateTblTrxHilite(lObj)
 
-lObj.gdata.tblTrx.SelectedRows = lObj.currTarget;  
+i = find(lObj.currTarget == lObj.tblTrxData(:,1));
+assert(numel(i) == 1);
+lObj.gdata.tblTrx.SelectedRows = i;
 
 function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
 lObj = evt.AffectedObject;
