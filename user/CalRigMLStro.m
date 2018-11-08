@@ -6,6 +6,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     calSess % scalar Session from ML Stro calibration
     
     eplineComputeMode = 'mostaccurate'; % either 'mostaccurate' or 'fastest'
+    eplineComputeBaseZrange = 0:.1:100;
   end
   properties (Dependent)
     stroParams
@@ -201,7 +202,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       
       [projectionmeth,z1Range] = myparse(varargin,...
         'projectionmeth','worldToImage',... % either 'worldToImage' or 'normalized2projected'
-        'z1Range',40:.1:60 ...
+        'z1Range',obj.eplineComputeBaseZrange ...
         );
       
       % See CalRig

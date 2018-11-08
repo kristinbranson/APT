@@ -6743,10 +6743,12 @@ classdef Labeler < handle
         error('Labeler:viewCal',...
           'Number of views in project inconsistent with calibration object.');
       end
-      if ~all(strcmpi(obj.viewNames(:),crObj.viewNames(:)))
-        warningNoTrace('Labeler:viewCal',...
-          'Project viewnames do not match viewnames in calibration object.');
-      end
+%     AL 20181108 very strict check, don't worry about this for now. Maybe 
+%     later
+%       if ~all(strcmpi(obj.viewNames(:),crObj.viewNames(:)))
+%         warningNoTrace('Labeler:viewCal',...
+%           'Project viewnames do not match viewnames in calibration object.');
+%       end
     end
     
     function [tfAllSame,movWidths,movHeights] = viewCalCheckMovSizes(obj)
