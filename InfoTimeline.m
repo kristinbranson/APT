@@ -142,9 +142,11 @@ classdef InfoTimeline < handle
       hZ = zoom(fig);
       setAxesZoomMotion(hZ,ax,'vertical');
       obj.hZoom = hZ;
+      hZ.ActionPostCallback = @(src,evt) obj.cbkPostZoom(src,evt);
       hP = pan(fig);
       setAxesPanMotion(hP,ax,'vertical');
       obj.hPan = hP;
+      hP.ActionPostCallback = @(src,evt) obj.cbkPostZoom(src,evt);
 
       if obj.isL,
         setAxesZoomMotion(hZ,axl,'horizontal');
@@ -453,7 +455,10 @@ classdef InfoTimeline < handle
         %dy = max(y2-y1,eps);
         %lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
         x = 1:size(dat,2);
-
+        if ishandle(obj.hSelIm),
+          set(obj.hSelIm,'YData',[y1,y2]);
+        end
+        
         set(obj.hAx,'YLim',[y1,y2]);
         set(obj.hCurrFrame,'YData',[y1,y2]);
         if size(dat,1) == obj.npts,
@@ -790,6 +795,13 @@ classdef InfoTimeline < handle
       tfHiliteOn = numel(tfLbledCurrMovFrm)>0 && all(tfLbledCurrMovFrm);
       obj.hSegLineGTLbled.setOnOffAt(currFrm,tfHiliteOn);
     end
+    
+    function cbkPostZoom(obj,src,evt) %#ok<INUSD>
+      if ishandle(obj.hSelIm),
+        obj.hSelIm.YData = obj.hAx.YLim;
+      end
+    end
+    
   end
 
   methods (Static) % util
