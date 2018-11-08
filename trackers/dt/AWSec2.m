@@ -9,8 +9,7 @@ classdef AWSec2 < handle
     scpCmd
     sshCmd
     
-    remotePID
-    
+    remotePID    
   end
   
   properties (Constant)
@@ -193,15 +192,16 @@ classdef AWSec2 < handle
       tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
     end
  
-    function tfsucc = scpUpload(obj,file,dstRel,varargin)
-      sysCmdArgs = myparse(varargin,...
+    function tfsucc = scpUpload(obj,file,dest,varargin)
+      [destRelative,sysCmdArgs] = myparse(varargin,...
+        'destRelative',true,... % true if dest is relative to ~
         'sysCmdArgs',{});
-      cmd = AWSec2.scpUploadCmd(file,obj.pem,obj.instanceIP,dstRel,...
-        'scpcmd',obj.scpCmd);
+      cmd = AWSec2.scpUploadCmd(file,obj.pem,obj.instanceIP,dest,...
+        'scpcmd',obj.scpCmd,'destRelative',destRelative);
       tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
     end
     
-    function scpUploadOrVerify(obj,src,dstRel,fileDescStr) % throws
+    function scpUploadOrVerify(obj,src,dst,fileDescStr,varargin) % throws
       % Either i) confirm a remote file exists, or ii) upload it.
       % In the case of i), NO CHECK IS MADE that the existing file matches
       % the local file.
@@ -215,52 +215,38 @@ classdef AWSec2 < handle
       % dstRel: relative (to home) path to destination
       % fileDescStr: eg 'training file' or 'movie'
             
-      tfsucc = obj.remoteFileExists(dstRel,'dispcmd',true);
+      destRelative = myparse(varargin,...
+        'destRelative',true);
+      
+      if destRelative
+        dstAbs = ['~/' dst];
+      else
+        dstAbs = dst;
+      end
+      
+      tfsucc = obj.remoteFileExists(dstAbs,'dispcmd',true);
       if tfsucc
         fprintf('%s file exists: %s.\n\n',...
-          String.niceUpperCase(fileDescStr),dstRel);
+          String.niceUpperCase(fileDescStr),dstAbs);
       else
         fprintf('About to upload. This could take a while depending ...\n');
-        tfsucc = obj.scpUpload(src,dstRel,'sysCmdArgs',{'dispcmd',true});
+        tfsucc = obj.scpUpload(src,dstAbs,...
+          'destRelative',false,'sysCmdArgs',{'dispcmd',true});
         if tfsucc
-          fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dstRel);
+          fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dst);
         else
           error('Failed to upload %s %s.',fileDescStr,src);
         end
       end
     end
     
-    function remoteDirFull = hlpPutCheckRemoteDir(aws,remoteDir,descstr,varargin)
-      % Puts/verifies remote dir. Either succeeds, or fails and harderrors.
+    function scpUploadWithEnsureDir(obj,fileLcl,fileRemoteRel)
+      % Upload a file to a dir which may not exist yet. Create it if 
+      % necessary. Either succeeds, or fails and harderrors.
       
-      relative = myparse(varargin,...
-        'relative',true);
-
-      if relative
-        remoteDirFull = ['~/' remoteDir];
-      else
-        remoteDirFull = remoteDir;
-      end
-      
-      cmdremote = sprintf('mkdir -p %s',remoteDirFull);
-      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
-      if tfsucc
-        fprintf('Created/verified remote %s directory %s: %s\n\n',...
-          descstr,remoteDirFull,res);
-      else
-        error('Failed to create remote %s directory %s: %s',descstr,...
-          remoteDirFull,res);
-      end
-    end
-    
-    function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
-      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote);
-      [tfsucc,res] = AWSec2.syscmd(cmdfull,varargin{:});
-    end
-        
-    function cmd = sshCmdGeneralLogged(obj,cmdremote,logfileremote)
-      cmd = AWSec2.sshCmdGeneralLoggedStc(obj.sshCmd,obj.pem,obj.instanceIP,...
-        cmdremote,logfileremote);
+      remoteDirRel = fileparts(fileRemoteRel);
+      obj.ensureRemoteDir(remoteDirRel,'relative',true);      
+      obj.scpUploadOrVerify(fileLcl,fileRemoteRel,'training file'); % throws
     end
     
     function tf = remoteFileExists(obj,f,varargin)
@@ -298,6 +284,45 @@ classdef AWSec2 < handle
       end
     end
     
+    function remoteDirFull = ensureRemoteDir(obj,remoteDir,varargin)
+      % Creates/verifies remote dir. Either succeeds, or fails and harderrors.
+      
+      [relative,descstr] = myparse(varargin,...
+        'relative',true,... true if remoteDir is relative to ~
+        'descstr',''... cosmetic, for disp/err strings
+        );
+      
+      if ~isempty(descstr)
+        descstr = [descstr ' '];
+      end
+
+      if relative
+        remoteDirFull = ['~/' remoteDir];
+      else
+        remoteDirFull = remoteDir;
+      end
+      
+      cmdremote = sprintf('mkdir -p %s',remoteDirFull);
+      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
+      if tfsucc
+        fprintf('Created/verified remote %sdirectory %s: %s\n\n',...
+          descstr,remoteDirFull,res);
+      else
+        error('Failed to create remote %sdirectory %s: %s',descstr,...
+          remoteDirFull,res);
+      end
+    end
+    
+    function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
+      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote);
+      [tfsucc,res] = AWSec2.syscmd(cmdfull,varargin{:});
+    end
+        
+    function cmd = sshCmdGeneralLogged(obj,cmdremote,logfileremote)
+      cmd = AWSec2.sshCmdGeneralLoggedStc(obj.sshCmd,obj.pem,obj.instanceIP,...
+        cmdremote,logfileremote);
+    end
+        
     function killRemoteProcess(obj)
       if isempty(obj.remotePID)
         error('Unknown PID for remote process.');
@@ -403,10 +428,14 @@ classdef AWSec2 < handle
       end
     end
     
-    function cmd = scpUploadCmd(file,pem,ip,dstrel,varargin)
-      scpcmd = myparse(varargin,...
+    function cmd = scpUploadCmd(file,pem,ip,dest,varargin)
+      [destRelative,scpcmd] = myparse(varargin,...
+        'destRelative',true,...
         'scpcmd','scp');
-      cmd = sprintf('%s -i %s %s ubuntu@%s:~/%s',scpcmd,pem,file,ip,dstrel);
+      if destRelative
+        dest = ['~/' dest];
+      end
+      cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
     end
 
     function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)
