@@ -3582,7 +3582,11 @@ cleartext = getStatusBarTextWhenClear(handles);
 set(handles.txStatus, ...
     'ForegroundColor',handles.idlestatuscolor);
 SetStatusText(handles,cleartext);
-set(handles.figure,'Pointer','arrow');
+if isfield(handles,'figs_all') && any(ishandle(handles.figs_all))
+  set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
+else
+  set(handles.figure,'Pointer','arrow');
+end
 drawnow('limitrate');
 
 function syncStatusBarTextWhenClear(handles,s)

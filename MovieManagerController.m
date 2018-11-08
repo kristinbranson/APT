@@ -206,8 +206,9 @@ classdef MovieManagerController < handle
       switch src.Tag
         case 'pbAdd'
           lObj.SetStatus('Adding new movie...');
-          obj.addLabelerMovie();
-          lObj.ClearStatus();
+          oc = onCleanup(@()lObj.ClearStatus());
+          obj.addLabelerMovie(); % can throw
+          %lObj.ClearStatus();
         case 'pbRm'
           lObj.SetStatus('Removing movie...');
           obj.rmLabelerMovie();
