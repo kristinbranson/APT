@@ -12,10 +12,14 @@ trx.pos_body(:,1,t0:t1) = pos2(:,1,t0:t1).*c+pos2(:,2,t0:t1).*s;
 trx.pos_body(:,2,t0:t1) = -pos2(:,1,t0:t1).*s+pos2(:,2,t0:t1).*c;
 
 % current frame in previous frame's body coord system
-pos2 = trx.pos;
-pos2(:,1,t0+1:t1) = pos2(:,1,t0+1:t1) - reshape(trx.bodytrx.x(1:end-1),[1,1,nfrm-1]);
-pos2(:,2,t0+1:t1) = pos2(:,2,t0+1:t1) - reshape(trx.bodytrx.y(1:end-1),[1,1,nfrm-1]);
-trx.pos_body_prev = nan(size(trx.pos));
-trx.pos_body_prev(:,1,t0+1:t1) = pos2(:,1,t0+1:t1).*c(1:end-1)+pos2(:,2,t0+1:t1).*s(1:end-1);
-trx.pos_body_prev(:,2,t0+1:t1) = -pos2(:,1,t0+1:t1).*s(1:end-1)+pos2(:,2,t0+1:t1).*c(1:end-1);
+if nfrm == 0,
+  trx.pos_body_prev = trx.pos_body;
+else
+  pos2 = trx.pos;
+  pos2(:,1,t0+1:t1) = pos2(:,1,t0+1:t1) - reshape(trx.bodytrx.x(1:end-1),[1,1,nfrm-1]);
+  pos2(:,2,t0+1:t1) = pos2(:,2,t0+1:t1) - reshape(trx.bodytrx.y(1:end-1),[1,1,nfrm-1]);
+  trx.pos_body_prev = nan(size(trx.pos));
+  trx.pos_body_prev(:,1,t0+1:t1) = pos2(:,1,t0+1:t1).*c(1:end-1)+pos2(:,2,t0+1:t1).*s(1:end-1);
+  trx.pos_body_prev(:,2,t0+1:t1) = -pos2(:,1,t0+1:t1).*s(1:end-1)+pos2(:,2,t0+1:t1).*c(1:end-1);
+end
 

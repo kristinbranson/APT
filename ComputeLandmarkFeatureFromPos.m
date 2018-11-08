@@ -77,9 +77,10 @@ if nargin < 5,
   t1 = size(lpos,3);
 end
 
+
 trx = struct;
 trx.pos = lpos(:,:,t0:t1);
-trx.bodytrx = bodytrx;
+trx.bodytrx = cropBodyTrx(bodytrx,t0,t1);
 trx.occluded = double(occluded(:,t0:t1));
 trx.realunits = false;
 trx.pxpermm = [];
@@ -87,6 +88,27 @@ trx.fps = [];
 trx.t0 = t0;
 trx.t1 = t1;
 trx.nfrm = size(lpos,3);
+
+function bodytrx2 = cropBodyTrx(bodytrx,t0,t1)
+
+if isempty(bodytrx),
+  bodytrx2 = [];
+  return;
+end
+fnscrop = intersect(fieldnames(bodytrx),{'x','y','theta','a','b','timestamps'});
+bodytrx2 = struct;
+i0 = t0 + bodytrx.off;
+i1 = t1 + bodytrx.off;
+for i = 1:numel(fnscrop),
+  fn = fnscrop{i};
+  bodytrx2.(fn) = bodytrx.(fn)(i0:i1);
+end
+bodytrx2.off = 0;
+bodytrx2.firstframe = 1;
+bodytrx2.endframe = t1-t0+1;
+if isfield(bodytrx,'pxpermm'),
+  bodytrx2.pxpermm = bodytrx.pxpermm;
+end
 
 function data = padData(dat,t0,t1,nfrm)
 
