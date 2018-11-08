@@ -1920,6 +1920,12 @@ if ~checkProjAndMovieExist(handles)
   return;
 end
 SetStatus(handles,'Training...');
+[tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
+if ~tfCanTrain,
+  errordlg(['Error training tracker: ',reason],'Error training tracker');
+  ClearStatus(handles);
+  return;
+end
 oc1 = onCleanup(@()ClearStatus(handles));
 wbObj = WaitBarWithCancel('Training');
 oc2 = onCleanup(@()delete(wbObj));
@@ -1935,6 +1941,12 @@ if ~checkProjAndMovieExist(handles)
   return;
 end
 SetStatus(handles,'Tracking...');
+[tfCanTrack,reason] = handles.labelerObj.trackCanTrack();
+if ~tfCanTrack,
+  errordlg(['Error tracking: ',reason],'Error tracking');
+  ClearStatus(handles);
+  return;
+end
 tm = getTrackMode(handles);
 wbObj = WaitBarWithCancel('Tracking');
 centerOnParentFigure(wbObj.hWB,handles.figure);

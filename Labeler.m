@@ -8195,7 +8195,7 @@ classdef Labeler < handle
       end
       tObj.train();
     end
-    
+        
     function trackRetrain(obj,varargin)
       [tblMFTtrn,retrainArgs,dontUpdateH0] = myparse(varargin,...
         'tblMFTtrn',[],... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
@@ -8221,6 +8221,57 @@ classdef Labeler < handle
         obj.preProcUpdateH0IfNec();
       end
       tObj.retrain(retrainArgs{:});
+    end
+    
+    function [tfCanTrain,reason] = trackCanTrain(obj,varargin)
+      
+      tfCanTrain = false;
+      % is tracker and movie
+      if isempty(obj.tracker),
+        reason = 'The tracker has not been set.';
+        return;
+      end
+      if ~obj.hasMovie,
+        reason = 'There must be at least one movie in the project.';
+        return;
+      end
+      
+      % parameters set, whatever other checks tracker wants to do
+      [tfCanTrain,reason] = obj.tracker.canTrain();
+      if ~tfCanTrain,
+        return;
+      end
+      
+      % are labels
+      [tblMFTtrn] = myparse(varargin,...
+        'tblMFTtrn',[]... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
+        );
+      
+      if ~isempty(tblMFTtrn)
+        tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
+      else
+        tblMFTp = obj.preProcGetMFTableLbled();
+      end
+    
+      nlabels = size(tblMFTp,1);
+      
+      if nlabels < 2,
+        tfCanTrain = false;
+        reason = 'There must be at least two labeled frames in the project.';
+        return;
+      end
+      
+      tfCanTrain = true;      
+      
+    end
+    
+    function [tfCanTrack,reason] = trackCanTrack(obj)
+      tfCanTrack = false;
+      if isempty(obj.tracker),
+        reason = 'The tracker has not been set.';
+        return;
+      end
+      [tfCanTrack,reason] = obj.tracker.canTrack();
     end
     
     function track(obj,mftset,varargin)
