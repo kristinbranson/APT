@@ -1,24 +1,52 @@
 classdef APTParameters
   properties (Constant)
+    PREPROCESS_PARAMETER_FILE = lclInitPreprocessParameterFile();
+    TRACK_PARAMETER_FILE = lclInitTrackParameterFile();
     CPR_PARAMETER_FILE = lclInitCPRParameterFile();
     DEEPTRACK_PARAMETER_FILE = lclInitDeepTrackParameterFile();
   end
   methods (Static)
     function tPrm0 = defaultParamsTree
+%       tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
+%       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
+%       tPrm0 = tPrmCpr;
+%       tPrm0.Children = [tPrm0.Children; tPrmDT.Children];
+
+      tPrmPreprocess = parseConfigYaml(APTParameters.PREPROCESS_PARAMETER_FILE);
+      tPrmTrack = parseConfigYaml(APTParameters.TRACK_PARAMETER_FILE);
       tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
-      tPrm0 = tPrmCpr;
-      tPrm0.Children = [tPrm0.Children; tPrmDT.Children];
+      tPrm0 = tPrmPreprocess;
+      tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;tPrmCpr.Children;tPrmDT.Children];
     end
     function sPrm0 = defaultParamsStruct
       % sPrm0: "new-style"
+      
+%       tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
+%       sPrmCpr = tPrmCpr.structize();
+%       sPrmCpr = sPrmCpr.ROOT;
+%       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
+%       sPrmDT = tPrmDT.structize();
+%       sPrmDT = sPrmDT.ROOT;
+%       sPrm0 = structmerge(sPrmCpr,sPrmDT);
+
+      tPrmPreprocess = parseConfigYaml(APTParameters.PREPROCESS_PARAMETER_FILE);
+      sPrmPreprocess = tPrmPreprocess.structize();
+      sPrmPreprocess = sPrmPreprocess.ROOT;
+      
+      tPrmTrack = parseConfigYaml(APTParameters.TRACK_PARAMETER_FILE);
+      sPrmTrack = tPrmTrack.structize();
+      sPrmTrack = sPrmTrack.ROOT;
+      
       tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
       sPrmCpr = tPrmCpr.structize();
       sPrmCpr = sPrmCpr.ROOT;
+      
       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
       sPrmDT = tPrmDT.structize();
       sPrmDT = sPrmDT.ROOT;
-      sPrm0 = structmerge(sPrmCpr,sPrmDT);      
+      
+      sPrm0 = structmerge(sPrmPreprocess,sPrmTrack,sPrmCpr,sPrmDT);
     end
     function ppPrm0 = defaultPreProcParamsOldStyle
       sPrm0 = APTParameters.defaultParamsOldStyle();
@@ -31,7 +59,7 @@ classdef APTParameters
   end
   methods (Static)
     function sPrm0 = defaultParamsOldStyle
-      tPrm0 = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
+      tPrm0 = APTParameters.defaultParamsTree;
       sPrm0 = tPrm0.structize();
       % Use nan for npts, nviews; default parameters do not know about any
       % model
@@ -40,12 +68,30 @@ classdef APTParameters
   end
 end
 
-function cprParamFile = lclInitCPRParameterFile()
+function preprocessParamFile = lclInitPreprocessParameterFile()
 if isdeployed
-  cprParamFile = fullfile(ctfroot,'params_apt.yaml');
+  preprocessParamFile = fullfile(ctfroot,'params_preprocess.yaml');
 else
   aptroot = APT.Root;
-  cprParamFile = fullfile(aptroot,'trackers','cpr','params_apt.yaml');
+  preprocessParamFile = fullfile(aptroot,'params_preprocess.yaml');
+end
+end
+function trackParamFile = lclInitTrackParameterFile()
+if isdeployed
+  trackParamFile = fullfile(ctfroot,'params_track.yaml');
+else
+  aptroot = APT.Root;
+  trackParamFile = fullfile(aptroot,'params_track.yaml');
+end
+end
+function cprParamFile = lclInitCPRParameterFile()
+if isdeployed
+  cprParamFile = fullfile(ctfroot,'params_cpr.yaml');
+  %cprParamFile = fullfile(ctfroot,'params_apt.yaml');
+else
+  aptroot = APT.Root;
+  cprParamFile = fullfile(aptroot,'trackers','cpr','params_cpr.yaml');
+  %cprParamFile = fullfile(aptroot,'trackers','cpr','params_apt.yaml');
 end
 end
 function dtParamFile = lclInitDeepTrackParameterFile()

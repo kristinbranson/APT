@@ -29,7 +29,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       im = gdata.image_curr;
       im = im.CData;
       
-      rad0 = sPrm.ROOT.Track.MultiTarget.TargetCrop.Radius;
+      rad0 = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
 
       iMov = lObj.currMovie;
       frm = lObj.currFrame;
@@ -60,7 +60,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
 
     function propUpdated(obj,hAx,lObj,propFullName,sPrm)
       if obj.initSuccessful
-        rad = sPrm.ROOT.Track.MultiTarget.TargetCrop.Radius;
+        rad = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
         rectPos = obj.getRectPos(rad);
         obj.hRect.Position = rectPos;
       end
