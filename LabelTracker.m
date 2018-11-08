@@ -143,6 +143,21 @@ classdef LabelTracker < handle
       % - If a tracker is trained, it's an incremental train
     end
     
+    function [tfCanTrain,reason] = canTrain(obj)
+      
+      tfCanTrain = true;
+      reason = '';
+      
+    end
+
+    function [tfCanTrack,reason] = canTrack(obj)
+      
+      tfCanTrack = true;
+      reason = '';
+      
+    end
+
+    
     function [tfsucc,tblPTrn,dataPreProc] = preretrain(obj,tblPTrn,wbObj)
       % Right now this figures out which rows comprise the training set.
       %

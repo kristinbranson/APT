@@ -1008,6 +1008,16 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResIPt = iPt;
     end
     
+    function [tfCanTrain,reason] = canTrain(obj)
+      
+      reason = '';
+      tfCanTrain = ~isempty(obj.sPrm);
+      if ~tfCanTrain,
+        reason = 'Training parameters need to be set.';
+      end
+      
+    end
+    
     %#%MTGT
     function train(obj,varargin)
       % Incremental trainupdate using labels newer than .trnDataTblPTS
@@ -1397,6 +1407,15 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
     
+    function [tfCanTrack,reason] = canTrack(obj)
+      tfCanTrack = true;
+      reason = '';
+      if isempty(obj.trnResRC) || ~all([obj.trnResRC.hasTrained])
+        tfCanTrack = false;
+        reason = 'No tracker has been trained.';
+      end
+    end
+
     function track(obj,tblMFT,varargin)
       % tblMFT: MFtable. Req'd flds: MFTable.ID.
       

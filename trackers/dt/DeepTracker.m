@@ -313,6 +313,39 @@ classdef DeepTracker < LabelTracker
       tf = ~isempty(obj.trnName);
     end
     
+    function [tfCanTrain,reason] = canTrain(obj)
+      
+      tfCanTrain = false;
+      reason = '';
+      if obj.bgTrnIsRunning
+        reason = 'Training is already in progress.';
+        return;
+      end
+      if obj.bgTrkIsRunning,
+        reason = 'Tracking is in progress.';
+        return;
+      end
+      if isempty(obj.sPrm)
+        reason = 'No tracking parameters have been set.';
+        return;
+      end
+      cacheDir = obj.sPrm.CacheDir;
+      if isempty(cacheDir)
+        reason = 'No cache directory has been set.';
+        return;
+      end
+      
+      lblObj = obj.lObj;
+      projname = lblObj.projname;
+      if isempty(projname)
+        reason = 'Please give your project a name. The project name will be used to identify your trained models on disk.';
+        return;
+      end
+      
+      tfCanTrain = true;
+      
+    end
+    
     function retrain(obj,varargin)
       
       [wbObj,dlTrnType] = myparse(varargin,...
@@ -879,6 +912,52 @@ classdef DeepTracker < LabelTracker
         otherwise
           assert(false);
       end
+    end
+    
+    function [tfCanTrack,reason] = canTrack(obj)
+      tfCanTrack = false;
+      reason = '';
+      
+      if obj.bgTrkIsRunning
+        reason = 'Tracking is already in progress.';
+        return;
+      end
+
+      % check trained tracker
+      if isempty(obj.trnName)
+        reason = 'No trained tracker found.';
+        return;
+      end
+      
+      if isempty(obj.sPrm),
+        reason = 'Training parameters not set.';
+        return;
+      end
+
+      if ~isfield(obj.sPrm,'CacheDir') || isempty(obj.sPrm.CacheDir),
+        reason = 'Cache directory not set.';
+        retunr;
+      end
+      
+      cacheDir = obj.sPrm.CacheDir;
+      trkBackEnd = obj.backendType; % Currently trn/trk backends are the same
+      switch trkBackEnd
+        case DLBackEnd.Bsub
+          dlLblFileLcl = fullfile(cacheDir,[trnID '.lbl']);
+          if exist(dlLblFileLcl,'file')==0
+            reason = sprintf('Cannot find training file: %s\n',dlLblFileLcl);
+            return;
+          end
+        case DLBackEnd.AWS
+          dlLblFileLclS = [trnID '_' obj.trnNameLbl '.lbl'];
+          dlLblFileLcl = fullfile(cacheDir,dlLblFileLclS);
+          if exist(dlLblFileLcl,'file')==0
+            reason = sprintf('Cannot find training file: %s\n',dlLblFileLcl);
+          end
+      end
+      
+      tfCanTrack = true;
+      
     end
     
     function trkSpawnBsub(obj,mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,frm0,frm1)
