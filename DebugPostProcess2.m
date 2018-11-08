@@ -135,27 +135,28 @@ postdata_singleheatmap.viterbvlag1IPTokxi_indep_nomiss = pp.postdata.viterbi_ind
 
 
 
-%% SH full run: generate MFT pch dirs
+%% SH full run: generate hmap dirs
 SWEEPROOTDIR = '/groups/branson/bransonlab/apt/tmp/postproc/sh/ppsweep/';
 HMAPDIR = fullfile(SWEEPROOTDIR,'..','hmap');
 MOVLIST = fullfile(SWEEPROOTDIR,'..','shtrn719_vw2_movs.txt');
-PCHDIR = fullfile(SWEEPROOTDIR,'mfts');
-DRY = fullfile(SWEEPROOTDIR,'mfts.dry');
+HMAPDIRLIST = fullfile(SWEEPROOTDIR,'..','shtrn719_vw2_hmapdirs.txt');
 
-diary(DRY);
-
+fh = fopen(HMAPDIRLIST,'w');
 movs = readtxtfile(MOVLIST);
 nmovs = numel(movs);
 fprintf('%d movs\n',nmovs);
 for imov=1:nmovs
-  fnameS = sprintf('imov%04d.m',imov);
-  fname = fullfile(PCHDIR,fnameS);  
-  fh = fopen(fname,'w');
-  fprintf(fh,'iMov = %d\n',imov);
-  fclose(fh);  
-  fprintf('Wrote %s\n',fnameS);
+  mov = movs{imov};
+  [movP,movF,movE] = fileparts(mov);
+  hmdir = fullfile(HMAPDIR,movP,[movF '_hmap']);
+  if exist(hmdir,'dir')==0
+    warningNoTrace('imov=%d; hmdir DNE',imov);
+  end
+  
+  fprintf(fh,'%s\n',hmdir);
 end
-diary off
+fclose(fh);
+
 %% SH full run
 % lblfile = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4879_gtcomplete_cacheddata.lbl';
 % ld = load(lblfile,'-mat');
@@ -182,28 +183,21 @@ allppobj = RunPostProcessing_HeatmapData2(hmdir,...
   'savefile',savefile,...
   'ncores',4);
 
-%% SH full run
+%% SH full run params
 s = struct();
-s.lblfile = 'multitarget_bubble_expandedbehavior_20180425_xv7.lbl';
-s.lblfilehmdirs = hmdirs([2 1 5 3 4])';
-save('ppbase.mat','-struct','s');
-
-s = struct();
-s.targets = 1;
-s.startframe = 3371;
-s.endframe = 3375;
-s.heatmap_lowthresh = .025;
+s.npts = 5;
+s.heatmap_lowthresh = 0;
 s.heatmap_highthresh = 1;
 s.heatmap_nsamples = 150;
 s.viterbi_poslambda = .0027;
 s.viterbi_misscost = inf;
 s.viterbi_dampen = .25;
 s.viterbi_grid_acradius = 12;
-save('ppprms.mat','-struct','s');
+save('ppprmsSH.mat','-struct','s');
 %% SH full run
 allppobj = RunPostProcessing_HeatmapData2(...
-  'rootdir','/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep',...
-  'paramfiles','ppbase.mat#ppprms.mat#mftsbub_1/imov01_itgt01_sfrm003346_nfrm000170.m',...
+  'rootdir','/groups/branson/bransonlab/apt/tmp/postproc/sh/ppsweep',...
+  'paramfiles','ppbase.mat',...
   'algorithms',{'viterbi_grid'});
 
 
