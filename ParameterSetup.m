@@ -69,12 +69,21 @@ hFig = handles.figParameterSetup;
 centerOnParentFigure(hFig,hParent);
 
 % cbk for toggling parameter viz pane
-assert(strcmp(handles.pnlViz.Units,'pixels'));
-assert(strcmp(handles.figParameterSetup.Units,'pixels'));
-pnlVizPos0 = handles.pnlViz.Position;
-figParameterSetupPos0 = handles.figParameterSetup.Position;
-cbkToggleParamVizPane = @(tfParamViz)toggleParamVizPane(hFig,...
-  pnlVizPos0,figParameterSetupPos0,tfParamViz);
+% oldunitsViz = handles.pnlViz.Units;
+% oldunitsSetup = handles.figParameterSetup.Units;
+% handles.pnlViz.Units = 'pixels';
+% handles.figParameterSetup.Units = 'pixels';
+% assert(strcmp(handles.pnlViz.Units,'pixels'));
+% assert(strcmp(handles.figParameterSetup.Units,'pixels'));
+handles.pnlViz.Units = 'pixels';
+handles.pnlVizPos0 = handles.pnlViz.Position;
+handles.pnlViz.Units = 'normalized';
+
+handles.pnlParams.Units = 'pixels';
+handles.pnlParamsPos0 = handles.pnlParams.Position;
+handles.pnlParams.Units = 'normalized';
+handles.figParameterSetupPos0 = handles.figParameterSetup.Position;
+cbkToggleParamVizPane = @(tfParamViz)toggleParamVizPane(hFig,tfParamViz);
 
 assert(isa(tree,'TreeNode') && isscalar(tree));
 % for cosmetic purposes, don't include Dummy/Root node in propertiesGUI
@@ -152,10 +161,24 @@ else
   delete(hObject);
 end
 
-function toggleParamVizPane(hFig,pnlVizPos0,figParameterSetupPos0,tfParamViz)
-assert(strcmp(hFig.Units,'pixels'));
+function toggleParamVizPane(hFig,tfParamViz)
+
+handles = guidata(hFig);
+handles.pnlParams.Units = 'pixels';
+handles.pnlViz.Units = 'pixels';
+pnlVizPos = handles.pnlViz.Position;
+pnlParamsPos = handles.pnlParams.Position;
+hFig.Units = 'pixels';
+handles.pbApply.Units = 'pixels';
+handles.pbCancel.Units = 'pixels';
 if tfParamViz
-  hFig.Position(3) = figParameterSetupPos0(3);
+  handles.pnlViz.Position(3) = handles.pnlVizPos0(3)*pnlParamsPos(3)/handles.pnlParamsPos0(3);
+  hFig.Position(3) = handles.figParameterSetupPos0(3)*pnlParamsPos(3)/handles.pnlParamsPos0(3);
 else
-  hFig.Position(3) = pnlVizPos0(1)-1;
+  hFig.Position(3) = pnlVizPos(1)-1;
 end
+handles.pnlParams.Units = 'normalized';
+handles.pnlViz.Units = 'normalized';
+handles.pbApply.Units = 'normalized';
+handles.pbCancel.Units = 'normalized';
+

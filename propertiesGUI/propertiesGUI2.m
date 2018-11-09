@@ -753,10 +753,12 @@ else
 end  % for all possible data types
 
 prop.setDescription(description);
-if ~isempty(description)
-  renderer = com.jidesoft.grid.CellRendererManager.getRenderer(prop.getType, prop.getEditorContext);
-  renderer.setToolTipText(description);
-end
+renderer = com.jidesoft.grid.CellRendererManager.getRenderer(prop.getType, prop.getEditorContext);
+renderer.setToolTipText('');
+% if ~isempty(description)
+%   renderer = com.jidesoft.grid.CellRendererManager.getRenderer(prop.getType, prop.getEditorContext);
+%   renderer.setToolTipText(description);
+% end
 
 if prop.isEditable
   prop.setDisplayName(['<html><font color="black">' label]);
