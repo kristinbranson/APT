@@ -50,7 +50,10 @@ classdef PropertiesGUIProp < handle
       obj.DefaultValue = dfltval;      
       obj.Value = val;
       obj.ParamViz = prmViz;
-      obj.Level = level;
+      if isempty(level),
+        level = 'Important';
+      end
+      obj.Level = PropertyLevelsEnum(level);
       if ischar(rqts) && ~isempty(rqts),
         obj.Requirements = strsplit(rqts);
       end

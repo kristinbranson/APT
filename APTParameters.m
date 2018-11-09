@@ -18,6 +18,7 @@ classdef APTParameters
       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;tPrmCpr.Children;tPrmDT.Children];
+      tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
     end
     function sPrm0 = defaultParamsStruct
       % sPrm0: "new-style"
@@ -55,7 +56,38 @@ classdef APTParameters
     function sPrm0 = defaultCPRParamsOldStyle
       sPrm0 = APTParameters.defaultParamsOldStyle();
       sPrm0 = rmfield(sPrm0,'PreProc');
-    end    
+    end
+    function [tPrm,minLevel] = propagateLevelFromLeaf(tPrm)
+      
+      if isempty(tPrm.Children),
+        minLevel = tPrm.Data.Level;
+        return;
+      end
+      minLevel = PropertyLevelsEnum('Developer');
+      for i = 1:numel(tPrm.Children),
+        [tPrm.Children(i),minLevelCurr] = APTParameters.propagateLevelFromLeaf(tPrm.Children(i));
+        minLevel = min(minLevel,minLevelCurr);
+      end
+      tPrm.Data.Level = PropertyLevelsEnum(minLevel);
+      
+    end
+    
+    function filteredtree = filterPropertiesByLevel(tree,level)
+      
+      if tree.Data.Level > level,
+        filteredtree = [];
+        return;
+      end
+      filteredtree = TreeNode(tree.Data);
+      for i = 1:numel(tree.Children),
+        filteredchild = APTParameters.filterPropertiesByLevel(tree.Children(i),level);
+        if ~isempty(filteredchild),
+          filteredtree.Children = [filteredtree.Children;filteredchild];
+        end
+      end
+      
+    end
+    
   end
   methods (Static)
     function sPrm0 = defaultParamsOldStyle

@@ -22,7 +22,7 @@ function varargout = ParameterSetup(varargin)
 
 % Edit the above text to modify the response to help ParameterSetup
 
-% Last Modified by GUIDE v2.5 26-Mar-2018 11:50:17
+% Last Modified by GUIDE v2.5 09-Nov-2018 10:06:51
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -58,7 +58,7 @@ function ParameterSetup_OpeningFcn(hObject, eventdata, handles, varargin)
 % sPrm: If "Apply" is pushed, parameter structure; otherwise, []
 
 hParent = varargin{1};
-tree = varargin{2};
+handles.tree = varargin{2};
 pvargs = varargin(3:end);
 
 labelerObj = myparse(pvargs,...
@@ -85,21 +85,27 @@ handles.pnlParams.Units = 'normalized';
 handles.figParameterSetupPos0 = handles.figParameterSetup.Position;
 cbkToggleParamVizPane = @(tfParamViz)toggleParamVizPane(hFig,tfParamViz);
 
-assert(isa(tree,'TreeNode') && isscalar(tree));
+mc = ?PropertyLevelsEnum;
+levels_str = {mc.EnumerationMemberList.Name};
+levels = PropertyLevelsEnum(levels_str);
+[~,minlevel] = min(levels);
+handles.maxlevel = PropertyLevelsEnum(max(levels));
+set(handles.popupmenu_level,'String',levels_str,'Value',minlevel);
+handles.level = levels(minlevel);
+
+assert(isa(handles.tree,'TreeNode') && isscalar(handles.tree));
 % for cosmetic purposes, don't include Dummy/Root node in propertiesGUI
-assert(strcmp(tree.Data.Field,'ROOT'));
-rootnode = tree;
-children = tree.Children;
-rootnode.Children = [];
+assert(strcmp(handles.tree.Data.Field,'ROOT'));
+rootnode = TreeNode(handles.tree.Data);
 if tfLabelerSupplied
   pvh = ParameterVizHandler(labelerObj,handles.figParameterSetup,...
     handles.axViz,cbkToggleParamVizPane);
   pvh.init();
-  propertiesGUI2(handles.pnlParams,children,'parameterVizHandler',pvh);
-  setappdata(hFig,'parameterVizHandler',pvh);
 else
-  propertiesGUI2(handles.pnlParams,children);
+  pvh = [];
 end
+setappdata(hFig,'parameterVizHandler',pvh);
+setPropertiesPanel(handles);
 setappdata(hFig,'rootnode',rootnode); % save to glue rootnode back on at output
 
 cbkToggleParamVizPane(false);
@@ -114,6 +120,18 @@ guidata(handles.figParameterSetup,handles);
 
 uiwait(hFig);
 % UIWAIT makes ParameterSetup wait for user response (see UIRESUME)
+
+function setPropertiesPanel(handles)
+
+filteredtree = APTParameters.filterPropertiesByLevel(handles.tree,handles.level);
+
+children = filteredtree.Children;
+pvh = getappdata(handles.figParameterSetup,'parameterVizHandler');
+if isempty(pvh),
+  propertiesGUI2(handles.pnlParams,children);
+else
+  propertiesGUI2(handles.pnlParams,children,'parameterVizHandler',pvh);
+end
 
 function varargout = ParameterSetup_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
@@ -130,6 +148,10 @@ if ~isempty(ce)
   drawnow; % otherwise this method can finish, deleting hFig, before propupdated callback fires
 end
 
+handles.level = handles.maxlevel;
+guidata(hObject,handles);
+setPropertiesPanel(handles);
+drawnow;
 t = getappdata(hFig,'mirror');
 rootnode = getappdata(hFig,'rootnode');
 rootnode.Children = t;
@@ -171,6 +193,7 @@ pnlParamsPos = handles.pnlParams.Position;
 hFig.Units = 'pixels';
 handles.pbApply.Units = 'pixels';
 handles.pbCancel.Units = 'pixels';
+handles.popupmenu_level.Units = 'pixels';
 if tfParamViz
   handles.pnlViz.Position(3) = handles.pnlVizPos0(3)*pnlParamsPos(3)/handles.pnlParamsPos0(3);
   hFig.Position(3) = handles.figParameterSetupPos0(3)*pnlParamsPos(3)/handles.pnlParamsPos0(3);
@@ -181,4 +204,31 @@ handles.pnlParams.Units = 'normalized';
 handles.pnlViz.Units = 'normalized';
 handles.pbApply.Units = 'normalized';
 handles.pbCancel.Units = 'normalized';
+handles.popupmenu_level.Units = 'normalized';
 
+% --- Executes on selection change in popupmenu_level.
+function popupmenu_level_Callback(hObject, eventdata, handles)
+% hObject    handle to popupmenu_level (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns popupmenu_level contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from popupmenu_level
+
+contents = cellstr(get(hObject,'String'));
+level_str = contents{get(hObject,'Value')};
+handles.level = PropertyLevelsEnum(level_str);
+guidata(hObject,handles);
+setPropertiesPanel(handles);
+
+% --- Executes during object creation, after setting all properties.
+function popupmenu_level_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to popupmenu_level (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
