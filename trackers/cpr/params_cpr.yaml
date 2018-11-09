@@ -10,18 +10,18 @@
 # * After the metadata comes a list of child nodes.
 # * As a shortcut, leaf nodes can contain the metadata directly as their value.
 ROOT:
-  - ['','',false,DUMMY,'','']
+  - ['','',false,DUMMY,'','','','']
   - CPR:
-    - ['','',false,Settings for Cascaded Pose Regression (CPR),'','']
-    - NumMajorIter: ['Num iterations',unsigned,true,Number of major iterations in regressor cascade.,50,'']
-    - NumMinorIter: ['Num boosted regressors',unsigned,true,Number of minor iterations (boosted regressors) per major iteration.,30,'']
+    - ['','',false,Settings for Cascaded Pose Regression (CPR),'','','','']
+    - NumMajorIter: ['Num regression stages',unsigned,true,'Number of stages of regression. Each stage of regression predicts an update to the current pose estimate. More stages generally perform better, but are also slower in both training and tracking. If the training accuracy is poor, consider increasing the number of stages.',50,'','Advanced','']
+    - NumMinorIter: ['Num boosted regressors',unsigned,true,'Number of regressors (random ferns) combined (ensembled) in each stage of regression. More regressors generally performs better, but are also slower in both training and tracking. If the training accuracy is poor, consider increasing the number of stages.',30,'','Advanced','']
     - Ferns:
-      - ['','',false,Random ferns,'','']
-      - Depth: ['',unsigned,true,Number of features used for fern binning.,5,'']
+      - ['','',false,Random ferns,'','','','']
+      - Depth: ['',unsigned,true,'Depth of the random fern, similar to the depth of a decision tree. This corresponds to the number of features used for fern binning. Larger depths may improve accuracy if the training accuracy is poor.',5,'','Advanced','']
       - Threshold:
-        - ['','',false,Random fern thresholds,'','']
-        - Lo: ['',float,true,Low threshold,-.2,'']
-        - Hi: ['',float,true,High threhold,.2,'']
+        - ['','',false,Random fern thresholds,'','','','']
+        - Lo: ['',float,true,'Random ferns are constructed very randomly. (Somewhat) random features are chosen and then they are thresholded at randomly chosen values. Set the lower range of the thresholds here. Features should be in the range of -1 to 1.',-.2,'','Advanced','']
+        - Hi: ['',float,true,'Random ferns are constructed very randomly. (Somewhat) random features are chosen and then they are thresholded at randomly chosen values. Set the upper range of the thresholds here. Features should be in the range of -1 to 1.',.2,'','Advanced','']
       - RegFactor: ['Regularization Factor',float,true,Regularization factor (used when a fern bin has very low counts),.01,'']
     - Feature:
       - ['','',false,Feature generation,'','']
