@@ -282,6 +282,11 @@ classdef LabelCore < handle
     end
     
     function pnlBDF(obj,src,evt) 
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       % This is called when uipanel_curr is clicked outside the axis, or
       % when points with HitTest off plotted in overlaid axes are clicked.
       pos = get(obj.hAx(1),'CurrentPoint');

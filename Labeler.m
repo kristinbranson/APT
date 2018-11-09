@@ -1062,6 +1062,11 @@ classdef Labeler < handle
     function set.targetZoomRadiusDefault(obj,v)
       obj.projPrefs.Trx.ZoomFactorDefault = v;
     end
+    
+    function tfIsReady = isReady(obj)
+      tfIsReady = ~obj.isinit && obj.hasMovie && obj.hasProject;
+    end
+    
   end
   
   %% Ctor/Dtor

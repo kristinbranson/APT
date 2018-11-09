@@ -236,6 +236,11 @@ classdef LabelCoreTemplate < LabelCore
     end 
     
     function axBDF(obj,src,evt) %#ok<INUSD>
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       [tf,iSel] = obj.anyPointSelected();
       if tf
         pos = get(obj.hAx,'CurrentPoint');
@@ -260,6 +265,11 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function ptBDF(obj,src,evt)
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       switch evt.Button
         case 1
           tf = obj.anyPointSelected();
@@ -285,6 +295,11 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function wbmf(obj,src,evt) %#ok<INUSD>
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       if obj.state==LabelState.ADJUST || obj.state==LabelState.ACCEPTED
         iPt = obj.iPtMove;
         if ~isnan(iPt)
@@ -299,6 +314,11 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function wbuf(obj,src,evt) %#ok<INUSD>
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       if obj.state==LabelState.ADJUST || obj.state==LabelState.ACCEPTED,
         iPt = obj.iPtMove;
         if ~isnan(iPt) && ~obj.tfMoved
@@ -316,6 +336,11 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function tfKPused = kpf(obj,src,evt)
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       key = evt.Key;
       modifier = evt.Modifier;
       tfCtrl = any(strcmp('control',modifier));
@@ -399,6 +424,11 @@ classdef LabelCoreTemplate < LabelCore
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       [tf,iSel] = obj.anyPointSelected();
       if tf
         obj.setPointAdjusted(iSel);

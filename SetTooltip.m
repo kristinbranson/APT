@@ -35,3 +35,7 @@ try
     tfsucc = true;
   end
 end
+
+if ~tfsucc,
+  warningNoTrace(sprintf('Could not set tooltip %s',s));
+end
