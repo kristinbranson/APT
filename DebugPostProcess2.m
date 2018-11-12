@@ -304,12 +304,13 @@ end
 %% Bub: generate MFT pch dirs
 
 FRMCLOSERAD = 75;
+LBLFILE = '/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep/multitarget_bubble_expandedbehavior_20180425_xv7.lbl';
 PCHDIR = '/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep/mftsbub';
 DRY = '/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep/mftsbub.dry';
 
 diary(DRY);
 
-tLbl = lObj.labelGetMFTableLabeled();
+tLbl = Labeler.lblFileGetLabels(LBLFILE);
 fprintf('%d labeled rows\n',height(tLbl));
 nmov = 5;
 %frms2pp = cell(nmov,1);
@@ -344,7 +345,7 @@ for imov=1:nmov
       fname = fullfile(PCHDIR,fnameS);
       
       fh = fopen(fname,'w');
-      fprintf(fh,'iMov = %d\n',imov);
+      fprintf(fh,'lblfileImov = %d\n',imov);
       fprintf(fh,'targets = %d\n',itgt);
       fprintf(fh,'startframe = %d\n',spI);
       fprintf(fh,'endframe = %d\n',epI);
@@ -408,15 +409,15 @@ s.heatmap_highthresh = 1;
 s.heatmap_nsamples = 150;
 s.viterbi_poslambda = .0027;
 s.viterbi_misscost = inf;
-s.viterbi_dampen = .25;
+s.viterbi_dampen = .25/2;
 s.viterbi_grid_acradius = 12;
-save('ppprms.mat','-struct','s');
+save('ppprms_vdamp_dn.mat','-struct','s');
 
 
 %% Bub
-allppobj = RunPostProcessing_HeatmapData2(...
+allppobj = RunPostProcessing_HeatmapData2('foo',...
   'rootdir','/groups/branson/bransonlab/apt/tmp/postproc/bub/ppsweep',...
-  'paramfiles','ppbase.mat#ppprms.mat#mftsbub_1/imov01_itgt01_sfrm003346_nfrm000170.m',...
+  'paramfiles','ppbase.mat#ppprms_vdamp_dn.mat#mftsbub/imov01_itgt01_sfrm003346_nfrm000170.m',...
   'algorithms',{'viterbi_grid'});
 
 

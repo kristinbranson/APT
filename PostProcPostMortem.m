@@ -1,55 +1,178 @@
 %% input args
 
-ppbasefile = 'ppbase.mat';
-outdir = 'mftsbub_out_20181101T090301';
+DATASET = 'sh';
 
-%%
-ppbase = load(ppbasefile);
-lblfile = ppbase.lblfile;
-ld = load(lblfile,'-mat');
-hmdirs = ppbase.lblfilehmdirs;
+switch DATASET
+  case 'bub'
+    ppbasefile = 'ppbase.mat';
+    outdir = 'mftsbub_out_20181101T090301';
 
-%% load results
-ddres = dir(fullfile(outdir,'*.mat'));
-nres = numel(ddres);
-PAT = 'imov(?<iMov>[0-9]{2,2})_itgt(?<iTgt>[0-9]{2,2})_sfrm(?<frm0>[0-9]{6,6})_nfrm(?<nfrm>[0-9]{6,6}).mat';
-res = cell(nres,1);
-resMD = cell(nres,1);
-for i=1:numel(ddres)
-  resnameS = ddres(i).name;
-  sMD = regexp(resnameS,PAT,'names');
-  fns = fieldnames(sMD);
-  for f=fns(:)',f=f{1};
-    sMD.(f) = str2double(sMD.(f));
-  end
-  
-  resname = fullfile(outdir,resnameS);
-  res{i} = load(resname);
-  fprintf('Loaded %s\n',resname);
-  
-  assert(res{i}.targets==sMD.iTgt);
-  assert(strcmp(res{i}.hmdir,hmdirs{sMD.iMov}));
-  assert(isscalar(res{i}.allppobj));
-  pp = res{i}.allppobj{1};
-  if pp.N~=sMD.nfrm
-    warningNoTrace('res %s, pp.N=%d. probably truncated by trx start/endframe. resetting sMD.nfrm to %d.\n',...
-      resnameS,pp.N,pp.N);
-    sMD.nfrm = pp.N;
-  end
-  
-  % whoops GV
-  for ipt=pp.pts2run
-    xyHM = squeeze(pp.postdata.viterbi_grid.x(:,ipt,:));
-    xy = PostProcess.UntransformByTrx(xyHM,pp.trx,pp.heatmap_origin); 
-    pp.postdata.viterbi_grid.x(:,ipt,:) = xy;
-  end
-  
-  res{i} = pp;
-  resMD{i} = sMD;
+    ppbase = load(ppbasefile);
+    lblfile = ppbase.lblfile;
+    ld = load(lblfile,'-mat');
+    hmdirs = ppbase.lblfilehmdirs;
+
+  case 'sh'
+    outdirs = {
+      'out_1_90_20181108T083201'
+      'out_91_719_20181109T194358'
+    };
+    
+    lblfile = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4879_gtcomplete_cacheddata.lbl';
+    ld = load(lblfile,'-mat');
 end
 
-res = cat(1,res{:});
-resMD = struct2table(cell2mat(resMD));
+%% load results
+
+tic
+
+switch DATASET
+  case 'bub'
+    ddres = dir(fullfile(outdir,'*.mat'));
+    nres = numel(ddres);
+    PAT = 'imov(?<iMov>[0-9]{2,2})_itgt(?<iTgt>[0-9]{2,2})_sfrm(?<frm0>[0-9]{6,6})_nfrm(?<nfrm>[0-9]{6,6}).mat';
+    res = cell(nres,1);
+    resMD = cell(nres,1);
+    for i=1:numel(ddres)
+      resnameS = ddres(i).name;
+      sMD = regexp(resnameS,PAT,'names');
+      fns = fieldnames(sMD);
+      for f=fns(:)',f=f{1};
+        sMD.(f) = str2double(sMD.(f));
+      end
+
+      resname = fullfile(outdir,resnameS);
+      res{i} = load(resname);
+      fprintf('Loaded %s\n',resname);
+
+      assert(res{i}.targets==sMD.iTgt);
+      assert(strcmp(res{i}.hmdir,hmdirs{sMD.iMov}));
+      assert(isscalar(res{i}.allppobj));
+      pp = res{i}.allppobj{1};
+      if pp.N~=sMD.nfrm
+        warningNoTrace('res %s, pp.N=%d. probably truncated by trx start/endframe. resetting sMD.nfrm to %d.\n',...
+          resnameS,pp.N,pp.N);
+        sMD.nfrm = pp.N;
+      end
+
+      % whoops GV
+      for ipt=pp.pts2run
+        xyHM = squeeze(pp.postdata.viterbi_grid.x(:,ipt,:));
+        xy = PostProcess.UntransformByTrx(xyHM,pp.trx,pp.heatmap_origin); 
+        pp.postdata.viterbi_grid.x(:,ipt,:) = xy;
+      end
+
+      res{i} = pp;
+      resMD{i} = sMD;
+    end
+
+    res = cat(1,res{:});
+    resMD = struct2table(cell2mat(resMD));
+    
+  case 'sh'
+    resAgg = [];
+    hmdirAgg = [];
+    for i=1:numel(outdirs)
+      outdir = outdirs{i};
+      ddres = dir(fullfile(outdir,'*.mat'));
+      nres = numel(ddres);
+      res = cell(nres,1);
+      hmdir = cell(nres,1);
+      for i=1:nres
+        resnameS = ddres(i).name;
+        resname = fullfile(outdir,resnameS);
+        res{i} = load(resname);
+        fprintf('Loaded %s\n',resname);
+
+        assert(isscalar(res{i}.allppobj));
+        hmdir{i} = res{i}.hmdir;
+        res{i} = res{i}.allppobj{1};
+      end
+
+      res = cat(1,res{:});
+
+      resAgg = cat(1,resAgg,res);
+      hmdirAgg = cat(1,hmdirAgg,hmdir);
+    end
+    
+    res = resAgg;
+    hmdir = hmdirAgg;
+    nres = numel(res);
+    
+end
+
+ttoc = toc;
+fprintf(1,'Results loaded in %d s\n',round(ttoc));
+
+%% make tMFTall
+switch DATASET
+  case 'bub'
+    tMFTall = [];
+    for ires=1:nres
+      t = res(ires).tblMFT;
+      t.iMov = repmat(resMD.iMov(ires),height(t),1);
+      t.iTgt = repmat(resMD.iTgt(ires),height(t),1);
+      assert(t.frm(1)==resMD.frm0(ires));
+
+      tMFTall = [tMFTall;t];
+    end
+    tMFTall = tMFTall(:,{'iMov' 'frm' 'iTgt'});
+    tMFTall.Properties.VariableNames{1} = 'mov';
+    pts2run = res(1).pts2run;
+    
+    tGT = Labeler.lblFileGetLabels(ld);
+    assert(strcmp(tGT.Properties.VariableNames{1},'mov'));
+    lbl = ld;
+    npts = lbl.cfg.NumLabelPoints;
+
+  case 'sh'
+    
+    tGT = Labeler.lblFileGetLabels(ld);
+    assert(strcmp(tGT.Properties.VariableNames{1},'mov'));
+    tGT = tGT(:,1:4);
+    tGT.p = tGT.p(:,[6:10 16:20]);
+    lbl = ld;
+    npts = lbl.cfg.NumLabelPoints;
+    
+    MOVFILE = '/groups/branson/bransonlab/apt/tmp/postproc/sh/shtrn719_vw2_movs.txt';
+    movs = readtxtfile(MOVFILE);
+    szassert(movs,size(lbl.movieFilesAll(:,2)));
+    movdirs = cellfun(@fileparts,movs,'uni',0);
+%     
+%     tGT.iMov = tGT.mov;
+%     tGT.mov = movs(tGT.mov);
+    
+    hmdirimov = nan(nres,1);
+    tMFTall = [];
+    for ires=1:nres
+      hmd = hmdir{ires};
+      idx = strfind(hmd,'/hmap/');
+      idx = idx+numel('/hmap/')-1;
+      hmd = hmd(idx:end);
+      hmdMovDir = fileparts(hmd);
+      
+      imov = find(strcmp(hmdMovDir,movdirs));
+      assert(isscalar(imov));
+      hmdirimov(ires) = imov;
+
+      n = res(ires).N;
+      t = table(repmat(imov,n,1),(1:n)',ones(n,1),...
+        'VariableNames',{'mov' 'frm' 'iTgt'});
+
+      tMFTall = [tMFTall;t];
+    end
+    pts2run = res(1).pts2run;
+end
+
+%% adjust for crops if nec
+tfcrop = false;
+switch DATASET
+  case 'sh'
+    tfcrop = true;
+    CROPFILE = '/groups/branson/bransonlab/apt/tmp/postproc/sh/shtrn719_vw2_crops.txt';
+    crops = dlmread(CROPFILE);
+    szassert(crops,[numel(movs) 4]);
+end
   
 %% aggregate postdatas
 algs = fieldnames(res(1).postdata);
@@ -80,6 +203,14 @@ for ialg=1:nalg
     
     % compute derived stats
     x = pdalgI.x; % [n x npt x 2]
+    
+    if tfcrop
+      imov = hmdirimov(ires);
+      roi = crops(imov,:);
+      x(:,:,1) = x(:,:,1)+roi(1)-1;
+      x(:,:,2) = x(:,:,2)+roi(3)-1;
+    end
+    
     v = diff(x,1,1); % v(i,ipt,:) gives (dx,dy) that takes you from t=i to t=i+1
     v(end+1,:,:) = nan; % so v has same size as x, [n x npt x 2]
     vmag = sqrt(sum(v.^2,3)); 
@@ -112,6 +243,7 @@ for ialg=1:nalg
     dx_preddamps_mag = reshape(dx_preddamps_mag,[n npt nDamp]);
     szassert(dx_preddamps,size(x_preddamps));
     
+    pdalgI.x = x;
     pdalgI.v = v;
     pdalgI.vmag = vmag;
     pdalgI.a = a;
@@ -167,7 +299,10 @@ for ialg=1:nalg
       pdalgExpandCurrRow = pdalgExpandCurrRow+n;
     end
     
-    assert(height(res(ires).tblMFT)==size(pdalgI.x,1));    
+    switch DATASET
+      case 'bub'
+        assert(height(res(ires).tblMFT)==size(pdalgI.x,1));    
+    end
   end
   
   assert(pdalgExpandCurrRow==Nall);
@@ -175,29 +310,13 @@ for ialg=1:nalg
   pdall.(alg) = pdalg;  
 end
 
-%%
-tMFTall = [];
-for ires=1:nres
-  t = res(ires).tblMFT;
-  t.iMov = repmat(resMD.iMov(ires),height(t),1);
-  t.iTgt = repmat(resMD.iTgt(ires),height(t),1);
-  assert(t.frm(1)==resMD.frm0(ires));
-  
-  tMFTall = [tMFTall;t];
-end
-tMFTall = tMFTall(:,{'iMov' 'frm' 'iTgt'});
-tMFTall.Properties.VariableNames{1} = 'mov';
-pts2run = res(1).pts2run;
+
 
 %% GT
-tGT = Labeler.lblFileGetLabels(ld);
-assert(strcmp(tGT.Properties.VariableNames{1},'mov'));
-lbl = ld;
 [tf,loc] = tblismember(tGT,tMFTall,MFTable.FLDSID);
 %frmsGT = tGT.frm(tf);
 isampGT = loc(tf);
 nGT = nnz(tf);
-npts = lbl.cfg.NumLabelPoints;
 lposGT = reshape(tGT.p(tf,:),[nGT npts 2]);
 fprintf(1,'%d frmsGT.\n',nGT);
 
@@ -285,9 +404,9 @@ amagplot = reshape(amag,[Nall npts2run 1 1 nalg]);
 
 %% viterbi Basin
 
-tGT = Labeler.lblFileGetLabels(ld);
-assert(strcmp(tGT.Properties.VariableNames{1},'mov'));
-lbl = ld;
+% tGT = Labeler.lblFileGetLabels(ld);
+% assert(strcmp(tGT.Properties.VariableNames{1},'mov'));
+% lbl = ld;
 %%
 % if no thresh, then super-peaked distros in rescaled space and the central 
 % y-val is indistinguishable from y=1. but using only larger vmags (above
@@ -305,68 +424,95 @@ fprintf(1,'%d frmsGT.\n',nGT);
 pdmi = pdall.maxdensity_indep;
 assert(max(pdmi.ires)==numel(res));
 
-lposGTuse = nan(0,npts,2); % [nuse x npts x 2] labels
-tposGTuse = nan(0,npts,2,3); % [nuse x npts x 2 x 3] tracked locs (maxdensity). 4th dim: [t-2,t-1,t]
+lposGTuse = cell(npts2run,1); 
+% lposGTuse{iipt} is nan(0,2); % [nuse x 2] labels
+tposGTuse = cell(npts2run,1);
+% tposGTuse{iipt} is nan(0,2,3); % [nuse x 2 x 3] tracked locs (maxdensity). 4th dim: [t-2,t-1,t]
 
-for iisampGT=1:nGT
-  isamp = isampGT(iisampGT);
-  tMFTwin = tMFTall(isamp-2:isamp,:);
-  if all(pdmi.ires(isamp-2:isamp)==pdmi.ires(isamp)) && ...
-      all(tMFTwin.mov==tMFTwin.mov(1)) && ...
-      all(tMFTwin.iTgt==tMFTwin.iTgt(1)) && ...
-      isequal(tMFTwin.frm,(tMFTwin.frm(1):tMFTwin.frm(3))') && ...
-      all(pdmi.vmag(isamp-2:isamp-1)>VMAG_MINOKTHRESH)
-    lposGTuse(end+1,:,:) = lposGT(iisampGT,:,:);
-    tmp = pdmi.x(isamp-2:isamp,:,:);
-    tposGTuse(end+1,:,:,:) = permute(tmp,[2 3 1]);
-  else
-    warningNoTrace('iissampGT=%d, skipping, not enough precursors or vmag too small.\n',iisampGT);
+for iipt=1:npts2run
+  ipt = pts2run(iipt);
+  lposGTuse{iipt} = nan(0,2);
+  tposGTuse{iipt} = nan(0,2,3);
+  for iisampGT=1:nGT
+    isamp = isampGT(iisampGT);
+    tMFTwin = tMFTall(isamp-2:isamp,:);
+
+    vmagtmp = pdmi.vmag(isamp-2:isamp-1,ipt);
+    if all(pdmi.ires(isamp-2:isamp)==pdmi.ires(isamp)) && ...
+        all(tMFTwin.mov==tMFTwin.mov(1)) && ...
+        all(tMFTwin.iTgt==tMFTwin.iTgt(1)) && ...
+        isequal(tMFTwin.frm,(tMFTwin.frm(1):tMFTwin.frm(3))') && ...
+        all(vmagtmp(:)>VMAG_MINOKTHRESH)
+      lposGTuse{iipt}(end+1,:) = lposGT(iisampGT,ipt,:);
+      tmp = pdmi.x(isamp-2:isamp,ipt,:);
+      tmp = reshape(tmp,3,2)';
+      tposGTuse{iipt}(end+1,:,:) = tmp;
+    else
+      warningNoTrace('iissampGT=%d, skipping, not enough precursors or vmag too small.',iisampGT);
+    end
   end
+
+  fprintf('iipt=%d,ipt=%d\n',iipt,ipt);  
+  size(lposGTuse{iipt})
+  size(tposGTuse{iipt})
+  errGT = lposGTuse{iipt}-tposGTuse{iipt}(:,:,3);
+  errGT = sqrt(sum(errGT.^2,2));
+  mean(errGT)
+  
+  pause(5);
 end
 
-size(lposGTuse)
-size(tposGTuse)
-errGT = lposGTuse-tposGTuse(:,:,:,3);
-errGT = sqrt(sum(errGT.^2,3));
-errGT = errGT(:,pts2run);
-mean(errGT)
 %%
 npts2run = numel(pts2run);
-nuse = size(lposGTuse,1);
-tformpts = nan(nuse,npts2run,2,4); % tformed pts. 4th dim: t-2,t-1,t,lbl
-for iuse=1:nuse
-  if mod(iuse,10)==1
-    disp(iuse);
-  end
-  for iipt=1:npts2run
-    ipt = pts2run(iipt);
+tformpts = cell(npts2run,1);
+% tformpts{iipt} = nan(nuse,2,4); % tformed pts. 4th dim: t-2,t-1,t,lbl
+for iipt=1:npts2run
+  ipt = pts2run(iipt);
+  
+  nuse = size(lposGTuse{iipt},1);
+  tformpts{iipt} = nan(nuse,2,4);
+
+  for iuse=1:nuse
+    if mod(iuse,10)==1
+      disp(iuse);
+    end
     
-    lpos = squeeze(lposGTuse(iuse,ipt,:));
-    tpos = squeeze(tposGTuse(iuse,ipt,:,:));
+    lpos = lposGTuse{iipt}(iuse,:);
+    tpos = squeeze(tposGTuse{iipt}(iuse,:,:));
     tpos = tpos';
+    szassert(lpos,[1 2]);
     szassert(tpos,[3 2]);
     
-    tform = fitgeotrans(tpos(1:2,:),[0 0;0 1],'nonreflectivesimilarity');
-    xypts = [tpos; lpos'];
-    szassert(xypts,[4 2]);
+    if ~isequal(tpos(1,:),tpos(2,:))
+      tform = fitgeotrans(tpos(1:2,:),[0 0;0 1],'nonreflectivesimilarity');
+      xypts = [tpos; lpos];
+      szassert(xypts,[4 2]);
+      
+      xytform = tform.transformPointsForward(xypts);
+      tformpts{iipt}(iuse,:,:) = xytform';
+    else
+      warningNoTrace('iuse %d, ipt %d. tpos1 and tpos2 are identical (v=0). cannot reproject',iuse,ipt);
+    end
     
-    xytform = tform.transformPointsForward(xypts);
-    tformpts(iuse,iipt,:,:) = xytform';  
   end
 end
 %%
 hFig = figure(11);
 clf;
 axs = mycreatesubplots(2,npts2run,[.1 .05;.1 .05]);
-for iipt=1:3
+for iipt=1:npts2run
+  ipt = pts2run(iipt);
   
-  xy = squeeze(tformpts(:,iipt,:,3)); % trk at t  
+  nuse = size(tformpts{iipt},1);
+  fprintf('\niipt=%d, ipt=%d, nuse=%d\n',iipt,ipt,nuse);
+  
+  xy = squeeze(tformpts{iipt}(:,:,3)); % trk at t  
   ifo = GTPlot.gaussianFit(xy);  
   fprintf('ipt=%d. gaussian fit trk@t. mean: %s\n',pts2run(iipt),mat2str(ifo.mean,3));
   fprintf('ipt=%d. trk@t. y median: %s\n',pts2run(iipt),num2str(median(xy(:,2)),3));
   %[v,d] = eig(ifo.cov)
 
-  xy = squeeze(tformpts(:,iipt,:,4)); % lbl at t  
+  xy = squeeze(tformpts{iipt}(:,:,4)); % lbl at t  
   ifolbl = GTPlot.gaussianFit(xy);
   fprintf('ipt=%d. gaussian fit lbl@t. mean: %s\n',pts2run(iipt),mat2str(ifolbl.mean,3));
   fprintf('ipt=%d. lbl@t. y median: %s\n',pts2run(iipt),num2str(median(xy(:,2)),3));
@@ -375,7 +521,7 @@ for iipt=1:3
   ax = axs(1,iipt);
   axes(ax)
   %plot(tformpts(:,iipt,1,3),tformpts(:,iipt,2,3),'r.');
-  s = scatterhistogram(tformpts(:,iipt,1,3),tformpts(:,iipt,2,3));
+  s = scatterhistogram(tformpts{iipt}(:,1,3),tformpts{iipt}(:,2,3));
   s.XLimits = [-25 25];
   s.YLimits = [-25 25];
   %grid on;
@@ -383,7 +529,7 @@ for iipt=1:3
   ax = axs(2,iipt);
   axes(ax)
   %plot(tformpts(:,iipt,1,4),tformpts(:,iipt,2,4),'r.');
-  s = scatterhistogram(tformpts(:,iipt,1,4),tformpts(:,iipt,2,4));
+  s = scatterhistogram(tformpts{iipt}(:,1,4),tformpts{iipt}(:,2,4));
   s.XLimits = [-25 25];
   s.YLimits = [-25 25];
   %grid on;  
@@ -529,8 +675,9 @@ for iipt=1:npts2run
   ipt = pp.pts2run(iipt);
   ax = axs(1,iipt);
   
-  vmagI = pdall.maxdensity_indep.vmag(1:end-2,ipt); % vmag(1,:) gives vel from t=1->t=2, which is used to predict x @ t=3
-  dxmag_pred_tmp = pdall.maxdensity_indep.dx_pred_mag(3:end,ipt);
+  pdmi = pdall.maxdensity_indep;
+  vmagI = pdmi.vmag(1:end-2,ipt); % vmag(1,:) gives vel from t=1->t=2, which is used to predict x @ t=3
+  dxmag_pred_tmp = pdmi.dx_pred_mag(3:end,ipt);
   szassert(vmagI,size(dxmag_pred_tmp));
   binctrs = 0:15;
   tfcell = arrayfun(@(x)round(vmagI)==x,binctrs,'uni',0);
@@ -562,8 +709,9 @@ for iipt=1:npts2run
   ipt = pp.pts2run(iipt);
   ax = axs(1,iipt);
   
-  vmagI = pdall.maxdensity_indep.vmag(2:end-1,ipt); % vmag(2,:) gives vel from t=2->3; compare this to prediction error at t=3
-  dxmag_pred_tmp = pdall.maxdensity_indep.dx_pred_mag(3:end,ipt);
+  pdmi = pdall.maxdensity_indep;
+  vmagI = pdmi.vmag(2:end-1,ipt); % vmag(2,:) gives vel from t=2->3; compare this to prediction error at t=3
+  dxmag_pred_tmp = pdmi.dx_pred_mag(3:end,ipt);
   szassert(vmagI,size(dxmag_pred_tmp));
   binctrs = 0:15;
   tfcell = arrayfun(@(x)round(vmagI)==x,binctrs,'uni',0);
@@ -599,7 +747,7 @@ xprederrmagAccGTplot = reshape(xprederrmag,[Nall npts2run 1 1 nDamp]);
 
 hFig = figure(25);
 clf;
-[hFig,hAxs] = GTPlot.ptileCurves(xprederrsqAccGTplot,...
+[hFig,hAxs] = GTPlot.ptileCurves(xprederrmagAccGTplot,...
  'hFig',hFig,...
  'setNames',numarr2trimcellstr(DAMPS),...
  'ptnames',numarr2trimcellstr(pp.pts2run),...
@@ -607,7 +755,7 @@ clf;
 
 hFig = figure(26);
 clf;
-[hFig,hAxs] = GTPlot.ptileCurves(xprederrsqAccGTplot,...
+[hFig,hAxs] = GTPlot.ptileCurves(xprederrmagAccGTplot,...
  'hFig',hFig,...
  'setNames',numarr2trimcellstr(DAMPS),...
  'ptnames',numarr2trimcellstr(pp.pts2run),...
@@ -634,35 +782,39 @@ ylim(yl);
 %% Damping, looking only at bigger velocities
 % SEEMS TO CONCUR
 
-IPT = 15;
 pdmi = pdall.maxdensity_indep;
-VMAGMINOKTHRESH = 2;
+VMAGMINOKTHRESH = 1;
 
-xprederrmag = squeeze(pdmi.dx_preddamps_mag(:,IPT,:));
-vmag = pdmi.vmag(:,IPT);
-% vmag(1) and vmag(2) are used to generate xpred(3)
-tfpredok = false(size(vmag));
-tfpredok(3:end) = vmag(1:end-2)>VMAGMINOKTHRESH & vmag(2:end-1)>VMAGMINOKTHRESH;
+for iipt=1:npts2run
+  ipt = pts2run(iipt);
 
-xprederrplot = xprederrmag(tfpredok,:);
-xprederrplot = reshape(xprederrplot,[nnz(tfpredok) 1 1 1 nDamp]);
-fprintf(1,'%d/%d rows meet velocity requirement.\n',nnz(tfpredok),numel(tfpredok));
+  xprederrmag = squeeze(pdmi.dx_preddamps_mag(:,ipt,:)); % Nall x nDamp
+  vmag = pdmi.vmag(:,ipt);
+  % vmag(1) and vmag(2) are used to generate xpred(3)
+  tfpredok = false(size(vmag));
+  tfpredok(3:end) = vmag(1:end-2)>VMAGMINOKTHRESH & vmag(2:end-1)>VMAGMINOKTHRESH;
 
-hFig = figure(29);
-clf;
-[hFig,hAxs] = GTPlot.ptileCurves(xprederrplot,...
- 'hFig',hFig,...
- 'setNames',numarr2trimcellstr(DAMPS),...
- 'ptnames',numarr2trimcellstr(IPT),...
- 'titleArgs',{'fontweight','bold'},...
- 'ptiles',[15 30 45 60 75]...
- );
+  xprederrplot = xprederrmag(tfpredok,:);
+  xprederrplot = reshape(xprederrplot,[nnz(tfpredok) 1 1 1 nDamp]);
+  fprintf(1,'iipt=%d,ipt=%d. %d/%d rows meet velocity requirement.\n',...
+    iipt,ipt,nnz(tfpredok),numel(tfpredok));
 
+  hFig = figure(29+iipt);
+  clf;
+  [hFig,hAxs] = GTPlot.ptileCurves(xprederrplot,...
+   'hFig',hFig,...
+   'setNames',numarr2trimcellstr(DAMPS),...
+   'ptnames',numarr2trimcellstr(ipt),...
+   'titleArgs',{'fontweight','bold'},...
+   'ptiles',[15 30 45 60 75],...
+    'createsubplotsborders',[.12 0;.12 .12]...
+   );
+end
 %% Damping + GT
 
 
-tGT = Labeler.lblFileGetLabels(ld);
-assert(strcmp(tGT.Properties.VariableNames{1},'mov'));
+% tGT = Labeler.lblFileGetLabels(ld);
+% assert(strcmp(tGT.Properties.VariableNames{1},'mov'));
 lbl = ld;
 [tf,loc] = tblismember(tGT,tMFTall,MFTable.FLDSID);
 %frmsGT = tGT.frm(tf);
@@ -672,8 +824,8 @@ npts = lbl.cfg.NumLabelPoints;
 lposGT = reshape(tGT.p(tf,:),[nGT npts 2]);
 fprintf(1,'%d frmsGT.\n',nGT);
 
-tpos = pdall.maxdensity_indep.x(isampGT,:,:);
-tpospred = pdall.maxdensity_indep.x_preddamps(isampGT,:,:,:);
+tpos = pdmi.x(isampGT,:,:);
+tpospred = pdmi.x_preddamps(isampGT,:,:,:);
 szassert(tpos,[nGT npts 2]);
 szassert(tpospred,[nGT npts 2 nDamp]);
 
@@ -714,26 +866,26 @@ xyLbl = [25 45;25 30;25 15;15 15;15 30;15 45];
 %% autocorr
 
 MAXLAG = 20;
-V_1D_MINOKTHRESH = 2;
 nLag = MAXLAG+1;
 
 pdmi = pdall.maxdensity_indep;
 assert(max(pdmi.ires)==numel(res));
 
-xc = [];
+xc = []; % [nlag x npts2run x {x,y} x nres]
 vlag1 = []; % [n x npts2run x {x,y} x {t=i,t=i+1}]
 for ires=1:numel(res)
   tfres = pdmi.ires==ires;
   fprintf(1,'ires=%d, %d rows\n',ires,nnz(tfres));
   
   v = pdmi.v(tfres,pts2run,:);
+  vgood = v(1:end-1,:,:); % clip last nan
   cxkeep = nan(nLag,npts2run);
   cykeep = nan(nLag,npts2run);
 %   cxkeeprestricted = nan(nLag,npts2run);
 %   cykeeprestricted = nan(nLag,npts2run);
   for iipt=1:npts2run
-    vx = v(1:end-1,iipt,1);
-    vy = v(1:end-1,iipt,2);
+    vx = vgood(:,iipt,1);
+    vy = vgood(:,iipt,2);
     cx = xcorr(vx,vx);    
     cy = xcorr(vy,vy);
 
@@ -744,97 +896,144 @@ for ires=1:numel(res)
   
   xc = cat(4,xc,cat(3,cxkeep,cykeep));
   
-  v = v(1:end-1,:,:); % clip last nan
-  vlag1 = cat(1,vlag1,cat(4,v(1:end-1,:,:),v(2:end,:,:)));
+  vlag1 = cat(1,vlag1,cat(4,vgood(1:end-1,:,:),vgood(2:end,:,:)));
 end
 
 %%
 
-xc = sum(xc,4); % sum over all intervals. each sample equally weighted
-nlag = size(xc,1);
+xcsum = sum(xc,4); % sum over all intervals. each sample equally weighted
+nlag = size(xcsum,1);
 
 figure(31);
 clf;
-axs = mycreatesubplots(npts2run,2,[0.12 0.05;0.12 0.05]);
+axs = mycreatesubplots(npts2run,1,[0.12 0.05;0.12 0.05]);
 x = 0:nlag-1;
 for iipt=1:npts2run
   ax = axs(iipt,1);
   axes(ax);
   
-  plot(x,xc(:,iipt,1)/xc(1,iipt,1),'bo-','linewidth',2);
+  plot(x,xcsum(:,iipt,1)/xcsum(1,iipt,1),'bo-','linewidth',2);
   hold on;
-  plot(x,xc(:,iipt,2)/xc(1,iipt,2),'rx-','linewidth',2);
-  grid on;  
+  plot(x,xcsum(:,iipt,2)/xcsum(1,iipt,2),'rx-','linewidth',2);
+  grid on;
+  plot(x,zeros(size(x)),'k-');
 end
 
     
-%%
+%% Vlag1 scatter
 
-IIPT = 1;
-
-tfok = all(abs(vlag1)>V_1D_MINOKTHRESH,4);
-vlag1IPTokx = vlag1(tfok(:,IIPT,1),IIPT,1,:);
-vlag1IPToky = vlag1(tfok(:,IIPT,2),IIPT,2,:);
-
-figure(32);
-clf
-axs = mycreatesubplots(1,2,[0.12 0.05;0.12 0.05]);
+V_1D_MINOKTHRESHS = 0:2:6;
 JITTERSZ = 0.4;
-for xy=1:2
-  ax = axs(xy);
-  axes(ax);
-  xscat = vlag1(:,IIPT,xy,1);
-  yscat = vlag1(:,IIPT,xy,2);
-  p1 = polyfit(xscat,yscat,1);
-  p3 = polyfit(xscat,yscat,3);
-  [r p] = corrcoef(xscat,yscat);
-  xbins = -30:30;
-  ybins = arrayfun(@(x)median(yscat(round(xscat)==x)),xbins);
-  xscat = xscat+JITTERSZ*2*(rand(size(xscat))-0.5);
-  yscat = yscat+JITTERSZ*2*(rand(size(yscat))-0.5);
-  plot(xscat,yscat,'.');
-  tstr = sprintf('linear: slope=%.3g r=%.3g p=%.3g',p1(1),r(1,2),p(1,2));
-  hold on;
-  x = -30:1:30;
-  y1 = p1(1)*x+p(2);
-  y3 = p3(1)*x.^3 + p3(2)*x.^2 + p3(3)*x.^1 + p3(4);
-  plot(x,y1,'r-',x,y3,'r-','linewidth',2);
-  plot(xbins,ybins,'rs','markerfacecolor',[1 0 0]);
-  title(tstr);
-  grid on
-  axis([-30 30 -30 30]);
-end
-linkaxes(axs);
+nThresh = numel(V_1D_MINOKTHRESHS);
 
-figure(34);
+
+hFig = figure(32);
+set(hFig,'name','vlag1 X');
 clf
-axs = mycreatesubplots(1,2,[0.12 0.05;0.12 0.05]);
-JITTERSZ = 0.4;
-INFO = {vlag1IPTokx vlag1IPToky};
-for xy=1:2
-  ax = axs(xy);
-  axes(ax);
+axsX = mycreatesubplots(nThresh,npts2run,[0.12 0.05;0.12 0.05]);
+
+hFig = figure(33);
+set(hFig,'name','vlag1 Y');
+clf
+axsY = mycreatesubplots(nThresh,npts2run,[0.12 0.05;0.12 0.05]);
+
+axs = cat(3,axsX,axsY); % [nThresh x npts2run x {x,y}]
+
+for iThresh=1:nThresh
+  thresh = V_1D_MINOKTHRESHS(iThresh);
+  tfok = all(abs(vlag1)>=thresh,4);
   
-  vlagmat = INFO{xy};
-  xscat = vlagmat(:,1,1,1);
-  yscat = vlagmat(:,1,1,2);
-  p1 = polyfit(xscat,yscat,1);
-  p3 = polyfit(xscat,yscat,3);
-  [r p] = corrcoef(xscat,yscat);
-  xbins = -30:30;
-  ybins = arrayfun(@(x)median(yscat(round(xscat)==x)),xbins);
-  xscat = xscat+JITTERSZ*2*(rand(size(xscat))-0.5);
-  yscat = yscat+JITTERSZ*2*(rand(size(yscat))-0.5);
-  plot(xscat,yscat,'.');
-  tstr = sprintf('linear: slope=%.3g r=%.3g p=%.8g',p1(1),r(1,2),p(1,2));
-  hold on;
-  x = -30:1:30;
-  y1 = p1(1)*x+p(2);
-  y3 = p3(1)*x.^3 + p3(2)*x.^2 + p3(3)*x.^1 + p3(4);
-  plot(x,y1,'r-',x,y3,'r-','linewidth',2);
-  plot(xbins,ybins,'rs','markerfacecolor',[1 0 0]);
-  title(tstr);
-  grid on
-  axis([-30 30 -30 30]);
+  for iipt=1:npts2run
+    ipt = pts2run(iipt);
+    
+    assert(size(vlag1,2)==npts2run);
+    vlag1IPTokx = vlag1(tfok(:,iipt,1),iipt,1,:);
+    vlag1IPToky = vlag1(tfok(:,iipt,2),iipt,2,:);
+    vlag1OKs = {vlag1IPTokx vlag1IPToky};
+    
+    nokx = size(vlag1IPTokx,1);
+    noky = size(vlag1IPToky,1);
+    fprintf(1,'thresh=%f, ipt=%d, nokx/noky=%d/%d.\n',thresh,ipt,nokx,noky);
+    nOKs = {nokx noky};
+    % for xy=1:2
+    %   ax = axs(xy);
+    %   axes(ax);
+    %   xscat = vlag1(:,IIPT,xy,1);
+    %   yscat = vlag1(:,IIPT,xy,2);
+    %   p1 = polyfit(xscat,yscat,1);
+    %   p3 = polyfit(xscat,yscat,3);
+    %   [r p] = corrcoef(xscat,yscat);
+    %   xbins = -30:30;
+    %   ybins = arrayfun(@(x)median(yscat(round(xscat)==x)),xbins);
+    %   xscat = xscat+JITTERSZ*2*(rand(size(xscat))-0.5);
+    %   yscat = yscat+JITTERSZ*2*(rand(size(yscat))-0.5);
+    %   plot(xscat,yscat,'.');
+    %   tstr = sprintf('linear: slope=%.3g r=%.3g p=%.3g',p1(1),r(1,2),p(1,2));
+    %   hold on;
+    %   x = -30:1:30;
+    %   y1 = p1(1)*x+p(2);
+    %   y3 = p3(1)*x.^3 + p3(2)*x.^2 + p3(3)*x.^1 + p3(4);
+    %   plot(x,y1,'r-',x,y3,'r-','linewidth',2);
+    %   plot(xbins,ybins,'rs','markerfacecolor',[1 0 0]);
+    %   title(tstr);
+    %   grid on
+    %   axis([-30 30 -30 30]);
+    % end
+    % linkaxes(axs);
+
+    for xy=1:2
+      ax = axs(iThresh,iipt,xy);
+      axes(ax);
+      
+      vlagmat = vlag1OKs{xy};
+      nok = nOKs{xy};
+      
+      xscat = vlagmat(:,1,1,1);
+      yscat = vlagmat(:,1,1,2);
+      p1 = polyfit(xscat,yscat,1);
+      p3 = polyfit(xscat,yscat,3);
+      [r p] = corrcoef(xscat,yscat);
+      xbins = -30:30;
+      ybins = arrayfun(@(x)median(yscat(round(xscat)==x)),xbins);
+      xscat = xscat+JITTERSZ*2*(rand(size(xscat))-0.5);
+      yscat = yscat+JITTERSZ*2*(rand(size(yscat))-0.5);
+      plot(xscat,yscat,'.');
+      tstr = sprintf('nOK=%d. slope=%.2g r=%.2g p=%.2g',nok,p1(1),r(1,2),p(1,2));
+      hold on;
+      x = -30:1:30;
+      y1 = p1(1)*x+p(2);
+      y3 = p3(1)*x.^3 + p3(2)*x.^2 + p3(3)*x.^1 + p3(4);
+      plot(x,y1,'r-',x,y3,'r-','linewidth',2);
+      plot(xbins,ybins,'rs','markerfacecolor',[1 0 0]);
+      title(tstr);
+      grid on
+      axis([-30 30 -30 30]);
+    end
+  end
 end
-linkaxes(axs);
+%linkaxes(axs);
+
+%% Viterbigrid xAC
+acmid = pp.viterbi_grid_acradius+1;
+
+hFig = figure(36);
+axs = mycreatesubplots(npts2run,2);
+for iipt=1:npts2run
+  ipt = pts2run(iipt);
+  for xy=1:2
+    z = pdall.viterbi_grid.xAC(:,ipt,xy);
+    ax = axs(iipt,xy);
+    axes(ax);
+    
+    histogram(z);
+    
+    nmidfar = nnz(z<acmid-1 | z>acmid+1);
+    nmidpm1 = nnz(z==acmid-1 | z==acmid+1);
+    nmid = nnz(z==acmid);
+    fprintf(1,'ipt %d, xy=%d. %.1f %% far from mid, %.1f mid +/-1, %.1f mid.\n',...
+      ipt,xy,nmidfar/numel(z)*100,nmidpm1/numel(z)*100,nmid/numel(z)*100);
+  end
+end
+    
+    
+  
