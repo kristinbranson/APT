@@ -240,13 +240,18 @@ classdef AWSec2 < handle
       end
     end
     
-    function scpUploadWithEnsureDir(obj,fileLcl,fileRemoteRel)
+    function scpUploadOrVerifyEnsureDir(obj,fileLcl,fileRemote,fileDescStr,...
+        varargin)
       % Upload a file to a dir which may not exist yet. Create it if 
       % necessary. Either succeeds, or fails and harderrors.
       
-      remoteDirRel = fileparts(fileRemoteRel);
-      obj.ensureRemoteDir(remoteDirRel,'relative',true);      
-      obj.scpUploadOrVerify(fileLcl,fileRemoteRel,'training file'); % throws
+      destRelative = myparse(varargin,...
+        'destRelative',false);
+      
+      dirRemote = fileparts(fileRemote);
+      obj.ensureRemoteDir(dirRemote,'relative',destRelative); 
+      obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
+        'destRelative',destRelative); % throws
     end
     
     function tf = remoteFileExists(obj,f,varargin)

@@ -6,41 +6,11 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
   
   methods
 
-    function obj = BgTrainWorkerObjAWS(dlLblFile,jobID,cacheRemoteRel,...
-        logfilesremote,awsec2)
-      % jobID used only for errfile
-      
-      obj@BgTrainWorkerObj(dlLblFile,jobID);
-      
-      obj.artfctLogs = logfilesremote;
-      obj.artfctKills = BgTrainWorkerObj.killedFilesFromLogFiles(logfilesremote);
-      [obj.artfctTrainDataJson,obj.artfctFinalIndex,obj.artfctErrFile] = ...
-        arrayfun(@(ivw)obj.trainMonitorArtifacts(cacheRemoteRel,ivw),...
-        1:obj.nviews,'uni',0);
-            
+    function obj = BgTrainWorkerObjAWS(nviews,dmcs,awsec2)
+      obj@BgTrainWorkerObj(nviews,dmcs);                  
       obj.awsEc2 = awsec2;
     end
-        
-    function [json,finalindex,errfile] = trainMonitorArtifacts(obj,...
-        cacheRemoteRel,ivw)
-      
-      projvw = sprintf('%s_view%d',obj.projname,ivw-1); % !! cacheDirs are 0-BASED
-      subdir = fullfile('/home/ubuntu',cacheRemoteRel);
-      
-%       json = sprintf('%s_pose_unet_traindata.json',projvw);
-      json = 'traindata.json'; % AL AWS testing 20180826: what happens with multiview?
-      json = fullfile(subdir,json);
-      json = FSPath.standardPathChar(json);
-      
-      finaliter = obj.sPrm.dl_steps;
-      finalindex = sprintf('%s_pose_unet-%d.index',projvw,finaliter);
-      finalindex = fullfile(subdir,finalindex);
-      finalindex = FSPath.standardPathChar(finalindex);
-      
-      errfile = DeepTracker.dlerrGetErrFile(obj.jobID,'/home/ubuntu');
-      errfile = FSPath.standardPathChar(errfile);
-    end    
-    
+            
     function sRes = compute(obj)
       % sRes: [nviewx1] struct array.
             
@@ -115,6 +85,10 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
         end
       end
     end
+    
+    % Since compute() is overloaded in this subclass, these Abstract 
+    % methods are not needed for BgTrainWorkerObj/compute. However they are
+    % called elsewhere.
     
     function tf = fileExists(obj,f)
       tf = obj.awsEc2.remoteFileExists(f,'dispcmd',true);
