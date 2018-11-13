@@ -330,6 +330,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end 
     
     function axBDF(obj,src,evt) %#ok<INUSD>
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       iAx = find(src==obj.hAx);
       iWS = obj.iSetWorking;
       if ~isnan(iWS)
@@ -367,6 +372,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       iAx = find(src==obj.hAxOcc);
       assert(isscalar(iAx));
       iWS = obj.iSetWorking;
@@ -398,6 +408,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function ptBDF(obj,src,evt)
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       %#%CALOK
       iPt = src.UserData;
       switch evt.Button
@@ -411,6 +426,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function wbmf(obj,src,evt) %#ok<INUSD>
       %#%CALOK
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
       
       iPt = obj.iPtMove;
       if ~isnan(iPt)
@@ -433,6 +452,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     function wbuf(obj,src,evt) %#ok<INUSD>
       %#%CALOK
       
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       iPt = obj.iPtMove;
       if ~isnan(iPt)
         if obj.tfMoved
@@ -447,6 +470,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function tfKPused = kpf(obj,src,evt) 
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       %#%CALOK
       key = evt.Key;
       modifier = evt.Modifier;      

@@ -106,6 +106,12 @@ switch ftrPrm.metatype
     assert(numel(use)==S);
     use = use(:)';
     ftrsSel = ftrs(:,use);
+    
+    % added by KB 20181109 to try to get range to be similar to what you
+    % would get in diff mode
+    warningNoTrace('Feature computation for metatype=single has been changed so that the range of features is -1 to 1. If you trained pre-20181109, your model may not work.');
+    ftrsSel = (ftrsSel-.5)*2;
+    
   case 'diff'
     assert(isequal(size(stdFtrs),[F F]));    
     SELECTCORRFEATTYPE = 2;

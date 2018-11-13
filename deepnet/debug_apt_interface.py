@@ -1,3 +1,17 @@
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet
+import PoseUNet_dataset as PoseUNet
+p_sz, a_sz = PoseUNet.find_pad_sz(4,conf.imsz[0])
+print a_sz
+self = PoseUNet.PoseUNet(conf,'test_pad',pad_input=False)
+self.no_pad = True
+self.train_unet()
+V = self.classify_val()
+
+##
 import APT_interface as apt
 cmd_str = '-name stephen_20181029 -cache /groups/branson/home/kabram/bransonlab/stephen_copy/apt_cache/ /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl train -use_cache'
 cmd_str = '-view 1 -type mdn -name stephen_20181101 -cache /groups/branson/home/kabram/bransonlab/stephen_copy/apt_cache/ /groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl train -use_cache -skip_db'

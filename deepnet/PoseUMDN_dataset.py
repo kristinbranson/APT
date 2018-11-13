@@ -41,29 +41,16 @@ def show_top_preds(im,pred_locs,pred_weights, n=12):
         ax[ndx].scatter(pred_locs[ord[ndx],:,0],pred_locs[ord[ndx],:,1])
 
 
-def train_preproc_func(ims, locs, info, conf, no_pad=False, pad_x=0, pad_y=0):
-    if no_pad: # no pad refers not padding while up sampling or down sampling
+def preproc_func(ims, locs, info, conf, distort, pad_input=False, pad_x=0, pad_y=0):
+    if pad_input:
         ims, locs = PoseTools.pad_ims(ims, locs, pady=pad_y, padx=pad_x)
-    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, True, conf.rescale)
+    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
     tlocs = locs.copy()
-    if no_pad:
+    if pad_input:
         tlocs[:,:,0] -= pad_x//2
         tlocs[:,:,1] -= pad_y//2
 
     hmaps = PoseTools.create_label_images(tlocs, conf.imsz, conf.rescale, conf.label_blur_rad)
-    return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
-
-
-def val_preproc_func(ims, locs, info, conf, no_pad= False, pad_x=0, pad_y=0):
-    if no_pad:  # no pad refers not padding while up sampling or down sampling
-        ims, locs = PoseTools.pad_ims(ims, locs, pady=pad_y, padx=pad_x)
-    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, False, conf.rescale)
-    tlocs = locs.copy()
-    if no_pad:
-        tlocs[:,:,0] -= pad_x//2
-        tlocs[:,:,1] -= pad_y//2
-
-    hmaps = PoseTools.create_label_images(locs, conf.imsz, conf.rescale, conf.label_blur_rad)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 
@@ -90,7 +77,7 @@ def find_pad_sz(n_layers,in_sz):
 class PoseUMDN(PoseCommon.PoseCommon):
 
     def __init__(self, conf, name='pose_umdn',net_type='conv',
-                 unet_name = 'pose_unet',no_pad=False):
+                 unet_name = 'pose_unet',pad_input=False):
         PoseCommon.PoseCommon.__init__(self, conf, name)
         self.dep_nets = [PoseUNet.PoseUNet(conf, unet_name)]
         self.net_type = net_type
@@ -98,18 +85,16 @@ class PoseUMDN(PoseCommon.PoseCommon):
         self.train_data_name = 'traindata'
         self.i_locs = None
         self.input_dtypes = [tf.float32, tf.float32, tf.float32, tf.float32]
+        self.no_pad = False
 
-        if no_pad:
-            self.no_pad = True
+        if pad_input:
             self.pad_y = find_pad_sz(n_layers=5,in_sz=conf.imsz[0])
             self.pad_x = find_pad_sz(n_layers=5,in_sz=conf.imsz[1])
 
         def train_pp(ims,locs,info):
-            return train_preproc_func(ims,locs,info, conf, no_pad=self.no_pad,
-                                      pad_x=self.pad_x, pad_y=self.pad_y)
+            return preproc_func(ims,locs,info, conf, True, no_pad=self.no_pad, pad_x=self.pad_x, pad_y=self.pad_y)
         def val_pp(ims,locs,info):
-            return val_preproc_func(ims,locs,info, conf, no_pad = self.no_pad,
-                                    pad_x = self.pad_x, pad_y = self.pad_y)
+            return preproc_func(ims,locs,info, conf, False, no_pad = self.no_pad, pad_x = self.pad_x, pad_y = self.pad_y)
 
         self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], self.input_dtypes))
         self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], self.input_dtypes))

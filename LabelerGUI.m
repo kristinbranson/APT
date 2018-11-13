@@ -598,8 +598,10 @@ handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
 
 %handles.pbPlaySeg.TooltipString = 'play nearby frames; labels not updated'; % this is set in LabelerTooltips now
 
+EnableControls(handles,'tooltipinit');
 set(handles.figure,'Visible','on');
 RefocusSplashScreen(hfigsplash,handles);
+
 LabelerTooltips(handles);
 RefocusSplashScreen(hfigsplash,handles);
 if ishandle(hfigsplash),
@@ -652,7 +654,43 @@ switch lower(state),
     set(handles.edit_frame,'Enable','off');
     set(handles.popupmenu_prevmode,'Enable','off');
     set(handles.pushbutton_freezetemplate,'Enable','off');
+    set(handles.FigureToolBar,'Visible','off')
+
+  case 'tooltipinit',
     
+    set(handles.menu_file,'Enable','on');
+    set(handles.menu_view,'Enable','on');
+    set(handles.menu_labeling_setup,'Enable','on');
+    set(handles.menu_track,'Enable','on');
+    set(handles.menu_go,'Enable','on');
+    set(handles.menu_evaluate,'Enable','on');
+    set(handles.menu_help,'Enable','on');
+    
+    set(handles.tbAdjustCropSize,'Enable','off');
+    set(handles.pbClearAllCrops,'Enable','off');
+    set(handles.pushbutton_exitcropmode,'Enable','off');
+    set(handles.uipanel_cropcontrols,'Visible','off');
+    
+    set(handles.pbClearSelection,'Enable','off');
+    set(handles.pumInfo,'Enable','off');
+    set(handles.pumInfo_labels,'Enable','off');
+    set(handles.tbTLSelectMode,'Enable','off');
+    set(handles.pumTrack,'Enable','off');
+    set(handles.pbTrack,'Enable','off');
+    set(handles.pbTrain,'Enable','off');
+    set(handles.pbClear,'Enable','off');
+    set(handles.tbAccept,'Enable','off');
+    set(handles.pbRecallZoom,'Enable','off');
+    set(handles.pbSetZoom,'Enable','off');
+    set(handles.pbResetZoom,'Enable','off');
+    set(handles.sldZoom,'Enable','off');
+    set(handles.pbPlaySeg,'Enable','off');
+    set(handles.pbPlay,'Enable','off');
+    set(handles.slider_frame,'Enable','off');
+    set(handles.edit_frame,'Enable','off');
+    set(handles.popupmenu_prevmode,'Enable','off');
+    set(handles.pushbutton_freezetemplate,'Enable','off');
+    set(handles.FigureToolBar,'Visible','off')
     
   case 'noproject',
     set(handles.menu_file,'Enable','on');
@@ -697,6 +735,7 @@ switch lower(state),
     set(handles.edit_frame,'Enable','off');
     set(handles.popupmenu_prevmode,'Enable','off');
     set(handles.pushbutton_freezetemplate,'Enable','off');
+    set(handles.FigureToolBar,'Visible','off')
 
   case 'projectloaded'
 
@@ -711,15 +750,15 @@ switch lower(state),
     set(handles.tbAdjustCropSize,'Enable','on');
     set(handles.pbClearAllCrops,'Enable','on');
     set(handles.pushbutton_exitcropmode,'Enable','on');
-    set(handles.uipanel_cropcontrols,'Visible','on');
+    %set(handles.uipanel_cropcontrols,'Visible','on');
 
     set(handles.pbClearSelection,'Enable','on');
     set(handles.pumInfo,'Enable','on');
     set(handles.pumInfo_labels,'Enable','on');
     set(handles.tbTLSelectMode,'Enable','on');
     set(handles.pumTrack,'Enable','on');
-    set(handles.pbTrack,'Enable','on');
-    set(handles.pbTrain,'Enable','on');
+    %set(handles.pbTrack,'Enable','on');
+    %set(handles.pbTrain,'Enable','on');
     set(handles.pbClear,'Enable','on');
     set(handles.tbAccept,'Enable','on');
     set(handles.pbRecallZoom,'Enable','on');
@@ -732,6 +771,16 @@ switch lower(state),
     set(handles.edit_frame,'Enable','on');
     set(handles.popupmenu_prevmode,'Enable','on');
     set(handles.pushbutton_freezetemplate,'Enable','on');
+    set(handles.FigureToolBar,'Visible','on')
+    
+    lObj = handles.labelerObj;
+    tObj = lObj.tracker;    
+    tfTracker = ~isempty(tObj);
+    onOff = onIff(tfTracker);
+    handles.menu_track.Enable = onOff;
+    handles.pbTrain.Enable = onOff;
+    handles.pbTrack.Enable = onOff;
+    handles.menu_view_hide_predictions.Enable = onOff;
 
   otherwise
     fprintf('Not implemented\n');
@@ -891,6 +940,10 @@ tracker = evt.AffectedObject;
 hmenu_view_hide_predictions.Checked = onIff(tracker.hideViz);
 
 function cbkKPF(src,evt,lObj)
+
+if ~lObj.isReady,
+  return;
+end
 
 tfKPused = false;
 
@@ -1219,12 +1272,15 @@ if isfield(handles,'newProjAxLimsSetInConfig')
   handles = rmfield(handles,'newProjAxLimsSetInConfig');
 end
 
+if lObj.hasMovie && evt.isFirstMovieOfProject,
+  EnableControls(handles,'projectloaded');
+end
+
 if lObj.hasTrx && ~lObj.gtIsGTMode,
   set(handles.menu_go_targets_summary,'Enable','on');
 else
   set(handles.menu_go_targets_summary,'Enable','off');
 end
-
 
 
 %tfResetCLims = evt.isFirstMovieOfProject;
@@ -1350,8 +1406,8 @@ end
 function cbkProjLoaded(src,evt)
 lObj = src;
 handles = lObj.gdata;
-EnableControls(handles,'projectloaded');
 cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
+EnableControls(handles,'projectloaded');
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
@@ -1677,7 +1733,7 @@ handles.listenersTracker = cell(0,1);
 
 % UI, is a tracker available
 tfTracker = ~isempty(tObj);
-onOff = onIff(tfTracker);
+onOff = onIff(tfTracker&&handles.labelerObj.isReady);
 handles.menu_track.Enable = onOff;
 handles.pbTrain.Enable = onOff;
 handles.pbTrack.Enable = onOff;
@@ -2231,7 +2287,6 @@ if hlpSave(lObj)
 end
 function menu_file_new_Callback(hObject, eventdata, handles)
 SetStatus(handles,'Starting New Project',true);
-EnableControls(handles,'projectloaded');
 lObj = handles.labelerObj;
 if hlpSave(lObj)
   cfg = ProjectSetup(handles.figure);
@@ -2847,6 +2902,8 @@ end
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 % Really, "configure parameters"
 
+SetStatus(handles,'Setting tracking parameters...');
+
 lObj = handles.labelerObj;
 % tObj = lObj.tracker;
 % assert(~isempty(tObj));
@@ -2869,6 +2926,8 @@ else
   lObj.trackSetParams(sPrmNew);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
 end
+
+ClearStatus(handles);
 
 % function cbkTrackerTrnDataDownSampChanged(src,evt,handles)
 % tracker = evt.AffectedObject;

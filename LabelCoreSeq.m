@@ -89,6 +89,10 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function axBDF(obj,src,evt) %#ok<INUSD>
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       mod = obj.hFig.CurrentModifier;
       tfShift = any(strcmp(mod,'shift'));
       switch obj.state
@@ -117,6 +121,11 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function axOccBDF(obj,~,~)
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       mod = obj.hFig.CurrentModifier;
       tfShift = any(strcmp(mod,'shift'));
 
@@ -143,6 +152,7 @@ classdef LabelCoreSeq < LabelCore
     end
        
     function hlpAxBDFLabelState(obj,tfAxOcc,tfShift)
+      
       % BDF in LabelState.LABEL. .tfOcc, .tfEstOcc, .tfSel start off as all
       % false in beginLabel();
       
@@ -194,6 +204,9 @@ classdef LabelCoreSeq < LabelCore
     end
         
     function ptBDF(obj,src,~)
+      if ~obj.labeler.isReady,
+        return;
+      end
       tf = obj.anyPointSelected();
       if tf
         % none
@@ -212,7 +225,7 @@ classdef LabelCoreSeq < LabelCore
     
     function wbmf(obj,~,~)
       % KB 20181029: removing adjust state
-      if isempty(obj.state),
+      if isempty(obj.state) || ~obj.labeler.isReady,
         return;
       end
       if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED,
@@ -227,6 +240,11 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function wbuf(obj,~,~)
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       % KB 20181029: removing adjust state
       if ismember(gco,obj.labeler.hTrx),
         return;
@@ -238,6 +256,11 @@ classdef LabelCoreSeq < LabelCore
     end
     
     function tfKPused = kpf(obj,~,evt)
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       key = evt.Key;
       modifier = evt.Modifier;
       tfCtrl = ismember('control',modifier);

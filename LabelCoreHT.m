@@ -143,7 +143,9 @@ classdef LabelCoreHT < LabelCore
       tfOL(iPt) = false;
       clr = obj.otherLabeledPointColor;
       set(hPoints(tfOL),'Color',clr);
-      set(hPointsOcc(tfOL),'Color',clr);
+      if ~isempty(hPointsOcc),
+        set(hPointsOcc(tfOL),'Color',clr);
+      end
 
       if tfLbledOrOcc(iPt)
         clr = colors(iPt,:);
@@ -151,7 +153,9 @@ classdef LabelCoreHT < LabelCore
         clr = obj.unlabeledPointColor;
       end
       set(hPoints(iPt),'Color',clr);
-      set(hPointsOcc(iPt),'Color',clr);    
+      if ~isempty(hPointsOcc),
+        set(hPointsOcc(iPt),'Color',clr);
+      end
       
       % MARKER
       % - all labeled or pure-occluded use regular Marker
@@ -184,7 +188,9 @@ classdef LabelCoreHT < LabelCore
       clr = obj.unlabeledPointColor;
       mrkr = obj.ptsPlotInfo.Marker;
       set(obj.hPts(iPt),'Color',clr,'Marker',mrkr);
-      set(obj.hPtsOcc(iPt),'Color',clr); % marker should always be mrkr
+      if ~isempty(obj.hPtsOcc),
+        set(obj.hPtsOcc(iPt),'Color',clr); % marker should always be mrkr
+      end
       obj.labeler.labelPosClearI(iPt);
     end
     
@@ -197,6 +203,11 @@ classdef LabelCoreHT < LabelCore
     end 
     
     function axBDF(obj,~,evt)
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       switch evt.Button
         case {1 3}
           pos = get(obj.hAx,'CurrentPoint');
@@ -222,6 +233,10 @@ classdef LabelCoreHT < LabelCore
     end
     
     function ptBDF(obj,src,evt) 
+      if ~obj.labeler.isReady,
+        return;
+      end
+
       ud = src.UserData;
       if ud==obj.iPoint && evt.Button==1
         obj.acceptCurrentPt();
@@ -229,6 +244,12 @@ classdef LabelCoreHT < LabelCore
     end    
     
     function tfKPused = kpf(obj,src,evt) %#ok<INUSL>
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+
+      
       key = evt.Key;
       modifier = evt.Modifier;
       tfCtrl = any(strcmp('control',modifier));
@@ -246,6 +267,9 @@ classdef LabelCoreHT < LabelCore
     end
     
     function axOccBDF(obj,src,evt) %#ok<INUSD>
+      if ~obj.labeler.isReady,
+        return;
+      end
       iPt = obj.iPoint;
       obj.tfOcc(iPt) = true;
       set(obj.hPtsOcc(iPt),'Color',obj.ptsPlotInfo.Colors(iPt,:));

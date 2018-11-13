@@ -670,6 +670,10 @@ classdef InfoTimeline < handle
   %% Private methods
   methods (Access=private) % callbacks
     function cbkBDF(obj,src,evt) 
+      if ~obj.lObj.isReady,
+        return;
+      end
+      
       if ~(obj.lObj.hasProject && obj.lObj.hasMovie)
         return;
       end

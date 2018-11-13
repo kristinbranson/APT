@@ -19,9 +19,9 @@ def main():
 
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,epilog=epilogstr)
     parser.add_argument("--rootdir",help="Root directory relative to which other args are specified. Defaults to current dir")
-    parser.add_argument("--hmdirfile",help="text file containing hmdirs")
+    parser.add_argument("--hmdirfile",help="text file containing hmdirs") # one of hmdirfile or prmpchdir must be specified
     parser.add_argument("--prmfiles",help="base parameter files, separated by '#', relative to rootdir")
-    parser.add_argument("--prmpchdir",help="dir containing parameter patches, relative to rootdir")
+    parser.add_argument("--prmpchdir",help="dir containing parameter patches, relative to rootdir") # one of hmdirfile or prmpchdir must be specified
     parser.add_argument("--outdirbase",help="dir where results will be placed, relative to rootdir")
     parser.add_argument("--dryrun",help="if true, print cmds only",action="store_true",default=False)
     parser.add_argument("-nslots",help="num slots")
@@ -104,6 +104,7 @@ def main():
             
             prmfiles = args.prmfiles + "#" + os.path.join(args.prmpchdir,pchS)
             scriptcmd = [
+                "DUMMY_HMDIR",
                 "rootdir",args.rootdir,
                 "paramfiles",prmfiles,
                 "savefile",outfile]

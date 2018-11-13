@@ -27,17 +27,19 @@ from tensorflow.contrib.layers import batch_norm
 from collections import OrderedDict
 
 
-def train_preproc_func(ims, locs, info, conf):
-    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, True, conf.rescale)
-    hmaps = PoseTools.create_label_images(locs, conf.imsz, conf.rescale, conf.label_blur_rad)
+def preproc_func(ims, locs, info, conf, distort, pad_input=False,pad_x=0,pad_y=0):
+
+    if pad_input:
+        ims, locs = PoseTools.pad_ims(ims, locs, pady=pad_y, padx=pad_x)
+
+    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
+    tlocs = locs.copy()
+    if pad_input:
+        tlocs[:,:,0] -= pad_x//2
+        tlocs[:,:,1] -= pad_y//2
+
+    hmaps = PoseTools.create_label_images(tlocs, conf.imsz, conf.rescale, conf.label_blur_rad)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
-
-
-def val_preproc_func(ims, locs, info, conf):
-    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, False, conf.rescale)
-    hmaps = PoseTools.create_label_images(locs, conf.imsz, conf.rescale, conf.label_blur_rad)
-    return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
-
 
 def conv_residual(x_in, train_phase):
     in_dim = x_in.get_shape().as_list()[3]
@@ -78,22 +80,25 @@ def find_pad_sz(n_layers,in_sz):
         all_sz = []
         cur_sz = sz
         for l in range(n_layers):
-            cur_sz = int(math.ceil(cur_sz / 2.))
+            cur_sz = int(math.floor((cur_sz -4)/ 2.)) -1
             all_sz.append(cur_sz)
+        cur_sz = cur_sz - 4
+        all_sz.append(cur_sz)
         for l in reversed(range(n_layers)):
-            cur_sz = 2 * (cur_sz - 4) + 2
+            cur_sz = 2*cur_sz -2
+            # cur_sz = 2 * (cur_sz - 4) + 2
             all_sz.append(cur_sz)
 
         cur_sz -= 2
         if cur_sz > in_sz:
             break
         p_amt += 1
-    return p_amt
+    return p_amt, all_sz
 
 
 class PoseUNet(PoseCommon):
 
-    def __init__(self, conf, name='pose_unet'):
+    def __init__(self, conf, name='pose_unet',pad_input=False):
 
         PoseCommon.__init__(self, conf, name)
         self.down_layers = [] # layers created while down sampling
@@ -104,11 +109,16 @@ class PoseUNet(PoseCommon):
         self.all_layers = None
         self.for_training = 1 # for prediction.
         self.scale = self.conf.unet_rescale
+        self.no_pad = False
+
+        if pad_input:
+            self.pad_y,_ = find_pad_sz(n_layers=4,in_sz=conf.imsz[0])
+            self.pad_x,_ = find_pad_sz(n_layers=4,in_sz=conf.imsz[1])
 
         def train_pp(ims,locs,info):
-            return train_preproc_func(ims,locs,info, conf)
+            return preproc_func(ims,locs,info, conf,True,pad_input=pad_input, pad_x=self.pad_x, pad_y=self.pad_y)
         def val_pp(ims,locs,info):
-            return val_preproc_func(ims,locs,info, conf)
+            return preproc_func(ims,locs,info, conf, False, pad_input=pad_input, pad_x=self.pad_x, pad_y=self.pad_y)
 
         self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], [tf.float32, tf.float32, tf.float32, tf.float32]))
         self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], [tf.float32, tf.float32, tf.float32, tf.float32]))
@@ -116,14 +126,166 @@ class PoseUNet(PoseCommon):
     def create_network(self ):
         im, locs, info, hmap = self.inputs
         conf = self.conf
-        im.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale,conf.imsz[1]//conf.rescale, conf.imgDim])
+        im.set_shape(
+            [conf.batch_size, (conf.imsz[0] + self.pad_y) // conf.rescale, (conf.imsz[1] + self.pad_x) // conf.rescale,
+             conf.imgDim])
         hmap.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale, conf.imsz[1]//conf.rescale,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
 
         with tf.variable_scope(self.net_name):
-            return self.create_network1()
+            if self.no_pad:
+                return self.create_network_nopad()
+            else:
+                return self.create_network1()
             # return self.create_network_residual()
+
+
+    def create_network_nopad(self):
+
+        def conv_nopad(x_in, n_filt):
+            in_dim = x_in.get_shape().as_list()[3]
+            kernel_shape = [3, 3, in_dim, n_filt]
+            weights = tf.get_variable("weights", kernel_shape,
+                                      initializer=tf.contrib.layers.xavier_initializer())
+            biases = tf.get_variable("biases", kernel_shape[-1],
+                                     initializer=tf.constant_initializer(0.))
+            conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='VALID')
+            conv = batch_norm(conv, decay=0.99, is_training=self.ph['phase_train'])
+
+            if self.conf.unet_use_leaky:
+                return tf.nn.leaky_relu(conv + biases)
+            else:
+                return tf.nn.relu(conv + biases)
+
+        n_layers = 4
+        n_conv = 2
+        conv = lambda a, b: conv_relu3(
+            a, b, self.ph['phase_train'], keep_prob=None,
+            use_leaky=self.conf.unet_use_leaky)
+
+        layers = []
+        up_layers = []
+        layers_sz = []
+        X = self.inputs[0]
+        n_out = self.conf.n_classes
+        all_layers = []
+
+        # downsample
+        n_filt_base = 64
+
+        for ndx in range(n_layers):
+            n_filt = n_filt_base * (2 ** ndx)
+
+            for cndx in range(n_conv):
+                sc_name = 'layerdown_{}_{}'.format(ndx, cndx)
+                with tf.variable_scope(sc_name):
+                    if self.no_pad:
+                        X = conv_nopad(X, n_filt)
+                    else:
+                        X = conv(X, n_filt)
+                all_layers.append(X)
+
+            layers.append(X)
+            layers_sz.append(X.get_shape().as_list()[1:3])
+            # X = tf.nn.max_pool(X,ksize=[1,3,3,1],strides=[1,2,2,1],
+            #                    padding='SAME')
+            if self.no_pad:
+                X = tf.nn.avg_pool(X, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='VALID')
+            else:
+                X = tf.nn.avg_pool(X, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
+                               padding='SAME')
+        self.down_layers = layers
+
+        # few more convolution for the final layers
+        top_layers = []
+        for cndx in range(n_conv):
+            n_filt = n_filt_base * (2 ** (n_layers))
+            sc_name = 'layer_{}_{}'.format(n_layers, cndx)
+            with tf.variable_scope(sc_name):
+                if self.no_pad:
+                    X = conv_nopad(X, n_filt)
+                else:
+                    X = conv(X,n_filt)
+                top_layers.append(X)
+        self.top_layers = top_layers
+        all_layers.extend(top_layers)
+
+        # upsample
+        for ndx in reversed(range(n_layers)):
+            # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz[ndx])
+
+            # upsample using deconv
+            with tf.variable_scope('u_{}'.format(ndx)):
+                X_sh = X.get_shape().as_list()
+                w_mat = np.zeros([4, 4, X_sh[-1], X_sh[-1]])
+                for wndx in range(X_sh[-1]):
+                    w_mat[:, :, wndx, wndx] = 1.
+                w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]], initializer=tf.constant_initializer(w_mat))
+                if self.no_pad:
+                    out_shape = [X_sh[0], X_sh[1] * 2 + 2, X_sh[2] * 2 + 2, X_sh[-1]]
+                    X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,strides=[1, 2, 2, 1], padding="VALID")
+                else:
+                    out_shape = [X_sh[0], layers_sz[0], layers_sz[1], X_sh[-1]]
+                    X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
+
+                biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
+                conv_b = X + biases
+
+                bn = batch_norm(conv_b)
+                X = tf.nn.relu(bn)
+
+            # concat with down layer
+            if self.no_pad:
+                prev_sh = X.get_shape().as_list()[1:3]
+                d_sh = layers[ndx].get_shape().as_list()[1:3]
+                d_y = (d_sh[0] - prev_sh[0]) // 2
+                d_x = (d_sh[1] - prev_sh[1]) // 2
+                d_l = self.down_layers[ndx][:, d_y:(prev_sh[0] + d_y), d_x:(prev_sh[1] + d_x), :]
+                X = tf.concat([X, d_l], axis=-1)
+            else:
+                X = tf.concat([X, self.down_layers[ndx]], axis=-1)
+
+            n_filt = n_filt_base * (2 ** ndx)
+
+            for cndx in range(n_conv):
+                sc_name = 'layerup_{}_{}'.format(ndx, cndx)
+                with tf.variable_scope(sc_name):
+                    if self.no_pad:
+                        X = conv_nopad(X, n_filt)
+                    else:
+                        X = conv(X, n_filt)
+
+                all_layers.append(X)
+            up_layers.append(X)
+        self.all_layers = all_layers
+        self.up_layers = up_layers
+
+        # final conv
+        weights = tf.get_variable("out_weights", [3, 3, n_filt, n_out],
+                                  initializer=tf.contrib.layers.xavier_initializer())
+        biases = tf.get_variable("out_biases", n_out,
+                                 initializer=tf.constant_initializer(0.))
+        conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
+        X = tf.add(conv, biases, name='unet_pred')
+        X = 2 * tf.sigmoid(X) - 1
+
+        if self.no_pad:
+            unet_sh = X.get_shape().as_list()[1:3]
+            out_sz = [y // self.conf.rescale for y in self.conf.imsz]
+            crop_x = (unet_sh[1] - out_sz[1]) // 2
+            crop_y = (unet_sh[0] - out_sz[0]) // 2
+            if (out_sz[0]< unet_sh[0]) or (out_sz[1]< unet_sh[1]):
+                X = X[:, crop_y:(crop_y + out_sz[0]), crop_x:(crop_x + out_sz[1]), :]
+            else:
+                pad_x_b = -crop_x
+                pad_y_b = -crop_y
+                pad_x_a = out_sz[1] - unet_sh[1] - pad_x_b
+                pad_y_a = out_sz[0] - unet_sh[0] - pad_y_b
+                X = tf.pad(X,[[0,0],[pad_y_b,pad_y_a] ,[pad_x_b,pad_x_a], [0,0]],mode='CONSTANT',constant_values=-1)
+
+        return X
+
 
     def create_network1(self):
 
@@ -132,6 +294,7 @@ class PoseUNet(PoseCommon):
         # sel_sz = self.conf.sel_sz
         # n_layers = int(math.ceil(math.log(sel_sz,2)))+2
         # n_layers = min(max_layers,n_layers) - 2
+
         n_layers = 4
 
         # n_layers = 6
@@ -169,17 +332,17 @@ class PoseUNet(PoseCommon):
                     X = conv(X, n_filt)
                 all_layers.append(X)
 
-            if ndx > 1:
-                with tf.variable_scope('layerdown_{}_residual_0'.format(ndx)):
-                    X = conv_residual(X,self.ph['phase_train']) 
-                with tf.variable_scope('layerdown_{}_residual_1'.format(ndx)):
-                    X = conv_residual(X,self.ph['phase_train']) 
-                with tf.variable_scope('layerdown_{}_residual_2'.format(ndx)):
-                    X = conv_residual(X,self.ph['phase_train']) 
-                with tf.variable_scope('layerdown_{}_residual_3'.format(ndx)):
-                    X = conv_residual(X,self.ph['phase_train']) 
-                with tf.variable_scope('layerdown_{}_residual_4'.format(ndx)):
-                    X = conv_residual(X,self.ph['phase_train']) 
+            # if ndx > 1:
+            #     with tf.variable_scope('layerdown_{}_residual_0'.format(ndx)):
+            #         X = conv_residual(X,self.ph['phase_train'])
+            #     with tf.variable_scope('layerdown_{}_residual_1'.format(ndx)):
+            #         X = conv_residual(X,self.ph['phase_train'])
+            #     with tf.variable_scope('layerdown_{}_residual_2'.format(ndx)):
+            #         X = conv_residual(X,self.ph['phase_train'])
+            #     with tf.variable_scope('layerdown_{}_residual_3'.format(ndx)):
+            #         X = conv_residual(X,self.ph['phase_train'])
+            #     with tf.variable_scope('layerdown_{}_residual_4'.format(ndx)):
+            #         X = conv_residual(X,self.ph['phase_train'])
 
             layers.append(X)
             layers_sz.append(X.get_shape().as_list()[1:3])

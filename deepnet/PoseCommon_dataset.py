@@ -78,7 +78,6 @@ def conv_shortcut(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False):
     return conv
 
 
-
 def conv_relu3_noscaling(x_in, n_filt, train_phase):
     in_dim = x_in.get_shape().as_list()[3]
     kernel_shape = [3, 3, in_dim, n_filt]
