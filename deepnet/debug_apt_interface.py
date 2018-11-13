@@ -111,7 +111,7 @@ import PoseUNet
 import PoseUNet_dataset as PoseUNet
 p_sz, a_sz = PoseUNet.find_pad_sz(4,conf.imsz[0])
 print a_sz
-self = PoseUNet.PoseUNet(conf,'test_pad',pad_input=False)
+self = PoseUNet.PoseUNet(conf,'test_pad',pad_input=True)
 self.no_pad = True
 self.train_unet()
 V = self.classify_val()

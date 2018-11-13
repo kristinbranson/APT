@@ -193,8 +193,7 @@ class PoseUNet(PoseCommon):
             if self.no_pad:
                 X = tf.nn.avg_pool(X, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='VALID')
             else:
-                X = tf.nn.avg_pool(X, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
-                               padding='SAME')
+                X = tf.nn.avg_pool(X, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME')
         self.down_layers = layers
 
         # few more convolution for the final layers
@@ -569,6 +568,11 @@ class PoseUNet(PoseCommon):
         self.pred = pred
 #        self.create_fd()
         return sess, latest_model_file
+
+    def compute_dist(self, preds, locs):
+        tt1 = PoseTools.get_pred_locs(preds,self.edge_ignore) - locs + [self.pad_x//2,self.pad_y//2]
+        tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
+        return np.nanmean(tt1)
 
 
     def train_unet(self,restore=False):
