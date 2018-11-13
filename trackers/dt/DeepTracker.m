@@ -765,21 +765,12 @@ classdef DeepTracker < LabelTracker
     end
     
     function trnAWSDownloadModel(obj)
-      projname = obj.lObj.projname;
       nvw = obj.lObj.nview;
       trnID = obj.trnName;
       cacheDirLocal = obj.sPrm.CacheDir;
       aws = obj.awsEc2;
-      
-      if isempty(projname)
-        error('Please give your project a name by setting the .projname property.');
-      end
-      
-      %       if numel(aws)~=nvw
-      %         error('You must have one AWSec2 object for each view.');
-      %       end
-      assert(nvw==1,'Multiview AWS train currently unsupported.');
-      
+      dmcs = obj.trnLastDMC;
+            
       if isempty(trnID)
         error('Model has not been trained.');
       end
@@ -790,17 +781,26 @@ classdef DeepTracker < LabelTracker
         error('AWSec2 object not set.');
       end
       aws.checkInstanceRunning(); % harderrs if instance isn't running
-        
-      %cacheRemoteRel = trnID;
-      cacheRemoteAbs = ['/home/ubuntu/' trnID];
-      IVIEW = 1;
-      % see BgTrainWorkerObj
-      projvw = sprintf('%s_view%d',projname,IVIEW-1); % !! cacheDirs are 0-BASED. See
-      cacheLocalAbsWProj = fullfile(cacheDirLocal,projvw);
       
-      sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
-      aws.scpDownload(cacheRemoteAbs,cacheLocalAbsWProj,...
-        'sysCmdArgs',sysCmdArgs); % throws
+      assert(numel(dmcs)==nvw);
+      assert(nvw==1,'Multiview AWS train currently unsupported.');
+
+      mdlFilesRemote = aws.remoteGlob(dmcs.keepGlobsLnx);
+      mdlFilesRemote = setdiff(mdlFilesRemote,{dmcs.lblStrippedLnx}); % don't download/mirror this
+      cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
+      mdlFilesLcl = regexprep(mdlFilesRemote,dmcs.rootDir,cacheDirLocalEscd);
+      nfiles = numel(mdlFilesRemote);
+      fprintf(1,'Downloading %d model files.\n',nfiles);
+      for ifile=1:nfiles
+        fsrc = mdlFilesRemote{ifile};
+        fdst = mdlFilesLcl{ifile};
+        if exist(fdst,'file')>0
+          warningNoTrace('Local file ''%s'' exists. NOT downloading.',fdst);
+        else
+          aws.scpDownloadEnsureDir(fsrc,fdst,...
+            'sysCmdArgs',{'dispcmd' true 'failbehavior' 'warn'});
+        end
+      end
     end
     
   end

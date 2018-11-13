@@ -93,13 +93,28 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
 %       tf = cellfun(@(x)~isempty(regexp(x,'lnx$','once')),propnames);
 %       propnames = propnames(tf);
 
-      for iobj=1:numel(obj)
-        fprintf('### obj %d ###\n',iobj);
+      nobj = numel(obj);
+      for iobj=1:nobj
+        if nobj>1
+          fprintf('### obj %d ###\n',iobj);
+        end
         for iprop=1:numel(propnames)
           p = propnames{iprop};
           fprintf('%s: %s\n',p,obj(iobj).(p));
         end
       end
+    end
+    function g = keepGlobsLnx(obj)
+      % filesys paths/globs of important parts/stuff to keep
+      
+      g = { ...
+        [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID,obj.trainID)]; ... % lbl, err, logs
+        [obj.dirModelChainLnx '/' sprintf('%s*',obj.trainID)]; ... % toks
+        [obj.dirModelChainLnx '/' sprintf('deepnet-%d.*',obj.iterFinal)]; ... % final iter stuff
+        [obj.dirModelChainLnx '/' 'deepnet_ckpt']; ... 
+        [obj.dirModelChainLnx '/' 'splitdata.json']; ...
+        [obj.dirModelChainLnx '/' 'traindata*']; ...
+        };
     end
   end
 end
