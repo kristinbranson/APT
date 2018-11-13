@@ -6,7 +6,7 @@ classdef DeepTracker < LabelTracker
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrm' 'awsEc2' 'backendType' ...
       'trnName' 'trnNameLbl' 'movIdx2trkfile' 'hideViz'};    
-    RemoteAWSCacheDir = 'cache';
+    RemoteAWSCacheDir = '/home/ubuntu';
   end
   properties
     sPrm % new-style DT params
@@ -344,6 +344,16 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
+      if obj.backendType==DLBackEnd.AWS && isempty(obj.awsEc2)
+        reason = 'AWS EC2 instance is not configured.';
+        return;
+      end
+      
+      if isempty(obj.trnNetType)
+        reason = 'Deep net type is empty.';
+        return;
+      end
+      
       tfCanTrain = true;
       
     end
@@ -420,10 +430,6 @@ classdef DeepTracker < LabelTracker
   methods (Static)
     function s = trnLogfileStc(cacheDir,trnID,iview)
       s = fullfile(cacheDir,sprintf('%s_view%d.log',trnID,iview));
-    end
-    function s = trnLogfileLnxStc(cacheDir,trnID,iview,dlTrnType)
-      s = [cacheDir '/' ...
-           sprintf('%s_view%d_%s.log',trnID,iview,lower(char(dlTrnType)))];
     end
   end
   methods
@@ -560,15 +566,18 @@ classdef DeepTracker < LabelTracker
         error('Failed to update remote APT repo.');
       end
       
+      % Base DMC, to be further copied/specified per-view
       dmc = DeepModelChainOnDisk(...        
-        'rootDir','/home/ubuntu/',...
+        'rootDir',obj.RemoteAWSCacheDir,...
         'projID',obj.lObj.projname,...
         'netType',netType,...
-        'view',nan,... % to be filled in later
+        'view',nan,... % to be filled in 
         'modelChainID',modelChain,...
-        'trainID','',... % to be filled in later
+        'trainID','',... % to be filled in 
         'trainType',trnType,...
         'iterFinal',obj.sPrm.dl_steps);
+      
+      % create/ensure stripped lbl, local and remote
       cacheDirLcl = obj.sPrm.CacheDir;
       tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl        
@@ -577,54 +586,48 @@ classdef DeepTracker < LabelTracker
         trainID = datestr(now,'yyyymmddTHHMMSS');
         dmc.trainID = trainID;
         
-        % Write stripped lblfile to cacheDir (local, and then upload)
-        dlLblFileLclS = DLCacheProj.lblstrippednameStc(modelChain,trainID);
-        dlLblFileLcl = fullfile(cacheDirLcl,dlLblFileLclS);
+        % Write stripped lblfile to local cache
+        dlLblFileLcl = fullfile(cacheDirLcl,dmc.lblStrippedName);
         save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
         fprintf('Saved stripped lbl file locally: %s\n',dlLblFileLcl);
-        
-        [cacheRemoteFull,dlLblRemoteRel] = ...
-          DeepTracker.hlpPutCheckRemoteCacheAndLblFile(aws,obj.RemoteAWSCacheDir,dlLblFileLcl);        
       else
         trainID = obj.trnNameLbl;
         assert(~isempty(trainID));
+        
+        dmc.trainID = trainID;
 
-        dlLblFileLclS = [modelChain '_' trainID '.lbl'];
-        dlLblFileLcl = fullfile(cacheDirLcl,dlLblFileLclS);
+        dlLblFileLcl = fullfile(cacheDirLcl,dmc.lblStrippedName);
         if exist(dlLblFileLcl,'file')>0
           fprintf(1,'Found existing local stripped lbl file: %s\n',dlLblFileLcl);
         else
           error('Cannot find local stripped lbl file: %s',dlLblFileLcl);
-        end
-        
-        dlLblRemoteRel = [modelChain '/' dlLblFileLclS];
-        cacheRemoteFull = sprintf('~/%s',modelChain);
+        end        
       end
+      dlLblFileRemote = dmc.lblStrippedLnx;
+      aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
       
       % At this point
-      % We have (trnName,trnLbl), dlLblRemoteRel,
-      % ~/<dlLblRemoteRel> exists remotely, remote is 
-      % ready to train
+      % We have (trnName,trnLbl), dlLblFileRemote. remote is ready to train
 
       % gen cmd to fire job
-      trnIDfull = [modelChain '_' trainID]; 
-      logfilesRemote = cell(nvw,1);
       syscmds = cell(nvw,1);
       for ivw=1:nvw
-        codestr = obj.trainCodeGenAWS(trnType,modelChain,dlLblRemoteRel,ivw);
-        logfilesRemote{ivw} = ...
-          DeepTracker.trnLogfileLnxStc(cacheRemoteFull,trnIDfull,ivw,trnType);        
-        syscmds{ivw} = aws.sshCmdGeneralLogged(codestr,logfilesRemote{ivw});
+        if ivw>1
+          dmc(ivw) = dmc(1).copy();
+        end
+        dmc(ivw).view = ivw-1; % 0-based
+        
+        codestr = obj.trainCodeGenAWS(dmc(ivw));
+        logfileRemote = dmc(ivw).trainLogLnx;
+        syscmds{ivw} = aws.sshCmdGeneralLogged(codestr,logfileRemote);
       end
             
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
         % start train monitor
-        
         bgTrnMonitorObj = BgTrainMonitorAWS();
-        bgTrnWorkerObj = BgTrainWorkerObjAWS(dlLblFileLcl,modelChain,modelChain,...
-          logfilesRemote,aws);
+        bgTrnWorkerObj = BgTrainWorkerObjAWS(nvw,dmc,aws);
         obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
 
         % spawn training
@@ -642,6 +645,7 @@ classdef DeepTracker < LabelTracker
         
         obj.trnName = modelChain;
         obj.trnNameLbl = trainID;
+        obj.trnLastDMC = dmc;
       end
     end
         
@@ -729,8 +733,7 @@ classdef DeepTracker < LabelTracker
       end
       
       bgTrnWorkerObj = obj.bgTrnMonitor.bgWorkerObj;
-      logfilesremote = bgTrnWorkerObj.artfctLogs;
-      killfiles = BgTrainWorkerObj.killedFilesFromLogFiles(logfilesremote);
+      killfiles = bgTrnWorkerObj.artfctKills;
 
       aws.killRemoteProcess();
 
@@ -762,21 +765,12 @@ classdef DeepTracker < LabelTracker
     end
     
     function trnAWSDownloadModel(obj)
-      projname = obj.lObj.projname;
       nvw = obj.lObj.nview;
       trnID = obj.trnName;
       cacheDirLocal = obj.sPrm.CacheDir;
       aws = obj.awsEc2;
-      
-      if isempty(projname)
-        error('Please give your project a name by setting the .projname property.');
-      end
-      
-      %       if numel(aws)~=nvw
-      %         error('You must have one AWSec2 object for each view.');
-      %       end
-      assert(nvw==1,'Multiview AWS train currently unsupported.');
-      
+      dmcs = obj.trnLastDMC;
+            
       if isempty(trnID)
         error('Model has not been trained.');
       end
@@ -787,17 +781,26 @@ classdef DeepTracker < LabelTracker
         error('AWSec2 object not set.');
       end
       aws.checkInstanceRunning(); % harderrs if instance isn't running
-        
-      %cacheRemoteRel = trnID;
-      cacheRemoteAbs = ['/home/ubuntu/' trnID];
-      IVIEW = 1;
-      % see BgTrainWorkerObj
-      projvw = sprintf('%s_view%d',projname,IVIEW-1); % !! cacheDirs are 0-BASED. See
-      cacheLocalAbsWProj = fullfile(cacheDirLocal,projvw);
       
-      sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
-      aws.scpDownload(cacheRemoteAbs,cacheLocalAbsWProj,...
-        'sysCmdArgs',sysCmdArgs); % throws
+      assert(numel(dmcs)==nvw);
+      assert(nvw==1,'Multiview AWS train currently unsupported.');
+
+      mdlFilesRemote = aws.remoteGlob(dmcs.keepGlobsLnx);
+      mdlFilesRemote = setdiff(mdlFilesRemote,{dmcs.lblStrippedLnx}); % don't download/mirror this
+      cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
+      mdlFilesLcl = regexprep(mdlFilesRemote,dmcs.rootDir,cacheDirLocalEscd);
+      nfiles = numel(mdlFilesRemote);
+      fprintf(1,'Downloading %d model files.\n',nfiles);
+      for ifile=1:nfiles
+        fsrc = mdlFilesRemote{ifile};
+        fdst = mdlFilesLcl{ifile};
+        if exist(fdst,'file')>0
+          warningNoTrace('Local file ''%s'' exists. NOT downloading.',fdst);
+        else
+          aws.scpDownloadEnsureDir(fsrc,fdst,...
+            'sysCmdArgs',{'dispcmd' true 'failbehavior' 'warn'});
+        end
+      end
     end
     
   end
@@ -1344,10 +1347,10 @@ classdef DeepTracker < LabelTracker
         };
       codestr = cat(2,codestr{:});      
     end
-    function codestr = trainCodeGenAWS(...
-        dlTrnType,trnName,dlLblRemoteRel,view1based)
+    function codestr = trainCodeGenAWS(dmc)
+%        dlTrnType,trnName,dlLblRemote,view1based)
 
-      switch dlTrnType
+      switch dmc.trainType
         case DLTrainType.New
           continueflags = '';
         case DLTrainType.Restart
@@ -1360,8 +1363,8 @@ classdef DeepTracker < LabelTracker
       codestr = {
         'cd /home/ubuntu/APT/deepnet;';
         'export LD_LIBRARY_PATH=/home/ubuntu/src/cntk/bindings/python/cntk/libs:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib;';
-        sprintf('python APT_interface.py -cache /home/ubuntu/%s -name %s -view %d /home/ubuntu/%s train -use_cache %s',...
-          trnName,trnName,view1based,dlLblRemoteRel,continueflags);
+        sprintf('python APT_interface.py -name %s -view %d -cache %s -err_file %s -type %s %s train -use_cache %s',...
+          dmc.modelChainID,dmc.view+1,dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.lblStrippedLnx,continueflags);
         };
       codestr = cat(2,codestr{:});
     end

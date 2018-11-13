@@ -191,6 +191,18 @@ classdef AWSec2 < handle
         'scpcmd',obj.scpCmd);
       tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
     end
+    
+    function tfsucc = scpDownloadEnsureDir(obj,srcAbs,dstAbs,varargin)
+      dirLcl = fileparts(dstAbs);
+      if exist(dirLcl,'dir')==0
+        [tfsucc,msg] = mkdir(dirLcl);
+        if ~tfsucc
+          warningNoTrace('Failed to create local directory %s: %s',dirLcl,msg);
+          return;
+        end
+      end
+      tfsucc = obj.scpDownload(srcAbs,dstAbs,varargin{:});
+    end
  
     function tfsucc = scpUpload(obj,file,dest,varargin)
       [destRelative,sysCmdArgs] = myparse(varargin,...
@@ -240,13 +252,18 @@ classdef AWSec2 < handle
       end
     end
     
-    function scpUploadWithEnsureDir(obj,fileLcl,fileRemoteRel)
+    function scpUploadOrVerifyEnsureDir(obj,fileLcl,fileRemote,fileDescStr,...
+        varargin)
       % Upload a file to a dir which may not exist yet. Create it if 
       % necessary. Either succeeds, or fails and harderrors.
       
-      remoteDirRel = fileparts(fileRemoteRel);
-      obj.ensureRemoteDir(remoteDirRel,'relative',true);      
-      obj.scpUploadOrVerify(fileLcl,fileRemoteRel,'training file'); % throws
+      destRelative = myparse(varargin,...
+        'destRelative',false);
+      
+      dirRemote = fileparts(fileRemote);
+      obj.ensureRemoteDir(dirRemote,'relative',destRelative); 
+      obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
+        'destRelative',destRelative); % throws
     end
     
     function tf = remoteFileExists(obj,f,varargin)
@@ -311,6 +328,24 @@ classdef AWSec2 < handle
         error('Failed to create remote %sdirectory %s: %s',descstr,...
           remoteDirFull,res);
       end
+    end
+    
+    function remotePaths = remoteGlob(obj,globs)
+      % Look for remote files/paths. Either succeeds, or fails and harderrors.
+
+      % globs: cellstr of globs
+      
+      lscmd = cellfun(@(x)sprintf('ls %s;',x),globs,'uni',0);
+      lscmd = cat(2,lscmd{:});
+      [tfsucc,res] = obj.cmdInstance(lscmd);
+      if tfsucc
+        remotePaths = regexp(res,'\n','split');
+        remotePaths = remotePaths(:);
+        remotePaths = remotePaths(~cellfun(@isempty,remotePaths));
+      else
+        error('Failed to find remote files/paths %s: %s',...
+          String.cellstr2CommaSepList(globs),res);
+      end      
     end
     
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
