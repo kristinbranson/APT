@@ -7,9 +7,6 @@ classdef BgTrainWorkerObj < handle
 
   properties
     nviews
-    sPrm % parameter struct
-    projname
-    jobID % char
     
     artfctLogs % [nview] cellstr of fullpaths to logfiles
     artfctKills % [nview] cellstr of fullpaths to KILLED toks
@@ -28,18 +25,17 @@ classdef BgTrainWorkerObj < handle
   
   methods
     
-    function obj = BgTrainWorkerObj(dlLblFileLocal,jobID)
-      lbl = load(dlLblFileLocal,'-mat');
-      obj.nviews = lbl.cfg.NumViews;
-      % Looks like we don't need sPrm at all here
-      assert(strcmp(lbl.trackerClass{2},'DeepTracker'));
-      obj.sPrm = lbl.trackerData{2}.sPrm; % .sPrm guaranteed to match dlLblFile. 
-      obj.projname = lbl.projname;
-      obj.jobID = jobID;
-
+    function obj = BgTrainWorkerObj(nviews,dmcs)
+      obj.nviews = nviews;
+      assert(isa(dmcs,'DeepModelChainOnDisk') && numel(dmcs)==nviews);
+      
+      obj.artfctLogs = {dmcs.trainLogLnx}'; 
+      obj.artfctKills = {dmcs.killTokenLnx}'; 
+      obj.artfctTrainDataJson = {dmcs.trainDataLnx}';
+      obj.artfctFinalIndex = {dmcs.trainFinalIndexLnx}'; 
+      obj.artfctErrFile = {dmcs.errfileLnx}';
+    
       obj.reset();
-
-      % Concrete subclasses responsible for initting artfct* props      
     end
     
     function sRes = compute(obj) % obj const except for .trnLogLastStep
@@ -135,14 +131,6 @@ classdef BgTrainWorkerObj < handle
         logfile = logFiles{ivw};
         fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
         disp(logFileContents{ivw});
-      end
-    end
-    
-    function killedFiles = killedFilesFromLogFiles(logFiles)
-      killedFiles = cell(size(logFiles));
-      for i=1:numel(logFiles)
-        [p,f] = fileparts(logFiles{i});
-        killedFiles{i} = [p '/' f '.KILLED'];
       end
     end
     
