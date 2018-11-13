@@ -273,6 +273,7 @@ class PoseUNet(PoseCommon):
         if self.no_pad:
             unet_sh = X.get_shape().as_list()[1:3]
             out_sz = [y // self.conf.rescale for y in self.conf.imsz]
+            print('Padding output from size {} to {}'.format(unet_sh,out_sz))
             crop_x = (unet_sh[1] - out_sz[1]) // 2
             crop_y = (unet_sh[0] - out_sz[0]) // 2
             if (out_sz[0]< unet_sh[0]) or (out_sz[1]< unet_sh[1]):

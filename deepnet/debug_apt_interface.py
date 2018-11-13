@@ -1,3 +1,108 @@
+import APT_interface as apt
+import os
+import PoseUNet_resnet as PoseUNet
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
+lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
+conf = apt.create_conf(lbl_file, 1, 'conf','/tmp',net_type='umdn')
+conf.cachedir = '/nrs/branson/mayank/apt_cache/stephen_view1'
+self = PoseUNet.PoseUMDN_resnet(conf)
+
+V = self.classify_val()
+
+unet_pred = V[6][-1]
+mdn_pred = V[3]
+locs = V[4]
+xx = V[5][3]
+ii = np.argmax(V[5][2],axis=1)
+mdn_conf = np.zeros([xx.shape[0],5])
+for ndx in range(V[5][0].shape[0]):
+    for pt in range(conf.n_classes):
+        mdn_conf[ndx,pt] = xx[ndx,ii[ndx,0],pt]
+
+dd = np.sqrt(np.sum((locs-mdn_pred)**2,axis=-1))
+dd_unet = np.sqrt(np.sum((locs-unet_pred)**2,axis=-1))
+dd_unet_mdn = np.sqrt(np.sum((mdn_pred-unet_pred)**2,axis=-1))
+pos = dd > self.min_dist
+pt = 1
+from sklearn.metrics import roc_curve, auc
+fpr_mdn,tnr_mdn,_ = roc_curve(pos[:,pt],mdn_conf[:,pt])
+fpr_unet, tnr_unet,_ = roc_curve(pos[:,pt], dd_unet_mdn[:,pt])
+dd_comb = np.maximum(dd_unet_mdn,mdn_conf)
+fpr_comb, tnr_comb,_ = roc_curve(pos[:,pt], dd_comb[:,pt])
+
+from matplotlib import pyplot as plt
+plt.figure()
+plt.scatter(dd[:,pt],mdn_conf[:,pt])
+
+f,ax = plt.subplots(1,3)
+ax = ax.flatten()
+ax[0].plot(fpr_mdn,tnr_mdn)
+ax[1].plot(fpr_unet,tnr_unet)
+ax[2].plot(fpr_comb,tnr_comb)
+
+##
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_bigsize'; conf.imsz = (370,370)
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet
+import PoseUNet_dataset as PoseUNet
+p_sz, a_sz = PoseUNet.find_pad_sz(4,conf.imsz[0])
+print a_sz
+self = PoseUNet.PoseUNet(conf,'unet_no_pad',pad_input=False)
+self.no_pad = True
+V = self.classify_val()
+res = np.array([[ 
+        0.98649726,  1.02755724,  1.05933487,  1.0318891 ,  1.05936735,
+         1.32980098,  1.15310487,  1.30030844,  1.34996524,  1.35013757,
+         1.43107478,  1.78587489,  1.51182891,  3.71149039,  3.65348891,
+         1.33653132,  1.55634646],
+       [ 1.16142442,  1.18833696,  1.24923555,  1.19032531,  1.22991107,
+         1.55732873,  1.35345994,  1.59213747,  1.72097007,  1.60372583,
+         1.78842193,  2.8360998 ,  2.22584712,  7.71927776,  7.67398873,
+         1.80188066,  2.58162556],
+       [ 1.411857  ,  1.41011399,  1.4909414 ,  1.50987044,  1.46764162,
+         1.8779709 ,  1.70232433,  2.16371472,  2.8266522 ,  2.03626738,
+         2.43268328,  6.47444709,  7.745492  , 16.25207438, 14.27371572,
+         6.12199992,  5.13091404],
+       [ 1.88424917,  1.69646305,  1.75829603,  1.79497454,  1.89181109,
+         2.29069112,  2.58236851,  4.82837597,  5.54433209,  3.4245605 ,
+         3.63215097, 16.06407953, 18.46977448, 29.2672358 , 27.22291975,
+        13.97790465,  8.60922717]])
+
+##
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_bigsize'; conf.imsz = (370,370)
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet
+import PoseUNet_dataset as PoseUNet
+p_sz, a_sz = PoseUNet.find_pad_sz(4,conf.imsz[0])
+print a_sz
+self = PoseUNet.PoseUNet(conf,'unet_normal',pad_input=False)
+self.no_pad = False
+V = self.classify_val()
+res = np.array([[ 
+         0.98620233,  0.9786099 ,  1.01941633,  1.07697158,  1.00742492,
+         1.24968693,  1.14800857,  1.25494557,  1.35248244,  1.26459464,
+         1.41850476,  1.93642125,  1.60284831,  4.06058365,  4.3859752 ,
+         1.37678068,  1.73050898],
+       [ 1.12302871,  1.11663465,  1.17529383,  1.22344293,  1.18046456,
+         1.46456901,  1.33599668,  1.46243195,  1.71147341,  1.49174647,
+         1.80165816,  3.10616325,  2.19588043,  7.75907127,  8.16062767,
+         1.88448457,  2.72386498],
+       [ 1.31541317,  1.26913098,  1.40450654,  1.41293778,  1.35187287,
+         1.72756703,  1.55066613,  1.78846342,  2.16925917,  1.8466465 ,
+         2.20025773,  5.52011341,  5.78261234, 13.13517895, 13.06098281,
+         4.5005043 ,  4.654813  ],
+       [ 1.45613192,  1.3729816 ,  1.52022675,  1.53623933,  1.46596672,
+         1.92166377,  1.68887798,  2.04901475,  2.77195796,  2.10986361,
+         2.69801734,  7.55774382, 10.09153403, 18.21167019, 16.99532555,
+         9.09804169,  6.94224414]])
+
+
+##
 from poseConfig import aliceConfig as conf
 conf.cachedir += '_moreeval'
 import os
