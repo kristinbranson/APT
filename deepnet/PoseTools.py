@@ -103,7 +103,7 @@ def normalize_mean(in_img, conf):
         xx = zz - zz.mean()
     else:
         xx = zz
-    xx = xx.astype('uint8')
+    # xx = xx.astype('uint8')
     return xx
 
 
