@@ -109,7 +109,7 @@ class PoseUNet(PoseCommon):
         self.all_layers = None
         self.for_training = 1 # for prediction.
         self.scale = self.conf.unet_rescale
-        self.no_pad = False
+        self.no_pad = pad_input
 
         if pad_input:
             self.pad_y,_ = find_pad_sz(n_layers=4,in_sz=conf.imsz[0])
@@ -134,10 +134,11 @@ class PoseUNet(PoseCommon):
         info.set_shape([conf.batch_size,3])
 
         with tf.variable_scope(self.net_name):
-            if self.no_pad:
-                return self.create_network_nopad()
-            else:
-                return self.create_network1()
+            return self.create_network_nopad()
+#             if self.no_pad:
+#                 return self.create_network_nopad()
+#             else:
+#                 return self.create_network1()
             # return self.create_network_residual()
 
 
@@ -225,7 +226,7 @@ class PoseUNet(PoseCommon):
                     out_shape = [X_sh[0], X_sh[1] * 2 + 2, X_sh[2] * 2 + 2, X_sh[-1]]
                     X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,strides=[1, 2, 2, 1], padding="VALID")
                 else:
-                    out_shape = [X_sh[0], layers_sz[0], layers_sz[1], X_sh[-1]]
+                    out_shape = [X_sh[0], layers_sz[ndx][0], layers_sz[ndx][1], X_sh[-1]]
                     X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
 
                 biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
