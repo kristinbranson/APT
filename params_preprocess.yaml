@@ -27,7 +27,7 @@ ROOT:
       - ['Multiple Targets','',false,"APT tracks multiple animals by relying on another piece of software, e.g. Ctrax, to track the body positions of each animal. Using the trajectories output by e.g. Ctrax, APT crops out regions centered around each tracked animal and runs part-tracking on these image crops. These parameters describe how image patches around individual animals are cropped out.",'','','','']
       - TargetCrop:
         - ['Target ROI','',false,'APT tracks multiple animals by relying on another piece of software, e.g. Ctrax, to track the body positions of each animal. Using the trajectories output by e.g. Ctrax, APT crops out regions centered around each tracked animal and runs part-tracking on these image crops. These parameters describe how image patches around individual animals are cropped out.','','','','']
-        - Radius: ['Radius',unsigned,true,'Radius (in pixels) of the square cropped around each target.',50,'ParameterVisualizationTgtCropRadius','Important','hasTrx']
+        - Radius: ['Radius',float,true,'Radius (in pixels) of the square cropped around each target.',50,'ParameterVisualizationTgtCropRadius','Important','hasTrx']
         - PadBkgd: ['Pad background',unsigned,true,'If the cropped regions need to be padded, this value indicates the image intensity to pad with.',0,'','Advanced','hasTrx']
       - NeighborMask:
         - ['Mask Neighbors','',false,"When targets come in close proximity to each other, non-touching neighbors can be masked.",'','','','']
