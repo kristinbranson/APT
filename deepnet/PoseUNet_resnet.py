@@ -564,7 +564,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             pp = y[:, cls:cls + 1, :]/locs_offset
             kk = tf.sqrt(tf.reduce_sum(tf.square(pp - mdn_locs[:, :, cls, :]), axis=2))
             # kk is the distance between all predictions for point cls from the labels.
-            kk = tf.clip_by_value(kk-self.min_dist,0,self.max_dist)
+            kk = tf.clip_by_value(kk-self.min_dist/locs_offset/self.conf.rescale,0,self.max_dist/locs_offset/self.conf.rescale)
             kk = tf.stop_gradient(kk)
             dd = tf.abs(kk-mdn_dist[:,:,cls])
             cur_comp.append(dd)

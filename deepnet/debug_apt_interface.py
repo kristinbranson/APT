@@ -1,19 +1,38 @@
+## stephen without image mean normalization
 import APT_interface as apt
 import os
 import PoseUNet_resnet as PoseUNet
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
-conf = apt.create_conf(lbl_file, 1, 'conf','/tmp',net_type='umdn')
-conf.cachedir = '/nrs/branson/mayank/apt_cache/stephen_view1'
-self = PoseUNet.PoseUMDN_resnet(conf)
-
+view = 1
+conf = apt.create_conf(lbl_file, view, 'conf','/tmp',net_type='umdn')
+conf.cachedir = '/nrs/branson/mayank/apt_cache/stephen_view{}'.format(view)
+conf.normalize_img_mean = False
+self = PoseUNet.PoseUMDN_resnet(conf,name='no_mean_norm')
+self.train_umdn()
 V = self.classify_val()
+
+##
+import APT_interface as apt
+import os
+import PoseUNet_resnet as PoseUNet
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
+view = 1
+conf = apt.create_conf(lbl_file, view, 'conf','/tmp',net_type='umdn')
+conf.cachedir = '/nrs/branson/mayank/apt_cache/stephen_view{}'.format(view)
+self = PoseUNet.PoseUMDN_resnet(conf)
+V = self.classify_val()
+res = np.array([
+    [ 7.24539496,  7.8049516 ,  7.97217146,  8.44032115,  7.69838612],
+    [ 8.76899118,  9.63168685,  9.55280912, 10.26671805,  9.54993247],
+    [10.91299409, 12.02790342, 11.79002365, 13.02997551, 11.82780871],
+    [12.50440241, 15.64563049, 13.13194025, 14.71218933, 13.96273946]])
 
 unet_pred = V[6][-1]
 mdn_pred = V[3]
 locs = V[4]
-xx = V[5][3]
+xx = V[5][3]*self.offset
 ii = np.argmax(V[5][2],axis=1)
 mdn_conf = np.zeros([xx.shape[0],5])
 for ndx in range(V[5][0].shape[0]):
@@ -23,23 +42,99 @@ for ndx in range(V[5][0].shape[0]):
 dd = np.sqrt(np.sum((locs-mdn_pred)**2,axis=-1))
 dd_unet = np.sqrt(np.sum((locs-unet_pred)**2,axis=-1))
 dd_unet_mdn = np.sqrt(np.sum((mdn_pred-unet_pred)**2,axis=-1))
-pos = dd > self.min_dist
+unet_conf = np.max(V[6][0],axis=(1,2))
+pos = dd > self.min_dist;#self.min_dist
 pt = 1
 from sklearn.metrics import roc_curve, auc
 fpr_mdn,tnr_mdn,_ = roc_curve(pos[:,pt],mdn_conf[:,pt])
 fpr_unet, tnr_unet,_ = roc_curve(pos[:,pt], dd_unet_mdn[:,pt])
-dd_comb = np.maximum(dd_unet_mdn,mdn_conf)
+fpr_unetc, tnr_unetc,_ = roc_curve(pos[:,pt], -unet_conf[:,pt])
+# dd_comb = np.maximum(dd_unet_mdn,mdn_conf)
+dd_comb = dd_unet_mdn+mdn_conf
+
 fpr_comb, tnr_comb,_ = roc_curve(pos[:,pt], dd_comb[:,pt])
 
 from matplotlib import pyplot as plt
 plt.figure()
 plt.scatter(dd[:,pt],mdn_conf[:,pt])
+plt.figure()
+plt.scatter(dd[:,pt],dd_unet_mdn[:,pt])
 
-f,ax = plt.subplots(1,3)
-ax = ax.flatten()
-ax[0].plot(fpr_mdn,tnr_mdn)
-ax[1].plot(fpr_unet,tnr_unet)
-ax[2].plot(fpr_comb,tnr_comb)
+plt.figure()
+plt.plot(fpr_mdn,tnr_mdn)
+plt.plot(fpr_unet,tnr_unet)
+plt.plot(fpr_unetc,tnr_unetc)
+plt.plot(fpr_comb,tnr_comb)
+plt.legend(['mdn','unet','unetc','comb'])
+
+##
+from matplotlib import pyplot as plt
+tr = 12
+kk = np.where(np.any(V[0]>tr,axis=1))[0]
+pt = np.random.choice(kk)
+jj = np.where(V[0][pt,:]>tr)[0][0]
+plt.imshow(V[2][pt,:,:,jj])
+plt.scatter(V[4][pt,jj,0],V[4][pt,jj,1])
+plt.figure()
+plt.imshow(V[1][pt,:,:,0],'gray')
+plt.scatter(V[4][pt,jj,0],V[4][pt,jj,1])
+
+##
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval';
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet
+import PoseUNet_dataset as PoseUNet
+self = PoseUNet.PoseUNet(conf,'normal',pad_input=False)
+self.no_pad = False
+V = self.classify_val()
+
+res = np.array([[
+         1.33725852,  1.44260777,  1.2197094 ,  1.4054476 ,  1.35461989,
+         1.56339064,  1.26828579,  1.67202601,  1.64307798,  1.58602942,
+         1.53797884,  2.02196571,  1.69124296,  3.61847242,  3.67470543,
+         1.33736349,  1.59257857],
+       [ 1.50369884,  1.63343346,  1.37017441,  1.56989693,  1.52073472,
+         1.81230858,  1.43857005,  1.91531989,  1.96209875,  1.80547304,
+         1.86310851,  2.93751308,  2.18633115,  6.91663258,  7.43064016,
+         1.7052951 ,  2.31254946],
+       [ 1.66861117,  1.87583231,  1.5277497 ,  1.77298601,  1.7090494 ,
+         2.1332188 ,  1.66154602,  2.33803084,  2.43522788,  2.09856196,
+         2.37024879,  5.07045206,  4.64947697, 12.4103475 , 12.49274121,
+         4.09860036,  3.98436972],
+       [ 1.83226236,  1.99950524,  1.62278993,  1.91806128,  1.83863565,
+         2.36829227,  1.83341173,  2.70041566,  3.03500595,  2.40945369,
+         2.76952887,  7.3060946 ,  8.71812219, 17.10891411, 15.22070564,
+         8.70113416,  6.7436511 ]])
+
+##
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval';
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet
+import PoseUNet_dataset as PoseUNet
+self = PoseUNet.PoseUNet(conf,'pad_input',pad_input=True)
+self.no_pad = True
+V = self.classify_val()
+res = np.array([[ 
+        0.95649637,  1.02741287,  1.04891375,  1.07227733,  1.02023282,
+         1.27983229,  1.09385869,  1.31877817,  1.3403253 ,  1.30063015,
+         1.41057154,  1.72905072,  1.45960683,  3.40282266,  3.17321152,
+         1.40711469,  1.53104846],
+       [ 1.09724486,  1.16849824,  1.22082977,  1.24287679,  1.19170516,
+         1.53320109,  1.26721911,  1.54900245,  1.69752963,  1.54619462,
+         1.75219689,  2.72170986,  1.98324972,  7.71005632,  6.90737272,
+         1.82825058,  2.44256888],
+       [ 1.31465742,  1.35346597,  1.49190471,  1.49177832,  1.40930846,
+         1.85047257,  1.56990009,  1.97619232,  2.48437686,  1.94906626,
+         2.35587152,  5.23579364,  5.49393322, 14.4646526 , 12.48910452,
+         5.18257147,  4.67947102],
+       [ 1.49047977,  1.58661416,  1.74333241,  1.74709639,  1.71730347,
+         2.18539484,  1.87386084,  2.8115908 ,  3.51928015,  2.47797139,
+         3.02428713, 10.29741283, 12.1697288 , 20.66926424, 16.88128325,
+        11.85019535,  8.162599  ]])
 
 ##
 from poseConfig import aliceConfig as conf
@@ -84,22 +179,22 @@ self = PoseUNet.PoseUNet(conf,'unet_normal',pad_input=False)
 self.no_pad = False
 V = self.classify_val()
 res = np.array([[ 
-         0.98620233,  0.9786099 ,  1.01941633,  1.07697158,  1.00742492,
-         1.24968693,  1.14800857,  1.25494557,  1.35248244,  1.26459464,
-         1.41850476,  1.93642125,  1.60284831,  4.06058365,  4.3859752 ,
-         1.37678068,  1.73050898],
-       [ 1.12302871,  1.11663465,  1.17529383,  1.22344293,  1.18046456,
-         1.46456901,  1.33599668,  1.46243195,  1.71147341,  1.49174647,
-         1.80165816,  3.10616325,  2.19588043,  7.75907127,  8.16062767,
-         1.88448457,  2.72386498],
-       [ 1.31541317,  1.26913098,  1.40450654,  1.41293778,  1.35187287,
-         1.72756703,  1.55066613,  1.78846342,  2.16925917,  1.8466465 ,
-         2.20025773,  5.52011341,  5.78261234, 13.13517895, 13.06098281,
-         4.5005043 ,  4.654813  ],
-       [ 1.45613192,  1.3729816 ,  1.52022675,  1.53623933,  1.46596672,
-         1.92166377,  1.68887798,  2.04901475,  2.77195796,  2.10986361,
-         2.69801734,  7.55774382, 10.09153403, 18.21167019, 16.99532555,
-         9.09804169,  6.94224414]])
+         1.01337715,  1.05705156,  1.07776031,  1.09172904,  1.06536099,
+         1.48785068,  1.27296158,  1.33163499,  1.6128113 ,  1.46002975,
+         1.44665614,  1.8028599 ,  1.53172588,  3.88912751,  4.49638049,
+         1.40090689,  1.66136731],
+       [ 1.17340684,  1.21460893,  1.24967976,  1.27470344,  1.25700266,
+         1.78026737,  1.51757002,  1.58810376,  2.08679414,  1.71911213,
+         1.82005424,  2.75833757,  2.20933533,  7.74779025,  8.49043286,
+         1.88379963,  2.56583515],
+       [ 1.41253535,  1.43810346,  1.48506689,  1.53555795,  1.54355258,
+         2.14507233,  1.83928879,  2.03955129,  2.92512937,  2.1207873 ,
+         2.46551749,  5.7303777 ,  6.61282364, 14.16446044, 15.11038458,
+         5.97520839,  4.9157388 ],
+       [ 1.9945976 ,  1.81462598,  1.84469387,  1.87837574,  1.82111803,
+         2.62341737,  2.39273338,  2.84012614,  4.22403285,  2.76444815,
+         3.63215097, 13.98818852, 14.41327968, 26.60785536, 22.10706024,
+        13.97790465, 10.49898462]])
 
 
 ##
@@ -111,7 +206,7 @@ import PoseUNet
 import PoseUNet_dataset as PoseUNet
 p_sz, a_sz = PoseUNet.find_pad_sz(4,conf.imsz[0])
 print a_sz
-self = PoseUNet.PoseUNet(conf,'test_pad',pad_input=True)
+self = PoseUNet.PoseUNet(conf,'test_pad',pad_input=False)
 self.no_pad = True
 self.train_unet()
 V = self.classify_val()
