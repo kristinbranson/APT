@@ -632,6 +632,7 @@ prop.setName(label);
 prop.setExpanded(true);
 prop.setValue(pgp.Value);
 prop.setEditable(pgp.isEditable);
+prop.setHidden(~pgp.Visible);
 if isempty(fqnBase)
   fqn = propName;
 else

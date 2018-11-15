@@ -58,19 +58,12 @@ function ParameterSetup_OpeningFcn(hObject, eventdata, handles, varargin)
 % sPrm: If "Apply" is pushed, parameter structure; otherwise, []
 
 hParent = varargin{1};
-handles.tree0 = varargin{2};
+handles.tree = varargin{2};
 pvargs = varargin(3:end);
 
-labelerObj = myparse(pvargs,...
+handles.labelerObj = myparse(pvargs,...
   'labelerObj',[]);
-tfLabelerSupplied = ~isempty(labelerObj);
-
-if tfLabelerSupplied,
-  handles.tree = APTParameters.filterPropertiesByCondition(handles.tree0,labelerObj);
-else
-  handles.tree = handles.tree0;
-end
-
+tfLabelerSupplied = ~isempty(handles.labelerObj);
 
 hFig = handles.figParameterSetup;
 centerOnParentFigure(hFig,hParent);
@@ -105,7 +98,7 @@ assert(isa(handles.tree,'TreeNode') && isscalar(handles.tree));
 assert(strcmp(handles.tree.Data.Field,'ROOT'));
 rootnode = TreeNode(handles.tree.Data);
 if tfLabelerSupplied
-  pvh = ParameterVizHandler(labelerObj,handles.figParameterSetup,...
+  pvh = ParameterVizHandler(handles.labelerObj,handles.figParameterSetup,...
     handles.axViz,cbkToggleParamVizPane);
   pvh.init();
 else
@@ -133,12 +126,12 @@ function setPropertiesPanel(handles,varargin)
 [dofilter] = myparse(varargin,'dofilter',true);
 
 if dofilter,
-  filteredtree = APTParameters.filterPropertiesByLevel(handles.tree,handles.level);
-else
-  filteredtree = handles.tree0;
+  APTParameters.setAllVisible(handles.tree);
+  APTParameters.filterPropertiesByCondition(handles.tree,handles.labelerObj);
+  APTParameters.filterPropertiesByLevel(handles.tree,handles.level);
 end
 
-children = filteredtree.Children;
+children = handles.tree.Children;
 pvh = getappdata(handles.figParameterSetup,'parameterVizHandler');
 if isempty(pvh),
   propertiesGUI2(handles.pnlParams,children);
@@ -163,7 +156,7 @@ end
 
 %handles.level = handles.maxlevel;
 %guidata(hObject,handles);
-setPropertiesPanel(handles,'dofilter',false);
+%setPropertiesPanel(handles,'dofilter',false);
 drawnow;
 t = getappdata(hFig,'mirror');
 rootnode = getappdata(hFig,'rootnode');
