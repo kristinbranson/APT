@@ -128,13 +128,13 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
 class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
-    def __init__(self, conf, name='umdn_resnet',no_pad=False):
+    def __init__(self, conf, name='umdn_resnet',pad_input=False):
         conf.use_pretrained_weights = True
 #        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
         self.resnet_source = 'official_tf'
         self.offset = 32.
-        PoseUMDN.PoseUMDN.__init__(self, conf, name=name,no_pad=no_pad)
+        PoseUMDN.PoseUMDN.__init__(self, conf, name=name,pad_input=pad_input)
         self.dep_nets = []
         self.max_dist = 30
         self.min_dist = 5
@@ -564,7 +564,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             pp = y[:, cls:cls + 1, :]/locs_offset
             kk = tf.sqrt(tf.reduce_sum(tf.square(pp - mdn_locs[:, :, cls, :]), axis=2))
             # kk is the distance between all predictions for point cls from the labels.
-            kk = tf.clip_by_value(kk-self.min_dist,9,self.max_dist)
+            kk = tf.clip_by_value(kk-self.min_dist/locs_offset/self.conf.rescale,0,self.max_dist/locs_offset/self.conf.rescale)
             kk = tf.stop_gradient(kk)
             dd = tf.abs(kk-mdn_dist[:,:,cls])
             cur_comp.append(dd)
@@ -731,7 +731,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 self.fd_train()
             else:
                 self.fd_val()
-            if self.conf.use_unet_loss:
+            if self.conf.mdn_use_unet_loss:
                 pred_means, pred_std, pred_weights, pred_dist, cur_input, unet_pred = sess.run(
                     [p_m, p_s, p_w, p_d, self.inputs, self.unet_pred], self.fd)
             else:
@@ -788,7 +788,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             val_locs.append(cur_input[1])
             val_preds.append(mdn_pred_out)
             val_predlocs.append(cur_predlocs)
-            if self.conf.use_unet_loss:
+            if self.conf.mdn_use_unet_loss:
                 val_u_preds.append(unet_pred)
                 val_u_predlocs.append(PoseTools.get_pred_locs(unet_pred))
 
@@ -808,7 +808,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_wts = val_reshape(val_wts)
         val_dist_pred = val_reshape(val_dist_pred)
         tf.reset_default_graph()
-        if self.conf.use_unet_loss:
+        if self.conf.mdn_use_unet_loss:
             val_u_preds = val_reshape(val_u_preds)
             val_u_predlocs = val_reshape(val_u_predlocs)
             return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
