@@ -1442,3 +1442,8 @@ def create_cum_plot(dd,d_max=None):
             cum_stats[ndx].append(np.count_nonzero(dd[:,ndx]<z))
 
     return np.array(cum_stats)
+
+
+def datestr():
+    import datetime
+    return datetime.datetime.now().strftime('%Y%m%d')

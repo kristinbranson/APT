@@ -17,6 +17,7 @@ import APT_interface as apt
 import numpy as np
 import movies
 import math
+import PoseTools
 
 # default_net_name = 'pose_unet_full_20180302'
 default_net_name = 'deepnet'
@@ -131,6 +132,10 @@ def getexpname(dirname):
     dir_parts = dirname.split(os.sep)
     expname = dir_parts[-6] + "!" + dir_parts[-3] + "!" + dir_parts[-1][-10:-4]
     return expname
+
+def update_conf(conf):
+    conf.normalize_img_mean = False
+    conf.adjustContrast = True
 
 def main(argv):
 
@@ -256,6 +261,7 @@ def main(argv):
         if args.detect:
             tf.reset_default_graph()
         conf = apt.create_conf(lbl_file,view=view,name=name,cache_dir=cache_dir,net_type=model_type)
+        update_conf(conf)
         if view ==0:
             # from stephenHeadConfig import sideconf as conf
             extrastr = '_side'
@@ -448,3 +454,20 @@ def test_crop():
 
     hdf5storage.savemat('/groups/branson/bransonlab/mayank/stephen_copy/auto_crop_locs_trn4879',
                         {'flynum': flynums, 'crop_locs': crop_locs})
+
+
+def train():
+    import PoseUNet_resnet as PoseURes
+    import tensorflow as tf
+
+    dstr = PoseTools.datestr()
+    cur_name = 'stephen_{}'.format(dstr)
+
+    for view in range(2):
+        conf = apt.create_conf(lbl_file,view=view,name=cur_name,cache_dir=cache_dir,net_type=model_type)
+        update_conf(conf)
+        apt.create_tfrecord(conf, False, use_cache=True)
+        tf.reset_default_graph()
+        self = PoseURes.PoseUMDN_resnet(conf, name='deepnet')
+        self.train_data_name = 'traindata'
+        self.train_umdn()
