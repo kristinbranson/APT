@@ -19,6 +19,7 @@ classdef APTParameters
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;tPrmCpr.Children;tPrmDT.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
+      tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
     function sPrm0 = defaultParamsStruct
       % sPrm0: "new-style"
@@ -71,7 +72,23 @@ classdef APTParameters
       tPrm.Data.Level = PropertyLevelsEnum(minLevel);
       
     end
-    
+    function [tPrm,rqts] = propagateRequirementsFromLeaf(tPrm)
+      
+      if isempty(tPrm.Children),
+        rqts = tPrm.Data.Requirements;
+        return;
+      end
+      for i = 1:numel(tPrm.Children),
+        [tPrm.Children(i),rqts1] = APTParameters.propagateRequirementsFromLeaf(tPrm.Children(i));
+        if i == 1,
+          rqts = rqts1;
+        else
+          rqts = intersect(rqts,rqts1);
+        end
+      end
+      tPrm.Data.Requirements = rqts;
+      
+    end
     function filteredtree = filterPropertiesByLevel(tree,level)
       
       if tree.Data.Level > level,
@@ -81,6 +98,31 @@ classdef APTParameters
       filteredtree = TreeNode(tree.Data);
       for i = 1:numel(tree.Children),
         filteredchild = APTParameters.filterPropertiesByLevel(tree.Children(i),level);
+        if ~isempty(filteredchild),
+          filteredtree.Children = [filteredtree.Children;filteredchild];
+        end
+      end
+      
+    end
+    
+    function filteredtree = filterPropertiesByCondition(tree,labelerObj)
+      
+      if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(labelerObj.trackerAlgo,'cpr'),
+        filteredtree = [];
+        return;
+      end
+      if ismember('hasTrx',tree.Data.Requirements) && ~labelerObj.hasTrx,
+        filteredtree = [];
+        return;
+      end
+      if ismember('isDeepTrack',tree.Data.Requirements) && ~strcmpi(labelerObj.trackerAlgo,'poseTF'),
+        filteredtree = [];
+        return;
+      end
+
+      filteredtree = TreeNode(tree.Data);
+      for i = 1:numel(tree.Children),
+        filteredchild = APTParameters.filterPropertiesByCondition(tree.Children(i),labelerObj);
         if ~isempty(filteredchild),
           filteredtree.Children = [filteredtree.Children;filteredchild];
         end
