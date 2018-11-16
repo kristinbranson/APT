@@ -6,6 +6,8 @@ classdef TrainMonitorViz < handle
     hline % [nviewx2] line handle, one loss curve per view
     hlinekill % [nviewx2] line handle, killed marker per view
     
+    axisXRange = 2e3; % show last (this many) iterations along x-axis
+    
     resLast % last training json contents received
   end
   
@@ -50,7 +52,8 @@ classdef TrainMonitorViz < handle
       % trnComplete: scalar logical, true when all views done
       
       res = sRes.result;
-      tfAnyUpdate = false;
+      tfAnyLineUpdate = false;
+      lineUpdateMaxStep = 0;
       
       h = obj.hline;
       for ivw=1:numel(res)
@@ -59,9 +62,8 @@ classdef TrainMonitorViz < handle
             contents = res(ivw).contents;
             set(h(ivw,1),'XData',contents.step,'YData',contents.train_loss);
             set(h(ivw,2),'XData',contents.step,'YData',contents.train_dist);
-            lclAutoAxisWithYLim0(obj.haxs(1));
-            lclAutoAxisWithYLim0(obj.haxs(2));
-            tfAnyUpdate = true;
+            tfAnyLineUpdate = true;
+            lineUpdateMaxStep = max(lineUpdateMaxStep,contents.step(end));
           end
 
           if res(ivw).killFileExists && res(ivw).jsonPresent
@@ -87,9 +89,12 @@ classdef TrainMonitorViz < handle
         end
       end
       
+      if tfAnyLineUpdate
+        obj.adjustAxes(lineUpdateMaxStep);
+      end
       obj.updateAnn([res.pollsuccess]);
       
-      if isempty(obj.resLast) || tfAnyUpdate
+      if isempty(obj.resLast) || tfAnyLineUpdate
         obj.resLast = res;
       end
       
@@ -123,6 +128,16 @@ classdef TrainMonitorViz < handle
       hAnn.Position(1) = ax.Position(1)+ax.Position(3)-hAnn.Position(3);
       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
     end
+    function adjustAxes(obj,lineUpdateMaxStep)
+      for i=1:numel(obj.haxs)
+        ax = obj.haxs(i);
+        
+        x0 = max(0,lineUpdateMaxStep-obj.axisXRange);
+        x1 = lineUpdateMaxStep+0.5*(lineUpdateMaxStep-x0);
+        xlim(ax,[x0 x1]);
+        ylim(ax,'auto');
+      end
+    end
   end
   
   methods (Static)
@@ -140,11 +155,4 @@ classdef TrainMonitorViz < handle
    end
   end
   
-end
-
-function lclAutoAxisWithYLim0(ax)
-axis(ax,'auto');
-yl = ylim(ax);
-yl(1) = 0;
-ylim(ax,yl);
 end

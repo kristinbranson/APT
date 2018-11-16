@@ -18,7 +18,7 @@ classdef BgTrackWorkerObj < handle
     movfiles % [nview] full paths movie being tracked
     artfctTrkfiles % [nview] full paths trkfile to be generated/output
     artfctLogfiles % [nview] cellstr of fullpaths to bsub logs
-    artfctErrFile % char fullpath to DL errfile    
+    artfctErrFiles % [nview] char fullpath to DL errfile    
   end
   
   methods (Abstract)
@@ -29,21 +29,21 @@ classdef BgTrackWorkerObj < handle
   end
   
   methods
-    function obj = BgTrackWorkerObj(mIdx,nvw,movfiles,outfiles,logfiles,dlerrfile)  
+    function obj = BgTrackWorkerObj(mIdx,nvw,movfiles,outfiles,logfiles,dlerrfiles)  
       assert(isequal(nvw,numel(movfiles),numel(outfiles),...
-        numel(logfiles))); 
+        numel(logfiles),numel(dlerrfiles)));
       
       obj.mIdx = mIdx;
       obj.nview = nvw;
       obj.movfiles = movfiles(:);
       obj.artfctTrkfiles = outfiles(:);
       obj.artfctLogfiles = logfiles(:);
-      obj.artfctErrFile = dlerrfile;
+      obj.artfctErrFiles = dlerrfiles(:);
     end    
     function sRes = compute(obj)
       % sRes: [nview] struct array      
       
-      tfErrFileErr = obj.errFileExistsNonZeroSize(obj.artfctErrFile);      
+      tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctErrFiles,'uni',0);
       bsuberrlikely = cellfun(@obj.logFileErrLikely,obj.artfctLogfiles,'uni',0);
       
       sRes = struct(...
