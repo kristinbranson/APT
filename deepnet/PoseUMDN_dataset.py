@@ -86,15 +86,15 @@ class PoseUMDN(PoseCommon.PoseCommon):
         self.i_locs = None
         self.input_dtypes = [tf.float32, tf.float32, tf.float32, tf.float32]
         self.no_pad = False
-
+ 
         if pad_input:
             self.pad_y = find_pad_sz(n_layers=5,in_sz=conf.imsz[0])
             self.pad_x = find_pad_sz(n_layers=5,in_sz=conf.imsz[1])
 
         def train_pp(ims,locs,info):
-            return preproc_func(ims,locs,info, conf, True, no_pad=self.no_pad, pad_x=self.pad_x, pad_y=self.pad_y)
+            return preproc_func(ims,locs,info, conf, True, pad_input=pad_input, pad_x=self.pad_x, pad_y=self.pad_y)
         def val_pp(ims,locs,info):
-            return preproc_func(ims,locs,info, conf, False, no_pad = self.no_pad, pad_x = self.pad_x, pad_y = self.pad_y)
+            return preproc_func(ims,locs,info, conf, False, pad_input=pad_input, pad_x = self.pad_x, pad_y = self.pad_y)
 
         self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], self.input_dtypes))
         self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], self.input_dtypes))
