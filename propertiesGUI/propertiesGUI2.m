@@ -610,6 +610,21 @@ propName = pgp.Field;
 label = pgp.DispNameUse;
 dataType = pgp.Type;
 description = pgp.Description;
+level = pgp.Level;
+
+switch lower(char(level)),
+  case 'important' 
+    color = 'A41D24';
+  case 'beginner',
+    color = '0590B7';
+  case 'advanced',
+    color = '582F96';
+  case 'developer',
+    color = '627561';
+  otherwise
+    error('Unknown level %s',level);
+end
+
 
 prop = javaObjectEDT(com.jidesoft.grid.DefaultProperty); % UNDOCUMENTED internal MATLAB component
 prop = handle(prop,'CallbackProperties');
@@ -617,6 +632,7 @@ prop.setName(label);
 prop.setExpanded(true);
 prop.setValue(pgp.Value);
 prop.setEditable(pgp.isEditable);
+prop.setHidden(~pgp.Visible);
 if isempty(fqnBase)
   fqn = propName;
 else
@@ -761,7 +777,7 @@ renderer.setToolTipText('');
 % end
 
 if prop.isEditable
-  prop.setDisplayName(['<html><font color="black">' label]);
+  prop.setDisplayName(['<html><font color="',color,'">' label]);
   % Add callbacks for property-change events
   hprop = handle(prop, 'CallbackProperties');
   

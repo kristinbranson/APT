@@ -61,9 +61,9 @@ hParent = varargin{1};
 handles.tree = varargin{2};
 pvargs = varargin(3:end);
 
-labelerObj = myparse(pvargs,...
+handles.labelerObj = myparse(pvargs,...
   'labelerObj',[]);
-tfLabelerSupplied = ~isempty(labelerObj);
+tfLabelerSupplied = ~isempty(handles.labelerObj);
 
 hFig = handles.figParameterSetup;
 centerOnParentFigure(hFig,hParent);
@@ -98,7 +98,7 @@ assert(isa(handles.tree,'TreeNode') && isscalar(handles.tree));
 assert(strcmp(handles.tree.Data.Field,'ROOT'));
 rootnode = TreeNode(handles.tree.Data);
 if tfLabelerSupplied
-  pvh = ParameterVizHandler(labelerObj,handles.figParameterSetup,...
+  pvh = ParameterVizHandler(handles.labelerObj,handles.figParameterSetup,...
     handles.axViz,cbkToggleParamVizPane);
   pvh.init();
 else
@@ -121,11 +121,17 @@ guidata(handles.figParameterSetup,handles);
 uiwait(hFig);
 % UIWAIT makes ParameterSetup wait for user response (see UIRESUME)
 
-function setPropertiesPanel(handles)
+function setPropertiesPanel(handles,varargin)
 
-filteredtree = APTParameters.filterPropertiesByLevel(handles.tree,handles.level);
+[dofilter] = myparse(varargin,'dofilter',true);
 
-children = filteredtree.Children;
+if dofilter,
+  APTParameters.setAllVisible(handles.tree);
+  APTParameters.filterPropertiesByCondition(handles.tree,handles.labelerObj);
+  APTParameters.filterPropertiesByLevel(handles.tree,handles.level);
+end
+
+children = handles.tree.Children;
 pvh = getappdata(handles.figParameterSetup,'parameterVizHandler');
 if isempty(pvh),
   propertiesGUI2(handles.pnlParams,children);
@@ -148,9 +154,9 @@ if ~isempty(ce)
   drawnow; % otherwise this method can finish, deleting hFig, before propupdated callback fires
 end
 
-handles.level = handles.maxlevel;
-guidata(hObject,handles);
-setPropertiesPanel(handles);
+%handles.level = handles.maxlevel;
+%guidata(hObject,handles);
+%setPropertiesPanel(handles,'dofilter',false);
 drawnow;
 t = getappdata(hFig,'mirror');
 rootnode = getappdata(hFig,'rootnode');
