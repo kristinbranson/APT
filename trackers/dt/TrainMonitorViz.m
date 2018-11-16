@@ -133,7 +133,7 @@ classdef TrainMonitorViz < handle
         ax = obj.haxs(i);
         
         x0 = max(0,lineUpdateMaxStep-obj.axisXRange);
-        x1 = lineUpdateMaxStep+0.5*(lineUpdateMaxStep-x0);
+        x1 = max(1,lineUpdateMaxStep+0.5*(lineUpdateMaxStep-x0));
         xlim(ax,[x0 x1]);
         ylim(ax,'auto');
       end
