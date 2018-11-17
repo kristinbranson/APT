@@ -2,29 +2,8 @@ classdef BgTrainWorkerObjBsub < BgTrainWorkerObj
   
   methods
     
-    function obj = BgTrainWorkerObjBsub(dlLblFile,jobID,logFiles)
-      obj@BgTrainWorkerObj(dlLblFile,jobID);
-      
-      assert(iscellstr(logFiles) && numel(logFiles)==obj.nviews);
-      obj.artfctLogs = logFiles;
-
-      [obj.artfctTrainDataJson,obj.artfctFinalIndex,obj.artfctErrFile] = ...
-        arrayfun(@obj.trainMonitorArtifacts,1:obj.nviews,'uni',0);
-    end
-    
-    function [json,finalindex,errfile] = trainMonitorArtifacts(obj,ivw)
-      cacheDir = obj.sPrm.CacheDir;
-      projvw = sprintf('%s_view%d',obj.projname,ivw-1); % !! cacheDirs are 0-BASED
-      subdir = fullfile(cacheDir,projvw,obj.jobID);
-      
-      json = sprintf('traindata.json');
-      json = fullfile(subdir,json);
-      
-      finaliter = obj.sPrm.dl_steps;
-      finalindex = sprintf('%s_pose_unet-%d.index',projvw,finaliter);
-      finalindex = fullfile(subdir,finalindex);
-      
-      errfile = DeepTracker.dlerrGetErrFile(obj.jobID);
+    function obj = BgTrainWorkerObjBsub(nviews,dmcs)
+      obj@BgTrainWorkerObj(nviews,dmcs);      
     end
     
     function tf = fileExists(~,file)

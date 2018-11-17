@@ -44,7 +44,9 @@ classdef BgTrainWorkerObj < handle
       % - Read the json for every view and see if it has been updated.
       % - Check for completion 
       sRes = struct(...
-        'jsonPath',cell(obj.nviews,1),... % char, full path to json trnlog being polled
+        'pollsuccess',cell(obj.nviews,1),... % if true, remote poll cmd was successful
+        'pollts',[],... % datenum time that poll cmd returned
+        'jsonPath',[],... % char, full path to json trnlog being polled
         'jsonPresent',[],... % true if file exists. if false, remaining fields are indeterminate
         'lastTrnIter',[],... % (only if jsonPresent==true) last known training iter for this view. Could be eg -1 or 0 if no iters avail yet.
         'tfUpdate',[],... % (only if jsonPresent==true) true if the current read represents an updated training iter.
@@ -65,6 +67,8 @@ classdef BgTrainWorkerObj < handle
         logFile = obj.artfctLogs{ivw};
         killFile = obj.artfctKills{ivw};
         
+        sRes(ivw).pollsuccess = true;
+        sRes(ivw).pollts = now;
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = obj.fileExists(json);
         sRes(ivw).trainCompletePath = finalindex;

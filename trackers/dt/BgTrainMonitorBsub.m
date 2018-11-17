@@ -2,7 +2,7 @@ classdef BgTrainMonitorBsub < BgTrainMonitor
   
   methods
     
-    function obj = BgTrainMonitorBsub
+    function obj = BgTrainMonitorBsub()
       obj@BgTrainMonitor();
     end
     
