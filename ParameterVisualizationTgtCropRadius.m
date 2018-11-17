@@ -39,7 +39,10 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       rectPos = obj.getRectPos(rad0);
       
       cla(hAx);
+      hold(hAx,'off');
       imshow(im,'Parent',hAx);
+      hold(hAx,'on');
+      axis(hAx,'image');
       colormap(hAx,'gray');
       caxis(hAx,'auto');
 %       axis(hAx,'auto');

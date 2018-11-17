@@ -48,7 +48,7 @@ classdef BgTrackWorkerObj < handle
       
       sRes = struct(...
         'tfcomplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
-        'errFile',obj.artfctErrFile,... % char, full path to DL err file
+        'errFile',obj.artfctErrFiles,... % char, full path to DL err file
         'errFileExists',tfErrFileErr,... % true of errFile exists and has size>0
         'logFile',obj.artfctLogfiles,... % char, full path to Bsub logfile
         'logFileErrLikely',bsuberrlikely,... % true if bsub logfile looks like err
