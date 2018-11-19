@@ -734,6 +734,7 @@ else
           sl = handle(sl,'CallbackProperties');
           spinner.addChangeListener(sl);
           set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
+          %set(sl,'EventCbkCallback',@(varargin)paramVizHandler.propUpdatedSpinner(prop,pvObj,varargin{2},varargin{1},varargin{3:end}));
         end
       end      
       
