@@ -180,5 +180,6 @@ classdef BgTrainMonitor < handle
   
   methods (Abstract)
     prepareHook(obj,trnMonVizObj,bgWorkerObj)
+    killProcess(obj)
   end
 end

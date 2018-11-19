@@ -90,10 +90,10 @@ classdef BgTrainWorkerObj < handle
           if tfupdate
             sRes(ivw).lastTrnIter = newStep;
             obj.trnLogLastStep(ivw) = newStep;
-            sRes(ivw).contents = trnLog;
           else
             sRes(ivw).lastTrnIter = lastKnownStep;
           end
+          sRes(ivw).contents = trnLog;
         end
       end
     end

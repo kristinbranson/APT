@@ -475,7 +475,7 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrm.dl_steps);      
+        'iterFinal',obj.sPrm.dl_steps);
       
       % create/ensure stripped lbl; set trainID
       tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
@@ -486,7 +486,15 @@ classdef DeepTracker < LabelTracker
         dmc.trainID = trainID;
         
         % Write stripped lblfile to local cache
-        dlLblFileLcl = fullfile(cacheDir,dmc.lblStrippedName);
+        dlLblFileLcl = dmc.lblStrippedLnx;
+        dlLblFileLclDir = fileparts(dlLblFileLcl);
+        if exist(dlLblFileLclDir,'dir')==0
+          fprintf('Creating dir: %s\n',dlLblFileLclDir);
+          [succ,msg] = mkdir(dlLblFileLclDir);
+          if ~succ
+            error('Failed to create dir %s: %s',dlLblFileLclDir,msg);
+          end
+        end
         save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
         fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
       else
@@ -495,11 +503,11 @@ classdef DeepTracker < LabelTracker
         
         dmc.trainID = trainID;
 
-        dlLblFileLcl = fullfile(cacheDir,dmc.lblStrippedName);
+        dlLblFileLcl = dmc.lblStrippedLnx;
         if exist(dlLblFileLcl,'file')>0
-          fprintf(1,'Found existing local stripped lbl file: %s\n',dlLblFileLcl);
+          fprintf(1,'Found existing stripped lbl file: %s\n',dlLblFileLcl);
         else
-          error('Cannot find local stripped lbl file: %s',dlLblFileLcl);
+          error('Cannot find stripped lbl file: %s',dlLblFileLcl);
         end
       end      
 
@@ -525,14 +533,27 @@ classdef DeepTracker < LabelTracker
          % start train monitor
         bgTrnMonitorObj = BgTrainMonitorBsub;
         bgTrnWorkerObj = BgTrainWorkerObjBsub(nvw,dmc);
+        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
         
         % spawn training
         for iview=1:nvw
           fprintf(1,'%s\n',syscmds{iview});
-          system(syscmds{iview});
-          fprintf('Training job (view %d) spawned.\n\n',iview);
-          
-          fprintf(2,'TODO: host/pid\n');
+          [st,res] = system(syscmds{iview});
+          if st==0
+            fprintf('Training job (view %d) spawned.\n\n',iview);   
+            PAT = 'Job <(?<jobid>[0-9]+)>';
+            stoks = regexp(res,PAT,'names');
+            if ~isempty(stoks)
+              jobid = str2double(stoks.jobid);
+            else
+              jobid = nan;
+              warningNoTrace('Failed to ascertain jobID.');
+            end
+            bgTrnMonitorObj.jobID = jobid;
+          else
+            fprintf('Failed to spawn training job for view %d: %s.\n\n',...
+              iview,res);
+          end
         end
         
         obj.trnName = modelChainID;
@@ -775,48 +796,6 @@ classdef DeepTracker < LabelTracker
           end          
         end
       end      
-    end
-    
-    function trnKillAWS(obj)
-      % TODO: prob move me into TrainMonitor
-     
-      if ~obj.bgTrnIsRunning
-        error('Training is not in progress.');
-      end
-      aws = obj.awsEc2;
-      if isempty(aws)
-        error('AWSEC2 backend object is unset.');
-      end
-      
-      bgTrnWorkerObj = obj.bgTrnMonitor.bgWorkerObj;
-      killfiles = bgTrnWorkerObj.artfctKills;
-
-      aws.killRemoteProcess();
-
-      % expect command to fail; fail -> py proc killed
-      pollCbk = @()~aws.cmdInstance('pgrep python','dispcmd',true,'failbehavior','silent');
-      iterWaitTime = 1;
-      maxWaitTime = 10;
-      tfsucc = waitforPoll(pollCbk,iterWaitTime,maxWaitTime);
-      
-      if ~tfsucc
-        warningNoTrace('Could not confirm that remote process was killed.');
-      else
-        % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
-        % pick up
-        for i=1:numel(killfiles)
-          kfile = killfiles{i};
-          cmd = sprintf('touch %s',kfile);
-          tfsucc = aws.cmdInstance(cmd,'dispcmd',false); 
-          if ~tfsucc
-            warningNoTrace('Failed to create remote KILLED token: %s',kfile);
-          else
-            fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge the kill!\n',kfile);
-          end
-        end
-        
-        % bgTrnMonitor should pick up KILL tokens and stop bg trn monitoring
-      end
     end
     
     function trnAWSDownloadModel(obj)
@@ -1346,8 +1325,11 @@ classdef DeepTracker < LabelTracker
       [host,logfile] = myparse(varargin,...
         'host','login1.int.janelia.org',...
         'logfile','/dev/null');
-      codestr = sprintf('ssh %s ''%s </dev/null >%s 2>&1 &''',...
-        host,remotecmd,logfile);    
+      codestr = sprintf('ssh %s ''%s </dev/null &''',...
+         host,remotecmd);    
+
+%       codestr = sprintf('ssh %s ''%s </dev/null >%s 2>&1 &''',...
+%         host,remotecmd,logfile);    
     end
     function codestr = codeGenSingGeneral(basecmd,varargin)
       % Take a base command and run it in a sing img
@@ -1373,42 +1355,48 @@ classdef DeepTracker < LabelTracker
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o %s %s',...
         nslots,gpuqueue,outfile,basecmd);      
     end
-    function codestr = trainCodeGen(trnID,dllbl,varargin)
+    function codestr = trainCodeGen(trnID,dllbl,cache,errfile,netType,...
+        varargin)
       view = myparse(varargin,...
         'view',[]); % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
       tfview = ~isempty(view);
       
       aptintrf = fullfile(APT.getpathdl,'APT_interface.py');
+      codestr = sprintf('python %s -name %s',aptintrf,trnID);
       if tfview
-        codestr = sprintf('python %s -name %s -view %d %s train',...
-          aptintrf,trnID,view,dllbl); % APT_interface accepts 1-based view
-      else
-        codestr = sprintf('python %s -name %s %s train',aptintrf,trnID,dllbl);
-      end
+        codestr = sprintf('%s -view %d',codestr,view); % APT_interface accepts 1-based view
+      end      
+      codestr = sprintf('%s -cache %s -err_file %s -type %s %s train -use_cache',...
+        codestr,cache,errfile,netType,dllbl);        
     end
-    function codestr = trainCodeGenSing(trnID,dllbl,varargin)
+    function codestr = trainCodeGenSing(trnID,dllbl,cache,errfile,netType,...
+        varargin)
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      basecmd = DeepTracker.trainCodeGen(trnID,dllbl,baseargs{:});
+      basecmd = DeepTracker.trainCodeGen(trnID,dllbl,cache,errfile,...
+        netType,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
-    function codestr = trainCodeGenBsubSing(trnID,dllbl,varargin)
+    function codestr = trainCodeGenBsubSing(trnID,dllbl,cache,errfile,...
+        netType,varargin)
       [baseargs,singargs,bsubargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{});
-      basecmd = DeepTracker.trainCodeGenSing(trnID,dllbl,...
-        'baseargs',baseargs,'singargs',singargs);
+      basecmd = DeepTracker.trainCodeGenSing(trnID,dllbl,cache,errfile,...
+        netType,'baseargs',baseargs,'singargs',singargs);
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
     end    
-    function codestr = trainCodeGenSSHBsubSing(trnID,dllbl,varargin)
+    function codestr = trainCodeGenSSHBsubSing(trnID,dllbl,cache,errfile,...
+        netType,varargin)
       [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{},...
         'sshargs',{});
-      remotecmd = DeepTracker.trainCodeGenBsubSing(trnID,dllbl,...
+      remotecmd = DeepTracker.trainCodeGenBsubSing(trnID,dllbl,cache,...
+        errfile,netType,...
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
@@ -1418,10 +1406,11 @@ classdef DeepTracker < LabelTracker
         );
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
         dmc.modelChainID,dmc.lblStrippedLnx,...
+        dmc.rootDir,dmc.errfileLnx,dmc.netType,...
         'baseArgs',{'view' dmc.view+1},...
         'singargs',singargs,...
         'bsubArgs',{'outfile' dmc.trainLogLnx},...
-        'sshargs',{'logfile' [dmc.trainLogLnx '2']});
+        'sshargs',{});
     end
       
     function codestr = trainCodeGenAWSUpdateAPTRepo()
