@@ -167,10 +167,11 @@ classdef ParameterVizHandler < handle
       % 
       % pvObj: prop->pvObj
       
-%       fprintf(1,'PVH calling propUpdatedDynamic\n');
+      fprintf(1,'PVH calling propUpdatedSpinner\n');
       sPrm = obj.getCurrentParamsInTree(); % sPrm outdated relative to spinnerEvt.spinnerValue;
+      val = spinnerEvt.spinnerValue;
       pvObj.propUpdatedDynamic(obj.hAx,obj.lObj,char(prop.getFullName()),...
-        sPrm,spinnerEvt.spinnerValue);
+        sPrm,val);
     end
     
     function sPrm = getCurrentParamsInTree(obj)
