@@ -12,7 +12,7 @@ public class SpinnerChangeListener implements ChangeListener  {
      JSpinner s = (JSpinner)(e.getSource());
      //System.out.println("The spinner name is: " + s.getName());
      //System.out.println("The spinner value is: " + s.getValue());
-     notifySpinner(s.getName(),(double)s.getValue());
+     notifySpinner(s.getName(),((Number) s.getValue()).doubleValue());
    }
 	 
 	  private java.util.Vector listenerVec = new java.util.Vector();
