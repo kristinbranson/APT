@@ -579,18 +579,28 @@ classdef DeepTracker < LabelTracker
         'trainID','',... % to be filled in 
         'trainType',trnType,...
         'iterFinal',obj.sPrm.dl_steps);
+      dmcLcl = dmc.copy();
+      dmcLcl.rootDir = obj.sPrm.CacheDir;      
       
       % create/ensure stripped lbl, local and remote
-      cacheDirLcl = obj.sPrm.CacheDir;
       tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl        
         s = obj.trnAWSCreateStrippedLblWithTrxUpload(wbObj); %#ok<NASGU>
         
         trainID = datestr(now,'yyyymmddTHHMMSS');
         dmc.trainID = trainID;
+        dmcLcl.trainID = trainID;
         
         % Write stripped lblfile to local cache
-        dlLblFileLcl = fullfile(cacheDirLcl,dmc.lblStrippedName);
+        dlLblFileLcl = dmcLcl.lblStrippedLnx;
+        dlLblFileLclDir = fileparts(dlLblFileLcl);
+        if exist(dlLblFileLclDir,'dir')==0
+          fprintf('Creating local dir: %s\n',dlLblFileLclDir);
+          [succ,msg] = mkdir(dlLblFileLclDir);
+          if ~succ
+            error('Failed to create local dir %s: %s',dlLblFileLclDir,msg);
+          end
+        end
         save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
         fprintf('Saved stripped lbl file locally: %s\n',dlLblFileLcl);
       else
@@ -598,8 +608,9 @@ classdef DeepTracker < LabelTracker
         assert(~isempty(trainID));
         
         dmc.trainID = trainID;
+        dmcLcl.trainID = trainID;
 
-        dlLblFileLcl = fullfile(cacheDirLcl,dmc.lblStrippedName);
+        dlLblFileLcl = dmcLcl.lblStrippedLnx;
         if exist(dlLblFileLcl,'file')>0
           fprintf(1,'Found existing local stripped lbl file: %s\n',dlLblFileLcl);
         else
@@ -788,6 +799,7 @@ classdef DeepTracker < LabelTracker
       assert(nvw==1,'Multiview AWS train currently unsupported.');
 
       mdlFilesRemote = aws.remoteGlob(dmcs.keepGlobsLnx);
+%       disp(mdlFilesRemote);
       mdlFilesRemote = setdiff(mdlFilesRemote,{dmcs.lblStrippedLnx}); % don't download/mirror this
       cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
       mdlFilesLcl = regexprep(mdlFilesRemote,dmcs.rootDir,cacheDirLocalEscd);
@@ -863,9 +875,7 @@ classdef DeepTracker < LabelTracker
       % check trained tracker
       if isempty(obj.trnName)
         error('No trained tracker found.');
-      end
-      modelChainID = obj.trnName;
-      lclCache = obj.sPrm.CacheDir;
+      end      
 
       if obj.lObj.cropProjHasCrops
         assert(~tftrx);
@@ -881,22 +891,20 @@ classdef DeepTracker < LabelTracker
       else
         hmapArgs = {};
       end
-
+      
+      dmc = obj.trnLastDMC;
+      dmcLcl = dmc.copy();
+      dmcLcl.rootDir = obj.sPrm.CacheDir;
+      dlLblFileLcl = dmcLcl.lblStrippedLnx;
+      if exist(dlLblFileLcl,'file')==0
+        error('Cannot find training file: %s\n',dlLblFileLcl);
+      end
+      
       trkBackEnd = obj.backendType; % Currently trn/trk backends are the same
       switch trkBackEnd
         case DLBackEnd.Bsub
-          dlLblFileLcl = fullfile(lclCache,[modelChainID '.lbl']);
-          if exist(dlLblFileLcl,'file')==0
-            error('Cannot find training file: %s\n',dlLblFileLcl);
-          end
           obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
         case DLBackEnd.AWS
-          dmc = obj.trnLastDMC;
-          dlLblFileLclS = dmc.lblStrippedName;
-          dlLblFileLcl = fullfile(lclCache,dlLblFileLclS);
-          if exist(dlLblFileLcl,'file')==0
-            error('Cannot find training file: %s\n',dlLblFileLcl);
-          end
           obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
         otherwise
           assert(false);
