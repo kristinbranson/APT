@@ -129,8 +129,8 @@ function [hPropsPane,parameters] = propertiesGUI2(hParent,parameters,varargin)
 
 com.mathworks.mwswing.MJUtilities.initJIDE;
 
-parameterVizHandler = myparse(varargin,...
-  'parameterVizHandler',[]);
+[parameterVizHandler,paramCheckerFcn,okButtons] = myparse(varargin,...
+  'parameterVizHandler',[],'paramCheckerFcn',[],'okButtons',[]);
 
 hFig = ancestor(hParent,'figure');
 
@@ -138,7 +138,7 @@ hFig = ancestor(hParent,'figure');
 oldWarn = warning('off','MATLAB:hg:JavaSetHGProperty');
 warning off MATLAB:hg:PossibleDeprecatedJavaSetHGProperty
 assert(isa(parameters,'TreeNode'));
-propsList = preparePropsList(parameters,'',hFig,parameterVizHandler);
+propsList = preparePropsList(parameters,'',hFig,parameterVizHandler,paramCheckerFcn);
 
 % % Create a mapping propName => prop
 % propsHash = java.util.Hashtable;
@@ -195,7 +195,7 @@ if nargin < 1 || isempty(hParent) || isequal(hParent,0)
   end
   
   % Check the property values to determine whether the <OK> button should be enabled or not
-  checkProps(propsList, btOK, true);
+  checkProps(propsList, btOK, true, paramCheckerFcn);
   
   % Set the figure icon & make visible
   jFrame = get(handle(hFig),'JavaFrame');
@@ -233,13 +233,14 @@ customizePropertyPane(pane);
 
 % A callback for touching the mouse
 hgrid = handle(grid, 'CallbackProperties');
-set(hgrid, 'MousePressedCallback', {@MousePressedCallback, hFig, parameterVizHandler});
+set(hgrid, 'MousePressedCallback', {@MousePressedCallback, hFig, parameterVizHandler, paramCheckerFcn});
 
 setappdata(hFig, 'jPropsPane',jPropsPane);
 setappdata(hFig, 'propsList',propsList);
 %setappdata(hFig, 'propsHash',propsHash);
 setappdata(hFig, 'mirror',parameters);
 setappdata(hFig, 'hgrid',hgrid);
+setappdata(hFig,'okButtons',okButtons);
 % setappdata(hFig, 'parameterVizHandler',parameterVizHandler);
 set(hPropsPane_,'tag','hpropertiesGUI');
 
@@ -261,7 +262,7 @@ end
 if nargout, hPropsPane = hPropsPane_; end  % prevent unintentional printouts to the command window
 end  % propertiesGUI
 
-function MousePressedCallback(grid, eventdata, hFig, paramVizHandler)
+function MousePressedCallback(grid, eventdata, hFig, paramVizHandler, paramCheckerFcn)
 % Get the clicked location
 %grid = eventdata.getSource;
 %columnModel = grid.getColumnModel;
@@ -294,14 +295,14 @@ else
     if ismember('arrayData',fieldnames(get(selectedProp)))
       % Get the current data and update it
       actualData = get(selectedProp,'ArrayData');
-      updateDataInPopupTable(selectedProp.getName, actualData, hFig, selectedProp);
+      updateDataInPopupTable(selectedProp.getName, actualData, hFig, selectedProp, paramCheckerFcn);
     end
   end
 end
 end %Mouse pressed
 
 % Update data in a popup table
-function updateDataInPopupTable(titleStr, data, hGridFig, selectedProp)
+function updateDataInPopupTable(titleStr, data, hGridFig, selectedProp, paramCheckerFcn)
 figTitleStr = [char(titleStr) ' data'];
 hFig = findall(0, '-depth',1, 'Name',figTitleStr);
 if isempty(hFig)
@@ -311,7 +312,7 @@ else
 end
 try
   mtable = createTable(hFig, [], data);
-  set(mtable,'DataChangedCallback',{@tableDataUpdatedCallback,hGridFig,selectedProp});
+  set(mtable,'DataChangedCallback',{@tableDataUpdatedCallback,hGridFig,selectedProp,paramCheckerFcn});
   %uiwait(hFig)  % modality
 catch
   delete(hFig);
@@ -323,7 +324,7 @@ end
 end  % updateDataInPopupTable
 
 % User updated the data in the popup table
-function tableDataUpdatedCallback(mtable,eventData,hFig,selectedProp) %#ok<INUSL>
+function tableDataUpdatedCallback(mtable,eventData,hFig,selectedProp,paramCheckerFcn) %#ok<INUSL>
 % Get the latest data
 updatedData = cell(mtable.Data);
 try
@@ -346,7 +347,7 @@ selectedProp.setValue(value); % update the table
 
 % Update the display
 propsList = getappdata(hFig, 'propsList');
-checkProps(propsList, hFig);
+checkProps(propsList, hFig, [], paramCheckerFcn);
 
 % Refresh the GUI
 propsPane = getappdata(hFig, 'jPropsPane');
@@ -584,13 +585,13 @@ end  % demoParameters
 % end
 % end
 
-function propsList = preparePropsList(parameters,fqnBase,hFig,paramVizHandler)
+function propsList = preparePropsList(parameters,fqnBase,hFig,paramVizHandler,paramCheckerFcn)
 % parameters: Tree from parseConfigYaml
 % fqnBase: FQN base for recursion
 
 propsList = java.util.ArrayList();
 for i=1:numel(parameters)
-  newProp = newProperty(parameters(i),@propUpdatedCallback,fqnBase,hFig,paramVizHandler);
+  newProp = newProperty(parameters(i),@propUpdatedCallback,fqnBase,hFig,paramVizHandler,paramCheckerFcn);
   propsList.add(newProp);
 end
 end
@@ -603,7 +604,7 @@ end
 % end
 
 function prop = newProperty(t,propUpdatedCallback,fqnBase,hFig,...
-  paramVizHandler)
+  paramVizHandler,paramCheckerFcn)
 
 pgp = t.Data;
 propName = pgp.Field;
@@ -645,7 +646,7 @@ if ~isempty(paramVizHandler) && ~isempty(pvSpec)
 end
 
 for i=1:numel(t.Children)
-  children = toArray(preparePropsList(t.Children(i),fqn,hFig,paramVizHandler));
+  children = toArray(preparePropsList(t.Children(i),fqn,hFig,paramVizHandler,paramCheckerFcn));
   for j = 1:numel(children)
     prop.addChild(children(j));
   end
@@ -783,9 +784,9 @@ if prop.isEditable
   hprop = handle(prop, 'CallbackProperties');
   
   if ~isempty(paramVizHandler) && paramVizHandler.isprop(prop)
-    set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig,paramVizHandler});
+    set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig,paramVizHandler,paramCheckerFcn});
   else
-    set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig,[]});
+    set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig,[],paramCheckerFcn});
   end
 else
   prop.setDisplayName(['<html><font color="gray">' label]);
@@ -905,7 +906,7 @@ end
 com.jidesoft.grid.CellEditorManager.registerEditor(propType, editor, context);
 end  % alignProp
 
-function propUpdatedCallback(prop,eventData,propName,hFig,paramVizHandler)
+function propUpdatedCallback(prop,eventData,propName,hFig,paramVizHandler,paramCheckerFcn)
 % paramVizHandler: optional, if present then paramVizHandler.isprop(prop)
 % should be true
 
@@ -1015,7 +1016,7 @@ node.Data.Value = propValue;
 setappdata(hFig, 'mirror',data); % AL: shouldn't be nec it seems, handles
  
 % Update the display
-checkProps(propsList, hFig);
+checkProps(propsList, hFig, [], paramCheckerFcn);
 try 
   propsPane.repaint; 
 catch
@@ -1062,20 +1063,49 @@ end
 end  % btOK_Callback
 
 % Check whether all mandatory fields have been filled, update background color accordingly
-function checkProps(propsList, hContainer, isInit)
-if nargin < 3,  isInit = false;  end
+function checkProps(propsList, hContainer, isInit, paramCheckerFcn)
+if nargin < 3 || isempty(isInit),  isInit = false;  end
+if nargin < 4, paramCheckerFcn = []; end
+isParameterChecker = ~isempty(paramCheckerFcn);
+
 okEnabled = 'on';
-try propsArray = propsList.toArray(); catch, return; end
-for propsIdx = 1 : length(propsArray)
-  isOk = checkProp(propsArray(propsIdx));
-  if ~isOk || isInit,  okEnabled = 'off';  end
+isOk = true;
+if isParameterChecker,
+  t = getappdata(hContainer,'mirror');
+  sPrm = getappdata(hContainer,'rootnode');
+  sPrm.Children = t;
+  sPrmStruct = sPrm.structize();
+  [isOkStruct,msgs] = feval(paramCheckerFcn,sPrmStruct);
+
+  try propsArray = propsList.toArray(); catch, return; end
+  fns = fieldnames(isOkStruct.ROOT);
+  isOk = true;
+  for i = 1:numel(propsArray),
+    isOk = isOk && setPropertyCheck(propsArray(i),isOkStruct.ROOT.(fns{i}));
+  end
 end
+
+%isOk = ~all(propok);
+if ~isOk || isInit,  okEnabled = 'off';  end
 
 % Update the <OK> button's editability state accordingly
 btOK = findall(hContainer, 'Tag','btOK');
-set(btOK, 'Enable',okEnabled);
+if ~isempty(btOK),
+  set(btOK, 'Enable',okEnabled);
+end
+btOK = getappdata(hContainer,'okButtons');
+if ~isempty(btOK),
+  set(btOK, 'Enable',okEnabled);
+end
+
 set(findall(get(hContainer,'parent'), 'tag','btApply'),  'Enable',okEnabled);
 set(findall(get(hContainer,'parent'), 'tag','btRevert'), 'Enable',okEnabled);
+
+if ~isOk && ~isempty(msgs)
+  warndlg([{'Invalid parameter selected:'},msgs],'Invalid parameters selected','replace');  
+end
+setappdata(hContainer,'isOk',isOk);
+
 try; drawnow; pause(0.01); end
 
 % Update the figure title to indicate dirty-ness (if the figure is visible)
@@ -1085,6 +1115,49 @@ if strcmpi(get(hFig,'Visible'),'on')
   set(hFig,'Name',[sTitle '*']);
 end
 end  % checkProps
+
+function isOk = setPropertyCheck(prop,isOkStruct)
+
+nchil = prop.getChildrenCount;
+if nchil == 0,
+  
+  assert(ismember(isOkStruct,[false,true]));
+  isOk = isOkStruct;
+  setPropertyColor(prop,isOkStruct);
+  
+else
+  
+  assert(isstruct(isOkStruct));
+  fns = fieldnames(isOkStruct);
+  assert(numel(fns)==nchil);
+  isOk = true;
+  for i = 1:nchil,
+    child = prop.getChildAt(i-1);
+    assert(strcmpi(fns{i},getPropName(child)));
+    isOk = isOk && setPropertyCheck(child,isOkStruct.(fns{i}));
+  end
+  
+end
+
+end
+
+function setPropertyColor(prop,isOk)
+
+oldWarn = warning('off','MATLAB:hg:JavaSetHGProperty');
+warning off MATLAB:hg:PossibleDeprecatedJavaSetHGProperty
+propName = getPropName(prop);
+renderer = com.jidesoft.grid.CellRendererManager.getRenderer(get(prop,'Type'), get(prop,'EditorContext'));
+warning(oldWarn);
+if isOk,
+  propColor = java.awt.Color.white;
+else
+  propColor = java.awt.Color.yellow;
+end
+
+renderer.setBackground(propColor);
+
+end
+
 
 function isOk = checkProp(prop)
 isOk = true;

@@ -22,15 +22,15 @@ ROOT:
     - HistEq:
       - ['Histogram Equalization','',false,'Parameters related to normalization of the image intensity range. You should use histogram equalization if lighting of the animals varies across videos, e.g. if you have different lighting setups producing videos that differ in their brightness and contrast. Histogram equalization will adjust image intensities in each video so that the distributions of intensities (i.e. the histograms) match.','','','','']
       - Use: ['Enable',boolean,true,'Whether to use histogram equalization to normalize image intensity. You should use histogram equalization if lighting of the animals varies across videos, e.g. if you have different lighting setups producing videos that differ in their brightness and contrast. Histogram equalization will adjust image intensities in each video so that the distributions of intensities (i.e. the histograms) match.',false,'ParameterVisualizationPreproc#preproc1','Beginner','']
-      - NSampleH0: ['Num frames sample',float,true,'Number of frames per movie to sample to estimate the image intensity histogram.',20,'ParameterVisualizationPreproc#preproc1','Beginner','']
+      - NSampleH0: ['Num frames sample',unsigned,true,'Number of frames per movie to sample to estimate the image intensity histogram.',20,'ParameterVisualizationPreproc#preproc1','Beginner','']
     - MultiTarget:
       - ['Multiple Targets','',false,"APT tracks multiple animals by relying on another piece of software, e.g. Ctrax, to track the body positions of each animal. Using the trajectories output by e.g. Ctrax, APT crops out regions centered around each tracked animal and runs part-tracking on these image crops. These parameters describe how image patches around individual animals are cropped out.",'','','','']
       - TargetCrop:
         - ['Target ROI','',false,'APT tracks multiple animals by relying on another piece of software, e.g. Ctrax, to track the body positions of each animal. Using the trajectories output by e.g. Ctrax, APT crops out regions centered around each tracked animal and runs part-tracking on these image crops. These parameters describe how image patches around individual animals are cropped out.','','','','']
-        - Radius: ['Radius',float,true,'Radius (in pixels) of the square cropped around each target.',50,'ParameterVisualizationTgtCropRadius','Important','hasTrx']
-        - PadBkgd: ['Pad background',float,true,'If the cropped regions need to be padded, this value indicates the image intensity to pad with.',0,'ParameterVisualizationPreproc#preproc1','Advanced','hasTrx']
+        - Radius: ['Radius',unsigned,true,'Radius (in pixels) of the square cropped around each target.',50,'ParameterVisualizationTgtCropRadius','Important','hasTrx']
+        - PadBkgd: ['Pad background',unsigned,true,'If the cropped regions need to be padded, this value indicates the image intensity to pad with.',0,'ParameterVisualizationPreproc#preproc1','Advanced','hasTrx']
       - NeighborMask:
         - ['Mask Neighbors','',false,"When targets come in close proximity to each other, non-touching neighbors can be masked.",'','','','']
-        - Use: ['Enable',boolean,true,"Use simple image processing to try to mask out other, non-touching targets.",false,'ParameterVisualizationPreproc#preproc1','Developer','hasTrx']
-        - SegmentMethod: ['Segmentation Method',['Conn. Comp','GMM-EM','Emp. PDF'],true,"Masking algorithm/approach.",'Conn. Comp','','Developer','hasTrx']
-        - FGThresh: ['Foreground Threshold',float,true,'Background-subtracted pixels above this threshold are considered foreground subject to masking.',4,'ParameterVisualizationPreproc#preproc1',Developer,hasTrx]
+        - Use: ['Enable',boolean,true,"Use simple image processing to try to mask out other, non-touching targets. This requires Background Read Function above to be set properly.",false,'ParameterVisualizationPreproc#preproc1','Developer','hasTrx']
+        - SegmentMethod: ['Segmentation Method',['Conn. Comp','GMM-EM','Emp. PDF'],true,"Masking algorithm/approach.",'Conn. Comp','ParameterVisualizationPreproc#preproc1','Developer','hasTrx']
+        - FGThresh: ['Foreground Threshold',unsigned,true,'Background-subtracted pixels above this threshold are considered foreground subject to masking.',4,'ParameterVisualizationPreproc#preproc1',Developer,hasTrx]

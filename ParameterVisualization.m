@@ -67,6 +67,25 @@ classdef ParameterVisualization < handle
         text(xc,yc,str,'horizontalalignment','center','parent',ax);
       end
     end
+    
+    function setBusy(hAx,str)
+      
+      if nargin < 2,
+        str = 'Updating visualization. Please wait...';
+      end
+      xlabel(hAx,str);
+      set(hAx,'XColor','m');
+      drawnow;
+      
+    end
+    
+    function setReady(hAx)
+      
+      xlabel(hAx,sprintf('Visualization updated at %s',datestr(now)));
+      set(hAx,'XColor','k');
+      drawnow;
+      
+    end      
         
   end
   
