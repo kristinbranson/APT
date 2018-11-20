@@ -24,7 +24,9 @@ classdef BgTrainMonitorAWS < BgTrainMonitor
         error('AWSEC2 backend object is unset.');
       end
       
-      killfiles = obj.bgWorkerObj.artfctKills;
+      dmc = obj.bgWorkerObj.dmcs;
+      assert(isscalar(dmc)); % single-view atm
+      killfiles = {dmc.killTokenLnx};
 
       aws.killRemoteProcess();
 

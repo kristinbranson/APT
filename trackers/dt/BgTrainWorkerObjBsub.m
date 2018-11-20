@@ -15,10 +15,14 @@ classdef BgTrainWorkerObjBsub < BgTrainWorkerObj
     end
         
     function s = fileContents(~,file)
-      lines = readtxtfile(file);
-      s = sprintf('%s\n',lines{:});
+      if exist(file,'file')==0
+        s = '<file does not exist>';
+      else
+        lines = readtxtfile(file);
+        s = sprintf('%s\n',lines{:});
+      end
     end
-    
+        
   end
     
   methods (Static)

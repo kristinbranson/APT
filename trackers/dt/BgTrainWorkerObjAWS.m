@@ -35,12 +35,21 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
         'killFile',[],... % char, full path to KILL tokfile
         'killFileExists',[]... % true if KILL tokfile found
         ); % 
+      dmcs = obj.dmcs;
       for ivw=1:obj.nviews
-        json = obj.artfctTrainDataJson{ivw};
-        finalindex = obj.artfctFinalIndex{ivw};
-        errFile = obj.artfctErrFile{ivw};
-        logFile = obj.artfctLogs{ivw};
-        killFile = obj.artfctKills{ivw};
+        
+        dmc = dmcs(ivw);
+        json = dmc.trainDataLnx;
+        finalindex = dmc.trainFinalIndexLnx;
+        errFile = dmc.errfileLnx;
+        logFile = dmc.trainLogLnx;
+        killFile = dmc.killTokenLnx;
+        
+%         json = obj.artfctTrainDataJson{ivw};
+%         finalindex = obj.artfctFinalIndex{ivw};
+%         errFile = obj.artfctErrFile{ivw};
+%         logFile = obj.artfctLogs{ivw};
+%         killFile = obj.artfctKills{ivw};
         
         fspollargs = ...
           sprintf('exists %s exists %s existsNE %s existsNEerr %s exists %s contents %s',...
@@ -101,7 +110,24 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
     function s = fileContents(obj,f)
       s = obj.awsEc2.remoteFileContents(f,'dispcmd',true);
     end
-        
+    
+    function dispModelChainDir(obj)
+      aws = obj.awsEc2;
+      for ivw=1:obj.nviews
+        dmc = obj.dmcs(ivw);
+        cmd = sprintf('ls -al %s',dmc.dirModelChainLnx);
+        fprintf('### View %d:\n',ivw);
+        [tfsucc,res] = aws.cmdInstance(cmd,'dispcmd',false); 
+        if tfsucc
+          disp(res);
+        else
+          warningNoTrace('Failed to access training directory %s: %s',...
+            dmc.dirModelChainLnx,res);
+        end
+        fprintf('\n');
+      end
+    end
+    
   end
     
 end

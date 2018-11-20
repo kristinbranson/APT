@@ -22,7 +22,8 @@ classdef BgTrainMonitorBsub < BgTrainMonitor
          error('Bsub jobID is unset.');
       end
       
-      killfiles = obj.bgWorkerObj.artfctKills;
+      dmcs = obj.bgWorkerObj.dmcs;
+      killfiles = {dmcs.killTokenLnx};
       
       bkillcmd = sprintf('bkill %d',obj.jobID);
       bkillcmd = DeepTracker.codeGenSSHGeneral(bkillcmd,'bg',false);
