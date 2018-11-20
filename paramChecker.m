@@ -28,7 +28,17 @@ if sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius <= 0,
   msgs{end+1} = 'Multitarget crop radius must be at least 1.';
 end
 
+if sPrm.ROOT.ImageProcessing.MultiTarget.NeighborMask.Use && ...
+    isempty(sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn),
+  isOk.ROOT.ImageProcessing.MultiTarget.NeighborMask.Use = false;
+  isOk.ROOT.ImageProcessing.BackSub.BGReadFcn = false;
+  msgs{end+1} = 'If masking neighbors is enabled, Background Read Function must be set';
+end
 
+if sPrm.ROOT.ImageProcessing.MultiTarget.NeighborMask.FGThresh < 0,
+  isOk.ROOT.ImageProcessing.MultiTarget.NeighborMask.FGThresh = false;
+  msgs{end+1} = 'Mask Neighbors Foreground Threshold must be non-negative.';
+end
 
 function out = init(in,val)
 

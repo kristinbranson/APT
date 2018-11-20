@@ -33,4 +33,4 @@ ROOT:
         - ['Mask Neighbors','',false,"When targets come in close proximity to each other, non-touching neighbors can be masked.",'','','','']
         - Use: ['Enable',boolean,true,"Use simple image processing to try to mask out other, non-touching targets. This requires Background Read Function above to be set properly.",false,'ParameterVisualizationPreproc#preproc1','Developer','hasTrx']
         - SegmentMethod: ['Segmentation Method',['Conn. Comp','GMM-EM','Emp. PDF'],true,"Masking algorithm/approach.",'Conn. Comp','ParameterVisualizationPreproc#preproc1','Developer','hasTrx']
-        - FGThresh: ['Foreground Threshold',unsigned,true,'Background-subtracted pixels above this threshold are considered foreground subject to masking.',4,'ParameterVisualizationPreproc#preproc1',Developer,hasTrx]
+        - FGThresh: ['Foreground Threshold',float,true,'Background-subtracted pixels above this threshold are considered foreground subject to masking.',4,'ParameterVisualizationPreproc#preproc1',Developer,hasTrx]
