@@ -4,15 +4,18 @@ classdef BgTrainWorkerObj < handle
   % 
   % Responsibilities:
   % - Poll filesystem for training updates
-
+  % - Be able to read/parse the current state of the train/model on disk
+  
   properties
     nviews
     
-    artfctLogs % [nview] cellstr of fullpaths to logfiles
-    artfctKills % [nview] cellstr of fullpaths to KILLED toks
-    artfctTrainDataJson % [nview] cellstr of fullpaths to training data jsons
-    artfctFinalIndex % [nview] cellstr of fullpaths to final training .index file
-    artfctErrFile % [nview] cellstr of fullpaths to DL errfile
+    dmcs % [nview] DeepModelChainOnDisk array
+    
+%     artfctLogs % [nview] cellstr of fullpaths to logfiles
+%     artfctKills % [nview] cellstr of fullpaths to KILLED toks
+%     artfctTrainDataJson % [nview] cellstr of fullpaths to training data jsons
+%     artfctFinalIndex % [nview] cellstr of fullpaths to final training .index file
+%     artfctErrFile % [nview] cellstr of fullpaths to DL errfile
     
     trnLogLastStep; % [nview] int. most recent last step from training json logs
   end
@@ -28,12 +31,13 @@ classdef BgTrainWorkerObj < handle
     function obj = BgTrainWorkerObj(nviews,dmcs)
       obj.nviews = nviews;
       assert(isa(dmcs,'DeepModelChainOnDisk') && numel(dmcs)==nviews);
+      obj.dmcs = dmcs;
       
-      obj.artfctLogs = {dmcs.trainLogLnx}'; 
-      obj.artfctKills = {dmcs.killTokenLnx}'; 
-      obj.artfctTrainDataJson = {dmcs.trainDataLnx}';
-      obj.artfctFinalIndex = {dmcs.trainFinalIndexLnx}'; 
-      obj.artfctErrFile = {dmcs.errfileLnx}';
+%       obj.artfctLogs = {dmcs.trainLogLnx}'; 
+%       obj.artfctKills = {dmcs.killTokenLnx}'; 
+%       obj.artfctTrainDataJson = {dmcs.trainDataLnx}';
+%       obj.artfctFinalIndex = {dmcs.trainFinalIndexLnx}'; 
+%       obj.artfctErrFile = {dmcs.errfileLnx}';
     
       obj.reset();
     end
@@ -44,7 +48,9 @@ classdef BgTrainWorkerObj < handle
       % - Read the json for every view and see if it has been updated.
       % - Check for completion 
       sRes = struct(...
-        'jsonPath',cell(obj.nviews,1),... % char, full path to json trnlog being polled
+        'pollsuccess',cell(obj.nviews,1),... % if true, remote poll cmd was successful
+        'pollts',[],... % datenum time that poll cmd returned
+        'jsonPath',[],... % char, full path to json trnlog being polled
         'jsonPresent',[],... % true if file exists. if false, remaining fields are indeterminate
         'lastTrnIter',[],... % (only if jsonPresent==true) last known training iter for this view. Could be eg -1 or 0 if no iters avail yet.
         'tfUpdate',[],... % (only if jsonPresent==true) true if the current read represents an updated training iter.
@@ -58,13 +64,17 @@ classdef BgTrainWorkerObj < handle
         'killFile',[],... % char, full path to KILL tokfile
         'killFileExists',[]... % true if KILL tokfile found
         );
+      dmcs = obj.dmcs;
       for ivw=1:obj.nviews
-        json = obj.artfctTrainDataJson{ivw};
-        finalindex = obj.artfctFinalIndex{ivw};
-        errFile = obj.artfctErrFile{ivw};
-        logFile = obj.artfctLogs{ivw};
-        killFile = obj.artfctKills{ivw};
+        dmc = dmcs(ivw);
+        json = dmc.trainDataLnx;
+        finalindex = dmc.trainFinalIndexLnx;
+        errFile = dmc.errfileLnx;
+        logFile = dmc.trainLogLnx;
+        killFile = dmc.killTokenLnx;
         
+        sRes(ivw).pollsuccess = true;
+        sRes(ivw).pollts = now;
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = obj.fileExists(json);
         sRes(ivw).trainCompletePath = finalindex;
@@ -86,10 +96,10 @@ classdef BgTrainWorkerObj < handle
           if tfupdate
             sRes(ivw).lastTrnIter = newStep;
             obj.trnLogLastStep(ivw) = newStep;
-            sRes(ivw).contents = trnLog;
           else
             sRes(ivw).lastTrnIter = lastKnownStep;
           end
+          sRes(ivw).contents = trnLog;
         end
       end
     end
@@ -100,13 +110,13 @@ classdef BgTrainWorkerObj < handle
     end
    
     function printLogfiles(obj) % obj const
-      logFiles = obj.artfctLogs;
+      logFiles = {obj.dmcs.trainLogLnx}';
       logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
       BgTrainWorkerObj.printLogfilesStc(logFiles,logFileContents)
     end
-    
+            
     function [tfEFE,errFile] = errFileExists(obj) % obj const
-      errFile = unique(obj.artfctErrFile);
+      errFile = unique({obj.dmcs.errfileLnx}');
       assert(isscalar(errFile));
       errFile = errFile{1};
       tfEFE = obj.errFileExistsNonZeroSize(errFile);
@@ -117,6 +127,16 @@ classdef BgTrainWorkerObj < handle
       if tfLogErrLikely
         logContents = obj.fileContents(file);
         tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
+      end
+    end
+    
+    function dispModelChainDir(obj)
+      for ivw=1:obj.nviews
+        dmc = obj.dmcs(ivw);
+        cmd = sprintf('ls -al %s',dmc.dirModelChainLnx);
+        fprintf('### View %d:\n',ivw);
+        system(cmd);
+        fprintf('\n');
       end
     end
 

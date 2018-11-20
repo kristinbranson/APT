@@ -5,7 +5,7 @@ classdef DeepTracker < LabelTracker
   end
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrm' 'awsEc2' 'backendType' ...
-      'trnName' 'trnNameLbl' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'};    
+      'trnNetType' 'trnName' 'trnNameLbl' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'};    
     RemoteAWSCacheDir = '/home/ubuntu';
   end
   properties
@@ -44,7 +44,7 @@ classdef DeepTracker < LabelTracker
     % FUTURE TODO: what happens when user alters cacheDir?
     trnName % modelChainID
     trnNameLbl % trainID
-    trnNetType = 'mdn' % scalar DLNetType
+    trnNetType = DLNetType.mdn; % scalar DLNetType
     trnLastDMC % [nview] Last DeepModelChainOnDisk(s), set during training
     trnTblP % transient, unmanaged. Training rows for last retrain
     
@@ -390,105 +390,203 @@ classdef DeepTracker < LabelTracker
       end      
       
       trnBackEnd = obj.backendType;
+      fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
       fprintf('Your training backend is: %s\n',char(trnBackEnd));
       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
-      fprintf(1,'\n');            
+      fprintf(1,'\n');      
       
-      switch trnBackEnd
-        case DLBackEnd.Bsub
-          trnID = datestr(now,'yyyymmddTHHMMSS');            
-          if ~isempty(obj.trnName)
-            trnNameOld = fullfile(cacheDir,'...',obj.trnName);
-            trnNameNew = fullfile(cacheDir,'...',trnID);
-            warningNoTrace('New trained model will be created at %s. Previous trained model at %s will not be deleted.',...
-              trnNameNew,trnNameOld);
+      modelChain0 = obj.trnName;
+      switch dlTrnType
+        case DLTrainType.New
+          modelChain = datestr(now,'yyyymmddTHHMMSS');
+          if ~isempty(modelChain0)
+            assert(~strcmp(modelChain,modelChain0));
+            fprintf('Training new model %s.\n',modelChain);
           end
-          obj.trnName = trnID;
-          obj.trnSpawnBsub();
-
-        case DLBackEnd.AWS
-          obj.trnSpawnAWS(dlTrnType,'wbObj',wbObj);          
+        case {DLTrainType.Restart DLTrainType.RestartAug}
+          if isempty(modelChain0)
+            error('Model has not been trained.');
+          end
+          modelChain = modelChain0;
+          fprintf('Restarting train on model %s.\n',modelChain);
         otherwise
           assert(false);
       end
       
-      % Nothing should occur here as failed trnSpawn* will early return
+      switch trnBackEnd
+        case DLBackEnd.Bsub
+          obj.trnSpawnBsub(dlTrnType,modelChain,'wbObj',wbObj);
+        case DLBackEnd.AWS
+          obj.trnSpawnAWS(dlTrnType,modelChain,'wbObj',wbObj);          
+        otherwise
+          assert(false);
+      end
       
+      % Nothing should occur here as failed trnSpawn* will early return      
     end
     
     function trnPrintLogs(obj)
-      trnID = obj.trnName;
-      if isempty(trnID) 
+      modelChainID = obj.trnName;
+      if isempty(modelChainID) 
         error('Training is not complete or in progress.');
       end
       if ~obj.bgTrnIsRunning
         fprintf('Training is not in progress; log is for most recent training session.\n');
       end
       
-      trnBgWorkerObj = obj.bgTrnMonitor.bgWorkerObj;
+      trnBgWorkerObj = obj.bgTrnMonBGWorkerObj;
       trnBgWorkerObj.printLogfiles();      
     end
     
-  end
-  methods (Static)
-    function s = trnLogfileStc(cacheDir,trnID,iview)
-      s = fullfile(cacheDir,sprintf('%s_view%d.log',trnID,iview));
+    function trnPrintModelChainDir(obj)
+      modelChainID = obj.trnName;
+      if isempty(modelChainID) 
+        error('Training is not complete or in progress.');
+      end
+      if ~obj.bgTrnIsRunning
+        fprintf('Training is not in progress; log is for most recent training session.\n');
+      end
+      trnBgWorkerObj = obj.bgTrnMonBGWorkerObj;
+      trnBgWorkerObj.dispModelChainDir();
     end
+    
+    function trnKill(obj)
+      if ~obj.bgTrnIsRunning
+        error('Training is not in progress.');
+      end
+      
+      obj.bgTrnMonitor.killProcess();      
+    end
+    
   end
+%   methods (Static)
+%     function s = trnLogfileStc(cacheDir,trnID,iview)
+%       s = fullfile(cacheDir,sprintf('%s_view%d.log',trnID,iview));
+%     end
+%   end
   methods
     %% BSub Trainer
     
-    function trnSpawnBsub(obj)
-      trnID = obj.trnName;
-      cacheDir = obj.sPrm.CacheDir;
+    function trnSpawnBsub(obj,trnType,modelChainID,varargin)
+      %
+      % trnType: scalar DLTrainType
+      % modelChainID: trainID 
+      %
+      % PostConds (success):
+      %  - training aws job spawned
+      %  - .trnName, .trnNameLbl, trnLastDMC set
+
+      [wbObj] = myparse(varargin,...
+        'wbObj',[]... 
+        );
       
-      % Write stripped lblfile to cacheDir
-      s = obj.lObj.trackCreateDeepTrackerStrippedLbl(); 
-      if trnBackEnd==DLBackEnd.AWS
-        % want number of "underlying" chans here
-        s.cfg.NumChans = size(s.preProcData_I{1},3); 
-      end
-      dlLblFile = fullfile(cacheDir,[trnID '.lbl']);
-      save(dlLblFile,'-mat','-v7.3','-struct','s');
-      fprintf('Saved stripped lbl file: %s\n',dlLblFile);
+      
+      % (aws check instance running)
+      
+      % (aws update remote repo)
+      
+       % Base DMC, to be further copied/specified per-view
+      cacheDir = obj.sPrm.CacheDir;
+      dmc = DeepModelChainOnDisk(...        
+        'rootDir',cacheDir,...
+        'projID',obj.lObj.projname,...
+        'netType',char(obj.trnNetType),...
+        'view',nan,... % to be filled in 
+        'modelChainID',modelChainID,...
+        'trainID','',... % to be filled in 
+        'trainType',trnType,...
+        'iterFinal',obj.sPrm.dl_steps);
+      
+      % create/ensure stripped lbl; set trainID
+      tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
+      if tfGenNewStrippedLbl
+        s = obj.trnCreateStrippedLbl('wbObj',wbObj); %#ok<NASGU>
+        
+        trainID = datestr(now,'yyyymmddTHHMMSS');
+        dmc.trainID = trainID;
+        
+        % Write stripped lblfile to local cache
+        dlLblFileLcl = dmc.lblStrippedLnx;
+        dlLblFileLclDir = fileparts(dlLblFileLcl);
+        if exist(dlLblFileLclDir,'dir')==0
+          fprintf('Creating dir: %s\n',dlLblFileLclDir);
+          [succ,msg] = mkdir(dlLblFileLclDir);
+          if ~succ
+            error('Failed to create dir %s: %s',dlLblFileLclDir,msg);
+          end
+        end
+        save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
+        fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
+      else
+        trainID = obj.trnNameLbl;
+        assert(~isempty(trainID));
+        
+        dmc.trainID = trainID;
+
+        dlLblFileLcl = dmc.lblStrippedLnx;
+        if exist(dlLblFileLcl,'file')>0
+          fprintf(1,'Found existing stripped lbl file: %s\n',dlLblFileLcl);
+        else
+          error('Cannot find stripped lbl file: %s',dlLblFileLcl);
+        end
+      end      
+
+      % At this point
+      % We have (modelChainID,trainID). stripped lbl is on disk. 
       
       singBind = obj.genSingBindPath();
       singArgs = {'bindpath',singBind};
       nvw = obj.lObj.nview;
-      cmds = arrayfun(@(x) DeepTracker.trainCodeGenSSHBsubSing(trnID,dlLblFile,...
-        'baseargs',{'view' x},...
-        'singargs',singArgs,...
-        'bsubArgs',{'outfile' obj.trnLogfileBsub(x)},...
-        'sshargs',{'logfile' [obj.trnLogfileBsub(x) '2']}),...
-        (1:nvw)','uni',0);
+      syscmds = cell(nvw,1);
+      for ivw=1:nvw
+        if ivw>1
+          dmc(ivw) = dmc(1).copy();
+        end
+        dmc(ivw).view = ivw-1; % 0-based
+        syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(dmc(ivw),...
+          'singArgs',singArgs);
+      end
       
       if obj.dryRunOnly
-        cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),cmds);
+        cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-        % start train monitor
-        assert(isempty(obj.bgTrnMonitor));
+         % start train monitor
         bgTrnMonitorObj = BgTrainMonitorBsub;
-        
-        trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw);
-        bsubLogs = arrayfun(@obj.trnLogfileBsub,(1:nvw)','uni',0);
-        bgTrnWorkerObj = BgTrainWorkerObjBsub(dlLblFile,trnID,bsubLogs);
-                
-        bgTrnMonitorObj.prepare(trnMonVizObj,bgTrnWorkerObj);
-        bgTrnMonitorObj.start();
-        obj.bgTrnMonitor = bgTrnMonitorObj;
+        bgTrnWorkerObj = BgTrainWorkerObjBsub(nvw,dmc);
+        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
         
         % spawn training
         for iview=1:nvw
-          fprintf(1,'%s\n',cmds{iview});
-          system(cmds{iview});
+          fprintf(1,'%s\n',syscmds{iview});
+          [st,res] = system(syscmds{iview});
+          if st==0
+            PAT = 'Job <(?<jobid>[0-9]+)>';
+            stoks = regexp(res,PAT,'names');
+            if ~isempty(stoks)
+              jobid = str2double(stoks.jobid);
+            else
+              jobid = nan;
+              warningNoTrace('Failed to ascertain jobID.');
+            end
+            fprintf('Training job (view %d) spawned, jobid=%d.\n\n',...
+              iview,jobid);
+            bgTrnMonitorObj.jobID = jobid;
+          else
+            fprintf('Failed to spawn training job for view %d: %s.\n\n',...
+              iview,res);
+          end
         end
+        
+        obj.trnName = modelChainID;
+        obj.trnNameLbl = trainID;
+        obj.trnLastDMC = dmc;
       end
     end
     
-    function s = trnLogfileBsub(obj,iview)
-      % fullpath to training bsub logfile
-      s = DeepTracker.trnLogfileStc(obj.sPrm.CacheDir,obj.trnName,iview);
-    end
+%     function s = trnLogfileBsub(obj,iview)
+%       % fullpath to training bsub logfile
+%       s = DeepTracker.trnLogfileStc(obj.sPrm.CacheDir,obj.trnName,iview);
+%     end
     
     function singBind = genSingBindPath(obj)
       if ~isempty(obj.singBindPath)
@@ -498,7 +596,7 @@ classdef DeepTracker < LabelTracker
       else
         macroCell = struct2cell(obj.lObj.projMacros);
         if isempty(macroCell)
-          warningNoTrace('No project macros found; singularity BIND_PATH likely to be incorrect.');
+          warningNoTrace('No project macros found; singularity BIND_PATH may be incorrect.');
         end
         cacheDir = obj.sPrm.CacheDir;
         assert(~isempty(cacheDir));
@@ -512,42 +610,20 @@ classdef DeepTracker < LabelTracker
   %% AWS Trainer    
   methods
       
-    function trnSpawnAWS(obj,trnType,varargin)
+    function trnSpawnAWS(obj,trnType,modelChainID,varargin)
       %
-      % dlTrnType: scalar DLTrainType
-      % trnName: could be existing trnName for retrains, or new one for
-      %   fresh train
+      % trnType: scalar DLTrainType
+      % modelChainID: trainID 
       %
       % PostConds (success):
       %  - training aws job spawned
-      %  - .trnName, .trnNameLbl set
-      % 
+      %  - .trnName, .trnNameLbl, trnLastDMC set
       
       [wbObj] = myparse(varargin,...
         'wbObj',[]... 
         );
             
       nvw = obj.lObj.nview;
-      netType = obj.trnNetType;
-
-      modelChain0 = obj.trnName;
-      switch trnType
-        case DLTrainType.New
-          modelChain = datestr(now,'yyyymmddTHHMMSS');
-          if ~isempty(modelChain0)
-            assert(~strcmp(modelChain,modelChain0));
-            fprintf('Training new model %s. Previous model (%s) will remain on remote disk.\n',...
-              modelChain,modelChain0);
-          end
-        case {DLTrainType.Restart DLTrainType.RestartAug}
-          if isempty(modelChain0)
-            error('Model has not been trained.');
-          end
-          modelChain = modelChain0;
-          fprintf('Restarting train on model %s.\n',modelChain);
-        otherwise
-          assert(false);
-      end
       
       aws = obj.awsEc2;
 %       if numel(aws)~=nvw
@@ -573,9 +649,9 @@ classdef DeepTracker < LabelTracker
       dmc = DeepModelChainOnDisk(...        
         'rootDir',obj.RemoteAWSCacheDir,...
         'projID',obj.lObj.projname,...
-        'netType',netType,...
+        'netType',char(obj.trnNetType),...
         'view',nan,... % to be filled in 
-        'modelChainID',modelChain,...
+        'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
         'iterFinal',obj.sPrm.dl_steps);
@@ -585,7 +661,7 @@ classdef DeepTracker < LabelTracker
       % create/ensure stripped lbl, local and remote
       tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl        
-        s = obj.trnAWSCreateStrippedLblWithTrxUpload(wbObj); %#ok<NASGU>
+        s = obj.trnCreateStrippedLbl('awsTrxUpload',true,'wbObj',wbObj); %#ok<NASGU>
         
         trainID = datestr(now,'yyyymmddTHHMMSS');
         dmc.trainID = trainID;
@@ -621,7 +697,8 @@ classdef DeepTracker < LabelTracker
       aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
       
       % At this point
-      % We have (trnName,trnLbl), dlLblFileRemote. remote is ready to train
+      % We have (modelChainID,trainID), dlLblFileRemote. remote is ready to 
+      % train
 
       % gen cmd to fire job
       syscmds = cell(nvw,1);
@@ -654,19 +731,25 @@ classdef DeepTracker < LabelTracker
           system(syscmds{iview});
           fprintf('Training job (view %d) spawned.\n\n',iview);
           
-          aws.getRemotePythonPID();
+          aws.getRemotePythonPID(); % Maybe TrnMonitor should handle. Right 
+            % now there is only one PID per aws so it's ok
         end
         
-        obj.trnName = modelChain;
+        obj.trnName = modelChainID;
         obj.trnNameLbl = trainID;
         obj.trnLastDMC = dmc;
       end
     end
         
-    function s = trnAWSCreateStrippedLblWithTrxUpload(obj,wbObj)
+    function s = trnCreateStrippedLbl(obj,varargin)
       % - Mutates .trnTblP
       % - Uploads trxs via AWS (maybe factor this out later)
       % - Can throw
+      
+      [awsTrxUpload,wbObj] = myparse(varargin,...
+        'awsTrxUpload',false,...
+        'wbObj',[]...
+        );
       
       % Remote-train requires preProcData to be updated for all
       % training rows/images
@@ -685,7 +768,7 @@ classdef DeepTracker < LabelTracker
       s.cfg.NumChans = size(s.preProcData_I{1},3);
       
       tftrx = obj.lObj.hasTrx;
-      if tftrx
+      if awsTrxUpload && tftrx
         % 1. The moviefiles in s should be not be used; deepnet should be
         % reading images directly from .preProcData_I. Fill s.movieFilesAll
         % with jibber as an assert.
@@ -731,50 +814,9 @@ classdef DeepTracker < LabelTracker
             s.trxFilesAll{iMov,IVIEW} = trxRemoteAbs;
           else
             s.trxFilesAll{iMov,IVIEW} = '__UNUSED__';
-          end
+          end          
         end
       end      
-    end
-    
-    function trnKillAWS(obj)
-     
-      if ~obj.bgTrnIsRunning
-        error('Training is not in progress.');
-      end
-      aws = obj.awsEc2;
-      if isempty(aws)
-        error('AWSEC2 backend object is unset.');
-      end
-      
-      bgTrnWorkerObj = obj.bgTrnMonitor.bgWorkerObj;
-      killfiles = bgTrnWorkerObj.artfctKills;
-
-      aws.killRemoteProcess();
-
-      % expect command to fail; fail -> py proc killed
-      pollCbk = @()~aws.cmdInstance('pgrep python','dispcmd',true,'failbehavior','silent');
-      iterWaitTime = 1;
-      maxWaitTime = 10;
-      tfsucc = waitforPoll(pollCbk,iterWaitTime,maxWaitTime);
-      
-      if ~tfsucc
-        warningNoTrace('Could not confirm that remote process was killed.');
-      else
-        % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
-        % pick up
-        for i=1:numel(killfiles)
-          kfile = killfiles{i};
-          cmd = sprintf('touch %s',kfile);
-          tfsucc = aws.cmdInstance(cmd,'dispcmd',false); 
-          if ~tfsucc
-            warningNoTrace('Failed to create remote KILLED token: %s',kfile);
-          else
-            fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge the kill!\n',kfile);
-          end
-        end
-        
-        % bgTrnMonitor should pick up KILL tokens and stop bg trn monitoring
-      end
     end
     
     function trnAWSDownloadModel(obj)
@@ -937,28 +979,36 @@ classdef DeepTracker < LabelTracker
       end
       
       cacheDir = obj.sPrm.CacheDir;
-      trkBackEnd = obj.backendType; % Currently trn/trk backends are the same
-      switch trkBackEnd
-        case DLBackEnd.Bsub
-          dlLblFileLcl = fullfile(cacheDir,[trnID '.lbl']);
-          if exist(dlLblFileLcl,'file')==0
-            reason = sprintf('Cannot find training file: %s\n',dlLblFileLcl);
-            return;
-          end
-        case DLBackEnd.AWS
-          dmc = obj.trnLastDMC;
-          dlLblFileLclS = dmc.lblStrippedName;
-          dlLblFileLcl = fullfile(cacheDir,dlLblFileLclS);
-          if exist(dlLblFileLcl,'file')==0
-            reason = sprintf('Cannot find training file: %s\n',dlLblFileLcl);
-          end
+      dmc = obj.trnLastDMC;
+      dmcLcl = dmc.copy();
+      dmcLcl.rootDir = cacheDir;
+      dlLblFileLcl = dmcLcl.lblStrippedLnx;
+      if exist(dlLblFileLcl,'file')==0
+        reason = sprintf('Cannot find training file: %s\n',dlLblFileLcl);
+        return;
       end
       
-      tfCanTrack = true;
-      
+      tfCanTrack = true;      
     end
     
-    function trkSpawnBsub(obj,mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,frm0,frm1)
+    function trkSpawnBsub(obj,mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,...
+        frm0,frm1)
+      % Currently mIdx, tMFTConc only one movie
+
+      % put/ensure local stripped lbl
+      dmc = obj.trnLastDMC;
+      assert(isscalar(unique({dmc.lblStrippedLnx})));
+      dlLblFile = dmc(1).lblStrippedLnx; 
+      if exist(dlLblFile,'file')==0
+        error('Cannot find stripped project file: %s\n',dlLblFile);
+      end
+      
+      tftrx = obj.lObj.hasTrx;
+      tfcrop = ~isempty(cropRois);
+      if tfcrop
+        szassert(cropRois,[nvw 4]);
+      end
+      
       singBind = obj.genSingBindPath();
       singargs = {'bindpath',singBind};
       
@@ -967,32 +1017,25 @@ classdef DeepTracker < LabelTracker
       assert(size(movs,2)==nView);
       movs = movs(1,:);
       nowstr = datestr(now,'yyyymmddTHHMMSS');
-      trnID = obj.trnName;
-      trnstr = sprintf('trn%s',trnID);
- 
-      tftrx = obj.lObj.hasTrx;
-      tfcrop = ~isempty(cropRois);
+      modelChainID = obj.trnName;
+      trnstr = sprintf('trn%s',modelChainID);
  
       % info for code-generation. for now we just record a struct so we can
       % more conveniently read logfiles etc. in future this could be an obj
       % that has a codegen method etc.
       trksysinfo = struct(...
         'trkfile',cell(nView,1),...
-        'logfilebsub',[],...
-        'logfilessh',[],...
+        'logfile',[],...
+        'errfile',[],...
         'codestr',[]);
       for ivw=1:nView
-        mov = movs{ivw};
-        [movP,movF] = fileparts(mov);
-        trkfile = fullfile(movP,[movF '_' trnstr '_' nowstr '.trk']);
-        outfile = fullfile(movP,[movF '_' trnstr '_' nowstr '.log']);
-        outfile2 = fullfile(movP,[movF '_' trnstr '_' nowstr '.log2']);
-        fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);        
 
+        % base args
         baseargsaug = hmapArgs;
         if tfcrop
           baseargsaug = [baseargsaug {'croproi' cropRois(ivw,:)}];
         end
+        baseargsaug = [baseargsaug {'view' ivw}]; %#ok<AGROW> % 1-based OK
         if tftrx
           trxids = unique(tMFTConc.iTgt);
           trxfile = unique(tMFTConc.trxFile(:,ivw));
@@ -1000,16 +1043,26 @@ classdef DeepTracker < LabelTracker
           trxfile = trxfile{1};
           baseargsaug = [baseargsaug {'trxtrk' trxfile 'trxids' trxids}]; %#ok<AGROW>
         end
-
-        baseargsaug = [baseargsaug {'view' ivw}]; %#ok<AGROW> % 1-based OK
-        bsubargs = {'outfile' outfile};
-        sshargs = {'logfile' outfile2};        
         
+        % trkfile, outfile
+        mov = movs{ivw};
+        [movP,movS] = fileparts(mov);
+        trkfile = fullfile(movP,[movS '_' trnstr '_' nowstr '.trk']);
+        outfile = fullfile(movP,[movS '_' trnstr '_' nowstr '.log']);
+        errfile = fullfile(movP,[movS '_' trnstr '_' nowstr '.err']);
+        %outfile2 = fullfile(movP,[movS '_' trnstr '_' nowstr '.log2']);
+        fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);  
+
+        bsubargs = {'outfile' outfile};
+        %sshargs = {'logfile' outfile2};
+        sshargs = {};
         trksysinfo(ivw).trkfile = trkfile;
-        trksysinfo(ivw).logfilebsub = outfile;
-        trksysinfo(ivw).logfilessh = outfile2;
+        trksysinfo(ivw).logfile = outfile;
+        trksysinfo(ivw).errfile = errfile;
+        %trksysinfo(ivw).logfilessh = outfile2;
         trksysinfo(ivw).codestr = DeepTracker.trackCodeGenSSHBsubSing(...
-          trnID,dlLblFile,mov,trkfile,frm0,frm1,...
+          modelChainID,dmc(ivw).rootDir,dlLblFile,errfile,obj.trnNetType,...
+          mov,trkfile,frm0,frm1,...
           'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
           'sshargs',sshargs);
       end
@@ -1022,20 +1075,20 @@ classdef DeepTracker < LabelTracker
         assert(isempty(obj.bgTrkMonitor));
         
         outfiles = {trksysinfo.trkfile}';
-        bsublogfiles = {trksysinfo.logfilebsub}';
-        dlerrfile = DeepTracker.dlGetTrackErrFile(trnID);
-        bgTrkWorkerObj = BgTrackWorkerObjBsub(mIdx,nView,movs,outfiles,bsublogfiles,dlerrfile);
+        logfiles = {trksysinfo.logfile}';
+        errfiles = {trksysinfo.errfile}';
+        bgTrkWorkerObj = BgTrackWorkerObjBsub(mIdx,nView,movs,outfiles,...
+          logfiles,errfiles);
         
-        tfErrFileErr = bgTrkWorkerObj.errFileExistsNonZeroSize(dlerrfile);
-        if tfErrFileErr
-          error('There is an error in the DeepLearning error file ''%s''. If you would like to proceed, first delete this file.',...
-            dlerrfile);
+        tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
+        if any(tfErrFileErr)
+          error('There is an existing error in an error file: ''%s''.',...
+            String.cellstr2CommaSepList(errfiles));
         end
 
         bgTrkMonitorObj = BgTrackMonitor;
         bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
-        bgTrkMonitorObj.start();
-        obj.bgTrkMonitor = bgTrkMonitorObj;
+        obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
         
         % spawn jobs
         for ivw=1:nView
@@ -1065,7 +1118,10 @@ classdef DeepTracker < LabelTracker
     end
   end
   methods
-    function trkSpawnAWS(obj,mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,frm0,frm1)
+    function trkSpawnAWS(obj,mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,...
+        frm0,frm1)
+      % Currently mIdx, tMFTConc only one movie
+      
       nvw = obj.lObj.nview;
       assert(nvw==1,'Tracking with AWS currently supports only single-view projects.');
 
@@ -1089,6 +1145,7 @@ classdef DeepTracker < LabelTracker
             
       trkdirRemoteFull = aws.ensureRemoteDir('trk','descstr','trk');
       datadirRemoteFull = aws.ensureRemoteDir('data','descstr','data');
+      % should prob get these from tMFTConc
       movsfull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
       trxsfull = obj.lObj.getTrxFilesAllFullMovIdx(mIdx);
       tftrx = obj.lObj.hasTrx;
@@ -1301,11 +1358,18 @@ classdef DeepTracker < LabelTracker
   end
   methods (Static) % train/track codegen
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
-      [host,logfile] = myparse(varargin,...
-        'host','login1.int.janelia.org',...
-        'logfile','/dev/null');
-      codestr = sprintf('ssh %s ''%s </dev/null >%s 2>&1 &''',...
-        host,remotecmd,logfile);    
+      [host,bg] = myparse(varargin,...
+        'host','login1.int.janelia.org',... % 'logfile','/dev/null',...
+        'bg',true);
+      
+      if bg
+        codestr = sprintf('ssh %s ''%s </dev/null &''',host,remotecmd);
+      else
+        codestr = sprintf('ssh %s ''%s''',host,remotecmd);
+      end
+
+%       codestr = sprintf('ssh %s ''%s </dev/null >%s 2>&1 &''',...
+%         host,remotecmd,logfile);    
     end
     function codestr = codeGenSingGeneral(basecmd,varargin)
       % Take a base command and run it in a sing img
@@ -1331,45 +1395,64 @@ classdef DeepTracker < LabelTracker
       codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o %s %s',...
         nslots,gpuqueue,outfile,basecmd);      
     end
-    function codestr = trainCodeGen(trnID,dllbl,varargin)
+    function codestr = trainCodeGen(trnID,dllbl,cache,errfile,netType,...
+        varargin)
       view = myparse(varargin,...
         'view',[]); % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
       tfview = ~isempty(view);
       
       aptintrf = fullfile(APT.getpathdl,'APT_interface.py');
+      codestr = sprintf('python %s -name %s',aptintrf,trnID);
       if tfview
-        codestr = sprintf('python %s -name %s -view %d %s train',...
-          aptintrf,trnID,view,dllbl); % APT_interface accepts 1-based view
-      else
-        codestr = sprintf('python %s -name %s %s train',aptintrf,trnID,dllbl);
-      end
+        codestr = sprintf('%s -view %d',codestr,view); % APT_interface accepts 1-based view
+      end      
+      codestr = sprintf('%s -cache %s -err_file %s -type %s %s train -use_cache',...
+        codestr,cache,errfile,netType,dllbl);        
     end
-    function codestr = trainCodeGenSing(trnID,dllbl,varargin)
+    function codestr = trainCodeGenSing(trnID,dllbl,cache,errfile,netType,...
+        varargin)
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      basecmd = DeepTracker.trainCodeGen(trnID,dllbl,baseargs{:});
+      basecmd = DeepTracker.trainCodeGen(trnID,dllbl,cache,errfile,...
+        netType,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
-    function codestr = trainCodeGenBsubSing(trnID,dllbl,varargin)
+    function codestr = trainCodeGenBsubSing(trnID,dllbl,cache,errfile,...
+        netType,varargin)
       [baseargs,singargs,bsubargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{});
-      basecmd = DeepTracker.trainCodeGenSing(trnID,dllbl,...
-        'baseargs',baseargs,'singargs',singargs);
+      basecmd = DeepTracker.trainCodeGenSing(trnID,dllbl,cache,errfile,...
+        netType,'baseargs',baseargs,'singargs',singargs);
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
     end    
-    function codestr = trainCodeGenSSHBsubSing(trnID,dllbl,varargin)
+    function codestr = trainCodeGenSSHBsubSing(trnID,dllbl,cache,errfile,...
+        netType,varargin)
       [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{},...
         'sshargs',{});
-      remotecmd = DeepTracker.trainCodeGenBsubSing(trnID,dllbl,...
+      remotecmd = DeepTracker.trainCodeGenBsubSing(trnID,dllbl,cache,...
+        errfile,netType,...
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
+    function codestr = trainCodeGenSSHBsubSingDMC(dmc,varargin)
+      singargs = myparse(varargin,...
+        'singargs',{}...
+        );
+      codestr = DeepTracker.trainCodeGenSSHBsubSing(...
+        dmc.modelChainID,dmc.lblStrippedLnx,...
+        dmc.rootDir,dmc.errfileLnx,dmc.netType,...
+        'baseArgs',{'view' dmc.view+1},...
+        'singargs',singargs,...
+        'bsubArgs',{'outfile' dmc.trainLogLnx},...
+        'sshargs',{});
+    end
+      
     function codestr = trainCodeGenAWSUpdateAPTRepo()
        codestr = {
         'cd /home/ubuntu/APT/deepnet;';
@@ -1395,11 +1478,12 @@ classdef DeepTracker < LabelTracker
         'cd /home/ubuntu/APT/deepnet;';
         'export LD_LIBRARY_PATH=/home/ubuntu/src/cntk/bindings/python/cntk/libs:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib;';
         sprintf('python APT_interface.py -name %s -view %d -cache %s -err_file %s -type %s %s train -use_cache %s',...
-          dmc.modelChainID,dmc.view+1,dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.lblStrippedLnx,continueflags);
+          dmc.modelChainID,dmc.view+1,dmc.rootDir,dmc.errfileLnx,char(dmc.netType),dmc.lblStrippedLnx,continueflags);
         };
       codestr = cat(2,codestr{:});
     end
-    function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,movtrk,outtrk,frm0,frm1,varargin)
+    function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,movtrk,...
+        outtrk,frm0,frm1,varargin)
       [aptintrf,cache,trxtrk,trxids,view,croproi,hmaps] = myparse(varargin,...
         'aptintrf',fullfile(APT.getpathdl,'APT_interface.py'),...
         'cache',[],... % (opt) cachedir
@@ -1433,7 +1517,7 @@ classdef DeepTracker < LabelTracker
       if tfcache
         codestr = [codestr ' -cache ' cache];
       end
-      codestr = [codestr ' -err_file ' errfile ' -type ' nettype];
+      codestr = [codestr ' -err_file ' errfile ' -type ' char(nettype)];
       codestr = [codestr sprintf(' %s track -mov %s -out %s -start_frame %d -end_frame %d',...
                         dllbl,movtrk,outtrk,frm0,frm1)];
       if tftrx
@@ -1478,35 +1562,37 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenSSHGeneral(codestrremote,...
         'host',venvHost,'logfile',logFile);
     end
-    function codestr = trackCodeGenSing(trnID,dllbl,movtrk,outtrk,frm0,...
-        frm1,varargin)
+    function codestr = trackCodeGenSing(trnID,dllbl,errfile,nettype,...
+        movtrk,outtrk,frm0,frm1,varargin)
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,movtrk,outtrk,...
-        frm0,frm1,baseargs{:});
+      basecmd = DeepTracker.trackCodeGenBase(trnID,dllbl,errfile,nettype,...
+        movtrk,outtrk,frm0,frm1,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
-    function codestr = trackCodeGenBsubSing(trnID,dllbl,movtrk,outtrk,...
-        frm0,frm1,varargin)
+    function codestr = trackCodeGenBsubSing(trnID,dllbl,errfile,nettype,...
+        movtrk,outtrk,frm0,frm1,varargin)
       [baseargs,singargs,bsubargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{});
-      basecmd = DeepTracker.trackCodeGenSing(trnID,dllbl,movtrk,outtrk,...
-        frm0,frm1,'baseargs',baseargs,'singargs',singargs);
+      basecmd = DeepTracker.trackCodeGenSing(trnID,dllbl,errfile,nettype,...
+        movtrk,outtrk,frm0,frm1,'baseargs',baseargs,'singargs',singargs);
       codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
     end
-    function codestr = trackCodeGenSSHBsubSing(trnID,dllbl,movtrk,outtrk,...
-        frm0,frm1,varargin)
+    function codestr = trackCodeGenSSHBsubSing(trnID,cache,dllbl,errfile,...
+        nettype,movtrk,outtrk,frm0,frm1,varargin)
       [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{},...
         'bsubargs',{},...
         'sshargs',{}...
         );
-      remotecmd = DeepTracker.trackCodeGenBsubSing(trnID,dllbl,movtrk,outtrk,...
-        frm0,frm1,'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
+      baseargs = [baseargs {'cache' cache}];
+      remotecmd = DeepTracker.trackCodeGenBsubSing(trnID,dllbl,errfile,...
+        nettype,movtrk,outtrk,frm0,frm1,...
+        'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
     function codestr = trackCodeGenAWS(...
