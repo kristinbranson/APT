@@ -177,21 +177,21 @@ classdef ParameterVizHandler < handle
       end
     end
     
-    function propUpdatedSpinner(obj,prop,pvObj,spinnerEvt)
+    function propUpdatedSpinner(obj,prop,pvObj,spinnerEvt,propName)
       % Called when prop's spinner is clicked. propertyTable.appData.mirror
       % has not been updated yet
       % 
       % pvObj: prop->pvObj
       if ~obj.isValidParams(),
-        ParameterVisualization.grayOutAxes(obj.hAx,'Invalid parameters selected.');
+        %ParameterVisualization.grayOutAxes(obj.hAx,'Invalid parameters selected.');
         return;
       end
 
-      fprintf(1,'PVH calling propUpdatedSpinner\n');
+      %fprintf(1,'PVH calling propUpdatedSpinner\n');
       sPrm = obj.getCurrentParamsInTree(); % sPrm outdated relative to spinnerEvt.spinnerValue;
       val = spinnerEvt.spinnerValue;
-      pvObj.propUpdatedDynamic(obj.hAx,obj.lObj,char(prop.getFullName()),...
-        sPrm,val);
+      get(prop,'UserData')
+      pvObj.propUpdatedDynamic(obj.hAx,obj.lObj,propName,sPrm,val);
     end
     
     function sPrm = getCurrentParamsInTree(obj)

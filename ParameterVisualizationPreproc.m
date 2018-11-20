@@ -30,25 +30,34 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       end
     end
 
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val)
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val) %#ok<INUSD>
       
-      % to do: store val in sPrm
-      switch propFullName,
-        case 'ImageProcessing.Multiple Targets.Target ROI.Pad background'
-          sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.PadBkgd = val;
-        case 'ImageProcessing.Histogram Equalization.Enable'
-          sPrm.ROOT.ImageProcessing.HistEq.Use = val;
-        case 'ImageProcessing.Histogram Equalization.Num frames sample'
-          sPrm.ROOT.ImageProcessing.HistEq.NSampleH0 = val;
-        case 'ImageProcessing.Background Subtraction.Enable',
-          sPrm.ROOT.ImageProcessing.BackSub.Use = val;
-        case 'ImageProcessing.Background Subtraction.Background Type',
-          sPrm.ROOT.ImageProcessing.BackSub.BGType = val;
-        case 'ImageProcessing.Background Subtraction.Background Read Function',
-          sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn = val;
-        otherwise
-          error('Unknown property changed: %s',propFullName);
+
+      try
+        eval(sprintf('sPrm.ROOT.%s;',propFullName));
+      catch 
+        warningNoTrace(sprintf('Unknown property %s',propFullName));
+        return;
       end
+      eval(sprintf('sPrm.ROOT.%s = val;',propFullName));
+      
+%       % to do: store val in sPrm
+%       switch propFullName,
+%         case 'ImageProcessing.Multiple Targets.Target ROI.Pad background'
+%           sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.PadBkgd = val;
+%         case 'ImageProcessing.Histogram Equalization.Enable'
+%           sPrm.ROOT.ImageProcessing.HistEq.Use = val;
+%         case 'ImageProcessing.Histogram Equalization.Num frames sample'
+%           sPrm.ROOT.ImageProcessing.HistEq.NSampleH0 = val;
+%         case 'ImageProcessing.Background Subtraction.Enable',
+%           sPrm.ROOT.ImageProcessing.BackSub.Use = val;
+%         case 'ImageProcessing.Background Subtraction.Background Type',
+%           sPrm.ROOT.ImageProcessing.BackSub.BGType = val;
+%         case 'ImageProcessing.Background Subtraction.Background Read Function',
+%           sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn = val;
+%         otherwise
+%           error('Unknown property changed: %s',propFullName);
+%       end
       
       if obj.initSuccessful,
         obj.update(hAx,lObj,sPrm);

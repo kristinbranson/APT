@@ -715,7 +715,8 @@ else
           sl = javaObjectEDT('aptjava.SpinnerChangeListener');
           sl = handle(sl,'CallbackProperties');
           spinner.addChangeListener(sl);
-          set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
+          set(sl,'EventCbkCallback',@(s,e)spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn));
+          %set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
         end
       end
 
@@ -734,8 +735,8 @@ else
           sl = javaObjectEDT('aptjava.SpinnerChangeListener');
           sl = handle(sl,'CallbackProperties');
           spinner.addChangeListener(sl);
-          set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
-          %set(sl,'EventCbkCallback',@(varargin)paramVizHandler.propUpdatedSpinner(prop,pvObj,varargin{2},varargin{1},varargin{3:end}));
+          set(sl,'EventCbkCallback',@(s,e)spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn));
+          %set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
         end
       end      
       
@@ -793,6 +794,17 @@ else
 end
 
 setPropName(prop,propName);
+end
+
+function spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn)
+
+val = e.spinnerValue;
+propUpdatedCallback(prop,e,propName,hFig,[],paramCheckerFcn,val);
+
+if ~isempty(paramVizHandler) && paramVizHandler.isprop(prop)
+  paramVizHandler.propUpdatedSpinner(prop,pvObj,e,getRecursivePropName(prop, propName));
+end
+
 end
 
 % Set property name in the Java property reference
@@ -906,7 +918,7 @@ end
 com.jidesoft.grid.CellEditorManager.registerEditor(propType, editor, context);
 end  % alignProp
 
-function propUpdatedCallback(prop,eventData,propName,hFig,paramVizHandler,paramCheckerFcn)
+function propUpdatedCallback(prop,eventData,propName,hFig,paramVizHandler,paramCheckerFcn,val)
 % paramVizHandler: optional, if present then paramVizHandler.isprop(prop)
 % should be true
 
@@ -916,6 +928,8 @@ try
   end
 catch
 end
+
+isVal = exist('val','var');
 
 %fprintf('Prop updated: %s\n',propName);
 
@@ -1016,7 +1030,12 @@ node.Data.Value = propValue;
 setappdata(hFig, 'mirror',data); % AL: shouldn't be nec it seems, handles
  
 % Update the display
-checkProps(propsList, hFig, [], paramCheckerFcn);
+if isVal,
+  extraargs = {propName,val};
+else
+  extraargs = {};
+end
+checkProps(propsList, hFig, [], paramCheckerFcn,extraargs{:});
 try 
   propsPane.repaint; 
 catch
@@ -1063,9 +1082,10 @@ end
 end  % btOK_Callback
 
 % Check whether all mandatory fields have been filled, update background color accordingly
-function checkProps(propsList, hContainer, isInit, paramCheckerFcn)
+function checkProps(propsList, hContainer, isInit, paramCheckerFcn,propNameCurr,valCurr) %#ok<INUSD>
 if nargin < 3 || isempty(isInit),  isInit = false;  end
 if nargin < 4, paramCheckerFcn = []; end
+isPropVal = nargin >= 6;
 isParameterChecker = ~isempty(paramCheckerFcn);
 
 okEnabled = 'on';
@@ -1075,6 +1095,9 @@ if isParameterChecker,
   sPrm = getappdata(hContainer,'rootnode');
   sPrm.Children = t;
   sPrmStruct = sPrm.structize();
+  if isPropVal,
+    eval(sprintf('sPrmStruct.ROOT.%s = valCurr;',propNameCurr));
+  end
   [isOkStruct,msgs] = feval(paramCheckerFcn,sPrmStruct);
 
   try propsArray = propsList.toArray(); catch, return; end
