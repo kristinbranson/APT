@@ -5,6 +5,9 @@ classdef BgTrainWorkerObj < handle
   % Responsibilities:
   % - Poll filesystem for training updates
 
+  % TODO: this obj should own or have a copy of the DeepModelChainOnDisk so
+  % it can do things like list the current modelChanDir.
+  
   properties
     nviews
     
@@ -108,7 +111,7 @@ classdef BgTrainWorkerObj < handle
       logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
       BgTrainWorkerObj.printLogfilesStc(logFiles,logFileContents)
     end
-    
+            
     function [tfEFE,errFile] = errFileExists(obj) % obj const
       errFile = unique(obj.artfctErrFile);
       assert(isscalar(errFile));

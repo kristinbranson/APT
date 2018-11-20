@@ -438,6 +438,14 @@ classdef DeepTracker < LabelTracker
       trnBgWorkerObj.printLogfiles();      
     end
     
+    function trnKill(obj)
+      if ~obj.bgTrnIsRunning
+        error('Training is not in progress.');
+      end
+      
+      obj.bgTrnMonitor.killProcess();      
+    end
+    
   end
 %   methods (Static)
 %     function s = trnLogfileStc(cacheDir,trnID,iview)
@@ -1322,11 +1330,16 @@ classdef DeepTracker < LabelTracker
   end
   methods (Static) % train/track codegen
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
-      [host,logfile] = myparse(varargin,...
+      [host,logfile,bg] = myparse(varargin,...
         'host','login1.int.janelia.org',...
-        'logfile','/dev/null');
-      codestr = sprintf('ssh %s ''%s </dev/null &''',...
-         host,remotecmd);    
+        'logfile','/dev/null',...
+        'bg',true);
+      
+      if bg
+        codestr = sprintf('ssh %s ''%s </dev/null &''',host,remotecmd);
+      else
+        codestr = sprintf('ssh %s ''%s''',host,remotecmd);
+      end
 
 %       codestr = sprintf('ssh %s ''%s </dev/null >%s 2>&1 &''',...
 %         host,remotecmd,logfile);    
