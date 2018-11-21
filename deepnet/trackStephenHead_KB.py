@@ -109,7 +109,11 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
         all_f = apt.create_batch_ims(to_do_list[cur_start:(cur_start+ppe)], conf,
                                  cap, flipud, [None], crop_loc=cc)
 
-        base_locs, hmaps = pred_fn(all_f)
+        # base_locs, hmaps = pred_fn(all_f)
+        ret_dict = pred_fn(all_f)
+        base_locs = ret_dict['locs']
+        hmaps = ret_dict['hmaps']
+
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
             cur_f = cur_entry[0]

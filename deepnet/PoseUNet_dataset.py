@@ -615,7 +615,11 @@ class PoseUNet(PoseCommon):
                 exit(1)
             base_locs = PoseTools.get_pred_locs(pred, self.edge_ignore)
             base_locs = base_locs * conf.unet_rescale
-            return base_locs, pred
+            ret_dict = {}
+            ret_dict['locs'] = base_locs
+            ret_dict['hmaps'] = pred
+            ret_dict['conf'] = np.max(pred,axis=(1,2))
+            return ret_dict
 
         def close_fn():
             sess.close()
