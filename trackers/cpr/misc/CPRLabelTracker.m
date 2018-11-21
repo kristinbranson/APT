@@ -890,12 +890,12 @@ classdef CPRLabelTracker < LabelTracker
                      ... % WARNING: if supplied this, caller is responsible for adding the right fields (roi, trx, etc)
                      ... % if .roi is present, .p must be relative.
         'updateTrnData',true,... % if false, don't check for new/recent Labeler labels. Used only when .trnDataDownSamp is true (and tblPTrn not supplied).
-        'wbObj',[] ... % optional WaitBarWithCancel. If cancel:
-                   ... % 1. .trnDataInit() and .trnResInit() are called
-                   ... % 2. .lObj.preProcData may be updated but that should be OK
+        'wbObj',[]  ... % optional WaitBarWithCancel. If cancel:
+                    ... % 1. .trnDataInit() and .trnResInit() are called
+                    ... % 2. .lObj.preProcData may be updated but that should be OK
         );
       tfWB = ~isempty(wbObj);
-      
+
       prm = obj.sPrm;
       if isempty(prm)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
@@ -1005,8 +1005,92 @@ classdef CPRLabelTracker < LabelTracker
           end
         end
       end
+      
       obj.trnResIPt = iPt;
+            
     end
+    
+    
+    function p0 = randInit(obj,tblPTrn,bboxes,varargin)
+      % Full train 
+      % 
+      % Sets .trnRes*
+      
+      [wbObj,prm] = myparse(varargin,...
+        'wbObj',[],  ... % optional WaitBarWithCancel. If cancel:
+                     ... % 1. .trnDataInit() and .trnResInit() are called
+                     ... % 2. .lObj.preProcData may be updated but that should be OK
+        'CPRParams',[]...
+        );
+      tfWB = ~isempty(wbObj);
+
+      isCPRParams = ~isempty(prm);
+
+      if ~isCPRParams,
+        prm = obj.sPrm;
+      end
+      if isempty(prm)
+        error('CPRLabelTracker:param','Please specify tracking parameters.');
+      end
+      
+      obj.asyncReset(true);
+      
+      iPt = prm.TrainInit.iPt;
+      nfids = prm.Model.nfids;
+      nviews = prm.Model.nviews;
+      assert(prm.Model.d==2);
+      nfidsInTD = size(tblPTrn.p,2)/prm.Model.d;
+      if isempty(iPt)
+        assert(nfidsInTD==nfids*nviews);
+        iPt = 1:nfidsInTD;
+      else
+        assert(obj.lObj.nview==1,'TrainInit.iPt specification currently unsupported for multiview projects.');
+      end
+      iPGT = [iPt iPt+nfidsInTD];
+      fprintf(1,'iPGT: %s\n',mat2str(iPGT));
+      pTrn = tblPTrn.p;%d.pGTTrn(:,iPGT);
+      % pTrn col order is: [iPGT(1)_x iPGT(2)_x ... iPGT(end)_x iPGT(1)_y ... iPGT(end)_y]
+      
+      nView = obj.lObj.nview;
+      if nView==1 % doesn't need its own branch, just leaving old path
+        % expect a permutation
+        %assert(isequal(sort(locDataInTblP(:)'),1:height(tblPTrn))); %#ok<TRSRT>
+        %tblPTrnPerm = tblPTrn(locDataInTblP,:);
+        if tblfldscontains(tblPTrn,'thetaTrx')
+          oThetas = tblPTrn.thetaTrx;
+        else
+          oThetas = [];
+        end
+        p0 = obj.trnResRC.randInit(bboxes,pTrn,...
+          'orientationThetas',oThetas,'CPRParams',prm);
+        if tfWB && wbObj.isCancel
+          return;
+        end        
+      else
+        assert(~obj.lObj.hasTrx,'Currently unsupported for projects with trx.');
+        assert(size(pTrn,2)==obj.lObj.nPhysPoints*nView*prm.Model.d); 
+        assert(nfidsInTD==obj.lObj.nPhysPoints*nView);
+        % col order of pTrn should be:
+        % [p1v1_x p2v1_x .. pkv1_x p1v2_x .. pkv2_x .. pkvW_x
+        nPhysPoints = obj.lObj.nPhysPoints;
+        for iView=1:nView
+          
+          bbVw = bboxes(:,:,iView);
+          iPtVw = (1:nPhysPoints)+(iView-1)*nPhysPoints;
+          assert(isequal(iPtVw(:),find(obj.lObj.labeledposIPt2View==iView)));
+          pTrnVw = pTrn(:,[iPtVw iPtVw+nfidsInTD]);
+          
+          % Future todo: orientationThetas
+          % Should break internally if 'orientationThetas' is req'd
+          p0 = obj.trnResRC(iView).randInit(bbVw,pTrnVw,'wbObj',wbObj,'CPRParams',prm);
+          if tfWB && wbObj.isCancel
+            return;
+          end
+        end
+      end
+                  
+    end
+    
     
     function [tfCanTrain,reason] = canTrain(obj)
       
