@@ -13,7 +13,17 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
   
   methods
     
+    function isOk = plotOk(obj)
+      isOk = ~isempty(obj.hRect) && ishandle(obj.hRect);
+    end
+    
     function propSelected(obj,hAx,lObj,propFullName,sPrm)
+      
+      obj.init(hAx,lObj,propFullName,sPrm);
+      
+    end
+    
+    function init(obj,hAx,lObj,propFullName,sPrm)
       
       obj.initSuccessful = false;
       if ~lObj.hasMovie
@@ -62,17 +72,21 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
     end
 
     function propUpdated(obj,hAx,lObj,propFullName,sPrm)
-      if obj.initSuccessful
+      if obj.initSuccessful && obj.plotOk(),
         rad = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
         rectPos = obj.getRectPos(rad);
         obj.hRect.Position = rectPos;
+      else
+        obj.init(hAx,lObj,propFullName,sPrm);
       end
     end
     
     function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,rad)
-      if obj.initSuccessful
+      if obj.initSuccessful && obj.plotOk(),
         rectPos = obj.getRectPos(rad);
         obj.hRect.Position = rectPos;
+      else
+        obj.init(hAx,lObj,propFullName,sPrm);
       end
     end
     

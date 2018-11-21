@@ -8,11 +8,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
   methods
     
     function propSelected(obj,hAx,lObj,propFullName,sPrm)
-      if obj.initSuccessful
-        obj.update(hAx,lObj,sPrm);
-      else
-        obj.init(hAx,lObj,sPrm);
-      end
+      obj.init(hAx,lObj,sPrm);
     end
     
     function propUnselected(obj)
@@ -22,12 +18,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
 
     function propUpdated(obj,hAx,lObj,propFullName,sPrm)
       %prmFtr = sPrm.ROOT.CPR.Feature;
-      if obj.initSuccessful,
-        obj.update(hAx,lObj,sPrm);
-      else
-        % New init, or feature type changed
-        obj.init(hAx,lObj,sPrm);
-      end
+      obj.init(hAx,lObj,sPrm);
     end
 
     function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val) %#ok<INUSD>
@@ -59,12 +50,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
 %           error('Unknown property changed: %s',propFullName);
 %       end
       
-      if obj.initSuccessful,
-        obj.update(hAx,lObj,sPrm);
-      else
-        % New init
-        obj.init(hAx,lObj,sPrm);
-      end
+      obj.init(hAx,lObj,sPrm);
       
     end
     
@@ -85,7 +71,8 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       ParameterVisualization.setBusy(hAx,'Computing visualization. Please wait...');
       
       % Choose labeled frames
-      tblPTrn = lObj.preProcGetMFTableLbled();
+      [~,~,ppPrms] = lObj.convertNew2OldParams(sPrm);
+      tblPTrn = lObj.preProcGetMFTableLbled('preProcParams',ppPrms);
 
       nr = 3;
       nc = 3;

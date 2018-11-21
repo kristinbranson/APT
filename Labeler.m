@@ -7654,7 +7654,7 @@ classdef Labeler < handle
       obj.trackInitAllTrackers();
     end
     
-    function tblP = preProcCropLabelsToRoiIfNec(obj,tblP)
+    function tblP = preProcCropLabelsToRoiIfNec(obj,tblP,varargin)
       % Add .roi column to table if appropriate/nec
       %
       % If hasTrx, modify tblP as follows:
@@ -7666,11 +7666,18 @@ classdef Labeler < handle
       %   - .p will be pAbs
       %   - no .roi
       
+      prmpp = myparse(varargin,'preProcParams',[]);
+      isPreProcParams = ~isempty(prmpp);
+      
       if obj.hasTrx
         tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
         assert(all(tf) || ~any(tf));
         if ~any(tf)
-          roiRadius = obj.preProcParams.TargetCrop.Radius;
+          if isPreProcParams,
+            roiRadius = prmpp.TargetCrop.Radius;
+          else
+            roiRadius = obj.preProcParams.TargetCrop.Radius;
+          end
           tblP = obj.labelMFTableAddROITrx(tblP,roiRadius);
           tblP.pAbs = tblP.p;
           tblP.p = tblP.pRoi;
@@ -7700,12 +7707,13 @@ classdef Labeler < handle
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when .hasTrx or .cropProjHasCropInfo
 
-      [wbObj,tblMFTrestrict,gtModeOK] = myparse(varargin,...
+      [wbObj,tblMFTrestrict,gtModeOK,prmpp] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                     ... % 1. obj const 
                     ... % 2. tblP indeterminate
         'tblMFTrestrict',[],... % see labelGetMFTableLabeld
-        'gtModeOK',false... % by default, this meth should not be called in GT mode
+        'gtModeOK',false,... % by default, this meth should not be called in GT mode
+        'preProcParams',[]...
         ); 
       tfWB = ~isempty(wbObj);
       if ~isempty(tblMFTrestrict)
@@ -7723,7 +7731,7 @@ classdef Labeler < handle
         return;
       end
       
-      tblP = obj.preProcCropLabelsToRoiIfNec(tblP);
+      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'preProcParams',prmpp);
       tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
       if nnan>0
