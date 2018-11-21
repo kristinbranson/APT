@@ -4691,7 +4691,33 @@ classdef Labeler < handle
       else
         warning('labeler:noMovie','No movie.');
       end
-    end        
+    end    
+    
+    function labelPosBulkClear(obj,varargin)
+      % Clears ALL labels for current GT state -- ALL MOVIES/TARGETS
+      
+      gt = myparse(varargin,...
+        'gt',obj.gtIsGTMode);
+      
+      PROPS = Labeler.gtGetSharedPropsStc(gt);
+      nMov = obj.getnmoviesGTawareArg(gt);
+      
+      for iMov=1:nMov
+        obj.(PROPS.LPOS){iMov}(:) = nan;        
+        obj.(PROPS.LPOSTS){iMov}(:) = now();
+        obj.(PROPS.LPOSTAG){iMov}(:) = false;
+        if ~gt
+          % unclear what this should be; marked-ness currently unused
+          obj.labeledposMarked{iMov}(:) = false; 
+        end
+      end
+      
+      obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      end
+      obj.labeledposNeedsSave = true;
+    end
     
     function labelPosBulkImport(obj,xy)
       % Set ALL labels for current movie/target
@@ -4706,7 +4732,7 @@ classdef Labeler < handle
       obj.labeledpos{iMov} = xy;
       obj.labeledposTS{iMov}(:) = now();
       obj.labeledposMarked{iMov}(:) = true; % not sure of right treatment
-      
+
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
