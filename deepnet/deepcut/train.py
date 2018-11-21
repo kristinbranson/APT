@@ -243,7 +243,11 @@ def get_pred_fn(cfg, model_file=None):
         scmap, locref = predict.extract_cnn_output(cur_out, cfg)
         pose = predict.argmax_pose_predict(scmap, locref, cfg.stride)
         pose = pose[:,:,:2]*cfg.dlc_rescale
-        return pose, scmap
+        ret_dict = {}
+        ret_dict['locs'] = pose
+        ret_dict['hmaps'] = scmap
+        ret_dict['conf'] = np.max(scmap, axis=(1, 2))
+        return ret_dict
 
     def close_fn():
         sess.close()

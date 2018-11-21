@@ -524,7 +524,12 @@ def get_pred_fn(conf, model_file=None):
         pred = pred[:,:all_f.shape[1],:all_f.shape[2],:]
         base_locs = PoseTools.get_pred_locs(pred)
         base_locs = base_locs * conf.leap_rescale
-        return base_locs, pred
+
+        ret_dict = {}
+        ret_dict['locs'] = base_locs
+        ret_dict['hmaps'] = pred
+        ret_dict['conf'] = np.max(pred, axis=(1, 2))
+        return ret_dict
 
     close_fn = K.clear_session
 

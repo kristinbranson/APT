@@ -9,7 +9,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
     
     function propSelected(obj,hAx,lObj,propFullName,sPrm)
       if obj.initSuccessful
-        obj.plothelper(hAx,lObj,sPrm);
+        obj.update(hAx,lObj,sPrm);
       else
         obj.init(hAx,lObj,sPrm);
       end
@@ -23,35 +23,44 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
     function propUpdated(obj,hAx,lObj,propFullName,sPrm)
       %prmFtr = sPrm.ROOT.CPR.Feature;
       if obj.initSuccessful,
-        obj.plothelper(hAx,lObj,sPrm);
+        obj.update(hAx,lObj,sPrm);
       else
         % New init, or feature type changed
         obj.init(hAx,lObj,sPrm);
       end
     end
 
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val)
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val) %#ok<INUSD>
       
-      % to do: store val in sPrm
-      switch propFullName,
-        case 'ImageProcessing.Multiple Targets.Target ROI.Pad background'
-          sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.PadBkgd = val;
-        case 'ImageProcessing.Histogram Equalization.Enable'
-          sPrm.ROOT.ImageProcessing.HistEq.Use = val;
-        case 'ImageProcessing.Histogram Equalization.Num frames sample'
-          sPrm.ROOT.ImageProcessing.HistEq.NSampleH0 = val;
-        case 'ImageProcessing.Background Subtraction.Enable',
-          sPrm.ROOT.ImageProcessing.BackSub.Use = val;
-        case 'ImageProcessing.Background Subtraction.Background Type',
-          sPrm.ROOT.ImageProcessing.BackSub.BGType = val;
-        case 'ImageProcessing.Background Subtraction.Background Read Function',
-          sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn = val;
-        otherwise
-          error('Unknown property changed: %s',propFullName);
+
+      try
+        eval(sprintf('sPrm.ROOT.%s;',propFullName));
+      catch 
+        warningNoTrace(sprintf('Unknown property %s',propFullName));
+        return;
       end
+      eval(sprintf('sPrm.ROOT.%s = val;',propFullName));
+      
+%       % to do: store val in sPrm
+%       switch propFullName,
+%         case 'ImageProcessing.Multiple Targets.Target ROI.Pad background'
+%           sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.PadBkgd = val;
+%         case 'ImageProcessing.Histogram Equalization.Enable'
+%           sPrm.ROOT.ImageProcessing.HistEq.Use = val;
+%         case 'ImageProcessing.Histogram Equalization.Num frames sample'
+%           sPrm.ROOT.ImageProcessing.HistEq.NSampleH0 = val;
+%         case 'ImageProcessing.Background Subtraction.Enable',
+%           sPrm.ROOT.ImageProcessing.BackSub.Use = val;
+%         case 'ImageProcessing.Background Subtraction.Background Type',
+%           sPrm.ROOT.ImageProcessing.BackSub.BGType = val;
+%         case 'ImageProcessing.Background Subtraction.Background Read Function',
+%           sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn = val;
+%         otherwise
+%           error('Unknown property changed: %s',propFullName);
+%       end
       
       if obj.initSuccessful,
-        obj.plothelper(hAx,lObj,sPrm);
+        obj.update(hAx,lObj,sPrm);
       else
         % New init
         obj.init(hAx,lObj,sPrm);
@@ -62,7 +71,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
     function init(obj,hAx,lObj,sPrm)
       % plot sample processed training images
       % Set .initSuccessful, initVizInfo
-      % Subsequent changes to can be handled via plothelper(). This avoids
+      % Subsequent changes to can be handled via update(). This avoids
       % recollecting all training labels.
 
       obj.initSuccessful = false;
@@ -73,8 +82,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
         return;
       end
       
-      ParameterVisualization.grayOutAxes(hAx,'Processing ... please wait.');
-      drawnow;
+      ParameterVisualization.setBusy(hAx,'Computing visualization. Please wait...');
       
       % Choose labeled frames
       tblPTrn = lObj.preProcGetMFTableLbled();
@@ -96,14 +104,16 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       obj.initVizInfo.tblPTrn1 = tblPTrn1;
       obj.initVizInfo.nr = nr;
       obj.initVizInfo.nc = nc;
-      obj.plothelper(hAx,lObj,sPrm);
+      obj.update(hAx,lObj,sPrm);
       
       obj.initSuccessful = true;
 
     end
     
-    function plothelper(obj,hAx,lObj,sPrm)
+    function update(obj,hAx,lObj,sPrm)
 
+      ParameterVisualization.setBusy(hAx);
+      
       [~,~,ppPrms] = lObj.convertNew2OldParams(sPrm);
       
       nshow = size(obj.initVizInfo.tblPTrn1,1);
@@ -146,20 +156,14 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
           sprintf('mov %d, tgt %d, frm %d',...
           obj.initVizInfo.tblPTrn1.mov(i),obj.initVizInfo.tblPTrn1.iTgt(i),...
           obj.initVizInfo.tblPTrn1.frm(i)),...
-          'HorizontalAlignment','left','VerticalAlignment','top','Color','m');
-      end
-    end
-    
-    function update(obj,hAx,lObj,sPrm)
-      % Update visualization for unchanged featuretype (eg radius, abratio
-      % changed)
-            
-      if obj.initSuccessful
-        obj.plothelper(hAx,lObj,sPrm);
+          'HorizontalAlignment','left','VerticalAlignment','top','Color','c',...
+          'Parent',hAx);
       end
       
+      ParameterVisualization.setReady(hAx);
+      
     end
-    
+        
   end
   
 end

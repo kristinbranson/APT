@@ -193,9 +193,9 @@ def convert_unicode(data):
         return data
 
 
-def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num):
+def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num,extra_str=''):
     for bpart in range(hmaps.shape[-1]):
-        cur_out = os.path.join(hmaps_dir, 'hmap_trx_{}_t_{}_part_{}.jpg'.format(trx_ndx + 1, frame_num + 1, bpart + 1))
+        cur_out = os.path.join(hmaps_dir, 'hmap_trx_{}_t_{}_part_{}{}.jpg'.format(trx_ndx + 1, frame_num + 1, bpart + 1, extra_str))
         cur_im = hmaps[:, :, bpart]
         cur_im = ((np.clip(cur_im, -1 + 1./128, 1) * 128) + 127).astype('uint8')
         imageio.imwrite(cur_out, cur_im, 'jpg', quality=75)
@@ -811,7 +811,9 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start+ppe)], conf,
                                  cap, flipud, trx, crop_loc)
 
-        base_locs, hmaps = pred_fn(all_f)
+        ret_dict = pred_fn(all_f)
+        base_locs = ret_dict['locs']
+        hmaps = ret_dict['hmaps']
         base_locs = base_locs + 1  # for matlabs 1 - indexing
 
         for cur_t in range(ppe):
@@ -903,7 +905,11 @@ def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
             all_f[ndx,...] = next_db[0]
             labeled_locs[cur_start + ndx, ...] = next_db[1]
             info.append(next_db[2])
-        base_locs, hmaps = pred_fn(all_f)
+        # base_locs, hmaps = pred_fn(all_f)
+        ret_dict = pred_fn(all_f)
+        base_locs = ret_dict['locs']
+        hmaps = ret_dict['hmaps']
+
         for ndx in range(ppe):
             pred_locs[cur_start + ndx, ...] = base_locs[ndx,...]
             if return_ims:
@@ -1037,6 +1043,46 @@ def classify_gt_data(conf, model_type, out_file, model_file):
     return pred_locs, labeled_locs, cur_list
 
 
+def convert_to_matlab(in_pred,conf,n_done,trx_ids):
+    pred_locs = in_pred.copy()
+    pred_locs = pred_locs[:, trx_ids, ...]
+    pred_locs = pred_locs[n_done,...]
+    if pred_locs.ndim == 4:
+        pred_locs = pred_locs.transpose([2, 3, 0, 1])
+    else:
+        pred_locs = pred_locs.transpose([2, 0, 1])
+    if not conf.has_trx_file:
+        pred_locs = pred_locs[..., 0]
+    return pred_locs
+
+def write_trk(out_file, pred_locs_in, extra_dict, n_done, trx_ids, conf, info, mov_file):
+    # pred_locs is the predicted locations of size
+    # n_frames in the movie x n_Trx x n_body_parts x 2
+    # n_done is the number of frames that have been tracked.
+    pred_locs = convert_to_matlab(pred_locs_in,conf,n_done,trx_ids)
+
+    tgt = np.array(trx_ids) + 1  # target animals that have been tracked.
+    # For projects without trx file this is always 1.
+    ts_shape = pred_locs.shape[0:1] + pred_locs.shape[2:]
+    ts = np.ones(ts_shape) * datetime2matlabdn()  # time stamp
+    tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+    tracked_shape = pred_locs.shape[2]
+    tracked = np.zeros([1,
+                        tracked_shape])  # which of the predlocs have been tracked. Mostly to help APT know how much tracking has been done.
+    tracked[0, :] = np.array(n_done) + 1
+
+    out_dict = {'pTrk': pred_locs,
+                'pTrkTS': ts,
+                'expname': mov_file,
+                'pTrkiTgt': tgt,
+                'pTrkTag': tag,
+                'pTrkFrm': tracked,
+                'trkInfo': info}
+    for k in extra_dict.keys():
+        out_dict['pTrk' + k] = convert_to_matlab(extra_dict[k])
+
+    hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
+
 def classify_movie(conf, pred_fn,
                    mov_file='',
                    out_file='',
@@ -1051,35 +1097,6 @@ def classify_movie(conf, pred_fn,
                    crop_loc=None):
     # classifies movies frame by frame instead of trx by trx.
 
-    def write_trk(pred_locs_in, n_done):
-        # pred_locs is the predicted locations of size
-        # n_frames in the movie x n_Trx x n_body_parts x 2
-        # n_done is the number of frames that have been tracked.
-        pred_locs = pred_locs_in.copy()
-        pred_locs = pred_locs[:, trx_ids, ...]
-        pred_locs = pred_locs.transpose([2, 3, 0, 1])
-        pred_locs = pred_locs[:, :, n_done, :]
-        tgt = np.array(trx_ids) + 1  # target animals that have been tracked.
-        # For projects without trx file this is always 1.
-        if not conf.has_trx_file:
-            pred_locs = pred_locs[..., 0]
-        ts_shape = pred_locs.shape[0:1] + pred_locs.shape[2:]
-        ts = np.ones(ts_shape) * datetime2matlabdn() # time stamp
-        tag = np.zeros(ts.shape).astype('bool') # tag which is always false for now.
-        tracked_shape = pred_locs.shape[2]
-        tracked = np.zeros([1, tracked_shape]) # which of the predlocs have been tracked. Mostly to help APT know how much tracking has been done.
-        tracked[0, :] = np.array(n_done) + 1
-        info = {} # tracking info. Can be empty.
-        info[u'model_file'] = model_file
-        info[u'trnTS'] = get_matlab_ts(model_file + '.meta')
-        info[u'name'] = name
-        param_dict = convert_unicode(conf.__dict__.copy())
-        param_dict.pop('cropLoc', None)
-        info[u'params'] = param_dict
-        hdf5storage.savemat(out_file,
-                            {'pTrk': pred_locs, 'pTrkTS': ts, 'expname': mov_file, 'pTrkiTgt': tgt,
-                             'pTrkTag': tag, 'pTrkFrm': tracked, 'trkInfo': info},
-                            appendmat=False, truncate_existing=True)
 
     cap = movies.Movie(mov_file)
     sz = (cap.get_height(), cap.get_width())
@@ -1089,6 +1106,14 @@ def classify_movie(conf, pred_fn,
     bsize = conf.batch_size
     flipud = conf.flipud
 
+    info = {}  # tracking info. Can be empty.
+    info[u'model_file'] = model_file
+    info[u'trnTS'] = get_matlab_ts(model_file + '.meta')
+    info[u'name'] = name
+    param_dict = convert_unicode(conf.__dict__.copy())
+    param_dict.pop('cropLoc', None)
+    info[u'params'] = param_dict
+
     if end_frame < 0: end_frame = end_frames.max()
     if end_frame > end_frames.max(): end_frame = end_frames.max()
     if start_frame > end_frame: return None
@@ -1097,6 +1122,8 @@ def classify_movie(conf, pred_fn,
     min_first_frame = first_frames.min()
     pred_locs = np.zeros([max_n_frames, n_trx, conf.n_classes, 2])
     pred_locs[:] = np.nan
+
+    extra_dict = {}
 
     hmap_out_dir = os.path.splitext(out_file)[0] + '_hmap'
     if not os.path.exists(hmap_out_dir):
@@ -1118,27 +1145,49 @@ def classify_movie(conf, pred_fn,
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start+ppe)], conf,
                                  cap, flipud, T, crop_loc)
 
-        base_locs, hmaps = pred_fn(all_f)
+        ret_dict = pred_fn(all_f)
+        base_locs = ret_dict.pop('locs')
+        hmaps = ret_dict.pop('hmaps')
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
             trx_ndx = cur_entry[1]
             cur_trx = T[trx_ndx]
             cur_f = cur_entry[0]
             trx_fnum_start = cur_f - first_frames[trx_ndx]
-            base_locs_orig = convert_to_orig(base_locs[cur_t:cur_t + 1, ...], conf, cur_trx,
-                                             trx_fnum_start, all_f, sz, 1, crop_loc)
+            base_locs_orig = convert_to_orig(base_locs[cur_t:cur_t + 1, ...], conf, cur_trx, trx_fnum_start, all_f, sz, 1, crop_loc)
             pred_locs[cur_f - min_first_frame, trx_ndx, :, :] = base_locs_orig[0, ...] + 1
 
             if save_hmaps:
                 write_hmaps(hmaps[cur_t, ...], hmap_out_dir, trx_ndx, cur_f)
 
+            # for everything else that is returned..
+            for k in ret_dict.keys():
+
+                if ret_dict[k].ndim == 4: # hmaps
+                    cur_hmap = ret_dict[k]
+                    write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f,k[5:])
+
+                else:
+                    cur_v = ret_dict[k]
+                    if not extra_dict.has_key(k):
+                        sz = cur_v.shape[1:]
+                        extra_dict[k] = np.zeros((max_n_frames, n_trx) + sz)
+
+                    if k.starts_with('locs'): # transform locs
+                        cur_orig = convert_to_orig(cur_v[cur_t:cur_t + 1, ...], conf, cur_trx, trx_fnum_start, all_f, sz, 1, crop_loc)
+                        cur_orig = cur_orig[0,...]
+                    else:
+                        cur_orig = cur_v[cur_t,...]
+
+                    extra_dict[k][cur_f - min_first_frame, trx_ndx, ...] = cur_orig
+
         if cur_b % 20 == 19:
             sys.stdout.write('.')
         if cur_b % 400 == 399:
             sys.stdout.write('\n')
-            write_trk(pred_locs, range(start_frame, to_do_list[cur_start][0]))
+            write_trk(out_file, pred_locs, range(start_frame, to_do_list[cur_start][0]),trx_ids,conf,info,mov_file)
 
-    write_trk(pred_locs, range(start_frame, end_frame))
+    write_trk(out_file, pred_locs, extra_dict, range(start_frame, end_frame), trx_ids, conf, info, mov_file)
     cap.close()
     tf.reset_default_graph()
     return pred_locs
@@ -1177,7 +1226,12 @@ def get_unet_pred_fn_nodataset(conf, model_file=None):
             exit(1)
         base_locs = PoseTools.get_pred_locs(pred,self.edge_ignore)
         base_locs = base_locs * conf.unet_rescale
-        return base_locs, pred
+
+        ret_dict = {}
+        ret_dict['locs'] = base_locs
+        ret_dict['hmaps'] = pred
+        ret_dict['conf'] = np.max(pred, axis=(1, 2))
+        return ret_dict
 
     def close_fn():
         sess.close()

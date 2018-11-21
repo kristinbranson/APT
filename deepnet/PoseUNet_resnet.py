@@ -640,7 +640,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             self.fd[self.ph['phase_train']] = False
             self.fd[self.ph['learning_rate']] = 0
             # self.fd[self.ph['keep_prob']] = 1.
-            pred, cur_input = sess.run([self.pred, self.inputs], self.fd)
+            pred, unet_pred, cur_input = sess.run([self.pred, self.unet_pred, self.inputs], self.fd)
 
             pred_means, pred_std, pred_weights,pred_dist = pred
             pred_means = pred_means * self.offset
@@ -651,7 +651,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
             for sel in range(bsize):
                 for cls in range(conf.n_classes):
-                    for ndx in range(pred_means.shape[1]):
+                    for ndx in range(pred_means.shap21ie[1]):
                         cur_gr = [l.count(cls) for l in self.conf.mdn_groups].index(1)
                         if pred_weights[sel, ndx, cur_gr] < (0.02 / self.conf.max_n_animals):
                             continue
@@ -672,7 +672,14 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             #
             # base_locs = base_locs * conf.unet_rescale
             mdn_pred_out = 2*(mdn_pred_out-0.5)
-            return base_locs, mdn_pred_out
+            ret_dict = {}
+            ret_dict['locs'] = base_locs
+            ret_dict['hmaps'] = unet_pred
+            ret_dict['locs_unet'] = PoseTools.get_pred_locs(unet_pred)
+            ret_dict['conf_unet'] = (np.max(unet_pred,axis=(1,2)) + 1)/2
+            ret_dict['conf'] = np.max(mdn_pred_out,axis=(1,2))
+            ret_dict['hmaps_mdn'] = mdn_pred_out
+            return ret_dict
 
         def close_fn():
             sess.close()

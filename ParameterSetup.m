@@ -83,7 +83,7 @@ handles.pnlParams.Units = 'pixels';
 handles.pnlParamsPos0 = handles.pnlParams.Position;
 handles.pnlParams.Units = 'normalized';
 handles.figParameterSetupPos0 = handles.figParameterSetup.Position;
-cbkToggleParamVizPane = @(tfParamViz)toggleParamVizPane(hFig,tfParamViz);
+cbkToggleParamVizPane = @(varargin)toggleParamVizPane(hFig,varargin{:});
 
 mc = ?PropertyLevelsEnum;
 levels_str = {mc.EnumerationMemberList.Name};
@@ -134,9 +134,9 @@ end
 children = handles.tree.Children;
 pvh = getappdata(handles.figParameterSetup,'parameterVizHandler');
 if isempty(pvh),
-  propertiesGUI2(handles.pnlParams,children);
+  propertiesGUI2(handles.pnlParams,children,'paramCheckerFcn',@paramChecker,'okButtons',handles.pbApply);
 else
-  propertiesGUI2(handles.pnlParams,children,'parameterVizHandler',pvh);
+  propertiesGUI2(handles.pnlParams,children,'parameterVizHandler',pvh,'paramCheckerFcn',@paramChecker,'okButtons',handles.pbApply);
 end
 
 function varargout = ParameterSetup_OutputFcn(hObject, eventdata, handles) 
@@ -189,7 +189,7 @@ else
   delete(hObject);
 end
 
-function toggleParamVizPane(hFig,tfParamViz)
+function toggleParamVizPane(hFig,tfParamViz,tfBusy)
 
 handles = guidata(hFig);
 handles.pnlParams.Units = 'pixels';
@@ -211,6 +211,12 @@ handles.pnlViz.Units = 'normalized';
 handles.pbApply.Units = 'normalized';
 handles.pbCancel.Units = 'normalized';
 handles.popupmenu_level.Units = 'normalized';
+
+if nargin >= 3 && tfBusy,
+  ParameterVisualization.grayOutAxes(handles.axViz,'Computing visualization. Please wait...');
+  drawnow;
+end
+
 
 % --- Executes on selection change in popupmenu_level.
 function popupmenu_level_Callback(hObject, eventdata, handles)
