@@ -188,10 +188,6 @@ classdef BgTrainMonitor < handle
   end
   
   methods (Abstract)
-    prepareHook(obj,trnMonVizObj,bgWorkerObj)
-    
-    % not entirely clear who should own this. candidates are here,
-    % bgTrainWorkerObj, DeepTracker.
-    killProcess(obj)
+    prepareHook(obj,trnMonVizObj,bgWorkerObj)    
   end
 end
