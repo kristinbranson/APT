@@ -4,6 +4,7 @@ classdef DLNetType
     mdn
     deeplabcut
     openpose
+    leap
   end
 end
     

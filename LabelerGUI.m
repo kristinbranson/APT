@@ -781,6 +781,13 @@ switch lower(state),
     handles.pbTrain.Enable = onOff;
     handles.pbTrack.Enable = onOff;
     handles.menu_view_hide_predictions.Enable = onOff;
+    
+    if lObj.hasTrx && ~lObj.gtIsGTMode,
+      set(handles.menu_go_targets_summary,'Enable','on');
+    else
+      set(handles.menu_go_targets_summary,'Enable','off');
+    end
+    
 
   otherwise
     fprintf('Not implemented\n');

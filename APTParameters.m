@@ -19,6 +19,7 @@ classdef APTParameters
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;tPrmCpr.Children;tPrmDT.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
+      tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
     function sPrm0 = defaultParamsStruct
       % sPrm0: "new-style"
@@ -71,18 +72,72 @@ classdef APTParameters
       tPrm.Data.Level = PropertyLevelsEnum(minLevel);
       
     end
-    
-    function filteredtree = filterPropertiesByLevel(tree,level)
+    function [tPrm,rqts] = propagateRequirementsFromLeaf(tPrm)
       
-      if tree.Data.Level > level,
-        filteredtree = [];
+      if isempty(tPrm.Children),
+        rqts = tPrm.Data.Requirements;
         return;
       end
-      filteredtree = TreeNode(tree.Data);
+      for i = 1:numel(tPrm.Children),
+        [tPrm.Children(i),rqts1] = APTParameters.propagateRequirementsFromLeaf(tPrm.Children(i));
+        if i == 1,
+          rqts = rqts1;
+        else
+          rqts = intersect(rqts,rqts1);
+        end
+      end
+      tPrm.Data.Requirements = rqts;
+      
+    end
+    function filterPropertiesByLevel(tree,level)
+      
+      if isempty(tree.Children),
+        tree.Data.Visible = tree.Data.Visible && tree.Data.Level <= level;
+        return;
+      end
+      
+      if tree.Data.Visible,
+        tree.Data.Visible = false;
+        for i = 1:numel(tree.Children),
+          APTParameters.filterPropertiesByLevel(tree.Children(i),level);
+          tree.Data.Visible = tree.Data.Visible || tree.Children(i).Data.Visible;
+        end
+      end
+      
+    end
+    
+    function tree = setAllVisible(tree)
+      
+      tree.Data.Visible = true;
       for i = 1:numel(tree.Children),
-        filteredchild = APTParameters.filterPropertiesByLevel(tree.Children(i),level);
-        if ~isempty(filteredchild),
-          filteredtree.Children = [filteredtree.Children;filteredchild];
+        APTParameters.setAllVisible(tree.Children(i));
+      end
+      
+    end
+    
+    function tree = filterPropertiesByCondition(tree,labelerObj)
+    
+      if isempty(tree.Children),
+      
+        if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(labelerObj.trackerAlgo,'cpr'),
+          tree.Data.Visible = false;
+        end
+        if ismember('hasTrx',tree.Data.Requirements) && ~labelerObj.hasTrx,
+          tree.Data.Visible = false;
+        end
+        if ismember('isDeepTrack',tree.Data.Requirements) && ~strcmpi(labelerObj.trackerAlgo,'poseTF'),
+          tree.Data.Visible = false;
+        end
+        
+        return;
+        
+      end
+        
+      if tree.Data.Visible,
+        tree.Data.Visible = false;
+        for i = 1:numel(tree.Children),
+          APTParameters.filterPropertiesByCondition(tree.Children(i),labelerObj);
+          tree.Data.Visible = tree.Data.Visible || tree.Children(i).Data.Visible;
         end
       end
       

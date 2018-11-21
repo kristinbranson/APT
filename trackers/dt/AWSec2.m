@@ -335,7 +335,7 @@ classdef AWSec2 < handle
 
       % globs: cellstr of globs
       
-      lscmd = cellfun(@(x)sprintf('ls %s;',x),globs,'uni',0);
+      lscmd = cellfun(@(x)sprintf('ls %s 2> /dev/null;',x),globs,'uni',0);
       lscmd = cat(2,lscmd{:});
       [tfsucc,res] = obj.cmdInstance(lscmd);
       if tfsucc
@@ -349,7 +349,7 @@ classdef AWSec2 < handle
     end
     
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
-      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote);
+      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote,'usedoublequotes',true);
       [tfsucc,res] = AWSec2.syscmd(cmdfull,varargin{:});
     end
         
@@ -479,8 +479,14 @@ classdef AWSec2 < handle
       cmd = sprintf('%s -i %s -r ubuntu@%s:%s %s',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
-    function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote)
-      cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s ''%s''',sshcmd,pem,ip,cmdremote);
+    function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote,varargin)
+      [usedoublequotes] = myparse(varargin,...
+        'usedoublequotes',false);
+      if usedoublequotes
+        cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s "%s"',sshcmd,pem,ip,cmdremote);
+      else
+        cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s ''%s''',sshcmd,pem,ip,cmdremote);
+      end
     end
 
     function cmd = sshCmdGeneralLoggedStc(sshcmd,pem,ip,cmdremote,logfileremote)

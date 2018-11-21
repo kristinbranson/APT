@@ -13,6 +13,26 @@ self.train_umdn()
 V = self.classify_val()
 
 ##
+
+import APT_interface as apt
+import os
+import PoseUNet_resnet as PoseUNet
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
+view = 1
+conf = apt.create_conf(lbl_file, view, 'conf','/tmp',net_type='umdn')
+conf.cachedir = '/nrs/branson/mayank/apt_cache/stephen_view{}'.format(view)
+conf.normalize_img_mean = False
+self = PoseUNet.PoseUMDN_resnet(conf,'no_mean_norm')
+V = self.classify_val()
+res = np.array([
+    [8.15356254,  7.79341274,  8.01287003,  8.61840345,  8.13417424],
+    [ 9.65344996,  9.5212058 ,  9.99045115, 10.12551694,  9.58502402],
+   [11.86516147, 12.44826803, 12.82939408, 12.48889447, 12.14856348],
+    [13.38951142, 15.10225055, 14.2305725 , 15.00483587, 14.43672831]])
+
+
+## Incorrect img normalize code
 import APT_interface as apt
 import os
 import PoseUNet_resnet as PoseUNet
@@ -78,6 +98,20 @@ plt.scatter(V[4][pt,jj,0],V[4][pt,jj,1])
 plt.figure()
 plt.imshow(V[1][pt,:,:,0],'gray')
 plt.scatter(V[4][pt,jj,0],V[4][pt,jj,1])
+##
+##
+from poseConfig import aliceConfig as conf
+conf.cachedir += '_moreeval';
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import PoseUNet
+import PoseUNet_dataset as PoseUNet
+conf.normalize_img_mean = True
+self = PoseUNet.PoseUNet(conf,'mean_img',pad_input=False)
+self.no_pad = False
+self.train_unet()
+V = self.classify_val()
+
 
 ##
 from poseConfig import aliceConfig as conf

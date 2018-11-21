@@ -61,9 +61,9 @@ hParent = varargin{1};
 handles.tree = varargin{2};
 pvargs = varargin(3:end);
 
-labelerObj = myparse(pvargs,...
+handles.labelerObj = myparse(pvargs,...
   'labelerObj',[]);
-tfLabelerSupplied = ~isempty(labelerObj);
+tfLabelerSupplied = ~isempty(handles.labelerObj);
 
 hFig = handles.figParameterSetup;
 centerOnParentFigure(hFig,hParent);
@@ -83,7 +83,7 @@ handles.pnlParams.Units = 'pixels';
 handles.pnlParamsPos0 = handles.pnlParams.Position;
 handles.pnlParams.Units = 'normalized';
 handles.figParameterSetupPos0 = handles.figParameterSetup.Position;
-cbkToggleParamVizPane = @(tfParamViz)toggleParamVizPane(hFig,tfParamViz);
+cbkToggleParamVizPane = @(varargin)toggleParamVizPane(hFig,varargin{:});
 
 mc = ?PropertyLevelsEnum;
 levels_str = {mc.EnumerationMemberList.Name};
@@ -98,7 +98,7 @@ assert(isa(handles.tree,'TreeNode') && isscalar(handles.tree));
 assert(strcmp(handles.tree.Data.Field,'ROOT'));
 rootnode = TreeNode(handles.tree.Data);
 if tfLabelerSupplied
-  pvh = ParameterVizHandler(labelerObj,handles.figParameterSetup,...
+  pvh = ParameterVizHandler(handles.labelerObj,handles.figParameterSetup,...
     handles.axViz,cbkToggleParamVizPane);
   pvh.init();
 else
@@ -121,16 +121,22 @@ guidata(handles.figParameterSetup,handles);
 uiwait(hFig);
 % UIWAIT makes ParameterSetup wait for user response (see UIRESUME)
 
-function setPropertiesPanel(handles)
+function setPropertiesPanel(handles,varargin)
 
-filteredtree = APTParameters.filterPropertiesByLevel(handles.tree,handles.level);
+[dofilter] = myparse(varargin,'dofilter',true);
 
-children = filteredtree.Children;
+if dofilter,
+  APTParameters.setAllVisible(handles.tree);
+  APTParameters.filterPropertiesByCondition(handles.tree,handles.labelerObj);
+  APTParameters.filterPropertiesByLevel(handles.tree,handles.level);
+end
+
+children = handles.tree.Children;
 pvh = getappdata(handles.figParameterSetup,'parameterVizHandler');
 if isempty(pvh),
-  propertiesGUI2(handles.pnlParams,children);
+  propertiesGUI2(handles.pnlParams,children,'paramCheckerFcn',@paramChecker,'okButtons',handles.pbApply);
 else
-  propertiesGUI2(handles.pnlParams,children,'parameterVizHandler',pvh);
+  propertiesGUI2(handles.pnlParams,children,'parameterVizHandler',pvh,'paramCheckerFcn',@paramChecker,'okButtons',handles.pbApply);
 end
 
 function varargout = ParameterSetup_OutputFcn(hObject, eventdata, handles) 
@@ -148,9 +154,9 @@ if ~isempty(ce)
   drawnow; % otherwise this method can finish, deleting hFig, before propupdated callback fires
 end
 
-handles.level = handles.maxlevel;
-guidata(hObject,handles);
-setPropertiesPanel(handles);
+%handles.level = handles.maxlevel;
+%guidata(hObject,handles);
+%setPropertiesPanel(handles,'dofilter',false);
 drawnow;
 t = getappdata(hFig,'mirror');
 rootnode = getappdata(hFig,'rootnode');
@@ -183,7 +189,7 @@ else
   delete(hObject);
 end
 
-function toggleParamVizPane(hFig,tfParamViz)
+function toggleParamVizPane(hFig,tfParamViz,tfBusy)
 
 handles = guidata(hFig);
 handles.pnlParams.Units = 'pixels';
@@ -205,6 +211,12 @@ handles.pnlViz.Units = 'normalized';
 handles.pbApply.Units = 'normalized';
 handles.pbCancel.Units = 'normalized';
 handles.popupmenu_level.Units = 'normalized';
+
+if nargin >= 3 && tfBusy,
+  ParameterVisualization.grayOutAxes(handles.axViz,'Computing visualization. Please wait...');
+  drawnow;
+end
+
 
 % --- Executes on selection change in popupmenu_level.
 function popupmenu_level_Callback(hObject, eventdata, handles)
