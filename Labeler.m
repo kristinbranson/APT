@@ -4740,6 +4740,7 @@ classdef Labeler < handle
       
       iMov = obj.currMovie;
       assert(iMov>0);
+      warningNoTrace('Existing labels NOT cleared.');
       lpos = obj.(PROPS.LPOS){iMov};
       lpostag = obj.(PROPS.LPOSTAG){iMov};
       lposTS = obj.(PROPS.LPOSTS){iMov};
