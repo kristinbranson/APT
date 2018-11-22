@@ -97,19 +97,19 @@ class myconfig(object):
     gamma = 0.1
     step_size = 50000
     display_step = 50
-    numTest = 100
+    num_test = 100
     
     # range for contrast, brightness and rotation adjustment
-    horzFlip = False
-    vertFlip = False
+    horz_flip = False
+    vert_flip = False
     brange = [-0.2,0.2] 
     crange = [0.7,1.3]
     rrange = 30
     trange = 50
     imax = 255.
     scale_range = 0.1
-    adjustContrast = True
-    clahegridsize = 20
+    adjust_contrast = True
+    clahe_grid_size = 20
     normalize_img_mean = True
     normalize_batch_mean = False
 
@@ -126,7 +126,7 @@ class myconfig(object):
     map_size = 100000*psz**2*3
     cropLoc = {(1024,1024):[256,256],(512,768):[0,128]} # for front view crop the central part of the image
     selpts = np.arange(0,5)
-    imgDim = 1
+    img_dim = 1
 
     cachedir = os.path.join(localSetup.bdir,'cacheHead')
 #    labelfile = os.path.join(localSetup.bdir,'headTracking','FlyHeadStephenCuratedData_Janelia.mat')

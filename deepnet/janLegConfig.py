@@ -74,17 +74,17 @@ class myconfig(object):
     gamma = 0.1
     step_size = 100000
     display_step = 30
-    numTest = 100
+    num_test = 100
 
     # range for contrast, brightness and rotation adjustment
-    horzFlip = False
-    vertFlip = False
+    horz_flip = False
+    vert_flip = False
     brange = [-0.2,0.2]
     crange = [0.7,1.3]
     rrange = 30
     imax = 255.
-    adjustContrast = True
-    clahegridsize = 20
+    adjust_contrast = True
+    clahe_grid_size = 20
     normalize_mean_img = True
 
     # ----- Data parameters
@@ -96,7 +96,7 @@ class myconfig(object):
     map_size = 100000*imsz[0]*imsz[1]*3
     cropLoc = {(256,256):[0,0]}
     selpts = np.arange(3,7)
-    imgDim = 1
+    img_dim = 1
 
     cachedir = os.path.join(localSetup.bdir,'cachejanLeg/')
     labelfile = os.path.join(localSetup.bdir,'janLegTracking','160819_Dhyey_2_al_fixed.lbl')

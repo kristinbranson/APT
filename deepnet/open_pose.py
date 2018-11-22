@@ -418,7 +418,7 @@ class DataIteratorTF(object):
         ims = np.stack(all_ims)
         locs = np.stack(all_locs)
 
-        if self.conf.imgDim == 1:
+        if self.conf.img_dim == 1:
             ims = np.tile(ims, 3)
 
         mask_sz = [int(x/self.conf.op_label_scale) for x in self.conf.imsz]

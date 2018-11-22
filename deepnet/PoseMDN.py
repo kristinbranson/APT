@@ -1087,7 +1087,7 @@ class PoseMDN(PoseTrain):
                     train_dist = tt1.flatten()[nantt1].mean()
                     self.mdn_train_data['train_dist'].append(train_dist)
 
-                    numrep = 1 #int(self.conf.numTest / self.conf.batch_size) + 1
+                    numrep = 1 #int(self.conf.num_test / self.conf.batch_size) + 1
                     val_loss = 0.
                     val_dist = 0.
                     for rep in range(numrep):
@@ -1216,7 +1216,7 @@ class PoseMDN(PoseTrain):
                     train_dist = tt1.flatten()[nantt1].mean()
                     self.mdn_train_data['train_dist'].append(train_dist)
 
-                    numrep = 1 #int(self.conf.numTest / self.conf.batch_size) + 1
+                    numrep = 1 #int(self.conf.num_test / self.conf.batch_size) + 1
                     val_loss = 0.
                     val_dist = 0.
                     for rep in range(numrep):

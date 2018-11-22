@@ -31,7 +31,7 @@ cc.display_steps = 50
 cc.save_step = 2000
 cc.expname = 'test'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-cc.imgDim = 1
+cc.img_dim = 1
 doTrain = True
 doTest = False
 ##

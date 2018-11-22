@@ -55,7 +55,7 @@ def get_conf(pdict):
         curconf.imsz = (350, 350)
     curconf.batch_size = 4
     curconf.unet_rescale = 1
-    curconf.imgDim = 1
+    curconf.img_dim = 1
     split_num = int(pdict['split_num'])
     split_type = pdict['split_type']
     curconf.cachedir = get_cache_dir(conf, split_num, split_type)

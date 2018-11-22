@@ -38,9 +38,9 @@ class coco_unet(PoseUNet.PoseUNetMulti):
         conf.imsz = [240,320]
         conf.sel_sz = 256
         conf.unet_rescale = 1
-        conf.adjustContrast = False
+        conf.adjust_contrast = False
         conf.normalize_img_mean = True
-        conf.imgDim = 3
+        conf.img_dim = 3
         conf.dl_steps = 100000
         conf.check_bounds_distort = False
         conf.label_blur_rad = 5

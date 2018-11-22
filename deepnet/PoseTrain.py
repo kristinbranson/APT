@@ -133,9 +133,9 @@ class PoseTrain(object):
         locs = np.array(locs)
         locs = multiResData.sanitize_locs(locs)
         if distort:
-            if conf.horzFlip:
+            if conf.horz_flip:
                 xs, locs = PoseTools.randomly_flip_lr(xs, locs)
-            if conf.vertFlip:
+            if conf.vert_flip:
                 xs, locs = PoseTools.randomly_flip_ud(xs, locs)
             xs, locs = PoseTools.randomly_rotate(xs, locs, conf)
             xs, locs = PoseTools.randomly_translate(xs, locs, conf)
@@ -148,7 +148,7 @@ class PoseTrain(object):
     def createPH(self):
         x0, x1, x2, y, keep_prob = CNB.createPlaceHolders(self.conf.imsz,
                                                           self.conf.rescale, self.conf.scale, self.conf.pool_scale,
-                                                          self.conf.n_classes, self.conf.imgDim)
+                                                          self.conf.n_classes, self.conf.img_dim)
         fine_pred_in = tf.placeholder(tf.float32, y.shape, name='fine_pred_in')
         fine_pred_locs_in = tf.placeholder(tf.float32, [self.conf.batch_size,
                                                         self.conf.n_classes, 2], name='fine_pred_locs_in')
@@ -782,7 +782,7 @@ class PoseTrain(object):
                         nantt1 = np.invert(np.isnan(tt1.flatten()))
                         nantt1_mean = tt1.flatten()[nantt1].mean()
                         trainDist = [nantt1_mean]
-                        numrep = int(old_div(self.conf.numTest, self.conf.batch_size)) + 1
+                        numrep = int(old_div(self.conf.num_test, self.conf.batch_size)) + 1
                         val_loss = np.zeros([2, ])
                         valDist = [0.]
                         for _ in range(numrep):
@@ -859,7 +859,7 @@ class PoseTrain(object):
                     tt2 = self.computePredDist(sess, self.basePred)
                     trainDist = [tt1.mean(), tt2.mean()]
 
-                    numrep = int(old_div(self.conf.numTest, self.conf.batch_size)) + 1
+                    numrep = int(old_div(self.conf.num_test, self.conf.batch_size)) + 1
                     val_loss = np.zeros([2, ])
                     valDist = [0., 0.]
                     for _ in range(numrep):
@@ -949,7 +949,7 @@ class PoseTrain(object):
 
                     trainDist = [tt3.mean(), tt2.mean(), tt1.mean()]
 
-                    numrep = int(old_div(self.conf.numTest, self.conf.batch_size)) + 1
+                    numrep = int(old_div(self.conf.num_test, self.conf.batch_size)) + 1
                     val_loss = np.zeros([3, ])
                     valDist = [0., 0., 0.]
                     for _ in range(numrep):
@@ -1021,7 +1021,7 @@ class PoseTrain(object):
                 if step % self.conf.display_step == 0:
                     self.updateFeedDict(self.DBType.Train,distort=True,sess= sess)
                     train_loss = self.computeLoss(sess, [self.cost, finecost, mrfcost, basecost])
-                    numrep = int(old_div(self.conf.numTest, self.conf.batch_size)) + 1
+                    numrep = int(old_div(self.conf.num_test, self.conf.batch_size)) + 1
                     val_loss = np.zeros([2, ])
                     for _ in range(numrep):
                         self.updateFeedDict(self.DBType.Val,distort=False, sess=sess)

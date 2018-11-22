@@ -64,14 +64,14 @@ class PoseUNetAttention(PoseUNet.PoseUNet):
 
     def update_fd(self, db_type, sess, distort):
 
-        self.read_images(db_type, distort, sess, distort, self.conf.unet_rescale)
+        self.read_images(db_type, distort, sess, distort, self.conf.rescale)
         self.fd[self.ph['x']] = self.xs
         self.fd[self.ph['scores']] = np.array([d[0] for d in self.extra_data])
         for ndx in range(len(self.sel_layers)):
             cur_name = 'prev_in_{}'.format(ndx)
             self.fd[self.ph[cur_name]] = np.array([d[1][ndx] for d in self.extra_data])
 
-        rescale = self.conf.unet_rescale
+        rescale = self.conf.rescale
         im_sz = [self.conf.imsz[0] / rescale, self.conf.imsz[1] / rescale, ]
         label_ims = PoseTools.create_label_images(
             self.locs / rescale, im_sz, 1, self.conf.label_blur_rad)
@@ -231,7 +231,7 @@ class PoseUNetAttention(PoseUNet.PoseUNet):
                         curenv = env
 
                     # initialize stuff
-                    ims = np.zeros([self.att_hist, self.conf.imsz[0], self.conf.imsz[1], self.conf.imgDim])
+                    ims = np.zeros([self.att_hist, self.conf.imsz[0], self.conf.imsz[1], self.conf.img_dim])
                     cur_preds = []
                     for p in preds:
                         cur_preds.append(np.zeros([self.att_hist, ] + p.get_shape().as_list()[1:]))
@@ -251,12 +251,12 @@ class PoseUNetAttention(PoseUNet.PoseUNet):
 
                             framein, curloc = get_patch_trx(cap, cur_trx, cur_fnum, conf.imsz[0],
                                                             curpts[trx_ndx, cur_fnum, :, selpts])
-                            framein = framein[:, :, 0:conf.imgDim]
+                            framein = framein[:, :, 0:conf.img_dim]
                             ims[hist, ...] = framein
 
                             cur_xs, _ = PoseTools.preprocess_ims(framein[np.newaxis, ...], curloc[np.newaxis, ...],
                                                                  self.conf, distort=distort,
-                                                                 scale=self.conf.unet_rescale)
+                                                                 scale=self.conf.rescale)
                             xs[indx, ...] = cur_xs[0, ...]
 
                         unet.fd[unet.ph['x']] = xs
@@ -270,10 +270,10 @@ class PoseUNetAttention(PoseUNet.PoseUNet):
                         max_scores[cur_s:cur_e, ...] = np.max(cur_out, axis=(1, 2))
 
                     framein, curloc = get_patch_trx(cap, cur_trx, fnum, conf.imsz[0], curpts[trx_ndx, fnum, :, selpts])
-                    framein = framein[:, :, 0:conf.imgDim]
+                    framein = framein[:, :, 0:conf.img_dim]
 
                     rows, cols = framein.shape[0:2]
-                    depth = conf.imgDim
+                    depth = conf.img_dim
 
                     image_raw = framein.tostring()
                     feature = {
@@ -340,7 +340,7 @@ def read_and_decode(filename_queue, conf, att_params):
         serialized_example,
         features=features_dict)
     image = tf.decode_raw(features['image_raw'], tf.uint8)
-    image = tf.reshape(image, conf.imsz + (conf.imgDim,))
+    image = tf.reshape(image, conf.imsz + (conf.img_dim,))
 
     locs = tf.cast(features['locs'], tf.float64)
     exp_ndx = tf.cast(features['expndx'], tf.float64)

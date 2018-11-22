@@ -128,7 +128,7 @@ def trainBase(conf,resume=True):
                                                      x2:x2_in,
                                                y: labelims, keep_prob: 1.})
                     train_loss /= batch_size
-                    numrep = int(old_div(conf.numTest,conf.batch_size))+1
+                    numrep = int(old_div(conf.num_test,conf.batch_size))+1
                     acc = 0; loss = 0
                     for rep in range(numrep):
                         val_xs, locs = multiPawTools.readLMDB(val_cursor,
@@ -289,7 +289,7 @@ def trainFine(conf,jointTrain=False,resume=True):
                     y: labelims, keep_prob: 1.,locs_ph:np.array(locs)}
                 train_loss = sess.run([cost,costBase], feed_dict=feed_dict)
 
-                numrep = int(old_div(conf.numTest,conf.batch_size))+1
+                numrep = int(old_div(conf.num_test,conf.batch_size))+1
                 acc = 0; loss = 0
                 for rep in range(numrep):
                     val_xs, locs = multiPawTools.readLMDB(val_cursor,

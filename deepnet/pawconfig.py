@@ -37,5 +37,5 @@ map_size = 100000*psz**2*3
 
 outname = 'pawMulti_r2_s3'
 save_step = 4000
-numTest = 400
+num_test = 400
 imsz = (260,352)

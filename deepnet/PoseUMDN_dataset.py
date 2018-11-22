@@ -823,7 +823,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             bsize = conf.batch_size
             xs, _ = PoseTools.preprocess_ims(
                 all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
-                distort=False, scale=self.conf.unet_rescale)
+                distort=False, scale=self.conf.rescale)
 
             self.fd[self.inputs[0]] = xs
             self.fd[self.ph['phase_train']] = False
@@ -835,7 +835,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             pred_means *= locs_offset
             pred_weights = softmax(pred_weights,axis=1)
 
-            osz = [int(i/conf.unet_rescale) for i in self.conf.imsz]
+            osz = [int(i/conf.rescale) for i in self.conf.imsz]
             mdn_pred_out = np.zeros([bsize, osz[0], osz[1], conf.n_classes])
 
             for sel in range(bsize):
@@ -859,7 +859,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             #             mm = pred_means[ndx, sel_ex, g, :]
             #             base_locs[ndx, g] = mm
             #
-            # base_locs = base_locs * conf.unet_rescale
+            # base_locs = base_locs * conf.rescale
             mdn_pred_out = 2*(mdn_pred_out-0.5)
             return base_locs, mdn_pred_out
 
@@ -965,12 +965,12 @@ class PoseUMDN(PoseCommon.PoseCommon):
             if locs.ndim == 3:
                 cur_predlocs = PoseTools.get_pred_locs(mdn_pred_out)
                 cur_dist = np.sqrt(np.sum(
-                    (cur_predlocs - locs/self.conf.unet_rescale) ** 2, 2))
+                    (cur_predlocs - locs/self.conf.rescale) ** 2, 2))
             else:
                 cur_predlocs = PoseTools.get_pred_locs_multi(
                     mdn_pred_out,self.conf.max_n_animals,
                     self.conf.label_blur_rad * 7)
-                curl = locs.copy()/self.conf.unet_rescale
+                curl = locs.copy()/self.conf.rescale
                 jj = cur_predlocs[:,:,np.newaxis,:,:] - curl[:,np.newaxis,...]
                 cur_dist = np.sqrt(np.sum(jj**2,axis=-1)).min(axis=1)
             val_dist.append(cur_dist)
@@ -1029,7 +1029,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
         bsize = conf.batch_size
         n_batches = int(math.ceil(float(n_frames)/ bsize))
         pred_locs = np.zeros([n_frames, conf.n_classes, 2])
-        all_f = np.zeros((bsize,) + conf.imsz + (conf.imgDim,))
+        all_f = np.zeros((bsize,) + conf.imsz + (conf.img_dim,))
 
         for curl in range(n_batches):
             ndx_start = curl * bsize
@@ -1045,13 +1045,13 @@ class PoseUMDN(PoseCommon.PoseCommon):
                 frame_in = PoseTools.crop_images(frame_in, conf)
                 if flipud:
                     frame_in = np.flipud(frame_in)
-                all_f[ii, ...] = frame_in[..., 0:conf.imgDim]
+                all_f[ii, ...] = frame_in[..., 0:conf.img_dim]
 
             # all_f = all_f.astype('uint8')
             # xs = PoseTools.adjust_contrast(all_f, conf)
-            # xs = PoseTools.scale_images(xs, conf.unet_rescale, conf)
+            # xs = PoseTools.scale_images(xs, conf.rescale, conf)
             # xs = PoseTools.normalize_mean(xs, self.conf)
-            xs, _ = PoseTools.preprocess_ims(all_f, np.zeros([bsize, self.conf.n_classes,2]),conf=conf,distort=False,scale=self.conf.unet_rescale)
+            xs, _ = PoseTools.preprocess_ims(all_f, np.zeros([bsize, self.conf.n_classes,2]),conf=conf,distort=False,scale=self.conf.rescale)
             self.fd[self.ph['x']] = xs
             self.fd[self.ph['phase_train']] = False
             val_means, val_std, val_wts = sess.run(self.pred, self.fd)
@@ -1063,7 +1063,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
                         sel_ex = np.argmax(val_wts[ndx, :, gdx])
                         base_locs[ndx,g,:] = val_means[ndx, sel_ex, g, :]
 
-            pred_locs[ndx_start:ndx_end, :, :] = base_locs[:ppe,...]*locs_offset * conf.unet_rescale
+            pred_locs[ndx_start:ndx_end, :, :] = base_locs[:ppe,...]*locs_offset * conf.rescale
             sys.stdout.write('.')
             if curl % 20 == 19:
                 sys.stdout.write('\n')
@@ -1092,7 +1092,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
         pred_locs[:] = np.nan
 
         if return_ims:
-            ims = np.zeros([max_n_frames, n_trx, conf.imsz[0]/conf.unet_rescale, conf.imsz[1]/conf.unet_rescale,conf.imgDim])
+            ims = np.zeros([max_n_frames, n_trx, conf.imsz[0]/conf.rescale, conf.imsz[1]/conf.rescale,conf.img_dim])
 
         bsize = conf.batch_size
 
@@ -1111,7 +1111,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
 
             n_frames = cur_end - cur_start
             n_batches = int(math.ceil(float(n_frames)/ bsize))
-            all_f = np.zeros((bsize,) + conf.imsz + (conf.imgDim,))
+            all_f = np.zeros((bsize,) + conf.imsz + (conf.img_dim,))
 
             for curl in range(n_batches):
                 ndx_start = curl * bsize + cur_start - start_at
@@ -1135,12 +1135,12 @@ class PoseUMDN(PoseCommon.PoseCommon):
                     assert conf.imsz[0] == conf.imsz[1]
 
                     frame_in, _ = multiResData.get_patch_trx(frame_in,x,y,theta,conf.imsz[0], np.zeros([2,2]))
-                    frame_in = frame_in[:, :, 0:conf.imgDim]
-                    all_f[ii, ...] = frame_in[..., 0:conf.imgDim]
+                    frame_in = frame_in[:, :, 0:conf.img_dim]
+                    all_f[ii, ...] = frame_in[..., 0:conf.img_dim]
 
                 all_f = all_f.astype('uint8')
                 xs = PoseTools.adjust_contrast(all_f, conf)
-                xs = PoseTools.scale_images(xs, conf.unet_rescale, conf)
+                xs = PoseTools.scale_images(xs, conf.rescale, conf)
                 xs = PoseTools.normalize_mean(xs, self.conf)
                 self.fd[self.ph['x']] = xs
                 self.fd[self.ph['phase_train']] = False
@@ -1181,7 +1181,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
 
         fig = mpl.figure.Figure(figsize=(9, 4))
         canvas = FigureCanvasAgg(fig)
-        sc = self.conf.unet_rescale
+        sc = self.conf.rescale
 
         color = cm.hsv(np.linspace(0, 1 - 1./conf.n_classes, conf.n_classes))
         trace_len = 30
@@ -1250,7 +1250,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
         nframes = max_frames - start_at
         fig = mpl.figure.Figure(figsize=(8, 8))
         canvas = FigureCanvasAgg(fig)
-        sc = self.conf.unet_rescale
+        sc = self.conf.rescale
 
         color = cm.hsv(np.linspace(0, 1 - 1./conf.n_classes, conf.n_classes))
         trace_len = 3
@@ -1281,7 +1281,7 @@ class PoseUMDN(PoseCommon.PoseCommon):
             assert conf.imsz[0] == conf.imsz[1]
 
             frame_in, _ = multiResData.get_patch_trx(frame_in, c_x, c_y, -math.pi/2, conf.imsz[0]*2, np.zeros([2, 2]))
-            frame_in = frame_in[:, :, 0:conf.imgDim]
+            frame_in = frame_in[:, :, 0:conf.img_dim]
 
             if flipud:
                 frame_in = np.flipud(frame_in)

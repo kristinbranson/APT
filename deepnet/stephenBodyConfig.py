@@ -84,7 +84,7 @@ class myconfig(object):
     step_size = 200000
     batch_size = 16
     display_step = 30
-    numTest = 100
+    num_test = 100
     # fine_batch_size = 8
 
 

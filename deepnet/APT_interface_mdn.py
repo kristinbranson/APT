@@ -265,20 +265,20 @@ def create_conf(lbl_file, view, name, net_type='unet', cache_dir=None):
     conf.op_rescale = float(read_entry(dt_params['scale']))
     conf.dlc_rescale = float(read_entry(dt_params['scale']))
     conf.leap_rescale = float(read_entry(dt_params['scale']))
-    conf.adjustContrast = int(read_entry(dt_params['adjustContrast'])) > 0.5
+    conf.adjust_contrast = int(read_entry(dt_params['adjust_contrast'])) > 0.5
     conf.normalize_img_mean = int(read_entry(dt_params['normalize'])) > 0.5
-    # conf.imgDim = int(read_entry(dt_params['NChannels']))
+    # conf.img_dim = int(read_entry(dt_params['NChannels']))
     ex_mov = multiResData.find_local_dirs(conf)[0][0]
 
     if 'NumChans' in lbl['cfg'].keys():
-        conf.imgDim = int(read_entry(lbl['cfg']['NumChans']))
+        conf.img_dim = int(read_entry(lbl['cfg']['NumChans']))
     else:
         cap = movies.Movie(ex_mov, interactive=False)
         ex_frame = cap.get_frame(0)
         if np.ndim(ex_frame) > 2:
-            conf.imgDim = ex_frame[0].shape[2]
+            conf.img_dim = ex_frame[0].shape[2]
         else:
-            conf.imgDim = 1
+            conf.img_dim = 1
         cap.close()
     try:
         conf.flipud = int(read_entry(dt_params['flipud'])) > 0.5
@@ -619,7 +619,7 @@ def create_deepcut_db(conf, split=False, split_file=None, use_cache=False):
 
     def deepcut_outfn(data, outdir, count, fis, save_data):
         # pass count as array to pass it by reference.
-        if conf.imgDim == 1:
+        if conf.img_dim == 1:
             im = data[0][:, :, 0]
         else:
             im = data[0]
@@ -768,7 +768,7 @@ def create_cv_split_files(conf, n_splits=3):
 
 def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc):
     bsize = conf.batch_size
-    all_f = np.zeros((bsize,) + conf.imsz + (conf.imgDim,))
+    all_f = np.zeros((bsize,) + conf.imsz + (conf.img_dim,))
     for cur_t in range(len(to_do_list)):
         cur_entry = to_do_list[cur_t]
         trx_ndx = cur_entry[1]
@@ -900,13 +900,13 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file):
 
 def classify_db(conf, read_fn, pred_fn, n, return_ims=False):
     bsize = conf.batch_size
-    all_f = np.zeros((bsize,) + conf.imsz + (conf.imgDim,))
+    all_f = np.zeros((bsize,) + conf.imsz + (conf.img_dim,))
     pred_locs = np.zeros([n, conf.n_classes, 2])
     n_batches = int(math.ceil(float(n) / bsize))
     labeled_locs = np.zeros([n, conf.n_classes, 2])
     info = []
     if return_ims:
-        all_ims = np.zeros([n,conf.imsz[0],conf.imsz[1],conf.imgDim])
+        all_ims = np.zeros([n,conf.imsz[0],conf.imsz[1],conf.img_dim])
     for cur_b in range(n_batches):
         cur_start = cur_b * bsize
         ppe = min(n - cur_start, bsize)
@@ -984,7 +984,7 @@ def check_train_db(model_type, conf, out_file):
 
     n_out = 50
     samples = np.linspace(0, n - 1, n_out).astype('int')
-    all_f = np.zeros((n_out,) + conf.imsz + (conf.imgDim,))
+    all_f = np.zeros((n_out,) + conf.imsz + (conf.img_dim,))
     labeled_locs = np.zeros([n_out, conf.n_classes, 2])
     count = 0
     info = []

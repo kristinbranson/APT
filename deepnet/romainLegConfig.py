@@ -112,17 +112,17 @@ class myconfig(object):
     step_size = 60000
     eval2_step_size = 40000
     display_step = 30
-    numTest = 100
+    num_test = 100
     
     # range for contrast, brightness and rotation adjustment
-    horzFlip = False
-    vertFlip = False
+    horz_flip = False
+    vert_flip = False
     brange = [0,0] #[-0.2,0.2] 
     crange = [0.9,1.1] #[0.7,1.3]
     rrange = 45
     imax = 255.
-    adjustContrast = True
-    clahegridsize = 20
+    adjust_contrast = True
+    clahe_grid_size = 20
     normalize_mean_img = True
 
     # fine_batch_size = 8
@@ -145,7 +145,7 @@ class myconfig(object):
     imsz = (624,672)
     cropLoc = {(624,672):[0,0],(762,768):[85,0],(628,672):[0,0],(648,768):[0,0]} # for front view crop the central part of the image
     selpts = np.arange(0,18)
-    imgDim = 1
+    img_dim = 1
 
     cachedir = os.path.join(localSetup.bdir,'cache','romainLegBottom')
     labelfile = os.path.join(localSetup.bdir,'RomainLeg','RomainCombined_fixed_fixedbabloo_20170410.lbl')

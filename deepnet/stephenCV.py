@@ -438,7 +438,7 @@ def size_exp_datasets():
                           .bytes_list
                           .value[0])
             img_1d = np.fromstring(img_string, dtype=np.uint8)
-            reconstructed_img = img_1d.reshape((conf[view].imsz[0], conf[view].imsz[1], conf[view].imgDim))
+            reconstructed_img = img_1d.reshape((conf[view].imsz[0], conf[view].imsz[1], conf[view].img_dim))
             locs_in = np.reshape(np.array(example.features.feature['locs'].float_list.value),
                                  [conf[view].n_classes,2])
 

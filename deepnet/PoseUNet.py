@@ -92,7 +92,7 @@ class PoseUNet(PoseCommon.PoseCommon):
             rescale = self.conf.unet_rescale
             rimsz = [int(float(imsz[0])/rescale),int(float(imsz[0])/rescale)]
             self.ph['x'] = tf.placeholder(tf.float32,
-                               [None,rimsz[0],rimsz[1], self.conf.imgDim],
+                               [None,rimsz[0],rimsz[1], self.conf.img_dim],
                                name='x')
             self.ph['y'] = tf.placeholder(tf.float32,
                                [None,rimsz[0],rimsz[1], self.conf.n_classes],
@@ -338,7 +338,7 @@ class PoseUNet(PoseCommon.PoseCommon):
     #     features_root = 16
     #     filter_size = 3
     #     pool_size = 2
-    #     channels = self.conf.imgDim
+    #     channels = self.conf.img_dim
     #     keep_prob = 1.
     #     n_class = self.conf.n_classes
     #
@@ -639,7 +639,7 @@ class PoseUNet(PoseCommon.PoseCommon):
                 frame_in = PoseTools.crop_images(frame_in, conf)
                 if flipud:
                     frame_in = np.flipud(frame_in)
-                all_f[ii, ...] = frame_in[..., 0:conf.imgDim]
+                all_f[ii, ...] = frame_in[..., 0:conf.img_dim]
 
             # converting to uint8 is really really important!!!!!
             xs, _ = PoseTools.preprocess_ims(all_f, in_locs=np.zeros([bsize,self.conf.n_classes, 2]),
@@ -686,7 +686,7 @@ class PoseUNet(PoseCommon.PoseCommon):
         pred_locs[:] = np.nan
 
         if return_ims:
-            ims = np.zeros([max_n_frames, n_trx, conf.imsz[0], conf.imsz[1],conf.imgDim])
+            ims = np.zeros([max_n_frames, n_trx, conf.imsz[0], conf.imsz[1],conf.img_dim])
             pred_ims = np.zeros([max_n_frames, n_trx, conf.imsz[0]/conf.unet_rescale, conf.imsz[1]/conf.unet_rescale,conf.n_classes])
 
         bsize = conf.batch_size
@@ -707,7 +707,7 @@ class PoseUNet(PoseCommon.PoseCommon):
 
             n_frames = cur_end - cur_start
             n_batches = int(math.ceil(float(n_frames)/ bsize))
-            all_f = np.zeros((bsize,) + conf.imsz + (conf.imgDim,))
+            all_f = np.zeros((bsize,) + conf.imsz + (conf.img_dim,))
 
             for curl in range(n_batches):
                 ndx_start = curl * bsize + cur_start
@@ -887,7 +887,7 @@ class PoseUNet(PoseCommon.PoseCommon):
             assert conf.imsz[0] == conf.imsz[1]
 
             frame_in, _ = multiResData.get_patch_trx(frame_in, c_x, c_y, -math.pi/2, conf.imsz[0]*2, np.zeros([2, 2]))
-            frame_in = frame_in[:, :, 0:conf.imgDim]
+            frame_in = frame_in[:, :, 0:conf.img_dim]
 
             if flipud:
                 frame_in = np.flipud(frame_in)
@@ -992,7 +992,7 @@ class PoseUNetTime(PoseUNet, PoseCommon.PoseCommonTime):
         b_sz = self.conf.batch_size
         t_sz = self.conf.time_window_size*2 +1
         self.ph['x'] = tf.placeholder(tf.float32,
-                           [b_sz*t_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.imgDim],
+                           [b_sz*t_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.img_dim],
                            name='x')
         self.ph['y'] = tf.placeholder(tf.float32,
                            [b_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.n_classes],
@@ -1147,7 +1147,7 @@ class PoseUNetRNN(PoseUNet, PoseCommon.PoseCommonRNN):
         b_sz = self.conf.batch_size
         t_sz = self.conf.rnn_before + self.conf.rnn_after + 1
         self.ph['x'] = tf.placeholder(tf.float32,
-                           [b_sz*t_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.imgDim],
+                           [b_sz*t_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.img_dim],
                            name='x')
         self.ph['y'] = tf.placeholder(tf.float32,
                            [b_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.n_classes],

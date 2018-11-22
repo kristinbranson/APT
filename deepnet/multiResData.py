@@ -411,7 +411,7 @@ def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, fl
         return get_patch_trx(cap, cur_trx, fnum, conf, locs, offset, stationary,flipud)
     else:
         frame_in, _, _, _ = read_frame(cap,fnum,cur_trx,flipud=flipud, offset=offset)
-        frame_in = frame_in[:,:,0:conf.imgDim]
+        frame_in = frame_in[:,:,0:conf.img_dim]
         if crop_loc is not None:
             xlo, xhi, ylo, yhi = crop_loc
             xhi += 1; yhi += 1
@@ -595,7 +595,7 @@ def get_patch_trx(cap, cur_trx, fnum, conf, locs, offset=0, stationary=True,flip
         rpatch = rpatch[:,extra:-extra,...]
         lr[:,0] -= extra
 
-    rpatch = rpatch[:,:,:conf.imgDim]
+    rpatch = rpatch[:,:,:conf.img_dim]
     return rpatch, lr
 
 
@@ -643,7 +643,7 @@ def create_tf_record_from_lbl_with_trx(conf, split=True, split_file=None):
                 frame_in, cur_loc = get_patch_trx(cap, cur_trx, fnum, conf, curpts[trx_ndx, fnum, :, sel_pts])
 
                 rows, cols = frame_in.shape[0:2]
-                depth = conf.imgDim
+                depth = conf.img_dim
 
                 image_raw = frame_in.tostring()
                 example = tf.train.Example(features=tf.train.Features(feature={
@@ -715,7 +715,7 @@ def create_tf_record_time_from_lbl_with_trx(conf, split=True, split_file=None):
 
                 frame_in, cur_loc = get_patch_trx(cap, cur_trx, fnum, conf.imsz[0], cur_pts[trx_ndx, fnum, :, sel_pts])
 
-                if conf.imgDim == 1:
+                if conf.img_dim == 1:
                     frame_in = frame_in[:, :, 0:1]
                 frame_in = frame_in[np.newaxis, ...]
 
@@ -725,14 +725,14 @@ def create_tf_record_time_from_lbl_with_trx(conf, split=True, split_file=None):
                 for cur_t in range(tw):
                     next_fr, cur_loc = get_patch_trx(cap, cur_trx, fnum, conf.imsz[0], cur_pts[trx_ndx, fnum, :, sel_pts], cur_t+1)
 
-                    if conf.imgDim == 1:
+                    if conf.img_dim == 1:
                         next_fr = next_fr[:, :, 0:1]
                     next_fr = next_fr[np.newaxis, ...]
                     next_array.append(next_fr)
 
                     prev_fr, cur_loc = get_patch_trx(cap, cur_trx, fnum, conf.imsz[0], cur_pts[trx_ndx, fnum, :, sel_pts], -cur_t-1)
 
-                    if conf.imgDim == 1:
+                    if conf.img_dim == 1:
                         prev_fr = prev_fr[:, :, 0:1]
                     prev_fr = prev_fr[np.newaxis, ...]
                     prev_array.append(prev_fr)
@@ -817,7 +817,7 @@ def create_tf_record_rnn_from_lbl_with_trx(conf, split=True, split_file=None):
                 # current frame
                 frame_in, cur_loc = get_patch_trx(cap, cur_trx, fnum, conf.imsz[0], cur_pts[trx_ndx, fnum, :, sel_pts])
 
-                if conf.imgDim == 1:
+                if conf.img_dim == 1:
                     frame_in = frame_in[:, :, 0:1]
                 frame_in = frame_in[np.newaxis, ...]
 
@@ -826,14 +826,14 @@ def create_tf_record_rnn_from_lbl_with_trx(conf, split=True, split_file=None):
                 prev_array = []
                 for cur_t in range(conf.rnn_after):
                     next_fr, _ = get_patch_trx(cap, cur_trx, fnum, conf.imsz[0], cur_pts[trx_ndx, fnum, :, sel_pts], cur_t+1)
-                    if conf.imgDim == 1:
+                    if conf.img_dim == 1:
                         next_fr = next_fr[:, :, 0:1]
                     next_fr = next_fr[np.newaxis, ...]
                     next_array.append(next_fr)
 
                 for cur_t in range(conf.rnn_before):
                     prev_fr, _ = get_patch_trx(cap, cur_trx, fnum, conf.imsz[0], cur_pts[trx_ndx, fnum, :, sel_pts], -cur_t-1)
-                    if conf.imgDim == 1:
+                    if conf.img_dim == 1:
                         prev_fr = prev_fr[:, :, 0:1]
                     prev_fr = prev_fr[np.newaxis, ...]
                     prev_array.append(prev_fr)
@@ -913,7 +913,7 @@ def read_and_decode(filename_queue, conf):
     image = tf.decode_raw(features['image_raw'], tf.uint8)
     if has_trx_ndx:
         trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
-    image = tf.reshape(image, conf.imsz + (conf.imgDim,))
+    image = tf.reshape(image, conf.imsz + (conf.img_dim,))
 
     locs = tf.cast(features['locs'], tf.float64)
     exp_ndx = tf.cast(features['expndx'], tf.float64)
@@ -943,8 +943,8 @@ def read_and_decode_multi(filename_queue, conf):
     image = tf.decode_raw(features['image_raw'], tf.uint8)
     n_animals = tf.cast(features['n_animals'], tf.int64)
 
-    if conf.imgDim > 1:
-        image = tf.reshape(image, conf.imsz + (conf.imgDim,))
+    if conf.img_dim > 1:
+        image = tf.reshape(image, conf.imsz + (conf.img_dim,))
     else:
         image = tf.reshape(image, conf.imsz)
 
@@ -972,7 +972,7 @@ def read_and_decode_time(filename_queue, conf):
     image = tf.decode_raw(features['image_raw'], tf.uint8)
 
     tw = 2 * conf.time_window_size + 1
-    image = tf.reshape(image, (tw,) + conf.imsz + (conf.imgDim,))
+    image = tf.reshape(image, (tw,) + conf.imsz + (conf.img_dim,))
 
     locs = tf.cast(features['locs'], tf.float64)
     expndx = tf.cast(features['expndx'], tf.float64)
@@ -997,7 +997,7 @@ def read_and_decode_rnn(filename_queue, conf):
                   })
     image = tf.decode_raw(features['image_raw'], tf.uint8)
     tw = conf.rnn_before + conf.rnn_after + 1
-    image = tf.reshape(image, (tw,) + conf.imsz + (conf.imgDim,))
+    image = tf.reshape(image, (tw,) + conf.imsz + (conf.img_dim,))
 
     locs = tf.cast(features['locs'], tf.float64)
     expndx = tf.cast(features['expndx'], tf.float64)

@@ -108,7 +108,7 @@ class PoseUNet(PoseCommon):
         self.n_conv = 2
         self.all_layers = None
         self.for_training = 1 # for prediction.
-        self.scale = self.conf.unet_rescale
+        self.scale = self.conf.rescale
         self.no_pad = pad_input
 
         if pad_input:
@@ -128,7 +128,7 @@ class PoseUNet(PoseCommon):
         conf = self.conf
         im.set_shape(
             [conf.batch_size, (conf.imsz[0] + self.pad_y) // conf.rescale, (conf.imsz[1] + self.pad_x) // conf.rescale,
-             conf.imgDim])
+             conf.img_dim])
         hmap.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale, conf.imsz[1]//conf.rescale,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
@@ -290,7 +290,7 @@ class PoseUNet(PoseCommon):
 
     def create_network1(self):
 
-        # m_sz = min(self.conf.imsz)/self.conf.unet_rescale
+        # m_sz = min(self.conf.imsz)/self.conf.rescale
         # max_layers = int(math.ceil(math.log(m_sz,2)))-1
         # sel_sz = self.conf.sel_sz
         # n_layers = int(math.ceil(math.log(sel_sz,2)))+2
@@ -433,7 +433,7 @@ class PoseUNet(PoseCommon):
             conv = batch_norm(conv, decay=0.99, is_training=train_phase)
             return conv
 
-        m_sz = min(self.conf.imsz)/self.conf.unet_rescale
+        m_sz = min(self.conf.imsz)/self.conf.rescale
         max_layers = int(math.ceil(math.log(m_sz,2)))-1
         sel_sz = self.conf.sel_sz
         n_layers = int(math.ceil(math.log(sel_sz,2)))+2
@@ -604,17 +604,17 @@ class PoseUNet(PoseCommon):
             bsize = conf.batch_size
             xs, locs_in = PoseTools.preprocess_ims(
                 all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
-                distort=False, scale=self.conf.unet_rescale)
+                distort=False, scale=self.conf.rescale)
 
             self.fd[self.inputs[0]] = xs
             self.fd_val()
             try:
                 pred = sess.run(self.pred, self.fd)
             except tf.errors.ResourceExhaustedError:
-                logging.exception('Out of GPU Memory. Either reduce the batch size or increase unet_rescale')
+                logging.exception('Out of GPU Memory. Either reduce the batch size or scale down the images')
                 exit(1)
             base_locs = PoseTools.get_pred_locs(pred, self.edge_ignore)
-            base_locs = base_locs * conf.unet_rescale
+            base_locs = base_locs * conf.rescale
             ret_dict = {}
             ret_dict['locs'] = base_locs
             ret_dict['hmaps'] = pred
@@ -749,11 +749,11 @@ class PoseUNet(PoseCommon):
                 frame_in = PoseTools.crop_images(frame_in, conf)
                 if flipud:
                     frame_in = np.flipud(frame_in)
-                all_f[ii, ...] = frame_in[..., 0:conf.imgDim]
+                all_f[ii, ...] = frame_in[..., 0:conf.img_dim]
 
             # converting to uint8 is really really important!!!!!
             xs, _ = PoseTools.preprocess_ims(all_f, in_locs=np.zeros([bsize,self.conf.n_classes, 2]),
-                                             conf=self.conf, distort=False, scale=self.conf.unet_rescale)
+                                             conf=self.conf, distort=False, scale=self.conf.rescale)
 
             self.fd[self.ph['x']] = xs
             self.fd[self.ph['phase_train']] = False
@@ -761,7 +761,7 @@ class PoseUNet(PoseCommon):
             pred = sess.run(self.pred, self.fd)
 
             base_locs = PoseTools.get_pred_locs(pred)
-            base_locs = base_locs*conf.unet_rescale
+            base_locs = base_locs*conf.rescale
             pred_locs[ndx_start:ndx_end, :, :] = base_locs[:ppe, :, :]
             pred_max_scores[ndx_start:ndx_end, :] = pred[:ppe, :, :, :].max(axis=(1,2))
             pred_scores[ndx_start:ndx_end, :, :, :] = pred[:ppe, :, :, :]
@@ -796,8 +796,8 @@ class PoseUNet(PoseCommon):
         pred_locs[:] = np.nan
 
         if return_ims:
-            ims = np.zeros([max_n_frames, n_trx, conf.imsz[0], conf.imsz[1],conf.imgDim])
-            pred_ims = np.zeros([max_n_frames, n_trx, conf.imsz[0]/conf.unet_rescale, conf.imsz[1]/conf.unet_rescale,conf.n_classes])
+            ims = np.zeros([max_n_frames, n_trx, conf.imsz[0], conf.imsz[1],conf.img_dim])
+            pred_ims = np.zeros([max_n_frames, n_trx, conf.imsz[0]/conf.rescale, conf.imsz[1]/conf.rescale,conf.n_classes])
 
         bsize = conf.batch_size
         hsz_p = conf.imsz[0] / 2  # half size for pred
@@ -817,7 +817,7 @@ class PoseUNet(PoseCommon):
 
             n_frames = cur_end - cur_start
             n_batches = int(math.ceil(float(n_frames)/ bsize))
-            all_f = np.zeros((bsize,) + conf.imsz + (conf.imgDim,))
+            all_f = np.zeros((bsize,) + conf.imsz + (conf.img_dim,))
 
             for curl in range(n_batches):
                 ndx_start = curl * bsize + cur_start
@@ -843,7 +843,7 @@ class PoseUNet(PoseCommon):
                     all_f[ii, ...] = frame_in
 
                 xs, _ = PoseTools.preprocess_ims(all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]),
-                                                 conf=self.conf,distort=False, scale=self.conf.unet_rescale)
+                                                 conf=self.conf,distort=False, scale=self.conf.rescale)
 
                 self.fd[self.ph['x']] = xs
                 self.fd[self.ph['phase_train']] = False
@@ -851,7 +851,7 @@ class PoseUNet(PoseCommon):
                 pred = sess.run(self.pred, self.fd)
 
                 base_locs = PoseTools.get_pred_locs(pred)
-                base_locs = base_locs * conf.unet_rescale
+                base_locs = base_locs * conf.rescale
 
                 base_locs_orig = np.zeros(base_locs.shape)
                 for ii in range(ppe):
@@ -891,7 +891,7 @@ class PoseUNet(PoseCommon):
 
         fig = mpl.figure.Figure(figsize=(9, 4))
         canvas = FigureCanvasAgg(fig)
-        sc = self.conf.unet_rescale
+        sc = self.conf.rescale
 
         color = cm.hsv(np.linspace(0, 1 - 1./conf.n_classes, conf.n_classes))
         trace_len = 30
@@ -966,7 +966,7 @@ class PoseUNet(PoseCommon):
         nframes = max_frames - start_at
         fig = mpl.figure.Figure(figsize=(8, 8))
         canvas = FigureCanvasAgg(fig)
-        sc = self.conf.unet_rescale
+        sc = self.conf.rescale
 
         color = cm.hsv(np.linspace(0, 1 - 1./conf.n_classes, conf.n_classes))
         trace_len = 3
@@ -997,7 +997,7 @@ class PoseUNet(PoseCommon):
             assert conf.imsz[0] == conf.imsz[1]
 
             frame_in, _ = multiResData.get_patch_trx(frame_in, c_x, c_y, -math.pi/2, conf.imsz[0]*2, np.zeros([2, 2]))
-            frame_in = frame_in[:, :, 0:conf.imgDim]
+            frame_in = frame_in[:, :, 0:conf.img_dim]
 
             if flipud:
                 frame_in = np.flipud(frame_in)
@@ -1069,7 +1069,7 @@ class PoseUNetMulti(PoseUNet, PoseCommonMulti):
     def create_network(self ):
         im, locs, info, hmap = self.inputs
         conf = self.conf
-        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.imgDim])
+        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.img_dim])
         hmap.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale, conf.imsz[1]/conf.rescale,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.max_n_animals, conf.n_classes,2])
         info.set_shape([conf.batch_size,4])
@@ -1089,11 +1089,11 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
     def create_ph_fd(self):
         PoseCommon.create_ph_fd(self)
         imsz = self.conf.imsz
-        rescale = self.conf.unet_rescale
+        rescale = self.conf.rescale
         b_sz = self.conf.batch_size
         t_sz = self.conf.time_window_size*2 +1
         self.ph['x'] = tf.placeholder(tf.float32,
-                           [b_sz*t_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.imgDim],
+                           [b_sz*t_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.img_dim],
                            name='x')
         self.ph['y'] = tf.placeholder(tf.float32,
                            [b_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.n_classes],
@@ -1112,7 +1112,7 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
                    }
 
     def create_network1(self):
-        m_sz = min(self.conf.imsz)/self.conf.unet_rescale
+        m_sz = min(self.conf.imsz)/self.conf.rescale
         max_layers = int(math.ceil(math.log(m_sz,2)))-1
         sel_sz = self.conf.sel_sz
         n_layers = int(math.ceil(math.log(sel_sz,2)))+2
@@ -1214,7 +1214,7 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
 
     def update_fd(self, db_type, sess, distort):
         self.read_images(db_type, distort, sess, distort)
-        rescale = self.conf.unet_rescale
+        rescale = self.conf.rescale
         xs = scale_images(self.xs, rescale, self.conf)
         self.fd[self.ph['x']] = PoseTools.normalize_mean(xs, self.conf)
         imsz = [self.conf.imsz[0]/rescale, self.conf.imsz[1]/rescale,]
@@ -1244,11 +1244,11 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
     def create_ph_fd(self):
         PoseCommon.create_ph_fd(self)
         imsz = self.conf.imsz
-        rescale = self.conf.unet_rescale
+        rescale = self.conf.rescale
         b_sz = self.conf.batch_size
         t_sz = self.conf.rnn_before + self.conf.rnn_after + 1
         self.ph['x'] = tf.placeholder(tf.float32,
-                           [b_sz*t_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.imgDim],
+                           [b_sz*t_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.img_dim],
                            name='x')
         self.ph['y'] = tf.placeholder(tf.float32,
                            [b_sz,imsz[0]/rescale,imsz[1]/rescale, self.conf.n_classes],
@@ -1271,7 +1271,7 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
 
     def create_network(self):
         with tf.variable_scope(self.net_unet_name):
-            m_sz = min(self.conf.imsz)/self.conf.unet_rescale
+            m_sz = min(self.conf.imsz)/self.conf.rescale
             max_layers = int(math.ceil(math.log(m_sz,2)))-1
             sel_sz = self.conf.sel_sz
             n_layers = int(math.ceil(math.log(sel_sz,2)))+2
@@ -1454,7 +1454,7 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
 
     def update_fd(self, db_type, sess, distort):
         self.read_images(db_type, distort, sess, distort)
-        rescale = self.conf.unet_rescale
+        rescale = self.conf.rescale
         xs = scale_images(self.xs, rescale, self.conf)
         self.fd[self.ph['x']] = PoseTools.normalize_mean(xs, self.conf)
         imsz = [self.conf.imsz[0]/rescale, self.conf.imsz[1]/rescale,]

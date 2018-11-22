@@ -317,7 +317,7 @@ class PoseCommon(object):
                           })
             image = tf.decode_raw(features['image_raw'], tf.uint8)
             trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
-            image = tf.reshape(image, conf.imsz + (conf.imgDim,))
+            image = tf.reshape(image, conf.imsz + (conf.img_dim,))
 
             locs = tf.cast(features['locs'], tf.float32)
             exp_ndx = tf.cast(features['expndx'], tf.float32)
@@ -528,7 +528,7 @@ class PoseCommon(object):
         self.create_optimizer()
         self.create_saver()
         training_iters = self.conf.dl_steps
-        num_val_rep = self.conf.numTest / self.conf.batch_size + 1
+        num_val_rep = self.conf.num_test / self.conf.batch_size + 1
 
         with tf.Session() as sess:
             start_at = self.init_restore_net(sess, do_restore=restore)
@@ -824,9 +824,9 @@ class PoseCommonTime(PoseCommon):
         # so for now it'll be in update_fd.
         # xs = PoseTools.normalize_mean(xs, conf)
         if distort:
-            if conf.horzFlip:
+            if conf.horz_flip:
                 xs, locs = PoseTools.randomly_flip_lr(xs, locs, tw)
-            if conf.vertFlip:
+            if conf.vert_flip:
                 xs, locs = PoseTools.randomly_flip_ud(xs, locs, tw)
             xs, locs = PoseTools.randomly_rotate(xs, locs, conf, tw)
             xs, locs = PoseTools.randomly_translate(xs, locs, conf, tw)
@@ -893,9 +893,9 @@ class PoseCommonRNN(PoseCommonTime):
         # so for now it'll be in update_fd.
         # xs = PoseTools.normalize_mean(xs, conf)
         if distort:
-            if conf.horzFlip:
+            if conf.horz_flip:
                 xs, locs = PoseTools.randomly_flip_lr(xs, locs, tw)
-            if conf.vertFlip:
+            if conf.vert_flip:
                 xs, locs = PoseTools.randomly_flip_ud(xs, locs, tw)
             xs, locs = PoseTools.randomly_rotate(xs, locs, conf, tw)
             xs, locs = PoseTools.randomly_translate(xs, locs, conf, tw)

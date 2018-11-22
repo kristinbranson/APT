@@ -33,11 +33,11 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
         im, locs, info, hmap = self.inputs
         conf = self.conf
-        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.imgDim])
+        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.img_dim])
         hmap.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale, conf.imsz[1]/conf.rescale,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
-        if conf.imgDim == 1:
+        if conf.img_dim == 1:
             im = tf.tile(im,[1,1,1,3])
 
         conv = lambda a, b: conv_relu3(
@@ -163,11 +163,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         im.set_shape([conf.batch_size,
                       conf.imsz[0]//conf.rescale + self.pad_y,
                       conf.imsz[1]//conf.rescale + self.pad_x,
-                      conf.imgDim])
+                      conf.img_dim])
         hmap.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale, conf.imsz[1]//conf.rescale,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
-        if conf.imgDim == 1:
+        if conf.img_dim == 1:
             im = tf.tile(im,[1,1,1,3])
 
         conv = lambda a, b: conv_relu3(
@@ -634,7 +634,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             bsize = conf.batch_size
             xs, _ = PoseTools.preprocess_ims(
                 all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
-                distort=False, scale=self.conf.unet_rescale)
+                distort=False, scale=self.conf.rescale)
 
             self.fd[self.inputs[0]] = xs
             self.fd[self.ph['phase_train']] = False
@@ -646,12 +646,12 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             pred_means = pred_means * self.offset
             pred_weights = PoseUMDN.softmax(pred_weights,axis=1)
 
-            osz = [int(i/conf.unet_rescale) for i in self.conf.imsz]
+            osz = [int(i/conf.rescale) for i in self.conf.imsz]
             mdn_pred_out = np.zeros([bsize, osz[0], osz[1], conf.n_classes])
 
             for sel in range(bsize):
                 for cls in range(conf.n_classes):
-                    for ndx in range(pred_means.shap21ie[1]):
+                    for ndx in range(pred_means.shape[1]):
                         cur_gr = [l.count(cls) for l in self.conf.mdn_groups].index(1)
                         if pred_weights[sel, ndx, cur_gr] < (0.02 / self.conf.max_n_animals):
                             continue
@@ -670,7 +670,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             #             mm = pred_means[ndx, sel_ex, g, :]
             #             base_locs[ndx, g] = mm
             #
-            # base_locs = base_locs * conf.unet_rescale
+            # base_locs = base_locs * conf.rescale
             mdn_pred_out = 2*(mdn_pred_out-0.5)
             ret_dict = {}
             ret_dict['locs'] = base_locs
