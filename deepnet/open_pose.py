@@ -418,7 +418,7 @@ class DataIteratorTF(object):
         ims = np.stack(all_ims)
         locs = np.stack(all_locs)
 
-        if self.conf.imgDim == 1:
+        if self.conf.img_dim == 1:
             ims = np.tile(ims, 3)
 
         mask_sz = [int(x/self.conf.op_label_scale) for x in self.conf.imsz]
@@ -651,7 +651,12 @@ def get_pred_fn(conf, model_file=None):
         pred = model.predict(xs)[-1]
         base_locs = PoseTools.get_pred_locs(pred)
         base_locs = base_locs * conf.op_rescale * conf.op_label_scale
-        return base_locs, pred
+        ret_dict = {}
+        ret_dict['locs'] = base_locs
+        ret_dict['hmaps'] = pred
+        ret_dict['conf'] = np.max(pred, axis=(1, 2))
+        return ret_dict
+
 
     close_fn = K.clear_session
 

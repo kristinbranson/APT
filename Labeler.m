@@ -4691,7 +4691,33 @@ classdef Labeler < handle
       else
         warning('labeler:noMovie','No movie.');
       end
-    end        
+    end    
+    
+    function labelPosBulkClear(obj,varargin)
+      % Clears ALL labels for current GT state -- ALL MOVIES/TARGETS
+      
+      gt = myparse(varargin,...
+        'gt',obj.gtIsGTMode);
+      
+      PROPS = Labeler.gtGetSharedPropsStc(gt);
+      nMov = obj.getnmoviesGTawareArg(gt);
+      
+      for iMov=1:nMov
+        obj.(PROPS.LPOS){iMov}(:) = nan;        
+        obj.(PROPS.LPOSTS){iMov}(:) = now();
+        obj.(PROPS.LPOSTAG){iMov}(:) = false;
+        if ~gt
+          % unclear what this should be; marked-ness currently unused
+          obj.labeledposMarked{iMov}(:) = false; 
+        end
+      end
+      
+      obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      end
+      obj.labeledposNeedsSave = true;
+    end
     
     function labelPosBulkImport(obj,xy)
       % Set ALL labels for current movie/target
@@ -4706,7 +4732,7 @@ classdef Labeler < handle
       obj.labeledpos{iMov} = xy;
       obj.labeledposTS{iMov}(:) = now();
       obj.labeledposMarked{iMov}(:) = true; % not sure of right treatment
-      
+
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
@@ -4740,6 +4766,7 @@ classdef Labeler < handle
       
       iMov = obj.currMovie;
       assert(iMov>0);
+      warningNoTrace('Existing labels NOT cleared.');
       lpos = obj.(PROPS.LPOS){iMov};
       lpostag = obj.(PROPS.LPOSTAG){iMov};
       lposTS = obj.(PROPS.LPOSTS){iMov};
@@ -7654,7 +7681,7 @@ classdef Labeler < handle
       obj.trackInitAllTrackers();
     end
     
-    function tblP = preProcCropLabelsToRoiIfNec(obj,tblP)
+    function tblP = preProcCropLabelsToRoiIfNec(obj,tblP,varargin)
       % Add .roi column to table if appropriate/nec
       %
       % If hasTrx, modify tblP as follows:
@@ -7666,11 +7693,18 @@ classdef Labeler < handle
       %   - .p will be pAbs
       %   - no .roi
       
+      prmpp = myparse(varargin,'preProcParams',[]);
+      isPreProcParams = ~isempty(prmpp);
+      
       if obj.hasTrx
         tf = tblfldscontains(tblP,{'roi' 'pRoi' 'pAbs'});
         assert(all(tf) || ~any(tf));
         if ~any(tf)
-          roiRadius = obj.preProcParams.TargetCrop.Radius;
+          if isPreProcParams,
+            roiRadius = prmpp.TargetCrop.Radius;
+          else
+            roiRadius = obj.preProcParams.TargetCrop.Radius;
+          end
           tblP = obj.labelMFTableAddROITrx(tblP,roiRadius);
           tblP.pAbs = tblP.p;
           tblP.p = tblP.pRoi;
@@ -7700,12 +7734,13 @@ classdef Labeler < handle
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when .hasTrx or .cropProjHasCropInfo
 
-      [wbObj,tblMFTrestrict,gtModeOK] = myparse(varargin,...
+      [wbObj,tblMFTrestrict,gtModeOK,prmpp] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                     ... % 1. obj const 
                     ... % 2. tblP indeterminate
         'tblMFTrestrict',[],... % see labelGetMFTableLabeld
-        'gtModeOK',false... % by default, this meth should not be called in GT mode
+        'gtModeOK',false,... % by default, this meth should not be called in GT mode
+        'preProcParams',[]...
         ); 
       tfWB = ~isempty(wbObj);
       if ~isempty(tblMFTrestrict)
@@ -7723,7 +7758,7 @@ classdef Labeler < handle
         return;
       end
       
-      tblP = obj.preProcCropLabelsToRoiIfNec(tblP);
+      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'preProcParams',prmpp);
       tfnan = any(isnan(tblP.p),2);
       nnan = nnz(tfnan);
       if nnan>0
@@ -7826,14 +7861,16 @@ classdef Labeler < handle
       % tblPReadFailed: subset of tblP (input) where reads failed
       % tfReadFailed: indicator vec into tblP (input) for failed reads
       
-      [wbObj,updateRowsMustMatch] = myparse(varargin,...
+      [wbObj,updateRowsMustMatch,prmpp] = myparse(varargin,...
         'wbObj',[],... % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
-        'updateRowsMustMatch',false ... % See preProcDataUpdateRaw
+        'updateRowsMustMatch',false, ... % See preProcDataUpdateRaw
+        'preProcParams',[]...
         );
+      isPreProcParamsIn = ~isempty(prmpp);
       tfWB = ~isempty(wbObj);
       
-      tblPReadFailed = obj.preProcDataUpdate(tblP,'wbObj',wbObj,...
-        'updateRowsMustMatch',updateRowsMustMatch);
+      [tblPReadFailed,data] = obj.preProcDataUpdate(tblP,'wbObj',wbObj,...
+        'updateRowsMustMatch',updateRowsMustMatch,'preProcParams',prmpp);
       if tfWB && wbObj.isCancel
         data = [];
         dataIdx = [];
@@ -7843,14 +7880,16 @@ classdef Labeler < handle
         return;
       end
       
-      data = obj.preProcData;
+      if ~isPreProcParamsIn,
+        data = obj.preProcData;
+      end
       tfReadFailed = tblismember(tblP,tblPReadFailed,MFTable.FLDSID);
       tblP(tfReadFailed,:) = [];
       [tf,dataIdx] = tblismember(tblP,data.MD,MFTable.FLDSID);
       assert(all(tf));
     end
     
-    function tblPReadFailed = preProcDataUpdate(obj,tblP,varargin)
+    function [tblPReadFailed,dataNew] = preProcDataUpdate(obj,tblP,varargin)
       % Update .preProcData to include tblP
       %
       % tblP:
@@ -7862,21 +7901,29 @@ classdef Labeler < handle
       %   relative to the roi.
       %   - .pTS: optional (if present, deleted)
       
-      [wbObj,updateRowsMustMatch] = myparse(varargin,...
+      [wbObj,updateRowsMustMatch,prmpp] = myparse(varargin,...
         'wbObj',[],... % WaitBarWithCancel. If cancel, obj unchanged.
-        'updateRowsMustMatch',false ... % See preProcDataUpdateRaw
+        'updateRowsMustMatch',false, ... % See preProcDataUpdateRaw
+        'preProcParams',[]...
         );
       
       if any(strcmp('pTS',tblP.Properties.VariableNames))
         % AL20170530: Not sure why we do this
         tblP(:,'pTS') = [];
       end
-      [tblPnew,tblPupdate] = obj.preProcData.tblPDiff(tblP);
-      tblPReadFailed = obj.preProcDataUpdateRaw(tblPnew,tblPupdate,...
-        'wbObj',wbObj,'updateRowsMustMatch',updateRowsMustMatch);
+      isPreProcParamsIn = ~isempty(prmpp);
+      if isPreProcParamsIn,
+        tblPnew = tblP;
+        tblPupdate = tblP([],:);
+      else
+        [tblPnew,tblPupdate] = obj.preProcData.tblPDiff(tblP);
+      end
+      [tblPReadFailed,dataNew] = obj.preProcDataUpdateRaw(tblPnew,tblPupdate,...
+        'wbObj',wbObj,'updateRowsMustMatch',updateRowsMustMatch,...
+        'preProcParams',prmpp);
     end
     
-    function tblPReadFailed = preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
+    function [tblPReadFailed,dataNew] = preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
       % * Rows appended and pGT/tfocc updated; but other information
@@ -7905,9 +7952,12 @@ classdef Labeler < handle
       %
       % Updates .preProcData, .preProcDataTS
       
-      [wbObj,updateRowsMustMatch] = myparse(varargin,...
+      dataNew = [];
+      
+      [wbObj,updateRowsMustMatch,prmpp] = myparse(varargin,...
         'wbObj',[], ... % Optional WaitBarWithCancel obj. If cancel, obj unchanged.
-        'updateRowsMustMatch',false ... % if true, assert/check that tblPupdate matches current cache
+        'updateRowsMustMatch',false, ... % if true, assert/check that tblPupdate matches current cache
+        'preProcParams',[]...
         );
       tfWB = ~isempty(wbObj);
       
@@ -7918,17 +7968,19 @@ classdef Labeler < handle
       
       tblPReadFailed = tblPnew([],:);
       
-      prmpp = obj.preProcParams;
-      if isempty(prmpp)
-        error('Please specify tracking parameters.');
+      isPreProcParamsIn = ~isempty(prmpp);
+      if ~isPreProcParamsIn,
+        prmpp = obj.preProcParams;
+        if isempty(prmpp)
+          error('Please specify tracking parameters.');
+        end
+        dataCurr = obj.preProcData;
       end
       
-      dataCurr = obj.preProcData;
-            
       USECLAHE = true;
 
       if prmpp.histeq
-        if ~USECLAHE
+        if ~USECLAHE && isPreProcParamsIn,
           assert(dataCurr.N==0 || isequal(dataCurr.H0,obj.preProcH0.hgram));
         end
         assert(~prmpp.BackSub.Use,...
@@ -7943,7 +7995,7 @@ classdef Labeler < handle
       
       %%% NEW ROWS read images + PP. Append to dataCurr. %%%
       FLDSID = MFTable.FLDSID;
-      assert(~any(tblismember(tblPnew,dataCurr.MD,FLDSID)));
+      assert(isPreProcParamsIn||~any(tblismember(tblPnew,dataCurr.MD,FLDSID)));
       
       tblPNewConcrete = obj.mftTableConcretizeMov(tblPnew);
       nNew = height(tblPnew);
@@ -8013,7 +8065,7 @@ classdef Labeler < handle
             dataNew = CPRData(J,tblPnewMD);
             dataNew.H0 = obj.preProcH0.hgram;
 
-            if dataCurr.N==0
+            if ~isPreProcParamsIn && dataCurr.N==0
               dataCurr.H0 = dataNew.H0;
               % these need to match for append()
             end
@@ -8026,19 +8078,21 @@ classdef Labeler < handle
           feval(prmpp.channelsFcn,dataNew);
           assert(~isempty(dataNew.IppInfo),...
             'Preprocessing channelsFcn did not set .IppInfo.');
-          if isempty(dataCurr.IppInfo)
+          if ~isPreProcParamsIn && isempty(dataCurr.IppInfo)
             assert(dataCurr.N==0,'Ippinfo can be empty only for empty/new data.');
             dataCurr.IppInfo = dataNew.IppInfo;
           end
         end
         
-        dataCurr.append(dataNew);
+        if ~isPreProcParamsIn,
+          dataCurr.append(dataNew);
+        end
       end
       
       %%% EXISTING ROWS -- just update pGT and tfocc. Existing images are
       %%% OK and already histeq'ed correctly
       nUpdate = size(tblPupdate,1);
-      if nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB 
+      if ~isPreProcParamsIn && nUpdate>0 % AL 20160413 Shouldn't need to special-case, MATLAB 
                    % table indexing API may not be polished
         [tf,loc] = tblismember(tblPupdate,dataCurr.MD,FLDSID);
         assert(all(tf));
@@ -8063,11 +8117,13 @@ classdef Labeler < handle
         end
       end
       
-      if nUpdate>0 || nNew>0 % AL: if all reads fail, nNew>0 but no new rows were actually read
-        assert(obj.preProcData==dataCurr); % handles; not sure why this is asserted in this branch specifically
-        obj.preProcDataTS = now;
-      else
-        warningNoTrace('Nothing to update in data.');
+      if ~isPreProcParamsIn,
+        if nUpdate>0 || nNew>0 % AL: if all reads fail, nNew>0 but no new rows were actually read
+          assert(obj.preProcData==dataCurr); % handles; not sure why this is asserted in this branch specifically
+          obj.preProcDataTS = now;
+        else
+          warningNoTrace('Nothing to update in data.');
+        end
       end
     end
    
@@ -8139,6 +8195,28 @@ classdef Labeler < handle
       tObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
       
       dtObj.setParams(sPrmDT);
+    end
+    
+    function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
+        trackNFramesNear] = convertNew2OldParams(obj,sPrm)
+      % Set ALL tracking parameters; preproc, and all trackers
+      % 
+      % sPrm: scalar struct containing *new*-style params:
+      % sPrm.ROOT.Track
+      %          .CPR
+      %          .DeepTrack
+              
+      sPrmDT = sPrm.ROOT.DeepTrack;
+      sPrmPPandCPR = sPrm;
+      sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
+      
+      % NOTE: this line already sets some props, despite possible throws
+      % later
+      [sPrmPPandCPRold,trackNFramesSmall,trackNFramesLarge,...
+        trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
+      
+      ppPrms = sPrmPPandCPRold.PreProc;
+      sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
     end
     
     function sPrm = trackGetParams(obj)

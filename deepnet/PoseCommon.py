@@ -146,9 +146,9 @@ class PoseCommon(object):
         extra_info_sz = self.extra_info_sz
         scale = self.scale
         imsz = self.conf.imsz
-        self.q_placeholder_spec.append(['images', [self.conf.batch_size, imsz[0]//scale, imsz[1]//scale, self.conf.imgDim]])
+        self.q_placeholder_spec.append(['images', [self.conf.batch_size, imsz[0]//scale, imsz[1]//scale, self.conf.img_dim]])
         self.q_placeholder_spec.append(['locs',  [self.conf.batch_size, self.conf.n_classes, 2]])
-        self.q_placeholder_spec.append(['orig_images', [self.conf.batch_size, imsz[0], imsz[1], self.conf.imgDim]])
+        self.q_placeholder_spec.append(['orig_images', [self.conf.batch_size, imsz[0], imsz[1], self.conf.img_dim]])
         self.q_placeholder_spec.append(['orig_locs',  [self.conf.batch_size, self.conf.n_classes, 2]])
         self.q_placeholder_spec.append(['info',  [self.conf.batch_size, 3]])
         self.q_placeholder_spec.append(['extra_info', [self.conf.batch_size, extra_info_sz]])
@@ -768,7 +768,7 @@ class PoseCommon(object):
         self.cost = loss(self.pred, self.ph[pred_in_key])
         self.create_optimizer()
         self.create_saver()
-        num_val_rep = self.conf.numTest / self.conf.batch_size + 1
+        num_val_rep = self.conf.num_test / self.conf.batch_size + 1
 
         with tf.Session() as sess:
             start_at = self.init_and_restore( sess, restore, td_fields, True, True)
@@ -1055,9 +1055,9 @@ class PoseCommonTime(PoseCommon):
         # so for now it'll be in update_fd.
         # xs = PoseTools.normalize_mean(xs, conf)
         if distort:
-            if conf.horzFlip:
+            if conf.horz_flip:
                 xs, locs = PoseTools.randomly_flip_lr(xs, locs, tw)
-            if conf.vertFlip:
+            if conf.vert_flip:
                 xs, locs = PoseTools.randomly_flip_ud(xs, locs, tw)
             xs, locs = PoseTools.randomly_rotate(xs, locs, conf, tw)
             xs, locs = PoseTools.randomly_translate(xs, locs, conf, tw)
@@ -1124,9 +1124,9 @@ class PoseCommonRNN(PoseCommonTime):
         # so for now it'll be in update_fd.
         # xs = PoseTools.normalize_mean(xs, conf)
         if distort:
-            if conf.horzFlip:
+            if conf.horz_flip:
                 xs, locs = PoseTools.randomly_flip_lr(xs, locs, tw)
-            if conf.vertFlip:
+            if conf.vert_flip:
                 xs, locs = PoseTools.randomly_flip_ud(xs, locs, tw)
             xs, locs = PoseTools.randomly_rotate(xs, locs, conf, tw)
             xs, locs = PoseTools.randomly_translate(xs, locs, conf, tw)

@@ -73,17 +73,17 @@ class myconfig(object):
     gamma = 0.1
     step_size = 100000
     display_step = 30
-    numTest = 100
+    num_test = 100
 
     # range for contrast, brightness and rotation adjustment
-    horzFlip = False
-    vertFlip = False
+    horz_flip = False
+    vert_flip = False
     brange = [-0.1,0.1] #[-0.2,0.2]
     crange = [0.9,1.1] #[0.7,1.3]
     rrange = 30
     imax = 255.
-    adjustContrast = False
-    clahegridsize = 20
+    adjust_contrast = False
+    clahe_grid_size = 20
     normalize_mean_img = True
 
     # ----- Data parameters
@@ -94,7 +94,7 @@ class myconfig(object):
     imsz = (260,352)
     cropLoc = {(260,704):[0,0]}
     selpts = np.arange(1)
-    imgDim = 1
+    img_dim = 1
 
     cachedir = os.path.join(localSetup.bdir,'cache','jayMouseSide')
     labelfile = os.path.join(localSetup.bdir,'data','jayMouse','miceLabels_20170412.lbl')

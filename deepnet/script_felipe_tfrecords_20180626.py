@@ -26,8 +26,8 @@ def create_iterators():
     conf.trange = 30 # image will be translated by +-30 in both x and y direction
     conf.brange = [1-0.2, 1+0.2] # brightness is adjusted by this much. 0 is no adjustment and 1 is maximum adjustment
     conf.crange = [0.7, 1.3] # contrast range. [1, 1] does nothing, [0,2] adjusts the contrast by maximum
-    conf.imgDim = 3
-    conf.adjustContrast = False # this is different contrast adjustment than earlier. Should be false for colored images.
+    conf.img_dim = 3
+    conf.adjust_contrast = False # this is different contrast adjustment than earlier. Should be false for colored images.
     conf.perturb_color = False
     conf.op_label_scale = 8
     conf.op_rescale = 1

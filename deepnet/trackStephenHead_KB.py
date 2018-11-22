@@ -93,7 +93,7 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
     flipud = False
 
     pred_locs = np.zeros([n_frames, conf.n_classes, 2])
-    preds = np.zeros([n_frames,int(conf.imsz[0]//conf.unet_rescale),int(conf.imsz[1]//conf.unet_rescale),conf.n_classes])
+    preds = np.zeros([n_frames,int(conf.imsz[0]//conf.rescale),int(conf.imsz[1]//conf.rescale),conf.n_classes])
     pred_locs[:] = np.nan
 
     to_do_list = []
@@ -109,7 +109,11 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
         all_f = apt.create_batch_ims(to_do_list[cur_start:(cur_start+ppe)], conf,
                                  cap, flipud, [None], crop_loc=cc)
 
-        base_locs, hmaps = pred_fn(all_f)
+        # base_locs, hmaps = pred_fn(all_f)
+        ret_dict = pred_fn(all_f)
+        base_locs = ret_dict['locs']
+        hmaps = ret_dict['hmaps']
+
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
             cur_f = cur_entry[0]
@@ -136,7 +140,7 @@ def getexpname(dirname):
 
 def update_conf(conf):
     conf.normalize_img_mean = False
-    conf.adjustContrast = True
+    conf.adjust_contrast = True
 
 def main(argv):
 
@@ -319,7 +323,7 @@ def main(argv):
                     continue
 
 #                 orig_crop_loc = [crop_loc_all[i]-1 for i in (2,0)] # y first
-#                 # rescale = conf.unet_rescale
+#                 # rescale = conf.rescale
 #                 # crop_loc = [int(x/rescale) for x in orig_crop_loc]
 #                 # end_pad = [int((height-conf.imsz[0])/rescale)-crop_loc[0],int((width-conf.imsz[1])/rescale)-crop_loc[1]]
 # #                crop_loc = [old_div(x,4) for x in orig_crop_loc]

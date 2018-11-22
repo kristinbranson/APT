@@ -113,7 +113,7 @@ def get_read_fn(cfg, data_path):
         batch_np = dataset.next_batch()
         loc_in = batch_np[Batch.locs]
         ims = batch_np[Batch.inputs]
-        if cfg.imgDim == 1:
+        if cfg.img_dim == 1:
             ims = ims[:,:,:,0:1]
         info = [0, 0, 0]
         return ims, loc_in, info
@@ -235,7 +235,7 @@ def get_pred_fn(cfg, model_file=None):
     sess, inputs, outputs = predict.setup_pose_prediction(cfg, init_weights)
 
     def pred_fn(all_f):
-        if cfg.imgDim == 1:
+        if cfg.img_dim == 1:
             cur_im = np.tile(all_f,[1,1,1,3])
         else:
             cur_im = all_f
@@ -243,7 +243,11 @@ def get_pred_fn(cfg, model_file=None):
         scmap, locref = predict.extract_cnn_output(cur_out, cfg)
         pose = predict.argmax_pose_predict(scmap, locref, cfg.stride)
         pose = pose[:,:,:2]*cfg.dlc_rescale
-        return pose, scmap
+        ret_dict = {}
+        ret_dict['locs'] = pose
+        ret_dict['hmaps'] = scmap
+        ret_dict['conf'] = np.max(scmap, axis=(1, 2))
+        return ret_dict
 
     def close_fn():
         sess.close()

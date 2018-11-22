@@ -102,7 +102,7 @@ def max_pool(name, l_input, k, s):
 def create_place_holders(conf):
     psz = conf.shape_psz
     n_classes = conf.n_classes
-    img_dim = conf.imgDim+1
+    img_dim = conf.img_dim+1
 
     nex = conf.batch_size
     x0 = []
@@ -325,9 +325,9 @@ def read_images(conf, db_type, distort, sess, data):
     xs = np.array(xs)
     locs = np.array(locs)
     if distort:
-        if conf.horzFlip:
+        if conf.horz_flip:
             xs, locs = PoseTools.randomly_flip_lr(xs, locs)
-        if conf.vertFlip:
+        if conf.vert_flip:
             xs, locs = PoseTools.randomly_flip_ud(xs, locs)
         xs, locs = PoseTools.randomly_rotate(xs, locs, conf)
         # xs = PoseTools.randomlyAdjust(xs, conf)
@@ -641,7 +641,7 @@ def pose_shape_train(conf, restore=True):
                 train_loss /= (conf.shape_psz**2)*train_pred.shape[-1]*conf.batch_size
                 train_loss = np.sqrt(train_loss)
 
-                num_rep = int(old_div(conf.numTest, conf.batch_size)) + 1
+                num_rep = int(old_div(conf.num_test, conf.batch_size)) + 1
                 val_loss = 0.
                 val_dist = 0.
                 for rep in range(num_rep):

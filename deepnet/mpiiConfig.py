@@ -111,17 +111,17 @@ class myconfig(object):
     step_size = 200000
     eval2_step_size = 40000
     display_step = 30
-    numTest = 100
+    num_test = 100
 
     # range for contrast, brightness and rotation adjustment
-    horzFlip = False
-    vertFlip = False
+    horz_flip = False
+    vert_flip = False
     brange = [0, 0]  # [-0.2,0.2]
     crange = [0.9, 1.1]  # [0.7,1.3]
     rrange = 150
     imax = 255.
-    adjustContrast = False
-    clahegridsize = 20
+    adjust_contrast = False
+    clahe_grid_size = 20
     normalize_mean_img = False
     perturb_color = True
     # fine_batch_size = 8
@@ -137,7 +137,7 @@ class myconfig(object):
     # ----- Data parameters
 
     imsz = (256,256)
-    imgDim = 3
+    img_dim = 3
 
     cachedir = os.path.join(localSetup.bdir, 'cache', 'mpii')
     labelfile = '/groups/branson/home/kabram/bransonlab/pose_hourglass/pose_hg_demo/mpii_human_pose_v1_u12_2/mpii_human_pose_v1_u12_1_modified.lbl'

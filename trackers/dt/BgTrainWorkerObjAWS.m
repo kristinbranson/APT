@@ -35,12 +35,21 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
         'killFile',[],... % char, full path to KILL tokfile
         'killFileExists',[]... % true if KILL tokfile found
         ); % 
+      dmcs = obj.dmcs;
       for ivw=1:obj.nviews
-        json = obj.artfctTrainDataJson{ivw};
-        finalindex = obj.artfctFinalIndex{ivw};
-        errFile = obj.artfctErrFile{ivw};
-        logFile = obj.artfctLogs{ivw};
-        killFile = obj.artfctKills{ivw};
+        
+        dmc = dmcs(ivw);
+        json = dmc.trainDataLnx;
+        finalindex = dmc.trainFinalIndexLnx;
+        errFile = dmc.errfileLnx;
+        logFile = dmc.trainLogLnx;
+        killFile = dmc.killTokenLnx;
+        
+%         json = obj.artfctTrainDataJson{ivw};
+%         finalindex = obj.artfctFinalIndex{ivw};
+%         errFile = obj.artfctErrFile{ivw};
+%         logFile = obj.artfctLogs{ivw};
+%         killFile = obj.artfctKills{ivw};
         
         fspollargs = ...
           sprintf('exists %s exists %s existsNE %s existsNEerr %s exists %s contents %s',...
@@ -101,7 +110,61 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
     function s = fileContents(obj,f)
       s = obj.awsEc2.remoteFileContents(f,'dispcmd',true);
     end
-        
+    
+    function dispModelChainDir(obj)
+      aws = obj.awsEc2;
+      for ivw=1:obj.nviews
+        dmc = obj.dmcs(ivw);
+        cmd = sprintf('ls -al %s',dmc.dirModelChainLnx);
+        fprintf('### View %d:\n',ivw);
+        [tfsucc,res] = aws.cmdInstance(cmd,'dispcmd',false); 
+        if tfsucc
+          disp(res);
+        else
+          warningNoTrace('Failed to access training directory %s: %s',...
+            dmc.dirModelChainLnx,res);
+        end
+        fprintf('\n');
+      end
+    end
+    
+    function killProcess(obj)
+%       if ~obj.isRunning
+%         error('Training is not in progress.');
+%       end
+      aws = obj.awsEc2;
+      if isempty(aws)
+        error('AWSEC2 backend object is unset.');
+      end
+      
+      dmc = obj.dmcs;
+      assert(isscalar(dmc)); % single-view atm
+      killfile = dmc.killTokenLnx;
+
+      aws.killRemoteProcess();
+
+      % expect command to fail; fail -> py proc killed
+      pollCbk = @()~aws.cmdInstance('pgrep python','dispcmd',true,'failbehavior','silent');
+      iterWaitTime = 1;
+      maxWaitTime = 10;
+      tfsucc = waitforPoll(pollCbk,iterWaitTime,maxWaitTime);
+      
+      if ~tfsucc
+        warningNoTrace('Could not confirm that remote process was killed.');
+      else
+        % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
+        % pick up
+        cmd = sprintf('touch %s',killfile);
+        tfsucc = aws.cmdInstance(cmd,'dispcmd',false);
+        if ~tfsucc
+          warningNoTrace('Failed to create remote KILLED token: %s',killfile);
+        else
+          fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge the kill!\n',killfile);
+        end
+        % bgTrnMonitorAWS should pick up KILL tokens and stop bg trn monitoring
+      end
+    end
+    
   end
     
 end

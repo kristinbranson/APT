@@ -91,9 +91,9 @@ if not check_fnum(cur_fnum, cap, 'movie', 0):
 
 
 framein, curloc = get_patch_trx(cap, cur_trx, cur_fnum, conf.imsz[0], np.zeros([conf.n_classes,2]))
-framein = framein[:, :, 0:conf.imgDim]
+framein = framein[:, :, 0:conf.img_dim]
 
-cur_xs, _ = PoseTools.preprocess_ims(framein[np.newaxis, ...], curloc[np.newaxis, ...], self.conf, distort=False, scale=self.conf.unet_rescale)
+cur_xs, _ = PoseTools.preprocess_ims(framein[np.newaxis, ...], curloc[np.newaxis, ...], self.conf, distort=False, scale=self.conf.rescale)
 
 unet.fd[unet.ph['phase_train']] = False
 unet.fd[unet.ph['keep_prob']] = 1

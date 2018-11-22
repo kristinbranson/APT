@@ -118,6 +118,13 @@ classdef ParameterVizHandler < handle
         pvObj = [];
       end
     end
+
+    function isOk = isValidParams(obj)
+      
+      isOk = getappdata(obj.hFig,'isOk');
+      isOk = isempty(isOk) || isOk;      
+      
+    end
     
     function propSelected(obj,prop)
       % Called when a prop is initially selected
@@ -125,6 +132,11 @@ classdef ParameterVizHandler < handle
       % prop: grid java prop
       
       [tfIsProp,pvObjNew] = obj.isprop(prop);
+      if ~obj.isValidParams(),
+        ParameterVisualization.grayOutAxes(obj.hAx,'Invalid parameters selected.');
+        return;
+      end
+      
       pvObjCurrSel = obj.paramVizSelected;
       if ~isempty(pvObjCurrSel)
         if tfIsProp && pvObjNew==pvObjCurrSel
@@ -138,7 +150,8 @@ classdef ParameterVizHandler < handle
           obj.paramVizSelected = [];
         end
       end
-        
+
+      obj.cbkToggleParamViz(tfIsProp,true);
       if tfIsProp
         lblObj = obj.lObj;
         sPrm = obj.getCurrentParamsInTree();
@@ -149,10 +162,13 @@ classdef ParameterVizHandler < handle
         ParameterVisualization.grayOutAxes(obj.hAx,...
           'No visualization available.');
       end
-      obj.cbkToggleParamViz(tfIsProp);
     end
     
     function propUpdatedGeneral(obj,prop)
+      if ~obj.isValidParams(),
+        ParameterVisualization.grayOutAxes(obj.hAx,'Invalid parameters selected.');
+        return;
+      end
       [tf,pvObj] = obj.isprop(prop);
       if tf
 %         fprintf(1,'PVH calling propUpdated\n');
@@ -161,16 +177,21 @@ classdef ParameterVizHandler < handle
       end
     end
     
-    function propUpdatedSpinner(obj,prop,pvObj,spinnerEvt)
+    function propUpdatedSpinner(obj,prop,pvObj,spinnerEvt,propName)
       % Called when prop's spinner is clicked. propertyTable.appData.mirror
       % has not been updated yet
       % 
       % pvObj: prop->pvObj
-      
-%       fprintf(1,'PVH calling propUpdatedDynamic\n');
+      if ~obj.isValidParams(),
+        %ParameterVisualization.grayOutAxes(obj.hAx,'Invalid parameters selected.');
+        return;
+      end
+
+      %fprintf(1,'PVH calling propUpdatedSpinner\n');
       sPrm = obj.getCurrentParamsInTree(); % sPrm outdated relative to spinnerEvt.spinnerValue;
-      pvObj.propUpdatedDynamic(obj.hAx,obj.lObj,char(prop.getFullName()),...
-        sPrm,spinnerEvt.spinnerValue);
+      val = spinnerEvt.spinnerValue;
+      get(prop,'UserData')
+      pvObj.propUpdatedDynamic(obj.hAx,obj.lObj,propName,sPrm,val);
     end
     
     function sPrm = getCurrentParamsInTree(obj)

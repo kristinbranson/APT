@@ -1915,9 +1915,9 @@ oldl = copy.deepcopy(self.locs)
 
 xs = self.xs
 locs = self.locs
-if conf.horzFlip:
+if conf.horz_flip:
     xs,locs = PoseTools.randomly_flip_lr(xs, locs)
-if conf.vertFlip:
+if conf.vert_flip:
     xs,locs = PoseTools.randomly_flip_ud(xs, locs)
 xs,locs = PoseTools.randomly_rotate(xs, locs, conf)
 xs = PoseTools.randomly_adjust(xs, conf)
@@ -1943,9 +1943,9 @@ oldl = copy.deepcopy(self.locs)
 
 xs = self.xs
 locs = self.locs
-if conf.horzFlip:
+if conf.horz_flip:
     xs,locs = PoseTools.randomly_flip_lr(xs, locs)
-if conf.vertFlip:
+if conf.vert_flip:
     xs,locs = PoseTools.randomly_flip_ud(xs, locs)
 xs,locs = PoseTools.randomly_rotate(xs, locs, conf)
 xs = PoseTools.randomly_adjust(xs, conf)

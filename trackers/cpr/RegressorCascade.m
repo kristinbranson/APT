@@ -377,6 +377,114 @@ classdef RegressorCascade < handle
       pAll = obj.train(I,bboxes,pGT,p0,pIidx,loArgs{:});
     end
     
+    function [p0,p0info] = randInit(obj,bboxes,pGT,varargin)
+      % I: struct with the following fields:
+      %   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
+      %   imszs: [2 x N x nView] size of each image
+      %   imoffs: [N x nView] offset for indexing image (view,i) (image will
+      %     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
+      %   NOTE: Currently nView must equal 1.
+      % bboxes: [Nx2*d]
+      % pGT: [NxD] GT labels (absolute coords)
+      %
+      % pAll: [(N*Naug)xDx(T+1)] propagated training shapes (absolute coords)
+      % pIidx: [N*Naug] indices into I labeling rows of pAll
+      %
+      % Initialization notes. Two sets of shapes to draw from for
+      % initialization. If initpGTNTrn, use the set .pGTNTrn; otherwise,
+      % use pGT. Typically, initpGTNTrn would be used for incremental
+      % (re)trains, where .pGTNTrn is set and pGT is small/limited.
+      % Meanwhile, pGT would be used on first/fresh trains, where .pGTNTrn
+      % may not be populated and pGT is large.
+      %
+      % Note, for randomly-oriented targets, pGT (and .pGTNTrn as
+      % appropriate) will be randomly-oriented; rotCorrection had better be 
+      % on.
+      %
+      % In drawing from a set shape distribution, we are biasing towards
+      % the most/more common shapes. However, we also jitter, so that may
+      % be okay.
+      
+      [initpGTNTrn,orientationThetas,prm] = myparse(varargin,...
+        'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
+        'orientationThetas',[],... % [N] vector of "externally" known orientations for animals. Required if prmRotCurr.use and prmTrainInit.usetrxorientation
+        'CPRParams',[]...
+        );
+
+      N = size(pGT,1);
+      if ~isempty(orientationThetas)
+        assert(isvector(orientationThetas) && numel(orientationThetas)==N);
+      end
+      
+      model = obj.prmModel;
+      isCPRParams = ~isempty(prm);
+      if ~isCPRParams,
+        prmTI = obj.prmTrainInit;
+        prmReg = obj.prmReg; %#ok<PROPLC>
+      else
+        prmTI = prm.TrainInit;
+        prmReg = prm.Reg; %#ok<PROPLC>
+      end
+      Naug = prmTI.Naug;  
+      
+      if isfield(prmTI,'augUseFF')
+        initUseFF = prmTI.augUseFF;
+      else
+        initUseFF = false;
+      end
+      
+      fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
+        initpGTNTrn,initUseFF);
+      drawnow; %pause(5);
+            
+      if initpGTNTrn
+        pNInitSet = obj.pGTNTrn;
+        selfSample = false;
+      else % init from pGt
+        pNInitSet = shapeGt('projectPose',model,pGT,bboxes);
+        selfSample = true;
+      end
+      % pNInitSet in normalized coords
+      
+      prmRotCorr = prmReg.rotCorrection; %#ok<PROPLC>
+      orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
+        prmTI.usetrxorientation,orientationThetas);      
+      if orientation==ShapeAugOrientation.SPECIFIED
+        % Check externally-supplied orientations against pGT
+        
+        thetaCnn = Shape.canonicalRot(pGT,prmRotCorr.iPtHead,prmRotCorr.iPtTail);
+        thetasPGT = -thetaCnn;
+        assert(isequal(N,numel(thetasPGT),numel(orientationThetas)));
+        dtheta = modrange(thetasPGT(:)-orientationThetas(:),-pi,pi);
+        % angle diff between i) orientation per trx and ii) orientation per
+        % labeled shape
+        DTHETA_THRESHOLD_WARN_DEGREES = 10;
+        dthetaThresh = DTHETA_THRESHOLD_WARN_DEGREES/180*pi;
+        nExceed = nnz(abs(dtheta)>dthetaThresh);
+        if nExceed>0
+          warningNoTrace('RegressorCascade:orientation',...
+            '%d/%d training shapes have externally-specified orientations that differ significantly from orientation implied by labels.',...
+            nExceed,N);
+        end
+        
+        % Use the externally-specified orientations in any case
+      end
+      [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
+        'pNRandomlyOriented',prmRotCorr.use,...
+        'pAugOrientation',orientation,...
+        'pAugOrientationTheta',orientationThetas,...
+        'iHead',prmRotCorr.iPtHead,...
+        'iTail',prmRotCorr.iPtTail,...
+        'ptJitter',prmTI.doptjitter,...
+        'ptJitterFac',prmTI.ptjitterfac,...
+        'bboxJitter',prmTI.doboxjitter,...
+        'bboxJitterfac',prmTI.augjitterfac,...
+        'selfSample',selfSample,...
+        'furthestfirst',initUseFF);
+      
+    end
+    
+    
     %#3DOK
     function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
       %

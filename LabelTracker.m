@@ -158,7 +158,7 @@ classdef LabelTracker < handle
     end
 
     
-    function [tfsucc,tblPTrn,dataPreProc] = preretrain(obj,tblPTrn,wbObj)
+    function [tfsucc,tblPTrn,dataPreProc] = preretrain(obj,tblPTrn,wbObj,prmpp)
       % Right now this figures out which rows comprise the training set.
       %
       % PostConditions (tfsucc==true):
@@ -179,6 +179,9 @@ classdef LabelTracker < handle
       tfsucc = false;
       dataPreProc = [];
       tfWB = ~isempty(wbObj);
+      if ~exist('prmpp','var'),
+        prmpp = [];
+      end
       
       % Either use supplied tblPTrn, or use all labeled data
       if isempty(tblPTrn)
@@ -205,7 +208,7 @@ classdef LabelTracker < handle
       end
       
       [dataPreProc,dataPreProcIdx,tblPTrn,tblPTrnReadFail] = ...
-        obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj);
+        obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj,'preProcParams',prmpp);
       if tfWB && wbObj.isCancel
         % none
         return;

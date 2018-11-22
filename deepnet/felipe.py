@@ -391,7 +391,7 @@ def loss(pred_in, pred_out):
 self.cost = loss(self.pred, self.ph[pred_in_key])
 self.create_optimizer()
 self.create_saver()
-num_val_rep = self.conf.numTest / self.conf.batch_size + 1
+num_val_rep = self.conf.num_test / self.conf.batch_size + 1
 
 sess = tf.InteractiveSession()
 self.create_cursors(sess)

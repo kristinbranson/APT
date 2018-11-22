@@ -1,3 +1,9 @@
+
+import APT_interface as apt
+cmd_str = '-name stephen_20181029 -cache /tmp  /home/mayank/work/APT/deepnet/data/sh_trn4879_gtcomplete.lbl train -use_cache'
+
+cc = cmd_str.split()
+apt.main(cc)
 ## stephen without image mean normalization
 import APT_interface as apt
 import os
@@ -930,7 +936,7 @@ conf.cachedir += '/deeplabcut'
 
 def deepcut_outfn(data, outdir, count, fis, save_data):
     # pass count as array to pass it by reference.
-    if conf.imgDim == 1:
+    if conf.img_dim == 1:
         im = data[0][:, :, 0]
     else:
         im = data[0]
@@ -1031,7 +1037,7 @@ def _parse_function(serialized_example):
                   })
     image = tf.decode_raw(features['image_raw'], tf.uint8)
     trx_ndx = tf.cast(features['trx_ndx'], tf.int64)
-    image = tf.reshape(image, conf.imsz + (conf.imgDim,))
+    image = tf.reshape(image, conf.imsz + (conf.img_dim,))
 
     locs = tf.cast(features['locs'], tf.float64)
     exp_ndx = tf.cast(features['expndx'], tf.float64)
@@ -1047,7 +1053,7 @@ extra = []
 def preproc_func(ims_in, locs_in, info_in, extra):
     ims = ims_in
     locs = locs_in
-    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, True, conf.unet_rescale)
+    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, True, conf.rescale)
     return ims, locs, info_in
 
 tpre= lambda ims, locs, info: preproc_func(ims,locs,info,extra)

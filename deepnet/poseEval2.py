@@ -120,7 +120,7 @@ def createPlaceHolders(conf):
     scale = conf.scale
     pool_scale = conf.pool_scale
     n_classes = conf.n_classes
-    imgDim = conf.imgDim
+    img_dim = conf.img_dim
     
     inScale = rescale
     
@@ -133,9 +133,9 @@ def createPlaceHolders(conf):
     d0 = []
 
     for ndx in range(n_classes):
-        x0.append(tf.placeholder(tf.float32, [nex,psz,psz,imgDim],name='x0_{}'.format(ndx)))
-        x1.append(tf.placeholder(tf.float32, [nex,psz,psz,imgDim],name='x1_{}'.format(ndx)))
-        x2.append(tf.placeholder(tf.float32, [nex,psz,psz,imgDim],name='x2_{}'.format(ndx)))
+        x0.append(tf.placeholder(tf.float32, [nex,psz,psz,img_dim],name='x0_{}'.format(ndx)))
+        x1.append(tf.placeholder(tf.float32, [nex,psz,psz,img_dim],name='x1_{}'.format(ndx)))
+        x2.append(tf.placeholder(tf.float32, [nex,psz,psz,img_dim],name='x2_{}'.format(ndx)))
         s0.append(tf.placeholder(tf.float32, [nex,2*n_classes],name='s0_{}'.format(ndx)))
         a0.append(tf.placeholder(tf.float32, [nex,8*n_classes],name='a0_{}'.format(ndx)))
         d0.append(tf.placeholder(tf.float32, [nex,n_classes],name='d0_{}'.format(ndx)))
@@ -328,9 +328,9 @@ def readImages(conf,dbType,distort,sess,data):
     locs = np.array(locs)
     locs = multiResData.sanitize_locs(locs)
     if distort:
-        if conf.horzFlip:
+        if conf.horz_flip:
             xs,locs = PoseTools.randomly_flip_lr(xs, locs)
-        if conf.vertFlip:
+        if conf.vert_flip:
             xs,locs = PoseTools.randomly_flip_ud(xs, locs)
         xs,locs = PoseTools.randomly_rotate(xs, locs, conf)
         xs = PoseTools.randomly_adjust(xs, conf)
@@ -611,7 +611,7 @@ def poseEvalTrain(conf,restore=True):
                 updateFeedDict(conf,'train',sess=sess,distort=True,data=data,feed_dict=feed_dict,ph=ph)
                 feed_dict[ph['phase_train']] = False
                 train_loss,train_acc = sess.run([loss,accuracy],feed_dict=feed_dict)
-                numrep = int(old_div(conf.numTest,conf.batch_size))+1
+                numrep = int(old_div(conf.num_test,conf.batch_size))+1
                 val_loss = 0.
                 val_acc = 0.
 #                 val_acc_wt = 0.

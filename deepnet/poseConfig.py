@@ -81,15 +81,15 @@ class config(object):
         self.gamma = 0.1
         self.step_size = 100000 # not used anymore
         self.display_step = 50
-        self.numTest = 8
+        self.num_test = 8
         self.dl_steps = 20000 # number of training iters
         self.cos_steps = 2 #number of times the learning rate is decayed
         self.n_steps = 2
         # rate will be reduced by gamma**n_steps by the end of the training.
 
         # range for contrast, brightness and rotation adjustment
-        self.horzFlip = False
-        self.vertFlip = False
+        self.horz_flip = False
+        self.vert_flip = False
         self.brange = [-0.2, 0.2]
         self.crange = [0.7, 1.3]
         self.rrange = 30
@@ -97,9 +97,9 @@ class config(object):
         self.scale_range = 0.1
         self.imax = 255.
         self.check_bounds_distort = True
-        self.adjustContrast = False
-        self.clahegridsize = 20
-        self.normalize_img_mean = True
+        self.adjust_contrast = False
+        self.clahe_grid_size = 20
+        self.normalize_img_mean = False
         self.normalize_batch_mean = False
         self.perturb_color = False
 
@@ -194,7 +194,7 @@ aliceConfig.getexpname = alice_exp_name
 aliceConfig.has_trx_file = True
 aliceConfig.imsz = (180, 180)
 aliceConfig.selpts = np.arange(0, 17)
-aliceConfig.imgDim = 1
+aliceConfig.img_dim = 1
 aliceConfig.n_classes = len(aliceConfig.selpts)
 aliceConfig.splitType = 'frame'
 aliceConfig.set_exp_name('aliceFly')
@@ -208,8 +208,8 @@ aliceConfig.psz = aliceConfig.sel_sz / 4 / aliceConfig.pool_scale / aliceConfig.
 aliceConfig.valratio = 0.25
 # aliceConfig.mdn_min_sigma = 70.
 # aliceConfig.mdn_max_sigma = 70.
-aliceConfig.adjustContrast = False
-aliceConfig.clahegridsize = 10
+aliceConfig.adjust_contrast = False
+aliceConfig.clahe_grid_size = 10
 aliceConfig.brange = [0,0]
 aliceConfig.crange = [1.,1.]
 aliceConfig.mdn_extra_layers = 1
@@ -245,7 +245,7 @@ felipeConfig.getexplist = felipe_get_exp_list
 felipeConfig.view = 0
 felipeConfig.imsz = (300, 300)
 felipeConfig.selpts = np.arange(0, 5)
-felipeConfig.imgDim = 3
+felipeConfig.img_dim = 3
 felipeConfig.n_classes = len(felipeConfig.selpts)
 felipeConfig.splitType = 'frame'
 felipeConfig.set_exp_name('felipeBees')
@@ -276,7 +276,7 @@ felipe_config_multi.getexplist = felipe_get_exp_list
 felipe_config_multi.view = 0
 felipe_config_multi.imsz = (360, 380)
 felipe_config_multi.selpts = np.array([1, 3, 4])
-felipe_config_multi.imgDim = 3
+felipe_config_multi.img_dim = 3
 felipe_config_multi.n_classes = len(felipe_config_multi.selpts)
 felipe_config_multi.splitType = 'frame'
 felipe_config_multi.set_exp_name('felipeBeesMulti')

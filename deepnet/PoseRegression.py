@@ -167,7 +167,7 @@ class PoseRegression(PoseTrain.PoseTrain):
                     train_loss = self.computeLoss(sess,[self.cost])
                     tt1 = self.computePredDist(sess,self.baseregPred)
                     trainDist = [tt1.mean()]
-                    numrep = int(old_div(self.conf.numTest,self.conf.batch_size))+1
+                    numrep = int(old_div(self.conf.num_test,self.conf.batch_size))+1
                     val_loss = np.zeros([2,])
                     valDist = [0.]
                     for rep in range(numrep):

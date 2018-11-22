@@ -62,7 +62,7 @@ def createPlaceHolders(conf):
     scale = conf.scale
     pool_scale = conf.pool_scale
     n_classes = conf.n_classes
-    imgDim = conf.imgDim
+    img_dim = conf.img_dim
     
     keep_prob = tf.placeholder(tf.float32,name='dropout') # dropout(keep probability)
     inScale = rescale*conf.eval_scale
@@ -70,13 +70,13 @@ def createPlaceHolders(conf):
     nex = conf.batch_size*(conf.eval_num_neg+1)
     x0 = tf.placeholder(tf.float32, [nex,
                                      old_div(imsz[0],inScale),
-                                     old_div(imsz[1],inScale),imgDim],name='x0')
+                                     old_div(imsz[1],inScale),img_dim],name='x0')
     x1 = tf.placeholder(tf.float32, [nex,
                                      imsz[0]/scale/inScale,
-                                     imsz[1]/scale/inScale,imgDim],name='x1')
+                                     imsz[1]/scale/inScale,img_dim],name='x1')
     x2 = tf.placeholder(tf.float32, [nex,
                                      imsz[0]/scale/scale/inScale,
-                                     imsz[1]/scale/scale/inScale,imgDim],name='x2')
+                                     imsz[1]/scale/scale/inScale,img_dim],name='x2')
 
     scores_scale = scale*scale*inScale
     s0 = tf.placeholder(tf.float32, [nex,
@@ -306,9 +306,9 @@ def readImages(conf,dbType,distort,sess,data):
     locs = np.array(locs)
     locs = multiResData.sanitize_locs(locs)
     if distort:
-        if conf.horzFlip:
+        if conf.horz_flip:
             xs,locs = PoseTools.randomly_flip_lr(xs, locs)
-        if conf.vertFlip:
+        if conf.vert_flip:
             xs,locs = PoseTools.randomly_flip_ud(xs, locs)
         xs,locs = PoseTools.randomly_rotate(xs, locs, conf)
         xs = PoseTools.randomly_adjust(xs, conf)
@@ -490,7 +490,7 @@ def poseEvalTrain(conf,restore=True):
                 feed_dict[ph['keep_prob']] = 1.
                 feed_dict[ph['phase_train']] = False
                 train_loss,train_acc = sess.run([loss,accuracy],feed_dict=feed_dict)
-                numrep = int(old_div(conf.numTest,conf.batch_size))+1
+                numrep = int(old_div(conf.num_test,conf.batch_size))+1
                 val_loss = 0.
                 val_acc = 0.
 #                 val_acc_wt = 0.

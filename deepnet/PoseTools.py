@@ -91,7 +91,7 @@ def normalize_mean(in_img, conf):
         # subtract mean for each img.
         mm = zz.mean(axis=(1,2))
         xx = zz - mm[:, np.newaxis, np.newaxis,:]
-        if conf.imgDim == 3:
+        if conf.img_dim == 3:
             if conf.perturb_color:
                 for dim in range(3):
                     to_add = old_div(((np.random.rand(conf.batch_size) - 0.5) * conf.imax), 8)
@@ -135,10 +135,10 @@ def multi_scale_label_images(in_img, rescale, scale):
 
 
 def adjust_contrast(in_img, conf):
-    if conf.adjustContrast:
+    if conf.adjust_contrast:
         clahe = cv2.createCLAHE(
             clipLimit=2.0,
-            tileGridSize=(conf.clahegridsize, conf.clahegridsize))
+            tileGridSize=(conf.clahe_grid_size, conf.clahe_grid_size))
         simg = np.zeros(in_img.shape)
         if in_img.shape[3] == 1:
             for ndx in range(in_img.shape[0]):
@@ -1005,8 +1005,8 @@ def create_pred_movie(conf, predList, moviename, outmovie, outtype, maxframes=-1
     fig = mpl.figure.Figure(figsize=(9, 4))
     canvas = FigureCanvasAgg(fig)
 
-    if conf.adjustContrast:
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=conf.clahegridsize)
+    if conf.adjust_contrast:
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=conf.clahe_grid_size)
     else:
         clahe = None
 
@@ -1016,7 +1016,7 @@ def create_pred_movie(conf, predList, moviename, outmovie, outtype, maxframes=-1
         if framein.shape[2] > 1:
             framein = framein[..., 0]
 
-        if conf.adjustContrast:
+        if conf.adjust_contrast:
             framein = clahe.apply(framein)
 
         fig.clf()
@@ -1335,9 +1335,9 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
     xs = adjust_contrast(cur_im, conf)
     xs, locs = scale_images(xs, locs, scale, conf)
     if distort:
-        if conf.horzFlip:
+        if conf.horz_flip:
             xs, locs = randomly_flip_lr(xs, locs, group_sz=group_sz)
-        if conf.vertFlip:
+        if conf.vert_flip:
             xs, locs = randomly_flip_ud(xs, locs, group_sz=group_sz)
         xs, locs = randomly_scale(xs, locs, conf, group_sz=group_sz)
         xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)

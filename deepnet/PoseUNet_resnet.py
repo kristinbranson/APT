@@ -33,11 +33,11 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
         im, locs, info, hmap = self.inputs
         conf = self.conf
-        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.imgDim])
+        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.img_dim])
         hmap.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale, conf.imsz[1]/conf.rescale,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
-        if conf.imgDim == 1:
+        if conf.img_dim == 1:
             im = tf.tile(im,[1,1,1,3])
 
         conv = lambda a, b: conv_relu3(
@@ -163,11 +163,11 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         im.set_shape([conf.batch_size,
                       conf.imsz[0]//conf.rescale + self.pad_y,
                       conf.imsz[1]//conf.rescale + self.pad_x,
-                      conf.imgDim])
+                      conf.img_dim])
         hmap.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale, conf.imsz[1]//conf.rescale,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
-        if conf.imgDim == 1:
+        if conf.img_dim == 1:
             im = tf.tile(im,[1,1,1,3])
 
         conv = lambda a, b: conv_relu3(
@@ -634,19 +634,19 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             bsize = conf.batch_size
             xs, _ = PoseTools.preprocess_ims(
                 all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
-                distort=False, scale=self.conf.unet_rescale)
+                distort=False, scale=self.conf.rescale)
 
             self.fd[self.inputs[0]] = xs
             self.fd[self.ph['phase_train']] = False
             self.fd[self.ph['learning_rate']] = 0
             # self.fd[self.ph['keep_prob']] = 1.
-            pred, cur_input = sess.run([self.pred, self.inputs], self.fd)
+            pred, unet_pred, cur_input = sess.run([self.pred, self.unet_pred, self.inputs], self.fd)
 
             pred_means, pred_std, pred_weights,pred_dist = pred
             pred_means = pred_means * self.offset
             pred_weights = PoseUMDN.softmax(pred_weights,axis=1)
 
-            osz = [int(i/conf.unet_rescale) for i in self.conf.imsz]
+            osz = [int(i/conf.rescale) for i in self.conf.imsz]
             mdn_pred_out = np.zeros([bsize, osz[0], osz[1], conf.n_classes])
 
             for sel in range(bsize):
@@ -670,9 +670,16 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             #             mm = pred_means[ndx, sel_ex, g, :]
             #             base_locs[ndx, g] = mm
             #
-            # base_locs = base_locs * conf.unet_rescale
+            # base_locs = base_locs * conf.rescale
             mdn_pred_out = 2*(mdn_pred_out-0.5)
-            return base_locs, mdn_pred_out
+            ret_dict = {}
+            ret_dict['locs'] = base_locs
+            ret_dict['hmaps'] = unet_pred
+            ret_dict['locs_unet'] = PoseTools.get_pred_locs(unet_pred)
+            ret_dict['conf_unet'] = (np.max(unet_pred,axis=(1,2)) + 1)/2
+            ret_dict['conf'] = np.max(mdn_pred_out,axis=(1,2))
+            ret_dict['hmaps_mdn'] = mdn_pred_out
+            return ret_dict
 
         def close_fn():
             sess.close()

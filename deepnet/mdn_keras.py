@@ -179,7 +179,7 @@ class DataIteratorTF(object):
         locs = np.stack(all_locs)
 
         ims, locs = PoseTools.preprocess_ims(ims, locs, self.conf,
-                                            self.distort, self.conf.unet_rescale)
+                                            self.distort, self.conf.rescale)
 
         label_sz = [x/self.conf.unet_rescale for x in self.conf.imsz]
         label_ims = create_label_images(locs/self.conf.unet_rescale, label_sz)
@@ -221,7 +221,7 @@ def get_training_model(conf, weight_decay):
     outputs = []
 
     imsz = [x/conf.unet_rescale for x in conf.imsz]
-    img_input_shape = imsz + [conf.imgDim,]
+    img_input_shape = imsz + [conf.img_dim,]
 
     img_input = Input(img_input_shape)
     locs_input = Input([conf.n_classes,2])
