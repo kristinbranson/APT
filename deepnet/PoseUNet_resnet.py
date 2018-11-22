@@ -554,9 +554,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         cur_comp = []
 
         ll = tf.nn.softmax(mdn_logits, axis=1)
-        logit_eps = self.conf.mdn_logit_eps_training
-        ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
-        ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
+#         logit_eps = self.conf.mdn_logit_eps_training
+#         ll = tf.cond(self.ph['phase_train'], lambda: ll + logit_eps, lambda: tf.identity(ll))
+#         ll = ll / tf.reduce_sum(ll, axis=1, keepdims=True)
 
         ll = tf.stop_gradient(ll)
         # ll now has normalized logits.
