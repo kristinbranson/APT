@@ -455,7 +455,7 @@ classdef DeepTracker < LabelTracker
         error('Training is not in progress.');
       end
       
-      obj.bgTrnMonitor.killProcess();      
+      obj.bgTrnMonBGWorkerObj.killProcess();      
     end
     
   end
@@ -556,6 +556,7 @@ classdef DeepTracker < LabelTracker
         obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
         
         % spawn training
+        bgTrnWorkerObj.jobID = nan(nvw,1);
         for iview=1:nvw
           fprintf(1,'%s\n',syscmds{iview});
           [st,res] = system(syscmds{iview});
@@ -570,7 +571,8 @@ classdef DeepTracker < LabelTracker
             end
             fprintf('Training job (view %d) spawned, jobid=%d.\n\n',...
               iview,jobid);
-            bgTrnMonitorObj.jobID = jobid;
+            % assigning to 'local' workerobj, not the one copied to workers
+            bgTrnWorkerObj.jobID(iview) = jobid;
           else
             fprintf('Failed to spawn training job for view %d: %s.\n\n',...
               iview,res);
@@ -731,8 +733,8 @@ classdef DeepTracker < LabelTracker
           system(syscmds{iview});
           fprintf('Training job (view %d) spawned.\n\n',iview);
           
-          aws.getRemotePythonPID(); % Maybe TrnMonitor should handle. Right 
-            % now there is only one PID per aws so it's ok
+          aws.getRemotePythonPID(); % Conceptually, bgTrnWorkerObj should
+            % remember. Right now there is only one PID per aws so it's ok
         end
         
         obj.trnName = modelChainID;
@@ -936,11 +938,11 @@ classdef DeepTracker < LabelTracker
       
       dmc = obj.trnLastDMC;
       dmcLcl = dmc.copy();
-      dmcLcl.rootDir = obj.sPrm.CacheDir;
-      dlLblFileLcl = dmcLcl.lblStrippedLnx;
-      if exist(dlLblFileLcl,'file')==0
-        error('Cannot find training file: %s\n',dlLblFileLcl);
-      end
+      [dmcLcl.rootDir] = deal(obj.sPrm.CacheDir);
+      dlLblFileLcl = unique({dmcLcl.lblStrippedLnx});
+      assert(isscalar(dlLblFileLcl));
+      dlLblFileLcl = dlLblFileLcl{1};
+      assert(exist(dlLblFileLcl,'file')>0);
       
       trkBackEnd = obj.backendType; % Currently trn/trk backends are the same
       switch trkBackEnd
@@ -981,8 +983,10 @@ classdef DeepTracker < LabelTracker
       cacheDir = obj.sPrm.CacheDir;
       dmc = obj.trnLastDMC;
       dmcLcl = dmc.copy();
-      dmcLcl.rootDir = cacheDir;
-      dlLblFileLcl = dmcLcl.lblStrippedLnx;
+      [dmcLcl.rootDir] = deal(cacheDir);
+      dlLblFileLcl = unique({dmcLcl.lblStrippedLnx});
+      assert(isscalar(dlLblFileLcl));
+      dlLblFileLcl = dlLblFileLcl{1};
       if exist(dlLblFileLcl,'file')==0
         reason = sprintf('Cannot find training file: %s\n',dlLblFileLcl);
         return;
@@ -1003,16 +1007,17 @@ classdef DeepTracker < LabelTracker
         error('Cannot find stripped project file: %s\n',dlLblFile);
       end
       
+      nView = obj.lObj.nview;
+      
       tftrx = obj.lObj.hasTrx;
       tfcrop = ~isempty(cropRois);
       if tfcrop
-        szassert(cropRois,[nvw 4]);
+        szassert(cropRois,[nView 4]);
       end
       
       singBind = obj.genSingBindPath();
       singargs = {'bindpath',singBind};
       
-      nView = obj.lObj.nview;
       movs = tMFTConc.mov;
       assert(size(movs,2)==nView);
       movs = movs(1,:);
