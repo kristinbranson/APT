@@ -95,6 +95,7 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
     pred_locs = np.zeros([n_frames, conf.n_classes, 2])
     preds = np.zeros([n_frames,int(conf.imsz[0]//conf.rescale),int(conf.imsz[1]//conf.rescale),conf.n_classes])
     pred_locs[:] = np.nan
+    uconf = np.zeros([n_frames, conf.n_classes])
 
     to_do_list = []
     for cur_f in range(0, n_frames):
@@ -113,6 +114,10 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict['locs']
         hmaps = ret_dict['hmaps']
+        if model_type == 'mdn':
+            uconf_cur = ret_dict['conf_unet']
+        else:
+            uconf_cur = ret_dict['conf']
 
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
@@ -123,6 +128,7 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
             base_locs_orig[:, 1] += ylo
             pred_locs[cur_f, :, :] = base_locs_orig[ ...]
             preds[cur_f,...] = hmaps[cur_t,...]
+            uconf[cur_f,...] = uconf_cur[cur_t,...]
 
         if cur_b % 20 == 19:
             sys.stdout.write('.')
@@ -130,7 +136,7 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
             sys.stdout.write('\n')
 
     cap.close()
-    return pred_locs,preds
+    return pred_locs,preds, uconf
 
 def getexpname(dirname):
     dirname = os.path.normpath(dirname)
@@ -317,7 +323,7 @@ def main(argv):
                     continue
                 crop_loc_all = get_crop_locs(bodydict[flynum],view,height,width) # return x first
                 try:
-                    predLocs, predScores = classify_movie(valmovies[ndx], pred_fn, conf, crop_loc_all)
+                    predLocs, predScores, pred_conf = classify_movie(valmovies[ndx], pred_fn, conf, crop_loc_all)
                     # predList = self.classify_movie(valmovies[ndx], sess, flipud=False)
                 except KeyError:
                     continue
@@ -338,7 +344,8 @@ def main(argv):
                                                     'scores':predScores,
                                                     'expname':valmovies[ndx],
                                                     'crop_loc':crop_loc_all,
-                                                    'model_file':model_file
+                                                    'model_file':model_file,
+                                                    'pred_conf':pred_conf
                                                     },
                                     appendmat=False,truncate_existing=True,gzip_compression_level=0)
                 del predScores, predLocs
