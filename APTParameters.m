@@ -156,36 +156,19 @@ classdef APTParameters
 end
 
 function preprocessParamFile = lclInitPreprocessParameterFile()
-if isdeployed
-  preprocessParamFile = fullfile(ctfroot,'params_preprocess.yaml');
-else
-  aptroot = APT.Root;
-  preprocessParamFile = fullfile(aptroot,'params_preprocess.yaml');
-end
+aptroot = APT.Root;
+preprocessParamFile = fullfile(aptroot,'params_preprocess.yaml');
 end
 function trackParamFile = lclInitTrackParameterFile()
-if isdeployed
-  trackParamFile = fullfile(ctfroot,'params_track.yaml');
-else
-  aptroot = APT.Root;
-  trackParamFile = fullfile(aptroot,'params_track.yaml');
-end
+aptroot = APT.Root;
+trackParamFile = fullfile(aptroot,'params_track.yaml');
 end
 function cprParamFile = lclInitCPRParameterFile()
-if isdeployed
-  cprParamFile = fullfile(ctfroot,'params_cpr.yaml');
-  %cprParamFile = fullfile(ctfroot,'params_apt.yaml');
-else
-  aptroot = APT.Root;
-  cprParamFile = fullfile(aptroot,'trackers','cpr','params_cpr.yaml');
-  %cprParamFile = fullfile(aptroot,'trackers','cpr','params_apt.yaml');
-end
+aptroot = APT.Root;
+cprParamFile = fullfile(aptroot,'trackers','cpr','params_cpr.yaml');
+%cprParamFile = fullfile(aptroot,'trackers','cpr','params_apt.yaml');
 end
 function dtParamFile = lclInitDeepTrackParameterFile()
-if isdeployed
-  dtParamFile = fullfile(ctfroot,'params_deeptrack.yaml');
-else
-  aptroot = APT.Root;
-  dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack.yaml');
-end
+aptroot = APT.Root;
+dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack.yaml');
 end
