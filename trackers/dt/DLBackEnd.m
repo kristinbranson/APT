@@ -1,7 +1,8 @@
 classdef DLBackEnd 
   enumeration 
-    Bsub
     AWS
+    Bsub
+    Docker
   end
 end
     

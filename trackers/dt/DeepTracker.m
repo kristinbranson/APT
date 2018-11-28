@@ -414,8 +414,8 @@ classdef DeepTracker < LabelTracker
       end
       
       switch trnBackEnd
-        case DLBackEnd.Bsub
-          obj.trnSpawnBsub(dlTrnType,modelChain,'wbObj',wbObj);
+        case {DLBackEnd.Bsub DLBackEnd.Docker}
+          obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj);
         case DLBackEnd.AWS
           obj.trnSpawnAWS(dlTrnType,modelChain,'wbObj',wbObj);          
         otherwise
@@ -467,8 +467,9 @@ classdef DeepTracker < LabelTracker
   methods
     %% BSub Trainer
     
-    function trnSpawnBsub(obj,trnType,modelChainID,varargin)
+    function trnSpawnBsubDocker(obj,backEnd,trnType,modelChainID,varargin)
       %
+      % backEnd: scalar DLBackEnd
       % trnType: scalar DLTrainType
       % modelChainID: trainID 
       %
@@ -480,14 +481,13 @@ classdef DeepTracker < LabelTracker
         'wbObj',[]... 
         );
       
-      
       % (aws check instance running)
       
       % (aws update remote repo)
       
        % Base DMC, to be further copied/specified per-view
       cacheDir = obj.sPrm.CacheDir;
-      dmc = DeepModelChainOnDisk(...        
+      dmc = DeepModelChainOnDisk(...   
         'rootDir',cacheDir,...
         'projID',obj.lObj.projname,...
         'netType',char(obj.trnNetType),...
@@ -533,52 +533,85 @@ classdef DeepTracker < LabelTracker
 
       % At this point
       % We have (modelChainID,trainID). stripped lbl is on disk. 
-      
-      singBind = obj.genSingBindPath();
-      singArgs = {'bindpath',singBind};
+
       nvw = obj.lObj.nview;
       syscmds = cell(nvw,1);
-      for ivw=1:nvw
-        if ivw>1
-          dmc(ivw) = dmc(1).copy();
-        end
-        dmc(ivw).view = ivw-1; % 0-based
-        syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(dmc(ivw),...
-          'singArgs',singArgs);
+      switch backEnd
+        case DLBackEnd.Bsub
+          singBind = obj.genSingBindPath();
+          singArgs = {'bindpath',singBind};
+          for ivw=1:nvw
+            if ivw>1
+              dmc(ivw) = dmc(1).copy();
+            end
+            dmc(ivw).view = ivw-1; % 0-based
+            syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(dmc(ivw),...
+              'singArgs',singArgs);
+          end
+        case DLBackEnd.Docker
+          containerNames = cell(nvw,1);
+          logcmds = cell(nvw,1);
+          for ivw=1:nvw
+            if ivw>1
+              dmc(ivw) = dmc(1).copy();
+            end
+            dmc(ivw).view = ivw-1; % 0-based
+            [syscmds{ivw},containerNames{ivw}] = ...
+              DeepTracker.trainCodeGenDockerDMC(dmc(ivw));
+            logcmds{ivw} = sprintf('docker logs -f %s &> %s &',...
+              containerNames{ivw},dmc(ivw).trainLogLnx);
+          end          
+        otherwise
+          assert(false);
       end
       
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
          % start train monitor
-        bgTrnMonitorObj = BgTrainMonitorBsub;
-        bgTrnWorkerObj = BgTrainWorkerObjBsub(nvw,dmc);
+        switch backEnd
+          case DLBackEnd.Bsub
+            bgTrnMonitorObj = BgTrainMonitorBsub;
+            bgTrnWorkerObj = BgTrainWorkerObjBsub(nvw,dmc);
+          case DLBackEnd.Docker
+            bgTrnMonitorObj = BgTrainMonitorBsub;
+            bgTrnWorkerObj = BgTrainWorkerObjDocker(nvw,dmc);
+          otherwise
+            assert(false);
+        end          
         obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
         
         % spawn training
-        bgTrnWorkerObj.jobID = nan(nvw,1);
-        for iview=1:nvw
-          fprintf(1,'%s\n',syscmds{iview});
-          [st,res] = system(syscmds{iview});
-          if st==0
-            PAT = 'Job <(?<jobid>[0-9]+)>';
-            stoks = regexp(res,PAT,'names');
-            if ~isempty(stoks)
-              jobid = str2double(stoks.jobid);
-            else
-              jobid = nan;
-              warningNoTrace('Failed to ascertain jobID.');
-            end
-            fprintf('Training job (view %d) spawned, jobid=%d.\n\n',...
-              iview,jobid);
-            % assigning to 'local' workerobj, not the one copied to workers
-            bgTrnWorkerObj.jobID(iview) = jobid;
-          else
-            fprintf('Failed to spawn training job for view %d: %s.\n\n',...
-              iview,res);
+        if backEnd==DLBackEnd.Docker
+          for iview=1:nvw
+            fprintf(2,'%s\n',syscmds{iview});
+            fprintf(2,'%s\n',logcmds{iview});
+            fprintf(2,'TODO. Assign bgTrnWorkerObj.jobID\n');            
           end
-        end
-        
+        else
+          bgTrnWorkerObj.jobID = nan(nvw,1);
+          for iview=1:nvw
+            fprintf(1,'%s\n',syscmds{iview});
+            [st,res] = system(syscmds{iview});
+            if st==0
+              PAT = 'Job <(?<jobid>[0-9]+)>';
+              stoks = regexp(res,PAT,'names');
+              if ~isempty(stoks)
+                jobid = str2double(stoks.jobid);
+              else
+                jobid = nan;
+                warningNoTrace('Failed to ascertain jobID.');
+              end
+              fprintf('Training job (view %d) spawned, jobid=%d.\n\n',...
+                iview,jobid);
+              % assigning to 'local' workerobj, not the one copied to workers
+              bgTrnWorkerObj.jobID(iview) = jobid;
+            else
+              fprintf('Failed to spawn training job for view %d: %s.\n\n',...
+                iview,res);
+            end
+          end
+        end        
         obj.trnName = modelChainID;
         obj.trnNameLbl = trainID;
         obj.trnLastDMC = dmc;
@@ -1413,6 +1446,39 @@ classdef DeepTracker < LabelTracker
       end      
       codestr = sprintf('%s -cache %s -err_file %s -type %s %s train -use_cache',...
         codestr,cache,errfile,netType,dllbl);        
+    end
+    function [codestr,containerName] = trainCodeGenDocker(modelChainID,trainID,...
+        dllbl,cache,errfile,netType,view1b)
+
+      baseargs = {'view' view1b};
+      basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
+        netType,baseargs{:});
+      
+      containerName = [modelChainID '_' trainID];
+     
+      homedir = getenv('HOME');
+      aptdeepnet = APT.getpathdl;
+      codestr = {
+        'docker run'
+        '-d'
+        sprintf('--name %s',containerName);
+        '--runtime nvidia'
+        '--rm' 
+        '--mount ''type=bind,src=/groups/branson,dst=/groups/branson'''
+        '--user $(id -u)'
+        '-w $PWD'
+        'bransonlabapt/apt_docker'
+        sprintf('bash -c "export HOME=%s; export CUDA_VISIBLE_DEVICES=0; cd %s; %s"',...
+          homedir,aptdeepnet,basecmd);
+      };
+    
+      codestr = sprintf('%s ',codestr{:});
+      codestr = codestr(1:end-1);
+    end
+    function [codestr,containerName] = trainCodeGenDockerDMC(dmc,varargin)
+      [codestr,containerName] = DeepTracker.trainCodeGenDocker(...
+        dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
+        dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.view+1);
     end
     function codestr = trainCodeGenSing(trnID,dllbl,cache,errfile,netType,...
         varargin)
