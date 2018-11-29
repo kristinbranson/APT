@@ -1618,6 +1618,45 @@ classdef DeepTracker < LabelTracker
         codestr = sprintf('%s -hmaps',codestr);
       end
     end
+    function [codestr,containerName] = trackCodeGenDocker(...
+        movtrk,outtrk,frm0,frm1,...
+        modelChainID,trainID,dllbl,cache,errfile,netType,view1b,mntPaths,...
+        varargin);
+      % varargin: see trackCodeGenBase, except for 'cache' and 'view'
+      
+      baseargs = [{'cache' cache 'view' view1b} varargin];
+        
+      basecmd = DeepTracker.trackCodeGenBase(modelChainID,dllbl,errfile,...
+        nettype,movtrk,outtrk,frm0,frm1,baseargs{:});
+      
+      mountArgs = cellfun(@(x)...
+        sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),mntPaths,'uni',0);
+      
+      containerName = [modelChainID '_' trainID '_' movtrk];      
+     
+      homedir = getenv('HOME');
+      aptdeepnet = APT.getpathdl;
+      codestr = [
+        {
+        'docker run'
+        '-d'
+        sprintf('--name %s',containerName);
+        '--runtime nvidia'
+        '--rm'
+        };
+        mountArgs(:);
+        {
+        '--user $(id -u)'
+        '-w $PWD'
+        'bransonlabapt/apt_docker'
+        sprintf('bash -c "export HOME=%s; export CUDA_VISIBLE_DEVICES=0; cd %s; %s"',...
+          homedir,aptdeepnet,basecmd);
+        }
+      ];
+    
+      codestr = sprintf('%s ',codestr{:});
+      codestr = codestr(1:end-1);
+    end
     function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
         'baseargs',{},... % p-v cell for trackCodeGenBase
