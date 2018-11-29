@@ -536,10 +536,10 @@ classdef DeepTracker < LabelTracker
 
       nvw = obj.lObj.nview;
       syscmds = cell(nvw,1);
+      mntPaths = obj.genContainerMountPath();
       switch backEnd
         case DLBackEnd.Bsub
-          singBind = obj.genSingBindPath();
-          singArgs = {'bindpath',singBind};
+          singArgs = {'bindpath',mntPaths};
           for ivw=1:nvw
             if ivw>1
               dmc(ivw) = dmc(1).copy();
@@ -557,7 +557,7 @@ classdef DeepTracker < LabelTracker
             end
             dmc(ivw).view = ivw-1; % 0-based
             [syscmds{ivw},containerNames{ivw}] = ...
-              DeepTracker.trainCodeGenDockerDMC(dmc(ivw));
+              DeepTracker.trainCodeGenDockerDMC(dmc(ivw),mntPaths);
             logcmds{ivw} = sprintf('docker logs -f %s &> %s &',...
               containerNames{ivw},dmc(ivw).trainLogLnx);
           end          
@@ -623,21 +623,21 @@ classdef DeepTracker < LabelTracker
 %       s = DeepTracker.trnLogfileStc(obj.sPrm.CacheDir,obj.trnName,iview);
 %     end
     
-    function singBind = genSingBindPath(obj)
+    function singBind = genContainerMountPath(obj)
       if ~isempty(obj.singBindPath)
         assert(iscellstr(obj.singBindPath),'singBindPath must be a cellstr.');
         fprintf('Using user-specified singularity BIND_PATH.\n');
         singBind = obj.singBindPath;
       else
-        macroCell = struct2cell(obj.lObj.projMacros);
-        if isempty(macroCell)
-          warningNoTrace('No project macros found; singularity BIND_PATH may be incorrect.');
+        if isempty(obj.lObj.projMacros)
+          warningNoTrace('No user-defined project macros found; singularity BIND_PATH may be incorrect.');
         end
+        macroCell = struct2cell(obj.lObj.projMacrosGetWithAuto());
         cacheDir = obj.sPrm.CacheDir;
         assert(~isempty(cacheDir));
-        singBind = [{cacheDir};macroCell(:)];
-        singBindStr = String.cellstr2CommaSepList(singBind);
-        fprintf('Auto-generated singularity BIND_PATH: %s\n',singBindStr);
+        singBind = [{cacheDir;APT.getpathdl};macroCell(:)];
+        fprintf('Auto-generated singularity BIND_PATH:\n');
+        cellfun(@(x)fprintf('  %s\n',x),singBind);
       end
     end    
     
@@ -979,8 +979,9 @@ classdef DeepTracker < LabelTracker
       
       trkBackEnd = obj.backendType; % Currently trn/trk backends are the same
       switch trkBackEnd
-        case DLBackEnd.Bsub
-          obj.trkSpawnBsub(mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
+        case {DLBackEnd.Bsub DLBackEnd.Docker}
+          obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+            cropRois,hmapArgs,f0,f1);
         case DLBackEnd.AWS
           obj.trkSpawnAWS(mIdx,tMFTConc,dlLblFileLcl,cropRois,hmapArgs,f0,f1);
         otherwise
@@ -1028,8 +1029,8 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = true;      
     end
     
-    function trkSpawnBsub(obj,mIdx,tMFTConc,dlLblFile,cropRois,hmapArgs,...
-        frm0,frm1)
+    function trkSpawnBsubDocker(obj,backend,mIdx,tMFTConc,dlLblFile,...
+        cropRois,hmapArgs,frm0,frm1)
       % Currently mIdx, tMFTConc only one movie
 
       % put/ensure local stripped lbl
@@ -1047,10 +1048,7 @@ classdef DeepTracker < LabelTracker
       if tfcrop
         szassert(cropRois,[nView 4]);
       end
-      
-      singBind = obj.genSingBindPath();
-      singargs = {'bindpath',singBind};
-      
+            
       movs = tMFTConc.mov;
       assert(size(movs,2)==nView);
       movs = movs(1,:);
@@ -1098,6 +1096,10 @@ classdef DeepTracker < LabelTracker
         trksysinfo(ivw).logfile = outfile;
         trksysinfo(ivw).errfile = errfile;
         %trksysinfo(ivw).logfilessh = outfile2;
+        
+        singBind = obj.genContainerMountPath();
+        singargs = {'bindpath',singBind};
+
         trksysinfo(ivw).codestr = DeepTracker.trackCodeGenSSHBsubSing(...
           modelChainID,dmc(ivw).rootDir,dlLblFile,errfile,obj.trnNetType,...
           mov,trkfile,frm0,frm1,...
@@ -1448,37 +1450,44 @@ classdef DeepTracker < LabelTracker
         codestr,cache,errfile,netType,dllbl);        
     end
     function [codestr,containerName] = trainCodeGenDocker(modelChainID,trainID,...
-        dllbl,cache,errfile,netType,view1b)
+        dllbl,cache,errfile,netType,view1b,mntPaths)
 
       baseargs = {'view' view1b};
       basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
         netType,baseargs{:});
+
+      mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),...
+        mntPaths,'uni',0);
       
-      containerName = [modelChainID '_' trainID];
+      containerName = [modelChainID '_' trainID];      
      
       homedir = getenv('HOME');
       aptdeepnet = APT.getpathdl;
-      codestr = {
+      codestr = [
+        {
         'docker run'
         '-d'
         sprintf('--name %s',containerName);
         '--runtime nvidia'
-        '--rm' 
-        '--mount ''type=bind,src=/groups/branson,dst=/groups/branson'''
+        '--rm'
+        };
+        mountArgs(:);
+        {
         '--user $(id -u)'
         '-w $PWD'
         'bransonlabapt/apt_docker'
         sprintf('bash -c "export HOME=%s; export CUDA_VISIBLE_DEVICES=0; cd %s; %s"',...
           homedir,aptdeepnet,basecmd);
-      };
+        }
+      ];
     
       codestr = sprintf('%s ',codestr{:});
       codestr = codestr(1:end-1);
     end
-    function [codestr,containerName] = trainCodeGenDockerDMC(dmc,varargin)
+    function [codestr,containerName] = trainCodeGenDockerDMC(dmc,mntPaths)
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
-        dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.view+1);
+        dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.view+1,mntPaths);
     end
     function codestr = trainCodeGenSing(trnID,dllbl,cache,errfile,netType,...
         varargin)

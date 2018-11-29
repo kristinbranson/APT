@@ -529,17 +529,12 @@ classdef Labeler < handle
     end
     function v = get.movieFilesAllFull(obj)
       % See also .projLocalizePath()
-      sMacro = obj.projMacros;
-      if ~isfield(sMacro,'projdir') && ~isempty(obj.projectroot)
-        % This conditional allows user to explictly specify project root
-        % Useful use case here: testproject 'modules' (lbl + data in portable folder)
-        sMacro.projdir = obj.projectroot;
-      end
+      sMacro = obj.projMacrosGetWithAuto();
       v = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
       FSPath.warnUnreplacedMacros(v);
     end
     function v = get.movieFilesAllGTFull(obj)
-      sMacro = obj.projMacros;
+      sMacro = obj.projMacrosGetWithAuto();
       v = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       FSPath.warnUnreplacedMacros(v);
     end
@@ -1945,6 +1940,20 @@ classdef Labeler < handle
       end     
     end
     
+    function s = projMacrosGetWithAuto(obj)
+      % append auto-generated macros to .projMacros
+      %
+      % over time, many/most clients of .projMacros should probably call
+      % this
+      
+      s = obj.projMacros;
+      if ~isfield(s,'projdir') && ~isempty(obj.projectroot)
+        % This conditional allows user to explictly specify project root
+        % Useful use case here: testproject 'modules' (lbl + data in portable folder)
+        s.projdir = obj.projectroot;
+      end
+    end
+    
     function projMacroRm(obj,macro)
       if ~isfield(obj.projMacros,macro)
         error('Labeler:macro','Macro ''%s'' is not defined.',macro);
@@ -1972,7 +1981,7 @@ classdef Labeler < handle
     end
    
     function s = projMacroStrs(obj)
-      m = obj.projMacros;
+      m = obj.projMacrosGetWithAuto();
       flds = fieldnames(m);
       vals = struct2cell(m);
       s = cellfun(@(x,y)sprintf('%s -> %s',x,y),flds,vals,'uni',0);
