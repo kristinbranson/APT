@@ -408,6 +408,7 @@ classdef CPRLabelTracker < LabelTracker
         obj.trnResRC = rc;
       end
       obj.trnResIPt = [];
+      obj.lastTrainStats = [];
       obj.asyncReset();
     end
   end
@@ -971,6 +972,7 @@ classdef CPRLabelTracker < LabelTracker
         end
         obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn,...
           'orientationThetas',oThetas,'wbObj',wbObj);
+        obj.lastTrainStats = obj.trnResRC.getLastTrainStats();
         if tfWB && wbObj.isCancel
           % .trnResRC in indeterminate state
           obj.trnDataInit();
@@ -997,6 +999,8 @@ classdef CPRLabelTracker < LabelTracker
           % Future todo: orientationThetas
           % Should break internally if 'orientationThetas' is req'd
           obj.trnResRC(iView).trainWithRandInit(IsVw,bbVw,pTrnVw,'wbObj',wbObj);
+          obj.lastTrainStats = structappend(obj.lastTrainStats,obj.trnResRC(iView).getLastTrainStats());
+          
           if tfWB && wbObj.isCancel
             % .trnResRC in indeterminate state
             obj.trnDataInit();
