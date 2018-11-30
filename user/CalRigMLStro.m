@@ -182,6 +182,39 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     end
   end
   
+  methods (Static)
+    function rperrPlot(rperrcam1,rperrcam2)
+      % rperrcam1: [N x nphyspts] rp err
+      
+      szassert(rperrcam1,size(rperrcam2));
+      [N,nphyspts] = size(rperrcam1);
+      
+      figure('Name','RP err');
+      ax1 = axes;
+
+      X = [rperrcam1 rperrcam2];
+      Gcam = [repmat({'cam1'},nphyspts,1); repmat({'cam2'},nphyspts,1)];
+      Gphyspt = [1:nphyspts 1:nphyspts]';
+      boxplot(X,{Gphyspt Gcam},...
+        ... %'colorgroup',Gcam,...
+        'factorseparator',1,...
+        'factorgap',[3 1]...
+        );
+
+      ylabel('RP err (px)','fontweight','bold','fontsize',14);
+      title('RP err','fontweight','bold','fontsize',14);
+        
+      
+%       
+%       rpe1perim = mean(rperr1ml,1);
+%       rpe2perim = mean(rperr2ml,1);
+%       rpeBar = [rpe1perim; rpe2perim];
+%       hbar = bar(rpeBar','grouped');
+%       legend(hbar,{'cam1' 'cam2'});
+    end
+  end
+      
+  
   methods % CalRig
     
     function [xEPL,yEPL] = ...
@@ -286,6 +319,46 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       xEPL = tmp(:,2);
       yEPL = tmp(:,1);
     end
+    
+    function [X1,xp1rp,xp2rp,rperr1,rperr2] = stereoTriangulateML(obj,xp1,xp2)
+      % Stereo triangulation using matlab/vision lib fcns
+      % 
+      % xp1: [2xn]. xy image coords, camera1
+      % xp2: etc
+      %
+      % X1: [3xn]. 3D coords in frame of camera1
+      % xp1rp: [2xn]. xy image coords, reprojected, cam1
+      % xp2rp: etc
+      % rperr1: [n]. L2 err orig vs reprojected, cam1.
+      % rperr2: [n] etc.
+      %
+      % WARNING: lib fcns like undistortPoints seem to scale like O(n^2),
+      % so break up big inputs.
+      
+      szassert(xp2,size(xp1));
+      [d,n] = size(xp1);
+      assert(d==2);
+      
+      sp = obj.stroParams;
+      cp1 = sp.CameraParameters1;
+      cp2 = sp.CameraParameters2;      
+      
+      xp1ud = undistortPoints(xp1',cp1);
+      xp2ud = undistortPoints(xp2',cp2);      
+      X1 = triangulate(xp1ud,xp2ud,sp);
+      
+      xp1rp = worldToImage(cp1,eye(3),[0;0;0],X1,'applyDistortion',true);
+      xp2rp = worldToImage(cp2,...
+        sp.RotationOfCamera2,sp.TranslationOfCamera2,X1,'applyDistortion',true);
+      
+      % shape conventions
+      X1 = X1';
+      xp1rp = xp1rp';
+      xp2rp = xp2rp';
+      rperr1 = sqrt(sum((xp1rp-xp1).^2,1));
+      rperr2 = sqrt(sum((xp2rp-xp2).^2,1));      
+    end
+    
     
     function [xRCT,yRCT] = reconstruct(obj,iView1,xy1,iView2,xy2,iViewRct)
       % iView1: view index for anchor point
