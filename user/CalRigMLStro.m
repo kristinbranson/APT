@@ -261,14 +261,14 @@ classdef CalRigMLStro < CalRigZhang2CamBase
             wp = Xc1'; % world coord sys is cam1 coord sys
             R = sp.RotationOfCamera2;
             T = sp.TranslationOfCamera2;
-            imPoints = worldToImage(cpEpi,R,T,wp);
+            imPoints = worldToImage(cpEpi,R,T,wp,'applyDistortion',true);
             xpEpi = imPoints';
           elseif iView1==2 && iViewEpi==1
             wp = obj.camxform(Xc1,[2 1]);
             wp = wp';
             R = eye(3);
             T = [0 0 0];
-            imPoints = worldToImage(cpEpi,R,T,wp);
+            imPoints = worldToImage(cpEpi,R,T,wp,'applyDistortion',true);
             xpEpi = imPoints';
           else
             assert(false);
