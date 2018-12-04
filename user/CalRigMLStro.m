@@ -1,12 +1,9 @@
 classdef CalRigMLStro < CalRigZhang2CamBase
-  
-  % Warning note: pointsToWorld() doesn't make a lot of sense.
-  
+    
   properties
     calSess % scalar Session from ML Stro calibration
     
     eplineComputeMode = 'mostaccurate'; % either 'mostaccurate' or 'fastest'
-    eplineComputeBaseZrange = 0:.1:100;
   end
   properties (Dependent)
     stroParams
@@ -61,10 +58,202 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   end
   
   methods
+    
     function obj = CalRigMLStro(calibSession)
       assert(isa(calibSession,'vision.internal.calibration.tool.Session'));
       obj.calSess = calibSession;
       obj.int = obj.getInt();
+      
+      obj.autoCalibrateProj2NormFuncTol();
+    end
+    
+    function autoCalibrateProj2NormFuncTol(obj,varargin)
+      % Automatically set .proj2NormFuncTol by "round-tripping" calibration
+      % points through projected2normalized/normalized2projected.
+      %
+      % normalized2projected takes a point in normalized coordinates for a
+      % camera and projects onto the final image by recentering about the
+      % principal point, applying zoom/skew, and applying distortions.
+      % The distortions are highly nonlinear closed-form expressions.
+      %
+      % projected2normalized inverts normalized2projected numerically,
+      % using eg lsqnonlin. This inversion/optimization will have a functol
+      % or other threshold controlling how precise this inversion must be.
+      % This method/inversion is necesary for computing EP lines (as of 18b
+      % there does not appear to be a MATLAB CV toolbox library fcn 
+      % available; MATLAB's triangulate() does its own nonlinear
+      % inversion.)
+      %
+      % We auto-calibrate this threshold by requiring that the round-trip
+      % error result in less than l2pxerr (optionally supplied).
+      
+      calPtL2RTerr = myparse(varargin,...
+        'calPtL2RTerr',1/8 ... % in pixels
+      );
+      
+      cs = obj.calSess;
+      bs = cs.BoardSet;
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [npts,d,npat,nvw] = size(calpts);
+      calpts = permute(calpts,[1 3 2 4]);
+      calpts = reshape(calpts,[npts*npat d nvw]);
+
+      fprintf(1,'Auto-calibrating .projected2normalized funcTol with %d calibration points.\n',...
+        npts*npat);
+      fprintf(1,'Required round-trip L2 accuracy: %.3f px.\n',calPtL2RTerr);
+
+      functol = 1e-6;
+      
+      % FUTURE: factor core into CalRigZhang2CamBase
+      calptsRT = nan(size(calpts));
+      while 1
+        fprintf(1,' ... trying funcTol=%.3g\n',functol);
+        
+        for icam=1:2
+          calptsNorm = arrayfun(@(i)obj.projected2normalized(calpts(i,:,icam)',icam,'functol',functol),...
+            1:npts*npat,'uni',0);
+          calptsNorm = cat(2,calptsNorm{:});
+          calptsRT(:,:,icam) = obj.normalized2projected(calptsNorm,icam)';
+        end
+
+        d = calpts-calptsRT;
+        err = squeeze(sqrt(sum(d.^2,2)));
+        szassert(err,[npts*npat nvw]);
+        maxerr = max(err);
+        
+        fprintf(' ... max roundtrip err, view1: %.3g. view2: %.3g.\n',...
+          maxerr(1),maxerr(2));
+        if all(maxerr<calPtL2RTerr)
+          fprintf(' ... SUCCESS! Setting .proj2NormFuncTol to %.3g.\n',functol);
+          obj.proj2NormFuncTol = functol;
+          break;
+        else
+          functol = functol/2;
+        end
+      end
+    end
+    
+    function autoCalibrateEplineZrange(obj,varargin)
+      % Automatically set .eplineZrange by computing EPlines from view1->2 
+      % and vice versa at i) the four corners and ii) center of views:
+      %
+      % - The start/end of the zrange must fully accomodate all EPlines 
+      % 
+      % - dz is chosen so that the average spacing discretization of 
+      % EPlines is ~1px (see optional param)
+      %
+      % Note, the bulk of computational expense for EP-line computation is
+      % the nonlinear inversion in projected2normalized(). Using a zrange 
+      % that is too big or too fine shouldn't hurt much. This 
+      % auto-calibration may still be handy however
+      %
+      % Currently assumes two cameras have the SAME IMAGE SIZE.
+      
+      [eplineDxy,zrangeWidthTitrationFac] = myparse(varargin,...
+        'eplineDxy',1, ... % in pixels
+        'zrangeWidthTitrationFac',1.5 ... % increase range of zwidth by this much every step
+      );
+    
+      cs = obj.calSess;
+      bs = cs.BoardSet;
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [npts,d,npat,nvw] = size(calpts);
+      calpts = permute(calpts,[1 3 2 4]);
+      calpts = reshape(calpts,[npts*npat d nvw]);
+      roi = [1 bs.ImageSize(2) 1 bs.ImageSize(1)];
+
+      fprintf(1,'Auto-calibrating .eplineZrange. Imagesize is: %s.\n',...
+        mat2str(bs.ImageSize));
+
+      fprintf(1,'Starting with %d calpts.\n',npts*npat);
+      
+      % Start with calpts.
+      % Initial z-range: fits
+      % Using arrayfun here due to O(n^2) behavior, see stereoTriangulateML
+      Xcalpts1 = arrayfun(@(i)...
+        obj.stereoTriangulateML(calpts(i,:,1)',calpts(i,:,2)'),1:npts*npat,'uni',0);
+      Xcalpts1 = cat(2,Xcalpts1{:});
+      Xcalpts2 = obj.camxform(Xcalpts1,[1 2]);      
+      zrange0 = [ min(Xcalpts1(3,:)) max(Xcalpts1(3,:));...
+                  min(Xcalpts2(3,:)) max(Xcalpts2(3,:)) ]; 
+      % zrange: ivw, zmin/zmax
+      
+      % Auto-calibrate dz so that the spacing of EPline pts in each view is
+      % ~eplineDxy.
+      dz = 1;
+      zrange1 = zrange0(1,1):dz:zrange0(1,2);
+      zrange2 = zrange0(2,1):dz:zrange0(2,2);
+      fprintf('Choosing dz. Starting with dz=%.3f.\n',dz);
+      epdmu = nan(npts*npat,2);
+      for i=1:npts*npat
+        [ep12x,ep12y] = ...
+          obj.computeEpiPolarLine(1,calpts(i,:,1)',2,roi,'z1range',zrange1);
+        [ep21x,ep21y] = ...
+          obj.computeEpiPolarLine(2,calpts(i,:,2)',1,roi,'z1range',zrange2);
+        
+        ep12dxy = diff([ep12x ep12y],1);
+        ep21dxy = diff([ep21x ep21y],1);
+        ep12d = sqrt(sum(ep12dxy.^2,2));
+        ep21d = sqrt(sum(ep21dxy.^2,2));
+        epdmu(i,1) = nanmean(ep12d);
+        epdmu(i,2) = nanmean(ep21d); 
+      end
+      epdmu = mean(epdmu);
+      fprintf('Mean spacing in EP lines in view1/2: %s.\n',mat2str(epdmu));
+      epdxy = mean(epdmu);
+      dz = dz * eplineDxy/epdxy;
+      fprintf('Selected dz=%.3f.\n',dz);
+
+      % Autocalibrate zrange by expanding the zrange until the number of
+      % in-bounds points stops changing.
+      zRangeWidthCtr = [diff(zrange0,1,2) mean(zrange0,2)];
+      % zRangeWidthCtr(ivw,1) is width
+      % zRangeWidthCtr(ivw,2) is center
+      
+      % four corners and center
+      testpts = [roi([1 3]); roi([1 4]); roi([2 4]); roi([3 4]); ...
+        mean(roi([1 2])) mean(roi([3 4]))];
+      ntestpts = size(testpts,1);
+      fprintf(1,'Selecting zrange with %d test points.\n',ntestpts);
+      
+      nInBounds = zeros(ntestpts,2);
+      while 1      
+        zrangelims1 = zRangeWidthCtr(1,2) + 0.5*zRangeWidthCtr(1,1)*[-1 1];
+        zrangelims2 = zRangeWidthCtr(2,2) + 0.5*zRangeWidthCtr(2,1)*[-1 1];
+        zrange1 = zrangelims1(1):dz:zrangelims1(2);
+        zrange2 = zrangelims2(1):dz:zrangelims2(2);
+        
+        fprintf('View1 zrange (n=%d): %s. View2 zrange (n=%d): %s.\n',...
+          numel(zrange1),mat2str(zrange1([1 end])),...
+          numel(zrange2),mat2str(zrange2([1 end])));
+
+        nInBoundsNew = nan(ntestpts,2);
+        for i=1:ntestpts
+          [~,~,~,tfOOB1] = ...
+            obj.computeEpiPolarLine(1,testpts(i,:)',2,roi,'z1range',zrange1);
+          [~,~,~,tfOOB2] = ...
+            obj.computeEpiPolarLine(2,testpts(i,:)',1,roi,'z1range',zrange2);
+          nInBoundsNew(i,:) = [nnz(~tfOOB1) nnz(~tfOOB2)];
+        end
+        
+        disp(nInBoundsNew);
+        
+        if isequal(nInBounds,nInBoundsNew)
+          fprintf('SUCCESS! Setting .eplineZrange.\n');
+          break;
+        end
+        
+        for ivw=1:2
+          if ~isequal(nInBounds(:,ivw),nInBoundsNew(:,ivw))
+            zRangeWidthCtr(ivw,1) = zRangeWidthCtr(ivw,1)*zrangeWidthTitrationFac;
+          end
+        end
+        
+        nInBounds = nInBoundsNew;
+        
+      end
+      
+      obj.eplineZrange = {zrange1 zrange2};
     end
     
     function [rperr1ml,rperr2ml] = checkRPerr(obj,varargin)
@@ -214,28 +403,31 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     end
   end
       
-  
   methods % CalRig
     
-    function [xEPL,yEPL] = ...
-        computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi)
+    function [xEPL,yEPL,Xc1,Xc1OOB] = ...
+        computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
       
       switch obj.eplineComputeMode
         case 'mostaccurate'
-          [xEPL,yEPL] = obj.computeEpiPolarLineBase(iView1,xy1,iViewEpi,roiEpi);
+          [xEPL,yEPL,Xc1,Xc1OOB] = obj.computeEpiPolarLineBase(iView1,xy1,iViewEpi,roiEpi,varargin{:});
         case 'fastest'
-          [xEPL,yEPL] = obj.computeEpiPolarLineEPline(iView1,xy1,iViewEpi,roiEpi);
+          % This codepath will err if 3rd/4th args are requested
+          [xEPL,yEPL] = obj.computeEpiPolarLineEPline(iView1,xy1,iViewEpi,roiEpi,varargin{:});
         otherwise
           error('''eplineComputeMode'' property must be either ''mostaccurate'' or ''fastest''.');          
       end
     end
       
-    function [xEPL,yEPL] = ...
+    function [xEPL,yEPL,Xc1,Xc1OOB] = ...
         computeEpiPolarLineBase(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
+      %
+      % Xc1: [3 x nz] World coords (coord sys of cam/iView1) of EPline
+      % Xc1OOB: [nz] indicator vec for Xc1 being out-of-view in iViewEpi
       
       [projectionmeth,z1Range] = myparse(varargin,...
-        'projectionmeth','worldToImage',... % either 'worldToImage' or 'normalized2projected'
-        'z1Range',obj.eplineComputeBaseZrange ...
+        'projectionmeth','worldToImage',... % either 'worldToImage' or 'normalized2projected'. AL20181204: this should make negligible diff, see diagnostics()
+        'z1Range',obj.eplineZrange{iView1} ...
         );
       
       % See CalRig
@@ -262,37 +454,42 @@ classdef CalRigMLStro < CalRigZhang2CamBase
             R = sp.RotationOfCamera2;
             T = sp.TranslationOfCamera2;
             imPoints = worldToImage(cpEpi,R,T,wp,'applyDistortion',true);
-            xpEpi = imPoints';
+            imPointsUD = worldToImage(cpEpi,R,T,wp,'applyDistortion',false);            
           elseif iView1==2 && iViewEpi==1
             wp = obj.camxform(Xc1,[2 1]);
             wp = wp';
             R = eye(3);
             T = [0 0 0];
             imPoints = worldToImage(cpEpi,R,T,wp,'applyDistortion',true);
-            xpEpi = imPoints';
+            imPointsUD = worldToImage(cpEpi,R,T,wp,'applyDistortion',false);
           else
             assert(false);
           end
+          Xc1OOB = imPointsUD(:,1)<roiEpi(1) | imPointsUD(:,1)>roiEpi(2) |...
+                   imPointsUD(:,2)<roiEpi(3) | imPointsUD(:,2)>roiEpi(4);
+          imPoints(Xc1OOB,:) = nan;  
+          xEPL = imPoints(:,1);
+          yEPL = imPoints(:,2);
         case 'normalized2projected'
           XcEpi = obj.camxform(Xc1,[iView1 iViewEpi]); % 3D seg, in frame of cam2
           xnEpi = [XcEpi(1,:)./XcEpi(3,:); XcEpi(2,:)./XcEpi(3,:)]; % normalize
           xpEpi = obj.normalized2projected(xnEpi,iViewEpi); % project
+          
+          Xc1OOB = xpEpi(1,:)<roiEpi(1) | xpEpi(1,:)>roiEpi(2) |...
+                   xpEpi(2,:)<roiEpi(3) | xpEpi(3,:)>roiEpi(4);
+          xpEpi(:,Xc1OOB) = nan;
+          xEPL = xpEpi(1,:)';
+          yEPL = xpEpi(2,:)';
         otherwise
           assert(false);
       end
-
-      yEpi = xpEpi';
-      yEpi = yEpi(:,[2,1]); % Clearly, we have gone astray
-      yEpi = obj.cropLines(yEpi,roiEpi);
-      r2 = yEpi(:,1); % ... etc
-      c2 = yEpi(:,2);
-      xEPL = c2;
-      yEPL = r2;
     end
     
     function [xEPL,yEPL] = ...
         computeEpiPolarLineEPline(obj,iView1,xy1,iViewEpi,roiEpi)
-      % Use worldToImage, pointsToWorld
+      % Use worldToImage
+      
+      warningNoTrace('Development codepath.');
       
       xEPLnstep = 20;
       
