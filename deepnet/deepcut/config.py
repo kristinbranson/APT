@@ -56,24 +56,28 @@ def convert_to_deepcut(conf):
     conf = edict(conf.__dict__)
     conf.all_joints = []
     conf.all_joints_names = []
+    conf.multi_step = [[0.005, 10000], [0.02, 430000], [0.002, 730000], [0.001, 1030000]]
+
     for ndx in range(conf.n_classes):
         conf.all_joints.append([ndx])
         conf.all_joints_names.append('part_{}'.format(ndx))
-        conf.dataset = os.path.join(conf.cachedir,conf.dlc_train_data_file)
-        conf.global_scale = 1./conf.dlc_rescale
-        conf.num_joints = conf.n_classes
-        conf.scale_jitter_lo = 0.9
-        conf.scale_jitter_up = 1.1
-        conf.net_type = 'resnet_50'
-        conf.pos_dist_thresh = 17
-        conf.max_input_size = 1000
-        conf.intermediate_supervision = False
-        conf.intermediate_supervision_layer = 12
-        conf.location_refinement = True
-        conf.locref_huber_loss = True
-        conf.locref_loss_weight = 0.05
-        conf.locref_stdev = 7.2801
-        conf.mirror = False
+
+    conf.dataset = os.path.join(conf.cachedir,conf.dlc_train_data_file)
+    conf.global_scale = 1./conf.dlc_rescale
+    conf.num_joints = conf.n_classes
+    conf.scale_jitter_lo = 0.9
+    conf.scale_jitter_up = 1.1
+    conf.net_type = 'resnet_50'
+    conf.pos_dist_thresh = 17
+    conf.max_input_size = 1000
+    conf.intermediate_supervision = False
+    conf.intermediate_supervision_layer = 12
+    conf.location_refinement = True
+    conf.locref_huber_loss = True
+    conf.locref_loss_weight = 0.05
+    conf.locref_stdev = 7.2801
+    conf.mirror = False
+
 
     _merge_a_into_b(conf, cfg)
     return cfg

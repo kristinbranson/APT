@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
@@ -23,16 +24,16 @@ name = 'deepcut'
 
 class LearningRate(object):
     def __init__(self, cfg):
-#        self.steps = cfg.multi_step
+        self.steps = cfg.multi_step
         self.current_step = 0
         self.n_steps = cfg.dl_steps
         self.gamma = cfg.gamma
 
     def get_lr(self, iteration):
-        # lr = self.steps[self.current_step][0]
-        # if iteration == self.steps[self.current_step][1]:
-        #     self.current_step += 1
-        lr = 0.0001 * (self.gamma ** (iteration*3/ self.n_steps))
+        lr = self.steps[self.current_step][0]
+        if iteration == self.steps[self.current_step][1]:
+            self.current_step += 1
+        #lr = 0.0001 * (self.gamma ** (iteration*3/ self.n_steps))
         return lr
 
 
@@ -96,10 +97,10 @@ def save_td(cfg, train_info):
 
 def set_deepcut_defaults(cfg):
     cfg.batch_size = 1
-    cfg.display_step = 5000
+    cfg.display_step = 500
     cfg.dc_scale = 0.8
     cfg.dl_steps = 1030000
-    cfg.save_step = 50000
+    cfg.save_step = 5000
 
 def get_read_fn(cfg, data_path):
     cfg = edict(cfg.__dict__)
@@ -107,7 +108,7 @@ def get_read_fn(cfg, data_path):
     cfg.batch_size = 1
     cfg.shuffle = False
 
-    dataset = PoseDataset(cfg, data_path)
+    dataset = PoseDataset(cfg, data_path, distort=False)
     n = dataset.num_images
     def read_fn():
         batch_np = dataset.next_batch()
@@ -153,6 +154,7 @@ def train(cfg):
 
     for k, t in losses.items():
         tf.summary.scalar(k, t)
+    merged_summaries = tf.summary.merge_all()
 
     variables_to_restore = slim.get_variables_to_restore(include=["resnet_v1"])
     restorer = tf.train.Saver(variables_to_restore)
@@ -187,7 +189,6 @@ def train(cfg):
  #       train_writer.add_summary(summary, it)
 
         if it % display_iters == 0:
-
             cur_out, batch_out = sess.run([outputs, batch], feed_dict={learning_rate: current_lr})
             scmap, locref = predict.extract_cnn_output(cur_out, cfg)
 

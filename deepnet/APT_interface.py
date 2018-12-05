@@ -961,11 +961,11 @@ def classify_db_all(model_type, conf, db_file, model_file=None):
         close_fn()
     elif model_type == 'leap':
         leap_gen, n = leap.training.get_read_fn(conf, db_file)
-        pred_fn, latest_model_file = leap.training.get_pred_fn(conf, model_file)
+        pred_fn, close_fn, latest_model_file = leap.training.get_pred_fn(conf, model_file)
         pred_locs, label_locs, info = classify_db(conf, leap_gen, pred_fn, n)
     elif model_type == 'deeplabcut':
         read_fn, n = deepcut.train.get_read_fn(conf, db_file)
-        pred_fn, latest_model_file = deepcut.train.get_pred_fn(conf, model_file)
+        pred_fn, close_fn, latest_model_file = deepcut.train.get_pred_fn(conf, model_file)
         pred_locs, label_locs, info = classify_db(conf, read_fn, pred_fn, n)
     else:
         raise ValueError('Undefined model type')
@@ -1305,8 +1305,9 @@ def train_mdn(conf, args, restore):
     if not args.skip_db:
         create_tfrecord(conf, False, use_cache=args.use_cache)
     tf.reset_default_graph()
-    self = PoseURes.PoseUMDN_resnet(conf, name='deepnet')
-    self.train_data_name = 'traindata'
+    self = PoseURes.PoseUMDN_resnet(conf, name=args.train_name)
+    if args.train_name=='deepnet':
+        self.train_data_name = 'traindata'
     self.train_umdn(restore=restore)
 
 
@@ -1439,6 +1440,7 @@ def parse_args(argv):
                         help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization',
                         default=None)
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
+    parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
     parser.add_argument('-conf_params', dest='conf_params', help='conf params. These will override params from lbl file', default=None, nargs='*')
     parser.add_argument('-type', dest='type', help='Network type, default is unet', default='unet',
