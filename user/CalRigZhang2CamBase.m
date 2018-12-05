@@ -121,6 +121,8 @@ classdef CalRigZhang2CamBase < CalRig
       % xn: [2x1]
       % fval: optimization stuff, eg final residual
 
+      % TODO: vectorize me
+      
       assert(isequal(size(xp),[2 1]));
       
       functol = myparse(varargin,...
