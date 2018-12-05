@@ -292,7 +292,7 @@ def main(argv):
                     # self = PoseUNet.PoseUNet(conf, args.net_name)
                     # sess = self.init_net_meta(1)
                     break
-                except tf.python.framework.errors_impl.InvalidArgumentError:
+                except ValueError:
                     print('Loading the net failed, retrying')
                     if try_num is 3:
                         raise ValueError('Couldnt load the network after 4 tries')

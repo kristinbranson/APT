@@ -1,26 +1,27 @@
-classdef BgTrainWorkerObjBsub < BgTrainWorkerObjLocalFilesys
-    
+classdef BgTrainWorkerObjDocker < BgTrainWorkerObjLocalFilesys  
+  
   methods
     
-    function obj = BgTrainWorkerObjBsub(nviews,dmcs)
+    function obj = BgTrainWorkerObjDocker(nviews,dmcs)
       obj@BgTrainWorkerObjLocalFilesys(nviews,dmcs);
     end
     
     function killJob(obj,jID)
       % jID: scalar jobID
       
-      bkillcmd = sprintf('bkill %d',jID);
-      bkillcmd = DeepTracker.codeGenSSHGeneral(bkillcmd,'bg',false);
+      bkillcmd = sprintf('docker kill %s',jID{1});
       fprintf(1,'%s\n',bkillcmd);
       [st,res] = system(bkillcmd);
       if st~=0
-        warningNoTrace('Bkill command failed: %s',res);
+        warningNoTrace('Docker kill command failed: %s',res);
       end
     end
     
+        
     function fcn = makeJobKilledPollFcn(obj,jID)
-      pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
-      pollcmd = DeepTracker.codeGenSSHGeneral(pollcmd,'bg',false);
+      jID = jID{1};
+      jIDshort = jID(1:8);
+      pollcmd = sprintf('docker ps -q -f "id=%s"',jIDshort);
       
       fcn = @lcl;
       
@@ -29,7 +30,7 @@ classdef BgTrainWorkerObjBsub < BgTrainWorkerObjLocalFilesys
         %disp(pollcmd);
         [st,res] = system(pollcmd);
         if st==0
-          tf = isempty(regexp(res,'RUN','once'));
+          tf = ~isempty(regexp(res,jIDshort,'once'));
         else
           tf = false;
         end
@@ -38,12 +39,12 @@ classdef BgTrainWorkerObjBsub < BgTrainWorkerObjLocalFilesys
     
     function createKillToken(obj,killtoken)
       touchcmd = sprintf('touch %s',killtoken);
-      touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
+      %touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
       [st,res] = system(touchcmd);
       if st~=0
-        warningNoTrace('Failed to create KILLED token: %s',killtoken);
+        warningNoTrace('Failed to create KILLED token: %s',kfile);
       else
-        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
+        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',kfile);
       end
     end
     

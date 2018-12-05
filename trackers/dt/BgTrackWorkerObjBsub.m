@@ -7,7 +7,7 @@ classdef BgTrackWorkerObjBsub < BgTrackWorkerObj
       tf = exist(file,'file')>0;
     end        
     function tf = errFileExistsNonZeroSize(~,errFile)
-      tf = BgTrainWorkerObjBsub.errFileExistsNonZeroSizeStc(errFile);
+      tf = BgTrainWorkerObjLocalFilesys.errFileExistsNonZeroSizeStc(errFile);
     end  
     function s = fileContents(~,file)
       lines = readtxtfile(file);

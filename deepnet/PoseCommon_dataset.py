@@ -155,6 +155,7 @@ class PoseCommon(object):
         self.scale = 1
         self.extra_info_sz = 1
         self.ckpt_file = os.path.join( conf.cachedir, name + '_ckpt')
+        self.cur_step = 0
 
         self.q_placeholder_spec = []
         self.q_placeholders = []
@@ -228,6 +229,7 @@ class PoseCommon(object):
 
 
     def init_td(self):
+        # initialize trianing info
         ex_td_fields = ['step']
         for t_f in self.td_fields:
             ex_td_fields.append('train_' + t_f)
@@ -239,6 +241,7 @@ class PoseCommon(object):
 
 
     def restore_td(self, start_at=-1):
+        # restore training info
         saver = self.saver
         train_data_file = saver['train_data_file'].replace('\\', '/')
         with open(train_data_file, 'rb') as td_file:
@@ -263,6 +266,7 @@ class PoseCommon(object):
 
 
     def save_td(self):
+        # save training info
         saver = self.saver
         train_data_file = saver['train_data_file']
         with open(train_data_file, 'wb') as td_file:
@@ -275,20 +279,25 @@ class PoseCommon(object):
 
 
     def update_td(self, cur_dict):
+        # update training info
         for k in cur_dict.keys():
             self.train_info[k].append(cur_dict[k])
         print_train_data(cur_dict)
 
 
     def create_ph_fd(self):
+        # create placeholders and feed dicts
         self.ph = {}
         learning_rate_ph = tf.placeholder(
             tf.float32, shape=[], name='learning_r')
         self.ph['learning_rate'] = learning_rate_ph
-        self.ph['phase_train'] = tf.placeholder(
-            tf.bool, name='phase_train')
+        self.ph['phase_train'] = tf.placeholder(tf.bool, name='phase_train')
+        self.ph['step'] = tf.placeholder(tf.float32,shape=[],name='step')
         self.ph['is_train'] = tf.placeholder(tf.bool,name='is_train')
-        self.fd = {self.ph['learning_rate']:1, self.ph['phase_train']:False, self.ph['is_train']: False}
+        self.fd = {self.ph['learning_rate']:1, 
+                   self.ph['phase_train']:False, 
+                   self.ph['is_train']: False,
+                  self.ph['step']:0}
 
 
     def fd_train(self):
@@ -298,7 +307,6 @@ class PoseCommon(object):
     def fd_val(self):
         self.fd[self.ph['phase_train']] = False
         self.fd[self.ph['is_train']] = False
-
 
     def create_datasets(self):
 
@@ -439,6 +447,7 @@ class PoseCommon(object):
         n_steps = self.conf.n_steps
         cur_lr = learning_rate * (self.conf.gamma ** (cur_step*n_steps/ training_iters))
         self.fd[self.ph['learning_rate']] = cur_lr
+        self.fd[self.ph['step']] = step
 
         # cosine decay restarts
 #        t_mul = 2.0

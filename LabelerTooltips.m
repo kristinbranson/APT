@@ -162,7 +162,7 @@ function success = lcl(level)
 success = false;
 %fprintf('%s\n',level);
 try
-  javachk(level);
+  error(javachk(level));
   success = true;
 catch ME
   fprintf('err caught: %s\n',ME.message);

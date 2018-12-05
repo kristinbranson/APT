@@ -1,12 +1,10 @@
-function [s,tBalCats,tPrtCats,prtCat2Split] = stratifiedGroupSplit(nFold,gBal,gPart)
+function [s,tBalCats,gPartCatsAdd,prtCat2Split] = stratifiedGroupSplit(...
+  nFold,gBal,gPart,varargin)
 % Stratified/Partitioned k-fold splitter
 %
 % Split data for k-fold xval, trying to balance gBal (approximately equal 
 % numbers of each gBal value in each split), while fully partitioning
 % gPart (each value of gPart occurs in only one split).
-%
-% Note, this sorts the data by group size and goes in order, among other
-% things, so the alg is nonrandom with respect to any other metadata/info.
 %
 % nfold: number of splits
 % gBal: [n] grouping vector to be balanced among splits as best as possible
@@ -16,6 +14,11 @@ function [s,tBalCats,tPrtCats,prtCat2Split] = stratifiedGroupSplit(nFold,gBal,gP
 % tBalCats: [nbalcats x ncol] sortedsummary table for gBal
 % tPrtCats: [nprtcats x ncol] etc
 % prtCat2Split: [nprtcats x 1] mapping from gPart cat->split
+
+shufflePartCats = myparse(varargin,...
+  'shufflePartCats',false... % if true, this randomizes the order of considering/adding gPart categories
+                        ... % if false, this adds gPart cats in decreasing order of size
+  );
 
 assert(isvector(gBal) && isvector(gPart) && numel(gBal)==numel(gPart));
 N = numel(gBal);
@@ -47,14 +50,19 @@ disp(tBalCats);
 % gBal. Put that chunk in the split that is currently most underweight that
 % gBal value.
 
+gPartCatsAdd = tPrtCats.cats;
+if shufflePartCats
+  gPartCatsAdd = gPartCatsAdd(randperm(numel(gPartCatsAdd)));  
+end
+
 s = nan(N,1); % s(i) gives fold index for row i
 splitbalcnts = zeros(nFold,nBalCats); % splitcnts(ifold,ibal) gives running 
 % count of how many rows are for split isplit, ibal'th gbal category
-prtCat2Split = nan(nPrtCats,1);
+prtCat2Split = nan(nPrtCats,1); % prtCat2Split(iprt) gives split index for gPartCatsAdd{iprt}
 gbalCats = categories(gbalC);
 assert(isequal(gbalCats,tBalCats.cats));
 for iPrtCat=1:nPrtCats  
-  partVal = tPrtCats.cats{iPrtCat};
+  partVal = gPartCatsAdd{iPrtCat};
   tfThisPrt = partVal==gprtC;
   gBalCthisPart = gbalC(tfThisPrt);
   gBalCthisPartCnts = countcats(gBalCthisPart);
