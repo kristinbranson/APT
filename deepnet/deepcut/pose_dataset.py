@@ -47,7 +47,7 @@ class DataItem:
 
 
 class PoseDataset:
-    def __init__(self, cfg, db_file_name):
+    def __init__(self, cfg, db_file_name,distort=True):
         self.cfg = cfg
         self.data = self.load_dataset(db_file_name)
         self.num_images = len(self.data)
@@ -55,6 +55,7 @@ class PoseDataset:
             self.symmetric_joints = mirror_joints_map(cfg.all_joints, cfg.num_joints)
         self.curr_img = 0
         self.set_shuffle(cfg.shuffle)
+        self.distort = distort
 
     def load_dataset(self, db_file_name):
         cfg = self.cfg
@@ -146,7 +147,7 @@ class PoseDataset:
         self.curr_img = (self.curr_img + 1) % self.num_training_samples()
 
         imidx = self.image_indices[curr_img]
-        mirror = self.cfg.mirror and self.mirrored[curr_img]
+        mirror = self.cfg.mirror and self.mirrored[curr_img] and self.distort
 
         return imidx, mirror
 
@@ -156,7 +157,7 @@ class PoseDataset:
     def get_scale(self):
         cfg = self.cfg
         scale = cfg.global_scale
-        if hasattr(cfg, 'scale_jitter_lo') and hasattr(cfg, 'scale_jitter_up'):
+        if hasattr(cfg, 'scale_jitter_lo') and hasattr(cfg, 'scale_jitter_up') and self.distort:
             scale_jitter = rand.uniform(cfg.scale_jitter_lo, cfg.scale_jitter_up)
             scale *= scale_jitter
         return scale
@@ -235,7 +236,6 @@ class PoseDataset:
             if mirror:
                 img = np.fliplr(img)
 
-
             if self.has_gt:
                 stride = self.cfg.stride
 
@@ -250,10 +250,12 @@ class PoseDataset:
 
                 assert len(joints)==1, 'This doesnt work for multi animal'
                 locs = scaled_joints[0]
-                img, locs = PoseTools.preprocess_ims(
-                    img[np.newaxis,...],locs[np.newaxis,...], self.cfg,
-                    distort=True, scale =1)
+                # img, locs = PoseTools.preprocess_ims(
+                #     img[np.newaxis,...],locs[np.newaxis,...], self.cfg,
+                #     distort=True, scale =1)
 
+                img = img[np.newaxis,...]
+                locs = locs[np.newaxis,...]
                 scaled_joints = [locs[0,...]]
 
                 all_scaled_joints.append(scaled_joints[0])

@@ -356,6 +356,8 @@ def randomly_adjust(img, conf, group_sz = 1):
     crange = conf.crange
     cdiff = crange[1] - crange[0]
     imax = conf.imax
+    if (bdiff<0.01) and (cdiff<0.01):
+        return img
     n_groups = num/group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
@@ -377,6 +379,8 @@ def randomly_scale(img,locs,conf,group_sz=1):
     im_sz = img.shape[1:]
     num = img.shape[0]
     srange = conf.scale_range
+    if srange<0.01:
+        return img, locs
     n_groups = num/group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
@@ -385,7 +389,13 @@ def randomly_scale(img,locs,conf,group_sz=1):
 
         for g in range(group_sz):
             jj = img[st+g, ...].copy()
-            cur_img = zoom(jj, sfactor) if srange != 0 else jj
+            # cur_img = zoom(jj, sfactor) if srange != 0 else jj
+            if srange !=0:
+                cur_img = cv2.resize(jj, None, fx= sfactor,fy=sfactor,interpolation=cv2.INTER_CUBIC)
+                if cur_img.ndim == 2:
+                    cur_img = cur_img[...,np.newaxis]
+            else:
+                cur_img = jj
             # cur_img = zoom(jj, sfactor,mode='reflect') if srange != 0 else jj
             cur_img, dx, dy = crop_to_size(cur_img, im_sz)
             img[st+g, ...] =cur_img
@@ -1447,3 +1457,25 @@ def create_cum_plot(dd,d_max=None):
 def datestr():
     import datetime
     return datetime.datetime.now().strftime('%Y%m%d')
+
+
+def submit_job(name, cmd, dir):
+    import subprocess
+    sing_script = os.path.join(dir, 'opt_' + name + '.sh')
+    sing_err = os.path.join(dir, 'opt_' + name + '.err')
+    sing_log = os.path.join(dir, 'opt_' + name + '.log')
+    with open(sing_script, 'w') as f:
+        f.write('#!/bin/bash\n')
+        f.write('bjobs -uall -m `hostname -s`\n')
+        f.write('. /opt/venv/bin/activate\n')
+        f.write('cd /groups/branson/home/kabram/bransonlab/APT/deepnet\n')
+        f.write('numCores2use={} \n'.format(2))
+        f.write('python {}'.format(cmd))
+        f.write('\n')
+
+    os.chmod(sing_script, 0755)
+
+    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "num=1" -q gpu_any "singularity exec --nv /misc/local/singularity/branson_v2.simg {}"' '''.format(
+        sing_log, sing_err, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    subprocess.call(cmd, shell=True)
+    print('Submitted jobs for {}'.format(name))

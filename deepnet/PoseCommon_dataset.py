@@ -495,13 +495,22 @@ class PoseCommon(object):
 
             # clipped gradients.
             #optimizer = tf.train.RMSPropOptimizer(
-            optimizer = tf.train.AdamOptimizer(
-                learning_rate=self.ph['learning_rate'])
-            gradients, variables = zip(*optimizer.compute_gradients(self.cost))
-            gradients = [None if gradient is None else
-                         tf.clip_by_norm(gradient, 5.0)
-                         for gradient in gradients]
-            self.opt = optimizer.apply_gradients(zip(gradients, variables))
+            if self.conf.get('opt_method','adam') == 'adam':
+                optimizer = tf.train.AdamOptimizer(
+                    learning_rate=self.ph['learning_rate'])
+            else:
+                optimizer = tf.train.MomentumOptimizer(
+                    learning_rate=self.ph['learning_rate'],momentum=0.9)
+
+            if self.conf.get('clip_gradients',True):
+
+                gradients, variables = zip(*optimizer.compute_gradients(self.cost))
+                gradients = [None if gradient is None else
+                             tf.clip_by_norm(gradient, 5.0)
+                             for gradient in gradients]
+                self.opt = optimizer.apply_gradients(zip(gradients, variables))
+            else:
+                self.opt = optimizer.minimize(self.cost)
 
     def compute_dist(self, preds, locs):
         tt1 = PoseTools.get_pred_locs(preds,self.edge_ignore) - locs
