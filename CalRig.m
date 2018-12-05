@@ -113,7 +113,7 @@ classdef CalRig < handle
         obj = s.(vars{1});
 %         tfSetViewRois = false;
       elseif isa(s.(vars{1}),'vision.internal.calibration.tool.Session')
-        obj = CalRigMLStro(s.(vars{1}));
+        obj = CalRigMLStro(s.(vars{1})); % will auto-calibrate and offer save
       elseif all(ismember({'DLT_1' 'DLT_2'},vars))
         % SH
         obj = CalRigSH;
