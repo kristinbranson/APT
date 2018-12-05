@@ -59,6 +59,8 @@ classdef ParameterVisualization < handle
       cla(ax);
       ax.Color = hFig.Color;
       title(ax,'');
+      ax.XTick = [];
+      ax.YTick = [];
       
       if ~isempty(str)
         lims = axis(ax);

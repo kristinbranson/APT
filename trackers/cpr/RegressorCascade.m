@@ -32,6 +32,7 @@ classdef RegressorCascade < handle
     fernTS % [nMjr x nMnr] timestamp last mod .fernCounts/Output
     
     trnLog % struct array, one el per train/retrain action
+    stats % struct with info for debugging
   end
   properties (Dependent)
     nMajor
@@ -265,6 +266,48 @@ classdef RegressorCascade < handle
       end
     end
     
+    function initializeStats(obj)
+      
+      obj.stats = struct;
+      obj.stats.time = struct;
+      obj.stats.time.start = now;
+      obj.stats.time.init = nan;
+
+    end
+    
+    function addStatTimeLoss(obj,t,dt,loss,meanErrPerEx,stdErrPerEx,maxErrPerEx)
+      
+      obj.stats.loss(t) = loss;
+      obj.stats.time.iter(t) = dt;
+      if exist('meanErrPerEx','var'),
+        obj.stats.meanErrPerEx(t,:) = meanErrPerEx;
+      end
+      if exist('stdErrPerEx','var'),
+        obj.stats.stdErrPerEx(t,:) = stdErrPerEx;
+      end
+      if exist('maxErrPerEx','var'),
+        obj.stats.maxErrPerEx(t,:) = maxErrPerEx;
+      end
+      
+    end
+    
+    function addRegressorTimingInfo(obj,timingInfo)
+      
+      if ~isfield(obj.stats,'time') || ~isfield(obj.stats.time,'regressorTimingInfo'),
+        obj.stats.time.regressorTimingInfo = timingInfo;
+      else
+        obj.stats.time.regressorTimingInfo = structappend(obj.stats.time.regressorTimingInfo,timingInfo);
+      end
+      
+    end
+
+    
+    function stats = getLastTrainStats(obj)
+      
+      stats = obj.stats;
+      
+    end
+    
     %#3DOK
     function [pAll,pIidx,p0,p0info] = trainWithRandInit(obj,I,bboxes,pGT,varargin)
       % I: struct with the following fields:
@@ -298,6 +341,9 @@ classdef RegressorCascade < handle
         'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
         'orientationThetas',[]... % [N] vector of "externally" known orientations for animals. Required if prmRotCurr.use and prmTrainInit.usetrxorientation
         );
+      
+      starttime = tic;
+      obj.initializeStats();
       
       % KB 20180423: changing Is to no longer be a cell for faster indexing
       if iscell(I),
@@ -374,7 +420,11 @@ classdef RegressorCascade < handle
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
-      pAll = obj.train(I,bboxes,pGT,p0,pIidx,loArgs{:});
+      obj.stats.time.init = toc(starttime);
+      [pAll] = obj.train(I,bboxes,pGT,p0,pIidx,loArgs{:});
+      
+      obj.stats.time.total = toc(starttime);
+      
     end
     
     function [p0,p0info] = randInit(obj,bboxes,pGT,varargin)
@@ -486,7 +536,7 @@ classdef RegressorCascade < handle
     
     
     %#3DOK
-    function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
+    function [pAll] = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
       %
       % I: struct with the following fields:
       %   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
@@ -500,6 +550,8 @@ classdef RegressorCascade < handle
       % pIidx: [Q] indices into I for p0
       %
       % pAll: [QxDxT+1] propagated training shapes (absolute coords)
+      
+      starttime = tic;
       
       [verbose,wbObj,update,calrig] = myparse(varargin,...
         'verbose',1,...
@@ -572,6 +624,7 @@ classdef RegressorCascade < handle
       %[trainsamplestarts,trainsampleends] = SelectWrappingSampleSubsets(T,Q,obj.prmTrainInit.NTrainPerMajor);
       
       maxFernAbsDeltaPct = nan(1,T);
+      lastIterTime = tic;
       for t=t0:T
         if tfWB
           tfCancel = wbObj.updateFracWithNumDen(t);
@@ -622,7 +675,8 @@ classdef RegressorCascade < handle
         fernOutput0 = squeeze(obj.fernOutput(t,:,:,:));
         if ~update
           paramReg.checkPath = (t==t0);
-          [regInfo,pDel] = regTrain(X,pTar,paramReg);
+          [regInfo,pDel,timingInfo] = regTrain(X,pTar,paramReg);
+          obj.addRegressorTimingInfo(timingInfo);
           assert(iscell(regInfo) && numel(regInfo)==obj.nMinor);
           for u=1:obj.nMinor
             ri = regInfo{u};          
@@ -672,7 +726,13 @@ classdef RegressorCascade < handle
         pAll(:,:,t+1) = pCur;
         
         errPerEx = shapeGt('dist',model,pCur,pGTFull);
+        meanErrPerEx = accumarray(pIidx,errPerEx,[NI,1],@mean);
+        maxErrPerEx = accumarray(pIidx,errPerEx,[NI,1],@max);
+        stdErrPerEx = sqrt(accumarray(pIidx,errPerEx.^2,[NI,1],@mean)-meanErrPerEx.^2);
         loss = mean(errPerEx);        
+        obj.addStatTimeLoss(t,toc(lastIterTime),loss,meanErrPerEx,stdErrPerEx,maxErrPerEx);
+        lastIterTime = tic;
+
         if verbose
           msg = tStatus(tStart,t,T);
           fprintf(['  t=%i/%i       loss=%f     ' msg],t,T,loss);
@@ -688,6 +748,7 @@ classdef RegressorCascade < handle
       obj.trnLog(end).ts = now();
       obj.trnLog(end).nShape = Q;
       obj.trnLog(end).maxFernAbsDeltaPct = maxFernAbsDeltaPct;
+            
     end
     
     function trnLogInit(obj)

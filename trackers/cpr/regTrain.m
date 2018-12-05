@@ -1,4 +1,4 @@
-function [regInfo,ysPr] = regTrain(data,ys,varargin)
+function [regInfo,ysPr,timingInfo] = regTrain(data,ys,varargin)
 % Train boosted regressor.
 %
 % USAGE
@@ -55,12 +55,21 @@ function [regInfo,ysPr] = regTrain(data,ys,varargin)
 % KB: added dosubsample = false, whether to train each fern on a subset of
 % the data or not. This should probably be dependent on the number of
 % training examples
+
+starttime = tic;
+
 dfs = {'type',1,'ftrPrm','REQ','K',1,...
   'loss','L2','R',0,'M',5,'model',[],'prm',{},...
   'occlD',[],'occlPrm',struct('Stot',1),'checkPath',false,...
   'doshuffle',true};
 [regType,ftrPrm,K,loss,R,M,model,regPrm,occlD,occlPrm,checkPath,doshuffle] = ...
   getPrmDflt(varargin,dfs,0);
+timingInfo = struct;
+timingInfo.init = 0;
+timingInfo.featureStat = nan;
+timingInfo.selectFeatures = 0;
+timingInfo.regress = 0;
+timingInfo.iter = nan(K,1);
 
 switch regType
   case 1, regFun = @trainFern;
@@ -85,6 +94,9 @@ end
 % KB 20180421: use intervals of samples for speed
 [corsamplestarts,corsampleends] = SelectWrappingSampleSubsets(K,N,ftrPrm.nsample_cor);
 
+timingInfo.init = toc(starttime);
+inittime = tic;
+
 % precompute feature stats to be used by selectCorrFeat
 if R==0
   if checkPath
@@ -103,6 +115,8 @@ else %random step optimization selection
     case 'L2',  lossFun=@(ys,ysGt) mean((ys(:)-ysGt(:)).^2);
   end
 end
+timingInfo.featureStat = toc(inittime);
+featurestattime = tic;
 
 Stot = occlPrm.Stot;
 [N,D] = size(ys);
@@ -123,14 +137,20 @@ if Stot>1 && ~isempty(occlD)
   end
   ftrsOccl=zeros(N,K,Stot);
 end
+timingInfo.init = timingInfo.init + toc(featurestattime);
 
 %Iterate through K boosted regressors
 for k=1:K
+  
+  iterkstarttime = tic;
+  
   %Update regression target
   ysTar = ys-ysSum;
   %Train Stot different regressors
   ysPred = zeros(N,D,Stot);
   for s=1:Stot
+    
+    itersstarttime = tic;
     
     ftrPrm1 = ftrPrm;
     % KB: choose a different interval of samples each fern
@@ -156,6 +176,9 @@ for k=1:K
       else
         [use,ftrs] = selectCorrFeat(M,ysTar,data,ftrPrm1,stdFtrs,dfFtrs);
       end
+      
+      timingInfo.selectFeatures = timingInfo.selectFeatures+toc(itersstarttime);
+      selectfeaturetime = tic;
             
       %Train regressor using selected features
       [reg1,ys1] = regFun(ysTar,ftrs,M,regPrm);
@@ -165,6 +188,10 @@ for k=1:K
       %reg1.X = ftrs;
       
       best = {reg1,ys1};
+      
+      timingInfo.regress = timingInfo.regress+toc(selectfeaturetime);
+
+      
     else
       assert(false,'codepath needs investigation; see ftrPrm.type below');
       %If occlusion-centered approach, enforce feature variety
@@ -204,6 +231,7 @@ for k=1:K
     if D>10 && Stot>1 && ~isempty(occlD)
       ftrsOccl(:,k,s)=sum(occlD.featOccl(:,regInfo{k,s}.fids),2)./K;
     end
+        
   end
   %Combine S1 regressors to form prediction (Occlusion-centered)
   if D>10 && Stot>1 && ~isempty(occlD)
@@ -226,6 +254,7 @@ for k=1:K
     %Update output
     ysSum = ysSum+ysPred;
   end
+  timingInfo.iter(k) = toc(iterkstarttime);
 end
 % create output struct
 clear data ys; 

@@ -46,6 +46,8 @@ classdef LabelTracker < handle
     
     trkVizInterpolate % scalar logical. If true, interpolate tracking results when visualizing
     
+    lastTrainStats = []; % struct with information about the last training for visualization
+    
     hLCurrMovie; % listener to lObj.currMovie
     hLCurrFrame; % listener to lObj.currFrame
     hLCurrTarget; % listener to lObj.currTarget
