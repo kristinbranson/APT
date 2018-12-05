@@ -15,75 +15,17 @@ import copy
 class config(object):
     # ----- Names
 
-    # baseName = 'Base'
-    # fineName = 'Fine'  # _resize'
-    # mrfName = 'MRF'  # _identity'
-
     # ----- Network parameters
     def __init__(self):
-        self.scale = 2
         self.rescale = 1  # how much to downsize the base image.
-        self.numscale = 3
-        self.pool_scale = 4
-        self.pool_size = 3
-        self.pool_stride = 2
-        # # sel_sz determines the patch size used for the final decision
-        # # i.e., patch seen by the fc6 layer
-        # # ideally as large as possible but limited by
-        # # a) gpu memory size
-        # # b) overfitting due to large number of variables.
-        # dist2pos = 5
         self.label_blur_rad = 3  # 1.5
-        # fine_label_blur_rad = 1.5
-        # dropout = 0.5 # Dropout, probability to keep units
-        # nfilt = 128
-        # nfcfilt = 512
-        # doBatchNorm = True
-        # useMRF = True
-        # useHoldout = False
-
-        # ----- Fine Network parameters
-
-        # fine_flt_sz = 5
-        # fine_nfilt = 48
-        # fine_sz = 48
-
-        # ----- MRF Network Parameters
-
-        # maxDPts = 104*2
-        # mrf_psz = (maxDPts/rescale)/pool_scale
-        # Above should not be determined automatically
-        # baseIter4MRFTrain = 4000 # without batch_norm
-        # baseIter4MRFTrain = 5000  # without batch_norm
-        # baseIter4ACTrain = 5000  # without batch_norm
-
-        # ----- Learning parameters
-
-        # base_learning_rate = 0.0003  # 0.0001 --without batch norm
-        # mrf_learning_rate = 0.00001
-        # fine_learning_rate = 0.0003
 
         self.batch_size = 8
         self.view = 0
-        # fine_batch_size = 8
-        # mult_fac = old_div(16, batch_size)
-        # base_training_iters = 10000 * mult_fac  # 15000
-        # with rescale = 1 performance keeps improving even at around 3000 iters.. because batch size has been halved.. duh..
-        # -- March 31, 2016 Mayank
-
-        # with batch normalization quite good performance is achieved within 2000 iters
-        # -- March 30, 2016 Mayank
-        # when run iwth batch size of 32, best validation loss is achieved at 8000 iters
-        # for FlyHeadStephenCuratedData.mat -- Feb 11, 2016 Mayank
-        # basereg_training_iters = 5000 * mult_fac
-        # fine_training_iters = 5000 * mult_fac
-        # mrf_training_iters = 3000 * mult_fac
         self.gamma = 0.1
-        self.step_size = 100000 # not used anymore
         self.display_step = 50
         self.num_test = 8
         self.dl_steps = 20000 # number of training iters
-        self.cos_steps = 2 #number of times the learning rate is decayed
         self.n_steps = 2
         # rate will be reduced by gamma**n_steps by the end of the training.
 
@@ -102,7 +44,6 @@ class config(object):
         self.normalize_img_mean = False
         self.normalize_batch_mean = False
         self.perturb_color = False
-
 
         # ----- Data parameters
         # l1_cropsz = 0
@@ -141,6 +82,8 @@ class config(object):
         self.dlc_train_img_dir = 'deepcut_train'
         self.dlc_train_data_file = 'deepcut_data.mat'
 
+        # ============== EXTRA ================
+
         # ----- Time parameters
         self.time_window_size = 1
         self.do_time = False
@@ -158,6 +101,16 @@ class config(object):
         self.save_step = 2000
         self.save_td_step = 100
         self.maxckpt = 30
+
+        # ----- Legacy
+        # self.scale = 2
+        # self.numscale = 3
+        # self.pool_scale = 4
+        # self.pool_size = 3
+        # self.pool_stride = 2
+        # self.cos_steps = 2 #number of times the learning rate is decayed
+        # self.step_size = 100000 # not used anymore
+
 
     def set_exp_name(self, exp_name):
         self.expname = exp_name
@@ -177,6 +130,9 @@ class config(object):
 
     def getexplist(self, L):
         return L['movieFilesAll'][self.view,:]
+
+    def get(self,name,default):
+        return getattr(self,name,default)
 
 
 # -- alice fly --
@@ -203,8 +159,8 @@ aliceConfig.nfcfilt = 128
 aliceConfig.sel_sz = 144
 aliceConfig.num_pools = 1
 aliceConfig.dilation_rate = 2
-aliceConfig.pool_scale = aliceConfig.pool_stride**aliceConfig.num_pools
-aliceConfig.psz = aliceConfig.sel_sz / 4 / aliceConfig.pool_scale / aliceConfig.dilation_rate
+# aliceConfig.pool_scale = aliceConfig.pool_stride**aliceConfig.num_pools
+# aliceConfig.psz = aliceConfig.sel_sz / 4 / aliceConfig.pool_scale / aliceConfig.dilation_rate
 aliceConfig.valratio = 0.25
 # aliceConfig.mdn_min_sigma = 70.
 # aliceConfig.mdn_max_sigma = 70.
@@ -254,8 +210,8 @@ felipeConfig.nfcfilt = 128
 felipeConfig.sel_sz = 144
 felipeConfig.num_pools = 2
 felipeConfig.dilation_rate = 1
-felipeConfig.pool_scale = felipeConfig.pool_stride**felipeConfig.num_pools
-felipeConfig.psz = felipeConfig.sel_sz / 4 / felipeConfig.pool_scale / felipeConfig.dilation_rate
+# felipeConfig.pool_scale = felipeConfig.pool_stride**felipeConfig.num_pools
+# felipeConfig.psz = felipeConfig.sel_sz / 4 / felipeConfig.pool_scale / felipeConfig.dilation_rate
 
 
 ##  -- felipe multi bees
@@ -285,6 +241,6 @@ felipe_config_multi.nfcfilt = 128
 felipe_config_multi.sel_sz = 256
 felipe_config_multi.num_pools = 2
 felipe_config_multi.dilation_rate = 1
-felipe_config_multi.pool_scale = felipe_config_multi.pool_stride ** felipe_config_multi.num_pools
-felipe_config_multi.psz = felipe_config_multi.sel_sz / 4 / felipe_config_multi.pool_scale / felipe_config_multi.dilation_rate
+# felipe_config_multi.pool_scale = felipe_config_multi.pool_stride ** felipe_config_multi.num_pools
+# felipe_config_multi.psz = felipe_config_multi.sel_sz / 4 / felipe_config_multi.pool_scale / felipe_config_multi.dilation_rate
 felipe_config_multi.max_n_animals = 17
