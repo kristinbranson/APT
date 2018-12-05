@@ -1001,6 +1001,7 @@ classdef Shape
       opts.md = [];
       opts.p2 = [];
       opts.p2marker = '+';
+      opts.colors = 'jet'; % either colormap name, or [nptsx3]
       opts.titlestr = 'Montage';
       opts.imsHeterogeneousSz = false; % if true, pad elements of I to make them the same size. all p's must be nan
       opts.imsHeterogeneousPadColor = 0; % grayscale pad color 
@@ -1039,7 +1040,11 @@ classdef Shape
       if tfMD
         assert(size(opts.md,1)==N);
       end
-            
+      
+      if ~ischar(opts.colors)
+        szassert(opts.colors,[npts 3]);
+      end
+      
       naxes = opts.nr*opts.nc;
       if isempty(opts.idxs)
         nplot = naxes;
@@ -1108,7 +1113,11 @@ classdef Shape
       axis image off
       hold on
       colormap gray
-      colors = jet(npts);
+      if ischar(opts.colors)
+        colors = feval(opts.colors,npts);
+      else
+        colors = opts.colors;
+      end
       hP1 = gobjects(npts,1);
       hP2 = gobjects(npts,1);
       for ipt=1:npts
