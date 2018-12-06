@@ -114,14 +114,14 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       %
       % projected2normalized inverts normalized2projected numerically,
       % using eg lsqnonlin. This inversion/optimization will have a functol
-      % or other threshold controlling how precise this inversion must be.
+      % or other threshold controlling how precise the inversion must be.
       % This method/inversion is necesary for computing EP lines (as of 18b
       % there does not appear to be a MATLAB CV toolbox library fcn
       % available; MATLAB's triangulate() does its own nonlinear
       % inversion.)
       %
       % We auto-calibrate this threshold by requiring that the round-trip
-      % error result in less than l2pxerr (optionally supplied).
+      % error is less than calPtL2RTerr (optionally supplied).
       
       calPtL2RTerr = myparse(varargin,...
         'calPtL2RTerr',1/8 ... % in pixels
@@ -181,9 +181,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       % Note, the bulk of computational expense for EP-line computation is
       % the nonlinear inversion in projected2normalized(). Using a zrange
       % that is too big or too fine shouldn't hurt much. This
-      % auto-calibration may still be handy however
-      %
-      % Currently assumes two cameras have the SAME IMAGE SIZE.
+      % auto-calibration may still be handy however.
       
       [eplineDxy,zrangeWidthTitrationFac] = myparse(varargin,...
         'eplineDxy',1, ... % in pixels
@@ -206,12 +204,10 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       % Start with calpts.
       % Initial z-range: fits
       % Using arrayfun here due to O(n^2) behavior, see stereoTriangulateML
-      Xcalpts1 = arrayfun(@(i)...
-        obj.stereoTriangulateML(calpts(i,:,1)',calpts(i,:,2)'),1:npts*npat,'uni',0);
-      Xcalpts1 = cat(2,Xcalpts1{:});
+      Xcalpts1 = obj.stereoTriangulateML(calpts(:,:,1)',calpts(:,:,2)');
       Xcalpts2 = obj.camxform(Xcalpts1,[1 2]);
       zrange0 = [ min(Xcalpts1(3,:)) max(Xcalpts1(3,:));...
-        min(Xcalpts2(3,:)) max(Xcalpts2(3,:)) ];
+                  min(Xcalpts2(3,:)) max(Xcalpts2(3,:)) ];
       % zrange: ivw, zmin/zmax
       
       % Auto-calibrate dz so that the spacing of EPline pts in each view is
@@ -237,8 +233,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       % zRangeWidthCtr(ivw,2) is center
       
       % four corners and center
-      testpts = [roi([1 3]); roi([1 4]); roi([2 4]); roi([3 4]); ...
-        mean(roi([1 2])) mean(roi([3 4]))];
+      testpts = [roi([1 3]); roi([1 4]); roi([2 4]); roi([2 3]); ...
+                 mean(roi([1 2])) mean(roi([3 4]))];
       ntestpts = size(testpts,1);
       fprintf(1,'Selecting zrange with %d test points.\n',ntestpts);
       
@@ -304,8 +300,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         [ep21x,ep21y] = ...
           obj.computeEpiPolarLine(2,calpts(i,:,2)',1,roi,'z1range',zrange2);
         
-        ep12dxy = diff([ep12x ep12y],1);
-        ep21dxy = diff([ep21x ep21y],1);
+        ep12dxy = diff([ep12x ep12y],1,1);
+        ep21dxy = diff([ep21x ep21y],1,1);
         ep12d = sqrt(sum(ep12dxy.^2,2));
         ep21d = sqrt(sum(ep21dxy.^2,2));
         epdmu(i,1) = nanmean(ep12d);
@@ -322,6 +318,9 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     end
     
     function hFig = diagnosticsTriangulationRP(obj,varargin)
+      % This diagnostic compares ML's triangulate() vs our
+      % stereoTriangulation. Implicitly, this also compares undistortPoints
+      % vs projected2normalized, and worldToImage vs normalized2projected.
       [showplots,wbObj] = myparse(varargin,...
         'showplots',true,...
         'wbObj',[]...
@@ -344,14 +343,14 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       calpts = reshape(calpts,[npts*npat d nvw]);
       
       % ML triangulate()
-      [X1ml,~,~,eRPml,e2RPml] = ...
+      [X1ml,~,~,e1RPml,e2RPml] = ...
         obj.stereoTriangulateML(calpts(:,:,1)',calpts(:,:,2)');
-      eRPml = [eRPml(:) e2RPml(:)];
+      eRPml = [e1RPml(:) e2RPml(:)];
+      szassert(eRPml,[npts*npat 2]);
       
       % using CalRigZhang2CamBase
       X1base = nan(3,npts*npat);
       X2base = nan(3,npts*npat);
-      d = nan(npts*npat,1);
       if tfWB
         wbObj.startPeriod('stereo triangulation','shownumden',true,...
           'denominator',ntot);
@@ -360,7 +359,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         if tfWB
           wbObj.updateFracWithNumDen(i);
         end
-        [X1base(:,i),X2base(:,i),d(i)] = ...
+        [X1base(:,i),X2base(:,i)] = ...
           obj.stereoTriangulate(calpts(i,:,1)',calpts(i,:,2)',1,2);
       end
       xn1 = X1base(1:2,:)./X1base(3,:);
@@ -374,6 +373,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       eRPml = reshape(eRPml,[npts npat 2]);
       eRPbase = reshape(eRPbase,[npts npat 2]);
       errX1 = sqrt(sum((X1ml-X1base).^2,1));
+      szassert(errX1,[1 npts*npat]);
       errX1 = errX1(:);
       l2distX1pts12 = sqrt(sum( diff(X1ml(:,1:2),1,2).^2 ));
         % 3D distance from pts 1 and 2 (neighboring checkerboard pts) in
@@ -398,13 +398,18 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         grid on;
         tstr = sprintf('3D err, %d stereo-triangulated pts',numel(errX1));
         title(tstr,'fontweight','bold');
+        xlabel('3D l2 err (probably mm)','interpreter','none');
+        ylabel('count');
         fprintf('3D err, %d stereo-tri''d points. Mean/Mdn/Max: %.3g/%.3g/%.3g\n',...
           numel(errX1),errX1mn,errX1md,errX1mx);
         fprintf('  for comparison, 3D distance between neighboring checkerboard pts: %.3g\n',...
           l2distX1pts12);
         
+        
         ax = axs(1,2);
         showReprojectionErrors(sp,'parent',ax);
+        title('Mean Reprojection error from showReprojectionErrors()','interpreter','none');
+        grid on;
         fprintf('RP err, from calibration session (px). Mean: %.3f\n',...
           cs.CameraParameters.MeanReprojectionError);
         
@@ -415,6 +420,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         hold on;
         plot([1 npat],[eRPmlMn eRPmlMn],'k-');
         legend(hbar,{'cam1' 'cam2'});
+        grid on;
         title('Mean RP err per image, using ML lib fcns','fontweight','bold');
         xlabel('Cal image pair');
         ylabel('Mean RP err (px)');
@@ -428,6 +434,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         hold on;
         plot([1 npat],[eRPbaseMn eRPbaseMn],'k-');
         legend(hbar,{'cam1' 'cam2'});
+        grid on;
         title('Mean RP err per image, using our fcns','fontweight','bold');
         xlabel('Cal image pair');
         ylabel('Mean RP err (px)');
@@ -468,7 +475,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       szassert(xpml,[2 npts*npat 2]);
       szassert(xpbase,[2 npts*npat 2]);
 
-      err = squeeze(sqrt(sum((xpml-xpbase).^2,1))); % [npts*npat 2];
+      err = squeeze(sqrt(sum((xpml-xpbase).^2,1)));
+      szassert(err,[npts*npat 2]);
       errMn = mean(err(:));
       errMdn = median(err(:));
       errMax = max(err(:));
@@ -543,7 +551,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       
       Xep1 = nan(3,nzrange(1),npts*npat); % 3d coords EP line from vw1
       Xep2 = nan(3,nzrange(2),npts*npat);
-      ep12 = nan(nzrange(1),2,npts*npat); % ep line in from vw1->vw2
+      ep12 = nan(nzrange(1),2,npts*npat); % ep line from vw1->vw2
       ep21 = nan(nzrange(2),2,npts*npat);
       ep12err = nan(npts*npat,1); % min L2 err from ep12 to matched pt in vw2
       ep21err = nan(npts*npat,1);
