@@ -203,8 +203,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       
       % Start with calpts.
       % Initial z-range: fits
-      % Using arrayfun here due to O(n^2) behavior, see stereoTriangulateML
-      Xcalpts1 = obj.stereoTriangulateML(calpts(:,:,1)',calpts(:,:,2)');
+      Xcalpts1 = obj.stereoTriangulate(calpts(:,:,1)',calpts(:,:,2)');
       Xcalpts2 = obj.camxform(Xcalpts1,[1 2]);
       zrange0 = [ min(Xcalpts1(3,:)) max(Xcalpts1(3,:));...
                   min(Xcalpts2(3,:)) max(Xcalpts2(3,:)) ];
@@ -344,7 +343,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       
       % ML triangulate()
       [X1ml,~,~,e1RPml,e2RPml] = ...
-        obj.stereoTriangulateML(calpts(:,:,1)',calpts(:,:,2)');
+        obj.stereoTriangulate(calpts(:,:,1)',calpts(:,:,2)');
       eRPml = [e1RPml(:) e2RPml(:)];
       szassert(eRPml,[npts*npat 2]);
       
@@ -360,7 +359,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
           wbObj.updateFracWithNumDen(i);
         end
         [X1base(:,i),X2base(:,i)] = ...
-          obj.stereoTriangulate(calpts(i,:,1)',calpts(i,:,2)',1,2);
+          obj.stereoTriangulateBase(calpts(i,:,1)',calpts(i,:,2)',1,2);
       end
       xn1 = X1base(1:2,:)./X1base(3,:);
       xn2 = X2base(1:2,:)./X2base(3,:);
@@ -462,7 +461,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       calpts = reshape(calpts,[npts*npat d nvw]);
       
       [X1ml,xp1ml,xp2ml] = ...
-        obj.stereoTriangulateML(calpts(:,:,1)',calpts(:,:,2)');            
+        obj.stereoTriangulate(calpts(:,:,1)',calpts(:,:,2)');            
       X2ml = obj.camxform(X1ml,[1 2]);
       
       im1norm = X1ml([1 2],:)./X1ml(3,:); % normalize
@@ -545,7 +544,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       roi = [1 bs.ImageSize(2) 1 bs.ImageSize(1)];
       
       [~,xp1rp,xp2rp] = ...
-        obj.stereoTriangulateML(calpts(:,:,1)',calpts(:,:,2)');
+        obj.stereoTriangulate(calpts(:,:,1)',calpts(:,:,2)');
       
       nzrange = cellfun(@numel,obj.eplineZrange);
       
@@ -758,7 +757,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       yEPL = tmp(:,1);
     end
     
-    function [X1,xp1rp,xp2rp,rperr1,rperr2] = stereoTriangulateML(obj,xp1,xp2)
+    function [X1,xp1rp,xp2rp,rperr1,rperr2] = stereoTriangulate(obj,xp1,xp2)
       % Stereo triangulation using matlab/vision lib fcns
       % 
       % xp1: [2xn]. xy image coords, camera1
@@ -769,8 +768,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       % xp2rp: etc
       % rperr1: [n]. L2 err orig vs reprojected, cam1.
       % rperr2: [n] etc.
-      %
-      
+            
       szassert(xp2,size(xp1));
       [d,n] = size(xp1);
       assert(d==2);

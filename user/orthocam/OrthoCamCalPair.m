@@ -196,7 +196,7 @@ classdef OrthoCamCalPair < CalRig
     % from optical axis along camera x-y axes
     % uv=[u;v] Image coords; (col,row) pixel coords on image
     
-    function [X,d,uvreL,uvreR] = stereoTriangulate(obj,uvL,uvR)
+    function [X,d,uvreL,uvreR,rperrL,rperrR] = stereoTriangulate(obj,uvL,uvR)
       % [X,d,uvreL,uvreR] = stereoTriangulate(obj,uvL,uvR)
       % Stereo triangulation
       %
@@ -206,6 +206,7 @@ classdef OrthoCamCalPair < CalRig
       % d: [1xN]: error/discrepancy in closest approach. d=0 indicates
       %   apparently "perfect" reconstruction where epipolar rays meet
       % uvreL, uvreR: [2xN]: reprojected x-y image coords
+      % rperrL, rperrR: [N], L2 error between reprojected and input coords
       
       pqL = obj.projected2normalized(uvL,1);
       pqR = obj.projected2normalized(uvR,2);
@@ -231,6 +232,9 @@ classdef OrthoCamCalPair < CalRig
       
       uvreL = obj.project(X,1);
       uvreR = obj.project(X,2);
+      
+      rperrL = sqrt(sum((uvreL-uvL).^2,1));
+      rperrR = sqrt(sum((uvreR-uvR).^2,1));
     end
     
     function uv = project(obj,X,icam)
