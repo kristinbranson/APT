@@ -19,12 +19,13 @@ if isempty(resp)
   return;
 end
 maxrpeThresh = str2double(resp{1});
-  
+
+fprintf(1,'Computing...\n');
+
 nphyspts = lObj.nPhysPoints;
 nvw = lObj.nview;
 d = 2;
 nmov = lObj.nmovies;
-lpos = lObj.labeledpos; % For now consider manual labels
 
 vcdPW = lObj.viewCalProjWide;
 if vcdPW
@@ -37,7 +38,9 @@ end
 
 tLbls = lObj.labelGetMFTableLabeled;
 
-physptLbls = arrayfun(@(x)sprintf('physPt%d',x),(1:nphyspts)','uni',0);
+ptvwLbls = arrayfun(@(x,y)sprintf('pt%dvw%d',x,y),...
+  [1:nphyspts 1:nphyspts]',[ones(1,nphyspts) 2*ones(1,nphyspts)]',...
+  'uni',0);
 
 suspscore = cell(nmov,1);
 tblsusp = struct('mov',cell(0,1),'frm',[],'iTgt',[],'susp',[],'suspPt',[]);
@@ -54,6 +57,7 @@ for imov=1:nmov
   frmslbl = tLbls.frm(irows);
   nfrmslbl = numel(frmslbl);
   if nfrmslbl==0
+    suspscore{imov} = maxrperr;
     continue;
   else
     fprintf(1,'Mov %d, %d labeled frames.\n',imov,nfrmslbl);
@@ -90,8 +94,7 @@ for imov=1:nmov
   szassert(rperr2,[1 nfrmslbl*nphyspts]);
   rperrfrmslbl = cat(2,reshape(rperr1,[nfrmslbl nphyspts]), ...
                        reshape(rperr2,[nfrmslbl nphyspts]) );
-  [rperrmxfrmslbl,idx] = max(rperrfrmslbl,[],2);
-  iphysptfrmslbl = mod(idx-1,nphyspts)+1;
+  [rperrmxfrmslbl,idxfrmslbl] = max(rperrfrmslbl,[],2);
   
   maxrperr(frmslbl) = rperrmxfrmslbl;  
   suspscore{imov} = maxrperr;
@@ -101,7 +104,7 @@ for imov=1:nmov
       tblsusp(end).frm = frmslbl(ifl);
       tblsusp(end).iTgt = 1;
       tblsusp(end).susp = rperrmxfrmslbl(ifl);
-      tblsusp(end).suspPt = physptLbls{iphysptfrmslbl(ifl)};
+      tblsusp(end).suspPt = ptvwLbls{idxfrmslbl(ifl)};
     end
   end
 end
