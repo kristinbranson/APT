@@ -144,7 +144,7 @@ classdef CalRigZhang2CamBase < CalRig
       [xn,fval] = lsqnonlin(fcn,xn0,[],[],opts);
     end
     
-    function [X1,X2,d,P,Q] = stereoTriangulate(obj,xp1,xp2,cam1,cam2)
+    function [X1,X2,d,P,Q] = stereoTriangulateBase(obj,xp1,xp2,cam1,cam2)
       % xp1: [2x1]. projected pixel coords, camera1
       % xp2: etc
       % cam1: one of .viewNames
@@ -157,6 +157,8 @@ classdef CalRigZhang2CamBase < CalRig
       % frame of camera 2
       % Q: 3D point of closest approach on normalized ray of camera 2, in
       % frame of camera 2
+      %
+      % TODO: vectorize me
             
       icam1 = obj.camArgHelper(cam1);
       icam2 = obj.camArgHelper(cam2);
