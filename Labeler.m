@@ -10749,6 +10749,10 @@ classdef Labeler < handle
       %iMov = paModeInfo.iMov;
       %iTgt = paModeInfo.iTgt;
       
+      if ~isfield(paModeInfo,'axes_curr'),
+        paModeInfo = obj.SetPrevAxesProperties(paModeInfo);
+      end
+      
       [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
       if ~tffound,
         paModeInfo.frm = [];
@@ -10883,12 +10887,33 @@ classdef Labeler < handle
         ModeInfo.dylim = [0,0];
       end
       
+      ModeInfo = obj.SetPrevAxesProperties(ModeInfo);
+      
+%       xdir = get(obj.gdata.axes_curr,'XDir');
+%       ydir = get(obj.gdata.axes_curr,'YDir');
+%       ModeInfo.axes_curr = struct('XLim',xlim,'YLim',ylim,...
+%         'XDir',xdir','YDir',ydir,...
+%         'CameraViewAngleMode','auto');
+      
+      if nargin < 2,
+        obj.prevAxesModeInfo = ModeInfo;
+      end
+      
+    end
+    
+    function ModeInfo = SetPrevAxesProperties(obj,ModeInfo)
+      
+      
+      if nargin < 2,
+        ModeInfo = obj.prevAxesModeInfo;
+      end
+      
       xdir = get(obj.gdata.axes_curr,'XDir');
       ydir = get(obj.gdata.axes_curr,'YDir');
       ModeInfo.axes_curr = struct('XLim',xlim,'YLim',ylim,...
         'XDir',xdir','YDir',ydir,...
         'CameraViewAngleMode','auto');
-      
+
       if nargin < 2,
         obj.prevAxesModeInfo = ModeInfo;
       end

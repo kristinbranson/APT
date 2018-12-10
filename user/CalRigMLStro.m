@@ -1,12 +1,11 @@
 classdef CalRigMLStro < CalRigZhang2CamBase
-  
-  % Warning note: pointsToWorld() doesn't make a lot of sense.
+    
+  % Note: ML Stro Calib App requires all ims/views to have the same size.
   
   properties
     calSess % scalar Session from ML Stro calibration
     
     eplineComputeMode = 'mostaccurate'; % either 'mostaccurate' or 'fastest'
-    eplineComputeBaseZrange = 0:.1:100;
   end
   properties (Dependent)
     stroParams
@@ -61,125 +60,563 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   end
   
   methods
-    function obj = CalRigMLStro(calibSession)
-      assert(isa(calibSession,'vision.internal.calibration.tool.Session'));
-      obj.calSess = calibSession;
+    
+    function obj = CalRigMLStro(calSess,varargin)
+      % calibSession: either a char filename for saved result from ML 
+      % Stereo Calib App; or the object within
+      
+      offerSave = myparse(varargin, ...
+        'offerSave',true...
+        );
+      
+      if ischar(calSess)
+        s = load(calSess,'-mat','calibrationSession');
+        calSessObj = s.calibrationSession;
+      elseif isa(calSess,'vision.internal.calibration.tool.Session')
+        calSessObj = calSess;
+      else
+        error('Input argument must be a MATLAB Stereo Calibration Session.');
+      end
+      
+      obj.calSess = calSessObj;
       obj.int = obj.getInt();
+      
+      obj.autoCalibrateProj2NormFuncTol();
+      obj.autoCalibrateEplineZrange();
+      obj.runDiagnostics();
+      
+      if offerSave
+        if ischar(calSess)
+          startpwd = fileparts(calSess);
+        else
+          startpwd = pwd;
+        end        
+        [fname,pname] = uiputfile('*.mat',...
+          'Save APT calibration object file.',startpwd);
+        if isequal(fname,0)
+          % user cancelled. obj created but not saved.
+        else
+          fname = fullfile(pname,fname);
+          save(fname,'-mat','obj');
+          fprintf('Saved file %s.\n',fname);
+        end
+      end
     end
     
-    function [rperr1ml,rperr2ml] = checkRPerr(obj,varargin)
-      [showplots,wbObj,randsampcorners,randsampcornersN] = myparse(varargin,...
+    function autoCalibrateProj2NormFuncTol(obj,varargin)
+      % Automatically set .proj2NormFuncTol by "round-tripping" calibration
+      % points through projected2normalized/normalized2projected.
+      %
+      % normalized2projected takes a point in normalized coordinates for a
+      % camera and projects onto the final image by recentering about the
+      % principal point, applying zoom/skew, and applying distortions.
+      % The distortions are highly nonlinear closed-form expressions.
+      %
+      % projected2normalized inverts normalized2projected numerically,
+      % using eg lsqnonlin. This inversion/optimization will have a functol
+      % or other threshold controlling how precise the inversion must be.
+      % This method/inversion is necesary for computing EP lines (as of 18b
+      % there does not appear to be a MATLAB CV toolbox library fcn
+      % available; MATLAB's triangulate() does its own nonlinear
+      % inversion.)
+      %
+      % We auto-calibrate this threshold by requiring that the round-trip
+      % error is less than calPtL2RTerr (optionally supplied).
+      
+      calPtL2RTerr = myparse(varargin,...
+        'calPtL2RTerr',1/8 ... % in pixels
+        );
+      
+      cs = obj.calSess;
+      bs = cs.BoardSet;
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [npts,d,npat,nvw] = size(calpts);
+      calpts = permute(calpts,[1 3 2 4]);
+      calpts = reshape(calpts,[npts*npat d nvw]);
+      
+      fprintf(1,'\nAuto-calibrating .projected2normalized funcTol with %d calibration points.\n',...
+        npts*npat);
+      fprintf(1,'Required round-trip L2 accuracy: %.3f px.\n',calPtL2RTerr);
+      
+      functol = 1e-6;
+      
+      % FUTURE: factor core into CalRigZhang2CamBase
+      calptsRT = nan(size(calpts));
+      while 1
+        fprintf(1,' ... trying funcTol=%.3g\n',functol);
+        
+        for icam=1:2
+          calptsNorm = arrayfun(@(i)obj.projected2normalized(calpts(i,:,icam)',icam,'functol',functol),...
+            1:npts*npat,'uni',0);
+          calptsNorm = cat(2,calptsNorm{:});
+          calptsRT(:,:,icam) = obj.normalized2projected(calptsNorm,icam)';
+        end
+        
+        d = calpts-calptsRT;
+        err = squeeze(sqrt(sum(d.^2,2)));
+        szassert(err,[npts*npat nvw]);
+        maxerr = max(err);
+        
+        fprintf(' ... max roundtrip err, view1: %.3g. view2: %.3g.\n',...
+          maxerr(1),maxerr(2));
+        if all(maxerr<calPtL2RTerr)
+          fprintf(' ... SUCCESS! Setting .proj2NormFuncTol to %.3g.\n',functol);
+          obj.proj2NormFuncTol = functol;
+          break;
+        else
+          functol = functol/2;
+        end
+      end
+    end
+    
+    function autoCalibrateEplineZrange(obj,varargin)
+      % Automatically set .eplineZrange by computing EPlines from view1->2
+      % and vice versa at i) the four corners and ii) center of views:
+      %
+      % - The start/end of the zrange must fully accomodate all EPlines
+      %
+      % - dz is chosen so that the average spacing discretization of
+      % EPlines is ~1px (see optional param)
+      %
+      % Note, the bulk of computational expense for EP-line computation is
+      % the nonlinear inversion in projected2normalized(). Using a zrange
+      % that is too big or too fine shouldn't hurt much. This
+      % auto-calibration may still be handy however.
+      
+      [eplineDxy,zrangeWidthTitrationFac] = myparse(varargin,...
+        'eplineDxy',1, ... % in pixels
+        'zrangeWidthTitrationFac',1.5 ... % increase range of zwidth by this much every step
+        );
+      
+      cs = obj.calSess;
+      bs = cs.BoardSet;
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [npts,d,npat,nvw] = size(calpts);
+      calpts = permute(calpts,[1 3 2 4]);
+      calpts = reshape(calpts,[npts*npat d nvw]);
+      roi = [1 bs.ImageSize(2) 1 bs.ImageSize(1)];
+      
+      fprintf(1,'\nAuto-calibrating .eplineZrange. Imagesize is: %s.\n',...
+        mat2str(bs.ImageSize));
+      
+      fprintf(1,'Starting with %d calpts.\n',npts*npat);
+      
+      % Start with calpts.
+      % Initial z-range: fits
+      Xcalpts1 = obj.stereoTriangulate(calpts(:,:,1)',calpts(:,:,2)');
+      Xcalpts2 = obj.camxform(Xcalpts1,[1 2]);
+      zrange0 = [ min(Xcalpts1(3,:)) max(Xcalpts1(3,:));...
+                  min(Xcalpts2(3,:)) max(Xcalpts2(3,:)) ];
+      % zrange: ivw, zmin/zmax
+      
+      % Auto-calibrate dz so that the spacing of EPline pts in each view is
+      % ~eplineDxy.
+      dz = 1;
+      zrange1 = zrange0(1,1):dz:zrange0(1,2);
+      zrange2 = zrange0(2,1):dz:zrange0(2,2);
+      fprintf('Choosing dz. Starting with dz=%.3f.\n',dz);
+      epdmu = obj.calculateMeanEPlineSpacing(calpts,roi,zrange1,zrange2);
+      fprintf('Mean spacing in EP lines in view1/2: %s.\n',mat2str(epdmu));
+      epdxy = mean(epdmu);
+      dz = dz * eplineDxy/epdxy;
+      fprintf('Selected dz=%.3f.\n',dz);
+      zrange1 = zrange0(1,1):dz:zrange0(1,2);
+      zrange2 = zrange0(2,1):dz:zrange0(2,2);
+      epdmu = obj.calculateMeanEPlineSpacing(calpts,roi,zrange1,zrange2);
+      fprintf('New mean spacing in EP lines in view1/2: %s.\n',mat2str(epdmu));
+      
+      % Autocalibrate zrange by expanding the zrange until the number of
+      % in-bounds points stops changing.
+      zRangeWidthCtr = [diff(zrange0,1,2) mean(zrange0,2)];
+      % zRangeWidthCtr(ivw,1) is width
+      % zRangeWidthCtr(ivw,2) is center
+      
+      % four corners and center
+      testpts = [roi([1 3]); roi([1 4]); roi([2 4]); roi([2 3]); ...
+                 mean(roi([1 2])) mean(roi([3 4]))];
+      ntestpts = size(testpts,1);
+      fprintf(1,'Selecting zrange with %d test points.\n',ntestpts);
+      
+      nInBounds = zeros(ntestpts,2);
+      while 1
+        zrangelims1 = zRangeWidthCtr(1,2) + 0.5*zRangeWidthCtr(1,1)*[-1 1];
+        zrangelims2 = zRangeWidthCtr(2,2) + 0.5*zRangeWidthCtr(2,1)*[-1 1];
+        zrangelims1 = max(zrangelims1,0);
+        zrangelims2 = max(zrangelims2,0);
+        % want zrangelims1/2 to be integer multiples of dz. That way, as 
+        % range is expanded, zrange1/2 are precise successive supersets to
+        % avoid edge effects where nInBounds has spurious changes by +/-1 
+        zrangelims1 = round(zrangelims1/dz)*dz;
+        zrangelims2 = round(zrangelims2/dz)*dz;        
+        zrange1 = zrangelims1(1):dz:zrangelims1(2);
+        zrange2 = zrangelims2(1):dz:zrangelims2(2);
+        
+        fprintf('View1 zrange (n=%d): %s.\nView2 zrange (n=%d): %s.\n',...
+          numel(zrange1),mat2str(zrange1([1 end])),...
+          numel(zrange2),mat2str(zrange2([1 end])));
+        
+        nInBoundsNew = nan(ntestpts,2);
+        for i=1:ntestpts
+          [~,~,~,tfOOB1] = ...
+            obj.computeEpiPolarLine(1,testpts(i,:)',2,roi,'z1range',zrange1);
+          [~,~,~,tfOOB2] = ...
+            obj.computeEpiPolarLine(2,testpts(i,:)',1,roi,'z1range',zrange2);
+          nInBoundsNew(i,:) = [nnz(~tfOOB1) nnz(~tfOOB2)];
+        end
+        
+        disp(nInBoundsNew);
+        
+        if isequal(nInBounds,nInBoundsNew)
+          fprintf('SUCCESS! Setting .eplineZrange.\n');
+          break;
+        end
+        
+        for ivw=1:2
+          if ~isequal(nInBounds(:,ivw),nInBoundsNew(:,ivw))
+            zRangeWidthCtr(ivw,1) = zRangeWidthCtr(ivw,1)*zrangeWidthTitrationFac;
+          end
+        end
+        
+        nInBounds = nInBoundsNew;
+        
+      end
+      
+      obj.eplineZrange = {zrange1 zrange2};
+    end
+    
+    function epdmu = calculateMeanEPlineSpacing(obj,calpts,roi,zrange1,zrange2)
+      % calpts: [nx2x2]. i,x/y,vw
+      %
+      % epdmu: [2] mean EP line spacing in vw 1/2
+
+      n = size(calpts,1);
+      szassert(calpts,[n 2 2]);
+      
+      epdmu = nan(n,2);
+      for i=1:n
+        [ep12x,ep12y] = ...
+          obj.computeEpiPolarLine(1,calpts(i,:,1)',2,roi,'z1range',zrange1);
+        [ep21x,ep21y] = ...
+          obj.computeEpiPolarLine(2,calpts(i,:,2)',1,roi,'z1range',zrange2);
+        
+        ep12dxy = diff([ep12x ep12y],1,1);
+        ep21dxy = diff([ep21x ep21y],1,1);
+        ep12d = sqrt(sum(ep12dxy.^2,2));
+        ep21d = sqrt(sum(ep21dxy.^2,2));
+        epdmu(i,1) = nanmean(ep12d);
+        epdmu(i,2) = nanmean(ep21d);
+      end
+      epdmu = mean(epdmu);
+    end
+    
+    function runDiagnostics(obj)
+      obj.diagnosticsTriangulationRP();
+      obj.diagnosticsProjection();
+      obj.diagnosticsUndistort();
+      obj.diagnosticsEPlines();
+    end
+    
+    function hFig = diagnosticsTriangulationRP(obj,varargin)
+      % This diagnostic compares ML's triangulate() vs our
+      % stereoTriangulation. Implicitly, this also compares undistortPoints
+      % vs projected2normalized, and worldToImage vs normalized2projected.
+      [showplots,wbObj] = myparse(varargin,...
         'showplots',true,...
-        'wbObj',[],...
-        'randsampcorners',false,... % if true, sample only randsampN corners
-        'randsampcornersN',20 ...
+        'wbObj',[]...
         );
       tfWB = ~isempty(wbObj);
       
+      fprintf(1,'\nRunning triangulation/reprojection diagnostics.\n');
+      
       % compute RP err using ML lib fcns
       
+      cs = obj.calSess;
       sp = obj.stroParams;
-      cp1 = sp.CameraParameters1;
-      cp2 = sp.CameraParameters2;
+      %       cp1 = sp.CameraParameters1;
+      %       cp2 = sp.CameraParameters2;
+      bs = cs.BoardSet;
       
-      boardpts = obj.calSess.BoardSet.BoardPoints;
-      [ncorners,d,ncalpairs,ncam] = size(boardpts);
-      assert(d==2);
-      assert(ncam==2);
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [npts,d,npat,nvw] = size(calpts);
+      calpts = permute(calpts,[1 3 2 4]);
+      calpts = reshape(calpts,[npts*npat d nvw]);
       
-      bpcam1 = boardpts(:,:,:,1);
-      bpcam1 = permute(bpcam1,[1 3 2]); % bpcam1 is [ncorners x ncalpairs x 2]
-      bpcam2 = boardpts(:,:,:,2);
-      bpcam2 = permute(bpcam2,[1 3 2]);
+      % ML triangulate()
+      [X1ml,~,~,e1RPml,e2RPml] = ...
+        obj.stereoTriangulate(calpts(:,:,1)',calpts(:,:,2)');
+      eRPml = [e1RPml(:) e2RPml(:)];
+      szassert(eRPml,[npts*npat 2]);
       
-      if randsampcorners
-        ptmp = randperm(ncorners);
-        icorners = ptmp(1:randsampcornersN);
-        fprintf(1,'Selected %d/%d checkerboard corners to consider.\n',...
-          randsampcornersN,ncorners);
-        bpcam1 = bpcam1(icorners,:,:);
-        bpcam2 = bpcam2(icorners,:,:);
-        ncorners = randsampcornersN;
-      end
-      bpcam1 = reshape(bpcam1,ncorners*ncalpairs,2);
-      bpcam2 = reshape(bpcam2,ncorners*ncalpairs,2);
-      bpcam1ud = undistortPoints(bpcam1,cp1);
-      bpcam2ud = undistortPoints(bpcam2,cp2);
-      
-      wp = triangulate(bpcam1ud,bpcam2ud,sp);
-      
-      bpcam1rp = worldToImage(cp1,eye(3),[0;0;0],wp,'applyDistortion',true);
-      bpcam2rp = worldToImage(cp2,...
-        sp.RotationOfCamera2,sp.TranslationOfCamera2,wp,'applyDistortion',true);
-            
       % using CalRigZhang2CamBase
-      ntot = size(bpcam1,1);
-      X1 = nan(3,ntot);
-      X2 = nan(3,ntot);
-      d = nan(ntot,1);
+      X1base = nan(3,npts*npat);
+      X2base = nan(3,npts*npat);
       if tfWB
-        wbObj.startPeriod('stro tri','shownumden',true,'denominator',ntot);
+        wbObj.startPeriod('stereo triangulation','shownumden',true,...
+          'denominator',ntot);
       end
-      for i=1:ntot
+      for i=1:npts*npat
         if tfWB
           wbObj.updateFracWithNumDen(i);
         end
-        [X1(:,i),X2(:,i),d(i)] = ...
-          obj.stereoTriangulate(bpcam1(i,:)',bpcam2(i,:)','cam1','cam2');
+        [X1base(:,i),X2base(:,i)] = ...
+          obj.stereoTriangulateBase(calpts(i,:,1)',calpts(i,:,2)',1,2);
       end
-      xn1 = X1(1:2,:)./X1(3,:);
-      xn2 = X2(1:2,:)./X2(3,:);
-      xp1 = obj.normalized2projected(xn1,'cam1');
-      xp2 = obj.normalized2projected(xn2,'cam2');
+      xn1 = X1base(1:2,:)./X1base(3,:);
+      xn2 = X2base(1:2,:)./X2base(3,:);
+      xpRPbase(:,:,1) = obj.normalized2projected(xn1,1);
+      xpRPbase(:,:,2) = obj.normalized2projected(xn2,2);
+      xpRPbase = permute(xpRPbase,[2 1 3]);
+      eRPbase = squeeze(sqrt(sum((calpts-xpRPbase).^2,2)));
+      szassert(eRPbase,[npts*npat 2]);
       
-      rperr1ml = sqrt(sum((bpcam1-bpcam1rp).^2,2));
-      rperr1ml = reshape(rperr1ml,[ncorners ncalpairs]);
-      rperr2ml = sqrt(sum((bpcam2-bpcam2rp).^2,2));
-      rperr2ml = reshape(rperr2ml,[ncorners ncalpairs]);
+      eRPml = reshape(eRPml,[npts npat 2]);
+      eRPbase = reshape(eRPbase,[npts npat 2]);
+      errX1 = sqrt(sum((X1ml-X1base).^2,1));
+      szassert(errX1,[1 npts*npat]);
+      errX1 = errX1(:);
+      l2distX1pts12 = sqrt(sum( diff(X1ml(:,1:2),1,2).^2 ));
+        % 3D distance from pts 1 and 2 (neighboring checkerboard pts) in
+        % pattern 1
       
-      rperr1ours = sqrt(sum((bpcam1-xp1').^2,2));
-      rperr1ours = reshape(rperr1ours,[ncorners ncalpairs]);
-      rperr2ours = sqrt(sum((bpcam2-xp2').^2,2));
-      rperr2ours = reshape(rperr2ours,[ncorners ncalpairs]);
+      eRPmlMn = mean(eRPml(:));
+      eRPmlMdn = median(eRPml(:));
+      eRPmlMx = max(eRPml(:));
+      eRPbaseMn = mean(eRPbase(:));
+      eRPbaseMdn = median(eRPbase(:));
+      eRPbaseMx = max(eRPbase(:));
+      errX1mn = mean(errX1);
+      errX1md = median(errX1);
+      errX1mx = max(errX1);
       
       if showplots
-        cs = obj.calSess;
-
-        figure('Name','RP err per showReprojectionErrors()');
-        ax = axes;
+        hFig = figure('Name','Stereo Triangulation/Reprojection diagnostics');
+        axs = mycreatesubplots(2,2,[.15 .1;.15 .1]);
+        
+        axes(axs(1,1));
+        histogram(errX1);
+        grid on;
+        tstr = sprintf('3D err, %d stereo-triangulated pts',numel(errX1));
+        title(tstr,'fontweight','bold');
+        xlabel('3D l2 err (probably mm)','interpreter','none');
+        ylabel('count');
+        fprintf('3D err, %d stereo-tri''d points. Mean/Mdn/Max: %.3g/%.3g/%.3g\n',...
+          numel(errX1),errX1mn,errX1md,errX1mx);
+        fprintf('  for comparison, 3D distance between neighboring checkerboard pts: %.3g\n',...
+          l2distX1pts12);
+        
+        
+        ax = axs(1,2);
         showReprojectionErrors(sp,'parent',ax);
-        fprintf('Calibration Session has meanRPerr = %.3f\n',...
+        title('Mean Reprojection error from showReprojectionErrors()','interpreter','none');
+        grid on;
+        fprintf('RP err, from calibration session (px). Mean: %.3f\n',...
           cs.CameraParameters.MeanReprojectionError);
         
-        figure('Name','RP err per ML library functions');
-        ax2 = axes;
-        rpe1perim = mean(rperr1ml,1);
-        rpe2perim = mean(rperr2ml,1);
-        rpeBar = [rpe1perim; rpe2perim];
-        hbar = bar(rpeBar','grouped');
+        axes(axs(2,1));
+        eRPmlPerIm = squeeze(mean(eRPml,1));
+        szassert(eRPmlPerIm,[npat 2]);
+        hbar = bar(eRPmlPerIm,'grouped');
+        hold on;
+        plot([1 npat],[eRPmlMn eRPmlMn],'k-');
         legend(hbar,{'cam1' 'cam2'});
-        title('Mean RP err per image, using lib fcns','fontweight','bold');
+        grid on;
+        title('Mean RP err per image, using ML lib fcns','fontweight','bold');
         xlabel('Cal image pair');
         ylabel('Mean RP err (px)');
-        fprintf('Using ML library functions gives meanRPerr = %.3f\n',...
-          mean(rpeBar(:)));
+        fprintf('RP err, ML lib fcns (px). Mean/Mdn/Max: %.3f/%.3f/%.3f\n',...
+          eRPmlMn,eRPmlMdn,eRPmlMx);
         
-        figure('Name','RP err per our functions');
-        ax3 = axes;
-        rpe1perim = mean(rperr1ours,1);
-        rpe2perim = mean(rperr2ours,1);
-        rpeBar = [rpe1perim; rpe2perim];
-        hbar = bar(rpeBar','grouped');
+        axes(axs(2,2));
+        eRPbasePerIm = squeeze(mean(eRPbase,1));
+        szassert(eRPbasePerIm,[npat 2]);
+        hbar = bar(eRPbasePerIm,'grouped');
+        hold on;
+        plot([1 npat],[eRPbaseMn eRPbaseMn],'k-');
         legend(hbar,{'cam1' 'cam2'});
+        grid on;
         title('Mean RP err per image, using our fcns','fontweight','bold');
         xlabel('Cal image pair');
         ylabel('Mean RP err (px)');
-        fprintf('Using our functions gives meanRPerr = %.3f\n',...
-          mean(rpeBar(:)));
+        fprintf('RP err, our fcns (px). Mean/Mdn/Max: %.3f/%.3f/%.3f\n',...
+          eRPbaseMn,eRPbaseMdn,eRPbaseMx);
         
-        linkaxes([ax ax2 ax3]);
+        linkaxes(axs(2:4));
       end
     end
+    
+    function diagnosticsProjection(obj)
+      % Compare ML worldToImage to our normalized2projected
+      
+      fprintf(1,'\nRunning projection diagnostics.\n');
+
+      cs = obj.calSess;
+      % sp = obj.stroParams;
+      %       cp1 = sp.CameraParameters1;
+      %       cp2 = sp.CameraParameters2;
+      bs = cs.BoardSet;
+      
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [npts,d,npat,nvw] = size(calpts);
+      calpts = permute(calpts,[1 3 2 4]);
+      calpts = reshape(calpts,[npts*npat d nvw]);
+      
+      [X1ml,xp1ml,xp2ml] = ...
+        obj.stereoTriangulate(calpts(:,:,1)',calpts(:,:,2)');            
+      X2ml = obj.camxform(X1ml,[1 2]);
+      
+      im1norm = X1ml([1 2],:)./X1ml(3,:); % normalize
+      im2norm = X2ml([1 2],:)./X2ml(3,:); % normalize      
+      xp1base = obj.normalized2projected(im1norm,1);
+      xp2base = obj.normalized2projected(im2norm,2);
+      
+      xpml = cat(3,xp1ml,xp2ml); 
+      xpbase = cat(3,xp1base,xp2base);
+      szassert(xpml,[2 npts*npat 2]);
+      szassert(xpbase,[2 npts*npat 2]);
+
+      err = squeeze(sqrt(sum((xpml-xpbase).^2,1)));
+      szassert(err,[npts*npat 2]);
+      errMn = mean(err(:));
+      errMdn = median(err(:));
+      errMax = max(err(:));
+      
+      fprintf('Projection err, ML lib vs normalized2projected.\n');
+      fprintf('  %d projected image pts. Mean/Mdn/Max (px): %.3g/%.3g/%.3g\n',...
+        numel(err),errMn,errMdn,errMax);
+    end
+    
+    function diagnosticsUndistort(obj)
+      % Compare ML undistortPoints() to our functions
+      
+      fprintf(1,'\nRunning undistort diagnostics.\n');
+
+      cs = obj.calSess;
+      sp = obj.stroParams;
+      cp1 = sp.CameraParameters1;
+      cp2 = sp.CameraParameters2;
+      bs = cs.BoardSet;
+      
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [npts,d,npat,nvw] = size(calpts);
+      calpts = permute(calpts,[1 3 2 4]);
+      calpts = reshape(calpts,[npts*npat d nvw]);
+      
+      calptsUD(:,:,1) = undistortPoints(calpts(:,:,1),cp1);
+      calptsUD(:,:,2) = undistortPoints(calpts(:,:,2),cp2);
+      tmp = arrayfun(@(x)obj.projected2normalized(calpts(x,:,1)',1),1:npts*npat,'uni',0);
+      xn(:,:,1) = cat(2,tmp{:});
+      tmp = arrayfun(@(x)obj.projected2normalized(calpts(x,:,2)',2),1:npts*npat,'uni',0);
+      xn(:,:,2) = cat(2,tmp{:});
+      szassert(xn,[2 npts*npat 2]);
+      
+      calptsUDours(:,:,1) = cp1.IntrinsicMatrix' * [xn(:,:,1); ones(1,npts*npat)];
+      calptsUDours(:,:,2) = cp2.IntrinsicMatrix' * [xn(:,:,2); ones(1,npts*npat)];
+      calptsUDours = permute(calptsUDours(1:2,:,:),[2 1 3]);
+      
+      err = squeeze(sqrt(sum((calptsUD-calptsUDours).^2,2)));
+      errMn = mean(err(:));
+      errMdn = median(err(:));
+      errMax = max(err(:));
+      fprintf('Undistort points. Err, ML lib vs projected2normalized.\n');
+      fprintf('  %d undistorted image pts. Mean/Mdn/Max (px): %.3g/%.3g/%.3g\n',...
+        numel(err),errMn,errMdn,errMax);
+    end
+    
+    function diagnosticsEPlines(obj)
+      % Check generation of EP lines
+      %
+      % 1. Generate an EP line from cam1->2 (and vice versa); Project back
+      % onto Cam1 (Cam2) and check that the line collapses to a single pt
+      % 2. Generate an EP line from cam1->2 (and v.v.) and compute distance
+      % of closest approach to matched point in view2 (view1).
+      
+      fprintf(1,'\nRunning epipolar line diagnostics.\n');
+
+      cs = obj.calSess;
+      sp = cs.CameraParameters;
+      cp1 = sp.CameraParameters1;
+      cp2 = sp.CameraParameters2;
+      bs = cs.BoardSet;
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      [npts,d,npat,nvw] = size(calpts);
+      calpts = permute(calpts,[1 3 2 4]);
+      calpts = reshape(calpts,[npts*npat d nvw]);
+      roi = [1 bs.ImageSize(2) 1 bs.ImageSize(1)];
+      
+      [~,xp1rp,xp2rp] = ...
+        obj.stereoTriangulate(calpts(:,:,1)',calpts(:,:,2)');
+      
+      nzrange = cellfun(@numel,obj.eplineZrange);
+      
+      Xep1 = nan(3,nzrange(1),npts*npat); % 3d coords EP line from vw1
+      Xep2 = nan(3,nzrange(2),npts*npat);
+      ep12 = nan(nzrange(1),2,npts*npat); % ep line from vw1->vw2
+      ep21 = nan(nzrange(2),2,npts*npat);
+      ep12err = nan(npts*npat,1); % min L2 err from ep12 to matched pt in vw2
+      ep21err = nan(npts*npat,1);
+      xp1EPbackproj = nan(nzrange(1),2,npts*npat); % ep12 projected back onto vw1
+      xp2EPbackproj = nan(nzrange(2),2,npts*npat);
+      backProjErr = nan(npts*npat,2); % max L2 err of epprojback* onto orig pt. cols are vws
+      for i=1:npts*npat
+        if mod(i,50)==0
+          disp(i);
+        end
+        
+        [ep12(:,1,i),ep12(:,2,i),Xep1(:,:,i)] = obj.computeEpiPolarLine(1,xp1rp(:,i),2,roi);
+        [ep21(:,1,i),ep21(:,2,i),Xep2(:,:,i)] = obj.computeEpiPolarLine(2,xp2rp(:,i),1,roi);
+        xp1EPbackproj(:,:,i) = worldToImage(cp1,eye(3),[0 0 0],Xep1(:,:,i)','applyDistortion',true);
+        xp2EPbackproj(:,:,i) = worldToImage(cp2,eye(3),[0 0 0],Xep2(:,:,i)','applyDistortion',true);
+        
+        tmp = sqrt(sum((ep12(:,:,i)-xp2rp(:,i)').^2,2));
+        szassert(tmp,[nzrange(1) 1]);
+        ep12err(i) = min(tmp);
+        tmp = sqrt(sum((ep21(:,:,i)-xp1rp(:,i)').^2,2));
+        szassert(tmp,[nzrange(2) 1]);
+        ep21err(i) = min(tmp);
+        
+        tmp = sqrt(sum((xp1EPbackproj(:,:,i)-xp1rp(:,i)').^2,2));
+        szassert(tmp,[nzrange(1) 1]);
+        backProjErr(i,1) = max(tmp(:));
+        tmp = sqrt(sum((xp2EPbackproj(:,:,i)-xp2rp(:,i)').^2,2));
+        szassert(tmp,[nzrange(2) 1]);
+        backProjErr(i,2) = max(tmp(:));
+      end
+      
+      hFig = figure('Name','EP line diagnostics');
+      axs = mycreatesubplots(2,2,[.15 0.1;.15 0.1]);
+      for ivw=1:2
+        ax = axs(1,ivw);
+        axes(ax);
+        if ivw==1
+          mineperr = ep12err;
+          tstr = sprintf('closestL2 epline shown in vw2');
+        else
+          mineperr = ep21err;
+          tstr = sprintf('closestL2 epline shown in vw1');
+        end
+        histogram(mineperr);
+        title(tstr,'fontweight','bold','fontsize',16); 
+        mineperrMn = mean(mineperr);
+        mineperrMdn = median(mineperr);
+        mineperrMx = max(mineperr);
+        fprintf('EP from vw%d, closest approach (px). Mean/Mdn/Max: %.3g/%.3g/%.3g\n',...
+          ivw,mineperrMn,mineperrMdn,mineperrMx);        
+        
+        ax = axs(2,ivw);
+        axes(ax);
+        maxbperr = backProjErr(:,ivw);
+        histogram(maxbperr);
+        tstr = sprintf('Max backproj err, vw%d',ivw);
+        title(tstr,'fontweight','bold','fontsize',16);
+        maxbperrMn = mean(maxbperr);
+        maxbperrMdn = median(maxbperr);
+        maxbperrMx = max(maxbperr);
+        fprintf('EP from vw%d, max backproj err (px). Mean/Mdn/Max: %.3g/%.3g/%.3g\n',...
+          ivw,maxbperrMn,maxbperrMdn,maxbperrMx);        
+      end
+
+    end
+    
   end
   
   methods (Static)
@@ -202,40 +639,35 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         );
 
       ylabel('RP err (px)','fontweight','bold','fontsize',14);
-      title('RP err','fontweight','bold','fontsize',14);
-        
-      
-%       
-%       rpe1perim = mean(rperr1ml,1);
-%       rpe2perim = mean(rperr2ml,1);
-%       rpeBar = [rpe1perim; rpe2perim];
-%       hbar = bar(rpeBar','grouped');
-%       legend(hbar,{'cam1' 'cam2'});
+      title('RP err','fontweight','bold','fontsize',14);        
     end
   end
       
-  
   methods % CalRig
     
-    function [xEPL,yEPL] = ...
-        computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi)
+    function [xEPL,yEPL,Xc1,Xc1OOB] = ...
+        computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
       
       switch obj.eplineComputeMode
         case 'mostaccurate'
-          [xEPL,yEPL] = obj.computeEpiPolarLineBase(iView1,xy1,iViewEpi,roiEpi);
+          [xEPL,yEPL,Xc1,Xc1OOB] = obj.computeEpiPolarLineBase(iView1,xy1,iViewEpi,roiEpi,varargin{:});
         case 'fastest'
-          [xEPL,yEPL] = obj.computeEpiPolarLineEPline(iView1,xy1,iViewEpi,roiEpi);
+          % This codepath will err if 3rd/4th args are requested
+          [xEPL,yEPL] = obj.computeEpiPolarLineEPline(iView1,xy1,iViewEpi,roiEpi,varargin{:});
         otherwise
           error('''eplineComputeMode'' property must be either ''mostaccurate'' or ''fastest''.');          
       end
     end
       
-    function [xEPL,yEPL] = ...
+    function [xEPL,yEPL,Xc1,Xc1OOB] = ...
         computeEpiPolarLineBase(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
+      %
+      % Xc1: [3 x nz] World coords (coord sys of cam/iView1) of EPline
+      % Xc1OOB: [nz] indicator vec for Xc1 being out-of-view in iViewEpi
       
       [projectionmeth,z1Range] = myparse(varargin,...
-        'projectionmeth','worldToImage',... % either 'worldToImage' or 'normalized2projected'
-        'z1Range',obj.eplineComputeBaseZrange ...
+        'projectionmeth','worldToImage',... % either 'worldToImage' or 'normalized2projected'. AL20181204: this should make negligible diff, see diagnostics()
+        'z1Range',obj.eplineZrange{iView1} ...
         );
       
       % See CalRig
@@ -262,37 +694,42 @@ classdef CalRigMLStro < CalRigZhang2CamBase
             R = sp.RotationOfCamera2;
             T = sp.TranslationOfCamera2;
             imPoints = worldToImage(cpEpi,R,T,wp,'applyDistortion',true);
-            xpEpi = imPoints';
+            imPointsUD = worldToImage(cpEpi,R,T,wp,'applyDistortion',false);            
           elseif iView1==2 && iViewEpi==1
             wp = obj.camxform(Xc1,[2 1]);
             wp = wp';
             R = eye(3);
             T = [0 0 0];
             imPoints = worldToImage(cpEpi,R,T,wp,'applyDistortion',true);
-            xpEpi = imPoints';
+            imPointsUD = worldToImage(cpEpi,R,T,wp,'applyDistortion',false);
           else
             assert(false);
           end
+          Xc1OOB = imPointsUD(:,1)<roiEpi(1) | imPointsUD(:,1)>roiEpi(2) |...
+                   imPointsUD(:,2)<roiEpi(3) | imPointsUD(:,2)>roiEpi(4);
+          imPoints(Xc1OOB,:) = nan;  
+          xEPL = imPoints(:,1);
+          yEPL = imPoints(:,2);
         case 'normalized2projected'
           XcEpi = obj.camxform(Xc1,[iView1 iViewEpi]); % 3D seg, in frame of cam2
           xnEpi = [XcEpi(1,:)./XcEpi(3,:); XcEpi(2,:)./XcEpi(3,:)]; % normalize
           xpEpi = obj.normalized2projected(xnEpi,iViewEpi); % project
+          
+          Xc1OOB = xpEpi(1,:)<roiEpi(1) | xpEpi(1,:)>roiEpi(2) |...
+                   xpEpi(2,:)<roiEpi(3) | xpEpi(3,:)>roiEpi(4);
+          xpEpi(:,Xc1OOB) = nan;
+          xEPL = xpEpi(1,:)';
+          yEPL = xpEpi(2,:)';
         otherwise
           assert(false);
       end
-
-      yEpi = xpEpi';
-      yEpi = yEpi(:,[2,1]); % Clearly, we have gone astray
-      yEpi = obj.cropLines(yEpi,roiEpi);
-      r2 = yEpi(:,1); % ... etc
-      c2 = yEpi(:,2);
-      xEPL = c2;
-      yEPL = r2;
     end
     
     function [xEPL,yEPL] = ...
         computeEpiPolarLineEPline(obj,iView1,xy1,iViewEpi,roiEpi)
-      % Use worldToImage, pointsToWorld
+      % Use worldToImage
+      
+      warningNoTrace('Development codepath.');
       
       xEPLnstep = 20;
       
@@ -320,7 +757,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       yEPL = tmp(:,1);
     end
     
-    function [X1,xp1rp,xp2rp,rperr1,rperr2] = stereoTriangulateML(obj,xp1,xp2)
+    function [X1,xp1rp,xp2rp,rperr1,rperr2] = stereoTriangulate(obj,xp1,xp2)
       % Stereo triangulation using matlab/vision lib fcns
       % 
       % xp1: [2xn]. xy image coords, camera1
@@ -331,10 +768,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       % xp2rp: etc
       % rperr1: [n]. L2 err orig vs reprojected, cam1.
       % rperr2: [n] etc.
-      %
-      % WARNING: lib fcns like undistortPoints seem to scale like O(n^2),
-      % so break up big inputs.
-      
+            
       szassert(xp2,size(xp1));
       [d,n] = size(xp1);
       assert(d==2);
@@ -343,8 +777,12 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       cp1 = sp.CameraParameters1;
       cp2 = sp.CameraParameters2;      
       
-      xp1ud = undistortPoints(xp1',cp1);
-      xp2ud = undistortPoints(xp2',cp2);      
+      % AL20181204: undistortPoints seems to scale like O(n^2) with input 
+      % size. Break up input
+      xp1ud = arrayfun(@(i)undistortPoints(xp1(:,i)',cp1),(1:n)','uni',0);
+      xp1ud = cat(1,xp1ud{:});
+      xp2ud = arrayfun(@(i)undistortPoints(xp2(:,i)',cp2),(1:n)','uni',0);
+      xp2ud = cat(1,xp2ud{:});
       X1 = triangulate(xp1ud,xp2ud,sp);
       
       xp1rp = worldToImage(cp1,eye(3),[0;0;0],X1,'applyDistortion',true);
@@ -357,8 +795,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       xp2rp = xp2rp';
       rperr1 = sqrt(sum((xp1rp-xp1).^2,1));
       rperr2 = sqrt(sum((xp2rp-xp2).^2,1));      
-    end
-    
+    end    
     
     function [xRCT,yRCT] = reconstruct(obj,iView1,xy1,iView2,xy2,iViewRct)
       % iView1: view index for anchor point

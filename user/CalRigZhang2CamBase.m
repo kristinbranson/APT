@@ -22,6 +22,15 @@ classdef CalRigZhang2CamBase < CalRig
       -.35 .35 -.35 .35
       -.35 .35 -.35 .35
       ];
+
+    % eplineZrange{ivw} gives range of z-coords (in coord sys of cam ivw) 
+    % that should be used when projecting EP lines into other vw.
+    % See autoCalibrate* methods
+    eplineZrange = {0:.1:100 0:.1:100};
+    
+    % tolerance for projected2normalized nonlinear inversion. See
+    % autoCalibrate* methods
+    proj2NormFuncTol = 1e-8;
   end
 
   % Extrinsics
@@ -101,7 +110,7 @@ classdef CalRigZhang2CamBase < CalRig
       xp(:,tf) = xpCropped;
     end
     
-    function [xn,fval] = projected2normalized(obj,xp,cam)
+    function [xn,fval] = projected2normalized(obj,xp,cam,varargin)
       % Find normalized coords corresponding to projected coords.
       % This uses search/optimization to invert normalized2projected; note
       % the toolbox also has normalize().
@@ -112,7 +121,13 @@ classdef CalRigZhang2CamBase < CalRig
       % xn: [2x1]
       % fval: optimization stuff, eg final residual
 
+      % TODO: vectorize me
+      
       assert(isequal(size(xp),[2 1]));
+      
+      functol = myparse(varargin,...
+        'functol',obj.proj2NormFuncTol...
+        );
       
       fcn = @(xnguess) sum( (xp-obj.normalized2projected(xnguess(:),cam)).^2 );
       xn0 = [0;0];
@@ -124,11 +139,12 @@ classdef CalRigZhang2CamBase < CalRig
       % These worked better for RF
       opts = optimoptions('lsqnonlin',...
         'Algorithm','levenberg-marquardt',...
+        'FunctionTolerance',functol,...
         'Display','none');
       [xn,fval] = lsqnonlin(fcn,xn0,[],[],opts);
     end
     
-    function [X1,X2,d,P,Q] = stereoTriangulate(obj,xp1,xp2,cam1,cam2)
+    function [X1,X2,d,P,Q] = stereoTriangulateBase(obj,xp1,xp2,cam1,cam2)
       % xp1: [2x1]. projected pixel coords, camera1
       % xp2: etc
       % cam1: one of .viewNames
@@ -141,6 +157,8 @@ classdef CalRigZhang2CamBase < CalRig
       % frame of camera 2
       % Q: 3D point of closest approach on normalized ray of camera 2, in
       % frame of camera 2
+      %
+      % TODO: vectorize me
             
       icam1 = obj.camArgHelper(cam1);
       icam2 = obj.camArgHelper(cam2);

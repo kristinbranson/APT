@@ -408,6 +408,7 @@ classdef CPRLabelTracker < LabelTracker
         obj.trnResRC = rc;
       end
       obj.trnResIPt = [];
+      obj.lastTrainStats = [];
       obj.asyncReset();
     end
   end
@@ -971,6 +972,7 @@ classdef CPRLabelTracker < LabelTracker
         end
         obj.trnResRC.trainWithRandInit(Is,d.bboxesTrn,pTrn,...
           'orientationThetas',oThetas,'wbObj',wbObj);
+        obj.lastTrainStats = obj.trnResRC.getLastTrainStats();
         if tfWB && wbObj.isCancel
           % .trnResRC in indeterminate state
           obj.trnDataInit();
@@ -997,6 +999,8 @@ classdef CPRLabelTracker < LabelTracker
           % Future todo: orientationThetas
           % Should break internally if 'orientationThetas' is req'd
           obj.trnResRC(iView).trainWithRandInit(IsVw,bbVw,pTrnVw,'wbObj',wbObj);
+          obj.lastTrainStats = structappend(obj.lastTrainStats,obj.trnResRC(iView).getLastTrainStats());
+          
           if tfWB && wbObj.isCancel
             % .trnResRC in indeterminate state
             obj.trnDataInit();
@@ -1009,6 +1013,67 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnResIPt = iPt;
             
     end
+    
+    function [hp,ht] = plotTiming(obj,varargin)
+      
+      [hAx] = myparse(varargin,'hAx',[]);
+      if isempty(hAx) || ~ishandle(hAx),
+        hAx = gca;
+      end
+      
+      colors = lines(8);
+      
+      hp = [];
+      ht = [];
+      cla(hAx);
+      y = 0;
+      i = 1;
+      t0 = 0;
+      t1 = obj.lastTrainStats.time.total;
+      hold(hAx,'on');
+      [hp(i),ht(i)] = CPRLabelTracker.plotTimingBar(hAx,y,t0,t1,colors(i,:),'Total');
+      y = 1;
+      i = 2;
+      t0 = 0;
+      t1 = obj.lastTrainStats.time.init;
+      [hp(i),ht(i)] = CPRLabelTracker.plotTimingBar(hAx,y,t0,t1,colors(i,:),'Init');
+      y = 1;
+      i = i+1;
+      t0 = t1;
+      t1 = t0+sum(obj.lastTrainStats.time.iter);
+      [hp(i),ht(i)] = CPRLabelTracker.plotTimingBar(hAx,y,t0,t1,colors(i,:),{'Regression stages total',sprintf('(%d regression stages)',obj.sPrm.Reg.T)});
+      y = 2;
+      i = i+1;
+      t1 = t0+sum([obj.lastTrainStats.time.regressorTimingInfo.init]);
+      [hp(i),ht(i)] = CPRLabelTracker.plotTimingBar(hAx,y,t0,t1,colors(i,:),'Stage init');
+      y = 2;
+      i = i+1;
+      t0 = t1;
+      t1 = t0+sum([obj.lastTrainStats.time.regressorTimingInfo.featureStat]);
+      [hp(i),ht(i)] = CPRLabelTracker.plotTimingBar(hAx,y,t0,t1,colors(i,:),{'Feature statistics',sprintf('(N. samples std = %d)',obj.sPrm.Ftr.nsample_std)});
+      y = 2;
+      i = i+1;
+      t0 = t1;
+      t1 = t0+sum(sum([obj.lastTrainStats.time.regressorTimingInfo.iter]));
+      [hp(i),ht(i)] = CPRLabelTracker.plotTimingBar(hAx,y,t0,t1,colors(i,:),{'Boosted regressors',sprintf('(%d boosted regressors per stage)',obj.sPrm.Reg.K)});
+      y = 3;
+      i = i+1;
+      t1 = t0+sum(sum([obj.lastTrainStats.time.regressorTimingInfo.selectFeatures]));
+      [hp(i),ht(i)] = CPRLabelTracker.plotTimingBar(hAx,y,t0,t1,colors(i,:),{'Feature selection',sprintf('(N. samples correlation = %d)',obj.sPrm.Ftr.nsample_cor)});
+      y = 3;
+      i = i+1;
+      t0 = t1;
+      t1 = t0+sum(sum([obj.lastTrainStats.time.regressorTimingInfo.regress]));
+      [hp(i),ht(i)] = CPRLabelTracker.plotTimingBar(hAx,y,t0,t1,colors(i,:),{'Fern regression',sprintf('(Fern depth = %d)',obj.sPrm.Reg.M)});
+      
+      set(hAx,'Children',fliplr([hp,ht]));
+      set(hAx,'YTick',[]);
+      set(hAx,'XLim',[0,obj.lastTrainStats.time.total]);
+      set(hAx,'XTickMode','auto');
+      xlabel(hAx,'Time (s)');
+      
+    end
+
     
     
     function p0 = randInit(obj,tblPTrn,bboxes,varargin)
@@ -2672,6 +2737,34 @@ classdef CPRLabelTracker < LabelTracker
       fprintf(1,' [min mean max] compute time (s) per frame: %s\n',...
         mat2str([tMin tMu tMax],2));
     end
+    
+        
+    function [hp,ht] = plotTimingBar(hAx,y,t0,t1,color,s)
+      
+      maxy = 4;
+
+      s2 = sprintf('%.2f s',t1-t0);
+      if iscell(s),
+        s{end+1} = s2;
+      else
+        s = {s,s2};
+      end
+      
+      hp = patch([t0,t0,t1,t1,t0],[y,maxy,maxy,y,y],color,'Parent',hAx,'LineStyle','none');
+      ht = text((t0+t1)/2,y+.5,s,'HorizontalAlignment','center','VerticalAlignment','middle','Color','k');
+      ext = get(ht,'Extent');
+      if ext(1) < t0,
+        set(ht,'Rotation',90,'HorizontalAlignment','center','VerticalAlignment','middle');
+        ext = get(ht,'Extent');
+        if ext(2) < y,
+          set(ht,'Rotation',0,'HorizontalAlignment','center','VerticalAlignment','middle');
+        end
+      end
+      
+      
+      
+    end
+    
   end
   
   %% Viz
