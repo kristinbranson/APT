@@ -132,6 +132,10 @@ class config(object):
         return L['movieFilesAll'][self.view,:]
 
     def get(self,name,default):
+        if hasattr(self,name):
+            print('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
+        else:
+            print('DEFAULT: For {} using with default value {}'.format(name, default))
         return getattr(self,name,default)
 
 

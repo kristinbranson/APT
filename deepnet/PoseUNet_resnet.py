@@ -133,8 +133,8 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 #        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
         # self.resnet_source = 'official_tf'
-        self.resnet_source = 'slim'
-        self.offset = 32.
+        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+        self.offset = float(self.conf.get('mdn_slim_output_stride',32))
         PoseUMDN.PoseUMDN.__init__(self, conf, name=name,pad_input=pad_input)
         self.dep_nets = []
         self.max_dist = 30
@@ -156,7 +156,21 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
         else:
-            self.pretrained_weights = '/home/mayank/work/poseTF/deepcut/models/resnet_v1_50.ckpt'
+            url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            wt_dir = os.path.join(script_dir,'pretrained')
+            wt_file = os.path.join(wt_dir,'resnet_v1_50.ckpt')
+            if not os.path.exists(wt_file):
+                print('Downloading pretrained weights..')
+                if not os.path.exists(wt_dir):
+                    os.makedirs(wt_dir)
+                sname, header = urllib.urlretrieve(url)
+                tar = tarfile.open(sname, "r:gz")
+                print('Extracting pretrained weights..')
+                tar.extractall(path=wt_dir)
+            self.pretrained_weights = os.path.join(wt_dir,'resnet_v1_50.ckpt')
+
+            # self.pretrained_weights = '/home/mayank/work/poseTF/deepcut/models/resnet_v1_50.ckpt'
 
     def create_network(self):
 
@@ -198,7 +212,9 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 else:
                     slim_is_training = False
 
-                net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=slim_is_training)
+                output_stride =  self.conf.get('mdn_slim_output_stride',None)
+
+                net, end_points = resnet_v1.resnet_v1_50(im,global_pool=False, is_training=slim_is_training,output_stride=output_stride)
                 l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
                            'block3/unit_5/bottleneck_v1']
                 if not self.no_pad: l_names.append('block4')
@@ -499,7 +515,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             # wt regularization loss
             regularizer_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
 
-            return mdn_loss + unet_loss + dist_loss + sum(regularizer_losses)
+            return (mdn_loss + unet_loss + dist_loss + sum(regularizer_losses))/self.conf.batch_size
 
         learning_rate = self.conf.get('mdn_learning_rate',0.0001)
         super(self.__class__, self).train(
@@ -544,7 +560,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         # product because we are looking at joint distribution of all the points.
         # pp = cur_loss + 1e-30
         # loss = -tf.log(tf.reduce_sum(pp, axis=1))
-        return tf.reduce_sum(cur_loss)
+        return tf.reduce_sum(cur_loss)/self.conf.n_classes
 
     def l2_loss(self, X, y):
 
@@ -572,7 +588,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
             cur_loss += pp
 
-        return tf.reduce_sum(cur_loss)
+        return tf.reduce_sum(cur_loss)/self.conf.n_classes
 
 
     def dist_loss(self):
@@ -607,7 +623,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             pp = ll[:,:, ndx] * tf.reduce_sum(sel_comp, axis=1)
             cur_loss += pp
 
-        return tf.reduce_sum(cur_loss)
+        return tf.reduce_sum(cur_loss)/self.conf.n_classes
 
 
     def compute_dist(self, preds, locs):

@@ -28,6 +28,7 @@ import threading
 import logging
 import time
 from six import reraise as raise_
+from collections import OrderedDict
 
 
 renorm = False
@@ -167,6 +168,7 @@ class PoseCommon(object):
         self.no_pad = False
         self.pad_y = 0
         self.pad_x = 0
+        self.compute_summary = self.conf.get('compute_summary',False)
 
 
     def get_latest_model_file(self):
@@ -201,6 +203,7 @@ class PoseCommon(object):
         saver['saver'] = (tf.train.Saver(var_list=var_list,
                                          max_to_keep=self.conf.maxckpt,
                                          save_relative_paths=True))
+        saver['summary_dir'] = os.path.join(self.conf.cachedir,self.conf.expname + '_' + name + '_log')
         self.saver = saver
 
         for dep_net in self.dep_nets:
@@ -230,11 +233,12 @@ class PoseCommon(object):
 
     def init_td(self):
         # initialize trianing info
-        ex_td_fields = ['step']
+        ex_td_fields = []
         for t_f in self.td_fields:
-            ex_td_fields.append('train_' + t_f)
             ex_td_fields.append('val_' + t_f)
-        train_info = {}
+            ex_td_fields.append('train_' + t_f)
+        ex_td_fields.extend(['step','l_rate'])
+        train_info = OrderedDict()
         for t_f in ex_td_fields:
             train_info[t_f] = []
         self.train_info = train_info
@@ -347,13 +351,13 @@ class PoseCommon(object):
         train_dataset = train_dataset.repeat()
         train_dataset = train_dataset.shuffle(buffer_size=100)
         train_dataset = train_dataset.batch(self.conf.batch_size)
-        train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=5)
+        train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=8)
         train_dataset = train_dataset.prefetch(buffer_size=100)
 
         val_dataset = val_dataset.map(map_func=_parse_function,num_parallel_calls=2)
         val_dataset = val_dataset.repeat()
         val_dataset = val_dataset.batch(self.conf.batch_size)
-        val_dataset = val_dataset.map(map_func=self.val_py_map,num_parallel_calls=2)
+        val_dataset = val_dataset.map(map_func=self.val_py_map,num_parallel_calls=4)
         val_dataset = val_dataset.prefetch(buffer_size=100)
 
         self.train_dataset = train_dataset
@@ -446,6 +450,8 @@ class PoseCommon(object):
 
         n_steps = self.conf.n_steps
         cur_lr = learning_rate * (self.conf.gamma ** (cur_step*n_steps/ training_iters))
+        # min_lr = 1e-6
+        # min_lr = learning_rate/100
         self.fd[self.ph['learning_rate']] = cur_lr
         self.fd[self.ph['step']] = step
 
@@ -502,15 +508,21 @@ class PoseCommon(object):
                 optimizer = tf.train.MomentumOptimizer(
                     learning_rate=self.ph['learning_rate'],momentum=0.9)
 
-            if self.conf.get('clip_gradients',True):
 
-                gradients, variables = zip(*optimizer.compute_gradients(self.cost))
+            gradients, variables = zip(*optimizer.compute_gradients(self.cost))
+            if self.conf.get('clip_gradients', True):
                 gradients = [None if gradient is None else
-                             tf.clip_by_norm(gradient, 5.0)
-                             for gradient in gradients]
-                self.opt = optimizer.apply_gradients(zip(gradients, variables))
-            else:
-                self.opt = optimizer.minimize(self.cost)
+                         tf.clip_by_norm(gradient, 5.0)
+                         for gradient in gradients]
+            for g, v in zip(gradients,variables):
+                if g is None:
+                    continue
+                nn = v.name.replace(':','_')
+                tf.summary.histogram('{}-grad'.format(nn),g)
+                tf.summary.histogram('{}-weight'.format(nn),v)
+
+            self.opt = optimizer.apply_gradients(zip(gradients, variables))
+            # self.opt = optimizer.minimize(self.cost)
 
     def compute_dist(self, preds, locs):
         tt1 = PoseTools.get_pred_locs(preds,self.edge_ignore) - locs
@@ -524,7 +536,15 @@ class PoseCommon(object):
         cur_loss, cur_pred, self.cur_inputs = \
             sess.run( [self.cost, self.pred, self.inputs], self.fd)
         cur_dist = self.compute_dist(cur_pred, self.cur_inputs[1])
-        return cur_loss, cur_dist
+
+        # grad_wts = []
+        # if self.compute_grad_wts:
+        #     for g,v in zip(cur_g, cur_v):
+        #         g_mag = np.sqrt(np.sum(g.flatten()**2))
+        #         w_mag = np.sqrt(np.sum(v.flatten()**2))
+        #         grad_wts.append([w_mag,g_mag])
+        cur_dict = {'cur_loss': cur_loss, 'cur_dist': cur_dist}
+        return cur_dict
 
 
     def wt_decay_loss(self):
@@ -534,7 +554,6 @@ class PoseCommon(object):
             if var.op.name.find(r'weights') > 0:
                 costs += tf.nn.l2_loss(var)
         return 0.0005 * costs
-
 
 
     def train(self, create_network,
@@ -548,7 +567,9 @@ class PoseCommon(object):
         training_iters = self.conf.dl_steps
         num_val_rep = self.conf.num_test / self.conf.batch_size + 1
 
+        merged = tf.summary.merge_all()
         with tf.Session() as sess:
+            train_writer = tf.summary.FileWriter(self.saver['summary_dir'],sess.graph)
             start_at = self.init_restore_net(sess, do_restore=restore)
             #self.restore_pretrained(sess,'/home/mayank/work/poseTF/cache/stephen_dataset/head_pose_umdn_joint-20000')
             #initialize_remaining_vars(sess)
@@ -560,19 +581,30 @@ class PoseCommon(object):
                 if step % self.conf.display_step == 0:
                     end = time.time()
                     print('Time required to train: {}'.format(end-start))
-                    train_loss, train_dist = self.compute_train_data(sess, self.DBType.Train)
+                    train_dict = self.compute_train_data(sess, self.DBType.Train)
+                    train_loss = train_dict['cur_loss']
+                    train_dist = train_dict['cur_dist']
                     val_loss = 0.
                     val_dist = 0.
                     for _ in range(num_val_rep):
-                       cur_loss, cur_dist = self.compute_train_data(sess, self.DBType.Val)
-                       val_loss += cur_loss
-                       val_dist += cur_dist
+                       val_dict = self.compute_train_data(sess, self.DBType.Val)
+                       val_loss += val_dict['cur_loss']
+                       val_dist += val_dict['cur_dist']
                     val_loss = val_loss / num_val_rep
                     val_dist = val_dist / num_val_rep
-                    cur_dict = {'step': step,
-                               'train_loss': train_loss, 'val_loss': val_loss,
-                               'train_dist': train_dist, 'val_dist': val_dist}
+                    cur_dict = OrderedDict()
+                    cur_dict['val_dist'] = val_dist
+                    cur_dict['train_dist'] = train_dist
+                    cur_dict['train_loss'] = train_loss
+                    cur_dict['val_loss'] = val_loss
+                    cur_dict['step']= step
+                    cur_dict['l_rate'] = self.fd[self.ph['learning_rate']]
                     self.update_td(cur_dict)
+
+                    if self.compute_summary and (step %(10*self.conf.display_step)==0):
+                        summary = sess.run(merged,self.fd)
+                        train_writer.add_summary(summary,step)
+
                     start = end
                 if step % self.conf.save_step == 0:
                     self.save(sess, step)
