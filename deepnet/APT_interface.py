@@ -810,6 +810,28 @@ def get_trx_ids(trx_ids_in, n_trx, has_trx_file):
     return trx_ids
 
 
+def get_augmented_images(conf, out_file, distort=True, on_gt = False, use_cache=True,nsamples=None):
+
+        data_in = []
+        out_fns = [lambda data: data_in.append(data),
+                   lambda data: None]
+        if use_cache:
+            splits = db_from_cached_lbl(conf, out_fns, False, None, on_gt)
+        else:
+            splits = db_from_lbl(conf, out_fns, False, None, on_gt)
+
+        ims = np.array([d[0] for d in data_in])
+        locs = np.array([d[1] for d in data_in])
+        if nsamples is not None:
+            sel = np.random.choice(ims.shape[0],nsamples)
+            ims = ims[sel,...]
+            locs = locs[sel,...]
+
+        ims, locs = PoseTools.preprocess_ims(ims,locs,conf,distort,conf.rescale)
+
+        hdf5storage.savemat(out_file,{'ims':ims,'locs':locs})
+
+
 def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
     flipud = conf.flipud
     bsize = conf.batch_size
@@ -1306,8 +1328,10 @@ def train_mdn(conf, args, restore):
         create_tfrecord(conf, False, use_cache=args.use_cache)
     tf.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=args.train_name)
-    if args.train_name=='deepnet':
+    if args.train_name == 'deepnet':
         self.train_data_name = 'traindata'
+    else:
+        self.train_data_name = None
     self.train_umdn(restore=restore)
 
 
@@ -1479,6 +1503,13 @@ def parse_args(argv):
     parser_gt.add_argument('-out', dest='out_file_gt',
                            help='Mat file to save output to. _[view_num].mat will be appended', required=True)
 
+    parser_aug = subparsers.add_parser('data_aug', help='get the augmented images')
+    parser_aug.add_argument('-no_aug',dest='no_aug',help='dont augment the images. Return the original images',default=False)
+    parser_aug.add_argument('-out_file',dest='out_file',help='Destination to save the images',required=True)
+    parser_aug.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the augmented images')
+    parser_aug.add_argument('-nsamples', dest='nsamples', default=None, help='Number of examples to be generated',type=int)
+
+
     print(argv)
     args = parser.parse_args(argv)
     if args.view is not None:
@@ -1565,6 +1596,19 @@ def run(args):
             conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
             out_file = args.out_file + '_{}.mat'.format(view)
             classify_gt_data(args.type, conf, out_file, model_file=args.model_file)
+
+    elif args.sub_name == 'data_aug':
+        if args.view is None:
+            views = range(nviews)
+        else:
+            views = [args.view]
+
+        for view_ndx, view in enumerate(views):
+            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,
+                               conf_params=args.conf_params)
+            out_file = args.out_file + '_{}.mat'.format(view)
+            distort = not args.no_aug
+            get_augmented_images(conf,out_file,distort,args.use_cache,nsamples=args.nsamples)
 
 
 def main(argv):

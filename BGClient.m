@@ -126,6 +126,9 @@ classdef BGClient < handle
     end
     
     function stopWorker(obj)
+      % "Proper" stop; STOP message is sent to BGWorker obj; BGWorker reads
+      % STOP message and breaks from polling loop
+      
       if ~obj.isRunning
         warningNoTrace('BGClient:run','Worker is not running.');
       else
@@ -133,6 +136,16 @@ classdef BGClient < handle
         obj.sendCommand(sCmd);
       end
     end
+    
+    function stopWorkerHard(obj)
+      % Harder stop, cancel fevalFuture
+      
+      if ~obj.isRunning
+        warningNoTrace('BGClient:run','Worker is not running.');
+      else
+        obj.fevalFuture.cancel();
+      end
+    end    
     
   end
   

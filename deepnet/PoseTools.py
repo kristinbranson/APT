@@ -1172,7 +1172,8 @@ def db_info(self, dbType='val',train_type=0):
     return np.array(val_info).reshape([-1,2])
 
 
-def analyze_gradients(loss, exclude, sess):
+def analyze_gradients(loss, exclude, sess=None):
+    # exclude should be a list and not a string
     var = tf.global_variables()
     tvar = []
     for vv in var:
@@ -1183,6 +1184,15 @@ def analyze_gradients(loss, exclude, sess):
     gg = tf.gradients(loss,var)
     return gg, var
 
+
+def compute_vals(op,n_steps):
+    all = []
+    for ndx in range(n_steps):
+        a = op()
+        all.append(a)
+    all = np.array(all)
+    all = np.reshape(all,(-1,)+all.shape[2:])
+    return all
 
 def count_records(filename):
     num = 0
@@ -1459,7 +1469,7 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir):
+def submit_job(name, cmd, dir,queue='gpu_any'):
     import subprocess
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')
     sing_err = os.path.join(dir, 'opt_' + name + '.err')
@@ -1475,7 +1485,7 @@ def submit_job(name, cmd, dir):
 
     os.chmod(sing_script, 0755)
 
-    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "num=1" -q gpu_any "singularity exec --nv /misc/local/singularity/branson_v2.simg {}"' '''.format(
-        sing_log, sing_err, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "num=1" -q {} "singularity exec --nv /misc/local/singularity/branson_v2.simg {}"' '''.format(
+        sing_log, sing_err, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     subprocess.call(cmd, shell=True)
     print('Submitted jobs for {}'.format(name))

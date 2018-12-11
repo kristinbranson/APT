@@ -95,6 +95,11 @@ classdef DeepTracker < LabelTracker
     % Thrown when new tracking results are loaded for the current lObj
     % movie
     newTrackingResults 
+    
+    trainStart
+    trainEnd
+    trackStart
+    trackEnd    
   end
   
   methods
@@ -274,6 +279,9 @@ classdef DeepTracker < LabelTracker
       nvw = obj.lObj.nview;
       trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw);
                 
+      addlistener(trnMonitorObj,'bgStart',@(s,e)obj.notify('trainStart'));
+      addlistener(trnMonitorObj,'bgEnd',@(s,e)obj.notify('trainEnd'));
+      
       trnMonitorObj.prepare(trnMonVizObj,trnWorkerObj);
       trnMonitorObj.start();
       obj.bgTrnMonitor = trnMonitorObj;
@@ -583,10 +591,28 @@ classdef DeepTracker < LabelTracker
         
         % spawn training
         if backEnd==DLBackEnd.Docker
+          bgTrnWorkerObj.jobID = cell(nvw,1);
           for iview=1:nvw
-            fprintf(2,'%s\n',syscmds{iview});
-            fprintf(2,'%s\n',logcmds{iview});
-            fprintf(2,'TODO. Assign bgTrnWorkerObj.jobID\n');            
+            fprintf(1,'%s\n',syscmds{iview});
+            [st,res] = system(syscmds{iview});
+            if st==0
+              containerID = strtrim(res);
+              fprintf('Training job (view %d) spawned, docker containerID=%s.\n\n',...
+                iview,containerID);
+              % assigning to 'local' workerobj, not the one copied to workers
+              bgTrnWorkerObj.jobID{iview} = containerID; 
+              
+              fprintf(1,'%s\n',logcmds{iview});
+              [st2,res2] = system(logcmds{iview});
+              if st2==0
+              else
+                fprintf(2,'Failed to spawn logging job for view %d: %s.\n\n',...
+                  iview,res2);
+              end
+            else
+              fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
+                iview,res);
+            end            
           end
         else
           bgTrnWorkerObj.jobID = nan(nvw,1);
