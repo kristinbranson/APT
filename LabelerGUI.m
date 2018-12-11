@@ -1777,7 +1777,7 @@ if tfTracker
       
       % NOTE: handles here can get out-of-date but that is ok for now
       listenersNew{end+1,1} = tObj.addlistener('showVizReplicates','PostSet',...
-        @(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles.labelerObj));
+        @(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('storeFullTracking','PostSet',...
         @(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
     case 'poseTF'

@@ -2,10 +2,13 @@ classdef LabelTracker < handle
 % Tracker base class
 
   % LabelTracker has two responsibilities:
-  % 1. Take a bunch of images+labels and learn a classifier to predict/track 
-  %   labels on new images.
-  % 2. Store and visualize the predictions generated in 1, as well as any
-  %   related tracking diagnostics
+  % 1. Take a bunch of images+labels and learn a classifier to 
+  %    predict/track labels on new images.
+  % 2. Store the predictions generated in 1, as well as any related 
+  %    tracking diagnostics
+  %
+  % LabelTracker does not implement tracking visualization, but deleowns a 
+  % TrackingVisualizer* that 
   %
   % LabelTracker is a base class intended to be concretized with a 
   % particular tracking algo.
@@ -72,17 +75,20 @@ classdef LabelTracker < handle
       trkPrefs = labelerObj.projPrefs.Track;
       if isfield(trkPrefs,'PredictInterpolate')
         val = logical(trkPrefs.PredictInterpolate);
-        if ~isscalar(val)
-          error('LabelTracker:init','Expected scalar value for ''PredictInterpolate''.');
+        assert(isscalar(val),'Expected scalar value for ''PredictInterpolate''.');
+        if val
+          warningNoTrace('Turning off tracking interpolation.');
+          labelerObj.projPrefs.Track.PredictInterpolate = false;
+          val = false;
         end
       else
         val = false;
       end
-      if obj.lObj.hasTrx && val
-        warningNoTrace('LabelTracker:interp',...
-          'Project has trajectories; turning off tracking interpolation.');
-        val = false;
-      end
+%       if obj.lObj.hasTrx && val
+%         warningNoTrace('LabelTracker:interp',...
+%           'Project has trajectories; turning off tracking interpolation.');
+%         val = false;
+%       end
       obj.trkVizInterpolate = val;
       
       obj.hLCurrMovie = addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
