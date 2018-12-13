@@ -14,6 +14,7 @@ ROOT:
   - ['','',false,DUMMY,'','']
   - DeepTrack:
     - ['','',false,Deep track settings.,'','']
+    - netType: ['Net Type',string,'mdn',true,'Type of network to use: mdn, unet, leap, deeplabcut, openpose','mdn','','Important','isDeepTrack']
     - sizex: ['Width',unsigned,true,'Width of the patch to be used for tracking',100,'','Important','isDeepTrack']
     - sizey: ['Height',unsigned,true,'Height of the patch to be used for tracking',100,'','Important','isDeepTrack']
 #    - NChannels: ['Number of Channels',unsigned,true,'3 for Color, 1 for Grayscale',1,'','Important','isDeepTrack']

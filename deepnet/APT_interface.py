@@ -207,6 +207,17 @@ def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num, extra_str=''):
         # imageio.imwrite(cur_out_png,cur_im)
 
 
+def get_net_type(lbl_file):
+    lbl = h5py.File(lbl_file, 'r')
+    dt_params_ndx = None
+    for ndx in range(lbl['trackerClass'].shape[0]):
+        cur_tracker = ''.join([chr(c) for c in lbl[lbl['trackerClass'][ndx][0]]])
+        if cur_tracker == 'DeepTracker':
+            dt_params_ndx = ndx
+    dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrm']
+
+    return read_string(dt_params['netType'])
+
 def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None):
     try:
         try:
@@ -1518,8 +1529,9 @@ def parse_args(argv):
         if len(args.trx_ids) > 0:
             args.trx_ids = [t - 1 for t in args.trx_ids]
         args.start_frame = args.start_frame - 1
-    return args
 
+    args.type = get_net_type(args.lbl_file)
+    return args
 
 def run(args):
     name = args.name
