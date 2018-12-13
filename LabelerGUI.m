@@ -506,7 +506,7 @@ set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),'Value',handles.
 set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),'Value',handles.labelTLInfo.curproptype);
 
 % this is currently not used - KB made space here for training status
-set(handles.txProjectName,'String','');
+%set(handles.txProjectName,'String','');
 
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
@@ -1564,17 +1564,17 @@ lc = lObj.lblCore;
 tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
 % handles.menu_view_show_3D_axes.Enable = onIff(tfShow3DAxes);
 
-function hlpUpdateTxProjectName(lObj)
-projname = lObj.projname;
-info = lObj.projFSInfo;
-if isempty(info)
-  str = projname;
-else
-  [~,projfileS] = myfileparts(info.filename);  
-  str = sprintf('%s / %s',projfileS,projname);
-end
-hTX = lObj.gdata.txProjectName;
-hTX.String = str;
+% function hlpUpdateTxProjectName(lObj)
+% projname = lObj.projname;
+% info = lObj.projFSInfo;
+% if isempty(info)
+%   str = projname;
+% else
+%   [~,projfileS] = myfileparts(info.filename);  
+%   str = sprintf('%s / %s',projfileS,projname);
+% end
+% hTX = lObj.gdata.txProjectName;
+% hTX.String = str;
 
 function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1781,7 +1781,10 @@ if tfTracker
       listenersNew{end+1,1} = tObj.addlistener('storeFullTracking','PostSet',...
         @(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
     case 'poseTF'
-      % none
+      listenersNew{end+1,1} = tObj.addlistener('trainStart',...
+        @(src1,evt1) cbkTrackerTrainStart(src1,evt1,handles));
+      listenersNew{end+1,1} = tObj.addlistener('trainEnd',...
+        @(src1,evt1) cbkTrackerTrainEnd(src1,evt1,handles));
   end
 end
 
@@ -2771,6 +2774,11 @@ lObj.labels2VizToggle();
 function cbkTrackerShowVizReplicatesChanged(hObject, eventdata, handles)
 handles.menu_track_cpr_show_replicates.Checked = ...
   onIff(handles.labelerObj.tracker.showVizReplicates);
+
+function cbkTrackerTrainStart(hObject, eventdata, handles)
+handles.txBGTrain.Visible = 'on';
+function cbkTrackerTrainEnd(hObject, eventdata, handles)
+handles.txBGTrain.Visible = 'off';
 
 function menu_track_cpr_show_replicates_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;

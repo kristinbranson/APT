@@ -1,4 +1,7 @@
 classdef TrackingVisualizerHeatMap < handle
+  % TrackingVisualizers know how to plot/show tracking results on an axes
+  % (not owned by itself). They know how to show things and own the 
+  % relevant graphics handles but that's it.
   
   properties
     lObj % Included only to access the current raw image. Ideally used as little as possible
