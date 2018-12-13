@@ -216,7 +216,10 @@ def get_net_type(lbl_file):
             dt_params_ndx = ndx
     dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrm']
 
-    return read_string(dt_params['netType'])
+    if 'netType' in dt_params.keys():
+        return read_string(dt_params['netType'])
+    else:
+        return 'mdn'
 
 def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None):
     try:
