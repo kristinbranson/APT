@@ -5805,8 +5805,11 @@ classdef Labeler < handle
       % optional pvs:
       % - framerate. defaults to 10.
       
-      framerate = myparse(varargin,'framerate',10);
-      
+      [frms2inc,framerate] = myparse(varargin,...
+        'frms2inc','all',... % 
+        'framerate',10 ...
+      );
+
       if ~obj.hasMovie
         error('Labeler:noMovie','No movie currently open.');
       end
@@ -5815,29 +5818,39 @@ classdef Labeler < handle
           fname);
       end
       
-      nTgts = obj.labelPosLabeledFramesStats();
-      frmsLbled = find(nTgts>0);
-      nFrmsLbled = numel(frmsLbled);
-      if nFrmsLbled==0
-        msgbox('Current movie has no labeled frames.');
-        return;
+      switch frms2inc
+        case 'all'
+          frms = 1:obj.nframes;
+        case 'lbled'
+          nTgts = obj.labelPosLabeledFramesStats();
+          frms = find(nTgts>0);
+          if nFrms==0
+            msgbox('Current movie has no labeled frames.');
+            return;
+          end
+        otherwise
+          assert(false);
       end
-            
+
+      nFrms = numel(frms);
+
       ax = obj.gdata.axes_curr;
-      vr = VideoWriter(fname);      
+      axlims = axis(ax);
+      vr = VideoWriter(fname); 
       vr.FrameRate = framerate;
 
       vr.open();
       try
         hTxt = text(230,10,'','parent',obj.gdata.axes_curr,'Color','white','fontsize',24);
         hWB = waitbar(0,'Writing video');
-        for i = 1:nFrmsLbled
-          f = frmsLbled(i);
+        for i = 1:nFrms
+          f = frms(i);
           obj.setFrame(f);
+          axis(ax,axlims);
           hTxt.String = sprintf('%04d',f);
           tmpFrame = getframe(ax);
           vr.writeVideo(tmpFrame);
-          waitbar(i/nFrmsLbled,hWB,sprintf('Wrote frame %d\n',f));
+          waitbar(i/nFrms,hWB,sprintf('Wrote frame %d\n',f));
         end
       catch ME
         vr.close();
