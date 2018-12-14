@@ -1,7 +1,8 @@
 classdef DeepTracker < LabelTracker
   
-  properties
-    algorithmName = 'poseTF';
+  properties (Dependent)
+    algorithmName;
+    algorithmNamePretty
   end
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrm' 'awsEc2' 'backendType' ...
@@ -44,7 +45,11 @@ classdef DeepTracker < LabelTracker
     % FUTURE TODO: what happens when user alters cacheDir?
     trnName % modelChainID
     trnNameLbl % trainID
+  end
+  properties (SetAccess=private)
     trnNetType = DLNetType.mdn; % scalar DLNetType
+  end
+  properties
     trnLastDMC % [nview] Last DeepModelChainOnDisk(s), set during training
     trnTblP % transient, unmanaged. Training rows for last retrain
     
@@ -103,6 +108,12 @@ classdef DeepTracker < LabelTracker
   end
   
   methods
+    function v = get.algorithmName(obj)
+      v = char(obj.trnNetType);
+    end
+    function v = get.algorithmNamePretty(obj)
+      v = ['Deep Convolutional Network - ' obj.trnNetType.prettyString];
+    end
     function v = get.nPts(obj)
       v = obj.lObj.nLabelPoints;
     end
@@ -120,8 +131,14 @@ classdef DeepTracker < LabelTracker
   end
   
   methods
-    function obj = DeepTracker(lObj)
+    function obj = DeepTracker(lObj,varargin)
       obj@LabelTracker(lObj);
+      
+      for i=1:2:numel(varargin)
+        prop = varargin{i};
+        val = varargin{i+1};
+        obj.(prop) = val;
+      end
       
       obj.backendType = DLBackEnd.Bsub;
       obj.bgTrnMonitor = [];
@@ -154,6 +171,9 @@ classdef DeepTracker < LabelTracker
     end
     function sPrm = getParams(obj)
       sPrm = obj.sPrm;
+    end
+    function tc = getTrackerClassAugmented(obj)
+      tc = {class(obj) 'trnNetType' obj.trnNetType};
     end
     function s = getSaveToken(obj)
       s = struct();
@@ -839,6 +859,8 @@ classdef DeepTracker < LabelTracker
         %      upload it and replace all appropriate rows of s.trxFilesAll.
         %   b. For all other rows of s.trxFilesAll, we replace with jibber
         %      as an assert.
+        
+        fprintf(2,'TODO .trackerData index\n');
         
         assert(strcmp(s.trackerClass{2},'DeepTracker'));
         dlszx = s.trackerData{2}.sPrm.sizex;

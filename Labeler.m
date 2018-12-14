@@ -436,6 +436,7 @@ classdef Labeler < handle
   properties (Dependent)
     tracker % The current tracker, or []
     trackerAlgo % The current tracker algorithm, or ''
+    trackerIsDL
   end
   properties (SetObservable)
     trackModeIdx % index into MFTSetEnum.TrackingMenu* for current trackmode. 
@@ -970,6 +971,14 @@ classdef Labeler < handle
         v = v.algorithmName;
       end
     end
+    function v = get.trackerIsDL(obj)
+      v = obj.tracker;
+      if isempty(v)
+        v = [];
+      else
+        v = isa(v,'DeepTracker');
+      end
+    end
   end
   
   methods % prop access
@@ -1493,7 +1502,9 @@ classdef Labeler < handle
         nTrkers = numel(dfltTrkers);
         tAll = cell(1,nTrkers);
         for i=1:nTrkers
-          tAll{i} = feval(dfltTrkers{i},obj);
+          trkerCls = dfltTrkers{i}{1};
+          trkerClsArgs = dfltTrkers{i}(2:end);
+          tAll{i} = feval(trkerCls,obj,trkerClsArgs{:});
           tAll{i}.init();
         end
         obj.trackersAll = tAll;
@@ -1608,8 +1619,9 @@ classdef Labeler < handle
           %s.labelTemplate = obj.lblCore.getTemplate();
       end
 
-      s.trackerClass = cellfun(@class,obj.trackersAll,'uni',0);
-      s.trackerData = cellfun(@getSaveToken,obj.trackersAll,'uni',0);
+      tObjAll = obj.trackersAll;
+      s.trackerClass = cellfun(@getTrackerClassAugmented,tObjAll,'uni',0);
+      s.trackerData = cellfun(@getSaveToken,tObjAll,'uni',0);
       
       if obj.preProcSaveData || forceIncDataCache
         s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
@@ -1715,19 +1727,8 @@ classdef Labeler < handle
       assert(nTracker==numel(s.trackerClass));
       assert(isempty(obj.trackersAll));
       tAll = cell(1,nTracker);
-      for i=1:nTracker        
-        tCls = s.trackerClass{i};
-        tData = s.trackerData{i};
-        if exist(tCls,'class')==0
-          error('Labeler:projLoad',...
-            'Project tracker class ''%s'' cannot be found.',tCls);
-        end
-        tObj = feval(tCls,obj);
-        tObj.init();
-        if ~isempty(tData)
-          tObj.loadSaveToken(tData);
-        end
-        tAll{i} = tObj;
+      for i=1:nTracker 
+        tAll{i} = LabelTracker.create(obj,s.trackerClass{i},s.trackerData{i});
       end
       obj.trackersAll = tAll;
       
@@ -2335,14 +2336,39 @@ classdef Labeler < handle
         s.trackerData = repmat({[]},1,nDfltTrkers);
         s.currTracker = 0;
       elseif ischar(s.trackerClass)
-        assert(strcmp(s.trackerClass,dfltTrkers{1}));
+        assert(strcmp(s.trackerClass,dfltTrkers{1}{1}));
+        assert(strcmp(s.trackerClass,'CPRLabelTracker'));
         s.trackerClass = dfltTrkers;
         tData = repmat({[]},1,nDfltTrkers);
         tData{1} = s.trackerData;
         s.trackerData = tData;
         s.currTracker = 1;
+      elseif iscell(s.trackerClass)
+        nExistingTrkers = numel(s.trackerClass);
+        if nExistingTrkers==2 % 20181214, only one deeptracker that had mutable trnNetType
+          assert(isequal(s.trackerClass,{'CPRLabelTracker' 'DeepTracker'}));
+          dlTrkClsAug = {'DeepTracker' 'trnNetType' s.trackerData{2}.trnNetType};
+          tf = cellfun(@(x)isequal(dlTrkClsAug,x),dfltTrkers);
+          iTrk = find(tf);
+          assert(isscalar(iTrk));
+          newTData = repmat({[]},1,nDfltTrkers);
+          newTData{1} = s.trackerData{1};
+          newTData{iTrk} = s.trackerData{2};
+          s.trackerData = newTData;
+          s.trackerClass = dfltTrkers;
+          if s.currTracker==2
+            s.currTracker = iTrk;
+          end
+        else % 20181214, planning ahead when we add trackers
+          assert(isequal(s.trackerClass(:),dfltTrkers(1:nExistingTrkers)));
+          s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
+            dfltTrkers(nExistingTrkers+1:nDfltTrkers);
+          s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
+            repmat({[]},1,nDfltTrkers-nExistingTrkers);
+        end
+      else
+        assert(false);
       end
-      assert(iscell(s.trackerClass));
     
       % 20180604
       if ~isfield(s,'labeledpos2GT')
@@ -8179,18 +8205,17 @@ classdef Labeler < handle
     end
         
     function trackSetParams(obj,sPrm)
-      % Set ALL tracking parameters; preproc, and all trackers
+      % Set tracking parameters for preproc, cpr, and the *current* tracker
+      % if it is a DeepTracker.
+      % TODO: rationalize
       % 
       % sPrm: scalar struct containing *new*-style params:
       % sPrm.ROOT.Track
       %          .CPR
       %          .DeepTrack
 
-      tObj = obj.trackGetTracker('cpr');      
-      dtObj = obj.trackGetTracker('poseTF');
-      if isempty(tObj) || isempty(dtObj)
-        error('Cannot find one or more trackers.');
-      end
+      tcprObj = obj.trackGetTracker('cpr');      
+      assert(~isempty(tcprObj));
         
       % Future TODO: right now this is hardcoded, eg "DeepTrack" doesn't
       % match 'poseTF', and lots of special-case code.
@@ -8214,9 +8239,11 @@ classdef Labeler < handle
       % changes should be reflected.
       tfPPprmsChanged = obj.preProcSetParams(ppPrms); % THROWS
       
-      tObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
-      
-      dtObj.setParams(sPrmDT);
+      tcprObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
+      tObj = obj.tracker;
+      if ~isempty(tObj) && isa(tObj,'DeepTracker')
+        tObj.setParams(sPrmDT);
+      end
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
@@ -8242,24 +8269,24 @@ classdef Labeler < handle
     end
     
     function sPrm = trackGetParams(obj)
-      % Get full set of parameters from all trackers
+      % Get parameters for preproc, cpr tracker, and *current* tracker *if 
+      % it is a DeepTracker*.
+      % TODO, yes this is weird, rationalize.
       %
       % sPrm: scalar struct containing NEW-style params:
       % sPrm.ROOT.Track
       %          .CPR
-      %          .DeepTrack
+      %          .DeepTrack (if applicable)
       % Top-level fields .Track, .CPR, .DeepTrack may be missing if they
       % don't exist yet.
       
       % Future TODO: As in trackSetParams, currently this is hardcoded when
       % it ideally would just be a generic loop
        
-      tObj = obj.trackGetTracker('cpr');      
-      dtObj = obj.trackGetTracker('poseTF');
-      assert(~isempty(tObj),'CPR tracker object not found.');
-      assert(~isempty(dtObj),'DeepTracker object not found.');
+      tcprObj = obj.trackGetTracker('cpr');
+      assert(~isempty(tcprObj),'CPR tracker object not found.');
 
-      prmCpr = tObj.sPrm;
+      prmCpr = tcprObj.sPrm;
       prmPP = obj.preProcParams;
 %      assert(~xor(isempty(prmCpr),isempty(prmPP)));
       if ~isempty(prmCpr)        
@@ -8283,10 +8310,13 @@ classdef Labeler < handle
         
         % Other fields of sPrm.ROOT.Track, sPrm.ROOT.CPR will be empty
       end
-            
-      sPrmDT = dtObj.getParams();
-      if ~isempty(sPrmDT)
-        sPrm.ROOT.DeepTrack = sPrmDT;
+
+      tObj = obj.tracker;      
+      if ~isempty(tObj) && isa(tObj,'DeepTracker')
+        sPrmDT = tObj.getParams();
+        if ~isempty(sPrmDT)
+          sPrm.ROOT.DeepTrack = sPrmDT;
+        end
       end
     end
     
@@ -8459,6 +8489,7 @@ classdef Labeler < handle
         s = rmfield(s,'preProcData');
       end
       
+      s.trackerData = {[] s.trackerData{s.currTracker}};
 %       tf = strcmp(s.trackerClass,'DeepTracker');
 %       i = find(tf);
 %       switch numel(i)

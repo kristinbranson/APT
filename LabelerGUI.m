@@ -1703,10 +1703,10 @@ mnu.Checked = onIff(tf);
 function handles = setupAvailTrackersMenu(handles,tObjs)
 % set up menus and put in handles.menu_track_trackers (cell arr)
 
-trackermenu_dict = {
-  'cpr','Cascaded Pose Regression (CPR)'
-  'poseTF','Deep Convolutional Network - UNet'
-  };
+% trackermenu_dict = {
+%   'cpr','Cascaded Pose Regression (CPR)'
+%   'poseTF','Deep Convolutional Network - UNet'
+%   };
 
 cellfun(@delete,handles.menu_track_trackers);
 
@@ -1714,12 +1714,13 @@ nTrker = numel(tObjs);
 menuTrks = cell(nTrker,1);
 for i=1:nTrker  
   algName = tObjs{i}.algorithmName;
-  j = find(strcmp(algName,trackermenu_dict(:,1)));
-  if ~isempty(j),
-    algLabel = trackermenu_dict{j,2};
-  else
-    algLabel = algName;
-  end
+  algLabel = tObjs{i}.algorithmNamePretty;
+%   j = find(strcmp(algName,trackermenu_dict(:,1)));
+%   if ~isempty(j),
+%     algLabel = trackermenu_dict{j,2};
+%   else
+%     algLabel = algName;
+%   end
   mnu = uimenu( ...
     'Parent',handles.menu_track_tracking_algorithm,...
     'Label',algLabel,...
@@ -1780,7 +1781,7 @@ if tfTracker
         @(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('storeFullTracking','PostSet',...
         @(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
-    case 'poseTF'
+    otherwise
       listenersNew{end+1,1} = tObj.addlistener('trainStart',...
         @(src1,evt1) cbkTrackerTrainStart(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('trainEnd',...

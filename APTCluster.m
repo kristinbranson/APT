@@ -154,6 +154,7 @@ switch action
     lObj.trackCrossValidate(xvArgs{:});
     
     savestuff = struct();
+    assert(false,'TODO: react');
     savestuff.sPrm = lObj.trackGetParams();
     savestuff.xvArgs = xvArgs;
     savestuff.xvRes = lObj.xvResults;
@@ -207,6 +208,7 @@ switch action
     tblRes = lObj.trackTrainTrackEval(tblTrn,tblTrk,args{:});
     
     savestuff = struct();
+    assert(false,'TODO: react');
     savestuff.sPrm = lObj.trackGetParams();
     savestuff.tblRes = tblRes;
     savestuff.tblResTS = now;
@@ -238,13 +240,16 @@ tfPPatch = ~isempty(paramPatchFile);
 if tfParam
   sPrm = loadSingleVariableMatfile(paramFile);
   fprintf(1,'Loaded parameters from %s.\n',paramFile);
+  assert(false,'TODO: react');
   lObj.trackSetParams(sPrm);
   [~,paramFileS,~] = fileparts(paramFile);
   outfileBase = [outfileBase '_' paramFileS];
 end
 if tfPPatch
+  assert(false,'TODO: react');
   sPrm = lObj.trackGetParams();
   sPrm = HPOptim.readApplyPatch(sPrm,paramPatchFile);
+  assert(false,'TODO: react');
   lObj.trackSetParams(sPrm);
   [~,paramPatchFileS,~] = fileparts(paramPatchFile);
   outfileBase = [outfileBase '_' paramPatchFileS];
