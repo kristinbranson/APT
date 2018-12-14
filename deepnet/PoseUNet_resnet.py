@@ -272,10 +272,12 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                                 X = conv_nopad(X, n_filts[ndx])
                             else:
                                 X = conv(X, n_filts[ndx])
+
                         if ndx > 0:
                             layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
                         else:
                             layers_sz = conf.imsz
+
                         with tf.variable_scope('u_{}'.format(ndx)):
                              # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
                            X_sh = X.get_shape().as_list()
