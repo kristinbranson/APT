@@ -95,6 +95,11 @@ classdef DeepTracker < LabelTracker
     % Thrown when new tracking results are loaded for the current lObj
     % movie
     newTrackingResults 
+    
+    trainStart
+    trainEnd
+    trackStart
+    trackEnd    
   end
   
   methods
@@ -274,6 +279,9 @@ classdef DeepTracker < LabelTracker
       nvw = obj.lObj.nview;
       trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw);
                 
+      addlistener(trnMonitorObj,'bgStart',@(s,e)obj.notify('trainStart'));
+      addlistener(trnMonitorObj,'bgEnd',@(s,e)obj.notify('trainEnd'));
+      
       trnMonitorObj.prepare(trnMonVizObj,trnWorkerObj);
       trnMonitorObj.start();
       obj.bgTrnMonitor = trnMonitorObj;

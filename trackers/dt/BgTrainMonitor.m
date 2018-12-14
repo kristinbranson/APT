@@ -40,6 +40,12 @@ classdef BgTrainMonitor < handle
     prepared
     isRunning
   end
+  
+  events
+    bgStart
+    bgEnd    
+  end
+  
   methods
     function v = get.prepared(obj)
       v = ~isempty(obj.bgClientObj);
@@ -65,6 +71,10 @@ classdef BgTrainMonitor < handle
       %
       % - TODO Note, when you change eg params, u need to call this. etc etc.
       % Any mutation that alters PP, train/track on the BG worker...
+      
+      if obj.isRunning()
+        obj.notify('bgEnd');
+      end
       
       if ~isempty(obj.bgClientObj)
         delete(obj.bgClientObj);
@@ -122,6 +132,7 @@ classdef BgTrainMonitor < handle
       bgc = obj.bgClientObj;
       bgc.startWorker('workerContinuous',true,...
         'continuousCallInterval',obj.bgContCallInterval);
+      obj.notify('bgStart');
     end
     
     function bgTrnResultsReceived(obj,sRes)
@@ -182,7 +193,9 @@ classdef BgTrainMonitor < handle
     end
     
     function stop(obj)
-      obj.bgClientObj.stopWorker();
+      bgc = obj.bgClientObj;
+      bgc.stopWorkerHard();
+      obj.notify('bgEnd');
     end
     
   end
