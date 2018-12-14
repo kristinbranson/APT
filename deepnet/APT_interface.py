@@ -219,7 +219,7 @@ def get_net_type(lbl_file):
     if 'netType' in dt_params.keys():
         return read_string(dt_params['netType'])
     else:
-        return 'mdn'
+        return None
 
 def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None):
     try:
@@ -1533,7 +1533,9 @@ def parse_args(argv):
             args.trx_ids = [t - 1 for t in args.trx_ids]
         args.start_frame = args.start_frame - 1
 
-    args.type = get_net_type(args.lbl_file)
+    net_type =  get_net_type(args.lbl_file)
+    if net_type is not None:
+        args.type = net_type
     return args
 
 def run(args):

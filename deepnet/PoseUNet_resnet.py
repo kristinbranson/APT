@@ -374,7 +374,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 x_off = np.tile(x_off[np.newaxis,:,:,np.newaxis],[loc_shape[0],1,1,1])
                 y_off = np.tile(y_off[np.newaxis,:,:,np.newaxis], [loc_shape[0],1,1,1])
 
-                explicit_offset = self.conf.get('mdn_explicit_offset',False)
+                explicit_offset = self.conf.get('mdn_explicit_offset',True)
 
                 if explicit_offset:
                     # o_locs = ((tf.sigmoid(o_locs) * 2) - 0.5) * locs_offset
