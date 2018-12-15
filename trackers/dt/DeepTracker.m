@@ -14,9 +14,11 @@ classdef DeepTracker < LabelTracker
     
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
-    
+  end
+  properties (SetObservable)
     backendType % scalar DLBackEnd
-
+  end
+  properties
     singBindPath % transient, cellstr of BIND_PATHs for singularity. 
       % Used only when training with Bsub backend. Will be used if it is 
       % non-empty; otherwise an attempt will be made to generate the 
