@@ -8514,6 +8514,7 @@ classdef Labeler < handle
         s = rmfield(s,'preProcData');
       end
       
+      s.trackerClass = {'__UNUSED__' 'DeepTracker'};
       s.trackerData = {[] s.trackerData{s.currTracker}};
 %       tf = strcmp(s.trackerClass,'DeepTracker');
 %       i = find(tf);
