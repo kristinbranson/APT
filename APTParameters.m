@@ -125,7 +125,7 @@ classdef APTParameters
         if ismember('hasTrx',tree.Data.Requirements) && ~labelerObj.hasTrx,
           tree.Data.Visible = false;
         end
-        if ismember('isDeepTrack',tree.Data.Requirements) && ~strcmpi(labelerObj.trackerAlgo,'poseTF'),
+        if ismember('isDeepTrack',tree.Data.Requirements) && ~labelerObj.trackerIsDL,
           tree.Data.Visible = false;
         end
         
