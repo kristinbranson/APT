@@ -1757,6 +1757,7 @@ if ~isfield(handles,'menu_track_backend_config')
     'Parent',handles.menu_track_backend_config,...
     'Separator','on',...
     'Label','(AWS) Set EC2 instance',...
+    'Callback',@cbkTrackerBackendAWSSetInstance,...
     'Visible','off',...
     'Tag','menu_track_backend_config_aws_setinstance');
   
@@ -1814,7 +1815,7 @@ if tfTracker
   onOffDL = onIff(isDL);
   handles.menu_track_backend_config.Visible = onOffDL;
   if isDL
-    updateTrackBackendConfigMenuChecked(handles,tObj);
+    updateTrackBackendConfigMenuChecked(handles,tObj.lObj);
   end
   
   % Listeners, general tracker
@@ -1836,16 +1837,15 @@ if tfTracker
         @(src1,evt1) cbkTrackerTrainStart(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('trainEnd',...
         @(src1,evt1) cbkTrackerTrainEnd(src1,evt1,handles));
-      listenersNew{end+1,1} = tObj.addlistener('backendType','PostSet',...
+      listenersNew{end+1,1} = tObj.lObj.addlistener('trackDLBackEnd','PostSet',...
         @(src1,evt1) cbkTrackerBackEndChanged(src1,evt1,handles));      
   end
 end
 
 handles.listenersTracker = listenersNew;
 
-function updateTrackBackendConfigMenuChecked(handles,tObj)
-assert(isa(tObj,'DeepTracker'));
-switch tObj.backendType
+function updateTrackBackendConfigMenuChecked(handles,lObj)
+switch lObj.trackDLBackEnd.type
   case DLBackEnd.AWS
     set(handles.menu_track_backend_config_jrc,'checked','off');
     set(handles.menu_track_backend_config_docker,'checked','off');
@@ -1877,8 +1877,21 @@ function cbkTrackerBackendMenu(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
 beType = src.UserData;
-tObj = lObj.tracker;
-tObj.backendType = beType;
+be = DLBackEndClass(beType);
+lObj.trackSetDLBackend(be);
+
+function cbkTrackerBackendAWSSetInstance(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+[tfsucc,instanceID,pemFile] = AWSec2.configureUI();
+if tfsucc
+  aws = AWSec2(pemFile,'instanceID',instanceID);  
+  aws.inspectInstance;
+  dlbe = lObj.trackDLBackEnd;
+  assert(dlbe.type==DLBackEnd.AWS);
+  dlbe.awsec2 = aws;
+  lObj.trackSetDLBackend(dlbe);
+end
 
 function cbkTrackersAllChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -2865,8 +2878,8 @@ function cbkTrackerTrainEnd(hObject, eventdata, handles)
 handles.txBGTrain.Visible = 'off';
 
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
-tObj = eventdata.AffectedObject;
-updateTrackBackendConfigMenuChecked(handles,tObj);
+lObj = eventdata.AffectedObject;
+updateTrackBackendConfigMenuChecked(handles,lObj);
 
 function menu_track_cpr_show_replicates_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;

@@ -24,7 +24,7 @@ classdef Labeler < handle
       'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
-      'trackModeIdx' ...
+      'trackModeIdx' 'trackDLBackEnd' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
       'preProcParams' 'preProcH0' 'preProcSaveData' ...
       'xvResults' 'xvResultsTS' ...
@@ -443,6 +443,9 @@ classdef Labeler < handle
      %Note MFTSetEnum.TrackingMenuNoTrx==MFTSetEnum.TrackingMenuTrx(1:K).
      %Values of trackModeIdx 1..K apply to either the NoTrx or Trx cases; 
      %larger values apply only the Trx case.
+     
+    trackDLBackEnd % scalar DLBackEndClass
+    
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
@@ -2327,6 +2330,7 @@ classdef Labeler < handle
 %       end
       
       % 20180525 DeepTrack integration. .trackerClass, .trackerData, .currTracker
+      % 20181215 Updated for multiple DeepTrackers
       dfltTrkers = LabelTracker.APT_DEFAULT_TRACKERS;
       nDfltTrkers = numel(dfltTrkers);
       if isempty(s.trackerClass)
@@ -2426,6 +2430,18 @@ classdef Labeler < handle
           s.movieInfoAll{i}.info = rmfield(s.movieInfoAll{i}.info,'readerobj');
         end
       end
+      
+      % 20181215 factor dlbackend out of DeepTrackers into single/common
+      % Labeler
+      if ~isfield(s,'trackDLBackEnd')
+        % To-date we have only had a single deeptracker object. Above we 
+        % expand this to the full .trackerData vector.
+        % Loop through, find the first 
+        
+        % maybe change this by looking thru existing trackerDatas
+        s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
+      end      
+      
     end
 
   end 
@@ -8318,6 +8334,15 @@ classdef Labeler < handle
           sPrm.ROOT.DeepTrack = sPrmDT;
         end
       end
+    end
+    
+    function trackSetDLBackend(obj,be)
+      assert(isa(be,'DLBackEndClass'));
+      [tf,reason] = be.getReadyTrainTrack();
+      if ~tf
+        warningNoTrace('Backend is not ready to train: %s',reason);
+      end
+      obj.trackDLBackEnd = be;
     end
     
     function trackTrain(obj)
