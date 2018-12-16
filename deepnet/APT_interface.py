@@ -1399,7 +1399,8 @@ def train(lblfile, nviews, name, args):
             elif net_type == 'deeplabcut':
                 if args.use_defaults:
                     deepcut.train.set_deepcut_defaults(conf)
-                deepcut_train(conf)
+                #deepcut_train(conf)
+                train_deepcut(conf,args)
         except tf.errors.InternalError as e:
             logging.exception(
                 'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly')
