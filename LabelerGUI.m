@@ -1915,7 +1915,7 @@ tObj = lObj.tracker;
 iTrker = lObj.currTracker;
 handles = setupTrackerMenusListeners(handles,tObj,iTrker);
 handles.labelTLInfo.setTracker(tObj);
-
+handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)

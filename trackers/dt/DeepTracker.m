@@ -906,10 +906,11 @@ classdef DeepTracker < LabelTracker
       end      
     end
     
-    function trnAWSDownloadModel(obj,backend)
+    function trnAWSDownloadModel(obj) 
       nvw = obj.lObj.nview;
       trnID = obj.trnName;
       cacheDirLocal = obj.sPrm.CacheDir;
+      backend = obj.lObj.trackDLBackEnd;
       aws = backend.awsec2;
       dmcs = obj.trnLastDMC;
             

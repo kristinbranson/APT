@@ -916,7 +916,7 @@ classdef InfoTimeline < handle
       iMov = labeler.currMovie;
       iTgt = labeler.currTarget;
       
-      if iMov==0
+      if isempty(iMov) || iMov==0 
         data = nan(obj.npts,1);
       else
         switch ptype
@@ -957,7 +957,7 @@ classdef InfoTimeline < handle
       iMov = labeler.currMovie;
       iTgt = labeler.currTarget;
       
-      if iMov==0
+      if isempty(iMov) || iMov==0
         data = nan(obj.npts,1);
       else
         data = reshape(all(~isnan(labeler.labeledposGTaware{iMov}(:,:,:,iTgt)),2),[obj.npts,obj.nfrm]);
