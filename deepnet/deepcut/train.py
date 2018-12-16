@@ -129,9 +129,7 @@ def train(cfg):
     cfg = config.convert_to_deepcut(cfg)
 
     dirname = os.path.dirname(__file__)
-    init_weights = os.path.join(dirname, 'pretrained/resnet_v1_50.ckpt')
-
-    print("looking for weights in {}".format(init_weights))
+    init_weights = os.path.join(dirname, '../pretrained/resnet_v1_50.ckpt')
 
     if not os.path.exists(init_weights):
         # Download and save the pretrained resnet weights.
