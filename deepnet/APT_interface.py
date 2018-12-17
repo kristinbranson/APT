@@ -885,17 +885,17 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
     return pred_locs
 
 
-def get_pred_fn(model_type, conf, model_file=None):
+def get_pred_fn(model_type, conf, model_file=None,name='deepnet'):
     if model_type == 'openpose':
         pred_fn, close_fn, model_file = open_pose.get_pred_fn(conf, model_file)
     elif model_type == 'unet':
-        pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file)
+        pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file,name=name)
     elif model_type == 'mdn':
-        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file)
+        pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file,name=name)
     elif model_type == 'leap':
         pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file)
     elif model_type == 'deeplabcut':
-        pred_fn, close_fn, model_file = deepcut.train.get_pred_fn(conf, model_file)
+        pred_fn, close_fn, model_file = deepcut.train.get_pred_fn(conf, model_file,name=name)
     else:
         raise ValueError('Undefined type of model')
 
@@ -1298,16 +1298,16 @@ def get_unet_pred_fn_nodataset(conf, model_file=None):
     return pred_fn, close_fn, latest_model_file
 
 
-def get_unet_pred_fn(conf, model_file=None):
+def get_unet_pred_fn(conf, model_file=None,name='deepnet'):
     tf.reset_default_graph()
-    self = PoseUNet.PoseUNet(conf, name='deepnet')
+    self = PoseUNet.PoseUNet(conf, name=name)
     self.train_data_name = 'traindata'
     return self.get_pred_fn(model_file)
 
 
-def get_mdn_pred_fn(conf, model_file=None):
+def get_mdn_pred_fn(conf, model_file=None,name='deepnet'):
     tf.reset_default_graph()
-    self = PoseURes.PoseUMDN_resnet(conf, name='deepnet')
+    self = PoseURes.PoseUMDN_resnet(conf, name=name)
     self.train_data_name = 'traindata'
     return self.get_pred_fn(model_file)
 
@@ -1315,8 +1315,9 @@ def get_mdn_pred_fn(conf, model_file=None):
 def classify_movie_all(model_type, **kwargs):
     conf = kwargs['conf']
     model_file = kwargs['model_file']
-    del kwargs['model_file'], kwargs['conf']
-    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
+    train_name = kwargs['train_name']
+    del kwargs['model_file'], kwargs['conf'], kwargs['name']
+    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
     try:
         classify_movie(conf, pred_fn, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
@@ -1369,7 +1370,7 @@ def train_openpose(conf, args):
 def train_deepcut(conf, args):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache)
-    deepcut_train(conf)
+    deepcut_train(conf,name=args.train_name)
 
 
 def train(lblfile, nviews, name, args):
@@ -1605,7 +1606,8 @@ def run(args):
                                name=name,
                                save_hmaps=args.hmaps,
                                crop_loc=crop_loc,
-                               model_file=args.model_file
+                               model_file=args.model_file,
+                               train_name=args.train_name
                                )
 
     elif args.sub_name == 'gt_classify':

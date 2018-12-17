@@ -20,7 +20,7 @@ from easydict import EasyDict as edict
 import config
 import  tarfile
 
-name = 'deepcut'
+# name = 'deepnet'
 
 class LearningRate(object):
     def __init__(self, cfg):
@@ -125,7 +125,7 @@ def get_read_fn(cfg, data_path):
     return read_fn, n
 
 
-def train(cfg):
+def train(cfg,name='deepnet'):
 #    setup_logging()
 
     cfg = edict(cfg.__dict__)
@@ -181,8 +181,8 @@ def train(cfg):
     cum_loss = 0.0
     lr_gen = LearningRate(cfg)
 
-    model_name = os.path.join( cfg.cachedir, cfg.expname + '_' + name)
-    ckpt_file = os.path.join(cfg.cachedir, cfg.expname + '_' + name + '_ckpt')
+    model_name = os.path.join( cfg.cachedir, name)
+    ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
 
     start = time.time()
     for it in range(max_iter+1):
@@ -227,13 +227,13 @@ def train(cfg):
     coord.join([thread],3)
 
 
-def get_pred_fn(cfg, model_file=None):
+def get_pred_fn(cfg, model_file=None,name='deepnet'):
 
     cfg = edict(cfg.__dict__)
     cfg = config.convert_to_deepcut(cfg)
 
     if model_file is None:
-        ckpt_file = os.path.join(cfg.cachedir,cfg.expname + '_' + name + '_ckpt')
+        ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
         latest_ckpt = tf.train.get_checkpoint_state( cfg.cachedir, ckpt_file)
         init_weights = latest_ckpt.model_checkpoint_path
         model_file = latest_ckpt.model_checkpoint_path
