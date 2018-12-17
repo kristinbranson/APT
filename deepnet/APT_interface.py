@@ -1316,7 +1316,7 @@ def classify_movie_all(model_type, **kwargs):
     conf = kwargs['conf']
     model_file = kwargs['model_file']
     train_name = kwargs['train_name']
-    del kwargs['model_file'], kwargs['conf'], kwargs['name']
+    del kwargs['model_file'], kwargs['conf'], kwargs['train_name']
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
     try:
         classify_movie(conf, pred_fn, model_file=model_file, **kwargs)
