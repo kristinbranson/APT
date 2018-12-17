@@ -11,6 +11,7 @@ classdef CPRLabelTracker < LabelTracker
 
   properties
     algorithmName = 'cpr';
+    algorithmNamePretty = 'Cascaded Pose Regression (CPR)'
   end
   properties (Constant)
     serializeversion = 10; % serialization format
@@ -2167,6 +2168,10 @@ classdef CPRLabelTracker < LabelTracker
       obj.trnDataTblP = MFTable.remapIntegerKey(obj.trnDataTblP,'mov',...
         mIdxOrig2New);
       obj.trkPMD = MFTable.remapIntegerKey(obj.trkPMD,'mov',mIdxOrig2New);
+    end
+    
+    function tc = getTrackerClassAugmented(obj)
+      tc = {class(obj)};
     end
     
     function s = getSaveToken(obj)

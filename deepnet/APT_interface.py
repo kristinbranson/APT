@@ -170,11 +170,13 @@ def convert_to_orig(base_locs, conf, cur_trx, trx_fnum_start, all_f, sz, nvalid,
             r_mat = [[np.cos(tt), -np.sin(tt)], [np.sin(tt), np.cos(tt)]]
             curlocs = np.dot(base_locs[ii, :, :] - [hsz_p, hsz_p], r_mat) + [x, y]
             base_locs_orig[ii, ...] = curlocs
-    else:
+    elif crop_loc:
         xlo, xhi, ylo, yhi = crop_loc
         base_locs_orig = base_locs.copy()
         base_locs_orig[:, :, 0] += xlo
         base_locs_orig[:, :, 1] += ylo
+    else:
+        base_locs_orig = base_locs.copy()
 
     return base_locs_orig
 
@@ -206,6 +208,20 @@ def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num, extra_str=''):
         # cur_out_png = os.path.join(hmaps_dir,'hmap_trx_{}_t_{}_part_{}.png'.format(trx_ndx+1,frame_num+1,bpart+1))
         # imageio.imwrite(cur_out_png,cur_im)
 
+
+def get_net_type(lbl_file):
+    lbl = h5py.File(lbl_file, 'r')
+    dt_params_ndx = None
+    for ndx in range(lbl['trackerClass'].shape[0]):
+        cur_tracker = ''.join([chr(c) for c in lbl[lbl['trackerClass'][ndx][0]]])
+        if cur_tracker == 'DeepTracker':
+            dt_params_ndx = ndx
+    dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrm']
+
+    if 'netType' in dt_params.keys():
+        return read_string(dt_params['netType'])
+    else:
+        return None
 
 def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None):
     try:
@@ -337,9 +353,12 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         for n,v in zip(cc[0::2],cc[1::2]):
             setattr(conf,n,ast.literal_eval(v))
 
+    # overrides for each network
     if net_type == 'openpose':
         # openpose uses its own normalization
         conf.normalize_img_mean = False
+    elif net_type == 'deeplabcut':
+        conf.batch_size = 1
 
     return conf
 
@@ -1383,7 +1402,7 @@ def train(lblfile, nviews, name, args):
             elif net_type == 'deeplabcut':
                 if args.use_defaults:
                     deepcut.train.set_deepcut_defaults(conf)
-                deepcut_train(conf)
+                train_deepcut(conf,args)
         except tf.errors.InternalError as e:
             logging.exception(
                 'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly')
@@ -1518,8 +1537,11 @@ def parse_args(argv):
         if len(args.trx_ids) > 0:
             args.trx_ids = [t - 1 for t in args.trx_ids]
         args.start_frame = args.start_frame - 1
-    return args
 
+    net_type =  get_net_type(args.lbl_file)
+    if net_type is not None:
+        args.type = net_type
+    return args
 
 def run(args):
     name = args.name

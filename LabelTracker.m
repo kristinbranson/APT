@@ -63,7 +63,12 @@ classdef LabelTracker < handle
   end
   
   properties (Constant)
-    APT_DEFAULT_TRACKERS = {'CPRLabelTracker' 'DeepTracker'};
+    APT_DEFAULT_TRACKERS = {
+      {'CPRLabelTracker'}
+      {'DeepTracker' 'trnNetType' DLNetType.mdn}
+      {'DeepTracker' 'trnNetType' DLNetType.deeplabcut}
+      {'DeepTracker' 'trnNetType' DLNetType.unet}
+      };
     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
   end
     
@@ -348,7 +353,7 @@ classdef LabelTracker < handle
 
     function labelerMoviesReordered(obj,eventdata)
     end
-    
+        
     function s = getSaveToken(obj)
       % Get a struct to serialize
       s = struct();
@@ -428,7 +433,26 @@ classdef LabelTracker < handle
             
   end
   
-%   methods (Static)
+  methods (Static)
+    
+    function tObj = create(lObj,trkClsAug,trkData)
+      % Factory meth
+      
+      tCls = trkClsAug{1};
+      tClsArgs = trkClsAug(2:end);
+      
+      if exist(tCls,'class')==0
+        error('Labeler:projLoad',...
+          'Project tracker class ''%s'' cannot be found.',tCls);
+      end
+      tObj = feval(tCls,lObj,tClsArgs{:});
+      tObj.init();
+      if ~isempty(trkData)
+        tObj.loadSaveToken(trkData);
+      end
+    end
+    
+  end
 %     
 %     function sc = findAllSubclasses
 %       % sc: cellstr of LabelTracker subclasses in APT.Root

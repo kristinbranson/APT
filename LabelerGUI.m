@@ -554,6 +554,7 @@ listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
 handles.menu_track_trackers = cell(0,1); % menus added in cbkTrackersAllChanged
+handles.menu_track_backends = cell(0,1); % menus added in cbkTrackersAllChanged
 
 hZ = zoom(hObject);
 hZ.ActionPostCallback = @cbkPostZoom;
@@ -1702,11 +1703,7 @@ mnu.Checked = onIff(tf);
 
 function handles = setupAvailTrackersMenu(handles,tObjs)
 % set up menus and put in handles.menu_track_trackers (cell arr)
-
-trackermenu_dict = {
-  'cpr','Cascaded Pose Regression (CPR)'
-  'poseTF','Deep Convolutional Network - UNet'
-  };
+% also, handles.menu_track_backends
 
 cellfun(@delete,handles.menu_track_trackers);
 
@@ -1714,12 +1711,7 @@ nTrker = numel(tObjs);
 menuTrks = cell(nTrker,1);
 for i=1:nTrker  
   algName = tObjs{i}.algorithmName;
-  j = find(strcmp(algName,trackermenu_dict(:,1)));
-  if ~isempty(j),
-    algLabel = trackermenu_dict{j,2};
-  else
-    algLabel = algName;
-  end
+  algLabel = tObjs{i}.algorithmNamePretty;
   mnu = uimenu( ...
     'Parent',handles.menu_track_tracking_algorithm,...
     'Label',algLabel,...
@@ -1730,6 +1722,57 @@ for i=1:nTrker
   menuTrks{i} = mnu;
 end
 handles.menu_track_trackers = menuTrks;
+
+if ~isfield(handles,'menu_track_backend_config')
+  % set up first time only, should not change
+  handles.menu_track_backend_config = uimenu( ...
+    'Parent',handles.menu_track,...
+    'Label','GPU/Backend Configuration',...
+    'Visible','off',...
+    'Tag','menu_track_backend_config');
+  moveMenuItemAfter(handles.menu_track_backend_config,handles.menu_track_tracking_algorithm);
+  handles.menu_track_backend_config_jrc = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','JRC Cluster',...
+    'Separator','on',...
+    'Callback',@cbkTrackerBackendMenu,...
+    'Tag','menu_track_backend_config_jrc',...
+    'userdata',DLBackEnd.Bsub);
+  handles.menu_track_backend_config_aws = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','AWS Cloud',...
+    'Callback',@cbkTrackerBackendMenu,...
+    'Tag','menu_track_backend_config_aws',...
+    'userdata',DLBackEnd.AWS);
+  handles.menu_track_backend_config_docker = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','Local (Docker)',...
+    'Callback',@cbkTrackerBackendMenu,...
+    'Tag','menu_track_backend_config_docker',...
+    'Enable','off',... % TODO
+    'userdata',DLBackEnd.Docker);
+  
+  % AWS submenu (visible when backend==AWS)
+  handles.menu_track_backend_config_aws_setinstance = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
+    'Label','(AWS) Set EC2 instance',...
+    'Callback',@cbkTrackerBackendAWSSetInstance,...
+    'Visible','off',...
+    'Tag','menu_track_backend_config_aws_setinstance');
+  
+%   handles.menu_track_backend_config.Children = [
+%     handles.menu_track_backend_config_aws_setinstance;
+%     handles.menu_track_backend_config_docker;
+%     handles.menu_track_backend_config_aws;
+%     handles.menu_track_backend_config_jrc ];
+  
+%   handles.menu_track_backends{end+1,1} = uimenu( ...
+%     'Parent',handles.menu_track_backend_config,...
+%     'Label','(AWS) Send start instance',...
+%     'Visible','off',...
+%     'Tag','menu_track_backend_config_aws_setinstance');
+end
 
 function handles = setupTrackerMenusListeners(handles,tObj,iTrker)
 % Configure listerers-on-current-tracker obj; tracker-specific menus
@@ -1766,6 +1809,15 @@ if tfTracker
   handles.menu_track_cpr_storefull.Visible = onOffCpr;
   handles.menu_track_cpr_view_diagnostics.Visible = onOffCpr;
   
+  % FUTURE TODO, enable for DL
+  handles.menu_track_training_data_montage.Enable = onOffCpr;
+  isDL = ~iscpr;
+  onOffDL = onIff(isDL);
+  handles.menu_track_backend_config.Visible = onOffDL;
+  if isDL
+    updateTrackBackendConfigMenuChecked(handles,tObj.lObj);
+  end
+  
   % Listeners, general tracker
   listenersNew{end+1,1} = tObj.addlistener('hideViz','PostSet',...
     @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); %#ok<NASGU>
@@ -1780,21 +1832,66 @@ if tfTracker
         @(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('storeFullTracking','PostSet',...
         @(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
-    case 'poseTF'
+    otherwise
       listenersNew{end+1,1} = tObj.addlistener('trainStart',...
         @(src1,evt1) cbkTrackerTrainStart(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('trainEnd',...
         @(src1,evt1) cbkTrackerTrainEnd(src1,evt1,handles));
+      listenersNew{end+1,1} = tObj.lObj.addlistener('trackDLBackEnd','PostSet',...
+        @(src1,evt1) cbkTrackerBackEndChanged(src1,evt1,handles));      
   end
 end
 
 handles.listenersTracker = listenersNew;
+
+function updateTrackBackendConfigMenuChecked(handles,lObj)
+switch lObj.trackDLBackEnd.type
+  case DLBackEnd.AWS
+    set(handles.menu_track_backend_config_jrc,'checked','off');
+    set(handles.menu_track_backend_config_docker,'checked','off');
+    set(handles.menu_track_backend_config_aws,'checked','on');
+    set(handles.menu_track_backend_config_aws_setinstance,'visible','on');
+  case DLBackEnd.Bsub
+    set(handles.menu_track_backend_config_jrc,'checked','on');
+    set(handles.menu_track_backend_config_docker,'checked','off');
+    set(handles.menu_track_backend_config_aws,'checked','off');
+    set(handles.menu_track_backend_config_aws_setinstance,'visible','off');
+  case DLBackEnd.Docker
+    set(handles.menu_track_backend_config_jrc,'checked','off');
+    set(handles.menu_track_backend_config_docker,'checked','on');
+    set(handles.menu_track_backend_config_aws,'checked','off');
+    set(handles.menu_track_backend_config_aws_setinstance,'visible','off');
+  otherwise
+    set(handles.menu_track_backend_config_jrc,'checked','off');
+    set(handles.menu_track_backend_config_docker,'checked','off');
+    set(handles.menu_track_backend_config_aws,'checked','off');
+end
 
 function cbkTrackerMenu(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
 iTracker = src.UserData;
 lObj.trackSetCurrentTracker(iTracker);
+
+function cbkTrackerBackendMenu(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+beType = src.UserData;
+be = DLBackEndClass(beType);
+lObj.trackSetDLBackend(be);
+
+function cbkTrackerBackendAWSSetInstance(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+[tfsucc,instanceID,pemFile] = AWSec2.configureUI();
+if tfsucc
+  aws = AWSec2(pemFile,'instanceID',instanceID);  
+  aws.inspectInstance;
+  dlbe = lObj.trackDLBackEnd;
+  assert(dlbe.type==DLBackEnd.AWS);
+  dlbe.awsec2 = aws;
+  lObj.trackSetDLBackend(dlbe);
+end
 
 function cbkTrackersAllChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1818,7 +1915,7 @@ tObj = lObj.tracker;
 iTrker = lObj.currTracker;
 handles = setupTrackerMenusListeners(handles,tObj,iTrker);
 handles.labelTLInfo.setTracker(tObj);
-
+handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)
@@ -2779,6 +2876,10 @@ function cbkTrackerTrainStart(hObject, eventdata, handles)
 handles.txBGTrain.Visible = 'on';
 function cbkTrackerTrainEnd(hObject, eventdata, handles)
 handles.txBGTrain.Visible = 'off';
+
+function cbkTrackerBackEndChanged(hObject, eventdata, handles)
+lObj = eventdata.AffectedObject;
+updateTrackBackendConfigMenuChecked(handles,lObj);
 
 function menu_track_cpr_show_replicates_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;

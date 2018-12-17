@@ -602,6 +602,7 @@ class PoseCommon(object):
                     self.update_td(cur_dict)
 
                     if self.compute_summary and (step %(10*self.conf.display_step)==0):
+                        self.fd_train()
                         summary = sess.run(merged,self.fd)
                         train_writer.add_summary(summary,step)
 
