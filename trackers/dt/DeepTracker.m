@@ -498,6 +498,17 @@ classdef DeepTracker < LabelTracker
   methods
     %% BSub Trainer
     
+    function downloadPretrainedWeights(obj)
+      pretrainedDownload = fullfile(APT.getpathdl,'download_pretrained.py');      
+      fprintf(1,'%s\n',pretrainedDownload);
+      [st,res] = system(pretrainedDownload);
+      if st==0
+        fprintf('Downloaded pretrained weights.\n');
+      else
+        warningNoTrace('Failed to download pretrained weights: %s',res);
+      end      
+    end
+      
     function trnSpawnBsubDocker(obj,backEnd,trnType,modelChainID,varargin)
       %
       % backEnd: scalar DLBackEndClass
@@ -527,6 +538,8 @@ classdef DeepTracker < LabelTracker
         'trainID','',... % to be filled in 
         'trainType',trnType,...
         'iterFinal',obj.sPrm.dl_steps);
+      
+      obj.downloadPretrainedWeights();         
       
       % create/ensure stripped lbl; set trainID
       tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
@@ -683,8 +696,16 @@ classdef DeepTracker < LabelTracker
         end
         macroCell = struct2cell(obj.lObj.projMacrosGetWithAuto());
         cacheDir = obj.sPrm.CacheDir;
+        
+        % add in home directory and their ancestors
+        homedir = getuserdir;
+        homeancestors = [{homedir},getpathancestors(homedir)];
+        if isunix,
+          homeancestors = setdiff(homeancestors,{'/'});
+        end
+        
         assert(~isempty(cacheDir));
-        singBind = [{cacheDir;APT.getpathdl};macroCell(:)];
+        singBind = [{cacheDir;APT.getpathdl};macroCell(:);homeancestors(:)];
         fprintf('Auto-generated singularity BIND_PATH:\n');
         cellfun(@(x)fprintf('  %s\n',x),singBind);
       end
@@ -1084,8 +1105,11 @@ classdef DeepTracker < LabelTracker
     
     function trkSpawnBsubDocker(obj,backend,mIdx,tMFTConc,dlLblFile,...
         cropRois,hmapArgs,frm0,frm1)
+
       % Currently mIdx, tMFTConc only one movie
 
+      obj.downloadPretrainedWeights();
+      
       % put/ensure local stripped lbl
       dmc = obj.trnLastDMC;
       assert(isscalar(unique({dmc.lblStrippedLnx})));

@@ -2348,9 +2348,16 @@ classdef Labeler < handle
         s.trackerData = tData;
         s.currTracker = 1;
       elseif iscell(s.trackerClass)
+                
         nExistingTrkers = numel(s.trackerClass);
         if nExistingTrkers==2 % 20181214, only one deeptracker that had mutable trnNetType
           assert(isequal(s.trackerClass,{'CPRLabelTracker' 'DeepTracker'}));
+          
+          % KB 20181217 - this was stored as a char originally
+          if ischar(s.trackerData{2}.trnNetType),
+            s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType);
+          end
+          
           dlTrkClsAug = {'DeepTracker' 'trnNetType' s.trackerData{2}.trnNetType};
           tf = cellfun(@(x)isequal(dlTrkClsAug,x),dfltTrkers);
           iTrk = find(tf);
