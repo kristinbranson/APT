@@ -347,27 +347,28 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                     mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
                     mdn_l_1 = mdn_l
 
-                with tf.variable_scope('layer_locs_1_2'):
-                    in_filt = mdn_l.get_shape().as_list()[3]
-                    kernel_shape = [k_sz, k_sz, in_filt, 2*n_filt]
-                    mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
+                if self.conf.get('mdn_more_locs_layer',True):
+                    with tf.variable_scope('layer_locs_1_2'):
+                        in_filt = mdn_l.get_shape().as_list()[3]
+                        kernel_shape = [k_sz, k_sz, in_filt, 2*n_filt]
+                        mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
 
-                with tf.variable_scope('layer_locs_1_3'):
-                    in_filt = mdn_l.get_shape().as_list()[3]
-                    kernel_shape = [k_sz, k_sz, in_filt, 2*n_filt]
-                    mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
+                    with tf.variable_scope('layer_locs_1_3'):
+                        in_filt = mdn_l.get_shape().as_list()[3]
+                        kernel_shape = [k_sz, k_sz, in_filt, 2*n_filt]
+                        mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
 
-                mdn_l = mdn_l + mdn_l_1 # skip connection
+                    mdn_l = mdn_l + mdn_l_1 # skip connection
 
-                with tf.variable_scope('layer_locs_2'):
-                    in_filt = mdn_l.get_shape().as_list()[3]
-                    kernel_shape = [k_sz, k_sz, in_filt, n_filt*2]
-                    mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
+                    with tf.variable_scope('layer_locs_2'):
+                        in_filt = mdn_l.get_shape().as_list()[3]
+                        kernel_shape = [k_sz, k_sz, in_filt, n_filt*2]
+                        mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
 
-                with tf.variable_scope('layer_locs_3'):
-                    in_filt = mdn_l.get_shape().as_list()[3]
-                    kernel_shape = [k_sz, k_sz, in_filt, n_filt-2]
-                    mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
+                    with tf.variable_scope('layer_locs_3'):
+                        in_filt = mdn_l.get_shape().as_list()[3]
+                        kernel_shape = [k_sz, k_sz, in_filt, n_filt-2]
+                        mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
 
                 loc_shape = mdn_l.get_shape().as_list()
                 n_x = loc_shape[2]

@@ -1489,4 +1489,6 @@ def submit_job(name, cmd, dir,queue='gpu_any'):
         sing_log, sing_err, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     subprocess.call(cmd, shell=True)
     print('Submitted jobs for {}'.format(name))
+    print(cmd)
+
 
