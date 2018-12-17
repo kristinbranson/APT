@@ -660,8 +660,16 @@ classdef DeepTracker < LabelTracker
         end
         macroCell = struct2cell(obj.lObj.projMacrosGetWithAuto());
         cacheDir = obj.sPrm.CacheDir;
+        
+        % add in home directory and their ancestors
+        homedir = getuserdir;
+        homeancestors = [{homedir},getpathancestors(homedir)];
+        if isunix,
+          homeancestors = setdiff(homeancestors,{'/'});
+        end
+        
         assert(~isempty(cacheDir));
-        singBind = [{cacheDir;APT.getpathdl};macroCell(:)];
+        singBind = [{cacheDir;APT.getpathdl};macroCell(:);homeancestors(:)];
         fprintf('Auto-generated singularity BIND_PATH:\n');
         cellfun(@(x)fprintf('  %s\n',x),singBind);
       end
