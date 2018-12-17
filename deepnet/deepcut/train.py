@@ -56,10 +56,13 @@ def setup_preloading(batch_spec):
 
 
 def load_and_enqueue(sess, enqueue_op, coord, dataset, placeholders):
-    while not coord.should_stop():
-        batch_np = dataset.next_batch()
-        food = {pl: batch_np[name] for (name, pl) in placeholders.items()}
-        sess.run(enqueue_op, feed_dict=food)
+    try:
+        while not coord.should_stop():
+            batch_np = dataset.next_batch()
+            food = {pl: batch_np[name] for (name, pl) in placeholders.items()}
+            sess.run(enqueue_op, feed_dict=food)
+    except tf.errors.CancelledError:
+        pass
 
 
 def start_preloading(sess, enqueue_op, dataset, placeholders):
@@ -221,7 +224,7 @@ def train(cfg):
 
     sess.close()
     coord.request_stop()
-    coord.join([thread])
+    coord.join([thread],3)
 
 
 def get_pred_fn(cfg, model_file=None):
