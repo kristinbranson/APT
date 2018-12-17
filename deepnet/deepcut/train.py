@@ -90,7 +90,7 @@ def get_optimizer(loss_op, cfg):
 
 
 def save_td(cfg, train_info):
-    train_data_file = os.path.join( cfg.cachedir, cfg.expname + '_' + name + '_traindata')
+    train_data_file = os.path.join( cfg.cachedir, 'traindata')
     json_data = {}
     for x in train_info.keys():
         json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()
@@ -236,6 +236,7 @@ def get_pred_fn(cfg, model_file=None):
         ckpt_file = os.path.join(cfg.cachedir,cfg.expname + '_' + name + '_ckpt')
         latest_ckpt = tf.train.get_checkpoint_state( cfg.cachedir, ckpt_file)
         init_weights = latest_ckpt.model_checkpoint_path
+        model_file = latest_ckpt.model_checkpoint_path
     else:
         init_weights = model_file
 
