@@ -353,9 +353,12 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         for n,v in zip(cc[0::2],cc[1::2]):
             setattr(conf,n,ast.literal_eval(v))
 
+    # overrides for each network
     if net_type == 'openpose':
         # openpose uses its own normalization
         conf.normalize_img_mean = False
+    elif net_type == 'deeplabcut':
+        conf.batch_size = 1
 
     return conf
 
@@ -1399,7 +1402,6 @@ def train(lblfile, nviews, name, args):
             elif net_type == 'deeplabcut':
                 if args.use_defaults:
                     deepcut.train.set_deepcut_defaults(conf)
-                #deepcut_train(conf)
                 train_deepcut(conf,args)
         except tf.errors.InternalError as e:
             logging.exception(

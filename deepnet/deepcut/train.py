@@ -56,10 +56,13 @@ def setup_preloading(batch_spec):
 
 
 def load_and_enqueue(sess, enqueue_op, coord, dataset, placeholders):
-    while not coord.should_stop():
-        batch_np = dataset.next_batch()
-        food = {pl: batch_np[name] for (name, pl) in placeholders.items()}
-        sess.run(enqueue_op, feed_dict=food)
+    try:
+        while not coord.should_stop():
+            batch_np = dataset.next_batch()
+            food = {pl: batch_np[name] for (name, pl) in placeholders.items()}
+            sess.run(enqueue_op, feed_dict=food)
+    except tf.errors.CancelledError:
+        pass
 
 
 def start_preloading(sess, enqueue_op, dataset, placeholders):
@@ -87,7 +90,7 @@ def get_optimizer(loss_op, cfg):
 
 
 def save_td(cfg, train_info):
-    train_data_file = os.path.join( cfg.cachedir, cfg.expname + '_' + name + '_traindata')
+    train_data_file = os.path.join( cfg.cachedir, 'traindata')
     json_data = {}
     for x in train_info.keys():
         json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()
@@ -128,20 +131,20 @@ def train(cfg):
     cfg = edict(cfg.__dict__)
     cfg = config.convert_to_deepcut(cfg)
 
-    dirname = os.path.dirname(__file__)
-    init_weights = os.path.join(dirname, '../pretrained/resnet_v1_50.ckpt')
+    dirname = os.path.dirname(os.path.dirname(__file__))
+    init_weights = os.path.join(dirname, 'pretrained','resnet_v1_50.ckpt')
 
     if not os.path.exists(init_weights):
         # Download and save the pretrained resnet weights.
         logging.info('Downloading pretrained resnet 50 weights ...')
-        urllib.urlretrieve('http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz', os.path.join(dirname,'models','resnet_v1_50_2016_08_28.tar.gz'))
-        tar = tarfile.open(os.path.join(dirname,'models','resnet_v1_50_2016_08_28.tar.gz'))
-        tar.extractall(path=os.path.join(dirname,'models'))
+        urllib.urlretrieve('http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz', os.path.join(dirname,'pretrained','resnet_v1_50_2016_08_28.tar.gz'))
+        tar = tarfile.open(os.path.join(dirname,'pretrained','resnet_v1_50_2016_08_28.tar.gz'))
+        tar.extractall(path=os.path.join(dirname,'pretrained'))
         tar.close()
         logging.info('Done downloading pretrained weights')
 
     db_file_name = os.path.join(cfg.cachedir, 'train_data.p')
-    dataset = PoseDataset(cfg, db_file_name)
+    dataset = PoseDataset(cfg, db_file_name,distort=True)
     train_info = {'train_dist':[],'train_loss':[],'val_dist':[],'val_loss':[],'step':[]}
 
     batch_spec = get_batch_spec(cfg)
@@ -181,6 +184,7 @@ def train(cfg):
     model_name = os.path.join( cfg.cachedir, cfg.expname + '_' + name)
     ckpt_file = os.path.join(cfg.cachedir, cfg.expname + '_' + name + '_ckpt')
 
+    start = time.time()
     for it in range(max_iter+1):
         current_lr = lr_gen.get_lr(it)
         [_, loss_val] = sess.run([train_op, total_loss], # merged_summaries],
@@ -199,6 +203,9 @@ def train(cfg):
             dd = dd*cfg.dlc_rescale
             average_loss = cum_loss / display_iters
             cum_loss = 0.0
+            end = time.time()
+            # print('Time to train: {}'.format(end-start))
+            start = end
             print("iteration: {} loss: {} dist: {}  lr: {}"
                          .format(it, "{0:.4f}".format(average_loss),
                                  '{0:.2f}'.format(dd.mean()), current_lr))
@@ -215,9 +222,9 @@ def train(cfg):
             saver.save(sess, model_name, global_step=it,
                        latest_filename=os.path.basename(ckpt_file))
 
-    coord.request_stop()
-    coord.join([thread])
     sess.close()
+    coord.request_stop()
+    coord.join([thread],3)
 
 
 def get_pred_fn(cfg, model_file=None):
@@ -229,6 +236,7 @@ def get_pred_fn(cfg, model_file=None):
         ckpt_file = os.path.join(cfg.cachedir,cfg.expname + '_' + name + '_ckpt')
         latest_ckpt = tf.train.get_checkpoint_state( cfg.cachedir, ckpt_file)
         init_weights = latest_ckpt.model_checkpoint_path
+        model_file = latest_ckpt.model_checkpoint_path
     else:
         init_weights = model_file
 
