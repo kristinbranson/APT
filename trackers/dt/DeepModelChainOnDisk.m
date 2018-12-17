@@ -18,6 +18,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     dirNetLnx
     dirViewLnx  
     dirModelChainLnx
+    dirTrkOutLnx
     
     lblStrippedLnx % full path to stripped lbl file for this train session
     lblStrippedName % short filename 
@@ -29,7 +30,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     killTokenName
     trainDataLnx    
     trainFinalIndexLnx
-    trainFinalIndexName    
+    trainFinalIndexName
   end
   methods
     function v = get.dirProjLnx(obj)
@@ -44,6 +45,9 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     function v = get.dirModelChainLnx(obj)
       v = [obj.rootDir '/' obj.projID '/' char(obj.netType) '/' sprintf('view_%d',obj.view) '/' obj.modelChainID];
     end
+    function v = get.dirTrkOutLnx(obj)
+      v = [obj.rootDir '/' obj.projID '/' char(obj.netType) '/' sprintf('view_%d',obj.view) '/' obj.modelChainID '/' 'trk'];
+    end    
     
     function v = get.lblStrippedLnx(obj)      
       v = [obj.dirProjLnx '/' obj.lblStrippedName];      

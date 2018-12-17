@@ -1158,11 +1158,20 @@ classdef DeepTracker < LabelTracker
         end
         
         % trkfile, outfile
+        trkoutdir = dmc(ivw).dirTrkOutLnx;
+        if exist(trkoutdir,'dir')==0
+          [succ,msg] = mkdir(trkoutdir);
+          if ~succ
+            error('Failed to create trk output dir %s: %s',trkoutdir,msg);
+          else
+            fprintf(1,'Created trk output dir: %s\n',trkoutdir);
+          end
+        end
         mov = movs{ivw};
         [movP,movS] = fileparts(mov);
-        trkfile = fullfile(movP,[movS '_' trnstr '_' nowstr '.trk']);
-        outfile = fullfile(movP,[movS '_' trnstr '_' nowstr '.log']);
-        errfile = fullfile(movP,[movS '_' trnstr '_' nowstr '.err']);
+        trkfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.trk']);
+        outfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.log']);
+        errfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.err']);
         %outfile2 = fullfile(movP,[movS '_' trnstr '_' nowstr '.log2']);
         fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);  
 
