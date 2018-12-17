@@ -1162,7 +1162,7 @@ classdef DeepTracker < LabelTracker
         if exist(trkoutdir,'dir')==0
           [succ,msg] = mkdir(trkoutdir);
           if ~succ
-            error('Failed to create trk output dir %s: %s',trkoutdir,msg);
+            error('Failed to create trk cache dir %s: %s',trkoutdir,msg);
           else
             fprintf(1,'Created trk output dir: %s\n',trkoutdir);
           end
@@ -1269,7 +1269,7 @@ classdef DeepTracker < LabelTracker
       dlLblFileRemote = dmc.lblStrippedLnx;
       aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
             
-      trkdirRemoteFull = aws.ensureRemoteDir('trk','descstr','trk');
+      %trkdirRemoteFull = aws.ensureRemoteDir('trk','descstr','trk');
       datadirRemoteFull = aws.ensureRemoteDir('data','descstr','data');
       % should prob get these from tMFTConc
       movsfull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
@@ -1317,14 +1317,28 @@ classdef DeepTracker < LabelTracker
         nowstr = datestr(now,'yyyymmddTHHMMSS');
         modelChainID = obj.trnName;
         trnstr = sprintf('trn%s',modelChainID);
+        
+        trkdirRemote = dmc(ivw).dirTrkOutLnx;
+        aws.ensureRemoteDir(trkdirRemote,'relative',false,'descstr','trk');
+        dmcLcl = dmc(ivw).copy();
+        dmcLcl.rootDir = obj.sPrm.CacheDir;
+        trkdirLocal = dmcLcl.dirTrkOutLnx;
+        if exist(trkdirLocal,'dir')==0
+          [succ,msg] = mkdir(trkdirLocal);
+          if ~succ
+            error('Failed to create local trk cache dir %s: %s',trkdirLocal,msg);
+          else
+            fprintf(1,'Created local trk cache dir: %s\n',trkdirLocal);
+          end
+        end
       
-        [movP,movS,movE] = myfileparts(mov);
+        [~,movS,movE] = myfileparts(mov);
         trkLocalRel = [movS '_' trnstr '_' nowstr '.trk'];
         trkRemoteRel = [movsha '_' trnstr '_' nowstr];
-        trkLocalAbs = fullfile(movP,trkLocalRel);
-        trkRemoteAbs = [trkdirRemoteFull '/' trkRemoteRel '.trk'];
-        logfileRemoteAbs = [trkdirRemoteFull '/' trkRemoteRel '.log'];
-        errfileRemoteAbs = [trkdirRemoteFull '/' trkRemoteRel '.err'];
+        trkLocalAbs = fullfile(trkdirLocal,trkLocalRel);
+        trkRemoteAbs = [trkdirRemote '/' trkRemoteRel '.trk'];
+        logfileRemoteAbs = [trkdirRemote '/' trkRemoteRel '.log'];
+        errfileRemoteAbs = [trkdirRemote '/' trkRemoteRel '.err'];
         %outfile2 = [trkdirRemoteFull '/' trkfilebase '.log2'];
         %fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);
         
