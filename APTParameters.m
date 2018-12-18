@@ -4,6 +4,9 @@ classdef APTParameters
     TRACK_PARAMETER_FILE = lclInitTrackParameterFile();
     CPR_PARAMETER_FILE = lclInitCPRParameterFile();
     DEEPTRACK_PARAMETER_FILE = lclInitDeepTrackParameterFile();
+    MDN_PARAMETER_FILE = lclInitDeepTrackMDNParameterFile();
+    DLC_PARAMETER_FILE = lclInitDeepTrackDLCParameterFile();
+    UNET_PARAMETER_FILE = lclInitDeepTrackUNetParameterFile();
   end
   methods (Static)
     function tPrm0 = defaultParamsTree
@@ -16,8 +19,14 @@ classdef APTParameters
       tPrmTrack = parseConfigYaml(APTParameters.TRACK_PARAMETER_FILE);
       tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
+      tPrmMdn = parseConfigYaml(APTParameters.MDN_PARAMETER_FILE);
+      tPrmDlc = parseConfigYaml(APTParameters.DLC_PARAMETER_FILE);
+      tPrmUnet = parseConfigYaml(APTParameters.UNET_PARAMETER_FILE);
+      tPrmDT.Children.Children = [tPrmDT.Children.Children;...
+        tPrmMdn.Children; tPrmDlc.Children; tPrmUnet.Children];        
       tPrm0 = tPrmPreprocess;
-      tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;tPrmCpr.Children;tPrmDT.Children];
+      tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
+        tPrmCpr.Children; tPrmDT.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
@@ -121,12 +130,16 @@ classdef APTParameters
       
         if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(labelerObj.trackerAlgo,'cpr'),
           tree.Data.Visible = false;
-        end
-        if ismember('hasTrx',tree.Data.Requirements) && ~labelerObj.hasTrx,
+        elseif ismember('hasTrx',tree.Data.Requirements) && ~labelerObj.hasTrx,
           tree.Data.Visible = false;
-        end
-        if ismember('isDeepTrack',tree.Data.Requirements) && ~labelerObj.trackerIsDL,
+        elseif ismember('isDeepTrack',tree.Data.Requirements) && ~labelerObj.trackerIsDL,
           tree.Data.Visible = false;
+        elseif ismember('isMDN',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'mdn'),
+          tree.Data.Visible = false;
+        elseif ismember('isDLC',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'deeplabcut'),
+          tree.Data.Visible = false;
+        elseif ismember('isUNET',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'unet'),
+          tree.Data.Visible = false;elseif ismember('isUnet',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'unet'),
         end
         
         return;
@@ -171,4 +184,16 @@ end
 function dtParamFile = lclInitDeepTrackParameterFile()
 aptroot = APT.Root;
 dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack.yaml');
+end
+function dtParamFile = lclInitDeepTrackMDNParameterFile()
+aptroot = APT.Root;
+dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_mdn.yaml');
+end
+function dtParamFile = lclInitDeepTrackDLCParameterFile()
+aptroot = APT.Root;
+dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_dlc.yaml');
+end
+function dtParamFile = lclInitDeepTrackUNetParameterFile()
+aptroot = APT.Root;
+dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_unet.yaml');
 end
