@@ -144,7 +144,12 @@ classdef DeepTracker < LabelTracker
       
       %obj.backendType = DLBackEnd.Bsub;
       obj.bgTrnMonitor = [];
-      obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
+      switch lObj.trackDLBackEnd.type,
+        case DLBackEnd.Bsub,
+          obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
+        otherwise
+          obj.bgTrnMonitorVizClass = 'LegacyTrainMonitorViz';
+      end
 
       obj.bgTrkMonitor = [];
       
