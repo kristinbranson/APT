@@ -5,7 +5,7 @@ classdef DeepTracker < LabelTracker
     algorithmNamePretty
   end
   properties (Constant,Hidden)
-    SAVEPROPS = {'sPrm' ...
+    SAVEPROPS = {'sPrm' 'containerBindPaths' ...
       'trnNetType' 'trnName' 'trnNameLbl' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'};    
     RemoteAWSCacheDir = '/home/ubuntu';
   end
@@ -19,15 +19,10 @@ classdef DeepTracker < LabelTracker
 %     backendType % scalar DLBackEnd
 %   end
   properties
-    singBindPath % transient, cellstr of BIND_PATHs for singularity. 
-      % Used only when training with Bsub backend. Will be used if it is 
-      % non-empty; otherwise an attempt will be made to generate the 
-      % required bind_paths.
+    containerBindPaths % cellstr of bind paths for sing/docker
+      % Will be used if it is nonempty; otherwise an attempt will be made 
+      % to autogenerate the required bind/mount paths.
       
-%     awsEc2 % AWSec2 obj, used only for AWS backend actions. 
-%            % TODO: can hide backend-specific state (this, singBindPath,
-%            % etc) in backend obj
-
     %% train
     
     % - The trained model lives in the fileSys in <cacheDir>/<proj>view%d/trnName.
@@ -216,6 +211,10 @@ classdef DeepTracker < LabelTracker
       end
       if isfield(s,'backendType')
         s = rmfield(s,'backendType');
+      end
+      % 20181218
+      if ~isfield(s,'containerBindPaths')
+        s.containerBindPaths = cell(0,1);
       end
     end
   end
@@ -685,32 +684,60 @@ classdef DeepTracker < LabelTracker
 %       s = DeepTracker.trnLogfileStc(obj.sPrm.CacheDir,obj.trnName,iview);
 %     end
     
-    function singBind = genContainerMountPath(obj)
-      if ~isempty(obj.singBindPath)
-        assert(iscellstr(obj.singBindPath),'singBindPath must be a cellstr.');
-        fprintf('Using user-specified singularity BIND_PATH.\n');
-        singBind = obj.singBindPath;
+    function paths = genContainerMountPath(obj)
+      if ~isempty(obj.containerBindPaths)
+        assert(iscellstr(obj.containerBindPaths),'containerBindPaths must be a cellstr.');
+        fprintf('Using user-specified container bind-paths:\n');
+        paths = obj.containerBindPaths;
       else
-        if isempty(obj.lObj.projMacros)
-          warningNoTrace('No user-defined project macros found; singularity BIND_PATH may be incorrect.');
-        end
-        macroCell = struct2cell(obj.lObj.projMacrosGetWithAuto());
+        lObj = obj.lObj;
+        
+        macroCell = struct2cell(lObj.projMacrosGetWithAuto());
         cacheDir = obj.sPrm.CacheDir;
+        assert(~isempty(cacheDir));
         
-        % add in home directory and their ancestors
-        homedir = getuserdir;
-        homeancestors = [{homedir},getpathancestors(homedir)];
-        if isunix,
-          homeancestors = setdiff(homeancestors,{'/'});
+        mfaf = lObj.movieFilesAllFull;
+        tfaf = lObj.trxFilesAllFull;
+        mfafgt = lObj.movieFilesAllGTFull;
+        tfafgt = lObj.trxFilesAllGTFull;
+        
+        projbps = cell(0,1);
+        projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfaf,'.movieFilesAllFull');
+        if ~isempty(mfafgt)
+          projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfafgt,'.movieFilesAllGTFull');
+        end
+        if lObj.hasTrx
+          projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfaf,'.trxFilesAllFull');
+          if ~isempty(tfafgt)
+            projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfafgt,'.trxFilesAllGTFull');
+          end
         end
         
-        assert(~isempty(cacheDir));
-        singBind = [{cacheDir;APT.getpathdl};macroCell(:);homeancestors(:)];
-        fprintf('Auto-generated singularity BIND_PATH:\n');
-        cellfun(@(x)fprintf('  %s\n',x),singBind);
+%         % add in home directory and their ancestors
+%         homedir = getuserdir;
+%         homeancestors = [{homedir},getpathancestors(homedir)];
+%         if isunix,
+%           homeancestors = setdiff(homeancestors,{'/'});
+%         end
+        
+        fprintf('Using auto-generated container bind-paths:\n');
+        paths = [cacheDir;APT.getpathdl;macroCell(:);projbps(:)];
+      end
+      
+      cellfun(@(x)fprintf('  %s\n',x),paths);
+    end    
+  end
+  methods (Static)
+    function basepaths = hlpAugBasePathsWithWarn(basepaths,newpaths,descstr)
+      bps = FSPath.commonbase(newpaths);
+      if isempty(bps)
+        % no nonempty common base found, ie common base is '/'
+        warningNoTrace('No common base path found for %s.',descstr);
+      else
+        fprintf(1,'Found base path ''%s'' for %s.\n',bps,descstr);
+        basepaths{end+1,1} = bps;
       end
     end    
-    
   end
   %% AWS Trainer    
   methods
