@@ -292,14 +292,14 @@ classdef DeepTracker < LabelTracker
 
     function bgTrnStart(obj,trnMonitorObj,trnWorkerObj)
       % fresh start new training monitor 
-      
+            
       if ~isempty(obj.bgTrnMonitor)
         error('Training monitor exists. Call .bgTrnReset first to stop/remove existing monitor.');
       end
       assert(isempty(obj.bgTrnMonBGWorkerObj));
 
       nvw = obj.lObj.nview;
-      trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw);
+      trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw,trnWorkerObj);
                 
       addlistener(trnMonitorObj,'bgStart',@(s,e)obj.notify('trainStart'));
       addlistener(trnMonitorObj,'bgEnd',@(s,e)obj.notify('trainEnd'));
@@ -537,7 +537,8 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrm.dl_steps);
+        'iterFinal',obj.sPrm.dl_steps,...
+        'backEnd',backEnd);
       
       obj.downloadPretrainedWeights();         
       

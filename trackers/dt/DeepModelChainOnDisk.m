@@ -12,6 +12,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     
     trainType % scalar DLTrainType
     iterFinal % final expected iteration    
+    backEnd % back-end info (bsub, docker, aws)
   end
   properties (Dependent)
     dirProjLnx
