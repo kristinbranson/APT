@@ -12,7 +12,7 @@ classdef CPRParam
   %
   % For ease-of-use, APT users are shown a reduced/simplified set of
   % parameters, sometimes called "new" parameters. The defaults for these
-  % are given in .../cpr/params_apt.yaml.
+  % are given in .../cpr/params_cpr.yaml.
   %
   % This file contains conversion routines (below) for going from new-style
   % parameters to old-style parameters and vice-versa.
