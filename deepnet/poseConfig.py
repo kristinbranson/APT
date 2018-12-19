@@ -26,8 +26,8 @@ class config(object):
         self.display_step = 50
         self.num_test = 8
         self.dl_steps = 20000 # number of training iters
-        self.n_steps = 2
-        # rate will be reduced by gamma**n_steps by the end of the training.
+        self.decay_steps = 25000
+        # rate will be reduced by gamma every decay_step iterations.
 
         # range for contrast, brightness and rotation adjustment
         self.horz_flip = False

@@ -448,8 +448,8 @@ class PoseCommon(object):
     def train_step(self, step, sess, learning_rate, training_iters):
         cur_step = float(step)
 
-        n_steps = self.conf.n_steps
-        cur_lr = learning_rate * (self.conf.gamma ** (cur_step*n_steps/ training_iters))
+        decay_steps = self.conf.decay_steps
+        cur_lr = learning_rate * (self.conf.gamma ** (cur_step/decay_steps))
         # min_lr = 1e-6
         # min_lr = learning_rate/100
         self.fd[self.ph['learning_rate']] = cur_lr
