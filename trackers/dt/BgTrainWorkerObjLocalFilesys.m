@@ -43,7 +43,10 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
       end
     end
     
-    function killProcess(obj)
+    function [tfsucc,warnings] = killProcess(obj)
+      tfsucc = false;
+      warnings = {};
+      
       dmcs = obj.dmcs;
       killfiles = {dmcs.killTokenLnx};
       jobids = obj.jobID;
@@ -62,13 +65,17 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
         tfsucc = waitforPoll(fcn,iterWaitTime,maxWaitTime);
         
         if ~tfsucc
+          warnings{end+1} = 'Could not confirm that training job was killed.';
           warningNoTrace('Could not confirm that training job was killed.');
         else
           % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to
           % pick up
           
           kfile = killfiles{ivw};
-          obj.createKillToken(kfile);
+          tfsucc = obj.createKillToken(kfile);
+          if ~tfsucc,
+            warnings{end+1} = sprintf('Failed to create KILLED token: %s',kfile);
+          end
         end
         
         % bgTrnMonitor should pick up KILL tokens and stop bg trn monitoring

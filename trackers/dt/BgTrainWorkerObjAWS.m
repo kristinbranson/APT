@@ -128,7 +128,8 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
       end
     end
     
-    function killProcess(obj)
+    function [tfsucc,warnings] = killProcess(obj)
+      warnings = {};
 %       if ~obj.isRunning
 %         error('Training is not in progress.');
 %       end
@@ -151,6 +152,7 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
       
       if ~tfsucc
         warningNoTrace('Could not confirm that remote process was killed.');
+        warnings{end+1} = 'Could not confirm that remote process was killed.';
       else
         % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
         % pick up
@@ -158,6 +160,7 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
         tfsucc = aws.cmdInstance(cmd,'dispcmd',false);
         if ~tfsucc
           warningNoTrace('Failed to create remote KILLED token: %s',killfile);
+          warnings{end+1} = sprintf('Failed to create remote KILLED token: %s',killfile);
         else
           fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge the kill!\n',killfile);
         end

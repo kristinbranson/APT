@@ -39,12 +39,12 @@ classdef TrainMonitorViz < handle
       
       %obj.hannlastupdated = TrainMonitorViz.createAnnUpdate(obj.haxs(1));
       
-      clrs = lines(nview);
+      clrs = lines(nview)*.9+.1;
       h = gobjects(nview,2);
       hkill = gobjects(nview,2);
       for ivw=1:nview
         for j=1:2
-          h(ivw,j) = plot(obj.haxs(j),nan,nan,'.-','color',clrs(ivw,:));
+          h(ivw,j) = plot(obj.haxs(j),nan,nan,'.-','color',clrs(ivw,:),'LineWidth',2);
           hkill(ivw,j) = plot(obj.haxs(j),nan,nan,'rx','markersize',12,'linewidth',2);
         end
       end
@@ -211,19 +211,20 @@ classdef TrainMonitorViz < handle
         return;
       end
       obj.SetBusy('Killing training jobs...',true);
-      obj.trainWorkerObj.killProcess();
-      
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'off';
-
-      waitfor(handles.pushbutton_startstop,'Enable','on');
-      TrainMonitorViz.updateStartStopButton(handles,false);
-
-      obj.ClearBusy('Training process killed');
-
-      
-      
+      [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
+      if tfsucc,
+        waitfor(handles.pushbutton_startstop,'Enable','on');
+        drawnow;
+        TrainMonitorViz.updateStartStopButton(handles,false);
+        obj.ClearBusy('Training process killed');
+        drawnow;
+      else
+        obj.ClearBusy('Training process killed');
+        warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
+      end
     end
     
     function updateClusterInfo(obj)
@@ -337,9 +338,9 @@ classdef TrainMonitorViz < handle
     function updateStartStopButton(handles,isStop)
       
       if isStop,
-        set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on');
+        set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
       else
-        set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','off');
+        set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','off','UserData','start');
       end
       
     end
