@@ -633,6 +633,8 @@ classdef DeepTracker < LabelTracker
       else
         obj.bgTrnStart(backEnd,dmc);
         
+        bgTrnWorkerObj = obj.bgTrnMonBGWorkerObj;
+        
         % spawn training
         if backEnd.type==DLBackEnd.Docker
           bgTrnWorkerObj.jobID = cell(nvw,1);
