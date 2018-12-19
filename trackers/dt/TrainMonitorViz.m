@@ -50,7 +50,7 @@ classdef TrainMonitorViz < handle
       end
       if nview > 1,
         viewstrs = arrayfun(@(x)sprintf('view%d',x),(1:nview)','uni',0);
-        legend(obj.haxs(2),h(:,1),viewstrs);
+        legend(obj.haxs(2),h(:,1),viewstrs,'TextColor','w');
       end
       obj.hline = h;
       obj.hlinekill = hkill;
@@ -120,12 +120,13 @@ classdef TrainMonitorViz < handle
         obj.adjustAxes(lineUpdateMaxStep);
       end
       obj.lastTrainIter = lineUpdateMaxStep;
-      obj.updateAnn([res.pollsuccess]);
       
       if isempty(obj.resLast) || tfAnyLineUpdate
         obj.resLast = res;
       end
-      
+
+      obj.updateAnn([res.pollsuccess]);
+
 %           
 %           
 %         fprintf(1,'View%d: jsonPresent: %d. ',ivw,res(ivw).jsonPresent);
@@ -159,11 +160,11 @@ classdef TrainMonitorViz < handle
       isErr = false;
       isLogFile = false;
       if ~isempty(obj.resLast),
-        isTrainComplete = obj.resLast.trainComplete;
-        isErr = obj.resLast.errFileExists || obj.resLast.logFileErrLikely;
+        isTrainComplete = all([obj.resLast.trainComplete]);
+        isErr = any([obj.resLast.errFileExists]) || any([obj.resLast.logFileErrLikely]);
         % to-do: figure out how to make this robust to different file
         % systems
-        isLogFile = exist(obj.resLast.logFile,'file');
+        isLogFile = any(cellfun(@(x) exist(x,'file'),{obj.resLast.logFile}));
       end
 
       if obj.isKilled,
@@ -172,6 +173,8 @@ classdef TrainMonitorViz < handle
         status = sprintf('Error while training after %d iterations',obj.lastTrainIter);
       elseif isTrainComplete,
         status = sprintf('Training complete, %d iterations performed',obj.lastTrainIter);
+        handles = guidata(obj.hfig);
+        updateStartStopButton(handles,false);
       elseif isLogFile,
         status = sprintf('Training in progress. %d iterations completed.',obj.lastTrainIter);
       else
