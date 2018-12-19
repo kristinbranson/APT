@@ -294,7 +294,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnReset();
     end
 
-    function bgTrnStart(obj,trnMonitorObj,trnWorkerObj)
+    function bgTrnStart(obj,trnMonitorObj,trnWorkerObj,backEnd)
       % fresh start new training monitor 
             
       if ~isempty(obj.bgTrnMonitor)
@@ -303,7 +303,7 @@ classdef DeepTracker < LabelTracker
       assert(isempty(obj.bgTrnMonBGWorkerObj));
 
       nvw = obj.lObj.nview;
-      trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw,trnWorkerObj);
+      trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw,trnWorkerObj,backEnd);
                 
       addlistener(trnMonitorObj,'bgStart',@(s,e)obj.notify('trainStart'));
       addlistener(trnMonitorObj,'bgEnd',@(s,e)obj.notify('trainEnd'));
@@ -333,7 +333,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonitor = [];
       obj.bgTrnMonBGWorkerObj = [];
       
-      obj.bgTrnStart(bgTrnMonitorObj,workerObj);
+      obj.bgTrnStart(bgTrnMonitorObj,workerObj); % needs 3rd arg
     end
 
     function bgTrnReset(obj)
@@ -541,8 +541,8 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrm.dl_steps,...
-        'backEnd',backEnd);
+        'iterFinal',obj.sPrm.dl_steps);
+        %'backEnd',backEnd);
       
       obj.downloadPretrainedWeights();         
       
@@ -628,7 +628,7 @@ classdef DeepTracker < LabelTracker
           otherwise
             assert(false);
         end          
-        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
+        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj,backEnd.type);
         
         % spawn training
         if backEnd.type==DLBackEnd.Docker
@@ -858,7 +858,7 @@ classdef DeepTracker < LabelTracker
         % start train monitor
         bgTrnMonitorObj = BgTrainMonitorAWS();
         bgTrnWorkerObj = BgTrainWorkerObjAWS(nvw,dmc,aws);
-        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
+        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj,backend.type);
 
         % spawn training
         for iview=1:nvw

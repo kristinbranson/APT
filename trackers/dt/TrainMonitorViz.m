@@ -12,13 +12,15 @@ classdef TrainMonitorViz < handle
     axisXRange = 2e3; % show last (this many) iterations along x-axis
     
     resLast % last training json contents received
-    trainWorkerObj = []; 
+    trainWorkerObj = [];
+    backEnd % scalar DLBackEnd
   end
   
   methods
-    function obj = TrainMonitorViz(nview,trainWorkerObj)
+    function obj = TrainMonitorViz(nview,trainWorkerObj,backEnd)
       
       obj.trainWorkerObj = trainWorkerObj;
+      obj.backEnd = backEnd;
       obj.hfig = TrainMonitorGUI(obj);
       handles = guidata(obj.hfig);
       TrainMonitorViz.updateStartStopButton(handles,true);
@@ -140,9 +142,7 @@ classdef TrainMonitorViz < handle
       % pollts: [nview] timestamps
       
       clusterstr = 'Cluster';
-      backEnd = obj.trainWorkerObj.getBackEnd();
-      switch backEnd.type
-        
+      switch obj.backEnd        
         case DLBackEnd.Bsub
           clusterstr = 'JRC cluster';
         case DLBackEnd.Docker

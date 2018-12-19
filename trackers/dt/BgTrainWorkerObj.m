@@ -148,11 +148,11 @@ classdef BgTrainWorkerObj < handle
       end
     end
     
-    function backEnd = getBackEnd(obj)
-      
-      backEnd = obj.dmcs.backEnd;
-      
-    end
+%     function backEnd = getBackEnd(obj)
+%       
+%       backEnd = obj.dmcs.backEnd;
+%       
+%     end
     
     function res = queryAllJobsStatus(obj)
       

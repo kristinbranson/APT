@@ -1,4 +1,7 @@
 classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
+  % DMCOD understands the filesystem structure of a deep model. This same
+  % structure is used both remotely and locally.
+  
   properties
     rootDir % root/parent "Models" dir
     projID 
@@ -12,7 +15,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     
     trainType % scalar DLTrainType
     iterFinal % final expected iteration    
-    backEnd % back-end info (bsub, docker, aws)
+    %backEnd % back-end info (bsub, docker, aws)
   end
   properties (Dependent)
     dirProjLnx
