@@ -294,7 +294,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnReset();
     end
 
-    function bgTrnStart(obj,trnMonitorObj,trnWorkerObj,backEnd)
+    function bgTrnStart(obj,backEnd,dmcs)
       % fresh start new training monitor 
             
       if ~isempty(obj.bgTrnMonitor)
@@ -303,15 +303,29 @@ classdef DeepTracker < LabelTracker
       assert(isempty(obj.bgTrnMonBGWorkerObj));
 
       nvw = obj.lObj.nview;
-      trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw,trnWorkerObj,backEnd);
+      assert(numel(dmcs)==nvw);
+
+      trnMonObj = BgTrainMonitor;
+      addlistener(trnMonObj,'bgStart',@(s,e)obj.notify('trainStart'));
+      addlistener(trnMonObj,'bgEnd',@(s,e)obj.notify('trainEnd'));
+
+      switch backEnd.type
+        case DLBackEnd.Bsub
+          trnWrkObj = BgTrainWorkerObjBsub(nvw,dmcs);
+        case DLBackEnd.Docker
+          trnWrkObj = BgTrainWorkerObjDocker(nvw,dmcs);
+        case DLBackEnd.AWS
+          trnWrkObj = BgTrainWorkerObjAWS(nvw,dmcs,backEnd.awsec2);
+        otherwise
+          assert(false);
+      end
+
+      trnVizObj = feval(obj.bgTrnMonitorVizClass,nvw,trnWrkObj,backEnd.type);
                 
-      addlistener(trnMonitorObj,'bgStart',@(s,e)obj.notify('trainStart'));
-      addlistener(trnMonitorObj,'bgEnd',@(s,e)obj.notify('trainEnd'));
-      
-      trnMonitorObj.prepare(trnMonVizObj,trnWorkerObj);
-      trnMonitorObj.start();
-      obj.bgTrnMonitor = trnMonitorObj;
-      obj.bgTrnMonBGWorkerObj = trnWorkerObj;
+      trnMonObj.prepare(trnVizObj,trnWrkObj);
+      trnMonObj.start();
+      obj.bgTrnMonitor = trnMonObj;
+      obj.bgTrnMonBGWorkerObj = trnWrkObj;
     end
     
     function bgTrnRestart(obj,bgTrnMonitorObj)
@@ -333,7 +347,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonitor = [];
       obj.bgTrnMonBGWorkerObj = [];
       
-      obj.bgTrnStart(bgTrnMonitorObj,workerObj); % needs 3rd arg
+      obj.bgTrnStart(bgTrnMonitorObj,workerObj); % xxx TODO
     end
 
     function bgTrnReset(obj)
@@ -617,18 +631,7 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-         % start train monitor
-        switch backEnd.type
-          case DLBackEnd.Bsub
-            bgTrnMonitorObj = BgTrainMonitorBsub;
-            bgTrnWorkerObj = BgTrainWorkerObjBsub(nvw,dmc);
-          case DLBackEnd.Docker
-            bgTrnMonitorObj = BgTrainMonitorBsub;
-            bgTrnWorkerObj = BgTrainWorkerObjDocker(nvw,dmc);
-          otherwise
-            assert(false);
-        end          
-        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj,backEnd.type);
+        obj.bgTrnStart(backEnd,dmc);
         
         % spawn training
         if backEnd.type==DLBackEnd.Docker
@@ -855,10 +858,7 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-        % start train monitor
-        bgTrnMonitorObj = BgTrainMonitorAWS();
-        bgTrnWorkerObj = BgTrainWorkerObjAWS(nvw,dmc,aws);
-        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj,backend.type);
+        obj.bgTrnStart(backend,dmc);
 
         % spawn training
         for iview=1:nvw
