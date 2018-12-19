@@ -1050,6 +1050,11 @@ end
 %lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
 function cbkWSWF(src,evt,lObj)
+
+if ~lObj.hasMovie
+  return;
+end
+
 scrollcnt = evt.VerticalScrollCount;
 scrollamt = evt.VerticalScrollAmount;
 fcurr = lObj.currFrame;
