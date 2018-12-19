@@ -67,7 +67,14 @@ classdef LegacyTrainMonitorViz < handle
           end
 
           if res(ivw).killFileExists && res(ivw).jsonPresent
-            contents = res(ivw).contents;
+            
+            % resLast/tfUpdate seems silly
+            if res(ivw).tfUpdate
+              contents = res(ivw).contents;
+            else
+              contents = obj.resLast(ivw).contents;
+            end
+            
             hkill = obj.hlinekill;
             % hmm really want to mark the last 2k interval when model is
             % actually saved
