@@ -1301,14 +1301,16 @@ def get_unet_pred_fn_nodataset(conf, model_file=None):
 def get_unet_pred_fn(conf, model_file=None,name='deepnet'):
     tf.reset_default_graph()
     self = PoseUNet.PoseUNet(conf, name=name)
-    self.train_data_name = 'traindata'
+    if name == 'deepnet':
+        self.train_data_name = 'traindata'
     return self.get_pred_fn(model_file)
 
 
 def get_mdn_pred_fn(conf, model_file=None,name='deepnet'):
     tf.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=name)
-    self.train_data_name = 'traindata'
+    if name == 'deepnet':
+        self.train_data_name = 'traindata'
     return self.get_pred_fn(model_file)
 
 

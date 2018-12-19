@@ -730,23 +730,25 @@ def get_vars(vstr):
 
 
 def compare_conf(curconf, oldconf):
-    ff = dir(curconf)
+    ff = list(set(dir(curconf))|set(dir(oldconf)))
     for f in ff:
         if f[0:2] == '__' or f[0:3] == 'get':
             continue
         if hasattr(curconf, f) and hasattr(oldconf, f):
             if type(getattr(curconf, f)) is np.ndarray:
-                print('%s' % f)
-                print('New:', getattr(curconf, f))
-                print('Old:', getattr(oldconf, f))
+                if not np.array_equal(getattr(curconf,f),getattr(oldconf,f)):
+                    print('%s not equal' % f)
+                    print('New:', getattr(curconf, f))
+                    print('Old:', getattr(oldconf, f))
 
             elif type(getattr(curconf, f)) is list:
                 if type(getattr(oldconf, f)) is list:
-                    if not cmp(getattr(curconf, f), getattr(oldconf, f)):
+                    if cmp(getattr(curconf, f), getattr(oldconf, f)) !=0 :
                         print('%s doesnt match' % f)
                 else:
                     print('%s doesnt match' % f)
-
+            elif callable(getattr(curconf,f)):
+                pass
             elif getattr(curconf, f) != getattr(oldconf, f):
                 print('%s doesnt match' % f)
 
@@ -984,6 +986,10 @@ def classify_movie_fine(conf, movie_name, locs, self, sess, max_frames=-1, start
     cap.release()
     return pred_locs
 
+def get_colors(n):
+    cmap = cm.get_cmap('jet')
+    rgba = cmap(np.linspace(0, 1, n))
+    return rgba
 
 def create_result_image(im, locs, perc, ax = None):
     if ax is None:

@@ -367,7 +367,7 @@ def train_ours(args):
                     print('Submitted job: {}'.format(cmd))
 
 
-def classify_db_all(conf,db_file,model_files,model_type):
+def classify_db_all(conf,db_file,model_files,model_type,name='deepnet'):
     cur_out = []
     extra_str = ''
     if model_type in ['mdn','unet','deeplabcut']:
@@ -381,7 +381,7 @@ def classify_db_all(conf,db_file,model_files,model_type):
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
-        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m)
+        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name)
         pred, label, gt_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
         close_fn()
         cur_out.append([pred, label, gt_list, m, 0,ts[mndx]])
