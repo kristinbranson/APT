@@ -21,7 +21,7 @@ from leap.utils import load_dataset
 from keras import backend as K
 
 
-name = 'leap'
+# name = 'leap'
 
 def train_val_split(X, Y, val_size=0.15, shuffle=True):
     """ Splits datasets into training and validation sets. """
@@ -310,7 +310,7 @@ def get_read_fn(conf, data_path):
     return read_fn, n_db
 
 
-def train_apt(conf, upsampling_layers=False):
+def train_apt(conf, upsampling_layers=False,name='deepnet'):
 
     """
     Trains the network and saves the intermediate results to an output directory.
@@ -459,7 +459,7 @@ def train_apt(conf, upsampling_layers=False):
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             print(p_str)
 
-            train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + name + '_traindata')
+            train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
 
             json_data = {}
             for x in self.train_info.keys():
@@ -468,7 +468,7 @@ def train_apt(conf, upsampling_layers=False):
                 json.dump(json_data, json_file)
 
             if step % conf.save_step == 0:
-                model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(step)))
+                model.save(os.path.join(conf.cachedir,name + '-{}'.format(step)))
 
     obs = OutputObserver(conf,[train_datagen,val_datagen])
 
@@ -504,7 +504,7 @@ def train_apt(conf, upsampling_layers=False):
     obs.on_epoch_end(epochs)
 
 
-def get_pred_fn(conf, model_file=None):
+def get_pred_fn(conf, model_file=None,name='deepnet'):
 
     if model_file is None:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf,name)

@@ -887,13 +887,13 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
 
 def get_pred_fn(model_type, conf, model_file=None,name='deepnet'):
     if model_type == 'openpose':
-        pred_fn, close_fn, model_file = open_pose.get_pred_fn(conf, model_file)
+        pred_fn, close_fn, model_file = open_pose.get_pred_fn(conf, model_file,name=name)
     elif model_type == 'unet':
         pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file,name=name)
     elif model_type == 'mdn':
         pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file,name=name)
     elif model_type == 'leap':
-        pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file)
+        pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file,name=name)
     elif model_type == 'deeplabcut':
         pred_fn, close_fn, model_file = deepcut.train.get_pred_fn(conf, model_file,name=name)
     else:
@@ -1360,13 +1360,13 @@ def train_mdn(conf, args, restore):
 def train_leap(conf, args):
     if not args.skip_db:
         create_leap_db(conf, False, use_cache=args.use_cache)
-    leap_train(conf)
+    leap_train(conf,name=args.train_name)
 
 
 def train_openpose(conf, args):
     if not args.skip_db:
         create_tfrecord(conf, False, use_cache=args.use_cache)
-    open_pose.training(conf)
+    open_pose.training(conf,name=args.train_name)
 
 
 def train_deepcut(conf, args):

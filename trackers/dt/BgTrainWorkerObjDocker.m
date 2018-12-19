@@ -17,6 +17,18 @@ classdef BgTrainWorkerObjDocker < BgTrainWorkerObjLocalFilesys
       end
     end
     
+    function res = queryAllJobsStatus(obj)
+      
+      res = 'Not implemented';
+%       bjobscmd = 'bjobs';
+%       bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
+%       fprintf(1,'%s\n',bjobscmd);
+%       [st,res] = system(bjobscmd);
+%       if st~=0
+%         warningNoTrace('Bkill command failed: %s',res);
+%       end
+      
+    end
         
     function fcn = makeJobKilledPollFcn(obj,jID)
       jID = jID{1};

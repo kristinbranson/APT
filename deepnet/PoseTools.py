@@ -1430,7 +1430,7 @@ def get_last_epoch(conf, name):
 def get_latest_model_file_keras(conf, name):
     last_epoch = get_last_epoch(conf, name)
     save_epoch = last_epoch
-    latest_model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(save_epoch))
+    latest_model_file = os.path.join(conf.cachedir, name + '-{}'.format(save_epoch))
     if not os.path.exists(latest_model_file):
         save_epoch = int(np.floor(last_epoch/conf.save_step)*conf.save_step)
         latest_model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(save_epoch))

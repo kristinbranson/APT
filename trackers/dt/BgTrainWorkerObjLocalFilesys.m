@@ -17,6 +17,7 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
     killJob(obj,jID) % kill a single job. jID is scalar jobID
     fcn = makeJobKilledPollFcn(obj,jID) % create function that returns true when job is confirmed killed. jID is scalar jobID
     createKillToken(obj,killtoken) % create/touch filesystem KILL token. killtoken is full linux path
+    %queryClusterJobs(obj)
   end
   
   methods
@@ -73,6 +74,26 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
         % bgTrnMonitor should pick up KILL tokens and stop bg trn monitoring
       end
     end
+    
+    function res = queryTrainJobsStatus(obj)
+      
+      jobids = obj.jobID;
+      nvw = obj.nviews;
+      assert(isequal(nvw,numel(jobids)));
+      
+      res = cell(1,nvw);
+      for ivw=1:nvw
+        res{ivw} = obj.queryJobStatus(jobids(ivw));
+      end
+      
+    end
+    
+    function res = queryJobStatus(obj,jID)
+      
+      res = 'Not implemented.';
+      
+    end
+    
         
   end
     
