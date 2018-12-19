@@ -115,7 +115,14 @@ classdef BgTrainWorkerObj < handle
       logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
       BgTrainWorkerObj.printLogfilesStc(logFiles,logFileContents)
     end
-            
+
+    function ss = getLogfilesContent(obj) % obj const
+      logFiles = {obj.dmcs.trainLogLnx}';
+      logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
+      ss = BgTrainWorkerObj.getLogfilesContentStc(logFiles,logFileContents);
+    end
+
+    
     function [tfEFE,errFile] = errFileExists(obj) % obj const
       errFile = unique({obj.dmcs.errfileLnx}');
       assert(isscalar(errFile));
@@ -140,6 +147,24 @@ classdef BgTrainWorkerObj < handle
         fprintf('\n');
       end
     end
+    
+%     function backEnd = getBackEnd(obj)
+%       
+%       backEnd = obj.dmcs.backEnd;
+%       
+%     end
+    
+    function res = queryAllJobsStatus(obj)
+      
+      res = 'Not implemented.';
+      
+    end
+    
+    function res = queryTrainJobsStatus(obj)
+      
+      res = 'Not implemented.';
+      
+    end
 
   end
   
@@ -154,6 +179,20 @@ classdef BgTrainWorkerObj < handle
         disp(logFileContents{ivw});
       end
     end
+
+    function ss = getLogfilesContentStc(logFiles,logFileContents)
+      % Print training logs for all views for current/last retrain 
+
+      ss = {};
+      for ivw=1:numel(logFiles)
+        logfile = logFiles{ivw};
+        ss{end+1} = sprintf('### View %d:',ivw); %#ok<AGROW>
+        ss{end+1} = sprintf('### %s',logfile); %#ok<AGROW>
+        ss{end+1} = ''; %#ok<AGROW>
+        ss = [ss,strsplit(logFileContents{ivw},'\n')]; %#ok<AGROW>
+      end
+    end
+
     
   end
   

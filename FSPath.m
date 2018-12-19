@@ -366,18 +366,39 @@ classdef FSPath
       %
       % p: cellstr of paths
       %
-      % base: char, common base path. Will be '' if there is no base path.
+      % base: char, common base path. Will be empty if there is no base path.
       
-      nchar = cellfun(@numel,p);
-      n = min(nchar);
-      base = '';
+      assert(isunix);
+      assert(~isempty(p) && iscellstr(p));
+      if ~all(cellfun(@(x)x(1)=='/',p))
+        error('All paths must be absolute unix paths.');
+      end
+      
+      if isscalar(p)
+        base = p{1};
+        return;
+      end
+      
+      parts = cellfun(@FSPath.fullfileparts,p,'uni',0);
+      % parts{i} is a row vec of folders
+      nfldrs = cellfun(@numel,parts);
+      n = min(nfldrs);
+
       for i=1:n
-        c = cellfun(@(x)x(i),p);
-        if all(c==c(1))
-          base(1,end+1) = c(1); %#ok<AGROW>
+        c = cellfun(@(x)x{i},parts,'uni',0);
+        if isequal(c{:})
+          % none; all ith folders match
         else
+          i = i-1;
           break;
         end
+      end
+      % parts/folders match up to and including position i      
+      
+      if i==0
+        base = '';
+      else
+        base = ['/' fullfile(parts{1}{1:i})];
       end
     end
       

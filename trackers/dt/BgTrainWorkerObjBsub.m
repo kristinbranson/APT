@@ -18,6 +18,46 @@ classdef BgTrainWorkerObjBsub < BgTrainWorkerObjLocalFilesys
       end
     end
     
+    function res = queryAllJobsStatus(obj)
+      
+      bjobscmd = 'bjobs';
+      bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
+      fprintf(1,'%s\n',bjobscmd);
+      [st,res] = system(bjobscmd);
+      if st~=0
+        warningNoTrace('Bkill command failed: %s',res);
+      else
+        
+%         i = strfind(res,'JOBID');
+%         if isempty(i),
+%           warning('Could not parse output from querying job status');
+%           return;
+%         end
+%         res = res(i(1):end);
+      end
+      
+    end
+    
+    function res = queryJobStatus(obj,jID)
+      
+      bjobscmd = sprintf('bjobs %d; echo "More detail:"; bjobs -l %d',jID,jID);
+      bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
+      fprintf(1,'%s\n',bjobscmd);
+      [st,res] = system(bjobscmd);
+      if st~=0
+        warningNoTrace('Bkill command failed: %s',res);
+      else
+        
+%         i = strfind(res,'Job <');
+%         if isempty(i),
+%           warning('Could not parse output from querying job status');
+%           return;
+%         end
+%         res = res(i(1):end);
+      end
+      
+    end
+    
     function fcn = makeJobKilledPollFcn(obj,jID)
       pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
       pollcmd = DeepTracker.codeGenSSHGeneral(pollcmd,'bg',false);

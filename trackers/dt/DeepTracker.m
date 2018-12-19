@@ -5,7 +5,7 @@ classdef DeepTracker < LabelTracker
     algorithmNamePretty
   end
   properties (Constant,Hidden)
-    SAVEPROPS = {'sPrm' ...
+    SAVEPROPS = {'sPrm' 'containerBindPaths' ...
       'trnNetType' 'trnName' 'trnNameLbl' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'};    
     RemoteAWSCacheDir = '/home/ubuntu';
   end
@@ -19,15 +19,10 @@ classdef DeepTracker < LabelTracker
 %     backendType % scalar DLBackEnd
 %   end
   properties
-    singBindPath % transient, cellstr of BIND_PATHs for singularity. 
-      % Used only when training with Bsub backend. Will be used if it is 
-      % non-empty; otherwise an attempt will be made to generate the 
-      % required bind_paths.
+    containerBindPaths % cellstr of bind paths for sing/docker
+      % Will be used if it is nonempty; otherwise an attempt will be made 
+      % to autogenerate the required bind/mount paths.
       
-%     awsEc2 % AWSec2 obj, used only for AWS backend actions. 
-%            % TODO: can hide backend-specific state (this, singBindPath,
-%            % etc) in backend obj
-
     %% train
     
     % - The trained model lives in the fileSys in <cacheDir>/<proj>view%d/trnName.
@@ -144,7 +139,12 @@ classdef DeepTracker < LabelTracker
       
       %obj.backendType = DLBackEnd.Bsub;
       obj.bgTrnMonitor = [];
-      obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
+      switch lObj.trackDLBackEnd.type,
+        case DLBackEnd.Bsub,
+          obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
+        otherwise
+          obj.bgTrnMonitorVizClass = 'LegacyTrainMonitorViz';
+      end
 
       obj.bgTrkMonitor = [];
       
@@ -216,6 +216,10 @@ classdef DeepTracker < LabelTracker
       end
       if isfield(s,'backendType')
         s = rmfield(s,'backendType');
+      end
+      % 20181218
+      if ~isfield(s,'containerBindPaths')
+        s.containerBindPaths = cell(0,1);
       end
     end
   end
@@ -290,24 +294,38 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnReset();
     end
 
-    function bgTrnStart(obj,trnMonitorObj,trnWorkerObj)
+    function bgTrnStart(obj,backEnd,dmcs)
       % fresh start new training monitor 
-      
+            
       if ~isempty(obj.bgTrnMonitor)
         error('Training monitor exists. Call .bgTrnReset first to stop/remove existing monitor.');
       end
       assert(isempty(obj.bgTrnMonBGWorkerObj));
 
       nvw = obj.lObj.nview;
-      trnMonVizObj = feval(obj.bgTrnMonitorVizClass,nvw);
+      assert(numel(dmcs)==nvw);
+
+      trnMonObj = BgTrainMonitor;
+      addlistener(trnMonObj,'bgStart',@(s,e)obj.notify('trainStart'));
+      addlistener(trnMonObj,'bgEnd',@(s,e)obj.notify('trainEnd'));
+
+      switch backEnd.type
+        case DLBackEnd.Bsub
+          trnWrkObj = BgTrainWorkerObjBsub(nvw,dmcs);
+        case DLBackEnd.Docker
+          trnWrkObj = BgTrainWorkerObjDocker(nvw,dmcs);
+        case DLBackEnd.AWS
+          trnWrkObj = BgTrainWorkerObjAWS(nvw,dmcs,backEnd.awsec2);
+        otherwise
+          assert(false);
+      end
+
+      trnVizObj = feval(obj.bgTrnMonitorVizClass,nvw,trnWrkObj,backEnd.type);
                 
-      addlistener(trnMonitorObj,'bgStart',@(s,e)obj.notify('trainStart'));
-      addlistener(trnMonitorObj,'bgEnd',@(s,e)obj.notify('trainEnd'));
-      
-      trnMonitorObj.prepare(trnMonVizObj,trnWorkerObj);
-      trnMonitorObj.start();
-      obj.bgTrnMonitor = trnMonitorObj;
-      obj.bgTrnMonBGWorkerObj = trnWorkerObj;
+      trnMonObj.prepare(trnVizObj,trnWrkObj);
+      trnMonObj.start();
+      obj.bgTrnMonitor = trnMonObj;
+      obj.bgTrnMonBGWorkerObj = trnWrkObj;
     end
     
     function bgTrnRestart(obj,bgTrnMonitorObj)
@@ -329,7 +347,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonitor = [];
       obj.bgTrnMonBGWorkerObj = [];
       
-      obj.bgTrnStart(bgTrnMonitorObj,workerObj);
+      obj.bgTrnStart(bgTrnMonitorObj,workerObj); % xxx TODO
     end
 
     function bgTrnReset(obj)
@@ -538,6 +556,7 @@ classdef DeepTracker < LabelTracker
         'trainID','',... % to be filled in 
         'trainType',trnType,...
         'iterFinal',obj.sPrm.dl_steps);
+        %'backEnd',backEnd);
       
       obj.downloadPretrainedWeights();         
       
@@ -612,18 +631,9 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-         % start train monitor
-        switch backEnd.type
-          case DLBackEnd.Bsub
-            bgTrnMonitorObj = BgTrainMonitorBsub;
-            bgTrnWorkerObj = BgTrainWorkerObjBsub(nvw,dmc);
-          case DLBackEnd.Docker
-            bgTrnMonitorObj = BgTrainMonitorBsub;
-            bgTrnWorkerObj = BgTrainWorkerObjDocker(nvw,dmc);
-          otherwise
-            assert(false);
-        end          
-        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
+        obj.bgTrnStart(backEnd,dmc);
+        
+        bgTrnWorkerObj = obj.bgTrnMonBGWorkerObj;
         
         % spawn training
         if backEnd.type==DLBackEnd.Docker
@@ -685,32 +695,60 @@ classdef DeepTracker < LabelTracker
 %       s = DeepTracker.trnLogfileStc(obj.sPrm.CacheDir,obj.trnName,iview);
 %     end
     
-    function singBind = genContainerMountPath(obj)
-      if ~isempty(obj.singBindPath)
-        assert(iscellstr(obj.singBindPath),'singBindPath must be a cellstr.');
-        fprintf('Using user-specified singularity BIND_PATH.\n');
-        singBind = obj.singBindPath;
+    function paths = genContainerMountPath(obj)
+      if ~isempty(obj.containerBindPaths)
+        assert(iscellstr(obj.containerBindPaths),'containerBindPaths must be a cellstr.');
+        fprintf('Using user-specified container bind-paths:\n');
+        paths = obj.containerBindPaths;
       else
-        if isempty(obj.lObj.projMacros)
-          warningNoTrace('No user-defined project macros found; singularity BIND_PATH may be incorrect.');
-        end
-        macroCell = struct2cell(obj.lObj.projMacrosGetWithAuto());
+        lObj = obj.lObj;
+        
+        macroCell = struct2cell(lObj.projMacrosGetWithAuto());
         cacheDir = obj.sPrm.CacheDir;
+        assert(~isempty(cacheDir));
         
-        % add in home directory and their ancestors
-        homedir = getuserdir;
-        homeancestors = [{homedir},getpathancestors(homedir)];
-        if isunix,
-          homeancestors = setdiff(homeancestors,{'/'});
+        mfaf = lObj.movieFilesAllFull;
+        tfaf = lObj.trxFilesAllFull;
+        mfafgt = lObj.movieFilesAllGTFull;
+        tfafgt = lObj.trxFilesAllGTFull;
+        
+        projbps = cell(0,1);
+        projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfaf,'.movieFilesAllFull');
+        if ~isempty(mfafgt)
+          projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,mfafgt,'.movieFilesAllGTFull');
+        end
+        if lObj.hasTrx
+          projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfaf,'.trxFilesAllFull');
+          if ~isempty(tfafgt)
+            projbps = DeepTracker.hlpAugBasePathsWithWarn(projbps,tfafgt,'.trxFilesAllGTFull');
+          end
         end
         
-        assert(~isempty(cacheDir));
-        singBind = [{cacheDir;APT.getpathdl};macroCell(:);homeancestors(:)];
-        fprintf('Auto-generated singularity BIND_PATH:\n');
-        cellfun(@(x)fprintf('  %s\n',x),singBind);
+%         % add in home directory and their ancestors
+%         homedir = getuserdir;
+%         homeancestors = [{homedir},getpathancestors(homedir)];
+%         if isunix,
+%           homeancestors = setdiff(homeancestors,{'/'});
+%         end
+        
+        fprintf('Using auto-generated container bind-paths:\n');
+        paths = [cacheDir;APT.getpathdl;macroCell(:);projbps(:)];
+      end
+      
+      cellfun(@(x)fprintf('  %s\n',x),paths);
+    end    
+  end
+  methods (Static)
+    function basepaths = hlpAugBasePathsWithWarn(basepaths,newpaths,descstr)
+      bps = FSPath.commonbase(newpaths);
+      if isempty(bps)
+        % no nonempty common base found, ie common base is '/'
+        warningNoTrace('No common base path found for %s.',descstr);
+      else
+        fprintf(1,'Found base path ''%s'' for %s.\n',bps,descstr);
+        basepaths{end+1,1} = bps;
       end
     end    
-    
   end
   %% AWS Trainer    
   methods
@@ -822,10 +860,7 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-        % start train monitor
-        bgTrnMonitorObj = BgTrainMonitorAWS();
-        bgTrnWorkerObj = BgTrainWorkerObjAWS(nvw,dmc,aws);
-        obj.bgTrnStart(bgTrnMonitorObj,bgTrnWorkerObj);
+        obj.bgTrnStart(backend,dmc);
 
         % spawn training
         for iview=1:nvw
@@ -1158,11 +1193,20 @@ classdef DeepTracker < LabelTracker
         end
         
         % trkfile, outfile
+        trkoutdir = dmc(ivw).dirTrkOutLnx;
+        if exist(trkoutdir,'dir')==0
+          [succ,msg] = mkdir(trkoutdir);
+          if ~succ
+            error('Failed to create trk cache dir %s: %s',trkoutdir,msg);
+          else
+            fprintf(1,'Created trk output dir: %s\n',trkoutdir);
+          end
+        end
         mov = movs{ivw};
         [movP,movS] = fileparts(mov);
-        trkfile = fullfile(movP,[movS '_' trnstr '_' nowstr '.trk']);
-        outfile = fullfile(movP,[movS '_' trnstr '_' nowstr '.log']);
-        errfile = fullfile(movP,[movS '_' trnstr '_' nowstr '.err']);
+        trkfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.trk']);
+        outfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.log']);
+        errfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.err']);
         %outfile2 = fullfile(movP,[movS '_' trnstr '_' nowstr '.log2']);
         fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);  
 
@@ -1260,7 +1304,7 @@ classdef DeepTracker < LabelTracker
       dlLblFileRemote = dmc.lblStrippedLnx;
       aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
             
-      trkdirRemoteFull = aws.ensureRemoteDir('trk','descstr','trk');
+      %trkdirRemoteFull = aws.ensureRemoteDir('trk','descstr','trk');
       datadirRemoteFull = aws.ensureRemoteDir('data','descstr','data');
       % should prob get these from tMFTConc
       movsfull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
@@ -1308,14 +1352,28 @@ classdef DeepTracker < LabelTracker
         nowstr = datestr(now,'yyyymmddTHHMMSS');
         modelChainID = obj.trnName;
         trnstr = sprintf('trn%s',modelChainID);
+        
+        trkdirRemote = dmc(ivw).dirTrkOutLnx;
+        aws.ensureRemoteDir(trkdirRemote,'relative',false,'descstr','trk');
+        dmcLcl = dmc(ivw).copy();
+        dmcLcl.rootDir = obj.sPrm.CacheDir;
+        trkdirLocal = dmcLcl.dirTrkOutLnx;
+        if exist(trkdirLocal,'dir')==0
+          [succ,msg] = mkdir(trkdirLocal);
+          if ~succ
+            error('Failed to create local trk cache dir %s: %s',trkdirLocal,msg);
+          else
+            fprintf(1,'Created local trk cache dir: %s\n',trkdirLocal);
+          end
+        end
       
-        [movP,movS,movE] = myfileparts(mov);
+        [~,movS,movE] = myfileparts(mov);
         trkLocalRel = [movS '_' trnstr '_' nowstr '.trk'];
         trkRemoteRel = [movsha '_' trnstr '_' nowstr];
-        trkLocalAbs = fullfile(movP,trkLocalRel);
-        trkRemoteAbs = [trkdirRemoteFull '/' trkRemoteRel '.trk'];
-        logfileRemoteAbs = [trkdirRemoteFull '/' trkRemoteRel '.log'];
-        errfileRemoteAbs = [trkdirRemoteFull '/' trkRemoteRel '.err'];
+        trkLocalAbs = fullfile(trkdirLocal,trkLocalRel);
+        trkRemoteAbs = [trkdirRemote '/' trkRemoteRel '.trk'];
+        logfileRemoteAbs = [trkdirRemote '/' trkRemoteRel '.log'];
+        errfileRemoteAbs = [trkdirRemote '/' trkRemoteRel '.err'];
         %outfile2 = [trkdirRemoteFull '/' trkfilebase '.log2'];
         %fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);
         
