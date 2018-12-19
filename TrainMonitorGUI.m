@@ -123,11 +123,10 @@ function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)
 mode = get(handles.pushbutton_startstop,'UserData');
 if strcmpi(mode,'stop'),
   
-  msgbox({'Training currently in progress. Please stop'
-          'training before closing this monitor. If'
-          'you have already clicked Stop training,'
-          'please wait for training processes to be'
-          'killed before closing this monitor.'},...
+  msgbox({'Training currently in progress. Please stop training before'
+          'closing this monitor. If you have already clicked Stop training,'
+          'please wait for training processes to be killed before closing'
+          'this monitor.'},...
           'Stop training before closing monitor','modal');
   return;
   

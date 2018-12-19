@@ -125,7 +125,7 @@ classdef TrainMonitorViz < handle
         obj.resLast = res;
       end
 
-      obj.updateAnn([res.pollsuccess]);
+      obj.updateAnn(res);
 
 %           
 %           
@@ -138,9 +138,11 @@ classdef TrainMonitorViz < handle
 %           fprintf(1,'\n');
 %         end
     end
-    function updateAnn(obj,pollsuccess)
+    function updateAnn(obj,res)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
+      
+      pollsuccess = [res.pollsuccess];
       
       clusterstr = 'Cluster';
       switch obj.backEnd        
@@ -159,12 +161,12 @@ classdef TrainMonitorViz < handle
       isTrainComplete = false;
       isErr = false;
       isLogFile = false;
-      if ~isempty(obj.resLast),
-        isTrainComplete = all([obj.resLast.trainComplete]);
-        isErr = any([obj.resLast.errFileExists]) || any([obj.resLast.logFileErrLikely]);
+      if ~isempty(res),
+        isTrainComplete = all([res.trainComplete]);
+        isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
         % to-do: figure out how to make this robust to different file
         % systems
-        isLogFile = any(cellfun(@(x) exist(x,'file'),{obj.resLast.logFile}));
+        isLogFile = any(cellfun(@(x) exist(x,'file'),{res.logFile}));
       end
 
       if obj.isKilled,
@@ -172,9 +174,9 @@ classdef TrainMonitorViz < handle
       elseif isErr,
         status = sprintf('Error while training after %d iterations',obj.lastTrainIter);
       elseif isTrainComplete,
-        status = sprintf('Training complete, %d iterations performed',obj.lastTrainIter);
+        status = 'Training complete.';
         handles = guidata(obj.hfig);
-        updateStartStopButton(handles,false);
+        TrainMonitorViz.updateStartStopButton(handles,false);
       elseif isLogFile,
         status = sprintf('Training in progress. %d iterations completed.',obj.lastTrainIter);
       else
