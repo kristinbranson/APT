@@ -1533,9 +1533,14 @@ classdef DeepTracker < LabelTracker
   end
   methods (Static) % train/track codegen
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
-      [host,bg] = myparse(varargin,...
+      [host,bg,prefix] = myparse(varargin,...
         'host','login1.int.janelia.org',... % 'logfile','/dev/null',...
-        'bg',true);
+        'bg',true,...
+        'prefix','source /etc/profile');
+      
+      if ~isempty(prefix),
+        remotecmd = [prefix,'; ',remotecmd];
+      end
       
       if bg
         codestr = sprintf('ssh %s ''%s </dev/null &''',host,remotecmd);
