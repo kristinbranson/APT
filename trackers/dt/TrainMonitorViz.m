@@ -28,6 +28,11 @@ classdef TrainMonitorViz < handle
       obj.haxs = [handles.axes_loss,handles.axes_dist];
       obj.hannlastupdated = handles.text_clusterstatus;
       
+      % reset
+      arrayfun(@(x)cla(x),obj.haxs);
+      obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      handles.text_clusterinfo.String = '...';
+      
       arrayfun(@(x)grid(x,'on'),obj.haxs);
       arrayfun(@(x)hold(x,'on'),obj.haxs);
       title(obj.haxs(1),'Training Monitor','fontweight','bold');
@@ -52,6 +57,7 @@ classdef TrainMonitorViz < handle
         viewstrs = arrayfun(@(x)sprintf('view%d',x),(1:nview)','uni',0);
         legend(obj.haxs(2),h(:,1),viewstrs,'TextColor','w');
       end
+      set(obj.haxs,'XLimMode','manual');
       obj.hline = h;
       obj.hlinekill = hkill;
       obj.resLast = [];

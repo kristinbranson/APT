@@ -2094,6 +2094,7 @@ if ~checkProjAndMovieExist(handles)
   return;
 end
 SetStatus(handles,'Training...');
+drawnow;
 [tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
 if ~tfCanTrain,
   errordlg(['Error training tracker: ',reason],'Error training tracker');
