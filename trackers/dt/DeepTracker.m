@@ -8,6 +8,9 @@ classdef DeepTracker < LabelTracker
     SAVEPROPS = {'sPrm' 'containerBindPaths' ...
       'trnNetType' 'trnName' 'trnNameLbl' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'};    
     RemoteAWSCacheDir = '/home/ubuntu';
+    
+    pretrained_weights_url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz';
+    
   end
   properties
     sPrm % new-style DT params
@@ -517,14 +520,23 @@ classdef DeepTracker < LabelTracker
     %% BSub Trainer
     
     function downloadPretrainedWeights(obj)
-      pretrainedDownload = fullfile(APT.getpathdl,'download_pretrained.py');      
-      fprintf(1,'%s\n',pretrainedDownload);
-      [st,res] = system(pretrainedDownload);
-      if st==0
-        fprintf('Downloaded pretrained weights.\n');
-      else
-        warningNoTrace('Failed to download pretrained weights: %s',res);
-      end      
+      
+%       pretrainedDownload = fullfile(APT.getpathdl,'download_pretrained.py');      
+%       fprintf(1,'%s\n',pretrainedDownload);
+%       [st,res] = system(pretrainedDownload);
+%       if st==0
+%         fprintf('Downloaded pretrained weights.\n');
+%       else
+%         warningNoTrace('Failed to download pretrained weights: %s',res);
+%       end      
+      
+      url = obj.pretrained_weights_url;
+      outdir = fullfile(APT.getpathdl,'pretrained');
+      fprintf('Downloading tensorflow resnet pretrained weights..\n')
+      outfiles = untar(url,outdir);
+      sprintf('Downloaded and extracted the following files/directories:\n');
+      fprintf('%s\n',outfiles{:});
+      
     end
       
     function trnSpawnBsubDocker(obj,backEnd,trnType,modelChainID,varargin)
