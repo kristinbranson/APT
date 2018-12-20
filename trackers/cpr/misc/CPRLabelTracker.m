@@ -2073,7 +2073,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function updateLandmarkColors(obj)
-      ptsClrs = obj.PredictPointColors;
+      ptsClrs = obj.lObj.PredictPointColors();
       obj.trkVizer.updateLandmarkColors(ptsClrs);
     end
     
