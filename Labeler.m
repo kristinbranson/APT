@@ -2354,7 +2354,9 @@ classdef Labeler < handle
           assert(isequal(s.trackerClass,{'CPRLabelTracker' 'DeepTracker'}));
           
           % KB 20181217 - this was stored as a char originally
-          if ischar(s.trackerData{2}.trnNetType),
+          if ~isfield(s.trackerData{2},'trnNetType'),
+            s.trackerData{2}.trnNetType =  DLNetType.mdn;
+          elseif ischar(s.trackerData{2}.trnNetType),
             s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType);
           end
           
