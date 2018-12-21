@@ -752,18 +752,10 @@ classdef CPRLabelTracker < LabelTracker
       obj.asyncReset();
     end
         
-%     %#%MTGT
-%     function setParams(obj,sPrm)
-%       % sPrm must be FULLY MODERNIZED
-%       obj.setParamContentsSmart(sPrm);
-%       obj.paramFile = '';
-%     end
-    
     function sPrm = getParams(obj)
       sPrm = obj.sPrm;
     end
     
-    %#%MV
     function setParamContentsSmart(obj,sNew,tfPreProcPrmsChanged)
       % Set parameter contents (.sPrm), looking at what top-level fields 
       % have changed and clearing obj state appropriately.

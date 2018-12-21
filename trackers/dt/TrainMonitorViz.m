@@ -161,9 +161,7 @@ classdef TrainMonitorViz < handle
         otherwise
           warning('Unknown back end type');
       end
-      
-      % xxx needs update for multiview
-      
+            
       isTrainComplete = false;
       isErr = false;
       isLogFile = false;
