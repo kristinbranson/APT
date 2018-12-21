@@ -59,6 +59,30 @@ classdef APTParameters
       
       sPrm0 = structmerge(sPrmPreprocess,sPrmTrack,sPrmCpr,sPrmDT);
     end
+    function sPrmDTcommon = defaultParamsStructDTCommon
+      tPrm = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
+      sPrm = tPrm.structize();
+      sPrmDTcommon = sPrm.ROOT.DeepTrack;
+    end
+    function sPrmDTspecific = defaultParamsStructDT(nettype)
+      switch nettype
+        case DLNetType.mdn
+          prmFile = APTParameters.MDN_PARAMETER_FILE;
+        case DLNetType.deeplabcut
+          prmFile = APTParameters.DLC_PARAMETER_FILE;
+        case DLNetType.unet
+          prmFile = APTParameters.UNET_PARAMETER_FILE;
+        otherwise
+          assert(false);
+      end
+      tPrm = parseConfigYaml(prmFile);
+      sPrmDTspecific = tPrm.structize();
+      sPrmDTspecific = sPrmDTspecific.ROOT;
+      fld = fieldnames(sPrmDTspecific);
+      assert(isscalar(fld)); % eg {'MDN'}
+      fld = fld{1};
+      sPrmDTspecific = sPrmDTspecific.(fld);
+    end
     function ppPrm0 = defaultPreProcParamsOldStyle
       sPrm0 = APTParameters.defaultParamsOldStyle();
       ppPrm0 = sPrm0.PreProc;
@@ -136,10 +160,10 @@ classdef APTParameters
           tree.Data.Visible = false;
         elseif ismember('isMDN',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'mdn'),
           tree.Data.Visible = false;
-        elseif ismember('isDLC',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'deeplabcut'),
+        elseif ismember('isDeepLabCut',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'deeplabcut'),
           tree.Data.Visible = false;
-        elseif ismember('isUNET',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'unet'),
-          tree.Data.Visible = false;elseif ismember('isUnet',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'unet'),
+        elseif ismember('isUnet',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'unet'),
+          tree.Data.Visible = false;        
         end
         
         return;
