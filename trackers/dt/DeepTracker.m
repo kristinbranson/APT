@@ -533,12 +533,13 @@ classdef DeepTracker < LabelTracker
 %         warningNoTrace('Failed to download pretrained weights: %s',res);
 %       end      
 
-      if all(cellfun(@(x) exist(x,'file'),obj.pretrained_weights_files))
-        fprintf('Tensorflow resnet pretrained weights already downloaded.\n');
-        return;
-      end
       for i = 1:numel(obj.pretrained_weights_urls),
         url = obj.pretrained_weights_urls{i};
+        if exist(obj.pretrained_weights_files{i}),
+          fprintf('Tensorflow resnet pretrained weights %s already downloaded.\n',url);
+          continue;
+        end
+          
         outdir = fullfile(APT.getpathdl,'pretrained');
         fprintf('Downloading tensorflow resnet pretrained weights %s (APT)..\n',url);
         outfiles = untar(url,outdir);
