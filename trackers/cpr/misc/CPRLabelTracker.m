@@ -824,7 +824,7 @@ classdef CPRLabelTracker < LabelTracker
         modelPPRegFtrTrnInitUC = modelPPUC && tfunchanged.Reg ...
             && tfunchanged.Ftr && tfunchanged.TrainInit;
         if ~modelPPRegFtrTrnInitUC
-          fprintf(2,'Parameter change: CPRLabelTracker regressor casacade cleared.\n');
+          fprintf(2,'Parameter change: CPRLabelTracker regressor cascade cleared.\n');
           obj.trnResInit();
         end
       

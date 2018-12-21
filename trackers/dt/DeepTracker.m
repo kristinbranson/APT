@@ -755,6 +755,7 @@ classdef DeepTracker < LabelTracker
         
         fprintf('Using auto-generated container bind-paths:\n');
         paths = [cacheDir;APT.getpathdl;macroCell(:);projbps(:)];
+        paths = unique(paths);
       end
       
       cellfun(@(x)fprintf('  %s\n',x),paths);
@@ -925,12 +926,32 @@ classdef DeepTracker < LabelTracker
       % for images, deepnet will use preProcData; trx files however need
       % to be uploaded
       
-      s = obj.lObj.trackCreateDeepTrackerStrippedLbl();
+      s = obj.lObj.trackCreateDeepTrackerStrippedLbl(obj.trnTblP);
       % check with Mayank, thought we wanted number of "underlying" chans
       % but DL is erring when pp data is grayscale but NumChans is 3
       s.cfg.NumChans = size(s.preProcData_I{1},3);
       
       tftrx = obj.lObj.hasTrx;
+      
+      ITRKER_SLBL = 2; % historical
+      if tftrx
+        assert(strcmp(s.trackerClass{ITRKER_SLBL},'DeepTracker'));
+        assert(s.trackerData{ITRKER_SLBL}.trnNetType==obj.trnNetType);
+        
+        dlszx = s.trackerData{ITRKER_SLBL}.sPrm.sizex;
+        dlszy = s.trackerData{ITRKER_SLBL}.sPrm.sizey;
+        roirad = s.preProcParams.TargetCrop.Radius;
+        szroi = 2*roirad+1;
+        if dlszx~=szroi
+          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
+          s.trackerData{ITRKER_SLBL}.sPrm.sizex = szroi;
+        end
+        if dlszy~=szroi
+          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
+          s.trackerData{ITRKER_SLBL}.sPrm.sizey = szroi;
+        end
+      end
+      
       if awsTrxUpload && tftrx
         % 1. The moviefiles in s should be not be used; deepnet should be
         % reading images directly from .preProcData_I. Fill s.movieFilesAll
@@ -941,23 +962,7 @@ classdef DeepTracker < LabelTracker
         %      upload it and replace all appropriate rows of s.trxFilesAll.
         %   b. For all other rows of s.trxFilesAll, we replace with jibber
         %      as an assert.
-        
-        fprintf(2,'TODO .trackerData index\n');
-        
-        assert(strcmp(s.trackerClass{2},'DeepTracker'));
-        dlszx = s.trackerData{2}.sPrm.sizex;
-        dlszy = s.trackerData{2}.sPrm.sizey;
-        roirad = s.preProcParams.TargetCrop.Radius;
-        szroi = 2*roirad+1;
-        if dlszx~=szroi
-          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
-          s.trackerData{2}.sPrm.sizex = szroi;
-        end
-        if dlszy~=szroi
-          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
-          s.trackerData{2}.sPrm.sizey = szroi;
-        end
-        
+                
         aws = backEnd.awsec2;
         aws.ensureRemoteDir('data','descstr','data');
         

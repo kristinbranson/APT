@@ -8480,8 +8480,11 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
-    function s = trackCreateDeepTrackerStrippedLbl(obj)
+    function s = trackCreateDeepTrackerStrippedLbl(obj,tblTrnMFT)
       % For use with DeepTrackers
+      %
+      % tblTrnMFT: training data table. reqd cols MFTable.FLDSID. restrict 
+      %   preProcDataCache export to these rows.
       
       if ~obj.hasMovie
         % for NumChans see below
@@ -8516,9 +8519,17 @@ classdef Labeler < handle
         
         ppdata = s.preProcData;
         ppdataMD = ppdata.MD;
+        
+        tfInc = tblismember(ppdataMD,tblTrnMFT,MFTable.FLDSID);
+        fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
+          nnz(tfInc),numel(tfInc));
+        
+        ppdataMD = ppdataMD(tfInc,:);
+        ppdataI = ppdata.I(tfInc,:);
+        
         ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
         ppMDflds = tblflds(ppdataMD);
-        s.preProcData_I = ppdata.I;
+        s.preProcData_I = ppdataI;
         for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
           sfld = ['preProcData_MD_' f];
           s.(sfld) = ppdataMD.(f);
