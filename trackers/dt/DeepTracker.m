@@ -9,7 +9,10 @@ classdef DeepTracker < LabelTracker
       'trnNetType' 'trnName' 'trnNameLbl' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'};    
     RemoteAWSCacheDir = '/home/ubuntu';
     
-    pretrained_weights_url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz';
+    pretrained_weights_urls = {'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
+      'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'};
+    pretrained_weights_files = {fullfile(APT.getpathdl,'pretrained','resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables.index');
+      fullfile(APT.getpathdl,'pretrained','resnet_v1_50.ckpt')};
     
   end
   properties
@@ -529,13 +532,19 @@ classdef DeepTracker < LabelTracker
 %       else
 %         warningNoTrace('Failed to download pretrained weights: %s',res);
 %       end      
-      
-      url = obj.pretrained_weights_url;
-      outdir = fullfile(APT.getpathdl,'pretrained');
-      fprintf('Downloading tensorflow resnet pretrained weights..\n')
-      outfiles = untar(url,outdir);
-      sprintf('Downloaded and extracted the following files/directories:\n');
-      fprintf('%s\n',outfiles{:});
+
+      if all(cellfun(@(x) exist(x,'file'),obj.pretrained_weights_file))
+        fprintf('Tensorflow resnet pretrained weights already downloaded.\n');
+        return;
+      end
+      for i = 1:numel(obj.pretrained_weights_urls),
+        url = obj.pretrained_weights_urls{i};
+        outdir = fullfile(APT.getpathdl,'pretrained');
+        fprintf('Downloading tensorflow resnet pretrained weights %s (APT)..\n',url);
+        outfiles = untar(url,outdir);
+        sprintf('Downloaded and extracted the following files/directories:\n');
+        fprintf('%s\n',outfiles{:});
+      end
       
     end
       
