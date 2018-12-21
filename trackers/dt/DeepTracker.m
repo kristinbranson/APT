@@ -533,7 +533,7 @@ classdef DeepTracker < LabelTracker
 %         warningNoTrace('Failed to download pretrained weights: %s',res);
 %       end      
 
-      if all(cellfun(@(x) exist(x,'file'),obj.pretrained_weights_file))
+      if all(cellfun(@(x) exist(x,'file'),obj.pretrained_weights_files))
         fprintf('Tensorflow resnet pretrained weights already downloaded.\n');
         return;
       end
