@@ -7,6 +7,7 @@ url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodel
 script_dir = os.path.dirname(os.path.realpath(__file__))
 wt_dir = os.path.join(script_dir,'pretrained')
 wt_file = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables.index')
+print "wt_file = " + str(wt_file)
 if not os.path.exists(wt_file):
     print('Downloading slim resnet pretrained weights..')
     if not os.path.exists(wt_dir):
