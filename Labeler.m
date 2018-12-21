@@ -43,6 +43,9 @@ classdef Labeler < handle
     
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};
+     
+     
+    DLCONFIGINFOURL = 'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking'; 
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
   end

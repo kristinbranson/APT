@@ -1755,11 +1755,11 @@ if ~isfield(handles,'menu_track_backend_config')
     'Tag','menu_track_backend_config_docker',...
     'userdata',DLBackEnd.Docker);  
   % KB added menu item to get more info about how to set up
-%   handles.menu_track_backend_config_moreinfo = uimenu( ...
-%     'Parent',handles.menu_track_backend_config,...
-%     'Label','More information...',...
-%     'Callback',@cbkTrackerBackendMenuMoreInfo,...
-%     'Tag','menu_track_backend_config_moreinfo');  
+  handles.menu_track_backend_config_moreinfo = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','More information...',...
+    'Callback',@cbkTrackerBackendMenuMoreInfo,...
+    'Tag','menu_track_backend_config_moreinfo');  
 
   
   % AWS submenu (visible when backend==AWS)
@@ -1888,6 +1888,18 @@ lObj = handles.labelerObj;
 beType = src.UserData;
 be = DLBackEndClass(beType);
 lObj.trackSetDLBackend(be);
+
+function cbkTrackerBackendMenuMoreInfo(src,evt)
+
+handles = guidata(src);
+lObj = handles.labelerObj;
+
+res = web(lObj.DLCONFIGINFOURL,'-new');
+if res ~= 0,
+  msgbox({'Information on configuring Deep Learning GPU/Backends can be found at'
+    'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking.'},...
+    'Deep Learning GPU/Backend Information','replace');
+end
 
 function cbkTrackerBackendAWSSetInstance(src,evt)
 handles = guidata(src);
