@@ -1760,7 +1760,11 @@ if ~isfield(handles,'menu_track_backend_config')
     'Label','More information...',...
     'Callback',@cbkTrackerBackendMenuMoreInfo,...
     'Tag','menu_track_backend_config_moreinfo');  
-
+  handles.menu_track_backend_config_test = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','Test backend configuration',...
+    'Callback',@cbkTrackerBackendTest,...
+    'Tag','menu_track_backend_config_test');
   
   % AWS submenu (visible when backend==AWS)
   handles.menu_track_backend_config_aws_setinstance = uimenu( ...
@@ -1899,6 +1903,17 @@ if res ~= 0,
   msgbox({'Information on configuring Deep Learning GPU/Backends can be found at'
     'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking.'},...
     'Deep Learning GPU/Backend Information','replace');
+end
+
+function cbkTrackerBackendTest(src,evt)
+
+handles = guidata(src);
+lObj = handles.labelerObj;
+switch lObj.trackDLBackEnd.type,
+  case DLBackEnd.Bsub,
+    lObj.tracker.testBsubConfig();
+  otherwise
+    msgbox(sprintf('Tests for %s have not been implemented',lObj.trackDLBackEnd.type),'Not implemented','modal');
 end
 
 function cbkTrackerBackendAWSSetInstance(src,evt)
