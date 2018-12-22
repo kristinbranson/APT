@@ -22,7 +22,7 @@ function varargout = TrainMonitorGUI(varargin)
 
 % Edit the above text to modify the response to help TrainMonitorGUI
 
-% Last Modified by GUIDE v2.5 17-Dec-2018 13:49:21
+% Last Modified by GUIDE v2.5 19-Dec-2018 13:10:34
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -110,3 +110,32 @@ function pushbutton_startstop_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 handles.vizobj.stopTraining();
+
+
+% --- Executes when user attempts to close figure_TrainMonitor.
+function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)
+% hObject    handle to figure_TrainMonitor (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: delete(hObject) closes the figure
+
+mode = get(handles.pushbutton_startstop,'UserData');
+if strcmpi(mode,'stop'),
+  
+  msgbox({'Training currently in progress. Please stop training before'
+          'closing this monitor. If you have already clicked Stop training,'
+          'please wait for training processes to be killed before closing'
+          'this monitor.'},...
+          'Stop training before closing monitor','modal');
+  return;
+  
+elseif strcmpi(mode,'start'),
+  
+  delete(hObject);
+  
+else
+  % sanity check
+  error('Bad userdata value for pushbutton_startstop');
+end
+

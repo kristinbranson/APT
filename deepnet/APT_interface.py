@@ -170,7 +170,7 @@ def convert_to_orig(base_locs, conf, cur_trx, trx_fnum_start, all_f, sz, nvalid,
             r_mat = [[np.cos(tt), -np.sin(tt)], [np.sin(tt), np.cos(tt)]]
             curlocs = np.dot(base_locs[ii, :, :] - [hsz_p, hsz_p], r_mat) + [x, y]
             base_locs_orig[ii, ...] = curlocs
-    elif crop_loc:
+    elif crop_loc is not None:
         xlo, xhi, ylo, yhi = crop_loc
         base_locs_orig = base_locs.copy()
         base_locs_orig[:, :, 0] += xlo

@@ -100,9 +100,11 @@ classdef TrackingVisualizerHeatMap < handle
     
     function updateLandmarkColors(obj,ptsClrs)
       npts = obj.nPts;
+      nclrs = size(ptsClrs,1);
       for iPt=1:npts
-        set(obj.hXYPrdRed(iPt),'Color',ptsClrs(iPt,:));
-        set(obj.hXYPrdRedOther(iPt),'Color',ptsClrs(iPt,:));
+        iClr = mod(iPt-1,nclrs)+1;
+        set(obj.hXYPrdRed(iPt),'Color',ptsClrs(iClr,:));
+        set(obj.hXYPrdRedOther(iPt),'Color',ptsClrs(iClr,:));
       end
     end
     

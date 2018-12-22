@@ -24,7 +24,7 @@ classdef Labeler < handle
       'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
-      'trackModeIdx' 'trackDLBackEnd' ...
+      'trackModeIdx' 'trackDLBackEnd' 'trackDLParams' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
       'preProcParams' 'preProcH0' 'preProcSaveData' ...
       'xvResults' 'xvResultsTS' ...
@@ -43,6 +43,9 @@ classdef Labeler < handle
     
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};
+     
+     
+    DLCONFIGINFOURL = 'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking'; 
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
   end
@@ -445,6 +448,7 @@ classdef Labeler < handle
      %larger values apply only the Trx case.
      
     trackDLBackEnd % scalar DLBackEndClass
+    trackDLParams % scalar struct, common DL params
     
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
@@ -2354,7 +2358,9 @@ classdef Labeler < handle
           assert(isequal(s.trackerClass,{'CPRLabelTracker' 'DeepTracker'}));
           
           % KB 20181217 - this was stored as a char originally
-          if ischar(s.trackerData{2}.trnNetType),
+          if ~isfield(s.trackerData{2},'trnNetType'),
+            s.trackerData{2}.trnNetType =  DLNetType.mdn;
+          elseif ischar(s.trackerData{2}.trnNetType),
             s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType);
           end
           
@@ -2439,16 +2445,37 @@ classdef Labeler < handle
       end
       
       % 20181215 factor dlbackend out of DeepTrackers into single/common
-      % Labeler
+      % prop on Labeler
       if ~isfield(s,'trackDLBackEnd')
-        % To-date we have only had a single deeptracker object. Above we 
-        % expand this to the full .trackerData vector.
-        % Loop through, find the first 
-        
         % maybe change this by looking thru existing trackerDatas
         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       end      
       
+      % 20181220 DL common parameters
+      if ~isfield(s,'trackDLParams')
+        cachedirs = cell(0,1);
+        for i=2:numel(s.trackerData)
+          td = s.trackerData{i};
+          tfHasCache = ~isempty(td) && ~isempty(td.sPrm) && ~isempty(td.sPrm.CacheDir);
+          if tfHasCache
+            cachedirs{end+1,1} = td.sPrm.CacheDir; %#ok<AGROW>
+          end
+        end
+        if ~isempty(cachedirs)
+          if ~all(strcmp(cachedirs,cachedirs{1}))
+            warningNoTrace('Project contains multiple DeepTracker cache directories: %s. Using first cache dir.',...          
+             String.cellstr2CommaSepList(cachedirs));
+          end
+          cdir = cachedirs{1};
+        else
+          cdir = '';
+        end
+        s.trackDLParams = struct('CacheDir',cdir);
+      end
+      
+      % modernize DL common params
+      sDLcommon = APTParameters.defaultParamsStructDTCommon;
+      s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
     end
 
   end 
@@ -8228,9 +8255,11 @@ classdef Labeler < handle
     end
         
     function trackSetParams(obj,sPrm)
-      % Set tracking parameters for preproc, cpr, and the *current* tracker
-      % if it is a DeepTracker.
-      % TODO: rationalize
+      % Set all parameters:
+      %  - preproc
+      %  - cpr
+      %  - common dl
+      %  - specific dl
       % 
       % sPrm: scalar struct containing *new*-style params:
       % sPrm.ROOT.Track
@@ -8263,9 +8292,16 @@ classdef Labeler < handle
       tfPPprmsChanged = obj.preProcSetParams(ppPrms); % THROWS
       
       tcprObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
-      tObj = obj.tracker;
-      if ~isempty(tObj) && isa(tObj,'DeepTracker')
-        tObj.setParams(sPrmDT);
+      
+      tDTs = obj.trackersAll(2:end);
+      dlNetTypesPretty = cellfun(@(x)x.trnNetType.prettyString,tDTs,'uni',0);
+      sPrmDTcommon = rmfield(sPrmDT,dlNetTypesPretty);
+      tfDTcommonChanged = obj.trackSetDLParams(sPrmDTcommon);
+      for i=1:numel(tDTs)
+        tObj = tDTs{i};
+        netType = dlNetTypesPretty{i};
+        sPrmDTnet = sPrmDT.(netType);
+        tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonChanged);
       end
     end
     
@@ -8292,9 +8328,11 @@ classdef Labeler < handle
     end
     
     function sPrm = trackGetParams(obj)
-      % Get parameters for preproc, cpr tracker, and *current* tracker *if 
-      % it is a DeepTracker*.
-      % TODO, yes this is weird, rationalize.
+      % Get all parameters:
+      %  - preproc
+      %  - cpr
+      %  - common dl
+      %  - specific dl
       %
       % sPrm: scalar struct containing NEW-style params:
       % sPrm.ROOT.Track
@@ -8312,11 +8350,11 @@ classdef Labeler < handle
       prmCpr = tcprObj.sPrm;
       prmPP = obj.preProcParams;
 %      assert(~xor(isempty(prmCpr),isempty(prmPP)));
-      if ~isempty(prmCpr)        
+      if ~isempty(prmCpr)
         assert(~isempty(prmPP))
         assert(~isfield(prmCpr,'PreProc'));
         prmCpr.PreProc = prmPP;
-        sPrm = CPRParam.old2new(prmCpr,obj);        
+        sPrm = CPRParam.old2new(prmCpr,obj);
       else
         sPrm = struct();
         % Even if prmCpr/prmPP are empty, these params come from obj.
@@ -8333,14 +8371,30 @@ classdef Labeler < handle
         
         % Other fields of sPrm.ROOT.Track, sPrm.ROOT.CPR will be empty
       end
-
-      tObj = obj.tracker;      
-      if ~isempty(tObj) && isa(tObj,'DeepTracker')
+      
+      % DL: start with common params
+      sPrm.ROOT.DeepTrack = obj.trackDLParams;
+      
+      tDLs = obj.trackersAll(2:end);
+      for i=1:numel(tDLs)
+        tObj = tDLs{i};
+        netTypePretty = tObj.trnNetType.prettyString;
         sPrmDT = tObj.getParams();
-        if ~isempty(sPrmDT)
-          sPrm.ROOT.DeepTrack = sPrmDT;
-        end
+        sPrm.ROOT.DeepTrack.(netTypePretty) = sPrmDT;
       end
+    end
+    
+    function tfPrmsChanged = trackSetDLParams(obj,dlPrms) % THROWS
+      assert(isstruct(dlPrms));
+
+      dlPrms0 = obj.trackDLParams;
+      if ~isempty(dlPrms0.CacheDir) && ~isequal(dlPrms0.CacheDir,dlPrms.CacheDir)
+        warningNoTrace('Existing/old trained Deep models will remain on disk at %s but will be inaccessible within APT.',...
+          dlPrms0.CacheDir);
+      end
+      
+      tfPrmsChanged = ~isequaln(dlPrms0,dlPrms);      
+      obj.trackDLParams = dlPrms;
     end
     
     function trackSetDLBackend(obj,be)
@@ -8475,8 +8529,11 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
-    function s = trackCreateDeepTrackerStrippedLbl(obj)
+    function s = trackCreateDeepTrackerStrippedLbl(obj,tblTrnMFT)
       % For use with DeepTrackers
+      %
+      % tblTrnMFT: training data table. reqd cols MFTable.FLDSID. restrict 
+      %   preProcDataCache export to these rows.
       
       if ~obj.hasMovie
         % for NumChans see below
@@ -8511,9 +8568,17 @@ classdef Labeler < handle
         
         ppdata = s.preProcData;
         ppdataMD = ppdata.MD;
+        
+        tfInc = tblismember(ppdataMD,tblTrnMFT,MFTable.FLDSID);
+        fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
+          nnz(tfInc),numel(tfInc));
+        
+        ppdataMD = ppdataMD(tfInc,:);
+        ppdataI = ppdata.I(tfInc,:);
+        
         ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
         ppMDflds = tblflds(ppdataMD);
-        s.preProcData_I = ppdata.I;
+        s.preProcData_I = ppdataI;
         for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
           sfld = ['preProcData_MD_' f];
           s.(sfld) = ppdataMD.(f);

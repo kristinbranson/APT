@@ -24,7 +24,7 @@ classdef BgTrainWorkerObj < handle
     tf = fileExists(obj,file)
     tf = errFileExistsNonZeroSize(obj,errFile)
     s = fileContents(obj,file)
-    killProcess(obj)
+    [tf,warnings] = killProcess(obj)
   end
   
   methods

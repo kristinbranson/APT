@@ -752,18 +752,10 @@ classdef CPRLabelTracker < LabelTracker
       obj.asyncReset();
     end
         
-%     %#%MTGT
-%     function setParams(obj,sPrm)
-%       % sPrm must be FULLY MODERNIZED
-%       obj.setParamContentsSmart(sPrm);
-%       obj.paramFile = '';
-%     end
-    
     function sPrm = getParams(obj)
       sPrm = obj.sPrm;
     end
     
-    %#%MV
     function setParamContentsSmart(obj,sNew,tfPreProcPrmsChanged)
       % Set parameter contents (.sPrm), looking at what top-level fields 
       % have changed and clearing obj state appropriately.
@@ -824,7 +816,7 @@ classdef CPRLabelTracker < LabelTracker
         modelPPRegFtrTrnInitUC = modelPPUC && tfunchanged.Reg ...
             && tfunchanged.Ftr && tfunchanged.TrainInit;
         if ~modelPPRegFtrTrnInitUC
-          fprintf(2,'Parameter change: CPRLabelTracker regressor casacade cleared.\n');
+          fprintf(2,'Parameter change: CPRLabelTracker regressor cascade cleared.\n');
           obj.trnResInit();
         end
       
@@ -2073,7 +2065,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function updateLandmarkColors(obj)
-      ptsClrs = obj.PredictPointColors;
+      ptsClrs = obj.lObj.PredictPointColors();
       obj.trkVizer.updateLandmarkColors(ptsClrs);
     end
     

@@ -49,14 +49,16 @@ classdef BgTrainWorkerObjDocker < BgTrainWorkerObjLocalFilesys
       end
     end
     
-    function createKillToken(obj,killtoken)
+    function tfsucc = createKillToken(obj,killtoken)
       touchcmd = sprintf('touch %s',killtoken);
       %touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
       [st,res] = system(touchcmd);
       if st~=0
         warningNoTrace('Failed to create KILLED token: %s',kfile);
+        tfsucc = false;
       else
         fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',kfile);
+        tfsucc = true;
       end
     end
     

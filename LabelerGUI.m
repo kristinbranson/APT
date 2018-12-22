@@ -1050,6 +1050,11 @@ end
 %lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
 function cbkWSWF(src,evt,lObj)
+
+if ~lObj.hasMovie
+  return;
+end
+
 scrollcnt = evt.VerticalScrollCount;
 scrollamt = evt.VerticalScrollAmount;
 fcurr = lObj.currFrame;
@@ -1749,6 +1754,18 @@ if ~isfield(handles,'menu_track_backend_config')
     'Callback',@cbkTrackerBackendMenu,...
     'Tag','menu_track_backend_config_docker',...
     'userdata',DLBackEnd.Docker);  
+  % KB added menu item to get more info about how to set up
+  handles.menu_track_backend_config_moreinfo = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','More information...',...
+    'Callback',@cbkTrackerBackendMenuMoreInfo,...
+    'Tag','menu_track_backend_config_moreinfo');  
+  handles.menu_track_backend_config_test = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','Test backend configuration',...
+    'Callback',@cbkTrackerBackendTest,...
+    'Tag','menu_track_backend_config_test');
+  
   % AWS submenu (visible when backend==AWS)
   handles.menu_track_backend_config_aws_setinstance = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
@@ -1875,6 +1892,29 @@ lObj = handles.labelerObj;
 beType = src.UserData;
 be = DLBackEndClass(beType);
 lObj.trackSetDLBackend(be);
+
+function cbkTrackerBackendMenuMoreInfo(src,evt)
+
+handles = guidata(src);
+lObj = handles.labelerObj;
+
+res = web(lObj.DLCONFIGINFOURL,'-new');
+if res ~= 0,
+  msgbox({'Information on configuring Deep Learning GPU/Backends can be found at'
+    'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking.'},...
+    'Deep Learning GPU/Backend Information','replace');
+end
+
+function cbkTrackerBackendTest(src,evt)
+
+handles = guidata(src);
+lObj = handles.labelerObj;
+switch lObj.trackDLBackEnd.type,
+  case DLBackEnd.Bsub,
+    lObj.tracker.testBsubConfig();
+  otherwise
+    msgbox(sprintf('Tests for %s have not been implemented',lObj.trackDLBackEnd.type),'Not implemented','modal');
+end
 
 function cbkTrackerBackendAWSSetInstance(src,evt)
 handles = guidata(src);
@@ -2081,6 +2121,7 @@ if ~checkProjAndMovieExist(handles)
   return;
 end
 SetStatus(handles,'Training...');
+drawnow;
 [tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
 if ~tfCanTrain,
   errordlg(['Error training tracker: ',reason],'Error training tracker');

@@ -28,6 +28,11 @@ classdef TrainMonitorViz < handle
       obj.haxs = [handles.axes_loss,handles.axes_dist];
       obj.hannlastupdated = handles.text_clusterstatus;
       
+      % reset
+      arrayfun(@(x)cla(x),obj.haxs);
+      obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      handles.text_clusterinfo.String = '...';
+      
       arrayfun(@(x)grid(x,'on'),obj.haxs);
       arrayfun(@(x)hold(x,'on'),obj.haxs);
       title(obj.haxs(1),'Training Monitor','fontweight','bold');
@@ -39,19 +44,20 @@ classdef TrainMonitorViz < handle
       
       %obj.hannlastupdated = TrainMonitorViz.createAnnUpdate(obj.haxs(1));
       
-      clrs = lines(nview);
+      clrs = lines(nview)*.9+.1;
       h = gobjects(nview,2);
       hkill = gobjects(nview,2);
       for ivw=1:nview
         for j=1:2
-          h(ivw,j) = plot(obj.haxs(j),nan,nan,'.-','color',clrs(ivw,:));
+          h(ivw,j) = plot(obj.haxs(j),nan,nan,'.-','color',clrs(ivw,:),'LineWidth',2);
           hkill(ivw,j) = plot(obj.haxs(j),nan,nan,'rx','markersize',12,'linewidth',2);
         end
       end
       if nview > 1,
         viewstrs = arrayfun(@(x)sprintf('view%d',x),(1:nview)','uni',0);
-        legend(obj.haxs(2),h(:,1),viewstrs);
+        legend(obj.haxs(2),h(:,1),viewstrs,'TextColor','w');
       end
+      set(obj.haxs,'XLimMode','manual','YScale','log');
       obj.hline = h;
       obj.hlinekill = hkill;
       obj.resLast = [];
@@ -120,12 +126,13 @@ classdef TrainMonitorViz < handle
         obj.adjustAxes(lineUpdateMaxStep);
       end
       obj.lastTrainIter = lineUpdateMaxStep;
-      obj.updateAnn([res.pollsuccess]);
       
       if isempty(obj.resLast) || tfAnyLineUpdate
         obj.resLast = res;
       end
-      
+
+      obj.updateAnn(res);
+
 %           
 %           
 %         fprintf(1,'View%d: jsonPresent: %d. ',ivw,res(ivw).jsonPresent);
@@ -137,9 +144,11 @@ classdef TrainMonitorViz < handle
 %           fprintf(1,'\n');
 %         end
     end
-    function updateAnn(obj,pollsuccess)
+    function updateAnn(obj,res)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
+      
+      pollsuccess = [res.pollsuccess];
       
       clusterstr = 'Cluster';
       switch obj.backEnd        
@@ -152,18 +161,16 @@ classdef TrainMonitorViz < handle
         otherwise
           warning('Unknown back end type');
       end
-      
-      % xxx needs update for multiview
-      
+            
       isTrainComplete = false;
       isErr = false;
       isLogFile = false;
-      if ~isempty(obj.resLast),
-        isTrainComplete = obj.resLast.trainComplete;
-        isErr = obj.resLast.errFileExists || obj.resLast.logFileErrLikely;
+      if ~isempty(res),
+        isTrainComplete = all([res.trainComplete]);
+        isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
         % to-do: figure out how to make this robust to different file
         % systems
-        isLogFile = exist(obj.resLast.logFile,'file');
+        isLogFile = any(cellfun(@(x) exist(x,'file'),{res.logFile}));
       end
 
       if obj.isKilled,
@@ -171,7 +178,9 @@ classdef TrainMonitorViz < handle
       elseif isErr,
         status = sprintf('Error while training after %d iterations',obj.lastTrainIter);
       elseif isTrainComplete,
-        status = sprintf('Training complete, %d iterations performed',obj.lastTrainIter);
+        status = 'Training complete.';
+        handles = guidata(obj.hfig);
+        TrainMonitorViz.updateStartStopButton(handles,false);
       elseif isLogFile,
         status = sprintf('Training in progress. %d iterations completed.',obj.lastTrainIter);
       else
@@ -196,11 +205,11 @@ classdef TrainMonitorViz < handle
     function adjustAxes(obj,lineUpdateMaxStep)
       for i=1:numel(obj.haxs)
         ax = obj.haxs(i);
-        
+        xlim = ax.XLim;
         x0 = max(0,lineUpdateMaxStep-obj.axisXRange);
-        x1 = max(1,lineUpdateMaxStep+0.5*(lineUpdateMaxStep-x0));
-        xlim(ax,[x0 x1]);
-        ylim(ax,'auto');
+        xlim(2) = max(1,lineUpdateMaxStep+0.5*(lineUpdateMaxStep-x0));
+        ax.XLim = xlim;
+        %ylim(ax,'auto');
       end
     end
     
@@ -211,19 +220,20 @@ classdef TrainMonitorViz < handle
         return;
       end
       obj.SetBusy('Killing training jobs...',true);
-      obj.trainWorkerObj.killProcess();
-      
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'off';
-
-      waitfor(handles.pushbutton_startstop,'Enable','on');
-      TrainMonitorViz.updateStartStopButton(handles,false);
-
-      obj.ClearBusy('Training process killed');
-
-      
-      
+      [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
+      if tfsucc,
+        waitfor(handles.pushbutton_startstop,'Enable','on');
+        drawnow;
+        TrainMonitorViz.updateStartStopButton(handles,false);
+        obj.ClearBusy('Training process killed');
+        drawnow;
+      else
+        obj.ClearBusy('Training process killed');
+        warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
+      end
     end
     
     function updateClusterInfo(obj)
@@ -337,9 +347,9 @@ classdef TrainMonitorViz < handle
     function updateStartStopButton(handles,isStop)
       
       if isStop,
-        set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on');
+        set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
       else
-        set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','off');
+        set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','off','UserData','start');
       end
       
     end
