@@ -516,6 +516,9 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
         cur_frame = lbl[lbl['preProcData_I'][conf.view, ndx]].value.copy()
         cur_frame = cur_frame.T
 
+        assert cur_frame.shape[0] == conf.imsz[0], 'height of cached images does not match the height specified in the params'
+        assert cur_frame.shape[1] == conf.imsz[1], 'width of cached images does not match the width specified in the params'
+
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
 

@@ -176,11 +176,12 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         im, locs, info, hmap = self.inputs
         conf = self.conf
+        in_sz = [sz//conf.rescale for sz in conf.imsz]
         im.set_shape([conf.batch_size,
-                      conf.imsz[0]//conf.rescale + self.pad_y,
-                      conf.imsz[1]//conf.rescale + self.pad_x,
+                      in_sz[0] + self.pad_y,
+                      in_sz[1] + self.pad_x,
                       conf.img_dim])
-        hmap.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale, conf.imsz[1]//conf.rescale,conf.n_classes])
+        hmap.set_shape([conf.batch_size, in_sz[0], in_sz[1],conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
         if conf.img_dim == 1:
@@ -276,7 +277,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                         if ndx > 0:
                             layers_sz = down_layers[ndx-1].get_shape().as_list()[1:3]
                         else:
-                            layers_sz = conf.imsz
+                            layers_sz = in_sz
 
                         with tf.variable_scope('u_{}'.format(ndx)):
                              # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)

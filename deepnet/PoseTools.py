@@ -440,8 +440,8 @@ def create_label_images_slow(locs, im_sz, scale, blur_rad):
 
 def create_label_images(locs, im_sz, scale, blur_rad):
     n_classes = len(locs[0])
-    sz0 = int(float(im_sz[0])/ scale)
-    sz1 = int(float(im_sz[1])/ scale)
+    sz0 = int(im_sz[0]// scale)
+    sz1 = int(im_sz[1] // scale)
 
     label_ims = np.zeros((len(locs), sz0, sz1, n_classes))
     # labelims1 = np.zeros((len(locs),sz0,sz1,n_classes))
