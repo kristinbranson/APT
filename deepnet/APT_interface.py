@@ -1247,7 +1247,7 @@ def classify_movie(conf, pred_fn,
             sys.stdout.write('.')
         if cur_b % 400 == 399:
             sys.stdout.write('\n')
-            write_trk(out_file, pred_locs, range(start_frame, to_do_list[cur_start][0]), trx_ids, conf, info, mov_file)
+            write_trk(out_file, pred_locs, extra_dict, range(start_frame, to_do_list[cur_start][0]), trx_ids, conf, info, mov_file)
 
     write_trk(out_file, pred_locs, extra_dict, range(start_frame, end_frame), trx_ids, conf, info, mov_file)
     cap.close()
