@@ -520,34 +520,37 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         return var_list
 
 
+
     def train_umdn(self, restore=False):
 
         self.joint = True
-        def loss(inputs, pred):
-            in_locs = inputs[1]
-            # mdn_loss = self.my_loss(pred, inputs[1])
-            mdn_loss = self.l2_loss(pred, in_locs)
-            if self.conf.mdn_use_unet_loss:
-                # unet_loss = tf.losses.mean_squared_error(inputs[-1], self.unet_pred)
-                unet_loss = tf.sqrt(tf.nn.l2_loss(inputs[-1]-self.unet_pred))/self.conf.label_blur_rad/self.conf.n_classes
-            else:
-                unet_loss = 0
-
-            if self.conf.mdn_pred_dist:
-                dist_loss = self.dist_loss()/10
-            else:
-                dist_loss = 0
-
-            # wt regularization loss
-            regularizer_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-
-            return (mdn_loss + unet_loss + dist_loss + sum(regularizer_losses))/self.conf.batch_size
 
         learning_rate = self.conf.get('mdn_learning_rate',0.0001)
         super(self.__class__, self).train(
             create_network=self.create_network,
-            loss=loss,
+            loss=self.loss,
             learning_rate=learning_rate,restore=restore)
+
+    def loss(self, inputs, pred):
+        in_locs = inputs[1]
+        # mdn_loss = self.my_loss(pred, inputs[1])
+        mdn_loss = self.l2_loss(pred, in_locs)
+        if self.conf.mdn_use_unet_loss:
+            # unet_loss = tf.losses.mean_squared_error(inputs[-1], self.unet_pred)
+            unet_loss = tf.sqrt(
+                tf.nn.l2_loss(inputs[-1] - self.unet_pred)) / self.conf.label_blur_rad / self.conf.n_classes
+        else:
+            unet_loss = 0
+
+        if self.conf.mdn_pred_dist:
+            dist_loss = self.dist_loss() / 10
+        else:
+            dist_loss = 0
+
+        # wt regularization loss
+        regularizer_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+
+        return (mdn_loss + unet_loss + dist_loss + sum(regularizer_losses)) / self.conf.batch_size
 
     def my_loss(self, X, y):
 
@@ -912,3 +915,4 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         else:
             return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
                [val_means, val_std, val_wts, val_dist_pred]
+

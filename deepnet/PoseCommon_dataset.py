@@ -752,6 +752,16 @@ class PoseCommon(object):
         PoseTools.create_result_image(im,alocs,ptiles_a)
         return ptiles
 
+    def quick_setup(self, restore=True):
+        self.setup_train()
+        self.pred = self.create_network()
+        self.cost = self.loss(self.inputs, self.pred)
+        self.create_optimizer()
+        self.create_saver()
+        sess = tf.Session()
+        start_at = self.init_restore_net(sess, do_restore=restore)
+        return  sess
+
 
 class PoseCommonMulti(PoseCommon):
 
