@@ -23,7 +23,7 @@ function compute_all_crop_locs()
 		for view  = 1:2
 			hh = L.movieInfoAll{1,view}.info.Height;
 			ww = L.movieInfoAll{1,view}.info.Width;
-			neck_locs = squeeze(curpts(5 + 10*(view	-1),:));
+			neck_locs = squeeze(curpts(6 + 10*(view	-1),:));
 			x_str = sprintf('reg_view%d_x',view);
 			y_str = sprintf('reg_view%d_y',view);
 			x_reg = R.(x_str);
