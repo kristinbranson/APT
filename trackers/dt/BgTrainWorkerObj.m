@@ -130,6 +130,13 @@ classdef BgTrainWorkerObj < handle
       tfEFE = obj.errFileExistsNonZeroSize(errFile);
     end
     
+    function ss = getErrorfileContent(obj) % obj const
+      errFile = unique({obj.dmcs.errfileLnx}');
+      assert(isscalar(errFile));
+      errFile = errFile{1};
+      ss = strsplit(obj.fileContents(errFile),'\n');
+    end
+    
     function tfLogErrLikely = logFileErrLikely(obj,file) % obj const
       tfLogErrLikely = obj.fileExists(file);
       if tfLogErrLikely
