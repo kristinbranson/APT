@@ -22,7 +22,7 @@ ROOT:
     - dl_steps: ['Training steps',unsigned,true,'Number of iterations to run the training for',60000,'','Beginner','isMDN']
     - cos_steps: ['Warm restarts',unsigned,true,'Number of warm restarts',2,'','Advanced','isMDN']
     - batch_size: ['Batch Size',unsigned,true,'Number of examples to use for each training iteration.',8,'','Advanced','isMDN']
-    - flipud: ['Flip Movie',float,true,'Flip movie upside down',0,'','Beginner','isMDN']
+    - flipud: ['Flip Movie',boolean,true,'Flip movie upside down',0,'','Beginner','isMDN']
     - save_td_step: ['Training data save steps',unsigned,true,'The training data will be saved every these many steps',100,'','Advanced','isMDN']
     - rrange: ['Rotate range',unsigned,true,'Training images and labels will be rotated will be randomly rotated by this many degree to augment training data',30,'','Important','isMDN']
     - trange: ['Translation range',unsigned,true,'Training images and labels will be translated in both x and y direction by these many pixels to augment training data',10,'','Important','isMDN']

@@ -846,7 +846,7 @@ def get_trx_ids(trx_ids_in, n_trx, has_trx_file):
         if len(trx_ids_in) == 0:
             trx_ids = np.arange(n_trx)
         else:
-            trx_ids = np.array(trx_ids_in)
+            trx_ids = np.array(trx_ids_in) - 1
     else:
         trx_ids = np.array([0])
     return trx_ids
