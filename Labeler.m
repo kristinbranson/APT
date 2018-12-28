@@ -243,6 +243,7 @@ classdef Labeler < handle
   end
   properties (Dependent)
     isMultiView;
+    movieFilesAllGTaware;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
     movieFilesAllGTFull; % etc
     movieFilesAllFullGTaware;
@@ -534,6 +535,13 @@ classdef Labeler < handle
     end
     function v = get.isMultiView(obj)
       v = obj.nview>1;
+    end
+    function v = get.movieFilesAllGTaware(obj)
+      if obj.gtIsGTMode
+        v = obj.movieFilesAllGT;
+      else        
+        v = obj.movieFilesAll;
+      end
     end
     function v = get.movieFilesAllFull(obj)
       % See also .projLocalizePath()
@@ -2547,6 +2555,8 @@ classdef Labeler < handle
       
         movfilefull = obj.projLocalizePath(movFile);
         assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
+        
+        % See movieSetInProj()
         if any(strcmp(movFile,obj.(PROPS.MFA)))
           if nMov==1
             error('Labeler:dupmov',...
@@ -2689,22 +2699,17 @@ classdef Labeler < handle
         end
       end
       
-      moviefilesfull = cellfun(@(x)obj.projLocalizePath(x),moviefiles,'uni',0);
-      cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),moviefilesfull);
-      tfMFeq = arrayfun(@(x)strcmp(moviefiles{x},obj.(PROPS.MFA)(:,x)),...
-        1:obj.nview,'uni',0);
-      tfMFFeq = arrayfun(@(x)strcmp(moviefilesfull{x},obj.(PROPS.MFAF)(:,x)),...
-        1:obj.nview,'uni',0);
-      tfMFeq = cat(2,tfMFeq{:}); % [nmoviesetxnview], true when moviefiles matches movieFilesAll
-      tfMFFeq = cat(2,tfMFFeq{:}); % [nmoviesetxnview], true when movfilefull matches movieFilesAllFull
-      iAllViewsMatch = find(all(tfMFeq,2));
-      if ~isempty(iAllViewsMatch)
+      [tfmatch,imovmatch,tfMovsEq,moviefilesfull] = obj.movieSetInProj(moviefiles);
+      if tfmatch
         error('Labeler:dupmov',...
-          'Movieset matches current movieset %d in project.',iAllViewsMatch(1));
+          'Movieset matches current movieset %d in project.',imovmatch);
       end
+      
+      cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),moviefilesfull);      
+      
       for iView=1:obj.nview
-        iMFmatches = find(tfMFeq(:,iView));
-        iMFFmatches = find(tfMFFeq(:,iView));
+        iMFmatches = find(tfMovsEq(:,iView,1));
+        iMFFmatches = find(tfMovsEq(:,iView,2));
         iMFFmatches = setdiff(iMFFmatches,iMFmatches);
         if ~isempty(iMFmatches)
           warningNoTrace('Labeler:dupmov',...
@@ -2780,6 +2785,54 @@ classdef Labeler < handle
       end
     end
 
+    function [tf,imovmatch,tfMovsEq,moviefilesfull] = movieSetInProj(obj,moviefiles)
+      % Return true if a movie(set) already exists in the project
+      %
+      % moviefiles: either char if nview==1, or [nview] cellstr. Can
+      %   contain macros.
+      % 
+      % tf: true if moviefiles exists in a row of .movieFilesAll or
+      %   .movieFilesAllFull
+      % imovsmatch: if tf==true, the matching movie index; otherwise
+      %   indeterminate
+      % tfMovsEq: [nmovset x nview x 2] logical. tfMovsEq{imov,ivw,j} is
+      %   true if moviefiles{ivw} matches .movieFilesAll{imov,ivw} if j==1
+      %   or .movieFilesAllFull{imov,ivw} if j==2. This output contains
+      %   "partial match" info for multiview projs.
+      %
+      % This is GT aware and matches are searched for the current GT state.
+      
+      if ischar(moviefiles)
+        moviefiles = {moviefiles};
+      end
+      
+      nvw = obj.nview;
+      assert(iscellstr(moviefiles) && numel(moviefiles)==nvw);
+      
+      moviefilesfull = cellfun(@obj.projLocalizePath,moviefiles,'uni',0);
+      
+      PROPS = obj.gtGetSharedProps();
+
+      tfMFeq = arrayfun(@(x)strcmp(moviefiles{x},obj.(PROPS.MFA)(:,x)),1:nvw,'uni',0);
+      tfMFFeq = arrayfun(@(x)strcmp(moviefilesfull{x},obj.(PROPS.MFAF)(:,x)),1:nvw,'uni',0);
+      tfMFeq = cat(2,tfMFeq{:}); % [nmoviesetxnview], true when moviefiles matches movieFilesAll
+      tfMFFeq = cat(2,tfMFFeq{:}); % [nmoviesetxnview], true when movfilefull matches movieFilesAllFull
+      tfMovsEq = cat(3,tfMFeq,tfMFFeq); % [nmovset x nvw x 2]. 3rd dim is {mfa,mfaf}
+      
+      for j=1:2
+        iAllViewsMatch = find(all(tfMovsEq(:,:,j),2));
+        if ~isempty(iAllViewsMatch)
+          assert(isscalar(iAllViewsMatch));
+          tf = true;
+          imovmatch = iAllViewsMatch;
+          return;
+        end
+      end
+      
+      tf = false;
+      imovmatch = [];
+    end
+    
 %     function tfSucc = movieRmName(obj,movName)
 %       % movName: compared to .movieFilesAll (macros UNreplaced)
 %       assert(~obj.isMultiView,'Unsupported for multiview projects.');
@@ -6245,7 +6298,7 @@ classdef Labeler < handle
           hLns(ivw,ipts) = hP;
         end
         
-        hCM = uicontextmenu('parent',hFgs(ivw),'Tag',sprintf('LabelOverlayMontage_vw%d',ivw));
+        hCM = uicontextmenu('parent',hFgs(ivw),'Tag',sprintf('LabelOverlayMontages_vw%d',ivw));
         uimenu('Parent',hCM,'Label','Clear selection',...
           'Separator','on',...
           'Callback',@(src,evt)ec.sendSignal([],zeros(0,1)),...
