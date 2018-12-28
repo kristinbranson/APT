@@ -243,6 +243,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     conf.view = view
     conf.set_exp_name(proj_name)
     # conf.cacheDir = read_string(lbl['cachedir'])
+    conf.has_trx_file = has_trx_file(lbl[lbl['trxFilesAll'][0, 0]])
+    conf.selpts = np.arange(conf.n_classes)
 
     dt_params_ndx = None
     for ndx in range(lbl['trackerClass'].shape[0]):
@@ -251,15 +253,12 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
             dt_params_ndx = ndx
     dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrm']
 
+
     cache_dir = read_string(dt_params['CacheDir']) if cache_dir is None else cache_dir
     conf.cachedir = os.path.join(cache_dir, proj_name, net_type, 'view_{}'.format(view), name)
 
     if not os.path.exists(conf.cachedir):
         os.makedirs(conf.cachedir)
-
-    # conf.cachedir = os.path.join(localSetup.bdir, 'cache', proj_name)
-    conf.has_trx_file = has_trx_file(lbl[lbl['trxFilesAll'][0, 0]])
-    conf.selpts = np.arange(conf.n_classes)
 
     # If the project has trx file then we use the crop locs
     # specified by the user. If the project doesnt have trx files
@@ -301,6 +300,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         else:
             conf.img_dim = 1
         cap.close()
+
     try:
         conf.flipud = int(read_entry(dt_params['flipud'])) > 0.5
     except KeyError:
@@ -346,6 +346,23 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.op_affinity_graph = graph
     except KeyError:
         pass
+
+    done_keys = ['CacheDir','scale','brange','crange','trange','rrange','op_affinity_graph','flipud','dl_steps','scale','adjustContrast','normalize','sizex','sizey']
+
+    for k in dt_params.keys():
+        if k in done_keys:
+            continue
+
+        if hasattr(conf,k):
+            if type(getattr(conf,k)) == str:
+                setattr(conf,k,read_string(dt_params[k]))
+            elif type(getattr(conf,k)) == bool:
+                setattr(conf,k,bool(read_entry(dt_params[k])))
+            else:
+                setattr(conf,k,read_entry(dt_params[k]))
+        else:
+            setattr(conf,k,read_entry(dt_params[k]))
+
 
     if conf_params is not None:
         cc = conf_params
@@ -582,6 +599,9 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
         else:
             count += 1
             splits[0].append(info)
+
+        if ndx % 100 == 0 and ndx > 0:
+            print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
 
     print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
     lbl.close()
@@ -826,7 +846,7 @@ def get_trx_ids(trx_ids_in, n_trx, has_trx_file):
         if len(trx_ids_in) == 0:
             trx_ids = np.arange(n_trx)
         else:
-            trx_ids = np.array(trx_ids_in)
+            trx_ids = np.array(trx_ids_in) - 1
     else:
         trx_ids = np.array([0])
     return trx_ids
@@ -1225,8 +1245,9 @@ def classify_movie(conf, pred_fn,
             for k in ret_dict.keys():
 
                 if ret_dict[k].ndim == 4:  # hmaps
-                    cur_hmap = ret_dict[k]
-                    write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
+                    if save_hmaps:
+                        cur_hmap = ret_dict[k]
+                        write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
 
                 else:
                     cur_v = ret_dict[k]
@@ -1247,9 +1268,11 @@ def classify_movie(conf, pred_fn,
             sys.stdout.write('.')
         if cur_b % 400 == 399:
             sys.stdout.write('\n')
-            write_trk(out_file, pred_locs, extra_dict, range(start_frame, to_do_list[cur_start][0]), trx_ids, conf, info, mov_file)
+            write_trk(out_file + '.part', pred_locs, extra_dict, range(start_frame, to_do_list[cur_start][0]), trx_ids, conf, info, mov_file)
 
     write_trk(out_file, pred_locs, extra_dict, range(start_frame, end_frame), trx_ids, conf, info, mov_file)
+    if os.path.exists(out_file + '.part'):
+        os.remove(out_file + '.part')
     cap.close()
     tf.reset_default_graph()
     return pred_locs
@@ -1323,6 +1346,7 @@ def classify_movie_all(model_type, **kwargs):
     train_name = kwargs['train_name']
     del kwargs['model_file'], kwargs['conf'], kwargs['train_name']
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
+    print('Writing hmaps') if kwargs['save_hmaps'] else print('NOT writing hmaps')
     try:
         classify_movie(conf, pred_fn, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:

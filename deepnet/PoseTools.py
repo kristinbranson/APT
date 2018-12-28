@@ -269,7 +269,7 @@ def randomly_translate(img, locs, conf, group_sz = 1):
             mat = np.float32([[1, 0, dx], [0, 1, dy]])
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows))#,borderMode=cv2.BORDER_REPLICATE)
+                ii = cv2.warpAffine(ii, mat, (cols, rows),flags=cv2.INTER_CUBIC)#,borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -292,6 +292,8 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
 
     num = img.shape[0]
     rows, cols = img.shape[1:3]
+    rows = float(rows)
+    cols = float(cols)
     n_groups = num/group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
@@ -313,7 +315,7 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
                 sane = True
                 do_rotate = False
             ll = copy.deepcopy(orig_locs)
-            ll = ll - [old_div(cols, 2), old_div(rows, 2)]
+            ll = ll - [cols/2 , rows/2]
             ang = np.deg2rad(rangle)
             rot = [[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]]
             lr = np.zeros(ll.shape)
@@ -332,10 +334,10 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
 
             # else:
             #                 print 'not sane {}'.format(count)
-            mat = cv2.getRotationMatrix2D((old_div(cols, 2), old_div(rows, 2)), rangle, 1)
+            mat = cv2.getRotationMatrix2D((cols/2, rows/2), rangle, 1)
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows))#,borderMode=cv2.BORDER_REPLICATE)
+                ii = cv2.warpAffine(ii, mat, (int(cols), int(rows)),flags=cv2.INTER_CUBIC)#,borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii

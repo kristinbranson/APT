@@ -349,7 +349,6 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                         in_filt = mdn_l.get_shape().as_list()[3]
                         kernel_shape = [k_sz, k_sz, in_filt, n_filt]
                         mdn_l = conv_relu(mdn_l,kernel_shape, self.ph['phase_train'])
-                        mdn_l_1 = mdn_l
 
                 else:
                 
