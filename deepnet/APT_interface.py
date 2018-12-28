@@ -1225,8 +1225,9 @@ def classify_movie(conf, pred_fn,
             for k in ret_dict.keys():
 
                 if ret_dict[k].ndim == 4:  # hmaps
-                    cur_hmap = ret_dict[k]
-                    write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
+                    if save_hmaps:
+                        cur_hmap = ret_dict[k]
+                        write_hmaps(cur_hmap[cur_t, ...], hmap_out_dir, trx_ndx, cur_f, k[5:])
 
                 else:
                     cur_v = ret_dict[k]
@@ -1323,6 +1324,7 @@ def classify_movie_all(model_type, **kwargs):
     train_name = kwargs['train_name']
     del kwargs['model_file'], kwargs['conf'], kwargs['train_name']
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
+    print('Writing hmaps') if kwargs['save_hmaps'] else print('NOT writing hmaps')
     try:
         classify_movie(conf, pred_fn, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
