@@ -460,8 +460,10 @@ def create_label_images(locs, im_sz, scale, blur_rad):
                 continue
                 #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
             #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
-            modlocs0 = int(np.round(old_div(locs[ndx][cls][1], scale)))
-            modlocs1 = int(np.round(old_div(locs[ndx][cls][0], scale)))
+            xx = float(locs[ndx][cls][1])/scale - float(scale)/2
+            yy = float(locs[ndx][cls][0])/scale - float(scale)/2
+            modlocs0 = int(np.round(xx))
+            modlocs1 = int(np.round(yy))
             l0 = min(sz0, max(0, modlocs0 - k_size))
             r0 = max(0, min(sz0, modlocs0 + k_size + 1))
             l1 = min(sz1, max(0, modlocs1 - k_size))
@@ -561,18 +563,19 @@ def get_base_pred_locs(pred, conf):
     return pred_locs
 
 
-def get_pred_locs(pred, edge_ignore=1):
+def get_pred_locs(pred, edge_ignore=0):
     if edge_ignore < 1:
-        edge_ignore = 1
+        edge_ignore = 0
     n_classes = pred.shape[3]
     pred_locs = np.zeros([pred.shape[0], n_classes, 2])
     for ndx in range(pred.shape[0]):
         for cls in range(n_classes):
             cur_pred = pred[ndx, :, :, cls].copy()
-            cur_pred[:edge_ignore,:] = cur_pred.min()
-            cur_pred[:,:edge_ignore] = cur_pred.min()
-            cur_pred[-edge_ignore:,:] = cur_pred.min()
-            cur_pred[:,-edge_ignore:] = cur_pred.min()
+            if edge_ignore > 0:
+                cur_pred[:edge_ignore,:] = cur_pred.min()
+                cur_pred[:,:edge_ignore] = cur_pred.min()
+                cur_pred[-edge_ignore:,:] = cur_pred.min()
+                cur_pred[:,-edge_ignore:] = cur_pred.min()
             maxndx = np.argmax(cur_pred)
             curloc = np.array(np.unravel_index(maxndx, pred.shape[1:3]))
             pred_locs[ndx, cls, 0] = curloc[1]
