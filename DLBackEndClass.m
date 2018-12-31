@@ -25,6 +25,18 @@ classdef DLBackEndClass < handle
         reason = '';
       end
     end      
+    
+    function s = prettyName(obj)
+      
+      switch obj.type,
+        case DLBackEnd.Bsub,
+          s = 'JRC Cluster';
+        case DLBackEnd.Docker,
+          s = 'Local';
+        otherwise
+          s = char(obj.type);
+      end
+    end
  
   end
   
