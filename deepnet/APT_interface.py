@@ -600,7 +600,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
             count += 1
             splits[0].append(info)
 
-        if ndx % 100 == 0 and ndx > 0:
+        if ndx % 100 == 99 and ndx > 0:
             print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
 
     print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))

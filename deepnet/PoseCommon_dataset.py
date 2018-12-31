@@ -435,6 +435,7 @@ class PoseCommon(object):
 
         c_names = [c.name for c in common_vars]
         r_names = [v.name for v in var_list if v not in common_vars]
+        r_names = [v for v in r_names if v.find('Adam')<0]
         print("-- Loading from pretrained --")
         print('\n'.join(c_names))
         print("-- Not Loading from pretrained --")

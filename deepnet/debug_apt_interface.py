@@ -1,6 +1,7 @@
 
+##
 import APT_interface as apt
-cmd_str = '-name stephen_20181029 -cache /tmp  /home/mayank/work/APT/deepnet/data/sh_trn4879_gtcomplete.lbl train -use_cache'
+cmd_str = '-name stephen_20181029 -conf_params mdn_groups ((0),(1,2,3,4)) -cache /tmp -type mdn /home/mayank/work/APT/deepnet/data/sh_trn4879_gtcomplete.lbl train -use_cache -skip_db'
 
 cc = cmd_str.split()
 apt.main(cc)

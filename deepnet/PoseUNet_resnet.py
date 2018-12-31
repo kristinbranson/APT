@@ -25,9 +25,41 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
     def __init__(self, conf, name='unet_resnet'):
         conf.use_pretrained_weights = True
-#        conf.pretrained_weights = '/home/mayank/work/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt'
         self.conf = conf
+        self.out_scale = 1.
+        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
         PoseUNet.PoseUNet.__init__(self, conf, name=name)
+
+        if self.resnet_source == 'official_tf':
+            url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            wt_dir = os.path.join(script_dir,'pretrained')
+            wt_file = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables.index')
+            if not os.path.exists(wt_file):
+                print('Downloading pretrained weights..')
+                if not os.path.exists(wt_dir):
+                    os.makedirs(wt_dir)
+                sname, header = urllib.urlretrieve(url)
+                tar = tarfile.open(sname, "r:gz")
+                print('Extracting pretrained weights..')
+                tar.extractall(path=wt_dir)
+            self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
+        else:
+            url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            wt_dir = os.path.join(script_dir,'pretrained')
+            wt_file = os.path.join(wt_dir,'resnet_v1_50.ckpt')
+            if not os.path.exists(wt_file):
+                print('Downloading pretrained weights..')
+                if not os.path.exists(wt_dir):
+                    os.makedirs(wt_dir)
+                sname, header = urllib.urlretrieve(url)
+                tar = tarfile.open(sname, "r:gz")
+                print('Extracting pretrained weights..')
+                tar.extractall(path=wt_dir)
+            self.pretrained_weights = os.path.join(wt_dir,'resnet_v1_50.ckpt')
+
+
 
     def create_network(self):
 
@@ -124,6 +156,43 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
             var_list += dep_net.get_var_list()
         var_list += tf.global_variables('resnet_')
         return var_list
+
+    def get_pred_fn(self, model_file=None):
+        sess, latest_model_file = self.restore_net(model_file)
+        conf = self.conf
+
+        def pred_fn(all_f):
+            # this is the function that is used for classification.
+            # this should take in an array B x H x W x C of images, and
+            # output an array of predicted locations.
+            # predicted locations should be B x N x 2
+            # PoseTools.get_pred_locs can be used to convert heatmaps into locations.
+
+            bsize = conf.batch_size
+            xs, _ = PoseTools.preprocess_ims(
+                all_f, in_locs=np.zeros([bsize, self.conf.n_classes, 2]), conf=self.conf,
+                distort=False, scale=self.conf.rescale)
+
+            self.fd[self.inputs[0]] = xs
+            self.fd[self.ph['phase_train']] = False
+            self.fd[self.ph['learning_rate']] = 0
+            # self.fd[self.ph['keep_prob']] = 1.
+
+            pred, cur_input = sess.run([self.pred, self.inputs], self.fd)
+
+            base_locs = PoseTools.get_pred_locs(pred)
+            base_locs = base_locs * conf.rescale * self.out_scale
+
+            ret_dict = {}
+            ret_dict['locs'] = base_locs
+            ret_dict['hmaps'] = pred
+            ret_dict['conf'] = (np.max(pred,axis=(1,2)) + 1)/2
+            return ret_dict
+
+        def close_fn():
+            sess.close()
+
+        return pred_fn, close_fn, latest_model_file
 
 
 class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
@@ -915,3 +984,89 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
                [val_means, val_std, val_wts, val_dist_pred]
 
+
+def preproc_func(ims, locs, info, conf, distort, out_scale = 8.):
+
+    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
+    tlocs = locs.copy()
+
+    hmaps = PoseTools.create_label_images(tlocs, conf.imsz, conf.rescale*out_scale, conf.label_blur_rad)
+    return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
+
+
+class PoseUNet_resnet_lowres(PoseUNet_resnet):
+
+    def __init__(self, conf, name='unet_resnet_lowres'):
+        conf.use_pretrained_weights = True
+        PoseUNet_resnet.__init__(self, conf, name=name)
+        self.conf = conf
+        self.output_stride = self.conf.get('mdn_slim_output_stride', 16)
+        self.out_scale = float(self.output_stride/2)
+        self.resnet_source = self.conf.get('mdn_resnet_source','slim')
+
+        def train_pp(ims,locs,info):
+            return preproc_func(ims,locs,info, conf,True, out_scale= self.out_scale)
+        def val_pp(ims,locs,info):
+            return preproc_func(ims,locs,info, conf, False, out_scale=self.out_scale)
+
+        self.train_py_map = lambda ims, locs, info: tuple(tf.py_func( train_pp, [ims, locs, info], [tf.float32, tf.float32, tf.float32, tf.float32]))
+        self.val_py_map = lambda ims, locs, info: tuple(tf.py_func( val_pp, [ims, locs, info], [tf.float32, tf.float32, tf.float32, tf.float32]))
+
+
+    def create_network(self):
+
+        im, locs, info, hmap = self.inputs
+        conf = self.conf
+        im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.img_dim])
+        hmap.set_shape([conf.batch_size, int(round(conf.imsz[0]/conf.rescale/self.out_scale)), int(round(conf.imsz[1]/conf.rescale/self.out_scale)),conf.n_classes])
+        locs.set_shape([conf.batch_size, conf.n_classes,2])
+        info.set_shape([conf.batch_size,3])
+        if conf.img_dim == 1:
+            im = tf.tile(im,[1,1,1,3])
+
+        conv = lambda a, b: conv_relu3(
+            a,b,self.ph['phase_train'], keep_prob=None,
+            use_leaky=self.conf.unet_use_leaky)
+
+
+        if self.resnet_source == 'slim':
+            with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+                net, end_points = resnet_v1.resnet_v1_50(im,
+                                          global_pool=False, is_training=self.ph[
+                                          'phase_train'],output_stride=self.output_stride)
+                l_names = ['conv1', 'block1/unit_2/bottleneck_v1', 'block2/unit_3/bottleneck_v1',
+                           'block3/unit_5/bottleneck_v1', 'block4']
+                down_layers = [end_points['resnet_v1_50/' + x] for x in l_names]
+
+                ex_down_layers = conv(self.inputs[0], 64)
+                down_layers.insert(0, ex_down_layers)
+                n_filts = [32, 64, 64, 128, 256, 512]
+
+        elif self.resnet_source == 'official_tf':
+            mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
+            im = tf.placeholder(tf.float32, [8, 512, 512, 3])
+            resnet_out = mm(im, True)
+            down_layers = mm.layers
+            ex_down_layers = conv(self.inputs[0], 64)
+            down_layers.insert(0, ex_down_layers)
+            n_filts = [32, 64, 64, 128, 256, 512, 1024]
+
+
+        with tf.variable_scope(self.net_name):
+
+            num_outputs = self.conf.n_classes
+            with slim.arg_scope([slim.conv2d, slim.conv2d_transpose], padding='SAME',
+                                activation_fn=None, normalizer_fn=None):
+                with tf.variable_scope('unet_out'):
+                    pred = slim.conv2d_transpose(net, num_outputs,
+                                                 kernel_size=[3, 3], stride=2,
+                                                 scope='block4')
+        return pred
+
+
+    def get_var_list(self):
+        var_list = tf.global_variables(self.net_name)
+        for dep_net in self.dep_nets:
+            var_list += dep_net.get_var_list()
+        var_list += tf.global_variables('resnet_')
+        return var_list
