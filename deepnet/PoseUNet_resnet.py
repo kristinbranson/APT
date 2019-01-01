@@ -195,6 +195,12 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
 
         return pred_fn, close_fn, latest_model_file
 
+    def compute_dist(self, preds, locs):
+        pp = PoseTools.get_pred_locs(preds,self.edge_ignore)*self.conf.rescale * self.out_scale
+        tt1 = pp - locs + [self.pad_x//2,self.pad_y//2]
+        tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
+        return np.nanmean(tt1)
+
 
 class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
@@ -990,10 +996,31 @@ def preproc_func(ims, locs, info, conf, distort, out_scale = 8.):
 
     ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
     tlocs = locs.copy()
-    osz0 = int(math.ceil(conf.imsz[0]/conf.rescale/(out_scale*2)))*2
-    scale = float(conf.imsz[0])/osz0
+    osz = []
+    osz.append(int(math.ceil(conf.imsz[0]/conf.rescale/(out_scale*2)))*2)
+    osz.append(int(math.ceil(conf.imsz[1]/conf.rescale/(out_scale*2)))*2)
+    scale = conf.rescale*out_scale
 
     hmaps = PoseTools.create_label_images(tlocs, conf.imsz, scale, conf.label_blur_rad)
+    ndx = 0
+    n_shape = list(hmaps.shape)
+    n_shape[ndx + 1] = osz[ndx]
+    if hmaps.shape[ndx+1] < osz[ndx]:
+        n_hmaps = np.zeros(n_shape)
+        n_hmaps[:,:hmaps.shape[ndx+1],...] = hmaps
+    else:
+        n_hmaps = hmaps[:,:osz[ndx],...]
+    hmaps = n_hmaps
+    ndx = 1
+    n_shape = list(hmaps.shape)
+    n_shape[ndx + 1] = osz[ndx]
+    if hmaps.shape[ndx+1] < osz[ndx]:
+        n_hmaps = np.zeros(n_shape)
+        n_hmaps[:,:,:hmaps.shape[ndx+1],...] = hmaps
+    else:
+        n_hmaps = hmaps[:,:,osz[ndx],...]
+    hmaps = n_hmaps
+
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 
