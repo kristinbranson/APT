@@ -460,8 +460,8 @@ def create_label_images(locs, im_sz, scale, blur_rad):
                 continue
                 #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
             #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
-            xx = float(locs[ndx][cls][1])/scale - float(scale)/2
-            yy = float(locs[ndx][cls][0])/scale - float(scale)/2
+            xx = float(locs[ndx][cls][1]-float(scale)/2)/scale
+            yy = float(locs[ndx][cls][0]-float(scale)/2)/scale
             modlocs0 = int(np.round(xx))
             modlocs1 = int(np.round(yy))
             l0 = min(sz0, max(0, modlocs0 - k_size))

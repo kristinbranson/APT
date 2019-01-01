@@ -20,6 +20,7 @@ from tensorflow.contrib.layers import batch_norm
 import resnet_official
 import urllib
 import tarfile
+import math
 
 class PoseUNet_resnet(PoseUNet.PoseUNet):
 
@@ -77,7 +78,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
             use_leaky=self.conf.unet_use_leaky)
 
 
-        if self.resnet_version == 'slim':
+        if self.resnet_source == 'slim':
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
                 net, end_points = resnet_v1.resnet_v1_50(im,
                                           global_pool=False, is_training=self.ph[
@@ -90,7 +91,7 @@ class PoseUNet_resnet(PoseUNet.PoseUNet):
                 down_layers.insert(0, ex_down_layers)
                 n_filts = [32, 64, 64, 128, 256, 512]
 
-        elif self.resnet_version == 'official_tf':
+        elif self.resnet_source == 'official_tf':
             mm = resnet_official.Model( resnet_size=50, bottleneck=True, num_classes=17, num_filters=32, kernel_size=7, conv_stride=2, first_pool_size=3, first_pool_stride=2, block_sizes=[3, 4, 6, 3], block_strides=[2, 2, 2, 2], final_size=2048, resnet_version=2, data_format='channels_last',dtype=tf.float32)
             im = tf.placeholder(tf.float32, [8, 512, 512, 3])
             resnet_out = mm(im, True)
@@ -413,7 +414,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                 explicit_offset = self.conf.get('mdn_explicit_offset',True)
                     
-                if self.conf.get('mdn_more_locs_layer',False):
+                if self.conf.get('mdn_more_locs_layer',True):
                     with tf.variable_scope('layer_locs_1_1'):
                         in_filt = mdn_l.get_shape().as_list()[3]
                         kernel_shape = [k_sz, k_sz, in_filt, n_filt]
@@ -989,8 +990,10 @@ def preproc_func(ims, locs, info, conf, distort, out_scale = 8.):
 
     ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
     tlocs = locs.copy()
+    osz0 = int(math.ceil(conf.imsz[0]/conf.rescale/(out_scale*2)))*2
+    scale = float(conf.imsz[0])/osz0
 
-    hmaps = PoseTools.create_label_images(tlocs, conf.imsz, conf.rescale*out_scale, conf.label_blur_rad)
+    hmaps = PoseTools.create_label_images(tlocs, conf.imsz, scale, conf.label_blur_rad)
     return ims.astype('float32'), locs.astype('float32'), info.astype('float32'), hmaps.astype('float32')
 
 
@@ -1014,11 +1017,14 @@ class PoseUNet_resnet_lowres(PoseUNet_resnet):
 
 
     def create_network(self):
+        import math
 
         im, locs, info, hmap = self.inputs
         conf = self.conf
         im.set_shape([conf.batch_size, conf.imsz[0]/conf.rescale,conf.imsz[1]/conf.rescale, conf.img_dim])
-        hmap.set_shape([conf.batch_size, int(round(conf.imsz[0]/conf.rescale/self.out_scale)), int(round(conf.imsz[1]/conf.rescale/self.out_scale)),conf.n_classes])
+        osz0 = int(math.ceil(conf.imsz[0]/conf.rescale/(self.out_scale*2)))*2
+        osz1 = int(math.ceil(conf.imsz[1]/conf.rescale/(self.out_scale*2)))*2
+        hmap.set_shape([conf.batch_size, osz0,osz1,conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
         if conf.img_dim == 1:
