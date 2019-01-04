@@ -316,8 +316,12 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             with tf.variable_scope(self.net_name + '_unet'):
 
                 # add an extra layer at input resolution.
-                # ex_down_layers = conv(im, 32)
-                # down_layers.insert(0, ex_down_layers)
+                if self.conf.get('mdn_unet_highres',False):
+                    ex_down_layers = conv(im, 32)
+                    down_layers.insert(0, ex_down_layers)
+                    skip_ndx = 0
+                else:
+                    skip_ndx = -1
 
                 prev_in = None
                 for ndx in reversed(range(len(down_layers))):
@@ -342,7 +346,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                         else:
                             X = conv(X, n_filts[ndx])
 
-                    if ndx is not -1:
+                    if ndx is not skip_ndx:
                         sc_name = 'layerup_{}_1'.format(ndx)
                         with tf.variable_scope(sc_name):
                             if self.no_pad:
