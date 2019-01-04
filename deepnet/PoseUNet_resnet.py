@@ -529,19 +529,25 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                 scales = tf.reshape(scales, [-1, n_x * n_y * k, n_out], name='scales_final')
 
             with tf.variable_scope('logits'):
-                with tf.variable_scope('layer_logits'):
-                    kernel_shape = [1, 1, n_filt_in, n_filt]
-                    weights = tf.get_variable("weights", kernel_shape,
-                                              initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
-                    biases = tf.get_variable("biases", kernel_shape[-1],
-                                             initializer=tf.constant_initializer(0))
-                    conv = tf.nn.conv2d(X, weights,
-                                        strides=[1, 1, 1, 1], padding='SAME')
-                    conv = batch_norm(conv, decay=0.99,
-                                      is_training=self.ph['phase_train'])
-                mdn_l = tf.nn.relu(conv + biases)
 
-                weights_logits = tf.get_variable("weights_logits", [1, 1, n_filt, k * n_groups],
+                if self.conf.get('mdn_no_locs_layer',False):
+                    mdn_l = X
+                else:
+                    with tf.variable_scope('layer_logits'):
+                        kernel_shape = [1, 1, n_filt_in, n_filt]
+                        weights = tf.get_variable("weights", kernel_shape,
+                                                  initializer=tf.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                        biases = tf.get_variable("biases", kernel_shape[-1],
+                                                 initializer=tf.constant_initializer(0))
+                        conv = tf.nn.conv2d(X, weights,
+                                            strides=[1, 1, 1, 1], padding='SAME')
+                        conv = batch_norm(conv, decay=0.99,
+                                          is_training=self.ph['phase_train'])
+                    mdn_l = tf.nn.relu(conv + biases)
+
+                loc_shape = mdn_l.get_shape().as_list()
+                in_filt = loc_shape[0]
+                weights_logits = tf.get_variable("weights_logits", [1, 1, in_filt, k * n_groups],
                                                  initializer=tf.contrib.layers.xavier_initializer())
                 biases_logits = tf.get_variable("biases_logits", k * n_groups,
                                                 initializer=tf.constant_initializer(0))
