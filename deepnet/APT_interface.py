@@ -347,6 +347,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     except KeyError:
         pass
 
+    conf.mdn_groups = [(i,) for i in range(conf.n_classes)]
+
     done_keys = ['CacheDir','scale','brange','crange','trange','rrange','op_affinity_graph','flipud','dl_steps','scale','adjustContrast','normalize','sizex','sizey']
 
     for k in dt_params.keys():
