@@ -546,7 +546,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                     mdn_l = tf.nn.relu(conv + biases)
 
                 loc_shape = mdn_l.get_shape().as_list()
-                in_filt = loc_shape[0]
+                in_filt = loc_shape[-1]
                 weights_logits = tf.get_variable("weights_logits", [1, 1, in_filt, k * n_groups],
                                                  initializer=tf.contrib.layers.xavier_initializer())
                 biases_logits = tf.get_variable("biases_logits", k * n_groups,
