@@ -360,6 +360,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
                 setattr(conf,k,read_string(dt_params[k]))
             elif type(getattr(conf,k)) == bool:
                 setattr(conf,k,bool(read_entry(dt_params[k])))
+            elif type(getattr(conf, k)) == int:
+                setattr(conf, k, int(read_entry(dt_params[k])))
             else:
                 setattr(conf,k,read_entry(dt_params[k]))
         else:
@@ -848,7 +850,7 @@ def get_trx_ids(trx_ids_in, n_trx, has_trx_file):
         if len(trx_ids_in) == 0:
             trx_ids = np.arange(n_trx)
         else:
-            trx_ids = np.array(trx_ids_in) - 1
+            trx_ids = np.array(trx_ids_in)
     else:
         trx_ids = np.array([0])
     return trx_ids
@@ -1124,10 +1126,10 @@ def classify_gt_data(conf, model_type, out_file, model_file):
     return pred_locs, labeled_locs, cur_list
 
 
-def convert_to_matlab(in_pred, conf, n_done, trx_ids):
+def convert_to_matlab(in_pred, conf, start, end, trx_ids):
     pred_locs = in_pred.copy()
     pred_locs = pred_locs[:, trx_ids, ...]
-    pred_locs = pred_locs[n_done, ...]
+    pred_locs = pred_locs[:(end-start), ...]
     if pred_locs.ndim == 4:
         pred_locs = pred_locs.transpose([2, 3, 0, 1])
     else:
@@ -1137,11 +1139,11 @@ def convert_to_matlab(in_pred, conf, n_done, trx_ids):
     return pred_locs
 
 
-def write_trk(out_file, pred_locs_in, extra_dict, n_done, trx_ids, conf, info, mov_file):
+def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, info, mov_file):
     # pred_locs is the predicted locations of size
     # n_frames in the movie x n_Trx x n_body_parts x 2
     # n_done is the number of frames that have been tracked.
-    pred_locs = convert_to_matlab(pred_locs_in, conf, n_done, trx_ids)
+    pred_locs = convert_to_matlab(pred_locs_in, conf, start, end, trx_ids)
 
     tgt = np.array(trx_ids) + 1  # target animals that have been tracked.
     # For projects without trx file this is always 1.
@@ -1151,7 +1153,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, n_done, trx_ids, conf, info, m
     tracked_shape = pred_locs.shape[2]
     tracked = np.zeros([1,
                         tracked_shape])  # which of the predlocs have been tracked. Mostly to help APT know how much tracking has been done.
-    tracked[0, :] = np.array(n_done) + 1
+    tracked[0, :] = np.arange(start,end) + 1
 
     out_dict = {'pTrk': pred_locs,
                 'pTrkTS': ts,
@@ -1161,7 +1163,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, n_done, trx_ids, conf, info, m
                 'pTrkFrm': tracked,
                 'trkInfo': info}
     for k in extra_dict.keys():
-        out_dict['pTrk' + k] = convert_to_matlab(extra_dict[k],conf,n_done,trx_ids)
+        out_dict['pTrk' + k] = convert_to_matlab(extra_dict[k],conf,start, end,trx_ids)
 
     hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
 
@@ -1200,8 +1202,8 @@ def classify_movie(conf, pred_fn,
     if end_frame > end_frames.max(): end_frame = end_frames.max()
     if start_frame > end_frame: return None
 
-    max_n_frames = end_frames.max() - first_frames.min()
-    min_first_frame = first_frames.min()
+    max_n_frames = end_frame - start_frame
+    min_first_frame = start_frame
     pred_locs = np.zeros([max_n_frames, n_trx, conf.n_classes, 2])
     pred_locs[:] = np.nan
 
@@ -1226,6 +1228,7 @@ def classify_movie(conf, pred_fn,
         ppe = min(n_list - cur_start, bsize)
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf,
                                  cap, flipud, T, crop_loc)
+
 
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict.pop('locs')
@@ -1270,9 +1273,9 @@ def classify_movie(conf, pred_fn,
             sys.stdout.write('.')
         if cur_b % 400 == 399:
             sys.stdout.write('\n')
-            write_trk(out_file + '.part', pred_locs, extra_dict, range(start_frame, to_do_list[cur_start][0]), trx_ids, conf, info, mov_file)
+            write_trk(out_file + '.part', pred_locs, extra_dict, start_frame, to_do_list[cur_start][0], trx_ids, conf, info, mov_file)
 
-    write_trk(out_file, pred_locs, extra_dict, range(start_frame, end_frame), trx_ids, conf, info, mov_file)
+    write_trk(out_file, pred_locs, extra_dict, start_frame, end_frame, trx_ids, conf, info, mov_file)
     if os.path.exists(out_file + '.part'):
         os.remove(out_file + '.part')
     cap.close()

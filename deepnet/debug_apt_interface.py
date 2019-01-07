@@ -1,3 +1,10 @@
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd_str = '-name alice_compare -cache /home/mayank/work/APT/deepnet/cache -type mdn /home/mayank/work/APT/deepnet/data/multitarget_bubble_expandedbehavior_20180425_modified4.lbl track -start_frame 5000 -end_frame 5500 -trx /home/mayank/work/FlyBowl/pBDPGAL4U_TrpA_Rig2Plate14BowlD_20110617T143743/registered_trx.mat -mov /home/mayank/work/FlyBowl/pBDPGAL4U_TrpA_Rig2Plate14BowlD_20110617T143743/movie.ufmf -trx_ids 3 -out /home/mayank/temp/a.trk'
+
+cc = cmd_str.split()
+apt.main(cc)
 
 ##
 import APT_interface as apt
