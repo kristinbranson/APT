@@ -356,7 +356,7 @@ classdef DeepTracker < LabelTracker
           assert(false);
       end
 
-      trnVizObj = feval(obj.bgTrnMonitorVizClass,nvw,trnWrkObj,backEnd.type);
+      trnVizObj = feval(obj.bgTrnMonitorVizClass,nvw,obj,trnWrkObj,backEnd.type);
                 
       trnMonObj.prepare(trnVizObj,trnWrkObj);
       trnMonObj.start();
