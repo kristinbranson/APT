@@ -11,8 +11,11 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
                  % A model can be trained once, but also train-augmented.
     trainID % a single modelID may be trained multiple times due to 
             % train-augmentation, so a single modelID may have multiple
-            % trainID associated with it.
-    
+            % trainID associated with it. Each (modelChainID,trainID) pair
+            % has a unique associated stripped lbl.            
+    restartTS % Training for each (modelChainID,trainID) can be killed and
+              % restarted arbitrarily many times. This timestamp uniquely
+              % identifies a restart
     trainType % scalar DLTrainType
     iterFinal % final expected iteration    
     %backEnd % back-end info (bsub, docker, aws)
@@ -67,15 +70,25 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.trainLogLnx(obj)
       v = [obj.dirProjLnx '/' obj.trainLogName];
-    end    
+    end
     function v = get.trainLogName(obj)
-      v = sprintf('%s_%s_%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)));
+      switch obj.trainType
+        case DLTrainType.Restart
+          v = sprintf('%s_%s_%s%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+        otherwise
+          v = sprintf('%s_%s_%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)));
+      end
     end    
     function v = get.killTokenLnx(obj)
       v = [obj.dirModelChainLnx '/' obj.killTokenName];
     end    
     function v = get.killTokenName(obj)
-      v = sprintf('%s_%s.KILLED',obj.trainID,lower(char(obj.trainType)));
+      switch obj.trainType
+        case DLTrainType.Restart
+          v = sprintf('%s_%s%s.KILLED',obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+        otherwise
+          v = sprintf('%s_%s.KILLED',obj.trainID,lower(char(obj.trainType)));
+      end
     end  
     function v = get.trainDataLnx(obj)
       v = [obj.dirModelChainLnx '/traindata.json'];

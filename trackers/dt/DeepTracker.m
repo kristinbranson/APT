@@ -632,7 +632,7 @@ classdef DeepTracker < LabelTracker
         end
         save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
         fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
-      else
+      else % Restart
         trainID = obj.trnNameLbl;
         assert(~isempty(trainID));
         
@@ -644,7 +644,9 @@ classdef DeepTracker < LabelTracker
         else
           error('Cannot find stripped lbl file: %s',dlLblFileLcl);
         end
-      end      
+        
+        dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
+      end
 
       % At this point
       % We have (modelChainID,trainID). stripped lbl is on disk. 
@@ -976,7 +978,7 @@ classdef DeepTracker < LabelTracker
         end
         save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
         fprintf('Saved stripped lbl file locally: %s\n',dlLblFileLcl);
-      else
+      else % Restart
         trainID = obj.trnNameLbl;
         assert(~isempty(trainID));
         
@@ -988,7 +990,10 @@ classdef DeepTracker < LabelTracker
           fprintf(1,'Found existing local stripped lbl file: %s\n',dlLblFileLcl);
         else
           error('Cannot find local stripped lbl file: %s',dlLblFileLcl);
-        end        
+        end
+        
+        dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
+        dmcLcl.restartTS = dmc.restartTS;        
       end
       dlLblFileRemote = dmc.lblStrippedLnx;
       aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
@@ -1740,21 +1745,34 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trainCodeGen(trnID,dllbl,cache,errfile,netType,...
         varargin)
-      view = myparse(varargin,...
-        'view',[]); % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
+      [view,aptintrf,trainType] = myparse(varargin,...
+        'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
+        'aptintrf',fullfile(APT.getpathdl,'APT_interface.py'),...
+        'trainType',DLTrainType.New...
+          );
       tfview = ~isempty(view);
       
-      aptintrf = fullfile(APT.getpathdl,'APT_interface.py');
+      switch trainType
+        case DLTrainType.New
+          continueflags = '';
+        case DLTrainType.Restart
+          continueflags = '-continue -skip_db';
+        case DLTrainType.RestartAug
+          continueflags = '-continue';
+        otherwise
+          assert(false);
+      end
+      
       codestr = sprintf('python %s -name %s',aptintrf,trnID);
       if tfview
         codestr = sprintf('%s -view %d',codestr,view); % APT_interface accepts 1-based view
       end      
-      codestr = sprintf('%s -cache %s -err_file %s -type %s %s train -use_cache',...
-        codestr,cache,errfile,netType,dllbl);        
+      codestr = sprintf('%s -cache %s -err_file %s -type %s %s train -use_cache %s',...
+        codestr,cache,errfile,netType,dllbl,continueflags);
     end
     function [codestr,containerName] = trainCodeGenDocker(modelChainID,trainID,...
         dllbl,cache,errfile,netType,view1b,mntPaths)
-
+      fprintf(2,'TODO: restart/trainType\n');
       baseargs = {'view' view1b};
       basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
         netType,baseargs{:});
@@ -1830,7 +1848,7 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
         dmc.modelChainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,...
-        'baseArgs',{'view' dmc.view+1},...
+        'baseArgs',{'view' dmc.view+1 'trainType' dmc.trainType},...
         'singargs',singargs,...
         'bsubArgs',{'outfile' dmc.trainLogLnx},...
         'sshargs',{});
@@ -1844,24 +1862,20 @@ classdef DeepTracker < LabelTracker
         };
       codestr = cat(2,codestr{:});      
     end
-    function codestr = trainCodeGenAWS(dmc)
-%        dlTrnType,trnName,dlLblRemote,view1based)
-
-      switch dmc.trainType
-        case DLTrainType.New
-          continueflags = '';
-        case DLTrainType.Restart
-          continueflags = '-continue -skip_db';
-        case DLTrainType.RestartAug
-          continueflags = '-continue';
-      end
-      
+    function codestr = trainCodeGenAWS(dmc)      
       % not sure what -name flag does exactly
+      
+      codestr = DeepTracker.trainCodeGen(...
+        dmc.modelChainID,dmc.lblStrippedLnx,dmc.rootDir,...
+        dmc.errfileLnx,char(dmc.netType),...
+        'view',dmc.view+1,...
+        'aptintrf','APT_interface.py',...
+        'trainType',dmc.trainType);        
+        
       codestr = {
         'cd /home/ubuntu/APT/deepnet;';
         'export LD_LIBRARY_PATH=/home/ubuntu/src/cntk/bindings/python/cntk/libs:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib;';
-        sprintf('python APT_interface.py -name %s -view %d -cache %s -err_file %s -type %s %s train -use_cache %s',...
-          dmc.modelChainID,dmc.view+1,dmc.rootDir,dmc.errfileLnx,char(dmc.netType),dmc.lblStrippedLnx,continueflags);
+        codestr;
         };
       codestr = cat(2,codestr{:});
     end
