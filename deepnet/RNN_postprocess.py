@@ -614,10 +614,10 @@ class RNN_pp(object):
         v_inputs = np.concatenate([v_inputs_1, v_inputs_2],axis=-1)
 
         m_sz = max(self.conf.imsz)
-        self.t_labels = t_labels/m_sz
-        self.t_inputs = t_inputs/m_sz
-        self.v_labels = v_labels/m_sz
-        self.v_inputs = v_inputs/m_sz
+        self.t_labels = t_labels.astype('float32')/m_sz
+        self.t_inputs = t_inputs.astype('float32')/m_sz
+        self.v_labels = v_labels.astype('float32')/m_sz
+        self.v_inputs = v_inputs.astype('float32')/m_sz
 
         n_vals = self.v_inputs.shape[0]
         n_batches = n_vals/ self.conf.batch_size/2
@@ -642,7 +642,7 @@ class RNN_pp(object):
         preds = np.array(preds)
         preds = preds.reshape((-1,self.conf.n_classes,2))
         prev_preds = np.array(prev_preds)
-        prev_preds = prev_preds.reshape((-1, self.conf.n_classes*2,2) )
+        prev_preds = prev_preds.reshape((-1, self.conf.n_classes*2,4) )
         labels = np.array(labels)
         labels = labels.reshape((-1,self.conf.n_classes,2))
         dd = np.sqrt(np.sum( (preds-labels)**2,axis=-1))

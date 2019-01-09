@@ -15,7 +15,7 @@ ROOT:
   - DeepTrack:
     - ['','',false,Deep track settings.,'','']
     - CacheDir: ['Cache Dir',folder,true,'Directory for storing intermediate files','','','Important','isDeepTrack']
-    - save_step: ['Training data save steps',unsigned,true,'Number of steps after which to save the training models',5000,'','Advanced','isDeepTrack']
+    - save_step: ['Training model save steps',unsigned,true,'Number of steps after which to save the training models',5000,'','Advanced','isDeepTrack']
     - save_td_step: ['Training data save steps',unsigned,true,'The training data will be saved every these many steps',100,'','Advanced','isDeepTrack']
     - display_step: ['Display Step',unsigned,true,'Steps after which to compute and display training and validation loss and distance',50,'','Advanced','isDeepTrack']
     - maxckpt: ['Number of models to save',unsigned,true,'Number of models to keep while training',30,'','Advanced','isDeepTrack']

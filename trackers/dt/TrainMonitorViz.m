@@ -12,6 +12,7 @@ classdef TrainMonitorViz < handle
     axisXRange = 2e3; % show last (this many) iterations along x-axis
     
     resLast % last training json contents received
+    dtObj % DeepTracker Obj
     trainWorkerObj = [];
     backEnd % scalar DLBackEnd
     actions = {
@@ -24,8 +25,8 @@ classdef TrainMonitorViz < handle
   end
   
   methods
-    function obj = TrainMonitorViz(nview,trainWorkerObj,backEnd)
-      
+    function obj = TrainMonitorViz(nview,dtObj,trainWorkerObj,backEnd)
+      obj.dtObj = dtObj;
       obj.trainWorkerObj = trainWorkerObj;
       obj.backEnd = backEnd;
       obj.hfig = TrainMonitorGUI(obj);
@@ -234,7 +235,6 @@ classdef TrainMonitorViz < handle
     end
     
     function stopTraining(obj)
-
       if isempty(obj.trainWorkerObj),
         warning('trainWorkerObj is empty -- cannot kill process');
         return;
@@ -254,6 +254,17 @@ classdef TrainMonitorViz < handle
         obj.ClearBusy('Training process killed');
         warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
       end
+    end
+    
+    function startTraining(obj)
+      % Placeholder meth AL 20190108
+      % - Always do a regular restart for now; if project is updated might
+      % want RestartAug.
+      % - If the training has reached final iter, training will immediately 
+      % end
+      
+      % Kills and creates new TrainMonitorViz, maybe that's fine
+      obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
     end
     
     function updateClusterInfo(obj)
@@ -379,7 +390,7 @@ classdef TrainMonitorViz < handle
       if isStop,
         set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
       else
-        set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','off','UserData','start');
+        set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','on','UserData','start');
       end
       
     end

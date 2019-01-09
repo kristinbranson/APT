@@ -8640,7 +8640,13 @@ classdef Labeler < handle
       end
       
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
-      s.trackerData = {[] s.trackerData{s.currTracker}};
+      
+      tdata = s.trackerData{s.currTracker};
+      sPrmDL = obj.trackDLParams;
+      sPrmDL = rmfield(sPrmDL,'CacheDir');
+      tdata.sPrm = structmerge(tdata.sPrm,sPrmDL);
+      s.trackerData = {[] tdata};      
+      
 %       tf = strcmp(s.trackerClass,'DeepTracker');
 %       i = find(tf);
 %       switch numel(i)

@@ -358,12 +358,9 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         if hasattr(conf,k):
             if type(getattr(conf,k)) == str:
                 setattr(conf,k,read_string(dt_params[k]))
-            elif type(getattr(conf,k)) == bool:
-                setattr(conf,k,bool(read_entry(dt_params[k])))
-            elif type(getattr(conf, k)) == int:
-                setattr(conf, k, int(read_entry(dt_params[k])))
             else:
-                setattr(conf,k,read_entry(dt_params[k]))
+                attr_type = type(getattr(conf,k))
+                setattr(conf, k, attr_type(read_entry(dt_params[k])))
         else:
             setattr(conf,k,read_entry(dt_params[k]))
 
@@ -529,9 +526,10 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
         if m_ndx[ndx] < 0:
             continue
         mndx = m_ndx[ndx] - 1
-        cur_pts = trx_pts(lbl, mndx, on_gt)
-        if cur_pts.ndim == 3:
-            cur_pts = cur_pts[np.newaxis, ...]
+        if mndx != prev_trx_mov:
+            cur_pts = trx_pts(lbl, mndx, on_gt)
+            if cur_pts.ndim == 3:
+                cur_pts = cur_pts[np.newaxis, ...]
         crop_loc = PoseTools.get_crop_loc(lbl, mndx, view, on_gt)
         cur_locs = cur_pts[t_ndx[ndx], f_ndx[ndx], :, sel_pts].copy()
         cur_frame = lbl[lbl['preProcData_I'][conf.view, ndx]].value.copy()
