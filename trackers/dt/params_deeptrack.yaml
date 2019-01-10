@@ -19,8 +19,7 @@ ROOT:
     - save_td_step: ['Training data save steps',unsigned,true,'The training data will be saved every these many steps',100,'','Advanced','isDeepTrack']
     - display_step: ['Display Step',unsigned,true,'Steps after which to compute and display training and validation loss and distance',50,'','Advanced','isDeepTrack']
     - maxckpt: ['Number of models to save',unsigned,true,'Number of models to keep while training',30,'','Advanced','isDeepTrack']
-    - splitType: ['Type of split for validation',string,true,'Options: frame, movie, trx, predefined','frame','','Advanced','isDeepTrack']
-    - valratio: ['Amount of validation data',float,true,'Amount of data to keep aside for validation',0.3,'','Advanced','isDeepTrack']
-
+#    - splitType: ['Type of split for validation',string,true,'Options: frame, movie, trx, predefined','predefined','','Advanced','isDeepTrack']
+#    - valratio: ['Amount of validation data',float,true,'Amount of data to keep aside for validation',0.3,'','Advanced','isDeepTrack']
 #    - op_affinity_graph: ['Skeleton for open pose',string,true,'Affinity map to be used for open-pose. Pair of points should be separated by space and each pair should be separated by comma. eg: 1 2, 3 2, 3 4','1 2, 2 3, 3 4','','Developer','isDeepTrack']  
 

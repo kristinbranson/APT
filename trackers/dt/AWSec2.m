@@ -239,7 +239,7 @@ classdef AWSec2 < handle
       end
       
       src_d = dir(src);
-      src_sz = src.bytes;
+      src_sz = src_d.bytes;
       tfsucc = obj.remoteFileExists(dstAbs,'dispcmd',true,'size',src_sz);
       if tfsucc
         fprintf('%s file exists: %s.\n\n',...
@@ -283,8 +283,8 @@ classdef AWSec2 < handle
       else
         script = '~/APT/misc/fileexists.sh';
       end
-      if size > 0,
-        cmdremote = sprintf('%s %s %s',script,f,size);
+      if size > 0
+        cmdremote = sprintf('%s %s %d',script,f,size);
       else
         cmdremote = sprintf('%s %s',script,f);
       end

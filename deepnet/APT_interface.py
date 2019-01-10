@@ -22,6 +22,7 @@ import open_pose
 from deepcut.train import train as deepcut_train
 import deepcut.train
 import ast
+import tempfile
 
 
 def loadmat(filename):
@@ -94,6 +95,20 @@ def datetime2matlabdn(dt=datetime.datetime.now()):
     frac_microseconds = dt.microsecond / (24.0 * 60.0 * 60.0 * 1000000.0)
     return mdn.toordinal() + frac_seconds + frac_microseconds
 
+
+def convert(in_data,to_python):
+    if type(in_data) in [list,tuple]:
+        out_data = []
+        for i in in_data:
+            out_data.append(convert(i,to_python))
+    elif type(in_data) is dict:
+        out_data = {}
+        for i in in_data.keys():
+            out_data[i] = convert(in_data[i],to_python)
+    else:
+        offset = -1 if to_python else 1
+        out_data = in_data+offset
+    return out_data
 
 def tf_serialize(data):
     # serialize data for writing to tf records file.
@@ -876,6 +891,36 @@ def get_augmented_images(conf, out_file, distort=True, on_gt = False, use_cache=
         hdf5storage.savemat(out_file,{'ims':ims,'locs':locs})
 
 
+def convert_to_orig_list(conf,preds,locs,in_list,on_gt=False):
+    lbl = h5py.File(conf.labelfile, 'r')
+    if on_gt:
+        local_dirs, _ = multiResData.find_gt_dirs(conf)
+    else:
+        local_dirs, _ = multiResData.find_local_dirs(conf)
+
+    if conf.has_trx_file:
+        trx_files = multiResData.get_trx_files(lbl, local_dirs)
+    else:
+        trx_files = [None, ] * len(local_dirs)
+
+    for ndx, dir_name in enumerate(local_dirs):
+
+        cur_list = [[l[1] - 1, l[2] - 1] for l in in_list if l[0] == (ndx + 1)]
+        cur_idx = [i for i, l in enumerate(in_list) if l[0] == (ndx + 1)]
+        crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
+
+        try:
+            cap = movies.Movie(dir_name)
+        except ValueError:
+            logging.exception('MOVIE_READ: ' + local_dirs[ndx] + ' is missing')
+            exit(1)
+
+        cur_pred_locs = classify_list(conf, pred_fn, cap, cur_list, trx_files[ndx], crop_loc)
+        pred_locs[cur_idx, ...] = cur_pred_locs
+
+        cap.close()  # close the movie handles
+
+
 def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
     flipud = conf.flipud
     bsize = conf.batch_size
@@ -1366,18 +1411,18 @@ def train_unet_nodataset(conf, args, restore):
     self.train_unet(restore=restore, train_type=1)
 
 
-def train_unet(conf, args, restore):
+def train_unet(conf, args, restore,split, split_file=None):
     if not args.skip_db:
-        create_tfrecord(conf, False, use_cache=args.use_cache)
+        create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     tf.reset_default_graph()
     self = PoseUNet.PoseUNet(conf, name='deepnet')
     self.train_data_name = 'traindata'
     self.train_unet(restore=restore)
 
 
-def train_mdn(conf, args, restore):
+def train_mdn(conf, args, restore,split, split_file=None):
     if not args.skip_db:
-        create_tfrecord(conf, False, use_cache=args.use_cache)
+        create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     tf.reset_default_graph()
     self = PoseURes.PoseUMDN_resnet(conf, name=args.train_name)
     if args.train_name == 'deepnet':
@@ -1387,21 +1432,21 @@ def train_mdn(conf, args, restore):
     self.train_umdn(restore=restore)
 
 
-def train_leap(conf, args):
+def train_leap(conf, args, split, split_file=None):
     if not args.skip_db:
-        create_leap_db(conf, False, use_cache=args.use_cache)
+        create_leap_db(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     leap_train(conf,name=args.train_name)
 
 
-def train_openpose(conf, args):
+def train_openpose(conf, args, split, split_file=None):
     if not args.skip_db:
-        create_tfrecord(conf, False, use_cache=args.use_cache)
+        create_tfrecord(conf, split=split, use_cache=args.use_cache,split_file=split_file)
     open_pose.training(conf,name=args.train_name)
 
 
-def train_deepcut(conf, args):
+def train_deepcut(conf, args, split_file=None):
     if not args.skip_db:
-        create_deepcut_db(conf, False, use_cache=args.use_cache)
+        create_deepcut_db(conf, False, use_cache=args.use_cache,split_file=split_file)
     deepcut_train(conf,name=args.train_name)
 
 
@@ -1418,24 +1463,39 @@ def train(lblfile, nviews, name, args):
         conf = create_conf(lblfile, cur_view, name, net_type=net_type, cache_dir=args.cache,conf_params=args.conf_params)
 
         conf.view = cur_view
+        if args.split_file is not None:
+            assert(os.path.exists(args.split_file))
+            in_data = PoseTools.json_load(args.split_file)
+            out_data = []
+            for d in in_data:
+                out_data.append((np.array(d)-1).tolist())
+            t_file = os.path.join(tempfile.tempdir,next(tempfile._get_candidate_names()))
+            with open(t_file,'w') as f:
+                json.dump(out_data,f)
+            conf.splitType = 'predefined'
+            split = True
+            split_file = t_file
+        else:
+            split = False
+            split_file = None
 
         try:
             if net_type == 'unet':
-                train_unet(conf, args, restore)
+                train_unet(conf, args, restore, split, split_file=split_file)
             elif net_type == 'mdn':
-                train_mdn(conf, args, restore)
+                train_mdn(conf, args, restore, split, split_file=split_file)
             elif net_type == 'openpose':
                 if args.use_defaults:
                     open_pose.set_openpose_defaults(conf)
-                train_openpose(conf, args)
+                train_openpose(conf, args, split, split_file=split_file)
             elif net_type == 'leap':
                 if args.use_defaults:
                     leap.training.set_leap_defaults(conf)
-                train_leap(conf, args)
+                train_leap(conf, args, split, split_file=split_file)
             elif net_type == 'deeplabcut':
                 if args.use_defaults:
                     deepcut.train.set_deepcut_defaults(conf)
-                train_deepcut(conf,args)
+                train_deepcut(conf,args, split_file=split_file)
         except tf.errors.InternalError as e:
             logging.exception(
                 'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly')
@@ -1531,6 +1591,7 @@ def parse_args(argv):
                               help='Use cached images in the label file to generate the training data.')
     parser_train.add_argument('-continue', dest='restore', action='store_true',
                               help='Continue from previously unfinished traning. Only for unet')
+    parser_train.add_argument('-split_file', dest='split_file', help='Split file to split data for train and validation', default=None)
     # parser_train.add_argument('-cache',dest='cache_dir',
     #                           help='cache dir for training')
 
@@ -1561,11 +1622,14 @@ def parse_args(argv):
     parser_aug.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the augmented images')
     parser_aug.add_argument('-nsamples', dest='nsamples', default=None, help='Number of examples to be generated',type=int)
 
+    parser_db = subparsers.add_parser('classify', help='Classify validation data')
+    parser_db.add_argument('-out_file',dest='out_file',help='Destination to save the output',required=True)
+    parser_db.add_argument('-db_file',dest='db_file',help='Validation data set to classify',default=None)
 
     print(argv)
     args = parser.parse_args(argv)
     if args.view is not None:
-        args.view = args.view - 1
+        args.view = convert(args.view,to_python=True)
     if args.sub_name == 'track':
         if len(args.trx_ids) > 0:
             args.trx_ids = [t - 1 for t in args.trx_ids]
@@ -1665,6 +1729,34 @@ def run(args):
             out_file = args.out_file + '_{}.mat'.format(view)
             distort = not args.no_aug
             get_augmented_images(conf,out_file,distort,args.use_cache,nsamples=args.nsamples)
+
+    elif args.sub_name == 'classify':
+        if args.view is None:
+            views = range(nviews)
+        else:
+            views = [args.view]
+
+        for view_ndx, view in enumerate(views):
+            conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
+            out_file = args.out_file + '_{}.mat'.format(view)
+            if args.db_file is not None:
+                db_file = args.db_file
+            else:
+                if args.type in ['mdn','unet','openpose']:
+                    val_filename = conf.valfilename + '.tfrecords'
+                elif args.type == 'leap':
+                    val_filename = 'leap_val.h5'
+                elif args.type == 'deeplabcut':
+                    val_filename = 'val_data.p'
+                else:
+                    raise ValueError('Unrecognized net type')
+                db_file = os.path.join(conf.cachedir, val_filename)
+            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file)
+            info = np.array(info) + 1
+            preds, locs = convert_to_orig_list(conf,preds,locs, info)
+            preds = preds+1
+            locs = locs + 1
+            hdf5storage.savemat(out_file, {'pred_locs': preds, 'labeled_locs': locs, 'list':info},appendmat=False,truncate_existing=True)
 
 
 def main(argv):
