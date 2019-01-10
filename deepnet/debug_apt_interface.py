@@ -1,6 +1,23 @@
-
 import APT_interface as apt
-cmd_str = '-name stephen_20181029 -cache /tmp  /home/mayank/work/APT/deepnet/data/sh_trn4879_gtcomplete.lbl train -use_cache'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+cmd_str = '-cache /home/mayank/temp -name xv_test -type mdn /home/mayank/work/poseTF/data/alice/multitarget_bubble_expandedbehavior_20180425_local.lbl classify -out_file /home/mayank/temp/aa'
+cc = cmd_str.split()
+apt.main(cc)
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd_str = '-name alice_compare -cache /home/mayank/work/APT/deepnet/cache -type mdn /home/mayank/work/APT/deepnet/data/multitarget_bubble_expandedbehavior_20180425_modified4.lbl track -start_frame 5000 -end_frame 5500 -trx /home/mayank/work/FlyBowl/pBDPGAL4U_TrpA_Rig2Plate14BowlD_20110617T143743/registered_trx.mat -mov /home/mayank/work/FlyBowl/pBDPGAL4U_TrpA_Rig2Plate14BowlD_20110617T143743/movie.ufmf -trx_ids 3 8 -out /home/mayank/temp/a.trk'
+
+cc = cmd_str.split()
+apt.main(cc)
+
+##
+import APT_interface as apt
+cmd_str = '-name stephen_20181029 -conf_params mdn_groups ((0),(1,2,3,4)) -cache /tmp -type mdn /home/mayank/work/APT/deepnet/data/sh_trn4879_gtcomplete.lbl train -use_cache -skip_db'
 
 cc = cmd_str.split()
 apt.main(cc)

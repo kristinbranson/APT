@@ -435,6 +435,7 @@ class PoseCommon(object):
 
         c_names = [c.name for c in common_vars]
         r_names = [v.name for v in var_list if v not in common_vars]
+        r_names = [v for v in r_names if v.find('Adam')<0]
         print("-- Loading from pretrained --")
         print('\n'.join(c_names))
         print("-- Not Loading from pretrained --")
@@ -751,6 +752,16 @@ class PoseCommon(object):
         ptiles_a = np.array(ptiles).transpose([1,0,2]).reshape([nperc,-1])
         PoseTools.create_result_image(im,alocs,ptiles_a)
         return ptiles
+
+    def quick_setup(self, restore=True):
+        self.setup_train()
+        self.pred = self.create_network()
+        self.cost = self.loss(self.inputs, self.pred)
+        self.create_optimizer()
+        self.create_saver()
+        sess = tf.Session()
+        start_at = self.init_restore_net(sess, do_restore=restore)
+        return  sess
 
 
 class PoseCommonMulti(PoseCommon):

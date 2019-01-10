@@ -82,6 +82,18 @@ handles.idlestatuscolor = [0,1,0];
 handles.busystatuscolor = [1,0,1];
 setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
 setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
+
+% set location of background training status
+pos1 = handles.txStatus.Position;
+pos2 = handles.txBGTrain.Position;
+r1 = pos1(1)+pos1(3);
+r2 = pos2(1)+pos2(3);
+pos2(1) = min(pos2(1),r1 + .01);
+pos2(3) = r2-pos2(1);
+handles.txBGTrain.Position = pos2;
+handles.txBGTrain.FontWeight = 'normal';
+handles.txBGTrain.FontSize = handles.txStatus.FontSize;
+
 SetStatus(handles,'Initializing APT...');
 handles.SetStatusFun = @SetStatus;
 handles.ClearStatusFun = @ClearStatus;
@@ -2910,9 +2922,19 @@ handles.menu_track_cpr_show_replicates.Checked = ...
   onIff(handles.labelerObj.tracker.showVizReplicates);
 
 function cbkTrackerTrainStart(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+algName = lObj.tracker.algorithmName;
+%algLabel = lObj.tracker.algorithmNamePretty;
+backend = lObj.trackDLBackEnd.prettyName;
+handles.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend,datestr(now,'HH:MM'));
+handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
+handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.Visible = 'on';
+
 function cbkTrackerTrainEnd(hObject, eventdata, handles)
 handles.txBGTrain.Visible = 'off';
+handles.txBGTrain.String = 'Idle';
+handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
 lObj = eventdata.AffectedObject;

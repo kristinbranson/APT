@@ -101,6 +101,15 @@ class PoseUMDN(PoseCommon.PoseCommon):
 
         if 'mdn_groups' not in self.conf.__dict__:
             self.conf.mdn_groups = [range(self.conf.n_classes)]
+        # else:
+        #     # when reading from command line, single length list are converted to ints.
+        #     new_groups = []
+        #     for gg in self.conf.mdn_groups:
+        #         if type(gg) != list:
+        #             new_groups.append([gg])
+        #         else:
+        #             new_groups.append(gg)
+        #     self.conf.mdn_groups = new_groups
 
 
     def create_network(self):

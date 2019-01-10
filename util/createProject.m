@@ -87,17 +87,26 @@ end
 % nphyspts = lObj.nPhysPoints;
 % npts = lObj.nLabelPoints;
 
-for imovadd=1:nmovadd
-  if nview==1
-    lObj.movieAdd(movFiles{imovadd},trxFiles{imovadd},...
-      'offerMacroization',false);
-  else
-    assert(~tfTrx);
-    lObj.movieSetAdd(movFiles(imovadd,:),'offerMacroization',false);
+for imovadd=1:nmovadd 
+  
+  [tfmatch,imovmatch] = lObj.movieSetInProj(movFiles(imovadd,:));
+  if tfmatch
+    warningNoTrace('Movies already exist in project in imov=%d:',imovmatch);
+    cellfun(@(x)fprintf(2,' %s\n',x),movFiles(imovadd,:));
+    lObj.movieSet(imovmatch);    
+  else  
+    if nview==1
+      lObj.movieAdd(movFiles{imovadd},trxFiles{imovadd},...
+        'offerMacroization',false);
+    else
+      assert(~tfTrx);
+      lObj.movieSetAdd(movFiles(imovadd,:),'offerMacroization',false);
+    end
+    lObj.movieSet(lObj.nmoviesGTaware);
   end
-  lObj.movieSet(lObj.nmoviesGTaware);
+  
   pause(1); % prob unnec, give UI a little time
-  %assert(imov==lObj.currMovie);
+  assert(isequal(movFiles(imovadd,:),lObj.movieFilesAllGTaware(lObj.currMovie,:)));
 
   nfrm = lObj.nframes;
   fprintf(1,'movadd %d. %d frms.\n',imovadd,nfrm);

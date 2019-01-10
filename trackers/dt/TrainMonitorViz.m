@@ -12,13 +12,21 @@ classdef TrainMonitorViz < handle
     axisXRange = 2e3; % show last (this many) iterations along x-axis
     
     resLast % last training json contents received
+    dtObj % DeepTracker Obj
     trainWorkerObj = [];
     backEnd % scalar DLBackEnd
+    actions = {
+      'List all jobs on cluster'
+      'Show training jobs'' status'
+      'Update training monitor plots'
+      'Show log files'
+      'Show error messages'
+      };
   end
   
   methods
-    function obj = TrainMonitorViz(nview,trainWorkerObj,backEnd)
-      
+    function obj = TrainMonitorViz(nview,dtObj,trainWorkerObj,backEnd)
+      obj.dtObj = dtObj;
       obj.trainWorkerObj = trainWorkerObj;
       obj.backEnd = backEnd;
       obj.hfig = TrainMonitorGUI(obj);
@@ -32,6 +40,8 @@ classdef TrainMonitorViz < handle
       arrayfun(@(x)cla(x),obj.haxs);
       obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
+      handles.popupmenu_actions.String = obj.actions;
+      handles.popupmenu_actions.Value = 1;
       
       arrayfun(@(x)grid(x,'on'),obj.haxs);
       arrayfun(@(x)hold(x,'on'),obj.haxs);
@@ -122,6 +132,14 @@ classdef TrainMonitorViz < handle
         end
       end
       
+      if any([res.errFileExists]),
+        handles = guidata(obj.hfig);
+        i = find(strcmp(handles.popupmenu_actions.String,'Show error messages'));
+        if ~isempty(i),
+          handles.popupmenu_actions.Value = i;
+        end
+      end
+      
       if tfAnyLineUpdate
         obj.adjustAxes(lineUpdateMaxStep);
       end
@@ -171,6 +189,7 @@ classdef TrainMonitorViz < handle
         % to-do: figure out how to make this robust to different file
         % systems
         isLogFile = any(cellfun(@(x) exist(x,'file'),{res.logFile}));
+        isJsonFile = all([res.jsonPresent]>0);
       end
 
       if obj.isKilled,
@@ -181,7 +200,9 @@ classdef TrainMonitorViz < handle
         status = 'Training complete.';
         handles = guidata(obj.hfig);
         TrainMonitorViz.updateStartStopButton(handles,false);
-      elseif isLogFile,
+      elseif isLogFile && ~isJsonFile,
+        status = 'Training in progress. Building training image database.';
+      elseif isLogFile && isJsonFile,
         status = sprintf('Training in progress. %d iterations completed.',obj.lastTrainIter);
       else
         status = 'Initializing training.';
@@ -214,7 +235,6 @@ classdef TrainMonitorViz < handle
     end
     
     function stopTraining(obj)
-
       if isempty(obj.trainWorkerObj),
         warning('trainWorkerObj is empty -- cannot kill process');
         return;
@@ -236,12 +256,23 @@ classdef TrainMonitorViz < handle
       end
     end
     
+    function startTraining(obj)
+      % Placeholder meth AL 20190108
+      % - Always do a regular restart for now; if project is updated might
+      % want RestartAug.
+      % - If the training has reached final iter, training will immediately 
+      % end
+      
+      % Kills and creates new TrainMonitorViz, maybe that's fine
+      obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
+    end
+    
     function updateClusterInfo(obj)
       
       handles = guidata(obj.hfig);
-      actions = handles.popupmenu_actions.String;
+      actions = handles.popupmenu_actions.String; %#ok<PROP>
       v = handles.popupmenu_actions.Value;
-      action = actions{v};
+      action = actions{v}; %#ok<PROP>
       switch action
         case 'Show log files',
          ss = obj.getLogFilesContents();
@@ -258,6 +289,13 @@ classdef TrainMonitorViz < handle
           ss = obj.queryTrainJobsStatus();
           handles.text_clusterinfo.String = ss;
           drawnow;
+        case 'Show error messages',
+          if isempty(obj.resLast) || ~obj.resLast.errFileExists,
+            ss = 'No error messages.';
+          else
+            ss = obj.getErrorFileContents();
+          end
+          handles.text_clusterinfo.String = ss;
         otherwise
           fprintf('%s not implemented\n',action);
           return;
@@ -266,10 +304,13 @@ classdef TrainMonitorViz < handle
     
     function ss = getLogFilesContents(obj)
       
-      if isempty(obj.resLast),
-        return;
-      end
       ss = obj.trainWorkerObj.getLogfilesContent;
+      
+    end
+    
+    function ss = getErrorFileContents(obj)
+      
+      ss = obj.trainWorkerObj.getErrorfileContent;
       
     end
     
@@ -349,7 +390,7 @@ classdef TrainMonitorViz < handle
       if isStop,
         set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
       else
-        set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','off','UserData','start');
+        set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','on','UserData','start');
       end
       
     end

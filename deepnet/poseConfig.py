@@ -25,7 +25,7 @@ class config(object):
         self.gamma = 0.1
         self.display_step = 50
         self.num_test = 8
-        self.dl_steps = 20000 # number of training iters
+        self.dl_steps = 60000 # number of training iters
         self.decay_steps = 25000
         # rate will be reduced by gamma every decay_step iterations.
 

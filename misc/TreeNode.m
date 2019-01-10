@@ -52,6 +52,11 @@ classdef TreeNode < handle
           if isstruct(val)
             % val is a struct; node must be a non-leafnode
             structapply(node.Children,val);
+          elseif isempty(val),
+              % MK 20190110, val can be an empty array
+              if isempty(node.Children),
+                node.Data.Value = val;      
+              end                  
           else            
             assert(isempty(node.Children));
             node.Data.Value = val;

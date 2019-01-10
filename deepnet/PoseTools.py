@@ -243,8 +243,9 @@ def randomly_translate(img, locs, conf, group_sz = 1):
         out_ii = orig_im.copy()
         while not sane:
             valid = np.invert(np.isnan(orig_locs[:,:, :, 0]))
-            dx = np.random.randint(-conf.trange, conf.trange)
-            dy = np.random.randint(-conf.trange, conf.trange)
+            dx = np.round(np.random.randint(-conf.trange, conf.trange))
+            dy = np.round(np.random.randint(-conf.trange, conf.trange))
+            # round the random jitter so that there is no image distortions.
             count += 1
             if count > 5:
                 dx = 0
@@ -269,7 +270,7 @@ def randomly_translate(img, locs, conf, group_sz = 1):
             mat = np.float32([[1, 0, dx], [0, 1, dy]])
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows))#,borderMode=cv2.BORDER_REPLICATE)
+                ii = cv2.warpAffine(ii, mat, (cols, rows),flags=cv2.INTER_CUBIC)#,borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -292,6 +293,8 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
 
     num = img.shape[0]
     rows, cols = img.shape[1:3]
+    rows = float(rows)
+    cols = float(cols)
     n_groups = num/group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
@@ -313,7 +316,7 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
                 sane = True
                 do_rotate = False
             ll = copy.deepcopy(orig_locs)
-            ll = ll - [old_div(cols, 2), old_div(rows, 2)]
+            ll = ll - [cols/2 , rows/2]
             ang = np.deg2rad(rangle)
             rot = [[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]]
             lr = np.zeros(ll.shape)
@@ -332,10 +335,10 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
 
             # else:
             #                 print 'not sane {}'.format(count)
-            mat = cv2.getRotationMatrix2D((old_div(cols, 2), old_div(rows, 2)), rangle, 1)
+            mat = cv2.getRotationMatrix2D((cols/2, rows/2), rangle, 1)
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows))#,borderMode=cv2.BORDER_REPLICATE)
+                ii = cv2.warpAffine(ii, mat, (int(cols), int(rows)),flags=cv2.INTER_CUBIC)#,borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -399,8 +402,8 @@ def randomly_scale(img,locs,conf,group_sz=1):
             # cur_img = zoom(jj, sfactor,mode='reflect') if srange != 0 else jj
             cur_img, dx, dy = crop_to_size(cur_img, im_sz)
             img[st+g, ...] =cur_img
-            locs[st+g,...,0] = locs[st+g,...,0]*sfactor + dx/2
-            locs[st + g, ..., 1] = locs[st + g, ..., 1]*sfactor + dy / 2
+            locs[st+g,...,0] = locs[st+g,...,0]*sfactor + int(dx/2)
+            locs[st + g, ..., 1] = locs[st + g, ..., 1]*sfactor + int(dy / 2)
     return img, locs
 
 
@@ -440,8 +443,8 @@ def create_label_images_slow(locs, im_sz, scale, blur_rad):
 
 def create_label_images(locs, im_sz, scale, blur_rad):
     n_classes = len(locs[0])
-    sz0 = int(float(im_sz[0])/ scale)
-    sz1 = int(float(im_sz[1])/ scale)
+    sz0 = int(im_sz[0]// scale)
+    sz1 = int(im_sz[1] // scale)
 
     label_ims = np.zeros((len(locs), sz0, sz1, n_classes))
     # labelims1 = np.zeros((len(locs),sz0,sz1,n_classes))
@@ -458,8 +461,10 @@ def create_label_images(locs, im_sz, scale, blur_rad):
                 continue
                 #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
             #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
-            modlocs0 = int(np.round(old_div(locs[ndx][cls][1], scale)))
-            modlocs1 = int(np.round(old_div(locs[ndx][cls][0], scale)))
+            yy = float(locs[ndx][cls][1]-float(scale-1)/2)/scale
+            xx = float(locs[ndx][cls][0]-float(scale-1)/2)/scale
+            modlocs0 = int(np.round(yy))
+            modlocs1 = int(np.round(xx))
             l0 = min(sz0, max(0, modlocs0 - k_size))
             r0 = max(0, min(sz0, modlocs0 + k_size + 1))
             l1 = min(sz1, max(0, modlocs1 - k_size))
@@ -559,18 +564,19 @@ def get_base_pred_locs(pred, conf):
     return pred_locs
 
 
-def get_pred_locs(pred, edge_ignore=1):
+def get_pred_locs(pred, edge_ignore=0):
     if edge_ignore < 1:
-        edge_ignore = 1
+        edge_ignore = 0
     n_classes = pred.shape[3]
     pred_locs = np.zeros([pred.shape[0], n_classes, 2])
     for ndx in range(pred.shape[0]):
         for cls in range(n_classes):
             cur_pred = pred[ndx, :, :, cls].copy()
-            cur_pred[:edge_ignore,:] = cur_pred.min()
-            cur_pred[:,:edge_ignore] = cur_pred.min()
-            cur_pred[-edge_ignore:,:] = cur_pred.min()
-            cur_pred[:,-edge_ignore:] = cur_pred.min()
+            if edge_ignore > 0:
+                cur_pred[:edge_ignore,:] = cur_pred.min()
+                cur_pred[:,:edge_ignore] = cur_pred.min()
+                cur_pred[-edge_ignore:,:] = cur_pred.min()
+                cur_pred[:,-edge_ignore:] = cur_pred.min()
             maxndx = np.argmax(cur_pred)
             curloc = np.array(np.unravel_index(maxndx, pred.shape[1:3]))
             pred_locs[ndx, cls, 0] = curloc[1]
