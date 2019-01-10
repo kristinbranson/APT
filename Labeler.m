@@ -2370,6 +2370,9 @@ classdef Labeler < handle
             s.trackerData{2}.trnNetType =  DLNetType.mdn;
           elseif ischar(s.trackerData{2}.trnNetType),
             s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType);
+          else isstruct(s.trackerData{2}.trnNetType), 
+            %MK 20190110 - trnNetType can be a struct too.
+            s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType.ValueNames{1});  
           end
           
           dlTrkClsAug = {'DeepTracker' 'trnNetType' s.trackerData{2}.trnNetType};

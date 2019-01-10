@@ -238,7 +238,9 @@ classdef AWSec2 < handle
         dstAbs = dst;
       end
       
-      tfsucc = obj.remoteFileExists(dstAbs,'dispcmd',true);
+      src_d = dir(src);
+      src_sz = src.bytes;
+      tfsucc = obj.remoteFileExists(dstAbs,'dispcmd',true,'size',src_sz);
       if tfsucc
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstAbs);
@@ -269,10 +271,11 @@ classdef AWSec2 < handle
     end
     
     function tf = remoteFileExists(obj,f,varargin)
-      [reqnonempty,dispcmd,usejavaRT] = myparse(varargin,...
+      [reqnonempty,dispcmd,usejavaRT,size] = myparse(varargin,...
         'reqnonempty',false,...
         'dispcmd',false,...
-        'usejavaRT',false...
+        'usejavaRT',false,...
+        'size',-1 ...
         );
 
       if reqnonempty
@@ -280,7 +283,11 @@ classdef AWSec2 < handle
       else
         script = '~/APT/misc/fileexists.sh';
       end
-      cmdremote = sprintf('%s %s',script,f);
+      if size > 0,
+        cmdremote = sprintf('%s %s %s',script,f,size);
+      else
+        cmdremote = sprintf('%s %s',script,f);
+      end
       [~,res] = obj.cmdInstance(cmdremote,...
         'dispcmd',dispcmd,'failbehavior','err','usejavaRT',usejavaRT); 
       tf = res(1)=='y';      
