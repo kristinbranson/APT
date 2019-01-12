@@ -1284,6 +1284,9 @@ classdef Labeler < handle
       % Trackers created/initted in projLoad and projNew; eg when loading,
       % the loaded .lbl knows what trackers to create.
       obj.currTracker = 0;
+      
+      obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
+      obj.trackDLParams = APTParameters.defaultParamsStructDTCommon;  
 
       obj.projectHasTrx = cfg.Trx.HasTrx;
       obj.showOccludedBox = cfg.View.OccludedBox;
@@ -2485,7 +2488,7 @@ classdef Labeler < handle
       end
       
       % modernize DL common params
-      sDLcommon = APTParameters.defaultParamsStructDTCommon;
+      sDLcommon = APTParameters.defaultParamsStructDTCommon;      
       s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
     end
 
