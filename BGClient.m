@@ -14,6 +14,8 @@ classdef BGClient < handle
     idTocs % [numIDsReceived] col vec of compute elapsed times, set when response to each command id is received
     
     printlog = false; % if true, logging messages are displayed
+    
+    parpoolIdleTimeout = 10*60; % bump gcp IdleTimeout to at least this value every time a worker is started
   end
   properties (Dependent)
     isConfigured
@@ -83,6 +85,12 @@ classdef BGClient < handle
         queue.afterEach(@(dat)obj.afterEach(dat));
       end		
       obj.qWorker2Me = queue;
+      
+      p = gcp;
+      if obj.parpoolIdleTimeout > p.IdleTimeout 
+        warningNoTrace('Increasing current parpool IdleTimeout to %d minutes.',obj.parpoolIdleTimeout);
+        p.IdleTimeout = obj.parpoolIdleTimeout;
+      end
       
       if workerContinuous
         workerObj = BGWorkerContinuous;
