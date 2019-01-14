@@ -7,16 +7,8 @@ classdef BgTrainWorkerObj < handle
   % - Be able to read/parse the current state of the train/model on disk
   
   properties
-    nviews
-    
-    dmcs % [nview] DeepModelChainOnDisk array
-    
-%     artfctLogs % [nview] cellstr of fullpaths to logfiles
-%     artfctKills % [nview] cellstr of fullpaths to KILLED toks
-%     artfctTrainDataJson % [nview] cellstr of fullpaths to training data jsons
-%     artfctFinalIndex % [nview] cellstr of fullpaths to final training .index file
-%     artfctErrFile % [nview] cellstr of fullpaths to DL errfile
-    
+    nviews    
+    dmcs % [nview] DeepModelChainOnDisk array        
     trnLogLastStep; % [nview] int. most recent last step from training json logs
   end
   
@@ -33,13 +25,6 @@ classdef BgTrainWorkerObj < handle
       obj.nviews = nviews;
       assert(isa(dmcs,'DeepModelChainOnDisk') && numel(dmcs)==nviews);
       obj.dmcs = dmcs;
-      
-%       obj.artfctLogs = {dmcs.trainLogLnx}'; 
-%       obj.artfctKills = {dmcs.killTokenLnx}'; 
-%       obj.artfctTrainDataJson = {dmcs.trainDataLnx}';
-%       obj.artfctFinalIndex = {dmcs.trainFinalIndexLnx}'; 
-%       obj.artfctErrFile = {dmcs.errfileLnx}';
-    
       obj.reset();
     end
     
