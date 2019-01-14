@@ -15,13 +15,21 @@ classdef TrainMonitorViz < handle
     dtObj % DeepTracker Obj
     trainWorkerObj = [];
     backEnd % scalar DLBackEnd
-    actions = {
-      'List all jobs on cluster'
-      'Show training jobs'' status'
-      'Update training monitor plots'
-      'Show log files'
-      'Show error messages'
-      };
+    actions = struct(...
+      'Bsub',...
+        {{'List all jobs on cluster'...
+        'Show training jobs'' status'...
+        'Update training monitor plots'...
+        'Show log files'...
+        'Show error messages'}},...
+      'Docker',...
+        {{'Update training monitor plots'...
+        'Show log files'...
+        'Show error messages'}},...
+      'AWS',...
+        {{'Update training monitor plots'...
+        'Show log files'...
+        'Show error messages'}});
   end
   
   methods
@@ -40,7 +48,7 @@ classdef TrainMonitorViz < handle
       arrayfun(@(x)cla(x),obj.haxs);
       obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
-      handles.popupmenu_actions.String = obj.actions;
+      handles.popupmenu_actions.String = obj.actions.(char(backEnd));
       handles.popupmenu_actions.Value = 1;
       
       arrayfun(@(x)grid(x,'on'),obj.haxs);
@@ -382,8 +390,7 @@ classdef TrainMonitorViz < handle
       drawnow;
       hAnn.Position(1) = ax.Position(1)+ax.Position(3)-hAnn.Position(3);
       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
-    end
-   
+    end   
     
     function updateStartStopButton(handles,isStop)
       

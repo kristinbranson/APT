@@ -6,7 +6,7 @@ classdef DeepTracker < LabelTracker
   end
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrm' 'containerBindPaths' ...
-      'trnNetType' 'trnName' 'trnNameLbl' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'};    
+      'trnNetType' 'trnName' 'trnNameLbl' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'}; 
     RemoteAWSCacheDir = '/home/ubuntu';
     jrchost = 'login1.int.janelia.org';
     jrcprefix = 'source /etc/profile';
@@ -146,13 +146,7 @@ classdef DeepTracker < LabelTracker
       end
       
       obj.bgTrnMonitor = [];
-      switch lObj.trackDLBackEnd.type,
-        case DLBackEnd.Bsub,
-          obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
-        otherwise
-          obj.bgTrnMonitorVizClass = 'LegacyTrainMonitorViz';
-      end
-
+      obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
       obj.bgTrkMonitor = [];
       
       obj.trkVizer = TrackingVisualizerHeatMap(lObj);
@@ -254,9 +248,6 @@ classdef DeepTracker < LabelTracker
       else
         s.sPrm = sPrmDflt;
       end
-      %         if ~isequaln(sPrm0,s.sPrm)
-      %           warningNoTrace('New defaults added to DeepTracker (%s) parameters.',char(s.trnNetType));
-      %         end
     end
   end
   
