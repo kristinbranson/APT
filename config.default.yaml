@@ -24,6 +24,7 @@ Trx:
   ShowTrx: 1
   ShowTrxCurrentTargetOnly: 0
   ShowTrxIDLbl: 1
+  HasTrx: 0
 
 View: 
   XDir: 'n'
@@ -49,6 +50,7 @@ View:
   ShowGrid: 0
   CenterOnTarget: 0
   RotateTargetUp: 0
+  OccludedBox: 0
 
 Movie:
   ForceGrayScale: 1
@@ -131,10 +133,9 @@ Shortcuts: # shortcuts. case insensitive!
   menu_view_hide_labels: h # view -> hide labels
   menu_view_hide_predictions: p # view -> hide predictions
   menu_view_hide_imported_predictions: i # view -> hide imported predictions
-  menu_view_hide_trajectories: j # view -> hide trajectories
+  menu_view_hide_trajectories: k # view -> hide trajectories
   menu_track_set_labels: l # track -> set manual labels to predicted pose
   tbAccept: x # accept toggle button
   pbTrain: t # train pushbutton
-  pbTrack: k # track pushbutton
 
 ...

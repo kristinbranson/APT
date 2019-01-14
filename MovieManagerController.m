@@ -17,6 +17,10 @@ classdef MovieManagerController < handle
     mmTblCurr % element of .mmTbls for given .gtSelected
   end
   
+  events
+    tableClicked % fires when any movietable is clicked
+  end
+  
   methods
     function v = get.gtTabSelected(obj)
       v = obj.hTG.SelectedTab==obj.hTabs(2);
@@ -79,7 +83,6 @@ classdef MovieManagerController < handle
       delete(obj.mmTbls);
       obj.mmTbls = [];
     end
-
     
     function tabSetup(obj)
       obj.hTG = uitabgroup(obj.hFig,...
@@ -109,6 +112,8 @@ classdef MovieManagerController < handle
       tblOrig.Visible = 'off';
       tblReg = MovieManagerTable.create(obj.labeler.nview,tblOrig.Parent,...
         tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
+      obj.listeners{end+1,1} = addlistener(tblReg,'tableClicked',...
+        @(s,e)obj.notify('tableClicked'));
       
       % Copy stuff onto GT tab
       HANDLES = {'uipanel1' 'pbSwitch' 'pbAdd' 'pbRm'};
@@ -128,6 +133,8 @@ classdef MovieManagerController < handle
       gdata(2).pbSwitch = [];
       tblGT = MovieManagerTable.create(obj.labeler.nview,gdata(2).uipanel1,...
         tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
+      obj.listeners{end+1,1} = addlistener(tblGT,'tableClicked',...
+        @(s,e)obj.notify('tableClicked'));
       
       obj.mmTbls = [tblReg tblGT];
       obj.tabHandles = gdata;
@@ -148,11 +155,9 @@ classdef MovieManagerController < handle
       end
     end
         
-    function iMovSgned = getSelectedMovies(obj)
-      iMovSgned = obj.mmTblCurr.getSelectedMovies();
-      if obj.gtTabSelected
-        iMovSgned = -iMovSgned;
-      end
+    function mIdx = getSelectedMovies(obj)
+      iMovs = obj.mmTblCurr.getSelectedMovies();
+      mIdx = MovieIndex(iMovs,obj.gtTabSelected);
     end
     
     function cbkTabGrpSelChanged(obj,src,evt)
@@ -178,6 +183,7 @@ classdef MovieManagerController < handle
       assert(isscalar(iMov) && iMov>0);
       % iMov is gt-aware movie index (unsigned)
       lObj = obj.labeler;
+      lObj.SetStatus(sprintf('Switching to movie %d...\n',iMov));
       if obj.selectedTabMatchesLabelerGTMode
         lObj.movieSet(iMov);
       else
@@ -188,6 +194,7 @@ classdef MovieManagerController < handle
         end
         warningNoTrace('MovieManagerController:nav',warnstr);
       end
+      lObj.ClearStatus();
     end
     
     function cbkPushButton(obj,src,evt)
@@ -198,9 +205,14 @@ classdef MovieManagerController < handle
       
       switch src.Tag
         case 'pbAdd'
-          obj.addLabelerMovie();
+          lObj.SetStatus('Adding new movie...');
+          oc = onCleanup(@()lObj.ClearStatus());
+          obj.addLabelerMovie(); % can throw
+          %lObj.ClearStatus();
         case 'pbRm'
+          lObj.SetStatus('Removing movie...');
           obj.rmLabelerMovie();
+          lObj.ClearStatus();
         case 'pbSwitch' 
           iMov = obj.mmTblCurr.getSelectedMovies();
           if ~isempty(iMov)
@@ -213,17 +225,17 @@ classdef MovieManagerController < handle
           if isempty(iMov)
             msgbox('All movies are labeled!');
           else
+            lObj.SetStatus(sprintf('Switching to unlabeled movie %d',iMov));
             lObj.movieSet(iMov);
+            lObj.ClearStatus();
           end
         case 'pbGTFrames'
-          hGTMgr = lObj.gdata.GTMgr;
-          hGTMgr.Visible = 'on';
-          figure(hGTMgr);
+          lObj.gtShowGTManager();
         otherwise
           assert(false);
       end
-    end
-    
+    end   
+  
     function lblerLstnCbkUpdateTable(obj,src,evt)
       obj.hlpLblerLstnCbkUpdateTable(false);
     end
@@ -282,11 +294,14 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       fname = fullfile(pname,fname);
+      lObj.SetStatus(sprintf('Adding movies from file %s...',fname));
       lObj.movieAddBatchFile(fname);
       RC.saveprop('lastMovieBatchFile',fname);
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
+        lObj.SetStatus('Switching to movie 1...');
         lObj.movieSet(1);
       end
+      lObj.ClearStatus();
     end
   end
   
@@ -367,7 +382,7 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       if lObj.nview==1
-        [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true);
+        [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true,lObj.projectHasTrx);
         if ~tfsucc
           return;
         end

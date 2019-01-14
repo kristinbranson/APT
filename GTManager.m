@@ -1,10 +1,10 @@
 function varargout = GTManager(varargin)
 % Movie table GUI
 
-% Last Modified by GUIDE v2.5 27-Sep-2017 06:22:13
+% Last Modified by GUIDE v2.5 24-Sep-2018 18:50:06
 
 % Begin initialization code - DO NOT EDIT
-gui_Singleton = 1;
+gui_Singleton = 0;
 gui_State = struct('gui_Name',       mfilename, ...
                    'gui_Singleton',  gui_Singleton, ...
                    'gui_OpeningFcn', @GTManager_OpeningFcn, ...
@@ -83,8 +83,8 @@ handles.listener{end+1,1} = addlistener(lObj,...
 % Following listeners for table row selection
 handles.listener{end+1,1} = addlistener(lObj,...
   'newMovie',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
-handles.listener{end+1,1} = addlistener(lObj,...
-  'currFrame','PostSet',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
+% handles.listener{end+1,1} = addlistener(lObj,...
+%   'currFrame','PostSet',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
   'currTarget','PostSet',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
 
@@ -241,18 +241,26 @@ end
 % Note, any existing labels are not deleted. On gtCompute these other
 % labels are not currently used however.
 
-DEFAULT_NSAMP = 40;
-PROMPT = 'Enter desired number of frames to label';
-NAME = 'GT Suggest';
-resp = inputdlg(PROMPT,NAME,1,{num2str(DEFAULT_NSAMP)});
-if isempty(resp)
-  return;
+gtsg = GTSuggest(lObj);
+if ~isempty(gtsg)
+  tblGT = gtsg.generate(lObj);
+  lObj.gtSetUserSuggestions(tblGT,'sortcanonical',true);
+else
+  % user canceled or similar
 end
-nGT = str2double(resp{1});
-if isnan(nGT) || nGT<=0 || round(nGT)~=nGT
-  error('Invalid number of frames.');
-end
-lObj.gtInitSuggestions(GTSuggestionType.RANDOM,nGT);
+
+% DEFAULT_NSAMP = 40;
+% PROMPT = 'Enter desired number of frames to label';
+% NAME = 'GT Suggest';
+% resp = inputdlg(PROMPT,NAME,1,{num2str(DEFAULT_NSAMP)});
+% if isempty(resp)
+%   return;
+% end
+% nGT = str2double(resp{1});
+% if isnan(nGT) || nGT<=0 || round(nGT)~=nGT
+%   error('Invalid number of frames.');
+% end
+
 
 % function pbSwitch_Callback(~,~,handles)
 % % Switch to selected row (mov/frm/tgt)

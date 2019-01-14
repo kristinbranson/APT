@@ -1,7 +1,7 @@
 function varargout = ProjectSetup(varargin)
 % New project creation
 
-% Last Modified by GUIDE v2.5 11-May-2017 09:56:40
+% Last Modified by GUIDE v2.5 24-Oct-2018 09:38:44
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -90,15 +90,15 @@ end
 handles.output = [];
 
 % init PUMs that depend only on codebase
-lms = enumeration('LabelMode');
-tfnone = lms==LabelMode.NONE;
-lms(tfnone,:) = [];
-lmStrs = arrayfun(@(x)x.prettyString,lms,'uni',0);
-handles.pumLabelingMode.String = lmStrs;
-handles.pumLabelingMode.UserData = lms;
-trackers = LabelTracker.findAllSubclasses;
-trackers = [{'None'};trackers];
-handles.pumTracking.String = trackers;
+% lms = enumeration('LabelMode');
+% tfnone = lms==LabelMode.NONE;
+% lms(tfnone,:) = [];
+% lmStrs = arrayfun(@(x)x.prettyString,lms,'uni',0);
+% handles.pumLabelingMode.String = lmStrs;
+% handles.pumLabelingMode.UserData = lms;
+% trackers = LabelTracker.findAllSubclasses;
+% trackers = [{'None'};trackers];
+% handles.pumTracking.String = trackers;
 
 handles.propsPane = [];
 
@@ -129,13 +129,15 @@ cfg.NumViews = handles.nViews;
 cfg.NumLabelPoints = handles.nPoints;
 cfg.ViewNames = struct2cell(cfg.ViewNames);
 cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
-pumLM = handles.pumLabelingMode;
-lmVal = pumLM.Value;
-cfg.LabelMode = char(pumLM.UserData(lmVal));
-pumTrk = handles.pumTracking;
-tracker = pumTrk.String{pumTrk.Value};
-cfg.Track.Enable = ~strcmpi(tracker,'none');
-cfg.Track.Type = tracker;
+cfg.Trx.HasTrx = handles.checkbox_multitarget.Value;
+% pumLM = handles.pumLabelingMode;
+% lmVal = pumLM.Value;
+% cfg.LabelMode = char(pumLM.UserData(lmVal));
+% pumTrk = handles.pumTracking;
+% tracker = pumTrk.String{pumTrk.Value};
+% cfg.Track.Enable = ~strcmpi(tracker,'none');
+cfg.Track.Enable = true;
+% cfg.Track.Type = tracker;
 % propertiesGUI treats props with empty vals as strings even if they are
 % subsequently filled with numbers
 FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie' 'AxFontSize' 'ShowAxTicks' 'ShowGrid'};
@@ -152,76 +154,30 @@ handles.nViews = cfg.NumViews;
 handles.nPoints = cfg.NumLabelPoints;
 set(handles.etNumberOfViews,'string',num2str(handles.nViews));
 set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
+set(handles.checkbox_multitarget,'Value',cfg.Trx.HasTrx);
 
-pumLM = handles.pumLabelingMode;
-[tf,val] = ismember(cfg.LabelMode,arrayfun(@char,pumLM.UserData,'uni',0));
-if ~tf
-  % should never happen 
-  val = 1; % NONE
-end
-pumLM.Value = val;
+% pumLM = handles.pumLabelingMode;
+% [tf,val] = ismember(cfg.LabelMode,arrayfun(@char,pumLM.UserData,'uni',0));
+% if ~tf
+%   % should never happen 
+%   val = 1; % NONE
+% end
+% pumLM.Value = val;
 
-pumTrk = handles.pumTracking;
-if cfg.Track.Enable 
-  [tf,val] = ismember(cfg.Track.Type,pumTrk.String);
-  if ~tf
-    % unexpected but maybe not impossible due to path
-    val = 1; % None
-  end
-else
-  val = 1;
-end
-pumTrk.Value = val;
+% pumTrk = handles.pumTracking;
+% if cfg.Track.Enable 
+%   [tf,val] = ismember(cfg.Track.Type,pumTrk.String);
+%   if ~tf
+%     % unexpected but maybe not impossible due to path
+%     val = 1; % None
+%   end
+% else
+%   val = 1;
+% end
+% pumTrk.Value = val;
 
-sMirror = cfg2mirror(cfg);
+sMirror = Labeler.cfg2mirror(cfg);
 handles = advTableRefresh(handles,sMirror);
-
-function sMirror = cfg2mirror(cfg)
-% Convert true/full data struct to 'mirror' struct for adv table. (The term
-% 'mirror' comes from implementation detail of adv table/propertiesGUI.)
-
-nViews = cfg.NumViews;
-nPoints = cfg.NumLabelPoints;
-
-cfg = Labeler.cfgDefaultOrder(cfg);
-sMirror = rmfield(cfg,{'NumViews' 'NumLabelPoints' 'LabelMode'});
-sMirror.Track = rmfield(sMirror.Track,{'Enable' 'Type'});
-
-assert(isempty(sMirror.ViewNames) || numel(sMirror.ViewNames)==nViews);
-flds = arrayfun(@(i)sprintf('view%d',i),(1:nViews)','uni',0);
-if isempty(sMirror.ViewNames)
-  vals = repmat({''},nViews,1);
-else
-  vals = sMirror.ViewNames(:);
-end
-sMirror.ViewNames = cell2struct(vals,flds,1);
-
-assert(isempty(sMirror.LabelPointNames) || numel(sMirror.LabelPointNames)==nPoints);
-flds = arrayfun(@(i)sprintf('point%d',i),(1:nPoints)','uni',0);
-if isempty(sMirror.LabelPointNames)
-  vals = repmat({''},nPoints,1);
-else
-  vals = sMirror.LabelPointNames;
-end
-sMirror.LabelPointNames = cell2struct(vals,flds,1);
-
-function sMirror = hlpAugmentOrTruncNameField(sMirror,fld,subfld,n)
-v = sMirror.(fld);
-flds = fieldnames(v);
-nflds = numel(flds);
-if nflds>n
-  v = rmfield(v,flds(n+1:end));
-elseif nflds<n
-  for i=nflds+1:n
-	v.([subfld num2str(i)]) = '';
-  end
-end
-sMirror.(fld) = v;
-
-function sMirror = hlpAugmentOrTruncStructField(sMirror,fld,n)
-v = sMirror.(fld);
-v = augmentOrTruncateVector(v,n);
-sMirror.(fld) = v(:);
 
 function handles = advTableRefresh(handles,sMirror)
 tfRefresh = exist('sMirror','var')==0;
@@ -229,9 +185,9 @@ if tfRefresh
   ad = getappdata(handles.figure1);
   sMirror = ad.mirror;
 end
-sMirror = hlpAugmentOrTruncNameField(sMirror,'ViewNames','view',handles.nViews);
-sMirror = hlpAugmentOrTruncNameField(sMirror,'LabelPointNames','point',handles.nPoints);
-sMirror = hlpAugmentOrTruncStructField(sMirror,'View',handles.nViews);
+sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror,'ViewNames','view',handles.nViews);
+sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror,'LabelPointNames','point',handles.nPoints);
+sMirror = Labeler.hlpAugmentOrTruncStructField(sMirror,'View',handles.nViews);
 if ~isempty(handles.propsPane) && ishandle(handles.propsPane)
   delete(handles.propsPane);
   handles.propsPane = [];
@@ -291,8 +247,8 @@ else
 end
 handles = advTableRefresh(handles);
 guidata(hObject,handles);
-function pumLabelingMode_Callback(hObject, eventdata, handles)
-function pumTracking_Callback(hObject, eventdata, handles)
+% function pumLabelingMode_Callback(hObject, eventdata, handles)
+% function pumTracking_Callback(hObject, eventdata, handles)
 function pbCreateProject_Callback(hObject, eventdata, handles)
 %fprintf('pbCreate start');
 cfg = genCurrentConfig(handles);
@@ -348,3 +304,14 @@ for f=flds(:)',f=f{1}; %#ok<FXSET>
     % none, empty
   end
 end
+
+
+% --- Executes on button press in checkbox_multitarget.
+function checkbox_multitarget_Callback(hObject, eventdata, handles)
+% hObject    handle to checkbox_multitarget (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of checkbox_multitarget
+%handles.hasTrx = hObject.Value;
+%guidata(hObject,handles);

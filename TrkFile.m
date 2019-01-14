@@ -127,6 +127,78 @@ classdef TrkFile < handle
       
       tbl = struct2table(s);
     end
+    
+    function trkfile = mergePartial(obj1,obj2)
+      % Merge trkfile into current trkfile. Doesn't merge .pTrkFull* fields 
+      % (for now).
+      %
+      % obj2 TAKES PRECEDENCE when tracked frames/data overlap
+      %
+      % obj/obj2: trkfile objs. obj.pTrk and obj2.pTrk must have the same
+      % size.
+      
+      assert(isscalar(obj1) && isscalar(obj2));
+      %assert(isequal(size(obj.pTrk),size(obj2.pTrk)),'Size mismatch.');
+      assert(isequal(obj1.pTrkiPt,obj2.pTrkiPt),'.pTrkiPt mismatch.');
+      %assert(isequal(obj.pTrkiTgt,obj2.pTrkiTgt),'.pTrkiTgt mismatch.');
+      
+      if ~isempty(obj1.pTrkFull) || ~isempty(obj2.pTrkFull)
+        warningNoTrace('.pTrkFull contents discarded.');
+      end
+      
+      %frmComon = intersect(obj1.pTrkFrm,obj2.pTrkFrm);
+      frmUnion = union(obj1.pTrkFrm,obj2.pTrkFrm);
+      %iTgtComon = intersect(obj1.pTrkiTgt,obj2.pTrkiTgt);
+      iTgtUnion = union(obj1.pTrkiTgt,obj2.pTrkiTgt);
+      
+      npttrk = numel(obj1.pTrkiPt);
+      nfrm = numel(frmUnion);
+      ntgt = numel(iTgtUnion);
+     
+      % Determine whether there is any overlap
+      tfobj1HasRes = false(nfrm,ntgt);
+      tfobj2HasRes = false(nfrm,ntgt);
+      [~,locfrm1] = ismember(obj1.pTrkFrm,frmUnion);
+      [~,locfrm2] = ismember(obj2.pTrkFrm,frmUnion);     
+      [~,loctgt1] = ismember(obj1.pTrkiTgt,iTgtUnion);
+      [~,loctgt2] = ismember(obj2.pTrkiTgt,iTgtUnion);          
+      tfobj1HasRes(locfrm1,loctgt1) = true;
+      tfobj2HasRes(locfrm2,loctgt2) = true;
+      tfConflict = tfobj1HasRes & tfobj2HasRes;
+      nfrmConflict = nnz(any(tfConflict,2));
+      ntgtConflict = nnz(any(tfConflict,1));
+      if nfrmConflict>0 % =>ntgtConflict>0
+        warningNoTrace('TrkFiles share common results for %d frames, %d targets. Second trkfile will take precedence.',...
+          nfrmConflict,ntgtConflict);
+      end
+
+      % init new pTrk, pTrkTS, pTrkTag; write results1, then results2 
+      pTrk = nan(npttrk,2,nfrm,ntgt);
+      pTrkTS = nan(npttrk,nfrm,ntgt);
+      pTrkTag = nan(npttrk,nfrm,ntgt);            
+      pTrk(:,:,locfrm1,loctgt1) = obj1.pTrk;      
+      pTrk(:,:,locfrm2,loctgt2) = obj2.pTrk;
+      pTrkTS(:,locfrm1,loctgt1) = obj1.pTrkTS;
+      pTrkTS(:,locfrm2,loctgt2) = obj2.pTrkTS;
+      pTrkTag(:,locfrm1,loctgt1) = obj1.pTrkTag;
+      pTrkTag(:,locfrm2,loctgt2) = obj2.pTrkTag;
+      obj1.pTrk = pTrk;
+      obj1.pTrkTS = pTrkTS;
+      obj1.pTrkTag = pTrkTag;
+      
+      %obj1.pTrkiPt = obj1.pTrkiPt; unchanged
+      obj1.pTrkFrm = frmUnion;
+      obj1.pTrkiTgt = iTgtUnion;
+      obj1.pTrkFull = [];
+      obj1.pTrkFullFT = [];
+      
+      if iscell(obj1.trkInfo)
+        obj1.trkInfo{end+1} = obj2.trkInfo;
+      else
+        obj1.trkInfo = {obj1.trkInfo obj2.trkInfo};
+      end
+    end
+    
   end
   
   methods (Static)
@@ -142,12 +214,32 @@ classdef TrkFile < handle
       pvs = struct2pvs(rmfield(s,'pTrk'));
       trkfileObj = TrkFile(pTrk,pvs{:});
     end
+    
+    function trkfileObj = loadsilent(filename)
+      % ignore fields of struct that aren't TrkFile props. For 3rd-party
+      % generated Trkfiles
+      s = load(filename,'-mat');
+      s = TrkFile.modernizeStruct(s);      
+      pTrk = s.pTrk;      
+      
+      mc = meta.class.fromName('TrkFile');
+      propnames = {mc.PropertyList.Name}';
+      fns = fieldnames(s);
+      tfunrecog = ~ismember(fns,propnames);
+      s = rmfield(s,fns(tfunrecog)); 
+      pvs = struct2pvs(rmfield(s,'pTrk'));
+      
+      trkfileObj = TrkFile(pTrk,pvs{:});
+    end
 
     function s = modernizeStruct(s)
       % s: struct loaded from trkfile saved to matfile
       if iscell(s.pTrkTag)
         s.pTrkTag = strcmp(s.pTrkTag,'occ');
       end
+%       if iscell(s.pTrkiTgt) % TEMP HACK DL format
+%         s.pTrkiTgt = cell2mat(s.pTrkiTgt);
+%       end
     end
     
   end

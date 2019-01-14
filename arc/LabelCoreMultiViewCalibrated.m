@@ -109,7 +109,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore & LabelCoreMVMixin
       obj.hPtsTxtStrs = cell(obj.nPts,1);
       for iPt=1:obj.nPts
         iSet = obj.iPt2iSet(iPt);
-        setClr = ppi.ColorsSets(iSet,:);
+        setClr = ppi.Colors(iSet,:);
         obj.hPtsColors(iPt,:) = setClr;
         ptsArgs = {nan,nan,ppi.Marker,...
           'ZData',1,... % AL 20160628: seems to help with making points clickable but who knows
@@ -394,6 +394,7 @@ classdef LabelCoreMultiViewCalibrated < LabelCore & LabelCoreMVMixin
       h = { ...
         '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
         '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
+        '* <shift>+A/D, LEFT/RIGHT etc move to next labeled frame.'
         '* S accepts the labels for the current frame/target.'        
         '* (The letter) O toggles occluded-estimated status.'
         '* 0..9 selects/unselects a point. When a point is selected:'

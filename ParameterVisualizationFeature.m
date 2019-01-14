@@ -85,17 +85,20 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       if lObj.currMovIdx==mIdx && lObj.currFrame==frm
         gdata = lObj.gdata;
         im = gdata.image_curr;
+        imxdata = im.XData;
+        imydata = im.YData;
         im = im.CData;
       else
         IVIEW = 1;
         if lObj.currMovIdx==mIdx
           mr = lObj.movieReader(IVIEW);
         else
-          mfaf = lObj.getMovieFilesAllFullMovIdx(mIdx);
           mr = MovieReader;
-          lObj.movieMovieReaderOpen(mr,mfaf,IVIEW);
+          lObj.movieMovieReaderOpen(mr,mIdx,IVIEW);
         end
-        im = mr.readframe(frm);
+        [im,~,imroi] = mr.readframe(frm,'docrop',true);
+        imxdata = imroi([1 2]);
+        imydata = imroi([3 4]);
       end            
       
       % We now have im and xyLbl for (mIdx,frm,iTgt). View1 only.
@@ -103,15 +106,18 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       nphyspts = lObj.nPhysPoints;
       nviews = lObj.nview;            
       cla(hAx);
-      imshow(im,'Parent',hAx);
+      hold(hAx,'off');
+      imshow(im,'Parent',hAx,'XData',imxdata,'YData',imydata);
+      hold(hAx,'on');
       caxis(hAx,'auto');      
       hold(hAx,'on');
       % plot view1 only
       plot(hAx,xyLbl(1:nphyspts,1),xyLbl(1:nphyspts,2),'r.','markersize',12);
       if lObj.hasTrx
+        assert(~lObj.cropProjHasCrops);
         assert(nviews==1,'Unsupported for multiview projects with trx.');
         [xTrx,yTrx] = readtrx(lObj.trx,frm,iTgt);
-        cropRadius = sPrm.ROOT.Track.MultiTarget.TargetCrop.Radius;
+        cropRadius = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
         [roixlo,roixhi,roiylo,roiyhi] = xyRad2roi(xTrx,yTrx,cropRadius);
         axis(hAx,[roixlo roixhi roiylo roiyhi]);
       end
@@ -131,7 +137,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
           [xF,yF,iView,tmpInfo] = Features.compute1LM(fvIfo.xs,fvIfo.xLM,fvIfo.yLM);
           obj.hPlot = Features.visualize1LM(hAx,xF,yF,iView,tmpInfo,...
             1,1,GREEN,'doTitleStr',false,'ellipseOnly',true);
-          tstr = 'For given landmark, features drawn from within circle';
+          tstr = 'If the landmark in green is selected, features are drawn from within this circle';
         case {'2lm' 'two landmark elliptical' '2lmdiff'}
           fvIfo.tbl = Features.generate2LMellipticalForSetParamViz(prmModel,...
             prmFtr.Radius,prmFtr.ABRatio);
@@ -140,13 +146,15 @@ classdef ParameterVisualizationFeature < ParameterVisualization
           obj.hPlot = Features.visualize2LMelliptical(hAx,xF,yF,iView,...
             tmpInfo,1,1,GREEN,'plotEllAtReff',true,'doTitleStr',false,...
             'ellipseOnly',true);
-          tstr = 'For given landmark, features drawn from within ellipse';
+          tstr = 'If the landmarks in green are selected, features are selected from within this ellipse';
         otherwise
           assert(false,'Unrecognized feature type.');
       end
       
-      title(hAx,tstr,'interpreter','none','fontweight','normal');      
-      
+      title(hAx,tstr,'interpreter','none','fontweight','normal','fontsize',8);      
+      hAx.XTick = [];
+      hAx.YTick = [];
+
       ParameterVisualizationFeature.throwWarningFtrType(prmFtr.Type);
       
       obj.initSuccessful = true;

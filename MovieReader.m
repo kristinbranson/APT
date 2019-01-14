@@ -7,15 +7,35 @@ classdef MovieReader < handle
     readFrameFcn = [];
     nframes = nan;
     info = [];
-    nr = nan;
-    nc = nan;
-    
+    nr = nan; % numrows in raw/orig movie
+    nc = nan; % numcols in raw/orig movie
+    nchan = nan; % numchans "
     fid = nan; % file handle/resource to movie
     
     % bgsub
     bgType % see PxAssign.simplebgsub 
     bgIm % [nr x nc] background im
     bgDevIm % [nr x nc] background dev im
+    
+    % crop
+    cropInfo % Either empty array, or scalar CropInfo. CropInfo is a handle 
+      % so this is subject to external mutations. Used only when 'docrop' 
+      % flag is true in read()
+  end
+  
+  properties (SetAccess=public)
+    
+%     neednframes = true; % whether nframes needs to be exact
+    preload = false; % only used at open() time, could be passed as option at that time
+
+  end
+  
+  properties (Dependent)
+    nrread % numrows in image-as-read, post-crop (if any)
+    ncread % numcols in "
+    roiread % [xlo xhi ylo yhi] of image-as-read. If there is no cropping, 
+      % this is just [1 nc 1 nr]. 
+    hascrop % logical scalar, true if cropInfo is set
   end
   
   properties (SetObservable)
@@ -50,6 +70,33 @@ classdef MovieReader < handle
     function v = get.isOpen(obj)
       v = ~isnan(obj.fid);
     end
+    function v = get.nrread(obj)
+      ci = obj.cropInfo; 
+      if isempty(ci)
+        v = obj.nr;
+      else
+        v = ci.roi(4)-ci.roi(3)+1;
+      end
+    end
+    function v = get.ncread(obj)
+      ci = obj.cropInfo; 
+      if isempty(ci)
+        v = obj.nc;
+      else
+        v = ci.roi(2)-ci.roi(1)+1;
+      end
+    end
+    function v = get.roiread(obj)
+      ci = obj.cropInfo;
+      if ~isempty(ci)
+        v = ci.roi;
+      else
+        v = [1 obj.nc 1 obj.nr];
+      end
+    end
+    function v = get.hascrop(obj)
+      v = ~isempty(obj.cropInfo);
+    end
   end
   
   methods
@@ -62,7 +109,9 @@ classdef MovieReader < handle
       
       [bgTy,bgReadFcn] = myparse(varargin,...
         'bgType',[],... % optional, string enum
-        'bgReadFcn',[]); % optional, fcn handle to compute [bg,bgdev] = bgReadFcn(movfile,movifo)
+        'bgReadFcn',[]... % optional, fcn handle to compute [bg,bgdev] = bgReadFcn(movfile,movifo)
+         ... % 'preload',false... % if true, frames pre-read upfront. passed thru to get_readframe_fcn
+        ); 
       
       assert(exist(fname,'file')>0,'Movie ''%s'' not found.',fname);
       
@@ -71,15 +120,21 @@ classdef MovieReader < handle
       end
       
       obj.filename = fname;      
-      [obj.readFrameFcn,obj.nframes,obj.fid,obj.info] = get_readframe_fcn(obj.filename);
+      [obj.readFrameFcn,obj.nframes,obj.fid,obj.info] = ...
+        get_readframe_fcn(obj.filename,'preload',obj.preload);%,'neednframes',obj.neednframes);
+      
+      if isfield(obj.info,'readerobj')
+        obj.info = rmfield(obj.info,'readerobj');
+      end
       
       ifo = obj.info;
       if isfield(ifo,'nr') && isfield(ifo,'nc')
         obj.nr = ifo.nr;
         obj.nc = ifo.nc;
+        obj.nchan = nan;
       else
         im = obj.readFrameFcn(1);
-        [obj.nr,obj.nc] = size(im);
+        [obj.nr,obj.nc,obj.nchan] = size(im);
       end
       
       tfHasBG = ~isempty(bgTy) && ~isempty(bgReadFcn);
@@ -93,10 +148,17 @@ classdef MovieReader < handle
       end
     end
     
-    function [im,imOrigType] = readframe(obj,i,varargin)
+    function setCropInfo(obj,cInfo)
+      assert(isempty(cInfo) || isscalar(cInfo) && isa(cInfo,'CropInfo'));
+      obj.cropInfo = cInfo;
+    end
+    
+    function [im,imOrigType,imroi] = readframe(obj,i,varargin)
       % im: image
       % imOrigType: type of original/raw image; this may differ from the
       % type of im when doBGsub is on.
+      % imroi: [1x4] [xlo xhi ylo yhi] roi of im-as-read. Usually, just 
+      %  [1 nc 1 nr]. If docrop, then the roi used to crop.
       %
       % Currently, when doBGsub is on, im is forced to a double and an
       % attempt is made to rescale im to [0,1] based on imOrigType. If
@@ -109,8 +171,11 @@ classdef MovieReader < handle
       % Note: im==varargout{1} may be of different type if doBGsub is on 
       % (double) vs off.
       
-      doBGsub = myparse(varargin,...
-        'doBGsub',false);
+      [doBGsub,docrop] = myparse(varargin,...
+        'doBGsub',false,...
+        'docrop',false ... % if true, .cropInfo is used if avail. Note, 
+                       ... % cropping occurs AFTER flipvert, if that is on
+        );
       
       assert(obj.isOpen,'Movie is not open.');
       im = obj.readFrameFcn(i);
@@ -142,6 +207,25 @@ classdef MovieReader < handle
 %         % uint* types.
 %         im = PxAssign.imRescalePerType(im,imOrigType);
       end
+      
+      if docrop && obj.hascrop
+        imroi = obj.cropInfo.roi; % .cropInfo must be set
+        im = im(imroi(3):imroi(4),imroi(1):imroi(2));        
+      else
+        imroi = [1 size(im,2) 1 size(im,1)];
+      end
+    end
+    
+    function nchan = getreadnchan(obj)
+      % nchan: number of channels in raw/orig movie
+      
+      if ~isnan(obj.nchan)
+        nchan = obj.nchan;
+      else
+        assert(obj.isOpen,'Movie is not open.');
+        im = obj.readFrameFcn(1);
+        nchan = size(im,3);
+      end
     end
     
     function close(obj)
@@ -161,6 +245,8 @@ classdef MovieReader < handle
       obj.bgType = [];
       obj.bgIm = [];
       obj.bgDevIm = [];
+      
+      obj.cropInfo = [];
     end    
   
     function delete(obj)

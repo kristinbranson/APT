@@ -83,12 +83,12 @@ classdef MFTable
       %
       % tbl, tblRestrict: tables with FLDSID
       %
-      % tbl (out): that subset of tbl that is also in tblRestrict. Rows of 
-      % table should be as originally ordered.
+      % tbl (out): that subset of tbl that is also in tblRestrict, ordered
+      % as in tblRestrict.
       
-      [~,ia] = intersect(tbl(:,MFTable.FLDSID),...
-        tblRestrict(:,MFTable.FLDSID),'stable');
-      tbl = tbl(ia,:);
+      [~,~,ib] = intersect(...
+        tblRestrict(:,MFTable.FLDSID),tbl(:,MFTable.FLDSID),'stable');
+      tbl = tbl(ib,:);
     end
     
     function tbl = sortCanonical(tbl)
@@ -149,28 +149,39 @@ classdef MFTable
       % movID: char
       
       assert(iscellstr(movs) && isrow(movs));
-      if any(contains(movs,'#'))
+      if exist('contains','builtin')>0 && any(contains(movs,'#')) || ...
+         any(~cellfun(@isempty,regexp(movs,'#','once')))
         warningNoTrace('Movies contain ID separator ''#''.');
       end
+        
       movID = sprintf('%s#',movs{:});
       movID = movID(1:end-1);
     end
     
-    function movIDs = formMultiMovieIDArray(movs)
+    function movIDs = formMultiMovieIDArray(movs,varargin)
       % movs: [nxnview] cellstr
       %
       % movIDs: [nx1] cellstr
       
+      [separator,checkseparator] = myparse(varargin,...
+        'separator','#',...
+        'checkseparator',true);
+      
       assert(iscellstr(movs) && ismatrix(movs));
       
-      if any(contains(movs(:),'#'))
-        error('Movies contain ID separator ''#''.');
+      if checkseparator
+        tferr = exist('contains','builtin')>0 && any(contains(movs(:),separator)) ...
+                || any(~cellfun(@isempty,strfind(movs(:),separator)));  
+        % contains introed in 16b
+        if tferr
+          error('Movies contain ID separator ''%s''.',separator);
+        end
       end
       
       nvw = size(movs,2);
       movIDs = movs(:,1);
       for ivw=2:nvw
-        movIDs = strcat(movIDs,'#',movs(:,ivw));
+        movIDs = strcat(movIDs,separator,movs(:,ivw));
       end
     end
     
@@ -183,6 +194,9 @@ classdef MFTable
       % tMF: [nxncol] MFTable. tMF.mov: [nxnview] cellstr
       %
       % I: [nxnview]
+      %
+      % PROB REMOVE ME, dup of CPRData.getFrames. No callsites in APT
+      % application. Unsafe wrt preloading.
       
       movIDs = MFTable.formMultiMovieIDArray(tMF.mov); % errs if any ID separator issues
       [movIDsUn,idx] = unique(movIDs);
@@ -220,6 +234,8 @@ classdef MFTable
     end
     
     function I = fetchImagesSafeVideoRdr(tMF,varargin)
+      % No callsites in APT app
+      
       [movFld] = myparse(varargin,...
         'movFld','mov');
       
@@ -327,6 +343,21 @@ classdef MFTable
       end
       
       tblMF.mov = tblMFiMov;
+    end
+    
+    function tblMF = loadTableFromMatfile(fname)
+      s = load(fname,'-mat');
+      flds = fieldnames(s);
+      tf = structfun(@(x)istable(x) && all(tblfldscontains(x,MFTable.FLDSID)),s);
+      fldsTbl = flds(tf);
+      switch numel(fldsTbl)
+        case 0
+          error('No movie-frame-target tables found in file ''%s''.',fname);
+        case 1
+          tblMF = s.(fldsTbl{1});
+        otherwise
+          error('Multiple movie-frame-target tables found in file ''%s''.',fname);
+      end
     end
           
   end

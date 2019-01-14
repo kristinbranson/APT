@@ -1,0 +1,1 @@
+ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo /groups/branson/home/kabram/PycharmProjects/poseTF/singularity.log -eo /groups/branson/home/kabram/PycharmProjects/poseTF/singularity.err -n2 -gpu "num=1" -q gpu_any "singularity exec --nv /misc/local/singularity/branson_v2.simg /groups/branson/home/kabram/PycharmProjects/poseTF/forSingularityScript.sh"'

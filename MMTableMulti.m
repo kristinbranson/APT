@@ -59,6 +59,9 @@ classdef MMTableMulti < MovieManagerTable
       
       tt.MouseClickedCallback = @(s,e)obj.cbkClickedDefault(s,e);
       tt.setDoubleClickEnabled(false);
+      if ~isempty(obj.tbl)
+        delete(obj.tbl);
+      end
       obj.tbl = tt;
     end
   

@@ -32,7 +32,7 @@ classdef OrthoCamCalPair < CalRig
   properties % CalRig
     nviews = 2;
     viewNames = {'side' 'front'};
-    viewSizes = [1024 1024;1024 1024];
+%     viewSizes = [1024 1024;1024 1024];
     
     estimatedEpipolarZCoords; % [nviewx1] cell. estimatedEpipolarZCoords{iView} gives estimated [zmin zmax] to use when plotting EPlines originating in iView
   end
@@ -196,7 +196,7 @@ classdef OrthoCamCalPair < CalRig
     % from optical axis along camera x-y axes
     % uv=[u;v] Image coords; (col,row) pixel coords on image
     
-    function [X,d,uvreL,uvreR] = stereoTriangulate(obj,uvL,uvR)
+    function [X,d,uvreL,uvreR,rperrL,rperrR] = stereoTriangulate(obj,uvL,uvR)
       % [X,d,uvreL,uvreR] = stereoTriangulate(obj,uvL,uvR)
       % Stereo triangulation
       %
@@ -206,6 +206,7 @@ classdef OrthoCamCalPair < CalRig
       % d: [1xN]: error/discrepancy in closest approach. d=0 indicates
       %   apparently "perfect" reconstruction where epipolar rays meet
       % uvreL, uvreR: [2xN]: reprojected x-y image coords
+      % rperrL, rperrR: [N], L2 error between reprojected and input coords
       
       pqL = obj.projected2normalized(uvL,1);
       pqR = obj.projected2normalized(uvR,2);
@@ -231,6 +232,9 @@ classdef OrthoCamCalPair < CalRig
       
       uvreL = obj.project(X,1);
       uvreR = obj.project(X,2);
+      
+      rperrL = sqrt(sum((uvreL-uvL).^2,1));
+      rperrR = sqrt(sum((uvreR-uvR).^2,1));
     end
     
     function uv = project(obj,X,icam)
@@ -292,7 +296,7 @@ classdef OrthoCamCalPair < CalRig
       d = reshape(d,[nPtsPat nPat 2]);
     end
     
-    function [dmu,d,uvre1,uvre2] = computeRPerrStroTriGeneral(obj,uv1,uv2)      
+    function [dmu,d,uvre1,uvre2] = computeRPerrStroTriGeneral(obj,uv1,uv2)
       n = size(uv1,2);
       szassert(uv1,[2 n]);
       szassert(uv2,[2 n]);
@@ -346,7 +350,7 @@ classdef OrthoCamCalPair < CalRig
       
       function nstUpdateEP(xy,iViewPt,iViewEP)
         for icalnst=1:ncal
-          [xEPL,yEPL] = objs(icalnst).computeEpiPolarLine(iViewPt,xy,iViewEP);
+          [xEPL,yEPL] = objs(icalnst).computeEpiPolarLine(iViewPt,xy,iViewEP); % xxx out of date api
 
           tfIB = viewLimX(1)<=xEPL & xEPL<=viewLimX(2) & ...
                  viewLimY(1)<=yEPL & yEPL<=viewLimY(2);
@@ -587,7 +591,7 @@ classdef OrthoCamCalPair < CalRig
       zmax = zmean + (zmax-zmean)*rangescalefac;     
     end
     
-    function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,uv1,iViewEpi)
+    function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,uv1,iViewEpi,roi)
       % [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
       % 
       % iView1: either 1 (L) or 2 (R)
@@ -626,7 +630,7 @@ classdef OrthoCamCalPair < CalRig
       
       uvEPL = obj.project(XEPL,iViewEpi);
       rc = uvEPL([2 1],:)';
-      rcCrop = obj.cropLines(rc,iViewEpi);
+      rcCrop = obj.cropLines(rc,roi);
       xEPL = rcCrop(:,2);
       yEPL = rcCrop(:,1);
     end

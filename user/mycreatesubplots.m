@@ -57,4 +57,6 @@ for c = 1:n2,
     bottom = bottom - border(2,2) - height;
   end
   left = left + border(1,2) + width;
-end;
+end
+
+h = reshape(h,n1,n2);

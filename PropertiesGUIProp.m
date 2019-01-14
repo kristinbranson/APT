@@ -8,6 +8,9 @@ classdef PropertiesGUIProp < handle
     ParamViz % optional, char concrete classname for ParameterVisualization subclass
     DefaultValue 
     Value    
+    Level = 'Important'
+    Requirements = {}
+    Visible = true
   end
   properties (Dependent)
     DispNameUse
@@ -39,7 +42,7 @@ classdef PropertiesGUIProp < handle
   end
   methods 
     function obj = PropertiesGUIProp(fld,dispname,type,editable,desc,...
-        dfltval,val,prmViz)
+        dfltval,val,prmViz,level,rqts,visible)
       obj.Field = fld;
       obj.DispName = dispname;
       obj.Type = type;
@@ -48,6 +51,17 @@ classdef PropertiesGUIProp < handle
       obj.DefaultValue = dfltval;      
       obj.Value = val;
       obj.ParamViz = prmViz;
+      if isempty(level),
+        level = 'Important';
+      end
+      obj.Level = PropertyLevelsEnum(level);
+      if ischar(rqts) && ~isempty(rqts),
+        obj.Requirements = strsplit(rqts);
+      end
+      if exist('visible','var'),
+        obj.Visible = visible;
+      end
+        
     end
   end
 end

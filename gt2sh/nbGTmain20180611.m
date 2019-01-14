@@ -451,51 +451,152 @@ toc
 %
 save gtDataSH_main_20180612.mat -append IGTMain20180612
 
+%% 20180626 got interrupted with videotest issue. New plan, crops are now 
+% in APT. Don't worry about generating offline results just get use the
+% clicks
+%
+% Generate crops-from-clicks, Crop 2/3. This is a near cut+paste from 
+% nbCrop2
+ci0 = load('..\aptStephenCPRInvestigate20180327\cropInfo20180426.mat');
+ci = load('cropInfoGT20180611.mat');
+td = load('trnData20180503.mat');
+
 %%
-
-%%/groups/huston/hustonlab/flp-chrimson_experiments/fly_413_to_425_norpAmales_SS02323_withandwithout_kir48A07lexA/norpAflpSS002323_kirLexA48A07/fly420/C001H001S0007/C001H001S0007_c.avi
-ciGT = load('cropInfoGT20180611.mat');
-
-%% Crop 2/3. This is a near cut+paste from nbCrop2
-
-IToCrop = IGTMain20180612;
-xyLblToCrop = pLbl2xyvSH(tGTMain20180612.p);
-tToCrop = tGTMain20180612;
+% IToCrop = IGTMain20180612;
+% xyLblToCrop = pLbl2xyvSH(tGTMain20180612.p);
+% tToCrop = tGTMain20180612;
+IToCrop = ci.Igt;
+tToCrop = ci.tGT;
 n = height(tToCrop);
-szassert(IToCrop,[n 2]);
-szassert(xyLblToCrop,[n 5 2 2]);
+% szassert(IToCrop,[n 2]);
+% szassert(xyLblToCrop,[n 5 2 2]);
 
-JITTER_RC = [28 8.5; 29.5 20]; % ivw, {nr,nc}.  based on SDs of 1D distros of delCCPcents
-%JITTER_RC = [0 0;0 0]; 
+%JITTER_RC = [28 8.5; 29.5 20]; % ivw, {nr,nc}.  based on SDs of 1D distros of delCCPcents
+JITTER_RC = [0 0;0 0]; % We are using CROP2 NO JITTER
 ROI_NRNC = [350 230; 350 350]; % ivw, {nr,nc}
 %xyCCP = reshape(tToCrop.cropClickPts,n,2,2); % row,{x,y},iVw
 
-IFR_crop3 = cell(size(IToCrop));
-xyLbl_GT_crop3 = nan(size(xyLblToCrop));
-roi_crop3 = nan(n,4,2); % irow,{xlo,xhi,ylo,yhi},ivw
-crop3_xyjitterappld = nan(n,2,2); % irow,{x,y},ivw
+% IFR_crop3 = cell(size(IToCrop));
+% xyLbl_GT_crop3 = nan(size(xyLblToCrop));
+roi_crop = nan(n,4,2); % irow,{xlo,xhi,ylo,yhi},ivw
+% crop3_xyjitterappld = nan(n,2,2); % irow,{x,y},ivw
 
-for ivw=1:2
-  roinr = ROI_NRNC(ivw,1);
-  roinc = ROI_NRNC(ivw,2);
-  rowjitter = JITTER_RC(ivw,1);
-  coljitter = JITTER_RC(ivw,2);
-  for i=1:n
+for i=1:n
+  fly = tToCrop.fly(i);
+  
+  % get the clicked pt. it was either clicked before or recently
+  idx0 = find(fly==ci0.t.fly);
+  idx1 = find(fly==ci.tGTNotClicked.fly);
+  assert(xor(isempty(idx0),isempty(idx1)));
+  if ~isempty(idx0)
+    norigrows = numel(idx0);
+    ci0cpts = ci0.cpts(idx0,:,:);
+    ci0cpts = reshape(ci0cpts,norigrows,4);
+    ci0cptsUn = unique(ci0cpts,'rows');
+    if size(ci0cptsUn,1)==1
+      ci0cpts = ci0cptsUn;
+    else
+      assert(false);
+%       fprintf(1,'Row %d, fly %d, %d orig rows collapsed to only %d rows. Taking average:\n',...
+%         i,fly,norigrows,size(ci0cptsUn,1));
+%       disp(ci0cpts);
+%       ci0cpts = mean(ci0cpts,1);
+    end
+    szassert(ci0cpts,[1 4]);
+    ci0cpts = reshape(ci0cpts,1,2,2);
+    xyCCP = ci0cpts;
+  else
+    norigrows = numel(idx1);
+    cicpts = ci.cptsNotClicked(idx1,:,:);
+    if norigrows>1
+      cicpts = reshape(cicpts,norigrows,4);
+      cicptsUn = unique(cicpts,'rows');
+      assert(size(cicptsUn,1)==1);
+      fprintf(1,'Row %d, fly %d, %d new rows collapsed\n',i,fly,norigrows);
+      cicpts = reshape(cicptsUn,1,2,2);
+    end
+    xyCCP = cicpts;
+  end
+  %xyCCP = squeeze(xyCCP); % {x/y},vw
+  szassert(xyCCP,[1 2 2]);
+  
+  for ivw=1:2
     [imnr,imnc] = size(IToCrop{i,ivw});
-    fly = tToCrop.fly;
-    cirow = find(fly==ciGT.tGT.fly);
-    assert(isscalar(cirow));    
-    xyCCP = ciGT.cptsGT(cirow,:,:); % 1, {x/y}, vw
+    roinr = ROI_NRNC(ivw,1);
+    roinc = ROI_NRNC(ivw,2);
+    rowjitter = JITTER_RC(ivw,1);
+    coljitter = JITTER_RC(ivw,2);
     
     roiCtrCol = xyCCP(1,1,ivw);
     roiCtrRow = xyCCP(1,2,ivw);
-    [roi_crop3(i,:,ivw),crop3_xyjitterappld(i,1,ivw),crop3_xyjitterappld(i,2,ivw)] = ...
+    [roi_crop(i,:,ivw),tmpxyjitterappld,tmpxyjitterappld2] = ...
       cropsmart(imnc,imnr,roinc,roinr,roiCtrCol,roiCtrRow,...
       'rowjitter',rowjitter,'coljitter',coljitter);
+    assert(tmpxyjitterappld==0);
+    assert(tmpxyjitterappld2==0);
   end
   
-  [IFR_crop3(:,ivw),xyLbl_GT_crop3(:,:,:,ivw)] = ...
-    croproi(IToCrop(:,ivw),xyLblToCrop(:,:,:,ivw),roi_crop3(:,:,ivw));  
+  tf = fly==td.tMain20180503.flyID;
+  if any(tf)
+    roicrop2main = td.roi_crop2(tf,:,:);
+    assert(isequal(repmat(roi_crop(i,:,:),nnz(tf),1),roicrop2main));
+    fprintf('Row %d fly %d, crops match %d main rows/crops\n',...
+      i,fly,nnz(tf));
+  end
 end
 
-%% CHECK ITRNDATA
+%%
+ci.roicrop = roi_crop;
+ci = orderfields(ci,{'Igt' 'tGT' 'roicrop' 'IgtNotClicked' 'tGTNotClicked' 'cptsNotClicked'});
+save('cropInfoGT20180611_update20180626.mat','-struct','ci');
+%%
+ci = load('cropInfoGT20180611_update20180626.mat');
+
+%% viz crops
+DOSAVE = true;
+SAVEDIR = fullfile(pwd,'figs');
+
+for ivw=1:2
+  hFig(1) = figure(11);
+  hFig(1).Position = [2561 401 1920 1124];
+  posn = CropInfo.roi2RectPos(ci.roicrop(1,:,ivw));
+  titlestr = sprintf('SH GT crops 90 movs, view %d. [w h]: %s',...
+    ivw,mat2str(posn(3:4)+1));
+  Shape.montage(ci.Igt(:,ivw),nan(height(ci.tGT),2),...
+    'fig',gcf,...
+    'nr',9,'nc',10,'idxs',1:90,...
+    'rois',ci.roicrop(:,:,ivw),...
+    'framelbls',arrayfun(@num2str,ci.tGT.fly,'uni',0),...
+    'framelblscolor',[1 1 0],...
+    'titlestr',titlestr);
+  
+  hFig(2) = figure(12);
+  hFig(2).Position = [2561 401 1920 1124];
+  Icrop = ci.Igt(:,ivw);
+  for i=1:numel(Icrop)
+    roi = ci.roicrop(i,:,ivw);
+    Icrop{i} = Icrop{i}(roi(3):roi(4),roi(1):roi(2));
+  end
+  titlestr = sprintf('SH GT crops 90 movs, view %d. [w h]: %s',...
+    ivw,mat2str(posn(3:4)+1));
+  Shape.montage(Icrop,nan(height(ci.tGT),2),...
+    'fig',gcf,...
+    'nr',9,'nc',10,'idxs',1:90,...
+    'framelbls',arrayfun(@num2str,ci.tGT.fly,'uni',0),...
+    'framelblscolor',[1 1 0],...
+    'titlestr',titlestr);
+  
+  pause(4);
+  
+  if DOSAVE
+    NAMES = {'sh_gt_crop_wide' 'sh_gt_cropped'};
+    for i=1:2
+      hFig(i).InvertHardcopy = 'off';
+      fname = sprintf('%s_vw%d',NAMES{i},ivw);
+      hgsave(hFig(i),fullfile(SAVEDIR,[fname '.fig']));
+      set(hFig(i),'PaperOrientation','landscape','PaperType','arch-c');
+      print(hFig(i),'-dpdf',fullfile(SAVEDIR,[fname '.pdf']));
+      print(hFig(i),'-dpng','-r300',fullfile(SAVEDIR,[fname '.png']));
+    end
+  end
+end

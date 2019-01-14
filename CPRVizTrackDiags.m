@@ -76,7 +76,8 @@ classdef CPRVizTrackDiags < handle
       assert(isa(lObj,'Labeler'));      
       obj.lObj = lObj;
       obj.tObj = lObj.tracker;
-      obj.rcObj = lObj.tracker.trnResRC;      
+      assert(isa(obj.tObj,'CPRLabelTracker'));
+      obj.rcObj = lObj.tracker.trnResRC;
     end
     function delete(obj)
       deleteValidHandles(obj.hLM);

@@ -1,8 +1,14 @@
 classdef LabelTracker < handle
 % Tracker base class
 
-  % LabelTracker knows how to take a bunch of images+labels and learn a
-  % classifier to predict/track labels on new images.
+  % LabelTracker has two responsibilities:
+  % 1. Take a bunch of images+labels and learn a classifier to 
+  %    predict/track labels on new images.
+  % 2. Store the predictions generated in 1, as well as any related 
+  %    tracking diagnostics
+  %
+  % LabelTracker does not implement tracking visualization, but deleowns a 
+  % TrackingVisualizer* that 
   %
   % LabelTracker is a base class intended to be concretized with a 
   % particular tracking algo.
@@ -14,28 +20,36 @@ classdef LabelTracker < handle
   %
   % In this way a single scalar (integer) value continues to serve as a
   % unique key/ID for a movie in the project; these values are used in APIs
-  % as well as Metadata tables (eg in .mov field).
+  % as well as Metadata tables (eg in .mov field). This implicitly assumes
+  % that a LabelTracker handles only a single view in a multiview project.
   %
-  % Moving forward, if another "list of movie(set)s" crops up then this
-  % signed index vector will need to be replaced with some other ID
-  % mechanism (eg uuid or two-column ID {'movieList' 'idx'}.
+  % Moving forward, if another "list of movie(set)s" is required, or if 
+  % LabelTrackers must handle multiple views, then this signed index vector 
+  % will need to be replaced with some other ID mechanism (eg a uuid or 
+  % 2-ple ID etc.
   
-  properties (Constant)
-    % Known concrete LabelTrackers
-    subclasses = {...
-      'Interpolator'
-      'SimpleInterpolator'
-      'GMMTracker'
-      'CPRLabelTracker'
-      };
-  end
+%   properties (Constant)
+%     % Known concrete LabelTrackers
+%     subclasses = {...
+%       'Interpolator'
+%       'SimpleInterpolator'
+%       'GMMTracker'
+%       'CPRLabelTracker'
+%       };
+%   end
   
-  properties
+  properties (Abstract)
+    algorithmName % char
+  end  
+  
+  properties    
     lObj % (back)handle to Labeler object
     paramFile; % char, current parameter file
     ax % axis for viewing tracking results
     
     trkVizInterpolate % scalar logical. If true, interpolate tracking results when visualizing
+    
+    lastTrainStats = []; % struct with information about the last training for visualization
     
     hLCurrMovie; % listener to lObj.currMovie
     hLCurrFrame; % listener to lObj.currFrame
@@ -47,6 +61,16 @@ classdef LabelTracker < handle
   properties (SetObservable,SetAccess=protected)
     hideViz = false; % scalar logical. If true, hide visualizations
   end
+  
+  properties (Constant)
+    APT_DEFAULT_TRACKERS = {
+      {'CPRLabelTracker'}
+      {'DeepTracker' 'trnNetType' DLNetType.mdn}
+      {'DeepTracker' 'trnNetType' DLNetType.deeplabcut}
+      {'DeepTracker' 'trnNetType' DLNetType.unet}
+      };
+    INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
+  end
     
   methods
     
@@ -56,21 +80,24 @@ classdef LabelTracker < handle
       trkPrefs = labelerObj.projPrefs.Track;
       if isfield(trkPrefs,'PredictInterpolate')
         val = logical(trkPrefs.PredictInterpolate);
-        if ~isscalar(val)
-          error('LabelTracker:init','Expected scalar value for ''PredictInterpolate''.');
+        assert(isscalar(val),'Expected scalar value for ''PredictInterpolate''.');
+        if val
+          warningNoTrace('Turning off tracking interpolation.');
+          labelerObj.projPrefs.Track.PredictInterpolate = false;
+          val = false;
         end
       else
         val = false;
       end
-      if obj.lObj.hasTrx && val
-        warningNoTrace('LabelTracker:interp',...
-          'Project has trajectories; turning off tracking interpolation.');
-        val = false;
-      end
+%       if obj.lObj.hasTrx && val
+%         warningNoTrace('LabelTracker:interp',...
+%           'Project has trajectories; turning off tracking interpolation.');
+%         val = false;
+%       end
       obj.trkVizInterpolate = val;
       
       obj.hLCurrMovie = addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
-      obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
+      %obj.hLCurrFrame = addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
       obj.hLCurrTarget = addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
       obj.hLMovieRemoved = addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
       obj.hLMoviesReordered = addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
@@ -129,8 +156,96 @@ classdef LabelTracker < handle
       % - If a tracker is trained, it's an incremental train
     end
     
+    function [tfCanTrain,reason] = canTrain(obj)
+      
+      tfCanTrain = true;
+      reason = '';
+      
+    end
+
+    function [tfCanTrack,reason] = canTrack(obj)
+      
+      tfCanTrack = true;
+      reason = '';
+      
+    end
+
+    
+    function [tfsucc,tblPTrn,dataPreProc] = preretrain(obj,tblPTrn,wbObj,prmpp)
+      % Right now this figures out which rows comprise the training set.
+      %
+      % PostConditions (tfsucc==true):
+      %   - If initially unknown, training set is determined/returned in
+      %   tblPTrn
+      %   - lObj.preProcData has been updated to include all rows of
+      %   tblPTrn; lObj.preProcData.iTrn has been set to those rows
+      %
+      % PostConditions (tfsucc=false): other outputs indeterminte
+      %
+      % tblPTrn (in): Either [], or a MFTable.
+      % wbObj: Either [], or a WaitBarWithCancel.
+      %
+      % tfsucc: see above
+      % tblPTrn (out): MFTable
+      % dataPreProc: CPRData handle, obj.lObj.preProcData
+      
+      tfsucc = false;
+      dataPreProc = [];
+      tfWB = ~isempty(wbObj);
+      if ~exist('prmpp','var'),
+        prmpp = [];
+      end
+      
+      % Either use supplied tblPTrn, or use all labeled data
+      if isempty(tblPTrn)
+        % use all labeled data
+        tblPTrn = obj.lObj.preProcGetMFTableLbled('wbObj',wbObj);
+        if tfWB && wbObj.isCancel
+          % Theoretically we are safe to return here as of 201801. We
+          % have only called obj.asyncReset() so far.
+          % However to be conservative/nonfragile/consistent let's reset
+          % as in other cancel/early-exits          
+          return;
+        end
+      end
+      if obj.lObj.hasTrx
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+      elseif obj.lObj.cropProjHasCrops
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+      else
+        tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+      end
+      
+      if isempty(tblPTrn)
+        error('CPRLabelTracker:noTrnData','No training data set.');
+      end
+      
+      [dataPreProc,dataPreProcIdx,tblPTrn,tblPTrnReadFail] = ...
+        obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj,'preProcParams',prmpp);
+      if tfWB && wbObj.isCancel
+        % none
+        return;
+      end
+      nMissedReads = height(tblPTrnReadFail);
+      if nMissedReads>0
+        warningNoTrace('Removing %d training rows, failed to read images.\n',...
+          nMissedReads);
+      end
+      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
+      
+      dataPreProc.iTrn = dataPreProcIdx;
+      fprintf(1,'Training data summary:\n');
+      dataPreProc.summarize('mov',dataPreProc.iTrn);
+      
+      tfsucc = true;      
+    end 
+        
     function retrain(obj)
       % Full Train from scratch; existing/previous results cleared 
+    end
+    
+    function tf = getHasTrained(obj)
+      %
     end
     
     function track(obj,tblMFT,varargin)
@@ -147,30 +262,36 @@ classdef LabelTracker < handle
       % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
     end
     
+    function tpos = getTrackingResultsCurrMovie(obj)
+      % This is a convenience method as it is a special case of 
+      % getTrackingResults. Concrete LabelTrackers will also typically have 
+      % the current movie's tracking results cached.
+      % 
+      % tpos: [npts d nfrm ntgt], or empty/[] will be accepted if no
+      % results are available. 
+      tpos = [];
+    end
+      
     function [trkfiles,tfHasRes] = getTrackingResults(obj,iMovsSgned)
       % Get tracking results for movie(set) iMovs.
       % Default implemation returns all NaNs and tfHasRes=false.
       %
       % iMovsSgned: [nMov] vector of movie(set) indices, negative for GT
       %
-      % trkfiles: [nMovxnView] vector of TrkFile objects
+      % trkfiles: [nMovxnView] cell of TrkFile objects
       % tfHasRes: [nMov] logical. If true, corresponding movie(set) has 
       % tracking nontrivial (nonempty) tracking results
       
-      validateattributes(iMovsSgned,{'numeric'},{'vector' 'integer'});
+      trkfiles = [];
+      tfHasRes = [];
+    end
+    
+    function tblTrk = getAllTrackResTable(obj)
+      % Get all tracking results known to tracker in a single table.
+      %
+      % tblTrk: fields .mov, .frm, .iTgt, .pTrk
       
-      assert(~obj.lObj.isMultiView,'Multiview unsupported.');
-      
-      nMov = numel(iMovsSgned);
-      for i = nMov:-1:1
-        iMovS = iMovsSgned(i);
-        iMov = abs(iMovS);
-        tfGT = iMovS<0;
-        lpos = obj.lObj.getlabeledposGTawareArg(tfGT);
-        trkpos = nan(size(lpos{iMov}));
-        trkfiles(i) = TrkFile(trkpos);
-        tfHasRes(i) = false;
-      end
+      tblTrk = [];
     end
     
     function s = getTrainedTrackerMetadata(obj)
@@ -200,9 +321,13 @@ classdef LabelTracker < handle
     
     function clearTrackingResults(obj)
       % Clear all current/cached tracking results. Trained tracker should
-      % remain untouched. Used when tracking many movies to avoid memory
-      % overflow.
-
+      % remain untouched. Used in two situations:
+      %  
+      % - It is desired to explicitly clear the current tracking DB b/c eg
+      % it will be out of date after a retrain.
+      % - For trackers with in-memory tracking DBs, to control memory 
+      % usage.
+      %
       % Default impl: none
     end    
         
@@ -218,13 +343,17 @@ classdef LabelTracker < handle
       % Called when Labeler is navigated to a new movie
     end
     
+    function updateLandmarkColors(obj)
+      % Called when colors for landmarks have changed
+    end
+    
     function labelerMovieRemoved(obj,eventdata)
       % Called on Labeler/movieRemoved
     end
 
-    function labelerMoviesReordered(obj,eventdata)      
+    function labelerMoviesReordered(obj,eventdata)
     end
-    
+        
     function s = getSaveToken(obj)
       % Get a struct to serialize
       s = struct();
@@ -247,15 +376,46 @@ classdef LabelTracker < handle
   methods % For infotimeline display
     
     function props = propList(obj)
-      % Return a list of properties that could be shown in the
-      % infotimeline
-      props = {};
+      %props = {'x' 'y' 'dx' 'dy' '|dx|' '|dy|'}';
+      if isempty(obj.INFOTIMELINE_PROPS_TRACKER),
+        props = {};
+      else
+        props = {obj.INFOTIMELINE_PROPS_TRACKER.name};
+      end
     end
     
     function data = getPropValues(obj,prop)
       % Return the values of a particular property for
       % infotimeline
-      data = [];
+      
+      labeler = obj.lObj;
+      npts = labeler.nLabelPoints;
+      nfrms = labeler.nframes;
+      ntgts = labeler.nTargets;
+      iTgt = labeler.currTarget;
+      iMov = labeler.currMovie;
+      tpos = obj.getTrackingResultsCurrMovie();
+      
+      needtrx = obj.lObj.hasTrx && strcmpi(prop.coordsystem,'Body');
+      if needtrx,
+        trxFile = obj.lObj.trxFilesAllFullGTaware{iMov,1};
+        bodytrx = obj.lObj.getTrx(trxFile,obj.lObj.movieInfoAllGTaware{iMov,1}.nframes);
+        bodytrx = bodytrx(iTgt);
+      else
+        bodytrx = [];
+      end
+      
+      if isempty(tpos)
+        % edge case uninitted (not sure why)
+        tpos = nan(npts,2,nfrms,ntgts);
+      end
+      
+      if ismember(prop.code,{obj.INFOTIMELINE_PROPS_TRACKER.code}),
+        error('Not implemented');
+      else      
+        tpostag = false(npts,nfrms,ntgts);
+        data = ComputeLandmarkFeatureFromPos(tpos(:,:,:,iTgt),tpostag(:,:,iTgt),bodytrx,prop);
+      end
     end
     
   end
@@ -275,20 +435,39 @@ classdef LabelTracker < handle
   
   methods (Static)
     
-    function sc = findAllSubclasses
-      % sc: cellstr of LabelTracker subclasses in APT.Root
+    function tObj = create(lObj,trkClsAug,trkData)
+      % Factory meth
       
-      scnames = LabelTracker.subclasses; % candidates
-      nSC = numel(scnames);
-      tf = false(nSC,1);
-      for iSC=1:nSC
-        name = scnames{iSC};
-        mc = meta.class.fromName(name);
-        tf(iSC) = ~isempty(mc) && any(strcmp('LabelTracker',{mc.SuperclassList.Name}));
+      tCls = trkClsAug{1};
+      tClsArgs = trkClsAug(2:end);
+      
+      if exist(tCls,'class')==0
+        error('Labeler:projLoad',...
+          'Project tracker class ''%s'' cannot be found.',tCls);
       end
-      sc = scnames(tf);
+      tObj = feval(tCls,lObj,tClsArgs{:});
+      tObj.init();
+      if ~isempty(trkData)
+        tObj.loadSaveToken(trkData);
+      end
     end
     
   end
+%     
+%     function sc = findAllSubclasses
+%       % sc: cellstr of LabelTracker subclasses in APT.Root
+%       
+%       scnames = LabelTracker.subclasses; % candidates
+%       nSC = numel(scnames);
+%       tf = false(nSC,1);
+%       for iSC=1:nSC
+%         name = scnames{iSC};
+%         mc = meta.class.fromName(name);
+%         tf(iSC) = ~isempty(mc) && any(strcmp('LabelTracker',{mc.SuperclassList.Name}));
+%       end
+%       sc = scnames(tf);
+%     end
+%     
+%   end
   
 end

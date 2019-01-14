@@ -12,8 +12,7 @@ putDateAtEndOfFilename=0;
 
 lObj.projLoad(lblname);
 fprintf(1,'Loaded proj: %s\n',lblname);
-lObj.labels2ImportTrkPrompt();
-
+lObj.labels2ImportTrkPromptAuto();
 
 if putDateAtEndOfFilename ==1
     time = clock;

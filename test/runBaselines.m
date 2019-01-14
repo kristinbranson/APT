@@ -67,7 +67,7 @@ if dotest
     pTrkRptMeanMuErr = nanmean(cat(3,pTrkRptMuErr{:}),3); % [npt x ntrkfrm];
 
     % check resMV, 1st repeat only 
-    errMV = lclErr(resMV{1}(ivw).pTrk,pTrkMu); % [npt x ntrkfrm]
+    errMV = lclErr(resMV{1}{ivw}.pTrk,pTrkMu); % [npt x ntrkfrm]
     errMVnorm = errMV./pTrkRptMeanMuErr;
     errMV = errMV';
     errMVnorm = errMVnorm';
@@ -79,7 +79,8 @@ if dotest
     disp(prctile(errMVnorm,PTILES));    
     
     % check resSingVw
-    errSV = lclErr(resSingVw{ivw}.pTrk,pTrkMu); % [npt x ntrkfrm]
+    assert(isscalar(resSingVw{ivw}));
+    errSV = lclErr(resSingVw{ivw}{1}.pTrk,pTrkMu); % [npt x ntrkfrm]
     errSVnorm = errSV./pTrkRptMeanMuErr;
     errSV = errSV';
     errSVnorm = errSVnorm';

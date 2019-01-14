@@ -25,7 +25,8 @@ classdef Shape
       % xys: [npts x 2 x nshapes] x/y coords
       [n,nshapes] = size(ps);
       n2 = n/2;
-      xys = cat(2,reshape(ps(1:n2,:),[n2,1,nshapes]),reshape(ps(n2+1:end,:),[n2,1,nshapes]));
+      xys = cat(2,reshape(ps(1:n2,:),[n2,1,nshapes]),...
+                  reshape(ps(n2+1:end,:),[n2,1,nshapes]));
     end
     
     function [p0,thetas] = randrot(p0,d,varargin)
@@ -709,6 +710,8 @@ classdef Shape
       dav = squeeze(nanmean(d,2)); % [NxRT]      
     end
     
+    % ROI utils: see also CropInfo.m
+    
     function [roi,tfOOBview,xyRoi] = xyAndTrx2ROI(xy,xyTrx,nphysPts,radius)
       % Generate ROI/bounding boxes from shape and trx
       %
@@ -748,6 +751,7 @@ classdef Shape
         ylo = y0-radius;
         yhi = y0+radius;
         
+        % Could factor this + call xy2xyROI
         ipts = (1:nphysPts)+nphysPts*(iview-1);
         xs = xy(ipts,1);
         ys = xy(ipts,2);
@@ -759,6 +763,61 @@ classdef Shape
         xyRoi(ipts,1) = xs-xlo+1;
         xyRoi(ipts,2) = ys-ylo+1;
       end
+    end
+    
+    function [xyRoi,tfOOBview] = xy2xyROI(xy,roi,nphyspts)
+      % Compute xyROI from xy (xy relative to roi); check for OOB.
+      % 
+      % xy: [nptx2xn] xy coords. npt=nphysPts*nview, raster order is
+      %   ipt,iview. Can be nans
+      % roi: [nx4*nview]. [xlo xhi ylo yhi xlo_v2 xhi_v2 ylo_v2 ... ]
+      % nphysPts: scalar
+      %
+      % xyRoi: [nptx2xn] xy coords relative to ROIs; x==1 => first col of
+      %   ROI in that view etc.
+      % tfOOBview: [nxnview] logical. If true, shape is out-of-bounds of
+      %   ROI in that view. A shape with nan coords is not considered OOB.
+      
+      [npt,d,n] = size(xy);
+      assert(d==2);
+      nview = npt/nphyspts;
+      szassert(roi,[n 4*nview]);
+      tfOOBview = false(n,nview);
+      xyRoi = nan(npt,2,n);
+      
+      for iview=1:nview
+        ipts = (1:nphyspts)+nphyspts*(iview-1);
+        roivw = roi(:,(1:4)+4*(iview-1)); % [nx4]
+        xlo = repmat(reshape(roivw(:,1),1,1,n),nphyspts,1,1);
+        xhi = repmat(reshape(roivw(:,2),1,1,n),nphyspts,1,1);
+        ylo = repmat(reshape(roivw(:,3),1,1,n),nphyspts,1,1);
+        yhi = repmat(reshape(roivw(:,4),1,1,n),nphyspts,1,1);
+        
+        xs = xy(ipts,1,:); % [nphyspts x 1 x n]
+        ys = xy(ipts,2,:); % etc
+        tfOOBx = xs<xlo | xs>xhi;
+        tfOOBy = ys<ylo | ys>yhi;
+        tfOOBx = squeeze(tfOOBx)'; % [nxnphyspts]
+        tfOOBy = squeeze(tfOOBy)'; % etc
+        
+        tfOOBview(:,iview) = any(tfOOBx,2) | any(tfOOBy,2);
+        xyRoi(ipts,1,:) = xs-xlo+1;
+        xyRoi(ipts,2,:) = ys-ylo+1;
+      end
+    end
+    
+    function [pRoi,tfOOBview] = p2pROI(p,roi,nphyspts)
+      % Like xy2xyROI.
+      %
+      % p: [nxD]
+      %
+      % pRoi: [nxD]
+      % tfOOBview: [nxnview] 
+            
+      xy = Shape.vecs2xys(p'); % xy: [nptx2xn] 
+      [xyRoi,tfOOBview] = Shape.xy2xyROI(xy,roi,nphyspts); % xyRoi: [nptx2xn]
+      [npt,d,n] = size(xyRoi);
+      pRoi = reshape(xyRoi,[npt*d n])';
     end
     
     function xy = xyRoi2xy(xyRoi,roi)
@@ -942,7 +1001,12 @@ classdef Shape
       opts.md = [];
       opts.p2 = [];
       opts.p2marker = '+';
+      opts.colors = 'jet'; % either colormap name, or [nptsx3]
       opts.titlestr = 'Montage';
+      opts.imsHeterogeneousSz = false; % if true, pad elements of I to make them the same size. all p's must be nan
+      opts.imsHeterogeneousPadColor = 0; % grayscale pad color 
+      opts.rois = []; % (opt), [Nx4] roi rectangles will be plotted. Each row is [xlo xhi ylo yhi].
+      opts.roisRectangleArgs = {'EdgeColor' [0 1 0] 'LineWidth',2}; % P-Vs used for plotting roi rects
       opts = getPrmDfltStruct(varargin,opts);
       if isempty(opts.fig)
         opts.fig = figure('windowstyle','docked');
@@ -951,14 +1015,36 @@ classdef Shape
         clf;
       end
       tfMD = ~isempty(opts.md);
+      tfROI = ~isempty(opts.rois);
       
       N = numel(I);
+      if opts.imsHeterogeneousSz
+        szs = cellfun(@size,I,'uni',0);
+        szs = cat(1,szs{:});
+        assert(size(szs,2)==2,'Expect grayscale ims.');
+        maxnrnc = max(szs,[],1);
+        fprintf(1,'Heterogeneous image sizes. Max nr, nc: %d by %d.\n',...
+          maxnrnc(1),maxnrnc(2));
+        im0 = opts.imsHeterogeneousPadColor*ones(maxnrnc);
+        for i=1:N
+          im = im0;
+          im(1:size(I{i},1),1:size(I{i},2)) = I{i};
+          I{i} = im;
+        end
+
+        assert(all(isnan(p(:))),...
+          'Input arg ''p'' must be all NaNs when imsHeterogeneousSz is on.');
+      end      
       assert(size(p,1)==N);
       npts = size(p,2)/2;
       if tfMD
         assert(size(opts.md,1)==N);
       end
-            
+      
+      if ~ischar(opts.colors)
+        szassert(opts.colors,[npts 3]);
+      end
+      
       naxes = opts.nr*opts.nc;
       if isempty(opts.idxs)
         nplot = naxes;
@@ -980,10 +1066,15 @@ classdef Shape
         szassert(opts.p2,size(p));        
       end
       
+      if tfROI 
+        szassert(opts.rois,[N 4]);
+      end
+      
       [imnr,imnc] = size(I{1});
       bigIm = nan(imnr*opts.nr,imnc*opts.nc);
       bigP = nan(npts,2,nplot);
       bigP2 = nan(npts,2,nplot);
+      bigROI = nan(nplot,4);
       for iRow=1:opts.nr
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
@@ -1006,23 +1097,49 @@ classdef Shape
             xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
             bigP2(:,:,iPlt) = xytmp;            
           end
+          
+          if tfROI
+            roi = opts.rois(iIm,:);
+            roi(1:2) = roi(1:2) + imnc*(iCol-1);
+            roi(3:4) = roi(3:4) + imnr*(iRow-1);
+            bigROI(iPlt,:) = roi;
+          end
         end
       end
+      bigROIRectPosn = CropInfo.roi2RectPos(bigROI);
       
-      imagesc(bigIm);
+      hIm = imagesc(bigIm);
+      hIm.PickableParts = 'none';
       axis image off
       hold on
       colormap gray
-      colors = jet(npts);
+      if ischar(opts.colors)
+        colors = feval(opts.colors,npts);
+      else
+        colors = opts.colors;
+      end
+      hP1 = gobjects(npts,1);
+      hP2 = gobjects(npts,1);
       for ipt=1:npts
-        plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...
+        hP1(ipt) = plot(squeeze(bigP(ipt,1,:)),squeeze(bigP(ipt,2,:)),...
             'wo','MarkerFaceColor',colors(ipt,:));
         if tfP2
-          plot(squeeze(bigP2(ipt,1,:)),squeeze(bigP2(ipt,2,:)),...          
+          hP2(ipt) = plot(squeeze(bigP2(ipt,1,:)),squeeze(bigP2(ipt,2,:)),...          
             opts.p2marker,'MarkerFaceColor',colors(ipt,:),...
             'MarkerEdgeColor',colors(ipt,:),'linewidth',2);
         end
       end
+      hPall = hP1;
+      if tfP2
+        hPall = [hPall;hP2];
+      end
+      ax = gca;
+      hCM = uicontextmenu(opts.fig);
+      ax.UIContextMenu = hCM;
+      uimenu(hCM,'Label','Increase marker size','Callback',Shape.makeCbkMarkerSize(hPall,'increase'));
+      uimenu(hCM,'Label','Decrease marker size','Callback',Shape.makeCbkMarkerSize(hPall,'decrease'));
+      set(ax,'Visible','on','XTickLabel',[],'YTickLabel',[]);
+      
       for iRow=1:opts.nr
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
@@ -1033,6 +1150,10 @@ classdef Shape
           if tfFrameLbls
             h = text( imnc/15+imnc*(iCol-1),imnr/15+imnr*(iRow-1), opts.framelbls{iPlt} );
             h.Color = opts.framelblscolor;
+          end
+          if tfROI
+            posn = bigROIRectPosn(iPlt,:);
+            rectangle('Position',posn,opts.roisRectangleArgs{:});
           end
         end
       end
@@ -1048,6 +1169,27 @@ classdef Shape
 %         end
 %         text(1,1,str,'parent',hax(iPlt),'color',[1 1 .2],...
 %           'verticalalignment','top','interpreter','none');
+    end
+    
+    function cbk = makeCbkMarkerSize(hPlot,action)
+      
+      INCDECFAC = 1.2;
+      cbk = @nst;
+      function nst(src,evt)
+        if isempty(hPlot)
+          return;
+        end
+        sz = hPlot(1).MarkerSize;            
+        switch action
+          case 'increase'
+            sz = round(sz*INCDECFAC);
+          case 'decrease'
+            sz = round(sz/INCDECFAC);            
+          otherwise
+            assert(false);
+        end
+        [hPlot.MarkerSize] = deal(sz);
+      end
     end
 
     function muFtrDist = vizRepsOverTime(I,pT,iTrl,mdl,varargin)

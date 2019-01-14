@@ -34,6 +34,7 @@ classdef LabelCore < handle
     labeler;              % scalar Labeler obj
     hFig;                 % [nview] figure handles (first is main fig)
     hAx;                  % [nview] axis handles (first is main axis)
+    hIms;                 % [nview] image handles
     hAxOcc;               % [nview] scalar handle, occluded-axis
     tbAccept;             % scalar handle, togglebutton
     pbClear;              % scalar handle, clearbutton
@@ -117,6 +118,7 @@ classdef LabelCore < handle
       gd = labelerObj.gdata;
       obj.hFig = gd.figs_all;
       obj.hAx = gd.axes_all;
+      obj.hIms = gd.images_all;
       obj.hAxOcc = gd.axes_occ;
       obj.tbAccept = gd.tbAccept;
       obj.pbClear = gd.pbClear;
@@ -132,12 +134,11 @@ classdef LabelCore < handle
       deleteValidHandles(obj.hPtsTxt);
       deleteValidHandles(obj.hPtsTxtOcc);
       obj.hPts = gobjects(obj.nPts,1);
-      obj.hPtsOcc = gobjects(obj.nPts,1);
+      obj.hPtsOcc = [];
       obj.hPtsTxt = gobjects(obj.nPts,1);
-      obj.hPtsTxtOcc = gobjects(obj.nPts,1);
+      obj.hPtsTxtOcc = [];
       
       ax = obj.hAx;
-      axOcc = obj.hAxOcc;
       for i = 1:obj.nPts
         ptsArgs = {nan,nan,ptsPlotInfo.Marker,...
           'MarkerSize',ptsPlotInfo.MarkerSize,...
@@ -145,13 +146,7 @@ classdef LabelCore < handle
           'Color',ptsPlotInfo.Colors(i,:),...
           'UserData',i};
         obj.hPts(i) = plot(ax(1),ptsArgs{:},'Tag',sprintf('LabelCore_Pts_%d',i));
-        obj.hPtsOcc(i) = plot(axOcc(1),ptsArgs{:},'Tag',sprintf('LabelCore_PtsOcc_%d',i));
         obj.hPtsTxt(i) = text(nan,nan,num2str(i),'Parent',ax(1),...
-          'Color',ptsPlotInfo.Colors(i,:),...
-          'FontSize',ptsPlotInfo.FontSize,...
-          'PickableParts','none',...
-          'Tag',sprintf('LabelCore_Pts_%d',i));
-        obj.hPtsTxtOcc(i) = text(nan,nan,num2str(i),'Parent',axOcc(1),...
           'Color',ptsPlotInfo.Colors(i,:),...
           'FontSize',ptsPlotInfo.FontSize,...
           'PickableParts','none',...
@@ -163,7 +158,7 @@ classdef LabelCore < handle
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
       gdata = obj.labeler.gdata;
       set(gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF(s,e));
-      set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
+      %set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
       
       set(gdata.tbAccept,'Enable','on');
       set(gdata.pbClear,'Enable','on');
@@ -181,7 +176,46 @@ classdef LabelCore < handle
       
       obj.initHook();
     end
-       
+    
+    function showOcc(obj)
+      
+      deleteValidHandles(obj.hPtsOcc);
+      deleteValidHandles(obj.hPtsTxtOcc);
+      obj.hPtsOcc = gobjects(obj.nPts,1);
+      obj.hPtsTxtOcc = gobjects(obj.nPts,1);
+      
+      axOcc = obj.hAxOcc;
+      for i = 1:obj.nPts
+        ptsArgs = {nan,nan,obj.ptsPlotInfo.Marker,...
+          'MarkerSize',obj.ptsPlotInfo.MarkerSize,...
+          'LineWidth',obj.ptsPlotInfo.LineWidth,...
+          'Color',obj.ptsPlotInfo.Colors(i,:),...
+          'UserData',i};
+        obj.hPtsOcc(i) = plot(axOcc(1),ptsArgs{:},'Tag',sprintf('LabelCore_PtsOcc_%d',i));
+        obj.hPtsTxtOcc(i) = text(nan,nan,num2str(i),'Parent',axOcc(1),...
+          'Color',obj.ptsPlotInfo.Colors(i,:),...
+          'FontSize',obj.ptsPlotInfo.FontSize,...
+          'PickableParts','none',...
+          'Tag',sprintf('LabelCore_Pts_%d',i));
+      end
+            
+      set(obj.hAxOcc,'ButtonDownFcn',@(s,e)obj.axOccBDF(s,e));
+      
+      obj.showOccHook();
+      
+      obj.refreshOccludedPts();
+    end
+    
+    function hideOcc(obj)
+      
+      deleteValidHandles(obj.hPtsOcc);
+      deleteValidHandles(obj.hPtsTxtOcc);
+      obj.hPtsOcc = [];
+      obj.hPtsTxtOcc = [];
+      set(obj.hAxOcc,'ButtonDownFcn','');
+      
+    end
+           
   end
   
   methods
@@ -198,6 +232,11 @@ classdef LabelCore < handle
     function initHook(obj) %#ok<MANU>
       % Called from Labeler.labelingInit->LabelCore.init
     end
+    
+    function showOccHook(obj) %#ok<MANU>
+      
+    end
+
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSD>
       % Frame has changed, Target is the same
@@ -243,6 +282,11 @@ classdef LabelCore < handle
     end
     
     function pnlBDF(obj,src,evt) 
+      
+      if ~obj.labeler.isReady,
+        return;
+      end
+      
       % This is called when uipanel_curr is clicked outside the axis, or
       % when points with HitTest off plotted in overlaid axes are clicked.
       pos = get(obj.hAx(1),'CurrentPoint');
@@ -269,6 +313,26 @@ classdef LabelCore < handle
     end
     
     function getLabelingHelp(obj) %#ok<MANU>
+    end
+    
+    function updateColors(obj,colors)
+      
+      obj.ptsPlotInfo.Colors = colors;
+      
+      for i = 1:obj.nPts
+        if numel(obj.hPts) >= i && ishandle(obj.hPts(i)),
+          set(obj.hPts(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+        end
+        if numel(obj.hPtsOcc) >= i && ishandle(obj.hPtsOcc(i)),
+          set(obj.hPtsOcc(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+        end
+        if numel(obj.hPtsTxt) >= i && ishandle(obj.hPtsTxt(i)),
+          set(obj.hPtsTxt(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+        end
+        if numel(obj.hPtsTxtOcc) >= i && ishandle(obj.hPtsTxtOcc(i)),
+          set(obj.hPtsTxtOcc(i),'Color',obj.ptsPlotInfo.Colors(i,:));
+        end
+      end
     end
           
   end
@@ -318,6 +382,7 @@ classdef LabelCore < handle
       % - lblTags: [nptsx1] logical array. If supplied, obj.tfEstOcc and 
       % obj.hPts.Marker are updated.
 
+      %ticinfo = tic;
       [tfClip,hPoints,hPointsTxt,lblTags] = myparse(varargin,...
         'tfClip',false,...
         'hPts',obj.hPts,...
@@ -329,30 +394,30 @@ classdef LabelCore < handle
       if tfLblTags
         validateattributes(lblTags,{'logical'},{'vector' 'numel' obj.nPts});
       end        
-      
+      %fprintf('LabelCore.assignLabelCoords 1: %f\n',toc(ticinfo));ticinfo = tic;
       if tfClip        
         lbler = obj.labeler;
         
         assert(~lbler.isMultiView,'Multi-view labeling unsupported.');
         
-        nr = lbler.movienr;
-        nc = lbler.movienc;
-        xyOrig = xy;
-        
+        roi = lbler.movieroi;
+        xyOrig = xy;        
         tfRealCoord = ~isnan(xy) & ~isinf(xy);
-        xy(tfRealCoord(:,1),1) = max(xy(tfRealCoord(:,1),1),1);
-        xy(tfRealCoord(:,1),1) = min(xy(tfRealCoord(:,1),1),nc); 
-        xy(tfRealCoord(:,2),2) = max(xy(tfRealCoord(:,2),2),1);
-        xy(tfRealCoord(:,2),2) = min(xy(tfRealCoord(:,2),2),nr);
+        xy(tfRealCoord(:,1),1) = max(xy(tfRealCoord(:,1),1),roi(1));
+        xy(tfRealCoord(:,1),1) = min(xy(tfRealCoord(:,1),1),roi(2)); 
+        xy(tfRealCoord(:,2),2) = max(xy(tfRealCoord(:,2),2),roi(3));
+        xy(tfRealCoord(:,2),2) = min(xy(tfRealCoord(:,2),2),roi(4));
         if ~isequaln(xy,xyOrig)
           warningNoTrace('LabelCore:clipping',...
             'Clipping points that extend beyond movie size.');
         end
       end
+      %fprintf('LabelCore.assignLabelCoords 2: %f\n',toc(ticinfo));ticinfo = tic;
             
       % FullyOccluded
       tfOccld = any(isinf(xy),2);
       obj.setPtsCoords(xy(~tfOccld,:),hPoints(~tfOccld),hPointsTxt(~tfOccld));
+      %fprintf('LabelCore.assignLabelCoords 3: %f\n',toc(ticinfo));ticinfo = tic;
       
       tfMainAxis = isequal(hPoints,obj.hPts) && isequal(hPointsTxt,obj.hPtsTxt);
       if tfMainAxis
@@ -361,6 +426,7 @@ classdef LabelCore < handle
       else
         obj.setPtsCoords(nan(nnz(tfOccld),2),hPoints(tfOccld),hPointsTxt(tfOccld));
       end
+      %fprintf('LabelCore.assignLabelCoords 4: %f\n',toc(ticinfo));ticinfo = tic;
       
       % Tags
       if tfLblTags
@@ -375,6 +441,8 @@ classdef LabelCore < handle
       else
         % none; tfEstOcc, hPts markers unchanged
       end
+      %fprintf('LabelCore.assignLabelCoords 5: %f\n',toc(ticinfo));ticinfo = tic;
+
     end
     
     function assignLabelCoordsIRaw(obj,xy,iPt)
@@ -392,6 +460,10 @@ classdef LabelCore < handle
       %
       % .hPts, .hPtsTxt: 'Hide' occluded points. Non-occluded, no action.
       % .hPtsOcc, .hPtsTxtOcc: shown/hidden/positioned as appropriate
+      
+      if isempty(obj.hPtsOcc),
+        return;
+      end
       
       tf = obj.tfOcc;      
       assert(isvector(tf) && numel(tf)==obj.nPts);
@@ -423,7 +495,7 @@ classdef LabelCore < handle
       set(hPoints(~tfSl & tfEO),'Marker',ppi.OccludedMarker);
       set(hPoints(~tfSl & ~tfEO),'Marker',ppi.Marker);
       
-      if doPtsOcc
+      if doPtsOcc && ~isempty(obj.hPtsOcc),
         hPointsOcc = obj.hPtsOcc(iPts);
         set(hPointsOcc(tfSl),'Marker',ppitm.SelectedPointMarker);
         set(hPointsOcc(~tfSl),'Marker',ppi.Marker);
@@ -511,14 +583,24 @@ classdef LabelCore < handle
   end
   methods (Static)
     function setPtsCoordsStc(xy,hPts,hTxt,txtOffset)      
+      %tic;
       nPoints = size(xy,1);
       assert(size(xy,2)==2);
       assert(isequal(nPoints,numel(hPts),numel(hTxt)));
       
       for i = 1:nPoints
+        oldx = get(hPts(i),'XData');
+        oldy = get(hPts(i),'YData');
+        if isnan(oldx) && isnan(xy(i,1)) && isnan(oldy) && isnan(xy(i,2)),
+          continue;
+        end
+        if oldx==xy(i,1) && oldy==xy(i,2),
+          continue;
+        end
         set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
         set(hTxt(i),'Position',[xy(i,1)+txtOffset xy(i,2)+txtOffset 1]);
       end
+      %fprintf('LabelCore.setPtsCoordsStc: %f\n',toc);
     end
             
     function setPtsOffaxis(hPts,hTxt)

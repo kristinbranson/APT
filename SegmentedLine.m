@@ -12,11 +12,15 @@ classdef SegmentedLine < handle
   
   methods
     
-    function obj = SegmentedLine(ax)
+    function obj = SegmentedLine(ax,tag)
       % ax: parent axis
           
+      if nargin <= 1,
+        tag = 'SegmentedLine';
+      end
+        
       assert(isa(ax,'matlab.graphics.axis.Axes'));
-      hL = line('XData',nan,'YData',nan,'Parent',ax);
+      hL = line('XData',nan,'YData',nan,'Parent',ax,'Tag',tag);
       
       obj.hAx = ax;
       obj.hLine = hL;

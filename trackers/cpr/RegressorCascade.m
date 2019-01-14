@@ -1,7 +1,15 @@
 classdef RegressorCascade < handle
   
-  properties
+  properties %(SetAccess=private)
     % model/params
+    %
+    % These are set at construction time and are immutable. You can't set
+    % them, that would require a full reinit of the obj anyway. So you can
+    % create a RegressorCascade, train it, and propagate through it, but if 
+    % you want to change a parameter you just make a new one. This is good
+    % I think.
+    %
+    % Except for setPrmModernize.
     prmModel 
     prmTrainInit
     prmReg 
@@ -24,6 +32,7 @@ classdef RegressorCascade < handle
     fernTS % [nMjr x nMnr] timestamp last mod .fernCounts/Output
     
     trnLog % struct array, one el per train/retrain action
+    stats % struct with info for debugging
   end
   properties (Dependent)
     nMajor
@@ -76,11 +85,10 @@ classdef RegressorCascade < handle
     function obj = RegressorCascade(sPrm)
       % sPrm: parameter struct
       
-      if isfield(sPrm.Model,'D')
-        assert(sPrm.Model.D==sPrm.Model.d*sPrm.Model.nfids);
-      else
-        sPrm.Model.D = sPrm.Model.d*sPrm.Model.nfids;
-      end
+      assert(sPrm.Model.D==sPrm.Model.d*sPrm.Model.nfids); % legacy check
+      assert(sPrm.Model.nviews==1); % for now we only single-view track 20180620
+      sPrm.Model.nviews = 1;
+      
       obj.prmModel = sPrm.Model;
       obj.prmTrainInit = sPrm.TrainInit;
       obj.prmReg = sPrm.Reg;
@@ -113,6 +121,52 @@ classdef RegressorCascade < handle
       
       if initTrnLog
         obj.trnLogInit();
+      end
+    end
+    
+    function setPrmModernize(obj,sPrmModernized)
+      % DANGEROUS call only if you know what you are doing
+      %
+      % Need to deal with usual parameter-modernization issue.
+      % 1. RC created with prms0
+      % 2. Code changes, available parameters are updated. Params can be
+      %   i) removed, ii) added, iii) mutated. In the case of i), updated 
+      %   code no longer references those fields. In the case of ii), the
+      %   new value is added with its default value that was implicitly
+      %   used before (so that clearing a trained tracker is not
+      %   necessary). iii) is hopefully very uncommon but can occur when
+      %   eg an enumerated parameter changes names. ('1lm'->'one landmark
+      %   elliptical').
+      % 3. obj needs to update its parameters to reflect updates.
+      %
+      % Parameter modernization is handled by CPRLabelTracker, so we don't
+      % want to replicate that code here, it is too dangerous from a 
+      % maintenance standpoint. Instead, we accept the modernized sPrm from 
+      % CPRLT and set it just like we did during construction. We do some 
+      % checks along the way for safety.
+      
+      assert(sPrmModernized.Model.nviews==1); % for now we only single-view track 20180620
+
+      structcheckfldspresent(sPrmModernized.Model,obj.prmModel);
+      structcheckfldspresent(sPrmModernized.TrainInit,obj.prmTrainInit);
+      structcheckfldspresent(sPrmModernized.Reg,obj.prmReg);
+      structcheckfldspresent(sPrmModernized.Ftr,obj.prmFtr,...
+        'pathexceptions',{'.type'}); % 1lm->single landmark, see below
+      
+      obj.prmModel = sPrmModernized.Model;
+      obj.prmTrainInit = sPrmModernized.TrainInit;
+      obj.prmReg = sPrmModernized.Reg;
+      obj.prmFtr = sPrmModernized.Ftr;
+      
+      % 20180620: Ugh. Taken from CPRLT. Legacy note:
+      %   20180326: Feature type: '1lm'->'single landmark'
+      for iSpec=1:numel(obj.ftrSpecs)
+        if ~isempty(obj.ftrSpecs{iSpec})           
+          if strcmp(obj.ftrSpecs{iSpec}.type,'1lm')
+            obj.ftrSpecs{iSpec}.type = 'single landmark';
+          end
+          assert(strcmp(obj.ftrSpecs{iSpec}.type,obj.prmFtr.type));
+        end
       end
     end
     
@@ -212,6 +266,48 @@ classdef RegressorCascade < handle
       end
     end
     
+    function initializeStats(obj)
+      
+      obj.stats = struct;
+      obj.stats.time = struct;
+      obj.stats.time.start = now;
+      obj.stats.time.init = nan;
+
+    end
+    
+    function addStatTimeLoss(obj,t,dt,loss,meanErrPerEx,stdErrPerEx,maxErrPerEx)
+      
+      obj.stats.loss(t) = loss;
+      obj.stats.time.iter(t) = dt;
+      if exist('meanErrPerEx','var'),
+        obj.stats.meanErrPerEx(t,:) = meanErrPerEx;
+      end
+      if exist('stdErrPerEx','var'),
+        obj.stats.stdErrPerEx(t,:) = stdErrPerEx;
+      end
+      if exist('maxErrPerEx','var'),
+        obj.stats.maxErrPerEx(t,:) = maxErrPerEx;
+      end
+      
+    end
+    
+    function addRegressorTimingInfo(obj,timingInfo)
+      
+      if ~isfield(obj.stats,'time') || ~isfield(obj.stats.time,'regressorTimingInfo'),
+        obj.stats.time.regressorTimingInfo = timingInfo;
+      else
+        obj.stats.time.regressorTimingInfo = structappend(obj.stats.time.regressorTimingInfo,timingInfo);
+      end
+      
+    end
+
+    
+    function stats = getLastTrainStats(obj)
+      
+      stats = obj.stats;
+      
+    end
+    
     %#3DOK
     function [pAll,pIidx,p0,p0info] = trainWithRandInit(obj,I,bboxes,pGT,varargin)
       % I: struct with the following fields:
@@ -246,6 +342,9 @@ classdef RegressorCascade < handle
         'orientationThetas',[]... % [N] vector of "externally" known orientations for animals. Required if prmRotCurr.use and prmTrainInit.usetrxorientation
         );
       
+      starttime = tic;
+      obj.initializeStats();
+      
       % KB 20180423: changing Is to no longer be a cell for faster indexing
       if iscell(I),
         N = size(I,1);
@@ -269,8 +368,8 @@ classdef RegressorCascade < handle
       
       fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
         initpGTNTrn,initUseFF);
-      pause(5);
-      
+      drawnow; %pause(5);
+            
       if initpGTNTrn
         pNInitSet = obj.pGTNTrn;
         selfSample = false;
@@ -321,11 +420,123 @@ classdef RegressorCascade < handle
       
       p0 = reshape(p0,[N*Naug model.D]);
       pIidx = repmat(1:N,[1 Naug])';
-      pAll = obj.train(I,bboxes,pGT,p0,pIidx,loArgs{:});
+      obj.stats.time.init = toc(starttime);
+      [pAll] = obj.train(I,bboxes,pGT,p0,pIidx,loArgs{:});
+      
+      obj.stats.time.total = toc(starttime);
+      
     end
     
+    function [p0,p0info] = randInit(obj,bboxes,pGT,varargin)
+      % I: struct with the following fields:
+      %   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
+      %   imszs: [2 x N x nView] size of each image
+      %   imoffs: [N x nView] offset for indexing image (view,i) (image will
+      %     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
+      %   NOTE: Currently nView must equal 1.
+      % bboxes: [Nx2*d]
+      % pGT: [NxD] GT labels (absolute coords)
+      %
+      % pAll: [(N*Naug)xDx(T+1)] propagated training shapes (absolute coords)
+      % pIidx: [N*Naug] indices into I labeling rows of pAll
+      %
+      % Initialization notes. Two sets of shapes to draw from for
+      % initialization. If initpGTNTrn, use the set .pGTNTrn; otherwise,
+      % use pGT. Typically, initpGTNTrn would be used for incremental
+      % (re)trains, where .pGTNTrn is set and pGT is small/limited.
+      % Meanwhile, pGT would be used on first/fresh trains, where .pGTNTrn
+      % may not be populated and pGT is large.
+      %
+      % Note, for randomly-oriented targets, pGT (and .pGTNTrn as
+      % appropriate) will be randomly-oriented; rotCorrection had better be 
+      % on.
+      %
+      % In drawing from a set shape distribution, we are biasing towards
+      % the most/more common shapes. However, we also jitter, so that may
+      % be okay.
+      
+      [initpGTNTrn,orientationThetas,prm] = myparse(varargin,...
+        'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
+        'orientationThetas',[],... % [N] vector of "externally" known orientations for animals. Required if prmRotCurr.use and prmTrainInit.usetrxorientation
+        'CPRParams',[]...
+        );
+
+      N = size(pGT,1);
+      if ~isempty(orientationThetas)
+        assert(isvector(orientationThetas) && numel(orientationThetas)==N);
+      end
+      
+      model = obj.prmModel;
+      isCPRParams = ~isempty(prm);
+      if ~isCPRParams,
+        prmTI = obj.prmTrainInit;
+        prmReg = obj.prmReg; %#ok<PROPLC>
+      else
+        prmTI = prm.TrainInit;
+        prmReg = prm.Reg; %#ok<PROPLC>
+      end
+      Naug = prmTI.Naug;  
+      
+      if isfield(prmTI,'augUseFF')
+        initUseFF = prmTI.augUseFF;
+      else
+        initUseFF = false;
+      end
+      
+      fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
+        initpGTNTrn,initUseFF);
+      drawnow; %pause(5);
+            
+      if initpGTNTrn
+        pNInitSet = obj.pGTNTrn;
+        selfSample = false;
+      else % init from pGt
+        pNInitSet = shapeGt('projectPose',model,pGT,bboxes);
+        selfSample = true;
+      end
+      % pNInitSet in normalized coords
+      
+      prmRotCorr = prmReg.rotCorrection; %#ok<PROPLC>
+      orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
+        prmTI.usetrxorientation,orientationThetas);      
+      if orientation==ShapeAugOrientation.SPECIFIED
+        % Check externally-supplied orientations against pGT
+        
+        thetaCnn = Shape.canonicalRot(pGT,prmRotCorr.iPtHead,prmRotCorr.iPtTail);
+        thetasPGT = -thetaCnn;
+        assert(isequal(N,numel(thetasPGT),numel(orientationThetas)));
+        dtheta = modrange(thetasPGT(:)-orientationThetas(:),-pi,pi);
+        % angle diff between i) orientation per trx and ii) orientation per
+        % labeled shape
+        DTHETA_THRESHOLD_WARN_DEGREES = 10;
+        dthetaThresh = DTHETA_THRESHOLD_WARN_DEGREES/180*pi;
+        nExceed = nnz(abs(dtheta)>dthetaThresh);
+        if nExceed>0
+          warningNoTrace('RegressorCascade:orientation',...
+            '%d/%d training shapes have externally-specified orientations that differ significantly from orientation implied by labels.',...
+            nExceed,N);
+        end
+        
+        % Use the externally-specified orientations in any case
+      end
+      [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
+        'pNRandomlyOriented',prmRotCorr.use,...
+        'pAugOrientation',orientation,...
+        'pAugOrientationTheta',orientationThetas,...
+        'iHead',prmRotCorr.iPtHead,...
+        'iTail',prmRotCorr.iPtTail,...
+        'ptJitter',prmTI.doptjitter,...
+        'ptJitterFac',prmTI.ptjitterfac,...
+        'bboxJitter',prmTI.doboxjitter,...
+        'bboxJitterfac',prmTI.augjitterfac,...
+        'selfSample',selfSample,...
+        'furthestfirst',initUseFF);
+      
+    end
+    
+    
     %#3DOK
-    function pAll = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
+    function [pAll] = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
       %
       % I: struct with the following fields:
       %   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
@@ -339,6 +550,8 @@ classdef RegressorCascade < handle
       % pIidx: [Q] indices into I for p0
       %
       % pAll: [QxDxT+1] propagated training shapes (absolute coords)
+      
+      starttime = tic;
       
       [verbose,wbObj,update,calrig] = myparse(varargin,...
         'verbose',1,...
@@ -411,6 +624,7 @@ classdef RegressorCascade < handle
       %[trainsamplestarts,trainsampleends] = SelectWrappingSampleSubsets(T,Q,obj.prmTrainInit.NTrainPerMajor);
       
       maxFernAbsDeltaPct = nan(1,T);
+      lastIterTime = tic;
       for t=t0:T
         if tfWB
           tfCancel = wbObj.updateFracWithNumDen(t);
@@ -461,7 +675,8 @@ classdef RegressorCascade < handle
         fernOutput0 = squeeze(obj.fernOutput(t,:,:,:));
         if ~update
           paramReg.checkPath = (t==t0);
-          [regInfo,pDel] = regTrain(X,pTar,paramReg);
+          [regInfo,pDel,timingInfo] = regTrain(X,pTar,paramReg);
+          obj.addRegressorTimingInfo(timingInfo);
           assert(iscell(regInfo) && numel(regInfo)==obj.nMinor);
           for u=1:obj.nMinor
             ri = regInfo{u};          
@@ -511,7 +726,13 @@ classdef RegressorCascade < handle
         pAll(:,:,t+1) = pCur;
         
         errPerEx = shapeGt('dist',model,pCur,pGTFull);
+        meanErrPerEx = accumarray(pIidx,errPerEx,[NI,1],@mean);
+        maxErrPerEx = accumarray(pIidx,errPerEx,[NI,1],@max);
+        stdErrPerEx = sqrt(accumarray(pIidx,errPerEx.^2,[NI,1],@mean)-meanErrPerEx.^2);
         loss = mean(errPerEx);        
+        obj.addStatTimeLoss(t,toc(lastIterTime),loss,meanErrPerEx,stdErrPerEx,maxErrPerEx);
+        lastIterTime = tic;
+
         if verbose
           msg = tStatus(tStart,t,T);
           fprintf(['  t=%i/%i       loss=%f     ' msg],t,T,loss);
@@ -527,6 +748,7 @@ classdef RegressorCascade < handle
       obj.trnLog(end).ts = now();
       obj.trnLog(end).nShape = Q;
       obj.trnLog(end).maxFernAbsDeltaPct = maxFernAbsDeltaPct;
+            
     end
     
     function trnLogInit(obj)
@@ -831,16 +1053,7 @@ classdef RegressorCascade < handle
       end
       
       maxFernAbsDeltaPct = max(maxFernAbsDeltaPct);      
-    end
-    
-    function setPrm(obj,sPrm)
-      % stupidity
-
-      obj.prmModel = sPrm.Model;
-      obj.prmTrainInit = sPrm.TrainInit;
-      obj.prmReg = sPrm.Reg;
-      obj.prmFtr = sPrm.Ftr;      
-    end
+    end    
     
     function [ipts,ftrType] = getLandmarksUsed(obj,t)
       % t: major iter

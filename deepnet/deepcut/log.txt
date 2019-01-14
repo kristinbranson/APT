@@ -1,0 +1,3 @@
+2018-06-14 17:36:13 Restoring parameters from /groups/branson/home/kabram/PycharmProjects/deepcut/pose-tensorflow/models/pretrained/resnet_v1_50.ckpt
+2018-06-14 17:36:16 iteration: 0 loss: 0.0081 lr: 0.0001
+2018-06-14 17:37:01 iteration: 100 loss: 0.3056 lr: 0.0001

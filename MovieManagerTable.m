@@ -12,6 +12,10 @@ classdef MovieManagerTable < handle
     
     trxShown % scalar logical. If true, table displays trxfiles
   end
+  
+  events
+    tableClicked
+  end
 
   methods (Abstract)
         
@@ -73,6 +77,7 @@ classdef MovieManagerTable < handle
     function cbkClickedDefault(obj,src,evt)
       persistent chk
       PAUSE_DURATION_CHECK = 0.25;
+
       if isempty(chk)
         chk = 1;
         pause(PAUSE_DURATION_CHECK); %Add a delay to distinguish single click from a double click
@@ -95,6 +100,7 @@ classdef MovieManagerTable < handle
 %         end
       end
       
+      obj.notify('tableClicked');      
     end    
   end
   

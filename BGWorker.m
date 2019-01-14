@@ -1,4 +1,8 @@
 classdef BGWorker < handle
+  % BGWorker is a worker that idles in the background. When you send it a
+  % command, it runs it and sends the result back and goes back to idling.
+  % It runs one compute call per sent command.
+  
   properties (Constant)
     STOPACTION = 'STOP';
     STATACTION = 'STAT';

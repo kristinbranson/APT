@@ -3,7 +3,7 @@ classdef CalRig < handle
   properties (Abstract)
     nviews
     viewNames % [nviews]. cellstr viewnames
-    viewSizes % [nviews x 2]. viewSizes(iView,:) gives [nc nr] or [width height]
+    %viewRois % [nviews x 4]. viewRois(iView,:) gives [xlo xhi ylo yhi]
   end
     
   methods (Abstract)
@@ -11,10 +11,12 @@ classdef CalRig < handle
     % iView1: view index for anchor point
     % xy1: [2]. [x y] vector, cropped coords in iView1
     % iViewEpi: view index for target view (where EpiLine will be drawn)
+    % roiEpi: [xlo xhi ylo yhi] roi (in iViewEpi) where epipolar lines 
+    %   should be computed
     %
     % xEPL,yEPL: epipolar line, cropped coords, iViewEpi. Note, x and y are
     % x- and y-coords, NOT row/col coords.
-    [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
+    [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi)
     
   end
   
@@ -89,11 +91,11 @@ classdef CalRig < handle
   
   methods (Static)
     
-    function [obj,tfSetViewSizes] = loadCreateCalRigObjFromFile(fname)
+    function obj = loadCreateCalRigObjFromFile(fname)
       % Create/load a concerete CalRig object from file
       %
       % obj: Scalar CalRig object; concrete type depends on file contents
-      % tfSetViewSizes: scalar logical. If true, obj.viewSizes need setting
+      % tfSetViewRois: scalar logical. If true, obj.viewRois need setting
       
       if exist(fname,'file')==0
         error('Labeler:file','File ''%s'' not found.',fname);
@@ -106,20 +108,22 @@ classdef CalRig < handle
       
       if isa(s.(vars{1}),'OrthoCamCalPair')
         obj = s.(vars{1});
-        tfSetViewSizes = true;
+%         tfSetViewRois = true;
       elseif isa(s.(vars{1}),'CalRig') % Could check all vars
         obj = s.(vars{1});
-        tfSetViewSizes = false;
+%         tfSetViewRois = false;
+      elseif isa(s.(vars{1}),'vision.internal.calibration.tool.Session')
+        obj = CalRigMLStro(s.(vars{1})); % will auto-calibrate and offer save
       elseif all(ismember({'DLT_1' 'DLT_2'},vars))
         % SH
         obj = CalRigSH;
         obj.setKineData(fname);
-        tfSetViewSizes = true;
+%         tfSetViewRois = true;
       elseif all(ismember({'om' 'T' 'R' 'active_images_left' 'recompute_intrinsic_right'},vars))
         % Bouget Calib_Results_stereo.mat file
         % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes
         obj = CalRig2CamCaltech(fname);
-        tfSetViewSizes = true;        
+%         tfSetViewRois = true;        
       else
         error('CalRig:load',...
           'Calibration file ''%s'' has unrecognized contents.',fname);
@@ -127,36 +131,36 @@ classdef CalRig < handle
     end
   end
   
-  methods % Utilities
+  methods (Static) % Utilities
     
-    function y = cropLines(obj,y,viewIdx)
+    function y = cropLines(y,roi)
       % "Crop" lines projected on image -- replace points that lie outside
       % of image with NaN.
       %
       % y: [Nx2] (row,col) "cropped coords" (ie pixel coords on projected image)
-      % viewIdx: index into viewNames/viewSizes
+      % roi: [1x4] [xlo xhi ylo yhi] where y should be cropped
       %
       % y: [Nx2], with OOB points replaced with nan in both coords
       
       assert(size(y,2)==2);
       
-      vSize = obj.viewSizes(viewIdx,:);
-      nc = vSize(1);
-      nr = vSize(2);
+%       roi = obj.viewRois(viewIdx,:);
       rows = y(:,1);
       cols = y(:,2);
-      tfOOB = rows<1 | rows>nr | cols<1 | cols>nc;
+      tfOOB = rows<roi(3) | rows>roi(4) | cols<roi(1) | cols>roi(2);
       y(tfOOB,:) = nan;
     end
     
-    function y = getLineWithinAxes(obj,y,viewIdx)
+    function y = getLineWithinAxes(y,roi)
+      % Like cropLines
 
       assert(size(y,2)==2);
       
-      vSize = obj.viewSizes(viewIdx,:);
-      nc = vSize(1);
-      nr = vSize(2);
-      
+%       roi = obj.viewRois(viewIdx,:);
+      clo = roi(1);
+      chi = roi(2);
+      rlo = roi(3);
+      rhi = roi(4);
       r = y(:,1);
       c = y(:,2);
       
@@ -166,19 +170,19 @@ classdef CalRig < handle
       [minc,minci] = min(c);
       dr = maxr-minr;
       dc = maxc-minc;
-      if dr > dc,
-        m = (c(maxri)-c(minri)) / dr;
+      if dr > dc % abs(slope)>1
+        mrecip = (c(maxri)-c(minri)) / dr; % 1/slope
         % equation of the line:
-        % (y-minr) = m*(x-c(minri))
-        % solve for x at y = 1 and y = nr
-        rout = [1;nr];
-        cout = (rout-minr)/m+c(minri);
-      else
-        m = (r(maxci)-r(minci)) / dc;
+        % (y-minr) = slope*(x-c(minri))
+        % solve for x at y = rlo and y = rhi
+        rout = [rlo;rhi];
+        cout = (rout-minr)*mrecip+c(minri);
+      else % abs(slope)<=1
+        m = (r(maxci)-r(minci)) / dc; % slope
         % equation of the line:
         % (y-r(minci)) = m*(x-minc)
-        % solve for y at x = 1 and x = nc
-        cout = [1;nc];
+        % solve for y at x = clo and x = chi
+        cout = [clo;chi];
         rout = m*(cout-minc)+r(minci);        
       end
       y = [rout,cout];

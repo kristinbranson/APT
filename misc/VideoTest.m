@@ -92,7 +92,13 @@ classdef VideoTest
 
       [rf2,nf2,fid2,info2] = get_readframe_fcn(mov);
       assert(nf1==nf2);
-      assert(isequal(info1,info2));
+      if isfield(info1,'readerobj')
+        info1 = rmfield(info1,'readerobj');
+      end
+      if isfield(info2,'readerobj')
+        info2 = rmfield(info2,'readerobj');
+      end      
+      assert(isequal(info1,info2)); 
       
       IRAR = cell(nfrms,1);
       for i=1:nfrms

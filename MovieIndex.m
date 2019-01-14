@@ -41,6 +41,10 @@ classdef MovieIndex < int32
       tfGT = objArr(1)<0;
     end
     
+    function i = id32(objArr)
+      i = int32(objArr);
+    end
+    
   end
   
 end

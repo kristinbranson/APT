@@ -3,7 +3,7 @@ classdef CalRigSH < CalRig
   properties
     nviews = 2;
     viewNames = {'side' 'front'};
-    viewSizes = [1024 1024;1024 1024]; % [nviews x 2]. viewSizes(iView,:) gives [nc nr] or [width height]
+%    viewSizes = [1024 1024;1024 1024]; % [nviews x 2]. viewSizes(iView,:) gives [nc nr] or [width height]
   end
   
   properties (SetAccess=private)
@@ -58,11 +58,11 @@ classdef CalRigSH < CalRig
     % iViewEpi: view index for target view (where EpiLine will be drawn)
     %
     % xEPL,yEPL: epipolar line, cropped coords, iViewEpi
-    function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
+    function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi)
       kdata = obj.kineData;
       dlt_side = kdata.cal.coeff.DLT_1;
       dlt_front = kdata.cal.coeff.DLT_2;
-      vsz = obj.viewSizes(iViewEpi,:);
+%      vsz = obj.viewSizes(iViewEpi,:);
       if iView1==1 && iViewEpi==2 %view1==side; viewEpi==front
         dlt1 = dlt_side;
         dlt2 = dlt_front;
@@ -72,10 +72,10 @@ classdef CalRigSH < CalRig
       else
         assert(false);
       end
-      [xEPL,yEPL] = im_pt_2_im_line(xy1(1),xy1(2),dlt1,dlt2,...
-        [1 vsz(1) 1 vsz(2)],obj.epLineNPts);
+      [xEPL,yEPL] = im_pt_2_im_line(xy1(1),xy1(2),dlt1,dlt2,roiEpi,...
+        obj.epLineNPts);
       %rc = obj.cropLines([yEPL(:) xEPL(:)],iViewEpi);
-      rc = obj.getLineWithinAxes([yEPL(:) xEPL(:)],iViewEpi);
+      rc = obj.getLineWithinAxes([yEPL(:) xEPL(:)],roiEpi);
       xEPL = rc(:,2);
       yEPL = rc(:,1);
     end

@@ -11,7 +11,7 @@ classdef CPRData < handle
     Ipp     % [NxnView] cell vec of preprocessed 'channel' images. .iPP{i,iView} is [nrxncxnchan]
     IppInfo % [nchan] cellstr describing each channel (3rd dim) of .Ipp
     
-    H0      % [256x1] for histeq
+    H0      % [nbin x nView] for histeq. Currently this is "dumb state" 
     
     iTrn    % [1xNtrn] row indices into I for training set
     iTst    % [1xNtst] row indices into I for test set
@@ -264,7 +264,11 @@ classdef CPRData < handle
       % md: [Nxm] metadata table
       %
       % Single-view only.
+      %
+      % No callsites in APT app
 
+      assert(false,'Unsupported');
+      
       assert(iscellstr(movFiles));
       nMov = numel(movFiles);
 
@@ -301,25 +305,24 @@ classdef CPRData < handle
       md = struct2table(sMD);
     end
     
-    function [I,nmask] = getFrames(tblMF,varargin)
+    function [I,nmask,didread] = getFrames(tblMF,varargin)
       % Read frames from movies given MF table
-      
+      %
       % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
       % multiview data. 
       % 
       % I: [NxnView] cell vector of images for each row of tbl
       % nmask: [NxnView] number of other CCs masked for each im
-      %
-      % Options: wbObj: WaitBarWithCancel. If canceled, I will be
-      % 'incomplete', ie partially filled.
+      % didread: [NxnView] logical
       
       nView = size(tblMF.mov,2);
       
-      [wbObj,forceGrayscale,movieInvert,roiPadVal,doBGsub,bgReadFcn,bgType,...
+      [wbObj,forceGrayscale,preload,movieInvert,roiPadVal,doBGsub,bgReadFcn,bgType,...
         maskNeighbors,maskNeighborsMeth,empPDF,fgThresh,trxCache] = ...
         myparse(varargin,...
-          'wbObj',[],...
+          'wbObj',[],... wbObj: WaitBarWithCancel. If canceled, I will be 'incomplete', ie partially filled.
           'forceGrayscale',true,... 
+          'preload',false,...
           'movieInvert',false(1,nView),...
           'roiPadVal',0,... % used when tblMF has .roi
           'doBGsub',false,... % if true, I will contain bg-subbed images
@@ -337,148 +340,176 @@ classdef CPRData < handle
       assert(numel(movieInvert)==nView);      
       if doBGsub && roiPadVal~=0
         warningNoTrace('Background subtraction enabled. Setting roi pad value to 0.');
-        roiPadVal = 0;
+%         roiPadVal = 0;
       end
       tfWB = ~isempty(wbObj);
       
-      N = height(tblMF);
- 
-      if tfWB
-        wbObj.startPeriod('Reading movie images','shownumden',true,'denominator',N);
-        oc = onCleanup(@()wbObj.endPeriod);
-      end
+      N = height(tblMF);      
   
       tfROI = tblfldscontains(tblMF,'roi');
       if tfROI
         roi = tblMF.roi;
       end
+      
+      % Initialize outputs early, we may early return if user cancels wb.
+      I = cell(N,nView);
+      didread = false(N,nView);
+      nmask = zeros(N,nView);
             
-      movMaps = cell(1,nView); % movMaps{i} contains containers.Map for view i
       for iVw=1:nView
-        movsUn = unique(tblMF.mov(:,iVw));
-        movMapVw = containers.Map(); % movieName->struct with movieReader, etc
-        for mov=movsUn(:)',mov=mov{1}; %#ok<FXSET>
+        [movsUn,~,movidx] = unique(tblMF.mov(:,iVw));
+        
+        if tfWB
+          wbObj.startPeriod(sprintf('Reading images: view %d',iVw),...
+            'shownumden',true,'denominator',N);          
+        end
+        
+        nframesAttemptRead = 0;
+        for iMov=1:numel(movsUn)
+          if tfWB
+            tfCancel = wbObj.updateFracWithNumDen(nframesAttemptRead);
+            if tfCancel
+              wbObj.endPeriod();
+              return;
+            end
+          end
+          
+          mov = movsUn{iMov};
+
           mr = MovieReader();
           mr.forceGrayscale = forceGrayscale;
           mr.flipVert = movieInvert(iVw);
+          mr.preload = preload;
+          %mr.neednframes = false;
           mr.open(mov,'bgType',bgType,'bgReadFcn',bgReadFcn);
-          movMapVw(mov) = mr;
+
+          % Note: we don't setCropInfo here; cropping handled explicitly
+          % b/c most of the time it comes from the trx
+          
+          idxcurr = find(movidx == iMov);
+          nframesAttemptRead = nframesAttemptRead + numel(idxcurr);
+          for iiTrl = 1:numel(idxcurr)
+            iTrl = idxcurr(iiTrl);
+            
+            trow = tblMF(iTrl,:);
+            f = trow.frm;
+            iTgt = trow.iTgt;
+            assert(strcmp(mov,trow.mov{iVw}));
+            
+            if tfROI
+              % Will be handy below
+              roiVw = roi(iTrl,(1:4)+4*(iVw-1)); % [xlo xhi ylo yhi]
+              roiXlo = roiVw(1);
+              roiXhi = roiVw(2);
+              roiYlo = roiVw(3);
+              roiYhi = roiVw(4);
+            end
+            
+            try
+            
+            if maskNeighbors
+              [imraw,imOrigTy] = mr.readframe(f,'doBGsub',false);
+              imdiff = PxAssign.simplebgsub(mr.bgType,double(imraw), ...
+                mr.bgIm,mr.bgDevIm); % Note: mr.flipVert is NOT applied to .bgIm, .bgDevIm
+              % imdiff has scale per ~imOrigTy
+              
+              tfile = trow.trxFile{iVw};
+              trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
+              
+              % Currently we mask the entire image even if we only care about
+              % a zoomed-in roi
+              switch maskNeighborsMeth
+                case 'Conn. Comp'
+                  imL = PxAssign.asgnCCcore(imdiff,trx,f,fgThresh);
+                case 'GMM-EM'
+                  imL = PxAssign.asgnGMMglobalcore(imdiff,trx,f,fgThresh);
+                case 'Emp. PDF'
+                  if isempty(empPDF)
+                    error('No empirical PDF has been generated/stored for this project. Call the ''updateFGEmpiricalPDF'' Labeler method first.');
+                  end
+                  if ~isequal(empPDF.prmBackSub.BGType,bgType)
+                    warningNoTrace('Stored empirical PDF has background type (%s) that differs from current background type (%s).',...
+                      empPDF.prmNborMask.BGType,bgType);
+                  end
+                  if ~isequal(empPDF.prmNborMask.FGThresh,fgThresh)
+                    warningNoTrace('Stored empirical PDF has foreground threshold (%.2f) that differs from current foreground threshold (%.2f).',...
+                      empPDF.prmNborMask.FGThresh,fgThresh);
+                  end
+                  imL = PxAssign.asgnPDF(imdiff,trx,f,...
+                    empPDF.fgpdf,empPDF.xpdfctr,empPDF.ypdfctr,...
+                    empPDF.amu,empPDF.bmu,'fgthresh',fgThresh);
+                otherwise
+                  assert(false,'Unrecognized neighbor-masking method.');
+              end
+              
+              if doBGsub
+                % bgsub ON, nbor masking ON.
+                % We will be masking imdiff with zeros. imdiff is a double
+                % with original scale/range
+                imToMask = imdiff;
+                imBGToApply = zeros(size(imdiff));
+                % roiPadVal should be 0 here since doBGsub is on
+              else
+                % bgsub OFF, nbor masking ON.
+                % We will be masking imraw with movieReader.bgIm. imraw could
+                % have arbitrary type here, but .bgIm is expected to have the
+                % same scale.
+                imToMask = double(imraw);
+                imBGToApply = mr.bgIm;
+              end
+              
+              if tfROI
+                IMBGPADVAL = nan; % irrelevant, no effect as masking should not occur outside image
+                imToMaskRoi = padgrab(imToMask,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+                imBGToApplyRoi = padgrab(imBGToApply,IMBGPADVAL,roiYlo,roiYhi,roiXlo,roiXhi);
+                imLroi = padgrab(imL,0,roiYlo,roiYhi,roiXlo,roiXhi);
+                [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
+                  imToMaskRoi,imBGToApplyRoi,imLroi,trx,iTgt,f,'imroi',roiVw);
+              else
+                [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
+                  imToMask,imBGToApply,imL,trx,iTgt,f);
+              end
+              
+              % Rescale to [0,1] for 'usual' types
+              imroi = PxAssign.imRescalePerType(imroi,imOrigTy);
+              
+              % As in other branch, imroi could have varying type here.
+            else
+              [im,imOrigTy] = mr.readframe(f,'doBGsub',doBGsub);
+              
+              if doBGsub
+                % BGsub leaves im as a double but scaled as in original
+                im = PxAssign.imRescalePerType(im,imOrigTy);
+              end
+              
+              if tfROI
+                if ndims(im) == 2
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+                elseif ndims(im) == 3
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi,1,3);
+                else
+                    error('Undefined number of channels');
+                end
+              else
+                imroi = im;
+              end
+              
+              % At this point, im could have varying type depending on movie
+              % format, doBGsub, etc. See MovieReader/readframe.
+            end
+            
+            I{iTrl,iVw} = imroi;
+            didread(iTrl,iVw) = true;
+            
+            catch ME,
+              warning('Could not read frame %d from %s:\n%s\n',f,mov,getReport(ME));
+            end
+            
+          end
         end
-        movMaps{iVw} = movMapVw;
-      end
-      
-      I = cell(N,nView);
-      nmask = zeros(N,nView);
-      for iTrl=1:N
         if tfWB
-          tfCancel = wbObj.updateFracWithNumDen(iTrl);
-          if tfCancel
-            return;
-          end
-        end
-        trow = tblMF(iTrl,:);
-        f = trow.frm;
-        iTgt = trow.iTgt;
-        for iVw=1:nView          
-          mov = trow.mov{iVw};          
-          mr = movMaps{iVw}(mov);
-          
-          if tfROI
-            % Will be handy below
-            roiVw = roi(iTrl,(1:4)+4*(iVw-1)); % [xlo xhi ylo yhi]
-            roiXlo = roiVw(1);
-            roiXhi = roiVw(2);
-            roiYlo = roiVw(3);
-            roiYhi = roiVw(4);
-          end
-
-          if maskNeighbors
-            [imraw,imOrigTy] = mr.readframe(f,'doBGsub',false);
-            imdiff = PxAssign.simplebgsub(mr.bgType,double(imraw), ...
-              mr.bgIm,mr.bgDevIm); % Note: mr.flipVert is NOT applied to .bgIm, .bgDevIm
-            % imdiff has scale per ~imOrigTy
-
-            tfile = trow.trxFile{iVw};
-            trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
-
-            % Currently we mask the entire image even if we only care about
-            % a zoomed-in roi
-            switch maskNeighborsMeth
-              case 'Conn. Comp'
-                imL = PxAssign.asgnCCcore(imdiff,trx,f,fgThresh);
-              case 'GMM-EM'
-                imL = PxAssign.asgnGMMglobalcore(imdiff,trx,f,fgThresh);
-              case 'Emp. PDF'
-                if isempty(empPDF)
-                  error('No empirical PDF has been generated/stored for this project. Call the ''updateFGEmpiricalPDF'' Labeler method first.');
-                end
-                if ~isequal(empPDF.prmBackSub.BGType,bgType)
-                  warningNoTrace('Stored empirical PDF has background type (%s) that differs from current background type (%s).',...
-                    empPDF.prmNborMask.BGType,bgType);
-                end
-                if ~isequal(empPDF.prmNborMask.FGThresh,fgThresh)
-                  warningNoTrace('Stored empirical PDF has foreground threshold (%.2f) that differs from current foreground threshold (%.2f).',...
-                    empPDF.prmNborMask.FGThresh,fgThresh);
-                end
-                imL = PxAssign.asgnPDF(imdiff,trx,f,...
-                  empPDF.fgpdf,empPDF.xpdfctr,empPDF.ypdfctr,...
-                  empPDF.amu,empPDF.bmu,'fgthresh',fgThresh);
-              otherwise
-                assert(false,'Unrecognized neighbor-masking method.');
-            end
-
-            if doBGsub
-              % bgsub ON, nbor masking ON. 
-              % We will be masking imdiff with zeros. imdiff is a double
-              % with original scale/range 
-              imToMask = imdiff;
-              imBGToApply = zeros(size(imdiff));
-              % roiPadVal should be 0 here since doBGsub is on
-            else
-              % bgsub OFF, nbor masking ON. 
-              % We will be masking imraw with movieReader.bgIm. imraw could
-              % have arbitrary type here, but .bgIm is expected to have the
-              % same scale.
-              imToMask = double(imraw);
-              imBGToApply = mr.bgIm;
-            end
-            
-            if tfROI
-              IMBGPADVAL = nan; % irrelevant, no effect as masking should not occur outside image
-              imToMaskRoi = padgrab(imToMask,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-              imBGToApplyRoi = padgrab(imBGToApply,IMBGPADVAL,roiYlo,roiYhi,roiXlo,roiXhi);
-              imLroi = padgrab(imL,0,roiYlo,roiYhi,roiXlo,roiXhi);
-              [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
-                imToMaskRoi,imBGToApplyRoi,imLroi,trx,iTgt,f,'imroi',roiVw);
-            else
-              [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
-                imToMask,imBGToApply,imL,trx,iTgt,f);
-            end
-            
-            % Rescale to [0,1] for 'usual' types
-            imroi = PxAssign.imRescalePerType(imroi,imOrigTy);
-            
-            % As in other branch, imroi could have varying type here.
-          else
-            [im,imOrigTy] = mr.readframe(f,'doBGsub',doBGsub);
-            
-            if doBGsub
-              % BGsub leaves im as a double but scaled as in original
-              im = PxAssign.imRescalePerType(im,imOrigTy);
-            end
-            
-            if tfROI
-              imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-            else
-              imroi = im;
-            end
-            
-            % At this point, im could have varying type depending on movie
-            % format, doBGsub, etc. See MovieReader/readframe.
-          end
-          
-          I{iTrl,iVw} = imroi;
-        end
+          wbObj.endPeriod();
+        end    
       end
     end
 
@@ -565,41 +596,43 @@ classdef CPRData < handle
       % the same value of g are histogram-equalized together. For example,
       % g might indicate which movie the image is taken from.
       
-      [H0,nbin,g,wbObj] = myparse(varargin,...
-        'H0',[],...
-        'nbin',256,...
-        'g',ones(obj.N,1),...
-        'wbObj',[]); % WaitBarWithCancel. If canceled, obj UNCHANGED and H0 indeterminate
-      tfH0Given = ~isempty(H0);
+      assert(false,'Deprecated codepath.');
       
-      assert(obj.nView==1,'Single-view only.');
-      assert(numel(g)==obj.N);
-      
-      imSz = cellfun(@size,obj.I,'uni',0);
-      cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
-      imSz = imSz{1};
-      
-      if ~tfH0Given
-        H0 = typicalImHist(obj.I,'nbin',nbin,'hWB',wbObj);
-        if wbObj.isCancel
-          return;
-        end
-      end
-      obj.H0 = H0;
-      
-      % normalize one group at a time
-      gUn = unique(g);
-      nGrp = numel(gUn);
-      fprintf(1,'%d groups to equalize.\n',nGrp);
-      for iGrp = 1:nGrp
-        gCur = gUn(iGrp);
-        tf = g==gCur;
-        
-        bigim = cat(1,obj.I{tf});
-        bigimnorm = histeq(bigim,H0);
-        obj.I(tf) = mat2cell(bigimnorm,...
-          repmat(imSz(1),[nnz(tf) 1]),imSz(2));
-      end
+%       [H0,nbin,g,wbObj] = myparse(varargin,...
+%         'H0',[],...
+%         'nbin',256,...
+%         'g',ones(obj.N,1),...
+%         'wbObj',[]); % WaitBarWithCancel. If canceled, obj UNCHANGED and H0 indeterminate
+%       tfH0Given = ~isempty(H0);
+%       
+%       assert(obj.nView==1,'Single-view only.');
+%       assert(numel(g)==obj.N);
+%       
+%       imSz = cellfun(@size,obj.I,'uni',0);
+%       cellfun(@(x)assert(isequal(x,imSz{1})),imSz);
+%       imSz = imSz{1};
+%       
+%       if ~tfH0Given
+%         H0 = typicalImHist(obj.I,'nbin',nbin,'hWB',wbObj);
+%         if wbObj.isCancel
+%           return;
+%         end
+%       end
+%       obj.H0 = H0;
+%       
+%       % normalize one group at a time
+%       gUn = unique(g);
+%       nGrp = numel(gUn);
+%       fprintf(1,'%d groups to equalize.\n',nGrp);
+%       for iGrp = 1:nGrp
+%         gCur = gUn(iGrp);
+%         tf = g==gCur;
+%         
+%         bigim = cat(1,obj.I{tf});
+%         bigimnorm = histeq(bigim,H0);
+%         obj.I(tf) = mat2cell(bigimnorm,...
+%           repmat(imSz(1),[nnz(tf) 1]),imSz(2));
+%       end
     end
 
     function computeIpp(obj,sig1,sig2,iChan,varargin)

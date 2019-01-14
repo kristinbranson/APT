@@ -6,13 +6,16 @@ classdef BGClient < handle
     computeObjMeth % compute method name for computeObj
 
     qWorker2Me % matlab.pool.DataQueue for receiving data from worker (interrupts)
-    qMe2Worker % matlab.pool.PollableDataQueue for sending data to Client (polled)    
+    qMe2Worker % matlab.pool.PollableDataQueue for sending data to Worker (polled)    
     fevalFuture % FevalFuture output from parfeval
+    isContinuous = false % scalar. if true, worker is a continuous worker
     idPool % scalar uint for cmd ids
     idTics % [numIDsSent] uint64 col vec of start times for each command id sent 
     idTocs % [numIDsReceived] col vec of compute elapsed times, set when response to each command id is received
     
     printlog = false; % if true, logging messages are displayed
+    
+    parpoolIdleTimeout = 10*60; % bump gcp IdleTimeout to at least this value every time a worker is started
   end
   properties (Dependent)
     isConfigured
@@ -51,7 +54,7 @@ classdef BGClient < handle
     end
   end
   
-  methods    
+  methods
     
     function configure(obj,resultCallback,computeObj,computeObjMeth)
       % Configure compute object and results callback
@@ -63,8 +66,12 @@ classdef BGClient < handle
       obj.computeObjMeth = computeObjMeth;
     end
     
-    function startWorker(obj)
+    function startWorker(obj,varargin)
       % Start BGWorker on new thread
+      
+      [workerContinuous,continuousCallInterval] = myparse(varargin,...
+        'workerContinuous',false,...
+        'continuousCallInterval',nan);
       
       if ~obj.isConfigured
         error('BGClient:config',...
@@ -72,13 +79,32 @@ classdef BGClient < handle
       end
       
       queue = parallel.pool.DataQueue;
-      queue.afterEach(@(dat)obj.afterEach(dat));
+      if workerContinuous
+      	queue.afterEach(@(dat)obj.afterEachContinuous(dat));
+      else
+        queue.afterEach(@(dat)obj.afterEach(dat));
+      end		
       obj.qWorker2Me = queue;
       
-      workerObj = BGWorker;
-      % computeObj deep-copied onto worker
-      obj.fevalFuture = parfeval('start',1,workerObj,queue,obj.computeObj,obj.computeObjMeth); 
+      p = gcp;
+      if obj.parpoolIdleTimeout > p.IdleTimeout 
+        warningNoTrace('Increasing current parpool IdleTimeout to %d minutes.',obj.parpoolIdleTimeout);
+        p.IdleTimeout = obj.parpoolIdleTimeout;
+      end
       
+      if workerContinuous
+        workerObj = BGWorkerContinuous;
+        % computeObj deep-copied onto worker
+        obj.fevalFuture = parfeval(@start,1,workerObj,queue,...
+          obj.computeObj,obj.computeObjMeth,continuousCallInterval);
+      else      
+        workerObj = BGWorker;
+        % computeObj deep-copied onto worker
+        obj.fevalFuture = parfeval(@start,1,workerObj,queue,...
+          obj.computeObj,obj.computeObjMeth); 
+      end
+      
+      obj.isContinuous = workerContinuous;
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;
@@ -91,7 +117,7 @@ classdef BGClient < handle
             
       if ~obj.isRunning
         error('BGClient:run','Worker is not running.');
-      end
+      end      
       
       assert(isstruct(sCmd) && all(isfield(sCmd,{'action' 'data'})));
       sCmd.id = obj.idPool;
@@ -108,6 +134,9 @@ classdef BGClient < handle
     end
     
     function stopWorker(obj)
+      % "Proper" stop; STOP message is sent to BGWorker obj; BGWorker reads
+      % STOP message and breaks from polling loop
+      
       if ~obj.isRunning
         warningNoTrace('BGClient:run','Worker is not running.');
       else
@@ -115,6 +144,16 @@ classdef BGClient < handle
         obj.sendCommand(sCmd);
       end
     end
+    
+    function stopWorkerHard(obj)
+      % Harder stop, cancel fevalFuture
+      
+      if ~obj.isRunning
+        warningNoTrace('BGClient:run','Worker is not running.');
+      else
+        obj.fevalFuture.cancel();
+      end
+    end    
     
   end
   
@@ -136,6 +175,15 @@ classdef BGClient < handle
       else
         obj.log('Received results id %d',dat.id);
         obj.idTocs(dat.id) = toc(obj.idTics(dat.id));
+        obj.cbkResult(dat);
+      end
+    end    
+
+    function afterEachContinuous(obj,dat)
+      if isa(dat,'parallel.pool.PollableDataQueue')
+        obj.qMe2Worker = dat;
+        obj.log('Received pollableDataQueue from worker.');
+      else
         obj.cbkResult(dat);
       end
     end    

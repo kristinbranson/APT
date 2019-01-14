@@ -1,5 +1,5 @@
 function [translations, axisAngleDegXYZ, quaternions, frameStore,...
-    residualErrors, scaleErrors, refHeadOutput, rawXYZcoordsStore, alignedXYZcoordsStore]...
+    residualErrors, scaleErrors, refHeadOutput, rawXYZcoordsStore, alignedXYZcoordsStore, EulerAnglesDeg_XYZ]...
     = threeD2RT(headData,bodyData,pivotPoint,bodyAngleFrame,frameRate, plotYN, referenceHead)
   
 
@@ -138,7 +138,7 @@ function [translations, axisAngleDegXYZ, quaternions, frameStore,...
 % 
 % alignedExampleHeadCoords = first frame reference head
 % 
-% comes from first output of alignBodyAxis2Yaxis() applied to first frame of data
+% comes from first output of alignBodyAxis2Xaxis() applied to first frame of data
 % 
 % 
 
@@ -197,7 +197,7 @@ bodyCoords = ...
 
 
 % Rotating example head data so body axis is aligned with Y axis and wing bases lie along x axis and pivot point is at origin
-[ alignedRefHead, ~, ~] = alignBodyAxis2Yaxis( referenceHead,bodyCoords,pivotPoint);
+[ alignedRefHead, ~, ~] = alignBodyAxis2Xaxis( referenceHead,bodyCoords,pivotPoint);
 
 
 
@@ -214,6 +214,7 @@ residualStore = [];
 frameStore = [];
 axisAngleStore_DEGXYZ =[];
 LantTipStore = [];
+EulerAnglesDeg_XYZ = [];
 for n=1:1:size(headData.kine.flyhead.data.coords(i_LantTip,1,:), 3) %for each frame  
     
     %extracting data
@@ -227,56 +228,38 @@ for n=1:1:size(headData.kine.flyhead.data.coords(i_LantTip,1,:), 3) %for each fr
 
 
     % Rotating all data so body axis is aligned with Y axis and wing bases lie along x axis and pivot point is at origin
-    [alignedheadCoords, alignedBodyCoords, alignedPivotPoint] = alignBodyAxis2Yaxis(headCoords_inModelHeadFormat,bodyCoords,pivotPoint);
+    [alignedheadCoords, alignedBodyCoords, alignedPivotPoint] = alignBodyAxis2Xaxis(headCoords_inModelHeadFormat,bodyCoords,pivotPoint);
 
     
     if ~any(any(isnan(alignedheadCoords)))
         %getting rotation matri and translation between 'fake' head aligned with body/lab coordinates current frame and
         %
-        [D2M_scale, D2M_R, D2M_T, D2M_residuals]=absoluteOrientationQuaternion(alignedRefHead',alignedheadCoords');
+        %old - [D2M_scale, D2M_R, D2M_T, D2M_residuals]=absoluteOrientationQuaternion(alignedRefHead',alignedheadCoords');
+        [q,trans,scaleFac,residuals,rotMat,axisAngleRad,EulerRPY]=computeRotations(alignedRefHead,alignedheadCoords);
     else
         D2M_scale=NaN; 
         D2M_R=nan(3,3);
         D2M_T=nan(3,1);
         D2M_residuals=NaN;
-    end
-
-    
-    %generating the 3D axis and rotation angle that
-    %describes rotation between example frame and head rotated to align with
-    %body
-    if ~any(any(isnan(D2M_R)))
-        R_temp = [D2M_R,zeros(3,1); 0, 0, 0, 1];
-        [estRotAxis, estRotAngRad] = rotation3dAxisAndAngle(R_temp);
-        estRotAng = sjh_rad2deg(estRotAngRad);
-            
-        q = qGetRotQuaternion( estRotAngRad, estRotAxis(4:end) );  % uses [w x y z] format
-    
-        %ensuring quaternion is normalized
-        q = qNormalize(q)';
-        
-    else
         estRotAxis=nan(1,6);
         estRotAngRad=NaN;
         estRotAng=NaN;
         q=nan(1,4);
     end
+
     
-    
-
-
-
     
     %storing data as sequence of quaternions and translation vectors and aligned 3D coords with
     %residuals and scale factors as measure of error
-    quaternionStore = [quaternionStore;q];
-    translationStore = [translationStore;D2M_T'];
+    quaternionStore = [quaternionStore;q'];
+    translationStore = [translationStore;trans'];
     alignedXYZcoordsStore{n} = alignedheadCoords;
     rawXYZcoordsStore{n} = headCoords_inModelHeadFormat;
     LantTipStore = [LantTipStore;alignedheadCoords(1,:)];%just for convinence during debugging storing one 3D point on own - left antenna base
-    axisAngleStore_DEGXYZ =[axisAngleStore_DEGXYZ;estRotAng,estRotAxis(4:end)];%axis angle representation of rotation from head aligned with body to current frame - 1st element is angle in degrees, 2:4th elements are xyz rotation axis
-    scaleStore = [scaleStore;D2M_scale];
-    residualStore = [residualStore;D2M_residuals];
+    axisAngleStore_DEGXYZ =[axisAngleStore_DEGXYZ;axisAngleRad];%axis angle representation of rotation from head aligned with body to current frame - 1st element is angle in degrees, 2:4th elements are xyz rotation axis
+    scaleStore = [scaleStore;scaleFac];
+    residualStore = [residualStore;residuals];
+    EulerAnglesDeg_XYZ = [EulerAnglesDeg_XYZ;EulerRPY];
     frameStore = [frameStore;n];
 
 

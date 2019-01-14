@@ -92,7 +92,7 @@ end
 
 % costprev(w,v) is the min cost that ends at t = w and t-1 = v
 
-if isempty(poslambda)
+if isempty(poslambda) || isempty(misscost),
 
   % Estimate poslambda as ratio of (typical variability in appearance cost)
   % to (typical variability in position cost). The total cost at each
@@ -106,6 +106,7 @@ if isempty(poslambda)
   count = (T-2) * Ksample^3;
   errs = nan(1,count);
   off = 0;
+  minposcost = nan(1,T);
   for t = 3:T
     ws = randsample(K,Ksample);
     v = randsample(K,Ksample);
@@ -118,26 +119,34 @@ if isempty(poslambda)
       poscost = sum(bsxfun(@minus, reshape(X(w,:,t),[1,1,D]), predpos).^2, 3);
       errs(off+1:off+numel(poscost)) = poscost;
       off = off + numel(poscost);
+      minposcost(t) = min(minposcost(t),min(poscost(:)));
     end
   end
-  mad_pos = median( abs( errs(:) - median(errs(:))) );
-  %mad_app = median( abs( appearancecost(~isinf(appearancecost)) - median(appearancecost(~isinf(appearancecost)))) );
-  mad_app = median( abs( appearancecost(:) - median(appearancecost(:)) ) );
-  poslambda = mad_app/mad_pos;
   
-  if isempty(poslambdafac)
-    fprintf('Chose poslambda = %f\n',poslambda);
-  else
-    poslambda = poslambda*poslambdafac;
-    fprintf('Chose poslambda = %f, after scaling by poslambdafac = %f\n',...
-      poslambda,poslambdafac);
+  if isempty(poslambda),
+    mederr = nanmedian(errs(:));
+    mad_pos = nanmedian( abs( errs(:) - mederr) );
+    %mad_app = median( abs( appearancecost(~isinf(appearancecost)) - median(appearancecost(~isinf(appearancecost)))) );
+    a = appearancecost;
+    a(isinf(a)) = nan;
+    mad_app = nanmedian( abs( a(:) - nanmedian(a(:)) ) );
+    poslambda = mad_app/mad_pos;
+    
+    if isempty(poslambdafac)
+      fprintf('Chose poslambda = %f\n',poslambda);
+    else
+      poslambda = poslambda*poslambdafac;
+      fprintf('Chose poslambda = %f, after scaling by poslambdafac = %f\n',...
+        poslambda,poslambdafac);
+    end
   end
   %assert(~isnan(poslambda) && ~isinf(poslambda));
 end
 
 if isempty(misscost),
   minappearancecost = min(appearancecost,[],2);
-  misscost = prctile(minappearancecost,misscostprctile)*misscostfac;
+  idxgood = ~isnan(minposcost(:)) & ~isnan(minappearancecost(:));
+  misscost = prctile(minappearancecost(idxgood)+poslambda*minposcost(idxgood)',misscostprctile)*misscostfac;
 end
 
 % add an option of missing detection with high cost
@@ -153,7 +162,10 @@ assert(isvector(poscost0) && numel(poscost0)==(K+1));
 
 % second frame: position cost assumes zero velocity
 % poscost1(w,v) corresponds to w at t=2, v at t=1
+ismissing = reshape(any(isnan(X),2),[K,T]);
 poscost1 = poslambda * pdist2(X(:,:,2),X(:,:,1),'sqeuclidean');
+poscost1(ismissing(:,2),:) = inf;
+poscost1(:,ismissing(:,1)) = inf;
 poscost1(:,end+1) = 0; % if was missed in previous frame, no position-based cost
 poscost1(end+1,:) = 0; % if is missed in this frame, no position-based cost
 % is position at previous time idx(1:t-1) <= K. So if we choose w = K+1,
@@ -173,8 +185,8 @@ costprev = bsxfun(@plus, poscost0(:)'+appearancecost(1,:), ...
                          bsxfun(@plus, appearancecost(2,:)', poscost1));
 
 % for tracking back and finding optimal states
-% prev(v,u,t) gives replicate index (index into 1..K+1) giving best/chosen 
-% replicate w giving minimum w->u->v progression over (t-2)->(t-1)->t
+% prev(w,v,t) gives replicate index (index into 1..K+1) giving best/chosen 
+% replicate u giving minimum/best u->v->w progression over (t-2)->(t-1)->t
 prev = nan(K+1,K+1,T);
 
 predpos = nan(K+1,K+1,D);
@@ -207,6 +219,7 @@ for t = 3:T
     if w <= K,
       poscost = poslambda * ...
         sum(bsxfun(@minus, reshape(X(w,:,t),[1,1,D]), predpos).^2, 3);
+      poscost(isnan(poscost)) = inf;
       % if missX has not been assigned yet, no penalty
       if any(isnan(missX)),
         poscost(K+1,K+1) = 0;
