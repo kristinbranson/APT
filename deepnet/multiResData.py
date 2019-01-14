@@ -400,37 +400,6 @@ def create_tf_record_from_lbl(conf, split=True, split_file=None):
         json.dump(splits, f)
 
 
-def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, flipud=False, crop_loc=None):
-    # fnum is the frame number
-    # cur_trx == None indicates that the project doesnt have trx file.
-    # offset is used for multiframe
-    # stationary is also used for multiframe.
-    # crop_loc is the cropping location.
-
-    if cur_trx is not None: # when there are trx
-        return get_patch_trx(cap, cur_trx, fnum, conf, locs, offset, stationary,flipud)
-    else:
-        frame_in, _, _, _ = read_frame(cap,fnum,cur_trx,flipud=flipud, offset=offset)
-        frame_in = frame_in[:,:,0:conf.img_dim]
-        if crop_loc is not None:
-            xlo, xhi, ylo, yhi = crop_loc
-            xhi += 1; yhi += 1
-        else:
-            xlo = 0; ylo = 0
-            yhi, xhi = frame_in.shape[0:2]
-
-            # convert grayscale to color if the conf says so.
-        #c_loc = conf.cropLoc[tuple(frame_in.shape[0:2])]
-        #frame_in = PoseTools.crop_images(frame_in, conf)
-        frame_in = frame_in[ylo:yhi,xlo:xhi,:]
-        cur_loc = locs.copy()
-        cur_loc[:, 0] = cur_loc[:, 0] - xlo + 1   # ugh, the nasty x-y business.
-        cur_loc[:, 1] = cur_loc[:, 1] - ylo + 1
-        # -1 because matlab is 1-indexed
-        cur_loc = cur_loc.clip(min=0, max=[(xhi-xlo) + 7, (yhi-ylo) + 7])
-        return  frame_in, cur_loc
-
-
 def create_envs(conf, split, db_type=None):
     if db_type is 'rnn':
         if split:
@@ -467,8 +436,44 @@ def create_envs(conf, split, db_type=None):
         return env, val_env
 
 
+def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, flipud=False, crop_loc=None):
+    '''
+    fnum is the frame number
+    cur_trx == None indicates that the project doesnt have trx file.
+    offset is used for multiframe
+    stationary is also used for multiframe.
+    crop_loc is the cropping location. It should be 0-indexed.
+
+    '''
+    if cur_trx is not None: # when there are trx
+        return get_patch_trx(cap, cur_trx, fnum, conf, locs, offset, stationary,flipud)
+    else:
+        frame_in, _, _, _ = read_frame(cap,fnum,cur_trx,flipud=flipud, offset=offset)
+        frame_in = frame_in[:,:,0:conf.img_dim]
+        if crop_loc is not None:
+            xlo, xhi, ylo, yhi = crop_loc
+            xhi += 1; yhi += 1
+        else:
+            xlo = 0; ylo = 0
+            yhi, xhi = frame_in.shape[0:2]
+
+            # convert grayscale to color if the conf says so.
+        #c_loc = conf.cropLoc[tuple(frame_in.shape[0:2])]
+        #frame_in = PoseTools.crop_images(frame_in, conf)
+        frame_in = frame_in[ylo:yhi,xlo:xhi,:]
+        cur_loc = locs.copy()
+        cur_loc[:, 0] = cur_loc[:, 0] - xlo    # ugh, the nasty x-y business.
+        cur_loc[:, 1] = cur_loc[:, 1] - ylo
+        cur_loc = cur_loc.clip(min=0, max=[(xhi-xlo) + 7, (yhi-ylo) + 7])
+        return  frame_in, cur_loc
+
+
+
 def trx_pts(lbl, ndx, on_gt = False):
-    # new styled sparse labeledpos
+    '''
+    new styled sparse labeledpos
+    returned points are 0-indexed in index as well as values
+    '''
     if on_gt:
         pts = np.array(lbl['labeledposGT'])
     else:
@@ -524,7 +529,7 @@ def check_fnum(fnum, cap, expname, ndx):
 def read_trx(cur_trx, fnum):
     if cur_trx is None:
         return None,None,None
-    trx_fnum = fnum - cur_trx['firstframe'][0, 0] + 1
+    trx_fnum = fnum - int(cur_trx['firstframe'][0, 0]) + 1
     x = int(round(cur_trx['x'][0, trx_fnum])) - 1
     y = int(round(cur_trx['y'][0, trx_fnum])) - 1
     # -1 for 1-indexing in matlab and 0-indexing in python
@@ -562,41 +567,72 @@ def read_frame(cap, fnum, cur_trx, offset=0, stationary=True,flipud=False):
 
 def get_patch_trx(cap, cur_trx, fnum, conf, locs, offset=0, stationary=True,flipud=False):
     # assert conf.imsz[0] == conf.imsz[1]
-    psz = max(conf.imsz)
     im, x, y, theta = read_frame(cap, fnum, cur_trx, offset, stationary,flipud)
+    return crop_patch_trx(conf, im,x,y,theta, locs)
 
-    im = im.copy()
+
+def crop_patch_trx(conf, im_in, x, y, theta, locs):
+    ''' return patch for movies with trx file
+    function for testing test_crop_path_trx
+    '''
+    psz = int(max(conf.imsz))
+    im = im_in.copy()
     theta = theta + math.pi / 2
-    if im.ndim == 2:
-        pad_im = np.pad(im, [psz, psz], 'constant')
-        patch = pad_im[y:y + 2 * psz, x:x + 2 * psz]
-        rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
-        rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz, 2 * psz),flags=cvc.INTER_CUBIC)
-        rpatch = rpatch[psz / 2:-psz / 2, psz / 2:-psz / 2]
-    else:
-        pad_im = np.pad(im, [[psz, psz], [psz, psz], [0, 0]], 'constant')
-        patch = pad_im[y:y + 2 * psz, x:x + 2 * psz, :]
-        rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
-        rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz, 2 * psz),flags=cvc.INTER_CUBIC)
-        if rpatch.ndim == 2:
-            rpatch = rpatch[:, :, np.newaxis]
-        rpatch = rpatch[psz / 2:-psz / 2, psz / 2:-psz / 2, :]
+
+    if im_in.ndim == 2:
+        im = im[:,:,np.newaxis]
+
+    pad_im = np.pad(im, [[psz, psz],[psz, psz],[0,0]], 'constant')
+    patch = pad_im[y:y + (2 * psz + 1), x: (x + 2 * psz + 1),:]
+    # patch is now of size 2*psz+1 with pixel x,y at its center at (psz,psz).
+    rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
+    rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz + 1, 2 * psz + 1),flags=cvc.INTER_CUBIC)
+    if rpatch.ndim == 2:
+        rpatch = rpatch[:, :, np.newaxis]
+
+    # select patch starting at psz/2 of size psz.
+    # for odd psz: x,y is at (psz-1)/2,(psz-1)/2
+    # for even psz: x,y is at psz/2-1, psz/2-1
+    rpatch = rpatch[psz // 2 + 1: -psz // 2 , psz // 2 + 1: - psz // 2 , :]
+
     ll = locs.copy()
     ll = ll - [x, y]
     rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-    lr = np.dot(ll, rot) + [psz / 2, psz / 2]
+    lr = np.dot(ll, rot) + [psz - psz // 2 -1, psz - psz // 2 -1]
 
     if conf.imsz[0] < conf.imsz[1]:
-        extra = (psz-conf.imsz[0])/2
+        extra = (psz-conf.imsz[0])//2
         rpatch = rpatch[extra:-extra,...]
         lr[:,1] -= extra
     elif conf.imsz[1] < conf.imsz[0]:
-        extra = (psz-conf.imsz[1])/2
+        extra = (psz-conf.imsz[1])//2
         rpatch = rpatch[:,extra:-extra,...]
         lr[:,0] -= extra
 
     rpatch = rpatch[:,:,:conf.img_dim]
     return rpatch, lr
+
+def test_crop_patch_trx():
+    ''' Code to test crop_patch_trx'''
+    import easydict
+    from matplotlib import pyplot as plt
+    conf = easydict.EasyDict()
+    isz = 6 + np.random.choice(2)
+    conf.imsz = [isz, isz]
+    conf.img_dim = 1
+    ims = np.zeros([18, 18, 1])
+    st = 6
+    en = 9 + np.random.choice(2)
+    ims[st:en, st:en, :] = 1
+    angle = np.random.choice(180)*np.pi/180
+    locs = np.array([[st, st, en - 1, en - 1, 7], [st, en - 1, st, en - 1,7]])
+    locs = locs.T
+    ni, nl = crop_patch_trx(conf, ims, 7, 7, angle, locs)
+    f, ax = plt.subplots(1, 2)
+    ax[0].imshow(ims[:, :, 0])
+    ax[0].scatter(locs[:, 0], locs[:, 1])
+    ax[1].imshow(ni[:, :, 0])
+    ax[1].scatter(nl[:, 0], nl[:, 1])
 
 
 def create_tf_record_from_lbl_with_trx(conf, split=True, split_file=None):

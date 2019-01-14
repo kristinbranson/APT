@@ -1444,6 +1444,9 @@ def get_latest_model_file_keras(conf, name):
 
 
 def get_crop_loc(lbl,ndx,view, on_gt=False):
+    ''' return crop loc in 0-indexed format
+    For indexing add 1 to xhi and yhi.
+    '''
     from APT_interface_mdn import read_entry
     # this is unnecessarily ugly just because matlab.
     if lbl['cropProjHasCrops'][0, 0] == 1:
