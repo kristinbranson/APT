@@ -23,11 +23,13 @@ import PoseTools
 default_net_name = 'deepnet'
 crop_reg_file = '/groups/branson/bransonlab/mayank/stephen_copy/crop_regression_params.mat'
 # lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
-lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4879_gtcomplete_cacheddata_dlstripped.lbl'
-crop_size = [[230,350],[350,350]]
 # name = 'stephen_20181029'
 #name = 'stephen_20181102_newlabels'
-name = 'stephen_20181115'
+#lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4879_gtcomplete_cacheddata_dlstripped.lbl'
+#name = 'stephen_20181115'
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_dlstripped.lbl'
+name = 'stephen_20190109'
+crop_size = [[230,350],[350,350]]
 cache_dir = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache'
 model_type = 'mdn'
 #bodylblfile = '/groups/branson/bransonlab/mayank/stephen_copy/fly2BodyAxis_lookupTable_Ben.csv'
