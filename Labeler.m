@@ -11093,6 +11093,8 @@ classdef Labeler < handle
         ModeInfo.dxlim = [0,0];
         ModeInfo.dylim = [0,0];
       end
+      ModeInfo.xlim = xlim;
+      ModeInfo.ylim = ylim;
       
       ModeInfo = obj.SetPrevAxesProperties(ModeInfo);
       
@@ -11117,7 +11119,7 @@ classdef Labeler < handle
       
       xdir = get(obj.gdata.axes_curr,'XDir');
       ydir = get(obj.gdata.axes_curr,'YDir');
-      ModeInfo.axes_curr = struct('XLim',xlim,'YLim',ylim,...
+      ModeInfo.axes_curr = struct('XLim',ModeInfo.xlim,'YLim',ModeInfo.ylim,...
         'XDir',xdir','YDir',ydir,...
         'CameraViewAngleMode','auto');
 
