@@ -40,7 +40,7 @@ bodylblfile = '/groups/huston/hustonlab/flp-chrimson_experiments/fly2BodyAxis_lo
 # defaulttrackerpath = "/groups/branson/bransonlab/mayank/PoseTF/matlab/compiled/run_compute3Dfrom2D_compiled.sh"
 # defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v92"
 
-defaulttrackerpath = "/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/compiled_20181031/run_compute3Dfrom2D_compiled.sh"
+defaulttrackerpath = "/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/compiled_20181219/run_compute3Dfrom2D_compiled.sh"
 defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v94"
 
 def get_crop_locs(lblfile,view,height,width):
@@ -95,6 +95,7 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
     flipud = False
 
     pred_locs = np.zeros([n_frames, conf.n_classes, 2])
+    pred_ulocs = np.zeros([n_frames, conf.n_classes, 2])
     preds = np.zeros([n_frames,int(conf.imsz[0]//conf.rescale),int(conf.imsz[1]//conf.rescale),conf.n_classes])
     pred_locs[:] = np.nan
     uconf = np.zeros([n_frames, conf.n_classes])
@@ -118,8 +119,10 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
         hmaps = ret_dict['hmaps']
         if model_type == 'mdn':
             uconf_cur = ret_dict['conf_unet']
+            ulocs_cur = ret_dict['locs_unet']
         else:
             uconf_cur = ret_dict['conf']
+            ulocs_cur = ret_dict['locs']
 
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
@@ -129,6 +132,10 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
             base_locs_orig[:, 0] += xlo
             base_locs_orig[:, 1] += ylo
             pred_locs[cur_f, :, :] = base_locs_orig[ ...]
+            u_locs_orig = ulocs_cur[cur_t,...].copy()
+            u_locs_orig[:, 0] += xlo
+            u_locs_orig[:, 1] += ylo
+            pred_ulocs[cur_f, :, :] = u_locs_orig[ ...]
             preds[cur_f,...] = hmaps[cur_t,...]
             uconf[cur_f,...] = uconf_cur[cur_t,...]
 
@@ -138,7 +145,7 @@ def classify_movie(mov_file, pred_fn, conf, crop_loc):
             sys.stdout.write('\n')
 
     cap.close()
-    return pred_locs,preds, uconf
+    return pred_locs,preds, pred_ulocs, uconf
 
 def getexpname(dirname):
     dirname = os.path.normpath(dirname)
@@ -325,7 +332,7 @@ def main(argv):
                     continue
                 crop_loc_all = get_crop_locs(bodydict[flynum],view,height,width) # return x first
                 try:
-                    predLocs, predScores, pred_conf = classify_movie(valmovies[ndx], pred_fn, conf, crop_loc_all)
+                    predLocs, predScores, pred_ulocs, pred_conf = classify_movie(valmovies[ndx], pred_fn, conf, crop_loc_all)
                     # predList = self.classify_movie(valmovies[ndx], sess, flipud=False)
                 except KeyError:
                     continue
@@ -347,6 +354,7 @@ def main(argv):
                                                     'expname':valmovies[ndx],
                                                     'crop_loc':crop_loc_all,
                                                     'model_file':model_file,
+                                                    'ulocs':pred_ulocs,
                                                     'pred_conf':pred_conf
                                                     },
                                     appendmat=False,truncate_existing=True,gzip_compression_level=0)
