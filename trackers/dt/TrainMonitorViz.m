@@ -39,7 +39,7 @@ classdef TrainMonitorViz < handle
       obj.backEnd = backEnd;
       obj.hfig = TrainMonitorGUI(obj);
       handles = guidata(obj.hfig);
-      TrainMonitorViz.updateStartStopButton(handles,true);
+      TrainMonitorViz.updateStartStopButton(handles,true,false);
       handles.pushbutton_startstop.Enable = 'on';
       obj.haxs = [handles.axes_loss,handles.axes_dist];
       obj.hannlastupdated = handles.text_clusterstatus;
@@ -207,7 +207,7 @@ classdef TrainMonitorViz < handle
       elseif isTrainComplete,
         status = 'Training complete.';
         handles = guidata(obj.hfig);
-        TrainMonitorViz.updateStartStopButton(handles,false);
+        TrainMonitorViz.updateStartStopButton(handles,false,true);
       elseif isLogFile && ~isJsonFile,
         status = 'Training in progress. Building training image database.';
       elseif isLogFile && isJsonFile,
@@ -255,7 +255,7 @@ classdef TrainMonitorViz < handle
       if tfsucc,
         waitfor(handles.pushbutton_startstop,'Enable','on');
         drawnow;
-        TrainMonitorViz.updateStartStopButton(handles,false);
+        TrainMonitorViz.updateStartStopButton(handles,false,false);
         obj.ClearBusy('Training process killed');
         drawnow;
       else
@@ -392,12 +392,20 @@ classdef TrainMonitorViz < handle
       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
     end   
     
-    function updateStartStopButton(handles,isStop)
+    function updateStartStopButton(handles,isStop,isDone)
       
-      if isStop,
-        set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
+      if nargin < 3,
+        isDone = false;
+      end
+      
+      if isDone,
+        set(handles.pushbutton_startstop,'String','Training complete','BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
       else
-        set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','on','UserData','start');
+        if isStop,
+          set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
+        else
+          set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','on','UserData','start');
+        end
       end
       
     end
