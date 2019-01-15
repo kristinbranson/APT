@@ -20,10 +20,7 @@ classdef AWSec2 < handle
   
   methods
     
-    function obj = AWSec2(keyName,pem)
-      obj.instanceID = [];
-      obj.instanceIP = [];
-      obj.keyName = keyName;
+    function obj = AWSec2(pem,varargin)
       obj.pem = pem;
       
       if ispc
@@ -33,8 +30,13 @@ classdef AWSec2 < handle
         obj.scpCmd = 'scp';
         obj.sshCmd = 'ssh';
       end
+
+      for i=1:2:numel(varargin)
+        prop = varargin{i};
+        val = varargin{i+1};
+        obj.(prop) = val;
+      end
       
-      obj.remotePID = [];
     end
     
     function delete(obj)
@@ -236,7 +238,9 @@ classdef AWSec2 < handle
         dstAbs = dst;
       end
       
-      tfsucc = obj.remoteFileExists(dstAbs,'dispcmd',true);
+      src_d = dir(src);
+      src_sz = src_d.bytes;
+      tfsucc = obj.remoteFileExists(dstAbs,'dispcmd',true,'size',src_sz);
       if tfsucc
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstAbs);
@@ -267,10 +271,11 @@ classdef AWSec2 < handle
     end
     
     function tf = remoteFileExists(obj,f,varargin)
-      [reqnonempty,dispcmd,usejavaRT] = myparse(varargin,...
+      [reqnonempty,dispcmd,usejavaRT,size] = myparse(varargin,...
         'reqnonempty',false,...
         'dispcmd',false,...
-        'usejavaRT',false...
+        'usejavaRT',false,...
+        'size',-1 ...
         );
 
       if reqnonempty
@@ -278,7 +283,11 @@ classdef AWSec2 < handle
       else
         script = '~/APT/misc/fileexists.sh';
       end
-      cmdremote = sprintf('%s %s',script,f);
+      if size > 0
+        cmdremote = sprintf('%s %s %d',script,f,size);
+      else
+        cmdremote = sprintf('%s %s',script,f);
+      end
       [~,res] = obj.cmdInstance(cmdremote,...
         'dispcmd',dispcmd,'failbehavior','err','usejavaRT',usejavaRT); 
       tf = res(1)=='y';      
@@ -494,6 +503,27 @@ classdef AWSec2 < handle
         sshcmd,pem,ip,cmdremote,logfileremote);
     end
 
+    function [tfsucc,instanceID,pemFile] = configureUI()
+      PROMPT = {
+        'Instance ID'
+        'Private key (.pem) file'
+        };
+      NAME = 'Amazon Web Services EC2 Configuration';
+
+      resp = inputdlg(PROMPT,NAME,1);      
+      tfsucc = ~isempty(resp);      
+      if tfsucc
+        instanceID = strtrim(resp{1});
+        pemFile = strtrim(resp{2});
+        if exist(pemFile,'file')==0
+          error('Cannot find private key (.pem) file %s.',pemFile);
+        end
+      else
+        instanceID = [];
+        pemFile = [];
+      end      
+    end
+    
   end
   
 end

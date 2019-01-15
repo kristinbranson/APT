@@ -6,12 +6,7 @@ classdef Icons
 end
 
 function d = lclInitGfxDir()
-if isdeployed
-  d = fullfile(ctfroot,'gfx');
-  %fprintf('Deployed: initted gfxdir to: %s\n',d);
-else
-  d = fullfile(APT.Root,'gfx');
-end
+d = fullfile(APT.Root,'gfx');
 end
 
 function s = lclInitIms()
@@ -29,5 +24,6 @@ for i=1:numel(d)
   
   s.(nameshort) = im;
 end
+%fprintf('Deployed: fieldnames ims: %s\n',String.cellstr2CommaSepList(fieldnames(s)));
 end
     

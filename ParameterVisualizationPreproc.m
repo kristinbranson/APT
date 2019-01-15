@@ -146,6 +146,9 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
           'HorizontalAlignment','left','VerticalAlignment','top','Color','c',...
           'Parent',hAx);
       end
+      hAx.XTick = [];
+      hAx.YTick = [];
+
       
       ParameterVisualization.setReady(hAx);
       

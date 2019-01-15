@@ -152,7 +152,9 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       end
       
       title(hAx,tstr,'interpreter','none','fontweight','normal','fontsize',8);      
-      
+      hAx.XTick = [];
+      hAx.YTick = [];
+
       ParameterVisualizationFeature.throwWarningFtrType(prmFtr.Type);
       
       obj.initSuccessful = true;

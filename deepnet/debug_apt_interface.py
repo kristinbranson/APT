@@ -1,6 +1,90 @@
-
 import APT_interface as apt
-cmd_str = '-name stephen_20181029 -cache /tmp  /home/mayank/work/APT/deepnet/data/sh_trn4879_gtcomplete.lbl train -use_cache'
+cmd = '-name 20190114T151632 -view 1 -cache /home/mayank/temp/apt_cache -err_file /home/mayank/temp/apt_cache/multitarget_bubble/20190114T151632_20190114T151735.err -type mdn /home/mayank/temp/apt_cache/multitarget_bubble/20190114T151632_20190114T151735.lbl train -use_cache '
+
+apt.main(cmd.split())
+
+##
+import APT_interface as apt
+reload(apt)
+import multiResData
+import h5py
+# lbl_file = '/home/mayank/temp/test_conversion/20190114T111122_20190114T111124.lbl'
+# db_file = '/home/mayank/temp/test_conversion/mdn/view_0/20190114T111122/train_TF.tfrecords'
+lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190114T151632_20190114T151735.lbl'
+db_file = '/home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190114T151632/train_TF.tfrecords'
+L = h5py.File(lbl_file,'r')
+conf = apt.create_conf(lbl_file,0,'test','/home/mayank/temp','mdn')
+A = multiResData.read_and_decode_without_session(db_file,conf,())
+orig_locs = []
+labeled_locs = []
+for ndx in range(0,len(A[0]),500):
+    cur_locs = A[1][ndx]
+    info = A[2][ndx]
+    trx_file = apt.read_string(L[L['trxFilesAll'][0,info[0]]])
+    cur_trx,_ = apt.get_cur_trx(trx_file,info[2])
+    cur_orig = apt.convert_to_orig(cur_locs,conf,info[1],cur_trx,None)
+    orig_locs.append(cur_orig)
+    pts = apt.trx_pts(L,info[0])
+    labeled_locs.append(pts[info[2],info[1],:,:].T)
+
+orig_locs = np.array(orig_locs)
+labeled_locs = np.array(labeled_locs)
+
+
+##
+##
+import APT_interface as apt
+
+lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190111T185319_20190111T185419.lbl'
+conf = apt.create_conf(lbl_file,0,'test','/home/mayank/temp/apt_cache1','mdn')
+apt.create_tfrecord(conf,True)
+
+##
+import numpy as np
+import multiResData
+reload(multiResData)
+import easydict
+conf = easydict.EasyDict()
+isz = 6 + np.random.choice(2)
+conf.imsz = [isz,isz]
+conf.img_dim = 1
+ims = np.zeros([18,18,1])
+st = 6
+en = 9 + np.random.choice(2)
+ims[st:en,st:en,:] = 1
+locs = np.array([[st,st,en-1,en-1,7],[st,en-1,st,en-1,7]])
+locs = locs.T
+angle = np.random.choice(180) * np.pi / 180
+ni,nl = multiResData.crop_patch_trx(conf,ims,7,7,angle,locs)
+f,ax = plt.subplots(1,2)
+ax[0].imshow(ims[:,:,0])
+ax[0].scatter(locs[:,0],locs[:,1])
+ax[1].imshow(ni[:,:,0])
+ax[1].scatter(nl[:,0],nl[:,1])
+ax[1].set_title('{},{}'.format(isz%2,en%2))
+
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+cmd_str = '-cache /home/mayank/temp -name xv_test -type mdn /home/mayank/work/poseTF/data/alice/multitarget_bubble_expandedbehavior_20180425_local.lbl classify -out_file /home/mayank/temp/aa'
+cc = cmd_str.split()
+apt.main(cc)
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd_str = '-name alice_compare -cache /home/mayank/work/APT/deepnet/cache -type mdn /home/mayank/work/APT/deepnet/data/multitarget_bubble_expandedbehavior_20180425_modified4.lbl track -start_frame 5000 -end_frame 5500 -trx /home/mayank/work/FlyBowl/pBDPGAL4U_TrpA_Rig2Plate14BowlD_20110617T143743/registered_trx.mat -mov /home/mayank/work/FlyBowl/pBDPGAL4U_TrpA_Rig2Plate14BowlD_20110617T143743/movie.ufmf -trx_ids 3 8 -out /home/mayank/temp/a.trk'
+
+cc = cmd_str.split()
+apt.main(cc)
+
+##
+import APT_interface as apt
+cmd_str = '-name stephen_20181029 -conf_params mdn_groups ((0),(1,2,3,4)) -cache /tmp -type mdn /home/mayank/work/APT/deepnet/data/sh_trn4879_gtcomplete.lbl train -use_cache -skip_db'
 
 cc = cmd_str.split()
 apt.main(cc)

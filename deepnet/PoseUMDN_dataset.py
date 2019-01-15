@@ -101,6 +101,15 @@ class PoseUMDN(PoseCommon.PoseCommon):
 
         if 'mdn_groups' not in self.conf.__dict__:
             self.conf.mdn_groups = [range(self.conf.n_classes)]
+        # else:
+        #     # when reading from command line, single length list are converted to ints.
+        #     new_groups = []
+        #     for gg in self.conf.mdn_groups:
+        #         if type(gg) != list:
+        #             new_groups.append([gg])
+        #         else:
+        #             new_groups.append(gg)
+        #     self.conf.mdn_groups = new_groups
 
 
     def create_network(self):
@@ -731,12 +740,20 @@ class PoseUMDN(PoseCommon.PoseCommon):
     def compute_train_data(self, sess, db_type):
         self.fd_train() if db_type is self.DBType.Train \
             else self.fd_val()
-        cur_loss, cur_inputs , pred_means, pred_std, pred_weights, pred_dist = sess.run(
+        cur_loss, cur_inputs , pred_means, pred_std, pred_weights, pred_dist= sess.run(
             [self.cost,self.inputs] + self.pred, self.fd)
 
         pred_weights = softmax(pred_weights, axis=1)
         cur_dist = self.compute_dist( [pred_means, pred_std, pred_weights], cur_inputs[1])
-        return cur_loss, cur_dist
+
+        # grad_wts = []
+        # if self.compute_grad_wts:
+        #     for ndx, (g,v) in enumerate(zip(cur_g, cur_v)):
+        #         g_mag = np.sqrt(np.sum(g.flatten()**2))
+        #         w_mag = np.sqrt(np.sum(v.flatten()**2))
+        #         grad_wts.append([w_mag,g_mag])
+        cur_dict = {'cur_loss': cur_loss, 'cur_dist': cur_dist}
+        return cur_dict
 
 
     def train_umdn(self, restore=False):

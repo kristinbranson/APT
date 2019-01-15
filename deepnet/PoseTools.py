@@ -243,8 +243,9 @@ def randomly_translate(img, locs, conf, group_sz = 1):
         out_ii = orig_im.copy()
         while not sane:
             valid = np.invert(np.isnan(orig_locs[:,:, :, 0]))
-            dx = np.random.randint(-conf.trange, conf.trange)
-            dy = np.random.randint(-conf.trange, conf.trange)
+            dx = np.round(np.random.randint(-conf.trange, conf.trange))
+            dy = np.round(np.random.randint(-conf.trange, conf.trange))
+            # round the random jitter so that there is no image distortions.
             count += 1
             if count > 5:
                 dx = 0
@@ -269,7 +270,7 @@ def randomly_translate(img, locs, conf, group_sz = 1):
             mat = np.float32([[1, 0, dx], [0, 1, dy]])
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows))#,borderMode=cv2.BORDER_REPLICATE)
+                ii = cv2.warpAffine(ii, mat, (cols, rows),flags=cv2.INTER_CUBIC)#,borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -292,6 +293,8 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
 
     num = img.shape[0]
     rows, cols = img.shape[1:3]
+    rows = float(rows)
+    cols = float(cols)
     n_groups = num/group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
@@ -313,7 +316,7 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
                 sane = True
                 do_rotate = False
             ll = copy.deepcopy(orig_locs)
-            ll = ll - [old_div(cols, 2), old_div(rows, 2)]
+            ll = ll - [cols/2 , rows/2]
             ang = np.deg2rad(rangle)
             rot = [[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]]
             lr = np.zeros(ll.shape)
@@ -332,10 +335,10 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
 
             # else:
             #                 print 'not sane {}'.format(count)
-            mat = cv2.getRotationMatrix2D((old_div(cols, 2), old_div(rows, 2)), rangle, 1)
+            mat = cv2.getRotationMatrix2D((cols/2, rows/2), rangle, 1)
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, mat, (cols, rows))#,borderMode=cv2.BORDER_REPLICATE)
+                ii = cv2.warpAffine(ii, mat, (int(cols), int(rows)),flags=cv2.INTER_CUBIC)#,borderMode=cv2.BORDER_REPLICATE)
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -356,6 +359,8 @@ def randomly_adjust(img, conf, group_sz = 1):
     crange = conf.crange
     cdiff = crange[1] - crange[0]
     imax = conf.imax
+    if (bdiff<0.01) and (cdiff<0.01):
+        return img
     n_groups = num/group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
@@ -377,6 +382,8 @@ def randomly_scale(img,locs,conf,group_sz=1):
     im_sz = img.shape[1:]
     num = img.shape[0]
     srange = conf.scale_range
+    if srange<0.01:
+        return img, locs
     n_groups = num/group_sz
     for ndx in range(n_groups):
         st = ndx*group_sz
@@ -385,12 +392,18 @@ def randomly_scale(img,locs,conf,group_sz=1):
 
         for g in range(group_sz):
             jj = img[st+g, ...].copy()
-            cur_img = zoom(jj, sfactor) if srange != 0 else jj
+            # cur_img = zoom(jj, sfactor) if srange != 0 else jj
+            if srange !=0:
+                cur_img = cv2.resize(jj, None, fx= sfactor,fy=sfactor,interpolation=cv2.INTER_CUBIC)
+                if cur_img.ndim == 2:
+                    cur_img = cur_img[...,np.newaxis]
+            else:
+                cur_img = jj
             # cur_img = zoom(jj, sfactor,mode='reflect') if srange != 0 else jj
             cur_img, dx, dy = crop_to_size(cur_img, im_sz)
             img[st+g, ...] =cur_img
-            locs[st+g,...,0] = locs[st+g,...,0]*sfactor + dx/2
-            locs[st + g, ..., 1] = locs[st + g, ..., 1]*sfactor + dy / 2
+            locs[st+g,...,0] = locs[st+g,...,0]*sfactor + int(dx/2)
+            locs[st + g, ..., 1] = locs[st + g, ..., 1]*sfactor + int(dy / 2)
     return img, locs
 
 
@@ -430,8 +443,8 @@ def create_label_images_slow(locs, im_sz, scale, blur_rad):
 
 def create_label_images(locs, im_sz, scale, blur_rad):
     n_classes = len(locs[0])
-    sz0 = int(float(im_sz[0])/ scale)
-    sz1 = int(float(im_sz[1])/ scale)
+    sz0 = int(im_sz[0]// scale)
+    sz1 = int(im_sz[1] // scale)
 
     label_ims = np.zeros((len(locs), sz0, sz1, n_classes))
     # labelims1 = np.zeros((len(locs),sz0,sz1,n_classes))
@@ -448,8 +461,10 @@ def create_label_images(locs, im_sz, scale, blur_rad):
                 continue
                 #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
             #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
-            modlocs0 = int(np.round(old_div(locs[ndx][cls][1], scale)))
-            modlocs1 = int(np.round(old_div(locs[ndx][cls][0], scale)))
+            yy = float(locs[ndx][cls][1]-float(scale-1)/2)/scale
+            xx = float(locs[ndx][cls][0]-float(scale-1)/2)/scale
+            modlocs0 = int(np.round(yy))
+            modlocs1 = int(np.round(xx))
             l0 = min(sz0, max(0, modlocs0 - k_size))
             r0 = max(0, min(sz0, modlocs0 + k_size + 1))
             l1 = min(sz1, max(0, modlocs1 - k_size))
@@ -549,18 +564,19 @@ def get_base_pred_locs(pred, conf):
     return pred_locs
 
 
-def get_pred_locs(pred, edge_ignore=1):
+def get_pred_locs(pred, edge_ignore=0):
     if edge_ignore < 1:
-        edge_ignore = 1
+        edge_ignore = 0
     n_classes = pred.shape[3]
     pred_locs = np.zeros([pred.shape[0], n_classes, 2])
     for ndx in range(pred.shape[0]):
         for cls in range(n_classes):
             cur_pred = pred[ndx, :, :, cls].copy()
-            cur_pred[:edge_ignore,:] = cur_pred.min()
-            cur_pred[:,:edge_ignore] = cur_pred.min()
-            cur_pred[-edge_ignore:,:] = cur_pred.min()
-            cur_pred[:,-edge_ignore:] = cur_pred.min()
+            if edge_ignore > 0:
+                cur_pred[:edge_ignore,:] = cur_pred.min()
+                cur_pred[:,:edge_ignore] = cur_pred.min()
+                cur_pred[-edge_ignore:,:] = cur_pred.min()
+                cur_pred[:,-edge_ignore:] = cur_pred.min()
             maxndx = np.argmax(cur_pred)
             curloc = np.array(np.unravel_index(maxndx, pred.shape[1:3]))
             pred_locs[ndx, cls, 0] = curloc[1]
@@ -720,23 +736,25 @@ def get_vars(vstr):
 
 
 def compare_conf(curconf, oldconf):
-    ff = dir(curconf)
+    ff = list(set(dir(curconf))|set(dir(oldconf)))
     for f in ff:
         if f[0:2] == '__' or f[0:3] == 'get':
             continue
         if hasattr(curconf, f) and hasattr(oldconf, f):
             if type(getattr(curconf, f)) is np.ndarray:
-                print('%s' % f)
-                print('New:', getattr(curconf, f))
-                print('Old:', getattr(oldconf, f))
+                if not np.array_equal(getattr(curconf,f),getattr(oldconf,f)):
+                    print('%s not equal' % f)
+                    print('New:', getattr(curconf, f))
+                    print('Old:', getattr(oldconf, f))
 
             elif type(getattr(curconf, f)) is list:
                 if type(getattr(oldconf, f)) is list:
-                    if not cmp(getattr(curconf, f), getattr(oldconf, f)):
+                    if cmp(getattr(curconf, f), getattr(oldconf, f)) !=0 :
                         print('%s doesnt match' % f)
                 else:
                     print('%s doesnt match' % f)
-
+            elif callable(getattr(curconf,f)):
+                pass
             elif getattr(curconf, f) != getattr(oldconf, f):
                 print('%s doesnt match' % f)
 
@@ -974,6 +992,10 @@ def classify_movie_fine(conf, movie_name, locs, self, sess, max_frames=-1, start
     cap.release()
     return pred_locs
 
+def get_colors(n):
+    cmap = cm.get_cmap('jet')
+    rgba = cmap(np.linspace(0, 1, n))
+    return rgba
 
 def create_result_image(im, locs, perc, ax = None):
     if ax is None:
@@ -1162,7 +1184,8 @@ def db_info(self, dbType='val',train_type=0):
     return np.array(val_info).reshape([-1,2])
 
 
-def analyze_gradients(loss, exclude, sess):
+def analyze_gradients(loss, exclude, sess=None):
+    # exclude should be a list and not a string
     var = tf.global_variables()
     tvar = []
     for vv in var:
@@ -1173,6 +1196,15 @@ def analyze_gradients(loss, exclude, sess):
     gg = tf.gradients(loss,var)
     return gg, var
 
+
+def compute_vals(op,n_steps):
+    all = []
+    for ndx in range(n_steps):
+        a = op()
+        all.append(a)
+    all = np.array(all)
+    all = np.reshape(all,(-1,)+all.shape[2:])
+    return all
 
 def count_records(filename):
     num = 0
@@ -1404,7 +1436,7 @@ def get_last_epoch(conf, name):
 def get_latest_model_file_keras(conf, name):
     last_epoch = get_last_epoch(conf, name)
     save_epoch = last_epoch
-    latest_model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(save_epoch))
+    latest_model_file = os.path.join(conf.cachedir, name + '-{}'.format(save_epoch))
     if not os.path.exists(latest_model_file):
         save_epoch = int(np.floor(last_epoch/conf.save_step)*conf.save_step)
         latest_model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(save_epoch))
@@ -1412,6 +1444,9 @@ def get_latest_model_file_keras(conf, name):
 
 
 def get_crop_loc(lbl,ndx,view, on_gt=False):
+    ''' return crop loc in 0-indexed format
+    For indexing add 1 to xhi and yhi.
+    '''
     from APT_interface_mdn import read_entry
     # this is unnecessarily ugly just because matlab.
     if lbl['cropProjHasCrops'][0, 0] == 1:
@@ -1447,3 +1482,28 @@ def create_cum_plot(dd,d_max=None):
 def datestr():
     import datetime
     return datetime.datetime.now().strftime('%Y%m%d')
+
+
+def submit_job(name, cmd, dir,queue='gpu_any'):
+    import subprocess
+    sing_script = os.path.join(dir, 'opt_' + name + '.sh')
+    sing_err = os.path.join(dir, 'opt_' + name + '.err')
+    sing_log = os.path.join(dir, 'opt_' + name + '.log')
+    with open(sing_script, 'w') as f:
+        f.write('#!/bin/bash\n')
+        f.write('bjobs -uall -m `hostname -s`\n')
+        f.write('. /opt/venv/bin/activate\n')
+        f.write('cd /groups/branson/home/kabram/bransonlab/APT/deepnet\n')
+        f.write('numCores2use={} \n'.format(2))
+        f.write('python {}'.format(cmd))
+        f.write('\n')
+
+    os.chmod(sing_script, 0755)
+
+    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "num=1" -q {} "singularity exec --nv /misc/local/singularity/branson_v2.simg {}"' '''.format(
+        sing_log, sing_err, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    subprocess.call(cmd, shell=True)
+    print('Submitted jobs for {}'.format(name))
+    print(cmd)
+
+

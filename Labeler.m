@@ -24,7 +24,7 @@ classdef Labeler < handle
       'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
-      'trackModeIdx' ...
+      'trackModeIdx' 'trackDLBackEnd' 'trackDLParams' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
       'preProcParams' 'preProcH0' 'preProcSaveData' ...
       'xvResults' 'xvResultsTS' ...
@@ -43,6 +43,9 @@ classdef Labeler < handle
     
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};
+     
+     
+    DLCONFIGINFOURL = 'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking'; 
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
   end
@@ -240,6 +243,7 @@ classdef Labeler < handle
   end
   properties (Dependent)
     isMultiView;
+    movieFilesAllGTaware;
     movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
     movieFilesAllGTFull; % etc
     movieFilesAllFullGTaware;
@@ -436,12 +440,17 @@ classdef Labeler < handle
   properties (Dependent)
     tracker % The current tracker, or []
     trackerAlgo % The current tracker algorithm, or ''
+    trackerIsDL
   end
   properties (SetObservable)
     trackModeIdx % index into MFTSetEnum.TrackingMenu* for current trackmode. 
      %Note MFTSetEnum.TrackingMenuNoTrx==MFTSetEnum.TrackingMenuTrx(1:K).
      %Values of trackModeIdx 1..K apply to either the NoTrx or Trx cases; 
      %larger values apply only the Trx case.
+     
+    trackDLBackEnd % scalar DLBackEndClass
+    trackDLParams % scalar struct, common DL params
+    
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
@@ -527,19 +536,21 @@ classdef Labeler < handle
     function v = get.isMultiView(obj)
       v = obj.nview>1;
     end
+    function v = get.movieFilesAllGTaware(obj)
+      if obj.gtIsGTMode
+        v = obj.movieFilesAllGT;
+      else        
+        v = obj.movieFilesAll;
+      end
+    end
     function v = get.movieFilesAllFull(obj)
       % See also .projLocalizePath()
-      sMacro = obj.projMacros;
-      if ~isfield(sMacro,'projdir') && ~isempty(obj.projectroot)
-        % This conditional allows user to explictly specify project root
-        % Useful use case here: testproject 'modules' (lbl + data in portable folder)
-        sMacro.projdir = obj.projectroot;
-      end
+      sMacro = obj.projMacrosGetWithAuto();
       v = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
       FSPath.warnUnreplacedMacros(v);
     end
     function v = get.movieFilesAllGTFull(obj)
-      sMacro = obj.projMacros;
+      sMacro = obj.projMacrosGetWithAuto();
       v = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       FSPath.warnUnreplacedMacros(v);
     end
@@ -975,6 +986,14 @@ classdef Labeler < handle
         v = v.algorithmName;
       end
     end
+    function v = get.trackerIsDL(obj)
+      v = obj.tracker;
+      if isempty(v)
+        v = [];
+      else
+        v = isa(v,'DeepTracker');
+      end
+    end
   end
   
   methods % prop access
@@ -1265,6 +1284,9 @@ classdef Labeler < handle
       % Trackers created/initted in projLoad and projNew; eg when loading,
       % the loaded .lbl knows what trackers to create.
       obj.currTracker = 0;
+      
+      obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
+      obj.trackDLParams = APTParameters.defaultParamsStructDTCommon;  
 
       obj.projectHasTrx = cfg.Trx.HasTrx;
       obj.showOccludedBox = cfg.View.OccludedBox;
@@ -1498,7 +1520,9 @@ classdef Labeler < handle
         nTrkers = numel(dfltTrkers);
         tAll = cell(1,nTrkers);
         for i=1:nTrkers
-          tAll{i} = feval(dfltTrkers{i},obj);
+          trkerCls = dfltTrkers{i}{1};
+          trkerClsArgs = dfltTrkers{i}(2:end);
+          tAll{i} = feval(trkerCls,obj,trkerClsArgs{:});
           tAll{i}.init();
         end
         obj.trackersAll = tAll;
@@ -1613,8 +1637,9 @@ classdef Labeler < handle
           %s.labelTemplate = obj.lblCore.getTemplate();
       end
 
-      s.trackerClass = cellfun(@class,obj.trackersAll,'uni',0);
-      s.trackerData = cellfun(@getSaveToken,obj.trackersAll,'uni',0);
+      tObjAll = obj.trackersAll;
+      s.trackerClass = cellfun(@getTrackerClassAugmented,tObjAll,'uni',0);
+      s.trackerData = cellfun(@getSaveToken,tObjAll,'uni',0);
       
       if obj.preProcSaveData || forceIncDataCache
         s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
@@ -1720,19 +1745,8 @@ classdef Labeler < handle
       assert(nTracker==numel(s.trackerClass));
       assert(isempty(obj.trackersAll));
       tAll = cell(1,nTracker);
-      for i=1:nTracker        
-        tCls = s.trackerClass{i};
-        tData = s.trackerData{i};
-        if exist(tCls,'class')==0
-          error('Labeler:projLoad',...
-            'Project tracker class ''%s'' cannot be found.',tCls);
-        end
-        tObj = feval(tCls,obj);
-        tObj.init();
-        if ~isempty(tData)
-          tObj.loadSaveToken(tData);
-        end
-        tAll{i} = tObj;
+      for i=1:nTracker 
+        tAll{i} = LabelTracker.create(obj,s.trackerClass{i},s.trackerData{i});
       end
       obj.trackersAll = tAll;
       
@@ -1945,6 +1959,20 @@ classdef Labeler < handle
       end     
     end
     
+    function s = projMacrosGetWithAuto(obj)
+      % append auto-generated macros to .projMacros
+      %
+      % over time, many/most clients of .projMacros should probably call
+      % this
+      
+      s = obj.projMacros;
+      if ~isfield(s,'projdir') && ~isempty(obj.projectroot)
+        % This conditional allows user to explictly specify project root
+        % Useful use case here: testproject 'modules' (lbl + data in portable folder)
+        s.projdir = obj.projectroot;
+      end
+    end
+    
     function projMacroRm(obj,macro)
       if ~isfield(obj.projMacros,macro)
         error('Labeler:macro','Macro ''%s'' is not defined.',macro);
@@ -1972,7 +2000,7 @@ classdef Labeler < handle
     end
    
     function s = projMacroStrs(obj)
-      m = obj.projMacros;
+      m = obj.projMacrosGetWithAuto();
       flds = fieldnames(m);
       vals = struct2cell(m);
       s = cellfun(@(x,y)sprintf('%s -> %s',x,y),flds,vals,'uni',0);
@@ -2317,6 +2345,7 @@ classdef Labeler < handle
 %       end
       
       % 20180525 DeepTrack integration. .trackerClass, .trackerData, .currTracker
+      % 20181215 Updated for multiple DeepTrackers
       dfltTrkers = LabelTracker.APT_DEFAULT_TRACKERS;
       nDfltTrkers = numel(dfltTrkers);
       if isempty(s.trackerClass)
@@ -2326,14 +2355,51 @@ classdef Labeler < handle
         s.trackerData = repmat({[]},1,nDfltTrkers);
         s.currTracker = 0;
       elseif ischar(s.trackerClass)
-        assert(strcmp(s.trackerClass,dfltTrkers{1}));
+        assert(strcmp(s.trackerClass,dfltTrkers{1}{1}));
+        assert(strcmp(s.trackerClass,'CPRLabelTracker'));
         s.trackerClass = dfltTrkers;
         tData = repmat({[]},1,nDfltTrkers);
         tData{1} = s.trackerData;
         s.trackerData = tData;
         s.currTracker = 1;
+      elseif iscell(s.trackerClass)
+                
+        nExistingTrkers = numel(s.trackerClass);
+        if nExistingTrkers==2 % 20181214, only one deeptracker that had mutable trnNetType
+          assert(isequal(s.trackerClass,{'CPRLabelTracker' 'DeepTracker'}));
+          
+          % KB 20181217 - this was stored as a char originally
+          if ~isfield(s.trackerData{2},'trnNetType'),
+            s.trackerData{2}.trnNetType =  DLNetType.mdn;
+          elseif ischar(s.trackerData{2}.trnNetType),
+            s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType);
+          else isstruct(s.trackerData{2}.trnNetType), 
+            %MK 20190110 - trnNetType can be a struct too.
+            s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType.ValueNames{1});  
+          end
+          
+          dlTrkClsAug = {'DeepTracker' 'trnNetType' s.trackerData{2}.trnNetType};
+          tf = cellfun(@(x)isequal(dlTrkClsAug,x),dfltTrkers);
+          iTrk = find(tf);
+          assert(isscalar(iTrk));
+          newTData = repmat({[]},1,nDfltTrkers);
+          newTData{1} = s.trackerData{1};
+          newTData{iTrk} = s.trackerData{2};
+          s.trackerData = newTData;
+          s.trackerClass = dfltTrkers;
+          if s.currTracker==2
+            s.currTracker = iTrk;
+          end
+        else % 20181214, planning ahead when we add trackers
+          assert(isequal(s.trackerClass(:),dfltTrkers(1:nExistingTrkers)));
+          s.trackerClass(nExistingTrkers+1:nDfltTrkers) = ...
+            dfltTrkers(nExistingTrkers+1:nDfltTrkers);
+          s.trackerData(nExistingTrkers+1:nDfltTrkers) = ...
+            repmat({[]},1,nDfltTrkers-nExistingTrkers);
+        end
+      else
+        assert(false);
       end
-      assert(iscell(s.trackerClass));
     
       % 20180604
       if ~isfield(s,'labeledpos2GT')
@@ -2391,6 +2457,39 @@ classdef Labeler < handle
           s.movieInfoAll{i}.info = rmfield(s.movieInfoAll{i}.info,'readerobj');
         end
       end
+      
+      % 20181215 factor dlbackend out of DeepTrackers into single/common
+      % prop on Labeler
+      if ~isfield(s,'trackDLBackEnd')
+        % maybe change this by looking thru existing trackerDatas
+        s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
+      end      
+      
+      % 20181220 DL common parameters
+      if ~isfield(s,'trackDLParams')
+        cachedirs = cell(0,1);
+        for i=2:numel(s.trackerData)
+          td = s.trackerData{i};
+          tfHasCache = ~isempty(td) && ~isempty(td.sPrm) && ~isempty(td.sPrm.CacheDir);
+          if tfHasCache
+            cachedirs{end+1,1} = td.sPrm.CacheDir; %#ok<AGROW>
+          end
+        end
+        if ~isempty(cachedirs)
+          if ~all(strcmp(cachedirs,cachedirs{1}))
+            warningNoTrace('Project contains multiple DeepTracker cache directories: %s. Using first cache dir.',...          
+             String.cellstr2CommaSepList(cachedirs));
+          end
+          cdir = cachedirs{1};
+        else
+          cdir = '';
+        end
+        s.trackDLParams = struct('CacheDir',cdir);
+      end
+      
+      % modernize DL common params
+      sDLcommon = APTParameters.defaultParamsStructDTCommon;      
+      s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
     end
 
   end 
@@ -2462,6 +2561,8 @@ classdef Labeler < handle
       
         movfilefull = obj.projLocalizePath(movFile);
         assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);
+        
+        % See movieSetInProj()
         if any(strcmp(movFile,obj.(PROPS.MFA)))
           if nMov==1
             error('Labeler:dupmov',...
@@ -2604,22 +2705,17 @@ classdef Labeler < handle
         end
       end
       
-      moviefilesfull = cellfun(@(x)obj.projLocalizePath(x),moviefiles,'uni',0);
-      cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),moviefilesfull);
-      tfMFeq = arrayfun(@(x)strcmp(moviefiles{x},obj.(PROPS.MFA)(:,x)),...
-        1:obj.nview,'uni',0);
-      tfMFFeq = arrayfun(@(x)strcmp(moviefilesfull{x},obj.(PROPS.MFAF)(:,x)),...
-        1:obj.nview,'uni',0);
-      tfMFeq = cat(2,tfMFeq{:}); % [nmoviesetxnview], true when moviefiles matches movieFilesAll
-      tfMFFeq = cat(2,tfMFFeq{:}); % [nmoviesetxnview], true when movfilefull matches movieFilesAllFull
-      iAllViewsMatch = find(all(tfMFeq,2));
-      if ~isempty(iAllViewsMatch)
+      [tfmatch,imovmatch,tfMovsEq,moviefilesfull] = obj.movieSetInProj(moviefiles);
+      if tfmatch
         error('Labeler:dupmov',...
-          'Movieset matches current movieset %d in project.',iAllViewsMatch(1));
+          'Movieset matches current movieset %d in project.',imovmatch);
       end
+      
+      cellfun(@(x)assert(exist(x,'file')>0,'Cannot find file ''%s''.',x),moviefilesfull);      
+      
       for iView=1:obj.nview
-        iMFmatches = find(tfMFeq(:,iView));
-        iMFFmatches = find(tfMFFeq(:,iView));
+        iMFmatches = find(tfMovsEq(:,iView,1));
+        iMFFmatches = find(tfMovsEq(:,iView,2));
         iMFFmatches = setdiff(iMFFmatches,iMFmatches);
         if ~isempty(iMFmatches)
           warningNoTrace('Labeler:dupmov',...
@@ -2695,6 +2791,54 @@ classdef Labeler < handle
       end
     end
 
+    function [tf,imovmatch,tfMovsEq,moviefilesfull] = movieSetInProj(obj,moviefiles)
+      % Return true if a movie(set) already exists in the project
+      %
+      % moviefiles: either char if nview==1, or [nview] cellstr. Can
+      %   contain macros.
+      % 
+      % tf: true if moviefiles exists in a row of .movieFilesAll or
+      %   .movieFilesAllFull
+      % imovsmatch: if tf==true, the matching movie index; otherwise
+      %   indeterminate
+      % tfMovsEq: [nmovset x nview x 2] logical. tfMovsEq{imov,ivw,j} is
+      %   true if moviefiles{ivw} matches .movieFilesAll{imov,ivw} if j==1
+      %   or .movieFilesAllFull{imov,ivw} if j==2. This output contains
+      %   "partial match" info for multiview projs.
+      %
+      % This is GT aware and matches are searched for the current GT state.
+      
+      if ischar(moviefiles)
+        moviefiles = {moviefiles};
+      end
+      
+      nvw = obj.nview;
+      assert(iscellstr(moviefiles) && numel(moviefiles)==nvw);
+      
+      moviefilesfull = cellfun(@obj.projLocalizePath,moviefiles,'uni',0);
+      
+      PROPS = obj.gtGetSharedProps();
+
+      tfMFeq = arrayfun(@(x)strcmp(moviefiles{x},obj.(PROPS.MFA)(:,x)),1:nvw,'uni',0);
+      tfMFFeq = arrayfun(@(x)strcmp(moviefilesfull{x},obj.(PROPS.MFAF)(:,x)),1:nvw,'uni',0);
+      tfMFeq = cat(2,tfMFeq{:}); % [nmoviesetxnview], true when moviefiles matches movieFilesAll
+      tfMFFeq = cat(2,tfMFFeq{:}); % [nmoviesetxnview], true when movfilefull matches movieFilesAllFull
+      tfMovsEq = cat(3,tfMFeq,tfMFFeq); % [nmovset x nvw x 2]. 3rd dim is {mfa,mfaf}
+      
+      for j=1:2
+        iAllViewsMatch = find(all(tfMovsEq(:,:,j),2));
+        if ~isempty(iAllViewsMatch)
+          assert(isscalar(iAllViewsMatch));
+          tf = true;
+          imovmatch = iAllViewsMatch;
+          return;
+        end
+      end
+      
+      tf = false;
+      imovmatch = [];
+    end
+    
 %     function tfSucc = movieRmName(obj,movName)
 %       % movName: compared to .movieFilesAll (macros UNreplaced)
 %       assert(~obj.isMultiView,'Unsupported for multiview projects.');
@@ -5796,8 +5940,11 @@ classdef Labeler < handle
       % optional pvs:
       % - framerate. defaults to 10.
       
-      framerate = myparse(varargin,'framerate',10);
-      
+      [frms2inc,framerate] = myparse(varargin,...
+        'frms2inc','all',... % 
+        'framerate',10 ...
+      );
+
       if ~obj.hasMovie
         error('Labeler:noMovie','No movie currently open.');
       end
@@ -5806,29 +5953,39 @@ classdef Labeler < handle
           fname);
       end
       
-      nTgts = obj.labelPosLabeledFramesStats();
-      frmsLbled = find(nTgts>0);
-      nFrmsLbled = numel(frmsLbled);
-      if nFrmsLbled==0
-        msgbox('Current movie has no labeled frames.');
-        return;
+      switch frms2inc
+        case 'all'
+          frms = 1:obj.nframes;
+        case 'lbled'
+          nTgts = obj.labelPosLabeledFramesStats();
+          frms = find(nTgts>0);
+          if nFrms==0
+            msgbox('Current movie has no labeled frames.');
+            return;
+          end
+        otherwise
+          assert(false);
       end
-            
+
+      nFrms = numel(frms);
+
       ax = obj.gdata.axes_curr;
-      vr = VideoWriter(fname);      
+      axlims = axis(ax);
+      vr = VideoWriter(fname); 
       vr.FrameRate = framerate;
 
       vr.open();
       try
         hTxt = text(230,10,'','parent',obj.gdata.axes_curr,'Color','white','fontsize',24);
         hWB = waitbar(0,'Writing video');
-        for i = 1:nFrmsLbled
-          f = frmsLbled(i);
+        for i = 1:nFrms
+          f = frms(i);
           obj.setFrame(f);
+          axis(ax,axlims);
           hTxt.String = sprintf('%04d',f);
           tmpFrame = getframe(ax);
           vr.writeVideo(tmpFrame);
-          waitbar(i/nFrmsLbled,hWB,sprintf('Wrote frame %d\n',f));
+          waitbar(i/nFrms,hWB,sprintf('Wrote frame %d\n',f));
         end
       catch ME
         vr.close();
@@ -6147,7 +6304,7 @@ classdef Labeler < handle
           hLns(ivw,ipts) = hP;
         end
         
-        hCM = uicontextmenu('parent',hFgs(ivw),'Tag',sprintf('LabelOverlayMontage_vw%d',ivw));
+        hCM = uicontextmenu('parent',hFgs(ivw),'Tag',sprintf('LabelOverlayMontages_vw%d',ivw));
         uimenu('Parent',hCM,'Label','Clear selection',...
           'Separator','on',...
           'Callback',@(src,evt)ec.sendSignal([],zeros(0,1)),...
@@ -8157,18 +8314,19 @@ classdef Labeler < handle
     end
         
     function trackSetParams(obj,sPrm)
-      % Set ALL tracking parameters; preproc, and all trackers
+      % Set all parameters:
+      %  - preproc
+      %  - cpr
+      %  - common dl
+      %  - specific dl
       % 
       % sPrm: scalar struct containing *new*-style params:
       % sPrm.ROOT.Track
       %          .CPR
       %          .DeepTrack
 
-      tObj = obj.trackGetTracker('cpr');      
-      dtObj = obj.trackGetTracker('poseTF');
-      if isempty(tObj) || isempty(dtObj)
-        error('Cannot find one or more trackers.');
-      end
+      tcprObj = obj.trackGetTracker('cpr');      
+      assert(~isempty(tcprObj));
         
       % Future TODO: right now this is hardcoded, eg "DeepTrack" doesn't
       % match 'poseTF', and lots of special-case code.
@@ -8192,9 +8350,18 @@ classdef Labeler < handle
       % changes should be reflected.
       tfPPprmsChanged = obj.preProcSetParams(ppPrms); % THROWS
       
-      tObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
+      tcprObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
       
-      dtObj.setParams(sPrmDT);
+      tDTs = obj.trackersAll(2:end);
+      dlNetTypesPretty = cellfun(@(x)x.trnNetType.prettyString,tDTs,'uni',0);
+      sPrmDTcommon = rmfield(sPrmDT,dlNetTypesPretty);
+      tfDTcommonChanged = obj.trackSetDLParams(sPrmDTcommon);
+      for i=1:numel(tDTs)
+        tObj = tDTs{i};
+        netType = dlNetTypesPretty{i};
+        sPrmDTnet = sPrmDT.(netType);
+        tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonChanged);
+      end
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
@@ -8220,31 +8387,33 @@ classdef Labeler < handle
     end
     
     function sPrm = trackGetParams(obj)
-      % Get full set of parameters from all trackers
+      % Get all parameters:
+      %  - preproc
+      %  - cpr
+      %  - common dl
+      %  - specific dl
       %
       % sPrm: scalar struct containing NEW-style params:
       % sPrm.ROOT.Track
       %          .CPR
-      %          .DeepTrack
+      %          .DeepTrack (if applicable)
       % Top-level fields .Track, .CPR, .DeepTrack may be missing if they
       % don't exist yet.
       
       % Future TODO: As in trackSetParams, currently this is hardcoded when
       % it ideally would just be a generic loop
        
-      tObj = obj.trackGetTracker('cpr');      
-      dtObj = obj.trackGetTracker('poseTF');
-      assert(~isempty(tObj),'CPR tracker object not found.');
-      assert(~isempty(dtObj),'DeepTracker object not found.');
+      tcprObj = obj.trackGetTracker('cpr');
+      assert(~isempty(tcprObj),'CPR tracker object not found.');
 
-      prmCpr = tObj.sPrm;
+      prmCpr = tcprObj.sPrm;
       prmPP = obj.preProcParams;
 %      assert(~xor(isempty(prmCpr),isempty(prmPP)));
-      if ~isempty(prmCpr)        
+      if ~isempty(prmCpr)
         assert(~isempty(prmPP))
         assert(~isfield(prmCpr,'PreProc'));
         prmCpr.PreProc = prmPP;
-        sPrm = CPRParam.old2new(prmCpr,obj);        
+        sPrm = CPRParam.old2new(prmCpr,obj);
       else
         sPrm = struct();
         % Even if prmCpr/prmPP are empty, these params come from obj.
@@ -8261,11 +8430,39 @@ classdef Labeler < handle
         
         % Other fields of sPrm.ROOT.Track, sPrm.ROOT.CPR will be empty
       end
-            
-      sPrmDT = dtObj.getParams();
-      if ~isempty(sPrmDT)
-        sPrm.ROOT.DeepTrack = sPrmDT;
+      
+      % DL: start with common params
+      sPrm.ROOT.DeepTrack = obj.trackDLParams;
+      
+      tDLs = obj.trackersAll(2:end);
+      for i=1:numel(tDLs)
+        tObj = tDLs{i};
+        netTypePretty = tObj.trnNetType.prettyString;
+        sPrmDT = tObj.getParams();
+        sPrm.ROOT.DeepTrack.(netTypePretty) = sPrmDT;
       end
+    end
+    
+    function tfPrmsChanged = trackSetDLParams(obj,dlPrms) % THROWS
+      assert(isstruct(dlPrms));
+
+      dlPrms0 = obj.trackDLParams;
+      if ~isempty(dlPrms0.CacheDir) && ~isequal(dlPrms0.CacheDir,dlPrms.CacheDir)
+        warningNoTrace('Existing/old trained Deep models will remain on disk at %s but will be inaccessible within APT.',...
+          dlPrms0.CacheDir);
+      end
+      
+      tfPrmsChanged = ~isequaln(dlPrms0,dlPrms);      
+      obj.trackDLParams = dlPrms;
+    end
+    
+    function trackSetDLBackend(obj,be)
+      assert(isa(be,'DLBackEndClass'));
+      [tf,reason] = be.getReadyTrainTrack();
+      if ~tf
+        warningNoTrace('Backend is not ready to train: %s',reason);
+      end
+      obj.trackDLBackEnd = be;
     end
     
     function trackTrain(obj)
@@ -8391,8 +8588,11 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
-    function s = trackCreateDeepTrackerStrippedLbl(obj)
+    function s = trackCreateDeepTrackerStrippedLbl(obj,tblTrnMFT)
       % For use with DeepTrackers
+      %
+      % tblTrnMFT: training data table. reqd cols MFTable.FLDSID. restrict 
+      %   preProcDataCache export to these rows.
       
       if ~obj.hasMovie
         % for NumChans see below
@@ -8427,15 +8627,31 @@ classdef Labeler < handle
         
         ppdata = s.preProcData;
         ppdataMD = ppdata.MD;
+        
+        tfInc = tblismember(ppdataMD,tblTrnMFT,MFTable.FLDSID);
+        fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
+          nnz(tfInc),numel(tfInc));
+        
+        ppdataMD = ppdataMD(tfInc,:);
+        ppdataI = ppdata.I(tfInc,:);
+        
         ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
         ppMDflds = tblflds(ppdataMD);
-        s.preProcData_I = ppdata.I;
+        s.preProcData_I = ppdataI;
         for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
           sfld = ['preProcData_MD_' f];
           s.(sfld) = ppdataMD.(f);
         end
         s = rmfield(s,'preProcData');
       end
+      
+      s.trackerClass = {'__UNUSED__' 'DeepTracker'};
+      
+      tdata = s.trackerData{s.currTracker};
+      sPrmDL = obj.trackDLParams;
+      sPrmDL = rmfield(sPrmDL,'CacheDir');
+      tdata.sPrm = structmerge(tdata.sPrm,sPrmDL);
+      s.trackerData = {[] tdata};      
       
 %       tf = strcmp(s.trackerClass,'DeepTracker');
 %       i = find(tf);
@@ -10740,6 +10956,10 @@ classdef Labeler < handle
       %iMov = paModeInfo.iMov;
       %iTgt = paModeInfo.iTgt;
       
+      if ~isfield(paModeInfo,'axes_curr'),
+        paModeInfo = obj.SetPrevAxesProperties(paModeInfo);
+      end
+      
       [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
       if ~tffound,
         paModeInfo.frm = [];
@@ -10874,12 +11094,33 @@ classdef Labeler < handle
         ModeInfo.dylim = [0,0];
       end
       
+      ModeInfo = obj.SetPrevAxesProperties(ModeInfo);
+      
+%       xdir = get(obj.gdata.axes_curr,'XDir');
+%       ydir = get(obj.gdata.axes_curr,'YDir');
+%       ModeInfo.axes_curr = struct('XLim',xlim,'YLim',ylim,...
+%         'XDir',xdir','YDir',ydir,...
+%         'CameraViewAngleMode','auto');
+      
+      if nargin < 2,
+        obj.prevAxesModeInfo = ModeInfo;
+      end
+      
+    end
+    
+    function ModeInfo = SetPrevAxesProperties(obj,ModeInfo)
+      
+      
+      if nargin < 2,
+        ModeInfo = obj.prevAxesModeInfo;
+      end
+      
       xdir = get(obj.gdata.axes_curr,'XDir');
       ydir = get(obj.gdata.axes_curr,'YDir');
       ModeInfo.axes_curr = struct('XLim',xlim,'YLim',ylim,...
         'XDir',xdir','YDir',ydir,...
         'CameraViewAngleMode','auto');
-      
+
       if nargin < 2,
         obj.prevAxesModeInfo = ModeInfo;
       end

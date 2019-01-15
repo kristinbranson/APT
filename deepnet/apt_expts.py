@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import argparse
 import sys
 import os
-import APT_interface_mdn as apt
+import APT_interface as apt
 import h5py
 import subprocess
 import yaml
@@ -17,6 +17,8 @@ import multiResData
 import numpy as np
 import random
 import json
+import subprocess
+import PoseTools
 
 methods = ['unet','leap','deeplabcut','openpose']
 out_dir = '/groups/branson/bransonlab/mayank/apt_expts/'
@@ -365,6 +367,26 @@ def train_ours(args):
                     print('Submitted job: {}'.format(cmd))
 
 
+def classify_db_all(conf,db_file,model_files,model_type,name='deepnet'):
+    cur_out = []
+    extra_str = ''
+    if model_type in ['mdn','unet','deeplabcut']:
+        extra_str = '.index'
+    # else:
+    #     extra_str = '.h5'
+    ts = [os.path.getmtime(f + extra_str) for f in model_files]
+
+    for mndx, m in enumerate(model_files):
+        # pred, label, gt_list = apt.classify_gt_data(conf, curm, out_file, m)
+        tf_iterator = multiResData.tf_reader(conf, db_file, False)
+        tf_iterator.batch_size = 1
+        read_fn = tf_iterator.next
+        pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name)
+        pred, label, gt_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+        close_fn()
+        cur_out.append([pred, label, gt_list, m, 0,ts[mndx]])
+
+    return cur_out
 
 def compute_peformance(args):
     H = h5py.File(args.lbl_file,'r')
@@ -476,7 +498,7 @@ def compute_peformance(args):
 def get_model_files(conf, cache_dir, method):
     if method == 'unet':
 #files = glob.glob(os.path.join(cache_dir,"{}_pose_unet-[0-9]*.index").format(conf.expname,conf.view))
-        files = glob.glob(os.path.join(cache_dir,"{}_pose_umdn-[0-9]*.index").format(conf.expname,conf.view))
+        files = glob.glob(os.path.join(cache_dir,"{}_deepnet-[0-9]*.index").format(conf.expname,conf.view))
         files.sort(key=os.path.getmtime)
         ts = [os.path.getmtime(f) for f in files]
         files = [os.path.splitext(f)[0] for f in files]
@@ -501,8 +523,15 @@ def get_model_files(conf, cache_dir, method):
     ts = [t-init_t for t in ts]
     return files, ts
 
-
-
+def do_opt(lbl_file, cache_dir, param_dict, name, local=True):
+    for k in param_dict.keys():
+        for ndx, v in enumerate(param_dict[k]):
+            exp_name = '{}_{}'.format(k,ndx)
+            cmd = 'APT_interface.py {} -name {} -cache {} -exp_name {} -type mdn -conf_params {} {} train -skip_db'.format(lbl_file,name,cache_dir, exp_name, k, v, )
+            if local:
+                subprocess.call('python',cmd)
+            else:
+                PoseTools.submit_job(exp_name,cmd,cache_dir)
 
 def main(argv):
     parser = argparse.ArgumentParser()

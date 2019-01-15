@@ -4,6 +4,9 @@ classdef APTParameters
     TRACK_PARAMETER_FILE = lclInitTrackParameterFile();
     CPR_PARAMETER_FILE = lclInitCPRParameterFile();
     DEEPTRACK_PARAMETER_FILE = lclInitDeepTrackParameterFile();
+    MDN_PARAMETER_FILE = lclInitDeepTrackMDNParameterFile();
+    DLC_PARAMETER_FILE = lclInitDeepTrackDLCParameterFile();
+    UNET_PARAMETER_FILE = lclInitDeepTrackUNetParameterFile();
   end
   methods (Static)
     function tPrm0 = defaultParamsTree
@@ -16,8 +19,14 @@ classdef APTParameters
       tPrmTrack = parseConfigYaml(APTParameters.TRACK_PARAMETER_FILE);
       tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
+      tPrmMdn = parseConfigYaml(APTParameters.MDN_PARAMETER_FILE);
+      tPrmDlc = parseConfigYaml(APTParameters.DLC_PARAMETER_FILE);
+      tPrmUnet = parseConfigYaml(APTParameters.UNET_PARAMETER_FILE);
+      tPrmDT.Children.Children = [tPrmDT.Children.Children;...
+        tPrmMdn.Children; tPrmDlc.Children; tPrmUnet.Children];        
       tPrm0 = tPrmPreprocess;
-      tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;tPrmCpr.Children;tPrmDT.Children];
+      tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
+        tPrmCpr.Children; tPrmDT.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
@@ -49,6 +58,30 @@ classdef APTParameters
       sPrmDT = sPrmDT.ROOT;
       
       sPrm0 = structmerge(sPrmPreprocess,sPrmTrack,sPrmCpr,sPrmDT);
+    end
+    function sPrmDTcommon = defaultParamsStructDTCommon
+      tPrm = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
+      sPrm = tPrm.structize();
+      sPrmDTcommon = sPrm.ROOT.DeepTrack;
+    end
+    function sPrmDTspecific = defaultParamsStructDT(nettype)
+      switch nettype
+        case DLNetType.mdn
+          prmFile = APTParameters.MDN_PARAMETER_FILE;
+        case DLNetType.deeplabcut
+          prmFile = APTParameters.DLC_PARAMETER_FILE;
+        case DLNetType.unet
+          prmFile = APTParameters.UNET_PARAMETER_FILE;
+        otherwise
+          assert(false);
+      end
+      tPrm = parseConfigYaml(prmFile);
+      sPrmDTspecific = tPrm.structize();
+      sPrmDTspecific = sPrmDTspecific.ROOT;
+      fld = fieldnames(sPrmDTspecific);
+      assert(isscalar(fld)); % eg {'MDN'}
+      fld = fld{1};
+      sPrmDTspecific = sPrmDTspecific.(fld);
     end
     function ppPrm0 = defaultPreProcParamsOldStyle
       sPrm0 = APTParameters.defaultParamsOldStyle();
@@ -121,12 +154,16 @@ classdef APTParameters
       
         if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(labelerObj.trackerAlgo,'cpr'),
           tree.Data.Visible = false;
-        end
-        if ismember('hasTrx',tree.Data.Requirements) && ~labelerObj.hasTrx,
+        elseif ismember('hasTrx',tree.Data.Requirements) && ~labelerObj.hasTrx,
           tree.Data.Visible = false;
-        end
-        if ismember('isDeepTrack',tree.Data.Requirements) && ~strcmpi(labelerObj.trackerAlgo,'poseTF'),
+        elseif ismember('isDeepTrack',tree.Data.Requirements) && ~labelerObj.trackerIsDL,
           tree.Data.Visible = false;
+        elseif ismember('isMDN',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'mdn'),
+          tree.Data.Visible = false;
+        elseif ismember('isDeepLabCut',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'deeplabcut'),
+          tree.Data.Visible = false;
+        elseif ismember('isUnet',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'unet'),
+          tree.Data.Visible = false;        
         end
         
         return;
@@ -156,36 +193,31 @@ classdef APTParameters
 end
 
 function preprocessParamFile = lclInitPreprocessParameterFile()
-if isdeployed
-  preprocessParamFile = fullfile(ctfroot,'params_preprocess.yaml');
-else
-  aptroot = APT.Root;
-  preprocessParamFile = fullfile(aptroot,'params_preprocess.yaml');
-end
+aptroot = APT.Root;
+preprocessParamFile = fullfile(aptroot,'params_preprocess.yaml');
 end
 function trackParamFile = lclInitTrackParameterFile()
-if isdeployed
-  trackParamFile = fullfile(ctfroot,'params_track.yaml');
-else
-  aptroot = APT.Root;
-  trackParamFile = fullfile(aptroot,'params_track.yaml');
-end
+aptroot = APT.Root;
+trackParamFile = fullfile(aptroot,'params_track.yaml');
 end
 function cprParamFile = lclInitCPRParameterFile()
-if isdeployed
-  cprParamFile = fullfile(ctfroot,'params_cpr.yaml');
-  %cprParamFile = fullfile(ctfroot,'params_apt.yaml');
-else
-  aptroot = APT.Root;
-  cprParamFile = fullfile(aptroot,'trackers','cpr','params_cpr.yaml');
-  %cprParamFile = fullfile(aptroot,'trackers','cpr','params_apt.yaml');
-end
+aptroot = APT.Root;
+cprParamFile = fullfile(aptroot,'trackers','cpr','params_cpr.yaml');
+%cprParamFile = fullfile(aptroot,'trackers','cpr','params_apt.yaml');
 end
 function dtParamFile = lclInitDeepTrackParameterFile()
-if isdeployed
-  dtParamFile = fullfile(ctfroot,'params_deeptrack.yaml');
-else
-  aptroot = APT.Root;
-  dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack.yaml');
+aptroot = APT.Root;
+dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack.yaml');
 end
+function dtParamFile = lclInitDeepTrackMDNParameterFile()
+aptroot = APT.Root;
+dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_mdn.yaml');
+end
+function dtParamFile = lclInitDeepTrackDLCParameterFile()
+aptroot = APT.Root;
+dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_dlc.yaml');
+end
+function dtParamFile = lclInitDeepTrackUNetParameterFile()
+aptroot = APT.Root;
+dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_unet.yaml');
 end

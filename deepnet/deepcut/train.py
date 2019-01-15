@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
@@ -19,20 +20,20 @@ from easydict import EasyDict as edict
 import config
 import  tarfile
 
-name = 'deepcut'
+# name = 'deepnet'
 
 class LearningRate(object):
     def __init__(self, cfg):
-#        self.steps = cfg.multi_step
+        self.steps = cfg.multi_step
         self.current_step = 0
         self.n_steps = cfg.dl_steps
         self.gamma = cfg.gamma
 
     def get_lr(self, iteration):
-        # lr = self.steps[self.current_step][0]
-        # if iteration == self.steps[self.current_step][1]:
-        #     self.current_step += 1
-        lr = 0.0001 * (self.gamma ** (iteration*3/ self.n_steps))
+        lr = self.steps[self.current_step][0]
+        if iteration == self.steps[self.current_step][1]:
+            self.current_step += 1
+        #lr = 0.0001 * (self.gamma ** (iteration*3/ self.n_steps))
         return lr
 
 
@@ -55,10 +56,13 @@ def setup_preloading(batch_spec):
 
 
 def load_and_enqueue(sess, enqueue_op, coord, dataset, placeholders):
-    while not coord.should_stop():
-        batch_np = dataset.next_batch()
-        food = {pl: batch_np[name] for (name, pl) in placeholders.items()}
-        sess.run(enqueue_op, feed_dict=food)
+    try:
+        while not coord.should_stop():
+            batch_np = dataset.next_batch()
+            food = {pl: batch_np[name] for (name, pl) in placeholders.items()}
+            sess.run(enqueue_op, feed_dict=food)
+    except tf.errors.CancelledError:
+        pass
 
 
 def start_preloading(sess, enqueue_op, dataset, placeholders):
@@ -86,7 +90,7 @@ def get_optimizer(loss_op, cfg):
 
 
 def save_td(cfg, train_info):
-    train_data_file = os.path.join( cfg.cachedir, cfg.expname + '_' + name + '_traindata')
+    train_data_file = os.path.join( cfg.cachedir, 'traindata')
     json_data = {}
     for x in train_info.keys():
         json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()
@@ -96,10 +100,10 @@ def save_td(cfg, train_info):
 
 def set_deepcut_defaults(cfg):
     cfg.batch_size = 1
-    cfg.display_step = 5000
+    cfg.display_step = 500
     cfg.dc_scale = 0.8
     cfg.dl_steps = 1030000
-    cfg.save_step = 50000
+    cfg.save_step = 5000
 
 def get_read_fn(cfg, data_path):
     cfg = edict(cfg.__dict__)
@@ -107,7 +111,7 @@ def get_read_fn(cfg, data_path):
     cfg.batch_size = 1
     cfg.shuffle = False
 
-    dataset = PoseDataset(cfg, data_path)
+    dataset = PoseDataset(cfg, data_path, distort=False)
     n = dataset.num_images
     def read_fn():
         batch_np = dataset.next_batch()
@@ -121,26 +125,26 @@ def get_read_fn(cfg, data_path):
     return read_fn, n
 
 
-def train(cfg):
+def train(cfg,name='deepnet'):
 #    setup_logging()
 
     cfg = edict(cfg.__dict__)
     cfg = config.convert_to_deepcut(cfg)
 
-    dirname = os.path.dirname(__file__)
-    init_weights = os.path.join(dirname, 'models/resnet_v1_50.ckpt')
+    dirname = os.path.dirname(os.path.dirname(__file__))
+    init_weights = os.path.join(dirname, 'pretrained','resnet_v1_50.ckpt')
 
     if not os.path.exists(init_weights):
         # Download and save the pretrained resnet weights.
         logging.info('Downloading pretrained resnet 50 weights ...')
-        urllib.urlretrieve('http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz', os.path.join(dirname,'models','resnet_v1_50_2016_08_28.tar.gz'))
-        tar = tarfile.open(os.path.join(dirname,'models','resnet_v1_50_2016_08_28.tar.gz'))
-        tar.extractall(path=os.path.join(dirname,'models'))
+        urllib.urlretrieve('http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz', os.path.join(dirname,'pretrained','resnet_v1_50_2016_08_28.tar.gz'))
+        tar = tarfile.open(os.path.join(dirname,'pretrained','resnet_v1_50_2016_08_28.tar.gz'))
+        tar.extractall(path=os.path.join(dirname,'pretrained'))
         tar.close()
         logging.info('Done downloading pretrained weights')
 
     db_file_name = os.path.join(cfg.cachedir, 'train_data.p')
-    dataset = PoseDataset(cfg, db_file_name)
+    dataset = PoseDataset(cfg, db_file_name,distort=True)
     train_info = {'train_dist':[],'train_loss':[],'val_dist':[],'val_loss':[],'step':[]}
 
     batch_spec = get_batch_spec(cfg)
@@ -153,6 +157,7 @@ def train(cfg):
 
     for k, t in losses.items():
         tf.summary.scalar(k, t)
+    merged_summaries = tf.summary.merge_all()
 
     variables_to_restore = slim.get_variables_to_restore(include=["resnet_v1"])
     restorer = tf.train.Saver(variables_to_restore)
@@ -176,9 +181,10 @@ def train(cfg):
     cum_loss = 0.0
     lr_gen = LearningRate(cfg)
 
-    model_name = os.path.join( cfg.cachedir, cfg.expname + '_' + name)
-    ckpt_file = os.path.join(cfg.cachedir, cfg.expname + '_' + name + '_ckpt')
+    model_name = os.path.join( cfg.cachedir, name)
+    ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
 
+    start = time.time()
     for it in range(max_iter+1):
         current_lr = lr_gen.get_lr(it)
         [_, loss_val] = sess.run([train_op, total_loss], # merged_summaries],
@@ -187,7 +193,6 @@ def train(cfg):
  #       train_writer.add_summary(summary, it)
 
         if it % display_iters == 0:
-
             cur_out, batch_out = sess.run([outputs, batch], feed_dict={learning_rate: current_lr})
             scmap, locref = predict.extract_cnn_output(cur_out, cfg)
 
@@ -198,6 +203,9 @@ def train(cfg):
             dd = dd*cfg.dlc_rescale
             average_loss = cum_loss / display_iters
             cum_loss = 0.0
+            end = time.time()
+            # print('Time to train: {}'.format(end-start))
+            start = end
             print("iteration: {} loss: {} dist: {}  lr: {}"
                          .format(it, "{0:.4f}".format(average_loss),
                                  '{0:.2f}'.format(dd.mean()), current_lr))
@@ -214,20 +222,21 @@ def train(cfg):
             saver.save(sess, model_name, global_step=it,
                        latest_filename=os.path.basename(ckpt_file))
 
-    coord.request_stop()
-    coord.join([thread])
     sess.close()
+    coord.request_stop()
+    coord.join([thread],3)
 
 
-def get_pred_fn(cfg, model_file=None):
+def get_pred_fn(cfg, model_file=None,name='deepnet'):
 
     cfg = edict(cfg.__dict__)
     cfg = config.convert_to_deepcut(cfg)
 
     if model_file is None:
-        ckpt_file = os.path.join(cfg.cachedir,cfg.expname + '_' + name + '_ckpt')
+        ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
         latest_ckpt = tf.train.get_checkpoint_state( cfg.cachedir, ckpt_file)
         init_weights = latest_ckpt.model_checkpoint_path
+        model_file = latest_ckpt.model_checkpoint_path
     else:
         init_weights = model_file
 
