@@ -118,7 +118,7 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
       
       tfdone = all([res.tfcomplete]);
       if tfdone
-        fprintf(1,'Tracking output files detected:\n');
+        fprintf(1,'%s: Tracking output files detected:\n',datestr(now));
         arrayfun(@(x)fprintf(1,'  %s\n',x.trkfile),res);        
         obj.stop();
         obj.cbkTrkComplete(res);

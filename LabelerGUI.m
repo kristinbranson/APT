@@ -2161,6 +2161,7 @@ if ~tfCanTrack,
   ClearStatus(handles);
   return;
 end
+fprintf('Tracking started at time %s...\n',datestr(now));
 tm = getTrackMode(handles);
 wbObj = WaitBarWithCancel('Tracking');
 centerOnParentFigure(wbObj.hWB,handles.figure);
