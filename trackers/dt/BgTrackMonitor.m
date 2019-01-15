@@ -20,6 +20,7 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
     
     bgClientObj
     bgWorkerObj
+    trkMonitorObj % object with resultsreceived() method
     
     cbkTrkComplete % fcnhandle with sig cbk(res), called when track complete
   end
@@ -61,7 +62,7 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
       obj.cbkTrkComplete = [];
     end
     
-    function prepare(obj,bgWorkerObj,cbkComplete)
+    function prepare(obj,trnMonVizObj,bgWorkerObj,cbkComplete)
       % prepare(obj,mIdx,nview,movfiles,outfiles,bsublogfiles)
       
       obj.reset();
@@ -75,6 +76,8 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;
       obj.cbkTrkComplete = cbkComplete;
+      obj.trnMonitorObj = trnMonVizObj;
+      
     end
     
     function start(obj)

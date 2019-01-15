@@ -75,6 +75,7 @@ classdef DeepTracker < LabelTracker
     
     bgTrkMonitor % BgTrackMonitor obj
     bgTrkMonBGWorkerObj % bgTrackWorkerObj for last/current rack
+    bgTrkMonitorVizClass % class of trackMonitorViz object to use to monitor tracking
     
     % trackres: tracking results DB is in filesys
     movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
@@ -148,6 +149,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonitor = [];
       obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
       obj.bgTrkMonitor = [];
+      obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
       
       obj.trkVizer = TrackingVisualizerHeatMap(lObj);
     end
@@ -1401,6 +1403,14 @@ classdef DeepTracker < LabelTracker
         end
 
         bgTrkMonitorObj = BgTrackMonitor;
+
+        % KB 20190115: adding trkviz
+        nvw = obj.lObj.nview;
+        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type);   
+        bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
+          @(x)obj.trkCompleteCbkAWS(backend,trkfilesLocal,x));
+
+        
         bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
         obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
         
@@ -1563,8 +1573,13 @@ classdef DeepTracker < LabelTracker
         end
                 
         bgTrkMonitorObj = BgTrackMonitor;
-        bgTrkMonitorObj.prepare(bgTrkWorkerObj,...
+        
+        % KB 20190115: adding trkviz
+        nvw = obj.lObj.nview;
+        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type);   
+        bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
           @(x)obj.trkCompleteCbkAWS(backend,trkfilesLocal,x));
+
         obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
         
         % spawn jobs
@@ -1614,7 +1629,7 @@ classdef DeepTracker < LabelTracker
         error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
       end
       assert(isempty(obj.bgTrkMonBGWorkerObj));
-
+      
       trkMonitorObj.start();
       obj.bgTrkMonitor = trkMonitorObj;
       obj.bgTrkMonBGWorkerObj = trkWorkerObj;

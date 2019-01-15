@@ -2140,6 +2140,7 @@ if ~tfCanTrain,
   ClearStatus(handles);
   return;
 end
+fprintf('Training started at %s...\n',datestr(now));
 oc1 = onCleanup(@()ClearStatus(handles));
 wbObj = WaitBarWithCancel('Training');
 oc2 = onCleanup(@()delete(wbObj));
