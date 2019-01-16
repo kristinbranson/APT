@@ -2140,6 +2140,7 @@ if ~tfCanTrain,
   ClearStatus(handles);
   return;
 end
+fprintf('Training started at %s...\n',datestr(now));
 oc1 = onCleanup(@()ClearStatus(handles));
 wbObj = WaitBarWithCancel('Training');
 oc2 = onCleanup(@()delete(wbObj));
@@ -2161,6 +2162,7 @@ if ~tfCanTrack,
   ClearStatus(handles);
   return;
 end
+fprintf('Tracking started at %s...\n',datestr(now));
 tm = getTrackMode(handles);
 wbObj = WaitBarWithCancel('Tracking');
 centerOnParentFigure(wbObj.hWB,handles.figure);

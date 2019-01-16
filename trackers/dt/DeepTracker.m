@@ -80,6 +80,7 @@ classdef DeepTracker < LabelTracker
     
     bgTrkMonitor % BgTrackMonitor obj
     bgTrkMonBGWorkerObj % bgTrackWorkerObj for last/current rack
+    bgTrkMonitorVizClass % class of trackMonitorViz object to use to monitor tracking
     
     % trackres: tracking results DB is in filesys
     movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
@@ -153,6 +154,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonitor = [];
       obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
       obj.bgTrkMonitor = [];
+      obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
       
       obj.trkVizer = TrackingVisualizerHeatMap(lObj);
     end
@@ -1378,6 +1380,8 @@ classdef DeepTracker < LabelTracker
         trksysinfo(ivw).trkfile = trkfile;
         trksysinfo(ivw).logfile = outfile;
         trksysinfo(ivw).errfile = errfile;
+        trksysinfo(ivw).parttrkfile = [trkfile,'.part'];
+
         %trksysinfo(ivw).logfilessh = outfile2;
         
         switch backend.type
@@ -1394,7 +1398,7 @@ classdef DeepTracker < LabelTracker
           'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
           'sshargs',sshargs);
       end
-        
+            
       if obj.dryRunOnly
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
@@ -1405,8 +1409,9 @@ classdef DeepTracker < LabelTracker
         outfiles = {trksysinfo.trkfile}';
         logfiles = {trksysinfo.logfile}';
         errfiles = {trksysinfo.errfile}';
+        partfiles = {trksysinfo.parttrkfile}';
         bgTrkWorkerObj = BgTrackWorkerObjBsub(mIdx,nView,movs,outfiles,...
-          logfiles,errfiles);
+          logfiles,errfiles,partfiles);
         
         tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
         if any(tfErrFileErr)
@@ -1415,7 +1420,16 @@ classdef DeepTracker < LabelTracker
         end
 
         bgTrkMonitorObj = BgTrackMonitor;
-        bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
+
+        % KB 20190115: adding trkviz
+        nvw = obj.lObj.nview;
+        % figure out how many frames are to be tracked
+        nFramesTrack = size(tMFTConc,1);
+        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type,nFramesTrack);   
+        bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
+          @obj.trkCompleteCbk);
+        
+        %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
         obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
         
         % spawn jobs
@@ -1570,8 +1584,13 @@ classdef DeepTracker < LabelTracker
         end
                 
         bgTrkMonitorObj = BgTrackMonitor;
-        bgTrkMonitorObj.prepare(bgTrkWorkerObj,...
+        
+        % KB 20190115: adding trkviz
+        nvw = obj.lObj.nview;
+        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type);   
+        bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
           @(x)obj.trkCompleteCbkAWS(backend,trkfilesLocal,x));
+
         obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
         
         % spawn jobs
@@ -1621,7 +1640,7 @@ classdef DeepTracker < LabelTracker
         error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
       end
       assert(isempty(obj.bgTrkMonBGWorkerObj));
-
+      
       trkMonitorObj.start();
       obj.bgTrkMonitor = trkMonitorObj;
       obj.bgTrkMonBGWorkerObj = trkWorkerObj;

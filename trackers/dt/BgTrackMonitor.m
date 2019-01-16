@@ -20,6 +20,7 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
     
     bgClientObj
     bgWorkerObj
+    trkMonitorObj % object with resultsreceived() method
     
     cbkTrkComplete % fcnhandle with sig cbk(res), called when track complete
   end
@@ -59,9 +60,16 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
       obj.bgWorkerObj = [];
       
       obj.cbkTrkComplete = [];
+      
+      if ~isempty(obj.trkMonitorObj)
+        delete(obj.trkMonitorObj);
+      end
+      obj.trkMonitorObj = [];
+      
     end
     
-    function prepare(obj,bgWorkerObj,cbkComplete)
+    function prepare(obj,trkMonVizObj,bgWorkerObj,cbkComplete)
+      % KB 20190115 -- added trkMonViz
       % prepare(obj,mIdx,nview,movfiles,outfiles,bsublogfiles)
       
       obj.reset();
@@ -75,6 +83,8 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;
       obj.cbkTrkComplete = cbkComplete;
+      obj.trkMonitorObj = trkMonVizObj;
+      
     end
     
     function start(obj)
@@ -85,6 +95,10 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
     end    
     
     function bgTrkResultsReceived(obj,sRes)
+      
+      
+      obj.trkMonitorObj.resultsReceived(sRes);
+      
       res = sRes.result;
       
       errOccurred = any([res.errFileExists]);
@@ -118,7 +132,7 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
       
       tfdone = all([res.tfcomplete]);
       if tfdone
-        fprintf(1,'Tracking output files detected:\n');
+        fprintf(1,'%s: Tracking output files detected:\n',datestr(now));
         arrayfun(@(x)fprintf(1,'  %s\n',x.trkfile),res);        
         obj.stop();
         obj.cbkTrkComplete(res);

@@ -10480,9 +10480,9 @@ classdef Labeler < handle
 
       assert(cfrm >= ctrx.firstframe && cfrm <= ctrx.endframe);
       i = cfrm - ctrx.firstframe + 1;
-      x = ctrx.x(i);
-      y = ctrx.y(i);
-      th = ctrx.theta(i);
+      x = double(ctrx.x(i));
+      y = double(ctrx.y(i));
+      th = double(ctrx.theta(i));
     end
     function setSelectedFrames(obj,frms)
       if isempty(frms)
@@ -11093,6 +11093,8 @@ classdef Labeler < handle
         ModeInfo.dxlim = [0,0];
         ModeInfo.dylim = [0,0];
       end
+      ModeInfo.xlim = xlim;
+      ModeInfo.ylim = ylim;
       
       ModeInfo = obj.SetPrevAxesProperties(ModeInfo);
       
@@ -11117,6 +11119,13 @@ classdef Labeler < handle
       
       xdir = get(obj.gdata.axes_curr,'XDir');
       ydir = get(obj.gdata.axes_curr,'YDir');
+      if ~isfield(ModeInfo,'xlim'),
+        xlim = get(obj.gdata.axes_curr,'XLim');
+        ylim = get(obj.gdata.axes_curr,'YLim');
+      else
+        xlim = ModeInfo.xlim;
+        ylim = ModeInfo.ylim;
+      end
       ModeInfo.axes_curr = struct('XLim',xlim,'YLim',ylim,...
         'XDir',xdir','YDir',ydir,...
         'CameraViewAngleMode','auto');
