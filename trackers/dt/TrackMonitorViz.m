@@ -101,7 +101,8 @@ classdef TrackMonitorViz < handle
       tic;
       for ivw=1:nview,
         isdone = res(ivw).tfcomplete;
-        isupdate = res(ivw).parttrkfileTimestamp > obj.parttrkfileTimestamps(ivw) || ...
+        isupdate = ((res(ivw).parttrkfileTimestamp > obj.parttrkfileTimestamps(ivw)) && ...
+          exist(res(ivw).parttrkfile,'file')) || ...
           (isdone && (isempty(obj.resLast) || ~obj.resLast(ivw).tfcomplete));
 
         if isupdate,
@@ -111,7 +112,8 @@ classdef TrackMonitorViz < handle
           else
             ptrk = matfile(res(ivw).parttrkfile);
           end
-          obj.nFramesTracked(ivw) = size(ptrk.pTrkTS,2);
+          
+          obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:)));
           
           if nview > 1,
             sview = sprintf(', view %d',ivw);
