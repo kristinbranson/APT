@@ -8307,10 +8307,19 @@ classdef Labeler < handle
       iTrk = 0;
     end
   
-    function trackSetCurrentTracker(obj,iTracker)
-      validateattributes(iTracker,{'numeric'},...
+    function trackSetCurrentTracker(obj,iTrk)
+      validateattributes(iTrk,{'numeric'},...
         {'nonnegative' 'integer' '<=' numel(obj.trackersAll)});
-      obj.currTracker = iTracker;
+      
+      tAll = obj.trackersAll;
+      iTrk0 = obj.currTracker;
+      if iTrk0>0
+        tAll{iTrk0}.setHideViz(true);
+      end
+      obj.currTracker = iTrk;
+      if iTrk>0
+        tAll{iTrk}.setHideViz(false);
+      end
     end
         
     function trackSetParams(obj,sPrm)
