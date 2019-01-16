@@ -10,11 +10,16 @@ classdef DeepTracker < LabelTracker
     RemoteAWSCacheDir = '/home/ubuntu';
     jrchost = 'login1.int.janelia.org';
     jrcprefix = 'source /etc/profile';
+    jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
     
-    pretrained_weights_urls = {'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
-      'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'};
-    pretrained_weights_files = {fullfile(APT.getpathdl,'pretrained','resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables.index');
-      fullfile(APT.getpathdl,'pretrained','resnet_v1_50.ckpt')};
+    pretrained_weights_urls = {...
+      'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
+      'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'...
+      };
+    pretrained_weights_files_pat_lnx = {...
+      '%s/pretrained/resnet_v2_fp32_savedmodel_NHWC/1538687283/variables/variables.index'... % fill in deepnetroot
+      '%s/pretrained/resnet_v1_50.ckpt'... 
+      };
     
   end
   properties
@@ -544,33 +549,7 @@ classdef DeepTracker < LabelTracker
 %   end
   methods
     %% BSub Trainer
-    
-    function downloadPretrainedWeights(obj)
-      
-%       pretrainedDownload = fullfile(APT.getpathdl,'download_pretrained.py');      
-%       fprintf(1,'%s\n',pretrainedDownload);
-%       [st,res] = system(pretrainedDownload);
-%       if st==0
-%         fprintf('Downloaded pretrained weights.\n');
-%       else
-%         warningNoTrace('Failed to download pretrained weights: %s',res);
-%       end      
-
-      for i = 1:numel(obj.pretrained_weights_urls),
-        url = obj.pretrained_weights_urls{i};
-        if exist(obj.pretrained_weights_files{i}), %#ok<EXIST>
-          fprintf('Tensorflow resnet pretrained weights %s already downloaded.\n',url);
-          continue;
-        end
-          
-        outdir = fullfile(APT.getpathdl,'pretrained');
-        fprintf('Downloading tensorflow resnet pretrained weights %s (APT)..\n',url);
-        outfiles = untar(url,outdir);
-        sprintf('Downloaded and extracted the following files/directories:\n');
-        fprintf('%s\n',outfiles{:});
-      end
-      
-    end
+   
       
     function trnSpawnBsubDocker(obj,backEnd,trnType,modelChainID,varargin)
       %
@@ -581,6 +560,8 @@ classdef DeepTracker < LabelTracker
       % PostConds (success):
       %  - training aws job spawned
       %  - .trnName, .trnNameLbl, trnLastDMC set
+      %
+      % TODO break up bsub/docker sep meths
 
       [wbObj] = myparse(varargin,...
         'wbObj',[]... 
@@ -588,10 +569,22 @@ classdef DeepTracker < LabelTracker
       
       % (aws check instance running)
       
-      % (aws update remote repo)
-      
-       % Base DMC, to be further copied/specified per-view
       cacheDir = obj.lObj.trackDLParams.CacheDir;
+      
+      % Currently, cacheDir must be visible on the JRC shared filesys.
+      % In the future, we may need i) "localWSCache" and ii) "jrcCache".
+      
+      % (aws update remote repo)
+      switch backEnd.type
+        case DLBackEnd.Bsub
+          DeepTracker.cloneJRCRepoIfNec(cacheDir);
+          DeepTracker.updateAPTRepoExecJRC(cacheDir);
+          DeepTracker.cpupdatePTWfromJRCProdExec(cacheDir);
+        case DLBackEnd.Docker
+          obj.downloadPretrainedWeights('aptroot',APT.Root); 
+      end
+            
+       % Base DMC, to be further copied/specified per-view
       dmc = DeepModelChainOnDisk(...   
         'rootDir',cacheDir,...
         'projID',obj.lObj.projname,...
@@ -603,7 +596,6 @@ classdef DeepTracker < LabelTracker
         'iterFinal',obj.sPrm.dl_steps);
         %'backEnd',backEnd);
       
-      obj.downloadPretrainedWeights();         
       
       % create/ensure stripped lbl; set trainID
       tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
@@ -646,7 +638,14 @@ classdef DeepTracker < LabelTracker
 
       nvw = obj.lObj.nview;
       syscmds = cell(nvw,1);
-      mntPaths = obj.genContainerMountPath();
+      switch backEnd.type
+        case DLBackEnd.Bsub
+          jrcaptroot = [cacheDir '/APT'];
+          mntPaths = obj.genContainerMountPath('aptroot',jrcaptroot);
+        case DLBackEnd.Docker
+          mntPaths = obj.genContainerMountPath();
+      end
+      
       switch backEnd.type
         case DLBackEnd.Bsub
           singArgs = {'bindpath',mntPaths};
@@ -842,7 +841,11 @@ classdef DeepTracker < LabelTracker
       
     end
 
-    function paths = genContainerMountPath(obj)
+    function paths = genContainerMountPath(obj,varargin)
+      
+      aptroot = myparse(varargin,...
+        'aptroot',APT.Root);
+      
       if ~isempty(obj.containerBindPaths)
         assert(iscellstr(obj.containerBindPaths),'containerBindPaths must be a cellstr.');
         fprintf('Using user-specified container bind-paths:\n');
@@ -879,7 +882,8 @@ classdef DeepTracker < LabelTracker
 %         end
         
         fprintf('Using auto-generated container bind-paths:\n');
-        paths = [cacheDir;APT.getpathdl;macroCell(:);projbps(:)];
+        dlroot = [aptroot '/deepnet'];
+        paths = [cacheDir;dlroot;macroCell(:);projbps(:)];
         paths = unique(paths);
       end
       
@@ -928,14 +932,7 @@ classdef DeepTracker < LabelTracker
       aws.checkInstanceRunning(); % harderrs if instance isn't running
 %       fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
 
-      % update our remote repo
-      cmdremote = DeepTracker.trainCodeGenAWSUpdateAPTRepo();
-      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
-      if tfsucc
-        fprintf('Updated remote APT repo.\n\n');
-      else
-        error('Failed to update remote APT repo.');
-      end
+      DeepTracker.updateAPTRepoExecAWS(aws);
       
       % Base DMC, to be further copied/specified per-view
       dmc = DeepModelChainOnDisk(...        
@@ -1298,7 +1295,19 @@ classdef DeepTracker < LabelTracker
 
       % Currently mIdx, tMFTConc only one movie
 
-      obj.downloadPretrainedWeights();
+      cacheDir = obj.lObj.trackDLParams.CacheDir;
+
+      switch backend.type
+        case DLBackEnd.Bsub
+          DeepTracker.cloneJRCRepoIfNec(cacheDir);
+          DeepTracker.updateAPTRepoExecJRC(cacheDir);
+          aptjrcroot = [cacheDir '/APT'];
+          hmapArgs = [hmapArgs {'deepnetroot' [aptjrcroot '/deepnet']}]; 
+        case DLBackEnd.Docker
+          % xxx todo
+      end
+      
+      %obj.downloadPretrainedWeights();
       
       % put/ensure local stripped lbl
       dmc = obj.trnLastDMC;
@@ -1375,7 +1384,12 @@ classdef DeepTracker < LabelTracker
 
         %trksysinfo(ivw).logfilessh = outfile2;
         
-        singBind = obj.genContainerMountPath();
+        switch backend.type
+          case DLBackEnd.Bsub
+            singBind = obj.genContainerMountPath('aptroot',aptjrcroot);
+          case DLBackEnd.Docker
+            singBind = obj.genContainerMountPath();
+        end
         singargs = {'bindpath',singBind};
 
         trksysinfo(ivw).codestr = DeepTracker.trackCodeGenSSHBsubSing(...
@@ -1456,15 +1470,8 @@ classdef DeepTracker < LabelTracker
       aws = backend.awsec2;
       aws.checkInstanceRunning(); % harderrs if instance isn't running
 %       fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
-      
-      % update our remote repo
-      cmdremote = DeepTracker.trainCodeGenAWSUpdateAPTRepo();
-      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
-      if tfsucc
-        fprintf('Updated remote APT repo.\n\n');
-      else
-        error('Failed to update remote APT repo.');
-      end
+            
+      DeepTracker.updateAPTRepoExecAWS(aws);
       
       % put/ensure remote stripped lbl
       dmc = obj.trnLastDMC;
@@ -1704,6 +1711,33 @@ classdef DeepTracker < LabelTracker
 
   end
   methods (Static) % train/track codegen
+    
+    function downloadPretrainedWeights(varargin) 
+      aptroot = myparse(varargin,...
+        'aptroot',APT.Root...
+        );
+      
+      urlsAll = DeepTracker.pretrained_weights_urls;
+      weightfilepats = DeepTracker.pretrained_weights_files_pat_lnx;
+      deepnetrootlnx = [aptroot '/deepnet'];
+      pretrainedlnx = [deepnetrootlnx '/pretrained'];
+      for i = 1:numel(urlsAll)
+        url = urlsAll{i};
+        pat = weightfilepats{i};
+        wfile = sprintf(pat,deepnetrootlnx);
+
+        if exist(wfile,'file')>0
+          fprintf('Tensorflow resnet pretrained weights %s already downloaded.\n',url);
+          continue;
+        end
+          
+        % hmm what happens when the weightfilenames change?
+        fprintf('Downloading tensorflow resnet pretrained weights %s (APT)..\n',url);
+        outfiles = untar(url,pretrainedlnx);
+        sprintf('Downloaded and extracted the following files/directories:\n');
+        fprintf('%s\n',outfiles{:});
+      end      
+    end
     function codestr = codeGenSSHGeneral(remotecmd,varargin)
       [host,bg,prefix,sshoptions] = myparse(varargin,...
         'host',DeepTracker.jrchost,... % 'logfile','/dev/null',...
@@ -1719,7 +1753,7 @@ classdef DeepTracker < LabelTracker
       else
         sshcmd = ['ssh ',sshoptions];
       end
-      
+            
       if bg
         codestr = sprintf('%s %s ''%s </dev/null &''',sshcmd,host,remotecmd);
       else
@@ -1755,12 +1789,14 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trainCodeGen(trnID,dllbl,cache,errfile,netType,...
         varargin)
-      [view,aptintrf,trainType] = myparse(varargin,...
+      [view,deepnetroot,trainType] = myparse(varargin,...
         'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
-        'aptintrf',fullfile(APT.getpathdl,'APT_interface.py'),...
+        'deepnetroot',APT.getpathdl,...
         'trainType',DLTrainType.New...
           );
       tfview = ~isempty(view);
+      
+      aptintrf = [deepnetroot '/APT_interface.py'];
       
       switch trainType
         case DLTrainType.New
@@ -1855,23 +1891,98 @@ classdef DeepTracker < LabelTracker
       singargs = myparse(varargin,...
         'singargs',{}...
         );
+      
+      repoSSscriptLnx = [dmc.dirAptRootLnx '/repo_snapshot.sh'];
+      repoSScmd = sprintf('%s %s > %s',repoSSscriptLnx,dmc.dirAptRootLnx,dmc.aptRepoSnapshotLnx);
+      prefix = [DeepTracker.jrcprefix '; ' repoSScmd];
+      
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
         dmc.modelChainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,...
-        'baseArgs',{'view' dmc.view+1 'trainType' dmc.trainType},...
+        'baseArgs',{'view' dmc.view+1 'trainType' dmc.trainType 'deepnetroot' [dmc.rootDir '/APT/deepnet']},...
         'singargs',singargs,...
         'bsubArgs',{'outfile' dmc.trainLogLnx},...
-        'sshargs',{});
+        'sshargs',{'prefix' prefix});
     end
       
-    function codestr = trainCodeGenAWSUpdateAPTRepo()
-       codestr = {
-        'cd /home/ubuntu/APT/deepnet;';
-        'git checkout feature/deeptrack;';
+    function codestr = updateAPTRepoCmd(varargin)
+      aptparent = myparse(varargin,...
+        'aptparent','/home/ubuntu');
+      
+      aptroot = [aptparent '/APT/deepnet'];
+      
+      codestr = {
+        sprintf('cd %s;',aptroot);
+        'git checkout develop;';
         'git pull;'; 
         };
-      codestr = cat(2,codestr{:});      
+      codestr = cat(2,codestr{:});
     end
+    function updateAPTRepoExecAWS(aws) % throws if fails
+      cmdremote = DeepTracker.updateAPTRepoCmd();
+      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
+      if tfsucc
+        fprintf('Updated remote APT repo.\n\n');
+      else
+        error('Failed to update remote APT repo.');
+      end
+    end
+    function updateAPTRepoExecJRC(cacheRoot) % throws if fails
+      % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
+      updatecmd = DeepTracker.updateAPTRepoCmd('aptparent',cacheRoot);
+      updatecmd = DeepTracker.codeGenSSHGeneral(updatecmd,'bg',false);
+      [~,res] = AWSec2.syscmd(updatecmd,...
+        'dispcmd',true,...
+        'failbehavior','err');
+    end
+    function cmd = cpPTWfromJRCProdLnx(cacheRoot)
+      % copy cmd (lnx) deepnet/pretrained from production repo to JRC loc 
+      srcPTWlnx = [DeepTracker.jrcprodrepo '/deepnet/pretrained'];
+      dstPTWlnx = [cacheRoot '/APT/deepnet/pretrained'];      
+      cmd = sprintf('cp -r -u %s %s',srcPTWlnx,dstPTWlnx);
+    end
+    function cpupdatePTWfromJRCProdExec(cacheRoot) % throws if errors
+      cmd = DeepTracker.cpPTWfromJRCProdLnx(cacheRoot);
+      cmd = DeepTracker.codeGenSSHGeneral(cmd,'bg',false);
+      [~,res] = AWSec2.syscmd(cmd,...
+        'dispcmd',true,...
+        'failbehavior','err');
+    end
+    function cmd = dirExistsCmd(ddir)
+      cmd = sprintf('bash -c "[ -d ''%s'' ] && echo ''y'' || echo ''n''"',ddir);
+    end      
+    function cloneJRCRepoIfNec(cacheRoot) % throws on fail
+      % Clone 'remote' repo into cacheRoot from prod, if necessary
+      % 
+      % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
+      
+      % does repo in 'remote' cache exist?
+      aptroot = [cacheRoot '/APT'];
+      aptrootexistscmd = DeepTracker.dirExistsCmd(aptroot);
+      aptrootexistscmd = DeepTracker.codeGenSSHGeneral(aptrootexistscmd,...
+        'bg',false);
+      
+      [~,res] = AWSec2.syscmd(aptrootexistscmd,...
+        'dispcmd',true,...
+        'failbehavior','err');
+      res = strtrim(res);
+      
+      % clone it if nec
+      switch res
+        case 'y'
+          fprintf('Found JRC/APT repo at %s.\n',aptroot);
+        case 'n'
+          cloneaptcmd = sprintf('git clone %s %s',DeepTracker.jrcprodrepo,aptroot);
+          cloneaptcmd = DeepTracker.codeGenSSHGeneral(cloneaptcmd,'bg',false);
+          [~,res] = AWSec2.syscmd(cloneaptcmd,...
+            'dispcmd',true,...
+            'failbehavior','err');
+          fprintf('Cloned JRC/APT repo into %s.\n',aptroot);
+        otherwise
+          error('Failed to update APT repo on JRC filesystem.');
+      end
+    end
+    
     function codestr = trainCodeGenAWS(dmc)      
       % not sure what -name flag does exactly
       
@@ -1891,8 +2002,8 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,movtrk,...
         outtrk,frm0,frm1,varargin)
-      [aptintrf,cache,trxtrk,trxids,view,croproi,hmaps] = myparse(varargin,...
-        'aptintrf',fullfile(APT.getpathdl,'APT_interface.py'),...
+      [deepnetroot,cache,trxtrk,trxids,view,croproi,hmaps] = myparse(varargin,...
+        'deepnetroot',APT.getpathdl,...
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
@@ -1900,6 +2011,8 @@ classdef DeepTracker < LabelTracker
         'croproi',[],... % (opt) 1-based [xlo xhi ylo yhi] roi (inclusive)
         'hmaps',false... % (opt) if true, generate heatmaps
         ); 
+      
+      aptintrf = [deepnetroot '/APT_interface.py'];
       
       tfcache = ~isempty(cache);
       tftrx = ~isempty(trxtrk);

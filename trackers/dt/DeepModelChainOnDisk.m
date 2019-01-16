@@ -26,6 +26,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     dirViewLnx  
     dirModelChainLnx
     dirTrkOutLnx
+    dirAptRootLnx % loc of APT checkout (JRC)
     
     lblStrippedLnx % full path to stripped lbl file for this train session
     lblStrippedName % short filename 
@@ -38,6 +39,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     trainDataLnx    
     trainFinalIndexLnx
     trainFinalIndexName
+    aptRepoSnapshotLnx
+    aptRepoSnapshotName
   end
   methods
     function v = get.dirProjLnx(obj)
@@ -54,8 +57,10 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.dirTrkOutLnx(obj)
       v = [obj.rootDir '/' obj.projID '/' char(obj.netType) '/' sprintf('view_%d',obj.view) '/' obj.modelChainID '/' 'trk'];
-    end    
-    
+    end 
+    function v = get.dirAptRootLnx(obj)
+      v = [obj.rootDir '/APT'];
+    end 
     function v = get.lblStrippedLnx(obj)      
       v = [obj.dirProjLnx '/' obj.lblStrippedName];      
     end
@@ -98,6 +103,12 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.trainFinalIndexName(obj)
       v = sprintf('deepnet-%d.index',obj.iterFinal);
+    end    
+    function v = get.aptRepoSnapshotLnx(obj)
+      v = [obj.dirProjLnx '/' obj.aptRepoSnapshotName];
+    end
+    function v = get.aptRepoSnapshotName(obj)
+      v = sprintf('%s_%s.aptsnapshot',obj.modelChainID,obj.trainID);
     end
   end
   methods
