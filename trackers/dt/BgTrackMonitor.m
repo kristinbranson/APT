@@ -60,9 +60,16 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
       obj.bgWorkerObj = [];
       
       obj.cbkTrkComplete = [];
+      
+      if ~isempty(obj.trkMonitorObj)
+        delete(obj.trkMonitorObj);
+      end
+      obj.trkMonitorObj = [];
+      
     end
     
-    function prepare(obj,trnMonVizObj,bgWorkerObj,cbkComplete)
+    function prepare(obj,trkMonVizObj,bgWorkerObj,cbkComplete)
+      % KB 20190115 -- added trkMonViz
       % prepare(obj,mIdx,nview,movfiles,outfiles,bsublogfiles)
       
       obj.reset();
@@ -76,7 +83,7 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;
       obj.cbkTrkComplete = cbkComplete;
-      obj.trnMonitorObj = trnMonVizObj;
+      obj.trkMonitorObj = trkMonVizObj;
       
     end
     
@@ -88,6 +95,10 @@ classdef BgTrackMonitor < handle  % BGTrainMonitor
     end    
     
     function bgTrkResultsReceived(obj,sRes)
+      
+      
+      obj.trkMonitorObj.resultsReceived(sRes);
+      
       res = sRes.result;
       
       errOccurred = any([res.errFileExists]);

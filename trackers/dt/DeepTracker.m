@@ -1371,6 +1371,8 @@ classdef DeepTracker < LabelTracker
         trksysinfo(ivw).trkfile = trkfile;
         trksysinfo(ivw).logfile = outfile;
         trksysinfo(ivw).errfile = errfile;
+        trksysinfo(ivw).parttrkfile = [trkfile,'.part'];
+
         %trksysinfo(ivw).logfilessh = outfile2;
         
         singBind = obj.genContainerMountPath();
@@ -1382,7 +1384,7 @@ classdef DeepTracker < LabelTracker
           'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
           'sshargs',sshargs);
       end
-        
+            
       if obj.dryRunOnly
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
@@ -1393,8 +1395,9 @@ classdef DeepTracker < LabelTracker
         outfiles = {trksysinfo.trkfile}';
         logfiles = {trksysinfo.logfile}';
         errfiles = {trksysinfo.errfile}';
+        partfiles = {trksysinfo.parttrkfile}';
         bgTrkWorkerObj = BgTrackWorkerObjBsub(mIdx,nView,movs,outfiles,...
-          logfiles,errfiles);
+          logfiles,errfiles,partfiles);
         
         tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
         if any(tfErrFileErr)
@@ -1406,12 +1409,13 @@ classdef DeepTracker < LabelTracker
 
         % KB 20190115: adding trkviz
         nvw = obj.lObj.nview;
-        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type);   
+        % figure out how many frames are to be tracked
+        nFramesTrack = size(tMFTConc,1);
+        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type,nFramesTrack);   
         bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
-          @(x)obj.trkCompleteCbkAWS(backend,trkfilesLocal,x));
-
+          @obj.trkCompleteCbk);
         
-        bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
+        %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
         obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
         
         % spawn jobs

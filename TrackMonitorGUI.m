@@ -1,35 +1,35 @@
-function varargout = TrainMonitorGUI(varargin)
-% TRAINMONITORGUI MATLAB code for TrainMonitorGUI.fig
-%      TRAINMONITORGUI, by itself, creates a new TRAINMONITORGUI or raises the existing
+function varargout = TrackMonitorGUI(varargin)
+% TRACKMONITORGUI MATLAB code for TrackMonitorGUI.fig
+%      TRACKMONITORGUI, by itself, creates a new TRACKMONITORGUI or raises the existing
 %      singleton*.
 %
-%      H = TRAINMONITORGUI returns the handle to a new TRAINMONITORGUI or the handle to
+%      H = TRACKMONITORGUI returns the handle to a new TRACKMONITORGUI or the handle to
 %      the existing singleton*.
 %
-%      TRAINMONITORGUI('CALLBACK',hObject,eventData,handles,...) calls the local
-%      function named CALLBACK in TRAINMONITORGUI.M with the given input arguments.
+%      TRACKMONITORGUI('CALLBACK',hObject,eventData,handles,...) calls the local
+%      function named CALLBACK in TRACKMONITORGUI.M with the given input arguments.
 %
-%      TRAINMONITORGUI('Property','Value',...) creates a new TRAINMONITORGUI or raises the
+%      TRACKMONITORGUI('Property','Value',...) creates a new TRACKMONITORGUI or raises the
 %      existing singleton*.  Starting from the left, property value pairs are
-%      applied to the GUI before TrainMonitorGUI_OpeningFcn gets called.  An
+%      applied to the GUI before TrackMonitorGUI_OpeningFcn gets called.  An
 %      unrecognized property name or invalid value makes property application
-%      stop.  All inputs are passed to TrainMonitorGUI_OpeningFcn via varargin.
+%      stop.  All inputs are passed to TrackMonitorGUI_OpeningFcn via varargin.
 %
 %      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
 
-% Edit the above text to modify the response to help TrainMonitorGUI
+% Edit the above text to modify the response to help TrackMonitorGUI
 
-% Last Modified by GUIDE v2.5 19-Dec-2018 13:10:34
+% Last Modified by GUIDE v2.5 15-Jan-2019 17:55:51
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
 gui_State = struct('gui_Name',       mfilename, ...
                    'gui_Singleton',  gui_Singleton, ...
-                   'gui_OpeningFcn', @TrainMonitorGUI_OpeningFcn, ...
-                   'gui_OutputFcn',  @TrainMonitorGUI_OutputFcn, ...
+                   'gui_OpeningFcn', @TrackMonitorGUI_OpeningFcn, ...
+                   'gui_OutputFcn',  @TrackMonitorGUI_OutputFcn, ...
                    'gui_LayoutFcn',  [] , ...
                    'gui_Callback',   []);
 if nargin && ischar(varargin{1})
@@ -44,26 +44,25 @@ end
 % End initialization code - DO NOT EDIT
 
 
-% --- Executes just before TrainMonitorGUI is made visible.
-function TrainMonitorGUI_OpeningFcn(hObject, eventdata, handles, varargin)
+% --- Executes just before TrackMonitorGUI is made visible.
+function TrackMonitorGUI_OpeningFcn(hObject, eventdata, handles, varargin)
 % This function has no output args, see OutputFcn.
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-% varargin   command line arguments to TrainMonitorGUI (see VARARGIN)
+% varargin   command line arguments to TrackMonitorGUI (see VARARGIN)
 
-% Choose default command line output for TrainMonitorGUI
+% Choose default command line output for TrackMonitorGUI
 handles.output = hObject;
 handles.vizobj = varargin{1};
 
 % Update handles structure
 guidata(hObject, handles);
 
-% UIWAIT makes TrainMonitorGUI wait for user response (see UIRESUME)
-% uiwait(handles.figure_TrainMonitor);
+% UIWAIT makes TrackMonitorGUI wait for user response (see UIRESUME)
 
 % --- Outputs from this function are returned to the command line.
-function varargout = TrainMonitorGUI_OutputFcn(hObject, eventdata, handles) 
+function varargout = TrackMonitorGUI_OutputFcn(hObject, eventdata, handles) 
 % varargout  cell array for returning output args (see VARARGOUT);
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -111,16 +110,16 @@ function pushbutton_startstop_Callback(hObject, eventdata, handles)
 
 switch hObject.UserData
   case 'stop'
-    handles.vizobj.stopTraining();
+    handles.vizobj.stopTracking();
   case 'start'
-    handles.vizobj.startTraining();
+    warning('not implemented');
   otherwise
     assert(false);
 end
 
-% --- Executes when user attempts to close figure_TrainMonitor.
-function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)
-% hObject    handle to figure_TrainMonitor (see GCBO)
+% --- Executes when user attempts to close figure_TrackMonitor.
+function figure_TrackMonitor_CloseRequestFcn(hObject, eventdata, handles)
+% hObject    handle to figure_TrackMonitor (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
@@ -129,11 +128,11 @@ function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)
 mode = get(handles.pushbutton_startstop,'UserData');
 if strcmpi(mode,'stop'),
   
-  msgbox({'Training currently in progress. Please stop training before'
-          'closing this monitor. If you have already clicked Stop training,'
-          'please wait for training processes to be killed before closing'
+  msgbox({'Tracking currently in progress. Please stop tracking before'
+          'closing this monitor. If you have already clicked Stop traickng,'
+          'please wait for tracking processes to be killed before closing'
           'this monitor.'},...
-          'Stop training before closing monitor','modal');
+          'Stop tracking before closing monitor','modal');
   return;
   
 elseif strcmpi(mode,'start') || strcmpi(mode,'done'),
@@ -144,4 +143,3 @@ else
   % sanity check
   error('Bad userdata value for pushbutton_startstop');
 end
-

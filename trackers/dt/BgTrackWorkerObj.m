@@ -19,6 +19,7 @@ classdef BgTrackWorkerObj < handle
     artfctTrkfiles % [nview] full paths trkfile to be generated/output
     artfctLogfiles % [nview] cellstr of fullpaths to bsub logs
     artfctErrFiles % [nview] char fullpath to DL errfile    
+    artfctPartTrkfiles % [nview] full paths to partial trkfile to be generated/output
   end
   
   methods (Abstract)
@@ -26,12 +27,18 @@ classdef BgTrackWorkerObj < handle
     tf = fileExists(obj,file)
     tf = errFileExistsNonZeroSize(obj,errFile)
     s = fileContents(obj,file)
+    %[tf,warnings] = killProcess(obj)
   end
   
   methods
-    function obj = BgTrackWorkerObj(mIdx,nvw,movfiles,outfiles,logfiles,dlerrfiles)  
+    function obj = BgTrackWorkerObj(mIdx,nvw,movfiles,outfiles,logfiles,dlerrfiles,partfiles)  
       assert(isequal(nvw,numel(movfiles),numel(outfiles),...
         numel(logfiles),numel(dlerrfiles)));
+      
+      % KB 20190115: also include locations of part track files
+      if ~exist('partfiles','var'),
+        partfiles = {};
+      end
       
       obj.mIdx = mIdx;
       obj.nview = nvw;
@@ -39,6 +46,8 @@ classdef BgTrackWorkerObj < handle
       obj.artfctTrkfiles = outfiles(:);
       obj.artfctLogfiles = logfiles(:);
       obj.artfctErrFiles = dlerrfiles(:);
+      obj.artfctPartTrkfiles = partfiles(:);
+      
     end    
     function sRes = compute(obj)
       % sRes: [nview] struct array      
@@ -46,6 +55,16 @@ classdef BgTrackWorkerObj < handle
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctErrFiles,'uni',0);
       bsuberrlikely = cellfun(@obj.logFileErrLikely,obj.artfctLogfiles,'uni',0);
       
+      % KB 20190115: also get locations of part track files and timestamps
+      % of last modification
+      partTrkFileTimestamps = nan(size(obj.artfctPartTrkfiles));
+      for i = 1:numel(obj.artfctPartTrkfiles),
+        tmp = dir(obj.artfctPartTrkfiles{i});
+        if ~isempty(tmp),
+          partTrkFileTimestamps(i) = tmp.datenum;
+        end
+      end
+        
       sRes = struct(...
         'tfcomplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
         'errFile',obj.artfctErrFiles,... % char, full path to DL err file
@@ -55,7 +74,9 @@ classdef BgTrackWorkerObj < handle
         'mIdx',obj.mIdx,...
         'iview',num2cell((1:obj.nview)'),...
         'movfile',obj.movfiles,...
-        'trkfile',obj.artfctTrkfiles);
+        'trkfile',obj.artfctTrkfiles,...
+        'parttrkfile',obj.artfctPartTrkfiles,...
+        'parttrkfileTimestamp',partTrkFileTimestamps);
     end
   
     % Same as in BgTrainWorkerObj could mixin
