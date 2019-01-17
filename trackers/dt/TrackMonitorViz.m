@@ -320,7 +320,7 @@ classdef TrackMonitorViz < handle
 
     function SetBusy(obj,s,isbusy)
 
-      %handles = guidata(obj.hfig);
+      handles = guidata(obj.hfig);
       
       if nargin < 3
         isbusy = true;
