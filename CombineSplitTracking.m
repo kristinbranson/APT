@@ -29,8 +29,10 @@ for i = 1:numel(info),
   end
   if i == 1,
     td = tdcurr;
-    pTrkFull = td.pTrkFull;
-    pTrkFullFT = td.pTrkFullFT;
+    td.pTrkFull = [];
+    td.pTrkFullFT = [];
+%     pTrkFull = td.pTrkFull;
+%     pTrkFullFT = td.pTrkFullFT;
   else
     if docheckoverlap,
       fracprevtrked = nnz(sum(sum(sum(~isnan(td.pTrk(:,:,info(i).startFrame:info(i).endFrame,:)),1),2),4)>0) / nFramesCurr;
@@ -44,26 +46,37 @@ for i = 1:numel(info),
     td.pTrk(:,:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrk(:,:,info(i).startFrame:info(i).endFrame,:);
     td.pTrkTS(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTS(:,info(i).startFrame:info(i).endFrame,:);
     td.pTrkTag(:,info(i).startFrame:info(i).endFrame,:) = tdcurr.pTrkTag(:,info(i).startFrame:info(i).endFrame,:);
-    if ~isempty(tdcurr.pTrkFullFT),
-      if isempty(pTrkFullFT),        
-        pTrkFull = tdcurr.pTrkFull;
-        pTrkFullFT = tdcurr.pTrkFullFT;
-      else
-        pTrkFull(:,:,:,end+1:end+size(tdcurr.pTrkFull,4),:) = tdcurr.pTrkFull(:,:,:,:,:);
-        pTrkFullFT(end+1:end+size(tdcurr.pTrkFullFT,1),:) = tdcurr.pTrkFullFT;
-      end
-%       [td.pTrkFullFT,idxcombine] = unique([tdcurr.pTrkFullFT;td.pTrkFullFT]);
-%       isnew = idxcombine<= size(tdcurr.pTrkFullFT,1);
-%       sz = size(tdcurr.pTrkFull);
-%       
-%       pTrkFull = nan([sz(1:3),size(td.pTrkFullFT,1),sz(5:end)]);
-%       pTrkFull(:,:,:,isnew,:) = tdcurr.pTrkFull(:,:,:,idxcombine(isnew),:);
-%       pTrkFull(:,:,:,~isnew,:) = td.pTrkFull(:,:,:,idxcombine(~isnew)-size(tdcurr.pTrkFullFT,1),:);
-%       td.pTrkFull = pTrkFull;
-    end
-    
-  
   end
+  if ~isempty(tdcurr.pTrkFullFT),
+    if isempty(td.pTrkFull),
+      nReps = size(tdcurr.pTrkFull,3);
+      [npts,d,Tcurr,nTargets] = size(td.pTrk);
+      td.pTrkFull = nan([npts*d*nReps,Tcurr,nTargets],'single');
+    end
+    for iTgt = 1:nTargets,
+      idxcurr = find(tdcurr.pTrkFullFT.iTgt==iTgt);
+      if isempty(idxcurr),
+        continue;
+      end
+      % assuming frames are in order
+      t0 = tdcurr.pTrkFullFT.frm(idxcurr(1));
+      t1 = tdcurr.pTrkFullFT.frm(idxcurr(end));
+      assert(all((t0:t1)==tdcurr.pTrkFullFT.frm(idxcurr)'));
+      assert(t0>=info(i).startFrame && t1 <= info(i).endFrame);
+      td.pTrkFull(:,t0:t1,iTgt) = reshape(tdcurr.pTrkFull(:,:,:,idxcurr),[npts*d*nReps,t1-t0+1]);
+    end
+    %         pTrkFull(:,:,:,end+1:end+size(tdcurr.pTrkFull,4),:) = tdcurr.pTrkFull(:,:,:,:,:);
+    %         pTrkFullFT(end+1:end+size(tdcurr.pTrkFullFT,1),:) = tdcurr.pTrkFullFT;
+    %       [td.pTrkFullFT,idxcombine] = unique([tdcurr.pTrkFullFT;td.pTrkFullFT]);
+    %       isnew = idxcombine<= size(tdcurr.pTrkFullFT,1);
+    %       sz = size(tdcurr.pTrkFull);
+    %
+    %       pTrkFull = nan([sz(1:3),size(td.pTrkFullFT,1),sz(5:end)]);
+    %       pTrkFull(:,:,:,isnew,:) = tdcurr.pTrkFull(:,:,:,idxcombine(isnew),:);
+    %       pTrkFull(:,:,:,~isnew,:) = td.pTrkFull(:,:,:,idxcombine(~isnew)-size(tdcurr.pTrkFullFT,1),:);
+    %       td.pTrkFull = pTrkFull;
+  end
+  
   
   if islogfile,
     fclose(fid);
@@ -72,15 +85,17 @@ for i = 1:numel(info),
 
 end
 
-if ~isempty(pTrkFullFT),
-  [td.pTrkFullFT,idx] = unique(pTrkFullFT);
-  if numel(idx) == size(pTrkFullFT,1),
-    td.pTrkFullFT = pTrkFullFT;
-    td.pTrkFull = pTrkFull;
-  else
-    sz = size(pTrkFull);
-    td.pTrkFull = reshape(pTrkFull(:,:,:,idx,:),[sz(1:3),numel(idx),sz(5:end)]);
-  end
+if ~isempty(td.pTrkFull),
+  [~,Tcurr,nTargets] = size(td.pTrkFull);
+  td.pTrkFull = reshape(td.pTrkFull,[npts,d,nReps,Tcurr,nTargets]);
+%   [td.pTrkFullFT,idx] = unique(pTrkFullFT);
+%   if numel(idx) == size(pTrkFullFT,1),
+%     td.pTrkFullFT = pTrkFullFT;
+%     td.pTrkFull = pTrkFull;
+%   else
+%     sz = size(pTrkFull);
+%     td.pTrkFull = reshape(pTrkFull(:,:,:,idx,:),[sz(1:3),numel(idx),sz(5:end)]);
+%   end
 end
 
 
