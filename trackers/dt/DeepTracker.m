@@ -755,12 +755,13 @@ classdef DeepTracker < LabelTracker
       % is APTCache set?
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing that Deep Track->CacheDir parameter is set...'; drawnow;
-      if ~isfield(obj.sPrm,'CacheDir') || ~ischar(obj.sPrm.CacheDir) || isempty(obj.sPrm.CacheDir),
+      dlPrmsCommon = obj.lObj.trackDLParams; 
+      if ~( isfield(dlPrmsCommon,'CacheDir') && ~isempty(dlPrmsCommon.CacheDir) )            
         hedit.String{end+1} = 'Deep Track->CacheDir tracking parameter is not set. Please go to Track->Configure tracking parameters menu to set this.'; drawnow;
         return;
       end
       % does APTCache exist? 
-      cacheDir = obj.sPrm.CacheDir;
+      cacheDir = dlPrmsCommon.CacheDir;
       if ~exist(cacheDir,'dir'),
         hedit.String{end+1} = sprintf('Deep Track->CacheDir %s did not exist, trying to create it...',cacheDir); drawnow;
         [tfsucc1,msg1] = mkdir(cacheDir);
