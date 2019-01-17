@@ -1444,7 +1444,15 @@ classdef DeepTracker < LabelTracker
   end
   methods (Static)
     function sha = getSHA(file)
-      if isunix
+      file = strrep(file,' ','\ ');
+      if ismac
+        shacmd = sprintf('MD5 %s',file);
+        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        res = strtrim(res);
+        toks = regexp(res,' ','split');
+        sha = toks{end};        
+        sha = regexprep(sha,' ','');          
+      elseif isunix
         shacmd = sprintf('md5sum %s',file);
         [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
         toks = regexp(res,' ','split');
