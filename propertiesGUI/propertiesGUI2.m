@@ -279,7 +279,8 @@ end
 
 % bail-out if right-click
 if eventdata.isMetaDown
-  showGridContextMenu(hFig, grid, clickX, clickY);
+  % none AL20190117
+  %showGridContextMenu(hFig, grid, clickX, clickY);
 else
   % bail-out if the grid is disabled
   if ~grid.isEnabled,  return;  end
