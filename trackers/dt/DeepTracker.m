@@ -1410,7 +1410,8 @@ classdef DeepTracker < LabelTracker
         logfiles = {trksysinfo.logfile}';
         errfiles = {trksysinfo.errfile}';
         partfiles = {trksysinfo.parttrkfile}';
-        bgTrkWorkerObj = BgTrackWorkerObjBsub(mIdx,nView,movs,outfiles,...
+        bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+        bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
           logfiles,errfiles,partfiles);
         
         tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
@@ -1435,7 +1436,14 @@ classdef DeepTracker < LabelTracker
         % spawn jobs
         for ivw=1:nView
           fprintf(1,'%s\n',trksysinfo(ivw).codestr);
-          system(trksysinfo(ivw).codestr);
+          [st,res] = system(trksysinfo(ivw).codestr);
+          if st==0
+            bgTrkWorkerObj.parseJobID(res,ivw);
+            fprintf('Tracking job (view %d) spawned:\n%s\n',ivw,res);
+          else
+            fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
+              iview,res);
+          end
         end
         
         obj.trkSysInfo = trksysinfo;
@@ -1565,6 +1573,10 @@ classdef DeepTracker < LabelTracker
         
         trksysinfo(ivw).trkfilelocal = trkLocalAbs;
         trksysinfo(ivw).trkfileremote = trkRemoteAbs;
+        
+        trksysinfo(ivw).parttrkfilelocal = [trkLocalAbs,'.part'];
+        trksysinfo(ivw).parttrkfileremote = [trkRemoteAbs,'.part'];
+        
         trksysinfo(ivw).logfile = logfileRemoteAbs;
         trksysinfo(ivw).errfile = errfileRemoteAbs;
         trksysinfo(ivw).codestr = codestr;
@@ -1582,8 +1594,14 @@ classdef DeepTracker < LabelTracker
         trkfilesRemote = {trksysinfo.trkfileremote}';
         logfiles = {trksysinfo.logfile}';
         errfiles = {trksysinfo.errfile}';
-        bgTrkWorkerObj = BgTrackWorkerObjAWS(aws,mIdx,nvw,movsfull,...
-          trkfilesRemote,logfiles,errfiles);
+        % KB: not sure what to do with part files remote vs local yet
+        partfilesRemote = {trksysinfo.parttrkfileremote}';
+        partfilesLocal = {trksysinfo.parttrkfilelocal}';
+
+        bgTrkWorkerObj = BgTrackWorkerObjAWS(nvw,dmc,aws);
+
+        bgTrkWorkerObj.initFiles(mIdx,movsfull,...
+          trkfilesRemote,logfiles,errfiles,partfilesLocal);
         
         tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
         if any(tfErrFileErr)

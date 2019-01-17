@@ -1,4 +1,4 @@
-classdef BgTrackWorkerObj < handle
+classdef BgTrackWorkerObj < BgWorkerObj
   % Object deep copied onto BG Tracking worker. To be used with
   % BGWorkerContinuous
   %
@@ -14,43 +14,27 @@ classdef BgTrackWorkerObj < handle
     % the client has, the client can decide what to do.
     
     mIdx % Movie index
-    nview % number of views
     movfiles % [nview] full paths movie being tracked
-    artfctTrkfiles % [nview] full paths trkfile to be generated/output
-    artfctLogfiles % [nview] cellstr of fullpaths to bsub logs
-    artfctErrFiles % [nview] char fullpath to DL errfile    
-    artfctPartTrkfiles % [nview] full paths to partial trkfile to be generated/output
+    artfctTrkfiles % [nviews] full paths trkfile to be generated/output
+    artfctLogfiles % [nviews] cellstr of fullpaths to bsub logs
+    artfctErrFiles % [nviews] char fullpath to DL errfile    
+    artfctPartTrkfiles % [nviews] full paths to partial trkfile to be generated/output
   end
-  
-  methods (Abstract)
-    % Same as in BgTrainWorkerObj could mixin
-    tf = fileExists(obj,file)
-    tf = errFileExistsNonZeroSize(obj,errFile)
-    s = fileContents(obj,file)
-    %[tf,warnings] = killProcess(obj)
-  end
-  
+    
   methods
-    function obj = BgTrackWorkerObj(mIdx,nvw,movfiles,outfiles,logfiles,dlerrfiles,partfiles)  
-      assert(isequal(nvw,numel(movfiles),numel(outfiles),...
-        numel(logfiles),numel(dlerrfiles)));
-      
-      % KB 20190115: also include locations of part track files
-      if ~exist('partfiles','var'),
-        partfiles = {};
-      end
-      
+    function obj = BgTrackWorkerObj(varargin)
+      obj@BgWorkerObj(varargin{:});
+    end
+    function initFiles(obj,mIdx,movfiles,outfiles,logfiles,dlerrfiles,partfiles)
       obj.mIdx = mIdx;
-      obj.nview = nvw;
       obj.movfiles = movfiles(:);
       obj.artfctTrkfiles = outfiles(:);
       obj.artfctLogfiles = logfiles(:);
       obj.artfctErrFiles = dlerrfiles(:);
       obj.artfctPartTrkfiles = partfiles(:);
-      
-    end    
+    end
     function sRes = compute(obj)
-      % sRes: [nview] struct array      
+      % sRes: [nviews] struct array      
       
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctErrFiles,'uni',0);
       bsuberrlikely = cellfun(@obj.logFileErrLikely,obj.artfctLogfiles,'uni',0);
@@ -72,28 +56,17 @@ classdef BgTrackWorkerObj < handle
         'logFile',obj.artfctLogfiles,... % char, full path to Bsub logfile
         'logFileErrLikely',bsuberrlikely,... % true if bsub logfile looks like err
         'mIdx',obj.mIdx,...
-        'iview',num2cell((1:obj.nview)'),...
+        'iview',num2cell((1:obj.nviews)'),...
         'movfile',obj.movfiles,...
         'trkfile',obj.artfctTrkfiles,...
         'parttrkfile',obj.artfctPartTrkfiles,...
         'parttrkfileTimestamp',partTrkFileTimestamps);
     end
-  
-    % Same as in BgTrainWorkerObj could mixin
-    function printLogfiles(obj)
+    function logFiles = getLogFiles(obj)
       logFiles = obj.artfctLogfiles;
-      logFileContents = cellfun(@obj.fileContents,logFiles,'uni',0);
-      BgTrainWorkerObj.printLogfilesStc(logFiles,logFileContents)
     end
-    
-    % Same as in BgTrainWorkerObj could mixin
-    function tfLogErrLikely = logFileErrLikely(obj,file)
-      tfLogErrLikely = obj.fileExists(file);
-      if tfLogErrLikely
-        logContents = obj.fileContents(file);
-        tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
-      end
-    end
+
+  
 
   end
   

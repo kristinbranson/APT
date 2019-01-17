@@ -272,6 +272,7 @@ classdef TrainMonitorViz < handle
       % end
       
       % Kills and creates new TrainMonitorViz, maybe that's fine
+      obj.lastTrainIter = 0;
       obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
     end
     
@@ -339,7 +340,7 @@ classdef TrainMonitorViz < handle
     function ss = queryTrainJobsStatus(obj)
       
       ss = {};
-      raw = obj.trainWorkerObj.queryTrainJobsStatus();
+      raw = obj.trainWorkerObj.queryMyJobsStatus();
       nview = numel(raw);
       for i = 1:nview,
         snew = strsplit(raw{i},'\n');
