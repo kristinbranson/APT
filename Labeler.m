@@ -2373,7 +2373,7 @@ classdef Labeler < handle
             s.trackerData{2}.trnNetType =  DLNetType.mdn;
           elseif ischar(s.trackerData{2}.trnNetType),
             s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType);
-          else isstruct(s.trackerData{2}.trnNetType), 
+          elseif isstruct(s.trackerData{2}.trnNetType), 
             %MK 20190110 - trnNetType can be a struct too.
             s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType.ValueNames{1});  
           end
@@ -8080,7 +8080,8 @@ classdef Labeler < handle
         'preProcParams',prmpp);
     end
     
-    function [tblPReadFailed,dataNew] = preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
+    function [tblPReadFailed,dataNew] = ...
+        preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
       % * Rows appended and pGT/tfocc updated; but other information
