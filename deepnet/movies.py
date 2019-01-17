@@ -13,6 +13,7 @@ import numpy as num
 # import wx
 
 from params import params
+import logging
 # from ellipsesk import annotate_bmp
 
 # version of sbfmf for writing
@@ -118,7 +119,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
 
     def open( self ):
         """Figure out file type and initialize reader."""
-        print "Opening video " + self.fullpath
+        logging.info( "Opening video " + self.fullpath)
 
         (front, ext) = os.path.splitext( self.fullpath )
         ext = ext.lower()
