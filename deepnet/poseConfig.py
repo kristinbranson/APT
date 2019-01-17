@@ -1,9 +1,4 @@
 from __future__ import division
-
-# coding: utf-8
-
-# In[ ]:
-
 from builtins import object
 from past.utils import old_div
 import os
@@ -11,6 +6,7 @@ import re
 import localSetup
 import numpy as np
 import copy
+import logging
 
 class config(object):
     # ----- Names
@@ -134,9 +130,9 @@ class config(object):
 
     def get(self,name,default):
         if hasattr(self,name):
-            print('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
+            logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
         else:
-            print('DEFAULT: For {} using with default value {}'.format(name, default))
+            logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
         return getattr(self,name,default)
 
 

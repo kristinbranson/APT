@@ -36,6 +36,7 @@ import datetime
 from scipy.ndimage.interpolation import zoom
 from scipy import stats
 import pickle
+import logging
 
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
@@ -743,23 +744,23 @@ def compare_conf(curconf, oldconf):
         if hasattr(curconf, f) and hasattr(oldconf, f):
             if type(getattr(curconf, f)) is np.ndarray:
                 if not np.array_equal(getattr(curconf,f),getattr(oldconf,f)):
-                    print('%s not equal' % f)
-                    print('New:', getattr(curconf, f))
-                    print('Old:', getattr(oldconf, f))
+                    logging.warning('{} not equal'.format(f))
+                    logging.warning('New:{}'.format(getattr(curconf, f)))
+                    logging.warning('Old:{}'.format(getattr(oldconf, f)))
 
             elif type(getattr(curconf, f)) is list:
                 if type(getattr(oldconf, f)) is list:
                     if cmp(getattr(curconf, f), getattr(oldconf, f)) !=0 :
-                        print('%s doesnt match' % f)
+                        logging.warning('{} doesnt match'.format(f))
                 else:
-                    print('%s doesnt match' % f)
+                    logging.warning('%s doesnt match' % f)
             elif callable(getattr(curconf,f)):
                 pass
             elif getattr(curconf, f) != getattr(oldconf, f):
-                print('%s doesnt match' % f)
+                logging.warning('%s doesnt match' % f)
 
         else:
-            print('%s doesnt match' % f)
+            logging.warning('%s doesnt match' % f)
 
 
 # def create_network(conf, outtype):

@@ -255,7 +255,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         try:
             lbl = loadmat(lbl_file)
         except NotImplementedError:
-            print('Label file is in v7.3 format. Loading using h5py')
+            logging.info('Label file is in v7.3 format. Loading using h5py')
             lbl = h5py.File(lbl_file, 'r')
     except TypeError as e:
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
@@ -505,9 +505,9 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
                     splits[0].append(info)
 
         cap.close()  # close the movie handles
-        print('Done %d of %d movies, train count:%d val count:%d' % (ndx + 1, len(local_dirs), count, val_count))
+        logging.info('Done %d of %d movies, train count:%d val count:%d' % (ndx + 1, len(local_dirs), count, val_count))
 
-    print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
+    logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
     lbl.close()
     return splits
 
@@ -643,9 +643,9 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
             splits[0].append(info)
 
         if ndx % 100 == 99 and ndx > 0:
-            print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
+            logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
 
-    print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
+    logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
     lbl.close()
     return splits
 
@@ -1383,7 +1383,7 @@ def classify_movie_all(model_type, **kwargs):
     train_name = kwargs['train_name']
     del kwargs['model_file'], kwargs['conf'], kwargs['train_name']
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
-    print('Writing hmaps') if kwargs['save_hmaps'] else print('NOT writing hmaps')
+    logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
     try:
         classify_movie(conf, pred_fn, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
@@ -1498,8 +1498,10 @@ def parse_args(argv):
                         help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization',
                         default=None)
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
+    parser.add_argument('-debug', dest='debug', help='Print debug messages', action='store_true')
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
+    parser.add_argument('-log_file', dest='log_file', help='Err file', default=None)
     parser.add_argument('-conf_params', dest='conf_params', help='conf params. These will override params from lbl file', default=None, nargs='*')
     parser.add_argument('-type', dest='type', help='Network type, default is unet', default='unet',
                         choices=['unet', 'openpose', 'deeplabcut', 'leap', 'mdn'])
@@ -1571,7 +1573,7 @@ def run(args):
         try:
             H = loadmat(lbl_file)
         except NotImplementedError:
-            print('Label file is in v7.3 format. Loading using h5py')
+            logging.info('Label file is in v7.3 format. Loading using h5py')
             H = h5py.File(lbl_file, 'r')
     except TypeError as e:
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
@@ -1684,26 +1686,40 @@ def run(args):
 def main(argv):
     args = parse_args(argv)
 
-    if args.err_file is None:
-        logfile = os.path.join(expanduser("~"), '{}.err'.format(args.name))
-    else:
-        logfile = args.err_file
-    fileh = logging.FileHandler(logfile, 'w')
+    log_formatter = logging.Formatter('%(asctime)s [%(levelname)-5.5s] %(message)s')
+
     log = logging.getLogger()  # root logger
     for hdlr in log.handlers[:]:  # remove all old handlers
         log.removeHandler(hdlr)
-    log.addHandler(fileh)
-    log.setLevel(logging.ERROR)
-    formatter = logging.Formatter('%(levelname)s:%(message)s -- %(asctime)s')
-    log.handlers[0].setFormatter(formatter)
-    consoleHandler = logging.StreamHandler()
-    consoleHandler.setFormatter(formatter)
-    log.addHandler(consoleHandler)
+
+    # add err logging
+    if args.err_file is None:
+        err_file = os.path.join(expanduser("~"), '{}.err'.format(args.name))
+    else:
+        err_file = args.err_file
+    errh = logging.FileHandler(err_file, 'w')
+    errh.setLevel(logging.ERROR)
+    errh.setFormatter(log_formatter)
+
+    if args.log_file is None:
+        # output to console if no log file is specified
+        logh = logging.StreamHandler()
+    else:
+        logh = logging.FileHandler(args.log_file, 'w')
+
+    if args.debug:
+        logh.setLevel(logging.DEBUG)
+    else:
+        logh.setLevel(logging.INFO)
+    logh.setFormatter(log_formatter)
+
+    log.addHandler(errh)
+    log.addHandler(logh)
 
     try:
         run(args)
     except Exception as e:
-        logging.exception('UNKNOWN: APT_interface errored because of some error')
+        logging.exception('UNKNOWN: APT_interface errored')
 
 
 if __name__ == "__main__":
