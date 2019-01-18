@@ -959,6 +959,19 @@ classdef DeepTracker < LabelTracker
         % Write stripped lblfile to local cache
         dlLblFileLcl = dmcLcl.lblStrippedLnx;
         dlLblFileLclDir = fileparts(dlLblFileLcl);
+        
+        % MK 2019018. Creating the cache dir in case it does not exist
+        % realized later that cache dir should exist by default.
+        % so commenting it out for now, but might be useful.
+%         dlCacheDir = fileparts(dlLblFileLclDir);
+%         if exist(dlCacheDir,'dir')==0
+%           fprintf('Creating local dir: %s\n',dlCacheDir);
+%           [succ,msg] = mkdir(dlCacheDir);
+%           if ~succ
+%             error('Failed to create local dir %s: %s',dlCacheDir,msg);
+%           end
+%         end
+        
         if exist(dlLblFileLclDir,'dir')==0
           fprintf('Creating local dir: %s\n',dlLblFileLclDir);
           [succ,msg] = mkdir(dlLblFileLclDir);
@@ -1998,6 +2011,7 @@ classdef DeepTracker < LabelTracker
         dmc.modelChainID,dmc.lblStrippedLnx,dmc.rootDir,...
         dmc.errfileLnx,char(dmc.netType),...
         'view',dmc.view+1,...
+        'deepnetroot','/home/ubuntu/APT/deepnet',...
         'aptintrf','APT_interface.py',...
         'trainType',dmc.trainType);        
         
