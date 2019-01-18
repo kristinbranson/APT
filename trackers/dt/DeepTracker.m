@@ -755,12 +755,13 @@ classdef DeepTracker < LabelTracker
       % is APTCache set?
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Testing that Deep Track->CacheDir parameter is set...'; drawnow;
-      if ~isfield(obj.sPrm,'CacheDir') || ~ischar(obj.sPrm.CacheDir) || isempty(obj.sPrm.CacheDir),
+      dlPrmsCommon = obj.lObj.trackDLParams; 
+      if ~( isfield(dlPrmsCommon,'CacheDir') && ~isempty(dlPrmsCommon.CacheDir) )            
         hedit.String{end+1} = 'Deep Track->CacheDir tracking parameter is not set. Please go to Track->Configure tracking parameters menu to set this.'; drawnow;
         return;
       end
       % does APTCache exist? 
-      cacheDir = obj.sPrm.CacheDir;
+      cacheDir = dlPrmsCommon.CacheDir;
       if ~exist(cacheDir,'dir'),
         hedit.String{end+1} = sprintf('Deep Track->CacheDir %s did not exist, trying to create it...',cacheDir); drawnow;
         [tfsucc1,msg1] = mkdir(cacheDir);
@@ -1423,7 +1424,8 @@ classdef DeepTracker < LabelTracker
         logfiles = {trksysinfo.logfile}';
         errfiles = {trksysinfo.errfile}';
         partfiles = {trksysinfo.parttrkfile}';
-        bgTrkWorkerObj = BgTrackWorkerObjBsub(mIdx,nView,movs,outfiles,...
+        bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+        bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
           logfiles,errfiles,partfiles);
         
         tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
@@ -1448,7 +1450,14 @@ classdef DeepTracker < LabelTracker
         % spawn jobs
         for ivw=1:nView
           fprintf(1,'%s\n',trksysinfo(ivw).codestr);
-          system(trksysinfo(ivw).codestr);
+          [st,res] = system(trksysinfo(ivw).codestr);
+          if st==0
+            bgTrkWorkerObj.parseJobID(res,ivw);
+            fprintf('Tracking job (view %d) spawned:\n%s\n',ivw,res);
+          else
+            fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
+              iview,res);
+          end
         end
         
         obj.trkSysInfo = trksysinfo;
@@ -1578,6 +1587,10 @@ classdef DeepTracker < LabelTracker
         
         trksysinfo(ivw).trkfilelocal = trkLocalAbs;
         trksysinfo(ivw).trkfileremote = trkRemoteAbs;
+        
+        trksysinfo(ivw).parttrkfilelocal = [trkLocalAbs,'.part'];
+        trksysinfo(ivw).parttrkfileremote = [trkRemoteAbs,'.part'];
+        
         trksysinfo(ivw).logfile = logfileRemoteAbs;
         trksysinfo(ivw).errfile = errfileRemoteAbs;
         trksysinfo(ivw).codestr = codestr;
@@ -1595,8 +1608,14 @@ classdef DeepTracker < LabelTracker
         trkfilesRemote = {trksysinfo.trkfileremote}';
         logfiles = {trksysinfo.logfile}';
         errfiles = {trksysinfo.errfile}';
-        bgTrkWorkerObj = BgTrackWorkerObjAWS(aws,mIdx,nvw,movsfull,...
-          trkfilesRemote,logfiles,errfiles);
+        % KB: not sure what to do with part files remote vs local yet
+        partfilesRemote = {trksysinfo.parttrkfileremote}';
+        partfilesLocal = {trksysinfo.parttrkfilelocal}';
+
+        bgTrkWorkerObj = BgTrackWorkerObjAWS(nvw,dmc,aws);
+
+        bgTrkWorkerObj.initFiles(mIdx,movsfull,...
+          trkfilesRemote,logfiles,errfiles,partfilesLocal);
         
         tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
         if any(tfErrFileErr)

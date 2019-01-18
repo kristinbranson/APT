@@ -1,8 +1,8 @@
-classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
+classdef BgWorkerObjLocalFilesys < BgWorkerObj
   %
   % 
-  % 1. Training artifacts written to local filesys
-  % 2. Training killed by sending message, polling to confirm, and touching
+  % 1. Artifacts written to local filesys
+  % 2. Process killed by sending message, polling to confirm, and touching
   % filesystem tok
   %
   
@@ -22,11 +22,8 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
   
   methods
     
-    function obj = BgTrainWorkerObjLocalFilesys(nviews,dmcs)
-      
-      error('Obsolete');
-      
-      obj@BgTrainWorkerObj(nviews,dmcs);      
+    function obj = BgWorkerObjLocalFilesys(varargin)
+      obj@BgWorkerObj(varargin{:});
     end
     
     function tf = fileExists(~,file)
@@ -34,7 +31,7 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
     end
     
     function tf = errFileExistsNonZeroSize(~,errFile)
-      tf = BgTrainWorkerObjLocalFilesys.errFileExistsNonZeroSizeStc(errFile);
+      tf = BgWorkerObjLocalFilesys.errFileExistsNonZeroSizeStc(errFile);
     end
         
     function s = fileContents(~,file)
@@ -68,8 +65,8 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
         tfsucc = waitforPoll(fcn,iterWaitTime,maxWaitTime);
         
         if ~tfsucc
-          warnings{end+1} = 'Could not confirm that training job was killed.';
-          warningNoTrace('Could not confirm that training job was killed.');
+          warnings{end+1} = 'Could not confirm that job was killed.'; %#ok<AGROW>
+          warningNoTrace('Could not confirm that job was killed.');
         else
           % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to
           % pick up
@@ -77,7 +74,7 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
           kfile = killfiles{ivw};
           tfsucc = obj.createKillToken(kfile);
           if ~tfsucc,
-            warnings{end+1} = sprintf('Failed to create KILLED token: %s',kfile);
+            warnings{end+1} = sprintf('Failed to create KILLED token: %s',kfile); %#ok<AGROW>
           end
         end
         
@@ -85,7 +82,7 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
       end
     end
     
-    function res = queryTrainJobsStatus(obj)
+    function res = queryMyJobsStatus(obj)
       
       jobids = obj.jobID;
       nvw = obj.nviews;

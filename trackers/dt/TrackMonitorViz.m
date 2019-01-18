@@ -7,7 +7,7 @@ classdef TrackMonitorViz < handle
     htext % [nviewx1] text handle showing fraction of frames tracked
     isKilled = false; % scalar, whether tracking has been halted
     
-    resLast = []; % last training json contents received
+    resLast = []; % last contents received
     dtObj % DeepTracker Obj
     trackWorkerObj = [];
     backEnd % scalar DLBackEnd
@@ -87,7 +87,7 @@ classdef TrackMonitorViz < handle
 %       obj.haxs = [];
     end
     function resultsReceived(obj,sRes,forceupdate)
-      % Callback executed when new result received from training monitor BG
+      % Callback executed when new result received from monitor BG
       % worker
       %
       % trnComplete: scalar logical, true when all views done
@@ -107,22 +107,27 @@ classdef TrackMonitorViz < handle
 
         if isupdate,
           
-          if isdone,
-            ptrk = matfile(res(ivw).trkfile);
-          else
-            ptrk = matfile(res(ivw).parttrkfile);
-          end
+          try
+            if isdone,
+              ptrk = matfile(res(ivw).trkfile);
+            else
+              ptrk = matfile(res(ivw).parttrkfile);
+            end
           
-          obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:)));
-          
-          if nview > 1,
-            sview = sprintf(', view %d',ivw);
-          else
-            sview = '';
+            obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:)));
+            
+            if nview > 1,
+              sview = sprintf(', view %d',ivw);
+            else
+              sview = '';
+            end
+            set(obj.htext(ivw),'String',sprintf('%d/%d frames tracked%s',obj.nFramesTracked(ivw),obj.nFramesToTrack,sview));
+            fracComplete = obj.minFracComplete + (obj.nFramesTracked(ivw)/obj.nFramesToTrack);
+            set(obj.hline(ivw),'XData',[0,0,1,1,0]*fracComplete);
+            
+          catch ME,
+            fprintf('Could not update nFramesTracked:\n%s',getReport(ME));
           end
-          set(obj.htext(ivw),'String',sprintf('%d/%d frames tracked%s',obj.nFramesTracked(ivw),obj.nFramesToTrack,sview));
-          fracComplete = obj.minFracComplete + (obj.nFramesTracked(ivw)/obj.nFramesToTrack);
-          set(obj.hline(ivw),'XData',[0,0,1,1,0]*fracComplete);          
 
         end
         if obj.isKilled,
@@ -178,7 +183,7 @@ classdef TrackMonitorViz < handle
       elseif isTrackComplete,
         status = 'Tracking complete.';
         handles = guidata(obj.hfig);
-        TrainMonitorViz.updateStartStopButton(handles,false,true);
+        TrackMonitorViz.updateStartStopButton(handles,false,true);
       elseif isLogFile,
         if nview > 1,
           status = sprintf('Tracking in progress. %s frames tracked.',mat2str(obj.nFramesTracked));
@@ -216,26 +221,23 @@ classdef TrackMonitorViz < handle
       end
       obj.SetBusy('Killing tracking jobs...',true);
       handles = guidata(obj.hfig);
-      handles.pushbutton_startstop.String = 'Stopping training...';
+      handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
       [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
       if tfsucc,
         waitfor(handles.pushbutton_startstop,'Enable','on');
         drawnow;
-        TrainMonitorViz.updateStartStopButton(handles,false,false);
-        obj.ClearBusy('Training process killed');
+        TrackMonitorViz.updateStartStopButton(handles,false,false);
+        obj.ClearBusy('Tracking process killed');
         drawnow;
       else
-        obj.ClearBusy('Training process killed');
-        warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
+        obj.ClearBusy('Tracking process killed');
+        warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       end
 
     end
     
     function updateClusterInfo(obj)
-      
-      warning('not implemented');
-      return;
       
       handles = guidata(obj.hfig);
       actions = handles.popupmenu_actions.String; %#ok<PROP>
@@ -246,7 +248,7 @@ classdef TrackMonitorViz < handle
          ss = obj.getLogFilesContents();
          handles.text_clusterinfo.String = ss;
          drawnow;
-        case 'Update monitor plots',
+        case 'Update tracking monitor',
           obj.updateMonitorPlots();
           drawnow;
         case 'List all jobs on cluster',
@@ -301,13 +303,12 @@ classdef TrackMonitorViz < handle
     function ss = queryTrackJobsStatus(obj)
       
       ss = {};
-      warning('not implemented');
-%       raw = obj.trackWorkerObj.queryTrackJobsStatus();
-%       nview = numel(raw);
-%       for i = 1:nview,
-%         snew = strsplit(raw{i},'\n');
-%         ss(end+1:end+numel(snew)) = snew;
-%       end
+      raw = obj.trackWorkerObj.queryMyJobsStatus();
+      nview = numel(raw);
+      for i = 1:nview,
+        snew = strsplit(raw{i},'\n');
+        ss(end+1:end+numel(snew)) = snew;
+      end
 
     end
     
@@ -319,7 +320,7 @@ classdef TrackMonitorViz < handle
 
     function SetBusy(obj,s,isbusy)
 
-      %handles = guidata(obj.hfig);
+      handles = guidata(obj.hfig);
       
       if nargin < 3
         isbusy = true;
