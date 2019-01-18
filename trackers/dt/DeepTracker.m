@@ -296,7 +296,7 @@ classdef DeepTracker < LabelTracker
   methods
     
     function train(obj)
-      error('Incremental training is currently unsupported by PoseTF.');
+      error('Incremental training is currently unsupported for Deep Learning.');
     end
     
     % Training timeline
@@ -1627,7 +1627,10 @@ classdef DeepTracker < LabelTracker
         
         % KB 20190115: adding trkviz
         nvw = obj.lObj.nview;
-        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type);   
+        % figure out how many frames are to be tracked
+        nFramesTrack = size(tMFTConc,1);
+
+        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type,nFramesTrack);   
         bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
           @(x)obj.trkCompleteCbkAWS(backend,trkfilesLocal,x));
 
@@ -1829,14 +1832,15 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trainCodeGen(trnID,dllbl,cache,errfile,netType,...
         varargin)
-      [view,deepnetroot,trainType] = myparse(varargin,...
+      [view,deepnetroot,trainType,aptintrf] = myparse(varargin,...
         'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
         'deepnetroot',APT.getpathdl,...
-        'trainType',DLTrainType.New...
+        'trainType',DLTrainType.New,...
+        'aptintrf',[APT.getpathdl '/APT_interface.py']...
           );
       tfview = ~isempty(view);
       
-      aptintrf = [deepnetroot '/APT_interface.py'];
+%      aptintrf = [deepnetroot '/APT_interface.py'];
       
       switch trainType
         case DLTrainType.New
@@ -2031,7 +2035,7 @@ classdef DeepTracker < LabelTracker
         dmc.errfileLnx,char(dmc.netType),...
         'view',dmc.view+1,...
         'deepnetroot','/home/ubuntu/APT/deepnet',...
-        'aptintrf','APT_interface.py',...
+        'aptintrf','~/APT/deepnet/APT_interface.py',...
         'trainType',dmc.trainType);        
         
       codestr = {
@@ -2043,18 +2047,16 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,movtrk,...
         outtrk,frm0,frm1,varargin)
-      [deepnetroot,cache,trxtrk,trxids,view,croproi,hmaps] = myparse(varargin,...
-        'deepnetroot',APT.getpathdl,...
+      [cache,trxtrk,trxids,view,croproi,hmaps,aptintrf] = myparse(varargin,...
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
         'view',[],... % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
         'croproi',[],... % (opt) 1-based [xlo xhi ylo yhi] roi (inclusive)
-        'hmaps',false... % (opt) if true, generate heatmaps
+        'hmaps',false,...% (opt) if true, generate heatmaps
+        'aptintrf',[APT.getpathdl '/APT_interface.py']...
         ); 
-      
-      aptintrf = [deepnetroot '/APT_interface.py'];
-      
+            
       tfcache = ~isempty(cache);
       tftrx = ~isempty(trxtrk);
       tftrxids = ~isempty(trxids);
