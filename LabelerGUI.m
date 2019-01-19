@@ -1857,6 +1857,10 @@ if tfTracker
         @(src1,evt1) cbkTrackerTrainEnd(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.lObj.addlistener('trackDLBackEnd','PostSet',...
         @(src1,evt1) cbkTrackerBackEndChanged(src1,evt1,handles));      
+      listenersNew{end+1,1} = tObj.addlistener('trackStart',...
+        @(src1,evt1) cbkTrackerStart(src1,evt1,handles));
+      listenersNew{end+1,1} = tObj.addlistener('trackEnd',...
+        @(src1,evt1) cbkTrackerEnd(src1,evt1,handles));
   end
 end
 
@@ -2937,6 +2941,22 @@ function cbkTrackerTrainEnd(hObject, eventdata, handles)
 handles.txBGTrain.Visible = 'off';
 handles.txBGTrain.String = 'Idle';
 handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
+
+function cbkTrackerStart(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+algName = lObj.tracker.algorithmName;
+%algLabel = lObj.tracker.algorithmNamePretty;
+backend = lObj.trackDLBackEnd.prettyName;
+handles.txBGTrain.String = sprintf('%s tracking on %s (started %s)',algName,backend,datestr(now,'HH:MM'));
+handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
+handles.txBGTrain.FontWeight = 'normal';
+handles.txBGTrain.Visible = 'on';
+
+function cbkTrackerEnd(hObject, eventdata, handles)
+handles.txBGTrain.Visible = 'off';
+handles.txBGTrain.String = 'Idle';
+handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
+
 
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
 lObj = eventdata.AffectedObject;

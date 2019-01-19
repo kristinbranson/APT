@@ -1435,7 +1435,7 @@ classdef DeepTracker < LabelTracker
         end
 
         bgTrkMonitorObj = BgTrackMonitor;
-
+        
         % KB 20190115: adding trkviz
         nvw = obj.lObj.nview;
         % figure out how many frames are to be tracked
@@ -1443,6 +1443,10 @@ classdef DeepTracker < LabelTracker
         trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type,nFramesTrack);   
         bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
           @obj.trkCompleteCbk);
+
+        addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
+        addlistener(bgTrkMonitorObj,'bgEnd',@(s,e)obj.notify('trackEnd'));
+
         
         %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
         obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
@@ -1624,7 +1628,7 @@ classdef DeepTracker < LabelTracker
         end
                 
         bgTrkMonitorObj = BgTrackMonitor;
-        
+
         % KB 20190115: adding trkviz
         nvw = obj.lObj.nview;
         % figure out how many frames are to be tracked
@@ -1634,6 +1638,9 @@ classdef DeepTracker < LabelTracker
         bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
           @(x)obj.trkCompleteCbkAWS(backend,trkfilesLocal,x));
 
+        addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
+        addlistener(bgTrkMonitorObj,'bgEnd',@(s,e)obj.notify('trackEnd'));
+        
         obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
         
         % spawn jobs
