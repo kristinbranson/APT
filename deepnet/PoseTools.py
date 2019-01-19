@@ -767,8 +767,10 @@ def compare_conf(curconf, oldconf):
 
         else:
             logging.warning('%s doesnt match' % f)
-            logging.warning('New:{}'.format(getattr(curconf, f)))
-            logging.warning('Old:{}'.format(getattr(oldconf, f)))
+            if not hasattr(curconf,f):
+                logging.warning('New does not have {}'.format(ff))
+            else:
+                logging.warning('Old does not have {}'.format(ff))
 
 
 # def create_network(conf, outtype):
