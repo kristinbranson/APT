@@ -752,15 +752,25 @@ def compare_conf(curconf, oldconf):
                 if type(getattr(oldconf, f)) is list:
                     if cmp(getattr(curconf, f), getattr(oldconf, f)) !=0 :
                         logging.warning('{} doesnt match'.format(f))
+                        logging.warning('New:{}'.format(getattr(curconf, f)))
+                        logging.warning('Old:{}'.format(getattr(oldconf, f)))
                 else:
                     logging.warning('%s doesnt match' % f)
+                    logging.warning('New:{}'.format(getattr(curconf, f)))
+                    logging.warning('Old:{}'.format(getattr(oldconf, f)))
             elif callable(getattr(curconf,f)):
                 pass
             elif getattr(curconf, f) != getattr(oldconf, f):
                 logging.warning('%s doesnt match' % f)
+                logging.warning('New:{}'.format(getattr(curconf, f)))
+                logging.warning('Old:{}'.format(getattr(oldconf, f)))
 
         else:
             logging.warning('%s doesnt match' % f)
+            if not hasattr(curconf,f):
+                logging.warning('New does not have {}'.format(f))
+            else:
+                logging.warning('Old does not have {}'.format(f))
 
 
 # def create_network(conf, outtype):
