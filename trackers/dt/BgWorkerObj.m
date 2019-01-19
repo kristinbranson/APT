@@ -40,6 +40,15 @@ classdef BgWorkerObj < handle
       errFile = '';
     end
     
+    function killFiles = getKillFiles(obj)
+      
+      killFiles = cell(1,obj.nviews);
+      for ivw=1:obj.nviews
+        killFiles{ivw} = obj.dmcs(ivw).killTokenLnx;
+      end        
+      
+    end
+    
     function reset(obj)
       
     end

@@ -52,7 +52,8 @@ classdef BgWorkerObjAWS < BgWorkerObj
       
       dmc = obj.dmcs;
       assert(isscalar(dmc)); % single-view atm
-      killfile = dmc.killTokenLnx;
+      killfile = obj.getKillFiles();
+      killfile = killfile{1};
 
       aws.killRemoteProcess();
 

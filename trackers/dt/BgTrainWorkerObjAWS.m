@@ -70,7 +70,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         
         if tfpollsucc          
           sRes(ivw).jsonPresent = strcmp(reslines{1},'y');
-          sRes(ivw).trainComplete = strcmp(reslines{2},'y');
+          sRes(ivw).tfComplete = strcmp(reslines{2},'y');
           sRes(ivw).errFileExists = strcmp(reslines{3},'y');
           sRes(ivw).logFileErrLikely = strcmp(reslines{4},'y');
           sRes(ivw).killFileExists = strcmp(reslines{5},'y');

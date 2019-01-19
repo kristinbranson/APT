@@ -126,7 +126,7 @@ classdef TrainMonitorViz < handle
 
           end
         
-          if res(ivw).trainComplete
+          if res(ivw).tfComplete
             contents = res(ivw).contents;
             if ~isempty(contents)
               hkill = obj.hlinekill;
@@ -192,7 +192,7 @@ classdef TrainMonitorViz < handle
       isErr = false;
       isLogFile = false;
       if ~isempty(res),
-        isTrainComplete = all([res.trainComplete]);
+        isTrainComplete = all([res.tfComplete]);
         isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
         % to-do: figure out how to make this robust to different file
         % systems

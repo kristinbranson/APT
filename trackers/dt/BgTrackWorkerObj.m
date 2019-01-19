@@ -19,6 +19,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
     artfctLogfiles % [nviews] cellstr of fullpaths to bsub logs
     artfctErrFiles % [nviews] char fullpath to DL errfile    
     artfctPartTrkfiles % [nviews] full paths to partial trkfile to be generated/output
+    killFiles % [nviews]
   end
     
   methods
@@ -32,6 +33,9 @@ classdef BgTrackWorkerObj < BgWorkerObj
       obj.artfctLogfiles = logfiles(:);
       obj.artfctErrFiles = dlerrfiles(:);
       obj.artfctPartTrkfiles = partfiles(:);
+      for ivw = 1:obj.nviews,
+        obj.killFiles{ivw} = sprintf('%s.%d.KILLED',outfiles{ivw},ivw);
+      end
     end
     function sRes = compute(obj)
       % sRes: [nviews] struct array      
@@ -49,8 +53,13 @@ classdef BgTrackWorkerObj < BgWorkerObj
         end
       end
         
+      killFileExists = false(1,obj.nviews);
+      for ivw = 1:obj.nviews,
+        killFileExists(ivw) = obj.fileExists(obj.killFiles{ivw});
+      end
+      
       sRes = struct(...
-        'tfcomplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
+        'tfComplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
         'errFile',obj.artfctErrFiles,... % char, full path to DL err file
         'errFileExists',tfErrFileErr,... % true of errFile exists and has size>0
         'logFile',obj.artfctLogfiles,... % char, full path to Bsub logfile
@@ -60,12 +69,16 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'movfile',obj.movfiles,...
         'trkfile',obj.artfctTrkfiles,...
         'parttrkfile',obj.artfctPartTrkfiles,...
-        'parttrkfileTimestamp',partTrkFileTimestamps);
+        'parttrkfileTimestamp',partTrkFileTimestamps,...
+        'killFile',obj.killFiles,...
+        'killFileExists',killFileExists);
     end
     function logFiles = getLogFiles(obj)
       logFiles = obj.artfctLogfiles;
     end
-
+    function killFiles = getKillFiles(obj)
+      killFiles = obj.killFiles;
+    end
   
 
   end

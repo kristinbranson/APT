@@ -100,10 +100,10 @@ classdef TrackMonitorViz < handle
 
       tic;
       for ivw=1:nview,
-        isdone = res(ivw).tfcomplete;
+        isdone = res(ivw).tfComplete;
         isupdate = ((res(ivw).parttrkfileTimestamp > obj.parttrkfileTimestamps(ivw)) && ...
           exist(res(ivw).parttrkfile,'file')) || ...
-          (isdone && (isempty(obj.resLast) || ~obj.resLast(ivw).tfcomplete));
+          (isdone && (isempty(obj.resLast) || ~obj.resLast(ivw).tfComplete));
 
         if isupdate,
           
@@ -130,8 +130,12 @@ classdef TrackMonitorViz < handle
           end
 
         end
-        if obj.isKilled,
+        
+        if res(ivw).killFileExists,
+          obj.isKilled = true;
           set(obj.hline(ivw),'FaceColor',[.5,.5,.5]);
+          handles = guidata(obj.hfig);
+          handles.pushbutton_startstop.Enable = 'on';
         end
         fprintf('View %d: %d. ',ivw,obj.nFramesTracked(ivw));
       end
@@ -169,7 +173,7 @@ classdef TrackMonitorViz < handle
       isErr = false;
       isLogFile = false;
       if ~isempty(res),
-        isTrackComplete = all([res.tfcomplete]);
+        isTrackComplete = all([res.tfComplete]);
         isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
         % to-do: figure out how to make this robust to different file
         % systems
@@ -212,8 +216,8 @@ classdef TrackMonitorViz < handle
     
     function stopTracking(obj)
       
-      warning('not implemented');
-      return;
+%       warning('not implemented');
+%       return;
       
       if isempty(obj.trackWorkerObj),
         warning('trackWorkerObj is empty -- cannot kill process');
@@ -226,6 +230,7 @@ classdef TrackMonitorViz < handle
       [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
       if tfsucc,
         waitfor(handles.pushbutton_startstop,'Enable','on');
+        handles.pushbutton_startstop.Enable = 'off';
         drawnow;
         TrackMonitorViz.updateStartStopButton(handles,false,false);
         obj.ClearBusy('Tracking process killed');
@@ -356,8 +361,7 @@ classdef TrackMonitorViz < handle
         if isStop,
           set(handles.pushbutton_startstop,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
         else
-          warning('not implemented');
-          set(handles.pushbutton_startstop,'String','Restart tracking','BackgroundColor',[.3,.75,.93],'Enable','off','UserData','start');
+          set(handles.pushbutton_startstop,'String','Tracking stopped','BackgroundColor',[.64,.08,.18],'Enable','off','UserData','done');
         end
       end
       

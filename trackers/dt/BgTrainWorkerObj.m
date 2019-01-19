@@ -30,7 +30,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
         'tfUpdate',[],... % (only if jsonPresent==true) true if the current read represents an updated training iter.
         'contents',[],... % (only if jsonPresent==true) if tfupdate is true, this can contain all json contents.
         'trainCompletePath',[],... % char, full path to artifact indicating train complete
-        'trainComplete',[],... % true if trainCompletePath exists
+        'tfComplete',[],... % true if trainCompletePath exists
         'errFile',[],... % char, full path to DL err file
         'errFileExists',[],... % true of errFile exists and has size>0
         'logFile',[],... % char, full path to Bsub logfile
@@ -39,20 +39,21 @@ classdef BgTrainWorkerObj < BgWorkerObj
         'killFileExists',[]... % true if KILL tokfile found
         );
       dmcs = obj.dmcs;
+      killFiles = obj.getKillFiles();
       for ivw=1:obj.nviews
         dmc = dmcs(ivw);
         json = dmc.trainDataLnx;
         finalindex = dmc.trainFinalIndexLnx;
         errFile = dmc.errfileLnx;
         logFile = dmc.trainLogLnx;
-        killFile = dmc.killTokenLnx;
+        killFile = killFiles{ivw};
         
         sRes(ivw).pollsuccess = true;
         sRes(ivw).pollts = now;
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = obj.fileExists(json);
         sRes(ivw).trainCompletePath = finalindex;
-        sRes(ivw).trainComplete = obj.fileExists(finalindex);
+        sRes(ivw).tfComplete = obj.fileExists(finalindex);
         sRes(ivw).errFile = errFile;
         sRes(ivw).errFileExists = obj.errFileExistsNonZeroSize(errFile);
         sRes(ivw).logFile = logFile;
