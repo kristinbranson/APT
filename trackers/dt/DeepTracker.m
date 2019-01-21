@@ -2223,7 +2223,6 @@ classdef DeepTracker < LabelTracker
       codestr = cat(2,codestr{:});
     end
     
-    
     function [m,tfsuccess] = parseTrkFileName(trkfile)
       
       tfsuccess = false;
@@ -2234,8 +2233,8 @@ classdef DeepTracker < LabelTracker
           fprintf('trkfile %s does not have iteration name in it. parsing trkInfo.model_file to determine...\n',trkfile);
           try
             tmp = load(trkfile,'trkInfo','-mat');
-            iterm = regexp(char(tmp.trkInfo.model_file),'-(\d+)$','tokens','once');
-            m.iter = iterm{1};
+            iter = DeepModelChainOnDisk.getModelFileIter(char(tmp.trkInfo.model_file));
+            m.iter = iter(1);
           catch ME,
             warning('Could not parse iteration from trkInfo.model_file');
             getReport(ME);
@@ -2245,8 +2244,9 @@ classdef DeepTracker < LabelTracker
           warning('Could not parse trkfile name %s',trkfile);
           return;
         end
+      else
+        m.iter = str2double(m.iter);
       end
-      m.iter = str2double(m.iter);
       tfsuccess = true;
     end
 
@@ -2343,6 +2343,36 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
+    function tblMFT = checkTrackingResultsCurrent(obj)
+      
+      tblMFT = MFTable();
+      obj.trnLastDMC.updateCurrInfo();
+      
+      for moviei = 1:obj.lObj.nmovies,
+        mIdx = MovieIndex(moviei);
+        [trkfiles,id] = obj.trackResGetTrkfiles(mIdx);
+        if isempty(trkfiles),
+          continue;
+        end
+        for i = 1:numel(trkfiles),
+          isCurr = checkTrkFileCurrent(obj,trkfiles{i});
+          if ~isCurr,
+            
+          end
+        end
+      end
+      
+    end
+    function [isCurr,tfSuccess] = checkTrkFileCurrent(obj,trkfile)
+      isCurr = true;
+      [trkInfo,tfSuccess] = DeepTracker.parseTrkFileName(trkfile);
+      if ~tfSuccess,
+        return;
+      end
+      isCurr = strcmp(obj.trnLastDMC.modelChainID,trkInfo.trn_ts) && ...
+        (obj.trnLastDMC.iterCurr==trkInfo.iter);
+    end
+    
   end
   methods (Static)
     function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile)

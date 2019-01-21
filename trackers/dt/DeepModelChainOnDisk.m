@@ -18,6 +18,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
               % identifies a restart
     trainType % scalar DLTrainType
     iterFinal % final expected iteration    
+    iterCurr % last completed iteration, corresponds to actual model file used
+    dirFun = 'mydir'; % function for listing contents of dirModelChainLnx
     %backEnd % back-end info (bsub, docker, aws)
   end
   properties (Dependent)
@@ -39,6 +41,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     trainDataLnx    
     trainFinalIndexLnx
     trainFinalIndexName
+    trainCurrIndexLnx
+    trainCurrIndexName
     aptRepoSnapshotLnx
     aptRepoSnapshotName
   end
@@ -101,8 +105,14 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     function v = get.trainFinalIndexLnx(obj)
       v = [obj.dirModelChainLnx '/' obj.trainFinalIndexName];
     end
+    function v = get.trainCurrIndexLnx(obj)
+      v = [obj.dirModelChainLnx '/' obj.trainCurrIndexName];
+    end
     function v = get.trainFinalIndexName(obj)
       v = sprintf('deepnet-%d.index',obj.iterFinal);
+    end    
+    function v = get.trainCurrIndexName(obj)
+      v = sprintf('deepnet-%d.index',obj.iterCurr);
     end    
     function v = get.aptRepoSnapshotLnx(obj)
       v = [obj.dirProjLnx '/' obj.aptRepoSnapshotName];
@@ -148,6 +158,56 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
         [obj.dirModelChainLnx '/' 'traindata*']; ...
         };
     end
+    
+    function tfSuccess = updateCurrInfo(obj)
+      
+      tfSuccess = false;
+      [~,iter] = obj.getMostRecentModel();
+      if isnan(iter),
+        return;
+      end
+      obj.iterCurr = iter;
+      tfSuccess = true;
+      
+    end
+    
+    function [filepath,maxiter] = getMostRecentModel(obj)
+
+      filepath = '';
+      maxiter = nan;
+      
+      % TODO: make this work on AWS
+      modelfiles = feval(obj.dirFun,fullfile(obj.dirModelChainLnx,'deepnet-*.index'));
+      if isempty(modelfiles),
+        return;
+      end
+      
+      maxiter = -1;
+      for i = 1:numel(modelfiles),
+        iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{i});
+        if iter > maxiter,
+          maxiter = iter;
+          filepath = modelfiles{i};
+        end
+      end
+      
+    end
+    
+  end
+  
+  methods (Static)
+    
+    function iter = getModelFileIter(filename)
+      
+      iter = regexp(filename,'deepnet-(\d+)','once','tokens');
+      if isempty(iter),
+        iter = [];
+        return;
+      end
+      iter = str2double(iter{1});
+      
+    end
+    
   end
 end
     
