@@ -11097,8 +11097,19 @@ classdef Labeler < handle
         ylim = centerpos(2)+[-1,1]*r(2)*extendratio;
       end
       if isfield(ModeInfo,'dxlim'),
+        xlim0 = xlim;
+        ylim0 = ylim;
         xlim = xlim + ModeInfo.dxlim;
         ylim = ylim + ModeInfo.dylim;
+        % make sure all parts are visible
+        if minpos(1) < xlim(1) || minpos(2) < ylim(1) || ...
+            maxpos(1) > xlim(2) || maxpos(2) < ylim(2),
+          ModeInfo.dxlim = [0,0];
+          ModeInfo.dylim = [0,0];
+          xlim = xlim0;
+          ylim = ylim0;
+          fprintf('Templates zoomed axes would not show all labeled points, using default axes.\n');
+        end
       else
         ModeInfo.dxlim = [0,0];
         ModeInfo.dylim = [0,0];

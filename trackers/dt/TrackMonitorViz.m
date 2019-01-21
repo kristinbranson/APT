@@ -92,6 +92,10 @@ classdef TrackMonitorViz < handle
       %
       % trnComplete: scalar logical, true when all views done
       
+      if nargin < 3,
+        forceupdate = false;
+      end
+      
       fprintf('%s: TrackMonitorViz results received:\n',datestr(now));
       res = sRes.result;      
       fprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
