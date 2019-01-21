@@ -1839,15 +1839,14 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trainCodeGen(trnID,dllbl,cache,errfile,netType,...
         varargin)
-      [view,deepnetroot,trainType,aptintrf] = myparse(varargin,...
+      [view,deepnetroot,trainType] = myparse(varargin,...
         'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
         'deepnetroot',APT.getpathdl,...
-        'trainType',DLTrainType.New,...
-        'aptintrf',[APT.getpathdl '/APT_interface.py']...
+        'trainType',DLTrainType.New...
           );
       tfview = ~isempty(view);
       
-%      aptintrf = [deepnetroot '/APT_interface.py'];
+      aptintrf = [deepnetroot '/APT_interface.py'];
       
       switch trainType
         case DLTrainType.New
@@ -2042,7 +2041,6 @@ classdef DeepTracker < LabelTracker
         dmc.errfileLnx,char(dmc.netType),...
         'view',dmc.view+1,...
         'deepnetroot','/home/ubuntu/APT/deepnet',...
-        'aptintrf','~/APT/deepnet/APT_interface.py',...
         'trainType',dmc.trainType);        
         
       codestr = {
@@ -2054,21 +2052,23 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,movtrk,...
         outtrk,frm0,frm1,varargin)
-      [cache,trxtrk,trxids,view,croproi,hmaps,aptintrf] = myparse(varargin,...
+      [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot] = myparse(varargin,...
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
         'view',[],... % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
         'croproi',[],... % (opt) 1-based [xlo xhi ylo yhi] roi (inclusive)
         'hmaps',false,...% (opt) if true, generate heatmaps
-        'aptintrf',[APT.getpathdl '/APT_interface.py']...
+        'deepnetroot',APT.getpathdl...
         ); 
-            
+     
       tfcache = ~isempty(cache);
       tftrx = ~isempty(trxtrk);
       tftrxids = ~isempty(trxids);
       tfview = ~isempty(view);
       tfcrop = ~isempty(croproi);
+      
+      aptintrf = [deepnetroot '/APT_interface.py'];
       
       assert(~(tftrx && tfcrop));
       if tfcrop 
