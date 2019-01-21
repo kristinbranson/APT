@@ -33,5 +33,12 @@ for i in range(1,nargs,2):
                 val = readfile.read().replace('\n','')
         else:
             val = 'DNE'
+    elif type=='lastmodified':
+        if os.path.exists(file):
+            statbuf = os.stat(file)
+            val = statbuf.st_mtime
+            val = str(val)
+        else:
+            val = 'DNE'
 
     print(val)
