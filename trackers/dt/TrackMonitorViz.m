@@ -112,9 +112,9 @@ classdef TrackMonitorViz < handle
           
           try
             if isdone,
-              ptrk = matfile(res(ivw).trkfile);
+              ptrk = load(res(ivw).trkfile,'pTrk','-mat');
             else
-              ptrk = matfile(res(ivw).parttrkfile);
+              ptrk = load(res(ivw).parttrkfile,'pTrk','-mat');
             end
           
             obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
