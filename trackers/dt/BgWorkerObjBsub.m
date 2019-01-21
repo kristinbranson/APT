@@ -16,7 +16,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
         jobid = nan;
         warningNoTrace('Failed to ascertain jobID.');
       end
-      fprintf('Training job (view %d) spawned, jobid=%d.\n\n',...
+      fprintf('Process job (view %d) spawned, jobid=%d.\n\n',...
         iview,jobid);
       % assigning to 'local' workerobj, not the one copied to workers
       obj.jobID(iview) = jobid;

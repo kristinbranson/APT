@@ -105,7 +105,7 @@ classdef TrackMonitorViz < handle
       tic;
       for ivw=1:nview,
         isdone = res(ivw).tfComplete;
-        isupdate = forceupdate || (((res(ivw).parttrkfileTimestamp > obj.parttrkfileTimestamps(ivw)) && ...
+        isupdate = (((forceupdate || (res(ivw).parttrkfileTimestamp > obj.parttrkfileTimestamps(ivw))) && ...
           exist(res(ivw).parttrkfile,'file')) || isdone);
 
         if isupdate,

@@ -2033,7 +2033,7 @@ classdef DeepTracker < LabelTracker
           error('Failed to update APT repo on JRC filesystem.');
       end
     end
-    
+          
     function codestr = trainCodeGenAWS(dmc)      
       % not sure what -name flag does exactly
       
@@ -2222,6 +2222,34 @@ classdef DeepTracker < LabelTracker
         };
       codestr = cat(2,codestr{:});
     end
+    
+    
+    function [m,tfsuccess] = parseTrkFileName(trkfile)
+      
+      tfsuccess = false;
+      m = regexp(trkfile,'movie_trn(?<trn_ts>.*)_iter(?<iter>.*)_(?<trk_ts>.*)\.trk$','names','once');
+      if isempty(m),
+        m = regexp(trkfile,'movie_trn(?<trn_ts>.*)_(?<trk_ts>.*)\.trk$','names','once');
+        if ~isempty(m),
+          fprintf('trkfile %s does not have iteration name in it. parsing trkInfo.model_file to determine...\n',trkfile);
+          try
+            tmp = load(trkfile,'trkInfo','-mat');
+            iterm = regexp(char(tmp.trkInfo.model_file),'-(\d+)$','tokens','once');
+            m.iter = iterm{1};
+          catch ME,
+            warning('Could not parse iteration from trkInfo.model_file');
+            getReport(ME);
+            return;
+          end
+        else
+          warning('Could not parse trkfile name %s',trkfile);
+          return;
+        end
+      end
+      m.iter = str2double(m.iter);
+      tfsuccess = true;
+    end
+
   end
   methods (Static) % train/track broker util
     function hdir = dlerrGetHomeDir

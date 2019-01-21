@@ -8,7 +8,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     
     function parseJobID(obj,res,iview)
       containerID = strtrim(res);
-      fprintf('Training job (view %d) spawned, docker containerID=%s.\n\n',...
+      fprintf('Process job (view %d) spawned, docker containerID=%s.\n\n',...
         iview,containerID);
       % assigning to 'local' workerobj, not the one copied to workers
       obj.jobID{iview} = containerID;
