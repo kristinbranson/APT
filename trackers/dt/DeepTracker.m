@@ -1042,7 +1042,58 @@ classdef DeepTracker < LabelTracker
       
       % Remote-train requires preProcData to be updated for all
       % training rows/images
-      [tfsucc,obj.trnTblP] = obj.preretrain([],wbObj);
+      
+      % ----- "preretrain" -----------
+      %[tfsucc,obj.trnTblP] = obj.preretrain([],wbObj);
+      
+      tfsucc = false;
+      dataPreProc = [];
+      tfWB = ~isempty(wbObj);
+      prmpp = [];
+      
+      tblPTrn = obj.lObj.preProcGetMFTableLbled('wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        % Theoretically we are safe to return here as of 201801. We
+        % have only called obj.asyncReset() so far.
+        % However to be conservative/nonfragile/consistent let's reset
+        % as in other cancel/early-exits
+        return;
+      end
+
+      if isempty(tblPTrn)
+        error('No training data set.');
+      end
+
+      if obj.lObj.hasTrx
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+      elseif obj.lObj.cropProjHasCrops
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+      else
+        tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+      end
+      
+      [dataPreProc,dataPreProcIdx,tblPTrn,tblPTrnReadFail] = ...
+        obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj,'preProcParams',prmpp);
+      if tfWB && wbObj.isCancel
+        % none
+        return;
+      end
+      nMissedReads = height(tblPTrnReadFail);
+      if nMissedReads>0
+        warningNoTrace('Removing %d training rows, failed to read images.\n',...
+          nMissedReads);
+      end
+      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
+      
+      dataPreProc.iTrn = dataPreProcIdx;
+      fprintf(1,'Training data summary:\n');
+      dataPreProc.summarize('mov',dataPreProc.iTrn);
+      
+      tfsucc = true;      
+%     end 
+      
+      
+      
       if ~tfsucc
         obj.trnTblP = [];
         return;

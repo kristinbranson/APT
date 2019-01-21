@@ -8080,8 +8080,8 @@ classdef Labeler < handle
         'preProcParams',prmpp);
     end
     
-    function [tblPReadFailed,dataNew] = ...
-        preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
+    function [tblPReadFailed,dataNew] = preProcDataUpdateRaw(obj,...
+        tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
       % * Rows appended and pGT/tfocc updated; but other information
@@ -8109,6 +8109,10 @@ classdef Labeler < handle
       %   these rows as requested.
       %
       % Updates .preProcData, .preProcDataTS
+      
+      % Meth needs refactor. When the preProcParams opt arg is [] 
+      % (isPreProcParamsIn is false), this is maybe a separate method, def 
+      % distinct behavior.
       
       dataNew = [];
       
@@ -8160,14 +8164,6 @@ classdef Labeler < handle
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
 
-%         global READFRAMEDATA;
-%         if nNew == size(READFRAMEDATA.I,1),
-%           I = READFRAMEDATA.I;
-%           didread = READFRAMEDATA.didread;
-%           nNborMask = READFRAMEDATA.nNborMask;
-%           tblPReadFailed = READFRAMEDATA.tblPReadFailed;
-%           tblPnew = READFRAMEDATA.tblPnew;
-%         else
         [I,nNborMask,didread] = CPRData.getFrames(tblPNewConcrete,...
           'wbObj',wbObj,...
           'forceGrayscale',obj.movieForceGrayscale,...

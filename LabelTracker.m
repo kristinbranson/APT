@@ -169,7 +169,6 @@ classdef LabelTracker < handle
       reason = '';
       
     end
-
     
     function [tfsucc,tblPTrn,dataPreProc] = preretrain(obj,tblPTrn,wbObj,prmpp)
       % Right now this figures out which rows comprise the training set.
@@ -188,6 +187,8 @@ classdef LabelTracker < handle
       % tfsucc: see above
       % tblPTrn (out): MFTable
       % dataPreProc: CPRData handle, obj.lObj.preProcData
+      %
+      % TODO: this should be a Labeler meth.
       
       tfsucc = false;
       dataPreProc = [];

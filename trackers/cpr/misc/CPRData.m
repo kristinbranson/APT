@@ -317,27 +317,30 @@ classdef CPRData < handle
       
       nView = size(tblMF.mov,2);
       
-      [wbObj,forceGrayscale,preload,movieInvert,roiPadVal,doBGsub,bgReadFcn,bgType,...
-        maskNeighbors,maskNeighborsMeth,empPDF,fgThresh,trxCache] = ...
+      [wbObj,forceGrayscale,preload,movieInvert,roiPadVal,rotateImsUpPerTrx,...
+        doBGsub,...
+        bgReadFcn,bgType,trxCache,maskNeighbors,maskNeighborsMeth,empPDF,...
+        fgThresh] = ...
         myparse(varargin,...
           'wbObj',[],... wbObj: WaitBarWithCancel. If canceled, I will be 'incomplete', ie partially filled.
           'forceGrayscale',true,... 
           'preload',false,...
           'movieInvert',false(1,nView),...
           'roiPadVal',0,... % used when tblMF has .roi
+          'rotateImsUpPerTrx',false,... % if true, rotate all ims so that trx.theta points "up" before cropping. 
+                                    ... % assumes tblMF has .roi and trxCache is specified
           'doBGsub',false,... % if true, I will contain bg-subbed images
           'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile,movInfo)
                          ... % reads/generates bg image for given movie
           'bgType','other',... % one of {'light on dark','dark on light','other'}
+          'trxCache',[],...
           'maskNeighbors',0,... % if true, neighbor-masking is performed
           ...   % BEGIN USED when maskNeighbors==true;
           'maskNeighborsMeth','Conn. Comp',...
           'maskNeighborsEmpPDF',[],... %used if maskNeighborsMeth=='Emp. PDF'
-          'fgThresh',nan,...
-          'trxCache',[]...
-          ...   % END USED for maskNeighbors
+          'fgThresh',nan...   % END USED for maskNeighbors
           );
-      assert(numel(movieInvert)==nView);      
+      assert(numel(movieInvert)==nView);
       if doBGsub && roiPadVal~=0
         warningNoTrace('Background subtraction enabled. Setting roi pad value to 0.');
 %         roiPadVal = 0;
@@ -349,6 +352,10 @@ classdef CPRData < handle
       tfROI = tblfldscontains(tblMF,'roi');
       if tfROI
         roi = tblMF.roi;
+      end
+      
+      if rotateImsUpPerTrx
+        assert(tfROI && ~isempty(trxCache));
       end
       
       % Initialize outputs early, we may early return if user cancels wb.
@@ -408,6 +415,8 @@ classdef CPRData < handle
             try
             
             if maskNeighbors
+              assert(~rotateImsUpPerTrx,'Currently unsupported.');
+              
               [imraw,imOrigTy] = mr.readframe(f,'doBGsub',false);
               imdiff = PxAssign.simplebgsub(mr.bgType,double(imraw), ...
                 mr.bgIm,mr.bgDevIm); % Note: mr.flipVert is NOT applied to .bgIm, .bgDevIm
@@ -483,12 +492,16 @@ classdef CPRData < handle
               end
               
               if tfROI
-                if ndims(im) == 2
-                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-                elseif ndims(im) == 3
-                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi,1,3);
+                if rotateImsUpPerTrx
+                  
                 else
+                  if ndims(im) == 2 %#ok<ISMAT>
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+                  elseif ndims(im) == 3
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi,1,3);
+                  else
                     error('Undefined number of channels');
+                  end
                 end
               else
                 imroi = im;
@@ -509,7 +522,7 @@ classdef CPRData < handle
         end
         if tfWB
           wbObj.endPeriod();
-        end    
+        end
       end
     end
 
