@@ -2209,11 +2209,11 @@ classdef DeepTracker < LabelTracker
         trkRemoteFull,frm0,frm1,baseargs)
       % baseargs: PV cell vector that goes to .trackCodeGenBase
       
-      aptintrfRemote = '~/APT/deepnet/APT_interface.py';
+      deepnetroot = '~/APT/deepnet';
       baseargs = [baseargs {'cache' cacheRemote}];
       codestrbase = DeepTracker.trackCodeGenBase(trnID,dlLblRemote,...
         errfileRemote,netType,movRemoteFull,trkRemoteFull,frm0,frm1,...
-        'aptintrf',aptintrfRemote,baseargs{:});
+        'deepnetroot',deepnetroot,baseargs{:});
       
       codestr = {
          'cd /home/ubuntu/APT/deepnet;';
