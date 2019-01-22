@@ -105,19 +105,25 @@ classdef TrackMonitorViz < handle
       tic;
       for ivw=1:nview,
         isdone = res(ivw).tfComplete;
-        isupdate = (((forceupdate || (res(ivw).parttrkfileTimestamp > obj.parttrkfileTimestamps(ivw))) && ...
-          exist(res(ivw).parttrkfile,'file')) || isdone);
+        partFileExists = ~isnan(res(ivw).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
+        isupdate = ...
+          (partFileExists && (forceupdate || (res(ivw).parttrkfileTimestamp>obj.parttrkfileTimestamps(ivw)))) ...
+           || isdone;
 
-        if isupdate,
-          
+        if isupdate,          
           try
-            if isdone,
-              ptrk = load(res(ivw).trkfile,'pTrk','-mat');
+            if isfield(res(ivw),'parttrkfileNfrmtracked')
+              % for AWS and any worker that figures this out on its own
+              obj.nFramesTracked(ivw) = nanmax(res(ivw).parttrkfileNfrmtracked,...
+                res(ivw).trkfileNfrmtracked);
             else
-              ptrk = load(res(ivw).parttrkfile,'pTrk','-mat');
+              if isdone,
+                ptrk = load(res(ivw).trkfile,'pTrk','-mat');
+              else
+                ptrk = load(res(ivw).parttrkfile,'pTrk','-mat');
+              end          
+              obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
             end
-          
-            obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
             
             if nview > 1,
               sview = sprintf(', view %d',ivw);

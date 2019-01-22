@@ -1619,7 +1619,7 @@ classdef DeepTracker < LabelTracker
         bgTrkWorkerObj = BgTrackWorkerObjAWS(nvw,dmc,aws);
 
         bgTrkWorkerObj.initFiles(mIdx,movsfull,...
-          trkfilesRemote,logfiles,errfiles,partfilesLocal);
+          trkfilesRemote,logfiles,errfiles,partfilesRemote);
         
         tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
         if any(tfErrFileErr)
