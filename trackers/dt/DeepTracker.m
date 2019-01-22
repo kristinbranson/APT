@@ -1855,8 +1855,12 @@ classdef DeepTracker < LabelTracker
       if obj.bgTrkIsRunning,
         fprintf('Stopping tracking...\n');
         obj.bgTrkMonitor.stop();
+        obj.bgTrkMonitor.reset();
         assert(~obj.bgTrkIsRunning);
       end
+
+      obj.trackCurrResUpdate();
+      obj.newLabelerFrame();
       
       % are there tracking results from previous trackers? TODO This can be
       % moved under bgTrnIsRunning at some point, but right now there can
@@ -1865,11 +1869,13 @@ classdef DeepTracker < LabelTracker
       if ~isCurr,
         
         res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
+        obj.cleanOutOfDateTrackingResults(isCurr);
+        obj.trackCurrResUpdate();
+        obj.newLabelerFrame();
         if strcmpi(res,'Retrack'),
           tblMFTRetrack = obj.getTrackedMFT();
+          obj.track(tblMFTRetrack);
         end
-        obj.cleanOutOfDateTrackingResults(isCurr);
-        obj.track(tblMFTRetrack);
 
       end
     end
