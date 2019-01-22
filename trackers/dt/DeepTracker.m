@@ -1404,7 +1404,7 @@ classdef DeepTracker < LabelTracker
       for i = 1:numel(dmc),
         dmc(i).updateCurrInfo();
       end
-      trnstrs = obj.getTrkFileTrnStr();
+      [trnstrs,modelFiles] = obj.getTrkFileTrnStr();
       %trnstr = sprintf('trn%s',modelChainID);
  
       % info for code-generation. for now we just record a struct so we can
@@ -1419,6 +1419,8 @@ classdef DeepTracker < LabelTracker
 
         % base args
         baseargsaug = hmapArgs;
+        modelFile = modelFiles{ivw};
+        baseargsaug = [baseargsaug {'model_file' modelFile}];
         if tfcrop
           baseargsaug = [baseargsaug {'croproi' cropRois(ivw,:)}];
         end
@@ -1880,11 +1882,14 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function trnstrs = getTrkFileTrnStr(obj)
+    function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)
       trnstrs = cell(size(obj.trnLastDMC));
+      modelFiles = cell(size(obj.trnLastDMC));
       for i = 1:numel(obj.trnLastDMC),
         obj.trnLastDMC(i).updateCurrInfo();
         trnstrs{i} = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC(i).iterCurr);
+        modelFiles{i} = obj.trnLastDMC(i).trainCurrIndexLnx;
+        modelFiles{i} = regexprep(modelFiles{i},'\.index$','');
       end
     end
     
@@ -2181,14 +2186,15 @@ classdef DeepTracker < LabelTracker
     end
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,movtrk,...
         outtrk,frm0,frm1,varargin)
-      [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot] = myparse(varargin,...
+      [cache,trxtrk,trxids,view,croproi,hmaps,deepnetroot,model_file] = myparse(varargin,...
         'cache',[],... % (opt) cachedir
         'trxtrk','',... % (opt) trkfile for movtrk to be tracked 
         'trxids',[],... % (opt) 1-based index into trx structure in trxtrk. empty=>all trx
         'view',[],... % (opt) 1-based view index. If supplied, track only that view. If not, all views tracked serially 
         'croproi',[],... % (opt) 1-based [xlo xhi ylo yhi] roi (inclusive)
         'hmaps',false,...% (opt) if true, generate heatmaps
-        'deepnetroot',APT.getpathdl...
+        'deepnetroot',APT.getpathdl,...
+        'model_file',[]...
         ); 
      
       tfcache = ~isempty(cache);
@@ -2217,6 +2223,9 @@ classdef DeepTracker < LabelTracker
         codestr = [codestr ' -cache ' cache];
       end
       codestr = [codestr ' -err_file ' errfile ' -type ' char(nettype)];
+      if ~isempty(model_file),
+        codestr = sprintf('%s -model_file %s',codestr,model_file);
+      end
       codestr = [codestr sprintf(' %s track -mov %s -out %s -start_frame %d -end_frame %d',...
                         dllbl,movtrk,outtrk,frm0,frm1)];
       if tftrx
