@@ -2343,26 +2343,56 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
-    function tblMFT = checkTrackingResultsCurrent(obj)
+    function [tblMFTRetrack,trkFilesToDelete] = checkTrackingResultsCurrent(obj)
       
-      tblMFT = MFTable();
+      tblMFTRetrack = [];
+      trkFilesToDelete = {};
       obj.trnLastDMC.updateCurrInfo();
       
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
-        [trkfiles,id] = obj.trackResGetTrkfiles(mIdx);
+        [trkfiles] = obj.trackResGetTrkfiles(mIdx);
         if isempty(trkfiles),
           continue;
         end
+        isCurr = true;
         for i = 1:numel(trkfiles),
-          isCurr = checkTrkFileCurrent(obj,trkfiles{i});
+          [isCurr,tfSuccess] = checkTrkFileCurrent(obj,trkfiles{i});
+          assert(tfSuccess);
           if ~isCurr,
-            
+            fprintf('Trkfile %s out of date, removing all tracking for movie %d\n',trkfiles{i},moviei);
+            break;
           end
         end
+        if isCurr,
+          continue;
+        end
+        [tblTrkRes] = obj.getAllTrackResTable(mIdx);
+        frm = tblTrkRes.frm;
+        iTgt = tblTrkRes.iTgt;
+        mov = repmat(mIdx,size(frm));
+        tblMFTRetrack = [tblMFTRetrack;table(mov,frm,iTgt)]; %#ok<AGROW>
+        
+        % delete these out-of-date trackfiles
+        trkFilesToDelete = [trkFilesToDelete,trkfiles]; %#ok<AGROW>
+        
       end
       
     end
+    
+    function [tblMFTRetrack] = cleanOutOfDateTrackingResults(obj)
+      [tblMFTRetrack,trkFilesToDelete] = obj.checkTrackingResultsCurrent();
+      if isempty(trkFilesToDelete),
+        return;
+      end
+      for i = 1:numel(trkFilesToDelete),
+        delete(trkFilesToDelete{i});
+        if exist(trkFilesToDelete{i},2),
+          warning('Failed to delete trk file %s',trkFilesToDelete{i});
+        end
+      end
+    end
+    
     function [isCurr,tfSuccess] = checkTrkFileCurrent(obj,trkfile)
       isCurr = true;
       [trkInfo,tfSuccess] = DeepTracker.parseTrkFileName(trkfile);
@@ -2388,7 +2418,7 @@ classdef DeepTracker < LabelTracker
     end
   end
   methods
-    function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj) % obj const
+    function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj,mIdxs) % obj const
       % Get all current tracking results in a table
       %
       % tblTrkRes: [NTrk x ncol] table of tracking results
@@ -2408,8 +2438,13 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
-      mIdxs = m.keys;
-      mIdxs = cell2mat(mIdxs(:));
+      if nargin < 2,
+        mIdxs = m.keys;
+        mIdxs = cell2mat(mIdxs(:));
+      end
+      if ~isa(mIdxs,'MovieIndex'),
+        mIdxs = MovieIndex(mIdxs);
+      end
       [trk,tfhasres] = obj.getTrackingResults(mIdxs);
 
       tblTrkRes = [];
