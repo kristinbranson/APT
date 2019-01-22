@@ -274,7 +274,7 @@ classdef TrackMonitorViz < handle
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show error messages',
-          if isempty(obj.resLast) || ~obj.resLast.errFileExists,
+          if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
             ss = 'No error messages.';
           else
             ss = obj.getErrorFileContents();

@@ -446,15 +446,16 @@ classdef DeepTracker < LabelTracker
     
     function retrain(obj,varargin)
       
-      [wbObj,dlTrnType] = myparse(varargin,...
+      [wbObj,dlTrnType,oldVizObj] = myparse(varargin,...
         'wbObj',[],...
-        'dlTrnType',DLTrainType.New ...
+        'dlTrnType',DLTrainType.New, ...
+        'oldVizObj',[] ...
         );
       
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
       end
-      obj.bgTrnReset();
+      
       if obj.bgTrkIsRunning
         error('Tracking is in progress.');
       end
@@ -486,6 +487,12 @@ classdef DeepTracker < LabelTracker
         end
         
       end
+      
+      obj.bgTrnReset();
+      if ~isempty(oldVizObj),
+        delete(oldVizObj);
+      end
+
       
       modelChain0 = obj.trnName;
       switch dlTrnType
@@ -1211,18 +1218,22 @@ classdef DeepTracker < LabelTracker
       end
       
       if obj.bgTrnIsRunning,
-        obj.trnLastDMC.updateCurrInfo();
-        if isempty(obj.trnLastDMC.iterCurr)
-          iterCurr = 0;
-        else
-          iterCurr = obj.trnLastDMC.iterCurr;
+        iterCurr = zeros(size(obj.trnLastDMC));
+        for i = 1:numel(obj.trnLastDMC),
+          obj.trnLastDMC(i).updateCurrInfo();
+          if isempty(obj.trnLastDMC(i).iterCurr)
+            iterCurr(i) = 0;
+          else
+            iterCurr(i) = obj.trnLastDMC(i).iterCurr;
+          end
         end
+        iterCurr = min(iterCurr);
         if iterCurr == 0,
           warndlg('Training in progress, and no in-progress tracker has been saved yet. Please wait to track.','Tracker not ready','modal');
           return;
         end
         res = questdlg(sprintf('Training in progress. Tracking will use in-progress tracker, which has been trained for %d / %d iterations. When training completes, these frames will need to be retracked. Continue?',...
-          iterCurr,obj.trnLastDMC.iterFinal),'Use in-progress tracker?','Track','Cancel','Track');
+          iterCurr,obj.trnLastDMC(1).iterFinal),'Use in-progress tracker?','Track','Cancel','Track');
         if strcmpi(res,'Cancel'),
           return;
         end
@@ -1390,8 +1401,10 @@ classdef DeepTracker < LabelTracker
       movs = movs(1,:);
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       modelChainID = obj.trnName;
-      dmc.updateCurrInfo();
-      trnstr = obj.getTrkFileTrnStr();
+      for i = 1:numel(dmc),
+        dmc(i).updateCurrInfo();
+      end
+      trnstrs = obj.getTrkFileTrnStr();
       %trnstr = sprintf('trn%s',modelChainID);
  
       % info for code-generation. for now we just record a struct so we can
@@ -1431,6 +1444,7 @@ classdef DeepTracker < LabelTracker
           end
         end
         mov = movs{ivw};
+        trnstr = trnstrs{ivw};
         [movP,movS] = fileparts(mov);
         trkfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.trk']);
         outfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.log']);
@@ -1597,6 +1611,8 @@ classdef DeepTracker < LabelTracker
         'logfile',[],...
         'codestr',[],...
         'syscmd',[]);
+      trnstrs = obj.getTrkFileTrnStr();
+
       for ivw=1:nvw
         
         % upload mov/trx as nec
@@ -1628,7 +1644,6 @@ classdef DeepTracker < LabelTracker
         % trk/log names, local and remote
         nowstr = datestr(now,'yyyymmddTHHMMSS');
         modelChainID = obj.trnName;
-        trnstr = obj.getTrkFileTrnStr();
         %trnstr = sprintf('trn%s',modelChainID);
         
         trkdirRemote = dmc(ivw).dirTrkOutLnx;
@@ -1646,6 +1661,7 @@ classdef DeepTracker < LabelTracker
         end
       
         [~,movS,movE] = myfileparts(mov);
+        trnstr = trnstrs{ivw};
         trkLocalRel = [movS '_' trnstr '_' nowstr '.trk'];
         trkRemoteRel = [movsha '_' trnstr '_' nowstr];
         trkLocalAbs = fullfile(trkdirLocal,trkLocalRel);
@@ -1858,9 +1874,12 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function trnstr = getTrkFileTrnStr(obj)
-      obj.trnLastDMC.updateCurrInfo();
-      trnstr = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC.iterCurr);
+    function trnstrs = getTrkFileTrnStr(obj)
+      trnstrs = cell(size(obj.trnLastDMC));
+      for i = 1:numel(obj.trnLastDMC),
+        obj.trnLastDMC(i).updateCurrInfo();
+        trnstrs{i} = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC(i).iterCurr);
+      end
     end
     
   end
@@ -2475,7 +2494,9 @@ classdef DeepTracker < LabelTracker
     function isCurr = checkTrackingResultsCurrent(obj)
       
       isCurr = true;
-      obj.trnLastDMC.updateCurrInfo();
+      for i = 1:numel(obj.trnLastDMC),
+        obj.trnLastDMC(i).updateCurrInfo();
+      end
       
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
@@ -2558,14 +2579,14 @@ classdef DeepTracker < LabelTracker
       
     end
     
-    function [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfile)
+    function [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfile,ivw)
       isCurr = true;
       [trkInfo,tfSuccess,isOldFileName] = DeepTracker.parseTrkFileName(trkfile);
       if ~tfSuccess,
         return;
       end
-      isCurr = strcmp(obj.trnLastDMC.modelChainID,trkInfo.trn_ts) && ...
-        (obj.trnLastDMC.iterCurr==trkInfo.iter);
+      isCurr = strcmp(obj.trnLastDMC(ivw).modelChainID,trkInfo.trn_ts) && ...
+        (obj.trnLastDMC(ivw).iterCurr==trkInfo.iter);
     end
     
     function tf = isTrkFiles(obj)
