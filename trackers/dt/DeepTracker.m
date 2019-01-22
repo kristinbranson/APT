@@ -2509,21 +2509,23 @@ classdef DeepTracker < LabelTracker
         
         isFixed = false;
         newtrkfiles = trkfiles;
-        for i = 1:numel(trkfiles),
-          [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfiles{i});
-          assert(tfSuccess);
-          if isOldFileName,
-            isFixed = true;
-            [tfSucc,msg] = copyfile(trkfiles{i},trkInfo.newName);
-            if ~tfSucc,
-              warning('Could not rename %s to %s: %s',trkfiles{i},newtrkfiles{i},msg);
-            else
-              newtrkfiles{i} = trkInfo.newName;
+        for i = 1:size(trkfiles,1),
+          for ivw = 1:size(trkfiles,2),
+            [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfiles{i,ivw},ivw);
+            assert(tfSuccess);
+            if isOldFileName,
+              isFixed = true;
+              [tfSucc,msg] = copyfile(trkfiles{i,ivw},trkInfo.newName);
+              if ~tfSucc,
+                warning('Could not rename %s to %s: %s',trkfiles{i,ivw},newtrkfiles{i,ivw},msg);
+              else
+                newtrkfiles{i,ivw} = trkInfo.newName;
+              end
             end
-          end
-          if ~isCurr,
-            %fprintf('Trkfile %s out of date, removing all tracking for movie %d\n',trkfiles{i},moviei);
-            break;
+            if ~isCurr,
+              %fprintf('Trkfile %s out of date, removing all tracking for movie %d\n',trkfiles{i},moviei);
+              break;
+            end
           end
         end
         if isFixed,
@@ -2626,9 +2628,9 @@ classdef DeepTracker < LabelTracker
       % pTrkiPt: [npttrk] indices into 1:obj.npts, tracked points. 
       %          size(tblTrkRes.pTrk,2)==npttrk*d
 
-      if obj.lObj.nview>1
-        error('Currently unsupported for multiview projects.');
-      end
+%       if obj.lObj.nview>1
+%         error('Currently unsupported for multiview projects.');
+%       end
       
       m = obj.movIdx2trkfile;
       
@@ -2652,12 +2654,12 @@ classdef DeepTracker < LabelTracker
       for i=1:numel(mIdxs)
         if tfhasres(i)
           if isequal(pTrkiPt,-1)
-            pTrkiPt = trk{i}.pTrkiPt;
+            pTrkiPt = trk{i,1}.pTrkiPt;
           end
-          if ~isequal(pTrkiPt,trk{i}.pTrkiPt)
+          if ~isequal(pTrkiPt,trk{i,1}.pTrkiPt)
             error('Trkfiles differ in tracked points .pTrkiPt.');
           end
-          tbl = trk{i}.tableform;
+          tbl = trk{i,1}.tableform;
           tblTrkRes = [tblTrkRes;tbl]; %#ok<AGROW>
         end         
       end
