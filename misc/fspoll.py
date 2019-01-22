@@ -4,6 +4,9 @@ import sys
 import os
 import string
 import re
+import numpy as np
+import h5py
+
 
 args = sys.argv
 nargs = len(args)
@@ -40,5 +43,13 @@ for i in range(1,nargs,2):
             val = str(val)
         else:
             val = 'DNE'
+    elif type=='nfrmtracked':
+        if os.path.exists(file):
+            mat = h5py.File(file,'r')
+            pTrk = mat['pTrk'].value
+            val = str(np.count_nonzero(~np.isnan(pTrk[:,:,0,0])))
+        else:
+            val = 'DNE'
+            
 
     print(val)

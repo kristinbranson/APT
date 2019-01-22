@@ -79,7 +79,6 @@ classdef BgTrackWorkerObj < BgWorkerObj
     function killFiles = getKillFiles(obj)
       killFiles = obj.killFiles;
     end
-  
 
   end
   

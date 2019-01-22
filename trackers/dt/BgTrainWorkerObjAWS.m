@@ -42,13 +42,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         errFile = dmc.errfileLnx;
         logFile = dmc.trainLogLnx;
         killFile = dmc.killTokenLnx;
-        
-%         json = obj.artfctTrainDataJson{ivw};
-%         finalindex = obj.artfctFinalIndex{ivw};
-%         errFile = obj.artfctErrFile{ivw};
-%         logFile = obj.artfctLogs{ivw};
-%         killFile = obj.artfctKills{ivw};
-        
+                
         fspollargs = ...
           sprintf('exists %s exists %s existsNE %s existsNEerr %s exists %s contents %s',...
             json,finalindex,errFile,logFile,killFile,json);
