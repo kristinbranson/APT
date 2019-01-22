@@ -4194,7 +4194,7 @@ classdef Labeler < handle
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
       obj.initShowTrx();
     end
-   
+       
     function tf = trxCheckFramesLive(obj,frms)
       % Check that current target is live for given frames
       %
@@ -8505,8 +8505,9 @@ classdef Labeler < handle
         tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
         retrainArgs = [retrainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
-        
-      tObj.clearTrackingResults();
+      
+	  % KB 20190121 moved this to within retrain, since we don't clear tracking results immediately for background deep learning
+      % tObj.clearTrackingResults();
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end

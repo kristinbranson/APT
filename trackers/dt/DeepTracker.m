@@ -341,7 +341,7 @@ classdef DeepTracker < LabelTracker
 
       trnMonObj = BgTrainMonitor;
       addlistener(trnMonObj,'bgStart',@(s,e)obj.notify('trainStart'));
-      addlistener(trnMonObj,'bgEnd',@(s,e)obj.notify('trainEnd'));
+      addlistener(trnMonObj,'bgEnd',@(varargin) obj.trainStoppedCbk(varargin{:}));
 
       switch backEnd.type
         case DLBackEnd.Bsub
@@ -477,6 +477,15 @@ classdef DeepTracker < LabelTracker
       fprintf('Your training backend is: %s\n',char(trnBackEnd.type));
       fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
       fprintf(1,'\n');      
+      
+      if obj.isTrkFiles(),
+        
+        res = questdlg('Tracking results exist for previous deep trackers. When training stops, these will be deleted. Continue training?','Continue training?','Yes','No','Cancel','Yes');
+        if ~strcmpi(res,'Yes'),
+          return;
+        end
+        
+      end
       
       modelChain0 = obj.trnName;
       switch dlTrnType
@@ -1200,7 +1209,44 @@ classdef DeepTracker < LabelTracker
         warningNoTrace('Nothing to track.');
         return;
       end
+      
+      if obj.bgTrnIsRunning,
+        obj.trnLastDMC.updateCurrInfo();
+        if isempty(obj.trnLastDMC.iterCurr)
+          iterCurr = 0;
+        else
+          iterCurr = obj.trnLastDMC.iterCurr;
+        end
+        if iterCurr == 0,
+          warndlg('Training in progress, and no in-progress tracker has been saved yet. Please wait to track.','Tracker not ready','modal');
+          return;
+        end
+        res = questdlg(sprintf('Training in progress. Tracking will use in-progress tracker, which has been trained for %d / %d iterations. When training completes, these frames will need to be retracked. Continue?',...
+          iterCurr,obj.trnLastDMC.iterFinal),'Use in-progress tracker?','Track','Cancel','Track');
+        if strcmpi(res,'Cancel'),
+          return;
+        end
+      end
+      
+      % are there tracking results from previous trackers? TODO This can be
+      % moved under bgTrnIsRunning at some point, but right now there can
+      % be mixed up tracking results, so let's always check. 
+      isCurr = obj.checkTrackingResultsCurrent();
+      if ~isCurr,
         
+        res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Cancel','Delete');
+        if strcmpi(res,'Cancel'),
+          return;
+        end
+        if strcmpi(res,'Retrack'),
+          tblMFTRetrack = obj.getTrackedMFT();
+          ism = ismember(tblMFTRetrack,tblMFT);
+          tblMFT = [tblMFT;tblMFTRetrack(~ism,:)];
+        end
+        obj.cleanOutOfDateTrackingResults(isCurr);
+
+      end
+      
       % figure out what to track
       tblMFT = MFTable.sortCanonical(tblMFT);
       mIdx = unique(tblMFT.mov);
@@ -1344,7 +1390,9 @@ classdef DeepTracker < LabelTracker
       movs = movs(1,:);
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       modelChainID = obj.trnName;
-      trnstr = sprintf('trn%s',modelChainID);
+      dmc.updateCurrInfo();
+      trnstr = obj.getTrkFileTrnStr();
+      %trnstr = sprintf('trn%s',modelChainID);
  
       % info for code-generation. for now we just record a struct so we can
       % more conveniently read logfiles etc. in future this could be an obj
@@ -1368,6 +1416,8 @@ classdef DeepTracker < LabelTracker
           assert(isscalar(trxfile));
           trxfile = trxfile{1};
           baseargsaug = [baseargsaug {'trxtrk' trxfile 'trxids' trxids}]; %#ok<AGROW>
+        else
+          trxids = [];
         end
         
         % trkfile, outfile
@@ -1439,7 +1489,10 @@ classdef DeepTracker < LabelTracker
         % KB 20190115: adding trkviz
         nvw = obj.lObj.nview;
         % figure out how many frames are to be tracked
-        nFramesTrack = size(tMFTConc,1);
+        %nFramesTrack = size(tMFTConc,1); % this is inaccurate
+        nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
+        fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
+        
         trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type,nFramesTrack);   
         bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
           @obj.trkCompleteCbk);
@@ -1467,6 +1520,22 @@ classdef DeepTracker < LabelTracker
         obj.trkSysInfo = trksysinfo;
       end      
     end
+    function nframes = getNFramesTrack(obj,tMFTConc,mIdx,frm0,frm1,trxids)
+      if isempty(trxids),
+        nframes = frm1-frm0+1;
+      else
+        if mIdx == obj.lObj.currMovIdx,
+          frm2trx = obj.lObj.frm2trx;
+        else
+          iMov = double(mIdx);
+          nfrm = obj.lObj.movieInfoAllGTaware{iMov,1}.nframes;
+          trxFile = obj.lObj.trxFilesAllFullGTaware{mIdx,1};
+          [~,frm2trx] = obj.getTrx(trxFile,nfrm);
+        end
+        nframes = sum(sum(frm2trx(frm0:frm1,trxids)));
+      end
+    end
+
   end
   methods (Static)
     function sha = getSHA(file)
@@ -1559,7 +1628,8 @@ classdef DeepTracker < LabelTracker
         % trk/log names, local and remote
         nowstr = datestr(now,'yyyymmddTHHMMSS');
         modelChainID = obj.trnName;
-        trnstr = sprintf('trn%s',modelChainID);
+        trnstr = obj.getTrkFileTrnStr();
+        %trnstr = sprintf('trn%s',modelChainID);
         
         trkdirRemote = dmc(ivw).dirTrkOutLnx;
         aws.ensureRemoteDir(trkdirRemote,'relative',false,'descstr','trk');
@@ -1759,6 +1829,40 @@ classdef DeepTracker < LabelTracker
       end
     end
 
+    function trainStoppedCbk(obj,varargin)
+      obj.trainCleanup();
+      obj.notify('trainEnd');
+    end
+    
+    function trainCleanup(obj,varargin)
+
+      if obj.bgTrkIsRunning,
+        fprintf('Stopping tracking...\n');
+        obj.bgTrkMonitor.stop();
+        assert(~obj.bgTrkIsRunning);
+      end
+      
+      % are there tracking results from previous trackers? TODO This can be
+      % moved under bgTrnIsRunning at some point, but right now there can
+      % be mixed up tracking results, so let's always check. 
+      isCurr = obj.checkTrackingResultsCurrent();
+      if ~isCurr,
+        
+        res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
+        if strcmpi(res,'Retrack'),
+          tblMFTRetrack = obj.getTrackedMFT();
+        end
+        obj.cleanOutOfDateTrackingResults(isCurr);
+        obj.track(tblMFTRetrack);
+
+      end
+    end
+    
+    function trnstr = getTrkFileTrnStr(obj)
+      obj.trnLastDMC.updateCurrInfo();
+      trnstr = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC.iterCurr);
+    end
+    
   end
   methods (Static) % train/track codegen
     
@@ -2223,18 +2327,21 @@ classdef DeepTracker < LabelTracker
       codestr = cat(2,codestr{:});
     end
     
-    function [m,tfsuccess] = parseTrkFileName(trkfile)
+    function [m,tfsuccess,isold] = parseTrkFileName(trkfile)
       
       tfsuccess = false;
-      m = regexp(trkfile,'movie_trn(?<trn_ts>.*)_iter(?<iter>.*)_(?<trk_ts>.*)\.trk$','names','once');
+      isold = false;
+      [p,n,e] = fileparts(trkfile);
+      m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_iter(?<iter>.*)_(?<trk_ts>.*)$','names','once');
       if isempty(m),
-        m = regexp(trkfile,'movie_trn(?<trn_ts>.*)_(?<trk_ts>.*)\.trk$','names','once');
+        m = regexp(n,'^(?<base>.*)_trn(?<trn_ts>.*)_(?<trk_ts>.*)$','names','once');
         if ~isempty(m),
           fprintf('trkfile %s does not have iteration name in it. parsing trkInfo.model_file to determine...\n',trkfile);
           try
             tmp = load(trkfile,'trkInfo','-mat');
             iter = DeepModelChainOnDisk.getModelFileIter(char(tmp.trkInfo.model_file));
             m.iter = iter(1);
+            isold = true;
           catch ME,
             warning('Could not parse iteration from trkInfo.model_file');
             getReport(ME);
@@ -2246,7 +2353,11 @@ classdef DeepTracker < LabelTracker
         end
       else
         m.iter = str2double(m.iter);
+        isold = false;
       end
+      m.path = p;
+      m.ext = e;
+      m.newName = fullfile(m.path,[m.base '_trn' m.trn_ts '_iter' num2str(m.iter) '_' m.trk_ts m.ext]);
       tfsuccess = true;
     end
 
@@ -2292,6 +2403,24 @@ classdef DeepTracker < LabelTracker
       else
         trkfiles = cell(0,obj.lObj.nview);
       end      
+    end
+    function trackResSetTrkfiles(obj,mIdx,trkfiles)
+      % trkfiles: [ntrkfilesxnview] fullpath trkfiles for given scalar
+      % MovieIndex
+      m = obj.movIdx2trkfile;
+      id = mIdx.id32();
+      if m.isKey(id)
+        obj.movIdx2trkfile(id) = trkfiles;
+      else
+        obj.trackResAddTrkfile(mIdx,trkfiles)
+      end      
+    end
+    function removeMissingTrkFiles(obj,mIdx)
+      [trkfiles,id] = obj.trackResGetTrkfiles(mIdx);
+      tfexists = cellfun(@(x) exist(x,'file'),trkfiles)>0;
+      if ~all(tfexists),
+        obj.movIdx2trkfile(id) = trkfiles(tfexists);
+      end
     end
     function tpos = getTrackingResultsCurrMovie(obj)
       tpos = obj.trkP;
@@ -2343,64 +2472,114 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
-    function [tblMFTRetrack,trkFilesToDelete] = checkTrackingResultsCurrent(obj)
+    function isCurr = checkTrackingResultsCurrent(obj)
       
-      tblMFTRetrack = [];
-      trkFilesToDelete = {};
+      isCurr = true;
       obj.trnLastDMC.updateCurrInfo();
       
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
+        % some trkfiles don't exist for some reason
+        obj.removeMissingTrkFiles(mIdx);
         [trkfiles] = obj.trackResGetTrkfiles(mIdx);
         if isempty(trkfiles),
           continue;
         end
-        isCurr = true;
+        
+        isFixed = false;
+        newtrkfiles = trkfiles;
         for i = 1:numel(trkfiles),
-          [isCurr,tfSuccess] = checkTrkFileCurrent(obj,trkfiles{i});
+          [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfiles{i});
           assert(tfSuccess);
+          if isOldFileName,
+            isFixed = true;
+            [tfSucc,msg] = copyfile(trkfiles{i},trkInfo.newName);
+            if ~tfSucc,
+              warning('Could not rename %s to %s: %s',trkfiles{i},newtrkfiles{i},msg);
+            else
+              newtrkfiles{i} = trkInfo.newName;
+            end
+          end
           if ~isCurr,
-            fprintf('Trkfile %s out of date, removing all tracking for movie %d\n',trkfiles{i},moviei);
+            %fprintf('Trkfile %s out of date, removing all tracking for movie %d\n',trkfiles{i},moviei);
             break;
           end
         end
-        if isCurr,
-          continue;
+        if isFixed,
+          obj.trackResSetTrkfiles(mIdx,newtrkfiles);
         end
-        [tblTrkRes] = obj.getAllTrackResTable(mIdx);
-        frm = tblTrkRes.frm;
-        iTgt = tblTrkRes.iTgt;
-        mov = repmat(mIdx,size(frm));
-        tblMFTRetrack = [tblMFTRetrack;table(mov,frm,iTgt)]; %#ok<AGROW>
-        
-        % delete these out-of-date trackfiles
-        trkFilesToDelete = [trkFilesToDelete,trkfiles]; %#ok<AGROW>
-        
+        if ~isCurr,
+          break;
+        end
+
       end
       
     end
     
-    function [tblMFTRetrack] = cleanOutOfDateTrackingResults(obj)
-      [tblMFTRetrack,trkFilesToDelete] = obj.checkTrackingResultsCurrent();
-      if isempty(trkFilesToDelete),
-        return;
+    function tblMFT = getTrackedMFT(obj,mIdxs)
+      
+      tblMFT = [];
+      if nargin < 2,
+        mIdxs = MovieIndex(1:obj.lObj.nmovies);
       end
-      for i = 1:numel(trkFilesToDelete),
-        delete(trkFilesToDelete{i});
-        if exist(trkFilesToDelete{i},2),
-          warning('Failed to delete trk file %s',trkFilesToDelete{i});
+      
+      for mIdx = mIdxs(:)',
+        [tblTrkRes] = obj.getAllTrackResTable(mIdx);
+        if isempty(tblTrkRes),
+          continue;
         end
+        frm = tblTrkRes.frm;
+        iTgt = tblTrkRes.iTgt;
+        mov = repmat(mIdx,size(frm));
+        tblMFT = [tblMFT;table(mov,frm,iTgt)]; %#ok<AGROW>
+
       end
+      
     end
     
-    function [isCurr,tfSuccess] = checkTrkFileCurrent(obj,trkfile)
+    function cleanOutOfDateTrackingResults(obj,isCurr)
+
+      if nargin < 2,
+        isCurr = obj.checkTrackingResultsCurrent();
+      end
+      if isCurr,
+        return;
+      end
+      obj.trackResInit();
+      obj.trackCurrResInit();
+
+%       for i = 1:numel(trkFilesToDelete),
+%         delete(trkFilesToDelete{i});
+%         if exist(trkFilesToDelete{i},'file'),
+%           warning('Failed to delete trk file %s',trkFilesToDelete{i});
+%         end
+%       end
+      
+      
+    end
+    
+    function [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfile)
       isCurr = true;
-      [trkInfo,tfSuccess] = DeepTracker.parseTrkFileName(trkfile);
+      [trkInfo,tfSuccess,isOldFileName] = DeepTracker.parseTrkFileName(trkfile);
       if ~tfSuccess,
         return;
       end
       isCurr = strcmp(obj.trnLastDMC.modelChainID,trkInfo.trn_ts) && ...
         (obj.trnLastDMC.iterCurr==trkInfo.iter);
+    end
+    
+    function tf = isTrkFiles(obj)
+    
+      tf = false;
+      for i = 1:obj.lObj.nmovies,
+        mIdx = MovieIndex(i);
+        [trkfiles] = obj.trackResGetTrkfiles(mIdx);
+        if ~isempty(trkfiles),
+          tf = true;
+          return;
+        end
+      end
+      
     end
     
   end
