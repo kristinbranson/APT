@@ -43,6 +43,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         logFile = dmc.trainLogLnx;
         killFile = dmc.killTokenLnx;
                 
+        % See AWSEC2 convenience meth
         fspollargs = ...
           sprintf('exists %s exists %s existsNE %s existsNEerr %s exists %s contents %s',...
             json,finalindex,errFile,logFile,killFile,json);

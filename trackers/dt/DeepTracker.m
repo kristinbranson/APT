@@ -565,7 +565,6 @@ classdef DeepTracker < LabelTracker
 %   end
   methods
     %% BSub Trainer
-   
       
     function trnSpawnBsubDocker(obj,backEnd,trnType,modelChainID,varargin)
       %
@@ -905,7 +904,28 @@ classdef DeepTracker < LabelTracker
       end
       
       cellfun(@(x)fprintf('  %s\n',x),paths);
-    end    
+    end   
+    
+    function updateLastDMCsCurrInfo(obj)
+      % call .updateCurrInfo on .trnLastDMCs with current backend
+      
+      be = obj.lObj.trackDLBackEnd;
+      switch be.type
+        case DLBackEnd.AWS
+          aws = be.awsec2;
+          args = {'getMostRecentModelMeth' 'getMostRecentModelAWS' ...
+                  'getMostRecentModelMethArgs' {aws}};
+        otherwise
+          % Assume locally-accessible cache. Win may cause a beef
+          args = {};
+      end
+      
+      dmcs = obj.trnLastDMC;
+      for i=1:numel(dmcs)
+        dmcs(i).updateCurrInfo(args{:});
+      end
+    end
+    
   end
   methods (Static)
     function basepaths = hlpAugBasePathsWithWarn(basepaths,newpaths,descstr)
@@ -1050,6 +1070,7 @@ classdef DeepTracker < LabelTracker
           system(syscmds{iview});
           fprintf('Training job (view %d) spawned.\n\n',iview);
           
+          pause(1.0); % Hack try to more reliably get PID
           aws.getRemotePythonPID(); % Conceptually, bgTrnWorkerObj should
             % remember. Right now there is only one PID per aws so it's ok
         end
@@ -1209,6 +1230,13 @@ classdef DeepTracker < LabelTracker
       if obj.bgTrkIsRunning
         error('Tracking is already in progress.');
       end
+      if obj.bgTrnIsRunning && obj.lObj.trackDLBackEnd.type==DLBackEnd.AWS
+        % second clause is really, "only have 1 GPU avail"
+        % AWS, currently we are testing with p2.xlarge and p3.2xlarge which
+        % are single-GPU EC2 instances. multi-GPU instances are avail
+        % however.
+        error('Tracking while training is in progress is currently unsupported on AWS.');
+      end
       
       obj.bgTrkReset();
         
@@ -1218,13 +1246,14 @@ classdef DeepTracker < LabelTracker
       end
       
       if obj.bgTrnIsRunning,
+        obj.updateLastDMCsCurrInfo();
         iterCurr = zeros(size(obj.trnLastDMC));
         for i = 1:numel(obj.trnLastDMC),
-          obj.trnLastDMC(i).updateCurrInfo();
-          if isempty(obj.trnLastDMC(i).iterCurr)
+          ic = obj.trnLastDMC(i).iterCurr;
+          if isempty(ic) || isnan(ic)
             iterCurr(i) = 0;
           else
-            iterCurr(i) = obj.trnLastDMC(i).iterCurr;
+            iterCurr(i) = ic;
           end
         end
         iterCurr = min(iterCurr);
@@ -1401,9 +1430,6 @@ classdef DeepTracker < LabelTracker
       movs = movs(1,:);
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       modelChainID = obj.trnName;
-      for i = 1:numel(dmc),
-        dmc(i).updateCurrInfo();
-      end
       [trnstrs,modelFiles] = obj.getTrkFileTrnStr();
       %trnstr = sprintf('trn%s',modelChainID);
  
@@ -1420,9 +1446,9 @@ classdef DeepTracker < LabelTracker
         % base args
         baseargsaug = hmapArgs;
         modelFile = modelFiles{ivw};
-        baseargsaug = [baseargsaug {'model_file' modelFile}];
+        baseargsaug = [baseargsaug {'model_file' modelFile}]; %#ok<AGROW>
         if tfcrop
-          baseargsaug = [baseargsaug {'croproi' cropRois(ivw,:)}];
+          baseargsaug = [baseargsaug {'croproi' cropRois(ivw,:)}]; %#ok<AGROW>
         end
         baseargsaug = [baseargsaug {'view' ivw}]; %#ok<AGROW> % 1-based OK
         if tftrx
@@ -1607,14 +1633,16 @@ classdef DeepTracker < LabelTracker
       if tfcrop
         szassert(cropRois,[nvw 4]);
       end
+      
+      [trnstrs,modelFiles] = obj.getTrkFileTrnStr();
+      
       trksysinfo = struct(...
         'trkfilelocal',cell(nvw,1),...
         'trkfileremote',[],...
         'logfile',[],...
         'codestr',[],...
         'syscmd',[]);
-      trnstrs = obj.getTrkFileTrnStr();
-
+      
       for ivw=1:nvw
         
         % upload mov/trx as nec
@@ -1634,6 +1662,8 @@ classdef DeepTracker < LabelTracker
               
         % DL track args
         baseargsaug = hmapArgs;
+        modelFile = modelFiles{ivw};
+        baseargsaug = [baseargsaug {'model_file' modelFile}]; %#ok<AGROW>
         if tfcrop
           baseargsaug = [baseargsaug {'croproi' cropRois(ivw,:)}]; %#ok<AGROW>
         end
@@ -1742,7 +1772,8 @@ classdef DeepTracker < LabelTracker
           
           system(syscmd);     
           fprintf('Tracking job (view %d) spawned.\n\n',ivw);
-          
+
+          pause(1.0); % Hack try to more reliably get PID
           aws.getRemotePythonPID();
         end
         
@@ -1882,11 +1913,12 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)
+    function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)      
+      obj.updateLastDMCsCurrInfo();
+      
       trnstrs = cell(size(obj.trnLastDMC));
       modelFiles = cell(size(obj.trnLastDMC));
       for i = 1:numel(obj.trnLastDMC),
-        obj.trnLastDMC(i).updateCurrInfo();
         trnstrs{i} = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC(i).iterCurr);
         modelFiles{i} = obj.trnLastDMC(i).trainCurrIndexLnx;
         modelFiles{i} = regexprep(modelFiles{i},'\.index$','');
@@ -2509,9 +2541,7 @@ classdef DeepTracker < LabelTracker
     function isCurr = checkTrackingResultsCurrent(obj)
       
       isCurr = true;
-      for i = 1:numel(obj.trnLastDMC),
-        obj.trnLastDMC(i).updateCurrInfo();
-      end
+      obj.updateLastDMCsCurrInfo();
       
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);

@@ -19,7 +19,6 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     trainType % scalar DLTrainType
     iterFinal % final expected iteration    
     iterCurr % last completed iteration, corresponds to actual model file used
-    dirFun = 'mydir'; % function for listing contents of dirModelChainLnx
     %backEnd % back-end info (bsub, docker, aws)
   end
   properties (Dependent)
@@ -159,25 +158,23 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
         };
     end
     
-    function tfSuccess = updateCurrInfo(obj)
+    function tfSuccess = updateCurrInfo(obj,varargin)
+      [getMostRecentModelMeth,getMostRecentModelMethArgs] = ...
+        myparse(varargin,...
+        'getMostRecentModelMeth','getMostRecentModelLocalLnx',...
+        'getMostRecentModelMethArgs',{}...
+        );
       
-      tfSuccess = false;
-      [~,iter] = obj.getMostRecentModel();
-      if isnan(iter),
-        return;
-      end
-      obj.iterCurr = iter;
-      tfSuccess = true;
-      
+      maxiter = feval(getMostRecentModelMeth,obj,getMostRecentModelMethArgs{:});
+      obj.iterCurr = maxiter;
+      tfSuccess = ~isnan(maxiter);
     end
     
-    function [filepath,maxiter] = getMostRecentModel(obj)
-
-      filepath = '';
+    function maxiter = getMostRecentModelLocalLnx(obj,varargin)
       maxiter = nan;
+      %filepath = '';
       
-      % TODO: make this work on AWS
-      modelfiles = feval(obj.dirFun,fullfile(obj.dirModelChainLnx,'deepnet-*.index'));
+      modelfiles = mydir(fullfile(obj.dirModelChainLnx,'deepnet-*.index'));
       if isempty(modelfiles),
         return;
       end
@@ -187,10 +184,21 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
         iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{i});
         if iter > maxiter,
           maxiter = iter;
-          filepath = modelfiles{i};
+          %filepath = modelfiles{i};
         end
       end
+    end
+    
+    function maxiter = getMostRecentModelAWS(obj,aws)
+      % maxiter is nan if something bad happened or if DNE
       
+      fspollargs = {'mostrecentmodel' obj.dirModelChainLnx};
+      [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
+      if tfsucc
+        maxiter = str2double(res{1}); % includes 'DNE'->nan
+      else
+        maxiter = nan;
+      end
     end
     
   end

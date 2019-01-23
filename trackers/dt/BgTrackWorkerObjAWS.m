@@ -33,6 +33,7 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
         partFile = obj.artfctPartTrkfiles{ivw};
         killFile = obj.killFiles{ivw};
                 
+        % See AWSEC2 convenience meth
         fspollargs = ...
           sprintf('exists %s existsNE %s existsNEerr %s exists %s lastmodified %s nfrmtracked %s nfrmtracked %s',...
             trkfile,errFile,logFile,killFile,partFile,partFile,trkfile);
