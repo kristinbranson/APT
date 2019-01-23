@@ -4,6 +4,7 @@ import sys
 import os
 import string
 import re
+import glob
 import numpy as np
 import h5py
 
@@ -50,6 +51,28 @@ for i in range(1,nargs,2):
             val = str(np.count_nonzero(~np.isnan(pTrk[:,:,0,0])))
         else:
             val = 'DNE'
-            
+    elif type=='mostrecentmodel':
+        # file is dir containing models
 
+        REPAT = 'deepnet-(?P<iter>\d+).data.*'
+        reobj = re.compile(REPAT)        
+        globpat = os.path.join(file,'deepnet-*.data-*')        
+        datafiles = glob.glob(globpat)        
+
+        maxiter = -1
+        for d in datafiles:
+            dbase = os.path.basename(d)
+            m = reobj.match(dbase)
+            if m:
+                iterf = m.group('iter')
+                if iterf>maxiter:
+                    maxiter = iterf
+                    
+        if maxiter==-1:
+            val = 'DNE'
+        else:
+            val = maxiter
+            val = str(val)
+            
+        
     print(val)
