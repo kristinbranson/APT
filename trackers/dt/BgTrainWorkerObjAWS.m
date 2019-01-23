@@ -21,6 +21,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         'pollts',[],... % datenum time that poll cmd returned
         'jsonPath',[],... % char, full path to json trnlog being polled
         'jsonPresent',[],... % true if file exists. if false, remaining fields are indeterminate
+        'tfComplete',[],...
         'lastTrnIter',[],... % (only if jsonPresent==true) last known training iter for this view. Could be eg -1 or 0 if no iters avail yet.
         'tfUpdate',[],... % (only if jsonPresent==true) true if the current read represents an updated training iter.
         'contents',[],... % (only if jsonPresent==true) if tfupdate is true, this can contain all json contents.
@@ -84,6 +85,14 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
               sRes(ivw).lastTrnIter = lastKnownStep;
             end
           end
+        else
+          % Still not bulletproof here. Consider initting sRes fully above
+          % before computation
+          sRes(ivw).jsonPresent = false;
+          sRes(ivw).tfComplete = false;
+          sRes(ivw).errFileExists = false;
+          sRes(ivw).logFileErrLikely = false;
+          sRes(ivw).killFileExists = false;
         end
       end
     end
