@@ -493,7 +493,16 @@ classdef CPRData < handle
               
               if tfROI
                 if rotateImsUpPerTrx
-                  
+                  tfile = trow.trxFile{iVw};
+                  trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
+                  [trxx,trxy,trxth] = readtrx(trx,f,iTgt);
+                  roiDX = roiXhi-roiXlo; % span is <this>+1, expected to be odd
+                  roiDY = roiYhi-roiYlo;
+                  assert(roiDX==roiDY && mod(roiDX,2)==0,...
+                    'Expected square roi crop centered around trx.');
+                  roiRad = roiDX/2;
+                  imroi = CropImAroundTrx(im,trxx,trxy,trxth,roiRad,roiRad,...
+                    'fillvalues',roiPadVal);
                 else
                   if ndims(im) == 2 %#ok<ISMAT>
                     imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);

@@ -1,7 +1,13 @@
 classdef PreProcDB < handle
   % Preprocessed DB for DL
-  % We are forking this off the CPR/old .preProcData stuff in Labeler b/c
-  % i) 
+  %
+  % We are forking this off the CPR/old .preProcData stuff in Labeler b/c:
+  % 1) of rotated cache needs (potentially an imposition on CPR, and 
+  % ideally we don't touch CPR for now)
+  % 1a) existing diffs in preproc pipelines for CPR and DL will probably 
+  % continue to exist into the medium term.
+  % 2) cleanup/refactor wherein preProcData* Labeler meths don't have an
+  % ideal API. Eventually CPR will utilize the/a PreProcDB.
   
   properties 
     dat % CPRData scalar
@@ -20,7 +26,7 @@ classdef PreProcDB < handle
       obj.tsLastEdit = now;
     end
         
-    function tblNewReadFailed = add(obj,tblNew,lObj,varargin)
+    function [tblNewReadFailed,dataNew] = add(obj,tblNew,lObj,varargin)
       % Add new rows to DB
       %
       % tblNew: new rows. MFTable.FLDSCORE are required fields. .roi may 
@@ -32,10 +38,12 @@ classdef PreProcDB < handle
       % tblNewReadFailed: table of failed-to-read rows. Currently subset of
       %   tblNew. If non-empty, then .dat was not updated with these rows 
       %   as requested.
+      % dataNew: CPRData of new data created/added
       
-      [wbObj,prmpp] = myparse(varargin,...
+      [wbObj,prmpp,computeOnly] = myparse(varargin,...
         'wbObj',[],...
-        'prmpp',[]... % preprocessing params
+        'prmpp',[],... % preprocessing params
+        'computeOnly',false... % if true, don't update the DB, compute only.
         );
 
       tfWB = ~isempty(wbObj);
@@ -60,6 +68,7 @@ classdef PreProcDB < handle
       end
       
       tblNewReadFailed = tblNew([],:);
+      dataNew = [];
       
       if prmpp.histeq
         warningNoTrace('Histogram Equalization currently disabled for Deep Learning trackers.');
@@ -114,10 +123,12 @@ classdef PreProcDB < handle
         tblNewMD = [tblNewMD table(nNborMask)];
         
         dataNew = CPRData(I,tblNewMD);
-        obj.dat.append(dataNew);
         
-        obj.tsLastEdit = now;
-      end      
+        if ~computeOnly
+          obj.dat.append(dataNew);
+          obj.tsLastEdit = now;
+        end
+      end
     end
     
     function updateLabels(obj,tblUp,lObj,varargin)
@@ -196,12 +207,6 @@ classdef PreProcDB < handle
         'updateRowsMustMatch',updateRowsMustMatch);      
     end
     
-  end
-  
-  methods (Static)    
-    function fetchImages
-      % Fetch images 
-    end
   end
 
 end

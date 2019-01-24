@@ -89,7 +89,7 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
         idx = unique(round(linspace(1,nlabeled,nshow)));
         tblPTrn1 = tblPTrn(idx,:);
       end
-      [~,~,d] = lObj.tracker.preretrain(tblPTrn1,[],ppPrms);
+      d = lObj.tracker.fetchPreProcData(tblPTrn1,ppPrms);
       
       % get initializations
       bboxes = repmat(d.bboxesTrn(1,:),[nlabeled,1]);

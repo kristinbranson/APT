@@ -1030,6 +1030,19 @@ classdef DeepTracker < LabelTracker
       end
     end
         
+    function ppdata = fetchPreProcData(obj,tblP,ppPrms)
+      % Fetch preprocessed data per this tracker. Don't update any cache
+      % b/c the preproc params supplied may be "trial"/random.
+      % 
+      % tblP: MFTable
+      % ppPrms: scalar struct, preproc params only.
+      % 
+      % ppdata: CPRData
+        
+      ppdb = obj.lObj.ppdb;
+      [~,ppdata] = ppdb.add(tblP,obj.lObj,'prmpp',ppPrms,'computeOnly',true);
+    end
+    
     function s = trnCreateStrippedLbl(obj,backEnd,varargin)
       % - Mutates .trnTblP
       % - Uploads trxs via AWS (maybe factor this out later)
