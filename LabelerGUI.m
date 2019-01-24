@@ -1514,9 +1514,6 @@ function cbkSaveNeeded(lObj,val,str)
 if nargin < 2 || isempty(val),
   val = true;
 end
-if nargin < 3,
-  
-end
 
 hTx = lObj.gdata.txUnsavedChanges;
 if val
@@ -1538,7 +1535,7 @@ if val,
   SetStatus(lObj.gdata,str,false);
 end
 
-
+lObj.needsSave = val;
 
 function menuSetupLabelModeHelp(handles,labelMode)
 % Set .Checked for menu_setup_<variousLabelModes> based on labelMode
@@ -2516,7 +2513,7 @@ tfcontinue = true;
 OPTION_SAVE = 'Save first';
 OPTION_PROC = 'Proceed without saving';
 OPTION_CANC = 'Cancel';
-if labelerObj.labeledposNeedsSave
+if labelerObj.needsSave
   res = questdlg('You have unsaved changes to your project. If you proceed without saving, your changes will be lost.',...
     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
   switch res
@@ -2964,7 +2961,7 @@ handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 lObj = handles.labelerObj;
 val = true;
 str = 'Tracker trained';
-lObj.labeledposNeedsSave = true;
+lObj.needsSave = true;
 cbkSaveNeeded(lObj,val,str);
 
 function cbkTrackerStart(hObject, eventdata, handles)
@@ -2985,7 +2982,7 @@ handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 lObj = handles.labelerObj;
 val = true;
 str = 'New frames tracked';
-lObj.labeledposNeedsSave = true;
+lObj.needsSave = true;
 cbkSaveNeeded(lObj,val,str);
 
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
@@ -3152,6 +3149,7 @@ if isempty(sPrmNew)
 else
   lObj.trackSetParams(sPrmNew);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
+  cbkSaveNeeded(lObj,true,'Parameters changed');
 end
 
 ClearStatus(handles);

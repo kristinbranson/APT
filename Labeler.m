@@ -353,6 +353,7 @@ classdef Labeler < handle
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
+    needsSave; 
   end
   properties (Dependent)
     labeledposGTaware;
@@ -1511,6 +1512,7 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
+      obj.needsSave = false;
 
       trkPrefs = obj.projPrefs.Track;
       if trkPrefs.Enable
@@ -1544,6 +1546,7 @@ classdef Labeler < handle
       save(fname,'-mat','-struct','s');
 
       obj.labeledposNeedsSave = false;
+      obj.needsSave = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
 
       RC.saveprop('lastLblFile',fname);      
@@ -1784,6 +1787,7 @@ classdef Labeler < handle
 %       obj.labelingInit();
 
       obj.labeledposNeedsSave = false;
+      obj.needsSave = false;
 %       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
