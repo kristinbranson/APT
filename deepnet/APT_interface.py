@@ -1712,7 +1712,9 @@ def run(args):
             conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
             if args.crop_loc is not None:
                 crop_loc = [int(x) for x in args.crop_loc]
-                crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :] - 1
+                # crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :] - 1
+                # KB 20190123: crop_loc was being decremented twice, removed one
+                crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :]
             else:
                 crop_loc = None
 
