@@ -235,7 +235,7 @@ classdef TrackMonitorViz < handle
       obj.SetBusy('Killing tracking jobs...',true);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
-      %handles.pushbutton_startstop.Enable = 'off';
+      handles.pushbutton_startstop.Enable = 'off';
       [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
       if tfsucc,
         waitfor(obj.hfig,'UserData','killed');

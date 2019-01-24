@@ -1503,10 +1503,23 @@ if lObj.hasTrx && ~lObj.isinit
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
+
 lObj = evt.AffectedObject;
-hTx = lObj.gdata.txUnsavedChanges;
 val = lObj.labeledposNeedsSave;
-if isscalar(val) && val
+cbkSaveNeeded(lObj,val,'Unsaved labels');
+
+
+function cbkSaveNeeded(lObj,val,str)
+
+if nargin < 2 || isempty(val),
+  val = true;
+end
+if nargin < 3,
+  
+end
+
+hTx = lObj.gdata.txUnsavedChanges;
+if val
   set(hTx,'Visible','on');
 else
   set(hTx,'Visible','off');
@@ -1514,11 +1527,17 @@ end
 
 if val,
   info = lObj.projFSInfo;
-  if ~isempty(info)
-    str = sprintf('Unsaved labels since project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
-    SetStatus(lObj.gdata,str,false);
+  if nargin < 3 || ~ischar(str),
+    str = 'Save needed ';
   end
+  if isempty(info),
+    str = sprintf('%s since $PROJECTNAME saved.',str);
+  else
+    str = sprintf('%s since $PROJECTNAME %s at %s',str,info.action,datestr(info.timestamp,16));
+  end
+  SetStatus(lObj.gdata,str,false);
 end
+
 
 
 function menuSetupLabelModeHelp(handles,labelMode)
@@ -2942,6 +2961,11 @@ handles.txBGTrain.Visible = 'off';
 handles.txBGTrain.String = 'Idle';
 handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 
+lObj = handles.labelerObj;
+val = true;
+str = 'Tracker trained';
+cbkSaveNeeded(lObj,val,str);
+
 function cbkTrackerStart(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 algName = lObj.tracker.algorithmName;
@@ -2957,6 +2981,10 @@ handles.txBGTrain.Visible = 'off';
 handles.txBGTrain.String = 'Idle';
 handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 
+lObj = handles.labelerObj;
+val = true;
+str = 'New frames tracked';
+cbkSaveNeeded(lObj,val,str);
 
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
 lObj = eventdata.AffectedObject;
@@ -3812,6 +3840,9 @@ if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
     projfile = '';
   else
     projfile = handles.labelerObj.projectfile;
+    if numel(projfile) > 100,
+      projfile = ['..',projfile(end-97:end)];
+    end
   end
   s1 = strrep(s,'$PROJECTNAME',projfile);
   [~,n,ext] = fileparts(projfile);
