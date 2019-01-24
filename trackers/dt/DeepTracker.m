@@ -1044,7 +1044,10 @@ classdef DeepTracker < LabelTracker
     end
     
     function s = trnCreateStrippedLbl(obj,backEnd,varargin)
+      % 
+      % 
       % - Mutates .trnTblP
+      % - can update .lObj.ppdb
       % - Uploads trxs via AWS (maybe factor this out later)
       % - Can throw
       
@@ -1052,29 +1055,21 @@ classdef DeepTracker < LabelTracker
         'awsTrxUpload',false,...
         'wbObj',[]...
         );
-      
-      % Remote-train requires preProcData to be updated for all
-      % training rows/images
-      
-      % ----- "preretrain" -----------
-      %[tfsucc,obj.trnTblP] = obj.preretrain([],wbObj);
-      
-      tfsucc = false;
-      dataPreProc = [];
+
       tfWB = ~isempty(wbObj);
-      prmpp = [];
+      
+      % Remote-train requires .ppdb to be updated for all training 
+      % rows/images
+            
+      obj.trnTblP = [];
       
       tblPTrn = obj.lObj.preProcGetMFTableLbled('wbObj',wbObj);
       if tfWB && wbObj.isCancel
-        % Theoretically we are safe to return here as of 201801. We
-        % have only called obj.asyncReset() so far.
-        % However to be conservative/nonfragile/consistent let's reset
-        % as in other cancel/early-exits
         return;
       end
 
       if isempty(tblPTrn)
-        error('No training data set.');
+        error('No training data available.');
       end
 
       if obj.lObj.hasTrx
@@ -1085,37 +1080,30 @@ classdef DeepTracker < LabelTracker
         tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
       end
       
-      [dataPreProc,dataPreProcIdx,tblPTrn,tblPTrnReadFail] = ...
-        obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj,'preProcParams',prmpp);
+      ppdb = obj.lObj.ppdb;
+      [tblAddReadFailed,tfAU,locAU] = ppdb.addAndUpdate(tblPTrn,obj.lObj,'wbObj',wbObj);
       if tfWB && wbObj.isCancel
         % none
         return;
       end
-      nMissedReads = height(tblPTrnReadFail);
+      nMissedReads = height(tblAddReadFailed);
       if nMissedReads>0
         warningNoTrace('Removing %d training rows, failed to read images.\n',...
           nMissedReads);
       end
-      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
       
-      dataPreProc.iTrn = dataPreProcIdx;
+      fprintf(1,'Training with %d rows.\n',nnz(tfAU));
+
+      ppdb.dat.iTrn = locAU;
       fprintf(1,'Training data summary:\n');
-      dataPreProc.summarize('mov',dataPreProc.iTrn);
+      ppdb.dat.summarize('mov',ppdb.dat.iTrn);
       
-      tfsucc = true;      
-%     end 
-      
-      
-      
-      if ~tfsucc
-        obj.trnTblP = [];
-        return;
-      end
+      obj.trnTblP = ppdb.dat.MD(locAU,:);
       
       % for images, deepnet will use preProcData; trx files however need
       % to be uploaded
       
-      s = obj.lObj.trackCreateDeepTrackerStrippedLbl(obj.trnTblP);
+      s = obj.lObj.trackCreateDeepTrackerStrippedLbl(obj.trnTblP(:,MFTable.FLDSID));
       % check with Mayank, thought we wanted number of "underlying" chans
       % but DL is erring when pp data is grayscale but NumChans is 3
       s.cfg.NumChans = size(s.preProcData_I{1},3);

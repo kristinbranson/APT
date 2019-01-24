@@ -427,9 +427,11 @@ classdef Labeler < handle
   properties
     preProcParams % struct
     preProcH0 % Either [], or a struct with field .hgram which is [nbin x nview]. Conceptually, this is a preProcParam that APT updates from movies
-    preProcData % for CPR, a CPRData; for DL trackers, likely a tracker-specific object pointing to data on disk
+    preProcData % scalar CPRData, preproc Data cache for CPR
     preProcDataTS % scalar timestamp  
-    preProcSaveData % scalar logical. If true, preProcData* is saved/loaded with project file
+    preProcSaveData % scalar logical. If true, preProcData* and ppdb are saved/loaded with project file
+    
+    ppdb % PreProcDB for DL
   end
   
   %% Tracking
@@ -1603,7 +1605,7 @@ classdef Labeler < handle
       
       [sparsify,forceIncDataCache] = myparse(varargin,...
         'sparsify',true,...
-        'forceIncDataCache',false... % include .preProcData* even if .preProcSaveData is false
+        'forceIncDataCache',false... % include .preProcData* and .ppdb even if .preProcSaveData is false
         );
       
       s = struct();
@@ -1644,6 +1646,7 @@ classdef Labeler < handle
       if obj.preProcSaveData || forceIncDataCache
         s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
         s.preProcDataTS = obj.preProcDataTS;
+        s.ppdb = obj.ppdb;        
       end
     end
     
@@ -1752,10 +1755,20 @@ classdef Labeler < handle
       
       % preproc data cache
       % s.preProcData* will be present iff s.preProcSaveData==true
-      if s.preProcSaveData && ~isempty(s.preProcData)
-        fprintf('Loading data cache: %d rows.\n',s.preProcData.N);
-        obj.preProcData = s.preProcData;
-        obj.preProcDataTS = s.preProcDataTS;
+      if s.preProcSaveData 
+        if isempty(s.preProcData)
+          assert(obj.preProcData.N==0);
+        else
+          fprintf('Loading data cache: %d rows.\n',s.preProcData.N);
+          obj.preProcData = s.preProcData;
+          obj.preProcDataTS = s.preProcDataTS;
+        end
+        if isempty(s.ppdb)
+          assert(obj.ppbb.dat.N==0);
+        else
+          fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
+          obj.ppdb = s.ppdb;
+        end
       end
 
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
@@ -2487,6 +2500,11 @@ classdef Labeler < handle
         s.trackDLParams = struct('CacheDir',cdir);
       end
       
+      % 20190124 DL data cache
+      if s.preProcSaveData && ~isfield(s,'ppdb')
+        s.ppdb = [];
+      end
+      
       % modernize DL common params
       sDLcommon = APTParameters.defaultParamsStructDTCommon;      
       s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
@@ -2925,6 +2943,7 @@ classdef Labeler < handle
         edata = MoviesRemappedEventData.movieRemovedEventData(...
           movIdx,nMovOrigReg,nMovOrigGT,movIdxHasLbls);
         obj.preProcData.movieRemap(edata.mIdxOrig2New);
+        obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
         if gt
           [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
             obj.gtSuggMFTable,'mov',edata.mIdxOrig2New);
@@ -3006,6 +3025,7 @@ classdef Labeler < handle
       edata = MoviesRemappedEventData.moviesReorderedEventData(...
         p,nmov,obj.nmoviesGT);
       obj.preProcData.movieRemap(edata.mIdxOrig2New);
+      obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
       notify(obj,'moviesReordered',edata);
 
       if ~obj.gtIsGTMode
@@ -7772,6 +7792,7 @@ classdef Labeler < handle
       obj.preProcParams = [];
       obj.preProcH0 = [];
       obj.preProcInitData();
+      obj.ppdbInit();
       obj.preProcSaveData = false;
       obj.movieFilesAllHistEqLUT = cell(obj.nmovies,obj.nview);
       obj.movieFilesAllGTHistEqLUT = cell(obj.nmoviesGT,obj.nview);
@@ -7784,6 +7805,13 @@ classdef Labeler < handle
       tblP = MFTable.emptyTable(MFTable.FLDSCORE);
       obj.preProcData = CPRData(I,tblP);
       obj.preProcDataTS = now;
+    end
+    
+    function ppdbInit(obj)
+      if isempty(obj.ppdb)
+        obj.ppdb = PreProcDB();
+      end
+      obj.ppdb.init();
     end
     
     function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
@@ -7803,6 +7831,7 @@ classdef Labeler < handle
       if tfPPprmsChanged
         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
         obj.preProcInitData();
+        obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
         
         bgPrms = ppPrms.BackSub;
         mrs = obj.movieReader;
@@ -7829,6 +7858,7 @@ classdef Labeler < handle
       % be cleared.
       
       obj.preProcInitData();
+      obj.ppdbInit();
       for i=1:numel(obj.trackersAll)
         if obj.trackersAll{i}.getHasTrained()
           warningNoTrace('Trained tracker(s) and tracking results cleared.');
@@ -8018,6 +8048,9 @@ classdef Labeler < handle
       % tblPReadFailed: subset of tblP (input) where reads failed
       % tfReadFailed: indicator vec into tblP (input) for failed reads
       
+      % See preProcDataUpdateRaw re 'preProcParams' opt arg. When supplied,
+      % .preProcData is not updated.
+      
       [wbObj,updateRowsMustMatch,prmpp] = myparse(varargin,...
         'wbObj',[],... % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
         'updateRowsMustMatch',false, ... % See preProcDataUpdateRaw
@@ -8110,9 +8143,9 @@ classdef Labeler < handle
       %
       % Updates .preProcData, .preProcDataTS
       
-      % Meth needs refactor. When the preProcParams opt arg is [] 
-      % (isPreProcParamsIn is false), this is maybe a separate method, def 
-      % distinct behavior.
+      % NOTE: when the preProcParams opt arg is [] (isPreProcParamsIn is 
+      % false), this is maybe a separate method, def distinct behavior. 
+      % When isPreProcParamsIn is true, .preProcData is not updated, etc.
       
       dataNew = [];
       
@@ -8598,7 +8631,7 @@ classdef Labeler < handle
       % For use with DeepTrackers
       %
       % tblTrnMFT: training data table. reqd cols MFTable.FLDSID. restrict 
-      %   preProcDataCache export to these rows.
+      %   .ppdb export to these rows.
       
       if ~obj.hasMovie
         % for NumChans see below
@@ -8628,28 +8661,26 @@ classdef Labeler < handle
       warning(warnst);
       s.cropProjHasCrops = obj.cropProjHasCrops;
       
-      if isfield(s,'preProcData') && ~isempty(s.preProcData)
-        % De-objectize .preProcData (CPRData)
-        
-        ppdata = s.preProcData;
-        ppdataMD = ppdata.MD;
-        
-        tfInc = tblismember(ppdataMD,tblTrnMFT,MFTable.FLDSID);
-        fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
-          nnz(tfInc),numel(tfInc));
-        
-        ppdataMD = ppdataMD(tfInc,:);
-        ppdataI = ppdata.I(tfInc,:);
-        
-        ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
-        ppMDflds = tblflds(ppdataMD);
-        s.preProcData_I = ppdataI;
-        for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
-          sfld = ['preProcData_MD_' f];
-          s.(sfld) = ppdataMD.(f);
-        end
-        s = rmfield(s,'preProcData');
+      % De-objectize .ppdb.dat (CPRData)
+      assert(isfield(s,'ppdb') && ~isempty(s.ppdb));
+      ppdata = s.ppdb.dat;
+      ppdataMD = ppdata.MD;
+      
+      tfInc = tblismember(ppdataMD,tblTrnMFT,MFTable.FLDSID);
+      fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
+        nnz(tfInc),numel(tfInc));
+      
+      ppdataMD = ppdataMD(tfInc,:);
+      ppdataI = ppdata.I(tfInc,:);
+      
+      ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
+      ppMDflds = tblflds(ppdataMD);
+      s.preProcData_I = ppdataI;
+      for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
+        sfld = ['preProcData_MD_' f];
+        s.(sfld) = ppdataMD.(f);
       end
+      s = rmfield(s,{'ppdb' 'preProcData'});
       
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
       
@@ -8657,20 +8688,7 @@ classdef Labeler < handle
       sPrmDL = obj.trackDLParams;
       sPrmDL = rmfield(sPrmDL,'CacheDir');
       tdata.sPrm = structmerge(tdata.sPrm,sPrmDL);
-      s.trackerData = {[] tdata};      
-      
-%       tf = strcmp(s.trackerClass,'DeepTracker');
-%       i = find(tf);
-%       switch numel(i)
-%         case 0
-%           assert(false);
-%         case 1
-%           % none
-%         otherwise
-%           warningNoTrace('Multiple DeepTrackers found; the first will be used.');
-%           i = i(1);
-%       end
-      %s.trackerDeepData = s.trackerData{i};
+      s.trackerData = {[] tdata};
     end
     
     function trackAndExport(obj,mftset,varargin)
@@ -8732,6 +8750,7 @@ classdef Labeler < handle
         tObj.clearTrackingResults();
         fprintf('Time to clear tracking results: %f\n',toc(startTime)); startTime = tic;
         obj.preProcInitData();
+        obj.ppdbInit(); % putting this here just b/c the above line, quite possibly unnec
         fprintf('Time to reinitialize data: %f\n',toc(startTime)); startTime = tic;
       end
     end
@@ -8863,6 +8882,7 @@ classdef Labeler < handle
       % Basically an initHook() here
       if initData
         obj.preProcInitData();
+        obj.ppdbInit();
       end
       tObj.trnDataInit(); % not strictly necessary as .retrain() should do it 
       tObj.trnResInit(); % not strictly necessary as .retrain() should do it 
@@ -8895,6 +8915,7 @@ classdef Labeler < handle
         [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
         if initData
           obj.preProcInitData();
+          obj.ppdbInit();
         end
         tObj.trnDataInit();
         tObj.trnResInit();

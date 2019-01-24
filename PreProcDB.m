@@ -183,7 +183,7 @@ classdef PreProcDB < handle
       end
     end
 
-    function tblAddReadFailed = addAndUpdate(obj,tblAU,lObj,varargin)
+    function [tblAddReadFailed,tfAU,locAU] = addAndUpdate(obj,tblAU,lObj,varargin)
       % Combo of add/updateLabels
       %
       % tblAU: ("tblAddUpdate")
@@ -194,6 +194,12 @@ classdef PreProcDB < handle
       %   IMPORTANT: if .roi is present, .p (labels) are expected to be 
       %   relative to the roi.
       %   - .pTS: optional (if present, deleted)
+      %
+      % tblAddReadFailed: tbl of failed-read adds. will have height 0 if
+      %   everything went well.
+      % tfAU: [tfAU,locAU] = tblismember(tblAU,obj.dat.MD,MFTable.FLDSID)
+      % locAU: 
+      
       
       [wbObj,updateRowsMustMatch,prmpp] = myparse(varargin,...
         'wbObj',[],... % WaitBarWithCancel. If cancel, obj unchanged.
@@ -204,7 +210,9 @@ classdef PreProcDB < handle
       [tblPnew,tblPupdate] = obj.dat.tblPDiff(tblAU);
       tblAddReadFailed = obj.add(tblPnew,lObj,'wbObj',wbObj,'prmpp',prmpp);
       obj.updateLabels(tblPupdate,lObj,'wbObj',wbObj,...
-        'updateRowsMustMatch',updateRowsMustMatch);      
+        'updateRowsMustMatch',updateRowsMustMatch);
+      
+      [tfAU,locAU] = tblismember(tblAU,obj.dat.MD,MFTable.FLDSID);
     end
     
   end
