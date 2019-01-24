@@ -42,7 +42,8 @@ classdef TrackMonitorViz < handle
       obj.hfig = TrackMonitorGUI(obj);
       handles = guidata(obj.hfig);
       TrackMonitorViz.updateStartStopButton(handles,true,false);
-      handles.pushbutton_startstop.Enable = 'on';
+      %handles.pushbutton_startstop.Enable = 'on';
+      obj.hfig.UserData = 'running';
       obj.haxs = [handles.axes_wait];
       obj.hannlastupdated = handles.text_clusterstatus;
 
@@ -143,8 +144,7 @@ classdef TrackMonitorViz < handle
         if res(ivw).killFileExists,
           obj.isKilled = true;
           set(obj.hline(ivw),'FaceColor',[.5,.5,.5]);
-          handles = guidata(obj.hfig);
-          handles.pushbutton_startstop.Enable = 'on';
+          obj.hfig.UserData = 'killed';
         end
         fprintf('View %d: %d. ',ivw,obj.nFramesTracked(ivw));
       end
@@ -235,11 +235,11 @@ classdef TrackMonitorViz < handle
       obj.SetBusy('Killing tracking jobs...',true);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
-      handles.pushbutton_startstop.Enable = 'off';
+      %handles.pushbutton_startstop.Enable = 'off';
       [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
       if tfsucc,
-        waitfor(handles.pushbutton_startstop,'Enable','on');
-        handles.pushbutton_startstop.Enable = 'off';
+        waitfor(obj.hfig,'UserData','killed');
+        %handles.pushbutton_startstop.Enable = 'off';
         drawnow;
         TrackMonitorViz.updateStartStopButton(handles,false,false);
         obj.ClearBusy('Tracking process killed');

@@ -1543,8 +1543,7 @@ classdef DeepTracker < LabelTracker
           @obj.trkCompleteCbk);
 
         addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-        addlistener(bgTrkMonitorObj,'bgEnd',@(s,e)obj.notify('trackEnd'));
-
+        addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
         
         %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
         obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
@@ -1884,6 +1883,18 @@ classdef DeepTracker < LabelTracker
     function trainStoppedCbk(obj,varargin)
       obj.trainCleanup();
       obj.notify('trainEnd');
+    end
+    
+    function trackStoppedCbk(obj,varargin)
+      obj.trackCleanup();
+      obj.notify('trackEnd');
+    end
+
+    function trackCleanup(obj,varargin)
+      
+      obj.trackCurrResUpdate();
+      obj.newLabelerFrame();
+
     end
     
     function trainCleanup(obj,varargin)
