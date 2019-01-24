@@ -1258,7 +1258,10 @@ classdef DeepTracker < LabelTracker
         end
         iterCurr = min(iterCurr);
         if iterCurr == 0,
-          warndlg('Training in progress, and no in-progress tracker has been saved yet. Please wait to track.','Tracker not ready','modal');
+          % AL updated msg to be palatable for both single and multi-views
+          % (in the latter case you may have a tracker for one view but not
+          % another)
+          warndlg('Training in progress, and in-progress tracker(s) has not been saved yet. Please wait to track.','Tracker not ready','modal'); 
           return;
         end
         res = questdlg(sprintf('Training in progress. Tracking will use in-progress tracker, which has been trained for %d / %d iterations. When training completes, these frames will need to be retracked. Continue?',...
@@ -2154,7 +2157,7 @@ classdef DeepTracker < LabelTracker
     function cmd = cpPTWfromJRCProdLnx(cacheRoot)
       % copy cmd (lnx) deepnet/pretrained from production repo to JRC loc 
       srcPTWlnx = [DeepTracker.jrcprodrepo '/deepnet/pretrained'];
-      dstPTWlnx = [cacheRoot '/APT/deepnet/pretrained'];      
+      dstPTWlnx = [cacheRoot '/APT/deepnet'];      
       cmd = sprintf('cp -r -u %s %s',srcPTWlnx,dstPTWlnx);
     end
     function cpupdatePTWfromJRCProdExec(cacheRoot) % throws if errors
