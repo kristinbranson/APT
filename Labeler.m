@@ -353,6 +353,7 @@ classdef Labeler < handle
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
+    needsSave; 
   end
   properties (Dependent)
     labeledposGTaware;
@@ -1513,6 +1514,7 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
+      obj.needsSave = false;
 
       trkPrefs = obj.projPrefs.Track;
       if trkPrefs.Enable
@@ -1546,6 +1548,7 @@ classdef Labeler < handle
       save(fname,'-mat','-struct','s');
 
       obj.labeledposNeedsSave = false;
+      obj.needsSave = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
 
       RC.saveprop('lastLblFile',fname);      
@@ -1797,6 +1800,7 @@ classdef Labeler < handle
 %       obj.labelingInit();
 
       obj.labeledposNeedsSave = false;
+      obj.needsSave = false;
 %       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
@@ -4214,7 +4218,7 @@ classdef Labeler < handle
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
       obj.initShowTrx();
     end
-   
+       
     function tf = trxCheckFramesLive(obj,frms)
       % Check that current target is live for given frames
       %
@@ -8534,8 +8538,9 @@ classdef Labeler < handle
         tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
         retrainArgs = [retrainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
-        
-      tObj.clearTrackingResults();
+      
+	  % KB 20190121 moved this to within retrain, since we don't clear tracking results immediately for background deep learning
+      % tObj.clearTrackingResults();
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
@@ -11114,8 +11119,19 @@ classdef Labeler < handle
         ylim = centerpos(2)+[-1,1]*r(2)*extendratio;
       end
       if isfield(ModeInfo,'dxlim'),
+        xlim0 = xlim;
+        ylim0 = ylim;
         xlim = xlim + ModeInfo.dxlim;
         ylim = ylim + ModeInfo.dylim;
+        % make sure all parts are visible
+        if minpos(1) < xlim(1) || minpos(2) < ylim(1) || ...
+            maxpos(1) > xlim(2) || maxpos(2) < ylim(2),
+          ModeInfo.dxlim = [0,0];
+          ModeInfo.dylim = [0,0];
+          xlim = xlim0;
+          ylim = ylim0;
+          fprintf('Templates zoomed axes would not show all labeled points, using default axes.\n');
+        end
       else
         ModeInfo.dxlim = [0,0];
         ModeInfo.dylim = [0,0];

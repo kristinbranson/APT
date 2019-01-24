@@ -18,6 +18,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
               % identifies a restart
     trainType % scalar DLTrainType
     iterFinal % final expected iteration    
+    iterCurr % last completed iteration, corresponds to actual model file used
     %backEnd % back-end info (bsub, docker, aws)
   end
   properties (Dependent)
@@ -39,6 +40,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     trainDataLnx    
     trainFinalIndexLnx
     trainFinalIndexName
+    trainCurrIndexLnx
+    trainCurrIndexName
     aptRepoSnapshotLnx
     aptRepoSnapshotName
   end
@@ -101,8 +104,14 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     function v = get.trainFinalIndexLnx(obj)
       v = [obj.dirModelChainLnx '/' obj.trainFinalIndexName];
     end
+    function v = get.trainCurrIndexLnx(obj)
+      v = [obj.dirModelChainLnx '/' obj.trainCurrIndexName];
+    end
     function v = get.trainFinalIndexName(obj)
       v = sprintf('deepnet-%d.index',obj.iterFinal);
+    end    
+    function v = get.trainCurrIndexName(obj)
+      v = sprintf('deepnet-%d.index',obj.iterCurr);
     end    
     function v = get.aptRepoSnapshotLnx(obj)
       v = [obj.dirProjLnx '/' obj.aptRepoSnapshotName];
@@ -148,6 +157,65 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
         [obj.dirModelChainLnx '/' 'traindata*']; ...
         };
     end
+    
+    function tfSuccess = updateCurrInfo(obj,varargin)
+      [getMostRecentModelMeth,getMostRecentModelMethArgs] = ...
+        myparse(varargin,...
+        'getMostRecentModelMeth','getMostRecentModelLocalLnx',...
+        'getMostRecentModelMethArgs',{}...
+        );
+      
+      maxiter = feval(getMostRecentModelMeth,obj,getMostRecentModelMethArgs{:});
+      obj.iterCurr = maxiter;
+      tfSuccess = ~isnan(maxiter);
+    end
+    
+    function maxiter = getMostRecentModelLocalLnx(obj,varargin)
+      maxiter = nan;
+      %filepath = '';
+      
+      modelfiles = mydir(fullfile(obj.dirModelChainLnx,'deepnet-*.index'));
+      if isempty(modelfiles),
+        return;
+      end
+      
+      maxiter = -1;
+      for i = 1:numel(modelfiles),
+        iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{i});
+        if iter > maxiter,
+          maxiter = iter;
+          %filepath = modelfiles{i};
+        end
+      end
+    end
+    
+    function maxiter = getMostRecentModelAWS(obj,aws)
+      % maxiter is nan if something bad happened or if DNE
+      
+      fspollargs = {'mostrecentmodel' obj.dirModelChainLnx};
+      [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
+      if tfsucc
+        maxiter = str2double(res{1}); % includes 'DNE'->nan
+      else
+        maxiter = nan;
+      end
+    end
+    
+  end
+  
+  methods (Static)
+    
+    function iter = getModelFileIter(filename)
+      
+      iter = regexp(filename,'deepnet-(\d+)','once','tokens');
+      if isempty(iter),
+        iter = [];
+        return;
+      end
+      iter = str2double(iter{1});
+      
+    end
+    
   end
 end
     

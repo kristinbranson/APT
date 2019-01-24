@@ -144,6 +144,8 @@ classdef LabelCoreTemplate < LabelCore
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
       obj.refreshTxLabelCoreAux();
+      
+      obj.state = LabelState.ADJUST; % AL 20190123 semi-hack. init to something/anything to avoid error at projectload/inithell
 
       % LabelCore should prob not talk directly to tracker
       tObj = obj.labeler.tracker;

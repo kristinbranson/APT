@@ -1,4 +1,4 @@
-classdef BgTrainWorkerObj < handle
+classdef BgTrainWorkerObj < BgWorkerObj
   % Object deep copied onto BG Training worker. To be used with
   % BGWorkerContinuous
   % 
@@ -7,25 +7,13 @@ classdef BgTrainWorkerObj < handle
   % - Be able to read/parse the current state of the train/model on disk
   
   properties
-    nviews    
-    dmcs % [nview] DeepModelChainOnDisk array        
     trnLogLastStep; % [nview] int. most recent last step from training json logs
-  end
-  
-  methods (Abstract)
-    tf = fileExists(obj,file)
-    tf = errFileExistsNonZeroSize(obj,errFile)
-    s = fileContents(obj,file)
-    [tf,warnings] = killProcess(obj)
   end
   
   methods
     
-    function obj = BgTrainWorkerObj(nviews,dmcs)
-      obj.nviews = nviews;
-      assert(isa(dmcs,'DeepModelChainOnDisk') && numel(dmcs)==nviews);
-      obj.dmcs = dmcs;
-      obj.reset();
+    function obj = BgTrainWorkerObj(varargin)
+      obj@BgWorkerObj(varargin{:});
     end
     
     function sRes = compute(obj) % obj const except for .trnLogLastStep
@@ -42,7 +30,7 @@ classdef BgTrainWorkerObj < handle
         'tfUpdate',[],... % (only if jsonPresent==true) true if the current read represents an updated training iter.
         'contents',[],... % (only if jsonPresent==true) if tfupdate is true, this can contain all json contents.
         'trainCompletePath',[],... % char, full path to artifact indicating train complete
-        'trainComplete',[],... % true if trainCompletePath exists
+        'tfComplete',[],... % true if trainCompletePath exists
         'errFile',[],... % char, full path to DL err file
         'errFileExists',[],... % true of errFile exists and has size>0
         'logFile',[],... % char, full path to Bsub logfile
@@ -51,20 +39,21 @@ classdef BgTrainWorkerObj < handle
         'killFileExists',[]... % true if KILL tokfile found
         );
       dmcs = obj.dmcs;
+      killFiles = obj.getKillFiles();
       for ivw=1:obj.nviews
         dmc = dmcs(ivw);
         json = dmc.trainDataLnx;
         finalindex = dmc.trainFinalIndexLnx;
         errFile = dmc.errfileLnx;
         logFile = dmc.trainLogLnx;
-        killFile = dmc.killTokenLnx;
+        killFile = killFiles{ivw};
         
         sRes(ivw).pollsuccess = true;
         sRes(ivw).pollts = now;
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = obj.fileExists(json);
         sRes(ivw).trainCompletePath = finalindex;
-        sRes(ivw).trainComplete = obj.fileExists(finalindex);
+        sRes(ivw).tfComplete = obj.fileExists(finalindex);
         sRes(ivw).errFile = errFile;
         sRes(ivw).errFileExists = obj.errFileExistsNonZeroSize(errFile);
         sRes(ivw).logFile = logFile;
@@ -94,98 +83,17 @@ classdef BgTrainWorkerObj < handle
       % clears/inits .trnLogLastStep, the only mutatable prop
       obj.trnLogLastStep = repmat(-1,1,obj.nviews);
     end
-   
-    function printLogfiles(obj) % obj const
-      logFiles = {obj.dmcs.trainLogLnx}';
-      logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
-      BgTrainWorkerObj.printLogfilesStc(logFiles,logFileContents)
-    end
-
-    function ss = getLogfilesContent(obj) % obj const
-      logFiles = {obj.dmcs.trainLogLnx}';
-      logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
-      ss = BgTrainWorkerObj.getLogfilesContentStc(logFiles,logFileContents);
-    end
-
     
-    function [tfEFE,errFile] = errFileExists(obj) % obj const
+    function logFiles = getLogFiles(obj)
+      logFiles = {obj.dmcs.trainLogLnx}';
+    end
+    
+    function errFile = getErrFile(obj)
       errFile = unique({obj.dmcs.errfileLnx}');
       assert(isscalar(errFile));
       errFile = errFile{1};
-      tfEFE = obj.errFileExistsNonZeroSize(errFile);
-    end
-    
-    function ss = getErrorfileContent(obj) % obj const
-      errFile = unique({obj.dmcs.errfileLnx}');
-      assert(isscalar(errFile));
-      errFile = errFile{1};
-      ss = strsplit(obj.fileContents(errFile),'\n');
-    end
-    
-    function tfLogErrLikely = logFileErrLikely(obj,file) % obj const
-      tfLogErrLikely = obj.fileExists(file);
-      if tfLogErrLikely
-        logContents = obj.fileContents(file);
-        tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
-      end
-    end
-    
-    function dispModelChainDir(obj)
-      for ivw=1:obj.nviews
-        dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al %s',dmc.dirModelChainLnx);
-        fprintf('### View %d:\n',ivw);
-        system(cmd);
-        fprintf('\n');
-      end
-    end
-    
-%     function backEnd = getBackEnd(obj)
-%       
-%       backEnd = obj.dmcs.backEnd;
-%       
-%     end
-    
-    function res = queryAllJobsStatus(obj)
-      
-      res = 'Not implemented.';
-      
-    end
-    
-    function res = queryTrainJobsStatus(obj)
-      
-      res = 'Not implemented.';
-      
     end
 
-  end
-  
-  methods (Static)
-    
-    function printLogfilesStc(logFiles,logFileContents)
-      % Print training logs for all views for current/last retrain 
-      
-      for ivw=1:numel(logFiles)
-        logfile = logFiles{ivw};
-        fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
-        disp(logFileContents{ivw});
-      end
-    end
-
-    function ss = getLogfilesContentStc(logFiles,logFileContents)
-      % Print training logs for all views for current/last retrain 
-
-      ss = {};
-      for ivw=1:numel(logFiles)
-        logfile = logFiles{ivw};
-        ss{end+1} = sprintf('### View %d:',ivw); %#ok<AGROW>
-        ss{end+1} = sprintf('### %s',logfile); %#ok<AGROW>
-        ss{end+1} = ''; %#ok<AGROW>
-        ss = [ss,strsplit(logFileContents{ivw},'\n')]; %#ok<AGROW>
-      end
-    end
-
-    
   end
   
 end

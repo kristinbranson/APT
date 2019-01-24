@@ -126,7 +126,7 @@ classdef TrainMonitorViz < handle
 
           end
         
-          if res(ivw).trainComplete
+          if res(ivw).tfComplete
             contents = res(ivw).contents;
             if ~isempty(contents)
               hkill = obj.hlinekill;
@@ -192,7 +192,7 @@ classdef TrainMonitorViz < handle
       isErr = false;
       isLogFile = false;
       if ~isempty(res),
-        isTrainComplete = all([res.trainComplete]);
+        isTrainComplete = all([res.tfComplete]);
         isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
         % to-do: figure out how to make this robust to different file
         % systems
@@ -272,6 +272,7 @@ classdef TrainMonitorViz < handle
       % end
       
       % Kills and creates new TrainMonitorViz, maybe that's fine
+      obj.lastTrainIter = 0;
       obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
     end
     
@@ -298,7 +299,7 @@ classdef TrainMonitorViz < handle
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show error messages',
-          if isempty(obj.resLast) || ~obj.resLast.errFileExists,
+          if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
             ss = 'No error messages.';
           else
             ss = obj.getErrorFileContents();
@@ -339,7 +340,7 @@ classdef TrainMonitorViz < handle
     function ss = queryTrainJobsStatus(obj)
       
       ss = {};
-      raw = obj.trainWorkerObj.queryTrainJobsStatus();
+      raw = obj.trainWorkerObj.queryMyJobsStatus();
       nview = numel(raw);
       for i = 1:nview,
         snew = strsplit(raw{i},'\n');

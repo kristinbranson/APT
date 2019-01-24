@@ -453,6 +453,8 @@ def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, fl
         if crop_loc is not None:
             xlo, xhi, ylo, yhi = crop_loc
             xhi += 1; yhi += 1
+            assert xlo >= 0, 'xlo must be >= 0'
+            assert ylo >= 0, 'ylo must be >= 0'
         else:
             xlo = 0; ylo = 0
             yhi, xhi = frame_in.shape[0:2]

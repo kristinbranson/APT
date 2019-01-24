@@ -1503,10 +1503,20 @@ if lObj.hasTrx && ~lObj.isinit
 end
 
 function cbkLabeledPosNeedsSaveChanged(src,evt)
+
 lObj = evt.AffectedObject;
-hTx = lObj.gdata.txUnsavedChanges;
 val = lObj.labeledposNeedsSave;
-if isscalar(val) && val
+cbkSaveNeeded(lObj,val,'Unsaved labels');
+
+
+function cbkSaveNeeded(lObj,val,str)
+
+if nargin < 2 || isempty(val),
+  val = true;
+end
+
+hTx = lObj.gdata.txUnsavedChanges;
+if val
   set(hTx,'Visible','on');
 else
   set(hTx,'Visible','off');
@@ -1514,12 +1524,18 @@ end
 
 if val,
   info = lObj.projFSInfo;
-  if ~isempty(info)
-    str = sprintf('Unsaved labels since project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
-    SetStatus(lObj.gdata,str,false);
+  if nargin < 3 || ~ischar(str),
+    str = 'Save needed ';
   end
+  if isempty(info),
+    str = sprintf('%s since $PROJECTNAME saved.',str);
+  else
+    str = sprintf('%s since $PROJECTNAME %s at %s',str,info.action,datestr(info.timestamp,16));
+  end
+  SetStatus(lObj.gdata,str,false);
 end
 
+lObj.needsSave = val;
 
 function menuSetupLabelModeHelp(handles,labelMode)
 % Set .Checked for menu_setup_<variousLabelModes> based on labelMode
@@ -1857,6 +1873,10 @@ if tfTracker
         @(src1,evt1) cbkTrackerTrainEnd(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.lObj.addlistener('trackDLBackEnd','PostSet',...
         @(src1,evt1) cbkTrackerBackEndChanged(src1,evt1,handles));      
+      listenersNew{end+1,1} = tObj.addlistener('trackStart',...
+        @(src1,evt1) cbkTrackerStart(src1,evt1,handles));
+      listenersNew{end+1,1} = tObj.addlistener('trackEnd',...
+        @(src1,evt1) cbkTrackerEnd(src1,evt1,handles));
   end
 end
 
@@ -2490,11 +2510,11 @@ ClearStatus(handles)
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
-OPTION_SAVE = 'Save labels first';
+OPTION_SAVE = 'Save first';
 OPTION_PROC = 'Proceed without saving';
 OPTION_CANC = 'Cancel';
-if labelerObj.labeledposNeedsSave
-  res = questdlg('You have unsaved changes to your labels. If you proceed without saving, your changes will be lost.',...
+if labelerObj.needsSave
+  res = questdlg('You have unsaved changes to your project. If you proceed without saving, your changes will be lost.',...
     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
   switch res
     case OPTION_SAVE
@@ -2938,6 +2958,33 @@ handles.txBGTrain.Visible = 'off';
 handles.txBGTrain.String = 'Idle';
 handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 
+lObj = handles.labelerObj;
+val = true;
+str = 'Tracker trained';
+lObj.needsSave = true;
+cbkSaveNeeded(lObj,val,str);
+
+function cbkTrackerStart(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+algName = lObj.tracker.algorithmName;
+%algLabel = lObj.tracker.algorithmNamePretty;
+backend = lObj.trackDLBackEnd.prettyName;
+handles.txBGTrain.String = sprintf('%s tracking on %s (started %s)',algName,backend,datestr(now,'HH:MM'));
+handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
+handles.txBGTrain.FontWeight = 'normal';
+handles.txBGTrain.Visible = 'on';
+
+function cbkTrackerEnd(hObject, eventdata, handles)
+handles.txBGTrain.Visible = 'off';
+handles.txBGTrain.String = 'Idle';
+handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
+
+lObj = handles.labelerObj;
+val = true;
+str = 'New frames tracked';
+lObj.needsSave = true;
+cbkSaveNeeded(lObj,val,str);
+
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
 lObj = eventdata.AffectedObject;
 updateTrackBackendConfigMenuChecked(handles,lObj);
@@ -3102,6 +3149,7 @@ if isempty(sPrmNew)
 else
   lObj.trackSetParams(sPrmNew);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
+  cbkSaveNeeded(lObj,true,'Parameters changed');
 end
 
 ClearStatus(handles);
@@ -3792,6 +3840,9 @@ if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
     projfile = '';
   else
     projfile = handles.labelerObj.projectfile;
+    if numel(projfile) > 100,
+      projfile = ['..',projfile(end-97:end)];
+    end
   end
   s1 = strrep(s,'$PROJECTNAME',projfile);
   [~,n,ext] = fileparts(projfile);
