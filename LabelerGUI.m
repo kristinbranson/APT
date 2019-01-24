@@ -2513,11 +2513,11 @@ ClearStatus(handles)
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
-OPTION_SAVE = 'Save labels first';
+OPTION_SAVE = 'Save first';
 OPTION_PROC = 'Proceed without saving';
 OPTION_CANC = 'Cancel';
 if labelerObj.labeledposNeedsSave
-  res = questdlg('You have unsaved changes to your labels. If you proceed without saving, your changes will be lost.',...
+  res = questdlg('You have unsaved changes to your project. If you proceed without saving, your changes will be lost.',...
     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
   switch res
     case OPTION_SAVE
@@ -2964,6 +2964,7 @@ handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 lObj = handles.labelerObj;
 val = true;
 str = 'Tracker trained';
+lObj.labeledposNeedsSave = true;
 cbkSaveNeeded(lObj,val,str);
 
 function cbkTrackerStart(hObject, eventdata, handles)
@@ -2984,6 +2985,7 @@ handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
 lObj = handles.labelerObj;
 val = true;
 str = 'New frames tracked';
+lObj.labeledposNeedsSave = true;
 cbkSaveNeeded(lObj,val,str);
 
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
