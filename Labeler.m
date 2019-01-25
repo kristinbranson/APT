@@ -1767,7 +1767,7 @@ classdef Labeler < handle
           obj.preProcDataTS = s.preProcDataTS;
         end
         if isempty(s.ppdb)
-          assert(obj.ppbb.dat.N==0);
+          assert(obj.ppdb.dat.N==0);
         else
           fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
           obj.ppdb = s.ppdb;

@@ -964,13 +964,12 @@ classdef Shape
           end
         end
         if tfMD
-          movID = opts.md.movID{hIm};
-          [~,movS] = myfileparts(movID);
-          str = sprintf('%d %s f%d',iIm,movS,opts.md.frm(iIm));
+          movID = opts.md.mov(iIm);
+          str = sprintf('%d mov%d f%d',iIm,movID,opts.md.frm(iIm));
         else
           str = num2str(iIm);
         end
-        text(1,1,str,'parent',hax(iPlt),'color',[1 1 .2],...
+        text(1,1,str,'parent',hax(iPlt),'color',[0 0 0],...
           'verticalalignment','top','interpreter','none');
       end
     end

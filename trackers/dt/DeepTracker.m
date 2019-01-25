@@ -1089,7 +1089,7 @@ classdef DeepTracker < LabelTracker
       % ppPrms: scalar struct, preproc params only.
       % 
       % ppdata: CPRData
-        
+            
       ppdb = obj.lObj.ppdb;
       [~,ppdata] = ppdb.add(tblP,obj.lObj,'prmpp',ppPrms,'computeOnly',true);
     end
@@ -1131,8 +1131,14 @@ classdef DeepTracker < LabelTracker
         tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
       end
       
+      fprintf(2,'XXXHACK\n');
+      ppPrms = obj.lObj.preProcParams;
+      ppPrms.TargetCrop.AlignUsingTrxTheta = true;
+      % XXX
+      
       ppdb = obj.lObj.ppdb;
-      [tblAddReadFailed,tfAU,locAU] = ppdb.addAndUpdate(tblPTrn,obj.lObj,'wbObj',wbObj);
+      [tblAddReadFailed,tfAU,locAU] = ppdb.addAndUpdate(...
+        tblPTrn,obj.lObj,'wbObj',wbObj,'prmpp',ppPrms);
       if tfWB && wbObj.isCancel
         % none
         return;

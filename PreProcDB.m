@@ -32,8 +32,11 @@ classdef PreProcDB < handle
       % tblNew: new rows. MFTable.FLDSCORE are required fields. .roi may 
       %   be present and if so WILL BE USED to grab images and included in 
       %   data/MD. Other fields are ignored.
-      %   IMPORTANT: if .roi is present, .p (labels) are expected to be 
-      %   relative to the roi.
+      %
+      %   **VERY IMPORTANT**: This method uses tblNew.pAbs, and NEVER
+      %   tblNew.p. tblNew.p has often been massaged to be relative to .roi
+      %   (when .roi is present). This method does its own cropping to
+      %   generate image patches and only it knows how .p must be massaged.
       %
       % tblNewReadFailed: table of failed-to-read rows. Currently subset of
       %   tblNew. If non-empty, then .dat was not updated with these rows 
@@ -56,9 +59,11 @@ classdef PreProcDB < handle
       
       assert(isstruct(prmpp),'Expected parameters to be struct/value class.');
 
-      FLDSREQUIRED = MFTable.FLDSCORE;
+      FLDSREQUIRED = [MFTable.FLDSCORE 'pAbs'];
       FLDSALLOWED = [MFTable.FLDSCORE {'roi' 'nNborMask'}];
       tblfldscontainsassert(tblNew,FLDSREQUIRED);
+      
+      tblNew.p = tblNew.pAbs;
       
       currMD = obj.dat.MD;
       tf = tblismember(tblNew,currMD,MFTable.FLDSID);
@@ -89,12 +94,14 @@ classdef PreProcDB < handle
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
 
-        [I,nNborMask,didread] = CPRData.getFrames(tblNewConc,...
+        [I,nNborMask,didread,tformA] = CPRData.getFrames(tblNewConc,...
           'wbObj',wbObj,...
           'forceGrayscale',lObj.movieForceGrayscale,...
           'preload',lObj.movieReadPreLoadMovies,...
-          'movieInvert',lObj.movieInvert,...
+          'movieInvert',lObj.movieInvert,...          
           'roiPadVal',prmpp.TargetCrop.PadBkgd,...
+          'rotateImsUp',prmpp.TargetCrop.AlignUsingTrxTheta,...
+          'isDLpipeline',true,...
           'doBGsub',prmpp.BackSub.Use,...
           'bgReadFcn',prmpp.BackSub.BGReadFcn,...
           'bgType',prmpp.BackSub.BGType,...
@@ -115,12 +122,29 @@ classdef PreProcDB < handle
         tblNew(~didreadallviews,:) = [];
         I(~didreadallviews,:) = [];
         nNborMask(~didreadallviews,:) = [];
+        tformA(:,:,~didreadallviews,:) = [];
         
         % AL: a little worried if all reads fail -- might get a harderr
         
         tfColsAllowed = ismember(tblNew.Properties.VariableNames,FLDSALLOWED);
         tblNewMD = tblNew(:,tfColsAllowed);
         tblNewMD = [tblNewMD table(nNborMask)];
+        
+        pAbs = tblNewMD.p;
+        n = height(tblNewMD);
+        nPhysPts = lObj.nPhysPoints;
+        nView = lObj.nview;
+        pRel = reshape(pAbs,[n nPhysPts nView 2]);
+        szassert(tformA,[3 3 n nView]);
+        for i=1:n
+          for ivw=1:nView
+            tform = maketform('affine',tformA(:,:,i,ivw));
+            [pRel(i,:,ivw,1),pRel(i,:,ivw,2)] = ...
+              tformfwd(tform,pRel(i,:,ivw,1),pRel(i,:,ivw,2));
+          end
+        end
+        pRel = reshape(pRel,[n nPhysPts*nView*2]);
+        tblNewMD.p = pRel;
         
         dataNew = CPRData(I,tblNewMD);
         
@@ -199,7 +223,6 @@ classdef PreProcDB < handle
       %   everything went well.
       % tfAU: [tfAU,locAU] = tblismember(tblAU,obj.dat.MD,MFTable.FLDSID)
       % locAU: 
-      
       
       [wbObj,updateRowsMustMatch,prmpp] = myparse(varargin,...
         'wbObj',[],... % WaitBarWithCancel. If cancel, obj unchanged.
