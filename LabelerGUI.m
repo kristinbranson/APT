@@ -82,6 +82,18 @@ handles.idlestatuscolor = [0,1,0];
 handles.busystatuscolor = [1,0,1];
 setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
 setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
+
+% set location of background training status
+pos1 = handles.txStatus.Position;
+pos2 = handles.txBGTrain.Position;
+r1 = pos1(1)+pos1(3);
+r2 = pos2(1)+pos2(3);
+pos2(1) = min(pos2(1),r1 + .01);
+pos2(3) = r2-pos2(1);
+handles.txBGTrain.Position = pos2;
+handles.txBGTrain.FontWeight = 'normal';
+handles.txBGTrain.FontSize = handles.txStatus.FontSize;
+
 SetStatus(handles,'Initializing APT...');
 handles.SetStatusFun = @SetStatus;
 handles.ClearStatusFun = @ClearStatus;
@@ -506,7 +518,7 @@ set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),'Value',handles.
 set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),'Value',handles.labelTLInfo.curproptype);
 
 % this is currently not used - KB made space here for training status
-set(handles.txProjectName,'String','');
+%set(handles.txProjectName,'String','');
 
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
@@ -554,6 +566,7 @@ listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
 handles.menu_track_trackers = cell(0,1); % menus added in cbkTrackersAllChanged
+handles.menu_track_backends = cell(0,1); % menus added in cbkTrackersAllChanged
 
 hZ = zoom(hObject);
 hZ.ActionPostCallback = @cbkPostZoom;
@@ -1049,6 +1062,11 @@ end
 %lObj.gdata.labelTLInfo.cbkWBUF(src,evt);
 
 function cbkWSWF(src,evt,lObj)
+
+if ~lObj.hasMovie
+  return;
+end
+
 scrollcnt = evt.VerticalScrollCount;
 scrollamt = evt.VerticalScrollAmount;
 fcurr = lObj.currFrame;
@@ -1564,17 +1582,17 @@ lc = lObj.lblCore;
 tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
 % handles.menu_view_show_3D_axes.Enable = onIff(tfShow3DAxes);
 
-function hlpUpdateTxProjectName(lObj)
-projname = lObj.projname;
-info = lObj.projFSInfo;
-if isempty(info)
-  str = projname;
-else
-  [~,projfileS] = myfileparts(info.filename);  
-  str = sprintf('%s / %s',projfileS,projname);
-end
-hTX = lObj.gdata.txProjectName;
-hTX.String = str;
+% function hlpUpdateTxProjectName(lObj)
+% projname = lObj.projname;
+% info = lObj.projFSInfo;
+% if isempty(info)
+%   str = projname;
+% else
+%   [~,projfileS] = myfileparts(info.filename);  
+%   str = sprintf('%s / %s',projfileS,projname);
+% end
+% hTX = lObj.gdata.txProjectName;
+% hTX.String = str;
 
 function cbkProjNameChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1702,11 +1720,7 @@ mnu.Checked = onIff(tf);
 
 function handles = setupAvailTrackersMenu(handles,tObjs)
 % set up menus and put in handles.menu_track_trackers (cell arr)
-
-trackermenu_dict = {
-  'cpr','Cascaded Pose Regression (CPR)'
-  'poseTF','Deep Convolutional Network - UNet'
-  };
+% also, handles.menu_track_backends
 
 cellfun(@delete,handles.menu_track_trackers);
 
@@ -1714,12 +1728,7 @@ nTrker = numel(tObjs);
 menuTrks = cell(nTrker,1);
 for i=1:nTrker  
   algName = tObjs{i}.algorithmName;
-  j = find(strcmp(algName,trackermenu_dict(:,1)));
-  if ~isempty(j),
-    algLabel = trackermenu_dict{j,2};
-  else
-    algLabel = algName;
-  end
+  algLabel = tObjs{i}.algorithmNamePretty;
   mnu = uimenu( ...
     'Parent',handles.menu_track_tracking_algorithm,...
     'Label',algLabel,...
@@ -1730,6 +1739,58 @@ for i=1:nTrker
   menuTrks{i} = mnu;
 end
 handles.menu_track_trackers = menuTrks;
+
+if ~isfield(handles,'menu_track_backend_config')
+  % set up first time only, should not change
+  handles.menu_track_backend_config = uimenu( ...
+    'Parent',handles.menu_track,...
+    'Label','GPU/Backend Configuration',...
+    'Visible','off',...
+    'Tag','menu_track_backend_config');
+  moveMenuItemAfter(handles.menu_track_backend_config,handles.menu_track_tracking_algorithm);
+  handles.menu_track_backend_config_jrc = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','JRC Cluster',...
+    'Callback',@cbkTrackerBackendMenu,...
+    'Tag','menu_track_backend_config_jrc',...
+    'userdata',DLBackEnd.Bsub);
+  handles.menu_track_backend_config_aws = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','AWS Cloud',...
+    'Callback',@cbkTrackerBackendMenu,...
+    'Tag','menu_track_backend_config_aws',...
+    'userdata',DLBackEnd.AWS);
+  handles.menu_track_backend_config_docker = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','Local (Docker)',...
+    'Callback',@cbkTrackerBackendMenu,...
+    'Tag','menu_track_backend_config_docker',...
+    'userdata',DLBackEnd.Docker);  
+  % KB added menu item to get more info about how to set up
+  handles.menu_track_backend_config_moreinfo = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','More information...',...
+    'Callback',@cbkTrackerBackendMenuMoreInfo,...
+    'Tag','menu_track_backend_config_moreinfo');  
+  handles.menu_track_backend_config_test = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','Test backend configuration',...
+    'Callback',@cbkTrackerBackendTest,...
+    'Tag','menu_track_backend_config_test');
+  
+  % AWS submenu (visible when backend==AWS)
+  handles.menu_track_backend_config_aws_setinstance = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','(AWS) Set EC2 instance',...
+    'Callback',@cbkTrackerBackendAWSSetInstance,...
+    'Tag','menu_track_backend_config_aws_setinstance');  
+  
+%   handles.menu_track_backends{end+1,1} = uimenu( ...
+%     'Parent',handles.menu_track_backend_config,...
+%     'Label','(AWS) Send start instance',...
+%     'Visible','off',...
+%     'Tag','menu_track_backend_config_aws_setinstance');
+end
 
 function handles = setupTrackerMenusListeners(handles,tObj,iTrker)
 % Configure listerers-on-current-tracker obj; tracker-specific menus
@@ -1766,6 +1827,15 @@ if tfTracker
   handles.menu_track_cpr_storefull.Visible = onOffCpr;
   handles.menu_track_cpr_view_diagnostics.Visible = onOffCpr;
   
+  % FUTURE TODO, enable for DL
+  handles.menu_track_training_data_montage.Enable = onOffCpr;
+  isDL = ~iscpr;
+  onOffDL = onIff(isDL);
+  handles.menu_track_backend_config.Visible = onOffDL;
+  if isDL
+    updateTrackBackendConfigMenuChecked(handles,tObj.lObj);
+  end
+  
   % Listeners, general tracker
   listenersNew{end+1,1} = tObj.addlistener('hideViz','PostSet',...
     @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); %#ok<NASGU>
@@ -1777,21 +1847,99 @@ if tfTracker
       
       % NOTE: handles here can get out-of-date but that is ok for now
       listenersNew{end+1,1} = tObj.addlistener('showVizReplicates','PostSet',...
-        @(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles.labelerObj));
+        @(src1,evt1) cbkTrackerShowVizReplicatesChanged(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('storeFullTracking','PostSet',...
         @(src1,evt1) cbkTrackerStoreFullTrackingChanged(src1,evt1,handles));
-    case 'poseTF'
-      % none
+    otherwise
+      listenersNew{end+1,1} = tObj.addlistener('trainStart',...
+        @(src1,evt1) cbkTrackerTrainStart(src1,evt1,handles));
+      listenersNew{end+1,1} = tObj.addlistener('trainEnd',...
+        @(src1,evt1) cbkTrackerTrainEnd(src1,evt1,handles));
+      listenersNew{end+1,1} = tObj.lObj.addlistener('trackDLBackEnd','PostSet',...
+        @(src1,evt1) cbkTrackerBackEndChanged(src1,evt1,handles));      
   end
 end
 
 handles.listenersTracker = listenersNew;
+
+function updateTrackBackendConfigMenuChecked(handles,lObj)
+switch lObj.trackDLBackEnd.type
+  case DLBackEnd.AWS
+    set(handles.menu_track_backend_config_jrc,'checked','off');
+    set(handles.menu_track_backend_config_docker,'checked','off');
+    set(handles.menu_track_backend_config_aws,'checked','on');
+    set(handles.menu_track_backend_config_aws_setinstance,'visible','on');
+  case DLBackEnd.Bsub
+    set(handles.menu_track_backend_config_jrc,'checked','on');
+    set(handles.menu_track_backend_config_docker,'checked','off');
+    set(handles.menu_track_backend_config_aws,'checked','off');
+    set(handles.menu_track_backend_config_aws_setinstance,'visible','off');
+  case DLBackEnd.Docker
+    set(handles.menu_track_backend_config_jrc,'checked','off');
+    set(handles.menu_track_backend_config_docker,'checked','on');
+    set(handles.menu_track_backend_config_aws,'checked','off');
+    set(handles.menu_track_backend_config_aws_setinstance,'visible','off');
+  otherwise
+    set(handles.menu_track_backend_config_jrc,'checked','off');
+    set(handles.menu_track_backend_config_docker,'checked','off');
+    set(handles.menu_track_backend_config_aws,'checked','off');
+end
+
+% Menu item ordering getting messed up somewhere
+handles.menu_track_backend_config_aws_setinstance.Separator = 'on';
+handles.menu_track_backend_config_jrc.Position = 1;
+handles.menu_track_backend_config_aws.Position = 2;
+handles.menu_track_backend_config_docker.Position = 3;
+handles.menu_track_backend_config_aws_setinstance.Position = 4;
 
 function cbkTrackerMenu(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
 iTracker = src.UserData;
 lObj.trackSetCurrentTracker(iTracker);
+
+function cbkTrackerBackendMenu(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+beType = src.UserData;
+be = DLBackEndClass(beType);
+lObj.trackSetDLBackend(be);
+
+function cbkTrackerBackendMenuMoreInfo(src,evt)
+
+handles = guidata(src);
+lObj = handles.labelerObj;
+
+res = web(lObj.DLCONFIGINFOURL,'-new');
+if res ~= 0,
+  msgbox({'Information on configuring Deep Learning GPU/Backends can be found at'
+    'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking.'},...
+    'Deep Learning GPU/Backend Information','replace');
+end
+
+function cbkTrackerBackendTest(src,evt)
+
+handles = guidata(src);
+lObj = handles.labelerObj;
+switch lObj.trackDLBackEnd.type,
+  case DLBackEnd.Bsub,
+    lObj.tracker.testBsubConfig();
+  otherwise
+    msgbox(sprintf('Tests for %s have not been implemented',lObj.trackDLBackEnd.type),'Not implemented','modal');
+end
+
+function cbkTrackerBackendAWSSetInstance(src,evt)
+handles = guidata(src);
+lObj = handles.labelerObj;
+[tfsucc,instanceID,pemFile] = AWSec2.configureUI();
+if tfsucc
+  aws = AWSec2(pemFile,'instanceID',instanceID);  
+  aws.inspectInstance;
+  dlbe = lObj.trackDLBackEnd;
+  assert(dlbe.type==DLBackEnd.AWS);
+  dlbe.awsec2 = aws;
+  lObj.trackSetDLBackend(dlbe);
+end
 
 function cbkTrackersAllChanged(src,evt)
 lObj = evt.AffectedObject;
@@ -1815,7 +1963,7 @@ tObj = lObj.tracker;
 iTrker = lObj.currTracker;
 handles = setupTrackerMenusListeners(handles,tObj,iTrker);
 handles.labelTLInfo.setTracker(tObj);
-
+handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)
@@ -1985,6 +2133,7 @@ if ~checkProjAndMovieExist(handles)
   return;
 end
 SetStatus(handles,'Training...');
+drawnow;
 [tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
 if ~tfCanTrain,
   errordlg(['Error training tracker: ',reason],'Error training tracker');
@@ -2771,6 +2920,25 @@ lObj.labels2VizToggle();
 function cbkTrackerShowVizReplicatesChanged(hObject, eventdata, handles)
 handles.menu_track_cpr_show_replicates.Checked = ...
   onIff(handles.labelerObj.tracker.showVizReplicates);
+
+function cbkTrackerTrainStart(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+algName = lObj.tracker.algorithmName;
+%algLabel = lObj.tracker.algorithmNamePretty;
+backend = lObj.trackDLBackEnd.prettyName;
+handles.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend,datestr(now,'HH:MM'));
+handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
+handles.txBGTrain.FontWeight = 'normal';
+handles.txBGTrain.Visible = 'on';
+
+function cbkTrackerTrainEnd(hObject, eventdata, handles)
+handles.txBGTrain.Visible = 'off';
+handles.txBGTrain.String = 'Idle';
+handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
+
+function cbkTrackerBackEndChanged(hObject, eventdata, handles)
+lObj = eventdata.AffectedObject;
+updateTrackBackendConfigMenuChecked(handles,lObj);
 
 function menu_track_cpr_show_replicates_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;

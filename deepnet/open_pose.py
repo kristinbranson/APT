@@ -26,7 +26,7 @@ import tensorflow as tf
 import keras.backend as K
 
 
-name = 'open_pose'
+# name = 'open_pose'
 
 
 # ---------------------
@@ -468,7 +468,7 @@ def set_openpose_defaults(conf):
     conf.gamma = 0.333
 
 
-def training(conf):
+def training(conf,name='deepnet'):
 
     base_lr = 4e-5  # 2e-5
     momentum = 0.9
@@ -589,7 +589,7 @@ def training(conf):
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             print(p_str)
 
-            train_data_file = os.path.join( self.config.cachedir, self.config.expname + '_' + name + '_traindata')
+            train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
 
             json_data = {}
             for x in self.train_info.keys():
@@ -598,7 +598,7 @@ def training(conf):
                 json.dump(json_data, json_file)
 
             if step % conf.save_step == 0:
-                model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(step)))
+                model.save(os.path.join(conf.cachedir, name + '-{}'.format(step)))
 
 
     # configure callbacks
@@ -633,7 +633,7 @@ def training(conf):
     obs.on_epoch_end(max_iter)
 
 
-def get_pred_fn(conf, model_file=None):
+def get_pred_fn(conf, model_file=None,name='deepnet'):
     model = get_testing_model(br1=len(conf.op_affinity_graph) * 2, br2=conf.n_classes)
     if model_file is None:
         latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)

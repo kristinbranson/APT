@@ -575,14 +575,14 @@ class PoseUNet(PoseCommon):
         tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
         return np.nanmean(tt1)
 
+    def loss(self, inputs, pred):
+        return tf.nn.l2_loss(pred - inputs[-1]) + self.wt_decay_loss()
 
     def train_unet(self,restore=False):
-        def loss(inputs, pred):
-            return tf.nn.l2_loss(pred-inputs[-1]) + self.wt_decay_loss()
 
         PoseCommon.train(self,
             create_network=self.create_network,
-            loss=loss,
+            loss=self.loss,
             learning_rate=0.0001,restore=restore)
 
     def get_pred_fn(self, model_file=None):

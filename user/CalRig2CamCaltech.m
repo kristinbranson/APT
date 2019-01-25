@@ -307,6 +307,27 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
         intPrm.fc,intPrm.cc,intPrm.kc,intPrm.alpha_c);
     end
     
+    function [XL,XR] = stereoTriangulateLR(obj,yL,yR)
+      % Take cropped points for left/bot cameras and reconstruct 3D
+      % positions
+      %
+      % yL: [Nx2]. N points, (row,col) in cropped/final Left camera image
+      % yB: [Nx2]. 
+      %
+      % XL: [3xN]. 3d coords in Left camera frame
+      % XB: [3xN].
+      
+      xL = obj.y2x(yL,'L');
+      xB = obj.y2x(yR,'R');
+      
+      intL = obj.int.L;
+      intR = obj.int.R;
+      [XL,XR] = stereo_triangulation(xL,xB,...
+        obj.omRL,obj.TRL,...
+        intL.fc,intL.cc,intL.kc,intL.alpha_c,...
+        intR.fc,intR.cc,intR.kc,intR.alpha_c);
+    end
+    
     function [XL,XB] = stereoTriangulateLB(obj,yL,yB)
       % Take cropped points for left/bot cameras and reconstruct 3D
       % positions
@@ -342,13 +363,18 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
         intR.fc,intR.cc,intR.kc,intR.alpha_c);
     end
     
-    function [X1,X2,d] = stereoTriangulateCropped(obj,y1,y2,cam1,cam2)
+    function [X1,X2,d] = stereoTriangulateCropped(obj,y1,y2,cam1,cam2,...
+        varargin)
       % Like stereoTriangulate
       %
       % y1, y2: [nx2].
       %
       % X1, X2: [3xn].
       % d: [n]
+      
+      wbObj = myparse(varargin,...
+        'wbObj',[]);
+      tfWB = ~isempty(wbObj);
       
       assert(isequal(size(y1),size(y2)));
       assert(size(y1,2)==2);
@@ -357,10 +383,20 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       xp1 = obj.y2x(y1,cam1); % [2xn]
       xp2 = obj.y2x(y2,cam2);
       
+      if tfWB
+        wbObj.startPeriod('Triangulating','shownumden',true,'denominator',n);
+      end
+      
       X1 = nan(3,n);
       X2 = nan(3,n);
       d = nan(1,n);
       for i=1:n
+        if tfWB
+          tfCancel = wbObj.updateFracWithNumDen(i);
+          if tfCancel
+            return;
+          end
+        end
         [X1(:,i),X2(:,i),d(i)] = obj.stereoTriangulate(xp1(:,i),xp2(:,i),cam1,cam2);
       end      
     end

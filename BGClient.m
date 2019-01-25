@@ -14,6 +14,8 @@ classdef BGClient < handle
     idTocs % [numIDsReceived] col vec of compute elapsed times, set when response to each command id is received
     
     printlog = false; % if true, logging messages are displayed
+    
+    parpoolIdleTimeout = 10*60; % bump gcp IdleTimeout to at least this value every time a worker is started
   end
   properties (Dependent)
     isConfigured
@@ -84,6 +86,12 @@ classdef BGClient < handle
       end		
       obj.qWorker2Me = queue;
       
+      p = gcp;
+      if obj.parpoolIdleTimeout > p.IdleTimeout 
+        warningNoTrace('Increasing current parpool IdleTimeout to %d minutes.',obj.parpoolIdleTimeout);
+        p.IdleTimeout = obj.parpoolIdleTimeout;
+      end
+      
       if workerContinuous
         workerObj = BGWorkerContinuous;
         % computeObj deep-copied onto worker
@@ -126,6 +134,9 @@ classdef BGClient < handle
     end
     
     function stopWorker(obj)
+      % "Proper" stop; STOP message is sent to BGWorker obj; BGWorker reads
+      % STOP message and breaks from polling loop
+      
       if ~obj.isRunning
         warningNoTrace('BGClient:run','Worker is not running.');
       else
@@ -133,6 +144,16 @@ classdef BGClient < handle
         obj.sendCommand(sCmd);
       end
     end
+    
+    function stopWorkerHard(obj)
+      % Harder stop, cancel fevalFuture
+      
+      if ~obj.isRunning
+        warningNoTrace('BGClient:run','Worker is not running.');
+      else
+        obj.fevalFuture.cancel();
+      end
+    end    
     
   end
   

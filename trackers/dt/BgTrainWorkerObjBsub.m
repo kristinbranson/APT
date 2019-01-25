@@ -1,113 +1,98 @@
-classdef BgTrainWorkerObjBsub < BgTrainWorkerObj
-  
-  properties
-    jobID % [nview] bsub jobID
-  end
-  
+classdef BgTrainWorkerObjBsub < BgTrainWorkerObjLocalFilesys
+    
   methods
     
     function obj = BgTrainWorkerObjBsub(nviews,dmcs)
-      obj@BgTrainWorkerObj(nviews,dmcs);      
+      obj@BgTrainWorkerObjLocalFilesys(nviews,dmcs);
     end
     
-    function tf = fileExists(~,file)
-      tf = exist(file,'file')>0;
+    function killJob(obj,jID)
+      % jID: scalar jobID
+      
+      bkillcmd = sprintf('bkill %d',jID);
+      bkillcmd = DeepTracker.codeGenSSHGeneral(bkillcmd,'bg',false);
+      fprintf(1,'%s\n',bkillcmd);
+      [st,res] = system(bkillcmd);
+      if st~=0
+        warningNoTrace('Bkill command failed: %s',res);
+      end
     end
     
-    function tf = errFileExistsNonZeroSize(~,errFile)
-      tf = BgTrainWorkerObjBsub.errFileExistsNonZeroSizeStc(errFile);
-    end
-        
-    function s = fileContents(~,file)
-      if exist(file,'file')==0
-        s = '<file does not exist>';
+    function res = queryAllJobsStatus(obj)
+      
+      bjobscmd = 'bjobs';
+      bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
+      fprintf(1,'%s\n',bjobscmd);
+      [st,res] = system(bjobscmd);
+      if st~=0
+        warningNoTrace('Bkill command failed: %s',res);
       else
-        lines = readtxtfile(file);
-        s = sprintf('%s\n',lines{:});
-      end
-    end
-    
-    function killProcess(obj)
-%       if ~obj.isRunning
-%         error('Training is not in progress.');
-%       end
-%       if isempty(obj.jobID) || isnan(obj.jobID)
-%          error('jobID is unset.');
-%       end
-      
-      dmcs = obj.dmcs;
-      killfiles = {dmcs.killTokenLnx};
-      jobids = obj.jobID;
-      nvw = obj.nviews;
-      assert(isequal(nvw,numel(jobids),numel(killfiles)));
-      
-      for ivw=1:nvw
-        bkillcmd = sprintf('bkill %d',jobids(ivw));
-        bkillcmd = DeepTracker.codeGenSSHGeneral(bkillcmd,'bg',false);
-        fprintf(1,'%s\n',bkillcmd);
-        [st,res] = system(bkillcmd);
-        if st~=0
-          warningNoTrace('Bkill command failed: %s',res);          
-        end
-      end
-      
-      for ivw=1:nvw
-        fcn = makeBsubJobKilledPollFcn(jobids(ivw));
-        iterWaitTime = 1;
-        maxWaitTime = 12;
-        tfsucc = waitforPoll(fcn,iterWaitTime,maxWaitTime);
-
-        if ~tfsucc
-          warningNoTrace('Could not confirm that bsub job was killed.');
-        else
-          % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
-          % pick up
-          
-          kfile = killfiles{ivw};
-          touchcmd = sprintf('touch %s',kfile);
-          touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
-          [st,res] = system(touchcmd);
-          if st~=0
-            warningNoTrace('Failed to create KILLED token: %s',kfile);
-          else
-            fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',kfile);
-          end          
-        end
-
-        % bgTrnMonitor should pick up KILL tokens and stop bg trn monitoring
-      end
-    end    
         
-  end
+%         i = strfind(res,'JOBID');
+%         if isempty(i),
+%           warning('Could not parse output from querying job status');
+%           return;
+%         end
+%         res = res(i(1):end);
+      end
+      
+    end
     
-  methods (Static)
-    function tfErrFileErr = errFileExistsNonZeroSizeStc(errFile)
-      tfErrFileErr = exist(errFile,'file')>0;
-      if tfErrFileErr
-        direrrfile = dir(errFile);
-        tfErrFileErr = direrrfile.bytes>0;
+    function res = queryJobStatus(obj,jID)
+      
+      bjobscmd = sprintf('bjobs %d; echo "More detail:"; bjobs -l %d',jID,jID);
+      bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
+      fprintf(1,'%s\n',bjobscmd);
+      [st,res] = system(bjobscmd);
+      if st~=0
+        warningNoTrace('Bkill command failed: %s',res);
+      else
+        
+%         i = strfind(res,'Job <');
+%         if isempty(i),
+%           warning('Could not parse output from querying job status');
+%           return;
+%         end
+%         res = res(i(1):end);
+      end
+      
+    end
+    
+    function fcn = makeJobKilledPollFcn(obj,jID)
+      pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
+      pollcmd = DeepTracker.codeGenSSHGeneral(pollcmd,'bg',false);
+      
+      fcn = @lcl;
+      
+      function tf = lcl
+        % returns true when jobID is killed
+        %disp(pollcmd);
+        [st,res] = system(pollcmd);
+        if st==0
+          tf = isempty(regexp(res,'RUN','once'));
+        else
+          tf = false;
+        end
       end
     end
+    
+    function tfsucc = createKillToken(obj,killtoken)
+      [killdir,n] = fileparts(killtoken);
+      if isempty(n),
+        killdir = '.';
+      end
+      touchcmd = sprintf('mkdir -p %s; touch %s',killdir,killtoken);
+      touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
+      [st,res] = system(touchcmd);
+      if st~=0
+        tfsucc = false;
+        warningNoTrace('Failed to create KILLED token: %s',killtoken);
+      else
+        tfsucc = true;
+        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
+      end
+    end
+    
   end
   
-end
-
-
-function fcn = makeBsubJobKilledPollFcn(jobID)
-
-pollcmd = sprintf('bjobs -o stat -noheader %d',jobID);
-pollcmd = DeepTracker.codeGenSSHGeneral(pollcmd,'bg',false);
- 
-fcn = @lcl;
-
-  function tf = lcl
-    % returns true when jobID is killed
-    %disp(pollcmd);
-    [st,res] = system(pollcmd);
-    if st==0
-      tf = isempty(regexp(res,'RUN','once'));      
-    else
-      tf = false;
-    end
-  end
 end

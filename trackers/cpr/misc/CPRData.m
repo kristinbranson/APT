@@ -483,7 +483,13 @@ classdef CPRData < handle
               end
               
               if tfROI
-                imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+                if ndims(im) == 2
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+                elseif ndims(im) == 3
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi,1,3);
+                else
+                    error('Undefined number of channels');
+                end
               else
                 imroi = im;
               end

@@ -1,4 +1,7 @@
 classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
+  % DMCOD understands the filesystem structure of a deep model. This same
+  % structure is used both remotely and locally.
+  
   properties
     rootDir % root/parent "Models" dir
     projID 
@@ -8,16 +11,21 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
                  % A model can be trained once, but also train-augmented.
     trainID % a single modelID may be trained multiple times due to 
             % train-augmentation, so a single modelID may have multiple
-            % trainID associated with it.
-    
+            % trainID associated with it. Each (modelChainID,trainID) pair
+            % has a unique associated stripped lbl.            
+    restartTS % Training for each (modelChainID,trainID) can be killed and
+              % restarted arbitrarily many times. This timestamp uniquely
+              % identifies a restart
     trainType % scalar DLTrainType
     iterFinal % final expected iteration    
+    %backEnd % back-end info (bsub, docker, aws)
   end
   properties (Dependent)
     dirProjLnx
     dirNetLnx
     dirViewLnx  
     dirModelChainLnx
+    dirTrkOutLnx
     
     lblStrippedLnx % full path to stripped lbl file for this train session
     lblStrippedName % short filename 
@@ -29,7 +37,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     killTokenName
     trainDataLnx    
     trainFinalIndexLnx
-    trainFinalIndexName    
+    trainFinalIndexName
   end
   methods
     function v = get.dirProjLnx(obj)
@@ -44,6 +52,9 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     function v = get.dirModelChainLnx(obj)
       v = [obj.rootDir '/' obj.projID '/' char(obj.netType) '/' sprintf('view_%d',obj.view) '/' obj.modelChainID];
     end
+    function v = get.dirTrkOutLnx(obj)
+      v = [obj.rootDir '/' obj.projID '/' char(obj.netType) '/' sprintf('view_%d',obj.view) '/' obj.modelChainID '/' 'trk'];
+    end    
     
     function v = get.lblStrippedLnx(obj)      
       v = [obj.dirProjLnx '/' obj.lblStrippedName];      
@@ -59,15 +70,25 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.trainLogLnx(obj)
       v = [obj.dirProjLnx '/' obj.trainLogName];
-    end    
+    end
     function v = get.trainLogName(obj)
-      v = sprintf('%s_%s_%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)));
+      switch obj.trainType
+        case DLTrainType.Restart
+          v = sprintf('%s_%s_%s%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+        otherwise
+          v = sprintf('%s_%s_%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)));
+      end
     end    
     function v = get.killTokenLnx(obj)
       v = [obj.dirModelChainLnx '/' obj.killTokenName];
     end    
     function v = get.killTokenName(obj)
-      v = sprintf('%s_%s.KILLED',obj.trainID,lower(char(obj.trainType)));
+      switch obj.trainType
+        case DLTrainType.Restart
+          v = sprintf('%s_%s%s.KILLED',obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+        otherwise
+          v = sprintf('%s_%s.KILLED',obj.trainID,lower(char(obj.trainType)));
+      end
     end  
     function v = get.trainDataLnx(obj)
       v = [obj.dirModelChainLnx '/traindata.json'];

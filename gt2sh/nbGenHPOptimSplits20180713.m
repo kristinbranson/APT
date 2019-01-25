@@ -319,3 +319,146 @@ for iOuterTstSplit=1:4
   save(fnameTblOuterTrn,'tblOuterTrn');
   save(fnameInner,'innerSplit');
 end
+
+%%
+%%%%%%%%%%%%%%
+%% BRITMAT %%%
+%%%%%%%%%%%%%%
+
+ttrn = loadSingleVariableMatfile('ttrn15343.mat');
+
+% %% this was for the big outer xv 3-fold splits
+% cvpmovmse = cvpartition(gmovmse,'kfold',3,'stratify',true);
+% cvpmse = cvpartition(gmse,'kfold',3,'stratify',true);
+% tftestmovmse = arrayfun(@(x)test(cvpmovmse,x),1:3,'uni',0);
+% tftestmse = arrayfun(@(x)test(cvpmse,x),1:3,'uni',0);
+% tftestmovmse = cat(2,tftestmovmse{:});
+% tftestmse = cat(2,tftestmse{:});
+% %%
+% smse = stratifiedGroupSplit(3,ones(size(gmse)),gmse);
+% tftestmsesplit = arrayfun(@(x)smse==x,1:3,'uni',0);
+% tftestmsesplit = cat(2,tftestmsesplit{:});
+
+%% OUTER: EASY
+%% INNER: EASY
+
+gmse = categorical(ttrn.mouse);
+% don't use gmovmse in HPO, too easy
+% gmovmse = categorical(ttrn.mov).*categorical(ttrn.mouse);
+% gmovmse = removecats(gmovmse);
+
+tcats = sortedsummary(gmse)
+gmse = reordercats(gmse,tcats.cats);
+
+n = height(ttrn);
+BIGKFOLD = 9;
+c = cvpartition(gmse,'kfold',BIGKFOLD,'stratify',true);
+bigparts = arrayfun(@(z)test(c,z),1:BIGKFOLD,'uni',0);
+bigparts = cat(2,bigparts{:});
+szassert(bigparts,[n BIGKFOLD]); % col i is indicator vec for part i
+unique(sum(bigparts,2))
+sum(bigparts,1)
+for k=1:BIGKFOLD
+  tfk = bigparts(:,k);
+  fprintf(1,'Fold %d\n',k);
+  sortedsummary(gmse(tfk))
+end
+%%
+for iOuterTstSplit=1:3
+  kOuterTst = (1:3) + (iOuterTstSplit-1)*3;
+  kOuterTrn = setdiff(1:9,kOuterTst);
+  tfOuterTst = any(bigparts(:,kOuterTst),2);
+  bigPartsOuterTrn = bigparts(:,kOuterTrn);
+  tfOuterTrn = any(bigPartsOuterTrn,2);
+  assert(all(tfOuterTst+tfOuterTrn==1));
+  
+  tblOuterTst = ttrn(tfOuterTst,MFTable.FLDSID);
+  tblOuterTrn = ttrn(tfOuterTrn,MFTable.FLDSID);
+  innerparts = bigPartsOuterTrn(tfOuterTrn,:);
+  assert(size(innerparts,2)==6);
+  
+  innerSplit = innerparts(:,[1 3 5]) + innerparts(:,[2 4 6]);
+  innerSplit = logical(innerSplit);
+  
+  nOuterTst = height(tblOuterTst);
+  nOuterTrn = height(tblOuterTrn);
+  assert(isempty(intersect(tblOuterTst,tblOuterTrn)));
+  szassert(innerSplit,[nOuterTrn 3]);
+  assert(all(sum(innerSplit,2)==1));
+  
+  fprintf('Outer Tst Fold %d. nOuterTst/Trn: %d/%d. inner splits: %s\n',...
+    iOuterTstSplit,nOuterTst,nOuterTrn,mat2str(sum(innerSplit,1)));  
+  gmseOuterTrnC = gmse(tfOuterTrn);
+  for kinner=1:3
+    fprintf(1,'Inner split %d:\n',kinner);
+    sortedsummary(gmseOuterTrnC(innerSplit(:,kinner)))
+  end
+  
+  fnameTblOuterTst = sprintf('outer3_easy_fold%02d_tblTst.mat',iOuterTstSplit);
+  fnameTblOuterTrn = sprintf('outer3_easy_fold%02d_tblTrn.mat',iOuterTstSplit);
+  fnameInner = sprintf('outer3_easy_fold%02d_inner3.mat',iOuterTstSplit);
+  save(fnameTblOuterTst,'tblOuterTst');
+  save(fnameTblOuterTrn,'tblOuterTrn');
+  save(fnameInner,'innerSplit');
+end
+
+%% OUTER: HARD
+%% INNER: HARD
+
+% For "hard" we do a strict partitioning by mouse. pretty rough, some of
+% the 9-fold splits are just one mouse
+
+smse = stratifiedGroupSplit(BIGKFOLD,ones(size(gmse)),gmse,...
+  'shufflePartCats',true);
+tftestmsesplit = arrayfun(@(x)smse==x,1:BIGKFOLD,'uni',0);
+tftestmsesplit = cat(2,tftestmsesplit{:});
+
+bigparts = tftestmsesplit;
+szassert(bigparts,[n BIGKFOLD]); % col i is indicator vec for part i
+unique(sum(bigparts,2))
+sum(bigparts,1)
+for k=1:BIGKFOLD
+  tfk = bigparts(:,k);
+  fprintf(1,'Fold %d\n',k);
+  sortedsummary(gmse(tfk))
+end
+%%
+
+for iOuterTstSplit=1:3
+  kOuterTst = (1:3) + (iOuterTstSplit-1)*3;
+  kOuterTrn = setdiff(1:9,kOuterTst);
+  tfOuterTst = any(bigparts(:,kOuterTst),2);
+  bigPartsOuterTrn = bigparts(:,kOuterTrn);
+  tfOuterTrn = any(bigPartsOuterTrn,2);
+  assert(all(tfOuterTst+tfOuterTrn==1));
+  
+  tblOuterTst = ttrn(tfOuterTst,MFTable.FLDSID);
+  tblOuterTrn = ttrn(tfOuterTrn,MFTable.FLDSID);
+  innerparts = bigPartsOuterTrn(tfOuterTrn,:);
+  assert(size(innerparts,2)==6);
+  
+  p6 = randperm(6);
+  innerSplit = innerparts(:,p6(1:3)) + innerparts(:,p6(4:6));
+  innerSplit = logical(innerSplit);
+  
+  nOuterTst = height(tblOuterTst);
+  nOuterTrn = height(tblOuterTrn);
+  assert(isempty(intersect(tblOuterTst,tblOuterTrn)));
+  szassert(innerSplit,[nOuterTrn 3]);
+  assert(all(sum(innerSplit,2)==1));
+  
+  fprintf('Outer Tst Fold %d. nOuterTst/Trn: %d/%d. inner splits: %s\n',...
+    iOuterTstSplit,nOuterTst,nOuterTrn,mat2str(sum(innerSplit,1)));  
+  gmseOuterTrnC = gmse(tfOuterTrn);
+  for kinner=1:3
+    fprintf(1,'Inner split %d:\n',kinner);
+    sortedsummary(gmseOuterTrnC(innerSplit(:,kinner)))
+  end
+  
+  fnameTblOuterTst = sprintf('outer3_hard_fold%02d_tblTst.mat',iOuterTstSplit);
+  fnameTblOuterTrn = sprintf('outer3_hard_fold%02d_tblTrn.mat',iOuterTstSplit);
+  fnameInner = sprintf('outer3_hard_fold%02d_inner3.mat',iOuterTstSplit);
+  save(fnameTblOuterTst,'tblOuterTst');
+  save(fnameTblOuterTrn,'tblOuterTrn');
+  save(fnameInner,'innerSplit');
+end

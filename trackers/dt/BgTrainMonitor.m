@@ -10,9 +10,6 @@ classdef BgTrainMonitor < handle
   % 2. A client-side TrainingMonitorViz object that visualizes training 
   % progress sent back from the BGWorker
   % 3. Custom actions performed when training is complete
-  % 4. Knows how to kill a training job
-  %
-  % BGTrainMonitor is intended to be subclassed.
   %
   % BGTrainMonitor does NOT know how to spawn training jobs but will know
   % how to (attempt to) kill them. For debugging, you can manually spawn 
@@ -21,10 +18,9 @@ classdef BgTrainMonitor < handle
   % BGTrainMonitor does NOT know how to probe the detailed state of the
   % train eg on disk. That is BGTrainWorkerObj's domain.
   %
-  % So BGTrainMonitor is currently more of a connector/manager obj that
-  % runs the worker (knows how to poll the filesystem in detail) in the
-  % background and connects it with a Monitor. The "I can kill a job" thing
-  % is a bit of an add-on.
+  % So BGTrainMonitor is a connector/manager obj that runs the worker 
+  % (knows how to poll the filesystem in detail) in the background and 
+  % connects it with a Monitor.
   %
   % See also prepare() method comments for related info.
   
@@ -40,6 +36,12 @@ classdef BgTrainMonitor < handle
     prepared
     isRunning
   end
+  
+  events
+    bgStart
+    bgEnd    
+  end
+  
   methods
     function v = get.prepared(obj)
       v = ~isempty(obj.bgClientObj);
@@ -65,6 +67,10 @@ classdef BgTrainMonitor < handle
       %
       % - TODO Note, when you change eg params, u need to call this. etc etc.
       % Any mutation that alters PP, train/track on the BG worker...
+      
+      if obj.isRunning()
+        obj.notify('bgEnd');
+      end
       
       if ~isempty(obj.bgClientObj)
         delete(obj.bgClientObj);
@@ -114,7 +120,7 @@ classdef BgTrainMonitor < handle
       obj.bgWorkerObj = bgWorkerObj;
       obj.trnMonitorObj = trnMonVizObj;
       
-      obj.prepareHook(trnMonVizObj,bgWorkerObj);
+      %obj.prepareHook(trnMonVizObj,bgWorkerObj);
     end
     
     function start(obj)
@@ -122,6 +128,7 @@ classdef BgTrainMonitor < handle
       bgc = obj.bgClientObj;
       bgc.startWorker('workerContinuous',true,...
         'continuousCallInterval',obj.bgContCallInterval);
+      obj.notify('bgStart');
     end
     
     function bgTrnResultsReceived(obj,sRes)
@@ -182,12 +189,14 @@ classdef BgTrainMonitor < handle
     end
     
     function stop(obj)
-      obj.bgClientObj.stopWorker();
+      bgc = obj.bgClientObj;
+      bgc.stopWorkerHard();
+      obj.notify('bgEnd');
     end
     
   end
   
-  methods (Abstract)
-    prepareHook(obj,trnMonVizObj,bgWorkerObj)    
-  end
+%   methods (Abstract)
+%     prepareHook(obj,trnMonVizObj,bgWorkerObj)    
+%   end
 end

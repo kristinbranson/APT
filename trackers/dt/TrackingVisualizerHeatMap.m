@@ -1,4 +1,7 @@
 classdef TrackingVisualizerHeatMap < handle
+  % TrackingVisualizers know how to plot/show tracking results on an axes
+  % (not owned by itself). They know how to show things and own the 
+  % relevant graphics handles but that's it.
   
   properties
     lObj % Included only to access the current raw image. Ideally used as little as possible
@@ -97,9 +100,11 @@ classdef TrackingVisualizerHeatMap < handle
     
     function updateLandmarkColors(obj,ptsClrs)
       npts = obj.nPts;
+      nclrs = size(ptsClrs,1);
       for iPt=1:npts
-        set(obj.hXYPrdRed(iPt),'Color',ptsClrs(iPt,:));
-        set(obj.hXYPrdRedOther(iPt),'Color',ptsClrs(iPt,:));
+        iClr = mod(iPt-1,nclrs)+1;
+        set(obj.hXYPrdRed(iPt),'Color',ptsClrs(iClr,:));
+        set(obj.hXYPrdRedOther(iPt),'Color',ptsClrs(iClr,:));
       end
     end
     
