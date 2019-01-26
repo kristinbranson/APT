@@ -218,32 +218,32 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         #download pretrained weights if they don't exist
         if self.resnet_source == 'official_tf':
-            url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
+        #     url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
             wt_dir = os.path.join(script_dir,'pretrained')
-            wt_file = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables.index')
-            if not os.path.exists(wt_file):
-                print('Downloading pretrained weights..')
-                if not os.path.exists(wt_dir):
-                    os.makedirs(wt_dir)
-                sname, header = urllib.urlretrieve(url)
-                tar = tarfile.open(sname, "r:gz")
-                print('Extracting pretrained weights..')
-                tar.extractall(path=wt_dir)
+        #     wt_file = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables.index')
+        #     if not os.path.exists(wt_file):
+        #         print('Downloading pretrained weights..')
+        #         if not os.path.exists(wt_dir):
+        #             os.makedirs(wt_dir)
+        #         sname, header = urllib.urlretrieve(url)
+        #         tar = tarfile.open(sname, "r:gz")
+        #         print('Extracting pretrained weights..')
+        #         tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
         else:
             url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
             wt_dir = os.path.join(script_dir,'pretrained')
             wt_file = os.path.join(wt_dir,'resnet_v1_50.ckpt')
-            if not os.path.exists(wt_file):
-                print('Downloading pretrained weights..')
-                if not os.path.exists(wt_dir):
-                    os.makedirs(wt_dir)
-                sname, header = urllib.urlretrieve(url)
-                tar = tarfile.open(sname, "r:gz")
-                print('Extracting pretrained weights..')
-                tar.extractall(path=wt_dir)
+            # if not os.path.exists(wt_file):
+            #     print('Downloading pretrained weights..')
+            #     if not os.path.exists(wt_dir):
+            #         os.makedirs(wt_dir)
+            #     sname, header = urllib.urlretrieve(url)
+            #     tar = tarfile.open(sname, "r:gz")
+            #     print('Extracting pretrained weights..')
+            #     tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v1_50.ckpt')
 
             # self.pretrained_weights = '/home/mayank/work/poseTF/deepcut/models/resnet_v1_50.ckpt'
@@ -864,7 +864,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
 
 
-    def classify_val(self, model_file=None, onTrain=False):
+    def classify_val(self, model_file=None, onTrain=False,do_unet=False):
         if not onTrain:
             val_file = os.path.join(self.conf.cachedir, self.conf.valfilename + '.tfrecords')
         else:
@@ -909,12 +909,13 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_u_preds = []
         val_u_predlocs = []
         val_dist_pred = []
+        do_unet = do_unet and self.conf.mdn_use_unet_loss
         for step in range(num_val / self.conf.batch_size):
             if onTrain:
                 self.fd_train()
             else:
                 self.fd_val()
-            if self.conf.mdn_use_unet_loss:
+            if do_unet:
                 pred_means, pred_std, pred_weights, pred_dist, cur_input, unet_pred = sess.run(
                     [p_m, p_s, p_w, p_d, self.inputs, self.unet_pred], self.fd)
             else:
@@ -971,7 +972,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             val_locs.append(cur_input[1])
             val_preds.append(mdn_pred_out)
             val_predlocs.append(cur_predlocs)
-            if self.conf.mdn_use_unet_loss:
+            if do_unet:
                 val_u_preds.append(unet_pred)
                 val_u_predlocs.append(PoseTools.get_pred_locs(unet_pred))
 
@@ -991,7 +992,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_wts = val_reshape(val_wts)
         val_dist_pred = val_reshape(val_dist_pred)
         tf.reset_default_graph()
-        if self.conf.mdn_use_unet_loss:
+        if do_unet:
             val_u_preds = val_reshape(val_u_preds)
             val_u_predlocs = val_reshape(val_u_predlocs)
             return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
