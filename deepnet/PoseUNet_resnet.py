@@ -529,7 +529,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
             with tf.variable_scope('logits'):
 
-                if self.conf.get('mdn_no_locs_layer',True):
+                if self.conf.get('mdn_no_locs_layer',False):
                     mdn_l = X
                 else:
                     with tf.variable_scope('layer_logits'):
