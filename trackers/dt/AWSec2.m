@@ -380,7 +380,31 @@ classdef AWSec2 < handle
         error('Kill command failed.');
       end
     end
-        
+
+    function [tfsucc,res] = remoteCallFSPoll(obj,fspollargs)
+      % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
+      %
+      % res: [n] cellstr of fspoll responses
+
+      assert(iscellstr(fspollargs) && ~isempty(fspollargs));
+      nargsFSP = numel(fspollargs);
+      assert(mod(nargsFSP,2)==0);
+      nresps = nargsFSP/2;
+      
+      fspollstr = sprintf('%s ',fspollargs{:});
+      fspollstr = fspollstr(1:end-1);
+      cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollstr);
+
+      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
+      if tfsucc
+        res = regexp(res,'\n','split');
+        tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
+        res = res(1:end-1);
+      else
+        res = [];
+      end
+    end
+    
   end
   
   methods (Static)

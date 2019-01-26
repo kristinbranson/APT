@@ -255,7 +255,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         try:
             lbl = loadmat(lbl_file)
         except NotImplementedError:
-            print('Label file is in v7.3 format. Loading using h5py')
+            logging.info('Label file is in v7.3 format. Loading using h5py')
             lbl = h5py.File(lbl_file, 'r')
     except TypeError as e:
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
@@ -505,9 +505,9 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
                     splits[0].append(info)
 
         cap.close()  # close the movie handles
-        print('Done %d of %d movies, train count:%d val count:%d' % (ndx + 1, len(local_dirs), count, val_count))
+        logging.info('Done %d of %d movies, train count:%d val count:%d' % (ndx + 1, len(local_dirs), count, val_count))
 
-    print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
+    logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
     lbl.close()
     return splits
 
@@ -643,9 +643,9 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
             splits[0].append(info)
 
         if ndx % 100 == 99 and ndx > 0:
-            print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
+            logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
 
-    print('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
+    logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
     lbl.close()
     return splits
 
@@ -958,6 +958,7 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
     sz = (cap.get_height(), cap.get_width())
 
     for cur_b in range(n_batches):
+
         cur_start = cur_b * bsize
         ppe = min(n_list - cur_start, bsize)
         all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, trx, crop_loc)
@@ -971,8 +972,10 @@ def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
             trx_ndx = cur_entry[1]
             cur_trx = trx[trx_ndx]
             cur_f = cur_entry[0]
-            base_locs_orig = convert_to_orig(base_locs[cur_t, ...], cur_f, conf, cur_trx, crop_loc)
-            pred_locs[cur_start + cur_t, :, :] = base_locs_orig[0, ...]
+            base_locs_orig = convert_to_orig(base_locs[cur_t, ...], conf, cur_f, cur_trx, crop_loc)
+            # pred_locs[cur_start + cur_t, :, :] = base_locs_orig[0, ...]
+            # KB 20190123: this was just copying the first landmark for all landmarks
+            pred_locs[cur_start + cur_t, :, :] = base_locs_orig
 
     return pred_locs
 
@@ -997,7 +1000,7 @@ def get_pred_fn(model_type, conf, model_file=None,name='deepnet'):
     return pred_fn, close_fn, model_file
 
 
-def classify_list_all(model_type, conf, in_list, on_gt, model_file):
+def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=None, trx_files=None, crop_locs=None):
     '''
     Classifies a list of examples.
     in_list should be of list of type [mov_file, frame_num, trx_ndx]
@@ -1009,11 +1012,17 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file):
         local_dirs, _ = multiResData.find_gt_dirs(conf)
     else:
         local_dirs, _ = multiResData.find_local_dirs(conf)
+    is_external_movies = False
+    if movie_files is not None:
+        local_dirs = movie_files
+        is_external_movies = True
+        is_crop = (crop_locs is not None) and (len(crop_locs) > 0)
 
     lbl = h5py.File(conf.labelfile, 'r')
     view = conf.view
     if conf.has_trx_file:
-        trx_files = multiResData.get_trx_files(lbl, local_dirs)
+        if not is_external_movies:
+            trx_files = multiResData.get_trx_files(lbl, local_dirs)
     else:
         trx_files = [None, ] * len(local_dirs)
 
@@ -1024,7 +1033,13 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file):
 
         cur_list = [[l[1] , l[2] ] for l in in_list if l[0] == ndx]
         cur_idx = [i for i, l in enumerate(in_list) if l[0] == ndx]
-        crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
+        if is_external_movies:
+            if is_crop:
+                crop_loc = crop_locs[ndx]
+            else:
+                crop_loc = None
+        else:
+            crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
 
         try:
             cap = movies.Movie(dir_name)
@@ -1157,6 +1172,74 @@ def check_train_db(model_type, conf, out_file):
     with open(out_file, 'w') as f:
         pickle.dump({'ims': all_f, 'locs': labeled_locs, 'info': np.array(info)}, f, protocol=2)
 
+# KB 20190123: classify a list of movies, targets, and frames
+# save results to mat file out_file
+def classify_list_file(conf, model_type, list_file, model_file, out_file):
+
+    success = False
+    pred_locs = None
+    list_fp = open(list_file,'r')
+
+    if not os.path.isfile(list_file):
+        print('File %s does not exist'%list_file)
+        return success, pred_locs
+
+    toTrack = json.load(list_fp)
+
+    # minimal checks
+    if 'movieFiles' not in toTrack:
+        print('movieFiles not defined in json file %s'%list_file)
+        return success, pred_locs
+    nMovies = len(toTrack['movieFiles'])
+    if 'toTrack' not in toTrack:
+        print('toTrack list not defined in json file %s'%list_file)
+        return success, pred_locs
+        
+    hasTrx = 'trxFiles' in toTrack
+    trxFiles = []
+    if hasTrx:
+        nTrx = len(toTrack['trxFiles'])
+        if nTrx != nMovies:
+            print('Numbers of movies and trx files do not match')
+            return success, pred_locs
+        trxFiles = toTrack['trxFiles']
+    hasCrops = 'cropLocs' in toTrack
+    cropLocs = None
+    if hasCrops:
+        nCrops = len(toTrack['cropLocs'])
+        if nCrops != nMovies:
+            print('Number of movie files and cropLocs do not match')
+            return success, pred_locs
+        cropLocs = toTrack['cropLocs']
+
+    # 1-indexed!
+    nToTrack = len(toTrack['toTrack'])
+    cur_list = []
+    for i in range(nToTrack):
+        mov = toTrack['toTrack'][i][0]
+        tgt = toTrack['toTrack'][i][1]
+        frm = toTrack['toTrack'][i][2]
+        if mov <= 0 or mov > nMovies:
+            print('toTrack[%d] has out of range movie index %d'%(i,mov))
+            return success, pred_locs
+        if tgt <= 0:
+            print('toTrack[%d] has out of range target index %d'%(i,tgt))
+            return success, pred_locs
+        if frm <= 0:
+            print('toTrack[%d] has out of range frame index %d'%(i,frm))
+            return success, pred_locs
+
+        cur_list.append([mov-1,frm-1,tgt-1])
+
+    pred_locs = classify_list_all(model_type, conf, cur_list, on_gt=False, model_file=model_file, movie_files=toTrack['movieFiles'], trx_files=trxFiles, crop_locs=cropLocs)    
+    mat_pred_locs = to_mat(pred_locs)
+
+    sio.savemat(out_file, {'pred_locs': mat_pred_locs,
+                           'list_file': list_file} )
+
+    success = True
+
+    return success, pred_locs
 
 def classify_gt_data(conf, model_type, out_file, model_file):
     ''' Classify GT data in the label file.
@@ -1383,7 +1466,7 @@ def classify_movie_all(model_type, **kwargs):
     train_name = kwargs['train_name']
     del kwargs['model_file'], kwargs['conf'], kwargs['train_name']
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file,name=train_name)
-    print('Writing hmaps') if kwargs['save_hmaps'] else print('NOT writing hmaps')
+    logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
     try:
         classify_movie(conf, pred_fn, model_file=model_file, **kwargs)
     except (IOError, ValueError) as e:
@@ -1498,8 +1581,10 @@ def parse_args(argv):
                         help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization',
                         default=None)
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
+    parser.add_argument('-debug', dest='debug', help='Print debug messages', action='store_true')
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
+    parser.add_argument('-log_file', dest='log_file', help='Err file', default=None)
     parser.add_argument('-conf_params', dest='conf_params', help='conf params. These will override params from lbl file', default=None, nargs='*')
     parser.add_argument('-type', dest='type', help='Network type, default is unet', default='unet',
                         choices=['unet', 'openpose', 'deeplabcut', 'leap', 'mdn'])
@@ -1519,7 +1604,7 @@ def parse_args(argv):
 
     parser_classify = subparsers.add_parser('track', help='Track a movie')
     parser_classify.add_argument("-mov", dest="mov",
-                                 help="movie(s) to track", required=True, nargs='+')
+                                 help="movie(s) to track", nargs='+') # KB 20190123 removed required because list_file does not require mov
     parser_classify.add_argument("-trx", dest="trx",
                                  help='trx file for above movie', default=None, nargs='*')
     parser_classify.add_argument('-start_frame', dest='start_frame', help='start tracking from this frame', type=int,
@@ -1531,8 +1616,9 @@ def parse_args(argv):
     parser_classify.add_argument('-trx_ids', dest='trx_ids', help='only track these animals', nargs='*', type=int,
                                  default=[])
     parser_classify.add_argument('-hmaps', dest='hmaps', help='generate heatmpas', action='store_true')
-    parser_classify.add_argument('-crop_loc', dest='crop_loc', help='crop location given xlo xhi ylo yhi', nargs='*',
+    parser_classify.add_argument('-crop_loc', dest='crop_loc', help='crop location given xlo xhi ylo yhi', nargs='*', type=int,
                                  default=None)
+    parser_classify.add_argument('-list_file',dest='list_file', help='JSON file with list of movies, targets and frames to track',default=None)
 
     parser_gt = subparsers.add_parser('gt_classify', help='Classify GT labeled frames')
     parser_gt.add_argument('-out', dest='out_file_gt',
@@ -1571,7 +1657,7 @@ def run(args):
         try:
             H = loadmat(lbl_file)
         except NotImplementedError:
-            print('Label file is in v7.3 format. Loading using h5py')
+            logging.info('Label file is in v7.3 format. Loading using h5py')
             H = h5py.File(lbl_file, 'r')
     except TypeError as e:
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
@@ -1581,6 +1667,23 @@ def run(args):
 
     if args.sub_name == 'train':
         train(lbl_file, nviews, name, args)
+
+    elif args.sub_name == 'track' and args.list_file is not None:
+
+        # KB 20190123: added list_file input option
+        assert args.mov is None, 'Input list_file should specify movie files'
+        assert nviews == 1 or args.view is not None, 'View must be specified for multiview projects'
+        assert args.trx is None, 'Input list_file should specify trx files'
+        assert args.crop_loc is None, 'Input list_file should specify crop locations'
+        
+        if args.view is None:
+            ivw = 0
+        else:
+            ivw = args.view-1
+        conf = create_conf(lbl_file, ivw, name, net_type=args.type, 
+                           cache_dir=args.cache,conf_params=args.conf_params)
+        success,pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file, args.out_files[0])
+        assert success, 'Error classifying list_file ' + args.list_file
 
     elif args.sub_name == 'track':
 
@@ -1609,7 +1712,9 @@ def run(args):
             conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
             if args.crop_loc is not None:
                 crop_loc = [int(x) for x in args.crop_loc]
-                crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :] - 1
+                # crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :] - 1
+                # KB 20190123: crop_loc was being decremented twice, removed one
+                crop_loc = np.array(crop_loc).reshape([len(views), 4])[view_ndx, :]
             else:
                 crop_loc = None
 
@@ -1684,26 +1789,40 @@ def run(args):
 def main(argv):
     args = parse_args(argv)
 
-    if args.err_file is None:
-        logfile = os.path.join(expanduser("~"), '{}.err'.format(args.name))
-    else:
-        logfile = args.err_file
-    fileh = logging.FileHandler(logfile, 'w')
+    log_formatter = logging.Formatter('%(asctime)s [%(levelname)-5.5s] %(message)s')
+
     log = logging.getLogger()  # root logger
     for hdlr in log.handlers[:]:  # remove all old handlers
         log.removeHandler(hdlr)
-    log.addHandler(fileh)
-    log.setLevel(logging.ERROR)
-    formatter = logging.Formatter('%(levelname)s:%(message)s -- %(asctime)s')
-    log.handlers[0].setFormatter(formatter)
-    consoleHandler = logging.StreamHandler()
-    consoleHandler.setFormatter(formatter)
-    log.addHandler(consoleHandler)
+
+    # add err logging
+    if args.err_file is None:
+        err_file = os.path.join(expanduser("~"), '{}.err'.format(args.name))
+    else:
+        err_file = args.err_file
+    errh = logging.FileHandler(err_file, 'w')
+    errh.setLevel(logging.ERROR)
+    errh.setFormatter(log_formatter)
+
+    if args.log_file is None:
+        # output to console if no log file is specified
+        logh = logging.StreamHandler()
+    else:
+        logh = logging.FileHandler(args.log_file, 'w')
+
+    if args.debug:
+        logh.setLevel(logging.DEBUG)
+    else:
+        logh.setLevel(logging.INFO)
+    logh.setFormatter(log_formatter)
+
+    log.addHandler(errh)
+    log.addHandler(logh)
 
     try:
         run(args)
     except Exception as e:
-        logging.exception('UNKNOWN: APT_interface errored because of some error')
+        logging.exception('UNKNOWN: APT_interface errored')
 
 
 if __name__ == "__main__":

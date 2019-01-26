@@ -82,7 +82,7 @@ classdef LegacyTrainMonitorViz < handle
             set(hkill(ivw,2),'XData',contents.step(end),'YData',contents.train_dist(end));
           end
         
-          if res(ivw).trainComplete
+          if res(ivw).tfComplete
             contents = res(ivw).contents;
             if ~isempty(contents)
               hkill = obj.hlinekill;

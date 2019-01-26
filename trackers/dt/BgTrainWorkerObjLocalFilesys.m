@@ -23,6 +23,9 @@ classdef BgTrainWorkerObjLocalFilesys < BgTrainWorkerObj
   methods
     
     function obj = BgTrainWorkerObjLocalFilesys(nviews,dmcs)
+      
+      error('Obsolete');
+      
       obj@BgTrainWorkerObj(nviews,dmcs);      
     end
     

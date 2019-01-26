@@ -353,6 +353,7 @@ classdef Labeler < handle
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
+    needsSave; 
   end
   properties (Dependent)
     labeledposGTaware;
@@ -1511,6 +1512,7 @@ classdef Labeler < handle
       
       obj.updateFrameTableComplete();  
       obj.labeledposNeedsSave = false;
+      obj.needsSave = false;
 
       trkPrefs = obj.projPrefs.Track;
       if trkPrefs.Enable
@@ -1544,6 +1546,7 @@ classdef Labeler < handle
       save(fname,'-mat','-struct','s');
 
       obj.labeledposNeedsSave = false;
+      obj.needsSave = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
 
       RC.saveprop('lastLblFile',fname);      
@@ -1784,6 +1787,7 @@ classdef Labeler < handle
 %       obj.labelingInit();
 
       obj.labeledposNeedsSave = false;
+      obj.needsSave = false;
 %       obj.suspScore = obj.suspScore;
             
       obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
@@ -2373,7 +2377,7 @@ classdef Labeler < handle
             s.trackerData{2}.trnNetType =  DLNetType.mdn;
           elseif ischar(s.trackerData{2}.trnNetType),
             s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType);
-          else isstruct(s.trackerData{2}.trnNetType), 
+          elseif isstruct(s.trackerData{2}.trnNetType), 
             %MK 20190110 - trnNetType can be a struct too.
             s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType.ValueNames{1});  
           end
@@ -4194,7 +4198,7 @@ classdef Labeler < handle
       obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx);
       obj.initShowTrx();
     end
-   
+       
     function tf = trxCheckFramesLive(obj,frms)
       % Check that current target is live for given frames
       %
@@ -8080,7 +8084,8 @@ classdef Labeler < handle
         'preProcParams',prmpp);
     end
     
-    function [tblPReadFailed,dataNew] = preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
+    function [tblPReadFailed,dataNew] = ...
+        preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
       % * Rows appended and pGT/tfocc updated; but other information
@@ -8307,10 +8312,19 @@ classdef Labeler < handle
       iTrk = 0;
     end
   
-    function trackSetCurrentTracker(obj,iTracker)
-      validateattributes(iTracker,{'numeric'},...
+    function trackSetCurrentTracker(obj,iTrk)
+      validateattributes(iTrk,{'numeric'},...
         {'nonnegative' 'integer' '<=' numel(obj.trackersAll)});
-      obj.currTracker = iTracker;
+      
+      tAll = obj.trackersAll;
+      iTrk0 = obj.currTracker;
+      if iTrk0>0
+        tAll{iTrk0}.setHideViz(true);
+      end
+      obj.currTracker = iTrk;
+      if iTrk>0
+        tAll{iTrk}.setHideViz(false);
+      end
     end
         
     function trackSetParams(obj,sPrm)
@@ -8495,8 +8509,9 @@ classdef Labeler < handle
         tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
         retrainArgs = [retrainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
-        
-      tObj.clearTrackingResults();
+      
+	  % KB 20190121 moved this to within retrain, since we don't clear tracking results immediately for background deep learning
+      % tObj.clearTrackingResults();
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
@@ -10480,9 +10495,9 @@ classdef Labeler < handle
 
       assert(cfrm >= ctrx.firstframe && cfrm <= ctrx.endframe);
       i = cfrm - ctrx.firstframe + 1;
-      x = ctrx.x(i);
-      y = ctrx.y(i);
-      th = ctrx.theta(i);
+      x = double(ctrx.x(i));
+      y = double(ctrx.y(i));
+      th = double(ctrx.theta(i));
     end
     function setSelectedFrames(obj,frms)
       if isempty(frms)
@@ -11087,12 +11102,25 @@ classdef Labeler < handle
         ylim = centerpos(2)+[-1,1]*r(2)*extendratio;
       end
       if isfield(ModeInfo,'dxlim'),
+        xlim0 = xlim;
+        ylim0 = ylim;
         xlim = xlim + ModeInfo.dxlim;
         ylim = ylim + ModeInfo.dylim;
+        % make sure all parts are visible
+        if minpos(1) < xlim(1) || minpos(2) < ylim(1) || ...
+            maxpos(1) > xlim(2) || maxpos(2) < ylim(2),
+          ModeInfo.dxlim = [0,0];
+          ModeInfo.dylim = [0,0];
+          xlim = xlim0;
+          ylim = ylim0;
+          fprintf('Templates zoomed axes would not show all labeled points, using default axes.\n');
+        end
       else
         ModeInfo.dxlim = [0,0];
         ModeInfo.dylim = [0,0];
       end
+      ModeInfo.xlim = xlim;
+      ModeInfo.ylim = ylim;
       
       ModeInfo = obj.SetPrevAxesProperties(ModeInfo);
       
@@ -11117,6 +11145,13 @@ classdef Labeler < handle
       
       xdir = get(obj.gdata.axes_curr,'XDir');
       ydir = get(obj.gdata.axes_curr,'YDir');
+      if ~isfield(ModeInfo,'xlim'),
+        xlim = get(obj.gdata.axes_curr,'XLim');
+        ylim = get(obj.gdata.axes_curr,'YLim');
+      else
+        xlim = ModeInfo.xlim;
+        ylim = ModeInfo.ylim;
+      end
       ModeInfo.axes_curr = struct('XLim',xlim,'YLim',ylim,...
         'XDir',xdir','YDir',ydir,...
         'CameraViewAngleMode','auto');

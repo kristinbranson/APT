@@ -136,7 +136,7 @@ if strcmpi(mode,'stop'),
           'Stop training before closing monitor','modal');
   return;
   
-elseif strcmpi(mode,'start'),
+elseif strcmpi(mode,'start') || strcmpi(mode,'done'),
   
   delete(hObject);
   

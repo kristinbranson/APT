@@ -899,6 +899,9 @@ classdef CPRLabelTracker < LabelTracker
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
       
+      % KB 20190121: moved this from general call to retrain within Labeler
+      % because we don't clean until we need to in DeepTracker. 
+      obj.clearTrackingResults();
       obj.asyncReset(true);
        
       if isempty(tblPTrn) && obj.trnDataDownSamp
