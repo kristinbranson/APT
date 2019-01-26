@@ -156,6 +156,7 @@ def getexpname(dirname):
 def update_conf(conf):
     conf.normalize_img_mean = False
     conf.adjust_contrast = True
+	conf.dl_steps = 60000
 
 def main(argv):
 
