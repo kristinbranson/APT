@@ -1130,15 +1130,10 @@ classdef DeepTracker < LabelTracker
       else
         tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
       end
-      
-      fprintf(2,'XXXHACK\n');
-      ppPrms = obj.lObj.preProcParams;
-      ppPrms.TargetCrop.AlignUsingTrxTheta = true;
-      % XXX
-      
+    
       ppdb = obj.lObj.ppdb;
       [tblAddReadFailed,tfAU,locAU] = ppdb.addAndUpdate(...
-        tblPTrn,obj.lObj,'wbObj',wbObj,'prmpp',ppPrms);
+        tblPTrn,obj.lObj,'wbObj',wbObj);
       if tfWB && wbObj.isCancel
         % none
         return;

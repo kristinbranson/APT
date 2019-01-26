@@ -94,7 +94,8 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
       % get initializations
       bboxes = repmat(d.bboxesTrn(1,:),[nlabeled,1]);
       bboxes(idx,:) = d.bboxesTrn;
-      p0 = lObj.tracker.randInit(tblPTrn,bboxes,'CPRParams',sPrmCPRold);
+      p0 = lObj.tracker.randInit(tblPTrn,bboxes,'CPRParams',sPrmCPRold,...
+        'preProcParams',ppPrms);
       npts = sPrmCPRold.Model.nfids;
       sz = size(p0);
       p0 = reshape(p0,[sz(1:2),npts,2,sz(4:end)]);
