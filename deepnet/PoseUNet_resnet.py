@@ -427,7 +427,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                         kernel_shape = [k_sz, k_sz, n_filt_in, 3*n_filt]
                         mdn_l = conv_relu(X,kernel_shape,self.ph['phase_train'])
 
-                    if not self.conf.get('mdn_more_locs_layer',True):
+                    if not self.conf.get('mdn_more_locs_layer',False):
                         with tf.variable_scope('layer_locs_1_1'):
                             in_filt = mdn_l.get_shape().as_list()[3]
                             kernel_shape = [k_sz, k_sz, in_filt, n_filt]
