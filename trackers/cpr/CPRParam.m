@@ -39,6 +39,8 @@ classdef CPRParam
       % parameters now store some general tracking-related parameters that
       % are stored on lObj rather than in the legacy CPR params.
             
+      sNew = APTParameters.enforceConsistency(sNew);
+      
       sOld = struct();
       sOld.Model.name = '';
       sOld.Model.nfids = nphyspts;
@@ -71,6 +73,9 @@ classdef CPRParam
       switch cpr.RotCorrection.OrientationType
         case 'fixed'
           sOld.Reg.rotCorrection.use = false;
+%           if sOld.PreProc.TargetCrop.AlignUsingTrxTheta
+%             warningNoTrace('.OrientationType incompatible with .AlignUsingTrxTheta.');
+%           end
         case 'arbitrary'
           sOld.Reg.rotCorrection.use = true;
         otherwise
@@ -92,13 +97,6 @@ classdef CPRParam
       
       sOld.TrainInit.Naug = cpr.Replicates.NrepTrain;
       sOld.TrainInit.augrotate = []; % obsolete
-      sOld.TrainInit.usetrxorientation = ...
-        sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta && ...
-        strcmp(cpr.RotCorrection.OrientationType,'arbitrary');
-      if sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta && ...
-          ~strcmp(cpr.RotCorrection.OrientationType,'arbitrary')
-        warningNoTrace('Not aligning with trx.theta because the Orientation type is not ''arbitrary''.');
-      end       
       sOld.TrainInit.doptjitter = cpr.Replicates.DoPtJitter;
       sOld.TrainInit.ptjitterfac = cpr.Replicates.PtJitterFac;
       sOld.TrainInit.doboxjitter = cpr.Replicates.DoBBoxJitter;
@@ -108,7 +106,6 @@ classdef CPRParam
       
       sOld.TestInit.Nrep = cpr.Replicates.NrepTrack;
       sOld.TestInit.augrotate = []; % obsolete
-      sOld.TestInit.usetrxorientation = sOld.TrainInit.usetrxorientation;
       sOld.TestInit.doptjitter = cpr.Replicates.DoPtJitter;
       sOld.TestInit.ptjitterfac = cpr.Replicates.PtJitterFac;
       sOld.TestInit.doboxjitter = cpr.Replicates.DoBBoxJitter;
@@ -324,6 +321,7 @@ classdef CPRParam
       sNew.ROOT.ImageProcessing.HistEq.Use = sOld.PreProc.histeq;
       sNew.ROOT.ImageProcessing.HistEq.NSampleH0 = sOld.PreProc.histeqH0NumFrames;
       sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop = sOld.PreProc.TargetCrop;
+      assert(isfield(sOld.PreProc.TargetCrop,'AlignUsingTrxTheta'));
       sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask = sOld.PreProc.NeighborMask;
       sNew.ROOT.Track.ChunkSize = sOld.TestInit.movChunkSize;
       sNew.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
@@ -342,14 +340,14 @@ classdef CPRParam
       sNew.ROOT.CPR.Ferns.RegFactor = sOld.Reg.prm.reg;
 
       % dups assert below for doc purposes
-      assert(sOld.TrainInit.usetrxorientation==sOld.TestInit.usetrxorientation);
       if sOld.Reg.rotCorrection.use
         sNew.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';
-        sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta ...
-          = sOld.TrainInit.usetrxorientation;
       else
         sNew.ROOT.CPR.RotCorrection.OrientationType = 'fixed';
-        sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta = false;
+        % enforceConsistency called below
+%         if sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta
+%           warningNoTrace('.OrientationType incompatible with .AlignUsingTrxTheta.');
+%         end
       end
       sNew.ROOT.CPR.RotCorrection.HeadPoint = sOld.Reg.rotCorrection.iPtHead;
       sNew.ROOT.CPR.RotCorrection.TailPoint = sOld.Reg.rotCorrection.iPtTail;
@@ -376,7 +374,6 @@ classdef CPRParam
             sOld.TrainInit.augrotate,sOld.Reg.rotCorrection.use);
         end
       end
-      assert(sOld.TrainInit.usetrxorientation==sOld.TestInit.usetrxorientation);
       assert(sOld.TrainInit.doptjitter==sOld.TestInit.doptjitter);
       assert(sOld.TrainInit.ptjitterfac==sOld.TestInit.ptjitterfac);
       assert(sOld.TrainInit.doboxjitter==sOld.TestInit.doboxjitter);
@@ -394,6 +391,8 @@ classdef CPRParam
       sNew.ROOT.CPR.Prune.Method = sOld.Prune.method;
       sNew.ROOT.CPR.Prune.DensitySigma = sOld.Prune.maxdensity_sigma;
       sNew.ROOT.CPR.Prune.PositionLambdaFactor = sOld.Prune.poslambdafac;
+      
+      sNew = APTParameters.enforceConsistency(sNew);
     end
     
   end

@@ -168,6 +168,9 @@ classdef RegressorCascade < handle
           assert(strcmp(obj.ftrSpecs{iSpec}.type,obj.prmFtr.type));
         end
       end
+      
+      % 20190127
+      assert(~isfield(obj.prmTrainInit,'usetrxorientation'));
     end
     
     % Notes on shapes, views, coords

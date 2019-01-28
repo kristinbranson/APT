@@ -175,7 +175,7 @@ classdef DeepTracker < LabelTracker
   
   %% Params
   methods
-    function setParamContentsSmart(obj,sNew,tfCommonParamsChanged)
+    function setParamContentsSmart(obj,sNew,tfCommonOrPPParamsChanged)
       % Set parameter contents (.sPrm), looking at what top-level fields 
       % have changed and clearing obj state appropriately.
       %
@@ -190,7 +190,7 @@ classdef DeepTracker < LabelTracker
 %       end
         
       tfunchanged = isequaln(sOld,sNew);
-      if tfCommonParamsChanged || ~tfunchanged
+      if tfCommonOrPPParamsChanged || ~tfunchanged
         obj.initHook();
         fprintf(2,'Parameter change: DeepTracker (%s) cleared.\n',...
           char(obj.trnNetType));

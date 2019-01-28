@@ -2967,14 +2967,11 @@ classdef CPRLabelTracker < LabelTracker
 %       end
       
       % 20171004 rotcorrection from trx
+      % 20190127 update. these fields should have been removed in
+      % lblModernize
       tf = [isfield(sPrm.TrainInit,'usetrxorientation'); ...
             isfield(sPrm.TestInit,'usetrxorientation')];
-      assert(all(tf)); % 201803: Given structoverlay above
-%       assert(all(tf) || ~any(tf));
-%       if ~any(tf) % needs updating
-%         sPrm.TrainInit.usetrxorientation = false;
-%         sPrm.TestInit.usetrxorientation = false;
-%       end
+      assert(~any(tf)); % 201803: Given structoverlay above
 
       % 20180326
       ParameterVisualizationFeature.throwWarningFtrType(sPrm.Ftr.type);
@@ -2988,7 +2985,13 @@ classdef CPRLabelTracker < LabelTracker
         assert(sPrm.Model.D==sPrm.Model.d*sPrm.Model.nfids);
       else        
         sPrm.Model.D = sPrm.Model.d*sPrm.Model.nfids;
-      end      
+      end
+      
+      % 20190127 new preProcParam .AlignUsingTrxTheta. These fields were
+      % moved into .AlignUsingTrxTheta; Labeler.lblModernize removed them
+      % although the default-param-stuff above would have done it also.
+      assert(~isfield(sPrm.TrainInit,'usetrxorientation'));
+      assert(~isfield(sPrm.TestInit,'usetrxorientation'));      
     end
           
     function [xy,isinterp] = interpolateXY(xy)

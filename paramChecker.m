@@ -40,6 +40,13 @@ if sPrm.ROOT.ImageProcessing.MultiTarget.NeighborMask.FGThresh < 0,
   msgs{end+1} = 'Mask Neighbors Foreground Threshold must be non-negative.';
 end
 
+if sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta && ...
+    strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
+  msgs{end+1} = 'CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta.';
+  isOk.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta = false;
+  isOk.ROOT.CPR.RotCorrection.OrientationType = false;
+end
+
 function out = init(in,val)
 
 if isstruct(in),

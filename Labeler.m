@@ -2504,9 +2504,20 @@ classdef Labeler < handle
         s.trackDLParams = struct('CacheDir',cdir);
       end
       
-      % 20190124 DL data cache
+      % 20190124 DL data cache; set
+      % .preProcParams.TargetCrop.AlignUsingTrxTheta based on cpr parameter
       if s.preProcSaveData && ~isfield(s,'ppdb')
         s.ppdb = [];
+      end
+      cprprms = s.trackerData{1}.sPrm;
+      if isfield(cprprms.TrainInit,'usetrxorientation')
+        % legacy project has 3-way enum param for cpr under .TrainInit and
+        % .TestInit. Initialize .preProcParams...AlignUsingTrxTheta using
+        % this val. Then remove these parameters now too although
+        % CPRLT.modernizeParams would have done it.
+        s.preProcParams.TargetCrop.AlignUsingTrxTheta = cprprms.TrainInit.usetrxorientation;
+        s.trackerData{1}.sPrm.TrainInit = rmfield(s.trackerData{1}.sPrm.TrainInit,'usetrxorientation');
+        s.trackerData{1}.sPrm.TestInit = rmfield(s.trackerData{1}.sPrm.TestInit,'usetrxorientation');
       end
       
       % modernize DL common params
@@ -7819,6 +7830,8 @@ classdef Labeler < handle
     end
     
     function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
+      % ppPrms: OLD-style preproc params
+      
       assert(isstruct(ppPrms));
 
       if ppPrms.histeq 
@@ -8363,10 +8376,12 @@ classdef Labeler < handle
       %  - common dl
       %  - specific dl
       % 
-      % sPrm: scalar struct containing *new*-style params:
+      % sPrm: scalar struct containing *NEW*-style params:
       % sPrm.ROOT.Track
       %          .CPR
       %          .DeepTrack
+      
+      sPrm = APTParameters.enforceConsistency(sPrm);
 
       tcprObj = obj.trackGetTracker('cpr');      
       assert(~isempty(tcprObj));
@@ -8399,29 +8414,30 @@ classdef Labeler < handle
       dlNetTypesPretty = cellfun(@(x)x.trnNetType.prettyString,tDTs,'uni',0);
       sPrmDTcommon = rmfield(sPrmDT,dlNetTypesPretty);
       tfDTcommonChanged = obj.trackSetDLParams(sPrmDTcommon);
+      tfDTcommonOrPPChanged = tfDTcommonChanged || tfPPprmsChanged;
       for i=1:numel(tDTs)
         tObj = tDTs{i};
         netType = dlNetTypesPretty{i};
         sPrmDTnet = sPrmDT.(netType);
-        tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonChanged);
+        tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonOrPPChanged);
       end
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
-        trackNFramesNear] = convertNew2OldParams(obj,sPrm)
-      % Set ALL tracking parameters; preproc, and all trackers
+        trackNFramesNear] = convertNew2OldParams(obj,sPrm) % obj CONST
+      % Conversion routine
       % 
-      % sPrm: scalar struct containing *new*-style params:
+      % sPrm: scalar struct containing *NEW*-style params:
       % sPrm.ROOT.Track
       %          .CPR
       %          .DeepTrack
               
+      sPrm = APTParameters.enforceConsistency(sPrm);
+      
       sPrmDT = sPrm.ROOT.DeepTrack;
       sPrmPPandCPR = sPrm;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
       
-      % NOTE: this line already sets some props, despite possible throws
-      % later
       [sPrmPPandCPRold,trackNFramesSmall,trackNFramesLarge,...
         trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
       
