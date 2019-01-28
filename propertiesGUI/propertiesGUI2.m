@@ -990,7 +990,7 @@ end
 
 propName = getRecursivePropName(prop,propName);
 for i=1:numel(paramConstraints)
-  paramConstraints(i).propToBeSet(data,propName,propValue);
+  paramConstraints(i).propToBeSet(data,propsList,propName,propValue);
 end
 data.setValue(propName,propValue);
 setappdata(hFig,'mirror',data); % AL: shouldn't be nec it seems, handles
@@ -1146,7 +1146,6 @@ end
 renderer.setBackground(propColor);
 
 end
-
 
 function isOk = checkProp(prop)
 isOk = true;

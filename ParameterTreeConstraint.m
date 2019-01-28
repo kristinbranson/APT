@@ -17,8 +17,9 @@ classdef ParameterTreeConstraint < handle
         % where t is the tree rootnode(s). Return true if the actionFcn is 
         % to be called.
     actionFcn % fcn with signature:
-              %   msg = actionFcn(t,propBeingSet,valBeingSet). 
-              % ActionFcn is expected to update/mutate the tree.
+              %   msg = actionFcn(t,propsList,propBeingSet,valBeingSet). 
+              % ActionFcn is expected to update/mutate the tree in t as
+              % well as the java propsList/tree in propsList
   end
   
   methods
@@ -29,10 +30,11 @@ classdef ParameterTreeConstraint < handle
       end
     end
     
-    function tfPreActionPerformed = propToBeSet(obj,t,prop2bset,val2bset)
+    function tfPreActionPerformed = propToBeSet(obj,t,propsList,prop2bset,val2bset)
       % Apply a constraint if necessary
       % 
       % t: treenode root(s)
+      % propsList: java.util.ArrayList. Must be in correspondence with t
       % prop2bset. char, FQN of property being set. eg: 
       %   'ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta'
       % val2bset. value that is being set
@@ -51,7 +53,7 @@ classdef ParameterTreeConstraint < handle
       assert(isscalar(obj));
       tfPreActionPerformed = obj.predicateFcn(t,prop2bset,val2bset);
       if tfPreActionPerformed
-        msg = obj.actionFcn(t,prop2bset,val2bset); % performs pre-set mutation
+        msg = obj.actionFcn(t,propsList,prop2bset,val2bset); % performs pre-set mutation
         warningNoTrace(msg);
       end
     end
@@ -70,10 +72,44 @@ classdef ParameterTreeConstraint < handle
       tf = strcmp(p2set,'ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta') && ...
         logical(v2set) && strcmp(nodeCPRRotCorr.Data.Value,'fixed');
     end
-    function msg = actFcnAlignTrxThetaCPRRotCorr(t,p2set,v2set)
-      t.setValue('CPR.RotCorrection.OrientationType','arbitrary');
+    function msg = actFcnAlignTrxThetaCPRRotCorr(t,pl,p2set,v2set)
+      orientationTypeFQN = 'CPR.RotCorrection.OrientationType';
+      t.setValue(orientationTypeFQN,'arbitrary');
+      propjava = ParameterTreeConstraint.findGridProp(pl,orientationTypeFQN);
+      propjava.setValue('arbitrary');
       msg = 'CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta. Setting CPR OrientationType to ''arbitrary''.';
     end
+    
+    % Ugh need to modify java propsList. Details of navigation here; these
+    % data structures are specific to propertiesGUI2.
+    % This stuff prob should be moved back to propertiesGUI2.
+    function pfound = findGridProp(propAL,propFQN)
+      % propAL: java.util.ArrayList
+      items = strread(propFQN,'%s','delimiter','.');
+      pfound = ParameterTreeConstraint.findGridPropRecurse(propAL,items);
+    end
+    function pfound = findGridPropRecurse(propAL,items)
+      n = propAL.size;
+      for i=0:n-1 % java
+        p = propAL.get(i);
+        if strcmp(ParameterTreeConstraint.getPropName(p),items{1})
+          if isscalar(items) % found it
+            pfound = p;
+          else
+            pfound = ParameterTreeConstraint.findGridPropRecurse(p.getChildren,items(2:end));
+          end
+        end
+      end
+    end
+    % C+P from propertiesGUI2
+    function propName = getPropName(hProp)
+      try
+        propName = get(hProp,'UserData');
+      catch
+        %propName = char(getappdata(hProp,'UserData'));
+        propName = get(handle(hProp),'UserData');
+      end
+    end 
   end
   
 end
