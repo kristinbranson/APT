@@ -990,6 +990,8 @@ end
 
 propName = getRecursivePropName(prop,propName);
 for i=1:numel(paramConstraints)
+  % AL: this business could generate race conditions as propUpdateCallback
+  % gets called on downstream props and checkProps has a drawnow
   paramConstraints(i).propToBeSet(data,propsList,propName,propValue);
 end
 data.setValue(propName,propValue);

@@ -18,8 +18,6 @@ classdef ParameterVizHandler < handle
     id2ParamViz % containers.Map. key: ID. val: ParameterVisualization obj. Note, not all ParameterVisualizations will have an ID.
     
     paramVizSelected % Either [], or scalar ParameterVisualization associated with currently selected property
-    
-    
   end
   
   methods
@@ -190,7 +188,7 @@ classdef ParameterVizHandler < handle
       %fprintf(1,'PVH calling propUpdatedSpinner\n');
       sPrm = obj.getCurrentParamsInTree(); % sPrm outdated relative to spinnerEvt.spinnerValue;
       val = spinnerEvt.spinnerValue;
-      get(prop,'UserData')
+      %get(prop,'UserData')
       pvObj.propUpdatedDynamic(obj.hAx,obj.lObj,propName,sPrm,val);
     end
     
