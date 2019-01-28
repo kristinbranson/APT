@@ -1096,91 +1096,31 @@ classdef DeepTracker < LabelTracker
     
     function s = trnCreateStrippedLbl(obj,backEnd,varargin)
       % 
-      % 
       % - Mutates .trnTblP
       % - can update .lObj.ppdb
-      % - Uploads trxs via AWS (maybe factor this out later)
+      % - Uploads trxs via AWS (maybe obsolete now)
       % - Can throw
       
       [awsTrxUpload,wbObj] = myparse(varargin,...
         'awsTrxUpload',false,...
         'wbObj',[]...
         );
-
-      tfWB = ~isempty(wbObj);
       
-      % Remote-train requires .ppdb to be updated for all training 
-      % rows/images
-            
-      obj.trnTblP = [];
+      [tfsucc,tblPTrn,s] = obj.lObj.trackCreateDeepTrackerStrippedLbl(...
+         'wbObj',wbObj);
+      if ~tfsucc
+        error('Failed to create DL stripped lbl file.');
+      end
+                  
+      obj.trnTblP = tblPTrn;
       
-      tblPTrn = obj.lObj.preProcGetMFTableLbled('wbObj',wbObj);
-      if tfWB && wbObj.isCancel
-        return;
-      end
-
-      if isempty(tblPTrn)
-        error('No training data available.');
-      end
-
-      if obj.lObj.hasTrx
-        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
-      elseif obj.lObj.cropProjHasCrops
-        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
-      else
-        tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
-      end
-    
-      ppdb = obj.lObj.ppdb;
-      [tblAddReadFailed,tfAU,locAU] = ppdb.addAndUpdate(...
-        tblPTrn,obj.lObj,'wbObj',wbObj);
-      if tfWB && wbObj.isCancel
-        % none
-        return;
-      end
-      nMissedReads = height(tblAddReadFailed);
-      if nMissedReads>0
-        warningNoTrace('Removing %d training rows, failed to read images.\n',...
-          nMissedReads);
-      end
-      
-      fprintf(1,'Training with %d rows.\n',nnz(tfAU));
-
-      ppdb.dat.iTrn = locAU;
-      fprintf(1,'Training data summary:\n');
-      ppdb.dat.summarize('mov',ppdb.dat.iTrn);
-      
-      obj.trnTblP = ppdb.dat.MD(locAU,:);
-      
+      ITRKER_SLBL = 2;
+      assert(s.trackerData{ITRKER_SLBL}.trnNetType==obj.trnNetType);
+        
       % for images, deepnet will use preProcData; trx files however need
       % to be uploaded
       
-      s = obj.lObj.trackCreateDeepTrackerStrippedLbl(obj.trnTblP(:,MFTable.FLDSID));
-      % check with Mayank, thought we wanted number of "underlying" chans
-      % but DL is erring when pp data is grayscale but NumChans is 3
-      s.cfg.NumChans = size(s.preProcData_I{1},3);
-      
       tftrx = obj.lObj.hasTrx;
-      
-      ITRKER_SLBL = 2; % historical
-      if tftrx
-        assert(strcmp(s.trackerClass{ITRKER_SLBL},'DeepTracker'));
-        assert(s.trackerData{ITRKER_SLBL}.trnNetType==obj.trnNetType);
-        
-        dlszx = s.trackerData{ITRKER_SLBL}.sPrm.sizex;
-        dlszy = s.trackerData{ITRKER_SLBL}.sPrm.sizey;
-        roirad = s.preProcParams.TargetCrop.Radius;
-        szroi = 2*roirad+1;
-        if dlszx~=szroi
-          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
-          s.trackerData{ITRKER_SLBL}.sPrm.sizex = szroi;
-        end
-        if dlszy~=szroi
-          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
-          s.trackerData{ITRKER_SLBL}.sPrm.sizey = szroi;
-        end
-      end
-      
       if awsTrxUpload && tftrx
         % 1. The moviefiles in s should be not be used; deepnet should be
         % reading images directly from .preProcData_I. Fill s.movieFilesAll
@@ -1191,6 +1131,8 @@ classdef DeepTracker < LabelTracker
         %      upload it and replace all appropriate rows of s.trxFilesAll.
         %   b. For all other rows of s.trxFilesAll, we replace with jibber
         %      as an assert.
+        
+        fprintf(2,'AWS trx upload no longer necessary.\n');
                 
         aws = backEnd.awsec2;
         aws.ensureRemoteDir('data','descstr','data');

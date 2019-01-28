@@ -2515,9 +2515,27 @@ classdef Labeler < handle
         % .TestInit. Initialize .preProcParams...AlignUsingTrxTheta using
         % this val. Then remove these parameters now too although
         % CPRLT.modernizeParams would have done it.
-        s.preProcParams.TargetCrop.AlignUsingTrxTheta = cprprms.TrainInit.usetrxorientation;
+        
+        assert(~s.preProcParams.TargetCrop.AlignUsingTrxTheta); % default value added above
+        s.preProcParams.TargetCrop.AlignUsingTrxTheta = cprprms.TrainInit.usetrxorientation;        
         s.trackerData{1}.sPrm.TrainInit = rmfield(s.trackerData{1}.sPrm.TrainInit,'usetrxorientation');
         s.trackerData{1}.sPrm.TestInit = rmfield(s.trackerData{1}.sPrm.TestInit,'usetrxorientation');
+        
+        if s.preProcParams.TargetCrop.AlignUsingTrxTheta
+          % .AlignUsingTrxTheta has mutated from default value. Any 
+          % existing DL cache and trackers need to be cleared
+          s.ppdb = [];
+          warningNoTrace('New preprocessing parameter .AlignUsingTrxTheta has been set to true. Clearing existing DL trackers; they will need to be retrained.');
+          for iTrker=1:numel(s.trackerData)
+            if strcmp(s.trackerClass{iTrker}{1},'DeepTracker')
+              s.trackerData{iTrker}.trnName = '';
+              s.trackerData{iTrker}.trnNameLbl = '';
+              s.trackerData{iTrker}.trnLastDMC = [];
+              s.trackerData{iTrker}.movIdx2trkfile = containers.Map('keytype','int32','valuetype','any');
+              warningNoTrace('Cleared Deep Learning tracker of type ''%s''.',char(s.trackerData{iTrker}.trnNetType));
+            end
+          end
+        end
       end
       
       % modernize DL common params
@@ -8648,17 +8666,76 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
-    function s = trackCreateDeepTrackerStrippedLbl(obj,tblTrnMFT)
-      % For use with DeepTrackers
+    function [tfsucc,tblPTrn,s] = trackCreateDeepTrackerStrippedLbl(obj,varargin)
+      % For use with DeepTrackers. Create stripped lbl based on
+      % .currTracker
       %
-      % tblTrnMFT: training data table. reqd cols MFTable.FLDSID. restrict 
-      %   .ppdb export to these rows.
+      % tfsucc: false if user canceled etc.
+      % tblPTrn: table of data-to-be-used as training data
+      % s: scalar struct, stripped lbl struct
+      
+      [wbObj] = myparse(varargin,...
+        'wbObj',[]...
+        );
+      tfWB = ~isempty(wbObj);
       
       if ~obj.hasMovie
         % for NumChans see below
         error('Please select/open a movie.');
+      end      
+      
+      % 
+      % Determine the training set
+      % 
+      
+      tblPTrn = obj.preProcGetMFTableLbled('wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        tfsucc = false;
+        tblPTrn = [];
+        s = [];
+        return;
+      end
+
+      if isempty(tblPTrn)
+        error('No training data available.');
+      end
+
+      if obj.hasTrx
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+      elseif obj.cropProjHasCrops
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+      else
+        tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+      end
+    
+      [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPTrn,obj,...
+        'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        tfsucc = false;
+        tblPTrn = [];
+        s = [];
+        return;
+      end
+      nMissedReads = height(tblAddReadFailed);
+      if nMissedReads>0
+        warningNoTrace('Removing %d training rows, failed to read images.\n',...
+          nMissedReads);
       end
       
+      assert(all(locAU(~tfAU)==0));
+      
+      ppdbITrn = locAU(tfAU); % row indices into obj.ppdb.dat for our training set
+      tblPTrn = obj.ppdb.dat.MD(ppdbITrn,:);
+      
+      fprintf(1,'Training with %d rows.\n',numel(ppdbITrn));
+      fprintf(1,'Training data summary:\n');
+      obj.ppdb.dat.summarize('mov',ppdbITrn);
+
+      
+      % 
+      % Create the stripped lbl struct
+      % 
+
       s = obj.projGetSaveStruct('forceIncDataCache',true);
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
@@ -8668,7 +8745,7 @@ classdef Labeler < handle
       if ~isscalar(nchan)
         error('Number of channels differs across views.');
       end
-      s.cfg.NumChans = nchan;
+      s.cfg.NumChans = nchan; % see below, we change this again
       
 %       if nchan>1
 %         warningNoTrace('Images have %d channels. Typically grayscale images are preferred; select View>Convert to grayscale.',nchan);
@@ -8683,20 +8760,19 @@ classdef Labeler < handle
       s.cropProjHasCrops = obj.cropProjHasCrops;
       
       % De-objectize .ppdb.dat (CPRData)
-      assert(isfield(s,'ppdb') && ~isempty(s.ppdb));
       ppdata = s.ppdb.dat;
-      ppdataMD = ppdata.MD;
       
-      tfInc = tblismember(ppdataMD,tblTrnMFT,MFTable.FLDSID);
       fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
-        nnz(tfInc),numel(tfInc));
+        numel(ppdbITrn),ppdata.N);
       
-      ppdataMD = ppdataMD(tfInc,:);
-      ppdataI = ppdata.I(tfInc,:);
+      ppdataI = ppdata.I(ppdbITrn,:);
+      ppdataP = ppdata.pGT(ppdbITrn,:);
+      ppdataMD = ppdata.MD(ppdbITrn,:);
       
       ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
       ppMDflds = tblflds(ppdataMD);
       s.preProcData_I = ppdataI;
+      s.preProcData_P = ppdataP;
       for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
         sfld = ['preProcData_MD_' f];
         s.(sfld) = ppdataMD.(f);
@@ -8705,11 +8781,37 @@ classdef Labeler < handle
       
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
       
+      
+      %
+      % Final Massage
+      % 
+      
       tdata = s.trackerData{s.currTracker};
       sPrmDL = obj.trackDLParams;
       sPrmDL = rmfield(sPrmDL,'CacheDir');
       tdata.sPrm = structmerge(tdata.sPrm,sPrmDL);
+      tftrx = obj.hasTrx;      
+      if tftrx
+        dlszx = tdata.sPrm.sizex;
+        dlszy = tdata.sPrm.sizey;
+        roirad = s.preProcParams.TargetCrop.Radius;
+        szroi = 2*roirad+1;
+        if dlszx~=szroi
+          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
+          tdata.sPrm.sizex = szroi;
+        end
+        if dlszy~=szroi
+          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
+          tdata.sPrm.sizey = szroi;
+        end
+      end
       s.trackerData = {[] tdata};
+
+      % check with Mayank, thought we wanted number of "underlying" chans
+      % but DL is erring when pp data is grayscale but NumChans is 3
+      s.cfg.NumChans = size(s.preProcData_I{1},3);
+      
+      tfsucc = true;
     end
     
     function trackAndExport(obj,mftset,varargin)

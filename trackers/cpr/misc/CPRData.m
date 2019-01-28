@@ -320,7 +320,7 @@ classdef CPRData < handle
       %   when isDLpipeline is true. These tforms are those that should be
       %   applied to the raw/orig lbls to match the transforms/crops
       %   applied to generate the images in I. tformA(:,:,irow,ivw) is 
-      %   the tform  mat for irow,ivw.
+      %   the tform mat for irow,ivw.
       
       nView = size(tblMF.mov,2);
       
@@ -548,7 +548,7 @@ classdef CPRData < handle
                 end
               else
                 imroi = im;
-                % leave tformA as nans, could assign identity
+                tformA(:,:,iTrl,iVw) = eye(3);
               end
               
               % At this point, im could have varying type depending on movie

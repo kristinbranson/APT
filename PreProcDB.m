@@ -232,7 +232,7 @@ classdef PreProcDB < handle
       
       [tblPnew,tblPupdate] = obj.dat.tblPDiff(tblAU);
       tblAddReadFailed = obj.add(tblPnew,lObj,'wbObj',wbObj,'prmpp',prmpp);
-      obj.updateLabels(tblPupdate,lObj,'wbObj',wbObj,...
+      obj.updateLabels(tblPupdate,lObj,...
         'updateRowsMustMatch',updateRowsMustMatch);
       
       [tfAU,locAU] = tblismember(tblAU,obj.dat.MD,MFTable.FLDSID);
