@@ -309,7 +309,9 @@ classdef Labeler < handle
     showTrxCurrTargetOnly;    % if true, plot only current target
     showTrxIDLbl;             % true to show id label 
     showOccludedBox;          % whether to show the occluded box
-  end
+    
+    showPredTxtLbl;         % true to show text landmark labels for ALL preds -- imported (labeledpos2, and all trackers)
+  end 
   properties
     hTraj;                    % nTrx x 1 vector of line handles
     hTrx;                     % nTrx x 1 vector of line handles
@@ -1296,6 +1298,8 @@ classdef Labeler < handle
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
       obj.showTrxIDLbl = cfg.Trx.ShowTrxIDLbl;
       
+      obj.showPredTxtLbl = cfg.Track.PredictPointsShowTextLbl;
+      
       obj.labels2Hide = false;
 
       % When starting a new proj after having an existing proj open, old 
@@ -1354,6 +1358,7 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
+      cfg.Track.PredictPointsShowTextLbl = obj.showPredTxtLbl;
       
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
       cfg.PrevAxes.ModeInfo = obj.prevAxesModeInfo;
@@ -1537,6 +1542,8 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      obj.setShowPredTxtLbl(obj.showPredTxtLbl);
+      
       obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
     end
@@ -1805,6 +1812,7 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -1812,7 +1820,6 @@ classdef Labeler < handle
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
-
     end
     
     function projImport(obj,fname)
@@ -4350,7 +4357,7 @@ classdef Labeler < handle
       end
     end
   end  
-  methods % showTrx
+  methods % show*
     
     function initShowTrx(obj)
       deleteValidHandles(obj.hTraj);
@@ -4546,6 +4553,24 @@ classdef Labeler < handle
 %       else
 %         set(obj.hTrxEll,'Visible','off');
 %       end
+    end
+    
+    function setShowPredTxtLbl(obj,tf)
+      assert(isscalar(tf) && islogical(tf));
+      obj.showPredTxtLbl = tf;
+      obj.updateShowPredTxtLbl();
+    end
+    
+    function toggleShowPredTxtLbl(obj)
+      obj.setShowPredTxtLbl(~obj.showPredTxtLbl);
+    end
+    
+    function updateShowPredTxtLbl(obj)
+      tfHideTxtLbl = ~obj.showPredTxtLbl;
+      for i=1:numel(obj.trackersAll)
+        obj.trackersAll{i}.trkVizer.setHideTextLbls(tfHideTxtLbl);
+      end
+      obj.labels2VizShowHideUpdate();      
     end
     
   end
@@ -5281,8 +5306,12 @@ classdef Labeler < handle
       
       obj.projPrefs.Track.PredictPointsPlotColors = colors;
       obj.projPrefs.Track.PredictPointsPlotColorMapName = colormapname;
+
+      % Just update the current tracker for now. Theoretically we could
+      % show multiple trackers with diff color schema.
       obj.tracker.updateLandmarkColors();
       
+      % Possibly one day replace labeledpos2_* with a trkVizer
       hProp = 'labeledpos2_ptsH';
       hTxtProp = 'labeledpos2_ptsTxtH';
       
@@ -5290,8 +5319,7 @@ classdef Labeler < handle
       for i = 1:obj.nLabelPoints
         set(obj.(hProp)(i),'Color',ptcolors(i,:));
         set(obj.(hTxtProp)(i),'Color',ptcolors(i,:));
-      end      
-      
+      end
     end
 
   end
@@ -11427,16 +11455,21 @@ classdef Labeler < handle
         obj.labeledpos2_ptsTxtH,txtOffset);
     end
     
+    function labels2VizShowHideUpdate(obj)
+      onoff = onIff(~obj.labels2Hide);
+      onofftxt = onIff(~obj.labels2Hide && obj.showPredTxtLbl);
+      [obj.labeledpos2_ptsH.Visible] = deal(onoff);
+      [obj.labeledpos2_ptsTxtH.Visible] = deal(onofftxt);
+    end
+    
     function labels2VizShow(obj)
-      [obj.labeledpos2_ptsH.Visible] = deal('on');
-      [obj.labeledpos2_ptsTxtH.Visible] = deal('on');
       obj.labels2Hide = false;
+      obj.labels2VizShowHideUpdate();
     end
     
     function labels2VizHide(obj)
-      [obj.labeledpos2_ptsH.Visible] = deal('off');
-      [obj.labeledpos2_ptsTxtH.Visible] = deal('off');
       obj.labels2Hide = true;
+      obj.labels2VizShowHideUpdate();
     end
     
     function labels2VizToggle(obj)

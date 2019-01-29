@@ -15,7 +15,7 @@ classdef TrackingVisualizerHeatMap < TrackingVisualizer
       obj.heatMapEnable = false;
       obj.heatMapRawImType = 'reg';
       obj.heatMapReader = HeatmapReader();
-      obj.heatMapIPtsShow = 1:npts;
+      obj.heatMapIPtsShow = 1:obj.nPts;
     end
     
     function delete(obj)
@@ -41,12 +41,8 @@ classdef TrackingVisualizerHeatMap < TrackingVisualizer
       % trxXY, trxTh: can be [] if no trx. Used for heatmaps
       %
       % xy: [npts x 2]
-            
-      hXY = obj.hXYPrdRed;
-      %args = obj.xyVizPlotArgs;
-      for iPt=1:obj.nPts
-        set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2)); %,args{:});
-      end
+         
+      updateTrackRes@TrackingVisualizer(obj,xy);
       
       if obj.heatMapEnable
         ims = obj.hIms;

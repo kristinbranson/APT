@@ -2,11 +2,14 @@ classdef TrackingVisualizerReplicates < TrackingVisualizer
   
   properties
     hXYPrdFull; % [npts] scatter handles for replicates, current frame, current target
+    
+    tfShowReplicates;
   end
   
   methods
     function obj = TrackingVisualizerReplicates(lObj)
       obj = obj@TrackingVisualizer(lObj,'CPRLabelTracker');
+      obj.tfShowReplicates = false;
     end    
     function delete(obj)
       obj.deleteGfxHandlesReplicates();
@@ -18,7 +21,9 @@ classdef TrackingVisualizerReplicates < TrackingVisualizer
       deleteValidHandles(obj.hXYPrdFull);
       obj.hXYPrdFull = [];   
     end        
-    function vizInitHook(obj)      
+    function vizInitHook(obj)
+      obj.deleteGfxHandlesReplicates();
+      
       cprPrefs = obj.lObj.projPrefs.CPRLabelTracker.PredictReplicatesPlot;
       cprPrefs.SizeData = cprPrefs.MarkerSize^2; % Scatter.SizeData 
       cprPrefs = rmfield(cprPrefs,'MarkerSize');
@@ -43,9 +48,8 @@ classdef TrackingVisualizerReplicates < TrackingVisualizer
     end
 
     function setHideViz(obj,tf)
-      onoff = onIff(~tf);
-      setHideViz@TrackingVisualizer(obj,onoff);
-      [obj.hXYPrdFull.Visible] = deal(onoff);
+      setHideViz@TrackingVisualizer(obj,tf);
+      obj.updateShowReplicates();
     end
     
     function updateLandmarkColors(obj,ptsClrs)
@@ -61,8 +65,13 @@ classdef TrackingVisualizerReplicates < TrackingVisualizer
     % Hmm maybe just put the replicates .hXYPrdFull into base cls. Wait and
     % see
     
-    function setShowReplicates(obj,tf)
-      [obj.hXYPrdFull.Visible] = deal(onIff(tf));
+    function setShowReplicates(obj,tf)      
+      obj.tfShowReplicates = tf;
+      obj.updateShowReplicates();
+    end
+    function updateShowReplicates(obj)
+      onoff = onIff(~obj.tfHideViz && obj.tfShowReplicates);
+      [obj.hXYPrdFull.Visible] = deal(onoff);
     end
     
     function clearReplicates(obj)
@@ -80,13 +89,10 @@ classdef TrackingVisualizerReplicates < TrackingVisualizer
             
       assert(~isinterp,'Interpolation no longer supported.');
       
-      npts = obj.nPts;
-      hXY = obj.hXYPrdRed;
-      for iPt=1:npts
-        set(hXY(iPt),'XData',xy(iPt,1),'YData',xy(iPt,2));
-      end
+      updateTrackRes@TrackingVisualizer(obj,xy);
       
       if ~isequal(xyfull,[])
+        npts = obj.nPts;
         hXY = obj.hXYPrdFull;
         for iPt=1:npts
           set(hXY(iPt),'XData',xyfull(iPt,1,:),'YData',xyfull(iPt,2,:));
