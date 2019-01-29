@@ -530,8 +530,8 @@ classdef CPRData < handle
                   [imroi,Atmp] = CropImAroundTrx(...
                     im,trxx,trxy,trxth,roiRad,roiRad,'fillvalues',roiPadVal);
                   % Atmp transforms so that the trx center is located at
-                  % 0,0. We want it to be at (roiXlo+roiRad,roiYlo+roiRad).
-                  Atmp(end,[1 2]) = Atmp(end,[1 2]) + roiRad;
+                  % 0,0. We want it to be at (roiRad+1,roiRad+1).
+                  Atmp(end,[1 2]) = Atmp(end,[1 2]) + roiRad+1;
                   tformA(:,:,iTrl,iVw) = Atmp;
                 else
                   if ndims(im) == 2 %#ok<ISMAT>
