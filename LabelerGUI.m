@@ -218,6 +218,15 @@ handles.menu_view_hide_imported_predictions = uimenu('Parent',handles.menu_view,
   'Tag','menu_view_hide_imported_predictions',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_imported_predictions,handles.menu_view_hide_predictions);
+handles.menu_view_showhide_advanced = uimenu('Parent',handles.menu_view,...
+  'Label','Advanced',...
+  'Tag','menu_view_showhide_advanced');
+moveMenuItemAfter(handles.menu_view_showhide_advanced,handles.menu_view_landmark_colors);
+handles.menu_view_showhide_advanced_hidepredtxtlbls = uimenu('Parent',handles.menu_view_showhide_advanced,...
+  'Label','Hide Prediction Text Labels',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_advanced_hidepredtxtlbls_Callback',hObject,eventdata,guidata(hObject)),...
+  'Tag','menu_view_showhide_advanced_hidepredtxtlbls',...
+  'Checked','off');
 
 handles.menu_view_hide_trajectories = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_trajectories_Callback',hObject,eventdata,guidata(hObject)),...
@@ -536,6 +545,7 @@ listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChang
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showOccludedBox','PostSet',@cbkShowOccludedBoxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
+listeners{end+1,1} = addlistener(lObj,'showPredTxtLbl','PostSet',@cbkShowPredTxtLblChanged);
 listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxChanged);
@@ -580,6 +590,7 @@ handles.propsNeedInit = {
   'suspScore' 
   'showTrx' 
   'showTrxCurrTargetOnly'
+  'showPredTxtLbl'
   'currTracker'  
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'trackModeIdx'
@@ -1854,7 +1865,7 @@ if tfTracker
   
   % Listeners, general tracker
   listenersNew{end+1,1} = tObj.addlistener('hideViz','PostSet',...
-    @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); %#ok<NASGU>
+    @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); 
 
   % Listeners, algo-specific
   switch tObj.algorithmName
@@ -2831,6 +2842,12 @@ ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
 
+function cbkShowPredTxtLblChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(~lObj.showPredTxtLbl);
+handles.menu_view_showhide_advanced_hidepredtxtlbls.Checked = onOff;
+
 function cbkShowTrxChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
@@ -2938,6 +2955,10 @@ end
 function menu_view_hide_imported_predictions_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 lObj.labels2VizToggle();
+
+function menu_view_showhide_advanced_hidepredtxtlbls_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.toggleShowPredTxtLbl();
 
 function cbkTrackerShowVizReplicatesChanged(hObject, eventdata, handles)
 handles.menu_track_cpr_show_replicates.Checked = ...
@@ -3962,11 +3983,14 @@ else
   colormapname = '';
 end
 
-[ischange,newcolors,newcolormapname] = LandmarkColors(colors,colormapname,nlandmarks,'Label colors');
+lObj = handles.labelerObj;
+applyCbkFcn = @(clrs,clrmapname)lObj.updateLandmarkLabelColors(clrs,clrmapname);
+[ischange,newcolors,newcolormapname] = ...
+  LandmarkColors(colors,colormapname,nlandmarks,'Label colors',applyCbkFcn);
 if ~ischange,
   return;
 end
-handles.labelerObj.updateLandmarkLabelColors(newcolors,newcolormapname);
+applyCbkFcn(newcolors,newcolormapname);
 
 guidata(hObject,handles);
 
@@ -3993,11 +4017,14 @@ if isfield(handles.labelerObj.projPrefs,'Track') && ...
 else
   colors = [];
 end
-[ischange,newcolors,newcolormapname] = LandmarkColors(colors,colormapname,nlandmarks,'Prediction colors');
+lObj = handles.labelerObj;
+applyCbkFcn = @(clrs,clrmapname)lObj.updateLandmarkPredictionColors(clrs,clrmapname);
+[ischange,newcolors,newcolormapname] = ...
+  LandmarkColors(colors,colormapname,nlandmarks,'Prediction colors',applyCbkFcn);
 if ~ischange,
   return;
 end
-handles.labelerObj.updateLandmarkPredictionColors(newcolors,newcolormapname);
+applyCbkFcn(newcolors,newcolormapname);
 
 
 % --- Executes on selection change in popupmenu_prevmode.

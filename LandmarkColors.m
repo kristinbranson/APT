@@ -124,13 +124,14 @@ handles.output = hObject;
 handles.colors = varargin{1};
 handles.colormapname = varargin{2};
 handles.nlandmarks = varargin{3};
-if nargin >= 4,
-  ti = varargin{4};
-else
-  ti = 'Landmark colors';
-end
+% if nargin >= 4,
+ti = varargin{4};
+% else
+%   ti = 'Landmark colors';
+% end
 set(handles.figure_landmarkcolors,'Name',ti);
 
+handles.applyCbkFcn = varargin{5};
 handles.saved = [];
 
 % default
@@ -274,6 +275,7 @@ function pushbutton_apply_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 handles = SaveState(handles);
+handles.applyCbkFcn(handles.colors,handles.colormapname);
 guidata(hObject,handles);
 
 % --- Executes on button press in pushbutton_cancel.
