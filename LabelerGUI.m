@@ -3972,11 +3972,14 @@ else
   colormapname = '';
 end
 
-[ischange,newcolors,newcolormapname] = LandmarkColors(colors,colormapname,nlandmarks,'Label colors');
+lObj = handles.labelerObj;
+applyCbkFcn = @(clrs,clrmapname)lObj.updateLandmarkLabelColors(clrs,clrmapname);
+[ischange,newcolors,newcolormapname] = ...
+  LandmarkColors(colors,colormapname,nlandmarks,'Label colors',applyCbkFcn);
 if ~ischange,
   return;
 end
-handles.labelerObj.updateLandmarkLabelColors(newcolors,newcolormapname);
+applyCbkFcn(newcolors,newcolormapname);
 
 guidata(hObject,handles);
 
@@ -4003,11 +4006,14 @@ if isfield(handles.labelerObj.projPrefs,'Track') && ...
 else
   colors = [];
 end
-[ischange,newcolors,newcolormapname] = LandmarkColors(colors,colormapname,nlandmarks,'Prediction colors');
+lObj = handles.labelerObj;
+applyCbkFcn = @(clrs,clrmapname)lObj.updateLandmarkPredictionColors(clrs,clrmapname);
+[ischange,newcolors,newcolormapname] = ...
+  LandmarkColors(colors,colormapname,nlandmarks,'Prediction colors',applyCbkFcn);
 if ~ischange,
   return;
 end
-handles.labelerObj.updateLandmarkPredictionColors(newcolors,newcolormapname);
+applyCbkFcn(newcolors,newcolormapname);
 
 
 % --- Executes on selection change in popupmenu_prevmode.
