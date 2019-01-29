@@ -1854,7 +1854,7 @@ if tfTracker
   
   % Listeners, general tracker
   listenersNew{end+1,1} = tObj.addlistener('hideViz','PostSet',...
-    @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); %#ok<NASGU>
+    @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); 
 
   % Listeners, algo-specific
   switch tObj.algorithmName
