@@ -272,6 +272,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     # conf.cacheDir = read_string(lbl['cachedir'])
     conf.has_trx_file = has_trx_file(lbl[lbl['trxFilesAll'][0, 0]])
     conf.selpts = np.arange(conf.n_classes)
+    conf.nviews = int(read_entry(lbl['cfg']['NumViews']))
+
 
     dt_params_ndx = None
     for ndx in range(lbl['trackerClass'].shape[0]):
@@ -279,7 +281,6 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         if cur_tracker == 'DeepTracker':
             dt_params_ndx = ndx
     dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrm']
-
 
     cache_dir = read_string(dt_params['CacheDir']) if cache_dir is None else cache_dir
     conf.cachedir = os.path.join(cache_dir, proj_name, net_type, 'view_{}'.format(view), name)
@@ -564,74 +565,82 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
     for ndx in range(lbl['preProcData_I'].shape[1]):
         if m_ndx[ndx] < 0:
             continue
-        mndx = m_ndx[ndx] - 1
-        if mndx != prev_trx_mov:
-            cur_pts = trx_pts(lbl, mndx, on_gt)
-            if cur_pts.ndim == 3:
-                cur_pts = cur_pts[np.newaxis, ...]
-        crop_loc = PoseTools.get_crop_loc(lbl, mndx, view, on_gt)
-        cur_locs = cur_pts[t_ndx[ndx], f_ndx[ndx], :, sel_pts].copy()
-        cur_frame = lbl[lbl['preProcData_I'][conf.view, ndx]].value.copy()
-        cur_frame = cur_frame.T
 
-        assert cur_frame.shape[0] == conf.imsz[0], 'height of cached images does not match the height specified in the params'
-        assert cur_frame.shape[1] == conf.imsz[1], 'width of cached images does not match the width specified in the params'
-
+        cur_frame = lbl[lbl['preProcData_I'][conf.view, ndx]].value.copy().T
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
+        cur_locs = lbl['preProcData_P'][:, ndx].copy()
+        cur_locs = cur_locs.reshape([2,17,conf.nviews])
+        cur_locs = cur_locs[:,:,conf.view].T
+        mndx = to_py(m_ndx[ndx])
 
-        if conf.has_trx_file:
-
-            # dont load trx file if the current movie is same as previous.
-            # and trx split wont work well if the frames for the same animal are not contiguous
-            if ndx is 0 or t_ndx[ndx - 1] != t_ndx[ndx] or prev_trx_mov != mndx:
-                cur_trx, n_trx = get_cur_trx(trx_files[mndx], t_ndx[ndx])
-
-            if prev_trx_mov is not mndx:
-                trx_split = np.random.random(n_trx) < conf.valratio
-
-            prev_trx_mov = mndx
-
-            x, y, theta = read_trx(cur_trx, f_ndx[ndx])
-
-            cur_frame, cur_locs = multiResData.crop_patch_trx(conf, cur_frame, psz//2, psz//2, theta, cur_locs-[x,y] + [psz//2,psz//2])
-
-            # theta = theta + math.pi / 2
-            # patch = cur_frame
-            # rot_mat = cv2.getRotationMatrix2D((psz / 2, psz / 2), theta * 180 / math.pi, 1)
-            # rpatch = cv2.warpAffine(patch, rot_mat, (psz, psz))
-            # if rpatch.ndim == 2:
-            #     rpatch = rpatch[:, :, np.newaxis]
-            # cur_frame = rpatch
-            #
-            # ll = cur_locs.copy()
-            # ll = ll - [x, y]
-            # rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-            # lr = np.dot(ll, rot) + [psz / 2, psz / 2]
-            # if conf.imsz[0] < conf.imsz[1]:
-            #     extra = (psz - conf.imsz[0]) / 2
-            #     lr[:, 1] -= extra
-            # elif conf.imsz[1] < conf.imsz[0]:
-            #     extra = (psz - conf.imsz[1]) / 2
-            #     lr[:, 0] -= extra
-            # cur_locs = lr
-
-        else:
-            trx_split = None
-            if crop_loc is not None:
-                xlo, xhi, ylo, yhi = crop_loc
-            else:
-                xlo = 0
-                ylo = 0
-
-            cur_locs[:, 0] = cur_locs[:, 0] - xlo  # ugh, the nasty x-y business.
-            cur_locs[:, 1] = cur_locs[:, 1] - ylo
-            # -1 because matlab is 1-indexed
+        # BELOW is for old style code where rotation is done in py.
+        # if mndx != prev_trx_mov:
+        #     cur_pts = trx_pts(lbl, mndx, on_gt)
+        #     if cur_pts.ndim == 3:
+        #         cur_pts = cur_pts[np.newaxis, ...]
+        # crop_loc = PoseTools.get_crop_loc(lbl, mndx, view, on_gt)
+        # cur_locs = cur_pts[t_ndx[ndx], f_ndx[ndx], :, sel_pts].copy()
+        # cur_frame = lbl[lbl['preProcData_I'][conf.view, ndx]].value.copy()
+        # cur_frame = cur_frame.T
+        #
+        # assert cur_frame.shape[0] == conf.imsz[0], 'height of cached images does not match the height specified in the params'
+        # assert cur_frame.shape[1] == conf.imsz[1], 'width of cached images does not match the width specified in the params'
+        #
+        #
+        # if conf.has_trx_file:
+        #
+        #     # dont load trx file if the current movie is same as previous.
+        #     # and trx split wont work well if the frames for the same animal are not contiguous
+        #     if ndx is 0 or t_ndx[ndx - 1] != t_ndx[ndx] or prev_trx_mov != mndx:
+        #         cur_trx, n_trx = get_cur_trx(trx_files[mndx], t_ndx[ndx])
+        #
+        #     if prev_trx_mov is not mndx:
+        #         trx_split = np.random.random(n_trx) < conf.valratio
+        #
+        #     prev_trx_mov = mndx
+        #
+        #     x, y, theta = read_trx(cur_trx, f_ndx[ndx])
+        #
+        #     cur_frame, cur_locs = multiResData.crop_patch_trx(conf, cur_frame, psz//2, psz//2, theta, cur_locs-[x,y] + [psz//2,psz//2])
+        #
+        #     # theta = theta + math.pi / 2
+        #     # patch = cur_frame
+        #     # rot_mat = cv2.getRotationMatrix2D((psz / 2, psz / 2), theta * 180 / math.pi, 1)
+        #     # rpatch = cv2.warpAffine(patch, rot_mat, (psz, psz))
+        #     # if rpatch.ndim == 2:
+        #     #     rpatch = rpatch[:, :, np.newaxis]
+        #     # cur_frame = rpatch
+        #     #
+        #     # ll = cur_locs.copy()
+        #     # ll = ll - [x, y]
+        #     # rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+        #     # lr = np.dot(ll, rot) + [psz / 2, psz / 2]
+        #     # if conf.imsz[0] < conf.imsz[1]:
+        #     #     extra = (psz - conf.imsz[0]) / 2
+        #     #     lr[:, 1] -= extra
+        #     # elif conf.imsz[1] < conf.imsz[0]:
+        #     #     extra = (psz - conf.imsz[1]) / 2
+        #     #     lr[:, 0] -= extra
+        #     # cur_locs = lr
+        #
+        # else:
+        #     trx_split = None
+        #     if crop_loc is not None:
+        #         xlo, xhi, ylo, yhi = crop_loc
+        #     else:
+        #         xlo = 0
+        #         ylo = 0
+        #
+        #     cur_locs[:, 0] = cur_locs[:, 0] - xlo  # ugh, the nasty x-y business.
+        #     cur_locs[:, 1] = cur_locs[:, 1] - ylo
+        #     # -1 because matlab is 1-indexed
 
         info = [mndx, f_ndx[ndx], t_ndx[ndx]]
 
         cur_out = multiResData.get_cur_env(out_fns, split, conf, info,
-                                           mov_split, trx_split=trx_split, predefined=predefined)
+                                           mov_split, trx_split=None, predefined=predefined)
+        # when creating from cache, we don't do trx splitting. It should always be predefined
 
         cur_out([cur_frame, cur_locs, info])
 
