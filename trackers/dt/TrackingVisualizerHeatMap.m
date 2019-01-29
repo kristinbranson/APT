@@ -1,49 +1,17 @@
-classdef TrackingVisualizerHeatMap < handle
-  % TrackingVisualizers know how to plot/show tracking results on an axes
-  % (not owned by itself). They know how to show things and own the 
-  % relevant graphics handles but that's it.
+classdef TrackingVisualizerHeatMap < TrackingVisualizer
   
-  properties
-    lObj % Included only to access the current raw image. Ideally used as little as possible
-    
-    hAxs % [nview] axes handles. Owned by Labeler
-    hIms % [nview] image handles. Owned by Labeler
-    ipt2vw % [npts], like Labeler/labeledposIPt2View
-    ptClrs % [nptsx3] RGB for pts
-    
-    hXYPrdRed; % [npts] plot handles for 'reduced' tracking results, current frame and target
-    hXYPrdRedOther; % [npts] plot handles for 'reduced' tracking results, current frame, non-current-target
-%     xyVizPlotArgs; % cell array of args for regular tracking viz
-%     xyVizPlotArgsNonTarget; % " for non current target viz
-    
+  properties        
     heatMapEnable % if true, read heatmaps (alongside trkfiles) when changing movies, do heatmap viz
     heatMapRawImType % 'none','reg','invert'
     heatMapReader % scalar HeatMapReader
     heatMapIPtsShow % [nptsShowHM] ipt indices into 1..npts. Show these points in heatmaps    
   end
-  properties (Dependent)
-    nPts
-  end
-  
-  methods
-    function v = get.nPts(obj)
-      v = numel(obj.ipt2vw);
-    end
-  end
   
   methods
     
     function obj = TrackingVisualizerHeatMap(lObj)
-      obj.lObj = lObj;
-      gd = lObj.gdata;
-      obj.hAxs = gd.axes_all;
-      obj.hIms = gd.images_all;
-      obj.ipt2vw = lObj.labeledposIPt2View;
+      obj = obj@TrackingVisualizer(lObj,'TrackingVisualizerHeatMap');
       
-      npts = numel(obj.ipt2vw);
-      obj.ptClrs = lines(npts);
-      szassert(obj.ptClrs,[npts 3]);
-
       obj.heatMapEnable = false;
       obj.heatMapRawImType = 'reg';
       obj.heatMapReader = HeatmapReader();
@@ -51,68 +19,11 @@ classdef TrackingVisualizerHeatMap < handle
     end
     
     function delete(obj)
-      deleteValidHandles(obj.hXYPrdRed);
-      obj.hXYPrdRed = [];
-      deleteValidHandles(obj.hXYPrdRedOther);
-      obj.hXYPrdRedOther = [];
     end
     
   end
   
   methods
-    
-    function vizInit(obj)
-      % Sets .hXYPrdRed, .hXYPrdRedOther
-    
-      deleteValidHandles(obj.hXYPrdRed);
-      obj.hXYPrdRed = [];
-      deleteValidHandles(obj.hXYPrdRedOther);
-      obj.hXYPrdRedOther = [];
-       
-      % init .xyVizPlotArgs*
-      trackPrefs = obj.lObj.projPrefs.Track; 
-      plotPrefs = trackPrefs.PredictPointsPlot; 
-      plotPrefs.PickableParts = 'none'; 
-      xyVizPlotArgs = struct2paramscell(plotPrefs); 
-%       obj.xyVizPlotArgsNonTarget = obj.xyVizPlotArgs; % TODO: customize 
-       
-      npts = obj.nPts;
-      ptsClrs = obj.ptClrs;
-      ipt2View = obj.ipt2vw;
-      axs = obj.hAxs;
-
-      arrayfun(@(x)hold(x,'on'),axs);
-      hTmp = gobjects(npts,1); 
-      hTmpOther = gobjects(npts,1); 
-      for iPt=1:npts 
-        clr = ptsClrs(iPt,:); 
-        iVw = ipt2View(iPt); 
-        hTmp(iPt) = plot(axs(iVw),nan,nan,xyVizPlotArgs{:},'Color',clr,'Tag',sprintf('TrackingVisualizerHeatMap_XYPrdRed_Pt%d',iPt)); 
-        hTmpOther(iPt) = plot(axs(iVw),nan,nan,xyVizPlotArgs{:},'Color',clr,'Tag',sprintf('TrackingVisualizerHeatMap_XYPrdRedOther_Pt%d',iPt));
-%         hTmp2(iPt) = scatter(ax(iVw),nan,nan); 
-%         setIgnoreUnknown(hTmp2(iPt),'MarkerFaceColor',clr,... 
-%           'MarkerEdgeColor',clr,'PickableParts','none',... 
-%           obj.xyVizFullPlotArgs{:}); 
-      end 
-      obj.hXYPrdRed = hTmp; 
-      obj.hXYPrdRedOther = hTmpOther; 
-    end
-    
-    function updateLandmarkColors(obj,ptsClrs)
-      npts = obj.nPts;
-      nclrs = size(ptsClrs,1);
-      for iPt=1:npts
-        iClr = mod(iPt-1,nclrs)+1;
-        set(obj.hXYPrdRed(iPt),'Color',ptsClrs(iClr,:));
-        set(obj.hXYPrdRedOther(iPt),'Color',ptsClrs(iClr,:));
-      end
-    end
-    
-    function setHideViz(obj,tf)
-      onoff = onIff(~tf);
-      [obj.hXYPrdRed.Visible] = deal(onoff);
-      [obj.hXYPrdRedOther.Visible] = deal(onoff);
-    end
     
     function heatMapInit(obj,hmdir,hmnr,hmnc)
       lblrObj = obj.lObj;
