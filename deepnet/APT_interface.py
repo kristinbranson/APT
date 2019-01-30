@@ -178,10 +178,23 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=False, on_gt=Fa
 
 
 def to_orig(conf, locs, x, y, theta):
-    hsz_p = conf.imsz[0] // 2  # half size for pred
-    tt = -theta - math.pi / 2
-    r_mat = [[np.cos(tt), -np.sin(tt)], [np.sin(tt), np.cos(tt)]]
-    curlocs = np.dot(locs - [hsz_p, hsz_p], r_mat) + [x, y]
+    # tt = -theta - math.pi / 2
+    # hsz_p = conf.imsz[0] // 2  # half size for pred
+    # r_mat = [[np.cos(tt), -np.sin(tt)], [np.sin(tt), np.cos(tt)]]
+    # curlocs = np.dot(locs - [hsz_p, hsz_p], r_mat) + [x, y]
+
+    theta = -theta - math.pi/2
+    psz_x = conf.imsz[1]
+    psz_y = conf.imsz[0]
+    T = np.array([[1,0,0],[0,1,0],
+                  [x - float(psz_x)/2 + 0.5, y - float(psz_y)/2 + 0.5, 1]]).astype('float')
+    R1 = cv2.getRotationMatrix2D((float(psz_x)/2-0.5, float(psz_y)/2-0.5), theta * 180 / math.pi, 1)
+    R = np.eye(3)
+    R[:,:2] = R1.T
+    A_full = np.matmul(R,T)
+    lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
+    curlocs = lr.T
+
     return curlocs
 
 
@@ -191,10 +204,10 @@ def convert_to_orig(base_locs, conf, fnum, cur_trx, crop_loc):
     fnum should be 0-indexed'''
     if conf.has_trx_file:
         trx_fnum = fnum - int(cur_trx['firstframe'][0, 0] -1 )
-        x = to_py(int(round(cur_trx['x'][0, trx_fnum])))
-        y = to_py(int(round(cur_trx['y'][0, trx_fnum])))
+        x = to_py(cur_trx['x'][0, trx_fnum])
+        y = to_py(cur_trx['y'][0, trx_fnum])
         theta = cur_trx['theta'][0, trx_fnum]
-        assert conf.imsz[0] == conf.imsz[1]
+        # assert conf.imsz[0] == conf.imsz[1]
         base_locs_orig = to_orig(conf, base_locs, x, y, theta)
     elif crop_loc is not None:
         xlo, xhi, ylo, yhi = crop_loc
@@ -569,9 +582,9 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
         cur_frame = lbl[lbl['preProcData_I'][conf.view, ndx]].value.copy().T
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
-        cur_locs = lbl['preProcData_P'][:, ndx].copy()
-        cur_locs = cur_locs.reshape([2,17,conf.nviews])
-        cur_locs = cur_locs[:,:,conf.view].T
+        cur_locs = to_py(lbl['preProcData_P'][:, ndx].copy())
+        cur_locs = cur_locs.reshape([2,conf.nviews,17])
+        cur_locs = cur_locs[:,conf.view,:].T
         mndx = to_py(m_ndx[ndx])
 
         # BELOW is for old style code where rotation is done in py.

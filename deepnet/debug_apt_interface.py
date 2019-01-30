@@ -1,4 +1,21 @@
-lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190129T153403_20190129T153554.lbl'
+lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl'
+import APT_interface as apt
+import os
+import tensorflow as tf
+import multiResData
+conf = apt.create_conf(lbl_file,0,'compare_cache','/home/mayank/temp/apt_cache','mdn')
+
+conf.trainfilename = 'normal_test.tfrecords'
+n_envs = multiResData.create_envs(conf,False)
+
+n_out_fns = [lambda data: n_envs[0].write(apt.tf_serialize(data)),
+           lambda data: n_envs[1].write(apt.tf_serialize(data))]
+
+splits = apt.db_from_lbl(conf, n_out_fns, False, None, False)
+n_envs[0].close()
+
+##
+lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl'
 import APT_interface as apt
 import os
 import tensorflow as tf
@@ -34,8 +51,8 @@ locs2 = np.array(A[1][1])
 ndx = np.random.choice(ims1.shape[0])
 f,ax = plt.subplots(1,2,sharex=True,sharey=True)
 ax = ax.flatten()
-ax[0].imshow(ims1[ndx,:,:,0],'gray')
-ax[1].imshow(ims2[ndx,:,:,0],'gray')
+ax[0].imshow(ims1[ndx,:,:,0],'gray',vmin=0,vmax=255)
+ax[1].imshow(ims2[ndx,:,:,0],'gray',vmin=0,vmax=255)
 ax[0].scatter(locs1[ndx,:,0],locs1[ndx,:,1])
 ax[1].scatter(locs2[ndx,:,0],locs2[ndx,:,1])
 

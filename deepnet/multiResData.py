@@ -532,8 +532,10 @@ def read_trx(cur_trx, fnum):
     if cur_trx is None:
         return None,None,None
     trx_fnum = fnum - int(cur_trx['firstframe'][0, 0]) + 1
-    x = int(round(cur_trx['x'][0, trx_fnum])) - 1
-    y = int(round(cur_trx['y'][0, trx_fnum])) - 1
+    # x = int(round(cur_trx['x'][0, trx_fnum])) - 1
+    # y = int(round(cur_trx['y'][0, trx_fnum])) - 1
+    x = cur_trx['x'][0, trx_fnum] - 1
+    y = cur_trx['y'][0, trx_fnum] - 1
     # -1 for 1-indexing in matlab and 0-indexing in python
     theta = cur_trx['theta'][0, trx_fnum]
     return x, y, theta
@@ -577,39 +579,51 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs):
     ''' return patch for movies with trx file
     function for testing test_crop_path_trx
     '''
-    psz = int(max(conf.imsz))
+    psz_x = conf.imsz[1]
+    psz_y = conf.imsz[0]
     im = im_in.copy()
     theta = theta + math.pi / 2
 
     if im_in.ndim == 2:
         im = im[:,:,np.newaxis]
 
-    pad_im = np.pad(im, [[psz, psz],[psz, psz],[0,0]], 'constant')
-    patch = pad_im[y:y + (2 * psz + 1), x: (x + 2 * psz + 1),:]
-    # patch is now of size 2*psz+1 with pixel x,y at its center at (psz,psz).
-    rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
-    rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz + 1, 2 * psz + 1),flags=cvc.INTER_CUBIC)
+    # psz = int(max(conf.imsz))
+    # pad_im = np.pad(im, [[psz, psz],[psz, psz],[0,0]], 'constant')
+    # patch = pad_im[y:y + (2 * psz + 1), x: (x + 2 * psz + 1),:]
+    # # patch is now of size 2*psz+1 with pixel x,y at its center at (psz,psz).
+    # rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
+    # rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz + 1, 2 * psz + 1),flags=cvc.INTER_CUBIC)
+
+    T = np.array([[1,0,0],[0,1,0],[-x + float(psz_x)/2-0.5,-y + float(psz_y)/2 -0.5,1]]).astype('float')
+    R1 = cv2.getRotationMatrix2D((float(psz_x)/2-0.5, float(psz_y)/2-0.5), theta * 180 / math.pi, 1)
+    R = np.eye(3)
+    R[:,:2] = R1.T
+    A_full = np.matmul(T,R)
+    A = A_full[:,:2].T
+    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cvc.INTER_CUBIC)
     if rpatch.ndim == 2:
         rpatch = rpatch[:, :, np.newaxis]
+
+    lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
+    lr = lr.T
 
     # select patch starting at psz/2 of size psz.
     # for odd psz: x,y is at (psz-1)/2,(psz-1)/2
     # for even psz: x,y is at psz/2-1, psz/2-1
-    rpatch = rpatch[psz // 2 + 1: -psz // 2 , psz // 2 + 1: - psz // 2 , :]
-
-    ll = locs.copy()
-    ll = ll - [x, y]
-    rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-    lr = np.dot(ll, rot) + [psz - psz // 2 -1, psz - psz // 2 -1]
-
-    if conf.imsz[0] < conf.imsz[1]:
-        extra = (psz-conf.imsz[0])//2
-        rpatch = rpatch[extra:-extra,...]
-        lr[:,1] -= extra
-    elif conf.imsz[1] < conf.imsz[0]:
-        extra = (psz-conf.imsz[1])//2
-        rpatch = rpatch[:,extra:-extra,...]
-        lr[:,0] -= extra
+    # rpatch = rpatch[psz // 2 + 1: -psz // 2 , psz // 2 + 1: - psz // 2 , :]
+    # ll = locs.copy()
+    # ll = ll - [x, y]
+    # rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+    # lr = np.dot(ll, rot) + [psz - psz // 2 -1, psz - psz // 2 -1]
+    #
+    # if conf.imsz[0] < conf.imsz[1]:
+    #     extra = (psz-conf.imsz[0])//2
+    #     rpatch = rpatch[extra:-extra,...]
+    #     lr[:,1] -= extra
+    # elif conf.imsz[1] < conf.imsz[0]:
+    #     extra = (psz-conf.imsz[1])//2
+    #     rpatch = rpatch[:,extra:-extra,...]
+    #     lr[:,0] -= extra
 
     rpatch = rpatch[:,:,:conf.img_dim]
     return rpatch, lr
