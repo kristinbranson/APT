@@ -1201,25 +1201,30 @@ classdef DeepTracker < LabelTracker
       aws.checkInstanceRunning(); % harderrs if instance isn't running
       
       assert(numel(dmcs)==nvw);
-      assert(nvw==1,'Multiview AWS train currently unsupported.');
-
-      fprintf('Current model iteration is %d.\n',dmcs.iterCurr);
-      
-      mdlFilesRemote = aws.remoteGlob(dmcs.keepGlobsLnx);
-      disp(mdlFilesRemote);
-      mdlFilesRemote = setdiff(mdlFilesRemote,{dmcs.lblStrippedLnx}); % don't download/mirror this
-      cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
-      mdlFilesLcl = regexprep(mdlFilesRemote,dmcs.rootDir,cacheDirLocalEscd);
-      nfiles = numel(mdlFilesRemote);
-      fprintf(1,'Downloading %d model files.\n',nfiles);
-      for ifile=1:nfiles
-        fsrc = mdlFilesRemote{ifile};
-        fdst = mdlFilesLcl{ifile};
-        if exist(fdst,'file')>0
-          warningNoTrace('Local file ''%s'' exists. OVERWRITING.',fdst);
+      for ivw=1:nvw
+        dmc = dmcs(ivw);
+        if nvw==1
+          fprintf('Current model iteration is %d.\n',dmc.iterCurr);
+        else
+          fprintf('Current model iteration (view %d) is %d.\n',ivw,dmc.iterCurr);
         end
-        aws.scpDownloadEnsureDir(fsrc,fdst,...
-          'sysCmdArgs',{'dispcmd' true 'failbehavior' 'warn'});
+
+        mdlFilesRemote = aws.remoteGlob(dmc.keepGlobsLnx);
+        disp(mdlFilesRemote);
+        mdlFilesRemote = setdiff(mdlFilesRemote,{dmc.lblStrippedLnx}); % don't download/mirror this
+        cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
+        mdlFilesLcl = regexprep(mdlFilesRemote,dmc.rootDir,cacheDirLocalEscd);
+        nfiles = numel(mdlFilesRemote);
+        fprintf(1,'Downloading %d model files.\n',nfiles);
+        for ifile=1:nfiles
+          fsrc = mdlFilesRemote{ifile};
+          fdst = mdlFilesLcl{ifile};
+          if exist(fdst,'file')>0
+            warningNoTrace('Local file ''%s'' exists. OVERWRITING.',fdst);
+          end
+          aws.scpDownloadEnsureDir(fsrc,fdst,...
+            'sysCmdArgs',{'dispcmd' true 'failbehavior' 'warn'});
+        end
       end
     end
     
