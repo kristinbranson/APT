@@ -1584,7 +1584,7 @@ def parse_args(argv):
     parser.add_argument('-debug', dest='debug', help='Print debug messages', action='store_true')
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
-    parser.add_argument('-log_file', dest='log_file', help='Err file', default=None)
+    parser.add_argument('-log_file', dest='log_file', help='Log file', default=None)
     parser.add_argument('-conf_params', dest='conf_params', help='conf params. These will override params from lbl file', default=None, nargs='*')
     parser.add_argument('-type', dest='type', help='Network type, default is unet', default='unet',
                         choices=['unet', 'openpose', 'deeplabcut', 'leap', 'mdn'])
