@@ -956,19 +956,11 @@ classdef DeepTracker < LabelTracker
         'wbObj',[]... 
         );
             
-      nvw = obj.lObj.nview;
-      
       aws = backend.awsec2;
-%       if numel(aws)~=nvw
-%         error('You must have one AWSec2 object for each view.');
-%       end
-      assert(nvw==1,'Multiview AWS train currently unsupported.');
       if isempty(aws)
         error('AWSec2 object not set.');
       end
       aws.checkInstanceRunning(); % harderrs if instance isn't running
-%       fprintf('AWS EC2 instance id %s is running...\n\n',aws.instanceID);
-
       DeepTracker.updateAPTRepoExecAWS(aws);
       
       % Base DMC, to be further copied/specified per-view
@@ -985,7 +977,8 @@ classdef DeepTracker < LabelTracker
       dmcLcl.rootDir = obj.lObj.trackDLParams.CacheDir;      
       
       % create/ensure stripped lbl, local and remote
-      tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
+      tfGenNewStrippedLbl = trnType==DLTrainType.New || ...
+                            trnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl        
         s = obj.trnCreateStrippedLbl(backend,'awsTrxUpload',true,'wbObj',wbObj); %#ok<NASGU>
         
@@ -1041,19 +1034,20 @@ classdef DeepTracker < LabelTracker
       % At this point
       % We have (modelChainID,trainID), dlLblFileRemote. remote is ready to 
       % train
-
-      % gen cmd to fire job
-      syscmds = cell(nvw,1);
+      
+      % gen DMCs
+      nvw = obj.lObj.nview;
       for ivw=1:nvw
         if ivw>1
           dmc(ivw) = dmc(1).copy();
         end
         dmc(ivw).view = ivw-1; % 0-based
-        
-        codestr = obj.trainCodeGenAWS(dmc(ivw));
-        logfileRemote = dmc(ivw).trainLogLnx;
-        syscmds{ivw} = aws.sshCmdGeneralLogged(codestr,logfileRemote);
       end
+
+      % codegen        
+      codestr = obj.trainCodeGenAWS(dmc(1)); % all dmcs identical save for view flag
+      logfileRemote = dmc(1).trainLogLnx;
+      syscmds = { aws.sshCmdGeneralLogged(codestr,logfileRemote) };
             
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
@@ -1061,19 +1055,13 @@ classdef DeepTracker < LabelTracker
         obj.bgTrnStart(backend,dmc);
 
         % spawn training
-        for iview=1:nvw
-          if iview>1
-            fprintf(2,'Skipping spawn view %d\n',iview);
-            continue;
-          end
-          fprintf(1,'%s\n',syscmds{iview});
-          system(syscmds{iview});
-          fprintf('Training job (view %d) spawned.\n\n',iview);
+        fprintf(1,'%s\n',syscmds{1});
+        system(syscmds{1});
+        fprintf('Training job spawned.\n\n');
           
-          pause(1.0); % Hack try to more reliably get PID
-          aws.getRemotePythonPID(); % Conceptually, bgTrnWorkerObj should
+        pause(1.0); % Hack try to more reliably get PID -- still not 100% AL 20190130
+        aws.getRemotePythonPID(); % Conceptually, bgTrnWorkerObj should
             % remember. Right now there is only one PID per aws so it's ok
-        end
         
         obj.trnName = modelChainID;
         obj.trnNameLbl = trainID;
@@ -2248,20 +2236,26 @@ classdef DeepTracker < LabelTracker
       end
     end
           
-    function codestr = trainCodeGenAWS(dmc)      
-      % not sure what -name flag does exactly
+    function codestr = trainCodeGenAWS(dmc,varargin)
+      incViewFlag = myparse(varargin,...
+        'incViewFlag',false... % if true, include -view flag to train a single view. if false, no -view flag specified, all views trained serially
+        );
       
-      codestr = DeepTracker.trainCodeGen(...
-        dmc.modelChainID,dmc.lblStrippedLnx,dmc.rootDir,...
+      assert(isscalar(dmc));
+      
+      trnCodeGenArgs = {
+        dmc.modelChainID,dmc.lblStrippedLnx,dmc.rootDir, ...
         dmc.errfileLnx,char(dmc.netType),...
-        'view',dmc.view+1,...
         'deepnetroot','/home/ubuntu/APT/deepnet',...
-        'trainType',dmc.trainType);        
-        
+        'trainType',dmc.trainType};
+      if incViewFlag
+        trnCodeGenArgs = [trnCodeGenArgs {'view' dmc.view+1}];
+      end
+      
       codestr = {
         'cd /home/ubuntu/APT/deepnet;';
         'export LD_LIBRARY_PATH=/home/ubuntu/src/cntk/bindings/python/cntk/libs:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib;';
-        codestr;
+        DeepTracker.trainCodeGen(trnCodeGenArgs{:});
         };
       codestr = cat(2,codestr{:});
     end
