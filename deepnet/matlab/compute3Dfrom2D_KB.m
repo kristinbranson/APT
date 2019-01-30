@@ -41,6 +41,9 @@ SIDEOUTPUTTYPE = 1; % output of raw detector
 % rdf.locs = permute(rdf.locs(:,:,FRONTOUTPUTTYPE,:),[1,2,4,3]);
 % rds.locs = permute(rds.locs(:,:,SIDEOUTPUTTYPE,:),[1,2,4,3]);
 
+croploc_front = rdf.crop_loc;
+croploc_side = rds.crop_loc;
+
 offx_front = double((rdf.crop_loc{1}-1))/scale_front;
 offy_front = double((rdf.crop_loc{3}-1))/scale_front;
 offx_side = double((rds.crop_loc{1}-1))/scale_side;
@@ -385,7 +388,7 @@ end
 fprintf('Saving results to file %s...\n',savefile);
 
 save(savefile,'pfrontbest','psidebest','Pbest','pfrontbest_re','psidebest_re',...
-     'Psample','psample_front','psample_side','w','z','-v7.3');
+     'Psample','psample_front','psample_side','w','z','croploc_front','croploc_side','-v7.3');
    
 %% convert
 

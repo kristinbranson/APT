@@ -20,7 +20,7 @@ classdef DeepTracker < LabelTracker
       '%s/pretrained/resnet_v2_fp32_savedmodel_NHWC/1538687283/variables/variables.index'... % fill in deepnetroot
       '%s/pretrained/resnet_v1_50.ckpt'... 
       };
-    
+    pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
   end
   properties
     sPrm % new-style DT params
@@ -1165,7 +1165,35 @@ classdef DeepTracker < LabelTracker
       end      
     end
     
+%     function trnCompleteCbkAWS(obj,res)      
+%       bgWorker = obj.bgTrnMonBGWorkerObj;
+%       % use the aws from here, guess .lObj.trackDLBackEnd could have changed? Hmmmmm
+%       aws = bgWorker.awsEc2; 
+%       
+%       obj.updateLastDMCsCurrInfo();
+%       
+%       dmc = obj.trnLastDMC;
+%        
+%         % download trkfiles 
+%         sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
+%         for ivw=1:numel(res)
+%           trkLcl = trkfilesLocal{ivw};
+%           trkRmt = res(ivw).trkfile;
+%           aws.scpDownload(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs);
+%         end
+%     end
+
     function trnAWSDownloadModel(obj) 
+      % Downloads/mirrors most recent model(s) available for .trnLastDMC to
+      % local disc.
+      %
+      % Important: this can take a while as model files are large. So don't
+      % call this eg during a train while intermediate models are being
+      % "rolling-cleaned-out". Stuff might get deleted while download is
+      % occurring.
+      
+      obj.updateLastDMCsCurrInfo();
+
       nvw = obj.lObj.nview;
       trnID = obj.trnName;
       cacheDirLocal = obj.lObj.trackDLParams.CacheDir;
@@ -1187,8 +1215,10 @@ classdef DeepTracker < LabelTracker
       assert(numel(dmcs)==nvw);
       assert(nvw==1,'Multiview AWS train currently unsupported.');
 
+      fprintf('Current model iteration is %d.\n',dmcs.iterCurr);
+      
       mdlFilesRemote = aws.remoteGlob(dmcs.keepGlobsLnx);
-%       disp(mdlFilesRemote);
+      disp(mdlFilesRemote);
       mdlFilesRemote = setdiff(mdlFilesRemote,{dmcs.lblStrippedLnx}); % don't download/mirror this
       cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
       mdlFilesLcl = regexprep(mdlFilesRemote,dmcs.rootDir,cacheDirLocalEscd);
@@ -1198,11 +1228,10 @@ classdef DeepTracker < LabelTracker
         fsrc = mdlFilesRemote{ifile};
         fdst = mdlFilesLcl{ifile};
         if exist(fdst,'file')>0
-          warningNoTrace('Local file ''%s'' exists. NOT downloading.',fdst);
-        else
-          aws.scpDownloadEnsureDir(fsrc,fdst,...
-            'sysCmdArgs',{'dispcmd' true 'failbehavior' 'warn'});
+          warningNoTrace('Local file ''%s'' exists. OVERWRITING.',fdst);
         end
+        aws.scpDownloadEnsureDir(fsrc,fdst,...
+          'sysCmdArgs',{'dispcmd' true 'failbehavior' 'warn'});
       end
     end
     
@@ -2271,8 +2300,10 @@ classdef DeepTracker < LabelTracker
     end
       
     function codestr = updateAPTRepoCmd(varargin)
-      aptparent = myparse(varargin,...
-        'aptparent','/home/ubuntu');
+      [aptparent,downloadpretrained] = myparse(varargin,...
+        'aptparent','/home/ubuntu',...
+        'downloadpretrained',false...
+        );
       
       aptroot = [aptparent '/APT/deepnet'];
       
@@ -2281,10 +2312,14 @@ classdef DeepTracker < LabelTracker
         'git checkout develop;';
         'git pull;'; 
         };
+      if downloadpretrained
+        % assumes we are on lnx. we cd-ed into deepnet above
+        codestr{end+1,1} = sprintf(DeepTracker.pretrained_download_script_py,'.');
+      end
       codestr = cat(2,codestr{:});
     end
     function updateAPTRepoExecAWS(aws) % throws if fails
-      cmdremote = DeepTracker.updateAPTRepoCmd();
+      cmdremote = DeepTracker.updateAPTRepoCmd('downloadpretrained',true);
       [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
       if tfsucc
         fprintf('Updated remote APT repo.\n\n');

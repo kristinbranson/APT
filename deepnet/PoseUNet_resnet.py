@@ -218,32 +218,32 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         #download pretrained weights if they don't exist
         if self.resnet_source == 'official_tf':
-            url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
+        #     url = 'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
             wt_dir = os.path.join(script_dir,'pretrained')
-            wt_file = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables.index')
-            if not os.path.exists(wt_file):
-                print('Downloading pretrained weights..')
-                if not os.path.exists(wt_dir):
-                    os.makedirs(wt_dir)
-                sname, header = urllib.urlretrieve(url)
-                tar = tarfile.open(sname, "r:gz")
-                print('Extracting pretrained weights..')
-                tar.extractall(path=wt_dir)
+        #     wt_file = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables.index')
+        #     if not os.path.exists(wt_file):
+        #         print('Downloading pretrained weights..')
+        #         if not os.path.exists(wt_dir):
+        #             os.makedirs(wt_dir)
+        #         sname, header = urllib.urlretrieve(url)
+        #         tar = tarfile.open(sname, "r:gz")
+        #         print('Extracting pretrained weights..')
+        #         tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v2_fp32_savedmodel_NHWC','1538687283','variables','variables')
         else:
             url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
             script_dir = os.path.dirname(os.path.realpath(__file__))
             wt_dir = os.path.join(script_dir,'pretrained')
             wt_file = os.path.join(wt_dir,'resnet_v1_50.ckpt')
-            if not os.path.exists(wt_file):
-                print('Downloading pretrained weights..')
-                if not os.path.exists(wt_dir):
-                    os.makedirs(wt_dir)
-                sname, header = urllib.urlretrieve(url)
-                tar = tarfile.open(sname, "r:gz")
-                print('Extracting pretrained weights..')
-                tar.extractall(path=wt_dir)
+            # if not os.path.exists(wt_file):
+            #     print('Downloading pretrained weights..')
+            #     if not os.path.exists(wt_dir):
+            #         os.makedirs(wt_dir)
+            #     sname, header = urllib.urlretrieve(url)
+            #     tar = tarfile.open(sname, "r:gz")
+            #     print('Extracting pretrained weights..')
+            #     tar.extractall(path=wt_dir)
             self.pretrained_weights = os.path.join(wt_dir,'resnet_v1_50.ckpt')
 
             # self.pretrained_weights = '/home/mayank/work/poseTF/deepcut/models/resnet_v1_50.ckpt'
@@ -325,11 +325,13 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                 prev_in = None
                 for ndx in reversed(range(len(down_layers))):
+                    # reverse the resnet's downsampling.
 
                     if prev_in is None:
                         X = down_layers[ndx]
                     else:
                         if self.no_pad:
+                            # crop down layers to match unpadded prev_in
                             prev_sh = prev_in.get_shape().as_list()[1:3]
                             d_sh = down_layers[ndx].get_shape().as_list()[1:3]
                             d_y = (d_sh[0]- prev_sh[0])//2
@@ -361,6 +363,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                         with tf.variable_scope('u_{}'.format(ndx)):
                              # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+                            # upsample usin conv2d_transpose. Use identity as init weights.
                            X_sh = X.get_shape().as_list()
                            w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
                            for wndx in range(X_sh[-1]):
@@ -368,26 +371,22 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                            w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
                            if self.no_pad:
                                out_shape = [X_sh[0],X_sh[1]*2+2,X_sh[2]*2+2,X_sh[-1]]
-                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,
-                                                          strides=[1, 2, 2, 1], padding="VALID")
+                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,strides=[1, 2, 2, 1], padding="VALID")
                            else:
                                out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
-                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,
-                                                          strides=[1, 2, 2, 1], padding="SAME")
+                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
                            biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
                            conv_b = X + biases
 
-                           bn = batch_norm(conv_b)
+                           bn = batch_norm(conv_b,is_training=self.ph['phase_train'],decay=0.99)
                            X = tf.nn.relu(bn)
 
                     prev_in = X
 
                 n_filt = X.get_shape().as_list()[-1]
                 n_out = self.conf.n_classes
-                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                          initializer=tf.contrib.layers.xavier_initializer())
-                biases = tf.get_variable("out_biases", n_out,
-                                         initializer=tf.constant_initializer(0.))
+                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tf.contrib.layers.xavier_initializer())
+                biases = tf.get_variable("out_biases", n_out, initializer=tf.constant_initializer(0.))
                 conv_out = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
                 X = tf.add(conv_out, biases, name = 'unet_pred')
                 X_unet = 2*tf.sigmoid(X)-1
@@ -428,7 +427,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                         kernel_shape = [k_sz, k_sz, n_filt_in, 3*n_filt]
                         mdn_l = conv_relu(X,kernel_shape,self.ph['phase_train'])
 
-                    if not self.conf.get('mdn_more_locs_layer',True):
+                    if not self.conf.get('mdn_more_locs_layer',False):
                         with tf.variable_scope('layer_locs_1_1'):
                             in_filt = mdn_l.get_shape().as_list()[3]
                             kernel_shape = [k_sz, k_sz, in_filt, n_filt]
@@ -530,7 +529,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
             with tf.variable_scope('logits'):
 
-                if self.conf.get('mdn_no_locs_layer',True):
+                if self.conf.get('mdn_no_locs_layer',False):
                     mdn_l = X
                 else:
                     with tf.variable_scope('layer_logits'):
@@ -865,7 +864,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
 
 
-    def classify_val(self, model_file=None, onTrain=False):
+    def classify_val(self, model_file=None, onTrain=False,do_unet=False):
         if not onTrain:
             val_file = os.path.join(self.conf.cachedir, self.conf.valfilename + '.tfrecords')
         else:
@@ -910,12 +909,13 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_u_preds = []
         val_u_predlocs = []
         val_dist_pred = []
+        do_unet = do_unet and self.conf.mdn_use_unet_loss
         for step in range(num_val / self.conf.batch_size):
             if onTrain:
                 self.fd_train()
             else:
                 self.fd_val()
-            if self.conf.mdn_use_unet_loss:
+            if do_unet:
                 pred_means, pred_std, pred_weights, pred_dist, cur_input, unet_pred = sess.run(
                     [p_m, p_s, p_w, p_d, self.inputs, self.unet_pred], self.fd)
             else:
@@ -972,7 +972,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             val_locs.append(cur_input[1])
             val_preds.append(mdn_pred_out)
             val_predlocs.append(cur_predlocs)
-            if self.conf.mdn_use_unet_loss:
+            if do_unet:
                 val_u_preds.append(unet_pred)
                 val_u_predlocs.append(PoseTools.get_pred_locs(unet_pred))
 
@@ -992,7 +992,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
         val_wts = val_reshape(val_wts)
         val_dist_pred = val_reshape(val_dist_pred)
         tf.reset_default_graph()
-        if self.conf.mdn_use_unet_loss:
+        if do_unet:
             val_u_preds = val_reshape(val_u_preds)
             val_u_predlocs = val_reshape(val_u_predlocs)
             return val_dist, val_ims, val_preds, val_predlocs, val_locs, \
