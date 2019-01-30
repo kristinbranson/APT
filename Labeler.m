@@ -4556,8 +4556,8 @@ classdef Labeler < handle
     end
     
     function setShowPredTxtLbl(obj,tf)
-      assert(isscalar(tf) && islogical(tf));
-      obj.showPredTxtLbl = tf;
+      assert(isscalar(tf));
+      obj.showPredTxtLbl = logical(tf);
       obj.updateShowPredTxtLbl();
     end
     
