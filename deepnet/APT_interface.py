@@ -188,15 +188,19 @@ def to_orig(conf, locs, x, y, theta):
     theta = -theta - math.pi/2
     psz_x = conf.imsz[1]
     psz_y = conf.imsz[0]
-    T = np.array([[1,0,0],[0,1,0],
-                  [x - float(psz_x)/2 + 0.5, y - float(psz_y)/2 + 0.5, 1]]).astype('float')
-    R1 = cv2.getRotationMatrix2D((float(psz_x)/2-0.5, float(psz_y)/2-0.5), theta * 180 / math.pi, 1)
-    R = np.eye(3)
-    R[:,:2] = R1.T
 
     if conf.trx_align_theta:
+        T = np.array([[1, 0, 0], [0, 1, 0],
+                      [x - float(psz_x) / 2 + 0.5, y - float(psz_y) / 2 + 0.5, 1]]).astype('float')
+        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, 1)
+        R = np.eye(3)
+        R[:, :2] = R1.T
         A_full = np.matmul(R,T)
     else:
+        x = np.round(x)
+        y = np.round(y)
+        T = np.array([[1, 0, 0], [0, 1, 0],
+                      [x - float(psz_x) / 2 + 0.5, y - float(psz_y) / 2 + 0.5, 1]]).astype('float')
         A_full = T
 
     lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
