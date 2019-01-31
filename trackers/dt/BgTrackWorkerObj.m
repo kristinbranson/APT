@@ -34,7 +34,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       obj.artfctErrFiles = dlerrfiles(:);
       obj.artfctPartTrkfiles = partfiles(:);
       for ivw = 1:obj.nviews,
-        obj.killFiles{ivw} = sprintf('%s.%d.KILLED',outfiles{ivw},ivw);
+        obj.killFiles{ivw} = sprintf('%s.%d.KILLED',logfiles{ivw},ivw);
       end
     end
     function sRes = compute(obj)

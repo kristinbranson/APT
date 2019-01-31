@@ -27,14 +27,43 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     
     function res = queryAllJobsStatus(obj)
       
-      res = 'Not implemented';
-%       bjobscmd = 'bjobs';
-%       bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
-%       fprintf(1,'%s\n',bjobscmd);
-%       [st,res] = system(bjobscmd);
-%       if st~=0
-%         warningNoTrace('Bkill command failed: %s',res);
-%       end
+      bjobscmd = 'docker ps';
+      fprintf(1,'%s\n',bjobscmd);
+      [st,res] = system(bjobscmd);
+      if st~=0
+        warningNoTrace('docker ps command failed: %s',res);
+      else
+        
+%         i = strfind(res,'Job <');
+%         if isempty(i),
+%           warning('Could not parse output from querying job status');
+%           return;
+%         end
+%         res = res(i(1):end);
+      end
+      
+      
+    end
+    
+    function res = queryJobStatus(obj,jID)
+      
+      if iscell(jID),
+        jID = jID{1};
+      end
+      bjobscmd = sprintf('docker ps -f id=%s',jID);
+      fprintf(1,'%s\n',bjobscmd);
+      [st,res] = system(bjobscmd);
+      if st~=0
+        warningNoTrace('docker ps command failed: %s',res);
+      else
+        
+%         i = strfind(res,'Job <');
+%         if isempty(i),
+%           warning('Could not parse output from querying job status');
+%           return;
+%         end
+%         res = res(i(1):end);
+      end
       
     end
         

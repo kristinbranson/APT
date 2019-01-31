@@ -1589,7 +1589,15 @@ classdef DeepTracker < LabelTracker
         trksysinfo(ivw).trkfile = trkfile;
         trksysinfo(ivw).logfile = outfile;
         trksysinfo(ivw).errfile = errfile;
-        trksysinfo(ivw).parttrkfile = [defaulttrkfile,'.part'];
+        trksysinfo(ivw).parttrkfile = [trkfile,'.part'];
+        if exist(trksysinfo(ivw).parttrkfile,'file'),
+          fprintf('Deleting partial tracking result %s',trksysinfo(ivw).parttrkfile);
+          try
+            delete(trksysinfo(ivw).parttrkfile);
+          catch ME,
+            warning('Failed to delete %s: %s',trksysinfo(ivw).parttrkfile,getReport(ME));
+          end
+        end
 
         %trksysinfo(ivw).logfilessh = outfile2;
         
