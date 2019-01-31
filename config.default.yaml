@@ -109,6 +109,7 @@ Track:
     MarkerSize: 10
     LineWidth: 2
   PredictPointsPlotColorMapName: 'lightjet'
+  PredictPointsShowTextLbl: 0
 
   PredictInterpolate: 0         # If true, tracked results are interpolated/extrapolated to all frames when visualizing
   PredictInterpolatePointsPlot: # Plot cosmetics for interpolated tracking results
