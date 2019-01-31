@@ -4,6 +4,7 @@ classdef DLBackEndClass < handle
   properties
     type  % scalar DLBackEnd
     awsec2 % used only for type==AWS
+    deepnetbranch % char, git branch of deepnet to run. unmanaged
   end
  
   methods

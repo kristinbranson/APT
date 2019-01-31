@@ -48,7 +48,10 @@ for i in range(1,nargs,2):
         if os.path.exists(file):
             mat = h5py.File(file,'r')
             pTrk = mat['pTrk'].value
-            val = str(np.count_nonzero(~np.isnan(pTrk[:,:,0,0])))
+            if pTrk.ndim==4:
+                val = str(np.count_nonzero(~np.isnan(pTrk[:,:,0,0])))
+            else:
+                val = str(np.count_nonzero(~np.isnan(pTrk[:,0,0])))
         else:
             val = 'DNE'
     elif type=='mostrecentmodel':

@@ -36,6 +36,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       for ivw = 1:obj.nviews,
         obj.killFiles{ivw} = sprintf('%s.%d.KILLED',outfiles{ivw},ivw);
       end
+      obj.killFiles = obj.killFiles(:);
     end
     function sRes = compute(obj)
       % sRes: [nviews] struct array      
