@@ -1552,7 +1552,7 @@ classdef DeepTracker < LabelTracker
             fprintf('Tracking job (view %d) spawned:\n%s\n',ivw,res);
           else
             fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
-              iview,res);
+              ivw,res);
           end
         end
         
