@@ -178,6 +178,8 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=False, on_gt=Fa
 
 
 def to_orig(conf, locs, x, y, theta):
+    ''' locs, x and y should be 0-indexed'''
+
     # tt = -theta - math.pi / 2
     # hsz_p = conf.imsz[0] // 2  # half size for pred
     # r_mat = [[np.cos(tt), -np.sin(tt)], [np.sin(tt), np.cos(tt)]]
@@ -191,7 +193,12 @@ def to_orig(conf, locs, x, y, theta):
     R1 = cv2.getRotationMatrix2D((float(psz_x)/2-0.5, float(psz_y)/2-0.5), theta * 180 / math.pi, 1)
     R = np.eye(3)
     R[:,:2] = R1.T
-    A_full = np.matmul(R,T)
+
+    if conf.trx_align_theta:
+        A_full = np.matmul(R,T)
+    else:
+        A_full = T
+
     lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
     curlocs = lr.T
 
@@ -199,8 +206,9 @@ def to_orig(conf, locs, x, y, theta):
 
 
 def convert_to_orig(base_locs, conf, fnum, cur_trx, crop_loc):
-    '''converts locs in cropped image back to locations in original image. base_locs need to be in 1-indexed mat system.
+    '''converts locs in cropped image back to locations in original image. base_locs need to be in 0-indexed py.
     base_locs should be 2 dim.
+    crop_loc should be 0-indexed
     fnum should be 0-indexed'''
     if conf.has_trx_file:
         trx_fnum = fnum - int(cur_trx['firstframe'][0, 0] -1 )
@@ -287,7 +295,6 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     conf.selpts = np.arange(conf.n_classes)
     conf.nviews = int(read_entry(lbl['cfg']['NumViews']))
 
-
     dt_params_ndx = None
     for ndx in range(lbl['trackerClass'].shape[0]):
         cur_tracker = ''.join([chr(c) for c in lbl[lbl['trackerClass'][ndx][0]]])
@@ -316,9 +323,6 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
             vid_nr = int(read_entry(lbl[lbl['movieInfoAll'][0, 0]]['info']['nr']))
             vid_nc = int(read_entry(lbl[lbl['movieInfoAll'][0, 0]]['info']['nc']))
             conf.imsz = (vid_nr, vid_nc)
-    # crop_locX = int(read_entry(dt_params['CropX_view{}'.format(view + 1)]))
-    # crop_locY = int(read_entry(dt_params['CropY_view{}'.format(view + 1)]))
-    # conf.cropLoc = {(vid_nr, vid_nc): [crop_locY, crop_locX]}
     conf.labelfile = lbl_file
     conf.sel_sz = min(conf.imsz)
     conf.unet_rescale = float(read_entry(dt_params['scale']))
@@ -328,7 +332,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     conf.rescale = conf.unet_rescale
     conf.adjust_contrast = int(read_entry(dt_params['adjustContrast'])) > 0.5
     conf.normalize_img_mean = int(read_entry(dt_params['normalize'])) > 0.5
-    # conf.img_dim = int(read_entry(dt_params['NChannels']))
+    conf.trx_align_theta = bool(read_entry(lbl['preProcParams']['TargetCrop']['AlignUsingTrxTheta']))
+
     ex_mov = multiResData.find_local_dirs(conf)[0][0]
 
     if 'NumChans' in lbl['cfg'].keys():
@@ -349,7 +354,6 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     try:
         conf.unet_steps = int(read_entry(dt_params['dl_steps']))
         conf.dl_steps = int(read_entry(dt_params['dl_steps']))
-        # conf.dlc_steps = int(read_entry(dt_params['dl_steps']))
     except KeyError:
         pass
     try:
@@ -420,6 +424,51 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.batch_size = 1
 
     return conf
+
+
+def test_preproc(lbl_file=None,cachedir=None):
+    ''' Compare python preproc pipeline with matlab's'''
+    from matplotlib import pyplot as plt
+    if lbl_file is None:
+        lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl'
+    if cachedir is None:
+        cachedir = '/home/mayank/temp/apt_cache'
+
+    conf = create_conf(lbl_file, 0, 'compare_cache', cachedir, 'mdn')
+
+    conf.trainfilename = 'normal'
+    n_envs = multiResData.create_envs(conf, False)
+    conf.trainfilename = 'cached'
+    c_envs = multiResData.create_envs(conf, False)
+
+    n_out_fns = [lambda data: n_envs[0].write(tf_serialize(data)),
+                 lambda data: n_envs[1].write(tf_serialize(data))]
+    c_out_fns = [lambda data: c_envs[0].write(tf_serialize(data)),
+                 lambda data: c_envs[1].write(tf_serialize(data))]
+
+    splits = db_from_cached_lbl(conf, c_out_fns, False, None, False)
+    splits = db_from_lbl(conf, n_out_fns, False, None, False)
+    c_envs[0].close()
+    n_envs[0].close()
+
+    c_file_name = os.path.join(conf.cachedir, 'cached.tfrecords')
+    n_file_name = os.path.join(conf.cachedir, 'normal.tfrecords')
+    A = []
+    A.append(multiResData.read_and_decode_without_session(c_file_name, conf, ()))
+    A.append(multiResData.read_and_decode_without_session(n_file_name, conf, ()))
+
+    ims1 = np.array(A[0][0]).astype('float')
+    ims2 = np.array(A[1][0]).astype('float')
+    locs1 = np.array(A[0][1])
+    locs2 = np.array(A[1][1])
+
+    ndx = np.random.choice(ims1.shape[0])
+    f, ax = plt.subplots(1, 2, sharex=True, sharey=True)
+    ax = ax.flatten()
+    ax[0].imshow(ims1[ndx, :, :, 0], 'gray', vmin=0, vmax=255)
+    ax[1].imshow(ims2[ndx, :, :, 0], 'gray', vmin=0, vmax=255)
+    ax[0].scatter(locs1[ndx, :, 0], locs1[ndx, :, 1])
+    ax[1].scatter(locs2[ndx, :, 0], locs2[ndx, :, 1])
 
 
 def get_cur_trx(trx_file, trx_ndx):

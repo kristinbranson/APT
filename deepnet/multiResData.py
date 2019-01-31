@@ -598,7 +598,12 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs):
     R1 = cv2.getRotationMatrix2D((float(psz_x)/2-0.5, float(psz_y)/2-0.5), theta * 180 / math.pi, 1)
     R = np.eye(3)
     R[:,:2] = R1.T
-    A_full = np.matmul(T,R)
+
+    if conf.trx_align_theta:
+        A_full = np.matmul(T,R)
+    else:
+        A_full = T
+
     A = A_full[:,:2].T
     rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cvc.INTER_CUBIC)
     if rpatch.ndim == 2:
