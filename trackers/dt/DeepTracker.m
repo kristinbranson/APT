@@ -1627,7 +1627,12 @@ classdef DeepTracker < LabelTracker
         logfiles = {trksysinfo.logfile}';
         errfiles = {trksysinfo.errfile}';
         partfiles = {trksysinfo.parttrkfile}';
-        bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+        switch backend.type
+          case DLBackEnd.Bsub
+            bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+          case DLBackEnd.Docker,
+            bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
+        end
         bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
           logfiles,errfiles,partfiles);
         

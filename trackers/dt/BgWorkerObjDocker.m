@@ -50,7 +50,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         %disp(pollcmd);
         [st,res] = system(pollcmd);
         if st==0
-          tf = ~isempty(regexp(res,jIDshort,'once'));
+          tf = isempty(regexp(res,jIDshort,'once'));
         else
           tf = false;
         end
@@ -62,10 +62,10 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       %touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
       [st,res] = system(touchcmd);
       if st~=0
-        warningNoTrace('Failed to create KILLED token: %s',kfile);
+        warningNoTrace('Failed to create KILLED token: %s',killtoken);
         tfsucc = false;
       else
-        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',kfile);
+        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
         tfsucc = true;
       end
     end
