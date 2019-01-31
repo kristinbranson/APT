@@ -447,8 +447,8 @@ def test_preproc(lbl_file=None,cachedir=None):
                  lambda data: c_envs[1].write(tf_serialize(data))]
 
     splits = db_from_cached_lbl(conf, c_out_fns, False, None, False)
-    splits = db_from_lbl(conf, n_out_fns, False, None, False)
     c_envs[0].close()
+    splits = db_from_lbl(conf, n_out_fns, False, None, False)
     n_envs[0].close()
 
     c_file_name = os.path.join(conf.cachedir, 'cached.tfrecords')

@@ -1,19 +1,9 @@
-lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl'
+lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190131T181525_20190131T181623.lbl'
 import APT_interface as apt
 import os
 import tensorflow as tf
 import multiResData
-conf = apt.create_conf(lbl_file,0,'compare_cache','/home/mayank/temp/apt_cache','mdn')
-
-conf.trainfilename = 'normal_test.tfrecords'
-n_envs = multiResData.create_envs(conf,False)
-
-n_out_fns = [lambda data: n_envs[0].write(apt.tf_serialize(data)),
-           lambda data: n_envs[1].write(apt.tf_serialize(data))]
-
-splits = apt.db_from_lbl(conf, n_out_fns, False, None, False)
-n_envs[0].close()
-
+apt.test_preproc(lbl_file)
 ##
 lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl'
 import APT_interface as apt
@@ -37,8 +27,8 @@ splits = apt.db_from_lbl(conf, n_out_fns, False, None, False)
 c_envs[0].close()
 n_envs[0].close()
 
-c_file_name = os.path.join(conf.cachedir,'cached.tfrecords.tfrecords')
-n_file_name = os.path.join(conf.cachedir,'normal.tfrecords.tfrecords')
+c_file_name = os.path.join(conf.cachedir,'cached.tfrecords')
+n_file_name = os.path.join(conf.cachedir,'normal.tfrecords')
 A = []
 A.append(multiResData.read_and_decode_without_session(c_file_name,conf,()))
 A.append(multiResData.read_and_decode_without_session(n_file_name,conf,()))

@@ -594,15 +594,17 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs):
     # rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
     # rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz + 1, 2 * psz + 1),flags=cvc.INTER_CUBIC)
 
-    T = np.array([[1,0,0],[0,1,0],[-x + float(psz_x)/2-0.5,-y + float(psz_y)/2 -0.5,1]]).astype('float')
-    R1 = cv2.getRotationMatrix2D((float(psz_x)/2-0.5, float(psz_y)/2-0.5), theta * 180 / math.pi, 1)
-    R = np.eye(3)
-    R[:,:2] = R1.T
 
     if conf.trx_align_theta:
+        T = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
+        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, 1)
+        R = np.eye(3)
+        R[:, :2] = R1.T
         A_full = np.matmul(T,R)
     else:
-        A_full = T
+        x = np.round(x)
+        y = np.round(y)
+        A_full = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
 
     A = A_full[:,:2].T
     rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cvc.INTER_CUBIC)
