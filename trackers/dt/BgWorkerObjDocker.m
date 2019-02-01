@@ -27,7 +27,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     
     function res = queryAllJobsStatus(obj)
       
-      bjobscmd = 'docker ps';
+      bjobscmd = 'docker container ls';
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
@@ -50,7 +50,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       if iscell(jID),
         jID = jID{1};
       end
-      bjobscmd = sprintf('docker ps -f id=%s',jID);
+      bjobscmd = sprintf('docker container ls -f id=%s',jID);
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
