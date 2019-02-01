@@ -404,6 +404,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.normalize_img_mean = False
     elif net_type == 'deeplabcut':
         conf.batch_size = 1
+    elif net_type == 'unet':
+        conf.use_pretrained_weights = False
 
     return conf
 
