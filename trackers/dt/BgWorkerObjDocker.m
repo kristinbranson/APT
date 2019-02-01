@@ -27,14 +27,43 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     
     function res = queryAllJobsStatus(obj)
       
-      res = 'Not implemented';
-%       bjobscmd = 'bjobs';
-%       bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
-%       fprintf(1,'%s\n',bjobscmd);
-%       [st,res] = system(bjobscmd);
-%       if st~=0
-%         warningNoTrace('Bkill command failed: %s',res);
-%       end
+      bjobscmd = 'docker ps';
+      fprintf(1,'%s\n',bjobscmd);
+      [st,res] = system(bjobscmd);
+      if st~=0
+        warningNoTrace('docker ps command failed: %s',res);
+      else
+        
+%         i = strfind(res,'Job <');
+%         if isempty(i),
+%           warning('Could not parse output from querying job status');
+%           return;
+%         end
+%         res = res(i(1):end);
+      end
+      
+      
+    end
+    
+    function res = queryJobStatus(obj,jID)
+      
+      if iscell(jID),
+        jID = jID{1};
+      end
+      bjobscmd = sprintf('docker ps -f id=%s',jID);
+      fprintf(1,'%s\n',bjobscmd);
+      [st,res] = system(bjobscmd);
+      if st~=0
+        warningNoTrace('docker ps command failed: %s',res);
+      else
+        
+%         i = strfind(res,'Job <');
+%         if isempty(i),
+%           warning('Could not parse output from querying job status');
+%           return;
+%         end
+%         res = res(i(1):end);
+      end
       
     end
         
@@ -50,7 +79,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         %disp(pollcmd);
         [st,res] = system(pollcmd);
         if st==0
-          tf = ~isempty(regexp(res,jIDshort,'once'));
+          tf = isempty(regexp(res,jIDshort,'once'));
         else
           tf = false;
         end
@@ -62,10 +91,10 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       %touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
       [st,res] = system(touchcmd);
       if st~=0
-        warningNoTrace('Failed to create KILLED token: %s',kfile);
+        warningNoTrace('Failed to create KILLED token: %s',killtoken);
         tfsucc = false;
       else
-        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',kfile);
+        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
         tfsucc = true;
       end
     end
