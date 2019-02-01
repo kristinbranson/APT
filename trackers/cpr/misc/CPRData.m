@@ -513,6 +513,7 @@ classdef CPRData < handle
               end
               
               if tfROI
+                if rotateImsUp
                   tfile = trow.trxFile{iVw};
                   trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
                   [trxx,trxy,trxth] = readtrx(trx,f,iTgt); % using headtailth instead of trxth
@@ -521,9 +522,6 @@ classdef CPRData < handle
     %                   htxy = squeeze(prow(rotateImsHeadTail,iVw,:)); % {head/tail},{x/y}
     %                   htdxy = htxy(1,:)-htxy(2,:); % head-tail
     %                   htth = atan2(htdxy(2),htdxy(1));                  
-                  if ~rotateImsUp
-                      trxth = -pi/2;
-                  end
                   roiDX = roiXhi-roiXlo; % span is <this>+1, expected to be odd
                   roiDY = roiYhi-roiYlo;
                   assert(roiDX==roiDY && mod(roiDX,2)==0,...
@@ -535,19 +533,19 @@ classdef CPRData < handle
                   % 0,0. We want it to be at (roiRad+1,roiRad+1).
                   Atmp(end,[1 2]) = Atmp(end,[1 2]) + roiRad+1;
                   tformA(:,:,iTrl,iVw) = Atmp;
-%                 else
-%                   if ndims(im) == 2 %#ok<ISMAT>
-%                     imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-%                   elseif ndims(im) == 3
-%                     imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi,1,3);
-%                   else
-%                     error('Undefined number of channels');
-%                   end
-%                   % manually make a translation tform consistent with this
-%                   % padgrab. Could just use CropImAroundTrx all the time.
-%                   Ttmp = [1 0 0;0 1 0;-(roiXlo-1) -(roiYlo-1) 1];
-%                   tformA(:,:,iTrl,iVw) = Ttmp;
-%                 end
+                else
+                  if ndims(im) == 2 %#ok<ISMAT>
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+                  elseif ndims(im) == 3
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi,1,3);
+                  else
+                    error('Undefined number of channels');
+                  end
+                  % manually make a translation tform consistent with this
+                  % padgrab. Could just use CropImAroundTrx all the time.
+                  Ttmp = [1 0 0;0 1 0;-(roiXlo-1) -(roiYlo-1) 1];
+                  tformA(:,:,iTrl,iVw) = Ttmp;
+                end
               else
                 imroi = im;
                 tformA(:,:,iTrl,iVw) = eye(3);
