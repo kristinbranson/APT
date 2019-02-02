@@ -94,13 +94,6 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       end
       
     end
-    
-    function res = queryJobStatus(obj,jID)
-      
-      res = 'Not implemented.';
-      
-    end
-    
         
   end
     
