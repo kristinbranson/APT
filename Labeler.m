@@ -4605,8 +4605,8 @@ classdef Labeler < handle
     end
     
     function setShowPredTxtLbl(obj,tf)
-      assert(isscalar(tf) && islogical(tf));
-      obj.showPredTxtLbl = tf;
+      assert(isscalar(tf));
+      obj.showPredTxtLbl = logical(tf);
       obj.updateShowPredTxtLbl();
     end
     
@@ -8413,6 +8413,7 @@ classdef Labeler < handle
       if iTrk>0
         tAll{iTrk}.setHideViz(false);
       end
+      obj.labelingInit();
     end
         
     function trackSetParams(obj,sPrm)

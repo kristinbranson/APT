@@ -42,7 +42,7 @@ classdef ShiftArrowMovieNavMode
             tffound = false;
             f = nan;
           else
-            lpos = tObj.xyPrdCurrMovie;
+            lpos = tObj.getTrackingResultsCurrMovie();
             [tffound,f] = Labeler.seekBigLpos(lpos,f0,dir,lObj.currTarget);
           end
         otherwise

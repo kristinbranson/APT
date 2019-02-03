@@ -23,7 +23,9 @@ classdef TrainMonitorViz < handle
         'Show log files'...
         'Show error messages'}},...
       'Docker',...
-        {{'Update training monitor plots'...
+        {{'List all docker jobs'...
+        'Show training jobs'' status',...
+        'Update training monitor plots'...
         'Show log files'...
         'Show error messages'}},...
       'AWS',...
@@ -33,6 +35,7 @@ classdef TrainMonitorViz < handle
   end
   
   methods
+    
     function obj = TrainMonitorViz(nview,dtObj,trainWorkerObj,backEnd)
       obj.dtObj = dtObj;
       obj.trainWorkerObj = trainWorkerObj;
@@ -80,11 +83,13 @@ classdef TrainMonitorViz < handle
       obj.hlinekill = hkill;
       obj.resLast = [];
     end
+    
     function delete(obj)
       deleteValidHandles(obj.hfig);
       obj.hfig = [];
 %       obj.haxs = [];
     end
+    
     function resultsReceived(obj,sRes,forceupdate)
       % Callback executed when new result received from training monitor BG
       % worker
@@ -159,8 +164,6 @@ classdef TrainMonitorViz < handle
 
       obj.updateAnn(res);
 
-%           
-%           
 %         fprintf(1,'View%d: jsonPresent: %d. ',ivw,res(ivw).jsonPresent);
 %         if res(ivw).tfUpdate
 %           fprintf(1,'New training iter: %d.\n',res(ivw).lastTrnIter);
@@ -170,6 +173,7 @@ classdef TrainMonitorViz < handle
 %           fprintf(1,'\n');
 %         end
     end
+    
     function updateAnn(obj,res)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
@@ -231,6 +235,7 @@ classdef TrainMonitorViz < handle
 %       hAnn.Position(1) = ax.Position(1)+ax.Position(3)-hAnn.Position(3);
 %       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
     end
+    
     function adjustAxes(obj,lineUpdateMaxStep)
       for i=1:numel(obj.haxs)
         ax = obj.haxs(i);
@@ -290,7 +295,7 @@ classdef TrainMonitorViz < handle
         case 'Update training monitor plots',
           obj.updateMonitorPlots();
           drawnow;
-        case 'List all jobs on cluster',
+        case {'List all jobs on cluster','List all docker jobs'}
           ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
           drawnow;
