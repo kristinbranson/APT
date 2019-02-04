@@ -1708,7 +1708,7 @@ classdef Labeler < handle
       % MK 20190204. Use Unbundling instead of loading.
       % Model files are copied to cache dir later.
       [success, tlbl] = obj.unbundleLoad(fname);
-      if ~success, error('Could not unbunle the label file %s',fname); end
+      if ~success, error('Could not unbundle the label file %s',fname); end
       s = load(tlbl,'-mat');
 %       s = load(fname,'-mat');  
 
@@ -1853,8 +1853,11 @@ classdef Labeler < handle
           % the only possibility is that it is already a fullpath
         end
       end
-        
-      s = load(fname,'-mat');
+       
+      [success, tlbl] = obj.unbundleLoad(fname);
+      if ~success, error('Could not unbundle the label file %s',fname); end
+      s = load(tlbl,'-mat');
+%       s = load(fname,'-mat');
       if s.nLabelPoints~=obj.nLabelPoints
         error('Labeler:projImport','Project %s uses nLabelPoints=%d instead of %d for the current project.',...
           fname,s.nLabelPoints,obj.nLabelPoints);
