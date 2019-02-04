@@ -86,10 +86,10 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       
       jobids = obj.jobID;
       nvw = obj.nviews;
-      assert(isequal(nvw,numel(jobids)));
+      %assert(isequal(nvw,numel(jobids)));
       
-      res = cell(1,nvw);
-      for ivw=1:nvw
+      res = repmat({''},[1,nvw]);
+      for ivw=1:numel(jobids),
         res{ivw} = obj.queryJobStatus(jobids(ivw));
       end
       

@@ -1724,7 +1724,7 @@ classdef DeepTracker < LabelTracker
       baseargsaug = hmapArgs;
       baseargsaug = [baseargsaug {'model_file' modelFiles}]; 
       if tfcrop
-        baseargsaug = [baseargsaug {'croproi' cropRoi}]; 
+        baseargsaug = [baseargsaug {'croproi' cropRois}]; 
       end
       if tftrx
         if ~isexternal,
@@ -1768,7 +1768,7 @@ classdef DeepTracker < LabelTracker
         %outfile2 = fullfile(movP,[movS '_' trnstr '_' nowstr '.log2']);
         fprintf('View %d: trkfile will be written to %s\n',ivw,trkfiles{ivw});  
         
-        trksysinfo.parttrkfile{ivw} = [trkfile,'.part'];
+        trksysinfo.parttrkfile{ivw} = [trkfiles{ivw},'.part'];
         if exist(trksysinfo.parttrkfile{ivw},'file'),
           fprintf('Deleting partial tracking result %s',trksysinfo.parttrkfile{ivw});
           try
@@ -1779,7 +1779,7 @@ classdef DeepTracker < LabelTracker
         end
         
       end
-      trksysinfo.trkfile = trkfile;
+      trksysinfo.trkfile = trkfiles;
       trksysinfo.logfile = outfile;
       trksysinfo.errfile = errfile;
       
@@ -1787,11 +1787,11 @@ classdef DeepTracker < LabelTracker
       [trksysinfo.codestr,trksysinfo.containerName] = ...
         DeepTracker.trackCodeGenDocker(...
         modelChainID,dmc(1).rootDir,dlLblFile,errfile,obj.trnNetType,...
-        mov,trkfile,frm0,frm1,...
+        movs,trkfiles,frm0,frm1,...
         'baseargs',baseargsaug,'mntPaths',singBind,'containerName',containerName,...
         'dockerargs',{'gpuid',gpuids(1)});
       trksysinfo.logcmd = sprintf('%s logs -f %s &> %s &',...
-        obj.dockercmd,trksysinfo(ivw).containerName,...
+        obj.dockercmd,trksysinfo.containerName,...
         outfile);
             
       if obj.dryRunOnly
@@ -2886,9 +2886,9 @@ classdef DeepTracker < LabelTracker
       end
       codestr = [codestr ' -err_file ' errfile ' -type ' char(nettype)];
       if ~isempty(model_file),
-        codestr = sprintf('%s -model_file %s',codestr,model_file);
+        codestr = sprintf('%s -model_file %s',codestr,cell2spacedargs(model_file));
       end
-      codestr = [codestr sprintf(' %s track -mov %s -out %s',dllbl,movtrk,outtrk)];
+      codestr = [codestr sprintf(' %s track -mov %s -out %s',dllbl,cell2spacedargs(movtrk),cell2spacedargs(outtrk))];
       if ~isempty(frm0) && ~isempty(frm1),
         codestr = [codestr, sprintf(' -start_frame %d -end_frame %d',frm0,frm1)];
       end
