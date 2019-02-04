@@ -2361,9 +2361,13 @@ classdef DeepTracker < LabelTracker
     
     function trkCompleteCbk(obj,res)
       
-      isexternal = iscell(res.mIdx);
+      isexternal = iscell(res(1).mIdx);
       if isexternal,
-        fprintf('Tracking complete for %s, results saved to %s.\n',res.movfile,res.trkfile);
+        % AL: guessing here didn't test
+        for i=1:numel(res)
+          fprintf('Tracking complete for %s, results saved to %s.\n',...
+            res(i).movfile,res(i).trkfile);
+        end
         return;
       end
       mIdx = [res.mIdx];

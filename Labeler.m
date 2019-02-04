@@ -8353,6 +8353,7 @@ classdef Labeler < handle
       if iTrk>0
         tAll{iTrk}.setHideViz(false);
       end
+      obj.labelingInit();
     end
         
     function trackSetParams(obj,sPrm)
