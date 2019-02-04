@@ -48,6 +48,7 @@ classdef Labeler < handle
     DLCONFIGINFOURL = 'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking'; 
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
+    DEFAULT_RAW_LABEL_FILENAME = 'label_file.lbl';
   end
   properties (Hidden)
     % Don't compute as a Constant prop, requires APT path initialization
@@ -110,6 +111,7 @@ classdef Labeler < handle
   properties (SetObservable)
     projname              % init: PN
     projFSInfo;           % filesystem info
+    tname;                % temp dir name to save the raw label file
   end
   properties (SetAccess=private)
     projMacros = struct(); % scalar struct, filesys macros. init: PN
@@ -1459,7 +1461,7 @@ classdef Labeler < handle
       sMirror.(fld) = v(:);
       
     end
-    
+        
   end
   
   %% Project/Lbl files
@@ -1549,9 +1551,11 @@ classdef Labeler < handle
     end
       
     function projSaveRaw(obj,fname)
-      s = obj.projGetSaveStruct();
-      save(fname,'-mat','-struct','s');
-
+      s = obj.projGetSaveStruct(); %#ok<NASGU>
+      rawLblFile = getRawLblFile(obj);
+      save(rawLblFile,'-mat','-struct','s');
+      success = obj.bundleSave(fname);
+      if ~success, error('Could not bundle the label file %s',fname); end
       obj.labeledposNeedsSave = false;
       obj.needsSave = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
@@ -1701,7 +1705,13 @@ classdef Labeler < handle
         end
       end
       
-      s = load(fname,'-mat');
+      % MK 20190204. Use Unbundling instead of loading.
+      % Model files are copied to cache dir later.
+      [success, tlbl] = obj.unbundleLoad(fname);
+      if ~success, error('Could not unbunle the label file %s',fname); end
+      s = load(tlbl,'-mat');
+%       s = load(fname,'-mat');  
+
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
         error('Labeler:load','Unexpected contents in Label file.');
       end
@@ -1814,6 +1824,11 @@ classdef Labeler < handle
       end
       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
+      newCacheDir = obj.copyModelsToCache(obj.trackDLParams.CacheDir);
+      assert(strcmp(newCacheDir, obj.trackDLParams.CacheDir));
+      %TODO: MK 20190204 -- replace the assert with call to update the cache
+      %directory.
+      
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
       %obj.notify('cropIsCropModeChanged');
@@ -1909,6 +1924,135 @@ classdef Labeler < handle
         [~,fnameS] = fileparts(obj.projectfile);
         obj.projname = fnameS;
       end
+    end
+    
+        % Functions to handle bundled label files
+        % MK 20190201
+    function [success, rawLblFile] = unbundleLoad(obj, fname)
+      % Unbundles the lbl file if it is a tar bundle.
+      % Return the path to untarred label file.
+      % MK 20190201
+      tname = tempname;
+      obj.tname = tname;
+      [success, message, ~] = mkdir(tname);
+      if ~success
+        warning('Could not create temp directory %s for unbundling: %s',tname, message);
+        return
+      end
+      rawLblFile = fullfile(tname, obj.DEFAULT_RAW_LABEL_FILENAME);
+      
+      try
+        untar(fname,tname);
+      catch ME
+        if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile')
+          warning('Label file %s is not bundled. Using it in raw mat format',fname);
+          [success, message, ~] = copyfile(fname, rawLblFile);
+          if ~success
+            warning('Could not copy lbl files for bundling: %s',message)         
+          end
+          return;
+        end
+      end
+      if ~exist(rawLblFile,'file')
+        warning('Could not find raw label file in the bundled label file %s',fname);
+        success = false;
+        return;
+      end   
+      success = true;
+    end
+    
+    function cacheDir = copyModelsToCache(obj,cacheDir)
+      % copies the unbundled model file to cacheDir. 
+      % If cacheDir doesn't exist asks user for new one.
+      % assumes tname is set
+      success = false;
+      tCacheDir = fullfile(obj.tname,obj.projname);
+      if ~exist(tCacheDir,'dir')
+        warning('Could not find model data for %s in the temp directory %s. Not copying the model files',obj.projname,obj.tname);
+        return;
+      end
+      if ~exist(cacheDir,'dir')
+%         [success,message,messageid] = mkdir(cacheDir);
+        cacheDir = uigetdir();
+        if cacheDir == 0
+          warning('No local cache dir selected. Could not restore the model files. Saved models will not be available for use');
+        end
+      end
+      outdir = fullfile(cacheDir,obj.projname);
+      if ~exist(outdir,'dir')
+        [success,message,~] = mkdir(outdir);
+        if ~success
+          error('Could not create directory %s in the cache. Not copying the model files: %s',outdir,message);
+        end
+      end
+      [success, message, ~] = copyfile(tCacheDir, outdir);
+      if ~success
+        warning('Could not copy model files to local cache dir %s',cacheDir);
+        warning(message);
+      end
+    end
+    
+    function rawLblFile = getRawLblFile(obj)
+      tname = obj.tname;
+      rawLblFile = fullfile(tname, obj.DEFAULT_RAW_LABEL_FILENAME);
+    end
+    
+    function [success] = bundleSave(obj, outFile)
+      success = false;
+      tname = obj.tname;
+      rawLblFile = fullfile(tname, obj.DEFAULT_RAW_LABEL_FILENAME);
+      if ~exist(rawLblFile,'file')
+        error('Raw label file %s does not exist. Could not create bundled label file',rawLblFile);
+      end     
+      allModelFiles = {rawLblFile};
+      
+      % find the model files and then bundle them into the tar directory.
+      % but since there isn't much in way of relative path support in
+      % matlabs tar/zip functions, we will also have to copy them first the
+      % temp directory. sigh.
+      if ~isempty(obj.tracker)
+        % a lot of unnecessary moving around is to maintain the directory
+        % structure - MK 20190204
+        for ndx = 1:numel(obj.tracker.trnLastDMC)
+          dm = obj.tracker.trnLastDMC(ndx);
+          modelFile = dm.trainCurrIndexLnx;
+          [dd,ff,~] = fileparts(modelFile);
+          modelFile = fullfile(dd,ff);
+          allFiles = dir([modelFile '*']);
+          modelFiles = {allFiles(:).name};
+          modelFiles = cellfun(@(x) fullfile(dd,x), modelFiles,'UniformOutput',false);        
+          modelFiles{end+1} = dm.trainDataLnx; %#ok<AGROW>
+          ckptFile = fullfile(dd,'deepnet_ckpt') ;
+          if exist(ckptFile,'file')
+            modelFiles{end+1} = ckptFile;%#ok<AGROW>
+          end
+          rawDataFile = fullfile(dd,'traindata');
+          if exist(rawDataFile,'file')
+            modelFiles{end+1} = rawDataFile;%#ok<AGROW>
+          end
+          tdir = strrep(dm.dirModelChainLnx, dm.rootDir, tname);
+          if ~exist(tdir,'dir')
+            [success,message,messageid] = mkdir(tdir);
+            if ~success
+              error('Could not bundle models into label file %s',message);
+            end
+          end
+          for mndx = 1:numel(modelFiles)
+            [success,message,messageid] = copyfile(modelFiles{mndx},tdir);
+            if ~success
+              error('Could not bundle models into label file %s',message);
+            end
+            [~,curF,curE] = fileparts(modelFiles{mndx});
+            allModelFiles{end+1} = fullfile(tdir,[curF curE]);%#ok<AGROW>
+          end
+        end
+      end
+      allModelFiles = cellfun(@(x) strrep(x,[tname filesep],''),allModelFiles,'UniformOutput',false);
+      tar([outFile '.tar'],allModelFiles,tname);
+      movefile([outFile '.tar'],outFile); 
+      % matlab by default adds the .tar. So save it to tar
+      % and then move it.
+      success = true;
     end
     
   end
@@ -5259,7 +5403,7 @@ classdef Labeler < handle
         tic;
       end
       for i = 1:nf
-        if tfWaitBar && toc >= .25,
+        if tfWaitBar && toc >= .25
           waitbar(i/nf,hWB);
           tic;
         end

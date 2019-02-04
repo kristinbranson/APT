@@ -234,9 +234,9 @@ def get_pred_fn(cfg, model_file=None,name='deepnet'):
 
     if model_file is None:
         ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
-        latest_ckpt = tf.train.get_checkpoint_state( cfg.cachedir, ckpt_file)
-        init_weights = latest_ckpt.model_checkpoint_path
+        latest_ckpt = tf.train.get_checkpoint_state(cfg.cachedir, ckpt_file)
         model_file = latest_ckpt.model_checkpoint_path
+        init_weights = model_file
     else:
         init_weights = model_file
 
@@ -262,6 +262,19 @@ def get_pred_fn(cfg, model_file=None,name='deepnet'):
         sess.close()
 
     return pred_fn, close_fn, model_file
+
+def model_files(cfg, name='deepnet'):
+    ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
+    if not os.path.exists(ckpt_file):
+        return []
+    latest_ckpt = tf.train.get_checkpoint_state(cfg.cachedir, ckpt_file)
+    latest_model_file = latest_ckpt.model_checkpoint_path
+    import glob
+    all_model_files = glob.glob(latest_model_file + '.*')
+    train_data_file = os.path.join( cfg.cachedir, 'traindata')
+    all_model_files.extend([ckpt_file, train_data_file])
+
+    return all_model_files
 
 
 if __name__ == '__main__':

@@ -459,7 +459,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             print(p_str)
 
-            train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
+            train_data_file = PoseTools.get_train_data_file(conf, name)
 
             json_data = {}
             for x in self.train_info.keys():
@@ -534,6 +534,15 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
     close_fn = K.clear_session
 
     return pred_fn, close_fn, latest_model_file
+
+
+def model_files(conf, name):
+    latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
+    if latest_model_file is None:
+        return None
+    traindata_file = PoseTools.get_train_data_file(conf,name)
+    return [latest_model_file, traindata_file + '.json']
+
 
 if __name__ == "__main__":
     # Turn interactive plotting off
