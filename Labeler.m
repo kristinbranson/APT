@@ -1824,10 +1824,20 @@ classdef Labeler < handle
       end
       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
+      %MK 20190204 copy models to cache dir for bundled label file.
+      % reset movIdx2trkfile.
       newCacheDir = obj.copyModelsToCache(obj.trackDLParams.CacheDir);
-      assert(strcmp(newCacheDir, obj.trackDLParams.CacheDir));
-      %TODO: MK 20190204 -- replace the assert with call to update the cache
-      %directory.
+      if ~strcmp(newCacheDir, obj.trackDLParams.CacheDir)
+        obj.trackDLParams.CacheDir = newCacheDir;
+        for ndx = 1:numel(obj.tracker.trnLastDMC)
+          obj.tracker.trnLastDMC(ndx).rootDir = cacheDir;
+        end
+        for ndx = 1:numel(obj.trackersAll)
+            if isprop(obj.trackersAll{ndx},'movIdx2trkfile')
+                obj.trackersAll{ndx}.movIdx2trkfile = containers.Map();
+            end
+        end
+      end
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -1976,9 +1986,13 @@ classdef Labeler < handle
       end
       if ~exist(cacheDir,'dir')
 %         [success,message,messageid] = mkdir(cacheDir);
-        cacheDir = uigetdir();
-        if cacheDir == 0
+        warndlg('Cache dir for deep learning does not exist. Please select a new cache dir','Cache Dir');
+        newCacheDir = uigetdir('','Select cache dir');
+        if newCacheDir == 0
           warning('No local cache dir selected. Could not restore the model files. Saved models will not be available for use');
+          return
+        else
+          cacheDir = newCacheDir;
         end
       end
       outdir = fullfile(cacheDir,obj.projname);
@@ -2013,7 +2027,7 @@ classdef Labeler < handle
       % but since there isn't much in way of relative path support in
       % matlabs tar/zip functions, we will also have to copy them first the
       % temp directory. sigh.
-      if ~isempty(obj.tracker)
+      if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
         % a lot of unnecessary moving around is to maintain the directory
         % structure - MK 20190204
         for ndx = 1:numel(obj.tracker.trnLastDMC)
