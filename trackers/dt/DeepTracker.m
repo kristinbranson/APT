@@ -333,7 +333,7 @@ classdef DeepTracker < LabelTracker
       if freemem(nrequest) < minFreeMem, %#ok<PROPLC>
         i = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
         freemem = freemem(1:i);
-        gpuid = gpuInfo.id(order(1:nrequest));
+        gpuid = gpuInfo.id(order(1:i));
         return;
       end
       freemem = freemem(1:nrequest);
@@ -1373,8 +1373,9 @@ classdef DeepTracker < LabelTracker
         [trxfiles,trkfiles,f0,f1,cropRois,targets] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{});
         assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
-        [nmovies,nview] = size(movfiles);
-
+        [nmovies,nview] = size(movfiles); %#ok<ASGLU>
+        assert(nmovies == 1,'Only single movie tracking is implemented currently');
+        
         if obj.lObj.hasTrx,
           assert(all(size(trxfiles)==size(movfiles)),'Trx files must be input');
         end
@@ -1520,12 +1521,21 @@ classdef DeepTracker < LabelTracker
               if obj.lObj.hasTrx,
                 args = {'trxfiles',trxfiles(movi,:),'targets',targets{movi}};
               end
-              obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
+              % this is not going to work for multiple movies. TODO: fix
+              tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
                 cropRois{movi},hmapArgs,f0,f1,'movfiles',movfiles(movi,:),'trkfiles',trkfiles(movi,:),args{:});
+              if ~tfSuccess,
+                obj.bgTrkReset();
+                return;
+              end
             end
           else
-            obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1);
+            if ~tfSuccess, 
+              obj.bgTrkReset();
+              return; 
+            end
           end
         case DLBackEnd.Docker,
 
@@ -1533,7 +1543,8 @@ classdef DeepTracker < LabelTracker
           if isexternal,
             gpuids = obj.getFreeGPUs(nmovies*nviews);
             if isempty(gpuids),
-              error('No GPUs available with sufficient RAM locally');
+              warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
+              return;
             elseif numel(gpuids) < nviews,
               isMultiViewTrack = true;
               nMoviesTrack = numel(gpuids);
@@ -1542,7 +1553,7 @@ classdef DeepTracker < LabelTracker
               isMultiViewTrack = false;
             end
             if nMoviesTrack < nmovies,
-              res = questdlg([{sprintf('%d GPUs found locally. Only %d movies can be tracked simultaneously.',numel(gpuids),nMoviesTrack),
+              res = questdlg([{sprintf('%d GPUs found locally. Only %d movies can be tracked simultaneously.',numel(gpuids),nMoviesTrack)
                 'Track the following subset of movies?'}
                 reshape(movfiles(1:nMoviesTrack,:),[nMoviesTrack*nviews,1])],...
                 'Track a subset of movies?','Track','Cancel','Cancel');
@@ -1557,7 +1568,8 @@ classdef DeepTracker < LabelTracker
           else
             gpuids = obj.getFreeGPUs(obj.lObj.nview);
             if isempty(gpuids),
-              error('No GPUs available with sufficient RAM locally');
+              warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
+              return;
             elseif numel(gpuids) < obj.lObj.nview,
               isMultiViewTrack = true;
             else
@@ -1566,26 +1578,43 @@ classdef DeepTracker < LabelTracker
           end
 
           if isexternal,
+            % this is not going to work for multiple movies. TODO: fix
             for movi = 1:size(movfiles,1),
               args = {};
               if obj.lObj.hasTrx,
                 args = {'trxfiles',trxfiles(movi,:),'targets',targets{movi}};
               end
               if isMultiViewTrack,
-                obj.trkSpawnDockerMultiView(trkBackEnd,[],[],dlLblFileLcl,...
+                tfSuccess = obj.trkSpawnDockerMultiView(trkBackEnd,[],[],dlLblFileLcl,...
                   cropRois{movi},hmapArgs,f0,f1,'movfiles',movfiles(movi,:),'trkfiles',trkfiles(movi,:),'gpuids',gpuids,args{:});
+                if ~tfSuccess, 
+                  obj.bgTrkReset();
+                  return; 
+                end
               else
-                obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
+                tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
                   cropRois{movi},hmapArgs,f0,f1,'movfiles',movfiles(movi,:),'trkfiles',trkfiles(movi,:),'gpuids',gpuids,args{:});
+                if ~tfSuccess, 
+                  obj.bgTrkReset();
+                  return; 
+                end
               end
             end
           else
             if isMultiViewTrack,
-              obj.trkSpawnDockerMultiView(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+              tfSuccess = obj.trkSpawnDockerMultiView(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
                 cropRois,hmapArgs,f0,f1,'gpuids',gpuids);
+              if ~tfSuccess, 
+                obj.bgTrkReset();
+                return; 
+              end
             else
-              obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+              tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
                 cropRois,hmapArgs,f0,f1,'gpuids',gpuids);
+              if ~tfSuccess,
+                obj.bgTrkReset();
+                return; 
+              end
             end
           end
         case DLBackEnd.AWS
@@ -1639,9 +1668,10 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = true;      
     end
     
-    function trkSpawnDockerMultiView(obj,backend,mIdx,tMFTConc,dlLblFile,...
+    function tfSuccess = trkSpawnDockerMultiView(obj,backend,mIdx,tMFTConc,dlLblFile,...
         cropRois,hmapArgs,frm0,frm1,varargin)
       
+      tfSuccess = false;
       [movs,trxfiles,trxids,trkfiles,gpuids] = ...
         myparse(varargin,'movfiles',{},'trxfiles',{},'targets',[],'trkfiles',{},'gpuids',[]);
       isexternal = ~isempty(movs);
@@ -1692,9 +1722,9 @@ classdef DeepTracker < LabelTracker
 
       % base args
       baseargsaug = hmapArgs;
-      baseargsaug = [baseargsaug {'model_file' modelFiles}]; %#ok<AGROW>
+      baseargsaug = [baseargsaug {'model_file' modelFiles}]; 
       if tfcrop
-        baseargsaug = [baseargsaug {'croproi' cropRoi}]; %#ok<AGROW>
+        baseargsaug = [baseargsaug {'croproi' cropRoi}]; 
       end
       if tftrx
         if ~isexternal,
@@ -1704,7 +1734,7 @@ classdef DeepTracker < LabelTracker
             trxfiles{ivw} = unique(tMFTConc.trxFile(:,ivw));
           end
         end
-        baseargsaug = [baseargsaug {'trxtrk' trxfiles 'trxids' trxids}]; %#ok<AGROW>
+        baseargsaug = [baseargsaug {'trxtrk' trxfiles 'trxids' trxids}]; 
       else
         trxids = [];
       end
@@ -1767,60 +1797,65 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
+        tfSuccess = true;
+        return;
+      end
+      % start track monitor
+      assert(isempty(obj.bgTrkMonitor));
+      
+      outfiles = trksysinfo.trkfile(:);
+      logfiles = repmat({trksysinfo.logfile},[nView,1]);
+      errfiles = repmat({trksysinfo.errfile},[nView,1]);
+      partfiles = trksysinfo.parttrkfile(:);
+      bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
+      bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
+        logfiles,errfiles,partfiles);
+      
+      tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
+      if any(tfErrFileErr)
+        error('There is an existing error in an error file: ''%s''.',...
+          String.cellstr2CommaSepList(errfiles));
+      end
+      
+      bgTrkMonitorObj = BgTrackMonitor;
+      
+      % KB 20190115: adding trkviz
+      % figure out how many frames are to be tracked
+      %nFramesTrack = size(tMFTConc,1); % this is inaccurate
+      nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
+      fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
+      
+      trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
+      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
+        @obj.trkCompleteCbk);
+      
+      addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
+      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
+      
+      %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
+      obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
+      
+      % spawn jobs
+      fprintf(1,'%s\n',trksysinfo.codestr);
+      [st,res] = system(trksysinfo.codestr);
+      if st==0
+        bgTrkWorkerObj.parseJobID(res,1);
+        fprintf('Tracking job spawned:\n%s\n',res);
+        tfSuccess = true;
       else
-         % start track monitor
-        assert(isempty(obj.bgTrkMonitor));
-        
-        outfiles = trksysinfo.trkfile(:);
-        logfiles = repmat({trksysinfo.logfile},[nView,1]);
-        errfiles = repmat({trksysinfo.errfile},[nView,1]);
-        partfiles = trksysinfo.parttrkfile(:);
-        bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
-        bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
-          logfiles,errfiles,partfiles);
-        
-        tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
-        if any(tfErrFileErr)
-          error('There is an existing error in an error file: ''%s''.',...
-            String.cellstr2CommaSepList(errfiles));
-        end
-
-        bgTrkMonitorObj = BgTrackMonitor;
-        
-        % KB 20190115: adding trkviz
-        % figure out how many frames are to be tracked
-        %nFramesTrack = size(tMFTConc,1); % this is inaccurate
-        nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
-        fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
-        
-        trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);   
-        bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
-          @obj.trkCompleteCbk);
-
-        addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-        addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
-        
-        %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
-        obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
-        
-        % spawn jobs
-        fprintf(1,'%s\n',trksysinfo.codestr);
-        [st,res] = system(trksysinfo.codestr);
-        if st==0
-          bgTrkWorkerObj.parseJobID(res,1);
-          fprintf('Tracking job spawned:\n%s\n',res);
-        else
-          fprintf(2,'Failed to spawn tracking job: %s.\n\n',...
-            res);
-        end
-        
-        obj.trkSysInfo = trksysinfo;
-      end      
+        fprintf(2,'Failed to spawn tracking job: %s.\n\n',...
+          res);
+        tfSuccess = false;
+      end
+      
+      obj.trkSysInfo = trksysinfo;
     end
     
-    function trkSpawnBsubDocker(obj,backend,mIdx,tMFTConc,dlLblFile,...
+    function tfSuccess = trkSpawnBsubDocker(obj,backend,mIdx,tMFTConc,dlLblFile,...
         cropRois,hmapArgs,frm0,frm1,varargin)
       
+      tfSuccess = false;
+
       [movs,trxfiles,trxids,trkfiles,gpuids] = ...
         myparse(varargin,'movfiles',{},'trxfiles',{},'targets',[],'trkfiles',{},'gpuids',[]);
       isexternal = ~isempty(movs);
@@ -1976,70 +2011,76 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
-      else
-         % start track monitor
-        assert(isempty(obj.bgTrkMonitor));
-        
-        outfiles = {trksysinfo.trkfile}';
-        logfiles = {trksysinfo.logfile}';
-        errfiles = {trksysinfo.errfile}';
-        partfiles = {trksysinfo.parttrkfile}';
-        switch backend.type
-          case DLBackEnd.Bsub
-            bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+        tfSuccess = true;
+        return;
+      end
+      % start track monitor
+      assert(isempty(obj.bgTrkMonitor));
+      
+      outfiles = {trksysinfo.trkfile}';
+      logfiles = {trksysinfo.logfile}';
+      errfiles = {trksysinfo.errfile}';
+      partfiles = {trksysinfo.parttrkfile}';
+      switch backend.type
+        case DLBackEnd.Bsub
+          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+        case DLBackEnd.Docker,
+          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
+      end
+      bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
+        logfiles,errfiles,partfiles);
+      
+      tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
+      if any(tfErrFileErr)
+        error('There is an existing error in an error file: ''%s''.',...
+          String.cellstr2CommaSepList(errfiles));
+      end
+      
+      bgTrkMonitorObj = BgTrackMonitor;
+      
+      % KB 20190115: adding trkviz
+      nvw = obj.lObj.nview;
+      % figure out how many frames are to be tracked
+      %nFramesTrack = size(tMFTConc,1); % this is inaccurate
+      nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
+      fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
+      
+      trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
+      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
+        @obj.trkCompleteCbk);
+      
+      addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
+      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
+      
+      %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
+      obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
+      
+      % spawn jobs
+      tfSuccess = true;
+      for ivw=1:nView
+        fprintf(1,'%s\n',trksysinfo(ivw).codestr);
+        [st,res] = system(trksysinfo(ivw).codestr);
+        if st==0
+          bgTrkWorkerObj.parseJobID(res,ivw);
+          fprintf('Tracking job (view %d) spawned:\n%s\n',ivw,res);
+        else
+          fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
+            ivw,res);
+          tfSuccess = false;
+          return;
+        end
+        switch backend.type,
           case DLBackEnd.Docker,
-            bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
+            [st,res] = system(trksysinfo(ivw).logcmd);
+            if st~=0,
+              fprintf(2,'Error logging docker job %s: %s\n',trksysinfo(ivw).containerName,res);
+              tfSuccess = false;
+              return;
+            end
         end
-        bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
-          logfiles,errfiles,partfiles);
+      end
         
-        tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
-        if any(tfErrFileErr)
-          error('There is an existing error in an error file: ''%s''.',...
-            String.cellstr2CommaSepList(errfiles));
-        end
-
-        bgTrkMonitorObj = BgTrackMonitor;
-        
-        % KB 20190115: adding trkviz
-        nvw = obj.lObj.nview;
-        % figure out how many frames are to be tracked
-        %nFramesTrack = size(tMFTConc,1); % this is inaccurate
-        nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
-        fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
-        
-        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type,nFramesTrack);   
-        bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
-          @obj.trkCompleteCbk);
-
-        addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-        addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
-        
-        %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
-        obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
-        
-        % spawn jobs
-        for ivw=1:nView
-          fprintf(1,'%s\n',trksysinfo(ivw).codestr);
-          [st,res] = system(trksysinfo(ivw).codestr);
-          if st==0
-            bgTrkWorkerObj.parseJobID(res,ivw);
-            fprintf('Tracking job (view %d) spawned:\n%s\n',ivw,res);
-          else
-            fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
-              ivw,res);
-          end
-          switch backend.type,
-            case DLBackEnd.Docker,
-              [st,res] = system(trksysinfo(ivw).logcmd);
-              if st~=0,
-                fprintf(2,'Error logging docker job %s: %s\n',trksysinfo(ivw).containerName,res);
-              end
-          end
-        end
-        
-        obj.trkSysInfo = trksysinfo;
-      end      
+      obj.trkSysInfo = trksysinfo;
     end
     function nframes = getNFramesTrack(obj,tMFTConc,mIdx,frm0,frm1,trxids)
       
