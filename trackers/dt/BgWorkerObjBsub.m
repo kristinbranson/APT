@@ -43,7 +43,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
-        warningNoTrace('Bkill command failed: %s',res);
+        warningNoTrace('bjobs command failed: %s',res);
       else
         
 %         i = strfind(res,'JOBID');
@@ -63,7 +63,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
-        warningNoTrace('Bkill command failed: %s',res);
+        warningNoTrace('bjobs command failed: %s',res);
       else
         
 %         i = strfind(res,'Job <');

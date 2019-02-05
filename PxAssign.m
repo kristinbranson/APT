@@ -69,7 +69,7 @@ classdef PxAssign
       i = f+trx.off;
       xCtrRound = round(trx.x(i));
       yCtrRound = round(trx.y(i));
-    end    
+    end
     
     function [xlo,xhi,ylo,yhi] = roiTrxCtr(xc,yc,rad)
       xlo = xc-rad;

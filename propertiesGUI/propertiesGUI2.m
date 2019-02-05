@@ -129,8 +129,12 @@ function [hPropsPane,parameters] = propertiesGUI2(hParent,parameters,varargin)
 
 com.mathworks.mwswing.MJUtilities.initJIDE;
 
-[parameterVizHandler,paramCheckerFcn,okButtons] = myparse(varargin,...
-  'parameterVizHandler',[],'paramCheckerFcn',[],'okButtons',[]);
+[parameterVizHandler,paramCheckerFcn,paramConstraints,okButtons] = ...
+  myparse(varargin,...
+  'parameterVizHandler',[],...
+  'paramCheckerFcn',[],...
+  'paramConstraints',[],...
+  'okButtons',[]);
 
 hFig = ancestor(hParent,'figure');
 
@@ -138,7 +142,8 @@ hFig = ancestor(hParent,'figure');
 oldWarn = warning('off','MATLAB:hg:JavaSetHGProperty');
 warning off MATLAB:hg:PossibleDeprecatedJavaSetHGProperty
 assert(isa(parameters,'TreeNode'));
-propsList = preparePropsList(parameters,'',hFig,parameterVizHandler,paramCheckerFcn);
+propsList = preparePropsList(parameters,'',hFig,parameterVizHandler,...
+  paramCheckerFcn,paramConstraints);
 
 % % Create a mapping propName => prop
 % propsHash = java.util.Hashtable;
@@ -294,71 +299,76 @@ else
       paramVizHandler.propSelected(selectedProp);
     end
     if ismember('arrayData',fieldnames(get(selectedProp)))
-      % Get the current data and update it
-      actualData = get(selectedProp,'ArrayData');
-      updateDataInPopupTable(selectedProp.getName, actualData, hFig, selectedProp, paramCheckerFcn);
+      % AL 20190127 dealing with ImageProc>BodyTracking>Align which has a
+      % dependency with CPR>Rot Correction>Movie Orientation.
+      % asserting out unused codepaths 
+      assert(false,'Table data unsupported.'); 
+      
+%       % Get the current data and update it
+%       actualData = get(selectedProp,'ArrayData');
+%       updateDataInPopupTable(selectedProp.getName, actualData, hFig, selectedProp, paramCheckerFcn);
     end
   end
 end
 end %Mouse pressed
 
-% Update data in a popup table
-function updateDataInPopupTable(titleStr, data, hGridFig, selectedProp, paramCheckerFcn)
-figTitleStr = [char(titleStr) ' data'];
-hFig = findall(0, '-depth',1, 'Name',figTitleStr);
-if isempty(hFig)
-  hFig = figure('NumberTitle','off', 'Name',figTitleStr, 'Menubar','none', 'Toolbar','none');
-else
-  figure(hFig);  % bring into focus
-end
-try
-  mtable = createTable(hFig, [], data);
-  set(mtable,'DataChangedCallback',{@tableDataUpdatedCallback,hGridFig,selectedProp,paramCheckerFcn});
-  %uiwait(hFig)  % modality
-catch
-  delete(hFig);
-  errMsg = {'Editing this data requires Yair Altman''s Java-based data table (createTable) utility from the Matlab File Exchange.', ...
-    ' ', 'If you have already downloaded and unzipped createTable, then please ensure that it is on the Matlab path.'};
-  uiwait(msgbox(errMsg,'Error','warn'));
-  web('http://www.mathworks.com/matlabcentral/fileexchange/14225-java-based-data-table');
-end
-end  % updateDataInPopupTable
+% % Update data in a popup table
+% function updateDataInPopupTable(titleStr, data, hGridFig, selectedProp, paramCheckerFcn)
+% figTitleStr = [char(titleStr) ' data'];
+% hFig = findall(0, '-depth',1, 'Name',figTitleStr);
+% if isempty(hFig)
+%   hFig = figure('NumberTitle','off', 'Name',figTitleStr, 'Menubar','none', 'Toolbar','none');
+% else
+%   figure(hFig);  % bring into focus
+% end
+% try
+%   mtable = createTable(hFig, [], data);
+%   set(mtable,'DataChangedCallback',{@tableDataUpdatedCallback,hGridFig,selectedProp,paramCheckerFcn});
+%   %uiwait(hFig)  % modality
+% catch
+%   delete(hFig);
+%   errMsg = {'Editing this data requires Yair Altman''s Java-based data table (createTable) utility from the Matlab File Exchange.', ...
+%     ' ', 'If you have already downloaded and unzipped createTable, then please ensure that it is on the Matlab path.'};
+%   uiwait(msgbox(errMsg,'Error','warn'));
+%   web('http://www.mathworks.com/matlabcentral/fileexchange/14225-java-based-data-table');
+% end
+% end  % updateDataInPopupTable
 
-% User updated the data in the popup table
-function tableDataUpdatedCallback(mtable,eventData,hFig,selectedProp,paramCheckerFcn) %#ok<INUSL>
-% Get the latest data
-updatedData = cell(mtable.Data);
-try
-  if ~iscellstr(updatedData)
-    updatedData = cell2mat(updatedData);
-  end
-catch
-  % probably hetrogeneous data
-end
-
-propName = getRecursivePropName(selectedProp); % get the property name
-set(selectedProp,'ArrayData',updatedData); % update the appdata of the
-% specific property containing the actual information of the array
-
-%% Update the displayed value in the properties GUI
-dataClass = class(updatedData);
-value = regexprep(sprintf('%dx',size(updatedData)),{'^(.)','x$'},{'<$1',['> ' dataClass ' array']});
-% set(selectProp,'value',value);
-selectedProp.setValue(value); % update the table
-
-% Update the display
-propsList = getappdata(hFig, 'propsList');
-checkProps(propsList, hFig, [], paramCheckerFcn);
-
-% Refresh the GUI
-propsPane = getappdata(hFig, 'jPropsPane');
-try propsPane.repaint; catch; end
-
-% Update the local mirror
-data = getappdata(hFig, 'mirror');
-eval(['data.' propName ' = updatedData;']);
-setappdata(hFig, 'mirror',data);
-end  % tableDataUpdatedCallback
+% % User updated the data in the popup table
+% function tableDataUpdatedCallback(mtable,eventData,hFig,selectedProp,paramCheckerFcn) %#ok<INUSL>
+% % Get the latest data
+% updatedData = cell(mtable.Data);
+% try
+%   if ~iscellstr(updatedData)
+%     updatedData = cell2mat(updatedData);
+%   end
+% catch
+%   % probably hetrogeneous data
+% end
+% 
+% propName = getRecursivePropName(selectedProp); % get the property name
+% set(selectedProp,'ArrayData',updatedData); % update the appdata of the
+% % specific property containing the actual information of the array
+% 
+% %% Update the displayed value in the properties GUI
+% dataClass = class(updatedData);
+% value = regexprep(sprintf('%dx',size(updatedData)),{'^(.)','x$'},{'<$1',['> ' dataClass ' array']});
+% % set(selectProp,'value',value);
+% selectedProp.setValue(value); % update the table
+% 
+% % Update the display
+% propsList = getappdata(hFig, 'propsList');
+% checkProps(propsList, hFig, [], paramCheckerFcn);
+% 
+% % Refresh the GUI
+% propsPane = getappdata(hFig, 'jPropsPane');
+% try propsPane.repaint; catch; end
+% 
+% % Update the local mirror
+% data = getappdata(hFig, 'mirror');
+% eval(['data.' propName ' = updatedData;']);
+% setappdata(hFig, 'mirror',data);
+% end  % tableDataUpdatedCallback
 
 % Determine whether a specified object should be considered as having fields/properties
 % Note: HG handles must be processed seperately for the main logic to work
@@ -586,13 +596,15 @@ end  % demoParameters
 % end
 % end
 
-function propsList = preparePropsList(parameters,fqnBase,hFig,paramVizHandler,paramCheckerFcn)
+function propsList = preparePropsList(parameters,fqnBase,hFig,...
+  paramVizHandler,paramCheckerFcn,paramConstraints)
 % parameters: Tree from parseConfigYaml
 % fqnBase: FQN base for recursion
 
 propsList = java.util.ArrayList();
 for i=1:numel(parameters)
-  newProp = newProperty(parameters(i),@propUpdatedCallback,fqnBase,hFig,paramVizHandler,paramCheckerFcn);
+  newProp = newProperty(parameters(i),@propUpdatedCallback,fqnBase,hFig,...
+    paramVizHandler,paramCheckerFcn,paramConstraints);
   propsList.add(newProp);
 end
 end
@@ -605,7 +617,7 @@ end
 % end
 
 function prop = newProperty(t,propUpdatedCallback,fqnBase,hFig,...
-  paramVizHandler,paramCheckerFcn)
+  paramVizHandler,paramCheckerFcn,paramConstraints)
 
 pgp = t.Data;
 propName = pgp.Field;
@@ -647,7 +659,8 @@ if ~isempty(paramVizHandler) && ~isempty(pvSpec)
 end
 
 for i=1:numel(t.Children)
-  children = toArray(preparePropsList(t.Children(i),fqn,hFig,paramVizHandler,paramCheckerFcn));
+  children = toArray(preparePropsList(t.Children(i),fqn,hFig,...
+    paramVizHandler,paramCheckerFcn,paramConstraints));
   for j = 1:numel(children)
     prop.addChild(children(j));
   end
@@ -716,6 +729,7 @@ else
           sl = javaObjectEDT('aptjava.SpinnerChangeListener');
           sl = handle(sl,'CallbackProperties');
           spinner.addChangeListener(sl);
+          % not passing in paramConstraints yet
           set(sl,'EventCbkCallback',@(s,e)spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn));
           %set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
         end
@@ -736,6 +750,7 @@ else
           sl = javaObjectEDT('aptjava.SpinnerChangeListener');
           sl = handle(sl,'CallbackProperties');
           spinner.addChangeListener(sl);
+          % not passing in paramConstraints yet
           set(sl,'EventCbkCallback',@(s,e)spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn));
           %set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
         end
@@ -786,9 +801,11 @@ if prop.isEditable
   hprop = handle(prop, 'CallbackProperties');
   
   if ~isempty(paramVizHandler) && paramVizHandler.isprop(prop)
-    set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig,paramVizHandler,paramCheckerFcn});
+    set(hprop,'PropertyChangeCallback',...
+      {propUpdatedCallback,propName,hFig,paramVizHandler,paramCheckerFcn,paramConstraints});
   else
-    set(hprop,'PropertyChangeCallback',{propUpdatedCallback,propName,hFig,[],paramCheckerFcn});
+    set(hprop,'PropertyChangeCallback',...
+      {propUpdatedCallback,propName,hFig,[],paramCheckerFcn,paramConstraints});
   end
 else
   prop.setDisplayName(['<html><font color="gray">' label]);
@@ -800,7 +817,7 @@ end
 function spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn)
 
 val = e.spinnerValue;
-propUpdatedCallback(prop,e,propName,hFig,[],paramCheckerFcn,val);
+propUpdatedCallback(prop,e,propName,hFig,[],paramCheckerFcn,[],val); % not passing paramConstraints yet
 
 if ~isempty(paramVizHandler) && paramVizHandler.isprop(prop)
   paramVizHandler.propUpdatedSpinner(prop,pvObj,e,getRecursivePropName(prop, propName));
@@ -919,7 +936,8 @@ end
 com.jidesoft.grid.CellEditorManager.registerEditor(propType, editor, context);
 end  % alignProp
 
-function propUpdatedCallback(prop,eventData,propName,hFig,paramVizHandler,paramCheckerFcn,val)
+function propUpdatedCallback(prop,eventData,propName,hFig,paramVizHandler,...
+  paramCheckerFcn,paramConstraints,val)
 % paramVizHandler: optional, if present then paramVizHandler.isprop(prop)
 % should be true
 
@@ -970,66 +988,15 @@ if isjava(propValue)
   end
 end
 
-propName = getRecursivePropName(prop, propName);
-
-% Find if the original item was a cell array and the mirror accordingly
-items = strread(propName,'%s','delimiter','.');
-% if ~isempty(data)
-%   cpy = data;
-%   for idx = 1 : length(items)
-%     % This is for dealing with structs with multiple levels...
-%     [flag, index] = CheckStringForBrackets(items{idx});
-%     if flag
-%       cpy = cpy(index);
-%     else
-%       if isfield(cpy,items{idx})
-%         cpy = cpy.(items{idx});
-%       else
-%         return
-%       end
-%     end
-%   end
-%   if nargin == 4
-%     if iscell(cpy) && iscell(fileData) %%&& length(fileData)==1 % if mirror and filedata are cells then update the data -> otherwise overright.
-%       propValue=UpdateCellArray(cpy,fileData);
-%     end
-%   else
-%     if iscell(cpy)
-%       propValue = UpdateCellArray(cpy, propValue);
-%     end
-%   end
-% end
-
-% % Check for loading from file and long string which has been truncated
-% if nargin == 4
-%   propValue = checkCharFieldForAbreviation(propValue,fileData);
-%   if ~isempty(propValue) && strcmp(propValue(1),'[') && ~isempty(strfind(propValue,' struct array]'))
-%     propValue = fileData;
-%   end
-%   if isempty(propValue) % a struct
-%     propValue = fileData;
-%   end
-% end
-
-% For items with .(N) in the struct -> remove from path for eval
-%propName = regexprep(propName,'\.(','(');
-
-% Update the mirror with the updated field value
-%data.(propName) = propValue;  % croaks on multiple sub-fields
-%eval(['data.' propName ' = propValue;']);
-nodes = data;
-for i=1:numel(items)
-  it = items{i};
-  flds = arrayfun(@(x)x.Data.Field,nodes,'uni',0);
-  tf = strcmp(flds,it);
-  assert(nnz(tf)==1);
-  node = nodes(tf);
-  nodes = node.Children;
+propName = getRecursivePropName(prop,propName);
+for i=1:numel(paramConstraints)
+  % AL: this business could generate race conditions as propUpdateCallback
+  % gets called on downstream props and checkProps has a drawnow
+  paramConstraints(i).propToBeSet(data,propsList,propName,propValue);
 end
-node.Data.Value = propValue;
+data.setValue(propName,propValue);
+setappdata(hFig,'mirror',data); % AL: shouldn't be nec it seems, handles
 
-setappdata(hFig, 'mirror',data); % AL: shouldn't be nec it seems, handles
- 
 % Update the display
 if isVal,
   extraargs = {propName,val};
@@ -1181,7 +1148,6 @@ end
 renderer.setBackground(propColor);
 
 end
-
 
 function isOk = checkProp(prop)
 isOk = true;

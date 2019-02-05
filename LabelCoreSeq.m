@@ -60,6 +60,13 @@ classdef LabelCoreSeq < LabelCore
       obj.txLblCoreAux.Visible = 'on';
       obj.kpfIPtFor1Key = 1;
       obj.refreshTxLabelCoreAux();
+      
+      % AL 20190203 semi-hack. init to something/anything to avoid error 
+      % with .state unset. Did the same with LabelCoreTemplate. A little
+      % disturbing, something has changed with labelCore init or
+      % Labeler.labelingInit but not clear what. Prob not a super-huge risk
+      % low prob of significant data loss
+      obj.state = LabelState.ADJUST; 
     end
     
     function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSL>

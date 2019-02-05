@@ -22,7 +22,9 @@ classdef TrackMonitorViz < handle
       'Show log files'...
       'Show error messages'}},...
       'Docker',...
-      {{'Update tracking monitor'...
+      {{'List all docker jobs'...
+      'Show tracking jobs'' status',...
+      'Update tracking monitor'...
       'Show log files'...
       'Show error messages'}},...
       'AWS',...
@@ -118,12 +120,28 @@ classdef TrackMonitorViz < handle
               obj.nFramesTracked(ivw) = nanmax(res(ivw).parttrkfileNfrmtracked,...
                 res(ivw).trkfileNfrmtracked);
             else
+              didload = false;
               if isdone,
-                ptrk = load(res(ivw).trkfile,'pTrk','-mat');
+                try
+                  ptrk = load(res(ivw).trkfile,'pTrk','-mat');
+                  didload = true;
+                catch,
+                  warning('isdone = true and coult not load pTrk');
+                end
               else
-                ptrk = load(res(ivw).parttrkfile,'pTrk','-mat');
-              end          
-              obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
+                try
+                  ptrk = load(res(ivw).parttrkfile,'pTrk','-mat');
+                  didload = true;
+                catch,
+                end
+              end
+              if didload && isfield(ptrk,'pTrk'),
+                try
+                  obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
+                catch ME
+                  warning(getReport(ME));
+                end
+              end
             end
             
             if nview > 1,
@@ -265,7 +283,7 @@ classdef TrackMonitorViz < handle
         case 'Update tracking monitor',
           obj.updateMonitorPlots();
           drawnow;
-        case 'List all jobs on cluster',
+        case {'List all jobs on cluster','List all docker jobs'},
           ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
           drawnow;

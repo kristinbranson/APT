@@ -26,6 +26,7 @@ class config(object):
         # rate will be reduced by gamma every decay_step iterations.
 
         # range for contrast, brightness and rotation adjustment
+        self.trx_align_theta = True
         self.horz_flip = False
         self.vert_flip = False
         self.brange = [-0.2, 0.2]

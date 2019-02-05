@@ -180,6 +180,27 @@ classdef APTParameters
       
     end
     
+    function [sPrm,tfChangeMade] = enforceConsistency(sPrm)
+      % enforce constraints amongst complete NEW-style parameters
+      %
+      % sPrm (in): input full new-style param struct
+      % 
+      % sPrm (out): output params, possibly massaged. If massaged, warnings
+      % thrown
+      % tfChangeMade: if any changes made
+      
+      % TODO: reconcile with paramChecker, ParameterTreeConstraint
+      
+      tfChangeMade = false;
+      
+      if sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta && ...
+         strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
+        warningNoTrace('CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta. Setting CPR OrientationType to ''arbitrary''.');
+        sPrm.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';
+        tfChangeMade = true;
+      end
+    end
+    
   end
   methods (Static)
     function sPrm0 = defaultParamsOldStyle

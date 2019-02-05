@@ -305,7 +305,7 @@ classdef CPRData < handle
       md = struct2table(sMD);
     end
     
-    function [I,nmask,didread] = getFrames(tblMF,varargin)
+    function [I,nmask,didread,tformA] = getFrames(tblMF,varargin)
       % Read frames from movies given MF table
       %
       % tblMF: [NxR] MFTable. tblMF.mov is [NxnView] with nView>1 for
@@ -314,30 +314,44 @@ classdef CPRData < handle
       % I: [NxnView] cell vector of images for each row of tbl
       % nmask: [NxnView] number of other CCs masked for each im
       % didread: [NxnView] logical
+      % tformA: [3x3xNxnView] array. affine tform matrices used when .roi
+      %   is present and either ROI-cropping is done or target-cropping via
+      %   rotateImsUp==true is done. This is only safe to use
+      %   when isDLpipeline is true. These tforms are those that should be
+      %   applied to the raw/orig lbls to match the transforms/crops
+      %   applied to generate the images in I. tformA(:,:,irow,ivw) is 
+      %   the tform mat for irow,ivw.
       
       nView = size(tblMF.mov,2);
       
-      [wbObj,forceGrayscale,preload,movieInvert,roiPadVal,doBGsub,bgReadFcn,bgType,...
-        maskNeighbors,maskNeighborsMeth,empPDF,fgThresh,trxCache] = ...
+      [wbObj,forceGrayscale,preload,movieInvert,roiPadVal,...
+        rotateImsUp,isDLpipeline,... %rotateImsHeadTail,rotateImsNumPhysPts,...
+        doBGsub,...
+        bgReadFcn,bgType,trxCache,maskNeighbors,maskNeighborsMeth,empPDF,...
+        fgThresh] = ...
         myparse(varargin,...
           'wbObj',[],... wbObj: WaitBarWithCancel. If canceled, I will be 'incomplete', ie partially filled.
           'forceGrayscale',true,... 
           'preload',false,...
           'movieInvert',false(1,nView),...
           'roiPadVal',0,... % used when tblMF has .roi
+          'rotateImsUp',false,... % if true, rotate all ims so that shape points "up" before cropping.
+                              ... % assumes tblMF has .roi and trxCache is specified
+                              ... % 'rotateImsHeadTail',[],...  % used when rotateImsUp=true. [ihead itail] landmark/pt indices 
+                              ... % 'rotateImsNumPhysPts',nan,... % used when rotateImsUp=true. Number of physical points in tblMF.p. Just a check/assert
+          'isDLpipeline',false,... % if true, check/assert things relevant to DL preproc pipe.
           'doBGsub',false,... % if true, I will contain bg-subbed images
           'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile,movInfo)
                          ... % reads/generates bg image for given movie
           'bgType','other',... % one of {'light on dark','dark on light','other'}
+          'trxCache',[],...
           'maskNeighbors',0,... % if true, neighbor-masking is performed
           ...   % BEGIN USED when maskNeighbors==true;
           'maskNeighborsMeth','Conn. Comp',...
           'maskNeighborsEmpPDF',[],... %used if maskNeighborsMeth=='Emp. PDF'
-          'fgThresh',nan,...
-          'trxCache',[]...
-          ...   % END USED for maskNeighbors
+          'fgThresh',nan...   % END USED for maskNeighbors
           );
-      assert(numel(movieInvert)==nView);      
+      assert(numel(movieInvert)==nView);
       if doBGsub && roiPadVal~=0
         warningNoTrace('Background subtraction enabled. Setting roi pad value to 0.');
 %         roiPadVal = 0;
@@ -351,10 +365,23 @@ classdef CPRData < handle
         roi = tblMF.roi;
       end
       
+      if rotateImsUp
+        assert(tfROI && ~isempty(trxCache));
+        %assert(numel(rotateImsHeadTail)==2);
+        tblfldscontainsassert(tblMF,'p');
+        %assert(size(tblMF.p,2)==nView*rotateImsNumPhysPts*2);
+      end
+
+      if isDLpipeline
+        assert(~doBGsub);
+        assert(~maskNeighbors);
+      end
+      
       % Initialize outputs early, we may early return if user cancels wb.
       I = cell(N,nView);
       didread = false(N,nView);
       nmask = zeros(N,nView);
+      tformA = nan(3,3,N,nView);
             
       for iVw=1:nView
         [movsUn,~,movidx] = unique(tblMF.mov(:,iVw));
@@ -408,6 +435,9 @@ classdef CPRData < handle
             try
             
             if maskNeighbors
+              assert(~isDLpipeline);
+              assert(~rotateImsUp,'Currently unsupported.');
+              
               [imraw,imOrigTy] = mr.readframe(f,'doBGsub',false);
               imdiff = PxAssign.simplebgsub(mr.bgType,double(imraw), ...
                 mr.bgIm,mr.bgDevIm); % Note: mr.flipVert is NOT applied to .bgIm, .bgDevIm
@@ -483,15 +513,42 @@ classdef CPRData < handle
               end
               
               if tfROI
-                if ndims(im) == 2
-                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-                elseif ndims(im) == 3
-                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi,1,3);
+                if rotateImsUp
+                  tfile = trow.trxFile{iVw};
+                  trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
+                  [trxx,trxy,trxth] = readtrx(trx,f,iTgt); % using headtailth instead of trxth
+    %                   prow = trow.p; % doesn't matter if .p is relative to roi or absolute
+    %                   prow = reshape(prow,[rotateImsNumPhysPts nView 2]);
+    %                   htxy = squeeze(prow(rotateImsHeadTail,iVw,:)); % {head/tail},{x/y}
+    %                   htdxy = htxy(1,:)-htxy(2,:); % head-tail
+    %                   htth = atan2(htdxy(2),htdxy(1));                  
+                  roiDX = roiXhi-roiXlo; % span is <this>+1, expected to be odd
+                  roiDY = roiYhi-roiYlo;
+                  assert(roiDX==roiDY && mod(roiDX,2)==0,...
+                    'Expected square roi crop centered around trx.');
+                  roiRad = roiDX/2;
+                  [imroi,Atmp] = CropImAroundTrx(...
+                    im,trxx,trxy,trxth,roiRad,roiRad,'fillvalues',roiPadVal);
+                  % Atmp transforms so that the trx center is located at
+                  % 0,0. We want it to be at (roiRad+1,roiRad+1).
+                  Atmp(end,[1 2]) = Atmp(end,[1 2]) + roiRad+1;
+                  tformA(:,:,iTrl,iVw) = Atmp;
                 else
+                  if ndims(im) == 2 %#ok<ISMAT>
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
+                  elseif ndims(im) == 3
+                    imroi = padgrab(im,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi,1,3);
+                  else
                     error('Undefined number of channels');
+                  end
+                  % manually make a translation tform consistent with this
+                  % padgrab. Could just use CropImAroundTrx all the time.
+                  Ttmp = [1 0 0;0 1 0;-(roiXlo-1) -(roiYlo-1) 1];
+                  tformA(:,:,iTrl,iVw) = Ttmp;
                 end
               else
                 imroi = im;
+                tformA(:,:,iTrl,iVw) = eye(3);
               end
               
               % At this point, im could have varying type depending on movie
@@ -509,7 +566,7 @@ classdef CPRData < handle
         end
         if tfWB
           wbObj.endPeriod();
-        end    
+        end
       end
     end
 

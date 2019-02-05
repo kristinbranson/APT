@@ -255,5 +255,36 @@ classdef MovieReader < handle
     
   end
   
+  methods (Static)
+    
+    function s = getInfo(movfile)
+      
+      obj = MovieReader();
+      obj.open(movfile);
+      s = obj.info;
+      s.nframes = obj.nframes;
+      s.nr = obj.nr;
+      s.nc = obj.nc;
+      s.nchan = obj.nchan;
+      delete(obj);
+      
+    end
+    
+    function nframes = getNFrames(movfile)
+      
+      s = MovieReader.getInfo(movfile);
+      nframes = s.nframes;
+      
+    end
+    
+    function imsz = getFrameSize(movfile)
+      
+      s = MovieReader.getInfo(movfile);
+      imsz = [s.nr,s.nc,s.nchan];
+
+    end
+    
+  end
+  
 end
 

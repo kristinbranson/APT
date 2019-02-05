@@ -34,7 +34,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       obj.artfctErrFiles = dlerrfiles(:);
       obj.artfctPartTrkfiles = partfiles(:);
       for ivw = 1:obj.nviews,
-        obj.killFiles{ivw} = sprintf('%s.%d.KILLED',outfiles{ivw},ivw);
+        obj.killFiles{ivw} = sprintf('%s.%d.KILLED',logfiles{ivw},ivw);
       end
       obj.killFiles = obj.killFiles(:);
     end
@@ -59,13 +59,18 @@ classdef BgTrackWorkerObj < BgWorkerObj
         killFileExists(ivw) = obj.fileExists(obj.killFiles{ivw});
       end
       
+      if iscell(obj.mIdx),
+        mIdx = {obj.mIdx};
+      else
+        mIdx = obj.mIdx;
+      end
       sRes = struct(...
         'tfComplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
         'errFile',obj.artfctErrFiles,... % char, full path to DL err file
         'errFileExists',tfErrFileErr,... % true of errFile exists and has size>0
         'logFile',obj.artfctLogfiles,... % char, full path to Bsub logfile
         'logFileErrLikely',bsuberrlikely,... % true if bsub logfile looks like err
-        'mIdx',obj.mIdx,...
+        'mIdx',mIdx,...
         'iview',num2cell((1:obj.nviews)'),...
         'movfile',obj.movfiles,...
         'trkfile',obj.artfctTrkfiles,...
