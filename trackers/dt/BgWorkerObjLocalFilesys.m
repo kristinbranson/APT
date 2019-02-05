@@ -49,18 +49,19 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       
       %dmcs = obj.dmcs;
       killfiles = obj.getKillFiles();%{dmcs.killTokenLnx};
+      killfiles = unique(killfiles);
       jobids = obj.jobID;
       nvw = obj.nviews;
-      assert(isequal(nvw,numel(jobids),numel(killfiles)));
+      assert(isequal(numel(jobids),numel(killfiles)));
       
-      for ivw=1:nvw
+      for ivw=1:numel(jobids),
         obj.killJob(jobids(ivw));
       end
 
       iterWaitTime = obj.killPollIterWaitTime;
       maxWaitTime = obj.killPollMaxWaitTime;
 
-      for ivw=1:nvw
+      for ivw=1:numel(jobids),
         fcn = obj.makeJobKilledPollFcn(jobids(ivw));
         tfsucc = waitforPoll(fcn,iterWaitTime,maxWaitTime);
         

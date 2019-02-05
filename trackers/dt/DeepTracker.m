@@ -303,11 +303,13 @@ classdef DeepTracker < LabelTracker
           error('Not implemented');
       end
       
+      res0 = res;
       res = regexp(res,'\n','split');
       res = strip(res);
       i0 = find(strcmp(res,'START'),1);
       if isempty(i0),
         warning('Could not find START of GPU info');
+        disp(res0);
         return;
       end
       i0 = i0+1;
@@ -418,7 +420,7 @@ classdef DeepTracker < LabelTracker
       assert(isempty(obj.bgTrnMonBGWorkerObj));
 
       nvw = obj.lObj.nview;
-      assert(numel(dmcs)==nvw);
+      assert((numel(dmcs) == 1 && isempty(dmcs.view)) || numel(dmcs)==nvw);
 
       trnMonObj = BgTrainMonitor;
       addlistener(trnMonObj,'bgStart',@(s,e)obj.notify('trainStart'));
@@ -684,11 +686,11 @@ classdef DeepTracker < LabelTracker
           obj.downloadPretrainedWeights('aptroot',APT.Root); 
           % how many gpus do we have available?
           gpuids = obj.getFreeGPUs(nvw);
-          if isempty(gpuids),
+          if numel(gpuids) < nvw,
             if nvw == 1,
               error('No GPUs with sufficient RAM available locally');
             else
-              gpuids = obj.getFreeGPUs(1);
+              gpuids = gpuids(1);
               isMultiViewTrain = true;
               nTrainJobs = 1;
             end
@@ -704,7 +706,8 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrm.dl_steps);
+        'iterFinal',obj.sPrm.dl_steps,...
+        'isMultiView',isMultiViewTrain);
         %'backEnd',backEnd);
       
       
@@ -764,28 +767,27 @@ classdef DeepTracker < LabelTracker
               dmc(ivw) = dmc(1).copy();
             end
             dmc(ivw).view = ivw-1; % 0-based
+            dmc(ivw).modelChainID = [modelChainID,'_view',num2str(dmc(ivw).view)];
             syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(dmc(ivw),...
               'singArgs',singArgs);
           end
         case DLBackEnd.Docker
           containerNames = cell(nTrainJobs,1);
           logcmds = cell(nTrainJobs,1);
-          for ivw=1:nTrainJobs
+          syscmds = cell(nTrainJobs,1);
+          for ivw=1:nvw,
             if ivw>1
               dmc(ivw) = dmc(1).copy();
             end
-            if isMultiViewTrain,
-              assert(ivw==1);
-              dmc(ivw).view = []; % 0-based
-            else
-              dmc(ivw).view = ivw-1; % 0-based
+            dmc(ivw).view = ivw-1; % 0-based
+            if ivw <= nTrainJobs,
+              gpuid = gpuids(ivw);
+              [syscmds{ivw},containerNames{ivw}] = ...
+                DeepTracker.trainCodeGenDockerDMC(dmc(ivw),mntPaths,gpuid,'isMultiView',isMultiViewTrain);
+              logcmds{ivw} = sprintf('%s logs -f %s &> %s &',...
+                obj.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
             end
-            gpuid = gpuids(ivw);
-            [syscmds{ivw},containerNames{ivw}] = ...
-              DeepTracker.trainCodeGenDockerDMC(dmc(ivw),mntPaths,gpuid);
-            logcmds{ivw} = sprintf('%s logs -f %s &> %s &',...
-              obj.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
-          end          
+          end
         otherwise
           assert(false);
       end
@@ -1373,7 +1375,7 @@ classdef DeepTracker < LabelTracker
         [trxfiles,trkfiles,f0,f1,cropRois,targets] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{});
         assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
-        [nmovies,nview] = size(movfiles); %#ok<ASGLU>
+        [nmovies,nviews] = size(movfiles); %#ok<ASGLU>
         assert(nmovies == 1,'Only single movie tracking is implemented currently');
         
         if obj.lObj.hasTrx,
@@ -1551,6 +1553,8 @@ classdef DeepTracker < LabelTracker
             elseif numel(gpuids) < nmovies*nviews,
               nMoviesTrack = floor(numel(gpuids)/nviews)*nviews;
               isMultiViewTrack = false;
+            else
+              nMoviesTrack = nmovies;
             end
             if nMoviesTrack < nmovies,
               res = questdlg([{sprintf('%d GPUs found locally. Only %d movies can be tracked simultaneously.',numel(gpuids),nMoviesTrack)
@@ -1834,6 +1838,7 @@ classdef DeepTracker < LabelTracker
       
       %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
+      obj.trkSysInfo = trksysinfo;
       
       % spawn jobs
       fprintf(1,'%s\n',trksysinfo.codestr);
@@ -1841,14 +1846,22 @@ classdef DeepTracker < LabelTracker
       if st==0
         bgTrkWorkerObj.parseJobID(res,1);
         fprintf('Tracking job spawned:\n%s\n',res);
-        tfSuccess = true;
       else
         fprintf(2,'Failed to spawn tracking job: %s.\n\n',...
           res);
         tfSuccess = false;
+        return;
       end
+      [st,res] = system(trksysinfo.logcmd);
+      if st==0,
+        tfSuccess = true;
+      else
+        fprintf(2,'Error logging docker job %s: %s\n',trksysinfo.containerName,res);
+        tfSuccess = false;
+        return;
+      end
+
       
-      obj.trkSysInfo = trksysinfo;
     end
     
     function tfSuccess = trkSpawnBsubDocker(obj,backend,mIdx,tMFTConc,dlLblFile,...
@@ -2656,11 +2669,13 @@ classdef DeepTracker < LabelTracker
     function [codestr,containerName] = trainCodeGenDocker(modelChainID,trainID,...
         dllbl,cache,errfile,netType,trainType,view1b,mntPaths,gpuid,varargin)
                   
-      [dockerargs] = myparse(varargin,'dockerargs',{});
+      [dockerargs,isMultiView] = myparse(varargin,'dockerargs',{},'isMultiView',false);
       %fprintf(2,'TODO: restart/trainType\n');
       %baseargs = {'view' view1b};
-      baseargs = {'view' view1b 'trainType' trainType};
-
+      baseargs = {'trainType' trainType};
+      if ~isMultiView,
+        baseargs = [baseargs,{'view' view1b}];
+      end
       basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
         netType,baseargs{:});
 
@@ -2674,10 +2689,10 @@ classdef DeepTracker < LabelTracker
         'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:});
       
     end
-    function [codestr,containerName] = trainCodeGenDockerDMC(dmc,mntPaths,gpuid)
+    function [codestr,containerName] = trainCodeGenDockerDMC(dmc,mntPaths,gpuid,varargin)
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
-        dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.trainType,dmc.view+1,mntPaths,gpuid);
+        dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.trainType,dmc.view+1,mntPaths,gpuid,varargin{:});
     end
     function codestr = trainCodeGenSing(trnID,dllbl,cache,errfile,netType,...
         varargin)
@@ -2884,10 +2899,10 @@ classdef DeepTracker < LabelTracker
       if tfcache
         codestr = [codestr ' -cache ' cache];
       end
-      codestr = [codestr ' -err_file ' errfile ' -type ' char(nettype)];
       if ~isempty(model_file),
-        codestr = sprintf('%s -model_file %s',codestr,cell2spacedargs(model_file));
+        codestr = sprintf('%s -model_files %s',codestr,cell2spacedargs(model_file));
       end
+      codestr = [codestr ' -err_file ' errfile ' -type ' char(nettype)];
       codestr = [codestr sprintf(' %s track -mov %s -out %s',dllbl,cell2spacedargs(movtrk),cell2spacedargs(outtrk))];
       if ~isempty(frm0) && ~isempty(frm1),
         codestr = [codestr, sprintf(' -start_frame %d -end_frame %d',frm0,frm1)];

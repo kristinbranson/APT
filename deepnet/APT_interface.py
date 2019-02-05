@@ -404,8 +404,6 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.normalize_img_mean = False
     elif net_type == 'deeplabcut':
         conf.batch_size = 1
-    elif net_type == 'unet':
-        conf.use_pretrained_weights = False
 
     return conf
 
@@ -917,6 +915,32 @@ def get_augmented_images(conf, out_file, distort=True, on_gt = False, use_cache=
         ims, locs = PoseTools.preprocess_ims(ims,locs,conf,distort,conf.rescale)
 
         hdf5storage.savemat(out_file,{'ims':ims,'locs':locs})
+
+
+def convert_to_orig_list(conf,preds,locs,in_list,view, on_gt=False):
+    '''convert predicted locs back to original image co-ordinates.
+    '''
+    lbl = h5py.File(conf.labelfile, 'r')
+    if on_gt:
+        local_dirs, _ = multiResData.find_gt_dirs(conf)
+    else:
+        local_dirs, _ = multiResData.find_local_dirs(conf)
+
+    if conf.has_trx_file:
+        trx_files = multiResData.get_trx_files(lbl, local_dirs)
+    else:
+        trx_files = [None, ] * len(local_dirs)
+
+    for ndx, dir_name in enumerate(local_dirs):
+
+        cur_list = [[l[1], l[2] ] for l in in_list if l[0] == (ndx )]
+        cur_idx = [i for i, l in enumerate(in_list) if l[0] == (ndx )]
+        crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
+        for cur in cur_list:
+
+            pred_locs[cur_idx, ...] = cur_pred_locs
+
+        cap.close()  # close the movie handles
 
 
 def classify_list(conf, pred_fn, cap, to_do_list, trx_file, crop_loc):
@@ -1553,14 +1577,14 @@ def parse_args(argv):
     parser.add_argument('-name', dest='name', help='Name for the run. Default - pose_unet', default='pose_unet')
     parser.add_argument('-view', dest='view', help='Run only for this view. If not specified, run for all views',
                         default=None, type=int)
-    parser.add_argument('-model_file', dest='model_file',
+    parser.add_argument('-model_files', dest='model_file',
                         help='Use this model file. For tracking this overrides the latest model file. For training this will be used for initialization',
-                        default=None)
+                        default=None,nargs='*')
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
     parser.add_argument('-debug', dest='debug', help='Print debug messages', action='store_true')
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
-    parser.add_argument('-log_file', dest='log_file', help='Log file', default=None)
+    parser.add_argument('-log_file', dest='log_file', help='Err file', default=None)
     parser.add_argument('-conf_params', dest='conf_params', help='conf params. These will override params from lbl file', default=None, nargs='*')
     parser.add_argument('-type', dest='type', help='Network type, default is unet', default='unet',
                         choices=['unet', 'openpose', 'deeplabcut', 'leap', 'mdn'])
@@ -1656,12 +1680,9 @@ def run(args):
             ivw = 0
         else:
             ivw = args.view-1
-        if type(args.model_file) is not list:
-            args.model_file = [args.model_file]
-
         conf = create_conf(lbl_file, ivw, name, net_type=args.type, 
                            cache_dir=args.cache,conf_params=args.conf_params)
-        success,pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file[0], args.out_files[0])
+        success,pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file, args.out_files[0])
         assert success, 'Error classifying list_file ' + args.list_file
 
     elif args.sub_name == 'track':
@@ -1672,7 +1693,11 @@ def run(args):
             if args.trx is None:
                 args.trx = [None] * nviews
             else:
-                assert len(args.mov) == len(args.trx), 'Number of movie files should be same as the number of trx files'
+                assert len(args.trx) == nviews, 'Number of movie files should be same as the number of trx files'
+            if args.model_file is None:
+                args.model_file = [None] * nviews
+            else:
+                assert len(args.model_file) == nviews, 'Number of movie files should be same as the number of trx files'
             if args.crop_loc is not None:
                 assert len(
                     args.crop_loc) == 4 * nviews, 'cropping location should be specified as xlo xhi ylo yhi for all the views'
@@ -1680,8 +1705,11 @@ def run(args):
         else:
             if args.trx is None:
                 args.trx = [None]
+            if args.model_file is None:
+                args.model_file = [None]
             assert len(args.mov) == 1, 'Number of movie files should be one when view is specified'
             assert len(args.trx) == 1, 'Number of trx files should be one when view is specified'
+            assert len(args.model_file) == 1, 'Number of model files should be one when view is specified'
             assert len(args.out_files) == 1, 'Number of out files should be one when view is specified'
             if args.crop_loc is not None:
                 assert len(args.crop_loc) == 4, 'cropping location should be specified as xlo xhi ylo yhi'
@@ -1709,20 +1737,26 @@ def run(args):
                                name=name,
                                save_hmaps=args.hmaps,
                                crop_loc=crop_loc,
-                               model_file=args.model_file,
+                               model_file=args.model_file[view_ndx],
                                train_name=args.train_name
                                )
 
     elif args.sub_name == 'gt_classify':
         if args.view is None:
             views = range(nviews)
+            if args.model_file is None:
+                args.model_file = [None] * nviews
+            else:
+                assert len(args.model_file) == nviews, 'Number of movie files should be same as the number of trx files'
         else:
             views = [args.view]
+            if args.model_file is None:
+                args.model_file = [None]
 
         for view_ndx, view in enumerate(views):
             conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params)
             out_file = args.out_file + '_{}.mat'.format(view)
-            classify_gt_data(args.type, conf, out_file, model_file=args.model_file)
+            classify_gt_data(args.type, conf, out_file, model_file=args.model_file[view_ndx])
 
     elif args.sub_name == 'data_aug':
         if args.view is None:
@@ -1740,8 +1774,14 @@ def run(args):
     elif args.sub_name == 'classify':
         if args.view is None:
             views = range(nviews)
+            if args.model_file is None:
+                args.model_file = [None] * nviews
+            else:
+                assert len(args.model_file) == nviews, 'Number of movie files should be same as the number of trx files'
         else:
             views = [args.view]
+            if args.model_file is None:
+                args.model_file = [None]
 
         for view_ndx, view in enumerate(views):
             conf = create_conf(lbl_file, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
@@ -1759,9 +1799,9 @@ def run(args):
                     raise ValueError('Unrecognized net type')
                 db_file = os.path.join(conf.cachedir, val_filename)
             preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file)
-            # A = convert_to_orig_list(conf,preds,locs, info)
-            # info = to_mat(info)
-            # preds, locs = to_mat(A)
+            A = convert_to_orig_list(conf,preds,locs, info)
+            info = to_mat(info)
+            preds, locs = to_mat(A)
             hdf5storage.savemat(out_file, {'pred_locs': preds, 'labeled_locs': locs, 'list':info},appendmat=False,truncate_existing=True)
 
 

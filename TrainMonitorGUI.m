@@ -129,12 +129,15 @@ function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)
 mode = get(handles.pushbutton_startstop,'UserData');
 if strcmpi(mode,'stop'),
   
-  msgbox({'Training currently in progress. Please stop training before'
-          'closing this monitor. If you have already clicked Stop training,'
-          'please wait for training processes to be killed before closing'
-          'this monitor.'},...
-          'Stop training before closing monitor','modal');
-  return;
+  res = questdlg({'Training currently in progress. Please stop training before'
+    'closing this monitor. If you have already clicked Stop training,'
+    'please wait for training processes to be killed before closing'
+    'this monitor.'
+    'Only override this warning if you know what you are doing.'},...
+    'Stop training before closing monitor','Ok','Override and close anyways','Ok');
+  if ~strcmpi(res,'Ok'),
+    delete(hObject);
+  end
   
 elseif strcmpi(mode,'start') || strcmpi(mode,'done'),
   

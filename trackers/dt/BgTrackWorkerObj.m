@@ -79,7 +79,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'killFileExists',num2cell(killFileExists(:)));
     end
     function logFiles = getLogFiles(obj)
-      logFiles = obj.artfctLogfiles;
+      logFiles = unique(obj.artfctLogfiles);
     end
     function killFiles = getKillFiles(obj)
       killFiles = obj.killFiles;
