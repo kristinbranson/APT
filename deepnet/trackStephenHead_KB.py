@@ -41,7 +41,7 @@ bodylblfile = '/groups/huston/hustonlab/flp-chrimson_experiments/fly2BodyAxis_lo
 # defaulttrackerpath = "/groups/branson/bransonlab/mayank/PoseTF/matlab/compiled/run_compute3Dfrom2D_compiled.sh"
 # defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v92"
 
-defaulttrackerpath = "/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/compiled_20190201/run_compute3Dfrom2D_compiled.sh"
+defaulttrackerpath = "/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/compiled_20190205/run_compute3Dfrom2D_compiled.sh"
 defaultmcrpath = "/groups/branson/bransonlab/mayank/MCR/v94"
 
 def get_crop_locs(lblfile,view,height,width):
