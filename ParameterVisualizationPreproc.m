@@ -107,7 +107,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       nr = obj.initVizInfo.nr;
       nc = obj.initVizInfo.nc;
      
-      [~,~,d] = lObj.tracker.preretrain(obj.initVizInfo.tblPTrn1,[],ppPrms);
+      d = lObj.tracker.fetchPreProcData(obj.initVizInfo.tblPTrn1,ppPrms);
       % make sure that this is the same as if we use the whole data set,
       % histogram equalization might depend on all the data
       

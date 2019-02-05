@@ -21,12 +21,15 @@ classdef DeepTracker < LabelTracker
       '%s/pretrained/resnet_v1_50.ckpt'... 
       };
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
+    minFreeMem = 9000; % in MiB
   end
   properties
     sPrm % new-style DT params
     
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
+      
+    deepnetrunlocal = false; % transient. if true, run the code in APT.root
   end
 %   properties (SetObservable)
 %     backendType % scalar DLBackEnd
@@ -175,7 +178,7 @@ classdef DeepTracker < LabelTracker
   
   %% Params
   methods
-    function setParamContentsSmart(obj,sNew,tfCommonParamsChanged)
+    function setParamContentsSmart(obj,sNew,tfCommonOrPPParamsChanged)
       % Set parameter contents (.sPrm), looking at what top-level fields 
       % have changed and clearing obj state appropriately.
       %
@@ -190,7 +193,7 @@ classdef DeepTracker < LabelTracker
 %       end
         
       tfunchanged = isequaln(sOld,sNew);
-      if tfCommonParamsChanged || ~tfunchanged
+      if tfCommonOrPPParamsChanged || ~tfunchanged
         obj.initHook();
         fprintf(2,'Parameter change: DeepTracker (%s) cleared.\n',...
           char(obj.trnNetType));
@@ -260,6 +263,86 @@ classdef DeepTracker < LabelTracker
   
   %% Backends
   methods
+    
+    % if we don't need to be careful with quotes, we can use this
+    function s = dockercmd(obj)
+      if isempty(APT.DOCKER_REMOTE_HOST),
+        s = 'docker';
+      else
+        s = sprintf('ssh -t %s docker',APT.DOCKER_REMOTE_HOST);
+      end
+    end
+    
+    function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
+      
+      [dockerimg,minFreeMem] = myparse(varargin,'dockerimg','bransonlabapt/apt_docker','minfreemem',obj.minFreeMem); %#ok<PROPLC>
+      
+      gpuid = [];
+      freemem = 0;
+      gpuInfo = [];
+      aptdeepnet = APT.getpathdl;
+      basecmd = sprintf('echo START; python %s/parse_nvidia_smi.py; echo END',aptdeepnet);
+
+      switch obj.lObj.trackDLBackEnd.type,
+        case DLBackEnd.Docker,
+          bindpath = {aptdeepnet};
+          mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),bindpath,'uni',0);
+          mountArgs = sprintf('%s ',mountArgs{:});
+          if isempty(APT.DOCKER_REMOTE_HOST),
+            dockercmd = 'docker';
+            dockercmdend = '';
+          else
+            dockercmd = sprintf('ssh -t %s "docker',APT.DOCKER_REMOTE_HOST);
+            dockercmdend = '"';
+          end
+          codestr = sprintf('%s run -i --runtime nvidia --rm --user $(id -u) -w %s %s %s bash -c ''cd %s; %s''%s',dockercmd,aptdeepnet,mountArgs,dockerimg,aptdeepnet,basecmd,dockercmdend);
+          [st,res] = system(codestr);
+          if st ~= 0,
+            warning('Error getting GPU info: %s',res);
+            return;
+          end
+        otherwise
+          error('Not implemented');
+      end
+      
+      res = regexp(res,'\n','split');
+      res = strip(res);
+      i0 = find(strcmp(res,'START'),1);
+      if isempty(i0),
+        warning('Could not find START of GPU info');
+        return;
+      end
+      i0 = i0+1;
+      i1 = find(strcmp(res(i0+1:end),'END'),1)+i0;
+      res = res(i0+1:i1-1);
+      ngpus = numel(res);      
+      if ngpus < nrequest,
+        return;
+      end
+      gpuInfo = struct;
+      gpuInfo.id = zeros(1,ngpus);
+      gpuInfo.totalmem = zeros(1,ngpus);
+      gpuInfo.freemem = zeros(1,ngpus);
+      for i = 1:ngpus,
+        v = str2double(strsplit(res{i},','));
+        gpuInfo.id(i) = v(1);
+        gpuInfo.freemem(i) = v(2);
+        gpuInfo.totalmem(i) = v(3);
+      end
+      
+      
+      [freemem,order] = sort(gpuInfo.freemem,'descend');
+      if freemem(nrequest) < minFreeMem, %#ok<PROPLC>
+        i = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
+        freemem = freemem(1:i);
+        gpuid = gpuInfo.id(order(1:i));
+        return;
+      end
+      freemem = freemem(1:nrequest);
+      gpuid = gpuInfo.id(order(1:nrequest));
+
+      
+    end
     
 %     function setBackend(obj,backEndType)
 %       if isa(backEndType,'DLBackEnd')
@@ -590,16 +673,8 @@ classdef DeepTracker < LabelTracker
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
       
       % (aws update remote repo)
-      switch backEnd.type
-        case DLBackEnd.Bsub
-          DeepTracker.cloneJRCRepoIfNec(cacheDir);
-          DeepTracker.updateAPTRepoExecJRC(cacheDir);
-          DeepTracker.cpupdatePTWfromJRCProdExec(cacheDir);
-        case DLBackEnd.Docker
-          obj.downloadPretrainedWeights('aptroot',APT.Root); 
-      end
-            
-       % Base DMC, to be further copied/specified per-view
+      
+      % Base DMC, to be further copied/specified per-view
       dmc = DeepModelChainOnDisk(...   
         'rootDir',cacheDir,...
         'projID',obj.lObj.projname,...
@@ -610,6 +685,35 @@ classdef DeepTracker < LabelTracker
         'trainType',trnType,...
         'iterFinal',obj.sPrm.dl_steps);
         %'backEnd',backEnd);
+        
+      nvw = obj.lObj.nview;
+      isMultiViewTrain = false;
+      nTrainJobs = nvw;
+      [dmc.aptRootUser] = deal([]);
+      switch backEnd.type
+        case DLBackEnd.Bsub
+          if obj.deepnetrunlocal
+            aptroot = APT.Root;
+            [dmc.aptRootUser] = deal(aptroot);
+          else
+            DeepTracker.cloneJRCRepoIfNec(cacheDir);
+            DeepTracker.updateAPTRepoExecJRC(cacheDir);
+            DeepTracker.cpupdatePTWfromJRCProdExec(cacheDir);            
+          end
+        case DLBackEnd.Docker
+          obj.downloadPretrainedWeights('aptroot',APT.Root); 
+          % how many gpus do we have available?
+          gpuids = obj.getFreeGPUs(nvw);
+          if isempty(gpuids),
+            if nvw == 1,
+              error('No GPUs with sufficient RAM available locally');
+            else
+              gpuids = obj.getFreeGPUs(1);
+              isMultiViewTrain = true;
+              nTrainJobs = 1;
+            end
+          end
+      end
       
       
       % create/ensure stripped lbl; set trainID
@@ -651,7 +755,6 @@ classdef DeepTracker < LabelTracker
       % At this point
       % We have (modelChainID,trainID). stripped lbl is on disk. 
 
-      nvw = obj.lObj.nview;
       syscmds = cell(nvw,1);
       switch backEnd.type
         case DLBackEnd.Bsub
@@ -673,17 +776,23 @@ classdef DeepTracker < LabelTracker
               'singArgs',singArgs);
           end
         case DLBackEnd.Docker
-          containerNames = cell(nvw,1);
-          logcmds = cell(nvw,1);
-          for ivw=1:nvw
+          containerNames = cell(nTrainJobs,1);
+          logcmds = cell(nTrainJobs,1);
+          for ivw=1:nTrainJobs
             if ivw>1
               dmc(ivw) = dmc(1).copy();
             end
-            dmc(ivw).view = ivw-1; % 0-based
+            if isMultiViewTrain,
+              assert(ivw==1);
+              dmc(ivw).view = []; % 0-based
+            else
+              dmc(ivw).view = ivw-1; % 0-based
+            end
+            gpuid = gpuids(ivw);
             [syscmds{ivw},containerNames{ivw}] = ...
-              DeepTracker.trainCodeGenDockerDMC(dmc(ivw),mntPaths);
-            logcmds{ivw} = sprintf('docker logs -f %s &> %s &',...
-              containerNames{ivw},dmc(ivw).trainLogLnx);
+              DeepTracker.trainCodeGenDockerDMC(dmc(ivw),mntPaths,gpuid);
+            logcmds{ivw} = sprintf('%s logs -f %s &> %s &',...
+              obj.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
           end          
         otherwise
           assert(false);
@@ -698,16 +807,12 @@ classdef DeepTracker < LabelTracker
         
         % spawn training
         if backEnd.type==DLBackEnd.Docker
-          bgTrnWorkerObj.jobID = cell(nvw,1);
-          for iview=1:nvw
+          bgTrnWorkerObj.jobID = cell(nTrainJobs,1);
+          for iview=1:nTrainJobs
             fprintf(1,'%s\n',syscmds{iview});
             [st,res] = system(syscmds{iview});
             if st==0
-              containerID = strtrim(res);
-              fprintf('Training job (view %d) spawned, docker containerID=%s.\n\n',...
-                iview,containerID);
-              % assigning to 'local' workerobj, not the one copied to workers
-              bgTrnWorkerObj.jobID{iview} = containerID; 
+              bgTrnWorkerObj.parseJobID(res,iview);
               
               fprintf(1,'%s\n',logcmds{iview});
               [st2,res2] = system(logcmds{iview});
@@ -722,8 +827,8 @@ classdef DeepTracker < LabelTracker
             end            
           end
         else
-          bgTrnWorkerObj.jobID = nan(nvw,1);
-          for iview=1:nvw
+          bgTrnWorkerObj.jobID = nan(nTrainJobs,1);
+          for iview=1:nTrainJobs
             fprintf(1,'%s\n',syscmds{iview});
             [st,res] = system(syscmds{iview});
             if st==0
@@ -1081,9 +1186,24 @@ classdef DeepTracker < LabelTracker
       end
     end
         
+    function ppdata = fetchPreProcData(obj,tblP,ppPrms)
+      % Fetch preprocessed data per this tracker. Don't update any cache
+      % b/c the preproc params supplied may be "trial"/random.
+      % 
+      % tblP: MFTable
+      % ppPrms: scalar struct, preproc params only.
+      % 
+      % ppdata: CPRData
+            
+      ppdb = obj.lObj.ppdb;
+      [~,ppdata] = ppdb.add(tblP,obj.lObj,'prmpp',ppPrms,'computeOnly',true);
+    end
+    
     function s = trnCreateStrippedLbl(obj,backEnd,varargin)
+      % 
       % - Mutates .trnTblP
-      % - Uploads trxs via AWS (maybe factor this out later)
+      % - can update .lObj.ppdb
+      % - Uploads trxs via AWS (maybe obsolete now)
       % - Can throw
       
       [awsTrxUpload,wbObj] = myparse(varargin,...
@@ -1091,43 +1211,21 @@ classdef DeepTracker < LabelTracker
         'wbObj',[]...
         );
       
-      % Remote-train requires preProcData to be updated for all
-      % training rows/images
-      [tfsucc,obj.trnTblP] = obj.preretrain([],wbObj);
+      [tfsucc,tblPTrn,s] = obj.lObj.trackCreateDeepTrackerStrippedLbl(...
+         'wbObj',wbObj);
       if ~tfsucc
-        obj.trnTblP = [];
-        return;
+        error('Failed to create DL stripped lbl file.');
       end
+                  
+      obj.trnTblP = tblPTrn;
       
+      ITRKER_SLBL = 2;
+      assert(s.trackerData{ITRKER_SLBL}.trnNetType==obj.trnNetType);
+        
       % for images, deepnet will use preProcData; trx files however need
       % to be uploaded
       
-      s = obj.lObj.trackCreateDeepTrackerStrippedLbl(obj.trnTblP);
-      % check with Mayank, thought we wanted number of "underlying" chans
-      % but DL is erring when pp data is grayscale but NumChans is 3
-      s.cfg.NumChans = size(s.preProcData_I{1},3);
-      
       tftrx = obj.lObj.hasTrx;
-      
-      ITRKER_SLBL = 2; % historical
-      if tftrx
-        assert(strcmp(s.trackerClass{ITRKER_SLBL},'DeepTracker'));
-        assert(s.trackerData{ITRKER_SLBL}.trnNetType==obj.trnNetType);
-        
-        dlszx = s.trackerData{ITRKER_SLBL}.sPrm.sizex;
-        dlszy = s.trackerData{ITRKER_SLBL}.sPrm.sizey;
-        roirad = s.preProcParams.TargetCrop.Radius;
-        szroi = 2*roirad+1;
-        if dlszx~=szroi
-          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
-          s.trackerData{ITRKER_SLBL}.sPrm.sizex = szroi;
-        end
-        if dlszy~=szroi
-          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
-          s.trackerData{ITRKER_SLBL}.sPrm.sizey = szroi;
-        end
-      end
-      
       if awsTrxUpload && tftrx
         % 1. The moviefiles in s should be not be used; deepnet should be
         % reading images directly from .preProcData_I. Fill s.movieFilesAll
@@ -1138,6 +1236,8 @@ classdef DeepTracker < LabelTracker
         %      upload it and replace all appropriate rows of s.trxFilesAll.
         %   b. For all other rows of s.trxFilesAll, we replace with jibber
         %      as an assert.
+        
+        fprintf(2,'AWS trx upload no longer necessary.\n');
                 
         aws = backEnd.awsec2;
         aws.ensureRemoteDir('data','descstr','data');
@@ -1276,6 +1376,8 @@ classdef DeepTracker < LabelTracker
         [trxfiles,trkfiles,f0,f1,cropRois,targets] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{});
         assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
+        [nmovies,nview] = size(movfiles); %#ok<ASGLU>
+        assert(nmovies == 1,'Only single movie tracking is implemented currently');
         
         if obj.lObj.hasTrx,
           assert(all(size(trxfiles)==size(movfiles)),'Trx files must be input');
@@ -1283,11 +1385,11 @@ classdef DeepTracker < LabelTracker
         assert(all(size(trkfiles)==size(movfiles)),'Output trk files must be input');
 
         if isempty(cropRois),
-          cropRois = repmat({CropInfo.empty(0,0)},size(movfiles,1),1);
+          cropRois = repmat({CropInfo.empty(0,0)},nmovies,1);
         end
         
         if isempty(targets),
-          targets = repmat({[]},[size(movfiles,1),1]);
+          targets = repmat({[]},[nmovies,1]);
         end
         
         trkfilesexist = cellfun(@exist,trkfiles);
@@ -1413,16 +1515,110 @@ classdef DeepTracker < LabelTracker
       assert(exist(dlLblFileLcl,'file')>0);
       
       trkBackEnd = obj.lObj.trackDLBackEnd;
+
       switch trkBackEnd.type
-        case {DLBackEnd.Bsub DLBackEnd.Docker}
+        case DLBackEnd.Bsub,
           if isexternal,
             for movi = 1:size(movfiles,1),
-              obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
-                cropRois{movi},hmapArgs,f0,f1,'movfiles',movfiles(movi,:),'trxfiles',trxfiles(movi,:),'targets',targets{movi},'trkfiles',trkfiles(movi,:));
+              args = {};
+              if obj.lObj.hasTrx,
+                args = {'trxfiles',trxfiles(movi,:),'targets',targets{movi}};
+              end
+              % this is not going to work for multiple movies. TODO: fix
+              tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
+                cropRois{movi},hmapArgs,f0,f1,'movfiles',movfiles(movi,:),'trkfiles',trkfiles(movi,:),args{:});
+              if ~tfSuccess,
+                obj.bgTrkReset();
+                return;
+              end
             end
           else
-            obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
               cropRois,hmapArgs,f0,f1);
+            if ~tfSuccess, 
+              obj.bgTrkReset();
+              return; 
+            end
+          end
+        case DLBackEnd.Docker,
+
+          isMultiViewTrack = false;
+          if isexternal,
+            gpuids = obj.getFreeGPUs(nmovies*nviews);
+            if isempty(gpuids),
+              warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
+              return;
+            elseif numel(gpuids) < nviews,
+              isMultiViewTrack = true;
+              nMoviesTrack = numel(gpuids);
+            elseif numel(gpuids) < nmovies*nviews,
+              nMoviesTrack = floor(numel(gpuids)/nviews)*nviews;
+              isMultiViewTrack = false;
+            end
+            if nMoviesTrack < nmovies,
+              res = questdlg([{sprintf('%d GPUs found locally. Only %d movies can be tracked simultaneously.',numel(gpuids),nMoviesTrack)
+                'Track the following subset of movies?'}
+                reshape(movfiles(1:nMoviesTrack,:),[nMoviesTrack*nviews,1])],...
+                'Track a subset of movies?','Track','Cancel','Cancel');
+              if strcmpi(res,'Cancel'),
+                return;
+              end
+              movfiles = movfiles(1:nMoviesTrack,:);
+              trxfiles = trxfiles(1:nMoviesTrack,:);
+              trkfiles = trkfiles(1:nMoviesTrack,:);
+              nmovies = nMoviesTrack;
+            end
+          else
+            gpuids = obj.getFreeGPUs(obj.lObj.nview);
+            if isempty(gpuids),
+              warndlg('No GPUs available with sufficient RAM locally','Error tracking','modal');
+              return;
+            elseif numel(gpuids) < obj.lObj.nview,
+              isMultiViewTrack = true;
+            else
+              isMultiViewTrack = false;
+            end
+          end
+
+          if isexternal,
+            % this is not going to work for multiple movies. TODO: fix
+            for movi = 1:size(movfiles,1),
+              args = {};
+              if obj.lObj.hasTrx,
+                args = {'trxfiles',trxfiles(movi,:),'targets',targets{movi}};
+              end
+              if isMultiViewTrack,
+                tfSuccess = obj.trkSpawnDockerMultiView(trkBackEnd,[],[],dlLblFileLcl,...
+                  cropRois{movi},hmapArgs,f0,f1,'movfiles',movfiles(movi,:),'trkfiles',trkfiles(movi,:),'gpuids',gpuids,args{:});
+                if ~tfSuccess, 
+                  obj.bgTrkReset();
+                  return; 
+                end
+              else
+                tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
+                  cropRois{movi},hmapArgs,f0,f1,'movfiles',movfiles(movi,:),'trkfiles',trkfiles(movi,:),'gpuids',gpuids,args{:});
+                if ~tfSuccess, 
+                  obj.bgTrkReset();
+                  return; 
+                end
+              end
+            end
+          else
+            if isMultiViewTrack,
+              tfSuccess = obj.trkSpawnDockerMultiView(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+                cropRois,hmapArgs,f0,f1,'gpuids',gpuids);
+              if ~tfSuccess, 
+                obj.bgTrkReset();
+                return; 
+              end
+            else
+              tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+                cropRois,hmapArgs,f0,f1,'gpuids',gpuids);
+              if ~tfSuccess,
+                obj.bgTrkReset();
+                return; 
+              end
+            end
           end
         case DLBackEnd.AWS
           if isexternal,
@@ -1475,26 +1671,18 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = true;      
     end
     
-    function trkSpawnBsubDocker(obj,backend,mIdx,tMFTConc,dlLblFile,...
+    function tfSuccess = trkSpawnDockerMultiView(obj,backend,mIdx,tMFTConc,dlLblFile,...
         cropRois,hmapArgs,frm0,frm1,varargin)
       
-      [movs,trxfiles,trxids,trkfiles] = myparse(varargin,'movfiles',{},'trxfiles',{},'targets',[],'trkfiles',{});
+      tfSuccess = false;
+      [movs,trxfiles,trxids,trkfiles,gpuids] = ...
+        myparse(varargin,'movfiles',{},'trxfiles',{},'targets',[],'trkfiles',{},'gpuids',[]);
       isexternal = ~isempty(movs);
 
       % Currently mIdx, tMFTConc only one movie
 
       cacheDir = obj.lObj.trackDLParams.CacheDir;
 
-      switch backend.type
-        case DLBackEnd.Bsub
-          DeepTracker.cloneJRCRepoIfNec(cacheDir);
-          DeepTracker.updateAPTRepoExecJRC(cacheDir);
-          aptjrcroot = [cacheDir '/APT'];
-          hmapArgs = [hmapArgs {'deepnetroot' [aptjrcroot '/deepnet']}]; 
-        case DLBackEnd.Docker
-          
-      end
-      
       %obj.downloadPretrainedWeights();
       
       % put/ensure local stripped lbl
@@ -1530,11 +1718,211 @@ classdef DeepTracker < LabelTracker
       % more conveniently read logfiles etc. in future this could be an obj
       % that has a codegen method etc.
       trksysinfo = struct(...
+        'trkfile','',...
+        'logfile',[],...
+        'errfile',[],...
+        'codestr',[]);
+
+      % base args
+      baseargsaug = hmapArgs;
+      baseargsaug = [baseargsaug {'model_file' modelFiles}]; 
+      if tfcrop
+        baseargsaug = [baseargsaug {'croproi' cropRoi}]; 
+      end
+      if tftrx
+        if ~isexternal,
+          trxids = unique(tMFTConc.iTgt);
+          trxfiles = cell(1,nView);
+          for ivw = 1:nView,
+            trxfiles{ivw} = unique(tMFTConc.trxFile(:,ivw));
+          end
+        end
+        baseargsaug = [baseargsaug {'trxtrk' trxfiles 'trxids' trxids}]; 
+      else
+        trxids = [];
+      end
+        
+      % trkfile, outfile
+      if ~isexternal,
+        trkfiles = cell(1,nView);
+      end
+      for ivw = 1:nView,
+        trkoutdir = dmc(ivw).dirTrkOutLnx;
+        if exist(trkoutdir,'dir')==0
+          [succ,msg] = mkdir(trkoutdir);
+          if ~succ
+            error('Failed to create trk cache dir %s: %s',trkoutdir,msg);
+          else
+            fprintf(1,'Created trk output dir: %s\n',trkoutdir);
+          end
+        end
+        mov = movs{ivw};
+        trnstr = trnstrs{ivw};
+        [movP,movS] = fileparts(mov);
+        defaulttrkfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.trk']);
+        if ~isexternal,
+          trkfiles{ivw} = defaulttrkfile;
+        end
+        if ivw == 1,
+          containerName = [movS '_' trnstr '_' nowstr];
+          outfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.log']);
+          errfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.err']);
+        end          
+        %outfile2 = fullfile(movP,[movS '_' trnstr '_' nowstr '.log2']);
+        fprintf('View %d: trkfile will be written to %s\n',ivw,trkfiles{ivw});  
+        
+        trksysinfo.parttrkfile{ivw} = [trkfile,'.part'];
+        if exist(trksysinfo.parttrkfile{ivw},'file'),
+          fprintf('Deleting partial tracking result %s',trksysinfo.parttrkfile{ivw});
+          try
+            delete(trksysinfo.parttrkfile{ivw});
+          catch ME,
+            warning('Failed to delete %s: %s',trksysinfo.parttrkfile{ivw},getReport(ME));
+          end
+        end
+        
+      end
+      trksysinfo.trkfile = trkfile;
+      trksysinfo.logfile = outfile;
+      trksysinfo.errfile = errfile;
+      
+      singBind = obj.genContainerMountPath();
+      [trksysinfo.codestr,trksysinfo.containerName] = ...
+        DeepTracker.trackCodeGenDocker(...
+        modelChainID,dmc(1).rootDir,dlLblFile,errfile,obj.trnNetType,...
+        mov,trkfile,frm0,frm1,...
+        'baseargs',baseargsaug,'mntPaths',singBind,'containerName',containerName,...
+        'dockerargs',{'gpuid',gpuids(1)});
+      trksysinfo.logcmd = sprintf('%s logs -f %s &> %s &',...
+        obj.dockercmd,trksysinfo(ivw).containerName,...
+        outfile);
+            
+      if obj.dryRunOnly
+        arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
+          trksysinfo);
+        tfSuccess = true;
+        return;
+      end
+      % start track monitor
+      assert(isempty(obj.bgTrkMonitor));
+      
+      outfiles = trksysinfo.trkfile(:);
+      logfiles = repmat({trksysinfo.logfile},[nView,1]);
+      errfiles = repmat({trksysinfo.errfile},[nView,1]);
+      partfiles = trksysinfo.parttrkfile(:);
+      bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
+      bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
+        logfiles,errfiles,partfiles);
+      
+      tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
+      if any(tfErrFileErr)
+        error('There is an existing error in an error file: ''%s''.',...
+          String.cellstr2CommaSepList(errfiles));
+      end
+      
+      bgTrkMonitorObj = BgTrackMonitor;
+      
+      % KB 20190115: adding trkviz
+      % figure out how many frames are to be tracked
+      %nFramesTrack = size(tMFTConc,1); % this is inaccurate
+      nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
+      fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
+      
+      trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
+      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
+        @obj.trkCompleteCbk);
+      
+      addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
+      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
+      
+      %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
+      obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
+      
+      % spawn jobs
+      fprintf(1,'%s\n',trksysinfo.codestr);
+      [st,res] = system(trksysinfo.codestr);
+      if st==0
+        bgTrkWorkerObj.parseJobID(res,1);
+        fprintf('Tracking job spawned:\n%s\n',res);
+        tfSuccess = true;
+      else
+        fprintf(2,'Failed to spawn tracking job: %s.\n\n',...
+          res);
+        tfSuccess = false;
+      end
+      
+      obj.trkSysInfo = trksysinfo;
+    end
+    
+    function tfSuccess = trkSpawnBsubDocker(obj,backend,mIdx,tMFTConc,dlLblFile,...
+        cropRois,hmapArgs,frm0,frm1,varargin)
+      
+      tfSuccess = false;
+
+      [movs,trxfiles,trxids,trkfiles,gpuids] = ...
+        myparse(varargin,'movfiles',{},'trxfiles',{},'targets',[],'trkfiles',{},'gpuids',[]);
+      isexternal = ~isempty(movs);
+
+      % Currently mIdx, tMFTConc only one movie
+
+      cacheDir = obj.lObj.trackDLParams.CacheDir;
+
+      % put/ensure local stripped lbl
+      dmc = obj.trnLastDMC;
+      assert(isscalar(unique({dmc.lblStrippedLnx})));
+      dlLblFile = dmc(1).lblStrippedLnx; 
+      if exist(dlLblFile,'file')==0
+        error('Cannot find stripped project file: %s\n',dlLblFile);
+      end
+      
+      [dmc.aptRootUser] = deal([]);
+      switch backend.type
+        case DLBackEnd.Bsub
+          if obj.deepnetrunlocal
+            aptroot = APT.Root;
+            [dmc.aptRootUser] = deal(aptroot);
+          else
+            DeepTracker.cloneJRCRepoIfNec(cacheDir);
+            DeepTracker.updateAPTRepoExecJRC(cacheDir);
+            aptroot = [cacheDir '/APT'];
+          end
+          hmapArgs = [hmapArgs {'deepnetroot' [aptroot '/deepnet']}]; 
+        case DLBackEnd.Docker
+      end
+      
+      %obj.downloadPretrainedWeights();
+      
+      
+      nView = obj.lObj.nview;
+      
+      tftrx = obj.lObj.hasTrx;
+      tfcrop = ~isempty(cropRois);
+      if tfcrop
+        szassert(cropRois,[nView 4]);
+      end
+            
+      if isexternal,
+        assert(size(movs,2) == nView);
+        mIdx = {movs,trxfiles};
+      else
+        movs = tMFTConc.mov;
+        assert(size(movs,2)==nView);
+        movs = movs(1,:);
+      end
+      nowstr = datestr(now,'yyyymmddTHHMMSS');
+      modelChainID = obj.trnName;
+      [trnstrs,modelFiles] = obj.getTrkFileTrnStr();
+      %trnstr = sprintf('trn%s',modelChainID);
+ 
+      % info for code-generation. for now we just record a struct so we can
+      % more conveniently read logfiles etc. in future this could be an obj
+      % that has a codegen method etc.
+      trksysinfo = struct(...
         'trkfile',cell(nView,1),...
         'logfile',[],...
         'errfile',[],...
         'codestr',[]);
-      for ivw=1:nView
+      for ivw=1:nView,
 
         % base args
         baseargsaug = hmapArgs;
@@ -1603,7 +1991,7 @@ classdef DeepTracker < LabelTracker
         
         switch backend.type
           case DLBackEnd.Bsub
-            singBind = obj.genContainerMountPath('aptroot',aptjrcroot);
+            singBind = obj.genContainerMountPath('aptroot',aptroot);
             singargs = {'bindpath',singBind};
             trksysinfo(ivw).codestr = DeepTracker.trackCodeGenSSHBsubSing(...
               modelChainID,dmc(ivw).rootDir,dlLblFile,errfile,obj.trnNetType,...
@@ -1613,13 +2001,19 @@ classdef DeepTracker < LabelTracker
 
           case DLBackEnd.Docker
             singBind = obj.genContainerMountPath();
+            if isempty(gpuids),
+              dockerargs = {};
+            else
+              dockerargs = {'gpuid',gpuids(ivw)};
+            end
             [trksysinfo(ivw).codestr,trksysinfo(ivw).containerName] = ...
               DeepTracker.trackCodeGenDocker(...
               modelChainID,dmc(ivw).rootDir,dlLblFile,errfile,obj.trnNetType,...
               mov,trkfile,frm0,frm1,...
-              'baseargs',baseargsaug,'mntPaths',singBind,'containerName',containerName);
-            trksysinfo(ivw).logcmd = sprintf('docker logs -f %s &> %s &',...
-              trksysinfo(ivw).containerName,...
+              'baseargs',baseargsaug,'mntPaths',singBind,'containerName',containerName,...
+              'dockerargs',dockerargs);
+            trksysinfo(ivw).logcmd = sprintf('%s logs -f %s &> %s &',...
+              obj.dockercmd,trksysinfo(ivw).containerName,...
               outfile);
         end
       end
@@ -1627,70 +2021,76 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
           trksysinfo);
-      else
-         % start track monitor
-        assert(isempty(obj.bgTrkMonitor));
-        
-        outfiles = {trksysinfo.trkfile}';
-        logfiles = {trksysinfo.logfile}';
-        errfiles = {trksysinfo.errfile}';
-        partfiles = {trksysinfo.parttrkfile}';
-        switch backend.type
-          case DLBackEnd.Bsub
-            bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+        tfSuccess = true;
+        return;
+      end
+      % start track monitor
+      assert(isempty(obj.bgTrkMonitor));
+      
+      outfiles = {trksysinfo.trkfile}';
+      logfiles = {trksysinfo.logfile}';
+      errfiles = {trksysinfo.errfile}';
+      partfiles = {trksysinfo.parttrkfile}';
+      switch backend.type
+        case DLBackEnd.Bsub
+          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmc);
+        case DLBackEnd.Docker,
+          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
+      end
+      bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
+        logfiles,errfiles,partfiles);
+      
+      tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
+      if any(tfErrFileErr)
+        error('There is an existing error in an error file: ''%s''.',...
+          String.cellstr2CommaSepList(errfiles));
+      end
+      
+      bgTrkMonitorObj = BgTrackMonitor;
+      
+      % KB 20190115: adding trkviz
+      nvw = obj.lObj.nview;
+      % figure out how many frames are to be tracked
+      %nFramesTrack = size(tMFTConc,1); % this is inaccurate
+      nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
+      fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
+      
+      trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
+      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
+        @obj.trkCompleteCbk);
+      
+      addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
+      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
+      
+      %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
+      obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
+      
+      % spawn jobs
+      tfSuccess = true;
+      for ivw=1:nView
+        fprintf(1,'%s\n',trksysinfo(ivw).codestr);
+        [st,res] = system(trksysinfo(ivw).codestr);
+        if st==0
+          bgTrkWorkerObj.parseJobID(res,ivw);
+          fprintf('Tracking job (view %d) spawned:\n%s\n',ivw,res);
+        else
+          fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
+            ivw,res);
+          tfSuccess = false;
+          return;
+        end
+        switch backend.type,
           case DLBackEnd.Docker,
-            bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmc);
+            [st,res] = system(trksysinfo(ivw).logcmd);
+            if st~=0,
+              fprintf(2,'Error logging docker job %s: %s\n',trksysinfo(ivw).containerName,res);
+              tfSuccess = false;
+              return;
+            end
         end
-        bgTrkWorkerObj.initFiles(mIdx,movs,outfiles,...
-          logfiles,errfiles,partfiles);
+      end
         
-        tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
-        if any(tfErrFileErr)
-          error('There is an existing error in an error file: ''%s''.',...
-            String.cellstr2CommaSepList(errfiles));
-        end
-
-        bgTrkMonitorObj = BgTrackMonitor;
-        
-        % KB 20190115: adding trkviz
-        nvw = obj.lObj.nview;
-        % figure out how many frames are to be tracked
-        %nFramesTrack = size(tMFTConc,1); % this is inaccurate
-        nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
-        fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
-        
-        trkVizObj = feval(obj.bgTrkMonitorVizClass,nvw,obj,bgTrkWorkerObj,backend.type,nFramesTrack);   
-        bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
-          @obj.trkCompleteCbk);
-
-        addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-        addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
-        
-        %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
-        obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
-        
-        % spawn jobs
-        for ivw=1:nView
-          fprintf(1,'%s\n',trksysinfo(ivw).codestr);
-          [st,res] = system(trksysinfo(ivw).codestr);
-          if st==0
-            bgTrkWorkerObj.parseJobID(res,ivw);
-            fprintf('Tracking job (view %d) spawned:\n%s\n',ivw,res);
-          else
-            fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
-              ivw,res);
-          end
-          switch backend.type,
-            case DLBackEnd.Docker,
-              [st,res] = system(trksysinfo(ivw).logcmd);
-              if st~=0,
-                fprintf(2,'Error logging docker job %s: %s\n',trksysinfo(ivw).containerName,res);
-              end
-          end
-        end
-        
-        obj.trkSysInfo = trksysinfo;
-      end      
+      obj.trkSysInfo = trksysinfo;
     end
     function nframes = getNFramesTrack(obj,tMFTConc,mIdx,frm0,frm1,trxids)
       
@@ -1971,9 +2371,13 @@ classdef DeepTracker < LabelTracker
     
     function trkCompleteCbk(obj,res)
       
-      isexternal = iscell(res.mIdx);
+      isexternal = iscell(res(1).mIdx);
       if isexternal,
-        fprintf('Tracking complete for %s, results saved to %s.\n',res.movfile,res.trkfile);
+        % AL: guessing here didn't test
+        for i=1:numel(res)
+          fprintf('Tracking complete for %s, results saved to %s.\n',...
+            res(i).movfile,res(i).trkfile);
+        end
         return;
       end
       mIdx = [res.mIdx];
@@ -2181,9 +2585,26 @@ classdef DeepTracker < LabelTracker
       
       homedir = getenv('HOME');
       aptdeepnet = APT.getpathdl;
+      
+      if isempty(APT.DOCKER_REMOTE_HOST),
+        dockercmd = 'docker';
+        dockercmdend = '';
+
+      else
+        % i'm guessing this cding is nec to deal with automount issues
+%         if isempty(bindpath),
+          cdargs = '';
+%         else
+%           cdargs = sprintf('cd %s && ',bindpath{:},aptdeepnet);
+%         end        
+        dockercmd = sprintf('ssh -t %s "%sdocker',APT.DOCKER_REMOTE_HOST,cdargs);
+        dockercmdend = '"';
+      end
+      
       codestr = [
         {
-        'docker run'
+        dockercmd
+        'run'
         '-d'
         sprintf('--name %s',containerName);
         '--runtime nvidia'
@@ -2192,10 +2613,11 @@ classdef DeepTracker < LabelTracker
         mountArgs(:);
         {
         '--user $(id -u)'
-        '-w $PWD'
+        '-w'
+        aptdeepnet
         dockerimg
-        sprintf('bash -c "export HOME=%s; export CUDA_VISIBLE_DEVICES=%d; cd %s; %s"',...
-          homedir,gpuid,aptdeepnet,basecmd);
+        sprintf('bash -c ''export HOME=%s; export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; cd %s; %s''%s',...
+          homedir,gpuid,aptdeepnet,basecmd,dockercmdend);
         }
       ];
     
@@ -2242,7 +2664,7 @@ classdef DeepTracker < LabelTracker
         codestr,cache,errfile,netType,dllbl,continueflags);
     end
     function [codestr,containerName] = trainCodeGenDocker(modelChainID,trainID,...
-        dllbl,cache,errfile,netType,trainType,view1b,mntPaths,varargin)
+        dllbl,cache,errfile,netType,trainType,view1b,mntPaths,gpuid,varargin)
                   
       [dockerargs] = myparse(varargin,'dockerargs',{});
       %fprintf(2,'TODO: restart/trainType\n');
@@ -2252,16 +2674,20 @@ classdef DeepTracker < LabelTracker
       basecmd = DeepTracker.trainCodeGen(modelChainID,dllbl,cache,errfile,...
         netType,baseargs{:});
 
-      containerName = [modelChainID '_' trainID];      
+      if isempty(view1b),      
+        containerName = [modelChainID '_' trainID];
+      else
+        containerName = [modelChainID '_' trainID '_view' num2str(view1b)];
+      end
      
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
-        'bindpath',mntPaths,dockerargs{:});
+        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:});
       
     end
-    function [codestr,containerName] = trainCodeGenDockerDMC(dmc,mntPaths)
+    function [codestr,containerName] = trainCodeGenDockerDMC(dmc,mntPaths,gpuid)
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
-        dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.trainType,dmc.view+1,mntPaths);
+        dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.trainType,dmc.view+1,mntPaths,gpuid);
     end
     function codestr = trainCodeGenSing(trnID,dllbl,cache,errfile,netType,...
         varargin)
@@ -2298,15 +2724,21 @@ classdef DeepTracker < LabelTracker
       singargs = myparse(varargin,...
         'singargs',{}...
         );
-      
-      repoSSscriptLnx = [dmc.dirAptRootLnx '/repo_snapshot.sh'];
-      repoSScmd = sprintf('%s %s > %s',repoSSscriptLnx,dmc.dirAptRootLnx,dmc.aptRepoSnapshotLnx);
+
+      if ~isempty(dmc.aptRootUser)
+        aptroot = dmc.aptRootUser;
+      else
+        aptroot = dmc.dirAptRootLnx;
+      end
+        
+      repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
+      repoSScmd = sprintf('%s %s > %s',repoSSscriptLnx,aptroot,dmc.aptRepoSnapshotLnx);
       prefix = [DeepTracker.jrcprefix '; ' repoSScmd];
-      
+              
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
         dmc.modelChainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,...
-        'baseArgs',{'view' dmc.view+1 'trainType' dmc.trainType 'deepnetroot' [dmc.rootDir '/APT/deepnet']},...
+        'baseArgs',{'view' dmc.view+1 'trainType' dmc.trainType 'deepnetroot' [aptroot '/deepnet']},...
         'singargs',singargs,...
         'bsubArgs',{'outfile' dmc.trainLogLnx},...
         'sshargs',{'prefix' prefix});
@@ -2431,6 +2863,23 @@ classdef DeepTracker < LabelTracker
       tftrxids = ~isempty(trxids);
       tfview = ~isempty(view);
       tfcrop = ~isempty(croproi);
+
+      isMultiView = iscell(movtrk);
+      if isMultiView,
+        nView = numel(movtrk);
+        movtrk = sprintf('%s ',movtrk{:});
+        movtrk = movtrk(1:end-1);
+        outtrk = sprintf('%s ',outtrk{:});
+        outtrk = outtrk(1:end-1);
+        croproi = croproi';
+        croproi = croproi(:)';
+        if tftrx,
+          trxtrk = sprintf('%s ',movtrk{:});
+          trxtrk = trxtrk(1:end-1);
+        end
+      else
+        nView = 1;
+      end
       
       aptintrf = [deepnetroot '/APT_interface.py'];
       
@@ -2438,10 +2887,10 @@ classdef DeepTracker < LabelTracker
       if tfcrop 
         % APT_interface.py supports multiple views/crops but for now
         % restrict here
-        assert(numel(croproi)==4);
-        if tfview
-          assert(numel(view)==1);
-        end
+        assert(numel(croproi)==4*nView);
+      end
+      if tfview
+        assert(numel(view)==1 && nView==1);
       end
       
       codestr = sprintf('python %s -name %s',aptintrf,trnID);
@@ -2496,7 +2945,11 @@ classdef DeepTracker < LabelTracker
         movtrk,outtrk,frm0,frm1,baseargs{:});
 
       if isempty(containerName),
-        [~,containerName] = fileparts(outtrk);
+        if iscell(outtrk),
+          [~,containerName] = fileparts(outtrk{1});
+        else
+          [~,containerName] = fileparts(outtrk);
+        end
       end
 
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
@@ -3010,6 +3463,7 @@ classdef DeepTracker < LabelTracker
     end
     function updateLandmarkColors(obj)
       ptsClrs = obj.lObj.projPrefs.Track.PredictPointsPlotColors;      
+      ptsClrs = obj.lObj.Set2PointColors(ptsClrs);
       obj.trkVizer.updateLandmarkColors(ptsClrs);      
     end
   end

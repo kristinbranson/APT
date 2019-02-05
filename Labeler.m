@@ -432,9 +432,11 @@ classdef Labeler < handle
   properties
     preProcParams % struct
     preProcH0 % Either [], or a struct with field .hgram which is [nbin x nview]. Conceptually, this is a preProcParam that APT updates from movies
-    preProcData % for CPR, a CPRData; for DL trackers, likely a tracker-specific object pointing to data on disk
+    preProcData % scalar CPRData, preproc Data cache for CPR
     preProcDataTS % scalar timestamp  
-    preProcSaveData % scalar logical. If true, preProcData* is saved/loaded with project file
+    preProcSaveData % scalar logical. If true, preProcData* and ppdb are saved/loaded with project file
+    
+    ppdb % PreProcDB for DL
   end
   
   %% Tracking
@@ -1617,7 +1619,7 @@ classdef Labeler < handle
       
       [sparsify,forceIncDataCache] = myparse(varargin,...
         'sparsify',true,...
-        'forceIncDataCache',false... % include .preProcData* even if .preProcSaveData is false
+        'forceIncDataCache',false... % include .preProcData* and .ppdb even if .preProcSaveData is false
         );
       
       s = struct();
@@ -1658,6 +1660,7 @@ classdef Labeler < handle
       if obj.preProcSaveData || forceIncDataCache
         s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
         s.preProcDataTS = obj.preProcDataTS;
+        s.ppdb = obj.ppdb;        
       end
     end
     
@@ -1772,10 +1775,20 @@ classdef Labeler < handle
       
       % preproc data cache
       % s.preProcData* will be present iff s.preProcSaveData==true
-      if s.preProcSaveData && ~isempty(s.preProcData)
-        fprintf('Loading data cache: %d rows.\n',s.preProcData.N);
-        obj.preProcData = s.preProcData;
-        obj.preProcDataTS = s.preProcDataTS;
+      if s.preProcSaveData 
+        if isempty(s.preProcData)
+          assert(obj.preProcData.N==0);
+        else
+          fprintf('Loading data cache: %d rows.\n',s.preProcData.N);
+          obj.preProcData = s.preProcData;
+          obj.preProcDataTS = s.preProcDataTS;
+        end
+        if isempty(s.ppdb)
+          assert(obj.ppdb.dat.N==0);
+        else
+          fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
+          obj.ppdb = s.ppdb;
+        end
       end
 
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
@@ -2665,6 +2678,40 @@ classdef Labeler < handle
         s.trackDLParams = struct('CacheDir',cdir);
       end
       
+      % 20190124 DL data cache; set
+      % .preProcParams.TargetCrop.AlignUsingTrxTheta based on cpr parameter
+      if s.preProcSaveData && ~isfield(s,'ppdb')
+        s.ppdb = [];
+      end
+      cprprms = s.trackerData{1}.sPrm;
+      if isfield(cprprms.TrainInit,'usetrxorientation')
+        % legacy project has 3-way enum param for cpr under .TrainInit and
+        % .TestInit. Initialize .preProcParams...AlignUsingTrxTheta using
+        % this val. Then remove these parameters now too although
+        % CPRLT.modernizeParams would have done it.
+        
+        assert(~s.preProcParams.TargetCrop.AlignUsingTrxTheta); % default value added above
+        s.preProcParams.TargetCrop.AlignUsingTrxTheta = cprprms.TrainInit.usetrxorientation;        
+        s.trackerData{1}.sPrm.TrainInit = rmfield(s.trackerData{1}.sPrm.TrainInit,'usetrxorientation');
+        s.trackerData{1}.sPrm.TestInit = rmfield(s.trackerData{1}.sPrm.TestInit,'usetrxorientation');
+        
+        if s.preProcParams.TargetCrop.AlignUsingTrxTheta
+          % .AlignUsingTrxTheta has mutated from default value. Any 
+          % existing DL cache and trackers need to be cleared
+          s.ppdb = [];
+          warningNoTrace('New preprocessing parameter .AlignUsingTrxTheta has been set to true. Clearing existing DL trackers; they will need to be retrained.');
+          for iTrker=1:numel(s.trackerData)
+            if strcmp(s.trackerClass{iTrker}{1},'DeepTracker')
+              s.trackerData{iTrker}.trnName = '';
+              s.trackerData{iTrker}.trnNameLbl = '';
+              s.trackerData{iTrker}.trnLastDMC = [];
+              s.trackerData{iTrker}.movIdx2trkfile = containers.Map('keytype','int32','valuetype','any');
+              warningNoTrace('Cleared Deep Learning tracker of type ''%s''.',char(s.trackerData{iTrker}.trnNetType));
+            end
+          end
+        end
+      end
+      
       % modernize DL common params
       sDLcommon = APTParameters.defaultParamsStructDTCommon;      
       s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
@@ -3103,6 +3150,7 @@ classdef Labeler < handle
         edata = MoviesRemappedEventData.movieRemovedEventData(...
           movIdx,nMovOrigReg,nMovOrigGT,movIdxHasLbls);
         obj.preProcData.movieRemap(edata.mIdxOrig2New);
+        obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
         if gt
           [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
             obj.gtSuggMFTable,'mov',edata.mIdxOrig2New);
@@ -3184,6 +3232,7 @@ classdef Labeler < handle
       edata = MoviesRemappedEventData.moviesReorderedEventData(...
         p,nmov,obj.nmoviesGT);
       obj.preProcData.movieRemap(edata.mIdxOrig2New);
+      obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
       notify(obj,'moviesReordered',edata);
 
       if ~obj.gtIsGTMode
@@ -7971,6 +8020,7 @@ classdef Labeler < handle
       obj.preProcParams = [];
       obj.preProcH0 = [];
       obj.preProcInitData();
+      obj.ppdbInit();
       obj.preProcSaveData = false;
       obj.movieFilesAllHistEqLUT = cell(obj.nmovies,obj.nview);
       obj.movieFilesAllGTHistEqLUT = cell(obj.nmoviesGT,obj.nview);
@@ -7985,7 +8035,16 @@ classdef Labeler < handle
       obj.preProcDataTS = now;
     end
     
+    function ppdbInit(obj)
+      if isempty(obj.ppdb)
+        obj.ppdb = PreProcDB();
+      end
+      obj.ppdb.init();
+    end
+    
     function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
+      % ppPrms: OLD-style preproc params
+      
       assert(isstruct(ppPrms));
 
       if ppPrms.histeq 
@@ -8002,6 +8061,7 @@ classdef Labeler < handle
       if tfPPprmsChanged
         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
         obj.preProcInitData();
+        obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
         
         bgPrms = ppPrms.BackSub;
         mrs = obj.movieReader;
@@ -8028,6 +8088,7 @@ classdef Labeler < handle
       % be cleared.
       
       obj.preProcInitData();
+      obj.ppdbInit();
       for i=1:numel(obj.trackersAll)
         if obj.trackersAll{i}.getHasTrained()
           warningNoTrace('Trained tracker(s) and tracking results cleared.');
@@ -8217,6 +8278,9 @@ classdef Labeler < handle
       % tblPReadFailed: subset of tblP (input) where reads failed
       % tfReadFailed: indicator vec into tblP (input) for failed reads
       
+      % See preProcDataUpdateRaw re 'preProcParams' opt arg. When supplied,
+      % .preProcData is not updated.
+      
       [wbObj,updateRowsMustMatch,prmpp] = myparse(varargin,...
         'wbObj',[],... % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
         'updateRowsMustMatch',false, ... % See preProcDataUpdateRaw
@@ -8279,8 +8343,8 @@ classdef Labeler < handle
         'preProcParams',prmpp);
     end
     
-    function [tblPReadFailed,dataNew] = ...
-        preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
+    function [tblPReadFailed,dataNew] = preProcDataUpdateRaw(obj,...
+        tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
       % * Rows appended and pGT/tfocc updated; but other information
@@ -8308,6 +8372,10 @@ classdef Labeler < handle
       %   these rows as requested.
       %
       % Updates .preProcData, .preProcDataTS
+      
+      % NOTE: when the preProcParams opt arg is [] (isPreProcParamsIn is 
+      % false), this is maybe a separate method, def distinct behavior. 
+      % When isPreProcParamsIn is true, .preProcData is not updated, etc.
       
       dataNew = [];
       
@@ -8359,14 +8427,6 @@ classdef Labeler < handle
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
 
-%         global READFRAMEDATA;
-%         if nNew == size(READFRAMEDATA.I,1),
-%           I = READFRAMEDATA.I;
-%           didread = READFRAMEDATA.didread;
-%           nNborMask = READFRAMEDATA.nNborMask;
-%           tblPReadFailed = READFRAMEDATA.tblPReadFailed;
-%           tblPnew = READFRAMEDATA.tblPnew;
-%         else
         [I,nNborMask,didread] = CPRData.getFrames(tblPNewConcrete,...
           'wbObj',wbObj,...
           'forceGrayscale',obj.movieForceGrayscale,...
@@ -8520,6 +8580,7 @@ classdef Labeler < handle
       if iTrk>0
         tAll{iTrk}.setHideViz(false);
       end
+      obj.labelingInit();
     end
         
     function trackSetParams(obj,sPrm)
@@ -8529,10 +8590,12 @@ classdef Labeler < handle
       %  - common dl
       %  - specific dl
       % 
-      % sPrm: scalar struct containing *new*-style params:
+      % sPrm: scalar struct containing *NEW*-style params:
       % sPrm.ROOT.Track
       %          .CPR
       %          .DeepTrack
+      
+      sPrm = APTParameters.enforceConsistency(sPrm);
 
       tcprObj = obj.trackGetTracker('cpr');      
       assert(~isempty(tcprObj));
@@ -8565,29 +8628,30 @@ classdef Labeler < handle
       dlNetTypesPretty = cellfun(@(x)x.trnNetType.prettyString,tDTs,'uni',0);
       sPrmDTcommon = rmfield(sPrmDT,dlNetTypesPretty);
       tfDTcommonChanged = obj.trackSetDLParams(sPrmDTcommon);
+      tfDTcommonOrPPChanged = tfDTcommonChanged || tfPPprmsChanged;
       for i=1:numel(tDTs)
         tObj = tDTs{i};
         netType = dlNetTypesPretty{i};
         sPrmDTnet = sPrmDT.(netType);
-        tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonChanged);
+        tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonOrPPChanged);
       end
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
-        trackNFramesNear] = convertNew2OldParams(obj,sPrm)
-      % Set ALL tracking parameters; preproc, and all trackers
+        trackNFramesNear] = convertNew2OldParams(obj,sPrm) % obj CONST
+      % Conversion routine
       % 
-      % sPrm: scalar struct containing *new*-style params:
+      % sPrm: scalar struct containing *NEW*-style params:
       % sPrm.ROOT.Track
       %          .CPR
       %          .DeepTrack
               
+      sPrm = APTParameters.enforceConsistency(sPrm);
+      
       sPrmDT = sPrm.ROOT.DeepTrack;
       sPrmPPandCPR = sPrm;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
       
-      % NOTE: this line already sets some props, despite possible throws
-      % later
       [sPrmPPandCPRold,trackNFramesSmall,trackNFramesLarge,...
         trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
       
@@ -8798,17 +8862,76 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
-    function s = trackCreateDeepTrackerStrippedLbl(obj,tblTrnMFT)
-      % For use with DeepTrackers
+    function [tfsucc,tblPTrn,s] = trackCreateDeepTrackerStrippedLbl(obj,varargin)
+      % For use with DeepTrackers. Create stripped lbl based on
+      % .currTracker
       %
-      % tblTrnMFT: training data table. reqd cols MFTable.FLDSID. restrict 
-      %   preProcDataCache export to these rows.
+      % tfsucc: false if user canceled etc.
+      % tblPTrn: table of data-to-be-used as training data
+      % s: scalar struct, stripped lbl struct
+      
+      [wbObj] = myparse(varargin,...
+        'wbObj',[]...
+        );
+      tfWB = ~isempty(wbObj);
       
       if ~obj.hasMovie
         % for NumChans see below
         error('Please select/open a movie.');
+      end      
+      
+      % 
+      % Determine the training set
+      % 
+      
+      tblPTrn = obj.preProcGetMFTableLbled('wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        tfsucc = false;
+        tblPTrn = [];
+        s = [];
+        return;
+      end
+
+      if isempty(tblPTrn)
+        error('No training data available.');
+      end
+
+      if obj.hasTrx
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+      elseif obj.cropProjHasCrops
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+      else
+        tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+      end
+    
+      [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPTrn,obj,...
+        'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        tfsucc = false;
+        tblPTrn = [];
+        s = [];
+        return;
+      end
+      nMissedReads = height(tblAddReadFailed);
+      if nMissedReads>0
+        warningNoTrace('Removing %d training rows, failed to read images.\n',...
+          nMissedReads);
       end
       
+      assert(all(locAU(~tfAU)==0));
+      
+      ppdbITrn = locAU(tfAU); % row indices into obj.ppdb.dat for our training set
+      tblPTrn = obj.ppdb.dat.MD(ppdbITrn,:);
+      
+      fprintf(1,'Training with %d rows.\n',numel(ppdbITrn));
+      fprintf(1,'Training data summary:\n');
+      obj.ppdb.dat.summarize('mov',ppdbITrn);
+
+      
+      % 
+      % Create the stripped lbl struct
+      % 
+
       s = obj.projGetSaveStruct('forceIncDataCache',true);
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
@@ -8818,7 +8941,7 @@ classdef Labeler < handle
       if ~isscalar(nchan)
         error('Number of channels differs across views.');
       end
-      s.cfg.NumChans = nchan;
+      s.cfg.NumChans = nchan; % see below, we change this again
       
 %       if nchan>1
 %         warningNoTrace('Images have %d channels. Typically grayscale images are preferred; select View>Convert to grayscale.',nchan);
@@ -8832,49 +8955,59 @@ classdef Labeler < handle
       warning(warnst);
       s.cropProjHasCrops = obj.cropProjHasCrops;
       
-      if isfield(s,'preProcData') && ~isempty(s.preProcData)
-        % De-objectize .preProcData (CPRData)
-        
-        ppdata = s.preProcData;
-        ppdataMD = ppdata.MD;
-        
-        tfInc = tblismember(ppdataMD,tblTrnMFT,MFTable.FLDSID);
-        fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
-          nnz(tfInc),numel(tfInc));
-        
-        ppdataMD = ppdataMD(tfInc,:);
-        ppdataI = ppdata.I(tfInc,:);
-        
-        ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
-        ppMDflds = tblflds(ppdataMD);
-        s.preProcData_I = ppdataI;
-        for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
-          sfld = ['preProcData_MD_' f];
-          s.(sfld) = ppdataMD.(f);
-        end
-        s = rmfield(s,'preProcData');
+      % De-objectize .ppdb.dat (CPRData)
+      ppdata = s.ppdb.dat;
+      
+      fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
+        numel(ppdbITrn),ppdata.N);
+      
+      ppdataI = ppdata.I(ppdbITrn,:);
+      ppdataP = ppdata.pGT(ppdbITrn,:);
+      ppdataMD = ppdata.MD(ppdbITrn,:);
+      
+      ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
+      ppMDflds = tblflds(ppdataMD);
+      s.preProcData_I = ppdataI;
+      s.preProcData_P = ppdataP;
+      for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
+        sfld = ['preProcData_MD_' f];
+        s.(sfld) = ppdataMD.(f);
       end
+      s = rmfield(s,{'ppdb' 'preProcData'});
       
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
+      
+      
+      %
+      % Final Massage
+      % 
       
       tdata = s.trackerData{s.currTracker};
       sPrmDL = obj.trackDLParams;
       sPrmDL = rmfield(sPrmDL,'CacheDir');
       tdata.sPrm = structmerge(tdata.sPrm,sPrmDL);
-      s.trackerData = {[] tdata};      
+      tftrx = obj.hasTrx;      
+      if tftrx
+        dlszx = tdata.sPrm.sizex;
+        dlszy = tdata.sPrm.sizey;
+        roirad = s.preProcParams.TargetCrop.Radius;
+        szroi = 2*roirad+1;
+        if dlszx~=szroi
+          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
+          tdata.sPrm.sizex = szroi;
+        end
+        if dlszy~=szroi
+          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
+          tdata.sPrm.sizey = szroi;
+        end
+      end
+      s.trackerData = {[] tdata};
+
+      % check with Mayank, thought we wanted number of "underlying" chans
+      % but DL is erring when pp data is grayscale but NumChans is 3
+      s.cfg.NumChans = size(s.preProcData_I{1},3);
       
-%       tf = strcmp(s.trackerClass,'DeepTracker');
-%       i = find(tf);
-%       switch numel(i)
-%         case 0
-%           assert(false);
-%         case 1
-%           % none
-%         otherwise
-%           warningNoTrace('Multiple DeepTrackers found; the first will be used.');
-%           i = i(1);
-%       end
-      %s.trackerDeepData = s.trackerData{i};
+      tfsucc = true;
     end
     
     function trackAndExport(obj,mftset,varargin)
@@ -8936,6 +9069,7 @@ classdef Labeler < handle
         tObj.clearTrackingResults();
         fprintf('Time to clear tracking results: %f\n',toc(startTime)); startTime = tic;
         obj.preProcInitData();
+        obj.ppdbInit(); % putting this here just b/c the above line, quite possibly unnec
         fprintf('Time to reinitialize data: %f\n',toc(startTime)); startTime = tic;
       end
     end
@@ -9067,6 +9201,7 @@ classdef Labeler < handle
       % Basically an initHook() here
       if initData
         obj.preProcInitData();
+        obj.ppdbInit();
       end
       tObj.trnDataInit(); % not strictly necessary as .retrain() should do it 
       tObj.trnResInit(); % not strictly necessary as .retrain() should do it 
@@ -9099,6 +9234,7 @@ classdef Labeler < handle
         [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
         if initData
           obj.preProcInitData();
+          obj.ppdbInit();
         end
         tObj.trnDataInit();
         tObj.trnResInit();

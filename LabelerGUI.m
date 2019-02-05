@@ -3175,16 +3175,6 @@ end
 
 ClearStatus(handles);
 
-% function cbkTrackerTrnDataDownSampChanged(src,evt,handles)
-% tracker = evt.AffectedObject;
-% if tracker.trnDataDownSamp
-%   handles.menu_track_use_all_labels_to_train.Checked = 'off';
-%   handles.menu_track_select_training_data.Checked = 'on';
-% else
-%   handles.menu_track_use_all_labels_to_train.Checked = 'on';
-%   handles.menu_track_select_training_data.Checked = 'off';
-% end
-
 function menu_track_use_all_labels_to_train_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 tObj = lObj.tracker;
