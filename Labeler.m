@@ -1850,12 +1850,15 @@ classdef Labeler < handle
                 obj.trackersAll{ndx}.movIdx2trkfile = containers.Map('KeyType','int32','ValueType','any');
             end
         end
-        if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
-          if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
-            s = obj.tracker.trnCreateStrippedLbl();
-            save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
-          end
-        end
+        % We save the stripped label file. If not, uncomment following to
+        % regenerate it. But the regenerated could be different than the
+        % original.
+%         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
+%           if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
+%             s = obj.tracker.trnCreateStrippedLbl();
+%             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
+%           end
+%         end
       end
       
       obj.notify('projLoaded');
@@ -2082,6 +2085,13 @@ classdef Labeler < handle
             allModelFiles{end+1} = fullfile(tdir,[curF curE]);%#ok<AGROW>
           end
         end
+        strippedLblFile = obj.tracker.trnLastDMC.lblStrippedLnx;          
+        destStripped = strrep(strippedLblFile,dm.rootDir,tname);
+        [success,msg,~] = copyfile(strippedLblFile,destStripped);
+        if ~success
+          error('Could not bundle models into label file %s',msg);
+        end
+        allModelFiles{end+1} = destStripped;
       end
       allModelFiles = cellfun(@(x) strrep(x,[tname filesep],''),allModelFiles,'UniformOutput',false);
       tar([outFile '.tar'],allModelFiles,tname);
@@ -2684,7 +2694,7 @@ classdef Labeler < handle
         s.ppdb = [];
       end
       cprprms = s.trackerData{1}.sPrm;
-      if isfield(cprprms.TrainInit,'usetrxorientation')
+      if ~isempty(cprprms) && isfield(cprprms.TrainInit,'usetrxorientation')
         % legacy project has 3-way enum param for cpr under .TrainInit and
         % .TestInit. Initialize .preProcParams...AlignUsingTrxTheta using
         % this val. Then remove these parameters now too although
