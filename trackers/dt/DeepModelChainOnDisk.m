@@ -21,6 +21,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     iterFinal % final expected iteration    
     iterCurr % last completed iteration, corresponds to actual model file used
     %backEnd % back-end info (bsub, docker, aws)
+    
+    aptRootUser % (optional) external/user APT code checkout root
   end
   properties (Dependent)
     dirProjLnx

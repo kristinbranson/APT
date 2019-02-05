@@ -189,86 +189,86 @@ classdef MFTable
       movs = regexp(movID,'#','split');
     end
     
-    function I = fetchImages(tMF)
-      %
-      % tMF: [nxncol] MFTable. tMF.mov: [nxnview] cellstr
-      %
-      % I: [nxnview]
-      %
-      % PROB REMOVE ME, dup of CPRData.getFrames. No callsites in APT
-      % application. Unsafe wrt preloading.
-      
-      movIDs = MFTable.formMultiMovieIDArray(tMF.mov); % errs if any ID separator issues
-      [movIDsUn,idx] = unique(movIDs);
-      
-      % open moviereaders
-      movsetsUn = tMF.mov(idx,:);
-      [nMovsetsUn,nView] = size(movsetsUn);
-      mrcell = cell(size(movsetsUn));
-      for iMovSet=1:nMovsetsUn
-        for iView=1:nView
-          mr = MovieReader();
-          mr.open(movsetsUn{iMovSet,iView});
-          mr.forceGrayscale = true;
-          mrcell{iMovSet,iView} = mr;
-        end
-        fprintf(1,'MovieSet %d moviereader.\n',iMovSet);
-      end
-      
-      fprintf('%d unique moviesets.\n',nMovsetsUn);
-      
-      nRows = size(tMF,1);
-      I = cell(nRows,nView);
-      for iRow=1:nRows
-        frm = tMF.frm(iRow);
-        id = movIDs{iRow};
-        iMovSet = strcmp(id,movIDsUn);
-        assert(nnz(iMovSet)==1);
-        for iView=1:nView
-          I{iRow,iView} = mrcell{iMovSet,iView}.readframe(frm);
-        end
-        if mod(iRow,10)==0
-          fprintf(1,'Read images: row %d\n',iRow);
-        end
-      end
-    end
-    
-    function I = fetchImagesSafeVideoRdr(tMF,varargin)
-      % No callsites in APT app
-      
-      [movFld] = myparse(varargin,...
-        'movFld','mov');
-      
-      n = height(tMF);
-      movs = tMF.(movFld);
-      nview = size(movs,2);      
-      I = cell(size(movs));
-      
-      movsUn = unique(movs(:));
-      nMovsUn = numel(movsUn);
-      
-      fprintf('n=%d, nview=%d, nMovsUn=%d\n',n,nview,nMovsUn);
-      
-      for iMov=1:nMovsUn
-        m = movsUn{iMov};
-        
-        tf = strcmp(movs,m);
-        [rows,vws] = find(tf);
-        nIm = numel(rows);
-        maxfrm = max(tMF.frm(rows));
-        fprintf(1,'movUn %d (%s). %d images to read. maxfrm is %d.\n',...
-          iMov,m,nIm,maxfrm);
-        
-        imstack = readAllFrames(m,maxfrm);
-        
-        for iIm=1:nIm
-          trow = tMF(rows(iIm),:);
-          %im = mr.readframe(trow.frm);
-          im = imstack{trow.frm};
-          I{rows(iIm),vws(iIm)} = im;
-        end
-      end
-    end
+%     function I = fetchImages(tMF)
+%       %
+%       % tMF: [nxncol] MFTable. tMF.mov: [nxnview] cellstr
+%       %
+%       % I: [nxnview]
+%       %
+%       % PROB REMOVE ME, dup of CPRData.getFrames. No callsites in APT
+%       % application. Unsafe wrt preloading.
+%       
+%       movIDs = MFTable.formMultiMovieIDArray(tMF.mov); % errs if any ID separator issues
+%       [movIDsUn,idx] = unique(movIDs);
+%       
+%       % open moviereaders
+%       movsetsUn = tMF.mov(idx,:);
+%       [nMovsetsUn,nView] = size(movsetsUn);
+%       mrcell = cell(size(movsetsUn));
+%       for iMovSet=1:nMovsetsUn
+%         for iView=1:nView
+%           mr = MovieReader();
+%           mr.open(movsetsUn{iMovSet,iView});
+%           mr.forceGrayscale = true;
+%           mrcell{iMovSet,iView} = mr;
+%         end
+%         fprintf(1,'MovieSet %d moviereader.\n',iMovSet);
+%       end
+%       
+%       fprintf('%d unique moviesets.\n',nMovsetsUn);
+%       
+%       nRows = size(tMF,1);
+%       I = cell(nRows,nView);
+%       for iRow=1:nRows
+%         frm = tMF.frm(iRow);
+%         id = movIDs{iRow};
+%         iMovSet = strcmp(id,movIDsUn);
+%         assert(nnz(iMovSet)==1);
+%         for iView=1:nView
+%           I{iRow,iView} = mrcell{iMovSet,iView}.readframe(frm);
+%         end
+%         if mod(iRow,10)==0
+%           fprintf(1,'Read images: row %d\n',iRow);
+%         end
+%       end
+%     end
+%     
+%     function I = fetchImagesSafeVideoRdr(tMF,varargin)
+%       % No callsites in APT app
+%       
+%       [movFld] = myparse(varargin,...
+%         'movFld','mov');
+%       
+%       n = height(tMF);
+%       movs = tMF.(movFld);
+%       nview = size(movs,2);      
+%       I = cell(size(movs));
+%       
+%       movsUn = unique(movs(:));
+%       nMovsUn = numel(movsUn);
+%       
+%       fprintf('n=%d, nview=%d, nMovsUn=%d\n',n,nview,nMovsUn);
+%       
+%       for iMov=1:nMovsUn
+%         m = movsUn{iMov};
+%         
+%         tf = strcmp(movs,m);
+%         [rows,vws] = find(tf);
+%         nIm = numel(rows);
+%         maxfrm = max(tMF.frm(rows));
+%         fprintf(1,'movUn %d (%s). %d images to read. maxfrm is %d.\n',...
+%           iMov,m,nIm,maxfrm);
+%         
+%         imstack = readAllFrames(m,maxfrm);
+%         
+%         for iIm=1:nIm
+%           trow = tMF(rows(iIm),:);
+%           %im = mr.readframe(trow.frm);
+%           im = imstack{trow.frm};
+%           I{rows(iIm),vws(iIm)} = im;
+%         end
+%       end
+%     end
     function tblMF = rmMovS(tblMF)
       % remove legacy 'movS' field from MFTable
       
