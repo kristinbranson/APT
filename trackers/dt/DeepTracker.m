@@ -706,11 +706,18 @@ classdef DeepTracker < LabelTracker
         'isMultiView',isMultiViewTrain);
         %'backEnd',backEnd);
 
+      [dmc.aptRootUser] = deal([]);
       switch backEnd.type
         case DLBackEnd.Bsub
-          DeepTracker.cloneJRCRepoIfNec(cacheDir);
-          DeepTracker.updateAPTRepoExecJRC(cacheDir);
-          DeepTracker.cpupdatePTWfromJRCProdExec(cacheDir);
+          if obj.deepnetrunlocal
+            aptroot = APT.Root;
+            [dmc.aptRootUser] = deal(aptroot);
+          else
+            DeepTracker.cloneJRCRepoIfNec(cacheDir);
+            DeepTracker.updateAPTRepoExecJRC(cacheDir);
+            DeepTracker.cpupdatePTWfromJRCProdExec(cacheDir);
+            aptroot = [cacheDir '/APT'];
+          end
         case DLBackEnd.Docker
           obj.downloadPretrainedWeights('aptroot',APT.Root); 
       end
@@ -757,8 +764,7 @@ classdef DeepTracker < LabelTracker
       syscmds = cell(nvw,1);
       switch backEnd.type
         case DLBackEnd.Bsub
-          jrcaptroot = [cacheDir '/APT'];
-          mntPaths = obj.genContainerMountPath('aptroot',jrcaptroot);
+          mntPaths = obj.genContainerMountPath('aptroot',aptroot);
         case DLBackEnd.Docker 
           mntPaths = obj.genContainerMountPath();          
       end
@@ -1890,8 +1896,8 @@ classdef DeepTracker < LabelTracker
             aptroot = APT.Root;
             [dmc.aptRootUser] = deal(aptroot);
           else
-          DeepTracker.cloneJRCRepoIfNec(cacheDir);
-          DeepTracker.updateAPTRepoExecJRC(cacheDir);
+            DeepTracker.cloneJRCRepoIfNec(cacheDir);
+            DeepTracker.updateAPTRepoExecJRC(cacheDir);
             aptroot = [cacheDir '/APT'];
           end
           hmapArgs = [hmapArgs {'deepnetroot' [aptroot '/deepnet']}]; 
