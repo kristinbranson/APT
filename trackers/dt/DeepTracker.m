@@ -682,11 +682,11 @@ classdef DeepTracker < LabelTracker
       if backEnd.type == DLBackEnd.Docker,
         % how many gpus do we have available?
         gpuids = obj.getFreeGPUs(nvw);
-        if isempty(gpuids),
+        if numel(gpuids) < nvw,
           if nvw == 1,
             error('No GPUs with sufficient RAM available locally');
           else
-            gpuids = obj.getFreeGPUs(1);
+            gpuids = gpuids(1);
             isMultiViewTrain = true;
             nTrainJobs = 1;
           end
