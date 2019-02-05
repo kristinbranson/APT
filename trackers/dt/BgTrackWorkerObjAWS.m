@@ -39,6 +39,7 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
             trkfile,errFile,logFile,killFile,partFile,partFile,trkfile);
         cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollargs);
 
+        fprintf('The time is %s\n',datestr(now,'yyyymmddTHHMMSS'));
         [tfpollsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
         if tfpollsucc
           reslines = regexp(res,'\n','split');
@@ -53,6 +54,8 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
           sRes(ivw).parttrkfileTimestamp = str2double(reslines{5}); % includes nan for 'DNE'
           sRes(ivw).parttrkfileNfrmtracked = str2double(reslines{6}); % includes nan for 'DNE'
           sRes(ivw).trkfileNfrmtracked = str2double(reslines{7}); % includes nan for 'DNE'
+          
+          fprintf('The poll succeeded. Time is %s\n',datestr(now,'yyyymmddTHHMMSS'));
         else
           % trackWorkerObj results don't have a 'pollsuccess' for some
           % reason
@@ -63,6 +66,8 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
           sRes(ivw).parttrkfileTimestamp = nan;
           sRes(ivw).parttrkfileNfrmtracked = nan;
           sRes(ivw).trkfileNfrmtracked = nan;
+          
+          fprintf('The poll failed. Time is %s\n',datestr(now,'yyyymmddTHHMMSS'));
         end
       end
       
