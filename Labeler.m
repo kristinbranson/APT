@@ -1553,8 +1553,8 @@ classdef Labeler < handle
     end
       
     function projSaveRaw(obj,fname)
-      s = obj.projGetSaveStruct(); %#ok<NASGU>
-      rawLblFile = getRawLblFile(obj);
+      s = obj.projGetSaveStruct(); 
+      rawLblFile = obj.getRawLblFile();
       save(rawLblFile,'-mat','-struct','s');
       success = obj.bundleSave(fname);
       if ~success, error('Could not bundle the label file %s',fname); end
@@ -1860,6 +1860,8 @@ classdef Labeler < handle
 %           end
 %         end
       end
+      obj.clearTempDir(); % clear the temp directory.
+
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -1889,6 +1891,7 @@ classdef Labeler < handle
       [success, tlbl] = obj.unbundleLoad(fname);
       if ~success, error('Could not unbundle the label file %s',fname); end
       s = load(tlbl,'-mat');
+      obj.clearTempDir();
 %       s = load(fname,'-mat');
       if s.nLabelPoints~=obj.nLabelPoints
         error('Labeler:projImport','Project %s uses nLabelPoints=%d instead of %d for the current project.',...
@@ -2098,7 +2101,18 @@ classdef Labeler < handle
       movefile([outFile '.tar'],outFile); 
       % matlab by default adds the .tar. So save it to tar
       % and then move it.
-      success = true;
+      success = obj.clearTempDir();
+    end
+    
+    function success = clearTempDir(obj)
+      [success, message, ~] = rmdir(obj.tname,'s');
+      if ~success
+        error('Could not clear the temp directory %s',message);
+      end
+      [success, message, ~] = mkdir(obj.tname);
+      if ~success
+        error('Could not clear the temp directory %s',message);
+      end
     end
     
   end
