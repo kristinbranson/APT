@@ -63,7 +63,11 @@ classdef BGWorkerContinuous < handle
         dataQueue.send(struct('id',0,'action','','result',{result}));
 %         dataQueue.send(struct('id',data.id,'action',action,'result',result));
 
+        obj.log('Pausing...');
         pause(callInterval);
+        obj.log('Done pausing...');
+        
+
       end
       
       status = 1;
