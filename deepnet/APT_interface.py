@@ -638,7 +638,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
         if cur_frame.ndim == 2:
             cur_frame = cur_frame[..., np.newaxis]
         cur_locs = to_py(lbl['preProcData_P'][:, ndx].copy())
-        cur_locs = cur_locs.reshape([2,conf.nviews,17])
+        cur_locs = cur_locs.reshape([2,conf.nviews,conf.n_classes])
         cur_locs = cur_locs[:,conf.view,:].T
         mndx = to_py(m_ndx[ndx])
 
