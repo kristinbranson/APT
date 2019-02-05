@@ -1830,15 +1830,18 @@ classdef Labeler < handle
       if ~strcmp(newCacheDir, obj.trackDLParams.CacheDir)
         obj.trackDLParams.CacheDir = newCacheDir;
         for ndx = 1:numel(obj.tracker.trnLastDMC)
-          obj.tracker.trnLastDMC(ndx).rootDir = cacheDir;
+          obj.tracker.trnLastDMC(ndx).rootDir = newCacheDir;
         end
         for ndx = 1:numel(obj.trackersAll)
             if isprop(obj.trackersAll{ndx},'movIdx2trkfile')
-                obj.trackersAll{ndx}.movIdx2trkfile = containers.Map();
+                obj.trackersAll{ndx}.movIdx2trkfile = containers.Map('KeyType','int32','ValueType','any');
             end
         end
         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
-          obj.trackCreateDeepTrackerStrippedLbl();
+          if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
+            s = obj.tracker.trnCreateStrippedLbl();
+            save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
+          end
         end
       end
       
@@ -1989,8 +1992,8 @@ classdef Labeler < handle
       end
       if ~exist(cacheDir,'dir')
 %         [success,message,messageid] = mkdir(cacheDir);
-        warndlg('Cache dir for deep learning does not exist. Please select a new cache dir','Cache Dir');
-        newCacheDir = uiwait(uigetdir('','Select cache dir'));
+        uiwait(warndlg('Cache dir for deep learning does not exist. Please select a new cache dir','Cache Dir'));
+        newCacheDir = uigetdir('','Select cache dir');
         if newCacheDir == 0
           warning('No local cache dir selected. Could not restore the model files. Saved models will not be available for use');
           return
