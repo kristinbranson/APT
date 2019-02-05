@@ -433,6 +433,7 @@ classdef Labeler < handle
     preProcData % scalar CPRData, preproc Data cache for CPR
     preProcDataTS % scalar timestamp  
     preProcSaveData % scalar logical. If true, preProcData* and ppdb are saved/loaded with project file
+    copyPreProcData = false; % scalar logical. if true, don't reread images from videos to create the PreProcDB, just copy over from preProcData
     
     ppdb % PreProcDB for DL
   end
