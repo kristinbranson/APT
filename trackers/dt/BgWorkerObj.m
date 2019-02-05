@@ -26,7 +26,7 @@ classdef BgWorkerObj < handle
         return;
       end
       obj.nviews = nviews;
-      assert(isa(dmcs,'DeepModelChainOnDisk') && numel(dmcs)==nviews);
+      assert(isa(dmcs,'DeepModelChainOnDisk') && ((numel(dmcs)==1 && isempty(dmcs.view)) || numel(dmcs)==nviews));
       obj.dmcs = dmcs;
       obj.reset();
     end
@@ -37,13 +37,14 @@ classdef BgWorkerObj < handle
     end
     
     function errFile = getErrFile(obj)
-      errFile = '';
+      errFile = {};
     end
     
     function killFiles = getKillFiles(obj)
       
-      killFiles = cell(1,obj.nviews);
-      for ivw=1:obj.nviews
+      nJobs = numel(obj.dmcs);
+      killFiles = cell(1,nJobs);
+      for ivw=1:nJobs
         killFiles{ivw} = obj.dmcs(ivw).killTokenLnx;
       end        
       
@@ -56,6 +57,7 @@ classdef BgWorkerObj < handle
        
     function printLogfiles(obj) % obj const
       logFiles = obj.getLogFiles();
+      logFiles = unique(logFiles);
       logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
       BgWorkerObj.printLogfilesStc(logFiles,logFileContents)
     end
@@ -71,13 +73,15 @@ classdef BgWorkerObj < handle
       if isempty(errFile),
         tfEFE = false;
       else
-        tfEFE = obj.errFileExistsNonZeroSize(errFile);
+        tfEFE = any(cellfun(@(x) obj.errFileExistsNonZeroSize(x),errFile));
       end
     end
     
     function ss = getErrorfileContent(obj) % obj const
-      errFile = obj.getErrFile();
-      ss = strsplit(obj.fileContents(errFile),'\n');
+      errFiles = obj.getErrFile();
+      errFileContents = cellfun(@(x)obj.fileContents(x),errFiles,'uni',0);
+      ss = BgWorkerObj.getLogfilesContentStc(logFiles,errFileContents);
+      %ss = strsplit(obj.fileContents(errFile),'\n');
     end
     
     function tfLogErrLikely = logFileErrLikely(obj,file) % obj const

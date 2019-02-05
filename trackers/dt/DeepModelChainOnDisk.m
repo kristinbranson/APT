@@ -17,6 +17,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
               % restarted arbitrarily many times. This timestamp uniquely
               % identifies a restart
     trainType % scalar DLTrainType
+    isMultiView = false; % whether this was trained with one call to APT_interface for all views
     iterFinal % final expected iteration    
     iterCurr % last completed iteration, corresponds to actual model file used
     %backEnd % back-end info (bsub, docker, aws)
@@ -37,6 +38,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     errfileName
     trainLogLnx
     trainLogName
+    viewName
     killTokenLnx
     killTokenName
     trainDataLnx    
@@ -53,6 +55,9 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.dirNetLnx(obj)
       v = [obj.rootDir '/' obj.projID '/' char(obj.netType)];
+    end
+    function v = get.viewName(obj)
+      v = sprintf('view_%d',obj.view(1));
     end
     function v = get.dirViewLnx(obj)
       v = [obj.rootDir '/' obj.projID '/' char(obj.netType) '/' sprintf('view_%d',obj.view)];
@@ -76,7 +81,11 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
       v = [obj.dirProjLnx '/' obj.errfileName];      
     end
     function v = get.errfileName(obj)
-      v = sprintf('%s_%s.err',obj.modelChainID,obj.trainID);
+      if obj.isMultiView,
+        v = sprintf('%s_%s.err',obj.modelChainID,obj.trainID);
+      else
+        v = sprintf('%sview%d_%s.err',obj.modelChainID,obj.view,obj.trainID);
+      end
     end
     function v = get.trainLogLnx(obj)
       v = [obj.dirProjLnx '/' obj.trainLogName];
@@ -84,13 +93,25 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     function v = get.trainLogName(obj)
       switch obj.trainType
         case DLTrainType.Restart
-          v = sprintf('%s_%s_%s%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+          if obj.isMultiView,
+            v = sprintf('%s_%s_%s%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+          else
+            v = sprintf('%sview%d_%s_%s%s.log',obj.modelChainID,obj.view,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+          end
         otherwise
-          v = sprintf('%s_%s_%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)));
+          if obj.isMultiView,
+            v = sprintf('%s_%s_%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)));
+          else
+            v = sprintf('%sview%d_%s_%s.log',obj.modelChainID,obj.view,obj.trainID,lower(char(obj.trainType)));
+          end
       end
     end    
     function v = get.killTokenLnx(obj)
-      v = [obj.dirModelChainLnx '/' obj.killTokenName];
+      if obj.isMultiView,
+        v = [obj.dirProjLnx '/' obj.killTokenName];
+      else
+        v = [obj.dirModelChainLnx '/' obj.killTokenName];
+      end
     end    
     function v = get.killTokenName(obj)
       switch obj.trainType
@@ -151,8 +172,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
       % filesys paths/globs of important parts/stuff to keep
       
       g = { ...
-        [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID,obj.trainID)]; ... % lbl, err, logs
-        [obj.dirModelChainLnx '/' sprintf('%s*',obj.trainID)]; ... % toks
+        [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID,obj.trainID)]; ... % lbl
+        [obj.dirModelChainLnx '/' sprintf('%s*',obj.trainID)]; ... % toks, logs, errs
         [obj.dirModelChainLnx '/' sprintf('deepnet-%d.*',obj.iterCurr)]; ... % latest iter 
         [obj.dirModelChainLnx '/' 'deepnet_ckpt']; ... 
         [obj.dirModelChainLnx '/' 'splitdata.json']; ...

@@ -71,7 +71,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       if iscell(jID),
         jID = jID{1};
       end
-      bjobscmd = sprintf('%s container ls -f id=%s',obj.dockercmd,jID);
+      bjobscmd = sprintf('%s container ls -a -f id=%s',obj.dockercmd,jID);
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
@@ -108,11 +108,20 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     end
     
     function tfsucc = createKillToken(obj,killtoken)
+      p = fileparts(killtoken);
+      if ~isempty(p) && ~exist(p,'dir'),
+        fprintf('Directory %s does not exist, creating.\n',p);
+        [tfsucc,msg] = mkdir(p);
+        if ~tfsucc,
+          warning('Error creating directory: %s',msg);
+          return;
+        end
+      end
       touchcmd = sprintf('touch %s',killtoken);
       %touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false);
       [st,res] = system(touchcmd);
       if st~=0
-        warningNoTrace('Failed to create KILLED token: %s',killtoken);
+        warningNoTrace('Failed to create KILLED token: %s.\n%s',killtoken,res);
         tfsucc = false;
       else
         fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);

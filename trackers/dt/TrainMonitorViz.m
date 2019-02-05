@@ -98,7 +98,7 @@ classdef TrainMonitorViz < handle
       
       res = sRes.result;
       tfAnyLineUpdate = false;
-      lineUpdateMaxStep = 0;
+      lineUpdateMaxStep = zeros(1,numel(res));
       
       h = obj.hline;
       
@@ -113,7 +113,7 @@ classdef TrainMonitorViz < handle
             set(h(ivw,1),'XData',contents.step,'YData',contents.train_loss);
             set(h(ivw,2),'XData',contents.step,'YData',contents.train_dist);
             tfAnyLineUpdate = true;
-            lineUpdateMaxStep = max(lineUpdateMaxStep,contents.step(end));
+            lineUpdateMaxStep(ivw) = max(lineUpdateMaxStep(ivw),contents.step(end));
           end
 
           if res(ivw).killFileExists, 
@@ -154,9 +154,9 @@ classdef TrainMonitorViz < handle
       end
       
       if tfAnyLineUpdate
-        obj.adjustAxes(lineUpdateMaxStep);
+        obj.adjustAxes(max(lineUpdateMaxStep));
+        obj.lastTrainIter = lineUpdateMaxStep;
       end
-      obj.lastTrainIter = lineUpdateMaxStep;
       
       if isempty(obj.resLast) || tfAnyLineUpdate
         obj.resLast = res;
@@ -200,22 +200,22 @@ classdef TrainMonitorViz < handle
         isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
         % to-do: figure out how to make this robust to different file
         % systems
-        isLogFile = any(cellfun(@(x) exist(x,'file'),{res.logFile}));
-        isJsonFile = all([res.jsonPresent]>0);
+        isLogFile = cellfun(@(x) exist(x,'file'),{res.logFile});
+        isJsonFile = [res.jsonPresent]>0;
       end
 
       if obj.isKilled,
         status = 'Training process killed.';
       elseif isErr,
-        status = sprintf('Error while training after %d iterations',obj.lastTrainIter);
+        status = sprintf('Error while training after %s iterations',mat2str(obj.lastTrainIter));
       elseif isTrainComplete,
         status = 'Training complete.';
         handles = guidata(obj.hfig);
         TrainMonitorViz.updateStartStopButton(handles,false,true);
-      elseif isLogFile && ~isJsonFile,
+      elseif any(isLogFile) && all(~isJsonFile),
         status = 'Training in progress. Building training image database.';
-      elseif isLogFile && isJsonFile,
-        status = sprintf('Training in progress. %d iterations completed.',obj.lastTrainIter);
+      elseif any(isLogFile) && any(isJsonFile),
+        status = sprintf('Training in progress. %s iterations completed.',mat2str(obj.lastTrainIter));
       else
         status = 'Initializing training.';
       end
