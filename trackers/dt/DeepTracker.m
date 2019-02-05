@@ -2918,8 +2918,7 @@ classdef DeepTracker < LabelTracker
       end
       if tfcrop
         szassert(croproi,[nview 4]);
-      end
-      
+      end      
             
       assert(~(tftrx && tfcrop));
 
@@ -2941,12 +2940,13 @@ classdef DeepTracker < LabelTracker
       if tfcache
         codestr = [codestr ' -cache ' cache];
       end
-      codestr = [codestr ' -err_file ' errfile ' -type ' char(nettype)];
+      codestr = [codestr ' -err_file ' errfile];
       if tfmodel
         codestr = sprintf('%s -model_files %s',codestr,modelfilestr);
       end
-      codestr = [codestr sprintf(' %s track -mov %s -out %s',dllbl,movtrk,outtrk)];
-      if ~isempty(frm0) && ~isempty(frm1),
+      codestr = [codestr sprintf(' -type %s %s track -mov %s -out %s',...
+        char(nettype),dllbl,movtrkstr,outtrkstr)];
+      if ~isempty(frm0) && ~isempty(frm1)
         codestr = [codestr, sprintf(' -start_frame %d -end_frame %d',frm0,frm1)];
       end
       if tftrx
