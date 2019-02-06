@@ -44,7 +44,7 @@ class RNN_pp(object):
 
     def create_db(self, split_file=None):
         assert  self.rnn_pp_hist % self.conf.batch_size == 0, 'make sure the history is a multiple of batch size'
-        assert len(self.conf.mdn_groups)==1, 'This works only for single group. check for line 118'
+        # assert len(self.conf.mdn_groups)==1, 'This works only for single group. check for line 118'
         net = PoseUNet_resnet.PoseUMDN_resnet(self.conf,self.mdn_name)
         pred_fn, close_fn, _ = net.get_pred_fn()
 
