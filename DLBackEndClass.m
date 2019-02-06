@@ -4,7 +4,10 @@ classdef DLBackEndClass < handle
   properties
     type  % scalar DLBackEnd
     awsec2 % used only for type==AWS
-    deepnetbranch % char, git branch of deepnet to run. unmanaged
+    
+    % scalar logical. if true, backend runs code in APT.Root/deepnet. This
+    % path must be visible in the backend or else.
+    deepnetrunlocal = true; 
   end
  
   methods

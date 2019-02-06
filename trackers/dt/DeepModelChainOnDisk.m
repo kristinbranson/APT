@@ -34,6 +34,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     
     lblStrippedLnx % full path to stripped lbl file for this train session
     lblStrippedName % short filename 
+    cmdfileLnx
+    cmdfileName
     errfileLnx 
     errfileName
     trainLogLnx
@@ -77,6 +79,16 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     function v = get.lblStrippedName(obj)
       v = sprintf('%s_%s.lbl',obj.modelChainID,obj.trainID);
     end
+    function v = get.cmdfileLnx(obj)      
+      v = [obj.dirProjLnx '/' obj.cmdfileName];      
+    end
+    function v = get.cmdfileName(obj)
+      if obj.isMultiView
+        v = sprintf('%s_%s.cmd',obj.modelChainID,obj.trainID);
+      else
+        v = sprintf('%sview%d_%s.cmd',obj.modelChainID,obj.view,obj.trainID);
+      end
+    end    
     function v = get.errfileLnx(obj)      
       v = [obj.dirProjLnx '/' obj.errfileName];      
     end
