@@ -8056,6 +8056,11 @@ classdef Labeler < handle
           tblP.p = tblP.pRoi;        
         end
       else
+        if tblfldscontains(tblP,'pAbs') % AL20190207 add this now some downstream clients want it
+          assert(isequaln(tblP.p,tblP.pAbs));
+        else
+          tblP.pAbs = tblP.p;
+        end
         % none; tblP.p is .pAbs. No .roi field.
       end
     end
