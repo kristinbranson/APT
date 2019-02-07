@@ -5,7 +5,7 @@ classdef TrackMonitorViz < handle
     hannlastupdated % [1] textbox/annotation handle
     hline % [nviewx1] patch handle showing fraction of frames tracked
     htext % [nviewx1] text handle showing fraction of frames tracked
-    htrackerInfo
+    htrackerInfo % scalar text box handle showing information about current tracker
     isKilled = false; % scalar, whether tracking has been halted
     
     resLast = []; % last contents received
@@ -54,7 +54,8 @@ classdef TrackMonitorViz < handle
       arrayfun(@(x)cla(x),obj.haxs);
       obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
-      s = obj.dtObj.getTrackerInfoString(true);
+	  % set info about current tracker
+      s = obj.dtObj.getTrackerInfoString();
       handles.edit_trackerinfo.String = s;
       handles.popupmenu_actions.String = obj.actions.(char(backEnd));
       handles.popupmenu_actions.Value = 1;
@@ -109,6 +110,10 @@ classdef TrackMonitorViz < handle
       fprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
       fprintf('N. frames tracked: ');
       nview = numel(res);
+
+      % always update info about current tracker, as labels may have changed
+      s = obj.dtObj.getTrackerInfoString();
+      handles.edit_trackerinfo.String = s;
 
       tic;
       for ivw=1:nview,

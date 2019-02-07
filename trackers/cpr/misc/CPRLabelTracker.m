@@ -112,7 +112,7 @@ classdef CPRLabelTracker < LabelTracker
   end
   properties (SetObservable)
     storeFullTracking = StoreFullTrackingType.NONE; % scalar StoreFullTrackingType 
-    trackerInfo = [];
+    trackerInfo = []; % struct with whatever information we want to save about the current tracker
   end
   
   events
@@ -1076,6 +1076,7 @@ classdef CPRLabelTracker < LabelTracker
       end
       
       obj.trnResIPt = iPt;
+      % call updateTrackerInfo when tracking finishes
       obj.updateTrackerInfo();
     end
     
@@ -2509,6 +2510,7 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
   
+    % function which updates trackerInfo using trnResRC
     function updateTrackerInfo(obj)
       info = struct;
       info.algorithm = obj.algorithmNamePretty;
@@ -2528,6 +2530,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.trackerInfo = info;
     end
     
+    % returns cell array of strings with info about current tracker
     function [infos] = getTrackerInfoString(obj,doupdate)
       
       if nargin < 2,

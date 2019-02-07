@@ -648,6 +648,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonBGWorkerObj.killProcess();      
     end
     
+    % update trackerInfo from trnLastDMC
     function updateTrackerInfo(obj)
       
       % info about algorithm and training
@@ -677,6 +678,7 @@ classdef DeepTracker < LabelTracker
       obj.trackerInfo = info;
     end
     
+    % set select properties of trackerInfo 
     function setTrackerInfo(obj,varargin)
       
       [iterCurr] = myparse(varargin,'iterCurr',[]);
@@ -693,6 +695,7 @@ classdef DeepTracker < LabelTracker
       
     end
     
+    % return a cell array of strings with information about current tracker
     function [infos] = getTrackerInfoString(obj,doupdate)
       
       if nargin < 2,
@@ -815,6 +818,7 @@ classdef DeepTracker < LabelTracker
       tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl
         s = obj.trnCreateStrippedLbl(backEnd,'wbObj',wbObj);
+        % store nLabels in dmc
         dmc.nLabels = s.nLabels;
         
         trainID = datestr(now,'yyyymmddTHHMMSS');
@@ -846,6 +850,7 @@ classdef DeepTracker < LabelTracker
         end
         
         dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
+        % read nLabels from stripped lbl file
         dmc.readNLabels();
 
       end
@@ -949,7 +954,6 @@ classdef DeepTracker < LabelTracker
         obj.trnName = modelChainID;
         obj.trnNameLbl = trainID;
         obj.trnLastDMC = dmc;
-        obj.updateTrackerInfo();
       end
     end
     
@@ -1126,7 +1130,6 @@ classdef DeepTracker < LabelTracker
       for i=1:numel(dmcs)
         dmcs(i).updateCurrInfo(args{:});
       end
-      obj.updateTrackerInfo();
     end
     
   end
@@ -1190,6 +1193,8 @@ classdef DeepTracker < LabelTracker
                             trnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl        
         s = obj.trnCreateStrippedLbl(backend,'awsTrxUpload',true,'wbObj',wbObj); %#ok<NASGU>
+		% store nLabels in DMC
+        dmc.nLabels = s.nLabels;
         
         trainID = datestr(now,'yyyymmddTHHMMSS');
         dmc.trainID = trainID;
@@ -1235,7 +1240,9 @@ classdef DeepTracker < LabelTracker
         end
         
         dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
-        dmcLcl.restartTS = dmc.restartTS;        
+        dmcLcl.restartTS = dmc.restartTS;
+		% read nLabels from stripped lbl file
+        dmc.readNLabels();        
       end
       dlLblFileRemote = dmc.lblStrippedLnx;
       aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
@@ -1275,7 +1282,6 @@ classdef DeepTracker < LabelTracker
         obj.trnName = modelChainID;
         obj.trnNameLbl = trainID;
         obj.trnLastDMC = dmc;
-        obj.updateTrackerInfo();
 
       end
     end
@@ -2614,6 +2620,8 @@ classdef DeepTracker < LabelTracker
         end
 
       end
+	  % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
+      obj.updateTrackerInfo();
     end
     
     function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)      
@@ -3415,6 +3423,8 @@ classdef DeepTracker < LabelTracker
       end
       obj.trackResInit();
       obj.trackCurrResInit();
+	  % deleting old tracking results, so can switch to new tracker info
+      obj.updateTrackerInfo();
 
 %       for i = 1:numel(trkFilesToDelete),
 %         delete(trkFilesToDelete{i});

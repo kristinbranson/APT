@@ -2430,6 +2430,7 @@ classdef Labeler < handle
         assert(false);
       end
     
+      % 20190207: added nLabels to dmc
       for i = 1:numel(s.trackerData),
         if isfield(s.trackerData{i},'trnLastDMC'),
           for j = 1:numel(s.trackerData{i}.trnLastDMC),
@@ -5888,6 +5889,7 @@ classdef Labeler < handle
       
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
         'labeledposTS','labeledpostag');
+      % need to compute lastLabelChangeTS from scratch
       obj.computeLastLabelChangeTS();
       
       obj.movieFilesAllHaveLbls(iMovs) = ...
@@ -5905,6 +5907,7 @@ classdef Labeler < handle
       RC.saveprop('lastTrkFileImported',trkfiles{end});
     end
     
+    % compute lastLabelChangeTS from scratch
     function computeLastLabelChangeTS(obj)
       
       obj.lastLabelChangeTS = cellfun(@(x) max(x(:)),obj.labeledposTS);

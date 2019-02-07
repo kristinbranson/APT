@@ -539,7 +539,7 @@ listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 %listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
-listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkTrackerInfoChanged);
+listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
@@ -1449,6 +1449,7 @@ lObj = src;
 handles = lObj.gdata;
 cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
 EnableControls(handles,'projectloaded');
+% update tracker info when loading in new trackers
 lObj.tracker.updateTrackerInfo();
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
@@ -2002,6 +2003,7 @@ tObj = lObj.tracker;
 iTrker = lObj.currTracker;
 
 handles = setupTrackerMenusListeners(handles,tObj,iTrker);
+% tracker changed, update tracker info
 tObj.updateTrackerInfo();
 handles.labelTLInfo.setTracker(tObj);
 handles.labelTLInfo.setLabelsFull();
@@ -3038,10 +3040,17 @@ if isempty(lObj.tracker)
   handles.menu_view_hide_predictions.Checked = onIff(lObj.labels2Hide);
 end
 
+% when trackerInfo is updated, update the tracker info text in the main APT window
 function cbkTrackerInfoChanged(src,evt)
 
 tObj = evt.AffectedObject;
 tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
+
+% when lastLabelChangeTS is updated, update the tracker info text in the main APT window
+function cbkLastLabelChangeTS(src,evt)
+
+lObj = evt.AffectedObject;
+lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
 
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
 % just use checked state of menu for now, no other state
