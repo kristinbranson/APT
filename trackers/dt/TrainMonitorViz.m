@@ -156,6 +156,7 @@ classdef TrainMonitorViz < handle
       if tfAnyLineUpdate
         obj.adjustAxes(max(lineUpdateMaxStep));
         obj.lastTrainIter = lineUpdateMaxStep;
+        %obj.dtObj.setTrackerInfo('iterCurr',obj.lastTrainIter);
       end
       
       if isempty(obj.resLast) || tfAnyLineUpdate

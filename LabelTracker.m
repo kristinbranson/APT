@@ -40,6 +40,7 @@ classdef LabelTracker < handle
   
   properties (Abstract)
     algorithmName % char
+    trackerInfo;
   end  
   
   properties    
@@ -312,7 +313,15 @@ classdef LabelTracker < handle
     function hideVizToggle(obj)
       obj.setHideViz(~obj.hideViz);
     end
-        
+    
+    function updateTrackerInfo(obj)
+      
+    end
+    
+    function [infos] = getTrackerInfoString(obj,doupdate)
+      infos = {'Not implemented'};
+    end
+    
   end
   
   methods % For infotimeline display

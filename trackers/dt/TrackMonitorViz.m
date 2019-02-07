@@ -5,6 +5,7 @@ classdef TrackMonitorViz < handle
     hannlastupdated % [1] textbox/annotation handle
     hline % [nviewx1] patch handle showing fraction of frames tracked
     htext % [nviewx1] text handle showing fraction of frames tracked
+    htrackerInfo
     isKilled = false; % scalar, whether tracking has been halted
     
     resLast = []; % last contents received
@@ -53,6 +54,8 @@ classdef TrackMonitorViz < handle
       arrayfun(@(x)cla(x),obj.haxs);
       obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
+      s = obj.dtObj.getTrackerInfoString(true);
+      handles.edit_trackerinfo.String = s;
       handles.popupmenu_actions.String = obj.actions.(char(backEnd));
       handles.popupmenu_actions.Value = 1;
       handles.axes_wait.YLim = [0,nview];
@@ -83,7 +86,9 @@ classdef TrackMonitorViz < handle
       obj.resLast = [];
       obj.parttrkfileTimestamps = zeros(1,nview);
       obj.nFramesTracked = zeros(1,nview);
+            
     end
+    
     function delete(obj)
       deleteValidHandles(obj.hfig);
       obj.hfig = [];
