@@ -2538,7 +2538,7 @@ classdef Labeler < handle
         s.ppdb = [];
       end
       cprprms = s.trackerData{1}.sPrm;
-      if isfield(cprprms.TrainInit,'usetrxorientation')
+      if ~isempty(cprprms) && isfield(cprprms.TrainInit,'usetrxorientation')
         % legacy project has 3-way enum param for cpr under .TrainInit and
         % .TestInit. Initialize .preProcParams...AlignUsingTrxTheta using
         % this val. Then remove these parameters now too although

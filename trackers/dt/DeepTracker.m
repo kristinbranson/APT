@@ -28,7 +28,6 @@ classdef DeepTracker < LabelTracker
     
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
-    deepnetrunlocal = false; % transient. if true, run the code in APT.root
     deepnetgitbranch % transient/unmanaged. set me to use/run a diff branch
   end
 %   properties (SetObservable)
@@ -805,11 +804,19 @@ classdef DeepTracker < LabelTracker
         'isMultiView',isMultiViewTrain);
         %'backEnd',backEnd);
 
+      [dmc.aptRootUser] = deal([]);
       switch backEnd.type
         case DLBackEnd.Bsub
-          DeepTracker.cloneJRCRepoIfNec(cacheDir);
-          DeepTracker.updateAPTRepoExecJRC(cacheDir);
-          DeepTracker.cpupdatePTWfromJRCProdExec(cacheDir);
+          if backEnd.deepnetrunlocal
+            aptroot = APT.Root;
+            [dmc.aptRootUser] = deal(aptroot);
+            DeepTracker.downloadPretrainedExec(aptroot);
+          else
+            DeepTracker.cloneJRCRepoIfNec(cacheDir);
+            DeepTracker.updateAPTRepoExecJRC(cacheDir);
+            DeepTracker.cpupdatePTWfromJRCProdExec(cacheDir);
+            aptroot = [cacheDir '/APT'];
+          end
         case DLBackEnd.Docker
           obj.downloadPretrainedWeights('aptroot',APT.Root); 
       end
@@ -861,8 +868,7 @@ classdef DeepTracker < LabelTracker
       syscmds = cell(nvw,1);
       switch backEnd.type
         case DLBackEnd.Bsub
-          jrcaptroot = [cacheDir '/APT'];
-          mntPaths = obj.genContainerMountPath('aptroot',jrcaptroot);
+          mntPaths = obj.genContainerMountPath('aptroot',aptroot);
         case DLBackEnd.Docker 
           mntPaths = obj.genContainerMountPath();          
       end
@@ -929,9 +935,23 @@ classdef DeepTracker < LabelTracker
           end
         else
           bgTrnWorkerObj.jobID = nan(nTrainJobs,1);
+          assert(nTrainJobs==numel(dmc));
           for iview=1:nTrainJobs
-            fprintf(1,'%s\n',syscmds{iview});
-            [st,res] = system(syscmds{iview});
+            syscmdrun = syscmds{iview};
+            fprintf(1,'%s\n',syscmdrun);            
+            
+            cmdfile = dmc(iview).cmdfileLnx;
+            assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
+            [fh,msg] = fopen(cmdfile,'w');
+            if isequal(fh,-1)
+              warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+            else
+              fprintf(fh,'%s\n',syscmdrun);
+              fclose(fh);
+              fprintf(1,'Wrote command to cmdfile %s.\n',cmdfile);
+            end
+            
+            [st,res] = system(syscmdrun);
             if st==0
               PAT = 'Job <(?<jobid>[0-9]+)>';
               stoks = regexp(res,PAT,'names');
@@ -1995,12 +2015,13 @@ classdef DeepTracker < LabelTracker
       [dmc.aptRootUser] = deal([]);
       switch backend.type
         case DLBackEnd.Bsub
-          if obj.deepnetrunlocal
+          if backend.deepnetrunlocal
             aptroot = APT.Root;
             [dmc.aptRootUser] = deal(aptroot);
+            DeepTracker.downloadPretrainedExec(aptroot);
           else
-          DeepTracker.cloneJRCRepoIfNec(cacheDir);
-          DeepTracker.updateAPTRepoExecJRC(cacheDir);
+            DeepTracker.cloneJRCRepoIfNec(cacheDir);
+            DeepTracker.updateAPTRepoExecJRC(cacheDir);
             aptroot = [cacheDir '/APT'];
           end
           hmapArgs = [hmapArgs {'deepnetroot' [aptroot '/deepnet']}]; 
@@ -2038,6 +2059,7 @@ classdef DeepTracker < LabelTracker
         'trkfile',cell(nView,1),...
         'logfile',[],...
         'errfile',[],...
+        'snapshotfile',[],...
         'codestr',[]);
       for ivw=1:nView,
 
@@ -2085,6 +2107,7 @@ classdef DeepTracker < LabelTracker
         containerName = [movS '_' trnstr '_' nowstr];
         outfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.log']);
         errfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.err']);
+        ssfile = fullfile(trkoutdir,[movS '_' trnstr '_' nowstr '.aptsnapshot']);
         %outfile2 = fullfile(movP,[movS '_' trnstr '_' nowstr '.log2']);
         fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);  
 
@@ -2094,6 +2117,7 @@ classdef DeepTracker < LabelTracker
         trksysinfo(ivw).trkfile = trkfile;
         trksysinfo(ivw).logfile = outfile;
         trksysinfo(ivw).errfile = errfile;
+        trksysinfo(ivw).snapshotfile = ssfile;
         trksysinfo(ivw).parttrkfile = [trkfile,'.part'];
         if exist(trksysinfo(ivw).parttrkfile,'file'),
           fprintf('Deleting partial tracking result %s',trksysinfo(ivw).parttrkfile);
@@ -2110,11 +2134,17 @@ classdef DeepTracker < LabelTracker
           case DLBackEnd.Bsub
             singBind = obj.genContainerMountPath('aptroot',aptroot);
             singargs = {'bindpath',singBind};
+            
+            repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
+            repoSScmd = sprintf('%s %s > %s',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
+            prefix = [DeepTracker.jrcprefix '; ' repoSScmd];
+
+            sshargsuse = [sshargs {'prefix' prefix}];
             trksysinfo(ivw).codestr = DeepTracker.trackCodeGenSSHBsubSing(...
               modelChainID,dmc(ivw).rootDir,dlLblFile,errfile,obj.trnNetType,...
               mov,trkfile,frm0,frm1,...
               'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
-              'sshargs',sshargs);
+              'sshargs',sshargsuse);
 
           case DLBackEnd.Docker
             singBind = obj.genContainerMountPath();
@@ -2881,7 +2911,14 @@ classdef DeepTracker < LabelTracker
         'bsubArgs',{'outfile' dmc.trainLogLnx},...
         'sshargs',{'prefix' prefix});
     end
-      
+    function downloadPretrainedExec(aptroot)
+      assert(isunix,'Only supported on *nix platforms.');
+      deepnetroot = [aptroot '/deepnet'];
+      cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
+      [~,res] = AWSec2.syscmd(cmd,...
+        'dispcmd',true,...
+        'failbehavior','err');
+    end      
     function codestr = updateAPTRepoCmd(varargin)
       [aptparent,downloadpretrained,branch] = myparse(varargin,...
         'aptparent','/home/ubuntu',...
@@ -3173,7 +3210,8 @@ classdef DeepTracker < LabelTracker
         'bsubargs',{},...
         'sshargs',{}...
         );
-      baseargs = [baseargs {'cache' cache}];
+      baseargs = [baseargs {'cache' cache}];      
+            
       remotecmd = DeepTracker.trackCodeGenBsubSing(trnID,dllbl,errfile,...
         nettype,movtrk,outtrk,frm0,frm1,...
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
