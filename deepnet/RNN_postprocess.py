@@ -99,24 +99,25 @@ class RNN_pp(object):
                     cur_out = multiResData.get_cur_env(out_fns, split, conf, info, mov_split, trx_split=trx_split, predefined=predefined)
                     num_rep = 1 + cur_out*(self.train_rep-1)
 
+                    orig_ims = []
+                    orig_labels = []
+                    for fndx in range(-self.rnn_pp_hist, self.rnn_pp_hist):
+                        frame_in, cur_loc = multiResData.get_patch(
+                            cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts],
+                            cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc, offset=fndx)
+                        orig_labels.append(cur_loc)
+                        orig_ims.append(frame_in)
+
+                    orig_ims = np.array(orig_ims)
+                    orig_labels = np.array(orig_labels)
+
                     for rep in range(num_rep):
                         cur_pred = np.ones([self.rnn_pp_hist*2,self.conf.n_classes,2])*np.nan
-                        cur_ims = []
-                        cur_labels = []
                         raw_preds = np.ones([self.rnn_pp_hist*2,self.conf.n_classes,2])*np.nan
                         unet_preds = np.ones([self.rnn_pp_hist*2,self.conf.n_classes,2])*np.nan
-                        for fndx in range(-self.rnn_pp_hist,self.rnn_pp_hist):
-                            frame_in, cur_loc = multiResData.get_patch(
-                                cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts],
-                                cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc, offset=fndx)
-                            cur_labels.append(cur_loc)
-                            cur_ims.append(frame_in)
-
-                        cur_ims = np.array(cur_ims)
-                        cur_labels = np.array(cur_labels)
 
                         cur_ims, cur_labels = PoseTools.preprocess_ims(
-                            cur_ims, cur_labels, conf, distort=cur_out,scale= self.conf.rescale,
+                            orig_ims, orig_labels, conf, distort=cur_out,scale= self.conf.rescale,
                             group_sz=2*self.rnn_pp_hist)
 
                         bsize = self.conf.batch_size
@@ -629,7 +630,7 @@ class RNN_pp(object):
         preds = np.array(preds)
         preds = preds.reshape((-1,self.conf.n_classes,2))
         prev_preds = np.array(prev_preds)
-        prev_preds = prev_preds.reshape((-1, self.conf.n_classes*2,4) )
+        prev_preds = prev_preds.reshape((-1, self.conf.n_classes*2,2) )
         labels = np.array(labels)
         labels = labels.reshape((-1,self.conf.n_classes,2))
         dd = np.sqrt(np.sum( (preds-labels)**2,axis=-1))

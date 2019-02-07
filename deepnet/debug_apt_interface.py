@@ -1,3 +1,18 @@
+# debug postprocessing
+import APT_interface as apt
+import RNN_postprocess
+
+lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190207T121622_20190207T121731.lbl'
+conf = apt.create_conf(lbl_file,0,'20190207T121622','/home/mayank/temp/apt_cache','mdn')
+self = RNN_postprocess.RNN_pp(conf,'deepnet',
+                              name = 'rnn_pp',
+                              data_name='rnn_pp_groups_augfix')
+self.rnn_pp_hist = 8
+self.train_rep = 3
+self.create_db(split_file = '/home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T153403/splitdata.json')
+
+
+##
 import APT_interface as apt
 cmd = '-name 20190114T151632 -view 1 -cache /home/mayank/temp/apt_cache -err_file /home/mayank/temp/apt_cache/multitarget_bubble/20190114T151632_20190114T151735.err -type mdn /home/mayank/temp/apt_cache/multitarget_bubble/20190114T151632_20190114T151735.lbl train -use_cache '
 
