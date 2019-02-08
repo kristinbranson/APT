@@ -1129,7 +1129,7 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
         cap.close()  # close the movie handles
 
         n_done = len([1 for i in in_list if i[0]<=ndx])
-        logging.info('Done prediction on {} out of {} GT labeled frames'.format(len(n_done),len(in_list)))
+        logging.info('Done prediction on {} out of {} GT labeled frames'.format(n_done,len(in_list)))
 
     logging.info('Done prediction on all GT frames')
     lbl.close()
@@ -1755,14 +1755,20 @@ def run(args):
         assert nviews == 1 or args.view is not None, 'View must be specified for multiview projects'
         assert args.trx is None, 'Input list_file should specify trx files'
         assert args.crop_loc is None, 'Input list_file should specify crop locations'
-        
+        if args.model_file is None:
+            args.model_file = [None]
+        else:
+            assert len(args.model_file)==1, 'Only one model_file can be specified'
+        assert len(args.out_files)==1, 'Exactly one out_file must be specified'
+
         if args.view is None:
             ivw = 0
         else:
-            ivw = args.view-1
+            ivw = args.view # already converted to 0b
+
         conf = create_conf(lbl_file, ivw, name, net_type=args.type, 
                            cache_dir=args.cache,conf_params=args.conf_params)
-        success,pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file, args.out_files[0])
+        success,pred_locs = classify_list_file(conf, args.type, args.list_file, args.model_file[0], args.out_files[0])
         assert success, 'Error classifying list_file ' + args.list_file
 
     elif args.sub_name == 'track':
