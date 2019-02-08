@@ -830,7 +830,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             # mdn_conf = np.max(mdn_pred_out, axis=(1, 2))
 
             base_locs = np.zeros([pred_means.shape[0],self.conf.n_classes,2])
-            mdn_conf = np.ones([pred_means.shape[0],self.conf.n_classes])*-1
+            mdn_conf = np.zeros([pred_means.shape[0],self.conf.n_classes])
             for ndx in range(pred_means.shape[0]):
                 for gdx, gr in enumerate(self.conf.mdn_groups):
                     for g in gr:
@@ -840,6 +840,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                         mdn_conf[ndx,g] = np.max(pred_weights[ndx,:,gdx])
 
             base_locs = base_locs * conf.rescale
+            mdn_conf = 2*mdn_conf -1 # it should now be between -1 to 1.
 
             if self.conf.mdn_use_unet_loss:
                 unet_locs = PoseTools.get_pred_locs(unet_pred)
