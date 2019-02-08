@@ -2555,7 +2555,7 @@ classdef Labeler < handle
           s.ppdb = [];
           warningNoTrace('New preprocessing parameter .AlignUsingTrxTheta has been set to true. Clearing existing DL trackers; they will need to be retrained.');
           for iTrker=1:numel(s.trackerData)
-            if strcmp(s.trackerClass{iTrker}{1},'DeepTracker')
+            if strcmp(s.trackerClass{iTrker}{1},'DeepTracker') && ~isempty(s.trackerData{iTrker})
               s.trackerData{iTrker}.trnName = '';
               s.trackerData{iTrker}.trnNameLbl = '';
               s.trackerData{iTrker}.trnLastDMC = [];
