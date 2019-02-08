@@ -810,12 +810,13 @@ classdef DeepTracker < LabelTracker
           if backEnd.deepnetrunlocal
             aptroot = APT.Root;
             [dmc.aptRootUser] = deal(aptroot);
-            DeepTracker.downloadPretrainedExec(aptroot);
+            %DeepTracker.downloadPretrainedExec(aptroot);
+            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           else
+            aptroot = [cacheDir '/APT'];
             DeepTracker.cloneJRCRepoIfNec(cacheDir);
             DeepTracker.updateAPTRepoExecJRC(cacheDir);
-            DeepTracker.cpupdatePTWfromJRCProdExec(cacheDir);
-            aptroot = [cacheDir '/APT'];
+            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
         case DLBackEnd.Docker
           obj.downloadPretrainedWeights('aptroot',APT.Root); 
@@ -2018,7 +2019,8 @@ classdef DeepTracker < LabelTracker
           if backend.deepnetrunlocal
             aptroot = APT.Root;
             [dmc.aptRootUser] = deal(aptroot);
-            DeepTracker.downloadPretrainedExec(aptroot);
+            %DeepTracker.downloadPretrainedExec(aptroot);
+            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           else
             DeepTracker.cloneJRCRepoIfNec(cacheDir);
             DeepTracker.updateAPTRepoExecJRC(cacheDir);
@@ -2912,6 +2914,8 @@ classdef DeepTracker < LabelTracker
         'sshargs',{'prefix' prefix});
     end
     function downloadPretrainedExec(aptroot)
+      % kb investigate: This doesn't work well on the cluster due to tf 
+      % being a restricted site, plus /tmp acts weird
       assert(isunix,'Only supported on *nix platforms.');
       deepnetroot = [aptroot '/deepnet'];
       cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
@@ -2960,14 +2964,14 @@ classdef DeepTracker < LabelTracker
         'dispcmd',true,...
         'failbehavior','err');
     end
-    function cmd = cpPTWfromJRCProdLnx(cacheRoot)
+    function cmd = cpPTWfromJRCProdLnx(aptrootLnx)
       % copy cmd (lnx) deepnet/pretrained from production repo to JRC loc 
       srcPTWlnx = [DeepTracker.jrcprodrepo '/deepnet/pretrained'];
-      dstPTWlnx = [cacheRoot '/APT/deepnet'];      
+      dstPTWlnx = [aptrootLnx '/deepnet'];      
       cmd = sprintf('cp -r -u %s %s',srcPTWlnx,dstPTWlnx);
     end
-    function cpupdatePTWfromJRCProdExec(cacheRoot) % throws if errors
-      cmd = DeepTracker.cpPTWfromJRCProdLnx(cacheRoot);
+    function cpupdatePTWfromJRCProdExec(aptrootLnx) % throws if errors
+      cmd = DeepTracker.cpPTWfromJRCProdLnx(aptrootLnx);
       cmd = DeepTracker.codeGenSSHGeneral(cmd,'bg',false);
       [~,res] = AWSec2.syscmd(cmd,...
         'dispcmd',true,...
