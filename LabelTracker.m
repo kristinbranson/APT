@@ -40,6 +40,7 @@ classdef LabelTracker < handle
   
   properties (Abstract)
     algorithmName % char
+    trackerInfo; % struct with whatever information we want to save about the current tracker. 
   end  
   
   properties    
@@ -312,7 +313,20 @@ classdef LabelTracker < handle
     function hideVizToggle(obj)
       obj.setHideViz(~obj.hideViz);
     end
-        
+    
+    % update information about the current tracker
+    % placeholder - should be defined by child classes
+    function updateTrackerInfo(obj)
+      
+    end
+    
+    % return a cell array of strings with information about the current
+    % tracker
+    % placeholder - should be defined by child classes
+    function [infos] = getTrackerInfoString(obj,doupdate)
+      infos = {'Not implemented'};
+    end
+    
   end
   
   methods % For infotimeline display

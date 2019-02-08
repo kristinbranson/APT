@@ -112,6 +112,7 @@ classdef CPRLabelTracker < LabelTracker
   end
   properties (SetObservable)
     storeFullTracking = StoreFullTrackingType.NONE; % scalar StoreFullTrackingType 
+    trackerInfo = []; % struct with whatever information we want to save about the current tracker
   end
   
   events
@@ -1074,7 +1075,9 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
       
-      obj.trnResIPt = iPt;            
+      obj.trnResIPt = iPt;
+      % call updateTrackerInfo when tracking finishes
+      obj.updateTrackerInfo();
     end
     
     function [hp,ht] = plotTiming(obj,varargin)
@@ -2504,6 +2507,60 @@ classdef CPRLabelTracker < LabelTracker
         xyfull = obj.xyPrdCurrMovieFull(:,:,:,frm);
       else
         xyfull = [];
+      end
+    end
+  
+    % function which updates trackerInfo using trnResRC
+    function updateTrackerInfo(obj)
+      info = struct;
+      info.algorithm = obj.algorithmNamePretty;
+      
+      if isempty(obj.trnResRC),
+        info.isTrained = false;
+      else
+        info.isTrained = obj.trnResRC.hasTrained;
+      end
+      if info.isTrained,
+        iTL = obj.trnResRC.trnLogMostRecentTrain();
+        info.trainStartTS = obj.trnResRC.trnLog(iTL).ts;
+      else
+        info.trainStartTS = 0;
+      end
+      info.nLabels = size(obj.trnDataTblPTS,1);
+      obj.trackerInfo = info;
+    end
+    
+    % returns cell array of strings with info about current tracker
+    function [infos] = getTrackerInfoString(obj,doupdate)
+      
+      if nargin < 2,
+        doupdate = false;
+      end
+      if doupdate,
+        obj.updateTrackerInfo();
+      end
+      infos = {};
+      infos{end+1} = obj.trackerInfo.algorithm;
+      if obj.trackerInfo.isTrained,
+        isNewLabels = obj.trackerInfo.trainStartTS < obj.lObj.lastLabelChangeTS;
+        
+        infos{end+1} = sprintf('Train start: %s',datestr(min(obj.trackerInfo.trainStartTS)));
+        if isempty(obj.trackerInfo.nLabels),
+          nlabelstr = '?';
+        elseif numel(obj.trackerInfo.nLabels) == 1,
+          nlabelstr = num2str(obj.trackerInfo.nLabels);
+        else
+          nlabelstr = mat2str(obj.trackerinfo.nLabels);
+        end
+        infos{end+1} = sprintf('N. labels: %s',nlabelstr);
+        if isNewLabels,
+          s = 'Yes';
+        else
+          s = 'No';
+        end
+        infos{end+1} = sprintf('New labels since training: %s',s);
+      else
+        infos{end+1} = 'No tracker trained.';
       end
     end
     

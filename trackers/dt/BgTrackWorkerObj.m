@@ -36,6 +36,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       for ivw = 1:obj.nviews,
         obj.killFiles{ivw} = sprintf('%s.%d.KILLED',logfiles{ivw},ivw);
       end
+      obj.killFiles = obj.killFiles(:);
     end
     function sRes = compute(obj)
       % sRes: [nviews] struct array      
@@ -79,7 +80,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'killFileExists',num2cell(killFileExists(:)));
     end
     function logFiles = getLogFiles(obj)
-      logFiles = obj.artfctLogfiles;
+      logFiles = unique(obj.artfctLogfiles);
     end
     function killFiles = getKillFiles(obj)
       killFiles = obj.killFiles;

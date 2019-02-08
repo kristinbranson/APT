@@ -340,6 +340,7 @@ classdef Labeler < handle
     labeledposTSGT        % like .labeledposTS
     labeledpostagGT       % like .labeledpostag
     labeledpos2GT         % like .labeledpos2
+    
   end
   properties % make public setaccess
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints. init: C
@@ -357,6 +358,7 @@ classdef Labeler < handle
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
+    lastLabelChangeTS     % last time training labels were changed
     needsSave; 
   end
   properties (Dependent)
@@ -435,6 +437,7 @@ classdef Labeler < handle
     preProcData % scalar CPRData, preproc Data cache for CPR
     preProcDataTS % scalar timestamp  
     preProcSaveData % scalar logical. If true, preProcData* and ppdb are saved/loaded with project file
+    copyPreProcData = false; % scalar logical. if true, don't reread images from videos to create the PreProcDB, just copy over from preProcData
     
     ppdb % PreProcDB for DL
   end
@@ -1506,6 +1509,7 @@ classdef Labeler < handle
       obj.labeledpos = cell(0,1);
       obj.labeledposGT = cell(0,1);
       obj.labeledposTS = cell(0,1);
+      obj.lastLabelChangeTS = 0;
       obj.labeledposTSGT = cell(0,1);
       obj.labeledposMarked = cell(0,1);
       obj.labeledpostag = cell(0,1);
@@ -1934,6 +1938,7 @@ classdef Labeler < handle
         obj.trxFilesAll{end+1,1} = trxfl;
         obj.labeledpos{end+1,1} = lpos;
         obj.labeledposTS{end+1,1} = lposTS;
+        obj.lastLabelChangeTS = max(obj.lastLabelChangeTS,max(lposTS(:)));
         obj.labeledposMarked{end+1,1} = false(size(lposTS));
         obj.labeledpostag{end+1,1} = lpostag;
         obj.labeledpos2{end+1,1} = s.labeledpos2{iMov};
@@ -2334,7 +2339,7 @@ classdef Labeler < handle
         
         warningNoTrace('Label timestamps added (all set to -inf).');
       end
-      
+            
       if ~isfield(s,'labeledpos2')
         s.labeledpos2 = cellfun(@(x)nan(size(x)),s.labeledpos,'uni',0);
       end
@@ -2616,6 +2621,22 @@ classdef Labeler < handle
         assert(false);
       end
     
+      % 20190207: added nLabels to dmc
+      for i = 1:numel(s.trackerData),
+        if isfield(s.trackerData{i},'trnLastDMC'),
+          for j = 1:numel(s.trackerData{i}.trnLastDMC),
+            if isempty(s.trackerData{i}.trnLastDMC(j).nLabels),
+              try
+                fprintf('Modernize: Reading nLabels for deep tracker\n');
+                s.trackerData{i}.trnLastDMC(j).readNLabels();
+              catch ME
+                warning('Could not read nLabels from trnLastDMC:\n%s',getReport(ME));
+              end
+            end
+          end
+        end
+      end
+      
       % 20180604
       if ~isfield(s,'labeledpos2GT')
         s.labeledpos2GT = cell(size(s.labeledposGT));
@@ -4942,10 +4963,12 @@ classdef Labeler < handle
         obj.labeledposNeedsSave = true;
       end
       
-      obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = ts;
       obj.(PROPS.LPOSTAG){iMov}(:,iFrm,iTgt) = false;
       if ~obj.gtIsGTMode
         obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
     end
     
@@ -4965,10 +4988,12 @@ classdef Labeler < handle
         obj.labeledposNeedsSave = true;
       end
       
-      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = ts;
       obj.(PROPS.LPOSTAG){iMov}(iPt,iFrm,iTgt) = false;
       if ~obj.gtIsGTMode
         obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
     end
     
@@ -5031,9 +5056,11 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LPOS){iMov}(:,:,iFrm,iTgt) = xy;
-      obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = ts;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -5048,9 +5075,11 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LPOS){iMov}(iPt,:,iFrm,iTgt) = xy;
-      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = ts;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -5082,9 +5111,11 @@ classdef Labeler < handle
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       end
       
-      obj.(PROPS.LPOSTS){iMov}(iPt,frms,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(iPt,frms,iTgt) = ts;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(iPt,frms,iTgt) = true;
+        obj.labeledposMarked{iMov}(iPt,frms,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
 
       obj.labeledposNeedsSave = true;
@@ -5115,14 +5146,18 @@ classdef Labeler < handle
       PROPS = Labeler.gtGetSharedPropsStc(gt);
       nMov = obj.getnmoviesGTawareArg(gt);
       
+      ts = now;
       for iMov=1:nMov
         obj.(PROPS.LPOS){iMov}(:) = nan;        
-        obj.(PROPS.LPOSTS){iMov}(:) = now();
+        obj.(PROPS.LPOSTS){iMov}(:) = ts;
         obj.(PROPS.LPOSTAG){iMov}(:) = false;
         if ~gt
           % unclear what this should be; marked-ness currently unused
           obj.labeledposMarked{iMov}(:) = false; 
         end
+      end
+      if ~gt,
+        obj.lastLabelChangeTS = ts;
       end
       
       obj.updateFrameTableComplete();
@@ -5143,12 +5178,15 @@ classdef Labeler < handle
       lposOld = obj.labeledpos{iMov};
       szassert(xy,size(lposOld));
       obj.labeledpos{iMov} = xy;
-      obj.labeledposTS{iMov}(:) = now();
+      obj.labeledposTS{iMov}(:) = ts;
+      obj.lastLabelChangeTS = max(obj.labeledposTS{iMov}(:));
       obj.labeledposMarked{iMov}(:) = true; % not sure of right treatment
 
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      else
+        obj.lastLabelChangeTS = ts;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -5206,6 +5244,8 @@ classdef Labeler < handle
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      else
+        obj.lastLabelChangeTS = tsnow;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -5245,6 +5285,8 @@ classdef Labeler < handle
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      else
+        obj.lastLabelChangeTS = now;
       end
       obj.labeledposNeedsSave = true;  
       
@@ -5285,9 +5327,11 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LPOS){iMov}(iPt,:,iFrm,iTgt) = inf;
-      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = ts;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -6035,7 +6079,9 @@ classdef Labeler < handle
       assert(~obj.gtIsGTMode);
       
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
-          'labeledposTS','labeledpostag');
+        'labeledposTS','labeledpostag');
+      % need to compute lastLabelChangeTS from scratch
+      obj.computeLastLabelChangeTS();
       
       obj.movieFilesAllHaveLbls(iMovs) = ...
         cellfun(@(x)any(~isnan(x(:))),obj.labeledpos(iMovs));
@@ -6050,6 +6096,13 @@ classdef Labeler < handle
       obj.labelsUpdateNewFrame(true);
       
       RC.saveprop('lastTrkFileImported',trkfiles{end});
+    end
+    
+    % compute lastLabelChangeTS from scratch
+    function computeLastLabelChangeTS(obj)
+      
+      obj.lastLabelChangeTS = cellfun(@(x) max(x(:)),obj.labeledposTS);
+      
     end
     
     function [tfsucc,trkfilesUse] = labelImportTrkFindTrkFilesPrompt(obj,movfiles)
@@ -6277,16 +6330,17 @@ classdef Labeler < handle
       %
       % tblMF: See MFTable.FLDSFULLTRX.
       
-      [wbObj,useLabels2,useMovNames,tblMFTrestrict] = myparse(varargin,...
+      [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                    ... % 1. obj logically const (eg except for obj.trxCache)
                    ... % 2. tblMF (output) indeterminate
         'useLabels2',false,... % if true, use labels2 instead of labels
         'useMovNames',false,... % if true, use movieNames instead of movieIndices
-        'tblMFTrestrict',[]... % if supplied, tblMF is the labeled subset 
+        'tblMFTrestrict',[],... % if supplied, tblMF is the labeled subset 
                            ... % of tblMFTrestrict (within fields .mov, 
                            ... % .frm, .tgt). .mov must be a MovieIndex.
                            ... % tblMF ordering should be as in tblMFTrestrict
+        'useTrain',[]... % whether to use training labels (1) gt labels (0), or whatever current mode is ([])
         ); 
       tfWB = ~isempty(wbObj);
       tfRestrict = ~isempty(tblMFTrestrict);
@@ -6303,19 +6357,53 @@ classdef Labeler < handle
       end
       
       if obj.hasTrx
-        argsTrx = {'trxFilesAllFull',obj.trxFilesAllFullGTaware,...
+        if isempty(useTrain),
+          trxFiles = obj.trxFilesAllFullGTaware;
+        elseif useTrain == 0,
+          trxFiles = obj.trxFilesAllGTFull;
+        else
+          trxFiles = obj.trxFilesAllFull;
+        end
+          
+        argsTrx = {'trxFilesAllFull',trxFiles,...
           'trxCache',obj.trxCache};
       else
         argsTrx = {};
       end
       if useLabels2
-        lpos = obj.labeledpos2GTaware;
-        lpostag = cellfun(@(x)false(size(x)),obj.labeledpostagGTaware,'uni',0);
-        lposTS = cellfun(@(x)-inf(size(x)),obj.labeledposTSGTaware,'uni',0);
+        
+        if isempty(useTrain),
+          lpos = obj.labeledpos2GTaware;
+          lpostag = obj.labeledpostagGTaware;
+          lposTS = obj.labeledposTSGTaware;
+        elseif useTrain == 0,
+          lpos = obj.labeledpos2GT;
+          lpostag = obj.labeledpostagGT;
+          lposTS = obj.labeledposTSGT;
+        else
+          lpos = obj.labeledpos2;
+          lpostag = obj.labeledpostag;
+          lposTS = obj.labeledposTS;
+        end
+        lpostag = cellfun(@(x)false(size(x)),lpostag,'uni',0);
+        lposTS = cellfun(@(x)-inf(size(x)),lposTS,'uni',0);
+        
       else
-        lpos = obj.labeledposGTaware;
-        lpostag = obj.labeledpostagGTaware;
-        lposTS = obj.labeledposTSGTaware;
+        
+        if isempty(useTrain),
+          lpos = obj.labeledposGTaware;
+          lpostag = obj.labeledpostagGTaware;
+          lposTS = obj.labeledposTSGTaware;
+        elseif useTrain == 0,
+          lpos = obj.labeledposGT;
+          lpostag = obj.labeledpostagGT;
+          lposTS = obj.labeledposTSGT;
+        else
+          lpos = obj.labeledpos;
+          lpostag = obj.labeledpostag;
+          lposTS = obj.labeledposTS;
+        end
+        
       end
       
       tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,lpos,lpostag,lposTS,...
@@ -8159,6 +8247,11 @@ classdef Labeler < handle
           tblP.p = tblP.pRoi;        
         end
       else
+        if tblfldscontains(tblP,'pAbs') % AL20190207 add this now some downstream clients want it
+          assert(isequaln(tblP.p,tblP.pAbs));
+        else
+          tblP.pAbs = tblP.p;
+        end
         % none; tblP.p is .pAbs. No .roi field.
       end
     end
@@ -9026,7 +9119,8 @@ classdef Labeler < handle
         end
       end
       s.trackerData = {[] tdata};
-
+      s.nLabels = ppdata.N;
+      
       % check with Mayank, thought we wanted number of "underlying" chans
       % but DL is erring when pp data is grayscale but NumChans is 3
       s.cfg.NumChans = size(s.preProcData_I{1},3);

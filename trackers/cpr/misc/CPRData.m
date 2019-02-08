@@ -328,7 +328,7 @@ classdef CPRData < handle
         rotateImsUp,isDLpipeline,... %rotateImsHeadTail,rotateImsNumPhysPts,...
         doBGsub,...
         bgReadFcn,bgType,trxCache,maskNeighbors,maskNeighborsMeth,empPDF,...
-        fgThresh] = ...
+        fgThresh,lObj,usePreProcData] = ...
         myparse(varargin,...
           'wbObj',[],... wbObj: WaitBarWithCancel. If canceled, I will be 'incomplete', ie partially filled.
           'forceGrayscale',true,... 
@@ -349,9 +349,15 @@ classdef CPRData < handle
           ...   % BEGIN USED when maskNeighbors==true;
           'maskNeighborsMeth','Conn. Comp',...
           'maskNeighborsEmpPDF',[],... %used if maskNeighborsMeth=='Emp. PDF'
-          'fgThresh',nan...   % END USED for maskNeighbors
+          'fgThresh',nan,...   % END USED for maskNeighbors
+          'labeler',[],...
+          'usePreProcData',false...
           );
       assert(numel(movieInvert)==nView);
+      if usePreProcData,
+        assert(~isempty(lObj) && ~rotateImsUp);
+      end
+        
       if doBGsub && roiPadVal~=0
         warningNoTrace('Background subtraction enabled. Setting roi pad value to 0.');
 %         roiPadVal = 0;
@@ -402,14 +408,18 @@ classdef CPRData < handle
           end
           
           mov = movsUn{iMov};
-
-          mr = MovieReader();
-          mr.forceGrayscale = forceGrayscale;
-          mr.flipVert = movieInvert(iVw);
-          mr.preload = preload;
-          %mr.neednframes = false;
-          mr.open(mov,'bgType',bgType,'bgReadFcn',bgReadFcn);
-
+          
+          if usePreProcData,
+            
+          else
+            mr = MovieReader();
+            mr.forceGrayscale = forceGrayscale;
+            mr.flipVert = movieInvert(iVw);
+            mr.preload = preload;
+            %mr.neednframes = false;
+            mr.open(mov,'bgType',bgType,'bgReadFcn',bgReadFcn);
+          end
+          
           % Note: we don't setCropInfo here; cropping handled explicitly
           % b/c most of the time it comes from the trx
           
@@ -417,7 +427,7 @@ classdef CPRData < handle
           nframesAttemptRead = nframesAttemptRead + numel(idxcurr);
           for iiTrl = 1:numel(idxcurr)
             iTrl = idxcurr(iiTrl);
-            
+                        
             trow = tblMF(iTrl,:);
             f = trow.frm;
             iTgt = trow.iTgt;
@@ -430,6 +440,20 @@ classdef CPRData < handle
               roiXhi = roiVw(2);
               roiYlo = roiVw(3);
               roiYhi = roiVw(4);
+            end
+            
+            if usePreProcData,
+              I(iTrl,iVw) = lObj.preProcData.ITrn(iTrl,iVw);
+              didread(iTrl,iVw) = true;
+              % manually make a translation tform consistent with this
+              % padgrab. Could just use CropImAroundTrx all the time.
+              if tfROI
+                Ttmp = [1 0 0;0 1 0;-(roiXlo-1) -(roiYlo-1) 1];
+                tformA(:,:,iTrl,iVw) = Ttmp;
+              else
+                tformA(:,:,iTrl,iVw) = eye(3);
+              end
+              continue;
             end
             
             try

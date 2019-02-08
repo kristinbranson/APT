@@ -11,7 +11,7 @@ classdef APT
     BUILDMCCFILE = 'build.mcc';
     BUILDMCCFULLFILE = fullfile(APT.Root,APT.BUILDMCCFILE);
     
-    %DOCKER_REMOTE_HOST = 'bransonk-ws2';
+    %DOCKER_REMOTE_HOST = 'bransonk-ws3';
     DOCKER_REMOTE_HOST = '';
   end
   

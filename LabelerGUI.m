@@ -539,6 +539,7 @@ listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 %listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
+listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
@@ -658,6 +659,7 @@ switch lower(state),
     set(handles.pbClearAllCrops,'Enable','off');
     set(handles.pushbutton_exitcropmode,'Enable','off');
     set(handles.uipanel_cropcontrols,'Visible','off');
+    set(handles.text_trackerinfo,'Visible','on');
     
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
@@ -694,6 +696,7 @@ switch lower(state),
     set(handles.pbClearAllCrops,'Enable','off');
     set(handles.pushbutton_exitcropmode,'Enable','off');
     set(handles.uipanel_cropcontrols,'Visible','off');
+    set(handles.text_trackerinfo,'Visible','off');
     
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
@@ -740,6 +743,8 @@ switch lower(state),
     set(handles.pbClearAllCrops,'Enable','off');
     set(handles.pushbutton_exitcropmode,'Enable','off');
     set(handles.uipanel_cropcontrols,'Visible','off');    
+    set(handles.text_trackerinfo,'Visible','off');
+
     
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
@@ -1444,6 +1449,8 @@ lObj = src;
 handles = lObj.gdata;
 cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
 EnableControls(handles,'projectloaded');
+% update tracker info when loading in new trackers
+lObj.tracker.updateTrackerInfo();
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
@@ -1863,6 +1870,8 @@ if tfTracker
     updateTrackBackendConfigMenuChecked(handles,tObj.lObj);
   end
   
+  listenersNew{end+1,1} = tObj.addlistener('trackerInfo','PostSet',@(src1,evt1) cbkTrackerInfoChanged(src1,evt1));
+  
   % Listeners, general tracker
   listenersNew{end+1,1} = tObj.addlistener('hideViz','PostSet',...
     @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); 
@@ -1992,7 +2001,10 @@ handles = lObj.gdata;
 
 tObj = lObj.tracker;
 iTrker = lObj.currTracker;
+
 handles = setupTrackerMenusListeners(handles,tObj,iTrker);
+% tracker changed, update tracker info
+tObj.updateTrackerInfo();
 handles.labelTLInfo.setTracker(tObj);
 handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
@@ -3028,6 +3040,18 @@ if isempty(lObj.tracker)
   handles.menu_view_hide_predictions.Checked = onIff(lObj.labels2Hide);
 end
 
+% when trackerInfo is updated, update the tracker info text in the main APT window
+function cbkTrackerInfoChanged(src,evt)
+
+tObj = evt.AffectedObject;
+tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
+
+% when lastLabelChangeTS is updated, update the tracker info text in the main APT window
+function cbkLastLabelChangeTS(src,evt)
+
+lObj = evt.AffectedObject;
+lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
+
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
 % just use checked state of menu for now, no other state
 toggleOnOff(hObject,'Checked');
@@ -3703,6 +3727,8 @@ onIfTrue = onIff(tf);
 offIfTrue = onIff(~tf);
 %cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
 set(handles.uipanel_cropcontrols,'Visible',onIfTrue);
+set(handles.text_trackerinfo,'Visible',offIfTrue);
+
 cellfun(@(x)set(handles.(x),'Visible',offIfTrue),REGCONTROLS);
 handles.menu_file_crop_mode.Checked = onIfTrue;
 

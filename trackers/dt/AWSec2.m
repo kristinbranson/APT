@@ -513,13 +513,18 @@ classdef AWSec2 < handle
     end
 
     function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote,varargin)
-      [usedoublequotes] = myparse(varargin,...
+      [timeout,usedoublequotes] = myparse(varargin,...
+        'timeout',5,...
         'usedoublequotes',false);
+      
+      args = {sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) ...
+        '-oStrictHostKeyChecking=no' sprintf('ubuntu@%s',ip)};
       if usedoublequotes
-        cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s "%s"',sshcmd,pem,ip,cmdremote);
+        args{end+1} = sprintf('"%s"',cmdremote);
       else
-        cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s ''%s''',sshcmd,pem,ip,cmdremote);
+        args{end+1} = sprintf('''%s''',cmdremote);
       end
+      cmd = String.cellstr2DelimList(args,' ');
     end
 
     function cmd = sshCmdGeneralLoggedStc(sshcmd,pem,ip,cmdremote,logfileremote)
