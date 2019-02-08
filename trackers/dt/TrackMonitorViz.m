@@ -49,6 +49,7 @@ classdef TrackMonitorViz < handle
       obj.hfig.UserData = 'running';
       obj.haxs = [handles.axes_wait];
       obj.hannlastupdated = handles.text_clusterstatus;
+      obj.htrackerInfo = handles.text_trackerinfo;
 
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);
@@ -56,7 +57,7 @@ classdef TrackMonitorViz < handle
       handles.text_clusterinfo.String = '...';
 	  % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
-      handles.edit_trackerinfo.String = s;
+      obj.htrackerInfo.String = s;
       handles.popupmenu_actions.String = obj.actions.(char(backEnd));
       handles.popupmenu_actions.Value = 1;
       handles.axes_wait.YLim = [0,nview];
@@ -113,7 +114,7 @@ classdef TrackMonitorViz < handle
 
       % always update info about current tracker, as labels may have changed
       s = obj.dtObj.getTrackerInfoString();
-      handles.edit_trackerinfo.String = s;
+      obj.htrackerInfo.String = s;
 
       tic;
       for ivw=1:nview,
