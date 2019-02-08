@@ -87,6 +87,12 @@ classdef DeepTracker < LabelTracker
     % trackres: tracking results DB is in filesys
     movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
   end
+  
+  properties (SetObservable)
+    
+    trackerInfo = [];% information about the current tracker being used for tracking
+    
+  end
   properties (Dependent)
     bgTrnIsRunning
     bgTrkIsRunning 
@@ -641,6 +647,99 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnMonBGWorkerObj.killProcess();      
     end
     
+    % update trackerInfo from trnLastDMC
+    function updateTrackerInfo(obj)
+      
+      % info about algorithm and training
+      info.algorithm = obj.algorithmNamePretty;
+      info.isTraining = obj.bgTrnIsRunning;
+              
+      if isempty(obj.trnLastDMC),
+        info.isTrainStarted = false;
+        info.isTrainRestarted = false;
+        info.trainStartTS = [];
+        info.iterCurr = 0;
+        info.iterFinal = nan;
+        info.nLabels = 0;
+      else
+        info.isTrainStarted = true;
+        info.isTrainRestarted = strcmp(obj.trnLastDMC(1).trainType,'Restart');
+        info.trainStartTS = datenum(unique({obj.trnLastDMC.modelChainID}),'yyyymmddTHHMMSS');
+        assert(all(~isnan(info.trainStartTS)));
+        info.iterCurr = unique([obj.trnLastDMC.iterCurr]);
+        if isempty(info.iterCurr),
+          info.iterCurr = 0;
+        end
+        info.iterFinal = unique([obj.trnLastDMC.iterFinal]);
+        info.nLabels = unique([obj.trnLastDMC.nLabels]);
+      end
+      
+      obj.trackerInfo = info;
+    end
+    
+    % set select properties of trackerInfo 
+    function setTrackerInfo(obj,varargin)
+      
+      [iterCurr] = myparse(varargin,'iterCurr',[]);
+      ischange = false;
+      
+      trackerInfo = obj.trackerInfo; %#ok<PROPLC>
+      if ~isempty(iterCurr),
+        ischange = ischange || iterCurr ~= trackerInfo.iterCurr; %#ok<PROPLC>
+        trackerInfo.iterCurr = iterCurr; %#ok<PROPLC>
+      end
+      if ischange,
+        obj.trackerInfo = trackerInfo; %#ok<PROPLC>
+      end
+      
+    end
+    
+    % return a cell array of strings with information about current tracker
+    function [infos] = getTrackerInfoString(obj,doupdate)
+      
+      if nargin < 2,
+        doupdate = false;
+      end
+      if doupdate,
+        obj.updateTrackerInfo();
+      end
+      infos = {};
+      infos{end+1} = obj.trackerInfo.algorithm;
+      if obj.trackerInfo.isTrainStarted,
+        isNewLabels = obj.trackerInfo.trainStartTS < obj.lObj.lastLabelChangeTS;
+
+        infos{end+1} = sprintf('Train start: %s',datestr(min(obj.trackerInfo.trainStartTS)));
+        if numel(obj.trackerInfo.iterCurr) > 1,
+          scurr = mat2str(obj.trackerInfo.iterCurr);
+        else
+          scurr = num2str(obj.trackerInfo.iterCurr);
+        end
+        if numel(obj.trackerInfo.iterFinal) > 1,
+          sfinal = mat2str(obj.trackerInfo.iterFinal);
+        else
+          sfinal = num2str(obj.trackerInfo.iterFinal);
+        end
+        infos{end+1} = sprintf('N. iterations: %s / %s',scurr,sfinal);
+        if isempty(obj.trackerInfo.nLabels),
+          nlabelstr = '?';
+        elseif numel(obj.trackerInfo.nLabels) == 1,
+          nlabelstr = num2str(obj.trackerInfo.nLabels);
+        else
+          nlabelstr = mat2str(obj.trackerinfo.nLabels);
+        end          
+        infos{end+1} = sprintf('N. labels: %s',nlabelstr);
+        if isNewLabels,
+          s = 'Yes';
+        else
+          s = 'No';
+        end
+        infos{end+1} = sprintf('New labels since training: %s',s);
+      else
+        infos{end+1} = 'No tracker trained.';
+      end
+      
+    end
+    
   end
 %   methods (Static)
 %     function s = trnLogfileStc(cacheDir,trnID,iview)
@@ -711,12 +810,13 @@ classdef DeepTracker < LabelTracker
           if backEnd.deepnetrunlocal
             aptroot = APT.Root;
             [dmc.aptRootUser] = deal(aptroot);
-            DeepTracker.downloadPretrainedExec(aptroot);
+            %DeepTracker.downloadPretrainedExec(aptroot);
+            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           else
+            aptroot = [cacheDir '/APT'];
             DeepTracker.cloneJRCRepoIfNec(cacheDir);
             DeepTracker.updateAPTRepoExecJRC(cacheDir);
-            DeepTracker.cpupdatePTWfromJRCProdExec(cacheDir);
-            aptroot = [cacheDir '/APT'];
+            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
         case DLBackEnd.Docker
           obj.downloadPretrainedWeights('aptroot',APT.Root); 
@@ -725,7 +825,9 @@ classdef DeepTracker < LabelTracker
       % create/ensure stripped lbl; set trainID
       tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl
-        s = obj.trnCreateStrippedLbl(backEnd,'wbObj',wbObj); %#ok<NASGU>
+        s = obj.trnCreateStrippedLbl(backEnd,'wbObj',wbObj);
+        % store nLabels in dmc
+        dmc.nLabels = s.nLabels;
         
         trainID = datestr(now,'yyyymmddTHHMMSS');
         dmc.trainID = trainID;
@@ -756,6 +858,9 @@ classdef DeepTracker < LabelTracker
         end
         
         dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
+        % read nLabels from stripped lbl file
+        dmc.readNLabels();
+
       end
 
       % At this point
@@ -1109,6 +1214,8 @@ classdef DeepTracker < LabelTracker
                             trnType==DLTrainType.RestartAug;
       if tfGenNewStrippedLbl        
         s = obj.trnCreateStrippedLbl(backend,'awsTrxUpload',true,'wbObj',wbObj); %#ok<NASGU>
+		% store nLabels in DMC
+        dmc.nLabels = s.nLabels;
         
         trainID = datestr(now,'yyyymmddTHHMMSS');
         dmc.trainID = trainID;
@@ -1154,7 +1261,9 @@ classdef DeepTracker < LabelTracker
         end
         
         dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
-        dmcLcl.restartTS = dmc.restartTS;        
+        dmcLcl.restartTS = dmc.restartTS;
+		% read nLabels from stripped lbl file
+        dmc.readNLabels();        
       end
       dlLblFileRemote = dmc.lblStrippedLnx;
       aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
@@ -1194,6 +1303,7 @@ classdef DeepTracker < LabelTracker
         obj.trnName = modelChainID;
         obj.trnNameLbl = trainID;
         obj.trnLastDMC = dmc;
+
       end
     end
         
@@ -1392,7 +1502,7 @@ classdef DeepTracker < LabelTracker
         [trxfiles,trkfiles,f0,f1,cropRois,targets] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{});
         assert(size(movfiles,2)==obj.lObj.nview,'movfiles must be nmovies x nviews');
-        [nmovies,nviews] = size(movfiles); %#ok<ASGLU>
+        [nmovies,nviews] = size(movfiles); 
         assert(nmovies == 1,'Only single movie tracking is implemented currently');
         
         if obj.lObj.hasTrx,
@@ -2039,7 +2149,8 @@ classdef DeepTracker < LabelTracker
           if backend.deepnetrunlocal
             aptroot = APT.Root;
             [dmc.aptRootUser] = deal(aptroot);
-            DeepTracker.downloadPretrainedExec(aptroot);
+            %DeepTracker.downloadPretrainedExec(aptroot);
+            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           else
             DeepTracker.cloneJRCRepoIfNec(cacheDir);
             DeepTracker.updateAPTRepoExecJRC(cacheDir);
@@ -2671,6 +2782,8 @@ classdef DeepTracker < LabelTracker
         end
 
       end
+	  % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
+      obj.updateTrackerInfo();
     end
     
     function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)
@@ -2933,6 +3046,8 @@ classdef DeepTracker < LabelTracker
         'sshargs',{'prefix' prefix});
     end
     function downloadPretrainedExec(aptroot)
+      % kb investigate: This doesn't work well on the cluster due to tf 
+      % being a restricted site, plus /tmp acts weird
       assert(isunix,'Only supported on *nix platforms.');
       deepnetroot = [aptroot '/deepnet'];
       cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
@@ -2981,14 +3096,14 @@ classdef DeepTracker < LabelTracker
         'dispcmd',true,...
         'failbehavior','err');
     end
-    function cmd = cpPTWfromJRCProdLnx(cacheRoot)
+    function cmd = cpPTWfromJRCProdLnx(aptrootLnx)
       % copy cmd (lnx) deepnet/pretrained from production repo to JRC loc 
       srcPTWlnx = [DeepTracker.jrcprodrepo '/deepnet/pretrained'];
-      dstPTWlnx = [cacheRoot '/APT/deepnet'];      
+      dstPTWlnx = [aptrootLnx '/deepnet'];      
       cmd = sprintf('cp -r -u %s %s',srcPTWlnx,dstPTWlnx);
     end
-    function cpupdatePTWfromJRCProdExec(cacheRoot) % throws if errors
-      cmd = DeepTracker.cpPTWfromJRCProdLnx(cacheRoot);
+    function cpupdatePTWfromJRCProdExec(aptrootLnx) % throws if errors
+      cmd = DeepTracker.cpPTWfromJRCProdLnx(aptrootLnx);
       cmd = DeepTracker.codeGenSSHGeneral(cmd,'bg',false);
       [~,res] = AWSec2.syscmd(cmd,...
         'dispcmd',true,...
@@ -3528,6 +3643,8 @@ classdef DeepTracker < LabelTracker
       end
       obj.trackResInit();
       obj.trackCurrResInit();
+	  % deleting old tracking results, so can switch to new tracker info
+      obj.updateTrackerInfo();
 
 %       for i = 1:numel(trkFilesToDelete),
 %         delete(trkFilesToDelete{i});

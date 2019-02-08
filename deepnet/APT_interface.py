@@ -1104,6 +1104,7 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
     pred_locs = np.zeros([len(in_list), conf.n_classes, 2])
     pred_locs[:] = np.nan
 
+    logging.info('Tracking GT labeled frames..')
     for ndx, dir_name in enumerate(local_dirs):
 
         cur_list = [[l[1] , l[2] ] for l in in_list if l[0] == ndx]
@@ -1127,6 +1128,10 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file, movie_files=
 
         cap.close()  # close the movie handles
 
+        n_done = len([1 for i in in_list if i[0]<=ndx])
+        logging.info('Done prediction on {} out of {} GT labeled frames'.format(len(n_done),len(in_list)))
+
+    logging.info('Done prediction on all GT frames')
     lbl.close()
     close_fn()
     return pred_locs

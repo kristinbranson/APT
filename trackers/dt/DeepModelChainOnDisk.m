@@ -20,6 +20,7 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     isMultiView = false; % whether this was trained with one call to APT_interface for all views
     iterFinal % final expected iteration    
     iterCurr % last completed iteration, corresponds to actual model file used
+    nLabels % number of labels used to train
     %backEnd % back-end info (bsub, docker, aws)
     
     aptRootUser % (optional) external/user APT code checkout root
@@ -233,6 +234,14 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
         maxiter = str2double(res{1}); % includes 'DNE'->nan
       else
         maxiter = nan;
+      end
+    end
+    
+    % if nLabels not set, try to read it from the stripped lbl file
+    function readNLabels(obj)
+      if ~isempty(obj.lblStrippedLnx)
+        s = load(obj.lblStrippedLnx,'preProcData_MD_frm','-mat');
+        obj.nLabels = size(s.preProcData_MD_frm,1);
       end
     end
     
