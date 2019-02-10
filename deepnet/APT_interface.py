@@ -1307,11 +1307,19 @@ def classify_list_file(conf, model_type, list_file, model_file, out_file):
         if tgt <= 0:
             print('toTrack[%d] has out of range target index %d'%(i,tgt))
             return success, pred_locs
-        if frm <= 0:
+        if isinstance(frm,int) and frm <= 0:
             print('toTrack[%d] has out of range frame index %d'%(i,frm))
             return success, pred_locs
 
-        cur_list.append([mov-1,frm-1,tgt-1])
+        if isinstance(frm,int):
+            cur_list.append([mov-1,frm-1,tgt-1])
+        elif isinstance(frm,list):
+            assert len(frm)==2, 'Invalid frame specification in toTrack[%d]'%(i)
+            print('toTrack[%d] has frm-range specification [%d,%d]. Adding %d frames'%(i,frm[0],frm[1],frm[1]-frm[0]))
+            for frmreal in range(frm[0],frm[1]):
+                cur_list.append([mov-1,frmreal-1,tgt-1])
+        else:
+            assert False, 'Invalid frame specification in toTrack[%d]'%(i)
 
     pred_locs = classify_list_all(model_type, conf, cur_list, on_gt=False, model_file=model_file, movie_files=toTrack['movieFiles'], trx_files=trxFiles, crop_locs=cropLocs)    
     mat_pred_locs = to_mat(pred_locs)
