@@ -49,7 +49,7 @@ classdef TrackMonitorViz < handle
       obj.hfig.UserData = 'running';
       obj.haxs = [handles.axes_wait];
       obj.hannlastupdated = handles.text_clusterstatus;
-      obj.htrackerInfo = handles.text_trackerinfo;
+      obj.htrackerInfo = handles.edit_trackerinfo;
 
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);

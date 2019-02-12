@@ -1475,7 +1475,7 @@ classdef DeepTracker < LabelTracker
     % - Spawn track shell call.
     % - When tracking is done for a view, movIdx2trkfile is updated.
     % - When tracking is done for all views, we stop the bgMonitor and we
-    % are done.
+    % are done.    
     
     function track(obj,tblMFT,varargin)
       % Apply trained tracker to the specified frames.
@@ -1756,6 +1756,136 @@ classdef DeepTracker < LabelTracker
           end
         otherwise
           assert(false);
+      end
+    end
+    
+    
+    function tfSuccess = trackListFile(obj,listfiles,outfiles)
+      
+      be = obj.lObj.trackDLBackEnd;
+      if be.type~=DLBackEnd.Bsub
+        error('Currently only supported for JRC Cluster backend.');
+      end
+      
+      if obj.bgTrnIsRunning
+        % Could probably support, but training currently does a
+        % "rolling-cleanout" and this track could take a while, plus, like
+        % why.
+        error('Unsupported while training is in progress.');
+      end
+
+      if isempty(obj.trnName)
+        error('No trained tracker found.');
+      end      
+
+      listfiles = cellstr(listfiles);
+      outfiles = cellstr(outfiles);
+      nview = obj.lObj.nview;
+      assert(isequal(nview,numel(listfiles),numel(outfiles)));
+            
+      lclCacheDir = obj.lObj.trackDLParams.CacheDir;
+      
+      dmc = obj.trnLastDMC;
+      dmcLcl = dmc.copy();
+      [dmcLcl.rootDir] = deal(lclCacheDir);
+      dlLblFileLcl = unique({dmcLcl.lblStrippedLnx});
+      assert(isscalar(dlLblFileLcl));
+      dlLblFileLcl = dlLblFileLcl{1};
+      assert(exist(dlLblFileLcl,'file')>0,...
+        'Can''t find stripped lbl file: %s\n',dlLblFileLcl);
+      
+      % What /deepnet code are we running
+      [dmc.aptRootUser] = deal([]);
+      if be.deepnetrunlocal
+        aptroot = APT.Root;
+        [dmc.aptRootUser] = deal(aptroot);
+        DeepTracker.downloadPretrainedExec(aptroot);
+      else
+        DeepTracker.cloneJRCRepoIfNec(cacheDir);
+        DeepTracker.updateAPTRepoExecJRC(cacheDir);
+        aptroot = [cacheDir '/APT'];
+      end      
+      
+      baseargs = {'deepnetroot' [aptroot '/deepnet']}; 
+      
+      nowstr = datestr(now,'yyyymmddTHHMMSS');
+      modelChainID = obj.trnName;
+      [trnstrs,modelFiles] = obj.getTrkFileTrnStr();
+ 
+      % info for code-generation. for now we just record a struct so we can
+      % more conveniently read logfiles etc. in future this could be an obj
+      % that has a codegen method etc.
+      trksysinfo = struct(...
+        'listfile',listfiles(:),...
+        'outfile',outfiles(:),...
+        'trnstr',trnstrs(:),...
+        'modelfile',modelFiles(:),...
+        'logfile',[],...
+        'errfile',[],...
+        'snapshotfile',[],...
+        'codestr',[]);
+      for ivw=1:nview
+                 
+        % trkfile, outfile
+        trkoutdir = dmc(ivw).dirTrkOutLnx;
+        if exist(trkoutdir,'dir')==0
+          [succ,msg] = mkdir(trkoutdir);
+          if ~succ
+            error('Failed to create trk cache dir %s: %s',trkoutdir,msg);
+          else
+            fprintf(1,'Created trk output dir: %s\n',trkoutdir);
+          end
+        end
+        
+        [~,listfileS,~] = myfileparts(trksysinfo(ivw).listfile);
+        trnstr = trksysinfo(ivw).trnstr;
+        logfile = fullfile(trkoutdir,[listfileS '_' trnstr '_' nowstr '.log']);
+        errfile = fullfile(trkoutdir,[listfileS '_' trnstr '_' nowstr '.err']);
+        ssfile  = fullfile(trkoutdir,[listfileS '_' trnstr '_' nowstr '.aptsnapshot']);     
+
+        baseargsaug = [baseargs {'model_file' trksysinfo(ivw).modelfile}];
+        
+        bsubargs = {'outfile' logfile};
+        sshargs = {};
+        trksysinfo(ivw).logfile = logfile;
+        trksysinfo(ivw).errfile = errfile;
+        trksysinfo(ivw).snapshotfile = ssfile;
+        
+        singBind = obj.genContainerMountPath('aptroot',aptroot);
+        singargs = {'bindpath',singBind};
+        
+        repoSSscriptLnx = [aptroot '/repo_snapshot.sh'];
+        repoSScmd = sprintf('%s %s > %s',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
+        prefix = [DeepTracker.jrcprefix '; ' repoSScmd];        
+        sshargsuse = [sshargs {'prefix' prefix}];
+        
+        trksysinfo(ivw).codestr = DeepTracker.trackCodeGenListFileSSHBsubSing(...
+          modelChainID,dmc(ivw).rootDir,dmc(ivw).lblStrippedLnx,...
+          errfile,obj.trnNetType,ivw,...
+          trksysinfo(ivw).outfile,trksysinfo(ivw).listfile,...
+          'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
+          'sshargs',sshargsuse);
+      end
+            
+      if obj.dryRunOnly
+        arrayfun(@(x)fprintf(1,'Dry run, not tracking: %s\n',x.codestr),...
+          trksysinfo);
+        tfSuccess = true;
+      else
+        tfSuccess = true;
+        for ivw=1:nview
+          fprintf(1,'%s\n',trksysinfo(ivw).codestr);
+          [st,res] = system(trksysinfo(ivw).codestr);
+          if st==0
+            fprintf('Tracking job (view %d) spawned:\n%s\n',ivw,res);
+          else
+            fprintf(2,'Failed to spawn tracking job for view %d: %s.\n\n',...
+              ivw,res);
+            tfSuccess = false;
+            return;
+          end
+        end
+        obj.trkSysInfo = trksysinfo;
       end
     end
     
@@ -2656,7 +2786,9 @@ classdef DeepTracker < LabelTracker
       obj.updateTrackerInfo();
     end
     
-    function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)      
+    function [trnstrs,modelFiles] = getTrkFileTrnStr(obj)
+      % AL: odd method name
+      
       obj.updateLastDMCsCurrInfo();
       
       trnstrs = cell(size(obj.trnLastDMC));
@@ -3035,6 +3167,36 @@ classdef DeepTracker < LabelTracker
         };
       codestr = cat(2,codestr{:});
     end
+    function codestr = trackCodeGenBaseListFile(trnID,cache,dllbl,outfile,...
+        errfile,nettype,view,listfile,varargin)
+      % view: 1-based
+      
+      [deepnetroot,model_file] = myparse(varargin,...
+        'deepnetroot',APT.getpathdl,...
+        'model_file',[]... 
+        );
+
+      tfmodel = ~isempty(model_file);      
+      aptintrf = [deepnetroot '/APT_interface.py'];
+
+      code = { ...
+        'python' aptintrf ...
+        '-name' trnID ...
+        '-view' num2str(view) ... % 1b 
+        '-cache' cache ...
+        '-err_file' errfile ...
+        };
+      if tfmodel
+        code(end+1:end+2) = {'-model_files' model_file};
+      end
+      code = [code ...
+        '-type' char(nettype) ...
+        dllbl 'track' ...
+        '-out' outfile ...
+        '-list_file' listfile];
+      
+      codestr = String.cellstr2DelimList(code,' ');
+    end
     function codestr = trackCodeGenBase(trnID,dllbl,errfile,nettype,...
         movtrk,... % either char or [nviewx1] cellstr
         outtrk,... % either char of [nviewx1] cellstr
@@ -3281,6 +3443,22 @@ classdef DeepTracker < LabelTracker
         nettype,movtrk,outtrk,frm0,frm1,...
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
+    end
+    function codestr = trackCodeGenListFileSSHBsubSing(trnID,cache,dllbl,...
+        errfile,nettype,view,outfile,listfile,varargin)
+      
+      [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{},...
+        'bsubargs',{},...
+        'sshargs',{}...
+        );      
+      
+      codebase = DeepTracker.trackCodeGenBaseListFile(trnID,cache,dllbl,...
+        outfile,errfile,nettype,view,listfile,baseargs{:});
+      codesing = DeepTracker.codeGenSingGeneral(codebase,singargs{:});
+      codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
+      codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
     end
     function codestr = trackCodeGenAWS(...
         trnID,cacheRemote,dlLblRemote,errfileRemote,netType,movRemoteFull,...
