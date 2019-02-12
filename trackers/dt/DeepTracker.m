@@ -800,7 +800,7 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrm.dl_steps,...
+        'iterFinal',obj.sPrm.GradientDescent.dl_steps,...
         'isMultiView',isMultiViewTrain);
         %'backEnd',backEnd);
 
@@ -3134,6 +3134,40 @@ classdef DeepTracker < LabelTracker
       end
     end
     
+    function codestr = dataAugCodeGenBase(trnID,dllbl,errfile,nettype,outfile,nsamples,varargin)
+      [cache,deepnetroot,model_file] = myparse(varargin,...
+        'cache',[],... % (opt) cachedir
+        'deepnetroot',APT.getpathdl,...
+        'model_file',[]... % can be [nview] cellstr
+        ); 
+     
+      tfcache = ~isempty(cache);
+      tfmodel = ~isempty(model_file);
+      
+      if tfmodel
+        model_file = cellstr(model_file);
+      end
+
+      aptintrf = [deepnetroot '/APT_interface.py'];
+
+      if tfmodel
+        modelfilestr = String.cellstr2DelimList(model_file,' ');
+      end
+
+      codestr = sprintf('python %s -name %s',aptintrf,trnID);
+      if tfcache
+        codestr = [codestr ' -cache ' cache];
+      end
+      codestr = [codestr ' -err_file ' errfile];
+      if tfmodel
+        codestr = sprintf('%s -model_files %s',codestr,modelfilestr);
+      end
+      codestr = [codestr sprintf(' -type %s %s data_aug -out_file %s -nsamples %d',...
+        char(nettype),dllbl,outfile,nsamples)];
+
+    end
+    
+    
     function [codestr,containerName] = trackCodeGenDocker(...
         trnID,cache,dllbl,errfile,...
         nettype,movtrk,outtrk,frm0,frm1,varargin)
@@ -3162,6 +3196,33 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
         'bindpath',mntPaths,dockerargs{:});
     end
+    
+    function [codestr,containerName] = dataAugCodeGenDocker(...
+        trnID,cache,dllbl,errfile,...
+        nettype,outfile,nsamples,varargin)
+%         movtrk,outtrk,frm0,frm1,...
+%         modelChainID,trainID,dllbl,cache,errfile,netType,view1b,mntPaths,...
+%         varargin)
+
+      % varargin: see trackCodeGenBase, except for 'cache' and 'view'
+      
+      [baseargs,dockerargs,mntPaths,containerName] = myparse(varargin,...
+        'baseargs',{},'dockerargs',{},'mntPaths',{},'containerName','');
+      
+      baseargs = [{'cache' cache} baseargs];
+        
+      basecmd = DeepTracker.dataAugCodeGenBase(trnID,dllbl,errfile,nettype,...
+        outfile,nsamples,baseargs{:});
+
+      if isempty(containerName),
+        [~,containerName] = fileparts(outfile);
+      end
+
+      codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
+        'bindpath',mntPaths,dockerargs{:});
+    end
+    
+    
     function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
         'baseargs',{},... % p-v cell for trackCodeGenBase

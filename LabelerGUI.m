@@ -3177,6 +3177,16 @@ lObj = handles.labelerObj;
 % tObj = lObj.tracker;
 % assert(~isempty(tObj));
 
+tfCanTrack = lObj.trackAllCanTrack();
+if any(tfCanTrack),
+  nTrackers = nnz(tfCanTrack);
+  res = questdlg(sprintf('%d trackers have been trained. Updating parameters will result in one or more of them being deleted, and they will need to be retrained.',nTrackers),...
+    'Update tracking parameters','Continue','Cancel','Continue');
+  if strcmpi(res,'Cancel'),
+    return;
+  end
+end
+
 sPrmCurrent = lObj.trackGetParams();
 
 % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
