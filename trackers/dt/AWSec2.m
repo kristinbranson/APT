@@ -1,7 +1,10 @@
 classdef AWSec2 < handle
+  % Handle to a single AWS EC2 instance. The instance may be in any state,
+  % running, stopped, etc.
+  
   
   properties
-    instanceID
+    instanceID % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.
     instanceIP
     keyName
     pem
@@ -9,7 +12,7 @@ classdef AWSec2 < handle
     scpCmd
     sshCmd
     
-    remotePID    
+    remotePID
   end
   
   properties (Constant)
@@ -40,7 +43,8 @@ classdef AWSec2 < handle
     end
     
     function delete(obj)
-      % TODO 
+      % NOTE: for now, lifecycle of obj is not tied at all to the actual
+      % instance-in-the-cloud
     end
     
   end
@@ -60,24 +64,40 @@ classdef AWSec2 < handle
       obj.instanceID = json.Instances.InstanceId;
     end
     
-    function [tfsucc,json] = inspectInstance(obj)
-       % sets .instanceIP and even .instanceID if it is empty and there is only one instance running
+    function [tfexist,tfrunning,json] = inspectInstance(obj)
+      % Check that a specified instance exists; check if it is running; 
+      % get json; sets .instanceIP if running
+      %
+      % * If .instanceID is empty and there is a unique EC2 instance, this 
+      % will set the .instanceID.
+      % 
+      % * tfexist is returned as true of the instance exists in some state.
+      % * tfrunning is returned as true if the instance exists and is running.
+      % * json is valid only if tfexist==true.
       
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
-      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
-      if ~tfsucc
+      [tfexist,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      if ~tfexist
+        tfrunning = false;
         return;
       end
       json = jsondecode(json);
-      obj.instanceIP = json.Reservations.Instances.PublicIpAddress;
+      
+      inst = json.Reservations.Instances;
       if isempty(obj.instanceID)
-        obj.instanceID = json.Reservations.Instances.InstanceId;
+        obj.instanceID = inst.InstanceId;
       else
-        assert(strcmp(obj.instanceID,json.Reservations.Instances.InstanceId));
+        assert(strcmp(obj.instanceID,inst.InstanceId));
       end
       
-      fprintf('EC2 instanceID %s is running with IP %s.\n',obj.instanceID,...
-        obj.instanceIP);
+      tfrunning = strcmp(inst.State.Name,'running');
+      if tfrunning
+        obj.instanceIP = inst.PublicIpAddress;
+        fprintf('EC2 instanceID %s is running with IP %s.\n',...
+          obj.instanceID,obj.instanceIP);
+      else
+        % leave IP for now even though may be outdated
+      end
     end
     
     function [tfsucc,state,json] = getInstanceState(obj)
@@ -92,6 +112,15 @@ classdef AWSec2 < handle
       json = jsondecode(json);
       state = json.Reservations.Instances.State.Name;
       
+    end
+    
+    function tfsucc = respecifyInstance(obj)
+      [tfsucc,iid,pemFile] = ...
+        obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
+      if tfsucc
+        obj.instanceID = iid;
+        obj.pem = pemFile;
+      end
     end
     
     function [tfsucc,json] = stopInstance(obj)
@@ -157,18 +186,27 @@ classdef AWSec2 < handle
       obj.inspectInstance();
     end
     
-    function checkInstanceRunning(obj)
-      % - If runs silently, obj appears to be a running EC2 instance with no
-      %   issues
+    function checkInstanceRunning(obj,varargin)
+      % - If runs silently, obj appears to be a running EC2 instance with 
+      %   no issues
       % - If harderror thrown, something appears wrong
       
-      [tf,js] = obj.inspectInstance;
-      if ~tf
-        error('Problem with EC2 instance id: %s',obj.instanceID);
+      throwErrs = myparse(varargin,...
+        'throwErrs',true... % if false, just warn if there is a problem
+        );
+      
+      if throwErrs
+        throwFcn = @error;
+      else
+        throwFcn = @warningNoTrace;
       end
-      state = js.Reservations.Instances.State;
-      if ~strcmp(state.Name,'running')
-        error('EC2 instance id %s is not in the ''running'' state.',...
+      
+      [tfexist,tfrun] = obj.inspectInstance;
+      if ~tfexist
+        throwFcn('Problem with EC2 instance id: %s',obj.instanceID);
+      end
+      if ~tfrun
+        throwFcn('EC2 instance id %s is not in the ''running'' state.',...
           obj.instanceID)
       end
     end
@@ -532,14 +570,29 @@ classdef AWSec2 < handle
         sshcmd,pem,ip,cmdremote,logfileremote);
     end
 
-    function [tfsucc,instanceID,pemFile] = configureUI()
+    function [tfsucc,instanceID,pemFile] = ...
+                              specifyInstanceUIStc(instanceID,pemFile)
+      % Prompt user to specify/confirm an AWS instance.
+      % 
+      % instanceID, pemFile (in): optional defaults/best guesses
+      
+      if nargin<1
+        instanceID = '';
+      end
+      if nargin<2
+        pemFile = '';
+      end
+      
       PROMPT = {
         'Instance ID'
         'Private key (.pem) file'
         };
-      NAME = 'Amazon Web Services EC2 Configuration';
+      NAME = 'AWS EC2 Config';
+      INPUTBOXWIDTH = 100;
+      BROWSEINFO = struct('type',{'';'uigetfile'},'filterspec',{'';'*.pem'});
 
-      resp = inputdlg(PROMPT,NAME,1);      
+      resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],2,1),...
+        {instanceID;pemFile},'on',BROWSEINFO);
       tfsucc = ~isempty(resp);      
       if tfsucc
         instanceID = strtrim(resp{1});

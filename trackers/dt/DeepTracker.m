@@ -347,39 +347,9 @@ classdef DeepTracker < LabelTracker
       end
       freemem = freemem(1:nrequest);
       gpuid = gpuInfo.id(order(1:nrequest));
-
       
     end
-    
-%     function setBackend(obj,backEndType)
-%       if isa(backEndType,'DLBackEnd')
-%         % none
-%       else
-%         [btbe,btbestrs] = enumeration('DLBackEnd');
-%         if ischar(backEndType)          
-%           idx = find(strcmpi(backEndType,btbestrs));
-%         else 
-%           idx = [];
-%         end
-%         if isempty(idx)
-%           error('Unrecognized back end type. Allowed values are: %s',...
-%             String.cellstr2CommaSepList(btbestrs));
-%         end
-%         backEndType = btbe(idx);
-%       end
-%       obj.backendType = backEndType;
-%     end
-    
-%     function setAWSEC2(obj,aws)
-% %       aws = AWSec2(keyName,pem);
-% %       aws.instanceID = instanceID;
-%       tfsucc = aws.inspectInstance();
-%       if ~tfsucc
-%         error('Failed to inspect EC2 instanceID %s.',instanceID);
-%       end
-%       obj.awsEc2 = aws;
-%     end
-    
+        
   end
   
   %% Train
