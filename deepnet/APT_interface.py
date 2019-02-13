@@ -339,10 +339,6 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     except KeyError:
         pass
     try:
-        conf.save_td_step = read_entry(dt_params['save_td_step'])
-    except KeyError:
-        pass
-    try:
         bb = read_entry(dt_params['brange'])
         conf.brange = [-bb, bb]
     except KeyError:

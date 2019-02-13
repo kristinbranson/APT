@@ -37,33 +37,6 @@ from scipy.ndimage.interpolation import zoom
 from scipy import stats
 import pickle
 
-# from matplotlib.backends.backend_agg import FigureCanvasAgg
-
-
-# In[ ]:
-
-# not used anymore
-# def scalepatches(patch,scale,num,rescale,cropsz):
-#     sz = patch.shape
-#     assert sz[0]%( (scale**(num-1))*rescale) is 0,"patch size isn't divisible by scale"
-
-#     patches = []
-#     patches.append(scipy.misc.imresize(patch[:,:,0],1.0/(scale**(num-1))/rescale))
-#     curpatch = patch
-#     for ndx in range(num-1):
-#         sz = curpatch.shape
-#         crop = int((1-1.0/scale)/2*sz[0])
-# #         print(ndx,crop)
-
-#         spatch = curpatch[crop:-crop,crop:-crop,:]
-#         curpatch = spatch
-#         sfactor = 1.0/(scale**(num-ndx-2))/rescale
-#         tpatch = scipy.misc.imresize(spatch,sfactor,)
-#         patches.append(tpatch[:,:,0])
-#     return patches
-
-
-# In[ ]:
 
 def get_cmap(n_classes):
     cmap = cm.get_cmap('jet')
@@ -105,34 +78,6 @@ def normalize_mean(in_img, conf):
         xx = zz
 #     xx = xx.astype('uint8')
     return xx
-
-
-def multi_scale_images(in_img, rescale, scale, conf):
-    # only crop the highest res image
-    #     if l1_cropsz > 0:
-    #         inImg_crop = inImg[:,l1_cropsz:-l1_cropsz,l1_cropsz:-l1_cropsz,:]
-    #     else:
-    #         inImg_crop = inImg
-
-    in_img = adjust_contrast(in_img, conf)
-    x0_in = scale_images(in_img, rescale, conf)
-    x1_in = scale_images(in_img, rescale * scale, conf)
-    x2_in = scale_images(x1_in, scale, conf)
-    return x0_in, x1_in, x2_in
-
-
-def multi_scale_label_images(in_img, rescale, scale):
-    # only crop the highest res image
-    #     if l1_cropsz > 0:
-    #         inImg_crop = inImg[:,l1_cropsz:-l1_cropsz,l1_cropsz:-l1_cropsz,:]
-    #     else:
-    #         inImg_crop = inImg
-
-    x0_in = scale_images(in_img, rescale)
-    x1_in = scale_images(in_img, rescale * scale)
-    x2_in = scale_images(x1_in, scale)
-    return x0_in, x1_in, x2_in
-
 
 def adjust_contrast(in_img, conf):
     if conf.adjust_contrast:
@@ -407,6 +352,80 @@ def randomly_scale(img,locs,conf,group_sz=1):
     return img, locs
 
 
+def randomly_affine(img,locs, conf, group_sz=1):
+    if conf.rrange < 1 and conf.trange< 1 and conf.scale_range<0.01:
+        return img, locs
+
+    locs = locs.copy()
+    img = img.copy()
+    if locs.ndim == 3: # hack for multi animal
+        reduce_dim = True
+        locs = locs[:,np.newaxis,...]
+    else:
+        reduce_dim = False
+
+    num = img.shape[0]
+    rows, cols = img.shape[1:3]
+    rows = float(rows)
+    cols = float(cols)
+    n_groups = num/group_sz
+    assert(num%group_sz==0), 'Incorrect group size'
+
+    for ndx in range(n_groups):
+        st = ndx*group_sz
+        en = (ndx+1)*group_sz
+        orig_locs = locs[st:en, ...]
+        orig_im = img[st:en, ...].copy()
+        sane = False
+        do_rotate = True
+
+        count = 0
+        lr = orig_locs.copy()
+        out_ii = orig_im.copy()
+        while not sane:
+            valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
+            rangle = (np.random.rand() * 2 - 1) * conf.rrange
+            sfactor = (np.random.rand() - 0.5) * conf.scale_range + 1
+            dx = (np.random.rand()*2 -1)*conf.trange
+            dy = (np.random.rand()*2 -1)*conf.trange
+
+            count += 1
+            if count > 5:
+                rangle = 0; dx = 0; dy=0; sfactor = 1
+                sane = True
+                do_rotate = False
+
+            rot_mat = cv2.getRotationMatrix2D((float(conf.imsz[1])/2,float(conf.imsz[0])/2 ), rangle, sfactor)
+            rot_mat[0,2] += dx
+            rot_mat[1,2] += dy
+            lr = np.matmul(orig_locs,rot_mat[:,:2].T)
+            lr[...,0] += rot_mat[0,2]
+            lr[...,1] += rot_mat[1,2]
+
+            if np.all(lr[valid, 0] > 0) \
+                    and np.all(lr[valid, 1] >0) \
+                    and np.all(lr[valid, 0] <= cols) \
+                    and np.all(lr[valid, 1] <= rows):
+                sane = True
+            elif not conf.check_bounds_distort:
+                sane = True
+            elif do_rotate:
+                continue
+
+            for g in range(group_sz):
+                ii = copy.deepcopy(orig_im[g,...])
+                ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=cv2.INTER_CUBIC)
+                if ii.ndim == 2:
+                    ii = ii[..., np.newaxis]
+                out_ii[g,...] = ii
+
+        locs[st:en, ...] = lr
+        img[st:en, ...] = out_ii
+
+    locs = locs[:, 0, ...] if reduce_dim else locs
+    return img, locs
+
+
 def blur_label(im_sz, loc, scale, blur_rad):
     sz0 = int(math.ceil(old_div(float(im_sz[0]), scale)))
     sz1 = int(math.ceil(old_div(float(im_sz[1]), scale)))
@@ -509,37 +528,6 @@ def create_reg_label_images(locs, im_sz, scale, blur_rad):
     return labelims, regimsx, regimsy
 
 
-def create_fine_label_tensor(conf):
-    tsz = int(conf.fine_sz + 2 * 6 * math.ceil(conf.fine_label_blur_rad))
-    timg = np.zeros((tsz, tsz))
-    timg[old_div(tsz, 2), old_div(tsz, 2)] = 1
-    blur_l = ndimage.gaussian_filter(timg, conf.fine_label_blur_rad)
-    blur_l = old_div(blur_l, blur_l.max())
-    blur_l = 2.0 * (blur_l - 0.5)
-    return tf.constant(blur_l)
-
-
-def extract_fine_label_tensor(label_t, sz, dd, fsz):
-    return tf.slice(label_t, dd + old_div(sz, 2) - old_div(fsz, 2), [fsz, fsz])
-
-
-def create_fine_label_images(locs, max_locs, conf, label_t):
-    max_locs = tf.to_int32(max_locs / conf.rescale)
-    tsz = int(conf.fine_sz + 2 * 6 * math.ceil(conf.fine_label_blur_rad))
-    hsz = old_div(conf.fine_sz, 2)
-    limgs = []
-    for inum in range(conf.batch_size):
-        curlimgs = []
-        for ndx in range(conf.n_classes):
-            dx = max_locs[inum, ndx, 0] - tf.to_int32(old_div(locs[inum, ndx, 0], conf.rescale))
-            dy = max_locs[inum, ndx, 1] - tf.to_int32(old_div(locs[inum, ndx, 1], conf.rescale))
-            dd = tf.stack([dy, dx])
-            dd = tf.maximum(tf.to_int32(hsz - old_div(tsz, 2)), tf.minimum(tf.to_int32(old_div(tsz, 2) - hsz - 1), dd))
-            curlimgs.append(extract_fine_label_tensor(label_t, tsz, dd, conf.fine_sz))
-        limgs.append(tf.stack(curlimgs))
-    return tf.transpose(tf.stack(limgs), [0, 2, 3, 1])
-
-
 def arg_max_2d(x_in):
     orig_shape = tf.shape(x_in)
     reshape_t = tf.concat([orig_shape[0:1], [-1], orig_shape[3:4]], 0)
@@ -603,129 +591,6 @@ def get_pred_locs_multi(pred, n_max, sz):
     return pred_locs
 
 
-def get_fine_pred_locs(pred, fine_pred, conf):
-    pred_locs = np.zeros([pred.shape[0], conf.n_classes, 2])
-    fine_pred_locs = np.zeros([pred.shape[0], conf.n_classes, 2])
-    for ndx in range(pred.shape[0]):
-        for cls in range(conf.n_classes):
-            max_ndx = np.argmax(pred[ndx, :, :, cls])
-            cur_loc = np.array(np.unravel_index(max_ndx, pred.shape[1:3]))
-            cur_loc = cur_loc * conf.pool_scale * conf.rescale
-            pred_locs[ndx, cls, 0] = cur_loc[1]
-            pred_locs[ndx, cls, 1] = cur_loc[0]
-            max_ndx = np.argmax(fine_pred[ndx, :, :, cls])
-            curfineloc = (np.array(np.unravel_index(max_ndx, fine_pred.shape[1:3])) -
-                          old_div(conf.fine_sz, 2)) * conf.rescale
-            fine_pred_locs[ndx, cls, 0] = cur_loc[1] + curfineloc[1]
-            fine_pred_locs[ndx, cls, 1] = cur_loc[0] + curfineloc[0]
-    return pred_locs, fine_pred_locs
-
-
-def get_base_error(locs, pred, conf):
-    loc_err = np.zeros(locs.shape)
-    for ndx in range(pred.shape[0]):
-        for cls in range(conf.n_classes):
-            max_ndx = np.argmax(pred[ndx, :, :, cls])
-            pred_loc = np.array(np.unravel_index(max_ndx, pred.shape[1:3]))
-            pred_loc = pred_loc * conf.pool_scale * conf.rescale
-            loc_err[ndx][cls][0] = float(pred_loc[1]) - locs[ndx][cls][0]
-            loc_err[ndx][cls][1] = float(pred_loc[0]) - locs[ndx][cls][1]
-    return loc_err
-
-
-def get_fine_error(locs, pred, fine_pred, conf):
-    fine_loc_err = np.zeros([len(locs), conf.n_classes, 2])
-    base_loc_err = np.zeros([len(locs), conf.n_classes, 2])
-    for ndx in range(pred.shape[0]):
-        for cls in range(conf.n_classes):
-            maxndx = np.argmax(pred[ndx, :, :, cls])
-            predloc = np.array(np.unravel_index(maxndx, pred.shape[1:3]))
-            predloc = predloc * conf.pool_scale * conf.rescale
-            maxndx = np.argmax(fine_pred[ndx, :, :, cls])
-            finepredloc = (np.array(np.unravel_index(maxndx, fine_pred.shape[1:3])) - old_div(conf.fine_sz,
-                                                                                              2)) * conf.rescale
-            base_loc_err[ndx, cls, 0] = float(predloc[1]) - locs[ndx][cls][0]
-            base_loc_err[ndx, cls, 1] = float(predloc[0]) - locs[ndx][cls][1]
-            fine_loc_err[ndx, cls, 0] = float(predloc[1] + finepredloc[1]) - locs[ndx][cls][0]
-            fine_loc_err[ndx, cls, 1] = float(predloc[0] + finepredloc[0]) - locs[ndx][cls][1]
-    return base_loc_err, fine_loc_err
-
-
-def init_mrf_weights(conf):
-    lbl = h5py.File(conf.labelfile, 'r')
-
-    if 'pts' in lbl:
-        pts = np.array(lbl['pts'])
-        v = conf.view
-    else:
-        pp = np.array(lbl['labeledpos'])
-        nmovie = pp.shape[1]
-        pts = np.zeros([0, conf.n_classes, 1, 2])
-        v = 0
-        for ndx in range(nmovie):
-            curpts = np.array(lbl[pp[0, ndx]])
-            frames = np.where(np.invert(np.any(np.isnan(curpts), axis=(1, 2))))[0]
-            npts_per_view = np.array(lbl['cfg']['NumLabelPoints'])[0, 0]
-            pts_st = int(conf.view * npts_per_view)
-            selpts = pts_st + conf.selpts
-            curlocs = curpts[:, :, selpts]
-            curlocs = curlocs[frames, :, :]
-            curlocs = curlocs.transpose([0, 2, 1])
-            pts = np.append(pts, curlocs[:, :, np.newaxis, :], axis=0)
-
-    if hasattr(conf, 'mrf_psz'):
-        psz = conf.mrf_psz
-        print('!!!Overriding MRF Size using conf.mrf_psz!!!')
-        print('!!!Overriding MRF Size using conf.mrf_psz!!!')
-        print('!!!Overriding MRF Size using conf.mrf_psz!!!')
-    else:
-        dx = np.zeros([pts.shape[0]])
-        dy = np.zeros([pts.shape[0]])
-        for ndx in range(pts.shape[0]):
-            dx[ndx] = pts[ndx, :, v, 0].max() - pts[ndx, :, v, 0].min()
-            dy[ndx] = pts[ndx, :, v, 1].max() - pts[ndx, :, v, 1].min()
-        maxd = max((np.percentile(dx, 99), np.percentile(dy, 99)))
-        psz = int(math.ceil(old_div((maxd * 2 / conf.rescale), conf.pool_scale)))
-    bfilt = np.zeros([psz, psz, conf.n_classes, conf.n_classes])
-
-    for ndx in range(pts.shape[0]):
-        for c1 in range(conf.n_classes):
-            for c2 in range(conf.n_classes):
-                d12x = pts[ndx, c1, v, 0] - pts[ndx, c2, v, 0]
-                d12y = pts[ndx, c1, v, 1] - pts[ndx, c2, v, 1]
-                if np.isinf(d12y) or np.isinf(d12y):
-                    continue
-                if np.isnan(d12y) or np.isnan(d12y):
-                    continue
-                d12x = max(old_div(-psz, 2) + 1,
-                           min(old_div(psz, 2) - 1, int(old_div((old_div(d12x, conf.rescale)), conf.pool_scale))))
-                d12y = max(old_div(-psz, 2) + 1,
-                           min(old_div(psz, 2) - 1, int(old_div((old_div(d12y, conf.rescale)), conf.pool_scale))))
-                bfilt[old_div(psz, 2) + d12y, old_div(psz, 2) + d12x, c1, c2] += 1
-    bfilt = (old_div(bfilt, pts.shape[0]))
-    return bfilt
-
-
-def init_mrf_weights_identity(conf):
-    lbl = h5py.File(conf.labelfile)
-    pts = np.array(lbl['pts'])
-    v = conf.view
-    dx = np.zeros([pts.shape[0]])
-    dy = np.zeros([pts.shape[0]])
-    for ndx in range(pts.shape[0]):
-        dx[ndx] = pts[ndx, :, v, 0].max() - pts[ndx, :, v, 0].min()
-        dy[ndx] = pts[ndx, :, v, 1].max() - pts[ndx, :, v, 1].min()
-    maxd = max(dx.max(), dy.max())
-    hsz = int(old_div(math.ceil(old_div((maxd * 2 / conf.rescale), conf.pool_scale)), 2))
-    psz = hsz * 2 + 1
-    #     psz = conf.mrf_psz
-    bfilt = np.zeros([psz, psz, conf.n_classes, conf.n_classes])
-
-    for c1 in range(conf.n_classes):
-        bfilt[hsz, hsz, c1, c1] = 5.
-    return bfilt
-
-
 def get_vars(vstr):
     var_list = tf.global_variables()
     b_list = []
@@ -762,47 +627,6 @@ def compare_conf(curconf, oldconf):
             print('%s doesnt match' % f)
 
 
-# def create_network(conf, outtype):
-#     self = PoseTrain.PoseTrain(conf)
-#     self.createPH()
-#     self.createFeedDict()
-#     do_batch_norm = self.conf.doBatchNorm
-#     self.feed_dict[self.ph['phase_train_base']] = False
-#     self.feed_dict[self.ph['phase_train_fine']] = False
-#     self.feed_dict[self.ph['keep_prob']] = 1.
-#     self.feed_dict[self.ph['learning_rate']] = 0
-#     tt = self.ph['y'].get_shape().as_list()
-#     tt[0] = 1
-#     self.feed_dict[self.ph['y']] = np.zeros(tt)
-#     tt = self.ph['locs'].get_shape().as_list()
-#     self.feed_dict[self.ph['locs']] = np.zeros(tt)
-#
-#     with tf.variable_scope('base'):
-#         self.createBaseNetwork(do_batch_norm)
-#     self.createBaseSaver()
-#
-#     if outtype > 1 and self.conf.useMRF:
-#         with tf.variable_scope('mrf'):
-#             self.createMRFNetwork(do_batch_norm)
-#         self.createMRFSaver()
-#
-#     if outtype > 2:
-#         with tf.variable_scope('fine'):
-#             self.createFineNetwork(do_batch_norm)
-#         self.createFineSaver()
-#
-#     return self
-#
-
-def init_network(self, sess, outtype):
-    self.restoreBase(sess, True)
-    if outtype > 1:
-        self.restoreMRF(sess, True)
-    if outtype > 2:
-        self.restoreFine(sess, True)
-    self.initializeRemainingVars(sess)
-
-
 def open_movie(movie_name):
     cap = cv2.VideoCapture(movie_name)
     nframes = int(cap.get(cvc.FRAME_COUNT))
@@ -819,333 +643,11 @@ def create_pred_image(pred_scores, n_classes):
     return cv2.cvtColor(im, cv2.COLOR_HSV2RGB)
 
 
-# In[ ]:
-
-def classify_movie(conf, movie_name, out_type, self, sess, max_frames=-1, start_at=0):
-    # maxframes if specificied reads that many frames
-    # start at specifies where to start reading.
-
-    cap = cv2.VideoCapture(movie_name)
-    n_frames = int(cap.get(cvc.FRAME_COUNT))
-
-    # figure out how many frames to read
-    if max_frames > 0:
-        if max_frames + start_at > n_frames:
-            n_frames = n_frames - start_at
-        else:
-            n_frames = max_frames
-    else:
-        n_frames = n_frames - start_at
-
-    # since out of order frame access in python sucks, do it one by one
-    for _ in range(start_at):
-        cap.read()
-
-    # pre allocate results
-    pred_locs = np.zeros([n_frames, conf.n_classes, 2, 2])
-    predmaxscores = np.zeros([n_frames, conf.n_classes, 2])
-
-    if out_type == 3:
-        if self.conf.useMRF:
-            pred_pair = [self.mrfPred, self.finePred]
-        else:
-            pred_pair = [self.basePred, self.finePred]
-    elif out_type == 2:
-        pred_pair = [self.mrfPred, self.basePred]
-    else:
-        pred_pair = [self.basePred]
-
-    bsize = conf.batch_size
-    nbatches = int(math.ceil(old_div(float(n_frames), bsize)))
-    #     framein = myutils.readframe(cap,1)
-    #     framein = cropImages(framein,conf)
-    #     framein = framein[np.newaxis,:,:,0:1]
-    #     x0t,x1t,x2t = multiScaleImages(framein, conf.rescale,  conf.scale, conf.l1_cropsz,conf)
-    #     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(10,10))
-    #     print "WARNING!!!ATTENTION!!! DOING CONTRAST NORMALIZATION!!!!"
-    #     print "WARNING!!!ATTENTION!!! DOING CONTRAST NORMALIZATION!!!!"
-
-    allf = np.zeros((bsize,) + conf.imsz + (1,))
-    for curl in range(nbatches):
-
-        ndxst = curl * bsize
-        ndxe = min(n_frames, (curl + 1) * bsize)
-        ppe = min(ndxe - ndxst, bsize)
-        for ii in range(ppe):
-            success, framein = cap.read()
-            assert success, "Could not read frame"
-
-            framein = crop_images(framein, conf)
-            #             framein = clahe.apply(framein[:,:,:1])
-            allf[ii, ...] = framein[..., 0:1]
-
-        x0, x1, x2 = multi_scale_images(allf, conf.rescale, conf.scale, conf.l1_cropsz, conf)
-
-        self.feed_dict[self.ph['x0']] = x0
-        self.feed_dict[self.ph['x1']] = x1
-        self.feed_dict[self.ph['x2']] = x2
-        pred = sess.run(pred_pair, self.feed_dict)
-        if curl == 0:
-            predscores = np.zeros((n_frames,) + pred[0].shape[1:] + (2,))
-        if out_type == 3:
-            base_locs, fine_locs = get_fine_pred_locs(pred[0], pred[1], conf)
-            pred_locs[ndxst:ndxe, :, 0, :] = fine_locs[:ppe, :, :]
-            pred_locs[ndxst:ndxe, :, 1, :] = base_locs[:ppe, :, :]
-            for ndx in range(conf.n_classes):
-                predmaxscores[ndxst:ndxe, :, 0] = pred[0][:ppe, :, :, ndx].max()
-                predmaxscores[ndxst:ndxe, :, 1] = pred[1][:ppe, :, :, ndx].max()
-            predscores[curl, :, :, :, 0] = pred[0][:ppe, :, :, :]
-        elif out_type == 2:
-            base_locs = get_base_pred_locs(pred[0], conf)
-            pred_locs[ndxst:ndxe, :, 0, :] = base_locs[:ppe, :, :]
-            base_locs = get_base_pred_locs(pred[1], conf)
-            pred_locs[ndxst:ndxe, :, 1, :] = base_locs[:ppe, :, :]
-            for ndx in range(conf.n_classes):
-                predmaxscores[ndxst:ndxe, :, 0] = pred[0][:ppe, :, :, ndx].max()
-                predmaxscores[ndxst:ndxe, :, 1] = pred[1][:ppe, :, :, ndx].max()
-            predscores[ndxst:ndxe, :, :, :, 0] = pred[0][:ppe, :, :, :]
-            predscores[ndxst:ndxe, :, :, :, 1] = pred[1][:ppe, :, :, :]
-        elif out_type == 1:
-            base_locs = get_base_pred_locs(pred[0], conf)
-            pred_locs[ndxst:ndxe, :, 0, :] = base_locs[:ppe, :, :]
-            for ndx in range(conf.n_classes):
-                predmaxscores[ndxst:ndxe, :, 0] = pred[0][:ppe, :, :, ndx].max()
-            predscores[ndxst:ndxe, :, :, :, 0] = pred[0][:ppe, :, :, :]
-        sys.stdout.write('.')
-        if curl % 20 == 19:
-            sys.stdout.write('\n')
-
-    cap.release()
-    return pred_locs, predscores, predmaxscores
-
-
-def classify_movie_fine(conf, movie_name, locs, self, sess, max_frames=-1, start_at=0):
-    # maxframes if specificied reads that many frames
-    # start at specifies where to start reading.
-
-    cap = cv2.VideoCapture(movie_name)
-    nframes = int(cap.get(cvc.FRAME_COUNT))
-
-    # figure out how many frames to read
-    if max_frames > 0:
-        if max_frames + start_at > nframes:
-            nframes = nframes - start_at
-        else:
-            nframes = max_frames
-    else:
-        nframes = nframes - start_at
-
-    # since out of order frame access in python sucks, do it in order to exhaust it
-    for _ in range(start_at):
-        cap.read()
-
-    # pre allocate results
-    pred_locs = np.zeros([nframes, conf.n_classes, 2])
-
-    if self.conf.useMRF:
-        pred_pair = [self.mrfPred, self.finePred]
-    else:
-        pred_pair = [self.basePred, self.finePred]
-
-    bsize = conf.batch_size
-    nbatches = int(math.ceil(old_div(float(nframes), bsize)))
-    #     framein = myutils.readframe(cap,1)
-    #     framein = cropImages(framein,conf)
-    #     framein = framein[np.newaxis,:,:,0:1]
-    #     x0t,x1t,x2t = multiScaleImages(framein, conf.rescale,  conf.scale, conf.l1_cropsz,conf)
-    #     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(10,10))
-    #     print "WARNING!!!ATTENTION!!! DOING CONTRAST NORMALIZATION!!!!"
-    #     print "WARNING!!!ATTENTION!!! DOING CONTRAST NORMALIZATION!!!!"
-
-    allf = np.zeros((bsize,) + conf.imsz + (1,))
-    alll = np.zeros((bsize, conf.n_classes, 2))
-    for curl in range(nbatches):
-
-        ndxst = curl * bsize
-        ndxe = min(nframes, (curl + 1) * bsize)
-        ppe = min(ndxe - ndxst, bsize)
-        for ii in range(ppe):
-            success, framein = cap.read()
-            assert success, "Could not read frame"
-
-            framein = crop_images(framein, conf)
-            #             framein = clahe.apply(framein[:,:,:1])
-            allf[ii, ...] = framein[..., 0:1]
-
-        x0, x1, x2 = multi_scale_images(allf, conf.rescale, conf.scale, conf.l1_cropsz, conf)
-
-        self.feed_dict[self.ph['x0']] = x0
-        self.feed_dict[self.ph['x1']] = x1
-        self.feed_dict[self.ph['x2']] = x2
-        pred_int = sess.run(pred_pair[0], feed_dict=self.feed_dict)
-        self.feed_dict[self.ph['fine_pred_in']] = pred_int
-        alll[:ppe, ...] = locs[ndxst:ndxe, ...]
-        self.feed_dict[self.ph['fine_pred_locs_in']] = alll
-        pred = sess.run(pred_pair, self.feed_dict)
-
-        base_locs, fine_locs = get_fine_pred_locs(pred[0], pred[1], conf)
-        pred_locs[ndxst:ndxe, :, :] = fine_locs[:ppe, :, :]
-        sys.stdout.write('.')
-        if curl % 20 == 19:
-            sys.stdout.write('\n')
-
-    cap.release()
-    return pred_locs
-
 def get_colors(n):
     cmap = cm.get_cmap('jet')
     rgba = cmap(np.linspace(0, 1, n))
     return rgba
 
-def create_result_image(im, locs, perc, ax = None):
-    if ax is None:
-        f, ax = plt.subplots()
-    ax.imshow(im) if im.ndim == 3 else ax.imshow(im, cmap='gray')
-    # ax.scatter(locs[:,0],locs[:,1],s=20)
-    cmap = cm.get_cmap('jet')
-    rgba = cmap(np.linspace(0, 1, perc.shape[0]))
-    for ndx in range(locs.shape[0]):
-        for pndx in range(perc.shape[0]):
-            ci = plt.Circle(locs[ndx, :], fill=False,
-                            radius=perc[pndx, ndx], color=rgba[pndx, :])
-            ax.add_artist(ci)
-
-
-def create_pred_movie(conf, predList, moviename, outmovie, outtype, maxframes=-1):
-    predLocs, predscores, predmaxscores = predList
-    #     assert false, 'stop here'
-    tdir = tempfile.mkdtemp()
-
-    cap = cv2.VideoCapture(moviename)
-    nframes = int(cap.get(cvc.FRAME_COUNT))
-    if maxframes > 0:
-        nframes = maxframes
-
-    cmap = cm.get_cmap('jet')
-    rgba = cmap(np.linspace(0, 1, conf.n_classes))
-
-    fig = mpl.figure.Figure(figsize=(9, 4))
-    canvas = FigureCanvasAgg(fig)
-
-    if conf.adjust_contrast:
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=conf.clahe_grid_size)
-    else:
-        clahe = None
-
-    for curl in range(nframes):
-        framein = cv2.read()
-        framein = crop_images(framein, conf)
-        if framein.shape[2] > 1:
-            framein = framein[..., 0]
-
-        if conf.adjust_contrast:
-            framein = clahe.apply(framein)
-
-        fig.clf()
-        ax1 = fig.add_subplot(1, 2, 1)
-        ax1.imshow(framein, cmap=cm.gray)
-        ax1.scatter(predLocs[curl, :, 0, 0], predLocs[curl, :, 0, 1],  # hold=True,
-                    c=cm.hsv(np.linspace(0, 1 - old_div(1., conf.n_classes), conf.n_classes)),
-                    s=np.clip(predmaxscores[curl, :, 0] * 100, 20, 40),
-                    linewidths=0, edgecolors='face')
-        ax1.axis('off')
-        ax2 = fig.add_subplot(1, 2, 2)
-        if outtype == 1:
-            curpreds = predscores[curl, :, :, :, 0]
-        elif outtype == 2:
-            curpreds = predscores[curl, :, :, :, 0] * 2 - 1
-
-        rgbim = create_pred_image(curpreds, conf.n_classes)
-        ax2.imshow(rgbim)
-        ax2.axis('off')
-
-        fname = "test_{:06d}.png".format(curl)
-
-        # to printout without X.
-        # From: http://www.dalkescientific.com/writings/diary/archive/2005/04/23/matplotlib_without_gui.html
-        # The size * the dpi gives the final image size
-        #   a4"x4" image * 80 dpi ==> 320x320 pixel image
-        canvas.print_figure(os.path.join(tdir, fname), dpi=160)
-
-        # below is the easy way.
-    #         plt.savefig(os.path.join(tdir,fname))
-
-    tfilestr = os.path.join(tdir, 'test_*.png')
-    mencoder_cmd = "mencoder mf://" + tfilestr + " -frames " + "{:d}".format(
-        nframes) + " -mf type=png:fps=15 -o " + outmovie + " -ovc lavc -lavcopts vcodec=mpeg4:vbitrate=2000000"
-    os.system(mencoder_cmd)
-    cap.release()
-
-
-def create_pred_movie_no_conf(conf, predList, moviename, outmovie, outtype):
-    predLocs, predscores, predmaxscores = predList
-    #     assert false, 'stop here'
-    tdir = tempfile.mkdtemp()
-
-    cap = cv2.VideoCapture(moviename)
-    nframes = int(cap.get(cvc.FRAME_COUNT))
-
-    cmap = cm.get_cmap('jet')
-    rgba = cmap(np.linspace(0, 1, conf.n_classes))
-
-    fig = mpl.figure.Figure(figsize=(9, 4))
-    canvas = FigureCanvasAgg(fig)
-    for curl in range(nframes):
-        framein = myutils.readframe(cap, curl)
-        framein = crop_images(framein, conf)
-
-        fig.clf()
-        ax1 = fig.add_subplot(1, 2, 1)
-        ax1.imshow(framein[:, :, 0], cmap=cm.gray)
-        ax1.scatter(predLocs[curl, :, 0, 0], predLocs[curl, :, 0, 1],  # hold=True,
-                    c=cm.hsv(np.linspace(0, 1 - old_div(1., conf.n_classes), conf.n_classes)),
-                    s=20, linewidths=0, edgecolors='face')
-        ax1.axis('off')
-        ax2 = fig.add_subplot(1, 2, 2)
-        if outtype == 1:
-            curpreds = predscores[curl, :, :, :, 0]
-        elif outtype == 2:
-            curpreds = predscores[curl, :, :, :, 0] * 2 - 1
-
-        rgbim = create_pred_image(curpreds, conf.n_classes)
-        ax2.imshow(rgbim)
-        ax2.axis('off')
-
-        fname = "test_{:06d}.png".format(curl)
-
-        # to printout without X.
-        # From: http://www.dalkescientific.com/writings/diary/archive/2005/04/23/matplotlib_without_gui.html
-        # The size * the dpi gives the final image size
-        #   a4"x4" image * 80 dpi ==> 320x320 pixel image
-        canvas.print_figure(os.path.join(tdir, fname), dpi=80)
-
-        # below is the easy way.
-    #         plt.savefig(os.path.join(tdir,fname))
-
-    tfilestr = os.path.join(tdir, 'test_*.png')
-    mencoder_cmd = "mencoder mf://" + tfilestr + " -frames " + "{:d}".format(
-        nframes) + " -mf type=png:fps=15 -o " + outmovie + " -ovc lavc -lavcopts vcodec=mpeg4:vbitrate=2000000"
-    os.system(mencoder_cmd)
-    cap.release()
-
-#
-# def gen_distorted_images(conf, train_type=0):
-#     self = PoseTrain.PoseTrain(conf)
-#     self.createPH()
-#     self.createFeedDict()
-#     self.trainType = train_type
-#     self.openDBs()
-#
-#     with tf.Session() as sess:
-#         self.createCursors(sess)
-#         for _ in range(np.random.randint(50)):
-#             self.updateFeedDict(self.DBType.Train, sess=sess, distort=True)
-#         self.closeCursors()
-#
-#     orig_img = self.xs
-#     dist_img = self.feed_dict[self.ph['x0']]
-#     return orig_img, dist_img, self.locs
-#
 
 def variable_summaries(var):
     """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
@@ -1371,9 +873,10 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
             xs, locs = randomly_flip_lr(xs, locs, group_sz=group_sz)
         if conf.vert_flip:
             xs, locs = randomly_flip_ud(xs, locs, group_sz=group_sz)
-        xs, locs = randomly_scale(xs, locs, conf, group_sz=group_sz)
-        xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)
-        xs, locs = randomly_translate(xs, locs, conf, group_sz=group_sz)
+        xs, locs = randomly_affine(xs, locs, conf, group_sz=group_sz)
+        # xs, locs = randomly_scale(xs, locs, conf, group_sz=group_sz)
+        # xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)
+        # xs, locs = randomly_translate(xs, locs, conf, group_sz=group_sz)
         xs = randomly_adjust(xs, conf, group_sz=group_sz)
     xs = normalize_mean(xs, conf)
     return xs, locs
