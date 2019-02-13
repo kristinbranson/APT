@@ -414,10 +414,11 @@ function compute3Dfrom2D_KB(savefile,frontviewmatfile,sideviewmatfile,kinematfil
 
 end
 
-function in = zero_out(in,locs,rad)
+function out = zero_out(in,locs,rad)
   min_loc_x = max(1, locs(1) - rad);
   max_loc_x = min(size(in,2), locs(1) + rad);
   min_loc_y = max(1, locs(2) - rad);
   max_loc_y = min(size(in,1), locs(2) + rad);
-  in(min_loc_y:max_loc_y, min_loc_x:max_loc_x) = 0;
+  out = zeros(size(in));
+  out(min_loc_y:max_loc_y, min_loc_x:max_loc_x) = in(min_loc_y:max_loc_y, min_loc_x:max_loc_x);
 end
