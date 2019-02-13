@@ -107,13 +107,17 @@ function compute3Dfrom2D_KB(savefile,frontviewmatfile,sideviewmatfile,kinematfil
   T = Tfront;
 
   % zero out UNet scores away form MDN predictions.
-  n_dist = 10;
+  n_dist = 30;
   for tndx = 1:T
     for ndx = 1:nlandmarks
       loc_f = round(predptsfront(:,ndx,tndx));
+	  loc_f(1) = loc_f(1) - offx_front;
+	  loc_f(2) = loc_f(2) - offy_front;
       loc_s = round(predptsside(:,ndx,tndx));
-      rds.scores(tndx,:,:,ndx) = zero_out(rds.scores(tndx,:,:,ndx),loc_s,n_dist);
-      rdf.scores(tndx,:,:,ndx) = zero_out(rdf.scores(tndx,:,:,ndx),loc_f,n_dist);
+	  loc_s(1) = loc_s(1) - offx_side;
+	  loc_s(2) = loc_s(2) - offy_side;
+      rds.scores(tndx,:,:,ndx) = zero_out(squeeze(rds.scores(tndx,:,:,ndx)),loc_s,n_dist);
+      rdf.scores(tndx,:,:,ndx) = zero_out(squeeze(rdf.scores(tndx,:,:,ndx)),loc_f,n_dist);
     end
   end
 
@@ -412,8 +416,8 @@ end
 
 function in = zero_out(in,locs,rad)
   min_loc_x = max(1, locs(1) - rad);
-  max_loc_x = max(size(in,2), locs(1) + rad);
+  max_loc_x = min(size(in,2), locs(1) + rad);
   min_loc_y = max(1, locs(2) - rad);
-  max_loc_y = max(size(in,1), locs(2) + rad);
+  max_loc_y = min(size(in,1), locs(2) + rad);
   in(min_loc_y:max_loc_y, min_loc_x:max_loc_x) = 0;
 end

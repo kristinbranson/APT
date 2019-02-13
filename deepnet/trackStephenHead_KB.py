@@ -79,7 +79,7 @@ def get_crop_locs(lblfile,view,height,width):
     if x_right > width:
         x_left = width - crop_size[view][0] +1
         x_right = width
-    y_top = int(round(y_reg[0] + y_reg[1] * neck_locs[1]))
+    y_top = int(round(y_reg[0] + y_reg[1] * neck_locs[1]))-20
     y_top = 1 if y_top < 1 else y_top
     y_bottom = y_top + crop_size[view][1] - 1
     if y_bottom > height:
