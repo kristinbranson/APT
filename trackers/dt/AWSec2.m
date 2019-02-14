@@ -1,7 +1,10 @@
 classdef AWSec2 < handle
   % Handle to a single AWS EC2 instance. The instance may be in any state,
   % running, stopped, etc.
-  
+
+  properties (Constant)
+    autoShutdownAlarmNamePat = 'aptAutoShutdown'; 
+  end
   
   properties
     instanceID % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.
@@ -64,7 +67,7 @@ classdef AWSec2 < handle
       obj.instanceID = json.Instances.InstanceId;
     end
     
-    function [tfexist,tfrunning,json] = inspectInstance(obj)
+    function [tfexist,tfrunning,json] = inspectInstance(obj,varargin)
       % Check that a specified instance exists; check if it is running; 
       % get json; sets .instanceIP if running
       %
@@ -75,8 +78,12 @@ classdef AWSec2 < handle
       % * tfrunning is returned as true if the instance exists and is running.
       % * json is valid only if tfexist==true.
       
+      dispcmd = myparse(varargin,...
+        'dispcmd',true...
+        );
+      
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
-      [tfexist,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      [tfexist,json] = AWSec2.syscmd(cmd,'dispcmd',dispcmd,'isjsonout',true);
       if ~tfexist
         tfrunning = false;
         return;
@@ -209,6 +216,80 @@ classdef AWSec2 < handle
         throwFcn('EC2 instance id %s is not in the ''running'' state.',...
           obj.instanceID)
       end
+    end
+    
+    function codestr = createShutdownAlarmCmd(obj,varargin)
+      [periodsec,threshpct,evalperiods] = myparse(varargin,...
+        'periodsec',300, ... % 5 mins
+        'threshpct',5, ...
+        'evalperiods',6 ... 
+      );
+    
+      % AL 20190213: Superficially pretty poor/confusing spec/api/doc for 
+      % CloudWatch alarms. CloudWatch Dash is pretty suboptimal too. Maybe 
+      % it's actually really smart (maybe not).
+      %
+      % 1. Prob don't want to go period<5min -- acts funny, maybe 
+      % considered "high resolution" etc and requires special treatment.
+      % 2. Prob don't want period much greater than 5 min -- b/c you want
+      % the instance/cpu spin-up to get the CPUutil above the thresh in the
+      % first interval. If the interval is too big then the spinup may not
+      % get you above that threshold. Then, due to weird history retention
+      % of alarms, you may just get repeated ALARM states and kills of your
+      % instance.
+      % 3. Deleting an alarm and bringing it back (with the same name) 
+      % doesn't remove the history, and in some ways the triggers/criteria 
+      % ignore the "missing gap" in time as if that interval (when the
+      % alarm was deleted) was just removed from the space-time continuum.
+      
+      assert(periodsec==round(periodsec),'Expected integral periodsec.');
+      
+      [tfe,~,js] = obj.inspectInstance('dispcmd',false);
+      if ~tfe
+        error('AWS ec2 instance does not exist.');
+      end
+      
+      availzone = js.Reservations.Instances.Placement.AvailabilityZone;
+      regioncode = availzone(1:end-1);
+      
+      instID = obj.instanceID;
+      namestr = sprintf(obj.autoShutdownAlarmNamePat);
+      descstr = sprintf('"Auto shutdown %d sec (%d periods)"',periodsec,evalperiods);
+      dimstr = sprintf('"Name=InstanceId,Value=%s"',instID);
+      arnstr = sprintf('arn:aws:automate:%s:ec2:stop',regioncode);
+      
+      code = {...
+        'aws' 'cloudwatch' 'put-metric-alarm' ...
+        '--alarm-name' namestr ...
+        '--alarm-description' descstr ...
+        '--metric-name' 'CPUUtilization' ...
+        '--namespace' 'AWS/EC2' ...
+        '--statistic' 'Average' ...
+        '--period' num2str(periodsec) ...
+        '--threshold' num2str(threshpct) ...
+        '--comparison-operator' 'LessThanThreshold' ...
+        '--dimensions' dimstr ...
+        '--evaluation-periods' num2str(evalperiods) ...
+        '--alarm-actions' arnstr ...
+        '--unit' 'Percent' ...
+        '--treat-missing-data' 'notBreaching' ...
+        };
+      codestr = String.cellstr2DelimList(code,' ');      
+    end
+    
+    function tfsucc = configureAlarm(obj)
+      % Note: this creates/puts a metricalarm with name based on the
+      % instanceID. Currently the AWS API allows you to create the same
+      % alarm multiple times with no harm (only one alarm is ultimately
+      % created).
+      
+      codestr = obj.createShutdownAlarmCmd;
+      
+      fprintf('Setting up AWS CloudWatch alarm to auto-shutdown your instance if it is idle for too long.\n');
+      
+      tfsucc = obj.syscmd(codestr,...
+        'dispcmd',true,...
+        'failbehavior','warn');      
     end
     
     function tfsucc = getRemotePythonPID(obj)

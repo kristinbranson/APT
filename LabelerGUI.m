@@ -1986,7 +1986,7 @@ else
 end
 
 if tfsucc
-  aws.checkInstanceRunning('throwErrs',false);
+  %aws.checkInstanceRunning('throwErrs',false);
   lObj.trackSetDLBackend(be);
 end
 

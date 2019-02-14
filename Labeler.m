@@ -42,8 +42,7 @@ classdef Labeler < handle
       'labeledpostagGT' 'log'};
     
     SAVEBUTNOTLOADPROPS = { ...
-       'VERSION' 'currFrame' 'currMovie' 'currTarget'};
-     
+       'VERSION' 'currFrame' 'currMovie' 'currTarget'};     
      
     DLCONFIGINFOURL = 'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking'; 
     
@@ -1824,6 +1823,9 @@ classdef Labeler < handle
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
       [~,prevModeInfo] = obj.FixPrevModeInfo(pamode,s.cfg.PrevAxes.ModeInfo);      
       obj.setPrevAxesMode(pamode,prevModeInfo);
+      
+      % Call this here to eg init AWS backend
+      obj.trackSetDLBackend(obj.trackDLBackEnd);
       
       props = obj.gdata.propsNeedInit;
       for p = props(:)', p=p{1}; %#ok<FXSET>
@@ -8657,10 +8659,52 @@ classdef Labeler < handle
     
     function trackSetDLBackend(obj,be)
       assert(isa(be,'DLBackEndClass'));
-      [tf,reason] = be.getReadyTrainTrack();
-      if ~tf
-        warningNoTrace('Backend is not ready to train: %s',reason);
+     
+      switch be.type
+        case DLBackEnd.AWS
+          % special-case this to avoid running repeat AWS commands
+          
+          aws = be.awsec2;
+          if ~isempty(aws)            
+            [tfexist,tfrunning] = aws.inspectInstance();
+            if tfexist
+              % AWS auto-shutdown alarm 20190213
+              % The only official way to set the APT backend is here. We add 
+              % a metricalarm here to auto-shutdown the EC2 instance should 
+              % it become idle.
+              %
+              % - We use use a single/unique alarm name (see AWSec2). I think
+              % this an AWS account can only have one alarm at a time, so
+              % adding it here removes it from somewhere else if it is
+              % somewhere else.
+              % - If an account uses multiple instances, some will be
+              % unprotected for now. We expect the typical use case to be a
+              % single instance at a time.
+              % - Currently we never remove the alarm, so it just hangs
+              % around configured for the last instance where it was added. I
+              % don't get the impression that this hurts or that CloudWatch
+              % is expensive etc. Note in particular, the CloudWatch alarm
+              % lifecycle is independent of the EC2 lifecycle. CloudWatch
+              % alarms specify an instance only eg via the 'Dimensions'.
+              % - The alarm(s) is clearly visible on the EC2 dash. I think it
+              % should be ok for now.
+              aws.configureAlarm;
+            end
+          end
+          
+          if isempty(aws) || ~tfexist
+            warningNoTrace('AWS backend is not configured. You will need to configure an instance before training or tracking.');
+          elseif ~tfrunning
+            warningNoTrace('AWS backend instance is not running. You will need to start instance before training or tracking.');
+          end
+          
+        otherwise
+          [tf,reason] = be.getReadyTrainTrack();
+          if ~tf
+            warningNoTrace('Backend is not ready to train: %s',reason);
+          end
       end
+      
       obj.trackDLBackEnd = be;
     end
     
