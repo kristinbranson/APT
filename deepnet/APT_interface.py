@@ -276,6 +276,7 @@ def get_net_type(lbl_file):
         return None
 
 def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None):
+
     try:
         try:
             lbl = loadmat(lbl_file)
@@ -316,8 +317,20 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     # specified by the user. If the project doesnt have trx files
     # then we use the crop size specified by user else use the whole frame.
     if conf.has_trx_file:
-        width = int(read_entry(dt_params['sizex']))
-        height = int(read_entry(dt_params['sizey']))
+
+        # KB 20190212: replaced with preprocessing 
+        width = int(read_entry(lbl['preProcParams']['TargetCrop']['Radius']))*2+1
+        height = width
+
+        if 'sizex' in dt_params:
+            oldwidth = int(read_entry(dt_params['sizex']))
+            if oldwidth != width:
+                raise ValueError('Tracker parameter sizex does not match preProcParams->TargetCrop->Radius*2 + 1')
+        if 'sizey' in dt_params:
+            oldheight = int(read_entry(dt_params['sizey']))
+            if oldheight != height:
+                raise ValueError('Tracker parameter sizey does not match preProcParams->TargetCrop->Radius*2 + 1')
+
         conf.imsz = (height, width)
     else:
         if lbl['cropProjHasCrops'][0, 0] == 1:
@@ -493,7 +506,7 @@ def get_cur_trx(trx_file, trx_ndx):
     return cur_trx, n_trx
 
 
-def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
+def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=None, nsamples=None):
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
     # dataset. If split is False, second element is not used and all data is
@@ -581,7 +594,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
     return splits
 
 
-def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
+def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=None, nsamples=None):
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
     # dataset. If split is False, second element is not used and all data is
@@ -630,7 +643,17 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
     prev_trx_mov = -1
     psz = max(conf.imsz)
 
-    for ndx in range(lbl['preProcData_I'].shape[1]):
+    # KB 20190208: if we only need a few images, don't waste time reading in all of them
+    if sel is None:
+        if nsamples is None:
+            sel = range(lbl['preProcData_I'].shape[1])
+        else:
+            sel = np.random.choice(lbl['preProcData_I'].shape[1],nsamples)
+    
+    for selndx in range(len(sel)):
+
+        ndx = sel[selndx]
+
         if m_ndx[ndx] < 0:
             continue
 
@@ -719,12 +742,16 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False):
             count += 1
             splits[0].append(info)
 
-        if ndx % 100 == 99 and ndx > 0:
+        if selndx % 100 == 99 and selndx > 0:
             logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
 
     logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
     lbl.close()
-    return splits
+
+    if nsamples is None:
+        return splits
+    else:
+        return splits,sel
 
 
 def create_leap_db(conf, split=False, split_file=None, use_cache=False):
@@ -977,21 +1004,25 @@ def get_augmented_images(conf, out_file, distort=True, on_gt = False, use_cache=
         data_in = []
         out_fns = [lambda data: data_in.append(data),
                    lambda data: None]
-        if use_cache:
-            splits = db_from_cached_lbl(conf, out_fns, False, None, on_gt)
-        else:
-            splits = db_from_lbl(conf, out_fns, False, None, on_gt)
 
-        ims = np.array([d[0] for d in data_in])
-        locs = np.array([d[1] for d in data_in])
-        if nsamples is not None:
-            sel = np.random.choice(ims.shape[0],nsamples)
-            ims = ims[sel,...]
-            locs = locs[sel,...]
+        if use_cache:
+            splits,sel = db_from_cached_lbl(conf, out_fns, False, None, on_gt, nsamples=nsamples)
+            ims = np.array([d[0] for d in data_in])
+            locs = np.array([d[1] for d in data_in])
+        else:
+            splits = db_from_lbl(conf, out_fns, False, None, on_gt, sel=sel)
+            ims = np.array([d[0] for d in data_in])
+            locs = np.array([d[1] for d in data_in])
+            if nsamples is not None:
+                sel = np.random.choice(ims.shape[0],nsamples)
+                ims = ims[sel,...]
+                locs = locs[sel,...]
+            else:
+                sel = range(ims.shape[0])
 
         ims, locs = PoseTools.preprocess_ims(ims,locs,conf,distort,conf.rescale)
 
-        hdf5storage.savemat(out_file,{'ims':ims,'locs':locs})
+        hdf5storage.savemat(out_file,{'ims':ims,'locs':locs+1.,'idx':sel+1})
 
 
 def convert_to_orig_list(conf,preds,locs,in_list,view, on_gt=False):

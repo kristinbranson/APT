@@ -2431,6 +2431,46 @@ classdef Labeler < handle
       else
         assert(false);
       end
+      
+      % KB 20190212: I added a single level of organization to deep
+      % tracking parameters. The names should all be unique, and should all
+      % be one level down. 
+      for i = 1:numel(s.trackerData),
+        if ~strcmp(s.trackerClass{i}{1},'DeepTracker'),
+          continue;
+        end
+        
+        sPrm = APTParameters.defaultParamsStructDT(s.trackerData{i}.trnNetType);
+        
+        % check if parameter names are up-to-date
+        fns1 = fieldnames(sPrm);
+        fns0 = fieldnames(s.trackerData{i}.sPrm);
+        if isempty(setdiff(fns0,fns1)) && isempty(setdiff(fns1,fns0)),
+          continue;
+        end
+        
+        % make a lookup from second-level parameter to parent        
+        paramidx = [];
+        fns2 = {};
+        for j = 1:numel(fns1),
+          fnscurr = fieldnames(sPrm.(fns1{j}));
+          fns2 = [fns2,fnscurr']; %#ok<AGROW>
+          paramidx = [paramidx,j+zeros(1,numel(fnscurr))]; %#ok<AGROW>
+        end
+        
+        % fill into the hierarchical struct
+        didfill = false(1,numel(paramidx));        
+        for j = 1:numel(fns0),
+          k = find(strcmp(fns0{j},fns2));
+          assert(numel(k)==1,'Error converting from flat to organized DL parameters');
+          sPrm.(fns1{paramidx(k)}).(fns0{j}) = s.trackerData{i}.sPrm.(fns0{j});
+          didfill(k) = true;
+        end
+        % make sure we found everything
+        assert(all(didfill),'Error converting from flat to organized DL parameters');
+        s.trackerData{i}.sPrm = sPrm;
+        
+      end
     
       % 20190207: added nLabels to dmc
       for i = 1:numel(s.trackerData),
@@ -8798,6 +8838,15 @@ classdef Labeler < handle
       [tfCanTrack,reason] = obj.tracker.canTrack();
     end
     
+    function tfCanTrack = trackAllCanTrack(obj)
+      
+      tfCanTrack = false(1,numel(obj.trackersAll));
+      for i = 1:numel(obj.trackersAll),
+        tfCanTrack(i) = obj.trackersAll{i}.canTrack;
+      end
+      
+    end
+    
     function track(obj,mftset,varargin)
       % mftset: an MFTSet
       
@@ -8953,23 +9002,43 @@ classdef Labeler < handle
       % 
       
       tdata = s.trackerData{s.currTracker};
+      
+      % KB 20190212: added some organization to parameters. Removing this
+      % for exporting to stripped lbl file
+      fns = fieldnames(tdata.sPrm);
+      sPrm = struct;
+      for i = 1:numel(fns),
+        fns1 = fieldnames(tdata.sPrm.(fns{i}));
+        for j = 1:numel(fns1),
+          assert(~ismember(fns1{j},fieldnames(sPrm)));
+          sPrm.(fns1{j}) = tdata.sPrm.(fns{i}).(fns1{j});
+        end
+      end
+      tdata.sPrm = sPrm;
+
       sPrmDL = obj.trackDLParams;
       sPrmDL = rmfield(sPrmDL,'CacheDir');
       tdata.sPrm = structmerge(tdata.sPrm,sPrmDL);
       tftrx = obj.hasTrx;      
       if tftrx
-        dlszx = tdata.sPrm.sizex;
-        dlszy = tdata.sPrm.sizey;
+        
+        % KB 20190212: ignore sizex and sizey, these will be removed
         roirad = s.preProcParams.TargetCrop.Radius;
-        szroi = 2*roirad+1;
-        if dlszx~=szroi
-          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
-          tdata.sPrm.sizex = szroi;
-        end
-        if dlszy~=szroi
-          warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
-          tdata.sPrm.sizey = szroi;
-        end
+        tdata.sPrm.sizex = 2*roirad+1;
+        tdata.sPrm.sizey = 2*roirad+1;
+
+%         dlszx = tdata.sPrm.ImageProcessing.sizex;
+%         dlszy = tdata.sPrm.ImageProcessing.sizey;
+%         szroi = 2*roirad+1;
+%         if dlszx~=szroi
+%           warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
+%           tdata.sPrm.sizex = szroi;
+%         end
+%         if dlszy~=szroi
+%           warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
+%           tdata.sPrm.sizey = szroi;
+%         end
+        
       end
       s.trackerData = {[] tdata};
       s.nLabels = ppdata.N;
