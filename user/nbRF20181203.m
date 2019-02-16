@@ -131,11 +131,33 @@ az = (phi+pi/2)/pi*180;
 el = (pi/2-th)/pi*180;
 view(az,el);
 
+%% Figure out DXYZ
+dxyz = 0.01;
+
+Z0 = 92.5; % eyeballed
+PTOPE_XRANGE = [-10 10];
+PTOPE_YRANGE = [-7 7];
+PTOPE_ZRANGE = [Z0 Z0];
+xgv = PTOPE_XRANGE(1):dxyz:PTOPE_XRANGE(2);
+ygv = PTOPE_YRANGE(1):dxyz:PTOPE_YRANGE(2);
+zgv = PTOPE_ZRANGE(1):dxyz:PTOPE_ZRANGE(2);
+[x,y,z] = meshgrid(xgv,ygv,zgv);
+Xg1 = [x(:) y(:) z(:)]; % [3xng]. Xgrid, cam1 coord sys
+ng = size(Xg1,1);
+
+sp = cr.stroParams;
+R = sp.RotationOfCamera2;
+T = sp.TranslationOfCamera2;
+xy2 = worldToImage(sp.CameraParameters2,R,T,Xg1,'applyDistortion',true);
+R = eye(3);
+T = [0 0 0];
+xy1 = worldToImage(sp.CameraParameters1,R,T,Xg1,'applyDistortion',true);
+
 %%
 PTOPE_XRANGE = [-10 10];
 PTOPE_YRANGE = [-7 7];
 PTOPE_ZRANGE = [80 110];
-DXYZ = 0.5;
+DXYZ = 0.01;
 xgv = PTOPE_XRANGE(1):DXYZ:PTOPE_XRANGE(2);
 ygv = PTOPE_YRANGE(1):DXYZ:PTOPE_YRANGE(2);
 zgv = PTOPE_ZRANGE(1):DXYZ:PTOPE_ZRANGE(2);
@@ -167,6 +189,13 @@ pcshow(XgFov,'MarkerSize',80);
 xlabel('x','fontweight','bold','fontsize',20);
 ylabel('y','fontweight','bold','fontsize',20);
 zlabel('z','fontweight','bold','fontsize',20);
+
+%%
+idxIB = find(tfIB);
+save pp3dIfo xgv ygv zgv Xg1 xy1 xy2 xy1nd xy2nd idxIB
+%%
+figure;
+scatter(pp3dIfo.xy1(idxIB,1),pp3dIfo.xy1(idxIB,2));
 
 %% XV err
 err = reshape(err,[446 19 1 2 1]);
