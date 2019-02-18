@@ -3054,12 +3054,7 @@ classdef CPRLabelTracker < LabelTracker
   end
 
   %%
-  methods (Static)    
-
-    function sPrmAll = modernizeAllParams(sPrmAll)
-      
-    end
-
+  methods (Static)
     
     function sPrm = modernizeParams(sPrm)
       % IMPORTANT philisophical note. This CPR parameter-updating-function
