@@ -1971,14 +1971,23 @@ end
 function cbkTrackerBackendAWSSetInstance(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-[tfsucc,instanceID,pemFile] = AWSec2.configureUI();
+be = lObj.trackDLBackEnd;
+assert(be.type==DLBackEnd.AWS);
+
+aws = be.awsec2;
+if ~isempty(aws)
+  tfsucc = aws.respecifyInstance();
+else
+  [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
+  if tfsucc
+    aws = AWSec2(pemFile,'instanceID',instanceID);
+    be.awsec2 = aws;
+  end
+end
+
 if tfsucc
-  aws = AWSec2(pemFile,'instanceID',instanceID);  
-  aws.inspectInstance;
-  dlbe = lObj.trackDLBackEnd;
-  assert(dlbe.type==DLBackEnd.AWS);
-  dlbe.awsec2 = aws;
-  lObj.trackSetDLBackend(dlbe);
+  %aws.checkInstanceRunning('throwErrs',false);
+  lObj.trackSetDLBackend(be);
 end
 
 function cbkTrackersAllChanged(src,evt)
