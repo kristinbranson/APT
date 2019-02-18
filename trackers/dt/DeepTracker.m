@@ -3,9 +3,10 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     algorithmName;
     algorithmNamePretty
+    sPrm % new-style DT params
   end
   properties (Constant,Hidden)
-    SAVEPROPS = {'sPrm' 'containerBindPaths' ...
+    SAVEPROPS = {'sPrmAll' 'containerBindPaths' ...
       'trnNetType' 'trnName' 'trnNameLbl' 'trnLastDMC' 'movIdx2trkfile' 'hideViz'}; 
     RemoteAWSCacheDir = '/home/ubuntu';
     jrchost = 'login1.int.janelia.org';
@@ -24,7 +25,6 @@ classdef DeepTracker < LabelTracker
     minFreeMem = 9000; % in MiB
   end
   properties
-    sPrm % new-style DT params
     
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
@@ -255,14 +255,36 @@ classdef DeepTracker < LabelTracker
         s.containerBindPaths = cell(0,1);
       end
       % 20181220
-      sPrmDflt = APTParameters.defaultParamsStructDT(s.trnNetType);
-      sPrm0 = s.sPrm;
-      if ~isempty(sPrm0)
-        s.sPrm = structoverlay(sPrmDflt,sPrm0,...
-          'dontWarnUnrecog',true); % to allow removal of obsolete params
-      else
-        s.sPrm = sPrmDflt;
+%       sPrmDflt = APTParameters.defaultParamsStructDT(s.trnNetType);
+%       sPrm0 = s.sPrm;
+%       if ~isempty(sPrm0)
+%         s.sPrm = structoverlay(sPrmDflt,sPrm0,...
+%           'dontWarnUnrecog',true); % to allow removal of obsolete params
+%       else
+%         s.sPrm = sPrmDflt;
+%       end
+      
+      % 20190214
+      sPrmDflt = APTParameters.defaultParamsStructAll;
+      if isfield(s,'sPrm'),
+        
+        if ~isfield(s,'sPrmAll'),
+          s.sPrmAll = sPrmDflt;
+          s.sPrmAll.ROOT.DeepTrack.(s.trnNetType.prettyString) = s.sPrm;
+        end
+        
+        s = rmfield(s,'sPrm');
       end
+      
+      sPrm0 = s.sPrmAll;
+      if ~isempty(sPrm0)
+        s.sPrmAll = structoverlay(sPrmDflt,sPrm0,...
+          'dontWarnUnrecog',false); % to allow removal of obsolete params
+      else
+        s.sPrmAll = sPrmDflt;
+      end
+
+      
     end
   end
   
@@ -506,7 +528,7 @@ classdef DeepTracker < LabelTracker
         reason = 'No tracking parameters have been set.';
         return;
       end
-      cacheDir = obj.lObj.trackDLParams.CacheDir;
+      cacheDir = obj.lObj.DLCacheDir;
       if isempty(cacheDir)
         reason = 'No cache directory has been set.';
         return;
@@ -534,6 +556,33 @@ classdef DeepTracker < LabelTracker
       tfCanTrain = true;      
     end
     
+    function setAllParams(obj,sPrmAll)
+      
+      sOld = obj.sPrm;
+      tfCommonChanged = ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
+      tfPPParamsChanged = ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
+      
+      obj.sPrmAll = sPrmAll;
+      netType = obj.trnNetType.prettyString;
+      sNew = sPrmAll.ROOT.DeepTrack.(netType);
+      tfunchanged = isequaln(sOld,sNew);
+      if tfCommonChanged || tfPPParamsChanged || ~tfunchanged,
+        obj.initHook();
+      end
+
+    end
+    
+    function v = get.sPrm(obj)
+
+      if isempty(obj.sPrmAll),
+        v = [];
+      else
+        netType = obj.trnNetType.prettyString;
+        v = obj.sPrmAll.ROOT.DeepTrack.(netType);
+      end
+      
+    end
+    
     function retrain(obj,varargin)
       
       [wbObj,dlTrnType,oldVizObj] = myparse(varargin,...
@@ -552,7 +601,7 @@ classdef DeepTracker < LabelTracker
       if isempty(obj.sPrm)
         error('No tracking parameters have been set.');
       end
-      cacheDir = obj.lObj.trackDLParams.CacheDir;
+      cacheDir = obj.lObj.DLCacheDir;
       if isempty(cacheDir)
         error('No cache directory has been set.');
       end
@@ -601,6 +650,9 @@ classdef DeepTracker < LabelTracker
         otherwise
           assert(false);
       end
+      
+      % set parameters
+      obj.setAllParams(obj.lObj.trackGetParams());
       
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Docker}
@@ -706,7 +758,7 @@ classdef DeepTracker < LabelTracker
       infos = {};
       infos{end+1} = obj.trackerInfo.algorithm;
       if obj.trackerInfo.isTrainStarted,
-        isNewLabels = obj.trackerInfo.trainStartTS < obj.lObj.lastLabelChangeTS;
+        isNewLabels = any(obj.trackerInfo.trainStartTS < obj.lObj.lastLabelChangeTS);
 
         infos{end+1} = sprintf('Train start: %s',datestr(min(obj.trackerInfo.trainStartTS)));
         if numel(obj.trackerInfo.iterCurr) > 1,
@@ -767,7 +819,7 @@ classdef DeepTracker < LabelTracker
       
       % (aws check instance running)
       
-      cacheDir = obj.lObj.trackDLParams.CacheDir;
+      cacheDir = obj.lObj.DLCacheDir;
       
       % Currently, cacheDir must be visible on the JRC shared filesys.
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
@@ -800,7 +852,7 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrm.GradientDescent.dl_steps,...
+        'iterFinal',obj.lObj.trackDLParams.GradientDescent.dl_steps,...
         'isMultiView',isMultiViewTrain);
         %'backEnd',backEnd);
 
@@ -996,14 +1048,13 @@ classdef DeepTracker < LabelTracker
       
       % is APTCache set?
       hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Testing that Deep Track->CacheDir parameter is set...'; drawnow;
-      dlPrmsCommon = obj.lObj.trackDLParams; 
-      if ~( isfield(dlPrmsCommon,'CacheDir') && ~isempty(dlPrmsCommon.CacheDir) )            
-        hedit.String{end+1} = 'Deep Track->CacheDir tracking parameter is not set. Please go to Track->Configure tracking parameters menu to set this.'; drawnow;
+      hedit.String{end+1} = '** Testing that Deep Track->Saving->CacheDir parameter is set...'; drawnow;
+      cacheDir = obj.lObj.DLCacheDir; 
+      if isempty(cacheDir),
+        hedit.String{end+1} = 'Deep Track->Saving->CacheDir tracking parameter is not set. Please go to Track->Configure tracking parameters menu to set this.'; drawnow;
         return;
       end
       % does APTCache exist? 
-      cacheDir = dlPrmsCommon.CacheDir;
       if ~exist(cacheDir,'dir'),
         hedit.String{end+1} = sprintf('Deep Track->CacheDir %s did not exist, trying to create it...',cacheDir); drawnow;
         [tfsucc1,msg1] = mkdir(cacheDir);
@@ -1012,7 +1063,7 @@ classdef DeepTracker < LabelTracker
           return;
         end
       end
-      hedit.String{end+1} = sprintf('Deep Track->CacheDir set to %s, and exists.',cacheDir); drawnow;
+      hedit.String{end+1} = sprintf('Deep Track->Saving->CacheDir set to %s, and exists.',cacheDir); drawnow;
       hedit.String{end+1} = 'SUCCESS!'; drawnow;
       
       % test that you can ping jrc host
@@ -1097,7 +1148,7 @@ classdef DeepTracker < LabelTracker
         lObj = obj.lObj;
         
         macroCell = struct2cell(lObj.projMacrosGetWithAuto());
-        cacheDir = obj.lObj.trackDLParams.CacheDir;
+        cacheDir = obj.lObj.DLCacheDir;
         assert(~isempty(cacheDir));
         
         mfaf = lObj.movieFilesAllFull;
@@ -1207,7 +1258,7 @@ classdef DeepTracker < LabelTracker
         'trainType',trnType,...
         'iterFinal',obj.sPrm.dl_steps);
       dmcLcl = dmc.copy();
-      dmcLcl.rootDir = obj.lObj.trackDLParams.CacheDir;      
+      dmcLcl.rootDir = obj.lObj.DLCacheDir;      
       
       % create/ensure stripped lbl, local and remote
       tfGenNewStrippedLbl = trnType==DLTrainType.New || ...
@@ -1417,7 +1468,7 @@ classdef DeepTracker < LabelTracker
 
       nvw = obj.lObj.nview;
       trnID = obj.trnName;
-      cacheDirLocal = obj.lObj.trackDLParams.CacheDir;
+      cacheDirLocal = obj.lObj.DLCacheDir;
       backend = obj.lObj.trackDLBackEnd;
       aws = backend.awsec2;
       dmcs = obj.trnLastDMC;
@@ -1634,7 +1685,7 @@ classdef DeepTracker < LabelTracker
       
       dmc = obj.trnLastDMC;
       dmcLcl = dmc.copy();
-      [dmcLcl.rootDir] = deal(obj.lObj.trackDLParams.CacheDir);
+      [dmcLcl.rootDir] = deal(obj.lObj.DLCacheDir);
       dlLblFileLcl = unique({dmcLcl.lblStrippedLnx});
       assert(isscalar(dlLblFileLcl));
       dlLblFileLcl = dlLblFileLcl{1};
@@ -1783,7 +1834,7 @@ classdef DeepTracker < LabelTracker
       nview = obj.lObj.nview;
       assert(isequal(nview,numel(listfiles),numel(outfiles)));
             
-      lclCacheDir = obj.lObj.trackDLParams.CacheDir;
+      lclCacheDir = obj.lObj.DLCacheDir;
       
       dmc = obj.trnLastDMC;
       dmcLcl = dmc.copy();
@@ -1909,7 +1960,7 @@ classdef DeepTracker < LabelTracker
         return;
       end
 
-      cacheDir = obj.lObj.trackDLParams.CacheDir;
+      cacheDir = obj.lObj.DLCacheDir;
       if isempty(cacheDir)
         reason = 'Cache directory not set.';
         return;
@@ -1939,7 +1990,7 @@ classdef DeepTracker < LabelTracker
 
       % Currently mIdx, tMFTConc only one movie
 
-      cacheDir = obj.lObj.trackDLParams.CacheDir;
+      cacheDir = obj.lObj.DLCacheDir;
 
       %obj.downloadPretrainedWeights();
       
@@ -2133,7 +2184,7 @@ classdef DeepTracker < LabelTracker
 
       % Currently mIdx, tMFTConc only one movie
 
-      cacheDir = obj.lObj.trackDLParams.CacheDir;
+      cacheDir = obj.lObj.DLCacheDir;
 
       % put/ensure local stripped lbl
       dmc = obj.trnLastDMC;
@@ -2510,7 +2561,7 @@ classdef DeepTracker < LabelTracker
         trkdirRemote = dmc(ivw).dirTrkOutLnx;
         aws.ensureRemoteDir(trkdirRemote,'relative',false,'descstr','trk');
         dmcLcl = dmc(ivw).copy();
-        dmcLcl.rootDir = obj.lObj.trackDLParams.CacheDir;
+        dmcLcl.rootDir = obj.lObj.DLCacheDir;
         trkdirLocal = dmcLcl.dirTrkOutLnx;
         if exist(trkdirLocal,'dir')==0
           [succ,msg] = mkdir(trkdirLocal);

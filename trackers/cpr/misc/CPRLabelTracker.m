@@ -2,7 +2,7 @@ classdef CPRLabelTracker < LabelTracker
   
   properties (Constant,Hidden)
     TRAINEDTRACKER_SAVEPROPS = { ...
-      'sPrm' ...
+      'sPrmAll' ...
       'storeFullTracking' 'showVizReplicates' ...
       'trnDataDownSamp' 'trnDataFFDThresh' 'trnDataTblP' 'trnDataTblPTS' ...
       'trnResIPt' 'trnResRC'};
@@ -21,7 +21,7 @@ classdef CPRLabelTracker < LabelTracker
   end
     
   %% Params
-  properties (SetAccess=private)
+  properties (SetAccess=private,Dependent)
     sPrm % full parameter struct
   end
   
@@ -161,6 +161,13 @@ classdef CPRLabelTracker < LabelTracker
     end
     function v = get.asyncIsPrepared(obj)
       v = ~isempty(obj.asyncBGClient);
+    end
+    function v = get.sPrm(obj)
+      if isempty(obj.sPrmAll),
+        v = [];
+      else
+        v = CPRParam.all2cpr(obj.sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview);
+      end
     end
   end
   methods
@@ -765,6 +772,8 @@ classdef CPRLabelTracker < LabelTracker
       % tfPreProcPrmsChanged: scalar logical. If true, preprocessing
       % parameters changed. See PreProc notes in Labeler.m
       
+      error('obsolete');
+      
       sOld = obj.sPrm;
       obj.sPrm = sNew; % set this now so eg trnResInit() can use
       
@@ -830,6 +839,80 @@ classdef CPRLabelTracker < LabelTracker
         end
       end
     end
+    
+    % store all parameters
+    function setAllParams(obj,sPrmAll)
+      
+      tfPreProcPrmsChanged = APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
+      sNew = CPRParam.all2cpr(sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview);
+
+      sOld = obj.sPrm;
+      obj.sPrmAll = sPrmAll; % set this now so eg trnResInit() can use
+      
+      if isempty(sOld) || isempty(sNew)
+        %obj.initData();
+        obj.trnDataInit();
+        obj.trnResInit();
+        obj.trackResInit();
+        obj.vizInit();
+        obj.asyncReset();
+      else % Both sOld, sNew nonempty
+        if sNew.Model.nviews~=obj.lObj.nview
+          error('CPRLabelTracker:nviews',...
+            'Number of views in parameters.Model (%d) does not match number of views in project (%d).',...
+            sNew.Model.nviews,obj.lObj.nview);
+        end
+        if sNew.Model.nfids~=obj.lObj.nPhysPoints
+          error('CPRLabelTracker:npts',...
+            'Number of points in parameters.Model (%d) does not match number of physical points in project (%d).',...
+            sNew.Model.nfids,obj.lObj.nPhysPoints);
+        end
+        
+        if isempty(sOld.Model.nviews)
+          sOld.Model.nviews = 1;
+          % set this to enable comparisons below
+        end
+      
+        % Figure out what changed
+        flds = fieldnames(sOld);
+        tfunchanged = struct();
+        for f=flds(:)',f=f{1}; %#ok<FXSET>
+          tfunchanged.(f) = isequaln(sOld.(f),sNew.(f));
+        end
+        
+        % data
+        modelPPUC = tfunchanged.Model && ~tfPreProcPrmsChanged;
+        if ~modelPPUC
+          %fprintf(2,'Parameter change: CPRLabelTracker data cleared.\n');
+          %obj.initData();
+          obj.asyncReset();
+        end
+        
+        % trainingdata
+        if ~modelPPUC
+          fprintf(2,'Parameter change: CPRLabelTracker training data selection cleared.\n');
+          obj.trnDataInit();
+        end
+      
+        % trnRes
+        modelPPRegFtrTrnInitUC = modelPPUC && tfunchanged.Reg ...
+            && tfunchanged.Ftr && tfunchanged.TrainInit;
+        if ~modelPPRegFtrTrnInitUC
+          fprintf(2,'Parameter change: CPRLabelTracker regressor cascade cleared.\n');
+          obj.trnResInit();
+        end
+      
+        % trkP
+        if ~(modelPPRegFtrTrnInitUC && tfunchanged.TestInit && tfunchanged.Prune)
+          fprintf(2,'Parameter change: CPRLabelTracker tracking results cleared.\n');
+          obj.trackResInit();
+          obj.vizInit();
+          obj.asyncReset();
+        end
+      end
+
+    end
+
      
     %#%MTGT
     function trainingDataMontage(obj)
@@ -971,6 +1054,10 @@ classdef CPRLabelTracker < LabelTracker
         );
       tfWB = ~isempty(wbObj);
 
+      % set parameters
+      sPrmAllOld = obj.sPrmAll;
+      obj.setAllParams(obj.lObj.trackParams);
+      
       prm = obj.sPrm;
       ppprm = obj.lObj.preProcParams;
       if isempty(prm) || isempty(ppprm)
@@ -992,6 +1079,9 @@ classdef CPRLabelTracker < LabelTracker
         obj.trnResInit();
         return;
       end        
+      
+      % store all parameters
+      obj.setAllParams(obj.lObj.trackGetParams());
       
       obj.trnDataFFDThresh = nan;
       % still set .trnDataTblP, .trnDataTblPTS to enable incremental
@@ -2262,10 +2352,23 @@ classdef CPRLabelTracker < LabelTracker
       if isfield(s,'labelTrackerClass')
         s = rmfield(s,'labelTrackerClass'); % legacy
       end            
-     
-      % modernize params
-      if isfield(s,'sPrm') && ~isempty(s.sPrm)
-        s.sPrm = CPRLabelTracker.modernizeParams(s.sPrm);       
+
+      if (isfield(s,'sPrmAll') && ~isempty(s.sPrmAll)) || (isfield(s,'sPrm') && ~isempty(s.sPrm)),
+        
+        isSPrmAll = isfield(s,'sPrmAll') && ~isempty(s.sPrmAll);
+
+        if isSPrmAll,
+          sPrm = CPRParam.all2cpr(s.sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview); %#ok<*PROPLC>
+        else
+          s.sPrmAll = struct;
+          s.sPrmAll.ROOT = APTParameters.defaultParamsStruct;
+          warning('Obsolete code');
+          sPrm = s.sPrm;
+          s = rmfield(s,'sPrm');
+        end
+        
+        %isfield(s,'sPrm') && ~isempty(s.sPrm)
+        sPrm = CPRLabelTracker.modernizeParams(sPrm);
         
         % 20161017
         % changes to default params param.example.yaml:
@@ -2300,12 +2403,16 @@ classdef CPRLabelTracker < LabelTracker
         % see RegressorCascade immutable parameters notes. Handles seem 
         % reasonable too.
                 
-        sPrmUse = s.sPrm;
+        sPrmUse = sPrm;
         sPrmUse.Model.nviews = 1; % see .trnResInit();
         rc = s.trnResRC;
         for i=1:numel(rc)
           rc(i).setPrmModernize(sPrmUse);
         end
+        
+        sPrm = CPRParam.old2newCPROnly(sPrm);
+        s.sPrmAll.ROOT.CPR = sPrm;
+        
       else
         assert(isempty(s.trnResRC));
       end
@@ -2447,8 +2554,8 @@ classdef CPRLabelTracker < LabelTracker
       %%% END MODERNIZE S
 
       % set parameter struct s.sPrm on obj
-      assert(isempty(obj.sPrm)); % Currently this is only called on a freshly-created CPRLT obj
-      obj.sPrm = s.sPrm;    
+      assert(isempty(obj.sPrmAll)); % Currently this is only called on a freshly-created CPRLT obj
+      obj.sPrmAll = s.sPrmAll;    
 %       if ~isequaln(obj.sPrm,s.sPrm)
 %       warningNoTrace('CPRLabelTracker:param',...
 %         'CPR tracking parameters changed to saved values.');
@@ -2520,11 +2627,12 @@ classdef CPRLabelTracker < LabelTracker
       else
         info.isTrained = obj.trnResRC.hasTrained;
       end
+      info.trainStartTS = zeros(1,numel(obj.trnResRC));
       if info.isTrained,
-        iTL = obj.trnResRC.trnLogMostRecentTrain();
-        info.trainStartTS = obj.trnResRC.trnLog(iTL).ts;
-      else
-        info.trainStartTS = 0;
+        for i = 1:numel(obj.trnResRC),
+          iTL = obj.trnResRC(i).trnLogMostRecentTrain();
+          info.trainStartTS(i) = obj.trnResRC(i).trnLog(iTL).ts;
+        end
       end
       info.nLabels = size(obj.trnDataTblPTS,1);
       obj.trackerInfo = info;
@@ -2542,7 +2650,7 @@ classdef CPRLabelTracker < LabelTracker
       infos = {};
       infos{end+1} = obj.trackerInfo.algorithm;
       if obj.trackerInfo.isTrained,
-        isNewLabels = obj.trackerInfo.trainStartTS < obj.lObj.lastLabelChangeTS;
+        isNewLabels = any([obj.trackerInfo.trainStartTS] < obj.lObj.lastLabelChangeTS);
         
         infos{end+1} = sprintf('Train start: %s',datestr(min(obj.trackerInfo.trainStartTS)));
         if isempty(obj.trackerInfo.nLabels),
@@ -2950,6 +3058,11 @@ classdef CPRLabelTracker < LabelTracker
 
   %%
   methods (Static)    
+
+    function sPrmAll = modernizeAllParams(sPrmAll)
+      
+    end
+
     
     function sPrm = modernizeParams(sPrm)
       % IMPORTANT philisophical note. This CPR parameter-updating-function

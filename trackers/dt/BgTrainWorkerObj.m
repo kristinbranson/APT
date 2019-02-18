@@ -8,6 +8,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
   
   properties
     trnLogLastStep; % [nview] int. most recent last step from training json logs
+    trnLogPrev = [];
   end
   
   methods
@@ -63,10 +64,20 @@ classdef BgTrainWorkerObj < BgWorkerObj
         sRes(ivw).killFileExists = obj.fileExists(killFile);        
         
         if sRes(ivw).jsonPresent
-          json = obj.fileContents(json);
-          trnLog = jsondecode(json);
-          lastKnownStep = obj.trnLogLastStep(ivw);
+          try
+            json = obj.fileContents(json);
+            trnLog = jsondecode(json);
+          catch ME
+            warning('Failed to read json file for training progress update:\n%s',getReport(ME));
+            if ~isempty(obj.trnLogPrev),
+              trnLog = obj.trnLogPrev;
+            else
+              sRes(ivw).jsonPresent = false;
+              continue;
+            end
+          end
           newStep = trnLog.step(end);
+          lastKnownStep = obj.trnLogLastStep(ivw);
           tfupdate = newStep>lastKnownStep;
           sRes(ivw).tfUpdate = tfupdate;
           if tfupdate

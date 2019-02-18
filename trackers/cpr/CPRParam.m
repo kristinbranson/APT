@@ -29,6 +29,17 @@ classdef CPRParam
   
   methods (Static)
     
+    function [sPrmCPR,varargout] = all2cpr(sPrmAll,nPhysPoints,nview)
+      sPrmPPandCPR = sPrmAll;
+      sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
+      if nargout > 1,
+        [sPrmPPandCPRold,varargout{:}] = CPRParam.new2old(sPrmPPandCPR,nPhysPoints,nview);
+      else
+        [sPrmPPandCPRold] = CPRParam.new2old(sPrmPPandCPR,nPhysPoints,nview);
+      end
+      sPrmCPR = rmfield(sPrmPPandCPRold,'PreProc');
+    end
+    
     function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
         new2old(sNew,nphyspts,nviews)
       % Convert new-style parameters to old-style parameters. Defaults are
@@ -49,9 +60,11 @@ classdef CPRParam
       sOld.Model.D = sOld.Model.d*sOld.Model.nfids;
       
 %       trkType = TrackerType.(sNew.ROOT.Track.Type);
-      trkNFrmsSm = sNew.ROOT.Track.NFramesSmall;
-      trkNFrmsLg = sNew.ROOT.Track.NFramesLarge;
-      trkNFrmsNear = sNew.ROOT.Track.NFramesNeighborhood;
+      if nargout >= 2,
+        trkNFrmsSm = sNew.ROOT.Track.NFramesSmall;
+        trkNFrmsLg = sNew.ROOT.Track.NFramesLarge;
+        trkNFrmsNear = sNew.ROOT.Track.NFramesNeighborhood;
+      end
 
       he = sNew.ROOT.ImageProcessing.HistEq;
       sOld.PreProc.BackSub = sNew.ROOT.ImageProcessing.BackSub;
@@ -310,62 +323,86 @@ classdef CPRParam
       % lObj: Labeler instance. Need this b/c the new parameters include
       % general tracking-related parameters that are set in lObj.
       
+      if nargin < 2,
+        lObj = [];
+      end
+      
       npts = sOld.Model.nfids;
       assert(sOld.Model.d==2);
       assert(sOld.Model.D==sOld.Model.d*sOld.Model.nfids);
       nviews = sOld.Model.nviews;      
       
+      sNew = CPRParam.old2newPPOnly(sOld.PreProc);
+      sNew.ROOT.Track.ChunkSize = sOld.TestInit.movChunkSize;
+      if nargin > 1 && ~isempty(lObj),
+        sNew.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
+        sNew.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
+        sNew.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
+      end
+      sNew.ROOT.CPR = CPRParam.old2newCPROnly(sOld);
+      
+      sNew = APTParameters.enforceConsistency(sNew);
+    end
+    
+    function [sNew] = old2newPPOnly(sOld)
+      
       sNew = struct();
 %       sNew.ROOT.Track.Type = char(lObj.trackerType);
-      sNew.ROOT.ImageProcessing.BackSub = sOld.PreProc.BackSub;
-      sNew.ROOT.ImageProcessing.HistEq.Use = sOld.PreProc.histeq;
-      sNew.ROOT.ImageProcessing.HistEq.NSampleH0 = sOld.PreProc.histeqH0NumFrames;
-      sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop = sOld.PreProc.TargetCrop;
-      assert(isfield(sOld.PreProc.TargetCrop,'AlignUsingTrxTheta'));
-      sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask = sOld.PreProc.NeighborMask;
-      sNew.ROOT.Track.ChunkSize = sOld.TestInit.movChunkSize;
-      sNew.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
-      sNew.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
-      sNew.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
-      assert(isempty(sOld.PreProc.channelsFcn));
+      sNew.ROOT.ImageProcessing.BackSub = sOld.BackSub;
+      sNew.ROOT.ImageProcessing.HistEq.Use = sOld.histeq;
+      sNew.ROOT.ImageProcessing.HistEq.NSampleH0 = sOld.histeqH0NumFrames;
+      sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop = sOld.TargetCrop;
+      assert(isfield(sOld.TargetCrop,'AlignUsingTrxTheta'));
+      sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask = sOld.NeighborMask;
+      assert(isempty(sOld.channelsFcn));
       
-      sNew.ROOT.CPR.NumMajorIter = sOld.Reg.T;
-      sNew.ROOT.CPR.NumMinorIter = sOld.Reg.K;
+    end
+    
+    
+    function [sPrmCPR,chunkSize] = old2newCPROnly(sOld)
+      % Convert old-style CPR parameters to APT-style parameters.
+      %
+      % lObj: Labeler instance. Need this b/c the new parameters include
+      % general tracking-related parameters that are set in lObj.
+      
+      sPrmCPR = struct();
+      sPrmCPR.NumMajorIter = sOld.Reg.T;
+      sPrmCPR.NumMinorIter = sOld.Reg.K;
       assert(sOld.Reg.type==1);
-      sNew.ROOT.CPR.Ferns.Depth = sOld.Reg.M;
+      sPrmCPR.Ferns.Depth = sOld.Reg.M;
       assert(sOld.Reg.R==0);
       assert(strcmp(sOld.Reg.loss,'L2'));
-      sNew.ROOT.CPR.Ferns.Threshold.Lo = sOld.Reg.prm.thrr(1);
-      sNew.ROOT.CPR.Ferns.Threshold.Hi = sOld.Reg.prm.thrr(2);
-      sNew.ROOT.CPR.Ferns.RegFactor = sOld.Reg.prm.reg;
+      sPrmCPR.Ferns.Threshold.Lo = sOld.Reg.prm.thrr(1);
+      sPrmCPR.Ferns.Threshold.Hi = sOld.Reg.prm.thrr(2);
+      sPrmCPR.Ferns.RegFactor = sOld.Reg.prm.reg;
 
       % dups assert below for doc purposes
       if sOld.Reg.rotCorrection.use
-        sNew.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';
+        sPrmCPR.RotCorrection.OrientationType = 'arbitrary';
       else
-        sNew.ROOT.CPR.RotCorrection.OrientationType = 'fixed';
+        sPrmCPR.RotCorrection.OrientationType = 'fixed';
         % enforceConsistency called below
 %         if sNew.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta
 %           warningNoTrace('.OrientationType incompatible with .AlignUsingTrxTheta.');
 %         end
       end
-      sNew.ROOT.CPR.RotCorrection.HeadPoint = sOld.Reg.rotCorrection.iPtHead;
-      sNew.ROOT.CPR.RotCorrection.TailPoint = sOld.Reg.rotCorrection.iPtTail;
+      sPrmCPR.RotCorrection.HeadPoint = sOld.Reg.rotCorrection.iPtHead;
+      sPrmCPR.RotCorrection.TailPoint = sOld.Reg.rotCorrection.iPtTail;
       
       assert(sOld.Reg.occlPrm.Stot==1); 
       
-      sNew.ROOT.CPR.Feature.Type = sOld.Ftr.type;
-      sNew.ROOT.CPR.Feature.Metatype = sOld.Ftr.metatype;
-      sNew.ROOT.CPR.Feature.NGenerate = sOld.Ftr.F;
+      sPrmCPR.Feature.Type = sOld.Ftr.type;
+      sPrmCPR.Feature.Metatype = sOld.Ftr.metatype;
+      sPrmCPR.Feature.NGenerate = sOld.Ftr.F;
       assert(sOld.Ftr.nChn==1);
-      sNew.ROOT.CPR.Feature.Radius = sOld.Ftr.radius;
-      sNew.ROOT.CPR.Feature.ABRatio = sOld.Ftr.abratio;
-      sNew.ROOT.CPR.Feature.Nsample_std = sOld.Ftr.nsample_std;
-      sNew.ROOT.CPR.Feature.Nsample_cor = sOld.Ftr.nsample_cor;
+      sPrmCPR.Feature.Radius = sOld.Ftr.radius;
+      sPrmCPR.Feature.ABRatio = sOld.Ftr.abratio;
+      sPrmCPR.Feature.Nsample_std = sOld.Ftr.nsample_std;
+      sPrmCPR.Feature.Nsample_cor = sOld.Ftr.nsample_cor;
       assert(isempty(sOld.Ftr.neighbors));
       
-      sNew.ROOT.CPR.Replicates.NrepTrain = sOld.TrainInit.Naug;
-      sNew.ROOT.CPR.Replicates.NrepTrack = sOld.TestInit.Nrep;
+      sPrmCPR.Replicates.NrepTrain = sOld.TrainInit.Naug;
+      sPrmCPR.Replicates.NrepTrack = sOld.TestInit.Nrep;
       if ~isempty(sOld.TrainInit.augrotate)
         assert(sOld.TrainInit.augrotate==sOld.TestInit.augrotate);
         if sOld.TrainInit.augrotate~=sOld.Reg.rotCorrection.use
@@ -379,20 +416,20 @@ classdef CPRParam
       assert(sOld.TrainInit.doboxjitter==sOld.TestInit.doboxjitter);
       assert(sOld.TrainInit.augjitterfac==sOld.TestInit.augjitterfac);
       assert(sOld.TrainInit.augUseFF==sOld.TestInit.augUseFF);
-      %sNew.ROOT.CPR.Replicates.AugRotate = sOld.TrainInit.augrotate;
+      %sPrmCPR.Replicates.AugRotate = sOld.TrainInit.augrotate;
       
-      sNew.ROOT.CPR.Replicates.DoPtJitter = sOld.TrainInit.doptjitter;
-      sNew.ROOT.CPR.Replicates.PtJitterFac = sOld.TrainInit.ptjitterfac;
-      sNew.ROOT.CPR.Replicates.DoBBoxJitter = sOld.TrainInit.doboxjitter;
-      sNew.ROOT.CPR.Replicates.AugJitterFac = sOld.TrainInit.augjitterfac;
-      sNew.ROOT.CPR.Replicates.AugUseFF = sOld.TrainInit.augUseFF;
+      sPrmCPR.Replicates.DoPtJitter = sOld.TrainInit.doptjitter;
+      sPrmCPR.Replicates.PtJitterFac = sOld.TrainInit.ptjitterfac;
+      sPrmCPR.Replicates.DoBBoxJitter = sOld.TrainInit.doboxjitter;
+      sPrmCPR.Replicates.AugJitterFac = sOld.TrainInit.augjitterfac;
+      sPrmCPR.Replicates.AugUseFF = sOld.TrainInit.augUseFF;
       assert(isempty(sOld.TrainInit.iPt));
       
-      sNew.ROOT.CPR.Prune.Method = sOld.Prune.method;
-      sNew.ROOT.CPR.Prune.DensitySigma = sOld.Prune.maxdensity_sigma;
-      sNew.ROOT.CPR.Prune.PositionLambdaFactor = sOld.Prune.poslambdafac;
+      sPrmCPR.Prune.Method = sOld.Prune.method;
+      sPrmCPR.Prune.DensitySigma = sOld.Prune.maxdensity_sigma;
+      sPrmCPR.Prune.PositionLambdaFactor = sOld.Prune.poslambdafac;
+      chunkSize = sOld.TestInit.movChunkSize;
       
-      sNew = APTParameters.enforceConsistency(sNew);
     end
     
   end

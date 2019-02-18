@@ -8,6 +8,7 @@ classdef Labeler < handle
     MAX_MOVIENAME_LENGTH = 80;
     
     % non-config props
+	% KB 20190214 - replaced trackDLParams, preProcParams with trackParams
     SAVEPROPS = { ...
       'VERSION' 'projname' ...
       'movieReadPreLoadMovies' ...
@@ -24,9 +25,9 @@ classdef Labeler < handle
       'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
-      'trackModeIdx' 'trackDLBackEnd' 'trackDLParams' ...
+      'trackModeIdx' 'trackDLBackEnd' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
-      'preProcParams' 'preProcH0' 'preProcSaveData' ...
+      'trackParams' 'preProcH0' 'preProcSaveData' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'};
@@ -430,7 +431,6 @@ classdef Labeler < handle
   
   %% PreProc
   properties
-    preProcParams % struct
     preProcH0 % Either [], or a struct with field .hgram which is [nbin x nview]. Conceptually, this is a preProcParam that APT updates from movies
     preProcData % scalar CPRData, preproc Data cache for CPR
     preProcDataTS % scalar timestamp  
@@ -439,7 +439,12 @@ classdef Labeler < handle
     
     ppdb % PreProcDB for DL
   end
-  
+
+  properties (Dependent)
+    
+    preProcParams % struct - KB 20190214 -- made this a dependent property, derived from trackParams
+
+  end  
   %% Tracking
   properties (SetObservable)
     trackersAll % cell vec of concrete LabelTracker objects. init: PNPL
@@ -449,6 +454,9 @@ classdef Labeler < handle
     tracker % The current tracker, or []
     trackerAlgo % The current tracker algorithm, or ''
     trackerIsDL
+    trackDLParams % scalar struct, common DL params
+    cprParams % scalar struct, cpr parameters
+    DLCacheDir % string, location of DL cache dir
   end
   properties (SetObservable)
     trackModeIdx % index into MFTSetEnum.TrackingMenu* for current trackmode. 
@@ -457,11 +465,13 @@ classdef Labeler < handle
      %larger values apply only the Trx case.
      
     trackDLBackEnd % scalar DLBackEndClass
-    trackDLParams % scalar struct, common DL params
     
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
+  end
+  properties
+    trackParams; % all tracking parameters
   end
   
   %% CrossValidation
@@ -980,7 +990,7 @@ classdef Labeler < handle
       v = height(obj.gtSuggMFTable);
     end
     function v = get.tracker(obj)
-      if obj.currTracker==0
+      if obj.currTracker==0 || isempty(obj.trackersAll),
         v = [];
       else
         v = obj.trackersAll{obj.currTracker};
@@ -1002,6 +1012,58 @@ classdef Labeler < handle
         v = isa(v,'DeepTracker');
       end
     end
+    % KB 20190214 - store all parameters together in one struct. these dependent functions emulate previous behavior
+    function v = get.preProcParams(obj)
+      
+      if isempty(obj.trackParams),
+        v = [];
+      else
+        v = APTParameters.all2PreProcParams(obj.trackParams);
+      end
+
+    end
+    
+    function v = get.trackDLParams(obj)
+      
+      if isempty(obj.trackParams),
+        v = [];
+      else
+        v = APTParameters.all2TrackDLParams(obj.trackParams);
+      end
+
+    end
+    
+    function v = get.DLCacheDir(obj)
+      
+      if isempty(obj.trackParams),
+        v = '';
+      else
+        v = APTParameters.all2DLCacheDir(obj.trackParams);
+      end
+      
+      
+    end
+    
+    function v = get.cprParams(obj)
+      
+      if isempty(obj.trackParams),
+        v = [];
+      else
+        v = APTParameters.all2CPRParams(obj.trackParams,obj.nPhysPoints,obj.nview);
+      end
+      
+    end
+    
+%     function set.cprParams(obj,prmCpr)
+%       
+%       if isempty(obj.trackParams),
+%         obj.trackParams = struct;
+%         obj.trackParams.ROOT = APTParameters.defaultParamsStruct;
+%       end
+%       obj.trackParams.ROOT.CPR = CPRParam.old2newCPROnly(prmCpr);
+%       
+%     end
+    
   end
   
   methods % prop access
@@ -1294,7 +1356,7 @@ classdef Labeler < handle
       obj.currTracker = 0;
       
       obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
-      obj.trackDLParams = APTParameters.defaultParamsStructDTCommon;  
+      %obj.trackDLParams = APTParameters.defaultParamsStructDTCommon;  
 
       obj.projectHasTrx = cfg.Trx.HasTrx;
       obj.showOccludedBox = cfg.View.OccludedBox;
@@ -1748,6 +1810,7 @@ classdef Labeler < handle
         end
       end
      
+      obj.computeLastLabelChangeTS();
       fcnAnyNonNan = @(x)any(~isnan(x(:)));
       obj.movieFilesAllHaveLbls = cellfun(fcnAnyNonNan,obj.labeledpos);
       obj.movieFilesAllGTHaveLbls = cellfun(fcnAnyNonNan,obj.labeledposGT);      
@@ -2137,6 +2200,9 @@ classdef Labeler < handle
     function s = lblModernize(s)
       % s: struct, .lbl contents
       
+	  % whether trackParams is stored -- update from 20190214
+      isTrackParams = isfield(s,'trackParams');
+      
       if ~isfield(s,'labeledposTS')
         nMov = numel(s.labeledpos);
         s.labeledposTS = cell(nMov,1);
@@ -2320,45 +2386,52 @@ classdef Labeler < handle
       % 20180309 Preproc params
       % If preproc params are present in trackerData, move them to s and 
       % remove from trackerData
-      tfTrackerDataHasPPParams = ~isempty(s.trackerData) && ...
-        isstruct(s.trackerData) && ... 
-        ~isempty(s.trackerData.sPrm) && ...
-        isfield(s.trackerData.sPrm,'PreProc');
-      if isfield(s,'preProcParams')
-        assert(isfield(s,'preProcH0'));
-        assert(~tfTrackerDataHasPPParams);
-      else
-        if tfTrackerDataHasPPParams      
-          ppPrm = s.trackerData.sPrm.PreProc;
-          s.trackerData.sPrm = rmfield(s.trackerData.sPrm,'PreProc');
-        
-          % 20180314 BackSub. Move backsub-related fields from NborMask to
-          % BackSub subprop.
-          if isfield(ppPrm,'NeighborMask')
-            assert(~isfield(ppPrm,'BackSub'));
-            ppPrm.BackSub.BGType = ppPrm.NeighborMask.BGType;
-            ppPrm.BackSub.BGReadFcn = ppPrm.NeighborMask.BGReadFcn;
-            ppPrm.NeighborMask = rmfield(ppPrm.NeighborMask,{'BGType' 'BGReadFcn'});
-          end
+      % KB 20190214: only do this if trackParams not set
+      if ~isTrackParams,
+
+        % KB 20190214: leave preproc in here if this is after the 20190214 change to parameters
+        tfTrackerDataHasPPParams = ~isempty(s.trackerData) && ...
+          isstruct(s.trackerData) && ...
+          isfield(s.trackerData,'sPrm') && ...
+          ~isempty(s.trackerData.sPrm) && ...
+          isfield(s.trackerData.sPrm,'PreProc');
+        if isfield(s,'preProcParams')
+          assert(isfield(s,'preProcH0'));
+          assert(~tfTrackerDataHasPPParams);
         else
-          ppPrm = struct();
+          if tfTrackerDataHasPPParams
+            ppPrm = s.trackerData.sPrm.PreProc;
+            s.trackerData.sPrm = rmfield(s.trackerData.sPrm,'PreProc');
+            
+            % 20180314 BackSub. Move backsub-related fields from NborMask to
+            % BackSub subprop.
+            if isfield(ppPrm,'NeighborMask')
+              assert(~isfield(ppPrm,'BackSub'));
+              ppPrm.BackSub.BGType = ppPrm.NeighborMask.BGType;
+              ppPrm.BackSub.BGReadFcn = ppPrm.NeighborMask.BGReadFcn;
+              ppPrm.NeighborMask = rmfield(ppPrm.NeighborMask,{'BGType' 'BGReadFcn'});
+            end
+          else
+            ppPrm = struct();
+          end
+          
+          s.preProcParams = ppPrm;
+          s.preProcH0 = [];
         end
-                
-        s.preProcParams = ppPrm;
-        s.preProcH0 = [];
-      end
-      
-      ppPrm0 = APTParameters.defaultPreProcParamsOldStyle();
-      if ~isempty(s.preProcParams)
-        ppPrm1 = s.preProcParams;
-      else
-        ppPrm1 = struct();
-      end
-      [s.preProcParams,ppPrm0used] = structoverlay(ppPrm0,ppPrm1,...
-        'dontWarnUnrecog',true);
-      if ~isempty(ppPrm0used)
-        fprintf('Using default preprocessing parameters for: %s.\n',...
-          String.cellstr2CommaSepList(ppPrm0used));
+        
+        ppPrm0 = APTParameters.defaultPreProcParamsOldStyle();
+        if ~isempty(s.preProcParams)
+          ppPrm1 = s.preProcParams;
+        else
+          ppPrm1 = struct();
+        end
+        [s.preProcParams,ppPrm0used] = structoverlay(ppPrm0,ppPrm1,...
+          'dontWarnUnrecog',true);
+        if ~isempty(ppPrm0used)
+          fprintf('Using default preprocessing parameters for: %s.\n',...
+            String.cellstr2CommaSepList(ppPrm0used));
+        end
+        
       end
       
 %       % 20180411 trackerType, trackerDeep
@@ -2430,46 +2503,6 @@ classdef Labeler < handle
         assert(false);
       end
       
-      % KB 20190212: I added a single level of organization to deep
-      % tracking parameters. The names should all be unique, and should all
-      % be one level down. 
-      for i = 1:numel(s.trackerData),
-        if ~strcmp(s.trackerClass{i}{1},'DeepTracker'),
-          continue;
-        end
-        
-        sPrm = APTParameters.defaultParamsStructDT(s.trackerData{i}.trnNetType);
-        
-        % check if parameter names are up-to-date
-        fns1 = fieldnames(sPrm);
-        fns0 = fieldnames(s.trackerData{i}.sPrm);
-        if isempty(setdiff(fns0,fns1)) && isempty(setdiff(fns1,fns0)),
-          continue;
-        end
-        
-        % make a lookup from second-level parameter to parent        
-        paramidx = [];
-        fns2 = {};
-        for j = 1:numel(fns1),
-          fnscurr = fieldnames(sPrm.(fns1{j}));
-          fns2 = [fns2,fnscurr']; %#ok<AGROW>
-          paramidx = [paramidx,j+zeros(1,numel(fnscurr))]; %#ok<AGROW>
-        end
-        
-        % fill into the hierarchical struct
-        didfill = false(1,numel(paramidx));        
-        for j = 1:numel(fns0),
-          k = find(strcmp(fns0{j},fns2));
-          assert(numel(k)==1,'Error converting from flat to organized DL parameters');
-          sPrm.(fns1{paramidx(k)}).(fns0{j}) = s.trackerData{i}.sPrm.(fns0{j});
-          didfill(k) = true;
-        end
-        % make sure we found everything
-        assert(all(didfill),'Error converting from flat to organized DL parameters');
-        s.trackerData{i}.sPrm = sPrm;
-        
-      end
-    
       % 20190207: added nLabels to dmc
       for i = 1:numel(s.trackerData),
         if isfield(s.trackerData{i},'trnLastDMC'),
@@ -2551,13 +2584,22 @@ classdef Labeler < handle
       end      
       
       % 20181220 DL common parameters
-      if ~isfield(s,'trackDLParams')
+      if ~isTrackParams && ~isfield(s,'trackDLParams')
         cachedirs = cell(0,1);
         for i=2:numel(s.trackerData)
           td = s.trackerData{i};
-          tfHasCache = ~isempty(td) && ~isempty(td.sPrm) && ~isempty(td.sPrm.CacheDir);
-          if tfHasCache
-            cachedirs{end+1,1} = td.sPrm.CacheDir; %#ok<AGROW>
+          if ~isempty(td) && ~isempty(td.sPrm),
+            if isfield(td.sPrm,'CacheDir'),
+              cacheDir = td.sPrm.CacheDir;
+            elseif isfield(td.sPrm,'Saving') && isfield(td.sPrm.Saving,'CacheDir'),
+              cacheDir = td.sPrm.Saving.CacheDir;
+            else
+              cacheDir = '';
+            end
+            tfHasCache = ~isempty(cacheDir);
+            if tfHasCache
+              cachedirs{end+1,1} = cacheDir; %#ok<AGROW>
+            end
           end
         end
         if ~isempty(cachedirs)
@@ -2569,7 +2611,10 @@ classdef Labeler < handle
         else
           cdir = '';
         end
-        s.trackDLParams = struct('CacheDir',cdir);
+        % KB 20190212: set all common parameters, not just cachedir
+        %s.trackDLParams = struct('CacheDir',cdir);
+        s.trackDLParams = APTParameters.defaultParamsStructDTCommon;
+        s.trackDLParams.Saving.CacheDir = cdir;
       end
       
       % 20190124 DL data cache; set
@@ -2577,38 +2622,86 @@ classdef Labeler < handle
       if s.preProcSaveData && ~isfield(s,'ppdb')
         s.ppdb = [];
       end
-      cprprms = s.trackerData{1}.sPrm;
-      if ~isempty(cprprms) && isfield(cprprms.TrainInit,'usetrxorientation')
-        % legacy project has 3-way enum param for cpr under .TrainInit and
-        % .TestInit. Initialize .preProcParams...AlignUsingTrxTheta using
-        % this val. Then remove these parameters now too although
-        % CPRLT.modernizeParams would have done it.
-        
-        assert(~s.preProcParams.TargetCrop.AlignUsingTrxTheta); % default value added above
-        s.preProcParams.TargetCrop.AlignUsingTrxTheta = cprprms.TrainInit.usetrxorientation;        
-        s.trackerData{1}.sPrm.TrainInit = rmfield(s.trackerData{1}.sPrm.TrainInit,'usetrxorientation');
-        s.trackerData{1}.sPrm.TestInit = rmfield(s.trackerData{1}.sPrm.TestInit,'usetrxorientation');
-        
-        if s.preProcParams.TargetCrop.AlignUsingTrxTheta
-          % .AlignUsingTrxTheta has mutated from default value. Any 
-          % existing DL cache and trackers need to be cleared
-          s.ppdb = [];
-          warningNoTrace('New preprocessing parameter .AlignUsingTrxTheta has been set to true. Clearing existing DL trackers; they will need to be retrained.');
-          for iTrker=1:numel(s.trackerData)
-            if strcmp(s.trackerClass{iTrker}{1},'DeepTracker') && ~isempty(s.trackerData{iTrker})
-              s.trackerData{iTrker}.trnName = '';
-              s.trackerData{iTrker}.trnNameLbl = '';
-              s.trackerData{iTrker}.trnLastDMC = [];
-              s.trackerData{iTrker}.movIdx2trkfile = containers.Map('keytype','int32','valuetype','any');
-              warningNoTrace('Cleared Deep Learning tracker of type ''%s''.',char(s.trackerData{iTrker}.trnNetType));
+      
+      if ~isTrackParams,
+        cprprms = s.trackerData{1}.sPrm;
+        if ~isempty(cprprms) && isfield(cprprms.TrainInit,'usetrxorientation')
+          % legacy project has 3-way enum param for cpr under .TrainInit and
+          % .TestInit. Initialize .preProcParams...AlignUsingTrxTheta using
+          % this val. Then remove these parameters now too although
+          % CPRLT.modernizeParams would have done it.
+          
+          assert(~s.preProcParams.TargetCrop.AlignUsingTrxTheta); % default value added above
+          s.preProcParams.TargetCrop.AlignUsingTrxTheta = cprprms.TrainInit.usetrxorientation;
+          s.trackerData{1}.sPrm.TrainInit = rmfield(s.trackerData{1}.sPrm.TrainInit,'usetrxorientation');
+          s.trackerData{1}.sPrm.TestInit = rmfield(s.trackerData{1}.sPrm.TestInit,'usetrxorientation');
+          
+          if s.preProcParams.TargetCrop.AlignUsingTrxTheta
+            % .AlignUsingTrxTheta has mutated from default value. Any
+            % existing DL cache and trackers need to be cleared
+            s.ppdb = [];
+            warningNoTrace('New preprocessing parameter .AlignUsingTrxTheta has been set to true. Clearing existing DL trackers; they will need to be retrained.');
+            for iTrker=1:numel(s.trackerData)
+              if strcmp(s.trackerClass{iTrker}{1},'DeepTracker') && ~isempty(s.trackerData{iTrker})
+                s.trackerData{iTrker}.trnName = '';
+                s.trackerData{iTrker}.trnNameLbl = '';
+                s.trackerData{iTrker}.trnLastDMC = [];
+                s.trackerData{iTrker}.movIdx2trkfile = containers.Map('keytype','int32','valuetype','any');
+                warningNoTrace('Cleared Deep Learning tracker of type ''%s''.',char(s.trackerData{iTrker}.trnNetType));
+              end
             end
           end
         end
       end
       
-      % modernize DL common params
-      sDLcommon = APTParameters.defaultParamsStructDTCommon;      
-      s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
+%       % modernize DL common params
+%       sDLcommon = APTParameters.defaultParamsStructDTCommon;      
+%       s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
+      
+      % KB 20190212: reorganized DL parameters -- many specific parameters
+      % were moved to common, and organized common parameters. leaf names
+      % should all be the same, and unique, so just match leaves
+      s = reorganizeDLParams(s);
+      
+      
+      % KB 20190214: all parameters are combined now
+      if ~isTrackParams,
+        s.trackParams = Labeler.trackGetParamsFromStruct(s);
+      end
+      
+      % KB 20190214: store all parameters in each tracker so that we don't
+      % have to delete trackers when tracking parameters change
+      for i = 1:numel(s.trackerData),
+        if isempty(s.trackerData{i}),
+          continue;
+        end
+        if ~isfield(s.trackerData{i},'sPrmAll') || isempty(s.trackerData{i}.sPrmAll),
+          s.trackerData{i}.sPrmAll = s.trackParams;
+        end
+        if isfield(s.trackerData{i},'sPrm') && ~isempty(s.trackerData{i}.sPrm),
+          if strcmp(s.trackerClass{i}{1},'CPRLabelTracker'),
+            CPRParams1 = APTParameters.all2CPRParams(s.trackerData{i}.sPrmAll,numel(s.cfg.LabelPointNames),s.cfg.NumViews);
+            assert(isequaln(CPRParams1,s.trackerData{i}.sPrm));
+          else
+            DLSpecificParams1 = APTParameters.all2DLSpecificParams(s.trackerData{i}.sPrmAll,s.trackerClass{i}{3});
+            assert(isequaln(DLSpecificParams1,s.trackerData{i}.sPrm));
+          end
+        end
+      end
+      
+      if isfield(s,'preProcParams'),
+        s = rmfield(s,'preProcParams');
+      end
+      if isfield(s,'trackDLParams'),
+        s = rmfield(s,'trackDLParams');
+      end
+      
+      for i = 1:numel(s.trackerData),
+        if isfield(s.trackerData{i},'sPrm'),
+          s.trackerData{i} = rmfield(s.trackerData{i},'sPrm');
+        end
+      end
+      
     end
 
   end 
@@ -7978,7 +8071,7 @@ classdef Labeler < handle
   methods
     
     function preProcInit(obj)
-      obj.preProcParams = [];
+      %obj.preProcParams = [];
       obj.preProcH0 = [];
       obj.preProcInitData();
       obj.ppdbInit();
@@ -8003,38 +8096,40 @@ classdef Labeler < handle
       obj.ppdb.init();
     end
     
-    function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
-      % ppPrms: OLD-style preproc params
-      
-      assert(isstruct(ppPrms));
-
-      if ppPrms.histeq 
-        if ppPrms.BackSub.Use
-          error('Histogram Equalization and Background Subtraction cannot both be enabled.');
-        end
-        if ppPrms.NeighborMask.Use
-          error('Histogram Equalization and Neighbor Masking cannot both be enabled.');
-        end
-      end
-      
-      ppPrms0 = obj.preProcParams;
-      tfPPprmsChanged = ~isequaln(ppPrms0,ppPrms);
-      if tfPPprmsChanged
-        warningNoTrace('Preprocessing parameters altered; data cache cleared.');
-        obj.preProcInitData();
-        obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
-        
-        bgPrms = ppPrms.BackSub;
-        mrs = obj.movieReader;
-        for i=1:numel(mrs)
-          mrs(i).open(mrs(i).filename,'bgType',bgPrms.BGType,...
-            'bgReadFcn',bgPrms.BGReadFcn); 
-          % mrs(i) should already be faithful to .forceGrayscale, 
-          % .movieInvert, cropInfo
-        end
-      end
-      obj.preProcParams = ppPrms;
-    end
+    
+    
+%     function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
+%       % ppPrms: OLD-style preproc params
+%       
+%       assert(isstruct(ppPrms));
+% 
+%       if ppPrms.histeq 
+%         if ppPrms.BackSub.Use
+%           error('Histogram Equalization and Background Subtraction cannot both be enabled.');
+%         end
+%         if ppPrms.NeighborMask.Use
+%           error('Histogram Equalization and Neighbor Masking cannot both be enabled.');
+%         end
+%       end
+%       
+%       ppPrms0 = obj.preProcParams;
+%       tfPPprmsChanged = ~isequaln(ppPrms0,ppPrms);
+%       if tfPPprmsChanged
+%         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
+%         obj.preProcInitData();
+%         obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
+%         
+%         bgPrms = ppPrms.BackSub;
+%         mrs = obj.movieReader;
+%         for i=1:numel(mrs)
+%           mrs(i).open(mrs(i).filename,'bgType',bgPrms.BGType,...
+%             'bgReadFcn',bgPrms.BGReadFcn); 
+%           % mrs(i) should already be faithful to .forceGrayscale, 
+%           % .movieInvert, cropInfo
+%         end
+%       end
+%       obj.preProcParams = ppPrms;
+%     end
     
     function preProcNonstandardParamChanged(obj)
       % Normally, preProcSetParams() handles changes to preproc-related
@@ -8548,7 +8643,14 @@ classdef Labeler < handle
       end
       obj.labelingInit();
     end
-        
+    
+    function sPrm = setTrackNFramesParams(obj,sPrm)
+      obj.trackNFramesSmall = sPrm.ROOT.Track.NFramesSmall;
+      obj.trackNFramesLarge = sPrm.ROOT.Track.NFramesLarge;
+      obj.trackNFramesNear = sPrm.ROOT.Track.NFramesNeighborhood;
+      sPrm.ROOT.Track = rmfield(sPrm.ROOT.Track,{'NFramesSmall','NFramesLarge','NFramesNeighborhood'});
+    end
+    
     function trackSetParams(obj,sPrm)
       % Set all parameters:
       %  - preproc
@@ -8563,44 +8665,72 @@ classdef Labeler < handle
       
       sPrm = APTParameters.enforceConsistency(sPrm);
 
-      tcprObj = obj.trackGetTracker('cpr');      
-      assert(~isempty(tcprObj));
-        
-      % Future TODO: right now this is hardcoded, eg "DeepTrack" doesn't
-      % match 'poseTF', and lots of special-case code.
-      % Ideally/theoretically the params/trackerObjs would just line up and
-      % setting would just be a simple loop or similar
-      
-      sPrmDT = sPrm.ROOT.DeepTrack;
-      sPrmPPandCPR = sPrm;
-      sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
-      
-      % NOTE: this line already sets some props, despite possible throws
-      % later
-      [sPrmPPandCPRold,obj.trackNFramesSmall,obj.trackNFramesLarge,...
-        obj.trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
-      
-      ppPrms = sPrmPPandCPRold.PreProc;
-      sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
-
-      % THROWS. Some state already mutated. Should be OK for now, its a
-      % partial set but if/when the user tries to set parameters again the
-      % changes should be reflected.
-      tfPPprmsChanged = obj.preProcSetParams(ppPrms); % THROWS
-      
-      tcprObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
-      
-      tDTs = obj.trackersAll(2:end);
-      dlNetTypesPretty = cellfun(@(x)x.trnNetType.prettyString,tDTs,'uni',0);
-      sPrmDTcommon = rmfield(sPrmDT,dlNetTypesPretty);
-      tfDTcommonChanged = obj.trackSetDLParams(sPrmDTcommon);
-      tfDTcommonOrPPChanged = tfDTcommonChanged || tfPPprmsChanged;
-      for i=1:numel(tDTs)
-        tObj = tDTs{i};
-        netType = dlNetTypesPretty{i};
-        sPrmDTnet = sPrmDT.(netType);
-        tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonOrPPChanged);
+      [tfOK,msgs] = APTParameters.checkParams(sPrm);
+      if ~tfOK,
+        error('%s. ',msgs{:});
       end
+      
+      
+      tfPPprmsChanged = ~APTParameters.isEqualPreProcParams(obj.trackParams,sPrm);
+      sPrm = obj.setTrackNFramesParams(sPrm);
+      obj.trackParams = sPrm;
+      
+      if tfPPprmsChanged
+        warningNoTrace('Preprocessing parameters altered; data cache cleared.');
+        obj.preProcInitData();
+        obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
+        
+        bgPrms = sPrm.ROOT.ImageProcessing.BackSub;
+        mrs = obj.movieReader;
+        for i=1:numel(mrs)
+          mrs(i).open(mrs(i).filename,'bgType',bgPrms.BGType,...
+            'bgReadFcn',bgPrms.BGReadFcn);
+          % mrs(i) should already be faithful to .forceGrayscale,
+          % .movieInvert, cropInfo
+        end
+      end
+      
+      % KB 20190214: this will all happen at training time now -- 
+      
+%       tcprObj = obj.trackGetTracker('cpr');      
+%       assert(~isempty(tcprObj));
+%         
+%       % Future TODO: right now this is hardcoded, eg "DeepTrack" doesn't
+%       % match 'poseTF', and lots of special-case code.
+%       % Ideally/theoretically the params/trackerObjs would just line up and
+%       % setting would just be a simple loop or similar
+%       
+%       sPrmDT = sPrm.ROOT.DeepTrack;
+%       sPrmPPandCPR = sPrm;
+%       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
+%       
+%       % NOTE: this line already sets some props, despite possible throws
+%       % later
+%       [sPrmPPandCPRold,obj.trackNFramesSmall,obj.trackNFramesLarge,...
+%         obj.trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
+%       
+%       ppPrms = sPrmPPandCPRold.PreProc;
+%       sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
+% 
+%       % THROWS. Some state already mutated. Should be OK for now, its a
+%       % partial set but if/when the user tries to set parameters again the
+%       % changes should be reflected.
+%       tfPPprmsChanged = obj.preProcSetParams(ppPrms); % THROWS
+%       
+%       tcprObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
+%       
+%       tDTs = obj.trackersAll(2:end);
+%       dlNetTypesPretty = cellfun(@(x)x.trnNetType.prettyString,tDTs,'uni',0);
+%       sPrmDTcommon = rmfield(sPrmDT,dlNetTypesPretty);
+%       tfDTcommonChanged = obj.trackSetDLParams(sPrmDTcommon);
+%       tfDTcommonOrPPChanged = tfDTcommonChanged || tfPPprmsChanged;
+%       for i=1:numel(tDTs)
+%         tObj = tDTs{i};
+%         netType = dlNetTypesPretty{i};
+%         sPrmDTnet = sPrmDT.(netType);
+%         tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonOrPPChanged);
+%       end
+
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
@@ -8641,59 +8771,49 @@ classdef Labeler < handle
       
       % Future TODO: As in trackSetParams, currently this is hardcoded when
       % it ideally would just be a generic loop
-       
-      tcprObj = obj.trackGetTracker('cpr');
-      assert(~isempty(tcprObj),'CPR tracker object not found.');
-
-      prmCpr = tcprObj.sPrm;
-      prmPP = obj.preProcParams;
-%      assert(~xor(isempty(prmCpr),isempty(prmPP)));
-      if ~isempty(prmCpr)
-        assert(~isempty(prmPP))
-        assert(~isfield(prmCpr,'PreProc'));
-        prmCpr.PreProc = prmPP;
-        sPrm = CPRParam.old2new(prmCpr,obj);
-      else
-        sPrm = struct();
-        % Even if prmCpr/prmPP are empty, these params come from obj.
-        % Something in went astray in the design here, clearly
-        
-        if ~isempty(prmPP)
-          warningNoTrace('Cannot convert preproc params.');
-        end
-        
-        %sPrm.ROOT.Track.Type = char(obj.trackerType);
-        sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
-        sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
-        sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
-        
-        % Other fields of sPrm.ROOT.Track, sPrm.ROOT.CPR will be empty
-      end
       
-      % DL: start with common params
-      sPrm.ROOT.DeepTrack = obj.trackDLParams;
+      sPrm = obj.trackParams;
       
-      tDLs = obj.trackersAll(2:end);
-      for i=1:numel(tDLs)
-        tObj = tDLs{i};
-        netTypePretty = tObj.trnNetType.prettyString;
-        sPrmDT = tObj.getParams();
-        sPrm.ROOT.DeepTrack.(netTypePretty) = sPrmDT;
-      end
+%       tcprObj = obj.trackGetTracker('cpr');
+%       assert(~isempty(tcprObj),'CPR tracker object not found.');
+%       prmCpr = tcprObj.sPrm;
+%       
+%       prmPP = obj.preProcParams;
+%       
+%       prmDLCommon = obj.trackDLParams;
+%       
+%       prmDLSpecific = struct;
+%       tDLs = obj.trackersAll;
+%       for i=1:numel(tDLs)
+%         if ~tDLs{i}.isDeepTracker,
+%           continue;
+%         end
+%         tObj = tDLs{i};
+%         netTypePretty = tObj.trnNetType.prettyString;
+%         if isfield(prmDLSpecific,char(tObj.trnNetType)),
+%           sPrmDT = prmDLSpecific.(char(tObj.trnNetType));
+%         else
+%           sPrmDT = tObj.getParams();
+%         end
+%         prmDLSpecific.(netTypePretty) = sPrmDT;
+%       end
+%       
+%       sPrm = Labeler.trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,obj);
+      
     end
     
-    function tfPrmsChanged = trackSetDLParams(obj,dlPrms) % THROWS
-      assert(isstruct(dlPrms));
-
-      dlPrms0 = obj.trackDLParams;
-      if ~isempty(dlPrms0.CacheDir) && ~isequal(dlPrms0.CacheDir,dlPrms.CacheDir)
-        warningNoTrace('Existing/old trained Deep models will remain on disk at %s but will be inaccessible within APT.',...
-          dlPrms0.CacheDir);
-      end
-      
-      tfPrmsChanged = ~isequaln(dlPrms0,dlPrms);      
-      obj.trackDLParams = dlPrms;
-    end
+%     function tfPrmsChanged = trackSetDLParams(obj,dlPrms) % THROWS
+%       assert(isstruct(dlPrms));
+% 
+%       dlPrms0 = obj.trackDLParams;
+%       if ~isempty(dlPrms0.Saving.CacheDir) && ~isequal(dlPrms0.Saving.CacheDir,dlPrms.Saving.CacheDir)
+%         warningNoTrace('Existing/old trained Deep models will remain on disk at %s but will be inaccessible within APT.',...
+%           dlPrms0.CacheDir);
+%       end
+%       
+%       tfPrmsChanged = ~isequaln(dlPrms0,dlPrms);      
+%       obj.trackDLParams = dlPrms;
+%     end
     
     function trackSetDLBackend(obj,be)
       assert(isa(be,'DLBackEndClass'));
@@ -8958,30 +9078,15 @@ classdef Labeler < handle
       % 
       
       tdata = s.trackerData{s.currTracker};
+      tdata.trnNetTypeString = char(tdata.trnNetType);
       
-      % KB 20190212: added some organization to parameters. Removing this
-      % for exporting to stripped lbl file
-      fns = fieldnames(tdata.sPrm);
-      sPrm = struct;
-      for i = 1:numel(fns),
-        fns1 = fieldnames(tdata.sPrm.(fns{i}));
-        for j = 1:numel(fns1),
-          assert(~ismember(fns1{j},fieldnames(sPrm)));
-          sPrm.(fns1{j}) = tdata.sPrm.(fns{i}).(fns1{j});
-        end
-      end
-      tdata.sPrm = sPrm;
-
-      sPrmDL = obj.trackDLParams;
-      sPrmDL = rmfield(sPrmDL,'CacheDir');
-      tdata.sPrm = structmerge(tdata.sPrm,sPrmDL);
       tftrx = obj.hasTrx;      
       if tftrx
         
         % KB 20190212: ignore sizex and sizey, these will be removed
-        roirad = s.preProcParams.TargetCrop.Radius;
-        tdata.sPrm.sizex = 2*roirad+1;
-        tdata.sPrm.sizey = 2*roirad+1;
+        %roirad = s.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
+        %tdata.sPrm.sizex = 2*roirad+1;
+        %tdata.sPrm.sizey = 2*roirad+1;
 
 %         dlszx = tdata.sPrm.ImageProcessing.sizex;
 %         dlszy = tdata.sPrm.ImageProcessing.sizey;
@@ -9574,6 +9679,84 @@ classdef Labeler < handle
       trkErr = nan(height(tblBig),1);
       trkErr(tf) = dErr;
     end
+    
+    function sPrm = trackGetParamsFromStruct(s)
+      % Get all parameters:
+      %  - preproc
+      %  - cpr
+      %  - common dl
+      %  - specific dl
+      %
+      % sPrm: scalar struct containing NEW-style params:
+      % sPrm.ROOT.Track
+      %          .CPR
+      %          .DeepTrack (if applicable)
+      % Top-level fields .Track, .CPR, .DeepTrack may be missing if they
+      % don't exist yet.
+      
+      % Future TODO: As in trackSetParams, currently this is hardcoded when
+      % it ideally would just be a generic loop
+      
+      if isfield(s,'trackParams'),
+        sPrm = s.trackParams;
+        return;
+      end
+      
+      for iTrk=1:numel(s.trackerData)
+        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker')
+          prmCpr = s.trackerData{iTrk}.sPrm;
+          break;
+        end
+      end
+      
+      prmPP = s.preProcParams;
+      
+      prmDLCommon = s.trackDLParams;
+      
+      prmDLSpecific = struct;
+      for i = 1:numel(s.trackerData),
+        if ~strcmp(s.trackerClass{i}{1},'DeepTracker') || isempty(s.trackerData{i}),
+          continue;
+        end
+        trnNetType = s.trackerData{i}.trnNetType.prettyString;
+        prmDLSpecific.(trnNetType) = s.trackerData{i}.sPrm;
+      end
+      
+      prmTrack = struct;
+      prmTrack.trackNFramesSmall = s.cfg.Track.PredictFrameStep;
+      prmTrack.trackNFramesLarge = s.cfg.Track.PredictFrameStepBig;
+      prmTrack.trackNFramesNear = s.cfg.Track.PredictNeighborhood;
+      
+      sPrm = Labeler.trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,prmTrack);
+      
+    end
+    
+    function sPrmAll = trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,obj)
+      
+      sPrmAll = APTParameters.defaultParamsStructAll;
+      
+%      assert(~xor(isempty(prmCpr),isempty(prmPP)));
+      if ~isempty(prmCpr)
+        sPrmAll = APTParameters.setCPRParams(sPrmAll,prmCpr);
+      end
+      if ~isempty(prmPP),
+        sPrmAll = APTParameters.setPreProcParams(sPrmAll,prmPP);
+      end
+      if ~isempty(obj)
+        sPrmAll = APTParameters.setNFramesTrackParams(sPrmAll,obj);
+      end
+      if ~isempty(prmDLCommon)
+        sPrmAll = APTParameters.setTrackDLParams(sPrmAll,prmDLCommon);
+      end
+            
+      % specific parameters
+      fns = fieldnames(prmDLSpecific);
+      for i = 1:numel(fns),
+        sPrmAll = APTParameters.setDLSpecificParams(sPrmAll,fns{i},prmDLSpecific.(fns{i}));
+      end
+      
+    end
+    
   end
   methods    
     function tblBig = trackGetBigLabeledTrackedTable(obj,varargin)

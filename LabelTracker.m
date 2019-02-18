@@ -47,6 +47,7 @@ classdef LabelTracker < handle
     lObj % (back)handle to Labeler object
     paramFile; % char, current parameter file
     ax % axis for viewing tracking results
+    sPrmAll; % all parameters - KB 20190214: store all parameters with each tracker
     
     trkVizInterpolate % scalar logical. If true, interpolate tracking results when visualizing
     
@@ -71,6 +72,7 @@ classdef LabelTracker < handle
       {'DeepTracker' 'trnNetType' DLNetType.unet}
       };
     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
+    DeepTrackerAlgorithmNames = {'mdn','deeplabcut','unet'};    
   end
       
   methods
@@ -126,6 +128,13 @@ classdef LabelTracker < handle
       if ~isempty(obj.hLMoviesReordered)
         delete(obj.hLMoviesReordered);
       end      
+    end
+    
+	% is the current tracking algorithm a DL algorithm?
+    function v = isDeepTracker(obj)
+      
+      v = ismember(obj.algorithmName,LabelTracker.DeepTrackerAlgorithmNames);
+      
     end
     
   end

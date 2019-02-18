@@ -60,6 +60,12 @@ def _todict(matobj):
             cur_dict[strg] = elem
     return cur_dict
 
+def h5py_isstring(x):
+
+    if type(x) is h5py._hl.dataset.Dataset:
+        return x.dtype == np.dtype('uint64') and len(x.shape) == 1 and x.shape[0] > 1
+    else:
+        return False
 
 def read_entry(x):
     if type(x) is h5py._hl.dataset.Dataset:
@@ -268,12 +274,43 @@ def get_net_type(lbl_file):
         cur_tracker = ''.join([chr(c) for c in lbl[lbl['trackerClass'][ndx][0]]])
         if cur_tracker == 'DeepTracker':
             dt_params_ndx = ndx
-    dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrm']
 
-    if 'netType' in dt_params.keys():
-        return read_string(dt_params['netType'])
+    if 'trnNetTypeString' in lbl[lbl['trackerData'][dt_params_ndx][0]].keys():
+        return read_string(lbl[lbl['trackerData'][dt_params_ndx][0]]['trnNetTypeString'])
+
+    elif 'sPrm' in lbl[lbl['trackerData'][dt_params_ndx][0]].keys():
+        logging.info('Stripped lbl file created using pre-20190214 APT code. Trying to read netType from sPrm')
+        dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrm']
+
+        if 'netType' in dt_params.keys():
+            return read_string(dt_params['netType'])
+        else:
+            logging.info('Failed to read netType from lbl file')
+            return None
     else:
+        logging.info('Failed to read netType from lbl file')
         return None
+
+def flatten_dict(din, dout={}, parent_keys=[], sep='_'):
+        
+    for k, v in din.items():
+        k0 = k
+        if k in dout:
+            for i in range(len(parent_keys)):
+                k = parent_keys[-i] + sep + k
+                if k not in dout:
+                    break
+        if k in dout:
+            logging.exception('Could not make a unique key when flattening dict')
+            continue
+
+        try:
+            dout = flatten_dict(v, dout=dout, parent_keys=parent_keys+[k0], sep=sep)
+        except (AttributeError,TypeError):
+            #logging.info('dout[%s]= %s'%(k,str(v)))
+            dout[k] = v
+
+    return dout
 
 def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_params=None):
 
@@ -305,9 +342,22 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         cur_tracker = ''.join([chr(c) for c in lbl[lbl['trackerClass'][ndx][0]]])
         if cur_tracker == 'DeepTracker':
             dt_params_ndx = ndx
-    dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrm']
 
-    cache_dir = read_string(dt_params['CacheDir']) if cache_dir is None else cache_dir
+    # KB 20190214: updates to APT parameter storing
+    if 'sPrmAll' in lbl[lbl['trackerData'][dt_params_ndx][0]].keys():
+        dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrmAll']['ROOT']
+        isModern = True
+    else:
+        logging.info('Stripped lbl file created using pre-20190214 APT code. Reading parameters from sPrm')
+        dt_params = lbl[lbl['trackerData'][dt_params_ndx][0]]['sPrm']
+        isModern = False
+
+    if cache_dir is None:
+        if isModern:
+            cache_dir = read_string(dt_params['DeepTrack']['Saving']['CacheDir'])
+        else:
+            cache_dir = read_string(dt_params['CacheDir'])
+
     conf.cachedir = os.path.join(cache_dir, proj_name, net_type, 'view_{}'.format(view), name)
 
     if not os.path.exists(conf.cachedir):
@@ -318,18 +368,22 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     # then we use the crop size specified by user else use the whole frame.
     if conf.has_trx_file:
 
-        # KB 20190212: replaced with preprocessing 
-        width = int(read_entry(lbl['preProcParams']['TargetCrop']['Radius']))*2+1
+        if isModern:
+            width = int(read_entry(dt_params['ImageProcessing']['MultiTarget']['TargetCrop']['Radius']))*2+1
+        else:
+            # KB 20190212: replaced with preprocessing 
+            width = int(read_entry(lbl['preProcParams']['TargetCrop']['Radius']))*2+1
         height = width
 
-        if 'sizex' in dt_params:
-            oldwidth = int(read_entry(dt_params['sizex']))
-            if oldwidth != width:
-                raise ValueError('Tracker parameter sizex does not match preProcParams->TargetCrop->Radius*2 + 1')
-        if 'sizey' in dt_params:
-            oldheight = int(read_entry(dt_params['sizey']))
-            if oldheight != height:
-                raise ValueError('Tracker parameter sizey does not match preProcParams->TargetCrop->Radius*2 + 1')
+        if not isModern:
+            if 'sizex' in dt_params:
+                oldwidth = int(read_entry(dt_params['sizex']))
+                if oldwidth != width:
+                    raise ValueError('Tracker parameter sizex does not match preProcParams->TargetCrop->Radius*2 + 1')
+                if 'sizey' in dt_params:
+                    oldheight = int(read_entry(dt_params['sizey']))
+                    if oldheight != height:
+                        raise ValueError('Tracker parameter sizey does not match preProcParams->TargetCrop->Radius*2 + 1')
 
         conf.imsz = (height, width)
     else:
@@ -342,14 +396,23 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
             conf.imsz = (vid_nr, vid_nc)
     conf.labelfile = lbl_file
     conf.sel_sz = min(conf.imsz)
-    conf.unet_rescale = float(read_entry(dt_params['scale']))
-    conf.op_rescale = float(read_entry(dt_params['scale']))
-    conf.dlc_rescale = float(read_entry(dt_params['scale']))
-    conf.leap_rescale = float(read_entry(dt_params['scale']))
+    if isModern:
+        scale = float(read_entry(dt_params['DeepTrack']['ImageProcessing']['scale']))
+        conf.adjust_contrast = int(read_entry(dt_params['DeepTrack']['ImageProcessing']['adjustContrast'])) > 0.5
+        conf.normalize_img_mean = int(read_entry(dt_params['DeepTrack']['ImageProcessing']['normalize'])) > 0.5
+        conf.trx_align_theta = bool(read_entry(dt_params['ImageProcessing']['MultiTarget']['TargetCrop']['AlignUsingTrxTheta']))
+    else:
+        scale = float(read_entry(dt_params['scale']))
+        conf.adjust_contrast = int(read_entry(dt_params['adjustContrast'])) > 0.5
+        conf.normalize_img_mean = int(read_entry(dt_params['normalize'])) > 0.5
+        conf.trx_align_theta = bool(read_entry(lbl['preProcParams']['TargetCrop']['AlignUsingTrxTheta']))
+
+    conf.unet_rescale = scale
+    conf.op_rescale = scale
+    conf.dlc_rescale = scale
+    conf.leap_rescale = scale
     conf.rescale = conf.unet_rescale
-    conf.adjust_contrast = int(read_entry(dt_params['adjustContrast'])) > 0.5
-    conf.normalize_img_mean = int(read_entry(dt_params['normalize'])) > 0.5
-    conf.trx_align_theta = bool(read_entry(lbl['preProcParams']['TargetCrop']['AlignUsingTrxTheta']))
+
 
     ex_mov = multiResData.find_local_dirs(conf)[0][0]
 
@@ -365,66 +428,101 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         cap.close()
 
     try:
-        conf.flipud = int(read_entry(dt_params['flipud'])) > 0.5
+        if isModern:
+            conf.flipud = int(read_entry(dt_params['DeepTrack']['ImageProcessing']['flipud'])) > 0.5
+        else:
+            conf.flipud = int(read_entry(dt_params['flipud'])) > 0.5
     except KeyError:
         pass
     try:
-        conf.unet_steps = int(read_entry(dt_params['dl_steps']))
-        conf.dl_steps = int(read_entry(dt_params['dl_steps']))
+        if isModern:
+            conf.unet_steps = int(read_entry(dt_params['DeepTrack']['GradientDescent']['dl_steps']))
+        else:
+            conf.unet_steps = int(read_entry(dt_params['dl_steps']))
+        conf.dl_steps = conf.unet_steps
     except KeyError:
         pass
     try:
-        conf.save_td_step = read_entry(dt_params['save_td_step'])
+        if isModern:
+            conf.save_td_step = read_entry(dt_params['DeepTrack']['Saving']['display_step'])
+        else:
+            conf.save_td_step = read_entry(dt_params['display_step'])
     except KeyError:
         pass
     try:
-        bb = read_entry(dt_params['brange'])
+        if isModern:
+            bb = read_entry(dt_params['DeepTrack']['DataAugmentation']['brange'])
+        else:
+            bb = read_entry(dt_params['brange'])
         conf.brange = [-bb, bb]
     except KeyError:
         pass
     try:
-        bb = read_entry(dt_params['crange'])
+        if isModern:
+            bb = read_entry(dt_params['DeepTrack']['DataAugmentation']['crange'])
+        else:
+            bb = read_entry(dt_params['crange'])
         conf.crange = [1 - bb, 1 + bb]
     except KeyError:
         pass
     try:
-        bb = read_entry(dt_params['trange'])
+        if isModern:
+            bb = read_entry(dt_params['DeepTrack']['DataAugmentation']['trange'])
+        else:
+            bb = read_entry(dt_params['trange'])
         conf.trange = bb
     except KeyError:
         pass
     try:
-        bb = read_entry(dt_params['rrange'])
+        if isModern:
+            bb = read_entry(dt_params['DeepTrack']['DataAugmentation']['rrange'])
+        else:
+            bb = read_entry(dt_params['rrange'])
         conf.rrange = bb
     except KeyError:
         pass
-    try:
-        bb = ''.join([chr(c) for c in dt_params['op_affinity_graph']]).split(',')
-        graph = []
-        for b in bb:
-            mm = re.search('(\d+)\s+(\d+)', b)
-            n1 = int(mm.groups()[0]) - 1
-            n2 = int(mm.groups()[1]) - 1
-            graph.append([n1, n2])
-        conf.op_affinity_graph = graph
-    except KeyError:
-        pass
+    if not isModern:
+        try:
+            bb = ''.join([chr(c) for c in dt_params['op_affinity_graph']]).split(',')
+            graph = []
+            for b in bb:
+                mm = re.search('(\d+)\s+(\d+)', b)
+                n1 = int(mm.groups()[0]) - 1
+                n2 = int(mm.groups()[1]) - 1
+                graph.append([n1, n2])
+            conf.op_affinity_graph = graph
+        except KeyError:
+            pass
 
     conf.mdn_groups = [(i,) for i in range(conf.n_classes)]
 
     done_keys = ['CacheDir','scale','brange','crange','trange','rrange','op_affinity_graph','flipud','dl_steps','scale','adjustContrast','normalize','sizex','sizey']
 
-    for k in dt_params.keys():
+    if isModern:
+        dt_params_flat = flatten_dict(dt_params['DeepTrack'])
+    else:
+        dt_params_flat = dt_params
+
+    for k in dt_params_flat.keys():
         if k in done_keys:
             continue
 
+        #logging.info('Adding parameter %s'%k)
+
         if hasattr(conf,k):
             if type(getattr(conf,k)) == str:
-                setattr(conf,k,read_string(dt_params[k]))
+                setattr(conf,k,read_string(dt_params_flat[k]))
             else:
                 attr_type = type(getattr(conf,k))
-                setattr(conf, k, attr_type(read_entry(dt_params[k])))
+                setattr(conf, k, attr_type(read_entry(dt_params_flat[k])))
         else:
-            setattr(conf,k,read_entry(dt_params[k]))
+            if h5py_isstring(dt_params_flat[k]):
+                setattr(conf,k,read_string(dt_params_flat[k]))
+            else:
+                try:
+                    setattr(conf,k,read_entry(dt_params_flat[k]))
+                except TypeError:
+                    logging.info('Could not parse parameter %s, ignoring'%k)
 
 
     if conf_params is not None:
@@ -1767,6 +1865,8 @@ def parse_args(argv):
 
     net_type =  get_net_type(args.lbl_file)
     if net_type is not None:
+        if args.type is not None and args.type != net_type:
+            logging.info("Overriding input network type %s with %s"%(args.type,net_type))
         args.type = net_type
     return args
 

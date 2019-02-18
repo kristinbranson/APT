@@ -3050,6 +3050,9 @@ tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
 function cbkLastLabelChangeTS(src,evt)
 
 lObj = evt.AffectedObject;
+if isempty(lObj.trackersAll) || isempty(lObj.tracker),
+  return;
+end
 lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
 
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
