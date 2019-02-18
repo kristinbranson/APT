@@ -1078,10 +1078,7 @@ classdef CPRLabelTracker < LabelTracker
         obj.trnDataInit();
         obj.trnResInit();
         return;
-      end        
-      
-      % store all parameters
-      obj.setAllParams(obj.lObj.trackGetParams());
+      end
       
       obj.trnDataFFDThresh = nan;
       % still set .trnDataTblP, .trnDataTblPTS to enable incremental
