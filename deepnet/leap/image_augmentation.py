@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import keras
 from keras.utils import Sequence
+import PoseTools
+import easydict
 
 def transform_imgs(X, theta=(-180,180), scale=1.0):
     """ Transforms sets of images with the same random transformation across each channel. """
@@ -44,14 +46,55 @@ def transform_imgs(X, theta=(-180,180), scale=1.0):
     return X
 
 
+def transform_imgs_locs(X, locs, theta=(-180, 180), scale=1.0):
+    """ Transforms sets of images with the same random transformation across each channel. """
+
+    # Sample random rotation and scale if range specified
+    if not np.isscalar(theta):
+        theta = np.ptp(theta) * np.random.rand() + np.min(theta)
+    if not np.isscalar(scale):
+        scale = np.ptp(scale) * np.random.rand() + np.min(scale)
+
+    X, locs = PoseTools.preprocess_ims()
+    # Standardize X input to a list
+    single_img = type(X) == np.ndarray
+    if single_img:
+        X = [X, ]
+
+    # Find image parameters
+    img_size = X[0].shape[:2]
+    ctr = (img_size[0] / 2, img_size[0] / 2)
+
+    # Compute affine transformation matrix
+    T = cv2.getRotationMatrix2D(ctr, theta, scale)
+
+    # Make sure we don't overwrite the inputs
+    X = [x.copy() for x in X]
+
+    # Apply to each image
+    for i in range(len(X)):
+        if X[i].ndim == 2:
+            # Single channel image
+            X[i] = cv2.warpAffine(X[i], T, img_size[::-1])
+        else:
+            # Multi-channel image
+            for c in range(X[i].shape[-1]):
+                X[i][..., c] = cv2.warpAffine(X[i][..., c], T, img_size[::-1])
+
+    # Pull the single image back out of the list
+    if single_img:
+        X = X[0]
+
+    return X
+
+
 class PairedImageAugmenter(Sequence):
-    def __init__(self, X, Y, batch_size=32, shuffle=False, theta=(-180,180), scale=1.0):
+    def __init__(self, X, Y, conf, shuffle=False):
         self.X = X
         self.Y = Y
-        self.batch_size = batch_size
-        self.theta = theta
-        self.scale = scale
-        
+        self.batch_size = conf.batch_size
+        self.conf = conf
+
         self.num_samples = len(X)
         all_idx = np.arange(self.num_samples)
         if shuffle:
@@ -66,11 +109,12 @@ class PairedImageAugmenter(Sequence):
         idx = self.batches[batch_idx]
         X = self.X[idx]
         Y = self.Y[idx]
-        
-        for i in range(len(X)):
-            X[i], Y[i] = transform_imgs((X[i],Y[i]), theta=self.theta, scale=self.scale)
-        return X, Y
 
+        X, Y = PoseTools.preprocess_ims(X,Y,self.conf,True,self.conf.rescale)
+        X = X.astype('float')/255.
+        hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,self.conf.label_blur_rad)
+        hmaps = (hmaps+1)/2
+        return X, hmaps
     
 class MultiInputOutputPairedImageAugmenter(PairedImageAugmenter):
     def __init__(self, input_names, output_names, *args, **kwargs):

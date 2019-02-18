@@ -332,7 +332,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     net_name = conf.leap_net_name
 
     box_dset="box"
-    confmap_dset="confmaps"
+    confmap_dset="joints" #"confmaps" work with locs rather than heatmaps.
     filters=64
     reduce_lr_factor=0.1
     reduce_lr_patience=3
@@ -352,8 +352,11 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
         val_confmap = confmap
 
     # Pull out metadata
-    img_size = box.shape[1:]
-    num_output_channels = confmap.shape[-1]
+    img_size = np.array(box.shape[1:])
+    img_size[0] = img_size[0]//conf.rescale
+    img_size[1] = img_size[1]//conf.rescale
+
+    num_output_channels = conf.n_classes
 
     # Create network
     model = create_model(net_name, img_size, num_output_channels, filters=filters, amsgrad=amsgrad, upsampling_layers=upsampling_layers, summary=True)
@@ -361,7 +364,6 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
         print("Could not find model:", net_name)
         return
 
-    model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     # Initialize run
     run_path = base_output_path
     savemat(os.path.join(base_output_path, "training_info.mat"),
@@ -382,11 +384,11 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     output_layers = model.output_names
     srange = [1 - conf.scale_range, 1 + conf.scale_range]
     if len(input_layers) > 1 or len(output_layers) > 1:
-        train_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
-        val_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
+        train_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, conf, shuffle=True)
+        val_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, val_box, val_confmap, conf, shuffle=True)
     else:
-        train_datagen = PairedImageAugmenter(box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
-        val_datagen = PairedImageAugmenter(val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
+        train_datagen = PairedImageAugmenter(box, confmap, conf, shuffle=True)
+        val_datagen = PairedImageAugmenter(val_box, val_confmap, conf,shuffle=True)
 
     base_lr = 4e-5  # 2e-5
     momentum = 0.9
