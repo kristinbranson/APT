@@ -2664,6 +2664,16 @@ classdef CPRLabelTracker < LabelTracker
           s = 'No';
         end
         infos{end+1} = sprintf('New labels since training: %s',s);
+        
+        isParamChange = ~APTParameters.isEqualFilteredStructProperties(obj.sPrmAll,obj.lObj.trackParams,...
+          'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',false);
+        if isParamChange,
+          s = 'Yes';
+        else
+          s = 'No';
+        end
+        infos{end+1} = sprintf('Parameters changed since training: %s',s);
+        
       else
         infos{end+1} = 'No tracker trained.';
       end

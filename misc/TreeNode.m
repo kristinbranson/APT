@@ -35,6 +35,15 @@ classdef TreeNode < handle
       end
     end
     
+    function tcopy = copy(t)
+      
+      tcopy = TreeNode(t.Data);
+      for i = 1:numel(t.Children),
+        tcopy.Children(i) = t.Children(i).copy();
+      end
+      
+    end
+    
     function structapply(t,s)
       % Apply values from a structure to Data.Value fields of leaf nodes
       %

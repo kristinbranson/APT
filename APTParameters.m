@@ -173,21 +173,33 @@ classdef APTParameters
       
     end
     
-    function tree = filterPropertiesByCondition(tree,labelerObj)
+    function tree = filterPropertiesByCondition(tree,labelerObj,varargin)
     
       if isempty(tree.Children),
+        
+        [trackerAlgo,hasTrx,trackerIsDL] = myparse(varargin,...
+          'trackerAlgo',[],'hasTrx',[],'trackerIsDL',[]);
+        if isempty(trackerAlgo),
+          trackerAlgo = labelerObj.trackerAlgo;
+        end
+        if isempty(hasTrx),
+          hasTrx = labelerObj.hasTrx;
+        end
+        if isempty(trackerIsDL),
+          trackerIsDL = labelerObj.trackerIsDL;
+        end
       
-        if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(labelerObj.trackerAlgo,'cpr'),
+        if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(trackerAlgo,'cpr'),
           tree.Data.Visible = false;
-        elseif ismember('hasTrx',tree.Data.Requirements) && ~labelerObj.hasTrx,
+        elseif ismember('hasTrx',tree.Data.Requirements) && ~hasTrx,
           tree.Data.Visible = false;
-        elseif ismember('isDeepTrack',tree.Data.Requirements) && ~labelerObj.trackerIsDL,
+        elseif ismember('isDeepTrack',tree.Data.Requirements) && ~trackerIsDL,
           tree.Data.Visible = false;
-        elseif ismember('isMDN',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'mdn'),
+        elseif ismember('isMDN',tree.Data.Requirements) && ~strcmp(trackerAlgo,'mdn'),
           tree.Data.Visible = false;
-        elseif ismember('isDeepLabCut',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'deeplabcut'),
+        elseif ismember('isDeepLabCut',tree.Data.Requirements) && ~strcmp(trackerAlgo,'deeplabcut'),
           tree.Data.Visible = false;
-        elseif ismember('isUnet',tree.Data.Requirements) && ~strcmp(labelerObj.trackerAlgo,'unet'),
+        elseif ismember('isUnet',tree.Data.Requirements) && ~strcmp(trackerAlgo,'unet'),
           tree.Data.Visible = false;        
         end
         
@@ -198,11 +210,64 @@ classdef APTParameters
       if tree.Data.Visible,
         tree.Data.Visible = false;
         for i = 1:numel(tree.Children),
-          APTParameters.filterPropertiesByCondition(tree.Children(i),labelerObj);
+          APTParameters.filterPropertiesByCondition(tree.Children(i),labelerObj,varargin{:});
           tree.Data.Visible = tree.Data.Visible || tree.Children(i).Data.Visible;
         end
       end
       
+    end
+    
+    function [tPrm] = removeFilteredProperties(tPrm)
+      
+      if ~tPrm.Data.Visible,
+        tPrm = [];
+        return;
+      end
+      
+      if isempty(tPrm.Children),
+        if ~tPrm.Data.AffectsTraining,
+          tPrm = [];
+        end
+        return;
+      end
+
+      doremove = false(1,numel(tPrm.Children));
+      for i = 1:numel(tPrm.Children),
+        res = APTParameters.removeFilteredProperties(tPrm.Children(i));
+        if ~isempty(res),
+          tPrm.Children(i) = res;
+        else
+          doremove(i) = true;
+        end
+          
+      end
+      tPrm.Children(doremove) = [];
+      
+    end
+    
+    function [sPrmFilter,tPrm] = filterStructPropertiesByCondition(sPrm,varargin)
+      
+      [tPrm,leftovers] = myparse_nocheck(varargin,'tree',[]);
+      if isempty(tPrm),
+        tPrm = APTParameters.defaultParamsTree;
+      end
+      tPrm.structapply(sPrm);
+      tPrm = APTParameters.filterPropertiesByCondition(tPrm,[],leftovers{:});
+      tPrm = APTParameters.removeFilteredProperties(tPrm);
+      sPrmFilter = tPrm.structize();
+      
+    end
+    
+    function [v,sPrmFilter0,sPrmFilter1] = isEqualFilteredStructProperties(sPrm0,sPrm1,varargin)
+      [tPrm0,leftovers] = myparse_nocheck(varargin,'tree',[]);
+      if isempty(tPrm0),
+        tPrm0 = APTParameters.defaultParamsTree;
+      end
+      tPrm1 = tPrm0.copy();
+      sPrmFilter0 = APTParameters.filterStructPropertiesByCondition(sPrm0,'tree',tPrm0,leftovers{:});
+      sPrmFilter1 = APTParameters.filterStructPropertiesByCondition(sPrm1,'tree',tPrm1,leftovers{:});
+      v = isequaln(sPrmFilter0,sPrmFilter1);
+
     end
     
     function [sPrm,tfChangeMade] = enforceConsistency(sPrm)
