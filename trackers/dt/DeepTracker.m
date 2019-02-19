@@ -494,7 +494,7 @@ classdef DeepTracker < LabelTracker
         reason = 'Tracking is in progress.';
         return;
       end
-      if isempty(obj.sPrm)
+      if isempty(obj.sPrmAll)
         reason = 'No tracking parameters have been set.';
         return;
       end
@@ -568,7 +568,7 @@ classdef DeepTracker < LabelTracker
       if obj.bgTrkIsRunning
         error('Tracking is in progress.');
       end
-      if isempty(obj.sPrm)
+      if isempty(obj.sPrmAll)
         error('No tracking parameters have been set.');
       end
       cacheDir = obj.lObj.DLCacheDir;
@@ -1935,7 +1935,7 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
-      if isempty(obj.sPrm),
+      if isempty(obj.sPrmAll),
         reason = 'Training parameters not set.';
         return;
       end
