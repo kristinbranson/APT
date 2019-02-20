@@ -2625,7 +2625,7 @@ classdef Labeler < handle
         s.ppdb = [];
       end
       
-      if ~isTrackParams,
+      if ~isTrackParams && ~isempty(s.trackerData{1})
         cprprms = s.trackerData{1}.sPrm;
         if ~isempty(cprprms) && isfield(cprprms.TrainInit,'usetrxorientation')
           % legacy project has 3-way enum param for cpr under .TrainInit and
@@ -9746,8 +9746,9 @@ classdef Labeler < handle
         return;
       end
       
+      prmCpr = [];
       for iTrk=1:numel(s.trackerData)
-        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker')
+        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker') && ~isempty(s.trackerData{iTrk})
           prmCpr = s.trackerData{iTrk}.sPrm;
           break;
         end
