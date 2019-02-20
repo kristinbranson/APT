@@ -77,10 +77,10 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
             newStep = trnLog.step(end);
             tfupdate = newStep>lastKnownStep;
             sRes(ivw).tfUpdate = tfupdate;
+            sRes(ivw).contents = trnLog;
             if tfupdate
               sRes(ivw).lastTrnIter = newStep;
               obj.trnLogLastStep(ivw) = newStep;
-              sRes(ivw).contents = trnLog;
             else
               sRes(ivw).lastTrnIter = lastKnownStep;
             end

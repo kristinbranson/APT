@@ -8,6 +8,7 @@ classdef Labeler < handle
     MAX_MOVIENAME_LENGTH = 80;
     
     % non-config props
+	% KB 20190214 - replaced trackDLParams, preProcParams with trackParams
     SAVEPROPS = { ...
       'VERSION' 'projname' ...
       'movieReadPreLoadMovies' ...
@@ -24,9 +25,9 @@ classdef Labeler < handle
       'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
-      'trackModeIdx' 'trackDLBackEnd' 'trackDLParams' ...
+      'trackModeIdx' 'trackDLBackEnd' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
-      'preProcParams' 'preProcH0' 'preProcSaveData' ...
+      'trackParams' 'preProcH0' 'preProcSaveData' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'};
@@ -42,8 +43,7 @@ classdef Labeler < handle
       'labeledpostagGT' 'log'};
     
     SAVEBUTNOTLOADPROPS = { ...
-       'VERSION' 'currFrame' 'currMovie' 'currTarget'};
-     
+       'VERSION' 'currFrame' 'currMovie' 'currTarget'};     
      
     DLCONFIGINFOURL = 'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking'; 
     
@@ -309,7 +309,9 @@ classdef Labeler < handle
     showTrxCurrTargetOnly;    % if true, plot only current target
     showTrxIDLbl;             % true to show id label 
     showOccludedBox;          % whether to show the occluded box
-  end
+    
+    showPredTxtLbl;         % true to show text landmark labels for ALL preds -- imported (labeledpos2, and all trackers)
+  end 
   properties
     hTraj;                    % nTrx x 1 vector of line handles
     hTrx;                     % nTrx x 1 vector of line handles
@@ -336,6 +338,7 @@ classdef Labeler < handle
     labeledposTSGT        % like .labeledposTS
     labeledpostagGT       % like .labeledpostag
     labeledpos2GT         % like .labeledpos2
+    
   end
   properties % make public setaccess
     labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints. init: C
@@ -353,6 +356,7 @@ classdef Labeler < handle
   end
   properties (SetObservable)
     labeledposNeedsSave;  % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
+    lastLabelChangeTS     % last time training labels were changed
     needsSave; 
   end
   properties (Dependent)
@@ -426,13 +430,20 @@ classdef Labeler < handle
   
   %% PreProc
   properties
-    preProcParams % struct
     preProcH0 % Either [], or a struct with field .hgram which is [nbin x nview]. Conceptually, this is a preProcParam that APT updates from movies
-    preProcData % for CPR, a CPRData; for DL trackers, likely a tracker-specific object pointing to data on disk
+    preProcData % scalar CPRData, preproc Data cache for CPR
     preProcDataTS % scalar timestamp  
-    preProcSaveData % scalar logical. If true, preProcData* is saved/loaded with project file
+    preProcSaveData % scalar logical. If true, preProcData* and ppdb are saved/loaded with project file
+    copyPreProcData = false; % scalar logical. if true, don't reread images from videos to create the PreProcDB, just copy over from preProcData
+    
+    ppdb % PreProcDB for DL
   end
-  
+
+  properties (Dependent)
+    
+    preProcParams % struct - KB 20190214 -- made this a dependent property, derived from trackParams
+
+  end  
   %% Tracking
   properties (SetObservable)
     trackersAll % cell vec of concrete LabelTracker objects. init: PNPL
@@ -442,6 +453,9 @@ classdef Labeler < handle
     tracker % The current tracker, or []
     trackerAlgo % The current tracker algorithm, or ''
     trackerIsDL
+    trackDLParams % scalar struct, common DL params
+    cprParams % scalar struct, cpr parameters
+    DLCacheDir % string, location of DL cache dir
   end
   properties (SetObservable)
     trackModeIdx % index into MFTSetEnum.TrackingMenu* for current trackmode. 
@@ -450,11 +464,11 @@ classdef Labeler < handle
      %larger values apply only the Trx case.
      
     trackDLBackEnd % scalar DLBackEndClass
-    trackDLParams % scalar struct, common DL params
     
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
+    trackParams; % all tracking parameters
   end
   
   %% CrossValidation
@@ -973,7 +987,7 @@ classdef Labeler < handle
       v = height(obj.gtSuggMFTable);
     end
     function v = get.tracker(obj)
-      if obj.currTracker==0
+      if obj.currTracker==0 || isempty(obj.trackersAll),
         v = [];
       else
         v = obj.trackersAll{obj.currTracker};
@@ -995,6 +1009,58 @@ classdef Labeler < handle
         v = isa(v,'DeepTracker');
       end
     end
+    % KB 20190214 - store all parameters together in one struct. these dependent functions emulate previous behavior
+    function v = get.preProcParams(obj)
+      
+      if isempty(obj.trackParams),
+        v = [];
+      else
+        v = APTParameters.all2PreProcParams(obj.trackParams);
+      end
+
+    end
+    
+    function v = get.trackDLParams(obj)
+      
+      if isempty(obj.trackParams),
+        v = [];
+      else
+        v = APTParameters.all2TrackDLParams(obj.trackParams);
+      end
+
+    end
+    
+    function v = get.DLCacheDir(obj)
+      
+      if isempty(obj.trackParams),
+        v = '';
+      else
+        v = APTParameters.all2DLCacheDir(obj.trackParams);
+      end
+      
+      
+    end
+    
+    function v = get.cprParams(obj)
+      
+      if isempty(obj.trackParams),
+        v = [];
+      else
+        v = APTParameters.all2CPRParams(obj.trackParams,obj.nPhysPoints,obj.nview);
+      end
+      
+    end
+    
+%     function set.cprParams(obj,prmCpr)
+%       
+%       if isempty(obj.trackParams),
+%         obj.trackParams = struct;
+%         obj.trackParams.ROOT = APTParameters.defaultParamsStruct;
+%       end
+%       obj.trackParams.ROOT.CPR = CPRParam.old2newCPROnly(prmCpr);
+%       
+%     end
+    
   end
   
   methods % prop access
@@ -1287,7 +1353,7 @@ classdef Labeler < handle
       obj.currTracker = 0;
       
       obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
-      obj.trackDLParams = APTParameters.defaultParamsStructDTCommon;  
+      %obj.trackDLParams = APTParameters.defaultParamsStructDTCommon;  
 
       obj.projectHasTrx = cfg.Trx.HasTrx;
       obj.showOccludedBox = cfg.View.OccludedBox;
@@ -1295,6 +1361,8 @@ classdef Labeler < handle
       obj.showTrx = cfg.Trx.ShowTrx;
       obj.showTrxCurrTargetOnly = cfg.Trx.ShowTrxCurrentTargetOnly;
       obj.showTrxIDLbl = cfg.Trx.ShowTrxIDLbl;
+      
+      obj.showPredTxtLbl = cfg.Track.PredictPointsShowTextLbl;
       
       obj.labels2Hide = false;
 
@@ -1354,6 +1422,7 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStep = obj.trackNFramesSmall;
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
+      cfg.Track.PredictPointsShowTextLbl = obj.showPredTxtLbl;
       
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
       cfg.PrevAxes.ModeInfo = obj.prevAxesModeInfo;
@@ -1497,6 +1566,7 @@ classdef Labeler < handle
       obj.labeledpos = cell(0,1);
       obj.labeledposGT = cell(0,1);
       obj.labeledposTS = cell(0,1);
+      obj.lastLabelChangeTS = 0;
       obj.labeledposTSGT = cell(0,1);
       obj.labeledposMarked = cell(0,1);
       obj.labeledpostag = cell(0,1);
@@ -1537,6 +1607,8 @@ classdef Labeler < handle
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      obj.setShowPredTxtLbl(obj.showPredTxtLbl);
+      
       obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
     end
@@ -1606,7 +1678,7 @@ classdef Labeler < handle
       
       [sparsify,forceIncDataCache] = myparse(varargin,...
         'sparsify',true,...
-        'forceIncDataCache',false... % include .preProcData* even if .preProcSaveData is false
+        'forceIncDataCache',false... % include .preProcData* and .ppdb even if .preProcSaveData is false
         );
       
       s = struct();
@@ -1647,6 +1719,7 @@ classdef Labeler < handle
       if obj.preProcSaveData || forceIncDataCache
         s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
         s.preProcDataTS = obj.preProcDataTS;
+        s.ppdb = obj.ppdb;        
       end
     end
     
@@ -1734,6 +1807,7 @@ classdef Labeler < handle
         end
       end
      
+      obj.computeLastLabelChangeTS();
       fcnAnyNonNan = @(x)any(~isnan(x(:)));
       obj.movieFilesAllHaveLbls = cellfun(fcnAnyNonNan,obj.labeledpos);
       obj.movieFilesAllGTHaveLbls = cellfun(fcnAnyNonNan,obj.labeledposGT);      
@@ -1755,10 +1829,20 @@ classdef Labeler < handle
       
       % preproc data cache
       % s.preProcData* will be present iff s.preProcSaveData==true
-      if s.preProcSaveData && ~isempty(s.preProcData)
-        fprintf('Loading data cache: %d rows.\n',s.preProcData.N);
-        obj.preProcData = s.preProcData;
-        obj.preProcDataTS = s.preProcDataTS;
+      if s.preProcSaveData 
+        if isempty(s.preProcData)
+          assert(obj.preProcData.N==0);
+        else
+          fprintf('Loading data cache: %d rows.\n',s.preProcData.N);
+          obj.preProcData = s.preProcData;
+          obj.preProcDataTS = s.preProcDataTS;
+        end
+        if isempty(s.ppdb)
+          assert(obj.ppdb.dat.N==0);
+        else
+          fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
+          obj.ppdb = s.ppdb;
+        end
       end
 
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
@@ -1801,10 +1885,14 @@ classdef Labeler < handle
       [~,prevModeInfo] = obj.FixPrevModeInfo(pamode,s.cfg.PrevAxes.ModeInfo);      
       obj.setPrevAxesMode(pamode,prevModeInfo);
       
+      % Call this here to eg init AWS backend
+      obj.trackSetDLBackend(obj.trackDLBackEnd);
+      
       props = obj.gdata.propsNeedInit;
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
       end
+      obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -1812,7 +1900,6 @@ classdef Labeler < handle
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
-
     end
     
     function projImport(obj,fname)
@@ -1874,6 +1961,7 @@ classdef Labeler < handle
         obj.trxFilesAll{end+1,1} = trxfl;
         obj.labeledpos{end+1,1} = lpos;
         obj.labeledposTS{end+1,1} = lposTS;
+        obj.lastLabelChangeTS = max(obj.lastLabelChangeTS,max(lposTS(:)));
         obj.labeledposMarked{end+1,1} = false(size(lposTS));
         obj.labeledpostag{end+1,1} = lpostag;
         obj.labeledpos2{end+1,1} = s.labeledpos2{iMov};
@@ -2112,6 +2200,9 @@ classdef Labeler < handle
     function s = lblModernize(s)
       % s: struct, .lbl contents
       
+	  % whether trackParams is stored -- update from 20190214
+      isTrackParams = isfield(s,'trackParams');
+      
       if ~isfield(s,'labeledposTS')
         nMov = numel(s.labeledpos);
         s.labeledposTS = cell(nMov,1);
@@ -2123,7 +2214,7 @@ classdef Labeler < handle
         
         warningNoTrace('Label timestamps added (all set to -inf).');
       end
-      
+            
       if ~isfield(s,'labeledpos2')
         s.labeledpos2 = cellfun(@(x)nan(size(x)),s.labeledpos,'uni',0);
       end
@@ -2295,45 +2386,52 @@ classdef Labeler < handle
       % 20180309 Preproc params
       % If preproc params are present in trackerData, move them to s and 
       % remove from trackerData
-      tfTrackerDataHasPPParams = ~isempty(s.trackerData) && ...
-        isstruct(s.trackerData) && ... 
-        ~isempty(s.trackerData.sPrm) && ...
-        isfield(s.trackerData.sPrm,'PreProc');
-      if isfield(s,'preProcParams')
-        assert(isfield(s,'preProcH0'));
-        assert(~tfTrackerDataHasPPParams);
-      else
-        if tfTrackerDataHasPPParams      
-          ppPrm = s.trackerData.sPrm.PreProc;
-          s.trackerData.sPrm = rmfield(s.trackerData.sPrm,'PreProc');
-        
-          % 20180314 BackSub. Move backsub-related fields from NborMask to
-          % BackSub subprop.
-          if isfield(ppPrm,'NeighborMask')
-            assert(~isfield(ppPrm,'BackSub'));
-            ppPrm.BackSub.BGType = ppPrm.NeighborMask.BGType;
-            ppPrm.BackSub.BGReadFcn = ppPrm.NeighborMask.BGReadFcn;
-            ppPrm.NeighborMask = rmfield(ppPrm.NeighborMask,{'BGType' 'BGReadFcn'});
-          end
+      % KB 20190214: only do this if trackParams not set
+      if ~isTrackParams,
+
+        % KB 20190214: leave preproc in here if this is after the 20190214 change to parameters
+        tfTrackerDataHasPPParams = ~isempty(s.trackerData) && ...
+          isstruct(s.trackerData) && ...
+          isfield(s.trackerData,'sPrm') && ...
+          ~isempty(s.trackerData.sPrm) && ...
+          isfield(s.trackerData.sPrm,'PreProc');
+        if isfield(s,'preProcParams')
+          assert(isfield(s,'preProcH0'));
+          assert(~tfTrackerDataHasPPParams);
         else
-          ppPrm = struct();
+          if tfTrackerDataHasPPParams
+            ppPrm = s.trackerData.sPrm.PreProc;
+            s.trackerData.sPrm = rmfield(s.trackerData.sPrm,'PreProc');
+            
+            % 20180314 BackSub. Move backsub-related fields from NborMask to
+            % BackSub subprop.
+            if isfield(ppPrm,'NeighborMask')
+              assert(~isfield(ppPrm,'BackSub'));
+              ppPrm.BackSub.BGType = ppPrm.NeighborMask.BGType;
+              ppPrm.BackSub.BGReadFcn = ppPrm.NeighborMask.BGReadFcn;
+              ppPrm.NeighborMask = rmfield(ppPrm.NeighborMask,{'BGType' 'BGReadFcn'});
+            end
+          else
+            ppPrm = struct();
+          end
+          
+          s.preProcParams = ppPrm;
+          s.preProcH0 = [];
         end
-                
-        s.preProcParams = ppPrm;
-        s.preProcH0 = [];
-      end
-      
-      ppPrm0 = APTParameters.defaultPreProcParamsOldStyle();
-      if ~isempty(s.preProcParams)
-        ppPrm1 = s.preProcParams;
-      else
-        ppPrm1 = struct();
-      end
-      [s.preProcParams,ppPrm0used] = structoverlay(ppPrm0,ppPrm1,...
-        'dontWarnUnrecog',true);
-      if ~isempty(ppPrm0used)
-        fprintf('Using default preprocessing parameters for: %s.\n',...
-          String.cellstr2CommaSepList(ppPrm0used));
+        
+        ppPrm0 = APTParameters.defaultPreProcParamsOldStyle();
+        if ~isempty(s.preProcParams)
+          ppPrm1 = s.preProcParams;
+        else
+          ppPrm1 = struct();
+        end
+        [s.preProcParams,ppPrm0used] = structoverlay(ppPrm0,ppPrm1,...
+          'dontWarnUnrecog',true);
+        if ~isempty(ppPrm0used)
+          fprintf('Using default preprocessing parameters for: %s.\n',...
+            String.cellstr2CommaSepList(ppPrm0used));
+        end
+        
       end
       
 %       % 20180411 trackerType, trackerDeep
@@ -2404,7 +2502,23 @@ classdef Labeler < handle
       else
         assert(false);
       end
-    
+      
+      % 20190207: added nLabels to dmc
+      for i = 1:numel(s.trackerData),
+        if isfield(s.trackerData{i},'trnLastDMC'),
+          for j = 1:numel(s.trackerData{i}.trnLastDMC),
+            if isempty(s.trackerData{i}.trnLastDMC(j).nLabels),
+              try
+                fprintf('Modernize: Reading nLabels for deep tracker\n');
+                s.trackerData{i}.trnLastDMC(j).readNLabels();
+              catch ME
+                warning('Could not read nLabels from trnLastDMC:\n%s',getReport(ME));
+              end
+            end
+          end
+        end
+      end
+      
       % 20180604
       if ~isfield(s,'labeledpos2GT')
         s.labeledpos2GT = cell(size(s.labeledposGT));
@@ -2470,13 +2584,22 @@ classdef Labeler < handle
       end      
       
       % 20181220 DL common parameters
-      if ~isfield(s,'trackDLParams')
+      if ~isTrackParams && ~isfield(s,'trackDLParams')
         cachedirs = cell(0,1);
         for i=2:numel(s.trackerData)
           td = s.trackerData{i};
-          tfHasCache = ~isempty(td) && ~isempty(td.sPrm) && ~isempty(td.sPrm.CacheDir);
-          if tfHasCache
-            cachedirs{end+1,1} = td.sPrm.CacheDir; %#ok<AGROW>
+          if ~isempty(td) && ~isempty(td.sPrm),
+            if isfield(td.sPrm,'CacheDir'),
+              cacheDir = td.sPrm.CacheDir;
+            elseif isfield(td.sPrm,'Saving') && isfield(td.sPrm.Saving,'CacheDir'),
+              cacheDir = td.sPrm.Saving.CacheDir;
+            else
+              cacheDir = '';
+            end
+            tfHasCache = ~isempty(cacheDir);
+            if tfHasCache
+              cachedirs{end+1,1} = cacheDir; %#ok<AGROW>
+            end
           end
         end
         if ~isempty(cachedirs)
@@ -2488,12 +2611,97 @@ classdef Labeler < handle
         else
           cdir = '';
         end
-        s.trackDLParams = struct('CacheDir',cdir);
+        % KB 20190212: set all common parameters, not just cachedir
+        %s.trackDLParams = struct('CacheDir',cdir);
+        s.trackDLParams = APTParameters.defaultParamsStructDTCommon;
+        s.trackDLParams.Saving.CacheDir = cdir;
       end
       
-      % modernize DL common params
-      sDLcommon = APTParameters.defaultParamsStructDTCommon;      
-      s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
+      % 20190124 DL data cache; set
+      % .preProcParams.TargetCrop.AlignUsingTrxTheta based on cpr parameter
+      if s.preProcSaveData && ~isfield(s,'ppdb')
+        s.ppdb = [];
+      end
+      
+      if ~isTrackParams,
+        cprprms = s.trackerData{1}.sPrm;
+        if ~isempty(cprprms) && isfield(cprprms.TrainInit,'usetrxorientation')
+          % legacy project has 3-way enum param for cpr under .TrainInit and
+          % .TestInit. Initialize .preProcParams...AlignUsingTrxTheta using
+          % this val. Then remove these parameters now too although
+          % CPRLT.modernizeParams would have done it.
+          
+          assert(~s.preProcParams.TargetCrop.AlignUsingTrxTheta); % default value added above
+          s.preProcParams.TargetCrop.AlignUsingTrxTheta = cprprms.TrainInit.usetrxorientation;
+          s.trackerData{1}.sPrm.TrainInit = rmfield(s.trackerData{1}.sPrm.TrainInit,'usetrxorientation');
+          s.trackerData{1}.sPrm.TestInit = rmfield(s.trackerData{1}.sPrm.TestInit,'usetrxorientation');
+          
+          if s.preProcParams.TargetCrop.AlignUsingTrxTheta
+            % .AlignUsingTrxTheta has mutated from default value. Any
+            % existing DL cache and trackers need to be cleared
+            s.ppdb = [];
+            warningNoTrace('New preprocessing parameter .AlignUsingTrxTheta has been set to true. Clearing existing DL trackers; they will need to be retrained.');
+            for iTrker=1:numel(s.trackerData)
+              if strcmp(s.trackerClass{iTrker}{1},'DeepTracker') && ~isempty(s.trackerData{iTrker})
+                s.trackerData{iTrker}.trnName = '';
+                s.trackerData{iTrker}.trnNameLbl = '';
+                s.trackerData{iTrker}.trnLastDMC = [];
+                s.trackerData{iTrker}.movIdx2trkfile = containers.Map('keytype','int32','valuetype','any');
+                warningNoTrace('Cleared Deep Learning tracker of type ''%s''.',char(s.trackerData{iTrker}.trnNetType));
+              end
+            end
+          end
+        end
+      end
+      
+%       % modernize DL common params
+%       sDLcommon = APTParameters.defaultParamsStructDTCommon;      
+%       s.trackDLParams = structoverlay(sDLcommon,s.trackDLParams);
+      
+      % KB 20190212: reorganized DL parameters -- many specific parameters
+      % were moved to common, and organized common parameters. leaf names
+      % should all be the same, and unique, so just match leaves
+      s = reorganizeDLParams(s);
+      
+      
+      % KB 20190214: all parameters are combined now
+      if ~isTrackParams,
+        s.trackParams = Labeler.trackGetParamsFromStruct(s);
+      end
+      
+      % KB 20190214: store all parameters in each tracker so that we don't
+      % have to delete trackers when tracking parameters change
+      for i = 1:numel(s.trackerData),
+        if isempty(s.trackerData{i}),
+          continue;
+        end
+        if ~isfield(s.trackerData{i},'sPrmAll') || isempty(s.trackerData{i}.sPrmAll),
+          s.trackerData{i}.sPrmAll = s.trackParams;
+        end
+        if isfield(s.trackerData{i},'sPrm') && ~isempty(s.trackerData{i}.sPrm),
+          if strcmp(s.trackerClass{i}{1},'CPRLabelTracker'),
+            CPRParams1 = APTParameters.all2CPRParams(s.trackerData{i}.sPrmAll,numel(s.cfg.LabelPointNames),s.cfg.NumViews);
+            assert(isequaln(CPRParams1,s.trackerData{i}.sPrm));
+          else
+            DLSpecificParams1 = APTParameters.all2DLSpecificParams(s.trackerData{i}.sPrmAll,s.trackerClass{i}{3});
+            assert(isequaln(DLSpecificParams1,s.trackerData{i}.sPrm));
+          end
+        end
+      end
+      
+      if isfield(s,'preProcParams'),
+        s = rmfield(s,'preProcParams');
+      end
+      if isfield(s,'trackDLParams'),
+        s = rmfield(s,'trackDLParams');
+      end
+      
+      for i = 1:numel(s.trackerData),
+        if isfield(s.trackerData{i},'sPrm'),
+          s.trackerData{i} = rmfield(s.trackerData{i},'sPrm');
+        end
+      end
+      
     end
 
   end 
@@ -2929,6 +3137,7 @@ classdef Labeler < handle
         edata = MoviesRemappedEventData.movieRemovedEventData(...
           movIdx,nMovOrigReg,nMovOrigGT,movIdxHasLbls);
         obj.preProcData.movieRemap(edata.mIdxOrig2New);
+        obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
         if gt
           [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
             obj.gtSuggMFTable,'mov',edata.mIdxOrig2New);
@@ -3010,6 +3219,7 @@ classdef Labeler < handle
       edata = MoviesRemappedEventData.moviesReorderedEventData(...
         p,nmov,obj.nmoviesGT);
       obj.preProcData.movieRemap(edata.mIdxOrig2New);
+      obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
       notify(obj,'moviesReordered',edata);
 
       if ~obj.gtIsGTMode
@@ -4350,7 +4560,7 @@ classdef Labeler < handle
       end
     end
   end  
-  methods % showTrx
+  methods % show*
     
     function initShowTrx(obj)
       deleteValidHandles(obj.hTraj);
@@ -4548,6 +4758,24 @@ classdef Labeler < handle
 %       end
     end
     
+    function setShowPredTxtLbl(obj,tf)
+      assert(isscalar(tf));
+      obj.showPredTxtLbl = logical(tf);
+      obj.updateShowPredTxtLbl();
+    end
+    
+    function toggleShowPredTxtLbl(obj)
+      obj.setShowPredTxtLbl(~obj.showPredTxtLbl);
+    end
+    
+    function updateShowPredTxtLbl(obj)
+      tfHideTxtLbl = ~obj.showPredTxtLbl;
+      for i=1:numel(obj.trackersAll)
+        obj.trackersAll{i}.trkVizer.setHideTextLbls(tfHideTxtLbl);
+      end
+      obj.labels2VizShowHideUpdate();      
+    end
+    
   end
   
   %% Labeling
@@ -4677,10 +4905,12 @@ classdef Labeler < handle
         obj.labeledposNeedsSave = true;
       end
       
-      obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = ts;
       obj.(PROPS.LPOSTAG){iMov}(:,iFrm,iTgt) = false;
       if ~obj.gtIsGTMode
         obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
     end
     
@@ -4700,10 +4930,12 @@ classdef Labeler < handle
         obj.labeledposNeedsSave = true;
       end
       
-      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = ts;
       obj.(PROPS.LPOSTAG){iMov}(iPt,iFrm,iTgt) = false;
       if ~obj.gtIsGTMode
         obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
     end
     
@@ -4766,9 +4998,11 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LPOS){iMov}(:,:,iFrm,iTgt) = xy;
-      obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = ts;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -4783,9 +5017,11 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LPOS){iMov}(iPt,:,iFrm,iTgt) = xy;
-      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = ts;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -4817,9 +5053,11 @@ classdef Labeler < handle
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       end
       
-      obj.(PROPS.LPOSTS){iMov}(iPt,frms,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(iPt,frms,iTgt) = ts;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(iPt,frms,iTgt) = true;
+        obj.labeledposMarked{iMov}(iPt,frms,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
 
       obj.labeledposNeedsSave = true;
@@ -4850,14 +5088,18 @@ classdef Labeler < handle
       PROPS = Labeler.gtGetSharedPropsStc(gt);
       nMov = obj.getnmoviesGTawareArg(gt);
       
+      ts = now;
       for iMov=1:nMov
         obj.(PROPS.LPOS){iMov}(:) = nan;        
-        obj.(PROPS.LPOSTS){iMov}(:) = now();
+        obj.(PROPS.LPOSTS){iMov}(:) = ts;
         obj.(PROPS.LPOSTAG){iMov}(:) = false;
         if ~gt
           % unclear what this should be; marked-ness currently unused
           obj.labeledposMarked{iMov}(:) = false; 
         end
+      end
+      if ~gt,
+        obj.lastLabelChangeTS = ts;
       end
       
       obj.updateFrameTableComplete();
@@ -4878,12 +5120,15 @@ classdef Labeler < handle
       lposOld = obj.labeledpos{iMov};
       szassert(xy,size(lposOld));
       obj.labeledpos{iMov} = xy;
-      obj.labeledposTS{iMov}(:) = now();
+      obj.labeledposTS{iMov}(:) = ts;
+      obj.lastLabelChangeTS = max(obj.labeledposTS{iMov}(:));
       obj.labeledposMarked{iMov}(:) = true; % not sure of right treatment
 
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      else
+        obj.lastLabelChangeTS = ts;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -4941,6 +5186,8 @@ classdef Labeler < handle
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      else
+        obj.lastLabelChangeTS = tsnow;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -4980,6 +5227,8 @@ classdef Labeler < handle
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      else
+        obj.lastLabelChangeTS = now;
       end
       obj.labeledposNeedsSave = true;  
       
@@ -5020,9 +5269,11 @@ classdef Labeler < handle
       iTgt = obj.currTarget;
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LPOS){iMov}(iPt,:,iFrm,iTgt) = inf;
-      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
+      ts = now;
+      obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = ts;
       if ~obj.gtIsGTMode
-      obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
+        obj.lastLabelChangeTS = ts;
       end
       obj.labeledposNeedsSave = true;
     end
@@ -5281,8 +5532,12 @@ classdef Labeler < handle
       
       obj.projPrefs.Track.PredictPointsPlotColors = colors;
       obj.projPrefs.Track.PredictPointsPlotColorMapName = colormapname;
+
+      % Just update the current tracker for now. Theoretically we could
+      % show multiple trackers with diff color schema.
       obj.tracker.updateLandmarkColors();
       
+      % Possibly one day replace labeledpos2_* with a trkVizer
       hProp = 'labeledpos2_ptsH';
       hTxtProp = 'labeledpos2_ptsTxtH';
       
@@ -5290,8 +5545,7 @@ classdef Labeler < handle
       for i = 1:obj.nLabelPoints
         set(obj.(hProp)(i),'Color',ptcolors(i,:));
         set(obj.(hTxtProp)(i),'Color',ptcolors(i,:));
-      end      
-      
+      end
     end
 
   end
@@ -5767,7 +6021,9 @@ classdef Labeler < handle
       assert(~obj.gtIsGTMode);
       
       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
-          'labeledposTS','labeledpostag');
+        'labeledposTS','labeledpostag');
+      % need to compute lastLabelChangeTS from scratch
+      obj.computeLastLabelChangeTS();
       
       obj.movieFilesAllHaveLbls(iMovs) = ...
         cellfun(@(x)any(~isnan(x(:))),obj.labeledpos(iMovs));
@@ -5782,6 +6038,13 @@ classdef Labeler < handle
       obj.labelsUpdateNewFrame(true);
       
       RC.saveprop('lastTrkFileImported',trkfiles{end});
+    end
+    
+    % compute lastLabelChangeTS from scratch
+    function computeLastLabelChangeTS(obj)
+      
+      obj.lastLabelChangeTS = cellfun(@(x) max(x(:)),obj.labeledposTS);
+      
     end
     
     function [tfsucc,trkfilesUse] = labelImportTrkFindTrkFilesPrompt(obj,movfiles)
@@ -6009,16 +6272,17 @@ classdef Labeler < handle
       %
       % tblMF: See MFTable.FLDSFULLTRX.
       
-      [wbObj,useLabels2,useMovNames,tblMFTrestrict] = myparse(varargin,...
+      [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                    ... % 1. obj logically const (eg except for obj.trxCache)
                    ... % 2. tblMF (output) indeterminate
         'useLabels2',false,... % if true, use labels2 instead of labels
         'useMovNames',false,... % if true, use movieNames instead of movieIndices
-        'tblMFTrestrict',[]... % if supplied, tblMF is the labeled subset 
+        'tblMFTrestrict',[],... % if supplied, tblMF is the labeled subset 
                            ... % of tblMFTrestrict (within fields .mov, 
                            ... % .frm, .tgt). .mov must be a MovieIndex.
                            ... % tblMF ordering should be as in tblMFTrestrict
+        'useTrain',[]... % whether to use training labels (1) gt labels (0), or whatever current mode is ([])
         ); 
       tfWB = ~isempty(wbObj);
       tfRestrict = ~isempty(tblMFTrestrict);
@@ -6035,19 +6299,53 @@ classdef Labeler < handle
       end
       
       if obj.hasTrx
-        argsTrx = {'trxFilesAllFull',obj.trxFilesAllFullGTaware,...
+        if isempty(useTrain),
+          trxFiles = obj.trxFilesAllFullGTaware;
+        elseif useTrain == 0,
+          trxFiles = obj.trxFilesAllGTFull;
+        else
+          trxFiles = obj.trxFilesAllFull;
+        end
+          
+        argsTrx = {'trxFilesAllFull',trxFiles,...
           'trxCache',obj.trxCache};
       else
         argsTrx = {};
       end
       if useLabels2
-        lpos = obj.labeledpos2GTaware;
-        lpostag = cellfun(@(x)false(size(x)),obj.labeledpostagGTaware,'uni',0);
-        lposTS = cellfun(@(x)-inf(size(x)),obj.labeledposTSGTaware,'uni',0);
+        
+        if isempty(useTrain),
+          lpos = obj.labeledpos2GTaware;
+          lpostag = obj.labeledpostagGTaware;
+          lposTS = obj.labeledposTSGTaware;
+        elseif useTrain == 0,
+          lpos = obj.labeledpos2GT;
+          lpostag = obj.labeledpostagGT;
+          lposTS = obj.labeledposTSGT;
+        else
+          lpos = obj.labeledpos2;
+          lpostag = obj.labeledpostag;
+          lposTS = obj.labeledposTS;
+        end
+        lpostag = cellfun(@(x)false(size(x)),lpostag,'uni',0);
+        lposTS = cellfun(@(x)-inf(size(x)),lposTS,'uni',0);
+        
       else
-        lpos = obj.labeledposGTaware;
-        lpostag = obj.labeledpostagGTaware;
-        lposTS = obj.labeledposTSGTaware;
+        
+        if isempty(useTrain),
+          lpos = obj.labeledposGTaware;
+          lpostag = obj.labeledpostagGTaware;
+          lposTS = obj.labeledposTSGTaware;
+        elseif useTrain == 0,
+          lpos = obj.labeledposGT;
+          lpostag = obj.labeledpostagGT;
+          lposTS = obj.labeledposTSGT;
+        else
+          lpos = obj.labeledpos;
+          lpostag = obj.labeledpostag;
+          lposTS = obj.labeledposTS;
+        end
+        
       end
       
       tblMF = Labeler.labelAddLabelsMFTableStc(tblMF,lpos,lpostag,lposTS,...
@@ -7773,9 +8071,10 @@ classdef Labeler < handle
   methods
     
     function preProcInit(obj)
-      obj.preProcParams = [];
+      %obj.preProcParams = [];
       obj.preProcH0 = [];
       obj.preProcInitData();
+      obj.ppdbInit();
       obj.preProcSaveData = false;
       obj.movieFilesAllHistEqLUT = cell(obj.nmovies,obj.nview);
       obj.movieFilesAllGTHistEqLUT = cell(obj.nmoviesGT,obj.nview);
@@ -7790,35 +8089,47 @@ classdef Labeler < handle
       obj.preProcDataTS = now;
     end
     
-    function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
-      assert(isstruct(ppPrms));
-
-      if ppPrms.histeq 
-        if ppPrms.BackSub.Use
-          error('Histogram Equalization and Background Subtraction cannot both be enabled.');
-        end
-        if ppPrms.NeighborMask.Use
-          error('Histogram Equalization and Neighbor Masking cannot both be enabled.');
-        end
+    function ppdbInit(obj)
+      if isempty(obj.ppdb)
+        obj.ppdb = PreProcDB();
       end
-      
-      ppPrms0 = obj.preProcParams;
-      tfPPprmsChanged = ~isequaln(ppPrms0,ppPrms);
-      if tfPPprmsChanged
-        warningNoTrace('Preprocessing parameters altered; data cache cleared.');
-        obj.preProcInitData();
-        
-        bgPrms = ppPrms.BackSub;
-        mrs = obj.movieReader;
-        for i=1:numel(mrs)
-          mrs(i).open(mrs(i).filename,'bgType',bgPrms.BGType,...
-            'bgReadFcn',bgPrms.BGReadFcn); 
-          % mrs(i) should already be faithful to .forceGrayscale, 
-          % .movieInvert, cropInfo
-        end
-      end
-      obj.preProcParams = ppPrms;
+      obj.ppdb.init();
     end
+    
+    
+    
+%     function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
+%       % ppPrms: OLD-style preproc params
+%       
+%       assert(isstruct(ppPrms));
+% 
+%       if ppPrms.histeq 
+%         if ppPrms.BackSub.Use
+%           error('Histogram Equalization and Background Subtraction cannot both be enabled.');
+%         end
+%         if ppPrms.NeighborMask.Use
+%           error('Histogram Equalization and Neighbor Masking cannot both be enabled.');
+%         end
+%       end
+%       
+%       ppPrms0 = obj.preProcParams;
+%       tfPPprmsChanged = ~isequaln(ppPrms0,ppPrms);
+%       if tfPPprmsChanged
+%         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
+%         obj.preProcInitData();
+%         obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
+%         
+%         bgPrms = ppPrms.BackSub;
+%         mrs = obj.movieReader;
+%         for i=1:numel(mrs)
+%           mrs(i).open(mrs(i).filename,'bgType',bgPrms.BGType,...
+%             'bgReadFcn',bgPrms.BGReadFcn); 
+%           % mrs(i) should already be faithful to .forceGrayscale, 
+%           % .movieInvert, cropInfo
+%         end
+%       end
+%       obj.preProcParams = ppPrms;
+%     end
     
     function preProcNonstandardParamChanged(obj)
       % Normally, preProcSetParams() handles changes to preproc-related
@@ -7833,6 +8144,7 @@ classdef Labeler < handle
       % be cleared.
       
       obj.preProcInitData();
+      obj.ppdbInit();
       for i=1:numel(obj.trackersAll)
         if obj.trackersAll{i}.getHasTrained()
           warningNoTrace('Trained tracker(s) and tracking results cleared.');
@@ -7879,6 +8191,11 @@ classdef Labeler < handle
           tblP.p = tblP.pRoi;        
         end
       else
+        if tblfldscontains(tblP,'pAbs') % AL20190207 add this now some downstream clients want it
+          assert(isequaln(tblP.p,tblP.pAbs));
+        else
+          tblP.pAbs = tblP.p;
+        end
         % none; tblP.p is .pAbs. No .roi field.
       end
     end
@@ -8022,6 +8339,9 @@ classdef Labeler < handle
       % tblPReadFailed: subset of tblP (input) where reads failed
       % tfReadFailed: indicator vec into tblP (input) for failed reads
       
+      % See preProcDataUpdateRaw re 'preProcParams' opt arg. When supplied,
+      % .preProcData is not updated.
+      
       [wbObj,updateRowsMustMatch,prmpp] = myparse(varargin,...
         'wbObj',[],... % WaitBarWithCancel. If cancel: obj unchanged, data and dataIdx are [].
         'updateRowsMustMatch',false, ... % See preProcDataUpdateRaw
@@ -8084,8 +8404,8 @@ classdef Labeler < handle
         'preProcParams',prmpp);
     end
     
-    function [tblPReadFailed,dataNew] = ...
-        preProcDataUpdateRaw(obj,tblPnew,tblPupdate,varargin)
+    function [tblPReadFailed,dataNew] = preProcDataUpdateRaw(obj,...
+        tblPnew,tblPupdate,varargin)
       % Incremental data update
       %
       % * Rows appended and pGT/tfocc updated; but other information
@@ -8113,6 +8433,10 @@ classdef Labeler < handle
       %   these rows as requested.
       %
       % Updates .preProcData, .preProcDataTS
+      
+      % NOTE: when the preProcParams opt arg is [] (isPreProcParamsIn is 
+      % false), this is maybe a separate method, def distinct behavior. 
+      % When isPreProcParamsIn is true, .preProcData is not updated, etc.
       
       dataNew = [];
       
@@ -8164,14 +8488,6 @@ classdef Labeler < handle
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
 
-%         global READFRAMEDATA;
-%         if nNew == size(READFRAMEDATA.I,1),
-%           I = READFRAMEDATA.I;
-%           didread = READFRAMEDATA.didread;
-%           nNborMask = READFRAMEDATA.nNborMask;
-%           tblPReadFailed = READFRAMEDATA.tblPReadFailed;
-%           tblPnew = READFRAMEDATA.tblPnew;
-%         else
         [I,nNborMask,didread] = CPRData.getFrames(tblPNewConcrete,...
           'wbObj',wbObj,...
           'forceGrayscale',obj.movieForceGrayscale,...
@@ -8325,8 +8641,16 @@ classdef Labeler < handle
       if iTrk>0
         tAll{iTrk}.setHideViz(false);
       end
+      obj.labelingInit();
     end
-        
+    
+    function sPrm = setTrackNFramesParams(obj,sPrm)
+      obj.trackNFramesSmall = sPrm.ROOT.Track.NFramesSmall;
+      obj.trackNFramesLarge = sPrm.ROOT.Track.NFramesLarge;
+      obj.trackNFramesNear = sPrm.ROOT.Track.NFramesNeighborhood;
+      sPrm.ROOT.Track = rmfield(sPrm.ROOT.Track,{'NFramesSmall','NFramesLarge','NFramesNeighborhood'});
+    end
+    
     function trackSetParams(obj,sPrm)
       % Set all parameters:
       %  - preproc
@@ -8334,65 +8658,96 @@ classdef Labeler < handle
       %  - common dl
       %  - specific dl
       % 
-      % sPrm: scalar struct containing *new*-style params:
+      % sPrm: scalar struct containing *NEW*-style params:
       % sPrm.ROOT.Track
       %          .CPR
       %          .DeepTrack
+      
+      sPrm = APTParameters.enforceConsistency(sPrm);
 
-      tcprObj = obj.trackGetTracker('cpr');      
-      assert(~isempty(tcprObj));
-        
-      % Future TODO: right now this is hardcoded, eg "DeepTrack" doesn't
-      % match 'poseTF', and lots of special-case code.
-      % Ideally/theoretically the params/trackerObjs would just line up and
-      % setting would just be a simple loop or similar
-      
-      sPrmDT = sPrm.ROOT.DeepTrack;
-      sPrmPPandCPR = sPrm;
-      sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
-      
-      % NOTE: this line already sets some props, despite possible throws
-      % later
-      [sPrmPPandCPRold,obj.trackNFramesSmall,obj.trackNFramesLarge,...
-        obj.trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
-      
-      ppPrms = sPrmPPandCPRold.PreProc;
-      sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
-
-      % THROWS. Some state already mutated. Should be OK for now, its a
-      % partial set but if/when the user tries to set parameters again the
-      % changes should be reflected.
-      tfPPprmsChanged = obj.preProcSetParams(ppPrms); % THROWS
-      
-      tcprObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
-      
-      tDTs = obj.trackersAll(2:end);
-      dlNetTypesPretty = cellfun(@(x)x.trnNetType.prettyString,tDTs,'uni',0);
-      sPrmDTcommon = rmfield(sPrmDT,dlNetTypesPretty);
-      tfDTcommonChanged = obj.trackSetDLParams(sPrmDTcommon);
-      for i=1:numel(tDTs)
-        tObj = tDTs{i};
-        netType = dlNetTypesPretty{i};
-        sPrmDTnet = sPrmDT.(netType);
-        tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonChanged);
+      [tfOK,msgs] = APTParameters.checkParams(sPrm);
+      if ~tfOK,
+        error('%s. ',msgs{:});
       end
+      
+      
+      tfPPprmsChanged = ~APTParameters.isEqualPreProcParams(obj.trackParams,sPrm);
+      sPrm = obj.setTrackNFramesParams(sPrm);
+      obj.trackParams = sPrm;
+      
+      if tfPPprmsChanged
+        warningNoTrace('Preprocessing parameters altered; data cache cleared.');
+        obj.preProcInitData();
+        obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
+        
+        bgPrms = sPrm.ROOT.ImageProcessing.BackSub;
+        mrs = obj.movieReader;
+        for i=1:numel(mrs)
+          mrs(i).open(mrs(i).filename,'bgType',bgPrms.BGType,...
+            'bgReadFcn',bgPrms.BGReadFcn);
+          % mrs(i) should already be faithful to .forceGrayscale,
+          % .movieInvert, cropInfo
+        end
+      end
+      
+      % KB 20190214: this will all happen at training time now -- 
+      
+%       tcprObj = obj.trackGetTracker('cpr');      
+%       assert(~isempty(tcprObj));
+%         
+%       % Future TODO: right now this is hardcoded, eg "DeepTrack" doesn't
+%       % match 'poseTF', and lots of special-case code.
+%       % Ideally/theoretically the params/trackerObjs would just line up and
+%       % setting would just be a simple loop or similar
+%       
+%       sPrmDT = sPrm.ROOT.DeepTrack;
+%       sPrmPPandCPR = sPrm;
+%       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
+%       
+%       % NOTE: this line already sets some props, despite possible throws
+%       % later
+%       [sPrmPPandCPRold,obj.trackNFramesSmall,obj.trackNFramesLarge,...
+%         obj.trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
+%       
+%       ppPrms = sPrmPPandCPRold.PreProc;
+%       sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
+% 
+%       % THROWS. Some state already mutated. Should be OK for now, its a
+%       % partial set but if/when the user tries to set parameters again the
+%       % changes should be reflected.
+%       tfPPprmsChanged = obj.preProcSetParams(ppPrms); % THROWS
+%       
+%       tcprObj.setParamContentsSmart(sPrmCPRold,tfPPprmsChanged);
+%       
+%       tDTs = obj.trackersAll(2:end);
+%       dlNetTypesPretty = cellfun(@(x)x.trnNetType.prettyString,tDTs,'uni',0);
+%       sPrmDTcommon = rmfield(sPrmDT,dlNetTypesPretty);
+%       tfDTcommonChanged = obj.trackSetDLParams(sPrmDTcommon);
+%       tfDTcommonOrPPChanged = tfDTcommonChanged || tfPPprmsChanged;
+%       for i=1:numel(tDTs)
+%         tObj = tDTs{i};
+%         netType = dlNetTypesPretty{i};
+%         sPrmDTnet = sPrmDT.(netType);
+%         tObj.setParamContentsSmart(sPrmDTnet,tfDTcommonOrPPChanged);
+%       end
+
     end
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
-        trackNFramesNear] = convertNew2OldParams(obj,sPrm)
-      % Set ALL tracking parameters; preproc, and all trackers
+        trackNFramesNear] = convertNew2OldParams(obj,sPrm) % obj CONST
+      % Conversion routine
       % 
-      % sPrm: scalar struct containing *new*-style params:
+      % sPrm: scalar struct containing *NEW*-style params:
       % sPrm.ROOT.Track
       %          .CPR
       %          .DeepTrack
               
+      sPrm = APTParameters.enforceConsistency(sPrm);
+      
       sPrmDT = sPrm.ROOT.DeepTrack;
       sPrmPPandCPR = sPrm;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
       
-      % NOTE: this line already sets some props, despite possible throws
-      % later
       [sPrmPPandCPRold,trackNFramesSmall,trackNFramesLarge,...
         trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
       
@@ -8416,66 +8771,98 @@ classdef Labeler < handle
       
       % Future TODO: As in trackSetParams, currently this is hardcoded when
       % it ideally would just be a generic loop
-       
-      tcprObj = obj.trackGetTracker('cpr');
-      assert(~isempty(tcprObj),'CPR tracker object not found.');
-
-      prmCpr = tcprObj.sPrm;
-      prmPP = obj.preProcParams;
-%      assert(~xor(isempty(prmCpr),isempty(prmPP)));
-      if ~isempty(prmCpr)
-        assert(~isempty(prmPP))
-        assert(~isfield(prmCpr,'PreProc'));
-        prmCpr.PreProc = prmPP;
-        sPrm = CPRParam.old2new(prmCpr,obj);
-      else
-        sPrm = struct();
-        % Even if prmCpr/prmPP are empty, these params come from obj.
-        % Something in went astray in the design here, clearly
-        
-        if ~isempty(prmPP)
-          warningNoTrace('Cannot convert preproc params.');
-        end
-        
-        %sPrm.ROOT.Track.Type = char(obj.trackerType);
-        sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
-        sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
-        sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
-        
-        % Other fields of sPrm.ROOT.Track, sPrm.ROOT.CPR will be empty
-      end
       
-      % DL: start with common params
-      sPrm.ROOT.DeepTrack = obj.trackDLParams;
+      sPrm = obj.trackParams;
       
-      tDLs = obj.trackersAll(2:end);
-      for i=1:numel(tDLs)
-        tObj = tDLs{i};
-        netTypePretty = tObj.trnNetType.prettyString;
-        sPrmDT = tObj.getParams();
-        sPrm.ROOT.DeepTrack.(netTypePretty) = sPrmDT;
-      end
+%       tcprObj = obj.trackGetTracker('cpr');
+%       assert(~isempty(tcprObj),'CPR tracker object not found.');
+%       prmCpr = tcprObj.sPrm;
+%       
+%       prmPP = obj.preProcParams;
+%       
+%       prmDLCommon = obj.trackDLParams;
+%       
+%       prmDLSpecific = struct;
+%       tDLs = obj.trackersAll;
+%       for i=1:numel(tDLs)
+%         if ~tDLs{i}.isDeepTracker,
+%           continue;
+%         end
+%         tObj = tDLs{i};
+%         netTypePretty = tObj.trnNetType.prettyString;
+%         if isfield(prmDLSpecific,char(tObj.trnNetType)),
+%           sPrmDT = prmDLSpecific.(char(tObj.trnNetType));
+%         else
+%           sPrmDT = tObj.getParams();
+%         end
+%         prmDLSpecific.(netTypePretty) = sPrmDT;
+%       end
+%       
+%       sPrm = Labeler.trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,obj);
+      
     end
     
-    function tfPrmsChanged = trackSetDLParams(obj,dlPrms) % THROWS
-      assert(isstruct(dlPrms));
-
-      dlPrms0 = obj.trackDLParams;
-      if ~isempty(dlPrms0.CacheDir) && ~isequal(dlPrms0.CacheDir,dlPrms.CacheDir)
-        warningNoTrace('Existing/old trained Deep models will remain on disk at %s but will be inaccessible within APT.',...
-          dlPrms0.CacheDir);
-      end
-      
-      tfPrmsChanged = ~isequaln(dlPrms0,dlPrms);      
-      obj.trackDLParams = dlPrms;
-    end
+%     function tfPrmsChanged = trackSetDLParams(obj,dlPrms) % THROWS
+%       assert(isstruct(dlPrms));
+% 
+%       dlPrms0 = obj.trackDLParams;
+%       if ~isempty(dlPrms0.Saving.CacheDir) && ~isequal(dlPrms0.Saving.CacheDir,dlPrms.Saving.CacheDir)
+%         warningNoTrace('Existing/old trained Deep models will remain on disk at %s but will be inaccessible within APT.',...
+%           dlPrms0.CacheDir);
+%       end
+%       
+%       tfPrmsChanged = ~isequaln(dlPrms0,dlPrms);      
+%       obj.trackDLParams = dlPrms;
+%     end
     
     function trackSetDLBackend(obj,be)
       assert(isa(be,'DLBackEndClass'));
-      [tf,reason] = be.getReadyTrainTrack();
-      if ~tf
-        warningNoTrace('Backend is not ready to train: %s',reason);
+     
+      switch be.type
+        case DLBackEnd.AWS
+          % special-case this to avoid running repeat AWS commands
+          
+          aws = be.awsec2;
+          if ~isempty(aws)            
+            [tfexist,tfrunning] = aws.inspectInstance();
+            if tfexist
+              % AWS auto-shutdown alarm 20190213
+              % The only official way to set the APT backend is here. We add 
+              % a metricalarm here to auto-shutdown the EC2 instance should 
+              % it become idle.
+              %
+              % - We use use a single/unique alarm name (see AWSec2). I think
+              % this an AWS account can only have one alarm at a time, so
+              % adding it here removes it from somewhere else if it is
+              % somewhere else.
+              % - If an account uses multiple instances, some will be
+              % unprotected for now. We expect the typical use case to be a
+              % single instance at a time.
+              % - Currently we never remove the alarm, so it just hangs
+              % around configured for the last instance where it was added. I
+              % don't get the impression that this hurts or that CloudWatch
+              % is expensive etc. Note in particular, the CloudWatch alarm
+              % lifecycle is independent of the EC2 lifecycle. CloudWatch
+              % alarms specify an instance only eg via the 'Dimensions'.
+              % - The alarm(s) is clearly visible on the EC2 dash. I think it
+              % should be ok for now.
+              aws.configureAlarm;
+            end
+          end
+          
+          if isempty(aws) || ~tfexist
+            warningNoTrace('AWS backend is not configured. You will need to configure an instance before training or tracking.');
+          elseif ~tfrunning
+            warningNoTrace('AWS backend instance is not running. You will need to start instance before training or tracking.');
+          end
+          
+        otherwise
+          [tf,reason] = be.getReadyTrainTrack();
+          if ~tf
+            warningNoTrace('Backend is not ready to train: %s',reason);
+          end
       end
+      
       obj.trackDLBackEnd = be;
     end
     
@@ -8516,6 +8903,18 @@ classdef Labeler < handle
         obj.preProcUpdateH0IfNec();
       end
       tObj.retrain(retrainArgs{:});
+    end
+    
+    function [bgTrnIsRunning] = trackBGTrnIsRunning(obj)
+      
+      bgTrnIsRunning = false(1,numel(obj.trackersAll));
+      for i = 1:numel(obj.trackersAll),
+        if isprop(obj.trackersAll{i},'bgTrnIsRunning'),
+          bgTrnIsRunning(i) = obj.trackersAll{i}.bgTrnIsRunning;
+        end
+          
+      end
+      
     end
     
     function [tfCanTrain,reason] = trackCanTrain(obj,varargin)
@@ -8569,6 +8968,15 @@ classdef Labeler < handle
       [tfCanTrack,reason] = obj.tracker.canTrack();
     end
     
+    function tfCanTrack = trackAllCanTrack(obj)
+      
+      tfCanTrack = false(1,numel(obj.trackersAll));
+      for i = 1:numel(obj.trackersAll),
+        tfCanTrack(i) = obj.trackersAll{i}.canTrack;
+      end
+      
+    end
+    
     function track(obj,mftset,varargin)
       % mftset: an MFTSet
       
@@ -8603,17 +9011,76 @@ classdef Labeler < handle
       cellfun(@(x)x.init(),obj.trackersAll);
     end
     
-    function s = trackCreateDeepTrackerStrippedLbl(obj,tblTrnMFT)
-      % For use with DeepTrackers
+    function [tfsucc,tblPTrn,s] = trackCreateDeepTrackerStrippedLbl(obj,varargin)
+      % For use with DeepTrackers. Create stripped lbl based on
+      % .currTracker
       %
-      % tblTrnMFT: training data table. reqd cols MFTable.FLDSID. restrict 
-      %   preProcDataCache export to these rows.
+      % tfsucc: false if user canceled etc.
+      % tblPTrn: table of data-to-be-used as training data
+      % s: scalar struct, stripped lbl struct
+      
+      [wbObj] = myparse(varargin,...
+        'wbObj',[]...
+        );
+      tfWB = ~isempty(wbObj);
       
       if ~obj.hasMovie
         % for NumChans see below
         error('Please select/open a movie.');
+      end      
+      
+      % 
+      % Determine the training set
+      % 
+      
+      tblPTrn = obj.preProcGetMFTableLbled('wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        tfsucc = false;
+        tblPTrn = [];
+        s = [];
+        return;
+      end
+
+      if isempty(tblPTrn)
+        error('No training data available.');
+      end
+
+      if obj.hasTrx
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+      elseif obj.cropProjHasCrops
+        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+      else
+        tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+      end
+    
+      [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPTrn,obj,...
+        'wbObj',wbObj);
+      if tfWB && wbObj.isCancel
+        tfsucc = false;
+        tblPTrn = [];
+        s = [];
+        return;
+      end
+      nMissedReads = height(tblAddReadFailed);
+      if nMissedReads>0
+        warningNoTrace('Removing %d training rows, failed to read images.\n',...
+          nMissedReads);
       end
       
+      assert(all(locAU(~tfAU)==0));
+      
+      ppdbITrn = locAU(tfAU); % row indices into obj.ppdb.dat for our training set
+      tblPTrn = obj.ppdb.dat.MD(ppdbITrn,:);
+      
+      fprintf(1,'Training with %d rows.\n',numel(ppdbITrn));
+      fprintf(1,'Training data summary:\n');
+      obj.ppdb.dat.summarize('mov',ppdbITrn);
+
+      
+      % 
+      % Create the stripped lbl struct
+      % 
+
       s = obj.projGetSaveStruct('forceIncDataCache',true);
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
@@ -8623,7 +9090,7 @@ classdef Labeler < handle
       if ~isscalar(nchan)
         error('Number of channels differs across views.');
       end
-      s.cfg.NumChans = nchan;
+      s.cfg.NumChans = nchan; % see below, we change this again
       
 %       if nchan>1
 %         warningNoTrace('Images have %d channels. Typically grayscale images are preferred; select View>Convert to grayscale.',nchan);
@@ -8637,49 +9104,65 @@ classdef Labeler < handle
       warning(warnst);
       s.cropProjHasCrops = obj.cropProjHasCrops;
       
-      if isfield(s,'preProcData') && ~isempty(s.preProcData)
-        % De-objectize .preProcData (CPRData)
-        
-        ppdata = s.preProcData;
-        ppdataMD = ppdata.MD;
-        
-        tfInc = tblismember(ppdataMD,tblTrnMFT,MFTable.FLDSID);
-        fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
-          nnz(tfInc),numel(tfInc));
-        
-        ppdataMD = ppdataMD(tfInc,:);
-        ppdataI = ppdata.I(tfInc,:);
-        
-        ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
-        ppMDflds = tblflds(ppdataMD);
-        s.preProcData_I = ppdataI;
-        for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
-          sfld = ['preProcData_MD_' f];
-          s.(sfld) = ppdataMD.(f);
-        end
-        s = rmfield(s,'preProcData');
+      % De-objectize .ppdb.dat (CPRData)
+      ppdata = s.ppdb.dat;
+      
+      fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
+        numel(ppdbITrn),ppdata.N);
+      
+      ppdataI = ppdata.I(ppdbITrn,:);
+      ppdataP = ppdata.pGT(ppdbITrn,:);
+      ppdataMD = ppdata.MD(ppdbITrn,:);
+      
+      ppdataMD.mov = int32(ppdataMD.mov); % MovieIndex
+      ppMDflds = tblflds(ppdataMD);
+      s.preProcData_I = ppdataI;
+      s.preProcData_P = ppdataP;
+      for f=ppMDflds(:)',f=f{1}; %#ok<FXSET>
+        sfld = ['preProcData_MD_' f];
+        s.(sfld) = ppdataMD.(f);
       end
+      s = rmfield(s,{'ppdb' 'preProcData'});
       
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
       
-      tdata = s.trackerData{s.currTracker};
-      sPrmDL = obj.trackDLParams;
-      sPrmDL = rmfield(sPrmDL,'CacheDir');
-      tdata.sPrm = structmerge(tdata.sPrm,sPrmDL);
-      s.trackerData = {[] tdata};      
       
-%       tf = strcmp(s.trackerClass,'DeepTracker');
-%       i = find(tf);
-%       switch numel(i)
-%         case 0
-%           assert(false);
-%         case 1
-%           % none
-%         otherwise
-%           warningNoTrace('Multiple DeepTrackers found; the first will be used.');
-%           i = i(1);
-%       end
-      %s.trackerDeepData = s.trackerData{i};
+      %
+      % Final Massage
+      % 
+      
+      tdata = s.trackerData{s.currTracker};
+      tdata.trnNetTypeString = char(tdata.trnNetType);
+      
+      tftrx = obj.hasTrx;      
+      if tftrx
+        
+        % KB 20190212: ignore sizex and sizey, these will be removed
+        %roirad = s.trackParams.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
+        %tdata.sPrm.sizex = 2*roirad+1;
+        %tdata.sPrm.sizey = 2*roirad+1;
+
+%         dlszx = tdata.sPrm.ImageProcessing.sizex;
+%         dlszy = tdata.sPrm.ImageProcessing.sizey;
+%         szroi = 2*roirad+1;
+%         if dlszx~=szroi
+%           warningNoTrace('Target ROI Radius is %d while DeepTrack sizeX is %d. Setting sizeX to %d to match ROI Radius.',roirad,dlszx,szroi);
+%           tdata.sPrm.sizex = szroi;
+%         end
+%         if dlszy~=szroi
+%           warningNoTrace('Target ROI Radius is %d while DeepTrack sizeY is %d. Setting sizeY to %d to match ROI Radius.',roirad,dlszy,szroi);
+%           tdata.sPrm.sizey = szroi;
+%         end
+        
+      end
+      s.trackerData = {[] tdata};
+      s.nLabels = ppdata.N;
+      
+      % check with Mayank, thought we wanted number of "underlying" chans
+      % but DL is erring when pp data is grayscale but NumChans is 3
+      s.cfg.NumChans = size(s.preProcData_I{1},3);
+      
+      tfsucc = true;
     end
     
     function trackAndExport(obj,mftset,varargin)
@@ -8741,6 +9224,7 @@ classdef Labeler < handle
         tObj.clearTrackingResults();
         fprintf('Time to clear tracking results: %f\n',toc(startTime)); startTime = tic;
         obj.preProcInitData();
+        obj.ppdbInit(); % putting this here just b/c the above line, quite possibly unnec
         fprintf('Time to reinitialize data: %f\n',toc(startTime)); startTime = tic;
       end
     end
@@ -8872,6 +9356,7 @@ classdef Labeler < handle
       % Basically an initHook() here
       if initData
         obj.preProcInitData();
+        obj.ppdbInit();
       end
       tObj.trnDataInit(); % not strictly necessary as .retrain() should do it 
       tObj.trnResInit(); % not strictly necessary as .retrain() should do it 
@@ -8904,6 +9389,7 @@ classdef Labeler < handle
         [tblTrkRes,pTrkiPt] = tObj.getAllTrackResTable(); % if wbObj.isCancel, partial tracking results
         if initData
           obj.preProcInitData();
+          obj.ppdbInit();
         end
         tObj.trnDataInit();
         tObj.trnResInit();
@@ -9247,6 +9733,84 @@ classdef Labeler < handle
       trkErr = nan(height(tblBig),1);
       trkErr(tf) = dErr;
     end
+    
+    function sPrm = trackGetParamsFromStruct(s)
+      % Get all parameters:
+      %  - preproc
+      %  - cpr
+      %  - common dl
+      %  - specific dl
+      %
+      % sPrm: scalar struct containing NEW-style params:
+      % sPrm.ROOT.Track
+      %          .CPR
+      %          .DeepTrack (if applicable)
+      % Top-level fields .Track, .CPR, .DeepTrack may be missing if they
+      % don't exist yet.
+      
+      % Future TODO: As in trackSetParams, currently this is hardcoded when
+      % it ideally would just be a generic loop
+      
+      if isfield(s,'trackParams'),
+        sPrm = s.trackParams;
+        return;
+      end
+      
+      for iTrk=1:numel(s.trackerData)
+        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker')
+          prmCpr = s.trackerData{iTrk}.sPrm;
+          break;
+        end
+      end
+      
+      prmPP = s.preProcParams;
+      
+      prmDLCommon = s.trackDLParams;
+      
+      prmDLSpecific = struct;
+      for i = 1:numel(s.trackerData),
+        if ~strcmp(s.trackerClass{i}{1},'DeepTracker') || isempty(s.trackerData{i}),
+          continue;
+        end
+        trnNetType = s.trackerData{i}.trnNetType.prettyString;
+        prmDLSpecific.(trnNetType) = s.trackerData{i}.sPrm;
+      end
+      
+      prmTrack = struct;
+      prmTrack.trackNFramesSmall = s.cfg.Track.PredictFrameStep;
+      prmTrack.trackNFramesLarge = s.cfg.Track.PredictFrameStepBig;
+      prmTrack.trackNFramesNear = s.cfg.Track.PredictNeighborhood;
+      
+      sPrm = Labeler.trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,prmTrack);
+      
+    end
+    
+    function sPrmAll = trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,obj)
+      
+      sPrmAll = APTParameters.defaultParamsStructAll;
+      
+%      assert(~xor(isempty(prmCpr),isempty(prmPP)));
+      if ~isempty(prmCpr)
+        sPrmAll = APTParameters.setCPRParams(sPrmAll,prmCpr);
+      end
+      if ~isempty(prmPP),
+        sPrmAll = APTParameters.setPreProcParams(sPrmAll,prmPP);
+      end
+      if ~isempty(obj)
+        sPrmAll = APTParameters.setNFramesTrackParams(sPrmAll,obj);
+      end
+      if ~isempty(prmDLCommon)
+        sPrmAll = APTParameters.setTrackDLParams(sPrmAll,prmDLCommon);
+      end
+            
+      % specific parameters
+      fns = fieldnames(prmDLSpecific);
+      for i = 1:numel(fns),
+        sPrmAll = APTParameters.setDLSpecificParams(sPrmAll,fns{i},prmDLSpecific.(fns{i}));
+      end
+      
+    end
+    
   end
   methods    
     function tblBig = trackGetBigLabeledTrackedTable(obj,varargin)
@@ -11427,16 +11991,21 @@ classdef Labeler < handle
         obj.labeledpos2_ptsTxtH,txtOffset);
     end
     
+    function labels2VizShowHideUpdate(obj)
+      onoff = onIff(~obj.labels2Hide);
+      onofftxt = onIff(~obj.labels2Hide && obj.showPredTxtLbl);
+      [obj.labeledpos2_ptsH.Visible] = deal(onoff);
+      [obj.labeledpos2_ptsTxtH.Visible] = deal(onofftxt);
+    end
+    
     function labels2VizShow(obj)
-      [obj.labeledpos2_ptsH.Visible] = deal('on');
-      [obj.labeledpos2_ptsTxtH.Visible] = deal('on');
       obj.labels2Hide = false;
+      obj.labels2VizShowHideUpdate();
     end
     
     function labels2VizHide(obj)
-      [obj.labeledpos2_ptsH.Visible] = deal('off');
-      [obj.labeledpos2_ptsTxtH.Visible] = deal('off');
       obj.labels2Hide = true;
+      obj.labels2VizShowHideUpdate();
     end
     
     function labels2VizToggle(obj)

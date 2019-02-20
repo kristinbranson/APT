@@ -7,7 +7,7 @@ t = lclParse(s);
 
 function tagg = lclParse(s)
 
-vallen = 8;
+vallen = 9;
 
 fns = fieldnames(s);
 tagg = [];

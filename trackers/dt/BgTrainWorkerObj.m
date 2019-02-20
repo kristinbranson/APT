@@ -8,6 +8,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
   
   properties
     trnLogLastStep; % [nview] int. most recent last step from training json logs
+    trnLogPrev = [];
   end
   
   methods
@@ -21,8 +22,10 @@ classdef BgTrainWorkerObj < BgWorkerObj
             
       % - Read the json for every view and see if it has been updated.
       % - Check for completion 
+      dmcs = obj.dmcs;
+      njobs = numel(dmcs);
       sRes = struct(...
-        'pollsuccess',cell(obj.nviews,1),... % if true, remote poll cmd was successful
+        'pollsuccess',cell(njobs,1),... % if true, remote poll cmd was successful
         'pollts',[],... % datenum time that poll cmd returned
         'jsonPath',[],... % char, full path to json trnlog being polled
         'jsonPresent',[],... % true if file exists. if false, remaining fields are indeterminate
@@ -38,9 +41,8 @@ classdef BgTrainWorkerObj < BgWorkerObj
         'killFile',[],... % char, full path to KILL tokfile
         'killFileExists',[]... % true if KILL tokfile found
         );
-      dmcs = obj.dmcs;
       killFiles = obj.getKillFiles();
-      for ivw=1:obj.nviews
+      for ivw=1:njobs,
         dmc = dmcs(ivw);
         json = dmc.trainDataLnx;
         finalindex = dmc.trainFinalIndexLnx;
@@ -62,10 +64,20 @@ classdef BgTrainWorkerObj < BgWorkerObj
         sRes(ivw).killFileExists = obj.fileExists(killFile);        
         
         if sRes(ivw).jsonPresent
-          json = obj.fileContents(json);
-          trnLog = jsondecode(json);
-          lastKnownStep = obj.trnLogLastStep(ivw);
+          try
+            json = obj.fileContents(json);
+            trnLog = jsondecode(json);
+          catch ME
+            warning('Failed to read json file for training progress update:\n%s',getReport(ME));
+            if ~isempty(obj.trnLogPrev),
+              trnLog = obj.trnLogPrev;
+            else
+              sRes(ivw).jsonPresent = false;
+              continue;
+            end
+          end
           newStep = trnLog.step(end);
+          lastKnownStep = obj.trnLogLastStep(ivw);
           tfupdate = newStep>lastKnownStep;
           sRes(ivw).tfUpdate = tfupdate;
           if tfupdate
@@ -85,13 +97,13 @@ classdef BgTrainWorkerObj < BgWorkerObj
     end
     
     function logFiles = getLogFiles(obj)
-      logFiles = {obj.dmcs.trainLogLnx}';
+      logFiles = unique({obj.dmcs.trainLogLnx}');
     end
     
     function errFile = getErrFile(obj)
       errFile = unique({obj.dmcs.errfileLnx}');
-      assert(isscalar(errFile));
-      errFile = errFile{1};
+%       assert(isscalar(errFile));
+%       errFile = errFile{1};
     end
 
   end

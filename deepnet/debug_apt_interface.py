@@ -1,3 +1,66 @@
+cmd = '-name 20190129T180959 -view 1 -cache /home/mayank/temp/apt_cache -err_file /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T180959/trk/movie_trn20190129T180959_iter20000_20190208T141629.err -model_files /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T180959/deepnet-20000 -type mdn /home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl track -mov /home/mayank/work/FlySpaceTime/cx_GMR_SS00038_CsChr_RigB_20150729T150617/movie.ufmf -out /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T180959/trk/movie_trn20190129T180959_iter20000_20190208T141629.trk -start_frame 8496 -end_frame 8696 -trx /home/mayank/work/FlySpaceTime/cx_GMR_SS00038_CsChr_RigB_20150729T150617/registered_trx.mat -trx_ids 3'
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
+lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190131T181525_20190131T181623.lbl'
+import APT_interface as apt
+import os
+import tensorflow as tf
+import multiResData
+apt.test_preproc(lbl_file)
+##
+lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl'
+import APT_interface as apt
+import os
+import tensorflow as tf
+import multiResData
+conf = apt.create_conf(lbl_file,0,'compare_cache','/home/mayank/temp/apt_cache','mdn')
+
+conf.trainfilename = 'normal.tfrecords'
+n_envs = multiResData.create_envs(conf,False)
+conf.trainfilename = 'cached.tfrecords'
+c_envs = multiResData.create_envs(conf,False)
+
+n_out_fns = [lambda data: n_envs[0].write(apt.tf_serialize(data)),
+           lambda data: n_envs[1].write(apt.tf_serialize(data))]
+c_out_fns = [lambda data: c_envs[0].write(apt.tf_serialize(data)),
+           lambda data: c_envs[1].write(apt.tf_serialize(data))]
+
+splits = apt.db_from_cached_lbl(conf, c_out_fns, False, None, False)
+splits = apt.db_from_lbl(conf, n_out_fns, False, None, False)
+c_envs[0].close()
+n_envs[0].close()
+
+c_file_name = os.path.join(conf.cachedir,'cached.tfrecords')
+n_file_name = os.path.join(conf.cachedir,'normal.tfrecords')
+A = []
+A.append(multiResData.read_and_decode_without_session(c_file_name,conf,()))
+A.append(multiResData.read_and_decode_without_session(n_file_name,conf,()))
+
+ims1= np.array(A[0][0]).astype('float')
+ims2 = np.array(A[1][0]).astype('float')
+locs1 = np.array(A[0][1])
+locs2 = np.array(A[1][1])
+
+ndx = np.random.choice(ims1.shape[0])
+f,ax = plt.subplots(1,2,sharex=True,sharey=True)
+ax = ax.flatten()
+ax[0].imshow(ims1[ndx,:,:,0],'gray',vmin=0,vmax=255)
+ax[1].imshow(ims2[ndx,:,:,0],'gray',vmin=0,vmax=255)
+ax[0].scatter(locs1[ndx,:,0],locs1[ndx,:,1])
+ax[1].scatter(locs2[ndx,:,0],locs2[ndx,:,1])
+
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd = '-name 20190129T144258 -view 1 -cache /home/mayank/temp/apt_cache -err_file /home/mayank/temp/apt_cache/multitarget_bubble/20190129T144258_20190129T144311.err -type mdn /home/mayank/temp/apt_cache/multitarget_bubble/20190129T144258_20190129T144311.lbl train -use_cache'
+apt.main(cmd.split())
+
+##
+
 import APT_interface as apt
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'

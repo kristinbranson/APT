@@ -107,11 +107,11 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       nr = obj.initVizInfo.nr;
       nc = obj.initVizInfo.nc;
      
-      [~,~,d] = lObj.tracker.preretrain(obj.initVizInfo.tblPTrn1,[],ppPrms);
+      d = lObj.tracker.fetchPreProcData(obj.initVizInfo.tblPTrn1,ppPrms);
       % make sure that this is the same as if we use the whole data set,
       % histogram equalization might depend on all the data
       
-      imsz = cellfun(@size,d.ITrn,'Uni',0);
+      imsz = cellfun(@size,d.I,'Uni',0);
       for i = 1:numel(imsz),
         if numel(imsz{i}) < 3,
           imsz{i}(end+1) = 1;
@@ -120,13 +120,13 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       maxr = max(cellfun(@(x) x(:,1),imsz));
       maxc = max(cellfun(@(x) x(:,2),imsz));
       maxchn = max(cellfun(@(x) x(:,3),imsz));
-      im = zeros([maxr*nr,maxc*nc,maxchn],class(d.ITrn{1}));
+      im = zeros([maxr*nr,maxc*nc,maxchn],class(d.I{1}));
       toplefts = nan(nshow,2);
       for i = 1:nshow,
         [r,c] = ind2sub([nr,nc],i);
         offr = (r-1)*maxr;
         offc = (c-1)*maxc;
-        imcurr = d.ITrn{i};
+        imcurr = d.I{i};
         if imsz{i}(3) < maxchn,
           imcurr = repmat(imcurr(:,:,1),[1,1,maxchn]);
         end

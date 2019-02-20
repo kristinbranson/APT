@@ -49,18 +49,19 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       
       %dmcs = obj.dmcs;
       killfiles = obj.getKillFiles();%{dmcs.killTokenLnx};
+      killfiles = unique(killfiles);
       jobids = obj.jobID;
       nvw = obj.nviews;
-      assert(isequal(nvw,numel(jobids),numel(killfiles)));
+      assert(isequal(numel(jobids),numel(killfiles)));
       
-      for ivw=1:nvw
+      for ivw=1:numel(jobids),
         obj.killJob(jobids(ivw));
       end
 
       iterWaitTime = obj.killPollIterWaitTime;
       maxWaitTime = obj.killPollMaxWaitTime;
 
-      for ivw=1:nvw
+      for ivw=1:numel(jobids),
         fcn = obj.makeJobKilledPollFcn(jobids(ivw));
         tfsucc = waitforPoll(fcn,iterWaitTime,maxWaitTime);
         
@@ -86,21 +87,14 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       
       jobids = obj.jobID;
       nvw = obj.nviews;
-      assert(isequal(nvw,numel(jobids)));
+      %assert(isequal(nvw,numel(jobids)));
       
-      res = cell(1,nvw);
-      for ivw=1:nvw
+      res = repmat({''},[1,nvw]);
+      for ivw=1:numel(jobids),
         res{ivw} = obj.queryJobStatus(jobids(ivw));
       end
       
     end
-    
-    function res = queryJobStatus(obj,jID)
-      
-      res = 'Not implemented.';
-      
-    end
-    
         
   end
     

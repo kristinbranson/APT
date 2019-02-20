@@ -5,6 +5,7 @@ classdef TrackMonitorViz < handle
     hannlastupdated % [1] textbox/annotation handle
     hline % [nviewx1] patch handle showing fraction of frames tracked
     htext % [nviewx1] text handle showing fraction of frames tracked
+    htrackerInfo % scalar text box handle showing information about current tracker
     isKilled = false; % scalar, whether tracking has been halted
     
     resLast = []; % last contents received
@@ -22,7 +23,9 @@ classdef TrackMonitorViz < handle
       'Show log files'...
       'Show error messages'}},...
       'Docker',...
-      {{'Update tracking monitor'...
+      {{'List all docker jobs'...
+      'Show tracking jobs'' status',...
+      'Update tracking monitor'...
       'Show log files'...
       'Show error messages'}},...
       'AWS',...
@@ -46,11 +49,15 @@ classdef TrackMonitorViz < handle
       obj.hfig.UserData = 'running';
       obj.haxs = [handles.axes_wait];
       obj.hannlastupdated = handles.text_clusterstatus;
+      obj.htrackerInfo = handles.edit_trackerinfo;
 
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);
       obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
+	  % set info about current tracker
+      s = obj.dtObj.getTrackerInfoString();
+      obj.htrackerInfo.String = s;
       handles.popupmenu_actions.String = obj.actions.(char(backEnd));
       handles.popupmenu_actions.Value = 1;
       handles.axes_wait.YLim = [0,nview];
@@ -75,13 +82,15 @@ classdef TrackMonitorViz < handle
         obj.htext(ivw) = text((1+obj.minFracComplete)/2,ivw-.5,...
           sprintf('0/%d frames tracked%s',obj.nFramesToTrack,sview),...
           'Color','w','HorizontalAlignment','center',...
-          'VerticalAlignment','middle');
+          'VerticalAlignment','middle','Parent',handles.axes_wait);
       end
       
       obj.resLast = [];
       obj.parttrkfileTimestamps = zeros(1,nview);
       obj.nFramesTracked = zeros(1,nview);
+            
     end
+    
     function delete(obj)
       deleteValidHandles(obj.hfig);
       obj.hfig = [];
@@ -103,6 +112,10 @@ classdef TrackMonitorViz < handle
       fprintf('N. frames tracked: ');
       nview = numel(res);
 
+      % always update info about current tracker, as labels may have changed
+      s = obj.dtObj.getTrackerInfoString();
+      obj.htrackerInfo.String = s;
+
       tic;
       for ivw=1:nview,
         isdone = res(ivw).tfComplete;
@@ -118,12 +131,28 @@ classdef TrackMonitorViz < handle
               obj.nFramesTracked(ivw) = nanmax(res(ivw).parttrkfileNfrmtracked,...
                 res(ivw).trkfileNfrmtracked);
             else
+              didload = false;
               if isdone,
-                ptrk = load(res(ivw).trkfile,'pTrk','-mat');
+                try
+                  ptrk = load(res(ivw).trkfile,'pTrk','-mat');
+                  didload = true;
+                catch,
+                  warning('isdone = true and coult not load pTrk');
+                end
               else
-                ptrk = load(res(ivw).parttrkfile,'pTrk','-mat');
-              end          
-              obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
+                try
+                  ptrk = load(res(ivw).parttrkfile,'pTrk','-mat');
+                  didload = true;
+                catch,
+                end
+              end
+              if didload && isfield(ptrk,'pTrk'),
+                try
+                  obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
+                catch ME
+                  warning(getReport(ME));
+                end
+              end
             end
             
             if nview > 1,
@@ -265,7 +294,7 @@ classdef TrackMonitorViz < handle
         case 'Update tracking monitor',
           obj.updateMonitorPlots();
           drawnow;
-        case 'List all jobs on cluster',
+        case {'List all jobs on cluster','List all docker jobs'},
           ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
           drawnow;

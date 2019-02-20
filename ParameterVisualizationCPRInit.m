@@ -89,12 +89,18 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
         idx = unique(round(linspace(1,nlabeled,nshow)));
         tblPTrn1 = tblPTrn(idx,:);
       end
-      [~,~,d] = lObj.tracker.preretrain(tblPTrn1,[],ppPrms);
+      % AL20190128: due to prop constraints this can now get called when a 
+      % tracker-that-is-not-cpr is currently selected; could just not call
+      % this at all
+      tObj = lObj.trackGetTracker('cpr');
+      d = tObj.fetchPreProcData(tblPTrn1,ppPrms);
       
       % get initializations
       bboxes = repmat(d.bboxesTrn(1,:),[nlabeled,1]);
       bboxes(idx,:) = d.bboxesTrn;
-      p0 = lObj.tracker.randInit(tblPTrn,bboxes,'CPRParams',sPrmCPRold);
+            
+      p0 = tObj.randInit(tblPTrn,bboxes,'CPRParams',sPrmCPRold,...
+        'preProcParams',ppPrms);
       npts = sPrmCPRold.Model.nfids;
       sz = size(p0);
       p0 = reshape(p0,[sz(1:2),npts,2,sz(4:end)]);

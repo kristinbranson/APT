@@ -218,6 +218,15 @@ handles.menu_view_hide_imported_predictions = uimenu('Parent',handles.menu_view,
   'Tag','menu_view_hide_imported_predictions',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_imported_predictions,handles.menu_view_hide_predictions);
+handles.menu_view_showhide_advanced = uimenu('Parent',handles.menu_view,...
+  'Label','Advanced',...
+  'Tag','menu_view_showhide_advanced');
+moveMenuItemAfter(handles.menu_view_showhide_advanced,handles.menu_view_landmark_colors);
+handles.menu_view_showhide_advanced_hidepredtxtlbls = uimenu('Parent',handles.menu_view_showhide_advanced,...
+  'Label','Hide Prediction Text Labels',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_advanced_hidepredtxtlbls_Callback',hObject,eventdata,guidata(hObject)),...
+  'Tag','menu_view_showhide_advanced_hidepredtxtlbls',...
+  'Checked','off');
 
 handles.menu_view_hide_trajectories = uimenu('Parent',handles.menu_view,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_hide_trajectories_Callback',hObject,eventdata,guidata(hObject)),...
@@ -530,12 +539,15 @@ listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 %listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
+listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
+listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'showOccludedBox','PostSet',@cbkShowOccludedBoxChanged);
 listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
+listeners{end+1,1} = addlistener(lObj,'showPredTxtLbl','PostSet',@cbkShowPredTxtLblChanged);
 listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxChanged);
@@ -580,6 +592,7 @@ handles.propsNeedInit = {
   'suspScore' 
   'showTrx' 
   'showTrxCurrTargetOnly'
+  'showPredTxtLbl'
   'currTracker'  
   'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
   'trackModeIdx'
@@ -647,6 +660,7 @@ switch lower(state),
     set(handles.pbClearAllCrops,'Enable','off');
     set(handles.pushbutton_exitcropmode,'Enable','off');
     set(handles.uipanel_cropcontrols,'Visible','off');
+    set(handles.text_trackerinfo,'Visible','on');
     
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
@@ -683,6 +697,7 @@ switch lower(state),
     set(handles.pbClearAllCrops,'Enable','off');
     set(handles.pushbutton_exitcropmode,'Enable','off');
     set(handles.uipanel_cropcontrols,'Visible','off');
+    set(handles.text_trackerinfo,'Visible','off');
     
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
@@ -729,6 +744,8 @@ switch lower(state),
     set(handles.pbClearAllCrops,'Enable','off');
     set(handles.pushbutton_exitcropmode,'Enable','off');
     set(handles.uipanel_cropcontrols,'Visible','off');    
+    set(handles.text_trackerinfo,'Visible','off');
+
     
     set(handles.pbClearSelection,'Enable','off');
     set(handles.pumInfo,'Enable','off');
@@ -1433,6 +1450,8 @@ lObj = src;
 handles = lObj.gdata;
 cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
 EnableControls(handles,'projectloaded');
+% update tracker info when loading in new trackers
+lObj.tracker.updateTrackerInfo();
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
@@ -1852,9 +1871,11 @@ if tfTracker
     updateTrackBackendConfigMenuChecked(handles,tObj.lObj);
   end
   
+  listenersNew{end+1,1} = tObj.addlistener('trackerInfo','PostSet',@(src1,evt1) cbkTrackerInfoChanged(src1,evt1));
+  
   % Listeners, general tracker
   listenersNew{end+1,1} = tObj.addlistener('hideViz','PostSet',...
-    @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); %#ok<NASGU>
+    @(src1,evt1) cbkTrackerHideVizChanged(src1,evt1,handles.menu_view_hide_predictions)); 
 
   % Listeners, algo-specific
   switch tObj.algorithmName
@@ -1951,14 +1972,23 @@ end
 function cbkTrackerBackendAWSSetInstance(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-[tfsucc,instanceID,pemFile] = AWSec2.configureUI();
+be = lObj.trackDLBackEnd;
+assert(be.type==DLBackEnd.AWS);
+
+aws = be.awsec2;
+if ~isempty(aws)
+  tfsucc = aws.respecifyInstance();
+else
+  [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
+  if tfsucc
+    aws = AWSec2(pemFile,'instanceID',instanceID);
+    be.awsec2 = aws;
+  end
+end
+
 if tfsucc
-  aws = AWSec2(pemFile,'instanceID',instanceID);  
-  aws.inspectInstance;
-  dlbe = lObj.trackDLBackEnd;
-  assert(dlbe.type==DLBackEnd.AWS);
-  dlbe.awsec2 = aws;
-  lObj.trackSetDLBackend(dlbe);
+  %aws.checkInstanceRunning('throwErrs',false);
+  lObj.trackSetDLBackend(be);
 end
 
 function cbkTrackersAllChanged(src,evt)
@@ -1981,7 +2011,10 @@ handles = lObj.gdata;
 
 tObj = lObj.tracker;
 iTrker = lObj.currTracker;
+
 handles = setupTrackerMenusListeners(handles,tObj,iTrker);
+% tracker changed, update tracker info
+tObj.updateTrackerInfo();
 handles.labelTLInfo.setTracker(tObj);
 handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
@@ -2831,6 +2864,12 @@ ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
 function menu_file_quit_Callback(hObject, eventdata, handles)
 CloseGUI(handles);
 
+function cbkShowPredTxtLblChanged(src,evt)
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(~lObj.showPredTxtLbl);
+handles.menu_view_showhide_advanced_hidepredtxtlbls.Checked = onOff;
+
 function cbkShowTrxChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
@@ -2939,6 +2978,10 @@ function menu_view_hide_imported_predictions_Callback(hObject, eventdata, handle
 lObj = handles.labelerObj;
 lObj.labels2VizToggle();
 
+function menu_view_showhide_advanced_hidepredtxtlbls_Callback(hObject, eventdata, handles)
+lObj = handles.labelerObj;
+lObj.toggleShowPredTxtLbl();
+
 function cbkTrackerShowVizReplicatesChanged(hObject, eventdata, handles)
 handles.menu_track_cpr_show_replicates.Checked = ...
   onIff(handles.labelerObj.tracker.showVizReplicates);
@@ -3006,6 +3049,29 @@ if isempty(lObj.tracker)
   handles = lObj.gdata;
   handles.menu_view_hide_predictions.Checked = onIff(lObj.labels2Hide);
 end
+
+% when trackerInfo is updated, update the tracker info text in the main APT window
+function cbkTrackerInfoChanged(src,evt)
+
+tObj = evt.AffectedObject;
+tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
+
+% when lastLabelChangeTS is updated, update the tracker info text in the main APT window
+function cbkLastLabelChangeTS(src,evt)
+
+lObj = evt.AffectedObject;
+if isempty(lObj.trackersAll) || isempty(lObj.tracker),
+  return;
+end
+lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
+
+function cbkParameterChange(src,evt)
+
+lObj = evt.AffectedObject;
+if isempty(lObj.trackersAll) || isempty(lObj.tracker),
+  return;
+end
+lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
 
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
 % just use checked state of menu for now, no other state
@@ -3126,11 +3192,26 @@ end
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 % Really, "configure parameters"
 
+lObj = handles.labelerObj;
+if any(lObj.trackBGTrnIsRunning),
+  warndlg('Cannot change tracker parameters while trackers are training.','Training in progress','modal');
+  return;
+end
 SetStatus(handles,'Setting tracking parameters...');
 
-lObj = handles.labelerObj;
 % tObj = lObj.tracker;
 % assert(~isempty(tObj));
+
+% KB 20190214 - don't delete trackers anymore!
+% tfCanTrack = lObj.trackAllCanTrack();
+% if any(tfCanTrack),
+%   nTrackers = nnz(tfCanTrack);
+%   res = questdlg(sprintf('%d trackers have been trained. Updating parameters will result in one or more of them being deleted, and they will need to be retrained.',nTrackers),...
+%     'Update tracking parameters','Continue','Cancel','Continue');
+%   if strcmpi(res,'Cancel'),
+%     return;
+%   end
+% end
 
 sPrmCurrent = lObj.trackGetParams();
 
@@ -3153,16 +3234,6 @@ else
 end
 
 ClearStatus(handles);
-
-% function cbkTrackerTrnDataDownSampChanged(src,evt,handles)
-% tracker = evt.AffectedObject;
-% if tracker.trnDataDownSamp
-%   handles.menu_track_use_all_labels_to_train.Checked = 'off';
-%   handles.menu_track_select_training_data.Checked = 'on';
-% else
-%   handles.menu_track_use_all_labels_to_train.Checked = 'on';
-%   handles.menu_track_select_training_data.Checked = 'off';
-% end
 
 function menu_track_use_all_labels_to_train_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -3692,6 +3763,8 @@ onIfTrue = onIff(tf);
 offIfTrue = onIff(~tf);
 %cellfun(@(x)set(handles.(x),'Visible',onIfTrue),CROPCONTROLS);
 set(handles.uipanel_cropcontrols,'Visible',onIfTrue);
+set(handles.text_trackerinfo,'Visible',offIfTrue);
+
 cellfun(@(x)set(handles.(x),'Visible',offIfTrue),REGCONTROLS);
 handles.menu_file_crop_mode.Checked = onIfTrue;
 
@@ -3972,11 +4045,14 @@ else
   colormapname = '';
 end
 
-[ischange,newcolors,newcolormapname] = LandmarkColors(colors,colormapname,nlandmarks,'Label colors');
+lObj = handles.labelerObj;
+applyCbkFcn = @(clrs,clrmapname)lObj.updateLandmarkLabelColors(clrs,clrmapname);
+[ischange,newcolors,newcolormapname] = ...
+  LandmarkColors(colors,colormapname,nlandmarks,'Label colors',applyCbkFcn);
 if ~ischange,
   return;
 end
-handles.labelerObj.updateLandmarkLabelColors(newcolors,newcolormapname);
+applyCbkFcn(newcolors,newcolormapname);
 
 guidata(hObject,handles);
 
@@ -4003,11 +4079,14 @@ if isfield(handles.labelerObj.projPrefs,'Track') && ...
 else
   colors = [];
 end
-[ischange,newcolors,newcolormapname] = LandmarkColors(colors,colormapname,nlandmarks,'Prediction colors');
+lObj = handles.labelerObj;
+applyCbkFcn = @(clrs,clrmapname)lObj.updateLandmarkPredictionColors(clrs,clrmapname);
+[ischange,newcolors,newcolormapname] = ...
+  LandmarkColors(colors,colormapname,nlandmarks,'Prediction colors',applyCbkFcn);
 if ~ischange,
   return;
 end
-handles.labelerObj.updateLandmarkPredictionColors(newcolors,newcolormapname);
+applyCbkFcn(newcolors,newcolormapname);
 
 
 % --- Executes on selection change in popupmenu_prevmode.

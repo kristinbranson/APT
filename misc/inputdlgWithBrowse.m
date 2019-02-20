@@ -1,4 +1,4 @@
-function Answer=inputdlgWithBrowse(Prompt, Title, NumLines, DefAns, Resize)
+function Answer=inputdlgWithBrowse(Prompt, Title, NumLines, DefAns, Resize, BrowseInfo)
 %INPUTDLG Input dialog box.
 %  ANSWER = INPUTDLG(PROMPT) creates a modal dialog box that returns user
 %  input for multiple prompts in the cell array ANSWER. PROMPT is a cell
@@ -51,7 +51,7 @@ function Answer=inputdlgWithBrowse(Prompt, Title, NumLines, DefAns, Resize)
 %%%%%%%%%%%%%%%%%%%%
 %%% Nargin Check %%%
 %%%%%%%%%%%%%%%%%%%%
-narginchk(0,5);
+narginchk(0,6);
 nargoutchk(0,1);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -84,6 +84,19 @@ end
 if nargin<5
   Resize = 'off';
 end
+
+if nargin<6
+  BrowseInfo = struct('type',repmat({'uigetdir'},NumQuest,1));
+end
+assert(   isstruct(BrowseInfo) && numel(BrowseInfo)==NumQuest ...
+       && isfield(BrowseInfo,'type'));
+% BrowseInfo should be a struct array with a field .type being one of 
+% {'' 'uigetdir' 'uigetfile'}:
+% If '', then that row has no Browse Button.
+% If 'uigetdir', then that row's Browse Button finds a dir
+% If 'uigetfile', etc. In this case the struct field .filterspec contains
+%   the filterspec.
+
 WindowStyle='modal';
 Interpreter='none';
 
@@ -233,7 +246,7 @@ end % for YOffLp
 
 QuestHandle=[];
 EditHandle=[];
-BrowseBtnHandle=[];
+BrowseBtnHandle=cell(NumQuest,1);
 
 AxesHandle=axes('Parent',InputFig,'Position',[0 0 1 1],'Visible','off');
 
@@ -257,13 +270,19 @@ for lp=1:NumQuest,
     'Tag'        ,'Edit'                 ...
     );
   
-  BrowseBtnHandle(lp)=uicontrol(InputFig ,...
-    'Position',[TxtXOffset+editWidth EditYOffset(lp) btnWidth btnWidth],...
-    'Style','pushbutton',...
-    'String','...',...
-    'Tag','pbBrowse',...
-    'Callback',@(src,evt)doBrowse(src,evt,EditHandle(lp)));
-
+  binfo = BrowseInfo(lp);
+  switch binfo.type
+    case ''
+      % none
+    otherwise
+      BrowseBtnHandle{lp}=uicontrol(InputFig ,...
+        'Position',[TxtXOffset+editWidth EditYOffset(lp) btnWidth btnWidth],...
+        'Style','pushbutton',...
+        'String','...',...
+        'Tag','pbBrowse',...
+        'Callback',@(src,evt)doBrowse(src,evt,binfo,EditHandle(lp)));
+  end
+  
   QuestHandle(lp)=text('Parent'     ,AxesHandle, ...
     TextInfo     , ...
     'Position'   ,[ TxtXOffset QuestYOffset(lp)], ...
@@ -284,9 +303,12 @@ for lp=1:NumQuest,
     editWidth = epos(3);
     epos(3) = editWidth-1.1*btnWidth;
     set(EditHandle(lp),'Position',epos);
-    bpos = get(BrowseBtnHandle(lp),'Position');
-    bpos(1) = epos(1)+epos(3);
-    set(BrowseBtnHandle(lp),'Position',bpos);
+
+    if ~isempty(BrowseBtnHandle{lp})
+      bpos = get(BrowseBtnHandle{lp},'Position');
+      bpos(1) = epos(1)+epos(3);
+      set(BrowseBtnHandle{lp},'Position',bpos);
+    end
   end
   % Get the extent of the text object. See g1008152
   questExtent = get(QuestHandle(lp), 'Extent');
@@ -387,12 +409,20 @@ end
 drawnow; % Update the view to remove the closed figure (g1031998)
 end
 
-function doBrowse(src,evt,hET)
-dirname = uigetdir(pwd,'Select path');
-if isequal(dirname,0)
-  
+function doBrowse(src,evt,binfo,hET)
+switch binfo.type
+  case 'uigetdir'
+    name = uigetdir(pwd,'Select path');
+  case 'uigetfile'
+    [name,pname] = uigetfile(binfo.filterspec,pwd,'Select file');
+    name = fullfile(pname,name);    
+  otherwise
+    assert(false,'Unrecognized browse type.');
+end
+if isequal(name,0)
+  % user canceled
 else
-  set(hET,'String',dirname);  
+  set(hET,'String',name);  
 end
 end
 

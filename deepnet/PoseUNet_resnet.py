@@ -826,17 +826,22 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             #             mdn_pred_out[sel, :, :, cls] += pred_weights[sel, ndx, cur_gr] * curl[0, ..., 0]
             #
             # base_locs = PoseTools.get_pred_locs(mdn_pred_out)
+            # mdn_pred_out = 2*(mdn_pred_out-0.5)
+            # mdn_conf = np.max(mdn_pred_out, axis=(1, 2))
+
             base_locs = np.zeros([pred_means.shape[0],self.conf.n_classes,2])
+            mdn_conf = np.zeros([pred_means.shape[0],self.conf.n_classes])
             for ndx in range(pred_means.shape[0]):
                 for gdx, gr in enumerate(self.conf.mdn_groups):
                     for g in gr:
                         sel_ex = np.argmax(pred_weights[ndx, :, gdx])
                         mm = pred_means[ndx, sel_ex, g, :]
                         base_locs[ndx, g] = mm
+                        mdn_conf[ndx,g] = np.max(pred_weights[ndx,:,gdx])
 
             base_locs = base_locs * conf.rescale
+            mdn_conf = 2*mdn_conf -1 # it should now be between -1 to 1.
 
-            mdn_pred_out = 2*(mdn_pred_out-0.5)
             if self.conf.mdn_use_unet_loss:
                 unet_locs = PoseTools.get_pred_locs(unet_pred)
                 d = np.sqrt(np.sum((base_locs - unet_locs) ** 2, axis=-1))
@@ -853,7 +858,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             ret_dict['locs_mdn'] = base_locs
             ret_dict['locs_unet'] = unet_locs
             ret_dict['conf_unet'] = (np.max(unet_pred,axis=(1,2)) + 1)/2
-            ret_dict['conf'] = np.max(mdn_pred_out,axis=(1,2))
+            ret_dict['conf'] = mdn_conf
             ret_dict['hmaps_mdn'] = mdn_pred_out
             return ret_dict
 
