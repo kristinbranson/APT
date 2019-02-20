@@ -494,7 +494,7 @@ classdef DeepTracker < LabelTracker
         reason = 'Tracking is in progress.';
         return;
       end
-      if isempty(obj.sPrm)
+      if isempty(obj.sPrmAll)
         reason = 'No tracking parameters have been set.';
         return;
       end
@@ -568,7 +568,7 @@ classdef DeepTracker < LabelTracker
       if obj.bgTrkIsRunning
         error('Tracking is in progress.');
       end
-      if isempty(obj.sPrm)
+      if isempty(obj.sPrmAll)
         error('No tracking parameters have been set.');
       end
       cacheDir = obj.lObj.DLCacheDir;
@@ -756,6 +756,16 @@ classdef DeepTracker < LabelTracker
           s = 'No';
         end
         infos{end+1} = sprintf('New labels since training: %s',s);
+        
+        isParamChange = ~APTParameters.isEqualFilteredStructProperties(obj.sPrmAll,obj.lObj.trackParams,...
+          'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true);
+        if isParamChange,
+          s = 'Yes';
+        else
+          s = 'No';
+        end
+        infos{end+1} = sprintf('Parameters changed since training: %s',s);
+        
       else
         infos{end+1} = 'No tracker trained.';
       end
@@ -1925,7 +1935,7 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
-      if isempty(obj.sPrm),
+      if isempty(obj.sPrmAll),
         reason = 'Training parameters not set.';
         return;
       end

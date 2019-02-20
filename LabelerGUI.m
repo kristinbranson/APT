@@ -540,6 +540,7 @@ listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
+listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
@@ -3064,6 +3065,14 @@ if isempty(lObj.trackersAll) || isempty(lObj.tracker),
 end
 lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
 
+function cbkParameterChange(src,evt)
+
+lObj = evt.AffectedObject;
+if isempty(lObj.trackersAll) || isempty(lObj.tracker),
+  return;
+end
+lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
+
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
 % just use checked state of menu for now, no other state
 toggleOnOff(hObject,'Checked');
@@ -3183,21 +3192,26 @@ end
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 % Really, "configure parameters"
 
+lObj = handles.labelerObj;
+if any(lObj.trackBGTrnIsRunning),
+  warndlg('Cannot change tracker parameters while trackers are training.','Training in progress','modal');
+  return;
+end
 SetStatus(handles,'Setting tracking parameters...');
 
-lObj = handles.labelerObj;
 % tObj = lObj.tracker;
 % assert(~isempty(tObj));
 
-tfCanTrack = lObj.trackAllCanTrack();
-if any(tfCanTrack),
-  nTrackers = nnz(tfCanTrack);
-  res = questdlg(sprintf('%d trackers have been trained. Updating parameters will result in one or more of them being deleted, and they will need to be retrained.',nTrackers),...
-    'Update tracking parameters','Continue','Cancel','Continue');
-  if strcmpi(res,'Cancel'),
-    return;
-  end
-end
+% KB 20190214 - don't delete trackers anymore!
+% tfCanTrack = lObj.trackAllCanTrack();
+% if any(tfCanTrack),
+%   nTrackers = nnz(tfCanTrack);
+%   res = questdlg(sprintf('%d trackers have been trained. Updating parameters will result in one or more of them being deleted, and they will need to be retrained.',nTrackers),...
+%     'Update tracking parameters','Continue','Cancel','Continue');
+%   if strcmpi(res,'Cancel'),
+%     return;
+%   end
+% end
 
 sPrmCurrent = lObj.trackGetParams();
 

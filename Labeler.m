@@ -468,8 +468,6 @@ classdef Labeler < handle
     trackNFramesSmall % small/fine frame increment for tracking. init: C
     trackNFramesLarge % big/coarse ". init: C
     trackNFramesNear % neighborhood radius. init: C
-  end
-  properties
     trackParams; % all tracking parameters
   end
   
@@ -8905,6 +8903,18 @@ classdef Labeler < handle
         obj.preProcUpdateH0IfNec();
       end
       tObj.retrain(retrainArgs{:});
+    end
+    
+    function [bgTrnIsRunning] = trackBGTrnIsRunning(obj)
+      
+      bgTrnIsRunning = false(1,numel(obj.trackersAll));
+      for i = 1:numel(obj.trackersAll),
+        if isprop(obj.trackersAll{i},'bgTrnIsRunning'),
+          bgTrnIsRunning(i) = obj.trackersAll{i}.bgTrnIsRunning;
+        end
+          
+      end
+      
     end
     
     function [tfCanTrain,reason] = trackCanTrain(obj,varargin)
