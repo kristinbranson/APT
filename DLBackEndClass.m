@@ -18,17 +18,27 @@ classdef DLBackEndClass < handle
     
     function [tf,reason] = getReadyTrainTrack(obj)
       if obj.type==DLBackEnd.AWS
-        tf = ~isempty(obj.awsec2);
+        aws = obj.awsec2;
+        
+        tf = ~isempty(aws);
         if ~tf
           reason = 'AWS EC2 instance is not configured.';
-        else
-          reason = '';
+          return;
+        end        
+        
+        [tfexist,tfrunning] = aws.inspectInstance;
+        tf = tfrunning;
+        if ~tf
+          reason = sprintf('AWS EC2 instance %s is not running.',aws.instanceID);
+          return;
         end
+        
+        reason = '';
       else
         tf = true;
         reason = '';
       end
-    end      
+    end
     
     function s = prettyName(obj)
       

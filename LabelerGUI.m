@@ -540,6 +540,7 @@ listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
+listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
@@ -1971,14 +1972,23 @@ end
 function cbkTrackerBackendAWSSetInstance(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-[tfsucc,instanceID,pemFile] = AWSec2.configureUI();
+be = lObj.trackDLBackEnd;
+assert(be.type==DLBackEnd.AWS);
+
+aws = be.awsec2;
+if ~isempty(aws)
+  tfsucc = aws.respecifyInstance();
+else
+  [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
+  if tfsucc
+    aws = AWSec2(pemFile,'instanceID',instanceID);
+    be.awsec2 = aws;
+  end
+end
+
 if tfsucc
-  aws = AWSec2(pemFile,'instanceID',instanceID);  
-  aws.inspectInstance;
-  dlbe = lObj.trackDLBackEnd;
-  assert(dlbe.type==DLBackEnd.AWS);
-  dlbe.awsec2 = aws;
-  lObj.trackSetDLBackend(dlbe);
+  %aws.checkInstanceRunning('throwErrs',false);
+  lObj.trackSetDLBackend(be);
 end
 
 function cbkTrackersAllChanged(src,evt)
@@ -2004,7 +2014,9 @@ iTrker = lObj.currTracker;
 
 handles = setupTrackerMenusListeners(handles,tObj,iTrker);
 % tracker changed, update tracker info
-tObj.updateTrackerInfo();
+if ~isempty(tObj),
+  tObj.updateTrackerInfo();
+end
 handles.labelTLInfo.setTracker(tObj);
 handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);
@@ -3050,6 +3062,17 @@ tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
 function cbkLastLabelChangeTS(src,evt)
 
 lObj = evt.AffectedObject;
+if isempty(lObj.trackersAll) || isempty(lObj.tracker),
+  return;
+end
+lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
+
+function cbkParameterChange(src,evt)
+
+lObj = evt.AffectedObject;
+if isempty(lObj.trackersAll) || isempty(lObj.tracker),
+  return;
+end
 lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
 
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
@@ -3171,21 +3194,26 @@ end
 function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 % Really, "configure parameters"
 
+lObj = handles.labelerObj;
+if any(lObj.trackBGTrnIsRunning),
+  warndlg('Cannot change tracker parameters while trackers are training.','Training in progress','modal');
+  return;
+end
 SetStatus(handles,'Setting tracking parameters...');
 
-lObj = handles.labelerObj;
 % tObj = lObj.tracker;
 % assert(~isempty(tObj));
 
-tfCanTrack = lObj.trackAllCanTrack();
-if any(tfCanTrack),
-  nTrackers = nnz(tfCanTrack);
-  res = questdlg(sprintf('%d trackers have been trained. Updating parameters will result in one or more of them being deleted, and they will need to be retrained.',nTrackers),...
-    'Update tracking parameters','Continue','Cancel','Continue');
-  if strcmpi(res,'Cancel'),
-    return;
-  end
-end
+% KB 20190214 - don't delete trackers anymore!
+% tfCanTrack = lObj.trackAllCanTrack();
+% if any(tfCanTrack),
+%   nTrackers = nnz(tfCanTrack);
+%   res = questdlg(sprintf('%d trackers have been trained. Updating parameters will result in one or more of them being deleted, and they will need to be retrained.',nTrackers),...
+%     'Update tracking parameters','Continue','Cancel','Continue');
+%   if strcmpi(res,'Cancel'),
+%     return;
+%   end
+% end
 
 sPrmCurrent = lObj.trackGetParams();
 
