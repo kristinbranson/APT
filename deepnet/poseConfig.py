@@ -78,7 +78,7 @@ class config(object):
         # ----- Deep Lab Cut
         self.dlc_train_img_dir = 'deepcut_train'
         self.dlc_train_data_file = 'deepcut_data.mat'
-        self.dlc_augment = False
+        self.dlc_augment = True
 
         # ============== EXTRA ================
 
