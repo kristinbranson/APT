@@ -9,8 +9,6 @@ import logging
 from os.path import expanduser
 from random import sample
 
-import pdb
-
 # import PoseUNet
 import PoseUNet_dataset as PoseUNet
 import PoseUNet_resnet as PoseURes
