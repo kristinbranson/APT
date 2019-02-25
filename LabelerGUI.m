@@ -2014,7 +2014,9 @@ iTrker = lObj.currTracker;
 
 handles = setupTrackerMenusListeners(handles,tObj,iTrker);
 % tracker changed, update tracker info
-tObj.updateTrackerInfo();
+if ~isempty(tObj),
+  tObj.updateTrackerInfo();
+end
 handles.labelTLInfo.setTracker(tObj);
 handles.labelTLInfo.setLabelsFull();
 guidata(handles.figure,handles);

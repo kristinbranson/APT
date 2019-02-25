@@ -1676,11 +1676,13 @@ classdef Labeler < handle
       % Warning: if .preProcSaveData is true, then s.preProcData is a
       % handle (shallow copy) to obj.preProcData
       
-      [sparsify,forceIncDataCache] = myparse(varargin,...
+      [sparsify,forceIncDataCache,forceExcDataCache] = myparse(varargin,...
         'sparsify',true,...
-        'forceIncDataCache',false... % include .preProcData* and .ppdb even if .preProcSaveData is false
+        'forceIncDataCache',false,... % include .preProcData* and .ppdb even if .preProcSaveData is false
+        'forceExcDataCache',false ... 
         );
-      
+      assert(~(forceExcDataCache&&forceIncDataCache));      
+
       s = struct();
       s.cfg = obj.getCurrentConfig();
       
@@ -1716,10 +1718,10 @@ classdef Labeler < handle
       s.trackerClass = cellfun(@getTrackerClassAugmented,tObjAll,'uni',0);
       s.trackerData = cellfun(@getSaveToken,tObjAll,'uni',0);
       
-      if obj.preProcSaveData || forceIncDataCache
+      if ~forceExcDataCache && ( obj.preProcSaveData || forceIncDataCache )
         s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
         s.preProcDataTS = obj.preProcDataTS;
-        s.ppdb = obj.ppdb;        
+        s.ppdb = obj.ppdb;
       end
     end
     
@@ -2623,7 +2625,7 @@ classdef Labeler < handle
         s.ppdb = [];
       end
       
-      if ~isTrackParams,
+      if ~isTrackParams && ~isempty(s.trackerData{1})
         cprprms = s.trackerData{1}.sPrm;
         if ~isempty(cprprms) && isfield(cprprms.TrainInit,'usetrxorientation')
           % legacy project has 3-way enum param for cpr under .TrainInit and
@@ -6264,7 +6266,6 @@ classdef Labeler < handle
       delete(hWB);
     end   
     
-    %#%GTOK
     function tblMF = labelGetMFTableLabeled(obj,varargin)
       % Compile mov/frm/tgt MFTable; include all labeled frames/tgts. 
       %
@@ -6272,7 +6273,7 @@ classdef Labeler < handle
       %
       % tblMF: See MFTable.FLDSFULLTRX.
       
-      [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain] = myparse(varargin,...
+      [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain,tfMFTOnly] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                    ... % 1. obj logically const (eg except for obj.trxCache)
                    ... % 2. tblMF (output) indeterminate
@@ -6282,7 +6283,8 @@ classdef Labeler < handle
                            ... % of tblMFTrestrict (within fields .mov, 
                            ... % .frm, .tgt). .mov must be a MovieIndex.
                            ... % tblMF ordering should be as in tblMFTrestrict
-        'useTrain',[]... % whether to use training labels (1) gt labels (0), or whatever current mode is ([])
+        'useTrain',[],... % whether to use training labels (1) gt labels (0), or whatever current mode is ([])
+        'MFTOnly',false... % if true, only return mov, frm, target
         ); 
       tfWB = ~isempty(wbObj);
       tfRestrict = ~isempty(tblMFTrestrict);
@@ -6298,7 +6300,11 @@ classdef Labeler < handle
         tblMF = MFTable.intersectID(tblMF,tblMFTrestrict);
       end
       
-      if obj.hasTrx
+      if tfMFTOnly,
+        return;
+      end
+      
+      if obj.hasTrx,
         if isempty(useTrain),
           trxFiles = obj.trxFilesAllFullGTaware;
         elseif useTrain == 0,
@@ -6912,20 +6918,15 @@ classdef Labeler < handle
       bTrxAcc = nan(0,nView);
       tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
       iMovsAll = tblMF.mov.get;
-      for irow=1:nrow
-        if tfWB && toc(wbtime) >= maxwbtime,
-          wbtime = tic;
-          tfCancel = wbObj.updateFracWithNumDen(irow);
-          if tfCancel
-            return;
-          end
-        end
+      
+      iMovsUnique = unique(iMovsAll);
+      nRowsComplete = 0;
+      
+      for movIdx = 1:numel(iMovsUnique),
+        iMov = iMovsUnique(movIdx);
+        rowsCurr = find(iMovsAll == iMov);
         
-        %tblrow = tblMF(irow,:);
-        iMov = iMovsAll(irow);
-        frm = tblMF.frm(irow);
-        iTgt = tblMF.iTgt(irow);
-
+        
         lposI = lpos{iMov};
         lpostagI = lpostag{iMov};
         lposTSI = lposTS{iMov};
@@ -6933,47 +6934,67 @@ classdef Labeler < handle
         assert(d==2);
         szassert(lpostagI,[npts nfrms ntgts]);
         szassert(lposTSI,[npts nfrms ntgts]);
-
-        if frm<1 || frm>nfrms
-          tfInvalid(irow) = true;
-          continue;
-        end
         
         if tfTrx && tfMovHasTrx(iMov)
           [trxI,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
-            trxCache,trxFilesAllFull(iMov,:),nfrms);          
-          tgtLiveInFrm = frm2trxTotAnd(frm,iTgt);
-          if ~tgtLiveInFrm
+            trxCache,trxFilesAllFull(iMov,:),nfrms);
+        end
+        
+        for jrow = 1:numel(rowsCurr),
+          irow = rowsCurr(jrow);
+          
+          if tfWB && toc(wbtime) >= maxwbtime,
+            wbtime = tic;
+            tfCancel = wbObj.updateFracWithNumDen(nRosComplete);
+            if tfCancel
+              return;
+            end
+          end
+          
+          %tblrow = tblMF(irow,:);
+          frm = tblMF.frm(irow);
+          iTgt = tblMF.iTgt(irow);
+          
+          if frm<1 || frm>nfrms
             tfInvalid(irow) = true;
             continue;
           end
-        else
-          assert(iTgt==1);
-        end
- 
-        lposIFrmTgt = lposI(:,:,frm,iTgt);
-        lpostagIFrmTgt = lpostagI(:,frm,iTgt);
-        lposTSIFrmTgt = lposTSI(:,frm,iTgt);
-        pAcc(end+1,:) = Shape.xy2vec(lposIFrmTgt); %#ok<AGROW>
-        pTSAcc(end+1,:) = lposTSIFrmTgt'; %#ok<AGROW>
-        tfoccAcc(end+1,:) = lpostagIFrmTgt'; %#ok<AGROW>
-
-        if tfTrx && tfMovHasTrx(iMov)
-          xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
-          ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
-          pTrxAcc(end+1,:) = [xtrxs(:)' ytrxs(:)']; %#ok<AGROW>
-          thetas = cellfun(@(xx)xx(iTgt).theta(frm+xx(iTgt).off),trxI);
-          thetaTrxAcc(end+1,:) = thetas(:)'; %#ok<AGROW>
-
-          as = cellfun(@(xx)xx(iTgt).a(frm+xx(iTgt).off),trxI);
-          bs = cellfun(@(xx)xx(iTgt).b(frm+xx(iTgt).off),trxI);
-          aTrxAcc(end+1,:) = as(:)'; %#ok<AGROW>
-          bTrxAcc(end+1,:) = bs(:)'; %#ok<AGROW>
-        else
-          pTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
-          thetaTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
-          aTrxAcc(end+1,:) = nan; %#ok<AGROW>
-          bTrxAcc(end+1,:) = nan; %#ok<AGROW>
+          
+          if tfTrx && tfMovHasTrx(iMov)
+            tgtLiveInFrm = frm2trxTotAnd(frm,iTgt);
+            if ~tgtLiveInFrm
+              tfInvalid(irow) = true;
+              continue;
+            end
+          else
+            assert(iTgt==1);
+          end
+          
+          lposIFrmTgt = lposI(:,:,frm,iTgt);
+          lpostagIFrmTgt = lpostagI(:,frm,iTgt);
+          lposTSIFrmTgt = lposTSI(:,frm,iTgt);
+          pAcc(end+1,:) = Shape.xy2vec(lposIFrmTgt); %#ok<AGROW>
+          pTSAcc(end+1,:) = lposTSIFrmTgt'; %#ok<AGROW>
+          tfoccAcc(end+1,:) = lpostagIFrmTgt'; %#ok<AGROW>
+          
+          if tfTrx && tfMovHasTrx(iMov)
+            xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);
+            ytrxs = cellfun(@(xx)xx(iTgt).y(frm+xx(iTgt).off),trxI);
+            pTrxAcc(end+1,:) = [xtrxs(:)' ytrxs(:)']; %#ok<AGROW>
+            thetas = cellfun(@(xx)xx(iTgt).theta(frm+xx(iTgt).off),trxI);
+            thetaTrxAcc(end+1,:) = thetas(:)'; %#ok<AGROW>
+            
+            as = cellfun(@(xx)xx(iTgt).a(frm+xx(iTgt).off),trxI);
+            bs = cellfun(@(xx)xx(iTgt).b(frm+xx(iTgt).off),trxI);
+            aTrxAcc(end+1,:) = as(:)'; %#ok<AGROW>
+            bTrxAcc(end+1,:) = bs(:)'; %#ok<AGROW>
+          else
+            pTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
+            thetaTrxAcc(end+1,:) = nan; %#ok<AGROW> % singleton exp
+            aTrxAcc(end+1,:) = nan; %#ok<AGROW>
+            bTrxAcc(end+1,:) = nan; %#ok<AGROW>
+          end
+          nRowsComplete = nRowsComplete + 1;
         end
       end
       
@@ -8096,8 +8117,6 @@ classdef Labeler < handle
       obj.ppdb.init();
     end
     
-    
-    
 %     function tfPPprmsChanged = preProcSetParams(obj,ppPrms) % THROWS
 %       % ppPrms: OLD-style preproc params
 %       
@@ -8773,6 +8792,9 @@ classdef Labeler < handle
       % it ideally would just be a generic loop
       
       sPrm = obj.trackParams;
+      sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
+      sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
+      sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
       
 %       tcprObj = obj.trackGetTracker('cpr');
 %       assert(~isempty(tcprObj),'CPR tracker object not found.');
@@ -9019,8 +9041,8 @@ classdef Labeler < handle
       % tblPTrn: table of data-to-be-used as training data
       % s: scalar struct, stripped lbl struct
       
-      [wbObj] = myparse(varargin,...
-        'wbObj',[]...
+      [wbObj,ppdata,sPrmAll] = myparse(varargin,...
+        'wbObj',[],'ppdata',[],'sPrmAll',[]...
         );
       tfWB = ~isempty(wbObj);
       
@@ -9032,56 +9054,63 @@ classdef Labeler < handle
       % 
       % Determine the training set
       % 
-      
-      tblPTrn = obj.preProcGetMFTableLbled('wbObj',wbObj);
-      if tfWB && wbObj.isCancel
-        tfsucc = false;
-        tblPTrn = [];
-        s = [];
-        return;
-      end
-
-      if isempty(tblPTrn)
-        error('No training data available.');
-      end
-
-      if obj.hasTrx
-        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
-      elseif obj.cropProjHasCrops
-        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+      if isempty(ppdata),
+        tblPTrn = obj.preProcGetMFTableLbled('wbObj',wbObj);
+        if tfWB && wbObj.isCancel
+          tfsucc = false;
+          tblPTrn = [];
+          s = [];
+          return;
+        end
+        
+        if isempty(tblPTrn)
+          error('No training data available.');
+        end
+        
+        if obj.hasTrx
+          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
+        elseif obj.cropProjHasCrops
+          tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
+        else
+          tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+        end
+        
+        [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPTrn,obj,...
+          'wbObj',wbObj);
+        if tfWB && wbObj.isCancel
+          tfsucc = false;
+          tblPTrn = [];
+          s = [];
+          return;
+        end
+        nMissedReads = height(tblAddReadFailed);
+        if nMissedReads>0
+          warningNoTrace('Removing %d training rows, failed to read images.\n',...
+            nMissedReads);
+        end
+        
+        assert(all(locAU(~tfAU)==0));
+        
+        ppdbITrn = locAU(tfAU); % row indices into obj.ppdb.dat for our training set
+        tblPTrn = obj.ppdb.dat.MD(ppdbITrn,:);
+        
+        fprintf(1,'Training with %d rows.\n',numel(ppdbITrn));
+        fprintf(1,'Training data summary:\n');
+        obj.ppdb.dat.summarize('mov',ppdbITrn);
+        
       else
-        tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
+        tblPTrn = ppdata.MD;
       end
-    
-      [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPTrn,obj,...
-        'wbObj',wbObj);
-      if tfWB && wbObj.isCancel
-        tfsucc = false;
-        tblPTrn = [];
-        s = [];
-        return;
-      end
-      nMissedReads = height(tblAddReadFailed);
-      if nMissedReads>0
-        warningNoTrace('Removing %d training rows, failed to read images.\n',...
-          nMissedReads);
-      end
-      
-      assert(all(locAU(~tfAU)==0));
-      
-      ppdbITrn = locAU(tfAU); % row indices into obj.ppdb.dat for our training set
-      tblPTrn = obj.ppdb.dat.MD(ppdbITrn,:);
-      
-      fprintf(1,'Training with %d rows.\n',numel(ppdbITrn));
-      fprintf(1,'Training data summary:\n');
-      obj.ppdb.dat.summarize('mov',ppdbITrn);
-
       
       % 
       % Create the stripped lbl struct
       % 
 
-      s = obj.projGetSaveStruct('forceIncDataCache',true);
+      if isempty(ppdata),
+        s = obj.projGetSaveStruct('forceIncDataCache',true);
+      else
+        s = obj.projGetSaveStruct('forceExcDataCache',true);
+      end
       s.movieFilesAll = obj.movieFilesAllFull;
       s.trxFilesAll = obj.trxFilesAllFull;
       
@@ -9104,8 +9133,13 @@ classdef Labeler < handle
       warning(warnst);
       s.cropProjHasCrops = obj.cropProjHasCrops;
       
-      % De-objectize .ppdb.dat (CPRData)
-      ppdata = s.ppdb.dat;
+      if ~isempty(ppdata)
+        ppdbITrn = true(ppdata.N,1);
+      else
+
+        % De-objectize .ppdb.dat (CPRData)
+        ppdata = s.ppdb.dat;
+      end
       
       fprintf(1,'Stripped lbl preproc data cache: exporting %d/%d training rows.\n',...
         numel(ppdbITrn),ppdata.N);
@@ -9122,16 +9156,23 @@ classdef Labeler < handle
         sfld = ['preProcData_MD_' f];
         s.(sfld) = ppdataMD.(f);
       end
-      s = rmfield(s,{'ppdb' 'preProcData'});
+      if isfield(s,'ppdb'),
+        s = rmfield(s,'ppdb');
+      end
+      if isfield(s,'preProcData'),
+        s = rmfield(s,'preProcData');
+      end
       
       s.trackerClass = {'__UNUSED__' 'DeepTracker'};
-      
       
       %
       % Final Massage
       % 
       
       tdata = s.trackerData{s.currTracker};
+      if ~isempty(sPrmAll),
+        tdata.sPrmAll = sPrmAll;
+      end
       tdata.trnNetTypeString = char(tdata.trnNetType);
       
       tftrx = obj.hasTrx;      
@@ -9756,8 +9797,9 @@ classdef Labeler < handle
         return;
       end
       
+      prmCpr = [];
       for iTrk=1:numel(s.trackerData)
-        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker')
+        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker') && ~isempty(s.trackerData{iTrk})
           prmCpr = s.trackerData{iTrk}.sPrm;
           break;
         end
