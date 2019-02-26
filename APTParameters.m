@@ -417,6 +417,17 @@ classdef APTParameters
       
     end
     
+    function tfEqual = isEqualDeepTrackDataAugParams(sPrm0,sPrm1)
+      tfEqual = false;
+      try
+        sPrm0 = sPrm0.ROOT.DeepTrack.DataAugmentation;
+        sPrm1 = sPrm1.ROOT.DeepTrack.DataAugmentation;
+        tfEqual = isequaln(sPrm0,sPrm1);
+      catch ME,
+        warning('Could not find data augmentation parameters:\n%s',getReport(ME));
+      end
+    end
+    
     function tfEqual = isEqualPreProcParams(sPrm0,sPrm1)
       
       sPrmPreProc0 = APTParameters.all2PreProcParams(sPrm0);

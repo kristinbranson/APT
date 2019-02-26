@@ -772,6 +772,46 @@ classdef DeepTracker < LabelTracker
       
     end
     
+    function [augims,dataAugDir] = dataAug(obj,ppdata,varargin)
+      
+      [sPrmAll,dataAugDir] = myparse(varargin,...
+        'sPrmAll',[],'dataAugDir','' ...
+        );
+      
+      if isempty(sPrmAll),
+        sPrmAll = obj.sPrmAll;
+      end
+      if isempty(sPrmAll)
+        error('Tracking parameters not set.');
+      end
+      cacheDir = obj.lObj.DLCacheDir;
+      if isempty(cacheDir)
+        error('No cache directory has been set.');
+      end
+      
+      lblObj = obj.lObj;
+%       projname = lblObj.projname;
+%       if isempty(projname)
+%         error('Please give your project a name. The project name will be used to identify your trained models on disk.');
+%       end
+            
+      trnBackEnd = lblObj.trackDLBackEnd;
+      fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
+      fprintf('Your training backend is: %s\n',char(trnBackEnd.type));
+      fprintf('Your training vizualizer is: %s\n',obj.bgTrnMonitorVizClass);
+      fprintf(1,'\n');      
+
+      switch trnBackEnd.type
+        case {DLBackEnd.Bsub DLBackEnd.Docker}
+          [augims,dataAugDir] = obj.dataAugBsubDocker(ppdata,sPrmAll,trnBackEnd,'dataAugDir',dataAugDir);
+        case DLBackEnd.AWS
+          error('not implemented');
+          %obj.trnSpawnAWS(trnBackEnd,modelChain,'wbObj',wbObj);    
+        otherwise
+          assert(false);
+      end
+    end
+    
   end
 %   methods (Static)
 %     function s = trnLogfileStc(cacheDir,trnID,iview)
@@ -1015,6 +1055,117 @@ classdef DeepTracker < LabelTracker
 %       s = DeepTracker.trnLogfileStc(obj.sPrm.CacheDir,obj.trnName,iview);
 %     end
     
+    function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,sPrmAll,backEnd,varargin)
+      
+      [dataAugDir] = myparse(varargin,'dataAugDir','');
+      
+      cacheDir = obj.lObj.DLCacheDir;
+
+      tfLblFileExists = false;
+      if ~isempty(dataAugDir) && exist(dataAugDir,'dir'),
+        dlLblFileLcl = fullfile(dataAugDir,'dataaug.lbl');
+        if exist(dlLblFileLcl,'file'),
+          tfLblFileExists = true;
+        end
+        [~,ID] = fileparts(dataAugDir);
+      end
+            
+      if tfLblFileExists,
+        s = load(dlLblFileLcl,'-mat','trackParams','trackerData');
+        s.trackParams = sPrmAll;
+        ITRKER_SLBL = 2;
+        s.trackerData{ITRKER_SLBL}.sPrmAll = sPrmAll;
+        save(dlLblFileLcl,'-struct','s','-append');
+        fprintf('Reusing cached lbl file %s\n',dlLblFileLcl);
+      else
+        s = obj.trnCreateStrippedLbl(backEnd,'ppdata',ppdata,'sPrmAll',sPrmAll);
+        ID = datestr(now,'yyyymmddTHHMMSS');
+        dataAugDir = fullfile(cacheDir,'DataAug',ID);
+        if ~exist(dataAugDir,'dir'),
+          [succ,msg] = mkdir(dataAugDir);
+          if ~succ
+            error('Failed to create dir %s: %s',dataAugDir,msg);
+          end
+        end
+        % Write stripped lblfile to local cache
+        dlLblFileLcl = fullfile(dataAugDir,'dataaug.lbl');
+        save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
+      end
+      
+      errfile = fullfile(dataAugDir,'dataaug.err');
+      outfile = fullfile(dataAugDir,'dataaug');
+      
+      switch backEnd.type
+        case DLBackEnd.Bsub
+          if backEnd.deepnetrunlocal
+            aptroot = APT.Root;
+            %DeepTracker.downloadPretrainedExec(aptroot);
+            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
+          else
+            aptroot = [cacheDir '/APT'];
+            DeepTracker.cloneJRCRepoIfNec(cacheDir);
+            DeepTracker.updateAPTRepoExecJRC(cacheDir);
+            DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
+          end
+        case DLBackEnd.Docker
+      end
+      
+      switch backEnd.type
+        case DLBackEnd.Bsub
+          mntPaths = obj.genContainerMountPath('aptroot',aptroot);
+        case DLBackEnd.Docker 
+          mntPaths = obj.genContainerMountPath();          
+      end
+      
+      switch backEnd.type
+        case DLBackEnd.Bsub
+          singArgs = {'bindpath',mntPaths};
+          dataAugCodeGenSSHBsubSing(varargin)
+          syscmd = DeepTracker.dataAugCodeGenSSHBsubSing(...
+            ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,outfile,...
+            'singArgs',singArgs);
+        case DLBackEnd.Docker
+          dockerargs = {'detach',false};
+          [syscmd] = ...
+            DeepTracker.dataAugCodeGenDocker(...
+            ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,outfile,...
+            'mntPaths',mntPaths,'dockerargs',dockerargs);
+        otherwise
+          assert(false);
+      end
+      
+      if backEnd.type==DLBackEnd.Docker,
+        
+        fprintf(1,'%s\n',syscmd);
+        [st,res] = system(syscmd);
+        
+        tfsucc = (st == 0) && ~isempty(regexp(res,'Augmented data saved to','once'));
+        if tfsucc,
+          augims = DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
+        else
+          error('Error creating sample augmented images:\n%s',res);
+        end
+        
+      else
+        error('Not implemented');
+        fprintf(1,'%s\n',syscmd);
+        [st,res] = system(syscmd);
+        if st==0,
+          PAT = 'Job <(?<jobid>[0-9]+)>';
+          stoks = regexp(res,PAT,'names');
+          if ~isempty(stoks)
+            jobid = str2double(stoks.jobid);
+            % to-do: wait for results
+          else
+            error('Failed to ascertain jobID.');
+          end
+        else
+          %to-do: error
+        end
+      end
+      
+    end
+
     function [tfsucc,hedit] = testBsubConfig(obj,varargin)
       
       tfsucc = false;
@@ -1347,7 +1498,9 @@ classdef DeepTracker < LabelTracker
       % 
       % ppdata: CPRData
             
-      ppdb = obj.lObj.ppdb;
+      %ppdb = obj.lObj.ppdb;
+      ppdb = PreProcDB();
+      ppdb.init();
       [~,ppdata] = ppdb.add(tblP,obj.lObj,'prmpp',ppPrms,'computeOnly',true);
     end
         
@@ -1358,17 +1511,21 @@ classdef DeepTracker < LabelTracker
       % - Uploads trxs via AWS (maybe obsolete now)
       % - Can throw
       
-      [awsTrxUpload,wbObj] = myparse(varargin,...
+      [awsTrxUpload,wbObj,ppdata,sPrmAll] = myparse(varargin,...
         'awsTrxUpload',false,...
-        'wbObj',[]...
+        'wbObj',[],...
+        'ppdata',[],...
+        'sPrmAll',[]...
         );
       
       [tfsucc,tblPTrn,s] = obj.lObj.trackCreateDeepTrackerStrippedLbl(...
-         'wbObj',wbObj);
+         'wbObj',wbObj,'ppdata',ppdata,'sPrmAll',sPrmAll);
       if ~tfsucc
         error('Failed to create DL stripped lbl file.');
       end
-      obj.trnTblP = tblPTrn;
+      if isempty(ppdata),
+        obj.trnTblP = tblPTrn;
+      end
       
       ITRKER_SLBL = 2;
       assert(s.trackerData{ITRKER_SLBL}.trnNetType==obj.trnNetType);
@@ -1394,7 +1551,7 @@ classdef DeepTracker < LabelTracker
         aws = backEnd.awsec2;
         aws.ensureRemoteDir('data','descstr','data');
         
-        iMovTrn = unique(obj.trnTblP.mov); % must be regular mov, not GT
+        iMovTrn = unique(tblPTrn.mov); % must be regular mov, not GT
         
         assert(obj.nview==1,'Single-view only');
         IVIEW = 1;
@@ -1602,6 +1759,7 @@ classdef DeepTracker < LabelTracker
         error('No trained tracker found.');
       end      
 
+      obj.updateTrackerInfo();
       
       % are there tracking results from previous trackers? TODO This can be
       % moved under bgTrnIsRunning at some point, but right now there can
@@ -2728,6 +2886,7 @@ classdef DeepTracker < LabelTracker
           int32(mIdx));
         % conservative, take no action for now
       end
+      
     end
 
     function trkCompleteCbkAWS(obj,backend,trkfilesLocal,res)
@@ -2813,7 +2972,7 @@ classdef DeepTracker < LabelTracker
         end
 
       end
-	  % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
+      % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
       obj.updateTrackerInfo();
     end
     
@@ -2905,10 +3064,11 @@ classdef DeepTracker < LabelTracker
     function codestr = codeGenDockerGeneral(basecmd,containerName,varargin)
       % Take a base command and run it in a sing img
       DFLTBINDPATH = {};
-      [bindpath,dockerimg,gpuid] = myparse(varargin,...
+      [bindpath,dockerimg,gpuid,tfDetach] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
         'dockerimg','bransonlabapt/apt_docker',...
-        'gpuid',0);
+        'gpuid',0,...
+        'detach',true);
       
       mountArgs = cellfun(@(x)sprintf('--mount ''type=bind,src=%s,dst=%s''',x,x),...
         bindpath,'uni',0);
@@ -2931,11 +3091,16 @@ classdef DeepTracker < LabelTracker
         dockercmdend = '"';
       end
       
+      if tfDetach,
+        detachstr = '-d';
+      else
+        detachstr = '-i';
+      end
       codestr = [
         {
         dockercmd
         'run'
-        '-d'
+        detachstr
         sprintf('--name %s',containerName);
         '--runtime nvidia'
         '--rm'
@@ -3076,6 +3241,7 @@ classdef DeepTracker < LabelTracker
         'bsubArgs',{'outfile' dmc.trainLogLnx},...
         'sshargs',{'prefix' prefix});
     end
+        
     function downloadPretrainedExec(aptroot)
       % kb investigate: This doesn't work well on the cluster due to tf 
       % being a restricted site, plus /tmp acts weird
@@ -3327,9 +3493,57 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function codestr = dataAugCodeGenBase(trnID,dllbl,errfile,nettype,outfile,nsamples,varargin)
-      [cache,deepnetroot,model_file] = myparse(varargin,...
-        'cache',[],... % (opt) cachedir
+    function codestr = dataAugCodeGenSSHBsubSing(ID,dllbl,cache,errfile,netType,outfile,varargin)
+
+      [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{},...
+        'bsubargs',{},...
+        'sshargs',{});
+      remotecmd = DeepTracker.dataAugCodeGenBsubSing(ID,dllbl,cache,...
+        errfile,netType,outfile,...
+        'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
+      codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
+    end
+    
+    function codestr = dataAugCodeGenBsubSing(ID,dllbl,cache,errfile,netType,outfile,varargin)
+    
+      [baseargs,singargs,bsubargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{},...
+        'bsubargs',{});
+      basecmd = DeepTracker.dataAugCodeGenSing(ID,dllbl,cache,errfile,...
+        netType,outfile,'baseargs',baseargs,'singargs',singargs);
+      codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
+      
+    end
+    
+    function codestr = dataAugCodeGenSing(ID,dllbl,cache,errfile,netType,outfile,...
+        varargin)
+      [baseargs,singargs] = myparse(varargin,...
+        'baseargs',{},...
+        'singargs',{});
+      basecmd = DeepTracker.dataAugCodeGen(ID,dllbl,cache,errfile,...
+        netType,outfile,baseargs{:});
+      codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
+    end
+    
+    function [codestr] = dataAugCodeGenDocker(...
+        ID,dllbl,cache,errfile,netType,outfile,varargin)
+      
+      [baseargs,dockerargs,mntPaths] = myparse(varargin,...
+        'baseargs',{},'dockerargs',{},'mntPaths',{});
+      
+      basecmd = DeepTracker.dataAugCodeGenBase(ID,dllbl,cache,errfile,...
+        netType,outfile,baseargs{:});
+      
+      codestr = DeepTracker.codeGenDockerGeneral(basecmd,ID,...
+        'bindpath',mntPaths,dockerargs{:});
+    end
+    
+    
+    function codestr = dataAugCodeGenBase(ID,dllbl,cache,errfile,nettype,outfile,varargin)
+      [deepnetroot,model_file] = myparse(varargin,...
         'deepnetroot',APT.getpathdl,...
         'model_file',[]... % can be [nview] cellstr
         ); 
@@ -3347,7 +3561,7 @@ classdef DeepTracker < LabelTracker
         modelfilestr = String.cellstr2DelimList(model_file,' ');
       end
 
-      codestr = sprintf('python %s -name %s',aptintrf,trnID);
+      codestr = sprintf('python %s -name %s',aptintrf,ID);
       if tfcache
         codestr = [codestr ' -cache ' cache];
       end
@@ -3355,8 +3569,8 @@ classdef DeepTracker < LabelTracker
       if tfmodel
         codestr = sprintf('%s -model_files %s',codestr,modelfilestr);
       end
-      codestr = [codestr sprintf(' -type %s %s data_aug -out_file %s -nsamples %d',...
-        char(nettype),dllbl,outfile,nsamples)];
+      codestr = [codestr sprintf(' -type %s %s data_aug -out_file %s',...
+        char(nettype),dllbl,outfile)];
 
     end
     
@@ -3389,32 +3603,6 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
         'bindpath',mntPaths,dockerargs{:});
     end
-    
-    function [codestr,containerName] = dataAugCodeGenDocker(...
-        trnID,cache,dllbl,errfile,...
-        nettype,outfile,nsamples,varargin)
-%         movtrk,outtrk,frm0,frm1,...
-%         modelChainID,trainID,dllbl,cache,errfile,netType,view1b,mntPaths,...
-%         varargin)
-
-      % varargin: see trackCodeGenBase, except for 'cache' and 'view'
-      
-      [baseargs,dockerargs,mntPaths,containerName] = myparse(varargin,...
-        'baseargs',{},'dockerargs',{},'mntPaths',{},'containerName','');
-      
-      baseargs = [{'cache' cache} baseargs];
-        
-      basecmd = DeepTracker.dataAugCodeGenBase(trnID,dllbl,errfile,nettype,...
-        outfile,nsamples,baseargs{:});
-
-      if isempty(containerName),
-        [~,containerName] = fileparts(outfile);
-      end
-
-      codestr = DeepTracker.codeGenDockerGeneral(basecmd,containerName,...
-        'bindpath',mntPaths,dockerargs{:});
-    end
-    
     
     function codestr = trackCodeGenVenv(trnID,dllbl,movtrk,outtrk,frm0,frm1,varargin)
       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
@@ -3735,7 +3923,7 @@ classdef DeepTracker < LabelTracker
       end
       obj.trackResInit();
       obj.trackCurrResInit();
-	  % deleting old tracking results, so can switch to new tracker info
+      % deleting old tracking results, so can switch to new tracker info
       obj.updateTrackerInfo();
 
 %       for i = 1:numel(trkFilesToDelete),
@@ -3785,6 +3973,19 @@ classdef DeepTracker < LabelTracker
         tfsuccload  = false;
       end
     end
+    
+    function [augims] = loadAugmentedData(outfile,nview)
+
+      augims = struct;
+      for i = 1:nview,
+        outfile_curr = sprintf('%s_%d.mat',outfile,i-1);
+        da = load(outfile_curr);
+        augims.ims{i} = permute(da.ims,[2,3,4,1]);
+        augims.locs{i} = da.locs;
+      end
+      
+    end
+    
   end
   methods
     function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj,mIdxs) % obj const

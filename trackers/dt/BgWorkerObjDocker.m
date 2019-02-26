@@ -8,12 +8,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     
     function parseJobID(obj,res,iview)
       
-      res = regexp(res,'\n','split');
-      res = regexp(res,'^[0-9a-f]+$','once','match');
-      l = cellfun(@numel,res);
-      res = res{find(l==64,1)};
-      assert(~isempty(res));
-      containerID = strtrim(res);
+      containerID = BgWorkerObjDocker.parseJobIDStatic(res);
       fprintf('Process job (view %d) spawned, docker containerID=%s.\n\n',...
         iview,containerID);
       
@@ -127,6 +122,21 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
         tfsucc = true;
       end
+    end
+    
+  end
+  
+  methods (Static)
+    
+    function containerID = parseJobIDStatic(res)
+      
+      res = regexp(res,'\n','split');
+      res = regexp(res,'^[0-9a-f]+$','once','match');
+      l = cellfun(@numel,res);
+      res = res{find(l==64,1)};
+      assert(~isempty(res));
+      containerID = strtrim(res);
+      
     end
     
   end
