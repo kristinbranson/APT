@@ -3,6 +3,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
   properties
     initSuccessful = false;
     initVizInfo % scalar struct with info for updating plot
+    tfUpdating = false;
   end
   
   methods
@@ -111,7 +112,12 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
     function update(obj,hAx,lObj,sPrm,propFullName)
 
       fprintf('Call to update at %s\n',datestr(now));
+      if obj.tfUpdating,
+        fprintf('Update already running, canceling this call.\n');
+        return;
+      end
       ParameterVisualization.setBusy(hAx);
+      obj.tfUpdating = true;
       
       [~,~,ppPrms] = lObj.convertNew2OldParams(sPrm);
       
@@ -171,6 +177,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
           end
         end
       else
+        obj.tfUpdating = false;
         error('Not implemented');
       end
       
@@ -212,6 +219,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       hAx.XTick = [];
       hAx.YTick = [];
       
+      obj.tfUpdating = false;
       ParameterVisualization.setReady(hAx);
       
     end

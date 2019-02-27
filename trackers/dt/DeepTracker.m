@@ -1120,7 +1120,6 @@ classdef DeepTracker < LabelTracker
       switch backEnd.type
         case DLBackEnd.Bsub
           singArgs = {'bindpath',mntPaths};
-          dataAugCodeGenSSHBsubSing(varargin)
           syscmd = DeepTracker.dataAugCodeGenSSHBsubSing(...
             ID,dlLblFileLcl,cacheDir,errfile,obj.trnNetType,outfile,...
             'singArgs',singArgs);
@@ -1141,31 +1140,42 @@ classdef DeepTracker < LabelTracker
         
         tfsucc = (st == 0) && ~isempty(regexp(res,'Augmented data saved to','once'));
         if tfsucc,
-          augims = DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
+          [tfsucc,augims] = DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
+          if ~tfsucc,
+            error('Error loading augmented data');
+          end
         else
           error('Error creating sample augmented images:\n%s',res);
         end
         
       else
-        error('Not implemented');
+        
         fprintf(1,'%s\n',syscmd);
         [st,res] = system(syscmd);
         if st==0,
           PAT = 'Job <(?<jobid>[0-9]+)>';
           stoks = regexp(res,PAT,'names');
-          if ~isempty(stoks)
+          if ~isempty(stoks),
             jobid = str2double(stoks.jobid);
-            % to-do: wait for results
+            
+            cmd =  @() DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
+            nout = 1;
+            maxWaitTime = 60; % seconds
+            [tfsucc,augims] = DeepTracker.waitForBsubComplete(jobid,cmd,nout,maxWaitTime,true);
+            if ~tfsucc,
+              error('Data augmentation did not complete within %d seconds',maxWaitTime);
+            end
+            augims = augims{1};
           else
             error('Failed to ascertain jobID.');
           end
         else
-          %to-do: error
+          error('Error creating sample augmented images:\n%s',res);
         end
       end
       
     end
-
+    
     function [tfsucc,hedit] = testBsubConfig(obj,varargin)
       
       tfsucc = false;
@@ -3523,7 +3533,7 @@ classdef DeepTracker < LabelTracker
       [baseargs,singargs] = myparse(varargin,...
         'baseargs',{},...
         'singargs',{});
-      basecmd = DeepTracker.dataAugCodeGen(ID,dllbl,cache,errfile,...
+      basecmd = DeepTracker.dataAugCodeGenBase(ID,dllbl,cache,errfile,...
         netType,outfile,baseargs{:});
       codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
     end
@@ -3663,6 +3673,7 @@ classdef DeepTracker < LabelTracker
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
+    
     function codestr = trackCodeGenListFileSSHBsubSing(trnID,cache,dllbl,...
         errfile,nettype,view,outfile,listfile,varargin)
       
@@ -3734,6 +3745,62 @@ classdef DeepTracker < LabelTracker
       m.newName = fullfile(m.path,[m.base '_trn' m.trn_ts '_iter' num2str(m.iter) '_' m.trk_ts m.ext]);
       tfsuccess = true;
     end
+    
+    function [tfsucc,res] = waitForBsubComplete(jobid,cmd,nout,maxWaitTime,doKill)
+      starttime = tic;
+      res = cell(1,nout);
+      bjobscmd = sprintf('bjobs %d',jobid);
+      bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
+      killcmd = sprintf('bkill %d',jobid);
+      killcmd = DeepTracker.codeGenSSHGeneral(killcmd,'bg',false);
+      runStatuses = {'PEND','RUN','PROV','WAIT'};
+      doneStatuses = {'DONE'};
+      tfJobRunning = false;
+      tfJobDone = false;
+      
+      while true,
+        if toc(starttime) > maxWaitTime,
+          break;
+        end
+        [tfsucc,res{:}] = cmd();
+        %[augims,tfsucc] = DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
+        if tfsucc,
+          break;
+        end
+        tfJobRunning = false;
+        [st2,res2] = system(bjobscmd);
+        if st2 == 0,
+          ss = strsplit(res2,'\n');
+          ism = ~cellfun(@isempty,regexp(ss,'^JOBID','once'));
+          i = find(ism,1);
+          if ~isempty(i) && i < numel(ss),
+            
+            % make sure outout is formatted as I think it should be
+            assert(~isempty(regexp(ss{i},'^\s*JOBID\s*USER\s*STAT','once')))
+            res3 = ss{i+1};
+            m = regexp(res3,'^(?<jobid>\d+)\s+(?<user>\w+)\s+(?<stat>\w+)','names','once');
+            assert(~isempty(m));
+            tfJobRunning = ismember(m.stat,runStatuses);
+            tfJobDone = ismember(m.stat,doneStatuses);
+            %fprintf('%fs: %s\n',toc(starttime),m.stat);
+            
+          end
+        end
+        if ~tfJobRunning && ~tfJobDone,
+          warning('Could not find results. Output of bjobs:\n%s\n',res2);
+          break;
+        end
+        drawnow;
+      end
+      if ~tfsucc && tfJobRunning && doKill,
+        [st4,res4] = system(killcmd);
+        if ~st4 == 0,
+          error('Error killing:\n%s',res4);
+        end
+      end
+      
+    end
+
 
   end
   methods (Static) % train/track broker util
@@ -3974,16 +4041,20 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function [augims] = loadAugmentedData(outfile,nview)
+    function [tfsucc,augims] = loadAugmentedData(outfile,nview)
 
+      tfsucc = false;
       augims = struct;
       for i = 1:nview,
         outfile_curr = sprintf('%s_%d.mat',outfile,i-1);
+        if ~exist(outfile_curr,'file'),
+          return;
+        end
         da = load(outfile_curr);
         augims.ims{i} = permute(da.ims,[2,3,4,1]);
         augims.locs{i} = da.locs;
       end
-      
+      tfsucc = true;
     end
     
   end
