@@ -845,7 +845,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             if self.conf.mdn_use_unet_loss:
                 unet_locs = PoseTools.get_pred_locs(unet_pred)
                 d = np.sqrt(np.sum((base_locs - unet_locs) ** 2, axis=-1))
-                mdn_unet_locs = base_locs
+                mdn_unet_locs = base_locs.copy()
                 mdn_unet_locs[d < mdn_unet_dist, :] = unet_locs[d < mdn_unet_dist, :]
             else:
                 unet_pred = mdn_pred_out

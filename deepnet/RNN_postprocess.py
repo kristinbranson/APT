@@ -13,7 +13,7 @@ import sys
 import time
 import json
 import math
-from APT_interface import convert_to_orig
+import APT_interface as apt
 
 def print_train_data(cur_dict):
     p_str = ''
@@ -44,9 +44,9 @@ class RNN_pp(object):
 
     def create_db(self, split_file=None):
         assert  self.rnn_pp_hist % self.conf.batch_size == 0, 'make sure the history is a multiple of batch size'
-        assert len(self.conf.mdn_groups)==1, 'This works only for single group. check for line 118'
+        # assert len(self.conf.mdn_groups)==1, 'This works only for single group. check for line 118'
         net = PoseUNet_resnet.PoseUMDN_resnet(self.conf,self.mdn_name)
-        sess, _ = net.restore_net_common(net.create_network)
+        pred_fn, close_fn, _ = net.get_pred_fn()
 
         conf = self.conf
         on_gt = False
@@ -99,24 +99,25 @@ class RNN_pp(object):
                     cur_out = multiResData.get_cur_env(out_fns, split, conf, info, mov_split, trx_split=trx_split, predefined=predefined)
                     num_rep = 1 + cur_out*(self.train_rep-1)
 
-                    for rep in range(num_rep):
-                        cur_pred = np.ones([self.rnn_pp_hist*2,self.conf.n_classes,2])
-                        cur_ims = []
-                        cur_labels = []
-                        raw_preds = []
-                        unet_pred = []
-                        for fndx in range(-self.rnn_pp_hist,self.rnn_pp_hist):
-                            frame_in, cur_loc = multiResData.get_patch(
-                                cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts],
-                                cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc, offset=fndx)
-                            cur_labels.append(cur_loc)
-                            cur_ims.append(frame_in)
+                    orig_ims = []
+                    orig_labels = []
+                    for fndx in range(-self.rnn_pp_hist, self.rnn_pp_hist):
+                        frame_in, cur_loc = multiResData.get_patch(
+                            cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts],
+                            cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc, offset=fndx)
+                        orig_labels.append(cur_loc)
+                        orig_ims.append(frame_in)
 
-                        cur_ims = np.array(cur_ims)
-                        cur_labels = np.array(cur_labels)
+                    orig_ims = np.array(orig_ims)
+                    orig_labels = np.array(orig_labels)
+
+                    for rep in range(num_rep):
+                        cur_pred = np.ones([self.rnn_pp_hist*2,self.conf.n_classes,2])*np.nan
+                        raw_preds = np.ones([self.rnn_pp_hist*2,self.conf.n_classes,2])*np.nan
+                        unet_preds = np.ones([self.rnn_pp_hist*2,self.conf.n_classes,2])*np.nan
 
                         cur_ims, cur_labels = PoseTools.preprocess_ims(
-                            cur_ims, cur_labels, conf, distort=cur_out,scale= self.conf.rescale,
+                            orig_ims, orig_labels, conf, distort=cur_out,scale= self.conf.rescale,
                             group_sz=2*self.rnn_pp_hist)
 
                         bsize = self.conf.batch_size
@@ -124,34 +125,21 @@ class RNN_pp(object):
                         for bndx in range(nbatches):
                             start = bndx*bsize
                             end = (bndx+1)*bsize
-                            net.fd[net.inputs[0]] = cur_ims[start:end,...]
-                            net.fd[net.inputs[1]] = cur_labels[start:end,...]
-                            info_fd = np.zeros([bsize,3])
-                            info_fd[:,0] = ndx; info_fd[:,1] = np.arange(start,end); info_fd[:,2] = trx_ndx
-                            net.fd[net.inputs[2]] = info_fd
-                            net.fd[net.inputs[3]] = np.zeros(net.inputs[3]._shape_as_list())
 
-                            if not self.debug:
-                                cur_m, cur_s, cur_w = sess.run(net.pred, net.fd)
-                            else:
-                                mdn_pred, unet_out = sess.run([net.pred, net.unet_pred], net.fd)
-                                cur_m, cur_s, cur_w = mdn_pred
-                                unet_pred.append(unet_out)
-                            cur_w = cur_w[:,:,0]
-                            cur_m = cur_m * net.offset
-                            nx = np.argmax(cur_w, axis=1)
-                            raw_preds.append(np.array([cur_m[x,nx[x],...] for x in range(cur_m.shape[0])]))
+                            ret_dict = pred_fn(cur_ims[start:end,...])
+                            pred_locs = ret_dict['locs']
+                            raw_preds[start:end] = ret_dict['locs']
+                            unet_preds[start:end] = ret_dict['locs_unet']
 
                             hsz = [float(self.conf.imsz[1])/2,float(self.conf.imsz[0])/2]
-                            if self.locs_coords == 'example' and conf.has_trx_file:
+                            if conf.has_trx_file:
                                 for e_ndx in range(bsize):
                                     trx_fnum = fnum - first_frames[trx_ndx]
-                                    trx_fnum_ex = fnum - first_frames[trx_ndx] \
-                                        + e_ndx + start - self.rnn_pp_hist
+                                    trx_fnum_ex = fnum - first_frames[trx_ndx] + e_ndx + start - self.rnn_pp_hist
                                     trx_fnum_ex = trx_fnum_ex if trx_fnum_ex >0 else 0
                                     end_ndx = end_frames[trx_ndx] - first_frames[trx_ndx]
                                     trx_fnum_ex = trx_fnum_ex if trx_fnum_ex < end_ndx else end_ndx
-                                    temp_pred = cur_m[e_ndx,nx[e_ndx],:,:]
+                                    temp_pred = pred_locs[e_ndx,:,:]
                                     dx = cur_trx['x'][0, trx_fnum] - cur_trx['x'][0, trx_fnum_ex]
                                     dy = cur_trx['y'][0, trx_fnum] - cur_trx['y'][0, trx_fnum_ex]
                                     # -1 for 1-indexing in matlab and 0-indexing in python
@@ -159,10 +147,10 @@ class RNN_pp(object):
                                     R = [[np.cos(tt), -np.sin(tt)], [np.sin(tt), np.cos(tt)]]
                                     rr = (cur_trx['theta'][0, trx_fnum]) + math.pi / 2
                                     Q = [[np.cos(rr), -np.sin(rr)], [np.sin(rr), np.cos(rr)]]
-                                    curlocs = np.dot(temp_pred - hsz, R) + hsz - np.dot([dx, dy], Q)
-                                    cur_pred[start+e_ndx, ...] = curlocs
+                                    cur_locs = np.dot(temp_pred - hsz, R) + hsz - np.dot([dx, dy], Q)
+                                    cur_pred[start+e_ndx, ...] = cur_locs
                             else:
-                                cur_pred[start:end,:,:] = cur_m[np.arange(bsize),nx,:,:]
+                                cur_pred[start:end,:,:] = pred_locs
 
                         # ---------- Code for testing
                         # raw_pred = np.array(raw_preds).reshape((cur_pred.shape[0],) + raw_preds[0].shape[1:])
@@ -221,7 +209,6 @@ class RNN_pp(object):
                         dd = np.sqrt(np.sum((cur_pred[rx, ...] - cur_labels[rx, ...]) ** 2, axis=-1))
                         cur_info = [ndx, fnum, trx_ndx]
                         raw_preds = np.array(raw_preds)
-                        raw_preds = raw_preds.reshape((-1,)+raw_preds.shape[2:])
                         if cur_out:
                             data[0].append([cur_pred, cur_labels[rx,...], cur_info, raw_preds])
                         else:
@@ -237,6 +224,7 @@ class RNN_pp(object):
 
             cap.close()  # close the movie handles
 
+        close_fn()
         with open(os.path.join(conf.cachedir,self.data_name + '.p'),'w') as f:
             pickle.dump(data,f)
         lbl.close()
@@ -642,7 +630,7 @@ class RNN_pp(object):
         preds = np.array(preds)
         preds = preds.reshape((-1,self.conf.n_classes,2))
         prev_preds = np.array(prev_preds)
-        prev_preds = prev_preds.reshape((-1, self.conf.n_classes*2,4) )
+        prev_preds = prev_preds.reshape((-1, self.conf.n_classes*2,2) )
         labels = np.array(labels)
         labels = labels.reshape((-1,self.conf.n_classes,2))
         dd = np.sqrt(np.sum( (preds-labels)**2,axis=-1))

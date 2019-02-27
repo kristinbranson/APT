@@ -6945,7 +6945,7 @@ classdef Labeler < handle
           
           if tfWB && toc(wbtime) >= maxwbtime,
             wbtime = tic;
-            tfCancel = wbObj.updateFracWithNumDen(nRosComplete);
+            tfCancel = wbObj.updateFracWithNumDen(nRowsComplete);
             if tfCancel
               return;
             end

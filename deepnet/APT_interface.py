@@ -1537,7 +1537,10 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
                 'pTrkFrm': tracked,
                 'trkInfo': info}
     for k in extra_dict.keys():
-        out_dict['pTrk' + k] = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids)
+        tmp = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids) 
+        if k.startswith('locs_'):
+            tmp = to_mat(tmp)
+        out_dict['pTrk' + k] = tmp
 
     hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
 
