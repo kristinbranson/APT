@@ -1484,7 +1484,7 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any'):
+def submit_job(name, cmd, dir,queue='gpu_any',gpu_model="None"):
     import subprocess
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')
     sing_err = os.path.join(dir, 'opt_' + name + '.err')
@@ -1499,9 +1499,11 @@ def submit_job(name, cmd, dir,queue='gpu_any'):
         f.write('\n')
 
     os.chmod(sing_script, 0755)
-
-    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "num=1" -q {} "singularity exec --nv /misc/local/singularity/branson_v2.simg {}"' '''.format(
-        sing_log, sing_err, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    gpu_str = "num=1"
+    if gpu_model is not None:
+        gpu_str += ":gmodel={}".format(gpu_model)
+    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "{}" -q {} "singularity exec --nv /misc/local/singularity/branson_v2.simg {}"' '''.format(
+        sing_log, sing_err, gpu_str, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     subprocess.call(cmd, shell=True)
     print('Submitted jobs for {}'.format(name))
     print(cmd)
