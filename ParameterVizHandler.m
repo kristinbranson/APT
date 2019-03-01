@@ -18,6 +18,7 @@ classdef ParameterVizHandler < handle
     id2ParamViz % containers.Map. key: ID. val: ParameterVisualization obj. Note, not all ParameterVisualizations will have an ID.
     
     paramVizSelected % Either [], or scalar ParameterVisualization associated with currently selected property
+    cbkTS = 0;
   end
   
   methods
@@ -32,6 +33,7 @@ classdef ParameterVizHandler < handle
       obj.id2ParamViz = containers.Map();
       
       obj.paramVizSelected = [];
+      obj.cbkTS = 0;
     end
     
     function delete(obj)
@@ -124,11 +126,11 @@ classdef ParameterVizHandler < handle
       
     end
     
-    function propSelected(obj,prop)
+    function propSelected(obj,prop,ts)
       % Called when a prop is initially selected
       % 
       % prop: grid java prop
-      
+            
       [tfIsProp,pvObjNew] = obj.isprop(prop);
       if ~obj.isValidParams(),
         ParameterVisualization.grayOutAxes(obj.hAx,'Invalid parameters selected.');
@@ -151,6 +153,17 @@ classdef ParameterVizHandler < handle
 
       obj.cbkToggleParamViz(tfIsProp,true);
       if tfIsProp
+        
+        if ts < obj.cbkTS,
+          global DEBUG_PROPERTIESGUI2;
+          if ~isempty(DEBUG_PROPERTIESGUI2) && DEBUG_PROPERTIESGUI2 > 0,
+            fprintf('PROPSELECTED CANCEL, %s < %s\n',datestr(ts,'HH:MM:SS.FFF'),datestr(obj.cbkTS,'HH:MM:SS.FFF'));
+          end
+          return;
+        end
+        
+        obj.cbkTS = ts;
+        
         lblObj = obj.lObj;
         sPrm = obj.getCurrentParamsInTree();
 %         fprintf(1,'PVH calling propSelected\n');
@@ -162,7 +175,18 @@ classdef ParameterVizHandler < handle
       end
     end
     
-    function propUpdatedGeneral(obj,prop)
+    function propUpdatedGeneral(obj,prop,ts)
+      
+      if ts < obj.cbkTS,
+        global DEBUG_PROPERTIESGUI2;
+        if ~isempty(DEBUG_PROPERTIESGUI2) && DEBUG_PROPERTIESGUI2 > 0,
+          fprintf('PROPUPDATEDGENERAL CANCEL, %s < %s\n',datestr(ts,'HH:MM:SS.FFF'),datestr(obj.cbkTS,'HH:MM:SS.FFF'));
+        end
+        return;
+      end
+      
+      obj.cbkTS = ts;
+      
       if ~obj.isValidParams(),
         ParameterVisualization.grayOutAxes(obj.hAx,'Invalid parameters selected.');
         return;
@@ -175,11 +199,22 @@ classdef ParameterVizHandler < handle
       end
     end
     
-    function propUpdatedSpinner(obj,prop,pvObj,spinnerEvt,propName)
+    function propUpdatedSpinner(obj,prop,pvObj,spinnerEvt,propName,ts)
       % Called when prop's spinner is clicked. propertyTable.appData.mirror
       % has not been updated yet
       % 
       % pvObj: prop->pvObj
+      
+      if ts < obj.cbkTS,
+        global DEBUG_PROPERTIESGUI2;
+        if ~isempty(DEBUG_PROPERTIESGUI2) && DEBUG_PROPERTIESGUI2 > 0,
+          fprintf('PROPUPDATEDSPINNER CANCEL, %s < %s\n',datestr(ts,'HH:MM:SS.FFF'),datestr(obj.cbkTS,'HH:MM:SS.FFF'));
+        end
+        return;
+      end
+
+      obj.cbkTS = ts;
+      
       if ~obj.isValidParams(),
         %ParameterVisualization.grayOutAxes(obj.hAx,'Invalid parameters selected.');
         return;
