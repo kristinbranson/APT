@@ -116,6 +116,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
         fprintf('Update already running, canceling this call.\n');
         return;
       end
+      fprintf('Updating %s, rrange = %d\n',propFullName,sPrm.ROOT.DeepTrack.DataAugmentation.rrange);
       ParameterVisualization.setBusy(hAx);
       obj.tfUpdating = true;
       
@@ -158,6 +159,8 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       elseif strcmpi(s{1},'DeepTrack') && strcmpi(s{2},'DataAugmentation'),
         if ~isfield(obj.initVizInfo,'augd') || isempty(obj.initVizInfo.augd) || ...
             ~APTParameters.isEqualDeepTrackDataAugParams(obj.initVizInfo.sPrm,sPrm),
+          fprintf('Calling DATAAUG, rrange = %d\n',sPrm.ROOT.DeepTrack.DataAugmentation.rrange);
+
           if isfield(obj.initVizInfo,'dataAugDir'),
             dataAugParams = {'dataAugDir',obj.initVizInfo.dataAugDir};
           else
