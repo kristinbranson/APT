@@ -6,17 +6,20 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       obj@BgWorkerObjLocalFilesys(varargin{:});
     end
     
-    function parseJobID(obj,res,iview)
+    function parseJobID(obj,res,iview,imov)
       
+      if nargin < 4,
+        imov = 1;
+      end
       containerID = BgWorkerObjDocker.parseJobIDStatic(res);
-      fprintf('Process job (view %d) spawned, docker containerID=%s.\n\n',...
-        iview,containerID);
+      fprintf('Process job (movie %d, view %d) spawned, docker containerID=%s.\n\n',...
+        imov,iview,containerID);
       
 %       containerID = strtrim(res);
 %       fprintf('Process job (view %d) spawned, docker containerID=%s.\n\n',...
 %         iview,containerID);
       % assigning to 'local' workerobj, not the one copied to workers
-      obj.jobID{iview} = containerID;
+      obj.jobID{imov,iview} = containerID;
     end
     
     function s = dockercmd(obj)

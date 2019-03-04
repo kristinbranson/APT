@@ -6,8 +6,11 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       obj@BgWorkerObjLocalFilesys(varargin{:});
     end
     
-    function parseJobID(obj,res,iview)
+    function parseJobID(obj,res,iview,imov)
       
+      if nargin < 4,
+        imov = 1;
+      end
       PAT = 'Job <(?<jobid>[0-9]+)>';
       stoks = regexp(res,PAT,'names');
       if ~isempty(stoks)
@@ -16,10 +19,10 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
         jobid = nan;
         warningNoTrace('Failed to ascertain jobID.');
       end
-      fprintf('Process job (view %d) spawned, jobid=%d.\n\n',...
-        iview,jobid);
+      fprintf('Process job (view %d, mov %d) spawned, jobid=%d.\n\n',...
+        iview,imov,jobid);
       % assigning to 'local' workerobj, not the one copied to workers
-      obj.jobID(iview) = jobid;
+      obj.jobID(imov,iview) = jobid;
       
     end
 

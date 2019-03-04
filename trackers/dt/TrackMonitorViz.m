@@ -15,6 +15,7 @@ classdef TrackMonitorViz < handle
     parttrkfileTimestamps = [];
     nFramesTracked = [];
     nFramesToTrack = 0;
+    jobDescs = {};
     actions = struct(...
       'Bsub',...
       {{'List all jobs on cluster'...
@@ -36,11 +37,32 @@ classdef TrackMonitorViz < handle
   end
   
   methods
-    function obj = TrackMonitorViz(nview,dtObj,trackWorkerObj,backEnd,nFramesToTrack)
+    function obj = TrackMonitorViz(nview,dtObj,trackWorkerObj,backEnd,nFramesToTrack,jobDescs)
       obj.dtObj = dtObj;
       obj.trackWorkerObj = trackWorkerObj;
       obj.backEnd = backEnd;
-      obj.nFramesToTrack = nFramesToTrack;
+      nMovies = numel(nFramesToTrack);
+      obj.nFramesToTrack = repmat(nFramesToTrack,nview);
+      nJobs = nMovies*nview;
+      if ~exist('jobDescs','var'),
+        jobDescs = cell(nMovies,nview);
+        for imov = 1:nMovies,
+          if nMovies > 1,
+            movstr = sprintf(', Mov %d',imov);
+          else
+            movstr = '';
+          end
+          for ivw = 1:nview,
+            if nview > 1,
+              vwstr = sprintf(', Vw %d',ivw);
+            else
+              vwstr = '';
+            end
+            jobDescs{imov,ivw} = [movstr,vwstr];
+          end
+        end
+      end
+      obj.jobDescs = jobDescs;
       
       obj.hfig = TrackMonitorGUI(obj);
       handles = guidata(obj.hfig);
@@ -60,34 +82,34 @@ classdef TrackMonitorViz < handle
       obj.htrackerInfo.String = s;
       handles.popupmenu_actions.String = obj.actions.(char(backEnd));
       handles.popupmenu_actions.Value = 1;
-      handles.axes_wait.YLim = [0,nview];
+      handles.axes_wait.YLim = [0,nJobs];
       handles.axes_wait.XLim = [0,1+obj.minFracComplete];
       handles.axes_wait.XTick = [];
       handles.axes_wait.YTick = [];
       hold(handles.axes_wait,'on');
 
-      clrs = lines(nview);
-      obj.hline = gobjects(nview,1);
-      obj.htext = gobjects(nview,1);
-      for ivw = 1:nview,
-        obj.hline(ivw) = patch([0,0,1,1,0]*obj.minFracComplete,...
-          ivw-[0,1,1,0,0],clrs(ivw,:),...
+      clrs = lines(nJobs);
+      obj.hline = gobjects(nJobs,1);
+      obj.htext = gobjects(nJobs,1);
+      for ijob = 1:nJobs,
+        obj.hline(ijob) = patch([0,0,1,1,0]*obj.minFracComplete,...
+          ijob-[0,1,1,0,0],clrs(ijob,:),...
           'Parent',handles.axes_wait,...
           'EdgeColor','w');
-        if nview > 1,
-          sview = sprintf(', view %d',ivw);
+        if nJobs > 1,
+          sview = jobDescs{ijob};
         else
           sview = '';
         end
-        obj.htext(ivw) = text((1+obj.minFracComplete)/2,ivw-.5,...
-          sprintf('0/%d frames tracked%s',obj.nFramesToTrack,sview),...
+        obj.htext(ijob) = text((1+obj.minFracComplete)/2,ijob-.5,...
+          sprintf('0/%d frames tracked%s',obj.nFramesToTrack(ijob),sview),...
           'Color','w','HorizontalAlignment','center',...
           'VerticalAlignment','middle','Parent',handles.axes_wait);
       end
       
       obj.resLast = [];
-      obj.parttrkfileTimestamps = zeros(1,nview);
-      obj.nFramesTracked = zeros(1,nview);
+      obj.parttrkfileTimestamps = zeros(1,nJobs);
+      obj.nFramesTracked = zeros(1,nJobs);
             
     end
     
@@ -110,59 +132,59 @@ classdef TrackMonitorViz < handle
       res = sRes.result;      
       fprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
       fprintf('N. frames tracked: ');
-      nview = numel(res);
+      nJobs = numel(res);
 
       % always update info about current tracker, as labels may have changed
       s = obj.dtObj.getTrackerInfoString();
       obj.htrackerInfo.String = s;
 
       tic;
-      for ivw=1:nview,
-        isdone = res(ivw).tfComplete;
-        partFileExists = ~isnan(res(ivw).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
+      for ijob=1:nJobs,
+        isdone = res(ijob).tfComplete;
+        partFileExists = ~isnan(res(ijob).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
         isupdate = ...
-          (partFileExists && (forceupdate || (res(ivw).parttrkfileTimestamp>obj.parttrkfileTimestamps(ivw)))) ...
+          (partFileExists && (forceupdate || (res(ijob).parttrkfileTimestamp>obj.parttrkfileTimestamps(ijob)))) ...
            || isdone;
 
         if isupdate,          
           try
-            if isfield(res(ivw),'parttrkfileNfrmtracked')
+            if isfield(res(ijob),'parttrkfileNfrmtracked')
               % for AWS and any worker that figures this out on its own
-              obj.nFramesTracked(ivw) = nanmax(res(ivw).parttrkfileNfrmtracked,...
-                res(ivw).trkfileNfrmtracked);
+              obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
+                res(ijob).trkfileNfrmtracked);
             else
               didload = false;
               if isdone,
                 try
-                  ptrk = load(res(ivw).trkfile,'pTrk','-mat');
+                  ptrk = load(res(ijob).trkfile,'pTrk','-mat');
                   didload = true;
                 catch,
                   warning('isdone = true and coult not load pTrk');
                 end
               else
                 try
-                  ptrk = load(res(ivw).parttrkfile,'pTrk','-mat');
+                  ptrk = load(res(ijob).parttrkfile,'pTrk','-mat');
                   didload = true;
                 catch,
                 end
               end
               if didload && isfield(ptrk,'pTrk'),
                 try
-                  obj.nFramesTracked(ivw) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
+                  obj.nFramesTracked(ijob) = nnz(~isnan(ptrk.pTrk(1,1,:,:)));
                 catch ME
                   warning(getReport(ME));
                 end
               end
             end
             
-            if nview > 1,
-              sview = sprintf(', view %d',ivw);
+            if nJobs > 1,
+              sview = obj.jobDescs{ijob};
             else
               sview = '';
             end
-            set(obj.htext(ivw),'String',sprintf('%d/%d frames tracked%s',obj.nFramesTracked(ivw),obj.nFramesToTrack,sview));
-            fracComplete = obj.minFracComplete + (obj.nFramesTracked(ivw)/obj.nFramesToTrack);
-            set(obj.hline(ivw),'XData',[0,0,1,1,0]*fracComplete);
+            set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',obj.nFramesTracked(ijob),obj.nFramesToTrack(ijob),sview));
+            fracComplete = obj.minFracComplete + (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
+            set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);
             
           catch ME,
             fprintf('Could not update nFramesTracked:\n%s',getReport(ME));
@@ -170,12 +192,12 @@ classdef TrackMonitorViz < handle
 
         end
         
-        if res(ivw).killFileExists,
+        if res(ijob).killFileExists,
           obj.isKilled = true;
-          set(obj.hline(ivw),'FaceColor',[.5,.5,.5]);
+          set(obj.hline(ijob),'FaceColor',[.5,.5,.5]);
           obj.hfig.UserData = 'killed';
         end
-        fprintf('View %d: %d. ',ivw,obj.nFramesTracked(ivw));
+        fprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
       end
       fprintf('\n');
       fprintf('Update of nFramesTracked took %f s.\n',toc);
@@ -192,8 +214,8 @@ classdef TrackMonitorViz < handle
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
-      nview = numel(res);
-      pollsuccess = true(1,nview);
+      nJobs = numel(res);
+      pollsuccess = true(1,nJobs);
       
       clusterstr = 'Cluster';
       switch obj.backEnd
@@ -227,7 +249,7 @@ classdef TrackMonitorViz < handle
         handles = guidata(obj.hfig);
         TrackMonitorViz.updateStartStopButton(handles,false,true);
       elseif isLogFile,
-        if nview > 1,
+        if nJobs > 1,
           status = sprintf('Tracking in progress. %s frames tracked.',mat2str(obj.nFramesTracked));
         else
           status = sprintf('Tracking in progress. %d frames tracked.',obj.nFramesTracked);
