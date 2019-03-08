@@ -1,6 +1,7 @@
 %%
 %ld = load('f:\Dropbox\romainNov2018Tracking\romainTrackNov18_al_portable.lbl','-mat');
-ld = load('f:\Dropbox\romain20181203\romainTrackNov18_al_portable_mp4s.lbl','-mat');
+%ld = load('f:\Dropbox\romain20181203\romainTrackNov18_al_portable_mp4s.lbl','-mat');
+ld = load('/groups/branson/home/leea30/apt/romain20181129/romainTrackNov18_al_portable_mp4s.lbl','-mat');
 t = Labeler.lblFileGetLabels(ld);
 
 %%
@@ -161,27 +162,35 @@ DXYZ = 0.01;
 xgv = PTOPE_XRANGE(1):DXYZ:PTOPE_XRANGE(2);
 ygv = PTOPE_YRANGE(1):DXYZ:PTOPE_YRANGE(2);
 zgv = PTOPE_ZRANGE(1):DXYZ:PTOPE_ZRANGE(2);
-[x,y,z] = meshgrid(xgv,ygv,zgv);
-Xg1 = [x(:) y(:) z(:)]; % [3xng]. Xgrid, cam1 coord sys
-ng = size(Xg1,1);
 
-sp = cr.stroParams;
-R = sp.RotationOfCamera2;
-T = sp.TranslationOfCamera2;
-xy2 = worldToImage(sp.CameraParameters2,R,T,Xg1,'applyDistortion',true);
-xy2nd = worldToImage(sp.CameraParameters2,R,T,Xg1,'applyDistortion',false);
-R = eye(3);
-T = [0 0 0];
-xy1 = worldToImage(sp.CameraParameters1,R,T,Xg1,'applyDistortion',true);
-xy1nd = worldToImage(sp.CameraParameters1,R,T,Xg1,'applyDistortion',false);
+for iz=1:numel(zgv)
+
+  %[x,y,z] = meshgrid(xgv,ygv,zgv);
+  [x,y] = meshgrid(xgv,ygv);
+  Xg1 = [x(:) y(:)];
+  Xg1(:,3) = zgv(iz);
+  ng = size(Xg1,1);
+
+  sp = cr.stroParams;
+  R = sp.RotationOfCamera2;
+  T = sp.TranslationOfCamera2;
+  xy2 = worldToImage(sp.CameraParameters2,R,T,Xg1,'applyDistortion',true);
+  xy2nd = worldToImage(sp.CameraParameters2,R,T,Xg1,'applyDistortion',false);
+  R = eye(3);
+  T = [0 0 0];
+  xy1 = worldToImage(sp.CameraParameters1,R,T,Xg1,'applyDistortion',true);
+  xy1nd = worldToImage(sp.CameraParameters1,R,T,Xg1,'applyDistortion',false);
+  %%
+  tfIB1 = roi(1)<=xy1(:,1) & xy1(:,1)<=roi(2) & ...
+          roi(3)<=xy1(:,2) & xy1(:,2)<=roi(4);
+  tfIB2 = roi(1)<=xy2(:,1) & xy2(:,1)<=roi(2) & ...
+          roi(3)<=xy2(:,2) & xy2(:,2)<=roi(4);
+  tfIB = tfIB1 & tfIB2;
+  fprintf(1,'%d candidates, %d IB1, %d IB2, %d IB\n',numel(tfIB),...
+    nnz(tfIB1),nnz(tfIB2),nnz(tfIB));
+end
+
 %%
-tfIB1 = roi(1)<=xy1(:,1) & xy1(:,1)<=roi(2) & ...
-        roi(3)<=xy1(:,2) & xy1(:,2)<=roi(4);
-tfIB2 = roi(1)<=xy2(:,1) & xy2(:,1)<=roi(2) & ...
-        roi(3)<=xy2(:,2) & xy2(:,2)<=roi(4);
-tfIB = tfIB1 & tfIB2;
-fprintf(1,'%d candidates, %d IB1, %d IB2, %d IB\n',numel(tfIB),...
-  nnz(tfIB1),nnz(tfIB2),nnz(tfIB));
 
 XgFov = Xg1(tfIB,:);
 figure(22);
