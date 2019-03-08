@@ -159,7 +159,7 @@ classdef TrackMonitorViz < handle
                   ptrk = load(res(ijob).trkfile,'pTrk','-mat');
                   didload = true;
                 catch,
-                  warning('isdone = true and coult not load pTrk');
+                  warning('isdone = true and could not load pTrk');
                 end
               else
                 try
