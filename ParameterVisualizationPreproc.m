@@ -3,6 +3,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
   properties
     initSuccessful = false;
     initVizInfo % scalar struct with info for updating plot
+    tfUpdating = false;
   end
   
   methods
@@ -110,8 +111,12 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
     
     function update(obj,hAx,lObj,sPrm,propFullName)
 
-      fprintf('Call to update at %s\n',datestr(now));
+      if obj.tfUpdating,
+        %fprintf('Update already running, canceling this call.\n');
+        return;
+      end
       ParameterVisualization.setBusy(hAx);
+      obj.tfUpdating = true;
       
       [~,~,ppPrms] = lObj.convertNew2OldParams(sPrm);
       
@@ -152,6 +157,9 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       elseif strcmpi(s{1},'DeepTrack') && strcmpi(s{2},'DataAugmentation'),
         if ~isfield(obj.initVizInfo,'augd') || isempty(obj.initVizInfo.augd) || ...
             ~APTParameters.isEqualDeepTrackDataAugParams(obj.initVizInfo.sPrm,sPrm),
+          fprintf('DATAAUG:\n');
+          disp(sPrm.ROOT.DeepTrack.DataAugmentation);
+
           if isfield(obj.initVizInfo,'dataAugDir'),
             dataAugParams = {'dataAugDir',obj.initVizInfo.dataAugDir};
           else
@@ -171,6 +179,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
           end
         end
       else
+        obj.tfUpdating = false;
         error('Not implemented');
       end
       
@@ -212,6 +221,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       hAx.XTick = [];
       hAx.YTick = [];
       
+      obj.tfUpdating = false;
       ParameterVisualization.setReady(hAx);
       
     end

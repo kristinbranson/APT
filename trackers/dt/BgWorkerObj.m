@@ -80,7 +80,7 @@ classdef BgWorkerObj < handle
     function ss = getErrorfileContent(obj) % obj const
       errFiles = obj.getErrFile();
       errFileContents = cellfun(@(x)obj.fileContents(x),errFiles,'uni',0);
-      ss = BgWorkerObj.getLogfilesContentStc(logFiles,errFileContents);
+      ss = BgWorkerObj.getLogfilesContentStc(errFiles,errFileContents);
       %ss = strsplit(obj.fileContents(errFile),'\n');
     end
     
@@ -129,7 +129,7 @@ classdef BgWorkerObj < handle
       
       for ivw=1:numel(logFiles)
         logfile = logFiles{ivw};
-        fprintf(1,'\n### View %d:\n### %s\n\n',ivw,logfile);
+        fprintf(1,'\n### Job %d:\n### %s\n\n',ivw,logfile);
         disp(logFileContents{ivw});
       end
     end
@@ -140,7 +140,7 @@ classdef BgWorkerObj < handle
       ss = {};
       for ivw=1:numel(logFiles)
         logfile = logFiles{ivw};
-        ss{end+1} = sprintf('### View %d:',ivw); %#ok<AGROW>
+        ss{end+1} = sprintf('### Job %d:',ivw); %#ok<AGROW>
         ss{end+1} = sprintf('### %s',logfile); %#ok<AGROW>
         ss{end+1} = ''; %#ok<AGROW>
         ss = [ss,strsplit(logFileContents{ivw},'\n')]; %#ok<AGROW>

@@ -238,7 +238,7 @@ customizePropertyPane(pane);
 
 % A callback for touching the mouse
 hgrid = handle(grid, 'CallbackProperties');
-set(hgrid, 'MousePressedCallback', {@MousePressedCallback, hFig, parameterVizHandler, paramCheckerFcn});
+set(hgrid, 'MousePressedCallback', @(s,e) MousePressedCallback(s,e,hFig,parameterVizHandler,paramCheckerFcn,now));
 
 setappdata(hFig, 'jPropsPane',jPropsPane);
 setappdata(hFig, 'propsList',propsList);
@@ -267,7 +267,7 @@ end
 if nargout, hPropsPane = hPropsPane_; end  % prevent unintentional printouts to the command window
 end  % propertiesGUI
 
-function MousePressedCallback(grid, eventdata, hFig, paramVizHandler, paramCheckerFcn)
+function MousePressedCallback(grid, eventdata, hFig, paramVizHandler, paramCheckerFcn, ts)
 % Get the clicked location
 %grid = eventdata.getSource;
 %columnModel = grid.getColumnModel;
@@ -296,7 +296,7 @@ else
 %     disp('selectedProp');
 %     drawnow;
     if ~isempty(paramVizHandler)
-      paramVizHandler.propSelected(selectedProp);
+      paramVizHandler.propSelected(selectedProp,ts);
     end
     if ismember('arrayData',fieldnames(get(selectedProp)))
       % AL 20190127 dealing with ImageProc>BodyTracking>Align which has a
@@ -730,7 +730,7 @@ else
           sl = handle(sl,'CallbackProperties');
           spinner.addChangeListener(sl);
           % not passing in paramConstraints yet
-          set(sl,'EventCbkCallback',@(s,e)spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn));
+          set(sl,'EventCbkCallback',@(s,e)spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn,now));
           %set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
         end
       end
@@ -751,7 +751,7 @@ else
           sl = handle(sl,'CallbackProperties');
           spinner.addChangeListener(sl);
           % not passing in paramConstraints yet
-          set(sl,'EventCbkCallback',@(s,e)spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn));
+          set(sl,'EventCbkCallback',@(s,e)spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn,now));
           %set(sl,'EventCbkCallback',@(s,e)paramVizHandler.propUpdatedSpinner(prop,pvObj,e));
         end
       end      
@@ -802,10 +802,10 @@ if prop.isEditable
   
   if ~isempty(paramVizHandler) && paramVizHandler.isprop(prop)
     set(hprop,'PropertyChangeCallback',...
-      {propUpdatedCallback,propName,hFig,paramVizHandler,paramCheckerFcn,paramConstraints});
+      @(s,e) propUpdatedCallback(s,e,propName,hFig,paramVizHandler,paramCheckerFcn,paramConstraints,now));
   else
     set(hprop,'PropertyChangeCallback',...
-      {propUpdatedCallback,propName,hFig,[],paramCheckerFcn,paramConstraints});
+      @(s,e) propUpdatedCallback(s,e,propName,hFig,[],paramCheckerFcn,paramConstraints,now));
   end
 else
   prop.setDisplayName(['<html><font color="gray">' label]);
@@ -814,13 +814,17 @@ end
 setPropName(prop,propName);
 end
 
-function spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn)
+function spinnerEventCallbackWrapper(s,e,paramVizHandler,prop,pvObj,propName,hFig,paramCheckerFcn,ts)
 
 val = e.spinnerValue;
-propUpdatedCallback(prop,e,propName,hFig,[],paramCheckerFcn,[],val); % not passing paramConstraints yet
+propUpdatedCallback(prop,e,propName,hFig,[],paramCheckerFcn,[],ts,val); % not passing paramConstraints yet
 
 if ~isempty(paramVizHandler) && paramVizHandler.isprop(prop)
-  paramVizHandler.propUpdatedSpinner(prop,pvObj,e,getRecursivePropName(prop, propName));
+  global DEBUG_PROPERTIESGUI2;
+  if ~isempty(DEBUG_PROPERTIESGUI2) && DEBUG_PROPERTIESGUI2 > 0,
+    fprintf('SPINNEREVTCB %s: val = %d, isMultiple = %d\n',datestr(ts,'HH:MM:SS.FFF'),val,isMultipleCall());
+  end
+  paramVizHandler.propUpdatedSpinner(prop,pvObj,e,getRecursivePropName(prop, propName),ts);
 end
 
 end
@@ -937,7 +941,7 @@ com.jidesoft.grid.CellEditorManager.registerEditor(propType, editor, context);
 end  % alignProp
 
 function propUpdatedCallback(prop,eventData,propName,hFig,paramVizHandler,...
-  paramCheckerFcn,paramConstraints,val)
+  paramCheckerFcn,paramConstraints,ts,val)
 % paramVizHandler: optional, if present then paramVizHandler.isprop(prop)
 % should be true
 
@@ -949,6 +953,14 @@ catch
 end
 
 isVal = exist('val','var');
+global DEBUG_PROPERTIESGUI2;
+if ~isempty(DEBUG_PROPERTIESGUI2) && DEBUG_PROPERTIESGUI2 > 0,
+  if isVal,
+    fprintf('PROPUPDATEDCALLBACK %s: %d\n',datestr(ts,'HH:MM:SS.FFF'),val);
+  else
+    fprintf('PROPUPDATEDCALLBACK %s: %d\n',datestr(ts,'HH:MM:SS.FFF'));
+  end
+end
 
 %fprintf('Prop updated: %s\n',propName);
 
@@ -1011,7 +1023,7 @@ end
 
 % Wait until after mirror is updated
 if ~isempty(paramVizHandler)
-  paramVizHandler.propUpdatedGeneral(prop);
+  paramVizHandler.propUpdatedGeneral(prop,ts);
 end
 
 end
