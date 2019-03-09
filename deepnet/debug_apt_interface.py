@@ -1,11 +1,15 @@
-import poseConfig
-import leap.training as lt
+cmd = '-name 20190129T180959 -view 1 -cache /home/mayank/temp/apt_cache -err_file /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T180959/trk/movie_trn20190129T180959_iter20000_20190208T141629.err -model_files /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T180959/deepnet-20000 -type mdn /home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl track -mov /home/mayank/work/FlySpaceTime/cx_GMR_SS00038_CsChr_RigB_20150729T150617/movie.ufmf -out /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T180959/trk/movie_trn20190129T180959_iter20000_20190208T141629.trk -start_frame 8496 -end_frame 8696 -trx /home/mayank/work/FlySpaceTime/cx_GMR_SS00038_CsChr_RigB_20150729T150617/registered_trx.mat -trx_ids 3'
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
+lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190131T181525_20190131T181623.lbl'
 import APT_interface as apt
 import easydict
-reload(lt)
+reload(apt)
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-conf = apt.create_conf('/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl',0,'20190129T180959','/home/mayank/temp/apt_cache','openpose')
+conf = apt.create_conf('/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl',0,'20190129T180959','/home/mayank/temp/apt_cache','leap')
 # conf.label_blur_rad = 5
 # apt.create_leap_db(conf,False,use_cache=True)
 args = easydict.EasyDict()
@@ -16,7 +20,7 @@ conf.op_affinity_graph = [[0,1],[1,2],[2,0]]
 apt.train_openpose(conf,args,False)
 
 ##
-cmd_str = '-name 20190129T180959 -cache /home/mayank/temp/apt_cache -type leap /home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl train -use_cache -skip_db'
+cmd_str = '-name 20190129T180959 -view 1 -cache /home/mayank/temp/apt_cache  -conf_params  label_blur_rad 7 dl_steps 5000 leap_use_default_lr False -train_name decay_lr -type leap /home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl train -use_cache -skip_db'
 
 import APT_interface as apt
 apt.main(cmd_str.split())
