@@ -6,22 +6,20 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       obj@BgWorkerObjLocalFilesys(varargin{:});
     end
     
-    function parseJobID(obj,res,iview)
+    function parseJobID(obj,res,iview,imov)
       
-      res = regexp(res,'\n','split');
-      res = regexp(res,'^[0-9a-f]+$','once','match');
-      l = cellfun(@numel,res);
-      res = res{find(l==64,1)};
-      assert(~isempty(res));
-      containerID = strtrim(res);
-      fprintf('Process job (view %d) spawned, docker containerID=%s.\n\n',...
-        iview,containerID);
+      if nargin < 4,
+        imov = 1;
+      end
+      containerID = BgWorkerObjDocker.parseJobIDStatic(res);
+      fprintf('Process job (movie %d, view %d) spawned, docker containerID=%s.\n\n',...
+        imov,iview,containerID);
       
 %       containerID = strtrim(res);
 %       fprintf('Process job (view %d) spawned, docker containerID=%s.\n\n',...
 %         iview,containerID);
       % assigning to 'local' workerobj, not the one copied to workers
-      obj.jobID{iview} = containerID;
+      obj.jobID{imov,iview} = containerID;
     end
     
     function s = dockercmd(obj)
@@ -127,6 +125,21 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
         tfsucc = true;
       end
+    end
+    
+  end
+  
+  methods (Static)
+    
+    function containerID = parseJobIDStatic(res)
+      
+      res = regexp(res,'\n','split');
+      res = regexp(res,'^[0-9a-f]+$','once','match');
+      l = cellfun(@numel,res);
+      res = res{find(l==64,1)};
+      assert(~isempty(res));
+      containerID = strtrim(res);
+      
     end
     
   end

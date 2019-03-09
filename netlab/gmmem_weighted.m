@@ -80,6 +80,8 @@ for n = 1:niters
   % Calculate posteriors based on old parameters
   [post, act] = gmmpost(mix, x);
   
+  post = post .* w;
+
   % Calculate error value if needed
   if (display | store | test)
     prob = act*(mix.priors)';
@@ -95,15 +97,16 @@ for n = 1:niters
     if test
       if (n > 1 & abs(e - eold) < options(3))
         options(8) = e;
+        if display > 0
+          fprintf(1,'gmmem-weighted early return.\n'); 
+        end
         return;
       else
         eold = e;
       end
     end
   end
-  
-  post = post .* w;
-  
+    
   % Adjust the new estimates for the parameters
   new_pr = sum(post, 1);
   

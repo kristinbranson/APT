@@ -170,7 +170,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=False, on_gt=Fa
     out_fns = [lambda data: envs[0].write(tf_serialize(data)),
                lambda data: envs[1].write(tf_serialize(data))]
     if use_cache:
-        splits = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt)
+        splits,__ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt)
     else:
         splits = db_from_lbl(conf, out_fns, split, split_file, on_gt)
 
@@ -563,7 +563,7 @@ def test_preproc(lbl_file=None,cachedir=None):
     c_out_fns = [lambda data: c_envs[0].write(tf_serialize(data)),
                  lambda data: c_envs[1].write(tf_serialize(data))]
 
-    splits = db_from_cached_lbl(conf, c_out_fns, False, None, False)
+    splits,__ = db_from_cached_lbl(conf, c_out_fns, False, None, False)
     c_envs[0].close()
     splits = db_from_lbl(conf, n_out_fns, False, None, False)
     n_envs[0].close()
@@ -604,7 +604,7 @@ def get_cur_trx(trx_file, trx_ndx):
     return cur_trx, n_trx
 
 
-def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=None, nsamples=None):
+def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=None):
     # outputs is a list of functions. The first element writes
     # to the training dataset while the second one write to the validation
     # dataset. If split is False, second element is not used and all data is
@@ -744,9 +744,11 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
     # KB 20190208: if we only need a few images, don't waste time reading in all of them
     if sel is None:
         if nsamples is None:
-            sel = range(lbl['preProcData_I'].shape[1])
+            sel = np.arange(lbl['preProcData_I'].shape[1])
         else:
             sel = np.random.choice(lbl['preProcData_I'].shape[1],nsamples)
+    else:
+        sel = np.arange(lbl['preProcData_I'].shape[1])
     
     for selndx in range(len(sel)):
 
@@ -846,10 +848,7 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
     logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
     lbl.close()
 
-    if nsamples is None:
-        return splits
-    else:
-        return splits,sel
+    return splits,sel
 
 
 def create_leap_db(conf, split=False, split_file=None, use_cache=False):
@@ -863,7 +862,7 @@ def create_leap_db(conf, split=False, split_file=None, use_cache=False):
     # collect the images and labels in arrays
     out_fns = [lambda data: train_data.append(data), lambda data: val_data.append(data)]
     if use_cache:
-        splits = db_from_cached_lbl(conf, out_fns, split, split_file)
+        splits,__ = db_from_cached_lbl(conf, out_fns, split, split_file)
     else:
         splits = db_from_lbl(conf, out_fns, split, split_file)
 
@@ -952,7 +951,7 @@ def create_deepcut_db(conf, split=False, split_file=None, use_cache=False):
     # collect the images and labels in arrays
     out_fns = [train_out_fn, val_out_fn]
     if use_cache:
-        splits = db_from_cached_lbl(conf, out_fns, split, split_file)
+        splits,__ = db_from_cached_lbl(conf, out_fns, split, split_file)
     else:
         splits = db_from_lbl(conf, out_fns, split, split_file)
     [f.close() for f in train_fis]
@@ -1097,30 +1096,22 @@ def get_trx_ids(trx_ids_in, n_trx, has_trx_file):
     return trx_ids
 
 
-def get_augmented_images(conf, out_file, distort=True, on_gt = False, use_cache=True,nsamples=None):
+def get_augmented_images(conf, out_file, distort=True, on_gt = False,nsamples=None):
 
         data_in = []
         out_fns = [lambda data: data_in.append(data),
                    lambda data: None]
 
-        if use_cache:
-            splits,sel = db_from_cached_lbl(conf, out_fns, False, None, on_gt, nsamples=nsamples)
-            ims = np.array([d[0] for d in data_in])
-            locs = np.array([d[1] for d in data_in])
-        else:
-            splits = db_from_lbl(conf, out_fns, False, None, on_gt, sel=sel)
-            ims = np.array([d[0] for d in data_in])
-            locs = np.array([d[1] for d in data_in])
-            if nsamples is not None:
-                sel = np.random.choice(ims.shape[0],nsamples)
-                ims = ims[sel,...]
-                locs = locs[sel,...]
-            else:
-                sel = range(ims.shape[0])
+        logging.info('use cache')
+        splits,sel = db_from_cached_lbl(conf, out_fns, False, None, on_gt, nsamples=nsamples)
+        ims = np.array([d[0] for d in data_in])
+        locs = np.array([d[1] for d in data_in])
+        logging.info('sel = '+str(sel))
 
         ims, locs = PoseTools.preprocess_ims(ims,locs,conf,distort,conf.rescale)
 
         hdf5storage.savemat(out_file,{'ims':ims,'locs':locs+1.,'idx':sel+1})
+        logging.info('Augmented data saved to %s'%out_file)
 
 
 def convert_to_orig_list(conf,preds,locs,in_list,view, on_gt=False):
@@ -1546,7 +1537,10 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, end, trx_ids, conf, inf
                 'pTrkFrm': tracked,
                 'trkInfo': info}
     for k in extra_dict.keys():
-        out_dict['pTrk' + k] = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids)
+        tmp = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids) 
+        if k.startswith('locs_'):
+            tmp = to_mat(tmp)
+        out_dict['pTrk' + k] = tmp
 
     hdf5storage.savemat(out_file, out_dict, appendmat=False, truncate_existing=True)
 
@@ -1996,7 +1990,7 @@ def run(args):
                                conf_params=args.conf_params)
             out_file = args.out_file + '_{}.mat'.format(view)
             distort = not args.no_aug
-            get_augmented_images(conf,out_file,distort,args.use_cache,nsamples=args.nsamples)
+            get_augmented_images(conf,out_file,distort,nsamples=args.nsamples)
 
     elif args.sub_name == 'classify':
         if args.view is None:
