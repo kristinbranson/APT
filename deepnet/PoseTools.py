@@ -386,6 +386,9 @@ def randomly_affine(img,locs, conf, group_sz=1):
             valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
             rangle = (np.random.rand() * 2 - 1) * conf.rrange
             sfactor = (np.random.rand() - 0.5) * conf.scale_range + 1
+            # clip scaling to 0.05
+            if sfactor < 0.05:
+                sfactor = 0.05
             dx = (np.random.rand()*2 -1)*conf.trange
             dy = (np.random.rand()*2 -1)*conf.trange
 
