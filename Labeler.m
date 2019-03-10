@@ -523,13 +523,17 @@ classdef Labeler < handle
   %% Prop access
   methods % dependent prop getters
     function v = get.viewCalibrationDataGTaware(obj)
-      if obj.gtIsGTMode
+      v = obj.getViewCalibrationDataGTawareArg(obj.gtIsGTMode);
+    end
+    function v = getViewCalibrationDataGTawareArg(obj,gt)
+      if gt
         v = obj.viewCalibrationDataGT;
       else
         v = obj.viewCalibrationData;
-      end      
+      end
     end
     function v = get.viewCalibrationDataCurrent(obj)
+      % Nearly a forward to getViewCalibrationDataMovIdx except edge cases
       vcdPW = obj.viewCalProjWide;
       if isempty(vcdPW)
         v = [];
@@ -546,6 +550,22 @@ classdef Labeler < handle
         else
           v = vcd{obj.currMovie};
         end
+      end
+    end
+    function v = getViewCalibrationDataMovIdx(obj,mIdx)
+      vcdPW = obj.viewCalProjWide;
+      if isempty(vcdPW)
+        v = [];
+      elseif vcdPW
+        vcd = obj.viewCalibrationData; % applies to regular and GT movs
+        assert(isequal(vcd,[]) || isscalar(vcd));
+        v = vcd;
+      else % ~vcdPW
+        [iMov,gt] = mIdx.get();
+        vcd = obj.getViewCalibrationDataGTawareArg(gt);
+        nmov = obj.getnmoviesGTawareArg(gt);
+        assert(iscell(vcd) && numel(vcd)==nmov);
+        v = vcd{iMov};
       end
     end
     function v = get.isMultiView(obj)
@@ -3723,6 +3743,22 @@ classdef Labeler < handle
       obj.prevFrame = 1;
       
 %       obj.currSusp = [];
+    end
+    
+    function s = moviePrettyStr(obj,mIdx)
+      assert(isscalar(mIdx));
+      [iMov,gt] = mIdx.get();
+      if gt
+        pfix = 'GT ';
+      else
+        pfix = '';
+      end
+      if obj.isMultiView
+        mov = 'movieset';
+      else
+        mov = 'movie';
+      end
+      s = sprintf('%s%s %d',pfix,mov,iMov);
     end
     
     % Hist Eq

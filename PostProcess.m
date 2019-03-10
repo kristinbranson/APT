@@ -2731,11 +2731,11 @@ classdef PostProcess < handle
       minpxpermix = 4;
 
       [r_nonmax,thresh_perc,thresh,xgrid,ygrid,scalex,scaley,...
-        nmixpermax,minpxpermix] = ...
+        nmixpermax,minpxpermix,singlecomp] = ...
         myparse(varargin,...
         'r_nonmax',r_nonmax,'thresh_perc',thresh_perc,'thresh',[],...
         'xgrid',[],'ygrid',[],'scalex',1,'scaley',1,...
-        'nmixpermax',nmixpermax,'minpxpermix',minpxpermix);
+        'nmixpermax',nmixpermax,'minpxpermix',minpxpermix,'singlecomp',false);
       
       % one landmark, one view
       [ny,nx] = size(scores);
@@ -2757,40 +2757,52 @@ classdef PostProcess < handle
       tscorescurr(end-r_nonmax+1:end,:) = minscores;
       tscorescurr(:,1:r_nonmax) = minscores;
       tscorescurr(:,end-r_nonmax+1:end) = minscores;
-            
-      % threshold and non-maximum suppression
-      [r,c] = nonmaxsuppts(tscorescurr,r_nonmax,threshcurr);
-      r = r*scaley;
-      c = c*scalex;
+
       idxcurr = scores >= threshcurr;
-            
-      % set number of centers based on number of maxima found
-      k0 = numel(r);
-      k = k0+min(numel(r)*nmixpermax,floor(nnz(idxcurr)/minpxpermix));
-      
-      % initialize clustering
-      start = nan(k,2);
-      start(1:k0,:) = [c(:),r(:)];
       X = [xgrid(idxcurr),ygrid(idxcurr)];
-      d = min(dist2(X,start(1:k0,:)),[],2);
-      for j = k0+1:k,
-        [~,maxj] = max(d);
-        start(j,:) = X(maxj,:);
-        d = min(d,dist2(X,start(j,:)));
+
+      if singlecomp
+        [~,idx] = max(scores(:));
+        [r,c] = ind2sub(size(scores),idx);
+        r = r*scaley;
+        c = c*scalex;
+        k = 1;
+        start = [c r];
+      else
+        % threshold and non-maximum suppression
+        [r,c] = nonmaxsuppts(tscorescurr,r_nonmax,threshcurr);
+        r = r*scaley;
+        c = c*scalex;
+
+        % set number of centers based on number of maxima found
+        k0 = numel(r);
+        k = k0+min(numel(r)*nmixpermax,floor(nnz(idxcurr)/minpxpermix));
+
+        % initialize clustering
+        start = nan(k,2);
+        start(1:k0,:) = [c(:),r(:)];
+        d = min(dist2(X,start(1:k0,:)),[],2);
+        for j = k0+1:k,
+          [~,maxj] = max(d);
+          start(j,:) = X(maxj,:);
+          d = min(d,dist2(X,start(j,:)));
+        end
       end
       
       % gmm fitting
       [mu,S,~,post] = mygmm(X,k,...
         'Start',start,...
         'weights',scores(idxcurr)-threshcurr);
-      w = sum(bsxfun(@times,scores(idxcurr),post),1)';
+      
+      w = sum(post,1)';
+      fprintf(2,'XXX\n');
+      %w = sum(bsxfun(@times,scores(idxcurr),post),1)';
       %w(w<0.1) = 0.1;
             
       nanmu = any(isnan(mu),2);
       mu = mu(~nanmu,:);
       w = w(~nanmu);
       S = S(:,:,~nanmu);
-
     end
         
     function [mu,w,S] = GMMFitSamples(X,k,varargin)
@@ -2835,13 +2847,15 @@ classdef PostProcess < handle
             % mu output is k x d
             % S output is d x d x k
             % post is nRep x k
-            [mu(:,:,n,pti,viewi),S(:,:,:,n,pti,viewi),~,post] = ...
+            [mu(:,:,n,pti,viewi),S(:,:,:,n,pti,viewi),tmp,post] = ...
               mygmm(Xcurr,k,...
               'weights',weights_curr);      
             if isempty(weights),
               w(:,n,pti,viewi) = sum(post,1)';
             else
-              w(:,n,pti,viewi) = sum(bsxfun(@times,weights_curr,post),1)';
+              w(:,n,pti,viewi) = sum(post,1)';              
+              fprintf(2,'XXX\n');
+              %w(:,n,pti,viewi) = sum(bsxfun(@times,weights_curr,post),1)';
             end
             w(:,n,pti,viewi) = w(:,n,pti,viewi) / sum(w(:,n,pti,viewi));
           end

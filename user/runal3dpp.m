@@ -159,8 +159,7 @@ for iipt=1:npts
       end
 
      [sbest,Xbest,xy1best,xy2best,roi1,roi2] = ...
-        al3dpp(loghm1,loghm2,crobj,'dxyz',dxyz,'lambda2',lambda2,'hm1roi',roi1,'hm2roi',roi2);
-      
+        al3dpp(loghm1,loghm2,crobj,'dxyz',dxyz,'lambda2',lambda2,'hm1roi',roi1,'hm2roi',roi2);      
       
       X3d(ifrm,:,iipt) = Xbest(:)';
       x2d(ifrm,:,1,iipt) = xy1best(:)';

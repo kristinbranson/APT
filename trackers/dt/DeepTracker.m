@@ -25,14 +25,10 @@ classdef DeepTracker < LabelTracker
     minFreeMem = 9000; % in MiB
   end
   properties
-    
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
     deepnetgitbranch % transient/unmanaged. set me to use/run a diff branch
   end
-%   properties (SetObservable)
-%     backendType % scalar DLBackEnd
-%   end
   properties
     containerBindPaths % cellstr of bind paths for sing/docker
       % Will be used if it is nonempty; otherwise an attempt will be made 
@@ -1174,6 +1170,7 @@ classdef DeepTracker < LabelTracker
     end
     
     function [tfsucc,hedit] = testBsubConfig(obj,varargin)
+      % Maybe belongs in Labeler or DLBackEndClass
       
       tfsucc = false;
       [host] = myparse(varargin,'host',DeepTracker.jrchost);
@@ -2133,9 +2130,6 @@ classdef DeepTracker < LabelTracker
         assert(numel(gpuids) == nViewJobs*nMovies);
         gpuids = reshape(gpuids,[nMovies,nViewJobs]);
       end
-        
-
-
       
       [dmc.aptRootUser] = deal([]);
       
@@ -2789,7 +2783,10 @@ classdef DeepTracker < LabelTracker
         % we perform this check b/c while tracking has been running in
         % the bg, the project could have been updated, movies
         % renamed/reordered etc.
-        obj.trackResAddTrkfile(mIdx,{res.trkfile}');
+        
+        trkfiles = {res.trkfile}';
+        obj.trkPostProcIfNec(mIdx,trkfiles);
+        obj.trackResAddTrkfile(mIdx,trkfiles);
         if mIdx==obj.lObj.currMovIdx
           obj.trackCurrResUpdate();
           obj.newLabelerFrame();
@@ -2828,6 +2825,7 @@ classdef DeepTracker < LabelTracker
           aws.scpDownload(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs);
         end
         
+        obj.trkPostProcIfNec(mIdx,trkfilesLocal);
         obj.trackResAddTrkfile(mIdx,trkfilesLocal);
         if mIdx==obj.lObj.currMovIdx
           obj.trackCurrResUpdate();
@@ -2844,6 +2842,62 @@ classdef DeepTracker < LabelTracker
       end
     end
 
+    function trkPostProcIfNec(obj,mIdx,trkfiles)
+      % When appropriate, perform postprocessing and re-save trkfiles in
+      % place.
+      
+      fprintf(2,'PostProc 3d reconcile parameters.\n');
+      do3dreconcile = true;
+      pp3dtype = 'triangulate'; % {'triangulate','romain'}
+      nvw = obj.lObj.nview;
+      if do3dreconcile && nvw==2
+        vcd = obj.lObj.getViewCalibrationDataMovIdx(mIdx);
+        if isempty(vcd)
+          moviestr = obj.lObj.moviePrettyStr(mIdx);
+          warningNoTrace('Cannot perform 3D postprocessing; calibration data unset for %s.',moviestr);
+          return;
+        end
+          
+        assert(numel(trkfiles)==nvw);
+        
+        [trks,tfsucc] = ...
+          cellfun(@(x)DeepTracker.hlpLoadTrk(x,'rawload',true),trkfiles,'uni',0);
+        tfsucc = cell2mat(tfsucc);
+        if ~all(tfsucc)
+          ivwFailed = find(~tfsucc);
+          ivwFailedStr = num2str(ivwFailed);
+          warningNoTrace('Cannot perform 3D postprocessing; could not load trkfiles for views: %s.',ivwFailedStr);
+          return;
+        end
+        
+        trk1 = trks{1};
+        trk2 = trks{2};        
+        if ~isequal(trk1.pTrkFrm,trk2.pTrkFrm) || ...
+           ~isequal(trk1.pTrkiTgt,trk2.pTrkiTgt)
+          warningNoTrace('Cannot perform 3D postprocessing; trkfiles differ in frames/targets tracked.');
+          return;
+        end
+        
+        switch pp3dtype
+          case 'triangulate'
+            [X,xre] = PostProcess.RunTriangulateXXX(trk1.pTrk,trk2.pTrk,vcd);
+            %[npttrked x 2 x nfrm x ntgt] (ntgt==1)
+            % xre: npt x 2(coord) x nfrm x tgt x vw
+            trk1.pTrkSingleView = trk1.pTrk;
+            trk1.pTrk = xre(:,:,:,:,1);
+            trk2.pTrkSingleView = trk2.pTrk;
+            trk2.pTrk = xre(:,:,:,:,2);
+            
+          case 'romain'
+            
+            
+          otherwise
+            assert(false);
+            
+        end        
+      end 
+    end
+
     function trainStoppedCbk(obj,varargin)
       obj.trainCleanup();
       obj.notify('trainEnd');
@@ -2855,10 +2909,8 @@ classdef DeepTracker < LabelTracker
     end
 
     function trackCleanup(obj,varargin)
-      
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
-
     end
     
     function trainCleanup(obj,varargin)
@@ -3936,9 +3988,17 @@ classdef DeepTracker < LabelTracker
     
   end
   methods (Static)
-    function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile)
+    function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile,varargin)
+      [rawload] = myparse(varargin,...
+        'rawload',false...
+        );
+            
       try
-        trkfileObj = TrkFile.loadsilent(tfile);
+        if rawload
+          trkfileObj = load(tfile);
+        else
+          trkfileObj = TrkFile.loadsilent(tfile);
+        end
         tfsuccload = true;
       catch ME
         warningNoTrace('Failed to load trkfile: ''%s''. Error: %s',...
@@ -3947,6 +4007,7 @@ classdef DeepTracker < LabelTracker
         tfsuccload  = false;
       end
     end
+    
     
     function [tfsucc,augims] = loadAugmentedData(outfile,nview)
 
