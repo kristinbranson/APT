@@ -3,12 +3,13 @@ function [X3d,x2d,trpeconf,isal,alpreferview,alscore,alscorecmp,alscorecmpxy,alr
 
 % TODO: preferviewnborrad
 
-[ipts,frms,dxyz,mdnhmsigma2,rpethresh,...
+[ipts,frms,dxyz,mdnhmsigma2,unethmsarereconned,rpethresh,...
   preferview,preferviewunetconf,preferviewlambda,preferviewnborrad,wbObj] = myparse(varargin,...
   'ipts',1:2,...
   'frms',1:3000,... % CURRENTLY aASSUMED CONTINUOUS SEQ
   'dxyz',0.01,...
   'mdnhmsigma2',3.2^2,... % var for mdn fake hmap
+  'unethmsarereconned',true,... % if false, we massage/flatten mdn hmaps to make them comparable to 'real' unet hmaps, which do not shrink to -inf in logspace
   'rpethresh',6,... % if rpemn><this>, then do the fancy 3dgridRP. specify as inf to never do it
   'preferview',true,... % if true, when doing the fancy, if one view has more conf then prefer it
   'preferviewunetconf',0.7,...
@@ -135,14 +136,15 @@ for iipt=1:npts
       % messes up the normalization.
       loghm1 = log(hm1);
       loghm2 = log(hm2);
-      if trperow.isu1 && ~trperow.isu2
+      if trperow.isu1 && ~trperow.isu2 && ~unethmsarereconned
         unetmdn = median(loghm1(:));        
         loghm2 = massageMdnHmap(loghm2,ptrk2(:,ifrm),unetmdn);
-      elseif ~trperow.isu1 && trperow.isu2
+      elseif ~trperow.isu1 && trperow.isu2 && ~unethmsarereconned
         unetmdn = median(loghm2(:));
         loghm1 = massageMdnHmap(loghm1,ptrk1(:,ifrm),unetmdn);
       else
-        % none; either unet/unet, or mdn/mdn. these are mutually comparable
+        % none; either unet/unet, or mdn/mdn, or all hmaps (unet and mdn 
+        % alike) are reconned. these hmaps are mutually comparable
       end
 
       roirad = max(trperow.rpemn,25);
@@ -150,6 +152,7 @@ for iipt=1:npts
               xp1rp(2,ifrm)-roirad xp1rp(2,ifrm)+roirad];
       roi2 = [xp2rp(1,ifrm)-roirad xp2rp(1,ifrm)+roirad ...
               xp2rp(2,ifrm)-roirad xp2rp(2,ifrm)+roirad];
+      fprintf(1,'roirad is %.3f\n',roirad);
 
       if ifrm==198
         disp('asd');
