@@ -17,6 +17,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
       obj@BgWorkerObj(varargin{:});
     end
     
+    
     function sRes = compute(obj) % obj const except for .trnLogLastStep
       % sRes: [nviewx1] struct array.
             
@@ -93,7 +94,35 @@ classdef BgTrainWorkerObj < BgWorkerObj
     
     function reset(obj) 
       % clears/inits .trnLogLastStep, the only mutatable prop
-      obj.trnLogLastStep = repmat(-1,1,obj.nviews);
+      if ~isempty(obj.nviews),
+        obj.trnLogLastStep = repmat(-1,1,obj.nviews);
+      end
+
+      if isempty(obj.dmcs),
+        return;
+      end
+      
+      killFiles = obj.getKillFiles();
+      for i = 1:numel(killFiles),
+        if exist(killFiles{i},'file'),
+          delete(killFiles{i});
+        end
+      end
+      
+      logFiles = obj.getLogFiles();
+      for i = 1:numel(logFiles),
+        if exist(logFiles{i},'file'),
+          delete(logFiles{i});
+        end
+      end
+
+      errFiles = obj.getErrFile();
+      for i = 1:numel(errFiles),
+        if exist(errFiles{i},'file'),
+          delete(errFiles{i});
+        end
+      end
+      
     end
     
     function logFiles = getLogFiles(obj)

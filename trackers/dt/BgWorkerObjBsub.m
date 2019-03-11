@@ -30,6 +30,15 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
     function killJob(obj,jID)
       % jID: scalar jobID
       
+      if isnan(jID),
+        fprintf('killJob, jID is nan\n');
+        return;
+      end
+      
+      if obj.isKilled(jID),
+        return;
+      end
+      
       bkillcmd = sprintf('bkill %d',jID);
       bkillcmd = DeepTracker.codeGenSSHGeneral(bkillcmd,'bg',false);
       fprintf(1,'%s\n',bkillcmd);
@@ -61,6 +70,16 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
     
     function res = queryJobStatus(obj,jID)
       
+      try
+        tfKilled = obj.isKilled(jID);
+        if tfKilled,
+          res = sprintf('Job %d has been killed',jID);
+          return;
+        end
+      catch
+        fprintf('Failed to poll for job %d before killing\n',jID);
+      end
+      
       bjobscmd = sprintf('bjobs %d; echo "More detail:"; bjobs -l %d',jID,jID);
       bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
       fprintf(1,'%s\n',bjobscmd);
@@ -78,23 +97,47 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end
       
     end
-    
-    function fcn = makeJobKilledPollFcn(obj,jID)
+
+    function tf = isKilled(obj,jID)
+      
+      if isnan(jID) || isempty(jID),
+        fprintf('isKilled(nan)!\n');
+        tf = false;
+        return;
+      end
+      
+      runStatuses = {'PEND','RUN','PROV','WAIT'};
+      
       pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
       pollcmd = DeepTracker.codeGenSSHGeneral(pollcmd,'bg',false);
-      
-      fcn = @lcl;
-      
-      function tf = lcl
-        % returns true when jobID is killed
-        %disp(pollcmd);
-        [st,res] = system(pollcmd);
-        if st==0
-          tf = isempty(regexp(res,'RUN','once'));
-        else
-          tf = false;
-        end
+      [st,res] = system(pollcmd);
+      if st==0
+        s = sprintf('(%s)|',runStatuses{:});
+        s = s(1:end-1);
+        tf = isempty(regexp(res,s,'once'));
+      else
+        tf = false;
       end
+    end
+    
+    function fcn = makeJobKilledPollFcn(obj,jID)
+      
+      fcn = @() obj.isKilled(jID);
+%       pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
+%       pollcmd = DeepTracker.codeGenSSHGeneral(pollcmd,'bg',false);
+%       
+%       fcn = @lcl;
+%       
+%       function tf = lcl
+%         % returns true when jobID is killed
+%         %disp(pollcmd);
+%         [st,res] = system(pollcmd);
+%         if st==0
+%           tf = isempty(regexp(res,'RUN','once'));
+%         else
+%           tf = false;
+%         end
+%       end
     end
     
     function tfsucc = createKillToken(obj,killtoken)
