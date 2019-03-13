@@ -196,6 +196,18 @@ classdef OrthoCamCalPair < CalRig
     % from optical axis along camera x-y axes
     % uv=[u;v] Image coords; (col,row) pixel coords on image
     
+    function [X,uvrp,rpe] = triangulate(obj,uv)
+      % CalRig impl
+      
+      assert(size(uv,3)==obj.nviews);
+      
+      uvL = uv(:,:,1);
+      uvR = uv(:,:,2);
+      [X,d,uvreL,uvreR,rpeL,rpeR] = obj.stereoTriangulate(uvL,uvR);
+      uvrp = cat(3,uvreL,uvreR);
+      rpe = cat(2,rpeL,rpeR);
+    end
+    
     function [X,d,uvreL,uvreR,rperrL,rperrR] = stereoTriangulate(obj,uvL,uvR)
       % [X,d,uvreL,uvreR] = stereoTriangulate(obj,uvL,uvR)
       % Stereo triangulation

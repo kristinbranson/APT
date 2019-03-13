@@ -92,6 +92,25 @@ classdef CalRigSH < CalRig
       end
     end
     
+    function [X,xyrp,rpe] = triangulate(obj,xy,varargin)
+      % CalRig impl
+      %
+      % X: 3D coord sys is fixed/specified by dlt coefficients.
+      
+      [d,n,nvw] = size(xy);
+      assert(nvw==obj.nviews);
+      
+      dlt1 = obj.getDLT(1);
+      dlt2 = obj.getDLT(2);
+      
+      [X,~,~,~,xyrp(:,:,1),xyrp(:,:,2)] = ...
+        dlt_2D_to_3D_point_vectorized(dlt1,dlt2,xy(:,:,1),xy(:,:,2),varargin{:});
+      if nargout>2
+        rpe = sqrt(sum((xy-xyrp).^2,1));
+        rpe = reshape(rpe,[n nvw]);
+      end
+    end
+    
     function [u_p,v_p,w_p] = reconstruct2d(obj,x,y,iView)
       assert(isequal(size(x),size(y)));
       assert(isvector(x));

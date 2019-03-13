@@ -548,6 +548,7 @@ classdef PostProcess < handle
       [N,nRep,npts,nviews,d_in] = size(obj.sampledata.x_perview); %#ok<ASGLU>
       
       if obj.isframes,
+        % these branches/options appear switched
         Nframes = N;
       else
         Nframes = nnz(obj.dilated_frames);

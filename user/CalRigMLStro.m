@@ -757,6 +757,18 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       yEPL = tmp(:,1);
     end
     
+    function [X,uvrp,rpe] = triangulate(obj,xp)
+      % CalRig impl. Forward to stereoTriangulate
+      
+      [d,n,nvw] = size(xp);
+      assert(nvw==obj.nviews);
+      
+      uvrp = nan(d,n,nvw);
+      rpe = nan(n,nvw);
+      [X,uvrp(:,:,1),uvrp(:,:,2),rpe(:,1),rpe(:,2)] = ...
+        obj.stereoTriangulate(xp(:,:,1),xp(:,:,2));
+    end
+    
     function [X1,xp1rp,xp2rp,rperr1,rperr2] = stereoTriangulate(obj,xp1,xp2)
       % Stereo triangulation using matlab/vision lib fcns
       % 

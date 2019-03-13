@@ -2877,16 +2877,45 @@ classdef DeepTracker < LabelTracker
           warningNoTrace('Cannot perform 3D postprocessing; trkfiles differ in frames/targets tracked.');
           return;
         end
-        
+
+        ptrk1 = trk1.pTrk;
+        ptrk2 = trk2.pTrk;
+        [npt,d,nfrm,ntgt] = size(ptrk1);
+        assert(isequal(size(ptrk1),size(ptrk2)),'Trkfiles contain position arrays with inconsistent sizes.');
+
         switch pp3dtype
           case 'triangulate'
-            [X,xre] = PostProcess.RunTriangulateXXX(trk1.pTrk,trk2.pTrk,vcd);
-            %[npttrked x 2 x nfrm x ntgt] (ntgt==1)
-            % xre: npt x 2(coord) x nfrm x tgt x vw
-            trk1.pTrkSingleView = trk1.pTrk;
-            trk1.pTrk = xre(:,:,:,:,1);
-            trk2.pTrkSingleView = trk2.pTrk;
-            trk2.pTrk = xre(:,:,:,:,2);
+            % See PostProcess.ReconstructSampleMultiView
+            
+            assert(isa(vcd,'CalRig'),'Expected view calibration data to be a CalRig instance.');
+            crig = vcd;
+            
+            assert(ntgt==1,'Expected single-target data in trkfiles.');
+            ptrk1 = reshape(permute(ptrk1,[2 3 1]),2,nfrm*npt); % coord, frm*pt
+            ptrk2 = reshape(permute(ptrk2,[2 3 1]),2,nfrm*npt);
+            ptrk = cat(3,ptrk1,ptrk2);
+            
+            [X,xyrp] = crig.triangulate(ptrk);
+            
+            X = permute(reshape(X,[3 nfrm npt]),[3 1 2]); % npt x 3 x nfrm
+            xyrp = reshape(xyrp,[2 nfrm npt 1 nvw]);
+            xyrp = permute(xyrp,[3 1 2 4 5]); % npt x 2 x nfrm x 1 x nvw
+                        
+            trk1save = struct(...
+              'pTrkSingleView',trk1.pTrk,...
+              'pTrk',xyrp(:,:,:,:,1),...
+              'pTrk3d',X);
+            trk2save = struct(...
+              'pTrkSingleView',trk2.pTrk,...
+              'pTrk',xyrp(:,:,:,:,2));
+            
+            save(trkfiles{1},'-append','-struct','trk1save');
+            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
+              trkfiles{1});
+            
+            save(trkfiles{2},'-append','-struct','trk2save');
+            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', to trkfile %s.\n',...
+              trkfiles{2});
             
           case 'romain'
             

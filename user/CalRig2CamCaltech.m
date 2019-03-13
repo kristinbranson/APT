@@ -307,6 +307,35 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
         intPrm.fc,intPrm.cc,intPrm.kc,intPrm.alpha_c);
     end
     
+    function [X,xprp,rpe] = triangulate(obj,xp)
+      % CalRig impl. Forward to stereoTriangulate
+      % 
+      % xp: final/image coords. (like y, but without row/col switch)
+      
+      [d,n,nvw] = size(xp);
+      assert(nvw==obj.nviews);
+            
+      yL = xp([2 1],:,1)';
+      yR = xp([2 1],:,2)';
+      X = obj.stereoTriangulateLR(yL,yR);
+      szassert(X,[3 n]);
+
+      if nargout>1
+        xprp = nan(d,n,nvw);
+        rpe = nan(n,nvw);
+      
+        X2 = obj.camxform(X,'lr');
+        xp1 = obj.project(X,'l');
+        xp2 = obj.project(X2,'r');
+        
+        xprp(:,:,1) = xp1 + 1; % see .x2y
+        xprp(:,:,2) = xp2 + 1;
+
+        rpe = sqrt(sum((xp-xprp).^2,1));
+        rpe = reshape(rpe,[n nvw]);
+      end
+    end
+    
     function [XL,XR] = stereoTriangulateLR(obj,yL,yR)
       % Take cropped points for left/bot cameras and reconstruct 3D
       % positions
@@ -330,7 +359,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
     
     function [XL,XB] = stereoTriangulateLB(obj,yL,yB)
       % Take cropped points for left/bot cameras and reconstruct 3D
-      % positions
+      % positionsd
       %
       % yL: [Nx2]. N points, (row,col) in cropped/final Left camera image
       % yB: [Nx2]. 
