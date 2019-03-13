@@ -2587,7 +2587,7 @@ classdef Labeler < handle
       
       % 20181022 projectHasTrx
       if ~isfield(s,'projectHasTrx'),
-        s.projectHasTrx = true; % AL: maybe check emptiness of .trxFilesAll?
+        s.projectHasTrx = ~isempty(s.trxFilesAll) && ~isempty(s.trxFilesAll{1});
       end
       
       % 20181101 movieInfo.readerobj (VideoReader) throwing warnings if
