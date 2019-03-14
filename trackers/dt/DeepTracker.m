@@ -2865,7 +2865,7 @@ classdef DeepTracker < LabelTracker
         tfsucc = cell2mat(tfsucc);
         if ~all(tfsucc)
           ivwFailed = find(~tfsucc);
-          ivwFailedStr = num2str(ivwFailed);
+          ivwFailedStr = num2str(ivwFailed(:)');
           warningNoTrace('Cannot perform 3D postprocessing; could not load trkfiles for views: %s.',ivwFailedStr);
           return;
         end
@@ -4024,7 +4024,7 @@ classdef DeepTracker < LabelTracker
             
       try
         if rawload
-          trkfileObj = load(tfile);
+          trkfileObj = load(tfile,'-mat');
         else
           trkfileObj = TrkFile.loadsilent(tfile);
         end
