@@ -30,7 +30,8 @@ classdef Labeler < handle
       'trackParams' 'preProcH0' 'preProcSaveData' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
-      'projectHasTrx'};
+      'projectHasTrx'...
+      'skeletonEdges','showSkeleton'};
     SAVEPROPS_LPOS = {...
       'labeledpos' 'nan'
       'labeledposGT' 'nan'
@@ -311,6 +312,7 @@ classdef Labeler < handle
     showOccludedBox;          % whether to show the occluded box
     
     showPredTxtLbl;         % true to show text landmark labels for ALL preds -- imported (labeledpos2, and all trackers)
+    showSkeleton;           % true to plot skeleton 
   end 
   properties
     hTraj;                    % nTrx x 1 vector of line handles
@@ -338,6 +340,8 @@ classdef Labeler < handle
     labeledposTSGT        % like .labeledposTS
     labeledpostagGT       % like .labeledpostag
     labeledpos2GT         % like .labeledpos2
+
+    skeletonEdges = zeros(0,2); % nEdges x 2 matrix containing indices of vertex landmarks
     
   end
   properties % make public setaccess
@@ -2704,6 +2708,14 @@ classdef Labeler < handle
         end
       end
       
+      % KB 20190314: added skeleton
+      if ~isfield(s,'skeletonEdges'),
+        s.skeletonEdges = zeros(0,2);
+      end
+      if ~isfield(s,'showSkeleton'),
+        s.showSkeleton = false;
+      end
+      
     end
 
   end 
@@ -4778,6 +4790,11 @@ classdef Labeler < handle
       obj.labels2VizShowHideUpdate();      
     end
     
+    function setShowSkeleton(obj,tf)
+      obj.showSkeleton = logical(tf);
+      obj.lblCore.updateShowSkeleton();
+    end
+        
   end
   
   %% Labeling

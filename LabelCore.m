@@ -44,6 +44,7 @@ classdef LabelCore < handle
     hPtsTxt;              % nPts x 1 handle vec, handle to text
     hPtsOcc;              % nPts x 1 handle vec, handle to occ points
     hPtsTxtOcc;           % nPts x 1 handle vec, handle to occ text
+    hSkel;                % nEdges x 1 handle vec, handle to skeleton edges
     ptsPlotInfo;          % struct, points plotting cosmetic info    
   end
 
@@ -133,12 +134,15 @@ classdef LabelCore < handle
       deleteValidHandles(obj.hPtsOcc);
       deleteValidHandles(obj.hPtsTxt);
       deleteValidHandles(obj.hPtsTxtOcc);
+      deleteValidHandles(obj.hSkel);
       obj.hPts = gobjects(obj.nPts,1);
       obj.hPtsOcc = [];
       obj.hPtsTxt = gobjects(obj.nPts,1);
-      obj.hPtsTxtOcc = [];
+      obj.hPtsTxtOcc = [];      
       
       ax = obj.hAx;
+      obj.updateSkeletonEdges(ax,ptsPlotInfo);
+      
       for i = 1:obj.nPts
         ptsArgs = {nan,nan,ptsPlotInfo.Marker,...
           'MarkerSize',ptsPlotInfo.MarkerSize,...
@@ -153,6 +157,7 @@ classdef LabelCore < handle
           'Tag',sprintf('LabelCore_Pts_%d',i));
       end
       obj.hideLabels = false;
+      obj.updateShowSkeleton();
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));      
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
@@ -224,6 +229,7 @@ classdef LabelCore < handle
       deleteValidHandles(obj.hPtsTxt);
       deleteValidHandles(obj.hPtsOcc);
       deleteValidHandles(obj.hPtsTxtOcc);
+      deleteValidHandles(obj.hSkel);
     end
   end
   
@@ -333,8 +339,42 @@ classdef LabelCore < handle
           set(obj.hPtsTxtOcc(i),'Color',obj.ptsPlotInfo.Colors(i,:));
         end
       end
+      % TO DO uncomment
+%       for i = 1:numel(obj.hSkel),
+%         color = obj.ptsPlotInfo.Colors(obj.labeler.skeletonEdgeColor(i),:);
+%         set(obj.hSkel(i),'Color',color);
+%       end
     end
-          
+    
+    function edges = skeletonEdges(obj)
+      
+      edges = obj.skeletonEdges;
+      
+    end
+    
+    function updateSkeletonEdges(obj,ax,ptsPlotInfo)
+      
+      if nargin < 2 || isempty(ax),
+        ax = obj.hAx;
+      end
+      if nargin < 3 || isempty(ptsPlotInfo),
+        ptsPlotInfo = obj.ptsPlotInfo;
+      end
+      
+      deleteValidHandles(obj.hSkel);
+      obj.hSkel = gobjects(size(obj.skeletonEdges,1),1);
+      for i = 1:size(obj.skeletonEdges,1),
+        %color = ptsPlotInfo.Colors(obj.labeler.skeletonEdgeColor(i),:);
+        color = [.7,.7,.7];
+        obj.hSkel(i) = LabelCore.initSkeletonEdge(ax,i,ptsPlotInfo,color);
+      end
+      xy = obj.getLabelCoords();
+      tfOccld = any(isinf(xy),2);
+      LabelCore.setSkelCoords(xy,tfOccld,obj.hSkel,obj.skeletonEdges);
+      
+    end
+    
+    
   end
   
   %% 
@@ -343,12 +383,14 @@ classdef LabelCore < handle
       [obj.hPts.Visible] = deal('off');
       [obj.hPtsTxt.Visible] = deal('off'); 
       obj.hideLabels = true;
+      obj.updateShowSkeleton();
     end
     
     function labelsShow(obj)
       [obj.hPts.Visible] = deal('on');
       [obj.hPtsTxt.Visible] = deal('on');
-      obj.hideLabels = false;      
+      obj.hideLabels = false;
+      obj.updateShowSkeleton();
     end
     
     function labelsHideToggle(obj)
@@ -358,6 +400,19 @@ classdef LabelCore < handle
         obj.labelsHide();
       end
     end
+    
+    function updateShowSkeleton(obj)
+      if isempty(obj.hSkel),
+        return;
+      end
+      if obj.labeler.showSkeleton && ~obj.hideLabels,
+        [obj.hSkel.Visible] = deal('on');
+      else
+        [obj.hSkel.Visible] = deal('off');
+      end
+    end
+
+        
   end
   
   %% 
@@ -383,11 +438,12 @@ classdef LabelCore < handle
       % obj.hPts.Marker are updated.
 
       %ticinfo = tic;
-      [tfClip,hPoints,hPointsTxt,lblTags] = myparse(varargin,...
+      [tfClip,hPoints,hPointsTxt,hSkel,lblTags] = myparse(varargin,...
         'tfClip',false,...
         'hPts',obj.hPts,...
         'hPtsTxt',obj.hPtsTxt,...
-        'lblTags',[]);
+        'hSkel',obj.hSkel,...
+        'lblTags',[]); %#ok<PROPLC>
       
       assert(isequal(obj.nPts,numel(hPoints),numel(hPointsTxt),size(xy,1)));
       tfLblTags = ~isempty(lblTags);
@@ -417,6 +473,10 @@ classdef LabelCore < handle
       % FullyOccluded
       tfOccld = any(isinf(xy),2);
       obj.setPtsCoords(xy(~tfOccld,:),hPoints(~tfOccld),hPointsTxt(~tfOccld));
+      
+      % set skeleton coords
+      LabelCore.setSkelCoords(xy,tfOccld,hSkel,obj.skeletonEdges); %#ok<PROPLC>
+      
       %fprintf('LabelCore.assignLabelCoords 3: %f\n',toc(ticinfo));ticinfo = tic;
       
       tfMainAxis = isequal(hPoints,obj.hPts) && isequal(hPointsTxt,obj.hPtsTxt);
@@ -452,6 +512,22 @@ classdef LabelCore < handle
       hPoint = obj.hPts(iPt);
       hTxt = obj.hPtsTxt(iPt);
       obj.setPtsCoords(xy,hPoint,hTxt);
+      
+      % update edges connected
+      for i = 1:numel(iPt),
+        [js,ks] = find(obj.skeletonEdges==iPt(i));
+        for jj = 1:numel(js),
+          j = js(jj);
+          k = ks(jj);
+          xdata = get(obj.hSkel(j),'XData');
+          ydata = get(obj.hSkel(j),'YData');
+          xdata(k) = xy(i,1);
+          ydata(k) = xy(i,2);
+          set(obj.hSkel(j),'XData',xdata,'YData',ydata);
+        end
+      end
+
+      
     end
     
     % XXX RENAME: refreshFullOccPtLocs
@@ -473,6 +549,8 @@ classdef LabelCore < handle
       LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],obj.hPtsOcc(tf),obj.hPtsTxtOcc(tf));
       LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
         obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
+
+      
     end
     
     function refreshPtMarkers(obj,varargin)
@@ -504,7 +582,9 @@ classdef LabelCore < handle
         
     function xy = getLabelCoords(obj)
       % rows matching .tfOcc are inf
-      xy = LabelCore.getCoordsFromPts(obj.hPts);
+      xy = nan(numel(obj.hPts),2);
+      ish = ishandle(obj.hPts);
+      xy(ish,:) = LabelCore.getCoordsFromPts(obj.hPts(ish));
       xy(obj.tfOcc,:) = inf;
     end
     
@@ -580,6 +660,7 @@ classdef LabelCore < handle
       txtOffset = obj.labeler.labelPointsPlotInfo.LblOffset;
       LabelCore.setPtsCoordsStc(xy,hPts,hTxt,txtOffset);
     end
+    
   end
   methods (Static)
     function setPtsCoordsStc(xy,hPts,hTxt,txtOffset)      
@@ -658,6 +739,28 @@ classdef LabelCore < handle
       else
         uv = uv0; % what else?
       end
+    end
+    
+    function h = initSkeletonEdge(ax,i,ptsPlotInfo,color)
+      
+      if nargin < 4,
+        color = [.7,.7,.7];
+      end
+      h = plot(ax(1),nan(2,1),nan(2,1),'-','Color',color,...
+        'PickableParts','none','Tag',sprintf('LabelCore_Skel_%d',i),...
+        'LineWidth',ptsPlotInfo.LineWidth);
+      
+    end
+    
+    function setSkelCoords(xy,tfOccld,hSkel,edges)
+      
+      xynan = xy;
+      xynan(tfOccld,:) = nan;
+      for i = 1:numel(hSkel),
+        edge = edges(i,:);
+        set(hSkel(i),'XData',xynan(edge,1),'YData',xynan(edge,2));
+      end
+      
     end
     
   end
