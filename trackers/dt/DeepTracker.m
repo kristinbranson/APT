@@ -859,7 +859,7 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.lObj.trackDLParams.GradientDescent.dl_steps,...
+        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',isMultiViewTrain);
         %'backEnd',backEnd);
 
@@ -1380,9 +1380,9 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrm.dl_steps);
+        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps);
       dmcLcl = dmc.copy();
-      dmcLcl.rootDir = obj.lObj.DLCacheDir;      
+      dmcLcl.rootDir = obj.lObj.DLCacheDir;
       
       % create/ensure stripped lbl, local and remote
       tfGenNewStrippedLbl = trnType==DLTrainType.New || ...
@@ -2569,6 +2569,7 @@ classdef DeepTracker < LabelTracker
       %trkdirRemoteFull = aws.ensureRemoteDir('trk','descstr','trk');
       datadirRemoteFull = aws.ensureRemoteDir('data','descstr','data');
       % should prob get these from tMFTConc
+      assert(isscalar(mIdx));
       movsfull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
       trxsfull = obj.lObj.getTrxFilesAllFullMovIdx(mIdx);
       tftrx = obj.lObj.hasTrx;
@@ -2577,7 +2578,10 @@ classdef DeepTracker < LabelTracker
         szassert(cropRois,[nvw 4]);
       end
       
-      fprintf(2,'TODO: warn if dmcs have diff iterCurrs\n');      
+      iterCurrs = [dmc.iterCurr];
+      if numel(unique(iterCurrs))>1
+        warningNoTrace('Current models have differing number of training iterations.');
+      end
       [trnstrs,modelFiles] = obj.getTrkFileTrnStr();
       
       % gen trkfilelocal/remote. upload trkfiles. create local trkdirs.
@@ -2667,7 +2671,7 @@ classdef DeepTracker < LabelTracker
       rootDirRemoteAbs = dmc(1).rootDir;
       errfileRemoteAbs = trksysinfo(1).errfile;
       logfileRemoteAbs = trksysinfo(1).logfile;
-      trkfilesRemoteAbs = {trksysinfo.trkfileremote}';
+      trkfilesRemoteAbs = {trksysinfo.trkfileremote};
       codestr = DeepTracker.trackCodeGenAWS(...
         modelChainID,rootDirRemoteAbs,dlLblFileRemote,errfileRemoteAbs,...
         obj.trnNetType,...
@@ -2685,10 +2689,10 @@ classdef DeepTracker < LabelTracker
         bgTrkWorkerObj = BgTrackWorkerObjAWS(nvw,dmc,aws);
 
         trkfilesLocal = {trksysinfo.trkfilelocal}';        
-        logfiles = {trksysinfo.logfile}'; % all identical for multiview
-        errfiles = {trksysinfo.errfile}'; % "
+        logfiles = {trksysinfo.logfile}; % all identical for multiview
+        errfiles = {trksysinfo.errfile}; % "
         % KB: not sure what to do with part files remote vs local yet
-        partfilesRemote = {trksysinfo.parttrkfileremote}';
+        partfilesRemote = {trksysinfo.parttrkfileremote};
         %partfilesLocal = {trksysinfo.parttrkfilelocal}';
 
         bgTrkWorkerObj.initFiles(mIdx,movsfull,...
