@@ -8725,7 +8725,6 @@ classdef Labeler < handle
         error('%s. ',msgs{:});
       end
       
-      
       tfPPprmsChanged = ~APTParameters.isEqualPreProcParams(obj.trackParams,sPrm);
       sPrm = obj.setTrackNFramesParams(sPrm);
       obj.trackParams = sPrm;

@@ -179,25 +179,53 @@ classdef DeepTracker < LabelTracker
   
   %% Params
   methods
-    function setParamContentsSmart(obj,sNew,tfCommonOrPPParamsChanged)
-      % Set parameter contents (.sPrm), looking at what top-level fields 
-      % have changed and clearing obj state appropriately.
-      %
-      % sNew: scalar struct, parameters
+    function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
+        didParamsChange(obj,sPrmAll)
       
-      sOld = obj.sPrm;
-      obj.sPrm = sNew; % set this now so eg trnResInit() can use
+      tfCommonChanged = ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
+      tfPreProcChanged = ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
+      tfPostProcChanged = ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
       
-%       if isempty(sOld) || isempty(sNew)
-%         obj.initHook();
-%       else
-%       end
-        
-      tfunchanged = isequaln(sOld,sNew);
-      if tfCommonOrPPParamsChanged || ~tfunchanged
+      sOldSpecific = obj.sPrm;
+      netType = obj.trnNetType.prettyString;
+      sNewSpecific = sPrmAll.ROOT.DeepTrack.(netType);
+      tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
+    end
+    function setAllParams(obj,sPrmAll)
+      [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
+        obj.didParamsChange(sPrmAll);
+      
+      obj.sPrmAll = sPrmAll;
+      
+      if tfCommonChanged || tfPreProcChanged || tfSpecificChanged,
         obj.initHook();
-        fprintf(2,'Parameter change: DeepTracker (%s) cleared.\n',...
-          char(obj.trnNetType));
+      end
+      if tfPostProcChanged
+        warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
+        obj.trackResInit();
+        obj.trackCurrResInit();
+        obj.updateTrackerInfo(); % AL: prob unnec but also prob doesn't hurt
+        obj.newLabelerFrame();
+      end
+    end
+    function tfPostProcChanged = setPostProcParams(obj,sPrmAll)
+      tfPostProcChanged = ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
+      obj.sPrmAll.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;
+      if tfPostProcChanged
+        warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
+        obj.trackResInit();
+        obj.trackCurrResInit();
+        obj.updateTrackerInfo(); % AL: prob unnec but also prob doesn't hurt
+        obj.newLabelerFrame();
+      end
+    end
+      
+    function v = get.sPrm(obj)
+      if isempty(obj.sPrmAll),
+        v = [];
+      else
+        netType = obj.trnNetType.prettyString;
+        v = obj.sPrmAll.ROOT.DeepTrack.(netType);
       end
     end
     function sPrm = getParams(obj)
@@ -519,33 +547,6 @@ classdef DeepTracker < LabelTracker
       tfCanTrain = true;      
     end
     
-    function setAllParams(obj,sPrmAll)
-      
-      sOld = obj.sPrm;
-      tfCommonChanged = ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
-      tfPPParamsChanged = ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
-      
-      obj.sPrmAll = sPrmAll;
-      netType = obj.trnNetType.prettyString;
-      sNew = sPrmAll.ROOT.DeepTrack.(netType);
-      tfunchanged = isequaln(sOld,sNew);
-      if tfCommonChanged || tfPPParamsChanged || ~tfunchanged,
-        obj.initHook();
-      end
-
-    end
-    
-    function v = get.sPrm(obj)
-
-      if isempty(obj.sPrmAll),
-        v = [];
-      else
-        netType = obj.trnNetType.prettyString;
-        v = obj.sPrmAll.ROOT.DeepTrack.(netType);
-      end
-      
-    end
-    
     function retrain(obj,varargin)
       
       [wbObj,dlTrnType,oldVizObj] = myparse(varargin,...
@@ -594,7 +595,6 @@ classdef DeepTracker < LabelTracker
       if ~isempty(oldVizObj),
         delete(oldVizObj);
       end
-
       
       modelChain0 = obj.trnName;
       switch dlTrnType
@@ -614,7 +614,6 @@ classdef DeepTracker < LabelTracker
           assert(false);
       end
       
-      % set parameters
       obj.setAllParams(obj.lObj.trackGetParams());
       
       switch trnBackEnd.type
@@ -806,11 +805,6 @@ classdef DeepTracker < LabelTracker
     end
     
   end
-%   methods (Static)
-%     function s = trnLogfileStc(cacheDir,trnID,iview)
-%       s = fullfile(cacheDir,sprintf('%s_view%d.log',trnID,iview));
-%     end
-%   end
   methods
     %% BSub Trainer
       
@@ -1042,11 +1036,6 @@ classdef DeepTracker < LabelTracker
         obj.trnLastDMC = dmc;
       end
     end
-    
-%     function s = trnLogfileBsub(obj,iview)
-%       % fullpath to training bsub logfile
-%       s = DeepTracker.trnLogfileStc(obj.sPrm.CacheDir,obj.trnName,iview);
-%     end
     
     function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,sPrmAll,backEnd,varargin)
       
@@ -1685,11 +1674,26 @@ classdef DeepTracker < LabelTracker
         error('Tracking while training is in progress is currently unsupported on AWS.');
       end
       
+      isexternal = iscell(tblMFT);
+      
+      sPrmLabeler = obj.lObj.trackGetParams();
+      [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
+          obj.didParamsChange(sPrmLabeler);
+      if tfCommonChanged || tfPreProcChanged || tfSpecificChanged
+        warningNoTrace('Deep Learning parameters have changed since your last retrain.');
+        % Keep it simple for now. Note training might be in progress but
+        % even if not etc.
+      end
+      
+      obj.setPostProcParams(sPrmLabeler);
+      % Specifically allow/support case where tfPostProcChanged is true
+      % to enable turning off/on postproc or trying diff pp algos with a 
+      % given trained tracker   
+      
       obj.bgTrkReset();
         
       % track an external movie
-      if iscell(tblMFT),
-        isexternal = true;
+      if isexternal
         movfiles = tblMFT;
         [trxfiles,trkfiles,f0,f1,cropRois,targets] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{});
@@ -1722,8 +1726,10 @@ classdef DeepTracker < LabelTracker
           end
         end
         
-      else
-        isexternal = false;
+        if ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
+          msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D. '
+          uiwait(msgbox(msg,'3D Reconciliation','modal'));
+        end
       end
       
       if ~isexternal && isempty(tblMFT)
@@ -1894,18 +1900,15 @@ classdef DeepTracker < LabelTracker
           
           args = {'isMultiView',isMultiViewTrack};
 
-          
           if isexternal,
-
             if obj.lObj.hasTrx,
               args = [args,{'trxfiles',trxfiles,'targets',targets}];
             end
-              tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
-                cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,'gpuids',gpuids,args{:});
-            
+            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
+              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,'gpuids',gpuids,args{:});
           else
-               tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
-                cropRois,hmapArgs,f0,f1,'gpuids',gpuids,args{:});
+            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+              cropRois,hmapArgs,f0,f1,'gpuids',gpuids,args{:});
           end
           if ~tfSuccess,
             obj.bgTrkReset();
@@ -1923,7 +1926,6 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    
     function tfSuccess = trackListFile(obj,listfiles,outfiles)
       
       be = obj.lObj.trackDLBackEnd;
@@ -1940,6 +1942,12 @@ classdef DeepTracker < LabelTracker
 
       if isempty(obj.trnName)
         error('No trained tracker found.');
+      end
+      
+      % we don't check/update params from Labeler here
+      if ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
+        msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D. '
+        warningNoTrace(msg);
       end      
 
       listfiles = cellstr(listfiles);
@@ -2428,11 +2436,10 @@ classdef DeepTracker < LabelTracker
       fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
       
       trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
-        @obj.trkCompleteCbk);
+      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk);
       
       addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
+      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); % AL partially dups stuff in .trkCompleteCbk
       
       %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
@@ -2846,10 +2853,10 @@ classdef DeepTracker < LabelTracker
       % When appropriate, perform postprocessing and re-save trkfiles in
       % place.
       
-      fprintf(2,'PostProc 3d reconcile parameters.\n');
-      do3dreconcile = true;
-      pp3dtype = 'triangulate'; % {'triangulate','romain'}
+      pp3dtype = obj.sPrmAll.ROOT.PostProcess.reconcile3dType;
+      do3dreconcile = ~strcmp(pp3dtype,'none');      
       nvw = obj.lObj.nview;
+      
       if do3dreconcile && nvw==2
         vcd = obj.lObj.getViewCalibrationDataMovIdx(mIdx);
         if isempty(vcd)
@@ -2884,7 +2891,7 @@ classdef DeepTracker < LabelTracker
         assert(isequal(size(ptrk1),size(ptrk2)),'Trkfiles contain position arrays with inconsistent sizes.');
 
         switch pp3dtype
-          case 'triangulate'
+          case 'triangulation'
             % See PostProcess.ReconstructSampleMultiView
             
             assert(isa(vcd,'CalRig'),'Expected view calibration data to be a CalRig instance.');
@@ -2917,8 +2924,8 @@ classdef DeepTracker < LabelTracker
             fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', to trkfile %s.\n',...
               trkfiles{2});
             
-          case 'romain'
-            
+          case 'experimental'
+            % TODO
             
           otherwise
             assert(false);

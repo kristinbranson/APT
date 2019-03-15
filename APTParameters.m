@@ -7,6 +7,7 @@ classdef APTParameters
     MDN_PARAMETER_FILE = lclInitDeepTrackMDNParameterFile();
     DLC_PARAMETER_FILE = lclInitDeepTrackDLCParameterFile();
     UNET_PARAMETER_FILE = lclInitDeepTrackUNetParameterFile();
+    POSTPROCESS_PARAMETER_FILE = lclInitPostProcessParameterFile();
   end
   methods (Static)
     function tPrm0 = defaultParamsTree
@@ -22,11 +23,12 @@ classdef APTParameters
       tPrmMdn = parseConfigYaml(APTParameters.MDN_PARAMETER_FILE);
       tPrmDlc = parseConfigYaml(APTParameters.DLC_PARAMETER_FILE);
       tPrmUnet = parseConfigYaml(APTParameters.UNET_PARAMETER_FILE);
+      tPrmPostProc = parseConfigYaml(APTParameters.POSTPROCESS_PARAMETER_FILE);
       tPrmDT.Children.Children = [tPrmDT.Children.Children;...
         tPrmMdn.Children; tPrmDlc.Children; tPrmUnet.Children];        
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
-        tPrmCpr.Children; tPrmDT.Children];
+        tPrmCpr.Children; tPrmDT.Children; tPrmPostProc.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
@@ -57,7 +59,11 @@ classdef APTParameters
       sPrmDT = tPrmDT.structize();
       sPrmDT = sPrmDT.ROOT;
       
-      sPrm0 = structmerge(sPrmPreprocess,sPrmTrack,sPrmCpr,sPrmDT);
+      tPrmPostprocess = parseConfigYaml(APTParameters.POSTPROCESS_PARAMETER_FILE);
+      sPrmPostprocess = tPrmPostprocess.structize();
+      sPrmPostprocess = sPrmPostprocess.ROOT;
+      
+      sPrm0 = structmerge(sPrmPreprocess,sPrmTrack,sPrmCpr,sPrmDT,sPrmPostprocess);
     end
     
     % get a list of all DL net types
@@ -192,6 +198,8 @@ classdef APTParameters
         if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(trackerAlgo,'cpr'),
           tree.Data.Visible = false;
         elseif ismember('hasTrx',tree.Data.Requirements) && ~hasTrx,
+          tree.Data.Visible = false;
+        elseif ismember('isMultiView',tree.Data.Requirements) && ~labelerObj.isMultiView
           tree.Data.Visible = false;
         elseif ismember('isDeepTrack',tree.Data.Requirements) && ~trackerIsDL,
           tree.Data.Visible = false;
@@ -429,16 +437,16 @@ classdef APTParameters
     end
     
     function tfEqual = isEqualPreProcParams(sPrm0,sPrm1)
-      
       sPrmPreProc0 = APTParameters.all2PreProcParams(sPrm0);
       sPrmPreProc1 = APTParameters.all2PreProcParams(sPrm1);
-
       tfEqual = isequaln(sPrmPreProc0,sPrmPreProc1);
-      
+    end
+    
+    function tfEqual = isEqualPostProcParams(sPrm0,sPrm1)
+      tfEqual = isequaln(sPrm0.ROOT.PostProcess,sPrm1.ROOT.PostProcess);
     end
     
     function [tfOK,msgs] = checkParams(sPrm)
-      
       tfOK = true;
       msgs = {};
       ppPrms = APTParameters.all2PreProcParams(sPrm);
@@ -452,7 +460,6 @@ classdef APTParameters
           msgs{end+1} = 'Histogram Equalization and Neighbor Masking cannot both be enabled';
         end
       end
-      
     end
     
   end
@@ -495,4 +502,8 @@ end
 function dtParamFile = lclInitDeepTrackUNetParameterFile()
 aptroot = APT.Root;
 dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_unet.yaml');
+end
+function pFile = lclInitPostProcessParameterFile()
+aptroot = APT.Root;
+pFile = fullfile(aptroot,'params_postprocess.yaml');
 end
