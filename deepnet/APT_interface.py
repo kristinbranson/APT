@@ -1883,6 +1883,8 @@ def run(args):
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
         exit(1)
 
+    #raise ValueError('I am an error')
+
     nviews = int(read_entry(H['cfg']['NumViews']))
 
     if args.sub_name == 'train':

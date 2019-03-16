@@ -38,7 +38,7 @@ classdef BgMonitor < handle
     prepared
     isRunning
   end
-  
+    
   events
     bgStart
     bgEnd    
@@ -51,6 +51,18 @@ classdef BgMonitor < handle
     function v = get.isRunning(obj)
       bgc = obj.bgClientObj;
       v = ~isempty(bgc) && bgc.isRunning;
+    end
+  end
+
+  properties (Constant)
+    DEBUG = false;
+  end
+
+  methods (Static)
+    function debugfprintf(varargin)
+      if BgMonitor.DEBUG,
+        fprintf(varargin{:});
+      end
     end
   end
   
@@ -139,8 +151,9 @@ classdef BgMonitor < handle
     end
     
     function bgResultsReceived(obj,sRes)
-      obj.monitorObj.resultsReceived(sRes);
-      obj.bgResultsReceivedHook(sRes);
+	  % tfSucc = false when bgMonitor should be stopped because resultsReceived found an issue
+      [tfSucc,msg] = obj.monitorObj.resultsReceived(sRes);
+      obj.bgResultsReceivedHook(sRes,tfSucc,msg);
     end
     
     function tfpollsucc = getPollSuccess(obj,sRes)
@@ -174,9 +187,11 @@ classdef BgMonitor < handle
     end
 
     
-    function bgResultsReceivedHook(obj,sRes)
+    function bgResultsReceivedHook(obj,sRes,tfSucc,msg)
       % current pattern is, this meth only handles things which stop the
       % process. everything else handled by monitor
+      
+      BgMonitor.debugfprintf('bgResultsReceivedHook: tfSucc = %d\n',tfSucc);
       
       tfpollsucc = obj.getPollSuccess(sRes);
       
@@ -184,6 +199,7 @@ classdef BgMonitor < handle
       if killOccurred
         obj.stop();        
         fprintf(1,'Process killed!\n');
+        return;
         % monitor plot stays up; reset not called etc
       end
       
@@ -197,9 +213,11 @@ classdef BgMonitor < handle
         errContents = obj.bgWorkerObj.fileContents(errFile);
         disp(errContents);
         fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
+        return;
         
         % monitor plot stays up; reset not called etc
       end
+      
       logFileErrLikely = obj.getLogFileErrLikely(sRes);
       for i=1:numel(sRes.result)
         if tfpollsucc(i) && logFileErrLikely(i),
@@ -211,21 +229,35 @@ classdef BgMonitor < handle
           errContents = obj.bgWorkerObj.fileContents(errFile);
           disp(errContents);
           fprintf(1,'\n\n. You may need to manually kill any running %s process.\n',obj.processName);
+          return;
           
           % monitor plot stays up; bgReset not called etc
         end
       end
-      
+            
       tfComplete = all(tfpollsucc & obj.isComplete(sRes));
       if tfComplete
         obj.stop();
         % % monitor plot stays up; reset not called etc
-        fprintf('%s complete at %s.\n',obj.processName,datestr(now));
+        fprintf(1,'%s complete at %s.\n',obj.processName,datestr(now));
         
         if ~isempty(obj.cbkComplete),
           obj.cbkComplete(sRes.result);
         end
+        return;
       end
+      
+      % KB: check if resultsReceived found a reason to stop 
+      if ~tfSucc,
+        if isempty(msg),
+          fprintf(1,'resultsReceived did not return success. Stopping.\n');
+        else
+          fprintf(1,'%s - Stopping.\n',msg);
+        end
+        obj.stop();
+        return;
+      end
+      
     end
     
     function stop(obj)
