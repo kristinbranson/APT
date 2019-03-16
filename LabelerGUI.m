@@ -218,10 +218,24 @@ handles.menu_view_hide_imported_predictions = uimenu('Parent',handles.menu_view,
   'Tag','menu_view_hide_imported_predictions',...
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_hide_imported_predictions,handles.menu_view_hide_predictions);
+
+handles.menu_view_edit_skeleton = uimenu('Parent',handles.menu_view,...
+  'Label','Edit skeleton...',...
+  'Tag','menu_view_edit_skeleton',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_edit_skeleton_Callback',hObject,eventdata,guidata(hObject)));
+moveMenuItemAfter(handles.menu_view_edit_skeleton,handles.menu_view_landmark_colors);
+
+handles.menu_view_showhide_skeleton = uimenu('Parent',handles.menu_view,...
+  'Label','Show skeleton',...
+  'Tag','menu_view_showhide_skeleton',...
+  'Checked','off',...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_skeleton_Callback',hObject,eventdata,guidata(hObject)));
+moveMenuItemAfter(handles.menu_view_showhide_skeleton,handles.menu_view_edit_skeleton);
+
 handles.menu_view_showhide_advanced = uimenu('Parent',handles.menu_view,...
   'Label','Advanced',...
   'Tag','menu_view_showhide_advanced');
-moveMenuItemAfter(handles.menu_view_showhide_advanced,handles.menu_view_landmark_colors);
+moveMenuItemAfter(handles.menu_view_showhide_advanced,handles.menu_view_showhide_skeleton);
 handles.menu_view_showhide_advanced_hidepredtxtlbls = uimenu('Parent',handles.menu_view_showhide_advanced,...
   'Label','Hide Prediction Text Labels',...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_view_showhide_advanced_hidepredtxtlbls_Callback',hObject,eventdata,guidata(hObject)),...
@@ -574,6 +588,7 @@ listeners{end+1,1} = addlistener(handles.labelTLInfo,'proptypes','PostSet',@cbkl
 listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
+listeners{end+1,1} = addlistener(lObj,'showSkeleton','PostSet',@cbkShowSkeletonChanged);
 
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
@@ -2872,6 +2887,13 @@ handles = lObj.gdata;
 onOff = onIff(~lObj.showPredTxtLbl);
 handles.menu_view_showhide_advanced_hidepredtxtlbls.Checked = onOff;
 
+function cbkShowSkeletonChanged(src,evt)
+
+lObj = evt.AffectedObject;
+handles = lObj.gdata;
+onOff = onIff(lObj.showSkeleton);
+handles.menu_view_showhide_skeleton.Checked = onOff;
+
 function cbkShowTrxChanged(src,evt)
 lObj = evt.AffectedObject;
 handles = lObj.gdata;
@@ -4089,6 +4111,44 @@ if ~ischange,
   return;
 end
 applyCbkFcn(newcolors,newcolormapname);
+
+function menu_view_edit_skeleton_Callback(hObject, eventdata, handles)
+
+% persistent viewSelected;
+% 
+% if handles.labelerObj.nview > 1,
+%   if isempty(viewSelected) || viewSelected > handles.labelerObj.nview,
+%     viewSelected = 1;
+%   end
+%   views = cellstr(num2str((1:handles.labelerObj.nview)'));
+%   res = questdlg('View in which to label skeleton:','Select view',...
+%     views{:},num2str(viewSelected));
+%   if isempty(res),
+%     return;
+%   end
+%   viewSelected = str2double(res);
+% end
+% template only for view 1... 
+
+handles.labelerObj.skeletonEdges = ...
+  defineSkeleton(handles.labelerObj,'edges',handles.labelerObj.skeletonEdges);
+handles.labelerObj.lblCore.updateSkeletonEdges();
+if isempty(handles.labelerObj.skeletonEdges),
+  set(handles.menu_view_showhide_skeleton,'Enable','off','Checked','off');
+else
+  set(handles.menu_view_showhide_skeleton,'Enable','on','Checked','on');
+  handles.labelerObj.setShowSkeleton(true);
+end
+
+function menu_view_showhide_skeleton_Callback(hObject, eventdata, handles)
+
+if strcmpi(get(hObject,'Checked'),'off'),
+  hObject.Checked = 'on';
+  handles.labelerObj.setShowSkeleton(true);
+else
+  hObject.Checked = 'off';
+  handles.labelerObj.setShowSkeleton(false);
+end
 
 
 % --- Executes on selection change in popupmenu_prevmode.

@@ -615,7 +615,7 @@ classdef DeepTracker < LabelTracker
       end
       
       obj.setAllParams(obj.lObj.trackGetParams());
-      
+            
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Docker}
           obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj);
@@ -859,7 +859,7 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.lObj.trackDLParams.GradientDescent.dl_steps,...
+        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',isMultiViewTrain);
         %'backEnd',backEnd);
 
@@ -883,6 +883,9 @@ classdef DeepTracker < LabelTracker
       
       % create/ensure stripped lbl; set trainID
       tfGenNewStrippedLbl = trnType==DLTrainType.New || trnType==DLTrainType.RestartAug;
+      
+      trnCmdType = trnType;
+      
       if tfGenNewStrippedLbl
         s = obj.trnCreateStrippedLbl(backEnd,'wbObj',wbObj);
         % store nLabels in dmc
@@ -919,7 +922,18 @@ classdef DeepTracker < LabelTracker
         dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
         % read nLabels from stripped lbl file
         dmc.readNLabels();
-
+         
+        % if no training has actually happened, do not restart, just start
+        % anew
+        obj.updateLastDMCsCurrInfo();
+        isPartiallyTrained = true;
+        for i = 1:numel(obj.trnLastDMC),
+          isPartiallyTrained = isPartiallyTrained && obj.trnLastDMC(i).isPartiallyTrained();
+        end
+        if ~isPartiallyTrained,
+          trnCmdType = DLTrainType.New;
+        end
+        
       end
 
       % At this point
@@ -932,6 +946,7 @@ classdef DeepTracker < LabelTracker
         case DLBackEnd.Docker 
           mntPaths = obj.genContainerMountPath();          
       end
+
       
       switch backEnd.type
         case DLBackEnd.Bsub
@@ -942,7 +957,7 @@ classdef DeepTracker < LabelTracker
             end
             dmc(ivw).view = ivw-1; % 0-based
             syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(dmc(ivw),...
-              'singArgs',singArgs);
+              'singArgs',singArgs,'trnCmdType',trnCmdType);
           end
         case DLBackEnd.Docker
           containerNames = cell(nTrainJobs,1);
@@ -956,7 +971,8 @@ classdef DeepTracker < LabelTracker
             if ivw <= nTrainJobs,
             gpuid = gpuids(ivw);
             [syscmds{ivw},containerNames{ivw}] = ...
-                DeepTracker.trainCodeGenDockerDMC(dmc(ivw),mntPaths,gpuid,'isMultiView',isMultiViewTrain);
+                DeepTracker.trainCodeGenDockerDMC(dmc(ivw),mntPaths,gpuid,...
+                'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType);
             logcmds{ivw} = sprintf('%s logs -f %s &> %s &',...
               obj.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
             end
@@ -974,7 +990,7 @@ classdef DeepTracker < LabelTracker
         
         % spawn training
         if backEnd.type==DLBackEnd.Docker
-          bgTrnWorkerObj.jobID = cell(nTrainJobs,1);
+          bgTrnWorkerObj.jobID = cell(1,nTrainJobs);
           for iview=1:nTrainJobs
             fprintf(1,'%s\n',syscmds{iview});
             [st,res] = system(syscmds{iview});
@@ -994,14 +1010,14 @@ classdef DeepTracker < LabelTracker
             end            
           end
         else
-          bgTrnWorkerObj.jobID = nan(nTrainJobs,1);
+          bgTrnWorkerObj.jobID = nan(1,nTrainJobs);
           assert(nTrainJobs==numel(dmc));
           for iview=1:nTrainJobs
             syscmdrun = syscmds{iview};
             fprintf(1,'%s\n',syscmdrun);            
             
             cmdfile = dmc(iview).cmdfileLnx;
-            assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
+            %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
             [fh,msg] = fopen(cmdfile,'w');
             if isequal(fh,-1)
               warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
@@ -1380,13 +1396,14 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrm.dl_steps);
+        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps);
       dmcLcl = dmc.copy();
-      dmcLcl.rootDir = obj.lObj.DLCacheDir;      
+      dmcLcl.rootDir = obj.lObj.DLCacheDir;
       
       % create/ensure stripped lbl, local and remote
       tfGenNewStrippedLbl = trnType==DLTrainType.New || ...
                             trnType==DLTrainType.RestartAug;
+                          
       if tfGenNewStrippedLbl        
         s = obj.trnCreateStrippedLbl(backend,'awsTrxUpload',true,'wbObj',wbObj); %#ok<NASGU>
 		% store nLabels in DMC
@@ -2489,6 +2506,9 @@ classdef DeepTracker < LabelTracker
             frm0(imov) = 1;
             frm1(imov) = nfrm;
           end
+          if frm0(imov) < 1 || frm1(imov) > nfrm || frm0(imov) > frm1(imov),
+            error('Bad values for frm0 and frm1. Required: 1 <= frm0 <= frm1 <= nfrm=%d',nfrm);
+          end
           if isempty(trxfiles),
             nframes(imov) = frm1(imov)-frm0(imov)+1;
           else
@@ -2569,6 +2589,7 @@ classdef DeepTracker < LabelTracker
       %trkdirRemoteFull = aws.ensureRemoteDir('trk','descstr','trk');
       datadirRemoteFull = aws.ensureRemoteDir('data','descstr','data');
       % should prob get these from tMFTConc
+      assert(isscalar(mIdx));
       movsfull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
       trxsfull = obj.lObj.getTrxFilesAllFullMovIdx(mIdx);
       tftrx = obj.lObj.hasTrx;
@@ -2577,7 +2598,10 @@ classdef DeepTracker < LabelTracker
         szassert(cropRois,[nvw 4]);
       end
       
-      fprintf(2,'TODO: warn if dmcs have diff iterCurrs\n');      
+      iterCurrs = [dmc.iterCurr];
+      if numel(unique(iterCurrs))>1
+        warningNoTrace('Current models have differing number of training iterations.');
+      end
       [trnstrs,modelFiles] = obj.getTrkFileTrnStr();
       
       % gen trkfilelocal/remote. upload trkfiles. create local trkdirs.
@@ -2667,7 +2691,7 @@ classdef DeepTracker < LabelTracker
       rootDirRemoteAbs = dmc(1).rootDir;
       errfileRemoteAbs = trksysinfo(1).errfile;
       logfileRemoteAbs = trksysinfo(1).logfile;
-      trkfilesRemoteAbs = {trksysinfo.trkfileremote}';
+      trkfilesRemoteAbs = {trksysinfo.trkfileremote};
       codestr = DeepTracker.trackCodeGenAWS(...
         modelChainID,rootDirRemoteAbs,dlLblFileRemote,errfileRemoteAbs,...
         obj.trnNetType,...
@@ -2685,10 +2709,10 @@ classdef DeepTracker < LabelTracker
         bgTrkWorkerObj = BgTrackWorkerObjAWS(nvw,dmc,aws);
 
         trkfilesLocal = {trksysinfo.trkfilelocal}';        
-        logfiles = {trksysinfo.logfile}'; % all identical for multiview
-        errfiles = {trksysinfo.errfile}'; % "
+        logfiles = {trksysinfo.logfile}; % all identical for multiview
+        errfiles = {trksysinfo.errfile}; % "
         % KB: not sure what to do with part files remote vs local yet
-        partfilesRemote = {trksysinfo.parttrkfileremote}';
+        partfilesRemote = {trksysinfo.parttrkfileremote};
         %partfilesLocal = {trksysinfo.parttrkfilelocal}';
 
         bgTrkWorkerObj.initFiles(mIdx,movsfull,...
@@ -3188,9 +3212,10 @@ classdef DeepTracker < LabelTracker
       
     end
     function [codestr,containerName] = trainCodeGenDockerDMC(dmc,mntPaths,gpuid,varargin)
+      [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
       [codestr,containerName] = DeepTracker.trainCodeGenDocker(...
         dmc.modelChainID,dmc.trainID,dmc.lblStrippedLnx,...
-        dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.trainType,dmc.view+1,mntPaths,gpuid,varargin{:});
+        dmc.rootDir,dmc.errfileLnx,dmc.netType,trnCmdType,dmc.view+1,mntPaths,gpuid,leftovers{:});
     end
     function codestr = trainCodeGenSing(trnID,dllbl,cache,errfile,netType,...
         varargin)
@@ -3224,8 +3249,9 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
     function codestr = trainCodeGenSSHBsubSingDMC(dmc,varargin)
-      singargs = myparse(varargin,...
-        'singargs',{}...
+      [singargs,trnCmdType] = myparse(varargin,...
+        'singargs',{},...
+        'trnCmdType',dmc.trainType...
         );
       
       if ~isempty(dmc.aptRootUser)
@@ -3241,7 +3267,7 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.trainCodeGenSSHBsubSing(...
         dmc.modelChainID,dmc.lblStrippedLnx,...
         dmc.rootDir,dmc.errfileLnx,dmc.netType,...
-        'baseArgs',{'view' dmc.view+1 'trainType' dmc.trainType 'deepnetroot' [aptroot '/deepnet']},...
+        'baseArgs',{'view' dmc.view+1 'trainType' trnCmdType 'deepnetroot' [aptroot '/deepnet']},...
         'singargs',singargs,...
         'bsubArgs',{'outfile' dmc.trainLogLnx},...
         'sshargs',{'prefix' prefix});

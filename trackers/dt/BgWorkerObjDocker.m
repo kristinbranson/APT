@@ -34,6 +34,15 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     
     function killJob(obj,jID)
       % jID: scalar jobID
+
+      if isempty(jID) || isempty(jID{1}),
+        fprintf('killJob: jID is empty\n');
+        return;
+      end
+
+      if obj.isKilled(jID),
+        return;
+      end
       
       bkillcmd = sprintf('%s kill %s',obj.dockercmd,jID{1});
         
@@ -69,6 +78,10 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       if iscell(jID),
         jID = jID{1};
       end
+      if isempty(jID),
+        res = 'jID not set';
+        return;
+      end
       bjobscmd = sprintf('%s container ls -a -f id=%s',obj.dockercmd,jID);
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
@@ -85,24 +98,47 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       end
       
     end
-        
-    function fcn = makeJobKilledPollFcn(obj,jID)
+    
+    % true if the job is no longer running
+    function tf = isKilled(obj,jID)
+      
       jID = jID{1};
+      if isempty(jID),
+        tf = false;
+        fprintf('isKilled: jID is empty!\n');
+        return;
+      end
       jIDshort = jID(1:8);
       pollcmd = sprintf('%s ps -q -f "id=%s"',obj.dockercmd,jIDshort);
       
-      fcn = @lcl;
-      
-      function tf = lcl
-        % returns true when jobID is killed
-        %disp(pollcmd);
-        [st,res] = system(pollcmd);
-        if st==0
-          tf = isempty(regexp(res,jIDshort,'once'));
-        else
-          tf = false;
-        end
+      [st,res] = system(pollcmd);
+      if st==0
+        tf = isempty(regexp(res,jIDshort,'once'));
+      else
+        tf = false;
       end
+    end
+        
+    function fcn = makeJobKilledPollFcn(obj,jID)
+      
+      fcn = @() obj.isKilled(jID);
+      
+%       jID = jID{1};
+%       jIDshort = jID(1:8);
+%       pollcmd = sprintf('%s ps -q -f "id=%s"',obj.dockercmd,jIDshort);
+%       
+%       fcn = @lcl;
+%       
+%       function tf = lcl
+%         % returns true when jobID is killed
+%         %disp(pollcmd);
+%         [st,res] = system(pollcmd);
+%         if st==0
+%           tf = isempty(regexp(res,jIDshort,'once'));
+%         else
+%           tf = false;
+%         end
+%       end
     end
     
     function tfsucc = createKillToken(obj,killtoken)

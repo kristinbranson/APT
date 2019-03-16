@@ -295,7 +295,13 @@ def get_net_type(lbl_file):
         logging.info('Failed to read netType from lbl file')
         return None
 
-def flatten_dict(din, dout={}, parent_keys=[], sep='_'):
+def flatten_dict(din, dout=None, parent_keys=None, sep='_'):
+
+    if dout is None: # don't use dout={} as a default arg; default args eval'ed only at module load leading to stateful behavior
+        dout = {}
+        
+    if parent_keys is None: 
+        parent_keys = [] 
         
     for k, v in din.items():
         k0 = k
@@ -304,10 +310,9 @@ def flatten_dict(din, dout={}, parent_keys=[], sep='_'):
                 k = parent_keys[-i] + sep + k
                 if k not in dout:
                     break
-        if k in dout:
-            logging.exception('Could not make a unique key when flattening dict')
-            continue
 
+        assert k not in dout, "Unable to flatten dict: repeated key {}".format(k)
+        
         try:
             dout = flatten_dict(v, dout=dout, parent_keys=parent_keys+[k0], sep=sep)
         except (AttributeError,TypeError):
@@ -1887,6 +1892,8 @@ def run(args):
         logging.exception('LBL_READ: Could not read the lbl file {}'.format(lbl_file))
         exit(1)
 
+    #raise ValueError('I am an error')
+
     nviews = int(read_entry(H['cfg']['NumViews']))
 
     if args.sub_name == 'train':
@@ -2038,7 +2045,7 @@ def run(args):
 def main(argv):
     args = parse_args(argv)
 
-    log_formatter = logging.Formatter('%(asctime)s [%(levelname)-5.5s] %(message)s')
+    log_formatter = logging.Formatter('%(asctime)s %(pathname)s %(funcName)s [%(levelname)-5.5s] %(message)s')
 
     log = logging.getLogger()  # root logger
     for hdlr in log.handlers[:]:  # remove all old handlers

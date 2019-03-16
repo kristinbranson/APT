@@ -128,11 +128,15 @@ function figure_TrackMonitor_CloseRequestFcn(hObject, eventdata, handles)
 mode = get(handles.pushbutton_startstop,'UserData');
 if strcmpi(mode,'stop'),
   
-  msgbox({'Tracking currently in progress. Please stop tracking before'
-          'closing this monitor. If you have already clicked Stop traickng,'
-          'please wait for tracking processes to be killed before closing'
-          'this monitor.'},...
-          'Stop tracking before closing monitor','modal');
+  res = questdlg({'Tracking currently in progress. Please stop tracking before'
+    'closing this monitor. If you have already clicked Stop tracking,'
+    'please wait for tracking processes to be killed before closing'
+    'this monitor.'
+    'Only override this warning if you know what you are doing.'},...
+    'Stop tracking before closing monitor','Ok','Override and close anyways','Ok');
+  if ~strcmpi(res,'Ok'),
+    delete(hObject);
+  end
   return;
   
 elseif strcmpi(mode,'start') || strcmpi(mode,'done'),

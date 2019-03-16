@@ -36,6 +36,19 @@ classdef TrackMonitorViz < handle
     minFracComplete = .001;
   end
   
+  
+  properties (Constant)
+    DEBUG = false;
+  end
+  
+  methods (Static)
+    function debugfprintf(varargin)
+      if TrackMonitorViz.DEBUG,
+        fprintf(varargin{:});
+      end
+    end
+  end
+  
   methods
     function obj = TrackMonitorViz(nview,dtObj,trackWorkerObj,backEnd,nFramesToTrack,jobDescs)
       obj.dtObj = dtObj;
@@ -110,6 +123,8 @@ classdef TrackMonitorViz < handle
       obj.resLast = [];
       obj.parttrkfileTimestamps = zeros(1,nJobs);
       obj.nFramesTracked = zeros(1,nJobs);
+      obj.isKilled = false;
+      drawnow;
             
     end
     
@@ -118,20 +133,38 @@ classdef TrackMonitorViz < handle
       obj.hfig = [];
 %       obj.haxs = [];
     end
-    function resultsReceived(obj,sRes,forceupdate)
+        
+    function [tfSucc,msg] = resultsReceived(obj,sRes,forceupdate)
       % Callback executed when new result received from monitor BG
       % worker
       %
       % trnComplete: scalar logical, true when all views done
       
+      tfSucc = false;
+      msg = '';
+      
       if nargin < 3,
         forceupdate = false;
       end
       
-      fprintf('%s: TrackMonitorViz results received:\n',datestr(now));
+      if isempty(obj.hfig) || ~ishandle(obj.hfig),
+        msg = 'Monitor closed.';
+        TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now));
+        return;
+      end
+
+      if obj.isKilled,
+        msg = 'Tracking jobs killed.';
+        TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now));
+        return;
+      end
+
+      
+      TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now));
       res = sRes.result;      
-      fprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
-      fprintf('N. frames tracked: ');
+            
+      TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
+      TrackMonitorViz.debugfprintf('N. frames tracked: ');
       nJobs = numel(res);
 
       % always update info about current tracker, as labels may have changed
@@ -197,23 +230,25 @@ classdef TrackMonitorViz < handle
           set(obj.hline(ijob),'FaceColor',[.5,.5,.5]);
           obj.hfig.UserData = 'killed';
         end
-        fprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
+        TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
       end
-      fprintf('\n');
-      fprintf('Update of nFramesTracked took %f s.\n',toc);
+      TrackMonitorViz.debugfprintf('\n');
+      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc);
       
       if isstruct(sRes) && isfield(sRes,'result'),
         obj.resLast = sRes.result;
       end
       
-      obj.updateAnn(res);
+      obj.updateErrDisplay(res);
+      [tfSucc,msg] = obj.updateAnn(res);
       
     end
     
-    function updateAnn(obj,res)
+    function [tfSucc,status] = updateAnn(obj,res)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
+      tfSucc = true;
       nJobs = numel(res);
       pollsuccess = true(1,nJobs);
       
@@ -240,14 +275,34 @@ classdef TrackMonitorViz < handle
         isLogFile = any(cellfun(@(x) exist(x,'file'),{res.logFile}));
       end
       
+      isRunning0 = obj.trackWorkerObj.getIsRunning();
+      if isempty(isRunning0),
+        isRunning = true;
+      else
+        isRunning = any(isRunning0);
+      end
+      
+      TrackMonitorViz.debugfprintf('updateAnn: isRunning = any(%s) = %d\n',mat2str(isRunning0),isRunning);
+      
       if obj.isKilled,
         status = 'Tracking process killed.';
-      elseif isErr,
-        status = 'Error while tracking.';
+        tfSucc = false;
       elseif isTrackComplete,
         status = 'Tracking complete.';
         handles = guidata(obj.hfig);
         TrackMonitorViz.updateStartStopButton(handles,false,true);
+      elseif ~isRunning,
+        if isErr,
+          status = 'Error while tracking.';
+        else
+          status = 'No tracking jobs running.';
+        end
+        handles = guidata(obj.hfig);
+        TrackMonitorViz.updateStartStopButton(handles,false,false);        
+        tfSucc = false;
+      elseif isErr,
+        status = 'Error while tracking.';
+        tfSucc = false;
       elseif isLogFile,
         if nJobs > 1,
           status = sprintf('Tracking in progress. %s frames tracked.',mat2str(obj.nFramesTracked));
@@ -262,8 +317,8 @@ classdef TrackMonitorViz < handle
       hAnn = obj.hannlastupdated;
       hAnn.String = str;
       
-      tfsucc = all(pollsuccess);
-      if all(tfsucc)
+      isok = all(pollsuccess) && ~isErr;
+      if all(isok)
         hAnn.ForegroundColor = [0 1 0];
       else
         hAnn.ForegroundColor = [1 0 0];
@@ -274,6 +329,31 @@ classdef TrackMonitorViz < handle
       %       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
     end
     
+    function updateErrDisplay(obj,res)
+      isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
+      if ~isErr,
+        return;
+      end
+      handles = guidata(obj.hfig);
+      if any([res.errFileExists]),
+        erri = find(strcmp(handles.popupmenu_actions.String,'Show error messages'),1);
+        if numel(erri) ~= 1,
+          return;
+        end
+        handles.popupmenu_actions.Value = erri;
+      else
+        erri = find(strcmp(handles.popupmenu_actions.String,'Show log files'),1);
+        if numel(erri) ~= 1,
+          return;
+        end
+        handles.popupmenu_actions.Value = erri;        
+      end
+      obj.updateClusterInfo();
+      handles.text_clusterinfo.ForegroundColor = 'r';
+      TrackMonitorViz.updateStartStopButton(handles,false,false);
+      drawnow;
+    end
+        
     function stopTracking(obj)
       
 %       warning('not implemented');
@@ -289,16 +369,13 @@ classdef TrackMonitorViz < handle
       handles.pushbutton_startstop.Enable = 'off';
       [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
       if tfsucc,
-        waitfor(obj.hfig,'UserData','killed');
-        %handles.pushbutton_startstop.Enable = 'off';
-        drawnow;
-        TrackMonitorViz.updateStartStopButton(handles,false,false);
-        obj.ClearBusy('Tracking process killed');
-        drawnow;
+        obj.isKilled = true;
       else
-        obj.ClearBusy('Tracking process killed');
         warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       end
+      TrackMonitorViz.updateStartStopButton(handles,false,false);
+      obj.ClearBusy('Tracking process killed');
+      drawnow;
 
     end
     
@@ -335,6 +412,7 @@ classdef TrackMonitorViz < handle
           fprintf('%s not implemented\n',action);
           return;
       end
+      %handles.text_clusterinfo.ForegroundColor = 'w';
     end
     
     
@@ -409,14 +487,17 @@ classdef TrackMonitorViz < handle
   
   methods (Static)
     
-    function updateStartStopButton(handles,isStop,isDone)
+    function updateStartStopButton(handles,isStop,isDone,msg)
       
       if nargin < 3,
         isDone = false;
       end
+      if nargin < 4,
+        msg = 'Tracking complete';
+      end
       
-      if isDone,
-        set(handles.pushbutton_startstop,'String','Tracking complete','BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
+      if isDone == 1,
+        set(handles.pushbutton_startstop,'String',msg,'BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
       else
         if isStop,
           set(handles.pushbutton_startstop,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
