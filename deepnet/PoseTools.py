@@ -737,6 +737,8 @@ def get_vars(vstr):
 
 
 def compare_conf(curconf, oldconf):
+    print (dir(curconf))
+    print (dir(oldconf))
     ff = list(set(dir(curconf))|set(dir(oldconf)))
     for f in ff:
         if f[0:2] == '__' or f[0:3] == 'get':
