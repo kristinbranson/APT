@@ -267,6 +267,10 @@ def write_hmaps(hmaps, hmaps_dir, trx_ndx, frame_num, extra_str=''):
         # imageio.imwrite(cur_out_png,cur_im)
 
 
+    #mat_out = os.path.join(hmaps_dir, 'hmap_trx_{}_t_{}_{}.mat'.format(trx_ndx + 1, frame_num + 1, extra_str))        
+    #hdf5storage.savemat(mat_out,{'hm':hmaps})
+
+
 def get_net_type(lbl_file):
     lbl = h5py.File(lbl_file, 'r')
     dt_params_ndx = None
@@ -1609,6 +1613,11 @@ def classify_movie(conf, pred_fn,
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict.pop('locs')
         hmaps = ret_dict.pop('hmaps')
+
+        #if save_hmaps:
+            #mat_out = os.path.join(hmap_out_dir, 'hmap_batch_{}.mat'.format(cur_b+1))
+            #hdf5storage.savemat(mat_out,{'hm':hmaps,'startframe1b':to_do_list[cur_start][0]+1})
+
         for cur_t in range(ppe):
             cur_entry = to_do_list[cur_t + cur_start]
             trx_ndx = cur_entry[1]
