@@ -16,7 +16,9 @@ classdef TreeNode < handle
       assert(isscalar(t));
       fcn(t);
       c = t.Children;
-      arrayfun(fcn,c);
+      for i=1:numel(c)
+        c(i).traverse(fcn);
+      end
     end
     
     function s = structize(t)

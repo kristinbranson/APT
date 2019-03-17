@@ -2915,7 +2915,7 @@ classdef DeepTracker < LabelTracker
         assert(isequal(size(ptrk1),size(ptrk2)),'Trkfiles contain position arrays with inconsistent sizes.');
 
         switch pp3dtype
-          case 'triangulation'
+          case 'triangulate'
             % See PostProcess.ReconstructSampleMultiView
             
             assert(isa(vcd,'CalRig'),'Expected view calibration data to be a CalRig instance.');
