@@ -348,7 +348,7 @@ classdef LabelCore < handle
     
     function edges = skeletonEdges(obj)
       
-      edges = obj.skeletonEdges;
+      edges = obj.labeler.skeletonEdges;
       
     end
     
