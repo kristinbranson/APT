@@ -1,7 +1,9 @@
 function [X3d,x2d,trpeconf,isspecial,prefview,...
   x2dcmp,... % nan(nfrm,3,2,nview,npts); % 2nd dim: [best/chosen, trkorig, trkorigRP]
   hmapscore,hmapscorecmp,hmaproi ... % these outputs only relevant when hmbig supplied
-  ] = runal3dpp(trk1,trk2,crobj,varargin)
+  ] = viewpref3drecon(trk1,trk2,crobj,varargin)
+
+% very experimental for RF!
 
 % TODO: preferviewnborrad
 
@@ -175,7 +177,7 @@ for iipt=1:npts
         fprintf(1,'roirad is %.3f\n',roirad);
        
         [sbest,Xbest,xy1best,xy2best,roi1,roi2] = ...
-          al3dpp(loghm1,loghm2,crobj,'dxyz',dxyz,'lambda2',lambda2,...
+          viewpref3dreconhmap(loghm1,loghm2,crobj,'dxyz',dxyz,'lambda2',lambda2,...
           'hm1roi',roi1,'hm2roi',roi2); 
         
         X3d(ifrm,:,iipt) = Xbest(:)';
