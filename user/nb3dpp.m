@@ -46,13 +46,13 @@ flgrpe = find(rpemn>RPE_THRESH)
 
 %%
 tic;
-hmb0 = load('mdn0303_60ktrn_3kfrm\mdn_60kiter_3kfrm_mat_vw0.mat');
-hmb1 = load('mdn0303_60ktrn_3kfrm\mdn_60kiter_3kfrm_mat_vw1.mat');
+hmb0 = load('mdn0303_60ktrn_3kfrm\mdn_60kiter_frm7_10k_mat_vw0.mat');
+hmb1 = load('mdn0303_60ktrn_3kfrm\mdn_60kiter_frm7_10k_mat_vw1.mat');
 toc;
 %%
-IPT = 2;
+IPT = 1;
 hmb = struct();
-ftmp = 1001:2e3;
+ftmp = 1:1e3;
 hmb.frmagg = hmb0.frmagg(ftmp);
 hmb0pt = hmb0.hmagg(ftmp,:,:,IPT);
 %clear hmb0;
@@ -60,15 +60,50 @@ hmb1pt = hmb1.hmagg(ftmp,:,:,IPT);
 %clear hmb1;
 hmb.hmagg = cat(4,hmb0pt,hmb1pt);
 %%
+clear hmb0 hmb1
+
+%%
 rc1 = load('mdn0303_60ktrn_3kfrm\mdn_60kiter_3kfrm_mat_vw0_comp2.mat');
 rc2 = load('mdn0303_60ktrn_3kfrm\mdn_60kiter_3kfrm_mat_vw1_comp2.mat');
 
-%%
+%% with hmap
 tic;
-[X3d,x2d,trpeconf,isal,alpreferview,alscore,alscorecmp,alscorecmpxy,alroi] = ...
-            runal3dpp(trk1,trk2,hmb,cr,...
-            'ipts',2,'frms',ftmp,'dxyz',0.005,'unethmsarereconned',false);
+[X3d,x2d,trpeconf,isspecial,prefview,...
+  x2dcmp,... 
+  hmapscore,hmapscorecmp,hmaproi] = runal3dpp(trk1,trk2,cr,...
+  'hmbig',hmb,...
+  'ipts',1,'frms',7001:8000,'dxyz',0.005,'unethmsarereconned',false);
 toc
+%% wout hmap
+tic;
+[X3d_nohm,x2d_nohm,trpeconf_nohm,isspecial_nohm,prefview_nohm,...
+  x2dcmp_nohm] = runal3dpp(trk1,trk2,cr,...
+  'roisEPline',[1 720 1 540; 1 720 1 540],...
+  'ipts',1,'frms',7001:8000,'dxyz',0.005,'unethmsarereconned',false);
+toc
+
+%%
+trpe = trpeconf{1};
+%X3d0 = trpe.X1strotri;
+d3d = X3d-X3d_nohm;
+err3d = sqrt(sum(d3d.^2,2));
+[~,idx] = sort(err3d,'descend');
+trpe.err3d = err3d;
+trpe.frm = (7001:8000)';
+trpe.isal = isal;
+trpe.alpreferview = alpreferview;
+trpeS = trpe(idx,:);
+%%
+trpeS(1:50,{'frm' 'err3d' 'isal' 'alpreferview'})
+%%
+for i=1:300
+  disp(trpeS(i,{'frm' 'err3d' 'isal' 'alpreferview'}));
+  f = trpeS.frm(i)-7e3;
+  disp(round(squeeze(alscorecmpxy(f,:,:,:))));
+  
+  input(num2str(i));
+end
+
 %%
 [nfrm,hmnr,hmnc,nvw] = size(hmb.hmagg);
 xgv = 1:hmnc;

@@ -1,12 +1,16 @@
-function [X3d,x2d,trpeconf,isal,alpreferview,alscore,alscorecmp,alscorecmpxy,alroi] = ...
-            runal3dpp_new(trk1,trk2,hmbig,crobj,varargin)
+function [X3d,x2d,trpeconf,isspecial,prefview,...
+  x2dcmp,... % nan(nfrm,3,2,nview,npts); % 2nd dim: [best/chosen, trkorig, trkorigRP]
+  hmapscore,hmapscorecmp,hmaproi ... % these outputs only relevant when hmbig supplied
+  ] = runal3dpp(trk1,trk2,crobj,varargin)
 
 % TODO: preferviewnborrad
 
 [ipts,frms,dxyz,mdnhmsigma2,unethmsarereconned,rpethresh,...
-  preferview,preferviewunetconf,preferviewlambda,preferviewnborrad,wbObj] = myparse(varargin,...
-  'ipts',1:2,...
-  'frms',1:3000,... % CURRENTLY aASSUMED CONTINUOUS SEQ
+  doprefview,preferviewunetconf,preferviewlambda,preferviewnborrad,...
+  hmbig,roisEPline,...
+  wbObj] = myparse(varargin,...
+  'ipts',1:2,... % absolute point indices
+  'frms',1:3000,... % absolute frame numbers. currently assumed continuous seq.
   'dxyz',0.01,...
   'mdnhmsigma2',3.2^2,... % var for mdn fake hmap
   'unethmsarereconned',true,... % if false, we massage/flatten mdn hmaps to make them comparable to 'real' unet hmaps, which do not shrink to -inf in logspace
@@ -15,75 +19,88 @@ function [X3d,x2d,trpeconf,isal,alpreferview,alscore,alscorecmp,alscorecmpxy,alr
   'preferviewunetconf',0.7,...
   'preferviewlambda',3,... % used when preferview==true
   'preferviewnborrad',2,... % used when preferview==true. in 'weak' view, include nboring frames with this rad. use 0 for no-nbors
+  'hmbig',[],...
+  'roisEPline',[],... % [2x4], used if hmbig not supplied. rois(iview,:) is [xlo xhi ylo yhi] for view iview for epipolar line computation
   'wbObj',WaitBarWithCancelCmdline('3dpp')  ...
 );
+
+tfHM = ~isempty(hmbig);
+if ~tfHM
+  assert(~isempty(roisEPline));
+end
+
+assert(isequal(frms,frms(1):frms(end)),'currently assume continuous seq'); % not sure this is nec
 
 npts = numel(ipts);
 nfrm = numel(frms);
 nview = 2;
 
-tfhmidx = ismember(double(hmbig.frmagg),frms);
-assert(isequal(double(hmbig.frmagg(tfhmidx)),frms(:)));
-hmbigrawfloat = hmbig.hmagg(tfhmidx,:,:,:,:);
-[~,hmnr,hmnc,~,~] = size(hmbigrawfloat);
-szassert(hmbigrawfloat,[nfrm hmnr hmnc nview npts]); % XXX assumes hmbigarr already selected for ipts
+if tfHM
+  tfhmidx = ismember(double(hmbig.frmagg),frms);
+  assert(isequal(double(hmbig.frmagg(tfhmidx)),frms(:)));
+  hmbigrawfloat = hmbig.hmagg(tfhmidx,:,:,:,:);
+  [~,hmnr,hmnc,~,~] = size(hmbigrawfloat);
+  szassert(hmbigrawfloat,[nfrm hmnr hmnc nview npts]); % XXX assumes hmbigarr already selected for ipts
+end
 
 X3d = nan(nfrm,3,npts);
 x2d = nan(nfrm,2,nview,npts);
 trpeconf = cell(npts,1); % trpeconf{ipt} is [nfrm] table
-isal = false(nfrm,npts);
-alpreferview = zeros(nfrm,npts); % 0 = no pref, etc
-alscore = nan(nfrm,npts);
-alscorecmp = nan(nfrm,3,npts); % best3d, orig, origRPs
-alscorecmpxy = nan(nfrm,3,2,nview,npts); % x-y for alscorecmp
-alroi = nan(nfrm,4,nview,npts);
-origTrkStuff = cell(npts,1);
+isspecial = false(nfrm,npts);
+prefview = zeros(nfrm,npts); % 0 = no pref, etc
+x2dcmp = nan(nfrm,3,2,nview,npts); % x-y for alscorecmp
+hmapscore = nan(nfrm,npts);
+hmapscorecmp = nan(nfrm,3,npts); % best3d, orig, origRPs
+hmaproi = nan(nfrm,4,nview,npts);
+%origTrkStuff = cell(npts,1);
 
 wbObj.startPeriod('Points','shownumden',true,'denominator',npts);
 
 for iipt=1:npts
   wbObj.updateFracWithNumDen(iipt);
 
-  ipt = ipts(iipt);  
-
-  assert(isequal(trk1.pTrkFrm(frms),frms));
-  assert(isequal(trk2.pTrkFrm(frms),frms));
+  ipt = ipts(iipt);
   
-  ptrk1 = squeeze(trk1.pTrk(ipt,:,frms)); % 2xnfrm
-  ptrk2 = squeeze(trk2.pTrk(ipt,:,frms)); % 2xnfrm
-  ptrk1u = squeeze(trk1.pTrklocs_unet(ipt,:,frms))+1; % XXX PLUS 1
-  ptrk2u = squeeze(trk2.pTrklocs_unet(ipt,:,frms))+1; % XXX PLUS 1
-  conf1 = trk1.pTrkconf(ipt,frms); % 1xnfrm
-  conf1u = trk1.pTrkconf_unet(ipt,frms); % etc
-  conf2 = trk2.pTrkconf(ipt,frms);
-  conf2u = trk2.pTrkconf_unet(ipt,frms);
+  assert(isequal(trk1.pTrkFrm,trk2.pTrkFrm));
+  [tf,ifrmTrk] = ismember(frms,trk1.pTrkFrm);
+  assert(all(tf));
+  
+  ptrk1 = reshape(trk1.pTrk(ipt,:,ifrmTrk),[2 nfrm]);
+  ptrk2 = reshape(trk2.pTrk(ipt,:,ifrmTrk),[2 nfrm]);
+  ptrk1u = reshape(trk1.pTrklocs_unet(ipt,:,ifrmTrk),[2 nfrm]);
+  ptrk2u = reshape(trk2.pTrklocs_unet(ipt,:,ifrmTrk),[2 nfrm]);
+  conf1 = trk1.pTrkconf(ipt,ifrmTrk); % 1xnfrm
+  conf1u = trk1.pTrkconf_unet(ipt,ifrmTrk); % etc
+  conf2 = trk2.pTrkconf(ipt,ifrmTrk);
+  conf2u = trk2.pTrkconf_unet(ipt,ifrmTrk);
 
   % compute confs/prep
   tfisu1 = all(ptrk1==ptrk1u,1);
   tfisu2 = all(ptrk2==ptrk2u,1);
-  tfisunet = tfisu1 & tfisu2;
-  fprintf(1,'isunet 1/2/both: %d/%d/%d\n',nnz(tfisu1),nnz(tfisu2),nnz(tfisunet));
+  fprintf(1,'isunet 1/2/both: %d/%d/%d\n',nnz(tfisu1),nnz(tfisu2),...
+    nnz(tfisu1 & tfisu2));
     
   % compute RPE
   fprintf(1,'### RPE pt %d ###\n',ipt);
   tic;
-  [X1,xp1rp,xp2rp,rpe1,rpe2] = crobj.stereoTriangulate(ptrk1,ptrk2);
+  xytrk = cat(3,ptrk1,ptrk2);
+  [X1,xyrp,rpe] = crobj.triangulate(xytrk);
   toc
-  rpe = [rpe1(:) rpe2(:)];
-  prctile(rpe,[50 75 90 95 99])
+  %prctile(rpe,[50 75 90 95 99])
   rpemn = mean(rpe,2);
 
   szassert(X1,[3 nfrm]);
-  szassert(xp1rp,[2 nfrm]);
-  szassert(xp2rp,[2 nfrm]);
+  szassert(xyrp,[2 nfrm nview]);
   szassert(rpemn,[nfrm 1]);
   
   % conf tbl
   trpe = table(rpemn,conf1(:),conf1u(:),conf2(:),conf2u(:),...
     tfisu1(:),tfisu2(:),...
-    ptrk1',ptrk2',X1',xp1rp',xp2rp',rpe1(:),rpe2(:),...
+    ptrk1',ptrk2',X1',xyrp(:,:,1)',xyrp(:,:,2)',rpe(:,1),rpe(:,2),...
     'VariableNames',...
-    {'rpemn' 'conf1' 'conf1u' 'conf2' 'conf2u' 'isu1' 'isu2' 'ptrk1' 'ptrk2' 'X1strotri' 'xp1rp' 'xp2rp' 'rpe1' 'rpe2'});
+      {'rpemn' 'conf1' 'conf1u' 'conf2' 'conf2u' ...
+       'isu1' 'isu2' ...
+       'ptrk1' 'ptrk2' 'X1tri' 'ptrk1rp' 'ptrk2rp' 'ptrk1rpe' 'ptrk2rpe'});
   trpeconf{iipt} = trpe;
   assert(height(trpe)==nfrm);
   
@@ -93,18 +110,19 @@ for iipt=1:npts
     
     trperow = trpe(ifrm,:);
    
-    isal(ifrm,iipt) = trperow.rpemn>rpethresh;
-    if isal(ifrm,iipt)
+    isspecial(ifrm,iipt) = trperow.rpemn>rpethresh;
+    if isspecial(ifrm,iipt)
 
       % view pref; weight one view more based on conf
       lambda2 = 1;
-      if preferview
-        iprefervw = preferviewCriteria(trperow,preferviewunetconf); 
-        alpreferview(ifrm,iipt) = iprefervw;
+      if doprefview
+        iprefvw = preferviewCriteria(trperow,preferviewunetconf); 
+        prefview(ifrm,iipt) = iprefvw;
 
         % TODO lambda2 vals will not allow comparison of scores between
         % prefervw frames and nonprefervw
-        switch iprefervw
+        % lambdas only used when hmaps avail
+        switch iprefvw
           case 0
             lambda2 = 1;
           case 1
@@ -116,73 +134,133 @@ for iipt=1:npts
         end
       end
       
-      % what are our hmaps?
-      hm1 = gethmap(hmnr,hmnc,trperow.isu1,squeeze(hmbigrawfloat(ifrm,:,:,1,iipt)),...
-        ptrk1(:,ifrm),mdnhmsigma2);
-      hm2 = gethmap(hmnr,hmnc,trperow.isu2,squeeze(hmbigrawfloat(ifrm,:,:,2,iipt)),...
-        ptrk2(:,ifrm),mdnhmsigma2);
-      
-      % hmap massage. issue is, unet and mdn hmaps are not very mutually
-      % compatible when the rp error is high. in this case the
-      % best/ultimate soln will tend to lie far away from the peak of the
-      % distros. the unet hmap, being NN-generated tends to approach a low
-      % but non-zero plateau away from hotspots/peaks. by contrast, the mdn
-      % hmap being artificially generated vanishes exponentially like a
-      % gaussian. in a naive comparison looking for solns far-from peaks,
-      % the mdn hmap will dominate due to its unlimited paraboloid in log
-      % space.
-      
-      % Note: this can cause loghm* to not be a real log(pdf) anymore as it
-      % messes up the normalization.
-      loghm1 = log(hm1);
-      loghm2 = log(hm2);
-      if trperow.isu1 && ~trperow.isu2 && ~unethmsarereconned
-        unetmdn = median(loghm1(:));        
-        loghm2 = massageMdnHmap(loghm2,ptrk2(:,ifrm),unetmdn);
-      elseif ~trperow.isu1 && trperow.isu2 && ~unethmsarereconned
-        unetmdn = median(loghm2(:));
-        loghm1 = massageMdnHmap(loghm1,ptrk1(:,ifrm),unetmdn);
+      if tfHM
+        hm1 = gethmap(hmnr,hmnc,trperow.isu1,squeeze(hmbigrawfloat(ifrm,:,:,1,iipt)),...
+          ptrk1(:,ifrm),mdnhmsigma2);
+        hm2 = gethmap(hmnr,hmnc,trperow.isu2,squeeze(hmbigrawfloat(ifrm,:,:,2,iipt)),...
+          ptrk2(:,ifrm),mdnhmsigma2);
+        
+        % hmap massage. issue is, unet and mdn hmaps are not very mutually
+        % compatible when the rp error is high. in this case the
+        % best/ultimate soln will tend to lie far away from the peak of the
+        % distros. the unet hmap, being NN-generated tends to approach a low
+        % but non-zero plateau away from hotspots/peaks. by contrast, the mdn
+        % hmap being artificially generated vanishes exponentially like a
+        % gaussian. in a naive comparison looking for solns far-from peaks,
+        % the mdn hmap will dominate due to its unlimited paraboloid in log
+        % space.
+        
+        % TODO this needs help with reconned hmaps
+        
+        % Note: this can cause loghm* to not be a real log(pdf) anymore as it
+        % messes up the normalization.
+        loghm1 = log(hm1);
+        loghm2 = log(hm2);
+        if trperow.isu1 && ~trperow.isu2 && ~unethmsarereconned
+          unetmdn = median(loghm1(:));
+          loghm2 = massageMdnHmap(loghm2,ptrk2(:,ifrm),unetmdn);
+        elseif ~trperow.isu1 && trperow.isu2 && ~unethmsarereconned
+          unetmdn = median(loghm2(:));
+          loghm1 = massageMdnHmap(loghm1,ptrk1(:,ifrm),unetmdn);
+        else
+          % none; either unet/unet, or mdn/mdn, or all hmaps (unet and mdn
+          % alike) are reconned. these hmaps are mutually comparable
+        end
+        
+        roirad = max(trperow.rpemn,25);
+        roi1 = [xyrp(1,ifrm,1)-roirad xyrp(1,ifrm,1)+roirad ...
+                xyrp(2,ifrm,1)-roirad xyrp(2,ifrm,1)+roirad];
+        roi2 = [xyrp(1,ifrm,2)-roirad xyrp(1,ifrm,2)+roirad ...
+                xyrp(2,ifrm,2)-roirad xyrp(2,ifrm,2)+roirad];
+        fprintf(1,'roirad is %.3f\n',roirad);
+       
+        [sbest,Xbest,xy1best,xy2best,roi1,roi2] = ...
+          al3dpp(loghm1,loghm2,crobj,'dxyz',dxyz,'lambda2',lambda2,...
+          'hm1roi',roi1,'hm2roi',roi2); 
+        
+        X3d(ifrm,:,iipt) = Xbest(:)';
+        x2d(ifrm,:,1,iipt) = xy1best(:)';
+        x2d(ifrm,:,2,iipt) = xy2best(:)';
+        hmapscore(ifrm,iipt) = sbest;
+        
+        xall1 = [xy1best(1) ptrk1(1,ifrm) xyrp(1,ifrm,1)];
+        yall1 = [xy1best(2) ptrk1(2,ifrm) xyrp(2,ifrm,1)];
+        xall2 = [xy2best(1) ptrk2(1,ifrm) xyrp(1,ifrm,2)];
+        yall2 = [xy2best(2) ptrk2(2,ifrm) xyrp(2,ifrm,2)];
+        hmapscorecmp(ifrm,:,iipt) = ...
+          interp2(loghm1,xall1,yall1,'nearest') + lambda2*interp2(loghm2,xall2,yall2,'nearest');
+        x2dcmp(ifrm,:,1,1,iipt) = xall1(:);
+        x2dcmp(ifrm,:,2,1,iipt) = yall1(:);
+        x2dcmp(ifrm,:,1,2,iipt) = xall2(:);
+        x2dcmp(ifrm,:,2,2,iipt) = yall2(:);
+        
+        hmaproi(ifrm,:,1,iipt) = roi1;
+        hmaproi(ifrm,:,2,iipt) = roi2;        
+      elseif doprefview && iprefvw>0
+        % do view preference without HMs
+        
+        switch iprefvw
+          case 1
+            iotherview = 2;
+          case 2
+            iotherview = 1;
+          otherwise
+            assert(false);
+        end
+        
+        xyprefer = xytrk(:,ifrm,iprefvw);
+        xyother = xytrk(:,ifrm,iotherview);
+          
+        roiother = roisEPline(iotherview,:);
+        [xEPL,yEPL] = crobj.computeEpiPolarLine(iprefvw,xyprefer,iotherview,roiother);
+
+        % warn if the EP line is too widely spaced
+        xyEPL = [xEPL(:) yEPL(:)];
+        dxyEPL = diff(xyEPL,1,1);
+        dzEPL = max(abs(dxyEPL),[],2);
+        maxdzEPL = max(dzEPL);
+        MAXDZEPL_WARN_THRESH = 1.0;
+        if maxdzEPL > MAXDZEPL_WARN_THRESH
+          warningNoTrace('EP line in view %d may be widely spaced: max dz=%.3f px.',...
+            iotherview,maxdzEPL);
+        end
+        
+        % select the point closest to xyother
+        szassert(xyother,[2 1]);
+        dEPLtrk = xyEPL-xyother';
+        d2EPLtrk = sum(dEPLtrk.^2,2);
+        [~,idx] = min(d2EPLtrk);
+        xyEPLbest = xyEPL(idx,:);
+        
+        switch iprefvw
+          case 1
+            xy1best = xyprefer;
+            xy2best = xyEPLbest';
+          case 2            
+            xy1best = xyEPLbest';
+            xy2best = xyprefer;
+          otherwise
+            assert(false);
+        end
+        Xbest = crobj.triangulate(cat(3,xy1best(:),xy2best(:)));
+
+        X3d(ifrm,:,iipt) = Xbest';
+        x2d(ifrm,:,1,iipt) = xy1best';
+        x2d(ifrm,:,2,iipt) = xy2best';
+
+        xycmp = cat(3,...
+                [xy1best'; xytrk(:,ifrm,1)'; xyrp(:,ifrm,1)'],...
+                [xy2best'; xytrk(:,ifrm,2)'; xyrp(:,ifrm,2)']);
+        x2dcmp(ifrm,:,:,:,iipt) = xycmp;
       else
-        % none; either unet/unet, or mdn/mdn, or all hmaps (unet and mdn 
-        % alike) are reconned. these hmaps are mutually comparable
+        % no HM supplied, and no view preference. 
+        
+        X3d(ifrm,:,iipt) = X1(:,ifrm)';
+        x2d(ifrm,:,:,iipt) = xyrp(:,ifrm,:);
       end
-
-      roirad = max(trperow.rpemn,25);
-      roi1 = [xp1rp(1,ifrm)-roirad xp1rp(1,ifrm)+roirad ...
-              xp1rp(2,ifrm)-roirad xp1rp(2,ifrm)+roirad];
-      roi2 = [xp2rp(1,ifrm)-roirad xp2rp(1,ifrm)+roirad ...
-              xp2rp(2,ifrm)-roirad xp2rp(2,ifrm)+roirad];
-      fprintf(1,'roirad is %.3f\n',roirad);
-
-      if ifrm==198
-        disp('asd');
-      end
-
-     [sbest,Xbest,xy1best,xy2best,roi1,roi2] = ...
-        al3dpp(loghm1,loghm2,crobj,'dxyz',dxyz,'lambda2',lambda2,'hm1roi',roi1,'hm2roi',roi2);      
-      
-      X3d(ifrm,:,iipt) = Xbest(:)';
-      x2d(ifrm,:,1,iipt) = xy1best(:)';
-      x2d(ifrm,:,2,iipt) = xy2best(:)';
-      alscore(ifrm,iipt) = sbest;
-      
-      xall1 = [xy1best(1) ptrk1(1,ifrm) xp1rp(1,ifrm)];
-      yall1 = [xy1best(2) ptrk1(2,ifrm) xp1rp(2,ifrm)];
-      xall2 = [xy2best(1) ptrk2(1,ifrm) xp2rp(1,ifrm)];
-      yall2 = [xy2best(2) ptrk2(2,ifrm) xp2rp(2,ifrm)];
-      alscorecmp(ifrm,:,iipt) = ...
-        interp2(loghm1,xall1,yall1,'nearest') + lambda2*interp2(loghm2,xall2,yall2,'nearest');
-      alscorecmpxy(ifrm,:,1,1,iipt) = xall1(:);
-      alscorecmpxy(ifrm,:,2,1,iipt) = yall1(:);
-      alscorecmpxy(ifrm,:,1,2,iipt) = xall2(:);
-      alscorecmpxy(ifrm,:,2,2,iipt) = yall2(:);
-      
-      alroi(ifrm,:,1,iipt) = roi1;
-      alroi(ifrm,:,2,iipt) = roi2;
     else
       X3d(ifrm,:,iipt) = X1(:,ifrm)';
-      x2d(ifrm,:,1,iipt) = xp1rp(:,ifrm)';
-      x2d(ifrm,:,2,iipt) = xp2rp(:,ifrm)'; 
+      x2d(ifrm,:,:,iipt) = xyrp(:,ifrm,:);
     end
   end
   wbObj.endPeriod();
@@ -228,7 +306,6 @@ ygv = 1:hmnr;
 r = sqrt( (xg-ptrk(1)).^2 + (yg-ptrk(2)).^2 );
 
 loghm(tf) = mdnLogUnetHmap - LOGHM_FALLOF_PER_PX*r(tf);
-
 
 function ivwpref = preferviewCriteria(trperow,unetconfthresh)
 % ivwpref: 0 for no pref, or 1/2 for preferred view (1b)
