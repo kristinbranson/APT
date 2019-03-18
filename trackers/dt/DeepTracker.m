@@ -25,14 +25,10 @@ classdef DeepTracker < LabelTracker
     minFreeMem = 9000; % in MiB
   end
   properties
-    
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
     deepnetgitbranch % transient/unmanaged. set me to use/run a diff branch
   end
-%   properties (SetObservable)
-%     backendType % scalar DLBackEnd
-%   end
   properties
     containerBindPaths % cellstr of bind paths for sing/docker
       % Will be used if it is nonempty; otherwise an attempt will be made 
@@ -183,25 +179,53 @@ classdef DeepTracker < LabelTracker
   
   %% Params
   methods
-    function setParamContentsSmart(obj,sNew,tfCommonOrPPParamsChanged)
-      % Set parameter contents (.sPrm), looking at what top-level fields 
-      % have changed and clearing obj state appropriately.
-      %
-      % sNew: scalar struct, parameters
+    function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
+        didParamsChange(obj,sPrmAll)
       
-      sOld = obj.sPrm;
-      obj.sPrm = sNew; % set this now so eg trnResInit() can use
+      tfCommonChanged = ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
+      tfPreProcChanged = ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
+      tfPostProcChanged = ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
       
-%       if isempty(sOld) || isempty(sNew)
-%         obj.initHook();
-%       else
-%       end
-        
-      tfunchanged = isequaln(sOld,sNew);
-      if tfCommonOrPPParamsChanged || ~tfunchanged
+      sOldSpecific = obj.sPrm;
+      netType = obj.trnNetType.prettyString;
+      sNewSpecific = sPrmAll.ROOT.DeepTrack.(netType);
+      tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
+    end
+    function setAllParams(obj,sPrmAll)
+      [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
+        obj.didParamsChange(sPrmAll);
+      
+      obj.sPrmAll = sPrmAll;
+      
+      if tfCommonChanged || tfPreProcChanged || tfSpecificChanged,
         obj.initHook();
-        fprintf(2,'Parameter change: DeepTracker (%s) cleared.\n',...
-          char(obj.trnNetType));
+      end
+      if tfPostProcChanged
+        warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
+        obj.trackResInit();
+        obj.trackCurrResInit();
+        obj.updateTrackerInfo(); % AL: prob unnec but also prob doesn't hurt
+        obj.newLabelerFrame();
+      end
+    end
+    function tfPostProcChanged = setPostProcParams(obj,sPrmAll)
+      tfPostProcChanged = ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
+      obj.sPrmAll.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;
+      if tfPostProcChanged
+        warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
+        obj.trackResInit();
+        obj.trackCurrResInit();
+        obj.updateTrackerInfo(); % AL: prob unnec but also prob doesn't hurt
+        obj.newLabelerFrame();
+      end
+    end
+      
+    function v = get.sPrm(obj)
+      if isempty(obj.sPrmAll),
+        v = [];
+      else
+        netType = obj.trnNetType.prettyString;
+        v = obj.sPrmAll.ROOT.DeepTrack.(netType);
       end
     end
     function sPrm = getParams(obj)
@@ -523,33 +547,6 @@ classdef DeepTracker < LabelTracker
       tfCanTrain = true;      
     end
     
-    function setAllParams(obj,sPrmAll)
-      
-      sOld = obj.sPrm;
-      tfCommonChanged = ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
-      tfPPParamsChanged = ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
-      
-      obj.sPrmAll = sPrmAll;
-      netType = obj.trnNetType.prettyString;
-      sNew = sPrmAll.ROOT.DeepTrack.(netType);
-      tfunchanged = isequaln(sOld,sNew);
-      if tfCommonChanged || tfPPParamsChanged || ~tfunchanged,
-        obj.initHook();
-      end
-
-    end
-    
-    function v = get.sPrm(obj)
-
-      if isempty(obj.sPrmAll),
-        v = [];
-      else
-        netType = obj.trnNetType.prettyString;
-        v = obj.sPrmAll.ROOT.DeepTrack.(netType);
-      end
-      
-    end
-    
     function retrain(obj,varargin)
       
       [wbObj,dlTrnType,oldVizObj] = myparse(varargin,...
@@ -598,7 +595,6 @@ classdef DeepTracker < LabelTracker
       if ~isempty(oldVizObj),
         delete(oldVizObj);
       end
-
       
       modelChain0 = obj.trnName;
       switch dlTrnType
@@ -618,7 +614,6 @@ classdef DeepTracker < LabelTracker
           assert(false);
       end
       
-      % set parameters
       obj.setAllParams(obj.lObj.trackGetParams());
             
       switch trnBackEnd.type
@@ -810,11 +805,6 @@ classdef DeepTracker < LabelTracker
     end
     
   end
-%   methods (Static)
-%     function s = trnLogfileStc(cacheDir,trnID,iview)
-%       s = fullfile(cacheDir,sprintf('%s_view%d.log',trnID,iview));
-%     end
-%   end
   methods
     %% BSub Trainer
       
@@ -869,7 +859,7 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.lObj.trackDLParams.GradientDescent.dl_steps,...
+        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',isMultiViewTrain);
         %'backEnd',backEnd);
 
@@ -1063,11 +1053,6 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-%     function s = trnLogfileBsub(obj,iview)
-%       % fullpath to training bsub logfile
-%       s = DeepTracker.trnLogfileStc(obj.sPrm.CacheDir,obj.trnName,iview);
-%     end
-    
     function [augims,dataAugDir] = dataAugBsubDocker(obj,ppdata,sPrmAll,backEnd,varargin)
       
       [dataAugDir] = myparse(varargin,'dataAugDir','');
@@ -1190,6 +1175,7 @@ classdef DeepTracker < LabelTracker
     end
     
     function [tfsucc,hedit] = testBsubConfig(obj,varargin)
+      % Maybe belongs in Labeler or DLBackEndClass
       
       tfsucc = false;
       [host] = myparse(varargin,'host',DeepTracker.jrchost);
@@ -1410,9 +1396,9 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrm.dl_steps);
+        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps);
       dmcLcl = dmc.copy();
-      dmcLcl.rootDir = obj.lObj.DLCacheDir;      
+      dmcLcl.rootDir = obj.lObj.DLCacheDir;
       
       % create/ensure stripped lbl, local and remote
       tfGenNewStrippedLbl = trnType==DLTrainType.New || ...
@@ -1705,11 +1691,26 @@ classdef DeepTracker < LabelTracker
         error('Tracking while training is in progress is currently unsupported on AWS.');
       end
       
+      isexternal = iscell(tblMFT);
+      
+      sPrmLabeler = obj.lObj.trackGetParams();
+      [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
+          obj.didParamsChange(sPrmLabeler);
+      if tfCommonChanged || tfPreProcChanged || tfSpecificChanged
+        warningNoTrace('Deep Learning parameters have changed since your last retrain.');
+        % Keep it simple for now. Note training might be in progress but
+        % even if not etc.
+      end
+      
+      obj.setPostProcParams(sPrmLabeler);
+      % Specifically allow/support case where tfPostProcChanged is true
+      % to enable turning off/on postproc or trying diff pp algos with a 
+      % given trained tracker   
+      
       obj.bgTrkReset();
         
       % track an external movie
-      if iscell(tblMFT),
-        isexternal = true;
+      if isexternal
         movfiles = tblMFT;
         [trxfiles,trkfiles,f0,f1,cropRois,targets] = myparse(varargin,...
           'trxfiles',{},'trkfiles',{},'f0',[],'f1',[],'cropRois',{},'targets',{});
@@ -1742,8 +1743,10 @@ classdef DeepTracker < LabelTracker
           end
         end
         
-      else
-        isexternal = false;
+        if ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
+          msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D. '
+          uiwait(msgbox(msg,'3D Reconciliation','modal'));
+        end
       end
       
       if ~isexternal && isempty(tblMFT)
@@ -1914,18 +1917,15 @@ classdef DeepTracker < LabelTracker
           
           args = {'isMultiView',isMultiViewTrack};
 
-          
           if isexternal,
-
             if obj.lObj.hasTrx,
               args = [args,{'trxfiles',trxfiles,'targets',targets}];
             end
-              tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
-                cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,'gpuids',gpuids,args{:});
-            
+            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,[],[],dlLblFileLcl,...
+              cropRois,hmapArgs,f0,f1,'movfiles',movfiles,'trkfiles',trkfiles,'gpuids',gpuids,args{:});
           else
-               tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
-                cropRois,hmapArgs,f0,f1,'gpuids',gpuids,args{:});
+            tfSuccess = obj.trkSpawnBsubDocker(trkBackEnd,mIdx,tMFTConc,dlLblFileLcl,...
+              cropRois,hmapArgs,f0,f1,'gpuids',gpuids,args{:});
           end
           if ~tfSuccess,
             obj.bgTrkReset();
@@ -1943,7 +1943,6 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    
     function tfSuccess = trackListFile(obj,listfiles,outfiles)
       
       be = obj.lObj.trackDLBackEnd;
@@ -1960,6 +1959,12 @@ classdef DeepTracker < LabelTracker
 
       if isempty(obj.trnName)
         error('No trained tracker found.');
+      end
+      
+      % we don't check/update params from Labeler here
+      if ~strcmp(obj.sPrmAll.ROOT.PostProcess.reconcile3dType,'none')
+        msg = '3D reconciliation is currently not supported for external movie tracking. Tracking results will not be postprocessed or reconciled in 3D. '
+        warningNoTrace(msg);
       end      
 
       listfiles = cellstr(listfiles);
@@ -2150,9 +2155,6 @@ classdef DeepTracker < LabelTracker
         assert(numel(gpuids) == nViewJobs*nMovies);
         gpuids = reshape(gpuids,[nMovies,nViewJobs]);
       end
-        
-
-
       
       [dmc.aptRootUser] = deal([]);
       
@@ -2451,11 +2453,10 @@ classdef DeepTracker < LabelTracker
       fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
       
       trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,...
-        @obj.trkCompleteCbk);
+      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk);
       
       addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:}));
+      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); % AL partially dups stuff in .trkCompleteCbk
       
       %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
@@ -2588,6 +2589,7 @@ classdef DeepTracker < LabelTracker
       %trkdirRemoteFull = aws.ensureRemoteDir('trk','descstr','trk');
       datadirRemoteFull = aws.ensureRemoteDir('data','descstr','data');
       % should prob get these from tMFTConc
+      assert(isscalar(mIdx));
       movsfull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
       trxsfull = obj.lObj.getTrxFilesAllFullMovIdx(mIdx);
       tftrx = obj.lObj.hasTrx;
@@ -2596,7 +2598,10 @@ classdef DeepTracker < LabelTracker
         szassert(cropRois,[nvw 4]);
       end
       
-      fprintf(2,'TODO: warn if dmcs have diff iterCurrs\n');      
+      iterCurrs = [dmc.iterCurr];
+      if numel(unique(iterCurrs))>1
+        warningNoTrace('Current models have differing number of training iterations.');
+      end
       [trnstrs,modelFiles] = obj.getTrkFileTrnStr();
       
       % gen trkfilelocal/remote. upload trkfiles. create local trkdirs.
@@ -2686,7 +2691,7 @@ classdef DeepTracker < LabelTracker
       rootDirRemoteAbs = dmc(1).rootDir;
       errfileRemoteAbs = trksysinfo(1).errfile;
       logfileRemoteAbs = trksysinfo(1).logfile;
-      trkfilesRemoteAbs = {trksysinfo.trkfileremote}';
+      trkfilesRemoteAbs = {trksysinfo.trkfileremote};
       codestr = DeepTracker.trackCodeGenAWS(...
         modelChainID,rootDirRemoteAbs,dlLblFileRemote,errfileRemoteAbs,...
         obj.trnNetType,...
@@ -2704,10 +2709,10 @@ classdef DeepTracker < LabelTracker
         bgTrkWorkerObj = BgTrackWorkerObjAWS(nvw,dmc,aws);
 
         trkfilesLocal = {trksysinfo.trkfilelocal}';        
-        logfiles = {trksysinfo.logfile}'; % all identical for multiview
-        errfiles = {trksysinfo.errfile}'; % "
+        logfiles = {trksysinfo.logfile}; % all identical for multiview
+        errfiles = {trksysinfo.errfile}; % "
         % KB: not sure what to do with part files remote vs local yet
-        partfilesRemote = {trksysinfo.parttrkfileremote}';
+        partfilesRemote = {trksysinfo.parttrkfileremote};
         %partfilesLocal = {trksysinfo.parttrkfilelocal}';
 
         bgTrkWorkerObj.initFiles(mIdx,movsfull,...
@@ -2809,7 +2814,10 @@ classdef DeepTracker < LabelTracker
         % we perform this check b/c while tracking has been running in
         % the bg, the project could have been updated, movies
         % renamed/reordered etc.
-        obj.trackResAddTrkfile(mIdx,{res.trkfile}');
+        
+        trkfiles = {res.trkfile}';
+        obj.trkPostProcIfNec(mIdx,trkfiles);
+        obj.trackResAddTrkfile(mIdx,trkfiles);
         if mIdx==obj.lObj.currMovIdx
           obj.trackCurrResUpdate();
           obj.newLabelerFrame();
@@ -2848,6 +2856,7 @@ classdef DeepTracker < LabelTracker
           aws.scpDownload(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs);
         end
         
+        obj.trkPostProcIfNec(mIdx,trkfilesLocal);
         obj.trackResAddTrkfile(mIdx,trkfilesLocal);
         if mIdx==obj.lObj.currMovIdx
           obj.trackCurrResUpdate();
@@ -2864,6 +2873,91 @@ classdef DeepTracker < LabelTracker
       end
     end
 
+    function trkPostProcIfNec(obj,mIdx,trkfiles)
+      % When appropriate, perform postprocessing and re-save trkfiles in
+      % place.
+      
+      pp3dtype = obj.sPrmAll.ROOT.PostProcess.reconcile3dType;
+      do3dreconcile = ~strcmp(pp3dtype,'none');      
+      nvw = obj.lObj.nview;
+      
+      if do3dreconcile && nvw==2
+        vcd = obj.lObj.getViewCalibrationDataMovIdx(mIdx);
+        if isempty(vcd)
+          moviestr = obj.lObj.moviePrettyStr(mIdx);
+          warningNoTrace('Cannot perform 3D postprocessing; calibration data unset for %s.',moviestr);
+          return;
+        end
+          
+        assert(numel(trkfiles)==nvw);
+        
+        [trks,tfsucc] = ...
+          cellfun(@(x)DeepTracker.hlpLoadTrk(x,'rawload',true),trkfiles,'uni',0);
+        tfsucc = cell2mat(tfsucc);
+        if ~all(tfsucc)
+          ivwFailed = find(~tfsucc);
+          ivwFailedStr = num2str(ivwFailed(:)');
+          warningNoTrace('Cannot perform 3D postprocessing; could not load trkfiles for views: %s.',ivwFailedStr);
+          return;
+        end
+        
+        trk1 = trks{1};
+        trk2 = trks{2};        
+        if ~isequal(trk1.pTrkFrm,trk2.pTrkFrm) || ...
+           ~isequal(trk1.pTrkiTgt,trk2.pTrkiTgt)
+          warningNoTrace('Cannot perform 3D postprocessing; trkfiles differ in frames/targets tracked.');
+          return;
+        end
+
+        ptrk1 = trk1.pTrk;
+        ptrk2 = trk2.pTrk;
+        [npt,d,nfrm,ntgt] = size(ptrk1);
+        assert(isequal(size(ptrk1),size(ptrk2)),'Trkfiles contain position arrays with inconsistent sizes.');
+
+        switch pp3dtype
+          case 'triangulate'
+            % See PostProcess.ReconstructSampleMultiView
+            
+            assert(isa(vcd,'CalRig'),'Expected view calibration data to be a CalRig instance.');
+            crig = vcd;
+            
+            assert(ntgt==1,'Expected single-target data in trkfiles.');
+            ptrk1 = reshape(permute(ptrk1,[2 3 1]),2,nfrm*npt); % coord, frm*pt
+            ptrk2 = reshape(permute(ptrk2,[2 3 1]),2,nfrm*npt);
+            ptrk = cat(3,ptrk1,ptrk2);
+            
+            [X,xyrp] = crig.triangulate(ptrk);
+            
+            X = permute(reshape(X,[3 nfrm npt]),[3 1 2]); % npt x 3 x nfrm
+            xyrp = reshape(xyrp,[2 nfrm npt 1 nvw]);
+            xyrp = permute(xyrp,[3 1 2 4 5]); % npt x 2 x nfrm x 1 x nvw
+                        
+            trk1save = struct(...
+              'pTrkSingleView',trk1.pTrk,...
+              'pTrk',xyrp(:,:,:,:,1),...
+              'pTrk3d',X);
+            trk2save = struct(...
+              'pTrkSingleView',trk2.pTrk,...
+              'pTrk',xyrp(:,:,:,:,2));
+            
+            save(trkfiles{1},'-append','-struct','trk1save');
+            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
+              trkfiles{1});
+            
+            save(trkfiles{2},'-append','-struct','trk2save');
+            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', to trkfile %s.\n',...
+              trkfiles{2});
+            
+          case 'experimental'
+            % TODO
+            
+          otherwise
+            assert(false);
+            
+        end        
+      end 
+    end
+
     function trainStoppedCbk(obj,varargin)
       obj.trainCleanup();
       obj.notify('trainEnd');
@@ -2875,10 +2969,8 @@ classdef DeepTracker < LabelTracker
     end
 
     function trackCleanup(obj,varargin)
-      
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
-
     end
     
     function trainCleanup(obj,varargin)
@@ -3958,9 +4050,17 @@ classdef DeepTracker < LabelTracker
     
   end
   methods (Static)
-    function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile)
+    function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile,varargin)
+      [rawload] = myparse(varargin,...
+        'rawload',false...
+        );
+            
       try
-        trkfileObj = TrkFile.loadsilent(tfile);
+        if rawload
+          trkfileObj = load(tfile,'-mat');
+        else
+          trkfileObj = TrkFile.loadsilent(tfile);
+        end
         tfsuccload = true;
       catch ME
         warningNoTrace('Failed to load trkfile: ''%s''. Error: %s',...
@@ -3969,6 +4069,7 @@ classdef DeepTracker < LabelTracker
         tfsuccload  = false;
       end
     end
+    
     
     function [tfsucc,augims] = loadAugmentedData(outfile,nview)
 
