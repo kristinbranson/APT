@@ -784,7 +784,23 @@ classdef Labeler < handle
     function v = get.movieroictr(obj)
       rois = obj.movieroi;
       v = [rois(:,1)+rois(:,2),rois(:,3)+rois(:,4)]/2;
-    end    
+    end
+    function rois = getMovieRoiMovIdx(obj,mIdx)
+      % v: [nview x 4] roi
+      
+      if obj.cropProjHasCrops
+        ci = obj.getMovieFilesAllCropInfoMovIdx(mIdx);
+        assert(~isempty(ci));        
+        rois = cat(1,ci.roi);
+      else
+        [iMov,gt] = mIdx.get();
+        mia = obj.getMovieInfoAllGTawareArg(gt);
+        mia = mia(iMov,:);
+        rois = cellfun(@(x)[1 x.info.nc 1 x.info.nr],mia,'uni',0);
+        rois = cat(1,rois{:});
+      end
+      szassert(rois,[obj.nview 4]);
+    end
     function v = get.nframes(obj)
       if isempty(obj.currMovie) || obj.currMovie==0
         v = nan;
@@ -917,6 +933,13 @@ classdef Labeler < handle
     end
     function v = get.movieInfoAllGTaware(obj)
       if obj.gtIsGTMode
+        v = obj.movieInfoAllGT;
+      else
+        v = obj.movieInfoAll;
+      end
+    end
+    function v = getMovieInfoAllGTawareArg(obj,gt)
+      if gt
         v = obj.movieInfoAllGT;
       else
         v = obj.movieInfoAll;

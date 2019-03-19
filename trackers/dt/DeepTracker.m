@@ -2880,6 +2880,7 @@ classdef DeepTracker < LabelTracker
       pp3dtype = obj.sPrmAll.ROOT.PostProcess.reconcile3dType;
       do3dreconcile = ~strcmp(pp3dtype,'none');      
       nvw = obj.lObj.nview;
+      npts = obj.lObj.nPhysPoints;
       
       if do3dreconcile && nvw==2
         vcd = obj.lObj.getViewCalibrationDataMovIdx(mIdx);
@@ -2914,12 +2915,12 @@ classdef DeepTracker < LabelTracker
         [npt,d,nfrm,ntgt] = size(ptrk1);
         assert(isequal(size(ptrk1),size(ptrk2)),'Trkfiles contain position arrays with inconsistent sizes.');
 
+        assert(isa(vcd,'CalRig'),'Expected view calibration data to be a CalRig instance.');
+        crig = vcd;
+
         switch pp3dtype
           case 'triangulate'
             % See PostProcess.ReconstructSampleMultiView
-            
-            assert(isa(vcd,'CalRig'),'Expected view calibration data to be a CalRig instance.');
-            crig = vcd;
             
             assert(ntgt==1,'Expected single-target data in trkfiles.');
             ptrk1 = reshape(permute(ptrk1,[2 3 1]),2,nfrm*npt); % coord, frm*pt
@@ -2942,15 +2943,36 @@ classdef DeepTracker < LabelTracker
             
             save(trkfiles{1},'-append','-struct','trk1save');
             fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
-              trkfiles{1});
-            
+              trkfiles{1});            
             save(trkfiles{2},'-append','-struct','trk2save');
             fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', to trkfile %s.\n',...
               trkfiles{2});
             
           case 'experimental'
-            % TODO
+            rois = obj.lObj.getMovieRoiMovIdx(mIdx);
+            DXYZ = 0.005; % experimental parameter            
+            [X,xyrp,tMD,isspecial,prefview] = viewpref3drecon(...
+                trk1,trk2,crig,'roisEPline',rois,'dxyz',DXYZ,...
+                'wbObj',WaitBarWithCancelCmdline('3d reconciliation'));
+            X = permute(X,[3 2 1]); % npt x 3 x nfrm            
+            xyrp = permute(xyrp,[4 2 1 5 3]); % npt x 2 x nfrm x 1 x nvw
+
+            trk1save = struct(...
+              'pTrkSingleView',trk1.pTrk,...
+              'pTrk',xyrp(:,:,:,:,1),...
+              'pTrk3d',X,...
+              'recon3d_prefview',prefview');
+            trk2save = struct(...
+              'pTrkSingleView',trk2.pTrk,...
+              'pTrk',xyrp(:,:,:,:,2));
             
+            save(trkfiles{1},'-append','-struct','trk1save');
+            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
+              trkfiles{1});            
+            save(trkfiles{2},'-append','-struct','trk2save');
+            fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', to trkfile %s.\n',...
+              trkfiles{2});
+
           otherwise
             assert(false);
             

@@ -11,8 +11,8 @@ function [X3d,x2d,trpeconf,isspecial,prefview,...
   doprefview,preferviewunetconf,preferviewlambda,preferviewnborrad,...
   hmbig,roisEPline,...
   wbObj] = myparse(varargin,...
-  'ipts',1:2,... % absolute point indices
-  'frms',1:3000,... % absolute frame numbers. currently assumed continuous seq.
+  'ipts',[],... % absolute point indices
+  'frms',[],... % absolute frame numbers
   'dxyz',0.01,...
   'mdnhmsigma2',3.2^2,... % var for mdn fake hmap
   'unethmsarereconned',true,... % if false, we massage/flatten mdn hmaps to make them comparable to 'real' unet hmaps, which do not shrink to -inf in logspace
@@ -26,13 +26,25 @@ function [X3d,x2d,trpeconf,isspecial,prefview,...
   'wbObj',WaitBarWithCancelCmdline('3dpp')  ...
 );
 
+if isempty(ipts)  
+  ipts = 1:size(trk1.pTrk,1);
+end
+if isempty(frms)
+  frms = trk1.pTrkFrm;
+end
+
 tfHM = ~isempty(hmbig);
 if ~tfHM
   assert(~isempty(roisEPline));
 end
 
-assert(isequal(frms,frms(1):frms(end)),'currently assume continuous seq'); % not sure this is nec
-
+assert(isequal(size(trk1.pTrk),size(trk2.pTrk)));
+assert(isequal(1,size(trk1.pTrk,4),size(trk2.pTrk,4)),...
+  'Expected single-target trkfiles');
+assert(isequal(trk1.pTrkFrm,trk2.pTrkFrm));
+[tf,ifrmTrk] = ismember(frms,trk1.pTrkFrm);
+assert(all(tf));
+  
 npts = numel(ipts);
 nfrm = numel(frms);
 nview = 2;
@@ -62,11 +74,7 @@ for iipt=1:npts
   wbObj.updateFracWithNumDen(iipt);
 
   ipt = ipts(iipt);
-  
-  assert(isequal(trk1.pTrkFrm,trk2.pTrkFrm));
-  [tf,ifrmTrk] = ismember(frms,trk1.pTrkFrm);
-  assert(all(tf));
-  
+    
   ptrk1 = reshape(trk1.pTrk(ipt,:,ifrmTrk),[2 nfrm]);
   ptrk2 = reshape(trk2.pTrk(ipt,:,ifrmTrk),[2 nfrm]);
   ptrk1u = reshape(trk1.pTrklocs_unet(ipt,:,ifrmTrk),[2 nfrm]);
