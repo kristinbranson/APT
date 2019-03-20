@@ -2250,7 +2250,11 @@ classdef CPRLabelTracker < LabelTracker
       obj.isInit = true;
       try
         for f=flds(:)',f=f{1}; %#ok<FXSET>
-          obj.(f) = s.(f);
+          if isprop(obj,f)
+            obj.(f) = s.(f);
+          else
+            warningNoTrace('Field ''%s'' is not a property of CPRLabelTracker.',f);
+          end
         end
       catch ME
         obj.isInit = false;

@@ -1,3 +1,4 @@
+Compiled binaries and source code releases are available <a href="https://github.com/kristinbranson/APT/releases">here</a>.
 <!DOCTYPE html>
 <html>
 <head>
@@ -74,7 +75,7 @@ Compiled binaries and source code releases are available <a href="https://github
 </p>
 
 APT also requires the following:
-JAABA, available <a href="https://github.com/kristinbranson/JAABA"> here </a>, and Piotr Dollar's toolbox, available <a href="https://github.com/pdollar/toolbox"> here </a>
+a recent version of JAABA (after October, 2017), available <a href="https://github.com/kristinbranson/JAABA"> here </a>, and Piotr Dollar's toolbox, available <a href="https://github.com/pdollar/toolbox"> here </a>
 <br>
 If you are working with multi-camera data, you may need calibration software for your rig, e.g <a href="https://www.vision.caltech.edu/bouguetj/calib_doc/"> Caltech camera calibration toolbox </a>
 <br>
@@ -137,8 +138,8 @@ Useful view options for multi-target projects with tracking and orientation:<br>
 View -> Center on target  - keeps current target in the center<br>
 View -> Rotate video so target is always pointing up<br>
 View -> Zoom out/full images or unzoom button - view full image
-Use slider bar above ‘unzoom’ to adjust zoom not the magnifier +/- <br>
-Zoom slider bar - adjust zoom then ‘set’, ‘recall’ will change back to ‘set’ value after changing movies. 
+Use slider bar above â€˜unzoomâ€™ to adjust zoom not the magnifier +/- <br>
+Zoom slider bar - adjust zoom then â€˜setâ€™, â€˜recallâ€™ will change back to â€˜setâ€™ value after changing movies. 
 
 
 <hr class="h2-divider">
@@ -150,13 +151,13 @@ There are different labeling modes, which you can switch between under Setup->.
 
 <ol>
 <li>Sequential mode:
-Allows you to just click your points in order, and then accept when you’re done. 
+Allows you to just click your points in order, and then accept when youâ€™re done. 
 You can edit placement after you finish clicking sequence by:
 <ul>
 <li>Clicking and dragging a point</li>
-<li>Activating a point with a number key that corresponds to the label number and then clicking the correct location for the label. Activated points change from ‘+’ to ‘x’ (Numbers above 10 are accessed by `(back quote) + number key).</li>
+<li>Activating a point with a number key that corresponds to the label number and then clicking the correct location for the label. Activated points change from â€˜+â€™ to â€˜xâ€™ (Numbers above 10 are accessed by `(back quote) + number key).</li>
 <li>Activating a point with the number keys and moving with arrow keys. </li> 
-Currently the only way to ‘un-activate’ label is to move the label to new location or accept labels.
+Currently the only way to â€˜un-activateâ€™ label is to move the label to new location or accept labels.
 </ul>
 </li>
 
@@ -269,9 +270,9 @@ What displays will depend on what type of tracking you are using.  Clicking on e
     <li>Method            default = maxdensity (median, maxdensity global, smoothed trajectory)
 Method of reducing CPR replicates to final tracking result</li>
     <li>Density length scale    default = 5
-Length scale (in pixels) for Gaussian kernel used during pruning.  Used for ‘maxdensity’, ‘maxdensity global’, and ‘smoothed trajectory’ methods.  Larger values include more distant shapes when computing a given shape’s likelihood.</li>  
+Length scale (in pixels) for Gaussian kernel used during pruning.  Used for â€˜maxdensityâ€™, â€˜maxdensity globalâ€™, and â€˜smoothed trajectoryâ€™ methods.  Larger values include more distant shapes when computing a given shapeâ€™s likelihood.</li>  
     <li>Trajectory smoothing weight factor    default = 1
-Scale factor applied to empirically-estimated ratio balancing trajectory smoothness against replicate density.  Larger values upweight smoother trajectories.  Used only for ‘smoothed trajectory’ method.</li></ul>
+Scale factor applied to empirically-estimated ratio balancing trajectory smoothness against replicate density.  Larger values upweight smoother trajectories.  Used only for â€˜smoothed trajectoryâ€™ method.</li></ul>
     
 
 <hr class="h2-divider">
