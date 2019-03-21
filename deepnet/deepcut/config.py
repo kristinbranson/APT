@@ -65,8 +65,8 @@ def convert_to_deepcut(conf):
     conf.dataset = os.path.join(conf.cachedir,conf.dlc_train_data_file)
     conf.global_scale = 1./conf.dlc_rescale
     conf.num_joints = conf.n_classes
-    conf.scale_jitter_lo = 0.9
-    conf.scale_jitter_up = 1.1
+    conf.scale_jitter_lo = 1 - conf.scale_range
+    conf.scale_jitter_up = 1 + conf.scale_range
     conf.net_type = 'resnet_50'
     conf.pos_dist_thresh = 17
     conf.max_input_size = 1000
