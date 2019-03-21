@@ -17,10 +17,10 @@ classdef BgTrackWorkerObj < BgWorkerObj
     mIdx % Movie index
     movfiles % [nMovies x nview] full paths movie being tracked
     artfctTrkfiles % [nMovies x nviews] full paths trkfile to be generated/output
-    artfctLogfiles % [nMovies x nviews] cellstr of fullpaths to bsub logs
-    artfctErrFiles % [nMovies x nviews] char fullpath to DL errfile    
+    artfctLogfiles % [nMovies x nViewJobs] cellstr of fullpaths to bsub logs
+    artfctErrFiles % [nMovies x nViewJobs] char fullpath to DL errfile    
     artfctPartTrkfiles % [nMovies x nviews] full paths to partial trkfile to be generated/output
-    killFiles % [nMovies x nviews]
+    killFiles % [nMovies x nViewJobs]
   end
     
   methods
@@ -50,6 +50,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       end
     end
     function sRes = compute(obj)
+            
       % sRes: [nviews] struct array      
 
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctErrFiles,'uni',0);
@@ -94,7 +95,35 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'parttrkfileTimestamp',num2cell(partTrkFileTimestamps),...
         'killFile',repmat(obj.killFiles,[1,nViewsPerJob]),...
         'killFileExists',repmat(num2cell(killFileExists),[1,nViewsPerJob]));
+      
     end
+    
+    function reset(obj)
+      
+      
+      killFiles = obj.getKillFiles(); %#ok<PROP>
+      for i = 1:numel(killFiles), %#ok<PROP>
+        if exist(killFiles{i},'file'), %#ok<PROP>
+          delete(killFiles{i}); %#ok<PROP>
+        end
+      end
+      
+      logFiles = obj.getLogFiles();
+      for i = 1:numel(logFiles),
+        if exist(logFiles{i},'file'),
+          delete(logFiles{i});
+        end
+      end
+      
+      errFiles = obj.getErrFile();
+      for i = 1:numel(errFiles),
+        if exist(errFiles{i},'file'),
+          delete(errFiles{i});
+        end
+      end
+      
+    end
+    
     function logFiles = getLogFiles(obj)
       logFiles = unique(obj.artfctLogfiles(:));
     end

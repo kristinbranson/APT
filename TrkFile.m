@@ -1,4 +1,4 @@
-classdef TrkFile < handle
+classdef TrkFile < dynamicprops
   
   properties (Constant,Hidden)
     unsetVal = '__UNSET__';
@@ -16,7 +16,7 @@ classdef TrkFile < handle
     pTrkFull = TrkFile.unsetVal; % [npttrked x 2 x nRep x nTrkFull], full tracking with replicates
     pTrkFullFT = TrkFile.unsetVal; % [nTrkFull x ncol] Frame-Target table labeling 4th dim of pTrkFull
     
-    trkInfo % "user data" for tracker
+    trkInfo % "user data" for tracker    
   end
   
   methods
@@ -184,8 +184,16 @@ classdef TrkFile < handle
       pTrkTag(:,locfrm2,loctgt2) = obj2.pTrkTag;
       obj1.pTrk = pTrk;
       obj1.pTrkTS = pTrkTS;
-      obj1.pTrkTag = pTrkTag;
+      obj1.pTrkTag = pTrkTag;      
+      % Could use hlpMergePartial in the above 
       
+      obj1.hlpMergePartial(obj2,'pTrk3d',[npttrk 3 nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
+      obj1.hlpMergePartial(obj2,'pTrkSingleView',[npttrk 2 nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
+      obj1.hlpMergePartial(obj2,'pTrkconf',[npttrk nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
+      obj1.hlpMergePartial(obj2,'pTrkconf_unet',[npttrk nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
+      obj1.hlpMergePartial(obj2,'pTrklocs_mdn',[npttrk 2 nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
+      obj1.hlpMergePartial(obj2,'pTrklocs_unet',[npttrk 2 nfrm ntgt],locfrm1,loctgt1,locfrm2,loctgt2);
+       
       %obj1.pTrkiPt = obj1.pTrkiPt; unchanged
       obj1.pTrkFrm = frmUnion;
       obj1.pTrkiTgt = iTgtUnion;
@@ -198,7 +206,45 @@ classdef TrkFile < handle
         obj1.trkInfo = {obj1.trkInfo obj2.trkInfo};
       end
     end
-    
+    function hlpMergePartial(obj1,obj2,fld,valsz,locfrm1,loctgt1,locfrm2,loctgt2)
+      % helper for mergePartial to handle additional/dynamic props
+      %
+      % mutates obj1.(fld)
+      
+      isprop1 = isprop(obj1,fld);
+      isprop2 = isprop(obj2,fld);
+      
+      if isprop1 || isprop2
+        val = nan(valsz);
+        valndim = numel(valsz);
+        if isprop1
+          switch valndim
+            case 3
+              val(:,locfrm1,loctgt1) = obj1.(fld);
+            case 4
+              val(:,:,locfrm1,loctgt1) = obj1.(fld);
+            otherwise
+              assert(false);
+          end
+        end
+        
+        if isprop2
+          switch valndim
+            case 3
+              val(:,locfrm2,loctgt2) = obj2.(fld);
+            case 4              
+              val(:,:,locfrm2,loctgt2) = obj2.(fld);
+            otherwise
+              assert(false);
+          end
+        end
+        
+        if ~isprop1
+          obj1.addprop(fld);
+        end        
+        obj1.(fld) = val;
+      end
+    end
   end
   
   methods (Static)
@@ -225,11 +271,18 @@ classdef TrkFile < handle
       mc = meta.class.fromName('TrkFile');
       propnames = {mc.PropertyList.Name}';
       fns = fieldnames(s);
-      tfunrecog = ~ismember(fns,propnames);
-      s = rmfield(s,fns(tfunrecog)); 
-      pvs = struct2pvs(rmfield(s,'pTrk'));
-      
+      tfrecog = ismember(fns,propnames);
+      %fnsrecog = fns(tfrecog);
+      fnsunrecog = fns(~tfrecog);
+
+      srecog = rmfield(s,fnsunrecog);
+      pvs = struct2pvs(rmfield(srecog,'pTrk'));      
       trkfileObj = TrkFile(pTrk,pvs{:});
+      
+      for f=fnsunrecog(:)',f=f{1};
+        trkfileObj.addprop(f);
+        trkfileObj.(f) = s.(f);
+      end      
     end
 
     function s = modernizeStruct(s)
@@ -237,9 +290,6 @@ classdef TrkFile < handle
       if iscell(s.pTrkTag)
         s.pTrkTag = strcmp(s.pTrkTag,'occ');
       end
-%       if iscell(s.pTrkiTgt) % TEMP HACK DL format
-%         s.pTrkiTgt = cell2mat(s.pTrkiTgt);
-%       end
     end
     
   end

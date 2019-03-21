@@ -431,80 +431,47 @@ classdef RegressorCascade < handle
       
       obj.stats.time.total = toc(starttime);      
     end
-    
-    function [p0,p0info] = randInit(obj,bboxes,pGT,varargin)
-      % I: struct with the following fields:
-      %   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
-      %   imszs: [2 x N x nView] size of each image
-      %   imoffs: [N x nView] offset for indexing image (view,i) (image will
-      %     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
-      %   NOTE: Currently nView must equal 1.
+  end
+  methods (Static)    
+    function [p0,p0info] = randInitStc(bboxes,pGT,...
+                                       prmModel,prmTrainInit,prmReg,varargin)
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
       %
-      % pAll: [(N*Naug)xDx(T+1)] propagated training shapes (absolute coords)
-      % pIidx: [N*Naug] indices into I labeling rows of pAll
+      % See trainWithRandInit.
       %
-      % Initialization notes. Two sets of shapes to draw from for
-      % initialization. If initpGTNTrn, use the set .pGTNTrn; otherwise,
-      % use pGT. Typically, initpGTNTrn would be used for incremental
-      % (re)trains, where .pGTNTrn is set and pGT is small/limited.
-      % Meanwhile, pGT would be used on first/fresh trains, where .pGTNTrn
-      % may not be populated and pGT is large.
+      % This is used by Parameter Viz to visualize CPR shape init. The idea
+      % is that this method reflects what will be done during training and
+      % pred.  
       %
-      % Note, for randomly-oriented targets, pGT (and .pGTNTrn as
-      % appropriate) will be randomly-oriented; rotCorrection had better be 
-      % on.
-      %
-      % In drawing from a set shape distribution, we are biasing towards
-      % the most/more common shapes. However, we also jitter, so that may
-      % be okay.
+      % TODO. refactor to make training and pred use this method.
       
-      % IDEAL TODO: Looks like C+P refactorable with trainWithRandInit
-      
-      [initpGTNTrn,usetrxOrientation,orientationThetas,prm] = myparse(varargin,...
-        'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
+      [usetrxOrientation,orientationThetas] = myparse(varargin,...
         'usetrxOrientation',false,... % if true, use orientationThetas to align shape initialization 
-        'orientationThetas',[],... % [N] vector of "externally" known orientations for animals. Required if usetrxOrientation and prmRotCurr.use 
-        'CPRParams',[]...
+        'orientationThetas',[]... % [N] vector of "externally" known orientations for animals. Required if usetrxOrientation and prmRotCurr.use
         );
 
       N = size(pGT,1);
-
-      model = obj.prmModel;
-      isCPRParams = ~isempty(prm);
-      if ~isCPRParams,
-        prmTI = obj.prmTrainInit;
-        prmReg = obj.prmReg; %#ok<PROPLC>
-      else
-        prmTI = prm.TrainInit;
-        prmReg = prm.Reg; %#ok<PROPLC>
-      end
-      Naug = prmTI.Naug;  
-      prmRotCorr = prmReg.rotCorrection; %#ok<PROPLC>
+      Naug = prmTrainInit.Naug;  
+      prmRotCorr = prmReg.rotCorrection;
 
       if usetrxOrientation
         assert(prmRotCorr.use);
         assert(isvector(orientationThetas) && numel(orientationThetas)==N);
       end
       
-      if isfield(prmTI,'augUseFF')
-        initUseFF = prmTI.augUseFF;
+      if isfield(prmTrainInit,'augUseFF')
+        initUseFF = prmTrainInit.augUseFF;
       else
         initUseFF = false;
       end
       
-      fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
-        initpGTNTrn,initUseFF);
+%       fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
+%         initpGTNTrn,initUseFF);
       drawnow; %pause(5);
-            
-      if initpGTNTrn
-        pNInitSet = obj.pGTNTrn;
-        selfSample = false;
-      else % init from pGt
-        pNInitSet = shapeGt('projectPose',model,pGT,bboxes);
-        selfSample = true;
-      end
+ 
+      pNInitSet = shapeGt('projectPose',prmModel,pGT,bboxes);
+      selfSample = true;
       % pNInitSet in normalized coords
       
       orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
@@ -529,20 +496,22 @@ classdef RegressorCascade < handle
         
         % Use the externally-specified orientations in any case
       end
-      [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
+      [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,prmModel,bboxes,...
         'pNRandomlyOriented',prmRotCorr.use,...
         'pAugOrientation',orientation,...
         'pAugOrientationTheta',orientationThetas,...
         'iHead',prmRotCorr.iPtHead,...
         'iTail',prmRotCorr.iPtTail,...
-        'ptJitter',prmTI.doptjitter,...
-        'ptJitterFac',prmTI.ptjitterfac,...
-        'bboxJitter',prmTI.doboxjitter,...
-        'bboxJitterfac',prmTI.augjitterfac,...
+        'ptJitter',prmTrainInit.doptjitter,...
+        'ptJitterFac',prmTrainInit.ptjitterfac,...
+        'bboxJitter',prmTrainInit.doboxjitter,...
+        'bboxJitterfac',prmTrainInit.augjitterfac,...
         'selfSample',selfSample,...
         'furthestfirst',initUseFF);      
-    end    
-    
+    end
+  end
+  
+  methods    
     %#3DOK
     function [pAll] = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
       %

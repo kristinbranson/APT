@@ -34,6 +34,18 @@ classdef TrainMonitorViz < handle
         'Show error messages'}});
   end
   
+  properties (Constant)
+    DEBUG = false;
+  end
+  
+  methods (Static)
+    function debugfprintf(varargin)
+      if TrainMonitorViz.DEBUG,
+        fprintf(varargin{:});
+      end
+    end
+  end
+  
   methods
     
     function obj = TrainMonitorViz(nview,dtObj,trainWorkerObj,backEnd)
@@ -82,6 +94,8 @@ classdef TrainMonitorViz < handle
       obj.hline = h;
       obj.hlinekill = hkill;
       obj.resLast = [];
+      obj.isKilled = false;
+      
     end
     
     function delete(obj)
@@ -89,12 +103,21 @@ classdef TrainMonitorViz < handle
       obj.hfig = [];
 %       obj.haxs = [];
     end
-    
-    function resultsReceived(obj,sRes,forceupdate)
+        
+    function [tfSucc,msg] = resultsReceived(obj,sRes,forceupdate)
       % Callback executed when new result received from training monitor BG
       % worker
       %
       % trnComplete: scalar logical, true when all views done
+      
+      tfSucc = false;
+      msg = ''; %#ok<NASGU>
+      
+      if isempty(obj.hfig) || ~ishandle(obj.hfig),
+        msg = 'Monitor closed';
+        TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now));
+        return;
+      end
       
       res = sRes.result;
       tfAnyLineUpdate = false;
@@ -163,22 +186,16 @@ classdef TrainMonitorViz < handle
         obj.resLast = res;
       end
 
-      obj.updateAnn(res);
+      [tfSucc,msg] = obj.updateAnn(res);
+      TrainMonitorViz.debugfprintf('resultsReceived - tfSucc = %d, msg = %s\n',tfSucc,msg);
 
-%         fprintf(1,'View%d: jsonPresent: %d. ',ivw,res(ivw).jsonPresent);
-%         if res(ivw).tfUpdate
-%           fprintf(1,'New training iter: %d.\n',res(ivw).lastTrnIter);
-%         elseif res(ivw).jsonPresent
-%           fprintf(1,'No update, still on iter %d.\n',res(ivw).lastTrnIter);
-%         else
-%           fprintf(1,'\n');
-%         end
     end
     
-    function updateAnn(obj,res)
+    function [tfSucc,status] = updateAnn(obj,res)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
+      tfSucc = true;
       pollsuccess = [res.pollsuccess];
       
       clusterstr = 'Cluster';
@@ -204,15 +221,29 @@ classdef TrainMonitorViz < handle
         isLogFile = cellfun(@(x) exist(x,'file'),{res.logFile});
         isJsonFile = [res.jsonPresent]>0;
       end
+      
+      isRunning0 = obj.trainWorkerObj.getIsRunning();
+      if isempty(isRunning0),
+        isRunning = true;
+      else
+        isRunning = any(isRunning0);
+      end
 
+      TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d, isErr = %d, isKilled = %d\n',isRunning,isTrainComplete,isErr,obj.isKilled);
+      
       if obj.isKilled,
         status = 'Training process killed.';
+        tfSucc = false;
       elseif isErr,
         status = sprintf('Error while training after %s iterations',mat2str(obj.lastTrainIter));
+        tfSucc = false;
       elseif isTrainComplete,
         status = 'Training complete.';
         handles = guidata(obj.hfig);
         TrainMonitorViz.updateStartStopButton(handles,false,true);
+      elseif ~isRunning,
+        status = 'No training jobs running.';
+        tfSucc = false;
       elseif any(isLogFile) && all(~isJsonFile),
         status = 'Training in progress. Building training image database.';
       elseif any(isLogFile) && any(isJsonFile),
@@ -257,17 +288,28 @@ classdef TrainMonitorViz < handle
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'off';
+      drawnow;
       [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
+      obj.isKilled = true;
       if tfsucc,
-        waitfor(handles.pushbutton_startstop,'Enable','on');
-        drawnow;
-        TrainMonitorViz.updateStartStopButton(handles,false,false);
-        obj.ClearBusy('Training process killed');
-        drawnow;
+        
+        startTime = tic;
+        maxWaitTime = 30;
+        while true,
+          if toc(startTime) > maxWaitTime,
+            warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
+            break;
+          end
+          if ~obj.dtObj.bgTrnIsRunning,
+            break;
+          end
+          pause(1);
+        end        
       else
-        obj.ClearBusy('Training process killed');
         warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
       end
+      obj.ClearBusy('Training process killed');
+      TrainMonitorViz.updateStartStopButton(handles,false,false);
     end
     
     function startTraining(obj)
@@ -278,6 +320,7 @@ classdef TrainMonitorViz < handle
       % end
       
       % Kills and creates new TrainMonitorViz, maybe that's fine
+      
       obj.lastTrainIter = 0;
       obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
     end

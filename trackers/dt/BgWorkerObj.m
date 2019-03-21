@@ -119,7 +119,14 @@ classdef BgWorkerObj < handle
       res = 'Not implemented.';
       
     end
-
+   
+    function res = getIsRunning(obj)
+      
+      % not implemented
+      res = true;
+    
+    end
+    
   end
   
   methods (Static)

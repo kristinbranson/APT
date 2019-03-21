@@ -40,6 +40,19 @@ classdef CalRig < handle
       assert(false,'Unimplemented.');
     end
 
+    function [X,xyrp,rpe] = triangulate(obj,xy)
+      % Triangulate 2d points into 3d position
+      %
+      % xy: [2xnxnviews] 2d image points
+      % 
+      % X: [3xn] reconstructed 3d points. coord sys may depend on concrete
+      %   subclass. (typically, coord sys of camera 1.)
+      % xyrp: [2xnxnviews] reprojected 2d image points
+      % rpe: [nxnviews] L2 reproj err
+      
+      assert(false,'Unimplemented.');
+    end
+    
     function [u_p,v_p,w_p] = reconstruct2d(obj,x,y,iView)
       % Project 2D cropped coords in iView to 3D/world coords
       %
@@ -49,7 +62,7 @@ classdef CalRig < handle
       %   u_p = line parameters of real world u-coord in form 
       %              u(t) = u_p(1) + u_p(2)*t
 
-      assert(false,'Unimplemented.');      
+      assert(false,'Unimplemented.');
     end
     
     function [x,y] = project3d(obj,u,v,w,iView)

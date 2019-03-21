@@ -56,8 +56,10 @@ classdef PropertiesGUIProp < handle
         level = 'Important';
       end
       obj.Level = PropertyLevelsEnum(level);
-      if ischar(rqts) && ~isempty(rqts),
-        obj.Requirements = strsplit(rqts);
+      if ischar(rqts) && ~isempty(rqts)
+        obj.Requirements = {rqts};
+      elseif iscellstr(rqts)
+        obj.Requirements = rqts;
       end
       if exist('visible','var'),
         obj.Visible = visible;

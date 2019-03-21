@@ -245,6 +245,13 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
       end
     end
     
+    % whether training has actually started
+    function tf = isPartiallyTrained(obj)
+      
+      tf = ~isempty(obj.iterCurr);
+      
+    end
+       
   end
   
   methods (Static)

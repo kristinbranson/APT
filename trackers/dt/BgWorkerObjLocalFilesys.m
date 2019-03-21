@@ -94,6 +94,18 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       end
       
     end
+    
+    function tfIsRunning = getIsRunning(obj)
+      try
+        tfIsRunning = true(size(obj.jobID));
+        for i = 1:numel(obj.jobID),
+          tfIsRunning(i) = ~obj.isKilled(obj.jobID(i));
+        end
+        %fprintf('isRunning = %s\n',mat2str(tfIsRunning));
+      catch ME,
+        fprintf('Error in updateIsRunning:\n%s\n',getReport(ME));
+      end
+    end
         
   end
     

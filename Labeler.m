@@ -30,7 +30,8 @@ classdef Labeler < handle
       'trackParams' 'preProcH0' 'preProcSaveData' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
-      'projectHasTrx'};
+      'projectHasTrx'...
+      'skeletonEdges','showSkeleton'};
     SAVEPROPS_LPOS = {...
       'labeledpos' 'nan'
       'labeledposGT' 'nan'
@@ -311,6 +312,7 @@ classdef Labeler < handle
     showOccludedBox;          % whether to show the occluded box
     
     showPredTxtLbl;         % true to show text landmark labels for ALL preds -- imported (labeledpos2, and all trackers)
+    showSkeleton;           % true to plot skeleton 
   end 
   properties
     hTraj;                    % nTrx x 1 vector of line handles
@@ -338,6 +340,8 @@ classdef Labeler < handle
     labeledposTSGT        % like .labeledposTS
     labeledpostagGT       % like .labeledpostag
     labeledpos2GT         % like .labeledpos2
+
+    skeletonEdges = zeros(0,2); % nEdges x 2 matrix containing indices of vertex landmarks
     
   end
   properties % make public setaccess
@@ -523,13 +527,17 @@ classdef Labeler < handle
   %% Prop access
   methods % dependent prop getters
     function v = get.viewCalibrationDataGTaware(obj)
-      if obj.gtIsGTMode
+      v = obj.getViewCalibrationDataGTawareArg(obj.gtIsGTMode);
+    end
+    function v = getViewCalibrationDataGTawareArg(obj,gt)
+      if gt
         v = obj.viewCalibrationDataGT;
       else
         v = obj.viewCalibrationData;
-      end      
+      end
     end
     function v = get.viewCalibrationDataCurrent(obj)
+      % Nearly a forward to getViewCalibrationDataMovIdx except edge cases
       vcdPW = obj.viewCalProjWide;
       if isempty(vcdPW)
         v = [];
@@ -546,6 +554,22 @@ classdef Labeler < handle
         else
           v = vcd{obj.currMovie};
         end
+      end
+    end
+    function v = getViewCalibrationDataMovIdx(obj,mIdx)
+      vcdPW = obj.viewCalProjWide;
+      if isempty(vcdPW)
+        v = [];
+      elseif vcdPW
+        vcd = obj.viewCalibrationData; % applies to regular and GT movs
+        assert(isequal(vcd,[]) || isscalar(vcd));
+        v = vcd;
+      else % ~vcdPW
+        [iMov,gt] = mIdx.get();
+        vcd = obj.getViewCalibrationDataGTawareArg(gt);
+        nmov = obj.getnmoviesGTawareArg(gt);
+        assert(iscell(vcd) && numel(vcd)==nmov);
+        v = vcd{iMov};
       end
     end
     function v = get.isMultiView(obj)
@@ -760,7 +784,23 @@ classdef Labeler < handle
     function v = get.movieroictr(obj)
       rois = obj.movieroi;
       v = [rois(:,1)+rois(:,2),rois(:,3)+rois(:,4)]/2;
-    end    
+    end
+    function rois = getMovieRoiMovIdx(obj,mIdx)
+      % v: [nview x 4] roi
+      
+      if obj.cropProjHasCrops
+        ci = obj.getMovieFilesAllCropInfoMovIdx(mIdx);
+        assert(~isempty(ci));        
+        rois = cat(1,ci.roi);
+      else
+        [iMov,gt] = mIdx.get();
+        mia = obj.getMovieInfoAllGTawareArg(gt);
+        mia = mia(iMov,:);
+        rois = cellfun(@(x)[1 x.info.nc 1 x.info.nr],mia,'uni',0);
+        rois = cat(1,rois{:});
+      end
+      szassert(rois,[obj.nview 4]);
+    end
     function v = get.nframes(obj)
       if isempty(obj.currMovie) || obj.currMovie==0
         v = nan;
@@ -893,6 +933,13 @@ classdef Labeler < handle
     end
     function v = get.movieInfoAllGTaware(obj)
       if obj.gtIsGTMode
+        v = obj.movieInfoAllGT;
+      else
+        v = obj.movieInfoAll;
+      end
+    end
+    function v = getMovieInfoAllGTawareArg(obj,gt)
+      if gt
         v = obj.movieInfoAllGT;
       else
         v = obj.movieInfoAll;
@@ -2567,7 +2614,7 @@ classdef Labeler < handle
       
       % 20181022 projectHasTrx
       if ~isfield(s,'projectHasTrx'),
-        s.projectHasTrx = true; % AL: maybe check emptiness of .trxFilesAll?
+        s.projectHasTrx = ~isempty(s.trxFilesAll) && ~isempty(s.trxFilesAll{1});
       end
       
       % 20181101 movieInfo.readerobj (VideoReader) throwing warnings if
@@ -2702,6 +2749,14 @@ classdef Labeler < handle
         if isfield(s.trackerData{i},'sPrm'),
           s.trackerData{i} = rmfield(s.trackerData{i},'sPrm');
         end
+      end
+      
+      % KB 20190314: added skeleton
+      if ~isfield(s,'skeletonEdges'),
+        s.skeletonEdges = zeros(0,2);
+      end
+      if ~isfield(s,'showSkeleton'),
+        s.showSkeleton = false;
       end
       
     end
@@ -3723,6 +3778,22 @@ classdef Labeler < handle
       obj.prevFrame = 1;
       
 %       obj.currSusp = [];
+    end
+    
+    function s = moviePrettyStr(obj,mIdx)
+      assert(isscalar(mIdx));
+      [iMov,gt] = mIdx.get();
+      if gt
+        pfix = 'GT ';
+      else
+        pfix = '';
+      end
+      if obj.isMultiView
+        mov = 'movieset';
+      else
+        mov = 'movie';
+      end
+      s = sprintf('%s%s %d',pfix,mov,iMov);
     end
     
     % Hist Eq
@@ -4778,6 +4849,11 @@ classdef Labeler < handle
       obj.labels2VizShowHideUpdate();      
     end
     
+    function setShowSkeleton(obj,tf)
+      obj.showSkeleton = logical(tf);
+      obj.lblCore.updateShowSkeleton();
+    end
+        
   end
   
   %% Labeling
@@ -8689,8 +8765,8 @@ classdef Labeler < handle
         error('%s. ',msgs{:});
       end
       
-      
-      tfPPprmsChanged = ~APTParameters.isEqualPreProcParams(obj.trackParams,sPrm);
+      sPrm0 = obj.trackParams;
+      tfPPprmsChanged = isempty(sPrm0) || ~APTParameters.isEqualPreProcParams(sPrm0,sPrm);
       sPrm = obj.setTrackNFramesParams(sPrm);
       obj.trackParams = sPrm;
       

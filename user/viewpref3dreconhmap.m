@@ -1,4 +1,5 @@
-function [sbest,Xbest,xy1best,xy2best,hm1roi,hm2roi] = al3dpp(loghm1,loghm2,cr,varargin)
+function [sbest,Xbest,xy1best,xy2best,hm1roi,hm2roi] = ...
+  viewpref3dreconhmap(loghm1,loghm2,cr,varargin)
 % hm*: NORMALIZED heatmaps
 
 [dxyz,lambda2,hm1roi,hm2roi] = myparse(varargin,...
