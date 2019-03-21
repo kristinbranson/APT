@@ -843,7 +843,9 @@ classdef CPRLabelTracker < LabelTracker
     % store all parameters
     function setAllParams(obj,sPrmAll)
       
-      tfPreProcPrmsChanged = APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
+      tfPreProcPrmsChanged = ...
+        xor(isempty(obj.sPrmAll),isempty(sPrmAll)) || ...
+        ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
       sNew = CPRParam.all2cpr(sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview);
 
       sOld = obj.sPrm;
@@ -1055,7 +1057,7 @@ classdef CPRLabelTracker < LabelTracker
       tfWB = ~isempty(wbObj);
 
       % set parameters
-      sPrmAllOld = obj.sPrmAll;
+      % sPrmAllOld = obj.sPrmAll;
       obj.setAllParams(obj.lObj.trackParams);
       
       prm = obj.sPrm;
@@ -1296,13 +1298,13 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     function [tfCanTrain,reason] = canTrain(obj)
-      
+      tfCanTrain = true;
       reason = '';
-      tfCanTrain = ~isempty(obj.sPrm);
-      if ~tfCanTrain,
-        reason = 'Training parameters need to be set.';
-      end
-      
+      % AL 20190321 parameters now set at start of retrain
+%       tfCanTrain = ~isempty(obj.sPrm);
+%       if ~tfCanTrain,
+%         reason = 'Training parameters need to be set.';
+%       end      
     end
     
     %#%MTGT
