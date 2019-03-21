@@ -24,6 +24,9 @@ classdef DeepTracker < LabelTracker
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
     minFreeMem = 9000; % in MiB
   end
+  properties (Hidden)
+    jrcgpuqueue = 'gpu_any';
+  end
   properties
     dryRunOnly % transient, scalar logical. If true, stripped lbl, cmds 
       % are generated for DL, but actual DL train/track are not spawned
@@ -957,7 +960,8 @@ classdef DeepTracker < LabelTracker
             end
             dmc(ivw).view = ivw-1; % 0-based
             syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(dmc(ivw),...
-              'singArgs',singArgs,'trnCmdType',trnCmdType);
+              'singArgs',singArgs,'trnCmdType',trnCmdType,...
+              'bsubargs',{'gpuqueue' obj.jrcgpuqueue});
           end
         case DLBackEnd.Docker
           containerNames = cell(nTrainJobs,1);
@@ -2341,7 +2345,7 @@ classdef DeepTracker < LabelTracker
             fprintf('View %d: trkfile will be written to %s\n',ivw,trkfile);
           end
           
-          bsubargs = {'outfile' outfile};
+          bsubargs = {'gpuqueue' obj.jrcgpuqueue 'outfile' outfile};
           %sshargs = {'logfile' outfile2};
           sshargs = {};
           trksysinfo(imov,ivwjob).trkfile = trkfile;
@@ -3170,8 +3174,6 @@ classdef DeepTracker < LabelTracker
       codestr = sprintf('%s ',codestr{:});
       codestr = codestr(1:end-1);
     end
-
-    
     function codestr = codeGenBsubGeneral(basecmd,varargin)
       [nslots,gpuqueue,outfile] = myparse(varargin,...
         'nslots',1,...
@@ -3271,8 +3273,9 @@ classdef DeepTracker < LabelTracker
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
     function codestr = trainCodeGenSSHBsubSingDMC(dmc,varargin)
-      [singargs,trnCmdType] = myparse(varargin,...
+      [singargs,bsubargs,trnCmdType] = myparse(varargin,...
         'singargs',{},...
+        'bsubargs',{},...
         'trnCmdType',dmc.trainType...
         );
       
@@ -3291,7 +3294,7 @@ classdef DeepTracker < LabelTracker
         dmc.rootDir,dmc.errfileLnx,dmc.netType,...
         'baseArgs',{'view' dmc.view+1 'trainType' trnCmdType 'deepnetroot' [aptroot '/deepnet']},...
         'singargs',singargs,...
-        'bsubArgs',{'outfile' dmc.trainLogLnx},...
+        'bsubArgs',[bsubargs {'outfile' dmc.trainLogLnx}],...
         'sshargs',{'prefix' prefix});
     end
         
