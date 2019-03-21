@@ -185,9 +185,10 @@ classdef DeepTracker < LabelTracker
     function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
         didParamsChange(obj,sPrmAll)
       
-      tfCommonChanged = ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
-      tfPreProcChanged = ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
-      tfPostProcChanged = ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
+      tfDiffEmptiness = xor(isempty(obj.sPrmAll),isempty(sPrmAll));
+      tfCommonChanged = tfDiffEmptiness || ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
+      tfPreProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
+      tfPostProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
       
       sOldSpecific = obj.sPrm;
       netType = obj.trnNetType.prettyString;
@@ -518,10 +519,11 @@ classdef DeepTracker < LabelTracker
         reason = 'Tracking is in progress.';
         return;
       end
-      if isempty(obj.sPrmAll)
-        reason = 'No tracking parameters have been set.';
-        return;
-      end
+      % AL 20190321 parameters now set at start of retrain
+%       if isempty(obj.sPrmAll)
+%         reason = 'No tracking parameters have been set.';
+%         return;
+%       end
       cacheDir = obj.lObj.DLCacheDir;
       if isempty(cacheDir)
         reason = 'No cache directory has been set.';
@@ -565,9 +567,7 @@ classdef DeepTracker < LabelTracker
       if obj.bgTrkIsRunning
         error('Tracking is in progress.');
       end
-      if isempty(obj.sPrmAll)
-        error('No tracking parameters have been set.');
-      end
+      
       cacheDir = obj.lObj.DLCacheDir;
       if isempty(cacheDir)
         error('No cache directory has been set.');
@@ -594,6 +594,12 @@ classdef DeepTracker < LabelTracker
         
       end
       
+      obj.setAllParams(lblObj.trackGetParams());
+      
+      if isempty(obj.sPrmAll)
+        error('No tracking parameters have been set.');
+      end
+
       obj.bgTrnReset();
       if ~isempty(oldVizObj),
         delete(oldVizObj);
@@ -616,9 +622,7 @@ classdef DeepTracker < LabelTracker
         otherwise
           assert(false);
       end
-      
-      obj.setAllParams(obj.lObj.trackGetParams());
-            
+                  
       switch trnBackEnd.type
         case {DLBackEnd.Bsub DLBackEnd.Docker}
           obj.trnSpawnBsubDocker(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj);

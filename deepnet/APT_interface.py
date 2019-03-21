@@ -396,7 +396,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
 
         conf.imsz = (height, width)
     else:
-        if lbl['cropProjHasCrops'][0, 0] == 1:
+        if type(lbl[lbl['movieFilesAllCropInfo'][0,0]]) != h5py._hl.dataset.Dataset:
+        # if lbl['cropProjHasCrops'][0, 0] == 1:
             xlo, xhi, ylo, yhi = PoseTools.get_crop_loc(lbl, 0, view)
             conf.imsz = (int(yhi - ylo + 1), int(xhi - xlo + 1))
         else:
@@ -1583,6 +1584,7 @@ def classify_movie(conf, pred_fn,
     param_dict = convert_unicode(conf.__dict__.copy())
     param_dict.pop('cropLoc', None)
     info[u'params'] = param_dict
+    info[u'crop_loc'] = crop_loc
 
     if end_frame < 0: end_frame = end_frames.max()
     if end_frame > end_frames.max(): end_frame = end_frames.max()

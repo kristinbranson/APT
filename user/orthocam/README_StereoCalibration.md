@@ -11,7 +11,7 @@ This is a step-by-step guide to running an OrthoCam stereo camera calibration. O
 * Matlab Optimization Toolbox
 
 #### Step 1: Run single-cam calibrations of each camera in the MATLAB Camera Calibrator App.
-The MATLAB Camera Calibrator App should do single-camera calibrations pretty well, except the (z-depth, focal length) parameter pair will not be well-resolved. Check that the calibration looks good (low reprojection error). Then do a "Save Session". This will save the calibration images you used with their detected corners, along with the calibration results.
+The MATLAB Camera Calibrator App should do single-camera calibrations pretty well, except the (z-depth, focal length) parameter pair will not be well-resolved.  Often it helps to initialize this optimization by clicking the 'Optimization Options' button and entering something in the 'initial intrinsics' box that is close to what you expect e.g. in the case of Stephen's rig: [100000 0 0;0 100000 0;384 255 1] Check that the calibration looks good (low reprojection error). Then do a "Save Session". This will save the calibration images you used with their detected corners, along with the calibration results.
 
 Run/save single-camera calibrations for both cameras. These will be used by OrthoCam.  You may need to intialize the optimization for this to work.
 
@@ -108,7 +108,7 @@ You can restart/repeat the optimization until the final optimizer message is "Po
 
 Verify that the reproduction error is good with the stereo calibration. 
 
-**VERY IMPORTANT:** Verify the extrinsics. Make sure the entire rig is as physically expected! Use the Rotate3D tool to convince yourself.
+**VERY IMPORTANT:** Verify the extrinsics using the calObj.viewExtrinsics(); function. Make sure the entire rig is as physically expected! Use the Rotate3D tool to convince yourself.
 
 You will be prompted to save your Orthocam calibration.
 

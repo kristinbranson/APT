@@ -843,7 +843,9 @@ classdef CPRLabelTracker < LabelTracker
     % store all parameters
     function setAllParams(obj,sPrmAll)
       
-      tfPreProcPrmsChanged = APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
+      tfPreProcPrmsChanged = ...
+        xor(isempty(obj.sPrmAll),isempty(sPrmAll)) || ...
+        ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
       sNew = CPRParam.all2cpr(sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview);
 
       sOld = obj.sPrm;
@@ -1055,7 +1057,7 @@ classdef CPRLabelTracker < LabelTracker
       tfWB = ~isempty(wbObj);
 
       % set parameters
-      sPrmAllOld = obj.sPrmAll;
+      % sPrmAllOld = obj.sPrmAll;
       obj.setAllParams(obj.lObj.trackParams);
       
       prm = obj.sPrm;
@@ -1226,25 +1228,19 @@ classdef CPRLabelTracker < LabelTracker
       xlabel(hAx,'Time (s)');      
     end
     
-    function p0 = randInit(obj,tblPTrn,bboxes,varargin)
-      % Full train 
-      % 
-      % Sets .trnRes*
+    function p0 = randInitShapes(obj,tblPTrn,bboxes,varargin)
+      % Used by parameter viz
       
-      [wbObj,prmpp,prm] = myparse(varargin,...
-        'wbObj',[],  ... % optional WaitBarWithCancel. If cancel:
-                     ... % 1. .trnDataInit() and .trnResInit() are called
-                     ... % 2. .lObj.preProcData may be updated but that should be OK
+      [prmpp,prm] = myparse(varargin,...
         'preProcParams',obj.lObj.preProcParams,...
         'CPRParams',obj.sPrm...
         );
-      tfWB = ~isempty(wbObj);
 
       if isempty(prm) || isempty(prmpp)
         error('CPRLabelTracker:param','Please specify tracking parameters.');
       end
       
-      obj.asyncReset(true);
+      %obj.asyncReset(true);
       
       iPt = prm.TrainInit.iPt;
       nfids = prm.Model.nfids;
@@ -1255,7 +1251,8 @@ classdef CPRLabelTracker < LabelTracker
         assert(nfidsInTD==nfids*nviews);
         iPt = 1:nfidsInTD;
       else
-        assert(obj.lObj.nview==1,'TrainInit.iPt specification currently unsupported for multiview projects.');
+        assert(obj.lObj.nview==1,...
+          'TrainInit.iPt specification currently unsupported for multiview projects.');
       end
       iPGT = [iPt iPt+nfidsInTD];
       fprintf(1,'iPGT: %s\n',mat2str(iPGT));
@@ -1274,12 +1271,10 @@ classdef CPRLabelTracker < LabelTracker
         else
           oThetas = [];
         end
-        p0 = obj.trnResRC.randInit(bboxes,pTrn,...
-          'usetrxOrientation',usetrxOrientation,...
-          'orientationThetas',oThetas,'CPRParams',prm);
-        if tfWB && wbObj.isCancel
-          return;
-        end        
+        p0 = RegressorCascade.randInitStc(bboxes,pTrn,...
+              prm.Model,prm.TrainInit,prm.Reg,...
+              'usetrxOrientation',usetrxOrientation,...
+              'orientationThetas',oThetas);
       else
         assert(~obj.lObj.hasTrx,'Currently unsupported for projects with trx.');
         assert(size(pTrn,2)==obj.lObj.nPhysPoints*nView*prm.Model.d); 
@@ -1287,8 +1282,7 @@ classdef CPRLabelTracker < LabelTracker
         % col order of pTrn should be:
         % [p1v1_x p2v1_x .. pkv1_x p1v2_x .. pkv2_x .. pkvW_x
         nPhysPoints = obj.lObj.nPhysPoints;
-        for iView=1:nView
-          
+        for iView=1:nView          
           bbVw = bboxes(:,:,iView);
           iPtVw = (1:nPhysPoints)+(iView-1)*nPhysPoints;
           assert(isequal(iPtVw(:),find(obj.lObj.labeledposIPt2View==iView)));
@@ -1297,22 +1291,20 @@ classdef CPRLabelTracker < LabelTracker
           % Future todo: orientationThetas
           % Should break internally if 'orientationThetas' is req'd
           assert(~usetrxOrientation);
-          p0 = obj.trnResRC(iView).randInit(bbVw,pTrnVw,'wbObj',wbObj,'CPRParams',prm);
-          if tfWB && wbObj.isCancel
-            return;
-          end
+          p0 = RegressorCascade.randInitStc(bbVw,pTrnVw,...
+            prm.Model,prm.TrainInit,prm.Reg);
         end
       end
     end
     
     function [tfCanTrain,reason] = canTrain(obj)
-      
+      tfCanTrain = true;
       reason = '';
-      tfCanTrain = ~isempty(obj.sPrm);
-      if ~tfCanTrain,
-        reason = 'Training parameters need to be set.';
-      end
-      
+      % AL 20190321 parameters now set at start of retrain
+%       tfCanTrain = ~isempty(obj.sPrm);
+%       if ~tfCanTrain,
+%         reason = 'Training parameters need to be set.';
+%       end      
     end
     
     %#%MTGT
@@ -2566,7 +2558,11 @@ classdef CPRLabelTracker < LabelTracker
       obj.isInit = true;
       try
         for f=flds(:)',f=f{1}; %#ok<FXSET>
-          obj.(f) = s.(f);
+          if isprop(obj,f)
+            obj.(f) = s.(f);
+          else
+            warningNoTrace('Field ''%s'' is not a property of CPRLabelTracker.',f);
+          end
         end
       catch ME
         obj.isInit = false;

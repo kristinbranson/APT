@@ -8765,7 +8765,10 @@ classdef Labeler < handle
         error('%s. ',msgs{:});
       end
       
-      tfPPprmsChanged = ~APTParameters.isEqualPreProcParams(obj.trackParams,sPrm);
+      sPrm0 = obj.trackParams;      
+      tfPPprmsChanged = ...
+        xor(isempty(sPrm0),isempty(sPrm)) || ...
+        ~APTParameters.isEqualPreProcParams(sPrm0,sPrm);
       sPrm = obj.setTrackNFramesParams(sPrm);
       obj.trackParams = sPrm;
       
@@ -9024,6 +9027,11 @@ classdef Labeler < handle
       end
       if ~obj.hasMovie,
         reason = 'There must be at least one movie in the project.';
+        return;
+      end
+      
+      if isempty(obj.trackParams)
+        reason = 'Tracking parameters have not been set.';
         return;
       end
       

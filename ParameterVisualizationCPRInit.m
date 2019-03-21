@@ -82,6 +82,7 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
         nc = ceil(sqrt(nlabeled));
         nr = ceil(nlabeled/nc);
         tblPTrn1 = tblPTrn;
+        nshow = nlabeled;
         idx = 1:nlabeled;
       else
         nshow = nr*nc;
@@ -99,7 +100,7 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
       bboxes = repmat(d.bboxesTrn(1,:),[nlabeled,1]);
       bboxes(idx,:) = d.bboxesTrn;
             
-      p0 = tObj.randInit(tblPTrn,bboxes,'CPRParams',sPrmCPRold,...
+      p0 = tObj.randInitShapes(tblPTrn,bboxes,'CPRParams',sPrmCPRold,...
         'preProcParams',ppPrms);
       npts = sPrmCPRold.Model.nfids;
       sz = size(p0);
