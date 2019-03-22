@@ -207,7 +207,7 @@ classdef DeepTracker < LabelTracker
       if tfPostProcChanged
         warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
         obj.trackResInit();
-        obj.trackCurrResInit();
+        obj.trackCurrResUpdate();
         obj.updateTrackerInfo(); % AL: prob unnec but also prob doesn't hurt
         obj.newLabelerFrame();
       end
@@ -218,7 +218,7 @@ classdef DeepTracker < LabelTracker
       if tfPostProcChanged
         warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
         obj.trackResInit();
-        obj.trackCurrResInit();
+        obj.trackCurrResUpdate();
         obj.updateTrackerInfo(); % AL: prob unnec but also prob doesn't hurt
         obj.newLabelerFrame();
       end
@@ -2926,6 +2926,9 @@ classdef DeepTracker < LabelTracker
         assert(isa(vcd,'CalRig'),'Expected view calibration data to be a CalRig instance.');
         crig = vcd;
 
+        fprintf(1,'Performing 3d reconciliation: %s...\n',pp3dtype);
+        wbObj = WaitBarWithCancelCmdline('3d reconciliation');
+        oc = onCleanup(@()delete(wbObj));
         switch pp3dtype
           case 'triangulate'
             % See PostProcess.ReconstructSampleMultiView
@@ -2935,19 +2938,30 @@ classdef DeepTracker < LabelTracker
             ptrk2 = reshape(permute(ptrk2,[2 3 1]),2,nfrm*npt);
             ptrk = cat(3,ptrk1,ptrk2);
             
-            [X,xyrp] = crig.triangulate(ptrk);
+            X = nan(3,nfrm*npt);
+            ptrkrp = nan(size(ptrk));            
+            wbObj.startPeriod('Triangulation','shownumden',true,...
+              'denominator',nfrm*npt);
+            wbObjFrmShow = 500;
+            for i=1:nfrm*npt
+              if mod(i,wbObjFrmShow)==0
+                wbObj.updateFracWithNumDen(i);
+              end
+              [X(:,i),ptrkrp(:,i,:)] = crig.triangulate(ptrk(:,i,:));
+            end
+            wbObj.endPeriod();
             
             X = permute(reshape(X,[3 nfrm npt]),[3 1 2]); % npt x 3 x nfrm
-            xyrp = reshape(xyrp,[2 nfrm npt 1 nvw]);
-            xyrp = permute(xyrp,[3 1 2 4 5]); % npt x 2 x nfrm x 1 x nvw
+            ptrkrp = reshape(ptrkrp,[2 nfrm npt 1 nvw]);
+            ptrkrp = permute(ptrkrp,[3 1 2 4 5]); % npt x 2 x nfrm x 1 x nvw
                         
             trk1save = struct(...
               'pTrkSingleView',trk1.pTrk,...
-              'pTrk',xyrp(:,:,:,:,1),...
+              'pTrk',ptrkrp(:,:,:,:,1),...
               'pTrk3d',X);
             trk2save = struct(...
               'pTrkSingleView',trk2.pTrk,...
-              'pTrk',xyrp(:,:,:,:,2));
+              'pTrk',ptrkrp(:,:,:,:,2));
             
             save(trkfiles{1},'-append','-struct','trk1save');
             fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...
@@ -2958,21 +2972,21 @@ classdef DeepTracker < LabelTracker
             
           case 'experimental'
             rois = obj.lObj.getMovieRoiMovIdx(mIdx);
-            DXYZ = 0.005; % experimental parameter            
-            [X,xyrp,tMD,isspecial,prefview] = viewpref3drecon(...
+            DXYZ = 0.005; % experimental parameter
+            [X,ptrkrp,tMD,isspecial,prefview] = viewpref3drecon(...
                 trk1,trk2,crig,'roisEPline',rois,'dxyz',DXYZ,...
-                'wbObj',WaitBarWithCancelCmdline('3d reconciliation'));
+                'wbObj',wbObj);
             X = permute(X,[3 2 1]); % npt x 3 x nfrm            
-            xyrp = permute(xyrp,[4 2 1 5 3]); % npt x 2 x nfrm x 1 x nvw
+            ptrkrp = permute(ptrkrp,[4 2 1 5 3]); % npt x 2 x nfrm x 1 x nvw
 
             trk1save = struct(...
               'pTrkSingleView',trk1.pTrk,...
-              'pTrk',xyrp(:,:,:,:,1),...
+              'pTrk',ptrkrp(:,:,:,:,1),...
               'pTrk3d',X,...
               'recon3d_prefview',prefview');
             trk2save = struct(...
               'pTrkSingleView',trk2.pTrk,...
-              'pTrk',xyrp(:,:,:,:,2));
+              'pTrk',ptrkrp(:,:,:,:,2));
             
             save(trkfiles{1},'-append','-struct','trk1save');
             fprintf(1,'Save/appended variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d'' to trkfile %s.\n',...

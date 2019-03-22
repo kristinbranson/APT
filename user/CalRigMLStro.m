@@ -780,6 +780,11 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       % xp2rp: etc
       % rperr1: [n]. L2 err orig vs reprojected, cam1.
       % rperr2: [n] etc.
+      %
+      % Note: this impl is not vectorized in any meaningful way (over cols
+      % of xp1/xp2). undistortPoints is the expensive computation and it is
+      % already going col by col. Calling this in a loop over single points
+      % seems to hurt only by ~<10%.
             
       szassert(xp2,size(xp1));
       [d,n] = size(xp1);
