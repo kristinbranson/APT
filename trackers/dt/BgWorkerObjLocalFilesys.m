@@ -7,7 +7,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
   %
   
   properties
-    jobID % [nview] bsub jobID; or docker cellstr containerID
+    jobID % [nmov x nviewJobs] bsub jobID; or docker cellstr containerID
     
     killPollIterWaitTime = 1; % sec
     killPollMaxWaitTime = 12; % sec

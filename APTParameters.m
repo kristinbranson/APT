@@ -66,13 +66,11 @@ classdef APTParameters
       sPrm0 = structmerge(sPrmPreprocess,sPrmTrack,sPrmCpr,sPrmDT,sPrmPostprocess);
     end
     
-    % get a list of all DL net types
     function dlNetTypes = getDLNetTypes
       mc = ?DLNetType;
       dlNetTypes = cellfun(@(x) DLNetType(x),{mc.EnumerationMemberList.Name});
     end
     
-    % get a list of all DL net type pretty strings
     function dlNetTypesPretty = getDLNetTypesPretty
       mc = ?DLNetType;
       dlNetTypesPretty = cellfun(@(x) DLNetType(x).prettyString,{mc.EnumerationMemberList.Name},'Uni',0);
@@ -85,7 +83,8 @@ classdef APTParameters
       dlNetTypes = APTParameters.getDLNetTypes;
       for i = 1:numel(dlNetTypes),
         try
-          sPrm0 = APTParameters.setDLSpecificParams(sPrm0,dlNetTypes(i).prettyString,APTParameters.defaultParamsStructDT(dlNetTypes(i)));
+          sPrm0 = APTParameters.setDLSpecificParams(sPrm0,...
+            dlNetTypes(i).prettyString,APTParameters.defaultParamsStructDT(dlNetTypes(i)));
         end
       end
     end

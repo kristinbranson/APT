@@ -263,7 +263,7 @@ classdef TrackMonitorViz < handle
         otherwise
           warning('Unknown back end type');
       end
-      
+          
       isTrackComplete = false;
       isErr = false;
       isLogFile = false;
@@ -275,14 +275,11 @@ classdef TrackMonitorViz < handle
         isLogFile = any(cellfun(@(x) exist(x,'file'),{res.logFile}));
       end
       
-      isRunning0 = obj.trackWorkerObj.getIsRunning();
-      if isempty(isRunning0),
-        isRunning = true;
+      if ~isempty(res) && isfield(res,'isRunning')
+        isRunning = any([res.isRunning]);
       else
-        isRunning = any(isRunning0);
+        isRunning = true;
       end
-      
-      TrackMonitorViz.debugfprintf('updateAnn: isRunning = any(%s) = %d\n',mat2str(isRunning0),isRunning);
       
       if obj.isKilled,
         status = 'Tracking process killed.';

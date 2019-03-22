@@ -50,9 +50,19 @@ classdef BgTrackWorkerObj < BgWorkerObj
       end
     end
     function sRes = compute(obj)
-            
       % sRes: [nviews] struct array      
 
+      % Order important, check if job is running first. If we check after
+      % looking at artifacts, job may stop in between time artifacts and 
+      % isRunning are probed.
+      isRunning = obj.getIsRunning();
+      if isempty(isRunning)
+        isRunning = true(size(obj.killFiles));
+      else
+        szassert(isRunning,size(obj.killFiles));
+      end
+      isRunning = num2cell(isRunning);
+      
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,obj.artfctErrFiles,'uni',0);
       bsuberrlikely = cellfun(@obj.logFileErrLikely,obj.artfctLogfiles,'uni',0);
       
@@ -83,6 +93,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       
       sRes = struct(...
         'tfComplete',cellfun(@obj.fileExists,obj.artfctTrkfiles,'uni',0),...
+        'isRunning',repmat(isRunning,[1,nViewsPerJob]),...
         'errFile',repmat(obj.artfctErrFiles,[1,nViewsPerJob]),... % char, full path to DL err file
         'errFileExists',repmat(tfErrFileErr,[1,nViewsPerJob]),... % true of errFile exists and has size>0
         'logFile',repmat(obj.artfctLogfiles,[1,nViewsPerJob]),... % char, full path to Bsub logfile
@@ -94,8 +105,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'parttrkfile',obj.artfctPartTrkfiles,...
         'parttrkfileTimestamp',num2cell(partTrkFileTimestamps),...
         'killFile',repmat(obj.killFiles,[1,nViewsPerJob]),...
-        'killFileExists',repmat(num2cell(killFileExists),[1,nViewsPerJob]));
-      
+        'killFileExists',repmat(num2cell(killFileExists),[1,nViewsPerJob]));      
     end
     
     function reset(obj)
