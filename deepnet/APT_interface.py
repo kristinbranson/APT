@@ -491,19 +491,22 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         conf.rrange = bb
     except KeyError:
         pass
-    if not isModern:
-        try:
-            bb = ''.join([chr(c) for c in dt_params['op_affinity_graph']]).split(',')
-            graph = []
-            for b in bb:
-                mm = re.search('(\d+)\s+(\d+)', b)
-                n1 = int(mm.groups()[0]) - 1
-                n2 = int(mm.groups()[1]) - 1
-                graph.append([n1, n2])
-            conf.op_affinity_graph = graph
-        except KeyError:
-            pass
-
+    try:
+        if isModern:
+            bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])           
+        else: 
+            bb = ''    
+        bb = bb.split(',')
+        graph = []
+        for b in bb:
+            mm = re.search('(\d+)\s+(\d+)', b)
+            n1 = int(mm.groups()[0]) - 1
+            n2 = int(mm.groups()[1]) - 1
+            graph.append([n1, n2])
+        conf.op_affinity_graph = graph    
+    except KeyError:
+        pass
+    
     conf.mdn_groups = [(i,) for i in range(conf.n_classes)]
 
     done_keys = ['CacheDir','scale','brange','crange','trange','rrange','op_affinity_graph','flipud','dl_steps','scale','adjustContrast','normalize','sizex','sizey']
@@ -1873,7 +1876,7 @@ def parse_args(argv):
         args.start_frame = to_py(args.start_frame)
         args.crop_loc = to_py(args.crop_loc)
 
-    net_type =  get_net_type(args.lbl_file)
+    net_type = get_net_type(args.lbl_file)
     if net_type is not None:
         if args.type is not None and args.type != net_type:
             logging.info("Overriding input network type %s with %s"%(args.type,net_type))

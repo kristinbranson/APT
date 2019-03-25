@@ -461,7 +461,7 @@ class DataIteratorTF(object):
 def set_openpose_defaults(conf):
     conf.label_blur_rad = 5
     conf.rrange = 5
-    conf.display_steps = 50 # this is same as batches per epoch
+    conf.display_step = 50 # this is same as batches per epoch
     conf.dl_steps = 600000
     conf.batch_size = 10
     conf.n_steps = 4.41
@@ -598,7 +598,7 @@ def training(conf,name='deepnet'):
                 json.dump(json_data, json_file)
 
             if step % conf.save_step == 0:
-                model.save(os.path.join(conf.cachedir, name + '-{}'.format(step)))
+                model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(step))))
 
 
     # configure callbacks
@@ -629,7 +629,7 @@ def training(conf,name='deepnet'):
                         )
 
     # force saving in case the max iter doesn't match the save step.
-    model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(max_iter)))
+    model.save(str(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(max_iter))))
     obs.on_epoch_end(max_iter)
 
 

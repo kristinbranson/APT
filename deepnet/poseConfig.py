@@ -71,6 +71,7 @@ class config(object):
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8
+        self.n_steps = 4.41
 
         # ------ Leap params
         self.leap_net_name = "leap_cnn"
