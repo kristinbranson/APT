@@ -70,6 +70,8 @@ classdef LabelTracker < handle
       {'DeepTracker' 'trnNetType' DLNetType.mdn}
       {'DeepTracker' 'trnNetType' DLNetType.deeplabcut}
       {'DeepTracker' 'trnNetType' DLNetType.unet}
+      {'DeepTracker' 'trnNetType' DLNetType.openpose}
+      {'DeepTracker' 'trnNetType' DLNetType.leap}
       };
     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
     DeepTrackerAlgorithmNames = {'mdn','deeplabcut','unet'};    

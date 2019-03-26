@@ -76,7 +76,10 @@ def read_entry(x):
 
 def read_string(x):
     if type(x) is h5py._hl.dataset.Dataset:
-        return ''.join(chr(c) for c in x)
+        if len(x) == 2 and x[0] == 0 and x[1] == 0:  # empty ML strings returned this way
+            return ''
+        else:
+            return ''.join(chr(c) for c in x)
     else:
         return x
 
@@ -495,14 +498,15 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
         if isModern:
             bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])           
         else: 
-            bb = ''    
-        bb = bb.split(',')
+            bb = ''
         graph = []
-        for b in bb:
-            mm = re.search('(\d+)\s+(\d+)', b)
-            n1 = int(mm.groups()[0]) - 1
-            n2 = int(mm.groups()[1]) - 1
-            graph.append([n1, n2])
+        if bb:
+            bb = bb.split(',')
+            for b in bb:
+                mm = re.search('(\d+)\s+(\d+)', b)
+                n1 = int(mm.groups()[0]) - 1
+                n2 = int(mm.groups()[1]) - 1
+                graph.append([n1, n2])
         conf.op_affinity_graph = graph    
     except KeyError:
         pass

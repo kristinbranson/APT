@@ -17,6 +17,7 @@ from keras.legacy import interfaces
 import sys
 import os
 import re
+import pickle
 import math
 import PoseTools
 import os
@@ -24,7 +25,7 @@ import  numpy as np
 import json
 import tensorflow as tf
 import keras.backend as K
-
+import logging
 
 # name = 'open_pose'
 
@@ -468,7 +469,25 @@ def set_openpose_defaults(conf):
     conf.gamma = 0.333
 
 
+def massage_conf(conf):
+    assert conf.dl_steps >= conf.display_step, \
+        "Number of dl steps must be greater than or equal to the display step"
+    div,mod = divmod(conf.dl_steps,conf.display_step)
+    if mod != 0:
+        conf.dl_steps = (div+1) * conf.display_step
+        logging.info("Openpose requires the number of dl steps to be an even multiple of the display step. Increasing dl steps to {}".format(conf.dl_steps))
+
+    assert conf.save_step >= conf.display_step, \
+        "dl save step must be greater than or equal to the display step"
+    div,mod = divmod(conf.save_step,conf.display_step)
+    if mod != 0:
+        conf.save_step = (div+1) * conf.display_step
+        logging.info("Openpose requires the save step to be an even multiple of the display step. Increasing save step to {}".format(conf.save_step))
+
+
 def training(conf,name='deepnet'):
+
+    massage_conf(conf)
 
     base_lr = 4e-5  # 2e-5
     momentum = 0.9
@@ -485,6 +504,11 @@ def training(conf,name='deepnet'):
 
     assert conf.dl_steps % iterations_per_epoch == 0, 'For open-pose dl steps must be a multiple of display steps'
     assert conf.save_step % iterations_per_epoch == 0, 'For open-pose save steps must be a multiple of display steps'
+
+    train_data_file = os.path.join(conf.cachedir, 'traindata')
+    with open(train_data_file, 'wb') as td_file:
+        pickle.dump(conf, td_file, protocol=2)
+    logging.info('Saved config to {}'.format(train_data_file))
 
     model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     model = get_training_model(weight_decay, br1=len(conf.op_affinity_graph) * 2, br2=conf.n_classes)
@@ -589,7 +613,7 @@ def training(conf,name='deepnet'):
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             print(p_str)
 
-            train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
+            train_data_file = os.path.join( self.config.cachedir, 'traindata')
 
             json_data = {}
             for x in self.train_info.keys():
@@ -618,7 +642,7 @@ def training(conf,name='deepnet'):
     # training
     model.fit_generator(train_di,
                         steps_per_epoch=conf.display_step,
-                        epochs=max_iter,
+                        epochs=max_iter-1,
                         callbacks=callbacks_list,
                         verbose=0,
                         # validation_data=val_di,
@@ -629,8 +653,8 @@ def training(conf,name='deepnet'):
                         )
 
     # force saving in case the max iter doesn't match the save step.
-    model.save(str(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(max_iter))))
-    obs.on_epoch_end(max_iter)
+    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(max_iter*iterations_per_epoch))))
+    obs.on_epoch_end(max_iter-1)
 
 
 def get_pred_fn(conf, model_file=None,name='deepnet'):

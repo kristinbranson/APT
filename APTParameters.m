@@ -4,9 +4,10 @@ classdef APTParameters
     TRACK_PARAMETER_FILE = lclInitTrackParameterFile();
     CPR_PARAMETER_FILE = lclInitCPRParameterFile();
     DEEPTRACK_PARAMETER_FILE = lclInitDeepTrackParameterFile();
-    MDN_PARAMETER_FILE = lclInitDeepTrackMDNParameterFile();
+    MDN_PARAMETER_FILE = lclInitDeepTrackMDNParameterFile();    
     DLC_PARAMETER_FILE = lclInitDeepTrackDLCParameterFile();
     UNET_PARAMETER_FILE = lclInitDeepTrackUNetParameterFile();
+    OP_PARAMETER_FILE = lclInitDeepTrackOPParameterFile();
     POSTPROCESS_PARAMETER_FILE = lclInitPostProcessParameterFile();
   end
   methods (Static)
@@ -23,9 +24,10 @@ classdef APTParameters
       tPrmMdn = parseConfigYaml(APTParameters.MDN_PARAMETER_FILE);
       tPrmDlc = parseConfigYaml(APTParameters.DLC_PARAMETER_FILE);
       tPrmUnet = parseConfigYaml(APTParameters.UNET_PARAMETER_FILE);
+      tPrmOP = parseConfigYaml(APTParameters.OP_PARAMETER_FILE);
       tPrmPostProc = parseConfigYaml(APTParameters.POSTPROCESS_PARAMETER_FILE);
       tPrmDT.Children.Children = [tPrmDT.Children.Children;...
-        tPrmMdn.Children; tPrmDlc.Children; tPrmUnet.Children];        
+        tPrmMdn.Children; tPrmDlc.Children; tPrmUnet.Children; tPrmOP.Children];        
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
         tPrmCpr.Children; tPrmDT.Children; tPrmPostProc.Children];
@@ -102,6 +104,8 @@ classdef APTParameters
           prmFile = APTParameters.DLC_PARAMETER_FILE;
         case DLNetType.unet
           prmFile = APTParameters.UNET_PARAMETER_FILE;
+        case DLNetType.openpose
+          prmFile = APTParameters.OP_PARAMETER_FILE;
         otherwise
           assert(false);
       end
@@ -501,6 +505,10 @@ end
 function dtParamFile = lclInitDeepTrackUNetParameterFile()
 aptroot = APT.Root;
 dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_unet.yaml');
+end
+function dtParamFile = lclInitDeepTrackOPParameterFile()
+aptroot = APT.Root;
+dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_openpose.yaml');
 end
 function pFile = lclInitPostProcessParameterFile()
 aptroot = APT.Root;

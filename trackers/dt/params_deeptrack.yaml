@@ -24,7 +24,6 @@ ROOT:
       - maxckpt: ['Number of trackers to keep',unsigned,true,'Number of intermediate trackers during training to keep at once. ',5,'','Developer','isDeepTrack',false]
 #    - splitType: ['Type of split for validation',string,true,'Options: frame, movie, trx, predefined','predefined','','Advanced','isDeepTrack']
 #    - valratio: ['Amount of validation data',float,true,'Amount of data to keep aside for validation',0.3,'','Advanced','isDeepTrack']
-#    - op_affinity_graph: ['Skeleton for open pose',string,true,'Affinity map to be used for open-pose. Pair of points should be separated by space and each pair should be separated by comma. eg: 1 2, 3 2, 3 4','1 2, 2 3, 3 4','','Developer','isDeepTrack']  
     - ImageProcessing:
       - ['','',false,'Parameters related to initial processing of the input video data before any learning happens.','','','','']
       - scale: ['Downsample factor',unsigned,true,'Downsample images by this factor. This will decrease the amount of memory needed on the GPU.',1,'','Beginner','isDeepTrack',true]

@@ -2521,12 +2521,12 @@ classdef Labeler < handle
           
           % KB 20181217 - this was stored as a char originally
           if ~isfield(s.trackerData{2},'trnNetType'),
-            s.trackerData{2}.trnNetType =  DLNetType.mdn;
+            s.trackerData{2}.trnNetType = DLNetType.mdn;
           elseif ischar(s.trackerData{2}.trnNetType),
-            s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType);
+            s.trackerData{2}.trnNetType = DLNetType.(s.trackerData{2}.trnNetType);
           elseif isstruct(s.trackerData{2}.trnNetType), 
             %MK 20190110 - trnNetType can be a struct too.
-            s.trackerData{2}.trnNetType =  DLNetType.(s.trackerData{2}.trnNetType.ValueNames{1});  
+            s.trackerData{2}.trnNetType = DLNetType.(s.trackerData{2}.trnNetType.ValueNames{1});  
           end
           
           dlTrkClsAug = {'DeepTracker' 'trnNetType' s.trackerData{2}.trnNetType};
@@ -9255,6 +9255,16 @@ classdef Labeler < handle
       tdata = s.trackerData{s.currTracker};
       if ~isempty(sPrmAll),
         tdata.sPrmAll = sPrmAll;
+      elseif tdata.trnNetType==DLNetType.openpose
+        % put skeleton => affinity_graph for now        
+        skel = obj.skeletonEdges;
+        assert(~isempty(skel));
+        nedge = size(skel,1);
+        skelstr = arrayfun(@(x)sprintf('%d %d',skel(x,1),skel(x,2)),1:nedge,'uni',0);
+        skelstr = String.cellstr2CommaSepList(skelstr);
+        tdata.sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = skelstr;
+      else
+        tdata.sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
       end
       tdata.trnNetTypeString = char(tdata.trnNetType);
       
