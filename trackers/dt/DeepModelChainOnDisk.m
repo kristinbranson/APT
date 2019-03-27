@@ -45,10 +45,10 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     killTokenLnx
     killTokenName
     trainDataLnx    
-    trainFinalIndexLnx
-    trainFinalIndexName
-    trainCurrIndexLnx
-    trainCurrIndexName
+    trainFinalModelLnx
+    trainFinalModelName
+    trainCurrModelLnx
+    trainCurrModelName
     aptRepoSnapshotLnx
     aptRepoSnapshotName
   end
@@ -137,17 +137,27 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     function v = get.trainDataLnx(obj)
       v = [obj.dirModelChainLnx '/traindata.json'];
     end
-    function v = get.trainFinalIndexLnx(obj)
-      v = [obj.dirModelChainLnx '/' obj.trainFinalIndexName];
+    function v = get.trainFinalModelLnx(obj)
+      v = [obj.dirModelChainLnx '/' obj.trainFinalModelName];
     end
-    function v = get.trainCurrIndexLnx(obj)
-      v = [obj.dirModelChainLnx '/' obj.trainCurrIndexName];
+    function v = get.trainCurrModelLnx(obj)
+      v = [obj.dirModelChainLnx '/' obj.trainCurrModelName];
     end
-    function v = get.trainFinalIndexName(obj)
-      v = sprintf('deepnet-%d.index',obj.iterFinal);
+    function v = get.trainFinalModelName(obj)
+      switch obj.netType
+        case DLNetType.openpose
+          v = sprintf('deepnet-%d',obj.iterFinal);
+        otherwise
+          v = sprintf('deepnet-%d.index',obj.iterFinal);
+      end
     end    
-    function v = get.trainCurrIndexName(obj)
-      v = sprintf('deepnet-%d.index',obj.iterCurr);
+    function v = get.trainCurrModelName(obj)
+      switch obj.netType
+        case DLNetType.openpose
+          v = sprintf('deepnet-%d',obj.iterCurr);
+        otherwise
+          v = sprintf('deepnet-%d.index',obj.iterCurr);
+      end
     end    
     function v = get.aptRepoSnapshotLnx(obj)
       v = [obj.dirProjLnx '/' obj.aptRepoSnapshotName];

@@ -39,7 +39,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         
         dmc = dmcs(ivw);
         json = dmc.trainDataLnx;
-        finalindex = dmc.trainFinalIndexLnx;
+        finalmdl = dmc.trainFinalModelLnx;
         errFile = dmc.errfileLnx;
         logFile = dmc.trainLogLnx;
         killFile = dmc.killTokenLnx;
@@ -47,7 +47,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         % See AWSEC2 convenience meth
         fspollargs = ...
           sprintf('exists %s exists %s existsNE %s existsNEerr %s exists %s contents %s',...
-            json,finalindex,errFile,logFile,killFile,json);
+            json,finalmdl,errFile,logFile,killFile,json);
         cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollargs);
 
         [tfpollsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
@@ -59,7 +59,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         sRes(ivw).pollsuccess = tfpollsucc;
         sRes(ivw).pollts = now;
         sRes(ivw).jsonPath = json;
-        sRes(ivw).trainCompletePath = finalindex;
+        sRes(ivw).trainCompletePath = finalmdl;
         sRes(ivw).errFile = errFile;
         sRes(ivw).logFile = logFile;
         sRes(ivw).killFile = killFile;        

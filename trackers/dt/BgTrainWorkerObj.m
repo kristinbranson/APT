@@ -46,7 +46,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
       for ivw=1:njobs,
         dmc = dmcs(ivw);
         json = dmc.trainDataLnx;
-        finalindex = dmc.trainFinalIndexLnx;
+        finalmdl = dmc.trainFinalModelLnx;
         errFile = dmc.errfileLnx;
         logFile = dmc.trainLogLnx;
         killFile = killFiles{ivw};
@@ -55,8 +55,8 @@ classdef BgTrainWorkerObj < BgWorkerObj
         sRes(ivw).pollts = now;
         sRes(ivw).jsonPath = json;
         sRes(ivw).jsonPresent = obj.fileExists(json);
-        sRes(ivw).trainCompletePath = finalindex;
-        sRes(ivw).tfComplete = obj.fileExists(finalindex);
+        sRes(ivw).trainCompletePath = finalmdl;
+        sRes(ivw).tfComplete = obj.fileExists(finalmdl);
         sRes(ivw).errFile = errFile;
         sRes(ivw).errFileExists = obj.errFileExistsNonZeroSize(errFile);
         sRes(ivw).logFile = logFile;

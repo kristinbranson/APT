@@ -487,7 +487,9 @@ def massage_conf(conf):
 
 def training(conf,name='deepnet'):
 
-    massage_conf(conf)
+    #AL 20190327 For now we massage on the App side so the App knows what to expect for
+    # training outputs
+    #massage_conf(conf)
 
     base_lr = 4e-5  # 2e-5
     momentum = 0.9
