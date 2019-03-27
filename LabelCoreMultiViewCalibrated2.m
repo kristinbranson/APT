@@ -288,10 +288,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function edges = skeletonEdges(obj)
       
-      nEdges = size(obj.labeler.skeletonEdges,1);
-      edges = repmat(obj.labeler.skeletonEdges,[obj.nView,1]);
+      se = obj.labeler.skeletonEdges;
+      nEdges = size(se,1);
+      edges = repmat(se,[obj.nView,1]);
       for ivw = 1:obj.nView,
-        edges((ivw-1)*nEdges+1:ivw*nEdges,:) = reshape(obj.iSet2iPt(obj.labeler.skeletonEdges(:),ivw),[nEdges,2]);
+        edges((ivw-1)*nEdges+1:ivw*nEdges,:) = reshape(obj.iSet2iPt(se(:),ivw),[nEdges,2]);
       end
       
     end

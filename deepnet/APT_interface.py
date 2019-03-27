@@ -1586,7 +1586,9 @@ def classify_movie(conf, pred_fn,
 
     info = {}  # tracking info. Can be empty.
     info[u'model_file'] = model_file
-    info[u'trnTS'] = get_matlab_ts(model_file + '.meta')
+    modelfilets = model_file + '.meta'
+    modelfilets = modelfilets if os.path.exists(modelfilets) else model_file
+    info[u'trnTS'] = get_matlab_ts(modelfilets)
     info[u'name'] = name
     param_dict = convert_unicode(conf.__dict__.copy())
     param_dict.pop('cropLoc', None)

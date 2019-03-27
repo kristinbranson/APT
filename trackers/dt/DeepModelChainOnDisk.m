@@ -51,6 +51,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     trainCurrModelName
     aptRepoSnapshotLnx
     aptRepoSnapshotName
+    
+    trainModelGlob
   end
   methods
     function v = get.dirProjLnx(obj)
@@ -158,13 +160,21 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
         otherwise
           v = sprintf('deepnet-%d.index',obj.iterCurr);
       end
-    end    
+    end
+    function v = get.trainModelGlob(obj)
+      switch obj.netType
+        case DLNetType.openpose
+          v = 'deepnet-*';
+        otherwise
+          v = 'deepnet-*.index';
+      end
+    end
     function v = get.aptRepoSnapshotLnx(obj)
       v = [obj.dirProjLnx '/' obj.aptRepoSnapshotName];
     end
     function v = get.aptRepoSnapshotName(obj)
       v = sprintf('%s_%s.aptsnapshot',obj.modelChainID,obj.trainID);
-    end
+    end      
   end
   methods
     function obj = DeepModelChainOnDisk(varargin)
@@ -220,7 +230,8 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
       maxiter = nan;
       %filepath = '';
       
-      modelfiles = mydir(fullfile(obj.dirModelChainLnx,'deepnet-*.index'));
+      modelglob = obj.trainModelGlob;
+      modelfiles = mydir(fullfile(obj.dirModelChainLnx,modelglob));
       if isempty(modelfiles),
         return;
       end

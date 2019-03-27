@@ -195,57 +195,59 @@ classdef DeepTracker < LabelTracker
       sNewSpecific = sPrmAll.ROOT.DeepTrack.(netType);
       tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
     end
-  end
-  methods (Static)
-    function sPrmAll = openposeMassageParams(sPrmAll)
-      dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
-      save_step = sPrmAll.ROOT.DeepTrack.Saving.save_step;
-      display_step = sPrmAll.ROOT.DeepTrack.Saving.display_step;
+    
+    function sPrmAll = massageParamsIfNec(obj,sPrmAll)
+      % net-specific parameter treatments
+      % Openpose currently requires particular constraints between
+      % parameters that are not required for other DL trackers. Current
+      % treatment is
+      % - lObj.trackParams continues to be "anything", ie user continues
+      % to specify whatever they like in Tracking Parameters. (More
+      % precisely, there may be constraints amongst parameters at this
+      % level, but these constraints are common to all DL trackers.)
+      % - When the universal params are to be set on a specific DL
+      % tracker, we may mutate them to meet any DLnet-specific
+      % constraints.
+      % - So in normal "steady" usage, specific DeepTrackers may have
+      % parameters that differ (typically v slightly) from the "main"
+      % params. This may be noted in the trackerInfoString.
       
-      if dl_steps < display_step
-        dl_steps = display_step;
-        warningNoTrace('Openpose requires the number of DL steps to be greater than or equal to the display step. Updating to %d DL steps.',dl_steps);
-      end
+      switch obj.trnNetType
+        case DLNetType.openpose
+          dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
+          save_step = sPrmAll.ROOT.DeepTrack.Saving.save_step;
+          display_step = sPrmAll.ROOT.DeepTrack.Saving.display_step;
+          
+          if dl_steps < display_step
+            dl_steps = display_step;
+            warningNoTrace('Openpose requires the number of DL steps to be greater than or equal to the display step. Updating to %d DL steps.',dl_steps);
+          end
+          
+          if mod(dl_steps,display_step)~=0
+            dl_steps = ceil(dl_steps/display_step)*display_step;
+            warningNoTrace('Openpose requires the number of DL steps to be an even multiple of the display step. Increasing DL steps to %d.',dl_steps);
+          end
+          
+          if save_step < display_step
+            save_step = display_step;
+            warningNoTrace('Openpose requires the DL save step to be greater than or equal to display step. Updating the DL save step to %d.',save_step);
+          end
+          
+          if mod(save_step,display_step)~=0
+            save_step = ceil(save_step/display_step)*display_step;
+            warningNoTrace('Openpose requires the DL save step to be an even multiple of the display step. Increasing the DL save step to %d.',save_step);
+          end
+          
+          sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
+          sPrmAll.ROOT.DeepTrack.Saving.save_step = save_step;
       
-      if mod(dl_steps,display_step)~=0
-        dl_steps = ceil(dl_steps/display_step)*display_step;
-        warningNoTrace('Openpose requires the number of DL steps to be an even multiple of the display step. Increasing DL steps to %d.',dl_steps);
+        otherwise
+          % none
       end
-      
-      if save_step < display_step
-        save_step = display_step;
-        warningNoTrace('Openpose requires the DL save step to be greater than or equal to display step. Updating the DL save step to %d.',save_step);
-      end
-      
-      if mod(save_step,display_step)~=0
-        save_step = ceil(save_step/display_step)*display_step;
-        warningNoTrace('Openpose requires the DL save step to be an even multiple of the display step. Increasing the DL save step to %d.',save_step);
-      end
-
-      sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
-      sPrmAll.ROOT.DeepTrack.Saving.save_step = save_step;
     end
-  end
-  methods
+      
     function setAllParams(obj,sPrmAll)
-      if obj.trnNetType==DLNetType.openpose
-        % openpose special treatment.
-        % Openpose currently requires particular constraints between 
-        % parameters that are not required for other DL trackers. Current 
-        % treatment is
-        % - lObj.trackParams continues to be "anything", ie user continues 
-        % to specify whatever they like in Tracking Parameters. (More 
-        % precisely, there may be constraints amongst parameters at this
-        % level, but these constraints are common to all DL trackers.)
-        % - When the universal params are to be set on a specific DL 
-        % tracker, we may mutate them to meet any DLnet-specific
-        % constraints.
-        % - So in normal "steady" usage, specific DeepTrackers may have
-        % parameters that differ (typically v slightly) from the "main"
-        % params. This may be noted in the trackerInfoString.
-        
-        sPrmAll = DeepTracker.openposeMassageParams(sPrmAll);
-      end
+      sPrmAll = obj.massageParamsIfNec(sPrmAll);
       
       [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
         obj.didParamsChange(sPrmAll);
@@ -813,8 +815,14 @@ classdef DeepTracker < LabelTracker
         end
         infos{end+1} = sprintf('New labels since training: %s',s);
         
-        isParamChange = ~APTParameters.isEqualFilteredStructProperties(obj.sPrmAll,obj.lObj.trackGetParams(),...
-          'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true);
+        sPrmAllLabeler = obj.lObj.trackGetParams();
+        sPrmAllAsSet = obj.massageParamsIfNec(sPrmAllLabeler);
+        args = {'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true};
+        
+        isParamChange = ~APTParameters.isEqualFilteredStructProperties(...
+          obj.sPrmAll,sPrmAllAsSet,args{:});
+        isParamChangeLbler = ~APTParameters.isEqualFilteredStructProperties(...
+          obj.sPrmAll,sPrmAllLabeler,args{:});        
         if isParamChange,
           s = 'Yes';
         else
@@ -822,6 +830,12 @@ classdef DeepTracker < LabelTracker
         end
         infos{end+1} = sprintf('Parameters changed since training: %s',s);
         
+        if isParamChangeLbler
+          if ~isParamChange
+            assert(obj.trnNetType==DLNetType.openpose);
+          end
+          infos{end+1} = sprintf('Parameter adjustment: %s',obj.trnNetType.prettyString);
+        end        
       else
         infos{end+1} = 'No tracker trained.';
       end
