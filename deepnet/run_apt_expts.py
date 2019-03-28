@@ -13,14 +13,32 @@ elif data_type == 'stephen':
 else:
     lbl_file = ''
 
+
 lbl = h5py.File(lbl_file,'r')
 nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
 lbl.close()
+cache_dir = '/nrs/branson/mayank/apt_cache'
+all_models = ['leap','deeplabcut','mdn','unet','openpose']
+
+## create dbs
+
+for view in range(nviews):
+    for tndx in range(len(all_models)):
+        train_type = all_models[tndx]
+        conf = apt.create_conf(lbl_file,view,'apt_expt',cache_dir,train_type)
+        if train_type == 'deeplabcut':
+            apt.create_deepcut_db(conf,use_cache=True)
+        elif train_type == 'leap':
+            apt.create_leap_db(conf,use_cache=True)
+        else:
+            apt.create_tfrecord(conf,use_cache=True)
+
+
+##
 # gpu_model = 'TeslaV100_SXM2_32GB'
 gpu_model = 'GeForceRTX2080Ti'
 train_type = 'deeplabcut'
 sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
-
 common_conf = {}
 common_conf['rrange'] = 10
 common_conf['trange'] = 5
@@ -33,14 +51,16 @@ common_conf['batch_size'] = 8
 other_conf = [{'dlc_augment':True},{'dlc_augment':False}]
 cmd_str = ['dlc_aug','dlc_noaug']
 
-for conf_id in range(len(other_conf)):
 
-    for view in range(nviews):
+for view in range(nviews):
 
-        common_cmd = 'APT_interface.py {} -name apt_expt -cache /nrs/branson/mayank/apt_cache'.format(lbl_file)
+    for conf_id in range(len(other_conf)):
+
+        common_cmd = 'APT_interface.py {} -name apt_expt -cache {}'.format(lbl_file,cache_dir)
         end_cmd = 'train -skip_db -use_cache'
         cmd_opts = {}
         cmd_opts['type'] = train_type
+        cmd_opts['train_name'] = cmd_str[conf_id]
         conf_opts = other_conf[conf_id].copy()
         conf_opts.update(common_conf)
 

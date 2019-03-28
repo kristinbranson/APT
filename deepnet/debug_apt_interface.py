@@ -1,7 +1,9 @@
 
 
+
+
 import APT_interface as apt
-cmd = '-name 20190325T163219 -view 1 -cache /nrs/branson/mayank/apt_cache -err_file /nrs/branson/mayank/apt_cache/four_points_180806/mdn/view_0/20190325T163219/trk/20160214T111910_1_hour_segment_02_trn20190325T163219_iter60000_20190326T101634.err -model_files /nrs/branson/mayank/apt_cache/four_points_180806/mdn/view_0/20190325T163219/deepnet-60000 -type mdn /nrs/branson/mayank/apt_cache/four_points_180806/20190325T163219_20190325T163448.lbl track -mov /nrs/branson/longterm/files_for_working_with_apt/20160214T111910_1_hour_segment_02.mjpg -out /nrs/branson/mayank/apt_cache/four_points_180806/mdn/view_0/20190325T163219/trk/20160214T111910_1_hour_segment_02_trn20190325T163219_iter60000_20190326T101634.trk -start_frame 177558 -end_frame 177758 -trx /nrs/branson/longterm/files_for_working_with_apt/20160214T111910_1_hour_segment_02_trx_naninterp.mat -trx_ids 1'
+cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl -name apt_expt -cache /nrs/branson/mayank/apt_cache -conf_params batch_size 8  dlc_augment False  decay_steps 20000  save_step 5000  rrange 10  dl_steps 60000  trange 5  mdn_use_unet_loss True -train_name dlc_noaug train -skip_db -use_cache'
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 apt.main(cmd.split())

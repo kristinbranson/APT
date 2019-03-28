@@ -1827,8 +1827,7 @@ def parse_args(argv):
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
     parser.add_argument('-log_file', dest='log_file', help='Err file', default=None)
     parser.add_argument('-conf_params', dest='conf_params', help='conf params. These will override params from lbl file', default=None, nargs='*')
-    parser.add_argument('-type', dest='type', help='Network type, default is unet', default='unet',
-                        choices=['unet', 'openpose', 'deeplabcut', 'leap', 'mdn'])
+    parser.add_argument('-type', dest='type', help='Network type', default=None)
     subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
 
     parser_train = subparsers.add_parser('train', help='Train the detector')
@@ -1886,10 +1885,10 @@ def parse_args(argv):
         args.crop_loc = to_py(args.crop_loc)
 
     net_type = get_net_type(args.lbl_file)
-    if net_type is not None:
-        if args.type is not None and args.type != net_type:
-            logging.info("Overriding input network type %s with %s"%(args.type,net_type))
-        args.type = net_type
+    # command line has precedence over the one in label file.
+    if args.type is None and net_type is not None:
+        logging.info("No network type specified on command line or in the lbl file. Selecting MDN")
+        args.type = 'mdn'
     return args
 
 def run(args):
