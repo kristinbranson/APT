@@ -1048,6 +1048,8 @@ class CompressedAvi:
         if DEBUG_MOVIES: print 'Trying to read compressed AVI'
         self.issbfmf = False
         self.source = cv2.VideoCapture( filename )
+        self.indexed_mjpg = False
+        self.filename = filename
         if not self.source.isOpened():
             raise IOError( "OpenCV could not open the movie %s" % filename )
 
@@ -1059,6 +1061,20 @@ class CompressedAvi:
             self.start_time = self.source.get( cv2.CAP_PROP_POS_MSEC )
             self.fps = self.source.get( cv2.CAP_PROP_FPS )
             self.n_frames = int( self.source.get( cv2.CAP_PROP_FRAME_COUNT ) )
+
+        if self.n_frames < 0 and os.path.splitext(filename)[1] == '.mjpg':
+            index_file = os.path.splitext(filename)[0]  + '.txt'
+            if os.path.exists(index_file):
+                with open(index_file) as f:
+                    import csv
+                    rr = csv.reader(f,delimiter=' ')
+                    index_dat = list(rr)
+                self.n_frames = len(index_dat)
+                self.index_dat = num.array(index_dat).astype('float').astype('int')
+                self.indexed_mjpg = True
+            else:
+                raise IOError("MJPG movie files doesn't have index file at the default location {}".format(index_file) )
+
         self.frame_delay_us = 1e6 / self.fps
 
         # added to help masquerade as FMF file:
@@ -1073,7 +1089,7 @@ class CompressedAvi:
             self.height = int( self.source.get( cv2.CAP_PROP_FRAME_HEIGHT ) )
         self.MAXBUFFERSIZE = num.round(200*1000*1000./self.width/self.height)
         self.keyframe_period = 100 ##################
-        self.buffersize = min(self.MAXBUFFERSIZE,self.keyframe_period)
+        self.buffersize = int(min(self.MAXBUFFERSIZE,self.keyframe_period))
         if DEBUG_MOVIES: print 'buffersize set to ' + str(self.buffersize)
 
         # compute the bits per pixel
@@ -1102,6 +1118,22 @@ class CompressedAvi:
         """Read frame from file and return as NumPy array."""
 
         if framenumber < 0: raise IndexError
+
+        if self.indexed_mjpg:
+            with open(self.filename,'rb') as mjpeg_file:
+                mjpeg_file.seek(self.index_dat[framenumber,2])
+                frame_length = self.index_dat[framenumber,3] - self.index_dat[framenumber,2]
+                frame = mjpeg_file.read(frame_length)
+                if len(frame) != frame_length:
+                    raise ValueError('incomplete frame data')
+                if not (
+                    frame.startswith(b'\xff\xd8') and frame.endswith(b'\xff\xd9')
+                ):
+                    raise ValueError('invalid jpeg')
+                img = cv2.imdecode(num.fromstring(frame, dtype=num.uint8), -1)
+                ts = self.index_dat[framenumber,1] - self.index_dat[0,1]
+                return (img,ts)
+
 
         # have we already stored this frame?
         if framenumber >= self.bufferframe0 and framenumber < self.bufferframe1:

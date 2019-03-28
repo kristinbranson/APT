@@ -1,3 +1,53 @@
+
+
+import APT_interface as apt
+cmd = '-name 20190325T163219 -view 1 -cache /nrs/branson/mayank/apt_cache -err_file /nrs/branson/mayank/apt_cache/four_points_180806/mdn/view_0/20190325T163219/trk/20160214T111910_1_hour_segment_02_trn20190325T163219_iter60000_20190326T101634.err -model_files /nrs/branson/mayank/apt_cache/four_points_180806/mdn/view_0/20190325T163219/deepnet-60000 -type mdn /nrs/branson/mayank/apt_cache/four_points_180806/20190325T163219_20190325T163448.lbl track -mov /nrs/branson/longterm/files_for_working_with_apt/20160214T111910_1_hour_segment_02.mjpg -out /nrs/branson/mayank/apt_cache/four_points_180806/mdn/view_0/20190325T163219/trk/20160214T111910_1_hour_segment_02_trn20190325T163219_iter60000_20190326T101634.trk -start_frame 177558 -end_frame 177758 -trx /nrs/branson/longterm/files_for_working_with_apt/20160214T111910_1_hour_segment_02_trx_naninterp.mat -trx_ids 1'
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+apt.main(cmd.split())
+
+##
+import cv2
+cap = cv2.VideoCapture('/nrs/branson/longterm/files_for_working_with_apt/20160214T111910_1_hour_segment_02.mjpg')
+
+
+##
+
+import PoseTools
+import os
+import glob
+import APT_interface as apt
+import apt_expts
+reload(apt_expts)
+import PoseUNet_resnet
+reload(PoseUNet_resnet)
+import re
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+db_file = '/nrs/branson/mayank/apt_cache/sh_trn4523_gt080618_made20180627_cacheddata/mdn/view_1/sh_compare/val_TF.tfrecords'
+bsz = 4
+lr_mul = 1
+name = 'bsz_{}_lr_{}'.format(bsz,int(lr_mul*10))
+cdir = os.path.dirname(db_file)
+tfile = os.path.join(cdir,'sh_trn4523_gt080618_made20180627_cacheddata_{}_traindata'.format(name))
+
+A = PoseTools.pickle_load(tfile)
+conf = A[1]
+
+files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*.index").format(name))
+files.sort(key=os.path.getmtime)
+aa = [int(re.search('-(\d*).index',f).groups(0)[0]) for f in files]
+aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
+if any([a<0 for a in aa]):
+    bb = int(np.where(np.array(aa)<0)[0])+1
+    files = files[bb:]
+files = [f.replace('.index','') for f in files]
+files = files[-1:]
+
+mdn_out = apt_expts.classify_db_all(conf,db_file,files,'mdn',name=name)
+
+
+##
 cmd = '-name 20190129T180959 -view 1 -cache /home/mayank/temp/apt_cache -err_file /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T180959/trk/movie_trn20190129T180959_iter20000_20190208T141629.err -model_files /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T180959/deepnet-20000 -type mdn /home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl track -mov /home/mayank/work/FlySpaceTime/cx_GMR_SS00038_CsChr_RigB_20150729T150617/movie.ufmf -out /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190129T180959/trk/movie_trn20190129T180959_iter20000_20190208T141629.trk -start_frame 8496 -end_frame 8696 -trx /home/mayank/work/FlySpaceTime/cx_GMR_SS00038_CsChr_RigB_20150729T150617/registered_trx.mat -trx_ids 3'
 ##
 # debug postprocessing

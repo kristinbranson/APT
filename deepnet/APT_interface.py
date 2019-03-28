@@ -345,7 +345,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     conf.view = view
     conf.set_exp_name(proj_name)
     # conf.cacheDir = read_string(lbl['cachedir'])
-    conf.has_trx_file = has_trx_file(lbl[lbl['trxFilesAll'][0, 0]])
+    conf.has_trx_file = has_trx_file(lbl[lbl['trxFilesAll'][0,0]])
     conf.selpts = np.arange(conf.n_classes)
     conf.nviews = int(read_entry(lbl['cfg']['NumViews']))
 
@@ -1694,6 +1694,9 @@ def get_mdn_pred_fn(conf, model_file=None,name='deepnet'):
     self = PoseURes.PoseUMDN_resnet(conf, name=name)
     if name == 'deepnet':
         self.train_data_name = 'traindata'
+    else:
+        self.train_data_name = None
+
     return self.get_pred_fn(model_file)
 
 

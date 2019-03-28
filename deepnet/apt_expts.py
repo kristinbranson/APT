@@ -245,7 +245,7 @@ def train_theirs(args):
 
                 if curm == 'unet':
                     f.write('cd {}\n'.format(unet_dir))
-                    cmd = 'APT_interface_mdn.py -view {} -cache {} -type unet {} train -skip_db'.format(view+1, cachedir, args.lbl_file)
+                    cmd = 'APT_interface.py -view {} -cache {} -type unet {} train -skip_db'.format(view+1, cachedir, args.lbl_file)
                     f.write('python {}'.format(cmd))
                 elif curm == 'openpose':
                     f.write('cd {}\n'.format(openpose_dir))
