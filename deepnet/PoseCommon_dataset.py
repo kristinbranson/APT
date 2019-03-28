@@ -97,7 +97,7 @@ def print_train_data(cur_dict):
     p_str = ''
     for k in cur_dict.keys():
         p_str += '{:s}:{:.2f} '.format(k, cur_dict[k])
-    print(p_str)
+    logging.info(p_str)
 
 
 def initialize_remaining_vars(sess):
@@ -228,7 +228,7 @@ class PoseCommon(object):
         out_file = saver['out_file'].replace('\\', '/')
         saver['saver'].save(sess, out_file, global_step=step,
                             latest_filename=os.path.basename(saver['ckpt_file']))
-        print('Saved state to %s-%d' % (out_file, step))
+        logging.info('Saved state to %s-%d' % (out_file, step))
 
 
     def init_td(self):
@@ -256,10 +256,10 @@ class PoseCommon(object):
 
             if not isinstance(in_data, dict):
                 train_info, load_conf = in_data
-                print('Parameters that do not match for {:s}:'.format(train_data_file))
+                logging.info('Parameters that do not match for {:s}:'.format(train_data_file))
                 PoseTools.compare_conf(self.conf, load_conf)
             else:
-                print("No config was stored for base. Not comparing conf")
+                logging.warning("No config was stored for base. Not comparing conf")
                 train_info = in_data
         if start_at > 0: # remove entries for step > start_at
             step = train_info['step'][:] # copy the list
@@ -341,9 +341,9 @@ class PoseCommon(object):
         train_dataset = tf.data.TFRecordDataset(train_db)
         val_db = os.path.join(self.conf.cachedir, self.conf.valfilename) + '.tfrecords'
         if os.path.exists(val_db):
-            print("Val DB exists: Data for validation from:{}".format(val_db))
+            logging.info("Val DB exists: Data for validation from:{}".format(val_db))
         else:
-            print("Val DB does not exists: Data for validation from:{}".format(train_db))
+            logging.warning("Val DB does not exists: Data for validation from:{}".format(train_db))
             val_db = train_db
         val_dataset = tf.data.TFRecordDataset(val_db)
 
@@ -400,7 +400,7 @@ class PoseCommon(object):
             start_at = 0
             sess.run(tf.variables_initializer(PoseTools.get_vars(name)),
                      feed_dict=self.fd)
-            print("Not loading {:s} variables. Initializing them".format(name))
+            logging.info("Not loading {:s} variables. Initializing them".format(name))
             self.init_td()
             for dep_net in self.dep_nets:
                 dep_net.init_restore_net(sess)
@@ -410,9 +410,9 @@ class PoseCommon(object):
             saver['saver'].restore(sess, latest_ckpt.model_checkpoint_path)
             match_obj = re.match(out_file + '-(\d*)', latest_ckpt.model_checkpoint_path)
             start_at = int(match_obj.group(1)) + 1
-            print(' ---- ')
-            print('Continuing training from iter number {}'.format(start_at))
-            print(' ---- ')
+            logging.info(' ---- ')
+            logging.info('Continuing training from iter number {}'.format(start_at))
+            logging.info(' ---- ')
             self.restore_td(start_at)
 
         initialize_remaining_vars(sess)
@@ -436,11 +436,11 @@ class PoseCommon(object):
         c_names = [c.name for c in common_vars]
         r_names = [v.name for v in var_list if v not in common_vars]
         r_names = [v for v in r_names if v.find('Adam')<0]
-        print("-- Loading from pretrained --")
-        print('\n'.join(c_names))
-        print("-- Not Loading from pretrained --")
-        print('\n'.join(r_names))
-        print('Restoring pretrained resnet weights form {}'.format(model_file))
+        logging.debug("-- Loading from pretrained --")
+        logging.debug('\n'.join(c_names))
+        logging.debug("-- Not Loading from pretrained --")
+        logging.debug('\n'.join(r_names))
+        logging.debug('Restoring pretrained resnet weights form {}'.format(model_file))
         # common_vars = [i for i in common_vars if i not in rem_locs]
         pretrained_saver = tf.train.Saver(var_list=common_vars)
         pretrained_saver.restore(sess, model_file)
@@ -581,7 +581,7 @@ class PoseCommon(object):
                 self.train_step(step, sess, learning_rate, training_iters)
                 if step % self.conf.display_step == 0:
                     end = time.time()
-                    print('Time required to train: {}'.format(end-start))
+                    logging.info('Time required to train: {}'.format(end-start))
                     train_dict = self.compute_train_data(sess, self.DBType.Train)
                     train_loss = train_dict['cur_loss']
                     train_dist = train_dict['cur_dist']
@@ -612,7 +612,7 @@ class PoseCommon(object):
                     self.save(sess, step)
                 if step % self.conf.display_step == 0:
                     self.save_td()
-            print("Optimization Finished!")
+            logging.info("Optimization Finished!")
             self.save(sess, training_iters)
             self.save_td()
         tf.reset_default_graph()
@@ -621,7 +621,7 @@ class PoseCommon(object):
     def restore_net_common(self, create_network_fn=None, model_file=None):
         if create_network_fn is None:
             create_network_fn = self.create_network
-        print('--- Loading the model by reconstructing the graph ---')
+        logging.info('--- Loading the model by reconstructing the graph ---')
         self.setup_pred()
         self.pred = create_network_fn()
         self.create_saver()
@@ -632,7 +632,7 @@ class PoseCommon(object):
         try:
             self.restore_td()
         except (AttributeError,IOError):  # If the conf file has been modified
-            print("Couldn't load the training data")
+            logging.warning("Couldn't load the training data")
             self.init_td()
 
         for i in self.inputs:
@@ -642,7 +642,7 @@ class PoseCommon(object):
 
 
     def restore_meta_common(self, model_file):
-        print('--- Loading the model using the saved graph ---')
+        logging.info('--- Loading the model using the saved graph ---')
         self.create_ph_fd()
         sess = tf.Session()
         try:
@@ -794,7 +794,7 @@ class PoseCommonMulti(PoseCommon):
                     closest = np.argmin(cur_dist)
                     dist[ndx,i_ndx,cls] = cur_dist.min()
         end = time.time()
-        print('Time required to compute dist: {}'.format(end-start))
+        logging.info('Time required to compute dist: {}'.format(end-start))
         return np.nanmean(dist)
 
 

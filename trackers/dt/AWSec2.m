@@ -1,7 +1,13 @@
 classdef AWSec2 < handle
+  % Handle to a single AWS EC2 instance. The instance may be in any state,
+  % running, stopped, etc.
+
+  properties (Constant)
+    autoShutdownAlarmNamePat = 'aptAutoShutdown'; 
+  end
   
   properties
-    instanceID
+    instanceID % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.
     instanceIP
     keyName
     pem
@@ -9,7 +15,7 @@ classdef AWSec2 < handle
     scpCmd
     sshCmd
     
-    remotePID    
+    remotePID
   end
   
   properties (Constant)
@@ -40,7 +46,8 @@ classdef AWSec2 < handle
     end
     
     function delete(obj)
-      % TODO 
+      % NOTE: for now, lifecycle of obj is not tied at all to the actual
+      % instance-in-the-cloud
     end
     
   end
@@ -60,24 +67,44 @@ classdef AWSec2 < handle
       obj.instanceID = json.Instances.InstanceId;
     end
     
-    function [tfsucc,json] = inspectInstance(obj)
-       % sets .instanceIP and even .instanceID if it is empty and there is only one instance running
+    function [tfexist,tfrunning,json] = inspectInstance(obj,varargin)
+      % Check that a specified instance exists; check if it is running; 
+      % get json; sets .instanceIP if running
+      %
+      % * If .instanceID is empty and there is a unique EC2 instance, this 
+      % will set the .instanceID.
+      % 
+      % * tfexist is returned as true of the instance exists in some state.
+      % * tfrunning is returned as true if the instance exists and is running.
+      % * json is valid only if tfexist==true.
+      
+      dispcmd = myparse(varargin,...
+        'dispcmd',true...
+        );
       
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
-      [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
-      if ~tfsucc
+      [tfexist,json] = AWSec2.syscmd(cmd,'dispcmd',dispcmd,'isjsonout',true);
+      if ~tfexist
+        tfrunning = false;
         return;
       end
       json = jsondecode(json);
-      obj.instanceIP = json.Reservations.Instances.PublicIpAddress;
+      
+      inst = json.Reservations.Instances;
       if isempty(obj.instanceID)
-        obj.instanceID = json.Reservations.Instances.InstanceId;
+        obj.instanceID = inst.InstanceId;
       else
-        assert(strcmp(obj.instanceID,json.Reservations.Instances.InstanceId));
+        assert(strcmp(obj.instanceID,inst.InstanceId));
       end
       
-      fprintf('EC2 instanceID %s is running with IP %s.\n',obj.instanceID,...
-        obj.instanceIP);
+      tfrunning = strcmp(inst.State.Name,'running');
+      if tfrunning
+        obj.instanceIP = inst.PublicIpAddress;
+        fprintf('EC2 instanceID %s is running with IP %s.\n',...
+          obj.instanceID,obj.instanceIP);
+      else
+        % leave IP for now even though may be outdated
+      end
     end
     
     function [tfsucc,state,json] = getInstanceState(obj)
@@ -92,6 +119,15 @@ classdef AWSec2 < handle
       json = jsondecode(json);
       state = json.Reservations.Instances.State.Name;
       
+    end
+    
+    function tfsucc = respecifyInstance(obj)
+      [tfsucc,iid,pemFile] = ...
+        obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
+      if tfsucc
+        obj.instanceID = iid;
+        obj.pem = pemFile;
+      end
     end
     
     function [tfsucc,json] = stopInstance(obj)
@@ -157,20 +193,103 @@ classdef AWSec2 < handle
       obj.inspectInstance();
     end
     
-    function checkInstanceRunning(obj)
-      % - If runs silently, obj appears to be a running EC2 instance with no
-      %   issues
+    function checkInstanceRunning(obj,varargin)
+      % - If runs silently, obj appears to be a running EC2 instance with 
+      %   no issues
       % - If harderror thrown, something appears wrong
       
-      [tf,js] = obj.inspectInstance;
-      if ~tf
-        error('Problem with EC2 instance id: %s',obj.instanceID);
+      throwErrs = myparse(varargin,...
+        'throwErrs',true... % if false, just warn if there is a problem
+        );
+      
+      if throwErrs
+        throwFcn = @error;
+      else
+        throwFcn = @warningNoTrace;
       end
-      state = js.Reservations.Instances.State;
-      if ~strcmp(state.Name,'running')
-        error('EC2 instance id %s is not in the ''running'' state.',...
+      
+      [tfexist,tfrun] = obj.inspectInstance;
+      if ~tfexist
+        throwFcn('Problem with EC2 instance id: %s',obj.instanceID);
+      end
+      if ~tfrun
+        throwFcn('EC2 instance id %s is not in the ''running'' state.',...
           obj.instanceID)
       end
+    end
+    
+    function codestr = createShutdownAlarmCmd(obj,varargin)
+      [periodsec,threshpct,evalperiods] = myparse(varargin,...
+        'periodsec',300, ... % 5 mins
+        'threshpct',5, ...
+        'evalperiods',6 ... 
+      );
+    
+      % AL 20190213: Superficially pretty poor/confusing spec/api/doc for 
+      % CloudWatch alarms. CloudWatch Dash is pretty suboptimal too. Maybe 
+      % it's actually really smart (maybe not).
+      %
+      % 1. Prob don't want to go period<5min -- acts funny, maybe 
+      % considered "high resolution" etc and requires special treatment.
+      % 2. Prob don't want period much greater than 5 min -- b/c you want
+      % the instance/cpu spin-up to get the CPUutil above the thresh in the
+      % first interval. If the interval is too big then the spinup may not
+      % get you above that threshold. Then, due to weird history retention
+      % of alarms, you may just get repeated ALARM states and kills of your
+      % instance.
+      % 3. Deleting an alarm and bringing it back (with the same name) 
+      % doesn't remove the history, and in some ways the triggers/criteria 
+      % ignore the "missing gap" in time as if that interval (when the
+      % alarm was deleted) was just removed from the space-time continuum.
+      
+      assert(periodsec==round(periodsec),'Expected integral periodsec.');
+      
+      [tfe,~,js] = obj.inspectInstance('dispcmd',false);
+      if ~tfe
+        error('AWS ec2 instance does not exist.');
+      end
+      
+      availzone = js.Reservations.Instances.Placement.AvailabilityZone;
+      regioncode = availzone(1:end-1);
+      
+      instID = obj.instanceID;
+      namestr = sprintf(obj.autoShutdownAlarmNamePat);
+      descstr = sprintf('"Auto shutdown %d sec (%d periods)"',periodsec,evalperiods);
+      dimstr = sprintf('"Name=InstanceId,Value=%s"',instID);
+      arnstr = sprintf('arn:aws:automate:%s:ec2:stop',regioncode);
+      
+      code = {...
+        'aws' 'cloudwatch' 'put-metric-alarm' ...
+        '--alarm-name' namestr ...
+        '--alarm-description' descstr ...
+        '--metric-name' 'CPUUtilization' ...
+        '--namespace' 'AWS/EC2' ...
+        '--statistic' 'Average' ...
+        '--period' num2str(periodsec) ...
+        '--threshold' num2str(threshpct) ...
+        '--comparison-operator' 'LessThanThreshold' ...
+        '--dimensions' dimstr ...
+        '--evaluation-periods' num2str(evalperiods) ...
+        '--alarm-actions' arnstr ...
+        '--unit' 'Percent' ...
+        '--treat-missing-data' 'notBreaching' ...
+        };
+      codestr = String.cellstr2DelimList(code,' ');      
+    end
+    
+    function tfsucc = configureAlarm(obj)
+      % Note: this creates/puts a metricalarm with name based on the
+      % instanceID. Currently the AWS API allows you to create the same
+      % alarm multiple times with no harm (only one alarm is ultimately
+      % created).
+      
+      codestr = obj.createShutdownAlarmCmd;
+      
+      fprintf('Setting up AWS CloudWatch alarm to auto-shutdown your instance if it is idle for too long.\n');
+      
+      tfsucc = obj.syscmd(codestr,...
+        'dispcmd',true,...
+        'failbehavior','warn');      
     end
     
     function tfsucc = getRemotePythonPID(obj)
@@ -380,7 +499,31 @@ classdef AWSec2 < handle
         error('Kill command failed.');
       end
     end
-        
+
+    function [tfsucc,res] = remoteCallFSPoll(obj,fspollargs)
+      % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
+      %
+      % res: [n] cellstr of fspoll responses
+
+      assert(iscellstr(fspollargs) && ~isempty(fspollargs));
+      nargsFSP = numel(fspollargs);
+      assert(mod(nargsFSP,2)==0);
+      nresps = nargsFSP/2;
+      
+      fspollstr = sprintf('%s ',fspollargs{:});
+      fspollstr = fspollstr(1:end-1);
+      cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollstr);
+
+      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
+      if tfsucc
+        res = regexp(res,'\n','split');
+        tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
+        res = res(1:end-1);
+      else
+        res = [];
+      end
+    end
+    
   end
   
   methods (Static)
@@ -489,13 +632,18 @@ classdef AWSec2 < handle
     end
 
     function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote,varargin)
-      [usedoublequotes] = myparse(varargin,...
+      [timeout,usedoublequotes] = myparse(varargin,...
+        'timeout',5,...
         'usedoublequotes',false);
+      
+      args = {sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) ...
+        '-oStrictHostKeyChecking=no' sprintf('ubuntu@%s',ip)};
       if usedoublequotes
-        cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s "%s"',sshcmd,pem,ip,cmdremote);
+        args{end+1} = sprintf('"%s"',cmdremote);
       else
-        cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s ''%s''',sshcmd,pem,ip,cmdremote);
+        args{end+1} = sprintf('''%s''',cmdremote);
       end
+      cmd = String.cellstr2DelimList(args,' ');
     end
 
     function cmd = sshCmdGeneralLoggedStc(sshcmd,pem,ip,cmdremote,logfileremote)
@@ -503,14 +651,29 @@ classdef AWSec2 < handle
         sshcmd,pem,ip,cmdremote,logfileremote);
     end
 
-    function [tfsucc,instanceID,pemFile] = configureUI()
+    function [tfsucc,instanceID,pemFile] = ...
+                              specifyInstanceUIStc(instanceID,pemFile)
+      % Prompt user to specify/confirm an AWS instance.
+      % 
+      % instanceID, pemFile (in): optional defaults/best guesses
+      
+      if nargin<1
+        instanceID = '';
+      end
+      if nargin<2
+        pemFile = '';
+      end
+      
       PROMPT = {
         'Instance ID'
         'Private key (.pem) file'
         };
-      NAME = 'Amazon Web Services EC2 Configuration';
+      NAME = 'AWS EC2 Config';
+      INPUTBOXWIDTH = 100;
+      BROWSEINFO = struct('type',{'';'uigetfile'},'filterspec',{'';'*.pem'});
 
-      resp = inputdlg(PROMPT,NAME,1);      
+      resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],2,1),...
+        {instanceID;pemFile},'on',BROWSEINFO);
       tfsucc = ~isempty(resp);      
       if tfsucc
         instanceID = strtrim(resp{1});

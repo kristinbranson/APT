@@ -1,14 +1,12 @@
-classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
+classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
   
   properties
-    awsEc2 % Instance of AWSec2
   end
   
   methods
 
-    function obj = BgTrainWorkerObjAWS(nviews,dmcs,awsec2)
-      obj@BgTrainWorkerObj(nviews,dmcs);                  
-      obj.awsEc2 = awsec2;
+    function obj = BgTrainWorkerObjAWS(varargin)
+      obj@BgWorkerObjAWS(varargin{:});
     end
             
     function sRes = compute(obj)
@@ -23,6 +21,7 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
         'pollts',[],... % datenum time that poll cmd returned
         'jsonPath',[],... % char, full path to json trnlog being polled
         'jsonPresent',[],... % true if file exists. if false, remaining fields are indeterminate
+        'tfComplete',[],...
         'lastTrnIter',[],... % (only if jsonPresent==true) last known training iter for this view. Could be eg -1 or 0 if no iters avail yet.
         'tfUpdate',[],... % (only if jsonPresent==true) true if the current read represents an updated training iter.
         'contents',[],... % (only if jsonPresent==true) if tfupdate is true, this can contain all json contents.
@@ -40,20 +39,15 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
         
         dmc = dmcs(ivw);
         json = dmc.trainDataLnx;
-        finalindex = dmc.trainFinalIndexLnx;
+        finalmdl = dmc.trainFinalModelLnx;
         errFile = dmc.errfileLnx;
         logFile = dmc.trainLogLnx;
         killFile = dmc.killTokenLnx;
-        
-%         json = obj.artfctTrainDataJson{ivw};
-%         finalindex = obj.artfctFinalIndex{ivw};
-%         errFile = obj.artfctErrFile{ivw};
-%         logFile = obj.artfctLogs{ivw};
-%         killFile = obj.artfctKills{ivw};
-        
+                
+        % See AWSEC2 convenience meth
         fspollargs = ...
           sprintf('exists %s exists %s existsNE %s existsNEerr %s exists %s contents %s',...
-            json,finalindex,errFile,logFile,killFile,json);
+            json,finalmdl,errFile,logFile,killFile,json);
         cmdremote = sprintf('~/APT/misc/fspoll.py %s',fspollargs);
 
         [tfpollsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true);
@@ -65,14 +59,14 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
         sRes(ivw).pollsuccess = tfpollsucc;
         sRes(ivw).pollts = now;
         sRes(ivw).jsonPath = json;
-        sRes(ivw).trainCompletePath = finalindex;
+        sRes(ivw).trainCompletePath = finalmdl;
         sRes(ivw).errFile = errFile;
         sRes(ivw).logFile = logFile;
         sRes(ivw).killFile = killFile;        
         
         if tfpollsucc          
           sRes(ivw).jsonPresent = strcmp(reslines{1},'y');
-          sRes(ivw).trainComplete = strcmp(reslines{2},'y');
+          sRes(ivw).tfComplete = strcmp(reslines{2},'y');
           sRes(ivw).errFileExists = strcmp(reslines{3},'y');
           sRes(ivw).logFileErrLikely = strcmp(reslines{4},'y');
           sRes(ivw).killFileExists = strcmp(reslines{5},'y');
@@ -83,91 +77,26 @@ classdef BgTrainWorkerObjAWS < BgTrainWorkerObj
             newStep = trnLog.step(end);
             tfupdate = newStep>lastKnownStep;
             sRes(ivw).tfUpdate = tfupdate;
+            sRes(ivw).contents = trnLog;
             if tfupdate
               sRes(ivw).lastTrnIter = newStep;
               obj.trnLogLastStep(ivw) = newStep;
-              sRes(ivw).contents = trnLog;
             else
               sRes(ivw).lastTrnIter = lastKnownStep;
             end
           end
-        end
-      end
-    end
-    
-    % Since compute() is overloaded in this subclass, these Abstract 
-    % methods are not needed for BgTrainWorkerObj/compute. However they are
-    % called elsewhere.
-    
-    function tf = fileExists(obj,f)
-      tf = obj.awsEc2.remoteFileExists(f,'dispcmd',true);
-    end
-    
-    function tf = errFileExistsNonZeroSize(obj,errFile)
-      tf = obj.awsEc2.remoteFileExists(errFile,'reqnonempty',true,'dispcmd',true);
-    end    
-    
-    function s = fileContents(obj,f)
-      s = obj.awsEc2.remoteFileContents(f,'dispcmd',true);
-    end
-    
-    function dispModelChainDir(obj)
-      aws = obj.awsEc2;
-      for ivw=1:obj.nviews
-        dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al %s',dmc.dirModelChainLnx);
-        fprintf('### View %d:\n',ivw);
-        [tfsucc,res] = aws.cmdInstance(cmd,'dispcmd',false); 
-        if tfsucc
-          disp(res);
         else
-          warningNoTrace('Failed to access training directory %s: %s',...
-            dmc.dirModelChainLnx,res);
+          % Still not bulletproof here. Consider initting sRes fully above
+          % before computation
+          sRes(ivw).jsonPresent = false;
+          sRes(ivw).tfComplete = false;
+          sRes(ivw).errFileExists = false;
+          sRes(ivw).logFileErrLikely = false;
+          sRes(ivw).killFileExists = false;
         end
-        fprintf('\n');
       end
     end
-    
-    function [tfsucc,warnings] = killProcess(obj)
-      warnings = {};
-%       if ~obj.isRunning
-%         error('Training is not in progress.');
-%       end
-      aws = obj.awsEc2;
-      if isempty(aws)
-        error('AWSEC2 backend object is unset.');
-      end
-      
-      dmc = obj.dmcs;
-      assert(isscalar(dmc)); % single-view atm
-      killfile = dmc.killTokenLnx;
 
-      aws.killRemoteProcess();
-
-      % expect command to fail; fail -> py proc killed
-      pollCbk = @()~aws.cmdInstance('pgrep python','dispcmd',true,'failbehavior','silent');
-      iterWaitTime = 1;
-      maxWaitTime = 10;
-      tfsucc = waitforPoll(pollCbk,iterWaitTime,maxWaitTime);
-      
-      if ~tfsucc
-        warningNoTrace('Could not confirm that remote process was killed.');
-        warnings{end+1} = 'Could not confirm that remote process was killed.';
-      else
-        % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
-        % pick up
-        cmd = sprintf('touch %s',killfile);
-        tfsucc = aws.cmdInstance(cmd,'dispcmd',false);
-        if ~tfsucc
-          warningNoTrace('Failed to create remote KILLED token: %s',killfile);
-          warnings{end+1} = sprintf('Failed to create remote KILLED token: %s',killfile);
-        else
-          fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge the kill!\n',killfile);
-        end
-        % bgTrnMonitorAWS should pick up KILL tokens and stop bg trn monitoring
-      end
-    end
-    
   end
     
 end

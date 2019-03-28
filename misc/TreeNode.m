@@ -16,12 +16,14 @@ classdef TreeNode < handle
       assert(isscalar(t));
       fcn(t);
       c = t.Children;
-      arrayfun(fcn,c);
+      for i=1:numel(c)
+        c(i).traverse(fcn);
+      end
     end
     
     function s = structize(t)
       % Convert a Tree (Data.Value fields only) to a struct
-    
+      
       assert(isscalar(t));
       s = nst(t,struct());
       function s = nst(t,s)
@@ -35,9 +37,18 @@ classdef TreeNode < handle
       end
     end
     
+    function tcopy = copy(t)
+      
+      tcopy = TreeNode(t.Data);
+      for i = 1:numel(t.Children),
+        tcopy.Children(i) = t.Children(i).copy();
+      end
+      
+    end
+    
     function structapply(t,s)
       % Apply values from a structure to Data.Value fields of leaf nodes
-      % 
+      %
       % t: vector of TreeNodes
       % s: struct
       
@@ -53,11 +64,11 @@ classdef TreeNode < handle
             % val is a struct; node must be a non-leafnode
             structapply(node.Children,val);
           elseif isempty(val),
-              % MK 20190110, val can be an empty array
-              if isempty(node.Children),
-                node.Data.Value = val;      
-              end                  
-          else            
+            % MK 20190110, val can be an empty array
+            if isempty(node.Children),
+              node.Data.Value = val;
+            end
+          else
             assert(isempty(node.Children));
             node.Data.Value = val;
           end
@@ -66,6 +77,53 @@ classdef TreeNode < handle
             'Ignoring unrecognized struct field: ''%s''.',f);
         end
       end
+    end
+    
+    function n = findnode(t,propFQN)
+      % find node with fully qualified name 
+      %
+      % t: root nodes(s)
+      % propFQN: "fully qualified name", 
+      %     eg 'ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta'
+      %
+      % n: scalar PropertiesGUIProp node, or [] if not found.
+      
+      items = strread(propFQN,'%s','delimiter','.');
+
+      for i=1:numel(items)
+        it = items{i};
+        flds = arrayfun(@(x)x.Data.Field,t,'uni',0);
+        tf = strcmp(flds,it);
+        if nnz(tf)~=1
+          n = [];
+          return;
+        end
+        n = t(tf);
+        t = n.Children;
+      end
+    end
+    
+    function setValue(t,propFQN,propVal)
+      % Set the property specified by propFQN to have the value propVal.
+      %
+      % t: root nodes(s)
+      % propFQN: "fully qualified name", 
+      %     eg 'ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta'
+      % propValue: value to be set into Value field
+      
+      node = t.findnode(propFQN);
+      if isempty(node)
+        error('Could not find node %s.',propFQN);
+      end
+      node.Data.Value = propVal;      
+    end
+    
+    function v = getValue(t,propFQN)
+      node = t.findnode(propFQN);
+      if isempty(node)
+        error('Could not find node %s.',propFQN);
+      end
+      v = node.Data.Value;
     end
     
   end

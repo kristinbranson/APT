@@ -16,6 +16,7 @@ import numpy as np
 import predict
 from pose_dataset import Batch, PoseDataset
 import json
+import pickle
 from easydict import EasyDict as edict
 import config
 import  tarfile
@@ -131,6 +132,11 @@ def train(cfg,name='deepnet'):
     cfg = edict(cfg.__dict__)
     cfg = config.convert_to_deepcut(cfg)
 
+    train_data_file = os.path.join(cfg.cachedir, 'traindata')
+    with open(train_data_file, 'wb') as td_file:
+        pickle.dump(cfg, td_file, protocol=2)
+    logging.info('Saved config to {}'.format(train_data_file))
+
     dirname = os.path.dirname(os.path.dirname(__file__))
     init_weights = os.path.join(dirname, 'pretrained','resnet_v1_50.ckpt')
 
@@ -222,9 +228,9 @@ def train(cfg,name='deepnet'):
             saver.save(sess, model_name, global_step=it,
                        latest_filename=os.path.basename(ckpt_file))
 
-    sess.close()
     coord.request_stop()
-    coord.join([thread],3)
+    coord.join([thread],stop_grace_period_secs=60)
+    sess.close()
 
 
 def get_pred_fn(cfg, model_file=None,name='deepnet'):

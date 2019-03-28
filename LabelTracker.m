@@ -40,12 +40,14 @@ classdef LabelTracker < handle
   
   properties (Abstract)
     algorithmName % char
+    trackerInfo; % struct with whatever information we want to save about the current tracker. 
   end  
   
   properties    
     lObj % (back)handle to Labeler object
     paramFile; % char, current parameter file
     ax % axis for viewing tracking results
+    sPrmAll; % all parameters - KB 20190214: store all parameters with each tracker
     
     trkVizInterpolate % scalar logical. If true, interpolate tracking results when visualizing
     
@@ -68,10 +70,13 @@ classdef LabelTracker < handle
       {'DeepTracker' 'trnNetType' DLNetType.mdn}
       {'DeepTracker' 'trnNetType' DLNetType.deeplabcut}
       {'DeepTracker' 'trnNetType' DLNetType.unet}
+      {'DeepTracker' 'trnNetType' DLNetType.openpose}
+      {'DeepTracker' 'trnNetType' DLNetType.leap}
       };
     INFOTIMELINE_PROPS_TRACKER = EmptyLandmarkFeatureArray();
+    DeepTrackerAlgorithmNames = {'mdn','deeplabcut','unet'};    
   end
-    
+      
   methods
     
     function obj = LabelTracker(labelerObj)
@@ -127,6 +132,13 @@ classdef LabelTracker < handle
       end      
     end
     
+	% is the current tracking algorithm a DL algorithm?
+    function v = isDeepTracker(obj)
+      
+      v = ismember(obj.algorithmName,LabelTracker.DeepTrackerAlgorithmNames);
+      
+    end
+    
   end
   
   methods
@@ -150,6 +162,18 @@ classdef LabelTracker < handle
       sPrm = struct();
     end
        
+    function ppdata = fetchPreProcData(obj,tblP,ppPrms)
+      % Fetch preprocessed data per this tracker. Don't update any cache
+      % b/c the preproc params supplied may be "trial"/random.
+      % 
+      % tblP: MFTable
+      % ppPrms: scalar struct, preproc params only.
+      % 
+      % ppdata: CPRData
+      
+      assert(false,'Overload required.');
+    end
+    
     function train(obj)
       % (Incremental) Train
       % - If it's the first time, it's a regular/full train
@@ -168,76 +192,6 @@ classdef LabelTracker < handle
       tfCanTrack = true;
       reason = '';
       
-    end
-
-    
-    function [tfsucc,tblPTrn,dataPreProc] = preretrain(obj,tblPTrn,wbObj,prmpp)
-      % Right now this figures out which rows comprise the training set.
-      %
-      % PostConditions (tfsucc==true):
-      %   - If initially unknown, training set is determined/returned in
-      %   tblPTrn
-      %   - lObj.preProcData has been updated to include all rows of
-      %   tblPTrn; lObj.preProcData.iTrn has been set to those rows
-      %
-      % PostConditions (tfsucc=false): other outputs indeterminte
-      %
-      % tblPTrn (in): Either [], or a MFTable.
-      % wbObj: Either [], or a WaitBarWithCancel.
-      %
-      % tfsucc: see above
-      % tblPTrn (out): MFTable
-      % dataPreProc: CPRData handle, obj.lObj.preProcData
-      
-      tfsucc = false;
-      dataPreProc = [];
-      tfWB = ~isempty(wbObj);
-      if ~exist('prmpp','var'),
-        prmpp = [];
-      end
-      
-      % Either use supplied tblPTrn, or use all labeled data
-      if isempty(tblPTrn)
-        % use all labeled data
-        tblPTrn = obj.lObj.preProcGetMFTableLbled('wbObj',wbObj);
-        if tfWB && wbObj.isCancel
-          % Theoretically we are safe to return here as of 201801. We
-          % have only called obj.asyncReset() so far.
-          % However to be conservative/nonfragile/consistent let's reset
-          % as in other cancel/early-exits          
-          return;
-        end
-      end
-      if obj.lObj.hasTrx
-        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI {'thetaTrx'}]);
-      elseif obj.lObj.cropProjHasCrops
-        tblfldscontainsassert(tblPTrn,[MFTable.FLDSCOREROI]);
-      else
-        tblfldscontainsassert(tblPTrn,MFTable.FLDSCORE);
-      end
-      
-      if isempty(tblPTrn)
-        error('CPRLabelTracker:noTrnData','No training data set.');
-      end
-      
-      [dataPreProc,dataPreProcIdx,tblPTrn,tblPTrnReadFail] = ...
-        obj.lObj.preProcDataFetch(tblPTrn,'wbObj',wbObj,'preProcParams',prmpp);
-      if tfWB && wbObj.isCancel
-        % none
-        return;
-      end
-      nMissedReads = height(tblPTrnReadFail);
-      if nMissedReads>0
-        warningNoTrace('Removing %d training rows, failed to read images.\n',...
-          nMissedReads);
-      end
-      fprintf(1,'Training with %d rows.\n',height(tblPTrn));
-      
-      dataPreProc.iTrn = dataPreProcIdx;
-      fprintf(1,'Training data summary:\n');
-      dataPreProc.summarize('mov',dataPreProc.iTrn);
-      
-      tfsucc = true;      
     end 
         
     function retrain(obj)
@@ -370,7 +324,20 @@ classdef LabelTracker < handle
     function hideVizToggle(obj)
       obj.setHideViz(~obj.hideViz);
     end
-        
+    
+    % update information about the current tracker
+    % placeholder - should be defined by child classes
+    function updateTrackerInfo(obj)
+      
+    end
+    
+    % return a cell array of strings with information about the current
+    % tracker
+    % placeholder - should be defined by child classes
+    function [infos] = getTrackerInfoString(obj,doupdate)
+      infos = {'Not implemented'};
+    end
+    
   end
   
   methods % For infotimeline display

@@ -1,9 +1,4 @@
 from __future__ import division
-
-# coding: utf-8
-
-# In[ ]:
-
 from builtins import object
 from past.utils import old_div
 import os
@@ -11,6 +6,7 @@ import re
 import localSetup
 import numpy as np
 import copy
+import logging
 
 class config(object):
     # ----- Names
@@ -30,6 +26,7 @@ class config(object):
         # rate will be reduced by gamma every decay_step iterations.
 
         # range for contrast, brightness and rotation adjustment
+        self.trx_align_theta = True
         self.horz_flip = False
         self.vert_flip = False
         self.brange = [-0.2, 0.2]
@@ -62,7 +59,7 @@ class config(object):
         #self.unet_steps = 20000
         self.unet_keep_prob = 1.0 # essentially don't use it.
         self.unet_use_leaky = False #will change it to True after testing.
-        self.use_pretrained_weights = False
+        self.use_pretrained_weights = True
 
         # ----- MDN params
         self.mdn_min_sigma = 3. # this should just be maybe twice the cell size??
@@ -74,6 +71,7 @@ class config(object):
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8
+        self.n_steps = 4.41
 
         # ------ Leap params
         self.leap_net_name = "leap_cnn"
@@ -81,7 +79,7 @@ class config(object):
         # ----- Deep Lab Cut
         self.dlc_train_img_dir = 'deepcut_train'
         self.dlc_train_data_file = 'deepcut_data.mat'
-        self.dlc_augment = False
+        self.dlc_augment = True
 
         # ============== EXTRA ================
 
@@ -134,9 +132,9 @@ class config(object):
 
     def get(self,name,default):
         if hasattr(self,name):
-            print('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
+            logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
         else:
-            print('DEFAULT: For {} using with default value {}'.format(name, default))
+            logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
         return getattr(self,name,default)
 
 

@@ -41,6 +41,8 @@ fi
 pushd . >/dev/null
 cd $DIR
 echo $DIR
+git rev-parse HEAD
+git status -b --porcelain .
 if [ $brief = true ]; then
     headn=2
 else
@@ -51,6 +53,4 @@ if [ $nocolor = true ]; then
 else
     "$scriptpath/git-graph.sh" | head -n $headn
 fi
-git rev-parse HEAD
-git status -b --porcelain .
 popd >/dev/null

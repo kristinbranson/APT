@@ -15,7 +15,7 @@ classdef BGClient < handle
     
     printlog = false; % if true, logging messages are displayed
     
-    parpoolIdleTimeout = 10*60; % bump gcp IdleTimeout to at least this value every time a worker is started
+    parpoolIdleTimeout = 100*60; % bump gcp IdleTimeout to at least this value every time a worker is started
   end
   properties (Dependent)
     isConfigured

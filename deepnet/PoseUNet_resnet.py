@@ -325,11 +325,13 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                 prev_in = None
                 for ndx in reversed(range(len(down_layers))):
+                    # reverse the resnet's downsampling.
 
                     if prev_in is None:
                         X = down_layers[ndx]
                     else:
                         if self.no_pad:
+                            # crop down layers to match unpadded prev_in
                             prev_sh = prev_in.get_shape().as_list()[1:3]
                             d_sh = down_layers[ndx].get_shape().as_list()[1:3]
                             d_y = (d_sh[0]- prev_sh[0])//2
@@ -361,6 +363,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
                         with tf.variable_scope('u_{}'.format(ndx)):
                              # X = CNB.upscale('u_{}'.format(ndx), X, layers_sz)
+                            # upsample usin conv2d_transpose. Use identity as init weights.
                            X_sh = X.get_shape().as_list()
                            w_mat = np.zeros([4,4,X_sh[-1],X_sh[-1]])
                            for wndx in range(X_sh[-1]):
@@ -368,26 +371,22 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                            w = tf.get_variable('w', [4, 4, X_sh[-1], X_sh[-1]],initializer=tf.constant_initializer(w_mat))
                            if self.no_pad:
                                out_shape = [X_sh[0],X_sh[1]*2+2,X_sh[2]*2+2,X_sh[-1]]
-                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,
-                                                          strides=[1, 2, 2, 1], padding="VALID")
+                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,strides=[1, 2, 2, 1], padding="VALID")
                            else:
                                out_shape = [X_sh[0],layers_sz[0],layers_sz[1],X_sh[-1]]
-                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape,
-                                                          strides=[1, 2, 2, 1], padding="SAME")
+                               X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
                            biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
                            conv_b = X + biases
 
-                           bn = batch_norm(conv_b)
+                           bn = batch_norm(conv_b,is_training=self.ph['phase_train'],decay=0.99)
                            X = tf.nn.relu(bn)
 
                     prev_in = X
 
                 n_filt = X.get_shape().as_list()[-1]
                 n_out = self.conf.n_classes
-                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                          initializer=tf.contrib.layers.xavier_initializer())
-                biases = tf.get_variable("out_biases", n_out,
-                                         initializer=tf.constant_initializer(0.))
+                weights = tf.get_variable("out_weights", [3,3,n_filt,n_out], initializer=tf.contrib.layers.xavier_initializer())
+                biases = tf.get_variable("out_biases", n_out, initializer=tf.constant_initializer(0.))
                 conv_out = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
                 X = tf.add(conv_out, biases, name = 'unet_pred')
                 X_unet = 2*tf.sigmoid(X)-1
@@ -428,7 +427,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
                         kernel_shape = [k_sz, k_sz, n_filt_in, 3*n_filt]
                         mdn_l = conv_relu(X,kernel_shape,self.ph['phase_train'])
 
-                    if not self.conf.get('mdn_more_locs_layer',True):
+                    if not self.conf.get('mdn_more_locs_layer',False):
                         with tf.variable_scope('layer_locs_1_1'):
                             in_filt = mdn_l.get_shape().as_list()[3]
                             kernel_shape = [k_sz, k_sz, in_filt, n_filt]
@@ -530,7 +529,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
             with tf.variable_scope('logits'):
 
-                if self.conf.get('mdn_no_locs_layer',True):
+                if self.conf.get('mdn_no_locs_layer',False):
                     mdn_l = X
                 else:
                     with tf.variable_scope('layer_logits'):
@@ -609,7 +608,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
 
         self.joint = True
 
-        learning_rate = self.conf.get('mdn_learning_rate',0.0001)
+        learning_rate = self.conf.get('mdn_learning_rate',0.001) # earlier it was 0.0001
         super(self.__class__, self).train(
             create_network=self.create_network,
             loss=self.loss,
@@ -827,21 +826,26 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             #             mdn_pred_out[sel, :, :, cls] += pred_weights[sel, ndx, cur_gr] * curl[0, ..., 0]
             #
             # base_locs = PoseTools.get_pred_locs(mdn_pred_out)
+            # mdn_pred_out = 2*(mdn_pred_out-0.5)
+            # mdn_conf = np.max(mdn_pred_out, axis=(1, 2))
+
             base_locs = np.zeros([pred_means.shape[0],self.conf.n_classes,2])
+            mdn_conf = np.zeros([pred_means.shape[0],self.conf.n_classes])
             for ndx in range(pred_means.shape[0]):
                 for gdx, gr in enumerate(self.conf.mdn_groups):
                     for g in gr:
                         sel_ex = np.argmax(pred_weights[ndx, :, gdx])
                         mm = pred_means[ndx, sel_ex, g, :]
                         base_locs[ndx, g] = mm
+                        mdn_conf[ndx,g] = np.max(pred_weights[ndx,:,gdx])
 
             base_locs = base_locs * conf.rescale
+            mdn_conf = 2*mdn_conf -1 # it should now be between -1 to 1.
 
-            mdn_pred_out = 2*(mdn_pred_out-0.5)
             if self.conf.mdn_use_unet_loss:
                 unet_locs = PoseTools.get_pred_locs(unet_pred)
                 d = np.sqrt(np.sum((base_locs - unet_locs) ** 2, axis=-1))
-                mdn_unet_locs = base_locs
+                mdn_unet_locs = base_locs.copy()
                 mdn_unet_locs[d < mdn_unet_dist, :] = unet_locs[d < mdn_unet_dist, :]
             else:
                 unet_pred = mdn_pred_out
@@ -854,7 +858,7 @@ class PoseUMDN_resnet(PoseUMDN.PoseUMDN):
             ret_dict['locs_mdn'] = base_locs
             ret_dict['locs_unet'] = unet_locs
             ret_dict['conf_unet'] = (np.max(unet_pred,axis=(1,2)) + 1)/2
-            ret_dict['conf'] = np.max(mdn_pred_out,axis=(1,2))
+            ret_dict['conf'] = mdn_conf
             ret_dict['hmaps_mdn'] = mdn_pred_out
             return ret_dict
 

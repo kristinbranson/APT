@@ -11,6 +11,7 @@ classdef PropertiesGUIProp < handle
     Level = 'Important'
     Requirements = {}
     Visible = true
+    AffectsTraining = true
   end
   properties (Dependent)
     DispNameUse
@@ -42,7 +43,7 @@ classdef PropertiesGUIProp < handle
   end
   methods 
     function obj = PropertiesGUIProp(fld,dispname,type,editable,desc,...
-        dfltval,val,prmViz,level,rqts,visible)
+        dfltval,val,prmViz,level,rqts,visible,affectsTraining)
       obj.Field = fld;
       obj.DispName = dispname;
       obj.Type = type;
@@ -55,11 +56,16 @@ classdef PropertiesGUIProp < handle
         level = 'Important';
       end
       obj.Level = PropertyLevelsEnum(level);
-      if ischar(rqts) && ~isempty(rqts),
-        obj.Requirements = strsplit(rqts);
+      if ischar(rqts) && ~isempty(rqts)
+        obj.Requirements = {rqts};
+      elseif iscellstr(rqts)
+        obj.Requirements = rqts;
       end
       if exist('visible','var'),
         obj.Visible = visible;
+      end
+      if exist('affectsTraining','var'),
+        obj.AffectsTraining = affectsTraining;
       end
         
     end

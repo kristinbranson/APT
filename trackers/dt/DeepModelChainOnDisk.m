@@ -17,8 +17,13 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
               % restarted arbitrarily many times. This timestamp uniquely
               % identifies a restart
     trainType % scalar DLTrainType
+    isMultiView = false; % whether this was trained with one call to APT_interface for all views
     iterFinal % final expected iteration    
+    iterCurr % last completed iteration, corresponds to actual model file used
+    nLabels % number of labels used to train
     %backEnd % back-end info (bsub, docker, aws)
+    
+    aptRootUser % (optional) external/user APT code checkout root
   end
   properties (Dependent)
     dirProjLnx
@@ -26,18 +31,28 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     dirViewLnx  
     dirModelChainLnx
     dirTrkOutLnx
+    dirAptRootLnx % loc of APT checkout (JRC)
     
     lblStrippedLnx % full path to stripped lbl file for this train session
     lblStrippedName % short filename 
+    cmdfileLnx
+    cmdfileName
     errfileLnx 
     errfileName
     trainLogLnx
     trainLogName
+    viewName
     killTokenLnx
     killTokenName
     trainDataLnx    
-    trainFinalIndexLnx
-    trainFinalIndexName
+    trainFinalModelLnx
+    trainFinalModelName
+    trainCurrModelLnx
+    trainCurrModelName
+    aptRepoSnapshotLnx
+    aptRepoSnapshotName
+    
+    trainModelGlob
   end
   methods
     function v = get.dirProjLnx(obj)
@@ -45,6 +60,9 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.dirNetLnx(obj)
       v = [obj.rootDir '/' obj.projID '/' char(obj.netType)];
+    end
+    function v = get.viewName(obj)
+      v = sprintf('view_%d',obj.view(1));
     end
     function v = get.dirViewLnx(obj)
       v = [obj.rootDir '/' obj.projID '/' char(obj.netType) '/' sprintf('view_%d',obj.view)];
@@ -54,19 +72,35 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     end
     function v = get.dirTrkOutLnx(obj)
       v = [obj.rootDir '/' obj.projID '/' char(obj.netType) '/' sprintf('view_%d',obj.view) '/' obj.modelChainID '/' 'trk'];
-    end    
-    
+    end 
+    function v = get.dirAptRootLnx(obj)
+      v = [obj.rootDir '/APT'];
+    end 
     function v = get.lblStrippedLnx(obj)      
       v = [obj.dirProjLnx '/' obj.lblStrippedName];      
     end
     function v = get.lblStrippedName(obj)
       v = sprintf('%s_%s.lbl',obj.modelChainID,obj.trainID);
     end
+    function v = get.cmdfileLnx(obj)      
+      v = [obj.dirProjLnx '/' obj.cmdfileName];      
+    end
+    function v = get.cmdfileName(obj)
+      if obj.isMultiView
+        v = sprintf('%s_%s.cmd',obj.modelChainID,obj.trainID);
+      else
+        v = sprintf('%sview%d_%s.cmd',obj.modelChainID,obj.view,obj.trainID);
+      end
+    end    
     function v = get.errfileLnx(obj)      
       v = [obj.dirProjLnx '/' obj.errfileName];      
     end
     function v = get.errfileName(obj)
-      v = sprintf('%s_%s.err',obj.modelChainID,obj.trainID);
+      if obj.isMultiView,
+        v = sprintf('%s_%s.err',obj.modelChainID,obj.trainID);
+      else
+        v = sprintf('%sview%d_%s.err',obj.modelChainID,obj.view,obj.trainID);
+      end
     end
     function v = get.trainLogLnx(obj)
       v = [obj.dirProjLnx '/' obj.trainLogName];
@@ -74,13 +108,25 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     function v = get.trainLogName(obj)
       switch obj.trainType
         case DLTrainType.Restart
-          v = sprintf('%s_%s_%s%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+          if obj.isMultiView,
+            v = sprintf('%s_%s_%s%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+          else
+            v = sprintf('%sview%d_%s_%s%s.log',obj.modelChainID,obj.view,obj.trainID,lower(char(obj.trainType)),obj.restartTS);
+          end
         otherwise
-          v = sprintf('%s_%s_%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)));
+          if obj.isMultiView,
+            v = sprintf('%s_%s_%s.log',obj.modelChainID,obj.trainID,lower(char(obj.trainType)));
+          else
+            v = sprintf('%sview%d_%s_%s.log',obj.modelChainID,obj.view,obj.trainID,lower(char(obj.trainType)));
+          end
       end
     end    
     function v = get.killTokenLnx(obj)
-      v = [obj.dirModelChainLnx '/' obj.killTokenName];
+      if obj.isMultiView,
+        v = [obj.dirProjLnx '/' obj.killTokenName];
+      else
+        v = [obj.dirModelChainLnx '/' obj.killTokenName];
+      end
     end    
     function v = get.killTokenName(obj)
       switch obj.trainType
@@ -93,12 +139,42 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
     function v = get.trainDataLnx(obj)
       v = [obj.dirModelChainLnx '/traindata.json'];
     end
-    function v = get.trainFinalIndexLnx(obj)
-      v = [obj.dirModelChainLnx '/' obj.trainFinalIndexName];
+    function v = get.trainFinalModelLnx(obj)
+      v = [obj.dirModelChainLnx '/' obj.trainFinalModelName];
     end
-    function v = get.trainFinalIndexName(obj)
-      v = sprintf('deepnet-%d.index',obj.iterFinal);
+    function v = get.trainCurrModelLnx(obj)
+      v = [obj.dirModelChainLnx '/' obj.trainCurrModelName];
     end
+    function v = get.trainFinalModelName(obj)
+      switch obj.netType
+        case DLNetType.openpose
+          v = sprintf('deepnet-%d',obj.iterFinal);
+        otherwise
+          v = sprintf('deepnet-%d.index',obj.iterFinal);
+      end
+    end    
+    function v = get.trainCurrModelName(obj)
+      switch obj.netType
+        case DLNetType.openpose
+          v = sprintf('deepnet-%d',obj.iterCurr);
+        otherwise
+          v = sprintf('deepnet-%d.index',obj.iterCurr);
+      end
+    end
+    function v = get.trainModelGlob(obj)
+      switch obj.netType
+        case DLNetType.openpose
+          v = 'deepnet-*';
+        otherwise
+          v = 'deepnet-*.index';
+      end
+    end
+    function v = get.aptRepoSnapshotLnx(obj)
+      v = [obj.dirProjLnx '/' obj.aptRepoSnapshotName];
+    end
+    function v = get.aptRepoSnapshotName(obj)
+      v = sprintf('%s_%s.aptsnapshot',obj.modelChainID,obj.trainID);
+    end      
   end
   methods
     function obj = DeepModelChainOnDisk(varargin)
@@ -129,14 +205,89 @@ classdef DeepModelChainOnDisk < handle & matlab.mixin.Copyable
       % filesys paths/globs of important parts/stuff to keep
       
       g = { ...
-        [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID,obj.trainID)]; ... % lbl, err, logs
-        [obj.dirModelChainLnx '/' sprintf('%s*',obj.trainID)]; ... % toks
-        [obj.dirModelChainLnx '/' sprintf('deepnet-%d.*',obj.iterFinal)]; ... % final iter stuff
+        [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID,obj.trainID)]; ... % lbl
+        [obj.dirModelChainLnx '/' sprintf('%s*',obj.trainID)]; ... % toks, logs, errs
+        [obj.dirModelChainLnx '/' sprintf('deepnet-%d.*',obj.iterCurr)]; ... % latest iter 
         [obj.dirModelChainLnx '/' 'deepnet_ckpt']; ... 
         [obj.dirModelChainLnx '/' 'splitdata.json']; ...
         [obj.dirModelChainLnx '/' 'traindata*']; ...
         };
     end
+    
+    function tfSuccess = updateCurrInfo(obj,varargin)
+      [getMostRecentModelMeth,getMostRecentModelMethArgs] = ...
+        myparse(varargin,...
+        'getMostRecentModelMeth','getMostRecentModelLocalLnx',...
+        'getMostRecentModelMethArgs',{}...
+        );
+      
+      maxiter = feval(getMostRecentModelMeth,obj,getMostRecentModelMethArgs{:});
+      obj.iterCurr = maxiter;
+      tfSuccess = ~isnan(maxiter);
+    end
+    
+    function maxiter = getMostRecentModelLocalLnx(obj,varargin)
+      maxiter = nan;
+      %filepath = '';
+      
+      modelglob = obj.trainModelGlob;
+      modelfiles = mydir(fullfile(obj.dirModelChainLnx,modelglob));
+      if isempty(modelfiles),
+        return;
+      end
+      
+      maxiter = -1;
+      for i = 1:numel(modelfiles),
+        iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{i});
+        if iter > maxiter,
+          maxiter = iter;
+          %filepath = modelfiles{i};
+        end
+      end
+    end
+    
+    function maxiter = getMostRecentModelAWS(obj,aws)
+      % maxiter is nan if something bad happened or if DNE
+      
+      fspollargs = {'mostrecentmodel' obj.dirModelChainLnx};
+      [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
+      if tfsucc
+        maxiter = str2double(res{1}); % includes 'DNE'->nan
+      else
+        maxiter = nan;
+      end
+    end
+    
+    % if nLabels not set, try to read it from the stripped lbl file
+    function readNLabels(obj)
+      if ~isempty(obj.lblStrippedLnx)
+        s = load(obj.lblStrippedLnx,'preProcData_MD_frm','-mat');
+        obj.nLabels = size(s.preProcData_MD_frm,1);
+      end
+    end
+    
+    % whether training has actually started
+    function tf = isPartiallyTrained(obj)
+      
+      tf = ~isempty(obj.iterCurr);
+      
+    end
+       
+  end
+  
+  methods (Static)
+    
+    function iter = getModelFileIter(filename)
+      
+      iter = regexp(filename,'deepnet-(\d+)','once','tokens');
+      if isempty(iter),
+        iter = [];
+        return;
+      end
+      iter = str2double(iter{1});
+      
+    end
+    
   end
 end
     

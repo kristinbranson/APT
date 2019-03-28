@@ -168,6 +168,9 @@ classdef RegressorCascade < handle
           assert(strcmp(obj.ftrSpecs{iSpec}.type,obj.prmFtr.type));
         end
       end
+      
+      % 20190127
+      assert(~isfield(obj.prmTrainInit,'usetrxorientation'));
     end
     
     % Notes on shapes, views, coords
@@ -337,9 +340,11 @@ classdef RegressorCascade < handle
       % the most/more common shapes. However, we also jitter, so that may
       % be okay.
       
-      [initpGTNTrn,orientationThetas,loArgs] = myparse_nocheck(varargin,...
+      [initpGTNTrn,usetrxOrientation,orientationThetas,loArgs] = ...
+        myparse_nocheck(varargin,...
         'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
-        'orientationThetas',[]... % [N] vector of "externally" known orientations for animals. Required if prmRotCurr.use and prmTrainInit.usetrxorientation
+        'usetrxOrientation',false,... % if true, use orientationThetas to align shape initialization 
+        'orientationThetas',[]... % [N] vector of "externally" known orientations for animals. Required if usetrxOrientation==true and prmRotCurr.use 
         );
       
       starttime = tic;
@@ -352,14 +357,16 @@ classdef RegressorCascade < handle
         N = size(I.imoffs,1);
       end
 
-      if ~isempty(orientationThetas)
-        assert(isvector(orientationThetas) && numel(orientationThetas)==N);
-      end
-      
       model = obj.prmModel;
       prmTI = obj.prmTrainInit;
       Naug = prmTI.Naug;  
+      prmRotCorr = obj.prmReg.rotCorrection;
       
+      if usetrxOrientation
+        assert(prmRotCorr.use);
+        assert(isvector(orientationThetas) && numel(orientationThetas)==N);
+      end
+            
       if isfield(prmTI,'augUseFF')
         initUseFF = prmTI.augUseFF;
       else
@@ -368,7 +375,7 @@ classdef RegressorCascade < handle
       
       fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
         initpGTNTrn,initUseFF);
-      drawnow; %pause(5);
+      drawnow;
             
       if initpGTNTrn
         pNInitSet = obj.pGTNTrn;
@@ -379,9 +386,8 @@ classdef RegressorCascade < handle
       end
       % pNInitSet in normalized coords
       
-      prmRotCorr = obj.prmReg.rotCorrection;
       orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
-        prmTI.usetrxorientation,orientationThetas);      
+        usetrxOrientation,orientationThetas);      
       if orientation==ShapeAugOrientation.SPECIFIED
         % Check externally-supplied orientations against pGT
         
@@ -423,82 +429,53 @@ classdef RegressorCascade < handle
       obj.stats.time.init = toc(starttime);
       [pAll] = obj.train(I,bboxes,pGT,p0,pIidx,loArgs{:});
       
-      obj.stats.time.total = toc(starttime);
-      
+      obj.stats.time.total = toc(starttime);      
     end
-    
-    function [p0,p0info] = randInit(obj,bboxes,pGT,varargin)
-      % I: struct with the following fields:
-      %   Is: vector of all N x nView images strung out in order of rows, pixels, channels, image, view
-      %   imszs: [2 x N x nView] size of each image
-      %   imoffs: [N x nView] offset for indexing image (view,i) (image will
-      %     be from off(view,i)+1:off(view,i)+imszs(1,view,i)*imszs(2,view,i)
-      %   NOTE: Currently nView must equal 1.
+  end
+  methods (Static)    
+    function [p0,p0info] = randInitStc(bboxes,pGT,...
+                                       prmModel,prmTrainInit,prmReg,varargin)
       % bboxes: [Nx2*d]
       % pGT: [NxD] GT labels (absolute coords)
       %
-      % pAll: [(N*Naug)xDx(T+1)] propagated training shapes (absolute coords)
-      % pIidx: [N*Naug] indices into I labeling rows of pAll
+      % See trainWithRandInit.
       %
-      % Initialization notes. Two sets of shapes to draw from for
-      % initialization. If initpGTNTrn, use the set .pGTNTrn; otherwise,
-      % use pGT. Typically, initpGTNTrn would be used for incremental
-      % (re)trains, where .pGTNTrn is set and pGT is small/limited.
-      % Meanwhile, pGT would be used on first/fresh trains, where .pGTNTrn
-      % may not be populated and pGT is large.
+      % This is used by Parameter Viz to visualize CPR shape init. The idea
+      % is that this method reflects what will be done during training and
+      % pred.  
       %
-      % Note, for randomly-oriented targets, pGT (and .pGTNTrn as
-      % appropriate) will be randomly-oriented; rotCorrection had better be 
-      % on.
-      %
-      % In drawing from a set shape distribution, we are biasing towards
-      % the most/more common shapes. However, we also jitter, so that may
-      % be okay.
+      % TODO. refactor to make training and pred use this method.
       
-      [initpGTNTrn,orientationThetas,prm] = myparse(varargin,...
-        'initpGTNTrn',false,... % if true, init with .pGTNTrn rather than pGT
-        'orientationThetas',[],... % [N] vector of "externally" known orientations for animals. Required if prmRotCurr.use and prmTrainInit.usetrxorientation
-        'CPRParams',[]...
+      [usetrxOrientation,orientationThetas] = myparse(varargin,...
+        'usetrxOrientation',false,... % if true, use orientationThetas to align shape initialization 
+        'orientationThetas',[]... % [N] vector of "externally" known orientations for animals. Required if usetrxOrientation and prmRotCurr.use
         );
 
       N = size(pGT,1);
-      if ~isempty(orientationThetas)
+      Naug = prmTrainInit.Naug;  
+      prmRotCorr = prmReg.rotCorrection;
+
+      if usetrxOrientation
+        assert(prmRotCorr.use);
         assert(isvector(orientationThetas) && numel(orientationThetas)==N);
       end
       
-      model = obj.prmModel;
-      isCPRParams = ~isempty(prm);
-      if ~isCPRParams,
-        prmTI = obj.prmTrainInit;
-        prmReg = obj.prmReg; %#ok<PROPLC>
-      else
-        prmTI = prm.TrainInit;
-        prmReg = prm.Reg; %#ok<PROPLC>
-      end
-      Naug = prmTI.Naug;  
-      
-      if isfield(prmTI,'augUseFF')
-        initUseFF = prmTI.augUseFF;
+      if isfield(prmTrainInit,'augUseFF')
+        initUseFF = prmTrainInit.augUseFF;
       else
         initUseFF = false;
       end
       
-      fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
-        initpGTNTrn,initUseFF);
+%       fprintf('trainWithRandInit: initpGTNTrn=%d, initUseFF=%d\n',...
+%         initpGTNTrn,initUseFF);
       drawnow; %pause(5);
-            
-      if initpGTNTrn
-        pNInitSet = obj.pGTNTrn;
-        selfSample = false;
-      else % init from pGt
-        pNInitSet = shapeGt('projectPose',model,pGT,bboxes);
-        selfSample = true;
-      end
+ 
+      pNInitSet = shapeGt('projectPose',prmModel,pGT,bboxes);
+      selfSample = true;
       % pNInitSet in normalized coords
       
-      prmRotCorr = prmReg.rotCorrection; %#ok<PROPLC>
       orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
-        prmTI.usetrxorientation,orientationThetas);      
+        usetrxOrientation,orientationThetas);      
       if orientation==ShapeAugOrientation.SPECIFIED
         % Check externally-supplied orientations against pGT
         
@@ -519,22 +496,22 @@ classdef RegressorCascade < handle
         
         % Use the externally-specified orientations in any case
       end
-      [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
+      [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,prmModel,bboxes,...
         'pNRandomlyOriented',prmRotCorr.use,...
         'pAugOrientation',orientation,...
         'pAugOrientationTheta',orientationThetas,...
         'iHead',prmRotCorr.iPtHead,...
         'iTail',prmRotCorr.iPtTail,...
-        'ptJitter',prmTI.doptjitter,...
-        'ptJitterFac',prmTI.ptjitterfac,...
-        'bboxJitter',prmTI.doboxjitter,...
-        'bboxJitterfac',prmTI.augjitterfac,...
+        'ptJitter',prmTrainInit.doptjitter,...
+        'ptJitterFac',prmTrainInit.ptjitterfac,...
+        'bboxJitter',prmTrainInit.doboxjitter,...
+        'bboxJitterfac',prmTrainInit.augjitterfac,...
         'selfSample',selfSample,...
-        'furthestfirst',initUseFF);
-      
+        'furthestfirst',initUseFF);      
     end
-    
-    
+  end
+  
+  methods    
     %#3DOK
     function [pAll] = train(obj,I,bboxes,pGT,p0,pIidx,varargin)
       %
@@ -881,9 +858,10 @@ classdef RegressorCascade < handle
       % p0: initial shapes (absolute coords)
       % p0info: struct containing initial shape info
             
-      [wbObj,orientationThetas,loArgs] = myparse_nocheck(varargin,...
+      [wbObj,usetrxOrientation,orientationThetas,loArgs] = myparse_nocheck(varargin,...
         'wbObj',[],... %#ok<NASGU> % WaitBarWithCancel. If cancel, obj is unchanged, p_t partially filled, pIidx,p0,p0info appear 'correct'
-        'orientationThetas',[]...  % [N] vector of known orientations for animals, required if xxx
+        'usetrxOrientation',false,... % if true, use orientationThetas to align shape initialization 
+        'orientationThetas',[]...  % [N] vector of known orientations for animals, required if <see other *randInit meths>
         ); 
       
       isCellI = iscell(I);
@@ -896,7 +874,13 @@ classdef RegressorCascade < handle
         
       assert(nview==model.nviews);
       szassert(bboxes,[N 2*model.d]);
-      if ~isempty(orientationThetas)
+
+      Naug = prmTestInit.Nrep;
+      pNInitSet = obj.pGTNTrn;
+      prmRotCorr = obj.prmReg.rotCorrection;
+            
+      if usetrxOrientation
+        assert(prmRotCorr.use);
         assert(isvector(orientationThetas) && numel(orientationThetas)==N);
       end
       
@@ -908,11 +892,8 @@ classdef RegressorCascade < handle
       
       fprintf('propagateRandInit: useFF=%d\n',useFF);
       
-      Naug = prmTestInit.Nrep;
-      pNInitSet = obj.pGTNTrn;
-      prmRotCorr = obj.prmReg.rotCorrection;
       orientation = ShapeAugOrientation.createPerParams(prmRotCorr.use,...
-        prmTestInit.usetrxorientation,orientationThetas);
+        usetrxOrientation,orientationThetas);
       [p0,p0info] = Shape.randInitShapes(pNInitSet,Naug,model,bboxes,...
         'pNRandomlyOriented',prmRotCorr.use,...
         'pAugOrientation',orientation,...

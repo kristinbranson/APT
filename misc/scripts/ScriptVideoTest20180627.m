@@ -1,3 +1,4 @@
+hfig = figure(1234);
 %% make a video that just shows the frame number
 
 assert(exist('videotest','dir')>0);

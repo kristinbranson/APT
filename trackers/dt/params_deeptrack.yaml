@@ -7,19 +7,50 @@
 # - 6 - visualization function
 # - 7 - level - one of {'Important','Beginner','Advanced','Developer'}. All important features need to be reset for each project. Default values should work for all non-Important features, but better results could potentially be achieved by changing these. The rest of the parameters are split into those that often are helpful to adjust (Beginner), those that should be rarely adjusted (Intermediate), and those that only someone working with a developer should touch. This property is only used for leaf nodes. Level of non-leaf nodes is based on maximum level of children, with important being highest, developer being lowest. 
 # - 8 - requirements - some parameters will only be used in certain kinds of projects. list here keys for including these parameters. Non-leaf nodes included if any child node is included. 
+# - 9 - affectsTraining
 # * After the metadata comes a list of child nodes.
 # * As a shortcut, leaf nodes can contain the metadata directly as their value.
 
 ROOT:
   - ['','',false,DUMMY,'','']
   - DeepTrack:
-    - ['','',false,Deep track settings.,'','']
-    - CacheDir: ['Cache Dir',folder,true,'Directory for storing intermediate files','','','Important','isDeepTrack']
-    - save_step: ['Training model save steps',unsigned,true,'Number of steps after which to save the training models',5000,'','Advanced','isDeepTrack']
-    - save_td_step: ['Training data save steps',unsigned,true,'The training data will be saved every these many steps',100,'','Advanced','isDeepTrack']
-    - display_step: ['Display Step',unsigned,true,'Steps after which to compute and display training and validation loss and distance',50,'','Advanced','isDeepTrack']
-    - maxckpt: ['Number of models to save',unsigned,true,'Number of models to keep while training',30,'','Advanced','isDeepTrack']
+    - ['','',false,Deep learning parameters,'','']
+    - Saving:
+      - ['','',false,'Saving, display, and communication parameters','','']
+      - CacheDir: ['Cache Dir',folder,true,'Local directory for storing important files related to tracking. Manually deleting or renaming files in this directory may break your APT projects.','','','Important','isDeepTrack',false]
+      - save_step: ['Training tracker save interval',unsigned,true,'How often (number of iterations of gradient descent) to save intermediate trackers during training.',1000,'','Advanced','isDeepTrack',false]
+#      - save_td_step: ['Training error save interval',unsigned,true,'How often (number of iterations of gradient descient) to update the training error in the Training Monitor.',100,'','Developer','isDeepTrack',false]
+      - display_step: ['Training error interval',unsigned,true,'How often (number of iterations of gradient descient) to compute the training error.',50,'','Developer','isDeepTrack',false]
+      - maxckpt: ['Number of trackers to keep',unsigned,true,'Number of intermediate trackers during training to keep at once. ',5,'','Developer','isDeepTrack',false]
 #    - splitType: ['Type of split for validation',string,true,'Options: frame, movie, trx, predefined','predefined','','Advanced','isDeepTrack']
 #    - valratio: ['Amount of validation data',float,true,'Amount of data to keep aside for validation',0.3,'','Advanced','isDeepTrack']
-#    - op_affinity_graph: ['Skeleton for open pose',string,true,'Affinity map to be used for open-pose. Pair of points should be separated by space and each pair should be separated by comma. eg: 1 2, 3 2, 3 4','1 2, 2 3, 3 4','','Developer','isDeepTrack']  
-
+    - ImageProcessing:
+      - ['','',false,'Parameters related to initial processing of the input video data before any learning happens.','','','','']
+      - scale: ['Downsample factor',unsigned,true,'Downsample images by this factor. This will decrease the amount of memory needed on the GPU.',1,'','Beginner','isDeepTrack',true]
+      - adjustContrast: ['Histogram equalization',boolean,true,'Normalize image contrast using contrast limited adaptive histogram equalization (CLAHE).',0,'','Beginner','isDeepTrack',true]
+      - clahe_grid_size: ['Neighborhood size for histogram equalization',unsigned,true,'CLAHE normalizes contrast in local neighborhoods -- squares with this side length, in pixels.',20,'','Advanced','isDeepTrack',true]
+      - normalize: ['Brightness normalization',boolean,true,'Normalize images by subtracting the average pixel intensity in the image.',0,'','Beginner','isDeepTrack',true]
+      - flipud: ['Flip movie',boolean,true,'Whether to flip images upside down. ',0,'','Beginner','isDeepTrack',true]
+      - imax: ['Max pixel value',float,true,'Maximum pixel value in the video.',255.,'','Advanced','isDeepTrack',true]
+    - GradientDescent:
+      - ['','',false,'Parameters related to gradient-descent-based optimization of the tracker.','','','','']
+      - dl_steps: ['N. iterations of training',unsigned,true,'Number of iterations of gradient descent to train the tracker for. Longer training generally works better, but takes longer. ',60000,'','Beginner','isDeepTrack',true]
+      - batch_size: ['Training batch size',unsigned,true,'Number of training examples used in each iteration of gradient descent. Too large of values may cause the GPU to run out of memory. Too small of values may make training slower and result in poor optimization.',8,'','Advanced','isDeepTrack',true]
+      - cos_steps: ['N. warm restarts',unsigned,true,'Number of times to restart training',2,'','Advanced','isDeepTrack',true]
+      - decay_steps: ['Learning rate decay iterations',float,true,'The learning rate is decayed by gamma (below) after this many iterations of training.',25000,'','Advanced','isDeepTrack',true]
+      - gamma: ['Learning rate decay (gamma)',float,true,'Amount to decay the learning rate by after the number of decay iterations above.',0.1,'','Advanced','isDeepTrack',true]
+      - num_test: ['Number of test examples',unsigned,true,'Number of training examples to use to compute the training error.',24,'','Advanced','isDeepTrack']
+    - DataAugmentation:
+      - ['','',false,'To learn invariances to certain kinds of perturbations, training data can be augmented by randomly perturbing each image during training.','','','','']
+      - rrange: ['Rotate range',unsigned,true,'Augment by rotating training images and labels by a random angle less than this number of degrees.',5,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
+      - trange: ['Translation range',unsigned,true,'Augment by translating training images and labels by a random amounts in both x- and y- directions less than this number of pixels. ',10,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
+      - scale_range: ['Scale range',float,true,'Augment by adjusting image scale by a random amount between (1-this number) to (1+this number). 0 indicates no scale adjustment, 1 indicates scaling by a factor between 0 to 2',0.2,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
+      - crange: ['Contrast range',float,true,'Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment',0.3,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
+      - brange: ['Brightness range',float,true,'Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment.',0.2,'ParameterVisualizationPreproc#preproc1','Important','isDeepTrack',true]
+      - horz_flip: ['Flip horizontally',boolean,true,'Augment by flipping the training image and labels horizontally.',0,'ParameterVisualizationPreproc#preproc1','Advanced','isDeepTrack',true]
+      - vert_flip: ['Flip vertically',boolean,true,'Augment by flipping the training image ang labels vertically.',0,'ParameterVisualizationPreproc#preproc1','Advanced','isDeepTrack',true]
+      - perturb_color: ['Perturb color',boolean,true,'Augment by perturbing image color.',0,'ParameterVisualizationPreproc#preproc1','Advanced','isDeepTrack',true]
+      - check_bounds_distort: ['Check landmarks during augmentation',boolean,true,'Check that landmarks remain within the image during augmentation.',1,'','Advanced','isDeepTrack',true]
+    - LossFunction:
+      - ['','',false,'Parameters related to the deep-learning error criterion minimized.','','','','']
+      - label_blur_rad: ['Label uncertainty radius',float,true,'Standard deviation, in pixels, of the landmark location. In the label heatmap used for training, a Gaussian with this std-dev is placed at each landmark location.',3.,'','Advanced','isDeepTrack',true]

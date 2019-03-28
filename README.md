@@ -13,7 +13,7 @@ This program is free software: you can redistribute it and/or modify it under th
 * Windows, Linux, and Mac are all supported, but Windows and Linux get priority.
 * A recent checkout of [JAABA](https://github.com/kristinbranson/JAABA).
 * To enable tracking with Cascaded Pose Regression (CPR):
-  * MATLAB Image Processing and Stats toolboxes
+  * MATLAB Image Processing and Stats toolboxes. Parallel Computing Toolbox recommended.
   * A recent checkout of [Piotr Dollar's toolbox](https://github.com/pdollar/toolbox)
 * If you are working with multi-camera data, you may need calibration software for your rig, eg
   * [Caltech camera calibration toolbox](https://www.vision.caltech.edu/bouguetj/calib_doc/)

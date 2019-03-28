@@ -174,20 +174,27 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       deleteValidHandles(obj.hPtsTxt);
       deleteValidHandles(obj.labeler.labeledpos2_ptsH);
       deleteValidHandles(obj.labeler.labeledpos2_ptsTxtH);
+      deleteValidHandles(obj.hSkel);
       obj.hPts = gobjects(obj.nPts,1);
       obj.hPtsTxt = gobjects(obj.nPts,1);
+      obj.hSkel = gobjects(size(obj.skeletonEdges,1),1);
       obj.labeler.labeledpos2_ptsH = gobjects(obj.nPts,1);
       obj.labeler.labeledpos2_ptsTxtH = gobjects(obj.nPts,1);
       ppi = obj.ptsPlotInfo;
       %obj.hPtsColors = nan(obj.nPointSet,3);
       obj.hPtsTxtStrs = cell(obj.nPts,1);
       trkPrefs = obj.labeler.projPrefs.Track;
+            
       if ~isempty(trkPrefs)
         ppi2 = trkPrefs.PredictPointsPlot;
       else
         ppi2 = obj.ptsPlotInfo;
       end
       ppi2.FontSize = ppi.FontSize;
+      
+      obj.updateSkeletonEdges([],ppi);
+      obj.updateShowSkeleton();
+
       for iPt=1:obj.nPts
         iSet = obj.iPt2iSet(iPt);
         setClr = ppi.Colors(iSet,:);
@@ -276,6 +283,48 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       for iVw=1:obj.nView
         axis(obj.hAxOcc(iVw),[0 obj.nPointSet+1 0 2]);
       end
+      
+    end
+    
+    function edges = skeletonEdges(obj)
+      
+      se = obj.labeler.skeletonEdges;
+      nEdges = size(se,1);
+      edges = repmat(se,[obj.nView,1]);
+      for ivw = 1:obj.nView,
+        edges((ivw-1)*nEdges+1:ivw*nEdges,:) = reshape(obj.iSet2iPt(se(:),ivw),[nEdges,2]);
+      end
+      
+    end
+    
+    function updateSkeletonEdges(obj,ax,ptsPlotInfo)
+      
+      if isempty(obj.iSet2iPt) || isempty(obj.labeler.skeletonEdges),
+        return;
+      end
+
+      
+      if nargin < 2 || isempty(ax),
+        ax = obj.hAx;
+      end
+      if nargin < 3 || isempty(ptsPlotInfo),
+        ptsPlotInfo = obj.ptsPlotInfo;
+      end
+      
+      deleteValidHandles(obj.hSkel);
+      nEdgesPerView = size(obj.skeletonEdges,1)/obj.nView;
+      obj.hSkel = gobjects(size(obj.skeletonEdges,1),1);
+      for ivw = 1:obj.nView,
+        for i = 1:size(obj.labeler.skeletonEdges,1),
+          iEdge = (ivw-1)*nEdgesPerView+i;
+          %color = ptsPlotInfo.Colors(obj.labeler.skeletonEdgeColor(i),:);
+          color = [.7,.7,.7];
+          obj.hSkel(iEdge) = LabelCore.initSkeletonEdge(ax(ivw),iEdge,ptsPlotInfo,color);
+        end
+      end
+      xy = obj.getLabelCoords();
+      tfOccld = any(isinf(xy),2);
+      LabelCore.setSkelCoords(xy,tfOccld,obj.hSkel,obj.skeletonEdges);
       
     end
     

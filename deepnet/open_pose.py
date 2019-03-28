@@ -17,6 +17,7 @@ from keras.legacy import interfaces
 import sys
 import os
 import re
+import pickle
 import math
 import PoseTools
 import os
@@ -24,7 +25,7 @@ import  numpy as np
 import json
 import tensorflow as tf
 import keras.backend as K
-
+import logging
 
 # name = 'open_pose'
 
@@ -303,14 +304,26 @@ def get_testing_model(br1=38,br2=19):
 
 
 def create_affinity_labels(locs, imsz, graph):
+    """
+    Create/return part affinity fields
+
+    locs: (nbatch x npts x 2)
+    """
+
     n_out = len(graph)
     n_ex = locs.shape[0]
     out = np.zeros([n_ex,imsz[0],imsz[1],n_out*2])
+
     for cur in range(n_ex):
         for ndx, e in enumerate(graph):
-            start_x, start_y = locs[cur, e[0]-1, :]
-            end_x, end_y = locs[cur,e[1]-1,:]
+            start_x, start_y = locs[cur,e[0],:]
+            end_x, end_y = locs[cur,e[1],:]
             ll = np.sqrt( (start_x-end_x)**2 + (start_y-end_y)**2)
+
+            if ll==0:
+                # Can occur if start/end labels identical
+                # Don't update out/PAF
+                continue
 
             dx = (end_x - start_x)/ll/2
             dy = (end_y - start_y)/ll/2
@@ -326,13 +339,15 @@ def create_affinity_labels(locs, imsz, graph):
             # zz now has all the pixels that are along the line.
             zz = np.unique(zz,axis=1)
             # zz now has all the unique pixels that are along the line with thickness 1.
+            dx = (end_x - start_x) / ll
+            dy = (end_y - start_y) / ll
             for x,y in zz.T:
-                if x >= out.shape[2] or y>= out.shape[1]:
+                if x >= out.shape[2] or y >= out.shape[1]:
                     continue
-                out[cur,int(y),int(x),ndx*2] = (end_x-start_x)/ll
-                out[cur,int(y),int(x),ndx*2+1] = (end_y-start_y)/ll
+                out[cur,int(y),int(x),ndx*2] = dx
+                out[cur,int(y),int(x),ndx*2+1] = dy
 
-    return  out
+    return out
 
 def create_label_images(locs, imsz):
     n_out = locs.shape[1]
@@ -461,14 +476,34 @@ class DataIteratorTF(object):
 def set_openpose_defaults(conf):
     conf.label_blur_rad = 5
     conf.rrange = 5
-    conf.display_steps = 50 # this is same as batches per epoch
+    conf.display_step = 50 # this is same as batches per epoch
     conf.dl_steps = 600000
     conf.batch_size = 10
     conf.n_steps = 4.41
     conf.gamma = 0.333
 
 
+def massage_conf(conf):
+    assert conf.dl_steps >= conf.display_step, \
+        "Number of dl steps must be greater than or equal to the display step"
+    div,mod = divmod(conf.dl_steps,conf.display_step)
+    if mod != 0:
+        conf.dl_steps = (div+1) * conf.display_step
+        logging.info("Openpose requires the number of dl steps to be an even multiple of the display step. Increasing dl steps to {}".format(conf.dl_steps))
+
+    assert conf.save_step >= conf.display_step, \
+        "dl save step must be greater than or equal to the display step"
+    div,mod = divmod(conf.save_step,conf.display_step)
+    if mod != 0:
+        conf.save_step = (div+1) * conf.display_step
+        logging.info("Openpose requires the save step to be an even multiple of the display step. Increasing save step to {}".format(conf.save_step))
+
+
 def training(conf,name='deepnet'):
+
+    #AL 20190327 For now we massage on the App side so the App knows what to expect for
+    # training outputs
+    #massage_conf(conf)
 
     base_lr = 4e-5  # 2e-5
     momentum = 0.9
@@ -485,6 +520,11 @@ def training(conf,name='deepnet'):
 
     assert conf.dl_steps % iterations_per_epoch == 0, 'For open-pose dl steps must be a multiple of display steps'
     assert conf.save_step % iterations_per_epoch == 0, 'For open-pose save steps must be a multiple of display steps'
+
+    train_data_file = os.path.join(conf.cachedir, 'traindata')
+    with open(train_data_file, 'wb') as td_file:
+        pickle.dump(conf, td_file, protocol=2)
+    logging.info('Saved config to {}'.format(train_data_file))
 
     model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     model = get_training_model(weight_decay, br1=len(conf.op_affinity_graph) * 2, br2=conf.n_classes)
@@ -589,7 +629,7 @@ def training(conf,name='deepnet'):
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             print(p_str)
 
-            train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
+            train_data_file = os.path.join( self.config.cachedir, 'traindata')
 
             json_data = {}
             for x in self.train_info.keys():
@@ -598,7 +638,7 @@ def training(conf,name='deepnet'):
                 json.dump(json_data, json_file)
 
             if step % conf.save_step == 0:
-                model.save(os.path.join(conf.cachedir, name + '-{}'.format(step)))
+                model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(step))))
 
 
     # configure callbacks
@@ -618,7 +658,7 @@ def training(conf,name='deepnet'):
     # training
     model.fit_generator(train_di,
                         steps_per_epoch=conf.display_step,
-                        epochs=max_iter,
+                        epochs=max_iter-1,
                         callbacks=callbacks_list,
                         verbose=0,
                         # validation_data=val_di,
@@ -629,8 +669,8 @@ def training(conf,name='deepnet'):
                         )
 
     # force saving in case the max iter doesn't match the save step.
-    model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(max_iter)))
-    obs.on_epoch_end(max_iter)
+    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(max_iter*iterations_per_epoch))))
+    obs.on_epoch_end(max_iter-1)
 
 
 def get_pred_fn(conf, model_file=None,name='deepnet'):
