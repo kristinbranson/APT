@@ -2620,7 +2620,15 @@ classdef Labeler < handle
       % 20181101 movieInfo.readerobj (VideoReader) throwing warnings if
       % movs moved 
       for i=1:numel(s.movieInfoAll)
-        if isfield(s.movieInfoAll{i}.info,'readerobj') 
+        if isfield(s.movieInfoAll{i}.info,'readerobj')
+          % AL/SH XVid 20190328; Matlab apparent poor cleanup of
+          % VideoReader objs
+          rObj = s.movieInfoAll{i}.info.readerobj;
+          if isobject(rObj)
+            warningNoTrace('Deleting VideoReader obj with path %s/%s',...
+              rObj.Path,rObj.Name);
+            delete(rObj);
+          end
           s.movieInfoAll{i}.info = rmfield(s.movieInfoAll{i}.info,'readerobj');
         end
       end
