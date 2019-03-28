@@ -1,5 +1,21 @@
 # debug postprocessing
 import APT_interface as apt
+import numpy as np
+
+lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190207T121622_20190207T121731.lbl'
+conf = apt.create_conf(lbl_file,0,'20190207T121622','/home/mayank/temp/apt_cache','mdn')
+
+import multiResData
+A = multiResData.read_and_decode_without_session('/home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190207T121622/train_TF.tfrecords',conf,())
+ims = np.array(A[0])
+locs = np.array(A[1])
+import PoseTools
+reload(PoseTools)
+a,b = PoseTools.randomly_affine(ims[:10,...],locs[:10,...],conf)
+
+##
+# debug postprocessing
+import APT_interface as apt
 import RNN_postprocess
 
 lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190207T121622_20190207T121731.lbl'

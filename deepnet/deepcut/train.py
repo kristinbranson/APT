@@ -215,8 +215,8 @@ def train(cfg,name='deepnet'):
             train_info['val_dist'].append(dd.mean())
             train_info['train_dist'].append(dd.mean())
 
-        if it % cfg.save_td_step == 0:
             save_td(cfg, train_info)
+
         # Save snapshot
         if (it % cfg.save_step == 0 ) or it == max_iter:
             saver.save(sess, model_name, global_step=it,
