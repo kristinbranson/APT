@@ -304,14 +304,26 @@ def get_testing_model(br1=38,br2=19):
 
 
 def create_affinity_labels(locs, imsz, graph):
+    """
+    Create/return part affinity fields
+
+    locs: (nbatch x npts x 2)
+    """
+
     n_out = len(graph)
     n_ex = locs.shape[0]
     out = np.zeros([n_ex,imsz[0],imsz[1],n_out*2])
+
     for cur in range(n_ex):
         for ndx, e in enumerate(graph):
-            start_x, start_y = locs[cur, e[0]-1, :]
-            end_x, end_y = locs[cur,e[1]-1,:]
+            start_x, start_y = locs[cur,e[0],:]
+            end_x, end_y = locs[cur,e[1],:]
             ll = np.sqrt( (start_x-end_x)**2 + (start_y-end_y)**2)
+
+            if ll==0:
+                # Can occur if start/end labels identical
+                # Don't update out/PAF
+                continue
 
             dx = (end_x - start_x)/ll/2
             dy = (end_y - start_y)/ll/2
@@ -327,13 +339,15 @@ def create_affinity_labels(locs, imsz, graph):
             # zz now has all the pixels that are along the line.
             zz = np.unique(zz,axis=1)
             # zz now has all the unique pixels that are along the line with thickness 1.
+            dx = (end_x - start_x) / ll
+            dy = (end_y - start_y) / ll
             for x,y in zz.T:
-                if x >= out.shape[2] or y>= out.shape[1]:
+                if x >= out.shape[2] or y >= out.shape[1]:
                     continue
-                out[cur,int(y),int(x),ndx*2] = (end_x-start_x)/ll
-                out[cur,int(y),int(x),ndx*2+1] = (end_y-start_y)/ll
+                out[cur,int(y),int(x),ndx*2] = dx
+                out[cur,int(y),int(x),ndx*2+1] = dy
 
-    return  out
+    return out
 
 def create_label_images(locs, imsz):
     n_out = locs.shape[1]
