@@ -3,7 +3,7 @@
 
 
 import APT_interface as apt
-cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl -name apt_expt -cache /nrs/branson/mayank/apt_cache -conf_params batch_size 8  dlc_augment False  decay_steps 20000  save_step 5000  rrange 10  dl_steps 60000  trange 5  mdn_use_unet_loss True -train_name dlc_noaug train -skip_db -use_cache'
+cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl -name apt_expt -cache /nrs/branson/mayank/apt_cache -conf_params dlc_augment False  decay_steps 20000  save_step 5000  rrange 10  dl_steps 300000  trange 5  batch_size 8  mdn_use_unet_loss True  -type deeplabcut  -train_name dlc_noaug train -skip_db -use_cache'
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 apt.main(cmd.split())

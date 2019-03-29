@@ -18,7 +18,7 @@ lbl = h5py.File(lbl_file,'r')
 nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
 lbl.close()
 cache_dir = '/nrs/branson/mayank/apt_cache'
-all_models = ['leap','deeplabcut','mdn','unet','openpose']
+all_models = ['deeplabcut','mdn','unet','openpose']
 
 ## create dbs
 
@@ -27,11 +27,11 @@ for view in range(nviews):
         train_type = all_models[tndx]
         conf = apt.create_conf(lbl_file,view,'apt_expt',cache_dir,train_type)
         if train_type == 'deeplabcut':
-            apt.create_deepcut_db(conf,use_cache=True)
+            apt.create_deepcut_db(conf,split=False,use_cache=True)
         elif train_type == 'leap':
-            apt.create_leap_db(conf,use_cache=True)
+            apt.create_leap_db(conf,split=False,use_cache=True)
         else:
-            apt.create_tfrecord(conf,use_cache=True)
+            apt.create_tfrecord(conf,split=False,use_cache=True)
 
 
 ##
@@ -48,7 +48,7 @@ common_conf['decay_steps'] = 20000
 common_conf['save_step'] = 5000
 common_conf['batch_size'] = 8
 
-other_conf = [{'dlc_augment':True},{'dlc_augment':False}]
+other_conf = [{'dlc_augment':True},{'dlc_augment':False,'dl_steps':300000}]
 cmd_str = ['dlc_aug','dlc_noaug']
 
 
@@ -61,8 +61,8 @@ for view in range(nviews):
         cmd_opts = {}
         cmd_opts['type'] = train_type
         cmd_opts['train_name'] = cmd_str[conf_id]
-        conf_opts = other_conf[conf_id].copy()
-        conf_opts.update(common_conf)
+        conf_opts = common_conf.copy()
+        conf_opts.update(other_conf[conf_id])
 
         if len(conf_opts) > 0:
             conf_str = ' -conf_params'

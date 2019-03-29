@@ -1019,7 +1019,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model="None"):
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)
-    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "{}" -q {} "singularity exec --nv /misc/local/singularity/branson_v2.simg {}"' '''.format(
+    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "{}" -q {} "singularity exec --nv /misc/local/singularity/branson_cuda10_mayank.simg {}"' '''.format(
         sing_log, sing_err, gpu_str, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     subprocess.call(cmd, shell=True)
     print('Submitted jobs for {}'.format(name))
