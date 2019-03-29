@@ -89,12 +89,28 @@ apt.main(cmd.split())
 ##
 lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190131T181525_20190131T181623.lbl'
 import APT_interface as apt
+import easydict
+reload(apt)
 import os
-import tensorflow as tf
-import multiResData
-apt.test_preproc(lbl_file)
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+conf = apt.create_conf('/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl',0,'20190129T180959','/home/mayank/temp/apt_cache','leap')
+# conf.label_blur_rad = 5
+# apt.create_leap_db(conf,False,use_cache=True)
+args = easydict.EasyDict()
+args.use_cache = True
+args.skip_db = True
+args.train_name = 'deepnet'
+conf.op_affinity_graph = [[0,1],[1,2],[2,0]]
+apt.train_openpose(conf,args,False)
+
 ##
-lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl'
+cmd_str = '-name 20190129T180959 -view 1 -cache /home/mayank/temp/apt_cache  -conf_params  label_blur_rad 7 dl_steps 5000 leap_use_default_lr False -train_name decay_lr -type leap /home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl train -use_cache -skip_db'
+
+import APT_interface as apt
+apt.main(cmd_str.split())
+
+##
+# debug postprocessing
 import APT_interface as apt
 import os
 import tensorflow as tf

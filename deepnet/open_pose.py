@@ -388,7 +388,7 @@ class DataIteratorTF(object):
         if self.iterator:
             self.iterator.close()
         self.iterator = tf.python_io.tf_record_iterator(self.file)
-        print('========= Resetting ==========')
+        # print('========= Resetting ==========')
 
 
     def read_next(self):
@@ -511,7 +511,7 @@ def training(conf,name='deepnet'):
     lr_policy = "step"
     batch_size = conf.batch_size
     gamma = conf.gamma
-    stepsize = int(float(conf.dl_steps)/conf.n_steps)
+    stepsize = int(conf.decay_steps)
     # stepsize = 68053  # 136106 #   // after each stepsize iterations update learning rate: lr=lr*gamma
     iterations_per_epoch = conf.display_step
     max_iter = conf.dl_steps/iterations_per_epoch

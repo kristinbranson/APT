@@ -332,7 +332,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     net_name = conf.leap_net_name
 
     box_dset="box"
-    confmap_dset="confmaps"
+    confmap_dset="joints" #"confmaps" work with locs rather than heatmaps.
     filters=64
     reduce_lr_factor=0.1
     reduce_lr_patience=3
@@ -352,8 +352,11 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
         val_confmap = confmap
 
     # Pull out metadata
-    img_size = box.shape[1:]
-    num_output_channels = confmap.shape[-1]
+    img_size = np.array(box.shape[1:])
+    img_size[0] = img_size[0]//conf.rescale
+    img_size[1] = img_size[1]//conf.rescale
+
+    num_output_channels = conf.n_classes
 
     # Create network
     model = create_model(net_name, img_size, num_output_channels, filters=filters, amsgrad=amsgrad, upsampling_layers=upsampling_layers, summary=True)
@@ -361,7 +364,6 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
         print("Could not find model:", net_name)
         return
 
-    model_file = os.path.join(conf.cachedir, conf.expname + '_' + name + '-{epoch:d}')
     # Initialize run
     run_path = base_output_path
     savemat(os.path.join(base_output_path, "training_info.mat"),
@@ -380,30 +382,31 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     # Data generators/augmentation
     input_layers = model.input_names
     output_layers = model.output_names
-    srange = [1 - conf.scale_range, 1 + conf.scale_range]
     if len(input_layers) > 1 or len(output_layers) > 1:
-        train_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
-        val_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
+        train_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, box, confmap, conf, shuffle=True)
+        val_datagen = MultiInputOutputPairedImageAugmenter(input_layers, output_layers, val_box, val_confmap, conf, shuffle=True)
     else:
-        train_datagen = PairedImageAugmenter(box, confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
-        val_datagen = PairedImageAugmenter(val_box, val_confmap, batch_size=batch_size, shuffle=True, theta=(-rotate_angle, rotate_angle), scale=srange)
+        train_datagen = PairedImageAugmenter(box, confmap, conf, shuffle=True)
+        val_datagen = PairedImageAugmenter(val_box, val_confmap, conf,shuffle=True)
 
     base_lr = 4e-5  # 2e-5
     momentum = 0.9
     weight_decay = 5e-4
     lr_policy = "step"
-    gamma = 0.333
-    step_size = 6000 # 136106 #   // after each stepsize iterations update learning rate: lr=lr*gamma
+    gamma = conf.gamma          #0.333
+    step_size = conf.decay_steps # 6000 # 136106 #   // after each stepsize iterations update learning rate: lr=lr*gamma
 
     def step_decay(epoch):
         initial_lrate = base_lr
         steps = epoch * batches_per_epoch
         lrate = initial_lrate * math.pow(gamma, math.floor(steps / step_size))
         return lrate
-    lrate = LearningRateScheduler(step_decay)
 
-    # Initialize training callbacks
-    reduce_lr_callback = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor,
+    if not conf.get('leap_use_default_lr',False):
+        lrate = LearningRateScheduler(step_decay)
+    else:
+        # Initialize training callbacks
+        lrate = ReduceLROnPlateau(monitor="val_loss", factor=reduce_lr_factor,
                                           patience=reduce_lr_patience, verbose=1, mode="auto",
                                           epsilon=reduce_lr_min_delta, cooldown=reduce_lr_cooldown,
                                           min_lr=reduce_lr_min_lr)
@@ -488,8 +491,8 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
             validation_data=val_datagen,
             validation_steps=val_batches_per_epoch,
             callbacks = [
-                reduce_lr_callback,
-                # lrate,
+                # reduce_lr_callback,
+                lrate,
                 # checkpointer,
                 obs
             ]
@@ -500,7 +503,8 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     print("Total runtime: %.1f mins" % (elapsed_train / 60))
 
     # Save final model
-    model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
+    model.save(os.path.join(conf.cachedir, name + '-{}'.format(conf.dl_steps)))
+    # model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
     obs.on_epoch_end(epochs)
 
 

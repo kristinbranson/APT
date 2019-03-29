@@ -704,7 +704,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
         cap.close()  # close the movie handles
         logging.info('Done %d of %d movies, train count:%d val count:%d' % (ndx + 1, len(local_dirs), count, val_count))
 
-    logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
+    logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
     lbl.close()
     return splits
 
@@ -860,9 +860,9 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
             splits[0].append(info)
 
         if selndx % 100 == 99 and selndx > 0:
-            logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
+            logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
 
-    logging.info('%d,%d number of pos examples added to the db and valdb' % (count, val_count))
+    logging.info('%d,%d number of examples added to the training db and val db' % (count, val_count))
     lbl.close()
 
     return splits,sel
@@ -904,12 +904,12 @@ def create_leap_db(conf, split=False, split_file=None, use_cache=False):
         ims = np.array([i[0] for i in cur_data])
         locs = np.array([i[1] for i in cur_data])
         info = np.array([i[2] for i in cur_data])
-        hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, conf.label_blur_rad)
-        hmaps = (hmaps + 1) / 2  # brings it back to [0,1]
+        # hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, conf.label_blur_rad)
+        # hmaps = (hmaps + 1) / 2  # brings it back to [0,1]
 
         hf = h5py.File(out_file, 'w')
         hf.create_dataset('box', data=ims)
-        hf.create_dataset('confmaps', data=hmaps)
+        # hf.create_dataset('confmaps', data=hmaps)
         hf.create_dataset('joints', data=locs)
         hf.create_dataset('exptID', data=info[:, 0])
         hf.create_dataset('framesIdx', data=info[:, 1])

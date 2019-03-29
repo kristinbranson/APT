@@ -58,7 +58,7 @@ def load_dataset(data_path, X_dset="box", Y_dset="confmaps", permute=(0,3,2,1)):
     # Adjust dimensions
     t0 = time()
     X = preprocess(X, permute)
-    Y = preprocess(Y, permute)
+    # Y = preprocess(Y, permute)
     print("Permuted and normalized data. [%.1fs]" % (time() - t0))
     
     return X, Y
@@ -74,8 +74,8 @@ def preprocess(X, permute=(0,3,2,1)):
     X = np.transpose(X, permute)
     
     # Normalize
-    if X.dtype == "uint8":
-        X = X.astype("float32") / 255
+    # if X.dtype == "uint8":
+    #     X = X.astype("float32") / 255
 
     newY = int(np.ceil(float(X.shape[1])/32)*32)
     newX = int(np.ceil(float(X.shape[2])/32)*32)
