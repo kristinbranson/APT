@@ -1466,7 +1466,9 @@ handles = lObj.gdata;
 cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
 EnableControls(handles,'projectloaded');
 % update tracker info when loading in new trackers
-lObj.tracker.updateTrackerInfo();
+if ~isempty(lObj.tracker)
+  lObj.tracker.updateTrackerInfo();
+end
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])
