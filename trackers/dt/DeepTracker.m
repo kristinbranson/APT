@@ -183,7 +183,7 @@ classdef DeepTracker < LabelTracker
   %% Params
   methods
     function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
-        didParamsChange(obj,sPrmAll)
+        didParamsChange(obj,sPrmAll) % obj const
       
       tfDiffEmptiness = xor(isempty(obj.sPrmAll),isempty(sPrmAll));
       tfCommonChanged = tfDiffEmptiness || ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
@@ -196,7 +196,7 @@ classdef DeepTracker < LabelTracker
       tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
     end
     
-    function sPrmAll = massageParamsIfNec(obj,sPrmAll)
+    function sPrmAll = massageParamsIfNec(obj,sPrmAll,varargin)
       % net-specific parameter treatments
       % Openpose currently requires particular constraints between
       % parameters that are not required for other DL trackers. Current
@@ -212,6 +212,10 @@ classdef DeepTracker < LabelTracker
       % parameters that differ (typically v slightly) from the "main"
       % params. This may be noted in the trackerInfoString.
       
+      [throwwarnings] = myparse(varargin,...
+        'throwwarnings',true...
+        );
+      
       switch obj.trnNetType
         case DLNetType.openpose
           dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
@@ -220,22 +224,30 @@ classdef DeepTracker < LabelTracker
           
           if dl_steps < display_step
             dl_steps = display_step;
-            warningNoTrace('Openpose requires the number of DL steps to be greater than or equal to the display step. Updating to %d DL steps.',dl_steps);
+            if throwwarnings
+              warningNoTrace('Openpose requires the number of DL steps to be greater than or equal to the display step. Updating to %d DL steps.',dl_steps);
+            end
           end
           
           if mod(dl_steps,display_step)~=0
             dl_steps = ceil(dl_steps/display_step)*display_step;
-            warningNoTrace('Openpose requires the number of DL steps to be an even multiple of the display step. Increasing DL steps to %d.',dl_steps);
+            if throwwarnings
+              warningNoTrace('Openpose requires the number of DL steps to be an even multiple of the display step. Increasing DL steps to %d.',dl_steps);
+            end
           end
           
           if save_step < display_step
             save_step = display_step;
-            warningNoTrace('Openpose requires the DL save step to be greater than or equal to display step. Updating the DL save step to %d.',save_step);
+            if throwwarnings
+              warningNoTrace('Openpose requires the DL save step to be greater than or equal to display step. Updating the DL save step to %d.',save_step);
+            end
           end
           
           if mod(save_step,display_step)~=0
             save_step = ceil(save_step/display_step)*display_step;
-            warningNoTrace('Openpose requires the DL save step to be an even multiple of the display step. Increasing the DL save step to %d.',save_step);
+            if throwwarnings
+              warningNoTrace('Openpose requires the DL save step to be an even multiple of the display step. Increasing the DL save step to %d.',save_step);
+            end
           end
           
           sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
@@ -816,7 +828,7 @@ classdef DeepTracker < LabelTracker
         infos{end+1} = sprintf('New labels since training: %s',s);
         
         sPrmAllLabeler = obj.lObj.trackGetParams();
-        sPrmAllAsSet = obj.massageParamsIfNec(sPrmAllLabeler);
+        sPrmAllAsSet = obj.massageParamsIfNec(sPrmAllLabeler,'throwwarnings',false);
         args = {'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true};
         
         isParamChange = ~APTParameters.isEqualFilteredStructProperties(...
@@ -1773,15 +1785,16 @@ classdef DeepTracker < LabelTracker
       isexternal = iscell(tblMFT);
       
       sPrmLabeler = obj.lObj.trackGetParams();
+      sPrmSet = obj.massageParamsIfNec(sPrmLabeler);
       [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
-          obj.didParamsChange(sPrmLabeler);
+          obj.didParamsChange(sPrmSet);
       if tfCommonChanged || tfPreProcChanged || tfSpecificChanged
         warningNoTrace('Deep Learning parameters have changed since your last retrain.');
         % Keep it simple for now. Note training might be in progress but
         % even if not etc.
       end
       
-      obj.setPostProcParams(sPrmLabeler);
+      obj.setPostProcParams(sPrmSet);
       % Specifically allow/support case where tfPostProcChanged is true
       % to enable turning off/on postproc or trying diff pp algos with a 
       % given trained tracker   
@@ -3197,7 +3210,7 @@ classdef DeepTracker < LabelTracker
         '/scratch'};      
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
-        'singimg','/misc/local/singularity/branson_v2.simg');
+        'singimg','/misc/local/singularity/branson_cuda10_mayank.simg');
       
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});

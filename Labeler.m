@@ -55,7 +55,7 @@ classdef Labeler < handle
     % before loading class
     NEIGHBORING_FRAME_OFFSETS;
   end
-  properties (Constant,Hidden)    
+  properties (Constant,Hidden)
     PROPS_GTSHARED = struct('reg',...
       struct('MFA','movieFilesAll',...
              'MFAF','movieFilesAllFull',...
@@ -12433,8 +12433,11 @@ classdef Labeler < handle
       end
       
     end
-
-
+    
+    function raiseAllFigs(obj)
+      h = obj.gdata.figs_all;
+      arrayfun(@figure,h);
+    end
     
   end
   
