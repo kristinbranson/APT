@@ -328,7 +328,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     val_batches_per_epoch=10
     assert conf.save_step % conf.display_step == 0, 'For leap, save steps must be divisible by display steps'
     save_step = conf.save_step/conf.display_step
-    base_output_path = conf.cachedir
+    base_output_path = str(conf.cachedir)
     net_name = conf.leap_net_name
 
     box_dset="box"
@@ -471,7 +471,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
                 json.dump(json_data, json_file)
 
             if step % conf.save_step == 0:
-                model.save(os.path.join(conf.cachedir,name + '-{}'.format(step)))
+                model.save(os.path.join(run_path,name + '-{}'.format(step)))
 
     obs = OutputObserver(conf,[train_datagen,val_datagen])
 
@@ -503,7 +503,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     print("Total runtime: %.1f mins" % (elapsed_train / 60))
 
     # Save final model
-    model.save(os.path.join(conf.cachedir, name + '-{}'.format(conf.dl_steps)))
+    model.save(os.path.join(run_path, name + '-{}'.format(conf.dl_steps)))
     # model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
     obs.on_epoch_end(epochs)
 

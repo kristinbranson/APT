@@ -99,8 +99,11 @@ class PairedImageAugmenter(Sequence):
         all_idx = np.arange(self.num_samples)
         if shuffle:
             np.random.shuffle(all_idx)
-        
-        self.batches = np.array_split(all_idx, np.ceil(self.num_samples / self.batch_size))
+
+        if self.num_samples < self.batch_size:
+            self.batches = [all_idx]
+        else:
+            self.batches = np.array_split(all_idx, np.ceil(self.num_samples / self.batch_size))
         
     def __len__(self):
         return len(self.batches)

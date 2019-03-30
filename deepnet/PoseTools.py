@@ -1006,6 +1006,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model="None"):
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')
     sing_err = os.path.join(dir, 'opt_' + name + '.err')
     sing_log = os.path.join(dir, 'opt_' + name + '.log')
+    bsub_script = os.path.join(dir, 'opt_' + name + '_bsub.sh')
     with open(sing_script, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('bjobs -uall -m `hostname -s`\n')
@@ -1021,6 +1022,10 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model="None"):
         gpu_str += ":gmodel={}".format(gpu_model)
     cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "{}" -q {} "singularity exec --nv /misc/local/singularity/branson_cuda10_mayank.simg {}"' '''.format(
         sing_log, sing_err, gpu_str, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    with open(bsub_script,'w') as f:
+        f.write(cmd)
+        f.write('\n')
+
     subprocess.call(cmd, shell=True)
     print('Submitted jobs for {}'.format(name))
     print(cmd)
