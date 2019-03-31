@@ -6,13 +6,10 @@
   <component name="ChangeListManager">
     <list default="true" id="246839a5-f858-49eb-9ddb-099c468dd174" name="Default" comment="Generic commit">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/APT_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/APT_interface.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/PoseTools.py" beforeDir="false" afterPath="$PROJECT_DIR$/PoseTools.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/debug_apt_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug_apt_interface.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/deepcut/nnet/pose_net.py" beforeDir="false" afterPath="$PROJECT_DIR$/deepcut/nnet/pose_net.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/deepcut/pose_net.py" beforeDir="false" afterPath="$PROJECT_DIR$/deepcut/pose_net.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/leap/image_augmentation.py" beforeDir="false" afterPath="$PROJECT_DIR$/leap/image_augmentation.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/leap/training.py" beforeDir="false" afterPath="$PROJECT_DIR$/leap/training.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/deepcut/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/deepcut/train.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multiResData.py" beforeDir="false" afterPath="$PROJECT_DIR$/multiResData.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/run_apt_expts.py" beforeDir="false" afterPath="$PROJECT_DIR$/run_apt_expts.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -40,25 +37,25 @@
     <session id="-2040890201">
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="Python Console" value="1902" />
-          <entry key="py" value="5066" />
+          <entry key="Python Console" value="3107" />
+          <entry key="py" value="5864" />
           <entry key="txt" value="32" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
           <entry key="PLAIN_TEXT" value="32" />
-          <entry key="Python" value="6968" />
+          <entry key="Python" value="8971" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
         <counts>
-          <entry key="py" value="47" />
+          <entry key="py" value="69" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.open">
         <counts>
-          <entry key="Python" value="47" />
+          <entry key="Python" value="69" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.vcs.git.usages">
@@ -82,25 +79,20 @@
     <splitter split-orientation="horizontal" split-proportion="0.5">
       <split-first>
         <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-          <file pinned="false" current-in-tab="false">
-            <entry file="file://$PROJECT_DIR$/deepcut/nnet/pose_net.py">
+          <file pinned="false" current-in-tab="true">
+            <entry file="file://$PROJECT_DIR$/run_apt_expts.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="378">
-                  <caret line="21" column="56" selection-start-line="21" selection-start-column="56" selection-end-line="21" selection-end-column="56" />
+                <state relative-caret-position="650">
+                  <caret line="100" column="17" selection-start-line="100" selection-start-column="17" selection-end-line="100" selection-end-column="17" />
                 </state>
               </provider>
             </entry>
           </file>
           <file pinned="false" current-in-tab="false">
-            <entry file="file://$PROJECT_DIR$/run_apt_expts.py">
+            <entry file="file://$PROJECT_DIR$/leap/training.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="128">
-                  <caret line="288" column="13" selection-start-line="288" selection-start-column="13" selection-end-line="288" selection-end-column="13" />
-                  <folding>
-                    <marker date="1553970910168" expanded="true" signature="1284:2607" ph="..." />
-                    <marker date="1553970910168" expanded="true" signature="1502:1568" ph="..." />
-                    <marker date="1553970910168" expanded="true" signature="1632:2607" ph="..." />
-                  </folding>
+                <state relative-caret-position="4269">
+                  <caret line="505" column="36" selection-start-line="505" selection-start-column="36" selection-end-line="505" selection-end-column="36" />
                 </state>
               </provider>
             </entry>
@@ -109,7 +101,7 @@
             <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
               <provider selected="true" editor-type-id="text-editor">
                 <state relative-caret-position="162">
-                  <caret line="9" selection-start-line="9" selection-end-line="9" />
+                  <caret line="5" column="40" lean-forward="true" selection-start-line="5" selection-start-column="40" selection-end-line="5" selection-end-column="40" />
                 </state>
               </provider>
             </entry>
@@ -117,17 +109,26 @@
           <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/PoseTools.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="2882">
-                  <caret line="1027" selection-start-line="1027" selection-end-line="1027" />
+                <state relative-caret-position="2774">
+                  <caret line="1000" column="33" selection-start-line="1000" selection-start-column="33" selection-end-line="1000" selection-end-column="33" />
                 </state>
               </provider>
             </entry>
           </file>
-          <file pinned="false" current-in-tab="true">
+          <file pinned="false" current-in-tab="false">
+            <entry file="file://$PROJECT_DIR$/PoseCommon_dataset.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="600">
+                  <caret line="572" selection-start-line="572" selection-end-line="572" />
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/deepcut/train.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="3402">
-                  <caret line="187" column="19" selection-start-line="187" selection-start-column="19" selection-end-line="187" selection-end-column="19" />
+                <state relative-caret-position="1154">
+                  <caret line="274" lean-forward="true" selection-start-line="274" selection-end-line="274" />
                 </state>
               </provider>
             </entry>
@@ -145,20 +146,38 @@
               </provider>
             </entry>
           </file>
-          <file pinned="false" current-in-tab="true">
+          <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/APT_interface.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="168">
-                  <caret line="874" lean-forward="true" selection-start-line="874" selection-end-line="874" />
+                <state relative-caret-position="294">
+                  <caret line="1717" lean-forward="true" selection-start-line="1717" selection-end-line="1717" />
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="true">
+            <entry file="file://$PROJECT_DIR$/multiResData.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="400">
+                  <caret line="1070" column="38" selection-start-line="1070" selection-start-column="38" selection-end-line="1070" selection-end-column="38" />
                 </state>
               </provider>
             </entry>
           </file>
           <file pinned="false" current-in-tab="false">
-            <entry file="file://$PROJECT_DIR$/multiResData.py">
+            <entry file="file://$PROJECT_DIR$/apt_expts.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="8910">
-                  <caret line="495" selection-start-line="495" selection-end-line="495" />
+                <state relative-caret-position="1154">
+                  <caret line="424" column="23" selection-start-line="424" selection-start-column="23" selection-end-line="424" selection-end-column="23" />
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="false">
+            <entry file="file://$PROJECT_DIR$/PoseUNet_resnet.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="450">
+                  <caret line="611" column="38" selection-start-line="611" selection-start-column="38" selection-end-line="611" selection-end-column="38" />
                 </state>
               </provider>
             </entry>
@@ -249,7 +268,7 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$/.." value="feature/deeptrackPreProcCache" />
+        <entry key="$PROJECT_DIR$/.." value="develop" />
       </map>
     </option>
   </component>
@@ -270,7 +289,6 @@
         <option value="$PROJECT_DIR$/setup_apt_expts.py" />
         <option value="$PROJECT_DIR$/deepcut/nnet/net_factory.py" />
         <option value="$PROJECT_DIR$/deepcut/default_config.py" />
-        <option value="$PROJECT_DIR$/deepcut/train.py" />
         <option value="$PROJECT_DIR$/open_pose.py" />
         <option value="$PROJECT_DIR$/cross_prediction.py" />
         <option value="$PROJECT_DIR$/ScriptPlotResults.py" />
@@ -285,7 +303,6 @@
         <option value="$PROJECT_DIR$/transformer/hbconfig/posenet.yml" />
         <option value="$PROJECT_DIR$/APT_interface_mdn.py" />
         <option value="$PROJECT_DIR$/cvc.py" />
-        <option value="$PROJECT_DIR$/multiResData.py" />
         <option value="$PROJECT_DIR$/RNN_postprocess.py" />
         <option value="$PROJECT_DIR$/Script_MDN_confidence.py" />
         <option value="$PROJECT_DIR$/PoseUNet.py" />
@@ -301,11 +318,13 @@
         <option value="$PROJECT_DIR$/PoseUNet_resnet.py" />
         <option value="$PROJECT_DIR$/deepcut/pose_net.py" />
         <option value="$PROJECT_DIR$/deepcut/nnet/pose_net.py" />
-        <option value="$PROJECT_DIR$/leap/training.py" />
         <option value="$PROJECT_DIR$/APT_interface.py" />
-        <option value="$PROJECT_DIR$/debug_apt_interface.py" />
         <option value="$PROJECT_DIR$/leap/image_augmentation.py" />
+        <option value="$PROJECT_DIR$/deepcut/train.py" />
+        <option value="$PROJECT_DIR$/leap/training.py" />
         <option value="$PROJECT_DIR$/PoseTools.py" />
+        <option value="$PROJECT_DIR$/debug_apt_interface.py" />
+        <option value="$PROJECT_DIR$/multiResData.py" />
         <option value="$PROJECT_DIR$/run_apt_expts.py" />
       </list>
     </option>
@@ -348,7 +367,25 @@
     <navigator proportions="" version="1">
       <foldersAlwaysOnTop value="true" />
     </navigator>
-    <panes />
+    <panes>
+      <pane id="Scope" />
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="deepnet" type="b2602c69:ProjectViewProjectNode" />
+              <item name="deepnet" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="deepnet" type="b2602c69:ProjectViewProjectNode" />
+              <item name="deepnet" type="462c0819:PsiDirectoryNode" />
+              <item name="notebooks" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
+      </pane>
+    </panes>
   </component>
   <component name="PropertiesComponent">
     <property name="Git.Branch.Popup.ShowAllRemotes" value="true" />
@@ -1163,6 +1200,7 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="VcsManagerConfiguration">
+    <option name="RELOAD_CONTEXT" value="false" />
     <ignored-roots>
       <path value="$PROJECT_DIR$" />
     </ignored-roots>
@@ -1466,13 +1504,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/PoseUNet_resnet.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4590">
-          <caret line="255" column="20" selection-start-line="255" selection-start-column="20" selection-end-line="255" selection-end-column="20" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/PoseUNet.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="11898">
@@ -1522,24 +1553,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/PoseCommon_dataset.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="129">
-          <caret line="315" lean-forward="true" selection-start-line="315" selection-end-line="315" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/PoseUMDN_dataset.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="612">
           <caret line="100" lean-forward="true" selection-start-line="100" selection-end-line="100" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/apt_expts.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="74">
-          <caret line="354" column="54" selection-start-line="354" selection-start-column="54" selection-end-line="354" selection-end-column="54" />
         </state>
       </provider>
     </entry>
@@ -1557,34 +1574,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/deepcut/nnet/pose_net.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="378">
-          <caret line="21" column="56" selection-start-line="21" selection-start-column="56" selection-end-line="21" selection-end-column="56" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="162">
-          <caret line="9" selection-start-line="9" selection-end-line="9" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/poseConfig.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="774">
-          <caret line="43" selection-start-line="43" selection-end-line="43" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/multiResData.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="8910">
-          <caret line="495" selection-start-line="495" selection-end-line="495" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$APPLICATION_HOME_DIR$/helpers/pydev/pydevd.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="446">
@@ -1599,43 +1588,87 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/run_apt_expts.py">
+    <entry file="file://$PROJECT_DIR$/poseConfig.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="128">
-          <caret line="288" column="13" selection-start-line="288" selection-start-column="13" selection-end-line="288" selection-end-column="13" />
-          <folding>
-            <marker date="1553970910168" expanded="true" signature="1284:2607" ph="..." />
-            <marker date="1553970910168" expanded="true" signature="1502:1568" ph="..." />
-            <marker date="1553970910168" expanded="true" signature="1632:2607" ph="..." />
-          </folding>
+        <state relative-caret-position="774">
+          <caret line="43" selection-start-line="43" selection-end-line="43" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/leap/training.py">
+    <entry file="file://$PROJECT_DIR$/apt_expts.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="759">
-          <caret line="505" column="36" selection-start-line="505" selection-start-column="36" selection-end-line="505" selection-end-column="36" />
+        <state relative-caret-position="1154">
+          <caret line="424" column="23" selection-start-line="424" selection-start-column="23" selection-end-line="424" selection-end-column="23" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/PoseTools.py">
+    <entry file="file://$PROJECT_DIR$/deepcut/nnet/pose_net.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2882">
-          <caret line="1027" selection-start-line="1027" selection-end-line="1027" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/deepcut/train.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="3402">
-          <caret line="187" column="19" selection-start-line="187" selection-start-column="19" selection-end-line="187" selection-end-column="19" />
+        <state relative-caret-position="378">
+          <caret line="21" column="56" selection-start-line="21" selection-start-column="56" selection-end-line="21" selection-end-column="56" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/APT_interface.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="168">
-          <caret line="874" lean-forward="true" selection-start-line="874" selection-end-line="874" />
+        <state relative-caret-position="294">
+          <caret line="1717" lean-forward="true" selection-start-line="1717" selection-end-line="1717" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/leap/training.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="4269">
+          <caret line="505" column="36" selection-start-line="505" selection-start-column="36" selection-end-line="505" selection-end-column="36" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/deepcut/train.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1154">
+          <caret line="274" lean-forward="true" selection-start-line="274" selection-end-line="274" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/PoseTools.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2774">
+          <caret line="1000" column="33" selection-start-line="1000" selection-start-column="33" selection-end-line="1000" selection-end-column="33" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/PoseUNet_resnet.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="450">
+          <caret line="611" column="38" selection-start-line="611" selection-start-column="38" selection-end-line="611" selection-end-column="38" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/PoseCommon_dataset.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="600">
+          <caret line="572" selection-start-line="572" selection-end-line="572" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="162">
+          <caret line="5" column="40" lean-forward="true" selection-start-line="5" selection-start-column="40" selection-end-line="5" selection-end-column="40" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/run_apt_expts.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="650">
+          <caret line="100" column="17" selection-start-line="100" selection-start-column="17" selection-end-line="100" selection-end-column="17" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/multiResData.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="400">
+          <caret line="1070" column="38" selection-start-line="1070" selection-start-column="38" selection-end-line="1070" selection-end-column="38" />
         </state>
       </provider>
     </entry>

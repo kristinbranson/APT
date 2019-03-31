@@ -3,6 +3,7 @@
 
 
 data_type = 'alice'
+# data_type = 'stephen'
 
 import APT_interface as apt
 import h5py
@@ -26,7 +27,7 @@ lbl = h5py.File(lbl_file,'r')
 nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
 lbl.close()
 cache_dir = '/nrs/branson/mayank/apt_cache'
-all_models = ['deeplabcut','mdn','unet','openpose','leap']
+all_models = ['mdn','deeplabcut','unet','openpose','leap']
 
 gpu_model = 'GeForceRTX2080Ti'
 sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
@@ -91,7 +92,7 @@ def check_train_status(cmd_name, cache_dir, run_name='deepnet'):
 
 ## normal dbs
 
-assert False,'Are you sure?'
+# assert False,'Are you sure?'
 
 exp_name = 'apt_expt'
 for view in range(nviews):
@@ -107,7 +108,7 @@ for view in range(nviews):
 
 ## create incremental dbs
 
-assert False,'Are you sure?'
+# assert False,'Are you sure?'
 
 import json
 import os
@@ -242,6 +243,7 @@ for view in range(nviews):
 # assert False,'Are you sure?'
 
 run_type = 'status'
+# run_type = 'submit'; redo = False
 # gpu_model = 'TeslaV100_SXM2_32GB'
 gpu_model = 'GeForceRTX2080Ti'
 train_type = 'deeplabcut'
@@ -289,7 +291,7 @@ for view in range(nviews):
         if run_type == 'submit':
             print cur_cmd
             print
-            run_jobs(cmd_name,cur_cmd)
+            run_jobs(cmd_name,cur_cmd,redo)
         elif run_type == 'status':
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
             check_train_status(cmd_name,conf.cachedir,cmd_str[conf_id])
@@ -363,3 +365,71 @@ for view in range(nviews):
 
 ##
 
+
+
+##       #########             EXTRA
+
+import apt_expts
+import os
+
+view = 0
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+conf = apt.create_conf(lbl_file, view, 'apt_expt', cache_dir, 'mdn')
+# db_file = '/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/apt_expt/train_TF.tfrecords'
+db_file = '/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/alice_compare/val_TF.tfrecords'
+
+files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format('deepnet'))
+files.sort(key=os.path.getmtime)
+files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
+aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
+aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+if any([a < 0 for a in aa]):
+    bb = int(np.where(np.array(aa) < 0)[0]) + 1
+    files = files[bb:]
+files = [f.replace('.index', '') for f in files]
+files = files[-1:]
+
+mdn_out = apt_expts.classify_db_all(conf, db_file, files, 'mdn')
+
+o = mdn_out[0]
+dd = np.sqrt(np.sum((o[0] - o[1]) ** 2, axis=-1))
+np.percentile(dd,[90,95],axis=0)
+
+
+files1 = ['/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/alice_compare/bsz_8_lr_100-60000']
+import multiResData
+
+tf_iterator = multiResData.tf_reader(conf, db_file, False)
+conf.mdn_no_locs_layer = 1
+tf_iterator.batch_size = 1
+read_fn = tf_iterator.next
+pred_fn, close_fn, _ = apt.get_pred_fn('mdn', conf, files1[0])
+pred, label, gt_list = apt.classify_db(conf, read_fn, pred_fn, tf_iterator.N)
+
+mdn_out1 = apt_expts.classify_db_all(conf, db_file, files1, 'mdn')
+
+o = mdn_out1[0]
+dd1 = np.sqrt(np.sum((o[0] - o[1]) ** 2, axis=-1))
+np.percentile(dd,[90,95],axis=0)
+
+
+##
+
+# CUrrent code on old working stuff
+
+import PoseTools
+import re
+import tensorflow as tf
+import PoseUNet_resnet as PoseURes
+import os
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+
+A = PoseTools.pickle_load('/nrs/branson/mayank/apt_cache/multitarget_bubble/mdn/view_0/alice_compare/multitarget_bubble_bsz_8_lr_10_traindata')
+
+conf = A[1]
+tf.reset_default_graph()
+self = PoseURes.PoseUMDN_resnet(conf, name='test_march30')
+self.train_data_name = None
+self.train_umdn(restore=False)

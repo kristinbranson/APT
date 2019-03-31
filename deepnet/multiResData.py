@@ -1068,6 +1068,12 @@ def read_and_decode_rnn(filename_queue, conf):
 def read_and_decode_without_session(filename, conf, indices=(0,)):
     # reads the tf record db. Returns entries at location indices
     # If indices is empty, then it reads the whole database.
+    # Instead of conf, n_classes can be also be given
+
+    if type(conf) == int:
+        n_classes = conf
+    else:
+        n_classes = conf.n_classes
 
     xx = tf.python_io.tf_record_iterator(filename)
     all_ims = []
@@ -1088,7 +1094,7 @@ def read_and_decode_without_session(filename, conf, indices=(0,)):
         img_1d = np.fromstring(img_string, dtype=np.uint8)
         reconstructed_img = img_1d.reshape((height, width, depth))
         locs = np.array(example.features.feature['locs'].float_list.value)
-        locs = locs.reshape([conf.n_classes, 2])
+        locs = locs.reshape([n_classes, 2])
         if 'trx_ndx' in example.features.feature.keys():
             trx_ndx = int(example.features.feature['trx_ndx'].int64_list.value[0])
         else:

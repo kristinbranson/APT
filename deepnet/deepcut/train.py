@@ -90,8 +90,13 @@ def get_optimizer(loss_op, cfg):
     return learning_rate, train_op
 
 
-def save_td(cfg, train_info):
-    train_data_file = os.path.join( cfg.cachedir, 'traindata')
+def save_td(cfg, train_info,name):
+    if name == 'deepnet':
+        train_data_file = os.path.join(cfg.cachedir, 'traindata')
+    else:
+        train_data_file = os.path.join(cfg.cachedir, name + '_traindata')
+
+    # train_data_file = os.path.join( cfg.cachedir, 'traindata')
     json_data = {}
     for x in train_info.keys():
         json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()
@@ -132,7 +137,11 @@ def train(cfg,name='deepnet'):
     cfg = edict(cfg.__dict__)
     cfg = config.convert_to_deepcut(cfg)
 
-    train_data_file = os.path.join(cfg.cachedir, 'traindata')
+    if name == 'deepnet':
+        train_data_file = os.path.join(cfg.cachedir, 'traindata')
+    else:
+        train_data_file = os.path.join(cfg.cachedir, name + '_traindata')
+
     with open(train_data_file, 'wb') as td_file:
         pickle.dump(cfg, td_file, protocol=2)
     logging.info('Saved config to {}'.format(train_data_file))
@@ -221,7 +230,7 @@ def train(cfg,name='deepnet'):
             train_info['val_dist'].append(dd.mean())
             train_info['train_dist'].append(dd.mean())
 
-            save_td(cfg, train_info)
+            save_td(cfg, train_info,name)
 
         # Save snapshot
         if (it % cfg.save_step == 0 ) or it == max_iter:

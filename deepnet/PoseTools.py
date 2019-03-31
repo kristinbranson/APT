@@ -1001,7 +1001,7 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any',gpu_model="None"):
+def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None):
     import subprocess
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')
     sing_err = os.path.join(dir, 'opt_' + name + '.err')
