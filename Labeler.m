@@ -2718,8 +2718,7 @@ classdef Labeler < handle
       % KB 20190212: reorganized DL parameters -- many specific parameters
       % were moved to common, and organized common parameters. leaf names
       % should all be the same, and unique, so just match leaves
-      s = reorganizeDLParams(s);
-      
+      s = reorganizeDLParams(s);      
       
       % KB 20190214: all parameters are combined now
       if ~isTrackParams,
