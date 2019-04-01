@@ -2726,6 +2726,12 @@ classdef Labeler < handle
         s.trackParams = Labeler.trackGetParamsFromStruct(s);
       end
       
+      % KB 20190331: adding in post-processing parameters if missing
+      if ~isfield(s.trackParams.ROOT,'PostProcess'),
+        dfltParams = APTParameters.defaultParamsStruct;
+        s.trackParams.ROOT.PostProcess = dfltParams.PostProcess;
+      end
+      
       % KB 20190214: store all parameters in each tracker so that we don't
       % have to delete trackers when tracking parameters change
       for i = 1:numel(s.trackerData),
@@ -2744,6 +2750,12 @@ classdef Labeler < handle
             assert(isequaln(DLSpecificParams1,s.trackerData{i}.sPrm));
           end
         end
+        
+        % KB 20190331: adding in post-processing parameters if missing
+        if ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
+          s.trackerData{i}.sPrmAll.ROOT.PostProcess = s.trackParams.ROOT.PostProcess;
+        end
+          
       end
       
       if isfield(s,'preProcParams'),
