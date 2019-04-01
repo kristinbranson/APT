@@ -1,6 +1,6 @@
 function hfig = PlotSampleFrame(savefile,varargin)
 
-[deltaT,landmarksPlotTrx] = myparse(varargin,'deltat',50,'landmarksPlotTrx',[]);
+[deltaT,landmarksPlotTrx] = myparse(varargin,'deltaT',30,'landmarksPlotTrx',[]);
 
 load(savefile); %#ok<LOAD>
 
