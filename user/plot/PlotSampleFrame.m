@@ -11,8 +11,10 @@ nPts = max(predIdx.pt);
 nTargets = max(predIdx.tgt);
 
 hax = createsubplots(1,nViews);
+jx = find(strcmp(imPropNames,'XData'));
+jy = find(strcmp(imPropNames,'YData'));
 for i = 1:nViews,
-  imagesc(currIm{i},'Parent',hax(i)); %#ok<*IDISVAR>
+  imagesc(imProps{i}{jx},imProps{i}{jy},currIm{i},'Parent',hax(i)); %#ok<*IDISVAR>
   axis(hax(i),'image');
 %   for j = 1:numel(axPropNames),
 %     hax(i).(axPropNames{j}) = axProps{i}{j};
@@ -29,21 +31,25 @@ nPtsPerView = nPts / nViews;
 if isempty(landmarksPlotTrx),
   landmarksPlotTrx = 1:nPts;
 end
+
+for jTarg = 1:nTargets,
+  for i = landmarksPlotTrx,
+    idxtargptd = find(predIdx.tgt == jTarg & predIdx.pt==i & predIdx.d == 1);
+    [ism,idx] = ismember(mint:maxt,predIdx.frm(idxtargptd));
+    x = nan(1,maxt-mint+1);
+    x(ism) = xyPredictions(idxtargptd(idx(ism)));
+    idxtargptd = find(predIdx.tgt == jTarg & predIdx.pt==i & predIdx.d == 2);
+    [ism,idx] = ismember(mint:maxt,predIdx.frm(idxtargptd));
+    y = nan(1,maxt-mint+1);
+    y(ism) = xyPredictions(idxtargptd(idx(ism)));
+    [iColor,iView] = ind2sub([nPtsPerView,nViews],i);
+    plot(hax(iView),x,y,'-','Color',colors(iColor,:));
+  end
+end
+
+
 for iView = 1:nViews,
   
-  for jTarg = 1:nTargets,
-    for i = landmarksPlotTrx,
-      idxtargptd = find(predIdx.tgt == jTarg & predIdx.pt==i & predIdx.d == 1);
-      [ism,idx] = ismember(mint:maxt,predIdx.frm(idxtargptd));
-      x = nan(1,maxt-mint+1);
-      x(ism) = xyPredictions(idxtargptd(idx(ism)));
-      idxtargptd = find(predIdx.tgt == jTarg & predIdx.pt==i & predIdx.d == 2);
-      [ism,idx] = ismember(mint:maxt,predIdx.frm(idxtargptd));
-      y = nan(1,maxt-mint+1);
-      y(ism) = xyPredictions(idxtargptd(idx(ism)));
-      plot(x,y,'-','Color',colors(i,:));
-    end
-  end
   
   for i = 1:nPtsPerView,
     iPt = (iView-1)*nPtsPerView+i;

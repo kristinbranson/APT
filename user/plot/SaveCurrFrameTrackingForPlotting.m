@@ -53,9 +53,12 @@ axPropNames = {
   'ZDir'
   'CLim'
   };
+imPropNames = {'XData','YData'};
+imProps = cell(1,nViews);
 axProps = cell(1,nViews);
 for i = 1:nViews,
-  axProps{i} = get(lObj.gdata.axes_curr(i),axPropNames);
+  axProps{i} = get(lObj.gdata.axes_all(i),axPropNames);
+  imProps{i} = get(lObj.gdata.images_all(i),imPropNames);
 end
 
 if nargin < 2,
@@ -68,4 +71,4 @@ end
 
 colors = lObj.labelPointsPlotInfo.Colors;
 
-save(savefile,'currIm','currImRoi','xyPredictions','predIdx','t','iTarg','iMov','axProps','axPropNames','colors');
+save(savefile,'currIm','currImRoi','xyPredictions','predIdx','t','iTarg','iMov','axProps','axPropNames','colors','imProps','imPropNames');

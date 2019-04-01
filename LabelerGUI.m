@@ -55,6 +55,9 @@ KEEP = {'Exploration.Rotate' 'Exploration.Pan' 'Exploration.ZoomOut' ...
   'Exploration.ZoomIn'};
 hh = findall(h,'-not','type','uitoolbar','-property','Tag');
 for h=hh(:)'
+  if ~ishandle(h),
+    continue;
+  end
   if ~any(strcmp(h.Tag,KEEP))
     delete(h);
   end
