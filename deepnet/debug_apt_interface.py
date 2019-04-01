@@ -1,7 +1,7 @@
 
 
 import APT_interface as apt
-cmd = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl -name apt_expt -train_name debug -cache /nrs/branson/mayank/apt_cache -conf_params decay_steps 20000  save_step 5000  rrange 10  dl_steps 100000  trange 5  batch_size 8  mdn_use_unet_loss True -type mdn train -skip_db -use_cache'
+cmd = '-name 20190401T144033 -view 1 -cache /nrs/branson/mayank/apt_cache -type mdn /nrs/branson/APTCache_Alice/Larva94A04_GT2/20190401T144033_20190401T144158.lbl train -use_cache'
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 apt.main(cmd.split())

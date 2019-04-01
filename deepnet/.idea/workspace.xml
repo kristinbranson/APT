@@ -6,10 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="246839a5-f858-49eb-9ddb-099c468dd174" name="Default" comment="Generic commit">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/PoseTools.py" beforeDir="false" afterPath="$PROJECT_DIR$/PoseTools.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/debug_apt_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug_apt_interface.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/deepcut/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/deepcut/train.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/multiResData.py" beforeDir="false" afterPath="$PROJECT_DIR$/multiResData.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/run_apt_expts.py" beforeDir="false" afterPath="$PROJECT_DIR$/run_apt_expts.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -37,15 +34,15 @@
     <session id="-2040890201">
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="Python Console" value="3107" />
-          <entry key="py" value="5864" />
+          <entry key="Python Console" value="3751" />
+          <entry key="py" value="6758" />
           <entry key="txt" value="32" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
           <entry key="PLAIN_TEXT" value="32" />
-          <entry key="Python" value="8971" />
+          <entry key="Python" value="10509" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
@@ -79,11 +76,11 @@
     <splitter split-orientation="horizontal" split-proportion="0.5">
       <split-first>
         <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-          <file pinned="false" current-in-tab="true">
+          <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/run_apt_expts.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="650">
-                  <caret line="100" column="17" selection-start-line="100" selection-start-column="17" selection-end-line="100" selection-end-column="17" />
+                <state relative-caret-position="486">
+                  <caret line="365" column="27" selection-start-line="365" selection-start-column="27" selection-end-line="365" selection-end-column="27" />
                 </state>
               </provider>
             </entry>
@@ -100,8 +97,8 @@
           <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="162">
-                  <caret line="5" column="40" lean-forward="true" selection-start-line="5" selection-start-column="40" selection-end-line="5" selection-end-column="40" />
+                <state relative-caret-position="90">
+                  <caret line="3" column="179" selection-start-line="3" selection-start-column="179" selection-end-line="3" selection-end-column="179" />
                 </state>
               </provider>
             </entry>
@@ -115,22 +112,18 @@
               </provider>
             </entry>
           </file>
-          <file pinned="false" current-in-tab="false">
+          <file pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/PoseCommon_dataset.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="600">
-                  <caret line="572" selection-start-line="572" selection-end-line="572" />
+                <state relative-caret-position="456">
+                  <caret line="492" selection-start-line="492" selection-end-line="492" />
                 </state>
               </provider>
             </entry>
           </file>
           <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/deepcut/train.py">
-              <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="1154">
-                  <caret line="274" lean-forward="true" selection-start-line="274" selection-end-line="274" />
-                </state>
-              </provider>
+              <provider selected="true" editor-type-id="text-editor" />
             </entry>
           </file>
         </leaf>
@@ -146,20 +139,20 @@
               </provider>
             </entry>
           </file>
-          <file pinned="false" current-in-tab="false">
+          <file pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/APT_interface.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="294">
-                  <caret line="1717" lean-forward="true" selection-start-line="1717" selection-end-line="1717" />
+                <state relative-caret-position="114">
+                  <caret line="763" column="56" selection-start-line="763" selection-start-column="56" selection-end-line="763" selection-end-column="56" />
                 </state>
               </provider>
             </entry>
           </file>
-          <file pinned="false" current-in-tab="true">
+          <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/multiResData.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="400">
-                  <caret line="1070" column="38" selection-start-line="1070" selection-start-column="38" selection-end-line="1070" selection-end-column="38" />
+                <state relative-caret-position="474">
+                  <caret line="1094" selection-start-line="1094" selection-end-line="1094" />
                 </state>
               </provider>
             </entry>
@@ -195,7 +188,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>renorm</find>
       <find>APT_interface.py</find>
       <find>movieFilesAllCropInfo</find>
       <find>conf.rescale</find>
@@ -225,6 +217,7 @@
       <find>apt_expts</find>
       <find>mdn_learning_r</find>
       <find>args.type</find>
+      <find>without</find>
     </findStrings>
     <replaceStrings>
       <replace>vloss</replace>
@@ -323,9 +316,9 @@
         <option value="$PROJECT_DIR$/deepcut/train.py" />
         <option value="$PROJECT_DIR$/leap/training.py" />
         <option value="$PROJECT_DIR$/PoseTools.py" />
-        <option value="$PROJECT_DIR$/debug_apt_interface.py" />
         <option value="$PROJECT_DIR$/multiResData.py" />
         <option value="$PROJECT_DIR$/run_apt_expts.py" />
+        <option value="$PROJECT_DIR$/debug_apt_interface.py" />
       </list>
     </option>
   </component>
@@ -715,13 +708,6 @@
       <option name="presentableId" value="Default" />
       <updated>1490041518520</updated>
     </task>
-    <task id="LOCAL-00182" summary="Adding the ability to test the db created in apt_expts">
-      <created>1531818534769</created>
-      <option name="number" value="00182" />
-      <option name="presentableId" value="LOCAL-00182" />
-      <option name="project" value="LOCAL" />
-      <updated>1531818534769</updated>
-    </task>
     <task id="LOCAL-00183" summary="Creating training dataset from cached images in lbl file.">
       <created>1531918336838</created>
       <option name="number" value="00183" />
@@ -1058,7 +1044,14 @@
       <option name="project" value="LOCAL" />
       <updated>1553864210076</updated>
     </task>
-    <option name="localTasksCounter" value="231" />
+    <task id="LOCAL-00231" summary="Generic commit">
+      <created>1554075071411</created>
+      <option name="number" value="00231" />
+      <option name="presentableId" value="LOCAL-00231" />
+      <option name="project" value="LOCAL" />
+      <updated>1554075071411</updated>
+    </task>
+    <option name="localTasksCounter" value="232" />
     <servers />
   </component>
   <component name="TestHistory">
@@ -1104,11 +1097,10 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="65" y="-4" width="2495" height="1604" extended-state="6" />
-    <editor active="true" />
     <layout>
       <window_info auto_hide="true" content_ui="combo" x="815" y="755" width="866" height="503" id="Project" internal_type="SLIDING" order="0" sideWeight="0.27652735" type="SLIDING" weight="0.13187702" />
-      <window_info active="true" x="607" y="755" width="1716" height="344" id="Python Console" order="1" sideWeight="0.8065539" visible="true" weight="0.31604737" />
-      <window_info id="Debug" order="2" sideWeight="0.70886075" weight="0.3176807" />
+      <window_info x="607" y="755" width="1716" height="344" id="Python Console" order="1" sideWeight="0.8065539" weight="0.31604737" />
+      <window_info active="true" id="Debug" order="2" sideWeight="0.70886075" visible="true" weight="0.35279706" />
       <window_info anchor="bottom" id="Messages" order="0" />
       <window_info anchor="bottom" id="Event Log" order="1" sideWeight="0.5003119" side_tool="true" weight="0.299458" />
       <window_info anchor="bottom" auto_hide="true" id="Run" order="2" weight="0.32638165" />
@@ -1273,6 +1265,21 @@
           <url>file://$PROJECT_DIR$/debug_apt_interface.py</url>
           <line>9</line>
           <option name="timeStamp" value="814" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="python-line">
+          <url>file://$PROJECT_DIR$/PoseCommon_dataset.py</url>
+          <line>492</line>
+          <option name="timeStamp" value="818" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="python-line">
+          <url>file://$PROJECT_DIR$/multiResData.py</url>
+          <line>1094</line>
+          <option name="timeStamp" value="819" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="python-line">
+          <url>file://$PROJECT_DIR$/APT_interface.py</url>
+          <line>777</line>
+          <option name="timeStamp" value="820" />
         </line-breakpoint>
       </breakpoints>
       <breakpoints-defaults>
@@ -1609,10 +1616,20 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/APT_interface.py">
+    <entry file="file://$PROJECT_DIR$/PoseUNet_resnet.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="294">
-          <caret line="1717" lean-forward="true" selection-start-line="1717" selection-end-line="1717" />
+        <state relative-caret-position="450">
+          <caret line="611" column="38" selection-start-line="611" selection-start-column="38" selection-end-line="611" selection-end-column="38" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/deepcut/train.py">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/PoseTools.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2774">
+          <caret line="1000" column="33" selection-start-line="1000" selection-start-column="33" selection-end-line="1000" selection-end-column="33" />
         </state>
       </provider>
     </entry>
@@ -1623,52 +1640,38 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/deepcut/train.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1154">
-          <caret line="274" lean-forward="true" selection-start-line="274" selection-end-line="274" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/PoseTools.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2774">
-          <caret line="1000" column="33" selection-start-line="1000" selection-start-column="33" selection-end-line="1000" selection-end-column="33" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/PoseUNet_resnet.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="450">
-          <caret line="611" column="38" selection-start-line="611" selection-start-column="38" selection-end-line="611" selection-end-column="38" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/PoseCommon_dataset.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="600">
-          <caret line="572" selection-start-line="572" selection-end-line="572" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="162">
-          <caret line="5" column="40" lean-forward="true" selection-start-line="5" selection-start-column="40" selection-end-line="5" selection-end-column="40" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/run_apt_expts.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="650">
-          <caret line="100" column="17" selection-start-line="100" selection-start-column="17" selection-end-line="100" selection-end-column="17" />
+        <state relative-caret-position="486">
+          <caret line="365" column="27" selection-start-line="365" selection-start-column="27" selection-end-line="365" selection-end-column="27" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/multiResData.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="400">
-          <caret line="1070" column="38" selection-start-line="1070" selection-start-column="38" selection-end-line="1070" selection-end-column="38" />
+        <state relative-caret-position="474">
+          <caret line="1094" selection-start-line="1094" selection-end-line="1094" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="90">
+          <caret line="3" column="179" selection-start-line="3" selection-start-column="179" selection-end-line="3" selection-end-column="179" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/PoseCommon_dataset.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="456">
+          <caret line="492" selection-start-line="492" selection-end-line="492" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/APT_interface.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="114">
+          <caret line="763" column="56" selection-start-line="763" selection-start-column="56" selection-end-line="763" selection-end-column="56" />
         </state>
       </provider>
     </entry>

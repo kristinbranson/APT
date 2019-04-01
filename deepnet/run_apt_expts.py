@@ -17,8 +17,10 @@ import numpy as np
 if data_type == 'alice':
     lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
     op_graph = []
+    gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT.lbl'
 elif data_type == 'stephen':
     lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_dlstripped.lbl'
+    gt_lbl = lbl_file
 else:
     lbl_file = ''
 
@@ -62,13 +64,13 @@ def get_tstr(tin):
 
 def check_train_status(cmd_name, cache_dir, run_name='deepnet'):
     scriptfile = os.path.join(sdir,'opt_' + cmd_name+ '.sh')
-    logfile = os.path.join(sdir,'opt_' + cmd_name+ '.log')
+    errfile = os.path.join(sdir,'opt_' + cmd_name+ '.err')
     if os.path.exists(scriptfile):
         submit_time = os.path.getmtime(scriptfile)
     else:
         submit_time = np.nan
-    if os.path.exists(logfile):
-        start_time = os.path.getmtime(logfile)
+    if os.path.exists(errfile):
+        start_time = os.path.getmtime(errfile)
     else:
         start_time = np.nan
 
@@ -199,7 +201,7 @@ common_conf['dl_steps'] = 100000
 common_conf['decay_steps'] = 20000
 common_conf['save_step'] = 5000
 common_conf['batch_size'] = 8
-
+cache_dir = '/nrs/branson/mayank/apt_cache'
 
 for view in range(nviews):
 
@@ -226,7 +228,7 @@ for view in range(nviews):
             opt_str = '{} -{} {} '.format(opt_str,k,cmd_opts[k])
 
         cur_cmd = common_cmd + conf_str + opt_str + end_cmd
-        cmd_name = '{}_view{}_{}'.format(data_type,view,train_type)
+        cmd_name = '{}_view{}_{}_{}'.format(data_type,view,exp_name, train_type)
         if run_type == 'submit':
             print cur_cmd
             print
@@ -259,7 +261,8 @@ common_conf['batch_size'] = 8
 
 other_conf = [{'dlc_augment':True},{'dlc_augment':False,'dl_steps':300000}]
 cmd_str = ['dlc_aug','dlc_noaug']
-
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt'
 
 for view in range(nviews):
 
@@ -291,7 +294,7 @@ for view in range(nviews):
         if run_type == 'submit':
             print cur_cmd
             print
-            run_jobs(cmd_name,cur_cmd,redo)
+            run_jobs(cmd_name,cur_cmd)
         elif run_type == 'status':
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
             check_train_status(cmd_name,conf.cachedir,cmd_str[conf_id])
@@ -355,9 +358,9 @@ for ndx in range(n_rounds):
 ##  ###################### GT DBs
 
 for view in range(nviews):
-    conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-
-
+    conf = apt.create_conf(gt_lbl, view, exp_name, cache_dir, train_type)
+    gt_dir = '/nrs/branson/mayank/apt_cache/multitarget_bubble/gtdata'
+    apt.create_tfrecord(conf,False,None,True,True,[os.path.join(gt_dir,'gtdata.tfrecords')])
 
 
 ## ######################  RESULTS
