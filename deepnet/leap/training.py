@@ -375,7 +375,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
              "amsgrad": amsgrad, "upsampling_layers": upsampling_layers})
 
     # Save initial network
-    model.save(os.path.join(run_path, "initial_model.h5"))
+    model.save(str(os.path.join(run_path, "initial_model.h5")))
 
     # Data generators/augmentation
     input_layers = model.input_names
@@ -468,7 +468,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
                 json.dump(json_data, json_file)
 
             if step % conf.save_step == 0:
-                model.save(os.path.join(conf.cachedir,name + '-{}'.format(step)))
+                model.save(str(os.path.join(conf.cachedir,name + '-{}'.format(step))))
 
     obs = OutputObserver(conf,[train_datagen,val_datagen])
 
@@ -500,7 +500,7 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
     print("Total runtime: %.1f mins" % (elapsed_train / 60))
 
     # Save final model
-    model.save(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps)))
+    model.save(str(os.path.join(conf.cachedir, conf.expname + '_' + name + '-{}'.format(conf.dl_steps))))
     obs.on_epoch_end(epochs)
 
 

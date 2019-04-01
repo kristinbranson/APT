@@ -4,10 +4,6 @@ classdef APTParameters
     TRACK_PARAMETER_FILE = lclInitTrackParameterFile();
     CPR_PARAMETER_FILE = lclInitCPRParameterFile();
     DEEPTRACK_PARAMETER_FILE = lclInitDeepTrackParameterFile();
-    MDN_PARAMETER_FILE = lclInitDeepTrackMDNParameterFile();    
-    DLC_PARAMETER_FILE = lclInitDeepTrackDLCParameterFile();
-    UNET_PARAMETER_FILE = lclInitDeepTrackUNetParameterFile();
-    OP_PARAMETER_FILE = lclInitDeepTrackOPParameterFile();
     POSTPROCESS_PARAMETER_FILE = lclInitPostProcessParameterFile();
   end
   methods (Static)
@@ -21,13 +17,14 @@ classdef APTParameters
       tPrmTrack = parseConfigYaml(APTParameters.TRACK_PARAMETER_FILE);
       tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
-      tPrmMdn = parseConfigYaml(APTParameters.MDN_PARAMETER_FILE);
-      tPrmDlc = parseConfigYaml(APTParameters.DLC_PARAMETER_FILE);
-      tPrmUnet = parseConfigYaml(APTParameters.UNET_PARAMETER_FILE);
-      tPrmOP = parseConfigYaml(APTParameters.OP_PARAMETER_FILE);
       tPrmPostProc = parseConfigYaml(APTParameters.POSTPROCESS_PARAMETER_FILE);
-      tPrmDT.Children.Children = [tPrmDT.Children.Children;...
-        tPrmMdn.Children; tPrmDlc.Children; tPrmUnet.Children; tPrmOP.Children];        
+      
+      nettypes = enumeration('DLNetType');
+      tPrmDeepNets = ...
+        arrayfun(@(x)parseConfigYaml(fullfile(APT.Root,'trackers','dt',x.paramFileShort)),nettypes);
+      tPrmDeepNetsChildren = cat(1,tPrmDeepNets.Children);
+      
+      tPrmDT.Children.Children = [tPrmDT.Children.Children; tPrmDeepNetsChildren];
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
         tPrmCpr.Children; tPrmDT.Children; tPrmPostProc.Children];
@@ -36,14 +33,6 @@ classdef APTParameters
     end
     function sPrm0 = defaultParamsStruct
       % sPrm0: "new-style"
-      
-%       tPrmCpr = parseConfigYaml(APTParameters.CPR_PARAMETER_FILE);
-%       sPrmCpr = tPrmCpr.structize();
-%       sPrmCpr = sPrmCpr.ROOT;
-%       tPrmDT = parseConfigYaml(APTParameters.DEEPTRACK_PARAMETER_FILE);
-%       sPrmDT = tPrmDT.structize();
-%       sPrmDT = sPrmDT.ROOT;
-%       sPrm0 = structmerge(sPrmCpr,sPrmDT);
 
       tPrmPreprocess = parseConfigYaml(APTParameters.PREPROCESS_PARAMETER_FILE);
       sPrmPreprocess = tPrmPreprocess.structize();
@@ -97,18 +86,7 @@ classdef APTParameters
       sPrmDTcommon = sPrm.ROOT.DeepTrack;
     end
     function sPrmDTspecific = defaultParamsStructDT(nettype)
-      switch nettype
-        case DLNetType.mdn
-          prmFile = APTParameters.MDN_PARAMETER_FILE;
-        case DLNetType.deeplabcut
-          prmFile = APTParameters.DLC_PARAMETER_FILE;
-        case DLNetType.unet
-          prmFile = APTParameters.UNET_PARAMETER_FILE;
-        case DLNetType.openpose
-          prmFile = APTParameters.OP_PARAMETER_FILE;
-        otherwise
-          assert(false);
-      end
+      prmFile = fullfile(APT.Root,'trackers','dt',nettype.paramFileShort);
       tPrm = parseConfigYaml(prmFile);
       sPrmDTspecific = tPrm.structize();
       sPrmDTspecific = sPrmDTspecific.ROOT;
@@ -390,12 +368,10 @@ classdef APTParameters
       sPrmAll.ROOT.CPR = sPrmCPR;
     end
     
-    function sPrmAll = setNFramesTrackParams(sPrmAll,obj)
-      
+    function sPrmAll = setNFramesTrackParams(sPrmAll,obj)      
       sPrmAll.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrmAll.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
       sPrmAll.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
-      
     end
     
     function testConversions(sPrmAll)
@@ -493,22 +469,6 @@ end
 function dtParamFile = lclInitDeepTrackParameterFile()
 aptroot = APT.Root;
 dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack.yaml');
-end
-function dtParamFile = lclInitDeepTrackMDNParameterFile()
-aptroot = APT.Root;
-dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_mdn.yaml');
-end
-function dtParamFile = lclInitDeepTrackDLCParameterFile()
-aptroot = APT.Root;
-dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_dlc.yaml');
-end
-function dtParamFile = lclInitDeepTrackUNetParameterFile()
-aptroot = APT.Root;
-dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_unet.yaml');
-end
-function dtParamFile = lclInitDeepTrackOPParameterFile()
-aptroot = APT.Root;
-dtParamFile = fullfile(aptroot,'trackers','dt','params_deeptrack_openpose.yaml');
 end
 function pFile = lclInitPostProcessParameterFile()
 aptroot = APT.Root;
