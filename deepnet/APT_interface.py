@@ -252,6 +252,8 @@ def convert_unicode(data):
         return unicode(data)
     elif isinstance(data, collections.Mapping):
         return dict(map(convert_unicode, data.iteritems()))
+    elif isinstance(data,np.ndarray):
+        return data
     elif isinstance(data, collections.Iterable):
         return type(data)(map(convert_unicode, data))
     else:
