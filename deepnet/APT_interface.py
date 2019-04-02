@@ -237,7 +237,6 @@ def convert_to_orig(base_locs, conf, fnum, cur_trx, crop_loc):
         base_locs_orig[ :, 1] += ylo
     else:
         base_locs_orig = base_locs.copy()
-
     return base_locs_orig
 
 
