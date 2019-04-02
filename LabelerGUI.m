@@ -55,6 +55,9 @@ KEEP = {'Exploration.Rotate' 'Exploration.Pan' 'Exploration.ZoomOut' ...
   'Exploration.ZoomIn'};
 hh = findall(h,'-not','type','uitoolbar','-property','Tag');
 for h=hh(:)'
+  if ~ishandle(h),
+    continue;
+  end
   if ~any(strcmp(h.Tag,KEEP))
     delete(h);
   end
@@ -1466,7 +1469,9 @@ handles = lObj.gdata;
 cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
 EnableControls(handles,'projectloaded');
 % update tracker info when loading in new trackers
-lObj.tracker.updateTrackerInfo();
+if ~isempty(lObj.tracker)
+  lObj.tracker.updateTrackerInfo();
+end
 
 function zoomOutFullView(hAx,hIm,resetCamUpVec)
 if isequal(hIm,[])

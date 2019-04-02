@@ -55,7 +55,7 @@ classdef Labeler < handle
     % before loading class
     NEIGHBORING_FRAME_OFFSETS;
   end
-  properties (Constant,Hidden)    
+  properties (Constant,Hidden)
     PROPS_GTSHARED = struct('reg',...
       struct('MFA','movieFilesAll',...
              'MFAF','movieFilesAllFull',...
@@ -2718,12 +2718,17 @@ classdef Labeler < handle
       % KB 20190212: reorganized DL parameters -- many specific parameters
       % were moved to common, and organized common parameters. leaf names
       % should all be the same, and unique, so just match leaves
-      s = reorganizeDLParams(s);
-      
+      s = reorganizeDLParams(s);      
       
       % KB 20190214: all parameters are combined now
       if ~isTrackParams,
         s.trackParams = Labeler.trackGetParamsFromStruct(s);
+      end
+      
+      % KB 20190331: adding in post-processing parameters if missing
+      if ~isfield(s.trackParams.ROOT,'PostProcess'),
+        dfltParams = APTParameters.defaultParamsStruct;
+        s.trackParams.ROOT.PostProcess = dfltParams.PostProcess;
       end
       
       % KB 20190214: store all parameters in each tracker so that we don't
@@ -2744,6 +2749,12 @@ classdef Labeler < handle
             assert(isequaln(DLSpecificParams1,s.trackerData{i}.sPrm));
           end
         end
+        
+        % KB 20190331: adding in post-processing parameters if missing
+        if ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
+          s.trackerData{i}.sPrmAll.ROOT.PostProcess = s.trackParams.ROOT.PostProcess;
+        end
+          
       end
       
       if isfield(s,'preProcParams'),
@@ -12433,8 +12444,11 @@ classdef Labeler < handle
       end
       
     end
-
-
+    
+    function raiseAllFigs(obj)
+      h = obj.gdata.figs_all;
+      arrayfun(@figure,h);
+    end
     
   end
   
