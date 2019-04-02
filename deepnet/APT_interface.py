@@ -495,7 +495,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     except KeyError:
         pass
     try:
-        if isModern:
+        if isModern and net_type == 'openpose':
             bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])           
         else: 
             bb = ''
