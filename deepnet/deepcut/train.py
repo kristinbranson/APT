@@ -91,7 +91,7 @@ def get_optimizer(loss_op, cfg):
 
 
 def save_td(cfg, train_info):
-    train_data_file = os.path.join( cfg.cachedir, 'traindata')
+    train_data_file = os.path.join(cfg.cachedir, 'traindata')
     json_data = {}
     for x in train_info.keys():
         json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()

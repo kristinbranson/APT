@@ -216,8 +216,9 @@ classdef DeepTracker < LabelTracker
         'throwwarnings',true...
         );
       
-      switch obj.trnNetType
-        case DLNetType.openpose
+      net = obj.trnNetType;
+      switch net
+        case {DLNetType.openpose DLNetType.leap}
           dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
           save_step = sPrmAll.ROOT.DeepTrack.Saving.save_step;
           display_step = sPrmAll.ROOT.DeepTrack.Saving.display_step;
@@ -225,28 +226,32 @@ classdef DeepTracker < LabelTracker
           if dl_steps < display_step
             dl_steps = display_step;
             if throwwarnings
-              warningNoTrace('Openpose requires the number of DL steps to be greater than or equal to the display step. Updating to %d DL steps.',dl_steps);
+              warningNoTrace('%s requires the number of DL steps to be greater than or equal to the display step. Updating to %d DL steps.',...
+                net.prettyString,dl_steps);
             end
           end
           
           if mod(dl_steps,display_step)~=0
             dl_steps = ceil(dl_steps/display_step)*display_step;
             if throwwarnings
-              warningNoTrace('Openpose requires the number of DL steps to be an even multiple of the display step. Increasing DL steps to %d.',dl_steps);
+              warningNoTrace('%s requires the number of DL steps to be an even multiple of the display step. Increasing DL steps to %d.',...
+                net.prettyString,dl_steps);
             end
           end
           
           if save_step < display_step
             save_step = display_step;
             if throwwarnings
-              warningNoTrace('Openpose requires the DL save step to be greater than or equal to display step. Updating the DL save step to %d.',save_step);
+              warningNoTrace('%s requires the DL save step to be greater than or equal to display step. Updating the DL save step to %d.',...
+                net.prettyString,save_step);
             end
           end
           
           if mod(save_step,display_step)~=0
             save_step = ceil(save_step/display_step)*display_step;
             if throwwarnings
-              warningNoTrace('Openpose requires the DL save step to be an even multiple of the display step. Increasing the DL save step to %d.',save_step);
+              warningNoTrace('%s requires the DL save step to be an even multiple of the display step. Increasing the DL save step to %d.',...
+                net.prettyString,save_step);
             end
           end
           

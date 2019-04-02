@@ -17,7 +17,8 @@ ts = 0;
 ts_common = [];
 for i = 1:numel(leaves_common),
   fn = leaves_common{i};
-  [sPrm_common,nseti,ts_common] = setStructLeaf(sPrm_common,fn,sPrm_common_in.(fn),'ts_set',ts,'ts_struct',ts_common);
+  [sPrm_common,nseti,ts_common] = setStructLeaf(sPrm_common,fn,...
+    sPrm_common_in.(fn),'ts_set',ts,'ts_struct',ts_common);
   assert(nseti <= 1);
 end
 
@@ -36,11 +37,23 @@ for i = order,
   if ~strcmp(s.trackerClass{i}{1},'DeepTracker'),
     continue;
   end
-  if isempty(s.trackerData{i}),
+  if isempty(s.trackerData{i}) 
+    continue;
+  end
+  if isempty(s.trackerData{i}.sPrm)
+    % AL 20190401 added second clause. Legacy trackerDatas may have empty
+    % .sPrm. In the below, we update s.trackerData{i}.sPrm (net-specific)
+    % and s.trackDLParams (common) based on existing s.trackerData{i}.sPrm.
+    % For trackers with empty .sPrm, it is probably ok for .sPrm to 
+    % continue being empty; and there is nothing to update on
+    % s.trackDLParams. Silence (no warnings) is also ok in this case,
+    % defaults will be used later.
+    assert(isempty(s.trackerData{i}.trnName),...
+      'Trained DL tracker exists with no parameters.');
     continue;
   end
   
-  sPrm_specific = APTParameters.defaultParamsStructDT(char(s.trackerData{i}.trnNetType));
+  sPrm_specific = APTParameters.defaultParamsStructDT(s.trackerData{i}.trnNetType);
   tfSpecificParams = ~isempty(sPrm_specific);
   
   % check if parameter names are up-to-date
