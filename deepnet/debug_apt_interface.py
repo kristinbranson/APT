@@ -1,7 +1,7 @@
 
 
 import APT_interface as apt
-cmd = '-name 20190401T144033 -view 1 -cache /nrs/branson/mayank/apt_cache -type mdn /nrs/branson/APTCache_Alice/Larva94A04_GT2/20190401T144033_20190401T144158.lbl train -use_cache'
+cmd = '-name 20190401T232843 -view 1 -cache /nrs/branson/APTCache_Alice -model_files /nrs/branson/APTCache_Alice/Larva94A04_GT2/mdn/view_0/20190401T232843/deepnet-30000 -type mdn /nrs/branson/APTCache_Alice/Larva94A04_GT2/20190401T232843_20190401T233109.lbl track -mov /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/png_movie_mono.avi -out /nrs/branson/APTCache_Alice/Larva94A04_GT2/mdn/view_0/20190401T232843/trk/png_movie_mono_trn20190401T232843_iter30000_20190402T093738.trk -start_frame 1020 -end_frame 1220 -trx /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/trx_aug.mat -trx_ids 1'
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 apt.main(cmd.split())

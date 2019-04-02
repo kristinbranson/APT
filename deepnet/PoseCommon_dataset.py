@@ -340,7 +340,7 @@ class PoseCommon(object):
         train_db = os.path.join(self.conf.cachedir, self.conf.trainfilename) + '.tfrecords'
         train_dataset = tf.data.TFRecordDataset(train_db)
         val_db = os.path.join(self.conf.cachedir, self.conf.valfilename) + '.tfrecords'
-        if os.path.exists(val_db):
+        if os.path.exists(val_db) and os.path.getsize(val_db) > 0:
             logging.info("Val DB exists: Data for validation from:{}".format(val_db))
         else:
             logging.warning("Val DB does not exists: Data for validation from:{}".format(train_db))

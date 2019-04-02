@@ -13,17 +13,25 @@ import time
 import glob
 import re
 import numpy as np
+import matplotlib.pyplot as plt
+import apt_expts
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 if data_type == 'alice':
     lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
     op_graph = []
-    gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT.lbl'
+    gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
 elif data_type == 'stephen':
     lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_dlstripped.lbl'
     gt_lbl = lbl_file
 else:
     lbl_file = ''
+    gt_lbl =''
 
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+lbl.close()
 
 lbl = h5py.File(lbl_file,'r')
 nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
@@ -87,6 +95,37 @@ def check_train_status(cmd_name, cache_dir, run_name='deepnet'):
 
     print('Job:{}, submitted:{}, started:{} latest iter:{} at {}'.format(
           cmd_name, get_tstr(submit_time), get_tstr(start_time),latest_model_iter, get_tstr(latest_time)))
+
+
+def plot_results(data_in):
+    ps = [50, 75, 90, 95]
+    k = data_in.keys()[0]
+    npts = data_in[k][0][0].shape[1]
+    nc = int(np.ceil(np.sqrt(npts+1)))
+    nr = int(np.floor(np.sqrt(npts+1)))
+    f, ax = plt.subplots(nr, nc, figsize=(10, 10))
+    ax = ax.flat
+    leg = []
+    cc = PoseTools.get_colors(len(data_in))
+    for idx,k in enumerate(data_in.keys()):
+        mm = []
+        mt = []
+        for o in data_in[k]:
+            dd = np.sqrt(np.sum((o[0] - o[1]) ** 2, axis=-1))
+            mm.append(np.percentile(dd, ps, axis=0))
+            mt.append(o[-1])
+        t0 = mt[0]
+        mt = np.array([t - t0 for t in mt]) / 60.
+        mm = np.array(mm)
+
+        for ndx in range(npts):
+            ax[ndx].plot(mt[1:], mm[1:, :, ndx], color=cc[idx, :])
+            # if ndx > 10.5:
+            #     ax[ndx].set_ylim([0, 5])
+            # ax[ndx].set_xlim([0, 250])
+        leg.append('{}'.format(k))
+        ax[-1].plot([0, 1], [0, 1], color=cc[idx, :])
+    ax[-1].legend(leg)
 
 
 ##     ##################        CREATE DBS
@@ -357,17 +396,117 @@ for ndx in range(n_rounds):
 
 ##  ###################### GT DBs
 
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+lbl.close()
 for view in range(nviews):
     conf = apt.create_conf(gt_lbl, view, exp_name, cache_dir, train_type)
-    gt_dir = '/nrs/branson/mayank/apt_cache/multitarget_bubble/gtdata'
-    apt.create_tfrecord(conf,False,None,True,True,[os.path.join(gt_dir,'gtdata.tfrecords')])
+    gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata.tfrecords')
+    apt.create_tfrecord(conf,False,None,False,True,[gt_file])
 
 
 ## ######################  RESULTS
 
 
-##
+## Normal Training
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt'
+train_name = 'deepnet'
 
+import apt_expts
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+for view in range(nviews):
+    out_exp = {}
+
+    gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}.tfrecords'.format(view))
+    for train_type in all_models:
+
+        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*.index").format(train_name))
+        files.sort(key=os.path.getmtime)
+        aa = [int(re.search('-(\d*).index',f).groups(0)[0]) for f in files]
+        aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
+        if any([a<0 for a in aa]):
+            bb = int(np.where(np.array(aa)<0)[0])+1
+            files = files[bb:]
+        files = [f.replace('.index','') for f in files]
+
+        if len(files)> 8:
+            gg = len(files)
+            sel = np.linspace(0,len(files)-1,8).astype('int')
+            files = [files[s] for s in sel]
+
+        mdn_out = apt_expts.classify_db_all(conf,gt_file,files,train_type,name=train_name)
+        out_exp[train_type] = mdn_out
+    plot_results(out_exp)
+
+
+## DLC AUG vs no aug
+
+cmd_str = ['dlc_aug','dlc_noaug']
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt'
+
+train_type = 'deeplabcut'
+for view in range(nviews):
+    dlc_exp = {}
+
+    gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}.tfrecords'.format(view))
+
+    for conf_id in range(len(cmd_str)):
+        train_name=cmd_str[conf_id]
+        conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*.index").format(train_name))
+        files.sort(key=os.path.getmtime)
+        aa = [int(re.search('-(\d*).index', f).groups(0)[0]) for f in files]
+        aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+        if any([a < 0 for a in aa]):
+            bb = int(np.where(np.array(aa) < 0)[0]) + 1
+            files = files[bb:]
+        files = [f.replace('.index', '') for f in files]
+
+        if len(files) > 8:
+            gg = len(files)
+            sel = np.linspace(0, len(files) - 1, 8).astype('int')
+            files = [files[s] for s in sel]
+
+        mdn_out = apt_expts.classify_db_all(conf, gt_file, files, train_type, name=train_name)
+        dlc_exp[train_name] = mdn_out
+    plot_results(dlc_exp)
+
+## incremental training
+
+n_rounds = 8
+all_res = []
+train_name = 'deepnet'
+all_view = []
+
+for view in range(nviews):
+    out_exp = {}
+    gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
+    inc_exp = {}
+    for train_type in all_models:
+        r_files = []
+        for ndx in range(n_rounds):
+            exp_name = '{}_randsplit_round_{}'.format(data_type, ndx)
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*.index").format(train_name))
+            files.sort(key=os.path.getmtime)
+            if len(files)>0:
+                r_files.append(files[-1])
+            else:
+                print('MISSING!!!! MISSING!!!! {} {}'.format(train_type,ndx))
+        r_files = [f.replace('.index', '') for f in r_files]
+
+        mdn_out = apt_expts.classify_db_all(conf, gt_file, r_files, train_type, name=train_name)
+        mdn_out.insert(0,mdn_out[0])
+        for x, a in enumerate(mdn_out):
+            a[-1] = x
+        inc_exp[train_type] = mdn_out
+    plot_results(inc_exp)
+    all_view.append(inc_exp)
 
 
 ##       #########             EXTRA
