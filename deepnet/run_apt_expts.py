@@ -2,8 +2,8 @@
 ##  #######################        SETUP
 
 
-data_type = 'alice'
-# data_type = 'stephen'
+# data_type = 'alice'
+data_type = 'stephen'
 
 import APT_interface as apt
 import h5py
