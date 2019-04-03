@@ -27,9 +27,6 @@ import math
 import sys
 import copy
 from scipy import io
-# import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib import cm
 import json
 from skimage import transform
 import datetime
@@ -40,6 +37,8 @@ import logging
 
 
 def get_cmap(n_classes):
+    import matplotlib.pyplot as plt
+    from matplotlib import cm
     cmap = cm.get_cmap('jet')
     return cmap(np.linspace(0, 1, n_classes))
 
@@ -729,6 +728,8 @@ def count_records(filename):
     return num
 
 def show_stack(im_s,xx,yy,cmap='gray'):
+    import matplotlib.pyplot as plt
+    from matplotlib import cm
     pad_amt = xx*yy - im_s.shape[0]
     if pad_amt > 0:
         im_s = np.concatenate([im_s,im_s[:pad_amt,...]],axis=0)
@@ -741,6 +742,8 @@ def show_stack(im_s,xx,yy,cmap='gray'):
 
 
 def show_result(ims, ndx, locs, predlocs= None):
+    import matplotlib.pyplot as plt
+    from matplotlib import cm
     count = float(len(ndx))
     yy = np.ceil(np.sqrt(count/12)*4).astype('int')
     xx = np.ceil(count/yy).astype('int')
@@ -1001,7 +1004,7 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None):
+def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=12*60):
     import subprocess
     sing_script = os.path.join(dir, 'opt_' + name + '.sh')
     sing_err = os.path.join(dir, 'opt_' + name + '.err')
@@ -1020,8 +1023,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None):
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)
-    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -oo {} -eo {} -n2 -gpu "{}" -q {} "singularity exec --nv /misc/local/singularity/branson_cuda10_mayank.simg {}"' '''.format(
-        sing_log, sing_err, gpu_str, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n2 -W {} -gpu "{}" -q {} "singularity exec --nv /misc/local/singularity/branson_cuda10_mayank.simg {}"' '''.format(name, sing_log, sing_err, timeout, gpu_str, queue, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     with open(bsub_script,'w') as f:
         f.write(cmd)
         f.write('\n')

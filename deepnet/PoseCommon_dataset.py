@@ -17,7 +17,6 @@ import math
 from past.utils import old_div
 from tensorflow.contrib.layers import batch_norm
 # from batch_norm import batch_norm_mine_old as batch_norm
-from matplotlib import pyplot as plt
 import copy
 import cv2
 import gc
@@ -714,6 +713,7 @@ class PoseCommon(object):
         return val_dist, val_ims, val_preds, val_predlocs, val_locs
 
     def plot_results(self,n=50):
+        from matplotlib import pyplot as plt
         # saver = {}
         # saver['train_data_file'] = os.path.join(
         #     self.conf.cachedir,

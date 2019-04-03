@@ -8,10 +8,7 @@ import convNetBase as CNB
 import numpy as np
 import movies
 from PoseTools import scale_images
-import matplotlib as mpl
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 import tempfile
-from matplotlib import cm
 import movies
 import multiResData
 from scipy import io as sio
@@ -879,6 +876,10 @@ class PoseUNet(PoseCommon):
 
 
     def create_pred_movie(self, movie_name, out_movie, max_frames=-1, flipud=False, trace=True):
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        import matplotlib as mpl
+        from matplotlib import cm
+
         conf = self.conf
         sess = self.setup_net(0, True)
         predLocs, pred_scores, pred_max_scores = self.classify_movie(movie_name, sess, end_frame=max_frames, flipud=flipud)
@@ -949,6 +950,10 @@ class PoseUNet(PoseCommon):
 
 
     def create_pred_movie_trx(self, movie_name, out_movie, trx, fly_num, max_frames=-1, start_at=0, flipud=False, trace=True):
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        import matplotlib as mpl
+        from matplotlib import cm
+
         conf = self.conf
         sess = self.setup_net(0, True)
         predLocs = self.classify_movie_trx(movie_name, trx, sess, end_frame=max_frames, flipud=flipud, start_frame=start_at)

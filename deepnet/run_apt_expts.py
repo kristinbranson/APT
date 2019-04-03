@@ -16,14 +16,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import apt_expts
 import os
+import ast
+import apt_expts
+import os
+import pickle
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
+gt_lbl = None
 if data_type == 'alice':
     lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
     op_graph = []
     gt_lbl = '/nrs/branson/mayank/apt_cache/multitarget_bubble/multitarget_bubble_expandedbehavior_20180425_allGT_stripped.lbl'
+    op_af_graph = '\(0,1\),\(0,2\),\(1,2\),\(2,3\),\(1,4\),\(4,7\),\(3,9\),\(7,5\),\(9,5\),\(5,6\),\(7,8\),\(8,12\),\(9,10\),\(10,15\),\(16,3\),\(11,4\),\(14,5\),\(13,5\)'
 elif data_type == 'stephen':
-    lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_dlstripped.lbl'
+    lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
+    gt_lbl = lbl_file
+    op_af_graph = '\(0,1\),\(0,2\),\(2,3\),\(1,3\),\(0,4\),\(1,4\)'
+elif data_type == 'roian':
+    lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
     gt_lbl = lbl_file
 else:
     lbl_file = ''
@@ -37,10 +48,11 @@ lbl = h5py.File(lbl_file,'r')
 nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
 lbl.close()
 cache_dir = '/nrs/branson/mayank/apt_cache'
-all_models = ['mdn','deeplabcut','unet','openpose','leap']
+all_models = ['mdn','deeplabcut','unet','leap','openpose']
 
 gpu_model = 'GeForceRTX2080Ti'
 sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
+n_splits = 3
 
 def run_jobs(cmd_name,cur_cmd,redo=False):
     logfile = os.path.join(sdir,'opt_' + cmd_name+ '.log')
@@ -131,11 +143,12 @@ def plot_results(data_in):
 ##     ##################        CREATE DBS
 
 
-## normal dbs
+## normal dbs - FULL
 
 # assert False,'Are you sure?'
 
 exp_name = 'apt_expt'
+assert gt_lbl is not None
 for view in range(nviews):
     for tndx in range(len(all_models)):
         train_type = all_models[tndx]
@@ -146,6 +159,28 @@ for view in range(nviews):
             apt.create_leap_db(conf,split=False,use_cache=True)
         else:
             apt.create_tfrecord(conf,split=False,use_cache=True)
+
+
+## normal dbs - CV
+
+exp_name = 'apt_expt'
+assert gt_lbl is None
+for view in range(nviews):
+    for tndx in range(len(all_models)):
+        train_type = all_models[tndx]
+        common_conf = apt.create_conf(lbl_file,view,exp_name,cache_dir,train_type)
+        alltrain, splits, split_files = apt.create_cv_split_files(common_conf,n_splits)
+        for split in range(n_splits):
+            cur_split_file = os.path.join(common_conf.cachedir, 'cv_split_fold_{}.json'.format(split))
+            conf = apt.create_conf(lbl_file, view, 'cv_split_{}'.format(split), cache_dir, train_type)
+            conf.splitType = 'predefined'
+            if train_type == 'deeplabcut':
+                apt.create_deepcut_db(conf,split=True,use_cache=True,split_file=cur_split_file)
+            elif train_type == 'leap':
+                apt.create_leap_db(conf,split=True,use_cache=True,split_file=cur_split_file)
+            else:
+                apt.create_tfrecord(conf,split=True,use_cache=True,split_file=cur_split_file)
+
 
 ## create incremental dbs
 
@@ -160,25 +195,25 @@ t_ndx = apt.to_py(lbl['preProcData_MD_iTgt'].value[0, :].astype('int'))
 f_ndx = apt.to_py(lbl['preProcData_MD_frm'].value[0, :].astype('int'))
 
 n_mov = lbl['movieFilesAll'].shape[1]
-t_arr = []
-for ndx in range(n_mov):
-    pts = lbl['labeledposTS']
-    sz = np.array(lbl[pts[0, ndx]]['size'])[:, 0].astype('int')
-    cur_pts = np.zeros(sz).flatten()
-    cur_pts[:] = np.nan
-    if lbl[pts[0, ndx]]['val'].value.ndim > 1:
-        idx = np.array(lbl[pts[0, ndx]]['idx'])[0, :].astype('int') - 1
-        val = np.array(lbl[pts[0, ndx]]['val'])[0, :]
-        cur_pts[idx] = val
-    cur_pts = cur_pts.reshape(np.flipud(sz))
-    t_arr.append(cur_pts)
-
-ts_ndx = []
-for ndx in range(m_ndx.shape[0]):
-    cur_ts = t_arr[m_ndx[ndx]][t_ndx[ndx],f_ndx[ndx],0]
-    ts_ndx.append(cur_ts)
-
-ts_ndx = np.array(ts_ndx)
+# t_arr = []
+# for ndx in range(n_mov):
+#     pts = lbl['labeledposTS']
+#     sz = np.array(lbl[pts[0, ndx]]['size'])[:, 0].astype('int')
+#     cur_pts = np.zeros(sz).flatten()
+#     cur_pts[:] = np.nan
+#     if lbl[pts[0, ndx]]['val'].value.ndim > 1:
+#         idx = np.array(lbl[pts[0, ndx]]['idx'])[0, :].astype('int') - 1
+#         val = np.array(lbl[pts[0, ndx]]['val'])[0, :]
+#         cur_pts[idx] = val
+#     cur_pts = cur_pts.reshape(np.flipud(sz))
+#     t_arr.append(cur_pts)
+#
+# ts_ndx = []
+# for ndx in range(m_ndx.shape[0]):
+#     cur_ts = t_arr[m_ndx[ndx]][t_ndx[ndx],f_ndx[ndx],0]
+#     ts_ndx.append(cur_ts)
+#
+# ts_ndx = np.array(ts_ndx)
 
 n_labels = m_ndx.shape[0]
 n_rounds = 8
@@ -230,7 +265,7 @@ for ndx, cur_s in enumerate(n_samples):
 ## NORMAL TRAINING
 
 # assert False,'Are you sure?'
-run_type = 'status'
+run_type = 'submit'
 
 common_conf = {}
 common_conf['rrange'] = 10
@@ -240,6 +275,8 @@ common_conf['dl_steps'] = 100000
 common_conf['decay_steps'] = 20000
 common_conf['save_step'] = 5000
 common_conf['batch_size'] = 8
+common_conf['normalize_img_mean'] = False
+common_conf['maxckpt'] = 20
 cache_dir = '/nrs/branson/mayank/apt_cache'
 
 for view in range(nviews):
@@ -251,9 +288,14 @@ for view in range(nviews):
         end_cmd = 'train -skip_db -use_cache'
         cmd_opts = {}
         cmd_opts['type'] = train_type
+        cmd_opts['view'] = view + 1
         conf_opts = common_conf.copy()
         # conf_opts.update(other_conf[conf_id])
-        conf_opts['save_step'] = conf_opts['dl_steps']/20
+        conf_opts['save_step'] = conf_opts['dl_steps']/10
+        if data_type == 'stephen':
+            conf_opts['batch_size'] = 4
+        if op_af_graph is not None:
+            conf_opts['op_affinity_graph'] = op_af_graph
 
         if len(conf_opts) > 0:
             conf_str = ' -conf_params'
@@ -277,6 +319,60 @@ for view in range(nviews):
             check_train_status(cmd_name,conf.cachedir)
 
 
+## CV Training
+
+run_type = 'status'
+
+common_conf = {}
+common_conf['rrange'] = 10
+common_conf['trange'] = 5
+common_conf['mdn_use_unet_loss'] = True
+common_conf['dl_steps'] = 100000
+common_conf['decay_steps'] = 20000
+common_conf['save_step'] = 5000
+common_conf['batch_size'] = 8
+common_conf['maxckpt'] = 20
+cache_dir = '/nrs/branson/mayank/apt_cache'
+
+assert gt_lbl is not None
+for view in range(nviews):
+    for tndx in range(len(all_models)):
+        train_type = all_models[tndx]
+        for split in range(n_splits):
+            exp_name = 'cv_split_{}'.format(split)
+            common_cmd = 'APT_interface.py {} -name {} -cache {}'.format(lbl_file, exp_name, cache_dir)
+            end_cmd = 'train -skip_db -use_cache'
+            cmd_opts = {}
+            cmd_opts['type'] = train_type
+            cmd_opts['view'] = view + 1
+            conf_opts = common_conf.copy()
+            # conf_opts.update(other_conf[conf_id])
+            conf_opts['save_step'] = conf_opts['dl_steps'] / 10
+            if data_type == 'stephen':
+                conf_opts['batch_size'] = 4
+            if op_af_graph is not None:
+                conf_opts['op_affinity_graph'] = op_af_graph
+
+            if len(conf_opts) > 0:
+                conf_str = ' -conf_params'
+                for k in conf_opts.keys():
+                    conf_str = '{} {} {} '.format(conf_str, k, conf_opts[k])
+            else:
+                conf_str = ''
+
+            opt_str = ''
+            for k in cmd_opts.keys():
+                opt_str = '{} -{} {} '.format(opt_str, k, cmd_opts[k])
+
+            cur_cmd = common_cmd + conf_str + opt_str + end_cmd
+            cmd_name = '{}_view{}_{}_{}'.format(data_type, view, exp_name, train_type)
+            if run_type == 'submit':
+                print cur_cmd
+                print
+                run_jobs(cmd_name, cur_cmd)
+            elif run_type == 'status':
+                conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+                check_train_status(cmd_name, conf.cachedir)
 
 
 ## DLC augment vs no augment
@@ -297,6 +393,7 @@ common_conf['dl_steps'] = 100000
 common_conf['decay_steps'] = 20000
 common_conf['save_step'] = 5000
 common_conf['batch_size'] = 8
+common_conf['maxckpt'] = 20
 
 other_conf = [{'dlc_augment':True},{'dlc_augment':False,'dl_steps':300000}]
 cmd_str = ['dlc_aug','dlc_noaug']
@@ -312,6 +409,7 @@ for view in range(nviews):
         cmd_opts = {}
         cmd_opts['type'] = train_type
         cmd_opts['train_name'] = cmd_str[conf_id]
+        cmd_opts['view'] = view + 1
         conf_opts = common_conf.copy()
         conf_opts.update(other_conf[conf_id])
         conf_opts['save_step'] = conf_opts['dl_steps']/20
@@ -342,7 +440,7 @@ for view in range(nviews):
 
 ## INCREMENTAL TRAINING
 
-run_type = 'status'
+run_type = 'submit'
 # assert False, 'Are you sure?'
 gpu_model = 'GeForceRTX2080Ti'
 sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
@@ -354,6 +452,7 @@ common_conf['dl_steps'] = 100000
 common_conf['decay_steps'] = 20000
 common_conf['save_step'] = 5000
 common_conf['batch_size'] = 8
+common_conf['maxckpt'] = 20
 
 
 n_rounds = 8
@@ -366,9 +465,14 @@ for ndx in range(n_rounds):
             end_cmd = 'train -skip_db -use_cache'
             cmd_opts = {}
             cmd_opts['type'] = train_type
+            cmd_opts['view'] = view + 1
             conf_opts = common_conf.copy()
             # conf_opts.update(other_conf[conf_id])
-            conf_opts['save_step'] = conf_opts['dl_steps']/20
+            conf_opts['save_step'] = conf_opts['dl_steps']/ 10
+            if data_type == 'stephen':
+                conf_opts['batch_size'] = 4
+            if op_af_graph is not None:
+                conf_opts['op_affinity_graph'] = op_af_graph
 
             if len(conf_opts) > 0:
                 conf_str = ' -conf_params'
@@ -413,8 +517,6 @@ cache_dir = '/nrs/branson/mayank/apt_cache'
 exp_name = 'apt_expt'
 train_name = 'deepnet'
 
-import apt_expts
-import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 for view in range(nviews):
@@ -424,21 +526,45 @@ for view in range(nviews):
     for train_type in all_models:
 
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
-        files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*.index").format(train_name))
+        if op_af_graph is not None:
+            conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
+        files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
         files.sort(key=os.path.getmtime)
-        aa = [int(re.search('-(\d*).index',f).groups(0)[0]) for f in files]
+        files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
+        aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
         aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
         if any([a<0 for a in aa]):
             bb = int(np.where(np.array(aa)<0)[0])+1
             files = files[bb:]
         files = [f.replace('.index','') for f in files]
 
-        if len(files)> 8:
+        n_max = 8
+        if len(files)> n_max:
             gg = len(files)
-            sel = np.linspace(0,len(files)-1,8).astype('int')
+            sel = np.linspace(0,len(files)-1,n_max).astype('int')
             files = [files[s] for s in sel]
 
-        mdn_out = apt_expts.classify_db_all(conf,gt_file,files,train_type,name=train_name)
+        out_file = os.path.join(conf.cachedir,train_name + '_results.p')
+        recomp = False
+        if os.path.exists(out_file):
+            fts = [os.path.getmtime(f) for f in files]
+            ots = os.path.getmtime(out_file)
+            if any([f > ots for f in fts]):
+                recomp = True
+            else:
+                A = PoseTools.pickle_load(out_file)
+                old_files = A[1]
+                if not all([i==j for i,j in zip(files,old_files)]):
+                    recomp = True
+
+        if recomp:
+            mdn_out = apt_expts.classify_db_all(conf,gt_file,files,train_type,name=train_name)
+            with open(out_file,'w') as f:
+                pickle.dump([mdn_out,files],f)
+        else:
+            A = PoseTools.pickle_load(out_file)
+            mdn_out = A[0]
+
         out_exp[train_type] = mdn_out
     plot_results(out_exp)
 
@@ -458,6 +584,8 @@ for view in range(nviews):
     for conf_id in range(len(cmd_str)):
         train_name=cmd_str[conf_id]
         conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+        if op_af_graph is not None:
+            conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
         files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*.index").format(train_name))
         files.sort(key=os.path.getmtime)
         aa = [int(re.search('-(\d*).index', f).groups(0)[0]) for f in files]
@@ -492,6 +620,8 @@ for view in range(nviews):
         for ndx in range(n_rounds):
             exp_name = '{}_randsplit_round_{}'.format(data_type, ndx)
             conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+            if op_af_graph is not None:
+                conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
             files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*.index").format(train_name))
             files.sort(key=os.path.getmtime)
             if len(files)>0:

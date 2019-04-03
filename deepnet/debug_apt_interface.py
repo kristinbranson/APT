@@ -1,5 +1,28 @@
+import APT_interface as apt
+import os
+import glob
+import apt_expts
+import h5py
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt'
+train_name = 'deepnet'
+view =0
 
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+lbl.close()
+
+train_type = 'leap'
+conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
+files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+mdn_out = apt_expts.classify_db_all(conf ,gt_file ,files ,train_type ,name=train_name)
+
+##
 import APT_interface as apt
 cmd = '-name 20190401T232843 -view 1 -cache /nrs/branson/APTCache_Alice -model_files /nrs/branson/APTCache_Alice/Larva94A04_GT2/mdn/view_0/20190401T232843/deepnet-30000 -type mdn /nrs/branson/APTCache_Alice/Larva94A04_GT2/20190401T232843_20190401T233109.lbl track -mov /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/png_movie_mono.avi -out /nrs/branson/APTCache_Alice/Larva94A04_GT2/mdn/view_0/20190401T232843/trk/png_movie_mono_trn20190401T232843_iter30000_20190402T093738.trk -start_frame 1020 -end_frame 1220 -trx /groups/branson/bransonlab/larvalmuscle_2018/94A04_E/trx_aug.mat -trx_ids 1'
 import os

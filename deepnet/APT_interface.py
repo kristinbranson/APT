@@ -1066,8 +1066,8 @@ def create_cv_split_files(conf, n_splits=3):
         all_train.append(cur_train)
         cur_split_file = os.path.join(conf.cachedir, 'cv_split_fold_{}.json'.format(ndx))
         split_files.append(cur_split_file)
-        with open(cur_split_file, 'w'):
-            json.dump([cur_train, splits[ndx]])
+        with open(cur_split_file, 'w') as f:
+            json.dump([cur_train, splits[ndx]],f)
 
     return all_train, splits, split_files
 

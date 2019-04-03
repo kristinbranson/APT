@@ -534,13 +534,13 @@ def training(conf,name='deepnet'):
     for blk in range(1,5):
         for lvl in range(1,3):
             from_vgg['conv{}_{}'.format(blk,lvl)] = 'block{}_conv{}'.format(blk,lvl)
-    print("Loading vgg19 weights...")
+    logging.info("Loading vgg19 weights...")
     vgg_model = VGG19(include_top=False, weights='imagenet')
     for layer in model.layers:
         if layer.name in from_vgg:
             vgg_layer_name = from_vgg[layer.name]
             layer.set_weights(vgg_model.get_layer(vgg_layer_name).get_weights())
-            print("Loaded VGG19 layer: " + vgg_layer_name)
+            logging.info("Loaded VGG19 layer: " + vgg_layer_name)
 
     # prepare generators
     train_di = DataIteratorTF(conf, 'train', True, True)
@@ -627,7 +627,7 @@ def training(conf,name='deepnet'):
             p_str = ''
             for k in self.train_info.keys():
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
-            print(p_str)
+            logging.info(p_str)
 
             train_data_file = os.path.join( self.config.cachedir, 'traindata')
 
@@ -655,6 +655,9 @@ def training(conf,name='deepnet'):
     # start training
     model.compile(loss=losses, optimizer=multisgd)
 
+    #save initial model
+    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(0))))
+
     # training
     model.fit_generator(train_di,
                         steps_per_epoch=conf.display_step,
@@ -679,7 +682,7 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
     else:
         latest_model_file = model_file
-    print("Loading the weights from {}.. ".format(latest_model_file))
+    logging.info("Loading the weights from {}.. ".format(latest_model_file))
     model.load_weights(latest_model_file)
 
     def pred_fn(all_f):

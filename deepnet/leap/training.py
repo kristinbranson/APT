@@ -514,7 +514,7 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         latest_model_file = PoseTools.get_latest_model_file_keras(conf,name)
     else:
         latest_model_file = model_file
-    model = keras.models.load_model(latest_model_file)
+    model = keras.models.load_model(str(latest_model_file))
 
     def pred_fn(all_f):
         newY = int(np.ceil(float(all_f.shape[1]) / 32) * 32)
