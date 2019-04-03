@@ -21,7 +21,8 @@ classdef APTParameters
       
       nettypes = enumeration('DLNetType');
       tPrmDeepNets = ...
-        arrayfun(@(x)parseConfigYaml(fullfile(APT.Root,'trackers','dt',x.paramFileShort)),nettypes);
+        arrayfun(@(x)parseConfigYaml(fullfile(APT.Root,'trackers','dt',x.paramFileShort)),nettypes,'uni',0);
+      tPrmDeepNets = cat(1,tPrmDeepNets{:});
       tPrmDeepNetsChildren = cat(1,tPrmDeepNets.Children);
       
       tPrmDT.Children.Children = [tPrmDT.Children.Children; tPrmDeepNetsChildren];
@@ -59,7 +60,8 @@ classdef APTParameters
     
     function dlNetTypes = getDLNetTypes
       mc = ?DLNetType;
-      dlNetTypes = cellfun(@(x) DLNetType(x),{mc.EnumerationMemberList.Name});
+      dlNetTypes = cellfun(@(x) DLNetType(x),{mc.EnumerationMemberList.Name},'uni',0);
+      dlNetTypes = cat(2,dlNetTypes{:});
     end
     
     function dlNetTypesPretty = getDLNetTypesPretty
