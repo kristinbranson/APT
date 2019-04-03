@@ -110,6 +110,7 @@ class PoseUNet(PoseCommon):
         self.for_training = 1 # for prediction.
         self.scale = self.conf.rescale
         self.no_pad = pad_input
+        conf.use_pretrained_weights = False
 
         if pad_input:
             self.pad_y,_ = find_pad_sz(n_layers=4,in_sz=conf.imsz[0])
