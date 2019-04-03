@@ -237,7 +237,6 @@ def convert_to_orig(base_locs, conf, fnum, cur_trx, crop_loc):
         base_locs_orig[ :, 1] += ylo
     else:
         base_locs_orig = base_locs.copy()
-
     return base_locs_orig
 
 
@@ -252,6 +251,8 @@ def convert_unicode(data):
         return unicode(data)
     elif isinstance(data, collections.Mapping):
         return dict(map(convert_unicode, data.iteritems()))
+    elif isinstance(data,np.ndarray):
+        return data
     elif isinstance(data, collections.Iterable):
         return type(data)(map(convert_unicode, data))
     else:
@@ -495,7 +496,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='unet',conf_param
     except KeyError:
         pass
     try:
-        if isModern:
+        if isModern and net_type == 'openpose':
             bb = read_string(dt_params['DeepTrack']['OpenPose']['affinity_graph'])           
         else: 
             bb = ''

@@ -16,7 +16,7 @@ def get_gpu_memory_free():
     memtype = 'unknown'
 
     gpubusinfo_re = re.compile('GPU \d+:')
-    memtypecurr_re = re.compile('([a-zA-Z]+) Memory Usage')
+    memtypecurr_re = re.compile('([a-zA-Z0-9]+) Memory Usage')
     memval_re = re.compile('(\d+) MiB')
 
     for i in range(len(out_list)):
