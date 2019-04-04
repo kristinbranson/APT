@@ -24,10 +24,11 @@ end
 
 ts_all = zeros(1,numel(s.trackerData));
 for i = 1:numel(s.trackerData),
-  if ~isfield(s.trackerData{i},'trnName') || isempty(s.trackerData{i}.trnName),
+  if ~isfield(s.trackerData{i},'trnLastDMC') || isempty(s.trackerData{i}.trnLastDMC) ...
+      || isempty(s.trackerData{i}.trnLastDMC(1).trainID)
     continue;
   end
-  ts_all(i) = datenum(s.trackerData{i}.trnName,'yyyymmddTHHMMSS');
+  ts_all(i) = datenum(s.trackerData{i}.trnLastDMC(1).trainID,'yyyymmddTHHMMSS');
 end
 
 [~,order] = sort(ts_all,'descend');
@@ -48,7 +49,7 @@ for i = order,
     % continue being empty; and there is nothing to update on
     % s.trackDLParams. Silence (no warnings) is also ok in this case,
     % defaults will be used later.
-    assert(isempty(s.trackerData{i}.trnName),...
+    assert(isempty(s.trackerData{i}.trnLastDMC),...
       'Trained DL tracker exists with no parameters.');
     continue;
   end
@@ -68,10 +69,11 @@ for i = order,
   
   sPrm_specific_in = flattenStruct(s.trackerData{i}.sPrm);
   leaves_specific = fieldnames(sPrm_specific_in);
-  if ~isfield(s.trackerData{i},'trnName') || isempty(s.trackerData{i}.trnName),
+  if ~isfield(s.trackerData{i},'trnLastDMC') || isempty(s.trackerData{i}.trnLastDMC) ...
+      || isempty(s.trackerData{i}.trnLastDMC(1).trainID
     ts = 0;
   else
-    ts = datenum(s.trackerData{i}.trnName,'yyyymmddTHHMMSS');
+    ts = datenum(s.trackerData{i}.trnLastDMC(1).trainID,'yyyymmddTHHMMSS');
   end
   
   warnfun_common = @(fn) sprintf('Collision collapsing from %s to common DL parameter %s, using most recent value',char(s.trackerData{i}.trnNetType),fn);

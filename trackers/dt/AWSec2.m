@@ -1,4 +1,4 @@
-classdef AWSec2 < handle
+classdef AWSec2 < matlab.mixin.Copyable
   % Handle to a single AWS EC2 instance. The instance may be in any state,
   % running, stopped, etc.
 
@@ -524,6 +524,10 @@ classdef AWSec2 < handle
       end
     end
     
+    function tf = isSameInstance(obj,obj2)
+      assert(isscalar(obj) && isscalar(obj2));
+      tf = strcmp(obj.instanceID,obj2.instanceID) && ~isempty(obj.instanceID);
+    end
   end
   
   methods (Static)
