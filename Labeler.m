@@ -2917,7 +2917,7 @@ classdef Labeler < handle
       end
       
       % KB 20190331: adding in post-processing parameters if missing
-      if ~isfield(s.trackParams.ROOT,'PostProcess'),
+      if ~isempty(s.trackParams) && ~isfield(s.trackParams.ROOT,'PostProcess'),
         dfltParams = APTParameters.defaultParamsStruct;
         s.trackParams.ROOT.PostProcess = dfltParams.PostProcess;
       end
