@@ -25,7 +25,13 @@ for iView = 1:nViews,
 end
 
 tObj = lObj.tracker;
-xyPredictions = tObj.trkP; % [npt x d x ntgt]
+
+% Use loaded predictions by default
+xyPredictions = lObj.labeledpos2{iMov};
+if all(isnan(xyPredictions))
+  xyPredictions = tObj.trkP; % [npt x d x ntgt]
+end
+
 idxPred = find(~isnan(xyPredictions));
 predIdx = struct;
 [predIdx.pt,predIdx.d,predIdx.frm,predIdx.tgt] = ind2sub(size(xyPredictions),idxPred);
