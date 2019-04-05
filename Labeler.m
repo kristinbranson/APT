@@ -1663,11 +1663,17 @@ classdef Labeler < handle
     end
       
     function projSaveRaw(obj,fname)
-      s = obj.projGetSaveStruct(); 
-      rawLblFile = obj.getRawLblFile();
-      save(rawLblFile,'-mat','-struct','s');
-      success = obj.bundleSave(fname);
-      if ~success, error('Could not bundle the label file %s',fname); end
+      s = obj.projGetSaveStruct();
+      
+      if 0 % AL_BUNDLESAVE_EARLYMERGE
+        rawLblFile = obj.getRawLblFile();
+        save(rawLblFile,'-mat','-struct','s');
+        success = obj.bundleSave(fname);
+        if ~success, error('Could not bundle the label file %s',fname); end
+      else
+        save(fname,'-mat','-struct','s');
+      end      
+      
       obj.labeledposNeedsSave = false;
       obj.needsSave = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
@@ -1819,13 +1825,16 @@ classdef Labeler < handle
           % the only possibility is that it is already a fullpath
         end
       end
-      
-      % MK 20190204. Use Unbundling instead of loading.
-      % Model files are copied to cache dir later.
-      [success, tlbl] = obj.unbundleLoad(fname);
-      if ~success, error('Could not unbundle the label file %s',fname); end
-      s = load(tlbl,'-mat');
-%       s = load(fname,'-mat');  
+
+      if 0 % AL_BUNDLESAVE_EARLYMERGE
+        % MK 20190204. Use Unbundling instead of loading.
+        % Model files are copied to cache dir later.
+        [success, tlbl] = obj.unbundleLoad(fname);
+        if ~success, error('Could not unbundle the label file %s',fname); end
+        s = load(tlbl,'-mat');
+      else
+        s = load(fname,'-mat');
+      end
 
       if ~all(isfield(s,{'VERSION' 'labeledpos'}))
         error('Labeler:load','Unexpected contents in Label file.');
@@ -1953,31 +1962,34 @@ classdef Labeler < handle
       end
       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       
-      %MK 20190204 copy models to cache dir for bundled label file.
-      % reset movIdx2trkfile.
-      newCacheDir = obj.copyModelsToCache(obj.trackDLParams.CacheDir);
-      if ~strcmp(newCacheDir, obj.trackDLParams.CacheDir)
-        obj.trackDLParams.CacheDir = newCacheDir;
-        for ndx = 1:numel(obj.tracker.trnLastDMC)
-          obj.tracker.trnLastDMC(ndx).rootDir = newCacheDir;
-        end
-        for ndx = 1:numel(obj.trackersAll)
-            if isprop(obj.trackersAll{ndx},'movIdx2trkfile')
-                obj.trackersAll{ndx}.movIdx2trkfile = containers.Map('KeyType','int32','ValueType','any');
-            end
-        end
-        % We save the stripped label file. If not, uncomment following to
-        % regenerate it. But the regenerated could be different than the
-        % original.
-%         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
-%           if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
-%             s = obj.tracker.trnCreateStrippedLbl();
-%             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
-%           end
-%         end
-      end
-      obj.clearTempDir(); % clear the temp directory.
+      if 0 % AL_BUNDLESAVE_EARLYMERGE
 
+        %MK 20190204 copy models to cache dir for bundled label file.
+        % reset movIdx2trkfile.
+        newCacheDir = obj.copyModelsToCache(obj.trackDLParams.CacheDir);
+        if ~strcmp(newCacheDir, obj.trackDLParams.CacheDir)
+          obj.trackDLParams.CacheDir = newCacheDir;
+          for ndx = 1:numel(obj.tracker.trnLastDMC)
+            obj.tracker.trnLastDMC(ndx).rootDir = newCacheDir;
+          end
+          for ndx = 1:numel(obj.trackersAll)
+            if isprop(obj.trackersAll{ndx},'movIdx2trkfile')
+              obj.trackersAll{ndx}.movIdx2trkfile = containers.Map('KeyType','int32','ValueType','any');
+            end
+          end
+          % We save the stripped label file. If not, uncomment following to
+          % regenerate it. But the regenerated could be different than the
+          % original.
+          %         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
+          %           if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
+          %             s = obj.tracker.trnCreateStrippedLbl();
+          %             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
+          %           end
+          %         end
+        end
+        obj.clearTempDir(); % clear the temp directory.
+
+      end
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -2084,7 +2096,7 @@ classdef Labeler < handle
         % Functions to handle bundled label files
         % MK 20190201
     function [success, rawLblFile] = unbundleLoad(obj, fname)
-      % Unbundles the lbl file if it is a tar bundle.
+      % Unbundles the lbl file if it unbundleis a tar bundle.
       % Return the path to untarred label file.
       % MK 20190201
       tname = tempname;
