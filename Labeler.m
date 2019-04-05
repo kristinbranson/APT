@@ -1665,12 +1665,13 @@ classdef Labeler < handle
     function projSaveRaw(obj,fname)
       s = obj.projGetSaveStruct();
       
-      fprintf(2,'TODO\n');
-      if 0
+      if 1
         rawLblFile = obj.projGetRawLblFile();
         save(rawLblFile,'-mat','-struct','s');
         success = obj.projBundleSave(fname);
-        if ~success, error('Could not bundle the label file %s',fname); end
+        if ~success
+          error('Could not bundle the label file %s',fname);
+        end
       else
         save(fname,'-mat','-struct','s');
       end
@@ -2077,13 +2078,13 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
       obj.projFSInfo = ProjectFSInfo('imported',fname);
       
-      % XXX prob would need .preProcInit() here
+      % TODO prob would need .preProcInit() here
       
       if ~isempty(obj.tracker)
         warning('Labeler:projImport','Re-initting tracker.');
         obj.tracker.init();
       end
-      % xxx .trackerDeep
+      % TODO .trackerDeep
     end
     
     function projAssignProjNameFromProjFileIfAppropriate(obj)
@@ -2186,7 +2187,7 @@ classdef Labeler < handle
     function [success] = projBundleSave(obj,outFile)
       % bundle contents of projTempDir into outFile
       success = false;
-      [rawLblFile,tname] = obj.projGetRawLblFile(obj);
+      [rawLblFile,tname] = obj.projGetRawLblFile();
       if ~exist(rawLblFile,'file')
         error('Raw label file %s does not exist. Could not create bundled label file.',...
           rawLblFile);
