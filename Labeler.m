@@ -2941,7 +2941,7 @@ classdef Labeler < handle
           continue;
         end
         if ~isfield(s.trackerData{i},'sPrmAll') || isempty(s.trackerData{i}.sPrmAll),
-          s.trackerData{i}.sPrmAll = s.trackParams;
+          s.trackerData{i}.sPrmAll = s.trackParams; % Could be [] for legacy projs
         end
         if isfield(s.trackerData{i},'sPrm') && ~isempty(s.trackerData{i}.sPrm),
           if strcmp(s.trackerClass{i}{1},'CPRLabelTracker'),
@@ -2954,10 +2954,10 @@ classdef Labeler < handle
         end
         
         % KB 20190331: adding in post-processing parameters if missing
-        if ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
+        if ~isempty(s.trackerData{i}.sPrmAll) && ...
+    	     ~isfield(s.trackerData{i}.sPrmAll.ROOT,'PostProcess'),
           s.trackerData{i}.sPrmAll.ROOT.PostProcess = s.trackParams.ROOT.PostProcess;
         end
-          
       end
       
       if isfield(s,'preProcParams'),
