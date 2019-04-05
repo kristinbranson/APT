@@ -70,7 +70,7 @@ for i = order,
   sPrm_specific_in = flattenStruct(s.trackerData{i}.sPrm);
   leaves_specific = fieldnames(sPrm_specific_in);
   if ~isfield(s.trackerData{i},'trnLastDMC') || isempty(s.trackerData{i}.trnLastDMC) ...
-      || isempty(s.trackerData{i}.trnLastDMC(1).trainID
+      || isempty(s.trackerData{i}.trnLastDMC(1).trainID)
     ts = 0;
   else
     ts = datenum(s.trackerData{i}.trnLastDMC(1).trainID,'yyyymmddTHHMMSS');

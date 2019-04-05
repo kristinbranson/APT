@@ -1663,11 +1663,17 @@ classdef Labeler < handle
     end
       
     function projSaveRaw(obj,fname)
-      s = obj.projGetSaveStruct(); 
-      rawLblFile = obj.projGetRawLblFile();
-      save(rawLblFile,'-mat','-struct','s');
-      success = obj.projBundleSave(fname);
-      if ~success, error('Could not bundle the label file %s',fname); end
+      s = obj.projGetSaveStruct();
+      
+      fprintf(2,'TODO\n');
+      if 0
+        rawLblFile = obj.projGetRawLblFile();
+        save(rawLblFile,'-mat','-struct','s');
+        success = obj.projBundleSave(fname);
+        if ~success, error('Could not bundle the label file %s',fname); end
+      else
+        save(fname,'-mat','-struct','s');
+      end
       obj.labeledposNeedsSave = false;
       obj.needsSave = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
@@ -1955,33 +1961,35 @@ classdef Labeler < handle
       
       %MK 20190204 copy models to cache dir for bundled label file.
       % reset movIdx2trkfile.
-      [succ,newCacheDir] = obj.projCopyModelsToCache(obj.trackDLParams.CacheDir);
-      if ~succ
-        % XXX
+      if 0
         fprintf(2,'TODO');
-      end
-      if ~strcmp(newCacheDir, obj.trackDLParams.CacheDir)
-        obj.trackDLParams.CacheDir = newCacheDir;
-        for ndx = 1:numel(obj.tracker.trnLastDMC)
-          obj.tracker.trnLastDMC(ndx).rootDir = newCacheDir;
+        [succ,newCacheDir] = obj.projCopyModelsToCache(obj.trackDLParams.CacheDir);
+        if ~succ
+          % XXX
+          fprintf(2,'TODO');
         end
-        for ndx = 1:numel(obj.trackersAll)
-            if isprop(obj.trackersAll{ndx},'movIdx2trkfile')
-                obj.trackersAll{ndx}.movIdx2trkfile = containers.Map('KeyType','int32','ValueType','any');
-            end
+        if ~strcmp(newCacheDir, obj.trackDLParams.CacheDir)
+          obj.trackDLParams.CacheDir = newCacheDir;
+          for ndx = 1:numel(obj.tracker.trnLastDMC)
+            obj.tracker.trnLastDMC(ndx).rootDir = newCacheDir;
+          end
+          for ndx = 1:numel(obj.trackersAll)
+              if isprop(obj.trackersAll{ndx},'movIdx2trkfile')
+                  obj.trackersAll{ndx}.movIdx2trkfile = containers.Map('KeyType','int32','ValueType','any');
+              end
+          end
+          % We save the stripped label file. If not, uncomment following to
+          % regenerate it. But the regenerated could be different than the
+          % original.
+  %         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
+  %           if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
+  %             s = obj.tracker.trnCreateStrippedLbl();
+  %             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
+  %           end
+  %         end
         end
-        % We save the stripped label file. If not, uncomment following to
-        % regenerate it. But the regenerated could be different than the
-        % original.
-%         if isprop(obj.tracker,'trnLastDMC') && ~isempty(obj.tracker.trnLastDMC)
-%           if ~exist(obj.tracker.trnLastDMC.lblStrippedLnx,'file')
-%             s = obj.tracker.trnCreateStrippedLbl();
-%             save(obj.tracker.trnLastDMC.lblStrippedLnx,'-struct','s');
-%           end
-%         end
+        obj.clearTempDir(); % clear the temp directory.
       end
-      obj.clearTempDir(); % clear the temp directory.
-
       
       obj.notify('projLoaded');
       obj.notify('cropUpdateCropGUITools');
@@ -2095,8 +2103,8 @@ classdef Labeler < handle
         obj.projTempDir = tempname;
       end
       tname = obj.projTempDir;
-      if exists(tname,'dir')==0
-        [success,message,~] = mkdir();
+      if exist(tname,'dir')==0
+        [success,message,~] = mkdir(tname);
         if ~success
           error('Could not create temp directory %s: %s',tname,message);
         end        
@@ -2117,7 +2125,7 @@ classdef Labeler < handle
         untar(fname,tname);
       catch ME
         if strcmp(ME.identifier,'MATLAB:untar:invalidTarFile')
-          warningNoTrace('Label file %s is not bundled. Using it in raw mat format',fname);
+          warningNoTrace('Label file %s is not bundled. Using it in raw (mat) format.',fname);
           [success,message,~] = copyfile(fname,rawLblFile);
           if ~success
             warningNoTrace('Could not copy lbl files for bundling: %s',message);
@@ -2778,12 +2786,12 @@ classdef Labeler < handle
             end
           end
         end
-        if isfield(s.trackerData{i},'trnName')
+        if isfield(s.trackerData{i},'trnName') && ~isempty(s.trackerData{i}.trnName)
           assert(all(strcmp(s.trackerData{i}.trnName,...
                             {s.trackerData{i}.trnLastDMC.modelChainID})));
           s.trackerData{i} = rmfield(s.trackerData{i},'trnName');
         end
-        if isfield(s.trackerData{i},'trnNameLbl')
+        if isfield(s.trackerData{i},'trnNameLbl') && ~isempty(s.trackerData{i}.trnNameLbl)
           assert(all(strcmp(s.trackerData{i}.trnNameLbl,...
                             {s.trackerData{i}.trnLastDMC.trainID})));
           s.trackerData{i} = rmfield(s.trackerData{i},'trnNameLbl');

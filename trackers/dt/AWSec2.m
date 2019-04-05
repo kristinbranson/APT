@@ -11,7 +11,6 @@ classdef AWSec2 < handle
   % Some methods below can specify (assign an .instanceID) to an 
   % unspecified instance. No method however will mutate the .instanceID of 
   % a specified instance.
-  %
 
   properties (Constant)
     autoShutdownAlarmNamePat = 'aptAutoShutdown'; 

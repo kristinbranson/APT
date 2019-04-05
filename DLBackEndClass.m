@@ -1,4 +1,4 @@
-classdef DLBackEndClass < matlab.mixin.Copyable
+classdef DLBackEndClass < handle
   % Design unclear but good chance this is a thing
   %
   % This thing (maybe) specifies a physical machine/server along with a 
@@ -8,17 +8,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   %
   % TODO: this should be named 'DLBackEnd' and 'DLBackEnd' should be called
   % 'DLBackEndType' or something.
-  %
-  % copy() produces a deep copy (new/separate awsec2)
   
   properties
     type  % scalar DLBackEnd
     
     % scalar logical. if true, backend runs code in APT.Root/deepnet. This
     % path must be visible in the backend or else.
+    %
+    % Conceptually this could be an arbitrary loc.
     deepnetrunlocal = true; 
-  end
-  properties (NonCopyable)
+    
     awsec2 % used only for type==AWS
   end    
  
@@ -66,17 +65,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %     function tf = filesysAreCompatible(obj,obj2)
 %       assert(isscalar(obj) && isscalar(obj2));
 %     end
-  end
-  
-  methods (Access = protected)
-    function cpObj = copyElement(obj)
-      % Overloaded to deep copy .awsec2      
-      cpObj = copyElement@matlab.mixin.Copyable(obj);
-      if ~isempty(obj.awsec2)
-        assert(isa(obj.awsec2,'AWSec2') && isscalar(obj.awsec2));
-        cpObj.awsec2 = obj.awsec2.copy();
-      end
-    end
   end
   
 end

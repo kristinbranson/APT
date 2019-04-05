@@ -407,8 +407,17 @@ classdef DeepTracker < LabelTracker
       else
         s.sPrmAll = sPrmDflt;
       end
-
       
+      % 20190405 
+      % .trnName, .trnNameLbl removed as they dup .trnLastDMC
+      if any(isfield(s,{'trnName' 'trnNameLbl'}))
+        s = rmfield(s,{'trnName' 'trnNameLbl'});
+      end
+      % Add .reader to any .trnLastDMCs; assume local filesys
+      if ~isempty(s.trnLastDMC) && ~isfield(s.trnLastDMC,'reader')
+        rdrObj = DeepModelChainReaderLocal();
+        [s.trnLastDMC.reader] = deal(rdrObj);
+      end
     end
   end
   
@@ -981,14 +990,14 @@ classdef DeepTracker < LabelTracker
         'trainType',trnType,...
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',isMultiViewTrain,...
-        'aptRootUser',[],...
-        'backEndClass',backEnd.copy());
+        'reader',DeepModelChainReader.createFromBackEnd(backEnd)...
+        );
 
       switch backEnd.type
         case DLBackEnd.Bsub
           if backEnd.deepnetrunlocal
             aptroot = APT.Root;
-            dmc.aptRootUser = aptroot;
+            %dmc.aptRootUser = aptroot;
             %DeepTracker.downloadPretrainedExec(aptroot);
             DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           else
@@ -998,7 +1007,8 @@ classdef DeepTracker < LabelTracker
             DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           end
         case DLBackEnd.Docker
-          obj.downloadPretrainedWeights('aptroot',APT.Root); 
+          aptroot = APT.Root;
+          obj.downloadPretrainedWeights('aptroot',aptroot); 
       end
       
       % create/ensure stripped lbl; set trainID
@@ -1075,7 +1085,8 @@ classdef DeepTracker < LabelTracker
               dmc(ivw) = dmc(1).copy();
             end
             dmc(ivw).view = ivw-1; % 0-based
-            syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(dmc(ivw),...
+            syscmds{ivw} = DeepTracker.trainCodeGenSSHBsubSingDMC(...
+              aptroot,dmc(ivw),...
               'singArgs',singArgs,'trnCmdType',trnCmdType,...
               'bsubargs',{'gpuqueue' obj.jrcgpuqueue});
           end
@@ -1442,13 +1453,10 @@ classdef DeepTracker < LabelTracker
       cellfun(@(x)fprintf('  %s\n',x),paths);
     end   
     
-    function updateLastDMCsCurrInfo(obj)
-      % call .updateCurrInfo on .trnLastDMCs with current backend
-      
-      be = obj.lObj.trackDLBackEnd;
+    function updateLastDMCsCurrInfo(obj)      
       dmcs = obj.trnLastDMC;
       for i=1:numel(dmcs)
-        dmcs(i).updateCurrInfo(be);
+        dmcs(i).updateCurrInfo();
       end
     end
     
@@ -1504,7 +1512,9 @@ classdef DeepTracker < LabelTracker
         'modelChainID',modelChainID,...
         'trainID','',... % to be filled in 
         'trainType',trnType,...
-        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps);
+        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
+        'reader',DeepModelChainReader.createFromBackEnd(backend)...
+        );
       dmcLcl = dmc.copy();
       dmcLcl.rootDir = obj.lObj.DLCacheDir;
       
@@ -2090,10 +2100,10 @@ classdef DeepTracker < LabelTracker
         'Can''t find stripped lbl file: %s\n',dlLblFileLcl);
       
       % What /deepnet code are we running
-      [dmc.aptRootUser] = deal([]);
+      %[dmc.aptRootUser] = deal([]);
       if be.deepnetrunlocal
         aptroot = APT.Root;
-        [dmc.aptRootUser] = deal(aptroot);
+        %[dmc.aptRootUser] = deal(aptroot);
         DeepTracker.downloadPretrainedExec(aptroot);
       else
         DeepTracker.cloneJRCRepoIfNec(cacheDir);
@@ -2262,13 +2272,13 @@ classdef DeepTracker < LabelTracker
         gpuids = reshape(gpuids,[nMovies,nViewJobs]);
       end
       
-      [dmc.aptRootUser] = deal([]);
+      %[dmc.aptRootUser] = deal([]);
       
       switch backend.type
         case DLBackEnd.Bsub
           if backend.deepnetrunlocal
             aptroot = APT.Root;
-            [dmc.aptRootUser] = deal(aptroot);
+            %[dmc.aptRootUser] = deal(aptroot);
             %DeepTracker.downloadPretrainedExec(aptroot);
             DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
           else
@@ -3388,16 +3398,14 @@ classdef DeepTracker < LabelTracker
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
       codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
     end
-    function codestr = trainCodeGenSSHBsubSingDMC(dmc,varargin)
+    function codestr = trainCodeGenSSHBsubSingDMC(aptroot,dmc,varargin)
       [singargs,bsubargs,trnCmdType] = myparse(varargin,...
         'singargs',{},...
         'bsubargs',{},...
         'trnCmdType',dmc.trainType...
         );
       
-      if ~isempty(dmc.aptRootUser)
-        aptroot = dmc.aptRootUser;
-      else
+      if isempty(aptroot)
         aptroot = dmc.dirAptRootLnx;
       end
         

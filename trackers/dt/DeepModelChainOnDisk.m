@@ -21,15 +21,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     iterFinal % final expected iteration    
     iterCurr % last completed iteration, corresponds to actual model file used
     nLabels % number of labels used to train
-        
-    aptRootUser % (optional) external/user APT code checkout root
-  end
-  properties (NonCopyable)
-    backEndClass % scalar DLBackEndClass. This should be a copy, as it is a
-      % snapshot of the backend used to generate the DMCOD. 
-      % Conceptually, this prop is sometimes nec to specify the 
-      % location/machine/server of the filesystem holding the DMCOD (eg for 
-      % aws, or in general when the DMCOD lives on a remote filesys)
+    
+    reader % scalar DeepModelChainReader. used to update the itercurr; 
+      % knows how to read the (possibly remote) filesys etc
+      
+    %aptRootUser % (optional) external/user APT code checkout root    
   end
   properties (Dependent)
     dirProjLnx
@@ -220,91 +216,16 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         };
     end
     
-    function tfSuccess = updateCurrInfo(obj,beCurr)
-      % Update current model iteration/info by probing filesys
-      %
-      % beCurr: the current DLBackEndClass. This may differ from
-      % obj(i).backEndClass if the user has switched backends etc. 
-      % In this case we may be in a bind as the filesystem holding obj may
-      % no longer be accessible.
+    function tfSuccess = updateCurrInfo(obj)
+      % Update .iterCurr by probing filesys
       
-      assert(isscalar(obj));      
-      
-      beTrained = obj.backEndClass;
-            
-      switch beTrained.type
-        case DLBackEnd.AWS
-          if beCurr.type==DLBackEnd.AWS && ...
-             beTrained.awsec2.isSameInstance(beCurr.awsec2)
-           
-           getMostRecentModelMeth = 'getMostRecentModelAWS';
-           getMostRecentModelMethArgs = {beTrained.awsec2};
-          else
-            
-            % problem, user has switched backends. AWSec2 instance that obj
-            % was trained on may be Stopped, Terminated, etc.
-              
-          end
-        case {DLBackEnd.Bsub DLBackEnd.Docker DLBackEnd.Unknown}
-          % assume obj is on local filesystem
-          
-          % none
-      end
-      
-      
-      [getMostRecentModelMeth,getMostRecentModelMethArgs] = ...
-        myparse(varargin,...
-        'getMostRecentModelMeth','getMostRecentModelLocalLnx',...
-        'getMostRecentModelMethArgs',{}...
-        );
-      
-      
-    switch be.type
-        case DLBackEnd.AWS
-          aws = be.awsec2;
-          args = {'getMostRecentModelMeth' 'getMostRecentModelAWS' ...
-                  'getMostRecentModelMethArgs' {aws}};
-        otherwise
-          % Assume locally-accessible cache. Win may cause a beef
-          args = {};
-      end
-      
-
-      
-      maxiter = feval(getMostRecentModelMeth,obj,getMostRecentModelMethArgs{:});
+      assert(isscalar(obj));
+      maxiter = obj.reader.getMostRecentModel(obj);
       obj.iterCurr = maxiter;
       tfSuccess = ~isnan(maxiter);
-    end
-    
-    function maxiter = getMostRecentModelLocalLnx(obj,varargin)
-      maxiter = nan;
-      %filepath = '';
       
-      modelglob = obj.trainModelGlob;
-      modelfiles = mydir(fullfile(obj.dirModelChainLnx,modelglob));
-      if isempty(modelfiles),
-        return;
-      end
-      
-      maxiter = -1;
-      for i = 1:numel(modelfiles),
-        iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{i});
-        if iter > maxiter,
-          maxiter = iter;
-          %filepath = modelfiles{i};
-        end
-      end
-    end
-    
-    function maxiter = getMostRecentModelAWS(obj,aws)
-      % maxiter is nan if something bad happened or if DNE
-      
-      fspollargs = {'mostrecentmodel' obj.dirModelChainLnx};
-      [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
-      if tfsucc
-        maxiter = str2double(res{1}); % includes 'DNE'->nan
-      else
-        maxiter = nan;
+      if maxiter>obj.iterFinal
+        warningNoTrace('Current model iteration exceeds specified maximum/target iteration.');
       end
     end
     
@@ -323,17 +244,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       
     end
        
-  end
-  
-  methods (Access = protected)
-    function cpObj = copyElement(obj)
-      % overloaded to deep copy .backEndClass
-      cpObj = copyElement@matlab.mixin.Copyable(obj);
-      if ~isempty(obj.backEndClass)
-        assert(isa(obj.backEndClass,'DLBackEndClass') && isscalar(obj.backEndClass));
-        cpObj.backEndClass = obj.backEndClass.copy();
-      end
-    end
   end
   
   
