@@ -606,6 +606,8 @@ def test_preproc(lbl_file=None,cachedir=None):
 
 
 def get_cur_trx(trx_file, trx_ndx):
+    if trx_file is None:
+        return None, 1
     try:
         trx = sio.loadmat(trx_file)['trx'][0]
         cur_trx = trx[trx_ndx]
@@ -675,7 +677,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
             _, n_trx = get_cur_trx(trx_files[ndx],0)
             trx_split = np.random.random(n_trx) < conf.valratio
         else:
-            trx = [None]
+            trx_files = [None,]*len(local_dirs)
             n_trx = 1
             trx_split = None
             cur_pts = cur_pts[np.newaxis, ...]

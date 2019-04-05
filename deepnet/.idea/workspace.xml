@@ -4,18 +4,16 @@
     <option name="SCOPE_TYPE" value="3" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="246839a5-f858-49eb-9ddb-099c468dd174" name="Default" comment="bug fix for alice redux">
+    <list default="true" id="246839a5-f858-49eb-9ddb-099c468dd174" name="Default" comment="Removing unwanted matplotlib imports">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/APT_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/APT_interface.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/PoseCommon_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/PoseCommon_dataset.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/PoseTools.py" beforeDir="false" afterPath="$PROJECT_DIR$/PoseTools.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/PoseUMDN_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/PoseUMDN_dataset.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/PoseUNet_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/PoseUNet_dataset.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/convNetBase.py" beforeDir="false" afterPath="$PROJECT_DIR$/convNetBase.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/debug_apt_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug_apt_interface.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/deepcut/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/deepcut/train.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/leap/image_augmentation.py" beforeDir="false" afterPath="$PROJECT_DIR$/leap/image_augmentation.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/leap/training.py" beforeDir="false" afterPath="$PROJECT_DIR$/leap/training.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/myutils.py" beforeDir="false" afterPath="$PROJECT_DIR$/myutils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/open_pose.py" beforeDir="false" afterPath="$PROJECT_DIR$/open_pose.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/poseConfig.py" beforeDir="false" afterPath="$PROJECT_DIR$/poseConfig.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/run_apt_expts.py" beforeDir="false" afterPath="$PROJECT_DIR$/run_apt_expts.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -43,25 +41,25 @@
     <session id="-2040890201">
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="Python Console" value="1529" />
-          <entry key="py" value="3182" />
-          <entry key="txt" value="24" />
+          <entry key="Python Console" value="3866" />
+          <entry key="py" value="5265" />
+          <entry key="txt" value="65" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
-          <entry key="PLAIN_TEXT" value="24" />
-          <entry key="Python" value="4711" />
+          <entry key="PLAIN_TEXT" value="65" />
+          <entry key="Python" value="9131" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
         <counts>
-          <entry key="py" value="79" />
+          <entry key="py" value="92" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.open">
         <counts>
-          <entry key="Python" value="79" />
+          <entry key="Python" value="92" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.vcs.git.usages">
@@ -78,11 +76,11 @@
     <splitter split-orientation="horizontal" split-proportion="0.5">
       <split-first>
         <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-          <file pinned="false" current-in-tab="true">
-            <entry file="file://$PROJECT_DIR$/run_apt_expts.py">
+          <file pinned="false" current-in-tab="false">
+            <entry file="file://$PROJECT_DIR$/poseConfig.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="936">
-                  <caret line="565" column="25" selection-start-line="565" selection-start-column="25" selection-end-line="565" selection-end-column="25" />
+                <state relative-caret-position="162">
+                  <caret line="21" column="30" selection-start-line="21" selection-start-column="30" selection-end-line="21" selection-end-column="30" />
                 </state>
               </provider>
             </entry>
@@ -90,8 +88,47 @@
           <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/leap/training.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="780">
-                  <caret line="510" column="25" selection-start-line="510" selection-start-column="25" selection-end-line="510" selection-end-column="25" />
+                <state relative-caret-position="870">
+                  <caret line="390" column="38" selection-start-line="390" selection-start-column="38" selection-end-line="390" selection-end-column="38" />
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="false">
+            <entry file="file://$PROJECT_DIR$/leap/image_augmentation.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="488">
+                  <caret line="89" selection-start-line="89" selection-end-line="89" />
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="false">
+            <entry file="file://$PROJECT_DIR$/PoseUNet_resnet.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="118">
+                  <caret line="814" selection-start-line="814" selection-end-line="814" />
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="true">
+            <entry file="file://$PROJECT_DIR$/run_apt_expts.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="1064">
+                  <caret line="740" column="27" lean-forward="true" selection-start-line="740" selection-start-column="27" selection-end-line="740" selection-end-column="27" />
+                  <folding>
+                    <marker date="1554478859555" expanded="true" signature="4635:5068" ph="..." />
+                  </folding>
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="false">
+            <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="1368">
+                  <caret line="80" column="19" selection-start-line="80" selection-start-column="19" selection-end-line="80" selection-end-column="19" />
                 </state>
               </provider>
             </entry>
@@ -101,19 +138,10 @@
       <split-second>
         <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
           <file pinned="false" current-in-tab="false">
-            <entry file="file://$PROJECT_DIR$/APT_interface.py">
-              <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="114">
-                  <caret line="497" column="20" selection-start-line="497" selection-start-column="20" selection-end-line="497" selection-end-column="20" />
-                </state>
-              </provider>
-            </entry>
-          </file>
-          <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/open_pose.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="866">
-                  <caret line="661" column="33" selection-start-line="661" selection-start-column="33" selection-end-line="661" selection-end-column="33" />
+                <state relative-caret-position="182">
+                  <caret line="591" column="38" selection-start-line="591" selection-start-column="38" selection-end-line="591" selection-end-column="38" />
                 </state>
               </provider>
             </entry>
@@ -121,26 +149,26 @@
           <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/apt_expts.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="326">
-                  <caret line="367" selection-start-line="367" selection-end-line="367" />
+                <state relative-caret-position="78">
+                  <caret line="351" column="21" selection-start-line="351" selection-start-column="21" selection-end-line="351" selection-end-column="21" />
                 </state>
               </provider>
             </entry>
           </file>
           <file pinned="false" current-in-tab="false">
-            <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
+            <entry file="file://$PROJECT_DIR$/PoseTools.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="540">
-                  <caret line="26" column="257" selection-start-line="26" selection-start-column="179" selection-end-line="26" selection-end-column="257" />
+                <state relative-caret-position="668">
+                  <caret line="1006" column="11" selection-start-line="1006" selection-start-column="11" selection-end-line="1006" selection-end-column="11" />
                 </state>
               </provider>
             </entry>
           </file>
           <file pinned="false" current-in-tab="true">
-            <entry file="file://$PROJECT_DIR$/PoseTools.py">
+            <entry file="file://$PROJECT_DIR$/APT_interface.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="722">
-                  <caret line="1006" column="74" selection-start-line="1006" selection-start-column="74" selection-end-line="1006" selection-end-column="74" />
+                <state relative-caret-position="258">
+                  <caret line="2002" column="37" lean-forward="true" selection-start-line="2002" selection-start-column="37" selection-end-line="2002" selection-end-column="37" />
                 </state>
               </provider>
             </entry>
@@ -158,10 +186,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>self.name</find>
-      <find>rnn_pp</find>
-      <find>Config</find>
-      <find>self.net_type</find>
       <find>32</find>
       <find>self.fd</find>
       <find>rot_mat</find>
@@ -186,8 +210,12 @@
       <find>mpl</find>
       <find>FigureCanvasAgg</find>
       <find>plt</find>
-      <find>cm</find>
       <find>print</find>
+      <find>cm</find>
+      <find>cm.</find>
+      <find>pred_fn</find>
+      <find>leap_use_defa</find>
+      <find>create_la</find>
     </findStrings>
     <replaceStrings>
       <replace>vloss</replace>
@@ -241,7 +269,6 @@
         <option value="$PROJECT_DIR$/test_video.py" />
         <option value="$APPLICATION_CONFIG_DIR$/scratches/scratch_5.py" />
         <option value="$PROJECT_DIR$/script_felipe_tfrecords_20180626.py" />
-        <option value="$PROJECT_DIR$/leap/image_augmentation.py" />
         <option value="$PROJECT_DIR$/deepcut/__init__.py" />
         <option value="$PROJECT_DIR$/deepcut/dataset/pose_dataset.py" />
         <option value="$PROJECT_DIR$/deepcut/dataset/factory.py" />
@@ -252,7 +279,6 @@
         <option value="$PROJECT_DIR$/setup_apt_expts.py" />
         <option value="$PROJECT_DIR$/deepcut/nnet/net_factory.py" />
         <option value="$PROJECT_DIR$/deepcut/default_config.py" />
-        <option value="$PROJECT_DIR$/deepcut/train.py" />
         <option value="$PROJECT_DIR$/cross_prediction.py" />
         <option value="$PROJECT_DIR$/ScriptPlotResults.py" />
         <option value="$APPLICATION_CONFIG_DIR$/scratches/scratch.py" />
@@ -271,23 +297,25 @@
         <option value="$PROJECT_DIR$/Script_MDN_confidence.py" />
         <option value="$PROJECT_DIR$/PoseUNet.py" />
         <option value="$PROJECT_DIR$/PoseCommon.py" />
-        <option value="$PROJECT_DIR$/poseConfig.py" />
         <option value="$PROJECT_DIR$/trackStephenHead_KB.py" />
         <option value="$PROJECT_DIR$/notebooks/cellCode.ipynb" />
         <option value="$PROJECT_DIR$/apt_expts.py" />
         <option value="$PROJECT_DIR$/movies.py" />
         <option value="$PROJECT_DIR$/PoseUNet_resnet.py" />
         <option value="$PROJECT_DIR$/parse_nvidia_smi.py" />
-        <option value="$PROJECT_DIR$/APT_interface.py" />
-        <option value="$PROJECT_DIR$/debug_apt_interface.py" />
-        <option value="$PROJECT_DIR$/leap/training.py" />
         <option value="$PROJECT_DIR$/myutils.py" />
         <option value="$PROJECT_DIR$/PoseCommon_dataset.py" />
         <option value="$PROJECT_DIR$/convNetBase.py" />
         <option value="$PROJECT_DIR$/PoseUNet_dataset.py" />
         <option value="$PROJECT_DIR$/PoseUMDN_dataset.py" />
+        <option value="$PROJECT_DIR$/APT_interface.py" />
+        <option value="$PROJECT_DIR$/poseConfig.py" />
+        <option value="$PROJECT_DIR$/leap/training.py" />
+        <option value="$PROJECT_DIR$/deepcut/train.py" />
         <option value="$PROJECT_DIR$/open_pose.py" />
         <option value="$PROJECT_DIR$/PoseTools.py" />
+        <option value="$PROJECT_DIR$/debug_apt_interface.py" />
+        <option value="$PROJECT_DIR$/leap/image_augmentation.py" />
         <option value="$PROJECT_DIR$/run_apt_expts.py" />
       </list>
     </option>
@@ -331,6 +359,18 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="deepnet" type="b2602c69:ProjectViewProjectNode" />
+              <item name="deepnet" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
+      </pane>
+      <pane id="Scope" />
       <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
@@ -5946,13 +5986,6 @@
       <option name="presentableId" value="Default" />
       <updated>1490041518520</updated>
     </task>
-    <task id="LOCAL-00180" summary="Adding the ability to test the db created in apt_expts">
-      <created>1531816615250</created>
-      <option name="number" value="00180" />
-      <option name="presentableId" value="LOCAL-00180" />
-      <option name="project" value="LOCAL" />
-      <updated>1531816615250</updated>
-    </task>
     <task id="LOCAL-00181" summary="Adding the ability to test the db created in apt_expts">
       <created>1531817173797</created>
       <option name="number" value="00181" />
@@ -6289,7 +6322,14 @@
       <option name="project" value="LOCAL" />
       <updated>1554218606203</updated>
     </task>
-    <option name="localTasksCounter" value="229" />
+    <task id="LOCAL-00229" summary="Removing unwanted matplotlib imports">
+      <created>1554301568893</created>
+      <option name="number" value="00229" />
+      <option name="presentableId" value="LOCAL-00229" />
+      <option name="project" value="LOCAL" />
+      <updated>1554301568893</updated>
+    </task>
+    <option name="localTasksCounter" value="230" />
     <servers />
   </component>
   <component name="TestHistory">
@@ -6431,7 +6471,6 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$" />
     </ignored-roots>
-    <MESSAGE value="APT with MDN" />
     <MESSAGE value="apt expts with mdn" />
     <MESSAGE value="heatmaps with MDN" />
     <MESSAGE value="added code to handle croplocs for single view." />
@@ -6456,7 +6495,8 @@
     <MESSAGE value="Adding err_file as a flag." />
     <MESSAGE value="Adding support to track indexed mjpeg" />
     <MESSAGE value="bug fix for alice redux" />
-    <option name="LAST_COMMIT_MESSAGE" value="bug fix for alice redux" />
+    <MESSAGE value="Removing unwanted matplotlib imports" />
+    <option name="LAST_COMMIT_MESSAGE" value="Removing unwanted matplotlib imports" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -6473,27 +6513,22 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="python-line">
           <url>file://$PROJECT_DIR$/debug_apt_interface.py</url>
-          <line>1187</line>
+          <line>1386</line>
           <option name="timeStamp" value="572" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="python-line">
           <url>file://$PROJECT_DIR$/debug_apt_interface.py</url>
-          <line>620</line>
+          <line>819</line>
           <option name="timeStamp" value="750" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="python-line">
-          <url>file://$PROJECT_DIR$/PoseCommon_dataset.py</url>
-          <line>537</line>
-          <option name="timeStamp" value="769" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="python-line">
           <url>file://$PROJECT_DIR$/debug_apt_interface.py</url>
-          <line>516</line>
+          <line>715</line>
           <option name="timeStamp" value="801" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="python-line">
           <url>file://$PROJECT_DIR$/debug_apt_interface.py</url>
-          <line>110</line>
+          <line>309</line>
           <option name="timeStamp" value="803" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="python-line">
@@ -6503,13 +6538,18 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="python-line">
           <url>file://$PROJECT_DIR$/debug_apt_interface.py</url>
-          <line>34</line>
+          <line>233</line>
           <option name="timeStamp" value="823" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="python-line">
           <url>file://$PROJECT_DIR$/debug_apt_interface.py</url>
-          <line>25</line>
+          <line>224</line>
           <option name="timeStamp" value="824" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="python-line">
+          <url>file://$PROJECT_DIR$/debug_apt_interface.py</url>
+          <line>199</line>
+          <option name="timeStamp" value="828" />
         </line-breakpoint>
       </breakpoints>
       <breakpoints-defaults>
@@ -6582,7 +6622,6 @@
     </expressions>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/../python2_venv/newNumpy/local/lib/python2.7/site-packages/tensorflow/python/ops/gradients_impl.py" />
     <entry file="file://$PROJECT_DIR$/FusionNet.py" />
     <entry file="file://$PROJECT_DIR$/fusion_layers.py" />
     <entry file="file://$PROJECT_DIR$/../../../../../bransonlab/mayank/APT/deepnet/RNN_postprocess.py" />
@@ -6761,13 +6800,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/../../venv/local/lib/python2.7/site-packages/IPython/core/interactiveshell.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="483">
-          <caret line="2884" selection-start-line="2884" selection-end-line="2884" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file:///usr/lib/python2.7/dist-packages/apport_python_hook.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="864">
@@ -6779,16 +6811,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-8">
           <caret line="273" column="19" selection-start-line="273" selection-start-column="19" selection-end-line="273" selection-end-column="19" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/deepcut/train.py">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/poseConfig.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="774">
-          <caret line="43" selection-start-line="43" selection-end-line="43" />
         </state>
       </provider>
     </entry>
@@ -6820,24 +6842,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/PoseUMDN_dataset.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="46">
-          <caret line="1347" column="51" lean-forward="true" selection-start-line="1347" selection-start-column="51" selection-end-line="1347" selection-end-column="51" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/PoseUNet_dataset.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="562">
           <caret line="956" selection-start-line="956" selection-end-line="956" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/PoseCommon_dataset.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="958">
-          <caret line="743" column="26" selection-start-line="743" selection-start-column="26" selection-end-line="743" selection-end-column="26" />
         </state>
       </provider>
     </entry>
@@ -6848,66 +6856,111 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/leap/training.py">
+    <entry file="file://$PROJECT_DIR$/../../venv/local/lib/python2.7/site-packages/IPython/core/interactiveshell.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="780">
-          <caret line="510" column="25" selection-start-line="510" selection-start-column="25" selection-end-line="510" selection-end-column="25" />
+        <state relative-caret-position="483">
+          <caret line="2722" selection-start-line="2722" selection-end-line="2722" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/apt_expts.py">
+    <entry file="file://$PROJECT_DIR$/deepcut/train.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="326">
-          <caret line="367" selection-start-line="367" selection-end-line="367" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/PoseUNet_resnet.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1352">
-          <caret line="587" column="67" selection-start-line="587" selection-start-column="67" selection-end-line="587" selection-end-column="67" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/multiResData.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="74">
-          <caret line="501" column="41" selection-start-line="501" selection-start-column="41" selection-end-line="501" selection-end-column="41" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/APT_interface.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="114">
-          <caret line="497" column="20" selection-start-line="497" selection-start-column="20" selection-end-line="497" selection-end-column="20" />
+        <state relative-caret-position="726">
+          <caret line="106" lean-forward="true" selection-start-line="104" selection-end-line="106" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/open_pose.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="866">
-          <caret line="661" column="33" selection-start-line="661" selection-start-column="33" selection-end-line="661" selection-end-column="33" />
+        <state relative-caret-position="182">
+          <caret line="591" column="38" selection-start-line="591" selection-start-column="38" selection-end-line="591" selection-end-column="38" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/PoseCommon_dataset.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret lean-forward="true" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/multiResData.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="474">
+          <caret line="58" column="4" selection-start-line="58" selection-start-column="4" selection-end-line="58" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/PoseUMDN_dataset.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="136">
+          <caret line="825" column="13" selection-start-line="825" selection-start-column="13" selection-end-line="825" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/poseConfig.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="162">
+          <caret line="21" column="30" selection-start-line="21" selection-start-column="30" selection-end-line="21" selection-end-column="30" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/debug_apt_interface.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="540">
-          <caret line="26" column="257" selection-start-line="26" selection-start-column="179" selection-end-line="26" selection-end-column="257" />
+        <state relative-caret-position="1368">
+          <caret line="80" column="19" selection-start-line="80" selection-start-column="19" selection-end-line="80" selection-end-column="19" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/apt_expts.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="78">
+          <caret line="351" column="21" selection-start-line="351" selection-start-column="21" selection-end-line="351" selection-end-column="21" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/PoseTools.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="722">
-          <caret line="1006" column="74" selection-start-line="1006" selection-start-column="74" selection-end-line="1006" selection-end-column="74" />
+        <state relative-caret-position="668">
+          <caret line="1006" column="11" selection-start-line="1006" selection-start-column="11" selection-end-line="1006" selection-end-column="11" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/leap/training.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="870">
+          <caret line="390" column="38" selection-start-line="390" selection-start-column="38" selection-end-line="390" selection-end-column="38" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/leap/image_augmentation.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="488">
+          <caret line="89" selection-start-line="89" selection-end-line="89" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/PoseUNet_resnet.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="118">
+          <caret line="814" selection-start-line="814" selection-end-line="814" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/run_apt_expts.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="936">
-          <caret line="565" column="25" selection-start-line="565" selection-start-column="25" selection-end-line="565" selection-end-column="25" />
+        <state relative-caret-position="1064">
+          <caret line="740" column="27" lean-forward="true" selection-start-line="740" selection-start-column="27" selection-end-line="740" selection-end-column="27" />
+          <folding>
+            <marker date="1554478859555" expanded="true" signature="4635:5068" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/APT_interface.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="258">
+          <caret line="2002" column="37" lean-forward="true" selection-start-line="2002" selection-start-column="37" selection-end-line="2002" selection-end-column="37" />
         </state>
       </provider>
     </entry>

@@ -636,6 +636,8 @@ def training(conf,name='deepnet'):
                 json_data[x] = np.array(self.train_info[x]).astype(np.float64).tolist()
             with open(train_data_file + '.json', 'w') as json_file:
                 json.dump(json_data, json_file)
+            with open(train_data_file, 'wb') as td:
+                pickle.dump([self.train_info, conf], td, protocol=2)
 
             if step % conf.save_step == 0:
                 model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(step))))

@@ -494,7 +494,9 @@ def create_label_images(locs, im_sz, scale, blur_rad):
             label_ims[ndx, l0:r0, l1:r1, cls] = blur_l[(l0 - modlocs0 + k_size):(r0 - modlocs0 + k_size),
                                                 (l1 - modlocs1 + k_size):(r1 - modlocs1 + k_size)]
 
-    label_ims = 2.0 * (label_ims - 0.5)
+    # label_ims = 2.0 * (label_ims - 0.5)
+    label_ims -= 0.5
+    label_ims *=2.0
     return label_ims
 
 
@@ -657,6 +659,7 @@ def create_pred_image(pred_scores, n_classes):
 
 
 def get_colors(n):
+    from matplotlib import cm
     cmap = cm.get_cmap('jet')
     rgba = cmap(np.linspace(0, 1, n))
     return rgba

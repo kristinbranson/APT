@@ -9,6 +9,7 @@ import shutil
 import json
 import PoseTools
 import math
+import pickle
 
 import keras
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, LambdaCallback,LearningRateScheduler
@@ -469,6 +470,8 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
                 json_data[x] = np.array(self.train_info[x]).astype(np.float64).tolist()
             with open(train_data_file + '.json', 'w') as json_file:
                 json.dump(json_data, json_file)
+            with open(train_data_file, 'wb') as train_data_file:
+                pickle.dump([self.train_info, conf], train_data_file, protocol=2)
 
             if step % conf.save_step == 0:
                 model.save(os.path.join(run_path,name + '-{}'.format(step)))

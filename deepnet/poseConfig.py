@@ -44,7 +44,7 @@ class config(object):
 
         # ----- Data parameters
         # l1_cropsz = 0
-        self.splitType = 'frame'
+        self.splitType = 'frames'
         self.trainfilename = 'train_TF'
         self.fulltrainfilename = 'fullTrain_TF'
         self.valfilename = 'val_TF'

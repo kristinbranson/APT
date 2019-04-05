@@ -102,6 +102,8 @@ def save_td(cfg, train_info,name):
         json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()
     with open(train_data_file + '.json', 'w') as json_file:
         json.dump(json_data, json_file)
+    with open(train_data_file, 'wb') as train_data_file:
+        pickle.dump([train_info, cfg], train_data_file, protocol=2)
 
 
 def set_deepcut_defaults(cfg):

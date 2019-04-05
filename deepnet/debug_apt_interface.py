@@ -1,3 +1,202 @@
+import os
+import APT_interface as apt
+import glob
+import re
+import numpy as np
+import multiResData
+import math
+import h5py
+import PoseTools
+import json
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt_leap_original'
+train_name = 'deepnet'
+view = 0
+train_type = 'leap'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+lbl.close()
+
+gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
+
+conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+
+split = False
+use_cache = True
+train_data = []
+val_data = []
+
+# collect the images and labels in arrays
+out_fns = [lambda data: train_data.append(data), lambda data: val_data.append(data)]
+splits, __ = apt.db_from_cached_lbl(conf, out_fns, split, None)
+
+# save the split data
+try:
+    with open(os.path.join(conf.cachedir, 'splitdata.json'), 'w') as f:
+        json.dump(splits, f)
+except IOError:
+    logging.warning('SPLIT_WRITE: Could not output the split data information')
+
+for ndx in range(2):
+    if not split and ndx == 1:  # nothing to do if we dont split
+        continue
+
+    if ndx == 0:
+        cur_data = train_data
+        out_file = os.path.join(conf.cachedir, 'leap_train.h5')
+    else:
+        cur_data = val_data
+        out_file = os.path.join(conf.cachedir, 'leap_val.h5')
+
+    ims = np.array([i[0] for i in cur_data])
+    locs = np.array([i[1] for i in cur_data])
+    info = np.array([i[2] for i in cur_data])
+    hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, 3)
+    hmaps += 1
+    hmaps /= 2  # brings it back to [0,1]
+
+    if info.size > 0:
+        hf = h5py.File(out_file, 'w')
+        hf.create_dataset('box', data=ims)
+        hf.create_dataset('confmaps', data=hmaps)
+        hf.create_dataset('joints', data=locs)
+        hf.create_dataset('exptID', data=info[:, 0])
+        hf.create_dataset('framesIdx', data=info[:, 1])
+        hf.create_dataset('trxID', data=info[:, 2])
+        hf.close()
+
+##
+
+import os
+import APT_interface as apt
+import glob
+import re
+import numpy as np
+import multiResData
+import math
+import h5py
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/multitarget_bubble_expandedbehavior_20180425_FxdErrs_OptoParams20181126_dlstripped.lbl'
+cache_dir = '/nrs/branson/mayank/apt_cache'
+exp_name = 'apt_expt'
+train_name = 'deepnet'
+view = 0
+train_type = 'mdn'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+lbl.close()
+
+gt_file = os.path.join(cache_dir, proj_name, 'gtdata', 'gtdata_view{}.tfrecords'.format(view))
+
+conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+conf.normalize_img_mean = False
+files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+files.sort(key=os.path.getmtime)
+files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
+aa = [int(re.search('-(\d*)', f).groups(0)[0]) for f in files]
+aa = [b - a for a, b in zip(aa[:-1], aa[1:])]
+if any([a < 0 for a in aa]):
+    bb = int(np.where(np.array(aa) < 0)[0]) + 1
+    files = files[bb:]
+n_max = 6
+if len(files) > n_max:
+    gg = len(files)
+    sel = np.linspace(0, len(files) - 1, n_max).astype('int')
+    files = [files[s] for s in sel]
+
+out_file = os.path.join(conf.cachedir, train_name + '_results.p')
+afiles = [f.replace('.index', '') for f in files]
+
+for m in afiles[-1:]:
+    tf_iterator = multiResData.tf_reader(conf, gt_file, False)
+    tf_iterator.batch_size = 1
+    read_fn = tf_iterator.next
+    pred_fn, close_fn, _ = apt.get_pred_fn(train_type, conf, m, name=train_name)
+    bsize = conf.batch_size
+    all_f = np.zeros((bsize,) + conf.imsz + (conf.img_dim,))
+    n = tf_iterator.N
+    pred_locs = np.zeros([n, conf.n_classes, 2])
+    unet_locs = np.zeros([n, conf.n_classes, 2])
+    mdn_locs = np.zeros([n, conf.n_classes, 2])
+    n_batches = int(math.ceil(float(n) / bsize))
+    labeled_locs = np.zeros([n, conf.n_classes, 2])
+    all_ims = np.zeros([n, conf.imsz[0], conf.imsz[1], conf.img_dim])
+
+    info = []
+    for cur_b in range(n_batches):
+        cur_start = cur_b * bsize
+        ppe = min(n - cur_start, bsize)
+        for ndx in range(ppe):
+            next_db = read_fn()
+            all_f[ndx, ...] = next_db[0]
+            labeled_locs[cur_start + ndx, ...] = next_db[1]
+            info.append(next_db[2])
+        # base_locs, hmaps = pred_fn(all_f)
+        ret_dict = pred_fn(all_f)
+        base_locs = ret_dict['locs']
+        ulocs = ret_dict['locs_unet']
+        hmaps = ret_dict['hmaps']
+
+        for ndx in range(ppe):
+            pred_locs[cur_start + ndx, ...] = base_locs[ndx, ...]
+            unet_locs[cur_start + ndx, ...] = ulocs[ndx, ...]
+            mdn_locs[cur_start + ndx, ...] = ret_dict['locs_mdn'][ndx, ...]
+            all_ims[cur_start + ndx, ...] = all_f[ndx, ...]
+
+    close_fn()
+
+
+##
+
+import APT_interface as apt
+import h5py
+import PoseTools
+import os
+import time
+import glob
+import re
+import numpy as np
+import matplotlib.pyplot as plt
+import apt_expts
+import os
+import ast
+import apt_expts
+import os
+import pickle
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402_dlstripped.lbl'
+gt_lbl = lbl_file
+op_af_graph = '\(0,1\),\(0,2\),\(2,3\),\(1,3\),\(0,4\),\(1,4\)'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
+lbl.close()
+
+cache_dir = '/nrs/branson/mayank/apt_cache'
+
+train_type = 'mdn'
+exp_name = 'apt_exp'
+for view in range(nviews):
+    conf = apt.create_conf(gt_lbl, view, exp_name, cache_dir, train_type)
+    gt_file = os.path.join(cache_dir,proj_name,'gtdata','gtdata_view{}.tfrecords'.format(view))
+    apt.create_tfrecord(conf,False,None,False,True,[gt_file])
+
+
+
+##
 import APT_interface as apt
 import os
 import glob
