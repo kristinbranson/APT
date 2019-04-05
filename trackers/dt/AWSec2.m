@@ -1,13 +1,29 @@
-classdef AWSec2 < matlab.mixin.Copyable
+classdef AWSec2 < handle
   % Handle to a single AWS EC2 instance. The instance may be in any state,
   % running, stopped, etc.
+  %
+  % An AWSec2's .instanceID property is immutable. If you change it, it is 
+  % a different EC2 instance! So .instanceID is either [], indicating an 
+  % "unspecified instance", or it is specified to some fixed value. Rather 
+  % than attempt to mutate a specified instance, just create a new AWSec2
+  % object.
+  %
+  % Some methods below can specify (assign an .instanceID) to an 
+  % unspecified instance. No method however will mutate the .instanceID of 
+  % a specified instance.
+  %
 
   properties (Constant)
     autoShutdownAlarmNamePat = 'aptAutoShutdown'; 
   end
   
+  properties (SetAccess=private)
+    instanceID % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.    
+  end
+  properties (Dependent)
+    isSpecified
+  end
   properties
-    instanceID % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.
     instanceIP
     keyName
     pem
@@ -19,9 +35,19 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
   
   properties (Constant)
-    
     cmdEnv = 'LD_LIBRARY_PATH=: ';
-   
+  end
+  
+  methods
+    function set.instanceID(obj,v)
+      if ~isempty(obj.instanceID)
+        error('AWSEc2 instanceID is already set to %s.',obj.instanceID);
+      end
+      obj.instanceID = v;
+    end
+    function v = get.isSpecified(obj)
+      v = ~isempty(obj.instanceID);
+    end
   end
   
   methods
@@ -51,16 +77,20 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
   end
-  
+        % NOTE: for now, lifecycle of obj is not tied at all to the actual
+      % instance-in-the-cloud
+
   methods
     
     function [tfsucc,json] = launchInstance(obj)
-      % sets .instanceID
+      % Launch a brand-new instance to specify an unspecified instance
+
+      assert(~obj.isSpecified,...
+        'AWSEc2 instance is already specified with instanceID %s.',obj.instanceID);
       
       cmd = AWSec2.launchInstanceCmd(obj.keyName);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
-        obj.instanceID = [];
         return;
       end
       json = jsondecode(json);
@@ -70,9 +100,6 @@ classdef AWSec2 < matlab.mixin.Copyable
     function [tfexist,tfrunning,json] = inspectInstance(obj,varargin)
       % Check that a specified instance exists; check if it is running; 
       % get json; sets .instanceIP if running
-      %
-      % * If .instanceID is empty and there is a unique EC2 instance, this 
-      % will set the .instanceID.
       % 
       % * tfexist is returned as true of the instance exists in some state.
       % * tfrunning is returned as true if the instance exists and is running.
@@ -82,7 +109,11 @@ classdef AWSec2 < matlab.mixin.Copyable
         'dispcmd',true...
         );
       
-      cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
+      assert(obj.isSpecified,'Cannot inspect an unspecified AWSEc2 instance.');
+      
+      % Aside: this works with empty .instanceID if there is only one 
+      % instance in the cloud, but we are not interested in that for now
+      cmd = AWSec2.describeInstancesCmd(obj.instanceID); 
       [tfexist,json] = AWSec2.syscmd(cmd,'dispcmd',dispcmd,'isjsonout',true);
       if ~tfexist
         tfrunning = false;
@@ -91,11 +122,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       json = jsondecode(json);
       
       inst = json.Reservations.Instances;
-      if isempty(obj.instanceID)
-        obj.instanceID = inst.InstanceId;
-      else
-        assert(strcmp(obj.instanceID,inst.InstanceId));
-      end
+      assert(strcmp(obj.instanceID,inst.InstanceId));
       
       tfrunning = strcmp(inst.State.Name,'running');
       if tfrunning
@@ -109,6 +136,8 @@ classdef AWSec2 < matlab.mixin.Copyable
     
     function [tfsucc,state,json] = getInstanceState(obj)
       
+      assert(obj.isSpecified);
+      
       state = '';
       
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
@@ -117,17 +146,12 @@ classdef AWSec2 < matlab.mixin.Copyable
         return;
       end
       json = jsondecode(json);
-      state = json.Reservations.Instances.State.Name;
-      
+      state = json.Reservations.Instances.State.Name;      
     end
     
-    function tfsucc = respecifyInstance(obj)
-      [tfsucc,iid,pemFile] = ...
+    function [tfsucc,instanceID,pemFile] = respecifyInstance(obj)      
+      [tfsucc,instanceID,pemFile] = ...
         obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
-      if tfsucc
-        obj.instanceID = iid;
-        obj.pem = pemFile;
-      end
     end
     
     function [tfsucc,json] = stopInstance(obj)
@@ -524,10 +548,10 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
-    function tf = isSameInstance(obj,obj2)
-      assert(isscalar(obj) && isscalar(obj2));
-      tf = strcmp(obj.instanceID,obj2.instanceID) && ~isempty(obj.instanceID);
-    end
+%     function tf = isSameInstance(obj,obj2)
+%       assert(isscalar(obj) && isscalar(obj2));
+%       tf = strcmp(obj.instanceID,obj2.instanceID) && ~isempty(obj.instanceID);
+%     end
   end
   
   methods (Static)
