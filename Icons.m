@@ -6,7 +6,7 @@ classdef Icons
 end
 
 function d = lclInitGfxDir()
-d = fullfile(APT.Root,'gfx');
+d = fullfile(APT.getRoot,'gfx');
 end
 
 function s = lclInitIms()
