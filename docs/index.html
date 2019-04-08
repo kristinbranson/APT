@@ -127,7 +127,7 @@ Use "Load Project" from the File dropdown menu and select the .lbl file to load.
 
 <h2><a id="Navigating in APT"> Navigating in APT </a></h2>
 
-The  <a href="images/apt_gui_layout_develop_labeled.png" target="_blank">GUI is divided into several sections. </a>  Hovering over different components will reveal tooltips.
+The  <a href="images/apt_gui_layout_develop_labeled.png" target="_blank"> <b> GUI is divided into several sections.</b> </a>  Hovering over different components will reveal tooltips.
 
 To navigate through the video in the Labeling window:
 a/d, -/=, or the left and right arrow keys all move one frame left/right respectively. Using these keys while holding down the ctrl button uses 10 frames steps (this default step size can be changed in the Go dropdown menu, under "Navigation preferences..."). You can also navigate using the mouse and the navigation bar under the image.  Clicking on the bar to the left or right of the slider jumps by 100 frames.  Single clicks on the arrows at the ends of the navigation bar moves by a single frame.  Holding the end arrows down steps through the movie a frame at a time. To look at only labeled frames, hold the shift button while using the right and left arrow keys.
@@ -159,7 +159,7 @@ Allows you to just click your points in order; points are automatically accepted
 <ul>
 <li>Clicking and dragging a point</li>
 <li>Activating a point with a number key that corresponds to the label number and then clicking the correct location for the label. Activated points change from '+' to 'x' (Numbers above 10 are accessed by `(back quote) + number key).</li>
-<li>Activating a point with the number keys and moving with arrow keys. Hitting the number key again will toggle the point back to '+'. </li> 
+<li>Activating a point with the number keys and moving with arrow keys. Hitting the number key again will toggle the point back to '+'. If you hold down the shift key while you click, the point will be recorded as an 'o' instead of a '+', indicating an occluded point.</li> 
 </ul>
 </li>
 
@@ -171,7 +171,7 @@ The first frame will have unassigned label points in random locations on the ima
 
 <li><b>High throughput mode:</b><br>
 
-In HT mode, you label the entire movie for point 1, then you label the entire movie for point 2, etc. Click the image to label a point. After clicking/labeling, the movie is automatically advanced. The number of frames to advance is set in 'Set Frame Increment' in the Label dropdown menu. When the end of the movie is reached, the labeling point is incremented, until all labeling for all points is complete. You may manually change the current labeling point in the Setup>HighThroughput Mode menu.
+In HT mode, you label the entire movie for point 1, then you label the entire movie for point 2, etc. Click the image to label a point. After clicking/labeling, the movie is automatically advanced. The number of frames to advance is set in 'Set Frame Increment' in the Label dropdown menu. When the end of the movie is reached, the labeling point is incremented, until all labeling for all points is complete. You may manually change the current labeling point in 'Set Labeling Point' in the Label dropdown menu.
 
 Right-clicking the current point offers options for repeatedly accepting the current point. Right-clicking the image labels a point as an "occluded estimate", ie the clicked location represents your best guess at an occluded landmark.
 
