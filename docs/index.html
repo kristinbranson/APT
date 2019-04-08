@@ -42,6 +42,7 @@ APT:  Predicts the location of body parts based on part labels from a set of vid
 <li><a href="#Startup">Start-up</a></li>
 <li><a href="#Setting up a new project">Setting up a new project</a></li>
 <li><a href="#Opening an existing project">Opening an existing project</a></li>
+
 <li><a href="#Navigating in APT">Navigating in APT</a></li>
 
 <li><a href="#Labeling points">Labeling points</a></li>
@@ -121,19 +122,28 @@ From the File dropdown menu, select "New Project...".  This will pop up a <a hre
 
 Use "Load Project" from the File dropdown menu and select the .lbl file to load. If the locations of the movies in the project has changed since you last opened the project it will prompt for their new locations.  
 
+
 <hr class="h2-divider">
 
 <h2><a id="Navigating in APT"> Navigating in APT </a></h2>
 
-a/d, -/=, or the left and right arrow keys all move one frame left/right respectively. Using these keys while holding down the ctrl button uses 10 frames steps. You can also navigate using the mouse and the navigation bar under the image.  Clicking on the bar to the left or right of the slider jumps by 100 frames.  Single clicks on the arrows at the ends of the navigation bar moves by a single frame.  Holding the end arrows down steps through the movie a frame at a time. To look at only labeled frames, hold the shift button while using the right and left arrow keys.
+The  <a href="images/apt_gui_layout_develop_labeled.png" target="_blank">GUI is divided into several sections. </a>  Hovering over different components will reveal tooltips.
+
+To navigate through the video in the Labeling window:
+a/d, -/=, or the left and right arrow keys all move one frame left/right respectively. Using these keys while holding down the ctrl button uses 10 frames steps (this default step size can be changed in the Go dropdown menu, under "Navigation preferences..."). You can also navigate using the mouse and the navigation bar under the image.  Clicking on the bar to the left or right of the slider jumps by 100 frames.  Single clicks on the arrows at the ends of the navigation bar moves by a single frame.  Holding the end arrows down steps through the movie a frame at a time. To look at only labeled frames, hold the shift button while using the right and left arrow keys.
 <br>
 <br>
 Useful view options for multi-target projects with tracking and orientation:<br>
-View -> Center on target  - keeps current target in the center<br>
-View -> Rotate video so target is always pointing up<br>
-View -> Zoom out/full images or unzoom button - view full image
-Use slider bar above ‘unzoom’ to adjust zoom not the magnifier +/- <br>
+<i>From the View dropdown menu:</i><br>
+Center video on target  - keeps current target in the center of the view<br>
+Rotate video so target always points up - does just that<br>
+Zoom out/full images or unzoom button - view full image <br>
+<br>
+In the Target table window: <br>
+Use slider bar above ‘unzoom’ to adjust zoom, not the magnifier +/- <br>
 Zoom slider bar - adjust zoom then ‘set’, ‘recall’ will change back to ‘set’ value after changing movies. 
+
+<p>To just look at labeled frames, holding the shift button while using the right and left arrow keys will move through only the labeled frames, skipping the unlabeled ones. </p>
 
 
 <hr class="h2-divider">
@@ -141,34 +151,53 @@ Zoom slider bar - adjust zoom then ‘set’, ‘recall’ will change back to �
 <h2><a id="Labeling points"> Labeling points </a></h2>
 
 Labeling modes:
-There are different labeling modes, which you can switch between under Setup->. 
+There are different labeling modes, which you can switch between in the Label dropdown menu.
 
-<ol>
-<li>Sequential mode:
-Allows you to just click your points in order, and then accept when you’re done. 
-You can edit placement after you finish clicking sequence by:
+<ul>
+<li><b>Sequential mode:</b><br>
+Allows you to just click your points in order; points are automatically accepted once you click the last point.  You can edit placement after you finish by:
 <ul>
 <li>Clicking and dragging a point</li>
-<li>Activating a point with a number key that corresponds to the label number and then clicking the correct location for the label. Activated points change from ‘+’ to ‘x’ (Numbers above 10 are accessed by `(back quote) + number key).</li>
-<li>Activating a point with the number keys and moving with arrow keys. </li> 
-Currently the only way to ‘un-activate’ label is to move the label to new location or accept labels.
+<li>Activating a point with a number key that corresponds to the label number and then clicking the correct location for the label. Activated points change from '+' to 'x' (Numbers above 10 are accessed by `(back quote) + number key).</li>
+<li>Activating a point with the number keys and moving with arrow keys. Hitting the number key again will toggle the point back to '+'. </li> 
 </ul>
 </li>
 
-<li>Template mode:
-Each frame will have unassigned label points in random locations on the image (white pluses with colored numbers next to them).  To label the frame, move the pluses to where they should belong on the target (mouse/fly).  You can drag and drop a point with the mouse or you can select (or unselect) a point with its associated number key (1-9).  When a point is selected it changes from a plus to an x.  A selected point can be moved using the arrow keys (helpful for fine-tuning positions).  Shift plus the arrow keys moves the selected point in larger jumps.  When a point is selected, a mouse click anywhere on the image will move the selected point to that location.
-</li>
-</ol>
+<li><b>Template mode:</b><br>
+The first frame will have unassigned label points in random locations on the image (white pluses with colored numbers next to them). On subsequent frames the points will be where they were on the previous frame. To label the frame, move the pluses to where they should belong on the target.  You can drag and drop a point with the mouse or you can select (or unselect) a point with its associated number key (1-9).  When a point is selected it changes from a plus to an x.  A selected point can be moved using the arrow keys (helpful for fine-tuning positions).  Shift plus the arrow keys moves the selected point in larger jumps.  When a point is selected, a mouse click anywhere on the image will move the selected point to that location. Once you are happy with the positions of the points, click the accept button, the 's' key or the space bar to save the labels for the current frame.  
 
-Once you are happy with the positions of the points, click the accept button, or press the "s" key or the space bar to save the labels for the current frame.  
-<br> <br>
-<b>Make sure to press the accept button at each frame once you are done or your changes will not be recorded.</b>
-<p>
+</li>
+
+
+<li><b>High throughput mode:</b><br>
+
+In HT mode, you label the entire movie for point 1, then you label the entire movie for point 2, etc. Click the image to label a point. After clicking/labeling, the movie is automatically advanced. The number of frames to advance is set in 'Set Frame Increment' in the Label dropdown menu. When the end of the movie is reached, the labeling point is incremented, until all labeling for all points is complete. You may manually change the current labeling point in the Setup>HighThroughput Mode menu.
+
+Right-clicking the current point offers options for repeatedly accepting the current point. Right-clicking the image labels a point as an "occluded estimate", ie the clicked location represents your best guess at an occluded landmark.
+
+</li>
+
+
+<li><b>Multiview calibrated:</b><br>
+
+For calibrated labeling, first go to Setup> Load Calibration File to load a calibration file. This enables calibrated labeling, where epipolar lines and reconstructed points are shown to assist in labeling multi-camera data.
+
+The number keys 0-9 select a physical point. Each view has its own projection of this point and the selected point will be indicated on all views. After a point is selected, clicking on any view will jump the point in that view to the clicked location. Epipolar lines will be projected in the other views. The point in the first/original view is now adjustable by click-dragging, or with the arrow or -arrow keys. The epipolar lines should live-update as the first point is adjusted.
+
+For projects with three or more views: Clicking on a second view jumps the selected point in the second view to the clicked location. With the point anchored in two views, reconstructed best-guesses for the point are shown in all remaining views. The reconstruction shows three points indicating a spread of possible locations based on the first two clicked locations. The middle point is the most likely location.
+
+Spacebar toggles the anchoring state of a point in a view. Anchored points have the letter 'a' appended to their text label. When a point is anchored, epipolar lines or reconstructed points are shown in the other views. Points that are shown as 'x' rather than '+' are adjustable with the arrow keys (fine adjustment) or -arrow keys (coarse adjustment).
+
+When all points are in their desired locations, the Accept button (or 's' hotkey) accepts the labels.
+
+</li>
+</ul>
+
+
 Once you have a reasonable number of frames labeled you are ready to train a classifier.</p>
 
-To remove frames (useful for making a subset, or if you change your mind about how something will be labeled), you can just click the "Clear" button on that frame (next to the Accepted button), and those points will go back to unassigned.
+To remove frames (useful for making a subset, or if you change your mind about how something should be labeled), you can just click the "Clear" button on that frame (next to the Accepted button), and those points will go back to unassigned.
 
-<p>To just look at labeled frames, holding the shift button while using the right and left arrow keys will move through only the labeled frames, skipping the unlabeled ones. </p>
 
 
 <hr class="h2-divider">
@@ -177,97 +206,13 @@ To remove frames (useful for making a subset, or if you change your mind about h
 
 How well APT works depends critically on getting the tracking parameters set well for the particular application.  Each tracker has different parameters.  
 
-<p>Tracking parameters input menu:</p>
-
-<p>Track->Configure tracking parameters</p>
+<p>Select 'Configure tracking parameters' from the Track dropdown menu. This will popup a <a href="images/apt_track_configure_tracking_parameters.png" target="_blank"> <b>tracking parameters window.</b></a></p>
 
 What displays will depend on what type of tracking you are using.  Clicking on each option will produce a description of that option at the bottom of the page. Note that many of the default options are selections from dropdown menus, click the current option to see the other options. 
 
 <p>Once you have set the parameters to what you would like, hit the Apply button.</p>
 
-
-
-<ul>
-<li>Type:         cpr</li>
-
-<li>Histogram Equalization</li>
-<ul>
-    <li>Enable [ ]        default=unchecked </li>
-    <li>Num frames sample    default=1000</li></ul>
-<li>Multiple Targets</li>
-<ul>
-    <li>Target ROI</li>
-        <li>Radius (pixels)        default=300 
-            Crop a square with this radius (in pixels) around each target for training/tracking</li>
-    <li>Pad background        default=0
-            Pad ROIs with this background value (grayscale) if necessary.</li></ul>
-
-<li>Mask Neighbors</li>
-<ul>
-<li>Enable        [ ]         default= unchecked</li>   
-<li>Background Type            default = dark on light (light on dark, other)</li>
-<li>Background Read Function        default = empty</li>
-<li>Foreground Threshold        default = 4</li>
-
-<li>Decimation Small            default = 5</li>
-<li>Decimation Large            default = 10</li>
-<li>Neighborhood Radius        default = 100</li>
-<li>Chunk Size                default = 3,000</li></ul>
-
-<li>CPR</li>
-<ul>
-<li>Num iterations        default = 50</li>
-    Number of major iterations in regressor cascade.
-<li>Num boosted regressors    default = 50
-    Number of minor iterations per major iteration</li></ul>
-
-<li>Ferns</li>
-<ul>
-    <li>Depth            default = 5</li>
-<li>Threshold</li>
-    <li>Lo            default = -0.2</li>
-    <li>Hi            default = 0.2</li></ul>
-
-<li>Regularization Factor    default = 0.01</li>
-
-<li>Feature</li>
-<ul>
-    <li>Type                default = 2lm, (1lm, two landmark elliptical, 2lmdiff)</li>
-    <li>Meta feature            default = diff, (single)</li>
-    <li>Pool size            default = 800</li>
-    <li>Radius                default = 2</li>
-    <li>Major/minor ratio        default = 2</li>
-    <li>Num samples std        default = 1.000</li>
-    <li>Num samples correlation    default = 10.000</li></ul>
-
-<li>Rotational Invariance</li>
-<ul>
-    <li>Orientation            default = arbitrary, (fixed, arbitrary, arbitray trx - specified)</li>
-        fixed: 
-        arbitrary: animal orientation can be anything
-        arbitrary trx-specified: animal orientation can be anything and is specified in trx.theta </li>
-    <li>Head landmark                    default = 1</li>
-    <li>Tail landmark                    default = 2</li></ul>
-
-<li>Replicates</li>
-<ul>
-    <li>Num training replicates                default = 60 </li>
-    <li>Num tracking replicates                default = 60 </li>
-    <li>Jitter initial shapes     [ ]             default = checked</li>
-    <li>Initial shape jitter/randomization factor        default = 16</li>
-    <li>Jitter initial shape locations  [ ]            default = checked</li>
-    <li>Initial shape location                default = 16</li>
-    <li>Maximize spread of initial conditions    [ ]    default = unchecked</li></ul>
-
-<li>Prune</li>
-<ul>
-    <li>Method            default = maxdensity (median, maxdensity global, smoothed trajectory)
-Method of reducing CPR replicates to final tracking result</li>
-    <li>Density length scale    default = 5
-Length scale (in pixels) for Gaussian kernel used during pruning.  Used for ‘maxdensity’, ‘maxdensity global’, and ‘smoothed trajectory’ methods.  Larger values include more distant shapes when computing a given shape’s likelihood.</li>  
-    <li>Trajectory smoothing weight factor    default = 1
-Scale factor applied to empirically-estimated ratio balancing trajectory smoothness against replicate density.  Larger values upweight smoother trajectories.  Used only for ‘smoothed trajectory’ method.</li></ul>
-    
+<a href="tracking_parameters.html#CPR">CPR Tracking parameters</a>
 
 <hr class="h2-divider">
 
@@ -285,20 +230,20 @@ Click Track. You can change what frames you want it to track with the drop down 
  
  <p>Tracking options in the Track dropdown menu:</p>
 <ul>
-<li>Current movie/target, labeled frames</li>
-<li>Current movie/target, all frames</li>
-<li>Current movie/target, all frames, every 10 frames</li>
-<li>Current movie/target, selected frames</li>
-<li>Current movie/target, selected frames, every 10 frames</li>
-<li>Current movie/target, within 100 frames of current frame</li>
-<li>Current movie/target, within 100 frames of current frame, every 10 frames</li>
-<li>Current movie, all targets, labeled frames</li>
-<li>Current movie, all targets, all frames</li>
-<li>Current movie, all targets, every 10 frames</li>
-<li>Current movie, all targets, selected frames</li>
-<li>Current movie, all targets, selected frames, every 10 frames</li>
-<li>Current movie, all targets, within 100 frames of current frame</li>
-<li>Current movie, all targets, within 100 frames of current frame, every 10 frames</li>
+<li>Current target, labeled frames</li>
+<li>Current target, all frames</li>
+<li>Current target, all frames, every 10 frames</li>
+<li>Current target, selected frames</li>
+<li>Current target, selected frames, every 10 frames</li>
+<li>Current target, within 100 frames of current frame</li>
+<li>Current target, within 100 frames of current frame, every 10 frames</li>
+<li>All targets, labeled frames</li>
+<li>All targets, all frames</li>
+<li>All targets, all frames, every 10 frames</li>
+<li>All targets, selected frames</li>
+<li>All targets, selected frames, every 10 frames</li>
+<li>All targets, within 100 frames of current frame</li>
+<li>All targets, within 100 frames of current frame, every 10 frames</li>
 </ul>
 
 <hr class="h2-divider">
