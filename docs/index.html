@@ -28,7 +28,7 @@ APT:  Predicts the location of body parts based on part labels from a set of vid
  
 <p> APT takes video files as inputs (with optional tracking files), and the user interactively trains a body part classifier by labeling a user-specified number of body part locations. </p>
 
-<p>APT is being developed by Allen Lee, Mayank Kabra, Kristin Branson, Felipe Rodriguez, Alice Robie, and Roian Egnor.  All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus. APT is currently under heavy development. Please contact Kristin Branson if you are interested in using it.</p>
+<p>APT is developed by Allen Lee, Mayank Kabra, Alice Robie, Roian Egnor, Austin Edwards, Caroline Mulhoney, Felipe Rodriguez, and Kristin Branson.  All work is funded by the Howard Hughes Medical Institute and the Janelia Research Campus.</p>
 
 <p>This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the <a href="GNU_GPL_v3.html">GNU General Public License (version 3)</a> for more details.</p>
 
@@ -102,29 +102,24 @@ APT is a MATLAB-based program. To run it:
 <pre>>> cd APT;</pre>
 </li>
 
-<li> Run APT.setpath: </li>
-<pre>>> APT.setpath; </pre>
-
 <li> Run <b>StartAPT</b> on the command line to start APT:
-<pre>>> StartAPT;</pre>
+<pre>>> StartAPT; or apt=StartAPT; 
+</pre>
 </li>
-
-<center>
-<a href="images/apt_open_screen.png"><img src="images/apt_open_screen.png" width="500px"></a>
-</center>
+This will open an <a href="images/apt_open_screen.png" target="_blank">initial screen.</a>
 
 </ol>
 
 <hr class="h2-divider">
 
 <h2><a id="Setting up a new project"> Setting up a new project </a></h2>
-File -> New Project, enter a project name. Track -> Configure tracking parameters.  This pops up a window with parameters to set. If you click on a parameter, a description of the parameter shows up at the bottom of the window. Click Apply. Go to File -> Manage movies and select the movie that you would like to work with. You will be prompted for a trx file. Select a trx file, or, if none, press "cancel". Close or minimize the Movie window. Go to File -> Save as and save your project. This will save a .lbl file with your project in it.
+From the File dropdown menu, select "New Project...".  This will pop up a <a href="images/apt_new_project_dialog.png" target="_blank"> New Project dialog. </a>  Enter a project name, the number of body points to detect, the number of views, and check the "body tracking" box if your animal(s) are tracked. Click "Create Project".  This will open a <a href="images/apt_new_project_add_movies.png" target="_blank">Manage Movies dialog.</a>  Click "Add Movie" and select the first movie to add.  If you selected body tracking, you will also be prompted to select the tracking file associated with this movie.  You may add additional movies at any time.  The Manage Movies dialog box can be used to add more movies and also navigate between movies during labeling. Close or minimize the Manage Movie window. Select "Save as ..." from the File dropdown menu and save your project. This will save a .lbl file with your project in it.
 
 <hr class="h2-divider">
 
 <h2><a id="Opening an existing project"> Opening an existing project </a></h2>
 
-File -> Load Project, select the .lbl file to load. If the locations of the movies in the project has changed since you last opened the project it will prompt for their new locations.  
+Use "Load Project" from the File dropdown menu and select the .lbl file to load. If the locations of the movies in the project has changed since you last opened the project it will prompt for their new locations.  
 
 <hr class="h2-divider">
 
