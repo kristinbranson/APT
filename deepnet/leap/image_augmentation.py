@@ -90,6 +90,13 @@ def transform_imgs_locs(X, locs, theta=(-180, 180), scale=1.0):
 
 class PairedImageAugmenter(Sequence):
     def __init__(self, X, Y, conf, shuffle=False):
+        if len(X) < conf.batch_size:
+            rmat = np.ones(X.ndim).astype('int')
+            rmat[0] = conf.batch_size
+            X = np.tile(X,rmat)
+            rmat = np.ones(Y.ndim).astype('int')
+            rmat[0] = conf.batch_size
+            Y = np.tile(Y,rmat)
         self.X = X
         self.Y = Y
         self.batch_size = conf.batch_size
@@ -116,7 +123,8 @@ class PairedImageAugmenter(Sequence):
 
         X, Y = PoseTools.preprocess_ims(X,Y,self.conf,True,self.conf.rescale)
         X = X.astype('float')/255.
-        hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,self.conf.label_blur_rad)
+        hmap_sigma = min(5,self.conf.label_blur_rad)
+        hmaps = PoseTools.create_label_images(Y,X.shape[1:3],1,hmap_sigma)
         hmaps = (hmaps+1)/2
         return X, hmaps
     

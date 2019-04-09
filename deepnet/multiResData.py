@@ -554,7 +554,7 @@ def read_frame(cap, fnum, cur_trx, offset=0, stationary=True,flipud=False):
             o_fnum = cur_trx['firstframe'][0, 0] - 1
     else:
         o_fnum = 0 if o_fnum < 0 else o_fnum
-        o_fnum = cap.get_n_frames()-1 if o_fnum > cap.get_n_frames() else o_fnum
+        o_fnum = cap.get_n_frames()-1 if o_fnum > (cap.get_n_frames()-1) else o_fnum
 
     framein = cap.get_frame(o_fnum)[0]
     if flipud:

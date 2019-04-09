@@ -463,7 +463,10 @@ def train_apt(conf, upsampling_layers=False,name='deepnet'):
                 p_str += '{:s}:{:.2f} '.format(k, self.train_info[k][-1])
             print(p_str)
 
-            train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
+            if name == 'deepnet':
+                train_data_file = os.path.join( self.config.cachedir, 'traindata')
+            else:
+                train_data_file = os.path.join( self.config.cachedir, name + '_traindata')
 
             json_data = {}
             for x in self.train_info.keys():
@@ -524,6 +527,9 @@ def get_pred_fn(conf, model_file=None,name='deepnet'):
         newX = int(np.ceil(float(all_f.shape[2]) / 32) * 32)
         X1 = np.zeros([all_f.shape[0], newY, newX, all_f.shape[3]]).astype('float32')
         X1[:, :all_f.shape[1], :all_f.shape[2], :] = all_f
+
+        X1, _ = PoseTools.preprocess_ims(X1, in_locs=np.zeros([X1.shape[0], conf.n_classes, 2]), conf=conf, distort=False, scale=conf.rescale)
+
 
         X1 = X1.astype("float32") / 255
         pred = model.predict(X1,batch_size = X1.shape[0])

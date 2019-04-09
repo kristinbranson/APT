@@ -436,7 +436,7 @@ class DataIteratorTF(object):
         if self.conf.img_dim == 1:
             ims = np.tile(ims, 3)
 
-        mask_sz = [int(x/self.conf.op_label_scale) for x in self.conf.imsz]
+        mask_sz = [int(x/self.conf.op_label_scale/self.conf.op_rescale) for x in self.conf.imsz]
         mask_sz1 = [self.batch_size,] + mask_sz + [2*self.vec_num]
         mask_sz2 = [self.batch_size,] + mask_sz + [self.heat_num]
         mask_im1 = np.ones(mask_sz1)

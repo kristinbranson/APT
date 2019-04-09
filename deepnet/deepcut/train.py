@@ -265,6 +265,8 @@ def get_pred_fn(cfg, model_file=None,name='deepnet'):
             cur_im = np.tile(all_f,[1,1,1,3])
         else:
             cur_im = all_f
+        cur_im, _ = PoseTools.preprocess_ims(cur_im, in_locs=np.zeros([cur_im.shape[0], cfg.n_classes, 2]), conf=cfg, distort=False, scale=cfg.dlc_rescale)
+
         cur_out = sess.run(outputs, feed_dict={inputs: cur_im})
         scmap, locref = predict.extract_cnn_output(cur_out, cfg)
         pose = predict.argmax_pose_predict(scmap, locref, cfg.stride)

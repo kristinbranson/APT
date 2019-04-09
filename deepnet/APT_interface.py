@@ -635,7 +635,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
     # the function returns a list of [expid, frame_number and trxid] showing
     #  how the data was split between the two datasets.
 
-    assert not (on_gt and split), 'Cannot split gt data'
+    # assert not (on_gt and split), 'Cannot split gt data'
 
     local_dirs, _ = multiResData.find_local_dirs(conf, on_gt)
     lbl = h5py.File(conf.labelfile, 'r')
@@ -1039,7 +1039,7 @@ def create_cv_split_files(conf, n_splits=3):
                 splits[cur_fold].extend(trx_info[tndx])
                 per_fold[cur_fold] += len(trx_info[tndx])
 
-        elif conf.splitType == 'frames':
+        elif conf.splitType == 'frame':
             for ndx in range(len(local_dirs)):
                 for mndx in range(len(mov_info[ndx])):
                     valid_folds = np.where(per_fold < lbls_per_fold)[0]

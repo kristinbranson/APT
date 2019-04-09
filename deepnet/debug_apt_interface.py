@@ -1,3 +1,145 @@
+
+data_type = 'roian'
+
+import APT_interface as apt
+import h5py
+import PoseTools
+import os
+import time
+import glob
+import re
+import numpy as np
+import matplotlib.pyplot as plt
+import apt_expts
+import os
+import ast
+import apt_expts
+import os
+import pickle
+
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
+gt_lbl = None
+lbl_file = '/groups/branson/bransonlab/apt/experiments/data/roian_apt_dlstripped.lbl'
+op_af_graph = '\(0,1\),\(0,2\),\(0,3\),\(1,2\),\(1,3\),\(2,3\)'
+
+lbl = h5py.File(lbl_file,'r')
+proj_name = apt.read_string(lbl['projname'])
+nviews = int(apt.read_entry(lbl['cfg']['NumViews']))
+lbl.close()
+cache_dir = '/nrs/branson/mayank/apt_cache'
+all_models = ['openpose']
+
+gpu_model = 'GeForceRTX2080Ti'
+sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
+n_splits = 3
+
+
+common_conf = {}
+common_conf['rrange'] = 10
+common_conf['trange'] = 5
+common_conf['mdn_use_unet_loss'] = True
+common_conf['dl_steps'] = 100000
+common_conf['decay_steps'] = 20000
+common_conf['save_step'] = 5000
+common_conf['batch_size'] = 8
+common_conf['maxckpt'] = 20
+cache_dir = '/nrs/branson/mayank/apt_cache'
+train_name = 'deepnet'
+
+
+assert gt_lbl is None
+all_view = []
+for view in range(nviews):
+    out_exp = {}
+    for tndx in range(len(all_models)):
+        train_type = all_models[tndx]
+
+        out_split = None
+        for split in range(n_splits):
+            exp_name = 'cv_split_{}'.format(split)
+            mdn_conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, 'mdn')
+            conf = apt.create_conf(lbl_file, view, exp_name, cache_dir, train_type)
+
+            if op_af_graph is not None:
+                conf.op_affinity_graph = ast.literal_eval(op_af_graph.replace('\\', ''))
+            files = glob.glob(os.path.join(conf.cachedir, "{}-[0-9]*").format(train_name))
+            files.sort(key=os.path.getmtime)
+            files = [f for f in files if os.path.splitext(f)[1] in ['.index', '']]
+            aa = [int(re.search('-(\d*)',f).groups(0)[0]) for f in files]
+            aa = [b-a for a,b in zip(aa[:-1],aa[1:])]
+            if any([a<0 for a in aa]):
+                bb = int(np.where(np.array(aa)<0)[0])+1
+                files = files[bb:]
+            n_max = 10
+            if len(files)> n_max:
+                gg = len(files)
+                sel = np.linspace(0,len(files)-1,n_max).astype('int')
+                files = [files[s] for s in sel]
+
+            afiles = [f.replace('.index', '') for f in files]
+            afiles = afiles[-1:]
+            db_file = os.path.join(mdn_conf.cachedir,'val_TF.tfrecords')
+            mdn_out = apt_expts.classify_db_all(conf,db_file,afiles,train_type,name=train_name)
+
+        out_exp[train_type] = out_split
+    all_view.append(out_exp)
+
+
+
+##
+
+in_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4/leap_train.h5'
+out_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4_leap_orig/leap_train.h5'
+
+import h5py
+H = h5py.File(in_file,'r')
+locs = H['joints'][:]
+hf = h5py.File(out_file,'w')
+
+hmaps = PoseTools.create_label_images(locs, conf.imsz[:2], 1, 5)
+hmaps += 1
+hmaps /= 2  # brings it back to [0,1]
+
+hf.create_dataset('box', data=H['box'][:])
+hf.create_dataset('confmaps', data=hmaps)
+hf.create_dataset('joints', data=locs)
+
+hf.close()
+H.close()
+
+##
+import multiResData
+A = multiResData.read_and_decode_without_session('/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/gtdata/gtdata_view0.tfrecords',5,())
+ims = np.array(A[0])
+locs = np.array(A[1])
+
+out_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4_leap_orig/leap_gt.h5'
+
+import h5py
+hf = h5py.File(out_file,'w')
+
+hf.create_dataset('box', data=ims)
+hf.create_dataset('joints', data=locs)
+
+hf.close()
+
+##
+
+gt_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4_leap_orig/leap_gt.h5'
+out_file = '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/leap/view_0/stephen_randsplit_round_4_leap_orig/gt_preds_002.mat/leap_gt.h5'
+
+a = h5py.File(gt_file,'r')
+b = h5py.File(out_file,'r')
+locs = a['joints'][:]
+preds = np.transpose(b['positions_pred'][:],[0,2,1])
+hmaps = b['conf_pred'][:]
+
+dd = np.sqrt(np.sum((locs-preds)**2,axis=-1))
+np.percentile(dd,[50,75,90],axis=0)
+
+##
+
 import os
 import APT_interface as apt
 import glob
